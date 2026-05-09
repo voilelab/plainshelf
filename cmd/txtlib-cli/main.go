@@ -43,7 +43,7 @@ func printUsage() {
 	fmt.Println("  txtlib-cli init [path]          Initialize a new library (default: current directory)")
 	fmt.Println("  txtlib-cli list [path]          List all books in the library (default: current directory)")
 	fmt.Println("  txtlib-cli add <title> [path]   Add a new book to the library")
-	fmt.Println("  txtlib-cli import <sourcePath> <bookID> [path]    Import a book from a source path into the library")
+	fmt.Println("  txtlib-cli import <sourcePath> [path]    Import a book from a source path into the library")
 	fmt.Println("")
 	fmt.Println("Global options:")
 	fmt.Println("  -h, --help     Show this help message")
