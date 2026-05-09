@@ -101,7 +101,7 @@ func TestLibraryGetAllLayers(t *testing.T) {
 		t.Fatalf("Failed to get all layers: %v", err)
 	}
 
-	expectedLayers := []Layers{{"default", "test"}, {"empty"}}
+	expectedLayers := []Layers{{""}, {"default"}, {"default", "test"}, {"empty"}}
 	log.Println("Expected layers:", expectedLayers)
 	log.Println("Actual layers:", layers)
 	if len(layers) != len(expectedLayers) {
