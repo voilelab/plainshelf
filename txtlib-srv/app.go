@@ -401,6 +401,47 @@ func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+// PATCH /api/books/{book_id}/split_config
+func (app *App) HandleAPIUpdateBookSplitConfig(w http.ResponseWriter, r *http.Request) {
+	bookID, err := readBookID(r)
+	if err != nil {
+		http.Error(w, "invalid book_id", http.StatusBadRequest)
+		return
+	}
+
+	book, err := app.lib.GetBook(bookID)
+	if err != nil {
+		if errors.Is(err, txtlib.ErrBookNotFound) {
+			http.Error(w, "book not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to get book", http.StatusInternalServerError)
+		return
+	}
+
+	var splitConfig txtlib.SplitConfig
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&splitConfig); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	snapshot, err := book.GetSnapshot(book.CurrentSnapshot())
+	if err != nil {
+		http.Error(w, "failed to get book snapshot", http.StatusInternalServerError)
+		return
+	}
+
+	err = snapshot.UpdateSplitConfig(splitConfig)
+	if err != nil {
+		http.Error(w, "failed to update split config", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // GET /api/marks/{book_id}
 func (app *App) HandleAPIGetMarks(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)
@@ -550,6 +591,7 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/books/{book_id}/cover", app.HandleAPIDeleteBookCover)
 
 	mux.HandleFunc("GET /api/books/{book_id}/content", app.HandleAPIGetBookContent)
+	mux.HandleFunc("PATCH /api/books/{book_id}/split_config", app.HandleAPIUpdateBookSplitConfig)
 
 	mux.HandleFunc("GET /api/marks/{book_id}", app.HandleAPIGetMarks)
 	mux.HandleFunc("POST /api/marks/{book_id}", app.HandleAPIUpdateMarks)

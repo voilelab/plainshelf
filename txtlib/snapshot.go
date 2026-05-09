@@ -39,6 +39,9 @@ type SnapshotMeta struct {
 	SourceLabel string `json:"source_label"`
 	SourceURI   string `json:"source_uri"`
 	Comment     string `json:"comment"`
+
+	// split config: how the novel should be split into parts
+	SplitConfig SplitConfig `json:"split_config,omitempty"`
 }
 
 func (r *Snapshot) FolderPath() string {
@@ -100,6 +103,15 @@ func (r *Snapshot) UpdateHash() error {
 
 	r.meta.ContentHash = newHash
 	err = r.writebackMeta()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	return nil
+}
+
+func (r *Snapshot) UpdateSplitConfig(config SplitConfig) error {
+	r.meta.SplitConfig = config
+	err := r.writebackMeta()
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
