@@ -9,18 +9,17 @@ import (
 )
 
 func handleAdd(args []string) {
-	if len(args) < 2 {
-		fmt.Println("Error: bookID and title are required")
-		fmt.Println("Usage: txtlib-cli add <bookID> <title> [path]")
+	if len(args) < 1 {
+		fmt.Println("Error: title is required")
+		fmt.Println("Usage: txtlib-cli add <title> [path]")
 		os.Exit(1)
 	}
 
-	bookID := args[0]
-	title := args[1]
+	title := args[0]
 
 	var libPath string
-	if len(args) > 2 {
-		libPath = args[2]
+	if len(args) > 1 {
+		libPath = args[1]
 	} else {
 		var err error
 		libPath, err = os.Getwd()
@@ -43,15 +42,6 @@ func handleAdd(args []string) {
 		os.Exit(1)
 	}
 	defer lib.Close()
-
-	// Check if book already exists
-	existingBook, err := lib.GetBook(bookID)
-	if err == nil && existingBook != nil {
-		fmt.Printf("Error: Book with ID '%s' already exists (Title: %s)\n", bookID, existingBook.Title())
-		os.Exit(1)
-	}
-
-	fmt.Printf("Adding book '%s' with title '%s'...\n", bookID, title)
 
 	book, err := lib.NewBook([]string{"Uncategorized"}, title)
 	if err != nil {

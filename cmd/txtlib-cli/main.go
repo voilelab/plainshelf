@@ -42,7 +42,7 @@ func printUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  txtlib-cli init [path]          Initialize a new library (default: current directory)")
 	fmt.Println("  txtlib-cli list [path]          List all books in the library (default: current directory)")
-	fmt.Println("  txtlib-cli add <bookID> <title> [path]  Add a new book to the library")
+	fmt.Println("  txtlib-cli add <title> [path]   Add a new book to the library")
 	fmt.Println("  txtlib-cli import <sourcePath> <bookID> [path]    Import a book from a source path into the library")
 	fmt.Println("")
 	fmt.Println("Global options:")
@@ -53,6 +53,6 @@ func printUsage() {
 	fmt.Println("  txtlib-cli init                    # Initialize library in current directory")
 	fmt.Println("  txtlib-cli init ~/my-library       # Initialize library in ~/my-library")
 	fmt.Println("  txtlib-cli list                    # List books in current directory library")
-	fmt.Println("  txtlib-cli add book-123 \"My Book\"  # Add a book with ID 'book-123'")
-	fmt.Println("  txtlib-cli import ~/source/book.txt book-123  # Import a book from source path")
+	fmt.Println("  txtlib-cli add \"My Book\"         # Add a book with title 'My Book' to current directory library")
+	fmt.Println("  txtlib-cli import ~/source/book.txt # Import a book from source path")
 }

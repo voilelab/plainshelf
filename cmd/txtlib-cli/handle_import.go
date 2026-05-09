@@ -10,18 +10,17 @@ import (
 )
 
 func handleImport(args []string) {
-	if len(args) < 2 {
-		fmt.Println("Error: sourcePath and bookID are required")
-		fmt.Println("Usage: txtlib-cli import <sourcePath> <bookID> [path]")
+	if len(args) < 1 {
+		fmt.Println("Error: sourcePath is required")
+		fmt.Println("Usage: txtlib-cli import <sourcePath> [path]")
 		os.Exit(1)
 	}
 
 	sourcePath := args[0]
-	bookID := args[1]
 
 	var libPath string
-	if len(args) > 2 {
-		libPath = args[2]
+	if len(args) > 1 {
+		libPath = args[1]
 	} else {
 		var err error
 		libPath, err = os.Getwd()
@@ -58,21 +57,16 @@ func handleImport(args []string) {
 	}
 	defer lib.Close()
 
-	// Check if book already exists, if not create it
-	book, err := lib.GetBook(bookID)
-	if err != nil {
-		// Book doesn't exist, create it with filename as title
-		filename := filepath.Base(absSourcePath)
-		nameWithoutExt := strings.TrimSuffix(filename, filepath.Ext(filename))
+	// Book doesn't exist, create it with filename as title
+	filename := filepath.Base(absSourcePath)
+	nameWithoutExt := strings.TrimSuffix(filename, filepath.Ext(filename))
 
-		fmt.Printf("Book '%s' does not exist, creating it with title '%s'...\n", bookID, nameWithoutExt)
-		book, err = lib.NewBook([]string{"Uncategorized"}, nameWithoutExt)
-		if err != nil {
-			fmt.Printf("Error creating book: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("Book created successfully!\n")
+	book, err := lib.NewBook([]string{"Uncategorized"}, nameWithoutExt)
+	if err != nil {
+		fmt.Printf("Error creating book: %v\n", err)
+		os.Exit(1)
 	}
+	fmt.Printf("Book created successfully!\n")
 
 	// Open source file
 	sourceFile, err := os.Open(absSourcePath)
