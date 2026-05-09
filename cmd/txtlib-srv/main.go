@@ -2,6 +2,8 @@ package main
 
 import (
 	"flag"
+	"log"
+	"os"
 
 	txtlibsrv "github.com/voilelab/plainshelf/txtlib-srv"
 )
@@ -18,6 +20,7 @@ func main() {
 
 	err := txtlibsrv.MainService(confPath)
 	if err != nil {
-		panic(err)
+		log.Println("Error starting txtlib-srv:", err)
+		os.Exit(1)
 	}
 }
