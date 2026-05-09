@@ -1,0 +1,94 @@
+package txtlibsrv
+
+import (
+	"encoding/json"
+	"log"
+	"net/http"
+	"strings"
+)
+
+const maxImportBodySize = 100 << 20 // 100 MB
+
+func parseImportLayerParts(rawLayer string) []string {
+	trimmed := strings.TrimSpace(rawLayer)
+	if trimmed == "" || trimmed == "/" {
+		return nil
+	}
+
+	trimmed = strings.Trim(trimmed, "/")
+	if trimmed == "" {
+		return nil
+	}
+
+	parts := make([]string, 0)
+	for part := range strings.SplitSeq(trimmed, "/") {
+		normalizedPart := strings.TrimSpace(part)
+		if normalizedPart == "" {
+			continue
+		}
+		parts = append(parts, normalizedPart)
+	}
+
+	if len(parts) == 0 {
+		return nil
+	}
+
+	return parts
+}
+
+// POST /api/books/import
+func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
+	// Limit overall request body size.
+	r.Body = http.MaxBytesReader(w, r.Body, maxImportBodySize)
+
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		if err.Error() == "http: request body too large" {
+			http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
+			return
+		}
+		http.Error(w, "invalid multipart form: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Required: file field.
+	f, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "missing required field: file", http.StatusBadRequest)
+		return
+	}
+	defer f.Close()
+
+	// Optional fields.
+	title := r.FormValue("title")
+	if title == "" {
+		title = header.Filename
+	}
+	layerParts := parseImportLayerParts(r.FormValue("layer"))
+
+	newBook, err := app.lib.NewBook(layerParts, title)
+	if err != nil {
+		log.Printf("NewBook error: %v", err)
+		http.Error(w, "failed to create new book", http.StatusInternalServerError)
+		return
+	}
+
+	snapshot, err := newBook.NewSnapshot(f, "file", "imported file", "")
+	if err != nil {
+		log.Printf("NewSnapshot error: %v", err)
+		http.Error(w, "failed to create snapshot from uploaded file", http.StatusInternalServerError)
+		return
+	}
+
+	newBook.SetCurrentSnapshot(snapshot.ID())
+
+	resp := Book{
+		Meta:  newBook.GetMeta(),
+		Layer: newBook.Layers(),
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("HandleAPIImportBook encode response: %v", err)
+	}
+}

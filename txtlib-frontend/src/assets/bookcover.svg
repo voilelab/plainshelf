@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="360" viewBox="0 0 240 360" role="img" aria-labelledby="title desc">
+  <title id="title">Book cover placeholder</title>
+  <desc id="desc">Default cover image used when a book has no cover.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f6efe1"/>
+      <stop offset="100%" stop-color="#e8dcc2"/>
+    </linearGradient>
+    <linearGradient id="spine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c7b18c"/>
+      <stop offset="100%" stop-color="#b79f78"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="240" height="360" rx="16" fill="url(#bg)"/>
+  <rect x="0" y="0" width="34" height="360" rx="16" fill="url(#spine)"/>
+  <rect x="52" y="82" width="156" height="2" fill="#8f7b57" opacity="0.65"/>
+  <rect x="52" y="94" width="132" height="2" fill="#8f7b57" opacity="0.45"/>
+  <g fill="none" stroke="#8f7b57" stroke-opacity="0.5" stroke-width="2">
+    <rect x="58" y="132" width="124" height="92" rx="10"/>
+    <path d="M84 168h72"/>
+    <path d="M84 184h58"/>
+  </g>
+  <text x="122" y="282" text-anchor="middle" font-family="Georgia, serif" font-size="20" fill="#6f5d3f" letter-spacing="1.8">NO COVER</text>
+</svg>

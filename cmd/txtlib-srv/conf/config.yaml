@@ -1,0 +1,9 @@
+server_conf:
+  addr: "127.0.0.1:20000"
+  read_timeout: 1000ms
+  write_timeout: 1000ms
+
+app_conf:
+  lib_path: "./lib"
+  mark_path: "./mark"
+  index_path: "./index"
