@@ -59,7 +59,10 @@
           </p>
 
           <div v-if="layersLoading" class="sidebar-status">Loading layers...</div>
-          <div v-else-if="layersError" class="sidebar-status sidebar-error" role="alert">Failed to load layers</div>
+          <div v-else-if="layersError" class="sidebar-status sidebar-error sidebar-layer-error" role="alert">
+            <p>{{ layersError }}</p>
+            <button type="button" class="button" @click="fetchLayers">Retry</button>
+          </div>
           <LayerTree
             v-else
             :nodes="layerTree"
@@ -331,6 +334,20 @@ onMounted(async () => {
 .create-layer-toggle:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.sidebar-layer-error {
+  display: grid;
+  gap: 8px;
+  margin: 4px 8px;
+}
+
+.sidebar-layer-error p {
+  margin: 0;
+}
+
+.sidebar-layer-error .button {
+  justify-self: start;
 }
 
 .create-layer-form {

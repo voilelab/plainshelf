@@ -16,7 +16,10 @@
       </header>
 
       <div v-if="loading" class="loading reader-status">Loading content...</div>
-      <div v-else-if="error" class="error reader-status">{{ error }}</div>
+      <div v-else-if="error" class="error reader-status reader-error" role="alert">
+        <p>{{ error }}</p>
+        <button class="button" type="button" @click="fetchReaderData">Retry</button>
+      </div>
 
       <article v-else class="reader-document">
         <div class="reader-content" @scroll="onScroll" ref="readerRef">
@@ -132,6 +135,19 @@ onMounted(() => {
 .reader-status {
   margin: 0 auto;
   max-width: 760px;
+}
+
+.reader-error {
+  display: grid;
+  gap: 10px;
+}
+
+.reader-error p {
+  margin: 0;
+}
+
+.reader-error .button {
+  justify-self: start;
 }
 
 .reader-document {

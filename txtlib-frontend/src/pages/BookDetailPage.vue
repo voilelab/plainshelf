@@ -3,7 +3,10 @@
     <div v-if="showImportedMessage" class="loading">Book imported successfully.</div>
     <div v-if="showSavedMessage" class="loading">Metadata saved.</div>
     <div v-if="loading" class="loading">Loading book detail...</div>
-    <div v-else-if="error" class="error">{{ error }}</div>
+    <div v-else-if="error" class="error detail-error" role="alert">
+      <p>{{ error }}</p>
+      <button class="button" type="button" @click="fetchDetail">Retry</button>
+    </div>
 
     <article v-else-if="book" class="detail-panel">
       <div class="detail-cover-col">
@@ -102,6 +105,19 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.detail-error {
+  display: grid;
+  gap: 10px;
+}
+
+.detail-error p {
+  margin: 0;
+}
+
+.detail-error .button {
+  justify-self: start;
 }
 
 .actions {

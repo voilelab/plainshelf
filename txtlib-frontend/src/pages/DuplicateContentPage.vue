@@ -53,25 +53,16 @@ async function loadDuplicates(): Promise<void> {
 
     const resolvedGroups = await Promise.all(
       duplicateGroups.map(async (groupIds, index) => {
-        const books = await Promise.all(
-          groupIds.map(async (bookId) => {
-            try {
-              return await getBook(bookId);
-            } catch (err) {
-              console.warn(`[duplicates] failed to fetch book detail for ${bookId}:`, err);
-              return null;
-            }
-          })
-        );
+        const books = await Promise.all(groupIds.map(async (bookId) => await getBook(bookId)));
 
         return {
           groupIndex: index + 1,
-          books: books.filter((book): book is Book => book !== null)
+          books
         } satisfies DuplicateGroupView;
       })
     );
 
-    groups.value = resolvedGroups.filter((group) => group.books.length > 0);
+    groups.value = resolvedGroups;
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load duplicate content';
     groups.value = [];

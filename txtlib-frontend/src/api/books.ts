@@ -1,13 +1,3 @@
-/**
- * API client for txtlib-srv backend.
- *
- * Real API endpoints are tried first. On failure, functions fall back to mock
- * data so the frontend can continue to run without a running backend.
- *
- * Backend book shape:  { meta: BackendBookMeta, layer: string[] }
- * Marks/progress:      GET/POST /api/marks/{id}  →  { char_offset: number }
- * Content:             GET /api/books/{id}/content  →  plain text
- */
 import type {
   BookmarkPayload,
   Book,
@@ -18,6 +8,14 @@ import type {
   PaginatedBooks,
   ReadingProgress,
 } from '../types/book';
+import {
+  API_BASE,
+  buildApiUrl,
+  fetchBlob,
+  fetchJson,
+  fetchText,
+  isMockApiMode
+} from './client';
 
 interface BackendBookMeta {
   id: string;
@@ -45,66 +43,20 @@ interface BackendMark {
   char_offset: number;
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? '';
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-    ...init
-  });
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-  }
-
-  if (res.status === 204) {
-    return undefined as T;
-  }
-
-  const contentLength = res.headers.get('content-length');
-  if (contentLength === '0') {
-    return undefined as T;
-  }
-
-  const raw = await res.text();
-  if (!raw.trim()) {
-    return undefined as T;
-  }
-
-  return JSON.parse(raw) as T;
-}
-
-async function requestText(path: string): Promise<string> {
-  const res = await fetch(`${API_BASE}${path}`);
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-  }
-  return res.text();
-}
-
 async function uploadBookCoverInternal(bookID: string, file: File): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/books/${encodeURIComponent(bookID)}/cover`, {
+  await fetchJson<void>(`/api/books/${encodeURIComponent(bookID)}/cover`, {
     method: 'PUT',
     headers: {
       'Content-Type': file.type || 'application/octet-stream'
     },
     body: file
   });
-
-  if (!res.ok) {
-    const msg = (await res.text()).trim();
-    throw new Error(msg || `HTTP ${res.status}: ${res.statusText}`);
-  }
 }
 
 async function deleteBookCoverInternal(bookID: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/books/${encodeURIComponent(bookID)}/cover`, {
+  await fetchJson<void>(`/api/books/${encodeURIComponent(bookID)}/cover`, {
     method: 'DELETE'
   });
-
-  if (!res.ok) {
-    const msg = (await res.text()).trim();
-    throw new Error(msg || `HTTP ${res.status}: ${res.statusText}`);
-  }
 }
 
 function transformBook(b: BackendBook): Book {
@@ -319,54 +271,78 @@ function mockSaveBookmark(id: string, payload: BookmarkPayload): void {
   mockProgress[id] = { ...prev, char_offset: payload.char_offset, percent: nextPercent };
 }
 
+function mockImportBook(payload: BookCreateRequest): Book {
+  const now = new Date().toISOString();
+  const id = `mock-${Date.now()}`;
+  const normalizedLayer = payload.layer
+    ?.split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0) ?? [];
+
+  const created: Book = {
+    id,
+    title: payload.title.trim() || payload.file.name,
+    authors: [],
+    layers: normalizedLayer,
+    language: 'unknown',
+    format: 'txt',
+    tags: [],
+    comment: payload.alias?.trim() || undefined,
+    created_at: now,
+    updated_at: now
+  };
+
+  mockBooks.unshift(created);
+  return created;
+}
+
 export async function listBooks(page = 1, pageSize = PAGE_SIZE_DEFAULT): Promise<PaginatedBooks> {
-  try {
-    const all = await request<BackendBook[]>('/api/books');
-    const books = all.map(transformBook);
-    const start = (page - 1) * pageSize;
-    return { items: books.slice(start, start + pageSize), total: books.length, page, pageSize };
-  } catch (err) {
-    console.warn('[api] listBooks fell back to mock:', err);
+  if (isMockApiMode()) {
     return delay(mockListBooks(page, pageSize));
   }
+
+  const all = await fetchJson<BackendBook[]>('/api/books');
+  const books = all.map(transformBook);
+  const start = (page - 1) * pageSize;
+  return { items: books.slice(start, start + pageSize), total: books.length, page, pageSize };
 }
 
 export async function getBook(id: string): Promise<Book> {
-  try {
-    const b = await request<BackendBook>(`/api/books/${encodeURIComponent(id)}`);
-    return transformBook(b);
-  } catch (err) {
-    console.warn('[api] getBook fell back to mock:', err);
+  if (isMockApiMode()) {
     return delay(mockGetBook(id));
   }
+
+  const b = await fetchJson<BackendBook>(`/api/books/${encodeURIComponent(id)}`);
+  return transformBook(b);
 }
 
 export async function getDuplicateBookGroups(): Promise<string[][]> {
-  try {
-    return await request<string[][]>('/api/books/duplicate');
-  } catch (err) {
-    console.warn('[api] getDuplicateBookGroups fell back to mock:', err);
+  if (isMockApiMode()) {
     return delay([]);
   }
+
+  return await fetchJson<string[][]>('/api/books/duplicate');
 }
 
 export async function updateBook(id: string, payload: BookUpdateRequest): Promise<Book> {
-  try {
-    const body: BookUpdateRequest = {};
-    if (payload.title !== undefined) body.title = payload.title;
-    if (payload.tags !== undefined) body.tags = payload.tags;
-    if (payload.authors !== undefined) body.authors = payload.authors;
-    if (payload.language !== undefined) body.language = payload.language;
-    if (payload.comment !== undefined) body.comment = payload.comment;
-    const b = await request<BackendBook>(`/api/books/${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      body: JSON.stringify(body)
-    });
-    return transformBook(b);
-  } catch (err) {
-    console.warn('[api] updateBook fell back to mock:', err);
+  if (isMockApiMode()) {
     return delay(mockUpdateBook(id, payload));
   }
+
+  const body: BookUpdateRequest = {};
+  if (payload.title !== undefined) body.title = payload.title;
+  if (payload.tags !== undefined) body.tags = payload.tags;
+  if (payload.authors !== undefined) body.authors = payload.authors;
+  if (payload.language !== undefined) body.language = payload.language;
+  if (payload.comment !== undefined) body.comment = payload.comment;
+  const b = await fetchJson<BackendBook>(`/api/books/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  return transformBook(b);
 }
 
 export async function updateBookLayer(bookId: string, layer: string): Promise<void> {
@@ -375,54 +351,61 @@ export async function updateBookLayer(bookId: string, layer: string): Promise<vo
     .map((segment) => segment.trim())
     .filter((segment) => segment.length > 0);
 
-  try {
-    await request(`/api/books/${encodeURIComponent(bookId)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        layer: normalized
-      })
-    });
-  } catch (err) {
-    console.warn('[api] updateBookLayer fell back to mock:', err);
+  if (isMockApiMode()) {
     await delay(mockUpdateBookLayer(bookId, layer));
+    return;
   }
+
+  await fetchJson(`/api/books/${encodeURIComponent(bookId)}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      layer: normalized
+    })
+  });
 }
 
 export async function getBookContent(id: string): Promise<BookContent> {
-  try {
-    const text = await requestText(`/api/books/${encodeURIComponent(id)}/content`);
-    return { content: text };
-  } catch (err) {
-    console.warn('[api] getBookContent fell back to mock:', err);
+  if (isMockApiMode()) {
     return delay(mockGetBookContent(id));
   }
+
+  const text = await fetchText(`/api/books/${encodeURIComponent(id)}/content`);
+  return { content: text };
 }
 
 export async function getReadingProgress(id: string): Promise<ReadingProgress> {
-  try {
-    const mark = await request<BackendMark>(`/api/marks/${encodeURIComponent(id)}`);
-    return { char_offset: mark.char_offset };
-  } catch (err) {
-    console.warn('[api] getReadingProgress fell back to mock:', err);
+  if (isMockApiMode()) {
     return delay({ ...mockGetReadingProgress(id) });
   }
+
+  const mark = await fetchJson<BackendMark>(`/api/marks/${encodeURIComponent(id)}`);
+  return { char_offset: mark.char_offset };
 }
 
 export async function saveBookmark(id: string, payload: BookmarkPayload): Promise<void> {
-  console.log(`[api] saveBookmark called with id=${id} char_offset=${payload.char_offset}`);
-  try {
-    await request(`/api/marks/${encodeURIComponent(id)}`, {
-      method: 'POST',
-      body: JSON.stringify({ char_offset: payload.char_offset })
-    });
-  } catch (err) {
-    console.warn('[api] saveBookmark fell back to mock:', err);
+  if (isMockApiMode()) {
     mockSaveBookmark(id, payload);
     await delay(undefined);
+    return;
   }
+
+  await fetchJson(`/api/marks/${encodeURIComponent(id)}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ char_offset: payload.char_offset })
+  });
 }
 
 export async function importBook(payload: BookCreateRequest): Promise<Book> {
+  if (isMockApiMode()) {
+    return delay(mockImportBook(payload));
+  }
+
   const form = new FormData();
   form.append('file', payload.file);
 
@@ -441,17 +424,10 @@ export async function importBook(payload: BookCreateRequest): Promise<Book> {
     form.append('layer', trimmedLayer);
   }
 
-  const res = await fetch(`${API_BASE}/api/books/import`, {
+  const created = transformBook(await fetchJson<BackendBook>('/api/books/import', {
     method: 'POST',
     body: form
-  });
-
-  if (!res.ok) {
-    const msg = (await res.text()).trim();
-    throw new Error(msg || `HTTP ${res.status}: ${res.statusText}`);
-  }
-
-  const created = transformBook((await res.json()) as BackendBook);
+  }));
 
   if (payload.coverFile) {
     await uploadBookCoverInternal(created.id, payload.coverFile);
@@ -465,12 +441,19 @@ export async function uploadBookCover(id: string, file: File): Promise<void> {
 }
 
 export async function getBookCover(id: string): Promise<Blob> {
-  const res = await fetch(getBookCoverUrl(id));
-  if (!res.ok) {
-    const msg = (await res.text()).trim();
-    throw new Error(msg || `HTTP ${res.status}: ${res.statusText}`);
+  if (isMockApiMode()) {
+    const book = findBookOrThrow(id);
+    if (!book.cover_url) {
+      throw new Error('Book cover not available');
+    }
+    const res = await fetch(book.cover_url);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    return await res.blob();
   }
-  return res.blob();
+
+  return await fetchBlob(`/api/books/${encodeURIComponent(id)}/cover`);
 }
 
 export async function deleteBookCover(id: string): Promise<void> {
@@ -478,19 +461,24 @@ export async function deleteBookCover(id: string): Promise<void> {
 }
 
 export async function deleteBook(id: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/api/books/${encodeURIComponent(id)}`, {
+  if (isMockApiMode()) {
+    const idx = mockBooks.findIndex((book) => book.id === id);
+    if (idx >= 0) {
+      mockBooks.splice(idx, 1);
+    }
+    await delay(undefined);
+    return;
+  }
+
+  await fetchJson<void>(`/api/books/${encodeURIComponent(id)}`, {
     method: 'DELETE'
   });
-  if (!res.ok) {
-    const msg = (await res.text()).trim();
-    throw new Error(msg || `HTTP ${res.status}: ${res.statusText}`);
-  }
 }
 
 export function getBookCoverUrl(id: string, cacheKey?: number): string {
   const encodedId = encodeURIComponent(id);
   if (cacheKey === undefined) {
-    return `${API_BASE}/api/books/${encodedId}/cover`;
+    return buildApiUrl(`/api/books/${encodedId}/cover`);
   }
-  return `${API_BASE}/api/books/${encodedId}/cover?t=${encodeURIComponent(String(cacheKey))}`;
+  return buildApiUrl(`/api/books/${encodedId}/cover?t=${encodeURIComponent(String(cacheKey))}`);
 }

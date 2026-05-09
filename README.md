@@ -93,6 +93,16 @@ Runtime state.
 
 ## Development
 
+### Run Only Frontend
+
+```bash
+cd txtlib-frontend
+npm install
+
+# use mock data
+VITE_USE_MOCK_API=true npm run dev
+```
+
 ### Run server
 
 ```bash

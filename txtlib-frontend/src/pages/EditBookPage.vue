@@ -1,7 +1,10 @@
 <template>
   <section>
     <div v-if="loading" class="loading">Loading book metadata...</div>
-    <div v-else-if="error" class="error">{{ error }}</div>
+    <div v-else-if="error" class="error edit-error" role="alert">
+      <p>{{ error }}</p>
+      <button class="button" type="button" @click="fetchBook">Retry</button>
+    </div>
 
     <EditBook v-else-if="book" :book="book" :saving="saving" :error="saveError" @submit="onSubmit" @cancel="goBack" />
   </section>
@@ -66,4 +69,16 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.edit-error {
+  display: grid;
+  gap: 10px;
+}
+
+.edit-error p {
+  margin: 0;
+}
+
+.edit-error .button {
+  justify-self: start;
+}
 </style>

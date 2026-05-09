@@ -1,5 +1,5 @@
-const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 import { mockBooks } from './books';
+import { ApiError, fetchJson, isMockApiMode } from './client';
 import { normalizeLayerPath } from '../utils/layers';
 
 function delay<T>(value: T, ms = 240): Promise<T> {
@@ -84,37 +84,26 @@ function encodeLayerPathForURL(path: string): string {
 class LayerHttpError extends Error {}
 
 export async function getLayers(): Promise<string[]> {
-  try {
-    const res = await fetch(`${API_BASE}/api/layers`, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json'
-      }
-    });
-
-    if (!res.ok) {
-      const message = (await res.text()).trim();
-      throw new Error(message || `Failed to fetch layers: HTTP ${res.status} ${res.statusText}`);
-    }
-
-    const data: unknown = await res.json();
-    if (!Array.isArray(data)) {
-      throw new Error('Failed to fetch layers: invalid response format');
-    }
-
-    const unique = new Set<string>();
-    for (const item of data) {
-      const normalized = normalizeLayerValue(item);
-      if (normalized) {
-        unique.add(normalized);
-      }
-    }
-
-    return Array.from(unique).sort((a, b) => a.localeCompare(b));
-  } catch (err) {
-    console.warn('[api] getLayers fell back to mock:', err);
+  if (isMockApiMode()) {
     return delay(getMockLayers());
   }
+
+  const data: unknown = await fetchJson<unknown>('/api/layers', {
+    method: 'GET'
+  });
+  if (!Array.isArray(data)) {
+    throw new Error('Failed to fetch layers: invalid response format');
+  }
+
+  const unique = new Set<string>();
+  for (const item of data) {
+    const normalized = normalizeLayerValue(item);
+    if (normalized) {
+      unique.add(normalized);
+    }
+  }
+
+  return Array.from(unique).sort((a, b) => a.localeCompare(b));
 }
 
 export async function createLayer(layerPath: string): Promise<void> {
@@ -125,35 +114,26 @@ export async function createLayer(layerPath: string): Promise<void> {
 
   const encodedPath = encodeLayerPathForURL(normalized);
 
-  try {
-    const res = await fetch(`${API_BASE}/api/layers/${encodedPath}`, {
-      method: 'POST'
-    });
-
-    if (!res.ok) {
-      const message = (await res.text()).trim();
-
-      if (res.status === 400) {
-        throw new LayerHttpError('Layer path cannot be empty');
-      }
-
-      if (res.status === 500) {
-        throw new LayerHttpError('Failed to create layer');
-      }
-
-      throw new LayerHttpError(
-        message || `Failed to create layer: HTTP ${res.status} ${res.statusText}`
-      );
-    }
-
-    addMockLayer(normalized);
-  } catch (err) {
-    if (err instanceof LayerHttpError) {
-      throw err;
-    }
-
-    console.warn('[api] createLayer fell back to mock:', err);
+  if (isMockApiMode()) {
     addMockLayer(normalized);
     await delay(undefined);
+    return;
+  }
+
+  try {
+    await fetchJson<void>(`/api/layers/${encodedPath}`, {
+      method: 'POST'
+    });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 400) {
+      throw new LayerHttpError('Layer path cannot be empty');
+    }
+
+    if (err instanceof ApiError && err.status === 500) {
+      throw new LayerHttpError('Failed to create layer');
+    }
+
+    const message = err instanceof Error ? err.message : 'Failed to create layer';
+    throw new LayerHttpError(message || 'Failed to create layer');
   }
 }
