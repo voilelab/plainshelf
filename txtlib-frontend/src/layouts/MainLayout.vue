@@ -108,7 +108,7 @@
 
     <main class="main-content">
       <header class="topbar">
-        <h1 class="brand">Txtlib</h1>
+        <h1 class="brand">PlainShelf</h1>
       </header>
 
       <div class="page-area">
