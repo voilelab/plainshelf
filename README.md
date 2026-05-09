@@ -93,9 +93,25 @@ Runtime state.
 
 ## Development
 
+### Run server
+
+```bash
+# build frontend
+cd txtlib-frontend
+npm install
+npm run build
+cd ..
+
+# run server
+mkdir workspace0
+cp cmd/txtlib-srv/conf/config.yaml workspace0/
+cd workspace0
+go run ../cmd/txtlib-srv/main.go -conf config.yaml
+```
+
 ### Run tests
 
-```sh
+```bash
 go test ./...
 ```
 
