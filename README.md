@@ -7,6 +7,8 @@ It is designed for single-user local usage, with a filesystem-first data model a
 > Status: pre-alpha / early development  
 > APIs, data layout, and UI behavior may still change.
 
+![mock data preview](image.png)
+
 ---
 
 ## Goals
