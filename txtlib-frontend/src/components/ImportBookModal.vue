@@ -27,17 +27,6 @@
 
       <form class="import-form" @submit.prevent="onSubmit">
         <label class="field">
-          <span class="label">Alias (optional)</span>
-          <input
-            v-model="alias"
-            class="input"
-            type="text"
-            placeholder="Optional alias (single-file import only)"
-            :disabled="submitting || bookFiles.length > 1"
-          />
-        </label>
-
-        <label class="field">
           <span class="label">Book File (.txt / .md)</span>
           <input
             ref="bookInput"
@@ -65,19 +54,6 @@
           </ul>
         </section>
 
-        <label class="field">
-          <span class="label">Cover Image (.jpg / .jpeg / .png / .webp)</span>
-          <input
-            ref="coverInput"
-            class="input file-input"
-            type="file"
-            accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-            :disabled="submitting || bookFiles.length !== 1"
-            @change="onCoverFileChange"
-          />
-          <span class="label">Cover image is available only when importing one file.</span>
-        </label>
-
         <div class="actions">
           <button class="button" type="button" :disabled="submitting" @click="onClose">Cancel</button>
           <button class="button primary" type="submit" :disabled="submitting || files.length === 0">
@@ -94,7 +70,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useImportBook } from '../composables/useImportBook';
 import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
-import { readSelectedFile, readSelectedFiles } from '../utils/file';
+import { readSelectedFiles } from '../utils/file';
 
 const props = defineProps<{
   open: boolean;
@@ -112,10 +88,7 @@ const emit = defineEmits<{
 }>();
 
 const {
-  alias,
-  bookFiles,
   files,
-  coverFile,
   submitting,
   success,
   error,
@@ -127,26 +100,14 @@ const { fetchBooks } = useBookStore();
 const { fetchLayers } = useLayerStore();
 
 const bookInput = ref<HTMLInputElement | null>(null);
-const coverInput = ref<HTMLInputElement | null>(null);
 
 function onBookFileChange(event: Event): void {
   setBookFiles(readSelectedFiles(event));
-
-  if (bookFiles.value.length !== 1 && coverInput.value) {
-    coverInput.value.value = '';
-  }
-}
-
-function onCoverFileChange(event: Event): void {
-  coverFile.value = readSelectedFile(event);
 }
 
 function clearFileInputs(): void {
   if (bookInput.value) {
     bookInput.value.value = '';
-  }
-  if (coverInput.value) {
-    coverInput.value.value = '';
   }
 }
 

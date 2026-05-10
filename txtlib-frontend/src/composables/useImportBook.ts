@@ -4,7 +4,6 @@ import { deriveTitleFromFilename, hasSupportedExtension } from '../utils/file';
 import { normalizeLayerPath } from '../utils/layers';
 
 const bookExtPattern = /\.(txt|md)$/i;
-const coverExtPattern = /\.(jpg|jpeg|png|webp)$/i;
 
 export type ImportStatus = 'pending' | 'importing' | 'success' | 'failed';
 
@@ -28,10 +27,8 @@ export interface ImportSubmitResult {
 }
 
 export function useImportBook() {
-  const alias = ref('');
   const bookFiles = ref<File[]>([]);
   const files = ref<ImportBookItem[]>([]);
-  const coverFile = ref<File | null>(null);
   const submitting = ref(false);
   const success = ref('');
   const error = ref('');
@@ -47,10 +44,8 @@ export function useImportBook() {
   }
 
   function reset(): void {
-    alias.value = '';
     bookFiles.value = [];
     files.value = [];
-    coverFile.value = null;
     submitting.value = false;
     success.value = '';
     error.value = '';
@@ -61,10 +56,6 @@ export function useImportBook() {
     files.value = toImportBookItems(nextFiles);
     success.value = '';
     error.value = '';
-
-    if (nextFiles.length !== 1) {
-      coverFile.value = null;
-    }
   }
 
   function getSafeErrorMessage(err: unknown): string {
@@ -89,16 +80,6 @@ export function useImportBook() {
 
     if (bookFiles.value.length === 0) {
       error.value = 'Please choose at least one TXT or Markdown file.';
-      return null;
-    }
-
-    if (coverFile.value && bookFiles.value.length !== 1) {
-      error.value = 'Cover image is only supported when importing a single file.';
-      return null;
-    }
-
-    if (coverFile.value && !hasSupportedExtension(coverFile.value.name, coverExtPattern)) {
-      error.value = 'Cover image must be .jpg, .jpeg, .png, or .webp.';
       return null;
     }
 
@@ -131,10 +112,8 @@ export function useImportBook() {
         try {
           const created = await importBook({
             title: current.title,
-            alias: bookFiles.value.length === 1 ? alias.value : undefined,
             layer: normalizeImportLayerPath(currentLayerPath),
-            file: current.file,
-            coverFile: coverFile.value ?? undefined
+            file: current.file
           });
 
           files.value[index] = {
@@ -181,10 +160,8 @@ export function useImportBook() {
   }
 
   return {
-    alias,
     bookFiles,
     files,
-    coverFile,
     submitting,
     success,
     error,

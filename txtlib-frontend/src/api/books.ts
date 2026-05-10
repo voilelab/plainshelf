@@ -353,7 +353,6 @@ function mockImportBook(payload: BookCreateRequest): Book {
     language: 'unknown',
     format: 'txt',
     tags: [],
-    comment: payload.alias?.trim() || undefined,
     created_at: now,
     updated_at: now
   };
@@ -512,11 +511,6 @@ export async function importBook(payload: BookCreateRequest): Promise<Book> {
     form.append('title', trimmedTitle);
   }
 
-  const trimmedAlias = payload.alias?.trim() ?? '';
-  if (trimmedAlias.length > 0) {
-    form.append('alias', trimmedAlias);
-  }
-
   const trimmedLayer = payload.layer?.trim() ?? '';
   if (trimmedLayer.length > 0) {
     form.append('layer', trimmedLayer);
@@ -526,10 +520,6 @@ export async function importBook(payload: BookCreateRequest): Promise<Book> {
     method: 'POST',
     body: form
   }));
-
-  if (payload.coverFile) {
-    await uploadBookCoverInternal(created.id, payload.coverFile);
-  }
 
   return created;
 }

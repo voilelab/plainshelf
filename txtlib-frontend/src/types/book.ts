@@ -63,10 +63,8 @@ export interface BookUpdateRequest {
 
 export interface BookCreateRequest {
   title: string;
-  alias?: string;
   layer?: string;
   file: File;
-  coverFile?: File;
 }
 
 export type UpdateBookPayload = BookUpdateRequest;
