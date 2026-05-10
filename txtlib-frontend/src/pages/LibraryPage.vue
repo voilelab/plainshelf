@@ -11,7 +11,7 @@
       :count="total"
       :empty-message="emptyMessage"
       :page-size-options="PAGE_SIZE_OPTIONS"
-      @retry="fetchBooks"
+      @retry="reloadBooks"
       @select="openBook"
       @update:page="onPageChange"
       @update:page-size="onPageSizeChange"
@@ -46,6 +46,23 @@
       </template>
 
       <template #toolbar>
+        <div class="search-bar">
+          <input
+            v-model="searchInputValue"
+            class="search-input"
+            type="search"
+            placeholder="Search books..."
+            @keydown.enter="onSearchEnter"
+          />
+          <button
+            v-if="searchInputValue"
+            type="button"
+            class="search-clear-btn"
+            aria-label="Clear search"
+            @click="clearSearch"
+          >✕</button>
+          <button type="button" class="button search-commit-btn" @click="commitSearch">Search</button>
+        </div>
         <button class="button" type="button" @click="openImportModal">Import</button>
       </template>
     </BookCollectionPage>
@@ -79,6 +96,41 @@ const { books, loading, error, fetchBooks } = useBookStore();
 const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
 const booksLoaded = ref<boolean>(false);
 
+// ── Search state ──────────────────────────────────────────────────────────────
+const searchInputValue = ref<string>(toSingleQueryValue(route.query.search) ?? '');
+const committedSearch = ref<string>(searchInputValue.value.trim());
+
+async function reloadBooks(): Promise<void> {
+  booksLoaded.value = false;
+  await fetchBooks(committedSearch.value.trim());
+  booksLoaded.value = true;
+}
+
+function commitSearch(): void {
+  const nextSearch = searchInputValue.value.trim();
+  if (nextSearch === committedSearch.value.trim()) {
+    return;
+  }
+  committedSearch.value = nextSearch;
+}
+
+function onSearchEnter(event: KeyboardEvent): void {
+  if (event.isComposing) {
+    return;
+  }
+
+  event.preventDefault();
+  commitSearch();
+}
+
+function clearSearch(): void {
+  searchInputValue.value = '';
+  if (committedSearch.value.trim() !== '') {
+    committedSearch.value = '';
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function toLayerPath(value: LocationQueryValue | LocationQueryValue[] | undefined): string | undefined {
   const raw = toSingleQueryValue(value);
   if (!raw) {
@@ -90,7 +142,7 @@ function toLayerPath(value: LocationQueryValue | LocationQueryValue[] | undefine
 }
 
 
-function buildBooksQuery(layer: string | undefined, nextPage: number) {
+function buildBooksQuery(layer: string | undefined, nextPage: number, searchOverride?: string) {
   const nextQuery = {
     ...route.query
   } as Record<string, LocationQueryValue | LocationQueryValue[]>;
@@ -98,11 +150,17 @@ function buildBooksQuery(layer: string | undefined, nextPage: number) {
   delete nextQuery.layer;
   delete nextQuery.layers;
   delete nextQuery.page;
+  delete nextQuery.search;
 
   if (layer) {
     nextQuery.layers = layer;
   }
   nextQuery.page = String(nextPage);
+
+  const search = searchOverride !== undefined ? searchOverride : committedSearch.value;
+  if (search.trim()) {
+    nextQuery.search = search.trim();
+  }
 
   return nextQuery;
 }
@@ -162,6 +220,11 @@ const showLayerEmptyState = computed(() => {
 });
 
 const emptyMessage = computed(() => {
+  const q = committedSearch.value.trim();
+  if (q && filteredBooks.value.length === 0 && !loading.value) {
+    const layerSuffix = selectedLayer.value ? ` in ${selectedLayerTitle.value}` : '';
+    return `No books found for "${q}"${layerSuffix}.`;
+  }
   if (showLayerEmptyState.value) {
     return `No books in ${selectedLayerTitle.value}.`;
   }
@@ -225,7 +288,7 @@ function closeImportModal(): void {
 
 async function onImported(result: { successCount: number }): Promise<void> {
   if (result.successCount > 0) {
-    await fetchBooks();
+    await reloadBooks();
   }
 }
 
@@ -233,12 +296,19 @@ function openBook(id: string): void {
   void router.push(`/books/${id}`);
 }
 
+watch(selectedLayer, async () => {
+  await reloadBooks();
+});
+
+// Watch committed search: update URL and fetch from backend
 watch(
-  selectedLayer,
-  async () => {
-    booksLoaded.value = false;
-    await fetchBooks();
-    booksLoaded.value = true;
+  committedSearch,
+  async (newSearch) => {
+    void router.replace({
+      path: '/books',
+      query: buildBooksQuery(selectedLayer.value, 1, newSearch),
+    });
+    await reloadBooks();
   },
   { immediate: true }
 );
@@ -251,7 +321,9 @@ watch(
     const rawLayers = toLayerPath(route.query.layers);
     const hasLegacyLayerQuery = toSingleQueryValue(route.query.layer) !== undefined;
 
-    if (rawPage === String(normalizedPage) && rawLayers === layer && !hasLegacyLayerQuery) {
+    const rawSearch = toSingleQueryValue(route.query.search) ?? '';
+    const currentSearch = committedSearch.value.trim();
+    if (rawPage === String(normalizedPage) && rawLayers === layer && !hasLegacyLayerQuery && rawSearch === currentSearch) {
       return;
     }
 
@@ -282,5 +354,49 @@ watch(
 
 .breadcrumb-separator {
   opacity: 0.6;
+}
+
+.search-bar {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+.search-input {
+  background: var(--bg, #fff);
+  border: 1px solid #d0d7e0;
+  border-radius: 6px;
+  color: inherit;
+  font-size: 13px;
+  height: 30px;
+  padding: 0 28px 0 8px;
+  width: 180px;
+}
+
+.search-input:focus {
+  border-color: #6b9fe4;
+  outline: none;
+}
+
+.search-clear-btn {
+  background: transparent;
+  border: 1px solid #d0d7e0;
+  border-radius: 6px;
+  color: var(--muted, #888);
+  cursor: pointer;
+  font-size: 11px;
+  height: 30px;
+  line-height: 1;
+  padding: 0 8px;
+}
+
+.search-clear-btn:hover {
+  color: var(--text, #333);
+}
+
+.search-commit-btn {
+  height: 30px;
+  min-width: auto;
+  padding: 0 12px;
 }
 </style>

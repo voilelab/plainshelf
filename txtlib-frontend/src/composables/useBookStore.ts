@@ -7,11 +7,11 @@ const books = ref<Book[]>([]);
 const loading = ref(false);
 const error = ref('');
 
-async function fetchBooks(): Promise<void> {
+async function fetchBooks(search?: string): Promise<void> {
   loading.value = true;
   error.value = '';
   try {
-    const data = await listBooks(1, Number.MAX_SAFE_INTEGER);
+    const data = await listBooks(1, Number.MAX_SAFE_INTEGER, search);
     books.value = data.items;
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load books';
