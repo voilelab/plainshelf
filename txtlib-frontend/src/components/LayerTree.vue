@@ -5,6 +5,7 @@
       <button type="button" class="sidebar-nav-item-label" @click="emit('select', '')">
         All books
       </button>
+      <span class="sidebar-nav-count">{{ totalBookCount }}</span>
     </div>
 
     <LayerNodeItem
@@ -15,6 +16,7 @@
       :deleting-map="deletingMap"
       :expanded-map="expandedMap"
       :depth="0"
+      :book-count-by-layer="bookCountByLayer"
       @toggle="toggleExpanded"
       @select="(path) => emit('select', path)"
       @move-book="(payload) => emit('move-book', payload)"
@@ -24,8 +26,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import LayerNodeItem from './LayerNodeItem.vue';
+import { useBookStore } from '../composables/useBookStore';
+import { getLayerPath } from '../utils/layers';
 
 type LayerNode = {
   name: string;
@@ -44,6 +48,19 @@ const emit = defineEmits<{
   'move-book': [payload: { bookId: string; targetLayer: string }];
   'delete-layer': [path: string];
 }>();
+
+const { books } = useBookStore();
+
+const totalBookCount = computed(() => books.value.length);
+
+const bookCountByLayer = computed(() => {
+  const counts = new Map<string, number>();
+  for (const book of books.value) {
+    const layer = getLayerPath(book);
+    counts.set(layer, (counts.get(layer) ?? 0) + 1);
+  }
+  return counts;
+});
 
 const expandedMap = ref<Record<string, boolean>>({});
 

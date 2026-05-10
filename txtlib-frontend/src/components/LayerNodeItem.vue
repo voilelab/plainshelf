@@ -23,6 +23,7 @@
       <button type="button" class="sidebar-nav-item-label" @click="emit('select', node.path)">
         {{ node.name }}
       </button>
+      <span class="sidebar-nav-count">{{ bookCountByLayer?.get(node.path) ?? 0 }}</span>
       <button
         v-if="showDeleteButton"
         type="button"
@@ -45,6 +46,7 @@
         :deleting-map="deletingMap"
         :expanded-map="expandedMap"
         :depth="depth + 1"
+        :book-count-by-layer="bookCountByLayer"
         @toggle="(path) => emit('toggle', path)"
         @select="(path) => emit('select', path)"
         @move-book="(payload) => emit('move-book', payload)"
@@ -71,6 +73,7 @@ const props = defineProps<{
   deletingMap?: Record<string, boolean>;
   expandedMap: Record<string, boolean>;
   depth: number;
+  bookCountByLayer?: Map<string, number>;
 }>();
 
 const emit = defineEmits<{
