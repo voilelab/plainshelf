@@ -4,6 +4,8 @@ import type {
   BookCreateRequest,
   BookContent,
   BookFormat,
+  SplitConfig,
+  SplitType,
   BookUpdateRequest,
   PaginatedBooks,
   ReadingProgress,
@@ -41,6 +43,68 @@ interface BackendBook {
 
 interface BackendMark {
   char_offset: number;
+}
+
+function normalizeSplitType(value: unknown): SplitType {
+  if (value === 'none' || value === 'line_count' || value === 'regex' || value === 'lines') {
+    return value;
+  }
+  return 'none';
+}
+
+function normalizeSplitConfig(raw: unknown): SplitConfig {
+  if (!raw || typeof raw !== 'object') {
+    return { type: 'none' };
+  }
+
+  const data = raw as Record<string, unknown>;
+  const type = normalizeSplitType(data.type);
+  const normalized: SplitConfig = { type };
+
+  if (typeof data.line_count === 'number' && Number.isFinite(data.line_count)) {
+    normalized.line_count = Math.trunc(data.line_count);
+  }
+
+  if (typeof data.regex === 'string') {
+    normalized.regex = data.regex;
+  }
+
+  if (Array.isArray(data.lines)) {
+    normalized.lines = data.lines
+      .filter((item): item is number => typeof item === 'number' && Number.isFinite(item))
+      .map((item) => Math.trunc(item));
+  }
+
+  return normalized;
+}
+
+function buildSplitConfigPayload(config: SplitConfig): SplitConfig {
+  const type = normalizeSplitType(config.type);
+
+  if (type === 'line_count') {
+    return {
+      type,
+      line_count: Math.trunc(config.line_count ?? 0)
+    };
+  }
+
+  if (type === 'regex') {
+    return {
+      type,
+      regex: String(config.regex ?? '')
+    };
+  }
+
+  if (type === 'lines') {
+    return {
+      type,
+      lines: (config.lines ?? [])
+        .filter((item) => Number.isFinite(item))
+        .map((item) => Math.trunc(item))
+    };
+  }
+
+  return { type: 'none' };
 }
 
 async function uploadBookCoverInternal(bookID: string, file: File): Promise<void> {
@@ -201,6 +265,8 @@ const mockContent: Record<string, string> = {
   'book-2': `Go Patterns Notes\n\n1. Keep interfaces small.\n2. Prefer composition over inheritance.\n3. Handle errors early and clearly.`,
   'book-3': `# Mountain Diary\n\nDay 1: Clouds under the ridge.\nDay 2: A narrow trail and cold wind.`
 };
+
+const mockSplitConfigs: Record<string, SplitConfig> = {};
 
 function delay<T>(value: T, ms = 240): Promise<T> {
   return new Promise((resolve) => {
@@ -374,6 +440,38 @@ export async function getBookContent(id: string): Promise<BookContent> {
 
   const text = await fetchText(`/api/books/${encodeURIComponent(id)}/content`);
   return { content: text };
+}
+
+export async function getBookSplitConfig(id: string): Promise<SplitConfig> {
+  if (isMockApiMode()) {
+    return delay(normalizeSplitConfig(mockSplitConfigs[id] ?? { type: 'none' }));
+  }
+
+  const config = await fetchJson<unknown>(`/api/books/${encodeURIComponent(id)}/split_config`);
+  return normalizeSplitConfig(config);
+}
+
+export async function updateBookSplitConfig(id: string, config: SplitConfig): Promise<SplitConfig> {
+  const payload = buildSplitConfigPayload(config);
+
+  if (isMockApiMode()) {
+    mockSplitConfigs[id] = normalizeSplitConfig(payload);
+    return await delay(mockSplitConfigs[id]);
+  }
+
+  const updated = await fetchJson<unknown>(`/api/books/${encodeURIComponent(id)}/split_config`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (updated === undefined) {
+    return normalizeSplitConfig(payload);
+  }
+
+  return normalizeSplitConfig(updated);
 }
 
 export async function getReadingProgress(id: string): Promise<ReadingProgress> {

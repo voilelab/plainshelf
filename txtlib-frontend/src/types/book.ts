@@ -32,6 +32,23 @@ export interface BookContent {
   content: string;
 }
 
+export type SplitType = 'none' | 'line_count' | 'regex' | 'lines';
+
+export interface SplitConfig {
+  type: SplitType;
+  line_count?: number;
+  regex?: string;
+  lines?: number[];
+}
+
+export interface ReaderSection {
+  index: number;
+  startOffset: number;
+  endOffset: number;
+  title: string;
+  text: string;
+}
+
 export interface BookmarkPayload {
   char_offset: number;
 }
