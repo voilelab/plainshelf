@@ -102,10 +102,25 @@ type UpdateBookRequest struct {
 
 // GET /api/books
 func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
+	searchQuery := strings.TrimSpace(r.URL.Query().Get("search"))
+
 	books, err := app.lib.ListBooks()
 	if err != nil {
 		http.Error(w, "failed to list books", http.StatusInternalServerError)
 		return
+	}
+
+	if searchQuery != "" {
+		newBooks := make([]*txtlib.Book, 0)
+		for _, b := range books {
+			meta := b.GetMeta()
+			if strings.Contains(meta.Title, searchQuery) ||
+				strings.Contains(meta.Comments, searchQuery) {
+				newBooks = append(newBooks, b)
+				continue
+			}
+		}
+		books = newBooks
 	}
 
 	jsonBooks := make([]Book, len(books))
