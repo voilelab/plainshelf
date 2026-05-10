@@ -23,6 +23,17 @@
       <button type="button" class="sidebar-nav-item-label" @click="emit('select', node.path)">
         {{ node.name }}
       </button>
+      <button
+        v-if="showDeleteButton"
+        type="button"
+        class="layer-delete-btn"
+        title="Delete empty layer"
+        aria-label="Delete empty layer"
+        :disabled="isDeleting"
+        @click.stop="onDeleteLayer"
+      >
+        Delete
+      </button>
     </div>
 
     <div v-if="hasChildren && isExpanded" class="tree-children">
@@ -31,11 +42,13 @@
         :key="child.path"
         :node="child"
         :selected="selected"
+        :deleting-map="deletingMap"
         :expanded-map="expandedMap"
         :depth="depth + 1"
         @toggle="(path) => emit('toggle', path)"
         @select="(path) => emit('select', path)"
         @move-book="(payload) => emit('move-book', payload)"
+        @delete-layer="(path) => emit('delete-layer', path)"
       />
     </div>
   </div>
@@ -55,6 +68,7 @@ type LayerNode = {
 const props = defineProps<{
   node: LayerNode;
   selected: string | undefined;
+  deletingMap?: Record<string, boolean>;
   expandedMap: Record<string, boolean>;
   depth: number;
 }>();
@@ -63,12 +77,30 @@ const emit = defineEmits<{
   toggle: [path: string];
   select: [path: string];
   'move-book': [payload: { bookId: string; targetLayer: string }];
+  'delete-layer': [path: string];
 }>();
 
 const hasChildren = computed(() => props.node.children.length > 0);
 const isExpanded = computed(() => props.expandedMap[props.node.path] ?? false);
 const isSelected = computed(() => props.node.path === props.selected);
+const showDeleteButton = computed(() => props.node.path !== '/');
+const isDeleting = computed(() => props.deletingMap?.[props.node.path] ?? false);
 const isDropTarget = ref(false);
+
+function onDeleteLayer(): void {
+  if (isDeleting.value) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Delete empty layer "${props.node.path}"?\nThis will fail if the layer contains books or child layers.`
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  emit('delete-layer', props.node.path);
+}
 
 function onDragEnter(): void {
   isDropTarget.value = true;
@@ -95,7 +127,14 @@ function onDrop(event: DragEvent): void {
 
 <style scoped>
 .layer-node {
+  gap: 4px;
   padding-right: 4px;
+}
+
+.layer-node :deep(.sidebar-nav-item-label) {
+  flex: 1;
+  min-width: 0;
+  width: auto;
 }
 
 .layer-node.drop-target {
@@ -128,5 +167,31 @@ function onDrop(event: DragEvent): void {
 
 .tree-children {
   display: block;
+}
+
+.layer-delete-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #94a3b8;
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 3px 6px;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.layer-delete-btn:hover,
+.layer-delete-btn:focus-visible {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #b91c1c;
+}
+
+.layer-delete-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 </style>

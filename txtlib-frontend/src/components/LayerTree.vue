@@ -12,11 +12,13 @@
       :key="node.path"
       :node="node"
       :selected="selected"
+      :deleting-map="deletingMap"
       :expanded-map="expandedMap"
       :depth="0"
       @toggle="toggleExpanded"
       @select="(path) => emit('select', path)"
       @move-book="(payload) => emit('move-book', payload)"
+      @delete-layer="(path) => emit('delete-layer', path)"
     />
   </nav>
 </template>
@@ -34,11 +36,13 @@ type LayerNode = {
 const props = defineProps<{
   nodes: LayerNode[];
   selected: string | undefined;
+  deletingMap?: Record<string, boolean>;
 }>();
 
 const emit = defineEmits<{
   select: [path: string];
   'move-book': [payload: { bookId: string; targetLayer: string }];
+  'delete-layer': [path: string];
 }>();
 
 const expandedMap = ref<Record<string, boolean>>({});

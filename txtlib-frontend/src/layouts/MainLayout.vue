@@ -67,12 +67,17 @@
             v-else
             :nodes="layerTree"
             :selected="currentLayer"
+            :deleting-map="deletingLayerMap"
             @select="onSelectLayer"
             @move-book="onMoveBook"
+            @delete-layer="onDeleteLayer"
           />
         </section>
         <p v-if="moveBookError" class="sidebar-error" role="alert">
           {{ moveBookError }}
+        </p>
+        <p v-if="deleteLayerError" class="sidebar-error sidebar-error-pre" role="alert">
+          {{ deleteLayerError }}
         </p>
 
         <div class="sidebar-nav-divider" role="presentation"></div>
@@ -123,7 +128,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import LayerTree from '../components/LayerTree.vue';
 import { updateBookLayer } from '../api/books';
-import { createLayer } from '../api/layers';
+import { createLayer, deleteLayer } from '../api/layers';
 import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
 import { buildLayerTreeNodes, getLayerPath, normalizeLayerPath } from '../utils/layers';
@@ -140,6 +145,8 @@ const createLayerError = ref('');
 const createLayerSuccess = ref('');
 const createdLayerPath = ref('');
 const newLayerPath = ref('');
+const deleteLayerError = ref('');
+const deletingLayerMap = ref<Record<string, boolean>>({});
 
 const currentLayer = computed(() => {
   const q = route.query.layers;
@@ -169,6 +176,7 @@ function normalizeLayerSelectionPath(path: string): string | undefined {
 }
 
 function onSelectLayer(path: string): void {
+  deleteLayerError.value = '';
   goToLayer(normalizeLayerSelectionPath(path));
 }
 
@@ -245,6 +253,40 @@ async function onMoveBook(payload: { bookId: string; targetLayer: string }): Pro
     await fetchBooks();
   } catch (err) {
     moveBookError.value = err instanceof Error ? err.message : 'Failed to move book.';
+  }
+}
+
+async function onDeleteLayer(path: string): Promise<void> {
+  if (deletingLayerMap.value[path]) {
+    return;
+  }
+
+  deleteLayerError.value = '';
+  deletingLayerMap.value = {
+    ...deletingLayerMap.value,
+    [path]: true
+  };
+
+  try {
+    await deleteLayer(path);
+    await Promise.all([fetchLayers(), fetchBooks()]);
+
+    if (currentLayer.value === path) {
+      goToLayer(undefined);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'Cannot delete this layer because it is not empty.') {
+      deleteLayerError.value =
+        'Cannot delete this layer because it is not empty.\nMove books out and delete child layers first.';
+    } else if (message) {
+      deleteLayerError.value = message;
+    } else {
+      deleteLayerError.value = 'Failed to delete layer';
+    }
+  } finally {
+    const { [path]: _deleted, ...rest } = deletingLayerMap.value;
+    deletingLayerMap.value = rest;
   }
 }
 
@@ -391,6 +433,10 @@ onMounted(async () => {
   font-size: 12px;
   line-height: 1.4;
   margin: 8px 8px 0;
+}
+
+.sidebar-error-pre {
+  white-space: pre-line;
 }
 
 .sidebar-success {

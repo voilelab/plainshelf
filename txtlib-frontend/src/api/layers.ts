@@ -73,6 +73,10 @@ function addMockLayer(path: string): void {
   }
 }
 
+function deleteMockLayer(path: string): void {
+  mockLayers.delete(path);
+}
+
 function encodeLayerPathForURL(path: string): string {
   return path
     .split('/')
@@ -135,5 +139,40 @@ export async function createLayer(layerPath: string): Promise<void> {
 
     const message = err instanceof Error ? err.message : 'Failed to create layer';
     throw new LayerHttpError(message || 'Failed to create layer');
+  }
+}
+
+export async function deleteLayer(layerPath: string): Promise<void> {
+  const normalized = normalizeLayerPath(layerPath);
+  if (!normalized || normalized === '/') {
+    throw new LayerHttpError('Cannot delete this layer because it is not empty.');
+  }
+
+  const encodedPath = encodeLayerPathForURL(normalized);
+
+  if (isMockApiMode()) {
+    const hasBooks = mockBooks.some((book) => pathFromLayers(book.layers) === normalized);
+    const hasChildren = getMockLayers().some((path) => path !== normalized && path.startsWith(`${normalized}/`));
+
+    if (hasBooks || hasChildren) {
+      throw new LayerHttpError('Cannot delete this layer because it is not empty.');
+    }
+
+    deleteMockLayer(normalized);
+    await delay(undefined);
+    return;
+  }
+
+  try {
+    await fetchJson<void>(`/api/layers/${encodedPath}`, {
+      method: 'DELETE'
+    });
+  } catch (err) {
+    if (err instanceof ApiError && (err.status === 400 || err.status === 409)) {
+      throw new LayerHttpError('Cannot delete this layer because it is not empty.');
+    }
+
+    const message = err instanceof Error ? err.message : 'Failed to delete layer';
+    throw new LayerHttpError(message || 'Failed to delete layer');
   }
 }
