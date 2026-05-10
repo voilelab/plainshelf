@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/voilelab/plainshelf/internal/imgutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/txtlib"
 	txtlibfrontend "github.com/voilelab/plainshelf/txtlib-frontend"
@@ -23,12 +24,15 @@ type App struct {
 	indexLib   *bookindex.DB
 	spaFS      fs.FS
 	spaHandler http.Handler
+
+	conf *AppConf
 }
 
 type AppConf struct {
-	LibPath   string `yaml:"lib_path"`
-	MarkPath  string `yaml:"mark_path"`
-	IndexPath string `yaml:"index_path"`
+	LibPath    string `yaml:"lib_path"`
+	MarkPath   string `yaml:"mark_path"`
+	IndexPath  string `yaml:"index_path"`
+	CoverToJPG bool   `yaml:"cover_to_jpg"`
 }
 
 func NewApp(conf *AppConf) (*App, error) {
@@ -56,6 +60,7 @@ func NewApp(conf *AppConf) (*App, error) {
 		indexLib:   indexLib,
 		spaFS:      txtlibfrontend.WebFS,
 		spaHandler: http.FileServerFS(txtlibfrontend.WebFS),
+		conf:       conf,
 	}, nil
 }
 
@@ -316,14 +321,25 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 	case "image/gif":
 		ext = ".gif"
 	default:
-		http.Error(w, "unsupported content type", http.StatusBadRequest)
-		return
+		if !app.conf.CoverToJPG {
+			http.Error(w, "unsupported content type", http.StatusBadRequest)
+			return
+		}
 	}
 
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "failed to read request body", http.StatusInternalServerError)
 		return
+	}
+
+	if app.conf.CoverToJPG {
+		data, err = imgutil.AnyToJPG(data)
+		if err != nil {
+			http.Error(w, "failed to convert image to JPEG", http.StatusInternalServerError)
+			return
+		}
+		ext = ".jpg"
 	}
 
 	err = book.SetCover(data, ext)
