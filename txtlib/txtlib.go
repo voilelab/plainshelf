@@ -431,6 +431,27 @@ func (t *Txtlib) NewLayer(layer Layers) error {
 	return nil
 }
 
+// DeleteLayer removes a layer from the library. It checks if the layer is empty (i.e., contains no books) before deleting it. If the layer is not empty, it returns an error.
+func (t *Txtlib) DeleteLayer(layer Layers) error {
+	layerPath := path.Join(booksFolder, path.Join(layer...))
+
+	entries, err := t.dbRoot.ReadDir(layerPath)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	if len(entries) > 0 {
+		return util.Errorf("cannot delete non-empty layer")
+	}
+
+	err = t.dbRoot.RemoveAll(layerPath)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
+}
+
 func generateBookID(layers Layers, title string) string {
 	cont := strings.Join(layers, "-") + "-" + title
 	md5Hash := md5.Sum([]byte(cont))

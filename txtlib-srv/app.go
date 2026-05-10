@@ -580,8 +580,21 @@ func (app *App) HandleAPICreateLayer(w http.ResponseWriter, r *http.Request) {
 
 // DELETE /api/layers/{layer_path}
 func (app *App) HandleAPIDeleteLayer(w http.ResponseWriter, r *http.Request) {
-	// TBD: implement layer deletion if needed (currently layers are deleted implicitly when deleting books)
-	http.Error(w, "not implemented", http.StatusNotImplemented)
+	layerPath := strings.TrimSpace(r.PathValue("layer_path"))
+	if layerPath == "" {
+		http.Error(w, "layer path cannot be empty", http.StatusBadRequest)
+		return
+	}
+
+	layerParts := strings.Split(layerPath, "/")
+
+	err := app.lib.DeleteLayer(layerParts)
+	if err != nil {
+		http.Error(w, "failed to delete layer", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // GET /api/books/duplicate
