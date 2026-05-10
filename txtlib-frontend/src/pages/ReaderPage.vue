@@ -191,11 +191,43 @@ function closeSplitModal(): void {
 }
 
 function onDocumentKeydown(event: KeyboardEvent): void {
-  if (!isSplitModalOpen.value || savingSplit.value) {
+  // Handle Escape key to close Split modal
+  if (event.key === 'Escape') {
+    if (isSplitModalOpen.value) {
+      closeSplitModal();
+    }
     return;
   }
-  if (event.key === 'Escape') {
-    closeSplitModal();
+
+  // Don't handle other keys if Split modal is open
+  if (isSplitModalOpen.value) {
+    return;
+  }
+
+  // Handle left/right arrow keys to navigate sections
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+    // Don't handle if focus is on input/textarea/select/button/contenteditable elements
+    const activeElement = document.activeElement;
+    if (
+      activeElement instanceof HTMLInputElement ||
+      activeElement instanceof HTMLTextAreaElement ||
+      activeElement instanceof HTMLSelectElement ||
+      activeElement instanceof HTMLButtonElement ||
+      activeElement?.getAttribute?.('contenteditable') === 'true'
+    ) {
+      return;
+    }
+
+    // Navigate to previous/next section if not at boundary
+    if (event.key === 'ArrowLeft') {
+      if (currentSectionIndex.value > 0) {
+        goPrevSection();
+      }
+    } else if (event.key === 'ArrowRight') {
+      if (currentSectionIndex.value < sections.value.length - 1) {
+        goNextSection();
+      }
+    }
   }
 }
 
