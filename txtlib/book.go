@@ -68,7 +68,8 @@ type BookMeta struct {
 	UpdatedAt   util.JSONTime `json:"updated_at,omitzero"`
 	PublishedAt util.JSONTime `json:"published_at,omitzero"`
 
-	// TBD: prevent user from manually modifying this field?
+	// User should not modify CurrentSnapshot directly, it is managed by txtlib internally,
+	// and can be updated via SetCurrentSnapshot method
 	CurrentSnapshot string `json:"current_snapshot"`
 }
 
@@ -152,7 +153,7 @@ func (b *Book) DeleteCover() error {
 
 	meta := b.GetMeta()
 	meta.Cover = ""
-	err = b.SetMeta(meta)
+	err = b.setMeta(meta)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -168,7 +169,7 @@ func (b *Book) SetCurrentSnapshot(snapshotID string) error {
 	meta := b.GetMeta()
 	meta.CurrentSnapshot = snapshotID
 
-	err := b.SetMeta(meta)
+	err := b.setMeta(meta)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -208,7 +209,16 @@ func (b *Book) GetMeta() *BookMeta {
 	return b.meta
 }
 
+// SetMeta allows user to update book meta, but not the CurrentSnapshot field which is managed by txtlib internally
 func (b *Book) SetMeta(meta *BookMeta) error {
+	if meta.CurrentSnapshot != b.meta.CurrentSnapshot {
+		return util.NewError("cannot modify CurrentSnapshot field directly, use SetCurrentSnapshot method instead")
+	}
+
+	return b.setMeta(meta)
+}
+
+func (b *Book) setMeta(meta *BookMeta) error {
 	if meta == nil {
 		return util.NewError("meta cannot be nil")
 	}
