@@ -5,6 +5,9 @@ import (
 	"log"
 	"net/http"
 	"strings"
+
+	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/txtlib"
 )
 
 const maxImportBodySize = 100 << 20 // 100 MB
@@ -81,6 +84,12 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 
 	newBook.SetCurrentSnapshot(snapshot.ID())
 
+	meta := newBook.GetMeta()
+	meta.Language = detectBookLang(newBook)
+	if err := newBook.SetMeta(meta); err != nil {
+		log.Printf("SetMeta error: %v", err)
+	}
+
 	err = addBookToIndexDB(app.indexLib, newBook)
 	if err != nil {
 		log.Printf("addBookToIndexDB error: %v", err)
@@ -96,4 +105,25 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		log.Printf("HandleAPIImportBook encode response: %v", err)
 	}
+}
+
+func detectBookLang(book *txtlib.Book) string {
+	snapshot, err := book.GetSnapshot(book.CurrentSnapshot())
+	if err != nil {
+		return ""
+	}
+
+	reader, err := snapshot.OpenSource()
+	if err != nil {
+		return ""
+	}
+	defer reader.Close()
+
+	buf := make([]byte, 20000)
+	n, err := reader.Read(buf)
+	if err != nil {
+		return ""
+	}
+
+	return util.DetectLanguage(string(buf[:n]))
 }
