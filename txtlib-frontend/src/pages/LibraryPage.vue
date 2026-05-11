@@ -106,15 +106,11 @@ import ImportBookModal from '../components/ImportBookModal.vue';
 import { useBookStore } from '../composables/useBookStore';
 import { useBookPagination, toSingleQueryValue, toPage } from '../composables/useBookPagination';
 import { useBooksSearch } from '../composables/useBooksSearch';
+import { useBooksSort, type BookSortKey, type SortOrder } from '../composables/useBooksSort';
 import { getLayerPath, layerPathEquals, normalizeLayerPath } from '../utils/layers';
 
 const ALL_BOOKS_TITLE = 'All books';
 const ROOT_LAYER_LABEL = '/';
-const SORT_OPTIONS = ['created_at', 'updated_at', 'title'] as const;
-const ORDER_OPTIONS = ['asc', 'desc'] as const;
-
-type BookSortKey = (typeof SORT_OPTIONS)[number];
-type SortOrder = (typeof ORDER_OPTIONS)[number];
 
 const route = useRoute();
 const router = useRouter();
@@ -144,17 +140,6 @@ function toLayerPath(value: LocationQueryValue | LocationQueryValue[] | undefine
   const normalized = raw.trim();
   return normalized.length > 0 ? normalized : undefined;
 }
-
-function toBookSort(value: LocationQueryValue | LocationQueryValue[] | undefined): BookSortKey {
-  const raw = toSingleQueryValue(value);
-  return raw && SORT_OPTIONS.includes(raw as BookSortKey) ? (raw as BookSortKey) : 'updated_at';
-}
-
-function toSortOrder(value: LocationQueryValue | LocationQueryValue[] | undefined): SortOrder {
-  const raw = toSingleQueryValue(value);
-  return raw && ORDER_OPTIONS.includes(raw as SortOrder) ? (raw as SortOrder) : 'desc';
-}
-
 
 function buildBooksQuery(
   layer: string | undefined,
@@ -190,8 +175,6 @@ function buildBooksQuery(
 
 const selectedLayer = computed(() => toLayerPath(route.query.layers) ?? toLayerPath(route.query.layer));
 const page = computed(() => toPage(route.query.page));
-const sortBy = computed<BookSortKey>(() => toBookSort(route.query.sort));
-const sortOrder = computed<SortOrder>(() => toSortOrder(route.query.order));
 const isImportModalOpen = computed(() => toSingleQueryValue(route.query.import) === '1');
 const isRootLayerSelected = computed(() => selectedLayer.value === ROOT_LAYER_LABEL);
 
@@ -231,37 +214,16 @@ function matchesLayer(book: Book): boolean {
 }
 
 const filteredBooks = computed(() => books.value.filter((book) => matchesLayer(book)));
-
-function toTimestampValue(value: string | undefined): number {
-  if (!value) {
-    return 0;
-  }
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? 0 : parsed;
-}
-
-const sortedBooks = computed(() => {
-  const sorted = [...filteredBooks.value].sort((a, b) => {
-    if (sortBy.value === 'title') {
-      const result = a.title.localeCompare(b.title, 'zh-Hant', {
-        numeric: true,
-        sensitivity: 'base'
-      });
-      return sortOrder.value === 'asc' ? result : -result;
-    }
-
-    const aValue = toTimestampValue(
-      sortBy.value === 'created_at' ? a.created_at : a.updated_at
-    );
-    const bValue = toTimestampValue(
-      sortBy.value === 'created_at' ? b.created_at : b.updated_at
-    );
-    const result = aValue - bValue;
-    return sortOrder.value === 'asc' ? result : -result;
-  });
-
-  return sorted;
-});
+const {
+  SORT_OPTIONS,
+  sortBy,
+  sortOrder,
+  sortedBooks,
+  toBookSort,
+  toSortOrder,
+  setSortBy,
+  setSortOrder
+} = useBooksSort(filteredBooks, route.query.sort, route.query.order);
 
 const total = computed(() => filteredBooks.value.length);
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)));
@@ -395,6 +357,22 @@ function openBook(id: string): void {
 watch(selectedLayer, async () => {
   await reloadBooks();
 });
+
+watch(
+  () => route.query.sort,
+  (value) => {
+    setSortBy(toBookSort(value));
+  },
+  { immediate: true }
+);
+
+watch(
+  () => route.query.order,
+  (value) => {
+    setSortOrder(toSortOrder(value));
+  },
+  { immediate: true }
+);
 
 // Watch committed search: update URL and fetch from backend
 watch(
