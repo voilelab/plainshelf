@@ -1,7 +1,11 @@
 package txtlibsrv
 
 import (
+	"errors"
 	"log"
+	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/voilelab/plainshelf/internal/hashutil"
 	"github.com/voilelab/plainshelf/internal/util"
@@ -52,4 +56,21 @@ func addBookToIndexDB(indexDB *bookindex.DB, book *txtlib.Book) error {
 			"content_hash": hash,
 		})
 	return nil
+}
+
+func readBookID(r *http.Request) (string, error) {
+	bookID := strings.TrimSpace(r.PathValue("book_id"))
+	if bookID == "" {
+		bookID = strings.TrimSpace(r.URL.Query().Get("book_id"))
+	}
+	if bookID == "" {
+		return "", errors.New("missing book_id")
+	}
+
+	decoded, err := url.PathUnescape(bookID)
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+
+	return decoded, nil
 }
