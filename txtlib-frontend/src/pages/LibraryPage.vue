@@ -63,6 +63,26 @@
           >✕</button>
           <button type="button" class="button search-commit-btn" @click="commitSearch">Search</button>
         </div>
+        <div class="sort-bar">
+          <label class="sort-label" for="books-sort">Sort</label>
+          <select
+            id="books-sort"
+            class="sort-select"
+            :value="sortBy"
+            @change="onSortSelectChange"
+          >
+            <option value="updated_at">Updated</option>
+            <option value="created_at">Created</option>
+            <option value="title">Title</option>
+          </select>
+          <button
+            type="button"
+            class="button sort-order-btn"
+            @click="toggleOrder"
+          >
+            {{ sortOrder === 'asc' ? 'Asc' : 'Desc' }}
+          </button>
+        </div>
         <button class="button" type="button" @click="openImportModal">Import</button>
       </template>
     </BookCollectionPage>
@@ -89,6 +109,11 @@ import { getLayerPath, layerPathEquals, normalizeLayerPath } from '../utils/laye
 
 const ALL_BOOKS_TITLE = 'All books';
 const ROOT_LAYER_LABEL = '/';
+const SORT_OPTIONS = ['created_at', 'updated_at', 'title'] as const;
+const ORDER_OPTIONS = ['asc', 'desc'] as const;
+
+type BookSortKey = (typeof SORT_OPTIONS)[number];
+type SortOrder = (typeof ORDER_OPTIONS)[number];
 
 const route = useRoute();
 const router = useRouter();
@@ -141,8 +166,24 @@ function toLayerPath(value: LocationQueryValue | LocationQueryValue[] | undefine
   return normalized.length > 0 ? normalized : undefined;
 }
 
+function toBookSort(value: LocationQueryValue | LocationQueryValue[] | undefined): BookSortKey {
+  const raw = toSingleQueryValue(value);
+  return raw && SORT_OPTIONS.includes(raw as BookSortKey) ? (raw as BookSortKey) : 'updated_at';
+}
 
-function buildBooksQuery(layer: string | undefined, nextPage: number, searchOverride?: string) {
+function toSortOrder(value: LocationQueryValue | LocationQueryValue[] | undefined): SortOrder {
+  const raw = toSingleQueryValue(value);
+  return raw && ORDER_OPTIONS.includes(raw as SortOrder) ? (raw as SortOrder) : 'desc';
+}
+
+
+function buildBooksQuery(
+  layer: string | undefined,
+  nextPage: number,
+  searchOverride?: string,
+  sortOverride?: BookSortKey,
+  orderOverride?: SortOrder
+) {
   const nextQuery = {
     ...route.query
   } as Record<string, LocationQueryValue | LocationQueryValue[]>;
@@ -162,11 +203,16 @@ function buildBooksQuery(layer: string | undefined, nextPage: number, searchOver
     nextQuery.search = search.trim();
   }
 
+  nextQuery.sort = sortOverride ?? sortBy.value;
+  nextQuery.order = orderOverride ?? sortOrder.value;
+
   return nextQuery;
 }
 
 const selectedLayer = computed(() => toLayerPath(route.query.layers) ?? toLayerPath(route.query.layer));
 const page = computed(() => toPage(route.query.page));
+const sortBy = computed<BookSortKey>(() => toBookSort(route.query.sort));
+const sortOrder = computed<SortOrder>(() => toSortOrder(route.query.order));
 const isImportModalOpen = computed(() => toSingleQueryValue(route.query.import) === '1');
 const isRootLayerSelected = computed(() => selectedLayer.value === ROOT_LAYER_LABEL);
 
@@ -207,12 +253,43 @@ function matchesLayer(book: Book): boolean {
 
 const filteredBooks = computed(() => books.value.filter((book) => matchesLayer(book)));
 
+function toTimestampValue(value: string | undefined): number {
+  if (!value) {
+    return 0;
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+const sortedBooks = computed(() => {
+  const sorted = [...filteredBooks.value].sort((a, b) => {
+    if (sortBy.value === 'title') {
+      const result = a.title.localeCompare(b.title, 'zh-Hant', {
+        numeric: true,
+        sensitivity: 'base'
+      });
+      return sortOrder.value === 'asc' ? result : -result;
+    }
+
+    const aValue = toTimestampValue(
+      sortBy.value === 'created_at' ? a.created_at : a.updated_at
+    );
+    const bValue = toTimestampValue(
+      sortBy.value === 'created_at' ? b.created_at : b.updated_at
+    );
+    const result = aValue - bValue;
+    return sortOrder.value === 'asc' ? result : -result;
+  });
+
+  return sorted;
+});
+
 const total = computed(() => filteredBooks.value.length);
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)));
 
 const visibleBooks = computed(() => {
   const start = (page.value - 1) * pageSize.value;
-  return filteredBooks.value.slice(start, start + pageSize.value);
+  return sortedBooks.value.slice(start, start + pageSize.value);
 });
 
 const showLayerEmptyState = computed(() => {
@@ -270,6 +347,46 @@ function onPageSizeChange(newSize: number): void {
   void router.push({ path: '/books', query: buildBooksQuery(selectedLayer.value, 1) });
 }
 
+function onSortChange(nextSort: BookSortKey): void {
+  if (nextSort === sortBy.value && page.value === 1) {
+    return;
+  }
+
+  void router.push({
+    path: '/books',
+    query: buildBooksQuery(selectedLayer.value, 1, undefined, nextSort, sortOrder.value)
+  });
+}
+
+function onSortSelectChange(event: Event): void {
+  const target = event.target;
+  if (!(target instanceof HTMLSelectElement)) {
+    return;
+  }
+
+  const value = target.value;
+  if (!SORT_OPTIONS.includes(value as BookSortKey)) {
+    return;
+  }
+
+  onSortChange(value as BookSortKey);
+}
+
+function onOrderChange(nextOrder: SortOrder): void {
+  if (nextOrder === sortOrder.value && page.value === 1) {
+    return;
+  }
+
+  void router.push({
+    path: '/books',
+    query: buildBooksQuery(selectedLayer.value, 1, undefined, sortBy.value, nextOrder)
+  });
+}
+
+function toggleOrder(): void {
+  onOrderChange(sortOrder.value === 'asc' ? 'desc' : 'asc');
+}
+
 function openImportModal(): void {
   if (isImportModalOpen.value) {
     return;
@@ -322,8 +439,17 @@ watch(
     const hasLegacyLayerQuery = toSingleQueryValue(route.query.layer) !== undefined;
 
     const rawSearch = toSingleQueryValue(route.query.search) ?? '';
+    const rawSort = toSingleQueryValue(route.query.sort) ?? '';
+    const rawOrder = toSingleQueryValue(route.query.order) ?? '';
     const currentSearch = committedSearch.value.trim();
-    if (rawPage === String(normalizedPage) && rawLayers === layer && !hasLegacyLayerQuery && rawSearch === currentSearch) {
+    if (
+      rawPage === String(normalizedPage)
+      && rawLayers === layer
+      && !hasLegacyLayerQuery
+      && rawSearch === currentSearch
+      && rawSort === sortBy.value
+      && rawOrder === sortOrder.value
+    ) {
       return;
     }
 
@@ -398,5 +524,60 @@ watch(
   height: 30px;
   min-width: auto;
   padding: 0 12px;
+}
+
+.sort-bar {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+.sort-label {
+  color: var(--muted, #666);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.sort-select {
+  background: var(--bg, #fff);
+  border: 1px solid #d0d7e0;
+  border-radius: 6px;
+  color: inherit;
+  font-size: 13px;
+  height: 30px;
+  min-width: 100px;
+  padding: 0 8px;
+}
+
+.sort-select:focus {
+  border-color: #6b9fe4;
+  outline: none;
+}
+
+.sort-order-btn {
+  height: 30px;
+  min-width: 64px;
+  padding: 0 10px;
+}
+
+@media (max-width: 760px) {
+  .search-bar {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .search-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+  }
+
+  .sort-bar {
+    flex: 0 0 auto;
+  }
+
+  .sort-select {
+    min-width: 92px;
+  }
 }
 </style>
