@@ -105,6 +105,7 @@ import BookCollectionPage from '../components/BookCollectionPage.vue';
 import ImportBookModal from '../components/ImportBookModal.vue';
 import { useBookStore } from '../composables/useBookStore';
 import { useBookPagination, toSingleQueryValue, toPage } from '../composables/useBookPagination';
+import { useBooksSearch } from '../composables/useBooksSearch';
 import { getLayerPath, layerPathEquals, normalizeLayerPath } from '../utils/layers';
 
 const ALL_BOOKS_TITLE = 'All books';
@@ -119,42 +120,20 @@ const route = useRoute();
 const router = useRouter();
 const { books, loading, error, fetchBooks } = useBookStore();
 const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
+const {
+  searchInputValue,
+  committedSearch,
+  commitSearch,
+  onSearchEnter,
+  clearSearch
+} = useBooksSearch(toSingleQueryValue(route.query.search) ?? '');
 const booksLoaded = ref<boolean>(false);
-
-// ── Search state ──────────────────────────────────────────────────────────────
-const searchInputValue = ref<string>(toSingleQueryValue(route.query.search) ?? '');
-const committedSearch = ref<string>(searchInputValue.value.trim());
 
 async function reloadBooks(): Promise<void> {
   booksLoaded.value = false;
   await fetchBooks(committedSearch.value.trim());
   booksLoaded.value = true;
 }
-
-function commitSearch(): void {
-  const nextSearch = searchInputValue.value.trim();
-  if (nextSearch === committedSearch.value.trim()) {
-    return;
-  }
-  committedSearch.value = nextSearch;
-}
-
-function onSearchEnter(event: KeyboardEvent): void {
-  if (event.isComposing) {
-    return;
-  }
-
-  event.preventDefault();
-  commitSearch();
-}
-
-function clearSearch(): void {
-  searchInputValue.value = '';
-  if (committedSearch.value.trim() !== '') {
-    committedSearch.value = '';
-  }
-}
-// ─────────────────────────────────────────────────────────────────────────────
 
 function toLayerPath(value: LocationQueryValue | LocationQueryValue[] | undefined): string | undefined {
   const raw = toSingleQueryValue(value);
