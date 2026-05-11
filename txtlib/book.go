@@ -205,8 +205,12 @@ func (b *Book) updateCurrentVersionLocation(snapshotID string) error {
 	return nil
 }
 
+// GetMeta returns a copy of the book meta, user can modify the returned meta and call SetMeta to update the book meta, but should not modify the CurrentSnapshot field directly
 func (b *Book) GetMeta() *BookMeta {
-	return b.meta
+	metaCopy := *b.meta
+	metaCopy.Tags = append([]string(nil), b.meta.Tags...)
+	metaCopy.Authors = append([]string(nil), b.meta.Authors...)
+	return &metaCopy
 }
 
 // SetMeta allows user to update book meta, but not the CurrentSnapshot field which is managed by txtlib internally
