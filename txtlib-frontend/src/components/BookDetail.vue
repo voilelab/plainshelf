@@ -21,6 +21,7 @@
 import { computed } from 'vue';
 import LayerBreadcrumb from './LayerBreadcrumb.vue';
 import type { Book, ReadingProgress } from '../types/book';
+import { formatLanguage } from '../utils/language';
 
 const props = defineProps<{
   book: Book;
@@ -55,7 +56,7 @@ const metadataRows = computed<MetadataRow[]>(() => {
   const rows: MetadataRow[] = [
     { label: 'Authors', value: formatList(props.book.authors) },
     { label: 'Format', value: props.book.format?.trim() || '-' },
-    { label: 'Language', value: props.book.language?.trim() || '-' },
+    { label: 'Language', value: formatLanguage(props.book.language) },
     { label: 'Tags', value: formatList(props.book.tags) },
     { label: 'Published At', value: formatTimestamp(props.book.published_at) },
     {
