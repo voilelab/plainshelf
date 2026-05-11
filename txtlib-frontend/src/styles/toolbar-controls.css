@@ -1,0 +1,68 @@
+/* ────────────────────────────────────────────────────────────────────────────
+   Shared Toolbar Controls
+   Reusable styles for form elements in toolbar contexts.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* Base control: input, select, button common sizing and borders */
+.toolbar-control {
+  height: 30px;
+  border: 1px solid #d0d7e0;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+/* Input control specifics */
+.toolbar-input {
+  background: var(--bg, #fff);
+  color: inherit;
+  padding: 0 8px;
+}
+
+.toolbar-input:focus {
+  border-color: #6b9fe4;
+  outline: none;
+}
+
+/* Select control specifics */
+.toolbar-select {
+  background: var(--bg, #fff);
+  color: inherit;
+  padding: 0 8px;
+}
+
+.toolbar-select:focus {
+  border-color: #6b9fe4;
+  outline: none;
+}
+
+/* Button control specifics */
+.toolbar-button {
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* Small button variant (e.g., clear button) */
+.toolbar-button.toolbar-small {
+  font-size: 11px;
+  padding: 0 8px;
+}
+
+/* Regular button padding */
+.toolbar-button.toolbar-regular {
+  padding: 0 10px;
+}
+
+/* Flex container for aligned toolbar groups */
+.toolbar-bar {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
+/* Toolbar label text */
+.toolbar-label {
+  color: var(--muted, #666);
+  font-size: 12px;
+  white-space: nowrap;
+}

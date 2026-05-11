@@ -46,10 +46,10 @@
       </template>
 
       <template #toolbar>
-        <div class="search-bar">
+        <div class="toolbar-bar search-bar">
           <input
             v-model="searchInputValue"
-            class="search-input"
+            class="toolbar-control toolbar-input search-input"
             type="search"
             placeholder="Search books..."
             @keydown.enter="onSearchEnter"
@@ -57,17 +57,21 @@
           <button
             v-if="searchInputValue"
             type="button"
-            class="search-clear-btn"
+            class="toolbar-control toolbar-button toolbar-small search-clear-btn"
             aria-label="Clear search"
             @click="clearSearch"
           >✕</button>
-          <button type="button" class="button search-commit-btn" @click="commitSearch">Search</button>
+          <button
+            type="button"
+            class="button toolbar-control toolbar-button toolbar-regular search-commit-btn"
+            @click="commitSearch"
+          >Search</button>
         </div>
-        <div class="sort-bar">
-          <label class="sort-label" for="books-sort">Sort</label>
+        <div class="toolbar-bar sort-bar">
+          <label class="toolbar-label sort-label" for="books-sort">Sort</label>
           <select
             id="books-sort"
-            class="sort-select"
+            class="toolbar-control toolbar-select sort-select"
             :value="sortBy"
             @change="onSortSelectChange"
           >
@@ -77,7 +81,7 @@
           </select>
           <button
             type="button"
-            class="button sort-order-btn"
+            class="button toolbar-control toolbar-button toolbar-regular sort-order-btn"
             @click="toggleOrder"
           >
             {{ sortOrder === 'asc' ? 'Asc' : 'Desc' }}
@@ -108,6 +112,7 @@ import { useBooksRouteQuery } from '../composables/useBooksRouteQuery';
 import { useBooksSearch } from '../composables/useBooksSearch';
 import { useBooksSort, type BookSortKey, type SortOrder } from '../composables/useBooksSort';
 import { getLayerPath, layerPathEquals, normalizeLayerPath } from '../utils/layers';
+import '../styles/toolbar-controls.css';
 
 const ALL_BOOKS_TITLE = 'All books';
 const ROOT_LAYER_LABEL = '/';
@@ -373,84 +378,43 @@ watch(
   opacity: 0.6;
 }
 
+/* Search bar layout adjustments */
 .search-bar {
-  align-items: center;
   display: flex;
+  align-items: center;
   gap: 6px;
 }
 
 .search-input {
-  background: var(--bg, #fff);
-  border: 1px solid #d0d7e0;
-  border-radius: 6px;
-  color: inherit;
-  font-size: 13px;
-  height: 30px;
-  padding: 0 28px 0 8px;
   width: 180px;
-}
-
-.search-input:focus {
-  border-color: #6b9fe4;
-  outline: none;
+  padding: 0 28px 0 8px;
 }
 
 .search-clear-btn {
-  background: transparent;
-  border: 1px solid #d0d7e0;
-  border-radius: 6px;
   color: var(--muted, #888);
-  cursor: pointer;
-  font-size: 11px;
-  height: 30px;
   line-height: 1;
-  padding: 0 8px;
 }
 
 .search-clear-btn:hover {
   color: var(--text, #333);
 }
 
-.search-commit-btn {
-  height: 30px;
-  min-width: auto;
-  padding: 0 12px;
-}
-
+/* Sort bar layout adjustments */
 .sort-bar {
-  align-items: center;
   display: flex;
+  align-items: center;
   gap: 6px;
 }
 
-.sort-label {
-  color: var(--muted, #666);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
 .sort-select {
-  background: var(--bg, #fff);
-  border: 1px solid #d0d7e0;
-  border-radius: 6px;
-  color: inherit;
-  font-size: 13px;
-  height: 30px;
   min-width: 100px;
-  padding: 0 8px;
-}
-
-.sort-select:focus {
-  border-color: #6b9fe4;
-  outline: none;
 }
 
 .sort-order-btn {
-  height: 30px;
   min-width: 64px;
-  padding: 0 10px;
 }
 
+/* Responsive layout */
 @media (max-width: 760px) {
   .search-bar {
     flex: 1 1 100%;
