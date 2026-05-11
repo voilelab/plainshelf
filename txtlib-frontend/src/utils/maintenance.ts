@@ -1,5 +1,48 @@
 import type { Book } from '../types/book';
 
+export type MaintenanceNavKey =
+  | 'duplicate-content'
+  | 'missing-author'
+  | 'missing-cover'
+  | 'missing-language';
+
+export interface MaintenanceNavItem {
+  key: MaintenanceNavKey;
+  label: string;
+  to: string;
+}
+
+export const MAINTENANCE_NAV_ITEMS: MaintenanceNavItem[] = [
+  {
+    key: 'duplicate-content',
+    label: 'Duplicate Content',
+    to: '/duplicates'
+  },
+  {
+    key: 'missing-author',
+    label: 'Missing Author',
+    to: '/books/maintenance/missing-author'
+  },
+  {
+    key: 'missing-cover',
+    label: 'Missing Cover',
+    to: '/books/maintenance/missing-cover'
+  },
+  {
+    key: 'missing-language',
+    label: 'Missing Language',
+    to: '/books/maintenance/missing-language'
+  }
+];
+
+export type MaintenanceBookFilter = Exclude<MaintenanceNavKey, 'duplicate-content'>;
+
+interface MaintenanceBookFilterConfig {
+  title: string;
+  emptyMessage: string;
+  predicate: (book: Book) => boolean;
+}
+
 function isNonEmptyString(value: unknown): boolean {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -89,3 +132,36 @@ export function hasBookCover(book: Book): boolean {
 export function isMissingCover(book: Book): boolean {
   return !hasBookCover(book);
 }
+
+export function isMissingLanguage(book: Book): boolean {
+  const raw = book as Book & { language?: unknown };
+  const languageValue = raw.language;
+
+  if (languageValue === undefined || languageValue === null) {
+    return true;
+  }
+
+  if (typeof languageValue !== 'string') {
+    return true;
+  }
+
+  return languageValue.trim().length === 0;
+}
+
+export const MAINTENANCE_BOOK_FILTERS: Record<MaintenanceBookFilter, MaintenanceBookFilterConfig> = {
+  'missing-author': {
+    title: 'Missing Author',
+    emptyMessage: 'No books missing author',
+    predicate: isMissingAuthor
+  },
+  'missing-cover': {
+    title: 'Missing Cover',
+    emptyMessage: 'No books missing cover',
+    predicate: isMissingCover
+  },
+  'missing-language': {
+    title: 'Missing Language',
+    emptyMessage: 'No books with missing language.',
+    predicate: isMissingLanguage
+  }
+};

@@ -7,6 +7,7 @@ import EditBookPage from './pages/EditBookPage.vue';
 import DuplicateContentPage from './pages/DuplicateContentPage.vue';
 import MissingAuthorPage from './pages/MissingAuthorPage.vue';
 import MissingCoverPage from './pages/MissingCoverPage.vue';
+import MissingLanguagePage from './pages/MissingLanguagePage.vue';
 import ReaderPage from './pages/ReaderPage.vue';
 
 const router = createRouter({
@@ -62,6 +63,11 @@ const router = createRouter({
           path: 'books/maintenance/missing-cover',
           name: 'maintenance-missing-cover',
           component: MissingCoverPage
+        },
+        {
+          path: 'books/maintenance/missing-language',
+          name: 'maintenance-missing-language',
+          component: MissingLanguagePage
         }
       ]
     },

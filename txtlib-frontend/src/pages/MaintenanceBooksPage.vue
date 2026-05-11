@@ -25,12 +25,10 @@ import { useRoute, useRouter } from 'vue-router';
 import BookCollectionPage from '../components/BookCollectionPage.vue';
 import { useBookStore } from '../composables/useBookStore';
 import { useBookPagination, toSingleQueryValue, toPage } from '../composables/useBookPagination';
-import { isMissingAuthor, isMissingCover } from '../utils/maintenance';
-
-type MaintenanceFilter = 'missing-author' | 'missing-cover';
+import { MAINTENANCE_BOOK_FILTERS, type MaintenanceBookFilter } from '../utils/maintenance';
 
 const props = defineProps<{
-  filter: MaintenanceFilter;
+  filter: MaintenanceBookFilter;
 }>();
 
 const route = useRoute();
@@ -38,18 +36,18 @@ const router = useRouter();
 const { books, loading, error, fetchBooks } = useBookStore();
 const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
 
+const filterConfig = computed(() => MAINTENANCE_BOOK_FILTERS[props.filter]);
+
 const heading = computed(() => {
-  return props.filter === 'missing-author' ? 'Missing Author' : 'Missing Cover';
+  return filterConfig.value.title;
 });
 
 const emptyMessage = computed(() => {
-  return props.filter === 'missing-author' ? 'No books missing author' : 'No books missing cover';
+  return filterConfig.value.emptyMessage;
 });
 
 const filteredBooks = computed(() => {
-  return books.value.filter((book) => {
-    return props.filter === 'missing-author' ? isMissingAuthor(book) : isMissingCover(book);
-  });
+  return books.value.filter((book) => filterConfig.value.predicate(book));
 });
 
 function buildPageQuery(nextPage: number): Record<string, string> {

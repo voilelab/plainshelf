@@ -86,25 +86,13 @@
           <div class="sidebar-section-title">MAINTENANCE</div>
           <nav class="sidebar-nav-list" aria-label="Maintenance links">
             <RouterLink
-              to="/duplicates"
+              v-for="item in MAINTENANCE_NAV_ITEMS"
+              :key="item.key"
+              :to="item.to"
               class="sidebar-nav-item"
               exact-active-class="active"
             >
-              Duplicate Content
-            </RouterLink>
-            <RouterLink
-              to="/books/maintenance/missing-author"
-              class="sidebar-nav-item"
-              exact-active-class="active"
-            >
-              Missing Author
-            </RouterLink>
-            <RouterLink
-              to="/books/maintenance/missing-cover"
-              class="sidebar-nav-item"
-              exact-active-class="active"
-            >
-              Missing Cover
+              {{ item.label }}
             </RouterLink>
           </nav>
         </section>
@@ -132,6 +120,7 @@ import { createLayer, deleteLayer } from '../api/layers';
 import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
 import { buildLayerTreeNodes, getLayerPath, normalizeLayerPath } from '../utils/layers';
+import { MAINTENANCE_NAV_ITEMS } from '../utils/maintenance';
 
 const isCollapsed = ref(false);
 const route = useRoute();
