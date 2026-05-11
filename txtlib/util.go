@@ -3,6 +3,8 @@ package txtlib
 import (
 	"fmt"
 	"math/rand"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
@@ -30,4 +32,15 @@ func randomString(n int) string {
 		result[i] = letters[rand.Intn(len(letters))]
 	}
 	return string(result)
+}
+
+var bcp47Regex = regexp.MustCompile(`^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$`)
+
+func validateBCP47(lang string) bool {
+	lang = strings.TrimSpace(lang)
+	if lang == "" {
+		return true
+	}
+
+	return bcp47Regex.MatchString(lang)
 }

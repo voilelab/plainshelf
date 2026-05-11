@@ -209,6 +209,14 @@ func (b *Book) GetMeta() *BookMeta {
 }
 
 func (b *Book) SetMeta(meta *BookMeta) error {
+	if meta == nil {
+		return util.NewError("meta cannot be nil")
+	}
+
+	if !validateBCP47(meta.Language) {
+		return util.Errorf("invalid language tag: %s", meta.Language)
+	}
+
 	// write back to book meta
 
 	encoder := json.NewEncoder(io.Discard)

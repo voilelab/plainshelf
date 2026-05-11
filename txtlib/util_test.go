@@ -42,3 +42,24 @@ func TestCreateTempDir(t *testing.T) {
 		t.Fatalf("Failed to open created temp dir: %v", err)
 	}
 }
+
+func TestValidateBCP47(t *testing.T) {
+	tests := []struct {
+		lang     string
+		expected bool
+	}{
+		{"en", true},
+		{"zh-Hant", true},
+		{"fr-CA", true},
+		{"es-419", true},
+		{"invalid-lang", false},
+		{"123", false},
+	}
+
+	for _, test := range tests {
+		result := validateBCP47(test.lang)
+		if result != test.expected {
+			t.Errorf("validateBCP47(%q) = %v; expected %v", test.lang, result, test.expected)
+		}
+	}
+}
