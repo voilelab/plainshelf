@@ -98,13 +98,13 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import type { LocationQueryValue } from 'vue-router';
+import { useRouter } from 'vue-router';
 import type { Book } from '../types/book';
 import BookCollectionPage from '../components/BookCollectionPage.vue';
 import ImportBookModal from '../components/ImportBookModal.vue';
 import { useBookStore } from '../composables/useBookStore';
-import { useBookPagination, toSingleQueryValue, toPage } from '../composables/useBookPagination';
+import { useBookPagination } from '../composables/useBookPagination';
+import { useBooksRouteQuery } from '../composables/useBooksRouteQuery';
 import { useBooksSearch } from '../composables/useBooksSearch';
 import { useBooksSort, type BookSortKey, type SortOrder } from '../composables/useBooksSort';
 import { getLayerPath, layerPathEquals, normalizeLayerPath } from '../utils/layers';
@@ -112,17 +112,29 @@ import { getLayerPath, layerPathEquals, normalizeLayerPath } from '../utils/laye
 const ALL_BOOKS_TITLE = 'All books';
 const ROOT_LAYER_LABEL = '/';
 
-const route = useRoute();
 const router = useRouter();
 const { books, loading, error, fetchBooks } = useBookStore();
 const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
+const {
+  selectedLayer,
+  page,
+  sortBy,
+  sortOrder,
+  searchQuery,
+  isImportModalOpen,
+  pushBooksQuery,
+  replaceBooksQuery,
+  isBooksQueryNormalized,
+  openImportModalQuery,
+  closeImportModalQuery
+} = useBooksRouteQuery();
 const {
   searchInputValue,
   committedSearch,
   commitSearch,
   onSearchEnter,
   clearSearch
-} = useBooksSearch(toSingleQueryValue(route.query.search) ?? '');
+} = useBooksSearch(searchQuery.value);
 const booksLoaded = ref<boolean>(false);
 
 async function reloadBooks(): Promise<void> {
@@ -131,66 +143,7 @@ async function reloadBooks(): Promise<void> {
   booksLoaded.value = true;
 }
 
-function toLayerPath(value: LocationQueryValue | LocationQueryValue[] | undefined): string | undefined {
-  const raw = toSingleQueryValue(value);
-  if (!raw) {
-    return undefined;
-  }
-
-  const normalized = raw.trim();
-  return normalized.length > 0 ? normalized : undefined;
-}
-
-function buildBooksQuery(
-  layer: string | undefined,
-  nextPage: number,
-  searchOverride?: string,
-  sortOverride?: BookSortKey,
-  orderOverride?: SortOrder
-) {
-  const nextQuery = {
-    ...route.query
-  } as Record<string, LocationQueryValue | LocationQueryValue[]>;
-
-  delete nextQuery.layer;
-  delete nextQuery.layers;
-  delete nextQuery.page;
-  delete nextQuery.search;
-
-  if (layer) {
-    nextQuery.layers = layer;
-  }
-  nextQuery.page = String(nextPage);
-
-  const search = searchOverride !== undefined ? searchOverride : committedSearch.value;
-  if (search.trim()) {
-    nextQuery.search = search.trim();
-  }
-
-  nextQuery.sort = sortOverride ?? sortBy.value;
-  nextQuery.order = orderOverride ?? sortOrder.value;
-
-  return nextQuery;
-}
-
-const selectedLayer = computed(() => toLayerPath(route.query.layers) ?? toLayerPath(route.query.layer));
-const page = computed(() => toPage(route.query.page));
-const isImportModalOpen = computed(() => toSingleQueryValue(route.query.import) === '1');
 const isRootLayerSelected = computed(() => selectedLayer.value === ROOT_LAYER_LABEL);
-
-function buildImportQuery(open: boolean): Record<string, LocationQueryValue | LocationQueryValue[]> {
-  const nextQuery = {
-    ...route.query
-  } as Record<string, LocationQueryValue | LocationQueryValue[]>;
-
-  if (open) {
-    nextQuery.import = '1';
-  } else {
-    delete nextQuery.import;
-  }
-
-  return nextQuery;
-}
 
 const selectedLayerTitle = computed(() => {
   if (!selectedLayer.value) {
@@ -216,14 +169,8 @@ function matchesLayer(book: Book): boolean {
 const filteredBooks = computed(() => books.value.filter((book) => matchesLayer(book)));
 const {
   SORT_OPTIONS,
-  sortBy,
-  sortOrder,
-  sortedBooks,
-  toBookSort,
-  toSortOrder,
-  setSortBy,
-  setSortOrder
-} = useBooksSort(filteredBooks, route.query.sort, route.query.order);
+  sortedBooks
+} = useBooksSort(filteredBooks, sortBy, sortOrder);
 
 const total = computed(() => filteredBooks.value.length);
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)));
@@ -253,7 +200,7 @@ function onSelectAllBooks(): void {
   if (!selectedLayer.value && page.value === 1) {
     return;
   }
-  void router.push({ path: '/books', query: buildBooksQuery(undefined, 1) });
+  void pushBooksQuery({ layer: undefined, page: 1 });
 }
 
 function onSelectLayer(layer: string): void {
@@ -268,7 +215,7 @@ function onSelectLayer(layer: string): void {
   if (selectedLayer.value === normalized && page.value === 1) {
     return;
   }
-  void router.push({ path: '/books', query: buildBooksQuery(normalized, 1) });
+  void pushBooksQuery({ layer: normalized, page: 1 });
 }
 
 function onSelectBreadcrumb(index: number): void {
@@ -280,12 +227,12 @@ function onPageChange(nextPage: number): void {
   if (nextPage === page.value) {
     return;
   }
-  void router.push({ path: '/books', query: buildBooksQuery(selectedLayer.value, nextPage) });
+  void pushBooksQuery({ layer: selectedLayer.value, page: nextPage });
 }
 
 function onPageSizeChange(newSize: number): void {
   setPageSize(newSize);
-  void router.push({ path: '/books', query: buildBooksQuery(selectedLayer.value, 1) });
+  void pushBooksQuery({ layer: selectedLayer.value, page: 1 });
 }
 
 function onSortChange(nextSort: BookSortKey): void {
@@ -293,9 +240,11 @@ function onSortChange(nextSort: BookSortKey): void {
     return;
   }
 
-  void router.push({
-    path: '/books',
-    query: buildBooksQuery(selectedLayer.value, 1, undefined, nextSort, sortOrder.value)
+  void pushBooksQuery({
+    layer: selectedLayer.value,
+    page: 1,
+    sort: nextSort,
+    order: sortOrder.value
   });
 }
 
@@ -318,9 +267,11 @@ function onOrderChange(nextOrder: SortOrder): void {
     return;
   }
 
-  void router.push({
-    path: '/books',
-    query: buildBooksQuery(selectedLayer.value, 1, undefined, sortBy.value, nextOrder)
+  void pushBooksQuery({
+    layer: selectedLayer.value,
+    page: 1,
+    sort: sortBy.value,
+    order: nextOrder
   });
 }
 
@@ -333,7 +284,7 @@ function openImportModal(): void {
     return;
   }
 
-  void router.push({ path: '/books', query: buildImportQuery(true) });
+  void openImportModalQuery();
 }
 
 function closeImportModal(): void {
@@ -341,7 +292,7 @@ function closeImportModal(): void {
     return;
   }
 
-  void router.replace({ path: '/books', query: buildImportQuery(false) });
+  void closeImportModalQuery();
 }
 
 async function onImported(result: { successCount: number }): Promise<void> {
@@ -358,29 +309,16 @@ watch(selectedLayer, async () => {
   await reloadBooks();
 });
 
-watch(
-  () => route.query.sort,
-  (value) => {
-    setSortBy(toBookSort(value));
-  },
-  { immediate: true }
-);
-
-watch(
-  () => route.query.order,
-  (value) => {
-    setSortOrder(toSortOrder(value));
-  },
-  { immediate: true }
-);
-
 // Watch committed search: update URL and fetch from backend
 watch(
   committedSearch,
   async (newSearch) => {
-    void router.replace({
-      path: '/books',
-      query: buildBooksQuery(selectedLayer.value, 1, newSearch),
+    void replaceBooksQuery({
+      layer: selectedLayer.value,
+      page: 1,
+      search: newSearch,
+      sort: sortBy.value,
+      order: sortOrder.value
     });
     await reloadBooks();
   },
@@ -391,28 +329,24 @@ watch(
   [selectedLayer, page, totalPages, booksLoaded],
   ([layer, currentPage, maxPage, hasLoaded]) => {
     const normalizedPage = hasLoaded ? Math.min(currentPage, maxPage) : currentPage;
-    const rawPage = toSingleQueryValue(route.query.page);
-    const rawLayers = toLayerPath(route.query.layers);
-    const hasLegacyLayerQuery = toSingleQueryValue(route.query.layer) !== undefined;
-
-    const rawSearch = toSingleQueryValue(route.query.search) ?? '';
-    const rawSort = toSingleQueryValue(route.query.sort) ?? '';
-    const rawOrder = toSingleQueryValue(route.query.order) ?? '';
     const currentSearch = committedSearch.value.trim();
-    if (
-      rawPage === String(normalizedPage)
-      && rawLayers === layer
-      && !hasLegacyLayerQuery
-      && rawSearch === currentSearch
-      && rawSort === sortBy.value
-      && rawOrder === sortOrder.value
-    ) {
+
+    if (isBooksQueryNormalized({
+      layer,
+      page: normalizedPage,
+      search: currentSearch,
+      sort: sortBy.value,
+      order: sortOrder.value
+    })) {
       return;
     }
 
-    void router.replace({
-      path: '/books',
-      query: buildBooksQuery(layer, normalizedPage)
+    void replaceBooksQuery({
+      layer,
+      page: normalizedPage,
+      search: currentSearch,
+      sort: sortBy.value,
+      order: sortOrder.value
     });
   },
   { immediate: true }
