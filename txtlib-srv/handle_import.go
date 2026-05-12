@@ -119,11 +119,10 @@ func detectBookLang(book *txtlib.Book) string {
 	}
 	defer reader.Close()
 
-	buf := make([]byte, 20000)
-	n, err := reader.Read(buf)
+	lang, err := util.DetectLanguage(reader)
 	if err != nil {
 		return ""
 	}
 
-	return util.DetectLanguage(string(buf[:n]))
+	return lang
 }

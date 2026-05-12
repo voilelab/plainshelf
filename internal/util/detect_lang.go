@@ -1,13 +1,27 @@
 package util
 
-import "strings"
+import (
+	"bufio"
+	"io"
+	"strings"
+	"unicode"
+)
 
-func DetectLanguage(text string) string {
+func DetectLanguage(fp io.Reader) (string, error) {
+	scanner := bufio.NewScanner(fp)
+	scanner.Split(bufio.ScanRunes)
+
 	const maxRunes = 20000
-
-	runes := []rune(text)
-	if len(runes) > maxRunes {
-		runes = runes[:maxRunes]
+	var runes []rune
+	for scanner.Scan() {
+		runes = append(runes, []rune(scanner.Text())...)
+		if len(runes) >= maxRunes {
+			runes = runes[:maxRunes]
+			break
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", Errorf("%w", err)
 	}
 
 	var cjk, latin int
@@ -23,31 +37,31 @@ func DetectLanguage(text string) string {
 			if strings.ContainsRune(hansChars, r) {
 				hansScore++
 			}
-		case r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z':
+		case unicode.IsLetter(r):
 			latin++
 		}
 	}
 
 	total := len(runes)
 	if total == 0 {
-		return ""
+		return "", nil
 	}
 
 	if cjk > latin && cjk > total/20 {
 		if hantScore > hansScore {
-			return "zh-Hant"
+			return "zh-Hant", nil
 		}
 		if hansScore > hantScore {
-			return "zh-Hans"
+			return "zh-Hans", nil
 		}
-		return "zh-Hant" // 你的使用場景可預設繁中
+		return "zh-Hant", nil
 	}
 
 	if latin > cjk && latin > total/20 {
-		return "en"
+		return "en", nil
 	}
 
-	return ""
+	return "", nil
 }
 
 func isCJK(r rune) bool {
