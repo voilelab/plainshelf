@@ -13,76 +13,17 @@
       </header>
 
       <div class="reader-layout">
-        <aside class="reader-side-actions" aria-label="Reader actions">
-          <button
-            class="button reader-icon-button reader-font-button"
-            type="button"
-            aria-label="Decrease font size"
-            title="Decrease font size"
-            :disabled="isAtMinFontSize"
-            @click="decreaseFontSize"
-          >
-            A-
-          </button>
-          <button
-            class="button reader-icon-button reader-font-button"
-            type="button"
-            aria-label="Increase font size"
-            title="Increase font size"
-            :disabled="isAtMaxFontSize"
-            @click="increaseFontSize"
-          >
-            A+
-          </button>
-          <button
-            class="button reader-icon-button"
-            type="button"
-            aria-label="Show chapters"
-            title="Show chapters"
-            :disabled="sections.length === 0"
-            @click="openChapterModal"
-          >
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
-              <path d="M8 6h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-              <path d="M8 12h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-              <path d="M8 18h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-              <path d="M4 6h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
-              <path d="M4 12h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
-              <path d="M4 18h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
-            </svg>
-          </button>
-          <button
-            class="button reader-icon-button"
-            type="button"
-            aria-label="Split settings"
-            title="Split settings"
-            @click="openSplitModal"
-          >
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
-              <path d="M14 5l-9 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-              <path d="M10 5l9 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-              <circle cx="6" cy="5" r="2" stroke="currentColor" stroke-width="1.8" />
-              <circle cx="18" cy="5" r="2" stroke="currentColor" stroke-width="1.8" />
-            </svg>
-          </button>
-          <button
-            class="button reader-bookmark reader-icon-button"
-            type="button"
-            :aria-label="bookmarking ? 'Saving bookmark' : 'Save bookmark'"
-            :title="bookmarking ? 'Saving bookmark' : 'Save bookmark'"
-            :disabled="bookmarking"
-            @click="bookmarkCurrent"
-          >
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M7 5.5c0-.83.67-1.5 1.5-1.5h7c.83 0 1.5.67 1.5 1.5V20l-5-3-5 3V5.5z"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </button>
-        </aside>
+        <ReaderSideActions
+          :is-at-min-font-size="isAtMinFontSize"
+          :is-at-max-font-size="isAtMaxFontSize"
+          :has-sections="sections.length > 0"
+          :bookmarking="bookmarking"
+          @decrease-font-size="decreaseFontSize"
+          @increase-font-size="increaseFontSize"
+          @open-chapter-modal="openChapterModal"
+          @open-split-modal="openSplitModal"
+          @bookmark-current="bookmarkCurrent"
+        />
 
         <main class="reader-main">
           <div v-if="loading" class="loading reader-status">Loading content...</div>
@@ -141,37 +82,25 @@
       @saved="handleSplitConfigSaved"
     />
 
-    <div v-if="isChapterModalOpen" class="chapter-modal-backdrop" role="presentation" @click="closeChapterModal">
-      <section class="panel chapter-modal" role="dialog" aria-modal="true" aria-labelledby="chapter-modal-title" @click.stop>
-        <header class="chapter-modal-header">
-          <h3 id="chapter-modal-title">Chapters</h3>
-          <button class="chapter-icon-close" type="button" aria-label="Close chapter dialog" @click="closeChapterModal">×</button>
-        </header>
-
-        <div class="chapter-modal-list">
-          <button
-            v-for="section in sections"
-            :key="section.index"
-            class="chapter-modal-item"
-            :class="{ active: section.index === currentSectionIndex }"
-            type="button"
-            @click="selectSectionFromChapterModal(section.index)"
-          >
-            <span class="chapter-modal-item-index">{{ section.index + 1 }} / {{ sections.length }}</span>
-            <span class="chapter-modal-item-title">{{ section.title }}</span>
-          </button>
-        </div>
-      </section>
-    </div>
+    <ChapterModal
+      :open="isChapterModalOpen"
+      :sections="sections"
+      :current-section-index="currentSectionIndex"
+      @close="closeChapterModal"
+      @select-section="selectSectionFromChapterModal"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import ChapterModal from '../components/ChapterModal.vue';
+import ReaderSideActions from '../components/ReaderSideActions.vue';
 import SplitConfigModal from '../components/SplitConfigModal.vue';
 import { useReader } from '../composables/useReader';
 import { useReaderSettings } from '../composables/useReaderSettings';
+import { parseReaderBlocks } from '../utils/parseReaderBlocks';
 import type { SplitConfig } from '../../../types/book';
 
 const route = useRoute();
@@ -201,45 +130,11 @@ const isSplitModalOpen = ref(false);
 const isChapterModalOpen = ref(false);
 const { fontSize, isAtMinFontSize, isAtMaxFontSize, increaseFontSize, decreaseFontSize } = useReaderSettings();
 
-type ReaderTextBlock = {
-  type: 'paragraph' | 'quote';
-  text: string;
-};
-
 const readerStyleVars = computed(() => ({
   '--reader-font-size': `${fontSize.value}px`
 }));
 
-const sectionBlocks = computed<ReaderTextBlock[]>(() => {
-  const text = currentSection.value?.text ?? '';
-  if (!text.trim()) {
-    return [];
-  }
-
-  return text
-    .split(/\n{2,}/)
-    .map((chunk) => chunk.trim())
-    .filter(Boolean)
-    .map((chunk) => {
-      const quoteLines = chunk
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean);
-      const isQuote = quoteLines.length > 0 && quoteLines.every((line) => line.startsWith('>'));
-
-      if (!isQuote) {
-        return {
-          type: 'paragraph' as const,
-          text: chunk
-        };
-      }
-
-      return {
-        type: 'quote' as const,
-        text: quoteLines.map((line) => line.replace(/^>\s?/, '')).join('\n')
-      };
-    });
-});
+const sectionBlocks = computed(() => parseReaderBlocks(currentSection.value?.text ?? ''));
 
 function openSplitModal(): void {
   isSplitModalOpen.value = true;
