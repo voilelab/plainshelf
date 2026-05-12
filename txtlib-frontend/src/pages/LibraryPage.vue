@@ -141,6 +141,7 @@ const {
   clearSearch
 } = useBooksSearch(searchQuery.value);
 const booksLoaded = ref<boolean>(false);
+const hasInitializedSearch = ref(false);
 
 async function reloadBooks(): Promise<void> {
   booksLoaded.value = false;
@@ -318,6 +319,12 @@ watch(selectedLayer, async () => {
 watch(
   committedSearch,
   async (newSearch) => {
+    if (!hasInitializedSearch.value) {
+      hasInitializedSearch.value = true;
+      await reloadBooks();
+      return;
+    }
+
     void replaceBooksQuery({
       layer: selectedLayer.value,
       page: 1,
