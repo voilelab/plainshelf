@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/voilelab/plainshelf/internal/hashutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/txtlib"
 	"github.com/voilelab/plainshelf/txtlib-srv/bookindex"
@@ -40,20 +39,10 @@ func addBookToIndexDB(indexDB *bookindex.DB, book *txtlib.Book) error {
 		return util.Errorf("%w", err)
 	}
 
-	reader, err := snapShot.OpenSource()
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	hash, err := hashutil.MD5Hash(reader)
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-
 	indexDB.Add(
 		book.ID(),
 		bookindex.MetaMap{
-			"content_hash": hash,
+			"content_hash": snapShot.GetMeta().MD5Hash,
 		})
 	return nil
 }

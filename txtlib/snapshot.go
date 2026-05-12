@@ -1,7 +1,6 @@
 package txtlib
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"io/fs"
@@ -36,9 +35,9 @@ type SnapshotMeta struct {
 	Comment   string        `json:"comment"`
 
 	// depending on the content
-	ContentHash string `json:"content_hash"`
-	LineCount   int    `json:"line_count,omitempty"`
-	CharCount   int    `json:"char_count,omitempty"`
+	MD5Hash   string `json:"md5_hash,omitempty"`
+	LineCount int    `json:"line_count,omitempty"`
+	CharCount int    `json:"char_count,omitempty"`
 
 	// split config: how the novel should be split into parts
 	SplitConfig SplitConfig `json:"split_config,omitempty"`
@@ -72,16 +71,12 @@ func (r *Snapshot) VerifyContent() (bool, error) {
 	}
 	defer sourceFile.Close()
 
-	content, err := io.ReadAll(sourceFile)
+	md5Hash, err := hashutil.MD5Hash(sourceFile)
 	if err != nil {
 		return false, util.Errorf("%w", err)
 	}
 
-	ok, err := hashutil.VerifyContentHash(content, r.meta.ContentHash)
-	if err != nil {
-		return false, util.Errorf("%w", err)
-	}
-	return ok, nil
+	return md5Hash == r.meta.MD5Hash, nil
 }
 
 func (r *Snapshot) UpdateHash() error {
@@ -91,17 +86,11 @@ func (r *Snapshot) UpdateHash() error {
 	}
 	defer sourceFile.Close()
 
-	content, err := io.ReadAll(sourceFile)
+	r.meta.MD5Hash, err = hashutil.MD5Hash(sourceFile)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	newHash, err := hashutil.NewContentHash(content)
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	r.meta.ContentHash = newHash
 	err = r.writebackMeta()
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -169,14 +158,21 @@ func createSnapshot(rt fsutil.FS, snapshotPath, id string, source io.Reader) (*S
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer destFile.Close()
 
-	var sourceContent bytes.Buffer
-	_, err = io.Copy(io.MultiWriter(destFile, &sourceContent), source)
+	_, err = io.Copy(destFile, source)
+	if err != nil {
+		destFile.Close()
+		return nil, util.Errorf("%w", err)
+	}
+	destFile.Close()
+
+	destFile1, err := rt.Open(sourceDestPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	contentHash, err := hashutil.NewContentHash(sourceContent.Bytes())
+	defer destFile1.Close()
+
+	md5Hash, err := hashutil.MD5Hash(destFile1)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -209,10 +205,10 @@ func createSnapshot(rt fsutil.FS, snapshotPath, id string, source io.Reader) (*S
 		ID:        id,
 		CreatedAt: util.JSONTime(time.Now()),
 
-		ContentHash: contentHash,
-		LineCount:   lineCount,
-		CharCount:   charCount,
-		Comment:     "",
+		MD5Hash:   md5Hash,
+		LineCount: lineCount,
+		CharCount: charCount,
+		Comment:   "",
 	}
 
 	metaFilePath := path.Join(snapshotPath, SnapshotMetaFile)
