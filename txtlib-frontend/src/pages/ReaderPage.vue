@@ -100,80 +100,18 @@
       </div>
     </div>
 
-    <div v-if="isSplitModalOpen" class="modal-overlay" role="presentation" @click="closeSplitModal">
-      <section class="panel split-modal" role="dialog" aria-modal="true" aria-labelledby="split-modal-title" @click.stop>
-        <header class="split-header">
-          <h3 id="split-modal-title">Reader Split Settings</h3>
-          <button class="icon-close" type="button" aria-label="Close split dialog" :disabled="savingSplit" @click="closeSplitModal">
-            ×
-          </button>
-        </header>
-
-        <p class="split-desc">Apply section splitting without leaving reader. Current reading position will be preserved.</p>
-
-        <div v-if="splitModalError" class="error" role="alert">{{ splitModalError }}</div>
-
-        <form class="split-form" @submit.prevent="onSubmitSplitConfig">
-          <label class="field">
-            <span class="label">Split Type</span>
-            <select v-model="draftType" class="input" :disabled="savingSplit">
-              <option value="none">none</option>
-              <option value="line_count">line_count</option>
-              <option value="regex">regex</option>
-              <option value="lines">lines</option>
-            </select>
-          </label>
-
-          <label v-if="draftType === 'line_count'" class="field">
-            <span class="label">line_count</span>
-            <input
-              v-model="draftLineCount"
-              class="input"
-              type="number"
-              min="1"
-              step="1"
-              placeholder="e.g. 100"
-              :disabled="savingSplit"
-            />
-          </label>
-
-          <label v-if="draftType === 'regex'" class="field">
-            <span class="label">regex</span>
-            <textarea
-              v-model="draftRegex"
-              class="input split-textarea"
-              rows="4"
-              placeholder="e.g. ^Chapter\\s+\\d+"
-              :disabled="savingSplit"
-            />
-          </label>
-
-          <label v-if="draftType === 'lines'" class="field">
-            <span class="label">lines (1-based, comma or space separated)</span>
-            <textarea
-              v-model="draftLines"
-              class="input split-textarea"
-              rows="4"
-              placeholder="e.g. 1, 101, 201"
-              :disabled="savingSplit"
-            />
-          </label>
-
-          <div class="actions">
-            <button class="button" type="button" :disabled="savingSplit" @click="closeSplitModal">Cancel</button>
-            <button class="button primary" type="submit" :disabled="savingSplit">
-              {{ savingSplit ? 'Saving...' : 'Save Split Config' }}
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
+    <SplitConfigModal
+      :open="isSplitModalOpen"
+      :split-config="splitConfig"
+      @close="closeSplitModal"
+      @saved="handleSplitConfigSaved"
+    />
 
     <div v-if="isChapterModalOpen" class="chapter-modal-backdrop" role="presentation" @click="closeChapterModal">
       <section class="panel chapter-modal" role="dialog" aria-modal="true" aria-labelledby="chapter-modal-title" @click.stop>
         <header class="chapter-modal-header">
           <h3 id="chapter-modal-title">Chapters</h3>
-          <button class="icon-close" type="button" aria-label="Close chapter dialog" @click="closeChapterModal">×</button>
+          <button class="chapter-icon-close" type="button" aria-label="Close chapter dialog" @click="closeChapterModal">×</button>
         </header>
 
         <div class="chapter-modal-list">
@@ -197,8 +135,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import SplitConfigModal from '../components/reader/modals/SplitConfigModal.vue';
 import { useReader } from '../composables/useReader';
-import type { SplitConfig, SplitType } from '../types/book';
+import type { SplitConfig } from '../types/book';
 
 const route = useRoute();
 const id = computed(() => String(route.params.id));
@@ -224,31 +163,13 @@ const {
 } = useReader(() => id.value);
 
 const isSplitModalOpen = ref(false);
-const savingSplit = ref(false);
-const splitModalError = ref('');
-const draftType = ref<SplitType>('none');
-const draftLineCount = ref('100');
-const draftRegex = ref('');
-const draftLines = ref('1');
 const isChapterModalOpen = ref(false);
 
-function hydrateSplitDraft(config: SplitConfig): void {
-  draftType.value = config.type;
-  draftLineCount.value = String(config.line_count ?? 100);
-  draftRegex.value = config.regex ?? '';
-  draftLines.value = (config.lines ?? []).join(', ');
-}
-
 function openSplitModal(): void {
-  hydrateSplitDraft(splitConfig.value);
-  splitModalError.value = '';
   isSplitModalOpen.value = true;
 }
 
 function closeSplitModal(): void {
-  if (savingSplit.value) {
-    return;
-  }
   isSplitModalOpen.value = false;
 }
 
@@ -297,47 +218,12 @@ function onDocumentKeydown(event: KeyboardEvent): void {
   }
 }
 
-function buildDraftSplitConfig(): SplitConfig {
-  if (draftType.value === 'line_count') {
-    const parsed = Number.parseInt(draftLineCount.value, 10);
-    return {
-      type: 'line_count',
-      line_count: Number.isNaN(parsed) ? 0 : parsed
-    };
-  }
-
-  if (draftType.value === 'regex') {
-    return {
-      type: 'regex',
-      regex: draftRegex.value
-    };
-  }
-
-  if (draftType.value === 'lines') {
-    const lines = draftLines.value
-      .split(/[\s,]+/)
-      .map((token) => Number.parseInt(token, 10))
-      .filter((num) => !Number.isNaN(num));
-
-    return {
-      type: 'lines',
-      lines
-    };
-  }
-
-  return { type: 'none' };
-}
-
-async function onSubmitSplitConfig(): Promise<void> {
-  savingSplit.value = true;
-  splitModalError.value = '';
+async function handleSplitConfigSaved(config: SplitConfig): Promise<void> {
   try {
-    await applySplitConfig(buildDraftSplitConfig());
-    isSplitModalOpen.value = false;
+    await applySplitConfig(config);
+    closeSplitModal();
   } catch (err) {
-    splitModalError.value = err instanceof Error ? err.message : 'Failed to update split config';
-  } finally {
-    savingSplit.value = false;
+    console.error('Failed to update split config', err);
   }
 }
 
@@ -573,38 +459,7 @@ onBeforeUnmount(() => {
   letter-spacing: 0.01em;
 }
 
-.modal-overlay {
-  align-items: center;
-  background: rgba(15, 23, 42, 0.38);
-  display: flex;
-  inset: 0;
-  justify-content: center;
-  padding: 16px;
-  position: fixed;
-  z-index: 70;
-}
-
-.split-modal {
-  display: grid;
-  gap: 10px;
-  max-height: calc(100vh - 32px);
-  overflow: auto;
-  padding: 16px;
-  width: min(100%, 560px);
-}
-
-.split-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.split-header h3 {
-  margin: 0;
-  color: #3f3529;
-}
-
-.icon-close {
+.chapter-icon-close {
   align-items: center;
   background: transparent;
   border: 1px solid var(--border);
@@ -619,25 +474,9 @@ onBeforeUnmount(() => {
   width: 32px;
 }
 
-.icon-close:disabled {
+.chapter-icon-close:disabled {
   cursor: not-allowed;
   opacity: 0.6;
-}
-
-.split-desc {
-  margin: 0;
-  color: #6b5f4a;
-  font-size: 0.92rem;
-}
-
-.split-form {
-  display: grid;
-  gap: 10px;
-}
-
-.split-textarea {
-  resize: vertical;
-  min-height: 88px;
 }
 
 .chapter-modal-backdrop {
@@ -797,11 +636,6 @@ onBeforeUnmount(() => {
   .reader-text {
     font-size: 1rem;
     line-height: 1.82;
-  }
-
-  .split-modal {
-    width: min(100%, 96vw);
-    padding: 12px;
   }
 }
 </style>
