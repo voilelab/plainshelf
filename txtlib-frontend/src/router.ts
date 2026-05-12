@@ -8,7 +8,7 @@ import DuplicateContentPage from './pages/DuplicateContentPage.vue';
 import MissingAuthorPage from './pages/MissingAuthorPage.vue';
 import MissingCoverPage from './pages/MissingCoverPage.vue';
 import MissingLanguagePage from './pages/MissingLanguagePage.vue';
-import ReaderPage from './pages/ReaderPage.vue';
+import ReaderPage from './features/reader/views/ReaderView.vue';
 
 const router = createRouter({
   history: createWebHistory(),

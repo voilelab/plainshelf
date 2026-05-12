@@ -169,10 +169,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import SplitConfigModal from '../components/reader/modals/SplitConfigModal.vue';
+import SplitConfigModal from '../components/SplitConfigModal.vue';
 import { useReader } from '../composables/useReader';
 import { useReaderSettings } from '../composables/useReaderSettings';
-import type { SplitConfig } from '../types/book';
+import type { SplitConfig } from '../../../types/book';
 
 const route = useRoute();
 const id = computed(() => String(route.params.id));
@@ -331,6 +331,6 @@ onBeforeUnmount(() => {
 });
 </script>
 
-<style scoped src="../styles/reader/reader-layout.css"></style>
-<style scoped src="../styles/reader/reader-content.css"></style>
-<style scoped src="../styles/reader/reader-modal.css"></style>
+<style scoped src="../styles/reader-layout.css"></style>
+<style scoped src="../styles/reader-content.css"></style>
+<style scoped src="../styles/reader-modal.css"></style>

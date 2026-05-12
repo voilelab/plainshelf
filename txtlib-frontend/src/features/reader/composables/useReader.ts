@@ -1,6 +1,6 @@
 import { computed, nextTick, ref } from 'vue';
-import { getBook, getBookContent, getBookSplitConfig, getReadingProgress, saveBookmark, updateBookSplitConfig } from '../api/books';
-import type { ReaderSection, ReadingProgress, SplitConfig } from '../types/book';
+import { getBook, getBookContent, getBookSplitConfig, getReadingProgress, saveBookmark, updateBookSplitConfig } from '../../../api/books';
+import type { ReaderSection, ReadingProgress, SplitConfig } from '../../../types/book';
 
 function clampOffset(offset: number, total: number): number {
   if (total <= 0) {

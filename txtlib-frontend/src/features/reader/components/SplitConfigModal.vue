@@ -161,4 +161,4 @@ watch(
 );
 </script>
 
-<style scoped src="../../../styles/reader/reader-modal.css"></style>
+<style scoped src="../styles/reader-modal.css"></style>
