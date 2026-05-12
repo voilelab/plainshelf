@@ -14,14 +14,53 @@
 
       <div class="reader-layout">
         <aside class="reader-side-actions" aria-label="Reader actions">
-          <button class="button reader-side-button" type="button" :disabled="sections.length === 0" @click="openChapterModal">
-            <span class="reader-side-short">Show Chapters</span>
+          <button
+            class="button reader-icon-button"
+            type="button"
+            aria-label="Show chapters"
+            title="Show chapters"
+            :disabled="sections.length === 0"
+            @click="openChapterModal"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <path d="M8 6h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              <path d="M8 12h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              <path d="M8 18h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              <path d="M4 6h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
+              <path d="M4 12h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
+              <path d="M4 18h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
+            </svg>
           </button>
-          <button class="button reader-side-button" type="button" @click="openSplitModal">
-            <span class="reader-side-short">Split</span>
+          <button
+            class="button reader-icon-button"
+            type="button"
+            aria-label="Split settings"
+            title="Split settings"
+            @click="openSplitModal"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <path d="M14 5l-9 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              <path d="M10 5l9 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              <circle cx="6" cy="5" r="2" stroke="currentColor" stroke-width="1.8" />
+              <circle cx="18" cy="5" r="2" stroke="currentColor" stroke-width="1.8" />
+            </svg>
           </button>
-          <button class="button reader-bookmark reader-side-button" :disabled="bookmarking" @click="bookmarkCurrent">
-            <span class="reader-side-short">{{ bookmarking ? 'Saving...' : 'Bookmark' }}</span>
+          <button
+            class="button reader-bookmark reader-icon-button"
+            type="button"
+            :aria-label="bookmarking ? 'Saving bookmark' : 'Save bookmark'"
+            :title="bookmarking ? 'Saving bookmark' : 'Save bookmark'"
+            :disabled="bookmarking"
+            @click="bookmarkCurrent"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M7 5.5c0-.83.67-1.5 1.5-1.5h7c.83 0 1.5.67 1.5 1.5V20l-5-3-5 3V5.5z"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linejoin="round"
+              />
+            </svg>
           </button>
         </aside>
 
@@ -394,7 +433,7 @@ onBeforeUnmount(() => {
 
 .reader-layout {
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
+  grid-template-columns: 56px minmax(0, 1fr);
   align-items: start;
   gap: 16px;
 }
@@ -413,20 +452,22 @@ onBeforeUnmount(() => {
   position: sticky;
   top: 14px;
   display: grid;
-  gap: 10px;
+  justify-items: center;
+  gap: 11px;
 }
 
-.reader-side-button {
-  width: 100%;
-  min-height: 40px;
-  border-radius: 10px;
+.reader-icon-button {
+  width: 42px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0;
+  border-radius: 11px;
   justify-content: center;
 }
 
-.reader-side-short {
-  white-space: normal;
-  line-height: 1.2;
-  text-align: center;
+.reader-icon-button svg {
+  width: 20px;
+  height: 20px;
 }
 
 .reader-bookmark {
@@ -723,16 +764,10 @@ onBeforeUnmount(() => {
     box-shadow: 0 10px 26px rgba(96, 75, 44, 0.12);
   }
 
-  .reader-side-button {
-    min-height: 36px;
-    font-size: 0.84rem;
-    padding: 0 8px;
-  }
-
-  .reader-side-short {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .reader-icon-button {
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
   }
 
   .reader-nav {
