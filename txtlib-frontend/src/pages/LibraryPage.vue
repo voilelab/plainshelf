@@ -107,6 +107,7 @@ import type { Book } from '../types/book';
 import BookCollectionPage from '../components/BookCollectionPage.vue';
 import ImportBookModal from '../components/ImportBookModal.vue';
 import { useBookStore } from '../composables/useBookStore';
+import { useDocumentTitle } from '../composables/useDocumentTitle';
 import { useBookPagination } from '../composables/useBookPagination';
 import { useBooksRouteQuery } from '../composables/useBooksRouteQuery';
 import { useBooksSearch } from '../composables/useBooksSearch';
@@ -164,6 +165,22 @@ const selectedLayerSegments = computed(() => {
   }
   return selectedLayer.value.split('/').filter((segment) => segment.length > 0);
 });
+
+const pageTitleSegments = computed(() => {
+  const query = searchQuery.value.trim();
+  if (query) {
+    return ['Search', query, 'PlainShelf'] as const;
+  }
+
+  const layerName = selectedLayer.value?.trim();
+  if (layerName && layerName !== ROOT_LAYER_LABEL) {
+    return ['Layer', layerName, 'PlainShelf'] as const;
+  }
+
+  return ['PlainShelf'] as const;
+});
+
+useDocumentTitle(pageTitleSegments);
 
 function matchesLayer(book: Book): boolean {
   if (!selectedLayer.value) {

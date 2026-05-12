@@ -9,6 +9,15 @@ import MissingAuthorPage from './pages/MissingAuthorPage.vue';
 import MissingCoverPage from './pages/MissingCoverPage.vue';
 import MissingLanguagePage from './pages/MissingLanguagePage.vue';
 import ReaderPage from './features/reader/views/ReaderView.vue';
+import { APP_TITLE } from './composables/useDocumentTitle';
+
+const ROUTES_WITH_OWN_TITLE = new Set([
+  'library',
+  'book-detail',
+  'reader',
+  'maintenance-missing-author',
+  'maintenance-missing-cover'
+]);
 
 const router = createRouter({
   history: createWebHistory(),
@@ -84,6 +93,14 @@ const router = createRouter({
       ]
     },
   ]
+});
+
+router.afterEach((to) => {
+  if (typeof to.name === 'string' && ROUTES_WITH_OWN_TITLE.has(to.name)) {
+    return;
+  }
+
+  document.title = APP_TITLE;
 });
 
 export default router;

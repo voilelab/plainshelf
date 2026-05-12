@@ -98,6 +98,7 @@ import { useRoute } from 'vue-router';
 import ChapterModal from '../components/ChapterModal.vue';
 import ReaderSideActions from '../components/ReaderSideActions.vue';
 import SplitConfigModal from '../components/SplitConfigModal.vue';
+import { useDocumentTitle } from '../../../composables/useDocumentTitle';
 import { useReader } from '../composables/useReader';
 import { useReaderSettings } from '../composables/useReaderSettings';
 import { parseReaderBlocks } from '../utils/parseReaderBlocks';
@@ -133,6 +134,8 @@ const { fontSize, isAtMinFontSize, isAtMaxFontSize, increaseFontSize, decreaseFo
 const readerStyleVars = computed(() => ({
   '--reader-font-size': `${fontSize.value}px`
 }));
+
+useDocumentTitle(() => ['Reader', title.value, 'PlainShelf']);
 
 const sectionBlocks = computed(() => parseReaderBlocks(currentSection.value?.text ?? ''));
 
@@ -213,8 +216,11 @@ async function selectSectionFromChapterModal(index: number): Promise<void> {
 
 onMounted(() => {
   document.addEventListener('keydown', onDocumentKeydown);
-  void fetchReaderData();
 });
+
+watch(id, () => {
+  void fetchReaderData();
+}, { immediate: true });
 
 watch([isSplitModalOpen, isChapterModalOpen], ([splitOpen, chapterOpen]) => {
   document.body.style.overflow = splitOpen || chapterOpen ? 'hidden' : '';

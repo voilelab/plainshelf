@@ -34,11 +34,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BookCover from '../components/BookCover.vue';
 import BookDetail from '../components/BookDetail.vue';
 import { useBookDetail } from '../composables/useBookDetail';
+import { useDocumentTitle } from '../composables/useDocumentTitle';
 
 const route = useRoute();
 const router = useRouter();
@@ -55,6 +56,8 @@ const {
   fetchDetail,
   removeBook
 } = useBookDetail(() => id.value);
+
+useDocumentTitle(() => ['Book', book.value?.title, 'PlainShelf']);
 
 function goRead(): void {
   void router.push(`/reader/${id.value}`);
@@ -82,9 +85,9 @@ async function confirmDelete(): Promise<void> {
   }
 }
 
-onMounted(() => {
+watch(id, () => {
   void fetchDetail();
-});
+}, { immediate: true });
 </script>
 
 <style scoped>
