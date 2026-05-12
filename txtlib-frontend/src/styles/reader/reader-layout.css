@@ -93,6 +93,21 @@
   justify-content: center;
 }
 
+.reader-font-button {
+  font-size: 0.94rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.reader-font-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.reader-font-button:hover:not(:disabled) {
+  background: #fffdf7;
+}
+
 .reader-icon-button svg {
   width: 20px;
   height: 20px;
@@ -129,7 +144,7 @@
     bottom: calc(10px + env(safe-area-inset-bottom));
     top: auto;
     z-index: 40;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 8px;
     padding: 8px;
     border-radius: 12px;
@@ -139,7 +154,7 @@
   }
 
   .reader-icon-button {
-    width: 40px;
+    width: 100%;
     height: 40px;
     min-height: 40px;
   }

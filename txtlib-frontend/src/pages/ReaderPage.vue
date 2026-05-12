@@ -1,5 +1,5 @@
 <template>
-  <section class="reader-page">
+  <section class="reader-page" :style="readerStyleVars">
     <div class="reader-shell">
       <header class="reader-toolbar">
         <RouterLink :to="`/books/${id}`" class="reader-back">Back to detail</RouterLink>
@@ -14,6 +14,26 @@
 
       <div class="reader-layout">
         <aside class="reader-side-actions" aria-label="Reader actions">
+          <button
+            class="button reader-icon-button reader-font-button"
+            type="button"
+            aria-label="Decrease font size"
+            title="Decrease font size"
+            :disabled="isAtMinFontSize"
+            @click="decreaseFontSize"
+          >
+            A-
+          </button>
+          <button
+            class="button reader-icon-button reader-font-button"
+            type="button"
+            aria-label="Increase font size"
+            title="Increase font size"
+            :disabled="isAtMaxFontSize"
+            @click="increaseFontSize"
+          >
+            A+
+          </button>
           <button
             class="button reader-icon-button"
             type="button"
@@ -93,7 +113,21 @@
             <p v-if="splitWarning" class="reader-split-warning" role="status">{{ splitWarning }}</p>
 
             <div class="reader-content" @scroll="onScroll" ref="readerRef">
-              <div class="reader-text">{{ currentSection?.text ?? '' }}</div>
+              <h3 v-if="currentSection?.title" class="reader-chapter-title">{{ currentSection.title }}</h3>
+              <div class="reader-text">
+                <template v-if="sectionBlocks.length > 0">
+                  <component
+                    :is="block.type === 'quote' ? 'blockquote' : 'p'"
+                    v-for="(block, index) in sectionBlocks"
+                    :key="`${currentSection?.index ?? 0}-${index}`"
+                    class="reader-text-block"
+                    :class="{ 'reader-text-quote': block.type === 'quote' }"
+                  >
+                    {{ block.text }}
+                  </component>
+                </template>
+                <p v-else class="reader-text-block">{{ currentSection?.text ?? '' }}</p>
+              </div>
             </div>
           </article>
         </main>
@@ -137,6 +171,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import SplitConfigModal from '../components/reader/modals/SplitConfigModal.vue';
 import { useReader } from '../composables/useReader';
+import { useReaderSettings } from '../composables/useReaderSettings';
 import type { SplitConfig } from '../types/book';
 
 const route = useRoute();
@@ -164,6 +199,47 @@ const {
 
 const isSplitModalOpen = ref(false);
 const isChapterModalOpen = ref(false);
+const { fontSize, isAtMinFontSize, isAtMaxFontSize, increaseFontSize, decreaseFontSize } = useReaderSettings();
+
+type ReaderTextBlock = {
+  type: 'paragraph' | 'quote';
+  text: string;
+};
+
+const readerStyleVars = computed(() => ({
+  '--reader-font-size': `${fontSize.value}px`
+}));
+
+const sectionBlocks = computed<ReaderTextBlock[]>(() => {
+  const text = currentSection.value?.text ?? '';
+  if (!text.trim()) {
+    return [];
+  }
+
+  return text
+    .split(/\n{2,}/)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map((chunk) => {
+      const quoteLines = chunk
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+      const isQuote = quoteLines.length > 0 && quoteLines.every((line) => line.startsWith('>'));
+
+      if (!isQuote) {
+        return {
+          type: 'paragraph' as const,
+          text: chunk
+        };
+      }
+
+      return {
+        type: 'quote' as const,
+        text: quoteLines.map((line) => line.replace(/^>\s?/, '')).join('\n')
+      };
+    });
+});
 
 function openSplitModal(): void {
   isSplitModalOpen.value = true;
