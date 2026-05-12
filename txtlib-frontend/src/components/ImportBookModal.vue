@@ -142,6 +142,9 @@ async function onSubmit(): Promise<void> {
   }
 
   emit('imported', result);
+
+  clearFileInputs();
+  reset();
 }
 
 watch(
