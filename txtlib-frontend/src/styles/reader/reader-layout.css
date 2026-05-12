@@ -1,0 +1,146 @@
+.reader-page {
+  width: 100%;
+  min-height: 100vh;
+  padding: 28px 18px 56px;
+}
+
+.reader-shell {
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.reader-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 18px;
+  color: #6b5f4a;
+}
+
+.reader-back {
+  justify-self: start;
+  color: #6b5f4a;
+  text-decoration: none;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+
+.reader-back:hover {
+  color: #4f4434;
+}
+
+.reader-title {
+  text-align: center;
+  min-width: 0;
+}
+
+.reader-kicker {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(107, 95, 74, 0.72);
+}
+
+.reader-title h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #3f3529;
+  overflow-wrap: anywhere;
+}
+
+.reader-header-meta {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.reader-layout {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+
+.reader-main {
+  min-width: 0;
+}
+
+.reader-progress {
+  color: #6b5f4a;
+  font-size: 0.92rem;
+  white-space: nowrap;
+}
+
+.reader-side-actions {
+  position: sticky;
+  top: 14px;
+  display: grid;
+  justify-items: center;
+  gap: 11px;
+}
+
+.reader-icon-button {
+  width: 42px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0;
+  border-radius: 11px;
+  justify-content: center;
+}
+
+.reader-icon-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+@media (max-width: 720px) {
+  .reader-page {
+    padding: 18px 12px 94px;
+  }
+
+  .reader-toolbar {
+    grid-template-columns: 1fr;
+    justify-items: start;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .reader-title {
+    text-align: left;
+  }
+
+  .reader-header-meta {
+    justify-self: start;
+  }
+
+  .reader-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reader-side-actions {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    top: auto;
+    z-index: 40;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding: 8px;
+    border-radius: 12px;
+    background: rgba(247, 242, 231, 0.96);
+    border: 1px solid rgba(122, 104, 72, 0.18);
+    box-shadow: 0 10px 26px rgba(96, 75, 44, 0.12);
+  }
+
+  .reader-icon-button {
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+  }
+}
