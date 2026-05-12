@@ -75,7 +75,7 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	snapshot, err := newBook.NewSnapshot(f, "file", "imported file", "")
+	snapshot, err := newBook.NewSnapshot(f)
 	if err != nil {
 		log.Printf("NewSnapshot error: %v", err)
 		http.Error(w, "failed to create snapshot from uploaded file", http.StatusInternalServerError)

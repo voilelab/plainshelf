@@ -33,17 +33,12 @@ type Snapshot struct {
 type SnapshotMeta struct {
 	ID        string        `json:"id"`
 	CreatedAt util.JSONTime `json:"created_at"`
+	Comment   string        `json:"comment"`
 
 	// depending on the content
 	ContentHash string `json:"content_hash"`
 	LineCount   int    `json:"line_count,omitempty"`
 	CharCount   int    `json:"char_count,omitempty"`
-
-	// recommend type: file, telegram, website, manual, generated, unknown
-	SourceType  string `json:"source_type"`
-	SourceLabel string `json:"source_label"`
-	SourceURI   string `json:"source_uri"`
-	Comment     string `json:"comment"`
 
 	// split config: how the novel should be split into parts
 	SplitConfig SplitConfig `json:"split_config,omitempty"`
@@ -163,7 +158,7 @@ func openSnapshot(rt fsutil.FS, snapshotPath string) (*Snapshot, error) {
 	}, nil
 }
 
-func createSnapshot(rt fsutil.FS, snapshotPath, id string, source io.Reader, sourceType, sourceLabel, sourceURI string) (*Snapshot, error) {
+func createSnapshot(rt fsutil.FS, snapshotPath, id string, source io.Reader) (*Snapshot, error) {
 	err := rt.MkdirAll(snapshotPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -217,10 +212,6 @@ func createSnapshot(rt fsutil.FS, snapshotPath, id string, source io.Reader, sou
 		ContentHash: contentHash,
 		LineCount:   lineCount,
 		CharCount:   charCount,
-
-		SourceType:  sourceType,
-		SourceLabel: sourceLabel,
-		SourceURI:   sourceURI,
 		Comment:     "",
 	}
 

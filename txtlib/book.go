@@ -259,13 +259,13 @@ func (b *Book) setMeta(meta *BookMeta) error {
 	return nil
 }
 
-func (b *Book) NewSnapshot(source io.Reader, sourceType string, sourceLabel string, sourceURI string) (*Snapshot, error) {
+func (b *Book) NewSnapshot(source io.Reader) (*Snapshot, error) {
 	// create a new snapshot for the given book with the provided source file and metadata
 	// TBD: atomic operation, rollback on failure
 	snapshotID := time.Now().Format("20060102-150405")
 	snapshotPath := path.Join(b.folderPath, SnapshotsFolder, snapshotID)
 
-	snapshot, err := createSnapshot(b.root, snapshotPath, snapshotID, source, sourceType, sourceLabel, sourceURI)
+	snapshot, err := createSnapshot(b.root, snapshotPath, snapshotID, source)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

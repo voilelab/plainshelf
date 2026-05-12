@@ -58,7 +58,7 @@ func (a *TxtlibApp) performAddBook(file fyne.URIReadCloser) error {
 		return util.Errorf("%w", err)
 	}
 
-	rev, err := book.NewSnapshot(file, "file", bookFilename, file.URI().Path())
+	rev, err := book.NewSnapshot(file)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}

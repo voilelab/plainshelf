@@ -224,7 +224,7 @@ func TestNewSnapshot(t *testing.T) {
 	}
 
 	srcText := "This is the content of the snapshot."
-	snapshot, err := book.NewSnapshot(bytes.NewReader([]byte(srcText)), "", "", "")
+	snapshot, err := book.NewSnapshot(bytes.NewReader([]byte(srcText)))
 	if err != nil {
 		t.Fatalf("Failed to create new snapshot: %v", err)
 	}
@@ -267,7 +267,7 @@ func TestSetCurrentSnapshot(t *testing.T) {
 	}
 
 	srcText := "This is the content of the snapshot."
-	snapshot, err := book.NewSnapshot(bytes.NewReader([]byte(srcText)), "", "", "")
+	snapshot, err := book.NewSnapshot(bytes.NewReader([]byte(srcText)))
 	if err != nil {
 		t.Fatalf("Failed to create new snapshot: %v", err)
 	}
@@ -282,7 +282,7 @@ func TestSetCurrentSnapshot(t *testing.T) {
 	}
 
 	srcText2 := "This is the content of the second snapshot."
-	snapshot2, err := book.NewSnapshot(bytes.NewReader([]byte(srcText2)), "", "", "")
+	snapshot2, err := book.NewSnapshot(bytes.NewReader([]byte(srcText2)))
 	if err != nil {
 		t.Fatalf("Failed to create second snapshot: %v", err)
 	}

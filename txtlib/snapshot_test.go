@@ -104,7 +104,7 @@ func TestCreateRootSnapshot(t *testing.T) {
 	defer srcFile.Close()
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	snapshot, err := createSnapshot(rootFS, "test-snapshot", "20260315-a3", srcFile, "file", "manual", "Initial content")
+	snapshot, err := createSnapshot(rootFS, "test-snapshot", "20260315-a3", srcFile)
 	if err != nil {
 		t.Fatalf("Failed to create snapshot: %v", err)
 	}
@@ -114,18 +114,6 @@ func TestCreateRootSnapshot(t *testing.T) {
 	}
 
 	meta := snapshot.GetMeta()
-
-	if meta.SourceType != "file" {
-		t.Errorf("Expected source type 'file', got '%s'", meta.SourceType)
-	}
-
-	if meta.SourceLabel != "manual" {
-		t.Errorf("Expected source label 'manual', got '%s'", meta.SourceLabel)
-	}
-
-	if meta.SourceURI != "Initial content" {
-		t.Errorf("Expected source URI 'Initial content', got '%s'", meta.SourceURI)
-	}
 
 	if meta.LineCount != 1 {
 		t.Errorf("Expected line count 1, got %d", meta.LineCount)

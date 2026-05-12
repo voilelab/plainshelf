@@ -77,26 +77,10 @@ func handleImport(args []string) {
 	defer sourceFile.Close()
 
 	// Determine source type from file extension
-	ext := strings.ToLower(filepath.Ext(absSourcePath))
-	var sourceType string
-	switch ext {
-	case ".txt":
-		sourceType = "text"
-	case ".md", ".markdown":
-		sourceType = "markdown"
-	default:
-		sourceType = "file"
-	}
-
-	// Use filename as source label and full path as URI
-	sourceLabel := filepath.Base(absSourcePath)
-	sourceURI := "file://" + absSourcePath
-
 	fmt.Printf("Importing content from '%s' into book '%s'...\n", absSourcePath, book.ID())
-	fmt.Printf("Source type: %s\n", sourceType)
 
 	// Create the snapshot
-	snapshot, err := book.NewSnapshot(sourceFile, sourceType, sourceLabel, sourceURI)
+	snapshot, err := book.NewSnapshot(sourceFile)
 	if err != nil {
 		fmt.Printf("Error creating snapshot: %v\n", err)
 		os.Exit(1)
@@ -106,7 +90,6 @@ func handleImport(args []string) {
 	fmt.Printf("Book ID:    %s\n", book.ID())
 	fmt.Printf("Book Title: %s\n", book.Title())
 	fmt.Printf("Snapshot:   %s\n", snapshot.ID())
-	fmt.Printf("Source:     %s\n", sourceLabel)
 
 	if book.CurrentSnapshot() == "" {
 		// Set the imported snapshot as the current snapshot if there isn't one already
