@@ -14,13 +14,8 @@
 
       <div class="reader-layout">
         <aside class="reader-side-actions" aria-label="Reader actions">
-          <button
-            class="button reader-side-button"
-            type="button"
-            :disabled="sections.length === 0"
-            @click="toggleChapterList"
-          >
-            <span class="reader-side-short">{{ showChapterList ? 'Hide Chapters' : 'Show Chapters' }}</span>
+          <button class="button reader-side-button" type="button" :disabled="sections.length === 0" @click="openChapterModal">
+            <span class="reader-side-short">Show Chapters</span>
           </button>
           <button class="button reader-side-button" type="button" @click="openSplitModal">
             <span class="reader-side-short">Split</span>
@@ -54,34 +49,7 @@
               >
                 Next
               </button>
-              <label class="reader-nav-jump" for="reader-section-jump">
-                Jump:
-                <select
-                  id="reader-section-jump"
-                  class="input reader-nav-select"
-                  :value="String(currentSectionIndex)"
-                  @change="onSelectSection"
-                >
-                  <option v-for="section in sections" :key="section.index" :value="String(section.index)">
-                    {{ section.index + 1 }}. {{ section.title }}
-                  </option>
-                </select>
-              </label>
             </div>
-
-            <aside v-if="showChapterList && sections.length > 0" class="reader-chapter-list" aria-label="Chapter list">
-              <button
-                v-for="section in sections"
-                :key="section.index"
-                class="reader-chapter-item"
-                :class="{ 'is-active': section.index === currentSectionIndex }"
-                type="button"
-                @click="goToSection(section.index)"
-              >
-                <span class="reader-chapter-index">{{ section.index + 1 }}.</span>
-                <span class="reader-chapter-name">{{ section.title }}</span>
-              </button>
-            </aside>
 
             <p v-if="splitWarning" class="reader-split-warning" role="status">{{ splitWarning }}</p>
 
@@ -161,11 +129,34 @@
         </form>
       </section>
     </div>
+
+    <div v-if="isChapterModalOpen" class="chapter-modal-backdrop" role="presentation" @click="closeChapterModal">
+      <section class="panel chapter-modal" role="dialog" aria-modal="true" aria-labelledby="chapter-modal-title" @click.stop>
+        <header class="chapter-modal-header">
+          <h3 id="chapter-modal-title">Chapters</h3>
+          <button class="icon-close" type="button" aria-label="Close chapter dialog" @click="closeChapterModal">×</button>
+        </header>
+
+        <div class="chapter-modal-list">
+          <button
+            v-for="section in sections"
+            :key="section.index"
+            class="chapter-modal-item"
+            :class="{ active: section.index === currentSectionIndex }"
+            type="button"
+            @click="selectSectionFromChapterModal(section.index)"
+          >
+            <span class="chapter-modal-item-index">{{ section.index + 1 }} / {{ sections.length }}</span>
+            <span class="chapter-modal-item-title">{{ section.title }}</span>
+          </button>
+        </div>
+      </section>
+    </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useReader } from '../composables/useReader';
 import type { SplitConfig, SplitType } from '../types/book';
@@ -200,7 +191,7 @@ const draftType = ref<SplitType>('none');
 const draftLineCount = ref('100');
 const draftRegex = ref('');
 const draftLines = ref('1');
-const showChapterList = ref(true);
+const isChapterModalOpen = ref(false);
 
 function hydrateSplitDraft(config: SplitConfig): void {
   draftType.value = config.type;
@@ -223,16 +214,20 @@ function closeSplitModal(): void {
 }
 
 function onDocumentKeydown(event: KeyboardEvent): void {
-  // Handle Escape key to close Split modal
+  const hasOpenModal = isSplitModalOpen.value || isChapterModalOpen.value;
+
+  // Handle Escape key to close open modal
   if (event.key === 'Escape') {
     if (isSplitModalOpen.value) {
       closeSplitModal();
+    } else if (isChapterModalOpen.value) {
+      closeChapterModal();
     }
     return;
   }
 
-  // Don't handle other keys if Split modal is open
-  if (isSplitModalOpen.value) {
+  // Don't handle reader shortcuts when modal is open
+  if (hasOpenModal) {
     return;
   }
 
@@ -307,20 +302,17 @@ async function onSubmitSplitConfig(): Promise<void> {
   }
 }
 
-function onSelectSection(event: Event): void {
-  const target = event.target as HTMLSelectElement | null;
-  if (!target) {
-    return;
-  }
-  const index = Number.parseInt(target.value, 10);
-  if (Number.isNaN(index)) {
-    return;
-  }
-  void goToSection(index);
+function openChapterModal(): void {
+  isChapterModalOpen.value = true;
 }
 
-function toggleChapterList(): void {
-  showChapterList.value = !showChapterList.value;
+function closeChapterModal(): void {
+  isChapterModalOpen.value = false;
+}
+
+async function selectSectionFromChapterModal(index: number): Promise<void> {
+  await goToSection(index);
+  isChapterModalOpen.value = false;
 }
 
 onMounted(() => {
@@ -328,8 +320,13 @@ onMounted(() => {
   void fetchReaderData();
 });
 
+watch([isSplitModalOpen, isChapterModalOpen], ([splitOpen, chapterOpen]) => {
+  document.body.style.overflow = splitOpen || chapterOpen ? 'hidden' : '';
+});
+
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onDocumentKeydown);
+  document.body.style.overflow = '';
 });
 </script>
 
@@ -508,69 +505,6 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
 }
 
-.reader-nav-jump {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #6b5f4a;
-  font-size: 0.9rem;
-}
-
-.reader-nav-select {
-  min-width: 240px;
-  max-width: 100%;
-}
-
-.reader-chapter-list {
-  margin: 0 0 12px;
-  padding: 10px;
-  border: 1px solid rgba(122, 104, 72, 0.2);
-  border-radius: 12px;
-  background: rgba(255, 252, 245, 0.75);
-  display: grid;
-  gap: 6px;
-  max-height: 180px;
-  overflow: auto;
-}
-
-.reader-chapter-item {
-  width: 100%;
-  border: 1px solid rgba(122, 104, 72, 0.2);
-  border-radius: 8px;
-  background: rgba(255, 251, 242, 0.9);
-  color: #5d513f;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 8px;
-  align-items: center;
-  padding: 7px 10px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.reader-chapter-item:hover {
-  background: #fffdf7;
-}
-
-.reader-chapter-item.is-active {
-  border-color: rgba(122, 104, 72, 0.5);
-  color: #3f3529;
-  box-shadow: inset 0 0 0 1px rgba(122, 104, 72, 0.22);
-}
-
-.reader-chapter-index {
-  font-weight: 600;
-  color: #4f4332;
-}
-
-.reader-chapter-name {
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .reader-split-warning {
   margin: 0 0 10px;
   padding: 10px 12px;
@@ -665,6 +599,81 @@ onBeforeUnmount(() => {
   min-height: 88px;
 }
 
+.chapter-modal-backdrop {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.38);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 16px;
+  position: fixed;
+  z-index: 69;
+}
+
+.chapter-modal {
+  display: grid;
+  gap: 10px;
+  width: min(100%, 560px);
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+  padding: 16px;
+}
+
+.chapter-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.chapter-modal-header h3 {
+  margin: 0;
+  color: #3f3529;
+}
+
+.chapter-modal-list {
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+  max-height: calc(100vh - 170px);
+  padding-right: 2px;
+}
+
+.chapter-modal-item {
+  width: 100%;
+  border: 1px solid rgba(122, 104, 72, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 251, 242, 0.94);
+  color: #5d513f;
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chapter-modal-item:hover {
+  background: #fffdf7;
+}
+
+.chapter-modal-item.active {
+  border-color: rgba(122, 104, 72, 0.5);
+  color: #3f3529;
+  box-shadow: inset 0 0 0 1px rgba(122, 104, 72, 0.22);
+}
+
+.chapter-modal-item-index {
+  font-size: 0.82rem;
+  color: #6b5f4a;
+}
+
+.chapter-modal-item-title {
+  font-weight: 600;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 @media (max-width: 720px) {
   .reader-page {
     padding: 18px 12px 94px;
@@ -726,10 +735,6 @@ onBeforeUnmount(() => {
     text-overflow: ellipsis;
   }
 
-  .reader-chapter-list {
-    max-height: 150px;
-  }
-
   .reader-nav {
     grid-template-columns: 1fr 1fr;
   }
@@ -740,18 +745,18 @@ onBeforeUnmount(() => {
     justify-items: start;
   }
 
-  .reader-nav-jump {
-    grid-column: 1 / -1;
-  }
-
-  .reader-nav-select {
-    min-width: 0;
-    width: 100%;
-  }
-
   .reader-content {
     max-height: calc(100vh - 240px);
     padding: 12px 8px 16px;
+  }
+
+  .chapter-modal {
+    width: min(100%, 96vw);
+    padding: 12px;
+  }
+
+  .chapter-modal-list {
+    max-height: calc(100vh - 190px);
   }
 
   .reader-text {
