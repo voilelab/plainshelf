@@ -126,4 +126,12 @@ func TestCreateRootSnapshot(t *testing.T) {
 	if meta.SourceURI != "Initial content" {
 		t.Errorf("Expected source URI 'Initial content', got '%s'", meta.SourceURI)
 	}
+
+	if meta.LineCount != 1 {
+		t.Errorf("Expected line count 1, got %d", meta.LineCount)
+	}
+
+	if meta.CharCount != len(sourceContent) {
+		t.Errorf("Expected character count %d, got %d", len(sourceContent), meta.CharCount)
+	}
 }

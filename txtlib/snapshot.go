@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"io/fs"
+	"log"
 	"path"
 	"time"
 
@@ -30,9 +31,13 @@ type Snapshot struct {
 }
 
 type SnapshotMeta struct {
-	ID          string        `json:"id"`
-	CreatedAt   util.JSONTime `json:"created_at"`
-	ContentHash string        `json:"content_hash"`
+	ID        string        `json:"id"`
+	CreatedAt util.JSONTime `json:"created_at"`
+
+	// depending on the content
+	ContentHash string `json:"content_hash"`
+	LineCount   int    `json:"line_count,omitempty"`
+	CharCount   int    `json:"char_count,omitempty"`
 
 	// recommend type: file, telegram, website, manual, generated, unknown
 	SourceType  string `json:"source_type"`
@@ -181,10 +186,37 @@ func createSnapshot(rt fsutil.FS, snapshotPath, id string, source io.Reader, sou
 		return nil, util.Errorf("%w", err)
 	}
 
+	destFile2, err := rt.Open(sourceDestPath)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer destFile2.Close()
+
+	lineCount, err := util.LineCount(destFile2)
+	if err != nil {
+		lineCount = 0
+		log.Println("failed to count lines:", err)
+	}
+
+	destFile3, err := rt.Open(sourceDestPath)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer destFile3.Close()
+
+	charCount, err := util.CharCount(destFile3)
+	if err != nil {
+		charCount = 0
+		log.Println("failed to count characters:", err)
+	}
+
 	meta := SnapshotMeta{
-		ID:          id,
-		CreatedAt:   util.JSONTime(time.Now()),
+		ID:        id,
+		CreatedAt: util.JSONTime(time.Now()),
+
 		ContentHash: contentHash,
+		LineCount:   lineCount,
+		CharCount:   charCount,
 
 		SourceType:  sourceType,
 		SourceLabel: sourceLabel,
