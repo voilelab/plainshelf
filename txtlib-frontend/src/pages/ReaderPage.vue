@@ -7,59 +7,90 @@
           <span class="reader-kicker">Reader</span>
           <h2>{{ title || id }}</h2>
         </div>
-        <div class="reader-actions">
+        <div class="reader-header-meta">
           <span class="reader-progress">Progress: {{ progress?.percent ?? 0 }}%</span>
-          <button class="button" type="button" @click="openSplitModal">Split</button>
-          <button class="button reader-bookmark" :disabled="bookmarking" @click="bookmarkCurrent">
-            {{ bookmarking ? 'Saving...' : 'Bookmark' }}
-          </button>
         </div>
       </header>
 
-      <div v-if="loading" class="loading reader-status">Loading content...</div>
-      <div v-else-if="error" class="error reader-status reader-error" role="alert">
-        <p>{{ error }}</p>
-        <button class="button" type="button" @click="fetchReaderData">Retry</button>
-      </div>
-
-      <article v-else class="reader-document">
-        <div class="reader-nav" v-if="sections.length > 0">
-          <button class="button reader-nav-button" type="button" :disabled="currentSectionIndex <= 0" @click="goPrevSection">
-            Prev
-          </button>
-          <div class="reader-nav-center">
-            <strong>{{ currentSectionIndex + 1 }} / {{ sections.length }}</strong>
-            <span class="reader-nav-title">{{ currentSection?.title }}</span>
-          </div>
+      <div class="reader-layout">
+        <aside class="reader-side-actions" aria-label="Reader actions">
           <button
-            class="button reader-nav-button"
+            class="button reader-side-button"
             type="button"
-            :disabled="currentSectionIndex >= sections.length - 1"
-            @click="goNextSection"
+            :disabled="sections.length === 0"
+            @click="toggleChapterList"
           >
-            Next
+            <span class="reader-side-short">{{ showChapterList ? 'Hide Chapters' : 'Show Chapters' }}</span>
           </button>
-          <label class="reader-nav-jump" for="reader-section-jump">
-            Jump:
-            <select
-              id="reader-section-jump"
-              class="input reader-nav-select"
-              :value="String(currentSectionIndex)"
-              @change="onSelectSection"
-            >
-              <option v-for="section in sections" :key="section.index" :value="String(section.index)">
-                {{ section.index + 1 }}. {{ section.title }}
-              </option>
-            </select>
-          </label>
-        </div>
+          <button class="button reader-side-button" type="button" @click="openSplitModal">
+            <span class="reader-side-short">Split</span>
+          </button>
+          <button class="button reader-bookmark reader-side-button" :disabled="bookmarking" @click="bookmarkCurrent">
+            <span class="reader-side-short">{{ bookmarking ? 'Saving...' : 'Bookmark' }}</span>
+          </button>
+        </aside>
 
-        <p v-if="splitWarning" class="reader-split-warning" role="status">{{ splitWarning }}</p>
+        <main class="reader-main">
+          <div v-if="loading" class="loading reader-status">Loading content...</div>
+          <div v-else-if="error" class="error reader-status reader-error" role="alert">
+            <p>{{ error }}</p>
+            <button class="button" type="button" @click="fetchReaderData">Retry</button>
+          </div>
 
-        <div class="reader-content" @scroll="onScroll" ref="readerRef">
-          <div class="reader-text">{{ currentSection?.text ?? '' }}</div>
-        </div>
-      </article>
+          <article v-else class="reader-document">
+            <div class="reader-nav" v-if="sections.length > 0">
+              <button class="button reader-nav-button" type="button" :disabled="currentSectionIndex <= 0" @click="goPrevSection">
+                Prev
+              </button>
+              <div class="reader-nav-center">
+                <strong>{{ currentSectionIndex + 1 }} / {{ sections.length }}</strong>
+                <span class="reader-nav-title">{{ currentSection?.title }}</span>
+              </div>
+              <button
+                class="button reader-nav-button"
+                type="button"
+                :disabled="currentSectionIndex >= sections.length - 1"
+                @click="goNextSection"
+              >
+                Next
+              </button>
+              <label class="reader-nav-jump" for="reader-section-jump">
+                Jump:
+                <select
+                  id="reader-section-jump"
+                  class="input reader-nav-select"
+                  :value="String(currentSectionIndex)"
+                  @change="onSelectSection"
+                >
+                  <option v-for="section in sections" :key="section.index" :value="String(section.index)">
+                    {{ section.index + 1 }}. {{ section.title }}
+                  </option>
+                </select>
+              </label>
+            </div>
+
+            <aside v-if="showChapterList && sections.length > 0" class="reader-chapter-list" aria-label="Chapter list">
+              <button
+                v-for="section in sections"
+                :key="section.index"
+                class="reader-chapter-item"
+                :class="{ 'is-active': section.index === currentSectionIndex }"
+                type="button"
+                @click="goToSection(section.index)"
+              >
+                <span class="reader-chapter-index">{{ section.index + 1 }}.</span>
+                <span class="reader-chapter-name">{{ section.title }}</span>
+              </button>
+            </aside>
+
+            <p v-if="splitWarning" class="reader-split-warning" role="status">{{ splitWarning }}</p>
+
+            <div class="reader-content" @scroll="onScroll" ref="readerRef">
+              <div class="reader-text">{{ currentSection?.text ?? '' }}</div>
+            </div>
+          </article>
+        </main>
+      </div>
     </div>
 
     <div v-if="isSplitModalOpen" class="modal-overlay" role="presentation" @click="closeSplitModal">
@@ -169,6 +200,7 @@ const draftType = ref<SplitType>('none');
 const draftLineCount = ref('100');
 const draftRegex = ref('');
 const draftLines = ref('1');
+const showChapterList = ref(true);
 
 function hydrateSplitDraft(config: SplitConfig): void {
   draftType.value = config.type;
@@ -287,6 +319,10 @@ function onSelectSection(event: Event): void {
   void goToSection(index);
 }
 
+function toggleChapterList(): void {
+  showChapterList.value = !showChapterList.value;
+}
+
 onMounted(() => {
   document.addEventListener('keydown', onDocumentKeydown);
   void fetchReaderData();
@@ -305,7 +341,7 @@ onBeforeUnmount(() => {
 }
 
 .reader-shell {
-  max-width: 860px;
+  max-width: 980px;
   margin: 0 auto;
 }
 
@@ -352,12 +388,21 @@ onBeforeUnmount(() => {
   overflow-wrap: anywhere;
 }
 
-.reader-actions {
+.reader-header-meta {
   justify-self: end;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
+  min-width: 0;
+}
+
+.reader-layout {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+
+.reader-main {
   min-width: 0;
 }
 
@@ -365,6 +410,26 @@ onBeforeUnmount(() => {
   color: #6b5f4a;
   font-size: 0.92rem;
   white-space: nowrap;
+}
+
+.reader-side-actions {
+  position: sticky;
+  top: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.reader-side-button {
+  width: 100%;
+  min-height: 40px;
+  border-radius: 10px;
+  justify-content: center;
+}
+
+.reader-side-short {
+  white-space: normal;
+  line-height: 1.2;
+  text-align: center;
 }
 
 .reader-bookmark {
@@ -455,6 +520,55 @@ onBeforeUnmount(() => {
 .reader-nav-select {
   min-width: 240px;
   max-width: 100%;
+}
+
+.reader-chapter-list {
+  margin: 0 0 12px;
+  padding: 10px;
+  border: 1px solid rgba(122, 104, 72, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 252, 245, 0.75);
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.reader-chapter-item {
+  width: 100%;
+  border: 1px solid rgba(122, 104, 72, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 251, 242, 0.9);
+  color: #5d513f;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 7px 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.reader-chapter-item:hover {
+  background: #fffdf7;
+}
+
+.reader-chapter-item.is-active {
+  border-color: rgba(122, 104, 72, 0.5);
+  color: #3f3529;
+  box-shadow: inset 0 0 0 1px rgba(122, 104, 72, 0.22);
+}
+
+.reader-chapter-index {
+  font-weight: 600;
+  color: #4f4332;
+}
+
+.reader-chapter-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .reader-split-warning {
@@ -553,7 +667,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 720px) {
   .reader-page {
-    padding: 18px 12px 36px;
+    padding: 18px 12px 94px;
   }
 
   .reader-toolbar {
@@ -567,16 +681,53 @@ onBeforeUnmount(() => {
     text-align: left;
   }
 
-  .reader-actions {
-    justify-self: stretch;
-    width: 100%;
-    justify-content: space-between;
-    flex-wrap: wrap;
+  .reader-header-meta {
+    justify-self: start;
+  }
+
+  .reader-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reader-layout {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .reader-document {
     border-radius: 14px;
     padding: 12px;
+  }
+
+  .reader-side-actions {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    top: auto;
+    z-index: 40;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding: 8px;
+    border-radius: 12px;
+    background: rgba(247, 242, 231, 0.96);
+    border: 1px solid rgba(122, 104, 72, 0.18);
+    box-shadow: 0 10px 26px rgba(96, 75, 44, 0.12);
+  }
+
+  .reader-side-button {
+    min-height: 36px;
+    font-size: 0.84rem;
+    padding: 0 8px;
+  }
+
+  .reader-side-short {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .reader-chapter-list {
+    max-height: 150px;
   }
 
   .reader-nav {
@@ -599,7 +750,7 @@ onBeforeUnmount(() => {
   }
 
   .reader-content {
-    max-height: calc(100vh - 200px);
+    max-height: calc(100vh - 240px);
     padding: 12px 8px 16px;
   }
 
