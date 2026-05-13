@@ -23,6 +23,7 @@
         <div class="actions">
           <button class="button primary" @click="goRead">Read</button>
           <button class="button" @click="goEditMetadata">Edit metadata</button>
+          <button class="button" @click="goEditSnapshots">Edit Snapshots</button>
           <button class="button" @click="goLibrary">Back to books</button>
           <button class="button danger" :disabled="deleting" @click="confirmDelete">
             {{ deleting ? 'Deleting...' : 'Delete' }}
@@ -65,6 +66,10 @@ function goRead(): void {
 
 function goEditMetadata(): void {
   void router.push(`/books/${id.value}/edit`);
+}
+
+function goEditSnapshots(): void {
+  void router.push(`/books/${id.value}/snapshots`);
 }
 
 function goLibrary(): void {
