@@ -90,11 +90,6 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 		log.Printf("SetMeta error: %v", err)
 	}
 
-	err = addBookToIndexDB(app.indexLib, newBook)
-	if err != nil {
-		log.Printf("addBookToIndexDB error: %v", err)
-	}
-
 	resp := Book{
 		Meta:  newBook.GetMeta(),
 		Layer: newBook.Layers(),

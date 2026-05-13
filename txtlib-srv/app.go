@@ -8,14 +8,12 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/txtlib"
 	txtlibfrontend "github.com/voilelab/plainshelf/txtlib-frontend"
-	"github.com/voilelab/plainshelf/txtlib-srv/bookindex"
 	"github.com/voilelab/plainshelf/txtlib-srv/bookmark"
 )
 
 type App struct {
 	lib        *txtlib.Txtlib
 	markLib    *bookmark.DB
-	indexLib   *bookindex.DB
 	spaFS      fs.FS
 	spaHandler http.Handler
 
@@ -25,7 +23,6 @@ type App struct {
 type AppConf struct {
 	LibPath    string `yaml:"lib_path"`
 	MarkPath   string `yaml:"mark_path"`
-	IndexPath  string `yaml:"index_path"`
 	CoverToJPG bool   `yaml:"cover_to_jpg"`
 }
 
@@ -41,17 +38,9 @@ func NewApp(conf *AppConf) (*App, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	indexLib, err := bookindex.New(conf.IndexPath)
-	if err != nil {
-		lib.Close()
-		markDB.Close()
-		return nil, util.Errorf("%w", err)
-	}
-
 	return &App{
 		lib:        lib,
 		markLib:    markDB,
-		indexLib:   indexLib,
 		spaFS:      txtlibfrontend.WebFS,
 		spaHandler: http.FileServerFS(txtlibfrontend.WebFS),
 		conf:       conf,
@@ -59,17 +48,12 @@ func NewApp(conf *AppConf) (*App, error) {
 }
 
 func (app *App) Start() error {
-	err := initIndexDBFromLib(app.indexLib, app.lib)
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
 	return nil
 }
 
 func (app *App) Close() error {
 	// TBD: aggregate errors if both fail
 	app.markLib.Close()
-	app.indexLib.Close()
 	return app.lib.Close()
 }
 

@@ -6,5 +6,4 @@ server_conf:
 app_conf:
   lib_path: "./lib"
   mark_path: "./mark"
-  index_path: "./index"
   cover_to_jpg: true

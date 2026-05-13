@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -187,8 +188,6 @@ func (app *App) HandleAPIDeleteBook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to delete book", http.StatusInternalServerError)
 		return
 	}
-
-	app.indexLib.Remove(bookID)
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -435,18 +434,32 @@ func (app *App) HandleAPIUpdateBookSplitConfig(w http.ResponseWriter, r *http.Re
 
 // GET /api/books/duplicate
 func (app *App) HandleAPIFindDuplicateBooks(w http.ResponseWriter, r *http.Request) {
-	md5Groups := app.indexLib.GetMetaGroup("content_hash")
+	md5Groups := map[string][]string{}
+	books, err := app.lib.ListBooks()
+	if err != nil {
+		http.Error(w, "failed to list books", http.StatusInternalServerError)
+		return
+	}
 
-	groups := make([][]string, 0)
-	for _, set := range md5Groups {
-		items := set.Items()
-		if len(items) > 1 {
-			groups = append(groups, items)
+	for _, b := range books {
+		snapshot, err := b.GetSnapshot(b.CurrentSnapshot())
+		if err != nil {
+			log.Printf("failed to get snapshot for book %s: %v", b.ID(), err)
+			continue
+		}
+		meta := snapshot.GetMeta()
+		md5Groups[meta.MD5Hash] = append(md5Groups[meta.MD5Hash], b.ID())
+	}
+
+	groups := [][]string{}
+	for _, ids := range md5Groups {
+		if len(ids) > 1 {
+			groups = append(groups, ids)
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	err := json.NewEncoder(w).Encode(groups)
+	err = json.NewEncoder(w).Encode(groups)
 	if err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
