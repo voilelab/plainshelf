@@ -75,7 +75,7 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utf8File, err := util.ReEncodeToUTF8(f)
+	utf8File, _, err := util.ReEncodeToUTF8(f)
 	if err != nil {
 		log.Printf("ReEncodeToUTF8 error: %v", err)
 		http.Error(w, "failed to re-encode uploaded file to UTF-8", http.StatusInternalServerError)
