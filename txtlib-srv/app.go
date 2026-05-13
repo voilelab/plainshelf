@@ -93,6 +93,10 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/books/{book_id}", app.HandleAPIUpdateBook)
 	mux.HandleFunc("DELETE /api/books/{book_id}", app.HandleAPIDeleteBook)
 
+	mux.HandleFunc("GET /api/books/{book_id}/snapshots", app.HandleAPIGetBookSnapshots)
+	mux.HandleFunc("GET /api/books/{book_id}/snapshots/{snapshot_id}/content", app.HandleAPIGetBookSnapshotContent)
+	mux.HandleFunc("PATCH /api/books/{book_id}/snapshots/{snapshot_id}/content", app.HandleAPIUpdateBookSnapshotContent)
+
 	mux.HandleFunc("GET /api/books/{book_id}/cover", app.HandleAPIGetBookCover)
 	mux.HandleFunc("PUT /api/books/{book_id}/cover", app.HandleAPIUpdateBookCover)
 	mux.HandleFunc("DELETE /api/books/{book_id}/cover", app.HandleAPIDeleteBookCover)

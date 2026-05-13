@@ -25,3 +25,20 @@ func readBookID(r *http.Request) (string, error) {
 
 	return decoded, nil
 }
+
+func readSnapshotID(r *http.Request) (string, error) {
+	snapshotID := strings.TrimSpace(r.PathValue("snapshot_id"))
+	if snapshotID == "" {
+		snapshotID = strings.TrimSpace(r.URL.Query().Get("snapshot_id"))
+	}
+	if snapshotID == "" {
+		return "", errors.New("missing snapshot_id")
+	}
+
+	decoded, err := url.PathUnescape(snapshotID)
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+
+	return decoded, nil
+}

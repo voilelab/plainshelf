@@ -64,6 +64,28 @@ func (r *Snapshot) OpenSource() (fs.File, error) {
 	return fp, nil
 }
 
+func (r *Snapshot) UpdateContent(newContent io.Reader) error {
+	sourceDestPath := path.Join(r.folderPath, SourceFile)
+	destFile, err := r.root.OpenWriter(sourceDestPath)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	_, err = io.Copy(destFile, newContent)
+	if err != nil {
+		destFile.Close()
+		return util.Errorf("%w", err)
+	}
+	destFile.Close()
+
+	err = r.UpdateHash()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
+}
+
 func (r *Snapshot) VerifyContent() (bool, error) {
 	sourceFile, err := r.OpenSource()
 	if err != nil {
