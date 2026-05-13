@@ -1,5 +1,9 @@
 # PlainShelf
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/voilelab/plainshelf.svg)](https://pkg.go.dev/github.com/voilelab/plainshelf)
+[![License](https://img.shields.io/badge/license-BSD_3--Clause-brightgreen.svg?style=flat)](https://github.com/voilelab/plainshelf/blob/main/LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/voilelab/plainshelf)](https://goreportcard.com/report/github.com/voilelab/plainshelf)
+
 PlainShelf is a local-first personal reading library for plain text books.
 
 It is designed for single-user local usage, with a filesystem-first data model and a web-based reading interface.
