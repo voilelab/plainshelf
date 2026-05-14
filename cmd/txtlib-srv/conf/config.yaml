@@ -4,6 +4,6 @@ server_conf:
   write_timeout: 1000ms
 
 app_conf:
-  lib_path: "./lib"
+  shelf_path: "./shelf"
   mark_path: "./mark"
   cover_to_jpg: true

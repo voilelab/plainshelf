@@ -21,13 +21,13 @@ type App struct {
 }
 
 type AppConf struct {
-	LibPath    string `yaml:"lib_path"`
+	ShelfPath  string `yaml:"shelf_path"`
 	MarkPath   string `yaml:"mark_path"`
 	CoverToJPG bool   `yaml:"cover_to_jpg"`
 }
 
 func NewApp(conf *AppConf) (*App, error) {
-	s, err := shelf.OpenLocalShelf(conf.LibPath)
+	s, err := shelf.OpenLocalShelf(conf.ShelfPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
