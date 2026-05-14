@@ -120,7 +120,7 @@ function onDragLeave(event: DragEvent): void {
 
 function onDrop(event: DragEvent): void {
   isDropTarget.value = false;
-  const bookId = event.dataTransfer?.getData('application/x-txtlib-book-id');
+  const bookId = event.dataTransfer?.getData('application/x-plainshelf-book-id');
   if (!bookId) {
     return;
   }

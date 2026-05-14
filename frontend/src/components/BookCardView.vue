@@ -131,7 +131,7 @@ function onDragStart(event: DragEvent, book: Book): void {
   draggingBookId.value = book.id;
   cleanupDragPreview();
 
-  event.dataTransfer?.setData('application/x-txtlib-book-id', book.id);
+  event.dataTransfer?.setData('application/x-plainshelf-book-id', book.id);
   event.dataTransfer?.setData('text/plain', book.id);
 
   if (event.dataTransfer) {

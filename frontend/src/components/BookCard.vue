@@ -93,7 +93,7 @@ function cleanupDragPreview(): void {
 function onDragStart(event: DragEvent): void {
   isDragging.value = true;
   cleanupDragPreview();
-  event.dataTransfer?.setData('application/x-txtlib-book-id', props.book.id);
+  event.dataTransfer?.setData('application/x-plainshelf-book-id', props.book.id);
   event.dataTransfer?.setData('text/plain', props.book.id);
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move';
