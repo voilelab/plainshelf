@@ -1,7 +1,7 @@
 set shell := ["zsh", "-cu"]
 
 gui_dir := "cmd/txtlib-gui"
-srv_frontend_dir := "txtlib-frontend"
+srv_frontend_dir := "frontend"
 
 default:
 	just --list
@@ -20,4 +20,4 @@ server-frontend:
 
 # Build server: build Go server binary.
 server-backend: server-frontend
-	go build -o txtlib-srv cmd/txtlib-srv/main.go
+	go build -o plainshelf-srv cmd/plainshelf-srv/main.go
