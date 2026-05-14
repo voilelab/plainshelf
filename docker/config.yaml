@@ -1,0 +1,9 @@
+server_conf:
+  addr: "0.0.0.0:20000"
+  read_timeout: 1000ms
+  write_timeout: 1000ms
+
+app_conf:
+  shelf_path: "/data/shelf"
+  mark_path: "/data/mark"
+  cover_to_jpg: true

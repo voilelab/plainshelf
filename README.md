@@ -125,6 +125,37 @@ cd workspace0
 go run ../cmd/plainshelf-srv/main.go -conf config.yaml
 ```
 
+The default development config listens on `127.0.0.1:20000` and stores shelf and mark data under the current working directory.
+
+### Run server with Docker
+
+Build the Ubuntu 24.04-based container image from the repository root:
+
+```bash
+docker build -t plainshelf .
+```
+
+Start the server on <http://localhost:20000> with persistent application data in a Docker volume:
+
+```bash
+docker run --rm \
+  --name plainshelf \
+  -p 20000:20000 \
+  -v plainshelf-data:/data \
+  plainshelf
+```
+
+The image uses `docker/config.yaml`, which listens on `0.0.0.0:20000` inside the container and stores data in `/data/shelf` and `/data/mark`. To use a custom server config, mount it over `/etc/plainshelf/config.yaml`:
+
+```bash
+docker run --rm \
+  --name plainshelf \
+  -p 20000:20000 \
+  -v plainshelf-data:/data \
+  -v "$PWD/path/to/config.yaml:/etc/plainshelf/config.yaml:ro" \
+  plainshelf
+```
+
 ### Run tests
 
 ```bash
