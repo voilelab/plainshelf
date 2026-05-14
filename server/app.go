@@ -1,4 +1,4 @@
-package txtlibsrv
+package server
 
 import (
 	"io/fs"
@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/server/bookmark"
 	"github.com/voilelab/plainshelf/shelf"
 	txtlibfrontend "github.com/voilelab/plainshelf/txtlib-frontend"
-	"github.com/voilelab/plainshelf/txtlib-srv/bookmark"
 )
 
 type App struct {

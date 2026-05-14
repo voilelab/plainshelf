@@ -1,4 +1,4 @@
-package txtlibsrv
+package server
 
 import (
 	"encoding/json"
@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/voilelab/plainshelf/txtlib-srv/bookmark"
+	"github.com/voilelab/plainshelf/server/bookmark"
 )
 
 // GET /api/marks/{book_id}

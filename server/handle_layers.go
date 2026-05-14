@@ -1,4 +1,4 @@
-package txtlibsrv
+package server
 
 import (
 	"encoding/json"
