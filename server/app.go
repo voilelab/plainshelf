@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/voilelab/plainshelf/frontend"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server/bookmark"
 	"github.com/voilelab/plainshelf/shelf"
-	txtlibfrontend "github.com/voilelab/plainshelf/txtlib-frontend"
 )
 
 type App struct {
@@ -41,8 +41,8 @@ func NewApp(conf *AppConf) (*App, error) {
 	return &App{
 		shelf:      s,
 		markLib:    markDB,
-		spaFS:      txtlibfrontend.WebFS,
-		spaHandler: http.FileServerFS(txtlibfrontend.WebFS),
+		spaFS:      frontend.WebFS,
+		spaHandler: http.FileServerFS(frontend.WebFS),
 		conf:       conf,
 	}, nil
 }

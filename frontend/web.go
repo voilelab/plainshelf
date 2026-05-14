@@ -1,4 +1,4 @@
-package txtlibfrontend
+package frontend
 
 import (
 	"embed"
