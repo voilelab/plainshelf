@@ -471,7 +471,13 @@ func (app *App) HandleAPIUpdateBookSnapshotContent(w http.ResponseWriter, r *htt
 		return
 	}
 
-	err = snapshot.UpdateContent(r.Body)
+	utf8Reader, _, err := util.ReEncodeToUTF8(r.Body)
+	if err != nil {
+		http.Error(w, "failed to re-encode request body to UTF-8", http.StatusInternalServerError)
+		return
+	}
+
+	err = snapshot.UpdateContent(utf8Reader)
 	if err != nil {
 		http.Error(w, "failed to update book snapshot content", http.StatusInternalServerError)
 		return
