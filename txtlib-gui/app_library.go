@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/voilelab/plainshelf/txtlib"
+	"github.com/voilelab/plainshelf/shelf"
 	"github.com/voilelab/plainshelf/txtlib-gui/filedialog"
 	"github.com/voilelab/plainshelf/txtlib-gui/guiutil"
 
@@ -184,7 +184,7 @@ func (a *TxtlibApp) loadSavedLibraryConf() (*guiutil.LibConf, error) {
 	return &conf, nil
 }
 
-func (a *TxtlibApp) setLibraryByConf(lib *txtlib.Lib, conf *guiutil.LibConf) {
+func (a *TxtlibApp) setLibraryByConf(lib *shelf.Lib, conf *guiutil.LibConf) {
 	state := libraryState{lib: lib}
 
 	if conf != nil && conf.Type == guiutil.LibTypeURI {

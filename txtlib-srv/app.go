@@ -6,13 +6,13 @@ import (
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/voilelab/plainshelf/txtlib"
+	"github.com/voilelab/plainshelf/shelf"
 	txtlibfrontend "github.com/voilelab/plainshelf/txtlib-frontend"
 	"github.com/voilelab/plainshelf/txtlib-srv/bookmark"
 )
 
 type App struct {
-	lib        *txtlib.Lib
+	lib        *shelf.Lib
 	markLib    *bookmark.DB
 	spaFS      fs.FS
 	spaHandler http.Handler
@@ -27,7 +27,7 @@ type AppConf struct {
 }
 
 func NewApp(conf *AppConf) (*App, error) {
-	lib, err := txtlib.OpenLocalLib(conf.LibPath)
+	lib, err := shelf.OpenLocalLib(conf.LibPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

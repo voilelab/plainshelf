@@ -7,7 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
-	"github.com/voilelab/plainshelf/txtlib"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 const layerTreeRootID = "__all_layers__"
@@ -118,11 +118,11 @@ func (w *LayerTreeWidget) Tree() *widget.Tree {
 	return w.tree
 }
 
-func (w *LayerTreeWidget) SelectedLayer() txtlib.Layers {
+func (w *LayerTreeWidget) SelectedLayer() shelf.Layers {
 	if w.selectedID == layerTreeRootID {
 		return nil
 	}
-	return txtlib.NewLayersFromString(w.selectedID)
+	return shelf.NewLayersFromString(w.selectedID)
 }
 
 func (w *LayerTreeWidget) SetDragActive(active bool) {
@@ -147,11 +147,11 @@ func (w *LayerTreeWidget) SetDragActive(active bool) {
 	}
 }
 
-func (w *LayerTreeWidget) HoveredLayer() txtlib.Layers {
+func (w *LayerTreeWidget) HoveredLayer() shelf.Layers {
 	if w.hoveredID == layerTreeRootID {
 		return nil
 	}
-	return txtlib.NewLayersFromString(w.hoveredID)
+	return shelf.NewLayersFromString(w.hoveredID)
 }
 
 func (w *LayerTreeWidget) setHoveredLayer(layerID string) {
@@ -196,7 +196,7 @@ func (w *LayerTreeWidget) SelectLayer(layerID string) {
 	w.tree.Select(widget.TreeNodeID(layerID))
 }
 
-func (w *LayerTreeWidget) SetLayers(allLayers []txtlib.Layers) {
+func (w *LayerTreeWidget) SetLayers(allLayers []shelf.Layers) {
 	children := map[string][]string{
 		layerTreeRootID: {},
 	}

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/voilelab/plainshelf/txtlib"
+	"github.com/voilelab/plainshelf/shelf"
 	"github.com/voilelab/plainshelf/txtlib-gui/component"
 	"github.com/voilelab/plainshelf/txtlib-gui/filedialog"
 
@@ -49,7 +49,7 @@ func (a *TxtlibApp) performAddBook(file fyne.URIReadCloser) error {
 
 	layers := a.layerTreeWidget.SelectedLayer()
 	if layers == nil {
-		layers = txtlib.Layers{defaultLayer}
+		layers = shelf.Layers{defaultLayer}
 	}
 
 	book, err := a.libState.lib.NewBook(layers, bookTitle)
@@ -100,7 +100,7 @@ func (a *TxtlibApp) editBookMetaAction() {
 		return
 	}
 
-	editWindow := component.NewEditBookWindow(a.window, book, a.scaleDialogSize, func(updatedBook *txtlib.Book) {
+	editWindow := component.NewEditBookWindow(a.window, book, a.scaleDialogSize, func(updatedBook *shelf.Book) {
 		a.stateBar.SetText("Updated metadata for book: " + updatedBook.Title())
 		a.updateBookList()
 	})
@@ -187,7 +187,7 @@ func (a *TxtlibApp) performBookMove(bookID string, targetLayers []string) error 
 	return nil
 }
 
-func (a *TxtlibApp) handleDraggedBookDrop(bookID string, targetLayers txtlib.Layers) {
+func (a *TxtlibApp) handleDraggedBookDrop(bookID string, targetLayers shelf.Layers) {
 	if targetLayers == nil {
 		dialog.ShowInformation(
 			"Invalid Target",

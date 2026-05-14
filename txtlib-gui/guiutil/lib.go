@@ -5,7 +5,7 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/voilelab/plainshelf/txtlib"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 type LibType string
@@ -49,7 +49,7 @@ func parseLibConfConf[T any](conf any) (T, error) {
 	return typedConf, nil
 }
 
-func NewLib(conf *LibConf) (*txtlib.Lib, error) {
+func NewLib(conf *LibConf) (*shelf.Lib, error) {
 	switch conf.Type {
 	case LibTypeURI:
 		uriConf, err := parseLibConfConf[LibConfURI](conf.Conf)
@@ -60,7 +60,7 @@ func NewLib(conf *LibConf) (*txtlib.Lib, error) {
 		if err != nil {
 			return nil, util.Errorf("failed to parse library URI: %w", err)
 		}
-		return txtlib.OpenLib(fsutil.NewFyneURIFS(folder), false)
+		return shelf.OpenLib(fsutil.NewFyneURIFS(folder), false)
 
 	case LibTypeWebDAV:
 		webdavConf, err := parseLibConfConf[LibConfWebDAV](conf.Conf)
@@ -77,7 +77,7 @@ func NewLib(conf *LibConf) (*txtlib.Lib, error) {
 		if err != nil {
 			return nil, util.Errorf("failed to create WebDAV FS: %w", err)
 		}
-		return txtlib.OpenLib(fs, false)
+		return shelf.OpenLib(fs, false)
 
 	default:
 		return nil, util.Errorf("unsupported library type: %s", conf.Type)

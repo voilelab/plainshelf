@@ -1,7 +1,7 @@
 package component
 
 import (
-	"github.com/voilelab/plainshelf/txtlib"
+	"github.com/voilelab/plainshelf/shelf"
 
 	"fyne.io/fyne/v2/widget"
 )
@@ -31,7 +31,7 @@ func NewSelectLayerWidget(allLayers []string, currentLayer string) *SelectLayerW
 // GetSelectedLayers returns the selected layers as a parsed Layers object
 func (w *SelectLayerWidget) GetSelectedLayers() []string {
 	text := w.entry.Text
-	return txtlib.NewLayersFromString(text)
+	return shelf.NewLayersFromString(text)
 }
 
 // GetForm returns the underlying form widget

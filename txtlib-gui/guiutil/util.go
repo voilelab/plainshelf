@@ -6,10 +6,10 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/theme"
-	"github.com/voilelab/plainshelf/txtlib"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
-func GetBookCoverResource(book *txtlib.Book) fyne.Resource {
+func GetBookCoverResource(book *shelf.Book) fyne.Resource {
 	coverPath := book.GetMeta().Cover
 	if coverPath == "" {
 		return theme.DocumentIcon()

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/voilelab/plainshelf/txtlib"
+	"github.com/voilelab/plainshelf/shelf"
 	"github.com/voilelab/plainshelf/txtlib-gui/filedialog"
 
 	"fyne.io/fyne/v2"
@@ -21,9 +21,9 @@ import (
 type EditBookWindow struct {
 	dlg           dialog.Dialog
 	parent        fyne.Window
-	book          *txtlib.Book
+	book          *shelf.Book
 	sizeDialog    func(base fyne.Size) fyne.Size
-	onSave        func(*txtlib.Book)
+	onSave        func(*shelf.Book)
 	titleEntry    *widget.Entry
 	authorsEntry  *widget.Entry
 	languageEntry *widget.Entry
@@ -35,7 +35,7 @@ type EditBookWindow struct {
 	removeCover   bool
 }
 
-func NewEditBookWindow(parent fyne.Window, book *txtlib.Book, sizeDialog func(base fyne.Size) fyne.Size, onSave func(*txtlib.Book)) *EditBookWindow {
+func NewEditBookWindow(parent fyne.Window, book *shelf.Book, sizeDialog func(base fyne.Size) fyne.Size, onSave func(*shelf.Book)) *EditBookWindow {
 	meta := book.GetMeta()
 
 	titleEntry := widget.NewEntry()

@@ -5,7 +5,7 @@ import (
 	"io/fs"
 
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/voilelab/plainshelf/txtlib"
+	"github.com/voilelab/plainshelf/shelf"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -21,7 +21,7 @@ type TxtViewWindow struct {
 	chapterReader *util.ChapterReader
 }
 
-func NewTxtViewWindow(app fyne.App, snapshot *txtlib.Snapshot, initialSize fyne.Size) *TxtViewWindow {
+func NewTxtViewWindow(app fyne.App, snapshot *shelf.Snapshot, initialSize fyne.Size) *TxtViewWindow {
 	contentText := widget.NewMultiLineEntry()
 	contentText.Wrapping = fyne.TextWrapWord
 	contentText.TextStyle = fyne.TextStyle{Monospace: true}

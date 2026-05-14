@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/voilelab/plainshelf/txtlib"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 const maxImportBodySize = 100 << 20 // 100 MB
@@ -109,7 +109,7 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func detectBookLang(book *txtlib.Book) string {
+func detectBookLang(book *shelf.Book) string {
 	snapshot, err := book.GetSnapshot(book.CurrentSnapshot())
 	if err != nil {
 		return ""

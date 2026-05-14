@@ -11,22 +11,22 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/imgutil"
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/voilelab/plainshelf/txtlib"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 type Book struct {
-	Meta  *txtlib.BookMeta `json:"meta"`
-	Layer txtlib.Layers    `json:"layer"`
+	Meta  *shelf.BookMeta `json:"meta"`
+	Layer shelf.Layers    `json:"layer"`
 }
 
 type UpdateBookRequest struct {
-	Title    *string        `json:"title"`
-	Authors  *[]string      `json:"authors"`
-	Tags     *[]string      `json:"tags"`
-	Language *string        `json:"language"`
-	Comment  *string        `json:"comment"`
-	Layer    *txtlib.Layers `json:"layer"`
-	Layers   *txtlib.Layers `json:"layers"`
+	Title    *string       `json:"title"`
+	Authors  *[]string     `json:"authors"`
+	Tags     *[]string     `json:"tags"`
+	Language *string       `json:"language"`
+	Comment  *string       `json:"comment"`
+	Layer    *shelf.Layers `json:"layer"`
+	Layers   *shelf.Layers `json:"layers"`
 }
 
 // GET /api/books
@@ -40,7 +40,7 @@ func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if searchQuery != "" {
-		newBooks := make([]*txtlib.Book, 0)
+		newBooks := make([]*shelf.Book, 0)
 		for _, b := range books {
 			meta := b.GetMeta()
 			if strings.Contains(meta.Title, searchQuery) ||
@@ -78,7 +78,7 @@ func (app *App) HandleAPIGetBook(w http.ResponseWriter, r *http.Request) {
 	}
 	book, err := app.lib.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, txtlib.ErrBookNotFound) {
+		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
@@ -123,7 +123,7 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 
 	book, err := app.lib.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, txtlib.ErrBookNotFound) {
+		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
@@ -136,7 +136,7 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 		targetLayers = req.Layers
 	}
 	if targetLayers != nil {
-		movedBook, err := app.lib.MoveBook(bookID, append(txtlib.Layers(nil), (*targetLayers)...))
+		movedBook, err := app.lib.MoveBook(bookID, append(shelf.Layers(nil), (*targetLayers)...))
 		if err != nil {
 			http.Error(w, "failed to move book layer", http.StatusInternalServerError)
 			return
@@ -202,7 +202,7 @@ func (app *App) HandleAPIGetBookCover(w http.ResponseWriter, r *http.Request) {
 
 	book, err := app.lib.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, txtlib.ErrBookNotFound) {
+		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
@@ -245,7 +245,7 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 
 	book, err := app.lib.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, txtlib.ErrBookNotFound) {
+		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
@@ -303,7 +303,7 @@ func (app *App) HandleAPIDeleteBookCover(w http.ResponseWriter, r *http.Request)
 
 	book, err := app.lib.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, txtlib.ErrBookNotFound) {
+		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
@@ -330,7 +330,7 @@ func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) 
 
 	book, err := app.lib.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, txtlib.ErrBookNotFound) {
+		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
@@ -369,7 +369,7 @@ func (app *App) HandleAPIGetBookSnapshots(w http.ResponseWriter, r *http.Request
 
 	book, err := app.lib.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, txtlib.ErrBookNotFound) {
+		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
@@ -383,7 +383,7 @@ func (app *App) HandleAPIGetBookSnapshots(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	snapshotMetas := make([]*txtlib.SnapshotMeta, len(snapshots))
+	snapshotMetas := make([]*shelf.SnapshotMeta, len(snapshots))
 	for i, s := range snapshots {
 		snapshotMetas[i] = s.GetMeta()
 	}
@@ -412,7 +412,7 @@ func (app *App) HandleAPIGetBookSnapshotContent(w http.ResponseWriter, r *http.R
 
 	book, err := app.lib.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, txtlib.ErrBookNotFound) {
+		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
@@ -457,7 +457,7 @@ func (app *App) HandleAPIUpdateBookSnapshotContent(w http.ResponseWriter, r *htt
 
 	book, err := app.lib.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, txtlib.ErrBookNotFound) {
+		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
@@ -496,7 +496,7 @@ func (app *App) HandleAPIGetBookSplitConfig(w http.ResponseWriter, r *http.Reque
 
 	book, err := app.lib.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, txtlib.ErrBookNotFound) {
+		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
@@ -528,7 +528,7 @@ func (app *App) HandleAPIUpdateBookSplitConfig(w http.ResponseWriter, r *http.Re
 
 	book, err := app.lib.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, txtlib.ErrBookNotFound) {
+		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
@@ -536,7 +536,7 @@ func (app *App) HandleAPIUpdateBookSplitConfig(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	var splitConfig txtlib.SplitConfig
+	var splitConfig shelf.SplitConfig
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&splitConfig); err != nil {

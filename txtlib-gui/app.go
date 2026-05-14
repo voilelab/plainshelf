@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/voilelab/plainshelf/txtlib"
+	"github.com/voilelab/plainshelf/shelf"
 	"github.com/voilelab/plainshelf/txtlib-gui/component"
 
 	"fyne.io/fyne/v2"
@@ -24,7 +24,7 @@ var appSize = fyne.NewSize(1000, 800)
 
 // libraryState holds the currently open library and its location metadata.
 type libraryState struct {
-	lib       *txtlib.Lib
+	lib       *shelf.Lib
 	uri       fyne.ListableURI
 	localRoot string
 }
@@ -37,7 +37,7 @@ type TxtlibApp struct {
 	stateBar *widget.Label
 
 	bookListComponent *component.BookListWidget
-	bookList          []*txtlib.Book
+	bookList          []*shelf.Book
 	selectedBookIdx   int
 	layerTreeWidget   *component.LayerTreeWidget
 	draggingBookID    string
@@ -137,7 +137,7 @@ func (a *TxtlibApp) setup() {
 		a.updateBookListBySelectedLayer()
 	}, func(_ string) {})
 
-	a.bookListComponent = component.NewBookListWidget(func(id int, book *txtlib.Book) {
+	a.bookListComponent = component.NewBookListWidget(func(id int, book *shelf.Book) {
 		a.selectedBookIdx = id
 		a.stateBar.SetText("Selected book: " + book.Title())
 		a.bookInfoWidget.SetBook(book)
@@ -188,7 +188,7 @@ func (a *TxtlibApp) updateBookList() {
 	a.updateBookListBySelectedLayer()
 }
 
-func (a *TxtlibApp) getSelectedBook() *txtlib.Book {
+func (a *TxtlibApp) getSelectedBook() *shelf.Book {
 	if a.selectedBookIdx < 0 || a.selectedBookIdx >= len(a.bookList) {
 		return nil
 	}
@@ -219,7 +219,7 @@ func (a *TxtlibApp) updateBookListBySelectedLayer() {
 	}
 
 	var (
-		books []*txtlib.Book
+		books []*shelf.Book
 		err   error
 	)
 

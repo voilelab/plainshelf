@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/voilelab/plainshelf/txtlib"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 func handleImport(args []string) {
@@ -50,7 +50,7 @@ func handleImport(args []string) {
 	}
 
 	// Open the txtlib library
-	lib, err := txtlib.OpenLocalLib(absLibPath)
+	lib, err := shelf.OpenLocalLib(absLibPath)
 	if err != nil {
 		fmt.Printf("Error opening library: %v\n", err)
 		os.Exit(1)

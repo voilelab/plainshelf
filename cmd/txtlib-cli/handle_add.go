@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/voilelab/plainshelf/txtlib"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 func handleAdd(args []string) {
@@ -36,7 +36,7 @@ func handleAdd(args []string) {
 		os.Exit(1)
 	}
 
-	lib, err := txtlib.OpenLocalLib(absPath)
+	lib, err := shelf.OpenLocalLib(absPath)
 	if err != nil {
 		fmt.Printf("Error opening library: %v\n", err)
 		os.Exit(1)

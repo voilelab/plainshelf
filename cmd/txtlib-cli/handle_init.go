@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/voilelab/plainshelf/txtlib"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 func handleInit(args []string) {
@@ -30,7 +30,7 @@ func handleInit(args []string) {
 
 	fmt.Printf("Initializing library at: %s\n", absPath)
 
-	lib, err := txtlib.OpenLocalLib(absPath)
+	lib, err := shelf.OpenLocalLib(absPath)
 	if err != nil {
 		fmt.Printf("Error initializing library: %v\n", err)
 		os.Exit(1)

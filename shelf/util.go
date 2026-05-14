@@ -1,4 +1,4 @@
-package txtlib
+package shelf
 
 import (
 	"fmt"

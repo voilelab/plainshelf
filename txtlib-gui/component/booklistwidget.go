@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/voilelab/plainshelf/txtlib"
+	"github.com/voilelab/plainshelf/shelf"
 	"github.com/voilelab/plainshelf/txtlib-gui/guiutil"
 
 	"fyne.io/fyne/v2"
@@ -15,8 +15,8 @@ import (
 
 type BookListWidget struct {
 	list        *widget.List
-	books       []*txtlib.Book
-	onSelect    func(id int, book *txtlib.Book)
+	books       []*shelf.Book
+	onSelect    func(id int, book *shelf.Book)
 	onDragStart func(bookID string)
 	onDragEnd   func(bookID string)
 }
@@ -58,7 +58,7 @@ func (i *draggableBookListItem) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(i.root)
 }
 
-func (i *draggableBookListItem) SetBook(book *txtlib.Book) {
+func (i *draggableBookListItem) SetBook(book *shelf.Book) {
 	i.bookID = book.ID()
 	i.img.Resource = guiutil.GetBookCoverResource(book)
 	i.img.Refresh()
@@ -88,7 +88,7 @@ func (i *draggableBookListItem) DragEnd() {
 	}
 }
 
-func NewBookListWidget(onSelect func(id int, book *txtlib.Book), onDragStart func(bookID string), onDragEnd func(bookID string)) *BookListWidget {
+func NewBookListWidget(onSelect func(id int, book *shelf.Book), onDragStart func(bookID string), onDragEnd func(bookID string)) *BookListWidget {
 	ret := &BookListWidget{onSelect: onSelect, onDragStart: onDragStart, onDragEnd: onDragEnd}
 
 	ret.list = widget.NewList(
@@ -130,7 +130,7 @@ func (w *BookListWidget) Unselect() {
 	w.list.UnselectAll()
 }
 
-func (w *BookListWidget) SetBooks(books []*txtlib.Book) {
+func (w *BookListWidget) SetBooks(books []*shelf.Book) {
 	w.books = books
 	w.list.Refresh()
 }

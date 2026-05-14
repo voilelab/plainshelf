@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/voilelab/plainshelf/txtlib"
+	"github.com/voilelab/plainshelf/shelf"
 	"github.com/voilelab/plainshelf/txtlib-gui/guiutil"
 
 	"fyne.io/fyne/v2"
@@ -57,7 +57,7 @@ func (w *BookInfoWidget) Container() *fyne.Container {
 	return w.container
 }
 
-func (w *BookInfoWidget) SetBook(book *txtlib.Book) {
+func (w *BookInfoWidget) SetBook(book *shelf.Book) {
 	meta := book.GetMeta()
 
 	w.img.Resource = guiutil.GetBookCoverResource(book)
