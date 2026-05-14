@@ -35,14 +35,14 @@ const appTmpFolder = "tmp"
 
 var ErrBookNotFound = util.NewError("book not found")
 
-type Txtlib struct {
+type Lib struct {
 	dbRoot   fsutil.FS
 	readonly bool
 	close    func() error
 }
 
-// OpenLocalLib initializes a new Txtlib instance with the given library root path.
-func OpenLocalLib(libRoot string) (*Txtlib, error) {
+// OpenLocalLib initializes a new Lib instance with the given library root path.
+func OpenLocalLib(libRoot string) (*Lib, error) {
 	var rt *os.Root
 	rt, err := os.OpenRoot(libRoot)
 	if err != nil {
@@ -59,7 +59,7 @@ func OpenLocalLib(libRoot string) (*Txtlib, error) {
 		}
 	}
 
-	txtLib := &Txtlib{dbRoot: fsutil.NewRootFS(rt), readonly: false, close: rt.Close}
+	txtLib := &Lib{dbRoot: fsutil.NewRootFS(rt), readonly: false, close: rt.Close}
 	err = txtLib.makeStructure()
 	if err != nil {
 		rt.Close()
@@ -69,9 +69,9 @@ func OpenLocalLib(libRoot string) (*Txtlib, error) {
 	return txtLib, nil
 }
 
-// OpenLib initializes a new Txtlib instance with the given fsutil.FS as the library root.
-func OpenLib(root fsutil.FS, readonly bool) (*Txtlib, error) {
-	txtLib := &Txtlib{dbRoot: root, readonly: readonly}
+// OpenLib initializes a new Lib instance with the given fsutil.FS as the library root.
+func OpenLib(root fsutil.FS, readonly bool) (*Lib, error) {
+	txtLib := &Lib{dbRoot: root, readonly: readonly}
 
 	if !readonly {
 		err := txtLib.makeStructure()
@@ -83,7 +83,7 @@ func OpenLib(root fsutil.FS, readonly bool) (*Txtlib, error) {
 	return txtLib, nil
 }
 
-func (t *Txtlib) makeStructure() error {
+func (t *Lib) makeStructure() error {
 	// create the directory structure for the library
 	err := t.dbRoot.MkdirAll(booksFolder)
 	if err != nil {
@@ -98,8 +98,8 @@ func (t *Txtlib) makeStructure() error {
 	return nil
 }
 
-// Close releases any resources held by the Txtlib instance.
-func (t *Txtlib) Close() error {
+// Close releases any resources held by the Lib instance.
+func (t *Lib) Close() error {
 	if t.close == nil {
 		return nil
 	}
@@ -113,7 +113,7 @@ func (t *Txtlib) Close() error {
 
 // ListBooks returns a list of all books in the library.
 // Books are sorted by their ID in ascending order.
-func (t *Txtlib) ListBooks() ([]*Book, error) {
+func (t *Lib) ListBooks() ([]*Book, error) {
 	var books []*Book
 
 	err := t.iterateBooks(nil, func(b *Book) bool {
@@ -133,7 +133,7 @@ func (t *Txtlib) ListBooks() ([]*Book, error) {
 }
 
 // GetBook returns the details of a specific book by its ID.
-func (t *Txtlib) GetBook(bookID string) (*Book, error) {
+func (t *Lib) GetBook(bookID string) (*Book, error) {
 	book, err := t.getBook(bookID)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -143,7 +143,7 @@ func (t *Txtlib) GetBook(bookID string) (*Book, error) {
 
 // NewBook creates a new book with the given ID and title, and returns the created Book instance.
 // It is an atomic operation that ensures the book is fully created before it becomes visible in the library.
-func (t *Txtlib) NewBook(layers Layers, title string) (*Book, error) {
+func (t *Lib) NewBook(layers Layers, title string) (*Book, error) {
 	bookPath, err := createTempDir(t.dbRoot, path.Join(appFolder, appTmpFolder, "book"))
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -205,7 +205,7 @@ func (t *Txtlib) NewBook(layers Layers, title string) (*Book, error) {
 }
 
 // DeleteBook removes a book from the library by its ID.
-func (t *Txtlib) DeleteBook(bookID string) error {
+func (t *Lib) DeleteBook(bookID string) error {
 	book, err := t.getBook(bookID)
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -220,7 +220,7 @@ func (t *Txtlib) DeleteBook(bookID string) error {
 }
 
 // GetAllLayers returns a sorted list of all unique layers present in the library.
-func (t *Txtlib) GetAllLayers() ([]Layers, error) {
+func (t *Lib) GetAllLayers() ([]Layers, error) {
 	var layers []Layers
 	seen := make(map[string]bool)
 	err := t.iterateLayers(func(ls Layers) bool {
@@ -244,7 +244,7 @@ func (t *Txtlib) GetAllLayers() ([]Layers, error) {
 }
 
 // GetBooksByLayer returns a list of books that belong to the specified layers.
-func (t *Txtlib) GetBooksByLayer(layers Layers) ([]*Book, error) {
+func (t *Lib) GetBooksByLayer(layers Layers) ([]*Book, error) {
 	var books []*Book
 
 	err := t.iterateBooks(layers, func(b *Book) bool {
@@ -264,7 +264,7 @@ func (t *Txtlib) GetBooksByLayer(layers Layers) ([]*Book, error) {
 }
 
 // MoveBook moves a book to new layers and returns the updated Book instance.
-func (t *Txtlib) MoveBook(bookID string, newLayers Layers) (*Book, error) {
+func (t *Lib) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 	book, err := t.getBook(bookID)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -291,7 +291,7 @@ func (t *Txtlib) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 	return movedBook, nil
 }
 
-func (t *Txtlib) getBook(bookID string) (*Book, error) {
+func (t *Lib) getBook(bookID string) (*Book, error) {
 	var book *Book
 	err := t.iterateBooks(nil, func(b *Book) bool {
 		if b.ID() == bookID {
@@ -314,7 +314,7 @@ func (t *Txtlib) getBook(bookID string) (*Book, error) {
 
 // iterateBooks iterates over all books under the specified layers and applies the provided function to each book.
 // If the function returns false, the iteration will stop.
-func (t *Txtlib) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
+func (t *Lib) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 	visitFolder := path.Join(booksFolder, path.Join(rLayers...))
 
 	skipAll := false
@@ -369,7 +369,7 @@ func (t *Txtlib) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 
 // iterateLayers iterates over all unique layers in the library and applies the provided function to each layer.
 // If the function returns false, the iteration will stop.
-func (t *Txtlib) iterateLayers(fn func(Layers) bool) error {
+func (t *Lib) iterateLayers(fn func(Layers) bool) error {
 	skipAll := false
 
 	var dfsFunc func(string)
@@ -415,7 +415,7 @@ func (t *Txtlib) iterateLayers(fn func(Layers) bool) error {
 }
 
 // NewLayer creates a new layer in the library. It validates the layer name to ensure it does not contain invalid characters and then creates the necessary directory structure for the layer.
-func (t *Txtlib) NewLayer(layer Layers) error {
+func (t *Lib) NewLayer(layer Layers) error {
 	for _, l := range layer {
 		if strings.Contains(l, bookExtension) {
 			return util.Errorf("invalid layer name: %s", l)
@@ -432,7 +432,7 @@ func (t *Txtlib) NewLayer(layer Layers) error {
 }
 
 // DeleteLayer removes a layer from the library. It checks if the layer is empty (i.e., contains no books) before deleting it. If the layer is not empty, it returns an error.
-func (t *Txtlib) DeleteLayer(layer Layers) error {
+func (t *Lib) DeleteLayer(layer Layers) error {
 	layerPath := path.Join(booksFolder, path.Join(layer...))
 
 	entries, err := t.dbRoot.ReadDir(layerPath)

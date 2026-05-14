@@ -24,7 +24,7 @@ var appSize = fyne.NewSize(1000, 800)
 
 // libraryState holds the currently open library and its location metadata.
 type libraryState struct {
-	lib       *txtlib.Txtlib
+	lib       *txtlib.Lib
 	uri       fyne.ListableURI
 	localRoot string
 }

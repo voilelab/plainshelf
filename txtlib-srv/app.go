@@ -12,7 +12,7 @@ import (
 )
 
 type App struct {
-	lib        *txtlib.Txtlib
+	lib        *txtlib.Lib
 	markLib    *bookmark.DB
 	spaFS      fs.FS
 	spaHandler http.Handler

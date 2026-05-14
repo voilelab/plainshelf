@@ -49,7 +49,7 @@ func parseLibConfConf[T any](conf any) (T, error) {
 	return typedConf, nil
 }
 
-func NewLib(conf *LibConf) (*txtlib.Txtlib, error) {
+func NewLib(conf *LibConf) (*txtlib.Lib, error) {
 	switch conf.Type {
 	case LibTypeURI:
 		uriConf, err := parseLibConfConf[LibConfURI](conf.Conf)
