@@ -16,15 +16,15 @@ import (
 
 const appDescription = "A simple library management tool for text-based books, built with Go and Fyne. It allows you to organize, view, and manage your collection of text files in a structured way."
 const appURL = "https://github.com/voilelab/plainshelf"
-const appTitle = "Txtlib - Text Library Manager"
-const appID = "com.voilelab.txtlib"
+const appTitle = "Plainshelf - Text Library Manager"
+const appID = "com.voilelab.plainshelf"
 const defaultLayer = "Uncategorized"
 
 var appSize = fyne.NewSize(1000, 800)
 
 // libraryState holds the currently open library and its location metadata.
 type libraryState struct {
-	lib       *shelf.Lib
+	lib       *shelf.Shelf
 	uri       fyne.ListableURI
 	localRoot string
 }

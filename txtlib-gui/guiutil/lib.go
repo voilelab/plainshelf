@@ -49,7 +49,7 @@ func parseLibConfConf[T any](conf any) (T, error) {
 	return typedConf, nil
 }
 
-func NewLib(conf *LibConf) (*shelf.Lib, error) {
+func NewLib(conf *LibConf) (*shelf.Shelf, error) {
 	switch conf.Type {
 	case LibTypeURI:
 		uriConf, err := parseLibConfConf[LibConfURI](conf.Conf)
@@ -60,7 +60,7 @@ func NewLib(conf *LibConf) (*shelf.Lib, error) {
 		if err != nil {
 			return nil, util.Errorf("failed to parse library URI: %w", err)
 		}
-		return shelf.OpenLib(fsutil.NewFyneURIFS(folder), false)
+		return shelf.OpenShelf(fsutil.NewFyneURIFS(folder), false)
 
 	case LibTypeWebDAV:
 		webdavConf, err := parseLibConfConf[LibConfWebDAV](conf.Conf)
@@ -77,7 +77,7 @@ func NewLib(conf *LibConf) (*shelf.Lib, error) {
 		if err != nil {
 			return nil, util.Errorf("failed to create WebDAV FS: %w", err)
 		}
-		return shelf.OpenLib(fs, false)
+		return shelf.OpenShelf(fs, false)
 
 	default:
 		return nil, util.Errorf("unsupported library type: %s", conf.Type)

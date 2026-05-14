@@ -35,14 +35,14 @@ const appTmpFolder = "tmp"
 
 var ErrBookNotFound = util.NewError("book not found")
 
-type Lib struct {
+type Shelf struct {
 	dbRoot   fsutil.FS
 	readonly bool
 	close    func() error
 }
 
-// OpenLocalLib initializes a new Lib instance with the given library root path.
-func OpenLocalLib(libRoot string) (*Lib, error) {
+// OpenLocalShelf initializes a new Shelf instance with the given library root path.
+func OpenLocalShelf(libRoot string) (*Shelf, error) {
 	var rt *os.Root
 	rt, err := os.OpenRoot(libRoot)
 	if err != nil {
@@ -59,38 +59,38 @@ func OpenLocalLib(libRoot string) (*Lib, error) {
 		}
 	}
 
-	txtLib := &Lib{dbRoot: fsutil.NewRootFS(rt), readonly: false, close: rt.Close}
-	err = txtLib.makeStructure()
+	shelf := &Shelf{dbRoot: fsutil.NewRootFS(rt), readonly: false, close: rt.Close}
+	err = shelf.makeStructure()
 	if err != nil {
 		rt.Close()
 		return nil, util.Errorf("%w", err)
 	}
 
-	return txtLib, nil
+	return shelf, nil
 }
 
-// OpenLib initializes a new Lib instance with the given fsutil.FS as the library root.
-func OpenLib(root fsutil.FS, readonly bool) (*Lib, error) {
-	txtLib := &Lib{dbRoot: root, readonly: readonly}
+// OpenShelf initializes a new Shelf instance with the given fsutil.FS as the library root.
+func OpenShelf(root fsutil.FS, readonly bool) (*Shelf, error) {
+	shelf := &Shelf{dbRoot: root, readonly: readonly}
 
 	if !readonly {
-		err := txtLib.makeStructure()
+		err := shelf.makeStructure()
 		if err != nil {
 			return nil, util.Errorf("%w", err)
 		}
 	}
 
-	return txtLib, nil
+	return shelf, nil
 }
 
-func (t *Lib) makeStructure() error {
+func (s *Shelf) makeStructure() error {
 	// create the directory structure for the library
-	err := t.dbRoot.MkdirAll(booksFolder)
+	err := s.dbRoot.MkdirAll(booksFolder)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	err = t.dbRoot.MkdirAll(path.Join(appFolder, appTmpFolder))
+	err = s.dbRoot.MkdirAll(path.Join(appFolder, appTmpFolder))
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -98,13 +98,13 @@ func (t *Lib) makeStructure() error {
 	return nil
 }
 
-// Close releases any resources held by the Lib instance.
-func (t *Lib) Close() error {
-	if t.close == nil {
+// Close releases any resources held by the Shelf instance.
+func (s *Shelf) Close() error {
+	if s.close == nil {
 		return nil
 	}
 
-	err := t.close()
+	err := s.close()
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -113,10 +113,10 @@ func (t *Lib) Close() error {
 
 // ListBooks returns a list of all books in the library.
 // Books are sorted by their ID in ascending order.
-func (t *Lib) ListBooks() ([]*Book, error) {
+func (s *Shelf) ListBooks() ([]*Book, error) {
 	var books []*Book
 
-	err := t.iterateBooks(nil, func(b *Book) bool {
+	err := s.iterateBooks(nil, func(b *Book) bool {
 		books = append(books, b)
 		return true
 	})
@@ -133,8 +133,8 @@ func (t *Lib) ListBooks() ([]*Book, error) {
 }
 
 // GetBook returns the details of a specific book by its ID.
-func (t *Lib) GetBook(bookID string) (*Book, error) {
-	book, err := t.getBook(bookID)
+func (s *Shelf) GetBook(bookID string) (*Book, error) {
+	book, err := s.getBook(bookID)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -143,18 +143,18 @@ func (t *Lib) GetBook(bookID string) (*Book, error) {
 
 // NewBook creates a new book with the given ID and title, and returns the created Book instance.
 // It is an atomic operation that ensures the book is fully created before it becomes visible in the library.
-func (t *Lib) NewBook(layers Layers, title string) (*Book, error) {
-	bookPath, err := createTempDir(t.dbRoot, path.Join(appFolder, appTmpFolder, "book"))
+func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
+	bookPath, err := createTempDir(s.dbRoot, path.Join(appFolder, appTmpFolder, "book"))
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer t.dbRoot.RemoveAll(bookPath)
+	defer s.dbRoot.RemoveAll(bookPath)
 
 	// Generate a unique book ID based on the layers and title
 	baseBookID := generateBookID(layers, title)
 	bookID := baseBookID
 	for i := 1; ; i++ {
-		_, err := t.getBook(bookID)
+		_, err := s.getBook(bookID)
 		if err != nil {
 			if errors.Is(err, ErrBookNotFound) {
 				break
@@ -165,14 +165,14 @@ func (t *Lib) NewBook(layers Layers, title string) (*Book, error) {
 		}
 	}
 
-	_, err = createBook(t.dbRoot, bookPath, bookID, title)
+	_, err = createBook(s.dbRoot, bookPath, bookID, title)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
 	layerPath := path.Join(booksFolder, path.Join(layers...))
 
-	err = t.dbRoot.MkdirAll(layerPath)
+	err = s.dbRoot.MkdirAll(layerPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -180,7 +180,7 @@ func (t *Lib) NewBook(layers Layers, title string) (*Book, error) {
 	folderName := titleToFolderName(title)
 	for i := 1; ; i++ {
 		finalBookPath := path.Join(layerPath, folderName)
-		if _, err := t.dbRoot.Stat(finalBookPath); err != nil {
+		if _, err := s.dbRoot.Stat(finalBookPath); err != nil {
 			// TBD: handle error other than not exist
 			break
 		} else {
@@ -189,12 +189,12 @@ func (t *Lib) NewBook(layers Layers, title string) (*Book, error) {
 	}
 
 	finalBookPath := path.Join(layerPath, folderName)
-	err = t.dbRoot.Rename(bookPath, finalBookPath)
+	err = s.dbRoot.Rename(bookPath, finalBookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	newBook, err := openBook(t.dbRoot, finalBookPath)
+	newBook, err := openBook(s.dbRoot, finalBookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -205,13 +205,13 @@ func (t *Lib) NewBook(layers Layers, title string) (*Book, error) {
 }
 
 // DeleteBook removes a book from the library by its ID.
-func (t *Lib) DeleteBook(bookID string) error {
-	book, err := t.getBook(bookID)
+func (s *Shelf) DeleteBook(bookID string) error {
+	book, err := s.getBook(bookID)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	err = t.dbRoot.RemoveAll(book.FolderPath())
+	err = s.dbRoot.RemoveAll(book.FolderPath())
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -220,10 +220,10 @@ func (t *Lib) DeleteBook(bookID string) error {
 }
 
 // GetAllLayers returns a sorted list of all unique layers present in the library.
-func (t *Lib) GetAllLayers() ([]Layers, error) {
+func (s *Shelf) GetAllLayers() ([]Layers, error) {
 	var layers []Layers
 	seen := make(map[string]bool)
-	err := t.iterateLayers(func(ls Layers) bool {
+	err := s.iterateLayers(func(ls Layers) bool {
 		key := strings.Join(ls, "/")
 		if !seen[key] {
 			layers = append(layers, ls)
@@ -244,10 +244,10 @@ func (t *Lib) GetAllLayers() ([]Layers, error) {
 }
 
 // GetBooksByLayer returns a list of books that belong to the specified layers.
-func (t *Lib) GetBooksByLayer(layers Layers) ([]*Book, error) {
+func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
 	var books []*Book
 
-	err := t.iterateBooks(layers, func(b *Book) bool {
+	err := s.iterateBooks(layers, func(b *Book) bool {
 		books = append(books, b)
 		return true
 	})
@@ -264,25 +264,25 @@ func (t *Lib) GetBooksByLayer(layers Layers) ([]*Book, error) {
 }
 
 // MoveBook moves a book to new layers and returns the updated Book instance.
-func (t *Lib) MoveBook(bookID string, newLayers Layers) (*Book, error) {
-	book, err := t.getBook(bookID)
+func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
+	book, err := s.getBook(bookID)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
 	newLayerPath := path.Join(booksFolder, path.Join(newLayers...))
-	err = t.dbRoot.MkdirAll(newLayerPath)
+	err = s.dbRoot.MkdirAll(newLayerPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
 	newBookPath := path.Join(newLayerPath, path.Base(book.FolderPath()))
-	err = t.dbRoot.Rename(book.FolderPath(), newBookPath)
+	err = s.dbRoot.Rename(book.FolderPath(), newBookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	movedBook, err := openBook(t.dbRoot, newBookPath)
+	movedBook, err := openBook(s.dbRoot, newBookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -291,9 +291,9 @@ func (t *Lib) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 	return movedBook, nil
 }
 
-func (t *Lib) getBook(bookID string) (*Book, error) {
+func (s *Shelf) getBook(bookID string) (*Book, error) {
 	var book *Book
-	err := t.iterateBooks(nil, func(b *Book) bool {
+	err := s.iterateBooks(nil, func(b *Book) bool {
 		if b.ID() == bookID {
 			book = b
 			return false
@@ -314,7 +314,7 @@ func (t *Lib) getBook(bookID string) (*Book, error) {
 
 // iterateBooks iterates over all books under the specified layers and applies the provided function to each book.
 // If the function returns false, the iteration will stop.
-func (t *Lib) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
+func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 	visitFolder := path.Join(booksFolder, path.Join(rLayers...))
 
 	skipAll := false
@@ -326,7 +326,7 @@ func (t *Lib) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 			return
 		}
 
-		stat, err := t.dbRoot.Stat(pth)
+		stat, err := s.dbRoot.Stat(pth)
 		if err != nil {
 			return
 		}
@@ -337,7 +337,7 @@ func (t *Lib) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 
 		folderName := path.Base(pth)
 		if strings.HasSuffix(folderName, bookExtension) {
-			book, err := openBook(t.dbRoot, pth)
+			book, err := openBook(s.dbRoot, pth)
 			if err != nil {
 				log.Println("Error opening book:", err)
 				return
@@ -352,7 +352,7 @@ func (t *Lib) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 			return
 		}
 
-		entries, err := t.dbRoot.ReadDir(pth)
+		entries, err := s.dbRoot.ReadDir(pth)
 		if err != nil {
 			return
 		}
@@ -369,7 +369,7 @@ func (t *Lib) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 
 // iterateLayers iterates over all unique layers in the library and applies the provided function to each layer.
 // If the function returns false, the iteration will stop.
-func (t *Lib) iterateLayers(fn func(Layers) bool) error {
+func (s *Shelf) iterateLayers(fn func(Layers) bool) error {
 	skipAll := false
 
 	var dfsFunc func(string)
@@ -379,7 +379,7 @@ func (t *Lib) iterateLayers(fn func(Layers) bool) error {
 			return
 		}
 
-		stat, err := t.dbRoot.Stat(pth)
+		stat, err := s.dbRoot.Stat(pth)
 		if err != nil {
 			return
 		}
@@ -399,7 +399,7 @@ func (t *Lib) iterateLayers(fn func(Layers) bool) error {
 			return
 		}
 
-		entries, err := t.dbRoot.ReadDir(pth)
+		entries, err := s.dbRoot.ReadDir(pth)
 		if err != nil {
 			return
 		}
@@ -415,7 +415,7 @@ func (t *Lib) iterateLayers(fn func(Layers) bool) error {
 }
 
 // NewLayer creates a new layer in the library. It validates the layer name to ensure it does not contain invalid characters and then creates the necessary directory structure for the layer.
-func (t *Lib) NewLayer(layer Layers) error {
+func (s *Shelf) NewLayer(layer Layers) error {
 	for _, l := range layer {
 		if strings.Contains(l, bookExtension) {
 			return util.Errorf("invalid layer name: %s", l)
@@ -423,7 +423,7 @@ func (t *Lib) NewLayer(layer Layers) error {
 	}
 
 	layerPath := path.Join(booksFolder, path.Join(layer...))
-	err := t.dbRoot.MkdirAll(layerPath)
+	err := s.dbRoot.MkdirAll(layerPath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -432,10 +432,10 @@ func (t *Lib) NewLayer(layer Layers) error {
 }
 
 // DeleteLayer removes a layer from the library. It checks if the layer is empty (i.e., contains no books) before deleting it. If the layer is not empty, it returns an error.
-func (t *Lib) DeleteLayer(layer Layers) error {
+func (s *Shelf) DeleteLayer(layer Layers) error {
 	layerPath := path.Join(booksFolder, path.Join(layer...))
 
-	entries, err := t.dbRoot.ReadDir(layerPath)
+	entries, err := s.dbRoot.ReadDir(layerPath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -444,7 +444,7 @@ func (t *Lib) DeleteLayer(layer Layers) error {
 		return util.Errorf("cannot delete non-empty layer")
 	}
 
-	err = t.dbRoot.RemoveAll(layerPath)
+	err = s.dbRoot.RemoveAll(layerPath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}

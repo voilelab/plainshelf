@@ -184,7 +184,7 @@ func (a *TxtlibApp) loadSavedLibraryConf() (*guiutil.LibConf, error) {
 	return &conf, nil
 }
 
-func (a *TxtlibApp) setLibraryByConf(lib *shelf.Lib, conf *guiutil.LibConf) {
+func (a *TxtlibApp) setLibraryByConf(lib *shelf.Shelf, conf *guiutil.LibConf) {
 	state := libraryState{lib: lib}
 
 	if conf != nil && conf.Type == guiutil.LibTypeURI {

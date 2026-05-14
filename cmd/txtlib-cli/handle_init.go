@@ -30,7 +30,7 @@ func handleInit(args []string) {
 
 	fmt.Printf("Initializing library at: %s\n", absPath)
 
-	lib, err := shelf.OpenLocalLib(absPath)
+	lib, err := shelf.OpenLocalShelf(absPath)
 	if err != nil {
 		fmt.Printf("Error initializing library: %v\n", err)
 		os.Exit(1)

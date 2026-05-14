@@ -7,21 +7,21 @@ import (
 	"testing"
 )
 
-func TestLibraryNewTxtlib(t *testing.T) {
-	lib, err := OpenLocalLib(path.Join("testdata", "lib"))
+func TestShelfNewShelf(t *testing.T) {
+	shelf, err := OpenLocalShelf(path.Join("testdata", "lib"))
 	if err != nil {
-		t.Fatalf("Failed to initialize Txtlib: %v", err)
+		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
-	defer lib.Close()
+	defer shelf.Close()
 }
 
-func TestLibraryMakeStructure(t *testing.T) {
+func TestShelfMakeStructure(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "txtlib_test")
-	lib, err := OpenLocalLib(tmpLib)
+	shelf, err := OpenLocalShelf(tmpLib)
 	if err != nil {
-		t.Fatalf("Failed to initialize Txtlib: %v", err)
+		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
-	defer lib.Close()
+	defer shelf.Close()
 
 	// Check if the Books folder was created
 	booksPath := path.Join(tmpLib, booksFolder)
@@ -36,14 +36,14 @@ func TestLibraryMakeStructure(t *testing.T) {
 	}
 }
 
-func TestLibraryListBooks(t *testing.T) {
-	lib, err := OpenLocalLib(path.Join("testdata", "lib"))
+func TestShelfListBooks(t *testing.T) {
+	shelf, err := OpenLocalShelf(path.Join("testdata", "lib"))
 	if err != nil {
-		t.Fatalf("Failed to initialize Txtlib: %v", err)
+		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
-	defer lib.Close()
+	defer shelf.Close()
 
-	books, err := lib.ListBooks()
+	books, err := shelf.ListBooks()
 	if err != nil {
 		t.Fatalf("Failed to list books: %v", err)
 	}
@@ -58,14 +58,14 @@ func TestLibraryListBooks(t *testing.T) {
 	}
 }
 
-func TestLibraryGetBook(t *testing.T) {
-	lib, err := OpenLocalLib(path.Join("testdata", "lib"))
+func TestShelfGetBook(t *testing.T) {
+	shelf, err := OpenLocalShelf(path.Join("testdata", "lib"))
 	if err != nil {
-		t.Fatalf("Failed to initialize Txtlib: %v", err)
+		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
-	defer lib.Close()
+	defer shelf.Close()
 
-	book, err := lib.GetBook("book-a82m")
+	book, err := shelf.GetBook("book-a82m")
 	if err != nil {
 		t.Fatalf("Failed to get book: %v", err)
 	}
@@ -76,27 +76,27 @@ func TestLibraryGetBook(t *testing.T) {
 	}
 }
 
-func TestLibraryGetBookNotFound(t *testing.T) {
-	lib, err := OpenLocalLib(path.Join("testdata", "lib"))
+func TestShelfGetBookNotFound(t *testing.T) {
+	shelf, err := OpenLocalShelf(path.Join("testdata", "lib"))
 	if err != nil {
-		t.Fatalf("Failed to initialize Txtlib: %v", err)
+		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
-	defer lib.Close()
+	defer shelf.Close()
 
-	_, err = lib.GetBook("nonexistent")
+	_, err = shelf.GetBook("nonexistent")
 	if err == nil {
 		t.Fatal("Expected error when getting non-existent book, but got nil")
 	}
 }
 
-func TestLibraryGetAllLayers(t *testing.T) {
-	lib, err := OpenLocalLib(path.Join("testdata", "lib"))
+func TestShelfGetAllLayers(t *testing.T) {
+	shelf, err := OpenLocalShelf(path.Join("testdata", "lib"))
 	if err != nil {
-		t.Fatalf("Failed to initialize Txtlib: %v", err)
+		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
-	defer lib.Close()
+	defer shelf.Close()
 
-	layers, err := lib.GetAllLayers()
+	layers, err := shelf.GetAllLayers()
 	if err != nil {
 		t.Fatalf("Failed to get all layers: %v", err)
 	}
@@ -115,14 +115,14 @@ func TestLibraryGetAllLayers(t *testing.T) {
 	}
 }
 
-func TestLibraryGetBookByLayer(t *testing.T) {
-	lib, err := OpenLocalLib(path.Join("testdata", "lib"))
+func TestShelfGetBookByLayer(t *testing.T) {
+	shelf, err := OpenLocalShelf(path.Join("testdata", "lib"))
 	if err != nil {
-		t.Fatalf("Failed to initialize Txtlib: %v", err)
+		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
-	defer lib.Close()
+	defer shelf.Close()
 
-	books, err := lib.GetBooksByLayer([]string{"default", "test"})
+	books, err := shelf.GetBooksByLayer([]string{"default", "test"})
 	if err != nil {
 		t.Fatalf("Failed to get book by layer: %v", err)
 	}
@@ -137,15 +137,15 @@ func TestLibraryGetBookByLayer(t *testing.T) {
 	}
 }
 
-func TestLibraryNewBook(t *testing.T) {
+func TestShelfNewBook(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "txtlib_test")
-	lib, err := OpenLocalLib(tmpLib)
+	shelf, err := OpenLocalShelf(tmpLib)
 	if err != nil {
-		t.Fatalf("Failed to initialize Txtlib: %v", err)
+		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
-	defer lib.Close()
+	defer shelf.Close()
 
-	book, err := lib.NewBook([]string{"new", "layer"}, "New Book")
+	book, err := shelf.NewBook([]string{"new", "layer"}, "New Book")
 	if err != nil {
 		t.Fatalf("Failed to create new book: %v", err)
 	}
@@ -155,44 +155,44 @@ func TestLibraryNewBook(t *testing.T) {
 	}
 }
 
-func TestLibraryDeleteBook(t *testing.T) {
+func TestShelfDeleteBook(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "txtlib_test")
-	lib, err := OpenLocalLib(tmpLib)
+	shelf, err := OpenLocalShelf(tmpLib)
 	if err != nil {
-		t.Fatalf("Failed to initialize Txtlib: %v", err)
+		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
-	defer lib.Close()
+	defer shelf.Close()
 
-	book, err := lib.NewBook([]string{"new", "layer"}, "New Book")
+	book, err := shelf.NewBook([]string{"new", "layer"}, "New Book")
 	if err != nil {
 		t.Fatalf("Failed to create new book: %v", err)
 	}
 
-	err = lib.DeleteBook(book.ID())
+	err = shelf.DeleteBook(book.ID())
 	if err != nil {
 		t.Fatalf("Failed to delete book: %v", err)
 	}
 
-	_, err = lib.GetBook(book.ID())
+	_, err = shelf.GetBook(book.ID())
 	if err == nil {
 		t.Fatal("Expected error when getting deleted book, but got nil")
 	}
 }
 
-func TestLibraryMoveBook(t *testing.T) {
+func TestShelfMoveBook(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "txtlib_test")
-	lib, err := OpenLocalLib(tmpLib)
+	shelf, err := OpenLocalShelf(tmpLib)
 	if err != nil {
-		t.Fatalf("Failed to initialize Txtlib: %v", err)
+		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
-	defer lib.Close()
+	defer shelf.Close()
 
-	book, err := lib.NewBook([]string{"layer1"}, "Book to Move")
+	book, err := shelf.NewBook([]string{"layer1"}, "Book to Move")
 	if err != nil {
 		t.Fatalf("Failed to create new book: %v", err)
 	}
 
-	movedBook, err := lib.MoveBook(book.ID(), []string{"layer2"})
+	movedBook, err := shelf.MoveBook(book.ID(), []string{"layer2"})
 	if err != nil {
 		t.Fatalf("Failed to move book: %v", err)
 	}
@@ -201,7 +201,7 @@ func TestLibraryMoveBook(t *testing.T) {
 		t.Errorf("Expected book title 'Book to Move', got '%s'", movedBook.Title())
 	}
 
-	booksInLayer1, err := lib.GetBooksByLayer([]string{"layer1"})
+	booksInLayer1, err := shelf.GetBooksByLayer([]string{"layer1"})
 	if err != nil {
 		t.Fatalf("Failed to get books in layer1: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestLibraryMoveBook(t *testing.T) {
 		t.Errorf("Expected 0 books in layer1 after move, got %d", len(booksInLayer1))
 	}
 
-	booksInLayer2, err := lib.GetBooksByLayer([]string{"layer2"})
+	booksInLayer2, err := shelf.GetBooksByLayer([]string{"layer2"})
 	if err != nil {
 		t.Fatalf("Failed to get books in layer2: %v", err)
 	}

@@ -12,7 +12,7 @@ import (
 )
 
 type App struct {
-	lib        *shelf.Lib
+	shelf      *shelf.Shelf
 	markLib    *bookmark.DB
 	spaFS      fs.FS
 	spaHandler http.Handler
@@ -27,19 +27,19 @@ type AppConf struct {
 }
 
 func NewApp(conf *AppConf) (*App, error) {
-	lib, err := shelf.OpenLocalLib(conf.LibPath)
+	s, err := shelf.OpenLocalShelf(conf.LibPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
 	markDB, err := bookmark.New(conf.MarkPath)
 	if err != nil {
-		lib.Close()
+		s.Close()
 		return nil, util.Errorf("%w", err)
 	}
 
 	return &App{
-		lib:        lib,
+		shelf:      s,
 		markLib:    markDB,
 		spaFS:      txtlibfrontend.WebFS,
 		spaHandler: http.FileServerFS(txtlibfrontend.WebFS),
@@ -54,7 +54,7 @@ func (app *App) Start() error {
 func (app *App) Close() error {
 	// TBD: aggregate errors if both fail
 	app.markLib.Close()
-	return app.lib.Close()
+	return app.shelf.Close()
 }
 
 func (app *App) Health(w http.ResponseWriter, r *http.Request) {

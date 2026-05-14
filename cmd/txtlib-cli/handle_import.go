@@ -50,7 +50,7 @@ func handleImport(args []string) {
 	}
 
 	// Open the txtlib library
-	lib, err := shelf.OpenLocalLib(absLibPath)
+	lib, err := shelf.OpenLocalShelf(absLibPath)
 	if err != nil {
 		fmt.Printf("Error opening library: %v\n", err)
 		os.Exit(1)

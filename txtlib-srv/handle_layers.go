@@ -8,7 +8,7 @@ import (
 
 // GET /api/layers
 func (app *App) HandleAPIGetLayers(w http.ResponseWriter, r *http.Request) {
-	layers, err := app.lib.GetAllLayers()
+	layers, err := app.shelf.GetAllLayers()
 	if err != nil {
 		http.Error(w, "failed to get layers", http.StatusInternalServerError)
 		return
@@ -32,7 +32,7 @@ func (app *App) HandleAPICreateLayer(w http.ResponseWriter, r *http.Request) {
 
 	layerParts := strings.Split(layerPath, "/")
 
-	err := app.lib.NewLayer(layerParts)
+	err := app.shelf.NewLayer(layerParts)
 	if err != nil {
 		http.Error(w, "failed to create layer", http.StatusInternalServerError)
 		return
@@ -51,7 +51,7 @@ func (app *App) HandleAPIDeleteLayer(w http.ResponseWriter, r *http.Request) {
 
 	layerParts := strings.Split(layerPath, "/")
 
-	err := app.lib.DeleteLayer(layerParts)
+	err := app.shelf.DeleteLayer(layerParts)
 	if err != nil {
 		http.Error(w, "failed to delete layer", http.StatusInternalServerError)
 		return

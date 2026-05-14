@@ -29,7 +29,7 @@ func handleList(args []string) {
 		os.Exit(1)
 	}
 
-	lib, err := shelf.OpenLocalLib(absPath)
+	lib, err := shelf.OpenLocalShelf(absPath)
 	if err != nil {
 		fmt.Printf("Error opening library: %v\n", err)
 		os.Exit(1)

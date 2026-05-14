@@ -68,7 +68,7 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	}
 	layerParts := parseImportLayerParts(r.FormValue("layer"))
 
-	newBook, err := app.lib.NewBook(layerParts, title)
+	newBook, err := app.shelf.NewBook(layerParts, title)
 	if err != nil {
 		log.Printf("NewBook error: %v", err)
 		http.Error(w, "failed to create new book", http.StatusInternalServerError)

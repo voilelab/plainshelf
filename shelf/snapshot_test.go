@@ -59,12 +59,12 @@ func TestOpenSource(t *testing.T) {
 }
 
 func TestUpdateSource(t *testing.T) {
-	tmpDir := path.Join(t.TempDir(), "txtlib_test")
-	lib, err := OpenLocalLib(tmpDir)
+	tmpDir := path.Join(t.TempDir(), "shelf_test")
+	shelf, err := OpenLocalShelf(tmpDir)
 	if err != nil {
-		t.Fatalf("Failed to initialize Txtlib: %v", err)
+		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
-	defer lib.Close()
+	defer shelf.Close()
 
 	tmpRoot, err := os.OpenRoot(tmpDir)
 	if err != nil {
@@ -133,12 +133,12 @@ func TestOpenSourceInvalid(t *testing.T) {
 }
 
 func TestCreateRootSnapshot(t *testing.T) {
-	tmpDir := path.Join(t.TempDir(), "txtlib_test")
-	lib, err := OpenLocalLib(tmpDir)
+	tmpDir := path.Join(t.TempDir(), "shelf_test")
+	shelf, err := OpenLocalShelf(tmpDir)
 	if err != nil {
-		t.Fatalf("Failed to initialize Txtlib: %v", err)
+		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
-	defer lib.Close()
+	defer shelf.Close()
 
 	tmpRoot, err := os.OpenRoot(tmpDir)
 	if err != nil {
