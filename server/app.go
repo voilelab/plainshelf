@@ -109,8 +109,8 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/marks/{book_id}", app.HandleAPIUpdateMarks)
 
 	mux.HandleFunc("GET /api/layers", app.HandleAPIGetLayers)
-	mux.HandleFunc("POST /api/layers/{layer_path}", app.HandleAPICreateLayer)
-	mux.HandleFunc("DELETE /api/layers/{layer_path}", app.HandleAPIDeleteLayer)
+	mux.HandleFunc("POST /api/layers/{layer_path...}", app.HandleAPICreateLayer)
+	mux.HandleFunc("DELETE /api/layers/{layer_path...}", app.HandleAPIDeleteLayer)
 
 	mux.HandleFunc("GET /{path...}", app.HandleSPAFallback)
 }

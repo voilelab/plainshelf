@@ -42,3 +42,18 @@ func readSnapshotID(r *http.Request) (string, error) {
 
 	return decoded, nil
 }
+
+func readLayerParts(r *http.Request) ([]string, error) {
+	rawLayer := strings.TrimSpace(r.PathValue("layer_path"))
+
+	decoded, err := url.PathUnescape(rawLayer)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	parts := strings.Split(decoded, "/")
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+	return parts, nil
+}

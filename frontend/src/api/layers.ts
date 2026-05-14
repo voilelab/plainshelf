@@ -77,7 +77,7 @@ function deleteMockLayer(path: string): void {
   mockLayers.delete(path);
 }
 
-function encodeLayerPathForURL(path: string): string {
+function encodeLayerPath(path: string): string {
   return path
     .split('/')
     .filter((segment) => segment.length > 0)
@@ -116,7 +116,7 @@ export async function createLayer(layerPath: string): Promise<void> {
     throw new Error('Layer path cannot be empty');
   }
 
-  const encodedPath = encodeLayerPathForURL(normalized);
+  const encodedPath = encodeLayerPath(normalized);
 
   if (isMockApiMode()) {
     addMockLayer(normalized);
@@ -148,7 +148,7 @@ export async function deleteLayer(layerPath: string): Promise<void> {
     throw new LayerHttpError('Cannot delete this layer because it is not empty.');
   }
 
-  const encodedPath = encodeLayerPathForURL(normalized);
+  const encodedPath = encodeLayerPath(normalized);
 
   if (isMockApiMode()) {
     const hasBooks = mockBooks.some((book) => pathFromLayers(book.layers) === normalized);

@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 )
 
 // GET /api/layers
@@ -24,15 +23,13 @@ func (app *App) HandleAPIGetLayers(w http.ResponseWriter, r *http.Request) {
 
 // POST /api/layers/{layer_path}
 func (app *App) HandleAPICreateLayer(w http.ResponseWriter, r *http.Request) {
-	layerPath := strings.TrimSpace(r.PathValue("layer_path"))
-	if layerPath == "" {
-		http.Error(w, "layer path cannot be empty", http.StatusBadRequest)
+	layerParts, err := readLayerParts(r)
+	if err != nil {
+		http.Error(w, "invalid layer path", http.StatusBadRequest)
 		return
 	}
 
-	layerParts := strings.Split(layerPath, "/")
-
-	err := app.shelf.NewLayer(layerParts)
+	err = app.shelf.NewLayer(layerParts)
 	if err != nil {
 		http.Error(w, "failed to create layer", http.StatusInternalServerError)
 		return
@@ -43,15 +40,13 @@ func (app *App) HandleAPICreateLayer(w http.ResponseWriter, r *http.Request) {
 
 // DELETE /api/layers/{layer_path}
 func (app *App) HandleAPIDeleteLayer(w http.ResponseWriter, r *http.Request) {
-	layerPath := strings.TrimSpace(r.PathValue("layer_path"))
-	if layerPath == "" {
-		http.Error(w, "layer path cannot be empty", http.StatusBadRequest)
+	layerParts, err := readLayerParts(r)
+	if err != nil {
+		http.Error(w, "invalid layer path", http.StatusBadRequest)
 		return
 	}
 
-	layerParts := strings.Split(layerPath, "/")
-
-	err := app.shelf.DeleteLayer(layerParts)
+	err = app.shelf.DeleteLayer(layerParts)
 	if err != nil {
 		http.Error(w, "failed to delete layer", http.StatusInternalServerError)
 		return
