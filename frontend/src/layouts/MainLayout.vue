@@ -101,7 +101,10 @@
 
     <main class="main-content">
       <header class="topbar">
-        <h1 class="brand">PlainShelf</h1>
+        <h1 class="brand">
+          <img class="brand-icon" :src="appIcon" alt="" aria-hidden="true">
+          <span>PlainShelf</span>
+        </h1>
       </header>
 
       <div class="page-area">
@@ -121,6 +124,7 @@ import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
 import { buildLayerTreeNodes, getLayerPath, normalizeLayerPath } from '../utils/layers';
 import { MAINTENANCE_NAV_ITEMS } from '../utils/maintenance';
+import appIcon from '../assets/icon-192.png';
 
 const isCollapsed = ref(false);
 const route = useRoute();
@@ -480,9 +484,18 @@ onMounted(async () => {
 }
 
 .brand {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
   margin: 0;
   font-size: 20px;
   letter-spacing: 0.3px;
+}
+
+.brand-icon {
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 
 .top-nav {
