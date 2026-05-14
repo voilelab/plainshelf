@@ -50,14 +50,14 @@ PlainShelf is not intended to be a full Calibre replacement.
 
 ```text
 cmd/
-├─ txtlib-srv/      # local server entrypoint
+├─ plainshelf-srv/  # local server entrypoint
 ├─ txtlib-cli/      # experimental CLI entrypoint
 └─ txtlib-gui/      # experimental Fyne GUI entrypoint
 
 shelf/              # core library package
-txtlib-srv/         # local HTTP server implementation
+server/             # local HTTP server implementation
+frontend/           # Vue web frontend
 txtlib-gui/         # experimental Fyne GUI implementation
-txtlib-frontend/    # Vue web frontend
 internal/           # internal shared utilities
 docs/               # design notes and documentation
 ```
@@ -65,8 +65,8 @@ docs/               # design notes and documentation
 The current primary development focus is:
 
 1. `shelf`
-2. `txtlib-srv`
-3. `txtlib-frontend`
+2. `server`
+3. `frontend`
 
 The CLI and Fyne GUI are experimental and may lag behind the main server/web workflow.
 
@@ -102,7 +102,7 @@ Runtime state.
 ### Run Only Frontend
 
 ```bash
-cd txtlib-frontend
+cd frontend
 npm install
 
 # use mock data
@@ -113,16 +113,16 @@ VITE_USE_MOCK_API=true npm run dev
 
 ```bash
 # build frontend
-cd txtlib-frontend
+cd frontend
 npm install
 npm run build
 cd ..
 
 # run server
 mkdir workspace0
-cp cmd/txtlib-srv/conf/config.yaml workspace0/
+cp cmd/plainshelf-srv/conf/config.yaml workspace0/
 cd workspace0
-go run ../cmd/txtlib-srv/main.go -conf config.yaml
+go run ../cmd/plainshelf-srv/main.go -conf config.yaml
 ```
 
 ### Run tests
