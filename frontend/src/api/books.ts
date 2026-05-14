@@ -159,7 +159,7 @@ export const mockBooks: Book[] = [
     comment: 'Imported from local markdown notes.',
     created_at: '2026-01-07T10:00:00Z',
     updated_at: '2026-04-18T08:30:00Z',
-    cover_url: 'https://picsum.photos/seed/txtlib1/120/180'
+    cover_url: 'https://picsum.photos/seed/shelf1/120/180'
   },
   {
     id: 'book-2',
@@ -170,7 +170,7 @@ export const mockBooks: Book[] = [
     format: 'txt',
     tags: ['programming', 'go'],
     created_at: '2026-02-10T12:00:00Z',
-    cover_url: 'https://picsum.photos/seed/txtlib2/120/180'
+    cover_url: 'https://picsum.photos/seed/shelf2/120/180'
   },
   {
     id: 'book-3',
@@ -180,7 +180,7 @@ export const mockBooks: Book[] = [
     language: 'zh-TW',
     format: 'markdown',
     tags: ['travel'],
-    cover_url: 'https://picsum.photos/seed/txtlib3/120/180'
+    cover_url: 'https://picsum.photos/seed/shelf3/120/180'
   },
   {
     id: 'book-4',
@@ -190,7 +190,7 @@ export const mockBooks: Book[] = [
     language: 'en',
     format: 'txt',
     tags: ['design', 'notes'],
-    cover_url: 'https://picsum.photos/seed/txtlib4/120/180'
+    cover_url: 'https://picsum.photos/seed/shelf4/120/180'
   },
   {
     id: 'book-5',
@@ -200,7 +200,7 @@ export const mockBooks: Book[] = [
     language: 'zh-TW',
     format: 'markdown',
     tags: ['fiction'],
-    cover_url: 'https://picsum.photos/seed/txtlib5/120/180'
+    cover_url: 'https://picsum.photos/seed/shelf5/120/180'
   },
   {
     id: 'book-6',
@@ -210,7 +210,7 @@ export const mockBooks: Book[] = [
     language: 'en',
     format: 'txt',
     tags: ['linux', 'ops'],
-    cover_url: 'https://picsum.photos/seed/txtlib6/120/180'
+    cover_url: 'https://picsum.photos/seed/shelf6/120/180'
   },
   {
     id: 'book-7',
@@ -220,7 +220,7 @@ export const mockBooks: Book[] = [
     language: 'zh-TW',
     format: 'markdown',
     tags: ['poetry'],
-    cover_url: 'https://picsum.photos/seed/txtlib7/120/180'
+    cover_url: 'https://picsum.photos/seed/shelf7/120/180'
   },
   {
     id: 'book-8',
@@ -230,7 +230,7 @@ export const mockBooks: Book[] = [
     language: 'en',
     format: 'txt',
     tags: ['product'],
-    cover_url: 'https://picsum.photos/seed/txtlib8/120/180'
+    cover_url: 'https://picsum.photos/seed/shelf8/120/180'
   },
   {
     id: 'book-9',
@@ -240,7 +240,7 @@ export const mockBooks: Book[] = [
     language: 'en',
     format: 'markdown',
     tags: ['essay'],
-    cover_url: 'https://picsum.photos/seed/txtlib9/120/180'
+    cover_url: 'https://picsum.photos/seed/shelf9/120/180'
   },
   {
     id: 'book-10',
@@ -250,7 +250,7 @@ export const mockBooks: Book[] = [
     language: 'en',
     format: 'txt',
     tags: ['tech', 'history'],
-    cover_url: 'https://picsum.photos/seed/txtlib10/120/180'
+    cover_url: 'https://picsum.photos/seed/shelf10/120/180'
   }
 ];
 

@@ -1,6 +1,6 @@
 export type BooksViewMode = 'list' | 'card' | 'title';
 
-export const BOOKS_VIEW_MODE_STORAGE_KEY = 'txtlib.books.viewMode';
+export const BOOKS_VIEW_MODE_STORAGE_KEY = 'plainshelf.books.viewMode';
 
 const BOOKS_VIEW_MODES: BooksViewMode[] = ['list', 'card', 'title'];
 

@@ -1,7 +1,7 @@
 import { ref } from 'vue';
 import type { LocationQueryValue } from 'vue-router';
 
-const PAGE_SIZE_STORAGE_KEY = 'txtlib.books.pageSize';
+const PAGE_SIZE_STORAGE_KEY = 'plainshelf.books.pageSize';
 export const PAGE_SIZE_OPTIONS: number[] = [10, 20, 50, 100, 200];
 const DEFAULT_PAGE_SIZE = 50;
 
