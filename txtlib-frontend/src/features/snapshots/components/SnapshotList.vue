@@ -29,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import type { SnapshotMeta } from '../types';
+import type { SnapshotMeta } from '../../../types/snapsnot';
 
 defineProps<{
   snapshots: SnapshotMeta[];

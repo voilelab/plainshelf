@@ -54,10 +54,10 @@ import { useRoute, useRouter } from 'vue-router';
 import { getBook } from '../../../api/books';
 import { useDocumentTitle } from '../../../composables/useDocumentTitle';
 import type { Book } from '../../../types/book';
-import { getSnapshotContent, listSnapshots, updateSnapshotContent } from '../api/snapshots';
+import { getSnapshotContent, listSnapshots, updateSnapshotContent } from '../../../api/snapshots';
 import SnapshotEditor from '../components/SnapshotEditor.vue';
 import SnapshotList from '../components/SnapshotList.vue';
-import type { SnapshotMeta } from '../types';
+import type { SnapshotMeta } from '../../../types/snapsnot';
 
 const route = useRoute();
 const router = useRouter();

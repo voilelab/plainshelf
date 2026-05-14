@@ -1,5 +1,5 @@
-import { fetchJson, fetchText, isMockApiMode } from '../../../api/client';
-import type { SnapshotMeta } from '../types';
+import { fetchJson, fetchText, isMockApiMode } from './client';
+import type { SnapshotMeta } from '../types/snapsnot';
 
 interface SnapshotStoreItem {
   meta: SnapshotMeta;
