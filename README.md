@@ -54,7 +54,7 @@ cmd/
 ├─ txtlib-cli/      # experimental CLI entrypoint
 └─ txtlib-gui/      # experimental Fyne GUI entrypoint
 
-txtlib/             # core library package
+shelf/              # core library package
 txtlib-srv/         # local HTTP server implementation
 txtlib-gui/         # experimental Fyne GUI implementation
 txtlib-frontend/    # Vue web frontend
@@ -64,7 +64,7 @@ docs/               # design notes and documentation
 
 The current primary development focus is:
 
-1. `txtlib`
+1. `shelf`
 2. `txtlib-srv`
 3. `txtlib-frontend`
 

@@ -9,7 +9,7 @@ import (
 )
 
 func TestCreateTempDir(t *testing.T) {
-	tmpDir := path.Join(os.TempDir(), "txtlib-test")
+	tmpDir := path.Join(os.TempDir(), "shelf-test")
 	err := os.MkdirAll(tmpDir, 0755)
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)

@@ -24,11 +24,11 @@ import (
 const SnapshotsFolder = "snapshots"
 const BookMetaFile = "book.json"
 const CurrentVersionLocationFile = "CURRENT_VERSION_LOCATION.txt"
-const CurrentVersionLocationTemplate = `[txtlib 狀態指標]
+const CurrentVersionLocationTemplate = `[shelf 狀態指標]
 當前閱讀版本存放於：
 %s
 
-(註：請勿修改此檔案內容，txtlib 會自動更新此指標)
+(註：請勿修改此檔案內容，shelf 會自動更新此指標)
 `
 
 type Layers []string
@@ -68,7 +68,7 @@ type BookMeta struct {
 	UpdatedAt   util.JSONTime `json:"updated_at,omitzero"`
 	PublishedAt util.JSONTime `json:"published_at,omitzero"`
 
-	// User should not modify CurrentSnapshot directly, it is managed by txtlib internally,
+	// User should not modify CurrentSnapshot directly, it is managed by shelf internally,
 	// and can be updated via SetCurrentSnapshot method
 	CurrentSnapshot string `json:"current_snapshot"`
 }
@@ -213,7 +213,7 @@ func (b *Book) GetMeta() *BookMeta {
 	return &metaCopy
 }
 
-// SetMeta allows user to update book meta, but not the CurrentSnapshot field which is managed by txtlib internally
+// SetMeta allows user to update book meta, but not the CurrentSnapshot field which is managed by shelf internally
 func (b *Book) SetMeta(meta *BookMeta) error {
 	if meta.CurrentSnapshot != b.meta.CurrentSnapshot {
 		return util.NewError("cannot modify CurrentSnapshot field directly, use SetCurrentSnapshot method instead")
