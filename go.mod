@@ -39,6 +39,7 @@ require (
 	github.com/go-text/render v0.2.0 // indirect
 	github.com/go-text/typesetting v0.3.3 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
+	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/hack-pad/go-indexeddb v0.3.2 // indirect
