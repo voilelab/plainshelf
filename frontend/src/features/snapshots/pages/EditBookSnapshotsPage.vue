@@ -90,6 +90,7 @@ const editorError = ref('');
 const saveSuccess = ref('');
 const showDiscardModal = ref(false);
 const pendingSnapshotId = ref('');
+const pendingSnapshotBookId = ref('');
 
 const isDirty = computed(() => activeSnapshotId.value.length > 0 && content.value !== initialContent.value);
 const disableSave = computed(
@@ -170,6 +171,7 @@ async function onSelectSnapshot(snapshotId: string): Promise<void> {
 
   if (isDirty.value) {
     pendingSnapshotId.value = snapshotId;
+    pendingSnapshotBookId.value = bookId.value;
     showDiscardModal.value = true;
     return;
   }
@@ -180,13 +182,15 @@ async function onSelectSnapshot(snapshotId: string): Promise<void> {
 function cancelPendingSnapshot(): void {
   showDiscardModal.value = false;
   pendingSnapshotId.value = '';
+  pendingSnapshotBookId.value = '';
 }
 
 async function confirmPendingSnapshot(): Promise<void> {
   const snapshotId = pendingSnapshotId.value;
+  const snapshotBookId = pendingSnapshotBookId.value;
   cancelPendingSnapshot();
 
-  if (!snapshotId || snapshotId === activeSnapshotId.value) {
+  if (!snapshotId || snapshotBookId !== bookId.value || snapshotId === activeSnapshotId.value) {
     return;
   }
 
@@ -221,6 +225,7 @@ function goBack(): void {
 watch(
   bookId,
   () => {
+    cancelPendingSnapshot();
     void fetchInitial();
   },
   { immediate: true }
