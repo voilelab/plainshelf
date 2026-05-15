@@ -21,9 +21,10 @@ type App struct {
 }
 
 type AppConf struct {
-	ShelfPath  string `yaml:"shelf_path"`
-	MarkPath   string `yaml:"mark_path"`
-	CoverToJPG bool   `yaml:"cover_to_jpg"`
+	ShelfPath        string `yaml:"shelf_path"`
+	MarkPath         string `yaml:"mark_path"`
+	CoverToJPG       bool   `yaml:"cover_to_jpg"`
+	ReadHistoryLimit int    `yaml:"read_history_limit"`
 }
 
 func NewApp(conf *AppConf) (*App, error) {
@@ -32,7 +33,7 @@ func NewApp(conf *AppConf) (*App, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	storeDB, err := store.New(conf.MarkPath)
+	storeDB, err := store.New(conf.MarkPath, conf.ReadHistoryLimit)
 	if err != nil {
 		s.Close()
 		return nil, util.Errorf("%w", err)
@@ -84,6 +85,8 @@ func (app *App) HandleSPAFallback(w http.ResponseWriter, r *http.Request) {
 func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /health", app.Health)
 
+	// Book API
+
 	mux.HandleFunc("GET /api/books", app.HandleAPIGetBooks)
 
 	mux.HandleFunc("POST /api/books/import", app.HandleAPIImportBook)
@@ -105,12 +108,18 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/books/{book_id}/split_config", app.HandleAPIGetBookSplitConfig)
 	mux.HandleFunc("PATCH /api/books/{book_id}/split_config", app.HandleAPIUpdateBookSplitConfig)
 
-	mux.HandleFunc("GET /api/marks/{book_id}", app.HandleAPIGetMarks)
-	mux.HandleFunc("POST /api/marks/{book_id}", app.HandleAPIUpdateMarks)
-
 	mux.HandleFunc("GET /api/layers", app.HandleAPIGetLayers)
 	mux.HandleFunc("POST /api/layers/{layer_path...}", app.HandleAPICreateLayer)
 	mux.HandleFunc("DELETE /api/layers/{layer_path...}", app.HandleAPIDeleteLayer)
+
+	// Store API
+
+	mux.HandleFunc("GET /api/marks/{book_id}", app.HandleAPIGetMarks)
+	mux.HandleFunc("POST /api/marks/{book_id}", app.HandleAPIUpdateMarks)
+
+	mux.HandleFunc("GET /api/read_history", app.HandleAPIGetReadHistory)
+	mux.HandleFunc("POST /api/read_history", app.HandleAPIUpdateReadHistory)
+	mux.HandleFunc("DELETE /api/read_history", app.HandleAPIClearReadHistory)
 
 	mux.HandleFunc("GET /{path...}", app.HandleSPAFallback)
 }

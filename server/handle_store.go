@@ -61,3 +61,47 @@ func (app *App) HandleAPIUpdateMarks(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// GET /api/read_history
+func (app *App) HandleAPIGetReadHistory(w http.ResponseWriter, r *http.Request) {
+	history, err := app.storeDB.GetReadHistory()
+	if err != nil {
+		http.Error(w, "failed to get read history", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	err = json.NewEncoder(w).Encode(history)
+	if err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// POST /api/read_history?book_id={book_id}
+func (app *App) HandleAPIUpdateReadHistory(w http.ResponseWriter, r *http.Request) {
+	bookID := r.URL.Query().Get("book_id")
+	if bookID == "" {
+		http.Error(w, "missing book_id", http.StatusBadRequest)
+		return
+	}
+
+	err := app.storeDB.AddToReadHistory(bookID)
+	if err != nil {
+		http.Error(w, "failed to update read history", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DELETE /api/read_history
+func (app *App) HandleAPIClearReadHistory(w http.ResponseWriter, r *http.Request) {
+	err := app.storeDB.SetReadHistory([]string{})
+	if err != nil {
+		http.Error(w, "failed to clear read history", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

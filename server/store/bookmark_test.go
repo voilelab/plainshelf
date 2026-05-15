@@ -6,7 +6,7 @@ import (
 
 func newTestDB(t *testing.T) *DB {
 	t.Helper()
-	db, err := New(t.TempDir())
+	db, err := New(t.TempDir(), 100)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -14,7 +14,7 @@ func newTestDB(t *testing.T) *DB {
 	return db
 }
 
-func TestGet_NotFound(t *testing.T) {
+func TestGetBookmark_NotFound(t *testing.T) {
 	db := newTestDB(t)
 	mark, err := db.GetBookmark("missing")
 	if err != nil {
@@ -25,7 +25,7 @@ func TestGet_NotFound(t *testing.T) {
 	}
 }
 
-func TestSetGet(t *testing.T) {
+func TestSetBookmark(t *testing.T) {
 	db := newTestDB(t)
 	if err := db.SetBookmark("book1", Bookmark{CharOffset: 42}); err != nil {
 		t.Fatalf("SetBookmark: %v", err)
@@ -39,7 +39,7 @@ func TestSetGet(t *testing.T) {
 	}
 }
 
-func TestSet_Overwrite(t *testing.T) {
+func TestSet_OverwriteBookmark(t *testing.T) {
 	db := newTestDB(t)
 	db.SetBookmark("book1", Bookmark{CharOffset: 10})
 	if err := db.SetBookmark("book1", Bookmark{CharOffset: 99}); err != nil {
