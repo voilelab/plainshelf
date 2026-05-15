@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/voilelab/plainshelf/server/bookmark"
+	"github.com/voilelab/plainshelf/server/store"
 )
 
 // GET /api/marks/{book_id}
@@ -17,7 +17,7 @@ func (app *App) HandleAPIGetMarks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mark, err := app.markLib.Get(bookID)
+	mark, err := app.storeDB.GetBookmark(bookID)
 	if err != nil {
 		http.Error(w, "failed to get marks", http.StatusInternalServerError)
 		return
@@ -39,7 +39,7 @@ func (app *App) HandleAPIUpdateMarks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var mark bookmark.Mark
+	var mark store.Bookmark
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&mark); err != nil {
@@ -53,7 +53,7 @@ func (app *App) HandleAPIUpdateMarks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = app.markLib.Set(bookID, mark)
+	err = app.storeDB.SetBookmark(bookID, mark)
 	if err != nil {
 		http.Error(w, "failed to update marks", http.StatusInternalServerError)
 		return

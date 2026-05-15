@@ -7,13 +7,13 @@ import (
 
 	"github.com/voilelab/plainshelf/frontend"
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/voilelab/plainshelf/server/bookmark"
+	"github.com/voilelab/plainshelf/server/store"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
 type App struct {
 	shelf      *shelf.Shelf
-	markLib    *bookmark.DB
+	storeDB    *store.DB
 	spaFS      fs.FS
 	spaHandler http.Handler
 
@@ -32,7 +32,7 @@ func NewApp(conf *AppConf) (*App, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	markDB, err := bookmark.New(conf.MarkPath)
+	storeDB, err := store.New(conf.MarkPath)
 	if err != nil {
 		s.Close()
 		return nil, util.Errorf("%w", err)
@@ -40,7 +40,7 @@ func NewApp(conf *AppConf) (*App, error) {
 
 	return &App{
 		shelf:      s,
-		markLib:    markDB,
+		storeDB:    storeDB,
 		spaFS:      frontend.WebFS,
 		spaHandler: http.FileServerFS(frontend.WebFS),
 		conf:       conf,
@@ -53,7 +53,7 @@ func (app *App) Start() error {
 
 func (app *App) Close() error {
 	// TBD: aggregate errors if both fail
-	app.markLib.Close()
+	app.storeDB.Close()
 	return app.shelf.Close()
 }
 
