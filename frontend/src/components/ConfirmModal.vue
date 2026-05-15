@@ -49,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 
 const props = withDefaults(
   defineProps<{
@@ -109,17 +109,16 @@ watch(
   () => props.open,
   async (open) => {
     if (!open) {
+      document.removeEventListener('keydown', onDocumentKeydown);
       return;
     }
 
+    document.addEventListener('keydown', onDocumentKeydown);
     await nextTick();
     confirmButton.value?.focus();
-  }
+  },
+  { immediate: true }
 );
-
-onMounted(() => {
-  document.addEventListener('keydown', onDocumentKeydown);
-});
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onDocumentKeydown);
