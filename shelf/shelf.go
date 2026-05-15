@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"log/slog"
 	"os"
 	"path"
 	"sort"
@@ -167,7 +166,7 @@ func (s *Shelf) Close() error {
 	if s.localLock != nil {
 		err := s.localLock.Close()
 		if err != nil {
-			slog.Error("Error closing local lock", "error", err)
+			log.Println("Error closing local lock:", err)
 		}
 	}
 
