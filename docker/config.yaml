@@ -1,10 +1,10 @@
 server_conf:
   addr: "127.0.0.1:20000"
-  read_timeout: 1000ms
-  write_timeout: 1000ms
+  read_timeout: 60s
+  write_timeout: 60s
 
 app_conf:
-  shelf_path: "./shelf"
-  store_path: "./store"
+  shelf_path: "/data/shelf"
+  store_path: "/data/store"
   cover_to_jpg: true
   read_history_limit: 100
