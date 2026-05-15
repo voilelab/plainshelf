@@ -30,11 +30,11 @@ export function useBookDetail(bookID: () => string) {
     }
   }
 
-  async function removeBook(): Promise<boolean> {
+  async function removeBook(targetBookID?: string): Promise<boolean> {
     deleting.value = true;
     error.value = '';
     try {
-      await deleteBook(bookID());
+      await deleteBook(targetBookID ?? bookID());
       return true;
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to delete book';

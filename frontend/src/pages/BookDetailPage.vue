@@ -2,10 +2,10 @@
   <section class="detail-shell">
     <DeleteModal
       :open="showDeleteModal"
-      :item-name="book?.title || id"
+      :item-name="pendingDeleteBookName"
       description="This cannot be undone."
       :busy="deleting"
-      @cancel="showDeleteModal = false"
+      @cancel="cancelDelete"
       @confirm="deleteBook"
     />
     <div v-if="showImportedMessage" class="loading">Book imported successfully.</div>
@@ -57,6 +57,8 @@ const id = computed(() => String(route.params.id));
 const showImportedMessage = computed(() => route.query.imported === '1');
 const showSavedMessage = computed(() => route.query.saved === '1');
 const showDeleteModal = ref(false);
+const pendingDeleteBookId = ref('');
+const pendingDeleteBookName = ref('');
 
 const {
   book,
@@ -91,18 +93,32 @@ function onCoverChanged(): void {
 }
 
 function confirmDelete(): void {
+  pendingDeleteBookId.value = id.value;
+  pendingDeleteBookName.value = book.value?.title || id.value;
   showDeleteModal.value = true;
 }
 
+function cancelDelete(): void {
+  showDeleteModal.value = false;
+  pendingDeleteBookId.value = '';
+  pendingDeleteBookName.value = '';
+}
+
 async function deleteBook(): Promise<void> {
-  const removed = await removeBook();
+  if (!pendingDeleteBookId.value) {
+    cancelDelete();
+    return;
+  }
+
+  const removed = await removeBook(pendingDeleteBookId.value);
   if (removed) {
-    showDeleteModal.value = false;
+    cancelDelete();
     await router.push('/books');
   }
 }
 
 watch(id, () => {
+  cancelDelete();
   void fetchDetail();
 }, { immediate: true });
 </script>
