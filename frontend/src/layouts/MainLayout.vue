@@ -93,6 +93,21 @@
 
         <div class="sidebar-nav-divider" role="presentation"></div>
 
+        <section class="sidebar-section" aria-label="Reading">
+          <div class="sidebar-section-title">READING</div>
+          <nav class="sidebar-nav-list" aria-label="Reading links">
+            <RouterLink
+              to="/read-history"
+              class="sidebar-nav-item"
+              exact-active-class="active"
+            >
+              Recently Read
+            </RouterLink>
+          </nav>
+        </section>
+
+        <div class="sidebar-nav-divider" role="presentation"></div>
+
         <section class="sidebar-section" aria-label="Maintenance">
           <div class="sidebar-section-title">MAINTENANCE</div>
           <nav class="sidebar-nav-list" aria-label="Maintenance links">
