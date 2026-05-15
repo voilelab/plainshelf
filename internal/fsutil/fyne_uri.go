@@ -70,6 +70,7 @@ func (l *FyneURIFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	for i, entry := range entries {
 		dirEntries[i] = &FyneURIDirEntry{uri: entry}
 	}
+	sortDirEntries(dirEntries)
 	return dirEntries, nil
 }
 

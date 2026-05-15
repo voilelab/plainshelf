@@ -90,6 +90,7 @@ func (w *WebDAVFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	for i := range infos {
 		entries[i] = &webDAVDirEntry{info: infos[i]}
 	}
+	sortDirEntries(entries)
 
 	return entries, nil
 }

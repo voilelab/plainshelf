@@ -47,15 +47,17 @@ func OpenLocalShelf(libRoot string) (*Shelf, error) {
 	rt, err := os.OpenRoot(libRoot)
 	if err != nil {
 		// Auto create the library if it doesn't exist
-		if os.IsNotExist(err) {
-			err = os.MkdirAll(libRoot, 0755)
-			if err != nil {
-				return nil, util.Errorf("%w", err)
-			}
-			rt, err = os.OpenRoot(libRoot)
-			if err != nil {
-				return nil, util.Errorf("%w", err)
-			}
+		if !os.IsNotExist(err) {
+			return nil, util.Errorf("%w", err)
+		}
+
+		err = os.MkdirAll(libRoot, 0755)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+		rt, err = os.OpenRoot(libRoot)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
 		}
 	}
 
