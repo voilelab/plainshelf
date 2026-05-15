@@ -22,7 +22,7 @@ type App struct {
 
 type AppConf struct {
 	ShelfPath        string `yaml:"shelf_path"`
-	MarkPath         string `yaml:"mark_path"`
+	StorePath        string `yaml:"store_path"`
 	CoverToJPG       bool   `yaml:"cover_to_jpg"`
 	ReadHistoryLimit int    `yaml:"read_history_limit"`
 }
@@ -33,7 +33,7 @@ func NewApp(conf *AppConf) (*App, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	storeDB, err := store.New(conf.MarkPath, conf.ReadHistoryLimit)
+	storeDB, err := store.New(conf.StorePath, conf.ReadHistoryLimit)
 	if err != nil {
 		s.Close()
 		return nil, util.Errorf("%w", err)

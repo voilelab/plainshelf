@@ -5,5 +5,6 @@ server_conf:
 
 app_conf:
   shelf_path: "/data/shelf"
-  mark_path: "/data/mark"
+  store_path: "/data/store"
   cover_to_jpg: true
+  read_history_limit: 100
