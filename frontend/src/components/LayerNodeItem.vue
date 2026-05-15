@@ -1,5 +1,15 @@
 <template>
   <div>
+    <DeleteModal
+      :open="showDeleteModal"
+      title="Delete layer"
+      :item-name="node.path"
+      description="This will fail if the layer contains books or child layers."
+      :busy="isDeleting"
+      @cancel="showDeleteModal = false"
+      @confirm="confirmDeleteLayer"
+    />
+
     <div
       class="sidebar-nav-item layer-node"
       :class="{ active: isSelected, 'drop-target': isDropTarget }"
@@ -58,6 +68,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import DeleteModal from './DeleteModal.vue';
 
 defineOptions({ name: 'LayerNodeItem' });
 
@@ -89,19 +100,22 @@ const isSelected = computed(() => props.node.path === props.selected);
 const showDeleteButton = computed(() => props.node.path !== '/');
 const isDeleting = computed(() => props.deletingMap?.[props.node.path] ?? false);
 const isDropTarget = ref(false);
+const showDeleteModal = ref(false);
 
 function onDeleteLayer(): void {
   if (isDeleting.value) {
     return;
   }
 
-  const confirmed = window.confirm(
-    `Delete empty layer "${props.node.path}"?\nThis will fail if the layer contains books or child layers.`
-  );
-  if (!confirmed) {
+  showDeleteModal.value = true;
+}
+
+function confirmDeleteLayer(): void {
+  if (isDeleting.value) {
     return;
   }
 
+  showDeleteModal.value = false;
   emit('delete-layer', props.node.path);
 }
 

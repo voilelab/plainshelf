@@ -1,5 +1,13 @@
 <template>
   <section class="detail-shell">
+    <DeleteModal
+      :open="showDeleteModal"
+      :item-name="book?.title || id"
+      description="This cannot be undone."
+      :busy="deleting"
+      @cancel="showDeleteModal = false"
+      @confirm="deleteBook"
+    />
     <div v-if="showImportedMessage" class="loading">Book imported successfully.</div>
     <div v-if="showSavedMessage" class="loading">Metadata saved.</div>
     <div v-if="loading" class="loading">Loading book detail...</div>
@@ -35,10 +43,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BookCover from '../components/BookCover.vue';
 import BookDetail from '../components/BookDetail.vue';
+import DeleteModal from '../components/DeleteModal.vue';
 import { useBookDetail } from '../composables/useBookDetail';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
 
@@ -47,6 +56,7 @@ const router = useRouter();
 const id = computed(() => String(route.params.id));
 const showImportedMessage = computed(() => route.query.imported === '1');
 const showSavedMessage = computed(() => route.query.saved === '1');
+const showDeleteModal = ref(false);
 
 const {
   book,
@@ -80,12 +90,14 @@ function onCoverChanged(): void {
   void fetchDetail();
 }
 
-async function confirmDelete(): Promise<void> {
-  if (!confirm(`Delete "${book.value?.title}"? This cannot be undone.`)) {
-    return;
-  }
+function confirmDelete(): void {
+  showDeleteModal.value = true;
+}
+
+async function deleteBook(): Promise<void> {
   const removed = await removeBook();
   if (removed) {
+    showDeleteModal.value = false;
     await router.push('/books');
   }
 }
