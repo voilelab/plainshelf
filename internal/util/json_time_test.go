@@ -22,7 +22,7 @@ func TestJSONTime(t *testing.T) {
 		t.Fatalf("Failed to unmarshal JSONTime: %v", err)
 	}
 
-	if time.Time(unmarshaledTime) != now {
+	if !time.Time(unmarshaledTime).Equal(now) {
 		t.Errorf("Expected %v, got %v", now, time.Time(unmarshaledTime))
 	}
 }
