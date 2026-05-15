@@ -1,5 +1,14 @@
 <template>
   <section class="snapshot-editor-page">
+    <ConfirmModal
+      :open="showDiscardModal"
+      title="Discard unsaved changes?"
+      message="You have unsaved changes. Discard them and switch snapshots?"
+      confirm-text="Discard and switch"
+      cancel-text="Keep editing"
+      @cancel="cancelPendingSnapshot"
+      @confirm="confirmPendingSnapshot"
+    />
     <header class="snapshot-editor-topbar">
       <button class="button" type="button" @click="goBack">Back</button>
 
@@ -52,6 +61,7 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getBook } from '../../../api/books';
+import ConfirmModal from '../../../components/ConfirmModal.vue';
 import { useDocumentTitle } from '../../../composables/useDocumentTitle';
 import type { Book } from '../../../types/book';
 import { getSnapshotContent, listSnapshots, updateSnapshotContent } from '../../../api/snapshots';
@@ -78,6 +88,8 @@ const saving = ref(false);
 const loadError = ref('');
 const editorError = ref('');
 const saveSuccess = ref('');
+const showDiscardModal = ref(false);
+const pendingSnapshotId = ref('');
 
 const isDirty = computed(() => activeSnapshotId.value.length > 0 && content.value !== initialContent.value);
 const disableSave = computed(
@@ -157,10 +169,25 @@ async function onSelectSnapshot(snapshotId: string): Promise<void> {
   }
 
   if (isDirty.value) {
-    const confirmed = window.confirm('You have unsaved changes. Discard and switch snapshots?');
-    if (!confirmed) {
-      return;
-    }
+    pendingSnapshotId.value = snapshotId;
+    showDiscardModal.value = true;
+    return;
+  }
+
+  await loadSnapshot(snapshotId);
+}
+
+function cancelPendingSnapshot(): void {
+  showDiscardModal.value = false;
+  pendingSnapshotId.value = '';
+}
+
+async function confirmPendingSnapshot(): Promise<void> {
+  const snapshotId = pendingSnapshotId.value;
+  cancelPendingSnapshot();
+
+  if (!snapshotId || snapshotId === activeSnapshotId.value) {
+    return;
   }
 
   await loadSnapshot(snapshotId);
