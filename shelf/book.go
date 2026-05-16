@@ -280,6 +280,10 @@ func (b *Book) NewSnapshot(source io.Reader) (*Snapshot, error) {
 }
 
 func (b *Book) GetSnapshot(snapshotID string) (*Snapshot, error) {
+	if err := validateSnapshotID(snapshotID); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
 	snapshotPath := path.Join(b.folderPath, SnapshotsFolder, snapshotID)
 	snapshot, err := openSnapshot(b.root, snapshotPath)
 	if err != nil {
