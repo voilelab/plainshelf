@@ -53,7 +53,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/plainsh
 FROM ubuntu:24.04 AS runtime
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --home-dir /home/plainshelf --shell /usr/sbin/nologin plainshelf \
     && mkdir -p /data /etc/plainshelf \
@@ -66,6 +66,9 @@ USER plainshelf
 WORKDIR /data
 VOLUME ["/data"]
 EXPOSE 20000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:20000/health || exit 1
 
 ENTRYPOINT ["/usr/local/bin/plainshelf-srv"]
 CMD ["-conf", "/etc/plainshelf/config.yaml"]
