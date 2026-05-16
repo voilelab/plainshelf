@@ -140,7 +140,7 @@ Start the server on <http://localhost:20000> with persistent application data in
 ```bash
 docker run --rm \
   --name plainshelf \
-  -p 20000:127.0.0.1:20000 \
+  -p 127.0.0.1:20000:20000 \
   -v plainshelf-data:/data \
   plainshelf
 ```
@@ -150,7 +150,7 @@ The image uses `docker/config.yaml`, which listens on `127.0.0.1:20000` inside t
 ```bash
 docker run --rm \
   --name plainshelf \
-  -p 20000:127.0.0.1:20000 \
+  -p 127.0.0.1:20000:20000 \
   -v plainshelf-data:/data \
   -v "$PWD/path/to/config.yaml:/etc/plainshelf/config.yaml:ro" \
   plainshelf
