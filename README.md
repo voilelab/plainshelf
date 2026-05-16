@@ -144,7 +144,9 @@ docker run --rm \
   plainshelf
 ```
 
-The image uses `docker/config.yaml`, which listens on `127.0.0.1:20000` inside the container and stores data in `/data/shelf` and `/data/mark`. To use a custom server config, mount it over `/etc/plainshelf/config.yaml`:
+The image uses `docker/config.yaml`, which listens on `0.0.0.0:20000`
+inside the container and stores data in `/data/shelf` and `/data/mark`.
+To use a custom server config, mount it over `/etc/plainshelf/config.yaml`:
 
 ```bash
 docker run --rm \

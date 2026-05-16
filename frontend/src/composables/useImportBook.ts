@@ -3,7 +3,7 @@ import { importBook } from '../api/books';
 import { deriveTitleFromFilename, hasSupportedExtension } from '../utils/file';
 import { normalizeLayerPath } from '../utils/layers';
 
-const bookExtPattern = /\.(txt|md)$/i;
+const bookExtPattern = /\.(txt)$/i;
 
 export type ImportStatus = 'pending' | 'importing' | 'success' | 'failed';
 
