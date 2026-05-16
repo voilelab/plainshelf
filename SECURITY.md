@@ -23,7 +23,7 @@ Preferred reporting flow:
 When reporting, please include as much of the following as you can safely share:
 
 - Affected commit, branch, or build method.
-- Operating system and whether you used the server, Docker image, CLI, or experimental GUI.
+- Operating system and whether you used the server, Docker image, or CLI.
 - Configuration details relevant to the issue, especially bind address, reverse proxy, mounted directories, and shelf/store paths.
 - Steps to reproduce with minimal test data.
 - Expected impact, such as local file disclosure, data loss, cross-site scripting, request forgery, or unintended network exposure.

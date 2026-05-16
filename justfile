@@ -1,18 +1,9 @@
 set shell := ["zsh", "-cu"]
 
-gui_dir := "cmd/txtlib-gui"
 srv_frontend_dir := "frontend"
 
 default:
 	just --list
-
-# Build/package a desktop app bundle for macOS.
-fyne-macos:
-	go tool fyne package --src {{gui_dir}} -os darwin
-
-# Build/package an Android app.
-fyne-android:
-	cd {{gui_dir}} && go tool fyne package -os android && mv Txtlib.apk ../../
 
 test:
     npm --prefix {{srv_frontend_dir}} run build
