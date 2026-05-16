@@ -79,7 +79,7 @@ export function useImportBook() {
     success.value = '';
 
     if (bookFiles.value.length === 0) {
-      error.value = 'Please choose at least one TXT or Markdown file.';
+      error.value = 'Please choose at least one TXT file.';
       return null;
     }
 
@@ -97,7 +97,7 @@ export function useImportBook() {
           files.value[index] = {
             ...current,
             status: 'failed',
-            error: 'Book file must be .txt or .md.'
+            error: 'Book file must be .txt.'
           };
           failedCount += 1;
           continue;
