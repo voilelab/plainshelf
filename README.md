@@ -159,6 +159,7 @@ docker run --rm \
 ### Run tests
 
 ```bash
+npm --prefix frontend run build
 go test ./...
 ```
 
