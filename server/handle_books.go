@@ -14,6 +14,8 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
+const maxCoverBodySize = 20 << 20 // 20 MB
+
 type Book struct {
 	Meta  *shelf.BookMeta `json:"meta"`
 	Layer shelf.Layers    `json:"layer"`
@@ -269,8 +271,13 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxCoverBodySize)
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
+		if strings.Contains(err.Error(), "request body too large") {
+			http.Error(w, "request body too large (max 20 MB)", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "failed to read request body", http.StatusInternalServerError)
 		return
 	}
@@ -471,8 +478,13 @@ func (app *App) HandleAPIUpdateBookSnapshotContent(w http.ResponseWriter, r *htt
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxImportBodySize)
 	utf8Reader, _, err := util.ReEncodeToUTF8(r.Body)
 	if err != nil {
+		if strings.Contains(err.Error(), "request body too large") {
+			http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "failed to re-encode request body to UTF-8", http.StatusInternalServerError)
 		return
 	}
