@@ -571,7 +571,7 @@ func validateLayers(layers Layers) error {
 			return util.Errorf("invalid layer name %q: %w", layer, err)
 		}
 		if strings.Contains(layer, bookExtension) {
-			return util.Errorf("layer name must not contain %q", bookExtension)
+			return util.Errorf("invalid layer name %q: must not contain %q", layer, bookExtension)
 		}
 	}
 	return nil
