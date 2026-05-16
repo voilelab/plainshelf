@@ -16,6 +16,11 @@ import (
 
 const maxCoverBodySize = 20 << 20 // 20 MB
 
+func isRequestBodyTooLarge(err error) bool {
+	var maxBytesErr *http.MaxBytesError
+	return errors.As(err, &maxBytesErr)
+}
+
 type Book struct {
 	Meta  *shelf.BookMeta `json:"meta"`
 	Layer shelf.Layers    `json:"layer"`
@@ -274,7 +279,7 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 	r.Body = http.MaxBytesReader(w, r.Body, maxCoverBodySize)
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
-		if strings.Contains(err.Error(), "request body too large") {
+		if isRequestBodyTooLarge(err) {
 			http.Error(w, "request body too large (max 20 MB)", http.StatusRequestEntityTooLarge)
 			return
 		}
@@ -481,7 +486,7 @@ func (app *App) HandleAPIUpdateBookSnapshotContent(w http.ResponseWriter, r *htt
 	r.Body = http.MaxBytesReader(w, r.Body, maxImportBodySize)
 	utf8Reader, _, err := util.ReEncodeToUTF8(r.Body)
 	if err != nil {
-		if strings.Contains(err.Error(), "request body too large") {
+		if isRequestBodyTooLarge(err) {
 			http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
 			return
 		}
