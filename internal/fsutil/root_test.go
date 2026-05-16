@@ -4,14 +4,9 @@ import (
 	"io/fs"
 	"os"
 	"testing"
-
-	"fyne.io/fyne/v2/test"
 )
 
 func TestFSWalkRoot(t *testing.T) {
-	a := test.NewApp()
-	defer a.Quit()
-
 	rt, err := os.OpenRoot("test_dir")
 	if err != nil {
 		t.Fatalf("Failed to open root: %v", err)
