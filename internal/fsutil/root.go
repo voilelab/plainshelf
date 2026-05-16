@@ -38,6 +38,7 @@ func (l *RootFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
+	sortDirEntries(entries)
 	return entries, nil
 }
 

@@ -95,13 +95,6 @@ function onDeleteLayer(): void {
     return;
   }
 
-  const confirmed = window.confirm(
-    `Delete empty layer "${props.node.path}"?\nThis will fail if the layer contains books or child layers.`
-  );
-  if (!confirmed) {
-    return;
-  }
-
   emit('delete-layer', props.node.path);
 }
 

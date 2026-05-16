@@ -1,5 +1,16 @@
 <template>
   <div class="layout-root">
+    <DeleteModal
+      :open="pendingDeleteLayerPath.length > 0"
+      title="Delete layer"
+      :item-name="pendingDeleteLayerPath"
+      description="This will fail if the layer contains books or child layers."
+      :busy="isDeletingPendingLayer"
+      :error="deleteLayerError"
+      @cancel="cancelPendingDeleteLayer"
+      @confirm="confirmDeleteLayer"
+    />
+
     <aside class="sidebar" :class="{ collapsed: isCollapsed }">
       <button
         class="collapse-btn"
@@ -70,15 +81,30 @@
             :deleting-map="deletingLayerMap"
             @select="onSelectLayer"
             @move-book="onMoveBook"
-            @delete-layer="onDeleteLayer"
+            @delete-layer="requestDeleteLayer"
           />
         </section>
         <p v-if="moveBookError" class="sidebar-error" role="alert">
           {{ moveBookError }}
         </p>
-        <p v-if="deleteLayerError" class="sidebar-error sidebar-error-pre" role="alert">
+        <p v-if="deleteLayerError && !pendingDeleteLayerPath" class="sidebar-error sidebar-error-pre" role="alert">
           {{ deleteLayerError }}
         </p>
+
+        <div class="sidebar-nav-divider" role="presentation"></div>
+
+        <section class="sidebar-section" aria-label="Reading">
+          <div class="sidebar-section-title">READING</div>
+          <nav class="sidebar-nav-list" aria-label="Reading links">
+            <RouterLink
+              to="/read-history"
+              class="sidebar-nav-item"
+              exact-active-class="active"
+            >
+              Recently Read
+            </RouterLink>
+          </nav>
+        </section>
 
         <div class="sidebar-nav-divider" role="presentation"></div>
 
@@ -117,6 +143,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import DeleteModal from '../components/DeleteModal.vue';
 import LayerTree from '../components/LayerTree.vue';
 import { updateBookLayer } from '../api/books';
 import { createLayer, deleteLayer } from '../api/layers';
@@ -140,6 +167,7 @@ const createdLayerPath = ref('');
 const newLayerPath = ref('');
 const deleteLayerError = ref('');
 const deletingLayerMap = ref<Record<string, boolean>>({});
+const pendingDeleteLayerPath = ref('');
 
 const currentLayer = computed(() => {
   const q = route.query.layers;
@@ -148,6 +176,9 @@ const currentLayer = computed(() => {
 
 const layerTree = computed(() => buildLayerTreeNodes(layers.value));
 const canSubmitCreateLayer = computed(() => normalizeLayerPath(newLayerPath.value).length > 0);
+const isDeletingPendingLayer = computed(
+  () => pendingDeleteLayerPath.value.length > 0 && (deletingLayerMap.value[pendingDeleteLayerPath.value] ?? false)
+);
 
 function goToLayer(layer: string | undefined): void {
   const query: Record<string, string> = { page: '1' };
@@ -249,8 +280,27 @@ async function onMoveBook(payload: { bookId: string; targetLayer: string }): Pro
   }
 }
 
-async function onDeleteLayer(path: string): Promise<void> {
+function requestDeleteLayer(path: string): void {
   if (deletingLayerMap.value[path]) {
+    return;
+  }
+
+  deleteLayerError.value = '';
+  pendingDeleteLayerPath.value = path;
+}
+
+function cancelPendingDeleteLayer(): void {
+  if (isDeletingPendingLayer.value) {
+    return;
+  }
+
+  pendingDeleteLayerPath.value = '';
+  deleteLayerError.value = '';
+}
+
+async function confirmDeleteLayer(): Promise<void> {
+  const path = pendingDeleteLayerPath.value;
+  if (!path || deletingLayerMap.value[path]) {
     return;
   }
 
@@ -267,6 +317,8 @@ async function onDeleteLayer(path: string): Promise<void> {
     if (currentLayer.value === path) {
       goToLayer(undefined);
     }
+
+    pendingDeleteLayerPath.value = '';
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
     if (message === 'Cannot delete this layer because it is not empty.') {

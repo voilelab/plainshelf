@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"io"
 	"strings"
 
@@ -23,7 +24,7 @@ func ReEncodeToUTF8(src io.Reader) (io.Reader, string, error) {
 	case "UTF-8", "UTF-8-SIG":
 		return strings.NewReader(string(bs)), res.Encoding, nil
 	case "GB18030", "GBK", "GB2312":
-		return simplifiedchinese.GB18030.NewDecoder().Reader(src), res.Encoding, nil
+		return simplifiedchinese.GB18030.NewDecoder().Reader(bytes.NewReader(bs)), res.Encoding, nil
 	default:
 		return nil, "", Errorf("unsupported encoding: `%s`", res.Encoding)
 	}

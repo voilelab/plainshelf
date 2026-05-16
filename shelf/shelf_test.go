@@ -15,6 +15,22 @@ func TestShelfNewShelf(t *testing.T) {
 	defer shelf.Close()
 }
 
+func TestOpenLocalShelfReturnsOpenRootError(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := path.Join(tmpDir, "not-a-directory")
+	if err := os.WriteFile(filePath, []byte("not a shelf"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	shelf, err := OpenLocalShelf(filePath)
+	if err == nil {
+		if shelf != nil {
+			_ = shelf.Close()
+		}
+		t.Fatal("Expected error when opening a regular file as a shelf root, got nil")
+	}
+}
+
 func TestShelfMakeStructure(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf, err := OpenLocalShelf(tmpLib)

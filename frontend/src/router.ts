@@ -8,6 +8,7 @@ import DuplicateContentPage from './pages/DuplicateContentPage.vue';
 import MissingAuthorPage from './pages/MissingAuthorPage.vue';
 import MissingCoverPage from './pages/MissingCoverPage.vue';
 import MissingLanguagePage from './pages/MissingLanguagePage.vue';
+import ReadHistoryPage from './pages/ReadHistoryPage.vue';
 import ReaderPage from './features/reader/views/ReaderView.vue';
 import EditBookSnapshotsPage from './features/snapshots/pages/EditBookSnapshotsPage.vue';
 import { APP_TITLE } from './composables/useDocumentTitle';
@@ -17,6 +18,7 @@ const ROUTES_WITH_OWN_TITLE = new Set([
   'book-detail',
   'book-snapshots-edit',
   'reader',
+  'read-history',
   'maintenance-missing-author',
   'maintenance-missing-cover'
 ]);
@@ -64,6 +66,11 @@ const router = createRouter({
           path: 'duplicates',
           name: 'duplicate-content',
           component: DuplicateContentPage
+        },
+        {
+          path: 'read-history',
+          name: 'read-history',
+          component: ReadHistoryPage
         },
         {
           path: 'books/maintenance/missing-author',

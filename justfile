@@ -14,6 +14,10 @@ fyne-macos:
 fyne-android:
 	cd {{gui_dir}} && go tool fyne package -os android && mv Txtlib.apk ../../
 
+test:
+    npm --prefix {{srv_frontend_dir}} run build
+    go test ./...
+
 # Build server: build frontendt
 server-frontend:
 	npm --prefix {{srv_frontend_dir}} run build

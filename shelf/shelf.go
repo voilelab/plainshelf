@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gofrs/flock"
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"go.rtnl.ai/x/slugify"
@@ -25,6 +26,7 @@ Layout:
   b/
     book-a82m/
 {library}/app/
+  library.lock
   tmp/
 */
 
@@ -32,13 +34,15 @@ const booksFolder = "books"
 const bookExtension = ".novl"
 const appFolder = "app"
 const appTmpFolder = "tmp"
+const libraryLockFile = "library.lock"
 
 var ErrBookNotFound = util.NewError("book not found")
 
 type Shelf struct {
-	dbRoot   fsutil.FS
-	readonly bool
-	close    func() error
+	dbRoot    fsutil.FS
+	readonly  bool
+	close     func() error
+	localLock *flock.Flock
 }
 
 // OpenLocalShelf initializes a new Shelf instance with the given library root path.
@@ -47,19 +51,27 @@ func OpenLocalShelf(libRoot string) (*Shelf, error) {
 	rt, err := os.OpenRoot(libRoot)
 	if err != nil {
 		// Auto create the library if it doesn't exist
-		if os.IsNotExist(err) {
-			err = os.MkdirAll(libRoot, 0755)
-			if err != nil {
-				return nil, util.Errorf("%w", err)
-			}
-			rt, err = os.OpenRoot(libRoot)
-			if err != nil {
-				return nil, util.Errorf("%w", err)
-			}
+		if !os.IsNotExist(err) {
+			return nil, util.Errorf("%w", err)
+		}
+
+		err = os.MkdirAll(libRoot, 0755)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+		rt, err = os.OpenRoot(libRoot)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
 		}
 	}
 
-	shelf := &Shelf{dbRoot: fsutil.NewRootFS(rt), readonly: false, close: rt.Close}
+	shelf := &Shelf{
+		dbRoot:    fsutil.NewRootFS(rt),
+		readonly:  false,
+		close:     rt.Close,
+		localLock: flock.New(path.Join(libRoot, appFolder, libraryLockFile)),
+	}
+
 	err = shelf.makeStructure()
 	if err != nil {
 		rt.Close()
@@ -98,8 +110,66 @@ func (s *Shelf) makeStructure() error {
 	return nil
 }
 
+func (s *Shelf) lock() error {
+	if s.readonly {
+		return nil
+	}
+
+	if s.localLock == nil {
+		return nil
+	}
+
+	err := s.localLock.Lock()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
+}
+
+func (s *Shelf) rlock() error {
+	if s.readonly {
+		return nil
+	}
+
+	if s.localLock == nil {
+		return nil
+	}
+
+	err := s.localLock.RLock()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
+}
+
+func (s *Shelf) unlock() error {
+	if s.readonly {
+		return nil
+	}
+
+	if s.localLock == nil {
+		return nil
+	}
+
+	err := s.localLock.Unlock()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
+}
+
 // Close releases any resources held by the Shelf instance.
 func (s *Shelf) Close() error {
+	if s.localLock != nil {
+		err := s.localLock.Close()
+		if err != nil {
+			log.Println("Error closing local lock:", err)
+		}
+	}
+
 	if s.close == nil {
 		return nil
 	}
@@ -114,6 +184,9 @@ func (s *Shelf) Close() error {
 // ListBooks returns a list of all books in the library.
 // Books are sorted by their ID in ascending order.
 func (s *Shelf) ListBooks() ([]*Book, error) {
+	s.rlock()
+	defer s.unlock()
+
 	var books []*Book
 
 	err := s.iterateBooks(nil, func(b *Book) bool {
@@ -134,6 +207,9 @@ func (s *Shelf) ListBooks() ([]*Book, error) {
 
 // GetBook returns the details of a specific book by its ID.
 func (s *Shelf) GetBook(bookID string) (*Book, error) {
+	s.rlock()
+	defer s.unlock()
+
 	book, err := s.getBook(bookID)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -144,6 +220,9 @@ func (s *Shelf) GetBook(bookID string) (*Book, error) {
 // NewBook creates a new book with the given ID and title, and returns the created Book instance.
 // It is an atomic operation that ensures the book is fully created before it becomes visible in the library.
 func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
+	s.lock()
+	defer s.unlock()
+
 	bookPath, err := createTempDir(s.dbRoot, path.Join(appFolder, appTmpFolder, "book"))
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -206,6 +285,9 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 
 // DeleteBook removes a book from the library by its ID.
 func (s *Shelf) DeleteBook(bookID string) error {
+	s.lock()
+	defer s.unlock()
+
 	book, err := s.getBook(bookID)
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -221,6 +303,9 @@ func (s *Shelf) DeleteBook(bookID string) error {
 
 // GetAllLayers returns a sorted list of all unique layers present in the library.
 func (s *Shelf) GetAllLayers() ([]Layers, error) {
+	s.rlock()
+	defer s.unlock()
+
 	var layers []Layers
 	seen := make(map[string]bool)
 	err := s.iterateLayers(func(ls Layers) bool {
@@ -245,6 +330,9 @@ func (s *Shelf) GetAllLayers() ([]Layers, error) {
 
 // GetBooksByLayer returns a list of books that belong to the specified layers.
 func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
+	s.rlock()
+	defer s.unlock()
+
 	var books []*Book
 
 	err := s.iterateBooks(layers, func(b *Book) bool {
@@ -265,6 +353,9 @@ func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
 
 // MoveBook moves a book to new layers and returns the updated Book instance.
 func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
+	s.lock()
+	defer s.unlock()
+
 	book, err := s.getBook(bookID)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -416,6 +507,9 @@ func (s *Shelf) iterateLayers(fn func(Layers) bool) error {
 
 // NewLayer creates a new layer in the library. It validates the layer name to ensure it does not contain invalid characters and then creates the necessary directory structure for the layer.
 func (s *Shelf) NewLayer(layer Layers) error {
+	s.lock()
+	defer s.unlock()
+
 	for _, l := range layer {
 		if strings.Contains(l, bookExtension) {
 			return util.Errorf("invalid layer name: %s", l)
@@ -433,6 +527,9 @@ func (s *Shelf) NewLayer(layer Layers) error {
 
 // DeleteLayer removes a layer from the library. It checks if the layer is empty (i.e., contains no books) before deleting it. If the layer is not empty, it returns an error.
 func (s *Shelf) DeleteLayer(layer Layers) error {
+	s.lock()
+	defer s.unlock()
+
 	layerPath := path.Join(booksFolder, path.Join(layer...))
 
 	entries, err := s.dbRoot.ReadDir(layerPath)

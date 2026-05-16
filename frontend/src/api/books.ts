@@ -154,9 +154,9 @@ export const mockBooks: Book[] = [
     authors: ['A. Lin'],
     layers: ['fiction', 'quiet'],
     language: 'en',
-    format: 'markdown',
+    format: 'txt',
     tags: ['fiction', 'calm'],
-    comment: 'Imported from local markdown notes.',
+    comment: 'Imported from local txt file.',
     created_at: '2026-01-07T10:00:00Z',
     updated_at: '2026-04-18T08:30:00Z',
     cover_url: 'https://picsum.photos/seed/shelf1/120/180'
@@ -178,7 +178,7 @@ export const mockBooks: Book[] = [
     authors: ['Y. Wang'],
     layers: ['travel'],
     language: 'zh-TW',
-    format: 'markdown',
+    format: 'txt',
     tags: ['travel'],
     cover_url: 'https://picsum.photos/seed/shelf3/120/180'
   },
@@ -198,7 +198,7 @@ export const mockBooks: Book[] = [
     authors: ['K. Lee'],
     layers: ['fiction'],
     language: 'zh-TW',
-    format: 'markdown',
+    format: 'txt',
     tags: ['fiction'],
     cover_url: 'https://picsum.photos/seed/shelf5/120/180'
   },
@@ -218,7 +218,7 @@ export const mockBooks: Book[] = [
     authors: ['S. Yu'],
     layers: ['poetry'],
     language: 'zh-TW',
-    format: 'markdown',
+    format: 'txt',
     tags: ['poetry'],
     cover_url: 'https://picsum.photos/seed/shelf7/120/180'
   },
@@ -238,7 +238,7 @@ export const mockBooks: Book[] = [
     authors: ['L. Ho'],
     layers: ['essay'],
     language: 'en',
-    format: 'markdown',
+    format: 'txt',
     tags: ['essay'],
     cover_url: 'https://picsum.photos/seed/shelf9/120/180'
   },
@@ -255,9 +255,9 @@ export const mockBooks: Book[] = [
 ];
 
 const mockProgress: Record<string, ReadingProgress> = {
-  'book-1': { file_path: '/library/book-1.md', char_offset: 240, percent: 15 },
+  'book-1': { file_path: '/library/book-1.txt', char_offset: 240, percent: 15 },
   'book-2': { file_path: '/library/book-2.txt', char_offset: 1200, percent: 42 },
-  'book-3': { file_path: '/library/book-3.md', char_offset: 700, percent: 58 }
+  'book-3': { file_path: '/library/book-3.txt', char_offset: 700, percent: 58 }
 };
 
 const mockContent: Record<string, string> = {
