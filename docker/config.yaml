@@ -1,5 +1,5 @@
 server_conf:
-  addr: "127.0.0.1:20000"
+  addr: "0.0.0.0:20000"
   read_timeout: 60s
   write_timeout: 60s
 
