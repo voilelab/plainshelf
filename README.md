@@ -59,7 +59,6 @@ server/             # local HTTP server implementation
 frontend/           # Vue web frontend
 txtlib-gui/         # experimental Fyne GUI implementation
 internal/           # internal shared utilities
-docs/               # design notes and documentation
 ```
 
 The current primary development focus is:
