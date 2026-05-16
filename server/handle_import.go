@@ -45,7 +45,7 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxImportBodySize)
 
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		if err.Error() == "http: request body too large" {
+		if isRequestBodyTooLarge(err) {
 			http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
 			return
 		}

@@ -9,6 +9,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gofrs/flock"
 	"github.com/voilelab/plainshelf/internal/fsutil"
@@ -35,6 +36,7 @@ const bookExtension = ".novl"
 const appFolder = "app"
 const appTmpFolder = "tmp"
 const libraryLockFile = "library.lock"
+const maxPathSegmentLength = 255
 
 var ErrBookNotFound = util.NewError("book not found")
 
@@ -220,6 +222,10 @@ func (s *Shelf) GetBook(bookID string) (*Book, error) {
 // NewBook creates a new book with the given ID and title, and returns the created Book instance.
 // It is an atomic operation that ensures the book is fully created before it becomes visible in the library.
 func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
+	if err := validateLayers(layers); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
 	s.lock()
 	defer s.unlock()
 
@@ -330,6 +336,10 @@ func (s *Shelf) GetAllLayers() ([]Layers, error) {
 
 // GetBooksByLayer returns a list of books that belong to the specified layers.
 func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
+	if err := validateLayers(layers); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
 	s.rlock()
 	defer s.unlock()
 
@@ -353,6 +363,10 @@ func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
 
 // MoveBook moves a book to new layers and returns the updated Book instance.
 func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
+	if err := validateLayers(newLayers); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
 	s.lock()
 	defer s.unlock()
 
@@ -507,14 +521,12 @@ func (s *Shelf) iterateLayers(fn func(Layers) bool) error {
 
 // NewLayer creates a new layer in the library. It validates the layer name to ensure it does not contain invalid characters and then creates the necessary directory structure for the layer.
 func (s *Shelf) NewLayer(layer Layers) error {
+	if err := validateLayers(layer); err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	s.lock()
 	defer s.unlock()
-
-	for _, l := range layer {
-		if strings.Contains(l, bookExtension) {
-			return util.Errorf("invalid layer name: %s", l)
-		}
-	}
 
 	layerPath := path.Join(booksFolder, path.Join(layer...))
 	err := s.dbRoot.MkdirAll(layerPath)
@@ -527,6 +539,10 @@ func (s *Shelf) NewLayer(layer Layers) error {
 
 // DeleteLayer removes a layer from the library. It checks if the layer is empty (i.e., contains no books) before deleting it. If the layer is not empty, it returns an error.
 func (s *Shelf) DeleteLayer(layer Layers) error {
+	if err := validateLayers(layer); err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	s.lock()
 	defer s.unlock()
 
@@ -546,6 +562,44 @@ func (s *Shelf) DeleteLayer(layer Layers) error {
 		return util.Errorf("%w", err)
 	}
 
+	return nil
+}
+
+func validateLayers(layers Layers) error {
+	for _, layer := range layers {
+		if err := validatePathSegment(layer); err != nil {
+			return util.Errorf("invalid layer name %q: %w", layer, err)
+		}
+		if strings.Contains(layer, bookExtension) {
+			return util.Errorf("invalid layer name %q: must not contain %q", layer, bookExtension)
+		}
+	}
+	return nil
+}
+
+func validateSnapshotID(snapshotID string) error {
+	if err := validatePathSegment(snapshotID); err != nil {
+		return util.Errorf("invalid snapshot id %q: %w", snapshotID, err)
+	}
+	return nil
+}
+
+func validatePathSegment(segment string) error {
+	if segment == "" {
+		return util.NewError("path segment cannot be empty")
+	}
+	if segment == "." || segment == ".." {
+		return util.NewError("path segment cannot be . or ..")
+	}
+	if strings.ContainsAny(segment, `/\`) {
+		return util.NewError("path segment cannot contain path separators")
+	}
+	if !utf8.ValidString(segment) {
+		return util.NewError("path segment must be valid UTF-8")
+	}
+	if len(segment) > maxPathSegmentLength {
+		return util.Errorf("path segment exceeds %d bytes", maxPathSegmentLength)
+	}
 	return nil
 }
 

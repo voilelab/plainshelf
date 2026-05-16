@@ -20,7 +20,7 @@ func main() {
 
 	err := server.MainService(confPath)
 	if err != nil {
-		log.Println("Error starting txtlib-srv:", err)
+		log.Println("Error starting plainshelf-srv:", err)
 		os.Exit(1)
 	}
 }

@@ -3,14 +3,9 @@ package fsutil
 import (
 	"io/fs"
 	"testing"
-
-	"fyne.io/fyne/v2/test"
 )
 
 func TestFSWalkLocal(t *testing.T) {
-	a := test.NewApp()
-	defer a.Quit()
-
 	ffs := NewLocalFS("test_dir")
 
 	getPaths := []string{}

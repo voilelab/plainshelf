@@ -6,7 +6,7 @@ import (
 )
 
 // FS is a common interface for file system operations.
-// It abstracts over different file system implementations, such as local file system or Fyne URI-based file system.
+// It abstracts over different file system implementations, such as local file systems.
 type FS interface {
 	// Open opens a file for reading.
 	// User should call Close() on the returned file when done.

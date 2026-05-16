@@ -50,14 +50,11 @@ PlainShelf is not intended to be a full Calibre replacement.
 
 ```text
 cmd/
-├─ plainshelf-srv/  # local server entrypoint
-├─ txtlib-cli/      # experimental CLI entrypoint
-└─ txtlib-gui/      # experimental Fyne GUI entrypoint
+└─ plainshelf-srv/  # local server entrypoint
 
 shelf/              # core library package
 server/             # local HTTP server implementation
 frontend/           # Vue web frontend
-txtlib-gui/         # experimental Fyne GUI implementation
 internal/           # internal shared utilities
 ```
 
@@ -66,8 +63,6 @@ The current primary development focus is:
 1. `shelf`
 2. `server`
 3. `frontend`
-
-The CLI and Fyne GUI are experimental and may lag behind the main server/web workflow.
 
 ---
 
@@ -163,15 +158,6 @@ docker run --rm \
 npm --prefix frontend run build
 go test ./...
 ```
-
----
-
-## Naming
-
-PlainShelf is the product and repository name.
-
-Some internal packages and commands still use the older `txtlib` name.
-They may be renamed later as the project stabilizes.
 
 ---
 
