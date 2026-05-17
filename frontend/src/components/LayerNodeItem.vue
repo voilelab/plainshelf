@@ -23,7 +23,7 @@
       <button type="button" class="sidebar-nav-item-label" @click="emit('select', node.path)">
         {{ node.name }}
       </button>
-      <span class="sidebar-nav-count">{{ bookCountByLayer?.get(node.path) ?? 0 }}</span>
+      <span class="sidebar-nav-count">{{ layerBookCount }}</span>
       <button
         v-if="showDeleteButton"
         type="button"
@@ -86,7 +86,8 @@ const emit = defineEmits<{
 const hasChildren = computed(() => props.node.children.length > 0);
 const isExpanded = computed(() => props.expandedMap[props.node.path] ?? false);
 const isSelected = computed(() => props.node.path === props.selected);
-const showDeleteButton = computed(() => props.node.path !== '/');
+const layerBookCount = computed(() => props.bookCountByLayer?.get(props.node.path) ?? 0);
+const showDeleteButton = computed(() => props.node.path !== '/' && layerBookCount.value === 0);
 const isDeleting = computed(() => props.deletingMap?.[props.node.path] ?? false);
 const isDropTarget = ref(false);
 
