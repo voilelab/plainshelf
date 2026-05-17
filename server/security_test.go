@@ -30,7 +30,7 @@ func newSecurityTestEnv(t *testing.T, conf *SecurityConf) *apiTestEnv {
 func TestSecurityLocalTokenProtectsMutatingAPI(t *testing.T) {
 	env := newSecurityTestEnv(t, &SecurityConf{
 		Mode:                        SecurityModeLocalToken,
-		AllowMissingOriginWithToken: boolPtr(true),
+		AllowMissingOriginWithToken: new(true),
 		AllowedOrigins:              []string{"http://localhost:20000"},
 	})
 
@@ -64,7 +64,7 @@ func TestSecurityLocalTokenProtectsMutatingAPI(t *testing.T) {
 func TestSecurityOriginAndCORS(t *testing.T) {
 	env := newSecurityTestEnv(t, &SecurityConf{
 		Mode:                        SecurityModeLocalToken,
-		AllowMissingOriginWithToken: boolPtr(true),
+		AllowMissingOriginWithToken: new(true),
 		AllowedOrigins:              []string{"http://localhost:20000"},
 	})
 
@@ -106,7 +106,7 @@ func TestSecurityProtectReadOption(t *testing.T) {
 	env := newSecurityTestEnv(t, &SecurityConf{
 		Mode:                        SecurityModeLocalToken,
 		ProtectRead:                 true,
-		AllowMissingOriginWithToken: boolPtr(true),
+		AllowMissingOriginWithToken: new(true),
 		AllowedOrigins:              []string{"http://localhost:20000"},
 	})
 

@@ -84,16 +84,12 @@ func normalizeSecurityConf(conf *SecurityConf) SecurityConf {
 		confValue.TokenHeader = defaultTokenHeader
 	}
 	if confValue.Mode == SecurityModeLocalToken && confValue.AllowMissingOriginWithToken == nil {
-		confValue.AllowMissingOriginWithToken = boolPtr(true)
+		confValue.AllowMissingOriginWithToken = new(true)
 	}
 	if confValue.Mode == SecurityModeLocalToken && len(confValue.AllowedOrigins) == 0 {
 		confValue.AllowedOrigins = defaultAllowedOrigins()
 	}
 	return confValue
-}
-
-func boolPtr(v bool) *bool {
-	return &v
 }
 
 func defaultAllowedOrigins() []string {
