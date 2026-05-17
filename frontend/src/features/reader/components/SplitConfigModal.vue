@@ -19,7 +19,7 @@
             <option value="none">none</option>
             <option value="line_count">line_count</option>
             <option value="regex">regex</option>
-            <option value="lines">lines</option>
+            <option value="boundary">boundary</option>
           </select>
         </label>
 
@@ -47,10 +47,10 @@
           />
         </label>
 
-        <label v-if="draftType === 'lines'" class="field">
-          <span class="label">lines (1-based, comma or space separated)</span>
+        <label v-if="draftType === 'boundary'" class="field">
+          <span class="label">boundaries (1-based line numbers, comma or space separated)</span>
           <textarea
-            v-model="draftLines"
+            v-model="draftBoundaries"
             class="input split-textarea"
             rows="4"
             placeholder="e.g. 1, 101, 201"
@@ -88,13 +88,13 @@ const splitModalError = ref('');
 const draftType = ref<SplitType>('none');
 const draftLineCount = ref('100');
 const draftRegex = ref('');
-const draftLines = ref('1');
+const draftBoundaries = ref('1');
 
 function hydrateSplitDraft(config: SplitConfig): void {
   draftType.value = config.type;
   draftLineCount.value = String(config.line_count ?? 100);
   draftRegex.value = config.regex ?? '';
-  draftLines.value = (config.lines ?? []).join(', ');
+  draftBoundaries.value = (config.boundaries ?? []).join(', ');
 }
 
 function buildDraftSplitConfig(): SplitConfig {
@@ -113,15 +113,15 @@ function buildDraftSplitConfig(): SplitConfig {
     };
   }
 
-  if (draftType.value === 'lines') {
-    const lines = draftLines.value
+  if (draftType.value === 'boundary') {
+    const boundaries = draftBoundaries.value
       .split(/[\s,]+/)
       .map((token) => Number.parseInt(token, 10))
       .filter((num) => !Number.isNaN(num));
 
     return {
-      type: 'lines',
-      lines
+      type: 'boundary',
+      boundaries
     };
   }
 

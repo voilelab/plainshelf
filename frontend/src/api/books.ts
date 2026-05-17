@@ -46,7 +46,7 @@ interface BackendMark {
 }
 
 function normalizeSplitType(value: unknown): SplitType {
-  if (value === 'none' || value === 'line_count' || value === 'regex' || value === 'lines') {
+  if (value === 'none' || value === 'line_count' || value === 'regex' || value === 'boundary') {
     return value;
   }
   return 'none';
@@ -69,8 +69,8 @@ function normalizeSplitConfig(raw: unknown): SplitConfig {
     normalized.regex = data.regex;
   }
 
-  if (Array.isArray(data.lines)) {
-    normalized.lines = data.lines
+  if (Array.isArray(data.boundaries)) {
+    normalized.boundaries = data.boundaries
       .filter((item): item is number => typeof item === 'number' && Number.isFinite(item))
       .map((item) => Math.trunc(item));
   }
@@ -95,10 +95,10 @@ function buildSplitConfigPayload(config: SplitConfig): SplitConfig {
     };
   }
 
-  if (type === 'lines') {
+  if (type === 'boundary') {
     return {
       type,
-      lines: (config.lines ?? [])
+      boundaries: (config.boundaries ?? [])
         .filter((item) => Number.isFinite(item))
         .map((item) => Math.trunc(item))
     };
