@@ -443,6 +443,15 @@ export async function getBookContent(id: string): Promise<BookContent> {
   return { content: text };
 }
 
+export async function downloadBookContent(id: string): Promise<Blob> {
+  if (isMockApiMode()) {
+    const { content } = mockGetBookContent(id);
+    return delay(new Blob([content], { type: 'text/plain;charset=utf-8' }));
+  }
+
+  return await fetchBlob(`/api/books/${encodeURIComponent(id)}/content`);
+}
+
 export async function getBookSplitConfig(id: string): Promise<SplitConfig> {
   if (isMockApiMode()) {
     return delay(normalizeSplitConfig(mockSplitConfigs[id] ?? { type: 'none' }));
