@@ -17,8 +17,8 @@ import (
 )
 
 type apiTestEnv struct {
-	app *App
-	mux *http.ServeMux
+	app     *App
+	handler http.Handler
 }
 
 func newAPITestEnv(t *testing.T) *apiTestEnv {
@@ -39,14 +39,19 @@ func newAPITestEnv(t *testing.T) *apiTestEnv {
 		}
 	})
 
-	mux := http.NewServeMux()
-	app.Serve(mux)
-	return &apiTestEnv{app: app, mux: mux}
+	return &apiTestEnv{app: app, handler: app.Handler()}
 }
 
 func (env *apiTestEnv) do(req *http.Request) *httptest.ResponseRecorder {
+	if isMutatingMethod(req.Method) && req.Header.Get(env.app.SecurityTokenHeader()) == "" && req.Header.Get("Authorization") == "" {
+		req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
+	}
+	return env.doRaw(req)
+}
+
+func (env *apiTestEnv) doRaw(req *http.Request) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
-	env.mux.ServeHTTP(rec, req)
+	env.handler.ServeHTTP(rec, req)
 	return rec
 }
 

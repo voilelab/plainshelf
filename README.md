@@ -119,7 +119,7 @@ cd workspace
 go run ../cmd/plainshelf-srv/main.go -conf config.yaml
 ```
 
-The default development config listens on `127.0.0.1:20000` and stores shelf and mark data under the current working directory.
+The default development config listens on `127.0.0.1:20000`, stores shelf and mark data under the current working directory, and enables `local_token` security for mutating `/api` requests. The server generates an ephemeral token at startup, injects it into the served frontend, and accepts it via `X-PlainShelf-Token` or `Authorization: Bearer <token>`.
 
 ### Run server with Docker
 
@@ -140,7 +140,7 @@ docker run --rm \
 ```
 
 The image uses `docker/config.yaml`, which listens on `0.0.0.0:20000`
-inside the container and stores data in `/data/shelf` and `/data/store`.
+inside the container, stores data in `/data/shelf` and `/data/store`, and explicitly sets `app_conf.security.mode: "none"` for compatibility with local-only port publishing. Keep the documented `127.0.0.1:20000:20000` port binding or put the container behind a trusted authentication boundary before exposing it beyond the local machine.
 To use a custom server config, mount it over `/etc/plainshelf/config.yaml`:
 
 ```bash

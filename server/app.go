@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bytes"
+	"encoding/json"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -17,19 +19,27 @@ type App struct {
 	spaFS      fs.FS
 	spaHandler http.Handler
 
-	conf *AppConf
+	conf     *AppConf
+	security *Security
 }
 
 type AppConf struct {
-	ShelfPath        string `yaml:"shelf_path"`
-	StorePath        string `yaml:"store_path"`
-	CoverToJPG       bool   `yaml:"cover_to_jpg"`
-	ReadHistoryLimit int    `yaml:"read_history_limit"`
+	ShelfPath        string        `yaml:"shelf_path"`
+	StorePath        string        `yaml:"store_path"`
+	CoverToJPG       bool          `yaml:"cover_to_jpg"`
+	ReadHistoryLimit int           `yaml:"read_history_limit"`
+	Security         *SecurityConf `yaml:"security"`
 }
 
 func NewApp(conf *AppConf) (*App, error) {
 	s, err := shelf.OpenLocalShelf(conf.ShelfPath)
 	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	security, err := NewSecurity(conf.Security)
+	if err != nil {
+		s.Close()
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -45,6 +55,7 @@ func NewApp(conf *AppConf) (*App, error) {
 		spaFS:      frontend.WebFS,
 		spaHandler: http.FileServerFS(frontend.WebFS),
 		conf:       conf,
+		security:   security,
 	}, nil
 }
 
@@ -75,11 +86,49 @@ func (app *App) HandleSPAFallback(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write(data)
+		w.Write(app.injectSecurityBootstrap(data))
 		return
 	}
 
 	app.spaHandler.ServeHTTP(w, r)
+}
+
+func (app *App) Handler() http.Handler {
+	mux := http.NewServeMux()
+	app.Serve(mux)
+	return app.security.Middleware(mux)
+}
+
+func (app *App) SecurityToken() string {
+	return app.security.Token()
+}
+
+func (app *App) SecurityTokenHeader() string {
+	return app.security.TokenHeader()
+}
+
+func (app *App) injectSecurityBootstrap(data []byte) []byte {
+	if app.security == nil || !app.security.IsEnabled() || app.security.Token() == "" {
+		return data
+	}
+	token, err := json.Marshal(app.security.Token())
+	if err != nil {
+		return data
+	}
+	header, err := json.Marshal(app.security.TokenHeader())
+	if err != nil {
+		return data
+	}
+	bootstrap := []byte(`<script>window.__PLAINSHELF_SECURITY__={token:` + string(token) + `,tokenHeader:` + string(header) + `};</script>`)
+	marker := []byte("</head>")
+	if idx := bytes.Index(data, marker); idx >= 0 {
+		out := make([]byte, 0, len(data)+len(bootstrap))
+		out = append(out, data[:idx]...)
+		out = append(out, bootstrap...)
+		out = append(out, data[idx:]...)
+		return out
+	}
+	return append(bootstrap, data...)
 }
 
 func (app *App) Serve(mux *http.ServeMux) {
