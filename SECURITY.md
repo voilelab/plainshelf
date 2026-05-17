@@ -4,12 +4,13 @@ PlainShelf is a local-first personal reading library. It is designed for single-
 
 ## Supported Versions
 
-PlainShelf is currently in pre-alpha development. Security fixes are provided on the `main` branch only until versioned releases begin.
+PlainShelf is currently in pre-alpha development. Security fixes are provided for the current `major.minor` release line and the `main` branch. Maintainers do not backport security fixes to earlier `major.minor` release lines.
 
 | Version | Supported |
 | ------- | --------- |
+| Current `major.minor` release line | Yes |
 | `main`  | Yes       |
-| Earlier commits, forks, or experimental builds | No guarantee |
+| Earlier `major.minor` release lines, commits, forks, or experimental builds | No guarantee |
 
 ## Reporting a Vulnerability
 
