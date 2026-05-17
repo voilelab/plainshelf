@@ -8,3 +8,13 @@ app_conf:
   store_path: "./store"
   cover_to_jpg: true
   read_history_limit: 100
+  security:
+    mode: "local_token"
+    protect_read: false
+    token_header: "X-PlainShelf-Token"
+    allow_missing_origin_with_token: true
+    allowed_origins:
+      - "http://127.0.0.1:20000"
+      - "http://localhost:20000"
+      - "http://127.0.0.1:5173"
+      - "http://localhost:5173"

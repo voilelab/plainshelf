@@ -8,3 +8,7 @@ app_conf:
   store_path: "/data/store"
   cover_to_jpg: true
   read_history_limit: 100
+  security:
+    # Explicitly unsafe for container deployments; put PlainShelf behind a trusted
+    # local-only port mapping, reverse proxy auth, VPN boundary, or future password mode.
+    mode: "none"
