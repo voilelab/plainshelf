@@ -129,7 +129,7 @@ func isLoopbackListenAddr(addr string) bool {
 		host = addr
 	}
 	host = strings.Trim(strings.TrimSpace(host), "[]")
-	if host == "" || host == "localhost" {
+	if host == "localhost" {
 		return true
 	}
 	ip := net.ParseIP(host)

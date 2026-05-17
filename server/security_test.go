@@ -126,6 +126,10 @@ func TestValidateSecurityForListenAddr(t *testing.T) {
 	if err := ValidateSecurityForListenAddr(nil, "0.0.0.0:20000"); err == nil {
 		t.Fatal("non-loopback validation without explicit mode succeeded, want error")
 	}
+	// Empty host (e.g. ":20000") binds all interfaces — must require explicit mode.
+	if err := ValidateSecurityForListenAddr(nil, ":20000"); err == nil {
+		t.Fatal("all-interfaces addr validation without explicit mode succeeded, want error")
+	}
 	if err := ValidateSecurityForListenAddr(&SecurityConf{Mode: SecurityModeNone}, "0.0.0.0:20000"); err != nil {
 		t.Fatalf("explicit mode validation returned error: %v", err)
 	}
