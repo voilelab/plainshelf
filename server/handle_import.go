@@ -3,7 +3,10 @@ package server
 import (
 	"encoding/json"
 	"log"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/util"
@@ -11,6 +14,8 @@ import (
 )
 
 const maxImportBodySize = 100 << 20 // 100 MB
+
+const importTextMediaType = "text/plain"
 
 func parseImportLayerParts(rawLayer string) []string {
 	trimmed := strings.TrimSpace(rawLayer)
@@ -39,13 +44,36 @@ func parseImportLayerParts(rawLayer string) []string {
 	return parts
 }
 
+func validateImportFileHeader(header *multipart.FileHeader) error {
+	if header == nil {
+		return util.NewError("missing required field: file")
+	}
+
+	filename := strings.TrimSpace(header.Filename)
+	if strings.ToLower(filepath.Ext(filename)) != ".txt" {
+		return util.NewError("book file must be a .txt file")
+	}
+
+	contentType := strings.TrimSpace(header.Header.Get("Content-Type"))
+	if contentType == "" {
+		return util.NewError("book file content type must be text/plain")
+	}
+
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil || strings.ToLower(mediaType) != importTextMediaType {
+		return util.NewError("book file content type must be text/plain")
+	}
+
+	return nil
+}
+
 // POST /api/books/import
 func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	// Limit overall request body size.
 	r.Body = http.MaxBytesReader(w, r.Body, maxImportBodySize)
 
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		if err.Error() == "http: request body too large" {
+		if isRequestBodyTooLarge(err) {
 			http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
 			return
 		}
@@ -60,6 +88,11 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer f.Close()
+
+	if err := validateImportFileHeader(header); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	// Optional fields.
 	title := r.FormValue("title")
