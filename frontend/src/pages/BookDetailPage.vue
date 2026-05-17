@@ -10,7 +10,10 @@
     />
     <div v-if="showImportedMessage" class="loading">Book imported successfully.</div>
     <div v-if="showSavedMessage" class="loading">Metadata saved.</div>
-    <div v-if="downloadError" class="error detail-error" role="alert">{{ downloadError }}</div>
+    <div v-if="downloadError" class="error detail-error" role="alert">
+      <p>{{ downloadError }}</p>
+      <button class="button" type="button" @click="dismissDownloadError">Dismiss</button>
+    </div>
     <div v-if="loading" class="loading">Loading book detail...</div>
     <div v-else-if="error" class="error detail-error" role="alert">
       <p>{{ error }}</p>
@@ -124,11 +127,16 @@ async function downloadBook(): Promise<void> {
     link.click();
     link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+    downloadError.value = '';
   } catch (err) {
     downloadError.value = err instanceof Error ? err.message : 'Failed to download book';
   } finally {
     downloading.value = false;
   }
+}
+
+function dismissDownloadError(): void {
+  downloadError.value = '';
 }
 
 function onCoverChanged(): void {
@@ -148,6 +156,7 @@ async function deleteBook(): Promise<void> {
 }
 
 watch(id, () => {
+  dismissDownloadError();
   void fetchDetail();
 }, { immediate: true });
 </script>
