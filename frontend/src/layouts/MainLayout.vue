@@ -101,7 +101,8 @@
               class="sidebar-nav-item"
               exact-active-class="active"
             >
-              Recently Read
+              <SidebarNavIcon name="recently-read" />
+              <span>Recently Read</span>
             </RouterLink>
           </nav>
         </section>
@@ -118,7 +119,8 @@
               class="sidebar-nav-item"
               exact-active-class="active"
             >
-              {{ item.label }}
+              <SidebarNavIcon v-if="item.icon" :name="item.icon" />
+              <span>{{ item.label }}</span>
             </RouterLink>
           </nav>
         </section>
@@ -145,6 +147,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import DeleteModal from '../components/DeleteModal.vue';
 import LayerTree from '../components/LayerTree.vue';
+import SidebarNavIcon from '../components/SidebarNavIcon.vue';
 import { updateBookLayer } from '../api/books';
 import { createLayer, deleteLayer } from '../api/layers';
 import { useBookStore } from '../composables/useBookStore';
