@@ -9,6 +9,14 @@ and UI behavior may still change between releases.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [v0.2.0] - 2026-05-18
+
+### Added
+
 - Added GitHub Actions CI coverage for Go tests and frontend builds.
 - Added server-side API contract tests for core library and reader workflows.
 - Added a book-detail download action with frontend error handling.
