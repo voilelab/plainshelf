@@ -5,6 +5,11 @@
       <path d="M4 5.5v4h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
       <path d="M12 8v4l2.5 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
+    <svg v-else-if="name === 'duplicate-content'" viewBox="0 0 24 24" fill="none">
+      <rect x="5" y="7" width="11" height="13" rx="2" stroke="currentColor" stroke-width="1.8" />
+      <path d="M8 4h8a3 3 0 0 1 3 3v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M8.5 11h4M8.5 14.5h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+    </svg>
     <svg v-else-if="name === 'missing-author'" viewBox="0 0 24 24" fill="none">
       <circle cx="10" cy="8" r="3" stroke="currentColor" stroke-width="1.8" />
       <path d="M4.5 18c.75-3.1 2.75-4.5 5.5-4.5 1.75 0 3.17.56 4.17 1.72" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />

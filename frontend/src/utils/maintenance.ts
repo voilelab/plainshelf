@@ -20,7 +20,8 @@ export const MAINTENANCE_NAV_ITEMS: MaintenanceNavItem[] = [
   {
     key: 'duplicate-content',
     label: 'Duplicate Content',
-    to: '/duplicates'
+    to: '/duplicates',
+    icon: 'duplicate-content'
   },
   {
     key: 'missing-author',
