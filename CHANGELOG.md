@@ -7,9 +7,32 @@ and UI behavior may still change between releases.
 
 ## [Unreleased]
 
+### Added
+
+- Added GitHub Actions CI coverage for Go tests and frontend builds.
+- Added server-side API contract tests for core library and reader workflows.
+- Added a book-detail download action with frontend error handling.
+- Added an API endpoint for retrieving a specific book snapshot.
+- Added current snapshot line and character counts to the book detail view.
+- Added maintenance navigation icons for recently read, missing-field, and
+  duplicate-content views.
+
 ### Changed
 
 - Updated GitHub issue templates to improve issue reporting and triage.
+- Updated CI runtime actions to Node 24-based versions.
+- Aligned the frontend reader split setting with the boundary-based API contract.
+- Clarified the supported security release policy.
+- Removed the duplicate back button from the book detail view.
+
+### Fixed
+
+- Tightened server-side import validation for uploaded text formats.
+- Fixed split configuration contract behavior covered by API tests.
+- Fixed omitted security configuration handling and loopback listen-address
+  detection.
+- Hid the layer delete action when a layer still contains books.
+- Fixed download error dismiss and reset behavior.
 
 ## [v0.1.1] - 2026-05-16
 
