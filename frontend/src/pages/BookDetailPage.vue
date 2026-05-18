@@ -105,8 +105,7 @@ function sanitizeDownloadName(name: string): string {
 
 function formatDownloadFilename(): string {
   const title = sanitizeDownloadName(book.value?.title || id.value);
-  const format = sanitizeDownloadName(book.value?.format?.trim().replace(/^\.+/, '') || 'txt');
-  return `${title}.${format}`;
+  return `${title}.txt`;
 }
 
 async function downloadBook(): Promise<void> {
