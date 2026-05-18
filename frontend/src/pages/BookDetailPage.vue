@@ -31,7 +31,7 @@
       </div>
 
       <div>
-        <BookDetail :book="book" :progress="progress" />
+        <BookDetail :book="book" :progress="progress" :current-snapshot="currentSnapshot" />
         <div class="actions">
           <button class="button primary" @click="goRead">Read</button>
           <button class="button" :disabled="downloading" @click="downloadBook">
@@ -70,6 +70,7 @@ const downloadError = ref('');
 const {
   book,
   progress,
+  currentSnapshot,
   loading,
   error,
   deleting,
