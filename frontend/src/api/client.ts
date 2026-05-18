@@ -34,6 +34,9 @@ declare global {
     };
     plainshelf?: {
       getApiToken?: () => string | Promise<string>;
+      getApiTokenHeader?: () => string | Promise<string>;
+      getApiBaseURL?: () => string | Promise<string>;
+      getProfileDir?: () => string | Promise<string>;
     };
   }
 }
@@ -83,9 +86,12 @@ async function getApiToken(): Promise<string> {
 async function withApiHeaders(init?: RequestInit): Promise<RequestInit> {
   const headers = new Headers(init?.headers ?? {});
   const token = await getApiToken();
-  const tokenHeader = window.__PLAINSHELF_SECURITY__?.tokenHeader?.trim() || 'X-PlainShelf-Token';
+  const electronTokenHeader = await window.plainshelf?.getApiTokenHeader?.();
+  const tokenHeader = String(
+    electronTokenHeader ?? window.__PLAINSHELF_SECURITY__?.tokenHeader ?? 'X-PlainShelf-Token'
+  ).trim();
 
-  if (token && !headers.has(tokenHeader) && !headers.has('Authorization')) {
+  if (token && tokenHeader && !headers.has(tokenHeader) && !headers.has('Authorization')) {
     headers.set(tokenHeader, token);
   }
 

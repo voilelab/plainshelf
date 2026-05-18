@@ -121,6 +121,33 @@ go run ../cmd/plainshelf-srv/main.go -conf config.yaml
 
 The default development config listens on `127.0.0.1:20000`, stores shelf and mark data under the current working directory, and enables `local_token` security for mutating `/api` requests. The server generates an ephemeral token at startup, injects it into the served frontend, and accepts it via `X-PlainShelf-Token` or `Authorization: Bearer <token>`.
 
+
+### Run Electron desktop shell (experimental)
+
+PlainShelf can also be launched through an experimental Electron shell. The Electron main process starts a separate `plainshelf-gui-sidecar` binary instead of reusing the daemon entrypoint, so GUI lifecycle, dynamic port selection, and desktop profile paths stay separate from `plainshelf-srv`.
+
+```bash
+cd frontend
+npm install
+npm run electron:dev
+```
+
+`npm run electron:dev` builds the Vue frontend, builds `cmd/plainshelf-gui-sidecar` into `bin/plainshelf-gui-sidecar`, then launches Electron. The sidecar binds `127.0.0.1:0`, emits a single JSON `ready` event on stdout with the actual URL and local API token, and serves the embedded frontend from that dynamic loopback URL. Logs are written to stderr.
+
+Useful development overrides:
+
+```bash
+# Use a disposable desktop profile directory
+PLAINSHELF_PROFILE=/tmp/plainshelf-gui npm run electron:dev
+
+# Use a specific sidecar binary or address
+PLAINSHELF_SIDECAR=/path/to/plainshelf-gui-sidecar \
+PLAINSHELF_SIDECAR_ADDR=127.0.0.1:0 \
+npm run electron:dev
+```
+
+The sidecar creates a desktop profile layout containing `shelf/`, `store/`, `logs/`, `backups/`, and `tmp/`. By default it uses an OS-specific application data directory and enables token protection for both read and mutating `/api` requests.
+
 ### Run server with Docker
 
 Build the Ubuntu 24.04-based container image from the repository root:
