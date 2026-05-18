@@ -39,7 +39,6 @@
           </button>
           <button class="button" @click="goEditMetadata">Edit metadata</button>
           <button class="button" @click="goEditSnapshots">Edit Snapshots</button>
-          <button class="button" @click="goLibrary">Back to books</button>
           <button class="button danger" :disabled="deleting" @click="confirmDelete">
             {{ deleting ? 'Deleting...' : 'Delete' }}
           </button>
@@ -90,10 +89,6 @@ function goEditMetadata(): void {
 
 function goEditSnapshots(): void {
   void router.push(`/books/${id.value}/snapshots`);
-}
-
-function goLibrary(): void {
-  void router.push('/books');
 }
 
 function sanitizeDownloadName(name: string): string {
