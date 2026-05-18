@@ -10,6 +10,10 @@
     />
     <div v-if="showImportedMessage" class="loading">Book imported successfully.</div>
     <div v-if="showSavedMessage" class="loading">Metadata saved.</div>
+    <div v-if="downloadError" class="error detail-error" role="alert">
+      <p>{{ downloadError }}</p>
+      <button class="button" type="button" @click="dismissDownloadError">Dismiss</button>
+    </div>
     <div v-if="loading" class="loading">Loading book detail...</div>
     <div v-else-if="error" class="error detail-error" role="alert">
       <p>{{ error }}</p>
@@ -30,6 +34,9 @@
         <BookDetail :book="book" :progress="progress" />
         <div class="actions">
           <button class="button primary" @click="goRead">Read</button>
+          <button class="button" :disabled="downloading" @click="downloadBook">
+            {{ downloading ? 'Downloading...' : 'Download' }}
+          </button>
           <button class="button" @click="goEditMetadata">Edit metadata</button>
           <button class="button" @click="goEditSnapshots">Edit Snapshots</button>
           <button class="button" @click="goLibrary">Back to books</button>
@@ -48,6 +55,7 @@ import { useRoute, useRouter } from 'vue-router';
 import BookCover from '../components/BookCover.vue';
 import BookDetail from '../components/BookDetail.vue';
 import DeleteModal from '../components/DeleteModal.vue';
+import { downloadBookContent } from '../api/books';
 import { useBookDetail } from '../composables/useBookDetail';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
 
@@ -57,6 +65,8 @@ const id = computed(() => String(route.params.id));
 const showImportedMessage = computed(() => route.query.imported === '1');
 const showSavedMessage = computed(() => route.query.saved === '1');
 const showDeleteModal = ref(false);
+const downloading = ref(false);
+const downloadError = ref('');
 
 const {
   book,
@@ -86,6 +96,48 @@ function goLibrary(): void {
   void router.push('/books');
 }
 
+function sanitizeDownloadName(name: string): string {
+  return name
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim() || 'book';
+}
+
+function formatDownloadFilename(): string {
+  const title = sanitizeDownloadName(book.value?.title || id.value);
+  return `${title}.txt`;
+}
+
+async function downloadBook(): Promise<void> {
+  if (downloading.value) {
+    return;
+  }
+
+  downloading.value = true;
+  downloadError.value = '';
+
+  try {
+    const blob = await downloadBookContent(id.value);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = formatDownloadFilename();
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+    downloadError.value = '';
+  } catch (err) {
+    downloadError.value = err instanceof Error ? err.message : 'Failed to download book';
+  } finally {
+    downloading.value = false;
+  }
+}
+
+function dismissDownloadError(): void {
+  downloadError.value = '';
+}
+
 function onCoverChanged(): void {
   void fetchDetail();
 }
@@ -103,6 +155,7 @@ async function deleteBook(): Promise<void> {
 }
 
 watch(id, () => {
+  dismissDownloadError();
   void fetchDetail();
 }, { immediate: true });
 </script>
