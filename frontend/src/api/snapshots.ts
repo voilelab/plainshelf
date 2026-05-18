@@ -8,6 +8,45 @@ interface SnapshotStoreItem {
 
 const mockSnapshots: Record<string, SnapshotStoreItem[]> = {};
 
+function countLines(value: string): number {
+  return value.length === 0 ? 0 : value.split(/\r\n|\r|\n/).length;
+}
+
+function buildSnapshotMeta(id: string, createdAt: string, content: string): SnapshotMeta {
+  return {
+    id,
+    created_at: createdAt,
+    comment: 'Mock snapshot',
+    md5_hash: hashText(content),
+    line_count: countLines(content),
+    char_count: content.length
+  };
+}
+
+function normalizeSnapshotMeta(raw: unknown): SnapshotMeta {
+  const record = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+  const meta: SnapshotMeta = {
+    id: typeof record.id === 'string' ? record.id : '',
+    created_at: typeof record.created_at === 'string' ? record.created_at : '',
+    comment: typeof record.comment === 'string' ? record.comment : '',
+    md5_hash: typeof record.md5_hash === 'string' ? record.md5_hash : ''
+  };
+
+  if (typeof record.line_count === 'number' && Number.isFinite(record.line_count)) {
+    meta.line_count = Math.trunc(record.line_count);
+  }
+
+  if (typeof record.char_count === 'number' && Number.isFinite(record.char_count)) {
+    meta.char_count = Math.trunc(record.char_count);
+  }
+
+  if (record.split_config && typeof record.split_config === 'object') {
+    meta.split_config = record.split_config as SnapshotMeta['split_config'];
+  }
+
+  return meta;
+}
+
 function hashText(value: string): string {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
@@ -36,21 +75,11 @@ function ensureMockSnapshots(bookId: string): SnapshotStoreItem[] {
 
   mockSnapshots[bookId] = [
     {
-      meta: {
-        id: secondId,
-        created_at: now.toISOString(),
-        comment: 'Mock snapshot',
-        md5_hash: hashText(secondContent)
-      },
+      meta: buildSnapshotMeta(secondId, now.toISOString(), secondContent),
       content: secondContent
     },
     {
-      meta: {
-        id: firstId,
-        created_at: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
-        comment: 'Mock snapshot',
-        md5_hash: hashText(firstContent)
-      },
+      meta: buildSnapshotMeta(firstId, new Date(now.getTime() - 30 * 60 * 1000).toISOString(), firstContent),
       content: firstContent
     }
   ];
@@ -65,17 +94,32 @@ export async function listSnapshots(bookId: string): Promise<SnapshotMeta[]> {
 
   const data = await fetchJson<unknown>(`/api/books/${encodeURIComponent(bookId)}/snapshots`);
   if (Array.isArray(data)) {
-    return data as SnapshotMeta[];
+    return data.map(normalizeSnapshotMeta);
   }
 
   if (data && typeof data === 'object') {
     const record = data as Record<string, unknown>;
     if (Array.isArray(record.snapshots)) {
-      return record.snapshots as SnapshotMeta[];
+      return record.snapshots.map(normalizeSnapshotMeta);
     }
   }
 
   return [];
+}
+
+export async function getSnapshot(bookId: string, snapshotId: string): Promise<SnapshotMeta> {
+  if (isMockApiMode()) {
+    const item = ensureMockSnapshots(bookId).find((snapshot) => snapshot.meta.id === snapshotId);
+    if (!item) {
+      throw new Error('Snapshot not found');
+    }
+    return { ...item.meta };
+  }
+
+  const data = await fetchJson<unknown>(
+    `/api/books/${encodeURIComponent(bookId)}/snapshots/${encodeURIComponent(snapshotId)}`
+  );
+  return normalizeSnapshotMeta(data);
 }
 
 export async function getSnapshotContent(bookId: string, snapshotId: string): Promise<string> {
@@ -100,7 +144,7 @@ export async function updateSnapshotContent(bookId: string, snapshotId: string, 
       throw new Error('Snapshot not found');
     }
     item.content = content;
-    item.meta.md5_hash = hashText(content);
+    item.meta = buildSnapshotMeta(item.meta.id, item.meta.created_at, content);
     return;
   }
 
