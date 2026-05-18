@@ -7,7 +7,7 @@ export type MaintenanceNavKey =
   | 'missing-cover'
   | 'missing-language';
 
-export type MaintenanceNavIcon = Exclude<SidebarNavIconName, 'recently-read'>;
+export type MaintenanceNavIcon = Extract<MaintenanceNavKey, SidebarNavIconName>;
 
 export interface MaintenanceNavItem {
   key: MaintenanceNavKey;
