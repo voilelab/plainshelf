@@ -67,8 +67,8 @@ const metadataRows = computed<MetadataRow[]>(() => {
     { label: 'Language', value: formatLanguage(props.book.language) },
     { label: 'Tags', value: formatList(props.book.tags) },
     { label: 'Published At', value: formatTimestamp(props.book.published_at) },
-    { label: 'Current Snapshot Lines', value: formatNumber(props.currentSnapshot?.line_count) },
-    { label: 'Current Snapshot Characters', value: formatNumber(props.currentSnapshot?.char_count) },
+    { label: 'Lines', value: formatNumber(props.currentSnapshot?.line_count) },
+    { label: 'Characters', value: formatNumber(props.currentSnapshot?.char_count) },
     {
       label: 'Comment',
       value: props.book.comment?.trim() || '-',
