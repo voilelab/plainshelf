@@ -100,9 +100,9 @@ function buildReaderSectionsWithWarning(content: string, splitConfig: SplitConfi
     };
   }
 
-  if (safeConfig.type === 'lines') {
+  if (safeConfig.type === 'boundary') {
     const lineStarts = buildLineStartOffsets(content);
-    const boundaries = (safeConfig.lines ?? [])
+    const boundaries = (safeConfig.boundaries ?? [])
       .map((lineNumber) => Math.trunc(lineNumber))
       .filter((lineNumber) => lineNumber >= 1 && lineNumber <= lineStarts.length)
       .map((lineNumber) => lineStarts[lineNumber - 1]);
@@ -191,10 +191,10 @@ function normalizeSplitConfigInput(config: SplitConfig): SplitConfig {
     };
   }
 
-  if (config.type === 'lines') {
+  if (config.type === 'boundary') {
     return {
-      type: 'lines',
-      lines: (config.lines ?? [])
+      type: 'boundary',
+      boundaries: (config.boundaries ?? [])
         .filter((line) => Number.isFinite(line))
         .map((line) => Math.trunc(line))
     };

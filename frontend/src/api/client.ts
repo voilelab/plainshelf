@@ -26,9 +26,22 @@ export class ApiError extends Error {
 
 type ApiMode = 'live' | 'mock';
 
+declare global {
+  interface Window {
+    __PLAINSHELF_SECURITY__?: {
+      token?: string;
+      tokenHeader?: string;
+    };
+    plainshelf?: {
+      getApiToken?: () => string | Promise<string>;
+    };
+  }
+}
+
 const RAW_API_BASE = String(import.meta.env.VITE_API_BASE ?? '').trim();
 const API_BASE_NORMALIZED = RAW_API_BASE.replace(/\/+$/, '');
 const USE_MOCK_OPT_IN = String(import.meta.env.VITE_USE_MOCK_API ?? '').toLowerCase() === 'true';
+const ENV_API_TOKEN = String(import.meta.env.VITE_PLAINSHELF_TOKEN ?? '').trim();
 const IS_DEV = import.meta.env.DEV;
 
 if (USE_MOCK_OPT_IN && !IS_DEV) {
@@ -62,6 +75,26 @@ export function buildApiUrl(path: string): string {
   return `${API_BASE}${normalized}`;
 }
 
+async function getApiToken(): Promise<string> {
+  const electronToken = await window.plainshelf?.getApiToken?.();
+  return String(electronToken ?? window.__PLAINSHELF_SECURITY__?.token ?? ENV_API_TOKEN).trim();
+}
+
+async function withApiHeaders(init?: RequestInit): Promise<RequestInit> {
+  const headers = new Headers(init?.headers ?? {});
+  const token = await getApiToken();
+  const tokenHeader = window.__PLAINSHELF_SECURITY__?.tokenHeader?.trim() || 'X-PlainShelf-Token';
+
+  if (token && !headers.has(tokenHeader) && !headers.has('Authorization')) {
+    headers.set(tokenHeader, token);
+  }
+
+  return {
+    ...init,
+    headers
+  };
+}
+
 async function toApiError(res: Response): Promise<ApiError> {
   const raw = (await res.text()).trim();
   const message = raw || `HTTP ${res.status}: ${res.statusText}`;
@@ -75,13 +108,14 @@ async function toApiError(res: Response): Promise<ApiError> {
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   assertApiMode();
 
-  const headers = new Headers(init?.headers ?? {});
+  const requestInit = await withApiHeaders(init);
+  const headers = new Headers(requestInit.headers ?? {});
   if (!headers.has('Accept')) {
     headers.set('Accept', 'application/json');
   }
 
   const res = await fetch(buildApiUrl(path), {
-    ...init,
+    ...requestInit,
     headers
   });
 
@@ -113,7 +147,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
 export async function fetchText(path: string, init?: RequestInit): Promise<string> {
   assertApiMode();
 
-  const res = await fetch(buildApiUrl(path), init);
+  const res = await fetch(buildApiUrl(path), await withApiHeaders(init));
   if (!res.ok) {
     throw await toApiError(res);
   }
@@ -124,7 +158,7 @@ export async function fetchText(path: string, init?: RequestInit): Promise<strin
 export async function fetchBlob(path: string, init?: RequestInit): Promise<Blob> {
   assertApiMode();
 
-  const res = await fetch(buildApiUrl(path), init);
+  const res = await fetch(buildApiUrl(path), await withApiHeaders(init));
   if (!res.ok) {
     throw await toApiError(res);
   }

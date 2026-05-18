@@ -408,6 +408,44 @@ func (app *App) HandleAPIGetBookSnapshots(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// GET /api/books/{book_id}/snapshots/{snapshot_id}
+func (app *App) HandleAPIGetBookSnapshot(w http.ResponseWriter, r *http.Request) {
+	bookID, err := readBookID(r)
+	if err != nil {
+		http.Error(w, "invalid book_id", http.StatusBadRequest)
+		return
+	}
+
+	snapshotID, err := readSnapshotID(r)
+	if err != nil {
+		http.Error(w, "invalid snapshot_id", http.StatusBadRequest)
+		return
+	}
+
+	book, err := app.shelf.GetBook(bookID)
+	if err != nil {
+		if errors.Is(err, shelf.ErrBookNotFound) {
+			http.Error(w, "book not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to get book", http.StatusInternalServerError)
+		return
+	}
+
+	snapshot, err := book.GetSnapshot(snapshotID)
+	if err != nil {
+		http.Error(w, "failed to get book snapshot", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	err = json.NewEncoder(w).Encode(snapshot.GetMeta())
+	if err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
 // GET /api/books/{book_id}/snapshots/{snapshot_id}/content
 func (app *App) HandleAPIGetBookSnapshotContent(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)

@@ -21,11 +21,13 @@
 import { computed } from 'vue';
 import LayerBreadcrumb from './LayerBreadcrumb.vue';
 import type { Book, ReadingProgress } from '../types/book';
+import type { SnapshotMeta } from '../types/snapsnot';
 import { formatLanguage } from '../utils/language';
 
 const props = defineProps<{
   book: Book;
   progress?: ReadingProgress | null;
+  currentSnapshot?: SnapshotMeta | null;
 }>();
 
 interface MetadataRow {
@@ -37,6 +39,12 @@ interface MetadataRow {
 
 function formatList(values: string[]): string {
   return values.length > 0 ? values.join(', ') : '-';
+}
+
+function formatNumber(value?: number): string {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? new Intl.NumberFormat().format(value)
+    : '-';
 }
 
 function formatTimestamp(value?: string): string {
@@ -59,6 +67,8 @@ const metadataRows = computed<MetadataRow[]>(() => {
     { label: 'Language', value: formatLanguage(props.book.language) },
     { label: 'Tags', value: formatList(props.book.tags) },
     { label: 'Published At', value: formatTimestamp(props.book.published_at) },
+    { label: 'Lines', value: formatNumber(props.currentSnapshot?.line_count) },
+    { label: 'Characters', value: formatNumber(props.currentSnapshot?.char_count) },
     {
       label: 'Comment',
       value: props.book.comment?.trim() || '-',

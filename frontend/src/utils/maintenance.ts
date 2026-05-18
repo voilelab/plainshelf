@@ -1,4 +1,5 @@
 import type { Book } from '../types/book';
+import type { SidebarNavIconName } from '../types/sidebarNavIcon';
 
 export type MaintenanceNavKey =
   | 'duplicate-content'
@@ -6,32 +7,39 @@ export type MaintenanceNavKey =
   | 'missing-cover'
   | 'missing-language';
 
+export type MaintenanceNavIcon = Extract<MaintenanceNavKey, SidebarNavIconName>;
+
 export interface MaintenanceNavItem {
   key: MaintenanceNavKey;
   label: string;
   to: string;
+  icon?: MaintenanceNavIcon;
 }
 
 export const MAINTENANCE_NAV_ITEMS: MaintenanceNavItem[] = [
   {
     key: 'duplicate-content',
     label: 'Duplicate Content',
-    to: '/duplicates'
+    to: '/duplicates',
+    icon: 'duplicate-content'
   },
   {
     key: 'missing-author',
     label: 'Missing Author',
-    to: '/books/maintenance/missing-author'
+    to: '/books/maintenance/missing-author',
+    icon: 'missing-author'
   },
   {
     key: 'missing-cover',
     label: 'Missing Cover',
-    to: '/books/maintenance/missing-cover'
+    to: '/books/maintenance/missing-cover',
+    icon: 'missing-cover'
   },
   {
     key: 'missing-language',
     label: 'Missing Language',
-    to: '/books/maintenance/missing-language'
+    to: '/books/maintenance/missing-language',
+    icon: 'missing-language'
   }
 ];
 

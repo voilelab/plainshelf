@@ -4,12 +4,13 @@ PlainShelf is a local-first personal reading library. It is designed for single-
 
 ## Supported Versions
 
-PlainShelf is currently in pre-alpha development. Security fixes are provided on the `main` branch only until versioned releases begin.
+PlainShelf is currently in pre-alpha development. Security fixes are provided for the current `major.minor` release line and the `main` branch. Maintainers do not backport security fixes to earlier `major.minor` release lines.
 
 | Version | Supported |
 | ------- | --------- |
+| Current `major.minor` release line | Yes |
 | `main`  | Yes       |
-| Earlier commits, forks, or experimental builds | No guarantee |
+| Earlier `major.minor` release lines, commits, forks, or experimental builds | No guarantee |
 
 ## Reporting a Vulnerability
 
@@ -57,10 +58,13 @@ Out of scope unless they demonstrate a concrete PlainShelf impact:
 
 ## Secure Usage Guidance
 
-Until PlainShelf gains explicit hardening for shared or internet-facing deployments:
+PlainShelf now enables `local_token` protection in the default localhost config: mutating `/api` requests require an ephemeral startup token and allowed `Origin`/`Referer` values. This mitigates web-origin CSRF against localhost but is not a full multi-user authentication system.
 
-- Run the web server bound to `127.0.0.1` unless you have a trusted reverse proxy and network boundary.
+Until PlainShelf gains password/session auth for shared or internet-facing deployments:
+
+- Run the web server bound to `127.0.0.1` unless you have a trusted reverse proxy, VPN, and authentication boundary.
 - Do not expose PlainShelf directly to the public internet.
+- If binding to a non-loopback address, set `app_conf.security.mode` explicitly and avoid `mode: "none"` unless another trusted layer protects access.
 - Keep shelf and store directories backed up before testing new builds.
 - Treat imported books, metadata, and covers as untrusted input.
 - Review Docker volume mounts and custom configuration files before sharing them.

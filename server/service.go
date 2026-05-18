@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -39,6 +38,10 @@ func MainService(confPath string) error {
 		return util.Errorf("%w", err)
 	}
 
+	if err := ValidateSecurityForListenAddr(conf.AppConf.Security, conf.ServerConf.Addr); err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	log.Println("Create App...")
 	app, err := NewApp(conf.AppConf)
 	if err != nil {
@@ -54,14 +57,13 @@ func MainService(confPath string) error {
 	}
 	log.Println("Start App...done")
 
-	mux := http.NewServeMux()
-	app.Serve(mux)
+	app.security.LogStartup()
 
 	server, err := httputil.NewServer(conf.ServerConf)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	server.Handler = mux
+	server.Handler = app.Handler()
 
 	go func() {
 		log.Println("Starting http server on", conf.ServerConf.Addr)
