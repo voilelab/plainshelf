@@ -20,7 +20,6 @@ and UI behavior may still change between releases.
 ### Changed
 
 - Updated GitHub issue templates to improve issue reporting and triage.
-- Updated CI runtime actions to Node 24-based versions.
 - Aligned the frontend reader split setting with the boundary-based API contract.
 - Clarified the supported security release policy.
 - Removed the duplicate back button from the book detail view.
