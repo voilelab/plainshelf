@@ -27,12 +27,9 @@ func readBookID(r *http.Request) (string, error) {
 }
 
 func readSourceID(r *http.Request) (string, error) {
-	sourceID := strings.TrimSpace(r.PathValue("snapshot_id"))
+	sourceID := strings.TrimSpace(r.PathValue("source_id"))
 	if sourceID == "" {
-		sourceID = strings.TrimSpace(r.URL.Query().Get("snapshot_id"))
-	}
-	if sourceID == "" {
-		return "", errors.New("missing snapshot_id")
+		return "", errors.New("missing source_id")
 	}
 
 	decoded, err := url.PathUnescape(sourceID)

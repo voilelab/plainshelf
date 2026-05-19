@@ -92,7 +92,7 @@ export async function listSnapshots(bookId: string): Promise<SnapshotMeta[]> {
     return ensureMockSnapshots(bookId).map((item) => ({ ...item.meta }));
   }
 
-  const data = await fetchJson<unknown>(`/api/books/${encodeURIComponent(bookId)}/snapshots`);
+  const data = await fetchJson<unknown>(`/api/books/${encodeURIComponent(bookId)}/sources`);
   if (Array.isArray(data)) {
     return data.map(normalizeSnapshotMeta);
   }
@@ -117,7 +117,7 @@ export async function getSnapshot(bookId: string, snapshotId: string): Promise<S
   }
 
   const data = await fetchJson<unknown>(
-    `/api/books/${encodeURIComponent(bookId)}/snapshots/${encodeURIComponent(snapshotId)}`
+    `/api/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(snapshotId)}`
   );
   return normalizeSnapshotMeta(data);
 }
@@ -132,7 +132,7 @@ export async function getSnapshotContent(bookId: string, snapshotId: string): Pr
   }
 
   return await fetchText(
-    `/api/books/${encodeURIComponent(bookId)}/snapshots/${encodeURIComponent(snapshotId)}/content`
+    `/api/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(snapshotId)}/content`
   );
 }
 
@@ -149,7 +149,7 @@ export async function updateSnapshotContent(bookId: string, snapshotId: string, 
   }
 
   await fetchText(
-    `/api/books/${encodeURIComponent(bookId)}/snapshots/${encodeURIComponent(snapshotId)}/content`,
+    `/api/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(snapshotId)}/content`,
     {
       method: 'PATCH',
       headers: {

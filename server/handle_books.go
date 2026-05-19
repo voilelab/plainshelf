@@ -371,7 +371,7 @@ func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// GET /api/books/{book_id}/snapshots
+// GET /api/books/{book_id}/sources
 func (app *App) HandleAPIGetBookSources(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)
 	if err != nil {
@@ -408,7 +408,7 @@ func (app *App) HandleAPIGetBookSources(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// GET /api/books/{book_id}/snapshots/{snapshot_id}
+// GET /api/books/{book_id}/sources/{source_id}
 func (app *App) HandleAPIGetBookSource(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)
 	if err != nil {
@@ -418,7 +418,7 @@ func (app *App) HandleAPIGetBookSource(w http.ResponseWriter, r *http.Request) {
 
 	sourceID, err := readSourceID(r)
 	if err != nil {
-		http.Error(w, "invalid snapshot_id", http.StatusBadRequest)
+		http.Error(w, "invalid source_id", http.StatusBadRequest)
 		return
 	}
 
@@ -446,7 +446,7 @@ func (app *App) HandleAPIGetBookSource(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GET /api/books/{book_id}/snapshots/{snapshot_id}/content
+// GET /api/books/{book_id}/sources/{source_id}/content
 func (app *App) HandleAPIGetBookSourceContent(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)
 	if err != nil {
@@ -456,7 +456,7 @@ func (app *App) HandleAPIGetBookSourceContent(w http.ResponseWriter, r *http.Req
 
 	sourceID, err := readSourceID(r)
 	if err != nil {
-		http.Error(w, "invalid snapshot_id", http.StatusBadRequest)
+		http.Error(w, "invalid source_id", http.StatusBadRequest)
 		return
 	}
 
@@ -491,7 +491,7 @@ func (app *App) HandleAPIGetBookSourceContent(w http.ResponseWriter, r *http.Req
 	}
 }
 
-// PATCH /api/books/{book_id}/snapshots/{snapshot_id}/content
+// PATCH /api/books/{book_id}/sources/{source_id}/content
 func (app *App) HandleAPIUpdateBookSourceContent(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)
 	if err != nil {
@@ -501,7 +501,7 @@ func (app *App) HandleAPIUpdateBookSourceContent(w http.ResponseWriter, r *http.
 
 	sourceID, err := readSourceID(r)
 	if err != nil {
-		http.Error(w, "invalid snapshot_id", http.StatusBadRequest)
+		http.Error(w, "invalid source_id", http.StatusBadRequest)
 		return
 	}
 
