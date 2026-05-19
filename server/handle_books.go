@@ -350,15 +350,15 @@ func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	snapShot, err := book.GetSnapshot(book.CurrentSnapshot())
+	source, err := book.GetSource(book.CurrentSource())
 	if err != nil {
-		http.Error(w, "failed to get book snapshot", http.StatusInternalServerError)
+		http.Error(w, "failed to get book source", http.StatusInternalServerError)
 		return
 	}
 
-	src, err := snapShot.OpenSource()
+	src, err := source.Open()
 	if err != nil {
-		http.Error(w, "failed to open book snapshot source", http.StatusInternalServerError)
+		http.Error(w, "failed to open book source", http.StatusInternalServerError)
 		return
 	}
 	defer src.Close()
@@ -371,8 +371,8 @@ func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// GET /api/books/{book_id}/snapshots
-func (app *App) HandleAPIGetBookSnapshots(w http.ResponseWriter, r *http.Request) {
+// GET /api/books/{book_id}/sources
+func (app *App) HandleAPIGetBookSources(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
@@ -389,36 +389,36 @@ func (app *App) HandleAPIGetBookSnapshots(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	snapshots, err := book.ListSnapshot()
+	sources, err := book.ListSource()
 	if err != nil {
-		http.Error(w, "failed to list book snapshots", http.StatusInternalServerError)
+		http.Error(w, "failed to list book sources", http.StatusInternalServerError)
 		return
 	}
 
-	snapshotMetas := make([]*shelf.SnapshotMeta, len(snapshots))
-	for i, s := range snapshots {
-		snapshotMetas[i] = s.GetMeta()
+	sourceMetas := make([]*shelf.SourceMeta, len(sources))
+	for i, s := range sources {
+		sourceMetas[i] = s.GetMeta()
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	err = json.NewEncoder(w).Encode(snapshotMetas)
+	err = json.NewEncoder(w).Encode(sourceMetas)
 	if err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
 }
 
-// GET /api/books/{book_id}/snapshots/{snapshot_id}
-func (app *App) HandleAPIGetBookSnapshot(w http.ResponseWriter, r *http.Request) {
+// GET /api/books/{book_id}/sources/{source_id}
+func (app *App) HandleAPIGetBookSource(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
 		return
 	}
 
-	snapshotID, err := readSnapshotID(r)
+	sourceID, err := readSourceID(r)
 	if err != nil {
-		http.Error(w, "invalid snapshot_id", http.StatusBadRequest)
+		http.Error(w, "invalid source_id", http.StatusBadRequest)
 		return
 	}
 
@@ -432,31 +432,31 @@ func (app *App) HandleAPIGetBookSnapshot(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	snapshot, err := book.GetSnapshot(snapshotID)
+	source, err := book.GetSource(sourceID)
 	if err != nil {
-		http.Error(w, "failed to get book snapshot", http.StatusInternalServerError)
+		http.Error(w, "failed to get book source", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	err = json.NewEncoder(w).Encode(snapshot.GetMeta())
+	err = json.NewEncoder(w).Encode(source.GetMeta())
 	if err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
 }
 
-// GET /api/books/{book_id}/snapshots/{snapshot_id}/content
-func (app *App) HandleAPIGetBookSnapshotContent(w http.ResponseWriter, r *http.Request) {
+// GET /api/books/{book_id}/sources/{source_id}/content
+func (app *App) HandleAPIGetBookSourceContent(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
 		return
 	}
 
-	snapshotID, err := readSnapshotID(r)
+	sourceID, err := readSourceID(r)
 	if err != nil {
-		http.Error(w, "invalid snapshot_id", http.StatusBadRequest)
+		http.Error(w, "invalid source_id", http.StatusBadRequest)
 		return
 	}
 
@@ -470,15 +470,15 @@ func (app *App) HandleAPIGetBookSnapshotContent(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	snapshot, err := book.GetSnapshot(snapshotID)
+	source, err := book.GetSource(sourceID)
 	if err != nil {
-		http.Error(w, "failed to get book snapshot", http.StatusInternalServerError)
+		http.Error(w, "failed to get book source", http.StatusInternalServerError)
 		return
 	}
 
-	src, err := snapshot.OpenSource()
+	src, err := source.Open()
 	if err != nil {
-		http.Error(w, "failed to open book snapshot source", http.StatusInternalServerError)
+		http.Error(w, "failed to open book source", http.StatusInternalServerError)
 		return
 	}
 	defer src.Close()
@@ -486,22 +486,22 @@ func (app *App) HandleAPIGetBookSnapshotContent(w http.ResponseWriter, r *http.R
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, err = io.Copy(w, src)
 	if err != nil {
-		http.Error(w, "failed to write book snapshot content", http.StatusInternalServerError)
+		http.Error(w, "failed to write book source content", http.StatusInternalServerError)
 		return
 	}
 }
 
-// PATCH /api/books/{book_id}/snapshots/{snapshot_id}/content
-func (app *App) HandleAPIUpdateBookSnapshotContent(w http.ResponseWriter, r *http.Request) {
+// PATCH /api/books/{book_id}/sources/{source_id}/content
+func (app *App) HandleAPIUpdateBookSourceContent(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
 		return
 	}
 
-	snapshotID, err := readSnapshotID(r)
+	sourceID, err := readSourceID(r)
 	if err != nil {
-		http.Error(w, "invalid snapshot_id", http.StatusBadRequest)
+		http.Error(w, "invalid source_id", http.StatusBadRequest)
 		return
 	}
 
@@ -515,9 +515,9 @@ func (app *App) HandleAPIUpdateBookSnapshotContent(w http.ResponseWriter, r *htt
 		return
 	}
 
-	snapshot, err := book.GetSnapshot(snapshotID)
+	source, err := book.GetSource(sourceID)
 	if err != nil {
-		http.Error(w, "failed to get book snapshot", http.StatusInternalServerError)
+		http.Error(w, "failed to get book source", http.StatusInternalServerError)
 		return
 	}
 
@@ -532,9 +532,9 @@ func (app *App) HandleAPIUpdateBookSnapshotContent(w http.ResponseWriter, r *htt
 		return
 	}
 
-	err = snapshot.UpdateContent(utf8Reader)
+	err = source.UpdateContent(utf8Reader)
 	if err != nil {
-		http.Error(w, "failed to update book snapshot content", http.StatusInternalServerError)
+		http.Error(w, "failed to update book source content", http.StatusInternalServerError)
 		return
 	}
 
@@ -559,14 +559,14 @@ func (app *App) HandleAPIGetBookSplitConfig(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	snapshot, err := book.GetSnapshot(book.CurrentSnapshot())
+	source, err := book.GetSource(book.CurrentSource())
 	if err != nil {
-		http.Error(w, "failed to get book snapshot", http.StatusInternalServerError)
+		http.Error(w, "failed to get book source", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	err = json.NewEncoder(w).Encode(snapshot.GetMeta().SplitConfig)
+	err = json.NewEncoder(w).Encode(source.GetMeta().SplitConfig)
 	if err != nil {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
@@ -599,13 +599,13 @@ func (app *App) HandleAPIUpdateBookSplitConfig(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	snapshot, err := book.GetSnapshot(book.CurrentSnapshot())
+	source, err := book.GetSource(book.CurrentSource())
 	if err != nil {
-		http.Error(w, "failed to get book snapshot", http.StatusInternalServerError)
+		http.Error(w, "failed to get book source", http.StatusInternalServerError)
 		return
 	}
 
-	err = snapshot.UpdateSplitConfig(splitConfig)
+	err = source.UpdateSplitConfig(splitConfig)
 	if err != nil {
 		http.Error(w, "failed to update split config", http.StatusInternalServerError)
 		return
@@ -624,12 +624,12 @@ func (app *App) HandleAPIFindDuplicateBooks(w http.ResponseWriter, r *http.Reque
 	}
 
 	for _, b := range books {
-		snapshot, err := b.GetSnapshot(b.CurrentSnapshot())
+		source, err := b.GetSource(b.CurrentSource())
 		if err != nil {
-			log.Printf("failed to get snapshot for book %s: %v", b.ID(), err)
+			log.Printf("failed to get source for book %s: %v", b.ID(), err)
 			continue
 		}
-		meta := snapshot.GetMeta()
+		meta := source.GetMeta()
 		md5Groups[meta.MD5Hash] = append(md5Groups[meta.MD5Hash], b.ID())
 	}
 

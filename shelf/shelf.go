@@ -577,9 +577,9 @@ func validateLayers(layers Layers) error {
 	return nil
 }
 
-func validateSnapshotID(snapshotID string) error {
-	if err := validatePathSegment(snapshotID); err != nil {
-		return util.Errorf("invalid snapshot id %q: %w", snapshotID, err)
+func validateSourceID(sourceID string) error {
+	if err := validatePathSegment(sourceID); err != nil {
+		return util.Errorf("invalid source id %q: %w", sourceID, err)
 	}
 	return nil
 }

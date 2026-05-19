@@ -10,13 +10,13 @@ import MissingCoverPage from './pages/MissingCoverPage.vue';
 import MissingLanguagePage from './pages/MissingLanguagePage.vue';
 import ReadHistoryPage from './pages/ReadHistoryPage.vue';
 import ReaderPage from './features/reader/views/ReaderView.vue';
-import EditBookSnapshotsPage from './features/snapshots/pages/EditBookSnapshotsPage.vue';
+import EditBookSourcesPage from './features/sources/pages/EditBookSourcesPage.vue';
 import { APP_TITLE } from './composables/useDocumentTitle';
 
 const ROUTES_WITH_OWN_TITLE = new Set([
   'library',
   'book-detail',
-  'book-snapshots-edit',
+  'book-sources-edit',
   'reader',
   'read-history',
   'maintenance-missing-author',
@@ -102,13 +102,13 @@ const router = createRouter({
       ]
     },
     {
-      path: '/books/:bookId/snapshots',
+      path: '/books/:bookId/sources',
       component: ReaderLayout,
       children: [
         {
           path: '',
-          name: 'book-snapshots-edit',
-          component: EditBookSnapshotsPage,
+          name: 'book-sources-edit',
+          component: EditBookSourcesPage,
           props: true
         }
       ]

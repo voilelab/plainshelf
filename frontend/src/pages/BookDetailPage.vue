@@ -31,14 +31,14 @@
       </div>
 
       <div>
-        <BookDetail :book="book" :progress="progress" :current-snapshot="currentSnapshot" />
+        <BookDetail :book="book" :progress="progress" :current-source="currentSource" />
         <div class="actions">
           <button class="button primary" @click="goRead">Read</button>
           <button class="button" :disabled="downloading" @click="downloadBook">
             {{ downloading ? 'Downloading...' : 'Download' }}
           </button>
           <button class="button" @click="goEditMetadata">Edit metadata</button>
-          <button class="button" @click="goEditSnapshots">Edit Snapshots</button>
+          <button class="button" @click="goEditSources">Edit Sources</button>
           <button class="button danger" :disabled="deleting" @click="confirmDelete">
             {{ deleting ? 'Deleting...' : 'Delete' }}
           </button>
@@ -70,7 +70,7 @@ const downloadError = ref('');
 const {
   book,
   progress,
-  currentSnapshot,
+  currentSource: currentSource,
   loading,
   error,
   deleting,
@@ -88,8 +88,8 @@ function goEditMetadata(): void {
   void router.push(`/books/${id.value}/edit`);
 }
 
-function goEditSnapshots(): void {
-  void router.push(`/books/${id.value}/snapshots`);
+function goEditSources(): void {
+  void router.push(`/books/${id.value}/sources`);
 }
 
 function sanitizeDownloadName(name: string): string {
