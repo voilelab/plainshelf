@@ -1,9 +1,13 @@
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
 
 const outputName = process.platform === 'win32' ? 'plainshelf-gui-sidecar.exe' : 'plainshelf-gui-sidecar';
-const outputPath = path.resolve(__dirname, '..', '..', 'bin', outputName);
+const outputDir = path.resolve(__dirname);
+const outputPath = path.join(outputDir, outputName);
 const packagePath = path.resolve(__dirname, '..', '..', 'cmd', 'plainshelf-gui-sidecar');
+
+fs.mkdirSync(outputDir, { recursive: true });
 
 const result = spawnSync('go', ['build', '-o', outputPath, packagePath], {
   stdio: 'inherit'

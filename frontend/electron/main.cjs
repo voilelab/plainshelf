@@ -1,5 +1,6 @@
 const { app, BrowserWindow, dialog } = require('electron');
 const path = require('node:path');
+const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 const readline = require('node:readline');
 
@@ -13,38 +14,31 @@ function sidecarBinaryName() {
   return process.platform === 'win32' ? 'plainshelf-gui-sidecar.exe' : 'plainshelf-gui-sidecar';
 }
 
-function candidateSidecarPaths() {
-  const configured = process.env.PLAINSHELF_SIDECAR;
-  const candidates = [];
-
-  if (configured) {
-    candidates.push(configured);
-  }
-
-  if (app.isPackaged) {
-    candidates.push(path.join(process.resourcesPath, 'bin', sidecarBinaryName()));
-    candidates.push(path.join(process.resourcesPath, sidecarBinaryName()));
-  }
-
-  candidates.push(path.resolve(__dirname, '..', '..', 'bin', sidecarBinaryName()));
-  candidates.push(path.resolve(__dirname, '..', '..', 'cmd', 'plainshelf-gui-sidecar', sidecarBinaryName()));
-
-  return candidates;
-}
-
-function findSidecarPath() {
-  const fs = require('node:fs');
-  for (const candidate of candidateSidecarPaths()) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
+function resolveSidecarPath() {
+  const configuredPath = process.env.PLAINSHELF_SIDECAR;
+  if (configuredPath !== undefined) {
+    const trimmed = configuredPath.trim();
+    if (trimmed.length === 0) {
+      throw new Error('PLAINSHELF_SIDECAR is set but empty. Refusing to continue.');
     }
+
+    const explicitPath = path.resolve(trimmed);
+    if (!fs.existsSync(explicitPath)) {
+      throw new Error(`Configured sidecar not found: ${explicitPath}`);
+    }
+    return explicitPath;
   }
-  return candidateSidecarPaths()[0];
+
+  const localPath = path.join(__dirname, sidecarBinaryName());
+  if (!fs.existsSync(localPath)) {
+    throw new Error(`Sidecar not found next to Electron main script: ${localPath}`);
+  }
+  return localPath;
 }
 
 function startSidecar() {
   return new Promise((resolve, reject) => {
-    const sidecarPath = findSidecarPath();
+    const sidecarPath = resolveSidecarPath();
     const args = [];
 
     if (process.env.PLAINSHELF_PROFILE) {
