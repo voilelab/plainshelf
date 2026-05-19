@@ -31,7 +31,7 @@
       </div>
 
       <div>
-        <BookDetail :book="book" :progress="progress" :currentSource="currentSource" />
+        <BookDetail :book="book" :progress="progress" :current-source="currentSource" />
         <div class="actions">
           <button class="button primary" @click="goRead">Read</button>
           <button class="button" :disabled="downloading" @click="downloadBook">
