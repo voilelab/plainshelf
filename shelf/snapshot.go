@@ -19,7 +19,7 @@ const SourceFile = "source.txt"
 /*
 {source-folder}/
 ├─ meta.json
-└─ text.txt
+└─ source.txt
 */
 
 type Source struct {
