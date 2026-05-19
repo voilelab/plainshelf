@@ -194,22 +194,29 @@ func resolveProfileDir(profileDir string) (string, error) {
 		return filepath.Abs(profileDir)
 	}
 
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("resolve home directory: %w", err)
-	}
-
 	switch runtime.GOOS {
 	case "darwin":
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolve home directory: %w", err)
+		}
 		return filepath.Join(home, "Library", "Application Support", "PlainShelf"), nil
 	case "windows":
 		if appData := strings.TrimSpace(os.Getenv("APPDATA")); appData != "" {
 			return filepath.Join(appData, "PlainShelf"), nil
 		}
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolve home directory: %w", err)
+		}
 		return filepath.Join(home, "AppData", "Roaming", "PlainShelf"), nil
 	default:
 		if xdgDataHome := strings.TrimSpace(os.Getenv("XDG_DATA_HOME")); xdgDataHome != "" {
 			return filepath.Join(xdgDataHome, "plainshelf"), nil
+		}
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolve home directory: %w", err)
 		}
 		return filepath.Join(home, ".local", "share", "plainshelf"), nil
 	}
