@@ -28,7 +28,7 @@ const emit = defineEmits<{
 }>();
 
 const totalPages = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)));
-const hasPrevPage = computed(() => props.page > 1 && props.page <= totalPages.value);
+const hasPrevPage = computed(() => props.page > 1);
 const hasNextPage = computed(() => props.page < totalPages.value);
 
 function goTo(targetPage: number): void {
