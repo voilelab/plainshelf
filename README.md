@@ -132,7 +132,7 @@ npm install
 npm run electron:dev
 ```
 
-`npm run electron:dev` builds the Vue frontend, builds `cmd/plainshelf-gui-sidecar` into `bin/plainshelf-gui-sidecar`, then launches Electron. The sidecar binds `127.0.0.1:0`, emits a single JSON `ready` event on stdout with the actual URL and local API token, and serves the embedded frontend from that dynamic loopback URL. Logs are written to stderr.
+`npm run electron:dev` builds the Vue frontend, builds `cmd/plainshelf-gui-sidecar` next to `electron/main.cjs` (`frontend/electron/plainshelf-gui-sidecar`), then launches Electron. For safety, Electron only accepts either an explicit `PLAINSHELF_SIDECAR` path or the sidecar binary located in the same directory as `electron/main.cjs`; it will fail fast otherwise. The sidecar binds `127.0.0.1:0`, emits a single JSON `ready` event on stdout with the actual URL and local API token, and serves the embedded frontend from that dynamic loopback URL. Logs are written to stderr.
 
 Useful development overrides:
 
@@ -140,7 +140,7 @@ Useful development overrides:
 # Use a disposable desktop profile directory
 PLAINSHELF_PROFILE=/tmp/plainshelf-gui npm run electron:dev
 
-# Use a specific sidecar binary or address
+# Use a specific sidecar binary path or address
 PLAINSHELF_SIDECAR=/path/to/plainshelf-gui-sidecar \
 PLAINSHELF_SIDECAR_ADDR=127.0.0.1:0 \
 npm run electron:dev
