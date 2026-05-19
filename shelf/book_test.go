@@ -58,7 +58,7 @@ func TestGetBookCover(t *testing.T) {
 	}
 }
 
-func TestGetSnapshot(t *testing.T) {
+func TestGetSource(t *testing.T) {
 	testdataRoot, err := os.OpenRoot("testdata")
 	if err != nil {
 		t.Fatalf("Failed to open testdata root: %v", err)
@@ -87,7 +87,7 @@ func TestGetSnapshot(t *testing.T) {
 	}
 }
 
-func TestGetCurrentSnapshot(t *testing.T) {
+func TestGetCurrentSource(t *testing.T) {
 	testdataRoot, err := os.OpenRoot("testdata")
 	if err != nil {
 		t.Fatalf("Failed to open testdata root: %v", err)
@@ -107,7 +107,7 @@ func TestGetCurrentSnapshot(t *testing.T) {
 	}
 }
 
-func TestListSnapshots(t *testing.T) {
+func TestListSources(t *testing.T) {
 	testdataRoot, err := os.OpenRoot("testdata")
 	if err != nil {
 		t.Fatalf("Failed to open testdata root: %v", err)
@@ -206,7 +206,7 @@ func TestSetCover(t *testing.T) {
 	}
 }
 
-func TestNewSnapshot(t *testing.T) {
+func TestNewSource(t *testing.T) {
 	tmpLib := path.Join(t.TempDir())
 	tmpRoot, err := os.OpenRoot(tmpLib)
 	if err != nil {

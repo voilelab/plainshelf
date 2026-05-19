@@ -372,7 +372,7 @@ func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) 
 }
 
 // GET /api/books/{book_id}/snapshots
-func (app *App) HandleAPIGetBookSnapshots(w http.ResponseWriter, r *http.Request) {
+func (app *App) HandleAPIGetBookSources(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
@@ -409,7 +409,7 @@ func (app *App) HandleAPIGetBookSnapshots(w http.ResponseWriter, r *http.Request
 }
 
 // GET /api/books/{book_id}/snapshots/{snapshot_id}
-func (app *App) HandleAPIGetBookSnapshot(w http.ResponseWriter, r *http.Request) {
+func (app *App) HandleAPIGetBookSource(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
@@ -447,7 +447,7 @@ func (app *App) HandleAPIGetBookSnapshot(w http.ResponseWriter, r *http.Request)
 }
 
 // GET /api/books/{book_id}/snapshots/{snapshot_id}/content
-func (app *App) HandleAPIGetBookSnapshotContent(w http.ResponseWriter, r *http.Request) {
+func (app *App) HandleAPIGetBookSourceContent(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
@@ -492,7 +492,7 @@ func (app *App) HandleAPIGetBookSnapshotContent(w http.ResponseWriter, r *http.R
 }
 
 // PATCH /api/books/{book_id}/snapshots/{snapshot_id}/content
-func (app *App) HandleAPIUpdateBookSnapshotContent(w http.ResponseWriter, r *http.Request) {
+func (app *App) HandleAPIUpdateBookSourceContent(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
