@@ -8,7 +8,8 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "sidecar:build": "node electron/build-sidecar.cjs",
-    "electron:dev": "npm run build && npm run sidecar:build && npx --yes electron@^38 electron/main.cjs"
+    "electron:dev": "npm run build && npm run sidecar:build && npx --yes electron@^38 electron/main.cjs",
+    "build:app": "vue-tsc --noEmit && vite build --outDir dist-app"
   },
   "dependencies": {
     "vue": "^3.5.12",
