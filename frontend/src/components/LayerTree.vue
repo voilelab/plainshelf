@@ -2,6 +2,7 @@
   <nav class="sidebar-nav-list" aria-label="Layers">
     <div class="sidebar-nav-item" :class="{ active: !selected }">
       <span class="tree-toggle-placeholder" aria-hidden="true"></span>
+      <SidebarNavIcon name="all-books" />
       <button type="button" class="sidebar-nav-item-label" @click="emit('select', '')">
         All books
       </button>
@@ -28,6 +29,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import LayerNodeItem from './LayerNodeItem.vue';
+import SidebarNavIcon from './SidebarNavIcon.vue';
 import { useBookStore } from '../composables/useBookStore';
 import { getLayerPath } from '../utils/layers';
 

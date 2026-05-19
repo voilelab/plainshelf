@@ -1,6 +1,11 @@
 <template>
   <span class="sidebar-nav-icon" aria-hidden="true">
-    <svg v-if="name === 'recently-read'" viewBox="0 0 24 24" fill="none">
+    <svg v-if="name === 'all-books'" viewBox="0 0 24 24" fill="none">
+      <path d="M6 5.5h9a2 2 0 0 1 2 2V19H8a2 2 0 0 0-2 2V5.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      <path d="M8 19h9M8 8.5h6M8 12h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M6 6.5a2 2 0 0 0-2 2V21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+    </svg>
+    <svg v-else-if="name === 'recently-read'" viewBox="0 0 24 24" fill="none">
       <path d="M4 12a8 8 0 1 0 2.35-5.66" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       <path d="M4 5.5v4h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
       <path d="M12 8v4l2.5 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
