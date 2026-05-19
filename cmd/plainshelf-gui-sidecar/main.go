@@ -231,7 +231,7 @@ func ensureProfileLayout(profileDir string) error {
 		filepath.Join(profileDir, "backups"),
 		filepath.Join(profileDir, "tmp"),
 	} {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0700); err != nil {
 			return fmt.Errorf("create profile directory %q: %w", dir, err)
 		}
 	}
