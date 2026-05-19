@@ -1,6 +1,6 @@
 <template>
   <section class="editor-panel">
-    <div class="snapshot-editor-status" role="status">
+    <div class="source-editor-status" role="status">
       <p v-if="loading" class="meta">Loading source...</p>
       <p v-else-if="!sourceId" class="meta">Select a source to start editing.</p>
       <p v-else-if="dirty" class="meta dirty">Unsaved changes</p>
@@ -10,7 +10,7 @@
     <div v-if="error" class="error editor-error" role="alert">{{ error }}</div>
 
     <textarea
-      class="snapshot-content-textarea"
+      class="source-content-textarea"
       :value="modelValue"
       :disabled="!sourceId || loading || saving"
       spellcheck="false"
@@ -50,7 +50,7 @@ function onInput(event: Event): void {
   overflow: hidden;
 }
 
-.snapshot-editor-status {
+.source-editor-status {
   flex-shrink: 0;
   min-height: 38px;
   display: flex;
@@ -60,15 +60,15 @@ function onInput(event: Event): void {
   background: #f8fafc;
 }
 
-.snapshot-editor-status p {
+.source-editor-status p {
   margin: 0;
 }
 
-.snapshot-editor-status .dirty {
+.source-editor-status .dirty {
   color: #9a3412;
 }
 
-.snapshot-content-textarea {
+.source-content-textarea {
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -89,7 +89,7 @@ function onInput(event: Event): void {
   overflow-wrap: normal;
 }
 
-.snapshot-content-textarea:focus-visible {
+.source-content-textarea:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 32%, transparent);
   outline-offset: -2px;
 }

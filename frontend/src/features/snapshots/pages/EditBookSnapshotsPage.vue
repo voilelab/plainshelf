@@ -1,5 +1,5 @@
 <template>
-  <section class="snapshot-editor-page">
+  <section class="source-editor-page">
     <ConfirmModal
       :open="showDiscardModal"
       title="Discard unsaved changes?"
@@ -9,12 +9,12 @@
       @cancel="cancelPendingSource"
       @confirm="confirmPendingSource"
     />
-    <header class="snapshot-editor-topbar">
+    <header class="source-editor-topbar">
       <button class="button" type="button" @click="goBack">Back</button>
 
       <div class="topbar-title" :title="book?.title || bookId">{{ book?.title || bookId }}</div>
       <div class="topbar-sep">/</div>
-      <div class="topbar-snapshot" :title="activeSourceId || '-'">{{ activeSourceId || '-' }}</div>
+      <div class="topbar-source" :title="activeSourceId || '-'">{{ activeSourceId || '-' }}</div>
 
       <div class="topbar-spacer"></div>
 
@@ -27,9 +27,9 @@
       </button>
     </header>
 
-    <div class="snapshot-editor-workspace">
+    <div class="source-editor-workspace">
       <SourceList
-        class="snapshot-editor-sidebar"
+        class="source-editor-sidebar"
         :sources="sources"
         :activeSourceId="activeSourceId"
         :currentSourceId="book?.current_source"
@@ -37,9 +37,9 @@
         @select="onSelectSource"
       />
 
-      <main class="snapshot-editor-main">
+      <main class="source-editor-main">
         <div v-if="initialLoading" class="loading editor-loading">Loading sources...</div>
-        <div v-else-if="loadError" class="error snapshot-error" role="alert">
+        <div v-else-if="loadError" class="error source-error" role="alert">
           <p>{{ loadError }}</p>
           <button class="button" type="button" @click="fetchInitial">Retry</button>
         </div>
@@ -228,7 +228,7 @@ watch(
 </script>
 
 <style scoped>
-.snapshot-editor-page {
+.source-editor-page {
   height: 100vh;
   width: 100vw;
   min-width: 0;
@@ -240,7 +240,7 @@ watch(
   background: #fff;
 }
 
-.snapshot-editor-topbar {
+.source-editor-topbar {
   height: 56px;
   flex-shrink: 0;
   min-width: 0;
@@ -254,7 +254,7 @@ watch(
 }
 
 .topbar-title,
-.topbar-snapshot {
+.topbar-source {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -270,7 +270,7 @@ watch(
   color: var(--muted);
 }
 
-.topbar-snapshot {
+.topbar-source {
   color: var(--muted);
   max-width: min(36vw, 360px);
 }
@@ -292,7 +292,7 @@ watch(
   color: #166534;
 }
 
-.snapshot-editor-workspace {
+.source-editor-workspace {
   flex: 1;
   min-height: 0;
   min-width: 0;
@@ -301,7 +301,7 @@ watch(
   overflow: hidden;
 }
 
-.snapshot-editor-main {
+.source-editor-main {
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -311,17 +311,17 @@ watch(
   overflow: hidden;
 }
 
-.snapshot-error {
+.source-error {
   margin: 12px;
   display: grid;
   gap: 10px;
 }
 
-.snapshot-error p {
+.source-error p {
   margin: 0;
 }
 
-.snapshot-error .button {
+.source-error .button {
   justify-self: start;
 }
 
@@ -330,7 +330,7 @@ watch(
 }
 
 @media (max-width: 900px) {
-  .snapshot-editor-topbar {
+  .source-editor-topbar {
     height: auto;
     min-height: 56px;
     padding: 8px 12px;
@@ -338,7 +338,7 @@ watch(
     row-gap: 8px;
   }
 
-  .snapshot-editor-workspace {
+  .source-editor-workspace {
     flex-direction: column;
   }
 }
