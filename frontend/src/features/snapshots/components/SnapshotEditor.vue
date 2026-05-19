@@ -1,8 +1,8 @@
 <template>
   <section class="editor-panel">
     <div class="snapshot-editor-status" role="status">
-      <p v-if="loading" class="meta">Loading snapshot...</p>
-      <p v-else-if="!snapshotId" class="meta">Select a snapshot to start editing.</p>
+      <p v-if="loading" class="meta">Loading source...</p>
+      <p v-else-if="!sourceId" class="meta">Select a source to start editing.</p>
       <p v-else-if="dirty" class="meta dirty">Unsaved changes</p>
       <p v-else class="meta">No pending changes</p>
     </div>
@@ -12,7 +12,7 @@
     <textarea
       class="snapshot-content-textarea"
       :value="modelValue"
-      :disabled="!snapshotId || loading || saving"
+      :disabled="!sourceId || loading || saving"
       spellcheck="false"
       @input="onInput"
     ></textarea>
@@ -22,7 +22,7 @@
 <script setup lang="ts">
 defineProps<{
   modelValue: string;
-  snapshotId: string;
+  sourceId: string;
   loading?: boolean;
   saving?: boolean;
   dirty?: boolean;

@@ -4,14 +4,14 @@ import {
   getBook,
   getReadingProgress
 } from '../api/books';
-import { getSnapshot } from '../api/snapshots';
+import { getSource } from '../api/snapshots';
 import type { Book, ReadingProgress } from '../types/book';
-import type { SnapshotMeta } from '../types/snapsnot';
+import type { SourceMeta } from '../types/snapsnot';
 
 export function useBookDetail(bookID: () => string) {
   const book = ref<Book | null>(null);
   const progress = ref<ReadingProgress | null>(null);
-  const currentSnapshot = ref<SnapshotMeta | null>(null);
+  const currentSource = ref<SourceMeta | null>(null);
   const loading = ref(false);
   const error = ref('');
   const deleting = ref(false);
@@ -25,16 +25,16 @@ export function useBookDetail(bookID: () => string) {
         getBook(currentBookID),
         getReadingProgress(currentBookID)
       ]);
-      const currentSnapshotData = bookData.current_snapshot
-        ? await getSnapshot(currentBookID, bookData.current_snapshot)
+      const currentSourceData = bookData.current_source
+        ? await getSource(currentBookID, bookData.current_source)
         : null;
       book.value = bookData;
       progress.value = progressData;
-      currentSnapshot.value = currentSnapshotData;
+      currentSource.value = currentSourceData;
     } catch (err) {
       book.value = null;
       progress.value = null;
-      currentSnapshot.value = null;
+      currentSource.value = null;
       error.value = err instanceof Error ? err.message : 'Failed to load detail';
     } finally {
       loading.value = false;
@@ -57,7 +57,7 @@ export function useBookDetail(bookID: () => string) {
   return {
     book,
     progress,
-    currentSnapshot,
+    currentSource,
     loading,
     error,
     deleting,

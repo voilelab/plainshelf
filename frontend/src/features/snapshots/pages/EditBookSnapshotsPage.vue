@@ -3,18 +3,18 @@
     <ConfirmModal
       :open="showDiscardModal"
       title="Discard unsaved changes?"
-      message="You have unsaved changes. Discard them and switch snapshots?"
+      message="You have unsaved changes. Discard them and switch sources?"
       confirm-text="Discard and switch"
       cancel-text="Keep editing"
-      @cancel="cancelPendingSnapshot"
-      @confirm="confirmPendingSnapshot"
+      @cancel="cancelPendingSource"
+      @confirm="confirmPendingSource"
     />
     <header class="snapshot-editor-topbar">
       <button class="button" type="button" @click="goBack">Back</button>
 
       <div class="topbar-title" :title="book?.title || bookId">{{ book?.title || bookId }}</div>
       <div class="topbar-sep">/</div>
-      <div class="topbar-snapshot" :title="activeSnapshotId || '-'">{{ activeSnapshotId || '-' }}</div>
+      <div class="topbar-snapshot" :title="activeSourceId || '-'">{{ activeSourceId || '-' }}</div>
 
       <div class="topbar-spacer"></div>
 
@@ -28,25 +28,25 @@
     </header>
 
     <div class="snapshot-editor-workspace">
-      <SnapshotList
+      <SourceList
         class="snapshot-editor-sidebar"
-        :snapshots="snapshots"
-        :active-snapshot-id="activeSnapshotId"
-        :current-snapshot-id="book?.current_snapshot"
+        :sources="sources"
+        :activeSourceId="activeSourceId"
+        :currentSourceId="book?.current_source"
         :loading="listLoading"
-        @select="onSelectSnapshot"
+        @select="onSelectSource"
       />
 
       <main class="snapshot-editor-main">
-        <div v-if="initialLoading" class="loading editor-loading">Loading snapshots...</div>
+        <div v-if="initialLoading" class="loading editor-loading">Loading sources...</div>
         <div v-else-if="loadError" class="error snapshot-error" role="alert">
           <p>{{ loadError }}</p>
           <button class="button" type="button" @click="fetchInitial">Retry</button>
         </div>
-        <SnapshotEditor
+        <SourceEditor
           v-else
           v-model="content"
-          :snapshot-id="activeSnapshotId"
+          :sourceId="activeSourceId"
           :loading="contentLoading"
           :saving="saving"
           :dirty="isDirty"
@@ -64,10 +64,10 @@ import { getBook } from '../../../api/books';
 import ConfirmModal from '../../../components/ConfirmModal.vue';
 import { useDocumentTitle } from '../../../composables/useDocumentTitle';
 import type { Book } from '../../../types/book';
-import { getSnapshotContent, listSnapshots, updateSnapshotContent } from '../../../api/snapshots';
-import SnapshotEditor from '../components/SnapshotEditor.vue';
-import SnapshotList from '../components/SnapshotList.vue';
-import type { SnapshotMeta } from '../../../types/snapsnot';
+import { getSourceContent, listSource, updateSourceContent } from '../../../api/snapshots';
+import SourceEditor from '../components/SnapshotEditor.vue';
+import SourceList from '../components/SnapshotList.vue';
+import type { SourceMeta } from '../../../types/snapsnot';
 
 const route = useRoute();
 const router = useRouter();
@@ -75,8 +75,8 @@ const router = useRouter();
 const bookId = computed(() => String(route.params.bookId));
 
 const book = ref<Book | null>(null);
-const snapshots = ref<SnapshotMeta[]>([]);
-const activeSnapshotId = ref('');
+const sources = ref<SourceMeta[]>([]);
+const activeSourceId = ref('');
 const initialContent = ref('');
 const content = ref('');
 
@@ -89,19 +89,19 @@ const loadError = ref('');
 const editorError = ref('');
 const saveSuccess = ref('');
 const showDiscardModal = ref(false);
-const pendingSnapshotId = ref('');
+const pendingSourceId = ref('');
 
-const isDirty = computed(() => activeSnapshotId.value.length > 0 && content.value !== initialContent.value);
+const isDirty = computed(() => activeSourceId.value.length > 0 && content.value !== initialContent.value);
 const disableSave = computed(
   () =>
-    !activeSnapshotId.value ||
+    !activeSourceId.value ||
     !isDirty.value ||
     saving.value ||
     contentLoading.value ||
     initialLoading.value
 );
 
-useDocumentTitle(() => ['Edit Snapshots', book.value?.title, 'PlainShelf']);
+useDocumentTitle(() => ['Edit Sources', book.value?.title, 'PlainShelf']);
 
 async function fetchInitial(): Promise<void> {
   initialLoading.value = true;
@@ -110,91 +110,91 @@ async function fetchInitial(): Promise<void> {
   saveSuccess.value = '';
 
   try {
-    const [bookData, snapshotList] = await Promise.all([
+    const [bookData, sourceList] = await Promise.all([
       getBook(bookId.value),
-      listSnapshots(bookId.value)
+      listSource(bookId.value)
     ]);
 
     book.value = bookData;
-    snapshots.value = snapshotList;
+    sources.value = sourceList;
 
-    const preferredSnapshot =
-      snapshotList.find((snapshot) => snapshot.id === bookData.current_snapshot)?.id ??
-      snapshotList[0]?.id ??
+    const preferredSource =
+      sourceList.find((source) => source.id === bookData.current_source)?.id ??
+      sourceList[0]?.id ??
       '';
 
-    if (preferredSnapshot) {
-      await loadSnapshot(preferredSnapshot);
+    if (preferredSource) {
+      await loadSource(preferredSource);
     } else {
-      activeSnapshotId.value = '';
+      activeSourceId.value = '';
       content.value = '';
       initialContent.value = '';
     }
   } catch (err) {
-    loadError.value = err instanceof Error ? err.message : 'Failed to load snapshots';
+    loadError.value = err instanceof Error ? err.message : 'Failed to load sources';
   } finally {
     initialLoading.value = false;
   }
 }
 
-async function reloadSnapshotMeta(): Promise<void> {
+async function reloadSourceMeta(): Promise<void> {
   listLoading.value = true;
   try {
-    snapshots.value = await listSnapshots(bookId.value);
+    sources.value = await listSource(bookId.value);
   } finally {
     listLoading.value = false;
   }
 }
 
-async function loadSnapshot(snapshotId: string): Promise<void> {
+async function loadSource(sourceId: string): Promise<void> {
   contentLoading.value = true;
   editorError.value = '';
   saveSuccess.value = '';
 
   try {
-    const text = await getSnapshotContent(bookId.value, snapshotId);
-    activeSnapshotId.value = snapshotId;
+    const text = await getSourceContent(bookId.value, sourceId);
+    activeSourceId.value = sourceId;
     content.value = text;
     initialContent.value = text;
   } catch (err) {
-    editorError.value = err instanceof Error ? err.message : 'Failed to load snapshot content';
+    editorError.value = err instanceof Error ? err.message : 'Failed to load source content';
   } finally {
     contentLoading.value = false;
   }
 }
 
-async function onSelectSnapshot(snapshotId: string): Promise<void> {
-  if (snapshotId === activeSnapshotId.value) {
+async function onSelectSource(sourceId: string): Promise<void> {
+  if (sourceId === activeSourceId.value) {
     return;
   }
 
   if (isDirty.value) {
-    pendingSnapshotId.value = snapshotId;
+    pendingSourceId.value = sourceId;
     showDiscardModal.value = true;
     return;
   }
 
-  await loadSnapshot(snapshotId);
+  await loadSource(sourceId);
 }
 
-function cancelPendingSnapshot(): void {
+function cancelPendingSource(): void {
   showDiscardModal.value = false;
-  pendingSnapshotId.value = '';
+  pendingSourceId.value = '';
 }
 
-async function confirmPendingSnapshot(): Promise<void> {
-  const snapshotId = pendingSnapshotId.value;
-  cancelPendingSnapshot();
+async function confirmPendingSource(): Promise<void> {
+  const sourceId = pendingSourceId.value;
+  cancelPendingSource();
 
-  if (!snapshotId || snapshotId === activeSnapshotId.value) {
+  if (!sourceId || sourceId === activeSourceId.value) {
     return;
   }
 
-  await loadSnapshot(snapshotId);
+  await loadSource(sourceId);
 }
 
 async function onSave(): Promise<void> {
-  if (!activeSnapshotId.value || !isDirty.value) {
+  if (!activeSourceId.value || !isDirty.value) {
     return;
   }
 
@@ -203,12 +203,12 @@ async function onSave(): Promise<void> {
   saveSuccess.value = '';
 
   try {
-    await updateSnapshotContent(bookId.value, activeSnapshotId.value, content.value);
+    await updateSourceContent(bookId.value, activeSourceId.value, content.value);
     initialContent.value = content.value;
-    await reloadSnapshotMeta();
-    saveSuccess.value = 'Snapshot saved.';
+    await reloadSourceMeta();
+    saveSuccess.value = 'Source saved.';
   } catch (err) {
-    editorError.value = err instanceof Error ? err.message : 'Failed to save snapshot';
+    editorError.value = err instanceof Error ? err.message : 'Failed to save source';
   } finally {
     saving.value = false;
   }

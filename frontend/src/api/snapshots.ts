@@ -1,31 +1,31 @@
 import { fetchJson, fetchText, isMockApiMode } from './client';
-import type { SnapshotMeta } from '../types/snapsnot';
+import type { SourceMeta as SourceMeta } from '../types/snapsnot';
 
-interface SnapshotStoreItem {
-  meta: SnapshotMeta;
+interface SourceStoreItem {
+  meta: SourceMeta;
   content: string;
 }
 
-const mockSnapshots: Record<string, SnapshotStoreItem[]> = {};
+const mockSource: Record<string, SourceStoreItem[]> = {};
 
 function countLines(value: string): number {
   return value.length === 0 ? 0 : value.split(/\r\n|\r|\n/).length;
 }
 
-function buildSnapshotMeta(id: string, createdAt: string, content: string): SnapshotMeta {
+function buildSourceMeta(id: string, createdAt: string, content: string): SourceMeta {
   return {
     id,
     created_at: createdAt,
-    comment: 'Mock snapshot',
+    comment: 'Mock source',
     md5_hash: hashText(content),
     line_count: countLines(content),
     char_count: content.length
   };
 }
 
-function normalizeSnapshotMeta(raw: unknown): SnapshotMeta {
+function normalizeSourceMeta(raw: unknown): SourceMeta {
   const record = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
-  const meta: SnapshotMeta = {
+  const meta: SourceMeta = {
     id: typeof record.id === 'string' ? record.id : '',
     created_at: typeof record.created_at === 'string' ? record.created_at : '',
     comment: typeof record.comment === 'string' ? record.comment : '',
@@ -41,7 +41,7 @@ function normalizeSnapshotMeta(raw: unknown): SnapshotMeta {
   }
 
   if (record.split_config && typeof record.split_config === 'object') {
-    meta.split_config = record.split_config as SnapshotMeta['split_config'];
+    meta.split_config = record.split_config as SourceMeta['split_config'];
   }
 
   return meta;
@@ -62,94 +62,87 @@ function hashText(value: string): string {
   return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
-function ensureMockSnapshots(bookId: string): SnapshotStoreItem[] {
-  if (mockSnapshots[bookId]) {
-    return mockSnapshots[bookId];
+function ensureMockSource(bookId: string): SourceStoreItem[] {
+  if (mockSource[bookId]) {
+    return mockSource[bookId];
   }
 
   const now = new Date();
   const firstId = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-090000`;
   const secondId = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-120000`;
-  const firstContent = `# Snapshot ${firstId}\n\nBook ${bookId} sample content.`;
-  const secondContent = `# Snapshot ${secondId}\n\nSecond snapshot for ${bookId}.`;
+  const firstContent = `# Source ${firstId}\n\nBook ${bookId} sample content.`;
+  const secondContent = `# Source ${secondId}\n\nSecond source for ${bookId}.`;
 
-  mockSnapshots[bookId] = [
+  mockSource[bookId] = [
     {
-      meta: buildSnapshotMeta(secondId, now.toISOString(), secondContent),
+      meta: buildSourceMeta(secondId, now.toISOString(), secondContent),
       content: secondContent
     },
     {
-      meta: buildSnapshotMeta(firstId, new Date(now.getTime() - 30 * 60 * 1000).toISOString(), firstContent),
+      meta: buildSourceMeta(firstId, new Date(now.getTime() - 30 * 60 * 1000).toISOString(), firstContent),
       content: firstContent
     }
   ];
 
-  return mockSnapshots[bookId];
+  return mockSource[bookId];
 }
 
-export async function listSnapshots(bookId: string): Promise<SnapshotMeta[]> {
+export async function listSource(bookId: string): Promise<SourceMeta[]> {
   if (isMockApiMode()) {
-    return ensureMockSnapshots(bookId).map((item) => ({ ...item.meta }));
+    return ensureMockSource(bookId).map((item) => ({ ...item.meta }));
   }
 
   const data = await fetchJson<unknown>(`/api/books/${encodeURIComponent(bookId)}/sources`);
   if (Array.isArray(data)) {
-    return data.map(normalizeSnapshotMeta);
-  }
-
-  if (data && typeof data === 'object') {
-    const record = data as Record<string, unknown>;
-    if (Array.isArray(record.snapshots)) {
-      return record.snapshots.map(normalizeSnapshotMeta);
-    }
+    return data.map(normalizeSourceMeta);
   }
 
   return [];
 }
 
-export async function getSnapshot(bookId: string, snapshotId: string): Promise<SnapshotMeta> {
+export async function getSource(bookId: string, sourceId: string): Promise<SourceMeta> {
   if (isMockApiMode()) {
-    const item = ensureMockSnapshots(bookId).find((snapshot) => snapshot.meta.id === snapshotId);
+    const item = ensureMockSource(bookId).find((source) => source.meta.id === sourceId);
     if (!item) {
-      throw new Error('Snapshot not found');
+      throw new Error('Source not found');
     }
     return { ...item.meta };
   }
 
   const data = await fetchJson<unknown>(
-    `/api/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(snapshotId)}`
+    `/api/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}`
   );
-  return normalizeSnapshotMeta(data);
+  return normalizeSourceMeta(data);
 }
 
-export async function getSnapshotContent(bookId: string, snapshotId: string): Promise<string> {
+export async function getSourceContent(bookId: string, sourceId: string): Promise<string> {
   if (isMockApiMode()) {
-    const item = ensureMockSnapshots(bookId).find((snapshot) => snapshot.meta.id === snapshotId);
+    const item = ensureMockSource(bookId).find((source) => source.meta.id === sourceId);
     if (!item) {
-      throw new Error('Snapshot not found');
+      throw new Error('Source not found');
     }
     return item.content;
   }
 
   return await fetchText(
-    `/api/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(snapshotId)}/content`
+    `/api/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/content`
   );
 }
 
-export async function updateSnapshotContent(bookId: string, snapshotId: string, content: string): Promise<void> {
+export async function updateSourceContent(bookId: string, sourceId: string, content: string): Promise<void> {
   if (isMockApiMode()) {
-    const snapshots = ensureMockSnapshots(bookId);
-    const item = snapshots.find((snapshot) => snapshot.meta.id === snapshotId);
+    const sources = ensureMockSource(bookId);
+    const item = sources.find((source) => source.meta.id === sourceId);
     if (!item) {
-      throw new Error('Snapshot not found');
+      throw new Error('Source not found');
     }
     item.content = content;
-    item.meta = buildSnapshotMeta(item.meta.id, item.meta.created_at, content);
+    item.meta = buildSourceMeta(item.meta.id, item.meta.created_at, content);
     return;
   }
 
   await fetchText(
-    `/api/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(snapshotId)}/content`,
+    `/api/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/content`,
     {
       method: 'PATCH',
       headers: {

@@ -32,7 +32,7 @@ interface BackendBookMeta {
   created_at?: string;
   updated_at?: string;
   published_at?: string;
-  current_snapshot?: string;
+  current_source?: string;
 }
 
 interface BackendBook {
@@ -141,7 +141,7 @@ function transformBook(b: BackendBook): Book {
     created_at: b.meta.created_at,
     updated_at: b.meta.updated_at,
     published_at: b.meta.published_at,
-    current_snapshot: b.meta.current_snapshot
+    current_source: b.meta.current_source
   };
 }
 

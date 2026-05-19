@@ -1,45 +1,45 @@
 <template>
   <aside class="snapshot-list">
     <div class="snapshot-list-header">
-      <h3>Snapshots</h3>
-      <p class="meta">{{ snapshots.length }} total</p>
+      <h3>Sources</h3>
+      <p class="meta">{{ sources.length }} total</p>
     </div>
 
-    <div v-if="loading" class="loading list-status">Loading snapshots...</div>
-    <div v-else-if="snapshots.length === 0" class="meta list-status">No snapshots yet.</div>
+    <div v-if="loading" class="loading list-status">Loading sources...</div>
+    <div v-else-if="sources.length === 0" class="meta list-status">No sources yet.</div>
 
-    <div v-else class="snapshot-items" role="list" aria-label="Book snapshots">
+    <div v-else class="snapshot-items" role="list" aria-label="Book sources">
       <button
-        v-for="snapshot in snapshots"
-        :key="snapshot.id"
+        v-for="source in sources"
+        :key="source.id"
         type="button"
         class="snapshot-item"
-        :class="{ active: snapshot.id === activeSnapshotId }"
-        @click="$emit('select', snapshot.id)"
+        :class="{ active: source.id === activeSourceId }"
+        @click="$emit('select', source.id)"
       >
         <div class="snapshot-item-top">
-          <strong class="snapshot-id">{{ snapshot.id }}</strong>
-          <span v-if="snapshot.id === currentSnapshotId" class="current-badge">Current</span>
+          <strong class="snapshot-id">{{ source.id }}</strong>
+          <span v-if="source.id === currentSourceId" class="current-badge">Current</span>
         </div>
-        <p class="meta snapshot-created">{{ formatTimestamp(snapshot.created_at) }}</p>
-        <p class="meta snapshot-hash">md5: {{ shortHash(snapshot.md5_hash) }}</p>
+        <p class="meta snapshot-created">{{ formatTimestamp(source.created_at) }}</p>
+        <p class="meta snapshot-hash">md5: {{ shortHash(source.md5_hash) }}</p>
       </button>
     </div>
   </aside>
 </template>
 
 <script setup lang="ts">
-import type { SnapshotMeta } from '../../../types/snapsnot';
+import type { SourceMeta } from '../../../types/snapsnot';
 
 defineProps<{
-  snapshots: SnapshotMeta[];
-  activeSnapshotId: string;
-  currentSnapshotId?: string;
+  sources: SourceMeta[];
+  activeSourceId: string;
+  currentSourceId?: string;
   loading?: boolean;
 }>();
 
 defineEmits<{
-  select: [snapshotId: string];
+  select: [sourceId: string];
 }>();
 
 function shortHash(hash: string): string {
