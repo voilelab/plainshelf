@@ -4,9 +4,9 @@ import {
   getBook,
   getReadingProgress
 } from '../api/books';
-import { getSource } from '../api/snapshots';
+import { getSource } from '../api/sources';
 import type { Book, ReadingProgress } from '../types/book';
-import type { SourceMeta } from '../types/snapsnot';
+import type { SourceMeta } from '../types/source';
 
 export function useBookDetail(bookID: () => string) {
   const book = ref<Book | null>(null);

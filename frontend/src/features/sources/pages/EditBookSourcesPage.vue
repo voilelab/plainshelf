@@ -64,10 +64,10 @@ import { getBook } from '../../../api/books';
 import ConfirmModal from '../../../components/ConfirmModal.vue';
 import { useDocumentTitle } from '../../../composables/useDocumentTitle';
 import type { Book } from '../../../types/book';
-import { getSourceContent, listSource, updateSourceContent } from '../../../api/snapshots';
-import SourceEditor from '../components/SnapshotEditor.vue';
-import SourceList from '../components/SnapshotList.vue';
-import type { SourceMeta } from '../../../types/snapsnot';
+import { getSourceContent, listSource, updateSourceContent } from '../../../api/sources';
+import SourceEditor from '../components/SourceEditor.vue';
+import SourceList from '../components/SourceList.vue';
+import type { SourceMeta } from '../../../types/source';
 
 const route = useRoute();
 const router = useRouter();

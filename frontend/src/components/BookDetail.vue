@@ -21,7 +21,7 @@
 import { computed } from 'vue';
 import LayerBreadcrumb from './LayerBreadcrumb.vue';
 import type { Book, ReadingProgress } from '../types/book';
-import type { SourceMeta } from '../types/snapsnot';
+import type { SourceMeta } from '../types/source';
 import { formatLanguage } from '../utils/language';
 
 const props = defineProps<{
