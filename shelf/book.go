@@ -17,11 +17,11 @@ import (
 ├─ book.json
 ├─ CURRENT_VERSION_LOCATION.txt
 ├─ cover.(jpg|png|webp)
-└─ snapshots/
-   └─ {snapshot-id}
+└─ sources/
+   └─ {source-id}
 */
 
-const SourcesFolder = "snapshots"
+const SourcesFolder = "sources"
 const BookMetaFile = "book.json"
 const CurrentVersionLocationFile = "CURRENT_VERSION_LOCATION.txt"
 const CurrentVersionLocationTemplate = `[shelf 狀態指標]
@@ -69,8 +69,8 @@ type BookMeta struct {
 	PublishedAt util.JSONTime `json:"published_at,omitzero"`
 
 	// User should not modify CurrentSource directly, it is managed by shelf internally,
-	// and can be updated via SetCurrentSnapshot method
-	CurrentSource string `json:"current_snapshot"`
+	// and can be updated via SetCurrentSource method
+	CurrentSource string `json:"current_source"`
 }
 
 // setLayers only used for internal use, not persisted in book meta, and not exposed to user

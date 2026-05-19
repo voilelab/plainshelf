@@ -168,7 +168,7 @@ func TestAPIImportBookContract(t *testing.T) {
 		t.Fatalf("layer = %#v, want inbox/txt", created.Layer)
 	}
 	if created.Meta.CurrentSource == "" {
-		t.Fatal("import response missing current_snapshot")
+		t.Fatal("import response missing current_source")
 	}
 
 	var buf bytes.Buffer
