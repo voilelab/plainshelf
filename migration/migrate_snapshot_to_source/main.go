@@ -26,7 +26,7 @@ func main() {
 	// recursively walk through books directory
 	err := filepath.Walk(booksDir, func(bookPath string, info os.FileInfo, err error) error {
 		// Need to check since path may not exist due to modified.
-		if os.Stat(bookPath); os.IsNotExist(err) {
+		if _, err := os.Stat(bookPath); os.IsNotExist(err) {
 			log.Println("Book path does not exist, skipping:", bookPath)
 			return nil
 		}
