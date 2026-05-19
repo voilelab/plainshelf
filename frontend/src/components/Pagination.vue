@@ -6,9 +6,9 @@
         <option v-for="opt in pageSizeOptions" :key="opt" :value="opt">{{ opt }} 本</option>
       </select>
     </label>
-    <button class="button" :disabled="page <= 1" @click="goTo(page - 1)">Prev</button>
+    <button class="button" :disabled="!hasPrevPage" @click="goTo(page - 1)">Prev</button>
     <span>Page {{ page }} / {{ totalPages }}</span>
-    <button class="button" :disabled="page >= totalPages" @click="goTo(page + 1)">Next</button>
+    <button class="button" :disabled="!hasNextPage" @click="goTo(page + 1)">Next</button>
   </div>
 </template>
 
@@ -28,6 +28,8 @@ const emit = defineEmits<{
 }>();
 
 const totalPages = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)));
+const hasPrevPage = computed(() => props.page > 1 && props.page <= totalPages.value);
+const hasNextPage = computed(() => props.page < totalPages.value);
 
 function goTo(targetPage: number): void {
   if (targetPage < 1 || targetPage > totalPages.value) {
