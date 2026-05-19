@@ -30,10 +30,21 @@ function resolveSidecarPath() {
   }
 
   const localPath = path.join(__dirname, sidecarBinaryName());
-  if (!fs.existsSync(localPath)) {
-    throw new Error(`Sidecar not found next to Electron main script: ${localPath}`);
+  if (fs.existsSync(localPath) && !localPath.includes('app.asar')) {
+    return localPath;
   }
-  return localPath;
+
+  // When packaged with ASAR, executables must be read from app.asar.unpacked.
+  const unpackedPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'electron', sidecarBinaryName());
+  if (fs.existsSync(unpackedPath)) {
+    return unpackedPath;
+  }
+
+  if (fs.existsSync(localPath)) {
+    throw new Error(`Sidecar exists inside ASAR and cannot be executed: ${localPath}. Expected unpacked binary at: ${unpackedPath}`);
+  }
+
+  throw new Error(`Sidecar not found. Checked: ${localPath} and ${unpackedPath}`);
 }
 
 function startSidecar() {
