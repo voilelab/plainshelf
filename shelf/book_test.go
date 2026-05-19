@@ -71,19 +71,19 @@ func TestGetSnapshot(t *testing.T) {
 		t.Fatalf("Failed to open book: %v", err)
 	}
 
-	snapshot, err := book.GetSnapshot("20260315-a1")
+	source, err := book.GetSource("20260315-a1")
 	if err != nil {
-		t.Fatalf("Failed to get snapshot: %v", err)
+		t.Fatalf("Failed to get source: %v", err)
 	}
 
-	expectedSnapshotID := "20260315-a1"
-	if snapshot.ID() != expectedSnapshotID {
-		t.Errorf("Expected snapshot ID '%s', got '%s'", expectedSnapshotID, snapshot.ID())
+	expectedSourceID := "20260315-a1"
+	if source.ID() != expectedSourceID {
+		t.Errorf("Expected source ID '%s', got '%s'", expectedSourceID, source.ID())
 	}
 
-	_, err = book.GetSnapshot("nonexistent-snapshot")
+	_, err = book.GetSource("nonexistent-source")
 	if err == nil {
-		t.Fatalf("Expected error when getting nonexistent snapshot, but got none")
+		t.Fatalf("Expected error when getting nonexistent source, but got none")
 	}
 }
 
@@ -100,10 +100,10 @@ func TestGetCurrentSnapshot(t *testing.T) {
 		t.Fatalf("Failed to open book: %v", err)
 	}
 
-	currentSnapshotID := book.CurrentSnapshot()
-	expectedSnapshotID := "20260315-a1"
-	if currentSnapshotID != expectedSnapshotID {
-		t.Errorf("Expected current snapshot ID '%s', got '%s'", expectedSnapshotID, currentSnapshotID)
+	currentSourceID := book.CurrentSource()
+	expectedSourceID := "20260315-a1"
+	if currentSourceID != expectedSourceID {
+		t.Errorf("Expected current source ID '%s', got '%s'", expectedSourceID, currentSourceID)
 	}
 }
 
@@ -120,18 +120,18 @@ func TestListSnapshots(t *testing.T) {
 		t.Fatalf("Failed to open book: %v", err)
 	}
 
-	snapshots, err := book.ListSnapshot()
+	sources, err := book.ListSource()
 	if err != nil {
-		t.Fatalf("Failed to list snapshots: %v", err)
+		t.Fatalf("Failed to list sources: %v", err)
 	}
 
-	if len(snapshots) != 1 {
-		t.Fatalf("Expected 1 snapshot, got %d", len(snapshots))
+	if len(sources) != 1 {
+		t.Fatalf("Expected 1 source, got %d", len(sources))
 	}
 
-	expectedSnapshotID := "20260315-a1"
-	if snapshots[0].ID() != expectedSnapshotID {
-		t.Errorf("Expected snapshot ID '%s', got '%s'", expectedSnapshotID, snapshots[0].ID())
+	expectedSourceID := "20260315-a1"
+	if sources[0].ID() != expectedSourceID {
+		t.Errorf("Expected source ID '%s', got '%s'", expectedSourceID, sources[0].ID())
 	}
 }
 
@@ -223,33 +223,33 @@ func TestNewSnapshot(t *testing.T) {
 		t.Fatalf("Failed to create new book: %v", err)
 	}
 
-	srcText := "This is the content of the snapshot."
-	snapshot, err := book.NewSnapshot(bytes.NewReader([]byte(srcText)))
+	srcText := "This is the content of the source."
+	source, err := book.NewSource(bytes.NewReader([]byte(srcText)))
 	if err != nil {
-		t.Fatalf("Failed to create new snapshot: %v", err)
+		t.Fatalf("Failed to create new source: %v", err)
 	}
 
-	retrievedSnapshot, err := book.GetSnapshot(snapshot.ID())
+	retrievedSource, err := book.GetSource(source.ID())
 	if err != nil {
-		t.Fatalf("Failed to get snapshot: %v", err)
+		t.Fatalf("Failed to get source: %v", err)
 	}
 
-	getSrc, err := retrievedSnapshot.OpenSource()
+	getSrc, err := retrievedSource.Open()
 	if err != nil {
-		t.Fatalf("Failed to open snapshot source: %v", err)
+		t.Fatalf("Failed to open source: %v", err)
 	}
 
 	retrievedSrcData, err := io.ReadAll(getSrc)
 	if err != nil {
-		t.Fatalf("Failed to read snapshot source data: %v", err)
+		t.Fatalf("Failed to read source data: %v", err)
 	}
 
 	if string(retrievedSrcData) != srcText {
-		t.Errorf("Expected retrieved snapshot source to match original source, got '%s'", string(retrievedSrcData))
+		t.Errorf("Expected retrieved source to match original source, got '%s'", string(retrievedSrcData))
 	}
 }
 
-func TestSetCurrentSnapshot(t *testing.T) {
+func TestSetCurrentSource(t *testing.T) {
 	tmpLib := path.Join(t.TempDir())
 	tmpRoot, err := os.OpenRoot(tmpLib)
 	if err != nil {
@@ -266,43 +266,43 @@ func TestSetCurrentSnapshot(t *testing.T) {
 		t.Fatalf("Failed to create new book: %v", err)
 	}
 
-	srcText := "This is the content of the snapshot."
-	snapshot, err := book.NewSnapshot(bytes.NewReader([]byte(srcText)))
+	srcText := "This is the content of the source."
+	source, err := book.NewSource(bytes.NewReader([]byte(srcText)))
 	if err != nil {
-		t.Fatalf("Failed to create new snapshot: %v", err)
+		t.Fatalf("Failed to create new source: %v", err)
 	}
 
-	err = book.SetCurrentSnapshot(snapshot.ID())
+	err = book.SetCurrentSource(source.ID())
 	if err != nil {
-		t.Fatalf("Failed to set current snapshot: %v", err)
+		t.Fatalf("Failed to set current source: %v", err)
 	}
 
-	if book.CurrentSnapshot() != snapshot.ID() {
-		t.Errorf("Expected current snapshot ID to be '%s', got '%s'", snapshot.ID(), book.CurrentSnapshot())
+	if book.CurrentSource() != source.ID() {
+		t.Errorf("Expected current source ID to be '%s', got '%s'", source.ID(), book.CurrentSource())
 	}
 
-	srcText2 := "This is the content of the second snapshot."
-	snapshot2, err := book.NewSnapshot(bytes.NewReader([]byte(srcText2)))
+	srcText2 := "This is the content of the second source."
+	source2, err := book.NewSource(bytes.NewReader([]byte(srcText2)))
 	if err != nil {
-		t.Fatalf("Failed to create second snapshot: %v", err)
+		t.Fatalf("Failed to create second source: %v", err)
 	}
 
-	err = book.SetCurrentSnapshot(snapshot2.ID())
+	err = book.SetCurrentSource(source2.ID())
 	if err != nil {
-		t.Fatalf("Failed to set current snapshot: %v", err)
+		t.Fatalf("Failed to set current source: %v", err)
 	}
 
-	if book.CurrentSnapshot() != snapshot2.ID() {
-		t.Errorf("Expected current snapshot ID to be '%s', got '%s'", snapshot2.ID(), book.CurrentSnapshot())
+	if book.CurrentSource() != source2.ID() {
+		t.Errorf("Expected current source ID to be '%s', got '%s'", source2.ID(), book.CurrentSource())
 	}
 
-	// Set current snapshot back to the first snapshot
-	err = book.SetCurrentSnapshot(snapshot.ID())
+	// Set current source back to the first source
+	err = book.SetCurrentSource(source.ID())
 	if err != nil {
-		t.Fatalf("Failed to set current snapshot: %v", err)
+		t.Fatalf("Failed to set current source: %v", err)
 	}
 
-	if book.CurrentSnapshot() != snapshot.ID() {
-		t.Errorf("Expected current snapshot ID to be '%s', got '%s'", snapshot.ID(), book.CurrentSnapshot())
+	if book.CurrentSource() != source.ID() {
+		t.Errorf("Expected current source ID to be '%s', got '%s'", source.ID(), book.CurrentSource())
 	}
 }

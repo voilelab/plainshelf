@@ -21,7 +21,7 @@ import (
    └─ {snapshot-id}
 */
 
-const SnapshotsFolder = "snapshots"
+const SourcesFolder = "snapshots"
 const BookMetaFile = "book.json"
 const CurrentVersionLocationFile = "CURRENT_VERSION_LOCATION.txt"
 const CurrentVersionLocationTemplate = `[shelf 狀態指標]
@@ -68,9 +68,9 @@ type BookMeta struct {
 	UpdatedAt   util.JSONTime `json:"updated_at,omitzero"`
 	PublishedAt util.JSONTime `json:"published_at,omitzero"`
 
-	// User should not modify CurrentSnapshot directly, it is managed by shelf internally,
+	// User should not modify CurrentSource directly, it is managed by shelf internally,
 	// and can be updated via SetCurrentSnapshot method
-	CurrentSnapshot string `json:"current_snapshot"`
+	CurrentSource string `json:"current_snapshot"`
 }
 
 // setLayers only used for internal use, not persisted in book meta, and not exposed to user
@@ -161,20 +161,20 @@ func (b *Book) DeleteCover() error {
 	return nil
 }
 
-func (b *Book) CurrentSnapshot() string {
-	return b.meta.CurrentSnapshot
+func (b *Book) CurrentSource() string {
+	return b.meta.CurrentSource
 }
 
-func (b *Book) SetCurrentSnapshot(snapshotID string) error {
+func (b *Book) SetCurrentSource(sourceID string) error {
 	meta := b.GetMeta()
-	meta.CurrentSnapshot = snapshotID
+	meta.CurrentSource = sourceID
 
 	err := b.setMeta(meta)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	err = b.updateCurrentVersionLocation(snapshotID)
+	err = b.updateCurrentVersionLocation(sourceID)
 	if err != nil {
 		// TBD: rollback meta update?
 		return util.Errorf("%w", err)
@@ -183,9 +183,9 @@ func (b *Book) SetCurrentSnapshot(snapshotID string) error {
 	return nil
 }
 
-func (b *Book) updateCurrentVersionLocation(snapshotID string) error {
-	snapshotPath := path.Join(SnapshotsFolder, snapshotID, SourceFile)
-	snapshotConent := fmt.Sprintf(CurrentVersionLocationTemplate, snapshotPath)
+func (b *Book) updateCurrentVersionLocation(sourceID string) error {
+	sourcePath := path.Join(SourcesFolder, sourceID, SourceFile)
+	sourceContent := fmt.Sprintf(CurrentVersionLocationTemplate, sourcePath)
 
 	fp, err := b.root.OpenWriter(path.Join(b.folderPath, CurrentVersionLocationFile))
 	if err != nil {
@@ -193,19 +193,19 @@ func (b *Book) updateCurrentVersionLocation(snapshotID string) error {
 	}
 	defer fp.Close()
 
-	n, err := fp.Write([]byte(snapshotConent))
+	n, err := fp.Write([]byte(sourceContent))
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	if n != len(snapshotConent) {
-		return util.Errorf("incomplete write: expected %d bytes, wrote %d bytes", len(snapshotConent), n)
+	if n != len(sourceContent) {
+		return util.Errorf("incomplete write: expected %d bytes, wrote %d bytes", len(sourceContent), n)
 	}
 
 	return nil
 }
 
-// GetMeta returns a copy of the book meta, user can modify the returned meta and call SetMeta to update the book meta, but should not modify the CurrentSnapshot field directly
+// GetMeta returns a copy of the book meta, user can modify the returned meta and call SetMeta to update the book meta, but should not modify the CurrentSource field directly
 func (b *Book) GetMeta() *BookMeta {
 	metaCopy := *b.meta
 	metaCopy.Tags = append([]string(nil), b.meta.Tags...)
@@ -213,10 +213,10 @@ func (b *Book) GetMeta() *BookMeta {
 	return &metaCopy
 }
 
-// SetMeta allows user to update book meta, but not the CurrentSnapshot field which is managed by shelf internally
+// SetMeta allows user to update book meta, but not the CurrentSource field which is managed by shelf internally
 func (b *Book) SetMeta(meta *BookMeta) error {
-	if meta.CurrentSnapshot != b.meta.CurrentSnapshot {
-		return util.NewError("cannot modify CurrentSnapshot field directly, use SetCurrentSnapshot method instead")
+	if meta.CurrentSource != b.meta.CurrentSource {
+		return util.NewError("cannot modify CurrentSource field directly, use SetCurrentSource method instead")
 	}
 
 	return b.setMeta(meta)
@@ -259,60 +259,60 @@ func (b *Book) setMeta(meta *BookMeta) error {
 	return nil
 }
 
-func (b *Book) NewSnapshot(source io.Reader) (*Snapshot, error) {
-	// create a new snapshot for the given book with the provided source file and metadata
+func (b *Book) NewSource(source io.Reader) (*Source, error) {
+	// create a new source for the given book with the provided source file and metadata
 	// TBD: atomic operation, rollback on failure
-	snapshotID := time.Now().Format("20060102-150405")
-	snapshotPath := path.Join(b.folderPath, SnapshotsFolder, snapshotID)
+	sourceID := time.Now().Format("20060102-150405")
+	sourcePath := path.Join(b.folderPath, SourcesFolder, sourceID)
 
-	snapshot, err := createSnapshot(b.root, snapshotPath, snapshotID, source)
+	src, err := createSource(b.root, sourcePath, sourceID, source)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	err = b.updateCurrentVersionLocation(snapshotID)
+	err = b.updateCurrentVersionLocation(sourceID)
 	if err != nil {
 		// TBD: rollback meta update?
 		return nil, util.Errorf("%w", err)
 	}
 
-	return snapshot, nil
+	return src, nil
 }
 
-func (b *Book) GetSnapshot(snapshotID string) (*Snapshot, error) {
-	if err := validateSnapshotID(snapshotID); err != nil {
+func (b *Book) GetSource(sourceID string) (*Source, error) {
+	if err := validateSourceID(sourceID); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	snapshotPath := path.Join(b.folderPath, SnapshotsFolder, snapshotID)
-	snapshot, err := openSnapshot(b.root, snapshotPath)
+	sourcePath := path.Join(b.folderPath, SourcesFolder, sourceID)
+	source, err := openSource(b.root, sourcePath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	return snapshot, nil
+	return source, nil
 }
 
-func (b *Book) ListSnapshot() ([]*Snapshot, error) {
-	snapshotsPath := path.Join(b.folderPath, SnapshotsFolder)
+func (b *Book) ListSource() ([]*Source, error) {
+	sourcesPath := path.Join(b.folderPath, SourcesFolder)
 
-	snapshotEntries, err := b.root.ReadDir(snapshotsPath)
+	sourceEntries, err := b.root.ReadDir(sourcesPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	var snapshots []*Snapshot
-	for _, entry := range snapshotEntries {
+	var sources []*Source
+	for _, entry := range sourceEntries {
 		revID := entry.Name()
-		snapshotPath := path.Join(snapshotsPath, revID)
-		snapshot, err := openSnapshot(b.root, snapshotPath)
+		sourcePath := path.Join(sourcesPath, revID)
+		source, err := openSource(b.root, sourcePath)
 		if err != nil {
 			return nil, util.Errorf("%w", err)
 		}
 
-		snapshots = append(snapshots, snapshot)
+		sources = append(sources, source)
 	}
 
-	return snapshots, nil
+	return sources, nil
 }
 
 func openBook(rt fsutil.FS, bookPath string) (*Book, error) {

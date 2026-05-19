@@ -26,16 +26,16 @@ func readBookID(r *http.Request) (string, error) {
 	return decoded, nil
 }
 
-func readSnapshotID(r *http.Request) (string, error) {
-	snapshotID := strings.TrimSpace(r.PathValue("snapshot_id"))
-	if snapshotID == "" {
-		snapshotID = strings.TrimSpace(r.URL.Query().Get("snapshot_id"))
+func readSourceID(r *http.Request) (string, error) {
+	sourceID := strings.TrimSpace(r.PathValue("snapshot_id"))
+	if sourceID == "" {
+		sourceID = strings.TrimSpace(r.URL.Query().Get("snapshot_id"))
 	}
-	if snapshotID == "" {
+	if sourceID == "" {
 		return "", errors.New("missing snapshot_id")
 	}
 
-	decoded, err := url.PathUnescape(snapshotID)
+	decoded, err := url.PathUnescape(sourceID)
 	if err != nil {
 		return "", util.Errorf("%w", err)
 	}

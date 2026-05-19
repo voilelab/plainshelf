@@ -167,7 +167,7 @@ func TestAPIImportBookContract(t *testing.T) {
 	if strings.Join(created.Layer, "/") != "inbox/txt" {
 		t.Fatalf("layer = %#v, want inbox/txt", created.Layer)
 	}
-	if created.Meta.CurrentSnapshot == "" {
+	if created.Meta.CurrentSource == "" {
 		t.Fatal("import response missing current_snapshot")
 	}
 
