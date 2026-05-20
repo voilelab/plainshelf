@@ -408,6 +408,82 @@ func (app *App) HandleAPIGetBookSources(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+// PUT /api/books/{book_id}/current_source?source_id={source_id}
+func (app *App) HandleAPIUpdateBookCurrentSource(w http.ResponseWriter, r *http.Request) {
+	bookID, err := readBookID(r)
+	if err != nil {
+		http.Error(w, "invalid book_id", http.StatusBadRequest)
+		return
+	}
+
+	sourceID, err := readSourceID(r)
+	if err != nil {
+		http.Error(w, "invalid source_id", http.StatusBadRequest)
+		return
+	}
+
+	book, err := app.shelf.GetBook(bookID)
+	if err != nil {
+		if errors.Is(err, shelf.ErrBookNotFound) {
+			http.Error(w, "book not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to get book", http.StatusInternalServerError)
+		return
+	}
+
+	err = book.SetCurrentSource(sourceID)
+	if err != nil {
+		http.Error(w, "failed to update current source", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// POST /api/books/{book_id}/sources
+func (app *App) HandleAPIAddBookSource(w http.ResponseWriter, r *http.Request) {
+	bookID, err := readBookID(r)
+	if err != nil {
+		http.Error(w, "invalid book_id", http.StatusBadRequest)
+		return
+	}
+
+	book, err := app.shelf.GetBook(bookID)
+	if err != nil {
+		if errors.Is(err, shelf.ErrBookNotFound) {
+			http.Error(w, "book not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "failed to get book", http.StatusInternalServerError)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxImportBodySize)
+	utf8Reader, _, err := util.ReEncodeToUTF8(r.Body)
+	if err != nil {
+		if isRequestBodyTooLarge(err) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		http.Error(w, "failed to re-encode request body to UTF-8", http.StatusInternalServerError)
+		return
+	}
+
+	sourceMeta, err := book.NewSource(utf8Reader)
+	if err != nil {
+		http.Error(w, "failed to add book source", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	err = json.NewEncoder(w).Encode(sourceMeta)
+	if err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
 // GET /api/books/{book_id}/sources/{source_id}
 func (app *App) HandleAPIGetBookSource(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)

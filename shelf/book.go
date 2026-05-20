@@ -167,9 +167,20 @@ func (b *Book) CurrentSource() string {
 
 func (b *Book) SetCurrentSource(sourceID string) error {
 	meta := b.GetMeta()
+
+	if meta.CurrentSource == sourceID {
+		return nil
+	}
+
+	_, err := b.GetSource(sourceID)
+	if err != nil {
+		// TBD: distinguish source not found and other errors
+		return util.Errorf("source %s not found: %w", sourceID, err)
+	}
+
 	meta.CurrentSource = sourceID
 
-	err := b.setMeta(meta)
+	err = b.setMeta(meta)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
