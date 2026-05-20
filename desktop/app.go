@@ -12,7 +12,6 @@ import (
 )
 
 type DesktopApp struct {
-	ctx context.Context
 	app *server.App
 }
 
