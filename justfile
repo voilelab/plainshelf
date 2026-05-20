@@ -19,4 +19,4 @@ server-backend: server-frontend
 
 # Build desktop app
 desktop: server-frontend
-	cd desktop && wails build
+	cd desktop && go mod tidy && go tool wails build
