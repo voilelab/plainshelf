@@ -15,7 +15,7 @@ export interface Book {
   created_at?: BookTimestamp;
   updated_at?: BookTimestamp;
   published_at?: BookTimestamp;
-  current_snapshot?: string;
+  current_source?: string;
 }
 
 export interface BookDetail extends Book {

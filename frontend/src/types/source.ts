@@ -1,4 +1,4 @@
-export interface SnapshotMeta {
+export interface SourceMeta {
   id: string;
   created_at: string;
   comment: string;
