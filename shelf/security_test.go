@@ -63,7 +63,7 @@ func TestMoveAndDeleteLayerRejectUnsafeSegments(t *testing.T) {
 	}
 }
 
-func TestBookRejectsUnsafeSnapshotID(t *testing.T) {
+func TestBookRejectsUnsafeSourceID(t *testing.T) {
 	testdataRoot, err := os.OpenRoot("testdata")
 	if err != nil {
 		t.Fatalf("Failed to open testdata root: %v", err)
@@ -75,9 +75,9 @@ func TestBookRejectsUnsafeSnapshotID(t *testing.T) {
 		t.Fatalf("Failed to open book: %v", err)
 	}
 
-	for _, snapshotID := range []string{"..", "../20260315-a1", "safe/unsafe", "safe\\unsafe", ""} {
-		if _, err := book.GetSnapshot(snapshotID); err == nil {
-			t.Fatalf("Expected GetSnapshot(%q) to reject unsafe snapshot ID", snapshotID)
+	for _, sourceID := range []string{"..", "../20260315-a1", "safe/unsafe", "safe\\unsafe", ""} {
+		if _, err := book.GetSource(sourceID); err == nil {
+			t.Fatalf("Expected GetSource(%q) to reject unsafe source ID", sourceID)
 		}
 	}
 }

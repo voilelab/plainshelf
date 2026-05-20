@@ -93,6 +93,15 @@ a {
   background: #f0f5fb;
 }
 
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.button:disabled:hover {
+  background: #f9fbfd;
+}
+
 .button.primary {
   background: var(--accent);
   border-color: var(--accent);

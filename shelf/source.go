@@ -13,23 +13,23 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-const SnapshotMetaFile = "meta.json"
+const SourceMetaFile = "meta.json"
 const SourceFile = "source.txt"
 
 /*
-{snapshot-folder}/
+{source-folder}/
 ├─ meta.json
-└─ text.txt
+└─ source.txt
 */
 
-type Snapshot struct {
+type Source struct {
 	root       fsutil.FS
 	folderPath string
 
-	meta *SnapshotMeta
+	meta *SourceMeta
 }
 
-type SnapshotMeta struct {
+type SourceMeta struct {
 	ID        string        `json:"id"`
 	CreatedAt util.JSONTime `json:"created_at"`
 	Comment   string        `json:"comment"`
@@ -43,19 +43,19 @@ type SnapshotMeta struct {
 	SplitConfig SplitConfig `json:"split_config,omitempty"`
 }
 
-func (r *Snapshot) FolderPath() string {
+func (r *Source) FolderPath() string {
 	return r.folderPath
 }
 
-func (r *Snapshot) ID() string {
+func (r *Source) ID() string {
 	return r.meta.ID
 }
 
-func (r *Snapshot) GetMeta() *SnapshotMeta {
+func (r *Source) GetMeta() *SourceMeta {
 	return r.meta
 }
 
-func (r *Snapshot) OpenSource() (fs.File, error) {
+func (r *Source) Open() (fs.File, error) {
 	sourcePath := path.Join(r.folderPath, SourceFile)
 	fp, err := r.root.Open(sourcePath)
 	if err != nil {
@@ -64,7 +64,7 @@ func (r *Snapshot) OpenSource() (fs.File, error) {
 	return fp, nil
 }
 
-func (r *Snapshot) UpdateContent(newContent io.Reader) error {
+func (r *Source) UpdateContent(newContent io.Reader) error {
 	sourceDestPath := path.Join(r.folderPath, SourceFile)
 	destFile, err := r.root.OpenWriter(sourceDestPath)
 	if err != nil {
@@ -86,8 +86,8 @@ func (r *Snapshot) UpdateContent(newContent io.Reader) error {
 	return nil
 }
 
-func (r *Snapshot) VerifyContent() (bool, error) {
-	sourceFile, err := r.OpenSource()
+func (r *Source) VerifyContent() (bool, error) {
+	sourceFile, err := r.Open()
 	if err != nil {
 		return false, util.Errorf("%w", err)
 	}
@@ -101,8 +101,8 @@ func (r *Snapshot) VerifyContent() (bool, error) {
 	return md5Hash == r.meta.MD5Hash, nil
 }
 
-func (r *Snapshot) UpdateHash() error {
-	sourceFile, err := r.OpenSource()
+func (r *Source) UpdateHash() error {
+	sourceFile, err := r.Open()
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -120,7 +120,7 @@ func (r *Snapshot) UpdateHash() error {
 	return nil
 }
 
-func (r *Snapshot) UpdateSplitConfig(config SplitConfig) error {
+func (r *Source) UpdateSplitConfig(config SplitConfig) error {
 	r.meta.SplitConfig = config
 	err := r.writebackMeta()
 	if err != nil {
@@ -129,8 +129,8 @@ func (r *Snapshot) UpdateSplitConfig(config SplitConfig) error {
 	return nil
 }
 
-func (r *Snapshot) writebackMeta() error {
-	metaFilePath := path.Join(r.folderPath, SnapshotMetaFile)
+func (r *Source) writebackMeta() error {
+	metaFilePath := path.Join(r.folderPath, SourceMetaFile)
 	metaFile, err := r.root.OpenWriter(metaFilePath)
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -147,35 +147,35 @@ func (r *Snapshot) writebackMeta() error {
 	return nil
 }
 
-func openSnapshot(rt fsutil.FS, snapshotPath string) (*Snapshot, error) {
-	metaPath := path.Join(snapshotPath, SnapshotMetaFile)
+func openSource(rt fsutil.FS, sourcePath string) (*Source, error) {
+	metaPath := path.Join(sourcePath, SourceMetaFile)
 	metaFile, err := rt.Open(metaPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 	defer metaFile.Close()
 
-	var meta SnapshotMeta
+	var meta SourceMeta
 	decoder := json.NewDecoder(metaFile)
 	err = decoder.Decode(&meta)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	return &Snapshot{
+	return &Source{
 		root:       rt,
-		folderPath: snapshotPath,
+		folderPath: sourcePath,
 		meta:       &meta,
 	}, nil
 }
 
-func createSnapshot(rt fsutil.FS, snapshotPath, id string, source io.Reader) (*Snapshot, error) {
-	err := rt.MkdirAll(snapshotPath)
+func createSource(rt fsutil.FS, sourcePath, id string, source io.Reader) (*Source, error) {
+	err := rt.MkdirAll(sourcePath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	sourceDestPath := path.Join(snapshotPath, SourceFile)
+	sourceDestPath := path.Join(sourcePath, SourceFile)
 	destFile, err := rt.OpenWriter(sourceDestPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -223,7 +223,7 @@ func createSnapshot(rt fsutil.FS, snapshotPath, id string, source io.Reader) (*S
 		log.Println("failed to count characters:", err)
 	}
 
-	meta := SnapshotMeta{
+	meta := SourceMeta{
 		ID:        id,
 		CreatedAt: util.JSONTime(time.Now()),
 
@@ -233,7 +233,7 @@ func createSnapshot(rt fsutil.FS, snapshotPath, id string, source io.Reader) (*S
 		Comment:   "",
 	}
 
-	metaFilePath := path.Join(snapshotPath, SnapshotMetaFile)
+	metaFilePath := path.Join(sourcePath, SourceMetaFile)
 	metaFile, err := rt.OpenWriter(metaFilePath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -247,9 +247,9 @@ func createSnapshot(rt fsutil.FS, snapshotPath, id string, source io.Reader) (*S
 		return nil, util.Errorf("%w", err)
 	}
 
-	return &Snapshot{
+	return &Source{
 		root:       rt,
-		folderPath: snapshotPath,
+		folderPath: sourcePath,
 		meta:       &meta,
 	}, nil
 }

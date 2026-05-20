@@ -115,14 +115,14 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	snapshot, err := newBook.NewSnapshot(utf8File)
+	source, err := newBook.NewSource(utf8File)
 	if err != nil {
-		log.Printf("NewSnapshot error: %v", err)
-		http.Error(w, "failed to create snapshot from uploaded file", http.StatusInternalServerError)
+		log.Printf("NewSource error: %v", err)
+		http.Error(w, "failed to create source from uploaded file", http.StatusInternalServerError)
 		return
 	}
 
-	newBook.SetCurrentSnapshot(snapshot.ID())
+	newBook.SetCurrentSource(source.ID())
 
 	meta := newBook.GetMeta()
 	meta.Language = detectBookLang(newBook)
@@ -143,12 +143,12 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 }
 
 func detectBookLang(book *shelf.Book) string {
-	snapshot, err := book.GetSnapshot(book.CurrentSnapshot())
+	source, err := book.GetSource(book.CurrentSource())
 	if err != nil {
 		return ""
 	}
 
-	reader, err := snapshot.OpenSource()
+	reader, err := source.Open()
 	if err != nil {
 		return ""
 	}
