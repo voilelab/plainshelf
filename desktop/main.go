@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/voilelab/plainshelf/frontend"
 	"github.com/wailsapp/wails/v2"
@@ -23,7 +24,7 @@ func main() {
 			Middleware: func(next http.Handler) http.Handler {
 				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					// If the request is for an API endpoint, use the app's API handler
-					if r.URL.Path == "/api" || len(r.URL.Path) > 5 && r.URL.Path[:5] == "/api/" {
+					if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api" {
 						app.GetAPIHandler().ServeHTTP(w, r)
 						return
 					}
