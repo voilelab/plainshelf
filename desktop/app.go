@@ -41,7 +41,7 @@ func (a *DesktopApp) GetAPIHandler() http.Handler {
 }
 
 func (a *DesktopApp) startServer() error {
-	// Currently we only support darwin
+	// Store desktop app data under the current user's config directory.
 	dataRoot, err := os.UserConfigDir()
 	if err != nil {
 		return util.Errorf("%w", err)
