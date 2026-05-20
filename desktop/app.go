@@ -12,26 +12,22 @@ import (
 )
 
 type DesktopApp struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	app    *server.App
+	ctx context.Context
+	app *server.App
 }
 
 func NewDesktopApp() *DesktopApp {
 	return &DesktopApp{}
 }
 
-func (a *DesktopApp) Startup(ctx context.Context) {
-	a.ctx, a.cancel = context.WithCancel(ctx)
-	if err := a.startServer(); err != nil {
+func (a *DesktopApp) Startup(_ context.Context) {
+	err := a.startServer()
+	if err != nil {
 		panic(err)
 	}
 }
 
 func (a *DesktopApp) Shutdown() {
-	if a.cancel != nil {
-		a.cancel()
-	}
 	if a.app != nil {
 		err := a.app.Close()
 		if err != nil {

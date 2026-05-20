@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	webassets "github.com/voilelab/plainshelf/frontend"
+	"github.com/voilelab/plainshelf/frontend"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -19,7 +19,7 @@ func main() {
 		Width:  1280,
 		Height: 800,
 		AssetServer: &assetserver.Options{
-			Assets: webassets.WebFS,
+			Assets: frontend.WebFS,
 			Middleware: func(next http.Handler) http.Handler {
 				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					// If the request is for an API endpoint, use the app's API handler
@@ -39,6 +39,7 @@ func main() {
 
 		Bind: []any{app},
 	})
+
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -13,5 +13,3 @@ cd plainshelf-desktop
 go mod tidy
 wails dev
 ```
-
-Desktop app starts embedded `plainshelf-srv` via `server.RunWithContext` and waits for `/health`.
