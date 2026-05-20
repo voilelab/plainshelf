@@ -13,6 +13,13 @@ and UI behavior may still change between releases.
 
 ### Fixed
 
+## [v0.3.0] - 2026-05-20
+
+### Changed
+
+- Migrated book content storage from `snapshot` to `source` as the canonical field across server and frontend workflows.
+- Updated API and data-model terminology to align with the `source`-based content lifecycle before future migrations.
+
 ## [v0.2.0] - 2026-05-18
 
 ### Added
@@ -126,6 +133,8 @@ These repository tags are non-version markers kept for historical context:
 - `fyne-gui-last` - 2026-05-16
 - `cli-last` - 2026-05-16
 
-[Unreleased]: https://github.com/voilelab/plainshelf/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/voilelab/plainshelf/compare/v0.3.0...HEAD
+[v0.3.0]: https://github.com/voilelab/plainshelf/compare/v0.2.0...v0.3.0
+[v0.2.0]: https://github.com/voilelab/plainshelf/compare/v0.1.1...v0.2.0
 [v0.1.1]: https://github.com/voilelab/plainshelf/compare/v0.1.0...v0.1.1
 [v0.1.0]: https://github.com/voilelab/plainshelf/releases/tag/v0.1.0
