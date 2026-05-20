@@ -1,4 +1,4 @@
-module github.com/voilelab/plainshelf/plainshelf-desktop
+module github.com/voilelab/plainshelf/desktop
 
 go 1.26.1
 

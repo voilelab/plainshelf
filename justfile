@@ -16,3 +16,7 @@ server-frontend:
 # Build server: build Go server binary.
 server-backend: server-frontend
 	go build -o plainshelf-srv cmd/plainshelf-srv/main.go
+
+# Build desktop app
+desktop: server-frontend
+	cd desktop && wails build

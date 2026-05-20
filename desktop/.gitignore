@@ -1,3 +1,6 @@
 # wails
 /frontend/
-/build/
+
+/build/bin/
+/build/darwin/
+/build/windows/

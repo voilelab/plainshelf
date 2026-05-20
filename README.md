@@ -152,6 +152,14 @@ docker run --rm \
   plainshelf
 ```
 
+### Run desktop app
+
+```bash
+npm --prefix frontend run build
+cd desktop
+wails dev
+```
+
 ### Run tests
 
 ```bash

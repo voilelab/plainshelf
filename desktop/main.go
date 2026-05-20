@@ -16,8 +16,8 @@ func main() {
 
 	err := wails.Run(&options.App{
 		Title:  "PlainShelf",
-		Width:  1280,
-		Height: 800,
+		Width:  1600,
+		Height: 1200,
 		AssetServer: &assetserver.Options{
 			Assets: frontend.WebFS,
 			Middleware: func(next http.Handler) http.Handler {

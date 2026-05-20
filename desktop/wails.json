@@ -1,5 +1,5 @@
 {
-  "name": "plainshelf-desktop",
+  "name": "plainshelf",
   "outputfilename": "plainshelf",
   "frontend:install": "",
   "frontend:build": "",
