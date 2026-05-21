@@ -324,7 +324,7 @@ func (sec *Security) LogStartup(logger *logutil.Logger) {
 	}
 	switch sec.conf.Mode {
 	case SecurityModeLocalToken:
-		logger.Info("Local token security enabled; mutating /api requests require %s or Authorization: Bearer token", "token_header", sec.TokenHeader())
+		logger.Info("Local token security enabled; mutating /api requests require token header or Authorization: Bearer token", "token_header", sec.TokenHeader())
 	case SecurityModeNone:
 		logger.Warn("PlainShelf API security is disabled by app_conf.security.mode=none")
 	default:
