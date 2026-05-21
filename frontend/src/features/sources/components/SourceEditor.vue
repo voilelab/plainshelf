@@ -159,7 +159,8 @@ function replaceAll(): void {
     return;
   }
 
-  emit('update:modelValue', props.modelValue.split(query).join(replaceQuery.value));
+  const source = textareaRef.value?.value ?? props.modelValue;
+  emit('update:modelValue', source.split(query).join(replaceQuery.value));
 }
 </script>
 
