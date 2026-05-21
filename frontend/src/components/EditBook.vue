@@ -22,6 +22,11 @@
       <section class="section-block">
         <h3>Organization</h3>
         <label class="field">
+          <span class="label">Published At</span>
+          <input v-model="publishedAtInput" class="input" type="datetime-local" />
+        </label>
+
+        <label class="field">
           <span class="label">Language</span>
           <select v-model="languagePreset" class="input select">
             <option v-for="option in LANGUAGE_SELECT_OPTIONS" :key="option.value" :value="option.value">
@@ -101,6 +106,7 @@ const languagePreset = ref('');
 const customLanguage = ref('');
 const languageError = ref('');
 const comment = ref('');
+const publishedAtInput = ref('');
 
 watch(
   () => props.book,
@@ -121,6 +127,7 @@ watch(
     }
     languageError.value = '';
     comment.value = book.comment ?? '';
+    publishedAtInput.value = toDatetimeLocalValue(book.published_at);
   },
   { immediate: true }
 );
@@ -154,8 +161,32 @@ function onSubmit(): void {
     authors: commaStringToList(authorsInput.value),
     tags: commaStringToList(tagsInput.value),
     language: normalizedLanguage || '',
-    comment: comment.value.trim()
+    comment: comment.value.trim(),
+    published_at: fromDatetimeLocalValue(publishedAtInput.value)
   });
+}
+
+function toDatetimeLocalValue(rawValue?: string): string {
+  if (!rawValue) {
+    return '';
+  }
+  const date = new Date(rawValue);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const localTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localTime.toISOString().slice(0, 16);
+}
+
+function fromDatetimeLocalValue(rawValue: string): string | undefined {
+  if (!rawValue) {
+    return undefined;
+  }
+  const date = new Date(rawValue);
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+  return date.toISOString();
 }
 </script>
 
