@@ -27,13 +27,14 @@ type Book struct {
 }
 
 type UpdateBookRequest struct {
-	Title    *string       `json:"title"`
-	Authors  *[]string     `json:"authors"`
-	Tags     *[]string     `json:"tags"`
-	Language *string       `json:"language"`
-	Comment  *string       `json:"comment"`
-	Layer    *shelf.Layers `json:"layer"`
-	Layers   *shelf.Layers `json:"layers"`
+	Title       *string        `json:"title"`
+	Authors     *[]string      `json:"authors"`
+	Tags        *[]string      `json:"tags"`
+	Language    *string        `json:"language"`
+	Comment     *string        `json:"comment"`
+	PublishedAt *util.JSONTime `json:"published_at"`
+	Layer       *shelf.Layers  `json:"layer"`
+	Layers      *shelf.Layers  `json:"layers"`
 }
 
 // GET /api/books
@@ -166,6 +167,9 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Comment != nil {
 		meta.Comments = *req.Comment
+	}
+	if req.PublishedAt != nil {
+		meta.PublishedAt = *req.PublishedAt
 	}
 	meta.UpdatedAt = util.JSONTime(time.Now())
 
