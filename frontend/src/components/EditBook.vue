@@ -198,6 +198,10 @@ function focusTagInput(): void {
 }
 
 function onTagKeyDown(event: KeyboardEvent): void {
+  if (event.isComposing || event.key === 'Process') {
+    return;
+  }
+
   if (event.key === 'Enter' || event.key === ',') {
     event.preventDefault();
     commitTagDraft();
