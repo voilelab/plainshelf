@@ -186,7 +186,7 @@ function fromDatetimeLocalValue(rawValue: string): string | undefined {
   if (Number.isNaN(date.getTime())) {
     return undefined;
   }
-  return date.toISOString();
+  return `${date.toISOString().slice(0, 19)}Z`;
 }
 </script>
 
