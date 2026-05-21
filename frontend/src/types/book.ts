@@ -59,6 +59,7 @@ export interface BookUpdateRequest {
   authors?: string[];
   language?: string;
   comment?: string;
+  published_at?: string;
 }
 
 export interface BookCreateRequest {
