@@ -87,7 +87,13 @@
             {{ sortOrder === 'asc' ? 'Asc' : 'Desc' }}
           </button>
         </div>
-        <button class="button" type="button" @click="openImportModal">Import</button>
+        <div class="import-dropdown" ref="importDropdown">
+          <button class="button" type="button" @click="toggleImportDropdown">Import ▾</button>
+          <div v-if="showImportDropdown" class="import-dropdown-menu">
+            <button class="import-dropdown-item" type="button" @click="openImportFromFiles">Import from files</button>
+            <button class="import-dropdown-item" type="button" @click="openNewEmptyBookModal">New empty book</button>
+          </div>
+        </div>
       </template>
     </BookCollectionPage>
 
@@ -97,15 +103,22 @@
       @close="closeImportModal"
       @imported="onImported"
     />
+    <NewEmptyBookModal
+      :open="isNewEmptyBookModalOpen"
+      :current-layer-path="selectedLayer"
+      @close="closeNewEmptyBookModal"
+      @imported="onImported"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import type { Book } from '../types/book';
 import BookCollectionPage from '../components/BookCollectionPage.vue';
 import ImportBookModal from '../components/ImportBookModal.vue';
+import NewEmptyBookModal from '../components/NewEmptyBookModal.vue';
 import { useBookStore } from '../composables/useBookStore';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
 import { useBookPagination } from '../composables/useBookPagination';
@@ -142,6 +155,9 @@ const {
   clearSearch
 } = useBooksSearch(searchQuery.value);
 const booksLoaded = ref<boolean>(false);
+const showImportDropdown = ref(false);
+const isNewEmptyBookModalOpen = ref(false);
+const importDropdown = ref<HTMLElement | null>(null);
 const hasInitializedSearch = ref(false);
 
 async function reloadBooks(): Promise<void> {
@@ -302,13 +318,41 @@ function toggleOrder(): void {
   onOrderChange(sortOrder.value === 'asc' ? 'desc' : 'asc');
 }
 
-function openImportModal(): void {
+function openImportFromFiles(): void {
+  showImportDropdown.value = false;
+
   if (isImportModalOpen.value) {
     return;
   }
 
   void openImportModalQuery();
 }
+
+function openNewEmptyBookModal(): void {
+  showImportDropdown.value = false;
+  isNewEmptyBookModalOpen.value = true;
+}
+
+function closeNewEmptyBookModal(): void {
+  isNewEmptyBookModalOpen.value = false;
+}
+
+function toggleImportDropdown(): void {
+  showImportDropdown.value = !showImportDropdown.value;
+}
+
+function onDocumentClick(event: MouseEvent): void {
+  const target = event.target;
+  if (!(target instanceof Node)) {
+    return;
+  }
+
+  if (!importDropdown.value?.contains(target)) {
+    showImportDropdown.value = false;
+  }
+}
+
+
 
 function closeImportModal(): void {
   if (!isImportModalOpen.value) {
@@ -327,6 +371,15 @@ async function onImported(result: { successCount: number }): Promise<void> {
 function openBook(id: string): void {
   void router.push(`/books/${id}`);
 }
+
+
+onMounted(() => {
+  document.addEventListener('click', onDocumentClick);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocumentClick);
+});
 
 watch(selectedLayer, async () => {
   await reloadBooks();
@@ -383,6 +436,38 @@ watch(
 </script>
 
 <style scoped>
+
+.import-dropdown {
+  position: relative;
+}
+
+.import-dropdown-menu {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+  display: grid;
+  min-width: 180px;
+  padding: 6px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+}
+
+.import-dropdown-item {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.import-dropdown-item:hover {
+  background: #f4f7fb;
+}
+
 .breadcrumb-link {
   background: transparent;
   border: 0;
