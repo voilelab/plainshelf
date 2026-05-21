@@ -4,6 +4,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 
 	"github.com/voilelab/plainshelf/internal/util"
 )
@@ -96,4 +97,18 @@ func (l *RootFS) RemoveAll(name string) error {
 		return util.Errorf("%w", err)
 	}
 	return nil
+}
+
+func (l *RootFS) MkTemp(dir, pattern string) (string, error) {
+	root := l.root.Name()
+	if dir != "" {
+		root = path.Join(root, dir)
+	}
+
+	tempFile, err := os.CreateTemp(root, pattern)
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	tempFile.Close()
+	return tempFile.Name(), nil
 }
