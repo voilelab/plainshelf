@@ -64,9 +64,21 @@ func (app *App) Start() error {
 }
 
 func (app *App) Close() error {
-	// TBD: aggregate errors if both fail
-	app.storeDB.Close()
-	return app.shelf.Close()
+	err1 := app.storeDB.Close()
+	err2 := app.shelf.Close()
+
+	if err1 == nil && err2 == nil {
+		return nil
+	} else if err1 == nil {
+		// err2 is not nil
+		return util.Errorf("%w", err2)
+	} else if err2 == nil {
+		// err1 is not nil
+		return util.Errorf("%w", err1)
+	} else {
+		// both err1 and err2 are not nil, aggregate them
+		return util.Errorf("multiple errors: %w; %w", err1, err2)
+	}
 }
 
 func (app *App) Health(w http.ResponseWriter, r *http.Request) {
