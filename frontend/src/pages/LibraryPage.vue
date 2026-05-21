@@ -352,8 +352,6 @@ function onDocumentClick(event: MouseEvent): void {
   }
 }
 
-
-
 function closeImportModal(): void {
   if (!isImportModalOpen.value) {
     return;
