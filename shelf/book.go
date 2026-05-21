@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"path"
 	"strings"
 	"time"
@@ -176,8 +177,8 @@ func (b *Book) SetCurrentSource(sourceID string) error {
 
 	err = b.updateCurrentVersionLocation(sourceID)
 	if err != nil {
-		// TBD: rollback meta update?
-		return util.Errorf("%w", err)
+		// This error is not critical, just log it and continue.
+		log.Printf("warning: failed to update current version location: %v", err)
 	}
 
 	return nil
@@ -187,19 +188,17 @@ func (b *Book) updateCurrentVersionLocation(sourceID string) error {
 	sourcePath := path.Join(SourcesFolder, sourceID, SourceFile)
 	sourceContent := fmt.Sprintf(CurrentVersionLocationTemplate, sourcePath)
 
-	fp, err := b.root.OpenWriter(path.Join(b.folderPath, CurrentVersionLocationFile))
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-	defer fp.Close()
+	currentVersionLocationPath := path.Join(b.folderPath, CurrentVersionLocationFile)
+	tmpCurrentVersionLocationPath := currentVersionLocationPath + ".tmp"
 
-	n, err := fp.Write([]byte(sourceContent))
+	err := b.root.WriteFile(tmpCurrentVersionLocationPath, []byte(sourceContent))
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	if n != len(sourceContent) {
-		return util.Errorf("incomplete write: expected %d bytes, wrote %d bytes", len(sourceContent), n)
+	err = b.root.Rename(tmpCurrentVersionLocationPath, currentVersionLocationPath)
+	if err != nil {
+		return util.Errorf("%w", err)
 	}
 
 	return nil
@@ -232,25 +231,25 @@ func (b *Book) setMeta(meta *BookMeta) error {
 	}
 
 	// write back to book meta
-
-	encoder := json.NewEncoder(io.Discard)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(meta); err != nil {
+	bs, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
 	metaPath := path.Join(b.folderPath, BookMetaFile)
 
-	// TBD: write to a temp file and rename to ensure atomic update
-	metaFile, err := b.root.OpenWriter(metaPath)
+	// write to a temp file first, then rename to ensure atomic update
+	// When syncing to remote storage, the software should not sync the temp file,
+	// and only sync the final meta file after rename is successful,
+	// to avoid syncing incomplete meta file
+	tmpMetaPath := metaPath + ".tmp"
+
+	err = b.root.WriteFile(tmpMetaPath, bs)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	defer metaFile.Close()
 
-	encoder = json.NewEncoder(metaFile)
-	encoder.SetIndent("", "  ")
-	err = encoder.Encode(meta)
+	err = b.root.Rename(tmpMetaPath, metaPath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -261,7 +260,6 @@ func (b *Book) setMeta(meta *BookMeta) error {
 
 func (b *Book) NewSource(source io.Reader) (*Source, error) {
 	// create a new source for the given book with the provided source file and metadata
-	// TBD: atomic operation, rollback on failure
 	sourceID := time.Now().Format("20060102-150405")
 	sourcePath := path.Join(b.folderPath, SourcesFolder, sourceID)
 
@@ -272,8 +270,8 @@ func (b *Book) NewSource(source io.Reader) (*Source, error) {
 
 	err = b.updateCurrentVersionLocation(sourceID)
 	if err != nil {
-		// TBD: rollback meta update?
-		return nil, util.Errorf("%w", err)
+		// This error is not critical, just log it and continue.
+		log.Printf("warning: failed to update current version location: %v", err)
 	}
 
 	return src, nil
