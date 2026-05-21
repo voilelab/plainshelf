@@ -30,6 +30,13 @@ func loadAppConf(confPath string) (*SrvConf, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
+	if conf.AppConf == nil {
+		return nil, util.Errorf("invalid config: missing app_conf")
+	}
+	if conf.ServerConf == nil {
+		return nil, util.Errorf("invalid config: missing server_conf")
+	}
+
 	if err := ValidateSecurityForListenAddr(conf.AppConf.Security, conf.ServerConf.Addr); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
