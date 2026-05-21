@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -85,9 +87,9 @@ func MainService(confPath string) error {
 
 	go func() {
 		rootLogger.Info("Starting http server on", "addr", conf.ServerConf.Addr)
-		err = server.ListenAndServe()
-		if err != nil {
-			rootLogger.Error("http server error", "error", err)
+		listenErr := server.ListenAndServe()
+		if listenErr != nil && !errors.Is(listenErr, http.ErrServerClosed) {
+			rootLogger.Error("http server error", "error", listenErr)
 		}
 	}()
 
