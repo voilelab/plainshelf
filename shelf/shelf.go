@@ -266,7 +266,9 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 	for i := 1; ; i++ {
 		finalBookPath := path.Join(layerPath, folderName)
 		if _, err := s.dbRoot.Stat(finalBookPath); err != nil {
-			// TBD: handle error other than not exist
+			if !os.IsNotExist(err) {
+				return nil, util.Errorf("%w", err)
+			}
 			break
 		} else {
 			folderName = titleToFolderName(fmt.Sprintf("%s-%d", title, i))

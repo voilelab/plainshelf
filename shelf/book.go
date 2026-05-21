@@ -187,7 +187,12 @@ func (b *Book) updateCurrentVersionLocation(sourceID string) error {
 	sourcePath := path.Join(SourcesFolder, sourceID, SourceFile)
 	sourceContent := fmt.Sprintf(CurrentVersionLocationTemplate, sourcePath)
 
-	fp, err := b.root.OpenWriter(path.Join(b.folderPath, CurrentVersionLocationFile))
+	tmpMetaFilePath, err := b.root.MkTemp(path.Join(appFolder, appTmpFolder), "current_version_location_*.txt")
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	fp, err := b.root.OpenWriter(tmpMetaFilePath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -200,6 +205,11 @@ func (b *Book) updateCurrentVersionLocation(sourceID string) error {
 
 	if n != len(sourceContent) {
 		return util.Errorf("incomplete write: expected %d bytes, wrote %d bytes", len(sourceContent), n)
+	}
+
+	err = b.root.Rename(tmpMetaFilePath, path.Join(b.folderPath, CurrentVersionLocationFile))
+	if err != nil {
+		return util.Errorf("%w", err)
 	}
 
 	return nil
@@ -241,8 +251,12 @@ func (b *Book) setMeta(meta *BookMeta) error {
 
 	metaPath := path.Join(b.folderPath, BookMetaFile)
 
-	// TBD: write to a temp file and rename to ensure atomic update
-	metaFile, err := b.root.OpenWriter(metaPath)
+	tmpFilePath, err := b.root.MkTemp(path.Join(appFolder, appTmpFolder), "book_meta_*.json")
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	metaFile, err := b.root.OpenWriter(tmpFilePath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -255,13 +269,17 @@ func (b *Book) setMeta(meta *BookMeta) error {
 		return util.Errorf("%w", err)
 	}
 
+	err = b.root.Rename(tmpFilePath, metaPath)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	b.meta = meta
 	return nil
 }
 
 func (b *Book) NewSource(source io.Reader) (*Source, error) {
 	// create a new source for the given book with the provided source file and metadata
-	// TBD: atomic operation, rollback on failure
 	sourceID := time.Now().Format("20060102-150405")
 	sourcePath := path.Join(b.folderPath, SourcesFolder, sourceID)
 
