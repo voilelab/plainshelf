@@ -108,9 +108,10 @@ function findMatch(backward: boolean): void {
     return;
   }
 
-  const text = props.modelValue;
-  const start = backward ? textarea.selectionStart - 1 : textarea.selectionEnd;
-  let index = backward ? text.lastIndexOf(query, Math.max(0, start)) : text.indexOf(query, start);
+  const text = textarea.value;
+  let index = backward
+    ? text.slice(0, textarea.selectionStart).lastIndexOf(query)
+    : text.indexOf(query, textarea.selectionEnd);
 
   if (index === -1) {
     index = backward ? text.lastIndexOf(query) : text.indexOf(query);
