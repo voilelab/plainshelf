@@ -198,6 +198,10 @@ func (b *Book) updateCurrentVersionLocation(sourceID string) error {
 
 	err = b.root.Rename(tmpCurrentVersionLocationPath, currentVersionLocationPath)
 	if err != nil {
+		err2 := b.root.Remove(tmpCurrentVersionLocationPath)
+		if err2 != nil {
+			log.Printf("warning: failed to remove temp current version location file: %v", err2)
+		}
 		return util.Errorf("%w", err)
 	}
 
@@ -251,6 +255,10 @@ func (b *Book) setMeta(meta *BookMeta) error {
 
 	err = b.root.Rename(tmpMetaPath, metaPath)
 	if err != nil {
+		err2 := b.root.Remove(tmpMetaPath)
+		if err2 != nil {
+			log.Printf("warning: failed to remove temp meta file: %v", err2)
+		}
 		return util.Errorf("%w", err)
 	}
 
