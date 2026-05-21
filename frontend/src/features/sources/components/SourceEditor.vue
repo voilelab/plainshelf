@@ -155,7 +155,7 @@ function replaceNext(): void {
 }
 
 function onReplaceInputKeydown(event: KeyboardEvent): void {
-  if (event.key !== 'Enter' || event.isComposing || event.keyCode === 229) {
+  if (event.key !== 'Enter' || event.isComposing) {
     return;
   }
 
