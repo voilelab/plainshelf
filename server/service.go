@@ -54,6 +54,11 @@ func MainService(confPath string) error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
+	defer func() {
+		if err := rootLogger.Close(); err != nil {
+			_, _ = os.Stderr.WriteString("failed to close root logger: " + err.Error() + "\n")
+		}
+	}()
 
 	rootLogger.Info("Create App...")
 	app, err := NewApp(conf.AppConf)
