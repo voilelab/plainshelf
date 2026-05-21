@@ -59,6 +59,29 @@ func (l *RootFS) OpenWriter(name string) (io.WriteCloser, error) {
 	return fp, nil
 }
 
+func (l *RootFS) WriteFile(name string, data []byte) error {
+	fp, err := l.OpenWriter(name)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	written := 0
+	for written < len(data) {
+		n, err := fp.Write(data[written:])
+		if err != nil {
+			fp.Close()
+			return util.Errorf("%w", err)
+		}
+		written += n
+	}
+
+	if err := fp.Close(); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
+}
+
 func (l *RootFS) Mkdir(name string) error {
 	err := l.root.Mkdir(name, 0755)
 	if err != nil {
