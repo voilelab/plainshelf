@@ -2,19 +2,20 @@ package server
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/voilelab/plainshelf/internal/httputil"
+	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"gopkg.in/yaml.v3"
 )
 
 type SrvConf struct {
-	ServerConf *httputil.Conf `yaml:"server_conf"`
-	AppConf    *AppConf       `yaml:"app_conf"`
+	Logger     logutil.LogConf `yaml:"logger"`
+	ServerConf *httputil.Conf  `yaml:"server_conf"`
+	AppConf    *AppConf        `yaml:"app_conf"`
 }
 
 func loadAppConf(confPath string) (*SrvConf, error) {
@@ -29,6 +30,10 @@ func loadAppConf(confPath string) (*SrvConf, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
+	if err := ValidateSecurityForListenAddr(conf.AppConf.Security, conf.ServerConf.Addr); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
 	return &conf, nil
 }
 
@@ -38,26 +43,27 @@ func MainService(confPath string) error {
 		return util.Errorf("%w", err)
 	}
 
-	if err := ValidateSecurityForListenAddr(conf.AppConf.Security, conf.ServerConf.Addr); err != nil {
+	rootLogger, err := logutil.NewLogger(&conf.Logger)
+	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	log.Println("Create App...")
+	rootLogger.Info("Create App...")
 	app, err := NewApp(conf.AppConf)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 	defer app.Close()
-	log.Println("Create App...done")
+	rootLogger.Info("Create App...done")
 
-	log.Println("Start App...")
+	rootLogger.Info("Start App...")
 	err = app.Start()
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	log.Println("Start App...done")
+	rootLogger.Info("Start App...done")
 
-	app.security.LogStartup()
+	app.security.LogStartup(rootLogger)
 
 	server, err := httputil.NewServer(conf.ServerConf)
 	if err != nil {
@@ -66,18 +72,18 @@ func MainService(confPath string) error {
 	server.Handler = app.Handler()
 
 	go func() {
-		log.Println("Starting http server on", conf.ServerConf.Addr)
+		rootLogger.Info("Starting http server on", "addr", conf.ServerConf.Addr)
 		err = server.ListenAndServe()
 		if err != nil {
-			log.Println(err)
+			rootLogger.Error("http server error", "error", err)
 		}
 	}()
 
 	defer func() {
-		log.Println("shutting down http server")
+		rootLogger.Info("shutting down http server")
 		err = server.Shutdown(context.TODO())
 		if err != nil {
-			log.Println("failed to shutdown http server:", err)
+			rootLogger.Error("failed to shutdown http server", "error", err)
 		}
 	}()
 

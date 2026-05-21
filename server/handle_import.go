@@ -2,7 +2,6 @@ package server
 
 import (
 	"encoding/json"
-	"log"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -103,21 +102,21 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 
 	newBook, err := app.shelf.NewBook(layerParts, title)
 	if err != nil {
-		log.Printf("NewBook error: %v", err)
+		app.Error("failed to create new book", "error", err)
 		http.Error(w, "failed to create new book", http.StatusInternalServerError)
 		return
 	}
 
 	utf8File, _, err := util.ReEncodeToUTF8(f)
 	if err != nil {
-		log.Printf("ReEncodeToUTF8 error: %v", err)
+		app.Error("failed to re-encode uploaded file to UTF-8", "error", err)
 		http.Error(w, "failed to re-encode uploaded file to UTF-8", http.StatusInternalServerError)
 		return
 	}
 
 	source, err := newBook.NewSource(utf8File)
 	if err != nil {
-		log.Printf("NewSource error: %v", err)
+		app.Error("failed to create source from uploaded file", "error", err)
 		http.Error(w, "failed to create source from uploaded file", http.StatusInternalServerError)
 		return
 	}
@@ -127,7 +126,7 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	meta := newBook.GetMeta()
 	meta.Language = detectBookLang(newBook)
 	if err := newBook.SetMeta(meta); err != nil {
-		log.Printf("SetMeta error: %v", err)
+		app.Error("failed to set book meta", "error", err)
 	}
 
 	resp := Book{
@@ -138,7 +137,7 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("HandleAPIImportBook encode response: %v", err)
+		app.Error("failed to encode response", "error", err)
 	}
 }
 
