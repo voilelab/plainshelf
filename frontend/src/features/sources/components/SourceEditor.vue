@@ -28,7 +28,7 @@
           type="text"
           placeholder="Replace with"
           :disabled="isEditorDisabled"
-          @keydown.enter.prevent="replaceNext"
+          @keydown="onReplaceInputKeydown"
         />
       </label>
 
@@ -152,6 +152,15 @@ function replaceNext(): void {
   }
 
   findNext();
+}
+
+function onReplaceInputKeydown(event: KeyboardEvent): void {
+  if (event.key !== 'Enter' || event.isComposing || event.keyCode === 229) {
+    return;
+  }
+
+  event.preventDefault();
+  replaceNext();
 }
 
 function replaceAll(): void {
