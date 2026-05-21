@@ -64,15 +64,20 @@ func (l *RootFS) WriteFile(name string, data []byte) error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	defer fp.Close()
 
 	n, err := fp.Write(data)
 	if err != nil {
+		fp.Close()
 		return util.Errorf("%w", err)
 	}
 
 	if n != len(data) {
+		fp.Close()
 		return util.Errorf("incomplete write: wrote %d of %d bytes", n, len(data))
+	}
+
+	if err := fp.Close(); err != nil {
+		return util.Errorf("%w", err)
 	}
 
 	return nil
