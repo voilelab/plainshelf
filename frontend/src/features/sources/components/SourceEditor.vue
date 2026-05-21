@@ -7,9 +7,47 @@
       <p v-else class="meta">No pending changes</p>
     </div>
 
+    <div class="editor-find-replace" role="group" aria-label="Find and replace">
+      <label class="control-field">
+        <span class="field-label">Find</span>
+        <input
+          v-model="findQuery"
+          class="control-input"
+          type="text"
+          placeholder="Search text"
+          :disabled="isEditorDisabled"
+          @keydown.enter.prevent="findNext"
+        />
+      </label>
+
+      <label class="control-field">
+        <span class="field-label">Replace</span>
+        <input
+          v-model="replaceQuery"
+          class="control-input"
+          type="text"
+          placeholder="Replace with"
+          :disabled="isEditorDisabled"
+          @keydown.enter.prevent="replaceNext"
+        />
+      </label>
+
+      <div class="find-actions">
+        <button class="button" type="button" :disabled="disableFind" @click="findPrevious">Prev</button>
+        <button class="button" type="button" :disabled="disableFind" @click="findNext">Next</button>
+        <button class="button" type="button" :disabled="disableFind" @click="replaceNext">
+          Replace
+        </button>
+        <button class="button" type="button" :disabled="disableFind" @click="replaceAll">
+          Replace all
+        </button>
+      </div>
+    </div>
+
     <div v-if="error" class="error editor-error" role="alert">{{ error }}</div>
 
     <textarea
+      ref="textareaRef"
       class="source-content-textarea"
       :value="modelValue"
       :disabled="!sourceId || loading || saving"
@@ -20,7 +58,9 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+import { computed, nextTick, ref, watch } from 'vue';
+
+const props = defineProps<{
   modelValue: string;
   sourceId: string;
   loading?: boolean;
@@ -33,9 +73,93 @@ const emit = defineEmits<{
   'update:modelValue': [value: string];
 }>();
 
+const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const findQuery = ref('');
+const replaceQuery = ref('');
+
+const isEditorDisabled = computed(() => !props.sourceId || props.loading || props.saving);
+const disableFind = computed(() => isEditorDisabled.value || !findQuery.value);
+
+watch(
+  () => props.sourceId,
+  () => {
+    findQuery.value = '';
+    replaceQuery.value = '';
+  }
+);
+
 function onInput(event: Event): void {
   const target = event.target as HTMLTextAreaElement;
   emit('update:modelValue', target.value);
+}
+
+function findNext(): void {
+  findMatch(false);
+}
+
+function findPrevious(): void {
+  findMatch(true);
+}
+
+function findMatch(backward: boolean): void {
+  const textarea = textareaRef.value;
+  const query = findQuery.value;
+  if (!textarea || !query || isEditorDisabled.value) {
+    return;
+  }
+
+  const text = props.modelValue;
+  const start = backward ? textarea.selectionStart - 1 : textarea.selectionEnd;
+  let index = backward ? text.lastIndexOf(query, Math.max(0, start)) : text.indexOf(query, start);
+
+  if (index === -1) {
+    index = backward ? text.lastIndexOf(query) : text.indexOf(query);
+  }
+
+  if (index === -1) {
+    return;
+  }
+
+  textarea.focus();
+  textarea.setSelectionRange(index, index + query.length);
+}
+
+function replaceNext(): void {
+  const textarea = textareaRef.value;
+  const query = findQuery.value;
+  if (!textarea || !query || isEditorDisabled.value) {
+    return;
+  }
+
+  const selection = textarea.value.slice(textarea.selectionStart, textarea.selectionEnd);
+  if (selection === query) {
+    const before = textarea.value.slice(0, textarea.selectionStart);
+    const after = textarea.value.slice(textarea.selectionEnd);
+    const replaced = `${before}${replaceQuery.value}${after}`;
+    const nextCursor = before.length + replaceQuery.value.length;
+    emit('update:modelValue', replaced);
+    void nextTick(() => {
+      const current = textareaRef.value;
+      if (!current) {
+        return;
+      }
+      current.focus();
+      current.setSelectionRange(nextCursor, nextCursor);
+      findNext();
+    });
+    return;
+  }
+
+  findNext();
+}
+
+function replaceAll(): void {
+  const query = findQuery.value;
+  if (!query || isEditorDisabled.value) {
+    return;
+  }
+
+  emit('update:modelValue', props.modelValue.split(query).join(replaceQuery.value));
 }
 </script>
 
@@ -94,7 +218,51 @@ function onInput(event: Event): void {
   outline-offset: -2px;
 }
 
+.editor-find-replace {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 8px 10px;
+  align-items: end;
+  background: #f8fafc;
+}
+
+.control-field {
+  display: grid;
+  gap: 4px;
+}
+
+.field-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.control-input {
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 10px;
+  font: inherit;
+}
+
+.find-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .editor-error {
   margin: 10px 12px;
+}
+
+@media (max-width: 900px) {
+  .editor-find-replace {
+    grid-template-columns: 1fr;
+  }
+
+  .find-actions {
+    flex-wrap: wrap;
+  }
 }
 </style>
