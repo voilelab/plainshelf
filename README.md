@@ -56,6 +56,8 @@ shelf/              # core library package
 server/             # local HTTP server implementation
 frontend/           # Vue web frontend
 internal/           # internal shared utilities
+desktop/            # experimental Wails desktop client
+migrations/         # shelf data migrations
 ```
 
 The current primary development focus is:
@@ -73,9 +75,17 @@ PlainShelf is filesystem-first.
 A typical vault may look like this:
 
 ```text
-lib/
+{shelf}/
 ├─ books/
+|  ├─ {book1-folder}.novl/
+|  ├─ {layer1}/
+|  |  └─ {book2-folder}.novl/
+|  └─ {layer2}/
+|     └─ {layer3}/
+|        └─ {book3-folder}.novl/
 └─ app/
+   ├─ library.lock
+   └─ tmp/
 ```
 
 ### `books/`
@@ -85,7 +95,16 @@ Source of truth.
 This contains user-owned data such as book metadata,
 text files, covers, notes, and other long-lived files.
 
-Within each book, files are organized under a dedicated `sources/` tree (for example `sources/<source-id>/source.txt` and `sources/<source-id>/meta.json`). This keeps every imported or split text segment file-backed and auditable, so the shelf can always be rebuilt from files on disk.
+```text
+{book-folder}.novl/
+├─ book.json
+├─ CURRENT_VERSION_LOCATION.txt
+├─ cover.(jpg|png|webp)
+└─ sources/
+   └─ {source-id}
+      ├─ source.txt
+      └─ meta.json
+```
 
 ### `app/`
 

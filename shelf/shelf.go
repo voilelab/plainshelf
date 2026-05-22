@@ -20,12 +20,11 @@ import (
 /*
 Layout:
 {library}/books/
-  l/
-    lotm-7k3x/
-  s/
-    sicp-v2m8/
-  b/
-    book-a82m/
+  {book1-folder}/
+  {layer1}/
+	{book2-folder}/
+	{layer2}/
+	  {book2-folder}
 {library}/app/
   library.lock
   tmp/
