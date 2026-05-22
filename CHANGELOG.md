@@ -18,8 +18,8 @@ and UI behavior may still change between releases.
 
 - Improved server API error logging to include richer response diagnostics.
 - Refined logger argument handling and shelf-close error handling paths for more predictable shutdown behavior.
-- Refine configuration of shelf.
-- Improve tag input UI in metadata editor.
+- Refined shelf configuration.
+- Improved tag input UI in metadata editor.
 
 ### Fixed
 
