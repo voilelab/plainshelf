@@ -92,12 +92,3 @@ func (l *LocalFS) RemoveAll(name string) error {
 	}
 	return nil
 }
-
-func (l *LocalFS) MkTemp(dir, pattern string) (string, error) {
-	tempFile, err := os.CreateTemp(path.Join(l.root, dir), pattern)
-	if err != nil {
-		return "", util.Errorf("%w", err)
-	}
-	tempFile.Close()
-	return tempFile.Name(), nil
-}

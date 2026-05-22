@@ -43,7 +43,4 @@ type FS interface {
 
 	// RemoveAll removes the specified file or directory and any children it contains.
 	RemoveAll(name string) error
-
-	// MkTemp creates a new temporary file in the specified directory with a name beginning with the specified pattern and returns the name of the new file.
-	MkTemp(dir, pattern string) (string, error)
 }
