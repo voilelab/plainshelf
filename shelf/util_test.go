@@ -66,11 +66,16 @@ func TestValidateBCP47(t *testing.T) {
 }
 
 func newLoggerForTest() logutil.Logger {
-	logger, _ := logutil.NewLogger(&logutil.LogConf{
+	logger, err := logutil.NewLogger(&logutil.LogConf{
 		Format:    "json",
 		Level:     "debug",
 		LogFile:   logutil.LogFileConf{Type: logutil.LogFileTypeDefault},
 		AddSource: false,
 	})
+
+	if err != nil {
+		panic("Failed to create logger for test: " + err.Error())
+	}
+
 	return *logger
 }
