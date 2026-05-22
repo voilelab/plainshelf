@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -630,7 +629,7 @@ func (app *App) HandleAPIFindDuplicateBooks(w http.ResponseWriter, r *http.Reque
 	for _, b := range books {
 		source, err := b.GetSource(b.CurrentSource())
 		if err != nil {
-			log.Printf("failed to get source for book %s: %v", b.ID(), err)
+			app.Warn("failed to get source for book", "book_id", b.ID(), "error", err)
 			continue
 		}
 		meta := source.GetMeta()

@@ -3,17 +3,21 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"net/http"
 	"strings"
 
 	"github.com/voilelab/plainshelf/frontend"
+	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server/store"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
 type App struct {
+	logutil.Logger
+
 	shelf      *shelf.Shelf
 	storeDB    *store.DB
 	spaFS      fs.FS
@@ -24,14 +28,20 @@ type App struct {
 }
 
 type AppConf struct {
-	ShelfPath        string        `yaml:"shelf_path"`
-	StorePath        string        `yaml:"store_path"`
-	CoverToJPG       bool          `yaml:"cover_to_jpg"`
-	ReadHistoryLimit int           `yaml:"read_history_limit"`
-	Security         *SecurityConf `yaml:"security"`
+	Logger           logutil.LogConf `yaml:"logger"`
+	ShelfPath        string          `yaml:"shelf_path"`
+	StorePath        string          `yaml:"store_path"`
+	CoverToJPG       bool            `yaml:"cover_to_jpg"`
+	ReadHistoryLimit int             `yaml:"read_history_limit"`
+	Security         *SecurityConf   `yaml:"security"`
 }
 
 func NewApp(conf *AppConf) (*App, error) {
+	logger, err := logutil.NewLogger(&conf.Logger)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
 	s, err := shelf.OpenLocalShelf(conf.ShelfPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -50,6 +60,7 @@ func NewApp(conf *AppConf) (*App, error) {
 	}
 
 	return &App{
+		Logger:     *logger,
 		shelf:      s,
 		storeDB:    storeDB,
 		spaFS:      frontend.WebFS,
@@ -66,19 +77,13 @@ func (app *App) Start() error {
 func (app *App) Close() error {
 	err1 := app.storeDB.Close()
 	err2 := app.shelf.Close()
+	err3 := app.Logger.Close()
 
-	if err1 == nil && err2 == nil {
-		return nil
-	} else if err1 == nil {
-		// err2 is not nil
-		return util.Errorf("%w", err2)
-	} else if err2 == nil {
-		// err1 is not nil
-		return util.Errorf("%w", err1)
-	} else {
-		// both err1 and err2 are not nil, aggregate them
-		return util.Errorf("multiple errors: %w; %w", err1, err2)
+	err := errors.Join(err1, err2, err3)
+	if err != nil {
+		return util.Errorf("%w", err)
 	}
+	return nil
 }
 
 func (app *App) Health(w http.ResponseWriter, r *http.Request) {
