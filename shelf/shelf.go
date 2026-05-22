@@ -190,19 +190,30 @@ func (s *Shelf) unlock() error {
 
 // Close releases any resources held by the Shelf instance.
 func (s *Shelf) Close() error {
+	errs := []error{}
 	if s.localLock != nil {
 		err := s.localLock.Close()
 		if err != nil {
-			s.Error("Error closing local lock", "error", err)
+			errs = append(errs, err)
 		}
 	}
 
 	if s.close != nil {
 		err := s.close()
 		if err != nil {
-			s.Error("Error closing shelf", "error", err)
+			errs = append(errs, err)
 		}
 	}
+
+	err := s.Logger.Close()
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return util.Errorf("%w", errors.Join(errs...))
+	}
+
 	return nil
 }
 
