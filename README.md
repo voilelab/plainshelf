@@ -85,6 +85,8 @@ Source of truth.
 This contains user-owned data such as book metadata,
 text files, covers, notes, and other long-lived files.
 
+Within each book, files are organized under a dedicated `sources/` tree (for example `sources/<source-id>/source.txt` and `sources/<source-id>/meta.json`). This keeps every imported or split text segment file-backed and auditable, so the shelf can always be rebuilt from files on disk.
+
 ### `app/`
 
 Runtime state.
@@ -152,7 +154,10 @@ docker run --rm \
   plainshelf
 ```
 
-### Run desktop app
+### Run desktop app (experimental Wails Desktop)
+
+The desktop client is currently **experimental** and built with Wails.
+Expect rough edges while core shelf/server behavior is still evolving.
 
 ```bash
 npm --prefix frontend run build
