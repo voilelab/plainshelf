@@ -10,11 +10,16 @@ and UI behavior may still change between releases.
 ### Added
 
 - Added configurable shelf logging output support through application logging configuration.
+- Added experimental Wails GUI support for local desktop usage.
+- Added create empty book functionality to frontend.
+- Added edit book's publish date support to frontend.
 
 ### Changed
 
 - Improved server API error logging to include richer response diagnostics.
 - Refined logger argument handling and shelf-close error handling paths for more predictable shutdown behavior.
+- Refine configuration of shelf.
+- Improve tag input UI in metadata editor.
 
 ### Fixed
 
