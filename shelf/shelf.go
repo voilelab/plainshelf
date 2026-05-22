@@ -63,60 +63,36 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	shelf, err := OpenLocalShelf(conf.LibRoot)
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	shelf.Logger = *logger
-	return shelf, nil
-}
-
-// OpenLocalShelf initializes a new Shelf instance with the given library root path.
-func OpenLocalShelf(libRoot string) (*Shelf, error) {
 	var rt *os.Root
-	rt, err := os.OpenRoot(libRoot)
+	rt, err = os.OpenRoot(conf.LibRoot)
 	if err != nil {
 		// Auto create the library if it doesn't exist
 		if !os.IsNotExist(err) {
 			return nil, util.Errorf("%w", err)
 		}
 
-		err = os.MkdirAll(libRoot, 0755)
+		err = os.MkdirAll(conf.LibRoot, 0755)
 		if err != nil {
 			return nil, util.Errorf("%w", err)
 		}
-		rt, err = os.OpenRoot(libRoot)
+		rt, err = os.OpenRoot(conf.LibRoot)
 		if err != nil {
 			return nil, util.Errorf("%w", err)
 		}
 	}
 
 	shelf := &Shelf{
+		Logger:    *logger,
 		dbRoot:    fsutil.NewRootFS(rt),
 		readonly:  false,
 		close:     rt.Close,
-		localLock: flock.New(path.Join(libRoot, appFolder, libraryLockFile)),
+		localLock: flock.New(path.Join(conf.LibRoot, appFolder, libraryLockFile)),
 	}
 
 	err = shelf.makeStructure()
 	if err != nil {
 		rt.Close()
 		return nil, util.Errorf("%w", err)
-	}
-
-	return shelf, nil
-}
-
-// OpenShelf initializes a new Shelf instance with the given fsutil.FS as the library root.
-func OpenShelf(root fsutil.FS, readonly bool) (*Shelf, error) {
-	shelf := &Shelf{dbRoot: root, readonly: readonly}
-
-	if !readonly {
-		err := shelf.makeStructure()
-		if err != nil {
-			return nil, util.Errorf("%w", err)
-		}
 	}
 
 	return shelf, nil
