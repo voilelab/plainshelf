@@ -9,6 +9,7 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 type DesktopApp struct {
@@ -51,7 +52,9 @@ func (a *DesktopApp) startServer() error {
 	}
 
 	appConf := &server.AppConf{
-		ShelfPath:        filepath.Join(dataRoot, "shelf"),
+		Shelf: &shelf.ShelfConf{
+			LibRoot: filepath.Join(dataRoot, "shelf"),
+		},
 		StorePath:        filepath.Join(dataRoot, "store"),
 		CoverToJPG:       true,
 		ReadHistoryLimit: 100,

@@ -28,12 +28,12 @@ type App struct {
 }
 
 type AppConf struct {
-	Logger           logutil.LogConf `yaml:"logger"`
-	ShelfPath        string          `yaml:"shelf_path"`
-	StorePath        string          `yaml:"store_path"`
-	CoverToJPG       bool            `yaml:"cover_to_jpg"`
-	ReadHistoryLimit int             `yaml:"read_history_limit"`
-	Security         *SecurityConf   `yaml:"security"`
+	Logger           logutil.LogConf  `yaml:"logger"`
+	Shelf            *shelf.ShelfConf `yaml:"shelf"`
+	StorePath        string           `yaml:"store_path"`
+	CoverToJPG       bool             `yaml:"cover_to_jpg"`
+	ReadHistoryLimit int              `yaml:"read_history_limit"`
+	Security         *SecurityConf    `yaml:"security"`
 }
 
 func NewApp(conf *AppConf) (*App, error) {
@@ -42,7 +42,7 @@ func NewApp(conf *AppConf) (*App, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	s, err := shelf.OpenLocalShelf(conf.ShelfPath)
+	s, err := shelf.NewShelf(conf.Shelf)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

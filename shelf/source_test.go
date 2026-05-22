@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/logutil"
 )
 
 func TestOpenSource(t *testing.T) {
@@ -86,7 +87,7 @@ func TestUpdateSource(t *testing.T) {
 	defer srcFile.Close()
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	source, err := createSource(rootFS, "test-source", "20260315-a4", srcFile)
+	source, err := createSource(rootFS, "test-source", "20260315-a4", srcFile, logutil.NewDefaultLogger())
 	if err != nil {
 		t.Fatalf("Failed to create source: %v", err)
 	}
@@ -160,7 +161,7 @@ func TestCreateRootSource(t *testing.T) {
 	defer srcFile.Close()
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	source, err := createSource(rootFS, "test-source", "20260315-a3", srcFile)
+	source, err := createSource(rootFS, "test-source", "20260315-a3", srcFile, logutil.NewDefaultLogger())
 	if err != nil {
 		t.Fatalf("Failed to create source: %v", err)
 	}

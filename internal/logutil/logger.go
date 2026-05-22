@@ -27,6 +27,16 @@ type Logger struct {
 	logFile *LogFile
 }
 
+func NewDefaultLogger() *Logger {
+	logger, _ := NewLogger(&LogConf{
+		Format:    "json",
+		Level:     "info",
+		LogFile:   LogFileConf{Type: LogFileTypeDefault},
+		AddSource: false,
+	})
+	return logger
+}
+
 func NewLogger(conf *LogConf) (*Logger, error) {
 	var level slog.Level
 	switch conf.Level {

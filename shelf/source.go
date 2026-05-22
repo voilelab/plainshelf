@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"io"
 	"io/fs"
-	"log"
 	"path"
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/hashutil"
+	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
@@ -169,7 +169,7 @@ func openSource(rt fsutil.FS, sourcePath string) (*Source, error) {
 	}, nil
 }
 
-func createSource(rt fsutil.FS, sourcePath, id string, source io.Reader) (*Source, error) {
+func createSource(rt fsutil.FS, sourcePath, id string, source io.Reader, logger *logutil.Logger) (*Source, error) {
 	err := rt.MkdirAll(sourcePath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -208,7 +208,7 @@ func createSource(rt fsutil.FS, sourcePath, id string, source io.Reader) (*Sourc
 	lineCount, err := util.LineCount(destFile2)
 	if err != nil {
 		lineCount = 0
-		log.Println("failed to count lines:", err)
+		logger.Error("failed to count lines", "error", err)
 	}
 
 	destFile3, err := rt.Open(sourceDestPath)
@@ -220,7 +220,7 @@ func createSource(rt fsutil.FS, sourcePath, id string, source io.Reader) (*Sourc
 	charCount, err := util.CharCount(destFile3)
 	if err != nil {
 		charCount = 0
-		log.Println("failed to count characters:", err)
+		logger.Error("failed to count characters", "error", err)
 	}
 
 	meta := SourceMeta{
