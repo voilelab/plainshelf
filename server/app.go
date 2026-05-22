@@ -37,6 +37,10 @@ type AppConf struct {
 }
 
 func NewApp(conf *AppConf) (*App, error) {
+	if conf == nil {
+		return nil, util.Errorf("config cannot be nil")
+	}
+
 	security, err := NewSecurity(conf.Security)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
