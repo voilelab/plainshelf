@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
-	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
@@ -44,14 +43,4 @@ func validateBCP47(lang string) bool {
 	}
 
 	return bcp47Regex.MatchString(lang)
-}
-
-func newLoggerForTest() logutil.Logger {
-	logger, _ := logutil.NewLogger(&logutil.LogConf{
-		Format:    "json",
-		Level:     "debug",
-		LogFile:   logutil.LogFileConf{Type: logutil.LogFileTypeDefault},
-		AddSource: false,
-	})
-	return *logger
 }

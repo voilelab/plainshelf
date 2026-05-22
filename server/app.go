@@ -37,6 +37,11 @@ type AppConf struct {
 }
 
 func NewApp(conf *AppConf) (*App, error) {
+	security, err := NewSecurity(conf.Security)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
 	logger, err := logutil.NewLogger(&conf.Logger)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -44,18 +49,14 @@ func NewApp(conf *AppConf) (*App, error) {
 
 	s, err := shelf.NewShelf(conf.Shelf)
 	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	security, err := NewSecurity(conf.Security)
-	if err != nil {
-		s.Close()
+		logger.Close()
 		return nil, util.Errorf("%w", err)
 	}
 
 	storeDB, err := store.New(conf.StorePath, conf.ReadHistoryLimit)
 	if err != nil {
 		s.Close()
+		logger.Close()
 		return nil, util.Errorf("%w", err)
 	}
 

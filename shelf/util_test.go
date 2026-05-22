@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/logutil"
 )
 
 func TestCreateTempDir(t *testing.T) {
@@ -62,4 +63,14 @@ func TestValidateBCP47(t *testing.T) {
 			t.Errorf("validateBCP47(%q) = %v; expected %v", test.lang, result, test.expected)
 		}
 	}
+}
+
+func newLoggerForTest() logutil.Logger {
+	logger, _ := logutil.NewLogger(&logutil.LogConf{
+		Format:    "json",
+		Level:     "debug",
+		LogFile:   logutil.LogFileConf{Type: logutil.LogFileTypeDefault},
+		AddSource: false,
+	})
+	return *logger
 }
