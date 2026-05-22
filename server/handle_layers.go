@@ -9,6 +9,7 @@ import (
 func (app *App) HandleAPIGetLayers(w http.ResponseWriter, r *http.Request) {
 	layers, err := app.shelf.GetAllLayers()
 	if err != nil {
+		app.Error("failed to get layers", "error", err)
 		http.Error(w, "failed to get layers", http.StatusInternalServerError)
 		return
 	}
@@ -16,6 +17,7 @@ func (app *App) HandleAPIGetLayers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	err = json.NewEncoder(w).Encode(layers)
 	if err != nil {
+		app.Error("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
@@ -31,6 +33,7 @@ func (app *App) HandleAPICreateLayer(w http.ResponseWriter, r *http.Request) {
 
 	err = app.shelf.NewLayer(layerParts)
 	if err != nil {
+		app.Error("failed to create layer", "error", err)
 		http.Error(w, "failed to create layer", http.StatusInternalServerError)
 		return
 	}
@@ -48,6 +51,7 @@ func (app *App) HandleAPIDeleteLayer(w http.ResponseWriter, r *http.Request) {
 
 	err = app.shelf.DeleteLayer(layerParts)
 	if err != nil {
+		app.Error("failed to delete layer", "error", err)
 		http.Error(w, "failed to delete layer", http.StatusInternalServerError)
 		return
 	}

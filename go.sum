@@ -33,8 +33,6 @@ github.com/rogpeppe/go-internal v1.13.1 h1:KvO1DLK/DRN07sQ1LQKScxyZJuNnedQ5/wKSR
 github.com/rogpeppe/go-internal v1.13.1/go.mod h1:uMEvuHeurkdAXX61udpOXGD/AzZDWNMNyH2VO9fmH0o=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
-github.com/studio-b12/gowebdav v0.12.0 h1:kFRtQECt8jmVAvA6RHBz3geXUGJHUZA6/IKpOVUs5kM=
-github.com/studio-b12/gowebdav v0.12.0/go.mod h1:bHA7t77X/QFExdeAnDzK6vKM34kEZAcE1OX4MfiwjkE=
 github.com/wlynxg/chardet v1.0.5 h1:BNEolSEujJUtKwkaqNb0D6Ue+d7VTKTh5rXDyEdiipU=
 github.com/wlynxg/chardet v1.0.5/go.mod h1:q4N3YNbywQtX0u12Eh0+0LZB53Ayc7nOfHHaio+RcVA=
 go.opentelemetry.io/auto/sdk v1.1.0 h1:cH53jehLUN6UFLY71z+NDOiNJqDdPRaXzTel0sJySYA=

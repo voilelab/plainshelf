@@ -1,0 +1,6 @@
+# wails
+/frontend/
+
+/build/bin/
+/build/darwin/
+/build/windows/

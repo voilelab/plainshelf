@@ -51,6 +51,13 @@ func (l *LocalFS) OpenWriter(name string) (io.WriteCloser, error) {
 	return fp, nil
 }
 
+func (l *LocalFS) WriteFile(name string, data []byte) error {
+	if err := os.WriteFile(path.Join(l.root, name), data, 0644); err != nil {
+		return util.Errorf("%w", err)
+	}
+	return nil
+}
+
 func (l *LocalFS) Mkdir(name string) error {
 	if err := os.Mkdir(path.Join(l.root, name), 0755); err != nil {
 		return util.Errorf("%w", err)

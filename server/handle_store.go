@@ -19,6 +19,7 @@ func (app *App) HandleAPIGetMarks(w http.ResponseWriter, r *http.Request) {
 
 	mark, err := app.storeDB.GetBookmark(bookID)
 	if err != nil {
+		app.Error("failed to get marks", "error", err)
 		http.Error(w, "failed to get marks", http.StatusInternalServerError)
 		return
 	}
@@ -26,6 +27,7 @@ func (app *App) HandleAPIGetMarks(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	err = json.NewEncoder(w).Encode(mark)
 	if err != nil {
+		app.Error("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
@@ -55,6 +57,7 @@ func (app *App) HandleAPIUpdateMarks(w http.ResponseWriter, r *http.Request) {
 
 	err = app.storeDB.SetBookmark(bookID, mark)
 	if err != nil {
+		app.Error("failed to update marks", "error", err)
 		http.Error(w, "failed to update marks", http.StatusInternalServerError)
 		return
 	}
@@ -66,6 +69,7 @@ func (app *App) HandleAPIUpdateMarks(w http.ResponseWriter, r *http.Request) {
 func (app *App) HandleAPIGetReadHistory(w http.ResponseWriter, r *http.Request) {
 	history, err := app.storeDB.GetReadHistory()
 	if err != nil {
+		app.Error("failed to get read history", "error", err)
 		http.Error(w, "failed to get read history", http.StatusInternalServerError)
 		return
 	}
@@ -73,6 +77,7 @@ func (app *App) HandleAPIGetReadHistory(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	err = json.NewEncoder(w).Encode(history)
 	if err != nil {
+		app.Error("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
@@ -88,6 +93,7 @@ func (app *App) HandleAPIUpdateReadHistory(w http.ResponseWriter, r *http.Reques
 
 	err := app.storeDB.AddToReadHistory(bookID)
 	if err != nil {
+		app.Error("failed to update read history", "error", err)
 		http.Error(w, "failed to update read history", http.StatusInternalServerError)
 		return
 	}
@@ -99,6 +105,7 @@ func (app *App) HandleAPIUpdateReadHistory(w http.ResponseWriter, r *http.Reques
 func (app *App) HandleAPIClearReadHistory(w http.ResponseWriter, r *http.Request) {
 	err := app.storeDB.SetReadHistory([]string{})
 	if err != nil {
+		app.Error("failed to clear read history", "error", err)
 		http.Error(w, "failed to clear read history", http.StatusInternalServerError)
 		return
 	}

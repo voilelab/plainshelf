@@ -108,12 +108,18 @@ function buildSplitConfigPayload(config: SplitConfig): SplitConfig {
 }
 
 async function uploadBookCoverInternal(bookID: string, file: File): Promise<void> {
+  // NOTE:
+  // In Wails/WebView runtime, passing `File` directly as fetch body can result in
+  // an empty request body (0 bytes) for same-origin custom protocol requests.
+  // Sending a concrete byte payload avoids that runtime-specific body stream issue.
+  const payload = new Uint8Array(await file.arrayBuffer());
+
   await fetchJson<void>(`/api/books/${encodeURIComponent(bookID)}/cover`, {
     method: 'PUT',
     headers: {
       'Content-Type': file.type || 'application/octet-stream'
     },
-    body: file
+    body: payload
   });
 }
 
@@ -396,18 +402,12 @@ export async function updateBook(id: string, payload: BookUpdateRequest): Promis
     return delay(mockUpdateBook(id, payload));
   }
 
-  const body: BookUpdateRequest = {};
-  if (payload.title !== undefined) body.title = payload.title;
-  if (payload.tags !== undefined) body.tags = payload.tags;
-  if (payload.authors !== undefined) body.authors = payload.authors;
-  if (payload.language !== undefined) body.language = payload.language;
-  if (payload.comment !== undefined) body.comment = payload.comment;
   const b = await fetchJson<BackendBook>(`/api/books/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify(payload)
   });
   return transformBook(b);
 }

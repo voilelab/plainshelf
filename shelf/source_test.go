@@ -60,7 +60,7 @@ func TestOpenFileOfSource(t *testing.T) {
 
 func TestUpdateSource(t *testing.T) {
 	tmpDir := path.Join(t.TempDir(), "shelf_test")
-	shelf, err := OpenLocalShelf(tmpDir)
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestUpdateSource(t *testing.T) {
 	defer srcFile.Close()
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	source, err := createSource(rootFS, "test-source", "20260315-a4", srcFile)
+	source, err := createSource(rootFS, newLoggerForTest(), "test-source", "20260315-a4", srcFile)
 	if err != nil {
 		t.Fatalf("Failed to create source: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestOpenSourceInvalid(t *testing.T) {
 
 func TestCreateRootSource(t *testing.T) {
 	tmpDir := path.Join(t.TempDir(), "shelf_test")
-	shelf, err := OpenLocalShelf(tmpDir)
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpDir})
 	if err != nil {
 		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestCreateRootSource(t *testing.T) {
 	defer srcFile.Close()
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	source, err := createSource(rootFS, "test-source", "20260315-a3", srcFile)
+	source, err := createSource(rootFS, newLoggerForTest(), "test-source", "20260315-a3", srcFile)
 	if err != nil {
 		t.Fatalf("Failed to create source: %v", err)
 	}

@@ -4,7 +4,6 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"sort"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/gofrs/flock"
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"go.rtnl.ai/x/slugify"
 )
@@ -20,12 +20,11 @@ import (
 /*
 Layout:
 {library}/books/
-  l/
-    lotm-7k3x/
-  s/
-    sicp-v2m8/
-  b/
-    book-a82m/
+  {book1-folder}.novl/
+  {layer1}/
+	{book2-folder}.novl/
+	{layer2}/
+	  {book2-folder}.novl/
 {library}/app/
   library.lock
   tmp/
@@ -41,57 +40,58 @@ const maxPathSegmentLength = 255
 var ErrBookNotFound = util.NewError("book not found")
 
 type Shelf struct {
+	logutil.Logger
 	dbRoot    fsutil.FS
 	readonly  bool
 	close     func() error
 	localLock *flock.Flock
 }
 
-// OpenLocalShelf initializes a new Shelf instance with the given library root path.
-func OpenLocalShelf(libRoot string) (*Shelf, error) {
+type ShelfConf struct {
+	Logger  logutil.LogConf `yaml:"logger"`
+	LibRoot string          `yaml:"lib_root"`
+}
+
+func NewShelf(conf *ShelfConf) (*Shelf, error) {
+	if conf == nil {
+		return nil, util.NewError("shelf configuration cannot be nil")
+	}
+
+	logger, err := logutil.NewLogger(&conf.Logger)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
 	var rt *os.Root
-	rt, err := os.OpenRoot(libRoot)
+	rt, err = os.OpenRoot(conf.LibRoot)
 	if err != nil {
 		// Auto create the library if it doesn't exist
 		if !os.IsNotExist(err) {
 			return nil, util.Errorf("%w", err)
 		}
 
-		err = os.MkdirAll(libRoot, 0755)
+		err = os.MkdirAll(conf.LibRoot, 0755)
 		if err != nil {
 			return nil, util.Errorf("%w", err)
 		}
-		rt, err = os.OpenRoot(libRoot)
+		rt, err = os.OpenRoot(conf.LibRoot)
 		if err != nil {
 			return nil, util.Errorf("%w", err)
 		}
 	}
 
 	shelf := &Shelf{
+		Logger:    *logger,
 		dbRoot:    fsutil.NewRootFS(rt),
 		readonly:  false,
 		close:     rt.Close,
-		localLock: flock.New(path.Join(libRoot, appFolder, libraryLockFile)),
+		localLock: flock.New(path.Join(conf.LibRoot, appFolder, libraryLockFile)),
 	}
 
 	err = shelf.makeStructure()
 	if err != nil {
 		rt.Close()
 		return nil, util.Errorf("%w", err)
-	}
-
-	return shelf, nil
-}
-
-// OpenShelf initializes a new Shelf instance with the given fsutil.FS as the library root.
-func OpenShelf(root fsutil.FS, readonly bool) (*Shelf, error) {
-	shelf := &Shelf{dbRoot: root, readonly: readonly}
-
-	if !readonly {
-		err := shelf.makeStructure()
-		if err != nil {
-			return nil, util.Errorf("%w", err)
-		}
 	}
 
 	return shelf, nil
@@ -165,21 +165,30 @@ func (s *Shelf) unlock() error {
 
 // Close releases any resources held by the Shelf instance.
 func (s *Shelf) Close() error {
+	errs := []error{}
 	if s.localLock != nil {
 		err := s.localLock.Close()
 		if err != nil {
-			log.Println("Error closing local lock:", err)
+			errs = append(errs, err)
 		}
 	}
 
-	if s.close == nil {
-		return nil
+	if s.close != nil {
+		err := s.close()
+		if err != nil {
+			errs = append(errs, err)
+		}
 	}
 
-	err := s.close()
+	err := s.Logger.Close()
 	if err != nil {
-		return util.Errorf("%w", err)
+		errs = append(errs, err)
 	}
+
+	if len(errs) > 0 {
+		return util.Errorf("%w", errors.Join(errs...))
+	}
+
 	return nil
 }
 
@@ -250,7 +259,7 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 		}
 	}
 
-	_, err = createBook(s.dbRoot, bookPath, bookID, title)
+	_, err = createBook(s.dbRoot, s.Logger, bookPath, bookID, title)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -266,8 +275,10 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 	for i := 1; ; i++ {
 		finalBookPath := path.Join(layerPath, folderName)
 		if _, err := s.dbRoot.Stat(finalBookPath); err != nil {
-			// TBD: handle error other than not exist
-			break
+			if errors.Is(err, os.ErrNotExist) {
+				break
+			}
+			return nil, util.Errorf("%w", err)
 		} else {
 			folderName = titleToFolderName(fmt.Sprintf("%s-%d", title, i))
 		}
@@ -279,7 +290,7 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	newBook, err := openBook(s.dbRoot, finalBookPath)
+	newBook, err := openBook(s.dbRoot, s.Logger, finalBookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -387,7 +398,7 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	movedBook, err := openBook(s.dbRoot, newBookPath)
+	movedBook, err := openBook(s.dbRoot, s.Logger, newBookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -442,9 +453,9 @@ func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 
 		folderName := path.Base(pth)
 		if strings.HasSuffix(folderName, bookExtension) {
-			book, err := openBook(s.dbRoot, pth)
+			book, err := openBook(s.dbRoot, s.Logger, pth)
 			if err != nil {
-				log.Println("Error opening book:", err)
+				s.Error("Error opening book", "path", pth, "error", err)
 				return
 			}
 

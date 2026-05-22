@@ -24,6 +24,9 @@ type FS interface {
 	// User should call Close() on the returned WriteCloser when done.
 	OpenWriter(name string) (io.WriteCloser, error)
 
+	// WriteFile writes data to the specified file, creating it if it does not exist and truncating it if it does.
+	WriteFile(name string, data []byte) error
+
 	// Mkdir creates a new directory with the specified name and permissions.
 	Mkdir(name string) error
 

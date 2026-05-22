@@ -1,10 +1,31 @@
+logger:
+  level: info  # log level: debug, info, warn, error
+  format: json # log format: json, text
+  log_file:
+    type: stderr
+
 server_conf:
   addr: "127.0.0.1:20000"
   read_timeout: 60s
   write_timeout: 60s
 
 app_conf:
-  shelf_path: "./shelf"
+  logger:
+    level: info  # log level: debug, info, warn, error
+    format: json # log format: json, text
+    log_file:
+      type: filename_rotate # log file type: stdout, stderr, none, filename, filename_rotate
+      dir: ./logs
+      prefix: root
+  shelf:
+    logger:
+      level: info  # log level: debug, info, warn, error
+      format: json # log format: json, text
+      log_file:
+        type: filename_rotate # log file type: stdout, stderr, none, filename, filename_rotate
+        dir: ./logs
+        prefix: shelf
+    lib_root: "./shelf"
   store_path: "./store"
   cover_to_jpg: true
   read_history_limit: 100

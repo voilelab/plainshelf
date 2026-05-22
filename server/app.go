@@ -3,17 +3,21 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"net/http"
 	"strings"
 
 	"github.com/voilelab/plainshelf/frontend"
+	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server/store"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
 type App struct {
+	logutil.Logger
+
 	shelf      *shelf.Shelf
 	storeDB    *store.DB
 	spaFS      fs.FS
@@ -24,32 +28,44 @@ type App struct {
 }
 
 type AppConf struct {
-	ShelfPath        string        `yaml:"shelf_path"`
-	StorePath        string        `yaml:"store_path"`
-	CoverToJPG       bool          `yaml:"cover_to_jpg"`
-	ReadHistoryLimit int           `yaml:"read_history_limit"`
-	Security         *SecurityConf `yaml:"security"`
+	Logger           logutil.LogConf  `yaml:"logger"`
+	Shelf            *shelf.ShelfConf `yaml:"shelf"`
+	StorePath        string           `yaml:"store_path"`
+	CoverToJPG       bool             `yaml:"cover_to_jpg"`
+	ReadHistoryLimit int              `yaml:"read_history_limit"`
+	Security         *SecurityConf    `yaml:"security"`
 }
 
 func NewApp(conf *AppConf) (*App, error) {
-	s, err := shelf.OpenLocalShelf(conf.ShelfPath)
-	if err != nil {
-		return nil, util.Errorf("%w", err)
+	if conf == nil {
+		return nil, util.Errorf("config cannot be nil")
 	}
 
 	security, err := NewSecurity(conf.Security)
 	if err != nil {
-		s.Close()
+		return nil, util.Errorf("%w", err)
+	}
+
+	logger, err := logutil.NewLogger(&conf.Logger)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	s, err := shelf.NewShelf(conf.Shelf)
+	if err != nil {
+		logger.Close()
 		return nil, util.Errorf("%w", err)
 	}
 
 	storeDB, err := store.New(conf.StorePath, conf.ReadHistoryLimit)
 	if err != nil {
 		s.Close()
+		logger.Close()
 		return nil, util.Errorf("%w", err)
 	}
 
 	return &App{
+		Logger:     *logger,
 		shelf:      s,
 		storeDB:    storeDB,
 		spaFS:      frontend.WebFS,
@@ -64,9 +80,15 @@ func (app *App) Start() error {
 }
 
 func (app *App) Close() error {
-	// TBD: aggregate errors if both fail
-	app.storeDB.Close()
-	return app.shelf.Close()
+	err1 := app.storeDB.Close()
+	err2 := app.shelf.Close()
+	err3 := app.Logger.Close()
+
+	err := errors.Join(err1, err2, err3)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	return nil
 }
 
 func (app *App) Health(w http.ResponseWriter, r *http.Request) {

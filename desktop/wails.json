@@ -1,0 +1,12 @@
+{
+  "name": "plainshelf",
+  "outputfilename": "plainshelf",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dev:watcher": "",
+  "info": {
+    "companyName": "VoileLab",
+    "productName": "PlainShelf",
+    "productVersion": "0.1.0"
+  }
+}

@@ -4,12 +4,12 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
@@ -318,16 +318,16 @@ func (sec *Security) IsEnabled() bool {
 	return sec != nil && sec.conf.Mode != SecurityModeNone
 }
 
-func (sec *Security) LogStartup() {
+func (sec *Security) LogStartup(logger *logutil.Logger) {
 	if sec == nil {
 		return
 	}
 	switch sec.conf.Mode {
 	case SecurityModeLocalToken:
-		log.Printf("Local token security enabled; mutating /api requests require %s or Authorization: Bearer token", sec.TokenHeader())
+		logger.Info("Local token security enabled; mutating /api requests require token header or Authorization: Bearer token", "token_header", sec.TokenHeader())
 	case SecurityModeNone:
-		log.Printf("WARNING: PlainShelf API security is disabled by app_conf.security.mode=none")
+		logger.Warn("PlainShelf API security is disabled by app_conf.security.mode=none")
 	default:
-		log.Printf("Security mode %q configured", sec.conf.Mode)
+		logger.Info("Security mode configured", "mode", sec.conf.Mode)
 	}
 }

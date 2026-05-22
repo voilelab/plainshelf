@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -27,13 +26,14 @@ type Book struct {
 }
 
 type UpdateBookRequest struct {
-	Title    *string       `json:"title"`
-	Authors  *[]string     `json:"authors"`
-	Tags     *[]string     `json:"tags"`
-	Language *string       `json:"language"`
-	Comment  *string       `json:"comment"`
-	Layer    *shelf.Layers `json:"layer"`
-	Layers   *shelf.Layers `json:"layers"`
+	Title       *string        `json:"title"`
+	Authors     *[]string      `json:"authors"`
+	Tags        *[]string      `json:"tags"`
+	Language    *string        `json:"language"`
+	Comment     *string        `json:"comment"`
+	PublishedAt *util.JSONTime `json:"published_at"`
+	Layer       *shelf.Layers  `json:"layer"`
+	Layers      *shelf.Layers  `json:"layers"`
 }
 
 // GET /api/books
@@ -42,6 +42,7 @@ func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
 
 	books, err := app.shelf.ListBooks()
 	if err != nil {
+		app.Error("failed to list books", "error", err)
 		http.Error(w, "failed to list books", http.StatusInternalServerError)
 		return
 	}
@@ -71,6 +72,7 @@ func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
 	// TBD: pagination?
 	err = json.NewEncoder(w).Encode(jsonBooks)
 	if err != nil {
+		app.Error("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
@@ -89,6 +91,7 @@ func (app *App) HandleAPIGetBook(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
+		app.Error("failed to get book", "error", err)
 		http.Error(w, "failed to get book", http.StatusInternalServerError)
 		return
 	}
@@ -101,6 +104,7 @@ func (app *App) HandleAPIGetBook(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	err = json.NewEncoder(w).Encode(jsonBook)
 	if err != nil {
+		app.Error("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
@@ -134,6 +138,7 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
+		app.Error("failed to get book", "error", err)
 		http.Error(w, "failed to get book", http.StatusInternalServerError)
 		return
 	}
@@ -167,9 +172,13 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 	if req.Comment != nil {
 		meta.Comments = *req.Comment
 	}
+	if req.PublishedAt != nil {
+		meta.PublishedAt = *req.PublishedAt
+	}
 	meta.UpdatedAt = util.JSONTime(time.Now())
 
 	if err := book.SetMeta(&meta); err != nil {
+		app.Error("failed to update book metadata", "error", err)
 		http.Error(w, "failed to update book metadata", http.StatusInternalServerError)
 		return
 	}
@@ -177,6 +186,7 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	err = json.NewEncoder(w).Encode(Book{Meta: &meta, Layer: book.Layers()})
 	if err != nil {
+		app.Error("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
@@ -192,6 +202,11 @@ func (app *App) HandleAPIDeleteBook(w http.ResponseWriter, r *http.Request) {
 
 	err = app.shelf.DeleteBook(bookID)
 	if err != nil {
+		if errors.Is(err, shelf.ErrBookNotFound) {
+			http.Error(w, "book not found", http.StatusNotFound)
+			return
+		}
+		app.Error("failed to delete book", "error", err)
 		http.Error(w, "failed to delete book", http.StatusInternalServerError)
 		return
 	}
@@ -213,12 +228,14 @@ func (app *App) HandleAPIGetBookCover(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
+		app.Error("failed to get book", "error", err)
 		http.Error(w, "failed to get book", http.StatusInternalServerError)
 		return
 	}
 
 	coverData, ext, err := book.OpenCover()
 	if err != nil {
+		app.Error("failed to open book cover", "error", err)
 		http.Error(w, "failed to get book cover", http.StatusInternalServerError)
 		return
 	}
@@ -256,6 +273,7 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
+		app.Error("failed to get book", "error", err)
 		http.Error(w, "failed to get book", http.StatusInternalServerError)
 		return
 	}
@@ -283,6 +301,7 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 			http.Error(w, "request body too large (max 20 MB)", http.StatusRequestEntityTooLarge)
 			return
 		}
+		app.Error("failed to read request body", "error", err)
 		http.Error(w, "failed to read request body", http.StatusInternalServerError)
 		return
 	}
@@ -290,6 +309,7 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 	if app.conf.CoverToJPG {
 		data, err = imgutil.AnyToJPG(data)
 		if err != nil {
+			app.Error("failed to convert image to JPEG", "error", err)
 			http.Error(w, "failed to convert image to JPEG", http.StatusInternalServerError)
 			return
 		}
@@ -298,6 +318,7 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 
 	err = book.SetCover(data, ext)
 	if err != nil {
+		app.Error("failed to update book cover", "error", err)
 		http.Error(w, "failed to update book cover", http.StatusInternalServerError)
 		return
 	}
@@ -319,12 +340,14 @@ func (app *App) HandleAPIDeleteBookCover(w http.ResponseWriter, r *http.Request)
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
+		app.Error("failed to get book", "error", err)
 		http.Error(w, "failed to get book", http.StatusInternalServerError)
 		return
 	}
 
 	err = book.DeleteCover()
 	if err != nil {
+		app.Error("failed to delete book cover", "error", err)
 		http.Error(w, "failed to delete book cover", http.StatusInternalServerError)
 		return
 	}
@@ -346,6 +369,7 @@ func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
+		app.Error("failed to get book", "error", err)
 		http.Error(w, "failed to get book", http.StatusInternalServerError)
 		return
 	}
@@ -358,6 +382,7 @@ func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) 
 
 	src, err := source.Open()
 	if err != nil {
+		app.Error("failed to open book source", "error", err)
 		http.Error(w, "failed to open book source", http.StatusInternalServerError)
 		return
 	}
@@ -366,6 +391,7 @@ func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, err = io.Copy(w, src)
 	if err != nil {
+		app.Error("failed to write book content", "error", err)
 		http.Error(w, "failed to write book content", http.StatusInternalServerError)
 		return
 	}
@@ -385,12 +411,14 @@ func (app *App) HandleAPIGetBookSources(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
+		app.Error("failed to get book", "error", err)
 		http.Error(w, "failed to get book", http.StatusInternalServerError)
 		return
 	}
 
 	sources, err := book.ListSource()
 	if err != nil {
+		app.Error("failed to list book sources", "error", err)
 		http.Error(w, "failed to list book sources", http.StatusInternalServerError)
 		return
 	}
@@ -403,6 +431,7 @@ func (app *App) HandleAPIGetBookSources(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	err = json.NewEncoder(w).Encode(sourceMetas)
 	if err != nil {
+		app.Error("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
@@ -428,12 +457,14 @@ func (app *App) HandleAPIGetBookSource(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
+		app.Error("failed to get book", "error", err)
 		http.Error(w, "failed to get book", http.StatusInternalServerError)
 		return
 	}
 
 	source, err := book.GetSource(sourceID)
 	if err != nil {
+		app.Error("failed to get book source", "error", err)
 		http.Error(w, "failed to get book source", http.StatusInternalServerError)
 		return
 	}
@@ -441,6 +472,7 @@ func (app *App) HandleAPIGetBookSource(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	err = json.NewEncoder(w).Encode(source.GetMeta())
 	if err != nil {
+		app.Error("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
@@ -466,18 +498,21 @@ func (app *App) HandleAPIGetBookSourceContent(w http.ResponseWriter, r *http.Req
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
+		app.Error("failed to get book", "error", err)
 		http.Error(w, "failed to get book", http.StatusInternalServerError)
 		return
 	}
 
 	source, err := book.GetSource(sourceID)
 	if err != nil {
+		app.Error("failed to get book source", "error", err)
 		http.Error(w, "failed to get book source", http.StatusInternalServerError)
 		return
 	}
 
 	src, err := source.Open()
 	if err != nil {
+		app.Error("failed to open book source", "error", err)
 		http.Error(w, "failed to open book source", http.StatusInternalServerError)
 		return
 	}
@@ -486,6 +521,7 @@ func (app *App) HandleAPIGetBookSourceContent(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, err = io.Copy(w, src)
 	if err != nil {
+		app.Error("failed to write book source content", "error", err)
 		http.Error(w, "failed to write book source content", http.StatusInternalServerError)
 		return
 	}
@@ -511,12 +547,14 @@ func (app *App) HandleAPIUpdateBookSourceContent(w http.ResponseWriter, r *http.
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
+		app.Error("failed to get book", "error", err)
 		http.Error(w, "failed to get book", http.StatusInternalServerError)
 		return
 	}
 
 	source, err := book.GetSource(sourceID)
 	if err != nil {
+		app.Error("failed to get book source", "error", err)
 		http.Error(w, "failed to get book source", http.StatusInternalServerError)
 		return
 	}
@@ -528,12 +566,14 @@ func (app *App) HandleAPIUpdateBookSourceContent(w http.ResponseWriter, r *http.
 			http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
 			return
 		}
+		app.Error("failed to re-encode request body to UTF-8", "error", err)
 		http.Error(w, "failed to re-encode request body to UTF-8", http.StatusInternalServerError)
 		return
 	}
 
 	err = source.UpdateContent(utf8Reader)
 	if err != nil {
+		app.Error("failed to update book source content", "error", err)
 		http.Error(w, "failed to update book source content", http.StatusInternalServerError)
 		return
 	}
@@ -555,12 +595,14 @@ func (app *App) HandleAPIGetBookSplitConfig(w http.ResponseWriter, r *http.Reque
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
+		app.Error("failed to get book", "error", err)
 		http.Error(w, "failed to get book", http.StatusInternalServerError)
 		return
 	}
 
 	source, err := book.GetSource(book.CurrentSource())
 	if err != nil {
+		app.Error("failed to get book source", "error", err)
 		http.Error(w, "failed to get book source", http.StatusInternalServerError)
 		return
 	}
@@ -568,6 +610,7 @@ func (app *App) HandleAPIGetBookSplitConfig(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	err = json.NewEncoder(w).Encode(source.GetMeta().SplitConfig)
 	if err != nil {
+		app.Error("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
@@ -587,6 +630,7 @@ func (app *App) HandleAPIUpdateBookSplitConfig(w http.ResponseWriter, r *http.Re
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
+		app.Error("failed to get book", "error", err)
 		http.Error(w, "failed to get book", http.StatusInternalServerError)
 		return
 	}
@@ -601,12 +645,14 @@ func (app *App) HandleAPIUpdateBookSplitConfig(w http.ResponseWriter, r *http.Re
 
 	source, err := book.GetSource(book.CurrentSource())
 	if err != nil {
+		app.Error("failed to get book source", "error", err)
 		http.Error(w, "failed to get book source", http.StatusInternalServerError)
 		return
 	}
 
 	err = source.UpdateSplitConfig(splitConfig)
 	if err != nil {
+		app.Error("failed to update book split config", "error", err)
 		http.Error(w, "failed to update split config", http.StatusInternalServerError)
 		return
 	}
@@ -619,6 +665,7 @@ func (app *App) HandleAPIFindDuplicateBooks(w http.ResponseWriter, r *http.Reque
 	md5Groups := map[string][]string{}
 	books, err := app.shelf.ListBooks()
 	if err != nil {
+		app.Error("failed to list books", "error", err)
 		http.Error(w, "failed to list books", http.StatusInternalServerError)
 		return
 	}
@@ -626,7 +673,7 @@ func (app *App) HandleAPIFindDuplicateBooks(w http.ResponseWriter, r *http.Reque
 	for _, b := range books {
 		source, err := b.GetSource(b.CurrentSource())
 		if err != nil {
-			log.Printf("failed to get source for book %s: %v", b.ID(), err)
+			app.Warn("failed to get source for book", "book_id", b.ID(), "error", err)
 			continue
 		}
 		meta := source.GetMeta()
@@ -643,6 +690,7 @@ func (app *App) HandleAPIFindDuplicateBooks(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	err = json.NewEncoder(w).Encode(groups)
 	if err != nil {
+		app.Error("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
