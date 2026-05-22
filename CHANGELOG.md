@@ -9,6 +9,14 @@ and UI behavior may still change between releases.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [v0.4.0] - 2026-05-22
+
+### Added
+
 - Added configurable shelf logging output support through application logging configuration.
 - Added experimental Wails GUI support for local desktop usage.
 - Added frontend support for creating empty books.
