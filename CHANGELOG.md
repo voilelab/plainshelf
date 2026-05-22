@@ -9,9 +9,18 @@ and UI behavior may still change between releases.
 
 ### Added
 
+- Added configurable shelf logging output support through application logging configuration.
+
 ### Changed
 
+- Improved server API error logging to include richer response diagnostics.
+- Refined logger argument handling and shelf-close error handling paths for more predictable shutdown behavior.
+
 ### Fixed
+
+- Fixed shelf logging integration issues after initial logger wiring.
+- Fixed a potential race condition from shared error state in the server listen goroutine.
+- Fixed log writer lifecycle handling to avoid closing standard I/O outputs while still closing closable writers.
 
 ## [v0.3.0] - 2026-05-20
 
