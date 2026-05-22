@@ -101,7 +101,7 @@ text files, covers, notes, and other long-lived files.
 ├─ CURRENT_VERSION_LOCATION.txt
 ├─ cover.(jpg|png|webp)
 └─ sources/
-   └─ {source-id}
+   └─ {source-id}/
       ├─ source.txt
       └─ meta.json
 ```
