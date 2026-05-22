@@ -60,6 +60,11 @@ func NewLogFile(conf LogFileConf) (*LogFile, error) {
 }
 
 func (lf *LogFile) Close() error {
+	switch lf.conf.Type {
+	case LogFileTypeStderr, LogFileTypeStdout, LogFileTypeDefault, LogFileTypeNone:
+		return nil
+	}
+
 	if closer, ok := lf.writer.(io.Closer); ok {
 		err := closer.Close()
 		if err != nil {
