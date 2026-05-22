@@ -77,12 +77,12 @@ A typical vault may look like this:
 ```text
 {shelf}/
 ├─ books/
-|  ├─ {book1-folder}.novl/
-|  ├─ {layer1}/
-|  |  └─ {book2-folder}.novl/
-|  └─ {layer2}/
-|     └─ {layer3}/
-|        └─ {book3-folder}.novl/
+│  ├─ {book1-folder}.novl/
+│  ├─ {layer1}/
+│  │  └─ {book2-folder}.novl/
+│  └─ {layer2}/
+│     └─ {layer3}/
+│        └─ {book3-folder}.novl/
 └─ app/
    ├─ library.lock
    └─ tmp/
