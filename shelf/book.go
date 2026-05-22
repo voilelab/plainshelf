@@ -50,7 +50,7 @@ func NewLayersFromString(s string) Layers {
 }
 
 type Book struct {
-	logger     *logutil.Logger
+	logger     logutil.Logger
 	root       fsutil.FS
 	folderPath string
 	meta       *BookMeta
@@ -272,7 +272,7 @@ func (b *Book) NewSource(source io.Reader) (*Source, error) {
 	sourceID := time.Now().Format("20060102-150405")
 	sourcePath := path.Join(b.folderPath, SourcesFolder, sourceID)
 
-	src, err := createSource(b.root, sourcePath, sourceID, source, b.logger)
+	src, err := createSource(b.root, b.logger, sourcePath, sourceID, source)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -322,7 +322,7 @@ func (b *Book) ListSource() ([]*Source, error) {
 	return sources, nil
 }
 
-func openBook(rt fsutil.FS, logger *logutil.Logger, bookPath string) (*Book, error) {
+func openBook(rt fsutil.FS, logger logutil.Logger, bookPath string) (*Book, error) {
 	bookFolder, err := rt.Stat(bookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -353,7 +353,7 @@ func openBook(rt fsutil.FS, logger *logutil.Logger, bookPath string) (*Book, err
 	}, nil
 }
 
-func createBook(rt fsutil.FS, logger *logutil.Logger, bookPath, bookID, title string) (*Book, error) {
+func createBook(rt fsutil.FS, logger logutil.Logger, bookPath, bookID, title string) (*Book, error) {
 	err := rt.MkdirAll(bookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)

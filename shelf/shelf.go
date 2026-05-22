@@ -273,7 +273,7 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 		}
 	}
 
-	_, err = createBook(s.dbRoot, &s.Logger, bookPath, bookID, title)
+	_, err = createBook(s.dbRoot, s.Logger, bookPath, bookID, title)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -304,7 +304,7 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	newBook, err := openBook(s.dbRoot, &s.Logger, finalBookPath)
+	newBook, err := openBook(s.dbRoot, s.Logger, finalBookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -412,7 +412,7 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	movedBook, err := openBook(s.dbRoot, &s.Logger, newBookPath)
+	movedBook, err := openBook(s.dbRoot, s.Logger, newBookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -467,7 +467,7 @@ func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 
 		folderName := path.Base(pth)
 		if strings.HasSuffix(folderName, bookExtension) {
-			book, err := openBook(s.dbRoot, &s.Logger, pth)
+			book, err := openBook(s.dbRoot, s.Logger, pth)
 			if err != nil {
 				s.Error("Error opening book", "path", pth, "error", err)
 				return

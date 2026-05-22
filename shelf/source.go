@@ -169,7 +169,7 @@ func openSource(rt fsutil.FS, sourcePath string) (*Source, error) {
 	}, nil
 }
 
-func createSource(rt fsutil.FS, sourcePath, id string, source io.Reader, logger *logutil.Logger) (*Source, error) {
+func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, source io.Reader) (*Source, error) {
 	err := rt.MkdirAll(sourcePath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
