@@ -20,11 +20,11 @@ import (
 /*
 Layout:
 {library}/books/
-  {book1-folder}/
+  {book1-folder}.novl/
   {layer1}/
-	{book2-folder}/
+	{book2-folder}.novl/
 	{layer2}/
-	  {book2-folder}
+	  {book2-folder}.novl/
 {library}/app/
   library.lock
   tmp/
