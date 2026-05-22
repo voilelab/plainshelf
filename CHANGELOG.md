@@ -11,8 +11,8 @@ and UI behavior may still change between releases.
 
 - Added configurable shelf logging output support through application logging configuration.
 - Added experimental Wails GUI support for local desktop usage.
-- Added create empty book functionality to frontend.
-- Added edit book's publish date support to frontend.
+- Added frontend support for creating empty books.
+- Added frontend support for editing a book's publish date.
 
 ### Changed
 
