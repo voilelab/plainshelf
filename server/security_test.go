@@ -5,12 +5,16 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 func newSecurityTestEnv(t *testing.T, conf *SecurityConf) *apiTestEnv {
 	t.Helper()
 	app, err := NewApp(&AppConf{
-		ShelfPath:        t.TempDir(),
+		Shelf: &shelf.ShelfConf{
+			LibRoot: t.TempDir(),
+		},
 		StorePath:        t.TempDir(),
 		CoverToJPG:       false,
 		ReadHistoryLimit: 2,

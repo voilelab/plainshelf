@@ -25,7 +25,9 @@ func newAPITestEnv(t *testing.T) *apiTestEnv {
 	t.Helper()
 
 	app, err := NewApp(&AppConf{
-		ShelfPath:        t.TempDir(),
+		Shelf: &shelf.ShelfConf{
+			LibRoot: t.TempDir(),
+		},
 		StorePath:        t.TempDir(),
 		CoverToJPG:       false,
 		ReadHistoryLimit: 2,

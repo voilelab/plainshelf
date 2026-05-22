@@ -18,7 +18,7 @@ func TestGetBook(t *testing.T) {
 	defer testdataRoot.Close()
 
 	rootFS := fsutil.NewRootFS(testdataRoot)
-	book, err := openBook(rootFS, "book-a82m")
+	book, err := openBook(rootFS, newLoggerForTest(), "book-a82m")
 	if err != nil {
 		t.Fatalf("Failed to open book: %v", err)
 	}
@@ -28,7 +28,7 @@ func TestGetBook(t *testing.T) {
 		t.Errorf("Expected book title '%s', got '%s'", expectedTitle, book.Title())
 	}
 
-	_, err = openBook(rootFS, "nonexistent-book")
+	_, err = openBook(rootFS, newLoggerForTest(), "nonexistent-book")
 	if err == nil {
 		t.Fatalf("Expected error when getting nonexistent book, but got none")
 	}
@@ -42,7 +42,7 @@ func TestGetBookCover(t *testing.T) {
 	defer testdataRoot.Close()
 
 	rootFS := fsutil.NewRootFS(testdataRoot)
-	book, err := openBook(rootFS, "book-a82m")
+	book, err := openBook(rootFS, newLoggerForTest(), "book-a82m")
 	if err != nil {
 		t.Fatalf("Failed to open book: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestGetSource(t *testing.T) {
 	defer testdataRoot.Close()
 
 	rootFS := fsutil.NewRootFS(testdataRoot)
-	book, err := openBook(rootFS, "book-a82m")
+	book, err := openBook(rootFS, newLoggerForTest(), "book-a82m")
 	if err != nil {
 		t.Fatalf("Failed to open book: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestGetCurrentSource(t *testing.T) {
 	defer testdataRoot.Close()
 
 	rootFS := fsutil.NewRootFS(testdataRoot)
-	book, err := openBook(rootFS, "book-a82m")
+	book, err := openBook(rootFS, newLoggerForTest(), "book-a82m")
 	if err != nil {
 		t.Fatalf("Failed to open book: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestListSources(t *testing.T) {
 	defer testdataRoot.Close()
 
 	rootFS := fsutil.NewRootFS(testdataRoot)
-	book, err := openBook(rootFS, "book-a82m")
+	book, err := openBook(rootFS, newLoggerForTest(), "book-a82m")
 	if err != nil {
 		t.Fatalf("Failed to open book: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestNewBook(t *testing.T) {
 	title := "Test Book"
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := createBook(rootFS, bookID, bookID, title)
+	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
 	if err != nil {
 		t.Fatalf("Failed to create new book: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestSetCover(t *testing.T) {
 	title := "Test Book"
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := createBook(rootFS, bookID, bookID, title)
+	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
 	if err != nil {
 		t.Fatalf("Failed to create new book: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestNewSource(t *testing.T) {
 	title := "Test Book"
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := createBook(rootFS, bookID, bookID, title)
+	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
 	if err != nil {
 		t.Fatalf("Failed to create new book: %v", err)
 	}
@@ -261,7 +261,7 @@ func TestSetCurrentSource(t *testing.T) {
 	title := "Test Book"
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := createBook(rootFS, bookID, bookID, title)
+	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
 	if err != nil {
 		t.Fatalf("Failed to create new book: %v", err)
 	}

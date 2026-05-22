@@ -8,7 +8,7 @@ import (
 )
 
 func TestShelfNewShelf(t *testing.T) {
-	shelf, err := OpenLocalShelf(path.Join("testdata", "lib"))
+	shelf, err := NewShelf(&ShelfConf{LibRoot: path.Join("testdata", "lib")})
 	if err != nil {
 		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
@@ -22,7 +22,7 @@ func TestOpenLocalShelfReturnsOpenRootError(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	shelf, err := OpenLocalShelf(filePath)
+	shelf, err := NewShelf(&ShelfConf{LibRoot: filePath})
 	if err == nil {
 		if shelf != nil {
 			_ = shelf.Close()
@@ -33,7 +33,7 @@ func TestOpenLocalShelfReturnsOpenRootError(t *testing.T) {
 
 func TestShelfMakeStructure(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
-	shelf, err := OpenLocalShelf(tmpLib)
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib})
 	if err != nil {
 		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestShelfMakeStructure(t *testing.T) {
 }
 
 func TestShelfListBooks(t *testing.T) {
-	shelf, err := OpenLocalShelf(path.Join("testdata", "lib"))
+	shelf, err := NewShelf(&ShelfConf{LibRoot: path.Join("testdata", "lib")})
 	if err != nil {
 		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestShelfListBooks(t *testing.T) {
 }
 
 func TestShelfGetBook(t *testing.T) {
-	shelf, err := OpenLocalShelf(path.Join("testdata", "lib"))
+	shelf, err := NewShelf(&ShelfConf{LibRoot: path.Join("testdata", "lib")})
 	if err != nil {
 		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestShelfGetBook(t *testing.T) {
 }
 
 func TestShelfGetBookNotFound(t *testing.T) {
-	shelf, err := OpenLocalShelf(path.Join("testdata", "lib"))
+	shelf, err := NewShelf(&ShelfConf{LibRoot: path.Join("testdata", "lib")})
 	if err != nil {
 		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestShelfGetBookNotFound(t *testing.T) {
 }
 
 func TestShelfGetAllLayers(t *testing.T) {
-	shelf, err := OpenLocalShelf(path.Join("testdata", "lib"))
+	shelf, err := NewShelf(&ShelfConf{LibRoot: path.Join("testdata", "lib")})
 	if err != nil {
 		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestShelfGetAllLayers(t *testing.T) {
 }
 
 func TestShelfGetBookByLayer(t *testing.T) {
-	shelf, err := OpenLocalShelf(path.Join("testdata", "lib"))
+	shelf, err := NewShelf(&ShelfConf{LibRoot: path.Join("testdata", "lib")})
 	if err != nil {
 		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestShelfGetBookByLayer(t *testing.T) {
 
 func TestShelfNewBook(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
-	shelf, err := OpenLocalShelf(tmpLib)
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib})
 	if err != nil {
 		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
@@ -173,7 +173,7 @@ func TestShelfNewBook(t *testing.T) {
 
 func TestShelfDeleteBook(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
-	shelf, err := OpenLocalShelf(tmpLib)
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib})
 	if err != nil {
 		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestShelfDeleteBook(t *testing.T) {
 
 func TestShelfMoveBook(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
-	shelf, err := OpenLocalShelf(tmpLib)
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib})
 	if err != nil {
 		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
