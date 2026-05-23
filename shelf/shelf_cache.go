@@ -27,13 +27,10 @@ func newBookCache() *bookCache {
 }
 
 func (s *Shelf) scanToBookCache() error {
-	s.bookCache.Lock()
-	defer s.bookCache.Unlock()
-
-	s.bookCache.cache = make(map[string]*bookIDCacheEntry)
+	cache := make(map[string]*bookIDCacheEntry)
 
 	err := s.iterateBooks(nil, func(b *Book) bool {
-		s.bookCache.cache[b.ID()] = &bookIDCacheEntry{
+		cache[b.ID()] = &bookIDCacheEntry{
 			layers: b.Layers(),
 			path:   b.FolderPath(),
 			book:   b,
@@ -43,6 +40,10 @@ func (s *Shelf) scanToBookCache() error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
+
+	s.bookCache.Lock()
+	s.bookCache.cache = cache
+	s.bookCache.Unlock()
 
 	return nil
 }
@@ -71,7 +72,7 @@ func (s *Shelf) refreshBookCache() {
 
 		updatedBook.setLayers(cacheEntry.layers)
 
-		s.bookCache.cache[bookID] = &bookIDCacheEntry{
+		s.bookCache.cache[updatedBook.ID()] = &bookIDCacheEntry{
 			layers: cacheEntry.layers,
 			path:   cacheEntry.path,
 			book:   updatedBook,
