@@ -85,6 +85,8 @@ func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, error) {
 			}
 
 			return book, nil
+		} else {
+			s.Warn("Failed to refresh book cache entry, will attempt to refresh entire book cache", "bookID", bookID, "error", err)
 		}
 	}
 
