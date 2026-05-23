@@ -120,7 +120,6 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 	s.bookCache.Lock()
 	s.bookCache.cache = cache
 	s.bookCache.treeDirty = false
-	s.bookCache.lastFullScan = time.Now()
 	s.bookCache.Unlock()
 }
 
