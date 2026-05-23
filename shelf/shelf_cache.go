@@ -9,8 +9,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-const minBookCacheFullScanInterval = time.Minute
-
 type bookIDCacheEntry struct {
 	layers Layers
 	path   string
@@ -23,11 +21,15 @@ type bookCache struct {
 
 	treeDirty    bool
 	lastFullScan time.Time
+
+	scanInterval time.Duration
 }
 
-func newBookCache() *bookCache {
+func newBookCache(scanInterval time.Duration) *bookCache {
 	return &bookCache{
 		cache: make(map[string]*bookIDCacheEntry),
+
+		scanInterval: scanInterval,
 	}
 }
 
@@ -43,7 +45,7 @@ func (s *Shelf) refreshBookCacheIfNeeded(force bool) error {
 	lastFullScan := s.bookCache.lastFullScan
 	s.bookCache.RUnlock()
 
-	if !force && !treeDirty && time.Since(lastFullScan) < minBookCacheFullScanInterval {
+	if !force && !treeDirty && time.Since(lastFullScan) < s.bookCache.scanInterval {
 		s.onlyRefreshBooksInCache()
 		return nil
 	}
@@ -140,11 +142,11 @@ func (s *Shelf) listBooksFromCache() []*Book {
 
 func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, error) {
 	s.bookCache.Lock()
-	defer s.bookCache.Unlock()
 
 	cacheEntry := s.bookCache.cache[bookID]
 	if cacheEntry != nil {
 		if !cacheEntry.book.IsStale() {
+			s.bookCache.Unlock()
 			return cacheEntry.book, nil
 		}
 
@@ -159,35 +161,22 @@ func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, error) {
 				path:   cacheEntry.path,
 				book:   book,
 			}
-
+			s.bookCache.Unlock()
 			return book, nil
 		} else {
 			s.Warn("Failed to refresh book cache entry, will attempt to refresh entire book cache", "bookID", bookID, "error", err)
 		}
 	}
 
+	s.bookCache.Unlock()
+
 	// If we reach here, it means the cache entry is either missing or stale and we failed to refresh it.
 	// We should refresh the entire book cache to ensure we have the most up-to-date information.
 
-	// FIXME: This is a bad implementation, because malusers can cause DoS by repeatedly requesting non-existent or stale book IDs,
-	// which will cause the entire book cache to be refreshed on each request.
-	// We should implement a better caching strategy in the future to avoid this issue.
+	s.refreshBookCacheIfNeeded(false)
 
-	s.Warn("Book ID not found in cache or cache entry is stale, refreshing entire book cache", "bookID", bookID)
-
-	s.bookCache.cache = make(map[string]*bookIDCacheEntry)
-	err := s.iterateBooks(nil, func(b *Book) bool {
-		s.bookCache.cache[b.ID()] = &bookIDCacheEntry{
-			layers: b.Layers(),
-			path:   b.FolderPath(),
-			book:   b,
-		}
-		return true
-	})
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
+	s.bookCache.RLock()
+	defer s.bookCache.RUnlock()
 	bookCacheEntry := s.bookCache.cache[bookID]
 	if bookCacheEntry != nil {
 		return bookCacheEntry.book, nil
