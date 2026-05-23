@@ -118,7 +118,13 @@ func (app *App) HandleSPAFallback(w http.ResponseWriter, r *http.Request) {
 func (app *App) Handler() http.Handler {
 	mux := http.NewServeMux()
 	app.Serve(mux)
-	return app.security.Middleware(mux)
+
+	loggerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		app.Info("app handler", "method", r.Method, "path", r.URL.Path, "remote_addr", r.RemoteAddr)
+		mux.ServeHTTP(w, r)
+	})
+
+	return app.security.Middleware(loggerHandler)
 }
 
 func (app *App) SecurityToken() string {
