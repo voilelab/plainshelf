@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
@@ -52,7 +53,25 @@ func (a *DesktopApp) startServer() error {
 	}
 
 	appConf := &server.AppConf{
+		Logger: logutil.LogConf{
+			Level:  "info",
+			Format: "json",
+			LogFile: logutil.LogFileConf{
+				Type:   logutil.LogFileTypeNameRotate,
+				Dir:    filepath.Join(dataRoot, "logs"),
+				Prefix: "app",
+			},
+		},
 		Shelf: &shelf.ShelfConf{
+			Logger: logutil.LogConf{
+				Level:  "info",
+				Format: "json",
+				LogFile: logutil.LogFileConf{
+					Type:   logutil.LogFileTypeNameRotate,
+					Dir:    filepath.Join(dataRoot, "logs"),
+					Prefix: "shelf",
+				},
+			},
 			LibRoot: filepath.Join(dataRoot, "shelf"),
 		},
 		StorePath:        filepath.Join(dataRoot, "store"),
