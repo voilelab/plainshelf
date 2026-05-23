@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 )
@@ -306,3 +307,51 @@ func TestSetCurrentSource(t *testing.T) {
 		t.Errorf("Expected current source ID to be '%s', got '%s'", source.ID(), book.CurrentSource())
 	}
 }
+
+func TestSetMetaMarksOtherInstanceStale(t *testing.T) {
+	tmpLib := path.Join(t.TempDir())
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	bookID := "test-book-a38j"
+	title := "Test Book"
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book1, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+
+	book2, err := openBook(rootFS, newLoggerForTest(), bookID)
+	if err != nil {
+		t.Fatalf("Failed to open second book instance: %v", err)
+	}
+
+	if book1.IsStale() {
+		t.Fatalf("Expected first instance to be fresh initially")
+	}
+	if book2.IsStale() {
+		t.Fatalf("Expected second instance to be fresh initially")
+	}
+
+	meta := book1.GetMeta()
+	meta.Comments = "updated by book1"
+
+	// Ensure filesystem mtime has advanced on platforms with coarse timestamp precision.
+	time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)))
+	err = book1.SetMeta(meta)
+	if err != nil {
+		t.Fatalf("Failed to set book meta from first instance: %v", err)
+	}
+
+	if book1.IsStale() {
+		t.Fatalf("Expected first instance to remain fresh after SetMeta")
+	}
+	if !book2.IsStale() {
+		t.Fatalf("Expected second instance to become stale after first instance updates meta")
+	}
+}
+

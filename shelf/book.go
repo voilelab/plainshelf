@@ -38,6 +38,18 @@ func (l Layers) String() string {
 	return strings.Join(l, "/")
 }
 
+func (l Layers) Equal(other Layers) bool {
+	if len(l) != len(other) {
+		return false
+	}
+	for i := range l {
+		if l[i] != other[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func NewLayersFromString(s string) Layers {
 	if s == "" {
 		return nil
@@ -55,6 +67,8 @@ type Book struct {
 	folderPath string
 	meta       *BookMeta
 	layers     Layers
+
+	metaStat FileStat
 }
 
 type BookMeta struct {
@@ -78,6 +92,30 @@ type BookMeta struct {
 // setLayers only used for internal use, not persisted in book meta, and not exposed to user
 func (b *Book) setLayers(layers Layers) {
 	b.layers = layers
+}
+
+// IsStale checks whether the cached book metadata is out of date by comparing
+// the current file stat of the book meta file with the cached metaStat. If the
+// file stat differs, the book is considered stale and should be refreshed.
+func (b *Book) IsStale() bool {
+	// FIXME: IsStale only treats the cache as stale when the tracked book.json
+	// file stat changes. If the file content changes but preserves the same
+	// tracked stat values (for example, mtime and size), the change won’t be detected.
+	metaPath := path.Join(b.folderPath, BookMetaFile)
+
+	currentMetaStat, err := getFileStat(b.root, metaPath)
+	if err != nil {
+		// If we cannot stat the meta file, we consider the book as stale to be safe,
+		// and let the caller handle the error when trying to open the book.
+		b.logger.Warn("failed to stat meta file during IsStale check, treating book as stale", "error", err)
+		return true
+	}
+
+	if !currentMetaStat.Equal(&b.metaStat) {
+		return true
+	}
+
+	return false
 }
 
 func (b *Book) Layers() Layers {
@@ -264,6 +302,20 @@ func (b *Book) setMeta(meta *BookMeta) error {
 	}
 
 	b.meta = meta
+
+	var metaStat *FileStat
+
+	metaStat, err = getFileStat(b.root, metaPath)
+	if err != nil {
+		metaStat = &FileStat{
+			ModTime: time.Now(),
+			Size:    int64(len(bs)),
+		}
+		b.logger.Warn("failed to stat meta file after SetMeta, metaStat may be inaccurate", "error", err)
+	}
+
+	b.metaStat = *metaStat
+
 	return nil
 }
 
@@ -345,11 +397,18 @@ func openBook(rt fsutil.FS, logger logutil.Logger, bookPath string) (*Book, erro
 		return nil, util.Errorf("%w", err)
 	}
 
+	metaStat, err := getFileStat(rt, metaPath)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
 	return &Book{
 		root:       rt,
 		folderPath: bookPath,
 		meta:       &meta,
 		logger:     logger,
+
+		metaStat: *metaStat,
 	}, nil
 }
 
@@ -365,18 +424,35 @@ func createBook(rt fsutil.FS, logger logutil.Logger, bookPath, bookID, title str
 		CreatedAt: util.JSONTime(time.Now()),
 	}
 
-	metaFilePath := path.Join(bookPath, BookMetaFile)
-	metaFile, err := rt.OpenWriter(metaFilePath)
+	bs, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer metaFile.Close()
 
-	encoder := json.NewEncoder(metaFile)
-	encoder.SetIndent("", "  ")
-	err = encoder.Encode(meta)
+	metaFilePath := path.Join(bookPath, BookMetaFile)
+	tmpMetaFilePath := metaFilePath + ".tmp"
+	err = rt.WriteFile(tmpMetaFilePath, bs)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
+	}
+
+	err = rt.Rename(tmpMetaFilePath, metaFilePath)
+	if err != nil {
+		err2 := rt.Remove(tmpMetaFilePath)
+		if err2 != nil {
+			logger.Warn("failed to remove temp meta file after failed rename, meta file may be left in an inconsistent state", "error", err2)
+		}
+		return nil, util.Errorf("%w", err)
+	}
+
+	var metaStat *FileStat
+	metaStat, err = getFileStat(rt, metaFilePath)
+	if err != nil {
+		logger.Warn("failed to stat meta file after creating book, metaStat may be inaccurate", "error", err)
+		metaStat = &FileStat{
+			ModTime: time.Now(),
+			Size:    int64(len(bs)),
+		}
 	}
 
 	return &Book{
@@ -384,5 +460,7 @@ func createBook(rt fsutil.FS, logger logutil.Logger, bookPath, bookID, title str
 		folderPath: bookPath,
 		meta:       &meta,
 		logger:     logger,
+
+		metaStat: *metaStat,
 	}, nil
 }
