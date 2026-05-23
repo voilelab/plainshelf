@@ -39,12 +39,20 @@ const maxPathSegmentLength = 255
 
 var ErrBookNotFound = util.NewError("book not found")
 
+type BookIDCacheEntry struct {
+	layers Layers
+	path   string
+}
+
 type Shelf struct {
 	logutil.Logger
 	dbRoot    fsutil.FS
 	readonly  bool
 	close     func() error
 	localLock *flock.Flock
+
+	// cache
+	bookIDCache map[string]*BookIDCacheEntry
 }
 
 type ShelfConf struct {
@@ -86,9 +94,18 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		readonly:  false,
 		close:     rt.Close,
 		localLock: flock.New(path.Join(conf.LibRoot, appFolder, libraryLockFile)),
+
+		// cache
+		bookIDCache: make(map[string]*BookIDCacheEntry),
 	}
 
 	err = shelf.makeStructure()
+	if err != nil {
+		rt.Close()
+		return nil, util.Errorf("%w", err)
+	}
+
+	err = shelf.initCache()
 	if err != nil {
 		rt.Close()
 		return nil, util.Errorf("%w", err)
@@ -105,6 +122,21 @@ func (s *Shelf) makeStructure() error {
 	}
 
 	err = s.dbRoot.MkdirAll(path.Join(appFolder, appTmpFolder))
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
+}
+
+func (s *Shelf) initCache() error {
+	err := s.iterateBooks(nil, func(b *Book) bool {
+		s.bookIDCache[b.ID()] = &BookIDCacheEntry{
+			layers: b.Layers(),
+			path:   b.FolderPath(),
+		}
+		return true
+	})
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -297,6 +329,11 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 
 	newBook.setLayers(layers)
 
+	s.bookIDCache[newBook.ID()] = &BookIDCacheEntry{
+		layers: layers,
+		path:   finalBookPath,
+	}
+
 	return newBook, nil
 }
 
@@ -314,6 +351,8 @@ func (s *Shelf) DeleteBook(bookID string) error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
+
+	delete(s.bookIDCache, bookID)
 
 	return nil
 }
@@ -404,26 +443,27 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 	}
 
 	movedBook.setLayers(newLayers)
+
+	s.bookIDCache[movedBook.ID()] = &BookIDCacheEntry{
+		layers: newLayers,
+		path:   newBookPath,
+	}
+
 	return movedBook, nil
 }
 
 func (s *Shelf) getBook(bookID string) (*Book, error) {
-	var book *Book
-	err := s.iterateBooks(nil, func(b *Book) bool {
-		if b.ID() == bookID {
-			book = b
-			return false
-		}
-		return true
-	})
+	cacheEntry, exists := s.bookIDCache[bookID]
+	if !exists {
+		return nil, util.Errorf("%w: %s", ErrBookNotFound, bookID)
+	}
 
+	book, err := openBook(s.dbRoot, s.Logger, cacheEntry.path)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	if book == nil {
-		return nil, util.Errorf("%w: %s", ErrBookNotFound, bookID)
-	}
+	book.setLayers(cacheEntry.layers)
 
 	return book, nil
 }
