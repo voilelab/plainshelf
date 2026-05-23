@@ -365,6 +365,8 @@ func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
 	s.rlock()
 	defer s.unlock()
 
+	s.scanToBookCache()
+
 	var books []*Book
 
 	for _, book := range s.listBooksFromCache() {
@@ -372,10 +374,6 @@ func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
 			books = append(books, book)
 		}
 	}
-
-	sort.Slice(books, func(i, j int) bool {
-		return books[i].ID() < books[j].ID()
-	})
 
 	return books, nil
 }
