@@ -85,6 +85,22 @@ func (s *Shelf) refreshBookCache() {
 	}
 }
 
+func (s *Shelf) listBooksFromCache() []*Book {
+	s.bookCache.Lock()
+	defer s.bookCache.Unlock()
+
+	var books []*Book
+	for _, cacheEntry := range s.bookCache.cache {
+		books = append(books, cacheEntry.book)
+	}
+
+	sort.Slice(books, func(i, j int) bool {
+		return books[i].ID() < books[j].ID()
+	})
+
+	return books
+}
+
 func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, error) {
 	s.bookCache.Lock()
 	defer s.bookCache.Unlock()

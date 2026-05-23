@@ -219,16 +219,7 @@ func (s *Shelf) ListBooks() ([]*Book, error) {
 
 	s.refreshBookCache()
 
-	var books []*Book
-	for _, cacheEntry := range s.bookCache.cache {
-		books = append(books, cacheEntry.book)
-	}
-
-	sort.Slice(books, func(i, j int) bool {
-		return books[i].ID() < books[j].ID()
-	})
-
-	return books, nil
+	return s.listBooksFromCache(), nil
 }
 
 // GetBook returns the details of a specific book by its ID.
@@ -376,9 +367,9 @@ func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
 
 	var books []*Book
 
-	for _, cacheEntry := range s.bookCache.cache {
-		if cacheEntry.layers.Equal(layers) {
-			books = append(books, cacheEntry.book)
+	for _, book := range s.listBooksFromCache() {
+		if book.Layers().Equal(layers) {
+			books = append(books, book)
 		}
 	}
 
