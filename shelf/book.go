@@ -55,6 +55,9 @@ type Book struct {
 	folderPath string
 	meta       *BookMeta
 	layers     Layers
+
+	// metaModTime is the last modified time of the book meta, used for cache validation, and should be updated whenever the book meta is updated
+	metaModTime time.Time
 }
 
 type BookMeta struct {
@@ -78,6 +81,21 @@ type BookMeta struct {
 // setLayers only used for internal use, not persisted in book meta, and not exposed to user
 func (b *Book) setLayers(layers Layers) {
 	b.layers = layers
+}
+
+func (b *Book) IsStale() (bool, error) {
+	metaPath := path.Join(b.folderPath, BookMetaFile)
+	info, err := b.root.Stat(metaPath)
+	if err != nil {
+		return false, util.Errorf("%w", err)
+	}
+
+	modTime := info.ModTime()
+	if modTime.After(b.metaModTime) {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func (b *Book) Layers() Layers {
@@ -345,11 +363,18 @@ func openBook(rt fsutil.FS, logger logutil.Logger, bookPath string) (*Book, erro
 		return nil, util.Errorf("%w", err)
 	}
 
+	metaStat, err := rt.Stat(metaPath)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
 	return &Book{
 		root:       rt,
 		folderPath: bookPath,
 		meta:       &meta,
 		logger:     logger,
+
+		metaModTime: metaStat.ModTime(),
 	}, nil
 }
 
@@ -384,5 +409,7 @@ func createBook(rt fsutil.FS, logger logutil.Logger, bookPath, bookID, title str
 		folderPath: bookPath,
 		meta:       &meta,
 		logger:     logger,
+
+		metaModTime: time.Now(),
 	}, nil
 }
