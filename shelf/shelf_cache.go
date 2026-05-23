@@ -3,9 +3,12 @@ package shelf
 import (
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/util"
 )
+
+const minBookCacheFullScanInterval = time.Minute
 
 type bookIDCacheEntry struct {
 	layers Layers
@@ -14,14 +17,40 @@ type bookIDCacheEntry struct {
 }
 
 type bookCache struct {
-	sync.Mutex
+	sync.RWMutex
 	cache map[string]*bookIDCacheEntry
+
+	treeDirty    bool
+	lastFullScan time.Time
 }
 
 func newBookCache() *bookCache {
 	return &bookCache{
 		cache: make(map[string]*bookIDCacheEntry),
 	}
+}
+
+func (s *Shelf) markBookCacheTreeDirty() {
+	s.bookCache.Lock()
+	s.bookCache.treeDirty = true
+	s.bookCache.Unlock()
+}
+
+func (s *Shelf) refreshBookCacheIfNeeded(force bool) error {
+	s.bookCache.RLock()
+	treeDirty := s.bookCache.treeDirty
+	lastFullScan := s.bookCache.lastFullScan
+	s.bookCache.RUnlock()
+
+	if !force && !treeDirty && time.Since(lastFullScan) < minBookCacheFullScanInterval {
+		return nil
+	}
+
+	err := s.scanToBookCache()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	return nil
 }
 
 // scanToBookCache scans the book folders and updates the book cache with the current state of the books.
@@ -42,13 +71,16 @@ func (s *Shelf) scanToBookCache() error {
 
 	s.bookCache.Lock()
 	s.bookCache.cache = cache
+	s.bookCache.treeDirty = false
+	s.bookCache.lastFullScan = time.Now()
 	s.bookCache.Unlock()
+
 	return nil
 }
 
 func (s *Shelf) listBooksFromCache() []*Book {
-	s.bookCache.Lock()
-	defer s.bookCache.Unlock()
+	s.bookCache.RLock()
+	defer s.bookCache.RUnlock()
 
 	var books []*Book
 	for _, cacheEntry := range s.bookCache.cache {
