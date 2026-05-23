@@ -4,8 +4,10 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -232,20 +234,33 @@ func (s *Shelf) ListBooks() ([]*Book, error) {
 	s.rlock()
 	defer s.unlock()
 
+	var bookIDs []string
+	bookIDs = slices.AppendSeq(bookIDs, maps.Keys(s.bookIDCache))
+	sort.Strings(bookIDs)
+
 	var books []*Book
+	for _, bookID := range bookIDs {
+		cacheEntry := s.bookIDCache[bookID]
+		if cacheEntry.book.IsStale() {
+			delete(s.bookIDCache, bookID)
 
-	err := s.iterateBooks(nil, func(b *Book) bool {
-		books = append(books, b)
-		return true
-	})
+			updatedBook, err := openBook(s.dbRoot, s.Logger, cacheEntry.path)
+			if err != nil {
+				s.Error("Error opening book during ListBooks", "path", cacheEntry.path, "error", err)
+				continue
+			}
 
-	if err != nil {
-		return nil, util.Errorf("%w", err)
+			updatedBook.setLayers(cacheEntry.layers)
+
+			s.bookIDCache[bookID] = &BookIDCacheEntry{
+				layers: cacheEntry.layers,
+				path:   cacheEntry.path,
+				book:   updatedBook,
+			}
+		}
+
+		books = append(books, s.bookIDCache[bookID].book)
 	}
-
-	sort.Slice(books, func(i, j int) bool {
-		return books[i].ID() < books[j].ID()
-	})
 
 	return books, nil
 }
