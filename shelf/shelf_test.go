@@ -317,7 +317,7 @@ func TestShelfGetBookRefreshesWhenBookMetaChangesOnDisk(t *testing.T) {
 		t.Fatalf("Failed to marshal updated book meta: %v", err)
 	}
 
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)))
 	if err := os.WriteFile(metaPath, updatedMetaBytes, 0o644); err != nil {
 		t.Fatalf("Failed to write updated book meta: %v", err)
 	}
