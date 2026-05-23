@@ -341,8 +341,7 @@ func TestSetMetaMarksOtherInstanceStale(t *testing.T) {
 	meta.Comments = "updated by book1"
 
 	// Ensure filesystem mtime has advanced on platforms with coarse timestamp precision.
-	time.Sleep(10 * time.Millisecond)
-
+	time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)))
 	err = book1.SetMeta(meta)
 	if err != nil {
 		t.Fatalf("Failed to set book meta from first instance: %v", err)
