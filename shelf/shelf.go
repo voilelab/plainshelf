@@ -55,11 +55,11 @@ type ShelfConf struct {
 
 	// for cache
 
-	// Default: 1 minute. This is to prevent too frequent full scans of the book cache,
-	// which can be expensive if there are many books.
-	// If the cache is marked as dirty but the last full scan was performed
-	// recently (within this interval), we will skip the full scan and only
-	// refresh the books that are currently in the cache.
+	// Default: 1 minute. This throttles how often a full on-disk scan is performed.
+	// Within this interval, refreshes only re-open books already in the cache to
+	// update stale metadata.
+	// Newly added books may not be discovered until the next full scan.
+	// Set to 0s to always perform a full scan on refresh.
 	ScanInterval string `yaml:"scan_interval"`
 }
 
