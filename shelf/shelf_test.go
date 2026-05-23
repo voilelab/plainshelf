@@ -199,7 +199,7 @@ func TestShelfDeleteBook(t *testing.T) {
 
 func TestShelfMoveBook(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
-	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib})
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib, ScanInterval: "0s"})
 	if err != nil {
 		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}
@@ -300,7 +300,7 @@ func TestShelfListBooksRefreshesStaleMetaAndDiscoversNewBookOnCacheMiss(t *testi
 		t.Fatalf("Failed to copy test library: %v", err)
 	}
 
-	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib})
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib, ScanInterval: "0s"})
 	if err != nil {
 		t.Fatalf("Failed to initialize Shelf: %v", err)
 	}

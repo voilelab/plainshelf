@@ -8,6 +8,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/gofrs/flock"
@@ -51,11 +52,29 @@ type Shelf struct {
 type ShelfConf struct {
 	Logger  logutil.LogConf `yaml:"logger"`
 	LibRoot string          `yaml:"lib_root"`
+
+	// for cache
+
+	// Default: 1 minute. This throttles how often a full on-disk scan is performed.
+	// Within this interval, refreshes only re-open books already in the cache to
+	// update stale metadata.
+	// Newly added books may not be discovered until the next full scan.
+	// Set to 0s to always perform a full scan on refresh.
+	ScanInterval string `yaml:"scan_interval"`
 }
 
 func NewShelf(conf *ShelfConf) (*Shelf, error) {
 	if conf == nil {
 		return nil, util.NewError("shelf configuration cannot be nil")
+	}
+
+	scanInterval := time.Minute
+	if conf.ScanInterval != "" {
+		var err error
+		scanInterval, err = time.ParseDuration(conf.ScanInterval)
+		if err != nil {
+			return nil, util.Errorf("invalid scan interval: %w", err)
+		}
 	}
 
 	logger, err := logutil.NewLogger(&conf.Logger)
@@ -89,7 +108,7 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		localLock: flock.New(path.Join(conf.LibRoot, appFolder, libraryLockFile)),
 
 		// cache
-		bookCache: newBookCache(),
+		bookCache: newBookCache(scanInterval),
 	}
 
 	err = shelf.makeStructure()
