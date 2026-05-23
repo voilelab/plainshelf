@@ -295,6 +295,7 @@ func (b *Book) setMeta(meta *BookMeta) error {
 	}
 
 	b.meta = meta
+	b.metaModTime = time.Now()
 	return nil
 }
 
