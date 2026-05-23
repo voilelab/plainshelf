@@ -82,8 +82,10 @@ func (s *Shelf) scanToBookCache() error {
 
 func (s *Shelf) onlyRefreshBooksInCache() {
 	s.bookCache.Lock()
+	defer s.bookCache.Unlock()
+
+	// We need to clone the cache before iterating it, because we may modify the cache during the iteration.
 	cache := maps.Clone(s.bookCache.cache)
-	s.bookCache.Unlock()
 
 	staleIDs := []string{}
 	for bookID, cacheEntry := range cache {
@@ -117,9 +119,7 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 		}
 	}
 
-	s.bookCache.Lock()
 	s.bookCache.cache = cache
-	s.bookCache.Unlock()
 }
 
 func (s *Shelf) listBooksFromCache() []*Book {
