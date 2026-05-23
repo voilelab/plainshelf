@@ -83,19 +83,20 @@ func (b *Book) setLayers(layers Layers) {
 	b.layers = layers
 }
 
-func (b *Book) IsStale() (bool, error) {
+func (b *Book) IsStale() bool {
 	metaPath := path.Join(b.folderPath, BookMetaFile)
 	info, err := b.root.Stat(metaPath)
 	if err != nil {
-		return false, util.Errorf("%w", err)
+		b.logger.Warn("failed to stat book meta file, treating as stale", "error", err)
+		return true
 	}
 
 	modTime := info.ModTime()
 	if modTime.After(b.metaModTime) {
-		return true, nil
+		return true
 	}
 
-	return false, nil
+	return false
 }
 
 func (b *Book) Layers() Layers {

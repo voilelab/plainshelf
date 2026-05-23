@@ -42,6 +42,7 @@ var ErrBookNotFound = util.NewError("book not found")
 type BookIDCacheEntry struct {
 	layers Layers
 	path   string
+	book   *Book
 }
 
 type Shelf struct {
@@ -134,6 +135,7 @@ func (s *Shelf) initCache() error {
 		s.bookIDCache[b.ID()] = &BookIDCacheEntry{
 			layers: b.Layers(),
 			path:   b.FolderPath(),
+			book:   b,
 		}
 		return true
 	})
@@ -332,6 +334,7 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 	s.bookIDCache[newBook.ID()] = &BookIDCacheEntry{
 		layers: layers,
 		path:   finalBookPath,
+		book:   newBook,
 	}
 
 	return newBook, nil
@@ -447,6 +450,7 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 	s.bookIDCache[movedBook.ID()] = &BookIDCacheEntry{
 		layers: newLayers,
 		path:   newBookPath,
+		book:   movedBook,
 	}
 
 	return movedBook, nil
@@ -458,14 +462,28 @@ func (s *Shelf) getBook(bookID string) (*Book, error) {
 		return nil, util.Errorf("%w: %s", ErrBookNotFound, bookID)
 	}
 
-	book, err := openBook(s.dbRoot, s.Logger, cacheEntry.path)
+	stale := cacheEntry.book.IsStale()
+	if !stale {
+		return cacheEntry.book, nil
+	}
+
+	delete(s.bookIDCache, bookID)
+
+	// If the book is stale, we need to reload it
+	updatedBook, err := openBook(s.dbRoot, s.Logger, cacheEntry.path)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	book.setLayers(cacheEntry.layers)
+	updatedBook.setLayers(cacheEntry.layers)
 
-	return book, nil
+	s.bookIDCache[bookID] = &BookIDCacheEntry{
+		layers: cacheEntry.layers,
+		path:   cacheEntry.path,
+		book:   updatedBook,
+	}
+
+	return updatedBook, nil
 }
 
 // iterateBooks iterates over all books under the specified layers and applies the provided function to each book.
