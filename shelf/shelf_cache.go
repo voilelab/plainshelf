@@ -173,7 +173,9 @@ func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, error) {
 	// If we reach here, it means the cache entry is either missing or stale and we failed to refresh it.
 	// We should refresh the entire book cache to ensure we have the most up-to-date information.
 
-	s.refreshBookCacheIfNeeded(false)
+	if err := s.refreshBookCacheIfNeeded(false); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
 
 	s.bookCache.RLock()
 	defer s.bookCache.RUnlock()
