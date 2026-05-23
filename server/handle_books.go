@@ -78,6 +78,63 @@ func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// POST /api/books
+func (app *App) HandleAPICreateBook(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Title string       `json:"title"`
+		Layer shelf.Layers `json:"layer"`
+	}
+
+	bs, err := io.ReadAll(r.Body)
+	if err != nil {
+		app.Error("failed to read request body", "error", err)
+		http.Error(w, "failed to read request body", http.StatusInternalServerError)
+		return
+	}
+
+	err = json.Unmarshal(bs, &req)
+	if err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	newBook, err := app.shelf.NewBook(req.Layer, req.Title)
+	if err != nil {
+		app.Error("failed to create new book", "error", err)
+		http.Error(w, "failed to create new book", http.StatusInternalServerError)
+		return
+	}
+
+	src := io.NopCloser(strings.NewReader(""))
+	source, err := newBook.NewSource(src)
+	if err != nil {
+		app.Error("failed to create source for new book", "error", err)
+		http.Error(w, "failed to create source for new book", http.StatusInternalServerError)
+		return
+	}
+
+	err = newBook.SetCurrentSource(source.ID())
+	if err != nil {
+		app.Error("failed to set current source for new book", "error", err)
+		http.Error(w, "failed to set current source for new book", http.StatusInternalServerError)
+		return
+	}
+
+	jsonBook := Book{
+		Meta:  newBook.GetMeta(),
+		Layer: newBook.Layers(),
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusCreated)
+	err = json.NewEncoder(w).Encode(jsonBook)
+	if err != nil {
+		app.Error("failed to encode response", "error", err)
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
 // GET /api/books/{book_id}
 func (app *App) HandleAPIGetBook(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)

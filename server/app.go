@@ -159,6 +159,7 @@ func (app *App) Serve(mux *http.ServeMux) {
 	// Book API
 
 	mux.HandleFunc("GET /api/books", app.HandleAPIGetBooks)
+	mux.HandleFunc("POST /api/books", app.HandleAPICreateBook)
 
 	mux.HandleFunc("POST /api/books/import", app.HandleAPIImportBook)
 	mux.HandleFunc("GET /api/books/duplicate", app.HandleAPIFindDuplicateBooks)
