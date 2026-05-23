@@ -1,10 +1,12 @@
 package shelf
 
 import (
+	"encoding/json"
 	"log"
 	"os"
 	"path"
 	"testing"
+	"time"
 )
 
 func TestShelfNewShelf(t *testing.T) {
@@ -234,5 +236,138 @@ func TestShelfMoveBook(t *testing.T) {
 	}
 	if booksInLayer2[0].ID() != book.ID() {
 		t.Errorf("Expected moved book ID '%s', got '%s'", book.ID(), booksInLayer2[0].ID())
+	}
+}
+
+func TestShelfGetBookRefreshesWhenBookMetaChangesOnDisk(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "lib")
+
+	err := os.CopyFS(tmpLib, os.DirFS("testdata/lib"))
+	if err != nil {
+		t.Fatalf("Failed to copy test library: %v", err)
+	}
+
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib})
+	if err != nil {
+		t.Fatalf("Failed to initialize Shelf: %v", err)
+	}
+	defer shelf.Close()
+
+	book, err := shelf.GetBook("book-a82m")
+	if err != nil {
+		t.Fatalf("Failed to get book before disk update: %v", err)
+	}
+	if got := book.Title(); got != "Book Title" {
+		t.Fatalf("Expected initial title %q, got %q", "Book Title", got)
+	}
+
+	metaPath := path.Join(tmpLib, booksFolder, "default", "test", "book-a82m.novl", BookMetaFile)
+	metaBytes, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("Failed to read book meta: %v", err)
+	}
+
+	var meta BookMeta
+	if err := json.Unmarshal(metaBytes, &meta); err != nil {
+		t.Fatalf("Failed to unmarshal book meta: %v", err)
+	}
+	meta.Title = "Book Title Updated On Disk"
+
+	updatedMetaBytes, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		t.Fatalf("Failed to marshal updated book meta: %v", err)
+	}
+
+	time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)))
+	if err := os.WriteFile(metaPath, updatedMetaBytes, 0o644); err != nil {
+		t.Fatalf("Failed to write updated book meta: %v", err)
+	}
+
+	refreshedBook, err := shelf.GetBook("book-a82m")
+	if err != nil {
+		t.Fatalf("Failed to get book after disk update: %v", err)
+	}
+	if got := refreshedBook.Title(); got != "Book Title Updated On Disk" {
+		t.Fatalf("Expected refreshed title %q, got %q", "Book Title Updated On Disk", got)
+	}
+}
+
+func TestShelfListBooksRefreshesStaleMetaAndDiscoversNewBookOnCacheMiss(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "lib")
+
+	err := os.CopyFS(tmpLib, os.DirFS("testdata/lib"))
+	if err != nil {
+		t.Fatalf("Failed to copy test library: %v", err)
+	}
+
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib})
+	if err != nil {
+		t.Fatalf("Failed to initialize Shelf: %v", err)
+	}
+	defer shelf.Close()
+
+	books, err := shelf.ListBooks()
+	if err != nil {
+		t.Fatalf("Failed to list books before updates: %v", err)
+	}
+	if len(books) != 2 {
+		t.Fatalf("Expected 2 books before updates, got %d", len(books))
+	}
+
+	metaPath := path.Join(tmpLib, booksFolder, "default", "test", "book-a82m.novl", BookMetaFile)
+	metaBytes, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("Failed to read existing book meta: %v", err)
+	}
+	var meta BookMeta
+	if err := json.Unmarshal(metaBytes, &meta); err != nil {
+		t.Fatalf("Failed to unmarshal existing book meta: %v", err)
+	}
+	meta.Title = "List Refresh Title"
+	updatedMetaBytes, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		t.Fatalf("Failed to marshal existing book meta: %v", err)
+	}
+	time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)))
+	if err := os.WriteFile(metaPath, updatedMetaBytes, 0o644); err != nil {
+		t.Fatalf("Failed to write existing book meta: %v", err)
+	}
+
+	newBookPath := path.Join(tmpLib, booksFolder, "default", "test", "book-new.novl")
+	if err := os.MkdirAll(newBookPath, 0o755); err != nil {
+		t.Fatalf("Failed to create new book directory: %v", err)
+	}
+
+	newMeta := BookMeta{ID: "book-new", Title: "Brand New Book", Language: "en"}
+	newMetaBytes, err := json.MarshalIndent(newMeta, "", "  ")
+	if err != nil {
+		t.Fatalf("Failed to marshal new book meta: %v", err)
+	}
+	if err := os.WriteFile(path.Join(newBookPath, BookMetaFile), newMetaBytes, 0o644); err != nil {
+		t.Fatalf("Failed to write new book meta: %v", err)
+	}
+
+	books, err = shelf.ListBooks()
+	if err != nil {
+		t.Fatalf("Failed to list books after updates: %v", err)
+	}
+
+	seenUpdated := false
+	for _, b := range books {
+		if b.ID() == "book-a82m" && b.Title() == "List Refresh Title" {
+			seenUpdated = true
+			break
+		}
+	}
+	if !seenUpdated {
+		t.Fatalf("Expected ListBooks to include refreshed metadata for book-a82m")
+	}
+
+	newBook, err := shelf.GetBook("book-new")
+	if err != nil {
+		t.Fatalf("Expected GetBook to discover cache-miss book after directory appears: %v", err)
+	}
+	if newBook.Title() != "Brand New Book" {
+		t.Fatalf("Expected new book title %q, got %q", "Brand New Book", newBook.Title())
 	}
 }
