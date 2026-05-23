@@ -2,11 +2,9 @@ package shelf
 
 import (
 	"encoding/json"
-	"io"
 	"log"
 	"os"
 	"path"
-	"path/filepath"
 	"testing"
 	"time"
 )
@@ -241,50 +239,13 @@ func TestShelfMoveBook(t *testing.T) {
 	}
 }
 
-
-func copyDir(t *testing.T, src, dst string) {
-	t.Helper()
-	err := filepath.Walk(src, func(srcPath string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		rel, err := filepath.Rel(src, srcPath)
-		if err != nil {
-			return err
-		}
-		dstPath := filepath.Join(dst, rel)
-
-		if info.IsDir() {
-			return os.MkdirAll(dstPath, 0o755)
-		}
-
-		srcFile, err := os.Open(srcPath)
-		if err != nil {
-			return err
-		}
-		defer srcFile.Close()
-
-		dstFile, err := os.Create(dstPath)
-		if err != nil {
-			return err
-		}
-		defer dstFile.Close()
-
-		if _, err := io.Copy(dstFile, srcFile); err != nil {
-			return err
-		}
-
-		return os.Chmod(dstPath, info.Mode())
-	})
-	if err != nil {
-		t.Fatalf("Failed to copy directory from %s to %s: %v", src, dst, err)
-	}
-}
-
 func TestShelfGetBookRefreshesWhenBookMetaChangesOnDisk(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "lib")
-	copyDir(t, path.Join("testdata", "lib"), tmpLib)
+
+	err := os.CopyFS(tmpLib, os.DirFS("testdata/lib"))
+	if err != nil {
+		t.Fatalf("Failed to copy test library: %v", err)
+	}
 
 	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib})
 	if err != nil {
@@ -333,7 +294,11 @@ func TestShelfGetBookRefreshesWhenBookMetaChangesOnDisk(t *testing.T) {
 
 func TestShelfListBooksRefreshesStaleMetaAndDiscoversNewBookOnCacheMiss(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "lib")
-	copyDir(t, path.Join("testdata", "lib"), tmpLib)
+
+	err := os.CopyFS(tmpLib, os.DirFS("testdata/lib"))
+	if err != nil {
+		t.Fatalf("Failed to copy test library: %v", err)
+	}
 
 	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib})
 	if err != nil {
