@@ -94,13 +94,13 @@ func (b *Book) setLayers(layers Layers) {
 	b.layers = layers
 }
 
-// IsStale checks if the book is stale by comparing the last modified time of
-// the book meta with the metaModTime field, if the book meta is modified after
-// the metaModTime, it means the book is stale and needs to be refreshed
+// IsStale checks whether the cached book metadata is out of date by comparing
+// the current file stat of the book meta file with the cached metaStat. If the
+// file stat differs, the book is considered stale and should be refreshed.
 func (b *Book) IsStale() bool {
-	// FIXME: IsStale only treats the cache as stale when meta file modTime is
-	// strictly after metaModTime. If book.json is replaced with an older timestamp
-	// (e.g., sync tools preserving source mtimes), changes won’t be detected.
+	// FIXME: IsStale only treats the cache as stale when the tracked book.json
+	// file stat changes. If the file content changes but preserves the same
+	// tracked stat values (for example, mtime and size), the change won’t be detected.
 	metaPath := path.Join(b.folderPath, BookMetaFile)
 
 	currentMetaStat, err := getFileStat(b.root, metaPath)
