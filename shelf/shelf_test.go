@@ -363,7 +363,7 @@ func TestShelfListBooksRefreshesStaleMetaAndDiscoversNewBookOnCacheMiss(t *testi
 	if err != nil {
 		t.Fatalf("Failed to marshal existing book meta: %v", err)
 	}
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)))
 	if err := os.WriteFile(metaPath, updatedMetaBytes, 0o644); err != nil {
 		t.Fatalf("Failed to write existing book meta: %v", err)
 	}
