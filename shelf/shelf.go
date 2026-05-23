@@ -482,11 +482,14 @@ func (s *Shelf) getBook(bookID string) (*Book, error) {
 		return cacheEntry.book, nil
 	}
 
-	delete(s.bookIDCache, bookID)
-
-	// If the book is stale, we need to reload it
+	// If the book is stale, we need to reload it. Keep the existing cache
+	// entry until reload succeeds so transient reload failures do not mask the
+	// book as missing on future lookups.
 	updatedBook, err := openBook(s.dbRoot, s.Logger, cacheEntry.path)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			delete(s.bookIDCache, bookID)
+		}
 		return nil, util.Errorf("%w", err)
 	}
 
