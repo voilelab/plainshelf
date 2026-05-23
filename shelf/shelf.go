@@ -217,7 +217,7 @@ func (s *Shelf) ListBooks() ([]*Book, error) {
 	s.rlock()
 	defer s.unlock()
 
-	s.refreshBookCache()
+	s.scanToBookCache()
 
 	return s.listBooksFromCache(), nil
 }

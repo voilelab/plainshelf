@@ -1,8 +1,6 @@
 package shelf
 
 import (
-	"maps"
-	"slices"
 	"sort"
 	"sync"
 
@@ -26,6 +24,7 @@ func newBookCache() *bookCache {
 	}
 }
 
+// scanToBookCache scans the book folders and updates the book cache with the current state of the books.
 func (s *Shelf) scanToBookCache() error {
 	cache := make(map[string]*bookIDCacheEntry)
 
@@ -44,45 +43,7 @@ func (s *Shelf) scanToBookCache() error {
 	s.bookCache.Lock()
 	s.bookCache.cache = cache
 	s.bookCache.Unlock()
-
 	return nil
-}
-
-func (s *Shelf) refreshBookCache() {
-	s.bookCache.Lock()
-	defer s.bookCache.Unlock()
-
-	var bookIDs []string
-	bookIDs = slices.AppendSeq(bookIDs, maps.Keys(s.bookCache.cache))
-	sort.Strings(bookIDs)
-
-	for _, bookID := range bookIDs {
-		cacheEntry := s.bookCache.cache[bookID]
-		if !cacheEntry.book.IsStale() {
-			continue
-		}
-
-		updatedBook, err := openBook(s.dbRoot, s.Logger, cacheEntry.path)
-		if err != nil {
-			s.Error("Error opening book during ListBooks", "path", cacheEntry.path, "error", err)
-			continue
-		}
-
-		if updatedBook.ID() != bookID {
-			s.Error("Book ID mismatch during ListBooks", "expectedBookID", bookID, "actualBookID", updatedBook.ID())
-			continue
-		}
-
-		delete(s.bookCache.cache, bookID)
-
-		updatedBook.setLayers(cacheEntry.layers)
-
-		s.bookCache.cache[updatedBook.ID()] = &bookIDCacheEntry{
-			layers: cacheEntry.layers,
-			path:   cacheEntry.path,
-			book:   updatedBook,
-		}
-	}
 }
 
 func (s *Shelf) listBooksFromCache() []*Book {
