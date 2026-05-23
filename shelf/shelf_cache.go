@@ -1,6 +1,7 @@
 package shelf
 
 import (
+	"maps"
 	"sort"
 	"sync"
 	"time"
@@ -43,6 +44,7 @@ func (s *Shelf) refreshBookCacheIfNeeded(force bool) error {
 	s.bookCache.RUnlock()
 
 	if !force && !treeDirty && time.Since(lastFullScan) < minBookCacheFullScanInterval {
+		s.onlyRefreshBooksInCache()
 		return nil
 	}
 
@@ -76,6 +78,50 @@ func (s *Shelf) scanToBookCache() error {
 	s.bookCache.Unlock()
 
 	return nil
+}
+
+func (s *Shelf) onlyRefreshBooksInCache() {
+	s.bookCache.Lock()
+	cache := maps.Clone(s.bookCache.cache)
+	s.bookCache.Unlock()
+
+	staleIDs := []string{}
+	for bookID, cacheEntry := range cache {
+		if cacheEntry.book.IsStale() {
+			staleIDs = append(staleIDs, bookID)
+		}
+	}
+
+	for _, staleID := range staleIDs {
+		cacheEntry := cache[staleID]
+
+		delete(cache, staleID)
+
+		book, err := openBook(s.dbRoot, s.Logger, cacheEntry.path)
+		if err != nil {
+			s.Warn("Failed to refresh book cache entry, skipping", "bookID", cacheEntry.book.ID(), "error", err)
+			continue
+		}
+
+		if book.ID() != cacheEntry.book.ID() {
+			s.Warn("Book ID mismatch when refreshing book cache entry, skipping", "expectedBookID", cacheEntry.book.ID(), "actualBookID", book.ID())
+			continue
+		}
+
+		book.setLayers(cacheEntry.layers)
+
+		cache[book.ID()] = &bookIDCacheEntry{
+			layers: cacheEntry.layers,
+			path:   cacheEntry.path,
+			book:   book,
+		}
+	}
+
+	s.bookCache.Lock()
+	s.bookCache.cache = cache
+	s.bookCache.treeDirty = false
+	s.bookCache.lastFullScan = time.Now()
+	s.bookCache.Unlock()
 }
 
 func (s *Shelf) listBooksFromCache() []*Book {
