@@ -62,13 +62,18 @@ func (s *Shelf) refreshBookCache() {
 			continue
 		}
 
-		delete(s.bookCache.cache, bookID)
-
 		updatedBook, err := openBook(s.dbRoot, s.Logger, cacheEntry.path)
 		if err != nil {
 			s.Error("Error opening book during ListBooks", "path", cacheEntry.path, "error", err)
 			continue
 		}
+
+		if updatedBook.ID() != bookID {
+			s.Error("Book ID mismatch during ListBooks", "expectedBookID", bookID, "actualBookID", updatedBook.ID())
+			continue
+		}
+
+		delete(s.bookCache.cache, bookID)
 
 		updatedBook.setLayers(cacheEntry.layers)
 

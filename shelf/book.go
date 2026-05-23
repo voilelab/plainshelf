@@ -68,8 +68,7 @@ type Book struct {
 	meta       *BookMeta
 	layers     Layers
 
-	// metaModTime is the last modified time of the book meta, used for cache validation, and should be updated whenever the book meta is updated
-	metaModTime time.Time
+	metaStat FileStat
 }
 
 type BookMeta struct {
@@ -103,14 +102,16 @@ func (b *Book) IsStale() bool {
 	// strictly after metaModTime. If book.json is replaced with an older timestamp
 	// (e.g., sync tools preserving source mtimes), changes won’t be detected.
 	metaPath := path.Join(b.folderPath, BookMetaFile)
-	info, err := b.root.Stat(metaPath)
+
+	currentMetaStat, err := getFileStat(b.root, metaPath)
 	if err != nil {
-		b.logger.Warn("failed to stat book meta file, treating as stale", "error", err)
+		// If we cannot stat the meta file, we consider the book as stale to be safe,
+		// and let the caller handle the error when trying to open the book.
+		b.logger.Warn("failed to stat meta file during IsStale check, treating book as stale", "error", err)
 		return true
 	}
 
-	modTime := info.ModTime()
-	if modTime.After(b.metaModTime) {
+	if !currentMetaStat.Equal(&b.metaStat) {
 		return true
 	}
 
@@ -301,7 +302,20 @@ func (b *Book) setMeta(meta *BookMeta) error {
 	}
 
 	b.meta = meta
-	b.metaModTime = time.Now()
+
+	var metaStat *FileStat
+
+	metaStat, err = getFileStat(b.root, metaPath)
+	if err != nil {
+		metaStat = &FileStat{
+			ModTime: time.Now(),
+			Size:    int64(len(bs)),
+		}
+		b.logger.Warn("failed to stat meta file after SetMeta, metaStat may be inaccurate", "error", err)
+	}
+
+	b.metaStat = *metaStat
+
 	return nil
 }
 
@@ -383,7 +397,7 @@ func openBook(rt fsutil.FS, logger logutil.Logger, bookPath string) (*Book, erro
 		return nil, util.Errorf("%w", err)
 	}
 
-	metaStat, err := rt.Stat(metaPath)
+	metaStat, err := getFileStat(rt, metaPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -394,7 +408,7 @@ func openBook(rt fsutil.FS, logger logutil.Logger, bookPath string) (*Book, erro
 		meta:       &meta,
 		logger:     logger,
 
-		metaModTime: metaStat.ModTime(),
+		metaStat: *metaStat,
 	}, nil
 }
 
@@ -410,18 +424,35 @@ func createBook(rt fsutil.FS, logger logutil.Logger, bookPath, bookID, title str
 		CreatedAt: util.JSONTime(time.Now()),
 	}
 
-	metaFilePath := path.Join(bookPath, BookMetaFile)
-	metaFile, err := rt.OpenWriter(metaFilePath)
+	bs, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer metaFile.Close()
 
-	encoder := json.NewEncoder(metaFile)
-	encoder.SetIndent("", "  ")
-	err = encoder.Encode(meta)
+	metaFilePath := path.Join(bookPath, BookMetaFile)
+	tmpMetaFilePath := metaFilePath + ".tmp"
+	err = rt.WriteFile(tmpMetaFilePath, bs)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
+	}
+
+	err = rt.Rename(tmpMetaFilePath, metaFilePath)
+	if err != nil {
+		err2 := rt.Remove(tmpMetaFilePath)
+		if err2 != nil {
+			logger.Warn("failed to remove temp meta file after failed rename, meta file may be left in an inconsistent state", "error", err2)
+		}
+		return nil, util.Errorf("%w", err)
+	}
+
+	var metaStat *FileStat
+	metaStat, err = getFileStat(rt, metaFilePath)
+	if err != nil {
+		logger.Warn("failed to stat meta file after creating book, metaStat may be inaccurate", "error", err)
+		metaStat = &FileStat{
+			ModTime: time.Now(),
+			Size:    int64(len(bs)),
+		}
 	}
 
 	return &Book{
@@ -430,6 +461,6 @@ func createBook(rt fsutil.FS, logger logutil.Logger, bookPath, bookID, title str
 		meta:       &meta,
 		logger:     logger,
 
-		metaModTime: time.Now(),
+		metaStat: *metaStat,
 	}, nil
 }
