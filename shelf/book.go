@@ -38,6 +38,18 @@ func (l Layers) String() string {
 	return strings.Join(l, "/")
 }
 
+func (l Layers) Equal(other Layers) bool {
+	if len(l) != len(other) {
+		return false
+	}
+	for i := range l {
+		if l[i] != other[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func NewLayersFromString(s string) Layers {
 	if s == "" {
 		return nil

@@ -4,10 +4,8 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
-	"maps"
 	"os"
 	"path"
-	"slices"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -41,21 +39,13 @@ const maxPathSegmentLength = 255
 
 var ErrBookNotFound = util.NewError("book not found")
 
-type BookIDCacheEntry struct {
-	layers Layers
-	path   string
-	book   *Book
-}
-
 type Shelf struct {
 	logutil.Logger
 	dbRoot    fsutil.FS
 	readonly  bool
 	close     func() error
 	localLock *flock.Flock
-
-	// cache
-	bookIDCache map[string]*BookIDCacheEntry
+	bookCache *bookCache
 }
 
 type ShelfConf struct {
@@ -99,7 +89,7 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		localLock: flock.New(path.Join(conf.LibRoot, appFolder, libraryLockFile)),
 
 		// cache
-		bookIDCache: make(map[string]*BookIDCacheEntry),
+		bookCache: newBookCache(),
 	}
 
 	err = shelf.makeStructure()
@@ -133,14 +123,7 @@ func (s *Shelf) makeStructure() error {
 }
 
 func (s *Shelf) initCache() error {
-	err := s.iterateBooks(nil, func(b *Book) bool {
-		s.bookIDCache[b.ID()] = &BookIDCacheEntry{
-			layers: b.Layers(),
-			path:   b.FolderPath(),
-			book:   b,
-		}
-		return true
-	})
+	err := s.scanToBookCache()
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -234,33 +217,16 @@ func (s *Shelf) ListBooks() ([]*Book, error) {
 	s.rlock()
 	defer s.unlock()
 
-	var bookIDs []string
-	bookIDs = slices.AppendSeq(bookIDs, maps.Keys(s.bookIDCache))
-	sort.Strings(bookIDs)
+	s.refreshBookCache()
 
 	var books []*Book
-	for _, bookID := range bookIDs {
-		cacheEntry := s.bookIDCache[bookID]
-		if cacheEntry.book.IsStale() {
-			delete(s.bookIDCache, bookID)
-
-			updatedBook, err := openBook(s.dbRoot, s.Logger, cacheEntry.path)
-			if err != nil {
-				s.Error("Error opening book during ListBooks", "path", cacheEntry.path, "error", err)
-				continue
-			}
-
-			updatedBook.setLayers(cacheEntry.layers)
-
-			s.bookIDCache[bookID] = &BookIDCacheEntry{
-				layers: cacheEntry.layers,
-				path:   cacheEntry.path,
-				book:   updatedBook,
-			}
-		}
-
-		books = append(books, s.bookIDCache[bookID].book)
+	for _, cacheEntry := range s.bookCache.cache {
+		books = append(books, cacheEntry.book)
 	}
+
+	sort.Slice(books, func(i, j int) bool {
+		return books[i].ID() < books[j].ID()
+	})
 
 	return books, nil
 }
@@ -270,7 +236,7 @@ func (s *Shelf) GetBook(bookID string) (*Book, error) {
 	s.rlock()
 	defer s.unlock()
 
-	book, err := s.getBook(bookID)
+	book, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -294,10 +260,11 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 	defer s.dbRoot.RemoveAll(bookPath)
 
 	// Generate a unique book ID based on the layers and title
+	// TBD: Use UUID
 	baseBookID := generateBookID(layers, title)
 	bookID := baseBookID
 	for i := 1; ; i++ {
-		_, err := s.getBook(bookID)
+		_, err := s.getUpdatedBookFromBookID(bookID)
 		if err != nil {
 			if errors.Is(err, ErrBookNotFound) {
 				break
@@ -346,11 +313,7 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 
 	newBook.setLayers(layers)
 
-	s.bookIDCache[newBook.ID()] = &BookIDCacheEntry{
-		layers: layers,
-		path:   finalBookPath,
-		book:   newBook,
-	}
+	s.updateBookCacheEntry(layers, finalBookPath, newBook)
 
 	return newBook, nil
 }
@@ -360,7 +323,7 @@ func (s *Shelf) DeleteBook(bookID string) error {
 	s.lock()
 	defer s.unlock()
 
-	book, err := s.getBook(bookID)
+	book, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -370,7 +333,7 @@ func (s *Shelf) DeleteBook(bookID string) error {
 		return util.Errorf("%w", err)
 	}
 
-	delete(s.bookIDCache, bookID)
+	s.deleteBookCacheEntry(bookID)
 
 	return nil
 }
@@ -413,13 +376,10 @@ func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
 
 	var books []*Book
 
-	err := s.iterateBooks(layers, func(b *Book) bool {
-		books = append(books, b)
-		return true
-	})
-
-	if err != nil {
-		return nil, util.Errorf("%w", err)
+	for _, cacheEntry := range s.bookCache.cache {
+		if cacheEntry.layers.Equal(layers) {
+			books = append(books, cacheEntry.book)
+		}
 	}
 
 	sort.Slice(books, func(i, j int) bool {
@@ -438,7 +398,7 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 	s.lock()
 	defer s.unlock()
 
-	book, err := s.getBook(bookID)
+	book, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -462,46 +422,9 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 
 	movedBook.setLayers(newLayers)
 
-	s.bookIDCache[movedBook.ID()] = &BookIDCacheEntry{
-		layers: newLayers,
-		path:   newBookPath,
-		book:   movedBook,
-	}
+	s.updateBookCacheEntry(newLayers, newBookPath, movedBook)
 
 	return movedBook, nil
-}
-
-func (s *Shelf) getBook(bookID string) (*Book, error) {
-	cacheEntry, exists := s.bookIDCache[bookID]
-	if !exists {
-		return nil, util.Errorf("%w: %s", ErrBookNotFound, bookID)
-	}
-
-	stale := cacheEntry.book.IsStale()
-	if !stale {
-		return cacheEntry.book, nil
-	}
-
-	// If the book is stale, we need to reload it. Keep the existing cache
-	// entry until reload succeeds so transient reload failures do not mask the
-	// book as missing on future lookups.
-	updatedBook, err := openBook(s.dbRoot, s.Logger, cacheEntry.path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			delete(s.bookIDCache, bookID)
-		}
-		return nil, util.Errorf("%w", err)
-	}
-
-	updatedBook.setLayers(cacheEntry.layers)
-
-	s.bookIDCache[bookID] = &BookIDCacheEntry{
-		layers: cacheEntry.layers,
-		path:   cacheEntry.path,
-		book:   updatedBook,
-	}
-
-	return updatedBook, nil
 }
 
 // iterateBooks iterates over all books under the specified layers and applies the provided function to each book.
