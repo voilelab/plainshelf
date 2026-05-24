@@ -15,8 +15,8 @@ This document summarizes known limitations of the current shelf cache behavior, 
 2. **Staleness detection is based only on `book.json` file stat (`mtime` + `size`)**
    - Content changes can be missed if they happen to preserve tracked stat values.
 
-3. **Non-meta file changes are weakly detected**
-   - Cache staleness checks focus on `book.json`; direct changes to cover/source files may not be reflected immediately unless meta is updated.
+3. **Cache refresh decisions are driven by `book.json`**
+   - Staleness checks focus on `book.json`, so metadata-derived cached book state can remain stale when only cover/source files change; this should not be interpreted as cover/source file contents themselves being cached.
 
 ---
 
