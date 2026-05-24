@@ -1,4 +1,12 @@
 <template>
+  <div v-if="showDesktopHistoryControls" class="desktop-history-controls" aria-label="Desktop history navigation">
+    <button type="button" class="desktop-history-button" aria-label="Previous page" @click="goToPreviousPage">
+      ←
+    </button>
+    <button type="button" class="desktop-history-button" aria-label="Next page" @click="goToNextPage">
+      →
+    </button>
+  </div>
   <RouterView />
   <div v-if="showMockModeBadge" class="mock-mode-badge" role="status" aria-live="polite">
     MOCK API MODE
@@ -8,11 +16,63 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { isMockApiMode } from './api/client';
+import router from './router';
 
 const showMockModeBadge = computed(() => isMockApiMode());
+const showDesktopHistoryControls = computed(() => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  return (
+    window.location.protocol === 'wails:' ||
+    window.location.host.endsWith('.wails.localhost') ||
+    params.get('desktop-shell-preview') === '1'
+  );
+});
+
+function goToPreviousPage(): void {
+  router.go(-1);
+}
+
+function goToNextPage(): void {
+  router.go(1);
+}
 </script>
 
 <style scoped>
+.desktop-history-controls {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+.desktop-history-button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.desktop-history-button:hover {
+  background: #f8fafc;
+}
+
 .mock-mode-badge {
   position: fixed;
   right: 16px;
