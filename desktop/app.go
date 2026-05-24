@@ -11,17 +11,20 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 type DesktopApp struct {
 	app *server.App
+	ctx context.Context
 }
 
 func NewDesktopApp() *DesktopApp {
 	return &DesktopApp{}
 }
 
-func (a *DesktopApp) Startup(_ context.Context) {
+func (a *DesktopApp) Startup(ctx context.Context) {
+	a.ctx = ctx
 	err := a.startServer()
 	if err != nil {
 		panic(err)
@@ -39,6 +42,22 @@ func (a *DesktopApp) Shutdown() {
 
 func (a *DesktopApp) GetAPIHandler() http.Handler {
 	return a.app.Handler()
+}
+
+func (a *DesktopApp) PreviousPage() {
+	a.navigateHistory(-1)
+}
+
+func (a *DesktopApp) NextPage() {
+	a.navigateHistory(1)
+}
+
+func (a *DesktopApp) navigateHistory(step int) {
+	if a.ctx == nil {
+		return
+	}
+
+	wailsruntime.WindowExecJS(a.ctx, historyNavigationScript(step))
 }
 
 func (a *DesktopApp) startServer() error {

@@ -33,6 +33,7 @@ func main() {
 				})
 			},
 		},
+		Menu:      newApplicationMenu(app),
 		OnStartup: app.Startup,
 		OnShutdown: func(context.Context) {
 			app.Shutdown()
