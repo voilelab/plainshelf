@@ -539,6 +539,18 @@ export async function uploadBookCover(id: string, file: File): Promise<void> {
   await uploadBookCoverInternal(id, file);
 }
 
+export async function uploadBookCoverBlob(id: string, blob: Blob): Promise<void> {
+  const payload = new Uint8Array(await blob.arrayBuffer());
+
+  await fetchJson<void>(`/api/books/${encodeURIComponent(id)}/cover`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': blob.type || 'image/jpeg'
+    },
+    body: payload
+  });
+}
+
 export async function getBookCover(id: string): Promise<Blob> {
   if (isMockApiMode()) {
     const book = findBookOrThrow(id);
