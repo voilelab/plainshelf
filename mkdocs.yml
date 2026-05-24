@@ -33,3 +33,4 @@ nav:
   - Development:
       - Local Setup: development/setup.md
       - Docker: development/docker.md
+  - Known Issues: known-issue.md
