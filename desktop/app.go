@@ -57,7 +57,12 @@ func (a *DesktopApp) navigateHistory(step int) {
 		return
 	}
 
-	wailsruntime.WindowExecJS(a.ctx, historyNavigationScript(step))
+	script := historyNavigationScript(step)
+	if script == "" {
+		return
+	}
+
+	wailsruntime.WindowExecJS(a.ctx, script)
 }
 
 func (a *DesktopApp) startServer() error {

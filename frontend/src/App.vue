@@ -16,7 +16,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { isMockApiMode } from './api/client';
-import router from './router';
 
 const showMockModeBadge = computed(() => isMockApiMode());
 const showDesktopHistoryControls = computed(() => {
@@ -33,11 +32,11 @@ const showDesktopHistoryControls = computed(() => {
 });
 
 function goToPreviousPage(): void {
-  router.go(-1);
+  window.history.back();
 }
 
 function goToNextPage(): void {
-  router.go(1);
+  window.history.forward();
 }
 </script>
 

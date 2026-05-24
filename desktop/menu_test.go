@@ -108,7 +108,7 @@ func TestHistoryMenuAcceleratorFor(t *testing.T) {
 	}
 }
 
-func TestDesktopHistoryNavigationWithoutContextIsSafe(t *testing.T) {
+func TestHistoryNavigationWithNilContext(t *testing.T) {
 	t.Parallel()
 
 	app := NewDesktopApp()
