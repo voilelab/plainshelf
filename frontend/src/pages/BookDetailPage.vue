@@ -25,6 +25,7 @@
         <BookCover
           :book-id="book.id"
           :title="book.title"
+          :authors="book.authors"
           :cover-url="book.cover_url"
           @cover-changed="onCoverChanged"
         />
