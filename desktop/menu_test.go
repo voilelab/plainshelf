@@ -127,17 +127,17 @@ func TestZoomScript(t *testing.T) {
 		{
 			name:   "default zoom",
 			factor: 1.0,
-			want:   "document.body.style.zoom = '1.00';",
+			want:   "document.documentElement.style.zoom = '1.00';",
 		},
 		{
 			name:   "zoom in",
 			factor: 1.1,
-			want:   "document.body.style.zoom = '1.10';",
+			want:   "document.documentElement.style.zoom = '1.10';",
 		},
 		{
 			name:   "zoom out",
 			factor: 0.9,
-			want:   "document.body.style.zoom = '0.90';",
+			want:   "document.documentElement.style.zoom = '0.90';",
 		},
 	}
 

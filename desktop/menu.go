@@ -42,7 +42,7 @@ func newApplicationMenu(app *DesktopApp) *menu.Menu {
 }
 
 func zoomScript(factor float64) string {
-	return fmt.Sprintf("document.body.style.zoom = '%.2f';", factor)
+	return fmt.Sprintf("document.documentElement.style.zoom = '%.2f';", factor)
 }
 
 func historyNavigationScript(step int) string {
