@@ -342,26 +342,19 @@ function renderCover(): void {
       ctx.textAlign = 'left';
       const leftPad = 40;
       const botPad = 60;
-      const textMaxW = w - leftPad * 2;
-      const authorLineH = 20;
-      let authorLines = [];
-      let authorBlock = 0;
 
       if (author) {
         ctx.font = `14px 'Segoe UI', 'Avenir Next', sans-serif`;
         ctx.fillStyle = cfg.mutedColor;
-        authorLines = wrapText(ctx, author, textMaxW);
-        authorBlock = authorLines.length * authorLineH;
-        const authorY = h - botPad - authorBlock + authorLineH;
-        drawTextBlock(ctx, authorLines, leftPad, authorY, authorLineH);
+        ctx.fillText(author, leftPad, h - botPad);
       }
 
       ctx.font = `bold 28px 'Segoe UI', 'Avenir Next', sans-serif`;
       ctx.fillStyle = cfg.textColor;
-      const titleLines = wrapText(ctx, title, textMaxW);
+      const titleLines = wrapText(ctx, title, w - leftPad * 2);
       const titleLineH = 38;
       const titleBlock = titleLines.length * titleLineH;
-      const titleY = h - botPad - authorBlock - (author ? 8 : 0) - titleBlock;
+      const titleY = h - botPad - (author ? 28 : 0) - titleBlock - 8;
       drawTextBlock(ctx, titleLines, leftPad, titleY, titleLineH);
 
       // Top accent line
