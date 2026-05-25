@@ -223,14 +223,36 @@ function wrapText(
   const lines: string[] = [];
   let current = '';
 
+  const splitLongWord = (word: string): string[] => {
+    const chunks: string[] = [];
+    let currentChunk = '';
+
+    for (const char of word) {
+      const testChunk = currentChunk + char;
+      if (currentChunk && ctx.measureText(testChunk).width > maxWidth) {
+        chunks.push(currentChunk);
+        currentChunk = char;
+      } else {
+        currentChunk = testChunk;
+      }
+    }
+
+    if (currentChunk) chunks.push(currentChunk);
+    return chunks;
+  };
+
   for (const word of words) {
     const test = current ? `${current} ${word}` : word;
     if (ctx.measureText(test).width <= maxWidth) {
       current = test;
     } else {
       if (current) lines.push(current);
-      // If a single word is wider than maxWidth, push it as-is
-      current = word;
+      if (ctx.measureText(word).width > maxWidth) {
+        lines.push(...splitLongWord(word));
+        current = '';
+      } else {
+        current = word;
+      }
     }
   }
   if (current) lines.push(current);
