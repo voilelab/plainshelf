@@ -115,3 +115,97 @@ func TestHistoryNavigationWithNilContext(t *testing.T) {
 	app.PreviousPage()
 	app.NextPage()
 }
+
+func TestZoomScript(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		factor float64
+		want   string
+	}{
+		{
+			name:   "default zoom",
+			factor: 1.0,
+			want:   "document.body.style.zoom = '1.00';",
+		},
+		{
+			name:   "zoom in",
+			factor: 1.1,
+			want:   "document.body.style.zoom = '1.10';",
+		},
+		{
+			name:   "zoom out",
+			factor: 0.9,
+			want:   "document.body.style.zoom = '0.90';",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := zoomScript(tc.factor); got != tc.want {
+				t.Fatalf("zoomScript(%.2f) = %q, want %q", tc.factor, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestZoomWithNilContext(t *testing.T) {
+	t.Parallel()
+
+	app := NewDesktopApp()
+	app.ZoomIn()
+	app.ZoomOut()
+	app.ResetZoom()
+}
+
+func TestZoomClamping(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		operations func(app *DesktopApp)
+		wantZoom   float64
+	}{
+		{
+			name: "clamps at min",
+			operations: func(app *DesktopApp) {
+				app.zoomFactor = minZoomFactor
+				app.ZoomOut()
+			},
+			wantZoom: minZoomFactor,
+		},
+		{
+			name: "clamps at max",
+			operations: func(app *DesktopApp) {
+				app.zoomFactor = maxZoomFactor
+				app.ZoomIn()
+			},
+			wantZoom: maxZoomFactor,
+		},
+		{
+			name: "reset returns to default",
+			operations: func(app *DesktopApp) {
+				app.zoomFactor = 1.5
+				app.ResetZoom()
+			},
+			wantZoom: defaultZoomFactor,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := NewDesktopApp()
+			tc.operations(app)
+			if got := app.GetZoomFactor(); got != tc.wantZoom {
+				t.Fatalf("GetZoomFactor() = %.2f, want %.2f", got, tc.wantZoom)
+			}
+		})
+	}
+}

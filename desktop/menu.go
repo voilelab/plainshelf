@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"runtime"
 
 	"github.com/wailsapp/wails/v2/pkg/menu"
@@ -25,7 +26,23 @@ func newApplicationMenu(app *DesktopApp) *menu.Menu {
 		app.NextPage()
 	})
 
+	viewMenu.AddSeparator()
+
+	viewMenu.AddText("Zoom In", keys.CmdOrCtrl("+"), func(*menu.CallbackData) {
+		app.ZoomIn()
+	})
+	viewMenu.AddText("Zoom Out", keys.CmdOrCtrl("-"), func(*menu.CallbackData) {
+		app.ZoomOut()
+	})
+	viewMenu.AddText("Reset Zoom", keys.CmdOrCtrl("0"), func(*menu.CallbackData) {
+		app.ResetZoom()
+	})
+
 	return root
+}
+
+func zoomScript(factor float64) string {
+	return fmt.Sprintf("document.body.style.zoom = '%.2f';", factor)
 }
 
 func historyNavigationScript(step int) string {

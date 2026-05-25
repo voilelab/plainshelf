@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
@@ -14,13 +15,22 @@ import (
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+const (
+	defaultZoomFactor = 1.0
+	zoomStep          = 0.1
+	minZoomFactor     = 0.5
+	maxZoomFactor     = 4.0
+)
+
 type DesktopApp struct {
-	app *server.App
-	ctx context.Context
+	app        *server.App
+	ctx        context.Context
+	zoomMu     sync.Mutex
+	zoomFactor float64
 }
 
 func NewDesktopApp() *DesktopApp {
-	return &DesktopApp{}
+	return &DesktopApp{zoomFactor: defaultZoomFactor}
 }
 
 func (a *DesktopApp) Startup(ctx context.Context) {
@@ -50,6 +60,47 @@ func (a *DesktopApp) PreviousPage() {
 
 func (a *DesktopApp) NextPage() {
 	a.navigateHistory(1)
+}
+
+func (a *DesktopApp) ZoomIn() {
+	a.zoomMu.Lock()
+	current := a.zoomFactor
+	a.zoomMu.Unlock()
+	a.setZoom(current + zoomStep)
+}
+
+func (a *DesktopApp) ZoomOut() {
+	a.zoomMu.Lock()
+	current := a.zoomFactor
+	a.zoomMu.Unlock()
+	a.setZoom(current - zoomStep)
+}
+
+func (a *DesktopApp) ResetZoom() {
+	a.setZoom(defaultZoomFactor)
+}
+
+func (a *DesktopApp) GetZoomFactor() float64 {
+	a.zoomMu.Lock()
+	defer a.zoomMu.Unlock()
+	return a.zoomFactor
+}
+
+func (a *DesktopApp) setZoom(factor float64) {
+	if factor < minZoomFactor {
+		factor = minZoomFactor
+	}
+	if factor > maxZoomFactor {
+		factor = maxZoomFactor
+	}
+	a.zoomMu.Lock()
+	a.zoomFactor = factor
+	ctx := a.ctx
+	a.zoomMu.Unlock()
+	if ctx == nil {
+		return
+	}
+	wailsruntime.WindowExecJS(ctx, zoomScript(factor))
 }
 
 func (a *DesktopApp) navigateHistory(step int) {
