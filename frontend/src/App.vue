@@ -1,12 +1,12 @@
 <template>
-  <div v-if="showDesktopHistoryControls" class="desktop-history-controls" aria-label="Desktop history navigation">
+  <nav v-if="showDesktopHistoryControls" class="desktop-history-controls" aria-label="Desktop history navigation">
     <button type="button" class="desktop-history-button" aria-label="Previous page" @click="goToPreviousPage">
       ←
     </button>
     <button type="button" class="desktop-history-button" aria-label="Next page" @click="goToNextPage">
       →
     </button>
-  </div>
+  </nav>
   <RouterView />
   <div v-if="showMockModeBadge" class="mock-mode-badge" role="status" aria-live="polite">
     MOCK API MODE
