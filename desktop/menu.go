@@ -9,6 +9,13 @@ import (
 
 func newApplicationMenu(app *DesktopApp) *menu.Menu {
 	root := menu.NewMenu()
+
+	if runtime.GOOS == "darwin" {
+		root.Append(menu.AppMenu())
+	}
+
+	root.Append(menu.EditMenu())
+
 	viewMenu := root.AddSubmenu("View")
 
 	viewMenu.AddText("Previous Page", historyMenuAcceleratorFor(runtime.GOOS, "left"), func(*menu.CallbackData) {
