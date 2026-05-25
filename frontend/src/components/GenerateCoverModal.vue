@@ -84,7 +84,6 @@ const JPEG_EXPORT_QUALITY = 0.92;
 // Layout spacing constants
 const LAYOUT_PADDING = 36;
 const AUTHOR_LINE_HEIGHT = 28;
-const AUTHOR_SINGLE_LINE_H = 30; // estimated single-line height for author in large-title layout (font 16px + spacing)
 
 type BgStyle = 'plain-light' | 'plain-dark' | 'warm-paper' | 'soft-gradient' | 'minimal-solid';
 type Layout = 'centered' | 'top-bottom' | 'large-title' | 'minimal';
@@ -320,7 +319,7 @@ function renderCover(): void {
       if (author) {
         ctx.font = `16px 'Segoe UI', 'Avenir Next', sans-serif`;
         authorLines = wrapText(ctx, author, maxW);
-        authorBlock = authorLines.length * AUTHOR_SINGLE_LINE_H;
+        authorBlock = authorLines.length * AUTHOR_LINE_HEIGHT;
       }
       const totalBlock = titleBlock + (authorLines.length > 0 ? 20 + authorBlock : 0);
       const startY = (h - totalBlock) / 2;
@@ -332,7 +331,7 @@ function renderCover(): void {
       if (authorLines.length > 0) {
         ctx.font = `16px 'Segoe UI', 'Avenir Next', sans-serif`;
         ctx.fillStyle = cfg.mutedColor;
-        drawTextBlock(ctx, authorLines, w / 2, startY + titleBlock + 20, AUTHOR_SINGLE_LINE_H);
+        drawTextBlock(ctx, authorLines, w / 2, startY + titleBlock + 20, AUTHOR_LINE_HEIGHT);
       }
       break;
     }
