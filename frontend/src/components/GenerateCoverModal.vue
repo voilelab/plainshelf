@@ -315,22 +315,24 @@ function renderCover(): void {
       const titleLines = wrapText(ctx, title, maxW);
       const titleLineH = 56;
       const titleBlock = titleLines.length * titleLineH;
+      let authorLines: string[] = [];
       let authorBlock = 0;
       if (author) {
         ctx.font = `16px 'Segoe UI', 'Avenir Next', sans-serif`;
-        authorBlock = AUTHOR_SINGLE_LINE_H;
+        authorLines = wrapText(ctx, author, maxW);
+        authorBlock = authorLines.length * AUTHOR_SINGLE_LINE_H;
       }
-      const totalBlock = titleBlock + (author ? 20 + authorBlock : 0);
+      const totalBlock = titleBlock + (authorLines.length > 0 ? 20 + authorBlock : 0);
       const startY = (h - totalBlock) / 2;
 
       ctx.font = `bold 44px 'Segoe UI', 'Avenir Next', sans-serif`;
       ctx.fillStyle = cfg.textColor;
       drawTextBlock(ctx, titleLines, w / 2, startY, titleLineH);
 
-      if (author) {
+      if (authorLines.length > 0) {
         ctx.font = `16px 'Segoe UI', 'Avenir Next', sans-serif`;
         ctx.fillStyle = cfg.mutedColor;
-        ctx.fillText(author, w / 2, startY + titleBlock + 20);
+        drawTextBlock(ctx, authorLines, w / 2, startY + titleBlock + 20, AUTHOR_SINGLE_LINE_H);
       }
       break;
     }
