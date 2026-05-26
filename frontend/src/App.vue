@@ -45,7 +45,7 @@ function goToNextPage(): void {
 <style scoped>
 .desktop-history-controls {
   position: fixed;
-  top: 16px;
+  top: 72px;
   right: 16px;
   z-index: 1000;
   display: inline-flex;
