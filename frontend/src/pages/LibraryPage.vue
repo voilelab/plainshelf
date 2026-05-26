@@ -343,8 +343,7 @@ async function openImportFromFiles(): Promise<void> {
     }
     return;
   }
-
-  if (desktopFiles && desktopFiles.length === 0) {
+  if (desktopFiles) {
     return;
   }
 
