@@ -14,6 +14,7 @@ import (
 )
 
 const trashMetaFile = "trash.json"
+const maxBookPathCollisionAttempts = 10000
 
 var ErrTrashedBookNotFound = util.NewError("trashed book not found")
 
@@ -72,7 +73,7 @@ func (s *Shelf) MoveBookToTrash(bookID string) error {
 
 func (s *Shelf) ListTrashedBooks() ([]*TrashedBook, error) {
 	s.rlock()
-	defer s.unlock()
+	defer s.runlock()
 
 	entries, err := s.dbRoot.ReadDir(trashBooksFolder)
 	if err != nil {
@@ -244,7 +245,9 @@ func (s *Shelf) resolveBookPathCollision(layerPath, folderName string) (string, 
 		baseName = folderName
 	}
 
-	for i := 0; i < 10000; i++ {
+	// 10,000 attempts is a practical upper bound for collision resolution in a single layer.
+	// If this bound is reached, callers can surface the error and retry with a different name.
+	for i := 0; i < maxBookPathCollisionAttempts; i++ {
 		candidateFolder := folderName
 		if i > 0 {
 			candidateFolder = baseName + "-" + strconv.Itoa(i) + bookExtension
