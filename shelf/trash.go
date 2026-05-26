@@ -244,7 +244,7 @@ func (s *Shelf) resolveBookPathCollision(layerPath, folderName string) (string, 
 		baseName = folderName
 	}
 
-	for i := 0; ; i++ {
+	for i := 0; i < 10000; i++ {
 		candidateFolder := folderName
 		if i > 0 {
 			candidateFolder = baseName + "-" + strconv.Itoa(i) + bookExtension
@@ -258,4 +258,6 @@ func (s *Shelf) resolveBookPathCollision(layerPath, folderName string) (string, 
 			return "", util.Errorf("%w", err)
 		}
 	}
+
+	return "", util.Errorf("failed to resolve unique book path for %q", folderName)
 }

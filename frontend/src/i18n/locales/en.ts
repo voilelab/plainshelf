@@ -134,7 +134,7 @@ const en = {
     permanentDeleteFailed: 'Failed to permanently delete book',
     columns: {
       title: 'Title',
-      authors: 'Author',
+      authors: 'Authors',
       originalLayer: 'Original layer',
       deletedAt: 'Deleted at',
       bookId: 'Book ID',
