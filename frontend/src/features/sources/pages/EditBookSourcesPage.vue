@@ -9,6 +9,19 @@
       @cancel="cancelPendingSource"
       @confirm="confirmPendingSource"
     />
+    <ConfirmModal
+      :open="showDeleteModal"
+      title="Delete source?"
+      confirm-text="Delete"
+      cancel-text="Cancel"
+      variant="danger"
+      :busy="deleting"
+      @cancel="cancelDelete"
+      @confirm="confirmDelete"
+    >
+      <p>Are you sure you want to delete source <strong>{{ pendingDeleteSourceId }}</strong>? This action cannot be undone.</p>
+      <p v-if="deleteError" class="delete-error" role="alert">{{ deleteError }}</p>
+    </ConfirmModal>
     <header class="source-editor-topbar">
       <button class="button" type="button" @click="goBack">Back</button>
 
@@ -34,7 +47,10 @@
         :activeSourceId="activeSourceId"
         :currentSourceId="book?.current_source"
         :loading="listLoading"
+        :creating="creating"
         @select="onSelectSource"
+        @create="onCreateSource"
+        @delete="onDeleteSource"
       />
 
       <main class="source-editor-main">
@@ -64,7 +80,7 @@ import { getBook } from '../../../api/books';
 import ConfirmModal from '../../../components/ConfirmModal.vue';
 import { useDocumentTitle } from '../../../composables/useDocumentTitle';
 import type { Book } from '../../../types/book';
-import { getSourceContent, listSource, updateSourceContent } from '../../../api/sources';
+import { getSourceContent, listSource, updateSourceContent, createSource, deleteSource } from '../../../api/sources';
 import SourceEditor from '../components/SourceEditor.vue';
 import SourceList from '../components/SourceList.vue';
 import type { SourceMeta } from '../../../types/source';
@@ -84,12 +100,17 @@ const initialLoading = ref(false);
 const listLoading = ref(false);
 const contentLoading = ref(false);
 const saving = ref(false);
+const creating = ref(false);
+const deleting = ref(false);
 
 const loadError = ref('');
 const editorError = ref('');
 const saveSuccess = ref('');
 const showDiscardModal = ref(false);
 const pendingSourceId = ref('');
+const showDeleteModal = ref(false);
+const pendingDeleteSourceId = ref('');
+const deleteError = ref('');
 
 const isDirty = computed(() => activeSourceId.value.length > 0 && content.value !== initialContent.value);
 const disableSave = computed(
@@ -214,6 +235,71 @@ async function onSave(): Promise<void> {
   }
 }
 
+async function onCreateSource(): Promise<void> {
+  creating.value = true;
+  editorError.value = '';
+  saveSuccess.value = '';
+
+  try {
+    const newSource = await createSource(bookId.value);
+    await reloadSourceMeta();
+    await loadSource(newSource.id);
+  } catch (err) {
+    editorError.value = err instanceof Error ? err.message : 'Failed to create source';
+  } finally {
+    creating.value = false;
+  }
+}
+
+function onDeleteSource(sourceId: string): void {
+  pendingDeleteSourceId.value = sourceId;
+  deleteError.value = '';
+  showDeleteModal.value = true;
+}
+
+function cancelDelete(): void {
+  showDeleteModal.value = false;
+  pendingDeleteSourceId.value = '';
+  deleteError.value = '';
+}
+
+async function confirmDelete(): Promise<void> {
+  const sourceId = pendingDeleteSourceId.value;
+  if (!sourceId) {
+    return;
+  }
+
+  deleting.value = true;
+  deleteError.value = '';
+
+  try {
+    await deleteSource(bookId.value, sourceId);
+    showDeleteModal.value = false;
+    pendingDeleteSourceId.value = '';
+
+    await reloadSourceMeta();
+
+    if (activeSourceId.value === sourceId) {
+      const preferredSource =
+        sources.value.find((source) => source.id === book.value?.current_source)?.id ??
+        sources.value[0]?.id ??
+        '';
+
+      if (preferredSource) {
+        await loadSource(preferredSource);
+      } else {
+        activeSourceId.value = '';
+        content.value = '';
+        initialContent.value = '';
+      }
+    }
+  } catch (err) {
+    deleteError.value = err instanceof Error ? err.message : 'Failed to delete source';
+  } finally {
+    deleting.value = false;
+  }
+}
+
 function goBack(): void {
   void router.push(`/books/${bookId.value}`);
 }
@@ -327,6 +413,11 @@ watch(
 
 .editor-loading {
   margin: 12px;
+}
+
+.delete-error {
+  color: #b91c1c;
+  margin-top: 8px;
 }
 
 @media (max-width: 900px) {

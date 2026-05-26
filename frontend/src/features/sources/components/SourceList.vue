@@ -3,27 +3,48 @@
     <div class="source-list-header">
       <h3>Sources</h3>
       <p class="meta">{{ sources.length }} total</p>
+      <button
+        class="button source-new-btn"
+        type="button"
+        :disabled="creating || loading"
+        @click="$emit('create')"
+      >
+        {{ creating ? 'Creating...' : 'New' }}
+      </button>
     </div>
 
     <div v-if="loading" class="loading list-status">Loading sources...</div>
     <div v-else-if="sources.length === 0" class="meta list-status">No sources yet.</div>
 
     <div v-else class="source-items" role="list" aria-label="Book sources">
-      <button
+      <div
         v-for="source in sources"
         :key="source.id"
-        type="button"
         class="source-item"
         :class="{ active: source.id === activeSourceId }"
-        @click="$emit('select', source.id)"
+        role="listitem"
       >
-        <div class="source-item-top">
-          <strong class="source-id">{{ source.id }}</strong>
-          <span v-if="source.id === currentSourceId" class="current-badge">Current</span>
-        </div>
-        <p class="meta source-created">{{ formatTimestamp(source.created_at) }}</p>
-        <p class="meta source-hash">md5: {{ shortHash(source.md5_hash) }}</p>
-      </button>
+        <button
+          type="button"
+          class="source-item-content"
+          @click="$emit('select', source.id)"
+        >
+          <div class="source-item-top">
+            <strong class="source-id">{{ source.id }}</strong>
+            <span v-if="source.id === currentSourceId" class="current-badge">Current</span>
+          </div>
+          <p class="meta source-created">{{ formatTimestamp(source.created_at) }}</p>
+          <p class="meta source-hash">md5: {{ shortHash(source.md5_hash) }}</p>
+        </button>
+        <button
+          type="button"
+          class="source-delete-btn"
+          :aria-label="`Delete source ${source.id}`"
+          @click="$emit('delete', source.id)"
+        >
+          Delete
+        </button>
+      </div>
     </div>
   </aside>
 </template>
@@ -36,10 +57,13 @@ defineProps<{
   activeSourceId: string;
   currentSourceId?: string;
   loading?: boolean;
+  creating?: boolean;
 }>();
 
 defineEmits<{
   select: [sourceId: string];
+  create: [];
+  delete: [sourceId: string];
 }>();
 
 function shortHash(hash: string): string {
@@ -84,6 +108,7 @@ function formatTimestamp(value: string): string {
   justify-content: space-between;
   gap: 10px;
   padding: 12px 12px 6px;
+  flex-wrap: wrap;
 }
 
 .source-list-header h3 {
@@ -104,11 +129,7 @@ function formatTimestamp(value: string): string {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: #fff;
-  text-align: left;
-  padding: 10px;
-  cursor: pointer;
   display: grid;
-  gap: 4px;
 }
 
 .source-item:hover {
@@ -119,6 +140,45 @@ function formatTimestamp(value: string): string {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
   background: #eef5ff;
+}
+
+.source-item-content {
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 10px;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+  border-radius: 10px 10px 0 0;
+  width: 100%;
+}
+
+.source-item-content:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.source-delete-btn {
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 10px 10px;
+  color: #b91c1c;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 5px 10px;
+  text-align: right;
+  width: 100%;
+}
+
+.source-delete-btn:hover {
+  background: #fef2f2;
+}
+
+.source-new-btn {
+  font-size: 12px;
+  padding: 3px 10px;
+  margin-left: auto;
 }
 
 .source-item-top {
