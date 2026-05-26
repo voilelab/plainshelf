@@ -129,6 +129,7 @@ import { useBooksSort, type BookSortKey, type SortOrder } from '../composables/u
 import { hasFileTransfer, readDroppedFiles } from '../utils/file';
 import { getLayerPath, layerPathEquals, normalizeLayerPath } from '../utils/layers';
 import { useI18n } from '../i18n';
+import { openDesktopBookFiles } from '../api/desktop';
 import '../styles/toolbar-controls.css';
 
 const ROOT_LAYER_LABEL = '/';
@@ -324,9 +325,28 @@ function toggleOrder(): void {
   onOrderChange(sortOrder.value === 'asc' ? 'desc' : 'asc');
 }
 
-function openImportFromFiles(): void {
+async function openImportFromFiles(): Promise<void> {
   showImportDropdown.value = false;
   droppedFiles.value = [];
+
+  let desktopFiles: File[] | null = null;
+  try {
+    desktopFiles = await openDesktopBookFiles();
+  } catch {
+    desktopFiles = null;
+  }
+
+  if (desktopFiles && desktopFiles.length > 0) {
+    droppedFiles.value = desktopFiles;
+    if (!isImportModalOpen.value) {
+      void openImportModalQuery();
+    }
+    return;
+  }
+
+  if (desktopFiles && desktopFiles.length === 0) {
+    return;
+  }
 
   if (isImportModalOpen.value) {
     return;

@@ -19,6 +19,12 @@ type DesktopApp struct {
 	ctx context.Context
 }
 
+type DesktopSelectedBookFile struct {
+	Path    string `json:"path"`
+	Name    string `json:"name"`
+	Content []byte `json:"content"`
+}
+
 func NewDesktopApp() *DesktopApp {
 	return &DesktopApp{}
 }
@@ -50,6 +56,62 @@ func (a *DesktopApp) PreviousPage() {
 
 func (a *DesktopApp) NextPage() {
 	a.navigateHistory(1)
+}
+
+func (a *DesktopApp) OpenBookFiles() ([]DesktopSelectedBookFile, error) {
+	if a.ctx == nil {
+		return []DesktopSelectedBookFile{}, nil
+	}
+
+	paths, err := wailsruntime.OpenMultipleFilesDialog(a.ctx, bookOpenDialogOptions())
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	if len(paths) == 0 {
+		return []DesktopSelectedBookFile{}, nil
+	}
+
+	files, err := loadDesktopSelectedBookFiles(paths)
+	if err != nil {
+		return nil, err
+	}
+
+	return files, nil
+}
+
+func bookOpenDialogOptions() wailsruntime.OpenDialogOptions {
+	return wailsruntime.OpenDialogOptions{
+		Title: "Select books to import",
+		Filters: []wailsruntime.FileFilter{
+			{
+				DisplayName: "Text Files (*.txt)",
+				Pattern:     "*.txt",
+			},
+		},
+	}
+}
+
+func loadDesktopSelectedBookFiles(paths []string) ([]DesktopSelectedBookFile, error) {
+	files := make([]DesktopSelectedBookFile, 0, len(paths))
+
+	for _, currentPath := range paths {
+		if currentPath == "" {
+			continue
+		}
+
+		content, err := os.ReadFile(currentPath)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+
+		files = append(files, DesktopSelectedBookFile{
+			Path:    currentPath,
+			Name:    filepath.Base(currentPath),
+			Content: content,
+		})
+	}
+
+	return files, nil
 }
 
 func (a *DesktopApp) navigateHistory(step int) {
