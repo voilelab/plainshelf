@@ -137,7 +137,7 @@
           <span>{{ t('language.label') }}</span>
           <select class="language-select-control" :value="locale" @change="onLocaleChange">
             <option v-for="lang in supportedLocales" :key="lang" :value="lang">
-              {{ t(lang === 'zh-Hant' ? 'language.zhHant' : 'language.en') }}
+              {{ t(localeLabelKeyMap[lang]) }}
             </option>
           </select>
         </label>
@@ -181,6 +181,10 @@ const deleteLayerError = ref('');
 const deletingLayerMap = ref<Record<string, boolean>>({});
 const pendingDeleteLayerPath = ref('');
 const { locale, setLocale, supportedLocales, t } = useI18n();
+const localeLabelKeyMap: Record<(typeof supportedLocales)[number], 'language.en' | 'language.zhHant'> = {
+  en: 'language.en',
+  'zh-Hant': 'language.zhHant'
+};
 
 const currentLayer = computed(() => {
   const q = route.query.layers;
@@ -223,8 +227,8 @@ function onLocaleChange(event: Event): void {
     return;
   }
 
-  if (target.value === 'en' || target.value === 'zh-Hant') {
-    setLocale(target.value);
+  if (supportedLocales.includes(target.value as (typeof supportedLocales)[number])) {
+    setLocale(target.value as (typeof supportedLocales)[number]);
   }
 }
 

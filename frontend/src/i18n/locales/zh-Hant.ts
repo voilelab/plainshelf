@@ -27,12 +27,12 @@ const zhHant = {
       maintenance: '維護'
     },
     createLayer: {
-      add: '新增 Layer',
+      add: '新增圖層',
       cancel: '取消',
       placeholder: '例如 programming/rust',
       creating: '建立中...',
       create: '建立',
-      created: 'Layer 已建立',
+      created: '圖層已建立',
       enter: '進入',
       loadingLayers: '載入圖層中...'
     },
@@ -43,8 +43,8 @@ const zhHant = {
       notEmpty: '此圖層尚未清空，無法刪除。\n請先移出書籍並刪除子圖層。'
     },
     layerErrors: {
-      emptyPath: 'Layer 路徑不得為空',
-      createFailed: '建立 Layer 失敗'
+      emptyPath: '圖層路徑不得為空',
+      createFailed: '建立圖層失敗'
     },
     moveBookErrors: {
       notFound: '找不到書籍。',
@@ -64,7 +64,7 @@ const zhHant = {
     },
     missingLanguage: {
       title: '缺少語言',
-      empty: '沒有缺少語言的書籍'
+      empty: '沒有缺少語言的書籍。'
     }
   },
   library: {

@@ -20,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, toRefs } from 'vue';
 import ConfirmModal from './ConfirmModal.vue';
 import { useI18n } from '../i18n';
 
@@ -39,25 +39,22 @@ const props = withDefaults(
     error?: string;
   }>(),
   {
-    title: '',
-    description: '',
-    confirmText: '',
-    cancelText: '',
-    busyText: '',
     busy: false,
     error: ''
   }
 );
 
-const title = computed(() => props.title || t('deleteModal.title'));
-const description = computed(() => props.description || t('deleteModal.description'));
-const confirmText = computed(() => props.confirmText || t('deleteModal.confirm'));
-const cancelText = computed(() => props.cancelText || t('deleteModal.cancel'));
-const busyText = computed(() => props.busyText || t('deleteModal.busy'));
-const open = computed(() => props.open);
-const itemName = computed(() => props.itemName);
-const busy = computed(() => props.busy);
-const error = computed(() => props.error);
+const title = computed(() => props.title ?? t('deleteModal.title'));
+const description = computed(() => props.description ?? t('deleteModal.description'));
+const confirmText = computed(() => props.confirmText ?? t('deleteModal.confirm'));
+const cancelText = computed(() => props.cancelText ?? t('deleteModal.cancel'));
+const busyText = computed(() => props.busyText ?? t('deleteModal.busy'));
+const {
+  open,
+  itemName,
+  busy,
+  error
+} = toRefs(props);
 
 const emit = defineEmits<{
   cancel: [];
