@@ -1,9 +1,9 @@
 <template>
   <div>
-    <div v-if="loading" class="loading">Loading books...</div>
+    <div v-if="loading" class="loading">{{ t('bookCollection.loadingBooks') }}</div>
     <div v-else-if="error" class="error collection-error" role="alert">
       <p>{{ error }}</p>
-      <button type="button" class="button" @click="emit('retry')">Retry</button>
+      <button type="button" class="button" @click="emit('retry')">{{ t('common.retry') }}</button>
     </div>
 
     <div v-else class="bookshelf-content">
@@ -123,6 +123,7 @@ import {
   setStoredBooksViewMode,
   type BooksViewMode
 } from '../utils/booksViewMode';
+import { useI18n } from '../i18n';
 
 const props = withDefaults(defineProps<{
   title: string;
@@ -158,11 +159,12 @@ const emit = defineEmits<{
   (event: 'update:pageSize', size: number): void;
 }>();
 
-const viewModeOptions: Array<{ value: BooksViewMode; label: string }> = [
-  { value: 'list', label: '列表' },
-  { value: 'card', label: '卡片' },
-  { value: 'title', label: '標題' }
-];
+const { t } = useI18n();
+const viewModeOptions = computed<Array<{ value: BooksViewMode; label: string }>>(() => [
+  { value: 'list', label: t('bookCollection.viewMode.list') },
+  { value: 'card', label: t('bookCollection.viewMode.card') },
+  { value: 'title', label: t('bookCollection.viewMode.title') }
+]);
 
 const viewMode = ref<BooksViewMode>('list');
 const isViewModeMenuOpen = ref(false);
@@ -176,13 +178,13 @@ const resolvedTotalLabel = computed(() => {
     return props.totalLabel;
   }
   if (typeof props.count === 'number') {
-    return `${props.count} books`;
+    return t('bookCollection.booksCount', { count: props.count });
   }
   return '';
 });
 
 const currentViewModeLabel = computed(() => {
-  return viewModeOptions.find((option) => option.value === viewMode.value)?.label ?? '列表';
+  return viewModeOptions.value.find((option) => option.value === viewMode.value)?.label ?? t('bookCollection.viewMode.list');
 });
 
 function toggleViewModeMenu(): void {

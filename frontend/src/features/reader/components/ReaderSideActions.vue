@@ -1,10 +1,10 @@
 <template>
-  <aside class="reader-side-actions" aria-label="Reader actions">
+  <aside class="reader-side-actions" :aria-label="t('reader.actionsLabel')">
     <button
       class="button reader-icon-button reader-font-button"
       type="button"
-      aria-label="Decrease font size"
-      title="Decrease font size"
+      :aria-label="t('reader.decreaseFontSize')"
+      :title="t('reader.decreaseFontSize')"
       :disabled="isAtMinFontSize"
       @click="emit('decreaseFontSize')"
     >
@@ -13,8 +13,8 @@
     <button
       class="button reader-icon-button reader-font-button"
       type="button"
-      aria-label="Increase font size"
-      title="Increase font size"
+      :aria-label="t('reader.increaseFontSize')"
+      :title="t('reader.increaseFontSize')"
       :disabled="isAtMaxFontSize"
       @click="emit('increaseFontSize')"
     >
@@ -23,8 +23,8 @@
     <button
       class="button reader-icon-button"
       type="button"
-      aria-label="Show chapters"
-      title="Show chapters"
+      :aria-label="t('reader.showChapters')"
+      :title="t('reader.showChapters')"
       :disabled="!hasSections"
       @click="emit('openChapterModal')"
     >
@@ -40,8 +40,8 @@
     <button
       class="button reader-icon-button"
       type="button"
-      aria-label="Split settings"
-      title="Split settings"
+      :aria-label="t('reader.splitSettings')"
+      :title="t('reader.splitSettings')"
       @click="emit('openSplitModal')"
     >
       <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
@@ -54,8 +54,8 @@
     <button
       class="button reader-bookmark reader-icon-button"
       type="button"
-      :aria-label="bookmarking ? 'Saving bookmark' : 'Save bookmark'"
-      :title="bookmarking ? 'Saving bookmark' : 'Save bookmark'"
+      :aria-label="bookmarking ? t('reader.savingBookmark') : t('reader.saveBookmark')"
+      :title="bookmarking ? t('reader.savingBookmark') : t('reader.saveBookmark')"
       :disabled="bookmarking"
       @click="emit('bookmarkCurrent')"
     >
@@ -72,6 +72,8 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from '../../../i18n';
+
 defineProps<{
   isAtMinFontSize: boolean;
   isAtMaxFontSize: boolean;
@@ -86,6 +88,8 @@ const emit = defineEmits<{
   openSplitModal: [];
   bookmarkCurrent: [];
 }>();
+
+const { t } = useI18n();
 </script>
 
 <style scoped src="../styles/reader-layout.css"></style>

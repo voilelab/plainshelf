@@ -2,9 +2,9 @@
   <div class="layout-root">
     <DeleteModal
       :open="pendingDeleteLayerPath.length > 0"
-      title="Delete layer"
+      :title="t('layout.deleteLayer.title')"
       :item-name="pendingDeleteLayerPath"
-      description="This will fail if the layer contains books or child layers."
+      :description="t('layout.deleteLayer.description')"
       :busy="isDeletingPendingLayer"
       :error="deleteLayerError"
       @cancel="cancelPendingDeleteLayer"
@@ -15,23 +15,23 @@
       <button
         class="collapse-btn"
         type="button"
-        :aria-label="isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+        :aria-label="isCollapsed ? t('layout.expandSidebar') : t('layout.collapseSidebar')"
         @click="isCollapsed = !isCollapsed"
       >
         {{ isCollapsed ? '→' : '←' }}
       </button>
 
       <div v-if="!isCollapsed" class="sidebar-inner">
-        <section class="sidebar-section" aria-label="Layers">
+        <section class="sidebar-section" :aria-label="t('layout.sections.layers')">
           <div class="sidebar-header-row">
-            <div class="sidebar-section-title">LAYERS</div>
+            <div class="sidebar-section-title">{{ t('layout.sections.layers') }}</div>
             <button
               type="button"
               class="create-layer-toggle"
               :disabled="creatingLayer"
               @click="toggleCreateLayerForm"
             >
-              {{ showCreateLayerForm ? 'Cancel' : '新增 Layer' }}
+              {{ showCreateLayerForm ? t('layout.createLayer.cancel') : t('layout.createLayer.add') }}
             </button>
           </div>
 
@@ -40,7 +40,7 @@
               v-model="newLayerPath"
               class="create-layer-input"
               type="text"
-              placeholder="例如 programming/rust"
+              :placeholder="t('layout.createLayer.placeholder')"
               :disabled="creatingLayer"
             >
             <div class="create-layer-actions">
@@ -49,7 +49,7 @@
                 class="create-layer-submit"
                 :disabled="creatingLayer || !canSubmitCreateLayer"
               >
-                {{ creatingLayer ? '建立中...' : '建立' }}
+                {{ creatingLayer ? t('layout.createLayer.creating') : t('layout.createLayer.create') }}
               </button>
             </div>
           </form>
@@ -65,14 +65,14 @@
               class="success-action"
               @click="enterCreatedLayer"
             >
-              進入
+              {{ t('layout.createLayer.enter') }}
             </button>
           </p>
 
-          <div v-if="layersLoading" class="sidebar-status">Loading layers...</div>
+          <div v-if="layersLoading" class="sidebar-status">{{ t('layout.createLayer.loadingLayers') }}</div>
           <div v-else-if="layersError" class="sidebar-status sidebar-error sidebar-layer-error" role="alert">
             <p>{{ layersError }}</p>
-            <button type="button" class="button" @click="fetchLayers">Retry</button>
+          <button type="button" class="button" @click="fetchLayers">{{ t('common.retry') }}</button>
           </div>
           <LayerTree
             v-else
@@ -93,25 +93,25 @@
 
         <div class="sidebar-nav-divider" role="presentation"></div>
 
-        <section class="sidebar-section" aria-label="Reading">
-          <div class="sidebar-section-title">READING</div>
-          <nav class="sidebar-nav-list" aria-label="Reading links">
+        <section class="sidebar-section" :aria-label="t('layout.sections.reading')">
+          <div class="sidebar-section-title">{{ t('layout.sections.reading') }}</div>
+          <nav class="sidebar-nav-list" :aria-label="t('layout.sections.reading')">
             <RouterLink
               to="/read-history"
               class="sidebar-nav-item"
               exact-active-class="active"
             >
               <SidebarNavIcon name="recently-read" />
-              <span>Recently Read</span>
+              <span>{{ t('layout.recentlyRead') }}</span>
             </RouterLink>
           </nav>
         </section>
 
         <div class="sidebar-nav-divider" role="presentation"></div>
 
-        <section class="sidebar-section" aria-label="Maintenance">
-          <div class="sidebar-section-title">MAINTENANCE</div>
-          <nav class="sidebar-nav-list" aria-label="Maintenance links">
+        <section class="sidebar-section" :aria-label="t('layout.sections.maintenance')">
+          <div class="sidebar-section-title">{{ t('layout.sections.maintenance') }}</div>
+          <nav class="sidebar-nav-list" :aria-label="t('layout.sections.maintenance')">
             <RouterLink
               v-for="item in MAINTENANCE_NAV_ITEMS"
               :key="item.key"
@@ -120,7 +120,7 @@
               exact-active-class="active"
             >
               <SidebarNavIcon v-if="item.icon" :name="item.icon" />
-              <span>{{ item.label }}</span>
+              <span>{{ t(item.labelKey) }}</span>
             </RouterLink>
           </nav>
         </section>
@@ -131,8 +131,16 @@
       <header class="topbar">
         <h1 class="brand">
           <img class="brand-icon" :src="appIcon" alt="" aria-hidden="true">
-          <span>PlainShelf</span>
+          <span>{{ t('app.name') }}</span>
         </h1>
+        <label class="language-select">
+          <span>{{ t('language.label') }}</span>
+          <select class="language-select-control" :value="locale" @change="onLocaleChange">
+            <option v-for="lang in supportedLocales" :key="lang" :value="lang">
+              {{ t(lang === 'zh-Hant' ? 'language.zhHant' : 'language.en') }}
+            </option>
+          </select>
+        </label>
       </header>
 
       <div class="page-area">
@@ -155,6 +163,7 @@ import { useLayerStore } from '../composables/useLayerStore';
 import { buildLayerTreeNodes, getLayerPath, normalizeLayerPath } from '../utils/layers';
 import { MAINTENANCE_NAV_ITEMS } from '../utils/maintenance';
 import appIcon from '../assets/icon-192.png';
+import { useI18n } from '../i18n';
 
 const isCollapsed = ref(false);
 const route = useRoute();
@@ -171,6 +180,7 @@ const newLayerPath = ref('');
 const deleteLayerError = ref('');
 const deletingLayerMap = ref<Record<string, boolean>>({});
 const pendingDeleteLayerPath = ref('');
+const { locale, setLocale, supportedLocales, t } = useI18n();
 
 const currentLayer = computed(() => {
   const q = route.query.layers;
@@ -207,6 +217,17 @@ function onSelectLayer(path: string): void {
   goToLayer(normalizeLayerSelectionPath(path));
 }
 
+function onLocaleChange(event: Event): void {
+  const target = event.target;
+  if (!(target instanceof HTMLSelectElement)) {
+    return;
+  }
+
+  if (target.value === 'en' || target.value === 'zh-Hant') {
+    setLocale(target.value);
+  }
+}
+
 function toggleCreateLayerForm(): void {
   showCreateLayerForm.value = !showCreateLayerForm.value;
   createLayerError.value = '';
@@ -220,7 +241,7 @@ function toggleCreateLayerForm(): void {
 async function onSubmitCreateLayer(): Promise<void> {
   const normalized = normalizeLayerPath(newLayerPath.value);
   if (!normalized) {
-    createLayerError.value = 'Layer path cannot be empty';
+    createLayerError.value = t('layout.layerErrors.emptyPath');
     createLayerSuccess.value = '';
     return;
   }
@@ -234,18 +255,18 @@ async function onSubmitCreateLayer(): Promise<void> {
     await fetchLayers();
 
     createdLayerPath.value = normalized;
-    createLayerSuccess.value = 'Layer created';
+    createLayerSuccess.value = t('layout.createLayer.created');
     newLayerPath.value = '';
     showCreateLayerForm.value = false;
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to create layer';
+    const message = err instanceof Error ? err.message : t('layout.layerErrors.createFailed');
 
     if (message === 'Layer path cannot be empty') {
-      createLayerError.value = 'Layer path cannot be empty';
+      createLayerError.value = t('layout.layerErrors.emptyPath');
     } else if (message === 'Failed to create layer') {
-      createLayerError.value = 'Failed to create layer';
+      createLayerError.value = t('layout.layerErrors.createFailed');
     } else {
-      createLayerError.value = message || 'Failed to create layer';
+      createLayerError.value = message || t('layout.layerErrors.createFailed');
     }
   } finally {
     creatingLayer.value = false;
@@ -266,7 +287,7 @@ async function onMoveBook(payload: { bookId: string; targetLayer: string }): Pro
 
   const currentBook = books.value.find((item) => item.id === payload.bookId);
   if (!currentBook) {
-    moveBookError.value = 'Book not found.';
+    moveBookError.value = t('layout.moveBookErrors.notFound');
     return;
   }
 
@@ -279,7 +300,7 @@ async function onMoveBook(payload: { bookId: string; targetLayer: string }): Pro
     await updateBookLayer(payload.bookId, payload.targetLayer);
     await fetchBooks();
   } catch (err) {
-    moveBookError.value = err instanceof Error ? err.message : 'Failed to move book.';
+    moveBookError.value = err instanceof Error ? err.message : t('layout.moveBookErrors.failed');
   }
 }
 
@@ -325,12 +346,11 @@ async function confirmDeleteLayer(): Promise<void> {
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
     if (message === 'Cannot delete this layer because it is not empty.') {
-      deleteLayerError.value =
-        'Cannot delete this layer because it is not empty.\nMove books out and delete child layers first.';
+      deleteLayerError.value = t('layout.deleteLayer.notEmpty');
     } else if (message) {
       deleteLayerError.value = message;
     } else {
-      deleteLayerError.value = 'Failed to delete layer';
+      deleteLayerError.value = t('layout.deleteLayer.failed');
     }
   } finally {
     const { [path]: _deleted, ...rest } = deletingLayerMap.value;
@@ -536,6 +556,27 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   padding: 14px 24px;
+}
+
+.language-select {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.language-select span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.language-select-control {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  min-height: 32px;
+  padding: 0 8px;
 }
 
 .brand {

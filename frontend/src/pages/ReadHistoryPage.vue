@@ -1,6 +1,6 @@
 <template>
   <BookCollectionPage
-    title="Recently Read"
+    :title="t('readHistory.title')"
     :books="visibleBooks"
     :loading="loading"
     :error="error"
@@ -8,7 +8,7 @@
     :page-size="pageSize"
     :total="books.length"
     :count="books.length"
-    empty-message="No reading history yet. Open a book in the reader to see it here."
+    :empty-message="t('readHistory.empty')"
     :page-size-options="PAGE_SIZE_OPTIONS"
     view-mode-storage-key="read-history"
     @retry="loadReadHistory"
@@ -23,7 +23,7 @@
         :disabled="books.length === 0 || loading || clearing"
         @click="onClearHistory"
       >
-        {{ clearing ? 'Clearing...' : 'Clear history' }}
+        {{ clearing ? t('readHistory.clearing') : t('readHistory.clear') }}
       </button>
     </template>
   </BookCollectionPage>
@@ -37,10 +37,12 @@ import { clearReadHistory, listReadHistoryBooks } from '../api/readHistory';
 import { useBookPagination, toPage, toSingleQueryValue } from '../composables/useBookPagination';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
 import type { Book } from '../types/book';
+import { useI18n } from '../i18n';
 
 const route = useRoute();
 const router = useRouter();
 const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
+const { t } = useI18n();
 
 const books = ref<Book[]>([]);
 const loading = ref(false);
@@ -54,7 +56,7 @@ const visibleBooks = computed(() => {
   return books.value.slice(start, start + pageSize.value);
 });
 
-useDocumentTitle(() => ['Recently Read', 'PlainShelf']);
+useDocumentTitle(() => [t('readHistory.title'), t('app.name')]);
 
 function buildPageQuery(nextPage: number): Record<string, string> {
   return {
@@ -70,7 +72,7 @@ async function loadReadHistory(): Promise<void> {
   try {
     books.value = await listReadHistoryBooks();
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load reading history';
+    error.value = err instanceof Error ? err.message : t('readHistory.loadFailed');
   } finally {
     loading.value = false;
   }
@@ -91,7 +93,7 @@ async function onClearHistory(): Promise<void> {
       await router.replace({ path: route.path, query: buildPageQuery(1) });
     }
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to clear reading history';
+    error.value = err instanceof Error ? err.message : t('readHistory.clearFailed');
   } finally {
     clearing.value = false;
   }
