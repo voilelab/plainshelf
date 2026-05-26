@@ -357,6 +357,20 @@ func (b *Book) GetSource(sourceID string) (*Source, error) {
 	return source, nil
 }
 
+func (b *Book) DeleteSource(sourceID string) error {
+	if err := validateSourceID(sourceID); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	sourcePath := path.Join(b.folderPath, SourcesFolder, sourceID)
+	err := b.root.Remove(sourcePath)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
+}
+
 func (b *Book) ListSource() ([]*Source, error) {
 	sourcesPath := path.Join(b.folderPath, SourcesFolder)
 
