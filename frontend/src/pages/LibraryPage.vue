@@ -100,6 +100,7 @@
     <ImportBookModal
       :open="isImportModalOpen"
       :current-layer-path="selectedLayer"
+      :dropped-files="droppedFiles"
       @close="closeImportModal"
       @imported="onImported"
     />
@@ -125,6 +126,7 @@ import { useBookPagination } from '../composables/useBookPagination';
 import { useBooksRouteQuery } from '../composables/useBooksRouteQuery';
 import { useBooksSearch } from '../composables/useBooksSearch';
 import { useBooksSort, type BookSortKey, type SortOrder } from '../composables/useBooksSort';
+import { hasFileTransfer, readDroppedFiles } from '../utils/file';
 import { getLayerPath, layerPathEquals, normalizeLayerPath } from '../utils/layers';
 import '../styles/toolbar-controls.css';
 
@@ -159,6 +161,7 @@ const showImportDropdown = ref(false);
 const isNewEmptyBookModalOpen = ref(false);
 const importDropdown = ref<HTMLElement | null>(null);
 const hasInitializedSearch = ref(false);
+const droppedFiles = ref<File[]>([]);
 
 async function reloadBooks(): Promise<void> {
   booksLoaded.value = false;
@@ -320,6 +323,7 @@ function toggleOrder(): void {
 
 function openImportFromFiles(): void {
   showImportDropdown.value = false;
+  droppedFiles.value = [];
 
   if (isImportModalOpen.value) {
     return;
@@ -352,11 +356,41 @@ function onDocumentClick(event: MouseEvent): void {
   }
 }
 
+function onDocumentDragOver(event: DragEvent): void {
+  if (!hasFileTransfer(event.dataTransfer)) {
+    return;
+  }
+
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'copy';
+  }
+}
+
+function onDocumentDrop(event: DragEvent): void {
+  if (!hasFileTransfer(event.dataTransfer)) {
+    return;
+  }
+
+  event.preventDefault();
+  const nextDroppedFiles = readDroppedFiles(event);
+  if (nextDroppedFiles.length === 0) {
+    return;
+  }
+
+  showImportDropdown.value = false;
+  droppedFiles.value = nextDroppedFiles;
+  if (!isImportModalOpen.value) {
+    void openImportModalQuery();
+  }
+}
+
 function closeImportModal(): void {
   if (!isImportModalOpen.value) {
     return;
   }
 
+  droppedFiles.value = [];
   void closeImportModalQuery();
 }
 
@@ -373,10 +407,14 @@ function openBook(id: string): void {
 
 onMounted(() => {
   document.addEventListener('click', onDocumentClick);
+  document.addEventListener('dragover', onDocumentDragOver);
+  document.addEventListener('drop', onDocumentDrop);
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocumentClick);
+  document.removeEventListener('dragover', onDocumentDragOver);
+  document.removeEventListener('drop', onDocumentDrop);
 });
 
 watch(selectedLayer, async () => {
