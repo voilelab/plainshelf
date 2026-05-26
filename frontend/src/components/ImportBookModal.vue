@@ -3,7 +3,7 @@
     v-if="open"
     class="modal-overlay"
     role="presentation"
-    @click="onClose"
+    @click="onBackdropClick"
     @dragover="onDragOver"
     @dragleave="onDragLeave"
     @drop="onDrop"
@@ -29,7 +29,7 @@
         </button>
       </header>
 
-      <p class="meta">Upload a TXT file to create a new book entry, or drag and drop files here.</p>
+      <p class="meta">Upload a TXT file to create a new book entry, or drag-and-drop files here.</p>
 
       <div v-if="success" class="success">{{ success }}</div>
       <div v-if="error" class="error">{{ error }}</div>
@@ -135,6 +135,10 @@ function onClose(): void {
     return;
   }
   emit('close');
+}
+
+function onBackdropClick(): void {
+  onClose();
 }
 
 function onDragOver(event: DragEvent): void {
