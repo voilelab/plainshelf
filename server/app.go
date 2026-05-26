@@ -176,6 +176,7 @@ func (app *App) Serve(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /api/books/{book_id}/sources", app.HandleAPIGetBookSources)
 	mux.HandleFunc("GET /api/books/{book_id}/sources/{source_id}", app.HandleAPIGetBookSource)
+	mux.HandleFunc("POST /api/books/{book_id}/sources", app.HandleAPICreateBookSource)
 	mux.HandleFunc("GET /api/books/{book_id}/sources/{source_id}/content", app.HandleAPIGetBookSourceContent)
 	mux.HandleFunc("PATCH /api/books/{book_id}/sources/{source_id}/content", app.HandleAPIUpdateBookSourceContent)
 

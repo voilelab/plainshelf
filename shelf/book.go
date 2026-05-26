@@ -319,7 +319,13 @@ func (b *Book) setMeta(meta *BookMeta) error {
 	return nil
 }
 
+// NewSource creates a new source for the book with the provided source content, and returns the created source metadata.
+// If source is nil, an empty source will be created.
 func (b *Book) NewSource(source io.Reader) (*Source, error) {
+	if source == nil {
+		source = io.NopCloser(strings.NewReader(""))
+	}
+
 	// create a new source for the given book with the provided source file and metadata
 	sourceID := time.Now().Format("20060102-150405")
 	sourcePath := path.Join(b.folderPath, SourcesFolder, sourceID)

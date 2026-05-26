@@ -91,6 +91,41 @@ func (app *App) HandleAPIGetBookSource(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// POST /api/books/{book_id}/sources
+func (app *App) HandleAPICreateBookSource(w http.ResponseWriter, r *http.Request) {
+	bookID, err := readBookID(r)
+	if err != nil {
+		http.Error(w, "invalid book_id", http.StatusBadRequest)
+		return
+	}
+
+	book, err := app.shelf.GetBook(bookID)
+	if err != nil {
+		if errors.Is(err, shelf.ErrBookNotFound) {
+			http.Error(w, "book not found", http.StatusNotFound)
+			return
+		}
+		app.Error("failed to get book", "error", err)
+		http.Error(w, "failed to get book", http.StatusInternalServerError)
+		return
+	}
+
+	sourceMeta, err := book.NewSource(nil)
+	if err != nil {
+		app.Error("failed to create book source", "error", err)
+		http.Error(w, "failed to create book source", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	err = json.NewEncoder(w).Encode(sourceMeta)
+	if err != nil {
+		app.Error("failed to encode response", "error", err)
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
 // GET /api/books/{book_id}/sources/{source_id}/content
 func (app *App) HandleAPIGetBookSourceContent(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)

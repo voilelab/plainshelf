@@ -105,8 +105,7 @@ func (app *App) HandleAPICreateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	src := io.NopCloser(strings.NewReader(""))
-	source, err := newBook.NewSource(src)
+	source, err := newBook.NewSource(nil)
 	if err != nil {
 		app.Error("failed to create source for new book", "error", err)
 		http.Error(w, "failed to create source for new book", http.StatusInternalServerError)
