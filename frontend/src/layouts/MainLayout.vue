@@ -104,6 +104,14 @@
               <SidebarNavIcon name="recently-read" />
               <span>{{ t('layout.recentlyRead') }}</span>
             </RouterLink>
+            <RouterLink
+              to="/trash"
+              class="sidebar-nav-item"
+              exact-active-class="active"
+            >
+              <SidebarNavIcon name="trash" />
+              <span>{{ t('layout.trash') }}</span>
+            </RouterLink>
           </nav>
         </section>
 

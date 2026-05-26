@@ -9,6 +9,7 @@ import MissingAuthorPage from './pages/MissingAuthorPage.vue';
 import MissingCoverPage from './pages/MissingCoverPage.vue';
 import MissingLanguagePage from './pages/MissingLanguagePage.vue';
 import ReadHistoryPage from './pages/ReadHistoryPage.vue';
+import TrashPage from './pages/TrashPage.vue';
 import ReaderPage from './features/reader/views/ReaderView.vue';
 import EditBookSourcesPage from './features/sources/pages/EditBookSourcesPage.vue';
 import { APP_TITLE } from './composables/useDocumentTitle';
@@ -19,6 +20,7 @@ const ROUTES_WITH_OWN_TITLE = new Set([
   'book-sources-edit',
   'reader',
   'read-history',
+  'trash',
   'maintenance-missing-author',
   'maintenance-missing-cover'
 ]);
@@ -71,6 +73,11 @@ const router = createRouter({
           path: 'read-history',
           name: 'read-history',
           component: ReadHistoryPage
+        },
+        {
+          path: 'trash',
+          name: 'trash',
+          component: TrashPage
         },
         {
           path: 'books/maintenance/missing-author',

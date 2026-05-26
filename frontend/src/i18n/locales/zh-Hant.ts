@@ -50,7 +50,8 @@ const zhHant = {
       notFound: '找不到書籍。',
       failed: '移動書籍失敗。'
     },
-    recentlyRead: '最近閱讀'
+    recentlyRead: '最近閱讀',
+    trash: '垃圾桶'
   },
   maintenance: {
     duplicateContent: '重複內容',
@@ -122,6 +123,32 @@ const zhHant = {
     clearing: '清除中...',
     loadFailed: '載入閱讀紀錄失敗',
     clearFailed: '清除閱讀紀錄失敗'
+  },
+  trash: {
+    title: '垃圾桶',
+    loading: '載入已刪除書籍中...',
+    empty: '垃圾桶目前是空的。',
+    loadFailed: '載入垃圾桶失敗',
+    restoreFailed: '還原書籍失敗',
+    permanentDeleteFailed: '永久刪除書籍失敗',
+    columns: {
+      title: '標題',
+      authors: '作者',
+      originalLayer: '原始圖層',
+      deletedAt: '刪除時間',
+      bookId: '書籍 ID',
+      actions: '操作'
+    },
+    actions: {
+      restore: '還原',
+      permanentDelete: '永久刪除'
+    },
+    permanentDelete: {
+      title: '永久刪除',
+      description: '此操作會永久刪除資料，且無法復原。',
+      confirm: '永久刪除',
+      busy: '永久刪除中...'
+    }
   },
   reader: {
     backToDetail: '返回詳情',

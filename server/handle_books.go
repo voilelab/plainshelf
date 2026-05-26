@@ -256,14 +256,14 @@ func (app *App) HandleAPIDeleteBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = app.shelf.DeleteBook(bookID)
+	err = app.shelf.MoveBookToTrash(bookID)
 	if err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
 		}
-		app.Error("failed to delete book", "error", err)
-		http.Error(w, "failed to delete book", http.StatusInternalServerError)
+		app.Error("failed to trash book", "error", err)
+		http.Error(w, "failed to trash book", http.StatusInternalServerError)
 		return
 	}
 

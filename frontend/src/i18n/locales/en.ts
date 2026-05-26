@@ -51,7 +51,8 @@ const en = {
       notFound: 'Book not found.',
       failed: 'Failed to move book.'
     },
-    recentlyRead: 'Recently Read'
+    recentlyRead: 'Recently Read',
+    trash: 'Trash'
   },
   maintenance: {
     duplicateContent: 'Duplicate Content',
@@ -123,6 +124,32 @@ const en = {
     clearing: 'Clearing...',
     loadFailed: 'Failed to load reading history',
     clearFailed: 'Failed to clear reading history'
+  },
+  trash: {
+    title: 'Trash',
+    loading: 'Loading trashed books...',
+    empty: 'Trash is empty.',
+    loadFailed: 'Failed to load trashed books',
+    restoreFailed: 'Failed to restore book',
+    permanentDeleteFailed: 'Failed to permanently delete book',
+    columns: {
+      title: 'Title',
+      authors: 'Author',
+      originalLayer: 'Original layer',
+      deletedAt: 'Deleted at',
+      bookId: 'Book ID',
+      actions: 'Actions'
+    },
+    actions: {
+      restore: 'Restore',
+      permanentDelete: 'Delete permanently'
+    },
+    permanentDelete: {
+      title: 'Delete permanently',
+      description: 'This permanently removes all data and cannot be undone.',
+      confirm: 'Delete permanently',
+      busy: 'Deleting permanently...'
+    }
   },
   reader: {
     backToDetail: 'Back to detail',

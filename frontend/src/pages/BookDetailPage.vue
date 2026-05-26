@@ -3,7 +3,7 @@
     <DeleteModal
       :open="showDeleteModal"
       :item-name="book?.title || id"
-      description="This cannot be undone."
+      description="The book will be moved to Trash. You can restore it later."
       :busy="deleting"
       @cancel="showDeleteModal = false"
       @confirm="deleteBook"
@@ -41,7 +41,7 @@
           <button class="button" @click="goEditMetadata">Edit metadata</button>
           <button class="button" @click="goEditSources">Edit Sources</button>
           <button class="button danger" :disabled="deleting" @click="confirmDelete">
-            {{ deleting ? 'Deleting...' : 'Delete' }}
+            {{ deleting ? 'Moving...' : 'Move to Trash' }}
           </button>
         </div>
       </div>
@@ -147,7 +147,7 @@ async function deleteBook(): Promise<void> {
   const removed = await removeBook();
   if (removed) {
     showDeleteModal.value = false;
-    await router.push('/books');
+    await router.push('/trash');
   }
 }
 

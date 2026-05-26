@@ -18,6 +18,15 @@ export interface Book {
   current_source?: string;
 }
 
+export interface TrashedBook {
+  id: string;
+  title: string;
+  authors: string[];
+  original_path?: string;
+  original_layer?: string[];
+  deleted_at?: BookTimestamp;
+}
+
 export interface BookDetail extends Book {
   progress?: ReadingProgress;
 }
