@@ -1,22 +1,24 @@
 <template>
-  <nav v-if="showDesktopHistoryControls" class="desktop-history-controls" aria-label="Desktop history navigation">
-    <button type="button" class="desktop-history-button" aria-label="Previous page" @click="goToPreviousPage">
+  <nav v-if="showDesktopHistoryControls" class="desktop-history-controls" :aria-label="t('app.desktopHistoryNavigation')">
+    <button type="button" class="desktop-history-button" :aria-label="t('app.previousPage')" @click="goToPreviousPage">
       ←
     </button>
-    <button type="button" class="desktop-history-button" aria-label="Next page" @click="goToNextPage">
+    <button type="button" class="desktop-history-button" :aria-label="t('app.nextPage')" @click="goToNextPage">
       →
     </button>
   </nav>
   <RouterView />
   <div v-if="showMockModeBadge" class="mock-mode-badge" role="status" aria-live="polite">
-    MOCK API MODE
+    {{ t('app.mockModeBadge') }}
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import { isMockApiMode } from './api/client';
+import { useI18n } from './i18n';
 
+const { t } = useI18n();
 const showMockModeBadge = computed(() => isMockApiMode());
 const showDesktopHistoryControls = computed(() => {
   if (typeof window === 'undefined') {
@@ -43,8 +45,8 @@ function goToNextPage(): void {
 <style scoped>
 .desktop-history-controls {
   position: fixed;
-  top: 16px;
-  right: 16px;
+  top: 4px;
+  right: 200px;
   z-index: 1000;
   display: inline-flex;
   gap: 8px;

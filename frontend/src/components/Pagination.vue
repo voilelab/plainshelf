@@ -1,19 +1,20 @@
 <template>
   <div class="pagination">
     <label v-if="pageSizeOptions && pageSizeOptions.length > 0" class="page-size-label">
-      每頁
+      {{ t('pagination.perPage') }}
       <select class="button page-size-select" :value="pageSize" @change="onPageSizeChange">
-        <option v-for="opt in pageSizeOptions" :key="opt" :value="opt">{{ opt }} 本</option>
+        <option v-for="opt in pageSizeOptions" :key="opt" :value="opt">{{ opt }}{{ t('pagination.booksSuffix') }}</option>
       </select>
     </label>
-    <button class="button" :disabled="!hasPrevPage" @click="goTo(page - 1)">Prev</button>
-    <span>Page {{ page }} / {{ totalPages }}</span>
-    <button class="button" :disabled="!hasNextPage" @click="goTo(page + 1)">Next</button>
+    <button class="button" :disabled="!hasPrevPage" @click="goTo(page - 1)">{{ t('common.prev') }}</button>
+    <span>{{ t('common.page', { page, total: totalPages }) }}</span>
+    <button class="button" :disabled="!hasNextPage" @click="goTo(page + 1)">{{ t('common.next') }}</button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from '../i18n';
 
 const props = defineProps<{
   page: number;
@@ -30,6 +31,7 @@ const emit = defineEmits<{
 const totalPages = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)));
 const hasPrevPage = computed(() => props.page > 1);
 const hasNextPage = computed(() => props.page < totalPages.value);
+const { t } = useI18n();
 
 function goTo(targetPage: number): void {
   if (targetPage < 1 || targetPage > totalPages.value) {

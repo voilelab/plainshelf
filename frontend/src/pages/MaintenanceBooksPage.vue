@@ -26,6 +26,7 @@ import BookCollectionPage from '../components/BookCollectionPage.vue';
 import { useBookStore } from '../composables/useBookStore';
 import { useBookPagination, toSingleQueryValue, toPage } from '../composables/useBookPagination';
 import { MAINTENANCE_BOOK_FILTERS, type MaintenanceBookFilter } from '../utils/maintenance';
+import { useI18n } from '../i18n';
 
 const props = defineProps<{
   filter: MaintenanceBookFilter;
@@ -35,15 +36,16 @@ const route = useRoute();
 const router = useRouter();
 const { books, loading, error, fetchBooks } = useBookStore();
 const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
+const { t } = useI18n();
 
 const filterConfig = computed(() => MAINTENANCE_BOOK_FILTERS[props.filter]);
 
 const heading = computed(() => {
-  return filterConfig.value.title;
+  return t(filterConfig.value.titleKey);
 });
 
 const emptyMessage = computed(() => {
-  return filterConfig.value.emptyMessage;
+  return t(filterConfig.value.emptyMessageKey);
 });
 
 const filteredBooks = computed(() => {

@@ -7,12 +7,12 @@
     :busy-text="busyText"
     :busy="busy"
     variant="danger"
-    close-label="Close delete confirmation dialog"
+    :close-label="t('deleteModal.closeLabel')"
     @cancel="emit('cancel')"
     @confirm="emit('confirm')"
   >
     <p>
-      Delete <strong>{{ itemName }}</strong>?
+      {{ t('deleteModal.question', { itemName }) }}
     </p>
     <p v-if="description">{{ description }}</p>
     <p v-if="error" class="delete-modal-error" role="alert">{{ error }}</p>
@@ -20,9 +20,13 @@
 </template>
 
 <script setup lang="ts">
+import { computed, toRefs } from 'vue';
 import ConfirmModal from './ConfirmModal.vue';
+import { useI18n } from '../i18n';
 
-withDefaults(
+const { t } = useI18n();
+
+const props = withDefaults(
   defineProps<{
     open: boolean;
     itemName: string;
@@ -35,15 +39,22 @@ withDefaults(
     error?: string;
   }>(),
   {
-    title: 'Confirm delete',
-    description: 'This cannot be undone.',
-    confirmText: 'Delete',
-    cancelText: 'Cancel',
-    busyText: 'Deleting...',
     busy: false,
     error: ''
   }
 );
+
+const title = computed(() => props.title ?? t('deleteModal.title'));
+const description = computed(() => props.description ?? t('deleteModal.description'));
+const confirmText = computed(() => props.confirmText ?? t('deleteModal.confirm'));
+const cancelText = computed(() => props.cancelText ?? t('deleteModal.cancel'));
+const busyText = computed(() => props.busyText ?? t('deleteModal.busy'));
+const {
+  open,
+  itemName,
+  busy,
+  error
+} = toRefs(props);
 
 const emit = defineEmits<{
   cancel: [];

@@ -2,13 +2,13 @@
   <section class="reader-page" :style="readerStyleVars">
     <div class="reader-shell">
       <header class="reader-toolbar">
-        <RouterLink :to="`/books/${id}`" class="reader-back">Back to detail</RouterLink>
+        <RouterLink :to="`/books/${id}`" class="reader-back">{{ t('reader.backToDetail') }}</RouterLink>
         <div class="reader-title">
-          <span class="reader-kicker">Reader</span>
+          <span class="reader-kicker">{{ t('reader.title') }}</span>
           <h2>{{ title || id }}</h2>
         </div>
         <div class="reader-header-meta">
-          <span class="reader-progress">Progress: {{ progress?.percent ?? 0 }}%</span>
+          <span class="reader-progress">{{ t('reader.progress', { percent: progress?.percent ?? 0 }) }}</span>
         </div>
       </header>
 
@@ -26,16 +26,16 @@
         />
 
         <main class="reader-main">
-          <div v-if="loading" class="loading reader-status">Loading content...</div>
+          <div v-if="loading" class="loading reader-status">{{ t('reader.loadingContent') }}</div>
           <div v-else-if="error" class="error reader-status reader-error" role="alert">
             <p>{{ error }}</p>
-            <button class="button" type="button" @click="fetchReaderData">Retry</button>
+            <button class="button" type="button" @click="fetchReaderData">{{ t('common.retry') }}</button>
           </div>
 
           <article v-else class="reader-document">
             <div class="reader-nav" v-if="sections.length > 0">
               <button class="button reader-nav-button" type="button" :disabled="currentSectionIndex <= 0" @click="goPrevSection">
-                Prev
+                {{ t('common.prev') }}
               </button>
               <div class="reader-nav-center">
                 <strong>{{ currentSectionIndex + 1 }} / {{ sections.length }}</strong>
@@ -47,7 +47,7 @@
                 :disabled="currentSectionIndex >= sections.length - 1"
                 @click="goNextSection"
               >
-                Next
+                {{ t('common.next') }}
               </button>
             </div>
 
@@ -103,6 +103,7 @@ import { useReader } from '../composables/useReader';
 import { useReaderSettings } from '../composables/useReaderSettings';
 import { parseReaderBlocks } from '../utils/parseReaderBlocks';
 import type { SplitConfig } from '../../../types/book';
+import { useI18n } from '../../../i18n';
 
 const route = useRoute();
 const id = computed(() => String(route.params.id));
@@ -130,12 +131,13 @@ const {
 const isSplitModalOpen = ref(false);
 const isChapterModalOpen = ref(false);
 const { fontSize, isAtMinFontSize, isAtMaxFontSize, increaseFontSize, decreaseFontSize } = useReaderSettings();
+const { t } = useI18n();
 
 const readerStyleVars = computed(() => ({
   '--reader-font-size': `${fontSize.value}px`
 }));
 
-useDocumentTitle(() => ['Reader', title.value, 'PlainShelf']);
+useDocumentTitle(() => [t('reader.title'), title.value, t('app.name')]);
 
 const sectionBlocks = computed(() => parseReaderBlocks(currentSection.value?.text ?? ''));
 
