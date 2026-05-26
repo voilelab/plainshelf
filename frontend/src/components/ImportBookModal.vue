@@ -29,7 +29,7 @@
         </button>
       </header>
 
-      <p class="meta">Upload a TXT file to create a new book entry, or drag and drop files here.</p>
+      <p class="meta">Upload a TXT file to create a new book entry, or drag-and-drop files here.</p>
 
       <div v-if="success" class="success">{{ success }}</div>
       <div v-if="error" class="error">{{ error }}</div>
@@ -156,11 +156,6 @@ function onDragOver(event: DragEvent): void {
 }
 
 function onDragLeave(event: DragEvent): void {
-  if (!hasFileTransfer(event.dataTransfer)) {
-    isDropTarget.value = false;
-    return;
-  }
-
   const relatedTarget = event.relatedTarget;
   const currentTarget = event.currentTarget;
   if (
