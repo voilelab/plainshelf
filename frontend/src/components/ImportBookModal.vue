@@ -157,6 +157,7 @@ function onDragOver(event: DragEvent): void {
 
 function onDragLeave(event: DragEvent): void {
   if (!hasFileTransfer(event.dataTransfer)) {
+    isDropTarget.value = false;
     return;
   }
 
