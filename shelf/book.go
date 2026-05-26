@@ -2,8 +2,10 @@ package shelf
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"path"
 	"strings"
 	"time"
@@ -31,6 +33,8 @@ const CurrentVersionLocationTemplate = `[shelf 狀態指標]
 
 (註：請勿修改此檔案內容，shelf 會自動更新此指標)
 `
+
+var ErrSourceNotFound = util.NewError("source not found")
 
 type Layers []string
 
@@ -363,7 +367,14 @@ func (b *Book) DeleteSource(sourceID string) error {
 	}
 
 	sourcePath := path.Join(b.folderPath, SourcesFolder, sourceID)
-	err := b.root.Remove(sourcePath)
+	if _, err := b.root.Stat(sourcePath); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return util.Errorf("%w", ErrSourceNotFound)
+		}
+		return util.Errorf("%w", err)
+	}
+
+	err := b.root.RemoveAll(sourcePath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}

@@ -118,7 +118,7 @@ func (app *App) HandleAPICreateBookSource(w http.ResponseWriter, r *http.Request
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	err = json.NewEncoder(w).Encode(sourceMeta)
+	err = json.NewEncoder(w).Encode(sourceMeta.GetMeta())
 	if err != nil {
 		app.Error("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
@@ -153,6 +153,10 @@ func (app *App) HandleAPIDeleteBookSource(w http.ResponseWriter, r *http.Request
 
 	err = book.DeleteSource(sourceID)
 	if err != nil {
+		if errors.Is(err, shelf.ErrSourceNotFound) {
+			http.Error(w, "source not found", http.StatusNotFound)
+			return
+		}
 		app.Error("failed to delete book source", "error", err)
 		http.Error(w, "failed to delete book source", http.StatusInternalServerError)
 		return
