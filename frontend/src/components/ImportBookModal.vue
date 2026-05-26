@@ -1,7 +1,16 @@
 <template>
-  <div v-if="open" class="modal-overlay" role="presentation" @click="onBackdropClick">
+  <div
+    v-if="open"
+    class="modal-overlay"
+    role="presentation"
+    @click="onBackdropClick"
+    @dragover="onDragOver"
+    @dragleave="onDragLeave"
+    @drop="onDrop"
+  >
     <section
       class="panel import-modal"
+      :class="{ 'is-drop-target': isDropTarget }"
       role="dialog"
       aria-modal="true"
       aria-labelledby="import-modal-title"
@@ -20,7 +29,7 @@
         </button>
       </header>
 
-      <p class="meta">Upload a TXT file to create a new book entry.</p>
+      <p class="meta">Upload a TXT file to create a new book entry, or drag and drop files here.</p>
 
       <div v-if="success" class="success">{{ success }}</div>
       <div v-if="error" class="error">{{ error }}</div>
@@ -70,11 +79,12 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useImportBook } from '../composables/useImportBook';
 import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
-import { readSelectedFiles } from '../utils/file';
+import { hasFileTransfer, readDroppedFiles, readSelectedFiles } from '../utils/file';
 
 const props = defineProps<{
   open: boolean;
   currentLayerPath?: string;
+  droppedFiles?: File[];
 }>();
 
 const emit = defineEmits<{
@@ -100,6 +110,7 @@ const { fetchBooks } = useBookStore();
 const { fetchLayers } = useLayerStore();
 
 const bookInput = ref<HTMLInputElement | null>(null);
+const isDropTarget = ref(false);
 
 function onBookFileChange(event: Event): void {
   setBookFiles(readSelectedFiles(event));
@@ -111,6 +122,14 @@ function clearFileInputs(): void {
   }
 }
 
+function applyDroppedFiles(nextFiles: File[]): void {
+  if (nextFiles.length === 0 || submitting.value) {
+    return;
+  }
+  setBookFiles(nextFiles);
+  clearFileInputs();
+}
+
 function onClose(): void {
   if (submitting.value) {
     return;
@@ -120,6 +139,37 @@ function onClose(): void {
 
 function onBackdropClick(): void {
   onClose();
+}
+
+function onDragOver(event: DragEvent): void {
+  if (!hasFileTransfer(event.dataTransfer)) {
+    return;
+  }
+
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'copy';
+  }
+  if (!submitting.value) {
+    isDropTarget.value = true;
+  }
+}
+
+function onDragLeave(event: DragEvent): void {
+  if (!hasFileTransfer(event.dataTransfer)) {
+    return;
+  }
+  isDropTarget.value = false;
+}
+
+function onDrop(event: DragEvent): void {
+  if (!hasFileTransfer(event.dataTransfer)) {
+    return;
+  }
+
+  event.preventDefault();
+  isDropTarget.value = false;
+  applyDroppedFiles(readDroppedFiles(event));
 }
 
 function onDocumentKeydown(event: KeyboardEvent): void {
@@ -166,8 +216,31 @@ watch(
       return;
     }
 
+    isDropTarget.value = false;
     clearFileInputs();
     reset();
+  }
+);
+
+watch(
+  () => props.open,
+  (open) => {
+    if (!open) {
+      return;
+    }
+
+    applyDroppedFiles(props.droppedFiles ?? []);
+  }
+);
+
+watch(
+  () => props.droppedFiles,
+  (nextFiles) => {
+    if (!props.open) {
+      return;
+    }
+
+    applyDroppedFiles(nextFiles ?? []);
   }
 );
 
@@ -199,6 +272,11 @@ onBeforeUnmount(() => {
   overflow: auto;
   padding: 16px;
   width: min(100%, 620px);
+}
+
+.import-modal.is-drop-target {
+  border: 2px dashed #1d4ed8;
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.18);
 }
 
 .import-header {

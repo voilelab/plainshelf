@@ -12,6 +12,14 @@ export function readSelectedFiles(event: Event): File[] {
   return Array.from(target.files ?? []);
 }
 
+export function hasFileTransfer(dataTransfer: DataTransfer | null | undefined): boolean {
+  return Array.from(dataTransfer?.types ?? []).includes('Files');
+}
+
+export function readDroppedFiles(event: DragEvent): File[] {
+  return Array.from(event.dataTransfer?.files ?? []);
+}
+
 export function deriveTitleFromFilename(filename: string): string {
   const normalizedFilename = filename.trim();
   if (normalizedFilename.length === 0) {
