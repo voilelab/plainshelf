@@ -147,7 +147,7 @@ async function deleteBook(): Promise<void> {
   const removed = await removeBook();
   if (removed) {
     showDeleteModal.value = false;
-    await router.push('/trash');
+    await router.push('/books');
   }
 }
 
