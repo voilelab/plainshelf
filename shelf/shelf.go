@@ -208,7 +208,7 @@ func (s *Shelf) unlock() error {
 	return nil
 }
 
-func (s *Shelf) runlock() error {
+func (s *Shelf) readUnlock() error {
 	return s.unlock()
 }
 

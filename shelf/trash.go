@@ -73,7 +73,7 @@ func (s *Shelf) MoveBookToTrash(bookID string) error {
 
 func (s *Shelf) ListTrashedBooks() ([]*TrashedBook, error) {
 	s.rlock()
-	defer s.runlock()
+	defer s.readUnlock()
 
 	entries, err := s.dbRoot.ReadDir(trashBooksFolder)
 	if err != nil {
@@ -246,7 +246,7 @@ func (s *Shelf) resolveBookPathCollision(layerPath, folderName string) (string, 
 	}
 
 	// 10,000 attempts is a practical upper bound for collision resolution in a single layer.
-	// If this bound is reached, callers can surface the error and retry with a different name.
+	// If this bound is reached, we return an error instead of looping indefinitely.
 	for i := 0; i < maxBookPathCollisionAttempts; i++ {
 		candidateFolder := folderName
 		if i > 0 {
