@@ -95,7 +95,8 @@ function getBrowserLocale(): SupportedLocale | undefined {
     return undefined;
   }
 
-  for (const candidate of navigator.languages) {
+  const languages = Array.isArray(navigator.languages) ? navigator.languages : [];
+  for (const candidate of languages) {
     const normalized = normalizeLocale(candidate);
     if (normalized) {
       return normalized;
