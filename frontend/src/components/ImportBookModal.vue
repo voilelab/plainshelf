@@ -159,6 +159,17 @@ function onDragLeave(event: DragEvent): void {
   if (!hasFileTransfer(event.dataTransfer)) {
     return;
   }
+
+  const relatedTarget = event.relatedTarget;
+  const currentTarget = event.currentTarget;
+  if (
+    relatedTarget instanceof Node &&
+    currentTarget instanceof Node &&
+    currentTarget.contains(relatedTarget)
+  ) {
+    return;
+  }
+
   isDropTarget.value = false;
 }
 
