@@ -208,10 +208,6 @@ func (s *Shelf) unlock() error {
 	return nil
 }
 
-func (s *Shelf) readUnlock() error {
-	return s.unlock()
-}
-
 // Close releases any resources held by the Shelf instance.
 func (s *Shelf) Close() error {
 	errs := []error{}
