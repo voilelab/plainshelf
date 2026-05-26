@@ -220,8 +220,8 @@ function replaceAll(): void {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   resize: none;
   overflow: auto;
-  white-space: pre;
-  overflow-wrap: normal;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .source-content-textarea:focus-visible {
