@@ -2,8 +2,10 @@ package shelf
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"path"
 	"strings"
 	"time"
@@ -31,6 +33,8 @@ const CurrentVersionLocationTemplate = `[shelf 狀態指標]
 
 (註：請勿修改此檔案內容，shelf 會自動更新此指標)
 `
+
+var ErrSourceNotFound = util.NewError("source not found")
 
 type Layers []string
 
@@ -319,7 +323,13 @@ func (b *Book) setMeta(meta *BookMeta) error {
 	return nil
 }
 
+// NewSource creates a new source for the book with the provided source content, and returns the created source metadata.
+// If source is nil, an empty source will be created.
 func (b *Book) NewSource(source io.Reader) (*Source, error) {
+	if source == nil {
+		source = io.NopCloser(strings.NewReader(""))
+	}
+
 	// create a new source for the given book with the provided source file and metadata
 	sourceID := time.Now().Format("20060102-150405")
 	sourcePath := path.Join(b.folderPath, SourcesFolder, sourceID)
@@ -349,6 +359,27 @@ func (b *Book) GetSource(sourceID string) (*Source, error) {
 		return nil, util.Errorf("%w", err)
 	}
 	return source, nil
+}
+
+func (b *Book) DeleteSource(sourceID string) error {
+	if err := validateSourceID(sourceID); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	sourcePath := path.Join(b.folderPath, SourcesFolder, sourceID)
+	if _, err := b.root.Stat(sourcePath); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return util.Errorf("%w", ErrSourceNotFound)
+		}
+		return util.Errorf("%w", err)
+	}
+
+	err := b.root.RemoveAll(sourcePath)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
 }
 
 func (b *Book) ListSource() ([]*Source, error) {
