@@ -3,8 +3,8 @@
     <ConfirmModal
       :open="showDiscardModal"
       title="Discard unsaved changes?"
-      message="You have unsaved changes. Discard them and switch sources?"
-      confirm-text="Discard and switch"
+      message="You have unsaved changes. Discard them?"
+      confirm-text="Discard"
       cancel-text="Keep editing"
       @cancel="cancelPendingSource"
       @confirm="confirmPendingSource"
@@ -109,6 +109,7 @@ const editorError = ref('');
 const saveSuccess = ref('');
 const showDiscardModal = ref(false);
 const pendingSourceId = ref('');
+const pendingCreate = ref(false);
 const showDeleteModal = ref(false);
 const pendingDeleteSourceId = ref('');
 const deleteError = ref('');
@@ -202,9 +203,16 @@ async function onSelectSource(sourceId: string): Promise<void> {
 function cancelPendingSource(): void {
   showDiscardModal.value = false;
   pendingSourceId.value = '';
+  pendingCreate.value = false;
 }
 
 async function confirmPendingSource(): Promise<void> {
+  if (pendingCreate.value) {
+    cancelPendingSource();
+    await doCreateSource();
+    return;
+  }
+
   const sourceId = pendingSourceId.value;
   cancelPendingSource();
 
@@ -237,6 +245,15 @@ async function onSave(): Promise<void> {
 }
 
 async function onCreateSource(): Promise<void> {
+  if (isDirty.value) {
+    pendingCreate.value = true;
+    showDiscardModal.value = true;
+    return;
+  }
+  await doCreateSource();
+}
+
+async function doCreateSource(): Promise<void> {
   creating.value = true;
   editorError.value = '';
   saveSuccess.value = '';
