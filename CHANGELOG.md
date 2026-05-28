@@ -9,10 +9,29 @@ and UI behavior may still change between releases.
 
 ### Added
 
+- Added shelf-cache refresh controls and stale-book cache handling improvements.
+- Added MkDocs-based project documentation and known-issues pages.
+- Added a canvas-based simple book-cover generator in the frontend.
+- Added desktop history navigation controls and menu actions.
+- Added frontend drag-and-drop support for importing external TXT files.
+- Added frontend i18n foundations with locale switching support (`en`, `zh-Hant`).
+- Added a trash-can flow for soft-deleting books and retaining original paths.
+- Added book source create/delete actions in the source editor.
+- Added desktop native file-dialog import selection and server-side local-path import support.
+
 ### Changed
+
+- Changed desktop import flow to use local file paths with backend-side import handling.
+- Changed source-editor and import UI behavior for clearer loading, wrapping, and modal interactions.
+- Changed shelf cache internals to reduce lock contention and improve refresh consistency.
+- Changed CI to include desktop module Go test coverage.
 
 ### Fixed
 
+- Fixed stale-cache and cache-miss refresh paths in shelf book listing flows.
+- Fixed desktop import path validation before local-path imports.
+- Fixed unsafe delete/source edit UX edge cases (dirty-source warnings and delete redirect handling).
+- Fixed global book ID collision handling across active and trash books.
 ## [v0.4.0] - 2026-05-22
 
 ### Added
