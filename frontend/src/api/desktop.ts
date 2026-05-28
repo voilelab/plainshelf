@@ -43,7 +43,7 @@ export async function openDesktopBookFiles(): Promise<string[] | null> {
     return null;
   }
 
-  return await desktopApp.OpenBookFiles();
+  return desktopApp.OpenBookFiles();
 }
 
 function normalizeLayerParts(layerPath: string): string[] {
@@ -71,5 +71,5 @@ export async function importDesktopBooksFromLocalPaths(
     return null;
   }
 
-  return await desktopApp.ImportBooksFromLocalPaths(localPaths, normalizeLayerParts(layerPath));
+  return desktopApp.ImportBooksFromLocalPaths(localPaths, normalizeLayerParts(layerPath));
 }

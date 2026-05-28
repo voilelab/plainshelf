@@ -341,14 +341,21 @@ async function openImportFromFiles(): Promise<void> {
       return;
     }
 
-    const importResult = await importDesktopBooksFromLocalPaths(desktopFiles, selectedLayer.value ?? '');
-    if (importResult) {
-      if (importResult.some((item) => Boolean(item.id))) {
-        await reloadBooks();
+    try {
+      const importResult = await importDesktopBooksFromLocalPaths(desktopFiles, selectedLayer.value ?? '');
+      if (importResult) {
+        const hasImportedBook = importResult.some((item) => item.id !== undefined && item.id !== '');
+        const hasFailedBook = importResult.some((item) => Boolean(item.error));
+        if (hasImportedBook) {
+          await reloadBooks();
+        } else if (hasFailedBook && !isImportModalOpen.value) {
+          void openImportModalQuery();
+        }
+        return;
       }
-      return;
+    } catch {
+      // Fall through to browser file-input import modal.
     }
-
   }
 
   if (isImportModalOpen.value) {

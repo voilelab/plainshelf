@@ -109,7 +109,7 @@ func normalizeLayerParts(layerParts []string) shelf.Layers {
 
 func (a *DesktopApp) ImportBooksFromLocalPaths(localPaths []string, layerParts []string) ([]DesktopImportBookResult, error) {
 	if a.app == nil {
-		return []DesktopImportBookResult{}, nil
+		return nil, util.NewError("desktop backend app instance is nil")
 	}
 
 	normalizedPaths := normalizeSelectedLocalPaths(localPaths)
