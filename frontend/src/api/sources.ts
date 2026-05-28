@@ -129,6 +129,43 @@ export async function getSourceContent(bookId: string, sourceId: string): Promis
   );
 }
 
+export async function createSource(bookId: string): Promise<SourceMeta> {
+  if (isMockApiMode()) {
+    const sources = ensureMockSource(bookId);
+    const now = new Date();
+    const id = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}-${String(now.getMilliseconds()).padStart(3, '0')}-${Math.random().toString(36).slice(2, 7)}`;
+    const content = '';
+    const newItem: SourceStoreItem = {
+      meta: buildSourceMeta(id, now.toISOString(), content),
+      content
+    };
+    sources.unshift(newItem);
+    return { ...newItem.meta };
+  }
+
+  const data = await fetchJson<unknown>(`/api/books/${encodeURIComponent(bookId)}/sources`, {
+    method: 'POST'
+  });
+  return normalizeSourceMeta(data);
+}
+
+export async function deleteSource(bookId: string, sourceId: string): Promise<void> {
+  if (isMockApiMode()) {
+    const sources = ensureMockSource(bookId);
+    const index = sources.findIndex((source) => source.meta.id === sourceId);
+    if (index === -1) {
+      throw new Error('Source not found');
+    }
+    sources.splice(index, 1);
+    return;
+  }
+
+  await fetchJson<void>(
+    `/api/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}`,
+    { method: 'DELETE' }
+  );
+}
+
 export async function updateSourceContent(bookId: string, sourceId: string, content: string): Promise<void> {
   if (isMockApiMode()) {
     const sources = ensureMockSource(bookId);
