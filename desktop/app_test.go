@@ -1,10 +1,6 @@
 package main
 
-import (
-	"os"
-	"path/filepath"
-	"testing"
-)
+import "testing"
 
 func TestBookOpenDialogOptions(t *testing.T) {
 	options := bookOpenDialogOptions()
@@ -18,30 +14,28 @@ func TestBookOpenDialogOptions(t *testing.T) {
 	}
 }
 
-func TestLoadDesktopSelectedBookFiles(t *testing.T) {
-	tmpDir := t.TempDir()
-	bookPath := filepath.Join(tmpDir, "book.txt")
-	expectedContent := []byte("hello world")
-	if err := os.WriteFile(bookPath, expectedContent, 0o600); err != nil {
-		t.Fatalf("write temp file: %v", err)
+func TestNormalizeSelectedLocalPaths(t *testing.T) {
+	paths := normalizeSelectedLocalPaths([]string{"", "  ", " /tmp/book-1.txt ", "/tmp/book-2.txt"})
+	if len(paths) != 2 {
+		t.Fatalf("expected two valid paths, got %d", len(paths))
 	}
+	if paths[0] != "/tmp/book-1.txt" {
+		t.Fatalf("unexpected first path: %q", paths[0])
+	}
+	if paths[1] != "/tmp/book-2.txt" {
+		t.Fatalf("unexpected second path: %q", paths[1])
+	}
+}
 
-	files, err := loadDesktopSelectedBookFiles([]string{"", bookPath})
-	if err != nil {
-		t.Fatalf("loadDesktopSelectedBookFiles returned error: %v", err)
+func TestNormalizeLayerParts(t *testing.T) {
+	parts := normalizeLayerParts([]string{"", "  ", " fiction ", " sci-fi "})
+	if len(parts) != 2 {
+		t.Fatalf("expected two valid layer parts, got %d", len(parts))
 	}
-	if len(files) != 1 {
-		t.Fatalf("expected one loaded file, got %d", len(files))
+	if parts[0] != "fiction" {
+		t.Fatalf("unexpected first part: %q", parts[0])
 	}
-
-	file := files[0]
-	if file.Path != bookPath {
-		t.Fatalf("expected path %q, got %q", bookPath, file.Path)
-	}
-	if file.Name != "book.txt" {
-		t.Fatalf("expected name %q, got %q", "book.txt", file.Name)
-	}
-	if string(file.Content) != string(expectedContent) {
-		t.Fatalf("expected content %q, got %q", string(expectedContent), string(file.Content))
+	if parts[1] != "sci-fi" {
+		t.Fatalf("unexpected second part: %q", parts[1])
 	}
 }

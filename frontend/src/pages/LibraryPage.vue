@@ -129,7 +129,7 @@ import { useBooksSort, type BookSortKey, type SortOrder } from '../composables/u
 import { hasFileTransfer, readDroppedFiles } from '../utils/file';
 import { getLayerPath, layerPathEquals, normalizeLayerPath } from '../utils/layers';
 import { useI18n } from '../i18n';
-import { openDesktopBookFiles } from '../api/desktop';
+import { importDesktopBooksFromLocalPaths, openDesktopBookFiles } from '../api/desktop';
 import '../styles/toolbar-controls.css';
 
 const ROOT_LAYER_LABEL = '/';
@@ -329,22 +329,26 @@ async function openImportFromFiles(): Promise<void> {
   showImportDropdown.value = false;
   droppedFiles.value = [];
 
-  let desktopFiles: File[] | null = null;
+  let desktopFiles: string[] | null = null;
   try {
     desktopFiles = await openDesktopBookFiles();
   } catch {
     desktopFiles = null;
   }
 
-  if (desktopFiles && desktopFiles.length > 0) {
-    droppedFiles.value = desktopFiles;
-    if (!isImportModalOpen.value) {
-      void openImportModalQuery();
-    }
-    return;
-  }
   if (desktopFiles) {
-    return;
+    if (desktopFiles.length === 0) {
+      return;
+    }
+
+    const importResult = await importDesktopBooksFromLocalPaths(desktopFiles, selectedLayer.value ?? '');
+    if (importResult) {
+      if (importResult.some((item) => Boolean(item.id))) {
+        await reloadBooks();
+      }
+      return;
+    }
+
   }
 
   if (isImportModalOpen.value) {

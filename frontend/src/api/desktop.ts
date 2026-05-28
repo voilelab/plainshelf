@@ -1,11 +1,15 @@
-interface DesktopSelectedBookFile {
+interface DesktopImportBookResult {
   path?: string;
-  name?: string;
-  content?: string;
+  id?: string;
+  error?: string;
 }
 
 interface DesktopAppBinding {
-  OpenBookFiles?: () => Promise<DesktopSelectedBookFile[]>;
+  OpenBookFiles?: () => Promise<string[]>;
+  ImportBooksFromLocalPaths?: (
+    localPaths: string[],
+    layerParts: string[]
+  ) => Promise<DesktopImportBookResult[]>;
 }
 
 interface DesktopWindow extends Window {
@@ -29,22 +33,7 @@ export function isDesktopRuntime(): boolean {
   );
 }
 
-function decodeBase64(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-
-function filenameFromPath(path: string): string {
-  const normalized = path.replace(/\\/g, '/');
-  const parts = normalized.split('/');
-  return parts[parts.length - 1] || 'book.txt';
-}
-
-export async function openDesktopBookFiles(): Promise<File[] | null> {
+export async function openDesktopBookFiles(): Promise<string[] | null> {
   if (!isDesktopRuntime()) {
     return null;
   }
@@ -54,12 +43,33 @@ export async function openDesktopBookFiles(): Promise<File[] | null> {
     return null;
   }
 
-  const selectedFiles = await desktopApp.OpenBookFiles();
-  return (selectedFiles ?? []).map((item) => {
-    const name = item.name?.trim() || filenameFromPath(item.path ?? '');
-    const bytes = decodeBase64(item.content ?? '');
-    const content = new ArrayBuffer(bytes.length);
-    new Uint8Array(content).set(bytes);
-    return new File([content], name, { type: 'text/plain' });
-  });
+  return await desktopApp.OpenBookFiles();
+}
+
+function normalizeLayerParts(layerPath: string): string[] {
+  const trimmed = layerPath.trim();
+  if (!trimmed || trimmed === '/') {
+    return [];
+  }
+
+  return trimmed
+    .split('/')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+}
+
+export async function importDesktopBooksFromLocalPaths(
+  localPaths: string[],
+  layerPath: string
+): Promise<DesktopImportBookResult[] | null> {
+  if (!isDesktopRuntime()) {
+    return null;
+  }
+
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.ImportBooksFromLocalPaths) {
+    return null;
+  }
+
+  return await desktopApp.ImportBooksFromLocalPaths(localPaths, normalizeLayerParts(layerPath));
 }

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
@@ -19,10 +20,10 @@ type DesktopApp struct {
 	ctx context.Context
 }
 
-type DesktopSelectedBookFile struct {
-	Path    string `json:"path"`
-	Name    string `json:"name"`
-	Content []byte `json:"content"`
+type DesktopImportBookResult struct {
+	Path  string `json:"path"`
+	ID    string `json:"id,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 func NewDesktopApp() *DesktopApp {
@@ -58,25 +59,16 @@ func (a *DesktopApp) NextPage() {
 	a.navigateHistory(1)
 }
 
-func (a *DesktopApp) OpenBookFiles() ([]DesktopSelectedBookFile, error) {
+func (a *DesktopApp) OpenBookFiles() ([]string, error) {
 	if a.ctx == nil {
-		return []DesktopSelectedBookFile{}, nil
+		return []string{}, nil
 	}
 
 	paths, err := wailsruntime.OpenMultipleFilesDialog(a.ctx, bookOpenDialogOptions())
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	if len(paths) == 0 {
-		return []DesktopSelectedBookFile{}, nil
-	}
-
-	files, err := loadDesktopSelectedBookFiles(paths)
-	if err != nil {
-		return nil, err
-	}
-
-	return files, nil
+	return normalizeSelectedLocalPaths(paths), nil
 }
 
 func bookOpenDialogOptions() wailsruntime.OpenDialogOptions {
@@ -91,27 +83,54 @@ func bookOpenDialogOptions() wailsruntime.OpenDialogOptions {
 	}
 }
 
-func loadDesktopSelectedBookFiles(paths []string) ([]DesktopSelectedBookFile, error) {
-	files := make([]DesktopSelectedBookFile, 0, len(paths))
-
+func normalizeSelectedLocalPaths(paths []string) []string {
+	localPaths := make([]string, 0, len(paths))
 	for _, currentPath := range paths {
-		if currentPath == "" {
+		trimmedPath := strings.TrimSpace(currentPath)
+		if trimmedPath == "" {
 			continue
 		}
+		localPaths = append(localPaths, trimmedPath)
+	}
+	return localPaths
+}
 
-		content, err := os.ReadFile(currentPath)
-		if err != nil {
-			return nil, util.Errorf("%w", err)
+func normalizeLayerParts(layerParts []string) shelf.Layers {
+	normalizedParts := make(shelf.Layers, 0, len(layerParts))
+	for _, part := range layerParts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
 		}
+		normalizedParts = append(normalizedParts, trimmed)
+	}
+	return normalizedParts
+}
 
-		files = append(files, DesktopSelectedBookFile{
-			Path:    currentPath,
-			Name:    filepath.Base(currentPath),
-			Content: content,
-		})
+func (a *DesktopApp) ImportBooksFromLocalPaths(localPaths []string, layerParts []string) ([]DesktopImportBookResult, error) {
+	if a.app == nil {
+		return []DesktopImportBookResult{}, nil
 	}
 
-	return files, nil
+	normalizedPaths := normalizeSelectedLocalPaths(localPaths)
+	if len(normalizedPaths) == 0 {
+		return []DesktopImportBookResult{}, nil
+	}
+
+	normalizedLayerParts := normalizeLayerParts(layerParts)
+	results := make([]DesktopImportBookResult, 0, len(normalizedPaths))
+	for _, localPath := range normalizedPaths {
+		book, err := a.app.ImportFromLocalPath(localPath, normalizedLayerParts)
+		result := DesktopImportBookResult{Path: localPath}
+		if err != nil {
+			result.Error = err.Error()
+		} else {
+			result.ID = book.ID()
+		}
+		results = append(results, result)
+	}
+
+	return results, nil
 }
 
 func (a *DesktopApp) navigateHistory(step int) {
