@@ -27,6 +27,12 @@
       <path d="M18.5 15.5c1.18 0 2 .75 2 1.75 0 1.5-2 1.52-2 2.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       <path d="M18.5 22h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
     </svg>
+    <svg v-else-if="name === 'trash'" viewBox="0 0 24 24" fill="none">
+      <path d="M5 7h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M9 7V5.8c0-.44.36-.8.8-.8h4.4c.44 0 .8.36.8.8V7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M7.5 7.8v9.4a1.8 1.8 0 0 0 1.8 1.8h5.4a1.8 1.8 0 0 0 1.8-1.8V7.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M10.2 10.2v5.6M13.8 10.2v5.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+    </svg>
   </span>
 </template>
 

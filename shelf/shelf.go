@@ -32,6 +32,8 @@ Layout:
 */
 
 const booksFolder = "books"
+const trashFolder = ".trash"
+const trashBooksFolder = trashFolder + "/" + booksFolder
 const bookExtension = ".novl"
 const appFolder = "app"
 const appTmpFolder = "tmp"
@@ -134,6 +136,11 @@ func (s *Shelf) makeStructure() error {
 	}
 
 	err = s.dbRoot.MkdirAll(path.Join(appFolder, appTmpFolder))
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	err = s.dbRoot.MkdirAll(trashBooksFolder)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -278,14 +285,18 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 	bookID := baseBookID
 	for i := 1; ; i++ {
 		_, err := s.getUpdatedBookFromBookID(bookID)
-		if err != nil {
-			if errors.Is(err, ErrBookNotFound) {
+		if errors.Is(err, ErrBookNotFound) {
+			inTrash, trashErr := s.isBookIDInTrash(bookID)
+			if trashErr != nil {
+				return nil, util.Errorf("%w", trashErr)
+			}
+			if !inTrash {
 				break
 			}
+		} else if err != nil {
 			return nil, util.Errorf("%w", err)
-		} else {
-			bookID = fmt.Sprintf("%s-%d", baseBookID, i)
 		}
+		bookID = fmt.Sprintf("%s-%d", baseBookID, i)
 	}
 
 	_, err = createBook(s.dbRoot, s.Logger, bookPath, bookID, title)
@@ -331,24 +342,9 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 	return newBook, nil
 }
 
-// DeleteBook removes a book from the library by its ID.
+// DeleteBook moves a book into trash by its ID.
 func (s *Shelf) DeleteBook(bookID string) error {
-	s.lock()
-	defer s.unlock()
-
-	book, err := s.getUpdatedBookFromBookID(bookID)
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	err = s.dbRoot.RemoveAll(book.FolderPath())
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	s.deleteBookCacheEntry(bookID)
-
-	return nil
+	return s.MoveBookToTrash(bookID)
 }
 
 // GetAllLayers returns a sorted list of all unique layers present in the library.

@@ -173,6 +173,7 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/books/{book_id}", app.HandleAPIGetBook)
 	mux.HandleFunc("PATCH /api/books/{book_id}", app.HandleAPIUpdateBook)
 	mux.HandleFunc("DELETE /api/books/{book_id}", app.HandleAPIDeleteBook)
+	mux.HandleFunc("POST /api/books/{book_id}/trash", app.HandleAPITrashBook)
 
 	mux.HandleFunc("GET /api/books/{book_id}/sources", app.HandleAPIGetBookSources)
 	mux.HandleFunc("GET /api/books/{book_id}/sources/{source_id}", app.HandleAPIGetBookSource)
@@ -188,6 +189,10 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/books/{book_id}/content", app.HandleAPIGetBookContent)
 	mux.HandleFunc("GET /api/books/{book_id}/split_config", app.HandleAPIGetBookSplitConfig)
 	mux.HandleFunc("PATCH /api/books/{book_id}/split_config", app.HandleAPIUpdateBookSplitConfig)
+
+	mux.HandleFunc("GET /api/trash/books", app.HandleAPIGetTrashedBooks)
+	mux.HandleFunc("POST /api/trash/books/{book_id}/restore", app.HandleAPIRestoreTrashedBook)
+	mux.HandleFunc("DELETE /api/trash/books/{book_id}", app.HandleAPIDeleteTrashedBook)
 
 	mux.HandleFunc("GET /api/layers", app.HandleAPIGetLayers)
 	mux.HandleFunc("POST /api/layers/{layer_path...}", app.HandleAPICreateLayer)

@@ -230,6 +230,46 @@ func TestAPIUpdateBookContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusBadRequest)
 }
 
+func TestAPITrashLifecycleContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Trash API", "origin/layer", "trash.txt", "body")
+
+	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/books/"+created.Meta.ID+"/trash", nil))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/books", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if books := decodeJSON[[]Book](t, rec); len(books) != 0 {
+		t.Fatalf("active books after trash = %d, want 0", len(books))
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/trash/books", nil))
+	assertStatus(t, rec, http.StatusOK)
+	trashed := decodeJSON[[]map[string]any](t, rec)
+	if len(trashed) != 1 {
+		t.Fatalf("trashed books = %d, want 1", len(trashed))
+	}
+	if id, _ := trashed[0]["id"].(string); id != created.Meta.ID {
+		t.Fatalf("trashed id = %q, want %q", id, created.Meta.ID)
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/trash/books/"+created.Meta.ID+"/restore", nil))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/books", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if books := decodeJSON[[]Book](t, rec); len(books) != 1 {
+		t.Fatalf("active books after restore = %d, want 1", len(books))
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/books/"+created.Meta.ID, nil))
+	assertStatus(t, rec, http.StatusNoContent)
+	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/trash/books/"+created.Meta.ID, nil))
+	assertStatus(t, rec, http.StatusNoContent)
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/trash/books/"+created.Meta.ID+"/restore", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+}
+
 func TestAPISplitConfigContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Split Me", "", "split.txt", "one\ntwo\nthree")
