@@ -47,7 +47,7 @@
         :sources="sources"
         :activeSourceId="activeSourceId"
         :currentSourceId="book?.current_source"
-        :loading="listLoading"
+        :loading="listLoading || initialLoading"
         :creating="creating"
         @select="onSelectSource"
         @create="onCreateSource"
