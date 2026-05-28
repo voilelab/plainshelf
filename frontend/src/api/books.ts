@@ -9,6 +9,7 @@ import type {
   BookUpdateRequest,
   PaginatedBooks,
   ReadingProgress,
+  TrashedBook,
 } from '../types/book';
 import {
   API_BASE,
@@ -39,6 +40,15 @@ interface BackendBook {
   meta: BackendBookMeta;
   layer?: string[];
   layers?: string[];
+}
+
+interface BackendTrashedBook {
+  id: string;
+  title: string;
+  authors?: string[];
+  original_path?: string;
+  original_layer?: string[];
+  deleted_at?: string;
 }
 
 interface BackendMark {
@@ -273,6 +283,7 @@ const mockContent: Record<string, string> = {
 };
 
 const mockSplitConfigs: Record<string, SplitConfig> = {};
+const mockTrashedBooks: TrashedBook[] = [];
 
 function delay<T>(value: T, ms = 240): Promise<T> {
   return new Promise((resolve) => {
@@ -539,6 +550,18 @@ export async function uploadBookCover(id: string, file: File): Promise<void> {
   await uploadBookCoverInternal(id, file);
 }
 
+export async function uploadBookCoverBlob(id: string, blob: Blob): Promise<void> {
+  const payload = new Uint8Array(await blob.arrayBuffer());
+
+  await fetchJson<void>(`/api/books/${encodeURIComponent(id)}/cover`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': blob.type || 'image/jpeg'
+    },
+    body: payload
+  });
+}
+
 export async function getBookCover(id: string): Promise<Blob> {
   if (isMockApiMode()) {
     const book = findBookOrThrow(id);
@@ -563,13 +586,76 @@ export async function deleteBook(id: string): Promise<void> {
   if (isMockApiMode()) {
     const idx = mockBooks.findIndex((book) => book.id === id);
     if (idx >= 0) {
-      mockBooks.splice(idx, 1);
+      const [book] = mockBooks.splice(idx, 1);
+      mockTrashedBooks.unshift({
+        id: book.id,
+        title: book.title,
+        authors: [...book.authors],
+        original_layer: [...book.layers],
+        original_path: `/books/${book.layers.join('/')}/${book.id}.novl`,
+        deleted_at: new Date().toISOString()
+      });
     }
     await delay(undefined);
     return;
   }
 
-  await fetchJson<void>(`/api/books/${encodeURIComponent(id)}`, {
+  await fetchJson<void>(`/api/books/${encodeURIComponent(id)}/trash`, {
+    method: 'POST'
+  });
+}
+
+export async function listTrashedBooks(): Promise<TrashedBook[]> {
+  if (isMockApiMode()) {
+    return delay(mockTrashedBooks.map((book) => ({ ...book })));
+  }
+
+  const books = await fetchJson<BackendTrashedBook[]>('/api/trash/books');
+  return books.map((book) => ({
+    id: book.id,
+    title: book.title,
+    authors: book.authors ?? [],
+    original_layer: book.original_layer ?? [],
+    original_path: book.original_path,
+    deleted_at: book.deleted_at
+  }));
+}
+
+export async function restoreTrashedBook(id: string): Promise<void> {
+  if (isMockApiMode()) {
+    const idx = mockTrashedBooks.findIndex((book) => book.id === id);
+    if (idx >= 0) {
+      const [book] = mockTrashedBooks.splice(idx, 1);
+      mockBooks.unshift({
+        id: book.id,
+        title: book.title,
+        authors: [...(book.authors ?? [])],
+        tags: [],
+        language: 'unknown',
+        format: 'txt',
+        layers: [...(book.original_layer ?? [])]
+      });
+    }
+    await delay(undefined);
+    return;
+  }
+
+  await fetchJson<void>(`/api/trash/books/${encodeURIComponent(id)}/restore`, {
+    method: 'POST'
+  });
+}
+
+export async function deleteTrashedBook(id: string): Promise<void> {
+  if (isMockApiMode()) {
+    const idx = mockTrashedBooks.findIndex((book) => book.id === id);
+    if (idx >= 0) {
+      mockTrashedBooks.splice(idx, 1);
+    }
+    await delay(undefined);
+    return;
+  }
+
+  await fetchJson<void>(`/api/trash/books/${encodeURIComponent(id)}`, {
     method: 'DELETE'
   });
 }

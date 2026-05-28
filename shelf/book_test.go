@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 )
@@ -249,6 +250,106 @@ func TestNewSource(t *testing.T) {
 	}
 }
 
+func TestNewSourceNil(t *testing.T) {
+	tmpLib := path.Join(t.TempDir())
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	bookID := "test-book-a38j"
+	title := "Test Book"
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+
+	source, err := book.NewSource(nil)
+	if err != nil {
+		t.Fatalf("Failed to create new source with nil: %v", err)
+	}
+
+	if source.ID() == "" {
+		t.Error("Expected non-empty source ID")
+	}
+
+	retrievedSource, err := book.GetSource(source.ID())
+	if err != nil {
+		t.Fatalf("Failed to get source: %v", err)
+	}
+
+	getSrc, err := retrievedSource.Open()
+	if err != nil {
+		t.Fatalf("Failed to open source: %v", err)
+	}
+
+	retrievedSrcData, err := io.ReadAll(getSrc)
+	if err != nil {
+		t.Fatalf("Failed to read source data: %v", err)
+	}
+
+	if len(retrievedSrcData) != 0 {
+		t.Errorf("Expected empty source content, got %q", string(retrievedSrcData))
+	}
+}
+
+func TestDeleteSource(t *testing.T) {
+	tmpLib := path.Join(t.TempDir())
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	bookID := "test-book-a38j"
+	title := "Test Book"
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+
+	source, err := book.NewSource(bytes.NewReader([]byte("some content")))
+	if err != nil {
+		t.Fatalf("Failed to create new source: %v", err)
+	}
+	sourceID := source.ID()
+
+	err = book.DeleteSource(sourceID)
+	if err != nil {
+		t.Fatalf("Failed to delete source: %v", err)
+	}
+
+	_, err = book.GetSource(sourceID)
+	if err == nil {
+		t.Fatal("Expected error when getting deleted source, but got none")
+	}
+}
+
+func TestDeleteSourceNonexistent(t *testing.T) {
+	tmpLib := path.Join(t.TempDir())
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := createBook(rootFS, newLoggerForTest(), "test-book-a38j", "test-book-a38j", "Test Book")
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+
+	err = book.DeleteSource("nonexistent-source")
+	if err == nil {
+		t.Fatal("Expected error when deleting nonexistent source, but got none")
+	}
+}
+
 func TestSetCurrentSource(t *testing.T) {
 	tmpLib := path.Join(t.TempDir())
 	tmpRoot, err := os.OpenRoot(tmpLib)
@@ -306,3 +407,51 @@ func TestSetCurrentSource(t *testing.T) {
 		t.Errorf("Expected current source ID to be '%s', got '%s'", source.ID(), book.CurrentSource())
 	}
 }
+
+func TestSetMetaMarksOtherInstanceStale(t *testing.T) {
+	tmpLib := path.Join(t.TempDir())
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	bookID := "test-book-a38j"
+	title := "Test Book"
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book1, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+
+	book2, err := openBook(rootFS, newLoggerForTest(), bookID)
+	if err != nil {
+		t.Fatalf("Failed to open second book instance: %v", err)
+	}
+
+	if book1.IsStale() {
+		t.Fatalf("Expected first instance to be fresh initially")
+	}
+	if book2.IsStale() {
+		t.Fatalf("Expected second instance to be fresh initially")
+	}
+
+	meta := book1.GetMeta()
+	meta.Comments = "updated by book1"
+
+	// Ensure filesystem mtime has advanced on platforms with coarse timestamp precision.
+	time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)))
+	err = book1.SetMeta(meta)
+	if err != nil {
+		t.Fatalf("Failed to set book meta from first instance: %v", err)
+	}
+
+	if book1.IsStale() {
+		t.Fatalf("Expected first instance to remain fresh after SetMeta")
+	}
+	if !book2.IsStale() {
+		t.Fatalf("Expected second instance to become stale after first instance updates meta")
+	}
+}
+

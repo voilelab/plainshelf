@@ -1,5 +1,13 @@
 <template>
   <div class="cover-editor">
+    <GenerateCoverModal
+      :open="showGenerateModal"
+      :book-id="bookId"
+      :initial-title="title"
+      :initial-author="authorText"
+      @close="showGenerateModal = false"
+      @saved="onGeneratedCoverSaved"
+    />
     <img :src="resolvedCoverSrc" :alt="title" class="detail-cover" @error="onCoverError" />
     <div class="cover-actions">
       <input
@@ -17,6 +25,11 @@
           Remove
         </button>
       </div>
+      <div class="cover-button-row">
+        <button class="button cover-btn" :disabled="coverBusy" @click="showGenerateModal = true">
+          Generate cover
+        </button>
+      </div>
       <p v-if="coverStatus" class="cover-status" :class="{ error: coverError }">{{ coverStatus }}</p>
     </div>
   </div>
@@ -26,10 +39,12 @@
 import { computed, ref, watch } from 'vue';
 import { deleteBookCover, getBookCoverUrl, uploadBookCover } from '../api/books';
 import bookcover from '../assets/bookcover.svg';
+import GenerateCoverModal from './GenerateCoverModal.vue';
 
 const props = defineProps<{
   bookId: string;
   title: string;
+  authors?: string[];
   coverUrl?: string;
 }>();
 
@@ -46,6 +61,12 @@ const coverStatus = ref('');
 const coverError = ref(false);
 const hasCoverLoadError = ref(false);
 const coverCacheKey = ref<number | undefined>(undefined);
+const showGenerateModal = ref(false);
+
+const authorText = computed(() => {
+  if (!props.authors || props.authors.length === 0) return '';
+  return props.authors.join(', ');
+});
 
 const resolvedCoverSrc = computed(() => {
   if (hasCoverLoadError.value) {
@@ -146,6 +167,14 @@ async function removeCover(): Promise<void> {
   } finally {
     coverBusy.value = false;
   }
+}
+
+function onGeneratedCoverSaved(): void {
+  hasCoverLoadError.value = false;
+  coverCacheKey.value = Date.now();
+  emit('cover-changed');
+  coverStatus.value = 'Cover updated.';
+  coverError.value = false;
 }
 </script>
 

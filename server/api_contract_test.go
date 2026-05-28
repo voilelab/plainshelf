@@ -230,6 +230,46 @@ func TestAPIUpdateBookContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusBadRequest)
 }
 
+func TestAPITrashLifecycleContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Trash API", "origin/layer", "trash.txt", "body")
+
+	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/books/"+created.Meta.ID+"/trash", nil))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/books", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if books := decodeJSON[[]Book](t, rec); len(books) != 0 {
+		t.Fatalf("active books after trash = %d, want 0", len(books))
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/trash/books", nil))
+	assertStatus(t, rec, http.StatusOK)
+	trashed := decodeJSON[[]map[string]any](t, rec)
+	if len(trashed) != 1 {
+		t.Fatalf("trashed books = %d, want 1", len(trashed))
+	}
+	if id, _ := trashed[0]["id"].(string); id != created.Meta.ID {
+		t.Fatalf("trashed id = %q, want %q", id, created.Meta.ID)
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/trash/books/"+created.Meta.ID+"/restore", nil))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/books", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if books := decodeJSON[[]Book](t, rec); len(books) != 1 {
+		t.Fatalf("active books after restore = %d, want 1", len(books))
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/books/"+created.Meta.ID, nil))
+	assertStatus(t, rec, http.StatusNoContent)
+	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/trash/books/"+created.Meta.ID, nil))
+	assertStatus(t, rec, http.StatusNoContent)
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/trash/books/"+created.Meta.ID+"/restore", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+}
+
 func TestAPISplitConfigContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Split Me", "", "split.txt", "one\ntwo\nthree")
@@ -344,4 +384,76 @@ func TestAPIStoreContract(t *testing.T) {
 	if history = decodeJSON[[]string](t, rec); len(history) != 0 {
 		t.Fatalf("cleared read history = %#v, want empty", history)
 	}
+}
+
+func TestAPICreateBookSourceContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Source Book", "", "src.txt", "content")
+	sourcesURL := "/api/books/" + created.Meta.ID + "/sources"
+
+	// Creating a source on a nonexistent book should return 404.
+	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/books/no-such-book/sources", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+
+	// Creating a source returns 200 with the new source metadata.
+	rec = env.do(httptest.NewRequest(http.MethodPost, sourcesURL, nil))
+	assertStatus(t, rec, http.StatusOK)
+	assertJSONContentType(t, rec)
+	newSource := decodeJSON[map[string]any](t, rec)
+	newSourceID, _ := newSource["id"].(string)
+	if newSourceID == "" {
+		t.Fatalf("expected non-empty source id in response, got %#v", newSource)
+	}
+
+	// The new source should appear in the list.
+	rec = env.do(httptest.NewRequest(http.MethodGet, sourcesURL, nil))
+	assertStatus(t, rec, http.StatusOK)
+	sources := decodeJSON[[]map[string]any](t, rec)
+	found := false
+	for _, s := range sources {
+		if id, _ := s["id"].(string); id == newSourceID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("newly created source %q not found in list: %#v", newSourceID, sources)
+	}
+}
+
+func TestAPIDeleteBookSourceContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Delete Source Book", "", "del.txt", "content")
+	sourcesURL := "/api/books/" + created.Meta.ID + "/sources"
+
+	// Create a new source to delete.
+	rec := env.do(httptest.NewRequest(http.MethodPost, sourcesURL, nil))
+	assertStatus(t, rec, http.StatusOK)
+	newSource := decodeJSON[map[string]any](t, rec)
+	newSourceID, _ := newSource["id"].(string)
+	if newSourceID == "" {
+		t.Fatalf("expected non-empty source id in response, got %#v", newSource)
+	}
+
+	// Deleting the source should succeed.
+	rec = env.do(httptest.NewRequest(http.MethodDelete, sourcesURL+"/"+newSourceID, nil))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	// The deleted source should no longer appear in the list.
+	rec = env.do(httptest.NewRequest(http.MethodGet, sourcesURL, nil))
+	assertStatus(t, rec, http.StatusOK)
+	sources := decodeJSON[[]map[string]any](t, rec)
+	for _, s := range sources {
+		if id, _ := s["id"].(string); id == newSourceID {
+			t.Fatalf("deleted source %q still present in list", newSourceID)
+		}
+	}
+
+	// Deleting a nonexistent source should return 404.
+	rec = env.do(httptest.NewRequest(http.MethodDelete, sourcesURL+"/nonexistent-source", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+
+	// Deleting a source from a nonexistent book should return 404.
+	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/books/no-such-book/sources/"+newSourceID, nil))
+	assertStatus(t, rec, http.StatusNotFound)
 }

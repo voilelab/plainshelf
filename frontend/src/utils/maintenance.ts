@@ -11,7 +11,7 @@ export type MaintenanceNavIcon = Extract<MaintenanceNavKey, SidebarNavIconName>;
 
 export interface MaintenanceNavItem {
   key: MaintenanceNavKey;
-  label: string;
+  labelKey: string;
   to: string;
   icon?: MaintenanceNavIcon;
 }
@@ -19,25 +19,25 @@ export interface MaintenanceNavItem {
 export const MAINTENANCE_NAV_ITEMS: MaintenanceNavItem[] = [
   {
     key: 'duplicate-content',
-    label: 'Duplicate Content',
+    labelKey: 'maintenance.duplicateContent',
     to: '/duplicates',
     icon: 'duplicate-content'
   },
   {
     key: 'missing-author',
-    label: 'Missing Author',
+    labelKey: 'maintenance.missingAuthor.title',
     to: '/books/maintenance/missing-author',
     icon: 'missing-author'
   },
   {
     key: 'missing-cover',
-    label: 'Missing Cover',
+    labelKey: 'maintenance.missingCover.title',
     to: '/books/maintenance/missing-cover',
     icon: 'missing-cover'
   },
   {
     key: 'missing-language',
-    label: 'Missing Language',
+    labelKey: 'maintenance.missingLanguage.title',
     to: '/books/maintenance/missing-language',
     icon: 'missing-language'
   }
@@ -46,8 +46,8 @@ export const MAINTENANCE_NAV_ITEMS: MaintenanceNavItem[] = [
 export type MaintenanceBookFilter = Exclude<MaintenanceNavKey, 'duplicate-content'>;
 
 interface MaintenanceBookFilterConfig {
-  title: string;
-  emptyMessage: string;
+  titleKey: string;
+  emptyMessageKey: string;
   predicate: (book: Book) => boolean;
 }
 
@@ -158,18 +158,18 @@ export function isMissingLanguage(book: Book): boolean {
 
 export const MAINTENANCE_BOOK_FILTERS: Record<MaintenanceBookFilter, MaintenanceBookFilterConfig> = {
   'missing-author': {
-    title: 'Missing Author',
-    emptyMessage: 'No books missing author',
+    titleKey: 'maintenance.missingAuthor.title',
+    emptyMessageKey: 'maintenance.missingAuthor.empty',
     predicate: isMissingAuthor
   },
   'missing-cover': {
-    title: 'Missing Cover',
-    emptyMessage: 'No books missing cover',
+    titleKey: 'maintenance.missingCover.title',
+    emptyMessageKey: 'maintenance.missingCover.empty',
     predicate: isMissingCover
   },
   'missing-language': {
-    title: 'Missing Language',
-    emptyMessage: 'No books with missing language.',
+    titleKey: 'maintenance.missingLanguage.title',
+    emptyMessageKey: 'maintenance.missingLanguage.empty',
     predicate: isMissingLanguage
   }
 };

@@ -6,3 +6,6 @@ workspace/
 # frontend artifacts
 frontend/node_modules/
 frontend/dist/
+
+# mkdocs build output
+site/

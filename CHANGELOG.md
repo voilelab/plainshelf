@@ -9,6 +9,26 @@ and UI behavior may still change between releases.
 
 ### Added
 
+- Added shelf cache refresh controls and stale-book cache handling improvements.
+- Added MkDocs-based project documentation and known-issues pages.
+- Added a canvas-based simple book-cover generator in the frontend.
+- Added desktop history navigation controls and menu actions.
+- Added frontend drag-and-drop support for importing external TXT files.
+- Added frontend i18n foundations with locale switching support (`en`, `zh-Hant`).
+- Added a soft-delete trash feature for books with original-path retention.
+- Added book source create/delete actions in the source editor.
+- Added desktop native file-dialog import selection and server-side local-path import support.
+
+### Changed
+
+- Changed CI to include desktop module Go test coverage.
+
+### Fixed
+
+## [v0.4.0] - 2026-05-22
+
+### Added
+
 - Added configurable shelf logging output support through application logging configuration.
 - Added experimental Wails GUI support for local desktop usage.
 - Added frontend support for creating empty books.

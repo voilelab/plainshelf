@@ -118,7 +118,13 @@ func (app *App) HandleSPAFallback(w http.ResponseWriter, r *http.Request) {
 func (app *App) Handler() http.Handler {
 	mux := http.NewServeMux()
 	app.Serve(mux)
-	return app.security.Middleware(mux)
+
+	loggerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		app.Info("app handler", "method", r.Method, "path", r.URL.Path, "remote_addr", r.RemoteAddr)
+		mux.ServeHTTP(w, r)
+	})
+
+	return app.security.Middleware(loggerHandler)
 }
 
 func (app *App) SecurityToken() string {
@@ -159,6 +165,7 @@ func (app *App) Serve(mux *http.ServeMux) {
 	// Book API
 
 	mux.HandleFunc("GET /api/books", app.HandleAPIGetBooks)
+	mux.HandleFunc("POST /api/books", app.HandleAPICreateBook)
 
 	mux.HandleFunc("POST /api/books/import", app.HandleAPIImportBook)
 	mux.HandleFunc("GET /api/books/duplicate", app.HandleAPIFindDuplicateBooks)
@@ -166,9 +173,12 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/books/{book_id}", app.HandleAPIGetBook)
 	mux.HandleFunc("PATCH /api/books/{book_id}", app.HandleAPIUpdateBook)
 	mux.HandleFunc("DELETE /api/books/{book_id}", app.HandleAPIDeleteBook)
+	mux.HandleFunc("POST /api/books/{book_id}/trash", app.HandleAPITrashBook)
 
 	mux.HandleFunc("GET /api/books/{book_id}/sources", app.HandleAPIGetBookSources)
 	mux.HandleFunc("GET /api/books/{book_id}/sources/{source_id}", app.HandleAPIGetBookSource)
+	mux.HandleFunc("POST /api/books/{book_id}/sources", app.HandleAPICreateBookSource)
+	mux.HandleFunc("DELETE /api/books/{book_id}/sources/{source_id}", app.HandleAPIDeleteBookSource)
 	mux.HandleFunc("GET /api/books/{book_id}/sources/{source_id}/content", app.HandleAPIGetBookSourceContent)
 	mux.HandleFunc("PATCH /api/books/{book_id}/sources/{source_id}/content", app.HandleAPIUpdateBookSourceContent)
 
@@ -179,6 +189,10 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/books/{book_id}/content", app.HandleAPIGetBookContent)
 	mux.HandleFunc("GET /api/books/{book_id}/split_config", app.HandleAPIGetBookSplitConfig)
 	mux.HandleFunc("PATCH /api/books/{book_id}/split_config", app.HandleAPIUpdateBookSplitConfig)
+
+	mux.HandleFunc("GET /api/trash/books", app.HandleAPIGetTrashedBooks)
+	mux.HandleFunc("POST /api/trash/books/{book_id}/restore", app.HandleAPIRestoreTrashedBook)
+	mux.HandleFunc("DELETE /api/trash/books/{book_id}", app.HandleAPIDeleteTrashedBook)
 
 	mux.HandleFunc("GET /api/layers", app.HandleAPIGetLayers)
 	mux.HandleFunc("POST /api/layers/{layer_path...}", app.HandleAPICreateLayer)

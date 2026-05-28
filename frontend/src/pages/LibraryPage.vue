@@ -41,7 +41,7 @@
           </template>
         </template>
         <template v-else>
-          {{ ALL_BOOKS_TITLE }}
+          {{ t('library.allBooks') }}
         </template>
       </template>
 
@@ -51,47 +51,47 @@
             v-model="searchInputValue"
             class="toolbar-control toolbar-input search-input"
             type="search"
-            placeholder="Search books..."
+            :placeholder="t('library.searchPlaceholder')"
             @keydown.enter="onSearchEnter"
           />
           <button
             v-if="searchInputValue"
             type="button"
             class="toolbar-control toolbar-button toolbar-small search-clear-btn"
-            aria-label="Clear search"
+            :aria-label="t('library.clearSearch')"
             @click="clearSearch"
           >✕</button>
           <button
             type="button"
             class="button toolbar-control toolbar-button toolbar-regular search-commit-btn"
             @click="commitSearch"
-          >Search</button>
+          >{{ t('library.search') }}</button>
         </div>
         <div class="toolbar-bar sort-bar">
-          <label class="toolbar-label sort-label" for="books-sort">Sort</label>
+          <label class="toolbar-label sort-label" for="books-sort">{{ t('library.sort') }}</label>
           <select
             id="books-sort"
             class="toolbar-control toolbar-select sort-select"
             :value="sortBy"
             @change="onSortSelectChange"
           >
-            <option value="updated_at">Updated</option>
-            <option value="created_at">Created</option>
-            <option value="title">Title</option>
+            <option value="updated_at">{{ t('library.sortBy.updated') }}</option>
+            <option value="created_at">{{ t('library.sortBy.created') }}</option>
+            <option value="title">{{ t('library.sortBy.title') }}</option>
           </select>
           <button
             type="button"
             class="button toolbar-control toolbar-button toolbar-regular sort-order-btn"
             @click="toggleOrder"
           >
-            {{ sortOrder === 'asc' ? 'Asc' : 'Desc' }}
+            {{ sortOrder === 'asc' ? t('library.order.asc') : t('library.order.desc') }}
           </button>
         </div>
         <div class="import-dropdown" ref="importDropdown">
-          <button class="button" type="button" @click="toggleImportDropdown">Import ▾</button>
+          <button class="button" type="button" @click="toggleImportDropdown">{{ t('library.import') }}</button>
           <div v-if="showImportDropdown" class="import-dropdown-menu">
-            <button class="import-dropdown-item" type="button" @click="openImportFromFiles">Import from files</button>
-            <button class="import-dropdown-item" type="button" @click="openNewEmptyBookModal">New empty book</button>
+            <button class="import-dropdown-item" type="button" @click="openImportFromFiles">{{ t('library.importFromFiles') }}</button>
+            <button class="import-dropdown-item" type="button" @click="openNewEmptyBookModal">{{ t('library.newEmptyBook') }}</button>
           </div>
         </div>
       </template>
@@ -100,6 +100,7 @@
     <ImportBookModal
       :open="isImportModalOpen"
       :current-layer-path="selectedLayer"
+      :dropped-files="droppedFiles"
       @close="closeImportModal"
       @imported="onImported"
     />
@@ -125,11 +126,14 @@ import { useBookPagination } from '../composables/useBookPagination';
 import { useBooksRouteQuery } from '../composables/useBooksRouteQuery';
 import { useBooksSearch } from '../composables/useBooksSearch';
 import { useBooksSort, type BookSortKey, type SortOrder } from '../composables/useBooksSort';
+import { hasFileTransfer, readDroppedFiles } from '../utils/file';
 import { getLayerPath, layerPathEquals, normalizeLayerPath } from '../utils/layers';
+import { useI18n } from '../i18n';
+import { importDesktopBooksFromLocalPaths, openDesktopBookFiles } from '../api/desktop';
 import '../styles/toolbar-controls.css';
 
-const ALL_BOOKS_TITLE = 'All books';
 const ROOT_LAYER_LABEL = '/';
+const { t } = useI18n();
 
 const router = useRouter();
 const { books, loading, error, fetchBooks } = useBookStore();
@@ -159,6 +163,7 @@ const showImportDropdown = ref(false);
 const isNewEmptyBookModalOpen = ref(false);
 const importDropdown = ref<HTMLElement | null>(null);
 const hasInitializedSearch = ref(false);
+const droppedFiles = ref<File[]>([]);
 
 async function reloadBooks(): Promise<void> {
   booksLoaded.value = false;
@@ -170,7 +175,7 @@ const isRootLayerSelected = computed(() => selectedLayer.value === ROOT_LAYER_LA
 
 const selectedLayerTitle = computed(() => {
   if (!selectedLayer.value) {
-    return ALL_BOOKS_TITLE;
+    return t('library.allBooks');
   }
   return selectedLayer.value;
 });
@@ -185,15 +190,15 @@ const selectedLayerSegments = computed(() => {
 const pageTitleSegments = computed(() => {
   const query = searchQuery.value.trim();
   if (query) {
-    return ['Search', query, 'PlainShelf'] as const;
+    return [t('library.titleSearch'), query, t('app.name')] as const;
   }
 
   const layerName = selectedLayer.value?.trim();
   if (layerName && layerName !== ROOT_LAYER_LABEL) {
-    return ['Layer', layerName, 'PlainShelf'] as const;
+    return [t('library.titleLayer'), layerName, t('app.name')] as const;
   }
 
-  return ['PlainShelf'] as const;
+  return [t('app.name')] as const;
 });
 
 useDocumentTitle(pageTitleSegments);
@@ -226,13 +231,15 @@ const showLayerEmptyState = computed(() => {
 const emptyMessage = computed(() => {
   const q = committedSearch.value.trim();
   if (q && filteredBooks.value.length === 0 && !loading.value) {
-    const layerSuffix = selectedLayer.value ? ` in ${selectedLayerTitle.value}` : '';
-    return `No books found for "${q}"${layerSuffix}.`;
+    const layerSuffix = selectedLayer.value
+      ? t('common.inLayer', { layer: selectedLayerTitle.value })
+      : '';
+    return t('library.empty.noBooksFound', { query: q, layerSuffix });
   }
   if (showLayerEmptyState.value) {
-    return `No books in ${selectedLayerTitle.value}.`;
+    return t('library.empty.noBooksInLayer', { layer: selectedLayerTitle.value });
   }
-  return 'No books yet.';
+  return t('library.empty.noBooksYet');
 });
 
 function onSelectAllBooks(): void {
@@ -318,8 +325,38 @@ function toggleOrder(): void {
   onOrderChange(sortOrder.value === 'asc' ? 'desc' : 'asc');
 }
 
-function openImportFromFiles(): void {
+async function openImportFromFiles(): Promise<void> {
   showImportDropdown.value = false;
+  droppedFiles.value = [];
+
+  let desktopFiles: string[] | null = null;
+  try {
+    desktopFiles = await openDesktopBookFiles();
+  } catch {
+    desktopFiles = null;
+  }
+
+  if (desktopFiles) {
+    if (desktopFiles.length === 0) {
+      return;
+    }
+
+    try {
+      const importResult = await importDesktopBooksFromLocalPaths(desktopFiles, selectedLayer.value ?? '');
+      if (importResult) {
+        const hasImportedBook = importResult.some((item) => item.id !== undefined && item.id !== '');
+        const hasFailedBook = importResult.some((item) => Boolean(item.error));
+        if (hasImportedBook) {
+          await reloadBooks();
+        } else if (hasFailedBook && !isImportModalOpen.value) {
+          void openImportModalQuery();
+        }
+        return;
+      }
+    } catch {
+      // Fall through to browser file-input import modal.
+    }
+  }
 
   if (isImportModalOpen.value) {
     return;
@@ -352,11 +389,41 @@ function onDocumentClick(event: MouseEvent): void {
   }
 }
 
+function onDocumentDragOver(event: DragEvent): void {
+  if (!hasFileTransfer(event.dataTransfer)) {
+    return;
+  }
+
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'copy';
+  }
+}
+
+function onDocumentDrop(event: DragEvent): void {
+  if (!hasFileTransfer(event.dataTransfer)) {
+    return;
+  }
+
+  event.preventDefault();
+  const nextDroppedFiles = readDroppedFiles(event);
+  if (nextDroppedFiles.length === 0) {
+    return;
+  }
+
+  showImportDropdown.value = false;
+  droppedFiles.value = nextDroppedFiles;
+  if (!isImportModalOpen.value) {
+    void openImportModalQuery();
+  }
+}
+
 function closeImportModal(): void {
   if (!isImportModalOpen.value) {
     return;
   }
 
+  droppedFiles.value = [];
   void closeImportModalQuery();
 }
 
@@ -373,10 +440,14 @@ function openBook(id: string): void {
 
 onMounted(() => {
   document.addEventListener('click', onDocumentClick);
+  document.addEventListener('dragover', onDocumentDragOver);
+  document.addEventListener('drop', onDocumentDrop);
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocumentClick);
+  document.removeEventListener('dragover', onDocumentDragOver);
+  document.removeEventListener('drop', onDocumentDrop);
 });
 
 watch(selectedLayer, async () => {

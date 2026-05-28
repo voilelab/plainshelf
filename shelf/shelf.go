@@ -8,6 +8,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/gofrs/flock"
@@ -31,6 +32,8 @@ Layout:
 */
 
 const booksFolder = "books"
+const trashFolder = ".trash"
+const trashBooksFolder = trashFolder + "/" + booksFolder
 const bookExtension = ".novl"
 const appFolder = "app"
 const appTmpFolder = "tmp"
@@ -45,16 +48,35 @@ type Shelf struct {
 	readonly  bool
 	close     func() error
 	localLock *flock.Flock
+	bookCache *bookCache
 }
 
 type ShelfConf struct {
 	Logger  logutil.LogConf `yaml:"logger"`
 	LibRoot string          `yaml:"lib_root"`
+
+	// for cache
+
+	// Default: 1 minute. This throttles how often a full on-disk scan is performed.
+	// Within this interval, refreshes only re-open books already in the cache to
+	// update stale metadata.
+	// Newly added books may not be discovered until the next full scan.
+	// Set to 0s to always perform a full scan on refresh.
+	ScanInterval string `yaml:"scan_interval"`
 }
 
 func NewShelf(conf *ShelfConf) (*Shelf, error) {
 	if conf == nil {
 		return nil, util.NewError("shelf configuration cannot be nil")
+	}
+
+	scanInterval := time.Minute
+	if conf.ScanInterval != "" {
+		var err error
+		scanInterval, err = time.ParseDuration(conf.ScanInterval)
+		if err != nil {
+			return nil, util.Errorf("invalid scan interval: %w", err)
+		}
 	}
 
 	logger, err := logutil.NewLogger(&conf.Logger)
@@ -86,9 +108,18 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		readonly:  false,
 		close:     rt.Close,
 		localLock: flock.New(path.Join(conf.LibRoot, appFolder, libraryLockFile)),
+
+		// cache
+		bookCache: newBookCache(scanInterval),
 	}
 
 	err = shelf.makeStructure()
+	if err != nil {
+		rt.Close()
+		return nil, util.Errorf("%w", err)
+	}
+
+	err = shelf.initCache()
 	if err != nil {
 		rt.Close()
 		return nil, util.Errorf("%w", err)
@@ -105,6 +136,20 @@ func (s *Shelf) makeStructure() error {
 	}
 
 	err = s.dbRoot.MkdirAll(path.Join(appFolder, appTmpFolder))
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	err = s.dbRoot.MkdirAll(trashBooksFolder)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
+}
+
+func (s *Shelf) initCache() error {
+	err := s.scanToBookCache()
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -198,22 +243,12 @@ func (s *Shelf) ListBooks() ([]*Book, error) {
 	s.rlock()
 	defer s.unlock()
 
-	var books []*Book
-
-	err := s.iterateBooks(nil, func(b *Book) bool {
-		books = append(books, b)
-		return true
-	})
-
+	err := s.refreshBookCacheIfNeeded(false)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	sort.Slice(books, func(i, j int) bool {
-		return books[i].ID() < books[j].ID()
-	})
-
-	return books, nil
+	return s.listBooksFromCache(), nil
 }
 
 // GetBook returns the details of a specific book by its ID.
@@ -221,7 +256,7 @@ func (s *Shelf) GetBook(bookID string) (*Book, error) {
 	s.rlock()
 	defer s.unlock()
 
-	book, err := s.getBook(bookID)
+	book, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -245,18 +280,23 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 	defer s.dbRoot.RemoveAll(bookPath)
 
 	// Generate a unique book ID based on the layers and title
+	// TBD: Use UUID
 	baseBookID := generateBookID(layers, title)
 	bookID := baseBookID
 	for i := 1; ; i++ {
-		_, err := s.getBook(bookID)
-		if err != nil {
-			if errors.Is(err, ErrBookNotFound) {
+		_, err := s.getUpdatedBookFromBookID(bookID)
+		if errors.Is(err, ErrBookNotFound) {
+			inTrash, trashErr := s.isBookIDInTrash(bookID)
+			if trashErr != nil {
+				return nil, util.Errorf("%w", trashErr)
+			}
+			if !inTrash {
 				break
 			}
+		} else if err != nil {
 			return nil, util.Errorf("%w", err)
-		} else {
-			bookID = fmt.Sprintf("%s-%d", baseBookID, i)
 		}
+		bookID = fmt.Sprintf("%s-%d", baseBookID, i)
 	}
 
 	_, err = createBook(s.dbRoot, s.Logger, bookPath, bookID, title)
@@ -297,25 +337,14 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 
 	newBook.setLayers(layers)
 
+	s.updateBookCacheEntry(layers, finalBookPath, newBook)
+
 	return newBook, nil
 }
 
-// DeleteBook removes a book from the library by its ID.
+// DeleteBook moves a book into trash by its ID.
 func (s *Shelf) DeleteBook(bookID string) error {
-	s.lock()
-	defer s.unlock()
-
-	book, err := s.getBook(bookID)
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	err = s.dbRoot.RemoveAll(book.FolderPath())
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	return nil
+	return s.MoveBookToTrash(bookID)
 }
 
 // GetAllLayers returns a sorted list of all unique layers present in the library.
@@ -354,20 +383,18 @@ func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
 	s.rlock()
 	defer s.unlock()
 
-	var books []*Book
-
-	err := s.iterateBooks(layers, func(b *Book) bool {
-		books = append(books, b)
-		return true
-	})
-
+	err := s.refreshBookCacheIfNeeded(false)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	sort.Slice(books, func(i, j int) bool {
-		return books[i].ID() < books[j].ID()
-	})
+	var books []*Book
+
+	for _, book := range s.listBooksFromCache() {
+		if book.Layers().Equal(layers) {
+			books = append(books, book)
+		}
+	}
 
 	return books, nil
 }
@@ -381,7 +408,7 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 	s.lock()
 	defer s.unlock()
 
-	book, err := s.getBook(bookID)
+	book, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -404,28 +431,10 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 	}
 
 	movedBook.setLayers(newLayers)
+
+	s.updateBookCacheEntry(newLayers, newBookPath, movedBook)
+
 	return movedBook, nil
-}
-
-func (s *Shelf) getBook(bookID string) (*Book, error) {
-	var book *Book
-	err := s.iterateBooks(nil, func(b *Book) bool {
-		if b.ID() == bookID {
-			book = b
-			return false
-		}
-		return true
-	})
-
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	if book == nil {
-		return nil, util.Errorf("%w: %s", ErrBookNotFound, bookID)
-	}
-
-	return book, nil
 }
 
 // iterateBooks iterates over all books under the specified layers and applies the provided function to each book.
