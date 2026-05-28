@@ -5,6 +5,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -139,6 +140,36 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		app.Error("failed to encode response", "error", err)
 	}
+}
+
+// ImportFromLocalPath imports a book from a local file path on the server.
+// This is intended for desktop application use, where the client can specify a local file path and the server can access it directly.
+func (app *App) ImportFromLocalPath(localPath string, layerParts shelf.Layers) (*shelf.Book, error) {
+	newBook, err := app.shelf.NewBook(layerParts, filepath.Base(localPath))
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	fp, err := os.Open(localPath)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer fp.Close()
+
+	source, err := newBook.NewSource(fp)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	newBook.SetCurrentSource(source.ID())
+
+	meta := newBook.GetMeta()
+	meta.Language = detectBookLang(newBook)
+	if err := newBook.SetMeta(meta); err != nil {
+		app.Error("failed to set book meta", "error", err)
+	}
+
+	return newBook, nil
 }
 
 func detectBookLang(book *shelf.Book) string {
