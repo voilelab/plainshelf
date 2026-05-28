@@ -5,6 +5,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -64,6 +65,26 @@ func validateImportFileHeader(header *multipart.FileHeader) error {
 	}
 
 	return nil
+}
+
+func validateLocalImportPath(localPath string) (string, error) {
+	cleanPath := filepath.Clean(strings.TrimSpace(localPath))
+	if cleanPath == "." {
+		return "", util.NewError("book file path is required")
+	}
+	if strings.ToLower(filepath.Ext(cleanPath)) != ".txt" {
+		return "", util.NewError("book file must be a .txt file")
+	}
+
+	info, err := os.Stat(cleanPath)
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return "", util.NewError("book file must be a regular file")
+	}
+
+	return cleanPath, nil
 }
 
 // POST /api/books/import
@@ -139,6 +160,46 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		app.Error("failed to encode response", "error", err)
 	}
+}
+
+// ImportFromLocalPath imports a book from a local file path on the server.
+// This is intended for desktop application use, where the client can specify a local file path and the server can access it directly.
+func (app *App) ImportFromLocalPath(localPath string, layerParts shelf.Layers) (*shelf.Book, error) {
+	cleanPath, err := validateLocalImportPath(localPath)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	newBook, err := app.shelf.NewBook(layerParts, filepath.Base(cleanPath))
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	fp, err := os.Open(cleanPath)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer fp.Close()
+
+	utf8Reader, _, err := util.ReEncodeToUTF8(fp)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	source, err := newBook.NewSource(utf8Reader)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	newBook.SetCurrentSource(source.ID())
+
+	meta := newBook.GetMeta()
+	meta.Language = detectBookLang(newBook)
+	if err := newBook.SetMeta(meta); err != nil {
+		app.Error("failed to set book meta", "error", err)
+	}
+
+	return newBook, nil
 }
 
 func detectBookLang(book *shelf.Book) string {

@@ -129,6 +129,7 @@ import { useBooksSort, type BookSortKey, type SortOrder } from '../composables/u
 import { hasFileTransfer, readDroppedFiles } from '../utils/file';
 import { getLayerPath, layerPathEquals, normalizeLayerPath } from '../utils/layers';
 import { useI18n } from '../i18n';
+import { importDesktopBooksFromLocalPaths, openDesktopBookFiles } from '../api/desktop';
 import '../styles/toolbar-controls.css';
 
 const ROOT_LAYER_LABEL = '/';
@@ -324,9 +325,38 @@ function toggleOrder(): void {
   onOrderChange(sortOrder.value === 'asc' ? 'desc' : 'asc');
 }
 
-function openImportFromFiles(): void {
+async function openImportFromFiles(): Promise<void> {
   showImportDropdown.value = false;
   droppedFiles.value = [];
+
+  let desktopFiles: string[] | null = null;
+  try {
+    desktopFiles = await openDesktopBookFiles();
+  } catch {
+    desktopFiles = null;
+  }
+
+  if (desktopFiles) {
+    if (desktopFiles.length === 0) {
+      return;
+    }
+
+    try {
+      const importResult = await importDesktopBooksFromLocalPaths(desktopFiles, selectedLayer.value ?? '');
+      if (importResult) {
+        const hasImportedBook = importResult.some((item) => item.id !== undefined && item.id !== '');
+        const hasFailedBook = importResult.some((item) => Boolean(item.error));
+        if (hasImportedBook) {
+          await reloadBooks();
+        } else if (hasFailedBook && !isImportModalOpen.value) {
+          void openImportModalQuery();
+        }
+        return;
+      }
+    } catch {
+      // Fall through to browser file-input import modal.
+    }
+  }
 
   if (isImportModalOpen.value) {
     return;

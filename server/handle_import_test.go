@@ -5,6 +5,8 @@ import (
 	"errors"
 	"mime/multipart"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -102,5 +104,37 @@ func TestMultipartDefaultFileContentTypeIsRejected(t *testing.T) {
 	}
 	if err := validateImportFileHeader(files[0]); err == nil {
 		t.Fatal("expected default application/octet-stream upload to be rejected")
+	}
+}
+
+func TestValidateLocalImportPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	validPath := filepath.Join(tmpDir, "book.txt")
+	if err := os.WriteFile(validPath, []byte("hello"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{name: "valid txt file", input: validPath},
+		{name: "trimmed path", input: " " + validPath + " "},
+		{name: "reject empty", input: "", wantErr: true},
+		{name: "reject non txt extension", input: filepath.Join(tmpDir, "book.epub"), wantErr: true},
+		{name: "reject directory", input: tmpDir, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := validateLocalImportPath(tt.input)
+			if tt.wantErr && err == nil {
+				t.Fatal("expected error")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
 	}
 }
