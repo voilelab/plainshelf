@@ -292,8 +292,6 @@ async function confirmDelete(): Promise<void> {
 
   try {
     await deleteSource(bookId.value, sourceId);
-    showDeleteModal.value = false;
-    pendingDeleteSourceId.value = '';
 
     await reloadSourceMeta();
 
@@ -311,6 +309,9 @@ async function confirmDelete(): Promise<void> {
         initialContent.value = '';
       }
     }
+
+    showDeleteModal.value = false;
+    pendingDeleteSourceId.value = '';
   } catch (err) {
     deleteError.value = err instanceof Error ? err.message : 'Failed to delete source';
   } finally {
