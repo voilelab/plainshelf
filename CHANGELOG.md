@@ -21,17 +21,10 @@ and UI behavior may still change between releases.
 
 ### Changed
 
-- Changed desktop import flow to use local file paths with backend-side import handling.
-- Changed source-editor and import UI behavior for clearer loading, wrapping, and modal interactions.
-- Changed shelf cache internals to reduce lock contention and improve refresh consistency.
 - Changed CI to include desktop module Go test coverage.
 
 ### Fixed
 
-- Fixed stale-cache and cache-miss refresh paths in shelf book listing flows.
-- Fixed desktop import path validation before local-path imports.
-- Fixed unsafe delete/source edit UX edge cases (dirty-source warnings and delete redirect handling).
-- Fixed global book ID collision handling across active and trash books.
 ## [v0.4.0] - 2026-05-22
 
 ### Added
