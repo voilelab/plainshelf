@@ -33,7 +33,7 @@ Layout:
 
 const booksFolder = "books"
 const trashFolder = ".trash"
-const trashBooksFolder = ".trash/books"
+const trashBooksFolder = trashFolder + "/" + booksFolder
 const bookExtension = ".novl"
 const appFolder = "app"
 const appTmpFolder = "tmp"
