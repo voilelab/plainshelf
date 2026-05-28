@@ -20,6 +20,7 @@
       @confirm="confirmDelete"
     >
       <p>Are you sure you want to delete source <strong>{{ pendingDeleteSourceId }}</strong>? This action cannot be undone.</p>
+      <p v-if="activeSourceId === pendingDeleteSourceId && isDirty" class="delete-warning" role="alert">You have unsaved changes that will be lost.</p>
       <p v-if="deleteError" class="delete-error" role="alert">{{ deleteError }}</p>
     </ConfirmModal>
     <header class="source-editor-topbar">
@@ -417,6 +418,11 @@ watch(
 
 .delete-error {
   color: #b91c1c;
+  margin-top: 8px;
+}
+
+.delete-warning {
+  color: #92400e;
   margin-top: 8px;
 }
 
