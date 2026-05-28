@@ -67,6 +67,26 @@ func validateImportFileHeader(header *multipart.FileHeader) error {
 	return nil
 }
 
+func validateLocalImportPath(localPath string) (string, error) {
+	cleanPath := filepath.Clean(strings.TrimSpace(localPath))
+	if cleanPath == "." {
+		return "", util.NewError("book file path is required")
+	}
+	if strings.ToLower(filepath.Ext(cleanPath)) != ".txt" {
+		return "", util.NewError("book file must be a .txt file")
+	}
+
+	info, err := os.Stat(cleanPath)
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return "", util.NewError("book file must be a regular file")
+	}
+
+	return cleanPath, nil
+}
+
 // POST /api/books/import
 func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	// Limit overall request body size.
@@ -145,18 +165,23 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 // ImportFromLocalPath imports a book from a local file path on the server.
 // This is intended for desktop application use, where the client can specify a local file path and the server can access it directly.
 func (app *App) ImportFromLocalPath(localPath string, layerParts shelf.Layers) (*shelf.Book, error) {
-	newBook, err := app.shelf.NewBook(layerParts, filepath.Base(localPath))
+	cleanPath, err := validateLocalImportPath(localPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	fp, err := os.Open(localPath)
+	newBook, err := app.shelf.NewBook(layerParts, filepath.Base(cleanPath))
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	fp, err := os.Open(cleanPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 	defer fp.Close()
 
-	utf8Reader, err := util.ReEncodeToUTF8(fp)
+	utf8Reader, _, err := util.ReEncodeToUTF8(fp)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
