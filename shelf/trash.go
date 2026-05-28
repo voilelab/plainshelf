@@ -195,6 +195,18 @@ func (s *Shelf) DeleteTrashedBook(bookID string) error {
 	return nil
 }
 
+func (s *Shelf) isBookIDInTrash(bookID string) (bool, error) {
+	trashPath := path.Join(trashBooksFolder, bookID+bookExtension)
+	_, err := s.dbRoot.Stat(trashPath)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return false, util.Errorf("%w", err)
+}
+
 func (s *Shelf) findTrashedBook(bookID string) (string, *Book, *trashMeta, error) {
 	trashPath := path.Join(trashBooksFolder, bookID+bookExtension)
 	book, err := openBook(s.dbRoot, s.Logger, trashPath)

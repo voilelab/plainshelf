@@ -285,14 +285,18 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 	bookID := baseBookID
 	for i := 1; ; i++ {
 		_, err := s.getUpdatedBookFromBookID(bookID)
-		if err != nil {
-			if errors.Is(err, ErrBookNotFound) {
+		if errors.Is(err, ErrBookNotFound) {
+			inTrash, trashErr := s.isBookIDInTrash(bookID)
+			if trashErr != nil {
+				return nil, util.Errorf("%w", trashErr)
+			}
+			if !inTrash {
 				break
 			}
+		} else if err != nil {
 			return nil, util.Errorf("%w", err)
-		} else {
-			bookID = fmt.Sprintf("%s-%d", baseBookID, i)
 		}
+		bookID = fmt.Sprintf("%s-%d", baseBookID, i)
 	}
 
 	_, err = createBook(s.dbRoot, s.Logger, bookPath, bookID, title)
