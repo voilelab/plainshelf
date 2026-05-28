@@ -31,6 +31,7 @@
           <th>{{ t('trash.columns.title') }}</th>
           <th>{{ t('trash.columns.authors') }}</th>
           <th>{{ t('trash.columns.originalLayer') }}</th>
+          <th>{{ t('trash.columns.originalPath') }}</th>
           <th>{{ t('trash.columns.deletedAt') }}</th>
           <th>{{ t('trash.columns.bookId') }}</th>
           <th>{{ t('trash.columns.actions') }}</th>
@@ -41,6 +42,7 @@
           <td>{{ book.title }}</td>
           <td>{{ formatAuthors(book.authors) }}</td>
           <td>{{ formatLayer(book.original_layer) }}</td>
+          <td>{{ book.original_path ?? '-' }}</td>
           <td>{{ formatDeletedAt(book.deleted_at) }}</td>
           <td class="book-id">{{ book.id }}</td>
           <td class="actions">

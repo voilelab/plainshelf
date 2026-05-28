@@ -136,6 +136,7 @@ const en = {
       title: 'Title',
       authors: 'Authors',
       originalLayer: 'Original layer',
+      originalPath: 'Original path',
       deletedAt: 'Deleted at',
       bookId: 'Book ID',
       actions: 'Actions'

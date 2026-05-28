@@ -135,6 +135,7 @@ const zhHant = {
       title: '標題',
       authors: '作者',
       originalLayer: '原始圖層',
+      originalPath: '原始路徑',
       deletedAt: '刪除時間',
       bookId: '書籍 ID',
       actions: '操作'
