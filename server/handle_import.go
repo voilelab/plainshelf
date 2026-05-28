@@ -156,7 +156,12 @@ func (app *App) ImportFromLocalPath(localPath string, layerParts shelf.Layers) (
 	}
 	defer fp.Close()
 
-	source, err := newBook.NewSource(fp)
+	utf8Reader, err := util.ReEncodeToUTF8(fp)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	source, err := newBook.NewSource(utf8Reader)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
