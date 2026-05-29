@@ -166,6 +166,22 @@ export async function deleteSource(bookId: string, sourceId: string): Promise<vo
   );
 }
 
+export async function setCurrentSource(bookId: string, sourceId: string): Promise<void> {
+  if (isMockApiMode()) {
+    const sources = ensureMockSource(bookId);
+    const found = sources.some((source) => source.meta.id === sourceId);
+    if (!found) {
+      throw new Error('Source not found');
+    }
+    return;
+  }
+
+  await fetchJson<void>(
+    `/api/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/current`,
+    { method: 'PUT' }
+  );
+}
+
 export async function updateSourceContent(bookId: string, sourceId: string, content: string): Promise<void> {
   if (isMockApiMode()) {
     const sources = ensureMockSource(bookId);

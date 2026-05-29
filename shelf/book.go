@@ -354,6 +354,13 @@ func (b *Book) GetSource(sourceID string) (*Source, error) {
 	}
 
 	sourcePath := path.Join(b.folderPath, SourcesFolder, sourceID)
+	if _, err := b.root.Stat(sourcePath); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, util.Errorf("%w", ErrSourceNotFound)
+		}
+		return nil, util.Errorf("%w", err)
+	}
+
 	source, err := openSource(b.root, sourcePath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)

@@ -457,3 +457,39 @@ func TestAPIDeleteBookSourceContract(t *testing.T) {
 	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/books/no-such-book/sources/"+newSourceID, nil))
 	assertStatus(t, rec, http.StatusNotFound)
 }
+
+func TestAPISetCurrentBookSourceContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Set Current Source Book", "", "src.txt", "content")
+	sourcesURL := "/api/books/" + created.Meta.ID + "/sources"
+
+	// Create a second source.
+	rec := env.do(httptest.NewRequest(http.MethodPost, sourcesURL, nil))
+	assertStatus(t, rec, http.StatusOK)
+	newSource := decodeJSON[map[string]any](t, rec)
+	newSourceID, _ := newSource["id"].(string)
+	if newSourceID == "" {
+		t.Fatalf("expected non-empty source id in response, got %#v", newSource)
+	}
+
+	// Setting the current source should succeed.
+	rec = env.do(httptest.NewRequest(http.MethodPut, sourcesURL+"/"+newSourceID+"/current", nil))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	// The book should reflect the new current source.
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/books/"+created.Meta.ID, nil))
+	assertStatus(t, rec, http.StatusOK)
+	bookData := decodeJSON[map[string]any](t, rec)
+	meta, _ := bookData["meta"].(map[string]any)
+	if currentSource, _ := meta["current_source"].(string); currentSource != newSourceID {
+		t.Fatalf("expected current_source %q, got %q", newSourceID, currentSource)
+	}
+
+	// Setting current source for a nonexistent source should return 404.
+	rec = env.do(httptest.NewRequest(http.MethodPut, sourcesURL+"/nonexistent-source/current", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+
+	// Setting current source for a nonexistent book should return 404.
+	rec = env.do(httptest.NewRequest(http.MethodPut, "/api/books/no-such-book/sources/"+newSourceID+"/current", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+}
