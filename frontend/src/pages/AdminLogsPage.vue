@@ -80,7 +80,7 @@ const error = ref('');
 const content = ref('');
 const selectedName = ref('');
 const selectedDate = ref('');
-let activeLogRequest = 0;
+const activeLogRequest = ref(0);
 
 useDocumentTitle(() => [t('adminLogs.title'), t('app.name')]);
 
@@ -163,24 +163,24 @@ async function loadLogs(): Promise<void> {
 }
 
 async function loadContent(log: LogFileEntry): Promise<void> {
-  const requestId = ++activeLogRequest;
+  const requestId = ++activeLogRequest.value;
   loadingContent.value = true;
   error.value = '';
 
   try {
     const nextContent = await getLogContent(log.id);
-    if (requestId !== activeLogRequest) {
+    if (requestId !== activeLogRequest.value) {
       return;
     }
     content.value = nextContent;
   } catch (err) {
-    if (requestId !== activeLogRequest) {
+    if (requestId !== activeLogRequest.value) {
       return;
     }
     content.value = '';
     error.value = err instanceof Error ? err.message : t('adminLogs.loadContentFailed');
   } finally {
-    if (requestId === activeLogRequest) {
+    if (requestId === activeLogRequest.value) {
       loadingContent.value = false;
     }
   }
@@ -192,7 +192,7 @@ watch(
   selectedLog,
   (log) => {
     if (!log) {
-      activeLogRequest += 1;
+      activeLogRequest.value += 1;
       loadingContent.value = false;
       content.value = '';
       return;
