@@ -22,6 +22,7 @@ const ROUTES_WITH_OWN_TITLE = new Set([
   'reader',
   'read-history',
   'trash',
+  'admin-logs',
   'maintenance-missing-author',
   'maintenance-missing-cover'
 ]);
