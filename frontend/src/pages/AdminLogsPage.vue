@@ -22,11 +22,13 @@
 
       <label class="field">
         <span>{{ t('adminLogs.date') }}</span>
-        <select v-model="selectedDate" :disabled="loadingLogs || dateOptions.length === 0">
-          <option v-for="option in dateOptions" :key="option" :value="option">
-            {{ option }}
-          </option>
-        </select>
+        <input
+          v-model="selectedDate"
+          type="date"
+          :min="dateInputMin"
+          :max="dateInputMax"
+          :disabled="loadingLogs || dateOptions.length === 0"
+        />
       </label>
     </div>
 
@@ -124,6 +126,13 @@ const dateOptions = computed<string[]>(() => {
   }
 
   return options;
+});
+
+const dateInputMin = computed(() => [...dateOptions.value].sort()[0] ?? '');
+
+const dateInputMax = computed(() => {
+  const sortedDates = [...dateOptions.value].sort();
+  return sortedDates[sortedDates.length - 1] ?? '';
 });
 
 const selectedLog = computed(() =>
@@ -249,7 +258,8 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.field select {
+.field select,
+.field input {
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 8px;
