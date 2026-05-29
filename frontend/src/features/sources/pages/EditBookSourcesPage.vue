@@ -70,7 +70,7 @@
           :error="editorError"
           :isCurrent="activeSourceId === book?.current_source"
           :settingCurrent="settingCurrent"
-          @setCurrent="onSetCurrentSource"
+          @set-current="onSetCurrentSource"
         />
       </main>
     </div>
