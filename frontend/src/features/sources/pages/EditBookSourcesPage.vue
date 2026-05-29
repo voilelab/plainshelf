@@ -68,6 +68,9 @@
           :saving="saving"
           :dirty="isDirty"
           :error="editorError"
+          :isCurrent="activeSourceId === book?.current_source"
+          :settingCurrent="settingCurrent"
+          @set-current="onSetCurrentSource"
         />
       </main>
     </div>
@@ -81,7 +84,7 @@ import { getBook } from '../../../api/books';
 import ConfirmModal from '../../../components/ConfirmModal.vue';
 import { useDocumentTitle } from '../../../composables/useDocumentTitle';
 import type { Book } from '../../../types/book';
-import { getSourceContent, listSource, updateSourceContent, createSource, deleteSource } from '../../../api/sources';
+import { getSourceContent, listSource, updateSourceContent, createSource, deleteSource, setCurrentSource } from '../../../api/sources';
 import SourceEditor from '../components/SourceEditor.vue';
 import SourceList from '../components/SourceList.vue';
 import type { SourceMeta } from '../../../types/source';
@@ -103,6 +106,7 @@ const contentLoading = ref(false);
 const saving = ref(false);
 const creating = ref(false);
 const deleting = ref(false);
+const settingCurrent = ref(false);
 
 const loadError = ref('');
 const editorError = ref('');
@@ -241,6 +245,29 @@ async function onSave(): Promise<void> {
     editorError.value = err instanceof Error ? err.message : 'Failed to save source';
   } finally {
     saving.value = false;
+  }
+}
+
+async function onSetCurrentSource(): Promise<void> {
+  const sourceId = activeSourceId.value;
+  if (!sourceId) {
+    return;
+  }
+
+  settingCurrent.value = true;
+  editorError.value = '';
+  saveSuccess.value = '';
+
+  try {
+    await setCurrentSource(bookId.value, sourceId);
+    if (book.value) {
+      book.value.current_source = sourceId;
+    }
+    saveSuccess.value = 'Current source updated.';
+  } catch (err) {
+    editorError.value = err instanceof Error ? err.message : 'Failed to set current source';
+  } finally {
+    settingCurrent.value = false;
   }
 }
 
