@@ -249,7 +249,8 @@ async function onSave(): Promise<void> {
 }
 
 async function onSetCurrentSource(): Promise<void> {
-  if (!activeSourceId.value) {
+  const sourceId = activeSourceId.value;
+  if (!sourceId) {
     return;
   }
 
@@ -258,9 +259,9 @@ async function onSetCurrentSource(): Promise<void> {
   saveSuccess.value = '';
 
   try {
-    await setCurrentSource(bookId.value, activeSourceId.value);
+    await setCurrentSource(bookId.value, sourceId);
     if (book.value) {
-      book.value.current_source = activeSourceId.value;
+      book.value.current_source = sourceId;
     }
     saveSuccess.value = 'Current source updated.';
   } catch (err) {
