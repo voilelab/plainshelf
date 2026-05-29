@@ -33,6 +33,11 @@
       <path d="M7.5 7.8v9.4a1.8 1.8 0 0 0 1.8 1.8h5.4a1.8 1.8 0 0 0 1.8-1.8V7.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       <path d="M10.2 10.2v5.6M13.8 10.2v5.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
     </svg>
+    <svg v-else-if="name === 'logs'" viewBox="0 0 24 24" fill="none">
+      <path d="M7 4.75h7l4 4V19a1.75 1.75 0 0 1-1.75 1.75h-9.5A1.75 1.75 0 0 1 5 19V6.5A1.75 1.75 0 0 1 6.75 4.75H7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      <path d="M14 4.75V9h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M8.5 12h7M8.5 15h7M8.5 18h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+    </svg>
   </span>
 </template>
 

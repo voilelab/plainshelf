@@ -1,1 +1,1 @@
-export type SidebarNavIconName = 'recently-read' | 'duplicate-content' | 'missing-author' | 'missing-cover' | 'missing-language' | 'trash';
+export type SidebarNavIconName = 'recently-read' | 'duplicate-content' | 'missing-author' | 'missing-cover' | 'missing-language' | 'trash' | 'logs';

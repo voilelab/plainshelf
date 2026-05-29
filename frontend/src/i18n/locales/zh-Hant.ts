@@ -24,7 +24,8 @@ const zhHant = {
     sections: {
       layers: '圖層',
       reading: '閱讀',
-      maintenance: '維護'
+      maintenance: '維護',
+      admin: '管理'
     },
     createLayer: {
       add: '新增圖層',
@@ -51,7 +52,22 @@ const zhHant = {
       failed: '移動書籍失敗。'
     },
     recentlyRead: '最近閱讀',
-    trash: '垃圾桶'
+    trash: '垃圾桶',
+    adminLogs: '日誌'
+  },
+  adminLogs: {
+    title: '日誌',
+    description: '選擇日誌名稱與日期以查看日誌檔內容。',
+    name: '名稱',
+    date: '日期',
+    source: '來源',
+    filename: '檔名',
+    empty: '目前沒有可用的日誌檔。',
+    emptyContent: '所選日誌檔沒有內容。',
+    loadingList: '載入日誌檔中...',
+    loadingContent: '載入日誌內容中...',
+    loadFailed: '載入日誌檔失敗',
+    loadContentFailed: '載入日誌內容失敗'
   },
   maintenance: {
     duplicateContent: '重複內容',

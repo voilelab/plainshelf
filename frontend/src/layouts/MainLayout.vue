@@ -132,6 +132,18 @@
             </RouterLink>
           </nav>
         </section>
+
+        <div class="sidebar-nav-divider" role="presentation"></div>
+
+        <section class="sidebar-section" :aria-label="t('layout.sections.admin')">
+          <div class="sidebar-section-title">{{ t('layout.sections.admin') }}</div>
+          <nav class="sidebar-nav-list" :aria-label="t('layout.sections.admin')">
+            <RouterLink to="/admin/logs" class="sidebar-nav-item" exact-active-class="active">
+              <SidebarNavIcon name="logs" />
+              <span>{{ t('layout.adminLogs') }}</span>
+            </RouterLink>
+          </nav>
+        </section>
       </div>
     </aside>
 
