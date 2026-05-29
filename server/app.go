@@ -207,6 +207,8 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/read_history", app.HandleAPIGetReadHistory)
 	mux.HandleFunc("POST /api/read_history", app.HandleAPIUpdateReadHistory)
 	mux.HandleFunc("DELETE /api/read_history", app.HandleAPIClearReadHistory)
+	mux.HandleFunc("GET /api/logs", app.HandleAPIGetLogs)
+	mux.HandleFunc("GET /api/logs/{log_id}/content", app.HandleAPIGetLogContent)
 
 	mux.HandleFunc("GET /{path...}", app.HandleSPAFallback)
 }
