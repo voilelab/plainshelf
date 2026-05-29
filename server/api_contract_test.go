@@ -9,9 +9,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/server/store"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -156,6 +160,60 @@ func TestAPIGetBooksContract(t *testing.T) {
 	}
 	if strings.Join(got.Layer, "/") != "fiction/adventure" {
 		t.Fatalf("layer = %#v, want fiction/adventure", got.Layer)
+	}
+}
+
+func TestAPIGetLogsContract(t *testing.T) {
+	logDir := t.TempDir()
+	app, err := NewApp(&AppConf{
+		Logger: logutil.LogConf{
+			LogFile: logutil.LogFileConf{
+				Type:   logutil.LogFileTypeNameRotate,
+				Dir:    logDir,
+				Prefix: "app",
+			},
+		},
+		Shelf: &shelf.ShelfConf{
+			LibRoot: t.TempDir(),
+		},
+		StorePath:        t.TempDir(),
+		CoverToJPG:       false,
+		ReadHistoryLimit: 2,
+	})
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := app.Close(); err != nil {
+			t.Fatalf("Close app: %v", err)
+		}
+	})
+
+	handler := app.Handler()
+
+	if err := os.WriteFile(filepath.Join(logDir, "app-2024-01-01.log"), []byte("old"), 0o644); err != nil {
+		t.Fatalf("WriteFile old log: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(logDir, "ignore.txt"), []byte("nope"), 0o644); err != nil {
+		t.Fatalf("WriteFile ignore file: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/logs", nil))
+	assertStatus(t, rec, http.StatusOK)
+	assertJSONContentType(t, rec)
+
+	logs := decodeJSON[[]LogFileEntry](t, rec)
+	if len(logs) != 2 {
+		t.Fatalf("log count = %d, want 2", len(logs))
+	}
+
+	today := time.Now().Format("2006-01-02")
+	if logs[0].Filename != "app-"+today+".log" || logs[0].Date != today {
+		t.Fatalf("first log = %#v, want today's app log", logs[0])
+	}
+	if logs[1].Filename != "app-2024-01-01.log" || logs[1].Date != "2024-01-01" {
+		t.Fatalf("second log = %#v, want seeded log", logs[1])
 	}
 }
 
