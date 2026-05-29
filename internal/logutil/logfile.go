@@ -171,6 +171,9 @@ func listRotatedLogFiles(source string, conf LogFileConf) ([]Entry, error) {
 		if entry.IsDir() {
 			continue
 		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			continue
+		}
 
 		name := entry.Name()
 		if !strings.HasPrefix(name, prefixPart) || !strings.HasSuffix(name, ".log") {
