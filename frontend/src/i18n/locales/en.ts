@@ -65,6 +65,7 @@ const en = {
     filename: 'Filename',
     empty: 'No log files are available.',
     emptyContent: 'The selected log file is empty.',
+    missingForDate: 'No log file is available for {date}.',
     loadingList: 'Loading log files...',
     loadingContent: 'Loading log content...',
     loadFailed: 'Failed to load log files',

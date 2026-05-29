@@ -43,6 +43,10 @@
     </p>
 
     <template v-else>
+      <p v-if="selectedDateWithoutLog" class="message warning" role="status">
+        {{ t('adminLogs.missingForDate', { date: selectedDate }) }}
+      </p>
+
       <dl v-if="selectedLog" class="log-meta">
         <div>
           <dt>{{ t('adminLogs.filename') }}</dt>
@@ -54,10 +58,12 @@
         </div>
       </dl>
 
-      <p v-if="loadingContent" class="message">
-        {{ t('adminLogs.loadingContent') }}
-      </p>
-      <pre v-else class="log-content">{{ content || t('adminLogs.emptyContent') }}</pre>
+      <template v-if="selectedLog">
+        <p v-if="loadingContent" class="message">
+          {{ t('adminLogs.loadingContent') }}
+        </p>
+        <pre v-else class="log-content">{{ content || t('adminLogs.emptyContent') }}</pre>
+      </template>
     </template>
   </section>
 </template>
@@ -137,6 +143,10 @@ const dateInputMax = computed(() => {
 
 const selectedLog = computed(() =>
   logs.value.find((entry) => getLogName(entry) === selectedName.value && entry.date === selectedDate.value)
+);
+
+const selectedDateWithoutLog = computed(
+  () => Boolean(selectedDate.value) && !selectedLog.value
 );
 
 function syncSelection(): void {
@@ -274,6 +284,10 @@ onMounted(() => {
 
 .error {
   color: #b91c1c;
+}
+
+.warning {
+  color: #a16207;
 }
 
 .log-meta {

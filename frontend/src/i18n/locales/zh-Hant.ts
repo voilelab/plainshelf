@@ -64,6 +64,7 @@ const zhHant = {
     filename: '檔名',
     empty: '目前沒有可用的日誌檔。',
     emptyContent: '所選日誌檔沒有內容。',
+    missingForDate: '{date} 沒有可用的日誌檔。',
     loadingList: '載入日誌檔中...',
     loadingContent: '載入日誌內容中...',
     loadFailed: '載入日誌檔失敗',
