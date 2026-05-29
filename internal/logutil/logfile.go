@@ -3,6 +3,10 @@ package logutil
 import (
 	"io"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/util"
 )
@@ -35,6 +39,11 @@ type LogFile struct {
 	conf   *LogFileConf
 	writer io.Writer
 	fp     *os.File
+}
+
+type Entry struct {
+	Filename string `json:"filename"`
+	Date     string `json:"date"`
 }
 
 func NewLogFile(conf LogFileConf) (*LogFile, error) {
@@ -72,4 +81,88 @@ func (lf *LogFile) Close() error {
 		}
 	}
 	return nil
+}
+
+func ListLogFiles(conf LogFileConf) ([]Entry, error) {
+	switch conf.Type {
+	case LogFileTypeNameRotate:
+		return listRotatedLogFiles(conf)
+	case LogFileTypeName:
+		return listNamedLogFile(conf)
+	default:
+		return []Entry{}, nil
+	}
+}
+
+func listRotatedLogFiles(conf LogFileConf) ([]Entry, error) {
+	dir := conf.Dir
+	if dir == "" {
+		dir = "."
+	}
+	prefix := conf.Prefix
+	if prefix == "" {
+		prefix = "log"
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []Entry{}, nil
+		}
+		return nil, util.Errorf("%w", err)
+	}
+
+	logs := make([]Entry, 0, len(entries))
+	prefixPart := prefix + "-"
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if !strings.HasPrefix(name, prefixPart) || !strings.HasSuffix(name, ".log") {
+			continue
+		}
+
+		date := strings.TrimSuffix(strings.TrimPrefix(name, prefixPart), ".log")
+		if _, err := time.Parse("2006-01-02", date); err != nil {
+			continue
+		}
+
+		logs = append(logs, Entry{
+			Filename: name,
+			Date:     date,
+		})
+	}
+
+	sort.Slice(logs, func(i, j int) bool {
+		if logs[i].Date == logs[j].Date {
+			return logs[i].Filename < logs[j].Filename
+		}
+		return logs[i].Date > logs[j].Date
+	})
+
+	return logs, nil
+}
+
+func listNamedLogFile(conf LogFileConf) ([]Entry, error) {
+	if conf.Filename == "" {
+		return []Entry{}, nil
+	}
+
+	info, err := os.Stat(conf.Filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []Entry{}, nil
+		}
+		return nil, util.Errorf("%w", err)
+	}
+	if info.IsDir() {
+		return []Entry{}, nil
+	}
+
+	return []Entry{{
+		Filename: filepath.Base(conf.Filename),
+		Date:     info.ModTime().Format("2006-01-02"),
+	}}, nil
 }
