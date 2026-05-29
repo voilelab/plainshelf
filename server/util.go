@@ -40,6 +40,20 @@ func readSourceID(r *http.Request) (string, error) {
 	return decoded, nil
 }
 
+func readLogID(r *http.Request) (string, error) {
+	logID := strings.TrimSpace(r.PathValue("log_id"))
+	if logID == "" {
+		return "", errors.New("missing log_id")
+	}
+
+	decoded, err := url.PathUnescape(logID)
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+
+	return decoded, nil
+}
+
 func readLayerParts(r *http.Request) ([]string, error) {
 	rawLayer := strings.TrimSpace(r.PathValue("layer_path"))
 
