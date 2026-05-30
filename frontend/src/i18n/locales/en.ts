@@ -24,7 +24,8 @@ const en = {
     sections: {
       layers: 'LAYERS',
       reading: 'READING',
-      maintenance: 'MAINTENANCE'
+      maintenance: 'MAINTENANCE',
+      admin: 'ADMIN'
     },
     createLayer: {
       add: 'Add layer',
@@ -52,7 +53,23 @@ const en = {
       failed: 'Failed to move book.'
     },
     recentlyRead: 'Recently Read',
-    trash: 'Trash'
+    trash: 'Trash',
+    adminLogs: 'Logs'
+  },
+  adminLogs: {
+    title: 'Logs',
+    description: 'Select a log source and date to inspect the log file content.',
+    name: 'Name',
+    date: 'Date',
+    source: 'Source',
+    filename: 'Filename',
+    empty: 'No log files are available.',
+    emptyContent: 'The selected log file is empty.',
+    missingForDate: 'No log file is available for {date}.',
+    loadingList: 'Loading log files...',
+    loadingContent: 'Loading log content...',
+    loadFailed: 'Failed to load log files',
+    loadContentFailed: 'Failed to load log content'
   },
   maintenance: {
     duplicateContent: 'Duplicate Content',
