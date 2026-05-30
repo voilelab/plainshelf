@@ -9,6 +9,14 @@ and UI behavior may still change between releases.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [v0.5.0] - 2026-05-29
+
+### Added
+
 - Added shelf cache refresh controls and stale-book cache handling improvements.
 - Added MkDocs-based project documentation and known-issues pages.
 - Added a canvas-based simple book-cover generator in the frontend.
