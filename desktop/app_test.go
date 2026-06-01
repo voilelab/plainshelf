@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"net/http/httptest"
+	"testing"
+)
 
 func TestBookOpenDialogOptions(t *testing.T) {
 	options := bookOpenDialogOptions()
@@ -58,6 +61,29 @@ func TestIsAPIPath(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := isAPIPath(tc.path); got != tc.want {
 				t.Fatalf("isAPIPath(%q) = %v, want %v", tc.path, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeAPIRequest(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{name: "standard api path unchanged", path: "/api/books/1", want: "/api/books/1"},
+		{name: "wails api path normalized", path: "/wails/api/books/1", want: "/api/books/1"},
+		{name: "wails api root normalized", path: "/wails/api", want: "/api"},
+		{name: "non api path unchanged", path: "/books/1", want: "/books/1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", tt.path, nil)
+			got := normalizeAPIRequest(req)
+			if got.URL.Path != tt.want {
+				t.Fatalf("normalizeAPIRequest(%q) path = %q, want %q", tt.path, got.URL.Path, tt.want)
 			}
 		})
 	}

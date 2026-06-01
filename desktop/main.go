@@ -25,7 +25,8 @@ func main() {
 				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					// If the request is for an API endpoint, use the app's API handler
 					if isAPIPath(r.URL.Path) {
-						app.GetAPIHandler().ServeHTTP(w, r)
+						apiRequest := normalizeAPIRequest(r)
+						app.GetAPIHandler().ServeHTTP(w, apiRequest)
 						return
 					}
 					// Otherwise, serve the static assets
@@ -56,4 +57,16 @@ func isAPIPath(path string) bool {
 	default:
 		return false
 	}
+}
+
+func normalizeAPIRequest(r *http.Request) *http.Request {
+	req := r.Clone(r.Context())
+	switch {
+	case req.URL.Path == "/wails/api":
+		req.URL.Path = "/api"
+	case strings.HasPrefix(req.URL.Path, "/wails/api/"):
+		req.URL.Path = strings.TrimPrefix(req.URL.Path, "/wails")
+	}
+	req.RequestURI = req.URL.RequestURI()
+	return req
 }
