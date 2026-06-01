@@ -24,7 +24,7 @@ func main() {
 			Middleware: func(next http.Handler) http.Handler {
 				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					// If the request is for an API endpoint, use the app's API handler
-					if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api" {
+					if isAPIPath(r.URL.Path) {
 						app.GetAPIHandler().ServeHTTP(w, r)
 						return
 					}
@@ -44,5 +44,19 @@ func main() {
 
 	if err != nil {
 		log.Fatal(err)
+	}
+}
+
+func isAPIPath(path string) bool {
+	normalized := strings.TrimSpace(path)
+	switch {
+	case normalized == "/api" || strings.HasPrefix(normalized, "/api/"):
+		return true
+	case normalized == "api" || strings.HasPrefix(normalized, "api/"):
+		return true
+	case normalized == "/wails/api" || strings.HasPrefix(normalized, "/wails/api/"):
+		return true
+	default:
+		return false
 	}
 }
