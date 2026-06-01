@@ -48,13 +48,10 @@ func main() {
 }
 
 func isAPIPath(path string) bool {
-	normalized := strings.TrimSpace(path)
 	switch {
-	case normalized == "/api" || strings.HasPrefix(normalized, "/api/"):
+	case path == "/api" || strings.HasPrefix(path, "/api/"):
 		return true
-	case normalized == "api" || strings.HasPrefix(normalized, "api/"):
-		return true
-	case normalized == "/wails/api" || strings.HasPrefix(normalized, "/wails/api/"):
+	case path == "/wails/api" || strings.HasPrefix(path, "/wails/api/"):
 		return true
 	default:
 		return false

@@ -48,13 +48,13 @@ func TestIsAPIPath(t *testing.T) {
 	}{
 		{name: "standard root", path: "/api", want: true},
 		{name: "standard nested", path: "/api/books/1", want: true},
-		{name: "missing leading slash", path: "api/books/1", want: true},
 		{name: "wails prefixed path", path: "/wails/api/books/1", want: true},
+		{name: "missing leading slash", path: "api/books/1", want: false},
+		{name: "missing leading slash wails prefix", path: "wails/api/books/1", want: false},
 		{name: "frontend route", path: "/books/1/sources", want: false},
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			if got := isAPIPath(tc.path); got != tc.want {
 				t.Fatalf("isAPIPath(%q) = %v, want %v", tc.path, got, tc.want)
