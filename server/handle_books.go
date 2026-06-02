@@ -445,6 +445,7 @@ func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) 
 	defer src.Close()
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
 	_, err = io.Copy(w, src)
 	if err != nil {
 		app.Error("failed to write book content", "error", err)

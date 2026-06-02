@@ -25,6 +25,39 @@ type apiTestEnv struct {
 	handler http.Handler
 }
 
+type wailsLikeRecorder struct {
+	header      http.Header
+	body        bytes.Buffer
+	code        int
+	wroteHeader bool
+}
+
+func newWailsLikeRecorder() *wailsLikeRecorder {
+	return &wailsLikeRecorder{
+		header: http.Header{},
+		code:   http.StatusNotImplemented,
+	}
+}
+
+func (rec *wailsLikeRecorder) Header() http.Header {
+	return rec.header
+}
+
+func (rec *wailsLikeRecorder) Write(buf []byte) (int, error) {
+	if !rec.wroteHeader {
+		rec.WriteHeader(http.StatusOK)
+	}
+	return rec.body.Write(buf)
+}
+
+func (rec *wailsLikeRecorder) WriteHeader(code int) {
+	if rec.wroteHeader {
+		return
+	}
+	rec.wroteHeader = true
+	rec.code = code
+}
+
 func newAPITestEnv(t *testing.T) *apiTestEnv {
 	t.Helper()
 
@@ -72,6 +105,13 @@ func assertJSONContentType(t *testing.T, rec *httptest.ResponseRecorder) {
 	t.Helper()
 	if got := rec.Header().Get("Content-Type"); got != "application/json; charset=utf-8" {
 		t.Fatalf("Content-Type = %q, want application/json; charset=utf-8", got)
+	}
+}
+
+func assertWailsLikeStatus(t *testing.T, rec *wailsLikeRecorder, want int) {
+	t.Helper()
+	if rec.code != want {
+		t.Fatalf("status = %d, want %d, body: %s", rec.code, want, rec.body.String())
 	}
 }
 
@@ -291,6 +331,94 @@ func TestAPIGetLogContentContract(t *testing.T) {
 	missingRec := httptest.NewRecorder()
 	handler.ServeHTTP(missingRec, httptest.NewRequest(http.MethodGet, "/api/logs/missing/content", nil))
 	assertStatus(t, missingRec, http.StatusNotFound)
+}
+
+func TestAPIStreamContentReturns200ForEmptyFilesInWails(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Empty Stream Book", "", "empty.txt", "content")
+	bookID := created.Meta.ID
+	sourceID := created.Meta.CurrentSource
+
+	updateReq := httptest.NewRequest(http.MethodPatch, "/api/books/"+bookID+"/sources/"+sourceID+"/content", strings.NewReader(""))
+	updateReq.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	updateRec := env.do(updateReq)
+	assertStatus(t, updateRec, http.StatusNoContent)
+
+	bookContentRec := newWailsLikeRecorder()
+	env.handler.ServeHTTP(bookContentRec, httptest.NewRequest(http.MethodGet, "/api/books/"+bookID+"/content", nil))
+	assertWailsLikeStatus(t, bookContentRec, http.StatusOK)
+	if got := bookContentRec.header.Get("Content-Type"); got != "text/plain; charset=utf-8" {
+		t.Fatalf("book Content-Type = %q, want text/plain; charset=utf-8", got)
+	}
+	if got := bookContentRec.body.String(); got != "" {
+		t.Fatalf("book content = %q, want empty", got)
+	}
+
+	sourceContentRec := newWailsLikeRecorder()
+	env.handler.ServeHTTP(sourceContentRec, httptest.NewRequest(http.MethodGet, "/api/books/"+bookID+"/sources/"+sourceID+"/content", nil))
+	assertWailsLikeStatus(t, sourceContentRec, http.StatusOK)
+	if got := sourceContentRec.header.Get("Content-Type"); got != "text/plain; charset=utf-8" {
+		t.Fatalf("source Content-Type = %q, want text/plain; charset=utf-8", got)
+	}
+	if got := sourceContentRec.body.String(); got != "" {
+		t.Fatalf("source content = %q, want empty", got)
+	}
+
+	logDir := t.TempDir()
+	logApp, err := NewApp(&AppConf{
+		Shelf: &shelf.ShelfConf{
+			Logger: logutil.LogConf{
+				LogFile: logutil.LogFileConf{
+					Type:   logutil.LogFileTypeNameRotate,
+					Dir:    logDir,
+					Prefix: "shelf",
+				},
+			},
+			LibRoot: t.TempDir(),
+		},
+		StorePath:        t.TempDir(),
+		CoverToJPG:       false,
+		ReadHistoryLimit: 2,
+	})
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := logApp.Close(); err != nil {
+			t.Fatalf("Close app: %v", err)
+		}
+	})
+
+	if err := os.WriteFile(filepath.Join(logDir, "shelf-2024-01-02.log"), nil, 0o644); err != nil {
+		t.Fatalf("WriteFile empty log: %v", err)
+	}
+
+	listRec := httptest.NewRecorder()
+	logHandler := logApp.Handler()
+	logHandler.ServeHTTP(listRec, httptest.NewRequest(http.MethodGet, "/api/logs", nil))
+	assertStatus(t, listRec, http.StatusOK)
+
+	logs := decodeJSON[[]LogFileEntry](t, listRec)
+	var emptyLogID string
+	for i := range logs {
+		if logs[i].Filename == "shelf-2024-01-02.log" {
+			emptyLogID = logs[i].ID
+			break
+		}
+	}
+	if emptyLogID == "" {
+		t.Fatalf("expected empty shelf log in list, got %#v", logs)
+	}
+
+	logContentRec := newWailsLikeRecorder()
+	logHandler.ServeHTTP(logContentRec, httptest.NewRequest(http.MethodGet, "/api/logs/"+emptyLogID+"/content", nil))
+	assertWailsLikeStatus(t, logContentRec, http.StatusOK)
+	if got := logContentRec.header.Get("Content-Type"); got != "text/plain; charset=utf-8" {
+		t.Fatalf("log Content-Type = %q, want text/plain; charset=utf-8", got)
+	}
+	if got := logContentRec.body.String(); got != "" {
+		t.Fatalf("log content = %q, want empty", got)
+	}
 }
 
 func TestAPIImportBookContract(t *testing.T) {
