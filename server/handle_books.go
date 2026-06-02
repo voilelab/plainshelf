@@ -445,7 +445,10 @@ func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) 
 	defer src.Close()
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
+	if fi, statErr := src.Stat(); statErr == nil && fi.Size() == 0 {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	_, err = io.Copy(w, src)
 	if err != nil {
 		app.Error("failed to write book content", "error", err)
