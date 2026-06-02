@@ -53,6 +53,10 @@ func (app *App) HandleAPIGetLogContent(w http.ResponseWriter, r *http.Request) {
 	defer fp.Close()
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	if fi, statErr := fp.Stat(); statErr == nil && fi.Size() == 0 {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	_, err = io.Copy(w, fp)
 	if err != nil {
 		app.Error("failed to write log file content", "error", err, "log_id", logID, "filename", entry.Filename)
