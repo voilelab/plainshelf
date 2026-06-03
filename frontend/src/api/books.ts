@@ -500,7 +500,7 @@ export async function getReadingProgress(id: string): Promise<ReadingProgress> {
     return delay({ ...mockGetReadingProgress(id) });
   }
 
-  const mark = await fetchJson<BackendMark>(`/api/marks/${encodeURIComponent(id)}`);
+  const mark = await fetchJson<BackendMark>(`/api/shelves/default_shelf/marks/${encodeURIComponent(id)}`);
   return { char_offset: mark.char_offset };
 }
 
@@ -511,7 +511,7 @@ export async function saveBookmark(id: string, payload: BookmarkPayload): Promis
     return;
   }
 
-  await fetchJson(`/api/marks/${encodeURIComponent(id)}`, {
+  await fetchJson(`/api/shelves/default_shelf/marks/${encodeURIComponent(id)}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'

@@ -15,7 +15,7 @@ export async function getReadHistoryIDs(): Promise<string[]> {
     return delay([...mockReadHistory]);
   }
 
-  return await fetchJson<string[]>('/api/read_history');
+  return await fetchJson<string[]>('/api/shelves/default_shelf/read_history');
 }
 
 export async function addReadHistory(bookID: string): Promise<void> {
@@ -30,7 +30,7 @@ export async function addReadHistory(bookID: string): Promise<void> {
     return;
   }
 
-  await fetchJson<void>(`/api/read_history?book_id=${encodeURIComponent(trimmed)}`, {
+  await fetchJson<void>(`/api/shelves/default_shelf/read_history?book_id=${encodeURIComponent(trimmed)}`, {
     method: 'POST'
   });
 }
@@ -42,7 +42,7 @@ export async function clearReadHistory(): Promise<void> {
     return;
   }
 
-  await fetchJson<void>('/api/read_history', {
+  await fetchJson<void>('/api/shelves/default_shelf/read_history', {
     method: 'DELETE'
   });
 }
