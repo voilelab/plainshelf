@@ -62,7 +62,7 @@ func newAPITestEnv(t *testing.T) *apiTestEnv {
 	t.Helper()
 
 	app, err := NewApp(&AppConf{
-		Shelfs: []*ShelfConfWithID{
+		Shelves: []*ShelfConfWithID{
 			{
 				ID: "default_shelf",
 				ShelfConf: shelf.ShelfConf{
@@ -219,7 +219,7 @@ func TestAPIGetLogsContract(t *testing.T) {
 				Filename: appLogFile,
 			},
 		},
-		Shelfs: []*ShelfConfWithID{
+		Shelves: []*ShelfConfWithID{
 			{
 				ID: "default_shelf",
 				ShelfConf: shelf.ShelfConf{
@@ -276,7 +276,7 @@ func TestAPIGetLogsContract(t *testing.T) {
 	if logs[0].ID == "" || logs[0].Source != "logger" || logs[0].Filename != "app.log" || logs[0].Date == "" {
 		t.Fatalf("first log = %#v, want app logger entry", logs[0])
 	}
-	if logs[1].ID == "" || logs[1].Source != "shelfs[0].shelfconf.logger" || logs[1].Filename != "shelf-2024-01-02.log" || logs[1].Date != "2024-01-02" {
+	if logs[1].ID == "" || logs[1].Source != "shelves[0].shelfconf.logger" || logs[1].Filename != "shelf-2024-01-02.log" || logs[1].Date != "2024-01-02" {
 		t.Fatalf("second log = %#v, want shelf logger entry", logs[1])
 	}
 }
@@ -291,7 +291,7 @@ func TestAPIGetLogContentContract(t *testing.T) {
 				Prefix: "app",
 			},
 		},
-		Shelfs: []*ShelfConfWithID{
+		Shelves: []*ShelfConfWithID{
 			{
 				ID: "default_shelf",
 				ShelfConf: shelf.ShelfConf{
@@ -381,7 +381,7 @@ func TestAPIStreamContentReturns200ForEmptyFilesInWails(t *testing.T) {
 
 	logDir := t.TempDir()
 	logApp, err := NewApp(&AppConf{
-		Shelfs: []*ShelfConfWithID{
+		Shelves: []*ShelfConfWithID{
 			{
 				ID: "default_shelf",
 				ShelfConf: shelf.ShelfConf{

@@ -26,7 +26,7 @@ func (app *App) HandleAPITrashBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := app.shelfs[defaultShelfID].MoveBookToTrash(bookID); err != nil {
+	if err := app.shelves[defaultShelfID].MoveBookToTrash(bookID); err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
@@ -41,7 +41,7 @@ func (app *App) HandleAPITrashBook(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/trash/books
 func (app *App) HandleAPIGetTrashedBooks(w http.ResponseWriter, r *http.Request) {
-	books, err := app.shelfs[defaultShelfID].ListTrashedBooks()
+	books, err := app.shelves[defaultShelfID].ListTrashedBooks()
 	if err != nil {
 		app.Error("failed to list trashed books", "error", err)
 		http.Error(w, "failed to list trashed books", http.StatusInternalServerError)
@@ -76,7 +76,7 @@ func (app *App) HandleAPIRestoreTrashedBook(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := app.shelfs[defaultShelfID].RestoreTrashedBook(bookID); err != nil {
+	if err := app.shelves[defaultShelfID].RestoreTrashedBook(bookID); err != nil {
 		if errors.Is(err, shelf.ErrTrashedBookNotFound) {
 			http.Error(w, "trashed book not found", http.StatusNotFound)
 			return
@@ -97,7 +97,7 @@ func (app *App) HandleAPIDeleteTrashedBook(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if err := app.shelfs[defaultShelfID].DeleteTrashedBook(bookID); err != nil {
+	if err := app.shelves[defaultShelfID].DeleteTrashedBook(bookID); err != nil {
 		if errors.Is(err, shelf.ErrTrashedBookNotFound) {
 			http.Error(w, "trashed book not found", http.StatusNotFound)
 			return

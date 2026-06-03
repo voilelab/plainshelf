@@ -20,7 +20,7 @@ const defaultShelfID = "default_shelf"
 type App struct {
 	logutil.Logger
 
-	shelfs     map[string]*shelf.Shelf
+	shelves    map[string]*shelf.Shelf
 	storeDB    *store.DB
 	spaFS      fs.FS
 	spaHandler http.Handler
@@ -37,7 +37,7 @@ type ShelfConfWithID struct {
 type AppConf struct {
 	Logger           logutil.LogConf    `yaml:"logger"`
 	Shelf            *shelf.ShelfConf   `yaml:"shelf"` // remove after migration
-	Shelfs           []*ShelfConfWithID `yaml:"shelfs"`
+	Shelves          []*ShelfConfWithID `yaml:"shelves"`
 	StorePath        string             `yaml:"store_path"`
 	CoverToJPG       bool               `yaml:"cover_to_jpg"`
 	ReadHistoryLimit int                `yaml:"read_history_limit"`
@@ -68,10 +68,10 @@ func NewApp(conf *AppConf) (*App, error) {
 		}
 	}()
 
-	shelfs := make(map[string]*shelf.Shelf)
+	shelves := make(map[string]*shelf.Shelf)
 	defer func() {
 		if failure {
-			for _, s := range shelfs {
+			for _, s := range shelves {
 				s.Close()
 			}
 		}
@@ -82,10 +82,10 @@ func NewApp(conf *AppConf) (*App, error) {
 		if err != nil {
 			return nil, util.Errorf("%w", err)
 		}
-		shelfs[defaultShelfID] = s
+		shelves[defaultShelfID] = s
 	}
 
-	for _, conf := range conf.Shelfs {
+	for _, conf := range conf.Shelves {
 		s, err := shelf.NewShelf(&conf.ShelfConf)
 		if err != nil {
 			return nil, util.Errorf("%w", err)
@@ -94,14 +94,14 @@ func NewApp(conf *AppConf) (*App, error) {
 			return nil, util.Errorf("shelf ID cannot be empty")
 		}
 
-		if _, exists := shelfs[conf.ID]; exists {
+		if _, exists := shelves[conf.ID]; exists {
 			return nil, util.Errorf("duplicate shelf ID: %q", conf.ID)
 		}
 
-		shelfs[conf.ID] = s
+		shelves[conf.ID] = s
 	}
 
-	if _, exists := shelfs[defaultShelfID]; !exists {
+	if _, exists := shelves[defaultShelfID]; !exists {
 		return nil, util.Errorf("a shelf with ID %q must be configured", defaultShelfID)
 	}
 
@@ -113,7 +113,7 @@ func NewApp(conf *AppConf) (*App, error) {
 	failure = false
 	return &App{
 		Logger:     *logger,
-		shelfs:     shelfs,
+		shelves:    shelves,
 		storeDB:    storeDB,
 		spaFS:      frontend.WebFS,
 		spaHandler: http.FileServerFS(frontend.WebFS),
@@ -129,7 +129,7 @@ func (app *App) Start() error {
 func (app *App) Close() error {
 	err1 := app.storeDB.Close()
 	var err2 error
-	for _, s := range app.shelfs {
+	for _, s := range app.shelves {
 		if e := s.Close(); e != nil {
 			err2 = errors.Join(err2, e)
 		}
@@ -259,6 +259,9 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/read_history", app.HandleAPIGetReadHistory)
 	mux.HandleFunc("POST /api/read_history", app.HandleAPIUpdateReadHistory)
 	mux.HandleFunc("DELETE /api/read_history", app.HandleAPIClearReadHistory)
+
+	// Log API
+
 	mux.HandleFunc("GET /api/logs", app.HandleAPIGetLogs)
 	mux.HandleFunc("GET /api/logs/{log_id}/content", app.HandleAPIGetLogContent)
 
