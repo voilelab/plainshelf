@@ -7,7 +7,7 @@ import (
 
 func TestGetReadHistory_NotFound(t *testing.T) {
 	db := newTestDB(t)
-	history, err := db.GetReadHistory()
+	history, err := db.GetReadHistory("/nonexistent")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -18,11 +18,12 @@ func TestGetReadHistory_NotFound(t *testing.T) {
 
 func TestSetReadHistory(t *testing.T) {
 	db := newTestDB(t)
+	dbDir := t.TempDir()
 	history := []string{"book1", "book2", "book3"}
-	if err := db.SetReadHistory(history); err != nil {
+	if err := db.SetReadHistory(dbDir, history); err != nil {
 		t.Fatalf("SetReadHistory: %v", err)
 	}
-	got, err := db.GetReadHistory()
+	got, err := db.GetReadHistory(dbDir)
 	if err != nil {
 		t.Fatalf("GetReadHistory: %v", err)
 	}
@@ -39,16 +40,17 @@ func TestSetReadHistory(t *testing.T) {
 
 func TestAddToReadHistory(t *testing.T) {
 	db := newTestDB(t)
-	if err := db.AddToReadHistory("book1"); err != nil {
+	dbDir := t.TempDir()
+	if err := db.AddToReadHistory(dbDir, "book1"); err != nil {
 		t.Fatalf("AddToReadHistory: %v", err)
 	}
-	if err := db.AddToReadHistory("book2"); err != nil {
+	if err := db.AddToReadHistory(dbDir, "book2"); err != nil {
 		t.Fatalf("AddToReadHistory: %v", err)
 	}
-	if err := db.AddToReadHistory("book1"); err != nil {
+	if err := db.AddToReadHistory(dbDir, "book1"); err != nil {
 		t.Fatalf("AddToReadHistory: %v", err)
 	}
-	history, err := db.GetReadHistory()
+	history, err := db.GetReadHistory(dbDir)
 	if err != nil {
 		t.Fatalf("GetReadHistory: %v", err)
 	}
@@ -65,13 +67,14 @@ func TestAddToReadHistory(t *testing.T) {
 
 func TestAddToReadHistory_ExceedLimit(t *testing.T) {
 	db := newTestDB(t)
+	dbDir := t.TempDir()
 	for i := 1; i <= 150; i++ {
 		bookID := fmt.Sprintf("book%d", i)
-		if err := db.AddToReadHistory(bookID); err != nil {
+		if err := db.AddToReadHistory(dbDir, bookID); err != nil {
 			t.Fatalf("AddToReadHistory: %v", err)
 		}
 	}
-	history, err := db.GetReadHistory()
+	history, err := db.GetReadHistory(dbDir)
 	if err != nil {
 		t.Fatalf("GetReadHistory: %v", err)
 	}

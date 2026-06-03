@@ -2,25 +2,27 @@ package store
 
 import (
 	"encoding/json"
+	"fmt"
 
 	badger "github.com/dgraph-io/badger/v4"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-var bookmarkKeyPrefix = []byte("bookmark:")
+var bookmarkKey = "bookmark:"
 
 type Bookmark struct {
 	CharOffset int `json:"char_offset"`
 }
 
-func (db *DB) SetBookmark(bookID string, mark Bookmark) error {
+func (db *DB) SetBookmark(shelfPath, bookID string, mark Bookmark) error {
 	bs, err := json.Marshal(mark)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
 	err = db.db.Update(func(txn *badger.Txn) error {
-		return txn.Set(append(bookmarkKeyPrefix, []byte(bookID)...), bs)
+		key := fmt.Sprintf("%s:%s:%s", bookmarkKey, shelfPath, bookID)
+		return txn.Set([]byte(key), bs)
 	})
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -28,10 +30,11 @@ func (db *DB) SetBookmark(bookID string, mark Bookmark) error {
 	return nil
 }
 
-func (db *DB) GetBookmark(bookID string) (Bookmark, error) {
+func (db *DB) GetBookmark(shelfPath, bookID string) (Bookmark, error) {
 	var mark Bookmark
 	err := db.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(append(bookmarkKeyPrefix, []byte(bookID)...))
+		key := fmt.Sprintf("%s:%s:%s", bookmarkKey, shelfPath, bookID)
+		item, err := txn.Get([]byte(key))
 		if err != nil {
 			return err
 		}

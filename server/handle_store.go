@@ -17,7 +17,7 @@ func (app *App) HandleAPIGetMarks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mark, err := app.storeDB.GetBookmark(bookID)
+	mark, err := app.storeDB.GetBookmark(app.conf.Shelfs[0].LibRoot, bookID)
 	if err != nil {
 		app.Error("failed to get marks", "error", err)
 		http.Error(w, "failed to get marks", http.StatusInternalServerError)
@@ -55,7 +55,7 @@ func (app *App) HandleAPIUpdateMarks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = app.storeDB.SetBookmark(bookID, mark)
+	err = app.storeDB.SetBookmark(app.conf.Shelfs[0].LibRoot, bookID, mark)
 	if err != nil {
 		app.Error("failed to update marks", "error", err)
 		http.Error(w, "failed to update marks", http.StatusInternalServerError)
@@ -67,7 +67,7 @@ func (app *App) HandleAPIUpdateMarks(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/read_history
 func (app *App) HandleAPIGetReadHistory(w http.ResponseWriter, r *http.Request) {
-	history, err := app.storeDB.GetReadHistory()
+	history, err := app.storeDB.GetReadHistory(app.conf.Shelfs[0].LibRoot)
 	if err != nil {
 		app.Error("failed to get read history", "error", err)
 		http.Error(w, "failed to get read history", http.StatusInternalServerError)
@@ -91,7 +91,7 @@ func (app *App) HandleAPIUpdateReadHistory(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	err := app.storeDB.AddToReadHistory(bookID)
+	err := app.storeDB.AddToReadHistory(app.conf.Shelfs[0].LibRoot, bookID)
 	if err != nil {
 		app.Error("failed to update read history", "error", err)
 		http.Error(w, "failed to update read history", http.StatusInternalServerError)
@@ -103,7 +103,7 @@ func (app *App) HandleAPIUpdateReadHistory(w http.ResponseWriter, r *http.Reques
 
 // DELETE /api/read_history
 func (app *App) HandleAPIClearReadHistory(w http.ResponseWriter, r *http.Request) {
-	err := app.storeDB.SetReadHistory([]string{})
+	err := app.storeDB.SetReadHistory(app.conf.Shelfs[0].LibRoot, []string{})
 	if err != nil {
 		app.Error("failed to clear read history", "error", err)
 		http.Error(w, "failed to clear read history", http.StatusInternalServerError)

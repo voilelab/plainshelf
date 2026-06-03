@@ -2,17 +2,19 @@ package store
 
 import (
 	"encoding/json"
+	"fmt"
 
 	badger "github.com/dgraph-io/badger/v4"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-var readHistoryKey = []byte("read_history")
+var readHistoryKey = "read_history"
 
-func (db *DB) GetReadHistory() ([]string, error) {
+func (db *DB) GetReadHistory(shelfPath string) ([]string, error) {
 	var history []string
 	err := db.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(readHistoryKey)
+		historyKey := fmt.Sprintf("%s:%s", readHistoryKey, shelfPath)
+		item, err := txn.Get([]byte(historyKey))
 		if err != nil {
 			return err
 		}
@@ -29,7 +31,7 @@ func (db *DB) GetReadHistory() ([]string, error) {
 	return history, nil
 }
 
-func (db *DB) SetReadHistory(history []string) error {
+func (db *DB) SetReadHistory(shelfPath string, history []string) error {
 	if len(history) > db.readHistoryLimit {
 		history = history[:db.readHistoryLimit]
 	}
@@ -40,7 +42,8 @@ func (db *DB) SetReadHistory(history []string) error {
 	}
 
 	err = db.db.Update(func(txn *badger.Txn) error {
-		return txn.Set(readHistoryKey, bs)
+		historyKey := fmt.Sprintf("%s:%s", readHistoryKey, shelfPath)
+		return txn.Set([]byte(historyKey), bs)
 	})
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -48,8 +51,8 @@ func (db *DB) SetReadHistory(history []string) error {
 	return nil
 }
 
-func (db *DB) AddToReadHistory(bookID string) error {
-	history, err := db.GetReadHistory()
+func (db *DB) AddToReadHistory(shelfPath string, bookID string) error {
+	history, err := db.GetReadHistory(shelfPath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -67,5 +70,5 @@ func (db *DB) AddToReadHistory(bookID string) error {
 		newHistory = newHistory[:db.readHistoryLimit]
 	}
 
-	return db.SetReadHistory(newHistory)
+	return db.SetReadHistory(shelfPath, newHistory)
 }
