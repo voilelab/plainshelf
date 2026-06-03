@@ -10,10 +10,10 @@ import (
 
 var readHistoryKey = "read_history"
 
-func (db *DB) GetReadHistory(shelfPath string) ([]string, error) {
+func (db *DB) GetReadHistory(shelfID string) ([]string, error) {
 	var history []string
 	err := db.db.View(func(txn *badger.Txn) error {
-		historyKey := fmt.Sprintf("%s:%s", readHistoryKey, shelfPath)
+		historyKey := fmt.Sprintf("%s:%s", readHistoryKey, shelfID)
 		item, err := txn.Get([]byte(historyKey))
 		if err != nil {
 			return err
@@ -31,7 +31,7 @@ func (db *DB) GetReadHistory(shelfPath string) ([]string, error) {
 	return history, nil
 }
 
-func (db *DB) SetReadHistory(shelfPath string, history []string) error {
+func (db *DB) SetReadHistory(shelfID string, history []string) error {
 	if len(history) > db.readHistoryLimit {
 		history = history[:db.readHistoryLimit]
 	}
@@ -42,7 +42,7 @@ func (db *DB) SetReadHistory(shelfPath string, history []string) error {
 	}
 
 	err = db.db.Update(func(txn *badger.Txn) error {
-		historyKey := fmt.Sprintf("%s:%s", readHistoryKey, shelfPath)
+		historyKey := fmt.Sprintf("%s:%s", readHistoryKey, shelfID)
 		return txn.Set([]byte(historyKey), bs)
 	})
 	if err != nil {
@@ -51,8 +51,8 @@ func (db *DB) SetReadHistory(shelfPath string, history []string) error {
 	return nil
 }
 
-func (db *DB) AddToReadHistory(shelfPath string, bookID string) error {
-	history, err := db.GetReadHistory(shelfPath)
+func (db *DB) AddToReadHistory(shelfID string, bookID string) error {
+	history, err := db.GetReadHistory(shelfID)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -70,5 +70,5 @@ func (db *DB) AddToReadHistory(shelfPath string, bookID string) error {
 		newHistory = newHistory[:db.readHistoryLimit]
 	}
 
-	return db.SetReadHistory(shelfPath, newHistory)
+	return db.SetReadHistory(shelfID, newHistory)
 }

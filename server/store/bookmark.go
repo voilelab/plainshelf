@@ -14,14 +14,14 @@ type Bookmark struct {
 	CharOffset int `json:"char_offset"`
 }
 
-func (db *DB) SetBookmark(shelfPath, bookID string, mark Bookmark) error {
+func (db *DB) SetBookmark(shelfID, bookID string, mark Bookmark) error {
 	bs, err := json.Marshal(mark)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
 	err = db.db.Update(func(txn *badger.Txn) error {
-		key := fmt.Sprintf("%s:%s:%s", bookmarkKey, shelfPath, bookID)
+		key := fmt.Sprintf("%s:%s:%s", bookmarkKey, shelfID, bookID)
 		return txn.Set([]byte(key), bs)
 	})
 	if err != nil {
@@ -30,10 +30,10 @@ func (db *DB) SetBookmark(shelfPath, bookID string, mark Bookmark) error {
 	return nil
 }
 
-func (db *DB) GetBookmark(shelfPath, bookID string) (Bookmark, error) {
+func (db *DB) GetBookmark(shelfID, bookID string) (Bookmark, error) {
 	var mark Bookmark
 	err := db.db.View(func(txn *badger.Txn) error {
-		key := fmt.Sprintf("%s:%s:%s", bookmarkKey, shelfPath, bookID)
+		key := fmt.Sprintf("%s:%s:%s", bookmarkKey, shelfID, bookID)
 		item, err := txn.Get([]byte(key))
 		if err != nil {
 			return err

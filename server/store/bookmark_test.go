@@ -16,8 +16,8 @@ func newTestDB(t *testing.T) *DB {
 
 func TestGetBookmark_NotFound(t *testing.T) {
 	db := newTestDB(t)
-	dbDir := t.TempDir()
-	mark, err := db.GetBookmark(dbDir, "missing")
+	dbID := "test_shelf"
+	mark, err := db.GetBookmark(dbID, "missing")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -28,11 +28,11 @@ func TestGetBookmark_NotFound(t *testing.T) {
 
 func TestSetBookmark(t *testing.T) {
 	db := newTestDB(t)
-	dbDir := t.TempDir()
-	if err := db.SetBookmark(dbDir, "book1", Bookmark{CharOffset: 42}); err != nil {
+	dbID := "test_shelf"
+	if err := db.SetBookmark(dbID, "book1", Bookmark{CharOffset: 42}); err != nil {
 		t.Fatalf("SetBookmark: %v", err)
 	}
-	mark, err := db.GetBookmark(dbDir, "book1")
+	mark, err := db.GetBookmark(dbID, "book1")
 	if err != nil {
 		t.Fatalf("GetBookmark: %v", err)
 	}
@@ -43,12 +43,12 @@ func TestSetBookmark(t *testing.T) {
 
 func TestSet_OverwriteBookmark(t *testing.T) {
 	db := newTestDB(t)
-	dbDir := t.TempDir()
-	db.SetBookmark(dbDir, "book1", Bookmark{CharOffset: 10})
-	if err := db.SetBookmark(dbDir, "book1", Bookmark{CharOffset: 99}); err != nil {
+	dbID := "test_shelf"
+	db.SetBookmark(dbID, "book1", Bookmark{CharOffset: 10})
+	if err := db.SetBookmark(dbID, "book1", Bookmark{CharOffset: 99}); err != nil {
 		t.Fatalf("SetBookmark: %v", err)
 	}
-	mark, err := db.GetBookmark(dbDir, "book1")
+	mark, err := db.GetBookmark(dbID, "book1")
 	if err != nil {
 		t.Fatalf("GetBookmark: %v", err)
 	}
@@ -60,14 +60,14 @@ func TestSet_OverwriteBookmark(t *testing.T) {
 func TestSet_MultipleBooks(t *testing.T) {
 	db := newTestDB(t)
 	books := map[string]int{"a": 1, "b": 2, "c": 3}
-	dbDir := t.TempDir()
+	dbID := "test_shelf"
 	for id, pos := range books {
-		if err := db.SetBookmark(dbDir, id, Bookmark{CharOffset: pos}); err != nil {
+		if err := db.SetBookmark(dbID, id, Bookmark{CharOffset: pos}); err != nil {
 			t.Fatalf("SetBookmark %q: %v", id, err)
 		}
 	}
 	for id, want := range books {
-		got, err := db.GetBookmark(dbDir, id)
+		got, err := db.GetBookmark(dbID, id)
 		if err != nil {
 			t.Fatalf("Get %q: %v", id, err)
 		}

@@ -18,12 +18,12 @@ func TestGetReadHistory_NotFound(t *testing.T) {
 
 func TestSetReadHistory(t *testing.T) {
 	db := newTestDB(t)
-	dbDir := t.TempDir()
+	dbID := "test_shelf"
 	history := []string{"book1", "book2", "book3"}
-	if err := db.SetReadHistory(dbDir, history); err != nil {
+	if err := db.SetReadHistory(dbID, history); err != nil {
 		t.Fatalf("SetReadHistory: %v", err)
 	}
-	got, err := db.GetReadHistory(dbDir)
+	got, err := db.GetReadHistory(dbID)
 	if err != nil {
 		t.Fatalf("GetReadHistory: %v", err)
 	}
@@ -40,17 +40,17 @@ func TestSetReadHistory(t *testing.T) {
 
 func TestAddToReadHistory(t *testing.T) {
 	db := newTestDB(t)
-	dbDir := t.TempDir()
-	if err := db.AddToReadHistory(dbDir, "book1"); err != nil {
+	dbID := "test_shelf"
+	if err := db.AddToReadHistory(dbID, "book1"); err != nil {
 		t.Fatalf("AddToReadHistory: %v", err)
 	}
-	if err := db.AddToReadHistory(dbDir, "book2"); err != nil {
+	if err := db.AddToReadHistory(dbID, "book2"); err != nil {
 		t.Fatalf("AddToReadHistory: %v", err)
 	}
-	if err := db.AddToReadHistory(dbDir, "book1"); err != nil {
+	if err := db.AddToReadHistory(dbID, "book1"); err != nil {
 		t.Fatalf("AddToReadHistory: %v", err)
 	}
-	history, err := db.GetReadHistory(dbDir)
+	history, err := db.GetReadHistory(dbID)
 	if err != nil {
 		t.Fatalf("GetReadHistory: %v", err)
 	}
@@ -67,14 +67,14 @@ func TestAddToReadHistory(t *testing.T) {
 
 func TestAddToReadHistory_ExceedLimit(t *testing.T) {
 	db := newTestDB(t)
-	dbDir := t.TempDir()
+	dbID := "test_shelf"
 	for i := 1; i <= 150; i++ {
 		bookID := fmt.Sprintf("book%d", i)
-		if err := db.AddToReadHistory(dbDir, bookID); err != nil {
+		if err := db.AddToReadHistory(dbID, bookID); err != nil {
 			t.Fatalf("AddToReadHistory: %v", err)
 		}
 	}
-	history, err := db.GetReadHistory(dbDir)
+	history, err := db.GetReadHistory(dbID)
 	if err != nil {
 		t.Fatalf("GetReadHistory: %v", err)
 	}
