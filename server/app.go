@@ -28,12 +28,13 @@ type App struct {
 }
 
 type AppConf struct {
-	Logger           logutil.LogConf   `yaml:"logger"`
-	Shelfs           []shelf.ShelfConf `yaml:"shelfs"`
-	StorePath        string            `yaml:"store_path"`
-	CoverToJPG       bool              `yaml:"cover_to_jpg"`
-	ReadHistoryLimit int               `yaml:"read_history_limit"`
-	Security         *SecurityConf     `yaml:"security"`
+	Logger           logutil.LogConf    `yaml:"logger"`
+	Shelf            *shelf.ShelfConf   `yaml:"shelf,omitempty"`
+	Shelfs           []*shelf.ShelfConf `yaml:"shelfs"`
+	StorePath        string             `yaml:"store_path"`
+	CoverToJPG       bool               `yaml:"cover_to_jpg"`
+	ReadHistoryLimit int                `yaml:"read_history_limit"`
+	Security         *SecurityConf      `yaml:"security"`
 }
 
 func NewApp(conf *AppConf) (*App, error) {
@@ -69,8 +70,16 @@ func NewApp(conf *AppConf) (*App, error) {
 		}
 	}()
 
+	if conf.Shelf != nil {
+		s, err := shelf.NewShelf(conf.Shelf)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+		shelfs = append(shelfs, *s)
+	}
+
 	for _, conf := range conf.Shelfs {
-		s, err := shelf.NewShelf(&conf)
+		s, err := shelf.NewShelf(conf)
 		if err != nil {
 			return nil, util.Errorf("%w", err)
 		}

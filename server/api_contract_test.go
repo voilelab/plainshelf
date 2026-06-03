@@ -62,7 +62,7 @@ func newAPITestEnv(t *testing.T) *apiTestEnv {
 	t.Helper()
 
 	app, err := NewApp(&AppConf{
-		Shelfs: []shelf.ShelfConf{
+		Shelfs: []*shelf.ShelfConf{
 			{
 				LibRoot: t.TempDir(),
 			},
@@ -216,7 +216,7 @@ func TestAPIGetLogsContract(t *testing.T) {
 				Filename: appLogFile,
 			},
 		},
-		Shelfs: []shelf.ShelfConf{
+		Shelfs: []*shelf.ShelfConf{
 			{
 				Logger: logutil.LogConf{
 					LogFile: logutil.LogFileConf{
@@ -285,7 +285,7 @@ func TestAPIGetLogContentContract(t *testing.T) {
 				Prefix: "app",
 			},
 		},
-		Shelfs: []shelf.ShelfConf{
+		Shelfs: []*shelf.ShelfConf{
 			{
 				LibRoot: t.TempDir(),
 			},
@@ -372,7 +372,7 @@ func TestAPIStreamContentReturns200ForEmptyFilesInWails(t *testing.T) {
 
 	logDir := t.TempDir()
 	logApp, err := NewApp(&AppConf{
-		Shelfs: []shelf.ShelfConf{
+		Shelfs: []*shelf.ShelfConf{
 			{
 				Logger: logutil.LogConf{
 					LogFile: logutil.LogFileConf{

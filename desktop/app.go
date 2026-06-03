@@ -167,7 +167,7 @@ func (a *DesktopApp) startServer() error {
 				Prefix: "app",
 			},
 		},
-		Shelfs: []shelf.ShelfConf{
+		Shelfs: []*shelf.ShelfConf{
 			{
 				Logger: logutil.LogConf{
 					Level:  "info",
