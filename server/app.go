@@ -15,10 +15,12 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
+const defaultShelfID = "default_shelf"
+
 type App struct {
 	logutil.Logger
 
-	shelfs     []shelf.Shelf
+	shelfs     map[string]*shelf.Shelf
 	storeDB    *store.DB
 	spaFS      fs.FS
 	spaHandler http.Handler
@@ -27,10 +29,15 @@ type App struct {
 	security *Security
 }
 
+type ShelfConfWithID struct {
+	ID              string `yaml:"id"`
+	shelf.ShelfConf `yaml:",inline"`
+}
+
 type AppConf struct {
 	Logger           logutil.LogConf    `yaml:"logger"`
-	Shelf            *shelf.ShelfConf   `yaml:"shelf,omitempty"`
-	Shelfs           []*shelf.ShelfConf `yaml:"shelfs"`
+	Shelf            *shelf.ShelfConf   `yaml:"shelf"` // remove after migration
+	Shelfs           []*ShelfConfWithID `yaml:"shelfs"`
 	StorePath        string             `yaml:"store_path"`
 	CoverToJPG       bool               `yaml:"cover_to_jpg"`
 	ReadHistoryLimit int                `yaml:"read_history_limit"`
@@ -61,7 +68,7 @@ func NewApp(conf *AppConf) (*App, error) {
 		}
 	}()
 
-	var shelfs []shelf.Shelf
+	shelfs := make(map[string]*shelf.Shelf)
 	defer func() {
 		if failure {
 			for _, s := range shelfs {
@@ -75,19 +82,27 @@ func NewApp(conf *AppConf) (*App, error) {
 		if err != nil {
 			return nil, util.Errorf("%w", err)
 		}
-		shelfs = append(shelfs, *s)
+		shelfs[defaultShelfID] = s
 	}
 
 	for _, conf := range conf.Shelfs {
-		s, err := shelf.NewShelf(conf)
+		s, err := shelf.NewShelf(&conf.ShelfConf)
 		if err != nil {
 			return nil, util.Errorf("%w", err)
 		}
-		shelfs = append(shelfs, *s)
+		if conf.ID == "" {
+			return nil, util.Errorf("shelf ID cannot be empty")
+		}
+
+		if _, exists := shelfs[conf.ID]; exists {
+			return nil, util.Errorf("duplicate shelf ID: %q", conf.ID)
+		}
+
+		shelfs[conf.ID] = s
 	}
 
-	if len(shelfs) == 0 {
-		return nil, util.Errorf("at least one shelf must be configured")
+	if _, exists := shelfs[defaultShelfID]; !exists {
+		return nil, util.Errorf("a shelf with ID %q must be configured", defaultShelfID)
 	}
 
 	storeDB, err := store.New(conf.StorePath, conf.ReadHistoryLimit)
