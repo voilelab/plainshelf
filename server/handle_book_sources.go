@@ -18,7 +18,7 @@ func (app *App) HandleAPIGetBookSources(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	book, err := app.shelf.GetBook(bookID)
+	book, err := app.shelfs[0].GetBook(bookID)
 	if err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
@@ -64,7 +64,7 @@ func (app *App) HandleAPIGetBookSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	book, err := app.shelf.GetBook(bookID)
+	book, err := app.shelfs[0].GetBook(bookID)
 	if err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
@@ -103,7 +103,7 @@ func (app *App) HandleAPICreateBookSource(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	book, err := app.shelf.GetBook(bookID)
+	book, err := app.shelfs[0].GetBook(bookID)
 	if err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
@@ -144,7 +144,7 @@ func (app *App) HandleAPIDeleteBookSource(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	book, err := app.shelf.GetBook(bookID)
+	book, err := app.shelfs[0].GetBook(bookID)
 	if err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
@@ -183,7 +183,7 @@ func (app *App) HandleAPISetCurrentBookSource(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	book, err := app.shelf.GetBook(bookID)
+	book, err := app.shelfs[0].GetBook(bookID)
 	if err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
@@ -229,7 +229,7 @@ func (app *App) HandleAPIGetBookSourceContent(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	book, err := app.shelf.GetBook(bookID)
+	book, err := app.shelfs[0].GetBook(bookID)
 	if err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
@@ -286,7 +286,7 @@ func (app *App) HandleAPIUpdateBookSourceContent(w http.ResponseWriter, r *http.
 		return
 	}
 
-	book, err := app.shelf.GetBook(bookID)
+	book, err := app.shelfs[0].GetBook(bookID)
 	if err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)

@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -94,6 +95,12 @@ func collectLogSources(v reflect.Value, prefix string, sources *[]logutil.Source
 		})
 		return
 	}
+	if v.Kind() == reflect.Slice || v.Kind() == reflect.Array {
+		for i := 0; i < v.Len(); i++ {
+			collectLogSources(v.Index(i), indexedLogSource(prefix, i), sources)
+		}
+		return
+	}
 	if v.Kind() != reflect.Struct {
 		return
 	}
@@ -117,6 +124,10 @@ func joinLogSource(prefix, name string) string {
 		return name
 	}
 	return prefix + "." + name
+}
+
+func indexedLogSource(prefix string, index int) string {
+	return fmt.Sprintf("%s[%d]", prefix, index)
 }
 
 func logSourceFieldName(field reflect.StructField) string {

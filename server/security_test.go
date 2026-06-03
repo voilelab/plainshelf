@@ -12,8 +12,10 @@ import (
 func newSecurityTestEnv(t *testing.T, conf *SecurityConf) *apiTestEnv {
 	t.Helper()
 	app, err := NewApp(&AppConf{
-		Shelf: &shelf.ShelfConf{
-			LibRoot: t.TempDir(),
+		Shelfs: []shelf.ShelfConf{
+			{
+				LibRoot: t.TempDir(),
+			},
 		},
 		StorePath:        t.TempDir(),
 		CoverToJPG:       false,

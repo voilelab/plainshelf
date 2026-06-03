@@ -121,7 +121,7 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	}
 	layerParts := parseImportLayerParts(r.FormValue("layer"))
 
-	newBook, err := app.shelf.NewBook(layerParts, title)
+	newBook, err := app.shelfs[0].NewBook(layerParts, title)
 	if err != nil {
 		app.Error("failed to create new book", "error", err)
 		http.Error(w, "failed to create new book", http.StatusInternalServerError)
@@ -170,7 +170,7 @@ func (app *App) ImportFromLocalPath(localPath string, layerParts shelf.Layers) (
 		return nil, util.Errorf("%w", err)
 	}
 
-	newBook, err := app.shelf.NewBook(layerParts, filepath.Base(cleanPath))
+	newBook, err := app.shelfs[0].NewBook(layerParts, filepath.Base(cleanPath))
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

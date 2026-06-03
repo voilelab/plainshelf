@@ -18,7 +18,7 @@ import (
 type App struct {
 	logutil.Logger
 
-	shelf      *shelf.Shelf
+	shelfs     []shelf.Shelf
 	storeDB    *store.DB
 	spaFS      fs.FS
 	spaHandler http.Handler
@@ -28,12 +28,12 @@ type App struct {
 }
 
 type AppConf struct {
-	Logger           logutil.LogConf  `yaml:"logger"`
-	Shelf            *shelf.ShelfConf `yaml:"shelf"`
-	StorePath        string           `yaml:"store_path"`
-	CoverToJPG       bool             `yaml:"cover_to_jpg"`
-	ReadHistoryLimit int              `yaml:"read_history_limit"`
-	Security         *SecurityConf    `yaml:"security"`
+	Logger           logutil.LogConf   `yaml:"logger"`
+	Shelfs           []shelf.ShelfConf `yaml:"shelfs"`
+	StorePath        string            `yaml:"store_path"`
+	CoverToJPG       bool              `yaml:"cover_to_jpg"`
+	ReadHistoryLimit int               `yaml:"read_history_limit"`
+	Security         *SecurityConf     `yaml:"security"`
 }
 
 func NewApp(conf *AppConf) (*App, error) {
@@ -46,27 +46,50 @@ func NewApp(conf *AppConf) (*App, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
+	// Set to true to ensure that if any initialization step fails,
+	// all previously initialized resources will be properly closed.
+	failure := true
+
 	logger, err := logutil.NewLogger(&conf.Logger)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
+	defer func() {
+		if failure {
+			logger.Close()
+		}
+	}()
 
-	s, err := shelf.NewShelf(conf.Shelf)
-	if err != nil {
-		logger.Close()
-		return nil, util.Errorf("%w", err)
+	var shelfs []shelf.Shelf
+	defer func() {
+		if failure {
+			for _, s := range shelfs {
+				s.Close()
+			}
+		}
+	}()
+
+	for _, conf := range conf.Shelfs {
+		s, err := shelf.NewShelf(&conf)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+		shelfs = append(shelfs, *s)
+	}
+
+	if len(shelfs) == 0 {
+		return nil, util.Errorf("at least one shelf must be configured")
 	}
 
 	storeDB, err := store.New(conf.StorePath, conf.ReadHistoryLimit)
 	if err != nil {
-		s.Close()
-		logger.Close()
 		return nil, util.Errorf("%w", err)
 	}
 
+	failure = false
 	return &App{
 		Logger:     *logger,
-		shelf:      s,
+		shelfs:     shelfs,
 		storeDB:    storeDB,
 		spaFS:      frontend.WebFS,
 		spaHandler: http.FileServerFS(frontend.WebFS),
@@ -81,7 +104,12 @@ func (app *App) Start() error {
 
 func (app *App) Close() error {
 	err1 := app.storeDB.Close()
-	err2 := app.shelf.Close()
+	var err2 error
+	for _, s := range app.shelfs {
+		if e := s.Close(); e != nil {
+			err2 = errors.Join(err2, e)
+		}
+	}
 	err3 := app.Logger.Close()
 
 	err := errors.Join(err1, err2, err3)
