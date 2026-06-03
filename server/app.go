@@ -17,10 +17,16 @@ import (
 
 const defaultShelfID = "default_shelf"
 
+type ShelfData struct {
+	ID   string
+	Name string
+	*shelf.Shelf
+}
+
 type App struct {
 	logutil.Logger
 
-	shelves    map[string]*shelf.Shelf
+	shelves    map[string]*ShelfData
 	storeDB    *store.DB
 	spaFS      fs.FS
 	spaHandler http.Handler
@@ -30,7 +36,14 @@ type App struct {
 }
 
 type ShelfConfWithID struct {
-	ID              string `yaml:"id"`
+	// ID is a unique identifier for the shelf. It should be uri-safe as it may be used in URLs.
+	// It is used in the API to specify which shelf to use.
+	ID string `yaml:"id"`
+
+	// Name is a human-readable name for the shelf.
+	// If not provided, it will default to the same value as ID.
+	Name string `yaml:"name"`
+
 	shelf.ShelfConf `yaml:",inline"`
 }
 
@@ -68,7 +81,7 @@ func NewApp(conf *AppConf) (*App, error) {
 		}
 	}()
 
-	shelves := make(map[string]*shelf.Shelf)
+	shelves := make(map[string]*ShelfData)
 	defer func() {
 		if failure {
 			for _, s := range shelves {
@@ -82,7 +95,11 @@ func NewApp(conf *AppConf) (*App, error) {
 		if err != nil {
 			return nil, util.Errorf("%w", err)
 		}
-		shelves[defaultShelfID] = s
+		shelves[defaultShelfID] = &ShelfData{
+			ID:    defaultShelfID,
+			Name:  "Default Shelf",
+			Shelf: s,
+		}
 	}
 
 	for _, conf := range conf.Shelves {
@@ -98,7 +115,15 @@ func NewApp(conf *AppConf) (*App, error) {
 			return nil, util.Errorf("duplicate shelf ID: %q", conf.ID)
 		}
 
-		shelves[conf.ID] = s
+		if conf.Name == "" {
+			conf.Name = conf.ID
+		}
+
+		shelves[conf.ID] = &ShelfData{
+			ID:    conf.ID,
+			Name:  conf.Name,
+			Shelf: s,
+		}
 	}
 
 	if _, exists := shelves[defaultShelfID]; !exists {
@@ -213,6 +238,10 @@ func (app *App) injectSecurityBootstrap(data []byte) []byte {
 
 func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /health", app.Health)
+
+	// Shelf API
+
+	mux.HandleFunc("GET /api/shelves", app.HandleGetShelves)
 
 	// Book API
 
