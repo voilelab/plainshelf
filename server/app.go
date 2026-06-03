@@ -253,12 +253,12 @@ func (app *App) Serve(mux *http.ServeMux) {
 
 	// Store API
 
-	mux.HandleFunc("GET /api/marks/{book_id}", app.HandleAPIGetMarks)
-	mux.HandleFunc("POST /api/marks/{book_id}", app.HandleAPIUpdateMarks)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/marks/{book_id}", app.HandleAPIGetMarks)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/marks/{book_id}", app.HandleAPIUpdateMarks)
 
-	mux.HandleFunc("GET /api/read_history", app.HandleAPIGetReadHistory)
-	mux.HandleFunc("POST /api/read_history", app.HandleAPIUpdateReadHistory)
-	mux.HandleFunc("DELETE /api/read_history", app.HandleAPIClearReadHistory)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/read_history", app.HandleAPIGetReadHistory)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/read_history", app.HandleAPIUpdateReadHistory)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/read_history", app.HandleAPIClearReadHistory)
 
 	// Log API
 

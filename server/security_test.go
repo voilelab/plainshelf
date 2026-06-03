@@ -56,15 +56,15 @@ func TestSecurityLocalTokenProtectsMutatingAPI(t *testing.T) {
 	rec = env.doRaw(httptest.NewRequest(http.MethodGet, "/api/books", nil))
 	assertStatus(t, rec, http.StatusOK)
 
-	rec = env.doRaw(httptest.NewRequest(http.MethodPost, "/api/read_history?book_id=book-1", nil))
+	rec = env.doRaw(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id=book-1", nil))
 	assertStatus(t, rec, http.StatusUnauthorized)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/read_history?book_id=book-1", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id=book-1", nil)
 	req.Header.Set(env.app.SecurityTokenHeader(), "wrong-token")
 	rec = env.doRaw(req)
 	assertStatus(t, rec, http.StatusUnauthorized)
 
-	req = httptest.NewRequest(http.MethodPost, "/api/read_history?book_id=book-1", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id=book-1", nil)
 	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
 	rec = env.doRaw(req)
 	assertStatus(t, rec, http.StatusNoContent)
@@ -77,7 +77,7 @@ func TestSecurityOriginAndCORS(t *testing.T) {
 		AllowedOrigins:              []string{"http://localhost:20000"},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/read_history?book_id=book-1", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id=book-1", nil)
 	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
 	req.Header.Set("Origin", "http://evil.example")
 	rec := env.doRaw(req)
@@ -86,7 +86,7 @@ func TestSecurityOriginAndCORS(t *testing.T) {
 		t.Fatalf("disallowed CORS origin header = %q, want empty", got)
 	}
 
-	req = httptest.NewRequest(http.MethodPost, "/api/read_history?book_id=book-1", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id=book-1", nil)
 	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
 	req.Header.Set("Origin", "http://localhost:20000")
 	rec = env.doRaw(req)
@@ -95,13 +95,13 @@ func TestSecurityOriginAndCORS(t *testing.T) {
 		t.Fatalf("allowed CORS origin header = %q, want http://localhost:20000", got)
 	}
 
-	req = httptest.NewRequest(http.MethodPost, "/api/read_history?book_id=book-2", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id=book-2", nil)
 	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
 	req.Header.Set("Referer", "http://localhost:20000/books")
 	rec = env.doRaw(req)
 	assertStatus(t, rec, http.StatusNoContent)
 
-	req = httptest.NewRequest(http.MethodOptions, "/api/read_history", nil)
+	req = httptest.NewRequest(http.MethodOptions, "/api/shelves/default_shelf/read_history", nil)
 	req.Header.Set("Origin", "http://localhost:20000")
 	req.Header.Set("Access-Control-Request-Method", "POST")
 	rec = env.doRaw(req)

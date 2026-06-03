@@ -619,7 +619,7 @@ func TestAPICoverContract(t *testing.T) {
 func TestAPIStoreContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Store Me", "", "store.txt", "body")
-	marksURL := "/api/marks/" + created.Meta.ID
+	marksURL := "/api/shelves/default_shelf/marks/" + created.Meta.ID
 
 	rec := env.do(httptest.NewRequest(http.MethodGet, marksURL, nil))
 	assertStatus(t, rec, http.StatusOK)
@@ -641,27 +641,27 @@ func TestAPIStoreContract(t *testing.T) {
 	rec = env.do(httptest.NewRequest(http.MethodPost, marksURL, strings.NewReader(`{"char_offset":123,"extra":true}`)))
 	assertStatus(t, rec, http.StatusBadRequest)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/read_history", nil))
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/read_history", nil))
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
 	if history := decodeJSON[[]string](t, rec); len(history) != 0 {
 		t.Fatalf("initial read history = %#v, want empty", history)
 	}
 
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/read_history", nil))
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history", nil))
 	assertStatus(t, rec, http.StatusBadRequest)
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/read_history?book_id="+created.Meta.ID, nil))
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id="+created.Meta.ID, nil))
 	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/read_history", nil))
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/read_history", nil))
 	assertStatus(t, rec, http.StatusOK)
 	history := decodeJSON[[]string](t, rec)
 	if len(history) != 1 || history[0] != created.Meta.ID {
 		t.Fatalf("read history = %#v, want [%s]", history, created.Meta.ID)
 	}
 
-	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/read_history", nil))
+	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/shelves/default_shelf/read_history", nil))
 	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/read_history", nil))
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/read_history", nil))
 	assertStatus(t, rec, http.StatusOK)
 	if history = decodeJSON[[]string](t, rec); len(history) != 0 {
 		t.Fatalf("cleared read history = %#v, want empty", history)
