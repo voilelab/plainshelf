@@ -8,7 +8,7 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-var bookmarkKey = "bookmark:"
+const bookmarkKey = "bookmark"
 
 type Bookmark struct {
 	CharOffset int `json:"char_offset"`
