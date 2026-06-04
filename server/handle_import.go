@@ -189,7 +189,7 @@ func (app *App) ImportFromLocalPath(shelfID string, localPath string, layerParts
 
 	shelfData, ok := app.shelves[targetShelfID]
 	if !ok {
-		return nil, util.NewError("shelf not found")
+		return nil, util.Errorf("shelf not found: %s", targetShelfID)
 	}
 
 	newBook, err := shelfData.NewBook(layerParts, filepath.Base(cleanPath))
