@@ -62,8 +62,13 @@ func newAPITestEnv(t *testing.T) *apiTestEnv {
 	t.Helper()
 
 	app, err := NewApp(&AppConf{
-		Shelf: &shelf.ShelfConf{
-			LibRoot: t.TempDir(),
+		Shelves: []*ShelfConfWithID{
+			{
+				ID: "default_shelf",
+				ShelfConf: shelf.ShelfConf{
+					LibRoot: t.TempDir(),
+				},
+			},
 		},
 		StorePath:        t.TempDir(),
 		CoverToJPG:       false,
@@ -154,7 +159,7 @@ func importTextBook(t *testing.T, env *apiTestEnv, title, layer, filename, body 
 		t.Fatalf("Close multipart writer: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/books/import", &buf)
+	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/import", &buf)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	rec := env.do(req)
 	assertStatus(t, rec, http.StatusCreated)
@@ -165,7 +170,7 @@ func importTextBook(t *testing.T, env *apiTestEnv, title, layer, filename, body 
 func TestAPIGetBooksContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/books", nil))
+	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
 	if got := decodeJSON[[]Book](t, rec); len(got) != 0 {
@@ -176,10 +181,10 @@ func TestAPIGetBooksContract(t *testing.T) {
 	_ = importTextBook(t, env, "Beta Notes", "/notes", "beta.txt", "beta body")
 
 	patchBody := `{"authors":["Ada"],"tags":["contract","api"],"language":"en","comment":"needle comment"}`
-	rec = env.do(httptest.NewRequest(http.MethodPatch, "/api/books/"+alpha.Meta.ID, strings.NewReader(patchBody)))
+	rec = env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+alpha.Meta.ID, strings.NewReader(patchBody)))
 	assertStatus(t, rec, http.StatusOK)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/books?search=needle", nil))
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books?search=needle", nil))
 	assertStatus(t, rec, http.StatusOK)
 	books := decodeJSON[[]Book](t, rec)
 	if len(books) != 1 {
@@ -214,15 +219,20 @@ func TestAPIGetLogsContract(t *testing.T) {
 				Filename: appLogFile,
 			},
 		},
-		Shelf: &shelf.ShelfConf{
-			Logger: logutil.LogConf{
-				LogFile: logutil.LogFileConf{
-					Type:   logutil.LogFileTypeNameRotate,
-					Dir:    shelfLogDir,
-					Prefix: "shelf",
+		Shelves: []*ShelfConfWithID{
+			{
+				ID: "default_shelf",
+				ShelfConf: shelf.ShelfConf{
+					Logger: logutil.LogConf{
+						LogFile: logutil.LogFileConf{
+							Type:   logutil.LogFileTypeNameRotate,
+							Dir:    shelfLogDir,
+							Prefix: "shelf",
+						},
+					},
+					LibRoot: t.TempDir(),
 				},
 			},
-			LibRoot: t.TempDir(),
 		},
 		StorePath:        t.TempDir(),
 		CoverToJPG:       false,
@@ -266,7 +276,7 @@ func TestAPIGetLogsContract(t *testing.T) {
 	if logs[0].ID == "" || logs[0].Source != "logger" || logs[0].Filename != "app.log" || logs[0].Date == "" {
 		t.Fatalf("first log = %#v, want app logger entry", logs[0])
 	}
-	if logs[1].ID == "" || logs[1].Source != "shelf.logger" || logs[1].Filename != "shelf-2024-01-02.log" || logs[1].Date != "2024-01-02" {
+	if logs[1].ID == "" || logs[1].Source != "shelves[0].shelfconf.logger" || logs[1].Filename != "shelf-2024-01-02.log" || logs[1].Date != "2024-01-02" {
 		t.Fatalf("second log = %#v, want shelf logger entry", logs[1])
 	}
 }
@@ -281,8 +291,13 @@ func TestAPIGetLogContentContract(t *testing.T) {
 				Prefix: "app",
 			},
 		},
-		Shelf: &shelf.ShelfConf{
-			LibRoot: t.TempDir(),
+		Shelves: []*ShelfConfWithID{
+			{
+				ID: "default_shelf",
+				ShelfConf: shelf.ShelfConf{
+					LibRoot: t.TempDir(),
+				},
+			},
 		},
 		StorePath:        t.TempDir(),
 		CoverToJPG:       false,
@@ -339,13 +354,13 @@ func TestAPIStreamContentReturns200ForEmptyFilesInWails(t *testing.T) {
 	bookID := created.Meta.ID
 	sourceID := created.Meta.CurrentSource
 
-	updateReq := httptest.NewRequest(http.MethodPatch, "/api/books/"+bookID+"/sources/"+sourceID+"/content", strings.NewReader(""))
+	updateReq := httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+bookID+"/sources/"+sourceID+"/content", strings.NewReader(""))
 	updateReq.Header.Set("Content-Type", "text/plain; charset=utf-8")
 	updateRec := env.do(updateReq)
 	assertStatus(t, updateRec, http.StatusNoContent)
 
 	bookContentRec := newWailsLikeRecorder()
-	env.handler.ServeHTTP(bookContentRec, httptest.NewRequest(http.MethodGet, "/api/books/"+bookID+"/content", nil))
+	env.handler.ServeHTTP(bookContentRec, httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+bookID+"/content", nil))
 	assertWailsLikeStatus(t, bookContentRec, http.StatusOK)
 	if got := bookContentRec.header.Get("Content-Type"); got != "text/plain; charset=utf-8" {
 		t.Fatalf("book Content-Type = %q, want text/plain; charset=utf-8", got)
@@ -355,7 +370,7 @@ func TestAPIStreamContentReturns200ForEmptyFilesInWails(t *testing.T) {
 	}
 
 	sourceContentRec := newWailsLikeRecorder()
-	env.handler.ServeHTTP(sourceContentRec, httptest.NewRequest(http.MethodGet, "/api/books/"+bookID+"/sources/"+sourceID+"/content", nil))
+	env.handler.ServeHTTP(sourceContentRec, httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+bookID+"/sources/"+sourceID+"/content", nil))
 	assertWailsLikeStatus(t, sourceContentRec, http.StatusOK)
 	if got := sourceContentRec.header.Get("Content-Type"); got != "text/plain; charset=utf-8" {
 		t.Fatalf("source Content-Type = %q, want text/plain; charset=utf-8", got)
@@ -366,15 +381,20 @@ func TestAPIStreamContentReturns200ForEmptyFilesInWails(t *testing.T) {
 
 	logDir := t.TempDir()
 	logApp, err := NewApp(&AppConf{
-		Shelf: &shelf.ShelfConf{
-			Logger: logutil.LogConf{
-				LogFile: logutil.LogFileConf{
-					Type:   logutil.LogFileTypeNameRotate,
-					Dir:    logDir,
-					Prefix: "shelf",
+		Shelves: []*ShelfConfWithID{
+			{
+				ID: "default_shelf",
+				ShelfConf: shelf.ShelfConf{
+					Logger: logutil.LogConf{
+						LogFile: logutil.LogFileConf{
+							Type:   logutil.LogFileTypeNameRotate,
+							Dir:    logDir,
+							Prefix: "shelf",
+						},
+					},
+					LibRoot: t.TempDir(),
 				},
 			},
-			LibRoot: t.TempDir(),
 		},
 		StorePath:        t.TempDir(),
 		CoverToJPG:       false,
@@ -443,7 +463,7 @@ func TestAPIImportBookContract(t *testing.T) {
 	if err := writer.Close(); err != nil {
 		t.Fatalf("Close multipart writer: %v", err)
 	}
-	req := httptest.NewRequest(http.MethodPost, "/api/books/import", &buf)
+	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/import", &buf)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	rec := env.do(req)
 	assertStatus(t, rec, http.StatusBadRequest)
@@ -463,7 +483,7 @@ func TestAPIImportBookContract(t *testing.T) {
 	if err := writer.Close(); err != nil {
 		t.Fatalf("Close multipart writer: %v", err)
 	}
-	req = httptest.NewRequest(http.MethodPost, "/api/books/import", &buf)
+	req = httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/import", &buf)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	rec = env.do(req)
 	assertStatus(t, rec, http.StatusBadRequest)
@@ -474,7 +494,7 @@ func TestAPIUpdateBookContract(t *testing.T) {
 	created := importTextBook(t, env, "Patch Me", "old/layer", "patch.txt", "body")
 
 	body := `{"title":"Patched","authors":["Author A","Author B"],"tags":["tag1"],"language":"zh-Hant","comment":"updated comment","layer":["new","layer"]}`
-	rec := env.do(httptest.NewRequest(http.MethodPatch, "/api/books/"+created.Meta.ID, strings.NewReader(body)))
+	rec := env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID, strings.NewReader(body)))
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
 	updated := decodeJSON[Book](t, rec)
@@ -488,7 +508,7 @@ func TestAPIUpdateBookContract(t *testing.T) {
 		t.Fatalf("layer = %#v, want new/layer", updated.Layer)
 	}
 
-	rec = env.do(httptest.NewRequest(http.MethodPatch, "/api/books/"+created.Meta.ID, strings.NewReader(`{"unexpected":true}`)))
+	rec = env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID, strings.NewReader(`{"unexpected":true}`)))
 	assertStatus(t, rec, http.StatusBadRequest)
 }
 
@@ -496,16 +516,16 @@ func TestAPITrashLifecycleContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Trash API", "origin/layer", "trash.txt", "body")
 
-	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/books/"+created.Meta.ID+"/trash", nil))
+	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/"+created.Meta.ID+"/trash", nil))
 	assertStatus(t, rec, http.StatusNoContent)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/books", nil))
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
 	assertStatus(t, rec, http.StatusOK)
 	if books := decodeJSON[[]Book](t, rec); len(books) != 0 {
 		t.Fatalf("active books after trash = %d, want 0", len(books))
 	}
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/trash/books", nil))
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/trash/books", nil))
 	assertStatus(t, rec, http.StatusOK)
 	trashed := decodeJSON[[]map[string]any](t, rec)
 	if len(trashed) != 1 {
@@ -515,27 +535,27 @@ func TestAPITrashLifecycleContract(t *testing.T) {
 		t.Fatalf("trashed id = %q, want %q", id, created.Meta.ID)
 	}
 
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/trash/books/"+created.Meta.ID+"/restore", nil))
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/trash/books/"+created.Meta.ID+"/restore", nil))
 	assertStatus(t, rec, http.StatusNoContent)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/books", nil))
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
 	assertStatus(t, rec, http.StatusOK)
 	if books := decodeJSON[[]Book](t, rec); len(books) != 1 {
 		t.Fatalf("active books after restore = %d, want 1", len(books))
 	}
 
-	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/books/"+created.Meta.ID, nil))
+	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
 	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/trash/books/"+created.Meta.ID, nil))
+	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/shelves/default_shelf/trash/books/"+created.Meta.ID, nil))
 	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/trash/books/"+created.Meta.ID+"/restore", nil))
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/trash/books/"+created.Meta.ID+"/restore", nil))
 	assertStatus(t, rec, http.StatusNotFound)
 }
 
 func TestAPISplitConfigContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Split Me", "", "split.txt", "one\ntwo\nthree")
-	url := "/api/books/" + created.Meta.ID + "/split_config"
+	url := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/split_config"
 
 	rec := env.do(httptest.NewRequest(http.MethodGet, url, nil))
 	assertStatus(t, rec, http.StatusOK)
@@ -560,7 +580,7 @@ func TestAPISplitConfigContract(t *testing.T) {
 func TestAPICoverContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Cover Me", "", "cover.txt", "body")
-	url := "/api/books/" + created.Meta.ID + "/cover"
+	url := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/cover"
 
 	rec := env.do(httptest.NewRequest(http.MethodGet, url, nil))
 	assertStatus(t, rec, http.StatusNotFound)
@@ -599,7 +619,7 @@ func TestAPICoverContract(t *testing.T) {
 func TestAPIStoreContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Store Me", "", "store.txt", "body")
-	marksURL := "/api/marks/" + created.Meta.ID
+	marksURL := "/api/shelves/default_shelf/marks/" + created.Meta.ID
 
 	rec := env.do(httptest.NewRequest(http.MethodGet, marksURL, nil))
 	assertStatus(t, rec, http.StatusOK)
@@ -621,27 +641,27 @@ func TestAPIStoreContract(t *testing.T) {
 	rec = env.do(httptest.NewRequest(http.MethodPost, marksURL, strings.NewReader(`{"char_offset":123,"extra":true}`)))
 	assertStatus(t, rec, http.StatusBadRequest)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/read_history", nil))
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/read_history", nil))
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
 	if history := decodeJSON[[]string](t, rec); len(history) != 0 {
 		t.Fatalf("initial read history = %#v, want empty", history)
 	}
 
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/read_history", nil))
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history", nil))
 	assertStatus(t, rec, http.StatusBadRequest)
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/read_history?book_id="+created.Meta.ID, nil))
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id="+created.Meta.ID, nil))
 	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/read_history", nil))
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/read_history", nil))
 	assertStatus(t, rec, http.StatusOK)
 	history := decodeJSON[[]string](t, rec)
 	if len(history) != 1 || history[0] != created.Meta.ID {
 		t.Fatalf("read history = %#v, want [%s]", history, created.Meta.ID)
 	}
 
-	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/read_history", nil))
+	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/shelves/default_shelf/read_history", nil))
 	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/read_history", nil))
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/read_history", nil))
 	assertStatus(t, rec, http.StatusOK)
 	if history = decodeJSON[[]string](t, rec); len(history) != 0 {
 		t.Fatalf("cleared read history = %#v, want empty", history)
@@ -651,10 +671,10 @@ func TestAPIStoreContract(t *testing.T) {
 func TestAPICreateBookSourceContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Source Book", "", "src.txt", "content")
-	sourcesURL := "/api/books/" + created.Meta.ID + "/sources"
+	sourcesURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources"
 
 	// Creating a source on a nonexistent book should return 404.
-	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/books/no-such-book/sources", nil))
+	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/no-such-book/sources", nil))
 	assertStatus(t, rec, http.StatusNotFound)
 
 	// Creating a source returns 200 with the new source metadata.
@@ -686,7 +706,7 @@ func TestAPICreateBookSourceContract(t *testing.T) {
 func TestAPIDeleteBookSourceContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Delete Source Book", "", "del.txt", "content")
-	sourcesURL := "/api/books/" + created.Meta.ID + "/sources"
+	sourcesURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources"
 
 	// Create a new source to delete.
 	rec := env.do(httptest.NewRequest(http.MethodPost, sourcesURL, nil))
@@ -716,14 +736,14 @@ func TestAPIDeleteBookSourceContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusNotFound)
 
 	// Deleting a source from a nonexistent book should return 404.
-	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/books/no-such-book/sources/"+newSourceID, nil))
+	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/shelves/default_shelf/books/no-such-book/sources/"+newSourceID, nil))
 	assertStatus(t, rec, http.StatusNotFound)
 }
 
 func TestAPISetCurrentBookSourceContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Set Current Source Book", "", "src.txt", "content")
-	sourcesURL := "/api/books/" + created.Meta.ID + "/sources"
+	sourcesURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources"
 
 	// Create a second source.
 	rec := env.do(httptest.NewRequest(http.MethodPost, sourcesURL, nil))
@@ -739,7 +759,7 @@ func TestAPISetCurrentBookSourceContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusNoContent)
 
 	// The book should reflect the new current source.
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/books/"+created.Meta.ID, nil))
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
 	assertStatus(t, rec, http.StatusOK)
 	bookData := decodeJSON[map[string]any](t, rec)
 	meta, _ := bookData["meta"].(map[string]any)
@@ -752,6 +772,6 @@ func TestAPISetCurrentBookSourceContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusNotFound)
 
 	// Setting current source for a nonexistent book should return 404.
-	rec = env.do(httptest.NewRequest(http.MethodPut, "/api/books/no-such-book/sources/"+newSourceID+"/current", nil))
+	rec = env.do(httptest.NewRequest(http.MethodPut, "/api/shelves/default_shelf/books/no-such-book/sources/"+newSourceID+"/current", nil))
 	assertStatus(t, rec, http.StatusNotFound)
 }

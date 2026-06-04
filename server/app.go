@@ -15,10 +15,18 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
+const defaultShelfID = "default_shelf"
+
+type ShelfData struct {
+	ID   string
+	Name string
+	*shelf.Shelf
+}
+
 type App struct {
 	logutil.Logger
 
-	shelf      *shelf.Shelf
+	shelves    map[string]*ShelfData
 	storeDB    *store.DB
 	spaFS      fs.FS
 	spaHandler http.Handler
@@ -27,13 +35,26 @@ type App struct {
 	security *Security
 }
 
+type ShelfConfWithID struct {
+	// ID is a unique identifier for the shelf. It should be uri-safe as it may be used in URLs.
+	// It is used in the API to specify which shelf to use.
+	ID string `yaml:"id"`
+
+	// Name is a human-readable name for the shelf.
+	// If not provided, it will default to the same value as ID.
+	Name string `yaml:"name"`
+
+	shelf.ShelfConf `yaml:",inline"`
+}
+
 type AppConf struct {
-	Logger           logutil.LogConf  `yaml:"logger"`
-	Shelf            *shelf.ShelfConf `yaml:"shelf"`
-	StorePath        string           `yaml:"store_path"`
-	CoverToJPG       bool             `yaml:"cover_to_jpg"`
-	ReadHistoryLimit int              `yaml:"read_history_limit"`
-	Security         *SecurityConf    `yaml:"security"`
+	Logger           logutil.LogConf    `yaml:"logger"`
+	Shelf            *shelf.ShelfConf   `yaml:"shelf"` // remove after migration
+	Shelves          []*ShelfConfWithID `yaml:"shelves"`
+	StorePath        string             `yaml:"store_path"`
+	CoverToJPG       bool               `yaml:"cover_to_jpg"`
+	ReadHistoryLimit int                `yaml:"read_history_limit"`
+	Security         *SecurityConf      `yaml:"security"`
 }
 
 func NewApp(conf *AppConf) (*App, error) {
@@ -46,27 +67,78 @@ func NewApp(conf *AppConf) (*App, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
+	// Set to true to ensure that if any initialization step fails,
+	// all previously initialized resources will be properly closed.
+	failure := true
+
 	logger, err := logutil.NewLogger(&conf.Logger)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
+	defer func() {
+		if failure {
+			logger.Close()
+		}
+	}()
 
-	s, err := shelf.NewShelf(conf.Shelf)
-	if err != nil {
-		logger.Close()
-		return nil, util.Errorf("%w", err)
+	shelves := make(map[string]*ShelfData)
+	defer func() {
+		if failure {
+			for _, s := range shelves {
+				s.Close()
+			}
+		}
+	}()
+
+	if conf.Shelf != nil {
+		s, err := shelf.NewShelf(conf.Shelf)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+		shelves[defaultShelfID] = &ShelfData{
+			ID:    defaultShelfID,
+			Name:  "Default Shelf",
+			Shelf: s,
+		}
+	}
+
+	for _, conf := range conf.Shelves {
+		s, err := shelf.NewShelf(&conf.ShelfConf)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+		if conf.ID == "" {
+			return nil, util.Errorf("shelf ID cannot be empty")
+		}
+
+		if _, exists := shelves[conf.ID]; exists {
+			return nil, util.Errorf("duplicate shelf ID: %q", conf.ID)
+		}
+
+		if conf.Name == "" {
+			conf.Name = conf.ID
+		}
+
+		shelves[conf.ID] = &ShelfData{
+			ID:    conf.ID,
+			Name:  conf.Name,
+			Shelf: s,
+		}
+	}
+
+	if _, exists := shelves[defaultShelfID]; !exists {
+		return nil, util.Errorf("a shelf with ID %q must be configured", defaultShelfID)
 	}
 
 	storeDB, err := store.New(conf.StorePath, conf.ReadHistoryLimit)
 	if err != nil {
-		s.Close()
-		logger.Close()
 		return nil, util.Errorf("%w", err)
 	}
 
+	failure = false
 	return &App{
 		Logger:     *logger,
-		shelf:      s,
+		shelves:    shelves,
 		storeDB:    storeDB,
 		spaFS:      frontend.WebFS,
 		spaHandler: http.FileServerFS(frontend.WebFS),
@@ -81,7 +153,12 @@ func (app *App) Start() error {
 
 func (app *App) Close() error {
 	err1 := app.storeDB.Close()
-	err2 := app.shelf.Close()
+	var err2 error
+	for _, s := range app.shelves {
+		if e := s.Close(); e != nil {
+			err2 = errors.Join(err2, e)
+		}
+	}
 	err3 := app.Logger.Close()
 
 	err := errors.Join(err1, err2, err3)
@@ -162,51 +239,58 @@ func (app *App) injectSecurityBootstrap(data []byte) []byte {
 func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /health", app.Health)
 
+	// Shelf API
+
+	mux.HandleFunc("GET /api/shelves", app.HandleGetShelves)
+
 	// Book API
 
-	mux.HandleFunc("GET /api/books", app.HandleAPIGetBooks)
-	mux.HandleFunc("POST /api/books", app.HandleAPICreateBook)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books", app.HandleAPIGetBooks)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/books", app.HandleAPICreateBook)
 
-	mux.HandleFunc("POST /api/books/import", app.HandleAPIImportBook)
-	mux.HandleFunc("GET /api/books/duplicate", app.HandleAPIFindDuplicateBooks)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/import", app.HandleAPIImportBook)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/duplicate", app.HandleAPIFindDuplicateBooks)
 
-	mux.HandleFunc("GET /api/books/{book_id}", app.HandleAPIGetBook)
-	mux.HandleFunc("PATCH /api/books/{book_id}", app.HandleAPIUpdateBook)
-	mux.HandleFunc("DELETE /api/books/{book_id}", app.HandleAPIDeleteBook)
-	mux.HandleFunc("POST /api/books/{book_id}/trash", app.HandleAPITrashBook)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPIGetBook)
+	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPIUpdateBook)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPIDeleteBook)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/trash", app.HandleAPITrashBook)
 
-	mux.HandleFunc("GET /api/books/{book_id}/sources", app.HandleAPIGetBookSources)
-	mux.HandleFunc("GET /api/books/{book_id}/sources/{source_id}", app.HandleAPIGetBookSource)
-	mux.HandleFunc("POST /api/books/{book_id}/sources", app.HandleAPICreateBookSource)
-	mux.HandleFunc("DELETE /api/books/{book_id}/sources/{source_id}", app.HandleAPIDeleteBookSource)
-	mux.HandleFunc("PUT /api/books/{book_id}/sources/{source_id}/current", app.HandleAPISetCurrentBookSource)
-	mux.HandleFunc("GET /api/books/{book_id}/sources/{source_id}/content", app.HandleAPIGetBookSourceContent)
-	mux.HandleFunc("PATCH /api/books/{book_id}/sources/{source_id}/content", app.HandleAPIUpdateBookSourceContent)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources", app.HandleAPIGetBookSources)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}", app.HandleAPIGetBookSource)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/sources", app.HandleAPICreateBookSource)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}", app.HandleAPIDeleteBookSource)
+	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/current", app.HandleAPISetCurrentBookSource)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", app.HandleAPIGetBookSourceContent)
+	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", app.HandleAPIUpdateBookSourceContent)
 
-	mux.HandleFunc("GET /api/books/{book_id}/cover", app.HandleAPIGetBookCover)
-	mux.HandleFunc("PUT /api/books/{book_id}/cover", app.HandleAPIUpdateBookCover)
-	mux.HandleFunc("DELETE /api/books/{book_id}/cover", app.HandleAPIDeleteBookCover)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/cover", app.HandleAPIGetBookCover)
+	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/cover", app.HandleAPIUpdateBookCover)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/cover", app.HandleAPIDeleteBookCover)
 
-	mux.HandleFunc("GET /api/books/{book_id}/content", app.HandleAPIGetBookContent)
-	mux.HandleFunc("GET /api/books/{book_id}/split_config", app.HandleAPIGetBookSplitConfig)
-	mux.HandleFunc("PATCH /api/books/{book_id}/split_config", app.HandleAPIUpdateBookSplitConfig)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/content", app.HandleAPIGetBookContent)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/split_config", app.HandleAPIGetBookSplitConfig)
+	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}/split_config", app.HandleAPIUpdateBookSplitConfig)
 
-	mux.HandleFunc("GET /api/trash/books", app.HandleAPIGetTrashedBooks)
-	mux.HandleFunc("POST /api/trash/books/{book_id}/restore", app.HandleAPIRestoreTrashedBook)
-	mux.HandleFunc("DELETE /api/trash/books/{book_id}", app.HandleAPIDeleteTrashedBook)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/trash/books", app.HandleAPIGetTrashedBooks)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/trash/books/{book_id}/restore", app.HandleAPIRestoreTrashedBook)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/trash/books/{book_id}", app.HandleAPIDeleteTrashedBook)
 
-	mux.HandleFunc("GET /api/layers", app.HandleAPIGetLayers)
-	mux.HandleFunc("POST /api/layers/{layer_path...}", app.HandleAPICreateLayer)
-	mux.HandleFunc("DELETE /api/layers/{layer_path...}", app.HandleAPIDeleteLayer)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/layers", app.HandleAPIGetLayers)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/layers/{layer_path...}", app.HandleAPICreateLayer)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/layers/{layer_path...}", app.HandleAPIDeleteLayer)
 
 	// Store API
 
-	mux.HandleFunc("GET /api/marks/{book_id}", app.HandleAPIGetMarks)
-	mux.HandleFunc("POST /api/marks/{book_id}", app.HandleAPIUpdateMarks)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/marks/{book_id}", app.HandleAPIGetMarks)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/marks/{book_id}", app.HandleAPIUpdateMarks)
 
-	mux.HandleFunc("GET /api/read_history", app.HandleAPIGetReadHistory)
-	mux.HandleFunc("POST /api/read_history", app.HandleAPIUpdateReadHistory)
-	mux.HandleFunc("DELETE /api/read_history", app.HandleAPIClearReadHistory)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/read_history", app.HandleAPIGetReadHistory)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/read_history", app.HandleAPIUpdateReadHistory)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/read_history", app.HandleAPIClearReadHistory)
+
+	// Log API
+
 	mux.HandleFunc("GET /api/logs", app.HandleAPIGetLogs)
 	mux.HandleFunc("GET /api/logs/{log_id}/content", app.HandleAPIGetLogContent)
 

@@ -87,8 +87,20 @@ func validateLocalImportPath(localPath string) (string, error) {
 	return cleanPath, nil
 }
 
-// POST /api/books/import
+// POST /api/shelves/{shelf_id}/books/import
 func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+
+	shelfData, ok := app.shelves[shelfID]
+	if !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
 	// Limit overall request body size.
 	r.Body = http.MaxBytesReader(w, r.Body, maxImportBodySize)
 
@@ -121,7 +133,7 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	}
 	layerParts := parseImportLayerParts(r.FormValue("layer"))
 
-	newBook, err := app.shelf.NewBook(layerParts, title)
+	newBook, err := shelfData.NewBook(layerParts, title)
 	if err != nil {
 		app.Error("failed to create new book", "error", err)
 		http.Error(w, "failed to create new book", http.StatusInternalServerError)
@@ -170,7 +182,7 @@ func (app *App) ImportFromLocalPath(localPath string, layerParts shelf.Layers) (
 		return nil, util.Errorf("%w", err)
 	}
 
-	newBook, err := app.shelf.NewBook(layerParts, filepath.Base(cleanPath))
+	newBook, err := app.shelves[defaultShelfID].NewBook(layerParts, filepath.Base(cleanPath))
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

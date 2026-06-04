@@ -18,15 +18,27 @@ type TrashedBook struct {
 	DeletedAt     util.JSONTime `json:"deleted_at,omitzero"`
 }
 
-// POST /api/books/{book_id}/trash
+// POST /api/shelves/{shelf_id}/books/{book_id}/trash
 func (app *App) HandleAPITrashBook(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
+		return
+	}
+
+	s, exists := app.shelves[shelfID]
+	if !exists {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
 		return
 	}
 
-	if err := app.shelf.MoveBookToTrash(bookID); err != nil {
+	if err := s.MoveBookToTrash(bookID); err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
@@ -39,9 +51,21 @@ func (app *App) HandleAPITrashBook(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// GET /api/trash/books
+// GET /api/shelves/{shelf_id}/trash/books
 func (app *App) HandleAPIGetTrashedBooks(w http.ResponseWriter, r *http.Request) {
-	books, err := app.shelf.ListTrashedBooks()
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
+		return
+	}
+
+	s, exists := app.shelves[shelfID]
+	if !exists {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
+	books, err := s.ListTrashedBooks()
 	if err != nil {
 		app.Error("failed to list trashed books", "error", err)
 		http.Error(w, "failed to list trashed books", http.StatusInternalServerError)
@@ -68,15 +92,27 @@ func (app *App) HandleAPIGetTrashedBooks(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// POST /api/trash/books/{book_id}/restore
+// POST /api/shelves/{shelf_id}/trash/books/{book_id}/restore
 func (app *App) HandleAPIRestoreTrashedBook(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
+		return
+	}
+
+	s, exists := app.shelves[shelfID]
+	if !exists {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
 		return
 	}
 
-	if err := app.shelf.RestoreTrashedBook(bookID); err != nil {
+	if err := s.RestoreTrashedBook(bookID); err != nil {
 		if errors.Is(err, shelf.ErrTrashedBookNotFound) {
 			http.Error(w, "trashed book not found", http.StatusNotFound)
 			return
@@ -89,15 +125,27 @@ func (app *App) HandleAPIRestoreTrashedBook(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// DELETE /api/trash/books/{book_id}
+// DELETE /api/shelves/{shelf_id}/trash/books/{book_id}
 func (app *App) HandleAPIDeleteTrashedBook(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
+		return
+	}
+
+	s, exists := app.shelves[shelfID]
+	if !exists {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
 		return
 	}
 
-	if err := app.shelf.DeleteTrashedBook(bookID); err != nil {
+	if err := s.DeleteTrashedBook(bookID); err != nil {
 		if errors.Is(err, shelf.ErrTrashedBookNotFound) {
 			http.Error(w, "trashed book not found", http.StatusNotFound)
 			return

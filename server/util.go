@@ -9,6 +9,20 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
+func readShelfID(r *http.Request) (string, error) {
+	shelfID := strings.TrimSpace(r.PathValue("shelf_id"))
+	if shelfID == "" {
+		return "", errors.New("missing shelf_id")
+	}
+
+	decoded, err := url.PathUnescape(shelfID)
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+
+	return decoded, nil
+}
+
 func readBookID(r *http.Request) (string, error) {
 	bookID := strings.TrimSpace(r.PathValue("book_id"))
 	if bookID == "" {
