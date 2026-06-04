@@ -138,7 +138,10 @@ func (app *App) HandleAPIClearReadHistory(w http.ResponseWriter, r *http.Request
 		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
 		return
 	}
-
+	if _, ok := app.shelves[shelfID]; !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
 	err = app.storeDB.SetReadHistory(shelfID, []string{})
 	if err != nil {
 		app.Error("failed to clear read history", "error", err)
