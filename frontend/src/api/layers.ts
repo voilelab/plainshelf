@@ -92,7 +92,7 @@ export async function getLayers(): Promise<string[]> {
     return delay(getMockLayers());
   }
 
-  const data: unknown = await fetchJson<unknown>('/api/layers', {
+  const data: unknown = await fetchJson<unknown>('/api/shelves/default_shelf/layers', {
     method: 'GET'
   });
   if (!Array.isArray(data)) {
@@ -125,7 +125,7 @@ export async function createLayer(layerPath: string): Promise<void> {
   }
 
   try {
-    await fetchJson<void>(`/api/layers/${encodedPath}`, {
+    await fetchJson<void>(`/api/shelves/default_shelf/layers/${encodedPath}`, {
       method: 'POST'
     });
   } catch (err) {
@@ -164,7 +164,7 @@ export async function deleteLayer(layerPath: string): Promise<void> {
   }
 
   try {
-    await fetchJson<void>(`/api/layers/${encodedPath}`, {
+    await fetchJson<void>(`/api/shelves/default_shelf/layers/${encodedPath}`, {
       method: 'DELETE'
     });
   } catch (err) {
