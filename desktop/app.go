@@ -167,18 +167,22 @@ func (a *DesktopApp) startServer() error {
 				Prefix: "app",
 			},
 		},
-		Shelfs: []*shelf.ShelfConf{
+		Shelves: []*server.ShelfConfWithID{
 			{
-				Logger: logutil.LogConf{
-					Level:  "info",
-					Format: "json",
-					LogFile: logutil.LogFileConf{
-						Type:   logutil.LogFileTypeNameRotate,
-						Dir:    filepath.Join(dataRoot, "logs"),
-						Prefix: "shelf",
+				ID:   "default_shelf",
+				Name: "Default Shelf",
+				ShelfConf: shelf.ShelfConf{
+					Logger: logutil.LogConf{
+						Level:  "info",
+						Format: "json",
+						LogFile: logutil.LogFileConf{
+							Type:   logutil.LogFileTypeNameRotate,
+							Dir:    filepath.Join(dataRoot, "logs"),
+							Prefix: "shelf",
+						},
 					},
+					LibRoot: filepath.Join(dataRoot, "shelf"),
 				},
-				LibRoot: filepath.Join(dataRoot, "shelf"),
 			},
 		},
 		StorePath:        filepath.Join(dataRoot, "store"),
