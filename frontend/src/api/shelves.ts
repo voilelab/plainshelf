@@ -17,9 +17,9 @@ export async function listShelves(): Promise<ShelfInfo[]> {
     return mockShelves;
   }
 
-  const shelves = await fetchJson<ShelfInfo[]>('/api/shelves');
+  const shelves = await fetchJson<unknown>('/api/shelves');
   if (!Array.isArray(shelves)) {
-    return [];
+    throw new Error('Invalid shelves response from server.');
   }
 
   return shelves
