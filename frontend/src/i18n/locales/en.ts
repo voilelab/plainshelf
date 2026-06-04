@@ -52,6 +52,11 @@ const en = {
       notFound: 'Book not found.',
       failed: 'Failed to move book.'
     },
+    shelf: {
+      label: 'Shelf',
+      loading: 'Loading shelves...',
+      failed: 'Failed to load shelves'
+    },
     recentlyRead: 'Recently Read',
     trash: 'Trash',
     adminLogs: 'Logs'

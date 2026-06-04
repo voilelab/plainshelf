@@ -153,15 +153,32 @@
           <img class="brand-icon" :src="appIcon" alt="" aria-hidden="true">
           <span>{{ t('app.name') }}</span>
         </h1>
-        <label class="language-select">
-          <span>{{ t('language.label') }}</span>
-          <select class="language-select-control" :value="locale" @change="onLocaleChange">
-            <option v-for="lang in supportedLocales" :key="lang" :value="lang">
-              {{ t(localeLabelKeyMap[lang]) }}
-            </option>
-          </select>
-        </label>
+        <div class="topbar-controls">
+          <label class="language-select">
+            <span>{{ t('layout.shelf.label') }}</span>
+            <select
+              class="language-select-control"
+              :value="selectedShelfID"
+              :disabled="shelvesLoading || shelves.length === 0"
+              @change="onShelfChange"
+            >
+              <option v-if="shelvesLoading" value="">{{ t('layout.shelf.loading') }}</option>
+              <option v-for="shelf in shelves" :key="shelf.id" :value="shelf.id">
+                {{ shelf.name }}
+              </option>
+            </select>
+          </label>
+          <label class="language-select">
+            <span>{{ t('language.label') }}</span>
+            <select class="language-select-control" :value="locale" @change="onLocaleChange">
+              <option v-for="lang in supportedLocales" :key="lang" :value="lang">
+                {{ t(localeLabelKeyMap[lang]) }}
+              </option>
+            </select>
+          </label>
+        </div>
       </header>
+      <p v-if="shelvesError" class="shelf-error" role="alert">{{ shelvesError }}</p>
 
       <div class="page-area">
         <RouterView />
@@ -184,6 +201,8 @@ import { buildLayerTreeNodes, getLayerPath, normalizeLayerPath } from '../utils/
 import { MAINTENANCE_NAV_ITEMS } from '../utils/maintenance';
 import appIcon from '../assets/icon-192.png';
 import { useI18n } from '../i18n';
+import { ensureActiveShelf, listShelves, type ShelfInfo } from '../api/shelves';
+import { getActiveShelfID, setActiveShelfID } from '../api/client';
 
 const isCollapsed = ref(false);
 const route = useRoute();
@@ -201,6 +220,10 @@ const deleteLayerError = ref('');
 const deletingLayerMap = ref<Record<string, boolean>>({});
 const pendingDeleteLayerPath = ref('');
 const { locale, setLocale, supportedLocales, t } = useI18n();
+const shelves = ref<ShelfInfo[]>([]);
+const shelvesLoading = ref(false);
+const shelvesError = ref('');
+const selectedShelfID = ref(getActiveShelfID());
 const localeLabelKeyMap: Record<(typeof supportedLocales)[number], 'language.en' | 'language.zhHant'> = {
   en: 'language.en',
   'zh-Hant': 'language.zhHant'
@@ -250,6 +273,43 @@ function onLocaleChange(event: Event): void {
   if (supportedLocales.includes(target.value as (typeof supportedLocales)[number])) {
     setLocale(target.value as (typeof supportedLocales)[number]);
   }
+}
+
+async function fetchShelfOptions(): Promise<void> {
+  shelvesLoading.value = true;
+  shelvesError.value = '';
+
+  try {
+    const nextShelves = await listShelves();
+    shelves.value = nextShelves;
+    selectedShelfID.value = ensureActiveShelf(nextShelves);
+  } catch (err) {
+    shelvesError.value = err instanceof Error ? err.message : t('layout.shelf.failed');
+  } finally {
+    shelvesLoading.value = false;
+  }
+}
+
+async function onShelfChange(event: Event): Promise<void> {
+  const target = event.target;
+  if (!(target instanceof HTMLSelectElement)) {
+    return;
+  }
+
+  const nextShelfID = target.value.trim();
+  if (!nextShelfID || nextShelfID === selectedShelfID.value) {
+    return;
+  }
+
+  setActiveShelfID(nextShelfID);
+  selectedShelfID.value = nextShelfID;
+  deleteLayerError.value = '';
+  moveBookError.value = '';
+  createLayerError.value = '';
+  createLayerSuccess.value = '';
+
+  await Promise.all([fetchLayers(), fetchBooks()]);
+  await router.push({ path: '/books', query: { page: '1' } });
 }
 
 function toggleCreateLayerForm(): void {
@@ -383,6 +443,8 @@ async function confirmDeleteLayer(): Promise<void> {
 }
 
 onMounted(async () => {
+  await fetchShelfOptions();
+
   if (!layersLoaded.value && !layersLoading.value) {
     await fetchLayers();
   }
@@ -582,6 +644,11 @@ onMounted(async () => {
   padding: 14px 24px;
 }
 
+.topbar-controls {
+  display: inline-flex;
+  gap: 10px;
+}
+
 .language-select {
   align-items: center;
   display: inline-flex;
@@ -631,5 +698,11 @@ onMounted(async () => {
 
 .page-area {
   padding: 16px 24px;
+}
+
+.shelf-error {
+  color: #b91c1c;
+  font-size: 12px;
+  margin: 8px 24px 0;
 }
 </style>

@@ -176,13 +176,23 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 
 // ImportFromLocalPath imports a book from a local file path on the server.
 // This is intended for desktop application use, where the client can specify a local file path and the server can access it directly.
-func (app *App) ImportFromLocalPath(localPath string, layerParts shelf.Layers) (*shelf.Book, error) {
+func (app *App) ImportFromLocalPath(shelfID string, localPath string, layerParts shelf.Layers) (*shelf.Book, error) {
 	cleanPath, err := validateLocalImportPath(localPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	newBook, err := app.shelves[defaultShelfID].NewBook(layerParts, filepath.Base(cleanPath))
+	targetShelfID := strings.TrimSpace(shelfID)
+	if targetShelfID == "" {
+		targetShelfID = defaultShelfID
+	}
+
+	shelfData, ok := app.shelves[targetShelfID]
+	if !ok {
+		return nil, util.Errorf("shelf not found: %s", targetShelfID)
+	}
+
+	newBook, err := shelfData.NewBook(layerParts, filepath.Base(cleanPath))
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

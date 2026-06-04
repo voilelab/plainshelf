@@ -55,6 +55,16 @@ if (IS_DEV && API_MODE === 'mock') {
 }
 
 export const API_BASE = API_BASE_NORMALIZED;
+const SHELF_STORAGE_KEY = 'plainshelf.shelf';
+const DEFAULT_SHELF_ID = 'default_shelf';
+let activeShelfID = DEFAULT_SHELF_ID;
+
+if (typeof window !== 'undefined') {
+  const storedShelfID = window.localStorage.getItem(SHELF_STORAGE_KEY)?.trim();
+  if (storedShelfID) {
+    activeShelfID = storedShelfID;
+  }
+}
 
 export function isMockApiMode(): boolean {
   return API_MODE === 'mock';
@@ -73,6 +83,23 @@ export function assertApiMode(): void {
 export function buildApiUrl(path: string): string {
   const normalized = path.startsWith('/') ? path : `/${path}`;
   return `${API_BASE}${normalized}`;
+}
+
+export function getActiveShelfID(): string {
+  return activeShelfID;
+}
+
+export function setActiveShelfID(shelfID: string): void {
+  const normalized = shelfID.trim() || DEFAULT_SHELF_ID;
+  activeShelfID = normalized;
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(SHELF_STORAGE_KEY, normalized);
+  }
+}
+
+export function buildShelfApiPath(path: string, shelfID = getActiveShelfID()): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `/api/shelves/${encodeURIComponent(shelfID)}${normalizedPath}`;
 }
 
 async function getApiToken(): Promise<string> {

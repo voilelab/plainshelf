@@ -1,3 +1,5 @@
+import { getActiveShelfID } from './client';
+
 interface DesktopImportBookResult {
   path?: string;
   id?: string;
@@ -7,6 +9,7 @@ interface DesktopImportBookResult {
 interface DesktopAppBinding {
   OpenBookFiles?: () => Promise<string[]>;
   ImportBooksFromLocalPaths?: (
+    shelfID: string,
     localPaths: string[],
     layerParts: string[]
   ) => Promise<DesktopImportBookResult[]>;
@@ -71,5 +74,9 @@ export async function importDesktopBooksFromLocalPaths(
     return null;
   }
 
-  return desktopApp.ImportBooksFromLocalPaths(localPaths, normalizeLayerParts(layerPath));
+  return desktopApp.ImportBooksFromLocalPaths(
+    getActiveShelfID(),
+    localPaths,
+    normalizeLayerParts(layerPath)
+  );
 }

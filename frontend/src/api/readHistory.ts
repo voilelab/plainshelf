@@ -1,5 +1,5 @@
 import { getBook, listBooks, mockBooks } from './books';
-import { fetchJson, isMockApiMode } from './client';
+import { buildShelfApiPath, fetchJson, isMockApiMode } from './client';
 import type { Book } from '../types/book';
 
 let mockReadHistory = mockBooks.slice(0, 3).map((book) => book.id);
@@ -15,7 +15,7 @@ export async function getReadHistoryIDs(): Promise<string[]> {
     return delay([...mockReadHistory]);
   }
 
-  return await fetchJson<string[]>('/api/shelves/default_shelf/read_history');
+  return await fetchJson<string[]>(buildShelfApiPath('/read_history'));
 }
 
 export async function addReadHistory(bookID: string): Promise<void> {
@@ -30,7 +30,7 @@ export async function addReadHistory(bookID: string): Promise<void> {
     return;
   }
 
-  await fetchJson<void>(`/api/shelves/default_shelf/read_history?book_id=${encodeURIComponent(trimmed)}`, {
+  await fetchJson<void>(`${buildShelfApiPath('/read_history')}?book_id=${encodeURIComponent(trimmed)}`, {
     method: 'POST'
   });
 }
@@ -42,7 +42,7 @@ export async function clearReadHistory(): Promise<void> {
     return;
   }
 
-  await fetchJson<void>('/api/shelves/default_shelf/read_history', {
+  await fetchJson<void>(buildShelfApiPath('/read_history'), {
     method: 'DELETE'
   });
 }
