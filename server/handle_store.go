@@ -66,7 +66,10 @@ func (app *App) HandleAPIUpdateMarks(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
 		return
 	}
-
+	if _, ok := app.shelves[shelfID]; !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
 	err = app.storeDB.SetBookmark(shelfID, bookID, mark)
 	if err != nil {
 		app.Error("failed to update marks", "error", err)
