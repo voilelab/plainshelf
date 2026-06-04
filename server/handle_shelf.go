@@ -20,6 +20,7 @@ func (app *App) HandleGetShelves(w http.ResponseWriter, _ *http.Request) {
 			Name: shelf.Name,
 		})
 	}
+	sort.Slice(shelves, func(i, j int) bool { return shelves[i].ID < shelves[j].ID })
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	err := json.NewEncoder(w).Encode(shelves)
