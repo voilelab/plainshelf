@@ -22,9 +22,20 @@ export async function listShelves(): Promise<ShelfInfo[]> {
     return [];
   }
 
-  return shelves.filter((shelf): shelf is ShelfInfo => {
-    return Boolean(shelf && typeof shelf.id === 'string' && typeof shelf.name === 'string');
-  });
+  return shelves
+    .flatMap((shelf): ShelfInfo[] => {
+      if (!shelf || typeof shelf.id !== 'string' || typeof shelf.name !== 'string') {
+        return [];
+      }
+
+      const id = shelf.id.trim();
+      const name = shelf.name.trim();
+      if (!id || !name) {
+        return [];
+      }
+
+      return [{ id, name }];
+    });
 }
 
 export function ensureActiveShelf(shelves: ShelfInfo[]): string {

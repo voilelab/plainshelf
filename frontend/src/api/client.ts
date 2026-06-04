@@ -99,7 +99,7 @@ export function setActiveShelfID(shelfID: string): void {
 
 export function buildShelfApiPath(path: string, shelfID = getActiveShelfID()): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `/api/shelves/${encodeURIComponent(shelfID)}` + normalizedPath;
+  return `/api/shelves/${encodeURIComponent(shelfID)}${normalizedPath}`;
 }
 
 async function getApiToken(): Promise<string> {
