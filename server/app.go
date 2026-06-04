@@ -245,40 +245,40 @@ func (app *App) Serve(mux *http.ServeMux) {
 
 	// Book API
 
-	mux.HandleFunc("GET /api/books", app.HandleAPIGetBooks)
-	mux.HandleFunc("POST /api/books", app.HandleAPICreateBook)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books", app.HandleAPIGetBooks)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/books", app.HandleAPICreateBook)
 
-	mux.HandleFunc("POST /api/books/import", app.HandleAPIImportBook)
-	mux.HandleFunc("GET /api/books/duplicate", app.HandleAPIFindDuplicateBooks)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/import", app.HandleAPIImportBook)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/duplicate", app.HandleAPIFindDuplicateBooks)
 
-	mux.HandleFunc("GET /api/books/{book_id}", app.HandleAPIGetBook)
-	mux.HandleFunc("PATCH /api/books/{book_id}", app.HandleAPIUpdateBook)
-	mux.HandleFunc("DELETE /api/books/{book_id}", app.HandleAPIDeleteBook)
-	mux.HandleFunc("POST /api/books/{book_id}/trash", app.HandleAPITrashBook)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPIGetBook)
+	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPIUpdateBook)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPIDeleteBook)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/trash", app.HandleAPITrashBook)
 
-	mux.HandleFunc("GET /api/books/{book_id}/sources", app.HandleAPIGetBookSources)
-	mux.HandleFunc("GET /api/books/{book_id}/sources/{source_id}", app.HandleAPIGetBookSource)
-	mux.HandleFunc("POST /api/books/{book_id}/sources", app.HandleAPICreateBookSource)
-	mux.HandleFunc("DELETE /api/books/{book_id}/sources/{source_id}", app.HandleAPIDeleteBookSource)
-	mux.HandleFunc("PUT /api/books/{book_id}/sources/{source_id}/current", app.HandleAPISetCurrentBookSource)
-	mux.HandleFunc("GET /api/books/{book_id}/sources/{source_id}/content", app.HandleAPIGetBookSourceContent)
-	mux.HandleFunc("PATCH /api/books/{book_id}/sources/{source_id}/content", app.HandleAPIUpdateBookSourceContent)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources", app.HandleAPIGetBookSources)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}", app.HandleAPIGetBookSource)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/sources", app.HandleAPICreateBookSource)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}", app.HandleAPIDeleteBookSource)
+	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/current", app.HandleAPISetCurrentBookSource)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", app.HandleAPIGetBookSourceContent)
+	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", app.HandleAPIUpdateBookSourceContent)
 
-	mux.HandleFunc("GET /api/books/{book_id}/cover", app.HandleAPIGetBookCover)
-	mux.HandleFunc("PUT /api/books/{book_id}/cover", app.HandleAPIUpdateBookCover)
-	mux.HandleFunc("DELETE /api/books/{book_id}/cover", app.HandleAPIDeleteBookCover)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/cover", app.HandleAPIGetBookCover)
+	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/cover", app.HandleAPIUpdateBookCover)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/cover", app.HandleAPIDeleteBookCover)
 
-	mux.HandleFunc("GET /api/books/{book_id}/content", app.HandleAPIGetBookContent)
-	mux.HandleFunc("GET /api/books/{book_id}/split_config", app.HandleAPIGetBookSplitConfig)
-	mux.HandleFunc("PATCH /api/books/{book_id}/split_config", app.HandleAPIUpdateBookSplitConfig)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/content", app.HandleAPIGetBookContent)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/split_config", app.HandleAPIGetBookSplitConfig)
+	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}/split_config", app.HandleAPIUpdateBookSplitConfig)
 
-	mux.HandleFunc("GET /api/trash/books", app.HandleAPIGetTrashedBooks)
-	mux.HandleFunc("POST /api/trash/books/{book_id}/restore", app.HandleAPIRestoreTrashedBook)
-	mux.HandleFunc("DELETE /api/trash/books/{book_id}", app.HandleAPIDeleteTrashedBook)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/trash/books", app.HandleAPIGetTrashedBooks)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/trash/books/{book_id}/restore", app.HandleAPIRestoreTrashedBook)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/trash/books/{book_id}", app.HandleAPIDeleteTrashedBook)
 
-	mux.HandleFunc("GET /api/layers", app.HandleAPIGetLayers)
-	mux.HandleFunc("POST /api/layers/{layer_path...}", app.HandleAPICreateLayer)
-	mux.HandleFunc("DELETE /api/layers/{layer_path...}", app.HandleAPIDeleteLayer)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/layers", app.HandleAPIGetLayers)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/layers/{layer_path...}", app.HandleAPICreateLayer)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/layers/{layer_path...}", app.HandleAPIDeleteLayer)
 
 	// Store API
 

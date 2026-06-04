@@ -53,7 +53,7 @@ func TestSecurityLocalTokenProtectsMutatingAPI(t *testing.T) {
 		t.Fatalf("health body = %q, want 1", rec.Body.String())
 	}
 
-	rec = env.doRaw(httptest.NewRequest(http.MethodGet, "/api/books", nil))
+	rec = env.doRaw(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
 	assertStatus(t, rec, http.StatusOK)
 
 	rec = env.doRaw(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id=book-1", nil))
@@ -119,10 +119,10 @@ func TestSecurityProtectReadOption(t *testing.T) {
 		AllowedOrigins:              []string{"http://localhost:20000"},
 	})
 
-	rec := env.doRaw(httptest.NewRequest(http.MethodGet, "/api/books", nil))
+	rec := env.doRaw(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
 	assertStatus(t, rec, http.StatusUnauthorized)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/books", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil)
 	req.Header.Set("Authorization", "Bearer "+env.app.SecurityToken())
 	rec = env.doRaw(req)
 	assertStatus(t, rec, http.StatusOK)

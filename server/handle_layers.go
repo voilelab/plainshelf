@@ -5,9 +5,21 @@ import (
 	"net/http"
 )
 
-// GET /api/layers
+// GET /api/shelves/{shelf_id}/layers
 func (app *App) HandleAPIGetLayers(w http.ResponseWriter, r *http.Request) {
-	layers, err := app.shelves[defaultShelfID].GetAllLayers()
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
+		return
+	}
+
+	shelf, exists := app.shelves[shelfID]
+	if !exists {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
+	layers, err := shelf.GetAllLayers()
 	if err != nil {
 		app.Error("failed to get layers", "error", err)
 		http.Error(w, "failed to get layers", http.StatusInternalServerError)
@@ -23,15 +35,27 @@ func (app *App) HandleAPIGetLayers(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// POST /api/layers/{layer_path}
+// POST /api/shelves/{shelf_id}/layers/{layer_path}
 func (app *App) HandleAPICreateLayer(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
+		return
+	}
+
+	shelf, exists := app.shelves[shelfID]
+	if !exists {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
 	layerParts, err := readLayerParts(r)
 	if err != nil {
 		http.Error(w, "invalid layer path", http.StatusBadRequest)
 		return
 	}
 
-	err = app.shelves[defaultShelfID].NewLayer(layerParts)
+	err = shelf.NewLayer(layerParts)
 	if err != nil {
 		app.Error("failed to create layer", "error", err)
 		http.Error(w, "failed to create layer", http.StatusInternalServerError)
@@ -41,15 +65,27 @@ func (app *App) HandleAPICreateLayer(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// DELETE /api/layers/{layer_path}
+// DELETE /api/shelves/{shelf_id}/layers/{layer_path}
 func (app *App) HandleAPIDeleteLayer(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
+		return
+	}
+
+	shelf, exists := app.shelves[shelfID]
+	if !exists {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
 	layerParts, err := readLayerParts(r)
 	if err != nil {
 		http.Error(w, "invalid layer path", http.StatusBadRequest)
 		return
 	}
 
-	err = app.shelves[defaultShelfID].DeleteLayer(layerParts)
+	err = shelf.DeleteLayer(layerParts)
 	if err != nil {
 		app.Error("failed to delete layer", "error", err)
 		http.Error(w, "failed to delete layer", http.StatusInternalServerError)
