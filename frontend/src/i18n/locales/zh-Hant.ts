@@ -51,6 +51,11 @@ const zhHant = {
       notFound: '找不到書籍。',
       failed: '移動書籍失敗。'
     },
+    shelf: {
+      label: '書架',
+      loading: '載入書架中...',
+      failed: '載入書架失敗'
+    },
     recentlyRead: '最近閱讀',
     trash: '垃圾桶',
     adminLogs: '日誌'

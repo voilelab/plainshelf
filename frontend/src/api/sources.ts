@@ -1,4 +1,4 @@
-import { fetchJson, fetchText, isMockApiMode } from './client';
+import { buildShelfApiPath, fetchJson, fetchText, isMockApiMode } from './client';
 import type { SourceMeta as SourceMeta } from '../types/source';
 
 interface SourceStoreItem {
@@ -92,7 +92,7 @@ export async function listSource(bookId: string): Promise<SourceMeta[]> {
     return ensureMockSource(bookId).map((item) => ({ ...item.meta }));
   }
 
-  const data = await fetchJson<unknown>(`/api/shelves/default_shelf/books/${encodeURIComponent(bookId)}/sources`);
+  const data = await fetchJson<unknown>(buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/sources`));
   if (Array.isArray(data)) {
     return data.map(normalizeSourceMeta);
   }
@@ -110,7 +110,7 @@ export async function getSource(bookId: string, sourceId: string): Promise<Sourc
   }
 
   const data = await fetchJson<unknown>(
-    `/api/shelves/default_shelf/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}`
+    buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}`)
   );
   return normalizeSourceMeta(data);
 }
@@ -125,7 +125,7 @@ export async function getSourceContent(bookId: string, sourceId: string): Promis
   }
 
   return await fetchText(
-    `/api/shelves/default_shelf/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/content`
+    buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/content`)
   );
 }
 
@@ -143,7 +143,7 @@ export async function createSource(bookId: string): Promise<SourceMeta> {
     return { ...newItem.meta };
   }
 
-  const data = await fetchJson<unknown>(`/api/shelves/default_shelf/books/${encodeURIComponent(bookId)}/sources`, {
+  const data = await fetchJson<unknown>(buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/sources`), {
     method: 'POST'
   });
   return normalizeSourceMeta(data);
@@ -161,7 +161,7 @@ export async function deleteSource(bookId: string, sourceId: string): Promise<vo
   }
 
   await fetchJson<void>(
-    `/api/shelves/default_shelf/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}`,
+    buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}`),
     { method: 'DELETE' }
   );
 }
@@ -177,7 +177,7 @@ export async function setCurrentSource(bookId: string, sourceId: string): Promis
   }
 
   await fetchJson<void>(
-    `/api/shelves/default_shelf/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/current`,
+    buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/current`),
     { method: 'PUT' }
   );
 }
@@ -195,7 +195,7 @@ export async function updateSourceContent(bookId: string, sourceId: string, cont
   }
 
   await fetchText(
-    `/api/shelves/default_shelf/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/content`,
+    buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/content`),
     {
       method: 'PATCH',
       headers: {

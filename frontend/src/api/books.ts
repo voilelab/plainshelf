@@ -12,7 +12,7 @@ import type {
   TrashedBook,
 } from '../types/book';
 import {
-  API_BASE,
+  buildShelfApiPath,
   buildApiUrl,
   fetchBlob,
   fetchJson,
@@ -124,7 +124,7 @@ async function uploadBookCoverInternal(bookID: string, file: File): Promise<void
   // Sending a concrete byte payload avoids that runtime-specific body stream issue.
   const payload = new Uint8Array(await file.arrayBuffer());
 
-  await fetchJson<void>(`/api/shelves/default_shelf/books/${encodeURIComponent(bookID)}/cover`, {
+  await fetchJson<void>(buildShelfApiPath(`/books/${encodeURIComponent(bookID)}/cover`), {
     method: 'PUT',
     headers: {
       'Content-Type': file.type || 'application/octet-stream'
@@ -134,7 +134,7 @@ async function uploadBookCoverInternal(bookID: string, file: File): Promise<void
 }
 
 async function deleteBookCoverInternal(bookID: string): Promise<void> {
-  await fetchJson<void>(`/api/shelves/default_shelf/books/${encodeURIComponent(bookID)}/cover`, {
+  await fetchJson<void>(buildShelfApiPath(`/books/${encodeURIComponent(bookID)}/cover`), {
     method: 'DELETE'
   });
 }
@@ -152,7 +152,7 @@ function transformBook(b: BackendBook): Book {
     tags: b.meta.tags ?? [],
     comment: b.meta.comment ?? b.meta.comments,
     cover,
-    cover_url: cover ? `${API_BASE}/api/shelves/default_shelf/books/${b.meta.id}/cover` : undefined,
+    cover_url: cover ? buildApiUrl(buildShelfApiPath(`/books/${encodeURIComponent(b.meta.id)}/cover`)) : undefined,
     layers,
     created_at: b.meta.created_at,
     updated_at: b.meta.updated_at,
@@ -384,7 +384,7 @@ export async function listBooks(page = 1, pageSize = PAGE_SIZE_DEFAULT, search?:
   }
 
   const trimmed = search?.trim() ?? '';
-  const url = trimmed ? `/api/shelves/default_shelf/books?search=${encodeURIComponent(trimmed)}` : '/api/shelves/default_shelf/books';
+  const url = trimmed ? `${buildShelfApiPath('/books')}?search=${encodeURIComponent(trimmed)}` : buildShelfApiPath('/books');
   const all = await fetchJson<BackendBook[]>(url);
   const books = all.map(transformBook);
   const start = (page - 1) * pageSize;
@@ -396,7 +396,7 @@ export async function getBook(id: string): Promise<Book> {
     return delay(mockGetBook(id));
   }
 
-  const b = await fetchJson<BackendBook>(`/api/shelves/default_shelf/books/${encodeURIComponent(id)}`);
+  const b = await fetchJson<BackendBook>(buildShelfApiPath(`/books/${encodeURIComponent(id)}`));
   return transformBook(b);
 }
 
@@ -405,7 +405,7 @@ export async function getDuplicateBookGroups(): Promise<string[][]> {
     return delay([]);
   }
 
-  return await fetchJson<string[][]>('/api/shelves/default_shelf/books/duplicate');
+  return await fetchJson<string[][]>(buildShelfApiPath('/books/duplicate'));
 }
 
 export async function updateBook(id: string, payload: BookUpdateRequest): Promise<Book> {
@@ -413,7 +413,7 @@ export async function updateBook(id: string, payload: BookUpdateRequest): Promis
     return delay(mockUpdateBook(id, payload));
   }
 
-  const b = await fetchJson<BackendBook>(`/api/shelves/default_shelf/books/${encodeURIComponent(id)}`, {
+  const b = await fetchJson<BackendBook>(buildShelfApiPath(`/books/${encodeURIComponent(id)}`), {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json'
@@ -434,7 +434,7 @@ export async function updateBookLayer(bookId: string, layer: string): Promise<vo
     return;
   }
 
-  await fetchJson(`/api/shelves/default_shelf/books/${encodeURIComponent(bookId)}`, {
+  await fetchJson(buildShelfApiPath(`/books/${encodeURIComponent(bookId)}`), {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json'
@@ -450,7 +450,7 @@ export async function getBookContent(id: string): Promise<BookContent> {
     return delay(mockGetBookContent(id));
   }
 
-  const text = await fetchText(`/api/shelves/default_shelf/books/${encodeURIComponent(id)}/content`);
+  const text = await fetchText(buildShelfApiPath(`/books/${encodeURIComponent(id)}/content`));
   return { content: text };
 }
 
@@ -460,7 +460,7 @@ export async function downloadBookContent(id: string): Promise<Blob> {
     return delay(new Blob([content], { type: 'text/plain;charset=utf-8' }));
   }
 
-  return await fetchBlob(`/api/shelves/default_shelf/books/${encodeURIComponent(id)}/content`);
+  return await fetchBlob(buildShelfApiPath(`/books/${encodeURIComponent(id)}/content`));
 }
 
 export async function getBookSplitConfig(id: string): Promise<SplitConfig> {
@@ -468,7 +468,7 @@ export async function getBookSplitConfig(id: string): Promise<SplitConfig> {
     return delay(normalizeSplitConfig(mockSplitConfigs[id] ?? { type: 'none' }));
   }
 
-  const config = await fetchJson<unknown>(`/api/shelves/default_shelf/books/${encodeURIComponent(id)}/split_config`);
+  const config = await fetchJson<unknown>(buildShelfApiPath(`/books/${encodeURIComponent(id)}/split_config`));
   return normalizeSplitConfig(config);
 }
 
@@ -480,7 +480,7 @@ export async function updateBookSplitConfig(id: string, config: SplitConfig): Pr
     return await delay(mockSplitConfigs[id]);
   }
 
-  const updated = await fetchJson<unknown>(`/api/shelves/default_shelf/books/${encodeURIComponent(id)}/split_config`, {
+  const updated = await fetchJson<unknown>(buildShelfApiPath(`/books/${encodeURIComponent(id)}/split_config`), {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json'
@@ -500,7 +500,7 @@ export async function getReadingProgress(id: string): Promise<ReadingProgress> {
     return delay({ ...mockGetReadingProgress(id) });
   }
 
-  const mark = await fetchJson<BackendMark>(`/api/shelves/default_shelf/marks/${encodeURIComponent(id)}`);
+  const mark = await fetchJson<BackendMark>(buildShelfApiPath(`/marks/${encodeURIComponent(id)}`));
   return { char_offset: mark.char_offset };
 }
 
@@ -511,7 +511,7 @@ export async function saveBookmark(id: string, payload: BookmarkPayload): Promis
     return;
   }
 
-  await fetchJson(`/api/shelves/default_shelf/marks/${encodeURIComponent(id)}`, {
+  await fetchJson(buildShelfApiPath(`/marks/${encodeURIComponent(id)}`), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -538,7 +538,7 @@ export async function importBook(payload: BookCreateRequest): Promise<Book> {
     form.append('layer', trimmedLayer);
   }
 
-  const created = transformBook(await fetchJson<BackendBook>('/api/shelves/default_shelf/books/import', {
+  const created = transformBook(await fetchJson<BackendBook>(buildShelfApiPath('/books/import'), {
     method: 'POST',
     body: form
   }));
@@ -553,7 +553,7 @@ export async function uploadBookCover(id: string, file: File): Promise<void> {
 export async function uploadBookCoverBlob(id: string, blob: Blob): Promise<void> {
   const payload = new Uint8Array(await blob.arrayBuffer());
 
-  await fetchJson<void>(`/api/shelves/default_shelf/books/${encodeURIComponent(id)}/cover`, {
+  await fetchJson<void>(buildShelfApiPath(`/books/${encodeURIComponent(id)}/cover`), {
     method: 'PUT',
     headers: {
       'Content-Type': blob.type || 'image/jpeg'
@@ -575,7 +575,7 @@ export async function getBookCover(id: string): Promise<Blob> {
     return await res.blob();
   }
 
-  return await fetchBlob(`/api/shelves/default_shelf/books/${encodeURIComponent(id)}/cover`);
+  return await fetchBlob(buildShelfApiPath(`/books/${encodeURIComponent(id)}/cover`));
 }
 
 export async function deleteBookCover(id: string): Promise<void> {
@@ -600,7 +600,7 @@ export async function deleteBook(id: string): Promise<void> {
     return;
   }
 
-  await fetchJson<void>(`/api/shelves/default_shelf/books/${encodeURIComponent(id)}/trash`, {
+  await fetchJson<void>(buildShelfApiPath(`/books/${encodeURIComponent(id)}/trash`), {
     method: 'POST'
   });
 }
@@ -610,7 +610,7 @@ export async function listTrashedBooks(): Promise<TrashedBook[]> {
     return delay(mockTrashedBooks.map((book) => ({ ...book })));
   }
 
-  const books = await fetchJson<BackendTrashedBook[]>('/api/shelves/default_shelf/trash/books');
+  const books = await fetchJson<BackendTrashedBook[]>(buildShelfApiPath('/trash/books'));
   return books.map((book) => ({
     id: book.id,
     title: book.title,
@@ -640,7 +640,7 @@ export async function restoreTrashedBook(id: string): Promise<void> {
     return;
   }
 
-  await fetchJson<void>(`/api/shelves/default_shelf/trash/books/${encodeURIComponent(id)}/restore`, {
+  await fetchJson<void>(buildShelfApiPath(`/trash/books/${encodeURIComponent(id)}/restore`), {
     method: 'POST'
   });
 }
@@ -655,7 +655,7 @@ export async function deleteTrashedBook(id: string): Promise<void> {
     return;
   }
 
-  await fetchJson<void>(`/api/shelves/default_shelf/trash/books/${encodeURIComponent(id)}`, {
+  await fetchJson<void>(buildShelfApiPath(`/trash/books/${encodeURIComponent(id)}`), {
     method: 'DELETE'
   });
 }
@@ -663,7 +663,7 @@ export async function deleteTrashedBook(id: string): Promise<void> {
 export function getBookCoverUrl(id: string, cacheKey?: number): string {
   const encodedId = encodeURIComponent(id);
   if (cacheKey === undefined) {
-    return buildApiUrl(`/api/shelves/default_shelf/books/${encodedId}/cover`);
+    return buildApiUrl(buildShelfApiPath(`/books/${encodedId}/cover`));
   }
-  return buildApiUrl(`/api/shelves/default_shelf/books/${encodedId}/cover?t=${encodeURIComponent(String(cacheKey))}`);
+  return buildApiUrl(`${buildShelfApiPath(`/books/${encodedId}/cover`)}?t=${encodeURIComponent(String(cacheKey))}`);
 }

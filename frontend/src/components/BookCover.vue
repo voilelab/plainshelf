@@ -76,7 +76,7 @@ const resolvedCoverSrc = computed(() => {
   if (!source) {
     return bookcover;
   }
-  if (source.includes('/api/shelves/default_shelf/books/') && source.includes('/cover')) {
+  if (source.includes('/api/shelves/') && source.includes('/books/') && source.includes('/cover')) {
     return getBookCoverUrl(props.bookId, coverCacheKey.value);
   }
   return source;

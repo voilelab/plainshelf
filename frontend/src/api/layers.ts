@@ -1,5 +1,5 @@
 import { mockBooks } from './books';
-import { ApiError, fetchJson, isMockApiMode } from './client';
+import { ApiError, buildShelfApiPath, fetchJson, isMockApiMode } from './client';
 import { normalizeLayerPath } from '../utils/layers';
 
 function delay<T>(value: T, ms = 240): Promise<T> {
@@ -92,7 +92,7 @@ export async function getLayers(): Promise<string[]> {
     return delay(getMockLayers());
   }
 
-  const data: unknown = await fetchJson<unknown>('/api/shelves/default_shelf/layers', {
+  const data: unknown = await fetchJson<unknown>(buildShelfApiPath('/layers'), {
     method: 'GET'
   });
   if (!Array.isArray(data)) {
@@ -125,7 +125,7 @@ export async function createLayer(layerPath: string): Promise<void> {
   }
 
   try {
-    await fetchJson<void>(`/api/shelves/default_shelf/layers/${encodedPath}`, {
+    await fetchJson<void>(buildShelfApiPath(`/layers/${encodedPath}`), {
       method: 'POST'
     });
   } catch (err) {
@@ -164,7 +164,7 @@ export async function deleteLayer(layerPath: string): Promise<void> {
   }
 
   try {
-    await fetchJson<void>(`/api/shelves/default_shelf/layers/${encodedPath}`, {
+    await fetchJson<void>(buildShelfApiPath(`/layers/${encodedPath}`), {
       method: 'DELETE'
     });
   } catch (err) {
