@@ -252,7 +252,7 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 		targetLayers = req.Layers
 	}
 	if targetLayers != nil {
-		movedBook, err := app.shelves[defaultShelfID].MoveBook(bookID, append(shelf.Layers(nil), (*targetLayers)...))
+		movedBook, err := shelfData.MoveBook(bookID, append(shelf.Layers(nil), (*targetLayers)...))
 		if err != nil {
 			http.Error(w, "failed to move book layer", http.StatusInternalServerError)
 			return
