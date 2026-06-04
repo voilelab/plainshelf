@@ -107,7 +107,7 @@ func normalizeLayerParts(layerParts []string) shelf.Layers {
 	return normalizedParts
 }
 
-func (a *DesktopApp) ImportBooksFromLocalPaths(localPaths []string, layerParts []string) ([]DesktopImportBookResult, error) {
+func (a *DesktopApp) ImportBooksFromLocalPaths(shelfID string, localPaths []string, layerParts []string) ([]DesktopImportBookResult, error) {
 	if a.app == nil {
 		return nil, util.NewError("desktop backend app instance is nil")
 	}
@@ -120,7 +120,7 @@ func (a *DesktopApp) ImportBooksFromLocalPaths(localPaths []string, layerParts [
 	normalizedLayerParts := normalizeLayerParts(layerParts)
 	results := make([]DesktopImportBookResult, 0, len(normalizedPaths))
 	for _, localPath := range normalizedPaths {
-		book, err := a.app.ImportFromLocalPath(localPath, normalizedLayerParts)
+		book, err := a.app.ImportFromLocalPath(shelfID, localPath, normalizedLayerParts)
 		result := DesktopImportBookResult{Path: localPath}
 		if err != nil {
 			result.Error = err.Error()
