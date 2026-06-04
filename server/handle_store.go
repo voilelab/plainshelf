@@ -108,7 +108,10 @@ func (app *App) HandleAPIUpdateReadHistory(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
 		return
 	}
-
+	if _, ok := app.shelves[shelfID]; !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
 	bookID := r.URL.Query().Get("book_id")
 	if bookID == "" {
 		http.Error(w, "missing book_id", http.StatusBadRequest)
