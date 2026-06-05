@@ -1,5 +1,14 @@
 <template>
   <article class="duplicate-book-row">
+    <DeleteModal
+      :open="showDeleteModal"
+      :item-name="book.title || book.id"
+      :busy="deleting"
+      :error="deleteError"
+      @cancel="cancelDelete"
+      @confirm="confirmDelete"
+    />
+
     <img :src="coverSrc" :alt="book.title" class="duplicate-cover" @error="onCoverError" />
 
     <div class="duplicate-meta">
@@ -7,23 +16,37 @@
       <p class="duplicate-layer">{{ layerLabel }}</p>
     </div>
 
-    <button type="button" class="button duplicate-open" @click="openBook">Open</button>
+    <div class="duplicate-actions">
+      <button type="button" class="button duplicate-open" :disabled="deleting" @click="openBook">Open</button>
+      <button type="button" class="button danger duplicate-delete" :disabled="deleting" @click="showDeleteModal = true">
+        {{ deleting ? 'Deleting...' : 'Delete' }}
+      </button>
+    </div>
   </article>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import { deleteBook } from '../api/books';
 import type { Book } from '../types/book';
 import { getLayerPath, layerPathLabel } from '../utils/layers';
 import bookcover from '../assets/bookcover.svg';
+import DeleteModal from './DeleteModal.vue';
 
 const props = defineProps<{
   book: Book;
 }>();
 
+const emit = defineEmits<{
+  deleted: [bookId: string];
+}>();
+
 const router = useRouter();
 const hasCoverLoadError = ref(false);
+const showDeleteModal = ref(false);
+const deleting = ref(false);
+const deleteError = ref('');
 
 const coverSrc = computed(() => {
   if (hasCoverLoadError.value) {
@@ -47,6 +70,29 @@ function onCoverError(): void {
 
 function openBook(): void {
   void router.push(`/books/${props.book.id}`);
+}
+
+function cancelDelete(): void {
+  if (deleting.value) {
+    return;
+  }
+  showDeleteModal.value = false;
+  deleteError.value = '';
+}
+
+async function confirmDelete(): Promise<void> {
+  deleting.value = true;
+  deleteError.value = '';
+
+  try {
+    await deleteBook(props.book.id);
+    showDeleteModal.value = false;
+    emit('deleted', props.book.id);
+  } catch (err) {
+    deleteError.value = err instanceof Error ? err.message : 'Failed to delete book';
+  } finally {
+    deleting.value = false;
+  }
 }
 </script>
 
@@ -88,6 +134,11 @@ function openBook(): void {
   line-height: 1.3;
 }
 
+.duplicate-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .duplicate-open {
   font-size: 13px;
   font-weight: 600;
@@ -99,9 +150,13 @@ function openBook(): void {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .duplicate-open {
+  .duplicate-actions {
     grid-column: 1 / -1;
     justify-self: end;
+  }
+
+  .duplicate-open {
+    justify-self: auto;
   }
 }
 </style>

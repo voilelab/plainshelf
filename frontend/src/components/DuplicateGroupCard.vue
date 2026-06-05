@@ -10,6 +10,7 @@
         v-for="book in books"
         :key="book.id"
         :book="book"
+        @deleted="emit('deleted')"
       />
     </div>
   </article>
@@ -18,6 +19,10 @@
 <script setup lang="ts">
 import type { Book } from '../types/book';
 import DuplicateBookRow from './DuplicateBookRow.vue';
+
+const emit = defineEmits<{
+  deleted: [];
+}>();
 
 defineProps<{
   groupIndex: number;
