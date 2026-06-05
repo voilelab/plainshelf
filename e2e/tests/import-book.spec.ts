@@ -99,13 +99,32 @@ async function waitForServer(baseUrl: string, server: ChildProcess, logs: string
   throw new Error(`Timed out waiting for ${baseUrl}/health.\n${logs.join('')}`);
 }
 
+function signalServer(server: ChildProcess, signal: NodeJS.Signals): void {
+  const pid = server.pid;
+  if (!pid) {
+    server.kill(signal);
+    return;
+  }
+
+  try {
+    process.kill(-pid, signal);
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err.code === 'ESRCH') {
+      server.kill(signal);
+      return;
+    }
+    throw error;
+  }
+}
+
 async function stopServer(server: ChildProcess): Promise<void> {
   if (server.exitCode !== null || server.signalCode) {
     return;
   }
 
   const exitPromise = once(server, 'exit');
-  process.kill(-server.pid!, 'SIGTERM');
+  signalServer(server, 'SIGTERM');
 
   const timedOut = await Promise.race([
     exitPromise.then(() => false),
@@ -113,7 +132,7 @@ async function stopServer(server: ChildProcess): Promise<void> {
   ]);
 
   if (timedOut) {
-    process.kill(-server.pid!, 'SIGKILL');
+    signalServer(server, 'SIGKILL');
     await exitPromise;
   }
 }
