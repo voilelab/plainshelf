@@ -18,7 +18,13 @@
 
     <div class="duplicate-actions">
       <button type="button" class="button duplicate-open" :disabled="deleting" @click="openBook">Open</button>
-      <button type="button" class="button danger duplicate-delete" :disabled="deleting" @click="showDeleteModal = true">
+      <button
+        type="button"
+        class="button danger duplicate-delete"
+        :disabled="deleting"
+        :aria-label="`Delete ${book.title || 'book'}`"
+        @click="showDeleteModal = true"
+      >
         {{ deleting ? 'Deleting...' : 'Delete' }}
       </button>
     </div>
