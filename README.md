@@ -196,3 +196,23 @@ go test ./...
 ## License
 
 BSD 3-Clause
+
+## Android prototype
+
+This repository includes an Android MVP in `android/` that uses the Go shelf core through the `shelfmobile` gomobile facade. The app stores its library in app-private storage at `context.filesDir.resolve("shelf")` and does not implement sync, login, SAF, or remote APIs yet.
+
+Build the local Android AAR before running the app from Android Studio:
+
+```bash
+gomobile bind -target=android -o android/app/libs/shelfmobile.aar ./shelfmobile
+```
+
+You can also run either helper:
+
+```bash
+just mobile-aar
+# or
+scripts/build_mobile_aar.sh
+```
+
+The generated `android/app/libs/shelfmobile.aar` is a build artifact and should not be committed.

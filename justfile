@@ -20,3 +20,7 @@ server-backend: server-frontend
 # Build desktop app
 desktop: server-frontend
 	cd desktop && go mod tidy && go tool wails build
+
+# Build gomobile AAR consumed by the Android prototype.
+mobile-aar:
+	bash scripts/build_mobile_aar.sh
