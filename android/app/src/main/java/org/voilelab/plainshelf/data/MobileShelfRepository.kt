@@ -4,11 +4,14 @@ import org.json.JSONArray
 import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class MobileShelfRepository(private val rootPath: String) {
+    private val shelfMutex = Mutex()
     private var shelf: Any? = null
 
-    fun open() {
+    private fun openInternal() {
         if (shelf != null) return
         val facade = Class.forName("shelfmobile.Shelfmobile")
         val openMethod = facade.methods.firstOrNull { method ->
@@ -17,25 +20,37 @@ class MobileShelfRepository(private val rootPath: String) {
         shelf = openMethod.invoke(null, rootPath)
     }
 
-    fun close() {
+    private fun closeInternal() {
         shelf?.call("close")
         shelf = null
     }
 
-    suspend fun listBooks(): List<BookSummary> = withContext(Dispatchers.IO) {
-        open()
-        JSONArray(shelf!!.callString("listBooksJSON")).mapBookObjects { it.toBookSummary() }
+    suspend fun open() = withContext(Dispatchers.IO) {
+        shelfMutex.withLock { openInternal() }
     }
 
-    suspend fun createBook(title: String): BookSummary = withContext(Dispatchers.IO) {
-        open()
+    suspend fun close() = withContext(Dispatchers.IO) {
+        shelfMutex.withLock { closeInternal() }
+    }
+
+    private suspend fun <T> withShelf(block: (Any) -> T): T = withContext(Dispatchers.IO) {
+        shelfMutex.withLock {
+            openInternal()
+            block(shelf ?: error("shelfmobile open returned null"))
+        }
+    }
+
+    suspend fun listBooks(): List<BookSummary> = withShelf { currentShelf ->
+        JSONArray(currentShelf.callString("listBooksJSON")).mapBookObjects { it.toBookSummary() }
+    }
+
+    suspend fun createBook(title: String): BookSummary = withShelf { currentShelf ->
         val request = JSONObject().put("title", title).toString()
-        JSONObject(shelf!!.callString("createBookJSON", request)).toBookSummary()
+        JSONObject(currentShelf.callString("createBookJSON", request)).toBookSummary()
     }
 
-    suspend fun getBook(bookID: String): BookSummary = withContext(Dispatchers.IO) {
-        open()
-        JSONObject(shelf!!.callString("getBookJSON", bookID)).toBookSummary()
+    suspend fun getBook(bookID: String): BookSummary = withShelf { currentShelf ->
+        JSONObject(currentShelf.callString("getBookJSON", bookID)).toBookSummary()
     }
 
     suspend fun updateBook(
@@ -45,40 +60,34 @@ class MobileShelfRepository(private val rootPath: String) {
         tags: List<String>,
         language: String,
         comments: String,
-    ): BookSummary = withContext(Dispatchers.IO) {
-        open()
+    ): BookSummary = withShelf { currentShelf ->
         val request = JSONObject()
             .put("title", title)
             .put("authors", JSONArray(authors))
             .put("tags", JSONArray(tags))
             .put("language", language)
             .put("comments", comments)
-        JSONObject(shelf!!.callString("updateBookJSON", bookID, request.toString())).toBookSummary()
+        JSONObject(currentShelf.callString("updateBookJSON", bookID, request.toString())).toBookSummary()
     }
 
-    suspend fun listSources(bookID: String): List<SourceSummary> = withContext(Dispatchers.IO) {
-        open()
-        JSONArray(shelf!!.callString("listSourcesJSON", bookID)).mapSourceObjects { it.toSourceSummary() }
+    suspend fun listSources(bookID: String): List<SourceSummary> = withShelf { currentShelf ->
+        JSONArray(currentShelf.callString("listSourcesJSON", bookID)).mapSourceObjects { it.toSourceSummary() }
     }
 
-    suspend fun createSource(bookID: String): SourceSummary = withContext(Dispatchers.IO) {
-        open()
-        JSONObject(shelf!!.callString("createSourceJSON", bookID)).toSourceSummary()
+    suspend fun createSource(bookID: String): SourceSummary = withShelf { currentShelf ->
+        JSONObject(currentShelf.callString("createSourceJSON", bookID)).toSourceSummary()
     }
 
-    suspend fun setCurrentSource(bookID: String, sourceID: String) = withContext(Dispatchers.IO) {
-        open()
-        shelf!!.call("setCurrentSource", bookID, sourceID)
+    suspend fun setCurrentSource(bookID: String, sourceID: String) = withShelf { currentShelf ->
+        currentShelf.call("setCurrentSource", bookID, sourceID)
     }
 
-    suspend fun getSourceContent(bookID: String, sourceID: String): String = withContext(Dispatchers.IO) {
-        open()
-        shelf!!.callString("getSourceContent", bookID, sourceID)
+    suspend fun getSourceContent(bookID: String, sourceID: String): String = withShelf { currentShelf ->
+        currentShelf.callString("getSourceContent", bookID, sourceID)
     }
 
-    suspend fun updateSourceContent(bookID: String, sourceID: String, content: String) = withContext(Dispatchers.IO) {
-        open()
-        shelf!!.call("updateSourceContent", bookID, sourceID, content)
+    suspend fun updateSourceContent(bookID: String, sourceID: String, content: String) = withShelf { currentShelf ->
+        currentShelf.call("updateSourceContent", bookID, sourceID, content)
     }
 }
 
