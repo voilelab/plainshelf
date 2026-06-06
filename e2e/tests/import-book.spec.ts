@@ -255,10 +255,16 @@ test('should update a book cover from drag and drop on the detail page', async (
     await expect(coverTarget).toBeVisible();
 
     const dataTransfer = await createCoverDataTransfer(page);
-    await coverTarget.dispatchEvent('dragenter', { dataTransfer });
-    await expect(page.getByText('Drop image to update cover')).toBeVisible();
-    await coverTarget.dispatchEvent('dragover', { dataTransfer });
-    await coverTarget.dispatchEvent('drop', { dataTransfer });
+    try {
+      await coverTarget.dispatchEvent('dragenter', { dataTransfer });
+      await expect(page.getByText('Drop image to update cover')).toBeVisible();
+      await coverTarget.dispatchEvent('dragover', { dataTransfer });
+      await coverTarget.dispatchEvent('drop', { dataTransfer });
+    } finally {
+      await dataTransfer.dispose();
+    }
+
+    const confirmDialog = page.getByRole('dialog', { name: 'Update book cover?' });
 
     const confirmDialog = page.getByRole('dialog', { name: 'Update book cover?' });
     await expect(confirmDialog).toBeVisible();
