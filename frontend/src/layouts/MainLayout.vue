@@ -22,6 +22,25 @@
       </button>
 
       <div v-if="!isCollapsed" class="sidebar-inner">
+        <section class="sidebar-section" :aria-label="t('layout.shelf.label')">
+          <label class="sidebar-shelf-label">
+            <span class="sidebar-section-title">{{ t('layout.shelf.label') }}</span>
+            <select
+              class="sidebar-shelf-select"
+              :value="selectedShelfID"
+              :disabled="shelvesLoading || shelves.length === 0"
+              @change="onShelfChange"
+            >
+              <option v-if="shelvesLoading" value="">{{ t('layout.shelf.loading') }}</option>
+              <option v-for="shelf in shelves" :key="shelf.id" :value="shelf.id">
+                {{ shelf.name }}
+              </option>
+            </select>
+          </label>
+          <p v-if="shelvesError" class="sidebar-error" role="alert">{{ shelvesError }}</p>
+        </section>
+
+        <div class="sidebar-nav-divider" role="presentation"></div>
         <section class="sidebar-section" :aria-label="t('layout.sections.layers')">
           <div class="sidebar-header-row">
             <div class="sidebar-section-title">{{ t('layout.sections.layers') }}</div>
@@ -155,20 +174,6 @@
         </h1>
         <div class="topbar-controls">
           <label class="language-select">
-            <span>{{ t('layout.shelf.label') }}</span>
-            <select
-              class="language-select-control"
-              :value="selectedShelfID"
-              :disabled="shelvesLoading || shelves.length === 0"
-              @change="onShelfChange"
-            >
-              <option v-if="shelvesLoading" value="">{{ t('layout.shelf.loading') }}</option>
-              <option v-for="shelf in shelves" :key="shelf.id" :value="shelf.id">
-                {{ shelf.name }}
-              </option>
-            </select>
-          </label>
-          <label class="language-select">
             <span>{{ t('language.label') }}</span>
             <select class="language-select-control" :value="locale" @change="onLocaleChange">
               <option v-for="lang in supportedLocales" :key="lang" :value="lang">
@@ -178,7 +183,6 @@
           </label>
         </div>
       </header>
-      <p v-if="shelvesError" class="shelf-error" role="alert">{{ shelvesError }}</p>
 
       <div class="page-area">
         <RouterView />
@@ -700,9 +704,21 @@ onMounted(async () => {
   padding: 16px 24px;
 }
 
-.shelf-error {
-  color: #b91c1c;
-  font-size: 12px;
-  margin: 8px 24px 0;
+.sidebar-shelf-label {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  padding: 4px 8px;
+}
+
+.sidebar-shelf-select {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  flex: 1;
+  font-size: 13px;
+  min-height: 30px;
+  min-width: 0;
+  padding: 0 6px;
 }
 </style>
