@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { once } from 'node:events';
 import { promises as fs } from 'node:fs';
 import net from 'node:net';
@@ -8,6 +8,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 const fixturePath = path.resolve(__dirname, '..', 'fixtures', 'hello.txt');
+const tinyPngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9s3FoXcAAAAASUVORK5CYII=';
 const serverStartupTimeoutMs = 30_000;
 const serverShutdownTimeoutMs = 10_000;
 
@@ -188,31 +189,43 @@ async function startServer(): Promise<ServerEnv> {
   };
 }
 
+async function importHelloBook(page: Page): Promise<void> {
+  await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
+  await expect(page.getByText('No books yet.')).toBeVisible();
+
+  await page.getByRole('button', { name: /^Import/ }).click();
+  await page.getByRole('button', { name: 'Import from files' }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'Import Book' });
+  await expect(dialog).toBeVisible();
+  await dialog.locator('input[type="file"]').setInputFiles(fixturePath);
+  await expect(dialog.getByText('hello.txt')).toBeVisible();
+
+  const importButton = dialog.getByRole('button', { name: 'Import', exact: true });
+  await importButton.click();
+
+  await expect(page.getByText('1 books')).toBeVisible();
+  await expect(importButton).toBeDisabled();
+  await expect(page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+}
+
+async function createCoverDataTransfer(page: Page) {
+  return await page.evaluateHandle((bytes) => {
+    const dataTransfer = new DataTransfer();
+    const binary = Uint8Array.from(atob(bytes), (char) => char.charCodeAt(0));
+    dataTransfer.items.add(new File([binary], 'cover.png', { type: 'image/png' }));
+    return dataTransfer;
+  }, tinyPngBase64);
+}
+
 test('should import a txt book from the UI and render it in the reader', async ({ page }) => {
   const server = await startServer();
 
   try {
     await page.goto(`${server.baseUrl}/books`);
-
-    await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
-    await expect(page.getByText('No books yet.')).toBeVisible();
-
-    await page.getByRole('button', { name: /^Import/ }).click();
-    await page.getByRole('button', { name: 'Import from files' }).click();
-
-    const dialog = page.getByRole('dialog', { name: 'Import Book' });
-    await expect(dialog).toBeVisible();
-    await dialog.locator('input[type="file"]').setInputFiles(fixturePath);
-    await expect(dialog.getByText('hello.txt')).toBeVisible();
-
-    const importButton = dialog.getByRole('button', { name: 'Import', exact: true });
-    await importButton.click();
-
-    await expect(page.getByText('1 books')).toBeVisible();
-    await expect(importButton).toBeDisabled();
+    await importHelloBook(page);
     const bookTitle = page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true });
-    await expect(bookTitle).toBeVisible();
-    await dialog.getByRole('button', { name: 'Cancel' }).click();
     await bookTitle.click();
 
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
@@ -223,6 +236,41 @@ test('should import a txt book from the UI and render it in the reader', async (
     await expect(page.getByRole('heading', { name: 'hello', exact: true })).toBeVisible();
     await expect(page.getByText('Hello from PlainShelf E2E.')).toBeVisible();
     await expect(page.getByText('This text came from a real uploaded TXT file.')).toBeVisible();
+  } finally {
+    await server.dispose();
+  }
+});
+
+test('should update a book cover from drag and drop on the detail page', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importHelloBook(page);
+
+    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
+    await expect(page).toHaveURL(/\/books\/[^/]+$/);
+
+    const coverTarget = page.locator('.cover-drop-target');
+    await expect(coverTarget).toBeVisible();
+
+    const dataTransfer = await createCoverDataTransfer(page);
+    await coverTarget.dispatchEvent('dragenter', { dataTransfer });
+    await expect(page.getByText('Drop image to update cover')).toBeVisible();
+    await coverTarget.dispatchEvent('dragover', { dataTransfer });
+    await coverTarget.dispatchEvent('drop', { dataTransfer });
+
+    const confirmDialog = page.getByRole('dialog', { name: 'Update book cover?' });
+    await expect(confirmDialog).toBeVisible();
+    await expect(confirmDialog.getByText('Do you want to update the book cover?')).toBeVisible();
+    await confirmDialog.getByRole('button', { name: 'Update cover' }).click();
+
+    await expect(confirmDialog).not.toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove' })).toBeEnabled();
+    await expect(page.locator('img.detail-cover')).toHaveAttribute(
+      'src',
+      /\/api\/shelves\/default_shelf\/books\/[^/]+\/cover(?:\?t=\d+)?$/
+    );
   } finally {
     await server.dispose();
   }

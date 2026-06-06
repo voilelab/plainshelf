@@ -610,6 +610,21 @@ func TestAPICoverContract(t *testing.T) {
 		t.Fatalf("cover bytes = %q, want %q", rec.Body.Bytes(), coverBytes)
 	}
 
+	webpBytes := []byte("fake webp bytes")
+	req = httptest.NewRequest(http.MethodPut, url, bytes.NewReader(webpBytes))
+	req.Header.Set("Content-Type", "image/webp")
+	rec = env.do(req)
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Header().Get("Content-Type"); got != "image/webp" {
+		t.Fatalf("cover Content-Type = %q, want image/webp", got)
+	}
+	if !bytes.Equal(rec.Body.Bytes(), webpBytes) {
+		t.Fatalf("cover bytes = %q, want %q", rec.Body.Bytes(), webpBytes)
+	}
+
 	rec = env.do(httptest.NewRequest(http.MethodDelete, url, nil))
 	assertStatus(t, rec, http.StatusNoContent)
 	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))

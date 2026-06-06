@@ -379,6 +379,8 @@ func (app *App) HandleAPIGetBookCover(w http.ResponseWriter, r *http.Request) {
 		contentType = "image/png"
 	case ".jpg", ".jpeg":
 		contentType = "image/jpeg"
+	case ".webp":
+		contentType = "image/webp"
 	case ".gif":
 		contentType = "image/gif"
 	}
@@ -425,6 +427,8 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 		ext = ".png"
 	case "image/jpeg":
 		ext = ".jpg"
+	case "image/webp":
+		ext = ".webp"
 	case "image/gif":
 		ext = ".gif"
 	default:
