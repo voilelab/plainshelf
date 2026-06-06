@@ -1,0 +1,3 @@
+Hello from PlainShelf E2E.
+
+This text came from a real uploaded TXT file.
