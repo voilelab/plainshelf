@@ -106,11 +106,16 @@ function signalServer(server: ChildProcess, signal: NodeJS.Signals): void {
     return;
   }
 
+  if (process.platform === 'win32') {
+    server.kill(signal);
+    return;
+  }
+
   try {
     process.kill(-pid, signal);
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
-    if (err.code === 'ESRCH') {
+    if (err.code === 'ESRCH' || err.code === 'EINVAL' || err.code === 'ENOSYS') {
       server.kill(signal);
       return;
     }
