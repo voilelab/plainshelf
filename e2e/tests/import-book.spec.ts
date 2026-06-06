@@ -265,8 +265,6 @@ test('should update a book cover from drag and drop on the detail page', async (
     }
 
     const confirmDialog = page.getByRole('dialog', { name: 'Update book cover?' });
-
-    const confirmDialog = page.getByRole('dialog', { name: 'Update book cover?' });
     await expect(confirmDialog).toBeVisible();
     await expect(confirmDialog.getByText('Do you want to update the book cover?')).toBeVisible();
     await confirmDialog.getByRole('button', { name: 'Update cover' }).click();
