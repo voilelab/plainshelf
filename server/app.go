@@ -294,6 +294,12 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/logs", app.HandleAPIGetLogs)
 	mux.HandleFunc("GET /api/logs/{log_id}/content", app.HandleAPIGetLogContent)
 
+	// Setting API
+
+	mux.HandleFunc("GET /api/setting/cover_to_jpg", app.HandleGetSettingCoverToJPG)
+	mux.HandleFunc("POST /api/setting/cover_to_jpg", app.HandleSetSettingCoverToJPG)
+	mux.HandleFunc("DELETE /api/setting/cover_to_jpg", app.HandleDeleteSettingCoverToJPG)
+
 	mux.HandleFunc("GET /{path...}", app.HandleSPAFallback)
 }
 

@@ -432,7 +432,7 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 	case "image/gif":
 		ext = ".gif"
 	default:
-		if !app.conf.CoverToJPG {
+		if !app.coverToJPG() {
 			http.Error(w, "unsupported content type", http.StatusBadRequest)
 			return
 		}
@@ -450,7 +450,7 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if app.conf.CoverToJPG {
+	if app.coverToJPG() {
 		data, err = imgutil.AnyToJPG(data)
 		if err != nil {
 			app.Error("failed to convert image to JPEG", "error", err)
