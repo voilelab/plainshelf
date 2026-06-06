@@ -95,11 +95,15 @@ func (s *Shelf) UpdateBookJSON(bookID string, patchJSON string) (string, error) 
 		meta.Comments = *req.Comments
 	}
 	if req.PublishedAt != nil {
-		publishedAt, err := time.Parse(time.RFC3339, *req.PublishedAt)
-		if err != nil {
-			return "", err
+		if strings.TrimSpace(*req.PublishedAt) == "" {
+			meta.PublishedAt = util.JSONTime(time.Time{})
+		} else {
+			publishedAt, err := time.Parse(time.RFC3339, *req.PublishedAt)
+			if err != nil {
+				return "", err
+			}
+			meta.PublishedAt = util.JSONTime(publishedAt)
 		}
-		meta.PublishedAt = util.JSONTime(publishedAt)
 	}
 	if err := book.SetMeta(meta); err != nil {
 		return "", err
