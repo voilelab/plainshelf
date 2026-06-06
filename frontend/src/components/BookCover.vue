@@ -83,7 +83,7 @@ const emit = defineEmits<{
 
 const allowedCoverMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const coverExtPattern = /\.(jpg|jpeg|png|webp|gif)$/i;
-const unsupportedCoverMessage = 'Only jpg, jpeg, png, webp, gif are supported.';
+const unsupportedCoverMessage = 'Only JPG, JPEG, PNG, WebP, and GIF are supported.';
 
 const coverInputRef = ref<HTMLInputElement | null>(null);
 const coverBusy = ref(false);
