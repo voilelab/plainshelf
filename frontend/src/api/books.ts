@@ -123,14 +123,43 @@ async function uploadBookCoverInternal(bookID: string, file: File): Promise<void
   // an empty request body (0 bytes) for same-origin custom protocol requests.
   // Sending a concrete byte payload avoids that runtime-specific body stream issue.
   const payload = new Uint8Array(await file.arrayBuffer());
+  const contentType = resolveCoverUploadContentType(file);
 
   await fetchJson<void>(buildShelfApiPath(`/books/${encodeURIComponent(bookID)}/cover`), {
     method: 'PUT',
     headers: {
-      'Content-Type': file.type || 'application/octet-stream'
+      'Content-Type': contentType
     },
     body: payload
   });
+}
+
+const coverMimeTypeByExt: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif'
+};
+
+function inferCoverMimeTypeFromFilename(fileName: string): string | undefined {
+  const match = /\.([a-z0-9]+)$/i.exec(fileName.trim());
+  if (!match) {
+    return undefined;
+  }
+  return coverMimeTypeByExt[match[1].toLowerCase()];
+}
+
+function resolveCoverUploadContentType(file: File): string {
+  const type = file.type.trim().toLowerCase();
+  if (type.length > 0 && type !== 'application/octet-stream') {
+    return type;
+  }
+  const inferred = inferCoverMimeTypeFromFilename(file.name);
+  if (inferred) {
+    return inferred;
+  }
+  return type || 'application/octet-stream';
 }
 
 async function deleteBookCoverInternal(bookID: string): Promise<void> {
