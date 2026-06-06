@@ -24,6 +24,7 @@
         :key="group.groupIndex"
         :group-index="group.groupIndex"
         :books="group.books"
+        @deleted="loadDuplicates"
       />
     </div>
   </section>
