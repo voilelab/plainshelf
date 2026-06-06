@@ -26,9 +26,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import org.voilelab.plainshelf.data.BookSummary
 import org.voilelab.plainshelf.data.MobileShelfRepository
 import org.voilelab.plainshelf.data.SourceSummary
@@ -43,7 +45,6 @@ fun PlainshelfApp(repository: MobileShelfRepository) {
     var refreshKey by remember { mutableStateOf(0) }
 
     DisposableEffect(repository) {
-        repository.open()
         onDispose { repository.close() }
     }
 
@@ -87,6 +88,7 @@ private fun LibraryScreen(
     onOpenBook: (String) -> Unit,
     onChanged: () -> Unit,
 ) {
+    val coroutineScope = rememberCoroutineScope()
     var books by remember { mutableStateOf(emptyList<BookSummary>()) }
     var newTitle by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -109,9 +111,11 @@ private fun LibraryScreen(
                 )
                 Button(onClick = {
                     if (newTitle.isNotBlank()) {
-                        runCatching { repository.createBook(newTitle.trim()) }
-                            .onSuccess { newTitle = ""; onChanged() }
-                            .onFailure { error = it.message }
+                        coroutineScope.launch {
+                            runCatching { repository.createBook(newTitle.trim()) }
+                                .onSuccess { newTitle = ""; onChanged() }
+                                .onFailure { error = it.message }
+                        }
                     }
                 }) { Text("Create") }
             }
@@ -140,6 +144,7 @@ private fun BookDetailScreen(
     onEditSource: (String) -> Unit,
     onChanged: () -> Unit,
 ) {
+    val coroutineScope = rememberCoroutineScope()
     var book by remember(bookID) { mutableStateOf<BookSummary?>(null) }
     var sources by remember(bookID) { mutableStateOf(emptyList<SourceSummary>()) }
     var title by remember(bookID) { mutableStateOf("") }
@@ -180,23 +185,27 @@ private fun BookDetailScreen(
             OutlinedTextField(language, { language = it }, label = { Text("Language") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(comments, { comments = it }, label = { Text("Comments") }, modifier = Modifier.fillMaxWidth())
             Button(onClick = {
-                runCatching {
-                    repository.updateBook(
-                        bookID = bookID,
-                        title = title,
-                        authors = authors.csvValues(),
-                        tags = tags.csvValues(),
-                        language = language,
-                        comments = comments,
-                    )
-                }.onSuccess { onChanged() }.onFailure { error = it.message }
+                coroutineScope.launch {
+                    runCatching {
+                        repository.updateBook(
+                            bookID = bookID,
+                            title = title,
+                            authors = authors.csvValues(),
+                            tags = tags.csvValues(),
+                            language = language,
+                            comments = comments,
+                        )
+                    }.onSuccess { onChanged() }.onFailure { error = it.message }
+                }
             }) { Text("Save metadata") }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Sources", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 Button(onClick = {
-                    runCatching { repository.createSource(bookID) }
-                        .onSuccess { onChanged() }
-                        .onFailure { error = it.message }
+                    coroutineScope.launch {
+                        runCatching { repository.createSource(bookID) }
+                            .onSuccess { onChanged() }
+                            .onFailure { error = it.message }
+                    }
                 }) { Text("New source") }
             }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -207,9 +216,11 @@ private fun BookDetailScreen(
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(onClick = { onEditSource(source.id) }) { Text("Edit") }
                                 TextButton(onClick = {
-                                    runCatching { repository.setCurrentSource(bookID, source.id) }
-                                        .onSuccess { onChanged() }
-                                        .onFailure { error = it.message }
+                                    coroutineScope.launch {
+                                        runCatching { repository.setCurrentSource(bookID, source.id) }
+                                            .onSuccess { onChanged() }
+                                            .onFailure { error = it.message }
+                                    }
                                 }) { Text("Set current") }
                             }
                         }
@@ -228,6 +239,7 @@ private fun SourceEditorScreen(
     sourceID: String,
     onBack: () -> Unit,
 ) {
+    val coroutineScope = rememberCoroutineScope()
     var content by remember(bookID, sourceID) { mutableStateOf("") }
     var status by remember { mutableStateOf<String?>(null) }
 
@@ -252,9 +264,11 @@ private fun SourceEditorScreen(
                 modifier = Modifier.fillMaxWidth().weight(1f),
             )
             Button(onClick = {
-                runCatching { repository.updateSourceContent(bookID, sourceID, content) }
-                    .onSuccess { status = "Saved" }
-                    .onFailure { status = "Error: ${it.message}" }
+                coroutineScope.launch {
+                    runCatching { repository.updateSourceContent(bookID, sourceID, content) }
+                        .onSuccess { status = "Saved" }
+                        .onFailure { status = "Error: ${it.message}" }
+                }
             }) { Text("Save source") }
         }
     }
