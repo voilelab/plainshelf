@@ -1,3 +1,27 @@
+# Gradle build cache and metadata
 .gradle/
 build/
 **/build/
+
+# Gradle wrapper (using system gradle instead)
+gradle/
+gradlew
+gradlew.bat
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+captures/
+
+# Keystore files
+*.jks
+*.keystore
+
+# Local machine settings (SDK paths, etc.)
+local.properties
+
+# macOS
+.DS_Store
+
+# Memory dumps
+*.hprof

@@ -32,3 +32,11 @@ desktop: server-frontend
 # Build gomobile AAR consumed by the Android prototype.
 mobile-aar:
 	bash scripts/build_mobile_aar.sh
+
+# Build Android debug APK (runs mobile-aar first).
+android-debug: mobile-aar
+	cd android && gradle assembleDebug
+
+# Build Android release APK (runs mobile-aar first).
+android-release: mobile-aar
+	cd android && gradle assembleRelease

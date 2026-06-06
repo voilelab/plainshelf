@@ -8,4 +8,4 @@ if ! command -v gomobile >/dev/null 2>&1; then
 fi
 
 mkdir -p android/app/libs
-gomobile bind -target=android -o android/app/libs/shelfmobile.aar ./shelfmobile
+gomobile bind -target=android -androidapi 21 -o android/app/libs/shelfmobile.aar ./shelfmobile
