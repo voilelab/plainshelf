@@ -59,7 +59,21 @@ const en = {
     },
     recentlyRead: 'Recently Read',
     trash: 'Trash',
-    adminLogs: 'Logs'
+    adminLogs: 'Logs',
+    settings: 'Settings'
+  },
+  settings: {
+    title: 'Settings',
+    description: 'Manage application options.',
+    loadFailed: 'Failed to load settings',
+    saveFailed: 'Failed to save setting',
+    cover: {
+      title: 'Cover'
+    },
+    coverToJpg: {
+      label: 'Convert uploaded covers to JPG',
+      description: 'Enable this to convert cover images to JPEG when uploading.'
+    }
   },
   adminLogs: {
     title: 'Logs',
