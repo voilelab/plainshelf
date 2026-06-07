@@ -15,8 +15,8 @@ var settingKey = "setting"
 func (db *DB) GetSetting(key string) ([]byte, bool, error) {
 	var value []byte
 	err := db.db.View(func(txn *badger.Txn) error {
-		settingKey := fmt.Sprintf("%s:%s", settingKey, key)
-		item, err := txn.Get([]byte(settingKey))
+		fullKey := fmt.Sprintf("%s:%s", settingKey, key)
+		item, err := txn.Get([]byte(fullKey))
 		if err != nil {
 			return util.Errorf("%w", err)
 		}
