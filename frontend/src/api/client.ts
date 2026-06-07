@@ -56,8 +56,7 @@ if (IS_DEV && API_MODE === 'mock') {
 
 export const API_BASE = API_BASE_NORMALIZED;
 const SHELF_STORAGE_KEY = 'plainshelf.shelf';
-const DEFAULT_SHELF_ID = 'default_shelf';
-let activeShelfID = DEFAULT_SHELF_ID;
+let activeShelfID = '';
 
 if (typeof window !== 'undefined') {
   const storedShelfID = window.localStorage.getItem(SHELF_STORAGE_KEY)?.trim();
@@ -90,16 +89,24 @@ export function getActiveShelfID(): string {
 }
 
 export function setActiveShelfID(shelfID: string): void {
-  const normalized = shelfID.trim() || DEFAULT_SHELF_ID;
+  const normalized = shelfID.trim();
   activeShelfID = normalized;
   if (typeof window !== 'undefined') {
-    window.localStorage.setItem(SHELF_STORAGE_KEY, normalized);
+    if (normalized) {
+      window.localStorage.setItem(SHELF_STORAGE_KEY, normalized);
+    } else {
+      window.localStorage.removeItem(SHELF_STORAGE_KEY);
+    }
   }
 }
 
 export function buildShelfApiPath(path: string, shelfID = getActiveShelfID()): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `/api/shelves/${encodeURIComponent(shelfID)}${normalizedPath}`;
+  const resolvedShelfID = shelfID.trim();
+  if (!resolvedShelfID) {
+    throw new ApiError('No shelf selected.');
+  }
+  return `/api/shelves/${encodeURIComponent(resolvedShelfID)}${normalizedPath}`;
 }
 
 async function getApiToken(): Promise<string> {

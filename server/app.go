@@ -15,8 +15,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-const defaultShelfID = "default_shelf"
-
 type ShelfData struct {
 	ID   string
 	Name string
@@ -49,7 +47,6 @@ type ShelfConfWithID struct {
 
 type AppConf struct {
 	Logger           logutil.LogConf    `yaml:"logger"`
-	Shelf            *shelf.ShelfConf   `yaml:"shelf"` // remove after migration
 	Shelves          []*ShelfConfWithID `yaml:"shelves"`
 	StorePath        string             `yaml:"store_path"`
 	CoverToJPG       bool               `yaml:"cover_to_jpg"`
@@ -90,18 +87,6 @@ func NewApp(conf *AppConf) (*App, error) {
 		}
 	}()
 
-	if conf.Shelf != nil {
-		s, err := shelf.NewShelf(conf.Shelf)
-		if err != nil {
-			return nil, util.Errorf("%w", err)
-		}
-		shelves[defaultShelfID] = &ShelfData{
-			ID:    defaultShelfID,
-			Name:  "Default Shelf",
-			Shelf: s,
-		}
-	}
-
 	for _, conf := range conf.Shelves {
 		s, err := shelf.NewShelf(&conf.ShelfConf)
 		if err != nil {
@@ -126,8 +111,8 @@ func NewApp(conf *AppConf) (*App, error) {
 		}
 	}
 
-	if _, exists := shelves[defaultShelfID]; !exists {
-		return nil, util.Errorf("a shelf with ID %q must be configured", defaultShelfID)
+	if len(shelves) == 0 {
+		return nil, util.Errorf("at least one shelf must be configured")
 	}
 
 	storeDB, err := store.New(conf.StorePath, conf.ReadHistoryLimit)
