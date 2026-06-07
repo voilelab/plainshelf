@@ -29,6 +29,14 @@ function normalizeLayerValue(value: unknown): string | null {
   return null;
 }
 
+function layersFromPath(path: string): string[] {
+  const normalized = normalizeLayerPath(path);
+  if (!normalized || normalized === '/') {
+    return [];
+  }
+  return normalized.split('/').filter((segment) => segment.length > 0);
+}
+
 function pathFromLayers(layers: string[] = []): string {
   const segments = layers.map((s) => s.trim()).filter((s) => s.length > 0);
   return segments.length === 0 ? '/' : segments.join('/');
@@ -85,6 +93,26 @@ function encodeLayerPath(path: string): string {
     .join('/');
 }
 
+function replaceLayerPrefix(path: string, oldPrefix: string, newPrefix: string): string {
+  if (path === oldPrefix) {
+    return newPrefix;
+  }
+  if (path.startsWith(`${oldPrefix}/`)) {
+    return `${newPrefix}${path.slice(oldPrefix.length)}`;
+  }
+  return path;
+}
+
+function syncMockBooksLayerPrefix(oldPrefix: string, newPrefix: string): void {
+  for (const book of mockBooks) {
+    const currentPath = pathFromLayers(book.layers);
+    const nextPath = replaceLayerPrefix(currentPath, oldPrefix, newPrefix);
+    if (nextPath !== currentPath) {
+      book.layers = layersFromPath(nextPath);
+    }
+  }
+}
+
 class LayerHttpError extends Error {}
 
 export async function getLayers(): Promise<string[]> {
@@ -139,6 +167,99 @@ export async function createLayer(layerPath: string): Promise<void> {
 
     const message = err instanceof Error ? err.message : 'Failed to create layer';
     throw new LayerHttpError(message || 'Failed to create layer');
+  }
+}
+
+export async function renameLayer(layerPath: string, nextName: string): Promise<void> {
+  const normalized = normalizeLayerPath(layerPath);
+  const name = nextName.trim();
+  if (!normalized || normalized === '/' || !name || name.includes('/')) {
+    throw new LayerHttpError('Invalid layer name');
+  }
+
+  const parentSegments = layersFromPath(normalized).slice(0, -1);
+  const nextPath = [...parentSegments, name].join('/');
+
+  if (isMockApiMode()) {
+    if (mockLayers.has(nextPath)) {
+      throw new LayerHttpError('Layer already exists');
+    }
+    const currentLayers = getMockLayers();
+    for (const layer of currentLayers) {
+      if (layer === normalized || layer.startsWith(`${normalized}/`)) {
+        mockLayers.delete(layer);
+        mockLayers.add(replaceLayerPrefix(layer, normalized, nextPath));
+      }
+    }
+    syncMockBooksLayerPrefix(normalized, nextPath);
+    await delay(undefined);
+    return;
+  }
+
+  try {
+    await fetchJson<void>(buildShelfApiPath(`/layers/${encodeLayerPath(normalized)}`), {
+      method: 'PATCH',
+      body: JSON.stringify({ name })
+    });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 400) {
+      throw new LayerHttpError('Invalid layer name');
+    }
+    if (err instanceof ApiError && err.status === 409) {
+      throw new LayerHttpError('Failed to rename layer');
+    }
+    const message = err instanceof Error ? err.message : 'Failed to rename layer';
+    throw new LayerHttpError(message || 'Failed to rename layer');
+  }
+}
+
+export async function moveLayer(layerPath: string, targetLayerPath: string): Promise<void> {
+  const normalized = normalizeLayerPath(layerPath);
+  const target = normalizeLayerPath(targetLayerPath);
+  if (!normalized || normalized === '/') {
+    throw new LayerHttpError('Invalid layer path');
+  }
+  if (target !== '' && target !== '/' && (target === normalized || target.startsWith(`${normalized}/`))) {
+    throw new LayerHttpError('Cannot move a layer under itself.');
+  }
+
+  const sourceSegments = layersFromPath(normalized);
+  const layerName = sourceSegments[sourceSegments.length - 1] ?? '';
+  const destination = [...layersFromPath(target), layerName].join('/');
+
+  if (isMockApiMode()) {
+    if (!mockLayers.has(target || '/')) {
+      throw new LayerHttpError('Target layer does not exist');
+    }
+    if (mockLayers.has(destination)) {
+      throw new LayerHttpError('Target layer already contains a layer with this name');
+    }
+    const currentLayers = getMockLayers();
+    for (const layer of currentLayers) {
+      if (layer === normalized || layer.startsWith(`${normalized}/`)) {
+        mockLayers.delete(layer);
+        mockLayers.add(replaceLayerPrefix(layer, normalized, destination));
+      }
+    }
+    syncMockBooksLayerPrefix(normalized, destination);
+    await delay(undefined);
+    return;
+  }
+
+  try {
+    await fetchJson<void>(buildShelfApiPath('/layer-moves'), {
+      method: 'POST',
+      body: JSON.stringify({ layer: layersFromPath(normalized), target_layer: layersFromPath(target) })
+    });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 400) {
+      throw new LayerHttpError('Invalid layer path');
+    }
+    if (err instanceof ApiError && err.status === 409) {
+      throw new LayerHttpError('Failed to move layer');
+    }
+    const message = err instanceof Error ? err.message : 'Failed to move layer';
+    throw new LayerHttpError(message || 'Failed to move layer');
   }
 }
 

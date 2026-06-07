@@ -61,6 +61,12 @@ func TestMoveAndDeleteLayerRejectUnsafeSegments(t *testing.T) {
 	if err := shelf.DeleteLayer(Layers{"..", "app"}); err == nil {
 		t.Fatal("Expected DeleteLayer to reject unsafe layer")
 	}
+	if err := shelf.RenameLayer(Layers{"safe"}, Layers{"..", "app"}); err == nil {
+		t.Fatal("Expected RenameLayer to reject unsafe target layer")
+	}
+	if err := shelf.MoveLayer(Layers{"safe"}, Layers{"..", "app"}); err == nil {
+		t.Fatal("Expected MoveLayer to reject unsafe target layer")
+	}
 }
 
 func TestBookRejectsUnsafeSourceID(t *testing.T) {
