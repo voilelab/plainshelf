@@ -54,7 +54,10 @@ const zhHant = {
     shelf: {
       label: '書架',
       loading: '載入書架中...',
-      failed: '載入書架失敗'
+      failed: '載入書架失敗',
+      empty: '尚未設定書架',
+      unavailableTitle: '尚未選擇書架',
+      unavailableDescription: '請先設定至少一個書架，才能瀏覽與閱讀書籍。'
     },
     recentlyRead: '最近閱讀',
     trash: '垃圾桶',

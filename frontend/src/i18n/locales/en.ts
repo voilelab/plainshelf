@@ -55,7 +55,10 @@ const en = {
     shelf: {
       label: 'Shelf',
       loading: 'Loading shelves...',
-      failed: 'Failed to load shelves'
+      failed: 'Failed to load shelves',
+      empty: 'No shelves configured',
+      unavailableTitle: 'No shelf selected',
+      unavailableDescription: 'Configure at least one shelf to browse and read books.'
     },
     recentlyRead: 'Recently Read',
     trash: 'Trash',

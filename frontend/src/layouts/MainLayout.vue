@@ -32,6 +32,7 @@
               @change="onShelfChange"
             >
               <option v-if="shelvesLoading" value="">{{ t('layout.shelf.loading') }}</option>
+              <option v-else-if="shelves.length === 0" value="">{{ t('layout.shelf.empty') }}</option>
               <option v-for="shelf in shelves" :key="shelf.id" :value="shelf.id">
                 {{ shelf.name }}
               </option>
@@ -40,124 +41,126 @@
           <p v-if="shelvesError" class="sidebar-error" role="alert">{{ shelvesError }}</p>
         </section>
 
-        <div class="sidebar-nav-divider" role="presentation"></div>
-        <section class="sidebar-section" :aria-label="t('layout.sections.layers')">
-          <div class="sidebar-header-row">
-            <div class="sidebar-section-title">{{ t('layout.sections.layers') }}</div>
-            <button
-              type="button"
-              class="create-layer-toggle"
-              :disabled="creatingLayer"
-              @click="toggleCreateLayerForm"
-            >
-              {{ showCreateLayerForm ? t('layout.createLayer.cancel') : t('layout.createLayer.add') }}
-            </button>
-          </div>
-
-          <form v-if="showCreateLayerForm" class="create-layer-form" @submit.prevent="onSubmitCreateLayer">
-            <input
-              v-model="newLayerPath"
-              class="create-layer-input"
-              type="text"
-              :placeholder="t('layout.createLayer.placeholder')"
-              :disabled="creatingLayer"
-            >
-            <div class="create-layer-actions">
+        <template v-if="hasActiveShelf">
+          <div class="sidebar-nav-divider" role="presentation"></div>
+          <section class="sidebar-section" :aria-label="t('layout.sections.layers')">
+            <div class="sidebar-header-row">
+              <div class="sidebar-section-title">{{ t('layout.sections.layers') }}</div>
               <button
-                type="submit"
-                class="create-layer-submit"
-                :disabled="creatingLayer || !canSubmitCreateLayer"
+                type="button"
+                class="create-layer-toggle"
+                :disabled="creatingLayer"
+                @click="toggleCreateLayerForm"
               >
-                {{ creatingLayer ? t('layout.createLayer.creating') : t('layout.createLayer.create') }}
+                {{ showCreateLayerForm ? t('layout.createLayer.cancel') : t('layout.createLayer.add') }}
               </button>
             </div>
-          </form>
 
-          <p v-if="createLayerError" class="sidebar-error" role="alert">
-            {{ createLayerError }}
+            <form v-if="showCreateLayerForm" class="create-layer-form" @submit.prevent="onSubmitCreateLayer">
+              <input
+                v-model="newLayerPath"
+                class="create-layer-input"
+                type="text"
+                :placeholder="t('layout.createLayer.placeholder')"
+                :disabled="creatingLayer"
+              >
+              <div class="create-layer-actions">
+                <button
+                  type="submit"
+                  class="create-layer-submit"
+                  :disabled="creatingLayer || !canSubmitCreateLayer"
+                >
+                  {{ creatingLayer ? t('layout.createLayer.creating') : t('layout.createLayer.create') }}
+                </button>
+              </div>
+            </form>
+
+            <p v-if="createLayerError" class="sidebar-error" role="alert">
+              {{ createLayerError }}
+            </p>
+            <p v-if="createLayerSuccess" class="sidebar-success" role="status">
+              {{ createLayerSuccess }}
+              <button
+                v-if="createdLayerPath"
+                type="button"
+                class="success-action"
+                @click="enterCreatedLayer"
+              >
+                {{ t('layout.createLayer.enter') }}
+              </button>
+            </p>
+
+            <div v-if="layersLoading" class="sidebar-status">{{ t('layout.createLayer.loadingLayers') }}</div>
+            <div v-else-if="layersError" class="sidebar-status sidebar-error sidebar-layer-error" role="alert">
+              <p>{{ layersError }}</p>
+              <button type="button" class="button" @click="fetchLayers">{{ t('common.retry') }}</button>
+            </div>
+            <LayerTree
+              v-else
+              :nodes="layerTree"
+              :selected="currentLayer"
+              :deleting-map="deletingLayerMap"
+              @select="onSelectLayer"
+              @move-book="onMoveBook"
+              @delete-layer="requestDeleteLayer"
+            />
+          </section>
+          <p v-if="moveBookError" class="sidebar-error" role="alert">
+            {{ moveBookError }}
           </p>
-          <p v-if="createLayerSuccess" class="sidebar-success" role="status">
-            {{ createLayerSuccess }}
-            <button
-              v-if="createdLayerPath"
-              type="button"
-              class="success-action"
-              @click="enterCreatedLayer"
-            >
-              {{ t('layout.createLayer.enter') }}
-            </button>
+          <p v-if="deleteLayerError && !pendingDeleteLayerPath" class="sidebar-error sidebar-error-pre" role="alert">
+            {{ deleteLayerError }}
           </p>
 
-          <div v-if="layersLoading" class="sidebar-status">{{ t('layout.createLayer.loadingLayers') }}</div>
-          <div v-else-if="layersError" class="sidebar-status sidebar-error sidebar-layer-error" role="alert">
-            <p>{{ layersError }}</p>
-          <button type="button" class="button" @click="fetchLayers">{{ t('common.retry') }}</button>
-          </div>
-          <LayerTree
-            v-else
-            :nodes="layerTree"
-            :selected="currentLayer"
-            :deleting-map="deletingLayerMap"
-            @select="onSelectLayer"
-            @move-book="onMoveBook"
-            @delete-layer="requestDeleteLayer"
-          />
-        </section>
-        <p v-if="moveBookError" class="sidebar-error" role="alert">
-          {{ moveBookError }}
-        </p>
-        <p v-if="deleteLayerError && !pendingDeleteLayerPath" class="sidebar-error sidebar-error-pre" role="alert">
-          {{ deleteLayerError }}
-        </p>
+          <div class="sidebar-nav-divider" role="presentation"></div>
 
-        <div class="sidebar-nav-divider" role="presentation"></div>
+          <section class="sidebar-section" :aria-label="t('layout.sections.reading')">
+            <div class="sidebar-section-title">{{ t('layout.sections.reading') }}</div>
+            <nav class="sidebar-nav-list" :aria-label="t('layout.sections.reading')">
+              <RouterLink
+                to="/read-history"
+                class="sidebar-nav-item"
+                exact-active-class="active"
+              >
+                <SidebarNavIcon name="recently-read" />
+                <span>{{ t('layout.recentlyRead') }}</span>
+              </RouterLink>
+              <RouterLink
+                to="/trash"
+                class="sidebar-nav-item"
+                exact-active-class="active"
+              >
+                <SidebarNavIcon name="trash" />
+                <span>{{ t('layout.trash') }}</span>
+              </RouterLink>
+            </nav>
+          </section>
 
-        <section class="sidebar-section" :aria-label="t('layout.sections.reading')">
-          <div class="sidebar-section-title">{{ t('layout.sections.reading') }}</div>
-          <nav class="sidebar-nav-list" :aria-label="t('layout.sections.reading')">
-            <RouterLink
-              to="/read-history"
-              class="sidebar-nav-item"
-              exact-active-class="active"
-            >
-              <SidebarNavIcon name="recently-read" />
-              <span>{{ t('layout.recentlyRead') }}</span>
-            </RouterLink>
-            <RouterLink
-              to="/trash"
-              class="sidebar-nav-item"
-              exact-active-class="active"
-            >
-              <SidebarNavIcon name="trash" />
-              <span>{{ t('layout.trash') }}</span>
-            </RouterLink>
-          </nav>
-        </section>
+          <div class="sidebar-nav-divider" role="presentation"></div>
 
-        <div class="sidebar-nav-divider" role="presentation"></div>
-
-        <section class="sidebar-section" :aria-label="t('layout.sections.maintenance')">
-          <div class="sidebar-section-title">{{ t('layout.sections.maintenance') }}</div>
-          <nav class="sidebar-nav-list" :aria-label="t('layout.sections.maintenance')">
-            <RouterLink
-              v-for="item in MAINTENANCE_NAV_ITEMS"
-              :key="item.key"
-              :to="item.to"
-              class="sidebar-nav-item"
-              exact-active-class="active"
-            >
-              <SidebarNavIcon v-if="item.icon" :name="item.icon" />
-              <span>{{ t(item.labelKey) }}</span>
-            </RouterLink>
-          </nav>
-        </section>
+          <section class="sidebar-section" :aria-label="t('layout.sections.maintenance')">
+            <div class="sidebar-section-title">{{ t('layout.sections.maintenance') }}</div>
+            <nav class="sidebar-nav-list" :aria-label="t('layout.sections.maintenance')">
+              <RouterLink
+                v-for="item in MAINTENANCE_NAV_ITEMS"
+                :key="item.key"
+                :to="item.to"
+                class="sidebar-nav-item"
+                exact-active-class="active"
+              >
+                <SidebarNavIcon v-if="item.icon" :name="item.icon" />
+                <span>{{ t(item.labelKey) }}</span>
+              </RouterLink>
+            </nav>
+          </section>
+        </template>
 
         <div class="sidebar-nav-divider" role="presentation"></div>
 
         <section class="sidebar-section" :aria-label="t('layout.sections.admin')">
           <div class="sidebar-section-title">{{ t('layout.sections.admin') }}</div>
           <nav class="sidebar-nav-list" :aria-label="t('layout.sections.admin')">
-            <RouterLink to="/admin/logs" class="sidebar-nav-item" exact-active-class="active">
+            <RouterLink v-if="hasActiveShelf" to="/admin/logs" class="sidebar-nav-item" exact-active-class="active">
               <SidebarNavIcon name="logs" />
               <span>{{ t('layout.adminLogs') }}</span>
             </RouterLink>
@@ -189,7 +192,12 @@
       </header>
 
       <div class="page-area">
-        <RouterView />
+        <RouterView v-if="canShowRouteContent" />
+        <section v-else class="no-shelf-panel" role="status">
+          <h2>{{ t('layout.shelf.unavailableTitle') }}</h2>
+          <p>{{ shelfUnavailableMessage }}</p>
+          <RouterLink to="/settings" class="button">{{ t('layout.settings') }}</RouterLink>
+        </section>
       </div>
     </main>
   </div>
@@ -229,7 +237,8 @@ const deletingLayerMap = ref<Record<string, boolean>>({});
 const pendingDeleteLayerPath = ref('');
 const { locale, setLocale, supportedLocales, t } = useI18n();
 const shelves = ref<ShelfInfo[]>([]);
-const shelvesLoading = ref(false);
+const shelvesLoading = ref(true);
+const shelvesLoaded = ref(false);
 const shelvesError = ref('');
 const selectedShelfID = ref(getActiveShelfID());
 const localeLabelKeyMap: Record<(typeof supportedLocales)[number], 'language.en' | 'language.zhHant'> = {
@@ -246,6 +255,12 @@ const layerTree = computed(() => buildLayerTreeNodes(layers.value));
 const canSubmitCreateLayer = computed(() => normalizeLayerPath(newLayerPath.value).length > 0);
 const isDeletingPendingLayer = computed(
   () => pendingDeleteLayerPath.value.length > 0 && (deletingLayerMap.value[pendingDeleteLayerPath.value] ?? false)
+);
+const hasActiveShelf = computed(() => shelvesLoaded.value && selectedShelfID.value.length > 0);
+const isSettingsRoute = computed(() => route.name === 'settings');
+const canShowRouteContent = computed(() => isSettingsRoute.value || hasActiveShelf.value);
+const shelfUnavailableMessage = computed(() =>
+  shelvesLoading.value ? t('layout.shelf.loading') : t('layout.shelf.unavailableDescription')
 );
 
 function goToLayer(layer: string | undefined): void {
@@ -285,6 +300,7 @@ function onLocaleChange(event: Event): void {
 
 async function fetchShelfOptions(): Promise<void> {
   shelvesLoading.value = true;
+  shelvesLoaded.value = false;
   shelvesError.value = '';
 
   try {
@@ -292,8 +308,10 @@ async function fetchShelfOptions(): Promise<void> {
     shelves.value = nextShelves;
     selectedShelfID.value = ensureActiveShelf(nextShelves);
   } catch (err) {
+    selectedShelfID.value = '';
     shelvesError.value = err instanceof Error ? err.message : t('layout.shelf.failed');
   } finally {
+    shelvesLoaded.value = true;
     shelvesLoading.value = false;
   }
 }
@@ -452,6 +470,10 @@ async function confirmDeleteLayer(): Promise<void> {
 
 onMounted(async () => {
   await fetchShelfOptions();
+
+  if (!hasActiveShelf.value) {
+    return;
+  }
 
   if (!layersLoaded.value && !layersLoading.value) {
     await fetchLayers();
@@ -706,6 +728,27 @@ onMounted(async () => {
 
 .page-area {
   padding: 16px 24px;
+}
+
+.no-shelf-panel {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  display: grid;
+  gap: 10px;
+  margin: 32px auto;
+  max-width: 560px;
+  padding: 24px;
+}
+
+.no-shelf-panel h2,
+.no-shelf-panel p {
+  margin: 0;
+}
+
+.no-shelf-panel .button {
+  justify-self: start;
 }
 
 .sidebar-shelf-label {

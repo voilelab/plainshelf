@@ -1,4 +1,4 @@
-import { DEFAULT_SHELF_ID, fetchJson, getActiveShelfID, isMockApiMode, setActiveShelfID } from './client';
+import { fetchJson, getActiveShelfID, isMockApiMode, setActiveShelfID } from './client';
 
 export interface ShelfInfo {
   id: string;
@@ -7,7 +7,7 @@ export interface ShelfInfo {
 
 const mockShelves: ShelfInfo[] = [
   {
-    id: DEFAULT_SHELF_ID,
+    id: 'default_shelf',
     name: 'Default Shelf'
   }
 ];
