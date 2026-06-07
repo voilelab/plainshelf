@@ -7,7 +7,7 @@ require (
 	github.com/gofrs/flock v0.13.0
 	github.com/wlynxg/chardet v1.0.5
 	go.rtnl.ai/x v1.15.0
-	golang.org/x/image v0.24.0
+	golang.org/x/image v0.38.0
 	golang.org/x/text v0.37.0
 	gopkg.in/yaml.v3 v3.0.1
 )
