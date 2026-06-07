@@ -37,8 +37,8 @@ func (db *DB) GetSetting(key string) ([]byte, bool, error) {
 
 func (db *DB) SetSetting(key string, value []byte) error {
 	err := db.db.Update(func(txn *badger.Txn) error {
-		settingKey := fmt.Sprintf("%s:%s", settingKey, key)
-		err := txn.Set([]byte(settingKey), value)
+		fullKey := fmt.Sprintf("%s:%s", settingKey, key)
+		err := txn.Set([]byte(fullKey), value)
 		if err != nil {
 			return util.Errorf("%w", err)
 		}
