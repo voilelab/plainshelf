@@ -585,8 +585,7 @@ func (s *Shelf) DeleteLayer(layer Layers) error {
 	return nil
 }
 
-// RenameLayer renames an existing layer to a new name. It validates the new layer name and then updates the directory structure accordingly. If the old layer does not exist or the new layer already exists, it returns an error.
-// Allow renaming across different parent layers, e.g. renaming layer ["A", "B"] to ["C", "D"] will move all books from A/B to C/D, creating the new layers if they don't exist.
+// RenameLayer renames an existing layer without changing its parent layer.
 func (s *Shelf) RenameLayer(oldLayer Layers, newLayer Layers) error {
 	if err := validateLayers(oldLayer); err != nil {
 		return util.Errorf("invalid old layer: %w", err)
@@ -597,6 +596,16 @@ func (s *Shelf) RenameLayer(oldLayer Layers, newLayer Layers) error {
 
 	s.lock()
 	defer s.unlock()
+
+	if len(oldLayer) == 0 || len(newLayer) == 0 {
+		return util.Errorf("cannot rename root layer")
+	}
+
+	oldParent := oldLayer[:len(oldLayer)-1]
+	newParent := newLayer[:len(newLayer)-1]
+	if !oldParent.Equal(newParent) {
+		return util.Errorf("rename cannot move layer")
+	}
 
 	oldLayerPath := path.Join(booksFolder, path.Join(oldLayer...))
 	newLayerPath := path.Join(booksFolder, path.Join(newLayer...))
@@ -626,14 +635,62 @@ func (s *Shelf) RenameLayer(oldLayer Layers, newLayer Layers) error {
 		return util.Errorf("%w", err)
 	}
 
-	// Update cache entries for all books under the renamed layer
-	err = s.iterateBooks(newLayer, func(book *Book) bool {
-		s.updateBookCacheEntry(newLayer, book.FolderPath(), book)
-		return true
-	})
-	if err != nil {
+	s.markBookCacheTreeDirty()
+
+	return nil
+}
+
+// MoveLayer moves an existing layer under an existing target parent layer without renaming it.
+func (s *Shelf) MoveLayer(layer Layers, targetParent Layers) error {
+	if err := validateLayers(layer); err != nil {
+		return util.Errorf("invalid layer: %w", err)
+	}
+	if err := validateLayers(targetParent); err != nil {
+		return util.Errorf("invalid target layer: %w", err)
+	}
+	if len(layer) == 0 {
+		return util.Errorf("cannot move root layer")
+	}
+
+	s.lock()
+	defer s.unlock()
+
+	oldLayerPath := path.Join(booksFolder, path.Join(layer...))
+	targetParentPath := path.Join(booksFolder, path.Join(targetParent...))
+
+	if _, err := s.dbRoot.Stat(oldLayerPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return util.Errorf("layer does not exist")
+		}
 		return util.Errorf("%w", err)
 	}
+
+	if _, err := s.dbRoot.Stat(targetParentPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return util.Errorf("target layer does not exist")
+		}
+		return util.Errorf("%w", err)
+	}
+
+	for i := range layer {
+		if targetParent.Equal(layer[:i+1]) {
+			return util.Errorf("cannot move layer under itself")
+		}
+	}
+
+	newLayer := append(append(Layers(nil), targetParent...), layer[len(layer)-1])
+	newLayerPath := path.Join(booksFolder, path.Join(newLayer...))
+	if _, err := s.dbRoot.Stat(newLayerPath); err == nil {
+		return util.Errorf("target child layer already exists")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return util.Errorf("%w", err)
+	}
+
+	if err := s.dbRoot.Rename(oldLayerPath, newLayerPath); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	s.markBookCacheTreeDirty()
 
 	return nil
 }

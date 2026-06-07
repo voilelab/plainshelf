@@ -368,7 +368,7 @@ func TestShelfRenameLayerNested(t *testing.T) {
 	}
 }
 
-func TestShelfRenameLayerAcrossParents(t *testing.T) {
+func TestShelfRenameLayerAcrossParentsRejected(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib, ScanInterval: "0s"})
 	if err != nil {
@@ -381,19 +381,62 @@ func TestShelfRenameLayerAcrossParents(t *testing.T) {
 		t.Fatalf("Failed to create book: %v", err)
 	}
 
-	if err := shelf.RenameLayer([]string{"alpha", "beta"}, []string{"gamma", "delta"}); err != nil {
-		t.Fatalf("RenameLayer failed: %v", err)
+	if err := shelf.RenameLayer([]string{"alpha", "beta"}, []string{"gamma", "delta"}); err == nil {
+		t.Fatal("Expected RenameLayer to reject moving across parents")
 	}
 
-	booksInNew, err := shelf.GetBooksByLayer([]string{"gamma", "delta"})
+	booksInOld, err := shelf.GetBooksByLayer([]string{"alpha", "beta"})
 	if err != nil {
 		t.Fatalf("GetBooksByLayer failed: %v", err)
 	}
-	if len(booksInNew) != 1 {
-		t.Fatalf("Expected 1 book in gamma/delta, got %d", len(booksInNew))
+	if len(booksInOld) != 1 || booksInOld[0].ID() != book.ID() {
+		t.Fatalf("Expected book to remain in alpha/beta, got %#v", booksInOld)
 	}
-	if booksInNew[0].ID() != book.ID() {
-		t.Errorf("Expected book ID %q, got %q", book.ID(), booksInNew[0].ID())
+}
+
+func TestShelfMoveLayerUnderExistingLayer(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib, ScanInterval: "0s"})
+	if err != nil {
+		t.Fatalf("Failed to initialize Shelf: %v", err)
+	}
+	defer shelf.Close()
+
+	book, err := shelf.NewBook([]string{"alpha", "beta"}, "Move Layer Book")
+	if err != nil {
+		t.Fatalf("Failed to create book: %v", err)
+	}
+	if err := shelf.NewLayer([]string{"gamma"}); err != nil {
+		t.Fatalf("Failed to create target layer: %v", err)
+	}
+
+	if err := shelf.MoveLayer([]string{"alpha", "beta"}, []string{"gamma"}); err != nil {
+		t.Fatalf("MoveLayer failed: %v", err)
+	}
+
+	booksInNew, err := shelf.GetBooksByLayer([]string{"gamma", "beta"})
+	if err != nil {
+		t.Fatalf("GetBooksByLayer failed: %v", err)
+	}
+	if len(booksInNew) != 1 || booksInNew[0].ID() != book.ID() {
+		t.Fatalf("Expected book in gamma/beta, got %#v", booksInNew)
+	}
+}
+
+func TestShelfMoveLayerRequiresExistingTarget(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib})
+	if err != nil {
+		t.Fatalf("Failed to initialize Shelf: %v", err)
+	}
+	defer shelf.Close()
+
+	if err := shelf.NewLayer([]string{"alpha"}); err != nil {
+		t.Fatalf("Failed to create layer: %v", err)
+	}
+
+	if err := shelf.MoveLayer([]string{"alpha"}, []string{"missing"}); err == nil {
+		t.Fatal("Expected MoveLayer to reject missing target layer")
 	}
 }
 
