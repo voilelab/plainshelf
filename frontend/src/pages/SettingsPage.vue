@@ -30,12 +30,37 @@
         />
       </label>
     </section>
+
+    <section class="panel settings-group">
+      <h3>{{ t('settings.readHistory.title') }}</h3>
+      <label class="setting-item">
+        <div>
+          <div class="setting-label">{{ t('settings.readHistoryLimit.label') }}</div>
+          <p class="setting-description">{{ t('settings.readHistoryLimit.description') }}</p>
+        </div>
+        <input
+          class="setting-number"
+          type="number"
+          inputmode="numeric"
+          min="0"
+          step="1"
+          :value="readHistoryLimit"
+          :disabled="loading || saving"
+          @change="onReadHistoryLimitChange"
+        />
+      </label>
+    </section>
   </section>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { getCoverToJpgSetting, setCoverToJpgSetting } from '../api/settings';
+import {
+  getCoverToJpgSetting,
+  getReadHistoryLimitSetting,
+  setCoverToJpgSetting,
+  setReadHistoryLimitSetting
+} from '../api/settings';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
 import { useI18n } from '../i18n';
 
@@ -44,6 +69,7 @@ const loading = ref(false);
 const saving = ref(false);
 const error = ref('');
 const coverToJpg = ref(false);
+const readHistoryLimit = ref(0);
 
 useDocumentTitle(() => [t('settings.title'), t('app.name')]);
 
@@ -52,12 +78,25 @@ async function loadSettings(): Promise<void> {
   error.value = '';
 
   try {
-    coverToJpg.value = await getCoverToJpgSetting();
+    const [nextCoverToJpg, nextReadHistoryLimit] = await Promise.all([
+      getCoverToJpgSetting(),
+      getReadHistoryLimitSetting()
+    ]);
+    coverToJpg.value = nextCoverToJpg;
+    readHistoryLimit.value = nextReadHistoryLimit;
   } catch (err) {
     error.value = err instanceof Error ? err.message : t('settings.loadFailed');
   } finally {
     loading.value = false;
   }
+}
+
+function parseReadHistoryLimit(value: string): number | null {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return null;
+  }
+  return parsed;
 }
 
 async function onCoverToJpgChange(event: Event): Promise<void> {
@@ -77,6 +116,35 @@ async function onCoverToJpgChange(event: Event): Promise<void> {
   } catch (err) {
     coverToJpg.value = prevValue;
     target.checked = prevValue;
+    error.value = err instanceof Error ? err.message : t('settings.saveFailed');
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function onReadHistoryLimitChange(event: Event): Promise<void> {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) {
+    return;
+  }
+
+  const nextValue = parseReadHistoryLimit(target.value);
+  const prevValue = readHistoryLimit.value;
+  if (nextValue === null) {
+    target.value = String(prevValue);
+    error.value = t('settings.readHistoryLimit.invalid');
+    return;
+  }
+
+  readHistoryLimit.value = nextValue;
+  saving.value = true;
+  error.value = '';
+
+  try {
+    await setReadHistoryLimitSetting(nextValue);
+  } catch (err) {
+    readHistoryLimit.value = prevValue;
+    target.value = String(prevValue);
     error.value = err instanceof Error ? err.message : t('settings.saveFailed');
   } finally {
     saving.value = false;
@@ -153,6 +221,18 @@ onMounted(() => {
 }
 
 .setting-checkbox:disabled {
+  cursor: not-allowed;
+}
+
+.setting-number {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font: inherit;
+  max-width: 120px;
+  padding: 8px 10px;
+}
+
+.setting-number:disabled {
   cursor: not-allowed;
 }
 </style>

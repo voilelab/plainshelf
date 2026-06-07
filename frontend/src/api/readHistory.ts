@@ -1,4 +1,5 @@
 import { getBook, listBooks, mockBooks } from './books';
+import { getReadHistoryLimitSetting } from './settings';
 import { buildShelfApiPath, fetchJson, isMockApiMode } from './client';
 import type { Book } from '../types/book';
 
@@ -12,7 +13,8 @@ function delay<T>(value: T, ms = 240): Promise<T> {
 
 export async function getReadHistoryIDs(): Promise<string[]> {
   if (isMockApiMode()) {
-    return delay([...mockReadHistory]);
+    const limit = await getReadHistoryLimitSetting();
+    return delay(mockReadHistory.slice(0, limit));
   }
 
   return await fetchJson<string[]>(buildShelfApiPath('/read_history'));
@@ -25,7 +27,8 @@ export async function addReadHistory(bookID: string): Promise<void> {
   }
 
   if (isMockApiMode()) {
-    mockReadHistory = [trimmed, ...mockReadHistory.filter((id) => id !== trimmed)];
+    const limit = await getReadHistoryLimitSetting();
+    mockReadHistory = [trimmed, ...mockReadHistory.filter((id) => id !== trimmed)].slice(0, limit);
     await delay(undefined);
     return;
   }

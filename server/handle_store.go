@@ -94,6 +94,9 @@ func (app *App) HandleAPIGetReadHistory(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "failed to get read history", http.StatusInternalServerError)
 		return
 	}
+	if limit := app.readHistoryLimit(); len(history) > limit {
+		history = history[:limit]
+	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	err = json.NewEncoder(w).Encode(history)
@@ -121,7 +124,7 @@ func (app *App) HandleAPIUpdateReadHistory(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	err = app.storeDB.AddToReadHistory(shelfID, bookID, app.conf.ReadHistoryLimit)
+	err = app.storeDB.AddToReadHistory(shelfID, bookID, app.readHistoryLimit())
 	if err != nil {
 		app.Error("failed to update read history", "error", err)
 		http.Error(w, "failed to update read history", http.StatusInternalServerError)
@@ -142,7 +145,7 @@ func (app *App) HandleAPIClearReadHistory(w http.ResponseWriter, r *http.Request
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
 	}
-	err = app.storeDB.SetReadHistory(shelfID, []string{}, app.conf.ReadHistoryLimit)
+	err = app.storeDB.SetReadHistory(shelfID, []string{}, app.readHistoryLimit())
 	if err != nil {
 		app.Error("failed to clear read history", "error", err)
 		http.Error(w, "failed to clear read history", http.StatusInternalServerError)
