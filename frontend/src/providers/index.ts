@@ -27,3 +27,5 @@ export function getBookshelfProvider(): BookshelfProvider {
 
 export type { BookshelfProvider } from './bookshelfProvider';
 export { isMobileRuntime, isWailsRuntime } from './runtime';
+export type { CachedBookManifest, MobileBookCache } from './mobileBookCache';
+export { InMemoryMobileBookCache } from './mobileBookCache';

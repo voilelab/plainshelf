@@ -1,31 +1,303 @@
-import type { DownloadState, PaginatedBooks } from '../types/book';
+import type {
+  BookmarkPayload,
+  Book,
+  BookCreateRequest,
+  BookContent,
+  BookUpdateRequest,
+  DownloadState,
+  PaginatedBooks,
+  ReadingProgress,
+  SplitConfig,
+  TrashedBook
+} from '../types/book';
+import type { SourceMeta } from '../types/source';
+import type { BookshelfProvider, DesktopImportBookResult } from './bookshelfProvider';
+import { InMemoryMobileBookCache, type MobileBookCache } from './mobileBookCache';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
 
-const notImplemented = (operation: string): Error =>
-  new Error(`MobileBookshelfProvider.${operation} is not implemented yet`);
+export const OFFLINE_BOOK_CACHE_MISS_ERROR = 'Book is not downloaded and the app is offline';
+export const OFFLINE_SOURCE_CACHE_MISS_ERROR = 'Source is not downloaded and the app is offline';
+export const OFFLINE_DOWNLOAD_UNAVAILABLE_ERROR = 'Cannot download book while offline';
 
-export class MobileBookshelfProvider extends ServerBookshelfProvider {
-  // Placeholder for a future Capacitor/Android provider. It should combine:
-  // TODO: remote API client for online source-of-truth reads.
-  // TODO: local metadata DB for download state, versions, timestamps, progress, and bookmarks.
-  // TODO: local source content cache for downloaded book/source content.
-  // TODO: offline downloaded-only listing and open/read behavior.
+const defaultIsOnline = (): boolean =>
+  typeof navigator === 'undefined' ? true : navigator.onLine;
 
-  listBooks(page?: number, pageSize?: number, search?: string): Promise<PaginatedBooks> {
-    // Until local cache plumbing exists, reuse the server provider as the remote
-    // API client for online/source-of-truth library listing.
-    return super.listBooks(page, pageSize, search);
+export class MobileBookshelfProvider implements BookshelfProvider {
+  constructor(
+    private readonly remote: BookshelfProvider = new ServerBookshelfProvider(),
+    private readonly cache: MobileBookCache = new InMemoryMobileBookCache(),
+    private readonly isOnline: () => boolean = defaultIsOnline
+  ) {}
+
+  async listBooks(page = 1, pageSize = 20, search?: string): Promise<PaginatedBooks> {
+    if (this.isOnline()) {
+      const remoteBooks = await this.remote.listBooks(page, pageSize, search);
+      const items = await Promise.all(remoteBooks.items.map((book) => this.annotateDownloadState(book)));
+      return { ...remoteBooks, items };
+    }
+
+    const downloaded = await this.cache.listDownloadedBooks();
+    const filtered = this.filterBooks(downloaded, search);
+    const start = Math.max(0, (page - 1) * pageSize);
+
+    return {
+      items: filtered.slice(start, start + pageSize),
+      total: filtered.length,
+      page,
+      pageSize
+    };
   }
 
-  async getDownloadState(_bookId: string): Promise<DownloadState> {
-    throw notImplemented('getDownloadState');
+  async getBook(bookId: string): Promise<Book> {
+    if (this.isOnline()) {
+      return this.annotateDownloadState(await this.remote.getBook(bookId));
+    }
+
+    const cached = await this.cache.getCachedBook(bookId);
+    if (cached) {
+      return cached;
+    }
+
+    throw new Error(OFFLINE_BOOK_CACHE_MISS_ERROR);
   }
 
-  async downloadBook(_bookId: string): Promise<void> {
-    throw notImplemented('downloadBook');
+  updateBook(bookId: string, payload: BookUpdateRequest): Promise<Book> {
+    return this.remote.updateBook(bookId, payload);
   }
 
-  async removeDownload(_bookId: string): Promise<void> {
-    throw notImplemented('removeDownload');
+  updateBookLayer(bookId: string, layer: string): Promise<void> {
+    return this.remote.updateBookLayer(bookId, layer);
+  }
+
+  deleteBook(bookId: string): Promise<void> {
+    return this.remote.deleteBook(bookId);
+  }
+
+  async getBookContent(bookId: string): Promise<BookContent> {
+    const cached = await this.cache.getCachedBookContent(bookId);
+    if (cached) {
+      return cached;
+    }
+
+    if (this.isOnline()) {
+      return this.remote.getBookContent(bookId);
+    }
+
+    throw new Error(OFFLINE_BOOK_CACHE_MISS_ERROR);
+  }
+
+  async downloadBookContent(bookId: string): Promise<Blob> {
+    const cached = await this.cache.getCachedBookContent(bookId);
+    if (cached) {
+      return new Blob([cached.content], { type: 'text/plain;charset=utf-8' });
+    }
+
+    if (this.isOnline()) {
+      return this.remote.downloadBookContent(bookId);
+    }
+
+    throw new Error(OFFLINE_BOOK_CACHE_MISS_ERROR);
+  }
+
+  getBookSplitConfig(bookId: string): Promise<SplitConfig> {
+    return this.remote.getBookSplitConfig(bookId);
+  }
+
+  updateBookSplitConfig(bookId: string, config: SplitConfig): Promise<SplitConfig> {
+    return this.remote.updateBookSplitConfig(bookId, config);
+  }
+
+  async getReadProgress(bookId: string): Promise<ReadingProgress> {
+    const cached = await this.cache.getReadProgress(bookId);
+    if (cached) {
+      return cached;
+    }
+
+    if (this.isOnline()) {
+      return this.remote.getReadProgress(bookId);
+    }
+
+    return { char_offset: 0 };
+  }
+
+  saveReadProgress(bookId: string, progress: BookmarkPayload): Promise<void> {
+    return this.cache.saveReadProgress(bookId, progress);
+  }
+
+  addReadHistory(bookId: string): Promise<void> {
+    return this.isOnline() ? this.remote.addReadHistory(bookId) : Promise.resolve();
+  }
+
+  listReadHistoryBooks(): Promise<Book[]> {
+    return this.remote.listReadHistoryBooks();
+  }
+
+  clearReadHistory(): Promise<void> {
+    return this.remote.clearReadHistory();
+  }
+
+  importBook(payload: BookCreateRequest): Promise<Book> {
+    return this.remote.importBook(payload);
+  }
+
+  uploadBookCover(bookId: string, file: File): Promise<void> {
+    return this.remote.uploadBookCover(bookId, file);
+  }
+
+  uploadBookCoverBlob(bookId: string, blob: Blob): Promise<void> {
+    return this.remote.uploadBookCoverBlob(bookId, blob);
+  }
+
+  getBookCover(bookId: string): Promise<Blob> {
+    return this.remote.getBookCover(bookId);
+  }
+
+  getBookCoverUrl(bookId: string, cacheKey?: number): string {
+    return this.remote.getBookCoverUrl(bookId, cacheKey);
+  }
+
+  deleteBookCover(bookId: string): Promise<void> {
+    return this.remote.deleteBookCover(bookId);
+  }
+
+  getDuplicateBookGroups(): Promise<string[][]> {
+    return this.remote.getDuplicateBookGroups();
+  }
+
+  listTrashedBooks(): Promise<TrashedBook[]> {
+    return this.remote.listTrashedBooks();
+  }
+
+  restoreTrashedBook(bookId: string): Promise<void> {
+    return this.remote.restoreTrashedBook(bookId);
+  }
+
+  deleteTrashedBook(bookId: string): Promise<void> {
+    return this.remote.deleteTrashedBook(bookId);
+  }
+
+  async listSources(bookId: string): Promise<SourceMeta[]> {
+    if (this.isOnline()) {
+      return this.remote.listSources(bookId);
+    }
+
+    return this.cache.listCachedSources(bookId);
+  }
+
+  async getSource(bookId: string, sourceId: string): Promise<SourceMeta> {
+    if (this.isOnline()) {
+      return this.remote.getSource(bookId, sourceId);
+    }
+
+    const cached = await this.cache.getCachedSource(bookId, sourceId);
+    if (cached) {
+      return cached;
+    }
+
+    throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
+  }
+
+  async getSourceContent(bookId: string, sourceId: string): Promise<string> {
+    const cached = await this.cache.getCachedSourceContent(bookId, sourceId);
+    if (cached !== null) {
+      return cached;
+    }
+
+    if (this.isOnline()) {
+      return this.remote.getSourceContent(bookId, sourceId);
+    }
+
+    throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
+  }
+
+  createSource(bookId: string): Promise<SourceMeta> {
+    return this.remote.createSource(bookId);
+  }
+
+  deleteSource(bookId: string, sourceId: string): Promise<void> {
+    return this.remote.deleteSource(bookId, sourceId);
+  }
+
+  setCurrentSource(bookId: string, sourceId: string): Promise<void> {
+    return this.remote.setCurrentSource(bookId, sourceId);
+  }
+
+  updateSourceContent(bookId: string, sourceId: string, content: string): Promise<void> {
+    return this.remote.updateSourceContent(bookId, sourceId, content);
+  }
+
+  async getDownloadState(bookId: string): Promise<DownloadState> {
+    return this.cache.getDownloadState(bookId);
+  }
+
+  async downloadBook(bookId: string): Promise<void> {
+    if (!this.isOnline()) {
+      throw new Error(OFFLINE_DOWNLOAD_UNAVAILABLE_ERROR);
+    }
+
+    const [book, sources, bookContent] = await Promise.all([
+      this.remote.getBook(bookId),
+      this.remote.listSources(bookId),
+      this.remote.getBookContent(bookId)
+    ]);
+    const sourceContents = await Promise.all(
+      sources.map(async (source) => ({
+        sourceId: source.id,
+        content: await this.remote.getSourceContent(bookId, source.id)
+      }))
+    );
+
+    await this.cache.saveDownloadedBook({
+      book,
+      sources,
+      downloaded_at: new Date().toISOString(),
+      local_version: book.local_version,
+      remote_version: book.remote_version
+    });
+    await this.cache.saveCachedBookContent(bookId, bookContent);
+    await Promise.all(
+      sourceContents.map(({ sourceId, content }) =>
+        this.cache.saveCachedSourceContent(bookId, sourceId, content)
+      )
+    );
+  }
+
+  removeDownload(bookId: string): Promise<void> {
+    return this.cache.removeDownloadedBook(bookId);
+  }
+
+  openLocalBookFiles?(): Promise<string[] | null> {
+    return this.remote.openLocalBookFiles?.() ?? Promise.resolve(null);
+  }
+
+  importBooksFromLocalPaths?(localPaths: string[], layerPath: string): Promise<DesktopImportBookResult[] | null> {
+    return this.remote.importBooksFromLocalPaths?.(localPaths, layerPath) ?? Promise.resolve(null);
+  }
+
+  private async annotateDownloadState(book: Book): Promise<Book> {
+    const cached = await this.cache.getCachedBook(book.id);
+    if (!cached) {
+      return { ...book, download_state: 'not_downloaded' };
+    }
+
+    return {
+      ...book,
+      download_state: await this.cache.getDownloadState(book.id),
+      downloaded_at: cached.downloaded_at,
+      local_version: cached.local_version,
+      remote_version: book.remote_version ?? cached.remote_version
+    };
+  }
+
+  private filterBooks(books: Book[], search?: string): Book[] {
+    const term = search?.trim().toLowerCase();
+    if (!term) {
+      return books;
+    }
+
+    return books.filter((book) => {
+      const haystack = [book.title, ...book.authors, ...book.tags].join(' ').toLowerCase();
+      return haystack.includes(term);
+    });
   }
 }
