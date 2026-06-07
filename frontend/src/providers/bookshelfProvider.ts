@@ -4,6 +4,7 @@ import type {
   BookCreateRequest,
   BookContent,
   BookUpdateRequest,
+  DownloadState,
   PaginatedBooks,
   ReadingProgress,
   SplitConfig,
@@ -11,7 +12,7 @@ import type {
 } from '../types/book';
 import type { SourceMeta } from '../types/source';
 
-export type DownloadState = 'not_downloaded' | 'downloading' | 'downloaded';
+export type { DownloadState } from '../types/book';
 
 export interface DesktopImportBookResult {
   path?: string;
