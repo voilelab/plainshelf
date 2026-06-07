@@ -809,6 +809,61 @@ func TestAPISettingCoverToJPGContract(t *testing.T) {
 	}
 }
 
+func TestAPISettingReadHistoryLimitContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	url := "/api/setting/read_history_limit"
+
+	// Default value reflects AppConf (2 in test env).
+	rec := env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	assertJSONContentType(t, rec)
+	got := decodeJSON[map[string]any](t, rec)
+	if val, _ := got["value"].(float64); val != 2 {
+		t.Fatalf("default read_history_limit = %v, want 2", got["value"])
+	}
+
+	// Set to 1.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader("1")))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	got = decodeJSON[map[string]any](t, rec)
+	if val, _ := got["value"].(float64); val != 1 {
+		t.Fatalf("read_history_limit after set = %v, want 1", got["value"])
+	}
+
+	first := importTextBook(t, env, "History One", "", "history-one.txt", "one")
+	second := importTextBook(t, env, "History Two", "", "history-two.txt", "two")
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id="+first.Meta.ID, nil))
+	assertStatus(t, rec, http.StatusNoContent)
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id="+second.Meta.ID, nil))
+	assertStatus(t, rec, http.StatusNoContent)
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/read_history", nil))
+	assertStatus(t, rec, http.StatusOK)
+	history := decodeJSON[[]string](t, rec)
+	if len(history) != 1 || history[0] != second.Meta.ID {
+		t.Fatalf("read history with limit 1 = %#v, want [%s]", history, second.Meta.ID)
+	}
+
+	// Invalid values return 400.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader("-1")))
+	assertStatus(t, rec, http.StatusBadRequest)
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader("1.5")))
+	assertStatus(t, rec, http.StatusBadRequest)
+
+	// Delete resets to AppConf default (2).
+	rec = env.do(httptest.NewRequest(http.MethodDelete, url, nil))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	got = decodeJSON[map[string]any](t, rec)
+	if val, _ := got["value"].(float64); val != 2 {
+		t.Fatalf("read_history_limit after delete = %v, want 2 (AppConf default)", got["value"])
+	}
+}
+
 func TestAPISetCurrentBookSourceContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Set Current Source Book", "", "src.txt", "content")

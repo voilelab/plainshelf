@@ -299,6 +299,9 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/setting/cover_to_jpg", app.HandleGetSettingCoverToJPG)
 	mux.HandleFunc("POST /api/setting/cover_to_jpg", app.HandleSetSettingCoverToJPG)
 	mux.HandleFunc("DELETE /api/setting/cover_to_jpg", app.HandleDeleteSettingCoverToJPG)
+	mux.HandleFunc("GET /api/setting/read_history_limit", app.HandleGetSettingReadHistoryLimit)
+	mux.HandleFunc("POST /api/setting/read_history_limit", app.HandleSetSettingReadHistoryLimit)
+	mux.HandleFunc("DELETE /api/setting/read_history_limit", app.HandleDeleteSettingReadHistoryLimit)
 
 	mux.HandleFunc("GET /{path...}", app.HandleSPAFallback)
 }
