@@ -1,0 +1,3 @@
+Another book for PlainShelf E2E.
+
+This is the second test fixture used in library search tests.
