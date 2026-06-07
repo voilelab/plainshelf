@@ -26,10 +26,10 @@ export interface Book {
   // Mobile/offline cache metadata. These fields are optional so existing
   // server and Wails responses remain valid when they do not include local
   // download information.
-  downloadState?: DownloadState;
-  localVersion?: string;
-  remoteVersion?: string;
-  downloadedAt?: BookTimestamp;
+  download_state?: DownloadState;
+  local_version?: string;
+  remote_version?: string;
+  downloaded_at?: BookTimestamp;
 }
 
 export interface TrashedBook {
