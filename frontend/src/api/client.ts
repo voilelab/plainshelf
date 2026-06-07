@@ -55,8 +55,9 @@ if (IS_DEV && API_MODE === 'mock') {
 }
 
 export const API_BASE = API_BASE_NORMALIZED;
+export const DEFAULT_SHELF_ID = 'default_shelf';
 const SHELF_STORAGE_KEY = 'plainshelf.shelf';
-let activeShelfID = '';
+let activeShelfID = DEFAULT_SHELF_ID;
 
 if (typeof window !== 'undefined') {
   const storedShelfID = window.localStorage.getItem(SHELF_STORAGE_KEY)?.trim();
@@ -85,20 +86,25 @@ export function buildApiUrl(path: string): string {
 }
 
 export function getActiveShelfID(): string {
-  return activeShelfID;
+  return activeShelfID || DEFAULT_SHELF_ID;
 }
 
 export function setActiveShelfID(shelfID: string): void {
   const normalized = shelfID.trim();
-  activeShelfID = normalized;
+  activeShelfID = normalized || DEFAULT_SHELF_ID;
   if (typeof window !== 'undefined') {
-    window.localStorage.setItem(SHELF_STORAGE_KEY, normalized);
+    if (normalized) {
+      window.localStorage.setItem(SHELF_STORAGE_KEY, normalized);
+    } else {
+      window.localStorage.removeItem(SHELF_STORAGE_KEY);
+    }
   }
 }
 
 export function buildShelfApiPath(path: string, shelfID = getActiveShelfID()): string {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `/api/shelves/${encodeURIComponent(shelfID)}${normalizedPath}`;
+  const resolvedShelfID = shelfID.trim() || DEFAULT_SHELF_ID;
+  return `/api/shelves/${encodeURIComponent(resolvedShelfID)}${normalizedPath}`;
 }
 
 async function getApiToken(): Promise<string> {
