@@ -121,7 +121,7 @@ func (app *App) HandleAPIUpdateReadHistory(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	err = app.storeDB.AddToReadHistory(shelfID, bookID)
+	err = app.storeDB.AddToReadHistory(shelfID, bookID, app.conf.ReadHistoryLimit)
 	if err != nil {
 		app.Error("failed to update read history", "error", err)
 		http.Error(w, "failed to update read history", http.StatusInternalServerError)
@@ -142,7 +142,7 @@ func (app *App) HandleAPIClearReadHistory(w http.ResponseWriter, r *http.Request
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
 	}
-	err = app.storeDB.SetReadHistory(shelfID, []string{})
+	err = app.storeDB.SetReadHistory(shelfID, []string{}, app.conf.ReadHistoryLimit)
 	if err != nil {
 		app.Error("failed to clear read history", "error", err)
 		http.Error(w, "failed to clear read history", http.StatusInternalServerError)

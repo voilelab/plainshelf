@@ -31,9 +31,9 @@ func (db *DB) GetReadHistory(shelfID string) ([]string, error) {
 	return history, nil
 }
 
-func (db *DB) SetReadHistory(shelfID string, history []string) error {
-	if len(history) > db.readHistoryLimit {
-		history = history[:db.readHistoryLimit]
+func (db *DB) SetReadHistory(shelfID string, history []string, readHistoryLimit int) error {
+	if len(history) > readHistoryLimit {
+		history = history[:readHistoryLimit]
 	}
 
 	bs, err := json.Marshal(history)
@@ -51,7 +51,7 @@ func (db *DB) SetReadHistory(shelfID string, history []string) error {
 	return nil
 }
 
-func (db *DB) AddToReadHistory(shelfID string, bookID string) error {
+func (db *DB) AddToReadHistory(shelfID string, bookID string, readHistoryLimit int) error {
 	history, err := db.GetReadHistory(shelfID)
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -66,9 +66,9 @@ func (db *DB) AddToReadHistory(shelfID string, bookID string) error {
 	}
 
 	// Trim to limit
-	if len(newHistory) > db.readHistoryLimit {
-		newHistory = newHistory[:db.readHistoryLimit]
+	if len(newHistory) > readHistoryLimit {
+		newHistory = newHistory[:readHistoryLimit]
 	}
 
-	return db.SetReadHistory(shelfID, newHistory)
+	return db.SetReadHistory(shelfID, newHistory, readHistoryLimit)
 }

@@ -130,7 +130,7 @@ func NewApp(conf *AppConf) (*App, error) {
 		return nil, util.Errorf("a shelf with ID %q must be configured", defaultShelfID)
 	}
 
-	storeDB, err := store.New(conf.StorePath, conf.ReadHistoryLimit)
+	storeDB, err := store.New(conf.StorePath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

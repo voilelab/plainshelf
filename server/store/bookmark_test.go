@@ -6,7 +6,7 @@ import (
 
 func newTestDB(t *testing.T) *DB {
 	t.Helper()
-	db, err := New(t.TempDir(), 100)
+	db, err := New(t.TempDir())
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
