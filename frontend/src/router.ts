@@ -11,6 +11,7 @@ import MissingLanguagePage from './pages/MissingLanguagePage.vue';
 import ReadHistoryPage from './pages/ReadHistoryPage.vue';
 import TrashPage from './pages/TrashPage.vue';
 import AdminLogsPage from './pages/AdminLogsPage.vue';
+import SettingsPage from './pages/SettingsPage.vue';
 import ReaderPage from './features/reader/views/ReaderView.vue';
 import EditBookSourcesPage from './features/sources/pages/EditBookSourcesPage.vue';
 import { APP_TITLE } from './composables/useDocumentTitle';
@@ -23,6 +24,7 @@ const ROUTES_WITH_OWN_TITLE = new Set([
   'read-history',
   'trash',
   'admin-logs',
+  'settings',
   'maintenance-missing-author',
   'maintenance-missing-cover'
 ]);
@@ -100,6 +102,11 @@ const router = createRouter({
           path: 'admin/logs',
           name: 'admin-logs',
           component: AdminLogsPage
+        },
+        {
+          path: 'settings',
+          name: 'settings',
+          component: SettingsPage
         }
       ]
     },

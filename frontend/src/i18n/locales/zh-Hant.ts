@@ -58,7 +58,21 @@ const zhHant = {
     },
     recentlyRead: '最近閱讀',
     trash: '垃圾桶',
-    adminLogs: '日誌'
+    adminLogs: '日誌',
+    settings: '設定'
+  },
+  settings: {
+    title: '設定',
+    description: '管理應用程式選項。',
+    loadFailed: '載入設定失敗',
+    saveFailed: '儲存設定失敗',
+    cover: {
+      title: '封面'
+    },
+    coverToJpg: {
+      label: '將上傳封面轉為 JPG',
+      description: '啟用後，封面圖片上傳時會轉換為 JPEG。'
+    }
   },
   adminLogs: {
     title: '日誌',

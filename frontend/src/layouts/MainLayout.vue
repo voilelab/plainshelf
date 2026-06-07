@@ -161,6 +161,10 @@
               <SidebarNavIcon name="logs" />
               <span>{{ t('layout.adminLogs') }}</span>
             </RouterLink>
+            <RouterLink to="/settings" class="sidebar-nav-item" exact-active-class="active">
+              <SidebarNavIcon name="settings" />
+              <span>{{ t('layout.settings') }}</span>
+            </RouterLink>
           </nav>
         </section>
       </div>
