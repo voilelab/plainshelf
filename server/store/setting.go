@@ -52,8 +52,8 @@ func (db *DB) SetSetting(key string, value []byte) error {
 
 func (db *DB) DeleteSetting(key string) error {
 	err := db.db.Update(func(txn *badger.Txn) error {
-		settingKey := fmt.Sprintf("%s:%s", settingKey, key)
-		err := txn.Delete([]byte(settingKey))
+		fullKey := fmt.Sprintf("%s:%s", settingKey, key)
+		err := txn.Delete([]byte(fullKey))
 		if err != nil {
 			return util.Errorf("%w", err)
 		}
