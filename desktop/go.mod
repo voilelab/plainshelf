@@ -110,7 +110,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.37.0 // indirect
 	go.rtnl.ai/x v1.15.0 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
-	golang.org/x/image v0.24.0 // indirect
+	golang.org/x/image v0.38.0 // indirect
 	golang.org/x/mod v0.35.0 // indirect
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
