@@ -23,7 +23,7 @@ func (app *App) coverToJPG() bool {
 func (app *App) HandleGetSettingCoverToJPG(w http.ResponseWriter, r *http.Request) {
 	val := app.coverToJPG()
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if val {
 		w.Write([]byte(`{"value": true}`))
 	} else {
