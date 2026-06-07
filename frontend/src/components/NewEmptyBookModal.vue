@@ -53,7 +53,7 @@
 
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { importBook } from '../api/books';
+import { getBookshelfProvider } from '../providers';
 
 const props = defineProps<{
   open: boolean;
@@ -107,7 +107,7 @@ async function onSubmit(): Promise<void> {
 
   try {
     const emptyFile = new File([''], 'empty.txt', { type: 'text/plain' });
-    await importBook({
+    await getBookshelfProvider().importBook({
       title: trimmedTitle,
       layer: props.currentLayerPath,
       file: emptyFile

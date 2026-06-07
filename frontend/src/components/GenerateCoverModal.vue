@@ -75,7 +75,7 @@
 
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { uploadBookCoverBlob } from '../api/books';
+import { getBookshelfProvider } from '../providers';
 
 const CANVAS_W = 400;
 const CANVAS_H = 600;
@@ -480,7 +480,7 @@ async function onSave(): Promise<void> {
       throw new Error('Failed to export cover image.');
     }
 
-    await uploadBookCoverBlob(props.bookId, blob);
+    await getBookshelfProvider().uploadBookCoverBlob(props.bookId, blob);
     emit('saved');
     emit('close');
   } catch (err) {

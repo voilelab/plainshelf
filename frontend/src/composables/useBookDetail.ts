@@ -1,10 +1,5 @@
 import { ref } from 'vue';
-import {
-  deleteBook,
-  getBook,
-  getReadingProgress
-} from '../api/books';
-import { getSource } from '../api/sources';
+import { getBookshelfProvider } from '../providers';
 import type { Book, ReadingProgress } from '../types/book';
 import type { SourceMeta } from '../types/source';
 
@@ -21,12 +16,13 @@ export function useBookDetail(bookID: () => string) {
     error.value = '';
     try {
       const currentBookID = bookID();
+      const provider = getBookshelfProvider();
       const [bookData, progressData] = await Promise.all([
-        getBook(currentBookID),
-        getReadingProgress(currentBookID)
+        provider.getBook(currentBookID),
+        provider.getReadProgress(currentBookID)
       ]);
       const currentSourceData = bookData.current_source
-        ? await getSource(currentBookID, bookData.current_source)
+        ? await provider.getSource(currentBookID, bookData.current_source)
         : null;
       book.value = bookData;
       progress.value = progressData;
@@ -45,7 +41,7 @@ export function useBookDetail(bookID: () => string) {
     deleting.value = true;
     error.value = '';
     try {
-      await deleteBook(bookID());
+      await getBookshelfProvider().deleteBook(bookID());
       return true;
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to delete book';

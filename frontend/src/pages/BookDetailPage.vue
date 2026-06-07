@@ -55,7 +55,7 @@ import { useRoute, useRouter } from 'vue-router';
 import BookCover from '../components/BookCover.vue';
 import BookDetail from '../components/BookDetail.vue';
 import DeleteModal from '../components/DeleteModal.vue';
-import { downloadBookContent } from '../api/books';
+import { getBookshelfProvider } from '../providers';
 import { useBookDetail } from '../composables/useBookDetail';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
 
@@ -114,7 +114,7 @@ async function downloadBook(): Promise<void> {
   downloadError.value = '';
 
   try {
-    const blob = await downloadBookContent(id.value);
+    const blob = await getBookshelfProvider().downloadBookContent(id.value);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;

@@ -13,7 +13,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { getBook, updateBook } from '../api/books';
+import { getBookshelfProvider } from '../providers';
 import EditBook from '../components/EditBook.vue';
 import type { Book, BookUpdateRequest } from '../types/book';
 
@@ -31,7 +31,7 @@ async function fetchBook(): Promise<void> {
   loading.value = true;
   error.value = '';
   try {
-    book.value = await getBook(id.value);
+    book.value = await getBookshelfProvider().getBook(id.value);
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load metadata';
   } finally {
@@ -44,7 +44,7 @@ async function onSubmit(payload: BookUpdateRequest): Promise<void> {
   saveError.value = '';
 
   try {
-    await updateBook(id.value, payload);
+    await getBookshelfProvider().updateBook(id.value, payload);
 
     await router.push({
       path: `/books/${id.value}`,
