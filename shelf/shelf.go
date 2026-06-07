@@ -627,7 +627,13 @@ func (s *Shelf) RenameLayer(oldLayer Layers, newLayer Layers) error {
 	}
 
 	// Update cache entries for all books under the renamed layer
-	s.markBookCacheTreeDirty()
+	err = s.iterateBooks(newLayer, func(book *Book) bool {
+		s.updateBookCacheEntry(newLayer, book.FolderPath(), book)
+		return true
+	})
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
 
 	return nil
 }
