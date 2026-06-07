@@ -17,12 +17,10 @@ import { ServerBookshelfProvider } from './serverBookshelfProvider';
 
 export const OFFLINE_BOOK_CACHE_MISS_ERROR = 'Book is not downloaded and the app is offline';
 export const OFFLINE_SOURCE_CACHE_MISS_ERROR = 'Source is not downloaded and the app is offline';
+export const OFFLINE_DOWNLOAD_UNAVAILABLE_ERROR = 'Cannot download book while offline';
 
 const defaultIsOnline = (): boolean =>
   typeof navigator === 'undefined' ? true : navigator.onLine;
-
-const notImplemented = (operation: string): Error =>
-  new Error(`MobileBookshelfProvider.${operation} is not implemented yet`);
 
 export class MobileBookshelfProvider implements BookshelfProvider {
   constructor(
@@ -51,13 +49,13 @@ export class MobileBookshelfProvider implements BookshelfProvider {
   }
 
   async getBook(bookId: string): Promise<Book> {
+    if (this.isOnline()) {
+      return this.annotateDownloadState(await this.remote.getBook(bookId));
+    }
+
     const cached = await this.cache.getCachedBook(bookId);
     if (cached) {
       return cached;
-    }
-
-    if (this.isOnline()) {
-      return this.annotateDownloadState(await this.remote.getBook(bookId));
     }
 
     throw new Error(OFFLINE_BOOK_CACHE_MISS_ERROR);
@@ -179,22 +177,21 @@ export class MobileBookshelfProvider implements BookshelfProvider {
   }
 
   async listSources(bookId: string): Promise<SourceMeta[]> {
-    const cached = await this.cache.listCachedSources(bookId);
-    if (cached.length > 0 || !this.isOnline()) {
-      return cached;
+    if (this.isOnline()) {
+      return this.remote.listSources(bookId);
     }
 
-    return this.remote.listSources(bookId);
+    return this.cache.listCachedSources(bookId);
   }
 
   async getSource(bookId: string, sourceId: string): Promise<SourceMeta> {
+    if (this.isOnline()) {
+      return this.remote.getSource(bookId, sourceId);
+    }
+
     const cached = await this.cache.getCachedSource(bookId, sourceId);
     if (cached) {
       return cached;
-    }
-
-    if (this.isOnline()) {
-      return this.remote.getSource(bookId, sourceId);
     }
 
     throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
@@ -235,7 +232,7 @@ export class MobileBookshelfProvider implements BookshelfProvider {
 
   async downloadBook(bookId: string): Promise<void> {
     if (!this.isOnline()) {
-      throw notImplemented('downloadBook offline');
+      throw new Error(OFFLINE_DOWNLOAD_UNAVAILABLE_ERROR);
     }
 
     const [book, sources, bookContent] = await Promise.all([
