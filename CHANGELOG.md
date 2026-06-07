@@ -9,9 +9,32 @@ and UI behavior may still change between releases.
 
 ### Added
 
+- Added `SetCurrentSource` API endpoint and "Set as current" button in the book source editor.
+- Added log-file listing and access API endpoints and a frontend admin log viewer with date-picker navigation.
+- Added multi-shelf support: API endpoints are now shelf-scoped, with a new `GET /api/shelves` endpoint to list configured shelves.
+- Added frontend shelf selector with live switching across configured shelves.
+- Added duplicate-page delete action.
+- Added drag-and-drop upload for book covers.
+- Added `cover_to_jpg` conversion setting with API endpoints and a frontend settings page toggle.
+- Added ASCII input support in the UTF-8 re-encoding path.
+
 ### Changed
 
+- Changed project license from ISC to BSD-3-Clause.
+- Moved shelf selector from the top bar to the top of the left sidebar, above the layer tree.
+
 ### Fixed
+
+- Fixed HTTP status code for book and log content stream responses in desktop mode.
+- Fixed book cover upload to infer MIME type from filename extension when not supplied.
+- Fixed desktop local import to route through the active shelf.
+- Fixed empty active shelf fallback on startup.
+- Fixed shelf routes being accessible before shelf data is fully loaded.
+
+### Removed
+
+- Removed single-shelf configuration; shelves are now managed exclusively through the multi-shelf configuration.
+- Removed obsolete snapshot-to-source migration tool.
 
 ## [v0.5.0] - 2026-05-29
 
