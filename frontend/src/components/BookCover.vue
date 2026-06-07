@@ -65,7 +65,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { deleteBookCover, getBookCoverUrl, uploadBookCover } from '../api/books';
+import { getBookshelfProvider } from '../providers';
 import bookcover from '../assets/bookcover.svg';
 import ConfirmModal from './ConfirmModal.vue';
 import GenerateCoverModal from './GenerateCoverModal.vue';
@@ -112,7 +112,7 @@ const resolvedCoverSrc = computed(() => {
     return bookcover;
   }
   if (source.includes('/api/shelves/') && source.includes('/books/') && source.includes('/cover')) {
-    return getBookCoverUrl(props.bookId, coverCacheKey.value);
+    return getBookshelfProvider().getBookCoverUrl(props.bookId, coverCacheKey.value);
   }
   return source;
 });
@@ -168,7 +168,7 @@ async function uploadCover(file: File): Promise<boolean> {
   dropConfirmError.value = '';
 
   try {
-    await uploadBookCover(props.bookId, file);
+    await getBookshelfProvider().uploadBookCover(props.bookId, file);
     hasCoverLoadError.value = false;
     coverCacheKey.value = Date.now();
     emit('cover-changed');
@@ -283,7 +283,7 @@ async function removeCover(): Promise<void> {
   coverError.value = false;
 
   try {
-    await deleteBookCover(props.bookId);
+    await getBookshelfProvider().deleteBookCover(props.bookId);
     hasCoverLoadError.value = false;
     coverCacheKey.value = undefined;
     emit('cover-changed');

@@ -1,4 +1,5 @@
 import { getActiveShelfID } from './client';
+import { isWailsRuntime } from '../providers/runtime';
 
 interface DesktopImportBookResult {
   path?: string;
@@ -24,16 +25,7 @@ interface DesktopWindow extends Window {
 }
 
 export function isDesktopRuntime(): boolean {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
-  const params = new URLSearchParams(window.location.search);
-  return (
-    window.location.protocol === 'wails:' ||
-    window.location.host.endsWith('.wails.localhost') ||
-    params.get('desktop-shell-preview') === '1'
-  );
+  return isWailsRuntime();
 }
 
 export async function openDesktopBookFiles(): Promise<string[] | null> {

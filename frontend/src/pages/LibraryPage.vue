@@ -129,7 +129,7 @@ import { useBooksSort, type BookSortKey, type SortOrder } from '../composables/u
 import { hasFileTransfer, readDroppedFiles } from '../utils/file';
 import { getLayerPath, layerPathEquals, normalizeLayerPath } from '../utils/layers';
 import { useI18n } from '../i18n';
-import { importDesktopBooksFromLocalPaths, openDesktopBookFiles } from '../api/desktop';
+import { getBookshelfProvider } from '../providers';
 import '../styles/toolbar-controls.css';
 
 const ROOT_LAYER_LABEL = '/';
@@ -331,7 +331,7 @@ async function openImportFromFiles(): Promise<void> {
 
   let desktopFiles: string[] | null = null;
   try {
-    desktopFiles = await openDesktopBookFiles();
+    desktopFiles = await getBookshelfProvider().openLocalBookFiles?.() ?? null;
   } catch {
     desktopFiles = null;
   }
@@ -342,7 +342,7 @@ async function openImportFromFiles(): Promise<void> {
     }
 
     try {
-      const importResult = await importDesktopBooksFromLocalPaths(desktopFiles, selectedLayer.value ?? '');
+      const importResult = await getBookshelfProvider().importBooksFromLocalPaths?.(desktopFiles, selectedLayer.value ?? '') ?? null;
       if (importResult) {
         const hasImportedBook = importResult.some((item) => item.id !== undefined && item.id !== '');
         const hasFailedBook = importResult.some((item) => Boolean(item.error));

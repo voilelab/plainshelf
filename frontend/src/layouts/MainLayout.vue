@@ -214,7 +214,7 @@ import { useRoute, useRouter } from 'vue-router';
 import DeleteModal from '../components/DeleteModal.vue';
 import LayerTree from '../components/LayerTree.vue';
 import SidebarNavIcon from '../components/SidebarNavIcon.vue';
-import { updateBookLayer } from '../api/books';
+import { getBookshelfProvider } from '../providers';
 import { createLayer, deleteLayer, moveLayer, renameLayer } from '../api/layers';
 import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
@@ -416,7 +416,7 @@ async function onMoveBook(payload: { bookId: string; targetLayer: string }): Pro
   }
 
   try {
-    await updateBookLayer(payload.bookId, payload.targetLayer);
+    await getBookshelfProvider().updateBookLayer(payload.bookId, payload.targetLayer);
     await fetchBooks();
   } catch (err) {
     moveBookError.value = err instanceof Error ? err.message : t('layout.moveBookErrors.failed');

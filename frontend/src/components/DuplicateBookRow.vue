@@ -34,7 +34,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { deleteBook } from '../api/books';
+import { getBookshelfProvider } from '../providers';
 import type { Book } from '../types/book';
 import { getLayerPath, layerPathLabel } from '../utils/layers';
 import bookcover from '../assets/bookcover.svg';
@@ -91,7 +91,7 @@ async function confirmDelete(): Promise<void> {
   deleteError.value = '';
 
   try {
-    await deleteBook(props.book.id);
+    await getBookshelfProvider().deleteBook(props.book.id);
     showDeleteModal.value = false;
     emit('deleted', props.book.id);
   } catch (err) {

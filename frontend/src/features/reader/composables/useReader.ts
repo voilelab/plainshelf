@@ -1,6 +1,5 @@
 import { computed, nextTick, ref } from 'vue';
-import { getBook, getBookContent, getBookSplitConfig, getReadingProgress, saveBookmark, updateBookSplitConfig } from '../../../api/books';
-import { addReadHistory } from '../../../api/readHistory';
+import { getBookshelfProvider } from '../../../providers';
 import type { ReaderSection, ReadingProgress, SplitConfig } from '../../../types/book';
 
 function clampOffset(offset: number, total: number): number {
@@ -295,11 +294,12 @@ export function useReader(bookID: () => string) {
     let restoredOffset: number | null = null;
 
     try {
+      const provider = getBookshelfProvider();
       const [book, bookContent, currentProgress, loadedSplitConfig] = await Promise.all([
-        getBook(bookID()),
-        getBookContent(bookID()),
-        getReadingProgress(bookID()),
-        getBookSplitConfig(bookID()).catch((err: unknown) => {
+        provider.getBook(bookID()),
+        provider.getBookContent(bookID()),
+        provider.getReadProgress(bookID()),
+        provider.getBookSplitConfig(bookID()).catch((err: unknown) => {
           const reason = err instanceof Error ? err.message : 'Unknown error';
           splitWarning.value = `Failed to load split config, fallback to single section. ${reason}`;
           return { type: 'none' } as SplitConfig;
@@ -321,7 +321,7 @@ export function useReader(bookID: () => string) {
       restoredOffset = normalized.char_offset;
 
       try {
-        await addReadHistory(bookID());
+        await provider.addReadHistory(bookID());
       } catch (err) {
         console.warn('Failed to update read history', err);
       }
@@ -338,7 +338,7 @@ export function useReader(bookID: () => string) {
 
   async function applySplitConfig(config: SplitConfig): Promise<void> {
     const normalizedInput = normalizeSplitConfigInput(config);
-    await updateBookSplitConfig(bookID(), normalizedInput);
+    await getBookshelfProvider().updateBookSplitConfig(bookID(), normalizedInput);
 
     splitConfig.value = normalizedInput;
     splitWarning.value = '';
@@ -392,8 +392,9 @@ export function useReader(bookID: () => string) {
     bookmarking.value = true;
     error.value = '';
     try {
-      await saveBookmark(bookID(), { char_offset: currentOffset.value });
-      const nextProgress = await getReadingProgress(bookID());
+      const provider = getBookshelfProvider();
+      await provider.saveReadProgress(bookID(), { char_offset: currentOffset.value });
+      const nextProgress = await provider.getReadProgress(bookID());
       progress.value = normalizeProgress(nextProgress);
       await syncSectionAndScrollByOffset(progress.value.char_offset);
     } catch (err) {

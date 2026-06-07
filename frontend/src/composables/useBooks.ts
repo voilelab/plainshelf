@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { listBooks } from '../api/books';
+import { getBookshelfProvider } from '../providers';
 import type { Book } from '../types/book';
 
 export function useBooks() {
@@ -12,7 +12,7 @@ export function useBooks() {
     loading.value = true;
     error.value = '';
     try {
-      const data = await listBooks(1, Number.MAX_SAFE_INTEGER);
+      const data = await getBookshelfProvider().listBooks(1, Number.MAX_SAFE_INTEGER);
       books.value = data.items;
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load books';
