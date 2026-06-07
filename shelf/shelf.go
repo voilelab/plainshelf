@@ -585,6 +585,48 @@ func (s *Shelf) DeleteLayer(layer Layers) error {
 	return nil
 }
 
+// RenameLayer renames an existing layer to a new name. It validates the new layer name and then updates the directory structure accordingly. If the old layer does not exist or the new layer already exists, it returns an error.
+// Allow renaming across different parent layers, e.g. renaming layer ["A", "B"] to ["C", "D"] will move all books from A/B to C/D, creating the new layers if they don't exist.
+func (s *Shelf) RenameLayer(oldLayer Layers, newLayer Layers) error {
+	if err := validateLayers(oldLayer); err != nil {
+		return util.Errorf("invalid old layer: %w", err)
+	}
+	if err := validateLayers(newLayer); err != nil {
+		return util.Errorf("invalid new layer: %w", err)
+	}
+
+	s.lock()
+	defer s.unlock()
+
+	oldLayerPath := path.Join(booksFolder, path.Join(oldLayer...))
+	newLayerPath := path.Join(booksFolder, path.Join(newLayer...))
+
+	// Check if old layer exists
+	if _, err := s.dbRoot.Stat(oldLayerPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return util.Errorf("old layer does not exist")
+		}
+		return util.Errorf("%w", err)
+	}
+
+	// Check if new layer already exists
+	if _, err := s.dbRoot.Stat(newLayerPath); err == nil {
+		return util.Errorf("new layer already exists")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return util.Errorf("%w", err)
+	}
+
+	err := s.dbRoot.Rename(oldLayerPath, newLayerPath)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	// Update cache entries for all books under the renamed layer
+	s.markBookCacheTreeDirty()
+
+	return nil
+}
+
 func validateLayers(layers Layers) error {
 	for _, layer := range layers {
 		if err := validatePathSegment(layer); err != nil {
