@@ -6,13 +6,18 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cap:sync:android": "npm run build && cap sync android",
+    "android:build": "cd android && gradle assembleDebug"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
     "vue": "^3.5.12",
     "vue-router": "^4.4.5"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.4.0",
     "@types/node": "^22.7.5",
     "@vitejs/plugin-vue": "^5.1.4",
     "typescript": "^5.6.2",

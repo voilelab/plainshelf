@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import { createRouter, createWebHashHistory, createWebHistory } from 'vue-router';
 import MainLayout from './layouts/MainLayout.vue';
 import ReaderLayout from './layouts/ReaderLayout.vue';
 import LibraryPage from './pages/LibraryPage.vue';
@@ -15,6 +15,7 @@ import SettingsPage from './pages/SettingsPage.vue';
 import ReaderPage from './features/reader/views/ReaderView.vue';
 import EditBookSourcesPage from './features/sources/pages/EditBookSourcesPage.vue';
 import { APP_TITLE } from './composables/useDocumentTitle';
+import { isMobileRuntime } from './providers/runtime';
 
 const ROUTES_WITH_OWN_TITLE = new Set([
   'library',
@@ -30,7 +31,7 @@ const ROUTES_WITH_OWN_TITLE = new Set([
 ]);
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: isMobileRuntime() ? createWebHashHistory() : createWebHistory(),
   routes: [
     {
       path: '/',

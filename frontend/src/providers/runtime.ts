@@ -14,12 +14,20 @@ export function isWailsRuntime(): boolean {
   );
 }
 
+type CapacitorRuntime = {
+  getPlatform?: () => string;
+  isNativePlatform?: () => boolean;
+};
+
 export function isMobileRuntime(): boolean {
   if (typeof window === 'undefined') {
     return false;
   }
 
-  // Placeholder for future Capacitor/Android runtime detection. Do not select it
-  // until a mobile provider is implemented and dependencies are present.
-  return false;
+  const capacitor = (window as { Capacitor?: CapacitorRuntime }).Capacitor;
+  if (!capacitor) {
+    return false;
+  }
+
+  return capacitor.isNativePlatform?.() === true && capacitor.getPlatform?.() === 'android';
 }
