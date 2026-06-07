@@ -755,6 +755,60 @@ func TestAPIDeleteBookSourceContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusNotFound)
 }
 
+func TestAPISettingCoverToJPGContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	url := "/api/setting/cover_to_jpg"
+
+	// Default value reflects AppConf (false in test env).
+	rec := env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	assertJSONContentType(t, rec)
+	got := decodeJSON[map[string]any](t, rec)
+	if val, _ := got["value"].(bool); val != false {
+		t.Fatalf("default cover_to_jpg = %v, want false", got["value"])
+	}
+
+	// Set to true.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader("true")))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	got = decodeJSON[map[string]any](t, rec)
+	if val, _ := got["value"].(bool); val != true {
+		t.Fatalf("cover_to_jpg after set = %v, want true", got["value"])
+	}
+
+	// Set to false.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader("false")))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	got = decodeJSON[map[string]any](t, rec)
+	if val, _ := got["value"].(bool); val != false {
+		t.Fatalf("cover_to_jpg after set false = %v, want false", got["value"])
+	}
+
+	// Invalid value returns 400.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader("maybe")))
+	assertStatus(t, rec, http.StatusBadRequest)
+
+	// Set to true then delete resets to AppConf default (false).
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader("true")))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodDelete, url, nil))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	got = decodeJSON[map[string]any](t, rec)
+	if val, _ := got["value"].(bool); val != false {
+		t.Fatalf("cover_to_jpg after delete = %v, want false (AppConf default)", got["value"])
+	}
+}
+
 func TestAPISetCurrentBookSourceContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Set Current Source Book", "", "src.txt", "content")
