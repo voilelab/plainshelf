@@ -6,18 +6,16 @@ import (
 )
 
 type DB struct {
-	readHistoryLimit int
-
 	db *badger.DB
 }
 
-func New(dbPath string, readHistoryLimit int) (*DB, error) {
+func New(dbPath string) (*DB, error) {
 	opts := badger.DefaultOptions(dbPath).WithLogger(nil)
 	db, err := badger.Open(opts)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	return &DB{db: db, readHistoryLimit: readHistoryLimit}, nil
+	return &DB{db: db}, nil
 }
 
 func (db *DB) Close() error {

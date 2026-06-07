@@ -76,6 +76,14 @@ const en = {
     coverToJpg: {
       label: 'Convert uploaded covers to JPG',
       description: 'Enable this to convert cover images to JPEG when uploading.'
+    },
+    readHistory: {
+      title: 'Reading history'
+    },
+    readHistoryLimit: {
+      label: 'Reading history limit',
+      description: 'Maximum number of recently read books to keep. Use 0 to disable retaining history.',
+      invalid: 'Reading history limit must be a non-negative whole number.'
     }
   },
   adminLogs: {

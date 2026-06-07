@@ -115,7 +115,7 @@ func NewApp(conf *AppConf) (*App, error) {
 		return nil, util.Errorf("at least one shelf must be configured")
 	}
 
-	storeDB, err := store.New(conf.StorePath, conf.ReadHistoryLimit)
+	storeDB, err := store.New(conf.StorePath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -284,6 +284,9 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/setting/cover_to_jpg", app.HandleGetSettingCoverToJPG)
 	mux.HandleFunc("POST /api/setting/cover_to_jpg", app.HandleSetSettingCoverToJPG)
 	mux.HandleFunc("DELETE /api/setting/cover_to_jpg", app.HandleDeleteSettingCoverToJPG)
+	mux.HandleFunc("GET /api/setting/read_history_limit", app.HandleGetSettingReadHistoryLimit)
+	mux.HandleFunc("POST /api/setting/read_history_limit", app.HandleSetSettingReadHistoryLimit)
+	mux.HandleFunc("DELETE /api/setting/read_history_limit", app.HandleDeleteSettingReadHistoryLimit)
 
 	mux.HandleFunc("GET /{path...}", app.HandleSPAFallback)
 }

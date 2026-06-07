@@ -75,6 +75,14 @@ const zhHant = {
     coverToJpg: {
       label: '將上傳封面轉為 JPG',
       description: '啟用後，封面圖片上傳時會轉換為 JPEG。'
+    },
+    readHistory: {
+      title: '閱讀紀錄'
+    },
+    readHistoryLimit: {
+      label: '閱讀紀錄數量限制',
+      description: '最多保留的最近閱讀書籍數量。設為 0 可停用紀錄保留。',
+      invalid: '閱讀紀錄數量限制必須是非負整數。'
     }
   },
   adminLogs: {
