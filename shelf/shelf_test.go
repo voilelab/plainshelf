@@ -302,6 +302,168 @@ func TestShelfMoveBook(t *testing.T) {
 	}
 }
 
+func TestShelfRenameLayer(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib, ScanInterval: "0s"})
+	if err != nil {
+		t.Fatalf("Failed to initialize Shelf: %v", err)
+	}
+	defer shelf.Close()
+
+	book, err := shelf.NewBook([]string{"oldlayer"}, "Test Book")
+	if err != nil {
+		t.Fatalf("Failed to create book: %v", err)
+	}
+
+	if err := shelf.RenameLayer([]string{"oldlayer"}, []string{"newlayer"}); err != nil {
+		t.Fatalf("RenameLayer failed: %v", err)
+	}
+
+	booksInOld, err := shelf.GetBooksByLayer([]string{"oldlayer"})
+	if err != nil {
+		t.Fatalf("GetBooksByLayer(oldlayer) failed: %v", err)
+	}
+	if len(booksInOld) != 0 {
+		t.Errorf("Expected 0 books in oldlayer after rename, got %d", len(booksInOld))
+	}
+
+	booksInNew, err := shelf.GetBooksByLayer([]string{"newlayer"})
+	if err != nil {
+		t.Fatalf("GetBooksByLayer(newlayer) failed: %v", err)
+	}
+	if len(booksInNew) != 1 {
+		t.Fatalf("Expected 1 book in newlayer after rename, got %d", len(booksInNew))
+	}
+	if booksInNew[0].ID() != book.ID() {
+		t.Errorf("Expected book ID %q in newlayer, got %q", book.ID(), booksInNew[0].ID())
+	}
+}
+
+func TestShelfRenameLayerNested(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib, ScanInterval: "0s"})
+	if err != nil {
+		t.Fatalf("Failed to initialize Shelf: %v", err)
+	}
+	defer shelf.Close()
+
+	book, err := shelf.NewBook([]string{"parent", "child"}, "Nested Book")
+	if err != nil {
+		t.Fatalf("Failed to create book: %v", err)
+	}
+
+	if err := shelf.RenameLayer([]string{"parent", "child"}, []string{"parent", "renamed"}); err != nil {
+		t.Fatalf("RenameLayer failed: %v", err)
+	}
+
+	booksInNew, err := shelf.GetBooksByLayer([]string{"parent", "renamed"})
+	if err != nil {
+		t.Fatalf("GetBooksByLayer failed: %v", err)
+	}
+	if len(booksInNew) != 1 {
+		t.Fatalf("Expected 1 book in parent/renamed, got %d", len(booksInNew))
+	}
+	if booksInNew[0].ID() != book.ID() {
+		t.Errorf("Expected book ID %q in parent/renamed, got %q", book.ID(), booksInNew[0].ID())
+	}
+}
+
+func TestShelfRenameLayerAcrossParents(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib, ScanInterval: "0s"})
+	if err != nil {
+		t.Fatalf("Failed to initialize Shelf: %v", err)
+	}
+	defer shelf.Close()
+
+	book, err := shelf.NewBook([]string{"alpha", "beta"}, "Cross Book")
+	if err != nil {
+		t.Fatalf("Failed to create book: %v", err)
+	}
+
+	if err := shelf.RenameLayer([]string{"alpha", "beta"}, []string{"gamma", "delta"}); err != nil {
+		t.Fatalf("RenameLayer failed: %v", err)
+	}
+
+	booksInNew, err := shelf.GetBooksByLayer([]string{"gamma", "delta"})
+	if err != nil {
+		t.Fatalf("GetBooksByLayer failed: %v", err)
+	}
+	if len(booksInNew) != 1 {
+		t.Fatalf("Expected 1 book in gamma/delta, got %d", len(booksInNew))
+	}
+	if booksInNew[0].ID() != book.ID() {
+		t.Errorf("Expected book ID %q, got %q", book.ID(), booksInNew[0].ID())
+	}
+}
+
+func TestShelfRenameLayerOldNotExist(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib})
+	if err != nil {
+		t.Fatalf("Failed to initialize Shelf: %v", err)
+	}
+	defer shelf.Close()
+
+	err = shelf.RenameLayer([]string{"nonexistent"}, []string{"anything"})
+	if err == nil {
+		t.Fatal("Expected error when renaming non-existent layer, got nil")
+	}
+}
+
+func TestShelfRenameLayerNewAlreadyExists(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib})
+	if err != nil {
+		t.Fatalf("Failed to initialize Shelf: %v", err)
+	}
+	defer shelf.Close()
+
+	if err := shelf.NewLayer([]string{"layerA"}); err != nil {
+		t.Fatalf("Failed to create layerA: %v", err)
+	}
+	if err := shelf.NewLayer([]string{"layerB"}); err != nil {
+		t.Fatalf("Failed to create layerB: %v", err)
+	}
+
+	err = shelf.RenameLayer([]string{"layerA"}, []string{"layerB"})
+	if err == nil {
+		t.Fatal("Expected error when renaming to an already-existing layer, got nil")
+	}
+}
+
+func TestShelfRenameLayerInvalidOldName(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib})
+	if err != nil {
+		t.Fatalf("Failed to initialize Shelf: %v", err)
+	}
+	defer shelf.Close()
+
+	err = shelf.RenameLayer([]string{"bad/name"}, []string{"newname"})
+	if err == nil {
+		t.Fatal("Expected error for invalid old layer name, got nil")
+	}
+}
+
+func TestShelfRenameLayerInvalidNewName(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib})
+	if err != nil {
+		t.Fatalf("Failed to initialize Shelf: %v", err)
+	}
+	defer shelf.Close()
+
+	if err := shelf.NewLayer([]string{"validlayer"}); err != nil {
+		t.Fatalf("Failed to create layer: %v", err)
+	}
+
+	err = shelf.RenameLayer([]string{"validlayer"}, []string{"bad/name"})
+	if err == nil {
+		t.Fatal("Expected error for invalid new layer name, got nil")
+	}
+}
+
 func TestShelfGetBookRefreshesWhenBookMetaChangesOnDisk(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "lib")
 

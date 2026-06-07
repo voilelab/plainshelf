@@ -616,6 +616,11 @@ func (s *Shelf) RenameLayer(oldLayer Layers, newLayer Layers) error {
 		return util.Errorf("%w", err)
 	}
 
+	newLayerParent := path.Dir(newLayerPath)
+	if err := s.dbRoot.MkdirAll(newLayerParent); err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	err := s.dbRoot.Rename(oldLayerPath, newLayerPath)
 	if err != nil {
 		return util.Errorf("%w", err)
