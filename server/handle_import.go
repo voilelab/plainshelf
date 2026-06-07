@@ -184,7 +184,7 @@ func (app *App) ImportFromLocalPath(shelfID string, localPath string, layerParts
 
 	targetShelfID := strings.TrimSpace(shelfID)
 	if targetShelfID == "" {
-		targetShelfID = defaultShelfID
+		return nil, util.Errorf("shelf ID cannot be empty")
 	}
 
 	shelfData, ok := app.shelves[targetShelfID]

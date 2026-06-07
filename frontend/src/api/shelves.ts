@@ -44,7 +44,7 @@ export function ensureActiveShelf(shelves: ShelfInfo[]): string {
     return currentShelfID;
   }
 
-  const fallbackShelfID = shelves[0]?.id ?? 'default_shelf';
+  const fallbackShelfID = shelves[0]?.id ?? '';
   setActiveShelfID(fallbackShelfID);
   return fallbackShelfID;
 }
