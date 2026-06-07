@@ -21,6 +21,8 @@
       @select="(path) => emit('select', path)"
       @move-book="(payload) => emit('move-book', payload)"
       @delete-layer="(path) => emit('delete-layer', path)"
+      @rename-layer="(path) => emit('rename-layer', path)"
+      @move-layer="(payload) => emit('move-layer', payload)"
     />
   </nav>
 </template>
@@ -47,6 +49,8 @@ const emit = defineEmits<{
   select: [path: string];
   'move-book': [payload: { bookId: string; targetLayer: string }];
   'delete-layer': [path: string];
+  'rename-layer': [path: string];
+  'move-layer': [payload: { layerPath: string; targetLayer: string }];
 }>();
 
 const { books } = useBookStore();

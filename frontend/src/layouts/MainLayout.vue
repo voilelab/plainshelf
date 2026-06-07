@@ -103,6 +103,8 @@
               @select="onSelectLayer"
               @move-book="onMoveBook"
               @delete-layer="requestDeleteLayer"
+              @rename-layer="requestRenameLayer"
+              @move-layer="onMoveLayer"
             />
           </section>
           <p v-if="moveBookError" class="sidebar-error" role="alert">
@@ -110,6 +112,9 @@
           </p>
           <p v-if="deleteLayerError && !pendingDeleteLayerPath" class="sidebar-error sidebar-error-pre" role="alert">
             {{ deleteLayerError }}
+          </p>
+          <p v-if="layerOperationError" class="sidebar-error sidebar-error-pre" role="alert">
+            {{ layerOperationError }}
           </p>
 
           <div class="sidebar-nav-divider" role="presentation"></div>
@@ -210,7 +215,7 @@ import DeleteModal from '../components/DeleteModal.vue';
 import LayerTree from '../components/LayerTree.vue';
 import SidebarNavIcon from '../components/SidebarNavIcon.vue';
 import { updateBookLayer } from '../api/books';
-import { createLayer, deleteLayer } from '../api/layers';
+import { createLayer, deleteLayer, moveLayer, renameLayer } from '../api/layers';
 import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
 import { buildLayerTreeNodes, getLayerPath, normalizeLayerPath } from '../utils/layers';
@@ -233,6 +238,7 @@ const createLayerSuccess = ref('');
 const createdLayerPath = ref('');
 const newLayerPath = ref('');
 const deleteLayerError = ref('');
+const layerOperationError = ref('');
 const deletingLayerMap = ref<Record<string, boolean>>({});
 const pendingDeleteLayerPath = ref('');
 const { locale, setLocale, supportedLocales, t } = useI18n();
@@ -284,6 +290,7 @@ function normalizeLayerSelectionPath(path: string): string | undefined {
 
 function onSelectLayer(path: string): void {
   deleteLayerError.value = '';
+  layerOperationError.value = '';
   goToLayer(normalizeLayerSelectionPath(path));
 }
 
@@ -330,6 +337,7 @@ async function onShelfChange(event: Event): Promise<void> {
   setActiveShelfID(nextShelfID);
   selectedShelfID.value = nextShelfID;
   deleteLayerError.value = '';
+  layerOperationError.value = '';
   moveBookError.value = '';
   createLayerError.value = '';
   createLayerSuccess.value = '';
@@ -394,6 +402,7 @@ function enterCreatedLayer(): void {
 
 async function onMoveBook(payload: { bookId: string; targetLayer: string }): Promise<void> {
   moveBookError.value = '';
+  layerOperationError.value = '';
 
   const currentBook = books.value.find((item) => item.id === payload.bookId);
   if (!currentBook) {
@@ -411,6 +420,61 @@ async function onMoveBook(payload: { bookId: string; targetLayer: string }): Pro
     await fetchBooks();
   } catch (err) {
     moveBookError.value = err instanceof Error ? err.message : t('layout.moveBookErrors.failed');
+  }
+}
+
+function requestRenameLayer(path: string): void {
+  const segments = path.split('/').filter((segment) => segment.length > 0);
+  const currentName = segments[segments.length - 1] ?? '';
+  const nextName = window.prompt(t('layout.renameLayer.prompt'), currentName)?.trim();
+  if (!nextName || nextName === currentName) {
+    return;
+  }
+
+  void onRenameLayer(path, nextName);
+}
+
+async function onRenameLayer(path: string, nextName: string): Promise<void> {
+  layerOperationError.value = '';
+
+  try {
+    await renameLayer(path, nextName);
+    await Promise.all([fetchLayers(), fetchBooks()]);
+
+    if (currentLayer.value === path || currentLayer.value?.startsWith(`${path}/`)) {
+      const parent = path.split('/').filter((segment) => segment.length > 0).slice(0, -1);
+      const renamedPath = [...parent, nextName].join('/');
+      goToLayer(currentLayer.value === path ? renamedPath : `${renamedPath}${currentLayer.value.slice(path.length)}`);
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'Invalid layer name') {
+      layerOperationError.value = t('layout.renameLayer.invalid');
+    } else {
+      layerOperationError.value = message || t('layout.renameLayer.failed');
+    }
+  }
+}
+
+async function onMoveLayer(payload: { layerPath: string; targetLayer: string }): Promise<void> {
+  layerOperationError.value = '';
+
+  try {
+    await moveLayer(payload.layerPath, payload.targetLayer);
+    await Promise.all([fetchLayers(), fetchBooks()]);
+
+    if (currentLayer.value === payload.layerPath || currentLayer.value?.startsWith(`${payload.layerPath}/`)) {
+      const layerSegments = payload.layerPath.split('/').filter((segment) => segment.length > 0);
+      const layerName = layerSegments[layerSegments.length - 1];
+      if (layerName) {
+        const targetSegments = payload.targetLayer === '/' ? [] : payload.targetLayer.split('/').filter(Boolean);
+        const movedPath = [...targetSegments, layerName].join('/');
+        goToLayer(currentLayer.value === payload.layerPath ? movedPath : `${movedPath}${currentLayer.value.slice(payload.layerPath.length)}`);
+      }
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    layerOperationError.value = message || t('layout.moveLayer.failed');
   }
 }
 
