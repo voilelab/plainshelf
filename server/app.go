@@ -12,12 +12,13 @@ import (
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server/store"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 type App struct {
 	logutil.Logger
 
-	shelfManager *ShelfManager
+	shelfManager *shelf.ShelfManager
 	storeDB      *store.DB
 	spaFS        fs.FS
 	spaHandler   http.Handler
@@ -27,12 +28,12 @@ type App struct {
 }
 
 type AppConf struct {
-	Logger           logutil.LogConf    `yaml:"logger"`
-	Shelves          []*ShelfConfWithID `yaml:"shelves"`
-	StorePath        string             `yaml:"store_path"`
-	CoverToJPG       bool               `yaml:"cover_to_jpg"`
-	ReadHistoryLimit int                `yaml:"read_history_limit"`
-	Security         *SecurityConf      `yaml:"security"`
+	Logger           logutil.LogConf          `yaml:"logger"`
+	Shelves          []*shelf.ShelfConfWithID `yaml:"shelves"`
+	StorePath        string                   `yaml:"store_path"`
+	CoverToJPG       bool                     `yaml:"cover_to_jpg"`
+	ReadHistoryLimit int                      `yaml:"read_history_limit"`
+	Security         *SecurityConf            `yaml:"security"`
 }
 
 func NewApp(conf *AppConf) (*App, error) {
@@ -63,7 +64,7 @@ func NewApp(conf *AppConf) (*App, error) {
 		return nil, util.Errorf("at least one shelf must be configured")
 	}
 
-	shelfManager := NewShelfManager()
+	shelfManager := shelf.NewShelfManager()
 	defer func() {
 		if failure {
 			shelfManager.Close()

@@ -1,17 +1,16 @@
-package server
+package shelf
 
 import (
 	"errors"
 	"sync"
 
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/voilelab/plainshelf/shelf"
 )
 
 type ShelfData struct {
 	ID   string
 	Name string
-	*shelf.Shelf
+	*Shelf
 }
 
 type ShelfConfWithID struct {
@@ -23,7 +22,7 @@ type ShelfConfWithID struct {
 	// If not provided, it will default to the same value as ID.
 	Name string `yaml:"name"`
 
-	shelf.ShelfConf `yaml:",inline"`
+	ShelfConf `yaml:",inline"`
 }
 
 type ShelfManager struct {
@@ -49,7 +48,7 @@ func (sm *ShelfManager) AddShelf(conf ShelfConfWithID) error {
 		return util.Errorf("duplicate shelf ID: %q", conf.ID)
 	}
 
-	s, err := shelf.NewShelf(&conf.ShelfConf)
+	s, err := NewShelf(&conf.ShelfConf)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
