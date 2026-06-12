@@ -28,3 +28,8 @@ server-backend: server-frontend
 # Build desktop app
 desktop: server-frontend
 	cd desktop && go mod tidy && go tool wails build
+
+# Build Android APK
+android:
+	npm --prefix {{srv_frontend_dir}} run cap:sync:android
+	JAVA_HOME=/opt/homebrew/Cellar/openjdk@21/21.0.11/libexec/openjdk.jdk/Contents/Home gradle -p {{srv_frontend_dir}}/android assembleDebug

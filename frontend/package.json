@@ -8,7 +8,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "cap:sync:android": "npm run build && cap sync android",
-    "android:build": "cd android && gradle assembleDebug"
+    "android:build": "JAVA_HOME=/opt/homebrew/Cellar/openjdk@21/21.0.11/libexec/openjdk.jdk/Contents/Home gradle -p android assembleDebug"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.0",
