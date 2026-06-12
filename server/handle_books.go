@@ -46,7 +46,7 @@ func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shelfData, ok := app.shelves[shelfID]
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
 	if !ok {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -98,7 +98,7 @@ func (app *App) HandleAPICreateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shelfData, ok := app.shelves[shelfID]
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
 	if !ok {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -166,7 +166,7 @@ func (app *App) HandleAPIGetBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shelfData, ok := app.shelves[shelfID]
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
 	if !ok {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -210,7 +210,7 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shelfData, ok := app.shelves[shelfID]
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
 	if !ok {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -304,7 +304,7 @@ func (app *App) HandleAPIDeleteBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shelfData, ok := app.shelves[shelfID]
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
 	if !ok {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -338,7 +338,7 @@ func (app *App) HandleAPIGetBookCover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shelfData, ok := app.shelves[shelfID]
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
 	if !ok {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -397,7 +397,7 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	shelfData, ok := app.shelves[shelfID]
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
 	if !ok {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -479,7 +479,7 @@ func (app *App) HandleAPIDeleteBookCover(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	shelfData, ok := app.shelves[shelfID]
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
 	if !ok {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -520,7 +520,7 @@ func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	shelfData, ok := app.shelves[shelfID]
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
 	if !ok {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -578,7 +578,7 @@ func (app *App) HandleAPIGetBookSplitConfig(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	shelfData, ok := app.shelves[shelfID]
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
 	if !ok {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -625,7 +625,7 @@ func (app *App) HandleAPIUpdateBookSplitConfig(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	shelfData, ok := app.shelves[shelfID]
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
 	if !ok {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -681,7 +681,7 @@ func (app *App) HandleAPIFindDuplicateBooks(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	shelfData, ok := app.shelves[shelfID]
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
 	if !ok {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return

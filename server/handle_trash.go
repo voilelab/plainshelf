@@ -26,7 +26,7 @@ func (app *App) HandleAPITrashBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s, exists := app.shelves[shelfID]
+	s, exists := app.shelfManager.GetShelf(shelfID)
 	if !exists {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -59,7 +59,7 @@ func (app *App) HandleAPIGetTrashedBooks(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	s, exists := app.shelves[shelfID]
+	s, exists := app.shelfManager.GetShelf(shelfID)
 	if !exists {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -100,7 +100,7 @@ func (app *App) HandleAPIRestoreTrashedBook(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	s, exists := app.shelves[shelfID]
+	s, exists := app.shelfManager.GetShelf(shelfID)
 	if !exists {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -133,7 +133,7 @@ func (app *App) HandleAPIDeleteTrashedBook(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	s, exists := app.shelves[shelfID]
+	s, exists := app.shelfManager.GetShelf(shelfID)
 	if !exists {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return

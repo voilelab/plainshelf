@@ -15,19 +15,13 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-type ShelfData struct {
-	ID   string
-	Name string
-	*shelf.Shelf
-}
-
 type App struct {
 	logutil.Logger
 
-	shelves    map[string]*ShelfData
-	storeDB    *store.DB
-	spaFS      fs.FS
-	spaHandler http.Handler
+	shelfManager *ShelfManager
+	storeDB      *store.DB
+	spaFS        fs.FS
+	spaHandler   http.Handler
 
 	conf     *AppConf
 	security *Security
@@ -78,40 +72,20 @@ func NewApp(conf *AppConf) (*App, error) {
 		}
 	}()
 
-	shelves := make(map[string]*ShelfData)
+	shelfManager := NewShelfManager()
 	defer func() {
 		if failure {
-			for _, s := range shelves {
-				s.Close()
-			}
+			shelfManager.Close()
 		}
 	}()
 
 	for _, conf := range conf.Shelves {
-		s, err := shelf.NewShelf(&conf.ShelfConf)
-		if err != nil {
+		if err := shelfManager.AddShelf(*conf); err != nil {
 			return nil, util.Errorf("%w", err)
-		}
-		if conf.ID == "" {
-			return nil, util.Errorf("shelf ID cannot be empty")
-		}
-
-		if _, exists := shelves[conf.ID]; exists {
-			return nil, util.Errorf("duplicate shelf ID: %q", conf.ID)
-		}
-
-		if conf.Name == "" {
-			conf.Name = conf.ID
-		}
-
-		shelves[conf.ID] = &ShelfData{
-			ID:    conf.ID,
-			Name:  conf.Name,
-			Shelf: s,
 		}
 	}
 
-	if len(shelves) == 0 {
+	if len(shelfManager.shelves) == 0 {
 		return nil, util.Errorf("at least one shelf must be configured")
 	}
 
@@ -122,13 +96,13 @@ func NewApp(conf *AppConf) (*App, error) {
 
 	failure = false
 	return &App{
-		Logger:     *logger,
-		shelves:    shelves,
-		storeDB:    storeDB,
-		spaFS:      frontend.WebFS,
-		spaHandler: http.FileServerFS(frontend.WebFS),
-		conf:       conf,
-		security:   security,
+		Logger:       *logger,
+		shelfManager: shelfManager,
+		storeDB:      storeDB,
+		spaFS:        frontend.WebFS,
+		spaHandler:   http.FileServerFS(frontend.WebFS),
+		conf:         conf,
+		security:     security,
 	}, nil
 }
 
@@ -138,12 +112,7 @@ func (app *App) Start() error {
 
 func (app *App) Close() error {
 	err1 := app.storeDB.Close()
-	var err2 error
-	for _, s := range app.shelves {
-		if e := s.Close(); e != nil {
-			err2 = errors.Join(err2, e)
-		}
-	}
+	err2 := app.shelfManager.Close()
 	err3 := app.Logger.Close()
 
 	err := errors.Join(err1, err2, err3)
