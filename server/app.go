@@ -12,7 +12,6 @@ import (
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server/store"
-	"github.com/voilelab/plainshelf/shelf"
 )
 
 type App struct {
@@ -25,18 +24,6 @@ type App struct {
 
 	conf     *AppConf
 	security *Security
-}
-
-type ShelfConfWithID struct {
-	// ID is a unique identifier for the shelf. It should be uri-safe as it may be used in URLs.
-	// It is used in the API to specify which shelf to use.
-	ID string `yaml:"id"`
-
-	// Name is a human-readable name for the shelf.
-	// If not provided, it will default to the same value as ID.
-	Name string `yaml:"name"`
-
-	shelf.ShelfConf `yaml:",inline"`
 }
 
 type AppConf struct {
@@ -72,6 +59,10 @@ func NewApp(conf *AppConf) (*App, error) {
 		}
 	}()
 
+	if len(conf.Shelves) == 0 {
+		return nil, util.Errorf("at least one shelf must be configured")
+	}
+
 	shelfManager := NewShelfManager()
 	defer func() {
 		if failure {
@@ -83,10 +74,6 @@ func NewApp(conf *AppConf) (*App, error) {
 		if err := shelfManager.AddShelf(*conf); err != nil {
 			return nil, util.Errorf("%w", err)
 		}
-	}
-
-	if len(shelfManager.shelves) == 0 {
-		return nil, util.Errorf("at least one shelf must be configured")
 	}
 
 	storeDB, err := store.New(conf.StorePath)

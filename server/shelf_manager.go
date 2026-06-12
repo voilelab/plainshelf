@@ -14,6 +14,18 @@ type ShelfData struct {
 	*shelf.Shelf
 }
 
+type ShelfConfWithID struct {
+	// ID is a unique identifier for the shelf. It should be uri-safe as it may be used in URLs.
+	// It is used in the API to specify which shelf to use.
+	ID string `yaml:"id"`
+
+	// Name is a human-readable name for the shelf.
+	// If not provided, it will default to the same value as ID.
+	Name string `yaml:"name"`
+
+	shelf.ShelfConf `yaml:",inline"`
+}
+
 type ShelfManager struct {
 	shelves map[string]*ShelfData
 	lock    sync.RWMutex
