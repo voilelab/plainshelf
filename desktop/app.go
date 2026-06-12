@@ -167,7 +167,7 @@ func (a *DesktopApp) startServer() error {
 				Prefix: "app",
 			},
 		},
-		Shelves: []*server.ShelfConfWithID{
+		Shelves: []*shelf.ShelfConfWithID{
 			{
 				ID:   "default_shelf",
 				Name: "Default Shelf",
