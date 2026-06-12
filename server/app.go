@@ -60,10 +60,6 @@ func NewApp(conf *AppConf) (*App, error) {
 		}
 	}()
 
-	if len(conf.Shelves) == 0 {
-		return nil, util.Errorf("at least one shelf must be configured")
-	}
-
 	shelfManager := shelf.NewShelfManager()
 	defer func() {
 		if failure {
@@ -95,6 +91,17 @@ func NewApp(conf *AppConf) (*App, error) {
 }
 
 func (app *App) Start() error {
+	shelfConfInStore, err := app.storeDB.GetShelves()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	for _, conf := range shelfConfInStore {
+		if err := app.shelfManager.AddShelf(*conf); err != nil {
+			return util.Errorf("%w", err)
+		}
+	}
+
 	return nil
 }
 

@@ -8,17 +8,17 @@ import (
 
 type LogConf struct {
 	// Format specifies the log format. Valid values are "json" and "text". Default is "json".
-	Format string `yaml:"format"`
+	Format string `yaml:"format" json:"format"`
 
 	// Level specifies the log level. Valid values are "debug", "info", "warn", and "error".
 	// Default is "info".
-	Level string `yaml:"level"`
+	Level string `yaml:"level" json:"level"`
 
 	// LogFile specifies the log file configuration.
-	LogFile LogFileConf `yaml:"log_file"`
+	LogFile LogFileConf `yaml:"log_file" json:"log_file"`
 
 	// AddSource specifies whether to include the source file and line number in log entries. Default is false.
-	AddSource bool `yaml:"add_source"`
+	AddSource bool `yaml:"add_source" json:"add_source"`
 }
 
 type Logger struct {
