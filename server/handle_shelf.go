@@ -26,7 +26,7 @@ func (app *App) HandleGetShelves(w http.ResponseWriter, _ *http.Request) {
 	})
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	err := json.NewEncoder(w).Encode(shelves)
+	err := json.NewEncoder(w).Encode(shelfInfos)
 	if err != nil {
 		app.Error("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
