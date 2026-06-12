@@ -72,3 +72,71 @@ export async function importDesktopBooksFromLocalPaths(
     normalizeLayerParts(layerPath)
   );
 }
+
+const desktopZoomStep = 0.1;
+const desktopMinZoom = 0.5;
+const desktopMaxZoom = 2;
+
+type DesktopZoomAction = 'in' | 'out' | 'reset';
+
+function readDesktopZoom(): number {
+  const currentZoom = Number(document.documentElement.dataset.plainshelfZoom ?? '1');
+  if (Number.isFinite(currentZoom)) {
+    return currentZoom;
+  }
+
+  return 1;
+}
+
+function applyDesktopZoom(action: DesktopZoomAction): void {
+  const currentZoom = readDesktopZoom();
+  const nextZoom = action === 'reset'
+    ? 1
+    : Math.min(
+      desktopMaxZoom,
+      Math.max(desktopMinZoom, currentZoom + (action === 'in' ? desktopZoomStep : -desktopZoomStep))
+    );
+  const roundedZoom = Math.round(nextZoom * 100) / 100;
+
+  document.documentElement.dataset.plainshelfZoom = String(roundedZoom);
+  if (roundedZoom === 1) {
+    document.documentElement.style.removeProperty('zoom');
+  } else {
+    document.documentElement.style.setProperty('zoom', String(roundedZoom));
+  }
+}
+
+function desktopZoomActionForKey(event: KeyboardEvent): DesktopZoomAction | null {
+  if (event.defaultPrevented || !(event.ctrlKey || event.metaKey) || event.altKey) {
+    return null;
+  }
+
+  switch (event.key) {
+    case '+':
+    case '=':
+      return 'in';
+    case '-':
+    case '_':
+      return 'out';
+    case '0':
+      return 'reset';
+    default:
+      return null;
+  }
+}
+
+export function installDesktopZoomShortcuts(): void {
+  if (!isDesktopRuntime()) {
+    return;
+  }
+
+  window.addEventListener('keydown', (event) => {
+    const action = desktopZoomActionForKey(event);
+    if (!action) {
+      return;
+    }
+
+    event.preventDefault();
+    applyDesktopZoom(action);
+  });
+}

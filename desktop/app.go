@@ -59,6 +59,18 @@ func (a *DesktopApp) NextPage() {
 	a.navigateHistory(1)
 }
 
+func (a *DesktopApp) ZoomIn() {
+	a.applyZoom(zoomInAction)
+}
+
+func (a *DesktopApp) ZoomOut() {
+	a.applyZoom(zoomOutAction)
+}
+
+func (a *DesktopApp) ResetZoom() {
+	a.applyZoom(zoomResetAction)
+}
+
 func (a *DesktopApp) OpenBookFiles() ([]string, error) {
 	if a.ctx == nil {
 		return []string{}, nil
@@ -134,12 +146,15 @@ func (a *DesktopApp) ImportBooksFromLocalPaths(shelfID string, localPaths []stri
 }
 
 func (a *DesktopApp) navigateHistory(step int) {
-	if a.ctx == nil {
-		return
-	}
+	a.execDesktopScript(historyNavigationScript(step))
+}
 
-	script := historyNavigationScript(step)
-	if script == "" {
+func (a *DesktopApp) applyZoom(action string) {
+	a.execDesktopScript(zoomScript(action))
+}
+
+func (a *DesktopApp) execDesktopScript(script string) {
+	if a.ctx == nil || script == "" {
 		return
 	}
 
