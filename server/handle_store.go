@@ -66,7 +66,7 @@ func (app *App) HandleAPIUpdateMarks(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
 		return
 	}
-	if _, ok := app.shelves[shelfID]; !ok {
+	if _, ok := app.shelfManager.GetShelf(shelfID); !ok {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
 	}
@@ -114,7 +114,7 @@ func (app *App) HandleAPIUpdateReadHistory(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
 		return
 	}
-	if _, ok := app.shelves[shelfID]; !ok {
+	if _, ok := app.shelfManager.GetShelf(shelfID); !ok {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
 	}
@@ -141,7 +141,7 @@ func (app *App) HandleAPIClearReadHistory(w http.ResponseWriter, r *http.Request
 		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
 		return
 	}
-	if _, ok := app.shelves[shelfID]; !ok {
+	if _, ok := app.shelfManager.GetShelf(shelfID); !ok {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
 	}

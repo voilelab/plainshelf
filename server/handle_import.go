@@ -95,7 +95,7 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shelfData, ok := app.shelves[shelfID]
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
 	if !ok {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -187,7 +187,7 @@ func (app *App) ImportFromLocalPath(shelfID string, localPath string, layerParts
 		return nil, util.Errorf("shelf ID cannot be empty")
 	}
 
-	shelfData, ok := app.shelves[targetShelfID]
+	shelfData, ok := app.shelfManager.GetShelf(targetShelfID)
 	if !ok {
 		return nil, util.Errorf("shelf not found: %s", targetShelfID)
 	}

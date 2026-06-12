@@ -16,7 +16,7 @@ func (app *App) HandleAPIGetLayers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shelf, exists := app.shelves[shelfID]
+	shelf, exists := app.shelfManager.GetShelf(shelfID)
 	if !exists {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -46,7 +46,7 @@ func (app *App) HandleAPICreateLayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shelf, exists := app.shelves[shelfID]
+	shelf, exists := app.shelfManager.GetShelf(shelfID)
 	if !exists {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -80,7 +80,7 @@ func (app *App) HandleAPIRenameLayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shelfData, exists := app.shelves[shelfID]
+	shelfData, exists := app.shelfManager.GetShelf(shelfID)
 	if !exists {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -128,7 +128,7 @@ func (app *App) HandleAPIMoveLayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shelfData, exists := app.shelves[shelfID]
+	shelfData, exists := app.shelfManager.GetShelf(shelfID)
 	if !exists {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
@@ -161,7 +161,7 @@ func (app *App) HandleAPIDeleteLayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shelf, exists := app.shelves[shelfID]
+	shelf, exists := app.shelfManager.GetShelf(shelfID)
 	if !exists {
 		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
