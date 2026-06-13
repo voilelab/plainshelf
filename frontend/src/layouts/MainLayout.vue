@@ -39,6 +39,53 @@
             </select>
           </label>
           <p v-if="shelvesError" class="sidebar-error" role="alert">{{ shelvesError }}</p>
+
+          <div v-if="isDesktopEnv" class="sidebar-header-row" style="margin-top: 6px;">
+            <button
+              type="button"
+              class="create-layer-toggle"
+              :disabled="addingShelf"
+              @click="toggleAddShelfForm"
+            >
+              {{ showAddShelfForm ? t('layout.shelf.addShelfCancel') : t('layout.shelf.addShelf') }}
+            </button>
+          </div>
+          <form v-if="isDesktopEnv && showAddShelfForm" class="create-layer-form" @submit.prevent="onSubmitAddShelf">
+            <input
+              v-model="newShelfName"
+              class="create-layer-input"
+              type="text"
+              :placeholder="t('layout.shelf.addShelfNamePlaceholder')"
+              :disabled="addingShelf"
+            >
+            <div class="add-shelf-dir-row">
+              <input
+                v-model="newShelfDirectory"
+                class="create-layer-input add-shelf-dir-input"
+                type="text"
+                :placeholder="t('layout.shelf.addShelfDirectoryPlaceholder')"
+                :disabled="addingShelf"
+              >
+              <button
+                type="button"
+                class="add-shelf-browse-btn"
+                :disabled="addingShelf"
+                @click="onBrowseShelfDirectory"
+              >
+                {{ t('layout.shelf.addShelfBrowse') }}
+              </button>
+            </div>
+            <div class="create-layer-actions">
+              <button
+                type="submit"
+                class="create-layer-submit"
+                :disabled="addingShelf || !canSubmitAddShelf"
+              >
+                {{ addingShelf ? t('layout.shelf.addShelfAdding') : t('layout.shelf.addShelfSubmit') }}
+              </button>
+            </div>
+          </form>
+          <p v-if="addShelfError" class="sidebar-error" role="alert">{{ addShelfError }}</p>
         </section>
 
         <template v-if="hasActiveShelf">
@@ -214,7 +261,7 @@ import { useRoute, useRouter } from 'vue-router';
 import DeleteModal from '../components/DeleteModal.vue';
 import LayerTree from '../components/LayerTree.vue';
 import SidebarNavIcon from '../components/SidebarNavIcon.vue';
-import { getBookshelfProvider } from '../providers';
+import { getBookshelfProvider, isWailsRuntime } from '../providers';
 import { createLayer, deleteLayer, moveLayer, renameLayer } from '../api/layers';
 import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
@@ -247,6 +294,13 @@ const shelvesLoading = ref(true);
 const shelvesLoaded = ref(false);
 const shelvesError = ref('');
 const selectedShelfID = ref(getActiveShelfID());
+const showAddShelfForm = ref(false);
+const newShelfName = ref('');
+const newShelfDirectory = ref('');
+const addShelfError = ref('');
+const addingShelf = ref(false);
+const isDesktopEnv = computed(() => isWailsRuntime());
+const canSubmitAddShelf = computed(() => newShelfName.value.trim().length > 0 && newShelfDirectory.value.trim().length > 0);
 const localeLabelKeyMap: Record<(typeof supportedLocales)[number], 'language.en' | 'language.zhHant'> = {
   en: 'language.en',
   'zh-Hant': 'language.zhHant'
@@ -529,6 +583,50 @@ async function confirmDeleteLayer(): Promise<void> {
   } finally {
     const { [path]: _deleted, ...rest } = deletingLayerMap.value;
     deletingLayerMap.value = rest;
+  }
+}
+
+function toggleAddShelfForm(): void {
+  showAddShelfForm.value = !showAddShelfForm.value;
+  addShelfError.value = '';
+  if (!showAddShelfForm.value) {
+    newShelfName.value = '';
+    newShelfDirectory.value = '';
+  }
+}
+
+async function onBrowseShelfDirectory(): Promise<void> {
+  const provider = getBookshelfProvider();
+  if (!provider.openDesktopShelfDirectory) {
+    return;
+  }
+  const dir = await provider.openDesktopShelfDirectory();
+  if (dir) {
+    newShelfDirectory.value = dir;
+  }
+}
+
+async function onSubmitAddShelf(): Promise<void> {
+  const name = newShelfName.value.trim();
+  const dir = newShelfDirectory.value.trim();
+  if (!name || !dir) {
+    return;
+  }
+
+  addingShelf.value = true;
+  addShelfError.value = '';
+
+  try {
+    const provider = getBookshelfProvider();
+    await provider.addDesktopShelf!(name, dir);
+    await fetchShelfOptions();
+    showAddShelfForm.value = false;
+    newShelfName.value = '';
+    newShelfDirectory.value = '';
+  } catch (err) {
+    addShelfError.value = err instanceof Error ? err.message : t('layout.shelf.addShelfFailed');
+  } finally {
+    addingShelf.value = false;
   }
 }
 
@@ -831,5 +929,32 @@ onMounted(async () => {
   min-height: 30px;
   min-width: 0;
   padding: 0 6px;
+}
+
+.add-shelf-dir-row {
+  display: flex;
+  gap: 4px;
+}
+
+.add-shelf-dir-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.add-shelf-browse-btn {
+  background: #f1f5f9;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #334155;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.add-shelf-browse-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 </style>

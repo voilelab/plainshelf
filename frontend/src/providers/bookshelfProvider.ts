@@ -64,4 +64,7 @@ export interface BookshelfProvider {
 
   openLocalBookFiles?(): Promise<string[] | null>;
   importBooksFromLocalPaths?(localPaths: string[], layerPath: string): Promise<DesktopImportBookResult[] | null>;
+
+  openDesktopShelfDirectory?(): Promise<string | null>;
+  addDesktopShelf?(name: string, libRoot: string): Promise<void>;
 }

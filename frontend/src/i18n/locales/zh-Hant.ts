@@ -69,7 +69,15 @@ const zhHant = {
       failed: '載入書架失敗',
       empty: '尚未設定書架',
       unavailableTitle: '尚未選擇書架',
-      unavailableDescription: '請先設定至少一個書架，才能瀏覽與閱讀書籍。'
+      unavailableDescription: '請先設定至少一個書架，才能瀏覽與閱讀書籍。',
+      addShelf: '新增書架',
+      addShelfCancel: '取消',
+      addShelfNamePlaceholder: '書架名稱',
+      addShelfDirectoryPlaceholder: '目錄',
+      addShelfBrowse: '瀏覽…',
+      addShelfSubmit: '新增',
+      addShelfAdding: '新增中...',
+      addShelfFailed: '新增書架失敗'
     },
     recentlyRead: '最近閱讀',
     trash: '垃圾桶',

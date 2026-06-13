@@ -70,7 +70,15 @@ const en = {
       failed: 'Failed to load shelves',
       empty: 'No shelves configured',
       unavailableTitle: 'No shelf selected',
-      unavailableDescription: 'Configure at least one shelf to browse and read books.'
+      unavailableDescription: 'Configure at least one shelf to browse and read books.',
+      addShelf: 'Add shelf',
+      addShelfCancel: 'Cancel',
+      addShelfNamePlaceholder: 'Shelf name',
+      addShelfDirectoryPlaceholder: 'Directory',
+      addShelfBrowse: 'Browse...',
+      addShelfSubmit: 'Add',
+      addShelfAdding: 'Adding...',
+      addShelfFailed: 'Failed to add shelf'
     },
     recentlyRead: 'Recently Read',
     trash: 'Trash',

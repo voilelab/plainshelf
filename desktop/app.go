@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -16,8 +17,9 @@ import (
 )
 
 type DesktopApp struct {
-	app *server.App
-	ctx context.Context
+	app               *server.App
+	ctx               context.Context
+	shelvesConfigPath string
 }
 
 type DesktopImportBookResult struct {
@@ -146,6 +148,71 @@ func (a *DesktopApp) navigateHistory(step int) {
 	wailsruntime.WindowExecJS(a.ctx, script)
 }
 
+func (a *DesktopApp) OpenShelfDirectory() (string, error) {
+	if a.ctx == nil {
+		return "", nil
+	}
+	dir, err := wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
+		Title: "Select shelf directory",
+	})
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	return dir, nil
+}
+
+func (a *DesktopApp) AddShelf(name, libRoot string) error {
+	if a.app == nil {
+		return util.NewError("desktop backend app instance is nil")
+	}
+
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return util.Errorf("shelf name cannot be empty")
+	}
+
+	normalizedLibRoot, err := normalizeDesktopShelfDirectory(libRoot)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		return util.Errorf("loading shelf config: %w", err)
+	}
+
+	existingIDs := map[string]bool{}
+	for _, entry := range conf.Shelves {
+		existingIDs[entry.ID] = true
+	}
+
+	// Find a unique ID not in the config and not registered at runtime.
+	base := slugifyShelfID(name)
+	var id string
+	for i := 0; ; i++ {
+		if i == 0 {
+			id = base
+		} else {
+			id = fmt.Sprintf("%s-%d", base, i+1)
+		}
+		if !existingIDs[id] {
+			break
+		}
+	}
+
+	conf.Shelves = append(conf.Shelves, desktopShelfEntry{
+		ID:      id,
+		Name:    name,
+		LibRoot: normalizedLibRoot,
+	})
+
+	if err := saveDesktopShelves(a.shelvesConfigPath, conf); err != nil {
+		return util.Errorf("saving shelf config: %w", err)
+	}
+
+	return nil
+}
+
 func (a *DesktopApp) startServer() error {
 	// Store desktop app data under the current user's config directory.
 	dataRoot, err := os.UserConfigDir()
@@ -155,6 +222,18 @@ func (a *DesktopApp) startServer() error {
 	dataRoot = filepath.Join(dataRoot, "PlainShelf")
 	if err := os.MkdirAll(dataRoot, 0o755); err != nil {
 		return util.Errorf("%w", err)
+	}
+
+	shelvesConfigPath := filepath.Join(dataRoot, "shelves.json")
+	storedConf, err := loadDesktopShelves(shelvesConfigPath)
+	if err != nil {
+		return util.Errorf("loading shelf config: %w", err)
+	}
+
+	shelves := []*shelf.ShelfConfWithID{}
+	for _, entry := range storedConf.Shelves {
+		conf := toShelfConfWithID(entry)
+		shelves = append(shelves, &conf)
 	}
 
 	appConf := &server.AppConf{
@@ -167,24 +246,7 @@ func (a *DesktopApp) startServer() error {
 				Prefix: "app",
 			},
 		},
-		Shelves: []*server.ShelfConfWithID{
-			{
-				ID:   "default_shelf",
-				Name: "Default Shelf",
-				ShelfConf: shelf.ShelfConf{
-					Logger: logutil.LogConf{
-						Level:  "info",
-						Format: "json",
-						LogFile: logutil.LogFileConf{
-							Type:   logutil.LogFileTypeNameRotate,
-							Dir:    filepath.Join(dataRoot, "logs"),
-							Prefix: "shelf",
-						},
-					},
-					LibRoot: filepath.Join(dataRoot, "shelf"),
-				},
-			},
-		},
+		Shelves:          shelves,
 		StorePath:        filepath.Join(dataRoot, "store"),
 		CoverToJPG:       true,
 		ReadHistoryLimit: 100,
@@ -203,6 +265,7 @@ func (a *DesktopApp) startServer() error {
 		return util.Errorf("%w", err)
 	}
 
+	a.shelvesConfigPath = shelvesConfigPath
 	a.app = app
 	return nil
 }

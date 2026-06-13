@@ -12,7 +12,7 @@ import (
 func newSecurityTestEnv(t *testing.T, conf *SecurityConf) *apiTestEnv {
 	t.Helper()
 	app, err := NewApp(&AppConf{
-		Shelves: []*ShelfConfWithID{
+		Shelves: []*shelf.ShelfConfWithID{
 			{
 				ID: "default_shelf",
 				ShelfConf: shelf.ShelfConf{

@@ -62,7 +62,7 @@ func newAPITestEnv(t *testing.T) *apiTestEnv {
 	t.Helper()
 
 	app, err := NewApp(&AppConf{
-		Shelves: []*ShelfConfWithID{
+		Shelves: []*shelf.ShelfConfWithID{
 			{
 				ID: "default_shelf",
 				ShelfConf: shelf.ShelfConf{
@@ -219,7 +219,7 @@ func TestAPIGetLogsContract(t *testing.T) {
 				Filename: appLogFile,
 			},
 		},
-		Shelves: []*ShelfConfWithID{
+		Shelves: []*shelf.ShelfConfWithID{
 			{
 				ID: "default_shelf",
 				ShelfConf: shelf.ShelfConf{
@@ -291,7 +291,7 @@ func TestAPIGetLogContentContract(t *testing.T) {
 				Prefix: "app",
 			},
 		},
-		Shelves: []*ShelfConfWithID{
+		Shelves: []*shelf.ShelfConfWithID{
 			{
 				ID: "default_shelf",
 				ShelfConf: shelf.ShelfConf{
@@ -381,7 +381,7 @@ func TestAPIStreamContentReturns200ForEmptyFilesInWails(t *testing.T) {
 
 	logDir := t.TempDir()
 	logApp, err := NewApp(&AppConf{
-		Shelves: []*ShelfConfWithID{
+		Shelves: []*shelf.ShelfConfWithID{
 			{
 				ID: "default_shelf",
 				ShelfConf: shelf.ShelfConf{
