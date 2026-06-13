@@ -90,8 +90,9 @@ func TestUpdateSource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create source: %v", err)
 	}
+	originalMeta := *source.GetMeta()
 
-	newContent := "Updated source text for the book source.\n"
+	newContent := "Updated source text for the book source.\nSecond line\n三"
 	err = source.UpdateContent(bytes.NewBufferString(newContent))
 	if err != nil {
 		t.Fatalf("Failed to update source content: %v", err)
@@ -110,6 +111,31 @@ func TestUpdateSource(t *testing.T) {
 
 	if string(updatedSrc) != newContent {
 		t.Errorf("Expected updated source content '%s', got '%s'", newContent, string(updatedSrc))
+	}
+
+	updatedMeta := source.GetMeta()
+	if updatedMeta.MD5Hash == originalMeta.MD5Hash {
+		t.Error("Expected MD5 hash to change after source content update")
+	}
+	if updatedMeta.LineCount != 3 {
+		t.Errorf("Expected line count 3 after content update, got %d", updatedMeta.LineCount)
+	}
+	if updatedMeta.LineCount == originalMeta.LineCount {
+		t.Error("Expected line count to change after source content update")
+	}
+	if updatedMeta.CharCount != len([]rune(newContent)) {
+		t.Errorf("Expected character count %d after content update, got %d", len([]rune(newContent)), updatedMeta.CharCount)
+	}
+	if updatedMeta.CharCount == originalMeta.CharCount {
+		t.Error("Expected character count to change after source content update")
+	}
+
+	verified, err := source.VerifyContent()
+	if err != nil {
+		t.Fatalf("Failed to verify updated source content: %v", err)
+	}
+	if !verified {
+		t.Fatal("Expected updated source content to match stored MD5 hash")
 	}
 }
 

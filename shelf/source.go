@@ -76,9 +76,11 @@ func (r *Source) UpdateContent(newContent io.Reader) error {
 		destFile.Close()
 		return util.Errorf("%w", err)
 	}
-	destFile.Close()
+	if err := destFile.Close(); err != nil {
+		return util.Errorf("%w", err)
+	}
 
-	err = r.UpdateHash()
+	err = r.refreshContentMetadata()
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -116,6 +118,67 @@ func (r *Source) UpdateHash() error {
 	err = r.writebackMeta()
 	if err != nil {
 		return util.Errorf("%w", err)
+	}
+	return nil
+}
+
+func (r *Source) refreshContentMetadata() error {
+	err := r.withSourceFile(func(sourceFile fs.File) error {
+		md5Hash, err := hashutil.MD5Hash(sourceFile)
+		if err != nil {
+			return util.Errorf("%w", err)
+		}
+		r.meta.MD5Hash = md5Hash
+		return nil
+	})
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	err = r.withSourceFile(func(sourceFile fs.File) error {
+		lineCount, err := util.LineCount(sourceFile)
+		if err != nil {
+			return util.Errorf("%w", err)
+		}
+		r.meta.LineCount = lineCount
+		return nil
+	})
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	err = r.withSourceFile(func(sourceFile fs.File) error {
+		charCount, err := util.CharCount(sourceFile)
+		if err != nil {
+			return util.Errorf("%w", err)
+		}
+		r.meta.CharCount = charCount
+		return nil
+	})
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	err = r.writebackMeta()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	return nil
+}
+
+func (r *Source) withSourceFile(read func(fs.File) error) error {
+	sourceFile, err := r.Open()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	readErr := read(sourceFile)
+	closeErr := sourceFile.Close()
+	if readErr != nil {
+		return util.Errorf("%w", readErr)
+	}
+	if closeErr != nil {
+		return util.Errorf("%w", closeErr)
 	}
 	return nil
 }

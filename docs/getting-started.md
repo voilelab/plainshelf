@@ -4,7 +4,7 @@ This page walks you through the quickest way to run PlainShelf locally.
 
 ## Prerequisites
 
-- [Go](https://go.dev/dl/) 1.21 or later
+- [Go](https://go.dev/dl/) 1.26.1 or later
 - [Node.js](https://nodejs.org/) 22 or later and npm
 - Git
 
@@ -55,7 +55,7 @@ The server is now listening on <http://127.0.0.1:20000>.
 
 !!! info "Default development config"
     - Listens on `127.0.0.1:20000`
-    - Stores shelf and mark data under the current working directory
+    - Stores shelf data and application store data under the current working directory
     - Enables `local_token` security for mutating `/api` requests
 
     The server generates an ephemeral token at startup, injects it into the
