@@ -98,6 +98,10 @@ func (app *App) AddShelf(conf shelf.ShelfConfWithID) error {
 	return app.shelfManager.AddShelf(conf)
 }
 
+func (app *App) RemoveShelf(id string) error {
+	return app.shelfManager.RemoveShelf(id)
+}
+
 func (app *App) Close() error {
 	err1 := app.storeDB.Close()
 	err2 := app.shelfManager.Close()

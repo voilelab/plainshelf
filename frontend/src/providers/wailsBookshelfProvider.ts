@@ -2,7 +2,8 @@ import {
   addDesktopShelf,
   importDesktopBooksFromLocalPaths,
   openDesktopBookFiles,
-  openDesktopShelfDirectory
+  openDesktopShelfDirectory,
+  removeDesktopShelf
 } from '../api/desktop';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
 import type { DesktopImportBookResult } from './bookshelfProvider';
@@ -25,5 +26,9 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
 
   addDesktopShelf(name: string, libRoot: string): Promise<void> {
     return addDesktopShelf(name, libRoot);
+  }
+
+  removeDesktopShelf(shelfID: string): Promise<void> {
+    return removeDesktopShelf(shelfID);
   }
 }

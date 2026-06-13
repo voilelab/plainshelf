@@ -104,6 +104,26 @@ const en = {
       label: 'Reading history limit',
       description: 'Maximum number of recently read books to keep. Use 0 to disable retaining history.',
       invalid: 'Reading history limit must be a non-negative whole number.'
+    },
+    shelves: {
+      title: 'Shelves',
+      loadFailed: 'Failed to load shelves',
+      empty: 'No shelves configured.',
+      serverManaged: 'Shelves are managed by the server configuration.',
+      name: 'Name',
+      directory: 'Directory',
+      remove: 'Remove',
+      removing: 'Removing...',
+      removeFailed: 'Failed to remove shelf',
+      addShelf: 'Add shelf',
+      addShelfCancel: 'Cancel',
+      addShelfNamePlaceholder: 'Shelf name',
+      addShelfDirectoryPlaceholder: 'Directory path',
+      addShelfBrowse: 'Browse...',
+      addShelfSubmit: 'Add shelf',
+      addShelfAdding: 'Adding...',
+      addShelfFailed: 'Failed to add shelf',
+      removeConfirm: 'Remove shelf "{name}"? This only removes it from PlainShelf; the directory will not be deleted.'
     }
   },
   adminLogs: {

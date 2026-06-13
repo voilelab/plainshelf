@@ -103,6 +103,26 @@ const zhHant = {
       label: '閱讀紀錄數量限制',
       description: '最多保留的最近閱讀書籍數量。設為 0 可停用紀錄保留。',
       invalid: '閱讀紀錄數量限制必須是非負整數。'
+    },
+    shelves: {
+      title: '書架',
+      loadFailed: '載入書架失敗',
+      empty: '尚未設定書架。',
+      serverManaged: '書架由伺服器設定管理。',
+      name: '名稱',
+      directory: '目錄',
+      remove: '移除',
+      removing: '移除中...',
+      removeFailed: '移除書架失敗',
+      addShelf: '新增書架',
+      addShelfCancel: '取消',
+      addShelfNamePlaceholder: '書架名稱',
+      addShelfDirectoryPlaceholder: '目錄路徑',
+      addShelfBrowse: '瀏覽…',
+      addShelfSubmit: '新增書架',
+      addShelfAdding: '新增中...',
+      addShelfFailed: '新增書架失敗',
+      removeConfirm: '移除書架「{name}」？此操作只會從 PlainShelf 中移除，不會刪除目錄。'
     }
   },
   adminLogs: {

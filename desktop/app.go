@@ -231,6 +231,47 @@ func (a *DesktopApp) AddShelf(name, libRoot string) error {
 	return nil
 }
 
+func (a *DesktopApp) RemoveShelf(shelfID string) error {
+	if a.app == nil {
+		return util.NewError("desktop backend app instance is nil")
+	}
+
+	shelfID = strings.TrimSpace(shelfID)
+	if shelfID == "" {
+		return util.Errorf("shelf ID cannot be empty")
+	}
+
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		return util.Errorf("loading shelf config: %w", err)
+	}
+
+	newShelves := make([]desktopShelfEntry, 0, len(conf.Shelves))
+	found := false
+	for _, entry := range conf.Shelves {
+		if entry.ID == shelfID {
+			found = true
+			continue
+		}
+		newShelves = append(newShelves, entry)
+	}
+
+	if !found {
+		return util.Errorf("shelf with ID %q not found in config", shelfID)
+	}
+
+	conf.Shelves = newShelves
+	if err := saveDesktopShelves(a.shelvesConfigPath, conf); err != nil {
+		return util.Errorf("saving shelf config: %w", err)
+	}
+
+	if err := a.app.RemoveShelf(shelfID); err != nil {
+		return util.Errorf("removing shelf from runtime: %w", err)
+	}
+
+	return nil
+}
+
 func (a *DesktopApp) startServer() error {
 	// Store desktop app data under the current user's config directory.
 	dataRoot, err := os.UserConfigDir()
