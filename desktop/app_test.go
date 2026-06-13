@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/voilelab/plainshelf/server"
 )
 
 func TestBookOpenDialogOptions(t *testing.T) {
@@ -136,5 +138,69 @@ func TestGenerateDesktopShelfID(t *testing.T) {
 		if got != tc.want {
 			t.Errorf("generateDesktopShelfID(%q, %v) = %q, want %q", tc.name, tc.existingIDs, got, tc.want)
 		}
+	}
+}
+
+func TestAddShelfDoesNotPersistWhenRegistrationFails(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "shelves.json")
+	badShelfPath := filepath.Join(tempDir, "not-a-directory")
+	if err := os.WriteFile(badShelfPath, []byte("not a shelf directory"), 0o600); err != nil {
+		t.Fatalf("write bad shelf path: %v", err)
+	}
+
+	serverApp, err := server.NewApp(&server.AppConf{
+		StorePath: filepath.Join(tempDir, "store"),
+		Security:  &server.SecurityConf{Mode: server.SecurityModeNone},
+	})
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+	defer serverApp.Close()
+
+	desktopApp := &DesktopApp{app: serverApp, shelvesConfigPath: configPath}
+	if err := desktopApp.AddShelf("Broken Shelf", badShelfPath); err == nil {
+		t.Fatal("AddShelf with regular file path: want error, got nil")
+	}
+
+	conf, err := loadDesktopShelves(configPath)
+	if err != nil {
+		t.Fatalf("loadDesktopShelves: %v", err)
+	}
+	if len(conf.Shelves) != 0 {
+		t.Fatalf("expected failed shelf registration not to be persisted, got %+v", conf.Shelves)
+	}
+}
+
+func TestLoadOrMigrateDesktopShelvesSeedsLegacyDefaultShelf(t *testing.T) {
+	dataRoot := t.TempDir()
+	configPath := filepath.Join(dataRoot, "shelves.json")
+
+	conf, err := loadOrMigrateDesktopShelves(configPath, dataRoot)
+	if err != nil {
+		t.Fatalf("loadOrMigrateDesktopShelves: %v", err)
+	}
+	if len(conf.Shelves) != 1 {
+		t.Fatalf("expected one migrated legacy shelf, got %d", len(conf.Shelves))
+	}
+
+	entry := conf.Shelves[0]
+	if entry.ID != desktopLegacyDefaultShelfID {
+		t.Fatalf("legacy shelf ID = %q, want %q", entry.ID, desktopLegacyDefaultShelfID)
+	}
+	if entry.Name != desktopLegacyDefaultShelfName {
+		t.Fatalf("legacy shelf name = %q, want %q", entry.Name, desktopLegacyDefaultShelfName)
+	}
+	wantLibRoot := filepath.Join(dataRoot, desktopLegacyShelfDirName)
+	if entry.LibRoot != wantLibRoot {
+		t.Fatalf("legacy shelf lib root = %q, want %q", entry.LibRoot, wantLibRoot)
+	}
+
+	loaded, err := loadDesktopShelves(configPath)
+	if err != nil {
+		t.Fatalf("load migrated shelves config: %v", err)
+	}
+	if len(loaded.Shelves) != 1 || loaded.Shelves[0] != entry {
+		t.Fatalf("persisted migrated config = %+v, want %+v", loaded.Shelves, conf.Shelves)
 	}
 }

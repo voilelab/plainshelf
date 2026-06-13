@@ -17,6 +17,12 @@ type desktopShelfEntry struct {
 	LibRoot string `json:"lib_root"`
 }
 
+const (
+	desktopLegacyDefaultShelfID   = "default_shelf"
+	desktopLegacyDefaultShelfName = "Default Shelf"
+	desktopLegacyShelfDirName     = "shelf"
+)
+
 type desktopShelvesConfig struct {
 	Shelves []desktopShelfEntry `json:"shelves"`
 }
@@ -34,6 +40,34 @@ func loadDesktopShelves(configPath string) (*desktopShelvesConfig, error) {
 		return nil, util.Errorf("%w", err)
 	}
 	return &conf, nil
+}
+
+func loadOrMigrateDesktopShelves(configPath, dataRoot string) (*desktopShelvesConfig, error) {
+	_, err := os.Stat(configPath)
+	if err == nil {
+		return loadDesktopShelves(configPath)
+	}
+	if !os.IsNotExist(err) {
+		return nil, util.Errorf("%w", err)
+	}
+
+	conf := defaultDesktopShelvesConfig(dataRoot)
+	if err := saveDesktopShelves(configPath, conf); err != nil {
+		return nil, util.Errorf("migrating legacy shelf config: %w", err)
+	}
+	return conf, nil
+}
+
+func defaultDesktopShelvesConfig(dataRoot string) *desktopShelvesConfig {
+	return &desktopShelvesConfig{
+		Shelves: []desktopShelfEntry{
+			{
+				ID:      desktopLegacyDefaultShelfID,
+				Name:    desktopLegacyDefaultShelfName,
+				LibRoot: filepath.Join(dataRoot, desktopLegacyShelfDirName),
+			},
+		},
+	}
 }
 
 func saveDesktopShelves(configPath string, conf *desktopShelvesConfig) error {

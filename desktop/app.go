@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -193,39 +192,25 @@ func (a *DesktopApp) AddShelf(name, libRoot string) error {
 		existingIDs[entry.ID] = true
 	}
 
-	// Find a unique ID not in the config and not registered at runtime.
-	base := slugifyShelfID(name)
-	var id string
-	for i := 0; ; i++ {
-		if i == 0 {
-			id = base
-		} else {
-			id = fmt.Sprintf("%s-%d", base, i+1)
-		}
-		if !existingIDs[id] {
-			break
-		}
-	}
+	id := generateDesktopShelfID(name, existingIDs)
 
-	conf.Shelves = append(conf.Shelves, desktopShelfEntry{
+	entry := desktopShelfEntry{
 		ID:      id,
 		Name:    name,
 		LibRoot: normalizedLibRoot,
-	})
-
-	if err := saveDesktopShelves(a.shelvesConfigPath, conf); err != nil {
-		return util.Errorf("saving shelf config: %w", err)
 	}
 
-	err = a.app.AddShelf(shelf.ShelfConfWithID{
-		ID:   id,
-		Name: name,
-		ShelfConf: shelf.ShelfConf{
-			LibRoot: normalizedLibRoot,
-		},
-	})
+	err = a.app.AddShelf(toShelfConfWithID(entry))
 	if err != nil {
 		return util.Errorf("registering shelf: %w", err)
+	}
+
+	conf.Shelves = append(conf.Shelves, entry)
+	if err := saveDesktopShelves(a.shelvesConfigPath, conf); err != nil {
+		if removeErr := a.app.RemoveShelf(id); removeErr != nil {
+			return util.Errorf("saving shelf config: %w; rolling back runtime shelf: %v", err, removeErr)
+		}
+		return util.Errorf("saving shelf config: %w", err)
 	}
 
 	return nil
@@ -284,7 +269,7 @@ func (a *DesktopApp) startServer() error {
 	}
 
 	shelvesConfigPath := filepath.Join(dataRoot, "shelves.json")
-	storedConf, err := loadDesktopShelves(shelvesConfigPath)
+	storedConf, err := loadOrMigrateDesktopShelves(shelvesConfigPath, dataRoot)
 	if err != nil {
 		return util.Errorf("loading shelf config: %w", err)
 	}
