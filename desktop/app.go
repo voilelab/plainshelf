@@ -16,8 +16,10 @@ import (
 )
 
 type DesktopApp struct {
-	app *server.App
-	ctx context.Context
+	app               *server.App
+	apiHandler        http.Handler
+	ctx               context.Context
+	shelvesConfigPath string
 }
 
 type DesktopImportBookResult struct {
@@ -36,6 +38,7 @@ func (a *DesktopApp) Startup(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
+	a.apiHandler = a.app.Handler()
 }
 
 func (a *DesktopApp) Shutdown() {
@@ -48,7 +51,12 @@ func (a *DesktopApp) Shutdown() {
 }
 
 func (a *DesktopApp) GetAPIHandler() http.Handler {
-	return a.app.Handler()
+	if a.apiHandler == nil {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "server starting", http.StatusServiceUnavailable)
+		})
+	}
+	return a.apiHandler
 }
 
 func (a *DesktopApp) PreviousPage() {
@@ -146,6 +154,109 @@ func (a *DesktopApp) navigateHistory(step int) {
 	wailsruntime.WindowExecJS(a.ctx, script)
 }
 
+func (a *DesktopApp) OpenShelfDirectory() (string, error) {
+	if a.ctx == nil {
+		return "", nil
+	}
+	dir, err := wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
+		Title: "Select shelf directory",
+	})
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	return dir, nil
+}
+
+func (a *DesktopApp) AddShelf(name, libRoot string) error {
+	if a.app == nil {
+		return util.NewError("desktop backend app instance is nil")
+	}
+
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return util.Errorf("shelf name cannot be empty")
+	}
+
+	normalizedLibRoot, err := normalizeDesktopShelfDirectory(libRoot)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		return util.Errorf("loading shelf config: %w", err)
+	}
+
+	existingIDs := map[string]bool{}
+	for _, entry := range conf.Shelves {
+		existingIDs[entry.ID] = true
+	}
+
+	id := generateDesktopShelfID(name, existingIDs)
+
+	entry := desktopShelfEntry{
+		ID:      id,
+		Name:    name,
+		LibRoot: normalizedLibRoot,
+	}
+
+	err = a.app.AddShelf(toShelfConfWithID(entry))
+	if err != nil {
+		return util.Errorf("registering shelf: %w", err)
+	}
+
+	conf.Shelves = append(conf.Shelves, entry)
+	if err := saveDesktopShelves(a.shelvesConfigPath, conf); err != nil {
+		if removeErr := a.app.RemoveShelf(id); removeErr != nil {
+			return util.Errorf("saving shelf config: %w; rolling back runtime shelf: %v", err, removeErr)
+		}
+		return util.Errorf("saving shelf config: %w", err)
+	}
+
+	return nil
+}
+
+func (a *DesktopApp) RemoveShelf(shelfID string) error {
+	if a.app == nil {
+		return util.NewError("desktop backend app instance is nil")
+	}
+
+	shelfID = strings.TrimSpace(shelfID)
+	if shelfID == "" {
+		return util.Errorf("shelf ID cannot be empty")
+	}
+
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		return util.Errorf("loading shelf config: %w", err)
+	}
+
+	newShelves := make([]desktopShelfEntry, 0, len(conf.Shelves))
+	found := false
+	for _, entry := range conf.Shelves {
+		if entry.ID == shelfID {
+			found = true
+			continue
+		}
+		newShelves = append(newShelves, entry)
+	}
+
+	if !found {
+		return util.Errorf("shelf with ID %q not found in config", shelfID)
+	}
+
+	conf.Shelves = newShelves
+	if err := saveDesktopShelves(a.shelvesConfigPath, conf); err != nil {
+		return util.Errorf("saving shelf config: %w", err)
+	}
+
+	if err := a.app.RemoveShelf(shelfID); err != nil {
+		return util.Errorf("removing shelf from runtime: %w", err)
+	}
+
+	return nil
+}
+
 func (a *DesktopApp) startServer() error {
 	// Store desktop app data under the current user's config directory.
 	dataRoot, err := os.UserConfigDir()
@@ -155,6 +266,18 @@ func (a *DesktopApp) startServer() error {
 	dataRoot = filepath.Join(dataRoot, "PlainShelf")
 	if err := os.MkdirAll(dataRoot, 0o755); err != nil {
 		return util.Errorf("%w", err)
+	}
+
+	shelvesConfigPath := filepath.Join(dataRoot, "shelves.json")
+	storedConf, err := loadOrMigrateDesktopShelves(shelvesConfigPath, dataRoot)
+	if err != nil {
+		return util.Errorf("loading shelf config: %w", err)
+	}
+
+	shelves := []*shelf.ShelfConfWithID{}
+	for _, entry := range storedConf.Shelves {
+		conf := toShelfConfWithID(entry)
+		shelves = append(shelves, &conf)
 	}
 
 	appConf := &server.AppConf{
@@ -167,24 +290,7 @@ func (a *DesktopApp) startServer() error {
 				Prefix: "app",
 			},
 		},
-		Shelves: []*server.ShelfConfWithID{
-			{
-				ID:   "default_shelf",
-				Name: "Default Shelf",
-				ShelfConf: shelf.ShelfConf{
-					Logger: logutil.LogConf{
-						Level:  "info",
-						Format: "json",
-						LogFile: logutil.LogFileConf{
-							Type:   logutil.LogFileTypeNameRotate,
-							Dir:    filepath.Join(dataRoot, "logs"),
-							Prefix: "shelf",
-						},
-					},
-					LibRoot: filepath.Join(dataRoot, "shelf"),
-				},
-			},
-		},
+		Shelves:          shelves,
 		StorePath:        filepath.Join(dataRoot, "store"),
 		CoverToJPG:       true,
 		ReadHistoryLimit: 100,
@@ -203,6 +309,7 @@ func (a *DesktopApp) startServer() error {
 		return util.Errorf("%w", err)
 	}
 
+	a.shelvesConfigPath = shelvesConfigPath
 	a.app = app
 	return nil
 }

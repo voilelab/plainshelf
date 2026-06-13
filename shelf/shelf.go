@@ -46,8 +46,8 @@ type Shelf struct {
 }
 
 type ShelfConf struct {
-	Logger  logutil.LogConf `yaml:"logger"`
-	LibRoot string          `yaml:"lib_root"`
+	Logger  logutil.LogConf `yaml:"logger" json:"logger"`
+	LibRoot string          `yaml:"lib_root" json:"lib_root"`
 
 	// for cache
 
@@ -56,7 +56,7 @@ type ShelfConf struct {
 	// update stale metadata.
 	// Newly added books may not be discovered until the next full scan.
 	// Set to 0s to always perform a full scan on refresh.
-	ScanInterval string `yaml:"scan_interval"`
+	ScanInterval string `yaml:"scan_interval" json:"scan_interval"`
 }
 
 func NewShelf(conf *ShelfConf) (*Shelf, error) {

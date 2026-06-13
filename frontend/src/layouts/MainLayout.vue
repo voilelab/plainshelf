@@ -218,12 +218,11 @@ import { getBookshelfProvider } from '../providers';
 import { createLayer, deleteLayer, moveLayer, renameLayer } from '../api/layers';
 import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
+import { useShelvesStore } from '../composables/useShelvesStore';
 import { buildLayerTreeNodes, getLayerPath, normalizeLayerPath } from '../utils/layers';
 import { MAINTENANCE_NAV_ITEMS } from '../utils/maintenance';
 import appIcon from '../assets/icon-192.png';
 import { useI18n } from '../i18n';
-import { ensureActiveShelf, listShelves, type ShelfInfo } from '../api/shelves';
-import { getActiveShelfID, setActiveShelfID } from '../api/client';
 
 const isCollapsed = ref(false);
 const route = useRoute();
@@ -242,11 +241,7 @@ const layerOperationError = ref('');
 const deletingLayerMap = ref<Record<string, boolean>>({});
 const pendingDeleteLayerPath = ref('');
 const { locale, setLocale, supportedLocales, t } = useI18n();
-const shelves = ref<ShelfInfo[]>([]);
-const shelvesLoading = ref(true);
-const shelvesLoaded = ref(false);
-const shelvesError = ref('');
-const selectedShelfID = ref(getActiveShelfID());
+const { shelves, loading: shelvesLoading, loaded: shelvesLoaded, error: shelvesError, selectedShelfID, fetchShelves, selectShelf } = useShelvesStore();
 const localeLabelKeyMap: Record<(typeof supportedLocales)[number], 'language.en' | 'language.zhHant'> = {
   en: 'language.en',
   'zh-Hant': 'language.zhHant'
@@ -305,24 +300,6 @@ function onLocaleChange(event: Event): void {
   }
 }
 
-async function fetchShelfOptions(): Promise<void> {
-  shelvesLoading.value = true;
-  shelvesLoaded.value = false;
-  shelvesError.value = '';
-
-  try {
-    const nextShelves = await listShelves();
-    shelves.value = nextShelves;
-    selectedShelfID.value = ensureActiveShelf(nextShelves);
-  } catch (err) {
-    selectedShelfID.value = '';
-    shelvesError.value = err instanceof Error ? err.message : t('layout.shelf.failed');
-  } finally {
-    shelvesLoaded.value = true;
-    shelvesLoading.value = false;
-  }
-}
-
 async function onShelfChange(event: Event): Promise<void> {
   const target = event.target;
   if (!(target instanceof HTMLSelectElement)) {
@@ -334,8 +311,7 @@ async function onShelfChange(event: Event): Promise<void> {
     return;
   }
 
-  setActiveShelfID(nextShelfID);
-  selectedShelfID.value = nextShelfID;
+  selectShelf(nextShelfID);
   deleteLayerError.value = '';
   layerOperationError.value = '';
   moveBookError.value = '';
@@ -532,8 +508,11 @@ async function confirmDeleteLayer(): Promise<void> {
   }
 }
 
+
 onMounted(async () => {
-  await fetchShelfOptions();
+  if (!shelvesLoaded.value) {
+    await fetchShelves();
+  }
 
   if (!hasActiveShelf.value) {
     return;
@@ -832,4 +811,5 @@ onMounted(async () => {
   min-width: 0;
   padding: 0 6px;
 }
+
 </style>
