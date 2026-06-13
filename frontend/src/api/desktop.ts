@@ -7,6 +7,11 @@ interface DesktopImportBookResult {
   error?: string;
 }
 
+export interface DesktopShelfInfo {
+  id: string;
+  name: string;
+}
+
 interface DesktopAppBinding {
   OpenBookFiles?: () => Promise<string[]>;
   ImportBooksFromLocalPaths?: (
@@ -14,6 +19,8 @@ interface DesktopAppBinding {
     localPaths: string[],
     layerParts: string[]
   ) => Promise<DesktopImportBookResult[]>;
+  OpenShelfDirectory?: () => Promise<string>;
+  AddShelf?: (name: string, libRoot: string) => Promise<DesktopShelfInfo>;
 }
 
 interface DesktopWindow extends Window {
@@ -71,4 +78,32 @@ export async function importDesktopBooksFromLocalPaths(
     localPaths,
     normalizeLayerParts(layerPath)
   );
+}
+
+export async function openDesktopShelfDirectory(): Promise<string | null> {
+  if (!isDesktopRuntime()) {
+    return null;
+  }
+
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.OpenShelfDirectory) {
+    return null;
+  }
+
+  const selectedPath = await desktopApp.OpenShelfDirectory();
+  const trimmedPath = selectedPath.trim();
+  return trimmedPath.length > 0 ? trimmedPath : null;
+}
+
+export async function addDesktopShelf(name: string, libRoot: string): Promise<DesktopShelfInfo | null> {
+  if (!isDesktopRuntime()) {
+    return null;
+  }
+
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.AddShelf) {
+    return null;
+  }
+
+  return desktopApp.AddShelf(name, libRoot);
 }

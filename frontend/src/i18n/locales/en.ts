@@ -70,7 +70,12 @@ const en = {
       failed: 'Failed to load shelves',
       empty: 'No shelves configured',
       unavailableTitle: 'No shelf selected',
-      unavailableDescription: 'Configure at least one shelf to browse and read books.'
+      unavailableDescription: 'Configure at least one shelf to browse and read books.',
+      add: 'Add shelf',
+      adding: 'Adding...',
+      namePrompt: 'Shelf display name:',
+      addFailed: 'Failed to add shelf',
+      addUnsupported: 'Adding shelves is only available in the desktop app.'
     },
     recentlyRead: 'Recently Read',
     trash: 'Trash',

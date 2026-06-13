@@ -11,6 +11,7 @@ import type {
   TrashedBook
 } from '../types/book';
 import type { SourceMeta } from '../types/source';
+import type { DesktopShelfInfo } from '../api/desktop';
 
 export type { DownloadState } from '../types/book';
 
@@ -64,4 +65,6 @@ export interface BookshelfProvider {
 
   openLocalBookFiles?(): Promise<string[] | null>;
   importBooksFromLocalPaths?(localPaths: string[], layerPath: string): Promise<DesktopImportBookResult[] | null>;
+  openShelfDirectory?(): Promise<string | null>;
+  addShelf?(name: string, libRoot: string): Promise<DesktopShelfInfo | null>;
 }

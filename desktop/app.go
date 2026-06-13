@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
@@ -18,12 +19,22 @@ import (
 type DesktopApp struct {
 	app *server.App
 	ctx context.Context
+
+	dataRoot          string
+	shelvesConfigPath string
+	desktopShelves    []*shelf.ShelfConfWithID
+	shelfMu           sync.Mutex
 }
 
 type DesktopImportBookResult struct {
 	Path  string `json:"path"`
 	ID    string `json:"id,omitempty"`
 	Error string `json:"error,omitempty"`
+}
+
+type DesktopShelfInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 func NewDesktopApp() *DesktopApp {
@@ -107,6 +118,49 @@ func normalizeLayerParts(layerParts []string) shelf.Layers {
 	return normalizedParts
 }
 
+func (a *DesktopApp) OpenShelfDirectory() (string, error) {
+	if a.ctx == nil {
+		return "", nil
+	}
+
+	path, err := wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
+		Title: "Select shelf library folder",
+	})
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	return strings.TrimSpace(path), nil
+}
+
+func (a *DesktopApp) AddShelf(name string, libRoot string) (*DesktopShelfInfo, error) {
+	if a.app == nil {
+		return nil, util.NewError("desktop backend app instance is nil")
+	}
+
+	a.shelfMu.Lock()
+	defer a.shelfMu.Unlock()
+
+	conf, err := a.newDesktopShelfConf(name, libRoot)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	if err := a.app.RegisterShelf(*conf); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	nextShelves := append(cloneShelfConfs(a.desktopShelves), cloneShelfConf(conf))
+	if err := saveDesktopShelfConfig(a.shelvesConfigPath, nextShelves); err != nil {
+		if rollbackErr := a.app.UnregisterShelf(conf.ID); rollbackErr != nil {
+			return nil, util.Errorf("failed to save shelf config: %w; rollback failed: %v", err, rollbackErr)
+		}
+		return nil, util.Errorf("%w", err)
+	}
+
+	a.desktopShelves = nextShelves
+	return &DesktopShelfInfo{ID: conf.ID, Name: conf.Name}, nil
+}
+
 func (a *DesktopApp) ImportBooksFromLocalPaths(shelfID string, localPaths []string, layerParts []string) ([]DesktopImportBookResult, error) {
 	if a.app == nil {
 		return nil, util.NewError("desktop backend app instance is nil")
@@ -157,6 +211,12 @@ func (a *DesktopApp) startServer() error {
 		return util.Errorf("%w", err)
 	}
 
+	shelvesConfigPath := filepath.Join(dataRoot, desktopShelfConfigFilename)
+	desktopShelves, err := loadOrCreateDesktopShelfConfig(shelvesConfigPath, defaultDesktopShelfConf(dataRoot))
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	appConf := &server.AppConf{
 		Logger: logutil.LogConf{
 			Level:  "info",
@@ -167,24 +227,7 @@ func (a *DesktopApp) startServer() error {
 				Prefix: "app",
 			},
 		},
-		Shelves: []*shelf.ShelfConfWithID{
-			{
-				ID:   "default_shelf",
-				Name: "Default Shelf",
-				ShelfConf: shelf.ShelfConf{
-					Logger: logutil.LogConf{
-						Level:  "info",
-						Format: "json",
-						LogFile: logutil.LogFileConf{
-							Type:   logutil.LogFileTypeNameRotate,
-							Dir:    filepath.Join(dataRoot, "logs"),
-							Prefix: "shelf",
-						},
-					},
-					LibRoot: filepath.Join(dataRoot, "shelf"),
-				},
-			},
-		},
+		Shelves:          desktopShelves,
 		StorePath:        filepath.Join(dataRoot, "store"),
 		CoverToJPG:       true,
 		ReadHistoryLimit: 100,
@@ -204,5 +247,8 @@ func (a *DesktopApp) startServer() error {
 	}
 
 	a.app = app
+	a.dataRoot = dataRoot
+	a.shelvesConfigPath = shelvesConfigPath
+	a.desktopShelves = cloneShelfConfs(desktopShelves)
 	return nil
 }

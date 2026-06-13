@@ -91,17 +91,10 @@ func NewApp(conf *AppConf) (*App, error) {
 }
 
 func (app *App) Start() error {
-	shelfConfInStore, err := app.storeDB.GetShelves()
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	for _, conf := range shelfConfInStore {
-		if err := app.shelfManager.AddShelf(*conf); err != nil {
-			return util.Errorf("%w", err)
-		}
-	}
-
+	// Shelf configuration is supplied by AppConf at construction time. Desktop
+	// mode can register additional shelves in-process through RegisterShelf, but
+	// the public server app intentionally does not manage persisted shelf
+	// mutations at startup.
 	return nil
 }
 
