@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
@@ -281,7 +283,18 @@ func (a *DesktopApp) startServer() error {
 
 	app, err := server.NewApp(appConf)
 	if err != nil {
-		return util.Errorf("%w", err)
+		recovered, recoverErr := recoverDesktopStoreOpenError(dataRoot, err)
+		if recoverErr != nil {
+			return util.Errorf("%w", recoverErr)
+		}
+		if !recovered {
+			return util.Errorf("%w", err)
+		}
+
+		app, err = server.NewApp(appConf)
+		if err != nil {
+			return util.Errorf("%w", err)
+		}
 	}
 
 	err = app.Start()
@@ -294,4 +307,55 @@ func (a *DesktopApp) startServer() error {
 	a.shelvesConfigPath = shelvesConfigPath
 	a.desktopShelves = cloneShelfConfs(desktopShelves)
 	return nil
+}
+
+var desktopVlogOpenErrorPattern = regexp.MustCompile(`Open existing file: "([^"]+\.vlog)"`)
+
+func recoverDesktopStoreOpenError(dataRoot string, openErr error) (bool, error) {
+	if openErr == nil {
+		return false, nil
+	}
+
+	message := openErr.Error()
+	if !strings.Contains(message, "During db.vlog.open") || !strings.Contains(message, "Create a new file") {
+		return false, nil
+	}
+
+	matches := desktopVlogOpenErrorPattern.FindStringSubmatch(message)
+	if len(matches) != 2 {
+		return false, nil
+	}
+
+	storePath := filepath.Join(dataRoot, "store")
+	vlogPath := filepath.Clean(matches[1])
+	if !filepath.IsAbs(vlogPath) {
+		vlogPath = filepath.Join(storePath, vlogPath)
+	}
+
+	storeRelPath, err := filepath.Rel(storePath, vlogPath)
+	if err != nil {
+		return false, util.Errorf("%w", err)
+	}
+	if storeRelPath == "." || strings.HasPrefix(storeRelPath, ".."+string(os.PathSeparator)) || storeRelPath == ".." {
+		return false, util.Errorf("refusing to recover value log outside desktop store: %s", vlogPath)
+	}
+
+	info, err := os.Stat(vlogPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, util.Errorf("%w", err)
+	}
+	if info.IsDir() || info.Size() != 0 {
+		return false, nil
+	}
+
+	backupPath := vlogPath + ".recovered-" + time.Now().UTC().Format("20060102T150405.000000000Z")
+	if err := os.Rename(vlogPath, backupPath); err != nil {
+		return false, util.Errorf("failed to back up unreadable desktop value log: %w", err)
+	}
+
+	log.Printf("Backed up empty unreadable desktop value log from %s to %s; retrying store open", vlogPath, backupPath)
+	return true, nil
 }

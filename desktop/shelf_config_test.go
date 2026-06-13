@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -130,5 +131,56 @@ func TestGetAPIHandlerServesBeforeStartup(t *testing.T) {
 	}
 	if body := rec.Body.String(); !strings.Contains(body, "default_shelf") {
 		t.Fatalf("GET /api/shelves body = %s, want default shelf", body)
+	}
+}
+
+func TestRecoverDesktopStoreOpenErrorBacksUpEmptyValueLog(t *testing.T) {
+	dataRoot := t.TempDir()
+	storePath := filepath.Join(dataRoot, "store")
+	if err := os.MkdirAll(storePath, 0o755); err != nil {
+		t.Fatalf("MkdirAll store: %v", err)
+	}
+	markerPath := filepath.Join(storePath, "marker")
+	if err := os.WriteFile(markerPath, []byte("store data"), 0o644); err != nil {
+		t.Fatalf("WriteFile marker: %v", err)
+	}
+	vlogPath := filepath.Join(storePath, "000001.vlog")
+	if err := os.WriteFile(vlogPath, nil, 0o644); err != nil {
+		t.Fatalf("WriteFile vlog: %v", err)
+	}
+
+	recovered, err := recoverDesktopStoreOpenError(dataRoot, errors.New(`server.NewApp: store.New: During db.vlog.open err: Open existing file: "`+vlogPath+`" err: Create a new file`))
+	if err != nil {
+		t.Fatalf("recoverDesktopStoreOpenError: %v", err)
+	}
+	if !recovered {
+		t.Fatal("expected recovery")
+	}
+	if _, err := os.Stat(storePath); err != nil {
+		t.Fatalf("store path missing after recovery: %v", err)
+	}
+	if _, err := os.Stat(markerPath); err != nil {
+		t.Fatalf("marker path missing after recovery: %v", err)
+	}
+	if _, err := os.Stat(vlogPath); !os.IsNotExist(err) {
+		t.Fatalf("vlog path still exists or stat failed unexpectedly: %v", err)
+	}
+
+	matches, err := filepath.Glob(vlogPath + ".recovered-*")
+	if err != nil {
+		t.Fatalf("Glob: %v", err)
+	}
+	if len(matches) != 1 {
+		t.Fatalf("backup value log matches = %v, want one", matches)
+	}
+}
+
+func TestRecoverDesktopStoreOpenErrorIgnoresUnrelatedErrors(t *testing.T) {
+	recovered, err := recoverDesktopStoreOpenError(t.TempDir(), errors.New("some other startup error"))
+	if err != nil {
+		t.Fatalf("recoverDesktopStoreOpenError: %v", err)
+	}
+	if recovered {
+		t.Fatal("unexpected recovery for unrelated error")
 	}
 }
