@@ -38,6 +38,15 @@
               </option>
             </select>
           </label>
+          <button
+            v-if="canAddShelf"
+            type="button"
+            class="add-shelf-button"
+            :disabled="addingShelf"
+            @click="onAddShelf"
+          >
+            {{ addingShelf ? t('layout.shelf.adding') : t('layout.shelf.add') }}
+          </button>
           <p v-if="shelvesError" class="sidebar-error" role="alert">{{ shelvesError }}</p>
         </section>
 
@@ -214,7 +223,7 @@ import { useRoute, useRouter } from 'vue-router';
 import DeleteModal from '../components/DeleteModal.vue';
 import LayerTree from '../components/LayerTree.vue';
 import SidebarNavIcon from '../components/SidebarNavIcon.vue';
-import { getBookshelfProvider } from '../providers';
+import { getBookshelfProvider, isWailsRuntime } from '../providers';
 import { createLayer, deleteLayer, moveLayer, renameLayer } from '../api/layers';
 import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
@@ -246,6 +255,7 @@ const shelves = ref<ShelfInfo[]>([]);
 const shelvesLoading = ref(true);
 const shelvesLoaded = ref(false);
 const shelvesError = ref('');
+const addingShelf = ref(false);
 const selectedShelfID = ref(getActiveShelfID());
 const localeLabelKeyMap: Record<(typeof supportedLocales)[number], 'language.en' | 'language.zhHant'> = {
   en: 'language.en',
@@ -263,6 +273,7 @@ const isDeletingPendingLayer = computed(
   () => pendingDeleteLayerPath.value.length > 0 && (deletingLayerMap.value[pendingDeleteLayerPath.value] ?? false)
 );
 const hasActiveShelf = computed(() => shelvesLoaded.value && selectedShelfID.value.length > 0);
+const canAddShelf = computed(() => isWailsRuntime());
 const isSettingsRoute = computed(() => route.name === 'settings');
 const canShowRouteContent = computed(() => isSettingsRoute.value || hasActiveShelf.value);
 const shelfUnavailableMessage = computed(() =>
@@ -323,6 +334,61 @@ async function fetchShelfOptions(): Promise<void> {
   }
 }
 
+function defaultShelfNameFromPath(path: string): string {
+  const normalized = path.replace(/[\\/]+$/, '');
+  const parts = normalized.split(/[\\/]+/);
+  return parts[parts.length - 1] || t('layout.shelf.defaultName');
+}
+
+async function activateShelf(shelfID: string): Promise<void> {
+  setActiveShelfID(shelfID);
+  selectedShelfID.value = shelfID;
+  deleteLayerError.value = '';
+  layerOperationError.value = '';
+  moveBookError.value = '';
+  createLayerError.value = '';
+  createLayerSuccess.value = '';
+
+  await Promise.all([fetchLayers(), fetchBooks()]);
+  await router.push({ path: '/books', query: { page: '1' } });
+}
+
+async function onAddShelf(): Promise<void> {
+  const provider = getBookshelfProvider();
+  if (!provider.openShelfDirectory || !provider.addShelf || addingShelf.value) {
+    return;
+  }
+
+  addingShelf.value = true;
+  shelvesError.value = '';
+
+  try {
+    const directory = await provider.openShelfDirectory();
+    if (!directory) {
+      return;
+    }
+
+    const defaultName = defaultShelfNameFromPath(directory);
+    const shelfName = window.prompt(t('layout.shelf.namePrompt'), defaultName)?.trim() ?? '';
+    if (!shelfName) {
+      return;
+    }
+
+    const shelf = await provider.addShelf(shelfName, directory);
+    if (!shelf) {
+      shelvesError.value = t('layout.shelf.addUnsupported');
+      return;
+    }
+
+    await fetchShelfOptions();
+    await activateShelf(shelf.id);
+  } catch (err) {
+    shelvesError.value = err instanceof Error ? err.message : t('layout.shelf.addFailed');
+  } finally {
+    addingShelf.value = false;
+  }
+}
+
 async function onShelfChange(event: Event): Promise<void> {
   const target = event.target;
   if (!(target instanceof HTMLSelectElement)) {
@@ -334,16 +400,7 @@ async function onShelfChange(event: Event): Promise<void> {
     return;
   }
 
-  setActiveShelfID(nextShelfID);
-  selectedShelfID.value = nextShelfID;
-  deleteLayerError.value = '';
-  layerOperationError.value = '';
-  moveBookError.value = '';
-  createLayerError.value = '';
-  createLayerSuccess.value = '';
-
-  await Promise.all([fetchLayers(), fetchBooks()]);
-  await router.push({ path: '/books', query: { page: '1' } });
+  await activateShelf(nextShelfID);
 }
 
 function toggleCreateLayerForm(): void {
@@ -820,6 +877,23 @@ onMounted(async () => {
   display: flex;
   gap: 8px;
   padding: 4px 8px;
+}
+
+.add-shelf-button {
+  background: #f1f5f9;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #334155;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 4px 8px 0;
+  padding: 5px 8px;
+}
+
+.add-shelf-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .sidebar-shelf-select {

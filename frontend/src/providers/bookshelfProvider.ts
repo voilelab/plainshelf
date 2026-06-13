@@ -20,6 +20,12 @@ export interface DesktopImportBookResult {
   error?: string;
 }
 
+export interface DesktopShelfInfo {
+  id: string;
+  name: string;
+  lib_root: string;
+}
+
 export interface BookshelfProvider {
   listBooks(page?: number, pageSize?: number, search?: string): Promise<PaginatedBooks>;
   getBook(bookId: string): Promise<Book>;
@@ -62,6 +68,8 @@ export interface BookshelfProvider {
   removeDownload?(bookId: string): Promise<void>;
   getDownloadState?(bookId: string): Promise<DownloadState>;
 
+  openShelfDirectory?(): Promise<string | null>;
+  addShelf?(name: string, libRoot: string): Promise<DesktopShelfInfo | null>;
   openLocalBookFiles?(): Promise<string[] | null>;
   importBooksFromLocalPaths?(localPaths: string[], layerPath: string): Promise<DesktopImportBookResult[] | null>;
 }

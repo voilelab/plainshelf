@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io/fs"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/voilelab/plainshelf/frontend"
@@ -94,6 +95,33 @@ func NewApp(conf *AppConf) (*App, error) {
 }
 
 func (app *App) Start() error {
+	return nil
+}
+
+// GetShelf returns a registered shelf by ID for in-process callers.
+func (app *App) GetShelf(id string) (*ShelfData, bool) {
+	return app.shelfManager.GetShelf(id)
+}
+
+// AddShelf registers a shelf in the running app without exposing shelf mutation
+// through the public HTTP API. It is intended for in-process desktop usage.
+func (app *App) AddShelf(conf ShelfConfWithID) error {
+	if err := app.shelfManager.AddShelf(conf); err != nil {
+		return util.Errorf("%w", err)
+	}
+	app.conf.Shelves = append(app.conf.Shelves, &conf)
+	return nil
+}
+
+// RemoveShelf unregisters a shelf from the running app. It is intended for
+// in-process rollback paths, not as a public HTTP capability.
+func (app *App) RemoveShelf(id string) error {
+	if err := app.shelfManager.RemoveShelf(id); err != nil {
+		return util.Errorf("%w", err)
+	}
+	app.conf.Shelves = slices.DeleteFunc(app.conf.Shelves, func(conf *ShelfConfWithID) bool {
+		return conf != nil && conf.ID == id
+	})
 	return nil
 }
 

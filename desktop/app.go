@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
@@ -18,6 +20,11 @@ import (
 type DesktopApp struct {
 	app *server.App
 	ctx context.Context
+
+	mu              sync.Mutex
+	dataRoot        string
+	shelfConfigPath string
+	shelfConfs      []*server.ShelfConfWithID
 }
 
 type DesktopImportBookResult struct {
@@ -69,6 +76,95 @@ func (a *DesktopApp) OpenBookFiles() ([]string, error) {
 		return nil, util.Errorf("%w", err)
 	}
 	return normalizeSelectedLocalPaths(paths), nil
+}
+
+func (a *DesktopApp) OpenShelfDirectory() (string, error) {
+	if a.ctx == nil {
+		return "", nil
+	}
+
+	path, err := wailsruntime.OpenDirectoryDialog(a.ctx, shelfDirectoryDialogOptions())
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	return strings.TrimSpace(path), nil
+}
+
+func shelfDirectoryDialogOptions() wailsruntime.OpenDialogOptions {
+	return wailsruntime.OpenDialogOptions{
+		Title: "Select shelf library folder",
+	}
+}
+
+func (a *DesktopApp) AddShelf(name string, libRoot string) (*DesktopShelfInfo, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.app == nil {
+		return nil, util.NewError("desktop backend app instance is nil")
+	}
+	if a.shelfConfigPath == "" || a.dataRoot == "" {
+		return nil, util.NewError("desktop shelf configuration is not initialized")
+	}
+
+	trimmedName := strings.TrimSpace(name)
+	if trimmedName == "" {
+		return nil, util.NewError("shelf name cannot be empty")
+	}
+
+	normalizedLibRoot, err := normalizeDesktopShelfDirectory(libRoot)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	existingIDs := make(map[string]struct{}, len(a.shelfConfs))
+	for _, conf := range a.shelfConfs {
+		if conf == nil {
+			continue
+		}
+		existingIDs[conf.ID] = struct{}{}
+		if sameDesktopPath(conf.LibRoot, normalizedLibRoot) {
+			return nil, util.NewError("shelf directory is already configured")
+		}
+	}
+
+	id := generateDesktopShelfID(trimmedName, normalizedLibRoot, existingIDs)
+	if _, ok := existingIDs[id]; ok {
+		return nil, util.Errorf("duplicate shelf ID: %q", id)
+	}
+
+	conf := server.ShelfConfWithID{
+		ID:   id,
+		Name: trimmedName,
+		ShelfConf: shelf.ShelfConf{
+			Logger:  desktopShelfLogConf(a.dataRoot),
+			LibRoot: normalizedLibRoot,
+		},
+	}
+
+	if err := a.app.AddShelf(conf); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	nextShelves := append(slices.Clone(a.shelfConfs), &conf)
+	if err := saveDesktopShelves(a.shelfConfigPath, nextShelves); err != nil {
+		if rollbackErr := a.app.RemoveShelf(conf.ID); rollbackErr != nil {
+			return nil, util.Errorf("failed to persist shelf: %w; rollback failed: %v", err, rollbackErr)
+		}
+		return nil, util.Errorf("%w", err)
+	}
+	a.shelfConfs = nextShelves
+
+	return &DesktopShelfInfo{ID: conf.ID, Name: conf.Name, LibRoot: conf.LibRoot}, nil
+}
+
+func sameDesktopPath(a string, b string) bool {
+	cleanA := filepath.Clean(a)
+	cleanB := filepath.Clean(b)
+	if cleanA == cleanB {
+		return true
+	}
+	return strings.EqualFold(cleanA, cleanB)
 }
 
 func bookOpenDialogOptions() wailsruntime.OpenDialogOptions {
@@ -157,6 +253,11 @@ func (a *DesktopApp) startServer() error {
 		return util.Errorf("%w", err)
 	}
 
+	shelfConfs, err := loadDesktopShelves(dataRoot)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	appConf := &server.AppConf{
 		Logger: logutil.LogConf{
 			Level:  "info",
@@ -167,24 +268,7 @@ func (a *DesktopApp) startServer() error {
 				Prefix: "app",
 			},
 		},
-		Shelves: []*server.ShelfConfWithID{
-			{
-				ID:   "default_shelf",
-				Name: "Default Shelf",
-				ShelfConf: shelf.ShelfConf{
-					Logger: logutil.LogConf{
-						Level:  "info",
-						Format: "json",
-						LogFile: logutil.LogFileConf{
-							Type:   logutil.LogFileTypeNameRotate,
-							Dir:    filepath.Join(dataRoot, "logs"),
-							Prefix: "shelf",
-						},
-					},
-					LibRoot: filepath.Join(dataRoot, "shelf"),
-				},
-			},
-		},
+		Shelves:          shelfConfs,
 		StorePath:        filepath.Join(dataRoot, "store"),
 		CoverToJPG:       true,
 		ReadHistoryLimit: 100,
@@ -204,5 +288,8 @@ func (a *DesktopApp) startServer() error {
 	}
 
 	a.app = app
+	a.dataRoot = dataRoot
+	a.shelfConfigPath = desktopShelfConfigPath(dataRoot)
+	a.shelfConfs = shelfConfs
 	return nil
 }

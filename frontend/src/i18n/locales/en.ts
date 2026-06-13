@@ -69,6 +69,12 @@ const en = {
       loading: 'Loading shelves...',
       failed: 'Failed to load shelves',
       empty: 'No shelves configured',
+      add: 'Add shelf',
+      adding: 'Adding...',
+      addFailed: 'Failed to add shelf',
+      addUnsupported: 'Adding shelves is only available in the desktop app.',
+      defaultName: 'New shelf',
+      namePrompt: 'Shelf name:',
       unavailableTitle: 'No shelf selected',
       unavailableDescription: 'Configure at least one shelf to browse and read books.'
     },
