@@ -80,13 +80,32 @@
               <td>{{ shelf.name }}</td>
               <td class="shelf-id-cell">{{ shelf.id }}</td>
               <td v-if="isDesktopEnv" class="shelf-action-cell">
+                <template v-if="confirmingShelfID === shelf.id">
+                  <span class="shelf-confirm-label">{{ t('settings.shelves.removeConfirmInline') }}</span>
+                  <button
+                    type="button"
+                    class="shelf-confirm-btn"
+                    :disabled="removingShelfIDs.has(shelf.id)"
+                    @click="onRemoveShelf(shelf)"
+                  >
+                    {{ removingShelfIDs.has(shelf.id) ? t('settings.shelves.removing') : t('settings.shelves.removeConfirmYes') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="shelf-cancel-btn"
+                    :disabled="removingShelfIDs.has(shelf.id)"
+                    @click="confirmingShelfID = ''"
+                  >
+                    {{ t('common.cancel') }}
+                  </button>
+                </template>
                 <button
+                  v-else
                   type="button"
                   class="shelf-remove-btn"
-                  :disabled="removingShelfIDs.has(shelf.id)"
-                  @click="onRemoveShelf(shelf)"
+                  @click="confirmingShelfID = shelf.id"
                 >
-                  {{ removingShelfIDs.has(shelf.id) ? t('settings.shelves.removing') : t('settings.shelves.remove') }}
+                  {{ t('settings.shelves.remove') }}
                 </button>
               </td>
             </tr>
@@ -175,6 +194,7 @@ const isDesktopEnv = computed(() => isWailsRuntime());
 const { shelves, loading: shelvesLoading, error: shelvesError, fetchShelves } = useShelvesStore();
 const shelfOpError = ref('');
 const removingShelfIDs = ref<Set<string>>(new Set());
+const confirmingShelfID = ref('');
 const showAddShelfForm = ref(false);
 const newShelfName = ref('');
 const newShelfDirectory = ref('');
@@ -265,10 +285,6 @@ async function onReadHistoryLimitChange(event: Event): Promise<void> {
 }
 
 async function onRemoveShelf(shelf: { id: string; name: string }): Promise<void> {
-  if (!window.confirm(t('settings.shelves.removeConfirm', { name: shelf.name }))) {
-    return;
-  }
-
   const provider = getBookshelfProvider();
   if (!provider.removeDesktopShelf) {
     return;
@@ -286,6 +302,7 @@ async function onRemoveShelf(shelf: { id: string; name: string }): Promise<void>
     const next = new Set(removingShelfIDs.value);
     next.delete(shelf.id);
     removingShelfIDs.value = next;
+    confirmingShelfID.value = '';
   }
 }
 
@@ -468,6 +485,54 @@ onMounted(() => {
 }
 
 .shelf-remove-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.shelf-confirm-label {
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.shelf-confirm-btn {
+  background: #b91c1c;
+  border: 1px solid #991b1b;
+  border-radius: 6px;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  margin-right: 4px;
+  padding: 3px 10px;
+}
+
+.shelf-confirm-btn:hover:not(:disabled) {
+  background: #991b1b;
+}
+
+.shelf-confirm-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.shelf-cancel-btn {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #334155;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+}
+
+.shelf-cancel-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.shelf-cancel-btn:disabled {
   cursor: not-allowed;
   opacity: 0.6;
 }

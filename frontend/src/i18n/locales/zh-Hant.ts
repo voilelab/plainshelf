@@ -13,6 +13,7 @@ const zhHant = {
   },
   common: {
     retry: '重試',
+    cancel: '取消',
     prev: '上一頁',
     next: '下一頁',
     page: '第 {page} / {total} 頁',
@@ -122,7 +123,9 @@ const zhHant = {
       addShelfSubmit: '新增書架',
       addShelfAdding: '新增中...',
       addShelfFailed: '新增書架失敗',
-      removeConfirm: '移除書架「{name}」？此操作只會從 PlainShelf 中移除，不會刪除目錄。'
+      removeConfirm: '移除書架「{name}」？此操作只會從 PlainShelf 中移除，不會刪除目錄。',
+      removeConfirmInline: '確定移除？',
+      removeConfirmYes: '是，移除'
     }
   },
   adminLogs: {

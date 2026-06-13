@@ -13,6 +13,7 @@ const en = {
   },
   common: {
     retry: 'Retry',
+    cancel: 'Cancel',
     prev: 'Prev',
     next: 'Next',
     page: 'Page {page} / {total}',
@@ -123,7 +124,9 @@ const en = {
       addShelfSubmit: 'Add shelf',
       addShelfAdding: 'Adding...',
       addShelfFailed: 'Failed to add shelf',
-      removeConfirm: 'Remove shelf "{name}"? This only removes it from PlainShelf; the directory will not be deleted.'
+      removeConfirm: 'Remove shelf "{name}"? This only removes it from PlainShelf; the directory will not be deleted.',
+      removeConfirmInline: 'Remove?',
+      removeConfirmYes: 'Yes, remove'
     }
   },
   adminLogs: {
