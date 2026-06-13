@@ -23,6 +23,7 @@ type DesktopApp struct {
 	dataRoot          string
 	shelvesConfigPath string
 	desktopShelves    []*shelf.ShelfConfWithID
+	serverMu          sync.Mutex
 	shelfMu           sync.Mutex
 }
 
@@ -43,23 +44,56 @@ func NewDesktopApp() *DesktopApp {
 
 func (a *DesktopApp) Startup(ctx context.Context) {
 	a.ctx = ctx
-	err := a.startServer()
-	if err != nil {
+	if err := a.ensureServer(); err != nil {
 		panic(err)
 	}
 }
 
 func (a *DesktopApp) Shutdown() {
+	a.serverMu.Lock()
+	defer a.serverMu.Unlock()
+
 	if a.app != nil {
 		err := a.app.Close()
 		if err != nil {
 			log.Println("Failed to close app:", err)
 		}
+		a.app = nil
 	}
 }
 
 func (a *DesktopApp) GetAPIHandler() http.Handler {
-	return a.app.Handler()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := a.ensureServer(); err != nil {
+			log.Println("Failed to start app for API request:", err)
+			http.Error(w, "desktop app is not ready", http.StatusServiceUnavailable)
+			return
+		}
+
+		app := a.currentServerApp()
+		if app == nil {
+			http.Error(w, "desktop app is not ready", http.StatusServiceUnavailable)
+			return
+		}
+
+		app.Handler().ServeHTTP(w, r)
+	})
+}
+
+func (a *DesktopApp) ensureServer() error {
+	a.serverMu.Lock()
+	defer a.serverMu.Unlock()
+
+	if a.app != nil {
+		return nil
+	}
+	return a.startServer()
+}
+
+func (a *DesktopApp) currentServerApp() *server.App {
+	a.serverMu.Lock()
+	defer a.serverMu.Unlock()
+	return a.app
 }
 
 func (a *DesktopApp) PreviousPage() {
@@ -133,8 +167,8 @@ func (a *DesktopApp) OpenShelfDirectory() (string, error) {
 }
 
 func (a *DesktopApp) AddShelf(name string, libRoot string) (*DesktopShelfInfo, error) {
-	if a.app == nil {
-		return nil, util.NewError("desktop backend app instance is nil")
+	if err := a.ensureServer(); err != nil {
+		return nil, util.Errorf("%w", err)
 	}
 
 	a.shelfMu.Lock()
@@ -145,13 +179,18 @@ func (a *DesktopApp) AddShelf(name string, libRoot string) (*DesktopShelfInfo, e
 		return nil, util.Errorf("%w", err)
 	}
 
-	if err := a.app.RegisterShelf(*conf); err != nil {
+	app := a.currentServerApp()
+	if app == nil {
+		return nil, util.NewError("desktop backend app instance is nil")
+	}
+
+	if err := app.RegisterShelf(*conf); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
 	nextShelves := append(cloneShelfConfs(a.desktopShelves), cloneShelfConf(conf))
 	if err := saveDesktopShelfConfig(a.shelvesConfigPath, nextShelves); err != nil {
-		if rollbackErr := a.app.UnregisterShelf(conf.ID); rollbackErr != nil {
+		if rollbackErr := app.UnregisterShelf(conf.ID); rollbackErr != nil {
 			return nil, util.Errorf("failed to save shelf config: %w; rollback failed: %v", err, rollbackErr)
 		}
 		return nil, util.Errorf("%w", err)
@@ -162,7 +201,11 @@ func (a *DesktopApp) AddShelf(name string, libRoot string) (*DesktopShelfInfo, e
 }
 
 func (a *DesktopApp) ImportBooksFromLocalPaths(shelfID string, localPaths []string, layerParts []string) ([]DesktopImportBookResult, error) {
-	if a.app == nil {
+	if err := a.ensureServer(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	app := a.currentServerApp()
+	if app == nil {
 		return nil, util.NewError("desktop backend app instance is nil")
 	}
 
@@ -174,7 +217,7 @@ func (a *DesktopApp) ImportBooksFromLocalPaths(shelfID string, localPaths []stri
 	normalizedLayerParts := normalizeLayerParts(layerParts)
 	results := make([]DesktopImportBookResult, 0, len(normalizedPaths))
 	for _, localPath := range normalizedPaths {
-		book, err := a.app.ImportFromLocalPath(shelfID, localPath, normalizedLayerParts)
+		book, err := app.ImportFromLocalPath(shelfID, localPath, normalizedLayerParts)
 		result := DesktopImportBookResult{Path: localPath}
 		if err != nil {
 			result.Error = err.Error()

@@ -116,3 +116,19 @@ func TestDesktopAppAddShelfValidation(t *testing.T) {
 		t.Fatalf("conf.ID = %q, want existing-2", conf.ID)
 	}
 }
+
+func TestGetAPIHandlerServesBeforeStartup(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	app := NewDesktopApp()
+	t.Cleanup(app.Shutdown)
+
+	rec := httptest.NewRecorder()
+	app.GetAPIHandler().ServeHTTP(rec, httptest.NewRequest("GET", "/api/shelves", nil))
+	if rec.Code != 200 {
+		t.Fatalf("GET /api/shelves status = %d, body: %s", rec.Code, rec.Body.String())
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "default_shelf") {
+		t.Fatalf("GET /api/shelves body = %s, want default shelf", body)
+	}
+}
