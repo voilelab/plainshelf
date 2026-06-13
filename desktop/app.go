@@ -18,6 +18,7 @@ import (
 
 type DesktopApp struct {
 	app               *server.App
+	apiHandler        http.Handler
 	ctx               context.Context
 	shelvesConfigPath string
 }
@@ -38,6 +39,7 @@ func (a *DesktopApp) Startup(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
+	a.apiHandler = a.app.Handler()
 }
 
 func (a *DesktopApp) Shutdown() {
@@ -50,7 +52,12 @@ func (a *DesktopApp) Shutdown() {
 }
 
 func (a *DesktopApp) GetAPIHandler() http.Handler {
-	return a.app.Handler()
+	if a.apiHandler == nil {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "server starting", http.StatusServiceUnavailable)
+		})
+	}
+	return a.apiHandler
 }
 
 func (a *DesktopApp) PreviousPage() {
@@ -208,6 +215,17 @@ func (a *DesktopApp) AddShelf(name, libRoot string) error {
 
 	if err := saveDesktopShelves(a.shelvesConfigPath, conf); err != nil {
 		return util.Errorf("saving shelf config: %w", err)
+	}
+
+	err = a.app.AddShelf(shelf.ShelfConfWithID{
+		ID:   id,
+		Name: name,
+		ShelfConf: shelf.ShelfConf{
+			LibRoot: normalizedLibRoot,
+		},
+	})
+	if err != nil {
+		return util.Errorf("registering shelf: %w", err)
 	}
 
 	return nil
