@@ -15,6 +15,9 @@ func TestLineCount(t *testing.T) {
 		{"empty", "", 0, false},
 		{"single line", "hello world", 1, false},
 		{"multiple lines", "line1\nline2\nline3", 3, false},
+		{"trailing newline", "line1\nline2\n", 2, false},
+		{"long line", strings.Repeat("a", 128*1024), 1, false},
+		{"long line with newline", strings.Repeat("a", 128*1024) + "\nshort", 2, false},
 	}
 
 	for _, tt := range tests {
