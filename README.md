@@ -140,7 +140,7 @@ cd workspace
 go run ../cmd/plainshelf-srv/main.go -conf config.yaml
 ```
 
-The default development config listens on `127.0.0.1:20000`, stores shelf and mark data under the current working directory, and enables `local_token` security for mutating `/api` requests. The server generates an ephemeral token at startup, injects it into the served frontend, and accepts it via `X-PlainShelf-Token` or `Authorization: Bearer <token>`.
+The default development config listens on `127.0.0.1:20000`, stores shelf data and application store data under the current working directory, and enables `local_token` security for mutating `/api` requests. The server generates an ephemeral token at startup, injects it into the served frontend, and accepts it via `X-PlainShelf-Token` or `Authorization: Bearer <token>`.
 
 ### Run server with Docker
 

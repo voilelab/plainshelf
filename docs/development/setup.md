@@ -6,7 +6,7 @@ This page covers everything you need to build and run PlainShelf from source.
 
 | Tool | Minimum version | Notes |
 |---|---|---|
-| Go | 1.21 | <https://go.dev/dl/> |
+| Go | 1.26.1 | <https://go.dev/dl/> |
 | Node.js | 22 | <https://nodejs.org/> |
 | npm | bundled with Node.js | |
 
