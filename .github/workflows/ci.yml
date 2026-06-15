@@ -31,7 +31,7 @@ jobs:
         run: npm ci && npm run build
 
       - name: Check dependency licenses
-        run: npx license-checker --production --excludePrivatePackages --failOn "UNLICENSED;UNKNOWN"
+        run: npm run check-licenses
 
       - name: Upload frontend dist
         uses: actions/upload-artifact@v4
