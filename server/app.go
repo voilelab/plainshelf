@@ -33,6 +33,7 @@ type AppConf struct {
 	StorePath        string                   `yaml:"store_path"`
 	CoverToJPG       bool                     `yaml:"cover_to_jpg"`
 	ReadHistoryLimit int                      `yaml:"read_history_limit"`
+	ReadOnly         bool                     `yaml:"read_only"`
 	Security         *SecurityConf            `yaml:"security"`
 }
 
@@ -144,6 +145,9 @@ func (app *App) Handler() http.Handler {
 
 	loggerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		app.Info("app handler", "method", r.Method, "path", r.URL.Path, "remote_addr", r.RemoteAddr)
+		if app.rejectReadOnlyWrite(w, r) {
+			return
+		}
 		mux.ServeHTTP(w, r)
 	})
 
@@ -187,6 +191,7 @@ func (app *App) Serve(mux *http.ServeMux) {
 
 	// Shelf API
 
+	mux.HandleFunc("GET /api/mode", app.HandleGetMode)
 	mux.HandleFunc("GET /api/shelves", app.HandleGetShelves)
 
 	// Book API
@@ -264,4 +269,18 @@ func hasFileExtension(path string) bool {
 		}
 	}
 	return false
+}
+
+func (app *App) rejectReadOnlyWrite(w http.ResponseWriter, r *http.Request) bool {
+	if app == nil || app.conf == nil || !app.conf.ReadOnly {
+		return false
+	}
+
+	switch r.Method {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		http.Error(w, "server is in read-only mode", http.StatusForbidden)
+		return true
+	default:
+		return false
+	}
 }
