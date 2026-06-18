@@ -49,7 +49,13 @@ const zhHant = {
     renameLayer: {
       action: '重新命名圖層',
       shortAction: '改名',
-      prompt: '將圖層重新命名為：',
+      title: '重新命名圖層',
+      nameLabel: '圖層名稱',
+      placeholder: '圖層名稱',
+      help: '目前名稱：{layerName}',
+      confirm: '重新命名',
+      renaming: '重新命名中...',
+      closeLabel: '關閉重新命名圖層對話框',
       invalid: '圖層名稱不得為空，也不能包含 /。',
       failed: '重新命名圖層失敗'
     },

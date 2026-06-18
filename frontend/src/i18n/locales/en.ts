@@ -50,7 +50,13 @@ const en = {
     renameLayer: {
       action: 'Rename layer',
       shortAction: 'Rename',
-      prompt: 'Rename layer to:',
+      title: 'Rename layer',
+      nameLabel: 'Layer name',
+      placeholder: 'Layer name',
+      help: 'Current name: {layerName}',
+      confirm: 'Rename',
+      renaming: 'Renaming...',
+      closeLabel: 'Close rename layer dialog',
       invalid: 'Layer name cannot be empty or contain /.',
       failed: 'Failed to rename layer'
     },
