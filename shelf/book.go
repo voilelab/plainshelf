@@ -84,6 +84,7 @@ type BookMeta struct {
 	Authors     []string      `json:"authors"`
 	Language    string        `json:"language"`
 	Comments    string        `json:"comments"`
+	Star        int           `json:"star"`
 	CreatedAt   util.JSONTime `json:"created_at,omitzero"`
 	UpdatedAt   util.JSONTime `json:"updated_at,omitzero"`
 	PublishedAt util.JSONTime `json:"published_at,omitzero"`
@@ -275,6 +276,10 @@ func (b *Book) setMeta(meta *BookMeta) error {
 
 	if !validateBCP47(meta.Language) {
 		return util.Errorf("invalid language tag: %s", meta.Language)
+	}
+
+	if meta.Star < 0 || meta.Star > 5 {
+		return util.Errorf("invalid star rating: %d", meta.Star)
 	}
 
 	// write back to book meta

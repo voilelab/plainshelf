@@ -35,6 +35,9 @@ test('should edit book metadata and see the updated values on the detail page', 
     // Fill comment
     await page.getByPlaceholder('Notes about this book').fill('This is an E2E comment.');
 
+    // Select a star rating
+    await page.getByRole('radio', { name: '4 stars' }).click();
+
     await page.getByRole('button', { name: 'Save metadata' }).click();
 
     // Should redirect to detail page with saved=1
@@ -46,6 +49,7 @@ test('should edit book metadata and see the updated values on the detail page', 
     await expect(page.getByText('Alice, Bob')).toBeVisible();
     await expect(page.getByText('e2e-tag')).toBeVisible();
     await expect(page.getByText('英文')).toBeVisible();
+    await expect(page.getByText('★★★★☆')).toBeVisible();
     await expect(page.getByText('This is an E2E comment.')).toBeVisible();
   } finally {
     await server.dispose();

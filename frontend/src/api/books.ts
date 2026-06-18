@@ -34,6 +34,7 @@ interface BackendBookMeta {
   updated_at?: string;
   published_at?: string;
   current_source?: string;
+  star?: number;
 }
 
 interface BackendBook {
@@ -186,7 +187,8 @@ function transformBook(b: BackendBook): Book {
     created_at: b.meta.created_at,
     updated_at: b.meta.updated_at,
     published_at: b.meta.published_at,
-    current_source: b.meta.current_source
+    current_source: b.meta.current_source,
+    star: b.meta.star ?? 0
   };
 }
 
@@ -204,7 +206,8 @@ export const mockBooks: Book[] = [
     comment: 'Imported from local txt file.',
     created_at: '2026-01-07T10:00:00Z',
     updated_at: '2026-04-18T08:30:00Z',
-    cover_url: 'https://picsum.photos/seed/shelf1/120/180'
+    cover_url: 'https://picsum.photos/seed/shelf1/120/180',
+    star: 4
   },
   {
     id: 'book-2',
@@ -215,7 +218,8 @@ export const mockBooks: Book[] = [
     format: 'txt',
     tags: ['programming', 'go'],
     created_at: '2026-02-10T12:00:00Z',
-    cover_url: 'https://picsum.photos/seed/shelf2/120/180'
+    cover_url: 'https://picsum.photos/seed/shelf2/120/180',
+    star: 2
   },
   {
     id: 'book-3',
@@ -350,6 +354,7 @@ function mockUpdateBook(id: string, payload: BookUpdateRequest): Book {
   if (payload.tags !== undefined) book.tags = payload.tags;
   if (payload.language !== undefined) book.language = payload.language;
   if (payload.comment !== undefined) book.comment = payload.comment;
+  if (payload.star !== undefined) book.star = payload.star;
   book.updated_at = new Date().toISOString();
   return { ...book };
 }

@@ -493,12 +493,12 @@ func TestAPIUpdateBookContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Patch Me", "old/layer", "patch.txt", "body")
 
-	body := `{"title":"Patched","authors":["Author A","Author B"],"tags":["tag1"],"language":"zh-Hant","comment":"updated comment","layer":["new","layer"]}`
+	body := `{"title":"Patched","authors":["Author A","Author B"],"tags":["tag1"],"language":"zh-Hant","comment":"updated comment","star":5,"layer":["new","layer"]}`
 	rec := env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID, strings.NewReader(body)))
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
 	updated := decodeJSON[Book](t, rec)
-	if updated.Meta.Title != "Patched" || updated.Meta.Comments != "updated comment" || updated.Meta.Language != "zh-Hant" {
+	if updated.Meta.Title != "Patched" || updated.Meta.Comments != "updated comment" || updated.Meta.Language != "zh-Hant" || updated.Meta.Star != 5 {
 		t.Fatalf("metadata was not updated: %#v", updated.Meta)
 	}
 	if len(updated.Meta.Authors) != 2 || updated.Meta.Authors[1] != "Author B" {
@@ -509,6 +509,9 @@ func TestAPIUpdateBookContract(t *testing.T) {
 	}
 
 	rec = env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID, strings.NewReader(`{"unexpected":true}`)))
+	assertStatus(t, rec, http.StatusBadRequest)
+
+	rec = env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID, strings.NewReader(`{"star":6}`)))
 	assertStatus(t, rec, http.StatusBadRequest)
 }
 
