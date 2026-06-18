@@ -6,7 +6,9 @@
       :style="{ paddingLeft: `calc(8px + ${depth * 14}px)` }"
       :draggable="canDragLayer"
       @dragstart="onDragStart"
-      @dragover.prevent
+      @drag="onDrag"
+      @dragend="onDragEnd"
+      @dragover.prevent="onDragOver"
       @dragenter.prevent="onDragEnter"
       @dragleave="onDragLeave"
       @drop="onDrop"
@@ -66,6 +68,9 @@
         @delete-layer="(path) => emit('delete-layer', path)"
         @rename-layer="(path) => emit('rename-layer', path)"
         @move-layer="(payload) => emit('move-layer', payload)"
+        @drag-layer-start="(payload) => emit('drag-layer-start', payload)"
+        @drag-layer-move="(payload) => emit('drag-layer-move', payload)"
+        @drag-layer-end="() => emit('drag-layer-end')"
       />
     </div>
   </div>
@@ -100,6 +105,9 @@ const emit = defineEmits<{
   'delete-layer': [path: string];
   'rename-layer': [path: string];
   'move-layer': [payload: { layerPath: string; targetLayer: string }];
+  'drag-layer-start': [payload: { layerPath: string; layerName: string; x: number; y: number }];
+  'drag-layer-move': [payload: { x: number; y: number }];
+  'drag-layer-end': [];
 }>();
 
 const { t } = useI18n();
@@ -136,6 +144,27 @@ function onDragStart(event: DragEvent): void {
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move';
   }
+  emit('drag-layer-start', { layerPath: props.node.path, layerName: props.node.name, x: event.clientX, y: event.clientY });
+}
+
+function onDrag(event: DragEvent): void {
+  emitPointerPosition(event);
+}
+
+function onDragOver(event: DragEvent): void {
+  emitPointerPosition(event);
+}
+
+function onDragEnd(): void {
+  isDropTarget.value = false;
+  emit('drag-layer-end');
+}
+
+function emitPointerPosition(event: DragEvent): void {
+  if (event.clientX === 0 && event.clientY === 0) {
+    return;
+  }
+  emit('drag-layer-move', { x: event.clientX, y: event.clientY });
 }
 
 function onDragEnter(): void {
@@ -153,6 +182,7 @@ function onDragLeave(event: DragEvent): void {
 
 function onDrop(event: DragEvent): void {
   isDropTarget.value = false;
+  emit('drag-layer-end');
   if (props.readOnly) {
     return;
   }
