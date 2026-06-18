@@ -17,6 +17,11 @@ and UI behavior may still change between releases.
 - Added drag-and-drop upload for book covers.
 - Added `cover_to_jpg` conversion setting with API endpoints and a frontend settings page toggle.
 - Added ASCII input support in the UTF-8 re-encoding path.
+- Added configurable read history limit with API endpoints and a settings page control.
+- Added layer rename and move support via API and frontend UI, including a dedicated rename modal.
+- Added desktop shelf management: add new shelves and remove existing shelves from the settings page.
+- Added book star ratings to the book detail and edit views.
+- Added read-only server mode with write controls disabled in the frontend.
 
 ### Changed
 
@@ -30,6 +35,10 @@ and UI behavior may still change between releases.
 - Fixed desktop local import to route through the active shelf.
 - Fixed empty active shelf fallback on startup.
 - Fixed shelf routes being accessible before shelf data is fully loaded.
+- Fixed line counter to handle long lines correctly.
+- Fixed desktop shelf loading to retry on failure.
+- Fixed desktop shelf persistence migration.
+- Fixed book source metadata not refreshing after content update.
 
 ### Removed
 
