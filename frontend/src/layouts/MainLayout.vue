@@ -49,14 +49,14 @@
               <button
                 type="button"
                 class="create-layer-toggle"
-                :disabled="creatingLayer"
+                :disabled="readOnly || creatingLayer"
                 @click="toggleCreateLayerForm"
               >
                 {{ showCreateLayerForm ? t('layout.createLayer.cancel') : t('layout.createLayer.add') }}
               </button>
             </div>
 
-            <form v-if="showCreateLayerForm" class="create-layer-form" @submit.prevent="onSubmitCreateLayer">
+            <form v-if="showCreateLayerForm && !readOnly" class="create-layer-form" @submit.prevent="onSubmitCreateLayer">
               <input
                 v-model="newLayerPath"
                 class="create-layer-input"
@@ -68,7 +68,7 @@
                 <button
                   type="submit"
                   class="create-layer-submit"
-                  :disabled="creatingLayer || !canSubmitCreateLayer"
+                  :disabled="readOnly || creatingLayer || !canSubmitCreateLayer"
                 >
                   {{ creatingLayer ? t('layout.createLayer.creating') : t('layout.createLayer.create') }}
                 </button>
@@ -100,6 +100,7 @@
               :nodes="layerTree"
               :selected="currentLayer"
               :deleting-map="deletingLayerMap"
+              :read-only="readOnly"
               @select="onSelectLayer"
               @move-book="onMoveBook"
               @delete-layer="requestDeleteLayer"
@@ -179,6 +180,9 @@
     </aside>
 
     <main class="main-content">
+      <div v-if="readOnly" class="read-only-banner" role="status">
+        {{ t('layout.readOnly.banner') }}
+      </div>
       <header class="topbar">
         <h1 class="brand">
           <img class="brand-icon" :src="appIcon" alt="" aria-hidden="true">
@@ -219,6 +223,7 @@ import { createLayer, deleteLayer, moveLayer, renameLayer } from '../api/layers'
 import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
 import { useShelvesStore } from '../composables/useShelvesStore';
+import { useServerMode } from '../composables/useServerMode';
 import { buildLayerTreeNodes, getLayerPath, normalizeLayerPath } from '../utils/layers';
 import { MAINTENANCE_NAV_ITEMS } from '../utils/maintenance';
 import appIcon from '../assets/icon-192.png';
@@ -242,6 +247,7 @@ const deletingLayerMap = ref<Record<string, boolean>>({});
 const pendingDeleteLayerPath = ref('');
 const { locale, setLocale, supportedLocales, t } = useI18n();
 const { shelves, loading: shelvesLoading, loaded: shelvesLoaded, error: shelvesError, selectedShelfID, fetchShelves, selectShelf } = useShelvesStore();
+const { readOnly, fetchServerMode } = useServerMode();
 const localeLabelKeyMap: Record<(typeof supportedLocales)[number], 'language.en' | 'language.zhHant'> = {
   en: 'language.en',
   'zh-Hant': 'language.zhHant'
@@ -323,6 +329,9 @@ async function onShelfChange(event: Event): Promise<void> {
 }
 
 function toggleCreateLayerForm(): void {
+  if (readOnly.value) {
+    return;
+  }
   showCreateLayerForm.value = !showCreateLayerForm.value;
   createLayerError.value = '';
   createLayerSuccess.value = '';
@@ -333,6 +342,10 @@ function toggleCreateLayerForm(): void {
 }
 
 async function onSubmitCreateLayer(): Promise<void> {
+  if (readOnly.value) {
+    createLayerError.value = t('layout.readOnly.writeDisabled');
+    return;
+  }
   const normalized = normalizeLayerPath(newLayerPath.value);
   if (!normalized) {
     createLayerError.value = t('layout.layerErrors.emptyPath');
@@ -377,6 +390,10 @@ function enterCreatedLayer(): void {
 }
 
 async function onMoveBook(payload: { bookId: string; targetLayer: string }): Promise<void> {
+  if (readOnly.value) {
+    moveBookError.value = t('layout.readOnly.writeDisabled');
+    return;
+  }
   moveBookError.value = '';
   layerOperationError.value = '';
 
@@ -400,6 +417,10 @@ async function onMoveBook(payload: { bookId: string; targetLayer: string }): Pro
 }
 
 function requestRenameLayer(path: string): void {
+  if (readOnly.value) {
+    layerOperationError.value = t('layout.readOnly.writeDisabled');
+    return;
+  }
   const segments = path.split('/').filter((segment) => segment.length > 0);
   const currentName = segments[segments.length - 1] ?? '';
   const nextName = window.prompt(t('layout.renameLayer.prompt'), currentName)?.trim();
@@ -433,6 +454,10 @@ async function onRenameLayer(path: string, nextName: string): Promise<void> {
 }
 
 async function onMoveLayer(payload: { layerPath: string; targetLayer: string }): Promise<void> {
+  if (readOnly.value) {
+    layerOperationError.value = t('layout.readOnly.writeDisabled');
+    return;
+  }
   layerOperationError.value = '';
 
   try {
@@ -455,6 +480,10 @@ async function onMoveLayer(payload: { layerPath: string; targetLayer: string }):
 }
 
 function requestDeleteLayer(path: string): void {
+  if (readOnly.value) {
+    deleteLayerError.value = t('layout.readOnly.writeDisabled');
+    return;
+  }
   if (deletingLayerMap.value[path]) {
     return;
   }
@@ -510,6 +539,7 @@ async function confirmDeleteLayer(): Promise<void> {
 
 
 onMounted(async () => {
+  await fetchServerMode();
   if (!shelvesLoaded.value) {
     await fetchShelves();
   }
@@ -702,6 +732,15 @@ onMounted(async () => {
   max-width: none;
   background: white;
   min-width: 0;
+}
+
+.read-only-banner {
+  background: #fef3c7;
+  border-bottom: 1px solid #f59e0b;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 24px;
 }
 
 .topbar {

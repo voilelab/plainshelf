@@ -929,3 +929,21 @@ func TestAPISetCurrentBookSourceContract(t *testing.T) {
 	rec = env.do(httptest.NewRequest(http.MethodPut, "/api/shelves/default_shelf/books/no-such-book/sources/"+newSourceID+"/current", nil))
 	assertStatus(t, rec, http.StatusNotFound)
 }
+
+func TestAPIReadOnlyModeContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	env.app.conf.ReadOnly = true
+
+	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/mode", nil))
+	assertStatus(t, rec, http.StatusOK)
+	mode := decodeJSON[modeResponse](t, rec)
+	if !mode.ReadOnly {
+		t.Fatalf("read_only = false, want true")
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/layers/blocked", nil))
+	assertStatus(t, rec, http.StatusForbidden)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/layers", nil))
+	assertStatus(t, rec, http.StatusOK)
+}

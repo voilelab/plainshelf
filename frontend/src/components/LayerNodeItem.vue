@@ -4,7 +4,7 @@
       class="sidebar-nav-item layer-node"
       :class="{ active: isSelected, 'drop-target': isDropTarget }"
       :style="{ paddingLeft: `calc(8px + ${depth * 14}px)` }"
-      :draggable="canManageLayer"
+      :draggable="canDragLayer"
       @dragstart="onDragStart"
       @dragover.prevent
       @dragenter.prevent="onDragEnter"
@@ -27,7 +27,7 @@
       </button>
       <span class="sidebar-nav-count">{{ layerBookCount }}</span>
       <button
-        v-if="canManageLayer"
+        v-if="canManageLayer && !readOnly"
         type="button"
         class="layer-action-btn"
         :title="t('layout.renameLayer.action')"
@@ -59,6 +59,7 @@
         :expanded-map="expandedMap"
         :depth="depth + 1"
         :book-count-by-layer="bookCountByLayer"
+        :read-only="readOnly"
         @toggle="(path) => emit('toggle', path)"
         @select="(path) => emit('select', path)"
         @move-book="(payload) => emit('move-book', payload)"
@@ -89,6 +90,7 @@ const props = defineProps<{
   expandedMap: Record<string, boolean>;
   depth: number;
   bookCountByLayer?: Map<string, number>;
+  readOnly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -107,7 +109,8 @@ const isExpanded = computed(() => props.expandedMap[props.node.path] ?? false);
 const isSelected = computed(() => props.node.path === props.selected);
 const layerBookCount = computed(() => props.bookCountByLayer?.get(props.node.path) ?? 0);
 const canManageLayer = computed(() => props.node.path !== '/');
-const showDeleteButton = computed(() => canManageLayer.value && layerBookCount.value === 0);
+const showDeleteButton = computed(() => canManageLayer.value && !props.readOnly && layerBookCount.value === 0);
+const canDragLayer = computed(() => canManageLayer.value && !props.readOnly);
 const isDeleting = computed(() => props.deletingMap?.[props.node.path] ?? false);
 const isDropTarget = ref(false);
 
@@ -124,7 +127,7 @@ function onRenameLayer(): void {
 }
 
 function onDragStart(event: DragEvent): void {
-  if (!canManageLayer.value) {
+  if (!canDragLayer.value) {
     event.preventDefault();
     return;
   }
@@ -150,6 +153,10 @@ function onDragLeave(event: DragEvent): void {
 
 function onDrop(event: DragEvent): void {
   isDropTarget.value = false;
+  if (props.readOnly) {
+    return;
+  }
+
   const bookId = event.dataTransfer?.getData('application/x-plainshelf-book-id');
   if (bookId) {
     emit('move-book', { bookId, targetLayer: props.node.path });

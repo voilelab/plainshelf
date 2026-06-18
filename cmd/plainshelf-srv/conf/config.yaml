@@ -31,6 +31,7 @@ app_conf:
   store_path: "./store"
   cover_to_jpg: true
   read_history_limit: 100
+  read_only: false
   security:
     mode: "local_token"
     protect_read: false

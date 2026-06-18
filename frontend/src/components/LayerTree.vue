@@ -17,6 +17,7 @@
       :expanded-map="expandedMap"
       :depth="0"
       :book-count-by-layer="bookCountByLayer"
+      :read-only="readOnly"
       @toggle="toggleExpanded"
       @select="(path) => emit('select', path)"
       @move-book="(payload) => emit('move-book', payload)"
@@ -43,6 +44,7 @@ const props = defineProps<{
   nodes: LayerNode[];
   selected: string | undefined;
   deletingMap?: Record<string, boolean>;
+  readOnly?: boolean;
 }>();
 
 const emit = defineEmits<{

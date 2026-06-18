@@ -84,7 +84,11 @@ const en = {
     recentlyRead: 'Recently Read',
     trash: 'Trash',
     adminLogs: 'Logs',
-    settings: 'Settings'
+    settings: 'Settings',
+    readOnly: {
+      banner: 'Read-only mode is enabled. Browsing and reading are available, but write operations are disabled.',
+      writeDisabled: 'Server is in read-only mode. Write operations are disabled.'
+    }
   },
   settings: {
     title: 'Settings',

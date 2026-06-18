@@ -32,6 +32,7 @@ declare global {
       token?: string;
       tokenHeader?: string;
     };
+    __PLAINSHELF_READ_ONLY__?: boolean;
     plainshelf?: {
       getApiToken?: () => string | Promise<string>;
     };
@@ -76,6 +77,20 @@ export function getApiModeLabel(): string {
 export function assertApiMode(): void {
   if (API_MODE === 'mock' && !IS_DEV) {
     throw new Error('Mock API mode is only allowed in development.');
+  }
+}
+
+
+function assertWritableRequest(init?: RequestInit): void {
+  const method = String(init?.method ?? 'GET').toUpperCase();
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    return;
+  }
+
+  // Dynamic import is avoided here to prevent a module cycle during startup.
+  const readOnly = typeof window !== 'undefined' && window.__PLAINSHELF_READ_ONLY__ === true;
+  if (readOnly) {
+    throw new ApiError('Server is in read-only mode. Write operations are disabled.');
   }
 }
 
@@ -141,6 +156,7 @@ async function toApiError(res: Response): Promise<ApiError> {
 
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   assertApiMode();
+  assertWritableRequest(init);
 
   const requestInit = await withApiHeaders(init);
   const headers = new Headers(requestInit.headers ?? {});
@@ -180,6 +196,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
 
 export async function fetchText(path: string, init?: RequestInit): Promise<string> {
   assertApiMode();
+  assertWritableRequest(init);
 
   const res = await fetch(buildApiUrl(path), await withApiHeaders(init));
   if (!res.ok) {
@@ -191,6 +208,7 @@ export async function fetchText(path: string, init?: RequestInit): Promise<strin
 
 export async function fetchBlob(path: string, init?: RequestInit): Promise<Blob> {
   assertApiMode();
+  assertWritableRequest(init);
 
   const res = await fetch(buildApiUrl(path), await withApiHeaders(init));
   if (!res.ok) {

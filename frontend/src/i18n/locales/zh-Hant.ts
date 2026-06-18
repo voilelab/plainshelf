@@ -83,7 +83,11 @@ const zhHant = {
     recentlyRead: '最近閱讀',
     trash: '垃圾桶',
     adminLogs: '日誌',
-    settings: '設定'
+    settings: '設定',
+    readOnly: {
+      banner: '唯讀模式已啟用。仍可瀏覽與閱讀，但寫入操作已停用。',
+      writeDisabled: '伺服器目前為唯讀模式，寫入操作已停用。'
+    }
   },
   settings: {
     title: '設定',
