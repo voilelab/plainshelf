@@ -23,7 +23,6 @@ server/             # HTTP server (Go)
 frontend/           # Vue 3 web frontend
 internal/           # shared internal utilities (Go)
 desktop/            # experimental Wails desktop client
-migration/          # shelf data migrations
 ```
 
 ---
