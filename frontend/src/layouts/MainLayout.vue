@@ -10,6 +10,14 @@
       @cancel="cancelPendingDeleteLayer"
       @confirm="confirmDeleteLayer"
     />
+    <RenameLayerModal
+      :open="pendingRenameLayerPath.length > 0"
+      :current-name="pendingRenameLayerName"
+      :busy="isRenamingPendingLayer"
+      :error="renameLayerError"
+      @cancel="cancelPendingRenameLayer"
+      @submit="confirmRenameLayer"
+    />
 
     <aside class="sidebar" :class="{ collapsed: isCollapsed }">
       <button
@@ -217,6 +225,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import DeleteModal from '../components/DeleteModal.vue';
 import LayerTree from '../components/LayerTree.vue';
+import RenameLayerModal from '../components/RenameLayerModal.vue';
 import SidebarNavIcon from '../components/SidebarNavIcon.vue';
 import { getBookshelfProvider } from '../providers';
 import { createLayer, deleteLayer, moveLayer, renameLayer } from '../api/layers';
@@ -243,6 +252,9 @@ const createdLayerPath = ref('');
 const newLayerPath = ref('');
 const deleteLayerError = ref('');
 const layerOperationError = ref('');
+const pendingRenameLayerPath = ref('');
+const renameLayerError = ref('');
+const renamingLayer = ref(false);
 const deletingLayerMap = ref<Record<string, boolean>>({});
 const pendingDeleteLayerPath = ref('');
 const { locale, setLocale, supportedLocales, t } = useI18n();
@@ -263,6 +275,11 @@ const canSubmitCreateLayer = computed(() => normalizeLayerPath(newLayerPath.valu
 const isDeletingPendingLayer = computed(
   () => pendingDeleteLayerPath.value.length > 0 && (deletingLayerMap.value[pendingDeleteLayerPath.value] ?? false)
 );
+const pendingRenameLayerName = computed(() => {
+  const segments = pendingRenameLayerPath.value.split('/').filter((segment) => segment.length > 0);
+  return segments[segments.length - 1] ?? '';
+});
+const isRenamingPendingLayer = computed(() => pendingRenameLayerPath.value.length > 0 && renamingLayer.value);
 const hasActiveShelf = computed(() => shelvesLoaded.value && selectedShelfID.value.length > 0);
 const isSettingsRoute = computed(() => route.name === 'settings');
 const canShowRouteContent = computed(() => isSettingsRoute.value || hasActiveShelf.value);
@@ -421,17 +438,34 @@ function requestRenameLayer(path: string): void {
     layerOperationError.value = t('layout.readOnly.writeDisabled');
     return;
   }
-  const segments = path.split('/').filter((segment) => segment.length > 0);
-  const currentName = segments[segments.length - 1] ?? '';
-  const nextName = window.prompt(t('layout.renameLayer.prompt'), currentName)?.trim();
-  if (!nextName || nextName === currentName) {
+
+  pendingRenameLayerPath.value = path;
+  renameLayerError.value = '';
+  layerOperationError.value = '';
+}
+
+function cancelPendingRenameLayer(): void {
+  if (renamingLayer.value) {
     return;
   }
 
-  void onRenameLayer(path, nextName);
+  pendingRenameLayerPath.value = '';
+  renameLayerError.value = '';
 }
 
-async function onRenameLayer(path: string, nextName: string): Promise<void> {
+async function confirmRenameLayer(nextName: string): Promise<void> {
+  const path = pendingRenameLayerPath.value;
+  if (!path || renamingLayer.value) {
+    return;
+  }
+
+  if (!nextName || nextName === pendingRenameLayerName.value) {
+    renameLayerError.value = t('layout.renameLayer.invalid');
+    return;
+  }
+
+  renamingLayer.value = true;
+  renameLayerError.value = '';
   layerOperationError.value = '';
 
   try {
@@ -443,13 +477,17 @@ async function onRenameLayer(path: string, nextName: string): Promise<void> {
       const renamedPath = [...parent, nextName].join('/');
       goToLayer(currentLayer.value === path ? renamedPath : `${renamedPath}${currentLayer.value.slice(path.length)}`);
     }
+
+    pendingRenameLayerPath.value = '';
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
     if (message === 'Invalid layer name') {
-      layerOperationError.value = t('layout.renameLayer.invalid');
+      renameLayerError.value = t('layout.renameLayer.invalid');
     } else {
-      layerOperationError.value = message || t('layout.renameLayer.failed');
+      renameLayerError.value = message || t('layout.renameLayer.failed');
     }
+  } finally {
+    renamingLayer.value = false;
   }
 }
 
