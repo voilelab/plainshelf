@@ -1,7 +1,7 @@
 <template>
   <div class="cover-editor">
     <GenerateCoverModal
-      :open="showGenerateModal"
+      :open="showGenerateModal && !readOnly"
       :book-id="bookId"
       :initial-title="title"
       :initial-author="authorText"
@@ -9,7 +9,7 @@
       @saved="onGeneratedCoverSaved"
     />
     <ConfirmModal
-      :open="showDropConfirmModal"
+      :open="showDropConfirmModal && !readOnly"
       title="Update book cover?"
       confirm-text="Update cover"
       cancel-text="Cancel"
@@ -37,7 +37,7 @@
         <span>{{ coverBusyAction === 'upload' ? 'Uploading cover...' : 'Drop image to update cover' }}</span>
       </div>
     </div>
-    <div class="cover-actions">
+    <div v-if="!readOnly" class="cover-actions">
       <input
         ref="coverInputRef"
         class="cover-file-input"
@@ -75,6 +75,7 @@ const props = defineProps<{
   title: string;
   authors?: string[];
   coverUrl?: string;
+  readOnly?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -155,6 +156,9 @@ function hasDraggedFiles(event: DragEvent): boolean {
 }
 
 async function uploadCover(file: File): Promise<boolean> {
+  if (props.readOnly) {
+    return false;
+  }
   if (!isSupportedCoverFile(file)) {
     showUnsupportedCoverError();
     clearCoverInput();
@@ -192,6 +196,9 @@ async function uploadCover(file: File): Promise<boolean> {
 }
 
 function openPicker(): void {
+  if (props.readOnly) {
+    return;
+  }
   if (coverBusy.value) {
     return;
   }
@@ -209,6 +216,9 @@ async function onCoverFileChange(event: Event): Promise<void> {
 }
 
 function onCoverDragEnter(event: DragEvent): void {
+  if (props.readOnly) {
+    return;
+  }
   if (coverBusy.value || !hasDraggedFiles(event)) {
     return;
   }
@@ -216,6 +226,9 @@ function onCoverDragEnter(event: DragEvent): void {
 }
 
 function onCoverDragOver(event: DragEvent): void {
+  if (props.readOnly) {
+    return;
+  }
   if (coverBusy.value || !hasDraggedFiles(event)) {
     return;
   }
@@ -235,6 +248,9 @@ function onCoverDragLeave(event: DragEvent): void {
 }
 
 function onCoverDrop(event: DragEvent): void {
+  if (props.readOnly) {
+    return;
+  }
   isDragOver.value = false;
   if (coverBusy.value) {
     return;
@@ -273,6 +289,9 @@ async function confirmDroppedCover(): Promise<void> {
 }
 
 async function removeCover(): Promise<void> {
+  if (props.readOnly) {
+    return;
+  }
   if (!props.coverUrl || coverBusy.value) {
     return;
   }

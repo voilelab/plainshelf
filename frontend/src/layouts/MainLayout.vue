@@ -100,6 +100,7 @@
               :nodes="layerTree"
               :selected="currentLayer"
               :deleting-map="deletingLayerMap"
+              :read-only="readOnly"
               @select="onSelectLayer"
               @move-book="onMoveBook"
               @delete-layer="requestDeleteLayer"

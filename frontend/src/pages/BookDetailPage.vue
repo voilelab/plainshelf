@@ -27,6 +27,7 @@
           :title="book.title"
           :authors="book.authors"
           :cover-url="book.cover_url"
+          :read-only="readOnly"
           @cover-changed="onCoverChanged"
         />
       </div>
@@ -38,9 +39,9 @@
           <button class="button" :disabled="downloading" @click="downloadBook">
             {{ downloading ? 'Downloading...' : 'Download' }}
           </button>
-          <button class="button" @click="goEditMetadata">Edit metadata</button>
-          <button class="button" @click="goEditSources">Edit Sources</button>
-          <button class="button danger" :disabled="deleting" @click="confirmDelete">
+          <button v-if="!readOnly" class="button" @click="goEditMetadata">Edit metadata</button>
+          <button v-if="!readOnly" class="button" @click="goEditSources">Edit Sources</button>
+          <button v-if="!readOnly" class="button danger" :disabled="deleting" @click="confirmDelete">
             {{ deleting ? 'Moving...' : 'Move to Trash' }}
           </button>
         </div>
@@ -58,6 +59,7 @@ import DeleteModal from '../components/DeleteModal.vue';
 import { getBookshelfProvider } from '../providers';
 import { useBookDetail } from '../composables/useBookDetail';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
+import { useServerMode } from '../composables/useServerMode';
 
 const route = useRoute();
 const router = useRouter();
@@ -67,6 +69,7 @@ const showSavedMessage = computed(() => route.query.saved === '1');
 const showDeleteModal = ref(false);
 const downloading = ref(false);
 const downloadError = ref('');
+const { readOnly } = useServerMode();
 
 const {
   book,
@@ -86,10 +89,16 @@ function goRead(): void {
 }
 
 function goEditMetadata(): void {
+  if (readOnly.value) {
+    return;
+  }
   void router.push(`/books/${id.value}/edit`);
 }
 
 function goEditSources(): void {
+  if (readOnly.value) {
+    return;
+  }
   void router.push(`/books/${id.value}/sources`);
 }
 
@@ -140,6 +149,9 @@ function onCoverChanged(): void {
 }
 
 function confirmDelete(): void {
+  if (readOnly.value) {
+    return;
+  }
   showDeleteModal.value = true;
 }
 
