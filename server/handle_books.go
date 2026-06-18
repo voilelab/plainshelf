@@ -31,6 +31,7 @@ type UpdateBookRequest struct {
 	Tags        *[]string      `json:"tags"`
 	Language    *string        `json:"language"`
 	Comment     *string        `json:"comment"`
+	Star        *int           `json:"star"`
 	PublishedAt *util.JSONTime `json:"published_at"`
 	Layer       *shelf.Layers  `json:"layer"`
 	Layers      *shelf.Layers  `json:"layers"`
@@ -278,6 +279,13 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.PublishedAt != nil {
 		meta.PublishedAt = *req.PublishedAt
+	}
+	if req.Star != nil {
+		if *req.Star < 0 || *req.Star > 5 {
+			http.Error(w, "star must be between 0 and 5", http.StatusBadRequest)
+			return
+		}
+		meta.Star = *req.Star
 	}
 	meta.UpdatedAt = util.JSONTime(time.Now())
 

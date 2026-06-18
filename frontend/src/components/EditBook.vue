@@ -26,6 +26,26 @@
           <input v-model="publishedAtInput" class="input" type="datetime-local" />
         </label>
 
+        <fieldset class="field rating-field">
+          <legend class="label">Star rating</legend>
+          <div class="star-rating" role="radiogroup" aria-label="Star rating">
+            <button
+              v-for="value in STAR_VALUES"
+              :key="value"
+              class="star-button"
+              :class="{ active: value <= star }"
+              type="button"
+              role="radio"
+              :aria-checked="star === value"
+              :aria-label="`${value} star${value === 1 ? '' : 's'}`"
+              @click="star = value"
+            >
+              ★
+            </button>
+            <button class="clear-rating" type="button" :disabled="star === 0" @click="star = 0">Clear</button>
+          </div>
+        </fieldset>
+
         <label class="field">
           <span class="label">Language</span>
           <select v-model="languagePreset" class="input select">
@@ -111,6 +131,7 @@ import { commaStringToList, listToCommaString } from '../utils/metadata';
 const COMMON_LANGUAGE_VALUES: Set<string> = new Set(
   LANGUAGE_OPTIONS.map((option) => option.value).filter((value) => value && value !== CUSTOM_LANGUAGE_VALUE)
 );
+const STAR_VALUES = [1, 2, 3, 4, 5] as const;
 
 const props = defineProps<{
   book: Book;
@@ -133,6 +154,7 @@ const customLanguage = ref('');
 const languageError = ref('');
 const comment = ref('');
 const publishedAtInput = ref('');
+const star = ref(0);
 
 watch(
   () => props.book,
@@ -155,6 +177,7 @@ watch(
     languageError.value = '';
     comment.value = book.comment ?? '';
     publishedAtInput.value = toDatetimeLocalValue(book.published_at);
+    star.value = normalizeStar(book.star);
   },
   { immediate: true }
 );
@@ -239,8 +262,16 @@ function onSubmit(): void {
     tags: tags.value,
     language: normalizedLanguage || '',
     comment: comment.value.trim(),
-    published_at: fromDatetimeLocalValue(publishedAtInput.value)
+    published_at: fromDatetimeLocalValue(publishedAtInput.value),
+    star: star.value
   });
+}
+
+function normalizeStar(rawValue: unknown): number {
+  if (typeof rawValue !== 'number' || !Number.isFinite(rawValue)) {
+    return 0;
+  }
+  return Math.min(5, Math.max(0, Math.trunc(rawValue)));
 }
 
 function toDatetimeLocalValue(rawValue?: string): string {
@@ -313,6 +344,53 @@ function fromDatetimeLocalValue(rawValue: string): string | undefined {
 
 .select {
   background-color: #fff;
+}
+
+.rating-field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.star-rating {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.star-button {
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: #c4cad4;
+  cursor: pointer;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.star-button.active {
+  color: #f5a623;
+}
+
+.star-button:focus-visible,
+.clear-rating:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.clear-rating {
+  margin-left: 8px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.clear-rating:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .tag-input-shell {
