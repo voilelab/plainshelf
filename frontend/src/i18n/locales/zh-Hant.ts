@@ -196,6 +196,7 @@ const zhHant = {
   },
   bookCollection: {
     loadingBooks: '載入書籍中...',
+    shelfInitializing: '書架載入中，請稍候...',
     booksCount: '{count} 本書',
     viewMode: {
       list: '列表',

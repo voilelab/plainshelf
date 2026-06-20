@@ -13,6 +13,10 @@ import (
 // ListBooks returns a list of all books in the library.
 // Books are sorted by their ID in ascending order.
 func (s *Shelf) ListBooks() ([]*Book, error) {
+	if !s.IsReady() {
+		return nil, util.Errorf("%w", ErrShelfInitializing)
+	}
+
 	s.rlock()
 	defer s.unlock()
 
@@ -26,6 +30,10 @@ func (s *Shelf) ListBooks() ([]*Book, error) {
 
 // GetBook returns the details of a specific book by its ID.
 func (s *Shelf) GetBook(bookID string) (*Book, error) {
+	if !s.IsReady() {
+		return nil, util.Errorf("%w", ErrShelfInitializing)
+	}
+
 	s.rlock()
 	defer s.unlock()
 
@@ -126,6 +134,10 @@ func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
+	if !s.IsReady() {
+		return nil, util.Errorf("%w", ErrShelfInitializing)
+	}
+
 	s.rlock()
 	defer s.unlock()
 
@@ -199,6 +211,9 @@ func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 
 		stat, err := s.dbRoot.Stat(pth)
 		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				s.Warn("failed to stat path during book scan", "path", pth, "error", err)
+			}
 			return
 		}
 
@@ -225,6 +240,9 @@ func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 
 		entries, err := s.dbRoot.ReadDir(pth)
 		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				s.Warn("failed to read directory during book scan", "path", pth, "error", err)
+			}
 			return
 		}
 

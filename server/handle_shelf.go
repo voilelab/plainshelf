@@ -33,3 +33,25 @@ func (app *App) HandleGetShelves(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 }
+
+// GET /api/shelves/{shelf_id}/status
+func (app *App) HandleAPIGetShelfStatus(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	if !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	err = json.NewEncoder(w).Encode(map[string]bool{"ready": shelfData.IsReady()})
+	if err != nil {
+		app.Error("failed to encode response", "error", err)
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
+}

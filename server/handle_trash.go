@@ -39,8 +39,7 @@ func (app *App) HandleAPITrashBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.MoveBookToTrash(bookID); err != nil {
-		if errors.Is(err, shelf.ErrBookNotFound) {
-			http.Error(w, "book not found", http.StatusNotFound)
+		if handleShelfErr(w, err) {
 			return
 		}
 		app.Error("failed to trash book", "error", err)

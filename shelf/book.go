@@ -139,6 +139,19 @@ func (b *Book) FolderPath() string {
 	return b.folderPath
 }
 
+// CoverETag returns a weak ETag derived from the cover file's mtime and size.
+// Returns an empty string if the book has no cover or the stat fails.
+func (b *Book) CoverETag() string {
+	if b.meta.Cover == "" {
+		return ""
+	}
+	info, err := b.root.Stat(path.Join(b.folderPath, b.meta.Cover))
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf(`W/"%d-%d"`, info.ModTime().UnixNano(), info.Size())
+}
+
 func (b *Book) OpenCover() ([]byte, string, error) {
 	if b.meta.Cover == "" {
 		return nil, "", nil
