@@ -1,6 +1,7 @@
 package shelf
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"io/fs"
@@ -123,47 +124,37 @@ func (r *Source) UpdateHash() error {
 }
 
 func (r *Source) refreshContentMetadata() error {
-	err := r.withSourceFile(func(sourceFile fs.File) error {
-		md5Hash, err := hashutil.MD5Hash(sourceFile)
-		if err != nil {
-			return util.Errorf("%w", err)
-		}
-		r.meta.MD5Hash = md5Hash
-		return nil
-	})
+	// Read the file once; compute all three metrics from the buffer to avoid
+	// 3 separate SMB round-trips on network-mounted shelves.
+	f, err := r.Open()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	data, readErr := io.ReadAll(f)
+	closeErr := f.Close()
+	if readErr != nil {
+		return util.Errorf("%w", readErr)
+	}
+	if closeErr != nil {
+		return util.Errorf("%w", closeErr)
+	}
+
+	r.meta.MD5Hash, err = hashutil.MD5Hash(bytes.NewReader(data))
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	err = r.withSourceFile(func(sourceFile fs.File) error {
-		lineCount, err := util.LineCount(sourceFile)
-		if err != nil {
-			return util.Errorf("%w", err)
-		}
-		r.meta.LineCount = lineCount
-		return nil
-	})
+	r.meta.LineCount, err = util.LineCount(bytes.NewReader(data))
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	err = r.withSourceFile(func(sourceFile fs.File) error {
-		charCount, err := util.CharCount(sourceFile)
-		if err != nil {
-			return util.Errorf("%w", err)
-		}
-		r.meta.CharCount = charCount
-		return nil
-	})
+	r.meta.CharCount, err = util.CharCount(bytes.NewReader(data))
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	err = r.writebackMeta()
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-	return nil
+	return r.writebackMeta()
 }
 
 func (r *Source) withSourceFile(read func(fs.File) error) error {
@@ -251,36 +242,32 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 	}
 	destFile.Close()
 
+	// Read the written file once to compute all three metrics.
 	destFile1, err := rt.Open(sourceDestPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer destFile1.Close()
+	sourceData, readErr := io.ReadAll(destFile1)
+	closeErr := destFile1.Close()
+	if readErr != nil {
+		return nil, util.Errorf("%w", readErr)
+	}
+	if closeErr != nil {
+		return nil, util.Errorf("%w", closeErr)
+	}
 
-	md5Hash, err := hashutil.MD5Hash(destFile1)
+	md5Hash, err := hashutil.MD5Hash(bytes.NewReader(sourceData))
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	destFile2, err := rt.Open(sourceDestPath)
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-	defer destFile2.Close()
-
-	lineCount, err := util.LineCount(destFile2)
+	lineCount, err := util.LineCount(bytes.NewReader(sourceData))
 	if err != nil {
 		lineCount = 0
 		logger.Error("failed to count lines", "error", err)
 	}
 
-	destFile3, err := rt.Open(sourceDestPath)
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-	defer destFile3.Close()
-
-	charCount, err := util.CharCount(destFile3)
+	charCount, err := util.CharCount(bytes.NewReader(sourceData))
 	if err != nil {
 		charCount = 0
 		logger.Error("failed to count characters", "error", err)

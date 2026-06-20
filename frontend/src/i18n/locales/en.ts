@@ -197,6 +197,7 @@ const en = {
   },
   bookCollection: {
     loadingBooks: 'Loading books...',
+    shelfInitializing: 'Shelf is loading, please wait...',
     booksCount: '{count} books',
     viewMode: {
       list: 'List',

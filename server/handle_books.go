@@ -20,6 +20,21 @@ func isRequestBodyTooLarge(err error) bool {
 	return errors.As(err, &maxBytesErr)
 }
 
+// handleShelfErr writes the appropriate HTTP error for common shelf-level errors
+// (initializing → 503, not found → 404) and returns true if the error was handled.
+func handleShelfErr(w http.ResponseWriter, err error) bool {
+	if errors.Is(err, shelf.ErrShelfInitializing) {
+		w.Header().Set("Retry-After", "3")
+		http.Error(w, "shelf is initializing, please retry shortly", http.StatusServiceUnavailable)
+		return true
+	}
+	if errors.Is(err, shelf.ErrBookNotFound) {
+		http.Error(w, "book not found", http.StatusNotFound)
+		return true
+	}
+	return false
+}
+
 type Book struct {
 	Meta  *shelf.BookMeta `json:"meta"`
 	Layer shelf.Layers    `json:"layer"`
@@ -55,6 +70,9 @@ func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
 
 	books, err := shelfData.ListBooks()
 	if err != nil {
+		if handleShelfErr(w, err) {
+			return
+		}
 		app.Error("failed to list books", "error", err)
 		http.Error(w, "failed to list books", http.StatusInternalServerError)
 		return
@@ -180,8 +198,7 @@ func (app *App) HandleAPIGetBook(w http.ResponseWriter, r *http.Request) {
 	}
 	book, err := shelfData.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, shelf.ErrBookNotFound) {
-			http.Error(w, "book not found", http.StatusNotFound)
+		if handleShelfErr(w, err) {
 			return
 		}
 		app.Error("failed to get book", "error", err)
@@ -239,8 +256,7 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 
 	book, err := shelfData.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, shelf.ErrBookNotFound) {
-			http.Error(w, "book not found", http.StatusNotFound)
+		if handleShelfErr(w, err) {
 			return
 		}
 		app.Error("failed to get book", "error", err)
@@ -326,8 +342,7 @@ func (app *App) HandleAPIDeleteBook(w http.ResponseWriter, r *http.Request) {
 
 	err = shelfData.MoveBookToTrash(bookID)
 	if err != nil {
-		if errors.Is(err, shelf.ErrBookNotFound) {
-			http.Error(w, "book not found", http.StatusNotFound)
+		if handleShelfErr(w, err) {
 			return
 		}
 		app.Error("failed to trash book", "error", err)
@@ -360,13 +375,21 @@ func (app *App) HandleAPIGetBookCover(w http.ResponseWriter, r *http.Request) {
 
 	book, err := shelfData.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, shelf.ErrBookNotFound) {
-			http.Error(w, "book not found", http.StatusNotFound)
+		if handleShelfErr(w, err) {
 			return
 		}
 		app.Error("failed to get book", "error", err)
 		http.Error(w, "failed to get book", http.StatusInternalServerError)
 		return
+	}
+
+	if etag := book.CoverETag(); etag != "" {
+		w.Header().Set("ETag", etag)
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		if r.Header.Get("If-None-Match") == etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
 	}
 
 	coverData, ext, err := book.OpenCover()
@@ -419,8 +442,7 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 
 	book, err := shelfData.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, shelf.ErrBookNotFound) {
-			http.Error(w, "book not found", http.StatusNotFound)
+		if handleShelfErr(w, err) {
 			return
 		}
 		app.Error("failed to get book", "error", err)
@@ -501,8 +523,7 @@ func (app *App) HandleAPIDeleteBookCover(w http.ResponseWriter, r *http.Request)
 
 	book, err := shelfData.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, shelf.ErrBookNotFound) {
-			http.Error(w, "book not found", http.StatusNotFound)
+		if handleShelfErr(w, err) {
 			return
 		}
 		app.Error("failed to get book", "error", err)
@@ -542,8 +563,7 @@ func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) 
 
 	book, err := shelfData.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, shelf.ErrBookNotFound) {
-			http.Error(w, "book not found", http.StatusNotFound)
+		if handleShelfErr(w, err) {
 			return
 		}
 		app.Error("failed to get book", "error", err)
@@ -600,8 +620,7 @@ func (app *App) HandleAPIGetBookSplitConfig(w http.ResponseWriter, r *http.Reque
 
 	book, err := shelfData.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, shelf.ErrBookNotFound) {
-			http.Error(w, "book not found", http.StatusNotFound)
+		if handleShelfErr(w, err) {
 			return
 		}
 		app.Error("failed to get book", "error", err)
@@ -647,8 +666,7 @@ func (app *App) HandleAPIUpdateBookSplitConfig(w http.ResponseWriter, r *http.Re
 
 	book, err := shelfData.GetBook(bookID)
 	if err != nil {
-		if errors.Is(err, shelf.ErrBookNotFound) {
-			http.Error(w, "book not found", http.StatusNotFound)
+		if handleShelfErr(w, err) {
 			return
 		}
 		app.Error("failed to get book", "error", err)
@@ -698,6 +716,9 @@ func (app *App) HandleAPIFindDuplicateBooks(w http.ResponseWriter, r *http.Reque
 	md5Groups := map[string][]string{}
 	books, err := shelfData.ListBooks()
 	if err != nil {
+		if handleShelfErr(w, err) {
+			return
+		}
 		app.Error("failed to list books", "error", err)
 		http.Error(w, "failed to list books", http.StatusInternalServerError)
 		return

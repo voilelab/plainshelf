@@ -1,4 +1,4 @@
-import { fetchJson, getActiveShelfID, isMockApiMode, setActiveShelfID } from './client';
+import { buildShelfApiPath, fetchJson, getActiveShelfID, isMockApiMode, setActiveShelfID } from './client';
 
 export interface ShelfInfo {
   id: string;
@@ -36,6 +36,13 @@ export async function listShelves(): Promise<ShelfInfo[]> {
 
       return [{ id, name }];
     });
+}
+
+export async function getShelfStatus(shelfID?: string): Promise<{ ready: boolean }> {
+  if (isMockApiMode()) {
+    return { ready: true };
+  }
+  return fetchJson<{ ready: boolean }>(buildShelfApiPath('/status', shelfID));
 }
 
 export function ensureActiveShelf(shelves: ShelfInfo[]): string {

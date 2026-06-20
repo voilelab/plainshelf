@@ -1,9 +1,11 @@
 package shelf
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path"
+	"sync/atomic"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -35,14 +37,21 @@ const libraryLockFile = "library.lock"
 const maxPathSegmentLength = 255
 
 var ErrBookNotFound = util.NewError("book not found")
+var ErrShelfInitializing = util.NewError("shelf is initializing, please retry shortly")
+
+const defaultLockTimeout = 30 * time.Second
+const lockRetryDelay = 50 * time.Millisecond
 
 type Shelf struct {
 	logutil.Logger
-	dbRoot    fsutil.FS
-	readonly  bool
-	close     func() error
-	localLock *flock.Flock
-	bookCache *bookCache
+	dbRoot      fsutil.FS
+	readonly    bool
+	close       func() error
+	localLock   *flock.Flock
+	lockTimeout time.Duration
+	bookCache   *bookCache
+	ready       atomic.Bool
+	readyCh     chan struct{}
 }
 
 type ShelfConf struct {
@@ -56,7 +65,13 @@ type ShelfConf struct {
 	// update stale metadata.
 	// Newly added books may not be discovered until the next full scan.
 	// Set to 0s to always perform a full scan on refresh.
+	// For SMB mounts, consider increasing this (e.g. "10m") to reduce network I/O.
 	ScanInterval string `yaml:"scan_interval" json:"scan_interval"`
+
+	// LockTimeout is the maximum duration to wait when acquiring the shelf lock.
+	// On SMB mounts, flock() may behave unreliably; a timeout prevents indefinite hangs.
+	// Default: 30s. Set to "0s" to disable the timeout (blocking lock).
+	LockTimeout string `yaml:"lock_timeout" json:"lock_timeout"`
 }
 
 func NewShelf(conf *ShelfConf) (*Shelf, error) {
@@ -70,6 +85,15 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		scanInterval, err = time.ParseDuration(conf.ScanInterval)
 		if err != nil {
 			return nil, util.Errorf("invalid scan interval: %w", err)
+		}
+	}
+
+	lockTimeout := defaultLockTimeout
+	if conf.LockTimeout != "" {
+		var err error
+		lockTimeout, err = time.ParseDuration(conf.LockTimeout)
+		if err != nil {
+			return nil, util.Errorf("invalid lock timeout: %w", err)
 		}
 	}
 
@@ -96,30 +120,33 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		}
 	}
 
-	shelf := &Shelf{
-		Logger:    *logger,
-		dbRoot:    fsutil.NewRootFS(rt),
-		readonly:  false,
-		close:     rt.Close,
-		localLock: flock.New(path.Join(conf.LibRoot, appFolder, libraryLockFile)),
+	s := &Shelf{
+		Logger:      *logger,
+		dbRoot:      fsutil.NewRootFS(rt),
+		readonly:    false,
+		close:       rt.Close,
+		localLock:   flock.New(path.Join(conf.LibRoot, appFolder, libraryLockFile)),
+		lockTimeout: lockTimeout,
+		readyCh:     make(chan struct{}),
 
 		// cache
 		bookCache: newBookCache(scanInterval),
 	}
 
-	err = shelf.makeStructure()
+	err = s.makeStructure()
 	if err != nil {
 		rt.Close()
 		return nil, util.Errorf("%w", err)
 	}
 
-	err = shelf.initCache()
-	if err != nil {
-		rt.Close()
-		return nil, util.Errorf("%w", err)
-	}
+	s.Debug("initializing shelf cache in background", "lib_root", conf.LibRoot, "scan_interval", scanInterval, "lock_timeout", lockTimeout)
+	go func() {
+		if err := s.initCache(); err != nil {
+			s.Error("failed to initialize shelf cache", "error", err)
+		}
+	}()
 
-	return shelf, nil
+	return s, nil
 }
 
 func (s *Shelf) makeStructure() error {
@@ -147,41 +174,66 @@ func (s *Shelf) initCache() error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-
+	s.ready.Store(true)
+	close(s.readyCh)
+	s.Debug("shelf cache initialized")
 	return nil
 }
 
+// IsReady reports whether the initial cache scan has completed.
+func (s *Shelf) IsReady() bool {
+	return s.ready.Load()
+}
+
+// WaitReady blocks until the initial cache scan completes or the context is cancelled.
+func (s *Shelf) WaitReady(ctx context.Context) error {
+	select {
+	case <-s.readyCh:
+		return nil
+	case <-ctx.Done():
+		return util.Errorf("timed out waiting for shelf to be ready: %w", ctx.Err())
+	}
+}
+
 func (s *Shelf) lock() error {
-	if s.readonly {
+	if s.readonly || s.localLock == nil {
 		return nil
 	}
 
-	if s.localLock == nil {
-		return nil
+	if s.lockTimeout == 0 {
+		return s.localLock.Lock()
 	}
 
-	err := s.localLock.Lock()
+	ctx, cancel := context.WithTimeout(context.Background(), s.lockTimeout)
+	defer cancel()
+	locked, err := s.localLock.TryLockContext(ctx, lockRetryDelay)
 	if err != nil {
-		return util.Errorf("%w", err)
+		return util.Errorf("failed to acquire shelf write lock: %w", err)
 	}
-
+	if !locked {
+		return util.Errorf("timed out waiting for shelf write lock — another instance may hold it")
+	}
 	return nil
 }
 
 func (s *Shelf) rlock() error {
-	if s.readonly {
+	if s.readonly || s.localLock == nil {
 		return nil
 	}
 
-	if s.localLock == nil {
-		return nil
+	if s.lockTimeout == 0 {
+		return s.localLock.RLock()
 	}
 
-	err := s.localLock.RLock()
+	ctx, cancel := context.WithTimeout(context.Background(), s.lockTimeout)
+	defer cancel()
+	locked, err := s.localLock.TryRLockContext(ctx, lockRetryDelay)
 	if err != nil {
-		return util.Errorf("%w", err)
+		return util.Errorf("failed to acquire shelf read lock: %w", err)
 	}
-
+	if !locked {
+		return util.Errorf("timed out waiting for shelf read lock — another instance may hold it")
+	}
 	return nil
 }
 

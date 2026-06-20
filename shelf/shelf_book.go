@@ -13,7 +13,13 @@ import (
 // ListBooks returns a list of all books in the library.
 // Books are sorted by their ID in ascending order.
 func (s *Shelf) ListBooks() ([]*Book, error) {
-	s.rlock()
+	if !s.IsReady() {
+		return nil, util.Errorf("%w", ErrShelfInitializing)
+	}
+
+	if err := s.rlock(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
 	defer s.unlock()
 
 	err := s.refreshBookCacheIfNeeded(false)
@@ -26,7 +32,13 @@ func (s *Shelf) ListBooks() ([]*Book, error) {
 
 // GetBook returns the details of a specific book by its ID.
 func (s *Shelf) GetBook(bookID string) (*Book, error) {
-	s.rlock()
+	if !s.IsReady() {
+		return nil, util.Errorf("%w", ErrShelfInitializing)
+	}
+
+	if err := s.rlock(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
 	defer s.unlock()
 
 	book, err := s.getUpdatedBookFromBookID(bookID)
@@ -43,7 +55,9 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	s.lock()
+	if err := s.lock(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
 	defer s.unlock()
 
 	bookPath, err := createTempDir(s.dbRoot, path.Join(appFolder, appTmpFolder, "book"))
@@ -126,7 +140,13 @@ func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	s.rlock()
+	if !s.IsReady() {
+		return nil, util.Errorf("%w", ErrShelfInitializing)
+	}
+
+	if err := s.rlock(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
 	defer s.unlock()
 
 	err := s.refreshBookCacheIfNeeded(false)
@@ -151,7 +171,9 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	s.lock()
+	if err := s.lock(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
 	defer s.unlock()
 
 	book, err := s.getUpdatedBookFromBookID(bookID)
@@ -199,6 +221,9 @@ func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 
 		stat, err := s.dbRoot.Stat(pth)
 		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				s.Warn("failed to stat path during book scan", "path", pth, "error", err)
+			}
 			return
 		}
 
@@ -225,6 +250,9 @@ func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 
 		entries, err := s.dbRoot.ReadDir(pth)
 		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				s.Warn("failed to read directory during book scan", "path", pth, "error", err)
+			}
 			return
 		}
 

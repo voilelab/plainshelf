@@ -10,11 +10,7 @@ import (
 
 func TestShelfRejectsUnsafeLayerSegments(t *testing.T) {
 	tmpLib := filepath.Join(t.TempDir(), "shelf_test")
-	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib})
-	if err != nil {
-		t.Fatalf("Failed to initialize Shelf: %v", err)
-	}
-	defer shelf.Close()
+	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
 	unsafeLayers := []Layers{
 		{"..", "app", "evil"},
@@ -44,11 +40,7 @@ func TestShelfRejectsUnsafeLayerSegments(t *testing.T) {
 
 func TestMoveAndDeleteLayerRejectUnsafeSegments(t *testing.T) {
 	tmpLib := filepath.Join(t.TempDir(), "shelf_test")
-	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpLib})
-	if err != nil {
-		t.Fatalf("Failed to initialize Shelf: %v", err)
-	}
-	defer shelf.Close()
+	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
 	book, err := shelf.NewBook(Layers{"safe"}, "Safe Book")
 	if err != nil {
