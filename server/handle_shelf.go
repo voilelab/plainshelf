@@ -34,6 +34,11 @@ func (app *App) HandleGetShelves(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
+type ShelfStatusResponse struct {
+	Ready bool   `json:"ready"`
+	Error string `json:"error,omitempty"`
+}
+
 // GET /api/shelves/{shelf_id}/status
 func (app *App) HandleAPIGetShelfStatus(w http.ResponseWriter, r *http.Request) {
 	shelfID, err := readShelfID(r)
@@ -48,9 +53,13 @@ func (app *App) HandleAPIGetShelfStatus(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	resp := ShelfStatusResponse{Ready: shelfData.IsReady()}
+	if initErr := shelfData.InitErr(); initErr != nil {
+		resp.Error = initErr.Error()
+	}
+
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	err = json.NewEncoder(w).Encode(map[string]bool{"ready": shelfData.IsReady()})
-	if err != nil {
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		app.Error("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 	}

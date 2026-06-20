@@ -21,11 +21,16 @@ func isRequestBodyTooLarge(err error) bool {
 }
 
 // handleShelfErr writes the appropriate HTTP error for common shelf-level errors
-// (initializing → 503, not found → 404) and returns true if the error was handled.
+// (initializing → 503, lock timeout → 503, not found → 404) and returns true if handled.
 func handleShelfErr(w http.ResponseWriter, err error) bool {
 	if errors.Is(err, shelf.ErrShelfInitializing) {
 		w.Header().Set("Retry-After", "3")
 		http.Error(w, "shelf is initializing, please retry shortly", http.StatusServiceUnavailable)
+		return true
+	}
+	if errors.Is(err, shelf.ErrShelfLockTimeout) {
+		w.Header().Set("Retry-After", "5")
+		http.Error(w, "shelf is busy, please retry shortly", http.StatusServiceUnavailable)
 		return true
 	}
 	if errors.Is(err, shelf.ErrBookNotFound) {

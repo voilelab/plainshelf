@@ -198,6 +198,7 @@ const en = {
   bookCollection: {
     loadingBooks: 'Loading books...',
     shelfInitializing: 'Shelf is loading, please wait...',
+    shelfUnreachable: 'The shelf is taking too long to respond. It may be unavailable (e.g. SMB mount disconnected).',
     booksCount: '{count} books',
     viewMode: {
       list: 'List',

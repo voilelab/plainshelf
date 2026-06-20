@@ -38,6 +38,7 @@ const maxPathSegmentLength = 255
 
 var ErrBookNotFound = util.NewError("book not found")
 var ErrShelfInitializing = util.NewError("shelf is initializing, please retry shortly")
+var ErrShelfLockTimeout = util.NewError("shelf is busy, please retry shortly")
 
 const defaultLockTimeout = 30 * time.Second
 const lockRetryDelay = 50 * time.Millisecond
@@ -52,6 +53,7 @@ type Shelf struct {
 	bookCache   *bookCache
 	ready       atomic.Bool
 	readyCh     chan struct{}
+	initErr     atomic.Pointer[error] // set if initCache fails; readyCh is still closed
 }
 
 type ShelfConf struct {
@@ -172,7 +174,10 @@ func (s *Shelf) makeStructure() error {
 func (s *Shelf) initCache() error {
 	err := s.scanToBookCache()
 	if err != nil {
-		return util.Errorf("%w", err)
+		wrapped := util.Errorf("%w", err)
+		s.initErr.Store(&wrapped)
+		close(s.readyCh)
+		return wrapped
 	}
 	s.ready.Store(true)
 	close(s.readyCh)
@@ -180,16 +185,25 @@ func (s *Shelf) initCache() error {
 	return nil
 }
 
-// IsReady reports whether the initial cache scan has completed.
+// IsReady reports whether the initial cache scan completed successfully.
 func (s *Shelf) IsReady() bool {
 	return s.ready.Load()
 }
 
-// WaitReady blocks until the initial cache scan completes or the context is cancelled.
+// InitErr returns the error from the initial cache scan, or nil if it succeeded or is still running.
+func (s *Shelf) InitErr() error {
+	if errPtr := s.initErr.Load(); errPtr != nil {
+		return *errPtr
+	}
+	return nil
+}
+
+// WaitReady blocks until the initial cache scan completes (or fails) or the context is cancelled.
+// Returns the init error if initialization failed.
 func (s *Shelf) WaitReady(ctx context.Context) error {
 	select {
 	case <-s.readyCh:
-		return nil
+		return s.InitErr()
 	case <-ctx.Done():
 		return util.Errorf("timed out waiting for shelf to be ready: %w", ctx.Err())
 	}
@@ -208,10 +222,10 @@ func (s *Shelf) lock() error {
 	defer cancel()
 	locked, err := s.localLock.TryLockContext(ctx, lockRetryDelay)
 	if err != nil {
-		return util.Errorf("failed to acquire shelf write lock: %w", err)
+		return util.Errorf("%w: %w", ErrShelfLockTimeout, err)
 	}
 	if !locked {
-		return util.Errorf("timed out waiting for shelf write lock — another instance may hold it")
+		return util.Errorf("%w: write lock timed out, another instance may hold it", ErrShelfLockTimeout)
 	}
 	return nil
 }
@@ -229,10 +243,10 @@ func (s *Shelf) rlock() error {
 	defer cancel()
 	locked, err := s.localLock.TryRLockContext(ctx, lockRetryDelay)
 	if err != nil {
-		return util.Errorf("failed to acquire shelf read lock: %w", err)
+		return util.Errorf("%w: %w", ErrShelfLockTimeout, err)
 	}
 	if !locked {
-		return util.Errorf("timed out waiting for shelf read lock — another instance may hold it")
+		return util.Errorf("%w: read lock timed out, another instance may hold it", ErrShelfLockTimeout)
 	}
 	return nil
 }
