@@ -211,6 +211,10 @@ func (b *Book) CurrentSource() string {
 }
 
 func (b *Book) SetCurrentSource(sourceID string) error {
+	if _, err := b.GetSource(sourceID); err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	meta := b.GetMeta()
 	meta.CurrentSource = sourceID
 
@@ -336,8 +340,10 @@ func (b *Book) NewSource(source io.Reader) (*Source, error) {
 	}
 
 	// create a new source for the given book with the provided source file and metadata
-	sourceID := time.Now().Format("20060102-150405")
-	sourcePath := path.Join(b.folderPath, SourcesFolder, sourceID)
+	sourceID, sourcePath, err := b.nextSourceLocation()
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
 
 	src, err := createSource(b.root, b.logger, sourcePath, sourceID, source)
 	if err != nil {
@@ -351,6 +357,27 @@ func (b *Book) NewSource(source io.Reader) (*Source, error) {
 	}
 
 	return src, nil
+}
+
+func (b *Book) nextSourceLocation() (string, string, error) {
+	baseID := time.Now().Format("20060102-150405")
+	for attempt := range MaxTempDirCreationAttempts {
+		sourceID := baseID
+		if attempt > 0 {
+			sourceID = fmt.Sprintf("%s-%s", baseID, randomString(6))
+		}
+
+		sourcePath := path.Join(b.folderPath, SourcesFolder, sourceID)
+		_, err := b.root.Stat(sourcePath)
+		if errors.Is(err, fs.ErrNotExist) {
+			return sourceID, sourcePath, nil
+		}
+		if err != nil {
+			return "", "", util.Errorf("%w", err)
+		}
+	}
+
+	return "", "", util.NewError("failed to allocate unique source id after multiple attempts")
 }
 
 func (b *Book) GetSource(sourceID string) (*Source, error) {
@@ -389,6 +416,14 @@ func (b *Book) DeleteSource(sourceID string) error {
 	err := b.root.RemoveAll(sourcePath)
 	if err != nil {
 		return util.Errorf("%w", err)
+	}
+
+	if b.meta.CurrentSource == sourceID {
+		meta := b.GetMeta()
+		meta.CurrentSource = ""
+		if err := b.setMeta(meta); err != nil {
+			return util.Errorf("%w", err)
+		}
 	}
 
 	return nil

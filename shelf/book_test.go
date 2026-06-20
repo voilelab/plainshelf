@@ -250,6 +250,51 @@ func TestNewSource(t *testing.T) {
 	}
 }
 
+func TestNewSourceAllocatesUniqueIDs(t *testing.T) {
+	tmpLib := path.Join(t.TempDir())
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := createBook(rootFS, newLoggerForTest(), "test-book-a38j", "test-book-a38j", "Test Book")
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+
+	first, err := book.NewSource(bytes.NewReader([]byte("first content")))
+	if err != nil {
+		t.Fatalf("Failed to create first source: %v", err)
+	}
+	second, err := book.NewSource(bytes.NewReader([]byte("second content")))
+	if err != nil {
+		t.Fatalf("Failed to create second source: %v", err)
+	}
+
+	if first.ID() == second.ID() {
+		t.Fatalf("Expected unique source IDs, got %q", first.ID())
+	}
+
+	retrievedFirst, err := book.GetSource(first.ID())
+	if err != nil {
+		t.Fatalf("Failed to get first source: %v", err)
+	}
+	firstFile, err := retrievedFirst.Open()
+	if err != nil {
+		t.Fatalf("Failed to open first source: %v", err)
+	}
+	defer firstFile.Close()
+	firstData, err := io.ReadAll(firstFile)
+	if err != nil {
+		t.Fatalf("Failed to read first source: %v", err)
+	}
+	if string(firstData) != "first content" {
+		t.Fatalf("Expected first source content to be preserved, got %q", string(firstData))
+	}
+}
+
 func TestNewSourceNil(t *testing.T) {
 	tmpLib := path.Join(t.TempDir())
 	tmpRoot, err := os.OpenRoot(tmpLib)
@@ -347,6 +392,57 @@ func TestDeleteSourceNonexistent(t *testing.T) {
 	err = book.DeleteSource("nonexistent-source")
 	if err == nil {
 		t.Fatal("Expected error when deleting nonexistent source, but got none")
+	}
+}
+
+func TestSetCurrentSourceRejectsMissingSource(t *testing.T) {
+	tmpLib := path.Join(t.TempDir())
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := createBook(rootFS, newLoggerForTest(), "test-book-a38j", "test-book-a38j", "Test Book")
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+
+	if err := book.SetCurrentSource("missing-source"); err == nil {
+		t.Fatal("Expected SetCurrentSource to reject a missing source")
+	}
+	if book.CurrentSource() != "" {
+		t.Fatalf("Expected current source to remain empty, got %q", book.CurrentSource())
+	}
+}
+
+func TestDeleteCurrentSourceClearsCurrentSource(t *testing.T) {
+	tmpLib := path.Join(t.TempDir())
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := createBook(rootFS, newLoggerForTest(), "test-book-a38j", "test-book-a38j", "Test Book")
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+
+	source, err := book.NewSource(bytes.NewReader([]byte("current content")))
+	if err != nil {
+		t.Fatalf("Failed to create source: %v", err)
+	}
+	if err := book.SetCurrentSource(source.ID()); err != nil {
+		t.Fatalf("Failed to set current source: %v", err)
+	}
+	if err := book.DeleteSource(source.ID()); err != nil {
+		t.Fatalf("Failed to delete current source: %v", err)
+	}
+	if book.CurrentSource() != "" {
+		t.Fatalf("Expected current source to be cleared, got %q", book.CurrentSource())
 	}
 }
 
@@ -454,4 +550,3 @@ func TestSetMetaMarksOtherInstanceStale(t *testing.T) {
 		t.Fatalf("Expected second instance to become stale after first instance updates meta")
 	}
 }
-
