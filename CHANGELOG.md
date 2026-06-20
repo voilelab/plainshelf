@@ -9,6 +9,7 @@ and UI behavior may still change between releases.
 
 ### Added
 
+- Added drag-layer visual preview when repositioning layers via drag-and-drop.
 - Added `SetCurrentSource` API endpoint and "Set as current" button in the book source editor.
 - Added log-file listing and access API endpoints and a frontend admin log viewer with date-picker navigation.
 - Added multi-shelf support: API endpoints are now shelf-scoped, with a new `GET /api/shelves` endpoint to list configured shelves.
@@ -25,6 +26,7 @@ and UI behavior may still change between releases.
 
 ### Changed
 
+- Changed book package directory extension from `.novl` to `.bookpkg`.
 - Changed project license from ISC to BSD-3-Clause.
 - Moved shelf selector from the top bar to the top of the left sidebar, above the layer tree.
 
