@@ -626,7 +626,7 @@ export async function deleteBook(id: string): Promise<void> {
         title: book.title,
         authors: [...book.authors],
         original_layer: [...book.layers],
-        original_path: `/books/${book.layers.join('/')}/${book.id}.novl`,
+        original_path: `/books/${book.layers.join('/')}/${book.id}.bookpkg`,
         deleted_at: new Date().toISOString()
       });
     }

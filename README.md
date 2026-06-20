@@ -76,12 +76,12 @@ A typical vault may look like this:
 ```text
 {shelf}/
 ├─ books/
-│  ├─ {book1-folder}.novl/
+│  ├─ {book1-folder}.bookpkg/
 │  ├─ {layer1}/
-│  │  └─ {book2-folder}.novl/
+│  │  └─ {book2-folder}.bookpkg/
 │  └─ {layer2}/
 │     └─ {layer3}/
-│        └─ {book3-folder}.novl/
+│        └─ {book3-folder}.bookpkg/
 └─ app/
    ├─ library.lock
    └─ tmp/
@@ -95,7 +95,7 @@ This contains user-owned data such as book metadata,
 text files, covers, notes, and other long-lived files.
 
 ```text
-{book-folder}.novl/
+{book-folder}.bookpkg/
 ├─ book.json
 ├─ CURRENT_VERSION_LOCATION.txt
 ├─ cover.(jpg|png|webp)
