@@ -148,6 +148,8 @@ async function withApiHeaders(init?: RequestInit): Promise<RequestInit> {
 }
 
 const FETCH_TIMEOUT_MS = 30_000;
+// Large content (book text, cover images) on slow SMB mounts may take several minutes.
+const FETCH_STREAM_TIMEOUT_MS = 300_000;
 
 async function toApiError(res: Response): Promise<ApiError> {
   const raw = (await res.text()).trim();
@@ -159,9 +161,9 @@ async function toApiError(res: Response): Promise<ApiError> {
   });
 }
 
-async function fetchWithTimeout(url: string, init?: RequestInit): Promise<Response> {
+async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = FETCH_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, { ...init, signal: controller.signal });
   } catch (err) {
@@ -221,7 +223,7 @@ export async function fetchText(path: string, init?: RequestInit): Promise<strin
   assertApiMode();
   assertWritableRequest(init);
 
-  const res = await fetchWithTimeout(buildApiUrl(path), await withApiHeaders(init));
+  const res = await fetchWithTimeout(buildApiUrl(path), await withApiHeaders(init), FETCH_STREAM_TIMEOUT_MS);
   if (!res.ok) {
     throw await toApiError(res);
   }
@@ -233,7 +235,7 @@ export async function fetchBlob(path: string, init?: RequestInit): Promise<Blob>
   assertApiMode();
   assertWritableRequest(init);
 
-  const res = await fetchWithTimeout(buildApiUrl(path), await withApiHeaders(init));
+  const res = await fetchWithTimeout(buildApiUrl(path), await withApiHeaders(init), FETCH_STREAM_TIMEOUT_MS);
   if (!res.ok) {
     throw await toApiError(res);
   }

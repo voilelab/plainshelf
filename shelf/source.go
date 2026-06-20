@@ -67,22 +67,30 @@ func (r *Source) Open() (fs.File, error) {
 
 func (r *Source) UpdateContent(newContent io.Reader) error {
 	sourceDestPath := path.Join(r.folderPath, SourceFile)
-	destFile, err := r.root.OpenWriter(sourceDestPath)
+	tmpDestPath := sourceDestPath + ".tmp"
+
+	destFile, err := r.root.OpenWriter(tmpDestPath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	_, err = io.Copy(destFile, newContent)
-	if err != nil {
-		destFile.Close()
-		return util.Errorf("%w", err)
+	_, copyErr := io.Copy(destFile, newContent)
+	closeErr := destFile.Close()
+	if copyErr != nil {
+		_ = r.root.Remove(tmpDestPath)
+		return util.Errorf("%w", copyErr)
 	}
-	if err := destFile.Close(); err != nil {
+	if closeErr != nil {
+		_ = r.root.Remove(tmpDestPath)
+		return util.Errorf("%w", closeErr)
+	}
+
+	if err := r.root.Rename(tmpDestPath, sourceDestPath); err != nil {
+		_ = r.root.Remove(tmpDestPath)
 		return util.Errorf("%w", err)
 	}
 
-	err = r.refreshContentMetadata()
-	if err != nil {
+	if err := r.refreshContentMetadata(); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -185,16 +193,20 @@ func (r *Source) UpdateSplitConfig(config SplitConfig) error {
 
 func (r *Source) writebackMeta() error {
 	metaFilePath := path.Join(r.folderPath, SourceMetaFile)
-	metaFile, err := r.root.OpenWriter(metaFilePath)
+	tmpMetaPath := metaFilePath + ".tmp"
+
+	bs, err := json.MarshalIndent(r.meta, "", "  ")
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	defer metaFile.Close()
+	bs = append(bs, '\n')
 
-	encoder := json.NewEncoder(metaFile)
-	encoder.SetIndent("", "  ")
-	err = encoder.Encode(r.meta)
-	if err != nil {
+	if err := r.root.WriteFile(tmpMetaPath, bs); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	if err := r.root.Rename(tmpMetaPath, metaFilePath); err != nil {
+		_ = r.root.Remove(tmpMetaPath)
 		return util.Errorf("%w", err)
 	}
 
@@ -230,17 +242,27 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 	}
 
 	sourceDestPath := path.Join(sourcePath, SourceFile)
-	destFile, err := rt.OpenWriter(sourceDestPath)
+	tmpDestPath := sourceDestPath + ".tmp"
+	destFile, err := rt.OpenWriter(tmpDestPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	_, err = io.Copy(destFile, source)
-	if err != nil {
-		destFile.Close()
+	_, copyErr := io.Copy(destFile, source)
+	closeErr := destFile.Close()
+	if copyErr != nil {
+		_ = rt.Remove(tmpDestPath)
+		return nil, util.Errorf("%w", copyErr)
+	}
+	if closeErr != nil {
+		_ = rt.Remove(tmpDestPath)
+		return nil, util.Errorf("%w", closeErr)
+	}
+
+	if err := rt.Rename(tmpDestPath, sourceDestPath); err != nil {
+		_ = rt.Remove(tmpDestPath)
 		return nil, util.Errorf("%w", err)
 	}
-	destFile.Close()
 
 	// Read the written file once to compute all three metrics.
 	destFile1, err := rt.Open(sourceDestPath)
@@ -248,12 +270,12 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 		return nil, util.Errorf("%w", err)
 	}
 	sourceData, readErr := io.ReadAll(destFile1)
-	closeErr := destFile1.Close()
+	readCloseErr := destFile1.Close()
 	if readErr != nil {
 		return nil, util.Errorf("%w", readErr)
 	}
-	if closeErr != nil {
-		return nil, util.Errorf("%w", closeErr)
+	if readCloseErr != nil {
+		return nil, util.Errorf("%w", readCloseErr)
 	}
 
 	md5Hash, err := hashutil.MD5Hash(bytes.NewReader(sourceData))
@@ -284,16 +306,20 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 	}
 
 	metaFilePath := path.Join(sourcePath, SourceMetaFile)
-	metaFile, err := rt.OpenWriter(metaFilePath)
+	tmpMetaPath := metaFilePath + ".tmp"
+
+	bs, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer metaFile.Close()
+	bs = append(bs, '\n')
 
-	encoder := json.NewEncoder(metaFile)
-	encoder.SetIndent("", "  ")
-	err = encoder.Encode(meta)
-	if err != nil {
+	if err := rt.WriteFile(tmpMetaPath, bs); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	if err := rt.Rename(tmpMetaPath, metaFilePath); err != nil {
+		_ = rt.Remove(tmpMetaPath)
 		return nil, util.Errorf("%w", err)
 	}
 

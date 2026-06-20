@@ -1,6 +1,10 @@
 <template>
   <div>
     <div v-if="loading" class="loading">{{ shelfInitializing ? t('bookCollection.shelfInitializing') : t('bookCollection.loadingBooks') }}</div>
+    <div v-else-if="shelfUnreachable" class="error collection-error" role="alert">
+      <p>{{ t('bookCollection.shelfUnreachable') }}</p>
+      <button type="button" class="button" @click="emit('retry')">{{ t('common.retry') }}</button>
+    </div>
     <div v-else-if="error" class="error collection-error" role="alert">
       <p>{{ error }}</p>
       <button type="button" class="button" @click="emit('retry')">{{ t('common.retry') }}</button>
@@ -130,6 +134,7 @@ const props = withDefaults(defineProps<{
   books: Book[];
   loading?: boolean;
   shelfInitializing?: boolean;
+  shelfUnreachable?: boolean;
   error?: string;
   page: number;
   pageSize: number;
@@ -144,6 +149,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   loading: false,
   shelfInitializing: false,
+  shelfUnreachable: false,
   error: '',
   totalLabel: '',
   count: undefined,

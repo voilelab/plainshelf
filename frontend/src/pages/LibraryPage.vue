@@ -5,6 +5,7 @@
       :books="visibleBooks"
       :loading="loading"
       :shelf-initializing="shelfInitializing"
+      :shelf-unreachable="shelfUnreachable"
       :error="error"
       :page="page"
       :page-size="pageSize"
@@ -138,7 +139,7 @@ const ROOT_LAYER_LABEL = '/';
 const { t } = useI18n();
 
 const router = useRouter();
-const { books, loading, error, shelfInitializing, fetchBooks } = useBookStore();
+const { books, loading, error, shelfInitializing, shelfUnreachable, fetchBooks } = useBookStore();
 const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
 const {
   selectedLayer,

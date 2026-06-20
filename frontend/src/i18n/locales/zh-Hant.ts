@@ -197,6 +197,7 @@ const zhHant = {
   bookCollection: {
     loadingBooks: '載入書籍中...',
     shelfInitializing: '書架載入中，請稍候...',
+    shelfUnreachable: '書架回應逾時，可能無法連線（例如 SMB 掛載已中斷）。',
     booksCount: '{count} 本書',
     viewMode: {
       list: '列表',
