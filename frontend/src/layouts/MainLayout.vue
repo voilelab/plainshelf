@@ -16,7 +16,7 @@
       :loading="shelvesLoading"
       :error="shelvesError"
       @close="closeShelfModal"
-      @refresh="fetchShelves"
+      @refresh="refreshShelvesAndContent"
     />
     <RenameLayerModal
       :open="pendingRenameLayerPath.length > 0"
@@ -316,6 +316,28 @@ function openShelfModal(): void {
 
 function closeShelfModal(): void {
   showShelfModal.value = false;
+}
+
+async function refreshShelvesAndContent(): Promise<void> {
+  const previousShelfID = selectedShelfID.value;
+
+  await fetchShelves();
+
+  deleteLayerError.value = '';
+  layerOperationError.value = '';
+  moveBookError.value = '';
+  createLayerError.value = '';
+  createLayerSuccess.value = '';
+
+  if (!selectedShelfID.value) {
+    return;
+  }
+
+  await Promise.all([fetchLayers(), fetchBooks()]);
+
+  if (selectedShelfID.value !== previousShelfID) {
+    await router.push({ path: '/books', query: { page: '1' } });
+  }
 }
 
 function goToLayer(layer: string | undefined): void {
