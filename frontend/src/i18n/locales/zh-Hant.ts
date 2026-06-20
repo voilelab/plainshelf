@@ -124,9 +124,11 @@ const zhHant = {
       serverManaged: '書架由伺服器設定管理。',
       name: '名稱',
       directory: '目錄',
-      remove: '移除',
+      remove: '刪除',
       removing: '移除中...',
       removeFailed: '移除書架失敗',
+      removeShelfTitle: '刪除書架',
+      removeConfirmDescription: '此操作只會從 PlainShelf 中移除書架，不會刪除目錄。',
       addShelf: '新增書架',
       addShelfTitle: '建立書架',
       addShelfCloseLabel: '關閉建立書架對話框',
@@ -139,7 +141,7 @@ const zhHant = {
       addShelfFailed: '新增書架失敗',
       removeConfirm: '移除書架「{name}」？此操作只會從 PlainShelf 中移除，不會刪除目錄。',
       removeConfirmInline: '確定移除？',
-      removeConfirmYes: '是，移除'
+      removeConfirmYes: '刪除書架'
     }
   },
   adminLogs: {

@@ -125,9 +125,11 @@ const en = {
       serverManaged: 'Shelves are managed by the server configuration.',
       name: 'Name',
       directory: 'Directory',
-      remove: 'Remove',
+      remove: 'Delete',
       removing: 'Removing...',
       removeFailed: 'Failed to remove shelf',
+      removeShelfTitle: 'Delete shelf',
+      removeConfirmDescription: 'This only removes the shelf from PlainShelf; the directory will not be deleted.',
       addShelf: 'Add shelf',
       addShelfTitle: 'Create shelf',
       addShelfCloseLabel: 'Close create shelf dialog',
@@ -140,7 +142,7 @@ const en = {
       addShelfFailed: 'Failed to add shelf',
       removeConfirm: 'Remove shelf "{name}"? This only removes it from PlainShelf; the directory will not be deleted.',
       removeConfirmInline: 'Remove?',
-      removeConfirmYes: 'Yes, remove'
+      removeConfirmYes: 'Delete shelf'
     }
   },
   adminLogs: {
