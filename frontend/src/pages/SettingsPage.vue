@@ -1,5 +1,48 @@
 <template>
   <section class="settings-page">
+    <ConfirmModal
+      :open="showAddShelfModal"
+      :title="t('settings.shelves.addShelfTitle')"
+      :confirm-text="t('settings.shelves.addShelfSubmit')"
+      :cancel-text="t('common.cancel')"
+      :busy-text="t('settings.shelves.addShelfAdding')"
+      :busy="addingShelf"
+      :confirm-disabled="!canSubmitAddShelf"
+      :close-label="t('settings.shelves.addShelfCloseLabel')"
+      @cancel="closeAddShelfModal"
+      @confirm="onSubmitAddShelf"
+    >
+      <form class="shelf-add-form" @submit.prevent="onSubmitAddShelf">
+        <input
+          v-model="newShelfName"
+          class="shelf-add-input"
+          type="text"
+          :placeholder="t('settings.shelves.addShelfNamePlaceholder')"
+          :disabled="addingShelf"
+          autofocus
+        />
+        <div class="shelf-add-dir-row">
+          <input
+            v-model="newShelfDirectory"
+            class="shelf-add-input shelf-add-dir-input"
+            type="text"
+            :placeholder="t('settings.shelves.addShelfDirectoryPlaceholder')"
+            :disabled="addingShelf"
+          />
+          <button
+            type="button"
+            class="shelf-browse-btn"
+            :disabled="addingShelf"
+            @click="onBrowseShelfDirectory"
+          >
+            {{ t('settings.shelves.addShelfBrowse') }}
+          </button>
+        </div>
+        <p v-if="addShelfError" class="settings-message settings-message-error" role="alert">
+          {{ addShelfError }}
+        </p>
+      </form>
+    </ConfirmModal>
     <header class="settings-header">
       <div>
         <h2>{{ t('settings.title') }}</h2>
@@ -113,65 +156,23 @@
         </table>
       </template>
 
-      <template v-if="isDesktopEnv">
-        <div class="shelf-add-row">
-          <button
-            type="button"
-            class="shelf-add-toggle"
-            :disabled="addingShelf"
-            @click="toggleAddShelfForm"
-          >
-            {{ showAddShelfForm ? t('settings.shelves.addShelfCancel') : t('settings.shelves.addShelf') }}
-          </button>
-        </div>
-
-        <form v-if="showAddShelfForm" class="shelf-add-form" @submit.prevent="onSubmitAddShelf">
-          <div class="shelf-add-fields">
-            <input
-              v-model="newShelfName"
-              class="shelf-add-input"
-              type="text"
-              :placeholder="t('settings.shelves.addShelfNamePlaceholder')"
-              :disabled="addingShelf"
-            />
-            <div class="shelf-add-dir-row">
-              <input
-                v-model="newShelfDirectory"
-                class="shelf-add-input shelf-add-dir-input"
-                type="text"
-                :placeholder="t('settings.shelves.addShelfDirectoryPlaceholder')"
-                :disabled="addingShelf"
-              />
-              <button
-                type="button"
-                class="shelf-browse-btn"
-                :disabled="addingShelf"
-                @click="onBrowseShelfDirectory"
-              >
-                {{ t('settings.shelves.addShelfBrowse') }}
-              </button>
-            </div>
-          </div>
-          <div class="shelf-add-actions">
-            <button
-              type="submit"
-              class="create-layer-submit"
-              :disabled="addingShelf || !canSubmitAddShelf"
-            >
-              {{ addingShelf ? t('settings.shelves.addShelfAdding') : t('settings.shelves.addShelfSubmit') }}
-            </button>
-          </div>
-          <p v-if="addShelfError" class="settings-message settings-message-error" role="alert">
-            {{ addShelfError }}
-          </p>
-        </form>
-      </template>
+      <div v-if="isDesktopEnv" class="shelf-add-row">
+        <button
+          type="button"
+          class="shelf-add-toggle"
+          :disabled="addingShelf"
+          @click="openAddShelfModal"
+        >
+          {{ t('settings.shelves.addShelf') }}
+        </button>
+      </div>
     </section>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import ConfirmModal from '../components/ConfirmModal.vue';
 import {
   getCoverToJpgSetting,
   getReadHistoryLimitSetting,
@@ -195,7 +196,7 @@ const { shelves, loading: shelvesLoading, error: shelvesError, fetchShelves } = 
 const shelfOpError = ref('');
 const removingShelfIDs = ref<Set<string>>(new Set());
 const confirmingShelfID = ref('');
-const showAddShelfForm = ref(false);
+const showAddShelfModal = ref(false);
 const newShelfName = ref('');
 const newShelfDirectory = ref('');
 const addingShelf = ref(false);
@@ -306,13 +307,24 @@ async function onRemoveShelf(shelf: { id: string; name: string }): Promise<void>
   }
 }
 
-function toggleAddShelfForm(): void {
-  showAddShelfForm.value = !showAddShelfForm.value;
+function resetAddShelfForm(): void {
+  newShelfName.value = '';
+  newShelfDirectory.value = '';
   addShelfError.value = '';
-  if (!showAddShelfForm.value) {
-    newShelfName.value = '';
-    newShelfDirectory.value = '';
+}
+
+function openAddShelfModal(): void {
+  resetAddShelfForm();
+  showAddShelfModal.value = true;
+}
+
+function closeAddShelfModal(): void {
+  if (addingShelf.value) {
+    return;
   }
+
+  showAddShelfModal.value = false;
+  resetAddShelfForm();
 }
 
 async function onBrowseShelfDirectory(): Promise<void> {
@@ -340,9 +352,8 @@ async function onSubmitAddShelf(): Promise<void> {
     const provider = getBookshelfProvider();
     await provider.addDesktopShelf!(name, dir);
     await fetchShelves();
-    showAddShelfForm.value = false;
-    newShelfName.value = '';
-    newShelfDirectory.value = '';
+    showAddShelfModal.value = false;
+    resetAddShelfForm();
   } catch (err) {
     addShelfError.value = err instanceof Error ? err.message : t('settings.shelves.addShelfFailed');
   } finally {
