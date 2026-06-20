@@ -10,6 +10,14 @@
       @cancel="cancelPendingDeleteLayer"
       @confirm="confirmDeleteLayer"
     />
+    <ShelfManagementModal
+      :open="showShelfModal"
+      :shelves="shelves"
+      :loading="shelvesLoading"
+      :error="shelvesError"
+      @close="closeShelfModal"
+      @refresh="fetchShelves"
+    />
     <RenameLayerModal
       :open="pendingRenameLayerPath.length > 0"
       :current-name="pendingRenameLayerName"
@@ -47,6 +55,15 @@
             </select>
           </label>
           <p v-if="shelvesError" class="sidebar-error" role="alert">{{ shelvesError }}</p>
+          <button
+            v-if="isDesktopEnv"
+            type="button"
+            class="shelf-manage-btn"
+            :disabled="shelvesLoading"
+            @click="openShelfModal"
+          >
+            {{ t('layout.shelf.manageShelves') }}
+          </button>
         </section>
 
         <template v-if="hasActiveShelf">
@@ -213,7 +230,10 @@
         <section v-else class="no-shelf-panel" role="status">
           <h2>{{ t('layout.shelf.unavailableTitle') }}</h2>
           <p>{{ shelfUnavailableMessage }}</p>
-          <RouterLink to="/settings" class="button">{{ t('layout.settings') }}</RouterLink>
+          <button v-if="isDesktopEnv" type="button" class="button" :disabled="shelvesLoading" @click="openShelfModal">
+            {{ t('layout.shelf.addShelf') }}
+          </button>
+          <RouterLink v-else to="/settings" class="button">{{ t('layout.settings') }}</RouterLink>
         </section>
       </div>
     </main>
@@ -226,8 +246,9 @@ import { useRoute, useRouter } from 'vue-router';
 import DeleteModal from '../components/DeleteModal.vue';
 import LayerTree from '../components/LayerTree.vue';
 import RenameLayerModal from '../components/RenameLayerModal.vue';
+import ShelfManagementModal from '../components/ShelfManagementModal.vue';
 import SidebarNavIcon from '../components/SidebarNavIcon.vue';
-import { getBookshelfProvider } from '../providers';
+import { getBookshelfProvider, isWailsRuntime } from '../providers';
 import { createLayer, deleteLayer, moveLayer, renameLayer } from '../api/layers';
 import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
@@ -257,6 +278,7 @@ const renameLayerError = ref('');
 const renamingLayer = ref(false);
 const deletingLayerMap = ref<Record<string, boolean>>({});
 const pendingDeleteLayerPath = ref('');
+const showShelfModal = ref(false);
 const { locale, setLocale, supportedLocales, t } = useI18n();
 const { shelves, loading: shelvesLoading, loaded: shelvesLoaded, error: shelvesError, selectedShelfID, fetchShelves, selectShelf } = useShelvesStore();
 const { readOnly, fetchServerMode } = useServerMode();
@@ -281,11 +303,20 @@ const pendingRenameLayerName = computed(() => {
 });
 const isRenamingPendingLayer = computed(() => pendingRenameLayerPath.value.length > 0 && renamingLayer.value);
 const hasActiveShelf = computed(() => shelvesLoaded.value && selectedShelfID.value.length > 0);
+const isDesktopEnv = computed(() => isWailsRuntime());
 const isSettingsRoute = computed(() => route.name === 'settings');
 const canShowRouteContent = computed(() => isSettingsRoute.value || hasActiveShelf.value);
 const shelfUnavailableMessage = computed(() =>
   shelvesLoading.value ? t('layout.shelf.loading') : t('layout.shelf.unavailableDescription')
 );
+
+function openShelfModal(): void {
+  showShelfModal.value = true;
+}
+
+function closeShelfModal(): void {
+  showShelfModal.value = false;
+}
 
 function goToLayer(layer: string | undefined): void {
   const query: Record<string, string> = { page: '1' };
@@ -876,6 +907,22 @@ onMounted(async () => {
   display: flex;
   gap: 8px;
   padding: 4px 8px;
+}
+
+.shelf-manage-btn {
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px 0;
+  text-align: left;
+}
+
+.shelf-manage-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .sidebar-shelf-select {

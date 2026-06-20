@@ -79,6 +79,7 @@ const en = {
       unavailableTitle: 'No shelf selected',
       unavailableDescription: 'Configure at least one shelf to browse and read books.',
       addShelf: 'Add shelf',
+      manageShelves: 'Manage shelves',
       addShelfCancel: 'Cancel',
       addShelfNamePlaceholder: 'Shelf name',
       addShelfDirectoryPlaceholder: 'Directory',
@@ -95,6 +96,13 @@ const en = {
       banner: 'Read-only mode is enabled. Browsing and reading are available, but write operations are disabled.',
       writeDisabled: 'Server is in read-only mode. Write operations are disabled.'
     }
+  },
+  shelfModal: {
+    title: 'Manage shelves',
+    description: 'Add or remove desktop shelves without leaving your current view.',
+    listLabel: 'Shelf list',
+    createTitle: 'Create a shelf',
+    closeLabel: 'Close shelf management dialog'
   },
   settings: {
     title: 'Settings',
@@ -127,6 +135,7 @@ const en = {
       removing: 'Removing...',
       removeFailed: 'Failed to remove shelf',
       addShelf: 'Add shelf',
+      manageShelves: 'Manage shelves',
       addShelfCancel: 'Cancel',
       addShelfNamePlaceholder: 'Shelf name',
       addShelfDirectoryPlaceholder: 'Directory path',

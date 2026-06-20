@@ -78,6 +78,7 @@ const zhHant = {
       unavailableTitle: '尚未選擇書架',
       unavailableDescription: '請先設定至少一個書架，才能瀏覽與閱讀書籍。',
       addShelf: '新增書架',
+      manageShelves: '管理書架',
       addShelfCancel: '取消',
       addShelfNamePlaceholder: '書架名稱',
       addShelfDirectoryPlaceholder: '目錄',
@@ -94,6 +95,13 @@ const zhHant = {
       banner: '唯讀模式已啟用。仍可瀏覽與閱讀，但寫入操作已停用。',
       writeDisabled: '伺服器目前為唯讀模式，寫入操作已停用。'
     }
+  },
+  shelfModal: {
+    title: '管理書架',
+    description: '不用離開目前畫面即可新增或移除桌面書架。',
+    listLabel: '書架清單',
+    createTitle: '建立書架',
+    closeLabel: '關閉書架管理對話框'
   },
   settings: {
     title: '設定',
@@ -126,6 +134,7 @@ const zhHant = {
       removing: '移除中...',
       removeFailed: '移除書架失敗',
       addShelf: '新增書架',
+      manageShelves: '管理書架',
       addShelfCancel: '取消',
       addShelfNamePlaceholder: '書架名稱',
       addShelfDirectoryPlaceholder: '目錄路徑',
