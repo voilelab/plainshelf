@@ -66,6 +66,6 @@ export interface BookshelfProvider {
   importBooksFromLocalPaths?(localPaths: string[], layerPath: string): Promise<DesktopImportBookResult[] | null>;
 
   openDesktopShelfDirectory?(): Promise<string | null>;
-  addDesktopShelf?(name: string, libRoot: string): Promise<void>;
+  addDesktopShelf?(name: string, libRoot: string, scanInterval: string): Promise<void>;
   removeDesktopShelf?(shelfID: string): Promise<void>;
 }

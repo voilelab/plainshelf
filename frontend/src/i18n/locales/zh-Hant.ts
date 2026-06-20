@@ -135,6 +135,8 @@ const zhHant = {
       addShelfCancel: '取消',
       addShelfNamePlaceholder: '書架名稱',
       addShelfDirectoryPlaceholder: '目錄路徑',
+      addShelfScanIntervalPlaceholder: '掃描間隔（選填，例如 10m）',
+      addShelfScanIntervalHelp: '留空會使用預設的 1 分鐘掃描間隔。',
       addShelfBrowse: '瀏覽…',
       addShelfSubmit: '新增書架',
       addShelfAdding: '新增中...',

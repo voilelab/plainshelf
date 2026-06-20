@@ -52,6 +52,14 @@
             {{ t('settings.shelves.addShelfBrowse') }}
           </button>
         </div>
+        <input
+          v-model="newShelfScanInterval"
+          class="shelf-add-input"
+          type="text"
+          :placeholder="t('settings.shelves.addShelfScanIntervalPlaceholder')"
+          :disabled="addingShelf"
+        />
+        <p class="shelf-add-help">{{ t('settings.shelves.addShelfScanIntervalHelp') }}</p>
         <p v-if="addShelfError" class="settings-message settings-message-error" role="alert">
           {{ addShelfError }}
         </p>
@@ -196,6 +204,7 @@ const shelfRemoveModalError = ref('');
 const showAddShelfModal = ref(false);
 const newShelfName = ref('');
 const newShelfDirectory = ref('');
+const newShelfScanInterval = ref('');
 const addingShelf = ref(false);
 const addShelfError = ref('');
 const canSubmitAddShelf = computed(
@@ -332,6 +341,7 @@ async function confirmRemoveShelf(): Promise<void> {
 function resetAddShelfForm(): void {
   newShelfName.value = '';
   newShelfDirectory.value = '';
+  newShelfScanInterval.value = '';
   addShelfError.value = '';
 }
 
@@ -363,6 +373,7 @@ async function onBrowseShelfDirectory(): Promise<void> {
 async function onSubmitAddShelf(): Promise<void> {
   const name = newShelfName.value.trim();
   const dir = newShelfDirectory.value.trim();
+  const scanInterval = newShelfScanInterval.value.trim();
   if (!name || !dir) {
     return;
   }
@@ -372,7 +383,7 @@ async function onSubmitAddShelf(): Promise<void> {
 
   try {
     const provider = getBookshelfProvider();
-    await provider.addDesktopShelf!(name, dir);
+    await provider.addDesktopShelf!(name, dir, scanInterval);
     await fetchShelves();
     showAddShelfModal.value = false;
     resetAddShelfForm();
@@ -565,6 +576,12 @@ onMounted(() => {
 
 .shelf-add-input:disabled {
   cursor: not-allowed;
+}
+
+.shelf-add-help {
+  color: #64748b;
+  font-size: 12px;
+  margin: -2px 0 0;
 }
 
 .shelf-add-dir-row {

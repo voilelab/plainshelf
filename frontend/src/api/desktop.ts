@@ -15,7 +15,7 @@ interface DesktopAppBinding {
     layerParts: string[]
   ) => Promise<DesktopImportBookResult[]>;
   OpenShelfDirectory?: () => Promise<string>;
-  AddShelf?: (name: string, libRoot: string) => Promise<void>;
+  AddShelf?: (name: string, libRoot: string, scanInterval: string) => Promise<void>;
   RemoveShelf?: (shelfID: string) => Promise<void>;
 }
 
@@ -70,13 +70,13 @@ export async function openDesktopShelfDirectory(): Promise<string | null> {
   return dir || null;
 }
 
-export async function addDesktopShelf(name: string, libRoot: string): Promise<void> {
+export async function addDesktopShelf(name: string, libRoot: string, scanInterval: string): Promise<void> {
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
   if (!desktopApp?.AddShelf) {
     throw new Error('AddShelf binding not available');
   }
 
-  await desktopApp.AddShelf(name, libRoot);
+  await desktopApp.AddShelf(name, libRoot, scanInterval);
 }
 
 export async function removeDesktopShelf(shelfID: string): Promise<void> {

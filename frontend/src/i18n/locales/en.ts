@@ -136,6 +136,8 @@ const en = {
       addShelfCancel: 'Cancel',
       addShelfNamePlaceholder: 'Shelf name',
       addShelfDirectoryPlaceholder: 'Directory path',
+      addShelfScanIntervalPlaceholder: 'Scan interval (optional, e.g. 10m)',
+      addShelfScanIntervalHelp: 'Leave blank to use the default 1 minute scan interval.',
       addShelfBrowse: 'Browse...',
       addShelfSubmit: 'Add shelf',
       addShelfAdding: 'Adding...',

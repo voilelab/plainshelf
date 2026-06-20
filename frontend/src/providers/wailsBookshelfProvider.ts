@@ -24,8 +24,8 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
     return openDesktopShelfDirectory();
   }
 
-  addDesktopShelf(name: string, libRoot: string): Promise<void> {
-    return addDesktopShelf(name, libRoot);
+  addDesktopShelf(name: string, libRoot: string, scanInterval: string): Promise<void> {
+    return addDesktopShelf(name, libRoot, scanInterval);
   }
 
   removeDesktopShelf(shelfID: string): Promise<void> {
