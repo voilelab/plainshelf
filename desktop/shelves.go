@@ -12,9 +12,10 @@ import (
 )
 
 type desktopShelfEntry struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	LibRoot string `json:"lib_root"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	LibRoot      string `json:"lib_root"`
+	ScanInterval string `json:"scan_interval,omitempty"`
 }
 
 const (
@@ -86,7 +87,8 @@ func toShelfConfWithID(entry desktopShelfEntry) shelf.ShelfConfWithID {
 		ID:   entry.ID,
 		Name: entry.Name,
 		ShelfConf: shelf.ShelfConf{
-			LibRoot: entry.LibRoot,
+			LibRoot:      entry.LibRoot,
+			ScanInterval: entry.ScanInterval,
 		},
 	}
 }

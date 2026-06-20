@@ -59,7 +59,7 @@ func TestSaveAndLoadDesktopShelves(t *testing.T) {
 	}
 
 	conf.Shelves = []desktopShelfEntry{
-		{ID: "my-books", Name: "My Books", LibRoot: "/home/user/books"},
+		{ID: "my-books", Name: "My Books", LibRoot: "/home/user/books", ScanInterval: "10m"},
 		{ID: "work", Name: "Work", LibRoot: "/home/user/work"},
 	}
 	if err := saveDesktopShelves(configPath, conf); err != nil {
@@ -73,7 +73,7 @@ func TestSaveAndLoadDesktopShelves(t *testing.T) {
 	if len(loaded.Shelves) != 2 {
 		t.Fatalf("expected 2 shelves, got %d", len(loaded.Shelves))
 	}
-	if loaded.Shelves[0].ID != "my-books" || loaded.Shelves[0].Name != "My Books" || loaded.Shelves[0].LibRoot != "/home/user/books" {
+	if loaded.Shelves[0].ID != "my-books" || loaded.Shelves[0].Name != "My Books" || loaded.Shelves[0].LibRoot != "/home/user/books" || loaded.Shelves[0].ScanInterval != "10m" {
 		t.Fatalf("unexpected first shelf: %+v", loaded.Shelves[0])
 	}
 	if loaded.Shelves[1].ID != "work" {
@@ -87,6 +87,20 @@ func TestSaveAndLoadDesktopShelves(t *testing.T) {
 	}
 	if perm := info.Mode().Perm(); perm != 0o600 {
 		t.Fatalf("config file permissions = %o, want 0600", perm)
+	}
+}
+
+func TestDesktopShelfEntryIncludesScanInterval(t *testing.T) {
+	entry := desktopShelfEntry{
+		ID:           "network-books",
+		Name:         "Network Books",
+		LibRoot:      "/mnt/books",
+		ScanInterval: "10m",
+	}
+
+	conf := toShelfConfWithID(entry)
+	if conf.ScanInterval != "10m" {
+		t.Fatalf("scan interval = %q, want %q", conf.ScanInterval, "10m")
 	}
 }
 
@@ -159,7 +173,7 @@ func TestAddShelfDoesNotPersistWhenRegistrationFails(t *testing.T) {
 	defer serverApp.Close()
 
 	desktopApp := &DesktopApp{app: serverApp, shelvesConfigPath: configPath}
-	if err := desktopApp.AddShelf("Broken Shelf", badShelfPath); err == nil {
+	if err := desktopApp.AddShelf("Broken Shelf", badShelfPath, "10m"); err == nil {
 		t.Fatal("AddShelf with regular file path: want error, got nil")
 	}
 

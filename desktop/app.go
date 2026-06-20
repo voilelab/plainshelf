@@ -167,7 +167,7 @@ func (a *DesktopApp) OpenShelfDirectory() (string, error) {
 	return dir, nil
 }
 
-func (a *DesktopApp) AddShelf(name, libRoot string) error {
+func (a *DesktopApp) AddShelf(name, libRoot, scanInterval string) error {
 	if a.app == nil {
 		return util.NewError("desktop backend app instance is nil")
 	}
@@ -182,6 +182,8 @@ func (a *DesktopApp) AddShelf(name, libRoot string) error {
 		return util.Errorf("%w", err)
 	}
 
+	scanInterval = strings.TrimSpace(scanInterval)
+
 	conf, err := loadDesktopShelves(a.shelvesConfigPath)
 	if err != nil {
 		return util.Errorf("loading shelf config: %w", err)
@@ -195,9 +197,10 @@ func (a *DesktopApp) AddShelf(name, libRoot string) error {
 	id := generateDesktopShelfID(name, existingIDs)
 
 	entry := desktopShelfEntry{
-		ID:      id,
-		Name:    name,
-		LibRoot: normalizedLibRoot,
+		ID:           id,
+		Name:         name,
+		LibRoot:      normalizedLibRoot,
+		ScanInterval: scanInterval,
 	}
 
 	err = a.app.AddShelf(toShelfConfWithID(entry))
