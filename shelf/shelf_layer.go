@@ -12,7 +12,9 @@ import (
 
 // GetAllLayers returns a sorted list of all unique layers present in the library.
 func (s *Shelf) GetAllLayers() ([]Layers, error) {
-	s.rlock()
+	if err := s.rlock(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
 	defer s.unlock()
 
 	var layers []Layers
@@ -90,7 +92,9 @@ func (s *Shelf) NewLayer(layer Layers) error {
 		return util.Errorf("%w", err)
 	}
 
-	s.lock()
+	if err := s.lock(); err != nil {
+		return util.Errorf("%w", err)
+	}
 	defer s.unlock()
 
 	layerPath := path.Join(booksFolder, path.Join(layer...))
@@ -108,7 +112,9 @@ func (s *Shelf) DeleteLayer(layer Layers) error {
 		return util.Errorf("%w", err)
 	}
 
-	s.lock()
+	if err := s.lock(); err != nil {
+		return util.Errorf("%w", err)
+	}
 	defer s.unlock()
 
 	layerPath := path.Join(booksFolder, path.Join(layer...))
@@ -139,7 +145,9 @@ func (s *Shelf) RenameLayer(oldLayer Layers, newLayer Layers) error {
 		return util.Errorf("invalid new layer: %w", err)
 	}
 
-	s.lock()
+	if err := s.lock(); err != nil {
+		return util.Errorf("%w", err)
+	}
 	defer s.unlock()
 
 	if len(oldLayer) == 0 || len(newLayer) == 0 {
@@ -197,7 +205,9 @@ func (s *Shelf) MoveLayer(layer Layers, targetParent Layers) error {
 		return util.Errorf("cannot move root layer")
 	}
 
-	s.lock()
+	if err := s.lock(); err != nil {
+		return util.Errorf("%w", err)
+	}
 	defer s.unlock()
 
 	oldLayerPath := path.Join(booksFolder, path.Join(layer...))
