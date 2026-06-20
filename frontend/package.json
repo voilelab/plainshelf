@@ -2,11 +2,13 @@
   "name": "plainshelf",
   "version": "0.1.0",
   "private": true,
+  "license": "BSD-3-Clause",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check-licenses": "license-checker --production --excludePrivatePackages --failOn \"UNLICENSED;UNKNOWN\""
   },
   "dependencies": {
     "vue": "^3.5.12",
@@ -14,9 +16,10 @@
   },
   "devDependencies": {
     "@types/node": "^22.7.5",
-    "@vitejs/plugin-vue": "^5.1.4",
+    "@vitejs/plugin-vue": "^6.0.7",
+    "license-checker": "^25.0.1",
     "typescript": "^5.6.2",
-    "vite": "^5.4.8",
+    "vite": "^8.0.16",
     "vue-tsc": "^2.1.6"
   }
 }

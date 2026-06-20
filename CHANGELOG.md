@@ -9,6 +9,48 @@ and UI behavior may still change between releases.
 
 ### Added
 
+- Added drag-layer visual preview when repositioning layers via drag-and-drop.
+- Added `SetCurrentSource` API endpoint and "Set as current" button in the book source editor.
+- Added log-file listing and access API endpoints and a frontend admin log viewer with date-picker navigation.
+- Added multi-shelf support: API endpoints are now shelf-scoped, with a new `GET /api/shelves` endpoint to list configured shelves.
+- Added frontend shelf selector with live switching across configured shelves.
+- Added duplicate-page delete action.
+- Added drag-and-drop upload for book covers.
+- Added `cover_to_jpg` conversion setting with API endpoints and a frontend settings page toggle.
+- Added ASCII input support in the UTF-8 re-encoding path.
+- Added configurable read history limit with API endpoints and a settings page control.
+- Added layer rename and move support via API and frontend UI, including a dedicated rename modal.
+- Added desktop shelf management: add new shelves and remove existing shelves from the settings page.
+- Added book star ratings to the book detail and edit views.
+- Added read-only server mode with write controls disabled in the frontend.
+
+### Changed
+
+- Changed book package directory extension from `.novl` to `.bookpkg`.
+- Changed frontend license from ISC to BSD-3-Clause.
+- Moved shelf selector from the top bar to the top of the left sidebar, above the layer tree.
+
+### Fixed
+
+- Fixed HTTP status code for book and log content stream responses in desktop mode.
+- Fixed book cover upload to infer MIME type from filename extension when not supplied.
+- Fixed desktop local import to route through the active shelf.
+- Fixed empty active shelf fallback on startup.
+- Fixed shelf routes being accessible before shelf data is fully loaded.
+- Fixed line counter to handle long lines correctly.
+- Fixed desktop shelf loading to retry on failure.
+- Fixed desktop shelf persistence migration.
+- Fixed book source metadata not refreshing after content update.
+
+### Removed
+
+- Removed single-shelf configuration; shelves are now managed exclusively through the multi-shelf configuration.
+- Removed obsolete snapshot-to-source migration tool.
+
+## [v0.5.0] - 2026-05-29
+
+### Added
+
 - Added shelf cache refresh controls and stale-book cache handling improvements.
 - Added MkDocs-based project documentation and known-issues pages.
 - Added a canvas-based simple book-cover generator in the frontend.

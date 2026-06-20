@@ -16,22 +16,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { isMockApiMode } from './api/client';
+import { isWailsRuntime } from './providers';
 import { useI18n } from './i18n';
 
 const { t } = useI18n();
 const showMockModeBadge = computed(() => isMockApiMode());
-const showDesktopHistoryControls = computed(() => {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
-  const params = new URLSearchParams(window.location.search);
-  return (
-    window.location.protocol === 'wails:' ||
-    window.location.host.endsWith('.wails.localhost') ||
-    params.get('desktop-shell-preview') === '1'
-  );
-});
+const showDesktopHistoryControls = computed(() => isWailsRuntime());
 
 function goToPreviousPage(): void {
   window.history.back();
@@ -46,7 +36,7 @@ function goToNextPage(): void {
 .desktop-history-controls {
   position: fixed;
   top: 4px;
-  right: 200px;
+  left: 400px;
   z-index: 1000;
   display: inline-flex;
   gap: 8px;

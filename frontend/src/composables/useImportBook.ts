@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { importBook } from '../api/books';
+import { getBookshelfProvider } from '../providers';
 import { deriveTitleFromFilename, hasSupportedExtension } from '../utils/file';
 import { normalizeLayerPath } from '../utils/layers';
 
@@ -110,7 +110,7 @@ export function useImportBook() {
         };
 
         try {
-          const created = await importBook({
+          const created = await getBookshelfProvider().importBook({
             title: current.title,
             layer: normalizeImportLayerPath(currentLayerPath),
             file: current.file

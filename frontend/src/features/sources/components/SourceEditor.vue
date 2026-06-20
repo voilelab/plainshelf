@@ -5,6 +5,17 @@
       <p v-else-if="!sourceId" class="meta">Select a source to start editing.</p>
       <p v-else-if="dirty" class="meta dirty">Unsaved changes</p>
       <p v-else class="meta">No pending changes</p>
+      <span v-if="sourceId && !loading" class="status-spacer"></span>
+      <span v-if="sourceId && !loading && isCurrent" class="current-badge">Current</span>
+      <button
+        v-if="sourceId && !loading && !isCurrent"
+        class="button set-current-btn"
+        type="button"
+        :disabled="settingCurrent"
+        @click="$emit('setCurrent')"
+      >
+        {{ settingCurrent ? 'Setting...' : 'Set as current' }}
+      </button>
     </div>
 
     <div class="editor-find-replace" role="group" aria-label="Find and replace">
@@ -67,10 +78,13 @@ const props = defineProps<{
   saving?: boolean;
   dirty?: boolean;
   error?: string;
+  isCurrent?: boolean;
+  settingCurrent?: boolean;
 }>();
 
 const emit = defineEmits<{
   'update:modelValue': [value: string];
+  setCurrent: [];
 }>();
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
@@ -201,6 +215,25 @@ function replaceAll(): void {
 
 .source-editor-status .dirty {
   color: #9a3412;
+}
+
+.status-spacer {
+  flex: 1;
+}
+
+.current-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+
+.set-current-btn {
+  font-size: 12px;
+  padding: 3px 10px;
 }
 
 .source-content-textarea {

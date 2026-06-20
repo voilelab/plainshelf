@@ -1,5 +1,6 @@
 import { getBook, listBooks, mockBooks } from './books';
-import { fetchJson, isMockApiMode } from './client';
+import { getReadHistoryLimitSetting } from './settings';
+import { buildShelfApiPath, fetchJson, isMockApiMode } from './client';
 import type { Book } from '../types/book';
 
 let mockReadHistory = mockBooks.slice(0, 3).map((book) => book.id);
@@ -12,10 +13,11 @@ function delay<T>(value: T, ms = 240): Promise<T> {
 
 export async function getReadHistoryIDs(): Promise<string[]> {
   if (isMockApiMode()) {
-    return delay([...mockReadHistory]);
+    const limit = await getReadHistoryLimitSetting();
+    return delay(mockReadHistory.slice(0, limit));
   }
 
-  return await fetchJson<string[]>('/api/read_history');
+  return await fetchJson<string[]>(buildShelfApiPath('/read_history'));
 }
 
 export async function addReadHistory(bookID: string): Promise<void> {
@@ -25,12 +27,13 @@ export async function addReadHistory(bookID: string): Promise<void> {
   }
 
   if (isMockApiMode()) {
-    mockReadHistory = [trimmed, ...mockReadHistory.filter((id) => id !== trimmed)];
+    const limit = await getReadHistoryLimitSetting();
+    mockReadHistory = [trimmed, ...mockReadHistory.filter((id) => id !== trimmed)].slice(0, limit);
     await delay(undefined);
     return;
   }
 
-  await fetchJson<void>(`/api/read_history?book_id=${encodeURIComponent(trimmed)}`, {
+  await fetchJson<void>(`${buildShelfApiPath('/read_history')}?book_id=${encodeURIComponent(trimmed)}`, {
     method: 'POST'
   });
 }
@@ -42,7 +45,7 @@ export async function clearReadHistory(): Promise<void> {
     return;
   }
 
-  await fetchJson<void>('/api/read_history', {
+  await fetchJson<void>(buildShelfApiPath('/read_history'), {
     method: 'DELETE'
   });
 }

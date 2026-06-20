@@ -57,7 +57,6 @@ server/             # local HTTP server implementation
 frontend/           # Vue web frontend
 internal/           # internal shared utilities
 desktop/            # experimental Wails desktop client
-migration/          # shelf data migrations
 ```
 
 The current primary development focus is:
@@ -77,12 +76,12 @@ A typical vault may look like this:
 ```text
 {shelf}/
 ├─ books/
-│  ├─ {book1-folder}.novl/
+│  ├─ {book1-folder}.bookpkg/
 │  ├─ {layer1}/
-│  │  └─ {book2-folder}.novl/
+│  │  └─ {book2-folder}.bookpkg/
 │  └─ {layer2}/
 │     └─ {layer3}/
-│        └─ {book3-folder}.novl/
+│        └─ {book3-folder}.bookpkg/
 └─ app/
    ├─ library.lock
    └─ tmp/
@@ -96,7 +95,7 @@ This contains user-owned data such as book metadata,
 text files, covers, notes, and other long-lived files.
 
 ```text
-{book-folder}.novl/
+{book-folder}.bookpkg/
 ├─ book.json
 ├─ CURRENT_VERSION_LOCATION.txt
 ├─ cover.(jpg|png|webp)
@@ -140,7 +139,7 @@ cd workspace
 go run ../cmd/plainshelf-srv/main.go -conf config.yaml
 ```
 
-The default development config listens on `127.0.0.1:20000`, stores shelf and mark data under the current working directory, and enables `local_token` security for mutating `/api` requests. The server generates an ephemeral token at startup, injects it into the served frontend, and accepts it via `X-PlainShelf-Token` or `Authorization: Bearer <token>`.
+The default development config listens on `127.0.0.1:20000`, stores shelf data and application store data under the current working directory, and enables `local_token` security for mutating `/api` requests. The server generates an ephemeral token at startup, injects it into the served frontend, and accepts it via `X-PlainShelf-Token` or `Authorization: Bearer <token>`.
 
 ### Run server with Docker
 

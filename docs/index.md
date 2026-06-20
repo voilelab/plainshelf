@@ -56,7 +56,6 @@ server/             # local HTTP server implementation
 frontend/           # Vue web frontend
 internal/           # internal shared utilities
 desktop/            # experimental Wails desktop client
-migration/          # shelf data migrations
 ```
 
 The current primary development focus is `shelf`, `server`, and `frontend`.

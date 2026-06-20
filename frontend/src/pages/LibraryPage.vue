@@ -87,7 +87,7 @@
             {{ sortOrder === 'asc' ? t('library.order.asc') : t('library.order.desc') }}
           </button>
         </div>
-        <div class="import-dropdown" ref="importDropdown">
+        <div v-if="!readOnly" class="import-dropdown" ref="importDropdown">
           <button class="button" type="button" @click="toggleImportDropdown">{{ t('library.import') }}</button>
           <div v-if="showImportDropdown" class="import-dropdown-menu">
             <button class="import-dropdown-item" type="button" @click="openImportFromFiles">{{ t('library.importFromFiles') }}</button>
@@ -126,10 +126,11 @@ import { useBookPagination } from '../composables/useBookPagination';
 import { useBooksRouteQuery } from '../composables/useBooksRouteQuery';
 import { useBooksSearch } from '../composables/useBooksSearch';
 import { useBooksSort, type BookSortKey, type SortOrder } from '../composables/useBooksSort';
+import { useServerMode } from '../composables/useServerMode';
 import { hasFileTransfer, readDroppedFiles } from '../utils/file';
 import { getLayerPath, layerPathEquals, normalizeLayerPath } from '../utils/layers';
 import { useI18n } from '../i18n';
-import { importDesktopBooksFromLocalPaths, openDesktopBookFiles } from '../api/desktop';
+import { getBookshelfProvider } from '../providers';
 import '../styles/toolbar-controls.css';
 
 const ROOT_LAYER_LABEL = '/';
@@ -162,6 +163,7 @@ const booksLoaded = ref<boolean>(false);
 const showImportDropdown = ref(false);
 const isNewEmptyBookModalOpen = ref(false);
 const importDropdown = ref<HTMLElement | null>(null);
+const { readOnly } = useServerMode();
 const hasInitializedSearch = ref(false);
 const droppedFiles = ref<File[]>([]);
 
@@ -326,12 +328,15 @@ function toggleOrder(): void {
 }
 
 async function openImportFromFiles(): Promise<void> {
+  if (readOnly.value) {
+    return;
+  }
   showImportDropdown.value = false;
   droppedFiles.value = [];
 
   let desktopFiles: string[] | null = null;
   try {
-    desktopFiles = await openDesktopBookFiles();
+    desktopFiles = await getBookshelfProvider().openLocalBookFiles?.() ?? null;
   } catch {
     desktopFiles = null;
   }
@@ -342,7 +347,7 @@ async function openImportFromFiles(): Promise<void> {
     }
 
     try {
-      const importResult = await importDesktopBooksFromLocalPaths(desktopFiles, selectedLayer.value ?? '');
+      const importResult = await getBookshelfProvider().importBooksFromLocalPaths?.(desktopFiles, selectedLayer.value ?? '') ?? null;
       if (importResult) {
         const hasImportedBook = importResult.some((item) => item.id !== undefined && item.id !== '');
         const hasFailedBook = importResult.some((item) => Boolean(item.error));
@@ -366,6 +371,9 @@ async function openImportFromFiles(): Promise<void> {
 }
 
 function openNewEmptyBookModal(): void {
+  if (readOnly.value) {
+    return;
+  }
   showImportDropdown.value = false;
   isNewEmptyBookModalOpen.value = true;
 }
@@ -375,6 +383,9 @@ function closeNewEmptyBookModal(): void {
 }
 
 function toggleImportDropdown(): void {
+  if (readOnly.value) {
+    return;
+  }
   showImportDropdown.value = !showImportDropdown.value;
 }
 
@@ -390,6 +401,9 @@ function onDocumentClick(event: MouseEvent): void {
 }
 
 function onDocumentDragOver(event: DragEvent): void {
+  if (readOnly.value) {
+    return;
+  }
   if (!hasFileTransfer(event.dataTransfer)) {
     return;
   }
@@ -401,6 +415,9 @@ function onDocumentDragOver(event: DragEvent): void {
 }
 
 function onDocumentDrop(event: DragEvent): void {
+  if (readOnly.value) {
+    return;
+  }
   if (!hasFileTransfer(event.dataTransfer)) {
     return;
   }

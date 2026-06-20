@@ -1,5 +1,11 @@
 export type BookFormat = string;
 export type BookTimestamp = string;
+export type DownloadState =
+  | 'not_downloaded'
+  | 'downloaded'
+  | 'update_available'
+  | 'downloading'
+  | 'failed';
 
 export interface Book {
   id: string;
@@ -16,6 +22,15 @@ export interface Book {
   updated_at?: BookTimestamp;
   published_at?: BookTimestamp;
   current_source?: string;
+  star?: number;
+
+  // Mobile/offline cache metadata. These fields are optional so existing
+  // server and Wails responses remain valid when they do not include local
+  // download information.
+  download_state?: DownloadState;
+  local_version?: string;
+  remote_version?: string;
+  downloaded_at?: BookTimestamp;
 }
 
 export interface TrashedBook {
@@ -69,6 +84,7 @@ export interface BookUpdateRequest {
   language?: string;
   comment?: string;
   published_at?: string;
+  star?: number;
 }
 
 export interface BookCreateRequest {

@@ -1,3 +1,6 @@
+import { getActiveShelfID } from './client';
+import { isWailsRuntime } from '../providers/runtime';
+
 interface DesktopImportBookResult {
   path?: string;
   id?: string;
@@ -7,9 +10,13 @@ interface DesktopImportBookResult {
 interface DesktopAppBinding {
   OpenBookFiles?: () => Promise<string[]>;
   ImportBooksFromLocalPaths?: (
+    shelfID: string,
     localPaths: string[],
     layerParts: string[]
   ) => Promise<DesktopImportBookResult[]>;
+  OpenShelfDirectory?: () => Promise<string>;
+  AddShelf?: (name: string, libRoot: string) => Promise<void>;
+  RemoveShelf?: (shelfID: string) => Promise<void>;
 }
 
 interface DesktopWindow extends Window {
@@ -21,16 +28,7 @@ interface DesktopWindow extends Window {
 }
 
 export function isDesktopRuntime(): boolean {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
-  const params = new URLSearchParams(window.location.search);
-  return (
-    window.location.protocol === 'wails:' ||
-    window.location.host.endsWith('.wails.localhost') ||
-    params.get('desktop-shell-preview') === '1'
-  );
+  return isWailsRuntime();
 }
 
 export async function openDesktopBookFiles(): Promise<string[] | null> {
@@ -58,6 +56,38 @@ function normalizeLayerParts(layerPath: string): string[] {
     .filter((part) => part.length > 0);
 }
 
+export async function openDesktopShelfDirectory(): Promise<string | null> {
+  if (!isDesktopRuntime()) {
+    return null;
+  }
+
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.OpenShelfDirectory) {
+    return null;
+  }
+
+  const dir = await desktopApp.OpenShelfDirectory();
+  return dir || null;
+}
+
+export async function addDesktopShelf(name: string, libRoot: string): Promise<void> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.AddShelf) {
+    throw new Error('AddShelf binding not available');
+  }
+
+  await desktopApp.AddShelf(name, libRoot);
+}
+
+export async function removeDesktopShelf(shelfID: string): Promise<void> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.RemoveShelf) {
+    throw new Error('RemoveShelf binding not available');
+  }
+
+  await desktopApp.RemoveShelf(shelfID);
+}
+
 export async function importDesktopBooksFromLocalPaths(
   localPaths: string[],
   layerPath: string
@@ -71,5 +101,9 @@ export async function importDesktopBooksFromLocalPaths(
     return null;
   }
 
-  return desktopApp.ImportBooksFromLocalPaths(localPaths, normalizeLayerParts(layerPath));
+  return desktopApp.ImportBooksFromLocalPaths(
+    getActiveShelfID(),
+    localPaths,
+    normalizeLayerParts(layerPath)
+  );
 }

@@ -7,7 +7,7 @@ import (
 
 func TestGetReadHistory_NotFound(t *testing.T) {
 	db := newTestDB(t)
-	history, err := db.GetReadHistory()
+	history, err := db.GetReadHistory("/nonexistent")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -18,11 +18,13 @@ func TestGetReadHistory_NotFound(t *testing.T) {
 
 func TestSetReadHistory(t *testing.T) {
 	db := newTestDB(t)
+	dbID := "test_shelf"
 	history := []string{"book1", "book2", "book3"}
-	if err := db.SetReadHistory(history); err != nil {
+	readHistoryLimit := 100
+	if err := db.SetReadHistory(dbID, history, readHistoryLimit); err != nil {
 		t.Fatalf("SetReadHistory: %v", err)
 	}
-	got, err := db.GetReadHistory()
+	got, err := db.GetReadHistory(dbID)
 	if err != nil {
 		t.Fatalf("GetReadHistory: %v", err)
 	}
@@ -39,16 +41,18 @@ func TestSetReadHistory(t *testing.T) {
 
 func TestAddToReadHistory(t *testing.T) {
 	db := newTestDB(t)
-	if err := db.AddToReadHistory("book1"); err != nil {
+	dbID := "test_shelf"
+	readHistoryLimit := 100
+	if err := db.AddToReadHistory(dbID, "book1", readHistoryLimit); err != nil {
 		t.Fatalf("AddToReadHistory: %v", err)
 	}
-	if err := db.AddToReadHistory("book2"); err != nil {
+	if err := db.AddToReadHistory(dbID, "book2", readHistoryLimit); err != nil {
 		t.Fatalf("AddToReadHistory: %v", err)
 	}
-	if err := db.AddToReadHistory("book1"); err != nil {
+	if err := db.AddToReadHistory(dbID, "book1", readHistoryLimit); err != nil {
 		t.Fatalf("AddToReadHistory: %v", err)
 	}
-	history, err := db.GetReadHistory()
+	history, err := db.GetReadHistory(dbID)
 	if err != nil {
 		t.Fatalf("GetReadHistory: %v", err)
 	}
@@ -65,18 +69,20 @@ func TestAddToReadHistory(t *testing.T) {
 
 func TestAddToReadHistory_ExceedLimit(t *testing.T) {
 	db := newTestDB(t)
+	dbID := "test_shelf"
+	readHistoryLimit := 100
 	for i := 1; i <= 150; i++ {
 		bookID := fmt.Sprintf("book%d", i)
-		if err := db.AddToReadHistory(bookID); err != nil {
+		if err := db.AddToReadHistory(dbID, bookID, readHistoryLimit); err != nil {
 			t.Fatalf("AddToReadHistory: %v", err)
 		}
 	}
-	history, err := db.GetReadHistory()
+	history, err := db.GetReadHistory(dbID)
 	if err != nil {
 		t.Fatalf("GetReadHistory: %v", err)
 	}
-	if len(history) != db.readHistoryLimit {
-		t.Fatalf("expected history length %d, got %d", db.readHistoryLimit, len(history))
+	if len(history) != readHistoryLimit {
+		t.Fatalf("expected history length %d, got %d", readHistoryLimit, len(history))
 	}
 	for i := 150; i > 50; i-- {
 		expectedID := fmt.Sprintf("book%d", i)

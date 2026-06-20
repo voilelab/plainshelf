@@ -32,6 +32,7 @@ declare global {
       token?: string;
       tokenHeader?: string;
     };
+    __PLAINSHELF_READ_ONLY__?: boolean;
     plainshelf?: {
       getApiToken?: () => string | Promise<string>;
     };
@@ -55,6 +56,15 @@ if (IS_DEV && API_MODE === 'mock') {
 }
 
 export const API_BASE = API_BASE_NORMALIZED;
+const SHELF_STORAGE_KEY = 'plainshelf.shelf';
+let activeShelfID = '';
+
+if (typeof window !== 'undefined') {
+  const storedShelfID = window.localStorage.getItem(SHELF_STORAGE_KEY)?.trim();
+  if (storedShelfID) {
+    activeShelfID = storedShelfID;
+  }
+}
 
 export function isMockApiMode(): boolean {
   return API_MODE === 'mock';
@@ -70,9 +80,48 @@ export function assertApiMode(): void {
   }
 }
 
+
+function assertWritableRequest(init?: RequestInit): void {
+  const method = String(init?.method ?? 'GET').toUpperCase();
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    return;
+  }
+
+  // Dynamic import is avoided here to prevent a module cycle during startup.
+  const readOnly = typeof window !== 'undefined' && window.__PLAINSHELF_READ_ONLY__ === true;
+  if (readOnly) {
+    throw new ApiError('Server is in read-only mode. Write operations are disabled.');
+  }
+}
+
 export function buildApiUrl(path: string): string {
   const normalized = path.startsWith('/') ? path : `/${path}`;
   return `${API_BASE}${normalized}`;
+}
+
+export function getActiveShelfID(): string {
+  return activeShelfID;
+}
+
+export function setActiveShelfID(shelfID: string): void {
+  const normalized = shelfID.trim();
+  activeShelfID = normalized;
+  if (typeof window !== 'undefined') {
+    if (normalized) {
+      window.localStorage.setItem(SHELF_STORAGE_KEY, normalized);
+    } else {
+      window.localStorage.removeItem(SHELF_STORAGE_KEY);
+    }
+  }
+}
+
+export function buildShelfApiPath(path: string, shelfID = getActiveShelfID()): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const resolvedShelfID = shelfID.trim();
+  if (!resolvedShelfID) {
+    throw new ApiError('No shelf selected.');
+  }
+  return `/api/shelves/${encodeURIComponent(resolvedShelfID)}${normalizedPath}`;
 }
 
 async function getApiToken(): Promise<string> {
@@ -107,6 +156,7 @@ async function toApiError(res: Response): Promise<ApiError> {
 
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   assertApiMode();
+  assertWritableRequest(init);
 
   const requestInit = await withApiHeaders(init);
   const headers = new Headers(requestInit.headers ?? {});
@@ -146,6 +196,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
 
 export async function fetchText(path: string, init?: RequestInit): Promise<string> {
   assertApiMode();
+  assertWritableRequest(init);
 
   const res = await fetch(buildApiUrl(path), await withApiHeaders(init));
   if (!res.ok) {
@@ -157,6 +208,7 @@ export async function fetchText(path: string, init?: RequestInit): Promise<strin
 
 export async function fetchBlob(path: string, init?: RequestInit): Promise<Blob> {
   assertApiMode();
+  assertWritableRequest(init);
 
   const res = await fetch(buildApiUrl(path), await withApiHeaders(init));
   if (!res.ok) {

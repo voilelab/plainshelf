@@ -10,6 +10,14 @@
       @cancel="cancelPendingDeleteLayer"
       @confirm="confirmDeleteLayer"
     />
+    <RenameLayerModal
+      :open="pendingRenameLayerPath.length > 0"
+      :current-name="pendingRenameLayerName"
+      :busy="isRenamingPendingLayer"
+      :error="renameLayerError"
+      @cancel="cancelPendingRenameLayer"
+      @submit="confirmRenameLayer"
+    />
 
     <aside class="sidebar" :class="{ collapsed: isCollapsed }">
       <button
@@ -22,113 +30,157 @@
       </button>
 
       <div v-if="!isCollapsed" class="sidebar-inner">
-        <section class="sidebar-section" :aria-label="t('layout.sections.layers')">
-          <div class="sidebar-header-row">
-            <div class="sidebar-section-title">{{ t('layout.sections.layers') }}</div>
-            <button
-              type="button"
-              class="create-layer-toggle"
-              :disabled="creatingLayer"
-              @click="toggleCreateLayerForm"
+        <section class="sidebar-section" :aria-label="t('layout.shelf.label')">
+          <label class="sidebar-shelf-label">
+            <span class="sidebar-section-title">{{ t('layout.shelf.label') }}</span>
+            <select
+              class="sidebar-shelf-select"
+              :value="selectedShelfID"
+              :disabled="shelvesLoading || shelves.length === 0"
+              @change="onShelfChange"
             >
-              {{ showCreateLayerForm ? t('layout.createLayer.cancel') : t('layout.createLayer.add') }}
-            </button>
-          </div>
+              <option v-if="shelvesLoading" value="">{{ t('layout.shelf.loading') }}</option>
+              <option v-else-if="shelves.length === 0" value="">{{ t('layout.shelf.empty') }}</option>
+              <option v-for="shelf in shelves" :key="shelf.id" :value="shelf.id">
+                {{ shelf.name }}
+              </option>
+            </select>
+          </label>
+          <p v-if="shelvesError" class="sidebar-error" role="alert">{{ shelvesError }}</p>
+        </section>
 
-          <form v-if="showCreateLayerForm" class="create-layer-form" @submit.prevent="onSubmitCreateLayer">
-            <input
-              v-model="newLayerPath"
-              class="create-layer-input"
-              type="text"
-              :placeholder="t('layout.createLayer.placeholder')"
-              :disabled="creatingLayer"
-            >
-            <div class="create-layer-actions">
+        <template v-if="hasActiveShelf">
+          <div class="sidebar-nav-divider" role="presentation"></div>
+          <section class="sidebar-section" :aria-label="t('layout.sections.layers')">
+            <div class="sidebar-header-row">
+              <div class="sidebar-section-title">{{ t('layout.sections.layers') }}</div>
               <button
-                type="submit"
-                class="create-layer-submit"
-                :disabled="creatingLayer || !canSubmitCreateLayer"
+                type="button"
+                class="create-layer-toggle"
+                :disabled="readOnly || creatingLayer"
+                @click="toggleCreateLayerForm"
               >
-                {{ creatingLayer ? t('layout.createLayer.creating') : t('layout.createLayer.create') }}
+                {{ showCreateLayerForm ? t('layout.createLayer.cancel') : t('layout.createLayer.add') }}
               </button>
             </div>
-          </form>
 
-          <p v-if="createLayerError" class="sidebar-error" role="alert">
-            {{ createLayerError }}
+            <form v-if="showCreateLayerForm && !readOnly" class="create-layer-form" @submit.prevent="onSubmitCreateLayer">
+              <input
+                v-model="newLayerPath"
+                class="create-layer-input"
+                type="text"
+                :placeholder="t('layout.createLayer.placeholder')"
+                :disabled="creatingLayer"
+              >
+              <div class="create-layer-actions">
+                <button
+                  type="submit"
+                  class="create-layer-submit"
+                  :disabled="readOnly || creatingLayer || !canSubmitCreateLayer"
+                >
+                  {{ creatingLayer ? t('layout.createLayer.creating') : t('layout.createLayer.create') }}
+                </button>
+              </div>
+            </form>
+
+            <p v-if="createLayerError" class="sidebar-error" role="alert">
+              {{ createLayerError }}
+            </p>
+            <p v-if="createLayerSuccess" class="sidebar-success" role="status">
+              {{ createLayerSuccess }}
+              <button
+                v-if="createdLayerPath"
+                type="button"
+                class="success-action"
+                @click="enterCreatedLayer"
+              >
+                {{ t('layout.createLayer.enter') }}
+              </button>
+            </p>
+
+            <div v-if="layersLoading" class="sidebar-status">{{ t('layout.createLayer.loadingLayers') }}</div>
+            <div v-else-if="layersError" class="sidebar-status sidebar-error sidebar-layer-error" role="alert">
+              <p>{{ layersError }}</p>
+              <button type="button" class="button" @click="fetchLayers">{{ t('common.retry') }}</button>
+            </div>
+            <LayerTree
+              v-else
+              :nodes="layerTree"
+              :selected="currentLayer"
+              :deleting-map="deletingLayerMap"
+              :read-only="readOnly"
+              @select="onSelectLayer"
+              @move-book="onMoveBook"
+              @delete-layer="requestDeleteLayer"
+              @rename-layer="requestRenameLayer"
+              @move-layer="onMoveLayer"
+            />
+          </section>
+          <p v-if="moveBookError" class="sidebar-error" role="alert">
+            {{ moveBookError }}
           </p>
-          <p v-if="createLayerSuccess" class="sidebar-success" role="status">
-            {{ createLayerSuccess }}
-            <button
-              v-if="createdLayerPath"
-              type="button"
-              class="success-action"
-              @click="enterCreatedLayer"
-            >
-              {{ t('layout.createLayer.enter') }}
-            </button>
+          <p v-if="deleteLayerError && !pendingDeleteLayerPath" class="sidebar-error sidebar-error-pre" role="alert">
+            {{ deleteLayerError }}
+          </p>
+          <p v-if="layerOperationError" class="sidebar-error sidebar-error-pre" role="alert">
+            {{ layerOperationError }}
           </p>
 
-          <div v-if="layersLoading" class="sidebar-status">{{ t('layout.createLayer.loadingLayers') }}</div>
-          <div v-else-if="layersError" class="sidebar-status sidebar-error sidebar-layer-error" role="alert">
-            <p>{{ layersError }}</p>
-          <button type="button" class="button" @click="fetchLayers">{{ t('common.retry') }}</button>
-          </div>
-          <LayerTree
-            v-else
-            :nodes="layerTree"
-            :selected="currentLayer"
-            :deleting-map="deletingLayerMap"
-            @select="onSelectLayer"
-            @move-book="onMoveBook"
-            @delete-layer="requestDeleteLayer"
-          />
-        </section>
-        <p v-if="moveBookError" class="sidebar-error" role="alert">
-          {{ moveBookError }}
-        </p>
-        <p v-if="deleteLayerError && !pendingDeleteLayerPath" class="sidebar-error sidebar-error-pre" role="alert">
-          {{ deleteLayerError }}
-        </p>
+          <div class="sidebar-nav-divider" role="presentation"></div>
+
+          <section class="sidebar-section" :aria-label="t('layout.sections.reading')">
+            <div class="sidebar-section-title">{{ t('layout.sections.reading') }}</div>
+            <nav class="sidebar-nav-list" :aria-label="t('layout.sections.reading')">
+              <RouterLink
+                to="/read-history"
+                class="sidebar-nav-item"
+                exact-active-class="active"
+              >
+                <SidebarNavIcon name="recently-read" />
+                <span>{{ t('layout.recentlyRead') }}</span>
+              </RouterLink>
+              <RouterLink
+                to="/trash"
+                class="sidebar-nav-item"
+                exact-active-class="active"
+              >
+                <SidebarNavIcon name="trash" />
+                <span>{{ t('layout.trash') }}</span>
+              </RouterLink>
+            </nav>
+          </section>
+
+          <div class="sidebar-nav-divider" role="presentation"></div>
+
+          <section class="sidebar-section" :aria-label="t('layout.sections.maintenance')">
+            <div class="sidebar-section-title">{{ t('layout.sections.maintenance') }}</div>
+            <nav class="sidebar-nav-list" :aria-label="t('layout.sections.maintenance')">
+              <RouterLink
+                v-for="item in MAINTENANCE_NAV_ITEMS"
+                :key="item.key"
+                :to="item.to"
+                class="sidebar-nav-item"
+                exact-active-class="active"
+              >
+                <SidebarNavIcon v-if="item.icon" :name="item.icon" />
+                <span>{{ t(item.labelKey) }}</span>
+              </RouterLink>
+            </nav>
+          </section>
+        </template>
 
         <div class="sidebar-nav-divider" role="presentation"></div>
 
-        <section class="sidebar-section" :aria-label="t('layout.sections.reading')">
-          <div class="sidebar-section-title">{{ t('layout.sections.reading') }}</div>
-          <nav class="sidebar-nav-list" :aria-label="t('layout.sections.reading')">
-            <RouterLink
-              to="/read-history"
-              class="sidebar-nav-item"
-              exact-active-class="active"
-            >
-              <SidebarNavIcon name="recently-read" />
-              <span>{{ t('layout.recentlyRead') }}</span>
+        <section class="sidebar-section" :aria-label="t('layout.sections.admin')">
+          <div class="sidebar-section-title">{{ t('layout.sections.admin') }}</div>
+          <nav class="sidebar-nav-list" :aria-label="t('layout.sections.admin')">
+            <RouterLink v-if="hasActiveShelf" to="/admin/logs" class="sidebar-nav-item" exact-active-class="active">
+              <SidebarNavIcon name="logs" />
+              <span>{{ t('layout.adminLogs') }}</span>
             </RouterLink>
-            <RouterLink
-              to="/trash"
-              class="sidebar-nav-item"
-              exact-active-class="active"
-            >
-              <SidebarNavIcon name="trash" />
-              <span>{{ t('layout.trash') }}</span>
-            </RouterLink>
-          </nav>
-        </section>
-
-        <div class="sidebar-nav-divider" role="presentation"></div>
-
-        <section class="sidebar-section" :aria-label="t('layout.sections.maintenance')">
-          <div class="sidebar-section-title">{{ t('layout.sections.maintenance') }}</div>
-          <nav class="sidebar-nav-list" :aria-label="t('layout.sections.maintenance')">
-            <RouterLink
-              v-for="item in MAINTENANCE_NAV_ITEMS"
-              :key="item.key"
-              :to="item.to"
-              class="sidebar-nav-item"
-              exact-active-class="active"
-            >
-              <SidebarNavIcon v-if="item.icon" :name="item.icon" />
-              <span>{{ t(item.labelKey) }}</span>
+            <RouterLink to="/settings" class="sidebar-nav-item" exact-active-class="active">
+              <SidebarNavIcon name="settings" />
+              <span>{{ t('layout.settings') }}</span>
             </RouterLink>
           </nav>
         </section>
@@ -136,23 +188,33 @@
     </aside>
 
     <main class="main-content">
+      <div v-if="readOnly" class="read-only-banner" role="status">
+        {{ t('layout.readOnly.banner') }}
+      </div>
       <header class="topbar">
         <h1 class="brand">
           <img class="brand-icon" :src="appIcon" alt="" aria-hidden="true">
           <span>{{ t('app.name') }}</span>
         </h1>
-        <label class="language-select">
-          <span>{{ t('language.label') }}</span>
-          <select class="language-select-control" :value="locale" @change="onLocaleChange">
-            <option v-for="lang in supportedLocales" :key="lang" :value="lang">
-              {{ t(localeLabelKeyMap[lang]) }}
-            </option>
-          </select>
-        </label>
+        <div class="topbar-controls">
+          <label class="language-select">
+            <span>{{ t('language.label') }}</span>
+            <select class="language-select-control" :value="locale" @change="onLocaleChange">
+              <option v-for="lang in supportedLocales" :key="lang" :value="lang">
+                {{ t(localeLabelKeyMap[lang]) }}
+              </option>
+            </select>
+          </label>
+        </div>
       </header>
 
       <div class="page-area">
-        <RouterView />
+        <RouterView v-if="canShowRouteContent" />
+        <section v-else class="no-shelf-panel" role="status">
+          <h2>{{ t('layout.shelf.unavailableTitle') }}</h2>
+          <p>{{ shelfUnavailableMessage }}</p>
+          <RouterLink to="/settings" class="button">{{ t('layout.settings') }}</RouterLink>
+        </section>
       </div>
     </main>
   </div>
@@ -163,11 +225,14 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import DeleteModal from '../components/DeleteModal.vue';
 import LayerTree from '../components/LayerTree.vue';
+import RenameLayerModal from '../components/RenameLayerModal.vue';
 import SidebarNavIcon from '../components/SidebarNavIcon.vue';
-import { updateBookLayer } from '../api/books';
-import { createLayer, deleteLayer } from '../api/layers';
+import { getBookshelfProvider } from '../providers';
+import { createLayer, deleteLayer, moveLayer, renameLayer } from '../api/layers';
 import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
+import { useShelvesStore } from '../composables/useShelvesStore';
+import { useServerMode } from '../composables/useServerMode';
 import { buildLayerTreeNodes, getLayerPath, normalizeLayerPath } from '../utils/layers';
 import { MAINTENANCE_NAV_ITEMS } from '../utils/maintenance';
 import appIcon from '../assets/icon-192.png';
@@ -186,9 +251,15 @@ const createLayerSuccess = ref('');
 const createdLayerPath = ref('');
 const newLayerPath = ref('');
 const deleteLayerError = ref('');
+const layerOperationError = ref('');
+const pendingRenameLayerPath = ref('');
+const renameLayerError = ref('');
+const renamingLayer = ref(false);
 const deletingLayerMap = ref<Record<string, boolean>>({});
 const pendingDeleteLayerPath = ref('');
 const { locale, setLocale, supportedLocales, t } = useI18n();
+const { shelves, loading: shelvesLoading, loaded: shelvesLoaded, error: shelvesError, selectedShelfID, fetchShelves, selectShelf } = useShelvesStore();
+const { readOnly, fetchServerMode } = useServerMode();
 const localeLabelKeyMap: Record<(typeof supportedLocales)[number], 'language.en' | 'language.zhHant'> = {
   en: 'language.en',
   'zh-Hant': 'language.zhHant'
@@ -203,6 +274,17 @@ const layerTree = computed(() => buildLayerTreeNodes(layers.value));
 const canSubmitCreateLayer = computed(() => normalizeLayerPath(newLayerPath.value).length > 0);
 const isDeletingPendingLayer = computed(
   () => pendingDeleteLayerPath.value.length > 0 && (deletingLayerMap.value[pendingDeleteLayerPath.value] ?? false)
+);
+const pendingRenameLayerName = computed(() => {
+  const segments = pendingRenameLayerPath.value.split('/').filter((segment) => segment.length > 0);
+  return segments[segments.length - 1] ?? '';
+});
+const isRenamingPendingLayer = computed(() => pendingRenameLayerPath.value.length > 0 && renamingLayer.value);
+const hasActiveShelf = computed(() => shelvesLoaded.value && selectedShelfID.value.length > 0);
+const isSettingsRoute = computed(() => route.name === 'settings');
+const canShowRouteContent = computed(() => isSettingsRoute.value || hasActiveShelf.value);
+const shelfUnavailableMessage = computed(() =>
+  shelvesLoading.value ? t('layout.shelf.loading') : t('layout.shelf.unavailableDescription')
 );
 
 function goToLayer(layer: string | undefined): void {
@@ -226,6 +308,7 @@ function normalizeLayerSelectionPath(path: string): string | undefined {
 
 function onSelectLayer(path: string): void {
   deleteLayerError.value = '';
+  layerOperationError.value = '';
   goToLayer(normalizeLayerSelectionPath(path));
 }
 
@@ -240,7 +323,32 @@ function onLocaleChange(event: Event): void {
   }
 }
 
+async function onShelfChange(event: Event): Promise<void> {
+  const target = event.target;
+  if (!(target instanceof HTMLSelectElement)) {
+    return;
+  }
+
+  const nextShelfID = target.value.trim();
+  if (!nextShelfID || nextShelfID === selectedShelfID.value) {
+    return;
+  }
+
+  selectShelf(nextShelfID);
+  deleteLayerError.value = '';
+  layerOperationError.value = '';
+  moveBookError.value = '';
+  createLayerError.value = '';
+  createLayerSuccess.value = '';
+
+  await Promise.all([fetchLayers(), fetchBooks()]);
+  await router.push({ path: '/books', query: { page: '1' } });
+}
+
 function toggleCreateLayerForm(): void {
+  if (readOnly.value) {
+    return;
+  }
   showCreateLayerForm.value = !showCreateLayerForm.value;
   createLayerError.value = '';
   createLayerSuccess.value = '';
@@ -251,6 +359,10 @@ function toggleCreateLayerForm(): void {
 }
 
 async function onSubmitCreateLayer(): Promise<void> {
+  if (readOnly.value) {
+    createLayerError.value = t('layout.readOnly.writeDisabled');
+    return;
+  }
   const normalized = normalizeLayerPath(newLayerPath.value);
   if (!normalized) {
     createLayerError.value = t('layout.layerErrors.emptyPath');
@@ -295,7 +407,12 @@ function enterCreatedLayer(): void {
 }
 
 async function onMoveBook(payload: { bookId: string; targetLayer: string }): Promise<void> {
+  if (readOnly.value) {
+    moveBookError.value = t('layout.readOnly.writeDisabled');
+    return;
+  }
   moveBookError.value = '';
+  layerOperationError.value = '';
 
   const currentBook = books.value.find((item) => item.id === payload.bookId);
   if (!currentBook) {
@@ -309,14 +426,102 @@ async function onMoveBook(payload: { bookId: string; targetLayer: string }): Pro
   }
 
   try {
-    await updateBookLayer(payload.bookId, payload.targetLayer);
+    await getBookshelfProvider().updateBookLayer(payload.bookId, payload.targetLayer);
     await fetchBooks();
   } catch (err) {
     moveBookError.value = err instanceof Error ? err.message : t('layout.moveBookErrors.failed');
   }
 }
 
+function requestRenameLayer(path: string): void {
+  if (readOnly.value) {
+    layerOperationError.value = t('layout.readOnly.writeDisabled');
+    return;
+  }
+
+  pendingRenameLayerPath.value = path;
+  renameLayerError.value = '';
+  layerOperationError.value = '';
+}
+
+function cancelPendingRenameLayer(): void {
+  if (renamingLayer.value) {
+    return;
+  }
+
+  pendingRenameLayerPath.value = '';
+  renameLayerError.value = '';
+}
+
+async function confirmRenameLayer(nextName: string): Promise<void> {
+  const path = pendingRenameLayerPath.value;
+  if (!path || renamingLayer.value) {
+    return;
+  }
+
+  if (!nextName || nextName === pendingRenameLayerName.value) {
+    renameLayerError.value = t('layout.renameLayer.invalid');
+    return;
+  }
+
+  renamingLayer.value = true;
+  renameLayerError.value = '';
+  layerOperationError.value = '';
+
+  try {
+    await renameLayer(path, nextName);
+    await Promise.all([fetchLayers(), fetchBooks()]);
+
+    if (currentLayer.value === path || currentLayer.value?.startsWith(`${path}/`)) {
+      const parent = path.split('/').filter((segment) => segment.length > 0).slice(0, -1);
+      const renamedPath = [...parent, nextName].join('/');
+      goToLayer(currentLayer.value === path ? renamedPath : `${renamedPath}${currentLayer.value.slice(path.length)}`);
+    }
+
+    pendingRenameLayerPath.value = '';
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message === 'Invalid layer name') {
+      renameLayerError.value = t('layout.renameLayer.invalid');
+    } else {
+      renameLayerError.value = message || t('layout.renameLayer.failed');
+    }
+  } finally {
+    renamingLayer.value = false;
+  }
+}
+
+async function onMoveLayer(payload: { layerPath: string; targetLayer: string }): Promise<void> {
+  if (readOnly.value) {
+    layerOperationError.value = t('layout.readOnly.writeDisabled');
+    return;
+  }
+  layerOperationError.value = '';
+
+  try {
+    await moveLayer(payload.layerPath, payload.targetLayer);
+    await Promise.all([fetchLayers(), fetchBooks()]);
+
+    if (currentLayer.value === payload.layerPath || currentLayer.value?.startsWith(`${payload.layerPath}/`)) {
+      const layerSegments = payload.layerPath.split('/').filter((segment) => segment.length > 0);
+      const layerName = layerSegments[layerSegments.length - 1];
+      if (layerName) {
+        const targetSegments = payload.targetLayer === '/' ? [] : payload.targetLayer.split('/').filter(Boolean);
+        const movedPath = [...targetSegments, layerName].join('/');
+        goToLayer(currentLayer.value === payload.layerPath ? movedPath : `${movedPath}${currentLayer.value.slice(payload.layerPath.length)}`);
+      }
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    layerOperationError.value = message || t('layout.moveLayer.failed');
+  }
+}
+
 function requestDeleteLayer(path: string): void {
+  if (readOnly.value) {
+    deleteLayerError.value = t('layout.readOnly.writeDisabled');
+    return;
+  }
   if (deletingLayerMap.value[path]) {
     return;
   }
@@ -370,7 +575,17 @@ async function confirmDeleteLayer(): Promise<void> {
   }
 }
 
+
 onMounted(async () => {
+  await fetchServerMode();
+  if (!shelvesLoaded.value) {
+    await fetchShelves();
+  }
+
+  if (!hasActiveShelf.value) {
+    return;
+  }
+
   if (!layersLoaded.value && !layersLoading.value) {
     await fetchLayers();
   }
@@ -557,6 +772,15 @@ onMounted(async () => {
   min-width: 0;
 }
 
+.read-only-banner {
+  background: #fef3c7;
+  border-bottom: 1px solid #f59e0b;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 24px;
+}
+
 .topbar {
   position: sticky;
   top: 0;
@@ -568,6 +792,11 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   padding: 14px 24px;
+}
+
+.topbar-controls {
+  display: inline-flex;
+  gap: 10px;
 }
 
 .language-select {
@@ -620,4 +849,44 @@ onMounted(async () => {
 .page-area {
   padding: 16px 24px;
 }
+
+.no-shelf-panel {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  display: grid;
+  gap: 10px;
+  margin: 32px auto;
+  max-width: 560px;
+  padding: 24px;
+}
+
+.no-shelf-panel h2,
+.no-shelf-panel p {
+  margin: 0;
+}
+
+.no-shelf-panel .button {
+  justify-self: start;
+}
+
+.sidebar-shelf-label {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  padding: 4px 8px;
+}
+
+.sidebar-shelf-select {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  flex: 1;
+  font-size: 13px;
+  min-height: 30px;
+  min-width: 0;
+  padding: 0 6px;
+}
+
 </style>

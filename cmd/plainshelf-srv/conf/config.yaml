@@ -17,18 +17,21 @@ app_conf:
       type: filename_rotate # log file type: stdout, stderr, none, filename, filename_rotate
       dir: ./logs
       prefix: root
-  shelf:
-    logger:
-      level: info  # log level: debug, info, warn, error
-      format: json # log format: json, text
-      log_file:
-        type: filename_rotate # log file type: stdout, stderr, none, filename, filename_rotate
-        dir: ./logs
-        prefix: shelf
-    lib_root: "./shelf"
+  shelves:
+    - id: default_shelf
+      name: Default Shelf
+      logger:
+        level: info  # log level: debug, info, warn, error
+        format: json # log format: json, text
+        log_file:
+          type: filename_rotate # log file type: stdout, stderr, none, filename, filename_rotate
+          dir: ./logs
+          prefix: shelf
+      lib_root: "./shelf"
   store_path: "./store"
   cover_to_jpg: true
   read_history_limit: 100
+  read_only: false
   security:
     mode: "local_token"
     protect_read: false

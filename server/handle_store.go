@@ -9,15 +9,21 @@ import (
 	"github.com/voilelab/plainshelf/server/store"
 )
 
-// GET /api/marks/{book_id}
+// GET /api/shelves/{shelf_id}/marks/{book_id}
 func (app *App) HandleAPIGetMarks(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
 		return
 	}
 
-	mark, err := app.storeDB.GetBookmark(bookID)
+	mark, err := app.storeDB.GetBookmark(shelfID, bookID)
 	if err != nil {
 		app.Error("failed to get marks", "error", err)
 		http.Error(w, "failed to get marks", http.StatusInternalServerError)
@@ -33,7 +39,7 @@ func (app *App) HandleAPIGetMarks(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// POST /api/marks/{book_id}
+// POST /api/shelves/{shelf_id}/marks/{book_id}
 func (app *App) HandleAPIUpdateMarks(w http.ResponseWriter, r *http.Request) {
 	bookID, err := readBookID(r)
 	if err != nil {
@@ -55,7 +61,16 @@ func (app *App) HandleAPIUpdateMarks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = app.storeDB.SetBookmark(bookID, mark)
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+	if _, ok := app.shelfManager.GetShelf(shelfID); !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+	err = app.storeDB.SetBookmark(shelfID, bookID, mark)
 	if err != nil {
 		app.Error("failed to update marks", "error", err)
 		http.Error(w, "failed to update marks", http.StatusInternalServerError)
@@ -65,13 +80,22 @@ func (app *App) HandleAPIUpdateMarks(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// GET /api/read_history
+// GET /api/shelves/{shelf_id}/read_history
 func (app *App) HandleAPIGetReadHistory(w http.ResponseWriter, r *http.Request) {
-	history, err := app.storeDB.GetReadHistory()
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+
+	history, err := app.storeDB.GetReadHistory(shelfID)
 	if err != nil {
 		app.Error("failed to get read history", "error", err)
 		http.Error(w, "failed to get read history", http.StatusInternalServerError)
 		return
+	}
+	if limit := app.readHistoryLimit(); len(history) > limit {
+		history = history[:limit]
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -83,15 +107,24 @@ func (app *App) HandleAPIGetReadHistory(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// POST /api/read_history?book_id={book_id}
+// POST /api/shelves/{shelf_id}/read_history?book_id={book_id}
 func (app *App) HandleAPIUpdateReadHistory(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+	if _, ok := app.shelfManager.GetShelf(shelfID); !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
 	bookID := r.URL.Query().Get("book_id")
 	if bookID == "" {
 		http.Error(w, "missing book_id", http.StatusBadRequest)
 		return
 	}
 
-	err := app.storeDB.AddToReadHistory(bookID)
+	err = app.storeDB.AddToReadHistory(shelfID, bookID, app.readHistoryLimit())
 	if err != nil {
 		app.Error("failed to update read history", "error", err)
 		http.Error(w, "failed to update read history", http.StatusInternalServerError)
@@ -101,9 +134,18 @@ func (app *App) HandleAPIUpdateReadHistory(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// DELETE /api/read_history
+// DELETE /api/shelves/{shelf_id}/read_history
 func (app *App) HandleAPIClearReadHistory(w http.ResponseWriter, r *http.Request) {
-	err := app.storeDB.SetReadHistory([]string{})
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+	if _, ok := app.shelfManager.GetShelf(shelfID); !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+	err = app.storeDB.SetReadHistory(shelfID, []string{}, app.readHistoryLimit())
 	if err != nil {
 		app.Error("failed to clear read history", "error", err)
 		http.Error(w, "failed to clear read history", http.StatusInternalServerError)

@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { listBooks } from '../api/books';
+import { getBookshelfProvider } from '../providers';
 import type { Book } from '../types/book';
 
 // Module-level singleton: shared across all components that call useBookStore()
@@ -11,7 +11,7 @@ async function fetchBooks(search?: string): Promise<void> {
   loading.value = true;
   error.value = '';
   try {
-    const data = await listBooks(1, Number.MAX_SAFE_INTEGER, search);
+    const data = await getBookshelfProvider().listBooks(1, Number.MAX_SAFE_INTEGER, search);
     books.value = data.items;
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load books';

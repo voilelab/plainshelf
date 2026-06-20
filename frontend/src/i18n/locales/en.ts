@@ -13,6 +13,7 @@ const en = {
   },
   common: {
     retry: 'Retry',
+    cancel: 'Cancel',
     prev: 'Prev',
     next: 'Next',
     page: 'Page {page} / {total}',
@@ -24,7 +25,8 @@ const en = {
     sections: {
       layers: 'LAYERS',
       reading: 'READING',
-      maintenance: 'MAINTENANCE'
+      maintenance: 'MAINTENANCE',
+      admin: 'ADMIN'
     },
     createLayer: {
       add: 'Add layer',
@@ -38,10 +40,28 @@ const en = {
     },
     deleteLayer: {
       title: 'Delete layer',
+      action: 'Delete empty layer',
+      shortAction: 'Delete',
       description: 'This will fail if the layer contains books or child layers.',
       failed: 'Failed to delete layer',
       notEmpty:
         'Cannot delete this layer because it is not empty.\nMove books out and delete child layers first.'
+    },
+    renameLayer: {
+      action: 'Rename layer',
+      shortAction: 'Rename',
+      title: 'Rename layer',
+      nameLabel: 'Layer name',
+      placeholder: 'Layer name',
+      help: 'Current name: {layerName}',
+      confirm: 'Rename',
+      renaming: 'Renaming...',
+      closeLabel: 'Close rename layer dialog',
+      invalid: 'Layer name cannot be empty or contain /.',
+      failed: 'Failed to rename layer'
+    },
+    moveLayer: {
+      failed: 'Failed to move layer. Drag a layer onto an existing target layer.'
     },
     layerErrors: {
       emptyPath: 'Layer path cannot be empty',
@@ -51,8 +71,88 @@ const en = {
       notFound: 'Book not found.',
       failed: 'Failed to move book.'
     },
+    shelf: {
+      label: 'Shelf',
+      loading: 'Loading shelves...',
+      failed: 'Failed to load shelves',
+      empty: 'No shelves configured',
+      unavailableTitle: 'No shelf selected',
+      unavailableDescription: 'Configure at least one shelf to browse and read books.',
+      addShelf: 'Add shelf',
+      addShelfCancel: 'Cancel',
+      addShelfNamePlaceholder: 'Shelf name',
+      addShelfDirectoryPlaceholder: 'Directory',
+      addShelfBrowse: 'Browse...',
+      addShelfSubmit: 'Add',
+      addShelfAdding: 'Adding...',
+      addShelfFailed: 'Failed to add shelf'
+    },
     recentlyRead: 'Recently Read',
-    trash: 'Trash'
+    trash: 'Trash',
+    adminLogs: 'Logs',
+    settings: 'Settings',
+    readOnly: {
+      banner: 'Read-only mode is enabled. Browsing and reading are available, but write operations are disabled.',
+      writeDisabled: 'Server is in read-only mode. Write operations are disabled.'
+    }
+  },
+  settings: {
+    title: 'Settings',
+    description: 'Manage application options.',
+    loadFailed: 'Failed to load settings',
+    saveFailed: 'Failed to save setting',
+    cover: {
+      title: 'Cover'
+    },
+    coverToJpg: {
+      label: 'Convert uploaded covers to JPG',
+      description: 'Enable this to convert cover images to JPEG when uploading.'
+    },
+    readHistory: {
+      title: 'Reading history'
+    },
+    readHistoryLimit: {
+      label: 'Reading history limit',
+      description: 'Maximum number of recently read books to keep. Use 0 to disable retaining history.',
+      invalid: 'Reading history limit must be a non-negative whole number.'
+    },
+    shelves: {
+      title: 'Shelves',
+      loadFailed: 'Failed to load shelves',
+      empty: 'No shelves configured.',
+      serverManaged: 'Shelves are managed by the server configuration.',
+      name: 'Name',
+      directory: 'Directory',
+      remove: 'Remove',
+      removing: 'Removing...',
+      removeFailed: 'Failed to remove shelf',
+      addShelf: 'Add shelf',
+      addShelfCancel: 'Cancel',
+      addShelfNamePlaceholder: 'Shelf name',
+      addShelfDirectoryPlaceholder: 'Directory path',
+      addShelfBrowse: 'Browse...',
+      addShelfSubmit: 'Add shelf',
+      addShelfAdding: 'Adding...',
+      addShelfFailed: 'Failed to add shelf',
+      removeConfirm: 'Remove shelf "{name}"? This only removes it from PlainShelf; the directory will not be deleted.',
+      removeConfirmInline: 'Remove?',
+      removeConfirmYes: 'Yes, remove'
+    }
+  },
+  adminLogs: {
+    title: 'Logs',
+    description: 'Select a log source and date to inspect the log file content.',
+    name: 'Name',
+    date: 'Date',
+    source: 'Source',
+    filename: 'Filename',
+    empty: 'No log files are available.',
+    emptyContent: 'The selected log file is empty.',
+    missingForDate: 'No log file is available for {date}.',
+    loadingList: 'Loading log files...',
+    loadingContent: 'Loading log content...',
+    loadFailed: 'Failed to load log files',
+    loadContentFailed: 'Failed to load log content'
   },
   maintenance: {
     duplicateContent: 'Duplicate Content',

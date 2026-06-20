@@ -13,6 +13,7 @@ const zhHant = {
   },
   common: {
     retry: '重試',
+    cancel: '取消',
     prev: '上一頁',
     next: '下一頁',
     page: '第 {page} / {total} 頁',
@@ -24,7 +25,8 @@ const zhHant = {
     sections: {
       layers: '圖層',
       reading: '閱讀',
-      maintenance: '維護'
+      maintenance: '維護',
+      admin: '管理'
     },
     createLayer: {
       add: '新增圖層',
@@ -38,9 +40,27 @@ const zhHant = {
     },
     deleteLayer: {
       title: '刪除圖層',
+      action: '刪除空圖層',
+      shortAction: '刪除',
       description: '若圖層內仍有書籍或子圖層，刪除會失敗。',
       failed: '刪除圖層失敗',
       notEmpty: '此圖層尚未清空，無法刪除。\n請先移出書籍並刪除子圖層。'
+    },
+    renameLayer: {
+      action: '重新命名圖層',
+      shortAction: '改名',
+      title: '重新命名圖層',
+      nameLabel: '圖層名稱',
+      placeholder: '圖層名稱',
+      help: '目前名稱：{layerName}',
+      confirm: '重新命名',
+      renaming: '重新命名中...',
+      closeLabel: '關閉重新命名圖層對話框',
+      invalid: '圖層名稱不得為空，也不能包含 /。',
+      failed: '重新命名圖層失敗'
+    },
+    moveLayer: {
+      failed: '移動圖層失敗。請將圖層拖曳到既有的目標圖層上。'
     },
     layerErrors: {
       emptyPath: '圖層路徑不得為空',
@@ -50,8 +70,88 @@ const zhHant = {
       notFound: '找不到書籍。',
       failed: '移動書籍失敗。'
     },
+    shelf: {
+      label: '書架',
+      loading: '載入書架中...',
+      failed: '載入書架失敗',
+      empty: '尚未設定書架',
+      unavailableTitle: '尚未選擇書架',
+      unavailableDescription: '請先設定至少一個書架，才能瀏覽與閱讀書籍。',
+      addShelf: '新增書架',
+      addShelfCancel: '取消',
+      addShelfNamePlaceholder: '書架名稱',
+      addShelfDirectoryPlaceholder: '目錄',
+      addShelfBrowse: '瀏覽…',
+      addShelfSubmit: '新增',
+      addShelfAdding: '新增中...',
+      addShelfFailed: '新增書架失敗'
+    },
     recentlyRead: '最近閱讀',
-    trash: '垃圾桶'
+    trash: '垃圾桶',
+    adminLogs: '日誌',
+    settings: '設定',
+    readOnly: {
+      banner: '唯讀模式已啟用。仍可瀏覽與閱讀，但寫入操作已停用。',
+      writeDisabled: '伺服器目前為唯讀模式，寫入操作已停用。'
+    }
+  },
+  settings: {
+    title: '設定',
+    description: '管理應用程式選項。',
+    loadFailed: '載入設定失敗',
+    saveFailed: '儲存設定失敗',
+    cover: {
+      title: '封面'
+    },
+    coverToJpg: {
+      label: '將上傳封面轉為 JPG',
+      description: '啟用後，封面圖片上傳時會轉換為 JPEG。'
+    },
+    readHistory: {
+      title: '閱讀紀錄'
+    },
+    readHistoryLimit: {
+      label: '閱讀紀錄數量限制',
+      description: '最多保留的最近閱讀書籍數量。設為 0 可停用紀錄保留。',
+      invalid: '閱讀紀錄數量限制必須是非負整數。'
+    },
+    shelves: {
+      title: '書架',
+      loadFailed: '載入書架失敗',
+      empty: '尚未設定書架。',
+      serverManaged: '書架由伺服器設定管理。',
+      name: '名稱',
+      directory: '目錄',
+      remove: '移除',
+      removing: '移除中...',
+      removeFailed: '移除書架失敗',
+      addShelf: '新增書架',
+      addShelfCancel: '取消',
+      addShelfNamePlaceholder: '書架名稱',
+      addShelfDirectoryPlaceholder: '目錄路徑',
+      addShelfBrowse: '瀏覽…',
+      addShelfSubmit: '新增書架',
+      addShelfAdding: '新增中...',
+      addShelfFailed: '新增書架失敗',
+      removeConfirm: '移除書架「{name}」？此操作只會從 PlainShelf 中移除，不會刪除目錄。',
+      removeConfirmInline: '確定移除？',
+      removeConfirmYes: '是，移除'
+    }
+  },
+  adminLogs: {
+    title: '日誌',
+    description: '選擇日誌名稱與日期以查看日誌檔內容。',
+    name: '名稱',
+    date: '日期',
+    source: '來源',
+    filename: '檔名',
+    empty: '目前沒有可用的日誌檔。',
+    emptyContent: '所選日誌檔沒有內容。',
+    missingForDate: '{date} 沒有可用的日誌檔。',
+    loadingList: '載入日誌檔中...',
+    loadingContent: '載入日誌內容中...',
+    loadFailed: '載入日誌檔失敗',
+    loadContentFailed: '載入日誌內容失敗'
   },
   maintenance: {
     duplicateContent: '重複內容',

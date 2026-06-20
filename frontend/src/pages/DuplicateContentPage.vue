@@ -24,6 +24,7 @@
         :key="group.groupIndex"
         :group-index="group.groupIndex"
         :books="group.books"
+        @deleted="loadDuplicates"
       />
     </div>
   </section>
@@ -31,7 +32,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { getBook, getDuplicateBookGroups } from '../api/books';
+import { getBookshelfProvider } from '../providers';
 import DuplicateGroupCard from '../components/DuplicateGroupCard.vue';
 import type { Book } from '../types/book';
 
@@ -49,11 +50,12 @@ async function loadDuplicates(): Promise<void> {
   error.value = '';
 
   try {
-    const duplicateGroups = await getDuplicateBookGroups();
+    const provider = getBookshelfProvider();
+    const duplicateGroups = await provider.getDuplicateBookGroups();
 
     const resolvedGroups = await Promise.all(
       duplicateGroups.map(async (groupIds, index) => {
-        const books = await Promise.all(groupIds.map(async (bookId) => await getBook(bookId)));
+        const books = await Promise.all(groupIds.map(async (bookId) => await provider.getBook(bookId)));
 
         return {
           groupIndex: index + 1,

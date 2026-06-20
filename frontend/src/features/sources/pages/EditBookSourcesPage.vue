@@ -68,6 +68,9 @@
           :saving="saving"
           :dirty="isDirty"
           :error="editorError"
+          :isCurrent="activeSourceId === book?.current_source"
+          :settingCurrent="settingCurrent"
+          @set-current="onSetCurrentSource"
         />
       </main>
     </div>
@@ -77,11 +80,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { getBook } from '../../../api/books';
 import ConfirmModal from '../../../components/ConfirmModal.vue';
 import { useDocumentTitle } from '../../../composables/useDocumentTitle';
 import type { Book } from '../../../types/book';
-import { getSourceContent, listSource, updateSourceContent, createSource, deleteSource } from '../../../api/sources';
+import { getBookshelfProvider } from '../../../providers';
 import SourceEditor from '../components/SourceEditor.vue';
 import SourceList from '../components/SourceList.vue';
 import type { SourceMeta } from '../../../types/source';
@@ -103,6 +105,7 @@ const contentLoading = ref(false);
 const saving = ref(false);
 const creating = ref(false);
 const deleting = ref(false);
+const settingCurrent = ref(false);
 
 const loadError = ref('');
 const editorError = ref('');
@@ -134,8 +137,8 @@ async function fetchInitial(): Promise<void> {
 
   try {
     const [bookData, sourceList] = await Promise.all([
-      getBook(bookId.value),
-      listSource(bookId.value)
+      getBookshelfProvider().getBook(bookId.value),
+      getBookshelfProvider().listSources(bookId.value)
     ]);
 
     book.value = bookData;
@@ -163,7 +166,7 @@ async function fetchInitial(): Promise<void> {
 async function reloadSourceMeta(): Promise<void> {
   listLoading.value = true;
   try {
-    sources.value = await listSource(bookId.value);
+    sources.value = await getBookshelfProvider().listSources(bookId.value);
   } finally {
     listLoading.value = false;
   }
@@ -175,7 +178,7 @@ async function loadSource(sourceId: string): Promise<void> {
   saveSuccess.value = '';
 
   try {
-    const text = await getSourceContent(bookId.value, sourceId);
+    const text = await getBookshelfProvider().getSourceContent(bookId.value, sourceId);
     activeSourceId.value = sourceId;
     content.value = text;
     initialContent.value = text;
@@ -233,7 +236,7 @@ async function onSave(): Promise<void> {
   saveSuccess.value = '';
 
   try {
-    await updateSourceContent(bookId.value, activeSourceId.value, content.value);
+    await getBookshelfProvider().updateSourceContent(bookId.value, activeSourceId.value, content.value);
     initialContent.value = content.value;
     await reloadSourceMeta();
     saveSuccess.value = 'Source saved.';
@@ -241,6 +244,29 @@ async function onSave(): Promise<void> {
     editorError.value = err instanceof Error ? err.message : 'Failed to save source';
   } finally {
     saving.value = false;
+  }
+}
+
+async function onSetCurrentSource(): Promise<void> {
+  const sourceId = activeSourceId.value;
+  if (!sourceId) {
+    return;
+  }
+
+  settingCurrent.value = true;
+  editorError.value = '';
+  saveSuccess.value = '';
+
+  try {
+    await getBookshelfProvider().setCurrentSource(bookId.value, sourceId);
+    if (book.value) {
+      book.value.current_source = sourceId;
+    }
+    saveSuccess.value = 'Current source updated.';
+  } catch (err) {
+    editorError.value = err instanceof Error ? err.message : 'Failed to set current source';
+  } finally {
+    settingCurrent.value = false;
   }
 }
 
@@ -259,7 +285,7 @@ async function doCreateSource(): Promise<void> {
   saveSuccess.value = '';
 
   try {
-    const newSource = await createSource(bookId.value);
+    const newSource = await getBookshelfProvider().createSource(bookId.value);
     await reloadSourceMeta();
     await loadSource(newSource.id);
   } catch (err) {
@@ -291,7 +317,7 @@ async function confirmDelete(): Promise<void> {
   deleteError.value = '';
 
   try {
-    await deleteSource(bookId.value, sourceId);
+    await getBookshelfProvider().deleteSource(bookId.value, sourceId);
 
     await reloadSourceMeta();
 

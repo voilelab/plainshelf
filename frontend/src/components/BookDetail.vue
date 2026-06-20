@@ -60,11 +60,20 @@ function formatTimestamp(value?: string): string {
   return date.toLocaleString();
 }
 
+function formatStars(value?: number): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return '☆☆☆☆☆';
+  }
+  const normalized = Math.min(5, Math.max(0, Math.trunc(value)));
+  return `${'★'.repeat(normalized)}${'☆'.repeat(5 - normalized)}`;
+}
+
 const metadataRows = computed<MetadataRow[]>(() => {
   const rows: MetadataRow[] = [
     { label: 'Authors', value: formatList(props.book.authors) },
     { label: 'Format', value: props.book.format?.trim() || '-' },
     { label: 'Language', value: formatLanguage(props.book.language) },
+    { label: 'Rating', value: formatStars(props.book.star), className: 'rating-text' },
     { label: 'Tags', value: formatList(props.book.tags) },
     { label: 'Published At', value: formatTimestamp(props.book.published_at) },
     { label: 'Lines', value: formatNumber(props.currentSource?.line_count) },
@@ -133,6 +142,11 @@ const metadataRows = computed<MetadataRow[]>(() => {
 
 .comment-text {
   white-space: pre-wrap;
+}
+
+.rating-text {
+  color: #f5a623;
+  letter-spacing: 0.08em;
 }
 
 .meta-link {

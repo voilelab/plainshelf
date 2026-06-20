@@ -72,7 +72,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import DeleteModal from '../components/DeleteModal.vue';
-import { deleteTrashedBook, listTrashedBooks, restoreTrashedBook } from '../api/books';
+import { getBookshelfProvider } from '../providers';
 import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
@@ -122,7 +122,7 @@ async function loadTrash(): Promise<void> {
   error.value = '';
   actionError.value = '';
   try {
-    items.value = await listTrashedBooks();
+    items.value = await getBookshelfProvider().listTrashedBooks();
   } catch (err) {
     error.value = err instanceof Error ? err.message : t('trash.loadFailed');
   } finally {
@@ -138,7 +138,7 @@ async function restore(id: string): Promise<void> {
   actionError.value = '';
   busyMap.value = { ...busyMap.value, [id]: true };
   try {
-    await restoreTrashedBook(id);
+    await getBookshelfProvider().restoreTrashedBook(id);
     await Promise.all([loadTrash(), fetchBooks(), fetchLayers()]);
   } catch (err) {
     actionError.value = err instanceof Error ? err.message : t('trash.restoreFailed');
@@ -170,7 +170,7 @@ async function confirmPermanentDelete(): Promise<void> {
   busyMap.value = { ...busyMap.value, [book.id]: true };
   actionError.value = '';
   try {
-    await deleteTrashedBook(book.id);
+    await getBookshelfProvider().deleteTrashedBook(book.id);
     pendingDeleteBook.value = null;
     await loadTrash();
   } catch (err) {

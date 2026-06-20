@@ -11,12 +11,12 @@ A typical shelf looks like this:
 ```text
 {shelf}/
 ├─ books/
-│  ├─ {book1-folder}.novl/
+│  ├─ {book1-folder}.bookpkg/
 │  ├─ {layer1}/
-│  │  └─ {book2-folder}.novl/
+│  │  └─ {book2-folder}.bookpkg/
 │  └─ {layer2}/
 │     └─ {layer3}/
-│        └─ {book3-folder}.novl/
+│        └─ {book3-folder}.bookpkg/
 └─ app/
    ├─ library.lock
    └─ tmp/
@@ -32,12 +32,12 @@ Runtime state used by the server (file lock, temporary files). This data is cons
 
 ---
 
-## Book folder (`.novl/`)
+## Book folder (`.bookpkg/`)
 
-Each book is stored as a directory whose name ends with `.novl`:
+Each book is stored as a directory whose name ends with `.bookpkg`:
 
 ```text
-{book-folder}.novl/
+{book-folder}.bookpkg/
 ├─ book.json
 ├─ CURRENT_VERSION_LOCATION.txt
 ├─ cover.(jpg|png|webp)

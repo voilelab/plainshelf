@@ -31,16 +31,29 @@ type UpdateBookRequest struct {
 	Tags        *[]string      `json:"tags"`
 	Language    *string        `json:"language"`
 	Comment     *string        `json:"comment"`
+	Star        *int           `json:"star"`
 	PublishedAt *util.JSONTime `json:"published_at"`
 	Layer       *shelf.Layers  `json:"layer"`
 	Layers      *shelf.Layers  `json:"layers"`
 }
 
-// GET /api/books
+// GET /api/shelves/{shelf_id}/books
 func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
 	searchQuery := strings.TrimSpace(r.URL.Query().Get("search"))
 
-	books, err := app.shelf.ListBooks()
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	if !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
+	books, err := shelfData.ListBooks()
 	if err != nil {
 		app.Error("failed to list books", "error", err)
 		http.Error(w, "failed to list books", http.StatusInternalServerError)
@@ -78,8 +91,20 @@ func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// POST /api/books
+// POST /api/shelves/{shelf_id}/books
 func (app *App) HandleAPICreateBook(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	if !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
 	var req struct {
 		Title string       `json:"title"`
 		Layer shelf.Layers `json:"layer"`
@@ -98,7 +123,7 @@ func (app *App) HandleAPICreateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newBook, err := app.shelf.NewBook(req.Layer, req.Title)
+	newBook, err := shelfData.NewBook(req.Layer, req.Title)
 	if err != nil {
 		app.Error("failed to create new book", "error", err)
 		http.Error(w, "failed to create new book", http.StatusInternalServerError)
@@ -134,14 +159,26 @@ func (app *App) HandleAPICreateBook(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GET /api/books/{book_id}
+// GET /api/shelves/{shelf_id}/books/{book_id}
 func (app *App) HandleAPIGetBook(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	if !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
 		return
 	}
-	book, err := app.shelf.GetBook(bookID)
+	book, err := shelfData.GetBook(bookID)
 	if err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
@@ -166,8 +203,20 @@ func (app *App) HandleAPIGetBook(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// PATCH /api/books/{book_id}
+// PATCH /api/shelves/{shelf_id}/books/{book_id}
 func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	if !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
@@ -188,7 +237,7 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	book, err := app.shelf.GetBook(bookID)
+	book, err := shelfData.GetBook(bookID)
 	if err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
@@ -204,7 +253,7 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 		targetLayers = req.Layers
 	}
 	if targetLayers != nil {
-		movedBook, err := app.shelf.MoveBook(bookID, append(shelf.Layers(nil), (*targetLayers)...))
+		movedBook, err := shelfData.MoveBook(bookID, append(shelf.Layers(nil), (*targetLayers)...))
 		if err != nil {
 			http.Error(w, "failed to move book layer", http.StatusInternalServerError)
 			return
@@ -231,6 +280,13 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 	if req.PublishedAt != nil {
 		meta.PublishedAt = *req.PublishedAt
 	}
+	if req.Star != nil {
+		if *req.Star < 0 || *req.Star > 5 {
+			http.Error(w, "star must be between 0 and 5", http.StatusBadRequest)
+			return
+		}
+		meta.Star = *req.Star
+	}
 	meta.UpdatedAt = util.JSONTime(time.Now())
 
 	if err := book.SetMeta(&meta); err != nil {
@@ -248,15 +304,27 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// DELETE /api/books/{book_id}
+// DELETE /api/shelves/{shelf_id}/books/{book_id}
 func (app *App) HandleAPIDeleteBook(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	if !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
 		return
 	}
 
-	err = app.shelf.MoveBookToTrash(bookID)
+	err = shelfData.MoveBookToTrash(bookID)
 	if err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
@@ -270,15 +338,27 @@ func (app *App) HandleAPIDeleteBook(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// GET /api/books/{book_id}/cover
+// GET /api/shelves/{shelf_id}/books/{book_id}/cover
 func (app *App) HandleAPIGetBookCover(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	if !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
 		return
 	}
 
-	book, err := app.shelf.GetBook(bookID)
+	book, err := shelfData.GetBook(bookID)
 	if err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
@@ -307,6 +387,8 @@ func (app *App) HandleAPIGetBookCover(w http.ResponseWriter, r *http.Request) {
 		contentType = "image/png"
 	case ".jpg", ".jpeg":
 		contentType = "image/jpeg"
+	case ".webp":
+		contentType = "image/webp"
 	case ".gif":
 		contentType = "image/gif"
 	}
@@ -315,15 +397,27 @@ func (app *App) HandleAPIGetBookCover(w http.ResponseWriter, r *http.Request) {
 	w.Write(coverData)
 }
 
-// PUT /api/books/{book_id}/cover
+// PUT /api/shelves/{shelf_id}/books/{book_id}/cover
 func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	if !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
 		return
 	}
 
-	book, err := app.shelf.GetBook(bookID)
+	book, err := shelfData.GetBook(bookID)
 	if err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
@@ -335,16 +429,19 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 	}
 
 	contentType := r.Header.Get("Content-Type")
+	coverToJPG := app.coverToJPG()
 	var ext string
 	switch contentType {
 	case "image/png":
 		ext = ".png"
 	case "image/jpeg":
 		ext = ".jpg"
+	case "image/webp":
+		ext = ".webp"
 	case "image/gif":
 		ext = ".gif"
 	default:
-		if !app.conf.CoverToJPG {
+		if !coverToJPG {
 			http.Error(w, "unsupported content type", http.StatusBadRequest)
 			return
 		}
@@ -362,7 +459,7 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if app.conf.CoverToJPG {
+	if coverToJPG {
 		data, err = imgutil.AnyToJPG(data)
 		if err != nil {
 			app.Error("failed to convert image to JPEG", "error", err)
@@ -382,15 +479,27 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// DELETE /api/books/{book_id}/cover
+// DELETE /api/shelves/{shelf_id}/books/{book_id}/cover
 func (app *App) HandleAPIDeleteBookCover(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	if !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
 		return
 	}
 
-	book, err := app.shelf.GetBook(bookID)
+	book, err := shelfData.GetBook(bookID)
 	if err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
@@ -411,15 +520,27 @@ func (app *App) HandleAPIDeleteBookCover(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// GET /api/books/{book_id}/content
+// GET /api/shelves/{shelf_id}/books/{book_id}/content
 func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	if !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
 		return
 	}
 
-	book, err := app.shelf.GetBook(bookID)
+	book, err := shelfData.GetBook(bookID)
 	if err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
@@ -445,6 +566,10 @@ func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) 
 	defer src.Close()
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	if fi, statErr := src.Stat(); statErr == nil && fi.Size() == 0 {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	_, err = io.Copy(w, src)
 	if err != nil {
 		app.Error("failed to write book content", "error", err)
@@ -453,15 +578,27 @@ func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// GET /api/books/{book_id}/split_config
+// GET /api/shelves/{shelf_id}/books/{book_id}/split_config
 func (app *App) HandleAPIGetBookSplitConfig(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	if !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
 		return
 	}
 
-	book, err := app.shelf.GetBook(bookID)
+	book, err := shelfData.GetBook(bookID)
 	if err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
@@ -488,15 +625,27 @@ func (app *App) HandleAPIGetBookSplitConfig(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-// PATCH /api/books/{book_id}/split_config
+// PATCH /api/shelves/{shelf_id}/books/{book_id}/split_config
 func (app *App) HandleAPIUpdateBookSplitConfig(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	if !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
 	bookID, err := readBookID(r)
 	if err != nil {
 		http.Error(w, "invalid book_id", http.StatusBadRequest)
 		return
 	}
 
-	book, err := app.shelf.GetBook(bookID)
+	book, err := shelfData.GetBook(bookID)
 	if err != nil {
 		if errors.Is(err, shelf.ErrBookNotFound) {
 			http.Error(w, "book not found", http.StatusNotFound)
@@ -532,10 +681,22 @@ func (app *App) HandleAPIUpdateBookSplitConfig(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// GET /api/books/duplicate
+// GET /api/shelves/{shelf_id}/books/duplicate
 func (app *App) HandleAPIFindDuplicateBooks(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	if !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
 	md5Groups := map[string][]string{}
-	books, err := app.shelf.ListBooks()
+	books, err := shelfData.ListBooks()
 	if err != nil {
 		app.Error("failed to list books", "error", err)
 		http.Error(w, "failed to list books", http.StatusInternalServerError)

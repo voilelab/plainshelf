@@ -33,7 +33,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BookCollectionPage from '../components/BookCollectionPage.vue';
-import { clearReadHistory, listReadHistoryBooks } from '../api/readHistory';
+import { getBookshelfProvider } from '../providers';
 import { useBookPagination, toPage, toSingleQueryValue } from '../composables/useBookPagination';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
 import type { Book } from '../types/book';
@@ -70,7 +70,7 @@ async function loadReadHistory(): Promise<void> {
   error.value = '';
 
   try {
-    books.value = await listReadHistoryBooks();
+    books.value = await getBookshelfProvider().listReadHistoryBooks();
   } catch (err) {
     error.value = err instanceof Error ? err.message : t('readHistory.loadFailed');
   } finally {
@@ -87,7 +87,7 @@ async function onClearHistory(): Promise<void> {
   error.value = '';
 
   try {
-    await clearReadHistory();
+    await getBookshelfProvider().clearReadHistory();
     books.value = [];
     if (page.value !== 1) {
       await router.replace({ path: route.path, query: buildPageQuery(1) });

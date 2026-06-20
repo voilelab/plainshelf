@@ -18,22 +18,23 @@ import (
 type App struct {
 	logutil.Logger
 
-	shelf      *shelf.Shelf
-	storeDB    *store.DB
-	spaFS      fs.FS
-	spaHandler http.Handler
+	shelfManager *shelf.ShelfManager
+	storeDB      *store.DB
+	spaFS        fs.FS
+	spaHandler   http.Handler
 
 	conf     *AppConf
 	security *Security
 }
 
 type AppConf struct {
-	Logger           logutil.LogConf  `yaml:"logger"`
-	Shelf            *shelf.ShelfConf `yaml:"shelf"`
-	StorePath        string           `yaml:"store_path"`
-	CoverToJPG       bool             `yaml:"cover_to_jpg"`
-	ReadHistoryLimit int              `yaml:"read_history_limit"`
-	Security         *SecurityConf    `yaml:"security"`
+	Logger           logutil.LogConf          `yaml:"logger"`
+	Shelves          []*shelf.ShelfConfWithID `yaml:"shelves"`
+	StorePath        string                   `yaml:"store_path"`
+	CoverToJPG       bool                     `yaml:"cover_to_jpg"`
+	ReadHistoryLimit int                      `yaml:"read_history_limit"`
+	ReadOnly         bool                     `yaml:"read_only"`
+	Security         *SecurityConf            `yaml:"security"`
 }
 
 func NewApp(conf *AppConf) (*App, error) {
@@ -46,32 +47,47 @@ func NewApp(conf *AppConf) (*App, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
+	// Set to true to ensure that if any initialization step fails,
+	// all previously initialized resources will be properly closed.
+	failure := true
+
 	logger, err := logutil.NewLogger(&conf.Logger)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
+	defer func() {
+		if failure {
+			logger.Close()
+		}
+	}()
 
-	s, err := shelf.NewShelf(conf.Shelf)
+	shelfManager := shelf.NewShelfManager()
+	defer func() {
+		if failure {
+			shelfManager.Close()
+		}
+	}()
+
+	for _, conf := range conf.Shelves {
+		if err := shelfManager.AddShelf(*conf); err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+	}
+
+	storeDB, err := store.New(conf.StorePath)
 	if err != nil {
-		logger.Close()
 		return nil, util.Errorf("%w", err)
 	}
 
-	storeDB, err := store.New(conf.StorePath, conf.ReadHistoryLimit)
-	if err != nil {
-		s.Close()
-		logger.Close()
-		return nil, util.Errorf("%w", err)
-	}
-
+	failure = false
 	return &App{
-		Logger:     *logger,
-		shelf:      s,
-		storeDB:    storeDB,
-		spaFS:      frontend.WebFS,
-		spaHandler: http.FileServerFS(frontend.WebFS),
-		conf:       conf,
-		security:   security,
+		Logger:       *logger,
+		shelfManager: shelfManager,
+		storeDB:      storeDB,
+		spaFS:        frontend.WebFS,
+		spaHandler:   http.FileServerFS(frontend.WebFS),
+		conf:         conf,
+		security:     security,
 	}, nil
 }
 
@@ -79,9 +95,17 @@ func (app *App) Start() error {
 	return nil
 }
 
+func (app *App) AddShelf(conf shelf.ShelfConfWithID) error {
+	return app.shelfManager.AddShelf(conf)
+}
+
+func (app *App) RemoveShelf(id string) error {
+	return app.shelfManager.RemoveShelf(id)
+}
+
 func (app *App) Close() error {
 	err1 := app.storeDB.Close()
-	err2 := app.shelf.Close()
+	err2 := app.shelfManager.Close()
 	err3 := app.Logger.Close()
 
 	err := errors.Join(err1, err2, err3)
@@ -121,6 +145,9 @@ func (app *App) Handler() http.Handler {
 
 	loggerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		app.Info("app handler", "method", r.Method, "path", r.URL.Path, "remote_addr", r.RemoteAddr)
+		if app.rejectReadOnlyWrite(w, r) {
+			return
+		}
 		mux.ServeHTTP(w, r)
 	})
 
@@ -162,50 +189,72 @@ func (app *App) injectSecurityBootstrap(data []byte) []byte {
 func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /health", app.Health)
 
+	// Shelf API
+
+	mux.HandleFunc("GET /api/mode", app.HandleGetMode)
+	mux.HandleFunc("GET /api/shelves", app.HandleGetShelves)
+
 	// Book API
 
-	mux.HandleFunc("GET /api/books", app.HandleAPIGetBooks)
-	mux.HandleFunc("POST /api/books", app.HandleAPICreateBook)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books", app.HandleAPIGetBooks)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/books", app.HandleAPICreateBook)
 
-	mux.HandleFunc("POST /api/books/import", app.HandleAPIImportBook)
-	mux.HandleFunc("GET /api/books/duplicate", app.HandleAPIFindDuplicateBooks)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/import", app.HandleAPIImportBook)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/duplicate", app.HandleAPIFindDuplicateBooks)
 
-	mux.HandleFunc("GET /api/books/{book_id}", app.HandleAPIGetBook)
-	mux.HandleFunc("PATCH /api/books/{book_id}", app.HandleAPIUpdateBook)
-	mux.HandleFunc("DELETE /api/books/{book_id}", app.HandleAPIDeleteBook)
-	mux.HandleFunc("POST /api/books/{book_id}/trash", app.HandleAPITrashBook)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPIGetBook)
+	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPIUpdateBook)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPIDeleteBook)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/trash", app.HandleAPITrashBook)
 
-	mux.HandleFunc("GET /api/books/{book_id}/sources", app.HandleAPIGetBookSources)
-	mux.HandleFunc("GET /api/books/{book_id}/sources/{source_id}", app.HandleAPIGetBookSource)
-	mux.HandleFunc("POST /api/books/{book_id}/sources", app.HandleAPICreateBookSource)
-	mux.HandleFunc("DELETE /api/books/{book_id}/sources/{source_id}", app.HandleAPIDeleteBookSource)
-	mux.HandleFunc("GET /api/books/{book_id}/sources/{source_id}/content", app.HandleAPIGetBookSourceContent)
-	mux.HandleFunc("PATCH /api/books/{book_id}/sources/{source_id}/content", app.HandleAPIUpdateBookSourceContent)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources", app.HandleAPIGetBookSources)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}", app.HandleAPIGetBookSource)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/sources", app.HandleAPICreateBookSource)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}", app.HandleAPIDeleteBookSource)
+	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/current", app.HandleAPISetCurrentBookSource)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", app.HandleAPIGetBookSourceContent)
+	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", app.HandleAPIUpdateBookSourceContent)
 
-	mux.HandleFunc("GET /api/books/{book_id}/cover", app.HandleAPIGetBookCover)
-	mux.HandleFunc("PUT /api/books/{book_id}/cover", app.HandleAPIUpdateBookCover)
-	mux.HandleFunc("DELETE /api/books/{book_id}/cover", app.HandleAPIDeleteBookCover)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/cover", app.HandleAPIGetBookCover)
+	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/cover", app.HandleAPIUpdateBookCover)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/cover", app.HandleAPIDeleteBookCover)
 
-	mux.HandleFunc("GET /api/books/{book_id}/content", app.HandleAPIGetBookContent)
-	mux.HandleFunc("GET /api/books/{book_id}/split_config", app.HandleAPIGetBookSplitConfig)
-	mux.HandleFunc("PATCH /api/books/{book_id}/split_config", app.HandleAPIUpdateBookSplitConfig)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/content", app.HandleAPIGetBookContent)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/split_config", app.HandleAPIGetBookSplitConfig)
+	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}/split_config", app.HandleAPIUpdateBookSplitConfig)
 
-	mux.HandleFunc("GET /api/trash/books", app.HandleAPIGetTrashedBooks)
-	mux.HandleFunc("POST /api/trash/books/{book_id}/restore", app.HandleAPIRestoreTrashedBook)
-	mux.HandleFunc("DELETE /api/trash/books/{book_id}", app.HandleAPIDeleteTrashedBook)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/trash/books", app.HandleAPIGetTrashedBooks)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/trash/books/{book_id}/restore", app.HandleAPIRestoreTrashedBook)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/trash/books/{book_id}", app.HandleAPIDeleteTrashedBook)
 
-	mux.HandleFunc("GET /api/layers", app.HandleAPIGetLayers)
-	mux.HandleFunc("POST /api/layers/{layer_path...}", app.HandleAPICreateLayer)
-	mux.HandleFunc("DELETE /api/layers/{layer_path...}", app.HandleAPIDeleteLayer)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/layers", app.HandleAPIGetLayers)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/layer-moves", app.HandleAPIMoveLayer)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/layers/{layer_path...}", app.HandleAPICreateLayer)
+	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/layers/{layer_path...}", app.HandleAPIRenameLayer)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/layers/{layer_path...}", app.HandleAPIDeleteLayer)
 
 	// Store API
 
-	mux.HandleFunc("GET /api/marks/{book_id}", app.HandleAPIGetMarks)
-	mux.HandleFunc("POST /api/marks/{book_id}", app.HandleAPIUpdateMarks)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/marks/{book_id}", app.HandleAPIGetMarks)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/marks/{book_id}", app.HandleAPIUpdateMarks)
 
-	mux.HandleFunc("GET /api/read_history", app.HandleAPIGetReadHistory)
-	mux.HandleFunc("POST /api/read_history", app.HandleAPIUpdateReadHistory)
-	mux.HandleFunc("DELETE /api/read_history", app.HandleAPIClearReadHistory)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/read_history", app.HandleAPIGetReadHistory)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/read_history", app.HandleAPIUpdateReadHistory)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/read_history", app.HandleAPIClearReadHistory)
+
+	// Log API
+
+	mux.HandleFunc("GET /api/logs", app.HandleAPIGetLogs)
+	mux.HandleFunc("GET /api/logs/{log_id}/content", app.HandleAPIGetLogContent)
+
+	// Setting API
+
+	mux.HandleFunc("GET /api/setting/cover_to_jpg", app.HandleGetSettingCoverToJPG)
+	mux.HandleFunc("POST /api/setting/cover_to_jpg", app.HandleSetSettingCoverToJPG)
+	mux.HandleFunc("DELETE /api/setting/cover_to_jpg", app.HandleDeleteSettingCoverToJPG)
+	mux.HandleFunc("GET /api/setting/read_history_limit", app.HandleGetSettingReadHistoryLimit)
+	mux.HandleFunc("POST /api/setting/read_history_limit", app.HandleSetSettingReadHistoryLimit)
+	mux.HandleFunc("DELETE /api/setting/read_history_limit", app.HandleDeleteSettingReadHistoryLimit)
 
 	mux.HandleFunc("GET /{path...}", app.HandleSPAFallback)
 }
@@ -220,4 +269,18 @@ func hasFileExtension(path string) bool {
 		}
 	}
 	return false
+}
+
+func (app *App) rejectReadOnlyWrite(w http.ResponseWriter, r *http.Request) bool {
+	if app == nil || app.conf == nil || !app.conf.ReadOnly {
+		return false
+	}
+
+	switch r.Method {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		http.Error(w, "server is in read-only mode", http.StatusForbidden)
+		return true
+	default:
+		return false
+	}
 }
