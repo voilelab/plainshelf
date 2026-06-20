@@ -117,6 +117,10 @@ const zhHant = {
     },
     shelves: {
       title: '書架',
+      manage: '管理書架',
+      modalTitle: '管理書架',
+      modalDescription: '在此視窗新增或移除桌面版書架。',
+      closeModal: '關閉書架管理視窗',
       loadFailed: '載入書架失敗',
       empty: '尚未設定書架。',
       serverManaged: '書架由伺服器設定管理。',

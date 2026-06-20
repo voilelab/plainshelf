@@ -51,122 +51,134 @@
       </label>
     </section>
 
-    <section class="panel settings-group">
-      <h3>{{ t('settings.shelves.title') }}</h3>
-
-      <p v-if="shelvesError || shelfOpError" class="settings-message settings-message-error" role="alert">
-        {{ shelfOpError || shelvesError }}
-      </p>
-
-      <p v-if="!isDesktopEnv" class="setting-description">
-        {{ t('settings.shelves.serverManaged') }}
-      </p>
-
-      <div v-if="shelvesLoading" class="setting-description">{{ t('layout.shelf.loading') }}</div>
-      <template v-else>
-        <p v-if="shelves.length === 0" class="setting-description">
-          {{ t('settings.shelves.empty') }}
+    <section class="panel settings-group shelf-settings-summary">
+      <div>
+        <h3>{{ t('settings.shelves.title') }}</h3>
+        <p class="setting-description">
+          {{ isDesktopEnv ? t('settings.shelves.modalDescription') : t('settings.shelves.serverManaged') }}
         </p>
-        <table v-else class="shelves-table">
-          <thead>
-            <tr>
-              <th>{{ t('settings.shelves.name') }}</th>
-              <th>ID</th>
-              <th v-if="isDesktopEnv"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="shelf in shelves" :key="shelf.id">
-              <td>{{ shelf.name }}</td>
-              <td class="shelf-id-cell">{{ shelf.id }}</td>
-              <td v-if="isDesktopEnv" class="shelf-action-cell">
-                <template v-if="confirmingShelfID === shelf.id">
-                  <span class="shelf-confirm-label">{{ t('settings.shelves.removeConfirmInline') }}</span>
-                  <button
-                    type="button"
-                    class="shelf-confirm-btn"
-                    :disabled="removingShelfIDs.has(shelf.id)"
-                    @click="onRemoveShelf(shelf)"
-                  >
-                    {{ removingShelfIDs.has(shelf.id) ? t('settings.shelves.removing') : t('settings.shelves.removeConfirmYes') }}
-                  </button>
-                  <button
-                    type="button"
-                    class="shelf-cancel-btn"
-                    :disabled="removingShelfIDs.has(shelf.id)"
-                    @click="confirmingShelfID = ''"
-                  >
-                    {{ t('common.cancel') }}
-                  </button>
-                </template>
-                <button
-                  v-else
-                  type="button"
-                  class="shelf-remove-btn"
-                  @click="confirmingShelfID = shelf.id"
-                >
-                  {{ t('settings.shelves.remove') }}
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </template>
-
-      <template v-if="isDesktopEnv">
-        <div class="shelf-add-row">
-          <button
-            type="button"
-            class="shelf-add-toggle"
-            :disabled="addingShelf"
-            @click="toggleAddShelfForm"
-          >
-            {{ showAddShelfForm ? t('settings.shelves.addShelfCancel') : t('settings.shelves.addShelf') }}
-          </button>
-        </div>
-
-        <form v-if="showAddShelfForm" class="shelf-add-form" @submit.prevent="onSubmitAddShelf">
-          <div class="shelf-add-fields">
-            <input
-              v-model="newShelfName"
-              class="shelf-add-input"
-              type="text"
-              :placeholder="t('settings.shelves.addShelfNamePlaceholder')"
-              :disabled="addingShelf"
-            />
-            <div class="shelf-add-dir-row">
-              <input
-                v-model="newShelfDirectory"
-                class="shelf-add-input shelf-add-dir-input"
-                type="text"
-                :placeholder="t('settings.shelves.addShelfDirectoryPlaceholder')"
-                :disabled="addingShelf"
-              />
-              <button
-                type="button"
-                class="shelf-browse-btn"
-                :disabled="addingShelf"
-                @click="onBrowseShelfDirectory"
-              >
-                {{ t('settings.shelves.addShelfBrowse') }}
-              </button>
-            </div>
-          </div>
-          <div class="shelf-add-actions">
-            <button
-              type="submit"
-              class="create-layer-submit"
-              :disabled="addingShelf || !canSubmitAddShelf"
-            >
-              {{ addingShelf ? t('settings.shelves.addShelfAdding') : t('settings.shelves.addShelfSubmit') }}
-            </button>
-          </div>
-          <p v-if="addShelfError" class="settings-message settings-message-error" role="alert">
-            {{ addShelfError }}
-          </p>
-        </form>
-      </template>
+      </div>
+      <button type="button" class="shelf-manage-btn" @click="openShelfModal">
+        {{ t('settings.shelves.manage') }}
+      </button>
     </section>
+
+    <teleport to="body">
+      <div v-if="showShelfModal" class="modal-backdrop" @click.self="closeShelfModal">
+        <section class="shelf-modal" role="dialog" aria-modal="true" :aria-label="t('settings.shelves.modalTitle')">
+          <header class="shelf-modal-header">
+            <div>
+              <h3>{{ t('settings.shelves.modalTitle') }}</h3>
+              <p class="setting-description">
+                {{ isDesktopEnv ? t('settings.shelves.modalDescription') : t('settings.shelves.serverManaged') }}
+              </p>
+            </div>
+            <button type="button" class="modal-close-btn" :aria-label="t('settings.shelves.closeModal')" @click="closeShelfModal">
+              ×
+            </button>
+          </header>
+
+          <p v-if="shelvesError || shelfOpError" class="settings-message settings-message-error" role="alert">
+            {{ shelfOpError || shelvesError }}
+          </p>
+
+          <div v-if="shelvesLoading" class="setting-description">{{ t('layout.shelf.loading') }}</div>
+          <template v-else>
+            <p v-if="shelves.length === 0" class="setting-description">
+              {{ t('settings.shelves.empty') }}
+            </p>
+            <table v-else class="shelves-table">
+              <thead>
+                <tr>
+                  <th>{{ t('settings.shelves.name') }}</th>
+                  <th>ID</th>
+                  <th v-if="isDesktopEnv"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="shelf in shelves" :key="shelf.id">
+                  <td>{{ shelf.name }}</td>
+                  <td class="shelf-id-cell">{{ shelf.id }}</td>
+                  <td v-if="isDesktopEnv" class="shelf-action-cell">
+                    <template v-if="confirmingShelfID === shelf.id">
+                      <span class="shelf-confirm-label">{{ t('settings.shelves.removeConfirmInline') }}</span>
+                      <button
+                        type="button"
+                        class="shelf-confirm-btn"
+                        :disabled="removingShelfIDs.has(shelf.id)"
+                        @click="onRemoveShelf(shelf)"
+                      >
+                        {{ removingShelfIDs.has(shelf.id) ? t('settings.shelves.removing') : t('settings.shelves.removeConfirmYes') }}
+                      </button>
+                      <button
+                        type="button"
+                        class="shelf-cancel-btn"
+                        :disabled="removingShelfIDs.has(shelf.id)"
+                        @click="confirmingShelfID = ''"
+                      >
+                        {{ t('common.cancel') }}
+                      </button>
+                    </template>
+                    <button
+                      v-else
+                      type="button"
+                      class="shelf-remove-btn"
+                      @click="confirmingShelfID = shelf.id"
+                    >
+                      {{ t('settings.shelves.remove') }}
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </template>
+
+          <template v-if="isDesktopEnv">
+            <form class="shelf-add-form" @submit.prevent="onSubmitAddShelf">
+              <h4>{{ t('settings.shelves.addShelf') }}</h4>
+              <div class="shelf-add-fields">
+                <input
+                  v-model="newShelfName"
+                  class="shelf-add-input"
+                  type="text"
+                  :placeholder="t('settings.shelves.addShelfNamePlaceholder')"
+                  :disabled="addingShelf"
+                />
+                <div class="shelf-add-dir-row">
+                  <input
+                    v-model="newShelfDirectory"
+                    class="shelf-add-input shelf-add-dir-input"
+                    type="text"
+                    :placeholder="t('settings.shelves.addShelfDirectoryPlaceholder')"
+                    :disabled="addingShelf"
+                  />
+                  <button
+                    type="button"
+                    class="shelf-browse-btn"
+                    :disabled="addingShelf"
+                    @click="onBrowseShelfDirectory"
+                  >
+                    {{ t('settings.shelves.addShelfBrowse') }}
+                  </button>
+                </div>
+              </div>
+              <div class="shelf-add-actions">
+                <button
+                  type="submit"
+                  class="create-layer-submit"
+                  :disabled="addingShelf || !canSubmitAddShelf"
+                >
+                  {{ addingShelf ? t('settings.shelves.addShelfAdding') : t('settings.shelves.addShelfSubmit') }}
+                </button>
+              </div>
+              <p v-if="addShelfError" class="settings-message settings-message-error" role="alert">
+                {{ addShelfError }}
+              </p>
+            </form>
+          </template>
+        </section>
+      </div>
+    </teleport>
   </section>
 </template>
 
@@ -195,7 +207,7 @@ const { shelves, loading: shelvesLoading, error: shelvesError, fetchShelves } = 
 const shelfOpError = ref('');
 const removingShelfIDs = ref<Set<string>>(new Set());
 const confirmingShelfID = ref('');
-const showAddShelfForm = ref(false);
+const showShelfModal = ref(false);
 const newShelfName = ref('');
 const newShelfDirectory = ref('');
 const addingShelf = ref(false);
@@ -306,13 +318,25 @@ async function onRemoveShelf(shelf: { id: string; name: string }): Promise<void>
   }
 }
 
-function toggleAddShelfForm(): void {
-  showAddShelfForm.value = !showAddShelfForm.value;
+function resetShelfForm(): void {
   addShelfError.value = '';
-  if (!showAddShelfForm.value) {
-    newShelfName.value = '';
-    newShelfDirectory.value = '';
+  newShelfName.value = '';
+  newShelfDirectory.value = '';
+}
+
+function openShelfModal(): void {
+  showShelfModal.value = true;
+  shelfOpError.value = '';
+  void fetchShelves();
+}
+
+function closeShelfModal(): void {
+  if (addingShelf.value || removingShelfIDs.value.size > 0) {
+    return;
   }
+  showShelfModal.value = false;
+  confirmingShelfID.value = '';
+  resetShelfForm();
 }
 
 async function onBrowseShelfDirectory(): Promise<void> {
@@ -340,9 +364,7 @@ async function onSubmitAddShelf(): Promise<void> {
     const provider = getBookshelfProvider();
     await provider.addDesktopShelf!(name, dir);
     await fetchShelves();
-    showAddShelfForm.value = false;
-    newShelfName.value = '';
-    newShelfDirectory.value = '';
+    resetShelfForm();
   } catch (err) {
     addShelfError.value = err instanceof Error ? err.message : t('settings.shelves.addShelfFailed');
   } finally {
@@ -537,30 +559,91 @@ onMounted(() => {
   opacity: 0.6;
 }
 
-.shelf-add-row {
+ .shelf-settings-summary {
+  align-items: center;
   display: flex;
+  justify-content: space-between;
 }
 
-.shelf-add-toggle {
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
+.shelf-manage-btn {
+  background: #2563eb;
+  border: 1px solid #1d4ed8;
   border-radius: 6px;
-  color: #334155;
+  color: #ffffff;
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
-  padding: 6px 12px;
+  padding: 6px 14px;
 }
 
-.shelf-add-toggle:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
+.shelf-manage-btn:hover {
+  background: #1d4ed8;
+}
+
+.modal-backdrop {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.42);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 50;
+}
+
+.shelf-modal {
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+  display: grid;
+  gap: 16px;
+  max-height: min(720px, calc(100vh - 40px));
+  max-width: 720px;
+  overflow: auto;
+  padding: 20px;
+  width: 100%;
+}
+
+.shelf-modal-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.shelf-modal-header h3 {
+  margin: 0;
+}
+
+.modal-close-btn {
+  align-items: center;
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 22px;
+  height: 32px;
+  justify-content: center;
+  line-height: 1;
+  width: 32px;
+}
+
+.modal-close-btn:hover {
+  background: #f1f5f9;
 }
 
 .shelf-add-form {
+  border-top: 1px solid #e2e8f0;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding-top: 16px;
+}
+
+.shelf-add-form h4 {
+  margin: 0;
 }
 
 .shelf-add-fields {

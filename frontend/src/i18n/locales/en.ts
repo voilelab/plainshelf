@@ -118,6 +118,10 @@ const en = {
     },
     shelves: {
       title: 'Shelves',
+      manage: 'Manage shelves',
+      modalTitle: 'Manage shelves',
+      modalDescription: 'Add or remove desktop shelves in this dialog.',
+      closeModal: 'Close shelf management dialog',
       loadFailed: 'Failed to load shelves',
       empty: 'No shelves configured.',
       serverManaged: 'Shelves are managed by the server configuration.',
