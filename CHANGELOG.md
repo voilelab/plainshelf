@@ -27,7 +27,7 @@ and UI behavior may still change between releases.
 ### Changed
 
 - Changed book package directory extension from `.novl` to `.bookpkg`.
-- Changed project license from ISC to BSD-3-Clause.
+- Changed frontend license from ISC to BSD-3-Clause.
 - Moved shelf selector from the top bar to the top of the left sidebar, above the layer tree.
 
 ### Fixed
