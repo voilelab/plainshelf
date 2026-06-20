@@ -15,11 +15,11 @@ import (
 /*
 Layout:
 {library}/books/
-  {book1-folder}.novl/
+  {book1-folder}.bookpkg/
   {layer1}/
-	{book2-folder}.novl/
+	{book2-folder}.bookpkg/
 	{layer2}/
-	  {book2-folder}.novl/
+	  {book2-folder}.bookpkg/
 {library}/app/
   library.lock
   tmp/
@@ -28,7 +28,7 @@ Layout:
 const booksFolder = "books"
 const trashFolder = ".trash"
 const trashBooksFolder = trashFolder + "/" + booksFolder
-const bookExtension = ".novl"
+const bookExtension = ".bookpkg"
 const appFolder = "app"
 const appTmpFolder = "tmp"
 const libraryLockFile = "library.lock"

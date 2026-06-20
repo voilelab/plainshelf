@@ -529,7 +529,7 @@ func TestShelfGetBookRefreshesWhenBookMetaChangesOnDisk(t *testing.T) {
 		t.Fatalf("Expected initial title %q, got %q", "Book Title", got)
 	}
 
-	metaPath := path.Join(tmpLib, booksFolder, "default", "test", "book-a82m.novl", BookMetaFile)
+	metaPath := path.Join(tmpLib, booksFolder, "default", "test", "book-a82m.bookpkg", BookMetaFile)
 	metaBytes, err := os.ReadFile(metaPath)
 	if err != nil {
 		t.Fatalf("Failed to read book meta: %v", err)
@@ -582,7 +582,7 @@ func TestShelfListBooksRefreshesStaleMetaAndDiscoversNewBookOnCacheMiss(t *testi
 		t.Fatalf("Expected 2 books before updates, got %d", len(books))
 	}
 
-	metaPath := path.Join(tmpLib, booksFolder, "default", "test", "book-a82m.novl", BookMetaFile)
+	metaPath := path.Join(tmpLib, booksFolder, "default", "test", "book-a82m.bookpkg", BookMetaFile)
 	metaBytes, err := os.ReadFile(metaPath)
 	if err != nil {
 		t.Fatalf("Failed to read existing book meta: %v", err)
@@ -601,7 +601,7 @@ func TestShelfListBooksRefreshesStaleMetaAndDiscoversNewBookOnCacheMiss(t *testi
 		t.Fatalf("Failed to write existing book meta: %v", err)
 	}
 
-	newBookPath := path.Join(tmpLib, booksFolder, "default", "test", "book-new.novl")
+	newBookPath := path.Join(tmpLib, booksFolder, "default", "test", "book-new.bookpkg")
 	if err := os.MkdirAll(newBookPath, 0o755); err != nil {
 		t.Fatalf("Failed to create new book directory: %v", err)
 	}

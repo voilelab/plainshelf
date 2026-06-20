@@ -21,7 +21,7 @@ func TestShelfRejectsUnsafeLayerSegments(t *testing.T) {
 		{"."},
 		{"safe/unsafe"},
 		{"safe\\unsafe"},
-		{"books.novl"},
+		{"books.bookpkg"},
 		{""},
 	}
 

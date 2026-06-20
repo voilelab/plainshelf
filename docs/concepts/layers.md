@@ -10,13 +10,13 @@ A layer is a named directory that sits between the `books/` root and one or more
 
 ```text
 books/
-├─ {book}.novl/          # book at the root (no layer)
+├─ {book}.bookpkg/          # book at the root (no layer)
 ├─ Fiction/
-│  ├─ {bookA}.novl/      # book inside the "Fiction" layer
+│  ├─ {bookA}.bookpkg/      # book inside the "Fiction" layer
 │  └─ Classics/
-│     └─ {bookB}.novl/   # book nested two levels deep
+│     └─ {bookB}.bookpkg/   # book nested two levels deep
 └─ Non-Fiction/
-   └─ {bookC}.novl/
+   └─ {bookC}.bookpkg/
 ```
 
 ---
