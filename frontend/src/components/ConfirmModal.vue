@@ -39,7 +39,7 @@
             class="button"
             :class="confirmVariant"
             type="button"
-            :disabled="busy"
+            :disabled="busy || confirmDisabled"
             @click="emit('confirm')"
           >
             {{ busy ? busyText : confirmText }}
@@ -62,6 +62,7 @@ const props = withDefaults(
     cancelText?: string;
     busyText?: string;
     busy?: boolean;
+    confirmDisabled?: boolean;
     closeOnBackdrop?: boolean;
     closeLabel?: string;
     variant?: 'primary' | 'danger';
@@ -72,6 +73,7 @@ const props = withDefaults(
     cancelText: 'Cancel',
     busyText: 'Working...',
     busy: false,
+    confirmDisabled: false,
     closeOnBackdrop: true,
     closeLabel: 'Close confirmation dialog',
     variant: 'primary'
