@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gofrs/flock"
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
@@ -45,15 +44,14 @@ const lockRetryDelay = 50 * time.Millisecond
 
 type Shelf struct {
 	logutil.Logger
-	dbRoot      fsutil.FS
-	readonly    bool
-	close       func() error
-	localLock   *flock.Flock
-	lockTimeout time.Duration
-	bookCache   *bookCache
-	ready       atomic.Bool
-	readyCh     chan struct{}
-	initErr     atomic.Pointer[error] // set if initCache fails; readyCh is still closed
+	dbRoot    fsutil.FS
+	readonly  bool
+	close     func() error
+	localLock ShelfLock
+	bookCache *bookCache
+	ready     atomic.Bool
+	readyCh   chan struct{}
+	initErr   atomic.Pointer[error] // set if initCache fails; readyCh is still closed
 }
 
 type ShelfConf struct {
@@ -73,7 +71,15 @@ type ShelfConf struct {
 	// LockTimeout is the maximum duration to wait when acquiring the shelf lock.
 	// On SMB mounts, flock() may behave unreliably; a timeout prevents indefinite hangs.
 	// Default: 30s. Set to "0s" to disable the timeout (blocking lock).
+	// Only used when lock_mode is "flock".
 	LockTimeout string `yaml:"lock_timeout" json:"lock_timeout"`
+
+	// LockMode controls the file locking strategy.
+	// "flock" (default): uses OS flock, reliable on local/SMB mounts.
+	// "none": disables locking; use when the storage layer cannot support flock
+	// (e.g. cloud storage mounted via rclone). Requires the operator to ensure
+	// only one PlainShelf instance accesses the shelf at a time.
+	LockMode string `yaml:"lock_mode" json:"lock_mode"`
 
 	// BookCheckInterval controls how often per-book staleness checks run (checking whether
 	// individual book.json files have changed). Between checks, list operations return from
@@ -138,14 +144,24 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		}
 	}
 
+	var shelfLock ShelfLock
+	switch conf.LockMode {
+	case "", "flock":
+		shelfLock = newFlockLock(path.Join(conf.LibRoot, appFolder, libraryLockFile), lockTimeout)
+	case "none":
+		shelfLock = newNoneLock()
+	default:
+		rt.Close()
+		return nil, util.Errorf("unknown lock_mode %q: must be \"flock\" or \"none\"", conf.LockMode)
+	}
+
 	s := &Shelf{
-		Logger:      *logger,
-		dbRoot:      fsutil.NewRootFS(rt),
-		readonly:    false,
-		close:       rt.Close,
-		localLock:   flock.New(path.Join(conf.LibRoot, appFolder, libraryLockFile)),
-		lockTimeout: lockTimeout,
-		readyCh:     make(chan struct{}),
+		Logger:    *logger,
+		dbRoot:    fsutil.NewRootFS(rt),
+		readonly:  false,
+		close:     rt.Close,
+		localLock: shelfLock,
+		readyCh:   make(chan struct{}),
 
 		// cache
 		bookCache: newBookCache(scanInterval, bookCheckInterval),
@@ -226,62 +242,24 @@ func (s *Shelf) WaitReady(ctx context.Context) error {
 }
 
 func (s *Shelf) lock() error {
-	if s.readonly || s.localLock == nil {
+	if s.readonly {
 		return nil
 	}
-
-	if s.lockTimeout == 0 {
-		return s.localLock.Lock()
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), s.lockTimeout)
-	defer cancel()
-	locked, err := s.localLock.TryLockContext(ctx, lockRetryDelay)
-	if err != nil {
-		return util.Errorf("%w: %w", ErrShelfLockTimeout, err)
-	}
-	if !locked {
-		return util.Errorf("%w: write lock timed out, another instance may hold it", ErrShelfLockTimeout)
-	}
-	return nil
+	return s.localLock.Lock()
 }
 
 func (s *Shelf) rlock() error {
-	if s.readonly || s.localLock == nil {
+	if s.readonly {
 		return nil
 	}
-
-	if s.lockTimeout == 0 {
-		return s.localLock.RLock()
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), s.lockTimeout)
-	defer cancel()
-	locked, err := s.localLock.TryRLockContext(ctx, lockRetryDelay)
-	if err != nil {
-		return util.Errorf("%w: %w", ErrShelfLockTimeout, err)
-	}
-	if !locked {
-		return util.Errorf("%w: read lock timed out, another instance may hold it", ErrShelfLockTimeout)
-	}
-	return nil
+	return s.localLock.RLock()
 }
 
 func (s *Shelf) unlock() error {
 	if s.readonly {
 		return nil
 	}
-
-	if s.localLock == nil {
-		return nil
-	}
-
-	err := s.localLock.Unlock()
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	return nil
+	return s.localLock.Unlock()
 }
 
 // SetScanInterval updates the scan interval on the live shelf without restarting it.
@@ -303,11 +281,8 @@ func (s *Shelf) SetScanInterval(scanInterval string) error {
 // Close releases any resources held by the Shelf instance.
 func (s *Shelf) Close() error {
 	errs := []error{}
-	if s.localLock != nil {
-		err := s.localLock.Close()
-		if err != nil {
-			errs = append(errs, err)
-		}
+	if err := s.localLock.Close(); err != nil {
+		errs = append(errs, err)
 	}
 
 	if s.close != nil {
