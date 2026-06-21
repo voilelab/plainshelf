@@ -28,6 +28,7 @@ nav:
   - Home: index.md
   - Getting Started: getting-started.md
   - Configuration:
+      - Local Shelf File Source: configuring-local-shelf.md
       - SMB Shelf File Source: configuring-smb-shelf.md
   - Concepts:
       - Data Model: concepts/data-model.md
