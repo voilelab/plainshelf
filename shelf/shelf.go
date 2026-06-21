@@ -284,6 +284,22 @@ func (s *Shelf) unlock() error {
 	return nil
 }
 
+// SetScanInterval updates the scan interval on the live shelf without restarting it.
+func (s *Shelf) SetScanInterval(scanInterval string) error {
+	interval := time.Minute
+	if scanInterval != "" {
+		var err error
+		interval, err = time.ParseDuration(scanInterval)
+		if err != nil {
+			return util.Errorf("invalid scan interval: %w", err)
+		}
+	}
+	s.bookCache.Lock()
+	s.bookCache.scanInterval = interval
+	s.bookCache.Unlock()
+	return nil
+}
+
 // Close releases any resources held by the Shelf instance.
 func (s *Shelf) Close() error {
 	errs := []error{}

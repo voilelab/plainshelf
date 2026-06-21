@@ -104,6 +104,23 @@ func (sm *ShelfManager) GetAllShelves() []*ShelfData {
 	return shelves
 }
 
+func (sm *ShelfManager) UpdateShelf(id, name, scanInterval string) error {
+	sm.lock.Lock()
+	defer sm.lock.Unlock()
+
+	s, exists := sm.shelves[id]
+	if !exists {
+		return util.Errorf("shelf with ID %q does not exist", id)
+	}
+
+	if err := s.SetScanInterval(scanInterval); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	s.Name = name
+	return nil
+}
+
 func (sm *ShelfManager) RemoveShelf(id string) error {
 	sm.lock.Lock()
 	defer sm.lock.Unlock()

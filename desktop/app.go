@@ -28,6 +28,13 @@ type DesktopImportBookResult struct {
 	Error string `json:"error,omitempty"`
 }
 
+type DesktopShelfDetails struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Path         string `json:"path"`
+	ScanInterval string `json:"scan_interval"`
+}
+
 func NewDesktopApp() *DesktopApp {
 	return &DesktopApp{}
 }
@@ -212,6 +219,88 @@ func (a *DesktopApp) AddShelf(name, libRoot, scanInterval string) error {
 	if err := saveDesktopShelves(a.shelvesConfigPath, conf); err != nil {
 		if removeErr := a.app.RemoveShelf(id); removeErr != nil {
 			return util.Errorf("saving shelf config: %w; rolling back runtime shelf: %v", err, removeErr)
+		}
+		return util.Errorf("saving shelf config: %w", err)
+	}
+
+	return nil
+}
+
+func (a *DesktopApp) GetShelfDetails(shelfID string) (*DesktopShelfDetails, error) {
+	if a.app == nil {
+		return nil, util.NewError("desktop backend app instance is nil")
+	}
+
+	shelfID = strings.TrimSpace(shelfID)
+	if shelfID == "" {
+		return nil, util.Errorf("shelf ID cannot be empty")
+	}
+
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		return nil, util.Errorf("loading shelf config: %w", err)
+	}
+
+	for _, entry := range conf.Shelves {
+		if entry.ID == shelfID {
+			return &DesktopShelfDetails{
+				ID:           entry.ID,
+				Name:         entry.Name,
+				Path:         entry.LibRoot,
+				ScanInterval: entry.ScanInterval,
+			}, nil
+		}
+	}
+
+	return nil, util.Errorf("shelf with ID %q not found", shelfID)
+}
+
+func (a *DesktopApp) ModifyShelf(shelfID, name, scanInterval string) error {
+	if a.app == nil {
+		return util.NewError("desktop backend app instance is nil")
+	}
+
+	shelfID = strings.TrimSpace(shelfID)
+	if shelfID == "" {
+		return util.Errorf("shelf ID cannot be empty")
+	}
+
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return util.Errorf("shelf name cannot be empty")
+	}
+
+	scanInterval = strings.TrimSpace(scanInterval)
+
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		return util.Errorf("loading shelf config: %w", err)
+	}
+
+	var found *desktopShelfEntry
+	for i := range conf.Shelves {
+		if conf.Shelves[i].ID == shelfID {
+			found = &conf.Shelves[i]
+			break
+		}
+	}
+	if found == nil {
+		return util.Errorf("shelf with ID %q not found in config", shelfID)
+	}
+
+	oldName := found.Name
+	oldScanInterval := found.ScanInterval
+
+	if err := a.app.UpdateShelf(shelfID, name, scanInterval); err != nil {
+		return util.Errorf("updating shelf: %w", err)
+	}
+
+	found.Name = name
+	found.ScanInterval = scanInterval
+
+	if err := saveDesktopShelves(a.shelvesConfigPath, conf); err != nil {
+		if rollbackErr := a.app.UpdateShelf(shelfID, oldName, oldScanInterval); rollbackErr != nil {
+			return util.Errorf("saving shelf config: %w; rolling back runtime shelf: %v", err, rollbackErr)
 		}
 		return util.Errorf("saving shelf config: %w", err)
 	}
