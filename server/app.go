@@ -99,6 +99,10 @@ func (app *App) AddShelf(conf shelf.ShelfConfWithID) error {
 	return app.shelfManager.AddShelf(conf)
 }
 
+func (app *App) UpdateShelf(id, name, scanInterval string) error {
+	return app.shelfManager.UpdateShelf(id, name, scanInterval)
+}
+
 func (app *App) RemoveShelf(id string) error {
 	return app.shelfManager.RemoveShelf(id)
 }

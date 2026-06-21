@@ -15,6 +15,49 @@
     />
 
     <ConfirmModal
+      :open="showModifyShelfModal"
+      :title="t('settings.shelves.modifyShelfTitle')"
+      :confirm-text="t('settings.shelves.modifyShelfSubmit')"
+      :cancel-text="t('common.cancel')"
+      :busy-text="t('settings.shelves.modifyShelfSaving')"
+      :busy="modifyingShelf"
+      :confirm-disabled="!canSubmitModifyShelf"
+      :close-label="t('settings.shelves.modifyShelfCloseLabel')"
+      @cancel="closeModifyShelfModal"
+      @confirm="onSubmitModifyShelf"
+    >
+      <form class="shelf-add-form" @submit.prevent="onSubmitModifyShelf">
+        <div class="shelf-modify-readonly-row">
+          <span class="shelf-modify-label">{{ t('settings.shelves.modifyShelfIDLabel') }}</span>
+          <span class="shelf-modify-value shelf-id-cell">{{ pendingModifyShelf?.id }}</span>
+        </div>
+        <div class="shelf-modify-readonly-row">
+          <span class="shelf-modify-label">{{ t('settings.shelves.modifyShelfPathLabel') }}</span>
+          <span class="shelf-modify-value">{{ modifyShelfPath }}</span>
+        </div>
+        <input
+          v-model="modifyShelfName"
+          class="shelf-add-input"
+          type="text"
+          :placeholder="t('settings.shelves.modifyShelfNamePlaceholder')"
+          :disabled="modifyingShelf"
+          autofocus
+        />
+        <input
+          v-model="modifyShelfScanInterval"
+          class="shelf-add-input"
+          type="text"
+          :placeholder="t('settings.shelves.modifyShelfScanIntervalPlaceholder')"
+          :disabled="modifyingShelf"
+        />
+        <p class="shelf-add-help">{{ t('settings.shelves.modifyShelfScanIntervalHelp') }}</p>
+        <p v-if="modifyShelfError" class="settings-message settings-message-error" role="alert">
+          {{ modifyShelfError }}
+        </p>
+      </form>
+    </ConfirmModal>
+
+    <ConfirmModal
       :open="showAddShelfModal"
       :title="t('settings.shelves.addShelfTitle')"
       :confirm-text="t('settings.shelves.addShelfSubmit')"
@@ -147,6 +190,14 @@
               <td v-if="isDesktopEnv" class="shelf-action-cell">
                 <button
                   type="button"
+                  class="shelf-modify-btn"
+                  :disabled="removingShelfIDs.has(shelf.id)"
+                  @click="requestModifyShelf(shelf)"
+                >
+                  {{ t('settings.shelves.modify') }}
+                </button>
+                <button
+                  type="button"
                   class="shelf-remove-btn"
                   :disabled="removingShelfIDs.has(shelf.id)"
                   @click="requestRemoveShelf(shelf)"
@@ -210,6 +261,15 @@ const addShelfError = ref('');
 const canSubmitAddShelf = computed(
   () => newShelfName.value.trim().length > 0 && newShelfDirectory.value.trim().length > 0
 );
+
+const pendingModifyShelf = ref<{ id: string; name: string } | null>(null);
+const showModifyShelfModal = ref(false);
+const modifyShelfName = ref('');
+const modifyShelfScanInterval = ref('');
+const modifyShelfPath = ref('');
+const modifyingShelf = ref(false);
+const modifyShelfError = ref('');
+const canSubmitModifyShelf = computed(() => modifyShelfName.value.trim().length > 0);
 
 useDocumentTitle(() => [t('settings.title'), t('app.name')]);
 
@@ -394,6 +454,77 @@ async function onSubmitAddShelf(): Promise<void> {
   }
 }
 
+function resetModifyShelfForm(): void {
+  modifyShelfName.value = '';
+  modifyShelfScanInterval.value = '';
+  modifyShelfPath.value = '';
+  modifyShelfError.value = '';
+}
+
+async function requestModifyShelf(shelf: { id: string; name: string }): Promise<void> {
+  const provider = getBookshelfProvider();
+  if (!provider.getDesktopShelfDetails) {
+    return;
+  }
+
+  shelfOpError.value = '';
+  resetModifyShelfForm();
+
+  try {
+    const details = await provider.getDesktopShelfDetails(shelf.id);
+    pendingModifyShelf.value = shelf;
+    modifyShelfName.value = details.name;
+    modifyShelfScanInterval.value = details.scan_interval;
+    modifyShelfPath.value = details.path;
+    showModifyShelfModal.value = true;
+  } catch (err) {
+    shelfOpError.value = err instanceof Error ? err.message : t('settings.shelves.modifyShelfFailed');
+  }
+}
+
+function closeModifyShelfModal(): void {
+  if (modifyingShelf.value) {
+    return;
+  }
+
+  showModifyShelfModal.value = false;
+  pendingModifyShelf.value = null;
+  resetModifyShelfForm();
+}
+
+async function onSubmitModifyShelf(): Promise<void> {
+  const shelf = pendingModifyShelf.value;
+  if (!shelf) {
+    return;
+  }
+
+  const name = modifyShelfName.value.trim();
+  const scanInterval = modifyShelfScanInterval.value.trim();
+  if (!name) {
+    return;
+  }
+
+  const provider = getBookshelfProvider();
+  if (!provider.modifyDesktopShelf) {
+    return;
+  }
+
+  modifyingShelf.value = true;
+  modifyShelfError.value = '';
+
+  try {
+    await provider.modifyDesktopShelf(shelf.id, name, scanInterval);
+    await fetchShelves();
+    showModifyShelfModal.value = false;
+    pendingModifyShelf.value = null;
+    resetModifyShelfForm();
+  } catch (err) {
+    modifyShelfError.value = err instanceof Error ? err.message : t('settings.shelves.modifyShelfFailed');
+  } finally {
+    modifyingShelf.value = false;
+  }
+}
+
 onMounted(() => {
   void loadSettings();
   void fetchShelves();
@@ -513,6 +644,27 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+.shelf-modify-btn {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #475569;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  margin-right: 6px;
+  padding: 3px 10px;
+}
+
+.shelf-modify-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.shelf-modify-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .shelf-remove-btn {
   background: transparent;
   border: 1px solid #fca5a5;
@@ -531,6 +683,25 @@ onMounted(() => {
 .shelf-remove-btn:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.shelf-modify-readonly-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shelf-modify-label {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.shelf-modify-value {
+  font-size: 13px;
+  word-break: break-all;
 }
 
 

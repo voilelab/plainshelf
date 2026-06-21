@@ -47,9 +47,10 @@ func (s *Shelf) refreshBookCacheIfNeeded(force bool) error {
 	s.bookCache.RLock()
 	treeDirty := s.bookCache.treeDirty
 	lastFullScan := s.bookCache.lastFullScan
+	scanInterval := s.bookCache.scanInterval
 	s.bookCache.RUnlock()
 
-	if !force && !treeDirty && time.Since(lastFullScan) < s.bookCache.scanInterval {
+	if !force && !treeDirty && time.Since(lastFullScan) < scanInterval {
 		s.onlyRefreshBooksInCache()
 		return nil
 	}
@@ -153,11 +154,12 @@ func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
 	lastFullScan := s.bookCache.lastFullScan
 	lastBookCheck := s.bookCache.lastBookCheck
 	refreshing := s.bookCache.refreshing
+	scanInterval := s.bookCache.scanInterval
 	s.bookCache.RUnlock()
 
 	// Full scan: tree is structurally dirty or scan interval elapsed. Keep synchronous so
 	// mutations are immediately visible to callers.
-	if treeDirty || time.Since(lastFullScan) >= s.bookCache.scanInterval {
+	if treeDirty || time.Since(lastFullScan) >= scanInterval {
 		_ = s.refreshBookCacheIfNeeded(false)
 		return
 	}
