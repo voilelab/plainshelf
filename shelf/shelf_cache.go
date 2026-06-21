@@ -95,7 +95,7 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 	s.bookCache.RUnlock()
 
 	// Perform all stat and open calls outside any cache lock. The caller holds
-	// s.rlock() (shared flock), which prevents mutations from modifying the
+	// s.shelfLock.RLock() (shared flock), which prevents mutations from modifying the
 	// cache concurrently, so the snapshot remains consistent with the filesystem.
 	//
 	// updated: bookID → refreshed entry (nil = delete from cache)
@@ -184,11 +184,11 @@ func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
 			s.bookCache.Unlock()
 		}()
 
-		if err := s.rlock(); err != nil {
+		if err := s.shelfLock.RLock(); err != nil {
 			s.Warn("background book check skipped: failed to acquire lock", "error", err)
 			return
 		}
-		defer s.unlock()
+		defer s.shelfLock.Unlock()
 
 		s.onlyRefreshBooksInCache()
 	}()

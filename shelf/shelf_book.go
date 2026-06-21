@@ -17,10 +17,10 @@ func (s *Shelf) ListBooks() ([]*Book, error) {
 		return nil, util.Errorf("%w", ErrShelfInitializing)
 	}
 
-	if err := s.rlock(); err != nil {
+	if err := s.shelfLock.RLock(); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer s.unlock()
+	defer s.shelfLock.Unlock()
 
 	s.scheduleBookCacheRefreshIfNeeded()
 
@@ -33,10 +33,10 @@ func (s *Shelf) GetBook(bookID string) (*Book, error) {
 		return nil, util.Errorf("%w", ErrShelfInitializing)
 	}
 
-	if err := s.rlock(); err != nil {
+	if err := s.shelfLock.RLock(); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer s.unlock()
+	defer s.shelfLock.Unlock()
 
 	book, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
@@ -52,10 +52,10 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	if err := s.lock(); err != nil {
+	if err := s.shelfLock.Lock(); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer s.unlock()
+	defer s.shelfLock.Unlock()
 
 	bookPath, err := createTempDir(s.dbRoot, path.Join(appFolder, appTmpFolder, "book"))
 	if err != nil {
@@ -141,10 +141,10 @@ func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
 		return nil, util.Errorf("%w", ErrShelfInitializing)
 	}
 
-	if err := s.rlock(); err != nil {
+	if err := s.shelfLock.RLock(); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer s.unlock()
+	defer s.shelfLock.Unlock()
 
 	s.scheduleBookCacheRefreshIfNeeded()
 
@@ -165,10 +165,10 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	if err := s.lock(); err != nil {
+	if err := s.shelfLock.Lock(); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer s.unlock()
+	defer s.shelfLock.Unlock()
 
 	book, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
