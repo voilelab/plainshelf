@@ -46,7 +46,11 @@ func loadDesktopShelves(configPath string) (*desktopShelvesConfig, error) {
 func loadOrMigrateDesktopShelves(configPath, dataRoot string) (*desktopShelvesConfig, error) {
 	_, err := os.Stat(configPath)
 	if err == nil {
-		return loadDesktopShelves(configPath)
+		conf, err := loadDesktopShelves(configPath)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+		return conf, nil
 	}
 	if !os.IsNotExist(err) {
 		return nil, util.Errorf("%w", err)
@@ -54,7 +58,7 @@ func loadOrMigrateDesktopShelves(configPath, dataRoot string) (*desktopShelvesCo
 
 	conf := defaultDesktopShelvesConfig(dataRoot)
 	if err := saveDesktopShelves(configPath, conf); err != nil {
-		return nil, util.Errorf("migrating legacy shelf config: %w", err)
+		return nil, util.Errorf("%w", err)
 	}
 	return conf, nil
 }
