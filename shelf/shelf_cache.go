@@ -22,14 +22,18 @@ type bookCache struct {
 	treeDirty    bool
 	lastFullScan time.Time
 
-	scanInterval time.Duration
+	scanInterval      time.Duration
+	lastBookCheck     time.Time
+	bookCheckInterval time.Duration
+	refreshing        bool
 }
 
-func newBookCache(scanInterval time.Duration) *bookCache {
+func newBookCache(scanInterval, bookCheckInterval time.Duration) *bookCache {
 	return &bookCache{
 		cache: make(map[string]*bookIDCacheEntry),
 
-		scanInterval: scanInterval,
+		scanInterval:      scanInterval,
+		bookCheckInterval: bookCheckInterval,
 	}
 }
 
@@ -122,6 +126,60 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 	}
 
 	s.bookCache.cache = cache
+	s.bookCache.lastBookCheck = time.Now()
+}
+
+// scheduleBookCacheRefreshIfNeeded triggers a refresh based on the current cache state.
+//
+// Full scans (when the tree is dirty or the scan interval has elapsed) run synchronously so
+// that callers immediately see structural changes such as moved or renamed layers.
+//
+// Per-book staleness checks (within the scan interval) run in a background goroutine so
+// that list operations are never blocked by N filesystem stat calls — the main performance
+// concern on SMB mounts. The check is rate-limited by bookCheckInterval.
+func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
+	s.bookCache.RLock()
+	treeDirty := s.bookCache.treeDirty
+	lastFullScan := s.bookCache.lastFullScan
+	lastBookCheck := s.bookCache.lastBookCheck
+	refreshing := s.bookCache.refreshing
+	s.bookCache.RUnlock()
+
+	// Full scan: tree is structurally dirty or scan interval elapsed. Keep synchronous so
+	// mutations are immediately visible to callers.
+	if treeDirty || time.Since(lastFullScan) >= s.bookCache.scanInterval {
+		_ = s.refreshBookCacheIfNeeded(false)
+		return
+	}
+
+	// Per-book check: async so callers are not blocked on N stat calls.
+	if refreshing || time.Since(lastBookCheck) < s.bookCache.bookCheckInterval {
+		return
+	}
+
+	s.bookCache.Lock()
+	if s.bookCache.refreshing {
+		s.bookCache.Unlock()
+		return
+	}
+	s.bookCache.refreshing = true
+	s.bookCache.Unlock()
+
+	go func() {
+		defer func() {
+			s.bookCache.Lock()
+			s.bookCache.refreshing = false
+			s.bookCache.Unlock()
+		}()
+
+		if err := s.rlock(); err != nil {
+			s.Warn("background book check skipped: failed to acquire lock", "error", err)
+			return
+		}
+		defer s.unlock()
+
+		s.onlyRefreshBooksInCache()
+	}()
 }
 
 func (s *Shelf) listBooksFromCache() []*Book {

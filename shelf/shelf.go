@@ -74,6 +74,13 @@ type ShelfConf struct {
 	// On SMB mounts, flock() may behave unreliably; a timeout prevents indefinite hangs.
 	// Default: 30s. Set to "0s" to disable the timeout (blocking lock).
 	LockTimeout string `yaml:"lock_timeout" json:"lock_timeout"`
+
+	// BookCheckInterval controls how often per-book staleness checks run (checking whether
+	// individual book.json files have changed). Between checks, list operations return from
+	// the in-memory cache without any filesystem I/O.
+	// Default: same as scan_interval. For SMB mounts, consider setting this to a higher value
+	// (e.g. "5m") to reduce network round-trips on list operations.
+	BookCheckInterval string `yaml:"book_check_interval" json:"book_check_interval"`
 }
 
 func NewShelf(conf *ShelfConf) (*Shelf, error) {
@@ -96,6 +103,15 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		lockTimeout, err = time.ParseDuration(conf.LockTimeout)
 		if err != nil {
 			return nil, util.Errorf("invalid lock timeout: %w", err)
+		}
+	}
+
+	bookCheckInterval := scanInterval
+	if conf.BookCheckInterval != "" {
+		var err error
+		bookCheckInterval, err = time.ParseDuration(conf.BookCheckInterval)
+		if err != nil {
+			return nil, util.Errorf("invalid book check interval: %w", err)
 		}
 	}
 
@@ -132,7 +148,7 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		readyCh:     make(chan struct{}),
 
 		// cache
-		bookCache: newBookCache(scanInterval),
+		bookCache: newBookCache(scanInterval, bookCheckInterval),
 	}
 
 	err = s.makeStructure()
@@ -141,7 +157,7 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	s.Debug("initializing shelf cache in background", "lib_root", conf.LibRoot, "scan_interval", scanInterval, "lock_timeout", lockTimeout)
+	s.Debug("initializing shelf cache in background", "lib_root", conf.LibRoot, "scan_interval", scanInterval, "book_check_interval", bookCheckInterval, "lock_timeout", lockTimeout)
 	go func() {
 		if err := s.initCache(); err != nil {
 			s.Error("failed to initialize shelf cache", "error", err)

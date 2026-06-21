@@ -22,10 +22,7 @@ func (s *Shelf) ListBooks() ([]*Book, error) {
 	}
 	defer s.unlock()
 
-	err := s.refreshBookCacheIfNeeded(false)
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
+	s.scheduleBookCacheRefreshIfNeeded()
 
 	return s.listBooksFromCache(), nil
 }
@@ -149,10 +146,7 @@ func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
 	}
 	defer s.unlock()
 
-	err := s.refreshBookCacheIfNeeded(false)
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
+	s.scheduleBookCacheRefreshIfNeeded()
 
 	var books []*Book
 
