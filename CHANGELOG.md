@@ -7,6 +7,27 @@ and UI behavior may still change between releases.
 
 ## [Unreleased]
 
+### Added
+
+- Added shelf creation and deletion confirmation modals to the frontend shelf management UI.
+- Added `scan_interval` configuration support when creating shelves through the settings UI.
+- Added `book_check_interval` shelf configuration option to rate-limit per-book staleness checks, reducing filesystem and network I/O on SMB mounts.
+- Added `GET /api/shelves/:id/status` endpoint returning shelf readiness and initialization error state.
+- Added ETag and `Cache-Control` HTTP caching headers for book cover responses.
+- Added async shelf cache initialization; list endpoints return 503 with `Retry-After` until the cache is ready.
+- Added frontend 503 auto-retry with "Shelf is loading…" status during shelf initialization, capped at 10 attempts with a manual retry button on failure.
+- Added frontend `AbortController` request timeout on all API fetch calls with distinct timeout error handling.
+
+### Changed
+
+- Hardened SMB mount support: configurable flock timeout (default 30 s), atomic writes for source and metadata files, and initialization failures now exposed via `/status` instead of hanging indefinitely.
+- Made per-book stat checks asynchronous to reduce round-trips on SMB mounts; list operations serve from the in-memory cache between scheduled checks.
+
+### Fixed
+
+- Fixed cache write lock held across filesystem I/O in book cache refresh, blocking concurrent list reads.
+- Fixed shelf lock acquisition errors not being propagated to callers.
+
 ## [v0.6.0] - 2026-06-20
 
 ### Added
