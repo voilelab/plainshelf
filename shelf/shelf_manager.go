@@ -93,13 +93,13 @@ func (sm *ShelfManager) GetShelf(id string) (*ShelfData, bool) {
 	return s, exists
 }
 
-func (sm *ShelfManager) GetAllShelves() []*ShelfData {
+func (sm *ShelfManager) GetAllShelves() []ShelfData {
 	sm.lock.RLock()
 	defer sm.lock.RUnlock()
 
-	shelves := make([]*ShelfData, 0, len(sm.shelves))
+	shelves := make([]ShelfData, 0, len(sm.shelves))
 	for _, s := range sm.shelves {
-		shelves = append(shelves, s)
+		shelves = append(shelves, *s)
 	}
 	return shelves
 }
