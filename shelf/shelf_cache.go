@@ -87,46 +87,56 @@ func (s *Shelf) scanToBookCache() error {
 }
 
 func (s *Shelf) onlyRefreshBooksInCache() {
-	s.bookCache.Lock()
-	defer s.bookCache.Unlock()
+	// Snapshot the current entries under a brief read lock so that concurrent
+	// list operations are not blocked during the filesystem I/O below.
+	s.bookCache.RLock()
+	snapshot := maps.Clone(s.bookCache.cache)
+	s.bookCache.RUnlock()
 
-	// We need to clone the cache before iterating it, because we may modify the cache during the iteration.
-	cache := maps.Clone(s.bookCache.cache)
+	// Perform all stat and open calls outside any cache lock. The caller holds
+	// s.rlock() (shared flock), which prevents mutations from modifying the
+	// cache concurrently, so the snapshot remains consistent with the filesystem.
+	//
+	// updated: bookID → refreshed entry (nil = delete from cache)
+	updated := make(map[string]*bookIDCacheEntry)
 
-	staleIDs := []string{}
-	for bookID, cacheEntry := range cache {
-		if cacheEntry.book.IsStale() {
-			staleIDs = append(staleIDs, bookID)
+	for bookID, cacheEntry := range snapshot {
+		if !cacheEntry.book.IsStale() {
+			continue
 		}
-	}
-
-	for _, staleID := range staleIDs {
-		cacheEntry := cache[staleID]
-
-		delete(cache, staleID)
 
 		book, err := openBook(s.dbRoot, s.Logger, cacheEntry.path)
 		if err != nil {
 			s.Warn("Failed to refresh book cache entry, skipping", "bookID", cacheEntry.book.ID(), "error", err)
+			updated[bookID] = nil
 			continue
 		}
 
 		if book.ID() != cacheEntry.book.ID() {
 			s.Warn("Book ID mismatch when refreshing book cache entry, skipping", "expectedBookID", cacheEntry.book.ID(), "actualBookID", book.ID())
+			updated[bookID] = nil
 			continue
 		}
 
 		book.setLayers(cacheEntry.layers)
-
-		cache[book.ID()] = &bookIDCacheEntry{
+		updated[bookID] = &bookIDCacheEntry{
 			layers: cacheEntry.layers,
 			path:   cacheEntry.path,
 			book:   book,
 		}
 	}
 
-	s.bookCache.cache = cache
+	// Apply only the changed entries under a brief write lock.
+	s.bookCache.Lock()
+	for bookID, entry := range updated {
+		if entry != nil {
+			s.bookCache.cache[bookID] = entry
+		} else {
+			delete(s.bookCache.cache, bookID)
+		}
+	}
 	s.bookCache.lastBookCheck = time.Now()
+	s.bookCache.Unlock()
 }
 
 // scheduleBookCacheRefreshIfNeeded triggers a refresh based on the current cache state.
