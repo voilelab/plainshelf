@@ -7,6 +7,8 @@ and UI behavior may still change between releases.
 
 ## [Unreleased]
 
+## [v0.6.0] - 2026-06-20
+
 ### Added
 
 - Added drag-layer visual preview when repositioning layers via drag-and-drop.
