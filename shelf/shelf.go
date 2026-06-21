@@ -46,7 +46,7 @@ type Shelf struct {
 	logutil.Logger
 	dbRoot    fsutil.FS
 	close     func() error
-	localLock ShelfLock
+	shelfLock ShelfLock
 	bookCache *bookCache
 	ready     atomic.Bool
 	readyCh   chan struct{}
@@ -158,7 +158,7 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		Logger:    *logger,
 		dbRoot:    fsutil.NewRootFS(rt),
 		close:     rt.Close,
-		localLock: shelfLock,
+		shelfLock: shelfLock,
 		readyCh:   make(chan struct{}),
 
 		// cache
@@ -239,18 +239,6 @@ func (s *Shelf) WaitReady(ctx context.Context) error {
 	}
 }
 
-func (s *Shelf) lock() error {
-	return s.localLock.Lock()
-}
-
-func (s *Shelf) rlock() error {
-	return s.localLock.RLock()
-}
-
-func (s *Shelf) unlock() error {
-	return s.localLock.Unlock()
-}
-
 // SetScanInterval updates the scan interval on the live shelf without restarting it.
 func (s *Shelf) SetScanInterval(scanInterval string) error {
 	interval := time.Minute
@@ -270,7 +258,7 @@ func (s *Shelf) SetScanInterval(scanInterval string) error {
 // Close releases any resources held by the Shelf instance.
 func (s *Shelf) Close() error {
 	errs := []error{}
-	if err := s.localLock.Close(); err != nil {
+	if err := s.shelfLock.Close(); err != nil {
 		errs = append(errs, err)
 	}
 

@@ -35,10 +35,10 @@ type trashMeta struct {
 }
 
 func (s *Shelf) MoveBookToTrash(bookID string) error {
-	if err := s.lock(); err != nil {
+	if err := s.shelfLock.Lock(); err != nil {
 		return util.Errorf("%w", err)
 	}
-	defer s.unlock()
+	defer s.shelfLock.Unlock()
 
 	book, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
@@ -74,10 +74,10 @@ func (s *Shelf) MoveBookToTrash(bookID string) error {
 }
 
 func (s *Shelf) ListTrashedBooks() ([]*TrashedBook, error) {
-	if err := s.rlock(); err != nil {
+	if err := s.shelfLock.RLock(); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer s.unlock()
+	defer s.shelfLock.Unlock()
 
 	entries, err := s.dbRoot.ReadDir(trashBooksFolder)
 	if err != nil {
@@ -130,10 +130,10 @@ func (s *Shelf) ListTrashedBooks() ([]*TrashedBook, error) {
 }
 
 func (s *Shelf) RestoreTrashedBook(bookID string) error {
-	if err := s.lock(); err != nil {
+	if err := s.shelfLock.Lock(); err != nil {
 		return util.Errorf("%w", err)
 	}
-	defer s.unlock()
+	defer s.shelfLock.Unlock()
 
 	trashPath, book, meta, err := s.findTrashedBook(bookID)
 	if err != nil {
@@ -183,10 +183,10 @@ func (s *Shelf) RestoreTrashedBook(bookID string) error {
 }
 
 func (s *Shelf) DeleteTrashedBook(bookID string) error {
-	if err := s.lock(); err != nil {
+	if err := s.shelfLock.Lock(); err != nil {
 		return util.Errorf("%w", err)
 	}
-	defer s.unlock()
+	defer s.shelfLock.Unlock()
 
 	trashPath := path.Join(trashBooksFolder, bookID+bookExtension)
 	if _, err := s.dbRoot.Stat(trashPath); err != nil {
