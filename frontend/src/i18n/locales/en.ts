@@ -144,7 +144,18 @@ const en = {
       addShelfFailed: 'Failed to add shelf',
       removeConfirm: 'Remove shelf "{name}"? This only removes it from PlainShelf; the directory will not be deleted.',
       removeConfirmInline: 'Remove?',
-      removeConfirmYes: 'Delete shelf'
+      removeConfirmYes: 'Delete shelf',
+      modify: 'Edit',
+      modifyShelfTitle: 'Edit shelf',
+      modifyShelfCloseLabel: 'Close edit shelf dialog',
+      modifyShelfId: 'ID',
+      modifyShelfPath: 'Path',
+      modifyShelfName: 'Name',
+      modifyShelfScanInterval: 'Scan interval',
+      modifyShelfScanIntervalHelp: 'Leave blank to use the default 1 minute scan interval.',
+      modifyShelfSubmit: 'Save',
+      modifyShelfSaving: 'Saving...',
+      modifyShelfFailed: 'Failed to update shelf'
     }
   },
   adminLogs: {

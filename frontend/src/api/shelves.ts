@@ -3,12 +3,16 @@ import { buildShelfApiPath, fetchJson, getActiveShelfID, isMockApiMode, setActiv
 export interface ShelfInfo {
   id: string;
   name: string;
+  path: string;
+  scan_interval: string;
 }
 
 const mockShelves: ShelfInfo[] = [
   {
     id: 'default_shelf',
-    name: 'Default Shelf'
+    name: 'Default Shelf',
+    path: '/shelves/default',
+    scan_interval: '1m0s'
   }
 ];
 
@@ -34,7 +38,12 @@ export async function listShelves(): Promise<ShelfInfo[]> {
         return [];
       }
 
-      return [{ id, name }];
+      return [{
+        id,
+        name,
+        path: typeof shelf.path === 'string' ? shelf.path : '',
+        scan_interval: typeof shelf.scan_interval === 'string' ? shelf.scan_interval : ''
+      }];
     });
 }
 
@@ -43,6 +52,14 @@ export async function getShelfStatus(shelfID?: string): Promise<{ ready: boolean
     return { ready: true };
   }
   return fetchJson<{ ready: boolean }>(buildShelfApiPath('/status', shelfID));
+}
+
+export async function updateShelf(shelfID: string, name: string, scanInterval: string): Promise<void> {
+  await fetchJson<void>(`/api/shelves/${encodeURIComponent(shelfID)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, scan_interval: scanInterval })
+  });
 }
 
 export function ensureActiveShelf(shelves: ShelfInfo[]): string {

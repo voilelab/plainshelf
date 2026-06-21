@@ -1,5 +1,14 @@
 <template>
   <section class="settings-page">
+    <ModifyShelfModal
+      :open="pendingModifyShelf !== null"
+      :shelf="pendingModifyShelf"
+      :busy="modifyingShelf"
+      :error="shelfModifyError"
+      @cancel="cancelModifyShelf"
+      @confirm="confirmModifyShelf"
+    />
+
     <DeleteModal
       :open="pendingRemoveShelf !== null"
       :title="t('settings.shelves.removeShelfTitle')"
@@ -137,15 +146,24 @@
             <tr>
               <th>{{ t('settings.shelves.name') }}</th>
               <th>ID</th>
-              <th v-if="isDesktopEnv"></th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="shelf in shelves" :key="shelf.id">
               <td>{{ shelf.name }}</td>
               <td class="shelf-id-cell">{{ shelf.id }}</td>
-              <td v-if="isDesktopEnv" class="shelf-action-cell">
+              <td class="shelf-action-cell">
                 <button
+                  type="button"
+                  class="shelf-modify-btn"
+                  :disabled="modifyingShelf && pendingModifyShelf?.id === shelf.id"
+                  @click="requestModifyShelf(shelf)"
+                >
+                  {{ t('settings.shelves.modify') }}
+                </button>
+                <button
+                  v-if="isDesktopEnv"
                   type="button"
                   class="shelf-remove-btn"
                   :disabled="removingShelfIDs.has(shelf.id)"
@@ -177,12 +195,15 @@
 import { computed, onMounted, ref } from 'vue';
 import ConfirmModal from '../components/ConfirmModal.vue';
 import DeleteModal from '../components/DeleteModal.vue';
+import ModifyShelfModal from '../components/ModifyShelfModal.vue';
 import {
   getCoverToJpgSetting,
   getReadHistoryLimitSetting,
   setCoverToJpgSetting,
   setReadHistoryLimitSetting
 } from '../api/settings';
+import { updateShelf } from '../api/shelves';
+import type { ShelfInfo } from '../api/shelves';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
 import { useShelvesStore } from '../composables/useShelvesStore';
 import { useI18n } from '../i18n';
@@ -201,6 +222,9 @@ const shelfOpError = ref('');
 const removingShelfIDs = ref<Set<string>>(new Set());
 const pendingRemoveShelf = ref<{ id: string; name: string } | null>(null);
 const shelfRemoveModalError = ref('');
+const pendingModifyShelf = ref<ShelfInfo | null>(null);
+const modifyingShelf = ref(false);
+const shelfModifyError = ref('');
 const showAddShelfModal = ref(false);
 const newShelfName = ref('');
 const newShelfDirectory = ref('');
@@ -335,6 +359,39 @@ async function confirmRemoveShelf(): Promise<void> {
     } else {
       shelfRemoveModalError.value = shelfOpError.value;
     }
+  }
+}
+
+function requestModifyShelf(shelf: ShelfInfo): void {
+  shelfModifyError.value = '';
+  pendingModifyShelf.value = shelf;
+}
+
+function cancelModifyShelf(): void {
+  if (modifyingShelf.value) {
+    return;
+  }
+  pendingModifyShelf.value = null;
+  shelfModifyError.value = '';
+}
+
+async function confirmModifyShelf(name: string, scanInterval: string): Promise<void> {
+  const shelf = pendingModifyShelf.value;
+  if (!shelf) {
+    return;
+  }
+
+  modifyingShelf.value = true;
+  shelfModifyError.value = '';
+
+  try {
+    await updateShelf(shelf.id, name, scanInterval);
+    await fetchShelves();
+    pendingModifyShelf.value = null;
+  } catch (err) {
+    shelfModifyError.value = err instanceof Error ? err.message : t('settings.shelves.modifyShelfFailed');
+  } finally {
+    modifyingShelf.value = false;
   }
 }
 
@@ -509,8 +566,30 @@ onMounted(() => {
 }
 
 .shelf-action-cell {
-  text-align: right;
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
   white-space: nowrap;
+}
+
+.shelf-modify-btn {
+  background: transparent;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  color: #1d4ed8;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+}
+
+.shelf-modify-btn:hover:not(:disabled) {
+  background: #eff6ff;
+}
+
+.shelf-modify-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .shelf-remove-btn {

@@ -167,6 +167,18 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 	return s, nil
 }
 
+func (s *Shelf) SetScanInterval(d time.Duration) {
+	s.bookCache.Lock()
+	s.bookCache.scanInterval = d
+	s.bookCache.Unlock()
+}
+
+func (s *Shelf) GetScanInterval() time.Duration {
+	s.bookCache.RLock()
+	defer s.bookCache.RUnlock()
+	return s.bookCache.scanInterval
+}
+
 func (s *Shelf) makeStructure() error {
 	// create the directory structure for the library
 	err := s.dbRoot.MkdirAll(booksFolder)

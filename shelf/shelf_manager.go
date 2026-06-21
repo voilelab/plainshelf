@@ -3,13 +3,15 @@ package shelf
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
 type ShelfData struct {
-	ID   string
-	Name string
+	ID      string
+	Name    string
+	LibRoot string
 	*Shelf
 }
 
@@ -58,9 +60,10 @@ func (sm *ShelfManager) AddShelf(conf ShelfConfWithID) error {
 	}
 
 	sm.shelves[conf.ID] = &ShelfData{
-		Shelf: s,
-		Name:  conf.Name,
-		ID:    conf.ID,
+		Shelf:   s,
+		Name:    conf.Name,
+		ID:      conf.ID,
+		LibRoot: conf.LibRoot,
 	}
 
 	return nil
@@ -102,6 +105,30 @@ func (sm *ShelfManager) GetAllShelves() []*ShelfData {
 		shelves = append(shelves, s)
 	}
 	return shelves
+}
+
+func (sm *ShelfManager) UpdateShelf(id, name, scanInterval string) error {
+	sm.lock.Lock()
+	defer sm.lock.Unlock()
+
+	s, exists := sm.shelves[id]
+	if !exists {
+		return util.Errorf("shelf with ID %q does not exist", id)
+	}
+
+	if name != "" {
+		s.Name = name
+	}
+
+	if scanInterval != "" {
+		d, err := time.ParseDuration(scanInterval)
+		if err != nil {
+			return util.Errorf("invalid scan_interval %q: %w", scanInterval, err)
+		}
+		s.Shelf.SetScanInterval(d)
+	}
+
+	return nil
 }
 
 func (sm *ShelfManager) RemoveShelf(id string) error {
