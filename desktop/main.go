@@ -33,8 +33,9 @@ func main() {
 				})
 			},
 		},
-		Menu:      newApplicationMenu(app),
-		OnStartup: app.Startup,
+		Menu:       newApplicationMenu(app),
+		OnStartup:  app.Startup,
+		OnDomReady: app.DomReady,
 		OnShutdown: func(context.Context) {
 			app.Shutdown()
 		},

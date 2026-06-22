@@ -20,6 +20,7 @@ type DesktopApp struct {
 	apiHandler        http.Handler
 	ctx               context.Context
 	shelvesConfigPath string
+	startupErr        error
 }
 
 type DesktopImportBookResult struct {
@@ -43,32 +44,35 @@ func (a *DesktopApp) Startup(ctx context.Context) {
 	a.ctx = ctx
 	err := a.startServer()
 	if err != nil {
-		a.handleStartupError(err)
+		// Don't call runtime methods (e.g. MessageDialog) here: from
+		// OnStartup the window is still initializing and they are not
+		// guaranteed to work — on Windows MessageDialog panics. Record the
+		// failure and report it from DomReady instead. See wailsapp/wails#1660.
+		log.Println("Failed to start PlainShelf backend:", err)
+		a.startupErr = err
 		return
 	}
 	a.apiHandler = a.app.Handler()
 }
 
-// handleStartupError reports a backend startup failure to the user and exits
-// gracefully instead of crashing the app. The window has no usable backend at
-// this point, so we surface the cause and quit rather than leaving the user
-// staring at a dead UI.
-func (a *DesktopApp) handleStartupError(err error) {
-	log.Println("Failed to start PlainShelf backend:", err)
-	if a.ctx == nil {
+// DomReady runs once the window and DOM are ready, which is the safe point to
+// use runtime methods. If the backend failed to start, surface the cause and
+// quit gracefully instead of leaving the user staring at a dead UI.
+func (a *DesktopApp) DomReady(ctx context.Context) {
+	if a.startupErr == nil {
 		return
 	}
 
-	_, dialogErr := wailsruntime.MessageDialog(a.ctx, wailsruntime.MessageDialogOptions{
+	_, dialogErr := wailsruntime.MessageDialog(ctx, wailsruntime.MessageDialogOptions{
 		Type:    wailsruntime.ErrorDialog,
 		Title:   "PlainShelf failed to start",
-		Message: "PlainShelf could not start its backend and will now close.\n\n" + err.Error(),
+		Message: "PlainShelf could not start its backend and will now close.\n\n" + a.startupErr.Error(),
 	})
 	if dialogErr != nil {
 		log.Println("Failed to show startup error dialog:", dialogErr)
 	}
 
-	wailsruntime.Quit(a.ctx)
+	wailsruntime.Quit(ctx)
 }
 
 func (a *DesktopApp) Shutdown() {
