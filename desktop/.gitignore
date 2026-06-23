@@ -4,3 +4,6 @@
 /build/bin/
 /build/darwin/
 /build/windows/
+
+# go build ./... output (binary named after the module dir)
+/desktop
