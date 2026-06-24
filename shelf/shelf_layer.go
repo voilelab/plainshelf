@@ -65,7 +65,9 @@ func (s *Shelf) iterateLayers(fn func(Layers) bool) error {
 			return
 		}
 
-		layers := strings.Split(pth, string(os.PathSeparator))[1:]
+		// path.Join always uses "/" separators on every platform, so split on
+		// "/" rather than os.PathSeparator ("\" on Windows would break parsing).
+		layers := strings.Split(pth, "/")[1:]
 		if !fn(layers) {
 			skipAll = true
 			return

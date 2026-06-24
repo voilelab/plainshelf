@@ -86,7 +86,11 @@ func validatePathSegment(segment string) error {
 	return nil
 }
 
-func generateBookID(layers Layers, title string) string {
+// seedBookID derives an initial book ID from the layers and title. This is only
+// a seed for the first ID candidate: once a book is created the ID is persisted
+// in book.json and never recomputed, so renaming the title or moving the book to
+// another layer does NOT change its ID (callers still de-duplicate on collision).
+func seedBookID(layers Layers, title string) string {
 	cont := strings.Join(layers, "-") + "-" + title
 	md5Hash := md5.Sum([]byte(cont))
 	hash := fmt.Sprintf("%x", md5Hash)

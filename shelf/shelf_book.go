@@ -65,7 +65,7 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 
 	// Generate a unique book ID based on the layers and title
 	// TBD: Use UUID
-	baseBookID := generateBookID(layers, title)
+	baseBookID := seedBookID(layers, title)
 	bookID := baseBookID
 	for i := 1; ; i++ {
 		_, err := s.getUpdatedBookFromBookID(bookID)
@@ -233,7 +233,10 @@ func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 				return
 			}
 
-			layers := strings.Split(path.Dir(pth), string(os.PathSeparator))[1:]
+			// Paths are always built with path.Join, which uses "/" on every
+			// platform, so split on "/" rather than os.PathSeparator (which would
+			// be "\" on Windows and break layer parsing).
+			layers := strings.Split(path.Dir(pth), "/")[1:]
 			book.setLayers(layers)
 
 			if !fn(book) {

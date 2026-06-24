@@ -49,15 +49,15 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 
 | Path | Description |
 |---|---|
-| `book.json` | Book metadata (title, authors, tags, language, …) |
-| `CURRENT_VERSION_LOCATION.txt` | Points to the active source used for reading |
+| `book.json` | Book metadata (title, authors, tags, language, …). Also holds `current_source`, the authoritative pointer to the active source. |
+| `CURRENT_VERSION_LOCATION.txt` | Human-readable hint that points to the active source. It is **write-only** from the server's perspective (regenerated whenever the current source changes) and is never parsed back — `current_source` in `book.json` is the source of truth. |
 | `cover.(jpg\|png\|webp)` | Optional cover image |
 | `sources/{source-id}/source.txt` | The plain-text content for this source |
 | `sources/{source-id}/meta.json` | Source-level metadata |
 
 ### Book IDs
 
-The book ID is derived from the folder name, **not** from the display title. This means you can rename a book's title in `book.json` without breaking reading progress, bookmarks, or any external references.
+The book ID is generated once when the book is created and then persisted in `book.json`; it is **not** recomputed from the folder name or the display title afterwards. This means you can rename a book's title, or move the book to a different layer, without breaking reading progress, bookmarks, or any external references.
 
 ---
 
