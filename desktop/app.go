@@ -10,6 +10,7 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/internal/version"
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -377,6 +378,8 @@ func (a *DesktopApp) RemoveShelf(shelfID string) error {
 }
 
 func (a *DesktopApp) startServer() error {
+	log.Println("PlainShelf version:", version.Version)
+
 	// Store desktop app data under the current user's config directory.
 	dataRoot, err := os.UserConfigDir()
 	if err != nil {

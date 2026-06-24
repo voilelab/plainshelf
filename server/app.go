@@ -196,6 +196,7 @@ func (app *App) Serve(mux *http.ServeMux) {
 	// Shelf API
 
 	mux.HandleFunc("GET /api/mode", app.HandleGetMode)
+	mux.HandleFunc("GET /api/version", app.HandleGetVersion)
 	mux.HandleFunc("GET /api/shelves", app.HandleGetShelves)
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/status", app.HandleAPIGetShelfStatus)
 
