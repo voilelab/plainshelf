@@ -9,6 +9,7 @@ This page covers everything you need to build and run PlainShelf from source.
 | Go | 1.26.1 | <https://go.dev/dl/> |
 | Node.js | 22 | <https://nodejs.org/> |
 | npm | bundled with Node.js | |
+| just | any recent | <https://github.com/casey/just> — task runner used throughout the docs |
 
 ---
 
@@ -22,7 +23,7 @@ shelf/              # core library (Go)
 server/             # HTTP server (Go)
 frontend/           # Vue 3 web frontend
 internal/           # shared internal utilities (Go)
-desktop/            # experimental Wails desktop client
+desktop/            # Wails desktop client
 ```
 
 ---
@@ -58,8 +59,8 @@ The Go server embeds the compiled frontend at build time, so the frontend must b
 ### Run the server
 
 ```bash
-# 1. Build the frontend
-npm --prefix frontend run build
+# 1. Build the frontend (run `npm --prefix frontend install` once first)
+just build-server-frontend
 
 # 2. Create a workspace
 mkdir workspace
@@ -75,24 +76,32 @@ The server is available at <http://127.0.0.1:20000>.
 ### Run tests
 
 ```bash
-npm --prefix frontend run build
-go test ./...
+just test-go
+```
+
+End-to-end tests run via Playwright:
+
+```bash
+just test-e2e
 ```
 
 ---
 
-## Desktop app (experimental)
+## Desktop app
 
-The desktop client uses [Wails](https://wails.io/) and is currently experimental.
+The desktop client uses [Wails](https://wails.io/).
+
+Run it in development mode:
 
 ```bash
-npm --prefix frontend run build
-cd desktop
-wails dev
+just run-desktop
 ```
 
-!!! warning
-    Expect rough edges while core shelf/server behavior is still evolving.
+Produce a release build:
+
+```bash
+just build-desktop
+```
 
 ---
 

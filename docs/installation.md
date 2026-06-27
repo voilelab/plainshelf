@@ -115,9 +115,8 @@ For custom configuration and the bundled defaults, see the
 
 ## Desktop client
 
-The Wails-based desktop client is **experimental** and is not yet part of the
-release artifacts. To try it, build it from source — see
-[Local Setup](development/setup.md).
+The Wails-based desktop client is not yet part of the release artifacts. To
+run it, build it from source — see [Local Setup](development/setup.md).
 
 ---
 
