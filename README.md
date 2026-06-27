@@ -56,7 +56,7 @@ shelf/              # core library package
 server/             # local HTTP server implementation
 frontend/           # Vue web frontend
 internal/           # internal shared utilities
-desktop/            # experimental Wails desktop client
+desktop/            # Wails desktop client
 ```
 
 The current primary development focus is:
@@ -172,22 +172,20 @@ docker run --rm \
   plainshelf
 ```
 
-### Run desktop app (experimental Wails Desktop)
+### Run the desktop app
 
-The desktop client is currently **experimental** and built with Wails.
-Expect rough edges while core shelf/server behavior is still evolving.
+The desktop client is built with Wails.
 
 ```bash
-npm --prefix frontend run build
-cd desktop
-wails dev
+npm --prefix frontend install  # first time only
+just run-desktop
 ```
 
 ### Run tests
 
 ```bash
-npm --prefix frontend run build
-go test ./...
+npm --prefix frontend install  # first time only
+just test-go
 ```
 
 ---

@@ -55,7 +55,7 @@ shelf/              # core library package
 server/             # local HTTP server implementation
 frontend/           # Vue web frontend
 internal/           # internal shared utilities
-desktop/            # experimental Wails desktop client
+desktop/            # Wails desktop client
 ```
 
 The current primary development focus is `shelf`, `server`, and `frontend`.
