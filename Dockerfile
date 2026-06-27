@@ -27,6 +27,7 @@ RUN npm run build
 FROM ubuntu:24.04 AS server-build
 
 ARG GO_VERSION=1.26.1
+ARG VERSION=dev
 ENV PATH="/usr/local/go/bin:${PATH}"
 
 RUN apt-get update \
@@ -48,7 +49,9 @@ RUN go mod download
 
 COPY . ./
 COPY --from=frontend-build /src/frontend/dist ./frontend/dist
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/plainshelf-srv ./cmd/plainshelf-srv
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
+    -ldflags="-s -w -X github.com/voilelab/plainshelf/internal/version.Version=${VERSION}" \
+    -o /out/plainshelf-srv ./cmd/plainshelf-srv
 
 FROM ubuntu:24.04 AS runtime
 

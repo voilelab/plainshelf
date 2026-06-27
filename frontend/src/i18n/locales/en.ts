@@ -118,6 +118,10 @@ const en = {
       description: 'Maximum number of recently read books to keep. Use 0 to disable retaining history.',
       invalid: 'Reading history limit must be a non-negative whole number.'
     },
+    about: {
+      title: 'About',
+      version: 'Version'
+    },
     shelves: {
       title: 'Shelves',
       loadFailed: 'Failed to load shelves',

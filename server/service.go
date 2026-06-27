@@ -11,6 +11,7 @@ import (
 	"github.com/voilelab/plainshelf/internal/httputil"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/internal/version"
 	"gopkg.in/yaml.v3"
 )
 
@@ -61,6 +62,8 @@ func MainService(confPath string) error {
 			_, _ = os.Stderr.WriteString("failed to close root logger: " + err.Error() + "\n")
 		}
 	}()
+
+	rootLogger.Info("PlainShelf", "version", version.Version)
 
 	rootLogger.Info("Create App...")
 	app, err := NewApp(conf.AppConf)

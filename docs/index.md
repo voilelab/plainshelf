@@ -64,6 +64,7 @@ The current primary development focus is `shelf`, `server`, and `frontend`.
 
 ## Next Steps
 
+- [Installation](installation.md) — install a prebuilt release or Docker image
 - [Getting Started](getting-started.md) — run PlainShelf locally in minutes
 - [Data Model](concepts/data-model.md) — understand the filesystem-first shelf layout
 - [Layers](concepts/layers.md) — organize books with a flexible layer hierarchy

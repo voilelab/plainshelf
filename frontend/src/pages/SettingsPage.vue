@@ -160,6 +160,16 @@
     </section>
 
     <section class="panel settings-group">
+      <h3>{{ t('settings.about.title') }}</h3>
+      <div class="setting-item">
+        <div>
+          <div class="setting-label">{{ t('settings.about.version') }}</div>
+        </div>
+        <span class="setting-value">{{ version || '—' }}</span>
+      </div>
+    </section>
+
+    <section class="panel settings-group">
       <h3>{{ t('settings.shelves.title') }}</h3>
 
       <p v-if="shelvesError || shelfOpError" class="settings-message settings-message-error" role="alert">
@@ -234,6 +244,7 @@ import {
   setCoverToJpgSetting,
   setReadHistoryLimitSetting
 } from '../api/settings';
+import { getServerVersion } from '../api/version';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
 import { useShelvesStore } from '../composables/useShelvesStore';
 import { useI18n } from '../i18n';
@@ -245,6 +256,7 @@ const saving = ref(false);
 const error = ref('');
 const coverToJpg = ref(false);
 const readHistoryLimit = ref(0);
+const version = ref('');
 
 const isDesktopEnv = computed(() => isWailsRuntime());
 const { shelves, loading: shelvesLoading, error: shelvesError, fetchShelves } = useShelvesStore();
@@ -525,8 +537,17 @@ async function onSubmitModifyShelf(): Promise<void> {
   }
 }
 
+async function loadVersion(): Promise<void> {
+  try {
+    version.value = await getServerVersion();
+  } catch {
+    version.value = '';
+  }
+}
+
 onMounted(() => {
   void loadSettings();
+  void loadVersion();
   void fetchShelves();
 });
 </script>
@@ -581,6 +602,12 @@ onMounted(() => {
 
 .setting-label {
   font-weight: 600;
+}
+
+.setting-value {
+  color: #475569;
+  font-family: monospace;
+  font-size: 13px;
 }
 
 .setting-description {

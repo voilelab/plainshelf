@@ -26,6 +26,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Installation: installation.md
   - Getting Started: getting-started.md
   - Configuration:
       - Local Shelf File Source: configuring-local-shelf.md

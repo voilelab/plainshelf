@@ -930,6 +930,17 @@ func TestAPISetCurrentBookSourceContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusNotFound)
 }
 
+func TestAPIVersionContract(t *testing.T) {
+	env := newAPITestEnv(t)
+
+	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/version", nil))
+	assertStatus(t, rec, http.StatusOK)
+	resp := decodeJSON[versionResponse](t, rec)
+	if resp.Version == "" {
+		t.Fatalf("version is empty, want a non-empty value")
+	}
+}
+
 func TestAPIReadOnlyModeContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	env.app.conf.ReadOnly = true

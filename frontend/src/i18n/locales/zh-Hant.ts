@@ -117,6 +117,10 @@ const zhHant = {
       description: '最多保留的最近閱讀書籍數量。設為 0 可停用紀錄保留。',
       invalid: '閱讀紀錄數量限制必須是非負整數。'
     },
+    about: {
+      title: '關於',
+      version: '版本'
+    },
     shelves: {
       title: '書架',
       loadFailed: '載入書架失敗',
