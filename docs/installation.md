@@ -113,10 +113,24 @@ For custom configuration and the bundled defaults, see the
 
 ---
 
-## Desktop client
+## Desktop client (macOS, Apple Silicon)
 
-The Wails-based desktop client is not yet part of the release artifacts. To
-run it, build it from source — see [Local Setup](development/setup.md).
+Install via Homebrew:
+
+```bash
+brew tap voilelab/plainshelf https://github.com/voilelab/plainshelf
+brew install --cask voilelab/plainshelf/plainshelf
+```
+
+Upgrade with `brew upgrade --cask plainshelf`, uninstall with
+`brew uninstall --cask plainshelf`.
+
+The bundled `.app` is unsigned and unnotarized; the cask's `postflight`
+clears Gatekeeper's quarantine attribute so the app opens normally on
+first launch.
+
+For other platforms, build the desktop client from source — see
+[Local Setup](development/setup.md).
 
 ---
 

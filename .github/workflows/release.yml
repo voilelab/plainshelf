@@ -151,6 +151,61 @@ jobs:
           path: out/*
           if-no-files-found: error
 
+  desktop-mac:
+    name: Build desktop darwin/arm64
+    needs: [prepare, frontend, test]
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: desktop/go.mod
+          cache: true
+          cache-dependency-path: desktop/go.sum
+
+      - name: Build Wails .app
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        working-directory: desktop
+        run: |
+          set -euo pipefail
+          go mod tidy
+          go tool wails build \
+            -platform darwin/arm64 \
+            -trimpath \
+            -ldflags "-s -w -X ${VERSION_PKG}.Version=${VERSION}"
+
+      - name: Package .app as zip
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          name="plainshelf-desktop_${VERSION}_darwin_arm64"
+          mkdir -p out
+          ditto -c -k --sequesterRsrc --keepParent \
+            desktop/build/bin/PlainShelf.app "out/${name}.zip"
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: plainshelf-desktop-darwin-arm64
+          path: out/*
+          if-no-files-found: error
+
   docker:
     name: Build and push Docker image
     needs: [prepare, test]
@@ -198,7 +253,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: [prepare, binaries, docker]
+    needs: [prepare, binaries, desktop-mac, docker]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:
