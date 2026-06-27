@@ -48,6 +48,7 @@ sha256sum --ignore-missing -c SHA256SUMS
 ### 3. Extract
 
 ```bash
+mkdir -p plainshelf
 tar -xzf plainshelf_<version>_linux_amd64.tar.gz -C plainshelf
 cd plainshelf
 ```
