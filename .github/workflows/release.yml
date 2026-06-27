@@ -103,11 +103,7 @@ jobs:
           - goos: linux
             goarch: arm64
           - goos: darwin
-            goarch: amd64
-          - goos: darwin
             goarch: arm64
-          - goos: windows
-            goarch: amd64
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -133,9 +129,6 @@ jobs:
         run: |
           set -euo pipefail
           bin="plainshelf-srv"
-          if [ "$GOOS" = "windows" ]; then
-            bin="plainshelf-srv.exe"
-          fi
 
           go build -trimpath \
             -ldflags "-s -w -X ${VERSION_PKG}.Version=${VERSION}" \
@@ -149,11 +142,7 @@ jobs:
 
           name="plainshelf_${VERSION}_${GOOS}_${GOARCH}"
           mkdir -p out
-          if [ "$GOOS" = "windows" ]; then
-            (cd "$stage" && zip -r "../out/${name}.zip" .)
-          else
-            tar -czf "out/${name}.tar.gz" -C "$stage" .
-          fi
+          tar -czf "out/${name}.tar.gz" -C "$stage" .
 
       - name: Upload package
         uses: actions/upload-artifact@v4

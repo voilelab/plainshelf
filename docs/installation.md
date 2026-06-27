@@ -26,17 +26,15 @@ Grab the archive for your platform from the
 Archives are named:
 
 ```text
-plainshelf_<version>_<os>_<arch>.tar.gz   # Linux, macOS
-plainshelf_<version>_windows_amd64.zip    # Windows
+plainshelf_<version>_<os>_<arch>.tar.gz
 ```
 
 Available builds:
 
-| OS      | Architectures   |
-| ------- | --------------- |
+| OS      | Architectures    |
+| ------- | ---------------- |
 | Linux   | `amd64`, `arm64` |
-| macOS   | `amd64`, `arm64` |
-| Windows | `amd64`          |
+| macOS   | `arm64`          |
 
 ### 2. Verify the download (recommended)
 
