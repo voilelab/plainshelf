@@ -188,6 +188,14 @@ func (s *Shelf) makeStructure() error {
 		return util.Errorf("%w", err)
 	}
 
+	// Wipe any leftover temp data from a previous run that may have crashed
+	// mid-operation (e.g. a partially created book under app/tmp). This folder
+	// only ever holds transient in-progress data, so it is safe to clear on startup.
+	err = s.dbRoot.RemoveAll(path.Join(appFolder, appTmpFolder))
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	err = s.dbRoot.MkdirAll(path.Join(appFolder, appTmpFolder))
 	if err != nil {
 		return util.Errorf("%w", err)

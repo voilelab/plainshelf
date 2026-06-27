@@ -2,6 +2,7 @@ package shelf
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -247,6 +248,63 @@ func TestNewSource(t *testing.T) {
 
 	if string(retrievedSrcData) != srcText {
 		t.Errorf("Expected retrieved source to match original source, got '%s'", string(retrievedSrcData))
+	}
+}
+
+// TestNewSourceSameSecond verifies that multiple sources created within the same
+// second get distinct IDs instead of overwriting each other. The source ID is a
+// second-granularity timestamp, so without collision handling these would all
+// resolve to the same folder.
+func TestNewSourceSameSecond(t *testing.T) {
+	tmpLib := path.Join(t.TempDir())
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	bookID := "test-book-a38j"
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, "Test Book")
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+
+	const n = 5
+	wantContent := make(map[string]string, n)
+	for i := 0; i < n; i++ {
+		text := fmt.Sprintf("content-%d", i)
+		src, err := book.NewSource(bytes.NewReader([]byte(text)))
+		if err != nil {
+			t.Fatalf("Failed to create source %d: %v", i, err)
+		}
+		if _, dup := wantContent[src.ID()]; dup {
+			t.Fatalf("Duplicate source ID returned: %s", src.ID())
+		}
+		wantContent[src.ID()] = text
+	}
+
+	sources, err := book.ListSource()
+	if err != nil {
+		t.Fatalf("Failed to list sources: %v", err)
+	}
+	if len(sources) != n {
+		t.Fatalf("Expected %d sources, got %d (sources overwrote each other)", n, len(sources))
+	}
+
+	for _, s := range sources {
+		f, err := s.Open()
+		if err != nil {
+			t.Fatalf("Failed to open source %s: %v", s.ID(), err)
+		}
+		data, err := io.ReadAll(f)
+		f.Close()
+		if err != nil {
+			t.Fatalf("Failed to read source %s: %v", s.ID(), err)
+		}
+		if want := wantContent[s.ID()]; string(data) != want {
+			t.Errorf("Source %s: expected content %q, got %q", s.ID(), want, string(data))
+		}
 	}
 }
 
