@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-BSD_3--Clause-brightgreen.svg?style=flat)](https://github.com/voilelab/plainshelf/blob/main/LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/voilelab/plainshelf)](https://goreportcard.com/report/github.com/voilelab/plainshelf)
 
-PlainShelf is a local-first personal reading library for plain text books.
+PlainShelf is a local-first personal reading library for lightweight reading content.
 
 It is designed for single-user local usage, with a filesystem-first data model and a web-based reading interface.
 
@@ -16,14 +16,14 @@ It is designed for single-user local usage, with a filesystem-first data model a
 
 ## Goals
 
-- Manage and read TXT books
+- Manage and read TXT books (with Markdown and image support planned)
 - Keep user data in local, human-readable files
 - Use stable internal book IDs independent from display titles
 - Provide a local web UI for browsing, importing, organizing, and reading
 - Keep runtime state rebuildable
 - Stay friendly to backup tools and Git-based workflows
 
-PlainShelf is currently TXT-focused. Other text-like formats may be explored later, but plain text reading is the primary use case.
+PlainShelf currently focuses on TXT, with Markdown and image support planned next. Heavier formats (EPUB, PDF, …) remain out of scope.
 
 ---
 
