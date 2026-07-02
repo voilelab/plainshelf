@@ -16,7 +16,7 @@ filesystem-first：`books/` 下的 `.bookpkg` 資料夾是 source of truth，run
 | 跑 server | `mkdir -p workspace && cp cmd/plainshelf-srv/conf/config.yaml workspace/ && cd workspace && go run ../cmd/plainshelf-srv/main.go -conf config.yaml`（監聽 127.0.0.1:20000） |
 | e2e（重，只在碰 UI 行為時跑） | `npm --prefix e2e ci && npm --prefix e2e test` — **不要** `playwright install`，chromium 已在 `/opt/pw-browsers` |
 
-## 陷阱（每一條都是實測撞過的）
+## 陷阱（實測或已驗證的環境事實，不是猜測）
 
 - `go test ./...` 在 `frontend/dist/` 不存在時會**編譯失敗**（`frontend/web.go` 有 `//go:embed dist/*`）。錯誤長得像 Go 問題，實際是 frontend 沒 build。
 - 根目錄 `image.png` 有 870 KB —— 不要 Read 它。

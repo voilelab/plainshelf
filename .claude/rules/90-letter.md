@@ -1,6 +1,6 @@
 # 90 — 給未來 session 的信
 
-寫於 2026-07-02，Fable 5 唯一一次 session。歷史文件，唯讀（見 `40-maintenance.md`）。
+寫於 2026-07-02，Fable 5 唯一一次 session。歷史快照：內容不修改（問了也不改）；勘誤記進 `50-lessons.md`（見 `40-maintenance.md`）。
 讀者是你：之後在這個環境工作的 Sonnet / Opus / Haiku。
 
 ---
@@ -35,5 +35,16 @@ git 歷史顯示：幾乎所有變更都是 `claude/*` 分支 → 小 PR → mer
 
 ## 交接狀態（2026-07-02 session 結束時）
 
-全部交付項（A–G）已完成落檔並 push。無未完成項目。
-若你是被中斷後接手的 session：檔案清單見 CLAUDE.md 路由表，驗證方式是逐檔 read-back。
+全部交付檔案已完成落檔並 push，清單如下（缺任何一個代表交付不完整）：
+
+- `CLAUDE.md`（根目錄 — 指令對照表、陷阱、路由）
+- `.claude/rules/00-diagnosis.md`（harness 診斷，歷史快照）
+- `.claude/rules/10-delegation.md`（模型調度守則）
+- `.claude/rules/20-judgment.md`（判斷力 rubric）
+- `.claude/rules/30-prompt-templates.md`（五份派工模板）
+- `.claude/rules/40-maintenance.md`（維護協議）
+- `.claude/rules/50-lessons.md`（教訓檔，建檔時為空殼）
+- `.claude/rules/90-letter.md`（本檔）
+
+無未完成項目。全部檔案已通過一輪 fresh-context 對抗審查（9 個發現均已修正）。
+若你是被中斷後接手的 session：逐檔 read-back 核對上述清單即可驗證交付完整性。

@@ -7,7 +7,7 @@
 
 ## 1. 何時該升級模型（配合 `10-delegation.md` 第 5 節）
 
-**判準**：任務需要「跨多個模組同時推理」「在互相衝突的需求間取捨」「從稀少線索反推根因」其中之一，就從 `opus` 起跳；純執行類一律從 `sonnet` 起跳。
+**判準**：任務需要「跨多個模組同時推理」「在互相衝突的需求間取捨」「從稀少線索反推根因」其中之一，就從 `opus` 起跳；其餘從 `sonnet` 起跳，但機械性批次工作（模式明確、重複套用）仍照 `10-delegation.md` 第 3 節從 `haiku` 起跳。
 
 - ✅ 正例：測試在 CI 過、本地不過，且錯誤訊息指向不相干的檔案 —— 根因反推題，直接派 `opus`。
 - ❌ 反例：把 20 個檔案裡的舊 API 呼叫換成新 API —— 模式明確的批次工作，派 `opus` 是浪費，`sonnet` 做第一個、`haiku` 批次套用其餘。
@@ -24,7 +24,7 @@
 ## 3. 何時該停下來問使用者
 
 **判準**：滿足任一條就停下用 AskUserQuestion 問，不要猜——
-(a) 破壞性且難回復（刪資料、force push、改 `books/` 資料格式）；
+(a) 破壞性或影響相容性且難回復（刪資料、force push、改 `books/` 資料格式、改 API 對外契約）；
 (b) 對外可見（開 PR 以外的 GitHub 操作、發 comment、動 Linear）且使用者沒明說；
 (c) 需求存在兩種合理解讀，且**選錯的返工成本 > 問一次的成本**；
 (d) 誠實條款情境：品味題（UI 取捨、文案語氣、產品方向）—— 弱模型在這類題目上的自信與正確率無關，給 2–3 個選項讓使用者選，不要假裝有答案。
@@ -54,7 +54,7 @@
 |---|---|
 | Go 程式碼 | build frontend（若 dist 不在）→ `go test ./...`；碰 desktop 則加 `cd desktop && go test ./...` |
 | 前端程式碼 | `npm --prefix frontend run build`（內含 vue-tsc 型別檢查）；碰 UI 行為則加 e2e |
-| server API | 上述 Go 測試 + 確認 `server/api_contract_test.go` 是否需要同步更新（契約變更要先問，見第 3 節 (c)） |
+| server API | 上述 Go 測試 + 確認 `server/api_contract_test.go` 是否需要同步更新（契約變更 = 對外行為改變，先問，見第 3 節 (a)） |
 | 文件/規則檔 | fresh-context agent read-back（見 `10-delegation.md` 第 6 節） |
 | CHANGELOG | 用 `update-changelog` skill，不要手寫 |
 

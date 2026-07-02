@@ -1,7 +1,7 @@
 # 00 — Harness 快速診斷（2026-07-02，由 Fable 5 撰寫）
 
-> 本檔是一次性的診斷報告，後續所有制度檔（10/20/30/40）都引用這裡的問題編號。
-> 屬歷史文件：**不要修改**（維護規則見 `40-maintenance.md`）。
+> 本檔是一次性的診斷報告，說明其他制度檔為什麼長這樣：`10-delegation.md` 直接引用本檔的問題 2、3；`CLAUDE.md` 與 `50-lessons.md` 是問題 1、3 的修法；`20/30/40` 是修法的展開。
+> 屬歷史快照：內容不修改（問了也不改）；發現與現實不符時把勘誤記進 `50-lessons.md`，見 `40-maintenance.md`。
 
 診斷對象：voilelab/plainshelf 的 Claude Code cloud session 環境（每次 session 都是全新容器、repo 重新 clone、無跨 session 記憶）。
 

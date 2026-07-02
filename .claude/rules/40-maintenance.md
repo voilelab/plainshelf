@@ -19,7 +19,10 @@
 - 修改升降級門檻、重試上限（`10-delegation.md` 第 5 節）。
 - 修改 CLAUDE.md 的路由結構、新增會自動載入的內容。
 - 新增 `.claude/agents/` agent 定義或 `.claude/skills/` skill。
-- 動 `00-diagnosis.md` 或 `90-letter.md` —— 這兩份是歷史文件，唯讀。
+
+### 不修改（問了也不改）
+
+- `00-diagnosis.md` 與 `90-letter.md` 是歷史快照，內容不修改。若發現其中有與現實不符的敘述，把勘誤記進 `50-lessons.md`（註明「勘誤 00-diagnosis」等字樣），原文保持原樣 —— 快照的價值在於它忠實記錄當時的判斷。
 
 ## 2. 教訓寫回（每次踩坑後）
 
