@@ -156,8 +156,6 @@ function onDocumentKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape') {
     if (isSplitModalOpen.value) {
       closeSplitModal();
-    } else if (isChapterModalOpen.value) {
-      closeChapterModal();
     }
     return;
   }

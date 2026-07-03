@@ -8,4 +8,6 @@
 
 ---
 
-（目前無條目。2026-07-02 建檔時的初始踩坑 —— go:embed 依賴 frontend/dist、容器無 just/zsh、playwright 已預裝、預設分支是 dev —— 已直接升格進 CLAUDE.md 陷阱清單，故此處不重複。）
+- [2026-07-03] 症狀：`npm --prefix e2e test` 8 個測試全在 browserType.launch 失敗（`Executable doesn't exist at /opt/pw-browsers/chromium_headless_shell-1223/...`）→ 根因：e2e 鎖定的 playwright 1.60 需要 chromium rev 1223，容器 `/opt/pw-browsers` 只預裝 rev 1194 → 規則：臨時在 `e2e/playwright.config.ts` 的 `use` 加 `launchOptions: { executablePath: '/opt/pw-browsers/chromium' }`，跑完 `git checkout e2e/playwright.config.ts` 還原；不要 `playwright install`（實測 8/8 過）。
+
+（2026-07-02 建檔時的初始踩坑 —— go:embed 依賴 frontend/dist、容器無 just/zsh、playwright 已預裝、預設分支是 dev —— 已直接升格進 CLAUDE.md 陷阱清單，故此處不重複。）

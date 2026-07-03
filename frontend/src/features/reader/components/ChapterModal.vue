@@ -1,8 +1,8 @@
 <template>
-  <div v-if="open" class="chapter-modal-backdrop" role="presentation" @click="emit('close')">
-    <section class="panel chapter-modal" role="dialog" aria-modal="true" aria-labelledby="chapter-modal-title" @click.stop>
+  <BaseDialog :open="open" title="Chapters" @close="emit('close')">
+    <section class="panel chapter-modal">
       <header class="chapter-modal-header">
-        <h3 id="chapter-modal-title">Chapters</h3>
+        <h3>Chapters</h3>
         <button class="chapter-icon-close" type="button" aria-label="Close chapter dialog" @click="emit('close')">×</button>
       </header>
 
@@ -20,10 +20,12 @@
         </button>
       </div>
     </section>
-  </div>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
+import BaseDialog from '../../../components/BaseDialog.vue';
+
 type ReaderSection = {
   index: number;
   title: string;

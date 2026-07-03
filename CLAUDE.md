@@ -14,7 +14,7 @@ filesystem-first：`books/` 下的 `.bookpkg` 資料夾是 source of truth，run
 | 前端型別檢查 + build | `npm --prefix frontend run build`（內含 `vue-tsc --noEmit`） |
 | 前端 dev（mock 資料，不需後端） | `cd frontend && VITE_USE_MOCK_API=true npm run dev` |
 | 跑 server | `mkdir -p workspace && cp cmd/plainshelf-srv/conf/config.yaml workspace/ && cd workspace && go run ../cmd/plainshelf-srv/main.go -conf config.yaml`（監聽 127.0.0.1:20000） |
-| e2e（重，只在碰 UI 行為時跑） | `npm --prefix e2e ci && npm --prefix e2e test` — **不要** `playwright install`，chromium 已在 `/opt/pw-browsers` |
+| e2e（重，只在碰 UI 行為時跑） | `npm --prefix e2e ci && npm --prefix e2e test` — **不要** `playwright install`，chromium 已在 `/opt/pw-browsers`；直接跑會因 chromium rev 漂移失敗，臨時繞法見 `50-lessons.md` 2026-07-03 條 |
 
 ## 陷阱（實測或已驗證的環境事實，不是猜測）
 
