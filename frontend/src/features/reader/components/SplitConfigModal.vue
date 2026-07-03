@@ -1,8 +1,8 @@
 <template>
-  <div v-if="open" class="modal-overlay" role="presentation" @click="onClose">
-    <section class="panel split-modal" role="dialog" aria-modal="true" aria-labelledby="split-modal-title" @click.stop>
+  <BaseDialog :open="open" title="Reader Split Settings" :busy="savingSplit" @close="onClose">
+    <section class="panel split-modal">
       <header class="split-header">
-        <h3 id="split-modal-title">Reader Split Settings</h3>
+        <h3>Reader Split Settings</h3>
         <button class="icon-close" type="button" aria-label="Close split dialog" :disabled="savingSplit" @click="onClose">
           ×
         </button>
@@ -66,11 +66,12 @@
         </div>
       </form>
     </section>
-  </div>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+import BaseDialog from '../../../components/BaseDialog.vue';
 import type { SplitConfig, SplitType } from '../../../types/book';
 
 const props = defineProps<{

@@ -152,14 +152,6 @@ function closeSplitModal(): void {
 function onDocumentKeydown(event: KeyboardEvent): void {
   const hasOpenModal = isSplitModalOpen.value || isChapterModalOpen.value;
 
-  // Handle Escape key to close open modal
-  if (event.key === 'Escape') {
-    if (isSplitModalOpen.value) {
-      closeSplitModal();
-    }
-    return;
-  }
-
   // Don't handle reader shortcuts when modal is open
   if (hasOpenModal) {
     return;
