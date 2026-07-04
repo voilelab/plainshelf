@@ -1,14 +1,8 @@
 <template>
-  <div v-if="open" class="modal-overlay" role="presentation" @click="onBackdropClick">
-    <section
-      class="panel cover-gen-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="cover-gen-title"
-      @click.stop
-    >
+  <BaseDialog :open="open" title="Generate Cover" :busy="saving" @close="onClose">
+    <section class="panel cover-gen-modal">
       <header class="modal-header">
-        <h2 id="cover-gen-title">Generate Cover</h2>
+        <h2>Generate Cover</h2>
         <button
           class="icon-close"
           type="button"
@@ -70,11 +64,12 @@
         </button>
       </div>
     </section>
-  </div>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { nextTick, ref, watch } from 'vue';
+import BaseDialog from './BaseDialog.vue';
 import { getBookshelfProvider } from '../providers';
 
 const CANVAS_W = 400;
@@ -453,10 +448,6 @@ function onClose(): void {
   emit('close');
 }
 
-function onBackdropClick(): void {
-  onClose();
-}
-
 async function onSave(): Promise<void> {
   if (saving.value) return;
   const canvas = canvasRef.value;
@@ -489,37 +480,9 @@ async function onSave(): Promise<void> {
     saving.value = false;
   }
 }
-
-// ─── Keyboard ────────────────────────────────────────────────────────────────
-
-function onDocumentKeydown(event: KeyboardEvent): void {
-  if (!props.open || saving.value) return;
-  if (event.key === 'Escape') {
-    emit('close');
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('keydown', onDocumentKeydown);
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener('keydown', onDocumentKeydown);
-});
 </script>
 
 <style scoped>
-.modal-overlay {
-  align-items: center;
-  background: rgba(15, 23, 42, 0.38);
-  display: flex;
-  inset: 0;
-  justify-content: center;
-  padding: 16px;
-  position: fixed;
-  z-index: 50;
-}
-
 .cover-gen-modal {
   display: grid;
   gap: 16px;
