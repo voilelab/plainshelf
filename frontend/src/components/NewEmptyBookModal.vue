@@ -1,14 +1,8 @@
 <template>
-  <div v-if="open" class="modal-overlay" role="presentation" @click="onBackdropClick">
-    <section
-      class="panel empty-book-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="empty-book-modal-title"
-      @click.stop
-    >
+  <BaseDialog :open="open" title="New empty book" :busy="submitting" @close="onClose">
+    <section class="panel empty-book-modal">
       <header class="modal-header">
-        <h2 id="empty-book-modal-title">New empty book</h2>
+        <h2>New empty book</h2>
         <button
           class="icon-close"
           type="button"
@@ -48,11 +42,12 @@
         </div>
       </form>
     </section>
-  </div>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { nextTick, ref, watch } from 'vue';
+import BaseDialog from './BaseDialog.vue';
 import { getBookshelfProvider } from '../providers';
 
 const props = defineProps<{
@@ -81,19 +76,6 @@ function onClose(): void {
     return;
   }
   emit('close');
-}
-
-function onBackdropClick(): void {
-  onClose();
-}
-
-function onDocumentKeydown(event: KeyboardEvent): void {
-  if (!props.open || submitting.value) {
-    return;
-  }
-  if (event.key === 'Escape') {
-    onClose();
-  }
 }
 
 async function onSubmit(): Promise<void> {
@@ -133,28 +115,9 @@ watch(
     titleInput.value?.focus();
   }
 );
-
-onMounted(() => {
-  document.addEventListener('keydown', onDocumentKeydown);
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener('keydown', onDocumentKeydown);
-});
 </script>
 
 <style scoped>
-.modal-overlay {
-  align-items: center;
-  background: rgba(15, 23, 42, 0.38);
-  display: flex;
-  inset: 0;
-  justify-content: center;
-  padding: 16px;
-  position: fixed;
-  z-index: 50;
-}
-
 .empty-book-modal {
   display: grid;
   gap: 10px;
