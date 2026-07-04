@@ -21,6 +21,7 @@
       :items="nodes"
       :get-key="(node: LayerNode) => node.path"
       :get-children="getChildren"
+      :model-value="selectedTreeNode"
       v-model:expanded="expanded"
     >
       <TreeItem
@@ -155,6 +156,29 @@ function hasChildren(node: LayerNode): boolean {
 function isSelected(node: LayerNode): boolean {
   return node.path === props.selected;
 }
+
+function findNodeByPath(nodes: LayerNode[], path: string): LayerNode | undefined {
+  for (const node of nodes) {
+    if (node.path === path) {
+      return node;
+    }
+    const found = findNodeByPath(node.children, path);
+    if (found) {
+      return found;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Drive Reka's selection model from the app's selected layer so
+ * aria-selected always matches the actual navigation state. Label clicks
+ * bypass TreeItem's built-in select (@click.stop), and keyboard selection
+ * would otherwise leave Reka's uncontrolled model stale.
+ */
+const selectedTreeNode = computed(() =>
+  props.selected ? findNodeByPath(props.nodes, props.selected) : undefined
+);
 
 function layerBookCount(node: LayerNode): number {
   return bookCountByLayer.value.get(node.path) ?? 0;
