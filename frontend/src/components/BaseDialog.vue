@@ -4,7 +4,7 @@
       <DialogOverlay class="base-dialog-overlay" />
       <DialogContent
         class="base-dialog-content"
-        :aria-describedby="undefined"
+        :aria-describedby="describedBy"
         @escape-key-down="onDismissAttempt"
         @pointer-down-outside="onDismissAttempt"
       >
@@ -26,10 +26,12 @@ const props = withDefaults(
     title: string;
     dismissible?: boolean;
     busy?: boolean;
+    describedBy?: string;
   }>(),
   {
     dismissible: true,
-    busy: false
+    busy: false,
+    describedBy: undefined
   }
 );
 
