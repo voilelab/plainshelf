@@ -89,13 +89,15 @@
             {{ sortOrder === 'asc' ? t('library.order.asc') : t('library.order.desc') }}
           </button>
         </div>
-        <div v-if="!readOnly" class="import-dropdown" ref="importDropdown">
-          <button class="button" type="button" @click="toggleImportDropdown">{{ t('library.import') }}</button>
-          <div v-if="showImportDropdown" class="import-dropdown-menu">
-            <button class="import-dropdown-item" type="button" @click="openImportFromFiles">{{ t('library.importFromFiles') }}</button>
-            <button class="import-dropdown-item" type="button" @click="openNewEmptyBookModal">{{ t('library.newEmptyBook') }}</button>
-          </div>
-        </div>
+        <DropdownMenuRoot v-if="!readOnly">
+          <DropdownMenuTrigger class="button">{{ t('library.import') }}</DropdownMenuTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuContent class="import-dropdown-menu" align="end" :side-offset="6">
+              <DropdownMenuItem class="import-dropdown-item" @select="openImportFromFiles">{{ t('library.importFromFiles') }}</DropdownMenuItem>
+              <DropdownMenuItem class="import-dropdown-item" @select="openNewEmptyBookModal">{{ t('library.newEmptyBook') }}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenuPortal>
+        </DropdownMenuRoot>
       </template>
     </BookCollectionPage>
 
@@ -117,6 +119,13 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuRoot,
+  DropdownMenuTrigger
+} from 'reka-ui';
 import { useRouter } from 'vue-router';
 import type { Book } from '../types/book';
 import BookCollectionPage from '../components/BookCollectionPage.vue';
@@ -162,9 +171,7 @@ const {
   clearSearch
 } = useBooksSearch(searchQuery.value);
 const booksLoaded = ref<boolean>(false);
-const showImportDropdown = ref(false);
 const isNewEmptyBookModalOpen = ref(false);
-const importDropdown = ref<HTMLElement | null>(null);
 const { readOnly } = useServerMode();
 const hasInitializedSearch = ref(false);
 const droppedFiles = ref<File[]>([]);
@@ -333,7 +340,6 @@ async function openImportFromFiles(): Promise<void> {
   if (readOnly.value) {
     return;
   }
-  showImportDropdown.value = false;
   droppedFiles.value = [];
 
   let desktopFiles: string[] | null = null;
@@ -376,30 +382,11 @@ function openNewEmptyBookModal(): void {
   if (readOnly.value) {
     return;
   }
-  showImportDropdown.value = false;
   isNewEmptyBookModalOpen.value = true;
 }
 
 function closeNewEmptyBookModal(): void {
   isNewEmptyBookModalOpen.value = false;
-}
-
-function toggleImportDropdown(): void {
-  if (readOnly.value) {
-    return;
-  }
-  showImportDropdown.value = !showImportDropdown.value;
-}
-
-function onDocumentClick(event: MouseEvent): void {
-  const target = event.target;
-  if (!(target instanceof Node)) {
-    return;
-  }
-
-  if (!importDropdown.value?.contains(target)) {
-    showImportDropdown.value = false;
-  }
 }
 
 function onDocumentDragOver(event: DragEvent): void {
@@ -430,7 +417,6 @@ function onDocumentDrop(event: DragEvent): void {
     return;
   }
 
-  showImportDropdown.value = false;
   droppedFiles.value = nextDroppedFiles;
   if (!isImportModalOpen.value) {
     void openImportModalQuery();
@@ -458,13 +444,11 @@ function openBook(id: string): void {
 
 
 onMounted(() => {
-  document.addEventListener('click', onDocumentClick);
   document.addEventListener('dragover', onDocumentDragOver);
   document.addEventListener('drop', onDocumentDrop);
 });
 
 onBeforeUnmount(() => {
-  document.removeEventListener('click', onDocumentClick);
   document.removeEventListener('dragover', onDocumentDragOver);
   document.removeEventListener('drop', onDocumentDrop);
 });
@@ -523,38 +507,35 @@ watch(
 );
 </script>
 
-<style scoped>
-
-.import-dropdown {
-  position: relative;
-}
-
+<!-- Unscoped: reka-ui popper content is portalled and wrapped in a
+     positioner element, so the consumer's scope attribute never lands on
+     the menu itself. Style portalled popper content with plain CSS. -->
+<style>
 .import-dropdown-menu {
-  background: #fff;
+  background: var(--surface, #fff);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
   display: grid;
   min-width: 180px;
   padding: 6px;
-  position: absolute;
-  right: 0;
-  top: calc(100% + 6px);
-  z-index: 20;
+  z-index: var(--z-modal);
 }
 
 .import-dropdown-item {
-  background: transparent;
-  border: 0;
   border-radius: 6px;
   cursor: pointer;
   padding: 8px 10px;
   text-align: left;
 }
 
-.import-dropdown-item:hover {
+.import-dropdown-item[data-highlighted] {
   background: #f4f7fb;
+  outline: none;
 }
+</style>
+
+<style scoped>
 
 .breadcrumb-link {
   background: transparent;

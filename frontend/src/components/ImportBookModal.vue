@@ -1,23 +1,14 @@
 <template>
-  <div
-    v-if="open"
-    class="modal-overlay"
-    role="presentation"
-    @click="onBackdropClick"
-    @dragover="onDragOver"
-    @dragleave="onDragLeave"
-    @drop="onDrop"
-  >
+  <BaseDialog :open="open" title="Import Book" :busy="submitting" @close="onClose">
     <section
       class="panel import-modal"
       :class="{ 'is-drop-target': isDropTarget }"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="import-modal-title"
-      @click.stop
+      @dragover="onDragOver"
+      @dragleave="onDragLeave"
+      @drop="onDrop"
     >
       <header class="import-header">
-        <h2 id="import-modal-title">Import Book</h2>
+        <h2>Import Book</h2>
         <button
           class="icon-close"
           type="button"
@@ -71,11 +62,12 @@
         </div>
       </form>
     </section>
-  </div>
+  </BaseDialog>
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { nextTick, ref, watch } from 'vue';
+import BaseDialog from './BaseDialog.vue';
 import { useImportBook } from '../composables/useImportBook';
 import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
@@ -137,10 +129,6 @@ function onClose(): void {
   emit('close');
 }
 
-function onBackdropClick(): void {
-  onClose();
-}
-
 function onDragOver(event: DragEvent): void {
   if (!hasFileTransfer(event.dataTransfer)) {
     return;
@@ -177,15 +165,6 @@ function onDrop(event: DragEvent): void {
   event.preventDefault();
   isDropTarget.value = false;
   applyDroppedFiles(readDroppedFiles(event));
-}
-
-function onDocumentKeydown(event: KeyboardEvent): void {
-  if (!props.open || submitting.value) {
-    return;
-  }
-  if (event.key === 'Escape') {
-    emit('close');
-  }
 }
 
 async function onSubmit(): Promise<void> {
@@ -250,28 +229,9 @@ watch(
     applyDroppedFiles(nextFiles ?? []);
   }
 );
-
-onMounted(() => {
-  document.addEventListener('keydown', onDocumentKeydown);
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener('keydown', onDocumentKeydown);
-});
 </script>
 
 <style scoped>
-.modal-overlay {
-  align-items: center;
-  background: rgba(15, 23, 42, 0.38);
-  display: flex;
-  inset: 0;
-  justify-content: center;
-  padding: 16px;
-  position: fixed;
-  z-index: 50;
-}
-
 .import-modal {
   display: grid;
   gap: 10px;
