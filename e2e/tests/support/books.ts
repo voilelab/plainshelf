@@ -15,7 +15,7 @@ export async function importBookFromPath(page: Page, filePath: string): Promise<
   const filename = path.basename(filePath);
 
   await page.getByRole('button', { name: /^Import/ }).click();
-  await page.getByRole('button', { name: 'Import from files' }).click();
+  await page.getByRole('menuitem', { name: 'Import from files' }).click();
 
   const dialog = page.getByRole('dialog', { name: 'Import Book' });
   await expect(dialog).toBeVisible();
