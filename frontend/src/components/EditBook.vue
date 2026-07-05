@@ -392,7 +392,9 @@ function fromDatetimeLocalValue(rawValue: string): string | undefined {
   display: inline-flex;
 }
 
-.star-indicator {
+/* :deep() required: reka-ui's Radio renders a fragment, which breaks scoped
+   scope-id inheritance, so the actual star <button> never gets our data-v attr. */
+.star-rating :deep(.star-indicator) {
   padding: 0 2px;
   border: 0;
   background: transparent;
@@ -402,11 +404,11 @@ function fromDatetimeLocalValue(rawValue: string): string | undefined {
   line-height: 1;
 }
 
-.star-indicator[data-state='active'] {
+.star-rating :deep(.star-indicator[data-state='active']) {
   color: #f5a623;
 }
 
-.star-indicator:focus-visible,
+.star-rating :deep(.star-indicator:focus-visible),
 .clear-rating:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
