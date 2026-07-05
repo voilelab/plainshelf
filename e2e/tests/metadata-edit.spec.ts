@@ -22,9 +22,15 @@ test('should edit book metadata and see the updated values on the detail page', 
     const authorsInput = page.getByPlaceholder('Author A, Author B');
     await authorsInput.fill('Alice, Bob');
 
-    // Select English from the language dropdown (scope to the edit form to avoid
-    // the sidebar UI-language select, which also has a "Language" label)
-    await page.locator('.edit-form').getByLabel('Language').selectOption('en');
+    // Select English from the reka-ui language combobox (scope to the edit form
+    // to avoid the sidebar UI-language select, which also has a "Language" label).
+    // reka-ui's Select renders a button[role=combobox] trigger plus a portaled
+    // listbox, so we open it and click the matching option instead of the native
+    // <select>-only selectOption() API.
+    const languageTrigger = page.locator('.edit-form').getByLabel('Language');
+    await languageTrigger.click();
+    await page.getByRole('option', { name: '英文' }).click();
+    await expect(languageTrigger).toHaveText('英文');
 
     // Add a tag
     const tagInput = page.getByPlaceholder('Type a tag and press Enter');
