@@ -215,6 +215,9 @@
     <SplitterResizeHandle as="div" class="reka-resize-handle" :hit-area-margins="SIDEBAR_RESIZE_HIT_AREA_MARGINS" />
 
     <SplitterPanel as="main" class="main-content">
+      <!-- SplitterPanel forces inline overflow:hidden, so scrolling lives on
+           this inner wrapper (same pattern as .sidebar-inner). -->
+      <div class="main-scroll">
       <div v-if="readOnly" class="read-only-banner" role="status">
         {{ t('layout.readOnly.banner') }}
       </div>
@@ -251,6 +254,7 @@
           <p>{{ shelfUnavailableMessage }}</p>
           <RouterLink to="/settings" class="button">{{ t('layout.settings') }}</RouterLink>
         </section>
+      </div>
       </div>
     </SplitterPanel>
     </SplitterGroup>
@@ -848,11 +852,14 @@ onMounted(async () => {
 /* ── Main content ── */
 .main-content {
   flex: 1;
-  height: 100vh;
-  overflow-y: auto;
   max-width: none;
   background: white;
   min-width: 0;
+}
+
+.main-scroll {
+  height: 100%;
+  overflow-y: auto;
 }
 
 .read-only-banner {
