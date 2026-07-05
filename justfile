@@ -36,3 +36,10 @@ build-desktop: build-server-frontend
 # Run desktop app
 run-desktop: build-server-frontend
 	cd desktop && go mod tidy && go tool wails dev
+
+# Package the macOS .app bundle as a zip suitable for the Homebrew cask
+package-desktop-mac: build-desktop
+	mkdir -p out
+	ditto -c -k --sequesterRsrc --keepParent \
+	  desktop/build/bin/PlainShelf.app \
+	  out/plainshelf-desktop_{{version}}_darwin_arm64.zip

@@ -111,6 +111,22 @@ Runtime state.
 
 ---
 
+## Install
+
+### Desktop (macOS, Apple Silicon)
+
+Install the desktop app via Homebrew:
+
+```bash
+brew tap voilelab/plainshelf https://github.com/voilelab/plainshelf
+brew install --cask voilelab/plainshelf/plainshelf
+```
+
+For the server binary, Docker image, or other platforms, see
+[docs/installation.md](docs/installation.md).
+
+---
+
 ## Development
 
 ### Run Only Frontend
