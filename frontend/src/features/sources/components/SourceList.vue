@@ -86,10 +86,7 @@ function formatTimestamp(value: string): string {
 
 <style scoped>
 .source-list {
-  width: 300px;
-  flex: 0 0 300px;
-  min-width: 240px;
-  max-width: 360px;
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 8px;
