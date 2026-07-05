@@ -28,20 +28,27 @@
 
         <fieldset class="field rating-field">
           <legend class="label">Star rating</legend>
-          <div class="star-rating" role="radiogroup" aria-label="Star rating">
-            <button
-              v-for="value in STAR_VALUES"
-              :key="value"
-              class="star-button"
-              :class="{ active: value <= star }"
-              type="button"
-              role="radio"
-              :aria-checked="star === value"
-              :aria-label="`${value} star${value === 1 ? '' : 's'}`"
-              @click="star = value"
-            >
-              ★
-            </button>
+          <div class="star-rating">
+            <RatingRoot v-model="star" as="div" class="star-rating-root" :length="5" clearable aria-label="Star rating">
+              <RatingItem
+                v-for="value in STAR_VALUES"
+                :key="value"
+                :item="value"
+                as="span"
+                class="star-item"
+                v-slot="{ steps }"
+              >
+                <RatingItemIndicator
+                  v-for="step in steps"
+                  :key="step"
+                  :step="step"
+                  class="star-indicator"
+                  :aria-label="`${value} star${value === 1 ? '' : 's'}`"
+                >
+                  ★
+                </RatingItemIndicator>
+              </RatingItem>
+            </RatingRoot>
             <button class="clear-rating" type="button" :disabled="star === 0" @click="star = 0">Clear</button>
           </div>
         </fieldset>
@@ -123,6 +130,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import {
+  RatingItem,
+  RatingItemIndicator,
+  RatingRoot,
   SelectContent,
   SelectItem,
   SelectItemText,
@@ -372,7 +382,17 @@ function fromDatetimeLocalValue(rawValue: string): string | undefined {
   gap: 4px;
 }
 
-.star-button {
+.star-rating-root {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.star-item {
+  display: inline-flex;
+}
+
+.star-indicator {
   padding: 0 2px;
   border: 0;
   background: transparent;
@@ -382,11 +402,11 @@ function fromDatetimeLocalValue(rawValue: string): string | undefined {
   line-height: 1;
 }
 
-.star-button.active {
+.star-indicator[data-state='active'] {
   color: #f5a623;
 }
 
-.star-button:focus-visible,
+.star-indicator:focus-visible,
 .clear-rating:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
