@@ -1,6 +1,10 @@
 <template>
   <div>
-    <div v-if="loading" class="loading">{{ t('bookCollection.loadingBooks') }}</div>
+    <div v-if="loading" class="loading">{{ shelfInitializing ? t('bookCollection.shelfInitializing') : t('bookCollection.loadingBooks') }}</div>
+    <div v-else-if="shelfUnreachable" class="error collection-error" role="alert">
+      <p>{{ t('bookCollection.shelfUnreachable') }}</p>
+      <button type="button" class="button" @click="emit('retry')">{{ t('common.retry') }}</button>
+    </div>
     <div v-else-if="error" class="error collection-error" role="alert">
       <p>{{ error }}</p>
       <button type="button" class="button" @click="emit('retry')">{{ t('common.retry') }}</button>
@@ -20,14 +24,8 @@
         <div class="bookshelf-toolbar">
           <p v-if="resolvedTotalLabel" class="bookshelf-count">{{ resolvedTotalLabel }}</p>
 
-          <div class="view-mode-selector" ref="viewModeMenuRef">
-            <button
-              class="button view-mode-trigger"
-              type="button"
-              :aria-expanded="isViewModeMenuOpen ? 'true' : 'false'"
-              aria-haspopup="menu"
-              @click="toggleViewModeMenu"
-            >
+          <DropdownMenuRoot>
+            <DropdownMenuTrigger class="button view-mode-trigger" type="button">
               <span class="view-mode-trigger-icon" aria-hidden="true">
                 <svg v-if="viewMode === 'list'" viewBox="0 0 16 16" class="view-mode-svg">
                   <path d="M2 3.5h2v2H2zM5.5 4h8v1h-8zM2 7h2v2H2zM5.5 7.5h8v1h-8zM2 10.5h2v2H2zM5.5 11h8v1h-8z" fill="currentColor" />
@@ -40,34 +38,34 @@
                 </svg>
               </span>
               <span>{{ currentViewModeLabel }}</span>
-            </button>
+            </DropdownMenuTrigger>
 
-            <div v-if="isViewModeMenuOpen" class="view-mode-menu panel" role="menu">
-              <button
-                v-for="option in viewModeOptions"
-                :key="option.value"
-                type="button"
-                class="view-mode-option"
-                :class="{ active: option.value === viewMode }"
-                role="menuitemradio"
-                :aria-checked="option.value === viewMode ? 'true' : 'false'"
-                @click="selectViewMode(option.value)"
-              >
-                <span class="view-mode-option-icon" aria-hidden="true">
-                  <svg v-if="option.value === 'list'" viewBox="0 0 16 16" class="view-mode-svg">
-                    <path d="M2 3.5h2v2H2zM5.5 4h8v1h-8zM2 7h2v2H2zM5.5 7.5h8v1h-8zM2 10.5h2v2H2zM5.5 11h8v1h-8z" fill="currentColor" />
-                  </svg>
-                  <svg v-else-if="option.value === 'card'" viewBox="0 0 16 16" class="view-mode-svg">
-                    <path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z" fill="currentColor" />
-                  </svg>
-                  <svg v-else viewBox="0 0 16 16" class="view-mode-svg">
-                    <path d="M2 4h12v1H2zM2 7.5h12v1H2zM2 11h12v1H2z" fill="currentColor" />
-                  </svg>
-                </span>
-                <span>{{ option.label }}</span>
-              </button>
-            </div>
-          </div>
+            <DropdownMenuPortal>
+              <DropdownMenuContent class="reka-menu view-mode-menu" align="end" :side-offset="6">
+                <DropdownMenuRadioGroup :model-value="viewMode" @update:model-value="onViewModeSelect">
+                  <DropdownMenuRadioItem
+                    v-for="option in viewModeOptions"
+                    :key="option.value"
+                    class="reka-menu-item view-mode-option"
+                    :value="option.value"
+                  >
+                    <span class="view-mode-option-icon" aria-hidden="true">
+                      <svg v-if="option.value === 'list'" viewBox="0 0 16 16" class="view-mode-svg">
+                        <path d="M2 3.5h2v2H2zM5.5 4h8v1h-8zM2 7h2v2H2zM5.5 7.5h8v1h-8zM2 10.5h2v2H2zM5.5 11h8v1h-8z" fill="currentColor" />
+                      </svg>
+                      <svg v-else-if="option.value === 'card'" viewBox="0 0 16 16" class="view-mode-svg">
+                        <path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z" fill="currentColor" />
+                      </svg>
+                      <svg v-else viewBox="0 0 16 16" class="view-mode-svg">
+                        <path d="M2 4h12v1H2zM2 7.5h12v1H2zM2 11h12v1H2z" fill="currentColor" />
+                      </svg>
+                    </span>
+                    <span>{{ option.label }}</span>
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenuPortal>
+          </DropdownMenuRoot>
 
           <slot name="toolbar" />
         </div>
@@ -112,7 +110,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, useSlots, watch } from 'vue';
+import { computed, onMounted, ref, useSlots, watch } from 'vue';
+import {
+  DropdownMenuContent,
+  DropdownMenuPortal,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuRoot,
+  DropdownMenuTrigger,
+  type AcceptableValue
+} from 'reka-ui';
 import BookCardView from './BookCardView.vue';
 import BookListView from './BookListView.vue';
 import BookTitleView from './BookTitleView.vue';
@@ -120,6 +127,7 @@ import Pagination from './Pagination.vue';
 import type { Book } from '../types/book';
 import {
   getStoredBooksViewMode,
+  isBooksViewMode,
   setStoredBooksViewMode,
   type BooksViewMode
 } from '../utils/booksViewMode';
@@ -129,6 +137,8 @@ const props = withDefaults(defineProps<{
   title: string;
   books: Book[];
   loading?: boolean;
+  shelfInitializing?: boolean;
+  shelfUnreachable?: boolean;
   error?: string;
   page: number;
   pageSize: number;
@@ -142,6 +152,8 @@ const props = withDefaults(defineProps<{
   pageSizeOptions?: number[];
 }>(), {
   loading: false,
+  shelfInitializing: false,
+  shelfUnreachable: false,
   error: '',
   totalLabel: '',
   count: undefined,
@@ -167,8 +179,6 @@ const viewModeOptions = computed<Array<{ value: BooksViewMode; label: string }>>
 ]);
 
 const viewMode = ref<BooksViewMode>('list');
-const isViewModeMenuOpen = ref(false);
-const viewModeMenuRef = ref<HTMLElement | null>(null);
 const slots = useSlots();
 
 const hasMetaLine = computed(() => !!props.filterDescription || !!slots['title-meta']);
@@ -187,30 +197,11 @@ const currentViewModeLabel = computed(() => {
   return viewModeOptions.value.find((option) => option.value === viewMode.value)?.label ?? t('bookCollection.viewMode.list');
 });
 
-function toggleViewModeMenu(): void {
-  isViewModeMenuOpen.value = !isViewModeMenuOpen.value;
-}
-
-function selectViewMode(mode: BooksViewMode): void {
-  viewMode.value = mode;
-  isViewModeMenuOpen.value = false;
-}
-
-function onWindowPointerDown(event: MouseEvent): void {
-  if (!isViewModeMenuOpen.value) {
+function onViewModeSelect(value: AcceptableValue): void {
+  if (typeof value !== 'string' || !isBooksViewMode(value)) {
     return;
   }
-
-  const target = event.target;
-  if (!(target instanceof Node)) {
-    return;
-  }
-
-  if (viewModeMenuRef.value?.contains(target)) {
-    return;
-  }
-
-  isViewModeMenuOpen.value = false;
+  viewMode.value = value;
 }
 
 watch(viewMode, (mode) => {
@@ -219,11 +210,6 @@ watch(viewMode, (mode) => {
 
 onMounted(() => {
   viewMode.value = getStoredBooksViewMode(props.viewModeStorageKey);
-  window.addEventListener('mousedown', onWindowPointerDown);
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener('mousedown', onWindowPointerDown);
 });
 </script>
 
@@ -289,10 +275,6 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.view-mode-selector {
-  position: relative;
-}
-
 .view-mode-trigger {
   align-items: center;
   display: inline-flex;
@@ -300,50 +282,9 @@ onBeforeUnmount(() => {
   min-width: 96px;
 }
 
-.view-mode-trigger-icon,
-.view-mode-option-icon {
+.view-mode-trigger-icon {
   color: var(--muted);
   display: inline-flex;
-}
-
-.view-mode-svg {
-  width: 14px;
-  height: 14px;
-}
-
-.view-mode-menu {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 132px;
-  padding: 6px;
-  position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
-  z-index: 20;
-}
-
-.view-mode-option {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  border-radius: 8px;
-  color: inherit;
-  cursor: pointer;
-  display: flex;
-  gap: 8px;
-  padding: 8px 10px;
-  text-align: left;
-  width: 100%;
-}
-
-.view-mode-option:hover,
-.view-mode-option.active {
-  background: #f4f7fb;
-}
-
-.view-mode-option.active {
-  color: color-mix(in srgb, var(--text) 88%, var(--accent));
 }
 
 .empty-state {
@@ -365,5 +306,38 @@ onBeforeUnmount(() => {
   .view-mode-trigger {
     min-width: 88px;
   }
+}
+</style>
+
+<!-- Unscoped: DropdownMenuContent/Item are portalled outside this
+     component's DOM subtree, so this component's scope attribute never
+     lands on them. Style portalled popper content with plain CSS. -->
+<style>
+.view-mode-svg {
+  width: 14px;
+  height: 14px;
+}
+
+.view-mode-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 132px;
+}
+
+.view-mode-option {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.view-mode-option-icon {
+  color: var(--muted);
+  display: inline-flex;
+}
+
+.view-mode-option[data-state="checked"] {
+  background: #f4f7fb;
+  color: color-mix(in srgb, var(--text) 88%, var(--accent));
 }
 </style>

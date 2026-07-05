@@ -1,5 +1,5 @@
 site_name: PlainShelf
-site_description: A local-first personal reading library for plain text books
+site_description: A local-first personal reading library for lightweight reading content
 repo_url: https://github.com/voilelab/plainshelf
 repo_name: voilelab/plainshelf
 
@@ -26,7 +26,11 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Installation: installation.md
   - Getting Started: getting-started.md
+  - Configuration:
+      - Local Shelf File Source: configuring-local-shelf.md
+      - SMB Shelf File Source: configuring-smb-shelf.md
   - Concepts:
       - Data Model: concepts/data-model.md
       - Layers: concepts/layers.md

@@ -1,22 +1,61 @@
 import { ref } from 'vue';
 import { getBookshelfProvider } from '../providers';
+import { ApiError } from '../api/client';
 import type { Book } from '../types/book';
+
+const SHELF_INIT_MAX_AUTO_RETRIES = 10; // ~30s of auto-retry before showing "unreachable"
 
 // Module-level singleton: shared across all components that call useBookStore()
 const books = ref<Book[]>([]);
 const loading = ref(false);
 const error = ref('');
+const shelfInitializing = ref(false);
+const shelfUnreachable = ref(false);
 
-async function fetchBooks(search?: string): Promise<void> {
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let initRetryCount = 0;
+
+function clearRetry(): void {
+  if (retryTimer !== null) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+  }
+}
+
+async function fetchBooks(search?: string, _isAutoRetry = false): Promise<void> {
+  clearRetry();
+  if (!_isAutoRetry) {
+    initRetryCount = 0;
+    shelfUnreachable.value = false;
+  }
   loading.value = true;
   error.value = '';
+  shelfInitializing.value = false;
   try {
     const data = await getBookshelfProvider().listBooks(1, Number.MAX_SAFE_INTEGER, search);
     books.value = data.items;
+    initRetryCount = 0;
+    shelfUnreachable.value = false;
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load books';
+    if (err instanceof ApiError && err.status === 503) {
+      initRetryCount++;
+      if (initRetryCount >= SHELF_INIT_MAX_AUTO_RETRIES) {
+        shelfUnreachable.value = true;
+        loading.value = false;
+        return;
+      }
+      shelfInitializing.value = true;
+      retryTimer = setTimeout(() => fetchBooks(search, true), 3000);
+      return;
+    }
+    const msg = err instanceof ApiError && err.isTimeout
+      ? 'Request timed out — the shelf may be slow or unavailable.'
+      : err instanceof Error ? err.message : 'Failed to load books';
+    error.value = msg;
   } finally {
-    loading.value = false;
+    if (!shelfInitializing.value) {
+      loading.value = false;
+    }
   }
 }
 
@@ -25,6 +64,8 @@ export function useBookStore() {
     books,
     loading,
     error,
+    shelfInitializing,
+    shelfUnreachable,
     fetchBooks
   };
 }

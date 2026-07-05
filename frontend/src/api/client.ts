@@ -2,6 +2,7 @@ export class ApiError extends Error {
   status?: number;
   statusText?: string;
   url?: string;
+  isTimeout: boolean;
 
   constructor(
     message: string,
@@ -10,6 +11,7 @@ export class ApiError extends Error {
       statusText?: string;
       url?: string;
       cause?: unknown;
+      isTimeout?: boolean;
     }
   ) {
     super(message);
@@ -17,6 +19,7 @@ export class ApiError extends Error {
     this.status = options?.status;
     this.statusText = options?.statusText;
     this.url = options?.url;
+    this.isTimeout = options?.isTimeout ?? false;
 
     if (options?.cause !== undefined) {
       (this as Error & { cause?: unknown }).cause = options.cause;
@@ -144,6 +147,10 @@ async function withApiHeaders(init?: RequestInit): Promise<RequestInit> {
   };
 }
 
+const FETCH_TIMEOUT_MS = 30_000;
+// Large content (book text, cover images) on slow SMB mounts may take several minutes.
+const FETCH_STREAM_TIMEOUT_MS = 300_000;
+
 async function toApiError(res: Response): Promise<ApiError> {
   const raw = (await res.text()).trim();
   const message = raw || `HTTP ${res.status}: ${res.statusText}`;
@@ -152,6 +159,24 @@ async function toApiError(res: Response): Promise<ApiError> {
     statusText: res.statusText,
     url: res.url
   });
+}
+
+async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = FETCH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new ApiError('Request timed out — the shelf may be slow or unavailable.', {
+        isTimeout: true,
+        cause: err
+      });
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -164,7 +189,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
     headers.set('Accept', 'application/json');
   }
 
-  const res = await fetch(buildApiUrl(path), {
+  const res = await fetchWithTimeout(buildApiUrl(path), {
     ...requestInit,
     headers
   });
@@ -198,7 +223,7 @@ export async function fetchText(path: string, init?: RequestInit): Promise<strin
   assertApiMode();
   assertWritableRequest(init);
 
-  const res = await fetch(buildApiUrl(path), await withApiHeaders(init));
+  const res = await fetchWithTimeout(buildApiUrl(path), await withApiHeaders(init), FETCH_STREAM_TIMEOUT_MS);
   if (!res.ok) {
     throw await toApiError(res);
   }
@@ -210,7 +235,7 @@ export async function fetchBlob(path: string, init?: RequestInit): Promise<Blob>
   assertApiMode();
   assertWritableRequest(init);
 
-  const res = await fetch(buildApiUrl(path), await withApiHeaders(init));
+  const res = await fetchWithTimeout(buildApiUrl(path), await withApiHeaders(init), FETCH_STREAM_TIMEOUT_MS);
   if (!res.ok) {
     throw await toApiError(res);
   }

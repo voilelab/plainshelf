@@ -12,9 +12,10 @@ import (
 )
 
 type desktopShelfEntry struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	LibRoot string `json:"lib_root"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	LibRoot      string `json:"lib_root"`
+	ScanInterval string `json:"scan_interval,omitempty"`
 }
 
 const (
@@ -45,7 +46,11 @@ func loadDesktopShelves(configPath string) (*desktopShelvesConfig, error) {
 func loadOrMigrateDesktopShelves(configPath, dataRoot string) (*desktopShelvesConfig, error) {
 	_, err := os.Stat(configPath)
 	if err == nil {
-		return loadDesktopShelves(configPath)
+		conf, err := loadDesktopShelves(configPath)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+		return conf, nil
 	}
 	if !os.IsNotExist(err) {
 		return nil, util.Errorf("%w", err)
@@ -53,7 +58,7 @@ func loadOrMigrateDesktopShelves(configPath, dataRoot string) (*desktopShelvesCo
 
 	conf := defaultDesktopShelvesConfig(dataRoot)
 	if err := saveDesktopShelves(configPath, conf); err != nil {
-		return nil, util.Errorf("migrating legacy shelf config: %w", err)
+		return nil, util.Errorf("%w", err)
 	}
 	return conf, nil
 }
@@ -86,7 +91,8 @@ func toShelfConfWithID(entry desktopShelfEntry) shelf.ShelfConfWithID {
 		ID:   entry.ID,
 		Name: entry.Name,
 		ShelfConf: shelf.ShelfConf{
-			LibRoot: entry.LibRoot,
+			LibRoot:      entry.LibRoot,
+			ScanInterval: entry.ScanInterval,
 		},
 	}
 }

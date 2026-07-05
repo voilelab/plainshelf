@@ -78,6 +78,8 @@ const zhHant = {
       unavailableTitle: '尚未選擇書架',
       unavailableDescription: '請先設定至少一個書架，才能瀏覽與閱讀書籍。',
       addShelf: '新增書架',
+      addShelfTitle: '建立書架',
+      addShelfCloseLabel: '關閉建立書架對話框',
       addShelfCancel: '取消',
       addShelfNamePlaceholder: '書架名稱',
       addShelfDirectoryPlaceholder: '目錄',
@@ -115,6 +117,10 @@ const zhHant = {
       description: '最多保留的最近閱讀書籍數量。設為 0 可停用紀錄保留。',
       invalid: '閱讀紀錄數量限制必須是非負整數。'
     },
+    about: {
+      title: '關於',
+      version: '版本'
+    },
     shelves: {
       title: '書架',
       loadFailed: '載入書架失敗',
@@ -122,20 +128,37 @@ const zhHant = {
       serverManaged: '書架由伺服器設定管理。',
       name: '名稱',
       directory: '目錄',
-      remove: '移除',
+      remove: '刪除',
       removing: '移除中...',
       removeFailed: '移除書架失敗',
+      removeShelfTitle: '刪除書架',
+      removeConfirmDescription: '此操作只會從 PlainShelf 中移除書架，不會刪除目錄。',
       addShelf: '新增書架',
+      addShelfTitle: '建立書架',
+      addShelfCloseLabel: '關閉建立書架對話框',
       addShelfCancel: '取消',
       addShelfNamePlaceholder: '書架名稱',
       addShelfDirectoryPlaceholder: '目錄路徑',
+      addShelfScanIntervalPlaceholder: '掃描間隔（選填，例如 10m）',
+      addShelfScanIntervalHelp: '留空會使用預設的 1 分鐘掃描間隔。',
       addShelfBrowse: '瀏覽…',
       addShelfSubmit: '新增書架',
       addShelfAdding: '新增中...',
       addShelfFailed: '新增書架失敗',
       removeConfirm: '移除書架「{name}」？此操作只會從 PlainShelf 中移除，不會刪除目錄。',
       removeConfirmInline: '確定移除？',
-      removeConfirmYes: '是，移除'
+      removeConfirmYes: '刪除書架',
+      modify: '修改',
+      modifyShelfTitle: '修改書架',
+      modifyShelfCloseLabel: '關閉修改書架對話框',
+      modifyShelfSubmit: '儲存',
+      modifyShelfSaving: '儲存中...',
+      modifyShelfFailed: '修改書架失敗',
+      modifyShelfIDLabel: 'ID',
+      modifyShelfPathLabel: '路徑',
+      modifyShelfNamePlaceholder: '書架名稱',
+      modifyShelfScanIntervalPlaceholder: '掃描間隔（選填，例如 10m）',
+      modifyShelfScanIntervalHelp: '留空會使用預設的 1 分鐘掃描間隔。'
     }
   },
   adminLogs: {
@@ -196,6 +219,8 @@ const zhHant = {
   },
   bookCollection: {
     loadingBooks: '載入書籍中...',
+    shelfInitializing: '書架載入中，請稍候...',
+    shelfUnreachable: '書架回應逾時，可能無法連線（例如 SMB 掛載已中斷）。',
     booksCount: '{count} 本書',
     viewMode: {
       list: '列表',

@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-BSD_3--Clause-brightgreen.svg?style=flat)](https://github.com/voilelab/plainshelf/blob/main/LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/voilelab/plainshelf)](https://goreportcard.com/report/github.com/voilelab/plainshelf)
 
-PlainShelf is a local-first personal reading library for plain text books.
+PlainShelf is a local-first personal reading library for lightweight reading content.
 
 It is designed for single-user local usage, with a filesystem-first data model and a web-based reading interface.
 
@@ -17,14 +17,14 @@ It is designed for single-user local usage, with a filesystem-first data model a
 
 ## Goals
 
-- Manage and read TXT books
+- Manage and read TXT books (with Markdown and image support planned)
 - Keep user data in local, human-readable files
 - Use stable internal book IDs independent from display titles
 - Provide a local web UI for browsing, importing, organizing, and reading
 - Keep runtime state rebuildable
 - Stay friendly to backup tools and Git-based workflows
 
-PlainShelf is currently TXT-focused. Other text-like formats may be explored later, but plain text reading is the primary use case.
+PlainShelf currently focuses on TXT, with Markdown and image support planned next. Heavier formats (EPUB, PDF, …) remain out of scope.
 
 ---
 
@@ -56,7 +56,7 @@ shelf/              # core library package
 server/             # local HTTP server implementation
 frontend/           # Vue web frontend
 internal/           # internal shared utilities
-desktop/            # experimental Wails desktop client
+desktop/            # Wails desktop client
 ```
 
 The current primary development focus is:
@@ -108,6 +108,22 @@ text files, covers, notes, and other long-lived files.
 ### `app/`
 
 Runtime state.
+
+---
+
+## Install
+
+### Desktop (macOS, Apple Silicon)
+
+Install the desktop app via Homebrew:
+
+```bash
+brew tap voilelab/plainshelf https://github.com/voilelab/plainshelf
+brew install --cask voilelab/plainshelf/plainshelf
+```
+
+For the server binary, Docker image, or other platforms, see
+[docs/installation.md](docs/installation.md).
 
 ---
 
@@ -172,22 +188,20 @@ docker run --rm \
   plainshelf
 ```
 
-### Run desktop app (experimental Wails Desktop)
+### Run the desktop app
 
-The desktop client is currently **experimental** and built with Wails.
-Expect rough edges while core shelf/server behavior is still evolving.
+The desktop client is built with Wails.
 
 ```bash
-npm --prefix frontend run build
-cd desktop
-wails dev
+npm --prefix frontend install  # first time only
+just run-desktop
 ```
 
 ### Run tests
 
 ```bash
-npm --prefix frontend run build
-go test ./...
+npm --prefix frontend install  # first time only
+just test-go
 ```
 
 ---

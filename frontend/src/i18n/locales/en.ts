@@ -79,6 +79,8 @@ const en = {
       unavailableTitle: 'No shelf selected',
       unavailableDescription: 'Configure at least one shelf to browse and read books.',
       addShelf: 'Add shelf',
+      addShelfTitle: 'Create shelf',
+      addShelfCloseLabel: 'Close create shelf dialog',
       addShelfCancel: 'Cancel',
       addShelfNamePlaceholder: 'Shelf name',
       addShelfDirectoryPlaceholder: 'Directory',
@@ -116,6 +118,10 @@ const en = {
       description: 'Maximum number of recently read books to keep. Use 0 to disable retaining history.',
       invalid: 'Reading history limit must be a non-negative whole number.'
     },
+    about: {
+      title: 'About',
+      version: 'Version'
+    },
     shelves: {
       title: 'Shelves',
       loadFailed: 'Failed to load shelves',
@@ -123,20 +129,37 @@ const en = {
       serverManaged: 'Shelves are managed by the server configuration.',
       name: 'Name',
       directory: 'Directory',
-      remove: 'Remove',
+      remove: 'Delete',
       removing: 'Removing...',
       removeFailed: 'Failed to remove shelf',
+      removeShelfTitle: 'Delete shelf',
+      removeConfirmDescription: 'This only removes the shelf from PlainShelf; the directory will not be deleted.',
       addShelf: 'Add shelf',
+      addShelfTitle: 'Create shelf',
+      addShelfCloseLabel: 'Close create shelf dialog',
       addShelfCancel: 'Cancel',
       addShelfNamePlaceholder: 'Shelf name',
       addShelfDirectoryPlaceholder: 'Directory path',
+      addShelfScanIntervalPlaceholder: 'Scan interval (optional, e.g. 10m)',
+      addShelfScanIntervalHelp: 'Leave blank to use the default 1 minute scan interval.',
       addShelfBrowse: 'Browse...',
       addShelfSubmit: 'Add shelf',
       addShelfAdding: 'Adding...',
       addShelfFailed: 'Failed to add shelf',
       removeConfirm: 'Remove shelf "{name}"? This only removes it from PlainShelf; the directory will not be deleted.',
       removeConfirmInline: 'Remove?',
-      removeConfirmYes: 'Yes, remove'
+      removeConfirmYes: 'Delete shelf',
+      modify: 'Modify',
+      modifyShelfTitle: 'Modify shelf',
+      modifyShelfCloseLabel: 'Close modify shelf dialog',
+      modifyShelfSubmit: 'Save',
+      modifyShelfSaving: 'Saving...',
+      modifyShelfFailed: 'Failed to modify shelf',
+      modifyShelfIDLabel: 'ID',
+      modifyShelfPathLabel: 'Path',
+      modifyShelfNamePlaceholder: 'Shelf name',
+      modifyShelfScanIntervalPlaceholder: 'Scan interval (optional, e.g. 10m)',
+      modifyShelfScanIntervalHelp: 'Leave blank to use the default 1 minute scan interval.'
     }
   },
   adminLogs: {
@@ -197,6 +220,8 @@ const en = {
   },
   bookCollection: {
     loadingBooks: 'Loading books...',
+    shelfInitializing: 'Shelf is loading, please wait...',
+    shelfUnreachable: 'The shelf is taking too long to respond. It may be unavailable (e.g. SMB mount disconnected).',
     booksCount: '{count} books',
     viewMode: {
       list: 'List',

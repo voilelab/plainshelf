@@ -31,10 +31,8 @@ The frontend dev server starts at <http://localhost:5173> by default and uses bu
 ### 1. Build the frontend
 
 ```bash
-cd frontend
-npm install
-npm run build
-cd ..
+npm --prefix frontend install
+just build-server-frontend
 ```
 
 ### 2. Create a workspace directory
@@ -73,8 +71,5 @@ See the [Docker](development/docker.md) page for container-based setup.
 ## Run tests
 
 ```bash
-# Build the frontend first (required by Go embed)
-npm --prefix frontend run build
-
-go test ./...
+just test-go
 ```

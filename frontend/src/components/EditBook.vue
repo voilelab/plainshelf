@@ -28,31 +28,52 @@
 
         <fieldset class="field rating-field">
           <legend class="label">Star rating</legend>
-          <div class="star-rating" role="radiogroup" aria-label="Star rating">
-            <button
-              v-for="value in STAR_VALUES"
-              :key="value"
-              class="star-button"
-              :class="{ active: value <= star }"
-              type="button"
-              role="radio"
-              :aria-checked="star === value"
-              :aria-label="`${value} star${value === 1 ? '' : 's'}`"
-              @click="star = value"
-            >
-              ★
-            </button>
+          <div class="star-rating">
+            <RatingRoot v-model="star" as="div" class="star-rating-root" :length="5" clearable aria-label="Star rating">
+              <RatingItem
+                v-for="value in STAR_VALUES"
+                :key="value"
+                :item="value"
+                as="span"
+                class="star-item"
+                v-slot="{ steps }"
+              >
+                <RatingItemIndicator
+                  v-for="step in steps"
+                  :key="step"
+                  :step="step"
+                  class="star-indicator"
+                  :aria-label="`${value} star${value === 1 ? '' : 's'}`"
+                >
+                  ★
+                </RatingItemIndicator>
+              </RatingItem>
+            </RatingRoot>
             <button class="clear-rating" type="button" :disabled="star === 0" @click="star = 0">Clear</button>
           </div>
         </fieldset>
 
         <label class="field">
           <span class="label">Language</span>
-          <select v-model="languagePreset" class="input select">
-            <option v-for="option in LANGUAGE_SELECT_OPTIONS" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
+          <SelectRoot :model-value="languageSelectValue" @update:model-value="onLanguageSelect">
+            <SelectTrigger class="input select select-trigger">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectPortal>
+              <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
+                <SelectViewport>
+                  <SelectItem
+                    v-for="option in languageSelectOptions"
+                    :key="option.value"
+                    class="reka-menu-item"
+                    :value="option.value"
+                  >
+                    <SelectItemText>{{ option.label }}</SelectItemText>
+                  </SelectItem>
+                </SelectViewport>
+              </SelectContent>
+            </SelectPortal>
+          </SelectRoot>
           <input
             v-if="languagePreset === CUSTOM_LANGUAGE_VALUE"
             v-model="customLanguage"
@@ -66,30 +87,20 @@
 
         <label class="field">
           <span class="label">Tags</span>
-          <div class="tag-input-shell" @click="focusTagInput">
-            <ul v-if="tags.length" class="tag-list" aria-label="Current tags">
-              <li v-for="tag in tags" :key="tag" class="tag-chip">
-                <span>{{ tag }}</span>
-                <button
-                  class="tag-remove"
-                  type="button"
-                  :aria-label="`Remove tag ${tag}`"
-                  @click.stop="removeTag(tag)"
-                >
-                  ×
-                </button>
-              </li>
-            </ul>
-            <input
-              ref="tagsInputRef"
-              v-model="tagDraft"
-              class="tag-input"
-              type="text"
-              placeholder="Type a tag and press Enter"
-              @keydown="onTagKeyDown"
-              @blur="commitTagDraft"
-            />
-          </div>
+          <TagsInputRoot
+            v-model="tags"
+            class="tag-input-shell"
+            add-on-blur
+            add-on-paste
+            :convert-value="normalizeTag"
+            @click="focusTagInput"
+          >
+            <TagsInputItem v-for="tag in tags" :key="tag" :value="tag" class="tag-chip">
+              <TagsInputItemText />
+              <TagsInputItemDelete class="tag-remove" :aria-label="`Remove tag ${tag}`">×</TagsInputItemDelete>
+            </TagsInputItem>
+            <TagsInputInput ref="tagsInputRef" class="tag-input" placeholder="Type a tag and press Enter" />
+          </TagsInputRoot>
           <p class="field-help">Press Enter or comma to add tags. Click × to remove.</p>
         </label>
 
@@ -117,7 +128,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
+import {
+  RatingItem,
+  RatingItemIndicator,
+  RatingRoot,
+  SelectContent,
+  SelectItem,
+  SelectItemText,
+  SelectPortal,
+  SelectRoot,
+  SelectTrigger,
+  SelectValue,
+  SelectViewport,
+  TagsInputInput,
+  TagsInputItem,
+  TagsInputItemDelete,
+  TagsInputItemText,
+  TagsInputRoot,
+  type AcceptableValue
+} from 'reka-ui';
 import type { Book, BookUpdateRequest } from '../types/book';
 import {
   CUSTOM_LANGUAGE_VALUE,
@@ -132,6 +162,12 @@ const COMMON_LANGUAGE_VALUES: Set<string> = new Set(
   LANGUAGE_OPTIONS.map((option) => option.value).filter((value) => value && value !== CUSTOM_LANGUAGE_VALUE)
 );
 const STAR_VALUES = [1, 2, 3, 4, 5] as const;
+// reka-ui SelectItem forbids an empty-string value (it's reserved to mean
+// "clear selection / show placeholder"), but LANGUAGE_SELECT_OPTIONS uses ''
+// for "unspecified". Map it to this sentinel for the Select only; the
+// underlying languagePreset ref keeps using '' so the custom-language v-if
+// and watchers below are untouched.
+const EMPTY_LANGUAGE_SELECT_VALUE = '__unspecified__';
 
 const props = defineProps<{
   book: Book;
@@ -146,15 +182,32 @@ const emit = defineEmits<{
 
 const title = ref('');
 const authorsInput = ref('');
-const tags = ref<string[]>([]);
-const tagDraft = ref('');
-const tagsInputRef = ref<HTMLInputElement | null>(null);
+const tagsSource = ref<string[]>([]);
+const tags = computed<string[]>({
+  get: () => tagsSource.value,
+  set: (next) => {
+    tagsSource.value = next.filter((tag) => tag.length > 0);
+  }
+});
+const tagsInputRef = ref<InstanceType<typeof TagsInputInput> | null>(null);
 const languagePreset = ref('');
 const customLanguage = ref('');
 const languageError = ref('');
 const comment = ref('');
 const publishedAtInput = ref('');
 const star = ref(0);
+const languageSelectOptions = computed(() =>
+  LANGUAGE_SELECT_OPTIONS.map((option) => ({
+    value: option.value === '' ? EMPTY_LANGUAGE_SELECT_VALUE : option.value,
+    label: option.label
+  }))
+);
+const languageSelectValue = computed<string>({
+  get: () => (languagePreset.value === '' ? EMPTY_LANGUAGE_SELECT_VALUE : languagePreset.value),
+  set: (value) => {
+    languagePreset.value = value === EMPTY_LANGUAGE_SELECT_VALUE ? '' : value;
+  }
+});
 
 watch(
   () => props.book,
@@ -162,7 +215,6 @@ watch(
     title.value = book.title;
     authorsInput.value = listToCommaString(book.authors);
     tags.value = commaStringToList(listToCommaString(book.tags));
-    tagDraft.value = '';
     const initialLanguage = (book.language ?? '').trim();
     if (initialLanguage === '') {
       languagePreset.value = '';
@@ -194,53 +246,21 @@ watch(customLanguage, () => {
   }
 });
 
+function onLanguageSelect(value: AcceptableValue): void {
+  if (typeof value === 'string') {
+    languageSelectValue.value = value;
+  }
+}
+
 function normalizeTag(rawValue: string): string {
   return rawValue.trim().replace(/\s+/g, ' ');
 }
 
-function addTag(rawValue: string): void {
-  const normalized = normalizeTag(rawValue);
-  if (!normalized || tags.value.includes(normalized)) {
+function focusTagInput(event: MouseEvent): void {
+  if (event.target !== event.currentTarget) {
     return;
   }
-
-  tags.value = [...tags.value, normalized];
-}
-
-function commitTagDraft(): void {
-  const rawDraft = tagDraft.value;
-  if (!rawDraft.trim()) {
-    tagDraft.value = '';
-    return;
-  }
-
-  const parts = rawDraft.split(',');
-  parts.forEach((part) => addTag(part));
-  tagDraft.value = '';
-}
-
-function removeTag(tagToRemove: string): void {
-  tags.value = tags.value.filter((tag) => tag !== tagToRemove);
-}
-
-function focusTagInput(): void {
-  tagsInputRef.value?.focus();
-}
-
-function onTagKeyDown(event: KeyboardEvent): void {
-  if (event.isComposing || event.key === 'Process') {
-    return;
-  }
-
-  if (event.key === 'Enter' || event.key === ',') {
-    event.preventDefault();
-    commitTagDraft();
-    return;
-  }
-
-  if (event.key === 'Backspace' && !tagDraft.value && tags.value.length) {
-    tags.value = tags.value.slice(0, -1);
-  }
+  (tagsInputRef.value as unknown as { $el?: HTMLInputElement } | null)?.$el?.focus();
 }
 
 function onSubmit(): void {
@@ -254,7 +274,6 @@ function onSubmit(): void {
   }
 
   const normalizedLanguage = normalizeLanguage(rawLanguage);
-  commitTagDraft();
 
   emit('submit', {
     title: title.value.trim(),
@@ -346,6 +365,11 @@ function fromDatetimeLocalValue(rawValue: string): string | undefined {
   background-color: #fff;
 }
 
+.select-trigger {
+  cursor: pointer;
+  text-align: left;
+}
+
 .rating-field {
   margin: 0;
   padding: 0;
@@ -358,7 +382,19 @@ function fromDatetimeLocalValue(rawValue: string): string | undefined {
   gap: 4px;
 }
 
-.star-button {
+.star-rating-root {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.star-item {
+  display: inline-flex;
+}
+
+/* :deep() required: reka-ui's Radio renders a fragment, which breaks scoped
+   scope-id inheritance, so the actual star <button> never gets our data-v attr. */
+.star-rating :deep(.star-indicator) {
   padding: 0 2px;
   border: 0;
   background: transparent;
@@ -368,11 +404,11 @@ function fromDatetimeLocalValue(rawValue: string): string | undefined {
   line-height: 1;
 }
 
-.star-button.active {
+.star-rating :deep(.star-indicator[data-state='active']) {
   color: #f5a623;
 }
 
-.star-button:focus-visible,
+.star-rating :deep(.star-indicator:focus-visible),
 .clear-rating:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
@@ -410,15 +446,6 @@ function fromDatetimeLocalValue(rawValue: string): string | undefined {
   box-shadow: 0 0 0 2px rgba(82, 102, 255, 0.12);
 }
 
-.tag-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
 .tag-chip {
   display: inline-flex;
   align-items: center;
@@ -428,6 +455,11 @@ function fromDatetimeLocalValue(rawValue: string): string | undefined {
   background: #eef2ff;
   color: #2b3a9a;
   font-size: 13px;
+}
+
+.tag-chip[data-state='active'] {
+  background: #dbeafe;
+  outline: 1px solid #93c5fd;
 }
 
 .tag-remove {

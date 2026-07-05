@@ -1,3 +1,4 @@
+import type { DesktopShelfDetails } from '../api/desktop';
 import type {
   BookmarkPayload,
   Book,
@@ -13,6 +14,7 @@ import type {
 import type { SourceMeta } from '../types/source';
 
 export type { DownloadState } from '../types/book';
+export type { DesktopShelfDetails } from '../api/desktop';
 
 export interface DesktopImportBookResult {
   path?: string;
@@ -66,6 +68,8 @@ export interface BookshelfProvider {
   importBooksFromLocalPaths?(localPaths: string[], layerPath: string): Promise<DesktopImportBookResult[] | null>;
 
   openDesktopShelfDirectory?(): Promise<string | null>;
-  addDesktopShelf?(name: string, libRoot: string): Promise<void>;
+  addDesktopShelf?(name: string, libRoot: string, scanInterval: string): Promise<void>;
   removeDesktopShelf?(shelfID: string): Promise<void>;
+  getDesktopShelfDetails?(shelfID: string): Promise<DesktopShelfDetails>;
+  modifyDesktopShelf?(shelfID: string, name: string, scanInterval: string): Promise<void>;
 }

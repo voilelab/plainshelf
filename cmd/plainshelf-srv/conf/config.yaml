@@ -7,6 +7,8 @@ logger:
 server_conf:
   addr: "127.0.0.1:20000"
   read_timeout: 60s
+  # For SMB-mounted shelves with large books, increase write_timeout (e.g. 300s)
+  # to avoid responses being cut off mid-transfer on slow networks.
   write_timeout: 60s
 
 app_conf:
@@ -28,6 +30,10 @@ app_conf:
           dir: ./logs
           prefix: shelf
       lib_root: "./shelf"
+      # For SMB-mounted shelves, increase scan_interval to reduce network I/O (e.g. "10m").
+      # scan_interval: 1m
+      # For SMB mounts, set lock_timeout to prevent indefinite hangs on flock (default: 30s).
+      # lock_timeout: 30s
   store_path: "./store"
   cover_to_jpg: true
   read_history_limit: 100

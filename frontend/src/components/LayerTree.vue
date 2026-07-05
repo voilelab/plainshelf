@@ -15,26 +15,76 @@
       <span class="sidebar-nav-count">{{ totalBookCount }}</span>
     </div>
 
-    <LayerNodeItem
-      v-for="node in nodes"
-      :key="node.path"
-      :node="node"
-      :selected="selected"
-      :deleting-map="deletingMap"
-      :expanded-map="expandedMap"
-      :depth="0"
-      :book-count-by-layer="bookCountByLayer"
-      :read-only="readOnly"
-      @toggle="toggleExpanded"
-      @select="(path) => emit('select', path)"
-      @move-book="(payload) => emit('move-book', payload)"
-      @delete-layer="(path) => emit('delete-layer', path)"
-      @rename-layer="(path) => emit('rename-layer', path)"
-      @move-layer="(payload) => emit('move-layer', payload)"
-      @drag-layer-start="startDragLayer"
-      @drag-layer-move="moveDragLayer"
-      @drag-layer-end="endDragLayer"
-    />
+    <TreeRoot
+      v-slot="{ flattenItems }"
+      class="layer-tree-root"
+      :items="nodes"
+      :get-key="(node: LayerNode) => node.path"
+      :get-children="getChildren"
+      :model-value="selectedTreeNode"
+      v-model:expanded="expanded"
+    >
+      <TreeItem
+        v-for="item in flattenItems"
+        :key="item._id"
+        v-slot="{ isExpanded, handleToggle }"
+        v-bind="item.bind"
+        as="div"
+        class="sidebar-nav-item layer-node"
+        :class="{ active: isSelected(item.value), 'drop-target': dropTargetPath === item.value.path }"
+        :style="{ paddingLeft: `calc(8px + ${(item.level - 1) * 14}px)` }"
+        :draggable="canDragLayer(item.value)"
+        @dragstart="(event: DragEvent) => onDragStart(event, item.value)"
+        @drag="onDrag"
+        @dragend="() => onDragEnd(item.value)"
+        @dragover.prevent="onDrag"
+        @dragenter.prevent="() => onDragEnter(item.value)"
+        @dragleave="(event: DragEvent) => onDragLeave(event, item.value)"
+        @drop="(event: DragEvent) => onDrop(event, item.value)"
+        @select="() => emit('select', item.value.path)"
+      >
+        <button
+          v-if="hasChildren(item.value)"
+          type="button"
+          class="tree-toggle"
+          :aria-label="isExpanded ? 'Collapse layer' : 'Expand layer'"
+          @click.stop="handleToggle"
+        >
+          {{ isExpanded ? '▼' : '▶' }}
+        </button>
+        <span v-else class="tree-toggle-placeholder" aria-hidden="true"></span>
+
+        <button
+          type="button"
+          class="sidebar-nav-item-label"
+          @click.stop="emit('select', item.value.path)"
+        >
+          {{ item.value.name }}
+        </button>
+        <span class="sidebar-nav-count">{{ layerBookCount(item.value) }}</span>
+        <button
+          v-if="canManageLayer(item.value) && !readOnly"
+          type="button"
+          class="layer-action-btn"
+          :title="t('layout.renameLayer.action')"
+          :aria-label="t('layout.renameLayer.action')"
+          @click.stop="emit('rename-layer', item.value.path)"
+        >
+          {{ t('layout.renameLayer.shortAction') }}
+        </button>
+        <button
+          v-if="showDeleteButton(item.value)"
+          type="button"
+          class="layer-action-btn"
+          :title="t('layout.deleteLayer.action')"
+          :aria-label="t('layout.deleteLayer.action')"
+          :disabled="isDeleting(item.value)"
+          @click.stop="onDeleteLayer(item.value)"
+        >
+          {{ t('layout.deleteLayer.shortAction') }}
+        </button>
+      </TreeItem>
+    </TreeRoot>
 
     <div
       v-if="dragLayer"
@@ -49,8 +99,9 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import LayerNodeItem from './LayerNodeItem.vue';
+import { TreeItem, TreeRoot } from 'reka-ui';
 import { useBookStore } from '../composables/useBookStore';
+import { useI18n } from '../i18n';
 import { getLayerPath } from '../utils/layers';
 
 type LayerNode = {
@@ -74,6 +125,7 @@ const emit = defineEmits<{
   'move-layer': [payload: { layerPath: string; targetLayer: string }];
 }>();
 
+const { t } = useI18n();
 const { books } = useBookStore();
 
 const totalBookCount = computed(() => books.value.length);
@@ -87,8 +139,78 @@ const bookCountByLayer = computed(() => {
   return counts;
 });
 
-const expandedMap = ref<Record<string, boolean>>({});
+/**
+ * A leaf's `children` is always an empty array (never undefined), but Reka's
+ * TreeItem treats "children is an array" (even empty) as "has children" for
+ * `aria-expanded` purposes. Returning `undefined` for empty arrays keeps
+ * leaf nodes free of `aria-expanded`, matching the original markup.
+ */
+function getChildren(node: LayerNode): LayerNode[] | undefined {
+  return node.children.length > 0 ? node.children : undefined;
+}
+
+function hasChildren(node: LayerNode): boolean {
+  return node.children.length > 0;
+}
+
+function isSelected(node: LayerNode): boolean {
+  return node.path === props.selected;
+}
+
+function findNodeByPath(nodes: LayerNode[], path: string): LayerNode | undefined {
+  for (const node of nodes) {
+    if (node.path === path) {
+      return node;
+    }
+    const found = findNodeByPath(node.children, path);
+    if (found) {
+      return found;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Drive Reka's selection model from the app's selected layer so
+ * aria-selected always matches the actual navigation state. Label clicks
+ * bypass TreeItem's built-in select (@click.stop), and keyboard selection
+ * would otherwise leave Reka's uncontrolled model stale.
+ */
+const selectedTreeNode = computed(() =>
+  props.selected ? findNodeByPath(props.nodes, props.selected) : undefined
+);
+
+function layerBookCount(node: LayerNode): number {
+  return bookCountByLayer.value.get(node.path) ?? 0;
+}
+
+function canManageLayer(node: LayerNode): boolean {
+  return node.path !== '/';
+}
+
+function showDeleteButton(node: LayerNode): boolean {
+  return canManageLayer(node) && !props.readOnly && layerBookCount(node) === 0;
+}
+
+function canDragLayer(node: LayerNode): boolean {
+  return canManageLayer(node) && !props.readOnly;
+}
+
+function isDeleting(node: LayerNode): boolean {
+  return props.deletingMap?.[node.path] ?? false;
+}
+
+function onDeleteLayer(node: LayerNode): void {
+  if (isDeleting(node)) {
+    return;
+  }
+
+  emit('delete-layer', node.path);
+}
+
+const expanded = ref<string[]>([]);
 const isRootDropTarget = ref(false);
+const dropTargetPath = ref<string | null>(null);
 const dragLayer = ref<{ layerPath: string; layerName: string; x: number; y: number } | null>(null);
 
 function startDragLayer(payload: { layerPath: string; layerName: string; x: number; y: number }): void {
@@ -106,6 +228,75 @@ function moveDragLayer(payload: { x: number; y: number }): void {
 function endDragLayer(): void {
   dragLayer.value = null;
   isRootDropTarget.value = false;
+}
+
+function emitPointerPosition(event: DragEvent): void {
+  if (event.clientX === 0 && event.clientY === 0) {
+    return;
+  }
+  moveDragLayer({ x: event.clientX, y: event.clientY });
+}
+
+function onDrag(event: DragEvent): void {
+  emitPointerPosition(event);
+}
+
+function onDragStart(event: DragEvent, node: LayerNode): void {
+  if (!canDragLayer(node)) {
+    event.preventDefault();
+    return;
+  }
+
+  event.dataTransfer?.setData('application/x-plainshelf-layer-path', node.path);
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+  }
+  startDragLayer({ layerPath: node.path, layerName: node.name, x: event.clientX, y: event.clientY });
+}
+
+function onDragEnd(node: LayerNode): void {
+  if (dropTargetPath.value === node.path) {
+    dropTargetPath.value = null;
+  }
+  endDragLayer();
+}
+
+function onDragEnter(node: LayerNode): void {
+  dropTargetPath.value = node.path;
+}
+
+function onDragLeave(event: DragEvent, node: LayerNode): void {
+  const currentTarget = event.currentTarget;
+  const relatedTarget = event.relatedTarget;
+  if (!(currentTarget instanceof Node) || (relatedTarget instanceof Node && currentTarget.contains(relatedTarget))) {
+    return;
+  }
+  if (dropTargetPath.value === node.path) {
+    dropTargetPath.value = null;
+  }
+}
+
+function onDrop(event: DragEvent, node: LayerNode): void {
+  if (dropTargetPath.value === node.path) {
+    dropTargetPath.value = null;
+  }
+  endDragLayer();
+
+  if (props.readOnly) {
+    return;
+  }
+
+  const bookId = event.dataTransfer?.getData('application/x-plainshelf-book-id');
+  if (bookId) {
+    emit('move-book', { bookId, targetLayer: node.path });
+    return;
+  }
+
+  const layerPath = event.dataTransfer?.getData('application/x-plainshelf-layer-path');
+  if (!layerPath || layerPath === node.path || node.path.startsWith(`${layerPath}/`)) {
+    return;
+  }
+  emit('move-layer', { layerPath, targetLayer: node.path });
 }
 
 function onRootDragOver(event: DragEvent): void {
@@ -144,30 +335,27 @@ function onRootDrop(event: DragEvent): void {
   endDragLayer();
 }
 
-function toggleExpanded(path: string): void {
-  expandedMap.value[path] = !(expandedMap.value[path] ?? false);
-}
-
 function expandPath(path: string | undefined): void {
   if (!path) {
     return;
   }
 
   const segments = path.split('/').filter(Boolean);
+  const next = new Set(expanded.value);
   for (let i = 0; i < segments.length; i += 1) {
-    const segmentPath = segments.slice(0, i + 1).join('/');
-    expandedMap.value[segmentPath] = true;
+    next.add(segments.slice(0, i + 1).join('/'));
   }
+  expanded.value = [...next];
 }
 
 watch(
   () => props.nodes,
   (nodes) => {
-    const nextExpanded = { ...expandedMap.value };
+    const next = new Set(expanded.value);
     for (const node of nodes) {
-      nextExpanded[node.path] = true;
+      next.add(node.path);
     }
-    expandedMap.value = nextExpanded;
+    expanded.value = [...next];
     expandPath(props.selected);
   },
   { immediate: true }
@@ -183,6 +371,15 @@ watch(
 </script>
 
 <style scoped>
+.layer-tree-root {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
 .tree-toggle-placeholder {
   flex: 0 0 20px;
   width: 20px;
@@ -191,6 +388,66 @@ watch(
 .drop-target {
   background: #dbeafe;
   outline: 1px solid #93c5fd;
+}
+
+.layer-node {
+  gap: 4px;
+  padding-right: 4px;
+}
+
+.layer-node :deep(.sidebar-nav-item-label) {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+
+.tree-toggle,
+.tree-toggle-placeholder {
+  align-items: center;
+  border: 0;
+  color: #5f6a7a;
+  display: inline-flex;
+  flex: 0 0 20px;
+  font-size: 11px;
+  height: 20px;
+  justify-content: center;
+  width: 20px;
+}
+
+.tree-toggle {
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tree-toggle:hover {
+  background: #e6edf8;
+}
+
+.layer-action-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #94a3b8;
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 3px 6px;
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.layer-action-btn:hover,
+.layer-action-btn:focus-visible {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #b91c1c;
+}
+
+.layer-action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .layer-drag-preview {

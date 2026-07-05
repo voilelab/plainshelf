@@ -13,21 +13,30 @@ import (
 // ListBooks returns a list of all books in the library.
 // Books are sorted by their ID in ascending order.
 func (s *Shelf) ListBooks() ([]*Book, error) {
-	s.rlock()
-	defer s.unlock()
+	if !s.IsReady() {
+		return nil, util.Errorf("%w", ErrShelfInitializing)
+	}
 
-	err := s.refreshBookCacheIfNeeded(false)
-	if err != nil {
+	if err := s.shelfLock.RLock(); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
+	defer s.shelfLock.Unlock()
+
+	s.scheduleBookCacheRefreshIfNeeded()
 
 	return s.listBooksFromCache(), nil
 }
 
 // GetBook returns the details of a specific book by its ID.
 func (s *Shelf) GetBook(bookID string) (*Book, error) {
-	s.rlock()
-	defer s.unlock()
+	if !s.IsReady() {
+		return nil, util.Errorf("%w", ErrShelfInitializing)
+	}
+
+	if err := s.shelfLock.RLock(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer s.shelfLock.Unlock()
 
 	book, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
@@ -43,8 +52,10 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	s.lock()
-	defer s.unlock()
+	if err := s.shelfLock.Lock(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer s.shelfLock.Unlock()
 
 	bookPath, err := createTempDir(s.dbRoot, path.Join(appFolder, appTmpFolder, "book"))
 	if err != nil {
@@ -54,7 +65,7 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 
 	// Generate a unique book ID based on the layers and title
 	// TBD: Use UUID
-	baseBookID := generateBookID(layers, title)
+	baseBookID := seedBookID(layers, title)
 	bookID := baseBookID
 	for i := 1; ; i++ {
 		_, err := s.getUpdatedBookFromBookID(bookID)
@@ -126,13 +137,16 @@ func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	s.rlock()
-	defer s.unlock()
+	if !s.IsReady() {
+		return nil, util.Errorf("%w", ErrShelfInitializing)
+	}
 
-	err := s.refreshBookCacheIfNeeded(false)
-	if err != nil {
+	if err := s.shelfLock.RLock(); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
+	defer s.shelfLock.Unlock()
+
+	s.scheduleBookCacheRefreshIfNeeded()
 
 	var books []*Book
 
@@ -151,8 +165,10 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	s.lock()
-	defer s.unlock()
+	if err := s.shelfLock.Lock(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer s.shelfLock.Unlock()
 
 	book, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
@@ -199,6 +215,9 @@ func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 
 		stat, err := s.dbRoot.Stat(pth)
 		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				s.Warn("failed to stat path during book scan", "path", pth, "error", err)
+			}
 			return
 		}
 
@@ -214,7 +233,10 @@ func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 				return
 			}
 
-			layers := strings.Split(path.Dir(pth), string(os.PathSeparator))[1:]
+			// Paths are always built with path.Join, which uses "/" on every
+			// platform, so split on "/" rather than os.PathSeparator (which would
+			// be "\" on Windows and break layer parsing).
+			layers := strings.Split(path.Dir(pth), "/")[1:]
 			book.setLayers(layers)
 
 			if !fn(book) {
@@ -225,6 +247,9 @@ func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 
 		entries, err := s.dbRoot.ReadDir(pth)
 		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				s.Warn("failed to read directory during book scan", "path", pth, "error", err)
+			}
 			return
 		}
 

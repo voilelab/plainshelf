@@ -7,6 +7,13 @@ interface DesktopImportBookResult {
   error?: string;
 }
 
+export interface DesktopShelfDetails {
+  id: string;
+  name: string;
+  path: string;
+  scan_interval: string;
+}
+
 interface DesktopAppBinding {
   OpenBookFiles?: () => Promise<string[]>;
   ImportBooksFromLocalPaths?: (
@@ -15,8 +22,10 @@ interface DesktopAppBinding {
     layerParts: string[]
   ) => Promise<DesktopImportBookResult[]>;
   OpenShelfDirectory?: () => Promise<string>;
-  AddShelf?: (name: string, libRoot: string) => Promise<void>;
+  AddShelf?: (name: string, libRoot: string, scanInterval: string) => Promise<void>;
   RemoveShelf?: (shelfID: string) => Promise<void>;
+  GetShelfDetails?: (shelfID: string) => Promise<DesktopShelfDetails>;
+  ModifyShelf?: (shelfID: string, name: string, scanInterval: string) => Promise<void>;
 }
 
 interface DesktopWindow extends Window {
@@ -70,13 +79,13 @@ export async function openDesktopShelfDirectory(): Promise<string | null> {
   return dir || null;
 }
 
-export async function addDesktopShelf(name: string, libRoot: string): Promise<void> {
+export async function addDesktopShelf(name: string, libRoot: string, scanInterval: string): Promise<void> {
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
   if (!desktopApp?.AddShelf) {
     throw new Error('AddShelf binding not available');
   }
 
-  await desktopApp.AddShelf(name, libRoot);
+  await desktopApp.AddShelf(name, libRoot, scanInterval);
 }
 
 export async function removeDesktopShelf(shelfID: string): Promise<void> {
@@ -86,6 +95,24 @@ export async function removeDesktopShelf(shelfID: string): Promise<void> {
   }
 
   await desktopApp.RemoveShelf(shelfID);
+}
+
+export async function getDesktopShelfDetails(shelfID: string): Promise<DesktopShelfDetails> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.GetShelfDetails) {
+    throw new Error('GetShelfDetails binding not available');
+  }
+
+  return desktopApp.GetShelfDetails(shelfID);
+}
+
+export async function modifyDesktopShelf(shelfID: string, name: string, scanInterval: string): Promise<void> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.ModifyShelf) {
+    throw new Error('ModifyShelf binding not available');
+  }
+
+  await desktopApp.ModifyShelf(shelfID, name, scanInterval);
 }
 
 export async function importDesktopBooksFromLocalPaths(

@@ -19,12 +19,31 @@
       @submit="confirmRenameLayer"
     />
 
-    <aside class="sidebar" :class="{ collapsed: isCollapsed }">
+    <SplitterGroup
+      direction="horizontal"
+      as="div"
+      auto-save-id="plainshelf-sidebar"
+      :keyboard-resize-by="16"
+      class="layout-splitter"
+    >
+    <SplitterPanel
+      ref="sidebarPanelRef"
+      as="aside"
+      class="sidebar"
+      size-unit="px"
+      :default-size="240"
+      :min-size="200"
+      :max-size="300"
+      collapsible
+      :collapsed-size="40"
+      @collapse="onSidebarCollapse"
+      @expand="onSidebarExpand"
+    >
       <button
         class="collapse-btn"
         type="button"
         :aria-label="isCollapsed ? t('layout.expandSidebar') : t('layout.collapseSidebar')"
-        @click="isCollapsed = !isCollapsed"
+        @click="toggleSidebar"
       >
         {{ isCollapsed ? '→' : '←' }}
       </button>
@@ -33,18 +52,24 @@
         <section class="sidebar-section" :aria-label="t('layout.shelf.label')">
           <label class="sidebar-shelf-label">
             <span class="sidebar-section-title">{{ t('layout.shelf.label') }}</span>
-            <select
-              class="sidebar-shelf-select"
-              :value="selectedShelfID"
+            <SelectRoot
+              :model-value="selectedShelfID"
               :disabled="shelvesLoading || shelves.length === 0"
-              @change="onShelfChange"
+              @update:model-value="onShelfSelect"
             >
-              <option v-if="shelvesLoading" value="">{{ t('layout.shelf.loading') }}</option>
-              <option v-else-if="shelves.length === 0" value="">{{ t('layout.shelf.empty') }}</option>
-              <option v-for="shelf in shelves" :key="shelf.id" :value="shelf.id">
-                {{ shelf.name }}
-              </option>
-            </select>
+              <SelectTrigger class="button sidebar-shelf-select">
+                <SelectValue :placeholder="shelfSelectPlaceholder" />
+              </SelectTrigger>
+              <SelectPortal>
+                <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
+                  <SelectViewport>
+                    <SelectItem v-for="shelf in shelves" :key="shelf.id" class="reka-menu-item" :value="shelf.id">
+                      <SelectItemText>{{ shelf.name }}</SelectItemText>
+                    </SelectItem>
+                  </SelectViewport>
+                </SelectContent>
+              </SelectPortal>
+            </SelectRoot>
           </label>
           <p v-if="shelvesError" class="sidebar-error" role="alert">{{ shelvesError }}</p>
         </section>
@@ -185,9 +210,14 @@
           </nav>
         </section>
       </div>
-    </aside>
+    </SplitterPanel>
 
-    <main class="main-content">
+    <SplitterResizeHandle as="div" class="reka-resize-handle" :hit-area-margins="SIDEBAR_RESIZE_HIT_AREA_MARGINS" />
+
+    <SplitterPanel as="main" class="main-content">
+      <!-- SplitterPanel forces inline overflow:hidden, so scrolling lives on
+           this inner wrapper (same pattern as .sidebar-inner). -->
+      <div class="main-scroll">
       <div v-if="readOnly" class="read-only-banner" role="status">
         {{ t('layout.readOnly.banner') }}
       </div>
@@ -199,11 +229,20 @@
         <div class="topbar-controls">
           <label class="language-select">
             <span>{{ t('language.label') }}</span>
-            <select class="language-select-control" :value="locale" @change="onLocaleChange">
-              <option v-for="lang in supportedLocales" :key="lang" :value="lang">
-                {{ t(localeLabelKeyMap[lang]) }}
-              </option>
-            </select>
+            <SelectRoot :model-value="locale" @update:model-value="onLocaleSelect">
+              <SelectTrigger class="button language-select-control">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectPortal>
+                <SelectContent class="reka-menu" position="popper" align="end" :side-offset="6">
+                  <SelectViewport>
+                    <SelectItem v-for="lang in supportedLocales" :key="lang" class="reka-menu-item" :value="lang">
+                      <SelectItemText>{{ t(localeLabelKeyMap[lang]) }}</SelectItemText>
+                    </SelectItem>
+                  </SelectViewport>
+                </SelectContent>
+              </SelectPortal>
+            </SelectRoot>
           </label>
         </div>
       </header>
@@ -216,13 +255,29 @@
           <RouterLink to="/settings" class="button">{{ t('layout.settings') }}</RouterLink>
         </section>
       </div>
-    </main>
+      </div>
+    </SplitterPanel>
+    </SplitterGroup>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import {
+  SelectContent,
+  SelectItem,
+  SelectItemText,
+  SelectPortal,
+  SelectRoot,
+  SelectTrigger,
+  SelectValue,
+  SelectViewport,
+  SplitterGroup,
+  SplitterPanel,
+  SplitterResizeHandle,
+  type AcceptableValue
+} from 'reka-ui';
 import DeleteModal from '../components/DeleteModal.vue';
 import LayerTree from '../components/LayerTree.vue';
 import RenameLayerModal from '../components/RenameLayerModal.vue';
@@ -238,6 +293,16 @@ import { MAINTENANCE_NAV_ITEMS } from '../utils/maintenance';
 import appIcon from '../assets/icon-192.png';
 import { useI18n } from '../i18n';
 
+// Stable reference: an inline object literal in the template would be recreated on
+// every MainLayout re-render, and reka-ui's SplitterResizeHandle re-registers itself
+// with the group whenever its `hitAreaMargins` prop identity changes. Re-registering
+// mid-drag replaces the handle's internal registry entry, so the `mouseup` handler's
+// reference-based lookup misses and `stopDragging()` never fires — leaving
+// `pointer-events: none` stuck on every panel. A hoisted constant keeps the prop
+// identity stable across renders and avoids the mid-drag re-registration entirely.
+const SIDEBAR_RESIZE_HIT_AREA_MARGINS = { coarse: 12, fine: 6 };
+
+const sidebarPanelRef = ref<InstanceType<typeof SplitterPanel> | null>(null);
 const isCollapsed = ref(false);
 const route = useRoute();
 const router = useRouter();
@@ -286,6 +351,15 @@ const canShowRouteContent = computed(() => isSettingsRoute.value || hasActiveShe
 const shelfUnavailableMessage = computed(() =>
   shelvesLoading.value ? t('layout.shelf.loading') : t('layout.shelf.unavailableDescription')
 );
+const shelfSelectPlaceholder = computed(() => {
+  if (shelvesLoading.value) {
+    return t('layout.shelf.loading');
+  }
+  if (shelves.value.length === 0) {
+    return t('layout.shelf.empty');
+  }
+  return '';
+});
 
 function goToLayer(layer: string | undefined): void {
   const query: Record<string, string> = { page: '1' };
@@ -312,24 +386,22 @@ function onSelectLayer(path: string): void {
   goToLayer(normalizeLayerSelectionPath(path));
 }
 
-function onLocaleChange(event: Event): void {
-  const target = event.target;
-  if (!(target instanceof HTMLSelectElement)) {
+function onLocaleSelect(value: AcceptableValue): void {
+  if (typeof value !== 'string') {
     return;
   }
 
-  if (supportedLocales.includes(target.value as (typeof supportedLocales)[number])) {
-    setLocale(target.value as (typeof supportedLocales)[number]);
+  if (supportedLocales.includes(value as (typeof supportedLocales)[number])) {
+    setLocale(value as (typeof supportedLocales)[number]);
   }
 }
 
-async function onShelfChange(event: Event): Promise<void> {
-  const target = event.target;
-  if (!(target instanceof HTMLSelectElement)) {
+async function onShelfSelect(value: AcceptableValue): Promise<void> {
+  if (typeof value !== 'string') {
     return;
   }
 
-  const nextShelfID = target.value.trim();
+  const nextShelfID = value.trim();
   if (!nextShelfID || nextShelfID === selectedShelfID.value) {
     return;
   }
@@ -343,6 +415,22 @@ async function onShelfChange(event: Event): Promise<void> {
 
   await Promise.all([fetchLayers(), fetchBooks()]);
   await router.push({ path: '/books', query: { page: '1' } });
+}
+
+function onSidebarCollapse(): void {
+  isCollapsed.value = true;
+}
+
+function onSidebarExpand(): void {
+  isCollapsed.value = false;
+}
+
+function toggleSidebar(): void {
+  if (isCollapsed.value) {
+    sidebarPanelRef.value?.expand();
+  } else {
+    sidebarPanelRef.value?.collapse();
+  }
 }
 
 function toggleCreateLayerForm(): void {
@@ -577,6 +665,8 @@ async function confirmDeleteLayer(): Promise<void> {
 
 
 onMounted(async () => {
+  isCollapsed.value = sidebarPanelRef.value?.isCollapsed ?? false;
+
   await fetchServerMode();
   if (!shelvesLoaded.value) {
     await fetchShelves();
@@ -604,26 +694,19 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-/* ── Sidebar ── */
-.sidebar {
-  width: 240px;
-  min-width: 200px;
-  max-width: 300px;
-  border-right: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
-  background: linear-gradient(180deg, #e9edf2 0%, #e3e8ef 100%);
-  backdrop-filter: blur(8px);
-  transition: width 0.2s ease;
-  flex-shrink: 0;
+.layout-splitter {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
 }
 
-.sidebar.collapsed {
-  width: 40px;
-  min-width: 0;
-  overflow: hidden;
+/* ── Sidebar ── */
+.sidebar {
+  border-right: 1px solid var(--border);
+  background: linear-gradient(180deg, #e9edf2 0%, #e3e8ef 100%);
+  backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
 }
 
 .collapse-btn {
@@ -647,6 +730,10 @@ onMounted(async () => {
 }
 
 .sidebar-inner {
+  flex: 1;
+  min-height: 0;
+  min-width: 176px;
+  overflow-y: auto;
   padding: 8px;
 }
 
@@ -765,11 +852,14 @@ onMounted(async () => {
 /* ── Main content ── */
 .main-content {
   flex: 1;
-  height: 100vh;
-  overflow-y: auto;
   max-width: none;
   background: white;
   min-width: 0;
+}
+
+.main-scroll {
+  height: 100%;
+  overflow-y: auto;
 }
 
 .read-only-banner {

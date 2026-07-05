@@ -60,11 +60,7 @@ func TestOpenFileOfSource(t *testing.T) {
 
 func TestUpdateSource(t *testing.T) {
 	tmpDir := path.Join(t.TempDir(), "shelf_test")
-	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpDir})
-	if err != nil {
-		t.Fatalf("Failed to initialize Shelf: %v", err)
-	}
-	defer shelf.Close()
+	_ = newTestShelf(t, &ShelfConf{LibRoot: tmpDir})
 
 	tmpRoot, err := os.OpenRoot(tmpDir)
 	if err != nil {
@@ -160,11 +156,7 @@ func TestOpenSourceInvalid(t *testing.T) {
 
 func TestCreateRootSource(t *testing.T) {
 	tmpDir := path.Join(t.TempDir(), "shelf_test")
-	shelf, err := NewShelf(&ShelfConf{LibRoot: tmpDir})
-	if err != nil {
-		t.Fatalf("Failed to initialize Shelf: %v", err)
-	}
-	defer shelf.Close()
+	_ = newTestShelf(t, &ShelfConf{LibRoot: tmpDir})
 
 	tmpRoot, err := os.OpenRoot(tmpDir)
 	if err != nil {

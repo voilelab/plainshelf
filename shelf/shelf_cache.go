@@ -22,14 +22,18 @@ type bookCache struct {
 	treeDirty    bool
 	lastFullScan time.Time
 
-	scanInterval time.Duration
+	scanInterval      time.Duration
+	lastBookCheck     time.Time
+	bookCheckInterval time.Duration
+	refreshing        bool
 }
 
-func newBookCache(scanInterval time.Duration) *bookCache {
+func newBookCache(scanInterval, bookCheckInterval time.Duration) *bookCache {
 	return &bookCache{
 		cache: make(map[string]*bookIDCacheEntry),
 
-		scanInterval: scanInterval,
+		scanInterval:      scanInterval,
+		bookCheckInterval: bookCheckInterval,
 	}
 }
 
@@ -43,9 +47,10 @@ func (s *Shelf) refreshBookCacheIfNeeded(force bool) error {
 	s.bookCache.RLock()
 	treeDirty := s.bookCache.treeDirty
 	lastFullScan := s.bookCache.lastFullScan
+	scanInterval := s.bookCache.scanInterval
 	s.bookCache.RUnlock()
 
-	if !force && !treeDirty && time.Since(lastFullScan) < s.bookCache.scanInterval {
+	if !force && !treeDirty && time.Since(lastFullScan) < scanInterval {
 		s.onlyRefreshBooksInCache()
 		return nil
 	}
@@ -83,45 +88,110 @@ func (s *Shelf) scanToBookCache() error {
 }
 
 func (s *Shelf) onlyRefreshBooksInCache() {
-	s.bookCache.Lock()
-	defer s.bookCache.Unlock()
+	// Snapshot the current entries under a brief read lock so that concurrent
+	// list operations are not blocked during the filesystem I/O below.
+	s.bookCache.RLock()
+	snapshot := maps.Clone(s.bookCache.cache)
+	s.bookCache.RUnlock()
 
-	// We need to clone the cache before iterating it, because we may modify the cache during the iteration.
-	cache := maps.Clone(s.bookCache.cache)
+	// Perform all stat and open calls outside any cache lock. The caller holds
+	// s.shelfLock.RLock() (shared flock), which prevents mutations from modifying the
+	// cache concurrently, so the snapshot remains consistent with the filesystem.
+	//
+	// updated: bookID → refreshed entry (nil = delete from cache)
+	updated := make(map[string]*bookIDCacheEntry)
 
-	staleIDs := []string{}
-	for bookID, cacheEntry := range cache {
-		if cacheEntry.book.IsStale() {
-			staleIDs = append(staleIDs, bookID)
+	for bookID, cacheEntry := range snapshot {
+		if !cacheEntry.book.IsStale() {
+			continue
 		}
-	}
-
-	for _, staleID := range staleIDs {
-		cacheEntry := cache[staleID]
-
-		delete(cache, staleID)
 
 		book, err := openBook(s.dbRoot, s.Logger, cacheEntry.path)
 		if err != nil {
 			s.Warn("Failed to refresh book cache entry, skipping", "bookID", cacheEntry.book.ID(), "error", err)
+			updated[bookID] = nil
 			continue
 		}
 
 		if book.ID() != cacheEntry.book.ID() {
 			s.Warn("Book ID mismatch when refreshing book cache entry, skipping", "expectedBookID", cacheEntry.book.ID(), "actualBookID", book.ID())
+			updated[bookID] = nil
 			continue
 		}
 
 		book.setLayers(cacheEntry.layers)
-
-		cache[book.ID()] = &bookIDCacheEntry{
+		updated[bookID] = &bookIDCacheEntry{
 			layers: cacheEntry.layers,
 			path:   cacheEntry.path,
 			book:   book,
 		}
 	}
 
-	s.bookCache.cache = cache
+	// Apply only the changed entries under a brief write lock.
+	s.bookCache.Lock()
+	for bookID, entry := range updated {
+		if entry != nil {
+			s.bookCache.cache[bookID] = entry
+		} else {
+			delete(s.bookCache.cache, bookID)
+		}
+	}
+	s.bookCache.lastBookCheck = time.Now()
+	s.bookCache.Unlock()
+}
+
+// scheduleBookCacheRefreshIfNeeded triggers a refresh based on the current cache state.
+//
+// Full scans (when the tree is dirty or the scan interval has elapsed) run synchronously so
+// that callers immediately see structural changes such as moved or renamed layers.
+//
+// Per-book staleness checks (within the scan interval) run in a background goroutine so
+// that list operations are never blocked by N filesystem stat calls — the main performance
+// concern on SMB mounts. The check is rate-limited by bookCheckInterval.
+func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
+	s.bookCache.RLock()
+	treeDirty := s.bookCache.treeDirty
+	lastFullScan := s.bookCache.lastFullScan
+	lastBookCheck := s.bookCache.lastBookCheck
+	refreshing := s.bookCache.refreshing
+	scanInterval := s.bookCache.scanInterval
+	s.bookCache.RUnlock()
+
+	// Full scan: tree is structurally dirty or scan interval elapsed. Keep synchronous so
+	// mutations are immediately visible to callers.
+	if treeDirty || time.Since(lastFullScan) >= scanInterval {
+		_ = s.refreshBookCacheIfNeeded(false)
+		return
+	}
+
+	// Per-book check: async so callers are not blocked on N stat calls.
+	if refreshing || time.Since(lastBookCheck) < s.bookCache.bookCheckInterval {
+		return
+	}
+
+	s.bookCache.Lock()
+	if s.bookCache.refreshing {
+		s.bookCache.Unlock()
+		return
+	}
+	s.bookCache.refreshing = true
+	s.bookCache.Unlock()
+
+	go func() {
+		defer func() {
+			s.bookCache.Lock()
+			s.bookCache.refreshing = false
+			s.bookCache.Unlock()
+		}()
+
+		if err := s.shelfLock.RLock(); err != nil {
+			s.Warn("background book check skipped: failed to acquire lock", "error", err)
+			return
+		}
+		defer s.shelfLock.Unlock()
+
+		s.onlyRefreshBooksInCache()
+	}()
 }
 
 func (s *Shelf) listBooksFromCache() []*Book {

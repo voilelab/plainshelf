@@ -99,6 +99,10 @@ func (app *App) AddShelf(conf shelf.ShelfConfWithID) error {
 	return app.shelfManager.AddShelf(conf)
 }
 
+func (app *App) UpdateShelf(id, name, scanInterval string) error {
+	return app.shelfManager.UpdateShelf(id, name, scanInterval)
+}
+
 func (app *App) RemoveShelf(id string) error {
 	return app.shelfManager.RemoveShelf(id)
 }
@@ -192,7 +196,9 @@ func (app *App) Serve(mux *http.ServeMux) {
 	// Shelf API
 
 	mux.HandleFunc("GET /api/mode", app.HandleGetMode)
+	mux.HandleFunc("GET /api/version", app.HandleGetVersion)
 	mux.HandleFunc("GET /api/shelves", app.HandleGetShelves)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/status", app.HandleAPIGetShelfStatus)
 
 	// Book API
 

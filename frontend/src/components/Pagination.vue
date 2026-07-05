@@ -1,19 +1,60 @@
 <template>
-  <div class="pagination">
-    <label v-if="pageSizeOptions && pageSizeOptions.length > 0" class="page-size-label">
-      {{ t('pagination.perPage') }}
-      <select class="button page-size-select" :value="pageSize" @change="onPageSizeChange">
-        <option v-for="opt in pageSizeOptions" :key="opt" :value="opt">{{ opt }}{{ t('pagination.booksSuffix') }}</option>
-      </select>
-    </label>
-    <button class="button" :disabled="!hasPrevPage" @click="goTo(page - 1)">{{ t('common.prev') }}</button>
+  <PaginationRoot
+    class="pagination"
+    :total="total"
+    :page="page"
+    :items-per-page="pageSize"
+    @update:page="onPageChange"
+  >
+    <SelectRoot
+      v-if="pageSizeOptions && pageSizeOptions.length > 0"
+      :model-value="pageSize"
+      @update:model-value="onPageSizeSelect"
+    >
+      <span class="page-size-label">
+        {{ t('pagination.perPage') }}
+        <SelectTrigger class="button page-size-select">
+          <SelectValue />
+        </SelectTrigger>
+      </span>
+      <SelectPortal>
+        <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
+          <SelectViewport>
+            <SelectItem
+              v-for="opt in pageSizeOptions"
+              :key="opt"
+              class="reka-menu-item"
+              :value="opt"
+            >
+              <SelectItemText>{{ opt }}{{ t('pagination.booksSuffix') }}</SelectItemText>
+            </SelectItem>
+          </SelectViewport>
+        </SelectContent>
+      </SelectPortal>
+    </SelectRoot>
+
+    <PaginationPrev class="button">{{ t('common.prev') }}</PaginationPrev>
     <span>{{ t('common.page', { page, total: totalPages }) }}</span>
-    <button class="button" :disabled="!hasNextPage" @click="goTo(page + 1)">{{ t('common.next') }}</button>
-  </div>
+    <PaginationNext class="button">{{ t('common.next') }}</PaginationNext>
+  </PaginationRoot>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import {
+  PaginationNext,
+  PaginationPrev,
+  PaginationRoot,
+  SelectContent,
+  SelectItem,
+  SelectItemText,
+  SelectPortal,
+  SelectRoot,
+  SelectTrigger,
+  SelectValue,
+  SelectViewport,
+  type AcceptableValue
+} from 'reka-ui';
 import { useI18n } from '../i18n';
 
 const props = defineProps<{
@@ -29,20 +70,17 @@ const emit = defineEmits<{
 }>();
 
 const totalPages = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)));
-const hasPrevPage = computed(() => props.page > 1);
-const hasNextPage = computed(() => props.page < totalPages.value);
 const { t } = useI18n();
 
-function goTo(targetPage: number): void {
-  if (targetPage < 1 || targetPage > totalPages.value) {
-    return;
-  }
-  emit('update:page', targetPage);
+function onPageChange(value: number): void {
+  emit('update:page', value);
 }
 
-function onPageSizeChange(event: Event): void {
-  const select = event.target as HTMLSelectElement;
-  emit('update:pageSize', Number(select.value));
+function onPageSizeSelect(value: AcceptableValue): void {
+  if (typeof value !== 'number') {
+    return;
+  }
+  emit('update:pageSize', value);
 }
 </script>
 

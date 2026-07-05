@@ -3,6 +3,10 @@ set shell := ["zsh", "-cu"]
 srv_frontend_dir := "frontend"
 e2e_test_dir := "e2e"
 
+# Version string injected into builds; derived from git, falls back to "dev".
+version := `git describe --tags --always --dirty 2>/dev/null || echo dev`
+version_pkg := "github.com/voilelab/plainshelf/internal/version"
+
 default:
 	just --list
 
@@ -23,12 +27,19 @@ test-e2e: build-server-frontend
 
 # Build server: build Go server binary.
 build-server-backend: build-server-frontend
-	go build -o plainshelf-srv cmd/plainshelf-srv/main.go
+	go build -ldflags "-X {{version_pkg}}.Version={{version}}" -o plainshelf-srv cmd/plainshelf-srv/main.go
 
 # Build desktop app
 build-desktop: build-server-frontend
-	cd desktop && go mod tidy && go tool wails build
+	cd desktop && go mod tidy && go tool wails build -ldflags "-X {{version_pkg}}.Version={{version}}"
 
 # Run desktop app
 run-desktop: build-server-frontend
 	cd desktop && go mod tidy && go tool wails dev
+
+# Package the macOS .app bundle as a zip suitable for the Homebrew cask
+package-desktop-mac: build-desktop
+	mkdir -p out
+	ditto -c -k --sequesterRsrc --keepParent \
+	  desktop/build/bin/PlainShelf.app \
+	  out/plainshelf-desktop_{{version}}_darwin_arm64.zip

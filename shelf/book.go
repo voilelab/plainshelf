@@ -139,6 +139,19 @@ func (b *Book) FolderPath() string {
 	return b.folderPath
 }
 
+// CoverETag returns a weak ETag derived from the cover file's mtime and size.
+// Returns an empty string if the book has no cover or the stat fails.
+func (b *Book) CoverETag() string {
+	if b.meta.Cover == "" {
+		return ""
+	}
+	info, err := b.root.Stat(path.Join(b.folderPath, b.meta.Cover))
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf(`W/"%d-%d"`, info.ModTime().UnixNano(), info.Size())
+}
+
 func (b *Book) OpenCover() ([]byte, string, error) {
 	if b.meta.Cover == "" {
 		return nil, "", nil
@@ -335,9 +348,23 @@ func (b *Book) NewSource(source io.Reader) (*Source, error) {
 		source = io.NopCloser(strings.NewReader(""))
 	}
 
-	// create a new source for the given book with the provided source file and metadata
-	sourceID := time.Now().Format("20060102-150405")
-	sourcePath := path.Join(b.folderPath, SourcesFolder, sourceID)
+	// create a new source for the given book with the provided source file and metadata.
+	// The base ID is a second-granularity timestamp, so two sources created within the
+	// same second would otherwise collide and overwrite each other. Probe for a free
+	// folder name and bump a numeric suffix on collision (same scheme as NewBook).
+	baseSourceID := time.Now().Format("20060102-150405")
+	sourceID := baseSourceID
+	var sourcePath string
+	for i := 1; ; i++ {
+		sourcePath = path.Join(b.folderPath, SourcesFolder, sourceID)
+		if _, err := b.root.Stat(sourcePath); err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				break
+			}
+			return nil, util.Errorf("%w", err)
+		}
+		sourceID = fmt.Sprintf("%s-%d", baseSourceID, i)
+	}
 
 	src, err := createSource(b.root, b.logger, sourcePath, sourceID, source)
 	if err != nil {
@@ -404,11 +431,19 @@ func (b *Book) ListSource() ([]*Source, error) {
 
 	var sources []*Source
 	for _, entry := range sourceEntries {
+		// Skip non-directory entries (e.g. leftover *.tmp files from an
+		// interrupted atomic write, or stray files created by a sync tool) so
+		// a single bad entry does not fail the whole listing.
+		if !entry.IsDir() {
+			continue
+		}
+
 		revID := entry.Name()
 		sourcePath := path.Join(sourcesPath, revID)
 		source, err := openSource(b.root, sourcePath)
 		if err != nil {
-			return nil, util.Errorf("%w", err)
+			b.logger.Warn("skipping source that failed to open", "path", sourcePath, "error", err)
+			continue
 		}
 
 		sources = append(sources, source)

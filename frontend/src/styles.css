@@ -7,6 +7,7 @@
   --accent: #1f6feb;
   --danger: #cf3d3d;
   --shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+  --z-modal: 80;
 }
 
 * {
@@ -230,4 +231,60 @@ a {
     padding-left: 14px;
     padding-right: 14px;
   }
+}
+
+/* Shared reka-ui popper menu styles (DropdownMenu/Select content + items).
+   reka-ui portals popper content outside the consumer's DOM subtree and
+   wraps it in a positioner element, so a consumer's `scoped` attribute never
+   lands on the menu itself — these classes must stay global. */
+.reka-menu {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+  display: grid;
+  min-width: 180px;
+  padding: 6px;
+  z-index: var(--z-modal);
+}
+
+.reka-menu-item {
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.reka-menu-item[data-highlighted] {
+  background: #f4f7fb;
+  outline: none;
+}
+
+/* Shared reka-ui Tooltip content styling. Same popper-portal caveat as
+   .reka-menu above: TooltipContent is teleported and wrapped, so a
+   consumer's `scoped` attribute never reaches it — keep this global. */
+.reka-tooltip {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.16);
+  color: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
+  z-index: var(--z-modal);
+}
+
+/* Shared reka-ui Splitter resize-handle styling, used by any SplitterGroup
+   in the app (sidebar / source list panels). */
+.reka-resize-handle {
+  background: var(--border);
+  cursor: col-resize;
+  flex-shrink: 0;
+  width: 1px;
+}
+
+.reka-resize-handle:hover,
+.reka-resize-handle[data-resize-handle-state='hover'],
+.reka-resize-handle[data-resize-handle-state='drag'] {
+  background: var(--accent);
 }

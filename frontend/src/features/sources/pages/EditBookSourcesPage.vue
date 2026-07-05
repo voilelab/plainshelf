@@ -41,20 +41,36 @@
       </button>
     </header>
 
-    <div class="source-editor-workspace">
-      <SourceList
+    <SplitterGroup
+      direction="horizontal"
+      as="div"
+      auto-save-id="plainshelf-sources"
+      :keyboard-resize-by="16"
+      class="source-editor-workspace"
+    >
+      <SplitterPanel
+        as="div"
         class="source-editor-sidebar"
-        :sources="sources"
-        :activeSourceId="activeSourceId"
-        :currentSourceId="book?.current_source"
-        :loading="listLoading || initialLoading"
-        :creating="creating"
-        @select="onSelectSource"
-        @create="onCreateSource"
-        @delete="onDeleteSource"
-      />
+        size-unit="px"
+        :default-size="300"
+        :min-size="240"
+        :max-size="360"
+      >
+        <SourceList
+          :sources="sources"
+          :activeSourceId="activeSourceId"
+          :currentSourceId="book?.current_source"
+          :loading="listLoading || initialLoading"
+          :creating="creating"
+          @select="onSelectSource"
+          @create="onCreateSource"
+          @delete="onDeleteSource"
+        />
+      </SplitterPanel>
 
-      <main class="source-editor-main">
+      <SplitterResizeHandle as="div" class="reka-resize-handle" :hit-area-margins="SOURCE_LIST_RESIZE_HIT_AREA_MARGINS" />
+
+      <SplitterPanel as="main" class="source-editor-main">
         <div v-if="initialLoading" class="loading editor-loading">Loading sources...</div>
         <div v-else-if="loadError" class="error source-error" role="alert">
           <p>{{ loadError }}</p>
@@ -72,14 +88,15 @@
           :settingCurrent="settingCurrent"
           @set-current="onSetCurrentSource"
         />
-      </main>
-    </div>
+      </SplitterPanel>
+    </SplitterGroup>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
 import ConfirmModal from '../../../components/ConfirmModal.vue';
 import { useDocumentTitle } from '../../../composables/useDocumentTitle';
 import type { Book } from '../../../types/book';
@@ -87,6 +104,11 @@ import { getBookshelfProvider } from '../../../providers';
 import SourceEditor from '../components/SourceEditor.vue';
 import SourceList from '../components/SourceList.vue';
 import type { SourceMeta } from '../../../types/source';
+
+// Stable reference: see MainLayout.vue's SIDEBAR_RESIZE_HIT_AREA_MARGINS for why this
+// object must not be an inline template literal (reka-ui re-registers the resize handle
+// on every identity change, which can strand `pointer-events: none` mid-drag).
+const SOURCE_LIST_RESIZE_HIT_AREA_MARGINS = { coarse: 12, fine: 6 };
 
 const route = useRoute();
 const router = useRouter();
@@ -430,6 +452,12 @@ watch(
   box-sizing: border-box;
   display: flex;
   overflow: hidden;
+}
+
+.source-editor-sidebar {
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 .source-editor-main {

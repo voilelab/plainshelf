@@ -1,6 +1,7 @@
 package shelf
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"io/fs"
@@ -66,22 +67,30 @@ func (r *Source) Open() (fs.File, error) {
 
 func (r *Source) UpdateContent(newContent io.Reader) error {
 	sourceDestPath := path.Join(r.folderPath, SourceFile)
-	destFile, err := r.root.OpenWriter(sourceDestPath)
+	tmpDestPath := sourceDestPath + ".tmp"
+
+	destFile, err := r.root.OpenWriter(tmpDestPath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	_, err = io.Copy(destFile, newContent)
-	if err != nil {
-		destFile.Close()
-		return util.Errorf("%w", err)
+	_, copyErr := io.Copy(destFile, newContent)
+	closeErr := destFile.Close()
+	if copyErr != nil {
+		_ = r.root.Remove(tmpDestPath)
+		return util.Errorf("%w", copyErr)
 	}
-	if err := destFile.Close(); err != nil {
+	if closeErr != nil {
+		_ = r.root.Remove(tmpDestPath)
+		return util.Errorf("%w", closeErr)
+	}
+
+	if err := r.root.Rename(tmpDestPath, sourceDestPath); err != nil {
+		_ = r.root.Remove(tmpDestPath)
 		return util.Errorf("%w", err)
 	}
 
-	err = r.refreshContentMetadata()
-	if err != nil {
+	if err := r.refreshContentMetadata(); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -123,47 +132,37 @@ func (r *Source) UpdateHash() error {
 }
 
 func (r *Source) refreshContentMetadata() error {
-	err := r.withSourceFile(func(sourceFile fs.File) error {
-		md5Hash, err := hashutil.MD5Hash(sourceFile)
-		if err != nil {
-			return util.Errorf("%w", err)
-		}
-		r.meta.MD5Hash = md5Hash
-		return nil
-	})
+	// Read the file once; compute all three metrics from the buffer to avoid
+	// 3 separate SMB round-trips on network-mounted shelves.
+	f, err := r.Open()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	data, readErr := io.ReadAll(f)
+	closeErr := f.Close()
+	if readErr != nil {
+		return util.Errorf("%w", readErr)
+	}
+	if closeErr != nil {
+		return util.Errorf("%w", closeErr)
+	}
+
+	r.meta.MD5Hash, err = hashutil.MD5Hash(bytes.NewReader(data))
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	err = r.withSourceFile(func(sourceFile fs.File) error {
-		lineCount, err := util.LineCount(sourceFile)
-		if err != nil {
-			return util.Errorf("%w", err)
-		}
-		r.meta.LineCount = lineCount
-		return nil
-	})
+	r.meta.LineCount, err = util.LineCount(bytes.NewReader(data))
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	err = r.withSourceFile(func(sourceFile fs.File) error {
-		charCount, err := util.CharCount(sourceFile)
-		if err != nil {
-			return util.Errorf("%w", err)
-		}
-		r.meta.CharCount = charCount
-		return nil
-	})
+	r.meta.CharCount, err = util.CharCount(bytes.NewReader(data))
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	err = r.writebackMeta()
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-	return nil
+	return r.writebackMeta()
 }
 
 func (r *Source) withSourceFile(read func(fs.File) error) error {
@@ -194,16 +193,20 @@ func (r *Source) UpdateSplitConfig(config SplitConfig) error {
 
 func (r *Source) writebackMeta() error {
 	metaFilePath := path.Join(r.folderPath, SourceMetaFile)
-	metaFile, err := r.root.OpenWriter(metaFilePath)
+	tmpMetaPath := metaFilePath + ".tmp"
+
+	bs, err := json.MarshalIndent(r.meta, "", "  ")
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	defer metaFile.Close()
+	bs = append(bs, '\n')
 
-	encoder := json.NewEncoder(metaFile)
-	encoder.SetIndent("", "  ")
-	err = encoder.Encode(r.meta)
-	if err != nil {
+	if err := r.root.WriteFile(tmpMetaPath, bs); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	if err := r.root.Rename(tmpMetaPath, metaFilePath); err != nil {
+		_ = r.root.Remove(tmpMetaPath)
 		return util.Errorf("%w", err)
 	}
 
@@ -239,48 +242,54 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 	}
 
 	sourceDestPath := path.Join(sourcePath, SourceFile)
-	destFile, err := rt.OpenWriter(sourceDestPath)
+	tmpDestPath := sourceDestPath + ".tmp"
+	destFile, err := rt.OpenWriter(tmpDestPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	_, err = io.Copy(destFile, source)
-	if err != nil {
-		destFile.Close()
+	_, copyErr := io.Copy(destFile, source)
+	closeErr := destFile.Close()
+	if copyErr != nil {
+		_ = rt.Remove(tmpDestPath)
+		return nil, util.Errorf("%w", copyErr)
+	}
+	if closeErr != nil {
+		_ = rt.Remove(tmpDestPath)
+		return nil, util.Errorf("%w", closeErr)
+	}
+
+	if err := rt.Rename(tmpDestPath, sourceDestPath); err != nil {
+		_ = rt.Remove(tmpDestPath)
 		return nil, util.Errorf("%w", err)
 	}
-	destFile.Close()
 
+	// Read the written file once to compute all three metrics.
 	destFile1, err := rt.Open(sourceDestPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer destFile1.Close()
+	sourceData, readErr := io.ReadAll(destFile1)
+	readCloseErr := destFile1.Close()
+	if readErr != nil {
+		return nil, util.Errorf("%w", readErr)
+	}
+	if readCloseErr != nil {
+		return nil, util.Errorf("%w", readCloseErr)
+	}
 
-	md5Hash, err := hashutil.MD5Hash(destFile1)
+	md5Hash, err := hashutil.MD5Hash(bytes.NewReader(sourceData))
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	destFile2, err := rt.Open(sourceDestPath)
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-	defer destFile2.Close()
-
-	lineCount, err := util.LineCount(destFile2)
+	lineCount, err := util.LineCount(bytes.NewReader(sourceData))
 	if err != nil {
 		lineCount = 0
 		logger.Error("failed to count lines", "error", err)
 	}
 
-	destFile3, err := rt.Open(sourceDestPath)
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-	defer destFile3.Close()
-
-	charCount, err := util.CharCount(destFile3)
+	charCount, err := util.CharCount(bytes.NewReader(sourceData))
 	if err != nil {
 		charCount = 0
 		logger.Error("failed to count characters", "error", err)
@@ -297,16 +306,20 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 	}
 
 	metaFilePath := path.Join(sourcePath, SourceMetaFile)
-	metaFile, err := rt.OpenWriter(metaFilePath)
+	tmpMetaPath := metaFilePath + ".tmp"
+
+	bs, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer metaFile.Close()
+	bs = append(bs, '\n')
 
-	encoder := json.NewEncoder(metaFile)
-	encoder.SetIndent("", "  ")
-	err = encoder.Encode(meta)
-	if err != nil {
+	if err := rt.WriteFile(tmpMetaPath, bs); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	if err := rt.Rename(tmpMetaPath, metaFilePath); err != nil {
+		_ = rt.Remove(tmpMetaPath)
 		return nil, util.Errorf("%w", err)
 	}
 

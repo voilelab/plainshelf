@@ -12,8 +12,10 @@ import (
 
 // GetAllLayers returns a sorted list of all unique layers present in the library.
 func (s *Shelf) GetAllLayers() ([]Layers, error) {
-	s.rlock()
-	defer s.unlock()
+	if err := s.shelfLock.RLock(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer s.shelfLock.Unlock()
 
 	var layers []Layers
 	seen := make(map[string]bool)
@@ -63,7 +65,9 @@ func (s *Shelf) iterateLayers(fn func(Layers) bool) error {
 			return
 		}
 
-		layers := strings.Split(pth, string(os.PathSeparator))[1:]
+		// path.Join always uses "/" separators on every platform, so split on
+		// "/" rather than os.PathSeparator ("\" on Windows would break parsing).
+		layers := strings.Split(pth, "/")[1:]
 		if !fn(layers) {
 			skipAll = true
 			return
@@ -90,8 +94,10 @@ func (s *Shelf) NewLayer(layer Layers) error {
 		return util.Errorf("%w", err)
 	}
 
-	s.lock()
-	defer s.unlock()
+	if err := s.shelfLock.Lock(); err != nil {
+		return util.Errorf("%w", err)
+	}
+	defer s.shelfLock.Unlock()
 
 	layerPath := path.Join(booksFolder, path.Join(layer...))
 	err := s.dbRoot.MkdirAll(layerPath)
@@ -108,8 +114,10 @@ func (s *Shelf) DeleteLayer(layer Layers) error {
 		return util.Errorf("%w", err)
 	}
 
-	s.lock()
-	defer s.unlock()
+	if err := s.shelfLock.Lock(); err != nil {
+		return util.Errorf("%w", err)
+	}
+	defer s.shelfLock.Unlock()
 
 	layerPath := path.Join(booksFolder, path.Join(layer...))
 
@@ -139,8 +147,10 @@ func (s *Shelf) RenameLayer(oldLayer Layers, newLayer Layers) error {
 		return util.Errorf("invalid new layer: %w", err)
 	}
 
-	s.lock()
-	defer s.unlock()
+	if err := s.shelfLock.Lock(); err != nil {
+		return util.Errorf("%w", err)
+	}
+	defer s.shelfLock.Unlock()
 
 	if len(oldLayer) == 0 || len(newLayer) == 0 {
 		return util.Errorf("cannot rename root layer")
@@ -197,8 +207,10 @@ func (s *Shelf) MoveLayer(layer Layers, targetParent Layers) error {
 		return util.Errorf("cannot move root layer")
 	}
 
-	s.lock()
-	defer s.unlock()
+	if err := s.shelfLock.Lock(); err != nil {
+		return util.Errorf("%w", err)
+	}
+	defer s.shelfLock.Unlock()
 
 	oldLayerPath := path.Join(booksFolder, path.Join(layer...))
 	targetParentPath := path.Join(booksFolder, path.Join(targetParent...))

@@ -10,6 +10,7 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/internal/version"
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -20,12 +21,20 @@ type DesktopApp struct {
 	apiHandler        http.Handler
 	ctx               context.Context
 	shelvesConfigPath string
+	startupErr        error
 }
 
 type DesktopImportBookResult struct {
 	Path  string `json:"path"`
 	ID    string `json:"id,omitempty"`
 	Error string `json:"error,omitempty"`
+}
+
+type DesktopShelfDetails struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Path         string `json:"path"`
+	ScanInterval string `json:"scan_interval"`
 }
 
 func NewDesktopApp() *DesktopApp {
@@ -36,9 +45,35 @@ func (a *DesktopApp) Startup(ctx context.Context) {
 	a.ctx = ctx
 	err := a.startServer()
 	if err != nil {
-		panic(err)
+		// Don't call runtime methods (e.g. MessageDialog) here: from
+		// OnStartup the window is still initializing and they are not
+		// guaranteed to work — on Windows MessageDialog panics. Record the
+		// failure and report it from DomReady instead. See wailsapp/wails#1660.
+		log.Println("Failed to start PlainShelf backend:", err)
+		a.startupErr = err
+		return
 	}
 	a.apiHandler = a.app.Handler()
+}
+
+// DomReady runs once the window and DOM are ready, which is the safe point to
+// use runtime methods. If the backend failed to start, surface the cause and
+// quit gracefully instead of leaving the user staring at a dead UI.
+func (a *DesktopApp) DomReady(ctx context.Context) {
+	if a.startupErr == nil {
+		return
+	}
+
+	_, dialogErr := wailsruntime.MessageDialog(ctx, wailsruntime.MessageDialogOptions{
+		Type:    wailsruntime.ErrorDialog,
+		Title:   "PlainShelf failed to start",
+		Message: "PlainShelf could not start its backend and will now close.\n\n" + a.startupErr.Error(),
+	})
+	if dialogErr != nil {
+		log.Println("Failed to show startup error dialog:", dialogErr)
+	}
+
+	wailsruntime.Quit(ctx)
 }
 
 func (a *DesktopApp) Shutdown() {
@@ -167,7 +202,7 @@ func (a *DesktopApp) OpenShelfDirectory() (string, error) {
 	return dir, nil
 }
 
-func (a *DesktopApp) AddShelf(name, libRoot string) error {
+func (a *DesktopApp) AddShelf(name, libRoot, scanInterval string) error {
 	if a.app == nil {
 		return util.NewError("desktop backend app instance is nil")
 	}
@@ -182,6 +217,8 @@ func (a *DesktopApp) AddShelf(name, libRoot string) error {
 		return util.Errorf("%w", err)
 	}
 
+	scanInterval = strings.TrimSpace(scanInterval)
+
 	conf, err := loadDesktopShelves(a.shelvesConfigPath)
 	if err != nil {
 		return util.Errorf("loading shelf config: %w", err)
@@ -195,9 +232,10 @@ func (a *DesktopApp) AddShelf(name, libRoot string) error {
 	id := generateDesktopShelfID(name, existingIDs)
 
 	entry := desktopShelfEntry{
-		ID:      id,
-		Name:    name,
-		LibRoot: normalizedLibRoot,
+		ID:           id,
+		Name:         name,
+		LibRoot:      normalizedLibRoot,
+		ScanInterval: scanInterval,
 	}
 
 	err = a.app.AddShelf(toShelfConfWithID(entry))
@@ -209,6 +247,88 @@ func (a *DesktopApp) AddShelf(name, libRoot string) error {
 	if err := saveDesktopShelves(a.shelvesConfigPath, conf); err != nil {
 		if removeErr := a.app.RemoveShelf(id); removeErr != nil {
 			return util.Errorf("saving shelf config: %w; rolling back runtime shelf: %v", err, removeErr)
+		}
+		return util.Errorf("saving shelf config: %w", err)
+	}
+
+	return nil
+}
+
+func (a *DesktopApp) GetShelfDetails(shelfID string) (*DesktopShelfDetails, error) {
+	if a.app == nil {
+		return nil, util.NewError("desktop backend app instance is nil")
+	}
+
+	shelfID = strings.TrimSpace(shelfID)
+	if shelfID == "" {
+		return nil, util.Errorf("shelf ID cannot be empty")
+	}
+
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		return nil, util.Errorf("loading shelf config: %w", err)
+	}
+
+	for _, entry := range conf.Shelves {
+		if entry.ID == shelfID {
+			return &DesktopShelfDetails{
+				ID:           entry.ID,
+				Name:         entry.Name,
+				Path:         entry.LibRoot,
+				ScanInterval: entry.ScanInterval,
+			}, nil
+		}
+	}
+
+	return nil, util.Errorf("shelf with ID %q not found", shelfID)
+}
+
+func (a *DesktopApp) ModifyShelf(shelfID, name, scanInterval string) error {
+	if a.app == nil {
+		return util.NewError("desktop backend app instance is nil")
+	}
+
+	shelfID = strings.TrimSpace(shelfID)
+	if shelfID == "" {
+		return util.Errorf("shelf ID cannot be empty")
+	}
+
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return util.Errorf("shelf name cannot be empty")
+	}
+
+	scanInterval = strings.TrimSpace(scanInterval)
+
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		return util.Errorf("loading shelf config: %w", err)
+	}
+
+	var found *desktopShelfEntry
+	for i := range conf.Shelves {
+		if conf.Shelves[i].ID == shelfID {
+			found = &conf.Shelves[i]
+			break
+		}
+	}
+	if found == nil {
+		return util.Errorf("shelf with ID %q not found in config", shelfID)
+	}
+
+	oldName := found.Name
+	oldScanInterval := found.ScanInterval
+
+	if err := a.app.UpdateShelf(shelfID, name, scanInterval); err != nil {
+		return util.Errorf("updating shelf: %w", err)
+	}
+
+	found.Name = name
+	found.ScanInterval = scanInterval
+
+	if err := saveDesktopShelves(a.shelvesConfigPath, conf); err != nil {
+		if rollbackErr := a.app.UpdateShelf(shelfID, oldName, oldScanInterval); rollbackErr != nil {
+			return util.Errorf("saving shelf config: %w; rolling back runtime shelf: %v", err, rollbackErr)
 		}
 		return util.Errorf("saving shelf config: %w", err)
 	}
@@ -258,6 +378,8 @@ func (a *DesktopApp) RemoveShelf(shelfID string) error {
 }
 
 func (a *DesktopApp) startServer() error {
+	log.Println("PlainShelf version:", version.Version)
+
 	// Store desktop app data under the current user's config directory.
 	dataRoot, err := os.UserConfigDir()
 	if err != nil {

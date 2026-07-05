@@ -1,6 +1,7 @@
 package shelf
 
 import (
+	"context"
 	"os"
 	"path"
 	"testing"
@@ -8,6 +9,21 @@ import (
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/logutil"
 )
+
+// newTestShelf creates a shelf and waits for the initial cache scan to complete.
+// It registers a cleanup function to close the shelf when the test ends.
+func newTestShelf(t *testing.T, conf *ShelfConf) *Shelf {
+	t.Helper()
+	s, err := NewShelf(conf)
+	if err != nil {
+		t.Fatalf("NewShelf: %v", err)
+	}
+	t.Cleanup(func() { s.Close() })
+	if err := s.WaitReady(context.Background()); err != nil {
+		t.Fatalf("WaitReady: %v", err)
+	}
+	return s
+}
 
 func TestCreateTempDir(t *testing.T) {
 	tmpDir := path.Join(os.TempDir(), "shelf-test")
