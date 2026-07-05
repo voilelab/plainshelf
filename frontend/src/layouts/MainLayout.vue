@@ -52,18 +52,24 @@
         <section class="sidebar-section" :aria-label="t('layout.shelf.label')">
           <label class="sidebar-shelf-label">
             <span class="sidebar-section-title">{{ t('layout.shelf.label') }}</span>
-            <select
-              class="sidebar-shelf-select"
-              :value="selectedShelfID"
+            <SelectRoot
+              :model-value="selectedShelfID"
               :disabled="shelvesLoading || shelves.length === 0"
-              @change="onShelfChange"
+              @update:model-value="onShelfSelect"
             >
-              <option v-if="shelvesLoading" value="">{{ t('layout.shelf.loading') }}</option>
-              <option v-else-if="shelves.length === 0" value="">{{ t('layout.shelf.empty') }}</option>
-              <option v-for="shelf in shelves" :key="shelf.id" :value="shelf.id">
-                {{ shelf.name }}
-              </option>
-            </select>
+              <SelectTrigger class="button sidebar-shelf-select">
+                <SelectValue :placeholder="shelfSelectPlaceholder" />
+              </SelectTrigger>
+              <SelectPortal>
+                <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
+                  <SelectViewport>
+                    <SelectItem v-for="shelf in shelves" :key="shelf.id" class="reka-menu-item" :value="shelf.id">
+                      <SelectItemText>{{ shelf.name }}</SelectItemText>
+                    </SelectItem>
+                  </SelectViewport>
+                </SelectContent>
+              </SelectPortal>
+            </SelectRoot>
           </label>
           <p v-if="shelvesError" class="sidebar-error" role="alert">{{ shelvesError }}</p>
         </section>
@@ -220,11 +226,20 @@
         <div class="topbar-controls">
           <label class="language-select">
             <span>{{ t('language.label') }}</span>
-            <select class="language-select-control" :value="locale" @change="onLocaleChange">
-              <option v-for="lang in supportedLocales" :key="lang" :value="lang">
-                {{ t(localeLabelKeyMap[lang]) }}
-              </option>
-            </select>
+            <SelectRoot :model-value="locale" @update:model-value="onLocaleSelect">
+              <SelectTrigger class="button language-select-control">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectPortal>
+                <SelectContent class="reka-menu" position="popper" align="end" :side-offset="6">
+                  <SelectViewport>
+                    <SelectItem v-for="lang in supportedLocales" :key="lang" class="reka-menu-item" :value="lang">
+                      <SelectItemText>{{ t(localeLabelKeyMap[lang]) }}</SelectItemText>
+                    </SelectItem>
+                  </SelectViewport>
+                </SelectContent>
+              </SelectPortal>
+            </SelectRoot>
           </label>
         </div>
       </header>
@@ -245,7 +260,20 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
+import {
+  SelectContent,
+  SelectItem,
+  SelectItemText,
+  SelectPortal,
+  SelectRoot,
+  SelectTrigger,
+  SelectValue,
+  SelectViewport,
+  SplitterGroup,
+  SplitterPanel,
+  SplitterResizeHandle,
+  type AcceptableValue
+} from 'reka-ui';
 import DeleteModal from '../components/DeleteModal.vue';
 import LayerTree from '../components/LayerTree.vue';
 import RenameLayerModal from '../components/RenameLayerModal.vue';
@@ -319,6 +347,15 @@ const canShowRouteContent = computed(() => isSettingsRoute.value || hasActiveShe
 const shelfUnavailableMessage = computed(() =>
   shelvesLoading.value ? t('layout.shelf.loading') : t('layout.shelf.unavailableDescription')
 );
+const shelfSelectPlaceholder = computed(() => {
+  if (shelvesLoading.value) {
+    return t('layout.shelf.loading');
+  }
+  if (shelves.value.length === 0) {
+    return t('layout.shelf.empty');
+  }
+  return '';
+});
 
 function goToLayer(layer: string | undefined): void {
   const query: Record<string, string> = { page: '1' };
@@ -345,24 +382,22 @@ function onSelectLayer(path: string): void {
   goToLayer(normalizeLayerSelectionPath(path));
 }
 
-function onLocaleChange(event: Event): void {
-  const target = event.target;
-  if (!(target instanceof HTMLSelectElement)) {
+function onLocaleSelect(value: AcceptableValue): void {
+  if (typeof value !== 'string') {
     return;
   }
 
-  if (supportedLocales.includes(target.value as (typeof supportedLocales)[number])) {
-    setLocale(target.value as (typeof supportedLocales)[number]);
+  if (supportedLocales.includes(value as (typeof supportedLocales)[number])) {
+    setLocale(value as (typeof supportedLocales)[number]);
   }
 }
 
-async function onShelfChange(event: Event): Promise<void> {
-  const target = event.target;
-  if (!(target instanceof HTMLSelectElement)) {
+async function onShelfSelect(value: AcceptableValue): Promise<void> {
+  if (typeof value !== 'string') {
     return;
   }
 
-  const nextShelfID = target.value.trim();
+  const nextShelfID = value.trim();
   if (!nextShelfID || nextShelfID === selectedShelfID.value) {
     return;
   }
