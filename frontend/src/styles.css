@@ -259,3 +259,18 @@ a {
   background: #f4f7fb;
   outline: none;
 }
+
+/* Shared reka-ui Splitter resize-handle styling, used by any SplitterGroup
+   in the app (sidebar / source list panels). */
+.reka-resize-handle {
+  background: var(--border);
+  cursor: col-resize;
+  flex-shrink: 0;
+  width: 1px;
+}
+
+.reka-resize-handle:hover,
+.reka-resize-handle[data-resize-handle-state='hover'],
+.reka-resize-handle[data-resize-handle-state='drag'] {
+  background: var(--accent);
+}

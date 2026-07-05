@@ -19,12 +19,31 @@
       @submit="confirmRenameLayer"
     />
 
-    <aside class="sidebar" :class="{ collapsed: isCollapsed }">
+    <SplitterGroup
+      direction="horizontal"
+      as="div"
+      auto-save-id="plainshelf-sidebar"
+      :keyboard-resize-by="16"
+      class="layout-splitter"
+    >
+    <SplitterPanel
+      ref="sidebarPanelRef"
+      as="aside"
+      class="sidebar"
+      size-unit="px"
+      :default-size="240"
+      :min-size="200"
+      :max-size="300"
+      collapsible
+      :collapsed-size="40"
+      @collapse="onSidebarCollapse"
+      @expand="onSidebarExpand"
+    >
       <button
         class="collapse-btn"
         type="button"
         :aria-label="isCollapsed ? t('layout.expandSidebar') : t('layout.collapseSidebar')"
-        @click="isCollapsed = !isCollapsed"
+        @click="toggleSidebar"
       >
         {{ isCollapsed ? '→' : '←' }}
       </button>
@@ -185,9 +204,11 @@
           </nav>
         </section>
       </div>
-    </aside>
+    </SplitterPanel>
 
-    <main class="main-content">
+    <SplitterResizeHandle as="div" class="reka-resize-handle" :hit-area-margins="SIDEBAR_RESIZE_HIT_AREA_MARGINS" />
+
+    <SplitterPanel as="main" class="main-content">
       <div v-if="readOnly" class="read-only-banner" role="status">
         {{ t('layout.readOnly.banner') }}
       </div>
@@ -216,13 +237,15 @@
           <RouterLink to="/settings" class="button">{{ t('layout.settings') }}</RouterLink>
         </section>
       </div>
-    </main>
+    </SplitterPanel>
+    </SplitterGroup>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
 import DeleteModal from '../components/DeleteModal.vue';
 import LayerTree from '../components/LayerTree.vue';
 import RenameLayerModal from '../components/RenameLayerModal.vue';
@@ -238,6 +261,16 @@ import { MAINTENANCE_NAV_ITEMS } from '../utils/maintenance';
 import appIcon from '../assets/icon-192.png';
 import { useI18n } from '../i18n';
 
+// Stable reference: an inline object literal in the template would be recreated on
+// every MainLayout re-render, and reka-ui's SplitterResizeHandle re-registers itself
+// with the group whenever its `hitAreaMargins` prop identity changes. Re-registering
+// mid-drag replaces the handle's internal registry entry, so the `mouseup` handler's
+// reference-based lookup misses and `stopDragging()` never fires — leaving
+// `pointer-events: none` stuck on every panel. A hoisted constant keeps the prop
+// identity stable across renders and avoids the mid-drag re-registration entirely.
+const SIDEBAR_RESIZE_HIT_AREA_MARGINS = { coarse: 12, fine: 6 };
+
+const sidebarPanelRef = ref<InstanceType<typeof SplitterPanel> | null>(null);
 const isCollapsed = ref(false);
 const route = useRoute();
 const router = useRouter();
@@ -343,6 +376,22 @@ async function onShelfChange(event: Event): Promise<void> {
 
   await Promise.all([fetchLayers(), fetchBooks()]);
   await router.push({ path: '/books', query: { page: '1' } });
+}
+
+function onSidebarCollapse(): void {
+  isCollapsed.value = true;
+}
+
+function onSidebarExpand(): void {
+  isCollapsed.value = false;
+}
+
+function toggleSidebar(): void {
+  if (isCollapsed.value) {
+    sidebarPanelRef.value?.expand();
+  } else {
+    sidebarPanelRef.value?.collapse();
+  }
 }
 
 function toggleCreateLayerForm(): void {
@@ -577,6 +626,8 @@ async function confirmDeleteLayer(): Promise<void> {
 
 
 onMounted(async () => {
+  isCollapsed.value = sidebarPanelRef.value?.isCollapsed ?? false;
+
   await fetchServerMode();
   if (!shelvesLoaded.value) {
     await fetchShelves();
@@ -604,26 +655,19 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-/* ── Sidebar ── */
-.sidebar {
-  width: 240px;
-  min-width: 200px;
-  max-width: 300px;
-  border-right: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
-  background: linear-gradient(180deg, #e9edf2 0%, #e3e8ef 100%);
-  backdrop-filter: blur(8px);
-  transition: width 0.2s ease;
-  flex-shrink: 0;
+.layout-splitter {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
 }
 
-.sidebar.collapsed {
-  width: 40px;
-  min-width: 0;
-  overflow: hidden;
+/* ── Sidebar ── */
+.sidebar {
+  border-right: 1px solid var(--border);
+  background: linear-gradient(180deg, #e9edf2 0%, #e3e8ef 100%);
+  backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
 }
 
 .collapse-btn {
@@ -647,6 +691,10 @@ onMounted(async () => {
 }
 
 .sidebar-inner {
+  flex: 1;
+  min-height: 0;
+  min-width: 176px;
+  overflow-y: auto;
   padding: 8px;
 }
 
