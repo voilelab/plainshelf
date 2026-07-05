@@ -17,16 +17,32 @@ and UI behavior may still change between releases.
 - Added async shelf cache initialization; list endpoints return 503 with `Retry-After` until the cache is ready.
 - Added frontend 503 auto-retry with "Shelf is loading…" status during shelf initialization, capped at 10 attempts with a manual retry button on failure.
 - Added frontend `AbortController` request timeout on all API fetch calls with distinct timeout error handling.
+- Added a shelf modify modal in desktop Settings for editing a shelf's name and scan interval.
+- Added resizable sidebar and source-list panels (previously fixed-width) via drag handles.
+- Added a Homebrew cask for installing the macOS desktop app (`brew install --cask voilelab/plainshelf/plainshelf`).
+- Added a GitHub Actions release workflow publishing prebuilt server binaries (Linux amd64/arm64, macOS arm64) and a Docker image on tagged releases.
+- Added application version reporting via `GET /api/version`, startup logs, and a Settings page About section, using build-time version injection.
+- Added native fullscreen mode support for the macOS desktop app.
 
 ### Changed
 
 - Hardened SMB mount support: configurable flock timeout (default 30 s), atomic writes for source and metadata files, and initialization failures now exposed via `/status` instead of hanging indefinitely.
 - Made per-book stat checks asynchronous to reduce round-trips on SMB mounts; list operations serve from the in-memory cache between scheduled checks.
+- Changed the Settings page from stacked panels to a tabbed layout (cover, read history, about, shelves).
+- Changed native `<select>` inputs and hand-rolled dropdown menus throughout the app to a consistent reka-ui-based menu with shared styling and full keyboard navigation.
+- Changed the layer tree to reka-ui Tree, adding keyboard navigation (arrow keys, Home/End, typeahead) and proper ARIA tree semantics.
+- Changed the book tag input so Backspace on an empty field selects the last tag chip before deleting it on a second press (previously deleted immediately), and chips can now be selected with arrow keys.
+- Changed reader side-action buttons to show styled hover tooltips instead of native browser title tooltips.
 
 ### Fixed
 
 - Fixed cache write lock held across filesystem I/O in book cache refresh, blocking concurrent list reads.
 - Fixed shelf lock acquisition errors not being propagated to callers.
+- Fixed two data races in shelf book-cache scan-interval handling and shelf listing that could corrupt state under concurrent access.
+- Fixed source ID collisions when multiple sources for the same book are created within the same second.
+- Fixed layer/book path parsing to always split on `/` instead of the OS path separator, which broke on Windows.
+- Fixed shelf startup to clear leftover temp files from a previous crashed run, and to skip unreadable/non-directory source entries instead of failing the whole listing.
+- Fixed the desktop app crashing when the backend fails to start (e.g. data directory not creatable, port in use); it now shows an error dialog instead of panicking.
 
 ## [v0.6.0] - 2026-06-20
 
