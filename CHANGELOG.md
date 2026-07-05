@@ -5,7 +5,7 @@ All notable changes to PlainShelf are documented in this file.
 This project is currently in pre-alpha / early development. APIs, data layout,
 and UI behavior may still change between releases.
 
-## [Unreleased]
+## [v0.7.0] - 2026-07-05
 
 ### Added
 
