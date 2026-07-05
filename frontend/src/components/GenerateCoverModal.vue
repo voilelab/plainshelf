@@ -37,20 +37,38 @@
 
           <label class="field">
             <span class="field-label">Background style</span>
-            <select v-model="bgStyle" class="input" :disabled="saving">
-              <option v-for="opt in bgStyleOptions" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </option>
-            </select>
+            <SelectRoot :model-value="bgStyle" :disabled="saving" @update:model-value="onBgStyleSelect">
+              <SelectTrigger class="input select-trigger">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectPortal>
+                <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
+                  <SelectViewport>
+                    <SelectItem v-for="opt in bgStyleOptions" :key="opt.value" class="reka-menu-item" :value="opt.value">
+                      <SelectItemText>{{ opt.label }}</SelectItemText>
+                    </SelectItem>
+                  </SelectViewport>
+                </SelectContent>
+              </SelectPortal>
+            </SelectRoot>
           </label>
 
           <label class="field">
             <span class="field-label">Layout</span>
-            <select v-model="layout" class="input" :disabled="saving">
-              <option v-for="opt in layoutOptions" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </option>
-            </select>
+            <SelectRoot :model-value="layout" :disabled="saving" @update:model-value="onLayoutSelect">
+              <SelectTrigger class="input select-trigger">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectPortal>
+                <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
+                  <SelectViewport>
+                    <SelectItem v-for="opt in layoutOptions" :key="opt.value" class="reka-menu-item" :value="opt.value">
+                      <SelectItemText>{{ opt.label }}</SelectItemText>
+                    </SelectItem>
+                  </SelectViewport>
+                </SelectContent>
+              </SelectPortal>
+            </SelectRoot>
           </label>
 
           <div v-if="saveError" class="error-msg" role="alert">{{ saveError }}</div>
@@ -69,6 +87,17 @@
 
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
+import {
+  SelectContent,
+  SelectItem,
+  SelectItemText,
+  SelectPortal,
+  SelectRoot,
+  SelectTrigger,
+  SelectValue,
+  SelectViewport,
+  type AcceptableValue
+} from 'reka-ui';
 import BaseDialog from './BaseDialog.vue';
 import { getBookshelfProvider } from '../providers';
 
@@ -119,6 +148,9 @@ const emit = defineEmits<{
   close: [];
   saved: [];
 }>();
+
+const BG_STYLE_VALUES: BgStyle[] = bgStyleOptions.map((opt) => opt.value);
+const LAYOUT_VALUES: Layout[] = layoutOptions.map((opt) => opt.value);
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const titleText = ref('');
@@ -443,6 +475,18 @@ watch(
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
 
+function onBgStyleSelect(value: AcceptableValue): void {
+  if (typeof value === 'string' && BG_STYLE_VALUES.includes(value as BgStyle)) {
+    bgStyle.value = value as BgStyle;
+  }
+}
+
+function onLayoutSelect(value: AcceptableValue): void {
+  if (typeof value === 'string' && LAYOUT_VALUES.includes(value as Layout)) {
+    layout.value = value as Layout;
+  }
+}
+
 function onClose(): void {
   if (saving.value) return;
   emit('close');
@@ -555,6 +599,11 @@ async function onSave(): Promise<void> {
 .field-label {
   color: var(--muted);
   font-size: 13px;
+}
+
+.select-trigger {
+  cursor: pointer;
+  text-align: left;
 }
 
 .error-msg {

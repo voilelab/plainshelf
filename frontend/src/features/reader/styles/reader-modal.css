@@ -80,6 +80,11 @@
   gap: 10px;
 }
 
+.select-trigger {
+  cursor: pointer;
+  text-align: left;
+}
+
 .split-textarea {
   resize: vertical;
   min-height: 88px;
