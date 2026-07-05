@@ -92,9 +92,9 @@
         <DropdownMenuRoot v-if="!readOnly">
           <DropdownMenuTrigger class="button">{{ t('library.import') }}</DropdownMenuTrigger>
           <DropdownMenuPortal>
-            <DropdownMenuContent class="import-dropdown-menu" align="end" :side-offset="6">
-              <DropdownMenuItem class="import-dropdown-item" @select="openImportFromFiles">{{ t('library.importFromFiles') }}</DropdownMenuItem>
-              <DropdownMenuItem class="import-dropdown-item" @select="openNewEmptyBookModal">{{ t('library.newEmptyBook') }}</DropdownMenuItem>
+            <DropdownMenuContent class="reka-menu" align="end" :side-offset="6">
+              <DropdownMenuItem class="reka-menu-item" @select="openImportFromFiles">{{ t('library.importFromFiles') }}</DropdownMenuItem>
+              <DropdownMenuItem class="reka-menu-item" @select="openNewEmptyBookModal">{{ t('library.newEmptyBook') }}</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenuPortal>
         </DropdownMenuRoot>
@@ -506,34 +506,6 @@ watch(
   { immediate: true }
 );
 </script>
-
-<!-- Unscoped: reka-ui popper content is portalled and wrapped in a
-     positioner element, so the consumer's scope attribute never lands on
-     the menu itself. Style portalled popper content with plain CSS. -->
-<style>
-.import-dropdown-menu {
-  background: var(--surface, #fff);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
-  display: grid;
-  min-width: 180px;
-  padding: 6px;
-  z-index: var(--z-modal);
-}
-
-.import-dropdown-item {
-  border-radius: 6px;
-  cursor: pointer;
-  padding: 8px 10px;
-  text-align: left;
-}
-
-.import-dropdown-item[data-highlighted] {
-  background: #f4f7fb;
-  outline: none;
-}
-</style>
 
 <style scoped>
 

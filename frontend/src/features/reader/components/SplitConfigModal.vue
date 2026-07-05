@@ -15,12 +15,20 @@
       <form class="split-form" @submit.prevent="onSubmitSplitConfig">
         <label class="field">
           <span class="label">Split Type</span>
-          <select v-model="draftType" class="input" :disabled="savingSplit">
-            <option value="none">none</option>
-            <option value="line_count">line_count</option>
-            <option value="regex">regex</option>
-            <option value="boundary">boundary</option>
-          </select>
+          <SelectRoot :model-value="draftType" :disabled="savingSplit" @update:model-value="onDraftTypeSelect">
+            <SelectTrigger class="input select-trigger">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectPortal>
+              <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
+                <SelectViewport>
+                  <SelectItem v-for="opt in SPLIT_TYPE_OPTIONS" :key="opt" class="reka-menu-item" :value="opt">
+                    <SelectItemText>{{ opt }}</SelectItemText>
+                  </SelectItem>
+                </SelectViewport>
+              </SelectContent>
+            </SelectPortal>
+          </SelectRoot>
         </label>
 
         <label v-if="draftType === 'line_count'" class="field">
@@ -71,8 +79,21 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+import {
+  SelectContent,
+  SelectItem,
+  SelectItemText,
+  SelectPortal,
+  SelectRoot,
+  SelectTrigger,
+  SelectValue,
+  SelectViewport,
+  type AcceptableValue
+} from 'reka-ui';
 import BaseDialog from '../../../components/BaseDialog.vue';
 import type { SplitConfig, SplitType } from '../../../types/book';
+
+const SPLIT_TYPE_OPTIONS: SplitType[] = ['none', 'line_count', 'regex', 'boundary'];
 
 const props = defineProps<{
   open: boolean;
@@ -127,6 +148,12 @@ function buildDraftSplitConfig(): SplitConfig {
   }
 
   return { type: 'none' };
+}
+
+function onDraftTypeSelect(value: AcceptableValue): void {
+  if (typeof value === 'string' && SPLIT_TYPE_OPTIONS.includes(value as SplitType)) {
+    draftType.value = value as SplitType;
+  }
 }
 
 function onClose(): void {

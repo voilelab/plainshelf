@@ -13,11 +13,24 @@
     <div class="filters">
       <label class="field">
         <span>{{ t('adminLogs.name') }}</span>
-        <select v-model="selectedName" :disabled="loadingLogs || nameOptions.length === 0">
-          <option v-for="option in nameOptions" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </option>
-        </select>
+        <SelectRoot
+          :model-value="selectedName"
+          :disabled="loadingLogs || nameOptions.length === 0"
+          @update:model-value="onNameSelect"
+        >
+          <SelectTrigger class="button name-select">
+            <SelectValue :placeholder="nameOptions.length === 0 ? t('adminLogs.empty') : ''" />
+          </SelectTrigger>
+          <SelectPortal>
+            <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
+              <SelectViewport>
+                <SelectItem v-for="option in nameOptions" :key="option.value" class="reka-menu-item" :value="option.value">
+                  <SelectItemText>{{ option.label }}</SelectItemText>
+                </SelectItem>
+              </SelectViewport>
+            </SelectContent>
+          </SelectPortal>
+        </SelectRoot>
       </label>
 
       <label class="field">
@@ -70,6 +83,17 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import {
+  SelectContent,
+  SelectItem,
+  SelectItemText,
+  SelectPortal,
+  SelectRoot,
+  SelectTrigger,
+  SelectValue,
+  SelectViewport,
+  type AcceptableValue
+} from 'reka-ui';
 import { getLogContent, listLogs, type LogFileEntry } from '../api/logs';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
 import { useI18n } from '../i18n';
@@ -91,6 +115,13 @@ const selectedDate = ref('');
 const activeLogRequest = ref(0);
 
 useDocumentTitle(() => [t('adminLogs.title'), t('app.name')]);
+
+function onNameSelect(value: AcceptableValue): void {
+  if (typeof value !== 'string') {
+    return;
+  }
+  selectedName.value = value;
+}
 
 function getLogName(entry: LogFileEntry): string {
   return entry.source || entry.filename;
@@ -268,7 +299,7 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.field select,
+.field .name-select,
 .field input {
   background: #ffffff;
   border: 1px solid var(--border);
@@ -276,6 +307,7 @@ onMounted(() => {
   font: inherit;
   min-height: 38px;
   padding: 8px 10px;
+  text-align: left;
 }
 
 .message {

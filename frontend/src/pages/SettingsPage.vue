@@ -122,120 +122,138 @@
       {{ error }}
     </p>
 
-    <section class="panel settings-group">
-      <h3>{{ t('settings.cover.title') }}</h3>
-      <label class="setting-item">
-        <div>
-          <div class="setting-label">{{ t('settings.coverToJpg.label') }}</div>
-          <p class="setting-description">{{ t('settings.coverToJpg.description') }}</p>
-        </div>
-        <input
-          class="setting-checkbox"
-          type="checkbox"
-          :checked="coverToJpg"
-          :disabled="loading || saving"
-          @change="onCoverToJpgChange"
-        />
-      </label>
-    </section>
+    <TabsRoot default-value="cover" class="settings-tabs">
+      <TabsList class="settings-tabs-list" :aria-label="t('settings.title')">
+        <TabsTrigger value="cover" class="settings-tab-trigger">{{ t('settings.cover.title') }}</TabsTrigger>
+        <TabsTrigger value="read-history" class="settings-tab-trigger">{{ t('settings.readHistory.title') }}</TabsTrigger>
+        <TabsTrigger value="about" class="settings-tab-trigger">{{ t('settings.about.title') }}</TabsTrigger>
+        <TabsTrigger value="shelves" class="settings-tab-trigger">{{ t('settings.shelves.title') }}</TabsTrigger>
+      </TabsList>
 
-    <section class="panel settings-group">
-      <h3>{{ t('settings.readHistory.title') }}</h3>
-      <label class="setting-item">
-        <div>
-          <div class="setting-label">{{ t('settings.readHistoryLimit.label') }}</div>
-          <p class="setting-description">{{ t('settings.readHistoryLimit.description') }}</p>
-        </div>
-        <input
-          class="setting-number"
-          type="number"
-          inputmode="numeric"
-          min="0"
-          step="1"
-          :value="readHistoryLimit"
-          :disabled="loading || saving"
-          @change="onReadHistoryLimitChange"
-        />
-      </label>
-    </section>
+      <TabsContent value="cover" class="settings-tab-content">
+        <section class="panel settings-group">
+          <h3>{{ t('settings.cover.title') }}</h3>
+          <label class="setting-item">
+            <div>
+              <div class="setting-label">{{ t('settings.coverToJpg.label') }}</div>
+              <p class="setting-description">{{ t('settings.coverToJpg.description') }}</p>
+            </div>
+            <input
+              class="setting-checkbox"
+              type="checkbox"
+              :checked="coverToJpg"
+              :disabled="loading || saving"
+              @change="onCoverToJpgChange"
+            />
+          </label>
+        </section>
+      </TabsContent>
 
-    <section class="panel settings-group">
-      <h3>{{ t('settings.about.title') }}</h3>
-      <div class="setting-item">
-        <div>
-          <div class="setting-label">{{ t('settings.about.version') }}</div>
-        </div>
-        <span class="setting-value">{{ version || '—' }}</span>
-      </div>
-    </section>
+      <TabsContent value="read-history" class="settings-tab-content">
+        <section class="panel settings-group">
+          <h3>{{ t('settings.readHistory.title') }}</h3>
+          <label class="setting-item">
+            <div>
+              <div class="setting-label">{{ t('settings.readHistoryLimit.label') }}</div>
+              <p class="setting-description">{{ t('settings.readHistoryLimit.description') }}</p>
+            </div>
+            <input
+              class="setting-number"
+              type="number"
+              inputmode="numeric"
+              min="0"
+              step="1"
+              :value="readHistoryLimit"
+              :disabled="loading || saving"
+              @change="onReadHistoryLimitChange"
+            />
+          </label>
+        </section>
+      </TabsContent>
 
-    <section class="panel settings-group">
-      <h3>{{ t('settings.shelves.title') }}</h3>
+      <TabsContent value="about" class="settings-tab-content">
+        <section class="panel settings-group">
+          <h3>{{ t('settings.about.title') }}</h3>
+          <div class="setting-item">
+            <div>
+              <div class="setting-label">{{ t('settings.about.version') }}</div>
+            </div>
+            <span class="setting-value">{{ version || '—' }}</span>
+          </div>
+        </section>
+      </TabsContent>
 
-      <p v-if="shelvesError || shelfOpError" class="settings-message settings-message-error" role="alert">
-        {{ shelfOpError || shelvesError }}
-      </p>
+      <TabsContent value="shelves" class="settings-tab-content">
+        <section class="panel settings-group">
+          <h3>{{ t('settings.shelves.title') }}</h3>
 
-      <p v-if="!isDesktopEnv" class="setting-description">
-        {{ t('settings.shelves.serverManaged') }}
-      </p>
+          <p v-if="shelvesError || shelfOpError" class="settings-message settings-message-error" role="alert">
+            {{ shelfOpError || shelvesError }}
+          </p>
 
-      <div v-if="shelvesLoading" class="setting-description">{{ t('layout.shelf.loading') }}</div>
-      <template v-else>
-        <p v-if="shelves.length === 0" class="setting-description">
-          {{ t('settings.shelves.empty') }}
-        </p>
-        <table v-else class="shelves-table">
-          <thead>
-            <tr>
-              <th>{{ t('settings.shelves.name') }}</th>
-              <th>ID</th>
-              <th v-if="isDesktopEnv"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="shelf in shelves" :key="shelf.id">
-              <td>{{ shelf.name }}</td>
-              <td class="shelf-id-cell">{{ shelf.id }}</td>
-              <td v-if="isDesktopEnv" class="shelf-action-cell">
-                <button
-                  type="button"
-                  class="shelf-modify-btn"
-                  :disabled="removingShelfIDs.has(shelf.id)"
-                  @click="requestModifyShelf(shelf)"
-                >
-                  {{ t('settings.shelves.modify') }}
-                </button>
-                <button
-                  type="button"
-                  class="shelf-remove-btn"
-                  :disabled="removingShelfIDs.has(shelf.id)"
-                  @click="requestRemoveShelf(shelf)"
-                >
-                  {{ t('settings.shelves.remove') }}
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </template>
+          <p v-if="!isDesktopEnv" class="setting-description">
+            {{ t('settings.shelves.serverManaged') }}
+          </p>
 
-      <div v-if="isDesktopEnv" class="shelf-add-row">
-        <button
-          type="button"
-          class="shelf-add-toggle"
-          :disabled="addingShelf"
-          @click="openAddShelfModal"
-        >
-          {{ t('settings.shelves.addShelf') }}
-        </button>
-      </div>
-    </section>
+          <div v-if="shelvesLoading" class="setting-description">{{ t('layout.shelf.loading') }}</div>
+          <template v-else>
+            <p v-if="shelves.length === 0" class="setting-description">
+              {{ t('settings.shelves.empty') }}
+            </p>
+            <table v-else class="shelves-table">
+              <thead>
+                <tr>
+                  <th>{{ t('settings.shelves.name') }}</th>
+                  <th>ID</th>
+                  <th v-if="isDesktopEnv"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="shelf in shelves" :key="shelf.id">
+                  <td>{{ shelf.name }}</td>
+                  <td class="shelf-id-cell">{{ shelf.id }}</td>
+                  <td v-if="isDesktopEnv" class="shelf-action-cell">
+                    <button
+                      type="button"
+                      class="shelf-modify-btn"
+                      :disabled="removingShelfIDs.has(shelf.id)"
+                      @click="requestModifyShelf(shelf)"
+                    >
+                      {{ t('settings.shelves.modify') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="shelf-remove-btn"
+                      :disabled="removingShelfIDs.has(shelf.id)"
+                      @click="requestRemoveShelf(shelf)"
+                    >
+                      {{ t('settings.shelves.remove') }}
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </template>
+
+          <div v-if="isDesktopEnv" class="shelf-add-row">
+            <button
+              type="button"
+              class="shelf-add-toggle"
+              :disabled="addingShelf"
+              @click="openAddShelfModal"
+            >
+              {{ t('settings.shelves.addShelf') }}
+            </button>
+          </div>
+        </section>
+      </TabsContent>
+    </TabsRoot>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 import ConfirmModal from '../components/ConfirmModal.vue';
 import DeleteModal from '../components/DeleteModal.vue';
 import {
@@ -581,6 +599,46 @@ onMounted(() => {
 
 .settings-message-error {
   color: #b91c1c;
+}
+
+.settings-tabs {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-tabs-list {
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 4px;
+}
+
+.settings-tab-trigger {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  color: #475569;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: -1px;
+  padding: 8px 14px;
+}
+
+.settings-tab-trigger:hover {
+  color: #1e293b;
+}
+
+.settings-tab-trigger[data-state='active'] {
+  background: var(--surface, #fff);
+  border-color: var(--border);
+  color: #1e293b;
+}
+
+.settings-tab-content {
+  display: grid;
+  gap: 16px;
 }
 
 .settings-group {
