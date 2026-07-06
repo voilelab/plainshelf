@@ -24,66 +24,61 @@
       :model-value="selectedTreeNode"
       v-model:expanded="expanded"
     >
-      <TreeItem
-        v-for="item in flattenItems"
-        :key="item._id"
-        v-slot="{ isExpanded, handleToggle }"
-        v-bind="item.bind"
-        as="div"
-        class="sidebar-nav-item layer-node"
-        :class="{ active: isSelected(item.value), 'drop-target': dropTargetPath === item.value.path }"
-        :style="{ paddingLeft: `calc(8px + ${(item.level - 1) * 14}px)` }"
-        :draggable="canDragLayer(item.value)"
-        @dragstart="(event: DragEvent) => onDragStart(event, item.value)"
-        @drag="onDrag"
-        @dragend="() => onDragEnd(item.value)"
-        @dragover.prevent="onDrag"
-        @dragenter.prevent="() => onDragEnter(item.value)"
-        @dragleave="(event: DragEvent) => onDragLeave(event, item.value)"
-        @drop="(event: DragEvent) => onDrop(event, item.value)"
-        @select="() => emit('select', item.value.path)"
-      >
-        <button
-          v-if="hasChildren(item.value)"
-          type="button"
-          class="tree-toggle"
-          :aria-label="isExpanded ? 'Collapse layer' : 'Expand layer'"
-          @click.stop="handleToggle"
-        >
-          {{ isExpanded ? '▼' : '▶' }}
-        </button>
-        <span v-else class="tree-toggle-placeholder" aria-hidden="true"></span>
+      <ContextMenuRoot v-for="item in flattenItems" :key="item._id">
+        <ContextMenuTrigger as-child :disabled="readOnly || !canManageLayer(item.value)">
+          <TreeItem
+            v-slot="{ isExpanded, handleToggle }"
+            v-bind="item.bind"
+            as="div"
+            class="sidebar-nav-item layer-node"
+            :class="{ active: isSelected(item.value), 'drop-target': dropTargetPath === item.value.path }"
+            :style="{ paddingLeft: `calc(8px + ${(item.level - 1) * 14}px)` }"
+            :draggable="canDragLayer(item.value)"
+            @dragstart="(event: DragEvent) => onDragStart(event, item.value)"
+            @drag="onDrag"
+            @dragend="() => onDragEnd(item.value)"
+            @dragover.prevent="onDrag"
+            @dragenter.prevent="() => onDragEnter(item.value)"
+            @dragleave="(event: DragEvent) => onDragLeave(event, item.value)"
+            @drop="(event: DragEvent) => onDrop(event, item.value)"
+            @select="() => emit('select', item.value.path)"
+          >
+            <button
+              v-if="hasChildren(item.value)"
+              type="button"
+              class="tree-toggle"
+              :aria-label="isExpanded ? 'Collapse layer' : 'Expand layer'"
+              @click.stop="handleToggle"
+            >
+              {{ isExpanded ? '▼' : '▶' }}
+            </button>
+            <span v-else class="tree-toggle-placeholder" aria-hidden="true"></span>
 
-        <button
-          type="button"
-          class="sidebar-nav-item-label"
-          @click.stop="emit('select', item.value.path)"
-        >
-          {{ item.value.name }}
-        </button>
-        <span class="sidebar-nav-count">{{ layerBookCount(item.value) }}</span>
-        <button
-          v-if="canManageLayer(item.value) && !readOnly"
-          type="button"
-          class="layer-action-btn"
-          :title="t('layout.renameLayer.action')"
-          :aria-label="t('layout.renameLayer.action')"
-          @click.stop="emit('rename-layer', item.value.path)"
-        >
-          {{ t('layout.renameLayer.shortAction') }}
-        </button>
-        <button
-          v-if="showDeleteButton(item.value)"
-          type="button"
-          class="layer-action-btn"
-          :title="t('layout.deleteLayer.action')"
-          :aria-label="t('layout.deleteLayer.action')"
-          :disabled="isDeleting(item.value)"
-          @click.stop="onDeleteLayer(item.value)"
-        >
-          {{ t('layout.deleteLayer.shortAction') }}
-        </button>
-      </TreeItem>
+            <button
+              type="button"
+              class="sidebar-nav-item-label"
+              @click.stop="emit('select', item.value.path)"
+            >
+              {{ item.value.name }}
+            </button>
+            <span class="sidebar-nav-count">{{ layerBookCount(item.value) }}</span>
+          </TreeItem>
+        </ContextMenuTrigger>
+        <ContextMenuPortal>
+          <ContextMenuContent class="reka-menu">
+            <ContextMenuItem
+              class="reka-menu-item"
+              @select="emit('rename-layer', item.value.path)"
+            >{{ t('layout.renameLayer.shortAction') }}</ContextMenuItem>
+            <ContextMenuItem
+              v-if="showDeleteButton(item.value)"
+              class="reka-menu-item danger"
+              :disabled="isDeleting(item.value)"
+              @select="onDeleteLayer(item.value)"
+            >{{ t('layout.deleteLayer.shortAction') }}</ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenuPortal>
+      </ContextMenuRoot>
     </TreeRoot>
 
     <div
@@ -99,7 +94,15 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { TreeItem, TreeRoot } from 'reka-ui';
+import {
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuPortal,
+  ContextMenuRoot,
+  ContextMenuTrigger,
+  TreeItem,
+  TreeRoot
+} from 'reka-ui';
 import { useBookStore } from '../composables/useBookStore';
 import { useI18n } from '../i18n';
 import { getLayerPath } from '../utils/layers';
@@ -422,32 +425,6 @@ watch(
 
 .tree-toggle:hover {
   background: #e6edf8;
-}
-
-.layer-action-btn {
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  color: #94a3b8;
-  cursor: pointer;
-  flex: 0 0 auto;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1;
-  padding: 3px 6px;
-  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
-}
-
-.layer-action-btn:hover,
-.layer-action-btn:focus-visible {
-  background: #fff1f2;
-  border-color: #fecdd3;
-  color: #b91c1c;
-}
-
-.layer-action-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
 }
 
 .layer-drag-preview {

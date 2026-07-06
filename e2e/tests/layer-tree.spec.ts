@@ -6,6 +6,7 @@ import {
   emptyDataTransfer,
   layerRow,
   layersQueryRegex,
+  openLayerContextMenu,
   selectAllBooks,
   selectLayer,
   switchToCardView
@@ -75,7 +76,8 @@ test('renames a layer, updating the tree and the active URL filter', async ({ pa
     await selectLayer(page, 'temp');
     await expect(page).toHaveURL(layersQueryRegex('temp'));
 
-    await layerRow(page, 'temp').getByRole('button', { name: 'Rename layer', exact: true }).click();
+    await openLayerContextMenu(page, 'temp');
+    await page.getByRole('menuitem', { name: 'Rename', exact: true }).click();
     const renameDialog = page.getByRole('dialog', { name: 'Rename layer' });
     await expect(renameDialog).toBeVisible();
     await renameDialog.getByLabel('Layer name').fill('renamed');
@@ -100,14 +102,14 @@ test('only offers Delete for empty layers, and deleting removes it from the tree
     await selectLayer(page, 'withbook');
     await importBookFromPath(page, helloFixturePath);
 
-    const withBookRow = layerRow(page, 'withbook');
-    await expect(withBookRow.getByRole('button', { name: 'Delete empty layer', exact: true })).toHaveCount(0);
+    await openLayerContextMenu(page, 'withbook');
+    await expect(page.getByRole('menuitem', { name: 'Rename', exact: true })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Delete', exact: true })).toHaveCount(0);
+    await page.keyboard.press('Escape');
 
     await addLayer(page, 'removable');
-    const removableRow = layerRow(page, 'removable');
-    const deleteButton = removableRow.getByRole('button', { name: 'Delete empty layer', exact: true });
-    await expect(deleteButton).toBeVisible();
-    await deleteButton.click();
+    await openLayerContextMenu(page, 'removable');
+    await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
 
     const deleteDialog = page.getByRole('dialog', { name: 'Delete layer' });
     await expect(deleteDialog).toBeVisible();

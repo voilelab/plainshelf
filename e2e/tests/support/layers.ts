@@ -34,6 +34,11 @@ export async function selectLayer(page: Page, name: string): Promise<void> {
   await layerRow(page, name).getByRole('button', { name, exact: true }).click();
 }
 
+/** Right-clicks a layer node's row to open its context menu (rename/delete). */
+export async function openLayerContextMenu(page: Page, name: string): Promise<void> {
+  await layerRow(page, name).click({ button: 'right' });
+}
+
 /**
  * Clicks the fixed "All books" row in the layer tree sidebar to clear the
  * active layer filter. Scoped to the "Layers" nav because the library page

@@ -260,6 +260,14 @@ a {
   outline: none;
 }
 
+.reka-menu-item.danger {
+  color: var(--danger);
+}
+
+.reka-menu-item.danger[data-highlighted] {
+  background: #fff1f2;
+}
+
 /* Shared reka-ui Tooltip content styling. Same popper-portal caveat as
    .reka-menu above: TooltipContent is teleported and wrapped, so a
    consumer's `scoped` attribute never reaches it — keep this global. */

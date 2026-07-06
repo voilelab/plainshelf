@@ -40,14 +40,12 @@ const zhHant = {
     },
     deleteLayer: {
       title: '刪除圖層',
-      action: '刪除空圖層',
       shortAction: '刪除',
       description: '若圖層內仍有書籍或子圖層，刪除會失敗。',
       failed: '刪除圖層失敗',
       notEmpty: '此圖層尚未清空，無法刪除。\n請先移出書籍並刪除子圖層。'
     },
     renameLayer: {
-      action: '重新命名圖層',
       shortAction: '改名',
       title: '重新命名圖層',
       nameLabel: '圖層名稱',
