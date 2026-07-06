@@ -40,7 +40,6 @@ const en = {
     },
     deleteLayer: {
       title: 'Delete layer',
-      action: 'Delete empty layer',
       shortAction: 'Delete',
       description: 'This will fail if the layer contains books or child layers.',
       failed: 'Failed to delete layer',
@@ -48,7 +47,6 @@ const en = {
         'Cannot delete this layer because it is not empty.\nMove books out and delete child layers first.'
     },
     renameLayer: {
-      action: 'Rename layer',
       shortAction: 'Rename',
       title: 'Rename layer',
       nameLabel: 'Layer name',
