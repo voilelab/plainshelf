@@ -84,8 +84,8 @@ const downloadError = ref('');
 const openingFolder = ref(false);
 const openFolderError = ref('');
 const { readOnly } = useServerMode();
-const provider = getBookshelfProvider();
-const canOpenDesktopBookFolder = Boolean(provider.openDesktopBookFolder);
+const provider = computed(() => getBookshelfProvider());
+const canOpenDesktopBookFolder = computed(() => Boolean(provider.value.openDesktopBookFolder));
 
 const {
   book,
@@ -139,7 +139,7 @@ async function downloadBook(): Promise<void> {
   downloadError.value = '';
 
   try {
-    const blob = await provider.downloadBookContent(id.value);
+    const blob = await provider.value.downloadBookContent(id.value);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -161,14 +161,14 @@ function dismissDownloadError(): void {
 }
 
 async function openBookFolder(): Promise<void> {
-  if (openingFolder.value || !provider.openDesktopBookFolder) {
+  if (openingFolder.value) {
     return;
   }
 
   openingFolder.value = true;
   openFolderError.value = '';
   try {
-    await provider.openDesktopBookFolder(id.value);
+    await provider.value.openDesktopBookFolder?.(id.value);
   } catch (err) {
     openFolderError.value = err instanceof Error ? err.message : 'Failed to open book folder';
   } finally {

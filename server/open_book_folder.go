@@ -28,11 +28,12 @@ func (app *App) OpenBookFolder(shelfID, bookID string) error {
 
 	book, err := shelfData.GetBook(targetBookID)
 	if err != nil {
-		return util.Errorf("%w", err)
+		return util.Errorf("getting book %q: %w", targetBookID, err)
 	}
 
-	if err := openFinder(book.FolderPath()); err != nil {
-		return util.Errorf("%w", err)
+	bookFolderPath := book.FolderPath()
+	if err := openFinder(bookFolderPath); err != nil {
+		return util.Errorf("opening book folder %q: %w", bookFolderPath, err)
 	}
 
 	return nil

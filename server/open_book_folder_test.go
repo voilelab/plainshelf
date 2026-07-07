@@ -11,13 +11,13 @@ func TestOpenBookFolder(t *testing.T) {
 
 	openedPath := ""
 	restore := openFinder
+	defer func() {
+		openFinder = restore
+	}()
 	openFinder = func(path string) error {
 		openedPath = path
 		return nil
 	}
-	defer func() {
-		openFinder = restore
-	}()
 
 	if err := env.app.OpenBookFolder("default_shelf", created.Meta.ID); err != nil {
 		t.Fatalf("OpenBookFolder: %v", err)

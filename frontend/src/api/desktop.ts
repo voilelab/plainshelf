@@ -56,12 +56,12 @@ export async function openDesktopBookFiles(): Promise<string[] | null> {
 
 export async function openDesktopBookFolder(bookID: string): Promise<void> {
   if (!isDesktopRuntime()) {
-    return;
+    throw new Error('OpenBookFolder is only available in desktop runtime');
   }
 
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
   if (!desktopApp?.OpenBookFolder) {
-    return;
+    throw new Error('OpenBookFolder binding not available');
   }
 
   await desktopApp.OpenBookFolder(getActiveShelfID(), bookID);

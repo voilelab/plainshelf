@@ -17,8 +17,8 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
     return openDesktopBookFiles();
   }
 
-  openDesktopBookFolder(bookId: string): Promise<void> {
-    return openDesktopBookFolder(bookId);
+  openDesktopBookFolder(bookID: string): Promise<void> {
+    return openDesktopBookFolder(bookID);
   }
 
   importBooksFromLocalPaths(
