@@ -211,7 +211,8 @@ func resolveDesktopLayerDirectory(libRoot string, layerParts []string) (string, 
 	}
 
 	booksRoot := filepath.Clean(filepath.Join(normalizedRoot, "books"))
-	targetDir := filepath.Clean(filepath.Join(append([]string{booksRoot}, layerParts...)...))
+	targetPathParts := append([]string{booksRoot}, layerParts...)
+	targetDir := filepath.Clean(filepath.Join(targetPathParts...))
 
 	relPath, err := filepath.Rel(booksRoot, targetDir)
 	if err != nil {
@@ -246,6 +247,9 @@ func (a *DesktopApp) OpenLayerDirectory(shelfID string, layerParts []string) err
 		return util.Errorf("shelf with ID %q not found", shelfID)
 	}
 
+	// normalizeLayerParts trims user-provided segments and drops empty entries;
+	// resolveDesktopLayerDirectory then enforces that the final path stays under
+	// <shelf>/books.
 	targetDir, err := resolveDesktopLayerDirectory(libRoot, normalizeLayerParts(layerParts))
 	if err != nil {
 		return util.Errorf("%w", err)

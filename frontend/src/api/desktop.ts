@@ -90,6 +90,8 @@ export async function openDesktopLayerFolder(layerPath: string): Promise<void> {
     return;
   }
 
+  // normalizeLayerParts splits by '/', trims each segment, and drops empties
+  // before passing the layer path into the desktop binding.
   await desktopApp.OpenLayerDirectory(getActiveShelfID(), normalizeLayerParts(layerPath));
 }
 
