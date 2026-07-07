@@ -123,15 +123,21 @@ async function downloadBook(): Promise<void> {
   downloadError.value = '';
 
   try {
-    const blob = await getBookshelfProvider().downloadBookContent(id.value);
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = formatDownloadFilename();
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+    const provider = getBookshelfProvider();
+
+    if (provider.saveBookContentToFile) {
+      await provider.saveBookContentToFile(id.value, formatDownloadFilename());
+    } else {
+      const blob = await provider.downloadBookContent(id.value);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = formatDownloadFilename();
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }
     downloadError.value = '';
   } catch (err) {
     downloadError.value = err instanceof Error ? err.message : 'Failed to download book';

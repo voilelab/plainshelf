@@ -72,4 +72,5 @@ export interface BookshelfProvider {
   removeDesktopShelf?(shelfID: string): Promise<void>;
   getDesktopShelfDetails?(shelfID: string): Promise<DesktopShelfDetails>;
   modifyDesktopShelf?(shelfID: string, name: string, scanInterval: string): Promise<void>;
+  saveBookContentToFile?(bookId: string, suggestedName: string): Promise<void>;
 }

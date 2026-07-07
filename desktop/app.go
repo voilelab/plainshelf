@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -112,6 +114,45 @@ func (a *DesktopApp) OpenBookFiles() ([]string, error) {
 		return nil, util.Errorf("%w", err)
 	}
 	return normalizeSelectedLocalPaths(paths), nil
+}
+
+func (a *DesktopApp) SaveBookContent(shelfID, bookID, suggestedName string) error {
+	if a.ctx == nil {
+		return util.NewError("desktop context not ready")
+	}
+
+	savePath, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
+		DefaultFilename: suggestedName,
+		Title:           "Save book",
+		Filters: []wailsruntime.FileFilter{
+			{
+				DisplayName: "Text Files (*.txt)",
+				Pattern:     "*.txt",
+			},
+		},
+	})
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	if savePath == "" {
+		return nil // user cancelled
+	}
+
+	apiPath := "/api/shelves/" + url.PathEscape(shelfID) + "/books/" + url.PathEscape(bookID) + "/content"
+	req := httptest.NewRequest(http.MethodGet, apiPath, nil).WithContext(a.ctx)
+
+	rec := httptest.NewRecorder()
+	a.GetAPIHandler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		return util.Errorf("fetching book content: HTTP %d", rec.Code)
+	}
+
+	if err := os.WriteFile(savePath, rec.Body.Bytes(), 0o644); err != nil {
+		return util.Errorf("writing file: %w", err)
+	}
+
+	return nil
 }
 
 func bookOpenDialogOptions() wailsruntime.OpenDialogOptions {
