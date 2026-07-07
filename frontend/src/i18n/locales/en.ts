@@ -61,6 +61,10 @@ const en = {
     moveLayer: {
       failed: 'Failed to move layer. Drag a layer onto an existing target layer.'
     },
+    openLayerFolder: {
+      shortAction: 'Open folder',
+      failed: 'Failed to open layer folder.'
+    },
     layerErrors: {
       emptyPath: 'Layer path cannot be empty',
       createFailed: 'Failed to create layer'
