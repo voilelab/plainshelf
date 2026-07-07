@@ -10,37 +10,24 @@
           @dragstart="onDragStart($event, book)"
           @dragend="onDragEnd"
         >
-      <img :src="coverSrc(book)" :alt="book.title" class="book-card-cover" @error="onCoverError(book.id)" />
+          <img :src="coverSrc(book)" :alt="book.title" class="book-card-cover" @error="onCoverError(book.id)" />
 
-      <div class="book-card-body">
-        <p class="book-card-layer">{{ layerLabel(book) }}</p>
-        <h3 class="book-card-title">{{ book.title }}</h3>
-        <p class="book-card-summary">{{ summaryText(book) }}</p>
-        <p class="book-card-meta">
-          <span v-if="book.authors?.length">{{ book.authors[0] }}</span>
-          <span v-if="book.language">{{ book.language.toUpperCase() }}</span>
-          <span>{{ primaryDateLabel(book) }}</span>
-        </p>
-        <div v-if="showEditAction" class="book-card-actions">
-          <button
-            type="button"
-            class="book-card-edit"
-            @click.stop="emit('edit', book.id)"
-          >
-            Edit
-          </button>
-        </div>
-      </div>
+          <div class="book-card-body">
+            <p class="book-card-layer">{{ layerLabel(book) }}</p>
+            <h3 class="book-card-title">{{ book.title }}</h3>
+            <p class="book-card-summary">{{ summaryText(book) }}</p>
+            <p class="book-card-meta">
+              <span v-if="book.authors?.length">{{ book.authors[0] }}</span>
+              <span v-if="book.language">{{ book.language.toUpperCase() }}</span>
+              <span>{{ primaryDateLabel(book) }}</span>
+            </p>
+          </div>
         </article>
       </ContextMenuTrigger>
 
       <ContextMenuPortal>
-        <ContextMenuContent class="reka-menu book-context-menu" :side-offset="6">
-          <ContextMenuItem class="reka-menu-item" @select="emit('select', book.id)">
-            Open
-          </ContextMenuItem>
+        <ContextMenuContent v-if="showEditAction" class="reka-menu book-context-menu" :side-offset="6">
           <ContextMenuItem
-            v-if="showEditAction"
             class="reka-menu-item"
             @select="emit('edit', book.id)"
           >
@@ -266,25 +253,6 @@ onBeforeUnmount(() => {
 .book-card-meta span:not(:last-child)::after {
   content: '·';
   margin-left: 8px;
-}
-
-.book-card-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.book-card-edit {
-  background: #f4f7fb;
-  border: 1px solid #d5dfeb;
-  border-radius: 8px;
-  color: inherit;
-  cursor: pointer;
-  font-size: 12px;
-  padding: 4px 10px;
-}
-
-.book-card-edit:hover {
-  background: #e9f1fb;
 }
 
 @media (max-width: 760px) {

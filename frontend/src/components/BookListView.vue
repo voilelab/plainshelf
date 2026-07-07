@@ -6,42 +6,28 @@
           class="book-list-row panel"
           @click="emit('select', book.id)"
         >
-      <img :src="coverSrc(book)" :alt="book.title" class="book-list-cover" @error="onCoverError(book.id)" />
+          <img :src="coverSrc(book)" :alt="book.title" class="book-list-cover" @error="onCoverError(book.id)" />
 
-      <div class="book-list-main">
-        <div class="book-list-head">
-          <h3 class="book-list-title">{{ book.title }}</h3>
-          <div class="book-list-head-actions">
-            <p class="book-list-layer">{{ layerLabel(book) }}</p>
-            <button
-              v-if="showEditAction"
-              type="button"
-              class="book-list-edit"
-              @click.stop="emit('edit', book.id)"
-            >
-              Edit
-            </button>
+          <div class="book-list-main">
+            <div class="book-list-head">
+              <h3 class="book-list-title">{{ book.title }}</h3>
+              <p class="book-list-layer">{{ layerLabel(book) }}</p>
+            </div>
+
+            <p v-if="book.comment?.trim()" class="book-list-comment">{{ book.comment }}</p>
+
+            <p class="book-list-meta">
+              <span v-if="book.authors?.length">{{ book.authors.join(', ') }}</span>
+              <span v-if="book.language">{{ book.language.toUpperCase() }}</span>
+              <span>{{ primaryDateLabel(book) }}</span>
+            </p>
           </div>
-        </div>
-
-        <p v-if="book.comment?.trim()" class="book-list-comment">{{ book.comment }}</p>
-
-        <p class="book-list-meta">
-          <span v-if="book.authors?.length">{{ book.authors.join(', ') }}</span>
-          <span v-if="book.language">{{ book.language.toUpperCase() }}</span>
-          <span>{{ primaryDateLabel(book) }}</span>
-        </p>
-      </div>
         </article>
       </ContextMenuTrigger>
 
       <ContextMenuPortal>
-        <ContextMenuContent class="reka-menu book-context-menu" :side-offset="6">
-          <ContextMenuItem class="reka-menu-item" @select="emit('select', book.id)">
-            Open
-          </ContextMenuItem>
+        <ContextMenuContent v-if="showEditAction" class="reka-menu book-context-menu" :side-offset="6">
           <ContextMenuItem
-            v-if="showEditAction"
             class="reka-menu-item"
             @select="emit('edit', book.id)"
           >
@@ -157,12 +143,6 @@ function primaryDateLabel(book: Book): string {
   justify-content: space-between;
 }
 
-.book-list-head-actions {
-  align-items: center;
-  display: inline-flex;
-  gap: 8px;
-}
-
 .book-list-title {
   margin: 0;
   font-size: 15px;
@@ -176,20 +156,6 @@ function primaryDateLabel(book: Book): string {
   font-size: 12px;
   margin: 1px 0 0;
   text-align: right;
-}
-
-.book-list-edit {
-  background: #f4f7fb;
-  border: 1px solid #d5dfeb;
-  border-radius: 8px;
-  color: inherit;
-  cursor: pointer;
-  font-size: 12px;
-  padding: 2px 8px;
-}
-
-.book-list-edit:hover {
-  background: #e9f1fb;
 }
 
 .book-list-comment {
@@ -230,11 +196,6 @@ function primaryDateLabel(book: Book): string {
   .book-list-head {
     flex-direction: column;
     gap: 4px;
-  }
-
-  .book-list-head-actions {
-    width: 100%;
-    justify-content: space-between;
   }
 
   .book-list-layer {
