@@ -26,6 +26,7 @@ interface DesktopAppBinding {
   RemoveShelf?: (shelfID: string) => Promise<void>;
   GetShelfDetails?: (shelfID: string) => Promise<DesktopShelfDetails>;
   ModifyShelf?: (shelfID: string, name: string, scanInterval: string) => Promise<void>;
+  SaveBookContent?: (shelfID: string, bookID: string, suggestedName: string) => Promise<void>;
 }
 
 interface DesktopWindow extends Window {
@@ -133,4 +134,17 @@ export async function importDesktopBooksFromLocalPaths(
     localPaths,
     normalizeLayerParts(layerPath)
   );
+}
+
+export async function saveDesktopBookContent(
+  shelfID: string,
+  bookID: string,
+  suggestedName: string
+): Promise<void> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.SaveBookContent) {
+    throw new Error('SaveBookContent binding not available');
+  }
+
+  await desktopApp.SaveBookContent(shelfID, bookID, suggestedName);
 }
