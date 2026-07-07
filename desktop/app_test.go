@@ -15,8 +15,8 @@ func TestBookOpenDialogOptions(t *testing.T) {
 	}
 
 	filter := options.Filters[0]
-	if filter.Pattern != "*.txt" {
-		t.Fatalf("expected txt-only filter pattern, got %q", filter.Pattern)
+	if filter.Pattern != "*.txt;*.md" {
+		t.Fatalf("expected txt+md filter pattern, got %q", filter.Pattern)
 	}
 }
 
