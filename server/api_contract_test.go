@@ -543,6 +543,11 @@ func TestAPIImportMarkdownBookContract(t *testing.T) {
 		t.Fatalf("unexpected imported book meta: %#v", withNoContentType.Meta)
 	}
 
+	withXMarkdownContentType := importFileBook(t, env, "legacy-notes.md", "text/x-markdown; charset=utf-8", "# Notes\n\nhello markdown")
+	if withXMarkdownContentType.Meta == nil || withXMarkdownContentType.Meta.Format != "md" {
+		t.Fatalf("unexpected imported book meta: %#v", withXMarkdownContentType.Meta)
+	}
+
 	// A plain .txt import must still be recognized as "txt" format.
 	txtBook := importTextBook(t, env, "Plain Text", "", "plain.txt", "hello world")
 	if txtBook.Meta == nil || txtBook.Meta.Format != "txt" {

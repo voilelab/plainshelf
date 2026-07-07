@@ -17,6 +17,7 @@ const maxImportBodySize = 100 << 20 // 100 MB
 
 const importTextMediaType = "text/plain"
 const importMarkdownMediaType = "text/markdown"
+const importXMarkdownMediaType = "text/x-markdown"
 const importOctetStreamMediaType = "application/octet-stream"
 
 func parseImportLayerParts(rawLayer string) []string {
@@ -99,7 +100,7 @@ func validateImportFileHeader(header *multipart.FileHeader) error {
 		return util.NewError("book file content type must be text/markdown or text/plain")
 	}
 	switch strings.ToLower(mediaType) {
-	case importTextMediaType, importMarkdownMediaType, importOctetStreamMediaType:
+	case importTextMediaType, importMarkdownMediaType, importXMarkdownMediaType, importOctetStreamMediaType:
 		return nil
 	default:
 		return util.NewError("book file content type must be text/markdown or text/plain")
