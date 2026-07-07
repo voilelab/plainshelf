@@ -1,57 +1,100 @@
 <template>
   <div class="book-card-grid">
-    <article
-      v-for="book in books"
-      :key="book.id"
-      class="book-card-view panel"
-      :class="{ 'is-dragging': draggingBookId === book.id }"
-      draggable="true"
-      @click="emit('select', book.id)"
-      @dragstart="onDragStart($event, book)"
-      @dragend="onDragEnd"
-    >
-      <img :src="coverSrc(book)" :alt="book.title" class="book-card-cover" @error="onCoverError(book.id)" />
+    <ContextMenuRoot v-for="book in books" :key="book.id">
+      <ContextMenuTrigger as-child>
+        <article
+          class="book-card-view panel"
+          :class="{ 'is-dragging': draggingBookId === book.id }"
+          draggable="true"
+          @click="emit('select', book.id)"
+          @dragstart="onDragStart($event, book)"
+          @dragend="onDragEnd"
+        >
+          <img :src="coverSrc(book)" :alt="book.title" class="book-card-cover" @error="onCoverError(book.id)" />
 
-      <div class="book-card-body">
-        <p class="book-card-layer">{{ layerLabel(book) }}</p>
-        <h3 class="book-card-title">{{ book.title }}</h3>
-        <p class="book-card-summary">{{ summaryText(book) }}</p>
-        <p class="book-card-meta">
-          <span v-if="book.authors?.length">{{ book.authors[0] }}</span>
-          <span v-if="book.language">{{ book.language.toUpperCase() }}</span>
-          <span>{{ primaryDateLabel(book) }}</span>
-        </p>
-        <div v-if="showEditAction" class="book-card-actions">
-          <button
-            type="button"
-            class="book-card-edit"
-            @click.stop="emit('edit', book.id)"
+          <div class="book-card-body">
+            <p class="book-card-layer">{{ layerLabel(book) }}</p>
+            <h3 class="book-card-title">{{ book.title }}</h3>
+            <p class="book-card-summary">{{ summaryText(book) }}</p>
+            <p class="book-card-meta">
+              <span v-if="book.authors?.length">{{ book.authors[0] }}</span>
+              <span v-if="book.language">{{ book.language.toUpperCase() }}</span>
+              <span>{{ primaryDateLabel(book) }}</span>
+            </p>
+          </div>
+        </article>
+      </ContextMenuTrigger>
+      <ContextMenuPortal>
+        <ContextMenuContent class="reka-menu">
+          <ContextMenuItem class="reka-menu-item" @select="emit('read', book.id)">
+            {{ t('bookCollection.contextMenu.read') }}
+          </ContextMenuItem>
+          <ContextMenuItem class="reka-menu-item" @select="emit('select', book.id)">
+            {{ t('bookCollection.contextMenu.openDetail') }}
+          </ContextMenuItem>
+          <ContextMenuItem
+            v-if="canOpenBookFolder"
+            class="reka-menu-item"
+            @select="emit('open-book-folder', book.id)"
           >
-            Edit
-          </button>
-        </div>
-      </div>
-    </article>
+            {{ t('bookCollection.contextMenu.openBookFolder') }}
+          </ContextMenuItem>
+          <ContextMenuItem class="reka-menu-item" @select="emit('download', book.id)">
+            {{ t('bookCollection.contextMenu.download') }}
+          </ContextMenuItem>
+          <ContextMenuItem
+            v-if="!readOnly"
+            class="reka-menu-item"
+            @select="emit('edit', book.id)"
+          >
+            {{ t('bookCollection.contextMenu.edit') }}
+          </ContextMenuItem>
+          <ContextMenuItem
+            v-if="!readOnly"
+            class="reka-menu-item danger"
+            @select="emit('delete', book.id)"
+          >
+            {{ t('bookCollection.contextMenu.delete') }}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenuPortal>
+    </ContextMenuRoot>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from 'vue';
+import {
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuPortal,
+  ContextMenuRoot,
+  ContextMenuTrigger
+} from 'reka-ui';
 import bookcover from '../assets/bookcover.svg';
 import type { Book } from '../types/book';
 import { getLayerPath, layerPathLabel } from '../utils/layers';
+import { useI18n } from '../i18n';
 
 const props = withDefaults(defineProps<{
   books: Book[];
-  showEditAction?: boolean;
+  canOpenBookFolder?: boolean;
+  readOnly?: boolean;
 }>(), {
-  showEditAction: false
+  canOpenBookFolder: false,
+  readOnly: false
 });
 
 const emit = defineEmits<{
   (event: 'select', id: string): void;
   (event: 'edit', id: string): void;
+  (event: 'read', id: string): void;
+  (event: 'open-book-folder', id: string): void;
+  (event: 'download', id: string): void;
+  (event: 'delete', id: string): void;
 }>();
+
+const { t } = useI18n();
 
 const brokenCoverIds = ref<Record<string, boolean>>({});
 const draggingBookId = ref<string | null>(null);
@@ -242,25 +285,6 @@ onBeforeUnmount(() => {
 .book-card-meta span:not(:last-child)::after {
   content: '·';
   margin-left: 8px;
-}
-
-.book-card-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.book-card-edit {
-  background: #f4f7fb;
-  border: 1px solid #d5dfeb;
-  border-radius: 8px;
-  color: inherit;
-  cursor: pointer;
-  font-size: 12px;
-  padding: 4px 10px;
-}
-
-.book-card-edit:hover {
-  background: #e9f1fb;
 }
 
 @media (max-width: 760px) {
