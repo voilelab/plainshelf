@@ -67,10 +67,12 @@ export interface BookshelfProvider {
   openLocalBookFiles?(): Promise<string[] | null>;
   openDesktopBookFolder?(bookId: string): Promise<void>;
   importBooksFromLocalPaths?(localPaths: string[], layerPath: string): Promise<DesktopImportBookResult[] | null>;
+  openDesktopLayerFolder?(layerPath: string): Promise<void>;
 
   openDesktopShelfDirectory?(): Promise<string | null>;
   addDesktopShelf?(name: string, libRoot: string, scanInterval: string): Promise<void>;
   removeDesktopShelf?(shelfID: string): Promise<void>;
   getDesktopShelfDetails?(shelfID: string): Promise<DesktopShelfDetails>;
   modifyDesktopShelf?(shelfID: string, name: string, scanInterval: string): Promise<void>;
+  saveBookContentToFile?(bookId: string, suggestedName: string): Promise<void>;
 }

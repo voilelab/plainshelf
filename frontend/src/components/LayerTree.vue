@@ -67,6 +67,11 @@
         <ContextMenuPortal>
           <ContextMenuContent class="reka-menu">
             <ContextMenuItem
+              v-if="props.canOpenLayerFolder && canManageLayer(item.value)"
+              class="reka-menu-item"
+              @select="emit('open-layer-folder', item.value.path)"
+            >{{ t('layout.openLayerFolder.shortAction') }}</ContextMenuItem>
+            <ContextMenuItem
               class="reka-menu-item"
               @select="emit('rename-layer', item.value.path)"
             >{{ t('layout.renameLayer.shortAction') }}</ContextMenuItem>
@@ -118,6 +123,7 @@ const props = defineProps<{
   selected: string | undefined;
   deletingMap?: Record<string, boolean>;
   readOnly?: boolean;
+  canOpenLayerFolder?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -125,6 +131,7 @@ const emit = defineEmits<{
   'move-book': [payload: { bookId: string; targetLayer: string }];
   'delete-layer': [path: string];
   'rename-layer': [path: string];
+  'open-layer-folder': [path: string];
   'move-layer': [payload: { layerPath: string; targetLayer: string }];
 }>();
 

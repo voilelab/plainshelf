@@ -5,10 +5,13 @@ import {
   modifyDesktopShelf,
   openDesktopBookFolder,
   openDesktopBookFiles,
+  openDesktopLayerFolder,
   openDesktopShelfDirectory,
-  removeDesktopShelf
+  removeDesktopShelf,
+  saveDesktopBookContent
 } from '../api/desktop';
 import type { DesktopShelfDetails } from '../api/desktop';
+import { getActiveShelfID } from '../api/client';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
 import type { DesktopImportBookResult } from './bookshelfProvider';
 
@@ -26,6 +29,10 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
     layerPath: string
   ): Promise<DesktopImportBookResult[] | null> {
     return importDesktopBooksFromLocalPaths(localPaths, layerPath);
+  }
+
+  openDesktopLayerFolder(layerPath: string): Promise<void> {
+    return openDesktopLayerFolder(layerPath);
   }
 
   openDesktopShelfDirectory(): Promise<string | null> {
@@ -46,5 +53,9 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
 
   modifyDesktopShelf(shelfID: string, name: string, scanInterval: string): Promise<void> {
     return modifyDesktopShelf(shelfID, name, scanInterval);
+  }
+
+  saveBookContentToFile(bookId: string, suggestedName: string): Promise<void> {
+    return saveDesktopBookContent(getActiveShelfID(), bookId, suggestedName);
   }
 }
