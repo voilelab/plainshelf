@@ -57,6 +57,30 @@ type UpdateBookRequest struct {
 	Layers      *shelf.Layers  `json:"layers"`
 }
 
+func (app *App) GetBookFolderPath(shelfID, bookID string) (string, error) {
+	shelfID = strings.TrimSpace(shelfID)
+	if shelfID == "" {
+		return "", util.Errorf("shelf ID cannot be empty")
+	}
+
+	bookID = strings.TrimSpace(bookID)
+	if bookID == "" {
+		return "", util.Errorf("book ID cannot be empty")
+	}
+
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	if !ok {
+		return "", util.Errorf("shelf with ID %q not found", shelfID)
+	}
+
+	book, err := shelfData.GetBook(bookID)
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+
+	return book.FolderPath(), nil
+}
+
 // GET /api/shelves/{shelf_id}/books
 func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
 	searchQuery := strings.TrimSpace(r.URL.Query().Get("search"))

@@ -10,9 +10,9 @@
     />
     <div v-if="showImportedMessage" class="loading">Book imported successfully.</div>
     <div v-if="showSavedMessage" class="loading">Metadata saved.</div>
-    <div v-if="downloadError" class="error detail-error" role="alert">
-      <p>{{ downloadError }}</p>
-      <button class="button" type="button" @click="dismissDownloadError">Dismiss</button>
+    <div v-if="actionError" class="error detail-error" role="alert">
+      <p>{{ actionError }}</p>
+      <button class="button" type="button" @click="dismissActionError">Dismiss</button>
     </div>
     <div v-if="loading" class="loading">Loading book detail...</div>
     <div v-else-if="error" class="error detail-error" role="alert">
@@ -39,6 +39,7 @@
           <button class="button" :disabled="downloading" @click="downloadBook">
             {{ downloading ? 'Downloading...' : 'Download' }}
           </button>
+          <button v-if="canOpenBookFolder" class="button" @click="openBookFolder">Open Folder</button>
           <button v-if="!readOnly" class="button" @click="goEditMetadata">Edit metadata</button>
           <button v-if="!readOnly" class="button" @click="goEditSources">Edit Sources</button>
           <button v-if="!readOnly" class="button danger" :disabled="deleting" @click="confirmDelete">
@@ -68,8 +69,9 @@ const showImportedMessage = computed(() => route.query.imported === '1');
 const showSavedMessage = computed(() => route.query.saved === '1');
 const showDeleteModal = ref(false);
 const downloading = ref(false);
-const downloadError = ref('');
+const actionError = ref('');
 const { readOnly } = useServerMode();
+const canOpenBookFolder = computed(() => Boolean(getBookshelfProvider().openDesktopBookFolder));
 
 const {
   book,
@@ -120,7 +122,7 @@ async function downloadBook(): Promise<void> {
   }
 
   downloading.value = true;
-  downloadError.value = '';
+  actionError.value = '';
 
   try {
     const provider = getBookshelfProvider();
@@ -138,16 +140,25 @@ async function downloadBook(): Promise<void> {
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 5000);
     }
-    downloadError.value = '';
+    actionError.value = '';
   } catch (err) {
-    downloadError.value = err instanceof Error ? err.message : 'Failed to download book';
+    actionError.value = err instanceof Error ? err.message : 'Failed to download book';
   } finally {
     downloading.value = false;
   }
 }
 
-function dismissDownloadError(): void {
-  downloadError.value = '';
+function dismissActionError(): void {
+  actionError.value = '';
+}
+
+async function openBookFolder(): Promise<void> {
+  try {
+    await getBookshelfProvider().openDesktopBookFolder?.(id.value);
+    actionError.value = '';
+  } catch (err) {
+    actionError.value = err instanceof Error ? err.message : 'Failed to open book folder';
+  }
 }
 
 function onCoverChanged(): void {
@@ -170,7 +181,7 @@ async function deleteBook(): Promise<void> {
 }
 
 watch(id, () => {
-  dismissDownloadError();
+  dismissActionError();
   void fetchDetail();
 }, { immediate: true });
 </script>
