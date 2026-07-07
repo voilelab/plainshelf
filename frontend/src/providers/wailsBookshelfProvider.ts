@@ -3,6 +3,7 @@ import {
   getDesktopShelfDetails,
   importDesktopBooksFromLocalPaths,
   modifyDesktopShelf,
+  openDesktopBookFolder,
   openDesktopBookFiles,
   openDesktopShelfDirectory,
   removeDesktopShelf
@@ -14,6 +15,10 @@ import type { DesktopImportBookResult } from './bookshelfProvider';
 export class WailsBookshelfProvider extends ServerBookshelfProvider {
   openLocalBookFiles(): Promise<string[] | null> {
     return openDesktopBookFiles();
+  }
+
+  openDesktopBookFolder(bookId: string): Promise<void> {
+    return openDesktopBookFolder(bookId);
   }
 
   importBooksFromLocalPaths(

@@ -186,6 +186,13 @@ func TestAddShelfDoesNotPersistWhenRegistrationFails(t *testing.T) {
 	}
 }
 
+func TestOpenBookFolderRequiresBackendApp(t *testing.T) {
+	desktopApp := &DesktopApp{}
+	if err := desktopApp.OpenBookFolder("default_shelf", "book-id"); err == nil {
+		t.Fatal("OpenBookFolder with nil backend app: want error, got nil")
+	}
+}
+
 func TestLoadOrMigrateDesktopShelvesSeedsLegacyDefaultShelf(t *testing.T) {
 	dataRoot := t.TempDir()
 	configPath := filepath.Join(dataRoot, "shelves.json")

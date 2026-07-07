@@ -14,6 +14,10 @@
       <p>{{ downloadError }}</p>
       <button class="button" type="button" @click="dismissDownloadError">Dismiss</button>
     </div>
+    <div v-if="openFolderError" class="error detail-error" role="alert">
+      <p>{{ openFolderError }}</p>
+      <button class="button" type="button" @click="dismissOpenFolderError">Dismiss</button>
+    </div>
     <div v-if="loading" class="loading">Loading book detail...</div>
     <div v-else-if="error" class="error detail-error" role="alert">
       <p>{{ error }}</p>
@@ -38,6 +42,14 @@
           <button class="button primary" @click="goRead">Read</button>
           <button class="button" :disabled="downloading" @click="downloadBook">
             {{ downloading ? 'Downloading...' : 'Download' }}
+          </button>
+          <button
+            v-if="canOpenDesktopBookFolder"
+            class="button"
+            :disabled="openingFolder"
+            @click="openBookFolder"
+          >
+            {{ openingFolder ? 'Opening folder...' : 'Open folder' }}
           </button>
           <button v-if="!readOnly" class="button" @click="goEditMetadata">Edit metadata</button>
           <button v-if="!readOnly" class="button" @click="goEditSources">Edit Sources</button>
@@ -69,7 +81,11 @@ const showSavedMessage = computed(() => route.query.saved === '1');
 const showDeleteModal = ref(false);
 const downloading = ref(false);
 const downloadError = ref('');
+const openingFolder = ref(false);
+const openFolderError = ref('');
 const { readOnly } = useServerMode();
+const provider = getBookshelfProvider();
+const canOpenDesktopBookFolder = Boolean(provider.openDesktopBookFolder);
 
 const {
   book,
@@ -123,7 +139,7 @@ async function downloadBook(): Promise<void> {
   downloadError.value = '';
 
   try {
-    const blob = await getBookshelfProvider().downloadBookContent(id.value);
+    const blob = await provider.downloadBookContent(id.value);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -142,6 +158,26 @@ async function downloadBook(): Promise<void> {
 
 function dismissDownloadError(): void {
   downloadError.value = '';
+}
+
+async function openBookFolder(): Promise<void> {
+  if (openingFolder.value || !provider.openDesktopBookFolder) {
+    return;
+  }
+
+  openingFolder.value = true;
+  openFolderError.value = '';
+  try {
+    await provider.openDesktopBookFolder(id.value);
+  } catch (err) {
+    openFolderError.value = err instanceof Error ? err.message : 'Failed to open book folder';
+  } finally {
+    openingFolder.value = false;
+  }
+}
+
+function dismissOpenFolderError(): void {
+  openFolderError.value = '';
 }
 
 function onCoverChanged(): void {
@@ -165,6 +201,7 @@ async function deleteBook(): Promise<void> {
 
 watch(id, () => {
   dismissDownloadError();
+  dismissOpenFolderError();
   void fetchDetail();
 }, { immediate: true });
 </script>

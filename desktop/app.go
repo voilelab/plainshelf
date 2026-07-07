@@ -202,6 +202,17 @@ func (a *DesktopApp) OpenShelfDirectory() (string, error) {
 	return dir, nil
 }
 
+func (a *DesktopApp) OpenBookFolder(shelfID, bookID string) error {
+	if a.app == nil {
+		return util.NewError("desktop backend app instance is nil")
+	}
+
+	if err := a.app.OpenBookFolder(shelfID, bookID); err != nil {
+		return util.Errorf("%w", err)
+	}
+	return nil
+}
+
 func (a *DesktopApp) AddShelf(name, libRoot, scanInterval string) error {
 	if a.app == nil {
 		return util.NewError("desktop backend app instance is nil")

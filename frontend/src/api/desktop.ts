@@ -16,6 +16,7 @@ export interface DesktopShelfDetails {
 
 interface DesktopAppBinding {
   OpenBookFiles?: () => Promise<string[]>;
+  OpenBookFolder?: (shelfID: string, bookID: string) => Promise<void>;
   ImportBooksFromLocalPaths?: (
     shelfID: string,
     localPaths: string[],
@@ -51,6 +52,19 @@ export async function openDesktopBookFiles(): Promise<string[] | null> {
   }
 
   return desktopApp.OpenBookFiles();
+}
+
+export async function openDesktopBookFolder(bookID: string): Promise<void> {
+  if (!isDesktopRuntime()) {
+    return;
+  }
+
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.OpenBookFolder) {
+    return;
+  }
+
+  await desktopApp.OpenBookFolder(getActiveShelfID(), bookID);
 }
 
 function normalizeLayerParts(layerPath: string): string[] {
