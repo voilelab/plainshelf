@@ -1,11 +1,11 @@
 <template>
   <div class="book-list-view">
-    <article
-      v-for="book in books"
-      :key="book.id"
-      class="book-list-row panel"
-      @click="emit('select', book.id)"
-    >
+    <ContextMenuRoot v-for="book in books" :key="book.id">
+      <ContextMenuTrigger as-child>
+        <article
+          class="book-list-row panel"
+          @click="emit('select', book.id)"
+        >
       <img :src="coverSrc(book)" :alt="book.title" class="book-list-cover" @error="onCoverError(book.id)" />
 
       <div class="book-list-main">
@@ -32,12 +32,36 @@
           <span>{{ primaryDateLabel(book) }}</span>
         </p>
       </div>
-    </article>
+        </article>
+      </ContextMenuTrigger>
+
+      <ContextMenuPortal>
+        <ContextMenuContent class="reka-menu book-context-menu" :side-offset="6">
+          <ContextMenuItem class="reka-menu-item" @select="emit('select', book.id)">
+            Open
+          </ContextMenuItem>
+          <ContextMenuItem
+            v-if="showEditAction"
+            class="reka-menu-item"
+            @select="emit('edit', book.id)"
+          >
+            Edit
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenuPortal>
+    </ContextMenuRoot>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import {
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuPortal,
+  ContextMenuRoot,
+  ContextMenuTrigger
+} from 'reka-ui';
 import bookcover from '../assets/bookcover.svg';
 import type { Book } from '../types/book';
 import { getLayerPath, layerPathLabel } from '../utils/layers';

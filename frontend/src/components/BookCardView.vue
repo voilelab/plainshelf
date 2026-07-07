@@ -1,15 +1,15 @@
 <template>
   <div class="book-card-grid">
-    <article
-      v-for="book in books"
-      :key="book.id"
-      class="book-card-view panel"
-      :class="{ 'is-dragging': draggingBookId === book.id }"
-      draggable="true"
-      @click="emit('select', book.id)"
-      @dragstart="onDragStart($event, book)"
-      @dragend="onDragEnd"
-    >
+    <ContextMenuRoot v-for="book in books" :key="book.id">
+      <ContextMenuTrigger as-child>
+        <article
+          class="book-card-view panel"
+          :class="{ 'is-dragging': draggingBookId === book.id }"
+          draggable="true"
+          @click="emit('select', book.id)"
+          @dragstart="onDragStart($event, book)"
+          @dragend="onDragEnd"
+        >
       <img :src="coverSrc(book)" :alt="book.title" class="book-card-cover" @error="onCoverError(book.id)" />
 
       <div class="book-card-body">
@@ -31,12 +31,36 @@
           </button>
         </div>
       </div>
-    </article>
+        </article>
+      </ContextMenuTrigger>
+
+      <ContextMenuPortal>
+        <ContextMenuContent class="reka-menu book-context-menu" :side-offset="6">
+          <ContextMenuItem class="reka-menu-item" @select="emit('select', book.id)">
+            Open
+          </ContextMenuItem>
+          <ContextMenuItem
+            v-if="showEditAction"
+            class="reka-menu-item"
+            @select="emit('edit', book.id)"
+          >
+            Edit
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenuPortal>
+    </ContextMenuRoot>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from 'vue';
+import {
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuPortal,
+  ContextMenuRoot,
+  ContextMenuTrigger
+} from 'reka-ui';
 import bookcover from '../assets/bookcover.svg';
 import type { Book } from '../types/book';
 import { getLayerPath, layerPathLabel } from '../utils/layers';
