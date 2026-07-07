@@ -1,31 +1,52 @@
 <template>
-  <BookCollectionPage
-    :title="heading"
-    :books="visibleBooks"
-    :loading="loading"
-    :error="error"
-    :page="page"
-    :page-size="pageSize"
-    :total="filteredBooks.length"
-    :count="filteredBooks.length"
-    :empty-message="emptyMessage"
-    :show-edit-action="true"
-    :page-size-options="PAGE_SIZE_OPTIONS"
-    @retry="loadBooks"
-    @select="openBook"
-    @edit="openEdit"
-    @update:page="onPageChange"
-    @update:page-size="onPageSizeChange"
-  />
+  <div>
+    <DeleteModal
+      :open="!!deleteTarget"
+      :item-name="deleteTarget?.title || ''"
+      description="The book will be moved to Trash. You can restore it later."
+      :busy="deleting"
+      :error="actionError"
+      @cancel="cancelDelete"
+      @confirm="confirmDelete"
+    />
+    <BookCollectionPage
+      :title="heading"
+      :books="visibleBooks"
+      :loading="loading"
+      :error="error"
+      :page="page"
+      :page-size="pageSize"
+      :total="filteredBooks.length"
+      :count="filteredBooks.length"
+      :empty-message="emptyMessage"
+      :show-edit-action="true"
+      :can-open-book-folder="canOpenBookFolder"
+      :read-only="readOnly"
+      :page-size-options="PAGE_SIZE_OPTIONS"
+      @retry="loadBooks"
+      @select="openBook"
+      @edit="openEdit"
+      @read="goRead"
+      @open-book-folder="onOpenBookFolder"
+      @download="onDownloadBook"
+      @delete="onRequestDeleteBook"
+      @update:page="onPageChange"
+      @update:page-size="onPageSizeChange"
+    />
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BookCollectionPage from '../components/BookCollectionPage.vue';
+import DeleteModal from '../components/DeleteModal.vue';
+import { useBookActions } from '../composables/useBookActions';
 import { useBookStore } from '../composables/useBookStore';
 import { useBookPagination, toSingleQueryValue, toPage } from '../composables/useBookPagination';
+import { useServerMode } from '../composables/useServerMode';
 import { MAINTENANCE_BOOK_FILTERS, type MaintenanceBookFilter } from '../utils/maintenance';
+import type { Book } from '../types/book';
 import { useI18n } from '../i18n';
 
 const props = defineProps<{
@@ -36,6 +57,7 @@ const route = useRoute();
 const router = useRouter();
 const { books, loading, error, fetchBooks } = useBookStore();
 const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
+const { readOnly } = useServerMode();
 const { t } = useI18n();
 
 const filterConfig = computed(() => MAINTENANCE_BOOK_FILTERS[props.filter]);
@@ -100,6 +122,48 @@ function openEdit(id: string): void {
 
 async function loadBooks(): Promise<void> {
   await fetchBooks();
+}
+
+const {
+  canOpenBookFolder,
+  actionError,
+  deleteTarget,
+  deleting,
+  goRead,
+  openBookFolder,
+  downloadBook,
+  requestDelete,
+  cancelDelete,
+  confirmDelete
+} = useBookActions({
+  onDeleted: () => {
+    void loadBooks();
+  }
+});
+
+function findBook(id: string): Book | undefined {
+  return books.value.find((candidate) => candidate.id === id);
+}
+
+function onOpenBookFolder(id: string): void {
+  void openBookFolder(id);
+}
+
+function onDownloadBook(id: string): void {
+  const book = findBook(id);
+  if (book) {
+    void downloadBook(book);
+  }
+}
+
+function onRequestDeleteBook(id: string): void {
+  if (readOnly.value) {
+    return;
+  }
+  const book = findBook(id);
+  if (book) {
+    requestDelete(book);
+  }
 }
 
 watch(

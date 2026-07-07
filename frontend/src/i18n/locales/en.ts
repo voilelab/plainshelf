@@ -229,6 +229,14 @@ const en = {
       list: 'List',
       card: 'Card',
       title: 'Title'
+    },
+    contextMenu: {
+      read: 'Read',
+      openDetail: 'Open Detail',
+      openBookFolder: 'Open Book Folder',
+      download: 'Download',
+      edit: 'Edit',
+      delete: 'Delete'
     }
   },
   pagination: {

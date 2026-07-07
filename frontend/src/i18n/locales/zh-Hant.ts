@@ -228,6 +228,14 @@ const zhHant = {
       list: '列表',
       card: '卡片',
       title: '標題'
+    },
+    contextMenu: {
+      read: '閱讀',
+      openDetail: '開啟詳情',
+      openBookFolder: '開啟書籍資料夾',
+      download: '下載',
+      edit: '編輯',
+      delete: '刪除'
     }
   },
   pagination: {

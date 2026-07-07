@@ -1,12 +1,12 @@
 <template>
   <section class="detail-shell">
     <DeleteModal
-      :open="showDeleteModal"
-      :item-name="book?.title || id"
+      :open="!!deleteTarget"
+      :item-name="deleteTarget?.title || id"
       description="The book will be moved to Trash. You can restore it later."
       :busy="deleting"
-      @cancel="showDeleteModal = false"
-      @confirm="deleteBook"
+      @cancel="cancelDelete"
+      @confirm="confirmDelete"
     />
     <div v-if="showImportedMessage" class="loading">Book imported successfully.</div>
     <div v-if="showSavedMessage" class="loading">Metadata saved.</div>
@@ -35,14 +35,14 @@
       <div>
         <BookDetail :book="book" :progress="progress" :current-source="currentSource" />
         <div class="actions">
-          <button class="button primary" @click="goRead">Read</button>
-          <button class="button" :disabled="downloading" @click="downloadBook">
+          <button class="button primary" @click="goRead(id)">Read</button>
+          <button class="button" :disabled="downloading" @click="downloadBook(book)">
             {{ downloading ? 'Downloading...' : 'Download' }}
           </button>
-          <button v-if="canOpenBookFolder" class="button" @click="openBookFolder">Open Folder</button>
-          <button v-if="!readOnly" class="button" @click="goEditMetadata">Edit metadata</button>
+          <button v-if="canOpenBookFolder" class="button" @click="openBookFolder(id)">Open Folder</button>
+          <button v-if="!readOnly" class="button" @click="goEdit(id)">Edit metadata</button>
           <button v-if="!readOnly" class="button" @click="goEditSources">Edit Sources</button>
-          <button v-if="!readOnly" class="button danger" :disabled="deleting" @click="confirmDelete">
+          <button v-if="!readOnly" class="button danger" :disabled="deleting" @click="onRequestDelete">
             {{ deleting ? 'Moving...' : 'Move to Trash' }}
           </button>
         </div>
@@ -52,12 +52,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BookCover from '../components/BookCover.vue';
 import BookDetail from '../components/BookDetail.vue';
 import DeleteModal from '../components/DeleteModal.vue';
-import { getBookshelfProvider } from '../providers';
+import { useBookActions } from '../composables/useBookActions';
 import { useBookDetail } from '../composables/useBookDetail';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
 import { useServerMode } from '../composables/useServerMode';
@@ -67,11 +67,7 @@ const router = useRouter();
 const id = computed(() => String(route.params.id));
 const showImportedMessage = computed(() => route.query.imported === '1');
 const showSavedMessage = computed(() => route.query.saved === '1');
-const showDeleteModal = ref(false);
-const downloading = ref(false);
-const actionError = ref('');
 const { readOnly } = useServerMode();
-const canOpenBookFolder = computed(() => Boolean(getBookshelfProvider().openDesktopBookFolder));
 
 const {
   book,
@@ -79,23 +75,30 @@ const {
   currentSource: currentSource,
   loading,
   error,
-  deleting,
-  fetchDetail,
-  removeBook
+  fetchDetail
 } = useBookDetail(() => id.value);
 
-useDocumentTitle(() => ['Book', book.value?.title, 'PlainShelf']);
-
-function goRead(): void {
-  void router.push(`/reader/${id.value}`);
-}
-
-function goEditMetadata(): void {
-  if (readOnly.value) {
-    return;
+const {
+  downloading,
+  actionError,
+  deleteTarget,
+  deleting,
+  canOpenBookFolder,
+  goRead,
+  goEdit,
+  openBookFolder,
+  downloadBook,
+  requestDelete,
+  cancelDelete,
+  confirmDelete,
+  dismissActionError
+} = useBookActions({
+  onDeleted: () => {
+    void router.push('/books');
   }
-  void router.push(`/books/${id.value}/edit`);
-}
+});
+
+useDocumentTitle(() => ['Book', book.value?.title, 'PlainShelf']);
 
 function goEditSources(): void {
   if (readOnly.value) {
@@ -104,80 +107,15 @@ function goEditSources(): void {
   void router.push(`/books/${id.value}/sources`);
 }
 
-function sanitizeDownloadName(name: string): string {
-  return name
-    .replace(/[\\/:*?"<>|]+/g, '-')
-    .replace(/\s+/g, ' ')
-    .trim() || 'book';
-}
-
-function formatDownloadFilename(): string {
-  const title = sanitizeDownloadName(book.value?.title || id.value);
-  return `${title}.txt`;
-}
-
-async function downloadBook(): Promise<void> {
-  if (downloading.value) {
-    return;
-  }
-
-  downloading.value = true;
-  actionError.value = '';
-
-  try {
-    const provider = getBookshelfProvider();
-
-    if (provider.saveBookContentToFile) {
-      await provider.saveBookContentToFile(id.value, formatDownloadFilename());
-    } else {
-      const blob = await provider.downloadBookContent(id.value);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = formatDownloadFilename();
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 5000);
-    }
-    actionError.value = '';
-  } catch (err) {
-    actionError.value = err instanceof Error ? err.message : 'Failed to download book';
-  } finally {
-    downloading.value = false;
-  }
-}
-
-function dismissActionError(): void {
-  actionError.value = '';
-}
-
-async function openBookFolder(): Promise<void> {
-  try {
-    await getBookshelfProvider().openDesktopBookFolder?.(id.value);
-    actionError.value = '';
-  } catch (err) {
-    actionError.value = err instanceof Error ? err.message : 'Failed to open book folder';
-  }
-}
-
 function onCoverChanged(): void {
   void fetchDetail();
 }
 
-function confirmDelete(): void {
-  if (readOnly.value) {
+function onRequestDelete(): void {
+  if (readOnly.value || !book.value) {
     return;
   }
-  showDeleteModal.value = true;
-}
-
-async function deleteBook(): Promise<void> {
-  const removed = await removeBook();
-  if (removed) {
-    showDeleteModal.value = false;
-    await router.push('/books');
-  }
+  requestDelete(book.value);
 }
 
 watch(id, () => {

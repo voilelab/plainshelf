@@ -86,9 +86,14 @@
       <BookCardView
         v-else-if="viewMode === 'card'"
         :books="books"
-        :show-edit-action="showEditAction"
+        :can-open-book-folder="canOpenBookFolder"
+        :read-only="readOnly"
         @select="emit('select', $event)"
         @edit="emit('edit', $event)"
+        @read="emit('read', $event)"
+        @open-book-folder="emit('open-book-folder', $event)"
+        @download="emit('download', $event)"
+        @delete="emit('delete', $event)"
       />
 
       <BookTitleView
@@ -148,6 +153,8 @@ const props = withDefaults(defineProps<{
   count?: number;
   filterDescription?: string;
   showEditAction?: boolean;
+  canOpenBookFolder?: boolean;
+  readOnly?: boolean;
   viewModeStorageKey?: string;
   pageSizeOptions?: number[];
 }>(), {
@@ -159,6 +166,8 @@ const props = withDefaults(defineProps<{
   count: undefined,
   filterDescription: '',
   showEditAction: false,
+  canOpenBookFolder: false,
+  readOnly: false,
   viewModeStorageKey: undefined,
   pageSizeOptions: undefined
 });
@@ -167,6 +176,10 @@ const emit = defineEmits<{
   (event: 'retry'): void;
   (event: 'select', id: string): void;
   (event: 'edit', id: string): void;
+  (event: 'read', id: string): void;
+  (event: 'open-book-folder', id: string): void;
+  (event: 'download', id: string): void;
+  (event: 'delete', id: string): void;
   (event: 'update:page', page: number): void;
   (event: 'update:pageSize', size: number): void;
 }>();
