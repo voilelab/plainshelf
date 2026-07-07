@@ -218,3 +218,70 @@ func TestLoadOrMigrateDesktopShelvesSeedsLegacyDefaultShelf(t *testing.T) {
 		t.Fatalf("persisted migrated config = %+v, want %+v", loaded.Shelves, conf.Shelves)
 	}
 }
+
+func TestResolveDesktopLayerDirectory(t *testing.T) {
+	libRoot := filepath.Join(t.TempDir(), "shelf")
+
+	path, err := resolveDesktopLayerDirectory(libRoot, []string{"fiction", "sci-fi"})
+	if err != nil {
+		t.Fatalf("resolveDesktopLayerDirectory returned error: %v", err)
+	}
+	wantPath := filepath.Join(libRoot, "books", "fiction", "sci-fi")
+	if path != wantPath {
+		t.Fatalf("resolved path = %q, want %q", path, wantPath)
+	}
+
+	rootPath, err := resolveDesktopLayerDirectory(libRoot, nil)
+	if err != nil {
+		t.Fatalf("resolve root layer directory returned error: %v", err)
+	}
+	wantRootPath := filepath.Join(libRoot, "books")
+	if rootPath != wantRootPath {
+		t.Fatalf("resolved root path = %q, want %q", rootPath, wantRootPath)
+	}
+}
+
+func TestResolveDesktopLayerDirectoryRejectsTraversal(t *testing.T) {
+	libRoot := filepath.Join(t.TempDir(), "shelf")
+
+	if _, err := resolveDesktopLayerDirectory(libRoot, []string{"..", "outside"}); err == nil {
+		t.Fatal("expected traversal layer path to fail, got nil")
+	}
+}
+
+func TestOpenLayerDirectoryOpensFinderForLayerPath(t *testing.T) {
+	tempDir := t.TempDir()
+	libRoot := filepath.Join(tempDir, "library")
+	layerDir := filepath.Join(libRoot, "books", "fiction", "sci-fi")
+	if err := os.MkdirAll(layerDir, 0o755); err != nil {
+		t.Fatalf("create layer dir: %v", err)
+	}
+
+	configPath := filepath.Join(tempDir, "shelves.json")
+	conf := &desktopShelvesConfig{
+		Shelves: []desktopShelfEntry{
+			{ID: "shelf-1", Name: "Shelf", LibRoot: libRoot},
+		},
+	}
+	if err := saveDesktopShelves(configPath, conf); err != nil {
+		t.Fatalf("saveDesktopShelves: %v", err)
+	}
+
+	app := &DesktopApp{shelvesConfigPath: configPath}
+	var openedPath string
+	originalOpenFinder := openFinder
+	openFinder = func(path string) error {
+		openedPath = path
+		return nil
+	}
+	t.Cleanup(func() {
+		openFinder = originalOpenFinder
+	})
+
+	if err := app.OpenLayerDirectory(" shelf-1 ", []string{" fiction ", "sci-fi "}); err != nil {
+		t.Fatalf("OpenLayerDirectory returned error: %v", err)
+	}
+	if openedPath != layerDir {
+		t.Fatalf("openFinder path = %q, want %q", openedPath, layerDir)
+	}
+}
