@@ -138,7 +138,10 @@ func (a *DesktopApp) SaveBookContent(shelfID, bookID, suggestedName string) erro
 		return nil // user cancelled
 	}
 
-	apiPath := "/api/shelves/" + url.PathEscape(shelfID) + "/books/" + url.PathEscape(bookID) + "/content"
+	apiPath, err := url.JoinPath("/api/shelves", shelfID, "books", bookID, "content")
+	if err != nil {
+		return util.Errorf("building content path: %w", err)
+	}
 	req := httptest.NewRequest(http.MethodGet, apiPath, nil).WithContext(a.ctx)
 
 	rec := httptest.NewRecorder()
@@ -148,7 +151,7 @@ func (a *DesktopApp) SaveBookContent(shelfID, bookID, suggestedName string) erro
 		return util.Errorf("fetching book content: HTTP %d", rec.Code)
 	}
 
-	if err := os.WriteFile(savePath, rec.Body.Bytes(), 0o644); err != nil {
+	if err := os.WriteFile(savePath, rec.Body.Bytes(), 0o600); err != nil {
 		return util.Errorf("writing file: %w", err)
 	}
 
