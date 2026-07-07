@@ -314,6 +314,66 @@ func (a *DesktopApp) OpenLayerDirectory(shelfID string, layerParts []string) err
 	return nil
 }
 
+func (a *DesktopApp) OpenBookDirectory(shelfID, bookID string) error {
+	if a.app == nil {
+		return util.NewError("desktop backend app instance is nil")
+	}
+
+	shelfID = strings.TrimSpace(shelfID)
+	if shelfID == "" {
+		return util.Errorf("shelf ID cannot be empty")
+	}
+
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		return util.Errorf("loading shelf config: %w", err)
+	}
+
+	var libRoot string
+	for _, entry := range conf.Shelves {
+		if entry.ID == shelfID {
+			libRoot = entry.LibRoot
+			break
+		}
+	}
+	if libRoot == "" {
+		return util.Errorf("shelf with ID %q not found", shelfID)
+	}
+
+	relativeBookPath, err := a.app.GetBookFolderPath(shelfID, bookID)
+	if err != nil {
+		return util.Errorf("resolving book directory: %w", err)
+	}
+
+	normalizedRoot, err := normalizeDesktopShelfDirectory(libRoot)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	targetDir := filepath.Clean(filepath.Join(normalizedRoot, filepath.FromSlash(relativeBookPath)))
+
+	relPath, err := filepath.Rel(normalizedRoot, targetDir)
+	if err != nil {
+		return util.Errorf("resolving book directory: %w", err)
+	}
+	if relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
+		return util.Errorf("invalid book path")
+	}
+
+	info, err := os.Stat(targetDir)
+	if err != nil {
+		return util.Errorf("book directory unavailable: %w", err)
+	}
+	if !info.IsDir() {
+		return util.Errorf("book path is not a directory")
+	}
+
+	if err := openFinder(targetDir); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
+}
+
 func (a *DesktopApp) AddShelf(name, libRoot, scanInterval string) error {
 	if a.app == nil {
 		return util.NewError("desktop backend app instance is nil")
