@@ -22,6 +22,7 @@ interface DesktopAppBinding {
     layerParts: string[]
   ) => Promise<DesktopImportBookResult[]>;
   OpenShelfDirectory?: () => Promise<string>;
+  OpenLayerDirectory?: (shelfID: string, layerParts: string[]) => Promise<void>;
   AddShelf?: (name: string, libRoot: string, scanInterval: string) => Promise<void>;
   RemoveShelf?: (shelfID: string) => Promise<void>;
   GetShelfDetails?: (shelfID: string) => Promise<DesktopShelfDetails>;
@@ -77,6 +78,19 @@ export async function openDesktopShelfDirectory(): Promise<string | null> {
 
   const dir = await desktopApp.OpenShelfDirectory();
   return dir || null;
+}
+
+export async function openDesktopLayerFolder(layerPath: string): Promise<void> {
+  if (!isDesktopRuntime()) {
+    return;
+  }
+
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.OpenLayerDirectory) {
+    return;
+  }
+
+  await desktopApp.OpenLayerDirectory(getActiveShelfID(), normalizeLayerParts(layerPath));
 }
 
 export async function addDesktopShelf(name: string, libRoot: string, scanInterval: string): Promise<void> {

@@ -37,6 +37,8 @@ type DesktopShelfDetails struct {
 	ScanInterval string `json:"scan_interval"`
 }
 
+var openFinder = util.OpenFinder
+
 func NewDesktopApp() *DesktopApp {
 	return &DesktopApp{}
 }
@@ -200,6 +202,68 @@ func (a *DesktopApp) OpenShelfDirectory() (string, error) {
 		return "", util.Errorf("%w", err)
 	}
 	return dir, nil
+}
+
+func resolveDesktopLayerDirectory(libRoot string, layerParts []string) (string, error) {
+	normalizedRoot, err := normalizeDesktopShelfDirectory(libRoot)
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+
+	booksRoot := filepath.Clean(filepath.Join(normalizedRoot, "books"))
+	targetDir := filepath.Clean(filepath.Join(append([]string{booksRoot}, layerParts...)...))
+
+	relPath, err := filepath.Rel(booksRoot, targetDir)
+	if err != nil {
+		return "", util.Errorf("resolving layer directory: %w", err)
+	}
+	if relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
+		return "", util.Errorf("invalid layer path")
+	}
+
+	return targetDir, nil
+}
+
+func (a *DesktopApp) OpenLayerDirectory(shelfID string, layerParts []string) error {
+	shelfID = strings.TrimSpace(shelfID)
+	if shelfID == "" {
+		return util.Errorf("shelf ID cannot be empty")
+	}
+
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		return util.Errorf("loading shelf config: %w", err)
+	}
+
+	var libRoot string
+	for _, entry := range conf.Shelves {
+		if entry.ID == shelfID {
+			libRoot = entry.LibRoot
+			break
+		}
+	}
+	if libRoot == "" {
+		return util.Errorf("shelf with ID %q not found", shelfID)
+	}
+
+	targetDir, err := resolveDesktopLayerDirectory(libRoot, normalizeLayerParts(layerParts))
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	info, err := os.Stat(targetDir)
+	if err != nil {
+		return util.Errorf("layer directory unavailable: %w", err)
+	}
+	if !info.IsDir() {
+		return util.Errorf("layer path is not a directory")
+	}
+
+	if err := openFinder(targetDir); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
 }
 
 func (a *DesktopApp) AddShelf(name, libRoot, scanInterval string) error {

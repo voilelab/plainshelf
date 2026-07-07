@@ -60,6 +60,10 @@ const zhHant = {
     moveLayer: {
       failed: '移動圖層失敗。請將圖層拖曳到既有的目標圖層上。'
     },
+    openLayerFolder: {
+      shortAction: '開啟資料夾',
+      failed: '開啟圖層資料夾失敗。'
+    },
     layerErrors: {
       emptyPath: '圖層路徑不得為空',
       createFailed: '建立圖層失敗'

@@ -134,10 +134,12 @@
               :selected="currentLayer"
               :deleting-map="deletingLayerMap"
               :read-only="readOnly"
+              :can-open-layer-folder="canOpenLayerFolder"
               @select="onSelectLayer"
               @move-book="onMoveBook"
               @delete-layer="requestDeleteLayer"
               @rename-layer="requestRenameLayer"
+              @open-layer-folder="onOpenLayerFolder"
               @move-layer="onMoveLayer"
             />
           </section>
@@ -336,6 +338,7 @@ const currentLayer = computed(() => {
 });
 
 const layerTree = computed(() => buildLayerTreeNodes(layers.value));
+const canOpenLayerFolder = computed(() => Boolean(getBookshelfProvider().openDesktopLayerFolder));
 const canSubmitCreateLayer = computed(() => normalizeLayerPath(newLayerPath.value).length > 0);
 const isDeletingPendingLayer = computed(
   () => pendingDeleteLayerPath.value.length > 0 && (deletingLayerMap.value[pendingDeleteLayerPath.value] ?? false)
@@ -602,6 +605,21 @@ async function onMoveLayer(payload: { layerPath: string; targetLayer: string }):
   } catch (err) {
     const message = err instanceof Error ? err.message : '';
     layerOperationError.value = message || t('layout.moveLayer.failed');
+  }
+}
+
+async function onOpenLayerFolder(path: string): Promise<void> {
+  layerOperationError.value = '';
+  const openDesktopLayerFolder = getBookshelfProvider().openDesktopLayerFolder;
+  if (!openDesktopLayerFolder) {
+    return;
+  }
+
+  try {
+    await openDesktopLayerFolder(path);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    layerOperationError.value = message || t('layout.openLayerFolder.failed');
   }
 }
 

@@ -4,6 +4,7 @@ import {
   importDesktopBooksFromLocalPaths,
   modifyDesktopShelf,
   openDesktopBookFiles,
+  openDesktopLayerFolder,
   openDesktopShelfDirectory,
   removeDesktopShelf
 } from '../api/desktop';
@@ -21,6 +22,10 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
     layerPath: string
   ): Promise<DesktopImportBookResult[] | null> {
     return importDesktopBooksFromLocalPaths(localPaths, layerPath);
+  }
+
+  openDesktopLayerFolder(layerPath: string): Promise<void> {
+    return openDesktopLayerFolder(layerPath);
   }
 
   openDesktopShelfDirectory(): Promise<string | null> {
