@@ -1,47 +1,70 @@
 <template>
-  <BookCollectionPage
-    :title="t('readHistory.title')"
-    :books="visibleBooks"
-    :loading="loading"
-    :error="error"
-    :page="page"
-    :page-size="pageSize"
-    :total="books.length"
-    :count="books.length"
-    :empty-message="t('readHistory.empty')"
-    :page-size-options="PAGE_SIZE_OPTIONS"
-    view-mode-storage-key="read-history"
-    @retry="loadReadHistory"
-    @select="openBook"
-    @update:page="onPageChange"
-    @update:page-size="onPageSizeChange"
-  >
-    <template #toolbar>
-      <button
-        class="button clear-history-button"
-        type="button"
-        :disabled="books.length === 0 || loading || clearing"
-        @click="onClearHistory"
-      >
-        {{ clearing ? t('readHistory.clearing') : t('readHistory.clear') }}
-      </button>
-    </template>
-  </BookCollectionPage>
+  <div>
+    <DeleteModal
+      :open="!!deleteTarget"
+      :item-name="deleteTarget?.title || ''"
+      description="The book will be moved to Trash. You can restore it later."
+      :busy="deleting"
+      :error="actionError"
+      @cancel="cancelDelete"
+      @confirm="confirmDelete"
+    />
+    <p v-if="actionError && !deleteTarget" class="error" role="alert">{{ actionError }}</p>
+    <BookCollectionPage
+      :title="t('readHistory.title')"
+      :books="visibleBooks"
+      :loading="loading"
+      :error="error"
+      :page="page"
+      :page-size="pageSize"
+      :total="books.length"
+      :count="books.length"
+      :empty-message="t('readHistory.empty')"
+      :page-size-options="PAGE_SIZE_OPTIONS"
+      :can-open-book-folder="canOpenBookFolder"
+      :read-only="readOnly"
+      view-mode-storage-key="read-history"
+      @retry="loadReadHistory"
+      @select="openBook"
+      @edit="openEdit"
+      @read="goRead"
+      @open-book-folder="onOpenBookFolder"
+      @download="onDownloadBook"
+      @delete="onRequestDeleteBook"
+      @update:page="onPageChange"
+      @update:page-size="onPageSizeChange"
+    >
+      <template #toolbar>
+        <button
+          class="button clear-history-button"
+          type="button"
+          :disabled="books.length === 0 || loading || clearing"
+          @click="onClearHistory"
+        >
+          {{ clearing ? t('readHistory.clearing') : t('readHistory.clear') }}
+        </button>
+      </template>
+    </BookCollectionPage>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BookCollectionPage from '../components/BookCollectionPage.vue';
+import DeleteModal from '../components/DeleteModal.vue';
 import { getBookshelfProvider } from '../providers';
+import { useBookActions } from '../composables/useBookActions';
 import { useBookPagination, toPage, toSingleQueryValue } from '../composables/useBookPagination';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
+import { useServerMode } from '../composables/useServerMode';
 import type { Book } from '../types/book';
 import { useI18n } from '../i18n';
 
 const route = useRoute();
 const router = useRouter();
 const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
+const { readOnly } = useServerMode();
 const { t } = useI18n();
 
 const books = ref<Book[]>([]);
@@ -120,6 +143,52 @@ function onPageSizeChange(newSize: number): void {
 
 function openBook(id: string): void {
   void router.push(`/books/${id}`);
+}
+
+function openEdit(id: string): void {
+  void router.push(`/books/${id}/edit`);
+}
+
+const {
+  canOpenBookFolder,
+  actionError,
+  deleteTarget,
+  deleting,
+  goRead,
+  openBookFolder,
+  downloadBook,
+  requestDelete,
+  cancelDelete,
+  confirmDelete
+} = useBookActions({
+  onDeleted: () => {
+    void loadReadHistory();
+  }
+});
+
+function findBook(id: string): Book | undefined {
+  return books.value.find((candidate) => candidate.id === id);
+}
+
+function onOpenBookFolder(id: string): void {
+  void openBookFolder(id);
+}
+
+function onDownloadBook(id: string): void {
+  const book = findBook(id);
+  if (book) {
+    void downloadBook(book);
+  }
+}
+
+function onRequestDeleteBook(id: string): void {
+  if (readOnly.value) {
+    return;
+  }
+  const book = findBook(id);
+  if (book) {
+    requestDelete(book);
+  }
 }
 
 watch(

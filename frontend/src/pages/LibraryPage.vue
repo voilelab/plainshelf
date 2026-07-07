@@ -9,6 +9,7 @@
       @cancel="cancelDelete"
       @confirm="confirmDelete"
     />
+    <p v-if="actionError && !deleteTarget" class="error" role="alert">{{ actionError }}</p>
     <BookCollectionPage
       :title="selectedLayerTitle"
       :books="visibleBooks"
