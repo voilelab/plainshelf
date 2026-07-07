@@ -20,19 +20,19 @@
         </button>
       </header>
 
-      <p class="meta">Upload a TXT file to create a new book entry, or drag-and-drop files here.</p>
+      <p class="meta">Upload a TXT or Markdown file to create a new book entry, or drag-and-drop files here.</p>
 
       <div v-if="success" class="success">{{ success }}</div>
       <div v-if="error" class="error">{{ error }}</div>
 
       <form class="import-form" @submit.prevent="onSubmit">
         <label class="field">
-          <span class="label">Book File (.txt)</span>
+          <span class="label">Book File (.txt, .md)</span>
           <input
             ref="bookInput"
             class="input file-input"
             type="file"
-            accept=".txt,text/plain"
+            accept=".txt,.md,text/plain,text/markdown"
             :disabled="submitting"
             multiple
             @change="onBookFileChange"

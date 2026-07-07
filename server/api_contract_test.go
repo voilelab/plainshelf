@@ -489,6 +489,84 @@ func TestAPIImportBookContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusBadRequest)
 }
 
+// importFileBook uploads a book file with an explicit filename and content type,
+// asserting the import succeeds. It complements importTextBook (which always
+// uses "text/plain; charset=utf-8") by letting callers exercise other
+// browser-supplied content types (e.g. for Markdown uploads).
+func importFileBook(t *testing.T, env *apiTestEnv, filename, contentType, body string) Book {
+	t.Helper()
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s"`, filename))
+	if contentType != "" {
+		h.Set("Content-Type", contentType)
+	}
+	part, err := writer.CreatePart(h)
+	if err != nil {
+		t.Fatalf("CreatePart: %v", err)
+	}
+	if _, err := io.Copy(part, strings.NewReader(body)); err != nil {
+		t.Fatalf("write multipart file: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close multipart writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/import", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rec := env.do(req)
+	assertStatus(t, rec, http.StatusCreated)
+	assertJSONContentType(t, rec)
+	return decodeJSON[Book](t, rec)
+}
+
+func TestAPIImportMarkdownBookContract(t *testing.T) {
+	env := newAPITestEnv(t)
+
+	// Browsers vary in what Content-Type they send for a .md upload; the
+	// extension is the primary signal, so all of these must succeed.
+	withMarkdownContentType := importFileBook(t, env, "notes.md", "text/markdown; charset=utf-8", "# Notes\n\nhello markdown")
+	if withMarkdownContentType.Meta == nil || withMarkdownContentType.Meta.Format != "md" {
+		t.Fatalf("unexpected imported book meta: %#v", withMarkdownContentType.Meta)
+	}
+
+	withTextPlainContentType := importFileBook(t, env, "plain-notes.md", "text/plain; charset=utf-8", "# Notes\n\nhello markdown")
+	if withTextPlainContentType.Meta == nil || withTextPlainContentType.Meta.Format != "md" {
+		t.Fatalf("unexpected imported book meta: %#v", withTextPlainContentType.Meta)
+	}
+
+	withNoContentType := importFileBook(t, env, "no-content-type.md", "", "# Notes\n\nhello markdown")
+	if withNoContentType.Meta == nil || withNoContentType.Meta.Format != "md" {
+		t.Fatalf("unexpected imported book meta: %#v", withNoContentType.Meta)
+	}
+
+	withXMarkdownContentType := importFileBook(t, env, "legacy-notes.md", "text/x-markdown; charset=utf-8", "# Notes\n\nhello markdown")
+	if withXMarkdownContentType.Meta == nil || withXMarkdownContentType.Meta.Format != "md" {
+		t.Fatalf("unexpected imported book meta: %#v", withXMarkdownContentType.Meta)
+	}
+
+	// A plain .txt import must still be recognized as "txt" format.
+	txtBook := importTextBook(t, env, "Plain Text", "", "plain.txt", "hello world")
+	if txtBook.Meta == nil || txtBook.Meta.Format != "txt" {
+		t.Fatalf("unexpected imported book meta: %#v", txtBook.Meta)
+	}
+
+	// Reading back the content must still be exactly what was uploaded, with no
+	// markdown rendering applied (rendering is out of scope for this PR).
+	contentReq := httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+withMarkdownContentType.Meta.ID+"/content", nil)
+	contentRec := env.do(contentReq)
+	assertStatus(t, contentRec, http.StatusOK)
+	if got := contentRec.Header().Get("Content-Type"); got != "text/plain; charset=utf-8" {
+		t.Fatalf("Content-Type = %q, want text/plain; charset=utf-8", got)
+	}
+	if got := contentRec.Body.String(); got != "# Notes\n\nhello markdown" {
+		t.Fatalf("content = %q, want raw markdown source", got)
+	}
+}
+
 func TestAPIUpdateBookContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Patch Me", "old/layer", "patch.txt", "body")

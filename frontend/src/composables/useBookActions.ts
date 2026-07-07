@@ -52,7 +52,8 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
   }
 
   function formatDownloadFilename(book: Book): string {
-    return `${sanitizeDownloadName(book.title || book.id)}.txt`;
+    const ext = book.format === 'md' ? 'md' : 'txt';
+    return `${sanitizeDownloadName(book.title || book.id)}.${ext}`;
   }
 
   async function downloadBook(book: Book): Promise<void> {

@@ -300,6 +300,16 @@ export const mockBooks: Book[] = [
     format: 'txt',
     tags: ['tech', 'history'],
     cover_url: 'https://picsum.photos/seed/shelf10/120/180'
+  },
+  {
+    id: 'book-11',
+    title: 'Markdown Field Notes',
+    authors: ['T. Fang'],
+    layers: ['notes'],
+    language: 'en',
+    format: 'md',
+    tags: ['notes', 'markdown'],
+    cover_url: 'https://picsum.photos/seed/shelf11/120/180'
   }
 ];
 
