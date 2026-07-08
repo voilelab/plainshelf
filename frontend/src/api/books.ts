@@ -206,6 +206,7 @@ export const mockBooks: Book[] = [
     comment: 'Imported from local txt file.',
     created_at: '2026-01-07T10:00:00Z',
     updated_at: '2026-04-18T08:30:00Z',
+    published_at: '2026-03-15',
     cover_url: 'https://picsum.photos/seed/shelf1/120/180',
     star: 4
   },
@@ -396,6 +397,7 @@ function mockUpdateBook(id: string, payload: BookUpdateRequest): Book {
   if (payload.language !== undefined) book.language = payload.language;
   if (payload.comment !== undefined) book.comment = payload.comment;
   if (payload.star !== undefined) book.star = payload.star;
+  if (payload.published_at !== undefined) book.published_at = payload.published_at;
   book.updated_at = new Date().toISOString();
   return { ...book };
 }

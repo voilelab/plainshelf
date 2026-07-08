@@ -52,7 +52,7 @@ type UpdateBookRequest struct {
 	Language    *string        `json:"language"`
 	Comment     *string        `json:"comment"`
 	Star        *int           `json:"star"`
-	PublishedAt *util.JSONTime `json:"published_at"`
+	PublishedAt *util.JSONDate `json:"published_at"`
 	Layer       *shelf.Layers  `json:"layer"`
 	Layers      *shelf.Layers  `json:"layers"`
 }

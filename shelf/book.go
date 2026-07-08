@@ -87,7 +87,7 @@ type BookMeta struct {
 	Star        int           `json:"star"`
 	CreatedAt   util.JSONTime `json:"created_at,omitzero"`
 	UpdatedAt   util.JSONTime `json:"updated_at,omitzero"`
-	PublishedAt util.JSONTime `json:"published_at,omitzero"`
+	PublishedAt util.JSONDate `json:"published_at,omitzero"`
 
 	// User should not modify CurrentSource directly, it is managed by shelf internally,
 	// and can be updated via SetCurrentSource method

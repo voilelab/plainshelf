@@ -23,6 +23,7 @@ import LayerBreadcrumb from './LayerBreadcrumb.vue';
 import type { Book, ReadingProgress } from '../types/book';
 import type { SourceMeta } from '../types/source';
 import { formatLanguage } from '../utils/language';
+import { formatDateLabel } from '../utils/date';
 
 const props = defineProps<{
   book: Book;
@@ -47,19 +48,6 @@ function formatNumber(value?: number): string {
     : '-';
 }
 
-function formatTimestamp(value?: string): string {
-  if (!value) {
-    return '-';
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleString();
-}
-
 function formatStars(value?: number): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     return '☆☆☆☆☆';
@@ -75,7 +63,7 @@ const metadataRows = computed<MetadataRow[]>(() => {
     { label: 'Language', value: formatLanguage(props.book.language) },
     { label: 'Rating', value: formatStars(props.book.star), className: 'rating-text' },
     { label: 'Tags', value: formatList(props.book.tags) },
-    { label: 'Published At', value: formatTimestamp(props.book.published_at) },
+    { label: 'Published At', value: props.book.published_at ? formatDateLabel(props.book.published_at) : '-' },
     { label: 'Lines', value: formatNumber(props.currentSource?.line_count) },
     { label: 'Characters', value: formatNumber(props.currentSource?.char_count) },
     {

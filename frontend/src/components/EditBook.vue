@@ -23,7 +23,7 @@
         <h3>Organization</h3>
         <label class="field">
           <span class="label">Published At</span>
-          <input v-model="publishedAtInput" class="input" type="datetime-local" />
+          <input v-model="publishedAtInput" class="input" type="date" />
         </label>
 
         <fieldset class="field rating-field">
@@ -228,7 +228,7 @@ watch(
     }
     languageError.value = '';
     comment.value = book.comment ?? '';
-    publishedAtInput.value = toDatetimeLocalValue(book.published_at);
+    publishedAtInput.value = toFormDateValue(book.published_at);
     star.value = normalizeStar(book.star);
   },
   { immediate: true }
@@ -281,7 +281,7 @@ function onSubmit(): void {
     tags: tags.value,
     language: normalizedLanguage || '',
     comment: comment.value.trim(),
-    published_at: fromDatetimeLocalValue(publishedAtInput.value),
+    published_at: publishedAtInput.value || undefined,
     star: star.value
   });
 }
@@ -293,27 +293,14 @@ function normalizeStar(rawValue: unknown): number {
   return Math.min(5, Math.max(0, Math.trunc(rawValue)));
 }
 
-function toDatetimeLocalValue(rawValue?: string): string {
+function toFormDateValue(rawValue?: string): string {
   if (!rawValue) {
     return '';
   }
-  const date = new Date(rawValue);
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
-  const localTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return localTime.toISOString().slice(0, 16);
-}
-
-function fromDatetimeLocalValue(rawValue: string): string | undefined {
-  if (!rawValue) {
-    return undefined;
-  }
-  const date = new Date(rawValue);
-  if (Number.isNaN(date.getTime())) {
-    return undefined;
-  }
-  return `${date.toISOString().slice(0, 19)}Z`;
+  // The HTML date input wants exactly "YYYY-MM-DD". The API already returns
+  // date-only values, so this slice is a no-op for them and a safety net if a
+  // full timestamp ever slips through.
+  return rawValue.slice(0, 10);
 }
 </script>
 
