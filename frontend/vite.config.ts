@@ -9,5 +9,25 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:20000'
     }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('reka-ui')) {
+              return 'reka-ui';
+            }
+            if (id.includes('vue-router')) {
+              return 'vue-router';
+            }
+            if (id.includes('/vue/') || id.includes('@vue')) {
+              return 'vue';
+            }
+            return 'vendor';
+          }
+        }
+      }
+    }
   }
 });
