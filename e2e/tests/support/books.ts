@@ -8,6 +8,11 @@ export const helloMarkdownFixturePath = path.resolve(__dirname, '..', '..', 'fix
 export const tinyPngBase64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9s3FoXcAAAAASUVORK5CYII=';
 
+export async function expectBookCount(page: Page, count: number): Promise<void> {
+  const label = count === 1 ? /^1 books?$/ : new RegExp(`^${count} books$`);
+  await expect(page.getByText(label)).toBeVisible();
+}
+
 /**
  * Opens the import modal, uploads the given file, waits for import to finish,
  * then closes the modal. Makes no assertions about book count or list state.
@@ -41,7 +46,7 @@ export async function importHelloBook(page: Page): Promise<void> {
 
   await importBookFromPath(page, helloFixturePath);
 
-  await expect(page.getByText('1 books')).toBeVisible();
+  await expectBookCount(page, 1);
   await expect(
     page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true })
   ).toBeVisible();

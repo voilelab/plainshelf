@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { startServer } from './support/server';
-import { importHelloBook, importBookFromPath, anotherFixturePath } from './support/books';
+import { importHelloBook, importBookFromPath, expectBookCount, anotherFixturePath } from './support/books';
 
 test('should filter books by search query and restore the full list after clearing', async ({
   page
@@ -13,7 +13,7 @@ test('should filter books by search query and restore the full list after cleari
     // Import two distinct books
     await importHelloBook(page);
     await importBookFromPath(page, anotherFixturePath);
-    await expect(page.getByText('2 books')).toBeVisible();
+    await expectBookCount(page, 2);
     await expect(
       page.locator('.book-list-row').getByRole('heading', { name: 'another', exact: true })
     ).toBeVisible();

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { startServer } from './support/server';
-import { importHelloBook, importBookFromPath, createCoverDataTransfer, helloMarkdownFixturePath } from './support/books';
+import { importHelloBook, importBookFromPath, createCoverDataTransfer, expectBookCount, helloMarkdownFixturePath } from './support/books';
 
 test('should import a txt book from the UI and render it in the reader', async ({ page }) => {
   const server = await startServer();
@@ -34,7 +34,7 @@ test('should import a markdown book from the UI and render it as formatted markd
 
     await importBookFromPath(page, helloMarkdownFixturePath);
 
-    await expect(page.getByText('1 books')).toBeVisible();
+    await expectBookCount(page, 1);
     const bookTitle = page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true });
     await expect(bookTitle).toBeVisible();
     await bookTitle.click();

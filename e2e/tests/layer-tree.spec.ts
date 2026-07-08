@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { startServer } from './support/server';
-import { helloFixturePath, importBookFromPath } from './support/books';
+import { expectBookCount, helloFixturePath, importBookFromPath } from './support/books';
 import {
   addLayer,
   emptyDataTransfer,
@@ -159,7 +159,7 @@ test('moves a book into a layer via drag and drop', async ({ page }) => {
     await expect(
       page.locator('.book-card-view').getByRole('heading', { name: 'hello', exact: true })
     ).toBeVisible();
-    await expect(page.getByText('1 books')).toBeVisible();
+    await expectBookCount(page, 1);
 
     await selectAllBooks(page);
     await expect(
