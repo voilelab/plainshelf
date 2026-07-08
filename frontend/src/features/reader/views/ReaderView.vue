@@ -56,18 +56,80 @@
             <div class="reader-content" @scroll="onScroll" ref="readerRef">
               <h3 v-if="currentSection?.title" class="reader-chapter-title">{{ currentSection.title }}</h3>
               <div class="reader-text">
-                <template v-if="sectionBlocks.length > 0">
-                  <component
-                    :is="block.type === 'quote' ? 'blockquote' : 'p'"
-                    v-for="(block, index) in sectionBlocks"
-                    :key="`${currentSection?.index ?? 0}-${index}`"
-                    class="reader-text-block"
-                    :class="{ 'reader-text-quote': block.type === 'quote' }"
-                  >
-                    {{ block.text }}
-                  </component>
+                <template v-if="bookFormat === 'md'">
+                  <template v-if="markdownBlocks.length > 0">
+                    <template v-for="(block, index) in markdownBlocks" :key="`${currentSection?.index ?? 0}-md-${index}`">
+                      <template v-if="block.type === 'heading'">
+                        <component :is="mdHeadingTag(block.level)" :class="mdHeadingClass(block.level)">
+                          <template v-for="(seg, si) in block.segments" :key="si">
+                            <strong v-if="seg.bold">{{ seg.text }}</strong>
+                            <em v-else-if="seg.italic">{{ seg.text }}</em>
+                            <code v-else-if="seg.code" class="reader-md-inline-code">{{ seg.text }}</code>
+                            <template v-else>{{ seg.text }}</template>
+                          </template>
+                        </component>
+                      </template>
+
+                      <template v-else-if="block.type === 'quote'">
+                        <blockquote class="reader-text-block reader-text-quote">
+                          <template v-for="(seg, si) in block.segments" :key="si">
+                            <strong v-if="seg.bold">{{ seg.text }}</strong>
+                            <em v-else-if="seg.italic">{{ seg.text }}</em>
+                            <code v-else-if="seg.code" class="reader-md-inline-code">{{ seg.text }}</code>
+                            <template v-else>{{ seg.text }}</template>
+                          </template>
+                        </blockquote>
+                      </template>
+
+                      <template v-else-if="block.type === 'list'">
+                        <component :is="block.ordered ? 'ol' : 'ul'" class="reader-md-list">
+                          <li v-for="(item, itemIndex) in block.items" :key="itemIndex">
+                            <template v-for="(seg, si) in item" :key="si">
+                              <strong v-if="seg.bold">{{ seg.text }}</strong>
+                              <em v-else-if="seg.italic">{{ seg.text }}</em>
+                              <code v-else-if="seg.code" class="reader-md-inline-code">{{ seg.text }}</code>
+                              <template v-else>{{ seg.text }}</template>
+                            </template>
+                          </li>
+                        </component>
+                      </template>
+
+                      <template v-else-if="block.type === 'code'">
+                        <pre class="reader-md-code"><code>{{ block.text }}</code></pre>
+                      </template>
+
+                      <template v-else-if="block.type === 'hr'">
+                        <hr class="reader-md-hr" />
+                      </template>
+
+                      <template v-else>
+                        <p class="reader-text-block">
+                          <template v-for="(seg, si) in block.segments" :key="si">
+                            <strong v-if="seg.bold">{{ seg.text }}</strong>
+                            <em v-else-if="seg.italic">{{ seg.text }}</em>
+                            <code v-else-if="seg.code" class="reader-md-inline-code">{{ seg.text }}</code>
+                            <template v-else>{{ seg.text }}</template>
+                          </template>
+                        </p>
+                      </template>
+                    </template>
+                  </template>
+                  <p v-else class="reader-text-block">{{ currentSection?.text ?? '' }}</p>
                 </template>
-                <p v-else class="reader-text-block">{{ currentSection?.text ?? '' }}</p>
+                <template v-else>
+                  <template v-if="sectionBlocks.length > 0">
+                    <component
+                      :is="block.type === 'quote' ? 'blockquote' : 'p'"
+                      v-for="(block, index) in sectionBlocks"
+                      :key="`${currentSection?.index ?? 0}-${index}`"
+                      class="reader-text-block"
+                      :class="{ 'reader-text-quote': block.type === 'quote' }"
+                    >
+                      {{ block.text }}
+                    </component>
+                  </template>
+                  <p v-else class="reader-text-block">{{ currentSection?.text ?? '' }}</p>
+                </template>
               </div>
             </div>
           </article>
@@ -102,6 +164,7 @@ import { useDocumentTitle } from '../../../composables/useDocumentTitle';
 import { useReader } from '../composables/useReader';
 import { useReaderSettings } from '../composables/useReaderSettings';
 import { parseReaderBlocks } from '../utils/parseReaderBlocks';
+import { parseMarkdownBlocks } from '../utils/parseMarkdownBlocks';
 import type { SplitConfig } from '../../../types/book';
 import { useI18n } from '../../../i18n';
 
@@ -109,6 +172,7 @@ const route = useRoute();
 const id = computed(() => String(route.params.id));
 const {
   title,
+  bookFormat,
   sections,
   currentSectionIndex,
   currentSection,
@@ -140,6 +204,19 @@ const readerStyleVars = computed(() => ({
 useDocumentTitle(() => [t('reader.title'), title.value, t('app.name')]);
 
 const sectionBlocks = computed(() => parseReaderBlocks(currentSection.value?.text ?? ''));
+const markdownBlocks = computed(() => parseMarkdownBlocks(currentSection.value?.text ?? ''));
+
+function mdHeadingTag(level: number): 'h2' | 'h3' | 'h4' {
+  if (level === 1) return 'h2';
+  if (level === 2) return 'h3';
+  return 'h4';
+}
+
+function mdHeadingClass(level: number): string {
+  if (level === 1) return 'reader-md-h1';
+  if (level === 2) return 'reader-md-h2';
+  return 'reader-md-h3';
+}
 
 function openSplitModal(): void {
   isSplitModalOpen.value = true;

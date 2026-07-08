@@ -322,7 +322,38 @@ const mockProgress: Record<string, ReadingProgress> = {
 const mockContent: Record<string, string> = {
   'book-1': `# The Quiet River\n\nThe river moved slowly by the old town.\nEach house kept a small lamp lit through the night...`,
   'book-2': `Go Patterns Notes\n\n1. Keep interfaces small.\n2. Prefer composition over inheritance.\n3. Handle errors early and clearly.`,
-  'book-3': `# Mountain Diary\n\nDay 1: Clouds under the ridge.\nDay 2: A narrow trail and cold wind.`
+  'book-3': `# Mountain Diary\n\nDay 1: Clouds under the ridge.\nDay 2: A narrow trail and cold wind.`,
+  'book-11': [
+    '# Markdown Field Notes',
+    '',
+    'This paragraph has **bold text**, *italic text*, and `inline code`.',
+    '',
+    '## Section One',
+    '',
+    '### Subsection',
+    '',
+    '- First unordered item',
+    '- Second unordered item',
+    '- Third item with **bold** inside',
+    '',
+    '1. First ordered step',
+    '2. Second ordered step',
+    '3. Third ordered step',
+    '',
+    '> A quoted line of field notes.',
+    '> Second line of the same quote.',
+    '',
+    '```',
+    'function greet() {',
+    '',
+    '  return "hello";',
+    '}',
+    '```',
+    '',
+    '---',
+    '',
+    'Unsupported syntax stays literal: [link](https://example.com) and ![alt](image.png).'
+  ].join('\n')
 };
 
 const mockSplitConfigs: Record<string, SplitConfig> = {};

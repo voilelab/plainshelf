@@ -24,7 +24,7 @@ test('should import a txt book from the UI and render it in the reader', async (
   }
 });
 
-test('should import a markdown book from the UI and render it as raw plain text', async ({ page }) => {
+test('should import a markdown book from the UI and render it as formatted markdown', async ({ page }) => {
   const server = await startServer();
 
   try {
@@ -45,9 +45,10 @@ test('should import a markdown book from the UI and render it as raw plain text'
 
     await expect(page).toHaveURL(/\/reader\/[^/]+$/);
     await expect(page.getByRole('heading', { name: 'hello', exact: true })).toBeVisible();
-    // Markdown source must be shown verbatim -- no rendering in this PR, so the
-    // "#" heading marker must appear as literal text, not as an actual <h1>.
-    await expect(page.getByText('# Hello Markdown')).toBeVisible();
+    // Markdown source must be rendered as formatted content, so the "#" heading
+    // marker becomes an actual heading element rather than literal text.
+    await expect(page.getByRole('heading', { name: 'Hello Markdown' })).toBeVisible();
+    await expect(page.getByText('# Hello Markdown')).not.toBeVisible();
     await expect(page.getByText('This text came from a real uploaded MD file.')).toBeVisible();
   } finally {
     await server.dispose();
