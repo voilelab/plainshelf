@@ -204,6 +204,7 @@ function normalizeSplitConfigInput(config: SplitConfig): SplitConfig {
 
 export function useReader(bookID: () => string) {
   const title = ref('');
+  const bookFormat = ref('txt');
   const content = ref('');
   const splitConfig = ref<SplitConfig>({ type: 'none' });
   const splitWarning = ref('');
@@ -307,6 +308,7 @@ export function useReader(bookID: () => string) {
       ]);
 
       title.value = book.title ?? (book as { meta?: { title?: string } }).meta?.title ?? bookID();
+      bookFormat.value = book.format === 'md' ? 'md' : 'txt';
       content.value = bookContent.content;
       splitConfig.value = loadedSplitConfig;
 
@@ -406,6 +408,7 @@ export function useReader(bookID: () => string) {
 
   return {
     title,
+    bookFormat,
     content,
     splitConfig,
     splitWarning,
