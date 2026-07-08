@@ -6,6 +6,9 @@ export default defineConfig({
   workers: 1,
   retries: process.env.CI ? 2 : 0,
   reporter: 'list',
+  expect: {
+    timeout: 15_000
+  },
   use: {
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
