@@ -25,6 +25,16 @@ func newApplicationMenu(app *DesktopApp) *menu.Menu {
 		app.NextPage()
 	})
 
+	viewMenu.AddText("Zoom In", keys.CmdOrCtrl("="), func(*menu.CallbackData) {
+		app.ZoomIn()
+	})
+	viewMenu.AddText("Zoom Out", keys.CmdOrCtrl("-"), func(*menu.CallbackData) {
+		app.ZoomOut()
+	})
+	viewMenu.AddText("Reset Zoom", keys.CmdOrCtrl("0"), func(*menu.CallbackData) {
+		app.ResetZoom()
+	})
+
 	return root
 }
 
@@ -34,6 +44,19 @@ func historyNavigationScript(step int) string {
 		return "window.history.back();"
 	case 1:
 		return "window.history.forward();"
+	default:
+		return ""
+	}
+}
+
+func zoomScript(action string) string {
+	switch action {
+	case "in":
+		return "window.__plainshelfZoom && window.__plainshelfZoom('in');"
+	case "out":
+		return "window.__plainshelfZoom && window.__plainshelfZoom('out');"
+	case "reset":
+		return "window.__plainshelfZoom && window.__plainshelfZoom('reset');"
 	default:
 		return ""
 	}

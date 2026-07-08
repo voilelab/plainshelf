@@ -66,7 +66,7 @@ function onDismissAttempt(event: Event): void {
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: var(--z-modal);
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 32px);
+  max-width: calc(100vw / var(--app-zoom, 1) - 32px);
+  max-height: calc(100vh / var(--app-zoom, 1) - 32px);
 }
 </style>

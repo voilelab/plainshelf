@@ -707,8 +707,8 @@ onMounted(async () => {
 <style scoped>
 .layout-root {
   display: flex;
-  height: 100vh;
-  width: 100vw;
+  height: calc(100vh / var(--app-zoom, 1));
+  width: calc(100vw / var(--app-zoom, 1));
   overflow: hidden;
 }
 

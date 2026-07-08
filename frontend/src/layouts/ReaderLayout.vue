@@ -39,8 +39,8 @@ onMounted(async () => {
 
 <style scoped>
 .reader-layout {
-  height: 100vh;
-  width: 100vw;
+  height: calc(100vh / var(--app-zoom, 1));
+  width: calc(100vw / var(--app-zoom, 1));
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -62,7 +62,7 @@ onMounted(async () => {
   position: fixed;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(560px, calc(100vw - 48px));
+  width: min(560px, calc(100vw / var(--app-zoom, 1) - 48px));
 }
 
 .reader-no-shelf h2,
