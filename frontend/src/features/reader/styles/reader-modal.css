@@ -115,7 +115,7 @@
 @media (max-width: 720px) {
   .chapter-modal,
   .split-modal {
-    width: min(100%, 96vw);
+    width: min(100%, calc(96vw / var(--app-zoom, 1)));
     padding: 12px;
   }
 

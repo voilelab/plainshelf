@@ -84,7 +84,10 @@
 }
 
 .reader-content {
-  max-height: 72vh;
+  /* Also cap to the window minus the toolbar/nav chrome and page padding
+     (~224px, scales with zoom; same idea as the 240px mobile rule below),
+     or the overflow: hidden reader layout clips the bottom at zoom > 1. */
+  max-height: min(calc(72vh / var(--app-zoom, 1)), calc(100vh / var(--app-zoom, 1) - 224px));
   overflow-y: auto;
   padding: 18px 26px;
   scrollbar-gutter: stable both-edges;
