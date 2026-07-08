@@ -235,7 +235,7 @@ watch(
 .import-modal {
   display: grid;
   gap: 10px;
-  max-height: calc(100vh - 32px);
+  max-height: calc(100vh / var(--app-zoom, 1) - 32px);
   overflow: auto;
   padding: 16px;
   width: min(100%, 620px);
@@ -381,7 +381,7 @@ watch(
 @media (max-width: 720px) {
   .import-modal {
     width: 100%;
-    max-height: calc(100vh - 20px);
+    max-height: calc(100vh / var(--app-zoom, 1) - 20px);
     padding: 14px;
   }
 }

@@ -3,7 +3,7 @@
   display: grid;
   gap: 10px;
   width: min(100%, 560px);
-  max-height: calc(100vh - 32px);
+  max-height: calc(100vh / var(--app-zoom, 1) - 32px);
   overflow: hidden;
   padding: 16px;
 }
@@ -29,7 +29,7 @@
   display: grid;
   gap: 8px;
   overflow: auto;
-  max-height: calc(100vh - 170px);
+  max-height: calc(100vh / var(--app-zoom, 1) - 170px);
   padding-right: 2px;
 }
 
@@ -120,6 +120,6 @@
   }
 
   .chapter-modal-list {
-    max-height: calc(100vh - 190px);
+    max-height: calc(100vh / var(--app-zoom, 1) - 190px);
   }
 }

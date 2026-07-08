@@ -349,7 +349,7 @@ onMounted(() => {
   font-size: 13px;
   line-height: 1.5;
   margin: 0;
-  max-height: calc(100vh - 280px);
+  max-height: calc(100vh / var(--app-zoom, 1) - 280px);
   min-height: 320px;
   overflow: auto;
   padding: 16px;

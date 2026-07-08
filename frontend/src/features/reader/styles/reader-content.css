@@ -144,7 +144,7 @@
   }
 
   .reader-content {
-    max-height: calc(100vh - 240px);
+    max-height: calc(100vh / var(--app-zoom, 1) - 240px);
     padding: 12px 8px 16px;
   }
 }

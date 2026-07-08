@@ -33,7 +33,20 @@ a {
 }
 
 .app-shell {
-  min-height: 100vh;
+  min-height: calc(100vh / var(--app-zoom, 1));
+}
+
+/* Popper layers are teleported to <body> and positioned by floating-ui using
+   getBoundingClientRect coordinates, which already include the html zoom
+   factor. Cancel the inherited zoom on the positioning wrapper so its
+   translate values are interpreted 1:1, then re-apply zoom to the content.
+   When --app-zoom is unset both rules compute to zoom: 1 (identity). */
+[data-reka-popper-content-wrapper] {
+  zoom: calc(1 / var(--app-zoom, 1));
+}
+
+[data-reka-popper-content-wrapper] > * {
+  zoom: var(--app-zoom, 1);
 }
 
 .topbar {

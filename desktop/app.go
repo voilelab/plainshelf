@@ -106,6 +106,18 @@ func (a *DesktopApp) NextPage() {
 	a.navigateHistory(1)
 }
 
+func (a *DesktopApp) ZoomIn() {
+	a.runZoomScript("in")
+}
+
+func (a *DesktopApp) ZoomOut() {
+	a.runZoomScript("out")
+}
+
+func (a *DesktopApp) ResetZoom() {
+	a.runZoomScript("reset")
+}
+
 func (a *DesktopApp) OpenBookFiles() ([]string, error) {
 	if a.ctx == nil {
 		return []string{}, nil
@@ -228,6 +240,19 @@ func (a *DesktopApp) navigateHistory(step int) {
 	}
 
 	script := historyNavigationScript(step)
+	if script == "" {
+		return
+	}
+
+	wailsruntime.WindowExecJS(a.ctx, script)
+}
+
+func (a *DesktopApp) runZoomScript(action string) {
+	if a.ctx == nil {
+		return
+	}
+
+	script := zoomScript(action)
 	if script == "" {
 		return
 	}
