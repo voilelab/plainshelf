@@ -1,20 +1,21 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import MainLayout from './layouts/MainLayout.vue';
 import ReaderLayout from './layouts/ReaderLayout.vue';
-import LibraryPage from './pages/LibraryPage.vue';
-import BookDetailPage from './pages/BookDetailPage.vue';
-import EditBookPage from './pages/EditBookPage.vue';
-import DuplicateContentPage from './pages/DuplicateContentPage.vue';
-import MissingAuthorPage from './pages/MissingAuthorPage.vue';
-import MissingCoverPage from './pages/MissingCoverPage.vue';
-import MissingLanguagePage from './pages/MissingLanguagePage.vue';
-import ReadHistoryPage from './pages/ReadHistoryPage.vue';
-import TrashPage from './pages/TrashPage.vue';
-import AdminLogsPage from './pages/AdminLogsPage.vue';
-import SettingsPage from './pages/SettingsPage.vue';
-import ReaderPage from './features/reader/views/ReaderView.vue';
-import EditBookSourcesPage from './features/sources/pages/EditBookSourcesPage.vue';
 import { APP_TITLE } from './composables/useDocumentTitle';
+
+const LibraryPage = () => import('./pages/LibraryPage.vue');
+const BookDetailPage = () => import('./pages/BookDetailPage.vue');
+const EditBookPage = () => import('./pages/EditBookPage.vue');
+const DuplicateContentPage = () => import('./pages/DuplicateContentPage.vue');
+const MissingAuthorPage = () => import('./pages/MissingAuthorPage.vue');
+const MissingCoverPage = () => import('./pages/MissingCoverPage.vue');
+const MissingLanguagePage = () => import('./pages/MissingLanguagePage.vue');
+const ReadHistoryPage = () => import('./pages/ReadHistoryPage.vue');
+const TrashPage = () => import('./pages/TrashPage.vue');
+const AdminLogsPage = () => import('./pages/AdminLogsPage.vue');
+const SettingsPage = () => import('./pages/SettingsPage.vue');
+const ReaderPage = () => import('./features/reader/views/ReaderView.vue');
+const EditBookSourcesPage = () => import('./features/sources/pages/EditBookSourcesPage.vue');
 
 const ROUTES_WITH_OWN_TITLE = new Set([
   'library',
