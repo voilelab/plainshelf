@@ -5,6 +5,28 @@ All notable changes to PlainShelf are documented in this file.
 This project is currently in pre-alpha / early development. APIs, data layout,
 and UI behavior may still change between releases.
 
+## [Unreleased]
+
+### Added
+
+- Added right-click context menus to book card view items, with actions for reading, viewing detail, opening the book folder (desktop only), downloading, editing, and deleting.
+- Added Zoom In, Zoom Out, and Reset Zoom commands to the desktop app View menu (⌘=, ⌘-, ⌘0), with zoom level persisted across sessions.
+
+### Changed
+
+- Changed the book star rating input in the metadata editor to use reka-ui `RatingRoot` and `RatingItemIndicator`, aligning with the reka-ui component migration started in v0.7.0.
+- Removed the inline Edit button from book card view items; edit access is now exclusively through the right-click context menu.
+
+### Fixed
+
+- Fixed resizable panel drag handles leaving all panel interactions unresponsive after a drag gesture; moved `hitAreaMargins` from an inline template literal to a module-level constant to prevent reka-ui drag-state corruption mid-drag.
+- Fixed the read history page not responding to book context menu actions (edit, open book folder, download, delete) after context menus were added to book collections.
+- Fixed scrollable content areas in the sidebar and main content panel after the reka-ui Splitter migration; added inner wrapper elements to work around `SplitterPanel`'s `overflow: hidden` inline style enforcement.
+
+### Removed
+
+### Security
+
 ## [v0.7.0] - 2026-07-05
 
 ### Added
