@@ -20,6 +20,7 @@ export interface Book {
   layers: string[];
   created_at?: BookTimestamp;
   updated_at?: BookTimestamp;
+  /** Date-only ("YYYY-MM-DD"); the backend normalizes any legacy full timestamp before it reaches the API. */
   published_at?: BookTimestamp;
   current_source?: string;
   star?: number;

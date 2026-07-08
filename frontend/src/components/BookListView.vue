@@ -41,6 +41,7 @@ import { ref } from 'vue';
 import bookcover from '../assets/bookcover.svg';
 import type { Book } from '../types/book';
 import { getLayerPath, layerPathLabel } from '../utils/layers';
+import { formatDateLabel } from '../utils/date';
 
 const props = withDefaults(defineProps<{
   books: Book[];
@@ -77,16 +78,7 @@ function layerLabel(book: Book): string {
 
 function primaryDateLabel(book: Book): string {
   const rawValue = book.updated_at || book.published_at || book.created_at;
-  if (!rawValue) {
-    return 'No date';
-  }
-
-  const date = new Date(rawValue);
-  if (Number.isNaN(date.getTime())) {
-    return rawValue;
-  }
-
-  return date.toLocaleDateString();
+  return rawValue ? formatDateLabel(rawValue) : 'No date';
 }
 </script>
 

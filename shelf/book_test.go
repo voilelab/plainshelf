@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -510,6 +511,66 @@ func TestSetMetaMarksOtherInstanceStale(t *testing.T) {
 	}
 	if !book2.IsStale() {
 		t.Fatalf("Expected second instance to become stale after first instance updates meta")
+	}
+}
+
+// TestSetMetaMigratesLegacyPublishedAt verifies the lazy migration of the
+// published_at field: a book.json still holding a full RFC3339 timestamp
+// (as written by older versions using JSONTime) loads as a date, and the next
+// SetMeta persists it back in date-only form.
+func TestSetMetaMigratesLegacyPublishedAt(t *testing.T) {
+	tmpLib := t.TempDir()
+	bookID := "legacy-book-a38j"
+	bookDir := path.Join(tmpLib, bookID)
+	if err := os.MkdirAll(bookDir, 0o755); err != nil {
+		t.Fatalf("Failed to create book dir: %v", err)
+	}
+
+	legacyMeta := `{
+  "id": "legacy-book-a38j",
+  "title": "Legacy Book",
+  "cover": "",
+  "authors": [],
+  "language": "en",
+  "comments": "",
+  "star": 0,
+  "published_at": "2026-03-15T08:30:00Z",
+  "current_source": ""
+}`
+	if err := os.WriteFile(path.Join(bookDir, BookMetaFile), []byte(legacyMeta), 0o644); err != nil {
+		t.Fatalf("Failed to write legacy book.json: %v", err)
+	}
+
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := openBook(rootFS, newLoggerForTest(), bookID)
+	if err != nil {
+		t.Fatalf("Failed to open legacy book: %v", err)
+	}
+
+	meta := book.GetMeta()
+	if y, m, d := time.Time(meta.PublishedAt).Date(); y != 2026 || m != time.March || d != 15 {
+		t.Errorf("Expected PublishedAt 2026-03-15, got %04d-%02d-%02d", y, m, d)
+	}
+
+	if err := book.SetMeta(meta); err != nil {
+		t.Fatalf("Failed to set meta: %v", err)
+	}
+
+	written, err := os.ReadFile(path.Join(bookDir, BookMetaFile))
+	if err != nil {
+		t.Fatalf("Failed to read back book.json: %v", err)
+	}
+	if !strings.Contains(string(written), `"published_at": "2026-03-15"`) {
+		t.Errorf("Expected date-only published_at in written book.json, got:\n%s", written)
+	}
+	if strings.Contains(string(written), "2026-03-15T") {
+		t.Errorf("Written book.json still contains a full timestamp:\n%s", written)
 	}
 }
 
