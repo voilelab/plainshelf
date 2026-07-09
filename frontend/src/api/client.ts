@@ -58,7 +58,20 @@ if (IS_DEV && API_MODE === 'mock') {
   console.info('[api] MOCK API mode enabled (VITE_USE_MOCK_API=true).');
 }
 
+// Build-time default. On native (Capacitor) builds there is no server to inject
+// a base URL, so the mobile bootstrap can override this at runtime via
+// setApiBase() once the user has entered their server address.
 export const API_BASE = API_BASE_NORMALIZED;
+let apiBase = API_BASE_NORMALIZED;
+
+export function getApiBase(): string {
+  return apiBase;
+}
+
+export function setApiBase(base: string): void {
+  apiBase = String(base ?? '').trim().replace(/\/+$/, '');
+}
+
 const SHELF_STORAGE_KEY = 'plainshelf.shelf';
 let activeShelfID = '';
 
@@ -99,7 +112,7 @@ function assertWritableRequest(init?: RequestInit): void {
 
 export function buildApiUrl(path: string): string {
   const normalized = path.startsWith('/') ? path : `/${path}`;
-  return `${API_BASE}${normalized}`;
+  return `${apiBase}${normalized}`;
 }
 
 export function getActiveShelfID(): string {

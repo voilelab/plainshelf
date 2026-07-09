@@ -1,6 +1,7 @@
 import type { BookshelfProvider } from './bookshelfProvider';
 import { isMobileRuntime, isWailsRuntime } from './runtime';
 import { MobileBookshelfProvider } from './mobileBookshelfProvider';
+import { IndexedDbMobileBookCache } from './indexedDbMobileBookCache';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
 import { WailsBookshelfProvider } from './wailsBookshelfProvider';
 
@@ -12,7 +13,8 @@ export function createBookshelfProvider(): BookshelfProvider {
   }
 
   if (isMobileRuntime()) {
-    return new MobileBookshelfProvider();
+    // Persist downloads and reading progress across app restarts.
+    return new MobileBookshelfProvider(new ServerBookshelfProvider(), new IndexedDbMobileBookCache());
   }
 
   return new ServerBookshelfProvider();
@@ -29,3 +31,4 @@ export type { BookshelfProvider } from './bookshelfProvider';
 export { isMobileRuntime, isWailsRuntime } from './runtime';
 export type { CachedBookManifest, MobileBookCache } from './mobileBookCache';
 export { InMemoryMobileBookCache } from './mobileBookCache';
+export { IndexedDbMobileBookCache } from './indexedDbMobileBookCache';
