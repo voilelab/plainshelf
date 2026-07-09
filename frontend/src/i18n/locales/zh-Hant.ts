@@ -23,50 +23,50 @@ const zhHant = {
     expandSidebar: '展開側欄',
     collapseSidebar: '收合側欄',
     sections: {
-      layers: '圖層',
+      layers: '資料夾',
       reading: '閱讀',
       maintenance: '維護',
       admin: '管理'
     },
     createLayer: {
-      add: '新增圖層',
+      add: '新增資料夾',
       cancel: '取消',
       placeholder: '例如 programming/rust',
       creating: '建立中...',
       create: '建立',
-      created: '圖層已建立',
+      created: '資料夾已建立',
       enter: '進入',
-      loadingLayers: '載入圖層中...'
+      loadingLayers: '載入資料夾中...'
     },
     deleteLayer: {
-      title: '刪除圖層',
+      title: '刪除資料夾',
       shortAction: '刪除',
-      description: '若圖層內仍有書籍或子圖層，刪除會失敗。',
-      failed: '刪除圖層失敗',
-      notEmpty: '此圖層尚未清空，無法刪除。\n請先移出書籍並刪除子圖層。'
+      description: '若資料夾內仍有書籍或子資料夾，刪除會失敗。',
+      failed: '刪除資料夾失敗',
+      notEmpty: '此資料夾尚未清空，無法刪除。\n請先移出書籍並刪除子資料夾。'
     },
     renameLayer: {
       shortAction: '改名',
-      title: '重新命名圖層',
-      nameLabel: '圖層名稱',
-      placeholder: '圖層名稱',
+      title: '重新命名資料夾',
+      nameLabel: '資料夾名稱',
+      placeholder: '資料夾名稱',
       help: '目前名稱：{layerName}',
       confirm: '重新命名',
       renaming: '重新命名中...',
-      closeLabel: '關閉重新命名圖層對話框',
-      invalid: '圖層名稱不得為空，也不能包含 /。',
-      failed: '重新命名圖層失敗'
+      closeLabel: '關閉重新命名資料夾對話框',
+      invalid: '資料夾名稱不得為空，也不能包含 /。',
+      failed: '重新命名資料夾失敗'
     },
     moveLayer: {
-      failed: '移動圖層失敗。請將圖層拖曳到既有的目標圖層上。'
+      failed: '移動資料夾失敗。請將資料夾拖曳到既有的目標資料夾上。'
     },
     openLayerFolder: {
       shortAction: '開啟資料夾',
-      failed: '開啟圖層資料夾失敗。'
+      failed: '開啟資料夾失敗。'
     },
     layerErrors: {
-      emptyPath: '圖層路徑不得為空',
-      createFailed: '建立圖層失敗'
+      emptyPath: '資料夾路徑不得為空',
+      createFailed: '建立資料夾失敗'
     },
     moveBookErrors: {
       notFound: '找不到書籍。',
@@ -217,7 +217,7 @@ const zhHant = {
       noBooksYet: '目前尚無書籍。'
     },
     titleSearch: '搜尋',
-    titleLayer: '圖層'
+    titleLayer: '資料夾'
   },
   bookCollection: {
     loadingBooks: '載入書籍中...',
@@ -269,7 +269,7 @@ const zhHant = {
     columns: {
       title: '標題',
       authors: '作者',
-      originalLayer: '原始圖層',
+      originalLayer: '原始資料夾',
       originalPath: '原始路徑',
       deletedAt: '刪除時間',
       bookId: '書籍 ID',
