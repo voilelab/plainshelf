@@ -24,6 +24,7 @@ export interface Book {
   published_at?: BookTimestamp;
   current_source?: string;
   star?: number;
+  identifiers?: Record<string, string>;
 
   // Mobile/offline cache metadata. These fields are optional so existing
   // server and Wails responses remain valid when they do not include local
@@ -86,6 +87,7 @@ export interface BookUpdateRequest {
   comment?: string;
   published_at?: string;
   star?: number;
+  identifiers?: Record<string, string>;
 }
 
 export interface BookCreateRequest {

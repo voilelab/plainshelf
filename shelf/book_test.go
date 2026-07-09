@@ -574,3 +574,129 @@ func TestSetMetaMigratesLegacyPublishedAt(t *testing.T) {
 	}
 }
 
+// TestIdentifiersRoundTrip verifies that Identifiers survive a SetMeta →
+// persist → reopen cycle, and that GetMeta returns an independent copy of
+// the map so mutating it does not leak back into the book's internal state.
+func TestIdentifiersRoundTrip(t *testing.T) {
+	tmpLib := path.Join(t.TempDir())
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	bookID := "test-book-a38j"
+	title := "Test Book"
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+
+	meta := book.GetMeta()
+	meta.Identifiers = map[string]string{"isbn": "978-0-13-468599-1", "douban": "12345"}
+	if err := book.SetMeta(meta); err != nil {
+		t.Fatalf("Failed to set book meta with identifiers: %v", err)
+	}
+
+	// Mutating the map returned by GetMeta must not affect the book's internal state.
+	returned := book.GetMeta()
+	returned.Identifiers["isbn"] = "mutated"
+	fresh := book.GetMeta()
+	if fresh.Identifiers["isbn"] != "978-0-13-468599-1" {
+		t.Fatalf("Mutating the map returned by GetMeta leaked into internal state: %#v", fresh.Identifiers)
+	}
+
+	// Reopen the book from disk and confirm the identifiers persisted.
+	reopened, err := openBook(rootFS, newLoggerForTest(), bookID)
+	if err != nil {
+		t.Fatalf("Failed to reopen book: %v", err)
+	}
+	reopenedMeta := reopened.GetMeta()
+	if len(reopenedMeta.Identifiers) != 2 || reopenedMeta.Identifiers["isbn"] != "978-0-13-468599-1" || reopenedMeta.Identifiers["douban"] != "12345" {
+		t.Fatalf("Identifiers did not round-trip through disk, got: %#v", reopenedMeta.Identifiers)
+	}
+}
+
+// TestIdentifiersLegacyCompat verifies that a book.json written before the
+// identifiers field existed still opens successfully (Identifiers is nil),
+// and that a subsequent SetMeta without identifiers does not introduce an
+// "identifiers" key into the persisted JSON.
+func TestIdentifiersLegacyCompat(t *testing.T) {
+	tmpLib := t.TempDir()
+	bookID := "legacy-book-b91k"
+	bookDir := path.Join(tmpLib, bookID)
+	if err := os.MkdirAll(bookDir, 0o755); err != nil {
+		t.Fatalf("Failed to create book dir: %v", err)
+	}
+
+	legacyMeta := `{
+  "id": "legacy-book-b91k",
+  "title": "Legacy Book",
+  "cover": "",
+  "authors": [],
+  "language": "en",
+  "comments": "",
+  "star": 0,
+  "current_source": ""
+}`
+	if err := os.WriteFile(path.Join(bookDir, BookMetaFile), []byte(legacyMeta), 0o644); err != nil {
+		t.Fatalf("Failed to write legacy book.json: %v", err)
+	}
+
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := openBook(rootFS, newLoggerForTest(), bookID)
+	if err != nil {
+		t.Fatalf("Failed to open legacy book: %v", err)
+	}
+
+	meta := book.GetMeta()
+	if meta.Identifiers != nil {
+		t.Fatalf("Expected nil Identifiers for legacy book.json, got: %#v", meta.Identifiers)
+	}
+
+	if err := book.SetMeta(meta); err != nil {
+		t.Fatalf("Failed to set meta: %v", err)
+	}
+
+	written, err := os.ReadFile(path.Join(bookDir, BookMetaFile))
+	if err != nil {
+		t.Fatalf("Failed to read back book.json: %v", err)
+	}
+	if strings.Contains(string(written), "identifiers") {
+		t.Errorf("Expected written book.json to omit identifiers key, got:\n%s", written)
+	}
+}
+
+// TestSetMetaRejectsEmptyIdentifierKey verifies that SetMeta rejects
+// identifiers with a blank (or whitespace-only) key.
+func TestSetMetaRejectsEmptyIdentifierKey(t *testing.T) {
+	tmpLib := path.Join(t.TempDir())
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	bookID := "test-book-a38j"
+	title := "Test Book"
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+
+	meta := book.GetMeta()
+	meta.Identifiers = map[string]string{" ": "x"}
+	if err := book.SetMeta(meta); err == nil {
+		t.Fatalf("Expected error when setting identifier with empty key, got none")
+	}
+}
