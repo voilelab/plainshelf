@@ -35,6 +35,7 @@ interface BackendBookMeta {
   published_at?: string;
   current_source?: string;
   star?: number;
+  identifiers?: Record<string, string>;
 }
 
 interface BackendBook {
@@ -188,7 +189,8 @@ function transformBook(b: BackendBook): Book {
     updated_at: b.meta.updated_at,
     published_at: b.meta.published_at,
     current_source: b.meta.current_source,
-    star: b.meta.star ?? 0
+    star: b.meta.star ?? 0,
+    identifiers: b.meta.identifiers
   };
 }
 
@@ -208,7 +210,8 @@ export const mockBooks: Book[] = [
     updated_at: '2026-04-18T08:30:00Z',
     published_at: '2026-03-15',
     cover_url: 'https://picsum.photos/seed/shelf1/120/180',
-    star: 4
+    star: 4,
+    identifiers: { isbn: '9787020002207' }
   },
   {
     id: 'book-2',
@@ -220,7 +223,8 @@ export const mockBooks: Book[] = [
     tags: ['programming', 'go'],
     created_at: '2026-02-10T12:00:00Z',
     cover_url: 'https://picsum.photos/seed/shelf2/120/180',
-    star: 2
+    star: 2,
+    identifiers: { isbn: '9787115428028', asin: 'B01N5AX61W' }
   },
   {
     id: 'book-3',
@@ -398,6 +402,7 @@ function mockUpdateBook(id: string, payload: BookUpdateRequest): Book {
   if (payload.comment !== undefined) book.comment = payload.comment;
   if (payload.star !== undefined) book.star = payload.star;
   if (payload.published_at !== undefined) book.published_at = payload.published_at;
+  if (payload.identifiers !== undefined) book.identifiers = payload.identifiers;
   book.updated_at = new Date().toISOString();
   return { ...book };
 }

@@ -42,6 +42,11 @@ function formatList(values: string[]): string {
   return values.length > 0 ? values.join(', ') : '-';
 }
 
+function formatIdentifiers(values?: Record<string, string>): string {
+  const entries = Object.entries(values ?? {});
+  return entries.length > 0 ? entries.map(([key, value]) => `${key}: ${value}`).join(', ') : '-';
+}
+
 function formatNumber(value?: number): string {
   return typeof value === 'number' && Number.isFinite(value)
     ? new Intl.NumberFormat().format(value)
@@ -63,6 +68,7 @@ const metadataRows = computed<MetadataRow[]>(() => {
     { label: 'Language', value: formatLanguage(props.book.language) },
     { label: 'Rating', value: formatStars(props.book.star), className: 'rating-text' },
     { label: 'Tags', value: formatList(props.book.tags) },
+    { label: 'Identifiers', value: formatIdentifiers(props.book.identifiers) },
     { label: 'Published At', value: props.book.published_at ? formatDateLabel(props.book.published_at) : '-' },
     { label: 'Lines', value: formatNumber(props.currentSource?.line_count) },
     { label: 'Characters', value: formatNumber(props.currentSource?.char_count) },

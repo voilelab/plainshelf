@@ -113,6 +113,37 @@
             placeholder="Notes about this book"
           ></textarea>
         </label>
+
+        <div class="field">
+          <span class="label">Identifiers</span>
+          <div class="identifier-rows">
+            <div v-for="(row, index) in identifierRows" :key="index" class="identifier-row">
+              <input
+                v-model="row.key"
+                class="input identifier-key"
+                type="text"
+                placeholder="isbn"
+                :aria-label="`Identifier key ${index + 1}`"
+              />
+              <input
+                v-model="row.value"
+                class="input identifier-value"
+                type="text"
+                placeholder="9787020002207"
+                :aria-label="`Identifier value ${index + 1}`"
+              />
+              <button
+                class="identifier-remove"
+                type="button"
+                :aria-label="`Remove identifier ${row.key || index + 1}`"
+                @click="removeIdentifierRow(index)"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+          <button class="button" type="button" @click="addIdentifierRow">Add identifier</button>
+        </div>
       </section>
 
       <p v-if="error" class="error submit-error">{{ error }}</p>
@@ -196,6 +227,7 @@ const languageError = ref('');
 const comment = ref('');
 const publishedAtInput = ref('');
 const star = ref(0);
+const identifierRows = ref<{ key: string; value: string }[]>([]);
 const languageSelectOptions = computed(() =>
   LANGUAGE_SELECT_OPTIONS.map((option) => ({
     value: option.value === '' ? EMPTY_LANGUAGE_SELECT_VALUE : option.value,
@@ -230,6 +262,7 @@ watch(
     comment.value = book.comment ?? '';
     publishedAtInput.value = toFormDateValue(book.published_at);
     star.value = normalizeStar(book.star);
+    identifierRows.value = Object.entries(book.identifiers ?? {}).map(([key, value]) => ({ key, value }));
   },
   { immediate: true }
 );
@@ -263,6 +296,21 @@ function focusTagInput(event: MouseEvent): void {
   (tagsInputRef.value as unknown as { $el?: HTMLInputElement } | null)?.$el?.focus();
 }
 
+function addIdentifierRow(): void {
+  identifierRows.value.push({ key: '', value: '' });
+}
+
+function removeIdentifierRow(index: number): void {
+  identifierRows.value.splice(index, 1);
+}
+
+function buildIdentifiersPayload(): Record<string, string> {
+  const entries = identifierRows.value
+    .map((row) => [row.key.trim(), row.value] as const)
+    .filter(([key]) => key.length > 0);
+  return Object.fromEntries(entries);
+}
+
 function onSubmit(): void {
   const rawLanguage = languagePreset.value === CUSTOM_LANGUAGE_VALUE ? customLanguage.value : languagePreset.value;
   if (languagePreset.value === CUSTOM_LANGUAGE_VALUE) {
@@ -282,7 +330,8 @@ function onSubmit(): void {
     language: normalizedLanguage || '',
     comment: comment.value.trim(),
     published_at: publishedAtInput.value || undefined,
-    star: star.value
+    star: star.value,
+    identifiers: buildIdentifiersPayload()
   });
 }
 
@@ -468,6 +517,43 @@ function toFormDateValue(rawValue?: string): string {
   font: inherit;
   color: inherit;
   padding: 4px 0;
+}
+
+.identifier-rows {
+  display: grid;
+  gap: 8px;
+}
+
+.identifier-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.identifier-key {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.identifier-value {
+  flex: 2 1 240px;
+  min-width: 0;
+}
+
+.identifier-remove {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.identifier-remove:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .field-help {
