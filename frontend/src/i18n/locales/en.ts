@@ -299,6 +299,23 @@ const en = {
     splitSettings: 'Split settings',
     saveBookmark: 'Save bookmark',
     savingBookmark: 'Saving bookmark'
+  },
+  mobileConnect: {
+    title: 'Connect to PlainShelf',
+    description: 'Enter your PlainShelf server address to browse and read your library on this device.',
+    serverUrlLabel: 'Server URL',
+    serverUrlPlaceholder: 'http://192.168.1.10:20000',
+    tokenLabel: 'Access token (optional)',
+    tokenPlaceholder: 'Required only for editing',
+    tokenHint: 'Reading works without a token. Add one to make changes.',
+    loadShelves: 'Load library',
+    loadingShelves: 'Connecting…',
+    shelfLabel: 'Shelf',
+    shelfPlaceholder: 'Select a shelf',
+    save: 'Save and continue',
+    saving: 'Saving…',
+    serverUrlRequired: 'Enter a server URL first.',
+    shelfRequired: 'Select a shelf to continue.'
   }
 } as const;
 
