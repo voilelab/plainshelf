@@ -46,15 +46,16 @@ type Book struct {
 }
 
 type UpdateBookRequest struct {
-	Title       *string        `json:"title"`
-	Authors     *[]string      `json:"authors"`
-	Tags        *[]string      `json:"tags"`
-	Language    *string        `json:"language"`
-	Comment     *string        `json:"comment"`
-	Star        *int           `json:"star"`
-	PublishedAt *util.JSONDate `json:"published_at"`
-	Layer       *shelf.Layers  `json:"layer"`
-	Layers      *shelf.Layers  `json:"layers"`
+	Title       *string            `json:"title"`
+	Authors     *[]string          `json:"authors"`
+	Tags        *[]string          `json:"tags"`
+	Identifiers *map[string]string `json:"identifiers"`
+	Language    *string            `json:"language"`
+	Comment     *string            `json:"comment"`
+	Star        *int               `json:"star"`
+	PublishedAt *util.JSONDate     `json:"published_at"`
+	Layer       *shelf.Layers      `json:"layer"`
+	Layers      *shelf.Layers      `json:"layers"`
 }
 
 func (app *App) GetBookFolderPath(shelfID, bookID string) (string, error) {
@@ -316,6 +317,9 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 	if req.Tags != nil {
 		meta.Tags = append([]string(nil), (*req.Tags)...)
 	}
+	if req.Identifiers != nil {
+		meta.Identifiers = *req.Identifiers
+	}
 	if req.Language != nil {
 		meta.Language = *req.Language
 	}
@@ -335,6 +339,10 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 	meta.UpdatedAt = util.JSONTime(time.Now())
 
 	if err := book.SetMeta(&meta); err != nil {
+		if errors.Is(err, shelf.ErrInvalidIdentifierKey) {
+			http.Error(w, "identifier key cannot be empty", http.StatusBadRequest)
+			return
+		}
 		app.Error("failed to update book metadata", "error", err)
 		http.Error(w, "failed to update book metadata", http.StatusInternalServerError)
 		return

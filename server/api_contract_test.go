@@ -593,6 +593,61 @@ func TestAPIUpdateBookContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusBadRequest)
 }
 
+func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Identifiers Book", "identifiers/layer", "identifiers.txt", "body")
+	bookURL := "/api/shelves/default_shelf/books/" + created.Meta.ID
+
+	// Setting identifiers is reflected in the PATCH response and a subsequent GET.
+	rec := env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"identifiers":{"isbn":"978-0-13-468599-1","douban":"123"}}`)))
+	assertStatus(t, rec, http.StatusOK)
+	updated := decodeJSON[Book](t, rec)
+	if updated.Meta.Identifiers["isbn"] != "978-0-13-468599-1" || updated.Meta.Identifiers["douban"] != "123" {
+		t.Fatalf("identifiers not set in PATCH response: %#v", updated.Meta.Identifiers)
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, bookURL, nil))
+	assertStatus(t, rec, http.StatusOK)
+	fetched := decodeJSON[Book](t, rec)
+	if fetched.Meta.Identifiers["isbn"] != "978-0-13-468599-1" || fetched.Meta.Identifiers["douban"] != "123" {
+		t.Fatalf("identifiers not set after GET: %#v", fetched.Meta.Identifiers)
+	}
+
+	// A subsequent PATCH with a new identifiers map fully replaces the old one (not a merge).
+	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"identifiers":{"isbn":"999"}}`)))
+	assertStatus(t, rec, http.StatusOK)
+	replaced := decodeJSON[Book](t, rec)
+	if replaced.Meta.Identifiers["isbn"] != "999" {
+		t.Fatalf("identifiers isbn not replaced: %#v", replaced.Meta.Identifiers)
+	}
+	if _, ok := replaced.Meta.Identifiers["douban"]; ok {
+		t.Fatalf("expected douban identifier to be gone after full replace, got: %#v", replaced.Meta.Identifiers)
+	}
+
+	// A PATCH that omits the identifiers field entirely leaves the existing value untouched.
+	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"title":"Identifiers Book Renamed"}`)))
+	assertStatus(t, rec, http.StatusOK)
+	untouched := decodeJSON[Book](t, rec)
+	if untouched.Meta.Title != "Identifiers Book Renamed" {
+		t.Fatalf("title not updated: %#v", untouched.Meta)
+	}
+	if untouched.Meta.Identifiers["isbn"] != "999" {
+		t.Fatalf("identifiers should be unchanged when omitted from PATCH body: %#v", untouched.Meta.Identifiers)
+	}
+
+	// An explicit empty identifiers object clears the map.
+	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"identifiers":{}}`)))
+	assertStatus(t, rec, http.StatusOK)
+	cleared := decodeJSON[Book](t, rec)
+	if len(cleared.Meta.Identifiers) != 0 {
+		t.Fatalf("expected identifiers to be cleared, got: %#v", cleared.Meta.Identifiers)
+	}
+
+	// An identifiers map with an empty key is rejected.
+	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"identifiers":{"":"x"}}`)))
+	assertStatus(t, rec, http.StatusBadRequest)
+}
+
 func TestAPILayerMoveAndRenameContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Layer Ops", "alpha/beta", "layer.txt", "body")
