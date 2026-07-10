@@ -221,11 +221,13 @@ just open-mobile-android
 ```
 
 Because the phone connects over the network, the server must listen on a
-LAN-reachable address rather than `127.0.0.1`, and its
-`app_conf.security.allowed_origins` must permit the app. See
-`cmd/plainshelf-srv/conf/config.yaml` and `server/security.go` for the listen
-address and origin settings. Reading works without a token; an access token is
-only needed for edits.
+LAN-reachable address rather than `127.0.0.1` (set the listen address in
+`cmd/plainshelf-srv/conf/config.yaml`). The app makes its API calls through
+native HTTP, so browsing works over plain HTTP without adding the app to the
+server's `app_conf.security.allowed_origins`. Reading works without a token; an
+access token is only needed for edits. If the library fails to load, confirm the
+server is reachable from the phone — open `http://<server-ip>:20000/health` in
+the phone's browser and check it returns `1`.
 
 ### Run tests
 
