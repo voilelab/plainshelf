@@ -37,6 +37,22 @@ build-desktop: build-server-frontend
 run-desktop: build-server-frontend
 	cd desktop && go mod tidy && go tool wails dev
 
+# Add the Android platform (one-time; requires Android SDK + JDK 17)
+mobile-add-android: build-server-frontend
+	cd {{srv_frontend_dir}} && npx cap add android
+
+# Sync the web build and native plugins into the Android project
+mobile-sync: build-server-frontend
+	cd {{srv_frontend_dir}} && npx cap sync android
+
+# Build a debug APK (run mobile-add-android first if android/ is missing)
+build-mobile-android: mobile-sync
+	cd {{srv_frontend_dir}}/android && ./gradlew assembleDebug
+
+# Open the Android project in Android Studio
+open-mobile-android: mobile-sync
+	cd {{srv_frontend_dir}} && npx cap open android
+
 # Package the macOS .app bundle as a zip suitable for the Homebrew cask
 package-desktop-mac: build-desktop
 	mkdir -p out

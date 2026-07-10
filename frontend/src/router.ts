@@ -2,6 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router';
 import MainLayout from './layouts/MainLayout.vue';
 import ReaderLayout from './layouts/ReaderLayout.vue';
 import { APP_TITLE } from './composables/useDocumentTitle';
+import { isMobileRuntime } from './providers/runtime';
+import { loadMobileConnectionConfig } from './providers/mobileConfig';
 
 const LibraryPage = () => import('./pages/LibraryPage.vue');
 const BookDetailPage = () => import('./pages/BookDetailPage.vue');
@@ -14,6 +16,7 @@ const ReadHistoryPage = () => import('./pages/ReadHistoryPage.vue');
 const TrashPage = () => import('./pages/TrashPage.vue');
 const AdminLogsPage = () => import('./pages/AdminLogsPage.vue');
 const SettingsPage = () => import('./pages/SettingsPage.vue');
+const MobileConnectPage = () => import('./pages/MobileConnectPage.vue');
 const ReaderPage = () => import('./features/reader/views/ReaderView.vue');
 const EditBookSourcesPage = () => import('./features/sources/pages/EditBookSourcesPage.vue');
 
@@ -36,6 +39,11 @@ const router = createRouter({
     {
       path: '/',
       redirect: '/books'
+    },
+    {
+      path: '/connect',
+      name: 'mobile-connect',
+      component: MobileConnectPage
     },
     {
       path: '/',
@@ -136,6 +144,24 @@ const router = createRouter({
       ]
     },
   ]
+});
+
+// On the native mobile shell there is no backend to inject a server address or
+// selected shelf, so gate every route behind a completed connection setup.
+router.beforeEach(async (to) => {
+  if (!isMobileRuntime()) {
+    return true;
+  }
+  if (to.name === 'mobile-connect') {
+    return true;
+  }
+
+  const { serverUrl, shelfId } = await loadMobileConnectionConfig();
+  // Token is intentionally not required: reads work without it, only writes need one.
+  if (!serverUrl || !shelfId) {
+    return { name: 'mobile-connect' };
+  }
+  return true;
 });
 
 router.afterEach((to) => {

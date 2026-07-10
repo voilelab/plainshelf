@@ -19,6 +19,13 @@
       @submit="confirmRenameLayer"
     />
 
+    <div
+      v-if="isNarrowViewport && drawerOpen"
+      class="sidebar-backdrop"
+      aria-hidden="true"
+      @click="drawerOpen = false"
+    ></div>
+
     <SplitterGroup
       direction="horizontal"
       as="div"
@@ -30,6 +37,7 @@
       ref="sidebarPanelRef"
       as="aside"
       class="sidebar"
+      :class="{ 'sidebar-drawer-open': isNarrowViewport && drawerOpen }"
       size-unit="px"
       :default-size="240"
       :min-size="200"
@@ -48,7 +56,7 @@
         {{ isCollapsed ? '→' : '←' }}
       </button>
 
-      <div v-if="!isCollapsed" class="sidebar-inner">
+      <div v-if="!isCollapsed || isNarrowViewport" class="sidebar-inner">
         <section class="sidebar-section" :aria-label="t('layout.shelf.label')">
           <label class="sidebar-shelf-label">
             <span class="sidebar-section-title">{{ t('layout.shelf.label') }}</span>
@@ -224,10 +232,22 @@
         {{ t('layout.readOnly.banner') }}
       </div>
       <header class="topbar">
-        <h1 class="brand">
-          <img class="brand-icon" :src="appIcon" alt="" aria-hidden="true">
-          <span>{{ t('app.name') }}</span>
-        </h1>
+        <div class="topbar-left">
+          <button
+            v-if="isNarrowViewport"
+            class="menu-btn"
+            type="button"
+            :aria-label="t(drawerOpen ? 'layout.closeMenu' : 'layout.openMenu')"
+            :aria-expanded="drawerOpen"
+            @click="drawerOpen = !drawerOpen"
+          >
+            ☰
+          </button>
+          <h1 class="brand">
+            <img class="brand-icon" :src="appIcon" alt="" aria-hidden="true">
+            <span>{{ t('app.name') }}</span>
+          </h1>
+        </div>
         <div class="topbar-controls">
           <label class="language-select">
             <span>{{ t('language.label') }}</span>
@@ -264,7 +284,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   SelectContent,
@@ -289,6 +309,7 @@ import { createLayer, deleteLayer, moveLayer, renameLayer } from '../api/layers'
 import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
 import { useShelvesStore } from '../composables/useShelvesStore';
+import { useIsNarrowViewport } from '../composables/useViewport';
 import { useServerMode } from '../composables/useServerMode';
 import { buildLayerTreeNodes, getLayerPath, normalizeLayerPath } from '../utils/layers';
 import { MAINTENANCE_NAV_ITEMS } from '../utils/maintenance';
@@ -308,6 +329,20 @@ const sidebarPanelRef = ref<InstanceType<typeof SplitterPanel> | null>(null);
 const isCollapsed = ref(false);
 const route = useRoute();
 const router = useRouter();
+
+// Narrow-viewport (mobile) drawer state. Every sidebar action ends in a
+// router.push, so watching fullPath closes the drawer after nav links and
+// layer selection alike.
+const isNarrowViewport = useIsNarrowViewport();
+const drawerOpen = ref(false);
+watch(() => route.fullPath, () => {
+  drawerOpen.value = false;
+});
+watch(isNarrowViewport, (narrow) => {
+  if (!narrow) {
+    drawerOpen.value = false;
+  }
+});
 const { books, loading, fetchBooks } = useBookStore();
 const { layers, loading: layersLoading, error: layersError, loaded: layersLoaded, fetchLayers } = useLayerStore();
 const moveBookError = ref('');
@@ -902,6 +937,27 @@ onMounted(async () => {
   padding: 14px 24px;
 }
 
+.topbar-left {
+  align-items: center;
+  display: inline-flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.menu-btn {
+  align-items: center;
+  background: #f6f9fc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: #3e4e66;
+  cursor: pointer;
+  display: flex;
+  font-size: 16px;
+  height: 34px;
+  justify-content: center;
+  width: 38px;
+}
+
 .topbar-controls {
   display: inline-flex;
   gap: 10px;
@@ -997,4 +1053,47 @@ onMounted(async () => {
   padding: 0 6px;
 }
 
+/* ── Narrow viewport (mobile): sidebar becomes an off-canvas drawer ── */
+
+.sidebar-backdrop {
+  background: rgba(15, 23, 42, 0.45);
+  inset: 0;
+  position: fixed;
+  z-index: 40;
+}
+
+/* Keep in sync with NARROW_VIEWPORT_QUERY in composables/useViewport.ts. */
+@media (max-width: 768px) {
+  /* position:fixed takes the sidebar out of the splitter's flex flow, so the
+     main panel gets the full width and the splitter's inline flex-basis on
+     the sidebar stops mattering. Drag/collapse make no sense here. */
+  .sidebar {
+    bottom: 0;
+    box-shadow: 4px 0 24px rgba(15, 23, 42, 0.25);
+    left: 0;
+    position: fixed;
+    top: 0;
+    transform: translateX(-105%);
+    transition: transform 0.2s ease;
+    width: min(300px, calc(100vw / var(--app-zoom, 1) - 48px));
+    z-index: 41;
+  }
+
+  .sidebar.sidebar-drawer-open {
+    transform: translateX(0);
+  }
+
+  .collapse-btn,
+  .reka-resize-handle {
+    display: none;
+  }
+
+  .topbar {
+    padding: 10px 12px;
+  }
+
+  .language-select > span {
+    display: none;
+  }
+}
 </style>

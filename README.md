@@ -55,6 +55,7 @@ cmd/
 shelf/              # core library package
 server/             # local HTTP server implementation
 frontend/           # Vue web frontend
+frontend/android/   # Capacitor Android app (experimental)
 internal/           # internal shared utilities
 desktop/            # Wails desktop client
 ```
@@ -196,6 +197,46 @@ The desktop client is built with Wails.
 npm --prefix frontend install  # first time only
 just run-desktop
 ```
+
+### Build the mobile app (Android, experimental)
+
+> **Experimental.** The Android app is early and less polished than the web
+> and desktop clients; expect rough edges and behavior changes. Reading
+> progress is stored on the device only and does not sync back to the server.
+
+The mobile client reuses the same Vue frontend, wrapped with
+[Capacitor](https://capacitorjs.com/). It runs as a client of a PlainShelf
+server: on first launch it asks for the server URL, an optional access token,
+and a shelf, then caches downloaded books and reading progress locally for
+offline reading. You can change these later under **Settings → Connection**.
+
+Prerequisites: Android SDK and JDK 17 (Android Studio bundles both).
+
+```bash
+npm --prefix frontend install   # first time only
+
+# One-time: generate the native android/ project under frontend/
+just mobile-add-android
+
+# Build a debug APK (frontend/android/app/build/outputs/apk/debug/app-debug.apk)
+just build-mobile-android
+
+# Or open the project in Android Studio to run on a device/emulator
+just open-mobile-android
+```
+
+App icons and splash screens are generated from the source images in
+`frontend/assets/` — after changing them, regenerate with
+`npx capacitor-assets generate --android` (run inside `frontend/`).
+
+Because the phone connects over the network, the server must listen on a
+LAN-reachable address rather than `127.0.0.1` (set the listen address in
+`cmd/plainshelf-srv/conf/config.yaml`). The app makes its API calls through
+native HTTP, so browsing works over plain HTTP without adding the app to the
+server's `app_conf.security.allowed_origins`. Reading works without a token; an
+access token is only needed for edits. If the library fails to load, confirm the
+server is reachable from the phone — open `http://<server-ip>:20000/health` in
+the phone's browser and check it returns `1`.
 
 ### Run tests
 
