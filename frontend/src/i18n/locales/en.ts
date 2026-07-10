@@ -22,6 +22,8 @@ const en = {
   layout: {
     expandSidebar: 'Expand sidebar',
     collapseSidebar: 'Collapse sidebar',
+    openMenu: 'Open menu',
+    closeMenu: 'Close menu',
     sections: {
       layers: 'LAYERS',
       reading: 'READING',

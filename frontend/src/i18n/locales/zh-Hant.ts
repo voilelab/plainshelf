@@ -22,6 +22,8 @@ const zhHant = {
   layout: {
     expandSidebar: '展開側欄',
     collapseSidebar: '收合側欄',
+    openMenu: '開啟選單',
+    closeMenu: '關閉選單',
     sections: {
       layers: '圖層',
       reading: '閱讀',
