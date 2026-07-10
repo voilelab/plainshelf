@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { ensureActiveShelf, listShelves, type ShelfInfo } from '../api/shelves';
-import { ApiError, setActiveShelfID } from '../api/client';
+import { ApiError, getActiveShelfID, setActiveShelfID } from '../api/client';
+import { isMobileRuntime } from '../providers/runtime';
 
 const shelves = ref<ShelfInfo[]>([]);
 const loading = ref(false);
@@ -35,7 +36,17 @@ async function fetchShelves(): Promise<void> {
     selectedShelfID.value = ensureActiveShelf(nextShelves);
     loaded.value = true;
   } catch (err) {
-    selectedShelfID.value = '';
+    // On the mobile shell, listing shelves needs the network, but a shelf was
+    // already chosen during connection setup (persisted by mobileConfig and
+    // applied at bootstrap). Fall back to it so offline-cached books stay
+    // reachable; the error is still surfaced in the sidebar.
+    const persistedShelfID = isMobileRuntime() ? getActiveShelfID() : '';
+    if (persistedShelfID) {
+      selectedShelfID.value = persistedShelfID;
+      loaded.value = true;
+    } else {
+      selectedShelfID.value = '';
+    }
     error.value = err instanceof Error ? err.message : 'Failed to load shelves';
   } finally {
     loading.value = false;
