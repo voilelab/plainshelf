@@ -220,6 +220,10 @@ just build-mobile-android
 just open-mobile-android
 ```
 
+App icons and splash screens are generated from the source images in
+`frontend/assets/` — after changing them, regenerate with
+`npx capacitor-assets generate --android` (run inside `frontend/`).
+
 Because the phone connects over the network, the server must listen on a
 LAN-reachable address rather than `127.0.0.1` (set the listen address in
 `cmd/plainshelf-srv/conf/config.yaml`). The app makes its API calls through
