@@ -11,9 +11,13 @@ and UI behavior may still change between releases.
 
 - Added right-click context menus to book card view items, with actions for reading, viewing detail, opening the book folder (desktop only), downloading, editing, and deleting.
 - Added Zoom In, Zoom Out, and Reset Zoom commands to the desktop app View menu (⌘=, ⌘-, ⌘0), with zoom level persisted across sessions.
+- Added an experimental Android mobile app (a Capacitor shell around the existing frontend) that connects to a self-hosted PlainShelf server: first-run connection setup (server URL, optional access token, shelf selection) with a Settings entry to edit the connection later, persistent IndexedDB caching of downloaded books and reading progress for offline reading, and native HTTP requests so plain-HTTP LAN servers work without CORS configuration.
+- Added the native Android project under `frontend/android/`, `just` recipes for building it (`mobile-add-android`, `mobile-sync`, `build-mobile-android`, `open-mobile-android`), and a README section covering prerequisites and server reachability.
+- Added PlainShelf launcher icons and splash screens (light and dark) for the Android app, generated from the brand images in `frontend/assets/` via `@capacitor/assets`.
 
 ### Changed
 
+- Changed the main layout sidebar to an off-canvas drawer with a topbar menu button on viewports up to 768px wide (phones and narrow windows); it closes on backdrop tap or navigation, and wide-viewport splitter behavior is unchanged.
 - Changed the book star rating input in the metadata editor to use reka-ui `RatingRoot` and `RatingItemIndicator`, aligning with the reka-ui component migration started in v0.7.0.
 - Removed the inline Edit button from book card view items; edit access is now exclusively through the right-click context menu.
 

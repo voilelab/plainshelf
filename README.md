@@ -55,6 +55,7 @@ cmd/
 shelf/              # core library package
 server/             # local HTTP server implementation
 frontend/           # Vue web frontend
+frontend/android/   # Capacitor Android app (experimental)
 internal/           # internal shared utilities
 desktop/            # Wails desktop client
 ```
@@ -197,7 +198,11 @@ npm --prefix frontend install  # first time only
 just run-desktop
 ```
 
-### Build the mobile app (Android)
+### Build the mobile app (Android, experimental)
+
+> **Experimental.** The Android app is early and less polished than the web
+> and desktop clients; expect rough edges and behavior changes. Reading
+> progress is stored on the device only and does not sync back to the server.
 
 The mobile client reuses the same Vue frontend, wrapped with
 [Capacitor](https://capacitorjs.com/). It runs as a client of a PlainShelf
