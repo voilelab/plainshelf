@@ -123,6 +123,11 @@ const zhHant = {
       title: '關於',
       version: '版本'
     },
+    mobileConnect: {
+      title: '連線',
+      description: '變更這台裝置使用的 PlainShelf 伺服器、存取權杖或書架。',
+      open: '編輯連線設定'
+    },
     shelves: {
       title: '書架',
       loadFailed: '載入書架失敗',
@@ -309,12 +314,12 @@ const zhHant = {
     tokenHint: '閱讀不需權杖；要修改內容才需填入。',
     loadShelves: '載入書庫',
     loadingShelves: '連線中…',
-    shelfLabel: '書櫃',
-    shelfPlaceholder: '選擇書櫃',
+    shelfLabel: '書架',
+    shelfPlaceholder: '選擇書架',
     save: '儲存並繼續',
     saving: '儲存中…',
     serverUrlRequired: '請先輸入伺服器網址。',
-    shelfRequired: '請選擇一個書櫃。'
+    shelfRequired: '請選擇一個書架。'
   }
 } as const;
 

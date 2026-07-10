@@ -197,6 +197,36 @@ npm --prefix frontend install  # first time only
 just run-desktop
 ```
 
+### Build the mobile app (Android)
+
+The mobile client reuses the same Vue frontend, wrapped with
+[Capacitor](https://capacitorjs.com/). It runs as a client of a PlainShelf
+server: on first launch it asks for the server URL, an optional access token,
+and a shelf, then caches downloaded books and reading progress locally for
+offline reading. You can change these later under **Settings → Connection**.
+
+Prerequisites: Android SDK and JDK 17 (Android Studio bundles both).
+
+```bash
+npm --prefix frontend install   # first time only
+
+# One-time: generate the native android/ project under frontend/
+just mobile-add-android
+
+# Build a debug APK (frontend/android/app/build/outputs/apk/debug/app-debug.apk)
+just build-mobile-android
+
+# Or open the project in Android Studio to run on a device/emulator
+just open-mobile-android
+```
+
+Because the phone connects over the network, the server must listen on a
+LAN-reachable address rather than `127.0.0.1`, and its
+`app_conf.security.allowed_origins` must permit the app. See
+`cmd/plainshelf-srv/conf/config.yaml` and `server/security.go` for the listen
+address and origin settings. Reading works without a token; an access token is
+only needed for edits.
+
 ### Run tests
 
 ```bash

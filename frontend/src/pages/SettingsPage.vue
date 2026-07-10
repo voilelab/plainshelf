@@ -184,6 +184,14 @@
       </TabsContent>
 
       <TabsContent value="shelves" class="settings-tab-content">
+        <section v-if="isMobileEnv" class="panel settings-group">
+          <h3>{{ t('settings.mobileConnect.title') }}</h3>
+          <p class="setting-description">{{ t('settings.mobileConnect.description') }}</p>
+          <RouterLink to="/connect" class="button mobile-connect-link">
+            {{ t('settings.mobileConnect.open') }}
+          </RouterLink>
+        </section>
+
         <section class="panel settings-group">
           <h3>{{ t('settings.shelves.title') }}</h3>
 
@@ -266,7 +274,7 @@ import { getServerVersion } from '../api/version';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
 import { useShelvesStore } from '../composables/useShelvesStore';
 import { useI18n } from '../i18n';
-import { getBookshelfProvider, isWailsRuntime } from '../providers';
+import { getBookshelfProvider, isMobileRuntime, isWailsRuntime } from '../providers';
 
 const { t } = useI18n();
 const loading = ref(false);
@@ -277,6 +285,7 @@ const readHistoryLimit = ref(0);
 const version = ref('');
 
 const isDesktopEnv = computed(() => isWailsRuntime());
+const isMobileEnv = computed(() => isMobileRuntime());
 const { shelves, loading: shelvesLoading, error: shelvesError, fetchShelves } = useShelvesStore();
 const shelfOpError = ref('');
 const removingShelfIDs = ref<Set<string>>(new Set());
@@ -649,6 +658,11 @@ onMounted(() => {
 
 .settings-group h3 {
   margin: 0;
+}
+
+.mobile-connect-link {
+  justify-self: start;
+  text-decoration: none;
 }
 
 .setting-item {

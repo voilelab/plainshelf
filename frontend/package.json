@@ -11,6 +11,7 @@
     "check-licenses": "license-checker --production --excludePrivatePackages --failOn \"UNLICENSED;UNKNOWN\""
   },
   "dependencies": {
+    "@capacitor/android": "^6.2.1",
     "@capacitor/core": "^6.2.1",
     "@capacitor/preferences": "^6.0.4",
     "idb": "^8.0.3",

@@ -124,6 +124,11 @@ const en = {
       title: 'About',
       version: 'Version'
     },
+    mobileConnect: {
+      title: 'Connection',
+      description: 'Change the PlainShelf server, access token, or shelf used on this device.',
+      open: 'Edit connection'
+    },
     shelves: {
       title: 'Shelves',
       loadFailed: 'Failed to load shelves',
