@@ -26,7 +26,8 @@ async function listShelvesWithStartupRetry(): Promise<ShelfInfo[]> {
   return listShelves();
 }
 
-async function fetchShelves(): Promise<void> {
+async function fetchShelves(options?: { allowPersistedFallback?: boolean }): Promise<void> {
+  const allowPersistedFallback = options?.allowPersistedFallback ?? true;
   loading.value = true;
   error.value = '';
 
@@ -39,8 +40,10 @@ async function fetchShelves(): Promise<void> {
     // On the mobile shell, listing shelves needs the network, but a shelf was
     // already chosen during connection setup (persisted by mobileConfig and
     // applied at bootstrap). Fall back to it so offline-cached books stay
-    // reachable; the error is still surfaced in the sidebar.
-    const persistedShelfID = isMobileRuntime() ? getActiveShelfID() : '';
+    // reachable; the error is still surfaced in the sidebar. The connect page
+    // opts out: while validating a newly typed server, a failed fetch must not
+    // resurrect a shelf that belongs to the previous server.
+    const persistedShelfID = allowPersistedFallback && isMobileRuntime() ? getActiveShelfID() : '';
     if (persistedShelfID) {
       selectedShelfID.value = persistedShelfID;
       loaded.value = true;

@@ -39,6 +39,31 @@ test('persists mobile connection settings across app restarts', async ({ page })
   }
 });
 
+test('does not resurrect the saved shelf when validating an unreachable server on /connect', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await connectMobile(page, server.baseUrl);
+
+    // Revisit the connect page (Settings → "Edit connection" in the real app)
+    // and point it at a server that cannot be reached. The failed shelf fetch
+    // must NOT fall back to the previously saved shelf id (that fallback is
+    // reserved for the routed content layouts), otherwise "Save and continue"
+    // would persist a stale shelf for a server that was never validated.
+    await reopenMobileAt(page, server.baseUrl, '/connect');
+    const urlInput = page.locator('input[type="url"]');
+    await expect(urlInput).toHaveValue(server.baseUrl);
+
+    await urlInput.fill('http://127.0.0.1:9');
+    await page.getByRole('button', { name: 'Load library' }).click();
+
+    await expect(page.locator('.mobile-connect-error')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Save and continue' })).toBeDisabled();
+  } finally {
+    await server.dispose();
+  }
+});
+
 test('downloads books for offline reading and isolates removal by source-content prefix', async ({ page }) => {
   const server = await startServer();
 
