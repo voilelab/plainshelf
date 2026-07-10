@@ -140,7 +140,10 @@ async function loadShelvesForCurrentInput(): Promise<void> {
   // Apply (without persisting) so the API client points at this server before
   // we list shelves; the values are only persisted on Save.
   await applyMobileConnectionConfig({ serverUrl: serverUrl.value, token: token.value });
-  await fetchShelves();
+  // No persisted-shelf fallback here: a failed fetch for the server typed
+  // above must leave Save disabled instead of reusing the previous server's
+  // shelf id.
+  await fetchShelves({ allowPersistedFallback: false });
 }
 
 async function onLoadShelves(): Promise<void> {

@@ -11,7 +11,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { getActiveShelfID } from '../api/client';
 import { ensureActiveShelf, listShelves } from '../api/shelves';
+import { isMobileRuntime } from '../providers/runtime';
 import { useI18n } from '../i18n';
 
 const { t } = useI18n();
@@ -29,7 +31,9 @@ onMounted(async () => {
   try {
     activeShelfID.value = ensureActiveShelf(await listShelves());
   } catch {
-    activeShelfID.value = '';
+    // Offline mobile falls back to the shelf persisted during connection
+    // setup so downloaded books stay readable from the local cache.
+    activeShelfID.value = isMobileRuntime() ? getActiveShelfID() : '';
   } finally {
     shelvesLoaded.value = true;
     shelvesLoading.value = false;
