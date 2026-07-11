@@ -16,11 +16,10 @@ import type { CachedBookManifest, MobileBookCache } from './mobileBookCache';
 //       progress.json      # ReadingProgress (independent of manifest)
 //       sources/<enc(sourceId)>.txt
 //
-// `enc` is encodeURIComponent. Directory names are therefore *not* reversible
-// back to the real id with certainty (encoding is not guaranteed bijective
-// across ids that differ only in already-encoded characters) — so the real
-// id is always read from the manifest.json content, never inferred from the
-// directory name.
+// `enc` is encodeURIComponent. The real id is nevertheless always read from
+// the manifest.json content, never decoded back from the directory name —
+// this keeps the read path independent of the encoding scheme and of any
+// platform-specific filename quirks.
 //
 // Commit-point semantics, downgraded from the IndexedDB version:
 // `saveDownloadedBook` writes manifest.json, but the caller (see
@@ -84,17 +83,14 @@ export class FilesystemMobileBookCache implements MobileBookCache {
       return [];
     }
 
-    const books: Book[] = [];
-    for (const entry of entries) {
-      if (entry.type !== 'directory') {
-        continue;
-      }
-      const manifest = await this.readManifestByDir(entry.name);
-      if (manifest) {
-        books.push(this.toDownloadedBook(manifest));
-      }
-    }
-    return books;
+    const manifests = await Promise.all(
+      entries
+        .filter((entry) => entry.type === 'directory')
+        .map((entry) => this.readManifestByDir(entry.name))
+    );
+    return manifests
+      .filter((manifest): manifest is CachedBookManifest => manifest !== null)
+      .map((manifest) => this.toDownloadedBook(manifest));
   }
 
   async getCachedBook(bookId: string): Promise<Book | null> {
