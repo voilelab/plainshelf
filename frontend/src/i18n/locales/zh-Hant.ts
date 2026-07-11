@@ -94,6 +94,7 @@ const zhHant = {
     },
     recentlyRead: '最近閱讀',
     trash: '垃圾桶',
+    downloads: '已下載',
     adminLogs: '日誌',
     settings: '設定',
     readOnly: {
@@ -129,6 +130,11 @@ const zhHant = {
       title: '連線',
       description: '變更這台裝置使用的 PlainShelf 伺服器、存取權杖或書架。',
       open: '編輯連線設定'
+    },
+    downloads: {
+      title: '已下載書籍',
+      description: '管理已下載到這台裝置、供離線閱讀的書籍。',
+      open: '管理已下載書籍'
     },
     shelves: {
       title: '書架',
@@ -291,6 +297,39 @@ const zhHant = {
       description: '此操作會永久刪除資料，且無法復原。',
       confirm: '永久刪除',
       busy: '永久刪除中...'
+    }
+  },
+  downloads: {
+    title: '已下載書籍',
+    description: '已下載到這台裝置、供離線閱讀的書籍。',
+    overview: {
+      countLabel: '已下載書籍數',
+      count: '已下載 {count} 本',
+      totalSizeLabel: '總佔用空間',
+      deviceStorageLabel: '裝置儲存空間',
+      storageUsed: '已使用 {used} / {quota}',
+      storageUnsupported: '此裝置不支援儲存空間估算。'
+    },
+    list: {
+      loading: '載入已下載書籍中...',
+      loadFailed: '載入已下載書籍失敗',
+      empty: '尚未下載任何書籍。'
+    },
+    item: {
+      remove: '移除下載'
+    },
+    detail: {
+      download: '下載到裝置',
+      downloading: '下載中...',
+      remove: '移除下載',
+      retry: '下載失敗，重試'
+    },
+    removeConfirm: {
+      title: '移除下載',
+      description: '此操作會移除這台裝置上的離線副本，之後仍可隨時重新下載。',
+      confirm: '移除下載',
+      busy: '移除中...',
+      failed: '移除下載失敗'
     }
   },
   reader: {

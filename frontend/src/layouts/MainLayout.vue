@@ -204,6 +204,18 @@
           </section>
         </template>
 
+        <template v-if="isMobileEnv">
+          <div class="sidebar-nav-divider" role="presentation"></div>
+          <section class="sidebar-section" :aria-label="t('layout.downloads')">
+            <nav class="sidebar-nav-list" :aria-label="t('layout.downloads')">
+              <RouterLink to="/downloads" class="sidebar-nav-item" exact-active-class="active">
+                <SidebarNavIcon name="downloads" />
+                <span>{{ t('layout.downloads') }}</span>
+              </RouterLink>
+            </nav>
+          </section>
+        </template>
+
         <div class="sidebar-nav-divider" role="presentation"></div>
 
         <section class="sidebar-section" :aria-label="t('layout.sections.admin')">
@@ -304,7 +316,7 @@ import DeleteModal from '../components/DeleteModal.vue';
 import LayerTree from '../components/LayerTree.vue';
 import RenameLayerModal from '../components/RenameLayerModal.vue';
 import SidebarNavIcon from '../components/SidebarNavIcon.vue';
-import { getBookshelfProvider } from '../providers';
+import { getBookshelfProvider, isMobileRuntime } from '../providers';
 import { createLayer, deleteLayer, moveLayer, renameLayer } from '../api/layers';
 import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
@@ -329,6 +341,11 @@ const sidebarPanelRef = ref<InstanceType<typeof SplitterPanel> | null>(null);
 const isCollapsed = ref(false);
 const route = useRoute();
 const router = useRouter();
+
+// Matches the isMobileEnv pattern in SettingsPage.vue; runtime does not
+// change during a session, but a computed keeps it consistent with the
+// other environment checks used in the template.
+const isMobileEnv = computed(() => isMobileRuntime());
 
 // Narrow-viewport (mobile) drawer state. Every sidebar action ends in a
 // router.push, so watching fullPath closes the drawer after nav links and

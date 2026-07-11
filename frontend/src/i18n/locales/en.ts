@@ -95,6 +95,7 @@ const en = {
     },
     recentlyRead: 'Recently Read',
     trash: 'Trash',
+    downloads: 'Downloads',
     adminLogs: 'Logs',
     settings: 'Settings',
     readOnly: {
@@ -130,6 +131,11 @@ const en = {
       title: 'Connection',
       description: 'Change the PlainShelf server, access token, or shelf used on this device.',
       open: 'Edit connection'
+    },
+    downloads: {
+      title: 'Downloaded books',
+      description: 'Manage books saved to this device for offline reading.',
+      open: 'Manage downloads'
     },
     shelves: {
       title: 'Shelves',
@@ -292,6 +298,39 @@ const en = {
       description: 'This permanently removes all data and cannot be undone.',
       confirm: 'Delete permanently',
       busy: 'Deleting permanently...'
+    }
+  },
+  downloads: {
+    title: 'Downloaded Books',
+    description: 'Books saved to this device for offline reading.',
+    overview: {
+      countLabel: 'Downloaded books',
+      count: '{count} downloaded',
+      totalSizeLabel: 'Total size',
+      deviceStorageLabel: 'Device storage',
+      storageUsed: '{used} / {quota} used',
+      storageUnsupported: 'This device does not support storage estimates.'
+    },
+    list: {
+      loading: 'Loading downloaded books...',
+      loadFailed: 'Failed to load downloaded books',
+      empty: 'No books downloaded yet.'
+    },
+    item: {
+      remove: 'Remove download'
+    },
+    detail: {
+      download: 'Download to device',
+      downloading: 'Downloading...',
+      remove: 'Remove download',
+      retry: 'Download failed, retry'
+    },
+    removeConfirm: {
+      title: 'Remove download',
+      description: 'This removes the offline copy from this device. You can download it again anytime.',
+      confirm: 'Remove download',
+      busy: 'Removing...',
+      failed: 'Failed to remove download'
     }
   },
   reader: {

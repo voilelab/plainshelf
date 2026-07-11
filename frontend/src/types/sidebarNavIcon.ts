@@ -5,5 +5,6 @@ export type SidebarNavIconName =
   | 'missing-cover'
   | 'missing-language'
   | 'trash'
+  | 'downloads'
   | 'logs'
   | 'settings';

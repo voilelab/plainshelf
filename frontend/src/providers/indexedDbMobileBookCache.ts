@@ -1,16 +1,17 @@
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
 
 import type { Book, BookContent, DownloadState, ReadingProgress } from '../types/book';
 import type { SourceMeta } from '../types/source';
 import type { CachedBookManifest, MobileBookCache } from './mobileBookCache';
 
 const DB_NAME = 'plainshelf-mobile';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const STORE_MANIFESTS = 'manifests';
 const STORE_BOOK_CONTENTS = 'bookContents';
 const STORE_SOURCE_CONTENTS = 'sourceContents';
 const STORE_PROGRESS = 'progress';
+const STORE_COVERS = 'covers';
 
 // The in-memory cache keyed source content as `${bookId}:${sourceId}` but
 // removed entries by matching the `${bookId}:` prefix, which also nukes any
@@ -40,6 +41,65 @@ interface PlainShelfMobileDB extends DBSchema {
     key: string;
     value: ReadingProgress;
   };
+  [STORE_COVERS]: {
+    key: string;
+    value: Blob;
+  };
+}
+
+function byteSizeOf(content: string | null | undefined): number {
+  return content ? new Blob([content]).size : 0;
+}
+
+// Matches the transaction type idb hands to `upgrade()`: a versionchange
+// transaction scoped to every store in the schema.
+type MobileDBUpgradeTransaction = IDBPTransaction<
+  PlainShelfMobileDB,
+  (typeof STORE_MANIFESTS | typeof STORE_BOOK_CONTENTS | typeof STORE_SOURCE_CONTENTS | typeof STORE_PROGRESS | typeof STORE_COVERS)[],
+  'versionchange'
+>;
+
+/**
+ * v1 manifests were saved without `size_bytes`/`size_breakdown`. This walks
+ * every manifest in the versionchange transaction and, for any that are
+ * missing size accounting, recomputes it from the already-downloaded book
+ * and source contents (cover size is 0 — v1 never cached covers). Uses only
+ * get/getAll/put on the transaction's stores; no cursor deletion is needed.
+ */
+async function backfillManifestSizes(transaction: MobileDBUpgradeTransaction): Promise<void> {
+  const manifestStore = transaction.objectStore(STORE_MANIFESTS);
+  const bookContentStore = transaction.objectStore(STORE_BOOK_CONTENTS);
+  const sourceContentStore = transaction.objectStore(STORE_SOURCE_CONTENTS);
+
+  const keys = await manifestStore.getAllKeys();
+  const manifests = await manifestStore.getAll();
+
+  for (let i = 0; i < manifests.length; i += 1) {
+    const manifest = manifests[i];
+    const key = keys[i];
+    if (manifest.size_bytes !== undefined) {
+      continue;
+    }
+
+    const bookId = manifest.book.id;
+    const storedContent = await bookContentStore.get(bookId);
+    const contentSize = byteSizeOf(storedContent?.content);
+
+    let sourcesSize = 0;
+    for (const source of manifest.sources) {
+      const sourceContent = await sourceContentStore.get(`${bookId}${SOURCE_KEY_SEPARATOR}${source.id}`);
+      sourcesSize += byteSizeOf(sourceContent);
+    }
+
+    await manifestStore.put(
+      {
+        ...manifest,
+        size_bytes: contentSize + sourcesSize,
+        size_breakdown: { content: contentSize, sources: sourcesSize, cover: 0 }
+      },
+      key
+    );
+  }
 }
 
 /**
@@ -55,18 +115,28 @@ export class IndexedDbMobileBookCache implements MobileBookCache {
   private db(): Promise<IDBPDatabase<PlainShelfMobileDB>> {
     if (!this.dbPromise) {
       this.dbPromise = openDB<PlainShelfMobileDB>(this.dbName, DB_VERSION, {
-        upgrade(db) {
-          if (!db.objectStoreNames.contains(STORE_MANIFESTS)) {
+        // Async upgrade: the `idb` wrapper keeps the native versionchange
+        // transaction alive as long as we keep chaining awaited get/put
+        // calls on it (each continuation schedules the next IDBRequest
+        // before the task queue drains), so it is safe to `await` inside
+        // here even though the upstream type declares `void`.
+        async upgrade(db, oldVersion, _newVersion, transaction) {
+          if (oldVersion < 1) {
             db.createObjectStore(STORE_MANIFESTS);
-          }
-          if (!db.objectStoreNames.contains(STORE_BOOK_CONTENTS)) {
             db.createObjectStore(STORE_BOOK_CONTENTS);
-          }
-          if (!db.objectStoreNames.contains(STORE_SOURCE_CONTENTS)) {
             db.createObjectStore(STORE_SOURCE_CONTENTS);
-          }
-          if (!db.objectStoreNames.contains(STORE_PROGRESS)) {
             db.createObjectStore(STORE_PROGRESS);
+          }
+          if (oldVersion < 2) {
+            db.createObjectStore(STORE_COVERS);
+            // Backfill size_bytes/size_breakdown for manifests written
+            // before size accounting existed (v1). Covers did not exist in
+            // v1, so cover size is always 0 for backfilled entries; the app
+            // will pick up real cover sizes the next time each book is
+            // re-downloaded. Only get/getAll/put are used here (lesson:
+            // key cursors cannot delete, but we do not need to delete
+            // anything in this migration anyway).
+            await backfillManifestSizes(transaction);
           }
         }
       });
@@ -101,7 +171,9 @@ export class IndexedDbMobileBookCache implements MobileBookCache {
         sources: manifest.sources.map((source) => ({ ...source })),
         downloaded_at: manifest.downloaded_at,
         local_version: manifest.local_version,
-        remote_version: manifest.remote_version
+        remote_version: manifest.remote_version,
+        size_bytes: manifest.size_bytes,
+        size_breakdown: manifest.size_breakdown ? { ...manifest.size_breakdown } : undefined
       },
       manifest.book.id
     );
@@ -110,13 +182,14 @@ export class IndexedDbMobileBookCache implements MobileBookCache {
   async removeDownloadedBook(bookId: string): Promise<void> {
     const db = await this.db();
     const tx = db.transaction(
-      [STORE_MANIFESTS, STORE_BOOK_CONTENTS, STORE_SOURCE_CONTENTS, STORE_PROGRESS],
+      [STORE_MANIFESTS, STORE_BOOK_CONTENTS, STORE_SOURCE_CONTENTS, STORE_PROGRESS, STORE_COVERS],
       'readwrite'
     );
 
     await tx.objectStore(STORE_MANIFESTS).delete(bookId);
     await tx.objectStore(STORE_BOOK_CONTENTS).delete(bookId);
     await tx.objectStore(STORE_PROGRESS).delete(bookId);
+    await tx.objectStore(STORE_COVERS).delete(bookId);
 
     const sourceStore = tx.objectStore(STORE_SOURCE_CONTENTS);
     const prefix = `${bookId}${SOURCE_KEY_SEPARATOR}`;
@@ -177,6 +250,31 @@ export class IndexedDbMobileBookCache implements MobileBookCache {
   async saveReadProgress(bookId: string, progress: ReadingProgress): Promise<void> {
     const db = await this.db();
     await db.put(STORE_PROGRESS, { ...progress }, bookId);
+  }
+
+  async getCachedCover(bookId: string): Promise<Blob | null> {
+    const db = await this.db();
+    const blob = await db.get(STORE_COVERS, bookId);
+    return blob ?? null;
+  }
+
+  async saveCachedCover(bookId: string, blob: Blob): Promise<void> {
+    const db = await this.db();
+    await db.put(STORE_COVERS, blob, bookId);
+  }
+
+  async listDownloadedManifests(): Promise<CachedBookManifest[]> {
+    const db = await this.db();
+    const manifests = await db.getAll(STORE_MANIFESTS);
+    return manifests.map((manifest) => ({
+      book: { ...manifest.book },
+      sources: manifest.sources.map((source) => ({ ...source })),
+      downloaded_at: manifest.downloaded_at,
+      local_version: manifest.local_version,
+      remote_version: manifest.remote_version,
+      size_bytes: manifest.size_bytes,
+      size_breakdown: manifest.size_breakdown ? { ...manifest.size_breakdown } : undefined
+    }));
   }
 
   private toDownloadedBook(manifest: CachedBookManifest): Book {

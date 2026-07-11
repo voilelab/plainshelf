@@ -1,12 +1,22 @@
 import type { Book, BookContent, DownloadState, ReadingProgress } from '../types/book';
 import type { SourceMeta } from '../types/source';
 
+export interface CachedBookSizeBreakdown {
+  content: number;
+  sources: number;
+  cover: number;
+}
+
 export interface CachedBookManifest {
   book: Book;
   sources: SourceMeta[];
   downloaded_at: string;
   local_version?: string;
   remote_version?: string;
+  // Optional: absent on manifests written before size accounting existed
+  // (pre-v2 IndexedDB records). Consumers must fall back to 0.
+  size_bytes?: number;
+  size_breakdown?: CachedBookSizeBreakdown;
 }
 
 export interface MobileBookCache {
@@ -28,6 +38,10 @@ export interface MobileBookCache {
 
   getReadProgress(bookId: string): Promise<ReadingProgress | null>;
   saveReadProgress(bookId: string, progress: ReadingProgress): Promise<void>;
+
+  getCachedCover(bookId: string): Promise<Blob | null>;
+  saveCachedCover(bookId: string, blob: Blob): Promise<void>;
+  listDownloadedManifests(): Promise<CachedBookManifest[]>;
 }
 
 export class InMemoryMobileBookCache implements MobileBookCache {
@@ -35,6 +49,7 @@ export class InMemoryMobileBookCache implements MobileBookCache {
   private readonly bookContents = new Map<string, BookContent>();
   private readonly sourceContents = new Map<string, string>();
   private readonly progress = new Map<string, ReadingProgress>();
+  private readonly covers = new Map<string, Blob>();
 
   async listDownloadedBooks(): Promise<Book[]> {
     return Array.from(this.manifests.values()).map((manifest) => this.toDownloadedBook(manifest));
@@ -55,7 +70,9 @@ export class InMemoryMobileBookCache implements MobileBookCache {
       sources: manifest.sources.map((source) => ({ ...source })),
       downloaded_at: manifest.downloaded_at,
       local_version: manifest.local_version,
-      remote_version: manifest.remote_version
+      remote_version: manifest.remote_version,
+      size_bytes: manifest.size_bytes,
+      size_breakdown: manifest.size_breakdown ? { ...manifest.size_breakdown } : undefined
     });
   }
 
@@ -63,6 +80,7 @@ export class InMemoryMobileBookCache implements MobileBookCache {
     this.manifests.delete(bookId);
     this.bookContents.delete(bookId);
     this.progress.delete(bookId);
+    this.covers.delete(bookId);
 
     for (const key of Array.from(this.sourceContents.keys())) {
       if (key.startsWith(`${bookId}:`)) {
@@ -106,6 +124,26 @@ export class InMemoryMobileBookCache implements MobileBookCache {
 
   async saveReadProgress(bookId: string, progress: ReadingProgress): Promise<void> {
     this.progress.set(bookId, { ...progress });
+  }
+
+  async getCachedCover(bookId: string): Promise<Blob | null> {
+    return this.covers.get(bookId) ?? null;
+  }
+
+  async saveCachedCover(bookId: string, blob: Blob): Promise<void> {
+    this.covers.set(bookId, blob);
+  }
+
+  async listDownloadedManifests(): Promise<CachedBookManifest[]> {
+    return Array.from(this.manifests.values()).map((manifest) => ({
+      book: { ...manifest.book },
+      sources: manifest.sources.map((source) => ({ ...source })),
+      downloaded_at: manifest.downloaded_at,
+      local_version: manifest.local_version,
+      remote_version: manifest.remote_version,
+      size_bytes: manifest.size_bytes,
+      size_breakdown: manifest.size_breakdown ? { ...manifest.size_breakdown } : undefined
+    }));
   }
 
   private toDownloadedBook(manifest: CachedBookManifest): Book {

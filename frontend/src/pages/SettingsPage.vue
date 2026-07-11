@@ -192,6 +192,14 @@
           </RouterLink>
         </section>
 
+        <section v-if="isMobileEnv" class="panel settings-group">
+          <h3>{{ t('settings.downloads.title') }}</h3>
+          <p class="setting-description">{{ t('settings.downloads.description') }}</p>
+          <RouterLink to="/downloads" class="button mobile-connect-link">
+            {{ t('settings.downloads.open') }}
+          </RouterLink>
+        </section>
+
         <section class="panel settings-group">
           <h3>{{ t('settings.shelves.title') }}</h3>
 

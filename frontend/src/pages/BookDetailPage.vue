@@ -40,12 +40,24 @@
             {{ downloading ? 'Downloading...' : 'Download' }}
           </button>
           <button v-if="canOpenBookFolder" class="button" @click="openBookFolder(id)">Open Folder</button>
+          <button
+            v-if="showOfflineDownloadButton"
+            class="button"
+            type="button"
+            :disabled="offlineDownloadDisabled"
+            @click="onOfflineDownloadClick"
+          >
+            {{ offlineDownloadButtonLabel }}
+          </button>
           <button v-if="!readOnly" class="button" @click="goEdit(id)">Edit metadata</button>
           <button v-if="!readOnly" class="button" @click="goEditSources">Edit Sources</button>
           <button v-if="!readOnly" class="button danger" :disabled="deleting" @click="onRequestDelete">
             {{ deleting ? 'Moving...' : 'Move to Trash' }}
           </button>
         </div>
+        <p v-if="offlineDownloadError" class="error offline-download-error" role="alert">
+          {{ offlineDownloadError }}
+        </p>
       </div>
     </article>
   </section>
@@ -60,7 +72,10 @@ import DeleteModal from '../components/DeleteModal.vue';
 import { useBookActions } from '../composables/useBookActions';
 import { useBookDetail } from '../composables/useBookDetail';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
+import { useOfflineDownload } from '../composables/useOfflineDownload';
 import { useServerMode } from '../composables/useServerMode';
+import { isMobileRuntime } from '../providers';
+import { useI18n } from '../i18n';
 
 const route = useRoute();
 const router = useRouter();
@@ -68,6 +83,7 @@ const id = computed(() => String(route.params.id));
 const showImportedMessage = computed(() => route.query.imported === '1');
 const showSavedMessage = computed(() => route.query.saved === '1');
 const { readOnly } = useServerMode();
+const { t } = useI18n();
 
 const {
   book,
@@ -98,6 +114,42 @@ const {
   }
 });
 
+// Offline download to this device — mobile-only, and distinct from
+// useBookActions' `downloadBook`/`downloading` above, which export the book
+// content as a file. Do not conflate the two.
+const {
+  state: offlineDownloadState,
+  error: offlineDownloadError,
+  supported: offlineDownloadSupported,
+  refresh: refreshOfflineDownload,
+  download: startOfflineDownload,
+  remove: removeOfflineDownload
+} = useOfflineDownload(() => id.value);
+
+const showOfflineDownloadButton = computed(() => isMobileRuntime() && offlineDownloadSupported.value);
+const offlineDownloadDisabled = computed(() => offlineDownloadState.value === 'downloading');
+const offlineDownloadButtonLabel = computed(() => {
+  switch (offlineDownloadState.value) {
+    case 'downloading':
+      return t('downloads.detail.downloading');
+    case 'downloaded':
+    case 'update_available':
+      return t('downloads.detail.remove');
+    case 'failed':
+      return t('downloads.detail.retry');
+    default:
+      return t('downloads.detail.download');
+  }
+});
+
+function onOfflineDownloadClick(): void {
+  if (offlineDownloadState.value === 'downloaded' || offlineDownloadState.value === 'update_available') {
+    void removeOfflineDownload();
+    return;
+  }
+  void startOfflineDownload();
+}
+
 useDocumentTitle(() => ['Book', book.value?.title, 'PlainShelf']);
 
 function goEditSources(): void {
@@ -121,6 +173,9 @@ function onRequestDelete(): void {
 watch(id, () => {
   dismissActionError();
   void fetchDetail();
+  if (isMobileRuntime()) {
+    void refreshOfflineDownload();
+  }
 }, { immediate: true });
 </script>
 

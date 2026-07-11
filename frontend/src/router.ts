@@ -14,6 +14,7 @@ const MissingCoverPage = () => import('./pages/MissingCoverPage.vue');
 const MissingLanguagePage = () => import('./pages/MissingLanguagePage.vue');
 const ReadHistoryPage = () => import('./pages/ReadHistoryPage.vue');
 const TrashPage = () => import('./pages/TrashPage.vue');
+const DownloadsPage = () => import('./pages/DownloadsPage.vue');
 const AdminLogsPage = () => import('./pages/AdminLogsPage.vue');
 const SettingsPage = () => import('./pages/SettingsPage.vue');
 const MobileConnectPage = () => import('./pages/MobileConnectPage.vue');
@@ -27,6 +28,7 @@ const ROUTES_WITH_OWN_TITLE = new Set([
   'reader',
   'read-history',
   'trash',
+  'downloads',
   'admin-logs',
   'settings',
   'maintenance-missing-author',
@@ -91,6 +93,11 @@ const router = createRouter({
           path: 'trash',
           name: 'trash',
           component: TrashPage
+        },
+        {
+          path: 'downloads',
+          name: 'downloads',
+          component: DownloadsPage
         },
         {
           path: 'books/maintenance/missing-author',

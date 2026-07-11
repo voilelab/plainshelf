@@ -22,6 +22,18 @@ export interface DesktopImportBookResult {
   error?: string;
 }
 
+export interface DownloadedBookEntry {
+  book: Book;
+  sizeBytes: number;
+  downloadedAt: string;
+}
+
+export interface StorageEstimateResult {
+  supported: boolean;
+  usage?: number;
+  quota?: number;
+}
+
 export interface BookshelfProvider {
   listBooks(page?: number, pageSize?: number, search?: string): Promise<PaginatedBooks>;
   getBook(bookId: string): Promise<Book>;
@@ -63,6 +75,8 @@ export interface BookshelfProvider {
   downloadBook?(bookId: string): Promise<void>;
   removeDownload?(bookId: string): Promise<void>;
   getDownloadState?(bookId: string): Promise<DownloadState>;
+  listDownloadedBookEntries?(): Promise<DownloadedBookEntry[]>;
+  getStorageEstimate?(): Promise<StorageEstimateResult>;
 
   openLocalBookFiles?(): Promise<string[] | null>;
   importBooksFromLocalPaths?(localPaths: string[], layerPath: string): Promise<DesktopImportBookResult[] | null>;
