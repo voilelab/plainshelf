@@ -173,11 +173,29 @@ export class FilesystemMobileBookCache implements MobileBookCache {
   }
 
   private async readManifest(bookId: string): Promise<CachedBookManifest | null> {
-    return this.readJsonFile<CachedBookManifest>(manifestPath(bookId));
+    return this.asManifest(await this.readJsonFile<unknown>(manifestPath(bookId)));
   }
 
   private async readManifestByDir(dirName: string): Promise<CachedBookManifest | null> {
-    return this.readJsonFile<CachedBookManifest>(`${BASE_DIR}/${dirName}/manifest.json`);
+    return this.asManifest(await this.readJsonFile<unknown>(`${BASE_DIR}/${dirName}/manifest.json`));
+  }
+
+  // JSON that parses but has the wrong shape ({}, [], missing book.id, …)
+  // must count as a corrupt manifest, not a cache hit — otherwise
+  // toDownloadedBook dereferences undefined and one bad manifest throws out
+  // of listDownloadedBooks for the whole library.
+  private asManifest(value: unknown): CachedBookManifest | null {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      return null;
+    }
+    const manifest = value as Partial<CachedBookManifest>;
+    if (typeof manifest.book !== 'object' || manifest.book === null || typeof manifest.book.id !== 'string') {
+      return null;
+    }
+    if (!Array.isArray(manifest.sources)) {
+      return null;
+    }
+    return manifest as CachedBookManifest;
   }
 
   private async readTextFile(path: string): Promise<string | null> {

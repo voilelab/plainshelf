@@ -270,6 +270,32 @@ describe('FilesystemMobileBookCache', () => {
     expect(await cache.getCachedBook(badId)).toBeNull();
   });
 
+  it('ignores manifests that are valid JSON but the wrong shape', async () => {
+    await saveFullBook(cache, 'good-book', 'src-1');
+    const wrongShapes: Record<string, string> = {
+      'empty-object': '{}',
+      'array-manifest': '[]',
+      'book-not-object': '{"book": "nope", "sources": []}',
+      'missing-sources': '{"book": {"id": "missing-sources"}}'
+    };
+    for (const [badId, data] of Object.entries(wrongShapes)) {
+      await Filesystem.writeFile({
+        path: `plainshelf-cache/books/${encodeURIComponent(badId)}/manifest.json`,
+        data,
+        directory: Directory.Data,
+        recursive: true
+      });
+    }
+
+    const listed = await cache.listDownloadedBooks();
+    expect(listed.map((book) => book.id)).toEqual(['good-book']);
+
+    for (const badId of Object.keys(wrongShapes)) {
+      expect(await cache.getCachedBook(badId)).toBeNull();
+      expect(await cache.getDownloadState(badId)).toBe('not_downloaded');
+    }
+  });
+
   it('removeDownloadedBook removes everything for one book and nothing of another', async () => {
     await saveFullBook(cache, 'book-A', 'src-A');
     await saveFullBook(cache, 'book-B', 'src-B');
