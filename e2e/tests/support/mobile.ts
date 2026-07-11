@@ -180,24 +180,28 @@ export interface MobileStoreDump {
   bookContents: string[];
   sourceContents: string[];
   progress: string[];
+  covers: string[];
 }
 
 /**
- * Reads the raw key list of all 4 IndexedDB object stores in the
- * `plainshelf-mobile` database (see frontend/src/providers/indexedDbMobileBookCache.ts).
+ * Reads the raw key list of all 5 IndexedDB object stores in the
+ * `plainshelf-mobile` database (see frontend/src/providers/indexedDbMobileBookCache.ts,
+ * schema v2: v1's 4 stores plus `covers`).
  * Uses raw indexedDB APIs rather than the provider hook so tests can assert
  * on cache structure (e.g. the `${bookId}::${sourceId}` key prefix used for
  * isolating removal) independently of provider behavior.
  */
 export async function dumpMobileStores(page: Page): Promise<MobileStoreDump> {
   return page.evaluate(() => {
-    const storeNames = ['manifests', 'bookContents', 'sourceContents', 'progress'] as const;
+    const storeNames = ['manifests', 'bookContents', 'sourceContents', 'progress', 'covers'] as const;
 
     return new Promise<MobileStoreDump>((resolve, reject) => {
-      // Version must match indexedDbMobileBookCache.ts's DB_VERSION (1); the
+      // Version must match indexedDbMobileBookCache.ts's DB_VERSION (2); the
       // upgrade handler idempotently creates stores so this also works if
-      // called before the app has ever touched the cache.
-      const request = indexedDB.open('plainshelf-mobile', 1);
+      // called before the app has ever touched the cache. (It does NOT
+      // replicate the app's v1→v2 size backfill — these tests always start
+      // from a fresh browser context, never from v1 data.)
+      const request = indexedDB.open('plainshelf-mobile', 2);
 
       request.onupgradeneeded = () => {
         const db = request.result;
@@ -230,4 +234,62 @@ export async function dumpMobileStores(page: Page): Promise<MobileStoreDump> {
       };
     });
   });
+}
+
+/**
+ * Shape of the size-accounting fields on a cached book manifest
+ * (frontend/src/providers/mobileBookCache.ts CachedBookManifest, v2 schema).
+ */
+export interface MobileManifestSizeInfo {
+  size_bytes?: number;
+  size_breakdown?: { content: number; sources: number; cover: number };
+  downloaded_at?: string;
+}
+
+/**
+ * Reads a single manifest record straight from the `manifests` object store,
+ * so tests can assert on persisted size accounting (size_bytes/size_breakdown)
+ * rather than trusting what the UI displays. Returns null when the book has
+ * no manifest (not downloaded).
+ */
+export async function readManifestFromIdb(
+  page: Page,
+  bookId: string
+): Promise<MobileManifestSizeInfo | null> {
+  return page.evaluate((id) => {
+    return new Promise<MobileManifestSizeInfo | null>((resolve, reject) => {
+      const request = indexedDB.open('plainshelf-mobile', 2);
+      request.onerror = () => reject(request.error);
+      request.onupgradeneeded = () => {
+        // Fresh DB: the app has not downloaded anything yet, so create the
+        // stores (mirroring dumpMobileStores) and report "no manifest".
+        const db = request.result;
+        for (const name of ['manifests', 'bookContents', 'sourceContents', 'progress', 'covers']) {
+          if (!db.objectStoreNames.contains(name)) {
+            db.createObjectStore(name);
+          }
+        }
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        const getRequest = db.transaction('manifests', 'readonly').objectStore('manifests').get(id);
+        getRequest.onerror = () => reject(getRequest.error);
+        getRequest.onsuccess = () => {
+          const manifest = getRequest.result as
+            | { size_bytes?: number; size_breakdown?: { content: number; sources: number; cover: number }; downloaded_at?: string }
+            | undefined;
+          db.close();
+          resolve(
+            manifest
+              ? {
+                  size_bytes: manifest.size_bytes,
+                  size_breakdown: manifest.size_breakdown,
+                  downloaded_at: manifest.downloaded_at
+                }
+              : null
+          );
+        };
+      };
+    });
+  }, bookId);
 }
