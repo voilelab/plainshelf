@@ -85,87 +85,112 @@
         <template v-if="hasActiveShelf">
           <div class="sidebar-nav-divider" role="presentation"></div>
           <section class="sidebar-section" :aria-label="t('layout.sections.layers')">
-            <div class="sidebar-header-row">
-              <div class="sidebar-section-title">{{ t('layout.sections.layers') }}</div>
+            <div class="sidebar-header-row sidebar-foldable-header">
+              <button
+                type="button"
+                class="sidebar-section-toggle"
+                :aria-expanded="!collapsedSidebarSections.layers"
+                aria-controls="sidebar-section-layers"
+                @click="toggleSidebarSection('layers')"
+              >
+                <span class="sidebar-section-title">{{ t('layout.sections.layers') }}</span>
+                <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.layers ? '▸' : '▾' }}</span>
+              </button>
               <button
                 type="button"
                 class="create-layer-toggle"
-                :disabled="readOnly || creatingLayer"
+                :disabled="collapsedSidebarSections.layers || readOnly || creatingLayer"
                 @click="toggleCreateLayerForm"
               >
                 {{ showCreateLayerForm ? t('layout.createLayer.cancel') : t('layout.createLayer.add') }}
               </button>
             </div>
 
-            <form v-if="showCreateLayerForm && !readOnly" class="create-layer-form" @submit.prevent="onSubmitCreateLayer">
-              <input
-                v-model="newLayerPath"
-                class="create-layer-input"
-                type="text"
-                :placeholder="t('layout.createLayer.placeholder')"
-                :disabled="creatingLayer"
-              >
-              <div class="create-layer-actions">
-                <button
-                  type="submit"
-                  class="create-layer-submit"
-                  :disabled="readOnly || creatingLayer || !canSubmitCreateLayer"
+            <div v-show="!collapsedSidebarSections.layers" id="sidebar-section-layers" class="sidebar-foldable-content">
+              <form v-if="showCreateLayerForm && !readOnly" class="create-layer-form" @submit.prevent="onSubmitCreateLayer">
+                <input
+                  v-model="newLayerPath"
+                  class="create-layer-input"
+                  type="text"
+                  :placeholder="t('layout.createLayer.placeholder')"
+                  :disabled="creatingLayer"
                 >
-                  {{ creatingLayer ? t('layout.createLayer.creating') : t('layout.createLayer.create') }}
+                <div class="create-layer-actions">
+                  <button
+                    type="submit"
+                    class="create-layer-submit"
+                    :disabled="readOnly || creatingLayer || !canSubmitCreateLayer"
+                  >
+                    {{ creatingLayer ? t('layout.createLayer.creating') : t('layout.createLayer.create') }}
+                  </button>
+                </div>
+              </form>
+
+              <p v-if="createLayerError" class="sidebar-error" role="alert">
+                {{ createLayerError }}
+              </p>
+              <p v-if="createLayerSuccess" class="sidebar-success" role="status">
+                {{ createLayerSuccess }}
+                <button
+                  v-if="createdLayerPath"
+                  type="button"
+                  class="success-action"
+                  @click="enterCreatedLayer"
+                >
+                  {{ t('layout.createLayer.enter') }}
                 </button>
+              </p>
+
+              <div v-if="layersLoading" class="sidebar-status">{{ t('layout.createLayer.loadingLayers') }}</div>
+              <div v-else-if="layersError" class="sidebar-status sidebar-error sidebar-layer-error" role="alert">
+                <p>{{ layersError }}</p>
+                <button type="button" class="button" @click="fetchLayers">{{ t('common.retry') }}</button>
               </div>
-            </form>
-
-            <p v-if="createLayerError" class="sidebar-error" role="alert">
-              {{ createLayerError }}
-            </p>
-            <p v-if="createLayerSuccess" class="sidebar-success" role="status">
-              {{ createLayerSuccess }}
-              <button
-                v-if="createdLayerPath"
-                type="button"
-                class="success-action"
-                @click="enterCreatedLayer"
-              >
-                {{ t('layout.createLayer.enter') }}
-              </button>
-            </p>
-
-            <div v-if="layersLoading" class="sidebar-status">{{ t('layout.createLayer.loadingLayers') }}</div>
-            <div v-else-if="layersError" class="sidebar-status sidebar-error sidebar-layer-error" role="alert">
-              <p>{{ layersError }}</p>
-              <button type="button" class="button" @click="fetchLayers">{{ t('common.retry') }}</button>
+              <LayerTree
+                v-else
+                :nodes="layerTree"
+                :selected="currentLayer"
+                :deleting-map="deletingLayerMap"
+                :read-only="readOnly"
+                :can-open-layer-folder="canOpenLayerFolder"
+                @select="onSelectLayer"
+                @move-book="onMoveBook"
+                @delete-layer="requestDeleteLayer"
+                @rename-layer="requestRenameLayer"
+                @open-layer-folder="onOpenLayerFolder"
+                @move-layer="onMoveLayer"
+              />
+              <p v-if="moveBookError" class="sidebar-error" role="alert">
+                {{ moveBookError }}
+              </p>
+              <p v-if="deleteLayerError && !pendingDeleteLayerPath" class="sidebar-error sidebar-error-pre" role="alert">
+                {{ deleteLayerError }}
+              </p>
+              <p v-if="layerOperationError" class="sidebar-error sidebar-error-pre" role="alert">
+                {{ layerOperationError }}
+              </p>
             </div>
-            <LayerTree
-              v-else
-              :nodes="layerTree"
-              :selected="currentLayer"
-              :deleting-map="deletingLayerMap"
-              :read-only="readOnly"
-              :can-open-layer-folder="canOpenLayerFolder"
-              @select="onSelectLayer"
-              @move-book="onMoveBook"
-              @delete-layer="requestDeleteLayer"
-              @rename-layer="requestRenameLayer"
-              @open-layer-folder="onOpenLayerFolder"
-              @move-layer="onMoveLayer"
-            />
           </section>
-          <p v-if="moveBookError" class="sidebar-error" role="alert">
-            {{ moveBookError }}
-          </p>
-          <p v-if="deleteLayerError && !pendingDeleteLayerPath" class="sidebar-error sidebar-error-pre" role="alert">
-            {{ deleteLayerError }}
-          </p>
-          <p v-if="layerOperationError" class="sidebar-error sidebar-error-pre" role="alert">
-            {{ layerOperationError }}
-          </p>
 
           <div class="sidebar-nav-divider" role="presentation"></div>
 
           <section class="sidebar-section" :aria-label="t('layout.sections.reading')">
-            <div class="sidebar-section-title">{{ t('layout.sections.reading') }}</div>
-            <nav class="sidebar-nav-list" :aria-label="t('layout.sections.reading')">
+            <button
+              type="button"
+              class="sidebar-section-toggle"
+              :aria-expanded="!collapsedSidebarSections.reading"
+              aria-controls="sidebar-section-reading"
+              @click="toggleSidebarSection('reading')"
+            >
+              <span class="sidebar-section-title">{{ t('layout.sections.reading') }}</span>
+              <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.reading ? '▸' : '▾' }}</span>
+            </button>
+            <nav
+              v-show="!collapsedSidebarSections.reading"
+              id="sidebar-section-reading"
+              class="sidebar-nav-list sidebar-foldable-content"
+              :aria-label="t('layout.sections.reading')"
+            >
               <RouterLink
                 to="/read-history"
                 class="sidebar-nav-item"
@@ -188,8 +213,22 @@
           <div class="sidebar-nav-divider" role="presentation"></div>
 
           <section class="sidebar-section" :aria-label="t('layout.sections.maintenance')">
-            <div class="sidebar-section-title">{{ t('layout.sections.maintenance') }}</div>
-            <nav class="sidebar-nav-list" :aria-label="t('layout.sections.maintenance')">
+            <button
+              type="button"
+              class="sidebar-section-toggle"
+              :aria-expanded="!collapsedSidebarSections.maintenance"
+              aria-controls="sidebar-section-maintenance"
+              @click="toggleSidebarSection('maintenance')"
+            >
+              <span class="sidebar-section-title">{{ t('layout.sections.maintenance') }}</span>
+              <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.maintenance ? '▸' : '▾' }}</span>
+            </button>
+            <nav
+              v-show="!collapsedSidebarSections.maintenance"
+              id="sidebar-section-maintenance"
+              class="sidebar-nav-list sidebar-foldable-content"
+              :aria-label="t('layout.sections.maintenance')"
+            >
               <RouterLink
                 v-for="item in MAINTENANCE_NAV_ITEMS"
                 :key="item.key"
@@ -219,8 +258,22 @@
         <div class="sidebar-nav-divider" role="presentation"></div>
 
         <section class="sidebar-section" :aria-label="t('layout.sections.admin')">
-          <div class="sidebar-section-title">{{ t('layout.sections.admin') }}</div>
-          <nav class="sidebar-nav-list" :aria-label="t('layout.sections.admin')">
+          <button
+            type="button"
+            class="sidebar-section-toggle"
+            :aria-expanded="!collapsedSidebarSections.admin"
+            aria-controls="sidebar-section-admin"
+            @click="toggleSidebarSection('admin')"
+          >
+            <span class="sidebar-section-title">{{ t('layout.sections.admin') }}</span>
+            <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.admin ? '▸' : '▾' }}</span>
+          </button>
+          <nav
+            v-show="!collapsedSidebarSections.admin"
+            id="sidebar-section-admin"
+            class="sidebar-nav-list sidebar-foldable-content"
+            :aria-label="t('layout.sections.admin')"
+          >
             <RouterLink v-if="hasActiveShelf" to="/admin/logs" class="sidebar-nav-item" exact-active-class="active">
               <SidebarNavIcon name="logs" />
               <span>{{ t('layout.adminLogs') }}</span>
@@ -296,7 +349,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   SelectContent,
@@ -336,9 +389,17 @@ import { useI18n } from '../i18n';
 // `pointer-events: none` stuck on every panel. A hoisted constant keeps the prop
 // identity stable across renders and avoids the mid-drag re-registration entirely.
 const SIDEBAR_RESIZE_HIT_AREA_MARGINS = { coarse: 12, fine: 6 };
+const SIDEBAR_SECTION_KEYS = ['layers', 'reading', 'maintenance', 'admin'] as const;
+type SidebarSectionKey = (typeof SIDEBAR_SECTION_KEYS)[number];
 
 const sidebarPanelRef = ref<InstanceType<typeof SplitterPanel> | null>(null);
 const isCollapsed = ref(false);
+const collapsedSidebarSections = reactive<Record<SidebarSectionKey, boolean>>({
+  layers: false,
+  reading: false,
+  maintenance: false,
+  admin: false
+});
 const route = useRoute();
 const router = useRouter();
 
@@ -486,6 +547,10 @@ function toggleSidebar(): void {
   } else {
     sidebarPanelRef.value?.collapse();
   }
+}
+
+function toggleSidebarSection(section: SidebarSectionKey): void {
+  collapsedSidebarSections[section] = !collapsedSidebarSections[section];
 }
 
 function toggleCreateLayerForm(): void {
@@ -812,6 +877,54 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   margin-bottom: 4px;
+}
+
+.sidebar-foldable-header {
+  gap: 8px;
+}
+
+.sidebar-section-toggle {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #4f5d72;
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  gap: 4px;
+  justify-content: space-between;
+  min-height: 28px;
+  min-width: 0;
+  padding: 0 4px 0 0;
+  text-align: left;
+}
+
+.sidebar-section-toggle:hover {
+  background: #eef3f9;
+  border-color: #d4deea;
+}
+
+.sidebar-section-toggle:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.sidebar-section-toggle .sidebar-section-title {
+  flex: 1;
+}
+
+.sidebar-section-toggle-icon {
+  color: #64748b;
+  flex: 0 0 auto;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.sidebar-foldable-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .create-layer-toggle {
