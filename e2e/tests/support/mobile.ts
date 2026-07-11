@@ -20,6 +20,9 @@ declare global {
           pageSize?: number,
           search?: string
         ) => Promise<{ items: Array<{ id: string; title: string }> }>;
+        getBook: (bookId: string) => Promise<{ current_source?: string }>;
+        getBookContent: (bookId: string) => Promise<{ content: string }>;
+        getSourceContent: (bookId: string, sourceId: string) => Promise<string>;
         downloadBook?: (bookId: string) => Promise<void>;
         removeDownload?: (bookId: string) => Promise<void>;
         getDownloadState?: (bookId: string) => Promise<string>;
@@ -175,59 +178,62 @@ export async function getReadProgressViaHook(
   }, bookId);
 }
 
-export interface MobileStoreDump {
-  manifests: string[];
-  bookContents: string[];
-  sourceContents: string[];
-  progress: string[];
+/**
+ * Reads a book's `current_source` id via the test hook. Needed to exercise
+ * getSourceContent for a book without depending on any particular cache's
+ * internal key scheme.
+ */
+export async function getCurrentSourceIdViaHook(page: Page, bookId: string): Promise<string> {
+  return page.evaluate(async (id) => {
+    const provider = window.__plainshelfTestHooks?.provider;
+    if (!provider) {
+      throw new Error('__plainshelfTestHooks is not attached; is the page in mobile-shell-preview mode?');
+    }
+    const book = await provider.getBook(id);
+    if (!book.current_source) {
+      throw new Error(`Book ${id} has no current_source`);
+    }
+    return book.current_source;
+  }, bookId);
 }
 
 /**
- * Reads the raw key list of all 4 IndexedDB object stores in the
- * `plainshelf-mobile` database (see frontend/src/providers/indexedDbMobileBookCache.ts).
- * Uses raw indexedDB APIs rather than the provider hook so tests can assert
- * on cache structure (e.g. the `${bookId}::${sourceId}` key prefix used for
- * isolating removal) independently of provider behavior.
+ * Reads a book's content via the test hook (goes through the same
+ * cache-then-remote path the reader uses), returning `null` instead of
+ * throwing when unavailable (e.g. offline and not downloaded). This lets
+ * tests assert both the "readable" and "evicted" cases uniformly, without
+ * coupling to which offline cache backend is wired up (frontend/src/
+ * providers/index.ts) or its internal storage structure.
  */
-export async function dumpMobileStores(page: Page): Promise<MobileStoreDump> {
-  return page.evaluate(() => {
-    const storeNames = ['manifests', 'bookContents', 'sourceContents', 'progress'] as const;
+export async function getBookContentViaHook(page: Page, bookId: string): Promise<string | null> {
+  return page.evaluate(async (id) => {
+    const provider = window.__plainshelfTestHooks?.provider;
+    if (!provider) {
+      throw new Error('__plainshelfTestHooks is not attached; is the page in mobile-shell-preview mode?');
+    }
+    try {
+      const { content } = await provider.getBookContent(id);
+      return content;
+    } catch {
+      return null;
+    }
+  }, bookId);
+}
 
-    return new Promise<MobileStoreDump>((resolve, reject) => {
-      // Version must match indexedDbMobileBookCache.ts's DB_VERSION (1); the
-      // upgrade handler idempotently creates stores so this also works if
-      // called before the app has ever touched the cache.
-      const request = indexedDB.open('plainshelf-mobile', 1);
-
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        for (const name of storeNames) {
-          if (!db.objectStoreNames.contains(name)) {
-            db.createObjectStore(name);
-          }
-        }
-      };
-
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        const db = request.result;
-        const tx = db.transaction(storeNames, 'readonly');
-        const result = {} as Record<(typeof storeNames)[number], string[]>;
-        let remaining = storeNames.length;
-
-        for (const name of storeNames) {
-          const keysRequest = tx.objectStore(name).getAllKeys();
-          keysRequest.onsuccess = () => {
-            result[name] = keysRequest.result.map((key) => String(key));
-            remaining -= 1;
-            if (remaining === 0) {
-              db.close();
-              resolve(result as MobileStoreDump);
-            }
-          };
-          keysRequest.onerror = () => reject(keysRequest.error);
-        }
-      };
-    });
-  });
+/** Same as {@link getBookContentViaHook}, for a single source's content. */
+export async function getSourceContentViaHook(page: Page, bookId: string, sourceId: string): Promise<string | null> {
+  return page.evaluate(
+    async ({ id, srcId }) => {
+      const provider = window.__plainshelfTestHooks?.provider;
+      if (!provider) {
+        throw new Error('__plainshelfTestHooks is not attached; is the page in mobile-shell-preview mode?');
+      }
+      try {
+        return await provider.getSourceContent(id, srcId);
+      } catch {
+        return null;
+      }
+    },
+    { id: bookId, srcId: sourceId }
+  );
 }

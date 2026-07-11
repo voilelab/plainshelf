@@ -1,7 +1,7 @@
 import type { BookshelfProvider } from './bookshelfProvider';
 import { isMobileRuntime, isWailsRuntime } from './runtime';
 import { MobileBookshelfProvider } from './mobileBookshelfProvider';
-import { IndexedDbMobileBookCache } from './indexedDbMobileBookCache';
+import { FilesystemMobileBookCache } from './filesystemMobileBookCache';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
 import { WailsBookshelfProvider } from './wailsBookshelfProvider';
 
@@ -14,7 +14,9 @@ export function createBookshelfProvider(): BookshelfProvider {
 
   if (isMobileRuntime()) {
     // Persist downloads and reading progress across app restarts.
-    return new MobileBookshelfProvider(new ServerBookshelfProvider(), new IndexedDbMobileBookCache());
+    // Filesystem-backed (Directory.Data): app-private files are exempt from
+    // the WebView's best-effort storage eviction, unlike IndexedDB.
+    return new MobileBookshelfProvider(new ServerBookshelfProvider(), new FilesystemMobileBookCache());
   }
 
   return new ServerBookshelfProvider();
@@ -31,4 +33,4 @@ export type { BookshelfProvider } from './bookshelfProvider';
 export { isMobileRuntime, isWailsRuntime } from './runtime';
 export type { CachedBookManifest, MobileBookCache } from './mobileBookCache';
 export { InMemoryMobileBookCache } from './mobileBookCache';
-export { IndexedDbMobileBookCache } from './indexedDbMobileBookCache';
+export { FilesystemMobileBookCache } from './filesystemMobileBookCache';
