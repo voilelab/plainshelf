@@ -30,6 +30,12 @@ const zhHant = {
       maintenance: '維護',
       admin: '管理'
     },
+    sectionToggleLabels: {
+      layers: '切換側欄資料夾區塊',
+      reading: '切換側欄閱讀紀錄區塊',
+      maintenance: '切換側欄維護區塊',
+      admin: '切換側欄管理區塊'
+    },
     createLayer: {
       add: '新增資料夾',
       cancel: '取消',
