@@ -197,7 +197,7 @@ const droppedFiles = ref<File[]>([]);
 
 async function reloadBooks(): Promise<void> {
   booksLoaded.value = false;
-  await fetchBooks(committedSearch.value.trim());
+  await fetchBooks();
   booksLoaded.value = true;
 }
 
@@ -283,7 +283,18 @@ function matchesLayer(book: Book): boolean {
   return layerPathEquals(getLayerPath(book), selectedLayer.value);
 }
 
-const filteredBooks = computed(() => books.value.filter((book) => matchesLayer(book)));
+function matchesSearch(book: Book): boolean {
+  const query = committedSearch.value.trim();
+  if (!query) {
+    return true;
+  }
+
+  return book.title.includes(query) || (book.comment ?? '').includes(query);
+}
+
+const filteredBooks = computed(() =>
+  books.value.filter((book) => matchesSearch(book) && matchesLayer(book))
+);
 const {
   SORT_OPTIONS,
   sortedBooks
@@ -519,7 +530,7 @@ watch(selectedLayer, async () => {
   await reloadBooks();
 });
 
-// Watch committed search: update URL and fetch from backend
+// Watch committed search: update URL and apply the client-side title/comment filter
 watch(
   committedSearch,
   async (newSearch) => {
@@ -536,7 +547,6 @@ watch(
       sort: sortBy.value,
       order: sortOrder.value
     });
-    await reloadBooks();
   },
   { immediate: true }
 );
