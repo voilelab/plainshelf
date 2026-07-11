@@ -108,60 +108,6 @@
         </p>
       </form>
     </ConfirmModal>
-    <BaseDialog
-      :open="showAboutModal"
-      :title="t('settings.about.title')"
-      :described-by="aboutModalDescriptionId"
-      @close="closeAboutModal"
-    >
-      <section class="panel about-modal">
-        <header class="about-modal-header">
-          <div class="about-modal-title-row">
-            <img class="about-modal-icon" src="../assets/icon-192.png" alt="" aria-hidden="true" />
-            <div>
-              <h2>{{ t('app.name') }}</h2>
-              <p class="about-modal-tagline">{{ t('settings.about.tagline') }}</p>
-            </div>
-          </div>
-          <button
-            class="about-modal-close"
-            type="button"
-            :aria-label="t('settings.about.closeLabel')"
-            @click="closeAboutModal"
-          >
-            ×
-          </button>
-        </header>
-
-        <div :id="aboutModalDescriptionId" class="about-modal-body">
-          <p>{{ t('settings.about.description') }}</p>
-          <dl class="about-modal-facts">
-            <div>
-              <dt>{{ t('settings.about.version') }}</dt>
-              <dd>{{ version || '—' }}</dd>
-            </div>
-            <div>
-              <dt>{{ t('settings.about.repository') }}</dt>
-              <dd>
-                <a :href="githubRepoUrl" target="_blank" rel="noreferrer">
-                  {{ githubRepoUrl }}
-                </a>
-              </dd>
-            </div>
-          </dl>
-        </div>
-
-        <footer class="about-modal-actions">
-          <a class="button about-modal-link" :href="githubRepoUrl" target="_blank" rel="noreferrer">
-            {{ t('settings.about.openRepository') }}
-          </a>
-          <button class="button" type="button" @click="closeAboutModal">
-            {{ t('settings.about.close') }}
-          </button>
-        </footer>
-      </section>
-    </BaseDialog>
-
     <header class="settings-header">
       <div>
         <h2>{{ t('settings.title') }}</h2>
@@ -243,9 +189,6 @@
               {{ githubRepoUrl }}
             </a>
           </div>
-          <button class="button about-open-button" type="button" @click="openAboutModal">
-            {{ t('settings.about.openModal') }}
-          </button>
         </section>
       </TabsContent>
 
@@ -334,9 +277,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, useId } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
-import BaseDialog from '../components/BaseDialog.vue';
 import ConfirmModal from '../components/ConfirmModal.vue';
 import DeleteModal from '../components/DeleteModal.vue';
 import {
@@ -358,8 +300,6 @@ const error = ref('');
 const coverToJpg = ref(false);
 const readHistoryLimit = ref(0);
 const version = ref('');
-const showAboutModal = ref(false);
-const aboutModalDescriptionId = `about-modal-description-${useId()}`;
 const githubRepoUrl = 'https://github.com/voilelab/plainshelf';
 
 const isDesktopEnv = computed(() => isWailsRuntime());
@@ -389,15 +329,6 @@ const modifyShelfError = ref('');
 const canSubmitModifyShelf = computed(() => modifyShelfName.value.trim().length > 0);
 
 useDocumentTitle(() => [t('settings.title'), t('app.name')]);
-
-function openAboutModal(): void {
-  showAboutModal.value = true;
-}
-
-function closeAboutModal(): void {
-  showAboutModal.value = false;
-}
-
 async function loadSettings(): Promise<void> {
   loading.value = true;
   error.value = '';
@@ -775,10 +706,6 @@ onMounted(() => {
 }
 
 
-.about-open-button {
-  justify-self: start;
-}
-
 .setting-link {
   color: #2563eb;
   font-size: 13px;
@@ -786,107 +713,6 @@ onMounted(() => {
   text-align: right;
 }
 
-.about-modal {
-  display: grid;
-  gap: 16px;
-  max-width: 520px;
-  padding: 18px;
-  width: min(100%, 520px);
-}
-
-.about-modal-header {
-  align-items: flex-start;
-  display: flex;
-  gap: 16px;
-  justify-content: space-between;
-}
-
-.about-modal-title-row {
-  align-items: center;
-  display: flex;
-  gap: 12px;
-}
-
-.about-modal-icon {
-  border-radius: 12px;
-  height: 48px;
-  width: 48px;
-}
-
-.about-modal-header h2 {
-  font-size: 22px;
-  line-height: 1.2;
-  margin: 0;
-}
-
-.about-modal-tagline {
-  color: #64748b;
-  margin: 4px 0 0;
-}
-
-.about-modal-close {
-  align-items: center;
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--muted);
-  cursor: pointer;
-  display: inline-flex;
-  font-size: 20px;
-  height: 32px;
-  justify-content: center;
-  line-height: 1;
-  width: 32px;
-}
-
-.about-modal-body {
-  color: #475569;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.about-modal-body p {
-  margin: 0;
-}
-
-.about-modal-facts {
-  display: grid;
-  gap: 10px;
-  margin: 16px 0 0;
-}
-
-.about-modal-facts div {
-  display: grid;
-  gap: 2px;
-}
-
-.about-modal-facts dt {
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.about-modal-facts dd {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.about-modal-facts a {
-  color: #2563eb;
-}
-
-.about-modal-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.about-modal-link {
-  text-decoration: none;
-}
 
 .setting-checkbox {
   cursor: pointer;

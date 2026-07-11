@@ -124,14 +124,9 @@ const zhHant = {
     },
     about: {
       title: '關於',
-      tagline: '本機優先的個人閱讀書庫',
       description: 'PlainShelf 是本機優先的個人閱讀書庫，適合管理輕量閱讀內容，採用檔案系統優先的資料模型並提供網頁閱讀介面。',
       version: '版本',
-      repository: 'Repository',
-      openModal: '顯示 PlainShelf 關於資訊',
-      openRepository: '開啟 GitHub Repository',
-      close: '關閉',
-      closeLabel: '關閉關於對話框'
+      repository: 'Repository'
     },
     mobileConnect: {
       title: '連線',

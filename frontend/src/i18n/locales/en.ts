@@ -125,14 +125,9 @@ const en = {
     },
     about: {
       title: 'About',
-      tagline: 'Local-first personal reading library',
       description: 'PlainShelf is a local-first personal reading library for lightweight reading content, with a filesystem-first data model and a web-based reading interface.',
       version: 'Version',
-      repository: 'Repository',
-      openModal: 'Show about PlainShelf',
-      openRepository: 'Open GitHub repository',
-      close: 'Close',
-      closeLabel: 'Close about dialog'
+      repository: 'Repository'
     },
     mobileConnect: {
       title: 'Connection',
