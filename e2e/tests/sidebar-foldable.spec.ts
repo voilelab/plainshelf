@@ -3,10 +3,10 @@ import { startServer } from './support/server';
 import { addLayer, layersNav, layersSectionToggle } from './support/layers';
 
 const foldableSections = [
-  { name: 'LAYERS', controlledId: 'sidebar-section-layers' },
-  { name: 'READING', controlledId: 'sidebar-section-reading' },
-  { name: 'MAINTENANCE', controlledId: 'sidebar-section-maintenance' },
-  { name: 'ADMIN', controlledId: 'sidebar-section-admin' }
+  { name: 'Toggle sidebar folders', controlledId: 'sidebar-section-layers' },
+  { name: 'Toggle sidebar history', controlledId: 'sidebar-section-reading' },
+  { name: 'Toggle sidebar maintenance', controlledId: 'sidebar-section-maintenance' },
+  { name: 'Toggle sidebar administration', controlledId: 'sidebar-section-admin' }
 ] as const;
 
 test('sidebar sections collapse and expand their contents', async ({ page }) => {

@@ -8,7 +8,7 @@ export function layersNav(page: Page): Locator {
 
 /** The foldable Layers section header in the left sidebar. */
 export function layersSectionToggle(page: Page): Locator {
-  return page.getByRole('button', { name: 'LAYERS', exact: true });
+  return page.getByRole('button', { name: 'Toggle sidebar folders', exact: true });
 }
 
 /** Ensures the left sidebar's Layers section is expanded before using its controls. */

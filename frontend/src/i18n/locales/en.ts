@@ -30,6 +30,12 @@ const en = {
       maintenance: 'MAINTENANCE',
       admin: 'ADMIN'
     },
+    sectionToggleLabels: {
+      layers: 'Toggle sidebar folders',
+      reading: 'Toggle sidebar history',
+      maintenance: 'Toggle sidebar maintenance',
+      admin: 'Toggle sidebar administration'
+    },
     createLayer: {
       add: 'Add layer',
       cancel: 'Cancel',

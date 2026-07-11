@@ -89,11 +89,12 @@
               <button
                 type="button"
                 class="sidebar-section-toggle"
+                :aria-label="t('layout.sectionToggleLabels.layers')"
                 :aria-expanded="!collapsedSidebarSections.layers"
                 aria-controls="sidebar-section-layers"
                 @click="toggleSidebarSection('layers')"
               >
-                <span class="sidebar-section-title">{{ t('layout.sections.layers') }}</span>
+                <span class="sidebar-section-title" aria-hidden="true">{{ t('layout.sections.layers') }}</span>
                 <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.layers ? '▸' : '▾' }}</span>
               </button>
               <button
@@ -178,11 +179,12 @@
             <button
               type="button"
               class="sidebar-section-toggle"
+              :aria-label="t('layout.sectionToggleLabels.reading')"
               :aria-expanded="!collapsedSidebarSections.reading"
               aria-controls="sidebar-section-reading"
               @click="toggleSidebarSection('reading')"
             >
-              <span class="sidebar-section-title">{{ t('layout.sections.reading') }}</span>
+              <span class="sidebar-section-title" aria-hidden="true">{{ t('layout.sections.reading') }}</span>
               <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.reading ? '▸' : '▾' }}</span>
             </button>
             <nav
@@ -216,11 +218,12 @@
             <button
               type="button"
               class="sidebar-section-toggle"
+              :aria-label="t('layout.sectionToggleLabels.maintenance')"
               :aria-expanded="!collapsedSidebarSections.maintenance"
               aria-controls="sidebar-section-maintenance"
               @click="toggleSidebarSection('maintenance')"
             >
-              <span class="sidebar-section-title">{{ t('layout.sections.maintenance') }}</span>
+              <span class="sidebar-section-title" aria-hidden="true">{{ t('layout.sections.maintenance') }}</span>
               <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.maintenance ? '▸' : '▾' }}</span>
             </button>
             <nav
@@ -261,11 +264,12 @@
           <button
             type="button"
             class="sidebar-section-toggle"
+            :aria-label="t('layout.sectionToggleLabels.admin')"
             :aria-expanded="!collapsedSidebarSections.admin"
             aria-controls="sidebar-section-admin"
             @click="toggleSidebarSection('admin')"
           >
-            <span class="sidebar-section-title">{{ t('layout.sections.admin') }}</span>
+            <span class="sidebar-section-title" aria-hidden="true">{{ t('layout.sections.admin') }}</span>
             <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.admin ? '▸' : '▾' }}</span>
           </button>
           <nav
