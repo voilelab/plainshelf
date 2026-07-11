@@ -117,6 +117,18 @@ export async function goOffline(page: Page): Promise<void> {
   await setNavigatorOnline(page, false);
 }
 
+/**
+ * Simulates the device having network connectivity but being unable to
+ * reach the self-hosted PlainShelf server — e.g. the phone is on LTE away
+ * from the home LAN. Unlike {@link goOffline}, `navigator.onLine` is left
+ * `true`: only requests to the server (`/api/**`) are aborted, exercising
+ * MobileBookshelfProvider's network-first-with-cache-fallback path rather
+ * than its isOnline()===false offline path.
+ */
+export async function goServerUnreachable(page: Page): Promise<void> {
+  await page.route('**/api/**', (route) => route.abort('connectionrefused'));
+}
+
 /** Restores connectivity after {@link goOffline}. */
 export async function goOnline(page: Page): Promise<void> {
   await page.unroute('**/api/**');

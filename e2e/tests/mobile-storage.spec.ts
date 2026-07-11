@@ -13,7 +13,8 @@ import {
   getBookContentViaHook,
   getSourceContentViaHook,
   goOffline,
-  goOnline
+  goOnline,
+  goServerUnreachable
 } from './support/mobile';
 
 // These tests exercise the Android app storage layer (frontend/src/providers/
@@ -167,6 +168,34 @@ test('persists reading progress (bookmark) across app restarts', async ({ page }
     // than relying on visually inferring scroll position restoration.
     const reloadedProgress = await getReadProgressViaHook(page, helloId);
     expect(reloadedProgress.char_offset).toBe(savedProgress.char_offset);
+  } finally {
+    await server.dispose();
+  }
+});
+
+test('accesses downloaded books when the device has network but cannot reach the server', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importHelloBook(page);
+
+    await connectMobile(page, server.baseUrl);
+    const helloId = await getBookIdByTitle(page, 'hello');
+    await downloadBookViaHook(page, helloId);
+
+    // Simulate LTE-with-no-route-to-the-home-server: navigator.onLine stays
+    // true (unlike goOffline), so listBooks must fall back to the offline
+    // cache rather than surfacing the transport error to the UI.
+    await goServerUnreachable(page);
+    await reopenMobileAt(page, server.baseUrl, '/books');
+    await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
+    await expect(
+      page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true })
+    ).toBeVisible();
+
+    await reopenMobileAt(page, server.baseUrl, `/reader/${helloId}`);
+    await expect(page.getByText('Hello from PlainShelf E2E.')).toBeVisible();
   } finally {
     await server.dispose();
   }
