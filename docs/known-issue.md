@@ -4,6 +4,8 @@
 
 This document summarizes known limitations of the current shelf cache behavior, based on the current implementation in `shelf/shelf_cache.go`, `shelf/book.go`, `shelf/filestate.go`, and `shelf/shelf.go`.
 
+For the operational model, initial metadata scan, and tuning guidance, see [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md).
+
 ---
 
 ### 1) Desktop (single-machine usage)
