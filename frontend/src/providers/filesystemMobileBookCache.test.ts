@@ -384,4 +384,69 @@ describe('FilesystemMobileBookCache', () => {
     // The progress-only directory must not surface as a downloaded book.
     expect(await cache.listDownloadedBooks()).toEqual([]);
   });
+
+  it('round-trips a cover blob, preserving bytes and MIME type', async () => {
+    const bookId = 'cover-book';
+    const bytes = new Uint8Array([0, 1, 2, 250, 251, 252, 253, 254, 255]);
+    await cache.saveCachedCover(bookId, new Blob([bytes], { type: 'image/png' }));
+
+    const readBack = await cache.getCachedCover(bookId);
+    expect(readBack).not.toBeNull();
+    expect(readBack!.type).toBe('image/png');
+    expect(new Uint8Array(await readBack!.arrayBuffer())).toEqual(bytes);
+  });
+
+  it('returns null for a missing cover', async () => {
+    expect(await cache.getCachedCover('never-had-a-cover')).toBeNull();
+  });
+
+  it('removeDownloadedBook also drops the cached cover', async () => {
+    const bookId = 'book-with-cover';
+    await saveFullBook(cache, bookId, 'src-1');
+    await cache.saveCachedCover(bookId, new Blob([new Uint8Array([9, 8, 7])], { type: 'image/jpeg' }));
+    expect(await cache.getCachedCover(bookId)).not.toBeNull();
+
+    await cache.removeDownloadedBook(bookId);
+    expect(await cache.getCachedCover(bookId)).toBeNull();
+  });
+
+  it('persists size accounting on the manifest and returns it via listDownloadedManifests', async () => {
+    const manifest: CachedBookManifest = {
+      ...makeManifest('sized-book', ['src-1', 'src-2']),
+      size_bytes: 1234,
+      size_breakdown: { content: 1000, sources: 200, cover: 34 }
+    };
+    await cache.saveDownloadedBook(manifest);
+
+    const listed = await cache.listDownloadedManifests();
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toMatchObject({
+      book: { id: 'sized-book' },
+      size_bytes: 1234,
+      size_breakdown: { content: 1000, sources: 200, cover: 34 }
+    });
+    expect(listed[0].sources.map((source) => source.id)).toEqual(['src-1', 'src-2']);
+  });
+
+  it('listDownloadedManifests omits size fields for manifests saved without them', async () => {
+    await cache.saveDownloadedBook(makeManifest('no-size-book', ['src-1']));
+
+    const [manifest] = await cache.listDownloadedManifests();
+    expect(manifest.book.id).toBe('no-size-book');
+    expect(manifest.size_bytes).toBeUndefined();
+    expect(manifest.size_breakdown).toBeUndefined();
+  });
+
+  it('listDownloadedManifests ignores orphan and malformed directories', async () => {
+    await cache.saveDownloadedBook(makeManifest('good-book', ['src-1']));
+    await Filesystem.writeFile({
+      path: 'plainshelf-cache/books/orphan-dir/leftover.txt',
+      data: 'junk',
+      directory: Directory.Data,
+      recursive: true
+    });
+
+    const listed = await cache.listDownloadedManifests();
+    expect(listed.map((manifest) => manifest.book.id)).toEqual(['good-book']);
+  });
 });

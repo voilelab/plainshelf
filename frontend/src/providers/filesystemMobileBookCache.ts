@@ -64,6 +64,39 @@ function sourcePath(bookId: string, sourceId: string): string {
   return `${sourcesDir(bookId)}/${encode(sourceId)}.txt`;
 }
 
+// The cached cover lives alongside the manifest inside the book directory, so
+// removeDownloadedBook's recursive rmdir already sweeps it up. Binary can't be
+// stored losslessly through a UTF-8 text file (the only shape both the native
+// plugin and its IndexedDB-backed web fallback round-trip identically here),
+// so the cover is persisted as a small JSON sidecar holding the blob's MIME
+// type plus its bytes base64-encoded — text all the way down.
+function coverPath(bookId: string): string {
+  return `${bookDir(bookId)}/cover.json`;
+}
+
+interface StoredCover {
+  mime: string;
+  data: string; // base64 (no data: prefix)
+}
+
+async function blobToBase64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function base64ToBlob(base64: string, mime: string): Blob {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new Blob([bytes], mime ? { type: mime } : undefined);
+}
+
 /**
  * Filesystem-backed {@link MobileBookCache}, using @capacitor/filesystem's
  * app-private `Directory.Data`. See the module-level comment above for the
@@ -104,14 +137,7 @@ export class FilesystemMobileBookCache implements MobileBookCache {
   }
 
   async saveDownloadedBook(manifest: CachedBookManifest): Promise<void> {
-    const toStore: CachedBookManifest = {
-      book: { ...manifest.book },
-      sources: manifest.sources.map((source) => ({ ...source })),
-      downloaded_at: manifest.downloaded_at,
-      local_version: manifest.local_version,
-      remote_version: manifest.remote_version
-    };
-    await this.writeJsonFile(manifestPath(manifest.book.id), toStore);
+    await this.writeJsonFile(manifestPath(manifest.book.id), this.copyManifest(manifest));
   }
 
   async removeDownloadedBook(bookId: string): Promise<void> {
@@ -156,6 +182,55 @@ export class FilesystemMobileBookCache implements MobileBookCache {
     // progress can be written (and read back) even for a book that was never
     // (or isn't currently) downloaded.
     await this.writeJsonFile(progressPath(bookId), { ...progress });
+  }
+
+  async getCachedCover(bookId: string): Promise<Blob | null> {
+    const stored = await this.readJsonFile<Partial<StoredCover>>(coverPath(bookId));
+    if (!stored || typeof stored.data !== 'string') {
+      return null;
+    }
+    try {
+      return base64ToBlob(stored.data, typeof stored.mime === 'string' ? stored.mime : '');
+    } catch {
+      // Corrupt/undecodable base64 is a cache miss, not a crash — the cover
+      // just falls back to the remote URL (or a broken-image placeholder).
+      return null;
+    }
+  }
+
+  async saveCachedCover(bookId: string, blob: Blob): Promise<void> {
+    const stored: StoredCover = { mime: blob.type, data: await blobToBase64(blob) };
+    await this.writeJsonFile(coverPath(bookId), stored);
+  }
+
+  async listDownloadedManifests(): Promise<CachedBookManifest[]> {
+    let entries;
+    try {
+      entries = (await Filesystem.readdir({ path: BASE_DIR, directory: CACHE_DIRECTORY })).files;
+    } catch {
+      return [];
+    }
+
+    const manifests = await Promise.all(
+      entries
+        .filter((entry) => entry.type === 'directory')
+        .map((entry) => this.readManifestByDir(entry.name))
+    );
+    return manifests
+      .filter((manifest): manifest is CachedBookManifest => manifest !== null)
+      .map((manifest) => this.copyManifest(manifest));
+  }
+
+  private copyManifest(manifest: CachedBookManifest): CachedBookManifest {
+    return {
+      book: { ...manifest.book },
+      sources: manifest.sources.map((source) => ({ ...source })),
+      downloaded_at: manifest.downloaded_at,
+      local_version: manifest.local_version,
+      remote_version: manifest.remote_version,
+      size_bytes: manifest.size_bytes,
+      size_breakdown: manifest.size_breakdown ? { ...manifest.size_breakdown } : undefined
+    };
   }
 
   private toDownloadedBook(manifest: CachedBookManifest): Book {

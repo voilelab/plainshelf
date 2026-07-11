@@ -6,8 +6,8 @@ import {
   reopenMobileAt,
   getBookIdByTitle,
   downloadBookViaHook,
-  dumpMobileStores,
-  readManifestFromIdb,
+  getDownloadStateViaHook,
+  getDownloadedEntryViaHook,
   goOffline
 } from './support/mobile';
 
@@ -17,6 +17,12 @@ import {
 // /downloads management page (DownloadsPage.vue), and offline cover display
 // via provider-rewritten blob: URLs. They run desktop Chromium with
 // `?mobile-shell-preview=1` — same approach as mobile-storage.spec.ts.
+//
+// Assertions stay backend-agnostic: they go through the provider's public API
+// (getDownloadState / listDownloadedBookEntries) and the rendered UI, not any
+// particular cache's internal storage. The production mobile cache is
+// filesystem-backed (FilesystemMobileBookCache), not the `plainshelf-mobile`
+// IndexedDB database, so poking IDB stores directly would assert on nothing.
 
 /**
  * Uploads a cover for the book currently open on the (desktop-mode) detail
@@ -72,19 +78,13 @@ test('downloads a book to the device from the detail page button', async ({ page
     await expect(page.getByRole('button', { name: 'Remove download' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Download to device' })).not.toBeVisible();
 
-    // Authoritative check on the cache itself, not just the button label:
-    // manifest persisted with non-zero size accounting, and the cover blob
-    // cached in the v2 `covers` store.
-    const stores = await dumpMobileStores(page);
-    expect(stores.manifests).toContain(helloId);
-    expect(stores.bookContents).toContain(helloId);
-    expect(stores.covers).toContain(helloId);
-
-    const manifest = await readManifestFromIdb(page, helloId);
-    expect(manifest).not.toBeNull();
-    expect(manifest?.size_bytes).toBeGreaterThan(0);
-    expect(manifest?.size_breakdown?.content).toBeGreaterThan(0);
-    expect(manifest?.size_breakdown?.cover).toBeGreaterThan(0);
+    // Authoritative check via the provider API, not just the button label:
+    // the book is downloaded and the manifest carries non-zero size accounting.
+    // (The cover blob's round-trip is proven by the offline-cover test below.)
+    expect(await getDownloadStateViaHook(page, helloId)).toBe('downloaded');
+    const entry = await getDownloadedEntryViaHook(page, helloId);
+    expect(entry).not.toBeNull();
+    expect(entry?.sizeBytes).toBeGreaterThan(0);
   } finally {
     await server.dispose();
   }
@@ -132,10 +132,8 @@ test('lists, sizes, and removes downloads on the /downloads page', async ({ page
     await expect(totalSizeValue).toHaveText('0 B');
 
     // The cache is actually empty, not just hidden from the UI.
-    const stores = await dumpMobileStores(page);
-    expect(stores.manifests).not.toContain(helloId);
-    expect(stores.bookContents).not.toContain(helloId);
-    expect(stores.covers).not.toContain(helloId);
+    expect(await getDownloadStateViaHook(page, helloId)).toBe('not_downloaded');
+    expect(await getDownloadedEntryViaHook(page, helloId)).toBeNull();
   } finally {
     await server.dispose();
   }
@@ -154,17 +152,15 @@ test('shows the cached cover from a blob: URL in the library while offline', asy
     await connectMobile(page, server.baseUrl);
     const helloId = await getBookIdByTitle(page, 'hello');
     await downloadBookViaHook(page, helloId);
-
-    // Cover blob must be in the cache before going offline.
-    const stores = await dumpMobileStores(page);
-    expect(stores.covers).toContain(helloId);
+    expect(await getDownloadStateViaHook(page, helloId)).toBe('downloaded');
 
     await goOffline(page);
     await reopenMobileAt(page, server.baseUrl, '/books');
 
     // The provider rewrites cover_url to an object URL for the cached blob
     // while offline, so the library's <img> must resolve locally instead of
-    // pointing at the unreachable server.
+    // pointing at the unreachable server. A blob: src here proves the cover
+    // was cached during download and read back by the offline path.
     const row = page.locator('.book-list-row', { hasText: 'hello' });
     await expect(row.getByRole('heading', { name: 'hello', exact: true })).toBeVisible();
     await expect(row.locator('.book-list-cover')).toHaveAttribute('src', /^blob:/);
