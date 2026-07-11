@@ -119,8 +119,14 @@ Runtime state.
 Install the desktop app via Homebrew:
 
 ```bash
-brew tap voilelab/plainshelf https://github.com/voilelab/plainshelf
 brew install --cask voilelab/plainshelf/plainshelf
+```
+
+Or tap the repository explicitly first:
+
+```bash
+brew tap voilelab/plainshelf https://github.com/voilelab/plainshelf
+brew install --cask plainshelf
 ```
 
 For the server binary, Docker image, or other platforms, see
