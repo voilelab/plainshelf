@@ -50,34 +50,33 @@ export class MobileBookshelfProvider implements BookshelfProvider {
     private readonly isOnline: () => boolean = defaultIsOnline
   ) {}
 
-  async listBooks(page = 1, pageSize = 20, search?: string): Promise<PaginatedBooks> {
+  async listBooks(page = 1, pageSize = 20): Promise<PaginatedBooks> {
     if (this.isOnline()) {
       let remoteBooks: PaginatedBooks;
       try {
-        remoteBooks = await this.remote.listBooks(page, pageSize, search);
+        remoteBooks = await this.remote.listBooks(page, pageSize);
       } catch (err) {
         if (!isServerUnreachableError(err)) {
           throw err;
         }
-        return this.listBooksFromCache(page, pageSize, search);
+        return this.listBooksFromCache(page, pageSize);
       }
       const items = await Promise.all(remoteBooks.items.map((book) => this.annotateDownloadState(book)));
       return { ...remoteBooks, items };
     }
 
-    return this.listBooksFromCache(page, pageSize, search);
+    return this.listBooksFromCache(page, pageSize);
   }
 
-  private async listBooksFromCache(page: number, pageSize: number, search?: string): Promise<PaginatedBooks> {
+  private async listBooksFromCache(page: number, pageSize: number): Promise<PaginatedBooks> {
     const downloaded = await this.cache.listDownloadedBooks();
-    const filtered = this.filterBooks(downloaded, search);
     const start = Math.max(0, (page - 1) * pageSize);
-    const pageItems = filtered.slice(start, start + pageSize);
+    const pageItems = downloaded.slice(start, start + pageSize);
     const items = await Promise.all(pageItems.map((book) => this.applyCachedCover(book)));
 
     return {
       items,
-      total: filtered.length,
+      total: downloaded.length,
       page,
       pageSize
     };
@@ -457,17 +456,5 @@ export class MobileBookshelfProvider implements BookshelfProvider {
     }
 
     return { ...book, cover_url: url };
-  }
-
-  private filterBooks(books: Book[], search?: string): Book[] {
-    const term = search?.trim().toLowerCase();
-    if (!term) {
-      return books;
-    }
-
-    return books.filter((book) => {
-      const haystack = [book.title, ...book.authors, ...book.tags].join(' ').toLowerCase();
-      return haystack.includes(term);
-    });
   }
 }
