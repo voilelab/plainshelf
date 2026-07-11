@@ -6,7 +6,7 @@
       class="book-list-row panel"
       @click="emit('select', book.id)"
     >
-      <img :src="coverSrc(book)" :alt="book.title" class="book-list-cover" @error="onCoverError(book.id)" />
+      <BookCoverImg :book-id="book.id" :cover-url="book.cover_url" :alt="book.title" class="book-list-cover" />
 
       <div class="book-list-main">
         <div class="book-list-head">
@@ -37,8 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import bookcover from '../assets/bookcover.svg';
+import BookCoverImg from './BookCoverImg.vue';
 import type { Book } from '../types/book';
 import { getLayerPath, layerPathLabel } from '../utils/layers';
 import { formatDateLabel } from '../utils/date';
@@ -54,22 +53,6 @@ const emit = defineEmits<{
   (event: 'select', id: string): void;
   (event: 'edit', id: string): void;
 }>();
-
-const brokenCoverIds = ref<Record<string, boolean>>({});
-
-function coverSrc(book: Book): string {
-  if (brokenCoverIds.value[book.id]) {
-    return bookcover;
-  }
-  return book.cover_url || bookcover;
-}
-
-function onCoverError(bookId: string): void {
-  brokenCoverIds.value = {
-    ...brokenCoverIds.value,
-    [bookId]: true
-  };
-}
 
 function layerLabel(book: Book): string {
   const path = getLayerPath(book);
