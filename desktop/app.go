@@ -98,6 +98,17 @@ func (a *DesktopApp) GetAPIHandler() http.Handler {
 	return a.apiHandler
 }
 
+func (a *DesktopApp) OpenExternalURL(rawURL string) error {
+	rawURL = strings.TrimSpace(rawURL)
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed == nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return util.Errorf("invalid external URL: %q", rawURL)
+	}
+
+	wailsruntime.BrowserOpenURL(a.ctx, parsed.String())
+	return nil
+}
+
 func (a *DesktopApp) PreviousPage() {
 	a.navigateHistory(-1)
 }

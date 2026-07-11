@@ -185,7 +185,7 @@
             <div>
               <div class="setting-label">{{ t('settings.about.repository') }}</div>
             </div>
-            <a class="setting-link" :href="githubRepoUrl" target="_blank" rel="noreferrer">
+            <a class="setting-link" :href="githubRepoUrl" target="_blank" rel="noreferrer" @click="onRepositoryLinkClick">
               {{ githubRepoUrl }}
             </a>
           </div>
@@ -292,6 +292,7 @@ import { useDocumentTitle } from '../composables/useDocumentTitle';
 import { useShelvesStore } from '../composables/useShelvesStore';
 import { useI18n } from '../i18n';
 import { getBookshelfProvider, isMobileRuntime, isWailsRuntime } from '../providers';
+import { openExternalURL } from '../utils/externalLinks';
 
 const { t } = useI18n();
 const loading = ref(false);
@@ -329,6 +330,12 @@ const modifyShelfError = ref('');
 const canSubmitModifyShelf = computed(() => modifyShelfName.value.trim().length > 0);
 
 useDocumentTitle(() => [t('settings.title'), t('app.name')]);
+
+function onRepositoryLinkClick(event: MouseEvent): void {
+  event.preventDefault();
+  void openExternalURL(githubRepoUrl);
+}
+
 async function loadSettings(): Promise<void> {
   loading.value = true;
   error.value = '';
