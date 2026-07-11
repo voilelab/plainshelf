@@ -174,11 +174,20 @@
       <TabsContent value="about" class="settings-tab-content">
         <section class="panel settings-group">
           <h3>{{ t('settings.about.title') }}</h3>
+          <p class="setting-description">{{ t('settings.about.description') }}</p>
           <div class="setting-item">
             <div>
               <div class="setting-label">{{ t('settings.about.version') }}</div>
             </div>
             <span class="setting-value">{{ version || '—' }}</span>
+          </div>
+          <div class="setting-item">
+            <div>
+              <div class="setting-label">{{ t('settings.about.repository') }}</div>
+            </div>
+            <a class="setting-link" :href="githubRepoUrl" target="_blank" rel="noreferrer" @click="onRepositoryLinkClick">
+              {{ githubRepoUrl }}
+            </a>
           </div>
         </section>
       </TabsContent>
@@ -283,6 +292,7 @@ import { useDocumentTitle } from '../composables/useDocumentTitle';
 import { useShelvesStore } from '../composables/useShelvesStore';
 import { useI18n } from '../i18n';
 import { getBookshelfProvider, isMobileRuntime, isWailsRuntime } from '../providers';
+import { openExternalURL } from '../utils/externalLinks';
 
 const { t } = useI18n();
 const loading = ref(false);
@@ -291,6 +301,7 @@ const error = ref('');
 const coverToJpg = ref(false);
 const readHistoryLimit = ref(0);
 const version = ref('');
+const githubRepoUrl = 'https://github.com/voilelab/plainshelf';
 
 const isDesktopEnv = computed(() => isWailsRuntime());
 const isMobileEnv = computed(() => isMobileRuntime());
@@ -319,6 +330,11 @@ const modifyShelfError = ref('');
 const canSubmitModifyShelf = computed(() => modifyShelfName.value.trim().length > 0);
 
 useDocumentTitle(() => [t('settings.title'), t('app.name')]);
+
+function onRepositoryLinkClick(event: MouseEvent): void {
+  event.preventDefault();
+  void openExternalURL(githubRepoUrl);
+}
 
 async function loadSettings(): Promise<void> {
   loading.value = true;
@@ -695,6 +711,15 @@ onMounted(() => {
   font-size: 13px;
   margin: 4px 0 0;
 }
+
+
+.setting-link {
+  color: #2563eb;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
 
 .setting-checkbox {
   cursor: pointer;

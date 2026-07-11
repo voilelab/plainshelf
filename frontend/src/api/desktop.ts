@@ -29,6 +29,7 @@ interface DesktopAppBinding {
   GetShelfDetails?: (shelfID: string) => Promise<DesktopShelfDetails>;
   ModifyShelf?: (shelfID: string, name: string, scanInterval: string) => Promise<void>;
   SaveBookContent?: (shelfID: string, bookID: string, suggestedName: string) => Promise<void>;
+  OpenExternalURL?: (url: string) => Promise<void>;
 }
 
 interface DesktopWindow extends Window {
@@ -177,4 +178,17 @@ export async function saveDesktopBookContent(
   }
 
   await desktopApp.SaveBookContent(shelfID, bookID, suggestedName);
+}
+
+export async function openDesktopExternalURL(url: string): Promise<void> {
+  if (!isDesktopRuntime()) {
+    return;
+  }
+
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.OpenExternalURL) {
+    throw new Error('OpenExternalURL binding not available');
+  }
+
+  await desktopApp.OpenExternalURL(url);
 }
