@@ -554,7 +554,13 @@ function toggleSidebar(): void {
 }
 
 function toggleSidebarSection(section: SidebarSectionKey): void {
-  collapsedSidebarSections[section] = !collapsedSidebarSections[section];
+  const nextCollapsed = !collapsedSidebarSections[section];
+  collapsedSidebarSections[section] = nextCollapsed;
+
+  if (section === 'layers' && nextCollapsed) {
+    showCreateLayerForm.value = false;
+    newLayerPath.value = '';
+  }
 }
 
 function toggleCreateLayerForm(): void {
