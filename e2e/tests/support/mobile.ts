@@ -20,9 +20,15 @@ declare global {
           pageSize?: number,
           search?: string
         ) => Promise<{ items: Array<{ id: string; title: string }> }>;
+        getBook: (bookId: string) => Promise<{ current_source?: string }>;
+        getBookContent: (bookId: string) => Promise<{ content: string }>;
+        getSourceContent: (bookId: string, sourceId: string) => Promise<string>;
         downloadBook?: (bookId: string) => Promise<void>;
         removeDownload?: (bookId: string) => Promise<void>;
         getDownloadState?: (bookId: string) => Promise<string>;
+        listDownloadedBookEntries?: () => Promise<
+          Array<{ book: { id: string }; sizeBytes: number; downloadedAt: string }>
+        >;
         getReadProgress: (bookId: string) => Promise<{ char_offset: number; percent?: number }>;
       };
     };
@@ -175,121 +181,84 @@ export async function getReadProgressViaHook(
   }, bookId);
 }
 
-export interface MobileStoreDump {
-  manifests: string[];
-  bookContents: string[];
-  sourceContents: string[];
-  progress: string[];
-  covers: string[];
+/**
+ * Reads a book's `current_source` id via the test hook. Needed to exercise
+ * getSourceContent for a book without depending on any particular cache's
+ * internal key scheme.
+ */
+export async function getCurrentSourceIdViaHook(page: Page, bookId: string): Promise<string> {
+  return page.evaluate(async (id) => {
+    const provider = window.__plainshelfTestHooks?.provider;
+    if (!provider) {
+      throw new Error('__plainshelfTestHooks is not attached; is the page in mobile-shell-preview mode?');
+    }
+    const book = await provider.getBook(id);
+    if (!book.current_source) {
+      throw new Error(`Book ${id} has no current_source`);
+    }
+    return book.current_source;
+  }, bookId);
 }
 
 /**
- * Reads the raw key list of all 5 IndexedDB object stores in the
- * `plainshelf-mobile` database (see frontend/src/providers/indexedDbMobileBookCache.ts,
- * schema v2: v1's 4 stores plus `covers`).
- * Uses raw indexedDB APIs rather than the provider hook so tests can assert
- * on cache structure (e.g. the `${bookId}::${sourceId}` key prefix used for
- * isolating removal) independently of provider behavior.
+ * Reads a book's content via the test hook (goes through the same
+ * cache-then-remote path the reader uses), returning `null` instead of
+ * throwing when unavailable (e.g. offline and not downloaded). This lets
+ * tests assert both the "readable" and "evicted" cases uniformly, without
+ * coupling to which offline cache backend is wired up (frontend/src/
+ * providers/index.ts) or its internal storage structure.
  */
-export async function dumpMobileStores(page: Page): Promise<MobileStoreDump> {
-  return page.evaluate(() => {
-    const storeNames = ['manifests', 'bookContents', 'sourceContents', 'progress', 'covers'] as const;
+export async function getBookContentViaHook(page: Page, bookId: string): Promise<string | null> {
+  return page.evaluate(async (id) => {
+    const provider = window.__plainshelfTestHooks?.provider;
+    if (!provider) {
+      throw new Error('__plainshelfTestHooks is not attached; is the page in mobile-shell-preview mode?');
+    }
+    try {
+      const { content } = await provider.getBookContent(id);
+      return content;
+    } catch {
+      return null;
+    }
+  }, bookId);
+}
 
-    return new Promise<MobileStoreDump>((resolve, reject) => {
-      // Version must match indexedDbMobileBookCache.ts's DB_VERSION (2); the
-      // upgrade handler idempotently creates stores so this also works if
-      // called before the app has ever touched the cache. (It does NOT
-      // replicate the app's v1→v2 size backfill — these tests always start
-      // from a fresh browser context, never from v1 data.)
-      const request = indexedDB.open('plainshelf-mobile', 2);
-
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        for (const name of storeNames) {
-          if (!db.objectStoreNames.contains(name)) {
-            db.createObjectStore(name);
-          }
-        }
-      };
-
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        const db = request.result;
-        const tx = db.transaction(storeNames, 'readonly');
-        const result = {} as Record<(typeof storeNames)[number], string[]>;
-        let remaining = storeNames.length;
-
-        for (const name of storeNames) {
-          const keysRequest = tx.objectStore(name).getAllKeys();
-          keysRequest.onsuccess = () => {
-            result[name] = keysRequest.result.map((key) => String(key));
-            remaining -= 1;
-            if (remaining === 0) {
-              db.close();
-              resolve(result as MobileStoreDump);
-            }
-          };
-          keysRequest.onerror = () => reject(keysRequest.error);
-        }
-      };
-    });
-  });
+/** Same as {@link getBookContentViaHook}, for a single source's content. */
+export async function getSourceContentViaHook(page: Page, bookId: string, sourceId: string): Promise<string | null> {
+  return page.evaluate(
+    async ({ id, srcId }) => {
+      const provider = window.__plainshelfTestHooks?.provider;
+      if (!provider) {
+        throw new Error('__plainshelfTestHooks is not attached; is the page in mobile-shell-preview mode?');
+      }
+      try {
+        return await provider.getSourceContent(id, srcId);
+      } catch {
+        return null;
+      }
+    },
+    { id: bookId, srcId: sourceId }
+  );
 }
 
 /**
- * Shape of the size-accounting fields on a cached book manifest
- * (frontend/src/providers/mobileBookCache.ts CachedBookManifest, v2 schema).
+ * Size accounting for one downloaded book, read via the provider's public
+ * `listDownloadedBookEntries()` (the same API DownloadsPage renders). This
+ * stays backend-agnostic: it asserts on the persisted `sizeBytes` the
+ * provider reports, not on any particular cache's internal storage (the
+ * production mobile cache is filesystem-backed, not `plainshelf-mobile` IDB).
  */
-export interface MobileManifestSizeInfo {
-  size_bytes?: number;
-  size_breakdown?: { content: number; sources: number; cover: number };
-  downloaded_at?: string;
-}
-
-/**
- * Reads a single manifest record straight from the `manifests` object store,
- * so tests can assert on persisted size accounting (size_bytes/size_breakdown)
- * rather than trusting what the UI displays. Returns null when the book has
- * no manifest (not downloaded).
- */
-export async function readManifestFromIdb(
+export async function getDownloadedEntryViaHook(
   page: Page,
   bookId: string
-): Promise<MobileManifestSizeInfo | null> {
-  return page.evaluate((id) => {
-    return new Promise<MobileManifestSizeInfo | null>((resolve, reject) => {
-      const request = indexedDB.open('plainshelf-mobile', 2);
-      request.onerror = () => reject(request.error);
-      request.onupgradeneeded = () => {
-        // Fresh DB: the app has not downloaded anything yet, so create the
-        // stores (mirroring dumpMobileStores) and report "no manifest".
-        const db = request.result;
-        for (const name of ['manifests', 'bookContents', 'sourceContents', 'progress', 'covers']) {
-          if (!db.objectStoreNames.contains(name)) {
-            db.createObjectStore(name);
-          }
-        }
-      };
-      request.onsuccess = () => {
-        const db = request.result;
-        const getRequest = db.transaction('manifests', 'readonly').objectStore('manifests').get(id);
-        getRequest.onerror = () => reject(getRequest.error);
-        getRequest.onsuccess = () => {
-          const manifest = getRequest.result as
-            | { size_bytes?: number; size_breakdown?: { content: number; sources: number; cover: number }; downloaded_at?: string }
-            | undefined;
-          db.close();
-          resolve(
-            manifest
-              ? {
-                  size_bytes: manifest.size_bytes,
-                  size_breakdown: manifest.size_breakdown,
-                  downloaded_at: manifest.downloaded_at
-                }
-              : null
-          );
-        };
-      };
-    });
+): Promise<{ sizeBytes: number; downloadedAt: string } | null> {
+  return page.evaluate(async (id) => {
+    const provider = window.__plainshelfTestHooks?.provider;
+    if (!provider?.listDownloadedBookEntries) {
+      throw new Error('provider.listDownloadedBookEntries is not available; is the page in mobile-shell-preview mode?');
+    }
+    const entries = await provider.listDownloadedBookEntries();
+    const entry = entries.find((item) => item.book.id === id);
+    return entry ? { sizeBytes: entry.sizeBytes, downloadedAt: entry.downloadedAt } : null;
   }, bookId);
 }

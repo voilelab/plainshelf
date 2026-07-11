@@ -9,7 +9,9 @@ import {
   removeDownloadViaHook,
   getDownloadStateViaHook,
   getReadProgressViaHook,
-  dumpMobileStores,
+  getCurrentSourceIdViaHook,
+  getBookContentViaHook,
+  getSourceContentViaHook,
   goOffline,
   goOnline
 } from './support/mobile';
@@ -64,7 +66,7 @@ test('does not resurrect the saved shelf when validating an unreachable server o
   }
 });
 
-test('downloads books for offline reading and isolates removal by source-content prefix', async ({ page }) => {
+test('downloads books for offline reading and isolates removal between books', async ({ page }) => {
   const server = await startServer();
 
   try {
@@ -89,14 +91,11 @@ test('downloads books for offline reading and isolates removal by source-content
     expect(await getDownloadStateViaHook(page, helloId)).toBe('downloaded');
     expect(await getDownloadStateViaHook(page, anotherId)).toBe('downloaded');
 
-    let stores = await dumpMobileStores(page);
-    expect(stores.manifests.slice().sort()).toEqual([anotherId, helloId].sort());
-    expect(stores.bookContents.slice().sort()).toEqual([anotherId, helloId].sort());
-    expect(stores.sourceContents.some((key) => key.startsWith(`${helloId}::`))).toBe(true);
-    expect(stores.sourceContents.some((key) => key.startsWith(`${anotherId}::`))).toBe(true);
+    const helloSourceId = await getCurrentSourceIdViaHook(page, helloId);
+    const anotherSourceId = await getCurrentSourceIdViaHook(page, anotherId);
 
     // Go offline and re-launch the app: reading a downloaded book must work
-    // entirely from the IndexedDB cache, with no network round trip.
+    // entirely from the offline cache, with no network round trip.
     await goOffline(page);
     await reopenMobileAt(page, server.baseUrl, '/books');
     const helloRow = page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true });
@@ -115,20 +114,23 @@ test('downloads books for offline reading and isolates removal by source-content
     await goOnline(page);
     await removeDownloadViaHook(page, helloId);
 
-    // `${bookId}::${sourceId}` prefix removal must not clobber the other
-    // book's source content — this is the specific bug the `::` separator
-    // (rather than the in-memory cache's collision-prone `:`) guards against.
-    stores = await dumpMobileStores(page);
-    expect(stores.manifests).not.toContain(helloId);
-    expect(stores.manifests).toContain(anotherId);
-    expect(stores.bookContents).not.toContain(helloId);
-    expect(stores.bookContents).toContain(anotherId);
-    expect(stores.progress).not.toContain(helloId);
-    expect(stores.sourceContents.some((key) => key.startsWith(`${helloId}::`))).toBe(false);
-    expect(stores.sourceContents.some((key) => key.startsWith(`${anotherId}::`))).toBe(true);
+    // Removing hello's offline cache must not clobber another's cached
+    // content — go offline again so getBookContent/getSourceContent are
+    // forced to read from the local cache only (no remote fallback), and
+    // assert purely on provider-visible behavior rather than any particular
+    // cache backend's storage layout.
+    await goOffline(page);
 
     expect(await getDownloadStateViaHook(page, helloId)).toBe('not_downloaded');
     expect(await getDownloadStateViaHook(page, anotherId)).toBe('downloaded');
+
+    expect(await getBookContentViaHook(page, helloId)).toBeNull();
+    expect(await getSourceContentViaHook(page, helloId, helloSourceId)).toBeNull();
+
+    expect(await getBookContentViaHook(page, anotherId)).toContain('Another book for PlainShelf E2E.');
+    expect(await getSourceContentViaHook(page, anotherId, anotherSourceId)).toContain(
+      'Another book for PlainShelf E2E.'
+    );
   } finally {
     await server.dispose();
   }
