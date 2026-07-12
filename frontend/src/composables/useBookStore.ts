@@ -22,7 +22,7 @@ function clearRetry(): void {
   }
 }
 
-async function fetchBooks(search?: string, _isAutoRetry = false): Promise<void> {
+async function fetchBooks(_isAutoRetry = false): Promise<void> {
   clearRetry();
   if (!_isAutoRetry) {
     initRetryCount = 0;
@@ -32,7 +32,7 @@ async function fetchBooks(search?: string, _isAutoRetry = false): Promise<void> 
   error.value = '';
   shelfInitializing.value = false;
   try {
-    const data = await getBookshelfProvider().listBooks(1, Number.MAX_SAFE_INTEGER, search);
+    const data = await getBookshelfProvider().listBooks(1, Number.MAX_SAFE_INTEGER);
     books.value = data.items;
     initRetryCount = 0;
     shelfUnreachable.value = false;
@@ -45,7 +45,7 @@ async function fetchBooks(search?: string, _isAutoRetry = false): Promise<void> 
         return;
       }
       shelfInitializing.value = true;
-      retryTimer = setTimeout(() => fetchBooks(search, true), 3000);
+      retryTimer = setTimeout(() => fetchBooks(true), 3000);
       return;
     }
     const msg = err instanceof ApiError && err.isTimeout

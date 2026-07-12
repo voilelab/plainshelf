@@ -84,8 +84,6 @@ func (app *App) GetBookFolderPath(shelfID, bookID string) (string, error) {
 
 // GET /api/shelves/{shelf_id}/books
 func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
-	searchQuery := strings.TrimSpace(r.URL.Query().Get("search"))
-
 	shelfID, err := readShelfID(r)
 	if err != nil {
 		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
@@ -106,19 +104,6 @@ func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
 		app.Error("failed to list books", "error", err)
 		http.Error(w, "failed to list books", http.StatusInternalServerError)
 		return
-	}
-
-	if searchQuery != "" {
-		newBooks := make([]*shelf.Book, 0)
-		for _, b := range books {
-			meta := b.GetMeta()
-			if strings.Contains(meta.Title, searchQuery) ||
-				strings.Contains(meta.Comments, searchQuery) {
-				newBooks = append(newBooks, b)
-				continue
-			}
-		}
-		books = newBooks
 	}
 
 	jsonBooks := make([]Book, len(books))

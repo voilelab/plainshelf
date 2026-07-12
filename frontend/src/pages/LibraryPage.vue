@@ -157,6 +157,7 @@ import { useBooksRouteQuery } from '../composables/useBooksRouteQuery';
 import { useBooksSearch } from '../composables/useBooksSearch';
 import { useBooksSort, type BookSortKey, type SortOrder } from '../composables/useBooksSort';
 import { useServerMode } from '../composables/useServerMode';
+import { filterBooksBySearch } from '../utils/bookSearch';
 import { hasFileTransfer, readDroppedFiles } from '../utils/file';
 import { getLayerPath, layerPathEquals, normalizeLayerPath } from '../utils/layers';
 import { useI18n } from '../i18n';
@@ -192,12 +193,11 @@ const {
 const booksLoaded = ref<boolean>(false);
 const isNewEmptyBookModalOpen = ref(false);
 const { readOnly } = useServerMode();
-const hasInitializedSearch = ref(false);
 const droppedFiles = ref<File[]>([]);
 
 async function reloadBooks(): Promise<void> {
   booksLoaded.value = false;
-  await fetchBooks(committedSearch.value.trim());
+  await fetchBooks();
   booksLoaded.value = true;
 }
 
@@ -283,7 +283,8 @@ function matchesLayer(book: Book): boolean {
   return layerPathEquals(getLayerPath(book), selectedLayer.value);
 }
 
-const filteredBooks = computed(() => books.value.filter((book) => matchesLayer(book)));
+const searchedBooks = computed(() => filterBooksBySearch(books.value, committedSearch.value));
+const filteredBooks = computed(() => searchedBooks.value.filter((book) => matchesLayer(book)));
 const {
   SORT_OPTIONS,
   sortedBooks
@@ -506,6 +507,7 @@ function openBook(id: string): void {
 
 
 onMounted(() => {
+  void reloadBooks();
   document.addEventListener('dragover', onDocumentDragOver);
   document.addEventListener('drop', onDocumentDrop);
 });
@@ -519,16 +521,11 @@ watch(selectedLayer, async () => {
   await reloadBooks();
 });
 
-// Watch committed search: update URL and fetch from backend
+// Watch committed search: keep the URL in sync and reset to page 1.
+// Filtering itself is a pure computed (searchedBooks) — no refetch needed.
 watch(
   committedSearch,
-  async (newSearch) => {
-    if (!hasInitializedSearch.value) {
-      hasInitializedSearch.value = true;
-      await reloadBooks();
-      return;
-    }
-
+  (newSearch) => {
     void replaceBooksQuery({
       layer: selectedLayer.value,
       page: 1,
@@ -536,9 +533,7 @@ watch(
       sort: sortBy.value,
       order: sortOrder.value
     });
-    await reloadBooks();
-  },
-  { immediate: true }
+  }
 );
 
 watch(
@@ -546,6 +541,13 @@ watch(
   ([layer, currentPage, maxPage, hasLoaded]) => {
     const normalizedPage = hasLoaded ? Math.min(currentPage, maxPage) : currentPage;
     const currentSearch = committedSearch.value.trim();
+
+    // Committing a search changes totalPages in the same tick, before the
+    // page-1 replace above lands. Normalizing with the stale page here would
+    // override that reset, so wait until the route reflects the new search.
+    if (currentSearch !== searchQuery.value) {
+      return;
+    }
 
     if (isBooksQueryNormalized({
       layer,

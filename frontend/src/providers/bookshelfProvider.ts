@@ -35,7 +35,7 @@ export interface StorageEstimateResult {
 }
 
 export interface BookshelfProvider {
-  listBooks(page?: number, pageSize?: number, search?: string): Promise<PaginatedBooks>;
+  listBooks(page?: number, pageSize?: number): Promise<PaginatedBooks>;
   getBook(bookId: string): Promise<Book>;
   updateBook(bookId: string, payload: BookUpdateRequest): Promise<Book>;
   updateBookLayer(bookId: string, layer: string): Promise<void>;

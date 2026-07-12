@@ -46,8 +46,8 @@ import type { SourceMeta } from '../types/source';
 import type { BookshelfProvider } from './bookshelfProvider';
 
 export class ServerBookshelfProvider implements BookshelfProvider {
-  listBooks(page?: number, pageSize?: number, search?: string): Promise<PaginatedBooks> {
-    return listBooks(page, pageSize, search);
+  listBooks(page?: number, pageSize?: number): Promise<PaginatedBooks> {
+    return listBooks(page, pageSize);
   }
 
   getBook(bookId: string): Promise<Book> {
