@@ -460,14 +460,12 @@ function mockImportBook(payload: BookCreateRequest): Book {
   return created;
 }
 
-export async function listBooks(page = 1, pageSize = PAGE_SIZE_DEFAULT, search?: string): Promise<PaginatedBooks> {
+export async function listBooks(page = 1, pageSize = PAGE_SIZE_DEFAULT): Promise<PaginatedBooks> {
   if (isMockApiMode()) {
     return delay(mockListBooks(page, pageSize));
   }
 
-  const trimmed = search?.trim() ?? '';
-  const url = trimmed ? `${buildShelfApiPath('/books')}?search=${encodeURIComponent(trimmed)}` : buildShelfApiPath('/books');
-  const all = await fetchJson<BackendBook[]>(url);
+  const all = await fetchJson<BackendBook[]>(buildShelfApiPath('/books'));
   const books = all.map(transformBook);
   const start = (page - 1) * pageSize;
   return { items: books.slice(start, start + pageSize), total: books.length, page, pageSize };

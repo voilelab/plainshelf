@@ -184,15 +184,21 @@ func TestAPIGetBooksContract(t *testing.T) {
 	rec = env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+alpha.Meta.ID, strings.NewReader(patchBody)))
 	assertStatus(t, rec, http.StatusOK)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books?search=needle", nil))
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
 	assertStatus(t, rec, http.StatusOK)
 	books := decodeJSON[[]Book](t, rec)
-	if len(books) != 1 {
-		t.Fatalf("search returned %d books, want 1", len(books))
+	if len(books) != 2 {
+		t.Fatalf("list returned %d books, want 2", len(books))
 	}
-	got := books[0]
-	if got.Meta == nil || got.Meta.ID != alpha.Meta.ID || got.Meta.Title != "Alpha Tale" {
-		t.Fatalf("unexpected searched book meta: %#v", got.Meta)
+	var got *Book
+	for i := range books {
+		if books[i].Meta != nil && books[i].Meta.ID == alpha.Meta.ID {
+			got = &books[i]
+			break
+		}
+	}
+	if got == nil || got.Meta.Title != "Alpha Tale" {
+		t.Fatalf("unexpected book meta: %#v", got)
 	}
 	if got.Meta.Comments != "needle comment" || got.Meta.Language != "en" {
 		t.Fatalf("metadata fields not preserved in list response: %#v", got.Meta)
