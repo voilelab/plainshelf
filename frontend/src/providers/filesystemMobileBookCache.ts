@@ -203,6 +203,10 @@ export class FilesystemMobileBookCache implements MobileBookCache {
     await this.writeJsonFile(coverPath(bookId), stored);
   }
 
+  async deleteCachedCover(bookId: string): Promise<void> {
+    await this.deleteFileIgnoringMissing(coverPath(bookId));
+  }
+
   async listDownloadedManifests(): Promise<CachedBookManifest[]> {
     let entries;
     try {

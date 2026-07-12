@@ -263,6 +263,11 @@ export class IndexedDbMobileBookCache implements MobileBookCache {
     await db.put(STORE_COVERS, blob, bookId);
   }
 
+  async deleteCachedCover(bookId: string): Promise<void> {
+    const db = await this.db();
+    await db.delete(STORE_COVERS, bookId);
+  }
+
   async listDownloadedManifests(): Promise<CachedBookManifest[]> {
     const db = await this.db();
     const manifests = await db.getAll(STORE_MANIFESTS);

@@ -179,3 +179,108 @@ describe('MobileBookshelfProvider — server-unreachable-while-online fallback',
     });
   });
 });
+
+// PR #220 review (P2, useCoverSrc.ts:42): a downloaded book's cover write
+// (upload/delete) must invalidate and refresh the local cover cache, or
+// getBookCover keeps serving the stale cached blob after the remote cover
+// changed.
+describe('MobileBookshelfProvider — cover write cache sync', () => {
+  let cache: InMemoryMobileBookCache;
+
+  beforeEach(() => {
+    cache = new InMemoryMobileBookCache();
+  });
+
+  function makeProvider(remote: Partial<BookshelfProvider>): MobileBookshelfProvider {
+    return new MobileBookshelfProvider(remote as BookshelfProvider, cache, () => true);
+  }
+
+  it('uploadBookCover re-fetches the remote cover and getBookCover returns the new blob for a downloaded book', async () => {
+    await seedDownloadedBook(cache, 'book-1');
+    await cache.saveCachedCover('book-1', new Blob(['old-cover'], { type: 'image/jpeg' }));
+
+    const newCoverBlob = new Blob(['new-cover'], { type: 'image/jpeg' });
+    const uploadBookCover = vi.fn().mockResolvedValue(undefined);
+    const getBookCover = vi.fn().mockResolvedValue(newCoverBlob);
+    const provider = makeProvider({ uploadBookCover, getBookCover });
+
+    await provider.uploadBookCover('book-1', new File(['x'], 'cover.png'));
+
+    expect(getBookCover).toHaveBeenCalledWith('book-1');
+    const result = await provider.getBookCover('book-1');
+    expect(result).toBe(newCoverBlob);
+  });
+
+  it('deleteBookCover clears the cached cover so getBookCover falls through to remote', async () => {
+    await seedDownloadedBook(cache, 'book-1');
+    await cache.saveCachedCover('book-1', new Blob(['old-cover'], { type: 'image/jpeg' }));
+
+    const remoteCoverAfterDelete = new Blob(['remote-fallback'], { type: 'image/jpeg' });
+    const deleteBookCover = vi.fn().mockResolvedValue(undefined);
+    const getBookCover = vi.fn().mockResolvedValue(remoteCoverAfterDelete);
+    const provider = makeProvider({ deleteBookCover, getBookCover });
+
+    await provider.deleteBookCover('book-1');
+
+    expect(await cache.getCachedCover('book-1')).toBeNull();
+
+    const result = await provider.getBookCover('book-1');
+    expect(getBookCover).toHaveBeenCalledWith('book-1');
+    expect(result).toBe(remoteCoverAfterDelete);
+  });
+
+  it('uploadBookCover does not create a cache entry for a book that is not downloaded', async () => {
+    const newCoverBlob = new Blob(['new-cover'], { type: 'image/jpeg' });
+    const uploadBookCover = vi.fn().mockResolvedValue(undefined);
+    const getBookCover = vi.fn().mockResolvedValue(newCoverBlob);
+    const provider = makeProvider({ uploadBookCover, getBookCover });
+
+    await provider.uploadBookCover('book-not-downloaded', new File(['x'], 'cover.png'));
+
+    expect(uploadBookCover).toHaveBeenCalledWith('book-not-downloaded', expect.any(File));
+    expect(getBookCover).not.toHaveBeenCalled();
+    expect(await cache.getCachedCover('book-not-downloaded')).toBeNull();
+  });
+
+  it('revokes the previously memoized cover object URL after a cover upload', async () => {
+    await seedDownloadedBook(cache, 'book-1');
+    await cache.saveCachedCover('book-1', new Blob(['old-cover'], { type: 'image/jpeg' }));
+
+    const createObjectURLSpy = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValue('blob:mock-url');
+    const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+
+    const uploadBookCover = vi.fn().mockResolvedValue(undefined);
+    const getBookCover = vi.fn().mockResolvedValue(new Blob(['new-cover'], { type: 'image/jpeg' }));
+    const provider = makeProvider({ uploadBookCover, getBookCover });
+
+    // Populate coverUrlCache via a cached-cover read path before the upload.
+    await provider.listDownloadedBookEntries();
+    expect(createObjectURLSpy).toHaveBeenCalledTimes(1);
+
+    await provider.uploadBookCover('book-1', new File(['x'], 'cover.png'));
+
+    expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:mock-url');
+
+    createObjectURLSpy.mockRestore();
+    revokeObjectURLSpy.mockRestore();
+  });
+
+  it('uploadBookCoverBlob follows the same refresh path as uploadBookCover', async () => {
+    await seedDownloadedBook(cache, 'book-1');
+    await cache.saveCachedCover('book-1', new Blob(['old-cover'], { type: 'image/jpeg' }));
+
+    const newCoverBlob = new Blob(['new-cover-from-blob'], { type: 'image/jpeg' });
+    const uploadBookCoverBlob = vi.fn().mockResolvedValue(undefined);
+    const getBookCover = vi.fn().mockResolvedValue(newCoverBlob);
+    const provider = makeProvider({ uploadBookCoverBlob, getBookCover });
+
+    await provider.uploadBookCoverBlob('book-1', new Blob(['raw']));
+
+    expect(uploadBookCoverBlob).toHaveBeenCalledWith('book-1', expect.any(Blob));
+    expect(getBookCover).toHaveBeenCalledWith('book-1');
+    const result = await provider.getBookCover('book-1');
+    expect(result).toBe(newCoverBlob);
+  });
+});
