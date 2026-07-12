@@ -542,6 +542,13 @@ watch(
     const normalizedPage = hasLoaded ? Math.min(currentPage, maxPage) : currentPage;
     const currentSearch = committedSearch.value.trim();
 
+    // Committing a search changes totalPages in the same tick, before the
+    // page-1 replace above lands. Normalizing with the stale page here would
+    // override that reset, so wait until the route reflects the new search.
+    if (currentSearch !== searchQuery.value) {
+      return;
+    }
+
     if (isBooksQueryNormalized({
       layer,
       page: normalizedPage,
