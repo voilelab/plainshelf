@@ -10,7 +10,7 @@
           @dragstart="onDragStart($event, book)"
           @dragend="onDragEnd"
         >
-          <img :src="coverSrc(book)" :alt="book.title" class="book-card-cover" @error="onCoverError(book.id)" />
+          <BookCoverImg :book-id="book.id" :cover-url="book.cover_url" :alt="book.title" class="book-card-cover" />
 
           <div class="book-card-body">
             <p class="book-card-layer">{{ layerLabel(book) }}</p>
@@ -71,6 +71,7 @@ import {
   ContextMenuRoot,
   ContextMenuTrigger
 } from 'reka-ui';
+import BookCoverImg from './BookCoverImg.vue';
 import bookcover from '../assets/bookcover.svg';
 import type { Book } from '../types/book';
 import { getLayerPath, layerPathLabel } from '../utils/layers';
@@ -97,23 +98,8 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const brokenCoverIds = ref<Record<string, boolean>>({});
 const draggingBookId = ref<string | null>(null);
 const dragPreviewEl = ref<HTMLElement | null>(null);
-
-function coverSrc(book: Book): string {
-  if (brokenCoverIds.value[book.id]) {
-    return bookcover;
-  }
-  return book.cover_url || bookcover;
-}
-
-function onCoverError(bookId: string): void {
-  brokenCoverIds.value = {
-    ...brokenCoverIds.value,
-    [bookId]: true
-  };
-}
 
 function layerLabel(book: Book): string {
   const path = getLayerPath(book);

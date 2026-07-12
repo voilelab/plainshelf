@@ -7,7 +7,7 @@
     @dragstart="onDragStart"
     @dragend="onDragEnd"
   >
-    <img :src="coverSrc" :alt="book.title" class="cover" @error="onCoverError" />
+    <BookCoverImg :book-id="book.id" :cover-url="book.cover_url" :alt="book.title" class="cover" />
     <div class="body">
       <h3 class="title">{{ book.title }}</h3>
       <p class="meta">{{ (book.authors ?? []).join(', ') }}</p>
@@ -22,7 +22,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
+import BookCoverImg from './BookCoverImg.vue';
 import bookcover from '../assets/bookcover.svg';
 import type { Book } from '../types/book';
 import { getLayerPath, layerPathLabel } from '../utils/layers';
@@ -33,16 +34,8 @@ const emit = defineEmits<{
   (event: 'select', id: string): void;
 }>();
 
-const hasCoverLoadError = ref(false);
 const isDragging = ref(false);
 const dragPreviewEl = ref<HTMLElement | null>(null);
-
-const coverSrc = computed(() => {
-  if (hasCoverLoadError.value) {
-    return bookcover;
-  }
-  return props.book.cover_url || bookcover;
-});
 
 const layerPath = computed(() => getLayerPath(props.book));
 const layerSegments = computed(() => {
@@ -51,17 +44,6 @@ const layerSegments = computed(() => {
   }
   return layerPath.value.split(' / ');
 });
-
-watch(
-  () => props.book.cover_url,
-  () => {
-    hasCoverLoadError.value = false;
-  }
-);
-
-function onCoverError(): void {
-  hasCoverLoadError.value = true;
-}
 
 function createDragPreview(book: Book): HTMLElement {
   const el = document.createElement('div');

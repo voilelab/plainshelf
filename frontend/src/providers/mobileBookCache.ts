@@ -41,6 +41,7 @@ export interface MobileBookCache {
 
   getCachedCover(bookId: string): Promise<Blob | null>;
   saveCachedCover(bookId: string, blob: Blob): Promise<void>;
+  deleteCachedCover(bookId: string): Promise<void>;
   listDownloadedManifests(): Promise<CachedBookManifest[]>;
 }
 
@@ -132,6 +133,10 @@ export class InMemoryMobileBookCache implements MobileBookCache {
 
   async saveCachedCover(bookId: string, blob: Blob): Promise<void> {
     this.covers.set(bookId, blob);
+  }
+
+  async deleteCachedCover(bookId: string): Promise<void> {
+    this.covers.delete(bookId);
   }
 
   async listDownloadedManifests(): Promise<CachedBookManifest[]> {

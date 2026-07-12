@@ -204,12 +204,14 @@ export class MobileBookshelfProvider implements BookshelfProvider {
     return this.remote.importBook(payload);
   }
 
-  uploadBookCover(bookId: string, file: File): Promise<void> {
-    return this.remote.uploadBookCover(bookId, file);
+  async uploadBookCover(bookId: string, file: File): Promise<void> {
+    await this.remote.uploadBookCover(bookId, file);
+    await this.refreshCachedCover(bookId);
   }
 
-  uploadBookCoverBlob(bookId: string, blob: Blob): Promise<void> {
-    return this.remote.uploadBookCoverBlob(bookId, blob);
+  async uploadBookCoverBlob(bookId: string, blob: Blob): Promise<void> {
+    await this.remote.uploadBookCoverBlob(bookId, blob);
+    await this.refreshCachedCover(bookId);
   }
 
   async getBookCover(bookId: string): Promise<Blob> {
@@ -225,8 +227,9 @@ export class MobileBookshelfProvider implements BookshelfProvider {
     return this.remote.getBookCoverUrl(bookId, cacheKey);
   }
 
-  deleteBookCover(bookId: string): Promise<void> {
-    return this.remote.deleteBookCover(bookId);
+  async deleteBookCover(bookId: string): Promise<void> {
+    await this.remote.deleteBookCover(bookId);
+    await this.evictCachedCover(bookId);
   }
 
   getDuplicateBookGroups(): Promise<string[][]> {
@@ -374,12 +377,7 @@ export class MobileBookshelfProvider implements BookshelfProvider {
   }
 
   async removeDownload(bookId: string): Promise<void> {
-    const cachedUrl = this.coverUrlCache.get(bookId);
-    if (cachedUrl) {
-      URL.revokeObjectURL(cachedUrl);
-      this.coverUrlCache.delete(bookId);
-    }
-
+    this.invalidateCoverUrl(bookId);
     await this.cache.removeDownloadedBook(bookId);
   }
 
@@ -434,6 +432,59 @@ export class MobileBookshelfProvider implements BookshelfProvider {
       local_version: cached.local_version,
       remote_version: book.remote_version ?? cached.remote_version
     };
+  }
+
+  // Revokes and forgets this book's memoized cover object URL, if any. Does
+  // not touch the cached cover blob itself — callers that also want the
+  // blob gone must call cache.deleteCachedCover separately (see
+  // evictCachedCover below). Safe to call for a book with no cached URL.
+  private invalidateCoverUrl(bookId: string): void {
+    const cachedUrl = this.coverUrlCache.get(bookId);
+    if (cachedUrl) {
+      URL.revokeObjectURL(cachedUrl);
+      this.coverUrlCache.delete(bookId);
+    }
+  }
+
+  // Re-fetches the authoritative cover from remote and overwrites the local
+  // cache after a successful remote cover write. re-fetching (rather than
+  // caching the blob the caller already has in hand) matters because the
+  // server may transcode the upload (cover_to_jpg), so the bytes stored
+  // server-side can differ from what was uploaded.
+  //
+  // Gated on the book actually being downloaded: for a book with no cache
+  // entry, saving a cover here would create an orphan cover-only cache
+  // entry that removeDownloadedBook never cleans up (it keys off the
+  // manifest, which would not exist for this book).
+  //
+  // Best-effort: the remote write already succeeded by the time this runs,
+  // so a failure here (network hiccup, offline, etc.) must not surface as
+  // an error to the caller — it just means the local cache falls back to
+  // remote fetches for this cover until the next successful refresh. On
+  // failure the stale cached cover is dropped rather than left inconsistent
+  // with the just-updated remote cover.
+  private async refreshCachedCover(bookId: string): Promise<void> {
+    const state = await this.cache.getDownloadState(bookId);
+    if (state !== 'downloaded') {
+      return;
+    }
+
+    this.invalidateCoverUrl(bookId);
+    try {
+      const blob = await this.remote.getBookCover(bookId);
+      await this.cache.saveCachedCover(bookId, blob);
+    } catch (err) {
+      console.warn(`Failed to refresh cached cover for book ${bookId}; dropping stale cache entry.`, err);
+      await this.cache.deleteCachedCover(bookId);
+    }
+  }
+
+  // Drops any cached cover (blob + memoized object URL) after a successful
+  // remote cover delete. Unlike refreshCachedCover this is not gated on
+  // download state — it is idempotent and there is nothing to preserve.
+  private async evictCachedCover(bookId: string): Promise<void> {
+    this.invalidateCoverUrl(bookId);
+    await this.cache.deleteCachedCover(bookId);
   }
 
   // Rewrites `cover_url` to a memoized object URL for a cached cover blob

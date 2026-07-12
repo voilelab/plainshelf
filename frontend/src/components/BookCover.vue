@@ -31,7 +31,13 @@
       @dragleave="onCoverDragLeave"
       @drop.prevent="onCoverDrop"
     >
-      <img :src="resolvedCoverSrc" :alt="title" class="detail-cover" @error="onCoverError" />
+      <BookCoverImg
+        :book-id="bookId"
+        :cover-url="coverUrl"
+        :alt="title"
+        :cache-key="coverCacheKey"
+        class="detail-cover"
+      />
       <div v-if="isDragOver || coverBusyAction === 'upload'" class="cover-drop-overlay">
         <div v-if="coverBusyAction === 'upload'" class="cover-spinner" aria-hidden="true"></div>
         <span>{{ coverBusyAction === 'upload' ? 'Uploading cover...' : 'Drop image to update cover' }}</span>
@@ -64,9 +70,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { getBookshelfProvider } from '../providers';
-import bookcover from '../assets/bookcover.svg';
+import BookCoverImg from './BookCoverImg.vue';
 import ConfirmModal from './ConfirmModal.vue';
 import GenerateCoverModal from './GenerateCoverModal.vue';
 
@@ -91,7 +97,6 @@ const coverBusy = ref(false);
 const coverBusyAction = ref<'upload' | 'remove' | ''>('');
 const coverStatus = ref('');
 const coverError = ref(false);
-const hasCoverLoadError = ref(false);
 const coverCacheKey = ref<number | undefined>(undefined);
 const showGenerateModal = ref(false);
 const showDropConfirmModal = ref(false);
@@ -103,31 +108,6 @@ const authorText = computed(() => {
   if (!props.authors || props.authors.length === 0) return '';
   return props.authors.join(', ');
 });
-
-const resolvedCoverSrc = computed(() => {
-  if (hasCoverLoadError.value) {
-    return bookcover;
-  }
-  const source = props.coverUrl;
-  if (!source) {
-    return bookcover;
-  }
-  if (source.includes('/api/shelves/') && source.includes('/books/') && source.includes('/cover')) {
-    return getBookshelfProvider().getBookCoverUrl(props.bookId, coverCacheKey.value);
-  }
-  return source;
-});
-
-watch(
-  () => props.coverUrl,
-  () => {
-    hasCoverLoadError.value = false;
-  }
-);
-
-function onCoverError(): void {
-  hasCoverLoadError.value = true;
-}
 
 function clearCoverInput(): void {
   if (coverInputRef.value) {
@@ -173,7 +153,6 @@ async function uploadCover(file: File): Promise<boolean> {
 
   try {
     await getBookshelfProvider().uploadBookCover(props.bookId, file);
-    hasCoverLoadError.value = false;
     coverCacheKey.value = Date.now();
     emit('cover-changed');
     coverStatus.value = 'Cover updated.';
@@ -303,7 +282,6 @@ async function removeCover(): Promise<void> {
 
   try {
     await getBookshelfProvider().deleteBookCover(props.bookId);
-    hasCoverLoadError.value = false;
     coverCacheKey.value = undefined;
     emit('cover-changed');
     coverStatus.value = 'Cover removed.';
@@ -317,7 +295,6 @@ async function removeCover(): Promise<void> {
 }
 
 function onGeneratedCoverSaved(): void {
-  hasCoverLoadError.value = false;
   coverCacheKey.value = Date.now();
   emit('cover-changed');
   coverStatus.value = 'Cover updated.';
