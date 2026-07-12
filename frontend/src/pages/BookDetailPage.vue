@@ -261,9 +261,9 @@ watch(id, () => {
   padding: 10px 12px;
 }
 
-@media (max-width: 780px) {
+@media (max-width: 768px) {
   .detail-shell {
-    padding: 18px 14px 24px;
+    padding: 12px 0 24px;
   }
 
   .detail-panel {
@@ -273,18 +273,34 @@ watch(id, () => {
 
   .detail-cover-col {
     width: 100%;
-    max-width: 340px;
+    max-width: 220px;
+    margin-inline: auto;
   }
 
   .detail-cover-col :deep(.detail-cover) {
-    height: 360px;
+    height: auto;
+    aspect-ratio: 2 / 3;
   }
 
-  .meta-row {
-    min-height: 56px;
-    grid-template-columns: 1fr;
-    gap: 6px;
-    align-items: start;
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .actions .button {
+    font-size: 15px;
+    padding: 12px;
+  }
+
+  .actions .button.primary {
+    grid-column: 1 / -1;
+    font-size: 20px;
+    padding: 15px;
+  }
+
+  .actions .button.danger {
+    grid-column: 1 / -1;
   }
 }
 </style>

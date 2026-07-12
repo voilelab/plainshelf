@@ -149,4 +149,33 @@ const metadataRows = computed<MetadataRow[]>(() => {
   text-underline-offset: 0.18em;
   word-break: break-all;
 }
+
+@media (max-width: 768px) {
+  .detail-heading {
+    text-align: center;
+  }
+
+  .detail-heading :deep(.layer-breadcrumb) {
+    justify-content: center;
+  }
+
+  .detail-title {
+    font-size: clamp(20px, 5vw, 24px);
+  }
+
+  .meta-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+    min-height: 0;
+    padding: 10px 0;
+  }
+
+  .meta-label {
+    font-size: 14px;
+  }
+
+  .meta-value {
+    font-size: 15px;
+  }
+}
 </style>

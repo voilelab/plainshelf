@@ -397,12 +397,4 @@ function onGeneratedCoverSaved(): void {
     transform: rotate(360deg);
   }
 }
-
-@media (max-width: 780px) {
-  .detail-cover {
-    width: 110px;
-    height: 160px;
-    flex-shrink: 0;
-  }
-}
 </style>
