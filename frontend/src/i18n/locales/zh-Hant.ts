@@ -98,6 +98,7 @@ const zhHant = {
       addShelfAdding: '新增中...',
       addShelfFailed: '新增書架失敗'
     },
+    dashboard: '儀表板',
     recentlyRead: '最近閱讀',
     trash: '垃圾桶',
     downloads: '已下載',
@@ -106,6 +107,36 @@ const zhHant = {
     readOnly: {
       banner: '唯讀模式已啟用。仍可瀏覽與閱讀，但寫入操作已停用。',
       writeDisabled: '伺服器目前為唯讀模式，寫入操作已停用。'
+    }
+  },
+  dashboard: {
+    title: '儀表板',
+    loading: '載入儀表板中...',
+    loadFailed: '載入儀表板資料失敗',
+    stats: {
+      totalBooks: '藏書總數',
+      addedThisMonth: '本月新增',
+      avgStar: '平均星等',
+      totalChars: '總字數',
+      starBar: '{star} 星：{count} 本'
+    },
+    tags: {
+      title: '標籤',
+      empty: '尚無標籤'
+    },
+    randomBook: {
+      title: '隨機一本',
+      empty: '尚無書籍',
+      shuffle: '換一本',
+      viewDetail: '查看詳情',
+      readNow: '開始閱讀'
+    },
+    heatmap: {
+      title: '閱讀熱力圖',
+      empty: '開始閱讀後，這裡會累積你的閱讀足跡。',
+      legendLess: '較少',
+      legendMore: '較多',
+      cellLabel: '{date}：閱讀 {minutes} 分鐘'
     }
   },
   settings: {

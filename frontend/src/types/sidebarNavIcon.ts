@@ -1,4 +1,5 @@
 export type SidebarNavIconName =
+  | 'dashboard'
   | 'recently-read'
   | 'duplicate-content'
   | 'missing-author'

@@ -99,6 +99,7 @@ const en = {
       addShelfAdding: 'Adding...',
       addShelfFailed: 'Failed to add shelf'
     },
+    dashboard: 'Dashboard',
     recentlyRead: 'Recently Read',
     trash: 'Trash',
     downloads: 'Downloads',
@@ -107,6 +108,36 @@ const en = {
     readOnly: {
       banner: 'Read-only mode is enabled. Browsing and reading are available, but write operations are disabled.',
       writeDisabled: 'Server is in read-only mode. Write operations are disabled.'
+    }
+  },
+  dashboard: {
+    title: 'Dashboard',
+    loading: 'Loading dashboard...',
+    loadFailed: 'Failed to load dashboard data',
+    stats: {
+      totalBooks: 'Total Books',
+      addedThisMonth: 'Added This Month',
+      avgStar: 'Average Rating',
+      totalChars: 'Total Characters',
+      starBar: '{star} star: {count} book(s)'
+    },
+    tags: {
+      title: 'Tags',
+      empty: 'No tags yet'
+    },
+    randomBook: {
+      title: 'Random Pick',
+      empty: 'No books yet',
+      shuffle: 'Shuffle',
+      viewDetail: 'View Details',
+      readNow: 'Read Now'
+    },
+    heatmap: {
+      title: 'Reading Heatmap',
+      empty: 'Start reading to see activity build up here.',
+      legendLess: 'Less',
+      legendMore: 'More',
+      cellLabel: '{date}: {minutes} min read'
     }
   },
   settings: {
