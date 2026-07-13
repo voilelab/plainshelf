@@ -111,6 +111,7 @@ const zhHant = {
   },
   dashboard: {
     title: '儀表板',
+    refresh: '重新整理',
     loading: '載入儀表板中...',
     loadFailed: '載入儀表板資料失敗',
     stats: {
@@ -118,7 +119,9 @@ const zhHant = {
       addedThisMonth: '本月新增',
       avgStar: '平均星等',
       totalChars: '總字數',
-      starBar: '{star} 星：{count} 本'
+      starBar: '{star} 星：{count} 本',
+      currentStreak: '目前連續閱讀',
+      currentStreakValue: '{days} 天'
     },
     tags: {
       title: '標籤',

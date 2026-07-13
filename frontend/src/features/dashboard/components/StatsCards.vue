@@ -31,6 +31,11 @@
       <span class="stat-label">{{ t('dashboard.stats.totalChars') }}</span>
       <span class="stat-value">{{ totalCharsDisplay }}</span>
     </div>
+
+    <div class="stat-card panel">
+      <span class="stat-label">{{ t('dashboard.stats.currentStreak') }}</span>
+      <span class="stat-value">{{ t('dashboard.stats.currentStreakValue', { days: currentStreak }) }}</span>
+    </div>
   </div>
 </template>
 
@@ -45,6 +50,7 @@ const props = defineProps<{
   starAvg: number | null;
   starDistribution: StarDistribution;
   totalChars: number | null;
+  currentStreak: number;
 }>();
 
 const { t } = useI18n();

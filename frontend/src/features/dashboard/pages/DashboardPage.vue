@@ -3,7 +3,7 @@
     <header class="dashboard-header">
       <h2>{{ t('dashboard.title') }}</h2>
       <button type="button" class="button" :disabled="loading" @click="fetchDashboardData">
-        {{ t('common.retry') }}
+        {{ t('dashboard.refresh') }}
       </button>
     </header>
 
@@ -18,10 +18,11 @@
         :star-avg="starAvg"
         :star-distribution="starDistribution"
         :total-chars="totalChars"
+        :current-streak="currentStreak"
       />
       <TagCloud class="dashboard-cell dashboard-cell-tags" :tag-counts="tagCounts" />
       <RandomBook class="dashboard-cell dashboard-cell-random" :books="books" />
-      <ReadingHeatmap class="dashboard-cell dashboard-cell-heatmap" :data="readingHeatmapData" />
+      <ReadingHeatmap class="dashboard-cell dashboard-cell-heatmap" :data="heatmapData" />
     </div>
   </section>
 </template>
@@ -48,13 +49,10 @@ const {
   starDistribution,
   totalChars,
   tagCounts,
+  heatmapData,
+  currentStreak,
   fetchDashboardData
 } = useDashboardData();
-
-// TODO(next phase): wire up real reading-history data (per-day seconds read)
-// once that store/provider exists; an empty map renders the heatmap's empty
-// state, which is the intended skeleton behavior for this task.
-const readingHeatmapData: Record<string, number> = {};
 
 useDocumentTitle(() => [t('dashboard.title'), 'PlainShelf']);
 

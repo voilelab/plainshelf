@@ -163,6 +163,7 @@ import SplitConfigModal from '../components/SplitConfigModal.vue';
 import { useDocumentTitle } from '../../../composables/useDocumentTitle';
 import { useReader } from '../composables/useReader';
 import { useReaderSettings } from '../composables/useReaderSettings';
+import { useReadingHeartbeat } from '../composables/useReadingHeartbeat';
 import { parseReaderBlocks } from '../utils/parseReaderBlocks';
 import { parseMarkdownBlocks } from '../utils/parseMarkdownBlocks';
 import type { SplitConfig } from '../../../types/book';
@@ -196,6 +197,7 @@ const isSplitModalOpen = ref(false);
 const isChapterModalOpen = ref(false);
 const { fontSize, isAtMinFontSize, isAtMaxFontSize, increaseFontSize, decreaseFontSize } = useReaderSettings();
 const { t } = useI18n();
+const readingHeartbeat = useReadingHeartbeat(() => id.value);
 
 const readerStyleVars = computed(() => ({
   '--reader-font-size': `${fontSize.value}px`
@@ -285,6 +287,7 @@ async function selectSectionFromChapterModal(index: number): Promise<void> {
 
 onMounted(() => {
   document.addEventListener('keydown', onDocumentKeydown);
+  readingHeartbeat.start();
 });
 
 watch(id, () => {
@@ -298,6 +301,7 @@ watch([isSplitModalOpen, isChapterModalOpen], ([splitOpen, chapterOpen]) => {
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onDocumentKeydown);
   document.body.style.overflow = '';
+  readingHeartbeat.stop();
 });
 </script>
 

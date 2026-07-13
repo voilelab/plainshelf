@@ -112,6 +112,7 @@ const en = {
   },
   dashboard: {
     title: 'Dashboard',
+    refresh: 'Refresh',
     loading: 'Loading dashboard...',
     loadFailed: 'Failed to load dashboard data',
     stats: {
@@ -119,7 +120,9 @@ const en = {
       addedThisMonth: 'Added This Month',
       avgStar: 'Average Rating',
       totalChars: 'Total Characters',
-      starBar: '{star} star: {count} book(s)'
+      starBar: '{star} star: {count} book(s)',
+      currentStreak: 'Current Streak',
+      currentStreakValue: '{days} day(s)'
     },
     tags: {
       title: 'Tags',

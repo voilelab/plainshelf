@@ -5,7 +5,10 @@ import { computed, ref } from 'vue';
 // layer directly so char_count reaches the page without touching
 // providers/bookshelfProvider.ts (out of scope for this task).
 import { listBooks } from '../../../api/books';
+import { getBookshelfProvider } from '../../../providers';
 import type { Book } from '../../../types/book';
+
+const READING_ACTIVITY_RANGE_DAYS = 365;
 
 export interface StarDistribution {
   1: number;
@@ -30,10 +33,18 @@ function isSameMonth(iso: string | undefined, reference: Date): boolean {
   return date.getFullYear() === reference.getFullYear() && date.getMonth() === reference.getMonth();
 }
 
+function toIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function useDashboardData() {
   const books = ref<Book[]>([]);
   const loading = ref(false);
   const error = ref('');
+  const readingActivity = ref<Record<string, number>>({});
 
   const totalBooks = computed(() => books.value.length);
 
@@ -85,12 +96,46 @@ export function useDashboardData() {
     return counts;
   });
 
+  const heatmapData = computed<Record<string, number>>(() => readingActivity.value);
+
+  // Consecutive days (ending today) with total_seconds > 0. If today has no
+  // recorded reading yet (the common case — the day isn't over), the streak
+  // is counted starting from yesterday instead, so an ongoing streak doesn't
+  // appear to reset to 0 first thing in the morning.
+  const currentStreak = computed<number>(() => {
+    const cursor = new Date();
+    cursor.setHours(0, 0, 0, 0);
+
+    if ((readingActivity.value[toIsoDate(cursor)] ?? 0) <= 0) {
+      cursor.setDate(cursor.getDate() - 1);
+    }
+
+    let streak = 0;
+    for (let i = 0; i <= READING_ACTIVITY_RANGE_DAYS; i += 1) {
+      const seconds = readingActivity.value[toIsoDate(cursor)] ?? 0;
+      if (seconds <= 0) {
+        break;
+      }
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return streak;
+  });
+
   async function fetchDashboardData(): Promise<void> {
     loading.value = true;
     error.value = '';
     try {
-      const data = await listBooks(1, Number.MAX_SAFE_INTEGER, { includeCharCount: true });
+      const to = new Date();
+      const from = new Date(to);
+      from.setDate(from.getDate() - READING_ACTIVITY_RANGE_DAYS);
+
+      const [data, activity] = await Promise.all([
+        listBooks(1, Number.MAX_SAFE_INTEGER, { includeCharCount: true }),
+        getBookshelfProvider().getReadingActivity(toIsoDate(from), toIsoDate(to))
+      ]);
       books.value = data.items;
+      readingActivity.value = activity;
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load dashboard data';
     } finally {
@@ -108,6 +153,8 @@ export function useDashboardData() {
     starDistribution,
     totalChars,
     tagCounts,
+    heatmapData,
+    currentStreak,
     fetchDashboardData
   };
 }
