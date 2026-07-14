@@ -52,6 +52,10 @@ export interface BookshelfProvider {
   listReadHistoryBooks(): Promise<Book[]>;
   clearReadHistory(): Promise<void>;
 
+  /** Map of "YYYY-MM-DD" -> total seconds read that day, for [from, to] inclusive. */
+  getReadingActivity(from: string, to: string): Promise<Record<string, number>>;
+  reportReadingActivity(bookId: string, seconds: number, date: string): Promise<void>;
+
   importBook(payload: BookCreateRequest): Promise<Book>;
   uploadBookCover(bookId: string, file: File): Promise<void>;
   uploadBookCoverBlob(bookId: string, blob: Blob): Promise<void>;

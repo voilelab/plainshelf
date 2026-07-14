@@ -25,6 +25,10 @@ export interface Book {
   current_source?: string;
   star?: number;
   identifiers?: Record<string, string>;
+  /** Total character count of the book's content. Optional: only present when the
+   *  backend is asked to include it (see listBooks' includeCharCount option) or in
+   *  mock data; omit rather than guess when unavailable. */
+  char_count?: number;
 
   // Mobile/offline cache metadata. These fields are optional so existing
   // server and Wails responses remain valid when they do not include local

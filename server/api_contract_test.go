@@ -214,6 +214,29 @@ func TestAPIGetBooksContract(t *testing.T) {
 	}
 }
 
+func TestAPIGetBooksCharCountContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	_ = importTextBook(t, env, "Char Count Me", "", "charcount.txt", "alpha body")
+
+	// Without include=char_count, the field must not appear in the response at all.
+	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if strings.Contains(rec.Body.String(), "char_count") {
+		t.Fatalf("response without include=char_count must not contain char_count field: %s", rec.Body.String())
+	}
+
+	// With include=char_count, every book carries a positive char_count.
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books?include=char_count", nil))
+	assertStatus(t, rec, http.StatusOK)
+	books := decodeJSON[[]Book](t, rec)
+	if len(books) != 1 {
+		t.Fatalf("list returned %d books, want 1", len(books))
+	}
+	if books[0].CharCount <= 0 {
+		t.Fatalf("char_count = %d, want > 0", books[0].CharCount)
+	}
+}
+
 func TestAPIGetLogsContract(t *testing.T) {
 	appLogDir := t.TempDir()
 	appLogFile := filepath.Join(appLogDir, "app.log")
@@ -849,6 +872,59 @@ func TestAPIStoreContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusOK)
 	if history = decodeJSON[[]string](t, rec); len(history) != 0 {
 		t.Fatalf("cleared read history = %#v, want empty", history)
+	}
+}
+
+func TestAPIReadingActivityContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Reading Time", "", "reading.txt", "body")
+	activityURL := "/api/shelves/default_shelf/reading_activity"
+	today := time.Now().Format("2006-01-02")
+
+	// Old vault / fresh shelf with no stats file yet: GET must succeed with
+	// empty days, not error.
+	rec := env.do(httptest.NewRequest(http.MethodGet, activityURL, nil))
+	assertStatus(t, rec, http.StatusOK)
+	assertJSONContentType(t, rec)
+	initial := decodeJSON[readingActivityResponse](t, rec)
+	if len(initial.Days) != 0 {
+		t.Fatalf("initial reading activity days = %#v, want empty", initial.Days)
+	}
+	if initial.Unit != "seconds" {
+		t.Fatalf("unit = %q, want seconds", initial.Unit)
+	}
+
+	// Missing book_id -> 400.
+	rec = env.do(httptest.NewRequest(http.MethodPost, activityURL, strings.NewReader(`{"seconds":30}`)))
+	assertStatus(t, rec, http.StatusBadRequest)
+
+	// Unknown shelf -> 404.
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/no_such_shelf/reading_activity", strings.NewReader(`{"book_id":"x","seconds":30}`)))
+	assertStatus(t, rec, http.StatusNotFound)
+
+	// Record 45s for today, then read it back.
+	body := fmt.Sprintf(`{"book_id":%q,"seconds":45,"date":%q}`, created.Meta.ID, today)
+	rec = env.do(httptest.NewRequest(http.MethodPost, activityURL, strings.NewReader(body)))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, activityURL, nil))
+	assertStatus(t, rec, http.StatusOK)
+	resp := decodeJSON[readingActivityResponse](t, rec)
+	day, ok := resp.Days[today]
+	if !ok || day.TotalSeconds != 45 {
+		t.Fatalf("days[%s] = %#v (ok=%v), want total_seconds=45", today, day, ok)
+	}
+
+	// seconds:9999 gets clamped to the per-call max (120), not rejected.
+	body = fmt.Sprintf(`{"book_id":%q,"seconds":9999,"date":%q}`, created.Meta.ID, today)
+	rec = env.do(httptest.NewRequest(http.MethodPost, activityURL, strings.NewReader(body)))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, activityURL+"?from="+today+"&to="+today, nil))
+	assertStatus(t, rec, http.StatusOK)
+	resp = decodeJSON[readingActivityResponse](t, rec)
+	if resp.Days[today].TotalSeconds != 45+120 {
+		t.Fatalf("days[%s].total_seconds = %d, want %d (45 + clamped 120)", today, resp.Days[today].TotalSeconds, 45+120)
 	}
 }
 

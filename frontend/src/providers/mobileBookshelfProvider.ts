@@ -200,6 +200,38 @@ export class MobileBookshelfProvider implements BookshelfProvider {
     return this.remote.clearReadHistory();
   }
 
+  // No local cache for reading activity: mobile only ever shows what the
+  // server knows about. Offline / server-unreachable just means "no data to
+  // show yet" rather than an error, matching addReadHistory's tolerance below.
+  async getReadingActivity(from: string, to: string): Promise<Record<string, number>> {
+    if (!this.isOnline()) {
+      return {};
+    }
+
+    try {
+      return await this.remote.getReadingActivity(from, to);
+    } catch (err) {
+      if (!isServerUnreachableError(err)) {
+        throw err;
+      }
+      return {};
+    }
+  }
+
+  async reportReadingActivity(bookId: string, seconds: number, date: string): Promise<void> {
+    if (!this.isOnline()) {
+      return;
+    }
+
+    try {
+      await this.remote.reportReadingActivity(bookId, seconds, date);
+    } catch (err) {
+      if (!isServerUnreachableError(err)) {
+        throw err;
+      }
+    }
+  }
+
   importBook(payload: BookCreateRequest): Promise<Book> {
     return this.remote.importBook(payload);
   }

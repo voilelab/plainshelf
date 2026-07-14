@@ -5,6 +5,7 @@ import { APP_TITLE } from './composables/useDocumentTitle';
 import { isMobileRuntime } from './providers/runtime';
 import { loadMobileConnectionConfig } from './providers/mobileConfig';
 
+const DashboardPage = () => import('./features/dashboard/pages/DashboardPage.vue');
 const LibraryPage = () => import('./pages/LibraryPage.vue');
 const BookDetailPage = () => import('./pages/BookDetailPage.vue');
 const EditBookPage = () => import('./pages/EditBookPage.vue');
@@ -22,6 +23,7 @@ const ReaderPage = () => import('./features/reader/views/ReaderView.vue');
 const EditBookSourcesPage = () => import('./features/sources/pages/EditBookSourcesPage.vue');
 
 const ROUTES_WITH_OWN_TITLE = new Set([
+  'dashboard',
   'library',
   'book-detail',
   'book-sources-edit',
@@ -40,7 +42,7 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/books'
+      redirect: '/dashboard'
     },
     {
       path: '/connect',
@@ -51,6 +53,11 @@ const router = createRouter({
       path: '/',
       component: MainLayout,
       children: [
+        {
+          path: 'dashboard',
+          name: 'dashboard',
+          component: DashboardPage
+        },
         {
           path: 'books',
           name: 'library',

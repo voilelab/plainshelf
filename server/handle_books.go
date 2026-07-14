@@ -43,6 +43,11 @@ func handleShelfErr(w http.ResponseWriter, err error) bool {
 type Book struct {
 	Meta  *shelf.BookMeta `json:"meta"`
 	Layer shelf.Layers    `json:"layer"`
+
+	// CharCount is only populated when the request includes
+	// include=char_count; it is omitted otherwise, so the default response
+	// shape is unchanged.
+	CharCount int `json:"char_count,omitempty"`
 }
 
 type UpdateBookRequest struct {
@@ -106,11 +111,26 @@ func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	includeCharCount := false
+	for _, inc := range strings.Split(r.URL.Query().Get("include"), ",") {
+		if strings.TrimSpace(inc) == "char_count" {
+			includeCharCount = true
+			break
+		}
+	}
+
 	jsonBooks := make([]Book, len(books))
 	for i, b := range books {
 		jsonBooks[i] = Book{
 			Meta:  b.GetMeta(),
 			Layer: b.Layers(),
+		}
+		if includeCharCount {
+			// A single book with a broken/missing source shouldn't fail the
+			// whole list - just skip char_count for that book.
+			if source, srcErr := b.GetSource(b.CurrentSource()); srcErr == nil {
+				jsonBooks[i].CharCount = source.GetMeta().CharCount
+			}
 		}
 	}
 

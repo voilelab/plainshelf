@@ -194,6 +194,14 @@
               :aria-label="t('layout.sections.reading')"
             >
               <RouterLink
+                to="/dashboard"
+                class="sidebar-nav-item"
+                exact-active-class="active"
+              >
+                <SidebarNavIcon name="dashboard" />
+                <span>{{ t('layout.dashboard') }}</span>
+              </RouterLink>
+              <RouterLink
                 to="/read-history"
                 class="sidebar-nav-item"
                 exact-active-class="active"

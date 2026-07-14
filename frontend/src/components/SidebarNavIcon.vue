@@ -1,6 +1,12 @@
 <template>
   <span class="sidebar-nav-icon" aria-hidden="true">
-    <svg v-if="name === 'recently-read'" viewBox="0 0 24 24" fill="none">
+    <svg v-if="name === 'dashboard'" viewBox="0 0 24 24" fill="none">
+      <rect x="4" y="4" width="7" height="9" rx="1.5" stroke="currentColor" stroke-width="1.8" />
+      <rect x="13" y="4" width="7" height="5" rx="1.5" stroke="currentColor" stroke-width="1.8" />
+      <rect x="13" y="11" width="7" height="9" rx="1.5" stroke="currentColor" stroke-width="1.8" />
+      <rect x="4" y="15" width="7" height="5" rx="1.5" stroke="currentColor" stroke-width="1.8" />
+    </svg>
+    <svg v-else-if="name === 'recently-read'" viewBox="0 0 24 24" fill="none">
       <path d="M4 12a8 8 0 1 0 2.35-5.66" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       <path d="M4 5.5v4h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
       <path d="M12 8v4l2.5 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
