@@ -1,3 +1,5 @@
+import { watch } from 'vue';
+
 import { getBookshelfProvider } from '../../../providers';
 
 const TICK_INTERVAL_MS = 45_000;
@@ -53,20 +55,37 @@ export function useReadingHeartbeat(bookID: () => string) {
   let tickAnchor = 0;
   let hidden = false;
   let idle = false;
+  // Book ID latched at the start of the current accumulation stretch. Reports
+  // always use this value (not the live getter): Vue Router reuses ReaderView
+  // for /reader/:id param changes, so by the time a tick fires the getter may
+  // already point at the next book while the elapsed seconds belong to the
+  // previous one.
+  let currentBookID = '';
 
   function report(seconds: number): void {
     const rounded = clampSeconds(seconds);
-    if (rounded <= 0) {
+    if (rounded <= 0 || currentBookID === '') {
       return;
     }
 
     const date = toIsoDate(new Date());
     getBookshelfProvider()
-      .reportReadingActivity(bookID(), rounded, date)
+      .reportReadingActivity(currentBookID, rounded, date)
       .catch((err) => {
         console.warn('Failed to report reading activity', err);
       });
   }
+
+  // Flush the stretch accumulated for the previous book under its own ID,
+  // then start a fresh stretch attributed to the new book.
+  watch(bookID, (newBookID) => {
+    if (intervalId !== null && !hidden && !idle) {
+      const now = Date.now();
+      report((now - tickAnchor) / 1000);
+    }
+    tickAnchor = Date.now();
+    currentBookID = newBookID;
+  });
 
   function resetIdleTimer(): void {
     if (idleTimer !== null) {
@@ -105,6 +124,7 @@ export function useReadingHeartbeat(bookID: () => string) {
   }
 
   function start(): void {
+    currentBookID = bookID();
     tickAnchor = Date.now();
     hidden = document.hidden;
     idle = false;
