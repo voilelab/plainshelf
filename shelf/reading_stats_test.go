@@ -181,3 +181,58 @@ func TestReadingStatsRangeRejectsInvertedRange(t *testing.T) {
 		t.Fatalf("expected error for inverted range, got nil")
 	}
 }
+
+// hookFS wraps an FS and runs onWriteFile before delegating WriteFile calls.
+type hookFS struct {
+	fsutil.FS
+	onWriteFile func()
+}
+
+func (h *hookFS) WriteFile(name string, data []byte) error {
+	if h.onWriteFile != nil {
+		h.onWriteFile()
+	}
+	return h.FS.WriteFile(name, data)
+}
+
+func TestReadingStatsFlushKeepsMonthDirtyWhenMutatedDuringWrite(t *testing.T) {
+	root := t.TempDir()
+	hooked := &hookFS{FS: fsutil.NewLocalFS(root)}
+	rs := newReadingStats(hooked)
+
+	if err := rs.AddSeconds("2026-07-13", "book-a", 60); err != nil {
+		t.Fatalf("AddSeconds: %v", err)
+	}
+
+	// Simulate a heartbeat landing while Flush is writing the snapshot to disk
+	// (i.e. after Flush released the lock but before it clears dirty marks).
+	hooked.onWriteFile = func() {
+		hooked.onWriteFile = nil // fire once; later flushes write normally
+		if err := rs.AddSeconds("2026-07-13", "book-a", 30); err != nil {
+			t.Errorf("AddSeconds during flush: %v", err)
+		}
+	}
+
+	if err := rs.Flush(); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+
+	// The mid-write heartbeat is not part of the file just written, so the
+	// month must have stayed dirty and this second Flush must persist it.
+	if err := rs.Flush(); err != nil {
+		t.Fatalf("second Flush: %v", err)
+	}
+
+	reloaded := newReadingStats(fsutil.NewLocalFS(root))
+	days, err := reloaded.Range("2026-07-01", "2026-07-31")
+	if err != nil {
+		t.Fatalf("Range: %v", err)
+	}
+	day, ok := days["2026-07-13"]
+	if !ok {
+		t.Fatalf("expected day 2026-07-13 in range result, got %#v", days)
+	}
+	if day.TotalSeconds != 90 {
+		t.Fatalf("total_seconds = %d, want 90 (heartbeat recorded during flush was lost)", day.TotalSeconds)
+	}
+}

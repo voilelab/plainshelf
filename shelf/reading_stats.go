@@ -62,6 +62,10 @@ type ReadingStats struct {
 	mu     sync.Mutex
 	months map[string]*readingMonthFile
 	dirty  map[string]struct{}
+	// gens counts mutations per month (never reset). Flush snapshots it so it
+	// only clears a month's dirty mark if no AddSeconds landed while the
+	// snapshot was being written to disk outside the lock.
+	gens map[string]uint64
 }
 
 func newReadingStats(root fsutil.FS) *ReadingStats {
@@ -69,6 +73,7 @@ func newReadingStats(root fsutil.FS) *ReadingStats {
 		root:   root,
 		months: make(map[string]*readingMonthFile),
 		dirty:  make(map[string]struct{}),
+		gens:   make(map[string]uint64),
 	}
 }
 
@@ -175,6 +180,7 @@ func (r *ReadingStats) AddSeconds(date string, bookID string, sec int) error {
 	day.TotalSeconds = clampInt(day.TotalSeconds+sec, 0, maxSecondsPerDay)
 
 	r.dirty[month] = struct{}{}
+	r.gens[month]++
 
 	return nil
 }
@@ -259,8 +265,10 @@ func (r *ReadingStats) Flush() error {
 		toFlush[month] = *data
 	}
 	dirtyMonths := make([]string, 0, len(r.dirty))
+	snapGens := make(map[string]uint64, len(r.dirty))
 	for month := range r.dirty {
 		dirtyMonths = append(dirtyMonths, month)
+		snapGens[month] = r.gens[month]
 	}
 
 	// Marshal while still holding the lock so concurrent AddSeconds calls can't
@@ -296,22 +304,21 @@ func (r *ReadingStats) Flush() error {
 		flushedMonths = append(flushedMonths, month)
 	}
 
-	if firstErr != nil {
-		// Only clear the months that actually made it to disk; leave the rest
-		// dirty so the next Flush retries them.
-		r.mu.Lock()
-		for _, month := range flushedMonths {
-			delete(r.dirty, month)
-		}
-		r.mu.Unlock()
-		return util.Errorf("%w", firstErr)
-	}
-
+	// Only clear the months that actually made it to disk, and only if no
+	// AddSeconds re-dirtied them while we were writing outside the lock — the
+	// just-written snapshot doesn't contain those later heartbeats, so such
+	// months must stay dirty for the next Flush. Failed months stay dirty too.
 	r.mu.Lock()
 	for _, month := range flushedMonths {
-		delete(r.dirty, month)
+		if r.gens[month] == snapGens[month] {
+			delete(r.dirty, month)
+		}
 	}
 	r.mu.Unlock()
+
+	if firstErr != nil {
+		return util.Errorf("%w", firstErr)
+	}
 
 	return nil
 }
