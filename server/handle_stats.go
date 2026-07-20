@@ -75,8 +75,7 @@ func (app *App) HandleAPIPostReadingActivity(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	now := time.Now()
-	today := now.Truncate(24 * time.Hour)
+	today := time.Now().Truncate(24 * time.Hour)
 	yesterday := today.AddDate(0, 0, -1)
 	if date.IsZero() || (date != today && date != yesterday) {
 		// Clamp out-of-window dates to today rather than rejecting outright.
@@ -110,9 +109,9 @@ func (app *App) HandleAPIGetReadingActivity(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	now := time.Now()
-	from := now.AddDate(0, 0, -defaultReadingActivityRangeDays)
-	to := now
+	today := time.Now().Truncate(24 * time.Hour)
+	from := today.AddDate(0, 0, -defaultReadingActivityRangeDays)
+	to := today
 	if v := strings.TrimSpace(r.URL.Query().Get("from")); v != "" {
 		var err error
 		from, err = time.Parse("2006-01-02", v)
