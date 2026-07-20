@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/voilelab/plainshelf/shelf"
 )
 
 const defaultReadingActivityRangeDays = 365
@@ -66,18 +64,20 @@ func (app *App) HandleAPIPostReadingActivity(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	date := strings.TrimSpace(req.Date)
-	if date != "" {
-		if _, err := time.Parse("2006-01-02", date); err != nil {
+	dateStr := strings.TrimSpace(req.Date)
+	var date time.Time
+	if dateStr != "" {
+		var err error
+		date, err = time.Parse("2006-01-02", dateStr)
+		if err != nil {
 			http.Error(w, "invalid date, expected YYYY-MM-DD", http.StatusBadRequest)
 			return
 		}
 	}
 
-	now := time.Now()
-	today := now.Format("2006-01-02")
-	yesterday := now.AddDate(0, 0, -1).Format("2006-01-02")
-	if date == "" || (date != today && date != yesterday) {
+	today := time.Now().Truncate(24 * time.Hour)
+	yesterday := today.AddDate(0, 0, -1)
+	if date.IsZero() || (date != today && date != yesterday) {
 		// Clamp out-of-window dates to today rather than rejecting outright.
 		date = today
 	}
@@ -109,22 +109,28 @@ func (app *App) HandleAPIGetReadingActivity(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	now := time.Now()
-	from := now.AddDate(0, 0, -defaultReadingActivityRangeDays).Format("2006-01-02")
-	to := now.Format("2006-01-02")
+	today := time.Now().Truncate(24 * time.Hour)
+	from := today.AddDate(0, 0, -defaultReadingActivityRangeDays)
+	to := today
 	if v := strings.TrimSpace(r.URL.Query().Get("from")); v != "" {
-		from = v
+		var err error
+		from, err = time.Parse("2006-01-02", v)
+		if err != nil {
+			http.Error(w, "invalid from date, expected YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
 	}
 	if v := strings.TrimSpace(r.URL.Query().Get("to")); v != "" {
-		to = v
+		var err error
+		to, err = time.Parse("2006-01-02", v)
+		if err != nil {
+			http.Error(w, "invalid to date, expected YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
 	}
 
 	rangeResult, err := shelfData.ReadingStats().Range(from, to)
 	if err != nil {
-		if errors.Is(err, shelf.ErrInvalidDate) {
-			http.Error(w, "invalid from/to date, expected YYYY-MM-DD", http.StatusBadRequest)
-			return
-		}
 		http.Error(w, "invalid from/to range", http.StatusBadRequest)
 		return
 	}

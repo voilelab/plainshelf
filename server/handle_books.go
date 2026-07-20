@@ -112,7 +112,7 @@ func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	includeCharCount := false
-	for _, inc := range strings.Split(r.URL.Query().Get("include"), ",") {
+	for inc := range strings.SplitSeq(r.URL.Query().Get("include"), ",") {
 		if strings.TrimSpace(inc) == "char_count" {
 			includeCharCount = true
 			break

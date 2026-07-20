@@ -94,7 +94,7 @@ func (app *App) HandleGetSettingReadHistoryLimit(w http.ResponseWriter, r *http.
 	val := app.readHistoryLimit()
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Write([]byte(fmt.Sprintf(`{"value": %d}`, val)))
+	w.Write(fmt.Appendf(nil, `{"value": %d}`, val))
 }
 
 // POST /api/setting/read_history_limit
