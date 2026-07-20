@@ -85,7 +85,10 @@ A typical vault may look like this:
 │        └─ {book3-folder}.bookpkg/
 └─ app/
    ├─ library.lock
-   └─ tmp/
+   ├─ tmp/
+   └─ stats/
+      └─ reading/
+         └─ {YYYY-MM}.json
 ```
 
 ### `books/`
@@ -108,7 +111,7 @@ text files, covers, notes, and other long-lived files.
 
 ### `app/`
 
-Runtime state.
+Runtime state (file lock, temporary files), plus per-day reading-time history under `stats/reading/` that powers the dashboard's reading heatmap. See [docs/concepts/data-model.md](docs/concepts/data-model.md) for details, including which parts are rebuildable.
 
 ---
 

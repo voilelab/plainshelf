@@ -14,12 +14,18 @@ and UI behavior may still change between releases.
 - Added an experimental Android mobile app (a Capacitor shell around the existing frontend) that connects to a self-hosted PlainShelf server: first-run connection setup (server URL, optional access token, shelf selection) with a Settings entry to edit the connection later, persistent on-device caching of downloaded books and reading progress for offline reading (stored as app-private files via the Capacitor Filesystem plugin, exempt from WebView storage eviction), and native HTTP requests so plain-HTTP LAN servers work without CORS configuration.
 - Added the native Android project under `frontend/android/`, `just` recipes for building it (`mobile-add-android`, `mobile-sync`, `build-mobile-android`, `open-mobile-android`), and a README section covering prerequisites and server reachability.
 - Added PlainShelf launcher icons and splash screens (light and dark) for the Android app, generated from the brand images in `frontend/assets/` via `@capacitor/assets`.
+- Added a dashboard home page (now the default landing route, with a sidebar entry) with stats cards (total books, added this month, star distribution, total characters), a tag cloud, a random book pick, and a reading heatmap driven by live daily reading-time data.
+- Added server-side daily reading-time tracking (`POST`/`GET /api/shelves/:id/reading_activity`) backing the dashboard heatmap, plus an opt-in `char_count` field on the book list endpoint.
+- Added a mobile-friendly book detail layout on narrow viewports: centered hero cover, centered title, a full-width Read button with secondary actions in a two-column grid, and single-column metadata rows.
+- Added foldable sidebar sections (Layers, Reading, Maintenance, Admin) that collapse and expand independently.
+- Added first/last page buttons and numbered page buttons with ellipsis to the pagination controls, alongside the existing prev/next controls.
 
 ### Changed
 
 - Changed the main layout sidebar to an off-canvas drawer with a topbar menu button on viewports up to 768px wide (phones and narrow windows); it closes on backdrop tap or navigation, and wide-viewport splitter behavior is unchanged.
 - Changed the book star rating input in the metadata editor to use reka-ui `RatingRoot` and `RatingItemIndicator`, aligning with the reka-ui component migration started in v0.7.0.
 - Removed the inline Edit button from book card view items; edit access is now exclusively through the right-click context menu.
+- Changed library search to pure frontend filtering instead of a backend query parameter, unifying case-insensitive title/author/tag/comment matching across desktop, mobile offline mode, and mock dev data.
 
 ### Fixed
 
@@ -27,6 +33,13 @@ and UI behavior may still change between releases.
 - Fixed resizable panel drag handles leaving all panel interactions unresponsive after a drag gesture; moved `hitAreaMargins` from an inline template literal to a module-level constant to prevent reka-ui drag-state corruption mid-drag.
 - Fixed the read history page not responding to book context menu actions (edit, open book folder, download, delete) after context menus were added to book collections.
 - Fixed scrollable content areas in the sidebar and main content panel after the reka-ui Splitter migration; added inner wrapper elements to work around `SplitterPanel`'s `overflow: hidden` inline style enforcement.
+- Fixed mobile book covers failing to load (showing as NO COVER) because Android WebView blocks mixed-content `<img>` requests against the app's `https://localhost` origin; covers are now fetched and rendered via `blob:` object URLs on mobile.
+- Fixed the mobile downloaded-book cover cache not refreshing after the cover was replaced or removed on the server.
+- Fixed the library page landing on the wrong page number when committing or clearing a search with client-side filtering active.
+- Fixed the desktop app's Settings repository link opening inside the app window instead of the system browser.
+- Fixed the compiled server binary silently dropping underscore-prefixed frontend asset files (e.g. the shared Vue export-helper chunk) from the embedded build, which blanked most pages when served from the binary.
+- Fixed reading-time seconds recorded during a background stats flush being lost if no later heartbeat re-dirtied that month.
+- Fixed reader heartbeat seconds being attributed to the previously open book after navigating to a different book within the reader.
 
 ### Removed
 

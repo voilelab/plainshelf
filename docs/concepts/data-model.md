@@ -19,7 +19,10 @@ A typical shelf looks like this:
 │        └─ {book3-folder}.bookpkg/
 └─ app/
    ├─ library.lock
-   └─ tmp/
+   ├─ tmp/
+   └─ stats/
+      └─ reading/
+         └─ {YYYY-MM}.json
 ```
 
 ### `books/`
@@ -28,7 +31,7 @@ Source of truth. This directory contains all user-owned data: book metadata, tex
 
 ### `app/`
 
-Runtime state used by the server (file lock, temporary files). This data is considered rebuildable and is **not** user data.
+Runtime state used by the server: file lock and temporary files (rebuildable, not user data), plus per-day reading-time history under `stats/reading/` (one JSON file per calendar month) that powers the dashboard's reading heatmap and streak. Unlike the lock and temporary files, reading-time history is **not** derived from `books/` — deleting `app/` discards it.
 
 ---
 
@@ -65,4 +68,4 @@ The book ID is generated once when the book is created and then persisted in `bo
 
 - **Human-readable** — the shelf directory can be opened and inspected with any file manager or text editor.
 - **Backup-friendly** — because everything is plain files, the shelf is trivially backed up with `cp`, `rsync`, or committed to Git.
-- **Rebuildable runtime state** — the `app/` directory can be deleted and the server will recreate it on the next startup.
+- **Rebuildable runtime state** — the file lock and temporary files under `app/` can be deleted and the server will recreate them on the next startup. The one exception is `app/stats/reading/`: it holds reading-time history that isn't derived from `books/`, so deleting it loses that history (dashboard heatmap and streak) even though nothing else breaks.
