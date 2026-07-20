@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 )
 
@@ -88,6 +89,66 @@ func TestAddToReadHistory_ExceedLimit(t *testing.T) {
 		expectedID := fmt.Sprintf("book%d", i)
 		if history[150-i] != expectedID {
 			t.Fatalf("expected history[%d] = %s, got %s", 150-i, expectedID, history[150-i])
+		}
+	}
+}
+
+func TestSetReadHistory_NegativeLimitIsEmpty(t *testing.T) {
+	db := newTestDB(t)
+	if err := db.SetReadHistory("test_shelf", []string{"book1"}, -1); err != nil {
+		t.Fatalf("SetReadHistory: %v", err)
+	}
+
+	history, err := db.GetReadHistory("test_shelf")
+	if err != nil {
+		t.Fatalf("GetReadHistory: %v", err)
+	}
+	if len(history) != 0 {
+		t.Fatalf("expected empty history, got %v", history)
+	}
+}
+
+func TestAddToReadHistory_ConcurrentUpdatesAreNotLost(t *testing.T) {
+	db := newTestDB(t)
+	const count = 12
+
+	start := make(chan struct{})
+	errCh := make(chan error, count)
+	var wg sync.WaitGroup
+	for i := range count {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			errCh <- db.AddToReadHistory("test_shelf", fmt.Sprintf("book%d", i), count)
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("AddToReadHistory: %v", err)
+		}
+	}
+
+	history, err := db.GetReadHistory("test_shelf")
+	if err != nil {
+		t.Fatalf("GetReadHistory: %v", err)
+	}
+	if len(history) != count {
+		t.Fatalf("expected %d history entries, got %d: %v", count, len(history), history)
+	}
+
+	seen := make(map[string]bool, count)
+	for _, bookID := range history {
+		seen[bookID] = true
+	}
+	for i := range count {
+		bookID := fmt.Sprintf("book%d", i)
+		if !seen[bookID] {
+			t.Errorf("missing %s from history: %v", bookID, history)
 		}
 	}
 }
