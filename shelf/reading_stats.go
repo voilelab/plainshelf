@@ -42,8 +42,6 @@ const maxSecondsPerDay = 24 * 60 * 60 // 86400
 const dateLayout = "2006-01-02"
 const monthLayout = "2006-01"
 
-var ErrInvalidDate = util.NewError("invalid date, expected YYYY-MM-DD")
-
 type readingDayStats struct {
 	TotalSeconds int            `json:"total_seconds"`
 	Books        map[string]int `json:"books,omitempty"`
@@ -81,45 +79,30 @@ func clampInt(v, lo, hi int) int {
 	return max(lo, min(v, hi))
 }
 
-func parseDate(date string) (time.Time, error) {
-	t, err := time.Parse(dateLayout, date)
-	if err != nil {
-		return time.Time{}, util.Errorf("%w: %w", ErrInvalidDate, err)
-	}
-	return t, nil
-}
-
-func monthKeyForDate(date string) string {
-	if len(date) < 7 {
-		return date
-	}
-	return date[:7]
-}
-
-func readingStatsFilePath(month string) string {
-	return path.Join(appFolder, statsFolder, statsReadingFolder, month+".json")
+func readingStatsFilePath(monthKey string) string {
+	return path.Join(appFolder, statsFolder, statsReadingFolder, monthKey+".json")
 }
 
 // loadMonthLocked returns the in-memory month data, lazily loading it from disk
 // if not already present. Caller must hold r.mu.
-func (r *ReadingStats) loadMonthLocked(month string) (*readingMonthFile, error) {
-	if data, ok := r.months[month]; ok {
+func (r *ReadingStats) loadMonthLocked(monthKey string) (*readingMonthFile, error) {
+	if data, ok := r.months[monthKey]; ok {
 		return data, nil
 	}
 
 	data := &readingMonthFile{
 		Version: readingStatsVersion,
-		Month:   month,
+		Month:   monthKey,
 		Days:    make(map[string]*readingDayStats),
 	}
 
-	f, err := r.root.Open(readingStatsFilePath(month))
+	f, err := r.root.Open(readingStatsFilePath(monthKey))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			// No stats recorded for this month yet (or a pre-existing vault
 			// created before reading stats existed). Treat as empty - no
 			// migration needed.
-			r.months[month] = data
+			r.months[monthKey] = data
 			return data, nil
 		}
 		return nil, util.Errorf("%w", err)
@@ -134,7 +117,7 @@ func (r *ReadingStats) loadMonthLocked(month string) (*readingMonthFile, error) 
 		data.Days = make(map[string]*readingDayStats)
 	}
 
-	r.months[month] = data
+	r.months[monthKey] = data
 	return data, nil
 }
 
@@ -142,29 +125,27 @@ func (r *ReadingStats) loadMonthLocked(month string) (*readingMonthFile, error) 
 // sec is clamped to [0, maxSecondsPerCall]; the cumulative per-day total (both
 // overall and per-book) is clamped to maxSecondsPerDay. Only in-memory state is
 // touched - callers rely on the periodic/close-time Flush to persist.
-func (r *ReadingStats) AddSeconds(date string, bookID string, sec int) error {
+func (r *ReadingStats) AddSeconds(date time.Time, bookID string, sec int) error {
 	if bookID == "" {
 		return util.NewError("book id cannot be empty")
 	}
-	if _, err := parseDate(date); err != nil {
-		return err
-	}
 
 	sec = clampInt(sec, 0, maxSecondsPerCall)
-	month := monthKeyForDate(date)
+	monthKey := date.Format(monthLayout)
+	dateKey := date.Format(dateLayout)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	data, err := r.loadMonthLocked(month)
+	data, err := r.loadMonthLocked(monthKey)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	day, ok := data.Days[date]
+	day, ok := data.Days[dateKey]
 	if !ok {
 		day = &readingDayStats{Books: make(map[string]int)}
-		data.Days[date] = day
+		data.Days[dateKey] = day
 	}
 	if day.Books == nil {
 		day.Books = make(map[string]int)
@@ -173,8 +154,8 @@ func (r *ReadingStats) AddSeconds(date string, bookID string, sec int) error {
 	day.Books[bookID] = clampInt(day.Books[bookID]+sec, 0, maxSecondsPerDay)
 	day.TotalSeconds = clampInt(day.TotalSeconds+sec, 0, maxSecondsPerDay)
 
-	r.dirty[month] = struct{}{}
-	r.gens[month]++
+	r.dirty[monthKey] = struct{}{}
+	r.gens[monthKey]++
 
 	return nil
 }
@@ -188,23 +169,15 @@ type DayTotal struct {
 // (inclusive). Only days that actually have recorded data are included in the
 // result - a shelf/vault with no reading stats yet (or months with no file on
 // disk) simply contributes nothing, so this never errors on missing files.
-func (r *ReadingStats) Range(from, to string) (map[string]DayTotal, error) {
-	fromT, err := parseDate(from)
-	if err != nil {
-		return nil, err
-	}
-	toT, err := parseDate(to)
-	if err != nil {
-		return nil, err
-	}
-	if toT.Before(fromT) {
+func (r *ReadingStats) Range(from, to time.Time) (map[string]DayTotal, error) {
+	if to.Before(from) {
 		return nil, util.NewError("to date must not be before from date")
 	}
 
 	// Collect the set of months spanned by [from, to].
 	months := make([]string, 0)
 	seen := make(map[string]struct{})
-	for m := fromT; !m.After(toT); m = m.AddDate(0, 0, 1) {
+	for m := from; !m.After(to); m = m.AddDate(0, 0, 1) {
 		key := m.Format(monthLayout)
 		if _, ok := seen[key]; !ok {
 			seen[key] = struct{}{}
@@ -223,11 +196,11 @@ func (r *ReadingStats) Range(from, to string) (map[string]DayTotal, error) {
 			return nil, util.Errorf("%w", err)
 		}
 		for date, day := range data.Days {
-			dt, err := parseDate(date)
+			dt, err := time.Parse(dateLayout, date)
 			if err != nil {
 				continue
 			}
-			if dt.Before(fromT) || dt.After(toT) {
+			if dt.Before(from) || dt.After(to) {
 				continue
 			}
 			result[date] = DayTotal{TotalSeconds: day.TotalSeconds}

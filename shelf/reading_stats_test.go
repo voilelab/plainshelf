@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 )
@@ -17,13 +18,13 @@ func newTestReadingStats(t *testing.T) (*ReadingStats, string) {
 func TestReadingStatsAddAndFlushRoundTrip(t *testing.T) {
 	rs, root := newTestReadingStats(t)
 
-	if err := rs.AddSeconds("2026-07-13", "book-a", 60); err != nil {
+	if err := rs.AddSeconds(time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC), "book-a", 60); err != nil {
 		t.Fatalf("AddSeconds: %v", err)
 	}
-	if err := rs.AddSeconds("2026-07-13", "book-a", 40); err != nil {
+	if err := rs.AddSeconds(time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC), "book-a", 40); err != nil {
 		t.Fatalf("AddSeconds: %v", err)
 	}
-	if err := rs.AddSeconds("2026-07-13", "book-b", 30); err != nil {
+	if err := rs.AddSeconds(time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC), "book-b", 30); err != nil {
 		t.Fatalf("AddSeconds: %v", err)
 	}
 
@@ -38,7 +39,7 @@ func TestReadingStatsAddAndFlushRoundTrip(t *testing.T) {
 
 	// Load into a fresh ReadingStats to confirm the file round-trips.
 	reloaded := newReadingStats(fsutil.NewLocalFS(root))
-	days, err := reloaded.Range("2026-07-01", "2026-07-31")
+	days, err := reloaded.Range(time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatalf("Range: %v", err)
 	}
@@ -54,10 +55,10 @@ func TestReadingStatsAddAndFlushRoundTrip(t *testing.T) {
 func TestReadingStatsCrossMonthSplitsFiles(t *testing.T) {
 	rs, root := newTestReadingStats(t)
 
-	if err := rs.AddSeconds("2026-06-30", "book-a", 50); err != nil {
+	if err := rs.AddSeconds(time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC), "book-a", 50); err != nil {
 		t.Fatalf("AddSeconds: %v", err)
 	}
-	if err := rs.AddSeconds("2026-07-01", "book-a", 70); err != nil {
+	if err := rs.AddSeconds(time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC), "book-a", 70); err != nil {
 		t.Fatalf("AddSeconds: %v", err)
 	}
 
@@ -72,7 +73,7 @@ func TestReadingStatsCrossMonthSplitsFiles(t *testing.T) {
 		}
 	}
 
-	days, err := rs.Range("2026-06-01", "2026-07-31")
+	days, err := rs.Range(time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatalf("Range: %v", err)
 	}
@@ -87,14 +88,14 @@ func TestReadingStatsCrossMonthSplitsFiles(t *testing.T) {
 func TestReadingStatsClampsPerCallSeconds(t *testing.T) {
 	rs, _ := newTestReadingStats(t)
 
-	if err := rs.AddSeconds("2026-07-13", "book-a", 9999); err != nil {
+	if err := rs.AddSeconds(time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC), "book-a", 9999); err != nil {
 		t.Fatalf("AddSeconds: %v", err)
 	}
-	if err := rs.AddSeconds("2026-07-13", "book-a", -50); err != nil {
+	if err := rs.AddSeconds(time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC), "book-a", -50); err != nil {
 		t.Fatalf("AddSeconds: %v", err)
 	}
 
-	days, err := rs.Range("2026-07-13", "2026-07-13")
+	days, err := rs.Range(time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC), time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatalf("Range: %v", err)
 	}
@@ -111,13 +112,13 @@ func TestReadingStatsClampsDailyTotal(t *testing.T) {
 	// 120s so we need many calls, but the daily total clamp should still cap
 	// the sum well short of naive addition.
 	for i := range 800 {
-		if err := rs.AddSeconds("2026-07-13", "book-a", 120); err != nil {
+		if err := rs.AddSeconds(time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC), "book-a", 120); err != nil {
 			t.Fatalf("AddSeconds call %d: %v", i, err)
 		}
 	}
 	// 800 * 120 = 96000, which exceeds maxSecondsPerDay (86400).
 
-	days, err := rs.Range("2026-07-13", "2026-07-13")
+	days, err := rs.Range(time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC), time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatalf("Range: %v", err)
 	}
@@ -126,21 +127,10 @@ func TestReadingStatsClampsDailyTotal(t *testing.T) {
 	}
 }
 
-func TestReadingStatsInvalidDate(t *testing.T) {
-	rs, _ := newTestReadingStats(t)
-
-	if err := rs.AddSeconds("not-a-date", "book-a", 10); err == nil {
-		t.Fatalf("expected error for invalid date, got nil")
-	}
-	if err := rs.AddSeconds("2026-13-40", "book-a", 10); err == nil {
-		t.Fatalf("expected error for invalid date, got nil")
-	}
-}
-
 func TestReadingStatsEmptyBookID(t *testing.T) {
 	rs, _ := newTestReadingStats(t)
 
-	if err := rs.AddSeconds("2026-07-13", "", 10); err == nil {
+	if err := rs.AddSeconds(time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC), "", 10); err == nil {
 		t.Fatalf("expected error for empty book id, got nil")
 	}
 }
@@ -150,7 +140,7 @@ func TestReadingStatsMissingMonthFileReturnsEmpty(t *testing.T) {
 
 	// No AddSeconds/Flush ever happened - nothing on disk. This simulates an
 	// old vault created before reading stats existed.
-	days, err := rs.Range("2020-01-01", "2020-01-31")
+	days, err := rs.Range(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2020, 1, 31, 0, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatalf("Range on missing files should not error, got: %v", err)
 	}
@@ -177,7 +167,7 @@ func TestReadingStatsFlushIsNoopWithoutDirtyData(t *testing.T) {
 func TestReadingStatsRangeRejectsInvertedRange(t *testing.T) {
 	rs, _ := newTestReadingStats(t)
 
-	if _, err := rs.Range("2026-07-13", "2026-07-01"); err == nil {
+	if _, err := rs.Range(time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC), time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)); err == nil {
 		t.Fatalf("expected error for inverted range, got nil")
 	}
 }
@@ -200,7 +190,7 @@ func TestReadingStatsFlushKeepsMonthDirtyWhenMutatedDuringWrite(t *testing.T) {
 	hooked := &hookFS{FS: fsutil.NewLocalFS(root)}
 	rs := newReadingStats(hooked)
 
-	if err := rs.AddSeconds("2026-07-13", "book-a", 60); err != nil {
+	if err := rs.AddSeconds(time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC), "book-a", 60); err != nil {
 		t.Fatalf("AddSeconds: %v", err)
 	}
 
@@ -208,7 +198,7 @@ func TestReadingStatsFlushKeepsMonthDirtyWhenMutatedDuringWrite(t *testing.T) {
 	// (i.e. after Flush released the lock but before it clears dirty marks).
 	hooked.onWriteFile = func() {
 		hooked.onWriteFile = nil // fire once; later flushes write normally
-		if err := rs.AddSeconds("2026-07-13", "book-a", 30); err != nil {
+		if err := rs.AddSeconds(time.Date(2026, 7, 13, 0, 0, 0, 0, time.UTC), "book-a", 30); err != nil {
 			t.Errorf("AddSeconds during flush: %v", err)
 		}
 	}
@@ -224,7 +214,7 @@ func TestReadingStatsFlushKeepsMonthDirtyWhenMutatedDuringWrite(t *testing.T) {
 	}
 
 	reloaded := newReadingStats(fsutil.NewLocalFS(root))
-	days, err := reloaded.Range("2026-07-01", "2026-07-31")
+	days, err := reloaded.Range(time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatalf("Range: %v", err)
 	}
