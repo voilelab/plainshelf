@@ -10,6 +10,7 @@ import (
 )
 
 const defaultReadingActivityRangeDays = 365
+const apiDateLayout = "2006-01-02"
 
 type readingActivityRequest struct {
 	BookID  string `json:"book_id"`
@@ -24,6 +25,34 @@ type readingActivityDay struct {
 type readingActivityResponse struct {
 	Days map[string]readingActivityDay `json:"days"`
 	Unit string                        `json:"unit"`
+}
+
+// calendarDate converts an instant to its local calendar date while using UTC
+// as the canonical location. The reading stats layer treats time.Time values as
+// date-only values, so truncating an instant by 24 hours would produce the
+// previous date in time zones ahead of UTC during the first hours of the day.
+func calendarDate(t time.Time) time.Time {
+	year, month, day := t.Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
+}
+
+func readingActivityDate(raw string, now time.Time) (time.Time, error) {
+	today := calendarDate(now)
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return today, nil
+	}
+
+	date, err := time.Parse(apiDateLayout, raw)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	yesterday := today.AddDate(0, 0, -1)
+	if date != today && date != yesterday {
+		return today, nil
+	}
+	return date, nil
 }
 
 // POST /api/shelves/{shelf_id}/reading_activity
@@ -64,22 +93,10 @@ func (app *App) HandleAPIPostReadingActivity(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	dateStr := strings.TrimSpace(req.Date)
-	var date time.Time
-	if dateStr != "" {
-		var err error
-		date, err = time.Parse("2006-01-02", dateStr)
-		if err != nil {
-			http.Error(w, "invalid date, expected YYYY-MM-DD", http.StatusBadRequest)
-			return
-		}
-	}
-
-	today := time.Now().Truncate(24 * time.Hour)
-	yesterday := today.AddDate(0, 0, -1)
-	if date.IsZero() || (date != today && date != yesterday) {
-		// Clamp out-of-window dates to today rather than rejecting outright.
-		date = today
+	date, err := readingActivityDate(req.Date, time.Now())
+	if err != nil {
+		http.Error(w, "invalid date, expected YYYY-MM-DD", http.StatusBadRequest)
+		return
 	}
 
 	if err := shelfData.ReadingStats().AddSeconds(date, bookID, req.Seconds); err != nil {
@@ -109,12 +126,12 @@ func (app *App) HandleAPIGetReadingActivity(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	today := time.Now().Truncate(24 * time.Hour)
+	today := calendarDate(time.Now())
 	from := today.AddDate(0, 0, -defaultReadingActivityRangeDays)
 	to := today
 	if v := strings.TrimSpace(r.URL.Query().Get("from")); v != "" {
 		var err error
-		from, err = time.Parse("2006-01-02", v)
+		from, err = time.Parse(apiDateLayout, v)
 		if err != nil {
 			http.Error(w, "invalid from date, expected YYYY-MM-DD", http.StatusBadRequest)
 			return
@@ -122,7 +139,7 @@ func (app *App) HandleAPIGetReadingActivity(w http.ResponseWriter, r *http.Reque
 	}
 	if v := strings.TrimSpace(r.URL.Query().Get("to")); v != "" {
 		var err error
-		to, err = time.Parse("2006-01-02", v)
+		to, err = time.Parse(apiDateLayout, v)
 		if err != nil {
 			http.Error(w, "invalid to date, expected YYYY-MM-DD", http.StatusBadRequest)
 			return
