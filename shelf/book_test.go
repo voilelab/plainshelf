@@ -2,6 +2,7 @@ package shelf
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -206,6 +207,66 @@ func TestSetCover(t *testing.T) {
 	coverPath := path.Join(tmpLib, bookID, "cover.png")
 	if _, err := os.Open(coverPath); err != nil {
 		t.Fatalf("Expected cover file to be created, but got error: %v", err)
+	}
+}
+
+func TestDeleteCoverAndETag(t *testing.T) {
+	tmpLib := t.TempDir()
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("OpenRoot: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := createBook(rootFS, newLoggerForTest(), "test-book", "test-book", "Test Book")
+	if err != nil {
+		t.Fatalf("createBook: %v", err)
+	}
+	if etag := book.CoverETag(); etag != "" {
+		t.Fatalf("ETag without cover = %q, want empty", etag)
+	}
+	if err := book.SetCover([]byte("cover bytes"), ".png"); err != nil {
+		t.Fatalf("SetCover: %v", err)
+	}
+	if etag := book.CoverETag(); etag == "" {
+		t.Fatal("ETag with cover is empty")
+	}
+
+	if err := book.DeleteCover(); err != nil {
+		t.Fatalf("DeleteCover: %v", err)
+	}
+	if book.GetMeta().Cover != "" {
+		t.Fatalf("cover metadata = %q, want empty", book.GetMeta().Cover)
+	}
+	data, ext, err := book.OpenCover()
+	if err != nil {
+		t.Fatalf("OpenCover after delete: %v", err)
+	}
+	if data != nil || ext != "" {
+		t.Fatalf("OpenCover after delete = (%v, %q), want (nil, empty)", data, ext)
+	}
+	if _, err := os.Stat(path.Join(tmpLib, "test-book", "cover.png")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("deleted cover stat error = %v, want os.ErrNotExist", err)
+	}
+	if err := book.DeleteCover(); err != nil {
+		t.Fatalf("second DeleteCover: %v", err)
+	}
+}
+
+func TestNewLayersFromString(t *testing.T) {
+	tests := []struct {
+		input string
+		want  Layers
+	}{
+		{input: "", want: nil},
+		{input: "fiction", want: Layers{"fiction"}},
+		{input: " fiction / classics ", want: Layers{"fiction", "classics"}},
+	}
+	for _, tt := range tests {
+		if got := NewLayersFromString(tt.input); !got.Equal(tt.want) {
+			t.Errorf("NewLayersFromString(%q) = %#v, want %#v", tt.input, got, tt.want)
+		}
 	}
 }
 
