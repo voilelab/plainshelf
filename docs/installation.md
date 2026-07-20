@@ -82,8 +82,10 @@ tar -xzf plainshelf_<version>_linux_amd64.tar.gz -C plainshelf
 cd plainshelf
 ```
 
-Each archive contains the `plainshelf-srv` binary, `LICENSE`, `README.md`,
-and a `config.sample.yaml` to use as a starting point.
+Each archive contains the `plainshelf-srv` binary, `LICENSE`, `README.md`, the
+version-matched `docs/` directory, the README preview image, and a
+`config.sample.yaml` to use as a starting point. The relative documentation
+links in `README.md` therefore work both online and from the extracted archive.
 
 !!! note "macOS Gatekeeper"
     The macOS binaries are unsigned. On first run you may need to clear the
