@@ -76,8 +76,8 @@ func (app *App) HandleAPIPostReadingActivity(w http.ResponseWriter, r *http.Requ
 	}
 
 	now := time.Now()
-	today := now
-	yesterday := now.AddDate(0, 0, -1)
+	today := now.Truncate(24 * time.Hour)
+	yesterday := today.AddDate(0, 0, -1)
 	if date.IsZero() || (date != today && date != yesterday) {
 		// Clamp out-of-window dates to today rather than rejecting outright.
 		date = today
