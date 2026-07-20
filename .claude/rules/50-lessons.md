@@ -1,33 +1,78 @@
-# 50 — 踩坑教訓（每個 session 開工前掃一遍）
+# 50 — Verified project pitfalls
 
-格式與新增規則見 `40-maintenance.md` 第 2 節。一條一行，新條目加在最上面。
-已被 CLAUDE.md 陷阱清單涵蓋的不重複寫；同主題累積 ≥3 條時升格進 CLAUDE.md 或對應規則檔（見 `40-maintenance.md` 第 4 節）。
+Read the relevant section before working in that area. Add entries according to
+`40-maintenance.md`; keep them concise and grouped by root cause.
 
-格式範例（這一條只是示範，不是真教訓）：
-`- [YYYY-MM-DD] 症狀：觀察到什麼 → 根因：真正原因 → 規則：下次怎麼避免，一句可執行的話。`
+## Build and runtime
 
----
+- **Embedded frontend:** Go builds require `frontend/dist`; rebuild the frontend
+  before Go tests when it is missing or stale. (`frontend/web.go`)
+- **Hidden build assets:** keep `//go:embed all:dist`; plain `dist/*` silently
+  omits underscore-prefixed Rolldown chunks and produces a white-screen SPA.
+  (`frontend/web.go`)
+- **Stale running server:** rebuilding `frontend/dist` does not update an already
+  running Go process because assets are embedded at compile time; restart it.
+- **Restricted dependency installs:** if `sharp` cannot download libvips, use
+  `npm --prefix frontend ci --ignore-scripts` for web-only work. Do not use that
+  install for Capacitor asset generation.
+- **Cold end-to-end startup:** the first `go run` may exceed the e2e server wait
+  while downloading/building modules; build the frontend and run `go build ./...`
+  once before diagnosing a timeout as a test failure.
 
-- [2026-07-13] 症狀：真後端模式（go run 起 server 吃 embedded dist）所有 SPA 頁面白屏，console 顯示 `/assets/_plugin-vue_export-helper-*.js` 404，mock dev server 卻一切正常 → 根因：`//go:embed dist/*` 依 Go embed 預設規則**默默排除** `_` 開頭的檔案，而 vite 8/rolldown 會產出 `_plugin-vue_export-helper-*.js` 共用 chunk（已修：`frontend/web.go` 改 `//go:embed all:dist`）→ 規則：「mock 正常、真 server 白屏」先查 network 404 而不是懷疑自己的前端改動；go:embed 目錄要含建置產物時一律用 `all:` 前綴。
-- [2026-07-12] 症狀：要在 mock dev server 重現「分頁 × 搜尋」的 watcher 競態，11 本 mock 書怎麼操作都撞不到（pageSize 白名單最小 10，永遠只有 2 頁）→ 根因：這類 bug 需要特定資料規模（舊頁碼 > 新 totalPages > 1），固定 mock 資料湊不出來，而 full page reload 會重置模組狀態、無法先 evaluate 塞資料 → 規則：用 playwright `context.route('**/src/api/books.ts*')` 攔截 Vite dev 的模組回應、在 body 尾端 append `mockBooks.push(...)` 注入大量假書，確定性重現且不用改 repo 程式碼（scratchpad verify-page-reset.mjs 模式）。
-- [2026-07-11] 症狀：Android Capacitor App 連遠端 server 時書單正常但所有封面顯示 NO COVER，`<img :src="book.cover_url">` 的請求在真機上完全掛掉 → 根因：`<img src>` 是 WebView 直接發出的請求，**不經過** `CapacitorHttp.enabled=true`（那只攔 fetch/XHR），撞上 https 頁面（origin `https://localhost`）載入 http 子資源的 mixed-content 阻擋（另見 2026-07-10 CapacitorHttp/cleartext 條，同樣是「原生請求不受 WebView 限制、`<img>` 不算原生請求」這個誤解的變體）→ 規則：mobile runtime 下任何要顯示遠端圖片的地方一律走 fetch→blob→`URL.createObjectURL()`（見 `frontend/src/composables/useCoverSrc.ts` 的 `BookCoverImg` 模式），不要對外部/遠端資源直接寫 `<img src="http...">`；桌面/web 不受影響（相對路徑同源，用 `isMobileRuntime()` 分流，live 讀取不要在 module load 快取）。
-- [2026-07-11] 症狀：照 2026-07-10 條跑 `npm rebuild esbuild`，但 `npm ls esbuild` 為空、沒東西可 rebuild → 根因：vite 8 改用 rolldown，依賴樹裡已無 esbuild，「不 rebuild 則 vite build 失敗」已過時 → 規則：frontend 裝依賴只需 `npm install --ignore-scripts`（sharp 仍被 proxy 擋，--ignore-scripts 仍必要），不必也無法 rebuild esbuild（實測 install 後 vite build 與 vitest 直接可用）。
-- [2026-07-10] 症狀：mobile e2e（`?mobile-shell-preview=1`）裡用 `context.setOffline(true)` 模擬離線後，`page.goto` 重開頁面直接 `net::ERR_INTERNET_DISCONNECTED`，測不了「離線重啟 app」場景 → 根因：Go `http.FileServerFS` 對 go:embed 的 SPA shell 不送 `Cache-Control`/`Last-Modified`，Chromium 離線時無法從 HTTP cache 供頁（真 Android 的資產在 APK 內，沒有這問題）→ 規則：模擬「app 離線但殼還在」用 `page.route('**/api/**', abort)` + `addInitScript` 覆寫 `navigator.onLine=false`，不要用 `context.setOffline`（模式見 `e2e/tests/support/mobile.ts` 的 `goOffline`）。
-- [2026-07-10] 症狀：mobile-shell-preview 下 in-app 導航（router.push）後 mobile 行為消失——跨 layout 進 reader 時 shelf fallback 不生效、reload 後整個退化成桌面 provider → 根因：`?mobile-shell-preview=1` 是 query param，`router.push` 裸路徑會把它丟掉，而 `isMobileRuntime()` 每次 live 讀 `location.search`；provider 是 lazy singleton 撐得過單次 load，但新 mount 的元件（如 ReaderLayout）live 呼叫就拿到 false（native `Capacitor.isNativePlatform()` 不受影響，純 preview 工件）→ 規則：preview 模式的測試每個 top-level `page.goto` 都自己補 param（用 `e2e/tests/support/mobile.ts` 的 `reopenMobileAt`），跨 layout 邊界的導航用 top-level goto 而非點擊 in-app 連結。
-- [2026-07-10] 症狀：CLAUDE.md 對照表的 `npm --prefix frontend install` 現在會失敗——`sharp`（`@capacitor/assets` 的 devDep）install script 下載 libvips 二進位被 agent proxy 擋（403），整個 install 中斷、之後 `vue-tsc: not found` → 根因：sharp 0.32 的 install script 要抓 github release 的 libvips tarball，proxy 不放行；sharp 只有產 App icon 用，web build 不需要 → 規則：容器內裝前端依賴改用 `npm install --ignore-scripts`（在 frontend/ 下）。（原文的「npm rebuild esbuild」步驟已作廢——vite 8 改用 rolldown 後依賴樹無 esbuild，見 2026-07-11 條。）
-- [2026-07-10] 症狀：e2e 首跑 `import-book.spec.ts` 在 `waitForServer` 30s timeout 失敗（其餘 14 個過）→ 根因：e2e 的 server harness 用 `go run` 起後端，全新容器第一次要下載 Go toolchain + 全部模組，遠超 30s；不是測試壞掉 → 規則：跑 e2e 前先在 repo 根目錄 `go build ./...` 暖快取（需 frontend/dist 已存在），重跑即綠。
-- [2026-07-10] 症狀：Capacitor App 在真機連 `http://<LAN>:20000` 的 PlainShelf server，連線頁按「載入書庫」噴 `Failed to fetch`；server log 完全沒收到請求 → 根因：**兩個問題疊在一起** —— (a) WebView origin 是 `https://localhost`，不在 server `allowed_origins`，`applyCORS`（`server/security.go:283`）不回 `Access-Control-Allow-Origin`，WebView 擋掉回應；(b) Android targetSdk≥28 預設禁 cleartext HTTP → 規則：手機 App 打自架 server 一律在 `capacitor.config.ts` 開 `plugins.CapacitorHttp.enabled=true`（fetch/XHR 走原生層，**原生請求不受 WebView CORS 管**，免改 server）+ `server.cleartext=true`；注意 `server.cleartext` **不會**改 app 的 `AndroidManifest.xml`，而是被 `cap sync` 寫進 `capacitor-cordova-android-plugins/src/main/AndroidManifest.xml`（`@capacitor/cli/dist/cordova.js:784`）再由 manifest merger 併入——所以驗證要看 `app/build/intermediates/merged_manifest*/AndroidManifest.xml` 與 `app/build/outputs/logs/manifest-merger-debug-report.txt`，看 app 自己的 manifest 會誤判成沒生效。
-- [2026-07-10] 症狀：想用 playwright 驅動模擬器上 Capacitor App 的 WebView 做端對端驗證，`chromium.connectOverCDP()` 直接失敗 `Protocol error (Browser.setDownloadBehavior): Browser context management is not supported` → 根因：Android WebView 的 DevTools 端點不支援 playwright 需要的 browser-context API（只有 page target）→ 規則：驗手機 App 用 **raw CDP**：`adb shell cat /proc/net/unix | grep webview_devtools_remote_<pid>` → `adb forward tcp:9222 localabstract:<socket>` → 讀 `http://localhost:9222/json/list` 取 page 的 `webSocketDebuggerUrl` → Node 內建 global `WebSocket` 送 `Runtime.evaluate`（`awaitPromise:true, returnByValue:true`）跑斷言；Vue `v-model` 的輸入要用 `HTMLInputElement.prototype.value` 的 setter 再 `dispatchEvent(new Event('input',{bubbles:true}))` 才會被偵測（scratchpad cdp-drive.mjs 模式）。模擬器連 host loopback 用 `10.0.2.2`。
-- [2026-07-09] 症狀：新寫的 IndexedDB cache（用 `idb`）`removeDownloadedBook` 用 `openKeyCursor()` + `cursor.delete()` 清 prefix 條目，型別檢查與 build 全過，但一到真瀏覽器就 throw `InvalidStateError: The cursor is a key cursor` → 根因：IDB 的 **key cursor 不支援 `delete()`**，要刪必須開 value cursor（`openCursor()`）；這是 runtime-only 錯誤，vue-tsc 抓不到 → 規則：瀏覽器專屬 API（IndexedDB / Web Crypto / matchMedia…）typecheck 過 ≠ 會動，一律在真 Chromium 跑一次；驗法對這類「無 UI 的 browser-only 模組」很省事：起 `VITE_USE_MOCK_API=true` dev server → playwright-core 開頁 → `page.evaluate(async()=>{ const m = await import('/src/.../foo.ts'); ... })` 直接動態 import TS 原始碼跑斷言（Vite dev 會即時編譯 TS，不必先 build；scratchpad verify-idb.mjs 模式），比接 e2e 輕得多。
-- [2026-07-09] 症狀：mock dev server 一載入就噴 11 個 `ERR_TUNNEL_CONNECTION_FAILED` console error，容易誤判成自己改壞 → 根因：mock 假資料的封面用 `picsum.photos` 外部圖，被 agent proxy 擋（非 loopback 一律失敗）→ 規則：判斷「console error 是不是自己的 regression」時，先對照跑一次未改動的基線（同頁不帶你的 flag）比對數量；`picsum.photos` 這類外部佔位資源的 tunnel 失敗是 mock 既有噪音，不用理。
-- [2026-07-08] 症狀：desktop UI 縮放（issue #66）把 CSS `zoom` 掛 html 後整頁出現捲軸（即更早外部嘗試的破版根因）；排除後 reka-ui dropdown 在 zoom≠1 時錯位約 zoom 倍（1.5x 偏 370px、選單跑出視窗）→ 根因：CSS zoom 會 reflow 但**不縮小 viewport 單位**，`100vh/100vw` 長度再被 zoom 放大即溢出（headless chromium 實測）；floating-ui 用 gBCR（視覺座標，已含 zoom 倍率）算位置，但 popper wrapper 的 translate 又落在被 zoom 的子樹裡再被乘一次 → 規則：前端**新增任何「須貼合實際視窗」的 vh/vw 尺寸一律寫 `calc(Nvh / var(--app-zoom, 1))` 形式**（不只 100vh——72vh、96vw 同樣會破版，PR #200 review 抓到過；全量複核要 grep `[0-9]v[hw]` 而非只搜 100vh；例外：`clamp(px, Nvw, px)` 流式字級與遠小於視窗的比例尺寸是等比設計值，不用除也不能除）；teleport 到 body 的定位層沿用 styles.css 的 `[data-reka-popper-content-wrapper]` 反向 zoom + 內容再正向 zoom 的抵銷模式；zoom 行為驗證用 dev server + `?desktop-shell-preview=1` + playwright-core（scratchpad probe-zoom.js 模式），判準是「scrollTo 後整頁 scrollTop/Left 仍為 0」而非目測。
-- [2026-07-07] 症狀：BookCollectionPage 加了 context-menu 用的新 emits（`@edit`/`@open-book-folder`/`@download`/`@delete`）後，PR review bot 抓到 `ReadHistoryPage.vue` 這個使用端沒接，右鍵選單四個項目點了無聲無息 → 根因：探勘共用元件使用端時只列出兩個（LibraryPage、MaintenanceBooksPage）就當作全集，改元件前沒有複查 → 規則：改共用元件的 props/emits 前，先 `grep -r "元件名"` 列出全部使用端逐一確認接線或明確排除，不要憑印象認定「大概只有這幾個」。
-- [2026-07-05] 症狀：MainLayout 遷到 reka-ui Splitter 後，主內容區內容超過視窗高度但沒有捲軸（scoped CSS 明明寫了 `.main-content { overflow-y: auto }`）→ 根因：`SplitterPanel` 每次 render 都在 panel 元素寫 inline `overflow: hidden`（`reka-ui/dist/utils/style.js` 的 `computePanelFlexBoxStyle`，是 Splitter 佈局的必要行為），inline style 永遠蓋過 stylesheet 的 overflow 宣告 → 規則：SplitterPanel 本身不能當捲動容器，需要捲動的 panel 一律在內層加一個 `height:100%; overflow-y:auto` 的 wrapper div（sidebar 的 `.sidebar-inner`、main 的 `.main-scroll` 都是這個模式）；`position: sticky` 的元素要放進該 wrapper 內才會生效。
-- [2026-07-05] 症狀：EditBook 星等遷到 reka-ui `RatingRoot`/`RatingItemIndicator` 後，點星星「看起來沒反應」——但 DOM 的 `data-state="active"` 其實有正確更新，是樣式完全沒套上（active 與非 active 的 computed style 一模一樣，button 呈現 UA 預設灰底）→ 根因：reka 的 `Radio`（Rating 星星按鈕的實際渲染者）render 的是 fragment（button + hidden input），Vue scoped CSS 的 scope-id 繼承鏈在 fragment 斷掉，使用端 scoped `<style>` 的 `.star-indicator` 選擇器對不到那顆 button；這與 popper wrapper 坑同族但機制不同（非 portal，是 fragment）→ 規則：對 reka primitive 深層渲染的元素寫樣式時，用 `父容器 :deep(.class)`（父容器須是自己模板裡的普通元素）或非 scoped style；驗收「選中態有樣式」時要比對 active/非 active 的 computed style（color 等）是否真的不同，只查 `data-state` 屬性數量會漏掉這類 bug。
-- [2026-07-05] 症狀：reka-ui `SplitterGroup`/`SplitterPanel`/`SplitterResizeHandle` 拖拉 sidebar 時，只要拖動過程中有任何滑鼠移動（真實使用者的拖拉必然如此），放開滑鼠後所有 Panel 永久卡在 `pointer-events: none`，之後點 collapse 按鈕、側欄任何按鈕全部點不到（Playwright 回報是父層 `[data-panel-group]` div 而非目標按鈕接住點擊）；只有「按下不移動就放開」不會觸發 → 根因：`SplitterResizeHandle` 的 `:hit-area-margins="{ coarse: 12, fine: 6 }"` 若在模板寫成 inline object literal，每次該元件所在的父元件重新渲染都會產生新的物件參照；reka-ui 內部用該物件參照的相等性去比對 mousedown 時記錄的 handle 與 mouseup 時 registry 裡的 handle 是否為同一個，一旦中途重新註冊（物件參照變了）就對不上，`stopDragging()` 不會被呼叫，`dragState` 永遠不會清空，導致所有 Panel 的 inline style 一直是 `pointer-events: none`（用 patch `node_modules/reka-ui` 加 `console.log` 到 `handlePointerUp`/`stopDragging` 實測驗證，drag 中 `stopDragging` 完全沒被呼叫；改成 hoisted 常數後每次都正常呼叫）→ 規則：`SplitterResizeHandle`（或任何 reka-ui 元件）的物件/陣列型 prop（`hitAreaMargins`、`storage` 等）一律在 `<script setup>` 頂層宣告成常數再用 `:prop="CONST"` 綁定，不要在模板寫 inline literal；懷疑「拖拉後點擊失效」時，直接讀該元素的 `style` 屬性看是否卡 `pointer-events: none`，不要只看 boundingBox。
-- [2026-07-04] 症狀：LayerTree 遷到 reka-ui `TreeRoot`/`TreeItem` 後，巢狀節點（level≥2）的名稱按鈕寬度算出 0px，`.click()` 卡滿 30s timeout（頂層節點外觀正常，唯獨巢狀節點失敗）→ 根因：`TreeRoot` 的 `as` 預設是 `'ul'`，瀏覽器 UA stylesheet 給 `<ul>` 內建 `padding-left: 40px`，把整個側欄可用寬度吃掉 40px；側欄本來就窄，這 40px 一扣，巢狀節點（padding-left 更深）的 `flex:1; min-width:0` 名稱按鈕就被擠壓到 0 而不易察覺（頂層節點只是變窄，沒歸零，肉眼看不出差異）→ 規則：把 reka-ui 的 `TreeRoot`/其他預設渲染 `ul`/`ol`/`li` 的 primitive 接進既有非 list 版面時，一律明確 `as="div"` 或在 scoped style 裡對該 class 補 `list-style:none; margin:0; padding:0`，不要假設預設 tag 沒有 UA 樣式副作用；懷疑「元素存在但寬度算不出來」時，直接用 playwright `boundingBox()`／`getComputedStyle` 量測而非猜測 CSS 選擇器沒生效。
-- [2026-07-04] 症狀：reka-ui DropdownMenu 的選單容器樣式全部失效（透明背景），但 item 樣式正常 → 根因：popper 定位類元件（DropdownMenu/Popover/Tooltip 的 Content）外層有 `data-reka-popper-content-wrapper`，使用端的 scoped `data-v-*` 落在 wrapper、class 落在內層元素，scoped selector 對不上；Dialog 沒有 wrapper 所以沒此問題 → 規則：portal + popper 的 Reka 內容一律用**非 scoped** `<style>` 寫樣式；驗證法：起 server 用 playwright-core 腳本查 computed style（見 scratchpad/check-dropdown.js 模式）。
-- [2026-07-04] 症狀：改了 frontend 重新 build 後，跑著的 server 仍吐舊頁面 → 根因：`go:embed dist/*` 在編譯期打包，且 `go run` 起的 server 程序名稱不是 plainshelf-srv，`pkill -f plainshelf-srv` 殺不掉 → 規則：用 `fuser -k 20000/tcp` 殺掉佔 port 的程序後重新 `go run`（會重新編譯、重吃新 dist）。
-- [2026-07-03] 症狀：`npm --prefix e2e test` 8 個測試全在 browserType.launch 失敗（`Executable doesn't exist at /opt/pw-browsers/chromium_headless_shell-1223/...`）→ 根因：e2e 鎖定的 playwright 1.60 需要 chromium rev 1223，容器 `/opt/pw-browsers` 只預裝 rev 1194 → 規則：臨時在 `e2e/playwright.config.ts` 的 `use` 加 `launchOptions: { executablePath: '/opt/pw-browsers/chromium' }`，跑完 `git checkout e2e/playwright.config.ts` 還原；不要 `playwright install`（實測 8/8 過）。
+## Frontend and Reka UI
 
-（2026-07-02 建檔時的初始踩坑 —— go:embed 依賴 frontend/dist、容器無 just/zsh、playwright 已預裝、預設分支是 dev —— 已直接升格進 CLAUDE.md 陷阱清單，故此處不重複。）
+- **Shared component contracts:** before changing props or emits, search every
+  consumer and verify each call site is intentionally wired or excluded.
+- **Popover styling:** Reka popper content crosses a wrapper/portal boundary;
+  follow the global `[data-reka-popper-content-wrapper]` pattern instead of
+  relying on a component-scoped selector. (`frontend/src/styles.css`)
+- **Primitive DOM defaults:** confirm the element rendered by Reka primitives;
+  default `ul`/`ol` styles can consume layout space. Prefer an explicit `as` or
+  reset list styles where the semantic element is not wanted.
+- **Scoped styles and fragments:** styles targeting nodes rendered through a
+  fragment may need a stable parent plus `:deep(...)`; verify selected and
+  unselected computed styles, not only `data-state`.
+- **Splitter scrolling:** `SplitterPanel` owns `overflow: hidden`; put scrollable
+  content in an inner full-height wrapper.
+- **Stable object props:** hoist object/array props passed to Reka controls such
+  as `hitAreaMargins`; new identities during a drag can re-register controls and
+  leave pointer events disabled. (`frontend/src/layouts/MainLayout.vue`)
+- **Desktop zoom:** viewport-filling `vh`/`vw` values inside the zoomed app must
+  account for `--app-zoom`; verify overflow and popper placement in
+  `?desktop-shell-preview=1`. (`frontend/src/styles.css`)
+- **Browser APIs:** TypeScript success does not prove IndexedDB/runtime behavior;
+  run browser-backed tests for browser-only APIs. Key cursors cannot delete
+  records; use a value cursor when deletion is required.
+- **Mock cover noise:** blocked `picsum.photos` requests in mock mode can be
+  environmental noise; compare against an unchanged baseline before assigning
+  them to the current diff.
+
+## Mobile and end-to-end tests
+
+- **Preview routing:** top-level mobile preview navigations must preserve
+  `?mobile-shell-preview=1`; use `reopenMobileAt` at layout/reload boundaries.
+  (`e2e/tests/support/mobile.ts`)
+- **Offline simulation:** use the support helper that blocks API routes while
+  retaining the embedded shell; browser context offline mode prevents the page
+  itself from reopening. (`e2e/tests/support/mobile.ts`)
+- **Mobile covers:** WebView `<img src="http://…">` requests do not use
+  Capacitor's native HTTP bridge and may hit mixed-content blocking; use the
+  fetch-to-blob cover path. (`frontend/src/composables/useCoverSrc.ts`)
+- **Android networking:** emulator host loopback is `10.0.2.2`; physical devices
+  need a LAN-reachable server. Validate the merged manifest rather than only the
+  source manifest when checking generated cleartext settings.
+- **Android WebView automation:** Playwright browser-context APIs are not fully
+  supported by WebView DevTools; use raw CDP for native WebView-only checks.
+- **Large-data UI races:** when fixed mock data cannot express the required
+  pagination state, intercept the Vite module or API in the test instead of
+  changing production fixtures globally.
+
+## Filesystem and API
+
+- **Mutating API requests:** preserve the `local_token` boundary and review
+  `server/api_contract_test.go` whenever routes or request handling change.
+- **Book identity:** moving or renaming a book must not regenerate its persisted
+  ID. The directory name and display title are not identity.
+- **Network shelves:** SMB latency amplifies directory walks and stat calls;
+  preserve scan/check intervals, finite lock timeouts, atomic writes, and clear
+  error propagation. See `docs/concepts/shelf-cache-and-io.md`.

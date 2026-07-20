@@ -37,5 +37,6 @@ nav:
       - Layers: concepts/layers.md
   - Development:
       - Local Setup: development/setup.md
+      - Android: development/android.md
       - Docker: development/docker.md
   - Known Issues: known-issue.md

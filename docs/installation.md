@@ -1,12 +1,12 @@
 # Installation
 
 This page covers installing **prebuilt** PlainShelf releases. If you would
-rather build from source, see [Getting Started](getting-started.md).
+rather build from source, see [Local Development Setup](development/setup.md).
 
 Every tagged release publishes:
 
 - A Homebrew cask for the macOS desktop client
-- Prebuilt server archives for Linux, macOS, and Windows
+- Prebuilt server archives for Linux and macOS
 - A multi-architecture Docker image on the GitHub Container Registry (GHCR)
 
 Release artifacts live on the
