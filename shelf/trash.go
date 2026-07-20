@@ -267,7 +267,7 @@ func (s *Shelf) resolveBookPathCollision(layerPath, folderName string) (string, 
 
 	// maxBookPathCollisionAttempts is a practical upper bound for collision resolution in a single layer.
 	// If the bound is reached, return an error instead of looping indefinitely.
-	for i := 0; i < maxBookPathCollisionAttempts; i++ {
+	for i := range maxBookPathCollisionAttempts {
 		candidateFolder := folderName
 		if i > 0 {
 			candidateFolder = baseName + "-" + strconv.Itoa(i) + bookExtension

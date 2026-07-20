@@ -41,7 +41,7 @@ type SourceMeta struct {
 	CharCount int    `json:"char_count,omitempty"`
 
 	// split config: how the novel should be split into parts
-	SplitConfig SplitConfig `json:"split_config,omitempty"`
+	SplitConfig SplitConfig `json:"split_config"`
 }
 
 func (r *Source) FolderPath() string {

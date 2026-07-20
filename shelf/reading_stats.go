@@ -50,9 +50,9 @@ type readingDayStats struct {
 }
 
 type readingMonthFile struct {
-	Version int                          `json:"version"`
-	Month   string                       `json:"month"`
-	Days    map[string]*readingDayStats  `json:"days"`
+	Version int                         `json:"version"`
+	Month   string                      `json:"month"`
+	Days    map[string]*readingDayStats `json:"days"`
 }
 
 // ReadingStats tracks per-day, per-book reading time for a shelf.
@@ -78,13 +78,7 @@ func newReadingStats(root fsutil.FS) *ReadingStats {
 }
 
 func clampInt(v, lo, hi int) int {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
+	return max(lo, min(v, hi))
 }
 
 func parseDate(date string) (time.Time, error) {

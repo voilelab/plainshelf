@@ -110,7 +110,7 @@ func TestReadingStatsClampsDailyTotal(t *testing.T) {
 	// 24h = 86400s. Add far more than that across many calls; per-call clamp is
 	// 120s so we need many calls, but the daily total clamp should still cap
 	// the sum well short of naive addition.
-	for i := 0; i < 800; i++ {
+	for i := range 800 {
 		if err := rs.AddSeconds("2026-07-13", "book-a", 120); err != nil {
 			t.Fatalf("AddSeconds call %d: %v", i, err)
 		}

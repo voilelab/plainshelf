@@ -87,7 +87,7 @@ func collectLogSources(v reflect.Value, prefix string, sources *[]logutil.Source
 	if !v.IsValid() {
 		return
 	}
-	if v.Type() == reflect.TypeOf(logutil.LogConf{}) {
+	if v.Type() == reflect.TypeFor[logutil.LogConf]() {
 		logConf := v.Interface().(logutil.LogConf)
 		*sources = append(*sources, logutil.SourceConf{
 			Name:    prefix,

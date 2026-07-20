@@ -273,7 +273,7 @@ func TestNewSourceSameSecond(t *testing.T) {
 
 	const n = 5
 	wantContent := make(map[string]string, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		text := fmt.Sprintf("content-%d", i)
 		src, err := book.NewSource(bytes.NewReader([]byte(text)))
 		if err != nil {
