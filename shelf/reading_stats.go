@@ -224,11 +224,10 @@ func (r *ReadingStats) Flush() error {
 		if data == nil {
 			continue
 		}
-		// Shallow copy is enough: Days map itself isn't replaced elsewhere while
-		// holding the lock, and we only marshal it below (also under lock via
-		// the outer scope of this snapshot). To be safe from concurrent
-		// AddSeconds mutating the map while we marshal it after unlocking, we
-		// marshal while still holding the lock instead of deferring to later.
+		// Shallow copy is enough: the Days map itself is never replaced while
+		// holding the lock, and every snapshot is marshaled below before we
+		// unlock (see the comment further down), so nothing mutates it
+		// concurrently.
 		toFlush[month] = *data
 	}
 	dirtyMonths := make([]string, 0, len(r.dirty))
