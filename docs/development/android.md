@@ -28,6 +28,19 @@ The debug APK is written to:
 frontend/android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
+`just build-mobile-android` derives `versionName` from Git and uses the current
+commit count as `versionCode`. Direct Gradle builds can override both values:
+
+```bash
+cd frontend/android
+PLAINSHELF_VERSION_NAME=0.8.0-beta.1 \
+PLAINSHELF_VERSION_CODE=8001 \
+./gradlew assembleDebug
+```
+
+Without overrides, Gradle uses `0.0.0-dev` and version code `1`. Android
+release artifacts and signing are not part of the repository release workflow.
+
 Open the project in Android Studio with:
 
 ```bash
