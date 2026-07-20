@@ -1,75 +1,79 @@
 # Getting Started
 
-This page walks you through the quickest way to run PlainShelf locally.
+This guide takes you from an installed PlainShelf release to your first local
+library. To build the project itself, use [Local Development Setup](development/setup.md).
 
-## Prerequisites
+## 1. Choose how to run PlainShelf
 
-- [Go](https://go.dev/dl/) 1.26.1 or later
-- [Node.js](https://nodejs.org/) 22 or later and npm
-- Git
+### macOS desktop app
 
----
-
-## Option 1 — Frontend only (mock data)
-
-The fastest way to explore the UI without a running backend:
+Install and open the Homebrew app:
 
 ```bash
-cd frontend
-npm install
-
-# Start dev server with mock data
-VITE_USE_MOCK_API=true npm run dev
+brew install --cask voilelab/plainshelf/plainshelf
+open -a PlainShelf
 ```
 
-The frontend dev server starts at <http://localhost:5173> by default and uses built-in mock data so you can browse the UI without configuring a shelf.
+Use the shelf controls in the app to add a local shelf directory.
 
----
+### Prebuilt server
 
-## Option 2 — Full local server
-
-### 1. Build the frontend
+After extracting a release archive, copy and edit the sample configuration:
 
 ```bash
-npm --prefix frontend install
-just build-server-frontend
+cp config.sample.yaml config.yaml
+./plainshelf-srv -conf config.yaml
 ```
 
-### 2. Create a workspace directory
+Open <http://127.0.0.1:20000>. Relative paths in `config.yaml` are resolved from
+the directory where the server starts; use absolute paths for service installs.
+
+### Docker
 
 ```bash
-mkdir workspace
-cp cmd/plainshelf-srv/conf/config.yaml workspace/
+docker run --rm \
+  --name plainshelf \
+  -p 127.0.0.1:20000:20000 \
+  -v plainshelf-data:/data \
+  ghcr.io/voilelab/plainshelf:latest
 ```
 
-### 3. Start the server
+Open <http://127.0.0.1:20000>. The named volume preserves the shelf and
+application store when the container is replaced.
 
-```bash
-cd workspace
-go run ../cmd/plainshelf-srv/main.go -conf config.yaml
-```
+!!! tip "Keep the server private"
+    Bind the port to `127.0.0.1` unless PlainShelf is behind a trusted VPN or
+    authentication boundary. The default Docker configuration does not enable
+    application-level authentication.
 
-The server is now listening on <http://127.0.0.1:20000>.
+## 2. Configure storage
 
-!!! info "Default development config"
-    - Listens on `127.0.0.1:20000`
-    - Stores shelf data and application store data under the current working directory
-    - Enables `local_token` security for mutating `/api` requests
+A server configuration needs two durable locations:
 
-    The server generates an ephemeral token at startup, injects it into the
-    served frontend, and accepts it via `X-PlainShelf-Token` or
-    `Authorization: Bearer <token>`.
+- `app_conf.shelves[].lib_root` stores book packages and shelf runtime state.
+- `app_conf.store_path` stores application-level state.
 
----
+The sample configuration works for local development. Before a long-running
+deployment, review [Local Shelf File Source](configuring-local-shelf.md).
 
-## Option 3 — Docker
+## 3. Add a book
 
-See the [Docker](development/docker.md) page for container-based setup.
+Open the library, choose **Import**, and select a `.txt` or `.md` file. You can
+then edit its metadata, add a cover, place it in a folder, and open the reader.
 
----
+PlainShelf creates a `.bookpkg` directory in the shelf and assigns a stable book
+ID. Renaming the title or moving the book between folders does not change that
+ID. See [Data Model](concepts/data-model.md) for the on-disk layout.
 
-## Run tests
+## 4. Back up before experimenting
 
-```bash
-just test-go
-```
+PlainShelf is pre-alpha. Back up both the configured shelf and application store
+before upgrades or manual filesystem edits. Stop write activity first so the
+backup captures a consistent state.
+
+## Next steps
+
+- [Installation and upgrades](installation.md)
+- [Local shelf configuration](configuring-local-shelf.md)
+- [SMB shelf configuration](configuring-smb-shelf.md)
+- [Known issues](known-issue.md)

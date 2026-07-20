@@ -138,6 +138,8 @@ jobs:
           mkdir -p "$stage"
           cp "build/${bin}" "$stage/"
           cp LICENSE README.md "$stage/"
+          cp image.png "$stage/"
+          cp -R docs "$stage/"
           cp cmd/plainshelf-srv/conf/config.yaml "$stage/config.sample.yaml"
 
           name="plainshelf_${VERSION}_${GOOS}_${GOARCH}"

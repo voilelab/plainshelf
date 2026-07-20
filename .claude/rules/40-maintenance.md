@@ -1,62 +1,55 @@
-# 40 — 制度檔維護協議
+# 40 — Rule maintenance
 
-適用對象：未來所有 session（任何模型等級）。
-管的是這些檔案：`CLAUDE.md`、`.claude/rules/*.md`。
+This policy covers `CLAUDE.md`, `.claude/rules/*.md`, and project-local Claude
+skills. The goal is a small active rule set grounded in current repository facts.
 
----
+## File responsibilities
 
-## 1. 權限分級
+- `CLAUDE.md`: product invariants, repository map, canonical commands, routing
+- `10-delegation.md`: optional collaboration mechanics
+- `20-judgment.md`: scope, escalation, and completion standards
+- `30-prompt-templates.md`: reusable task briefs
+- `50-lessons.md`: concise, verified, project-specific pitfalls
+- `00-diagnosis.md`, `90-letter.md`: historical snapshots; do not edit
+- `.claude/skills/`: repeatable project workflows
 
-### 可以自行改（不必問使用者）
+Put a rule in exactly one active file and link to it elsewhere. Do not copy the
+same command, threshold, or explanation across multiple files.
 
-- **新增 lesson** 到 `50-lessons.md`（格式見第 2 節）。這是最常見也最歡迎的修改。
-- **修正已被證實錯誤的事實**：指令對照表裡的指令實測失敗、路徑/工具名寫錯。條件：commit message 裡附上驗證證據（你跑了什麼、看到什麼）。
-- **修 typo、壞掉的檔案引用**。
+## What belongs in lessons
 
-### 要先問使用者（AskUserQuestion，說明理由與影響）
+Add a lesson only when all are true:
 
-- 刪除或放寬任何規則（包括「這條規則看起來過時了」—— 看起來過時和真的過時是兩回事）。
-- 修改升降級門檻、重試上限（`10-delegation.md` 第 5 節）。
-- 修改 CLAUDE.md 的路由結構、新增會自動載入的內容。
-- 新增 `.claude/agents/` agent 定義或 `.claude/skills/` skill。
+1. the behavior was reproduced or traced to code;
+2. it is likely to recur;
+3. the fix is not obvious from the failing command;
+4. a short instruction can prevent meaningful future effort.
 
-### 不修改（問了也不改）
+Use this format:
 
-- `00-diagnosis.md` 與 `90-letter.md` 是歷史快照，內容不修改。若發現其中有與現實不符的敘述，把勘誤記進 `50-lessons.md`（註明「勘誤 00-diagnosis」等字樣），原文保持原樣 —— 快照的價值在於它忠實記錄當時的判斷。
-
-## 2. 教訓寫回（每次踩坑後）
-
-寫進 `50-lessons.md`，一條一行，固定格式：
-
+```text
+- **Topic:** symptom or trigger → verified cause → next action. (`relevant/path`)
 ```
-- [YYYY-MM-DD] 症狀：{觀察到什麼} → 根因：{真正原因} → 規則：{下次怎麼避免，一句可執行的話}
-```
 
-判準：**這個坑會不會讓下一個 session 再浪費 10 分鐘以上？會就寫，不會就別寫**（雜訊比遺漏更傷，lessons 檔被灌水後就沒人讀了）。
-只寫可泛化的教訓；一次性的巧合不寫。已被 CLAUDE.md 陷阱清單涵蓋的不重複寫。
+Keep details in code comments, tests, issue/PR history, or durable technical docs.
+Lessons are an index of traps, not a chronological incident log.
 
-## 3. 修改程序
+## Change procedure
 
-1. 制度檔的修改**獨立 commit**，不和程式碼改動混在一起；commit message 用 `rules:` 前綴。
-   （git 歷史就是備份 —— 這就是為什麼不需要另外留 .bak 檔，但也因此**絕不用** `git commit --amend` 或 force push 覆蓋制度檔歷史。）
-2. 改完 read-back 一次，確認沒把別的段落改壞。
-3. 若這次修改源自使用者口頭指示，在 commit message 引述該指示。
+1. Verify commands and paths against the current checkout.
+2. Update every direct reference when a rule or document moves.
+3. Read back the changed files and search for stale terminology.
+4. Run a Markdown/link or docs build check when available.
+5. Review `git diff` for accidental policy changes.
 
-## 4. 精簡流程（防膨脹）
+User requests to organize or revise the rules authorize coherent cleanup within
+that scope. Otherwise, ask before deleting a product constraint, weakening a
+safety boundary, adding automatic hooks, or introducing a new skill/agent.
 
-**觸發條件**（任一）：`50-lessons.md` 超過 30 條；任何單一規則檔超過 300 行；CLAUDE.md 超過 80 行。
+## Size budget
 
-**程序**：
-1. 合併重複、刪除已失效（例如工具鏈已改變）的條目。
-2. 反覆出現同主題的 lessons（≥3 條同類）→ 升格成 CLAUDE.md 陷阱清單或對應規則檔裡的一條正式規則，原條目刪除。
-3. 精簡屬於「刪規則」類 → 動手前把「打算刪什麼、為什麼」用 AskUserQuestion 問過使用者。
-4. 精簡是專門任務，單獨的 session/commit 做，不要順手做。
-
-## 5. 制度與現實漂移的檢查
-
-如果你發現「照規則做反而更糟」（例如指令對照表的指令失效、Explore agent 型別不存在了）：
-1. 先用最小實驗確認是環境真的變了，不是你用錯。
-2. 確認後照第 1 節權限分級處理：事實類自己修，規則類問使用者。
-3. 把漂移本身記進 `50-lessons.md`。
-
-**絕對不要**因為規則不方便就默默繞過 —— 繞過又不記錄，制度就死了。
+- Keep `CLAUDE.md` under roughly 100 lines.
+- Keep each active rule focused enough to scan in under two minutes.
+- When lessons become repetitive or exceed about 40 entries, merge by root cause
+  and move durable explanations into the closest code or documentation page.
+- Prefer deleting obsolete active guidance; Git history is the archive.

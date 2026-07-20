@@ -1,43 +1,72 @@
-# PlainShelf — Claude session 指南
+# PlainShelf — Claude project guide
 
-PlainShelf：local-first 個人閱讀庫（TXT 為主），Go 後端 + Vue 前端 + Wails desktop。
-filesystem-first：`books/` 下的 `.bookpkg` 資料夾是 source of truth，runtime state 可重建。
-狀態 pre-alpha。Non-goals（不要提議）：EPUB/PDF/DRM、多使用者、雲同步、plugin。
+PlainShelf is a pre-alpha, local-first reading library. The Go server embeds a
+Vue frontend and is also used by Wails desktop and experimental Capacitor
+Android clients.
 
-## 指令對照表（cloud 容器實測；容器內沒有 `just` 和 `zsh`，不要照 README/justfile 用 just）
+## Product constraints
 
-| 目的 | 指令 |
+- The shelf filesystem is the source of truth; do not introduce a database as
+  the authoritative book store.
+- Stable book IDs must survive title changes and moves between folders.
+- Keep single-user, local/private operation as the default.
+- EPUB, PDF, comic archives, DRM, OCR, multi-user accounts, cloud sync, public
+  sharing, and plugins are outside the current scope unless the user changes it.
+- Treat data-format, public API, and security changes as compatibility-sensitive.
+
+## Repository map
+
+| Path | Responsibility |
 |---|---|
-| Build frontend（跑任何 Go 指令前必做一次） | `npm --prefix frontend install && npm --prefix frontend run build` |
-| Go 測試（主 module） | `go test ./...` |
-| Go 測試（desktop module） | `cd desktop && go test ./...` |
-| 前端型別檢查 + build | `npm --prefix frontend run build`（內含 `vue-tsc --noEmit`） |
-| 前端 dev（mock 資料，不需後端） | `cd frontend && VITE_USE_MOCK_API=true npm run dev` |
-| 跑 server | `mkdir -p workspace && cp cmd/plainshelf-srv/conf/config.yaml workspace/ && cd workspace && go run ../cmd/plainshelf-srv/main.go -conf config.yaml`（監聽 127.0.0.1:20000） |
-| e2e（重，只在碰 UI 行為時跑） | `npm --prefix e2e ci && npm --prefix e2e test` — **不要** `playwright install`，chromium 已在 `/opt/pw-browsers`；直接跑會因 chromium rev 漂移失敗，臨時繞法見 `50-lessons.md` 2026-07-03 條 |
+| `shelf/` | filesystem-backed library core |
+| `server/` | HTTP API, security, and runtime |
+| `frontend/` | Vue UI and Capacitor Android project |
+| `desktop/` | Wails desktop client |
+| `e2e/` | Playwright end-to-end tests |
+| `docs/` | user and contributor documentation |
 
-## 陷阱（實測或已驗證的環境事實，不是猜測）
+## Commands
 
-- `go test ./...` 在 `frontend/dist/` 不存在時會**編譯失敗**（`frontend/web.go` 有 `//go:embed dist/*`）。錯誤長得像 Go 問題，實際是 frontend 沒 build。
-- 根目錄 `image.png` 有 870 KB —— 不要 Read 它。
-- 預設分支是 **`dev`**（不是 main）。開分支：`git fetch origin dev && git checkout -b <name> origin/dev`。PR 目標 dev。
-- desktop/（Wails）在 headless 容器內不能實跑 GUI，只能編譯與單元測試。
-- server 的 mutating API 有 `local_token` 檢查（`server/security.go`）；改 API 時 `server/api_contract_test.go` 是行為契約，先讀再改。
+The Go build embeds `frontend/dist`; build the frontend before Go builds or
+tests when that directory is absent or stale.
 
-## 規則路由（需要時再讀對應檔，不要一次全讀）
-
-| 情境 | 讀這個 |
+| Scope | Command |
 |---|---|
-| 要派 subagent、選 model、驗證產出 | `.claude/rules/10-delegation.md` |
-| 不確定該升級/該問人/算不算完成/方向對不對 | `.claude/rules/20-judgment.md` |
-| 要寫派工 prompt（搜尋/實作/重構/研究/審查） | `.claude/rules/30-prompt-templates.md` |
-| 要修改本檔或 rules/ 下任何檔 | `.claude/rules/40-maintenance.md`（先讀，有分級權限） |
-| 開始任何任務前，快速掃過往教訓 | `.claude/rules/50-lessons.md` |
-| 想了解這套規則的來由與極限 | `.claude/rules/00-diagnosis.md`、`.claude/rules/90-letter.md` |
+| Install frontend deps | `npm --prefix frontend ci` |
+| Frontend unit tests | `npm --prefix frontend test` |
+| Frontend type-check + build | `npm --prefix frontend run build` |
+| Main Go module | `go test ./...` |
+| Desktop Go module | `cd desktop && go test ./...` |
+| All Go tests with frontend build | `just test-go` |
+| End-to-end tests | `just test-e2e` |
+| Mock frontend | `VITE_USE_MOCK_API=true npm --prefix frontend run dev` |
 
-## 每個 session 的最低要求
+`just` uses `zsh`. If either is unavailable, run the underlying commands from
+the `justfile`. In restricted environments where `sharp` cannot download its
+optional binary, `npm --prefix frontend ci --ignore-scripts` is sufficient for
+web builds; do not use it for Capacitor asset generation.
 
-1. 動手前掃一遍 `50-lessons.md`（很短，直接讀）。
-2. 位置未知的搜尋、>3 個檔案的閱讀、網頁研究、批次改檔 → 派 subagent（規則見 10-delegation.md），主對話不下場。
-3. 宣告完成前：跑過對照表裡對應的測試指令，且產出檔案 read-back 過。測試沒跑或沒過就不能說「完成」。
-4. 踩到新坑：修完後把教訓寫進 `50-lessons.md`（格式見 40-maintenance.md）。
+## Working rules
+
+1. Inspect the relevant code, tests, and nearby documentation before editing.
+2. Preserve unrelated working-tree changes and avoid broad refactors unless
+   they are part of the request.
+3. Add or update tests for behavior changes. Run the narrowest relevant check
+   while iterating and the full affected-area check before completion.
+4. For server API changes, read `server/api_contract_test.go` and preserve the
+   `local_token` security boundary.
+5. Update user-facing docs when setup, configuration, storage, or behavior
+   changes. Update `CHANGELOG.md` only when the task calls for release notes.
+6. Report checks that were not run or could not pass; do not imply verification.
+
+## Rule routing
+
+Read only the rule needed for the task:
+
+- Collaboration and optional delegation: `.claude/rules/10-delegation.md`
+- Scope, escalation, and completion: `.claude/rules/20-judgment.md`
+- Reusable task briefs: `.claude/rules/30-prompt-templates.md`
+- Maintaining these rules: `.claude/rules/40-maintenance.md`
+- Verified project-specific pitfalls: `.claude/rules/50-lessons.md`
+- Historical context only: `.claude/rules/00-diagnosis.md` and
+  `.claude/rules/90-letter.md`
