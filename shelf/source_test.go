@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"reflect"
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
@@ -195,5 +196,53 @@ func TestCreateRootSource(t *testing.T) {
 
 	if meta.CharCount != len(sourceContent) {
 		t.Errorf("Expected character count %d, got %d", len(sourceContent), meta.CharCount)
+	}
+}
+
+func TestSourceHashAndSplitConfigPersist(t *testing.T) {
+	shelf := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
+	book, err := shelf.NewBook(Layers{"tests"}, "Source Metadata")
+	if err != nil {
+		t.Fatalf("NewBook: %v", err)
+	}
+	source, err := book.NewSource(bytes.NewBufferString("original\n"))
+	if err != nil {
+		t.Fatalf("NewSource: %v", err)
+	}
+	if source.FolderPath() == "" {
+		t.Fatal("FolderPath returned an empty path")
+	}
+
+	if err := shelf.dbRoot.WriteFile(path.Join(source.FolderPath(), SourceFile), []byte("changed\n")); err != nil {
+		t.Fatalf("replace source content: %v", err)
+	}
+	verified, err := source.VerifyContent()
+	if err != nil {
+		t.Fatalf("VerifyContent(changed): %v", err)
+	}
+	if verified {
+		t.Fatal("VerifyContent accepted content with a stale hash")
+	}
+	if err := source.UpdateHash(); err != nil {
+		t.Fatalf("UpdateHash: %v", err)
+	}
+	verified, err = source.VerifyContent()
+	if err != nil {
+		t.Fatalf("VerifyContent(updated): %v", err)
+	}
+	if !verified {
+		t.Fatal("VerifyContent rejected content after UpdateHash")
+	}
+
+	wantConfig := SplitConfig{Type: SplitTypeBoundary, Boundaries: []int{10, 25, 50}}
+	if err := source.UpdateSplitConfig(wantConfig); err != nil {
+		t.Fatalf("UpdateSplitConfig: %v", err)
+	}
+	reopened, err := book.GetSource(source.ID())
+	if err != nil {
+		t.Fatalf("GetSource: %v", err)
+	}
+	if got := reopened.GetMeta().SplitConfig; !reflect.DeepEqual(got, wantConfig) {
+		t.Fatalf("persisted split config = %#v, want %#v", got, wantConfig)
 	}
 }

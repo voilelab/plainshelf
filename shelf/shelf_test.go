@@ -1,6 +1,7 @@
 package shelf
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -44,6 +45,89 @@ func TestShelfMakeStructure(t *testing.T) {
 	appTmpPath := path.Join(tmpLib, appFolder, appTmpFolder)
 	if _, err := os.Open(appTmpPath); err != nil {
 		t.Fatalf("Expected AppTmp folder to be created, but got error: %v", err)
+	}
+}
+
+func TestShelfRuntimeStateAndScanInterval(t *testing.T) {
+	shelf := newTestShelf(t, &ShelfConf{
+		LibRoot:           t.TempDir(),
+		LockMode:          "none",
+		ScanInterval:      "2m",
+		BookCheckInterval: "3m",
+	})
+
+	if !shelf.IsReady() {
+		t.Fatal("shelf is not ready after WaitReady")
+	}
+	if shelf.InitErr() != nil {
+		t.Fatalf("InitErr = %v, want nil", shelf.InitErr())
+	}
+	if shelf.ReadingStats() == nil {
+		t.Fatal("ReadingStats returned nil")
+	}
+
+	if err := shelf.SetScanInterval("invalid"); err == nil {
+		t.Fatal("SetScanInterval accepted an invalid duration")
+	}
+	if err := shelf.SetScanInterval(""); err != nil {
+		t.Fatalf("SetScanInterval(default): %v", err)
+	}
+	shelf.bookCache.RLock()
+	interval := shelf.bookCache.scanInterval
+	bookCheckInterval := shelf.bookCache.bookCheckInterval
+	shelf.bookCache.RUnlock()
+	if interval != time.Minute {
+		t.Fatalf("default scan interval = %v, want %v", interval, time.Minute)
+	}
+	if bookCheckInterval != 3*time.Minute {
+		t.Fatalf("book check interval = %v, want %v", bookCheckInterval, 3*time.Minute)
+	}
+}
+
+func TestShelfWaitReadyCancellationAndInitializingReads(t *testing.T) {
+	shelf := &Shelf{readyCh: make(chan struct{})}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := shelf.WaitReady(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("WaitReady error = %v, want context.Canceled", err)
+	}
+	if _, err := shelf.ListBooks(); !errors.Is(err, ErrShelfInitializing) {
+		t.Fatalf("ListBooks error = %v, want ErrShelfInitializing", err)
+	}
+	if _, err := shelf.GetBook("book"); !errors.Is(err, ErrShelfInitializing) {
+		t.Fatalf("GetBook error = %v, want ErrShelfInitializing", err)
+	}
+	if _, err := shelf.GetBooksByLayer(nil); !errors.Is(err, ErrShelfInitializing) {
+		t.Fatalf("GetBooksByLayer error = %v, want ErrShelfInitializing", err)
+	}
+}
+
+func TestShelfDeleteLayer(t *testing.T) {
+	shelf := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
+
+	if err := shelf.NewLayer(Layers{"empty"}); err != nil {
+		t.Fatalf("NewLayer(empty): %v", err)
+	}
+	if err := shelf.DeleteLayer(Layers{"empty"}); err != nil {
+		t.Fatalf("DeleteLayer(empty): %v", err)
+	}
+	if _, err := shelf.dbRoot.Stat(path.Join(booksFolder, "empty")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("deleted layer stat error = %v, want os.ErrNotExist", err)
+	}
+
+	if _, err := shelf.NewBook(Layers{"occupied"}, "Resident"); err != nil {
+		t.Fatalf("NewBook(occupied): %v", err)
+	}
+	if err := shelf.DeleteLayer(Layers{"occupied"}); err == nil {
+		t.Fatal("DeleteLayer removed a non-empty layer")
+	}
+	if _, err := shelf.dbRoot.Stat(path.Join(booksFolder, "occupied")); err != nil {
+		t.Fatalf("non-empty layer disappeared: %v", err)
+	}
+
+	if err := shelf.DeleteLayer(Layers{"missing"}); err == nil {
+		t.Fatal("DeleteLayer accepted a missing layer")
 	}
 }
 
@@ -217,6 +301,41 @@ func TestShelfTrashLifecycle(t *testing.T) {
 	}
 	if err := shelf.RestoreTrashedBook(book.ID()); !errors.Is(err, ErrTrashedBookNotFound) {
 		t.Fatalf("Restore deleted trashed book error = %v, want ErrTrashedBookNotFound", err)
+	}
+}
+
+func TestShelfRestoreTrashResolvesFolderCollision(t *testing.T) {
+	shelf := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
+
+	original, err := shelf.NewBook(Layers{"fiction"}, "Same Title")
+	if err != nil {
+		t.Fatalf("NewBook(original): %v", err)
+	}
+	originalPath := original.FolderPath()
+	if err := shelf.DeleteBook(original.ID()); err != nil {
+		t.Fatalf("DeleteBook(original): %v", err)
+	}
+
+	replacement, err := shelf.NewBook(Layers{"fiction"}, "Same Title")
+	if err != nil {
+		t.Fatalf("NewBook(replacement): %v", err)
+	}
+	if replacement.FolderPath() != originalPath {
+		t.Fatalf("replacement path = %q, want original path %q", replacement.FolderPath(), originalPath)
+	}
+
+	if err := shelf.RestoreTrashedBook(original.ID()); err != nil {
+		t.Fatalf("RestoreTrashedBook: %v", err)
+	}
+	restored, err := shelf.GetBook(original.ID())
+	if err != nil {
+		t.Fatalf("GetBook(restored): %v", err)
+	}
+	if restored.FolderPath() == replacement.FolderPath() {
+		t.Fatalf("restored book reused occupied path %q", restored.FolderPath())
+	}
+	if got := restored.Layers().String(); got != "fiction" {
+		t.Fatalf("restored layer = %q, want fiction", got)
 	}
 }
 
