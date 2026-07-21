@@ -3,8 +3,11 @@ set shell := ["zsh", "-cu"]
 srv_frontend_dir := "frontend"
 e2e_test_dir := "e2e"
 
-# Version string injected into builds; derived from git, falls back to "dev".
-version := `git describe --tags --always --dirty 2>/dev/null || echo dev`
+# Product version strings derived from Git tags for application builds.
+version := `./scripts/resolve-version.sh display`
+native_version := `./scripts/resolve-version.sh native`
+android_version_name := `./scripts/resolve-version.sh android-name`
+android_version_code := `count=$(git rev-list --count HEAD 2>/dev/null || echo 1); if [[ "$count" -gt 0 ]]; then echo "$count"; else echo 1; fi`
 version_pkg := "github.com/voilelab/plainshelf/internal/version"
 
 default:
@@ -32,6 +35,11 @@ build-server-backend: build-server-frontend
 # Build desktop app
 build-desktop: build-server-frontend
 	cd desktop && go mod tidy && go tool wails build -ldflags "-X {{version_pkg}}.Version={{version}}"
+	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString {{native_version}}" desktop/build/bin/PlainShelf.app/Contents/Info.plist
+	/usr/libexec/PlistBuddy -c "Set :CFBundleVersion {{native_version}}" desktop/build/bin/PlainShelf.app/Contents/Info.plist
+	plutil -lint desktop/build/bin/PlainShelf.app/Contents/Info.plist
+	test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' desktop/build/bin/PlainShelf.app/Contents/Info.plist)" = "{{native_version}}"
+	test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' desktop/build/bin/PlainShelf.app/Contents/Info.plist)" = "{{native_version}}"
 
 # Run desktop app
 run-desktop: build-server-frontend
@@ -47,7 +55,7 @@ mobile-sync: build-server-frontend
 
 # Build a debug APK (run mobile-add-android first if android/ is missing)
 build-mobile-android: mobile-sync
-	cd {{srv_frontend_dir}}/android && ./gradlew assembleDebug
+	cd {{srv_frontend_dir}}/android && PLAINSHELF_VERSION_NAME="{{android_version_name}}" PLAINSHELF_VERSION_CODE="{{android_version_code}}" ./gradlew assembleDebug
 
 # Open the Android project in Android Studio
 open-mobile-android: mobile-sync

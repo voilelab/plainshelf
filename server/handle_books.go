@@ -135,7 +135,6 @@ func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	// TBD: pagination?
 	err = json.NewEncoder(w).Encode(jsonBooks)
 	if err != nil {
 		app.Error("failed to encode response", "error", err)
