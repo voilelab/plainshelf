@@ -26,24 +26,17 @@ and UI behavior may still change between releases.
 - Changed the book star rating input in the metadata editor to use reka-ui `RatingRoot` and `RatingItemIndicator`, aligning with the reka-ui component migration started in v0.7.0.
 - Removed the inline Edit button from book card view items; edit access is now exclusively through the right-click context menu.
 - Changed library search to pure frontend filtering instead of a backend query parameter, unifying case-insensitive title/author/tag/comment matching across desktop, mobile offline mode, and mock dev data.
+- Changed release archives to also include the README preview image and a version-matched copy of `docs/`, so the README's relative documentation links work from the extracted archive as well as online.
 
 ### Fixed
 
 - Fixed the mobile app showing errors instead of downloaded books when the device has connectivity but the PlainShelf server is unreachable (e.g. on mobile data away from the home LAN); book listing, metadata, sources, covers, and reading progress now fall back to the on-device offline cache on transport failures and timeouts, while real server error responses are still surfaced.
 - Fixed resizable panel drag handles leaving all panel interactions unresponsive after a drag gesture; moved `hitAreaMargins` from an inline template literal to a module-level constant to prevent reka-ui drag-state corruption mid-drag.
-- Fixed the read history page not responding to book context menu actions (edit, open book folder, download, delete) after context menus were added to book collections.
 - Fixed scrollable content areas in the sidebar and main content panel after the reka-ui Splitter migration; added inner wrapper elements to work around `SplitterPanel`'s `overflow: hidden` inline style enforcement.
 - Fixed mobile book covers failing to load (showing as NO COVER) because Android WebView blocks mixed-content `<img>` requests against the app's `https://localhost` origin; covers are now fetched and rendered via `blob:` object URLs on mobile.
-- Fixed the mobile downloaded-book cover cache not refreshing after the cover was replaced or removed on the server.
 - Fixed the library page landing on the wrong page number when committing or clearing a search with client-side filtering active.
 - Fixed the desktop app's Settings repository link opening inside the app window instead of the system browser.
 - Fixed the compiled server binary silently dropping underscore-prefixed frontend asset files (e.g. the shared Vue export-helper chunk) from the embedded build, which blanked most pages when served from the binary.
-- Fixed reading-time seconds recorded during a background stats flush being lost if no later heartbeat re-dirtied that month.
-- Fixed reader heartbeat seconds being attributed to the previously open book after navigating to a different book within the reader.
-
-### Removed
-
-### Security
 
 ## [v0.7.0] - 2026-07-05
 
