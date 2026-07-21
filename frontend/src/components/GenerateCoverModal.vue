@@ -530,7 +530,7 @@ async function onSave(): Promise<void> {
 .cover-gen-modal {
   display: grid;
   gap: 16px;
-  max-height: calc(100vh - 32px);
+  max-height: calc(100vh / var(--app-zoom, 1) - 32px);
   overflow: auto;
   padding: 20px;
   width: min(100%, 760px);

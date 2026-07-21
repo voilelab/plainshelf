@@ -23,6 +23,7 @@ import LayerBreadcrumb from './LayerBreadcrumb.vue';
 import type { Book, ReadingProgress } from '../types/book';
 import type { SourceMeta } from '../types/source';
 import { formatLanguage } from '../utils/language';
+import { formatDateLabel } from '../utils/date';
 
 const props = defineProps<{
   book: Book;
@@ -41,23 +42,15 @@ function formatList(values: string[]): string {
   return values.length > 0 ? values.join(', ') : '-';
 }
 
+function formatIdentifiers(values?: Record<string, string>): string {
+  const entries = Object.entries(values ?? {});
+  return entries.length > 0 ? entries.map(([key, value]) => `${key}: ${value}`).join(', ') : '-';
+}
+
 function formatNumber(value?: number): string {
   return typeof value === 'number' && Number.isFinite(value)
     ? new Intl.NumberFormat().format(value)
     : '-';
-}
-
-function formatTimestamp(value?: string): string {
-  if (!value) {
-    return '-';
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleString();
 }
 
 function formatStars(value?: number): string {
@@ -75,7 +68,8 @@ const metadataRows = computed<MetadataRow[]>(() => {
     { label: 'Language', value: formatLanguage(props.book.language) },
     { label: 'Rating', value: formatStars(props.book.star), className: 'rating-text' },
     { label: 'Tags', value: formatList(props.book.tags) },
-    { label: 'Published At', value: formatTimestamp(props.book.published_at) },
+    { label: 'Identifiers', value: formatIdentifiers(props.book.identifiers) },
+    { label: 'Published At', value: props.book.published_at ? formatDateLabel(props.book.published_at) : '-' },
     { label: 'Lines', value: formatNumber(props.currentSource?.line_count) },
     { label: 'Characters', value: formatNumber(props.currentSource?.char_count) },
     {
@@ -154,5 +148,34 @@ const metadataRows = computed<MetadataRow[]>(() => {
   text-decoration: underline;
   text-underline-offset: 0.18em;
   word-break: break-all;
+}
+
+@media (max-width: 768px) {
+  .detail-heading {
+    text-align: center;
+  }
+
+  .detail-heading :deep(.layer-breadcrumb) {
+    justify-content: center;
+  }
+
+  .detail-title {
+    font-size: clamp(20px, 5vw, 24px);
+  }
+
+  .meta-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+    min-height: 0;
+    padding: 10px 0;
+  }
+
+  .meta-label {
+    font-size: 14px;
+  }
+
+  .meta-value {
+    font-size: 15px;
+  }
 }
 </style>

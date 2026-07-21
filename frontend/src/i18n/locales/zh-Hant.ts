@@ -22,49 +22,59 @@ const zhHant = {
   layout: {
     expandSidebar: '展開側欄',
     collapseSidebar: '收合側欄',
+    openMenu: '開啟選單',
+    closeMenu: '關閉選單',
     sections: {
-      layers: '圖層',
+      layers: '資料夾',
       reading: '閱讀',
       maintenance: '維護',
       admin: '管理'
     },
+    sectionToggleLabels: {
+      layers: '切換側欄資料夾區塊',
+      reading: '切換側欄閱讀紀錄區塊',
+      maintenance: '切換側欄維護區塊',
+      admin: '切換側欄管理區塊'
+    },
     createLayer: {
-      add: '新增圖層',
+      add: '新增資料夾',
       cancel: '取消',
       placeholder: '例如 programming/rust',
       creating: '建立中...',
       create: '建立',
-      created: '圖層已建立',
+      created: '資料夾已建立',
       enter: '進入',
-      loadingLayers: '載入圖層中...'
+      loadingLayers: '載入資料夾中...'
     },
     deleteLayer: {
-      title: '刪除圖層',
-      action: '刪除空圖層',
+      title: '刪除資料夾',
       shortAction: '刪除',
-      description: '若圖層內仍有書籍或子圖層，刪除會失敗。',
-      failed: '刪除圖層失敗',
-      notEmpty: '此圖層尚未清空，無法刪除。\n請先移出書籍並刪除子圖層。'
+      description: '若資料夾內仍有書籍或子資料夾，刪除會失敗。',
+      failed: '刪除資料夾失敗',
+      notEmpty: '此資料夾尚未清空，無法刪除。\n請先移出書籍並刪除子資料夾。'
     },
     renameLayer: {
-      action: '重新命名圖層',
       shortAction: '改名',
-      title: '重新命名圖層',
-      nameLabel: '圖層名稱',
-      placeholder: '圖層名稱',
+      title: '重新命名資料夾',
+      nameLabel: '資料夾名稱',
+      placeholder: '資料夾名稱',
       help: '目前名稱：{layerName}',
       confirm: '重新命名',
       renaming: '重新命名中...',
-      closeLabel: '關閉重新命名圖層對話框',
-      invalid: '圖層名稱不得為空，也不能包含 /。',
-      failed: '重新命名圖層失敗'
+      closeLabel: '關閉重新命名資料夾對話框',
+      invalid: '資料夾名稱不得為空，也不能包含 /。',
+      failed: '重新命名資料夾失敗'
     },
     moveLayer: {
-      failed: '移動圖層失敗。請將圖層拖曳到既有的目標圖層上。'
+      failed: '移動資料夾失敗。請將資料夾拖曳到既有的目標資料夾上。'
+    },
+    openLayerFolder: {
+      shortAction: '開啟資料夾',
+      failed: '開啟資料夾失敗。'
     },
     layerErrors: {
-      emptyPath: '圖層路徑不得為空',
-      createFailed: '建立圖層失敗'
+      emptyPath: '資料夾路徑不得為空',
+      createFailed: '建立資料夾失敗'
     },
     moveBookErrors: {
       notFound: '找不到書籍。',
@@ -88,13 +98,48 @@ const zhHant = {
       addShelfAdding: '新增中...',
       addShelfFailed: '新增書架失敗'
     },
+    dashboard: '儀表板',
     recentlyRead: '最近閱讀',
     trash: '垃圾桶',
+    downloads: '已下載',
     adminLogs: '日誌',
     settings: '設定',
     readOnly: {
       banner: '唯讀模式已啟用。仍可瀏覽與閱讀，但寫入操作已停用。',
       writeDisabled: '伺服器目前為唯讀模式，寫入操作已停用。'
+    }
+  },
+  dashboard: {
+    title: '儀表板',
+    refresh: '重新整理',
+    loading: '載入儀表板中...',
+    loadFailed: '載入儀表板資料失敗',
+    stats: {
+      totalBooks: '藏書總數',
+      addedThisMonth: '本月新增',
+      avgStar: '平均星等',
+      totalChars: '總字數',
+      starBar: '{star} 星：{count} 本',
+      currentStreak: '目前連續閱讀',
+      currentStreakValue: '{days} 天'
+    },
+    tags: {
+      title: '標籤',
+      empty: '尚無標籤'
+    },
+    randomBook: {
+      title: '隨機一本',
+      empty: '尚無書籍',
+      shuffle: '換一本',
+      viewDetail: '查看詳情',
+      readNow: '開始閱讀'
+    },
+    heatmap: {
+      title: '閱讀熱力圖',
+      empty: '開始閱讀後，這裡會累積你的閱讀足跡。',
+      legendLess: '較少',
+      legendMore: '較多',
+      cellLabel: '{date}：閱讀 {minutes} 分鐘'
     }
   },
   settings: {
@@ -119,7 +164,19 @@ const zhHant = {
     },
     about: {
       title: '關於',
-      version: '版本'
+      description: 'PlainShelf 是本機優先的個人閱讀書庫，適合管理輕量閱讀內容，採用檔案系統優先的資料模型並提供網頁閱讀介面。',
+      version: '版本',
+      repository: 'Repository'
+    },
+    mobileConnect: {
+      title: '連線',
+      description: '變更這台裝置使用的 PlainShelf 伺服器、存取權杖或書架。',
+      open: '編輯連線設定'
+    },
+    downloads: {
+      title: '已下載書籍',
+      description: '管理已下載到這台裝置、供離線閱讀的書籍。',
+      open: '管理已下載書籍'
     },
     shelves: {
       title: '書架',
@@ -215,7 +272,7 @@ const zhHant = {
       noBooksYet: '目前尚無書籍。'
     },
     titleSearch: '搜尋',
-    titleLayer: '圖層'
+    titleLayer: '資料夾'
   },
   bookCollection: {
     loadingBooks: '載入書籍中...',
@@ -226,6 +283,14 @@ const zhHant = {
       list: '列表',
       card: '卡片',
       title: '標題'
+    },
+    contextMenu: {
+      read: '閱讀',
+      openDetail: '開啟詳情',
+      openBookFolder: '開啟書籍資料夾',
+      download: '下載',
+      edit: '編輯',
+      delete: '刪除'
     }
   },
   pagination: {
@@ -259,7 +324,7 @@ const zhHant = {
     columns: {
       title: '標題',
       authors: '作者',
-      originalLayer: '原始圖層',
+      originalLayer: '原始資料夾',
       originalPath: '原始路徑',
       deletedAt: '刪除時間',
       bookId: '書籍 ID',
@@ -276,6 +341,39 @@ const zhHant = {
       busy: '永久刪除中...'
     }
   },
+  downloads: {
+    title: '已下載書籍',
+    description: '已下載到這台裝置、供離線閱讀的書籍。',
+    overview: {
+      countLabel: '已下載書籍數',
+      count: '已下載 {count} 本',
+      totalSizeLabel: '總佔用空間',
+      deviceStorageLabel: '裝置儲存空間',
+      storageUsed: '已使用 {used} / {quota}',
+      storageUnsupported: '此裝置不支援儲存空間估算。'
+    },
+    list: {
+      loading: '載入已下載書籍中...',
+      loadFailed: '載入已下載書籍失敗',
+      empty: '尚未下載任何書籍。'
+    },
+    item: {
+      remove: '移除下載'
+    },
+    detail: {
+      download: '下載到裝置',
+      downloading: '下載中...',
+      remove: '移除下載',
+      retry: '下載失敗，重試'
+    },
+    removeConfirm: {
+      title: '移除下載',
+      description: '此操作會移除這台裝置上的離線副本，之後仍可隨時重新下載。',
+      confirm: '移除下載',
+      busy: '移除中...',
+      failed: '移除下載失敗'
+    }
+  },
   reader: {
     backToDetail: '返回詳情',
     title: '閱讀器',
@@ -288,6 +386,23 @@ const zhHant = {
     splitSettings: '切分設定',
     saveBookmark: '儲存書籤',
     savingBookmark: '儲存書籤中'
+  },
+  mobileConnect: {
+    title: '連線到 PlainShelf',
+    description: '輸入你的 PlainShelf 伺服器位址，即可在這台裝置瀏覽與閱讀書庫。',
+    serverUrlLabel: '伺服器網址',
+    serverUrlPlaceholder: 'http://192.168.1.10:20000',
+    tokenLabel: '存取權杖（選填）',
+    tokenPlaceholder: '僅編輯時需要',
+    tokenHint: '閱讀不需權杖；要修改內容才需填入。',
+    loadShelves: '載入書庫',
+    loadingShelves: '連線中…',
+    shelfLabel: '書架',
+    shelfPlaceholder: '選擇書架',
+    save: '儲存並繼續',
+    saving: '儲存中…',
+    serverUrlRequired: '請先輸入伺服器網址。',
+    shelfRequired: '請選擇一個書架。'
   }
 } as const;
 

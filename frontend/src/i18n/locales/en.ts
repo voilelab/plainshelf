@@ -22,11 +22,19 @@ const en = {
   layout: {
     expandSidebar: 'Expand sidebar',
     collapseSidebar: 'Collapse sidebar',
+    openMenu: 'Open menu',
+    closeMenu: 'Close menu',
     sections: {
       layers: 'LAYERS',
       reading: 'READING',
       maintenance: 'MAINTENANCE',
       admin: 'ADMIN'
+    },
+    sectionToggleLabels: {
+      layers: 'Toggle sidebar folders',
+      reading: 'Toggle sidebar history',
+      maintenance: 'Toggle sidebar maintenance',
+      admin: 'Toggle sidebar administration'
     },
     createLayer: {
       add: 'Add layer',
@@ -40,7 +48,6 @@ const en = {
     },
     deleteLayer: {
       title: 'Delete layer',
-      action: 'Delete empty layer',
       shortAction: 'Delete',
       description: 'This will fail if the layer contains books or child layers.',
       failed: 'Failed to delete layer',
@@ -48,7 +55,6 @@ const en = {
         'Cannot delete this layer because it is not empty.\nMove books out and delete child layers first.'
     },
     renameLayer: {
-      action: 'Rename layer',
       shortAction: 'Rename',
       title: 'Rename layer',
       nameLabel: 'Layer name',
@@ -62,6 +68,10 @@ const en = {
     },
     moveLayer: {
       failed: 'Failed to move layer. Drag a layer onto an existing target layer.'
+    },
+    openLayerFolder: {
+      shortAction: 'Open folder',
+      failed: 'Failed to open layer folder.'
     },
     layerErrors: {
       emptyPath: 'Layer path cannot be empty',
@@ -89,13 +99,48 @@ const en = {
       addShelfAdding: 'Adding...',
       addShelfFailed: 'Failed to add shelf'
     },
+    dashboard: 'Dashboard',
     recentlyRead: 'Recently Read',
     trash: 'Trash',
+    downloads: 'Downloads',
     adminLogs: 'Logs',
     settings: 'Settings',
     readOnly: {
       banner: 'Read-only mode is enabled. Browsing and reading are available, but write operations are disabled.',
       writeDisabled: 'Server is in read-only mode. Write operations are disabled.'
+    }
+  },
+  dashboard: {
+    title: 'Dashboard',
+    refresh: 'Refresh',
+    loading: 'Loading dashboard...',
+    loadFailed: 'Failed to load dashboard data',
+    stats: {
+      totalBooks: 'Total Books',
+      addedThisMonth: 'Added This Month',
+      avgStar: 'Average Rating',
+      totalChars: 'Total Characters',
+      starBar: '{star} star: {count} book(s)',
+      currentStreak: 'Current Streak',
+      currentStreakValue: '{days} day(s)'
+    },
+    tags: {
+      title: 'Tags',
+      empty: 'No tags yet'
+    },
+    randomBook: {
+      title: 'Random Pick',
+      empty: 'No books yet',
+      shuffle: 'Shuffle',
+      viewDetail: 'View Details',
+      readNow: 'Read Now'
+    },
+    heatmap: {
+      title: 'Reading Heatmap',
+      empty: 'Start reading to see activity build up here.',
+      legendLess: 'Less',
+      legendMore: 'More',
+      cellLabel: '{date}: {minutes} min read'
     }
   },
   settings: {
@@ -120,7 +165,19 @@ const en = {
     },
     about: {
       title: 'About',
-      version: 'Version'
+      description: 'PlainShelf is a local-first personal reading library for lightweight reading content, with a filesystem-first data model and a web-based reading interface.',
+      version: 'Version',
+      repository: 'Repository'
+    },
+    mobileConnect: {
+      title: 'Connection',
+      description: 'Change the PlainShelf server, access token, or shelf used on this device.',
+      open: 'Edit connection'
+    },
+    downloads: {
+      title: 'Downloaded books',
+      description: 'Manage books saved to this device for offline reading.',
+      open: 'Manage downloads'
     },
     shelves: {
       title: 'Shelves',
@@ -227,6 +284,14 @@ const en = {
       list: 'List',
       card: 'Card',
       title: 'Title'
+    },
+    contextMenu: {
+      read: 'Read',
+      openDetail: 'Open Detail',
+      openBookFolder: 'Open Book Folder',
+      download: 'Download',
+      edit: 'Edit',
+      delete: 'Delete'
     }
   },
   pagination: {
@@ -277,6 +342,39 @@ const en = {
       busy: 'Deleting permanently...'
     }
   },
+  downloads: {
+    title: 'Downloaded Books',
+    description: 'Books saved to this device for offline reading.',
+    overview: {
+      countLabel: 'Downloaded books',
+      count: '{count} downloaded',
+      totalSizeLabel: 'Total size',
+      deviceStorageLabel: 'Device storage',
+      storageUsed: '{used} / {quota} used',
+      storageUnsupported: 'This device does not support storage estimates.'
+    },
+    list: {
+      loading: 'Loading downloaded books...',
+      loadFailed: 'Failed to load downloaded books',
+      empty: 'No books downloaded yet.'
+    },
+    item: {
+      remove: 'Remove download'
+    },
+    detail: {
+      download: 'Download to device',
+      downloading: 'Downloading...',
+      remove: 'Remove download',
+      retry: 'Download failed, retry'
+    },
+    removeConfirm: {
+      title: 'Remove download',
+      description: 'This removes the offline copy from this device. You can download it again anytime.',
+      confirm: 'Remove download',
+      busy: 'Removing...',
+      failed: 'Failed to remove download'
+    }
+  },
   reader: {
     backToDetail: 'Back to detail',
     title: 'Reader',
@@ -289,6 +387,23 @@ const en = {
     splitSettings: 'Split settings',
     saveBookmark: 'Save bookmark',
     savingBookmark: 'Saving bookmark'
+  },
+  mobileConnect: {
+    title: 'Connect to PlainShelf',
+    description: 'Enter your PlainShelf server address to browse and read your library on this device.',
+    serverUrlLabel: 'Server URL',
+    serverUrlPlaceholder: 'http://192.168.1.10:20000',
+    tokenLabel: 'Access token (optional)',
+    tokenPlaceholder: 'Required only for editing',
+    tokenHint: 'Reading works without a token. Add one to make changes.',
+    loadShelves: 'Load library',
+    loadingShelves: 'Connecting…',
+    shelfLabel: 'Shelf',
+    shelfPlaceholder: 'Select a shelf',
+    save: 'Save and continue',
+    saving: 'Saving…',
+    serverUrlRequired: 'Enter a server URL first.',
+    shelfRequired: 'Select a shelf to continue.'
   }
 } as const;
 

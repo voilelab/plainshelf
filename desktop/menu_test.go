@@ -115,3 +115,54 @@ func TestHistoryNavigationWithNilContext(t *testing.T) {
 	app.PreviousPage()
 	app.NextPage()
 }
+
+func TestZoomScript(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		action string
+		want   string
+	}{
+		{
+			name:   "zoom in",
+			action: "in",
+			want:   "window.__plainshelfZoom && window.__plainshelfZoom('in');",
+		},
+		{
+			name:   "zoom out",
+			action: "out",
+			want:   "window.__plainshelfZoom && window.__plainshelfZoom('out');",
+		},
+		{
+			name:   "reset zoom",
+			action: "reset",
+			want:   "window.__plainshelfZoom && window.__plainshelfZoom('reset');",
+		},
+		{
+			name:   "unknown action",
+			action: "unknown",
+			want:   "",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := zoomScript(tc.action); got != tc.want {
+				t.Fatalf("zoomScript(%q) = %q, want %q", tc.action, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestZoomWithNilContext(t *testing.T) {
+	t.Parallel()
+
+	app := NewDesktopApp()
+	app.ZoomIn()
+	app.ZoomOut()
+	app.ResetZoom()
+}

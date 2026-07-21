@@ -1,6 +1,12 @@
 <template>
   <span class="sidebar-nav-icon" aria-hidden="true">
-    <svg v-if="name === 'recently-read'" viewBox="0 0 24 24" fill="none">
+    <svg v-if="name === 'dashboard'" viewBox="0 0 24 24" fill="none">
+      <rect x="4" y="4" width="7" height="9" rx="1.5" stroke="currentColor" stroke-width="1.8" />
+      <rect x="13" y="4" width="7" height="5" rx="1.5" stroke="currentColor" stroke-width="1.8" />
+      <rect x="13" y="11" width="7" height="9" rx="1.5" stroke="currentColor" stroke-width="1.8" />
+      <rect x="4" y="15" width="7" height="5" rx="1.5" stroke="currentColor" stroke-width="1.8" />
+    </svg>
+    <svg v-else-if="name === 'recently-read'" viewBox="0 0 24 24" fill="none">
       <path d="M4 12a8 8 0 1 0 2.35-5.66" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       <path d="M4 5.5v4h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
       <path d="M12 8v4l2.5 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
@@ -32,6 +38,11 @@
       <path d="M9 7V5.8c0-.44.36-.8.8-.8h4.4c.44 0 .8.36.8.8V7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       <path d="M7.5 7.8v9.4a1.8 1.8 0 0 0 1.8 1.8h5.4a1.8 1.8 0 0 0 1.8-1.8V7.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       <path d="M10.2 10.2v5.6M13.8 10.2v5.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+    </svg>
+    <svg v-else-if="name === 'downloads'" viewBox="0 0 24 24" fill="none">
+      <path d="M12 4.5v10.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M7.5 11 12 15.5 16.5 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M5 17.5v1.75A1.75 1.75 0 0 0 6.75 21h10.5A1.75 1.75 0 0 0 19 19.25V17.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
     <svg v-else-if="name === 'logs'" viewBox="0 0 24 24" fill="none">
       <path d="M7 4.75h7l4 4V19a1.75 1.75 0 0 1-1.75 1.75h-9.5A1.75 1.75 0 0 1 5 19V6.5A1.75 1.75 0 0 1 6.75 4.75H7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />

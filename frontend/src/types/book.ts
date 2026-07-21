@@ -20,9 +20,15 @@ export interface Book {
   layers: string[];
   created_at?: BookTimestamp;
   updated_at?: BookTimestamp;
+  /** Date-only ("YYYY-MM-DD"); the backend normalizes any legacy full timestamp before it reaches the API. */
   published_at?: BookTimestamp;
   current_source?: string;
   star?: number;
+  identifiers?: Record<string, string>;
+  /** Total character count of the book's content. Optional: only present when the
+   *  backend is asked to include it (see listBooks' includeCharCount option) or in
+   *  mock data; omit rather than guess when unavailable. */
+  char_count?: number;
 
   // Mobile/offline cache metadata. These fields are optional so existing
   // server and Wails responses remain valid when they do not include local
@@ -85,6 +91,7 @@ export interface BookUpdateRequest {
   comment?: string;
   published_at?: string;
   star?: number;
+  identifiers?: Record<string, string>;
 }
 
 export interface BookCreateRequest {

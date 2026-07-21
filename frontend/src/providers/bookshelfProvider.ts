@@ -22,8 +22,20 @@ export interface DesktopImportBookResult {
   error?: string;
 }
 
+export interface DownloadedBookEntry {
+  book: Book;
+  sizeBytes: number;
+  downloadedAt: string;
+}
+
+export interface StorageEstimateResult {
+  supported: boolean;
+  usage?: number;
+  quota?: number;
+}
+
 export interface BookshelfProvider {
-  listBooks(page?: number, pageSize?: number, search?: string): Promise<PaginatedBooks>;
+  listBooks(page?: number, pageSize?: number): Promise<PaginatedBooks>;
   getBook(bookId: string): Promise<Book>;
   updateBook(bookId: string, payload: BookUpdateRequest): Promise<Book>;
   updateBookLayer(bookId: string, layer: string): Promise<void>;
@@ -39,6 +51,10 @@ export interface BookshelfProvider {
   addReadHistory(bookId: string): Promise<void>;
   listReadHistoryBooks(): Promise<Book[]>;
   clearReadHistory(): Promise<void>;
+
+  /** Map of "YYYY-MM-DD" -> total seconds read that day, for [from, to] inclusive. */
+  getReadingActivity(from: string, to: string): Promise<Record<string, number>>;
+  reportReadingActivity(bookId: string, seconds: number, date: string): Promise<void>;
 
   importBook(payload: BookCreateRequest): Promise<Book>;
   uploadBookCover(bookId: string, file: File): Promise<void>;
@@ -63,13 +79,18 @@ export interface BookshelfProvider {
   downloadBook?(bookId: string): Promise<void>;
   removeDownload?(bookId: string): Promise<void>;
   getDownloadState?(bookId: string): Promise<DownloadState>;
+  listDownloadedBookEntries?(): Promise<DownloadedBookEntry[]>;
+  getStorageEstimate?(): Promise<StorageEstimateResult>;
 
   openLocalBookFiles?(): Promise<string[] | null>;
   importBooksFromLocalPaths?(localPaths: string[], layerPath: string): Promise<DesktopImportBookResult[] | null>;
+  openDesktopLayerFolder?(layerPath: string): Promise<void>;
+  openDesktopBookFolder?(bookId: string): Promise<void>;
 
   openDesktopShelfDirectory?(): Promise<string | null>;
   addDesktopShelf?(name: string, libRoot: string, scanInterval: string): Promise<void>;
   removeDesktopShelf?(shelfID: string): Promise<void>;
   getDesktopShelfDetails?(shelfID: string): Promise<DesktopShelfDetails>;
   modifyDesktopShelf?(shelfID: string, name: string, scanInterval: string): Promise<void>;
+  saveBookContentToFile?(bookId: string, suggestedName: string): Promise<void>;
 }

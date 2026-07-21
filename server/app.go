@@ -248,6 +248,11 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/read_history", app.HandleAPIUpdateReadHistory)
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/read_history", app.HandleAPIClearReadHistory)
 
+	// Stats API
+
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/reading_activity", app.HandleAPIGetReadingActivity)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/reading_activity", app.HandleAPIPostReadingActivity)
+
 	// Log API
 
 	mux.HandleFunc("GET /api/logs", app.HandleAPIGetLogs)

@@ -35,12 +35,17 @@ interface BackendBookMeta {
   published_at?: string;
   current_source?: string;
   star?: number;
+  identifiers?: Record<string, string>;
 }
 
 interface BackendBook {
   meta: BackendBookMeta;
   layer?: string[];
   layers?: string[];
+  // Sibling of `meta`, not nested inside it — matches server/handle_books.go's
+  // `Book` struct, which only populates this when the request was made with
+  // `include=char_count` (see ListBooksOptions.includeCharCount below).
+  char_count?: number;
 }
 
 interface BackendTrashedBook {
@@ -188,7 +193,9 @@ function transformBook(b: BackendBook): Book {
     updated_at: b.meta.updated_at,
     published_at: b.meta.published_at,
     current_source: b.meta.current_source,
-    star: b.meta.star ?? 0
+    star: b.meta.star ?? 0,
+    identifiers: b.meta.identifiers,
+    char_count: b.char_count
   };
 }
 
@@ -206,8 +213,11 @@ export const mockBooks: Book[] = [
     comment: 'Imported from local txt file.',
     created_at: '2026-01-07T10:00:00Z',
     updated_at: '2026-04-18T08:30:00Z',
+    published_at: '2026-03-15',
     cover_url: 'https://picsum.photos/seed/shelf1/120/180',
-    star: 4
+    star: 4,
+    identifiers: { isbn: '9787020002207' },
+    char_count: 182_400
   },
   {
     id: 'book-2',
@@ -219,7 +229,9 @@ export const mockBooks: Book[] = [
     tags: ['programming', 'go'],
     created_at: '2026-02-10T12:00:00Z',
     cover_url: 'https://picsum.photos/seed/shelf2/120/180',
-    star: 2
+    star: 2,
+    identifiers: { isbn: '9787115428028', asin: 'B01N5AX61W' },
+    char_count: 64_800
   },
   {
     id: 'book-3',
@@ -229,7 +241,10 @@ export const mockBooks: Book[] = [
     language: 'zh-TW',
     format: 'txt',
     tags: ['travel'],
-    cover_url: 'https://picsum.photos/seed/shelf3/120/180'
+    created_at: '2026-03-01T09:00:00Z',
+    cover_url: 'https://picsum.photos/seed/shelf3/120/180',
+    star: 5,
+    char_count: 41_200
   },
   {
     id: 'book-4',
@@ -239,7 +254,10 @@ export const mockBooks: Book[] = [
     language: 'en',
     format: 'txt',
     tags: ['design', 'notes'],
-    cover_url: 'https://picsum.photos/seed/shelf4/120/180'
+    created_at: '2026-07-02T09:00:00Z',
+    cover_url: 'https://picsum.photos/seed/shelf4/120/180',
+    star: 3,
+    char_count: 98_500
   },
   {
     id: 'book-5',
@@ -249,7 +267,10 @@ export const mockBooks: Book[] = [
     language: 'zh-TW',
     format: 'txt',
     tags: ['fiction'],
-    cover_url: 'https://picsum.photos/seed/shelf5/120/180'
+    created_at: '2026-05-20T09:00:00Z',
+    cover_url: 'https://picsum.photos/seed/shelf5/120/180',
+    star: 4,
+    char_count: 235_900
   },
   {
     id: 'book-6',
@@ -259,7 +280,9 @@ export const mockBooks: Book[] = [
     language: 'en',
     format: 'txt',
     tags: ['linux', 'ops'],
-    cover_url: 'https://picsum.photos/seed/shelf6/120/180'
+    created_at: '2026-07-08T09:00:00Z',
+    cover_url: 'https://picsum.photos/seed/shelf6/120/180',
+    char_count: 152_300
   },
   {
     id: 'book-7',
@@ -269,7 +292,10 @@ export const mockBooks: Book[] = [
     language: 'zh-TW',
     format: 'txt',
     tags: ['poetry'],
-    cover_url: 'https://picsum.photos/seed/shelf7/120/180'
+    created_at: '2025-11-11T09:00:00Z',
+    cover_url: 'https://picsum.photos/seed/shelf7/120/180',
+    star: 5,
+    char_count: 18_600
   },
   {
     id: 'book-8',
@@ -279,7 +305,10 @@ export const mockBooks: Book[] = [
     language: 'en',
     format: 'txt',
     tags: ['product'],
-    cover_url: 'https://picsum.photos/seed/shelf8/120/180'
+    created_at: '2026-06-30T09:00:00Z',
+    cover_url: 'https://picsum.photos/seed/shelf8/120/180',
+    star: 2,
+    char_count: 76_400
   },
   {
     id: 'book-9',
@@ -289,7 +318,10 @@ export const mockBooks: Book[] = [
     language: 'en',
     format: 'txt',
     tags: ['essay'],
-    cover_url: 'https://picsum.photos/seed/shelf9/120/180'
+    created_at: '2026-07-13T09:00:00Z',
+    cover_url: 'https://picsum.photos/seed/shelf9/120/180',
+    star: 3,
+    char_count: 112_700
   },
   {
     id: 'book-10',
@@ -299,7 +331,22 @@ export const mockBooks: Book[] = [
     language: 'en',
     format: 'txt',
     tags: ['tech', 'history'],
-    cover_url: 'https://picsum.photos/seed/shelf10/120/180'
+    created_at: '2025-08-01T09:00:00Z',
+    cover_url: 'https://picsum.photos/seed/shelf10/120/180',
+    star: 4,
+    char_count: 340_100
+  },
+  {
+    id: 'book-11',
+    title: 'Markdown Field Notes',
+    authors: ['T. Fang'],
+    layers: ['notes'],
+    language: 'en',
+    format: 'md',
+    tags: ['notes', 'markdown'],
+    created_at: '2026-07-05T09:00:00Z',
+    cover_url: 'https://picsum.photos/seed/shelf11/120/180',
+    char_count: 9_800
   }
 ];
 
@@ -312,7 +359,38 @@ const mockProgress: Record<string, ReadingProgress> = {
 const mockContent: Record<string, string> = {
   'book-1': `# The Quiet River\n\nThe river moved slowly by the old town.\nEach house kept a small lamp lit through the night...`,
   'book-2': `Go Patterns Notes\n\n1. Keep interfaces small.\n2. Prefer composition over inheritance.\n3. Handle errors early and clearly.`,
-  'book-3': `# Mountain Diary\n\nDay 1: Clouds under the ridge.\nDay 2: A narrow trail and cold wind.`
+  'book-3': `# Mountain Diary\n\nDay 1: Clouds under the ridge.\nDay 2: A narrow trail and cold wind.`,
+  'book-11': [
+    '# Markdown Field Notes',
+    '',
+    'This paragraph has **bold text**, *italic text*, and `inline code`.',
+    '',
+    '## Section One',
+    '',
+    '### Subsection',
+    '',
+    '- First unordered item',
+    '- Second unordered item',
+    '- Third item with **bold** inside',
+    '',
+    '1. First ordered step',
+    '2. Second ordered step',
+    '3. Third ordered step',
+    '',
+    '> A quoted line of field notes.',
+    '> Second line of the same quote.',
+    '',
+    '```',
+    'function greet() {',
+    '',
+    '  return "hello";',
+    '}',
+    '```',
+    '',
+    '---',
+    '',
+    'Unsupported syntax stays literal: [link](https://example.com) and ![alt](image.png).'
+  ].join('\n')
 };
 
 const mockSplitConfigs: Record<string, SplitConfig> = {};
@@ -355,6 +433,8 @@ function mockUpdateBook(id: string, payload: BookUpdateRequest): Book {
   if (payload.language !== undefined) book.language = payload.language;
   if (payload.comment !== undefined) book.comment = payload.comment;
   if (payload.star !== undefined) book.star = payload.star;
+  if (payload.published_at !== undefined) book.published_at = payload.published_at;
+  if (payload.identifiers !== undefined) book.identifiers = payload.identifiers;
   book.updated_at = new Date().toISOString();
   return { ...book };
 }
@@ -412,14 +492,20 @@ function mockImportBook(payload: BookCreateRequest): Book {
   return created;
 }
 
-export async function listBooks(page = 1, pageSize = PAGE_SIZE_DEFAULT, search?: string): Promise<PaginatedBooks> {
+export interface ListBooksOptions {
+  /** Ask the backend to also compute/return each book's char_count. Opt-in
+   *  because the backend may need to do extra work to produce it; omit for
+   *  call sites (library grid, layer tree, etc.) that don't display it. */
+  includeCharCount?: boolean;
+}
+
+export async function listBooks(page = 1, pageSize = PAGE_SIZE_DEFAULT, opts?: ListBooksOptions): Promise<PaginatedBooks> {
   if (isMockApiMode()) {
     return delay(mockListBooks(page, pageSize));
   }
 
-  const trimmed = search?.trim() ?? '';
-  const url = trimmed ? `${buildShelfApiPath('/books')}?search=${encodeURIComponent(trimmed)}` : buildShelfApiPath('/books');
-  const all = await fetchJson<BackendBook[]>(url);
+  const path = opts?.includeCharCount ? '/books?include=char_count' : '/books';
+  const all = await fetchJson<BackendBook[]>(buildShelfApiPath(path));
   const books = all.map(transformBook);
   const start = (page - 1) * pageSize;
   return { items: books.slice(start, start + pageSize), total: books.length, page, pageSize };

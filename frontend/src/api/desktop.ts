@@ -22,10 +22,14 @@ interface DesktopAppBinding {
     layerParts: string[]
   ) => Promise<DesktopImportBookResult[]>;
   OpenShelfDirectory?: () => Promise<string>;
+  OpenLayerDirectory?: (shelfID: string, layerParts: string[]) => Promise<void>;
+  OpenBookDirectory?: (shelfID: string, bookID: string) => Promise<void>;
   AddShelf?: (name: string, libRoot: string, scanInterval: string) => Promise<void>;
   RemoveShelf?: (shelfID: string) => Promise<void>;
   GetShelfDetails?: (shelfID: string) => Promise<DesktopShelfDetails>;
   ModifyShelf?: (shelfID: string, name: string, scanInterval: string) => Promise<void>;
+  SaveBookContent?: (shelfID: string, bookID: string, suggestedName: string) => Promise<void>;
+  OpenExternalURL?: (url: string) => Promise<void>;
 }
 
 interface DesktopWindow extends Window {
@@ -77,6 +81,34 @@ export async function openDesktopShelfDirectory(): Promise<string | null> {
 
   const dir = await desktopApp.OpenShelfDirectory();
   return dir || null;
+}
+
+export async function openDesktopBookFolder(bookID: string): Promise<void> {
+  if (!isDesktopRuntime()) {
+    return;
+  }
+
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.OpenBookDirectory) {
+    return;
+  }
+
+  await desktopApp.OpenBookDirectory(getActiveShelfID(), bookID);
+}
+
+export async function openDesktopLayerFolder(layerPath: string): Promise<void> {
+  if (!isDesktopRuntime()) {
+    return;
+  }
+
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.OpenLayerDirectory) {
+    return;
+  }
+
+  // normalizeLayerParts splits by '/', trims each segment, and drops empties
+  // before passing the layer path into the desktop binding.
+  await desktopApp.OpenLayerDirectory(getActiveShelfID(), normalizeLayerParts(layerPath));
 }
 
 export async function addDesktopShelf(name: string, libRoot: string, scanInterval: string): Promise<void> {
@@ -133,4 +165,30 @@ export async function importDesktopBooksFromLocalPaths(
     localPaths,
     normalizeLayerParts(layerPath)
   );
+}
+
+export async function saveDesktopBookContent(
+  shelfID: string,
+  bookID: string,
+  suggestedName: string
+): Promise<void> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.SaveBookContent) {
+    throw new Error('SaveBookContent binding not available');
+  }
+
+  await desktopApp.SaveBookContent(shelfID, bookID, suggestedName);
+}
+
+export async function openDesktopExternalURL(url: string): Promise<void> {
+  if (!isDesktopRuntime()) {
+    return;
+  }
+
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.OpenExternalURL) {
+    throw new Error('OpenExternalURL binding not available');
+  }
+
+  await desktopApp.OpenExternalURL(url);
 }

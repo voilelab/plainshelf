@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+
 export function isWailsRuntime(): boolean {
   if (typeof window === 'undefined') {
     return false;
@@ -19,7 +21,15 @@ export function isMobileRuntime(): boolean {
     return false;
   }
 
-  // Placeholder for future Capacitor/Android runtime detection. Do not select it
-  // until a mobile provider is implemented and dependencies are present.
-  return false;
+  // Prefer Capacitor's own platform check over UA sniffing: it is true only
+  // inside a native iOS/Android shell, so an ordinary mobile browser (or PWA)
+  // is not mistaken for the native runtime.
+  if (Capacitor.isNativePlatform()) {
+    return true;
+  }
+
+  // Desktop-browser preview of the mobile shell, mirroring the Wails
+  // `?desktop-shell-preview=1` escape hatch above.
+  const params = new URLSearchParams(window.location.search);
+  return params.get('mobile-shell-preview') === '1';
 }

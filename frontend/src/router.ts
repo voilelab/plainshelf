@@ -1,28 +1,36 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import MainLayout from './layouts/MainLayout.vue';
 import ReaderLayout from './layouts/ReaderLayout.vue';
-import LibraryPage from './pages/LibraryPage.vue';
-import BookDetailPage from './pages/BookDetailPage.vue';
-import EditBookPage from './pages/EditBookPage.vue';
-import DuplicateContentPage from './pages/DuplicateContentPage.vue';
-import MissingAuthorPage from './pages/MissingAuthorPage.vue';
-import MissingCoverPage from './pages/MissingCoverPage.vue';
-import MissingLanguagePage from './pages/MissingLanguagePage.vue';
-import ReadHistoryPage from './pages/ReadHistoryPage.vue';
-import TrashPage from './pages/TrashPage.vue';
-import AdminLogsPage from './pages/AdminLogsPage.vue';
-import SettingsPage from './pages/SettingsPage.vue';
-import ReaderPage from './features/reader/views/ReaderView.vue';
-import EditBookSourcesPage from './features/sources/pages/EditBookSourcesPage.vue';
 import { APP_TITLE } from './composables/useDocumentTitle';
+import { isMobileRuntime } from './providers/runtime';
+import { loadMobileConnectionConfig } from './providers/mobileConfig';
+
+const DashboardPage = () => import('./features/dashboard/pages/DashboardPage.vue');
+const LibraryPage = () => import('./pages/LibraryPage.vue');
+const BookDetailPage = () => import('./pages/BookDetailPage.vue');
+const EditBookPage = () => import('./pages/EditBookPage.vue');
+const DuplicateContentPage = () => import('./pages/DuplicateContentPage.vue');
+const MissingAuthorPage = () => import('./pages/MissingAuthorPage.vue');
+const MissingCoverPage = () => import('./pages/MissingCoverPage.vue');
+const MissingLanguagePage = () => import('./pages/MissingLanguagePage.vue');
+const ReadHistoryPage = () => import('./pages/ReadHistoryPage.vue');
+const TrashPage = () => import('./pages/TrashPage.vue');
+const DownloadsPage = () => import('./pages/DownloadsPage.vue');
+const AdminLogsPage = () => import('./pages/AdminLogsPage.vue');
+const SettingsPage = () => import('./pages/SettingsPage.vue');
+const MobileConnectPage = () => import('./pages/MobileConnectPage.vue');
+const ReaderPage = () => import('./features/reader/views/ReaderView.vue');
+const EditBookSourcesPage = () => import('./features/sources/pages/EditBookSourcesPage.vue');
 
 const ROUTES_WITH_OWN_TITLE = new Set([
+  'dashboard',
   'library',
   'book-detail',
   'book-sources-edit',
   'reader',
   'read-history',
   'trash',
+  'downloads',
   'admin-logs',
   'settings',
   'maintenance-missing-author',
@@ -34,12 +42,22 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/books'
+      redirect: '/dashboard'
+    },
+    {
+      path: '/connect',
+      name: 'mobile-connect',
+      component: MobileConnectPage
     },
     {
       path: '/',
       component: MainLayout,
       children: [
+        {
+          path: 'dashboard',
+          name: 'dashboard',
+          component: DashboardPage
+        },
         {
           path: 'books',
           name: 'library',
@@ -82,6 +100,11 @@ const router = createRouter({
           path: 'trash',
           name: 'trash',
           component: TrashPage
+        },
+        {
+          path: 'downloads',
+          name: 'downloads',
+          component: DownloadsPage
         },
         {
           path: 'books/maintenance/missing-author',
@@ -135,6 +158,24 @@ const router = createRouter({
       ]
     },
   ]
+});
+
+// On the native mobile shell there is no backend to inject a server address or
+// selected shelf, so gate every route behind a completed connection setup.
+router.beforeEach(async (to) => {
+  if (!isMobileRuntime()) {
+    return true;
+  }
+  if (to.name === 'mobile-connect') {
+    return true;
+  }
+
+  const { serverUrl, shelfId } = await loadMobileConnectionConfig();
+  // Token is intentionally not required: reads work without it, only writes need one.
+  if (!serverUrl || !shelfId) {
+    return { name: 'mobile-connect' };
+  }
+  return true;
 });
 
 router.afterEach((to) => {

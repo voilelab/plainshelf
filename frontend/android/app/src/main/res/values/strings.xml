@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PlainShelf</string>
+    <string name="title_activity_main">PlainShelf</string>
+    <string name="package_name">lab.voile.plainshelf</string>
+    <string name="custom_url_scheme">lab.voile.plainshelf</string>
+</resources>

@@ -23,19 +23,30 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.resolve.outputs.version }}
+      native_version: ${{ steps.resolve.outputs.native_version }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
       - name: Resolve version string
         id: resolve
         run: |
+          set -euo pipefail
           if [ "${{ github.ref_type }}" = "tag" ]; then
-            version="${{ github.ref_name }}"
+            raw_version="${{ github.ref_name }}"
+            ./scripts/resolve-version.sh validate-tag "$raw_version"
           elif [ -n "${{ inputs.version }}" ]; then
-            version="${{ inputs.version }}"
+            raw_version="${{ inputs.version }}"
           else
-            version="dev"
+            raw_version="dev"
           fi
+
+          version=$(./scripts/resolve-version.sh display "$raw_version")
+          native_version=$(./scripts/resolve-version.sh native "$raw_version")
           echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "native_version=${native_version}" >> "$GITHUB_OUTPUT"
           echo "Resolved version: ${version}"
+          echo "Native version: ${native_version}"
 
   frontend:
     name: Build frontend
@@ -138,6 +149,8 @@ jobs:
           mkdir -p "$stage"
           cp "build/${bin}" "$stage/"
           cp LICENSE README.md "$stage/"
+          cp image.png "$stage/"
+          cp -R docs "$stage/"
           cp cmd/plainshelf-srv/conf/config.yaml "$stage/config.sample.yaml"
 
           name="plainshelf_${VERSION}_${GOOS}_${GOARCH}"
@@ -180,6 +193,7 @@ jobs:
       - name: Build Wails .app
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
+          NATIVE_VERSION: ${{ needs.prepare.outputs.native_version }}
         working-directory: desktop
         run: |
           set -euo pipefail
@@ -188,6 +202,13 @@ jobs:
             -platform darwin/arm64 \
             -trimpath \
             -ldflags "-s -w -X ${VERSION_PKG}.Version=${VERSION}"
+
+          plist="build/bin/PlainShelf.app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${NATIVE_VERSION}" "$plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${NATIVE_VERSION}" "$plist"
+          plutil -lint "$plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")" = "$NATIVE_VERSION"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")" = "$NATIVE_VERSION"
 
       - name: Package .app as zip
         env:

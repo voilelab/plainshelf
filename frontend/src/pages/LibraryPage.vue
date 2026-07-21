@@ -1,5 +1,15 @@
 <template>
   <div>
+    <DeleteModal
+      :open="!!deleteTarget"
+      :item-name="deleteTarget?.title || ''"
+      description="The book will be moved to Trash. You can restore it later."
+      :busy="deleting"
+      :error="actionError"
+      @cancel="cancelDelete"
+      @confirm="confirmDelete"
+    />
+    <p v-if="actionError && !deleteTarget" class="error" role="alert">{{ actionError }}</p>
     <BookCollectionPage
       :title="selectedLayerTitle"
       :books="visibleBooks"
@@ -13,8 +23,15 @@
       :count="total"
       :empty-message="emptyMessage"
       :page-size-options="PAGE_SIZE_OPTIONS"
+      :can-open-book-folder="canOpenBookFolder"
+      :read-only="readOnly"
       @retry="reloadBooks"
       @select="openBook"
+      @edit="goEdit"
+      @read="goRead"
+      @open-book-folder="onOpenBookFolder"
+      @download="onDownloadBook"
+      @delete="onRequestDeleteBook"
       @update:page="onPageChange"
       @update:page-size="onPageSizeChange"
     >
@@ -129,8 +146,10 @@ import {
 import { useRouter } from 'vue-router';
 import type { Book } from '../types/book';
 import BookCollectionPage from '../components/BookCollectionPage.vue';
+import DeleteModal from '../components/DeleteModal.vue';
 import ImportBookModal from '../components/ImportBookModal.vue';
 import NewEmptyBookModal from '../components/NewEmptyBookModal.vue';
+import { useBookActions } from '../composables/useBookActions';
 import { useBookStore } from '../composables/useBookStore';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
 import { useBookPagination } from '../composables/useBookPagination';
@@ -138,6 +157,7 @@ import { useBooksRouteQuery } from '../composables/useBooksRouteQuery';
 import { useBooksSearch } from '../composables/useBooksSearch';
 import { useBooksSort, type BookSortKey, type SortOrder } from '../composables/useBooksSort';
 import { useServerMode } from '../composables/useServerMode';
+import { filterBooksBySearch } from '../utils/bookSearch';
 import { hasFileTransfer, readDroppedFiles } from '../utils/file';
 import { getLayerPath, layerPathEquals, normalizeLayerPath } from '../utils/layers';
 import { useI18n } from '../i18n';
@@ -173,13 +193,55 @@ const {
 const booksLoaded = ref<boolean>(false);
 const isNewEmptyBookModalOpen = ref(false);
 const { readOnly } = useServerMode();
-const hasInitializedSearch = ref(false);
 const droppedFiles = ref<File[]>([]);
 
 async function reloadBooks(): Promise<void> {
   booksLoaded.value = false;
-  await fetchBooks(committedSearch.value.trim());
+  await fetchBooks();
   booksLoaded.value = true;
+}
+
+const {
+  canOpenBookFolder,
+  actionError,
+  deleteTarget,
+  deleting,
+  goRead,
+  goEdit,
+  openBookFolder,
+  downloadBook,
+  requestDelete,
+  cancelDelete,
+  confirmDelete
+} = useBookActions({
+  onDeleted: () => {
+    void reloadBooks();
+  }
+});
+
+function findBook(id: string): Book | undefined {
+  return books.value.find((candidate) => candidate.id === id);
+}
+
+function onOpenBookFolder(id: string): void {
+  void openBookFolder(id);
+}
+
+function onDownloadBook(id: string): void {
+  const book = findBook(id);
+  if (book) {
+    void downloadBook(book);
+  }
+}
+
+function onRequestDeleteBook(id: string): void {
+  if (readOnly.value) {
+    return;
+  }
+  const book = findBook(id);
+  if (book) {
+    requestDelete(book);
+  }
 }
 
 const isRootLayerSelected = computed(() => selectedLayer.value === ROOT_LAYER_LABEL);
@@ -221,7 +283,8 @@ function matchesLayer(book: Book): boolean {
   return layerPathEquals(getLayerPath(book), selectedLayer.value);
 }
 
-const filteredBooks = computed(() => books.value.filter((book) => matchesLayer(book)));
+const searchedBooks = computed(() => filterBooksBySearch(books.value, committedSearch.value));
+const filteredBooks = computed(() => searchedBooks.value.filter((book) => matchesLayer(book)));
 const {
   SORT_OPTIONS,
   sortedBooks
@@ -444,6 +507,7 @@ function openBook(id: string): void {
 
 
 onMounted(() => {
+  void reloadBooks();
   document.addEventListener('dragover', onDocumentDragOver);
   document.addEventListener('drop', onDocumentDrop);
 });
@@ -457,16 +521,11 @@ watch(selectedLayer, async () => {
   await reloadBooks();
 });
 
-// Watch committed search: update URL and fetch from backend
+// Watch committed search: keep the URL in sync and reset to page 1.
+// Filtering itself is a pure computed (searchedBooks) — no refetch needed.
 watch(
   committedSearch,
-  async (newSearch) => {
-    if (!hasInitializedSearch.value) {
-      hasInitializedSearch.value = true;
-      await reloadBooks();
-      return;
-    }
-
+  (newSearch) => {
     void replaceBooksQuery({
       layer: selectedLayer.value,
       page: 1,
@@ -474,9 +533,7 @@ watch(
       sort: sortBy.value,
       order: sortOrder.value
     });
-    await reloadBooks();
-  },
-  { immediate: true }
+  }
 );
 
 watch(
@@ -484,6 +541,13 @@ watch(
   ([layer, currentPage, maxPage, hasLoaded]) => {
     const normalizedPage = hasLoaded ? Math.min(currentPage, maxPage) : currentPage;
     const currentSearch = committedSearch.value.trim();
+
+    // Committing a search changes totalPages in the same tick, before the
+    // page-1 replace above lands. Normalizing with the stale page here would
+    // override that reset, so wait until the route reflects the new search.
+    if (currentSearch !== searchQuery.value) {
+      return;
+    }
 
     if (isBooksQueryNormalized({
       layer,

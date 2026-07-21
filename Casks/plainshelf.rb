@@ -1,6 +1,6 @@
 cask "plainshelf" do
-  version "0.0.0"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000"
+  version "0.7.0"
+  sha256 "fe64aa74c18d6bed0ca00f4d6b194d7b35ed03229d493db37dbe16afafcaaec0"
 
   url "https://github.com/voilelab/plainshelf/releases/download/v#{version}/plainshelf-desktop_v#{version}_darwin_arm64.zip"
   name "PlainShelf"
@@ -8,7 +8,7 @@ cask "plainshelf" do
   homepage "https://github.com/voilelab/plainshelf"
 
   depends_on arch: :arm64
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "PlainShelf.app"
 

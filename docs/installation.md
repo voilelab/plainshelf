@@ -1,11 +1,12 @@
 # Installation
 
 This page covers installing **prebuilt** PlainShelf releases. If you would
-rather build from source, see [Getting Started](getting-started.md).
+rather build from source, see [Local Development Setup](development/setup.md).
 
 Every tagged release publishes:
 
-- Prebuilt server archives for Linux, macOS, and Windows
+- A Homebrew cask for the macOS desktop client
+- Prebuilt server archives for Linux and macOS
 - A multi-architecture Docker image on the GitHub Container Registry (GHCR)
 
 Release artifacts live on the
@@ -17,7 +18,35 @@ Release artifacts live on the
 
 ---
 
-## Option 1 — Prebuilt server binary
+## Option 1 — Homebrew desktop app (macOS, Apple Silicon)
+
+The quickest way to install the desktop app on Apple Silicon Macs is with
+Homebrew:
+
+```bash
+brew install --cask voilelab/plainshelf/plainshelf
+```
+
+If you prefer to tap the repository explicitly first:
+
+```bash
+brew tap voilelab/plainshelf https://github.com/voilelab/plainshelf
+brew install --cask plainshelf
+```
+
+Upgrade with `brew upgrade --cask plainshelf`, uninstall with
+`brew uninstall --cask plainshelf`.
+
+The bundled `.app` is unsigned and unnotarized; the cask's `postflight`
+clears Gatekeeper's quarantine attribute so the app opens normally on
+first launch.
+
+For other platforms, build the desktop client from source — see
+[Local Setup](development/setup.md).
+
+---
+
+## Option 2 — Prebuilt server binary
 
 ### 1. Download
 
@@ -53,8 +82,10 @@ tar -xzf plainshelf_<version>_linux_amd64.tar.gz -C plainshelf
 cd plainshelf
 ```
 
-Each archive contains the `plainshelf-srv` binary, `LICENSE`, `README.md`,
-and a `config.sample.yaml` to use as a starting point.
+Each archive contains the `plainshelf-srv` binary, `LICENSE`, `README.md`, the
+version-matched `docs/` directory, the README preview image, and a
+`config.sample.yaml` to use as a starting point. The relative documentation
+links in `README.md` therefore work both online and from the extracted archive.
 
 !!! note "macOS Gatekeeper"
     The macOS binaries are unsigned. On first run you may need to clear the
@@ -76,7 +107,7 @@ By default the server listens on <http://127.0.0.1:20000>. See
 
 ---
 
-## Option 2 — Docker
+## Option 3 — Docker
 
 Tagged releases push a multi-arch (`linux/amd64`, `linux/arm64`) image to
 GHCR at `ghcr.io/voilelab/plainshelf`.
@@ -110,27 +141,6 @@ docker run --rm \
 
 For custom configuration and the bundled defaults, see the
 [Docker](development/docker.md) page.
-
----
-
-## Desktop client (macOS, Apple Silicon)
-
-Install via Homebrew:
-
-```bash
-brew tap voilelab/plainshelf https://github.com/voilelab/plainshelf
-brew install --cask voilelab/plainshelf/plainshelf
-```
-
-Upgrade with `brew upgrade --cask plainshelf`, uninstall with
-`brew uninstall --cask plainshelf`.
-
-The bundled `.app` is unsigned and unnotarized; the cask's `postflight`
-clears Gatekeeper's quarantine attribute so the app opens normally on
-first launch.
-
-For other platforms, build the desktop client from source — see
-[Local Setup](development/setup.md).
 
 ---
 

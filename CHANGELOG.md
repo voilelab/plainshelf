@@ -9,6 +9,39 @@ and UI behavior may still change between releases.
 
 ### Added
 
+- Added right-click context menus to book card view items, with actions for reading, viewing detail, opening the book folder (desktop only), downloading, editing, and deleting.
+- Added Zoom In, Zoom Out, and Reset Zoom commands to the desktop app View menu (⌘=, ⌘-, ⌘0), with zoom level persisted across sessions.
+- Added an experimental Android mobile app (a Capacitor shell around the existing frontend) that connects to a self-hosted PlainShelf server: first-run connection setup (server URL, optional access token, shelf selection) with a Settings entry to edit the connection later, persistent on-device caching of downloaded books and reading progress for offline reading (stored as app-private files via the Capacitor Filesystem plugin, exempt from WebView storage eviction), and native HTTP requests so plain-HTTP LAN servers work without CORS configuration.
+- Added the native Android project under `frontend/android/`, `just` recipes for building it (`mobile-add-android`, `mobile-sync`, `build-mobile-android`, `open-mobile-android`), and a README section covering prerequisites and server reachability.
+- Added PlainShelf launcher icons and splash screens (light and dark) for the Android app, generated from the brand images in `frontend/assets/` via `@capacitor/assets`.
+- Added a dashboard home page (now the default landing route, with a sidebar entry) with stats cards (total books, added this month, star distribution, total characters), a tag cloud, a random book pick, and a reading heatmap driven by live daily reading-time data.
+- Added server-side daily reading-time tracking (`POST`/`GET /api/shelves/:id/reading_activity`) backing the dashboard heatmap, plus an opt-in `char_count` field on the book list endpoint.
+- Added a mobile-friendly book detail layout on narrow viewports: centered hero cover, centered title, a full-width Read button with secondary actions in a two-column grid, and single-column metadata rows.
+- Added foldable sidebar sections (Layers, Reading, Maintenance, Admin) that collapse and expand independently.
+- Added first/last page buttons and numbered page buttons with ellipsis to the pagination controls, alongside the existing prev/next controls.
+
+### Changed
+
+- Changed the main layout sidebar to an off-canvas drawer with a topbar menu button on viewports up to 768px wide (phones and narrow windows); it closes on backdrop tap or navigation, and wide-viewport splitter behavior is unchanged.
+- Changed the book star rating input in the metadata editor to use reka-ui `RatingRoot` and `RatingItemIndicator`, aligning with the reka-ui component migration started in v0.7.0.
+- Removed the inline Edit button from book card view items; edit access is now exclusively through the right-click context menu.
+- Changed library search to pure frontend filtering instead of a backend query parameter, unifying case-insensitive title/author/tag/comment matching across desktop, mobile offline mode, and mock dev data.
+- Changed release archives to also include the README preview image and a version-matched copy of `docs/`, so the README's relative documentation links work from the extracted archive as well as online.
+
+### Fixed
+
+- Fixed the mobile app showing errors instead of downloaded books when the device has connectivity but the PlainShelf server is unreachable (e.g. on mobile data away from the home LAN); book listing, metadata, sources, covers, and reading progress now fall back to the on-device offline cache on transport failures and timeouts, while real server error responses are still surfaced.
+- Fixed resizable panel drag handles leaving all panel interactions unresponsive after a drag gesture; moved `hitAreaMargins` from an inline template literal to a module-level constant to prevent reka-ui drag-state corruption mid-drag.
+- Fixed scrollable content areas in the sidebar and main content panel after the reka-ui Splitter migration; added inner wrapper elements to work around `SplitterPanel`'s `overflow: hidden` inline style enforcement.
+- Fixed mobile book covers failing to load (showing as NO COVER) because Android WebView blocks mixed-content `<img>` requests against the app's `https://localhost` origin; covers are now fetched and rendered via `blob:` object URLs on mobile.
+- Fixed the library page landing on the wrong page number when committing or clearing a search with client-side filtering active.
+- Fixed the desktop app's Settings repository link opening inside the app window instead of the system browser.
+- Fixed the compiled server binary silently dropping underscore-prefixed frontend asset files (e.g. the shared Vue export-helper chunk) from the embedded build, which blanked most pages when served from the binary.
+
+## [v0.7.0] - 2026-07-05
+
+### Added
+
 - Added shelf creation and deletion confirmation modals to the frontend shelf management UI.
 - Added `scan_interval` configuration support when creating shelves through the settings UI.
 - Added `book_check_interval` shelf configuration option to rate-limit per-book staleness checks, reducing filesystem and network I/O on SMB mounts.

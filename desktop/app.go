@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,6 +38,8 @@ type DesktopShelfDetails struct {
 	Path         string `json:"path"`
 	ScanInterval string `json:"scan_interval"`
 }
+
+var openFinder = util.OpenFinder
 
 func NewDesktopApp() *DesktopApp {
 	return &DesktopApp{}
@@ -94,12 +98,35 @@ func (a *DesktopApp) GetAPIHandler() http.Handler {
 	return a.apiHandler
 }
 
+func (a *DesktopApp) OpenExternalURL(rawURL string) error {
+	rawURL = strings.TrimSpace(rawURL)
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed == nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return util.Errorf("invalid external URL: %q", rawURL)
+	}
+
+	wailsruntime.BrowserOpenURL(a.ctx, parsed.String())
+	return nil
+}
+
 func (a *DesktopApp) PreviousPage() {
 	a.navigateHistory(-1)
 }
 
 func (a *DesktopApp) NextPage() {
 	a.navigateHistory(1)
+}
+
+func (a *DesktopApp) ZoomIn() {
+	a.runZoomScript("in")
+}
+
+func (a *DesktopApp) ZoomOut() {
+	a.runZoomScript("out")
+}
+
+func (a *DesktopApp) ResetZoom() {
+	a.runZoomScript("reset")
 }
 
 func (a *DesktopApp) OpenBookFiles() ([]string, error) {
@@ -114,13 +141,55 @@ func (a *DesktopApp) OpenBookFiles() ([]string, error) {
 	return normalizeSelectedLocalPaths(paths), nil
 }
 
+func (a *DesktopApp) SaveBookContent(shelfID, bookID, suggestedName string) error {
+	if a.ctx == nil {
+		return util.NewError("desktop context not ready")
+	}
+
+	savePath, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
+		DefaultFilename: suggestedName,
+		Title:           "Save book",
+		Filters: []wailsruntime.FileFilter{
+			{
+				DisplayName: "Text Files (*.txt)",
+				Pattern:     "*.txt",
+			},
+		},
+	})
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	if savePath == "" {
+		return nil // user cancelled
+	}
+
+	apiPath, err := url.JoinPath("/api/shelves", shelfID, "books", bookID, "content")
+	if err != nil {
+		return util.Errorf("building content path: %w", err)
+	}
+	req := httptest.NewRequest(http.MethodGet, apiPath, nil).WithContext(a.ctx)
+
+	rec := httptest.NewRecorder()
+	a.GetAPIHandler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		return util.Errorf("fetching book content: HTTP %d", rec.Code)
+	}
+
+	if err := os.WriteFile(savePath, rec.Body.Bytes(), 0o600); err != nil {
+		return util.Errorf("writing file: %w", err)
+	}
+
+	return nil
+}
+
 func bookOpenDialogOptions() wailsruntime.OpenDialogOptions {
 	return wailsruntime.OpenDialogOptions{
 		Title: "Select books to import",
 		Filters: []wailsruntime.FileFilter{
 			{
-				DisplayName: "Text Files (*.txt)",
-				Pattern:     "*.txt",
+				DisplayName: "Text Files (*.txt, *.md)",
+				Pattern:     "*.txt;*.md",
 			},
 		},
 	}
@@ -189,6 +258,19 @@ func (a *DesktopApp) navigateHistory(step int) {
 	wailsruntime.WindowExecJS(a.ctx, script)
 }
 
+func (a *DesktopApp) runZoomScript(action string) {
+	if a.ctx == nil {
+		return
+	}
+
+	script := zoomScript(action)
+	if script == "" {
+		return
+	}
+
+	wailsruntime.WindowExecJS(a.ctx, script)
+}
+
 func (a *DesktopApp) OpenShelfDirectory() (string, error) {
 	if a.ctx == nil {
 		return "", nil
@@ -200,6 +282,132 @@ func (a *DesktopApp) OpenShelfDirectory() (string, error) {
 		return "", util.Errorf("%w", err)
 	}
 	return dir, nil
+}
+
+func resolveDesktopLayerDirectory(libRoot string, layerParts []string) (string, error) {
+	normalizedRoot, err := normalizeDesktopShelfDirectory(libRoot)
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+
+	booksRoot := filepath.Clean(filepath.Join(normalizedRoot, "books"))
+	targetPathParts := append([]string{booksRoot}, layerParts...)
+	targetDir := filepath.Clean(filepath.Join(targetPathParts...))
+
+	relPath, err := filepath.Rel(booksRoot, targetDir)
+	if err != nil {
+		return "", util.Errorf("resolving layer directory: %w", err)
+	}
+	if relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
+		return "", util.Errorf("invalid layer path")
+	}
+
+	return targetDir, nil
+}
+
+func (a *DesktopApp) OpenLayerDirectory(shelfID string, layerParts []string) error {
+	shelfID = strings.TrimSpace(shelfID)
+	if shelfID == "" {
+		return util.Errorf("shelf ID cannot be empty")
+	}
+
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		return util.Errorf("loading shelf config: %w", err)
+	}
+
+	var libRoot string
+	for _, entry := range conf.Shelves {
+		if entry.ID == shelfID {
+			libRoot = entry.LibRoot
+			break
+		}
+	}
+	if libRoot == "" {
+		return util.Errorf("shelf with ID %q not found", shelfID)
+	}
+
+	// normalizeLayerParts trims user-provided segments and drops empty entries;
+	// resolveDesktopLayerDirectory then enforces that the final path stays under
+	// <shelf>/books.
+	targetDir, err := resolveDesktopLayerDirectory(libRoot, normalizeLayerParts(layerParts))
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	info, err := os.Stat(targetDir)
+	if err != nil {
+		return util.Errorf("layer directory unavailable: %w", err)
+	}
+	if !info.IsDir() {
+		return util.Errorf("layer path is not a directory")
+	}
+
+	if err := openFinder(targetDir); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
+}
+
+func (a *DesktopApp) OpenBookDirectory(shelfID, bookID string) error {
+	if a.app == nil {
+		return util.NewError("desktop backend app instance is nil")
+	}
+
+	shelfID = strings.TrimSpace(shelfID)
+	if shelfID == "" {
+		return util.Errorf("shelf ID cannot be empty")
+	}
+
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		return util.Errorf("loading shelf config: %w", err)
+	}
+
+	var libRoot string
+	for _, entry := range conf.Shelves {
+		if entry.ID == shelfID {
+			libRoot = entry.LibRoot
+			break
+		}
+	}
+	if libRoot == "" {
+		return util.Errorf("shelf with ID %q not found", shelfID)
+	}
+
+	relativeBookPath, err := a.app.GetBookFolderPath(shelfID, bookID)
+	if err != nil {
+		return util.Errorf("resolving book directory: %w", err)
+	}
+
+	normalizedRoot, err := normalizeDesktopShelfDirectory(libRoot)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	targetDir := filepath.Clean(filepath.Join(normalizedRoot, filepath.FromSlash(relativeBookPath)))
+
+	relPath, err := filepath.Rel(normalizedRoot, targetDir)
+	if err != nil {
+		return util.Errorf("resolving book directory: %w", err)
+	}
+	if relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
+		return util.Errorf("invalid book path")
+	}
+
+	info, err := os.Stat(targetDir)
+	if err != nil {
+		return util.Errorf("book directory unavailable: %w", err)
+	}
+	if !info.IsDir() {
+		return util.Errorf("book path is not a directory")
+	}
+
+	if err := openFinder(targetDir); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
 }
 
 func (a *DesktopApp) AddShelf(name, libRoot, scanInterval string) error {

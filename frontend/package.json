@@ -1,6 +1,6 @@
 {
   "name": "plainshelf",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "private": true,
   "license": "BSD-3-Clause",
   "type": "module",
@@ -8,19 +8,28 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
+    "test": "vitest run",
     "check-licenses": "license-checker --production --excludePrivatePackages --failOn \"UNLICENSED;UNKNOWN\""
   },
   "dependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
+    "@capacitor/filesystem": "^6.0.4",
+    "@capacitor/preferences": "^6.0.4",
+    "idb": "^8.0.3",
     "reka-ui": "~2.10.1",
     "vue": "^3.5.12",
     "vue-router": "^4.4.5"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.2.1",
     "@types/node": "^22.7.5",
     "@vitejs/plugin-vue": "^6.0.7",
     "license-checker": "^25.0.1",
     "typescript": "^5.6.2",
     "vite": "^8.0.16",
+    "vitest": "^4.1.10",
     "vue-tsc": "^2.1.6"
   }
 }

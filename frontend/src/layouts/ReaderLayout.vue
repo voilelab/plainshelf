@@ -11,7 +11,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { getActiveShelfID } from '../api/client';
 import { ensureActiveShelf, listShelves } from '../api/shelves';
+import { isMobileRuntime } from '../providers/runtime';
 import { useI18n } from '../i18n';
 
 const { t } = useI18n();
@@ -29,7 +31,9 @@ onMounted(async () => {
   try {
     activeShelfID.value = ensureActiveShelf(await listShelves());
   } catch {
-    activeShelfID.value = '';
+    // Offline mobile falls back to the shelf persisted during connection
+    // setup so downloaded books stay readable from the local cache.
+    activeShelfID.value = isMobileRuntime() ? getActiveShelfID() : '';
   } finally {
     shelvesLoaded.value = true;
     shelvesLoading.value = false;
@@ -39,8 +43,8 @@ onMounted(async () => {
 
 <style scoped>
 .reader-layout {
-  height: 100vh;
-  width: 100vw;
+  height: calc(100vh / var(--app-zoom, 1));
+  width: calc(100vw / var(--app-zoom, 1));
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -62,7 +66,7 @@ onMounted(async () => {
   position: fixed;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(560px, calc(100vw - 48px));
+  width: min(560px, calc(100vw / var(--app-zoom, 1) - 48px));
 }
 
 .reader-no-shelf h2,

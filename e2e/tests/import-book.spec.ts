@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { startServer } from './support/server';
-import { importHelloBook, createCoverDataTransfer } from './support/books';
+import { importHelloBook, importBookFromPath, createCoverDataTransfer, helloMarkdownFixturePath } from './support/books';
 
 test('should import a txt book from the UI and render it in the reader', async ({ page }) => {
   const server = await startServer();
@@ -19,6 +19,37 @@ test('should import a txt book from the UI and render it in the reader', async (
     await expect(page.getByRole('heading', { name: 'hello', exact: true })).toBeVisible();
     await expect(page.getByText('Hello from PlainShelf E2E.')).toBeVisible();
     await expect(page.getByText('This text came from a real uploaded TXT file.')).toBeVisible();
+  } finally {
+    await server.dispose();
+  }
+});
+
+test('should import a markdown book from the UI and render it as formatted markdown', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
+    await expect(page.getByText('No books yet.')).toBeVisible();
+
+    await importBookFromPath(page, helloMarkdownFixturePath);
+
+    await expect(page.getByText('1 books')).toBeVisible();
+    const bookTitle = page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true });
+    await expect(bookTitle).toBeVisible();
+    await bookTitle.click();
+
+    await expect(page).toHaveURL(/\/books\/[^/]+$/);
+    await expect(page.getByRole('button', { name: 'Read' })).toBeVisible();
+    await page.getByRole('button', { name: 'Read' }).click();
+
+    await expect(page).toHaveURL(/\/reader\/[^/]+$/);
+    await expect(page.getByRole('heading', { name: 'hello', exact: true })).toBeVisible();
+    // Markdown source must be rendered as formatted content, so the "#" heading
+    // marker becomes an actual heading element rather than literal text.
+    await expect(page.getByRole('heading', { name: 'Hello Markdown' })).toBeVisible();
+    await expect(page.getByText('# Hello Markdown')).not.toBeVisible();
+    await expect(page.getByText('This text came from a real uploaded MD file.')).toBeVisible();
   } finally {
     await server.dispose();
   }

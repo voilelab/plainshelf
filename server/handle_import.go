@@ -16,6 +16,9 @@ import (
 const maxImportBodySize = 100 << 20 // 100 MB
 
 const importTextMediaType = "text/plain"
+const importMarkdownMediaType = "text/markdown"
+const importXMarkdownMediaType = "text/x-markdown"
+const importOctetStreamMediaType = "application/octet-stream"
 
 func parseImportLayerParts(rawLayer string) []string {
 	trimmed := strings.TrimSpace(rawLayer)
@@ -44,27 +47,64 @@ func parseImportLayerParts(rawLayer string) []string {
 	return parts
 }
 
+// isSupportedImportExt reports whether ext (as returned by filepath.Ext, lower-cased
+// by the caller) is one of the file types accepted for book import.
+func isSupportedImportExt(ext string) bool {
+	return ext == ".txt" || ext == ".md"
+}
+
+// bookFormatFromFilename derives the BookMeta.Format value ("txt" or "md") from a
+// filename's extension. Callers must have already validated the extension is supported.
+func bookFormatFromFilename(filename string) string {
+	if strings.ToLower(filepath.Ext(filename)) == ".md" {
+		return "md"
+	}
+	return "txt"
+}
+
 func validateImportFileHeader(header *multipart.FileHeader) error {
 	if header == nil {
 		return util.NewError("missing required field: file")
 	}
 
 	filename := strings.TrimSpace(header.Filename)
-	if strings.ToLower(filepath.Ext(filename)) != ".txt" {
-		return util.NewError("book file must be a .txt file")
+	ext := strings.ToLower(filepath.Ext(filename))
+	if !isSupportedImportExt(ext) {
+		return util.NewError("book file must be a .txt or .md file")
 	}
 
 	contentType := strings.TrimSpace(header.Header.Get("Content-Type"))
+
+	if ext == ".txt" {
+		if contentType == "" {
+			return util.NewError("book file content type must be text/plain")
+		}
+
+		mediaType, _, err := mime.ParseMediaType(contentType)
+		if err != nil || strings.ToLower(mediaType) != importTextMediaType {
+			return util.NewError("book file content type must be text/plain")
+		}
+
+		return nil
+	}
+
+	// ext == ".md": browsers disagree on what content type to send for Markdown
+	// uploads (some send text/markdown, some text/plain, some application/octet-stream,
+	// some nothing at all), so the extension is the primary signal here.
 	if contentType == "" {
-		return util.NewError("book file content type must be text/plain")
+		return nil
 	}
 
 	mediaType, _, err := mime.ParseMediaType(contentType)
-	if err != nil || strings.ToLower(mediaType) != importTextMediaType {
-		return util.NewError("book file content type must be text/plain")
+	if err != nil {
+		return util.NewError("book file content type must be text/markdown or text/plain")
 	}
-
-	return nil
+	switch strings.ToLower(mediaType) {
+	case importTextMediaType, importMarkdownMediaType, importXMarkdownMediaType, importOctetStreamMediaType:
+		return nil
+	default:
+		return util.NewError("book file content type must be text/markdown or text/plain")
+	}
 }
 
 func validateLocalImportPath(localPath string) (string, error) {
@@ -72,8 +112,8 @@ func validateLocalImportPath(localPath string) (string, error) {
 	if cleanPath == "." {
 		return "", util.NewError("book file path is required")
 	}
-	if strings.ToLower(filepath.Ext(cleanPath)) != ".txt" {
-		return "", util.NewError("book file must be a .txt file")
+	if !isSupportedImportExt(strings.ToLower(filepath.Ext(cleanPath))) {
+		return "", util.NewError("book file must be a .txt or .md file")
 	}
 
 	info, err := os.Stat(cleanPath)
@@ -158,6 +198,7 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 
 	meta := newBook.GetMeta()
 	meta.Language = detectBookLang(newBook)
+	meta.Format = bookFormatFromFilename(header.Filename)
 	if err := newBook.SetMeta(meta); err != nil {
 		app.Error("failed to set book meta", "error", err)
 	}
@@ -217,6 +258,7 @@ func (app *App) ImportFromLocalPath(shelfID string, localPath string, layerParts
 
 	meta := newBook.GetMeta()
 	meta.Language = detectBookLang(newBook)
+	meta.Format = bookFormatFromFilename(cleanPath)
 	if err := newBook.SetMeta(meta); err != nil {
 		app.Error("failed to set book meta", "error", err)
 	}

@@ -1,111 +1,107 @@
 # Local Development Setup
 
-This page covers everything you need to build and run PlainShelf from source.
+Use this page to build, test, and run PlainShelf from source. For release
+installation, see [Installation](../installation.md).
 
 ## Prerequisites
 
-| Tool | Minimum version | Notes |
-|---|---|---|
-| Go | 1.26.1 | <https://go.dev/dl/> |
-| Node.js | 22 | <https://nodejs.org/> |
-| npm | bundled with Node.js | |
-| just | any recent | <https://github.com/casey/just> — task runner used throughout the docs |
+| Tool | Minimum version | Purpose |
+|---|---:|---|
+| Go | 1.26.1 | server, core library, desktop backend |
+| Node.js | 22 | frontend and end-to-end tests |
+| npm | bundled with Node.js | JavaScript dependencies |
+| just | recent | repository task runner |
+| zsh | recent | shell used by the `justfile` |
 
----
+Desktop development also needs the
+[Wails platform dependencies](https://wails.io/docs/gettingstarted/installation).
+Android development has [additional prerequisites](android.md).
 
-## Repository layout
+## Install dependencies
 
-```text
-cmd/
-└─ plainshelf-srv/  # server binary entrypoint
-
-shelf/              # core library (Go)
-server/             # HTTP server (Go)
-frontend/           # Vue 3 web frontend
-internal/           # shared internal utilities (Go)
-desktop/            # Wails desktop client
-```
-
----
-
-## Frontend
-
-### Development server (mock data)
+From the repository root:
 
 ```bash
-cd frontend
-npm install
-VITE_USE_MOCK_API=true npm run dev
+npm --prefix frontend ci
 ```
 
-This starts Vite's hot-reload dev server at <http://localhost:5173> using built-in mock API responses — no backend required.
+The end-to-end package installs its own dependencies when `just test-e2e` runs.
 
-### Production build
+## Frontend-only development
+
+Use mock data when backend behavior is not needed:
 
 ```bash
-cd frontend
-npm install
-npm run build
+VITE_USE_MOCK_API=true npm --prefix frontend run dev
 ```
 
-The compiled output lands in `frontend/dist/` and is embedded into the Go binary by `frontend/web.go`.
+Vite serves the UI at <http://localhost:5173>.
 
----
+## Run the local server
 
-## Backend (Go server)
-
-The Go server embeds the compiled frontend at build time, so the frontend must be built before `go build` or `go test` will succeed.
-
-### Run the server
+The Go server embeds the built frontend, so build it first:
 
 ```bash
-# 1. Build the frontend (run `npm --prefix frontend install` once first)
 just build-server-frontend
-
-# 2. Create a workspace
-mkdir workspace
-cp cmd/plainshelf-srv/conf/config.yaml workspace/
-
-# 3. Start the server
+mkdir -p workspace
+cp cmd/plainshelf-srv/conf/config.yaml workspace/config.yaml
 cd workspace
 go run ../cmd/plainshelf-srv/main.go -conf config.yaml
 ```
 
-The server is available at <http://127.0.0.1:20000>.
+Open <http://127.0.0.1:20000>. The sample config stores data below the current
+working directory and protects mutating API requests with an ephemeral local
+token injected into the served frontend.
 
-### Run tests
+## Run checks
 
-```bash
-just test-go
-```
+| Scope | Command |
+|---|---|
+| Frontend unit tests | `npm --prefix frontend test` |
+| Frontend type-check and build | `npm --prefix frontend run build` |
+| Go server and desktop tests | `just test-go` |
+| End-to-end tests | `just test-e2e` |
 
-End-to-end tests run via Playwright:
+Run the narrowest relevant check while iterating, then run the full check for
+every area changed before opening a pull request.
 
-```bash
-just test-e2e
-```
+## Versioning
 
----
+Git release tags are the source of truth for the PlainShelf product version.
+Tags must use `vMAJOR.MINOR.PATCH` with an optional SemVer prerelease suffix,
+such as `v0.8.0` or `v0.8.0-beta.1`. Build scripts derive development versions
+from the latest release tag, the number of subsequent commits, and the current
+commit hash.
+
+The server and the Settings **About** section expose the full build version. A
+macOS bundle uses the numeric `MAJOR.MINOR.PATCH` core required by the platform,
+so a `v0.8.0-beta.1` build reports `0.8.0` in its bundle metadata while retaining
+the full prerelease version in the app. The private frontend and end-to-end npm
+packages stay at `0.0.0`; their package metadata is not a product version.
+
+The Homebrew cask records the latest stable release and is updated after a
+release artifact exists by running `scripts/update-cask.sh <tag>`.
 
 ## Desktop app
-
-The desktop client uses [Wails](https://wails.io/).
-
-Run it in development mode:
 
 ```bash
 just run-desktop
 ```
 
-Produce a release build:
+Create a release-style desktop build with `just build-desktop`.
 
-```bash
-just build-desktop
-```
+## Android app
 
----
+The Android client is experimental and reuses the Vue frontend through
+Capacitor. See [Android Development](android.md) for setup and device networking.
+
+## Docker image
+
+See [Docker](docker.md) to build and run the repository's container image.
 
 ## Code style
 
-- Go: follow standard `gofmt` formatting.
-- TypeScript/Vue: the project uses Vite + `vue-tsc` for type checking. Run `npm run build` in `frontend/` to validate types.
+- Format Go with `gofmt` and keep `go test` green.
+- Validate Vue and TypeScript with the frontend build.
+- Add or update tests when behavior changes.
+- Keep user-facing behavior in `docs/` and release notes in `CHANGELOG.md`.

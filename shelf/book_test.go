@@ -2,10 +2,12 @@ package shelf
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -208,6 +210,66 @@ func TestSetCover(t *testing.T) {
 	}
 }
 
+func TestDeleteCoverAndETag(t *testing.T) {
+	tmpLib := t.TempDir()
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("OpenRoot: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := createBook(rootFS, newLoggerForTest(), "test-book", "test-book", "Test Book")
+	if err != nil {
+		t.Fatalf("createBook: %v", err)
+	}
+	if etag := book.CoverETag(); etag != "" {
+		t.Fatalf("ETag without cover = %q, want empty", etag)
+	}
+	if err := book.SetCover([]byte("cover bytes"), ".png"); err != nil {
+		t.Fatalf("SetCover: %v", err)
+	}
+	if etag := book.CoverETag(); etag == "" {
+		t.Fatal("ETag with cover is empty")
+	}
+
+	if err := book.DeleteCover(); err != nil {
+		t.Fatalf("DeleteCover: %v", err)
+	}
+	if book.GetMeta().Cover != "" {
+		t.Fatalf("cover metadata = %q, want empty", book.GetMeta().Cover)
+	}
+	data, ext, err := book.OpenCover()
+	if err != nil {
+		t.Fatalf("OpenCover after delete: %v", err)
+	}
+	if data != nil || ext != "" {
+		t.Fatalf("OpenCover after delete = (%v, %q), want (nil, empty)", data, ext)
+	}
+	if _, err := os.Stat(path.Join(tmpLib, "test-book", "cover.png")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("deleted cover stat error = %v, want os.ErrNotExist", err)
+	}
+	if err := book.DeleteCover(); err != nil {
+		t.Fatalf("second DeleteCover: %v", err)
+	}
+}
+
+func TestNewLayersFromString(t *testing.T) {
+	tests := []struct {
+		input string
+		want  Layers
+	}{
+		{input: "", want: nil},
+		{input: "fiction", want: Layers{"fiction"}},
+		{input: " fiction / classics ", want: Layers{"fiction", "classics"}},
+	}
+	for _, tt := range tests {
+		if got := NewLayersFromString(tt.input); !got.Equal(tt.want) {
+			t.Errorf("NewLayersFromString(%q) = %#v, want %#v", tt.input, got, tt.want)
+		}
+	}
+}
+
 func TestNewSource(t *testing.T) {
 	tmpLib := path.Join(t.TempDir())
 	tmpRoot, err := os.OpenRoot(tmpLib)
@@ -272,7 +334,7 @@ func TestNewSourceSameSecond(t *testing.T) {
 
 	const n = 5
 	wantContent := make(map[string]string, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		text := fmt.Sprintf("content-%d", i)
 		src, err := book.NewSource(bytes.NewReader([]byte(text)))
 		if err != nil {
@@ -513,3 +575,189 @@ func TestSetMetaMarksOtherInstanceStale(t *testing.T) {
 	}
 }
 
+// TestSetMetaMigratesLegacyPublishedAt verifies the lazy migration of the
+// published_at field: a book.json still holding a full RFC3339 timestamp
+// (as written by older versions using JSONTime) loads as a date, and the next
+// SetMeta persists it back in date-only form.
+func TestSetMetaMigratesLegacyPublishedAt(t *testing.T) {
+	tmpLib := t.TempDir()
+	bookID := "legacy-book-a38j"
+	bookDir := path.Join(tmpLib, bookID)
+	if err := os.MkdirAll(bookDir, 0o755); err != nil {
+		t.Fatalf("Failed to create book dir: %v", err)
+	}
+
+	legacyMeta := `{
+  "id": "legacy-book-a38j",
+  "title": "Legacy Book",
+  "cover": "",
+  "authors": [],
+  "language": "en",
+  "comments": "",
+  "star": 0,
+  "published_at": "2026-03-15T08:30:00Z",
+  "current_source": ""
+}`
+	if err := os.WriteFile(path.Join(bookDir, BookMetaFile), []byte(legacyMeta), 0o644); err != nil {
+		t.Fatalf("Failed to write legacy book.json: %v", err)
+	}
+
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := openBook(rootFS, newLoggerForTest(), bookID)
+	if err != nil {
+		t.Fatalf("Failed to open legacy book: %v", err)
+	}
+
+	meta := book.GetMeta()
+	if y, m, d := time.Time(meta.PublishedAt).Date(); y != 2026 || m != time.March || d != 15 {
+		t.Errorf("Expected PublishedAt 2026-03-15, got %04d-%02d-%02d", y, m, d)
+	}
+
+	if err := book.SetMeta(meta); err != nil {
+		t.Fatalf("Failed to set meta: %v", err)
+	}
+
+	written, err := os.ReadFile(path.Join(bookDir, BookMetaFile))
+	if err != nil {
+		t.Fatalf("Failed to read back book.json: %v", err)
+	}
+	if !strings.Contains(string(written), `"published_at": "2026-03-15"`) {
+		t.Errorf("Expected date-only published_at in written book.json, got:\n%s", written)
+	}
+	if strings.Contains(string(written), "2026-03-15T") {
+		t.Errorf("Written book.json still contains a full timestamp:\n%s", written)
+	}
+}
+
+// TestIdentifiersRoundTrip verifies that Identifiers survive a SetMeta →
+// persist → reopen cycle, and that GetMeta returns an independent copy of
+// the map so mutating it does not leak back into the book's internal state.
+func TestIdentifiersRoundTrip(t *testing.T) {
+	tmpLib := path.Join(t.TempDir())
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	bookID := "test-book-a38j"
+	title := "Test Book"
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+
+	meta := book.GetMeta()
+	meta.Identifiers = map[string]string{"isbn": "978-0-13-468599-1", "douban": "12345"}
+	if err := book.SetMeta(meta); err != nil {
+		t.Fatalf("Failed to set book meta with identifiers: %v", err)
+	}
+
+	// Mutating the map returned by GetMeta must not affect the book's internal state.
+	returned := book.GetMeta()
+	returned.Identifiers["isbn"] = "mutated"
+	fresh := book.GetMeta()
+	if fresh.Identifiers["isbn"] != "978-0-13-468599-1" {
+		t.Fatalf("Mutating the map returned by GetMeta leaked into internal state: %#v", fresh.Identifiers)
+	}
+
+	// Reopen the book from disk and confirm the identifiers persisted.
+	reopened, err := openBook(rootFS, newLoggerForTest(), bookID)
+	if err != nil {
+		t.Fatalf("Failed to reopen book: %v", err)
+	}
+	reopenedMeta := reopened.GetMeta()
+	if len(reopenedMeta.Identifiers) != 2 || reopenedMeta.Identifiers["isbn"] != "978-0-13-468599-1" || reopenedMeta.Identifiers["douban"] != "12345" {
+		t.Fatalf("Identifiers did not round-trip through disk, got: %#v", reopenedMeta.Identifiers)
+	}
+}
+
+// TestIdentifiersLegacyCompat verifies that a book.json written before the
+// identifiers field existed still opens successfully (Identifiers is nil),
+// and that a subsequent SetMeta without identifiers does not introduce an
+// "identifiers" key into the persisted JSON.
+func TestIdentifiersLegacyCompat(t *testing.T) {
+	tmpLib := t.TempDir()
+	bookID := "legacy-book-b91k"
+	bookDir := path.Join(tmpLib, bookID)
+	if err := os.MkdirAll(bookDir, 0o755); err != nil {
+		t.Fatalf("Failed to create book dir: %v", err)
+	}
+
+	legacyMeta := `{
+  "id": "legacy-book-b91k",
+  "title": "Legacy Book",
+  "cover": "",
+  "authors": [],
+  "language": "en",
+  "comments": "",
+  "star": 0,
+  "current_source": ""
+}`
+	if err := os.WriteFile(path.Join(bookDir, BookMetaFile), []byte(legacyMeta), 0o644); err != nil {
+		t.Fatalf("Failed to write legacy book.json: %v", err)
+	}
+
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := openBook(rootFS, newLoggerForTest(), bookID)
+	if err != nil {
+		t.Fatalf("Failed to open legacy book: %v", err)
+	}
+
+	meta := book.GetMeta()
+	if meta.Identifiers != nil {
+		t.Fatalf("Expected nil Identifiers for legacy book.json, got: %#v", meta.Identifiers)
+	}
+
+	if err := book.SetMeta(meta); err != nil {
+		t.Fatalf("Failed to set meta: %v", err)
+	}
+
+	written, err := os.ReadFile(path.Join(bookDir, BookMetaFile))
+	if err != nil {
+		t.Fatalf("Failed to read back book.json: %v", err)
+	}
+	if strings.Contains(string(written), "identifiers") {
+		t.Errorf("Expected written book.json to omit identifiers key, got:\n%s", written)
+	}
+}
+
+// TestSetMetaRejectsEmptyIdentifierKey verifies that SetMeta rejects
+// identifiers with a blank (or whitespace-only) key.
+func TestSetMetaRejectsEmptyIdentifierKey(t *testing.T) {
+	tmpLib := path.Join(t.TempDir())
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	bookID := "test-book-a38j"
+	title := "Test Book"
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+
+	meta := book.GetMeta()
+	meta.Identifiers = map[string]string{" ": "x"}
+	if err := book.SetMeta(meta); err == nil {
+		t.Fatalf("Expected error when setting identifier with empty key, got none")
+	}
+}

@@ -23,7 +23,7 @@
         <h3>Organization</h3>
         <label class="field">
           <span class="label">Published At</span>
-          <input v-model="publishedAtInput" class="input" type="datetime-local" />
+          <input v-model="publishedAtInput" class="input" type="date" />
         </label>
 
         <fieldset class="field rating-field">
@@ -113,6 +113,37 @@
             placeholder="Notes about this book"
           ></textarea>
         </label>
+
+        <div class="field">
+          <span class="label">Identifiers</span>
+          <div class="identifier-rows">
+            <div v-for="(row, index) in identifierRows" :key="index" class="identifier-row">
+              <input
+                v-model="row.key"
+                class="input identifier-key"
+                type="text"
+                placeholder="isbn"
+                :aria-label="`Identifier key ${index + 1}`"
+              />
+              <input
+                v-model="row.value"
+                class="input identifier-value"
+                type="text"
+                placeholder="9787020002207"
+                :aria-label="`Identifier value ${index + 1}`"
+              />
+              <button
+                class="identifier-remove"
+                type="button"
+                :aria-label="`Remove identifier ${row.key || index + 1}`"
+                @click="removeIdentifierRow(index)"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+          <button class="button" type="button" @click="addIdentifierRow">Add identifier</button>
+        </div>
       </section>
 
       <p v-if="error" class="error submit-error">{{ error }}</p>
@@ -196,6 +227,7 @@ const languageError = ref('');
 const comment = ref('');
 const publishedAtInput = ref('');
 const star = ref(0);
+const identifierRows = ref<{ key: string; value: string }[]>([]);
 const languageSelectOptions = computed(() =>
   LANGUAGE_SELECT_OPTIONS.map((option) => ({
     value: option.value === '' ? EMPTY_LANGUAGE_SELECT_VALUE : option.value,
@@ -228,8 +260,9 @@ watch(
     }
     languageError.value = '';
     comment.value = book.comment ?? '';
-    publishedAtInput.value = toDatetimeLocalValue(book.published_at);
+    publishedAtInput.value = toFormDateValue(book.published_at);
     star.value = normalizeStar(book.star);
+    identifierRows.value = Object.entries(book.identifiers ?? {}).map(([key, value]) => ({ key, value }));
   },
   { immediate: true }
 );
@@ -263,6 +296,21 @@ function focusTagInput(event: MouseEvent): void {
   (tagsInputRef.value as unknown as { $el?: HTMLInputElement } | null)?.$el?.focus();
 }
 
+function addIdentifierRow(): void {
+  identifierRows.value.push({ key: '', value: '' });
+}
+
+function removeIdentifierRow(index: number): void {
+  identifierRows.value.splice(index, 1);
+}
+
+function buildIdentifiersPayload(): Record<string, string> {
+  const entries = identifierRows.value
+    .map((row) => [row.key.trim(), row.value] as const)
+    .filter(([key]) => key.length > 0);
+  return Object.fromEntries(entries);
+}
+
 function onSubmit(): void {
   const rawLanguage = languagePreset.value === CUSTOM_LANGUAGE_VALUE ? customLanguage.value : languagePreset.value;
   if (languagePreset.value === CUSTOM_LANGUAGE_VALUE) {
@@ -281,8 +329,9 @@ function onSubmit(): void {
     tags: tags.value,
     language: normalizedLanguage || '',
     comment: comment.value.trim(),
-    published_at: fromDatetimeLocalValue(publishedAtInput.value),
-    star: star.value
+    published_at: publishedAtInput.value || undefined,
+    star: star.value,
+    identifiers: buildIdentifiersPayload()
   });
 }
 
@@ -293,27 +342,14 @@ function normalizeStar(rawValue: unknown): number {
   return Math.min(5, Math.max(0, Math.trunc(rawValue)));
 }
 
-function toDatetimeLocalValue(rawValue?: string): string {
+function toFormDateValue(rawValue?: string): string {
   if (!rawValue) {
     return '';
   }
-  const date = new Date(rawValue);
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
-  const localTime = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return localTime.toISOString().slice(0, 16);
-}
-
-function fromDatetimeLocalValue(rawValue: string): string | undefined {
-  if (!rawValue) {
-    return undefined;
-  }
-  const date = new Date(rawValue);
-  if (Number.isNaN(date.getTime())) {
-    return undefined;
-  }
-  return `${date.toISOString().slice(0, 19)}Z`;
+  // The HTML date input wants exactly "YYYY-MM-DD". The API already returns
+  // date-only values, so this slice is a no-op for them and a safety net if a
+  // full timestamp ever slips through.
+  return rawValue.slice(0, 10);
 }
 </script>
 
@@ -481,6 +517,43 @@ function fromDatetimeLocalValue(rawValue: string): string | undefined {
   font: inherit;
   color: inherit;
   padding: 4px 0;
+}
+
+.identifier-rows {
+  display: grid;
+  gap: 8px;
+}
+
+.identifier-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.identifier-key {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.identifier-value {
+  flex: 2 1 240px;
+  min-width: 0;
+}
+
+.identifier-remove {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.identifier-remove:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .field-help {

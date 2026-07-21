@@ -43,24 +43,52 @@ func handleShelfErr(w http.ResponseWriter, err error) bool {
 type Book struct {
 	Meta  *shelf.BookMeta `json:"meta"`
 	Layer shelf.Layers    `json:"layer"`
+
+	// CharCount is only populated when the request includes
+	// include=char_count; it is omitted otherwise, so the default response
+	// shape is unchanged.
+	CharCount int `json:"char_count,omitempty"`
 }
 
 type UpdateBookRequest struct {
-	Title       *string        `json:"title"`
-	Authors     *[]string      `json:"authors"`
-	Tags        *[]string      `json:"tags"`
-	Language    *string        `json:"language"`
-	Comment     *string        `json:"comment"`
-	Star        *int           `json:"star"`
-	PublishedAt *util.JSONTime `json:"published_at"`
-	Layer       *shelf.Layers  `json:"layer"`
-	Layers      *shelf.Layers  `json:"layers"`
+	Title       *string            `json:"title"`
+	Authors     *[]string          `json:"authors"`
+	Tags        *[]string          `json:"tags"`
+	Identifiers *map[string]string `json:"identifiers"`
+	Language    *string            `json:"language"`
+	Comment     *string            `json:"comment"`
+	Star        *int               `json:"star"`
+	PublishedAt *util.JSONDate     `json:"published_at"`
+	Layer       *shelf.Layers      `json:"layer"`
+	Layers      *shelf.Layers      `json:"layers"`
+}
+
+func (app *App) GetBookFolderPath(shelfID, bookID string) (string, error) {
+	shelfID = strings.TrimSpace(shelfID)
+	if shelfID == "" {
+		return "", util.Errorf("shelf ID cannot be empty")
+	}
+
+	bookID = strings.TrimSpace(bookID)
+	if bookID == "" {
+		return "", util.Errorf("book ID cannot be empty")
+	}
+
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	if !ok {
+		return "", util.Errorf("shelf with ID %q not found", shelfID)
+	}
+
+	book, err := shelfData.GetBook(bookID)
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+
+	return book.FolderPath(), nil
 }
 
 // GET /api/shelves/{shelf_id}/books
 func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
-	searchQuery := strings.TrimSpace(r.URL.Query().Get("search"))
-
 	shelfID, err := readShelfID(r)
 	if err != nil {
 		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
@@ -83,17 +111,12 @@ func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if searchQuery != "" {
-		newBooks := make([]*shelf.Book, 0)
-		for _, b := range books {
-			meta := b.GetMeta()
-			if strings.Contains(meta.Title, searchQuery) ||
-				strings.Contains(meta.Comments, searchQuery) {
-				newBooks = append(newBooks, b)
-				continue
-			}
+	includeCharCount := false
+	for inc := range strings.SplitSeq(r.URL.Query().Get("include"), ",") {
+		if strings.TrimSpace(inc) == "char_count" {
+			includeCharCount = true
+			break
 		}
-		books = newBooks
 	}
 
 	jsonBooks := make([]Book, len(books))
@@ -102,10 +125,16 @@ func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
 			Meta:  b.GetMeta(),
 			Layer: b.Layers(),
 		}
+		if includeCharCount {
+			// A single book with a broken/missing source shouldn't fail the
+			// whole list - just skip char_count for that book.
+			if source, srcErr := b.GetSource(b.CurrentSource()); srcErr == nil {
+				jsonBooks[i].CharCount = source.GetMeta().CharCount
+			}
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	// TBD: pagination?
 	err = json.NewEncoder(w).Encode(jsonBooks)
 	if err != nil {
 		app.Error("failed to encode response", "error", err)
@@ -292,6 +321,9 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 	if req.Tags != nil {
 		meta.Tags = append([]string(nil), (*req.Tags)...)
 	}
+	if req.Identifiers != nil {
+		meta.Identifiers = *req.Identifiers
+	}
 	if req.Language != nil {
 		meta.Language = *req.Language
 	}
@@ -311,6 +343,10 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 	meta.UpdatedAt = util.JSONTime(time.Now())
 
 	if err := book.SetMeta(&meta); err != nil {
+		if errors.Is(err, shelf.ErrInvalidIdentifierKey) {
+			http.Error(w, "identifier key cannot be empty", http.StatusBadRequest)
+			return
+		}
 		app.Error("failed to update book metadata", "error", err)
 		http.Error(w, "failed to update book metadata", http.StatusInternalServerError)
 		return

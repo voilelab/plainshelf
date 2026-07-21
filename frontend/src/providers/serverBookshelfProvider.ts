@@ -31,6 +31,7 @@ import {
   updateSourceContent
 } from '../api/sources';
 import { addReadHistory, clearReadHistory, listReadHistoryBooks } from '../api/readHistory';
+import { getReadingActivity, reportReadingActivity } from '../api/readingActivity';
 import type {
   BookmarkPayload,
   Book,
@@ -46,8 +47,8 @@ import type { SourceMeta } from '../types/source';
 import type { BookshelfProvider } from './bookshelfProvider';
 
 export class ServerBookshelfProvider implements BookshelfProvider {
-  listBooks(page?: number, pageSize?: number, search?: string): Promise<PaginatedBooks> {
-    return listBooks(page, pageSize, search);
+  listBooks(page?: number, pageSize?: number): Promise<PaginatedBooks> {
+    return listBooks(page, pageSize);
   }
 
   getBook(bookId: string): Promise<Book> {
@@ -100,6 +101,14 @@ export class ServerBookshelfProvider implements BookshelfProvider {
 
   clearReadHistory(): Promise<void> {
     return clearReadHistory();
+  }
+
+  getReadingActivity(from: string, to: string): Promise<Record<string, number>> {
+    return getReadingActivity(from, to);
+  }
+
+  reportReadingActivity(bookId: string, seconds: number, date: string): Promise<void> {
+    return reportReadingActivity(bookId, seconds, date);
   }
 
   importBook(payload: BookCreateRequest): Promise<Book> {

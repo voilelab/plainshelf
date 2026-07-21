@@ -33,15 +33,41 @@
       </SelectPortal>
     </SelectRoot>
 
-    <PaginationPrev class="button">{{ t('common.prev') }}</PaginationPrev>
-    <span>{{ t('common.page', { page, total: totalPages }) }}</span>
-    <PaginationNext class="button">{{ t('common.next') }}</PaginationNext>
+    <PaginationList v-slot="{ items }" class="pagination-list">
+      <PaginationFirst class="button page-button page-edge-button" aria-label="First page">
+        «
+      </PaginationFirst>
+      <PaginationPrev class="button page-button page-edge-button">{{ t('common.prev') }}</PaginationPrev>
+
+      <template v-for="(item, index) in items" :key="`${item.type}-${index}`">
+        <PaginationListItem
+          v-if="item.type === 'page'"
+          class="button page-button"
+          :value="item.value"
+        >
+          {{ item.value }}
+        </PaginationListItem>
+        <PaginationEllipsis v-else class="page-ellipsis" />
+      </template>
+
+      <PaginationNext class="button page-button page-edge-button">{{ t('common.next') }}</PaginationNext>
+      <PaginationLast class="button page-button page-edge-button" aria-label="Last page">
+        »
+      </PaginationLast>
+    </PaginationList>
+
+    <span class="page-summary">{{ t('common.page', { page, total: totalPages }) }}</span>
   </PaginationRoot>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import {
+  PaginationEllipsis,
+  PaginationFirst,
+  PaginationLast,
+  PaginationList,
+  PaginationListItem,
   PaginationNext,
   PaginationPrev,
   PaginationRoot,
@@ -91,6 +117,41 @@ function onPageSizeSelect(value: AcceptableValue): void {
   gap: 10px;
   justify-content: flex-end;
   margin-top: 16px;
+}
+
+.pagination-list {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.page-button {
+  min-width: 34px;
+  padding: 6px 10px;
+}
+
+.page-button[data-selected] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.page-ellipsis {
+  color: var(--muted);
+  min-width: 24px;
+  text-align: center;
+}
+
+.page-summary {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.page-edge-button {
+  white-space: nowrap;
 }
 
 .page-size-label {

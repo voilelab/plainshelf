@@ -184,15 +184,21 @@ func TestAPIGetBooksContract(t *testing.T) {
 	rec = env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+alpha.Meta.ID, strings.NewReader(patchBody)))
 	assertStatus(t, rec, http.StatusOK)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books?search=needle", nil))
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
 	assertStatus(t, rec, http.StatusOK)
 	books := decodeJSON[[]Book](t, rec)
-	if len(books) != 1 {
-		t.Fatalf("search returned %d books, want 1", len(books))
+	if len(books) != 2 {
+		t.Fatalf("list returned %d books, want 2", len(books))
 	}
-	got := books[0]
-	if got.Meta == nil || got.Meta.ID != alpha.Meta.ID || got.Meta.Title != "Alpha Tale" {
-		t.Fatalf("unexpected searched book meta: %#v", got.Meta)
+	var got *Book
+	for i := range books {
+		if books[i].Meta != nil && books[i].Meta.ID == alpha.Meta.ID {
+			got = &books[i]
+			break
+		}
+	}
+	if got == nil || got.Meta.Title != "Alpha Tale" {
+		t.Fatalf("unexpected book meta: %#v", got)
 	}
 	if got.Meta.Comments != "needle comment" || got.Meta.Language != "en" {
 		t.Fatalf("metadata fields not preserved in list response: %#v", got.Meta)
@@ -205,6 +211,29 @@ func TestAPIGetBooksContract(t *testing.T) {
 	}
 	if strings.Join(got.Layer, "/") != "fiction/adventure" {
 		t.Fatalf("layer = %#v, want fiction/adventure", got.Layer)
+	}
+}
+
+func TestAPIGetBooksCharCountContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	_ = importTextBook(t, env, "Char Count Me", "", "charcount.txt", "alpha body")
+
+	// Without include=char_count, the field must not appear in the response at all.
+	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if strings.Contains(rec.Body.String(), "char_count") {
+		t.Fatalf("response without include=char_count must not contain char_count field: %s", rec.Body.String())
+	}
+
+	// With include=char_count, every book carries a positive char_count.
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books?include=char_count", nil))
+	assertStatus(t, rec, http.StatusOK)
+	books := decodeJSON[[]Book](t, rec)
+	if len(books) != 1 {
+		t.Fatalf("list returned %d books, want 1", len(books))
+	}
+	if books[0].CharCount <= 0 {
+		t.Fatalf("char_count = %d, want > 0", books[0].CharCount)
 	}
 }
 
@@ -489,6 +518,84 @@ func TestAPIImportBookContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusBadRequest)
 }
 
+// importFileBook uploads a book file with an explicit filename and content type,
+// asserting the import succeeds. It complements importTextBook (which always
+// uses "text/plain; charset=utf-8") by letting callers exercise other
+// browser-supplied content types (e.g. for Markdown uploads).
+func importFileBook(t *testing.T, env *apiTestEnv, filename, contentType, body string) Book {
+	t.Helper()
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s"`, filename))
+	if contentType != "" {
+		h.Set("Content-Type", contentType)
+	}
+	part, err := writer.CreatePart(h)
+	if err != nil {
+		t.Fatalf("CreatePart: %v", err)
+	}
+	if _, err := io.Copy(part, strings.NewReader(body)); err != nil {
+		t.Fatalf("write multipart file: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close multipart writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/import", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rec := env.do(req)
+	assertStatus(t, rec, http.StatusCreated)
+	assertJSONContentType(t, rec)
+	return decodeJSON[Book](t, rec)
+}
+
+func TestAPIImportMarkdownBookContract(t *testing.T) {
+	env := newAPITestEnv(t)
+
+	// Browsers vary in what Content-Type they send for a .md upload; the
+	// extension is the primary signal, so all of these must succeed.
+	withMarkdownContentType := importFileBook(t, env, "notes.md", "text/markdown; charset=utf-8", "# Notes\n\nhello markdown")
+	if withMarkdownContentType.Meta == nil || withMarkdownContentType.Meta.Format != "md" {
+		t.Fatalf("unexpected imported book meta: %#v", withMarkdownContentType.Meta)
+	}
+
+	withTextPlainContentType := importFileBook(t, env, "plain-notes.md", "text/plain; charset=utf-8", "# Notes\n\nhello markdown")
+	if withTextPlainContentType.Meta == nil || withTextPlainContentType.Meta.Format != "md" {
+		t.Fatalf("unexpected imported book meta: %#v", withTextPlainContentType.Meta)
+	}
+
+	withNoContentType := importFileBook(t, env, "no-content-type.md", "", "# Notes\n\nhello markdown")
+	if withNoContentType.Meta == nil || withNoContentType.Meta.Format != "md" {
+		t.Fatalf("unexpected imported book meta: %#v", withNoContentType.Meta)
+	}
+
+	withXMarkdownContentType := importFileBook(t, env, "legacy-notes.md", "text/x-markdown; charset=utf-8", "# Notes\n\nhello markdown")
+	if withXMarkdownContentType.Meta == nil || withXMarkdownContentType.Meta.Format != "md" {
+		t.Fatalf("unexpected imported book meta: %#v", withXMarkdownContentType.Meta)
+	}
+
+	// A plain .txt import must still be recognized as "txt" format.
+	txtBook := importTextBook(t, env, "Plain Text", "", "plain.txt", "hello world")
+	if txtBook.Meta == nil || txtBook.Meta.Format != "txt" {
+		t.Fatalf("unexpected imported book meta: %#v", txtBook.Meta)
+	}
+
+	// Reading back the content must still be exactly what was uploaded, with no
+	// markdown rendering applied (rendering is out of scope for this PR).
+	contentReq := httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+withMarkdownContentType.Meta.ID+"/content", nil)
+	contentRec := env.do(contentReq)
+	assertStatus(t, contentRec, http.StatusOK)
+	if got := contentRec.Header().Get("Content-Type"); got != "text/plain; charset=utf-8" {
+		t.Fatalf("Content-Type = %q, want text/plain; charset=utf-8", got)
+	}
+	if got := contentRec.Body.String(); got != "# Notes\n\nhello markdown" {
+		t.Fatalf("content = %q, want raw markdown source", got)
+	}
+}
+
 func TestAPIUpdateBookContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Patch Me", "old/layer", "patch.txt", "body")
@@ -512,6 +619,61 @@ func TestAPIUpdateBookContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusBadRequest)
 
 	rec = env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID, strings.NewReader(`{"star":6}`)))
+	assertStatus(t, rec, http.StatusBadRequest)
+}
+
+func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Identifiers Book", "identifiers/layer", "identifiers.txt", "body")
+	bookURL := "/api/shelves/default_shelf/books/" + created.Meta.ID
+
+	// Setting identifiers is reflected in the PATCH response and a subsequent GET.
+	rec := env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"identifiers":{"isbn":"978-0-13-468599-1","douban":"123"}}`)))
+	assertStatus(t, rec, http.StatusOK)
+	updated := decodeJSON[Book](t, rec)
+	if updated.Meta.Identifiers["isbn"] != "978-0-13-468599-1" || updated.Meta.Identifiers["douban"] != "123" {
+		t.Fatalf("identifiers not set in PATCH response: %#v", updated.Meta.Identifiers)
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, bookURL, nil))
+	assertStatus(t, rec, http.StatusOK)
+	fetched := decodeJSON[Book](t, rec)
+	if fetched.Meta.Identifiers["isbn"] != "978-0-13-468599-1" || fetched.Meta.Identifiers["douban"] != "123" {
+		t.Fatalf("identifiers not set after GET: %#v", fetched.Meta.Identifiers)
+	}
+
+	// A subsequent PATCH with a new identifiers map fully replaces the old one (not a merge).
+	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"identifiers":{"isbn":"999"}}`)))
+	assertStatus(t, rec, http.StatusOK)
+	replaced := decodeJSON[Book](t, rec)
+	if replaced.Meta.Identifiers["isbn"] != "999" {
+		t.Fatalf("identifiers isbn not replaced: %#v", replaced.Meta.Identifiers)
+	}
+	if _, ok := replaced.Meta.Identifiers["douban"]; ok {
+		t.Fatalf("expected douban identifier to be gone after full replace, got: %#v", replaced.Meta.Identifiers)
+	}
+
+	// A PATCH that omits the identifiers field entirely leaves the existing value untouched.
+	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"title":"Identifiers Book Renamed"}`)))
+	assertStatus(t, rec, http.StatusOK)
+	untouched := decodeJSON[Book](t, rec)
+	if untouched.Meta.Title != "Identifiers Book Renamed" {
+		t.Fatalf("title not updated: %#v", untouched.Meta)
+	}
+	if untouched.Meta.Identifiers["isbn"] != "999" {
+		t.Fatalf("identifiers should be unchanged when omitted from PATCH body: %#v", untouched.Meta.Identifiers)
+	}
+
+	// An explicit empty identifiers object clears the map.
+	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"identifiers":{}}`)))
+	assertStatus(t, rec, http.StatusOK)
+	cleared := decodeJSON[Book](t, rec)
+	if len(cleared.Meta.Identifiers) != 0 {
+		t.Fatalf("expected identifiers to be cleared, got: %#v", cleared.Meta.Identifiers)
+	}
+
+	// An identifiers map with an empty key is rejected.
+	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"identifiers":{"":"x"}}`)))
 	assertStatus(t, rec, http.StatusBadRequest)
 }
 
@@ -710,6 +872,59 @@ func TestAPIStoreContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusOK)
 	if history = decodeJSON[[]string](t, rec); len(history) != 0 {
 		t.Fatalf("cleared read history = %#v, want empty", history)
+	}
+}
+
+func TestAPIReadingActivityContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Reading Time", "", "reading.txt", "body")
+	activityURL := "/api/shelves/default_shelf/reading_activity"
+	today := time.Now().Format("2006-01-02")
+
+	// Old vault / fresh shelf with no stats file yet: GET must succeed with
+	// empty days, not error.
+	rec := env.do(httptest.NewRequest(http.MethodGet, activityURL, nil))
+	assertStatus(t, rec, http.StatusOK)
+	assertJSONContentType(t, rec)
+	initial := decodeJSON[readingActivityResponse](t, rec)
+	if len(initial.Days) != 0 {
+		t.Fatalf("initial reading activity days = %#v, want empty", initial.Days)
+	}
+	if initial.Unit != "seconds" {
+		t.Fatalf("unit = %q, want seconds", initial.Unit)
+	}
+
+	// Missing book_id -> 400.
+	rec = env.do(httptest.NewRequest(http.MethodPost, activityURL, strings.NewReader(`{"seconds":30}`)))
+	assertStatus(t, rec, http.StatusBadRequest)
+
+	// Unknown shelf -> 404.
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/no_such_shelf/reading_activity", strings.NewReader(`{"book_id":"x","seconds":30}`)))
+	assertStatus(t, rec, http.StatusNotFound)
+
+	// Record 45s for today, then read it back.
+	body := fmt.Sprintf(`{"book_id":%q,"seconds":45,"date":%q}`, created.Meta.ID, today)
+	rec = env.do(httptest.NewRequest(http.MethodPost, activityURL, strings.NewReader(body)))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, activityURL, nil))
+	assertStatus(t, rec, http.StatusOK)
+	resp := decodeJSON[readingActivityResponse](t, rec)
+	day, ok := resp.Days[today]
+	if !ok || day.TotalSeconds != 45 {
+		t.Fatalf("days[%s] = %#v (ok=%v), want total_seconds=45", today, day, ok)
+	}
+
+	// seconds:9999 gets clamped to the per-call max (120), not rejected.
+	body = fmt.Sprintf(`{"book_id":%q,"seconds":9999,"date":%q}`, created.Meta.ID, today)
+	rec = env.do(httptest.NewRequest(http.MethodPost, activityURL, strings.NewReader(body)))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, activityURL+"?from="+today+"&to="+today, nil))
+	assertStatus(t, rec, http.StatusOK)
+	resp = decodeJSON[readingActivityResponse](t, rec)
+	if resp.Days[today].TotalSeconds != 45+120 {
+		t.Fatalf("days[%s].total_seconds = %d, want %d (45 + clamped 120)", today, resp.Days[today].TotalSeconds, 45+120)
 	}
 }
 

@@ -20,19 +20,19 @@
         </button>
       </header>
 
-      <p class="meta">Upload a TXT file to create a new book entry, or drag-and-drop files here.</p>
+      <p class="meta">Upload a TXT or Markdown file to create a new book entry, or drag-and-drop files here.</p>
 
       <div v-if="success" class="success">{{ success }}</div>
       <div v-if="error" class="error">{{ error }}</div>
 
       <form class="import-form" @submit.prevent="onSubmit">
         <label class="field">
-          <span class="label">Book File (.txt)</span>
+          <span class="label">Book File (.txt, .md)</span>
           <input
             ref="bookInput"
             class="input file-input"
             type="file"
-            accept=".txt,text/plain"
+            accept=".txt,.md,text/plain,text/markdown"
             :disabled="submitting"
             multiple
             @change="onBookFileChange"
@@ -235,7 +235,7 @@ watch(
 .import-modal {
   display: grid;
   gap: 10px;
-  max-height: calc(100vh - 32px);
+  max-height: calc(100vh / var(--app-zoom, 1) - 32px);
   overflow: auto;
   padding: 16px;
   width: min(100%, 620px);
@@ -381,7 +381,7 @@ watch(
 @media (max-width: 720px) {
   .import-modal {
     width: 100%;
-    max-height: calc(100vh - 20px);
+    max-height: calc(100vh / var(--app-zoom, 1) - 20px);
     padding: 14px;
   }
 }

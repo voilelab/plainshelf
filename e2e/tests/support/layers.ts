@@ -6,6 +6,20 @@ export function layersNav(page: Page): Locator {
   return page.getByRole('navigation', { name: 'Layers', exact: true });
 }
 
+/** The foldable Layers section header in the left sidebar. */
+export function layersSectionToggle(page: Page): Locator {
+  return page.getByRole('button', { name: 'Toggle sidebar folders', exact: true });
+}
+
+/** Ensures the left sidebar's Layers section is expanded before using its controls. */
+export async function expandLayersSection(page: Page): Promise<void> {
+  const toggle = layersSectionToggle(page);
+  if ((await toggle.getAttribute('aria-expanded')) === 'false') {
+    await toggle.click();
+  }
+  await expect(layersNav(page)).toBeVisible();
+}
+
 /**
  * Locates a single LayerNodeItem row by its exact visible name. A row only
  * contains its own buttons (descendant layers live in a sibling
@@ -23,6 +37,7 @@ export function layerRow(page: Page, name: string): Locator {
  * "Layer created" success confirmation.
  */
 export async function addLayer(page: Page, path: string): Promise<void> {
+  await expandLayersSection(page);
   await page.getByRole('button', { name: 'Add layer', exact: true }).click();
   await page.getByPlaceholder('e.g. programming/rust').fill(path);
   await page.getByRole('button', { name: 'Create', exact: true }).click();
@@ -32,6 +47,11 @@ export async function addLayer(page: Page, path: string): Promise<void> {
 /** Clicks a layer node's label button in the sidebar to filter by that layer. */
 export async function selectLayer(page: Page, name: string): Promise<void> {
   await layerRow(page, name).getByRole('button', { name, exact: true }).click();
+}
+
+/** Right-clicks a layer node's row to open its context menu (rename/delete). */
+export async function openLayerContextMenu(page: Page, name: string): Promise<void> {
+  await layerRow(page, name).click({ button: 'right' });
 }
 
 /**

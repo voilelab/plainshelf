@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"path"
 	"strings"
 	"time"
@@ -35,6 +36,7 @@ const CurrentVersionLocationTemplate = `[shelf 狀態指標]
 `
 
 var ErrSourceNotFound = util.NewError("source not found")
+var ErrInvalidIdentifierKey = util.NewError("identifier key cannot be empty")
 
 type Layers []string
 
@@ -76,18 +78,19 @@ type Book struct {
 }
 
 type BookMeta struct {
-	ID          string        `json:"id"`
-	Title       string        `json:"title"`
-	Format      string        `json:"format,omitempty"`
-	Tags        []string      `json:"tags,omitempty"`
-	Cover       string        `json:"cover"`
-	Authors     []string      `json:"authors"`
-	Language    string        `json:"language"`
-	Comments    string        `json:"comments"`
-	Star        int           `json:"star"`
-	CreatedAt   util.JSONTime `json:"created_at,omitzero"`
-	UpdatedAt   util.JSONTime `json:"updated_at,omitzero"`
-	PublishedAt util.JSONTime `json:"published_at,omitzero"`
+	ID          string            `json:"id"`
+	Title       string            `json:"title"`
+	Format      string            `json:"format,omitempty"`
+	Tags        []string          `json:"tags,omitempty"`
+	Identifiers map[string]string `json:"identifiers,omitempty"`
+	Cover       string            `json:"cover"`
+	Authors     []string          `json:"authors"`
+	Language    string            `json:"language"`
+	Comments    string            `json:"comments"`
+	Star        int               `json:"star"`
+	CreatedAt   util.JSONTime     `json:"created_at,omitzero"`
+	UpdatedAt   util.JSONTime     `json:"updated_at,omitzero"`
+	PublishedAt util.JSONDate     `json:"published_at,omitzero"`
 
 	// User should not modify CurrentSource directly, it is managed by shelf internally,
 	// and can be updated via SetCurrentSource method
@@ -270,6 +273,7 @@ func (b *Book) GetMeta() *BookMeta {
 	metaCopy := *b.meta
 	metaCopy.Tags = append([]string(nil), b.meta.Tags...)
 	metaCopy.Authors = append([]string(nil), b.meta.Authors...)
+	metaCopy.Identifiers = maps.Clone(b.meta.Identifiers)
 	return &metaCopy
 }
 
@@ -293,6 +297,12 @@ func (b *Book) setMeta(meta *BookMeta) error {
 
 	if meta.Star < 0 || meta.Star > 5 {
 		return util.Errorf("invalid star rating: %d", meta.Star)
+	}
+
+	for key := range meta.Identifiers {
+		if strings.TrimSpace(key) == "" {
+			return util.Errorf("%w", ErrInvalidIdentifierKey)
+		}
 	}
 
 	// write back to book meta

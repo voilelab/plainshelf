@@ -1,19 +1,78 @@
-# 50 — 踩坑教訓（每個 session 開工前掃一遍）
+# 50 — Verified project pitfalls
 
-格式與新增規則見 `40-maintenance.md` 第 2 節。一條一行，新條目加在最上面。
-已被 CLAUDE.md 陷阱清單涵蓋的不重複寫；同主題累積 ≥3 條時升格進 CLAUDE.md 或對應規則檔（見 `40-maintenance.md` 第 4 節）。
+Read the relevant section before working in that area. Add entries according to
+`40-maintenance.md`; keep them concise and grouped by root cause.
 
-格式範例（這一條只是示範，不是真教訓）：
-`- [YYYY-MM-DD] 症狀：觀察到什麼 → 根因：真正原因 → 規則：下次怎麼避免，一句可執行的話。`
+## Build and runtime
 
----
+- **Embedded frontend:** Go builds require `frontend/dist`; rebuild the frontend
+  before Go tests when it is missing or stale. (`frontend/web.go`)
+- **Hidden build assets:** keep `//go:embed all:dist`; plain `dist/*` silently
+  omits underscore-prefixed Rolldown chunks and produces a white-screen SPA.
+  (`frontend/web.go`)
+- **Stale running server:** rebuilding `frontend/dist` does not update an already
+  running Go process because assets are embedded at compile time; restart it.
+- **Restricted dependency installs:** if `sharp` cannot download libvips, use
+  `npm --prefix frontend ci --ignore-scripts` for web-only work. Do not use that
+  install for Capacitor asset generation.
+- **Cold end-to-end startup:** the first `go run` may exceed the e2e server wait
+  while downloading/building modules; build the frontend and run `go build ./...`
+  once before diagnosing a timeout as a test failure.
 
-- [2026-07-05] 症狀：MainLayout 遷到 reka-ui Splitter 後，主內容區內容超過視窗高度但沒有捲軸（scoped CSS 明明寫了 `.main-content { overflow-y: auto }`）→ 根因：`SplitterPanel` 每次 render 都在 panel 元素寫 inline `overflow: hidden`（`reka-ui/dist/utils/style.js` 的 `computePanelFlexBoxStyle`，是 Splitter 佈局的必要行為），inline style 永遠蓋過 stylesheet 的 overflow 宣告 → 規則：SplitterPanel 本身不能當捲動容器，需要捲動的 panel 一律在內層加一個 `height:100%; overflow-y:auto` 的 wrapper div（sidebar 的 `.sidebar-inner`、main 的 `.main-scroll` 都是這個模式）；`position: sticky` 的元素要放進該 wrapper 內才會生效。
-- [2026-07-05] 症狀：EditBook 星等遷到 reka-ui `RatingRoot`/`RatingItemIndicator` 後，點星星「看起來沒反應」——但 DOM 的 `data-state="active"` 其實有正確更新，是樣式完全沒套上（active 與非 active 的 computed style 一模一樣，button 呈現 UA 預設灰底）→ 根因：reka 的 `Radio`（Rating 星星按鈕的實際渲染者）render 的是 fragment（button + hidden input），Vue scoped CSS 的 scope-id 繼承鏈在 fragment 斷掉，使用端 scoped `<style>` 的 `.star-indicator` 選擇器對不到那顆 button；這與 popper wrapper 坑同族但機制不同（非 portal，是 fragment）→ 規則：對 reka primitive 深層渲染的元素寫樣式時，用 `父容器 :deep(.class)`（父容器須是自己模板裡的普通元素）或非 scoped style；驗收「選中態有樣式」時要比對 active/非 active 的 computed style（color 等）是否真的不同，只查 `data-state` 屬性數量會漏掉這類 bug。
-- [2026-07-05] 症狀：reka-ui `SplitterGroup`/`SplitterPanel`/`SplitterResizeHandle` 拖拉 sidebar 時，只要拖動過程中有任何滑鼠移動（真實使用者的拖拉必然如此），放開滑鼠後所有 Panel 永久卡在 `pointer-events: none`，之後點 collapse 按鈕、側欄任何按鈕全部點不到（Playwright 回報是父層 `[data-panel-group]` div 而非目標按鈕接住點擊）；只有「按下不移動就放開」不會觸發 → 根因：`SplitterResizeHandle` 的 `:hit-area-margins="{ coarse: 12, fine: 6 }"` 若在模板寫成 inline object literal，每次該元件所在的父元件重新渲染都會產生新的物件參照；reka-ui 內部用該物件參照的相等性去比對 mousedown 時記錄的 handle 與 mouseup 時 registry 裡的 handle 是否為同一個，一旦中途重新註冊（物件參照變了）就對不上，`stopDragging()` 不會被呼叫，`dragState` 永遠不會清空，導致所有 Panel 的 inline style 一直是 `pointer-events: none`（用 patch `node_modules/reka-ui` 加 `console.log` 到 `handlePointerUp`/`stopDragging` 實測驗證，drag 中 `stopDragging` 完全沒被呼叫；改成 hoisted 常數後每次都正常呼叫）→ 規則：`SplitterResizeHandle`（或任何 reka-ui 元件）的物件/陣列型 prop（`hitAreaMargins`、`storage` 等）一律在 `<script setup>` 頂層宣告成常數再用 `:prop="CONST"` 綁定，不要在模板寫 inline literal；懷疑「拖拉後點擊失效」時，直接讀該元素的 `style` 屬性看是否卡 `pointer-events: none`，不要只看 boundingBox。
-- [2026-07-04] 症狀：LayerTree 遷到 reka-ui `TreeRoot`/`TreeItem` 後，巢狀節點（level≥2）的名稱按鈕寬度算出 0px，`.click()` 卡滿 30s timeout（頂層節點外觀正常，唯獨巢狀節點失敗）→ 根因：`TreeRoot` 的 `as` 預設是 `'ul'`，瀏覽器 UA stylesheet 給 `<ul>` 內建 `padding-left: 40px`，把整個側欄可用寬度吃掉 40px；側欄本來就窄，這 40px 一扣，巢狀節點（padding-left 更深）的 `flex:1; min-width:0` 名稱按鈕就被擠壓到 0 而不易察覺（頂層節點只是變窄，沒歸零，肉眼看不出差異）→ 規則：把 reka-ui 的 `TreeRoot`/其他預設渲染 `ul`/`ol`/`li` 的 primitive 接進既有非 list 版面時，一律明確 `as="div"` 或在 scoped style 裡對該 class 補 `list-style:none; margin:0; padding:0`，不要假設預設 tag 沒有 UA 樣式副作用；懷疑「元素存在但寬度算不出來」時，直接用 playwright `boundingBox()`／`getComputedStyle` 量測而非猜測 CSS 選擇器沒生效。
-- [2026-07-04] 症狀：reka-ui DropdownMenu 的選單容器樣式全部失效（透明背景），但 item 樣式正常 → 根因：popper 定位類元件（DropdownMenu/Popover/Tooltip 的 Content）外層有 `data-reka-popper-content-wrapper`，使用端的 scoped `data-v-*` 落在 wrapper、class 落在內層元素，scoped selector 對不上；Dialog 沒有 wrapper 所以沒此問題 → 規則：portal + popper 的 Reka 內容一律用**非 scoped** `<style>` 寫樣式；驗證法：起 server 用 playwright-core 腳本查 computed style（見 scratchpad/check-dropdown.js 模式）。
-- [2026-07-04] 症狀：改了 frontend 重新 build 後，跑著的 server 仍吐舊頁面 → 根因：`go:embed dist/*` 在編譯期打包，且 `go run` 起的 server 程序名稱不是 plainshelf-srv，`pkill -f plainshelf-srv` 殺不掉 → 規則：用 `fuser -k 20000/tcp` 殺掉佔 port 的程序後重新 `go run`（會重新編譯、重吃新 dist）。
-- [2026-07-03] 症狀：`npm --prefix e2e test` 8 個測試全在 browserType.launch 失敗（`Executable doesn't exist at /opt/pw-browsers/chromium_headless_shell-1223/...`）→ 根因：e2e 鎖定的 playwright 1.60 需要 chromium rev 1223，容器 `/opt/pw-browsers` 只預裝 rev 1194 → 規則：臨時在 `e2e/playwright.config.ts` 的 `use` 加 `launchOptions: { executablePath: '/opt/pw-browsers/chromium' }`，跑完 `git checkout e2e/playwright.config.ts` 還原；不要 `playwright install`（實測 8/8 過）。
+## Frontend and Reka UI
 
-（2026-07-02 建檔時的初始踩坑 —— go:embed 依賴 frontend/dist、容器無 just/zsh、playwright 已預裝、預設分支是 dev —— 已直接升格進 CLAUDE.md 陷阱清單，故此處不重複。）
+- **Shared component contracts:** before changing props or emits, search every
+  consumer and verify each call site is intentionally wired or excluded.
+- **Popover styling:** Reka popper content crosses a wrapper/portal boundary;
+  follow the global `[data-reka-popper-content-wrapper]` pattern instead of
+  relying on a component-scoped selector. (`frontend/src/styles.css`)
+- **Primitive DOM defaults:** confirm the element rendered by Reka primitives;
+  default `ul`/`ol` styles can consume layout space. Prefer an explicit `as` or
+  reset list styles where the semantic element is not wanted.
+- **Scoped styles and fragments:** styles targeting nodes rendered through a
+  fragment may need a stable parent plus `:deep(...)`; verify selected and
+  unselected computed styles, not only `data-state`.
+- **Splitter scrolling:** `SplitterPanel` owns `overflow: hidden`; put scrollable
+  content in an inner full-height wrapper.
+- **Stable object props:** hoist object/array props passed to Reka controls such
+  as `hitAreaMargins`; new identities during a drag can re-register controls and
+  leave pointer events disabled. (`frontend/src/layouts/MainLayout.vue`)
+- **Desktop zoom:** viewport-filling `vh`/`vw` values inside the zoomed app must
+  account for `--app-zoom`; verify overflow and popper placement in
+  `?desktop-shell-preview=1`. (`frontend/src/styles.css`)
+- **Browser APIs:** TypeScript success does not prove IndexedDB/runtime behavior;
+  run browser-backed tests for browser-only APIs. Key cursors cannot delete
+  records; use a value cursor when deletion is required.
+- **Mock cover noise:** blocked `picsum.photos` requests in mock mode can be
+  environmental noise; compare against an unchanged baseline before assigning
+  them to the current diff.
+
+## Mobile and end-to-end tests
+
+- **Preview routing:** top-level mobile preview navigations must preserve
+  `?mobile-shell-preview=1`; use `reopenMobileAt` at layout/reload boundaries.
+  (`e2e/tests/support/mobile.ts`)
+- **Offline simulation:** use the support helper that blocks API routes while
+  retaining the embedded shell; browser context offline mode prevents the page
+  itself from reopening. (`e2e/tests/support/mobile.ts`)
+- **Mobile covers:** WebView `<img src="http://…">` requests do not use
+  Capacitor's native HTTP bridge and may hit mixed-content blocking; use the
+  fetch-to-blob cover path. (`frontend/src/composables/useCoverSrc.ts`)
+- **Android networking:** emulator host loopback is `10.0.2.2`; physical devices
+  need a LAN-reachable server. Validate the merged manifest rather than only the
+  source manifest when checking generated cleartext settings.
+- **Android WebView automation:** Playwright browser-context APIs are not fully
+  supported by WebView DevTools; use raw CDP for native WebView-only checks.
+- **Large-data UI races:** when fixed mock data cannot express the required
+  pagination state, intercept the Vite module or API in the test instead of
+  changing production fixtures globally.
+
+## Filesystem and API
+
+- **Mutating API requests:** preserve the `local_token` boundary and review
+  `server/api_contract_test.go` whenever routes or request handling change.
+- **Book identity:** moving or renaming a book must not regenerate its persisted
+  ID. The directory name and display title are not identity.
+- **Network shelves:** SMB latency amplifies directory walks and stat calls;
+  preserve scan/check intervals, finite lock timeouts, atomic writes, and clear
+  error propagation. See `docs/concepts/shelf-cache-and-io.md`.
