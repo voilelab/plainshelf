@@ -157,6 +157,26 @@ const zhHant = {
     readHistory: {
       title: '閱讀紀錄'
     },
+    reader: {
+      title: '閱讀器'
+    },
+    defaultSplitConfig: {
+      label: '預設章節分割規則',
+      description: '書籍沒有明確分割設定時自動套用。',
+      typeLabel: '分割類型',
+      typeNone: '無',
+      typeLineCount: '固定行數',
+      typeRegex: '正規表示式',
+      lineCountLabel: '每節行數',
+      lineCountPlaceholder: '例如 100',
+      regexLabel: '正規表示式模式',
+      regexPlaceholder: '例如 ^第[一二三四五六七八九十百]+章',
+      regexHelp: '符合此模式的行會開始新的章節。',
+      invalidRegex: '無效的正規表示式。',
+      invalidLineCount: '行數必須是正整數。',
+      save: '儲存',
+      saving: '儲存中...'
+    },
     readHistoryLimit: {
       label: '閱讀紀錄數量限制',
       description: '最多保留的最近閱讀書籍數量。設為 0 可停用紀錄保留。',

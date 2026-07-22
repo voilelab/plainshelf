@@ -158,6 +158,26 @@ const en = {
     readHistory: {
       title: 'Reading history'
     },
+    reader: {
+      title: 'Reader'
+    },
+    defaultSplitConfig: {
+      label: 'Default section split rule',
+      description: 'Applied automatically when a book has no explicit split configuration.',
+      typeLabel: 'Split type',
+      typeNone: 'None',
+      typeLineCount: 'Line count',
+      typeRegex: 'Regex',
+      lineCountLabel: 'Lines per section',
+      lineCountPlaceholder: 'e.g. 100',
+      regexLabel: 'Regex pattern',
+      regexPlaceholder: 'e.g. ^Chapter\\s+\\d+',
+      regexHelp: 'Lines matching this pattern start a new section.',
+      invalidRegex: 'Invalid regular expression.',
+      invalidLineCount: 'Line count must be a positive integer.',
+      save: 'Save',
+      saving: 'Saving...'
+    },
     readHistoryLimit: {
       label: 'Reading history limit',
       description: 'Maximum number of recently read books to keep. Use 0 to disable retaining history.',
