@@ -45,7 +45,7 @@ build-desktop: build-server-frontend
 run-desktop: build-server-frontend
 	cd desktop && go mod tidy && go tool wails dev
 
-# Add the Android platform (one-time; requires Android SDK + JDK 17)
+# Add the Android platform (one-time; requires Android SDK + JDK 21)
 mobile-add-android: build-server-frontend
 	cd {{srv_frontend_dir}} && npx cap add android
 
@@ -55,7 +55,11 @@ mobile-sync: build-server-frontend
 
 # Build a debug APK (run mobile-add-android first if android/ is missing)
 build-mobile-android: mobile-sync
-	cd {{srv_frontend_dir}}/android && PLAINSHELF_VERSION_NAME="{{android_version_name}}" PLAINSHELF_VERSION_CODE="{{android_version_code}}" ./gradlew assembleDebug
+	#!/usr/bin/env zsh
+	set -eu
+	java_home="$(./scripts/resolve-android-jdk.sh)"
+	cd {{srv_frontend_dir}}/android
+	JAVA_HOME="$java_home" PLAINSHELF_VERSION_NAME="{{android_version_name}}" PLAINSHELF_VERSION_CODE="{{android_version_code}}" ./gradlew assembleDebug
 
 # Open the Android project in Android Studio
 open-mobile-android: mobile-sync
@@ -65,6 +69,8 @@ open-mobile-android: mobile-sync
 run-android-app conf="config.yaml": build-server-frontend
 	#!/usr/bin/env zsh
 	set -eu
+	java_home="$(./scripts/resolve-android-jdk.sh)"
+	export JAVA_HOME="$java_home"
 	if lsof -nP -iTCP:20000 -sTCP:LISTEN >/dev/null 2>&1; then
 		echo "port 20000 is already in use — stop the running server first"; exit 1
 	fi

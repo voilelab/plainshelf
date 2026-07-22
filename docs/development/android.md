@@ -9,8 +9,13 @@ progress does not currently sync back to the server.
 
 - The base [local development](setup.md) toolchain
 - Android SDK
-- JDK 17
+- JDK 21 (Capacitor 8's Android libraries target Java 21)
 - Android Studio or an Android emulator/device configured for `adb`
+
+The `just` Android recipes use JDK 21 from `JAVA_HOME` or `STUDIO_JDK` when
+configured. On macOS they also detect the JDK bundled with Android Studio, and
+on Linux they detect standard Android Studio installations under `/opt` or
+`/usr/local`.
 
 ## Build the app
 
