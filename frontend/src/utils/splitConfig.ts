@@ -1,5 +1,12 @@
 import type { SplitConfig, SplitType } from '../types/book';
 
+export interface SplitConfigPayload {
+  type: SplitType | '';
+  line_count?: number;
+  regex?: string;
+  boundaries?: number[];
+}
+
 export function normalizeSplitType(value: unknown): SplitType {
   if (value === 'none' || value === 'line_count' || value === 'regex' || value === 'boundary') {
     return value;
@@ -33,7 +40,7 @@ export function normalizeSplitConfig(raw: unknown): SplitConfig {
   return normalized;
 }
 
-export function buildSplitConfigPayload(config: SplitConfig): SplitConfig {
+export function buildSplitConfigPayload(config: SplitConfig): SplitConfigPayload {
   const type = normalizeSplitType(config.type);
 
   if (type === 'line_count') {
@@ -59,5 +66,5 @@ export function buildSplitConfigPayload(config: SplitConfig): SplitConfig {
     };
   }
 
-  return { type: 'none' };
+  return { type: '' };
 }

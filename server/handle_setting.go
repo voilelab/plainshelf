@@ -184,8 +184,7 @@ func (app *App) HandleSetSettingDefaultSplitConfig(w http.ResponseWriter, r *htt
 	}
 
 	switch cfg.Type {
-	case shelf.SplitTypeNone, "none":
-		cfg.Type = shelf.SplitTypeNone
+	case shelf.SplitTypeNone:
 	case shelf.SplitTypeLineCount:
 		if cfg.LineCount <= 0 {
 			http.Error(w, "line_count must be a positive integer", http.StatusBadRequest)

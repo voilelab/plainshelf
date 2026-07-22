@@ -1153,8 +1153,8 @@ func TestAPISettingDefaultSplitConfigContract(t *testing.T) {
 		t.Fatalf("split config line_count = %v, want 50", lc)
 	}
 
-	// Setting type "none" (as sent by frontend) is accepted and normalized.
-	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":"none"}`)))
+	// Setting type to empty string (none) is accepted.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":""}`)))
 	assertStatus(t, rec, http.StatusNoContent)
 
 	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
@@ -1162,7 +1162,7 @@ func TestAPISettingDefaultSplitConfigContract(t *testing.T) {
 	got = decodeJSON[map[string]any](t, rec)
 	val, _ = got["value"].(map[string]any)
 	if tp, _ := val["type"].(string); tp != "" {
-		t.Fatalf("split config type after set none = %q, want empty (normalized)", tp)
+		t.Fatalf("split config type after set empty = %q, want empty", tp)
 	}
 
 	// Boundary type is rejected.
