@@ -5,8 +5,8 @@
       <DialogContent
         class="base-dialog-content"
         :aria-describedby="describedBy"
-        @escape-key-down="onDismissAttempt"
-        @pointer-down-outside="onDismissAttempt"
+        @escape-key-down="onEscapeKeyDown"
+        @pointer-down-outside="onPointerDownOutside"
       >
         <VisuallyHidden>
           <DialogTitle>{{ title }}</DialogTitle>
@@ -45,7 +45,17 @@ function onUpdateOpen(value: boolean): void {
   }
 }
 
-function onDismissAttempt(event: Event): void {
+function onEscapeKeyDown(event: Event): void {
+  // Always consume the key event so the native desktop layer (e.g. macOS
+  // fullscreen) does not also react to ESC. Because Reka UI checks
+  // defaultPrevented to decide whether to dismiss, we close manually.
+  event.preventDefault();
+  if (!props.busy && props.dismissible) {
+    emit('close');
+  }
+}
+
+function onPointerDownOutside(event: Event): void {
   if (props.busy || !props.dismissible) {
     event.preventDefault();
   }
