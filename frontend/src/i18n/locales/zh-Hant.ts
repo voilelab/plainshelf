@@ -173,7 +173,9 @@ const zhHant = {
       regexPlaceholder: '例如 ^第[一二三四五六七八九十百]+章',
       regexHelp: '符合此模式的行會開始新的章節。',
       invalidRegex: '無效的正規表示式。',
-      invalidLineCount: '行數必須是正整數。'
+      invalidLineCount: '行數必須是正整數。',
+      save: '儲存',
+      saving: '儲存中...'
     },
     readHistoryLimit: {
       label: '閱讀紀錄數量限制',

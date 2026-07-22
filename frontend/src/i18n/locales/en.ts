@@ -174,7 +174,9 @@ const en = {
       regexPlaceholder: 'e.g. ^Chapter\\s+\\d+',
       regexHelp: 'Lines matching this pattern start a new section.',
       invalidRegex: 'Invalid regular expression.',
-      invalidLineCount: 'Line count must be a positive integer.'
+      invalidLineCount: 'Line count must be a positive integer.',
+      save: 'Save',
+      saving: 'Saving...'
     },
     readHistoryLimit: {
       label: 'Reading history limit',
