@@ -28,13 +28,14 @@ type App struct {
 }
 
 type AppConf struct {
-	Logger           logutil.LogConf          `yaml:"logger"`
-	Shelves          []*shelf.ShelfConfWithID `yaml:"shelves"`
-	StorePath        string                   `yaml:"store_path"`
-	CoverToJPG       bool                     `yaml:"cover_to_jpg"`
-	ReadHistoryLimit int                      `yaml:"read_history_limit"`
-	ReadOnly         bool                     `yaml:"read_only"`
-	Security         *SecurityConf            `yaml:"security"`
+	Logger             logutil.LogConf          `yaml:"logger"`
+	Shelves            []*shelf.ShelfConfWithID `yaml:"shelves"`
+	StorePath          string                   `yaml:"store_path"`
+	CoverToJPG         bool                     `yaml:"cover_to_jpg"`
+	ReadHistoryLimit   int                      `yaml:"read_history_limit"`
+	DefaultSplitConfig *shelf.SplitConfig       `yaml:"default_split_config"`
+	ReadOnly           bool                     `yaml:"read_only"`
+	Security           *SecurityConf            `yaml:"security"`
 }
 
 func NewApp(conf *AppConf) (*App, error) {
@@ -266,6 +267,9 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/setting/read_history_limit", app.HandleGetSettingReadHistoryLimit)
 	mux.HandleFunc("POST /api/setting/read_history_limit", app.HandleSetSettingReadHistoryLimit)
 	mux.HandleFunc("DELETE /api/setting/read_history_limit", app.HandleDeleteSettingReadHistoryLimit)
+	mux.HandleFunc("GET /api/setting/default_split_config", app.HandleGetSettingDefaultSplitConfig)
+	mux.HandleFunc("POST /api/setting/default_split_config", app.HandleSetSettingDefaultSplitConfig)
+	mux.HandleFunc("DELETE /api/setting/default_split_config", app.HandleDeleteSettingDefaultSplitConfig)
 
 	mux.HandleFunc("GET /{path...}", app.HandleSPAFallback)
 }

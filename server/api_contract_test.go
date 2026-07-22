@@ -1109,6 +1109,75 @@ func TestAPISettingReadHistoryLimitContract(t *testing.T) {
 	}
 }
 
+func TestAPISettingDefaultSplitConfigContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	url := "/api/setting/default_split_config"
+
+	// Default value is no splitting.
+	rec := env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	assertJSONContentType(t, rec)
+	got := decodeJSON[map[string]any](t, rec)
+	val, _ := got["value"].(map[string]any)
+	if tp, _ := val["type"].(string); tp != "" {
+		t.Fatalf("default split config type = %q, want empty", tp)
+	}
+
+	// Set to regex.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":"regex","regex":"^Chapter\\s+\\d+"}`)))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	got = decodeJSON[map[string]any](t, rec)
+	val, _ = got["value"].(map[string]any)
+	if tp, _ := val["type"].(string); tp != "regex" {
+		t.Fatalf("split config type after set regex = %q, want regex", tp)
+	}
+	if re, _ := val["regex"].(string); re != `^Chapter\s+\d+` {
+		t.Fatalf("split config regex = %q, want ^Chapter\\s+\\d+", re)
+	}
+
+	// Set to line_count.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":"line_count","line_count":50}`)))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	got = decodeJSON[map[string]any](t, rec)
+	val, _ = got["value"].(map[string]any)
+	if tp, _ := val["type"].(string); tp != "line_count" {
+		t.Fatalf("split config type after set line_count = %q", tp)
+	}
+	if lc, _ := val["line_count"].(float64); lc != 50 {
+		t.Fatalf("split config line_count = %v, want 50", lc)
+	}
+
+	// Boundary type is rejected.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":"boundary","boundaries":[1,100]}`)))
+	assertStatus(t, rec, http.StatusBadRequest)
+
+	// Invalid regex is rejected.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":"regex","regex":"[invalid"}`)))
+	assertStatus(t, rec, http.StatusBadRequest)
+
+	// Non-positive line_count is rejected.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":"line_count","line_count":0}`)))
+	assertStatus(t, rec, http.StatusBadRequest)
+
+	// Delete resets to default.
+	rec = env.do(httptest.NewRequest(http.MethodDelete, url, nil))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	got = decodeJSON[map[string]any](t, rec)
+	val, _ = got["value"].(map[string]any)
+	if tp, _ := val["type"].(string); tp != "" {
+		t.Fatalf("split config type after delete = %q, want empty", tp)
+	}
+}
+
 func TestAPISetCurrentBookSourceContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Set Current Source Book", "", "src.txt", "content")

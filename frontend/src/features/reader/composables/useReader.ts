@@ -1,4 +1,5 @@
 import { computed, nextTick, ref } from 'vue';
+import { getDefaultSplitConfigSetting } from '../../../api/settings';
 import { getBookshelfProvider } from '../../../providers';
 import type { ReaderSection, ReadingProgress, SplitConfig } from '../../../types/book';
 
@@ -296,7 +297,7 @@ export function useReader(bookID: () => string) {
 
     try {
       const provider = getBookshelfProvider();
-      const [book, bookContent, currentProgress, loadedSplitConfig] = await Promise.all([
+      const [book, bookContent, currentProgress, loadedSplitConfig, globalDefaultSplitConfig] = await Promise.all([
         provider.getBook(bookID()),
         provider.getBookContent(bookID()),
         provider.getReadProgress(bookID()),
@@ -304,13 +305,19 @@ export function useReader(bookID: () => string) {
           const reason = err instanceof Error ? err.message : 'Unknown error';
           splitWarning.value = `Failed to load split config, fallback to single section. ${reason}`;
           return { type: 'none' } as SplitConfig;
-        })
+        }),
+        getDefaultSplitConfigSetting().catch(() => ({ type: 'none' }) as SplitConfig)
       ]);
+
+      const effectiveSplitConfig =
+        loadedSplitConfig.type === 'none' && globalDefaultSplitConfig.type !== 'none'
+          ? globalDefaultSplitConfig
+          : loadedSplitConfig;
 
       title.value = book.title ?? (book as { meta?: { title?: string } }).meta?.title ?? bookID();
       bookFormat.value = book.format === 'md' ? 'md' : 'txt';
       content.value = bookContent.content;
-      splitConfig.value = loadedSplitConfig;
+      splitConfig.value = effectiveSplitConfig;
 
       const built = buildReaderSectionsWithWarning(content.value, splitConfig.value);
       sections.value = built.sections;

@@ -126,6 +126,7 @@
       <TabsList class="settings-tabs-list" :aria-label="t('settings.title')">
         <TabsTrigger value="cover" class="settings-tab-trigger">{{ t('settings.cover.title') }}</TabsTrigger>
         <TabsTrigger value="read-history" class="settings-tab-trigger">{{ t('settings.readHistory.title') }}</TabsTrigger>
+        <TabsTrigger value="reader" class="settings-tab-trigger">{{ t('settings.reader.title') }}</TabsTrigger>
         <TabsTrigger value="about" class="settings-tab-trigger">{{ t('settings.about.title') }}</TabsTrigger>
         <TabsTrigger value="shelves" class="settings-tab-trigger">{{ t('settings.shelves.title') }}</TabsTrigger>
       </TabsList>
@@ -168,6 +169,73 @@
               @change="onReadHistoryLimitChange"
             />
           </label>
+        </section>
+      </TabsContent>
+
+      <TabsContent value="reader" class="settings-tab-content">
+        <section class="panel settings-group">
+          <h3>{{ t('settings.defaultSplitConfig.label') }}</h3>
+          <p class="setting-description">{{ t('settings.defaultSplitConfig.description') }}</p>
+
+          <p v-if="splitConfigError" class="settings-message settings-message-error" role="alert">
+            {{ splitConfigError }}
+          </p>
+
+          <label class="setting-item">
+            <div>
+              <div class="setting-label">{{ t('settings.defaultSplitConfig.typeLabel') }}</div>
+            </div>
+            <select
+              class="setting-select"
+              :value="defaultSplitType"
+              :disabled="loading || saving"
+              @change="onDefaultSplitTypeChange"
+            >
+              <option value="none">{{ t('settings.defaultSplitConfig.typeNone') }}</option>
+              <option value="line_count">{{ t('settings.defaultSplitConfig.typeLineCount') }}</option>
+              <option value="regex">{{ t('settings.defaultSplitConfig.typeRegex') }}</option>
+            </select>
+          </label>
+
+          <label v-if="defaultSplitType === 'line_count'" class="setting-item setting-item-stacked">
+            <div>
+              <div class="setting-label">{{ t('settings.defaultSplitConfig.lineCountLabel') }}</div>
+            </div>
+            <input
+              v-model="defaultSplitLineCount"
+              class="setting-number"
+              type="number"
+              min="1"
+              step="1"
+              :placeholder="t('settings.defaultSplitConfig.lineCountPlaceholder')"
+              :disabled="loading || saving"
+            />
+          </label>
+
+          <div v-if="defaultSplitType === 'regex'" class="setting-item-stacked">
+            <label>
+              <div class="setting-label">{{ t('settings.defaultSplitConfig.regexLabel') }}</div>
+              <p class="setting-description">{{ t('settings.defaultSplitConfig.regexHelp') }}</p>
+            </label>
+            <textarea
+              v-model="defaultSplitRegex"
+              class="setting-textarea"
+              rows="3"
+              :placeholder="t('settings.defaultSplitConfig.regexPlaceholder')"
+              :disabled="loading || saving"
+            />
+          </div>
+
+          <div class="split-config-actions">
+            <button
+              class="button primary"
+              type="button"
+              :disabled="loading || saving"
+              @click="onSaveDefaultSplitConfig"
+            >
+              {{ saving ? t('settings.defaultSplitConfig.saving') : t('settings.defaultSplitConfig.save') }}
+            </button>
+          </div>
         </section>
       </TabsContent>
 
@@ -283,10 +351,13 @@ import ConfirmModal from '../components/ConfirmModal.vue';
 import DeleteModal from '../components/DeleteModal.vue';
 import {
   getCoverToJpgSetting,
+  getDefaultSplitConfigSetting,
   getReadHistoryLimitSetting,
   setCoverToJpgSetting,
+  setDefaultSplitConfigSetting,
   setReadHistoryLimitSetting
 } from '../api/settings';
+import type { SplitConfig, SplitType } from '../types/book';
 import { getServerVersion } from '../api/version';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
 import { useShelvesStore } from '../composables/useShelvesStore';
@@ -300,6 +371,10 @@ const saving = ref(false);
 const error = ref('');
 const coverToJpg = ref(false);
 const readHistoryLimit = ref(0);
+const defaultSplitType = ref<SplitType>('none');
+const defaultSplitLineCount = ref('100');
+const defaultSplitRegex = ref('');
+const splitConfigError = ref('');
 const version = ref('');
 const githubRepoUrl = 'https://github.com/voilelab/plainshelf';
 
@@ -341,12 +416,14 @@ async function loadSettings(): Promise<void> {
   error.value = '';
 
   try {
-    const [nextCoverToJpg, nextReadHistoryLimit] = await Promise.all([
+    const [nextCoverToJpg, nextReadHistoryLimit, nextDefaultSplitConfig] = await Promise.all([
       getCoverToJpgSetting(),
-      getReadHistoryLimitSetting()
+      getReadHistoryLimitSetting(),
+      getDefaultSplitConfigSetting()
     ]);
     coverToJpg.value = nextCoverToJpg;
     readHistoryLimit.value = nextReadHistoryLimit;
+    hydrateSplitConfigDraft(nextDefaultSplitConfig);
   } catch (err) {
     error.value = err instanceof Error ? err.message : t('settings.loadFailed');
   } finally {
@@ -360,6 +437,54 @@ function parseReadHistoryLimit(value: string): number | null {
     return null;
   }
   return parsed;
+}
+
+function hydrateSplitConfigDraft(config: SplitConfig): void {
+  defaultSplitType.value = config.type;
+  defaultSplitLineCount.value = String(config.line_count ?? 100);
+  defaultSplitRegex.value = config.regex ?? '';
+}
+
+function onDefaultSplitTypeChange(event: Event): void {
+  const target = event.target;
+  if (!(target instanceof HTMLSelectElement)) {
+    return;
+  }
+  defaultSplitType.value = target.value as SplitType;
+  splitConfigError.value = '';
+}
+
+async function onSaveDefaultSplitConfig(): Promise<void> {
+  splitConfigError.value = '';
+
+  let config: SplitConfig;
+  if (defaultSplitType.value === 'line_count') {
+    const parsed = Number.parseInt(defaultSplitLineCount.value, 10);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      splitConfigError.value = t('settings.defaultSplitConfig.invalidLineCount');
+      return;
+    }
+    config = { type: 'line_count', line_count: parsed };
+  } else if (defaultSplitType.value === 'regex') {
+    try {
+      new RegExp(defaultSplitRegex.value, 'gm');
+    } catch {
+      splitConfigError.value = t('settings.defaultSplitConfig.invalidRegex');
+      return;
+    }
+    config = { type: 'regex', regex: defaultSplitRegex.value };
+  } else {
+    config = { type: 'none' };
+  }
+
+  saving.value = true;
+  try {
+    await setDefaultSplitConfigSetting(config);
+  } catch (err) {
+    splitConfigError.value = err instanceof Error ? err.message : t('settings.saveFailed');
+  } finally {
+    saving.value = false;
+  }
 }
 
 async function onCoverToJpgChange(event: Event): Promise<void> {
@@ -741,6 +866,45 @@ onMounted(() => {
 
 .setting-number:disabled {
   cursor: not-allowed;
+}
+
+.setting-select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+}
+
+.setting-select:disabled {
+  cursor: not-allowed;
+}
+
+.setting-textarea {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font: inherit;
+  font-family: monospace;
+  font-size: 13px;
+  padding: 8px 10px;
+  resize: vertical;
+  width: 100%;
+}
+
+.setting-textarea:disabled {
+  cursor: not-allowed;
+}
+
+.setting-item-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.split-config-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
 }
 
 .shelves-table {
