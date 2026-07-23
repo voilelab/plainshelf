@@ -50,7 +50,66 @@ For the operational model, initial metadata scan, and tuning guidance, see [Shel
 
 ---
 
+## Concurrent change handling
+
+PlainShelf is designed for single-user operation. Shelf-level structural
+operations (creating, moving, trashing, and restoring books) are serialized by a
+file lock, and most metadata writes use an atomic temp-file-then-rename pattern
+to guard against crash corruption. However, per-book mutations (editing metadata,
+changing covers, updating source content) are not individually serialized, which
+produces the following known behaviors.
+
+### 1) Last-writer-wins on the same book
+
+When two requests modify the same book concurrently — for example, editing
+metadata in two browser tabs — both read the current `book.json`, apply their
+changes independently, and write the result back. The second write silently
+replaces the first, and the first edit's changes are lost without warning.
+
+The temp files used by the atomic-write path have fixed names (e.g.
+`book.json.tmp`), so truly simultaneous writes to the same book can collide on
+the temp file itself, potentially producing a failed request. Cover uploads
+write directly to the final file without a temp-then-rename step, so a crash or
+concurrent upload during a cover write can leave a partially written cover image.
+
+Affected operations: metadata updates, cover uploads/deletes, source content
+updates, split-config changes, and current-source selection.
+
+### 2) Multi-step create and import are not transactional
+
+Creating or importing a book involves several sequential steps: creating the book
+folder (atomic, under the shelf lock), then creating a source, setting it as
+current, and writing metadata (each without the shelf lock). If the process
+crashes between steps, the book folder exists on disk but may lack a source or
+have incomplete metadata. On the next startup the book will appear in the library
+in an incomplete state.
+
+### 3) Trash metadata uses a direct write
+
+When a book is moved to trash, the `trash.json` sidecar file is written directly
+rather than through the atomic temp-then-rename pattern used elsewhere. A crash
+during this specific write could leave `trash.json` in a partial state. The book
+data itself is moved atomically before this write, and the code attempts to roll
+back the move on failure, so the practical risk is very low.
+
+### Practical impact
+
+For normal single-user, single-tab usage these limitations do not surface.
+They can matter when:
+
+- multiple browser tabs or clients edit the same book at the same time;
+- the server process is terminated abruptly during a book create, import, or
+  trash operation.
+
+In these cases the shelf directory remains structurally valid, but logical
+consistency (complete metadata, no lost edits) is not guaranteed. Cover images
+are an exception: because they are written directly rather than through a
+temp-then-rename step, an abrupt termination during a cover upload can leave a
+partially written file.
+
+---
+
 ## Notes
 
-- These are design trade-offs in the current cache strategy (scan throttling + per-book stale checks).
+- These are design trade-offs in the current cache strategy (scan throttling + per-book stale checks) and write-side concurrency model.
 - For personal Tailscale with one server, the main concerns are usually external folder mutations and scan interval tuning, not distributed cache coherence.
