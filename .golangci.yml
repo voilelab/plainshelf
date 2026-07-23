@@ -11,18 +11,17 @@ linters:
     - misspell
     - staticcheck
     - unused
-
-linters-settings:
-  errcheck:
-    exclude-functions:
-      - (net/http.ResponseWriter).Write
-      - (*encoding/json.Encoder).Encode
-
-issues:
-  exclude-rules:
-    - linters:
-        - errcheck
-      source: "defer "
-    - linters:
-        - errcheck
-      path: _test\.go
+  settings:
+    errcheck:
+      exclude-functions:
+        - (net/http.ResponseWriter).Write
+        - (*encoding/json.Encoder).Encode
+        - (github.com/voilelab/plainshelf/shelf.ShelfLock).Unlock
+        - (github.com/voilelab/plainshelf/internal/fsutil.FS).RemoveAll
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
