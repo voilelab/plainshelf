@@ -91,6 +91,7 @@
   overflow-y: auto;
   padding: 18px 26px;
   scrollbar-gutter: stable both-edges;
+  outline: none;
 }
 
 .reader-chapter-title {
