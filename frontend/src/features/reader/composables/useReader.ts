@@ -387,6 +387,7 @@ export function useReader(bookID: () => string) {
     const section = sections.value[clampedIndex];
     updateProgressByOffset(section.startOffset);
     await syncScrollToOffset(section.startOffset);
+    readerRef.value?.focus();
   }
 
   async function goPrevSection(): Promise<void> {

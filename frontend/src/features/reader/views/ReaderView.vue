@@ -53,7 +53,7 @@
 
             <p v-if="splitWarning" class="reader-split-warning" role="status">{{ splitWarning }}</p>
 
-            <div class="reader-content" @scroll="onScroll" ref="readerRef">
+            <div class="reader-content" tabindex="-1" @scroll="onScroll" ref="readerRef">
               <h3 v-if="currentSection?.title" class="reader-chapter-title">{{ currentSection.title }}</h3>
               <div class="reader-text">
                 <template v-if="bookFormat === 'md'">
