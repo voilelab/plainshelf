@@ -50,6 +50,37 @@ jobs:
           path: frontend/dist
           if-no-files-found: error
 
+  lint:
+    name: Go lint
+    runs-on: ubuntu-latest
+    needs: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Lint main module
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: latest
+
+      - name: Lint desktop module
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: latest
+          working-directory: desktop
+
   go:
     name: Go tests
     runs-on: ubuntu-latest

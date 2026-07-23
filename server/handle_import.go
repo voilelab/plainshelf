@@ -194,7 +194,9 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newBook.SetCurrentSource(source.ID())
+	if err := newBook.SetCurrentSource(source.ID()); err != nil {
+		app.Error("failed to set current source", "error", err)
+	}
 
 	meta := newBook.GetMeta()
 	meta.Language = detectBookLang(newBook)
@@ -254,7 +256,9 @@ func (app *App) ImportFromLocalPath(shelfID string, localPath string, layerParts
 		return nil, util.Errorf("%w", err)
 	}
 
-	newBook.SetCurrentSource(source.ID())
+	if err := newBook.SetCurrentSource(source.ID()); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
 
 	meta := newBook.GetMeta()
 	meta.Language = detectBookLang(newBook)

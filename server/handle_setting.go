@@ -17,7 +17,7 @@ func (app *App) coverToJPG() bool {
 
 	bs, exists, err := app.storeDB.GetSetting("cover_to_jpg")
 	if err != nil {
-		app.Logger.Error("coverToJPG:", "err", err)
+		app.Error("coverToJPG:", "err", err)
 	} else if exists {
 		val = string(bs) == "true"
 	}
@@ -30,11 +30,11 @@ func (app *App) readHistoryLimit() int {
 
 	bs, exists, err := app.storeDB.GetSetting("read_history_limit")
 	if err != nil {
-		app.Logger.Error("readHistoryLimit:", "err", err)
+		app.Error("readHistoryLimit:", "err", err)
 	} else if exists {
 		parsed, err := strconv.Atoi(strings.TrimSpace(string(bs)))
 		if err != nil || parsed < 0 {
-			app.Logger.Error("readHistoryLimit: invalid stored value", "value", string(bs), "err", err)
+			app.Error("readHistoryLimit: invalid stored value", "value", string(bs), "err", err)
 		} else {
 			val = parsed
 		}
@@ -62,7 +62,7 @@ func (app *App) HandleGetSettingCoverToJPG(w http.ResponseWriter, r *http.Reques
 func (app *App) HandleSetSettingCoverToJPG(w http.ResponseWriter, r *http.Request) {
 	bs, err := io.ReadAll(r.Body)
 	if err != nil {
-		app.Logger.Error("read request body:", "err", err)
+		app.Error("read request body:", "err", err)
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -74,7 +74,7 @@ func (app *App) HandleSetSettingCoverToJPG(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := app.storeDB.SetSetting("cover_to_jpg", bs); err != nil {
-		app.Logger.Error("SetSettingCoverToJPG:", "err", err)
+		app.Error("SetSettingCoverToJPG:", "err", err)
 		http.Error(w, "failed to save setting", http.StatusInternalServerError)
 		return
 	}
@@ -85,7 +85,7 @@ func (app *App) HandleSetSettingCoverToJPG(w http.ResponseWriter, r *http.Reques
 // DELETE /api/setting/cover_to_jpg
 func (app *App) HandleDeleteSettingCoverToJPG(w http.ResponseWriter, r *http.Request) {
 	if err := app.storeDB.DeleteSetting("cover_to_jpg"); err != nil {
-		app.Logger.Error("DeleteSettingCoverToJPG:", "err", err)
+		app.Error("DeleteSettingCoverToJPG:", "err", err)
 		http.Error(w, "failed to delete setting", http.StatusInternalServerError)
 		return
 	}
@@ -105,7 +105,7 @@ func (app *App) HandleGetSettingReadHistoryLimit(w http.ResponseWriter, r *http.
 func (app *App) HandleSetSettingReadHistoryLimit(w http.ResponseWriter, r *http.Request) {
 	bs, err := io.ReadAll(r.Body)
 	if err != nil {
-		app.Logger.Error("read request body:", "err", err)
+		app.Error("read request body:", "err", err)
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -118,7 +118,7 @@ func (app *App) HandleSetSettingReadHistoryLimit(w http.ResponseWriter, r *http.
 	}
 
 	if err := app.storeDB.SetSetting("read_history_limit", []byte(strconv.Itoa(val))); err != nil {
-		app.Logger.Error("SetSettingReadHistoryLimit:", "err", err)
+		app.Error("SetSettingReadHistoryLimit:", "err", err)
 		http.Error(w, "failed to save setting", http.StatusInternalServerError)
 		return
 	}
@@ -129,7 +129,7 @@ func (app *App) HandleSetSettingReadHistoryLimit(w http.ResponseWriter, r *http.
 // DELETE /api/setting/read_history_limit
 func (app *App) HandleDeleteSettingReadHistoryLimit(w http.ResponseWriter, r *http.Request) {
 	if err := app.storeDB.DeleteSetting("read_history_limit"); err != nil {
-		app.Logger.Error("DeleteSettingReadHistoryLimit:", "err", err)
+		app.Error("DeleteSettingReadHistoryLimit:", "err", err)
 		http.Error(w, "failed to delete setting", http.StatusInternalServerError)
 		return
 	}
@@ -140,11 +140,11 @@ func (app *App) HandleDeleteSettingReadHistoryLimit(w http.ResponseWriter, r *ht
 func (app *App) defaultSplitConfig() shelf.SplitConfig {
 	bs, exists, err := app.storeDB.GetSetting("default_split_config")
 	if err != nil {
-		app.Logger.Error("defaultSplitConfig:", "err", err)
+		app.Error("defaultSplitConfig:", "err", err)
 	} else if exists {
 		var cfg shelf.SplitConfig
 		if err := json.Unmarshal(bs, &cfg); err != nil {
-			app.Logger.Error("defaultSplitConfig: invalid stored JSON", "err", err)
+			app.Error("defaultSplitConfig: invalid stored JSON", "err", err)
 		} else {
 			return cfg
 		}
@@ -169,7 +169,7 @@ func (app *App) HandleGetSettingDefaultSplitConfig(w http.ResponseWriter, r *htt
 func (app *App) HandleSetSettingDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
 	bs, err := io.ReadAll(r.Body)
 	if err != nil {
-		app.Logger.Error("read request body:", "err", err)
+		app.Error("read request body:", "err", err)
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -202,13 +202,13 @@ func (app *App) HandleSetSettingDefaultSplitConfig(w http.ResponseWriter, r *htt
 
 	jsonBytes, err := json.Marshal(cfg)
 	if err != nil {
-		app.Logger.Error("marshal default_split_config:", "err", err)
+		app.Error("marshal default_split_config:", "err", err)
 		http.Error(w, "failed to serialize config", http.StatusInternalServerError)
 		return
 	}
 
 	if err := app.storeDB.SetSetting("default_split_config", jsonBytes); err != nil {
-		app.Logger.Error("SetSettingDefaultSplitConfig:", "err", err)
+		app.Error("SetSettingDefaultSplitConfig:", "err", err)
 		http.Error(w, "failed to save setting", http.StatusInternalServerError)
 		return
 	}
@@ -219,7 +219,7 @@ func (app *App) HandleSetSettingDefaultSplitConfig(w http.ResponseWriter, r *htt
 // DELETE /api/setting/default_split_config
 func (app *App) HandleDeleteSettingDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
 	if err := app.storeDB.DeleteSetting("default_split_config"); err != nil {
-		app.Logger.Error("DeleteSettingDefaultSplitConfig:", "err", err)
+		app.Error("DeleteSettingDefaultSplitConfig:", "err", err)
 		http.Error(w, "failed to delete setting", http.StatusInternalServerError)
 		return
 	}

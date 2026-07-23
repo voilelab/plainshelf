@@ -165,22 +165,6 @@ func (r *Source) refreshContentMetadata() error {
 	return r.writebackMeta()
 }
 
-func (r *Source) withSourceFile(read func(fs.File) error) error {
-	sourceFile, err := r.Open()
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	readErr := read(sourceFile)
-	closeErr := sourceFile.Close()
-	if readErr != nil {
-		return util.Errorf("%w", readErr)
-	}
-	if closeErr != nil {
-		return util.Errorf("%w", closeErr)
-	}
-	return nil
-}
 
 func (r *Source) UpdateSplitConfig(config SplitConfig) error {
 	r.meta.SplitConfig = config
