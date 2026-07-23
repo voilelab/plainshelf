@@ -54,19 +54,23 @@ For the operational model, initial metadata scan, and tuning guidance, see [Shel
 
 PlainShelf is designed for single-user operation. Shelf-level structural
 operations (creating, moving, trashing, and restoring books) are serialized by a
-file lock, and all metadata writes use an atomic temp-file-then-rename pattern so
-that a crash never corrupts existing files. However, per-book mutations
-(editing metadata, changing covers, updating source content) are not individually
-serialized, which produces the following known behaviors.
+file lock, and most metadata writes use an atomic temp-file-then-rename pattern
+to guard against crash corruption. However, per-book mutations (editing metadata,
+changing covers, updating source content) are not individually serialized, which
+produces the following known behaviors.
 
 ### 1) Last-writer-wins on the same book
 
 When two requests modify the same book concurrently — for example, editing
 metadata in two browser tabs — both read the current `book.json`, apply their
 changes independently, and write the result back. The second write silently
-replaces the first. No data corruption occurs (the atomic write pattern
-guarantees a complete file), but the first edit's changes are lost without
-warning.
+replaces the first, and the first edit's changes are lost without warning.
+
+The temp files used by the atomic-write path have fixed names (e.g.
+`book.json.tmp`), so truly simultaneous writes to the same book can collide on
+the temp file itself, potentially producing a failed request. Cover uploads
+write directly to the final file without a temp-then-rename step, so a crash or
+concurrent upload during a cover write can leave a partially written cover image.
 
 Affected operations: metadata updates, cover uploads/deletes, source content
 updates, split-config changes, and current-source selection.
@@ -94,11 +98,14 @@ For normal single-user, single-tab usage these limitations do not surface.
 They can matter when:
 
 - multiple browser tabs or clients edit the same book at the same time;
-- the server process is terminated abruptly during a book create or import.
+- the server process is terminated abruptly during a book create, import, or
+  trash operation.
 
-In both cases the shelf directory remains structurally valid — no file is left
-in a half-written state — but logical consistency (complete metadata, no lost
-edits) is not guaranteed.
+In these cases the shelf directory remains structurally valid, but logical
+consistency (complete metadata, no lost edits) is not guaranteed. Cover images
+are an exception: because they are written directly rather than through a
+temp-then-rename step, an abrupt termination during a cover upload can leave a
+partially written file.
 
 ---
 
