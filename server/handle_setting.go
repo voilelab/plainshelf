@@ -17,7 +17,7 @@ func (app *App) coverToJPG() bool {
 
 	bs, exists, err := app.storeDB.GetSetting("cover_to_jpg")
 	if err != nil {
-		app.Logger.Error("coverToJPG:", "err", err)
+		app.Error("coverToJPG:", "err", err)
 	} else if exists {
 		val = string(bs) == "true"
 	}
@@ -30,11 +30,11 @@ func (app *App) readHistoryLimit() int {
 
 	bs, exists, err := app.storeDB.GetSetting("read_history_limit")
 	if err != nil {
-		app.Logger.Error("readHistoryLimit:", "err", err)
+		app.Error("readHistoryLimit:", "err", err)
 	} else if exists {
 		parsed, err := strconv.Atoi(strings.TrimSpace(string(bs)))
 		if err != nil || parsed < 0 {
-			app.Logger.Error("readHistoryLimit: invalid stored value", "value", string(bs), "err", err)
+			app.Error("readHistoryLimit: invalid stored value", "value", string(bs), "err", err)
 		} else {
 			val = parsed
 		}

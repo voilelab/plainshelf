@@ -68,11 +68,11 @@ func (l *RootFS) WriteFile(name string, data []byte) error {
 	for written < len(data) {
 		n, err := fp.Write(data[written:])
 		if err != nil {
-			fp.Close()
+			fp.Close() //nolint:errcheck // best-effort cleanup; write error is returned
 			return util.Errorf("%w", err)
 		}
 		if n == 0 {
-			fp.Close()
+			fp.Close() //nolint:errcheck // best-effort cleanup; write error is returned
 			return util.Errorf("%w", io.ErrShortWrite)
 		}
 		written += n

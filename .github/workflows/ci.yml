@@ -79,7 +79,7 @@ jobs:
         uses: golangci/golangci-lint-action@v7
         with:
           version: latest
-          working_directory: desktop
+          working-directory: desktop
 
   go:
     name: Go tests
