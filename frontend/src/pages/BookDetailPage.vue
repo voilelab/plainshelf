@@ -164,9 +164,12 @@ async function onRefreshStats(): Promise<void> {
   const src = currentSource.value;
   if (!src) return;
   refreshingStats.value = true;
+  actionError.value = '';
   try {
     await getBookshelfProvider().refreshSourceMeta(id.value, src.id);
     await fetchDetail();
+  } catch (err) {
+    actionError.value = err instanceof Error ? err.message : 'Failed to update stats';
   } finally {
     refreshingStats.value = false;
   }
