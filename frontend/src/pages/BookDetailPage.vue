@@ -49,6 +49,14 @@
           >
             {{ offlineDownloadButtonLabel }}
           </button>
+          <button
+            v-if="!readOnly && currentSource"
+            class="button"
+            :disabled="refreshingStats"
+            @click="onRefreshStats"
+          >
+            {{ refreshingStats ? 'Updating...' : 'Update Stats' }}
+          </button>
           <button v-if="!readOnly" class="button" @click="goEdit(id)">Edit metadata</button>
           <button v-if="!readOnly" class="button" @click="goEditSources">Edit Sources</button>
           <button v-if="!readOnly" class="button danger" :disabled="deleting" @click="onRequestDelete">
@@ -64,7 +72,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BookCover from '../components/BookCover.vue';
 import BookDetail from '../components/BookDetail.vue';
@@ -74,7 +82,7 @@ import { useBookDetail } from '../composables/useBookDetail';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
 import { useOfflineDownload } from '../composables/useOfflineDownload';
 import { useServerMode } from '../composables/useServerMode';
-import { isMobileRuntime } from '../providers';
+import { getBookshelfProvider, isMobileRuntime } from '../providers';
 import { useI18n } from '../i18n';
 
 const route = useRoute();
@@ -148,6 +156,23 @@ function onOfflineDownloadClick(): void {
     return;
   }
   void startOfflineDownload();
+}
+
+const refreshingStats = ref(false);
+
+async function onRefreshStats(): Promise<void> {
+  const src = currentSource.value;
+  if (!src) return;
+  refreshingStats.value = true;
+  actionError.value = '';
+  try {
+    await getBookshelfProvider().refreshSourceMeta(id.value, src.id);
+    await fetchDetail();
+  } catch (err) {
+    actionError.value = err instanceof Error ? err.message : 'Failed to update stats';
+  } finally {
+    refreshingStats.value = false;
+  }
 }
 
 useDocumentTitle(() => ['Book', book.value?.title, 'PlainShelf']);

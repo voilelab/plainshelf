@@ -348,6 +348,10 @@ export class MobileBookshelfProvider implements BookshelfProvider {
     return this.remote.updateSourceContent(bookId, sourceId, content);
   }
 
+  refreshSourceMeta(bookId: string, sourceId: string): Promise<SourceMeta> {
+    return this.remote.refreshSourceMeta(bookId, sourceId);
+  }
+
   async getDownloadState(bookId: string): Promise<DownloadState> {
     return this.cache.getDownloadState(bookId);
   }

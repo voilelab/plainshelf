@@ -338,6 +338,69 @@ func (app *App) HandleAPIGetBookSourceContent(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// POST /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/refresh
+func (app *App) HandleAPIRefreshBookSourceMeta(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+		return
+	}
+
+	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	if !ok {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
+	bookID, err := readBookID(r)
+	if err != nil {
+		http.Error(w, "invalid book_id", http.StatusBadRequest)
+		return
+	}
+
+	sourceID, err := readSourceID(r)
+	if err != nil {
+		http.Error(w, "invalid source_id", http.StatusBadRequest)
+		return
+	}
+
+	book, err := shelfData.GetBook(bookID)
+	if err != nil {
+		if handleShelfErr(w, err) {
+			return
+		}
+		app.Error("failed to get book", "error", err)
+		http.Error(w, "failed to get book", http.StatusInternalServerError)
+		return
+	}
+
+	source, err := book.GetSource(sourceID)
+	if err != nil {
+		if errors.Is(err, shelf.ErrSourceNotFound) {
+			http.Error(w, "source not found", http.StatusNotFound)
+			return
+		}
+		app.Error("failed to get book source", "error", err)
+		http.Error(w, "failed to get book source", http.StatusInternalServerError)
+		return
+	}
+
+	err = source.RefreshContentMetadata()
+	if err != nil {
+		app.Error("failed to refresh source metadata", "error", err)
+		http.Error(w, "failed to refresh source metadata", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	err = json.NewEncoder(w).Encode(source.GetMeta())
+	if err != nil {
+		app.Error("failed to encode response", "error", err)
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
 // PATCH /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content
 func (app *App) HandleAPIUpdateBookSourceContent(w http.ResponseWriter, r *http.Request) {
 	shelfID, err := readShelfID(r)

@@ -1226,6 +1226,35 @@ func TestAPISetCurrentBookSourceContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusNotFound)
 }
 
+func TestAPIRefreshBookSourceMetaContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Refresh Source", "", "refresh.txt", "line one\nline two\nline three")
+	sourceID := created.Meta.CurrentSource
+	refreshURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources/" + sourceID + "/refresh"
+
+	rec := env.do(httptest.NewRequest(http.MethodPost, refreshURL, nil))
+	assertStatus(t, rec, http.StatusOK)
+	assertJSONContentType(t, rec)
+	meta := decodeJSON[map[string]any](t, rec)
+	if id, _ := meta["id"].(string); id != sourceID {
+		t.Fatalf("refreshed source id = %q, want %q", id, sourceID)
+	}
+	if lc, _ := meta["line_count"].(float64); lc <= 0 {
+		t.Fatalf("line_count = %v, want > 0", lc)
+	}
+	if cc, _ := meta["char_count"].(float64); cc <= 0 {
+		t.Fatalf("char_count = %v, want > 0", cc)
+	}
+
+	// Refreshing a nonexistent source returns 404.
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/"+created.Meta.ID+"/sources/nonexistent/refresh", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+
+	// Refreshing a nonexistent book returns 404.
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/no-such-book/sources/"+sourceID+"/refresh", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+}
+
 func TestAPIVersionContract(t *testing.T) {
 	env := newAPITestEnv(t)
 

@@ -131,6 +131,10 @@ func (r *Source) UpdateHash() error {
 	return nil
 }
 
+func (r *Source) RefreshContentMetadata() error {
+	return r.refreshContentMetadata()
+}
+
 func (r *Source) refreshContentMetadata() error {
 	// Read the file once; compute all three metrics from the buffer to avoid
 	// 3 separate SMB round-trips on network-mounted shelves.
