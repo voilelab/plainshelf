@@ -182,6 +182,23 @@ export async function setCurrentSource(bookId: string, sourceId: string): Promis
   );
 }
 
+export async function refreshSourceMeta(bookId: string, sourceId: string): Promise<SourceMeta> {
+  if (isMockApiMode()) {
+    const item = ensureMockSource(bookId).find((source) => source.meta.id === sourceId);
+    if (!item) {
+      throw new Error('Source not found');
+    }
+    item.meta = buildSourceMeta(item.meta.id, item.meta.created_at, item.content);
+    return { ...item.meta };
+  }
+
+  const data = await fetchJson<unknown>(
+    buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/refresh`),
+    { method: 'POST' }
+  );
+  return normalizeSourceMeta(data);
+}
+
 export async function updateSourceContent(bookId: string, sourceId: string, content: string): Promise<void> {
   if (isMockApiMode()) {
     const sources = ensureMockSource(bookId);

@@ -27,6 +27,7 @@ import {
   getSource,
   getSourceContent,
   listSource,
+  refreshSourceMeta,
   setCurrentSource,
   updateSourceContent
 } from '../api/sources';
@@ -177,5 +178,9 @@ export class ServerBookshelfProvider implements BookshelfProvider {
 
   updateSourceContent(bookId: string, sourceId: string, content: string): Promise<void> {
     return updateSourceContent(bookId, sourceId, content);
+  }
+
+  refreshSourceMeta(bookId: string, sourceId: string): Promise<SourceMeta> {
+    return refreshSourceMeta(bookId, sourceId);
   }
 }

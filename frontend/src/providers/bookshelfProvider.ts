@@ -75,6 +75,7 @@ export interface BookshelfProvider {
   deleteSource(bookId: string, sourceId: string): Promise<void>;
   setCurrentSource(bookId: string, sourceId: string): Promise<void>;
   updateSourceContent(bookId: string, sourceId: string, content: string): Promise<void>;
+  refreshSourceMeta(bookId: string, sourceId: string): Promise<SourceMeta>;
 
   downloadBook?(bookId: string): Promise<void>;
   removeDownload?(bookId: string): Promise<void>;
