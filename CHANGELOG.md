@@ -7,6 +7,8 @@ and UI behavior may still change between releases.
 
 ## [Unreleased]
 
+## [v0.8.0] - 2026-07-21
+
 ### Added
 
 - Added right-click context menus to book card view items, with actions for reading, viewing detail, opening the book folder (desktop only), downloading, editing, and deleting.
