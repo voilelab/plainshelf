@@ -279,12 +279,3 @@ and UI behavior may still change between releases.
 ## Reference tags
 
 These repository tags are non-version markers kept for historical context:
-
-- `fyne-gui-last` - 2026-05-16
-- `cli-last` - 2026-05-16
-
-[Unreleased]: https://github.com/voilelab/plainshelf/compare/v0.3.0...HEAD
-[v0.3.0]: https://github.com/voilelab/plainshelf/compare/v0.2.0...v0.3.0
-[v0.2.0]: https://github.com/voilelab/plainshelf/compare/v0.1.1...v0.2.0
-[v0.1.1]: https://github.com/voilelab/plainshelf/compare/v0.1.0...v0.1.1
-[v0.1.0]: https://github.com/voilelab/plainshelf/releases/tag/v0.1.0
