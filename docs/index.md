@@ -6,7 +6,9 @@ adds a web interface, desktop integration, and an experimental Android client.
 
 !!! warning "Pre-alpha"
     APIs, data layout, and UI behavior may change. Keep a current backup of the
-    shelf and application store, especially before upgrades.
+    shelf and application store, especially before upgrades. See
+    [Data Format Versioning](concepts/data-format-versioning.md) for what the
+    on-disk format does and does not guarantee.
 
 ## Choose a path
 
@@ -20,6 +22,9 @@ adds a web interface, desktop integration, and an experimental Android client.
 ### Understand the storage model
 
 - [Data Model](concepts/data-model.md) explains what is stored under a shelf.
+- [Data Format Versioning](concepts/data-format-versioning.md) explains the
+  on-disk schema version, the compatibility policy, and how to back up and
+  restore a shelf.
 - [Layers](concepts/layers.md) explains the nested folder hierarchy.
 - [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md) explains scanning,
   cache freshness, and network-filesystem tuning.
