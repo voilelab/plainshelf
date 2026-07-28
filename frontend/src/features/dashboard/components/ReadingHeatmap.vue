@@ -96,10 +96,12 @@ function cellLabel(cell: HeatmapCell): string {
 
 <style scoped>
 .reading-heatmap {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 16px 18px;
+  width: 100%;
 }
 
 .reading-heatmap-title {

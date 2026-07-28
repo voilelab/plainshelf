@@ -11,6 +11,7 @@
     <p v-else-if="loading" class="loading">{{ t('dashboard.loading') }}</p>
 
     <div v-else class="dashboard-grid">
+      <ReadingHeatmap class="dashboard-cell dashboard-cell-heatmap" :data="heatmapData" />
       <StatsCards
         class="dashboard-cell dashboard-cell-stats"
         :total-books="totalBooks"
@@ -22,7 +23,6 @@
       />
       <TagCloud class="dashboard-cell dashboard-cell-tags" :tag-counts="tagCounts" />
       <RandomBook class="dashboard-cell dashboard-cell-random" :books="books" />
-      <ReadingHeatmap class="dashboard-cell dashboard-cell-heatmap" :data="heatmapData" />
     </div>
   </section>
 </template>
@@ -84,6 +84,11 @@ onMounted(() => {
 .dashboard-cell-stats,
 .dashboard-cell-heatmap {
   grid-column: 1 / -1;
+}
+
+.dashboard-cell-heatmap {
+  box-sizing: border-box;
+  width: 100%;
 }
 
 @media (max-width: 900px) {
