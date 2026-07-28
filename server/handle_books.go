@@ -37,6 +37,10 @@ func handleShelfErr(w http.ResponseWriter, err error) bool {
 		http.Error(w, "book not found", http.StatusNotFound)
 		return true
 	}
+	if errors.Is(err, shelf.ErrUnsupportedBookSchemaVersion) {
+		http.Error(w, "book uses a newer on-disk format than this PlainShelf build supports; upgrade PlainShelf to modify it", http.StatusConflict)
+		return true
+	}
 	return false
 }
 
@@ -347,6 +351,9 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "identifier key cannot be empty", http.StatusBadRequest)
 			return
 		}
+		if handleShelfErr(w, err) {
+			return
+		}
 		app.Error("failed to update book metadata", "error", err)
 		http.Error(w, "failed to update book metadata", http.StatusInternalServerError)
 		return
@@ -534,6 +541,9 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 
 	err = book.SetCover(data, ext)
 	if err != nil {
+		if handleShelfErr(w, err) {
+			return
+		}
 		app.Error("failed to update book cover", "error", err)
 		http.Error(w, "failed to update book cover", http.StatusInternalServerError)
 		return
@@ -574,6 +584,9 @@ func (app *App) HandleAPIDeleteBookCover(w http.ResponseWriter, r *http.Request)
 
 	err = book.DeleteCover()
 	if err != nil {
+		if handleShelfErr(w, err) {
+			return
+		}
 		app.Error("failed to delete book cover", "error", err)
 		http.Error(w, "failed to delete book cover", http.StatusInternalServerError)
 		return
