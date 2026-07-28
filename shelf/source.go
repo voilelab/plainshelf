@@ -67,26 +67,8 @@ func (r *Source) Open() (fs.File, error) {
 
 func (r *Source) UpdateContent(newContent io.Reader) error {
 	sourceDestPath := path.Join(r.folderPath, SourceFile)
-	tmpDestPath := sourceDestPath + ".tmp"
 
-	destFile, err := r.root.OpenWriter(tmpDestPath)
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	_, copyErr := io.Copy(destFile, newContent)
-	closeErr := destFile.Close()
-	if copyErr != nil {
-		_ = r.root.Remove(tmpDestPath)
-		return util.Errorf("%w", copyErr)
-	}
-	if closeErr != nil {
-		_ = r.root.Remove(tmpDestPath)
-		return util.Errorf("%w", closeErr)
-	}
-
-	if err := r.root.Rename(tmpDestPath, sourceDestPath); err != nil {
-		_ = r.root.Remove(tmpDestPath)
+	if err := fsutil.WriteAtomic(r.root, sourceDestPath, newContent); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -169,7 +151,6 @@ func (r *Source) refreshContentMetadata() error {
 	return r.writebackMeta()
 }
 
-
 func (r *Source) UpdateSplitConfig(config SplitConfig) error {
 	r.meta.SplitConfig = config
 	err := r.writebackMeta()
@@ -181,7 +162,6 @@ func (r *Source) UpdateSplitConfig(config SplitConfig) error {
 
 func (r *Source) writebackMeta() error {
 	metaFilePath := path.Join(r.folderPath, SourceMetaFile)
-	tmpMetaPath := metaFilePath + ".tmp"
 
 	bs, err := json.MarshalIndent(r.meta, "", "  ")
 	if err != nil {
@@ -189,12 +169,7 @@ func (r *Source) writebackMeta() error {
 	}
 	bs = append(bs, '\n')
 
-	if err := r.root.WriteFile(tmpMetaPath, bs); err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	if err := r.root.Rename(tmpMetaPath, metaFilePath); err != nil {
-		_ = r.root.Remove(tmpMetaPath)
+	if err := fsutil.WriteFileAtomic(r.root, metaFilePath, bs); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -230,25 +205,7 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 	}
 
 	sourceDestPath := path.Join(sourcePath, SourceFile)
-	tmpDestPath := sourceDestPath + ".tmp"
-	destFile, err := rt.OpenWriter(tmpDestPath)
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	_, copyErr := io.Copy(destFile, source)
-	closeErr := destFile.Close()
-	if copyErr != nil {
-		_ = rt.Remove(tmpDestPath)
-		return nil, util.Errorf("%w", copyErr)
-	}
-	if closeErr != nil {
-		_ = rt.Remove(tmpDestPath)
-		return nil, util.Errorf("%w", closeErr)
-	}
-
-	if err := rt.Rename(tmpDestPath, sourceDestPath); err != nil {
-		_ = rt.Remove(tmpDestPath)
+	if err := fsutil.WriteAtomic(rt, sourceDestPath, source); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -294,7 +251,6 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 	}
 
 	metaFilePath := path.Join(sourcePath, SourceMetaFile)
-	tmpMetaPath := metaFilePath + ".tmp"
 
 	bs, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
@@ -302,12 +258,7 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 	}
 	bs = append(bs, '\n')
 
-	if err := rt.WriteFile(tmpMetaPath, bs); err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	if err := rt.Rename(tmpMetaPath, metaFilePath); err != nil {
-		_ = rt.Remove(tmpMetaPath)
+	if err := fsutil.WriteFileAtomic(rt, metaFilePath, bs); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 

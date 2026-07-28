@@ -291,13 +291,8 @@ func (r *ReadingStats) Flush() error {
 
 func (r *ReadingStats) writeMonthFile(month string, bs []byte) error {
 	filePath := readingStatsFilePath(month)
-	tmpPath := filePath + ".tmp"
 
-	if err := r.root.WriteFile(tmpPath, bs); err != nil {
-		return util.Errorf("%w", err)
-	}
-	if err := r.root.Rename(tmpPath, filePath); err != nil {
-		_ = r.root.Remove(tmpPath)
+	if err := fsutil.WriteFileAtomic(r.root, filePath, bs); err != nil {
 		return util.Errorf("%w", err)
 	}
 	return nil

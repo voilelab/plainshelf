@@ -130,6 +130,24 @@ If browsing is still slow, increase `book_check_interval` first. If external add
 
 ---
 
+## Write safety
+
+Everything above describes reads. Writes follow two rules so that an abrupt shutdown cannot leave the shelf in a broken state.
+
+**Every file is written atomically.** Content goes to a temp file beside its destination and is then renamed over it. A reader — PlainShelf, your backup tool, or your file manager — never sees a partially written `book.json`, `meta.json`, `source.txt`, `cover.*`, or `trash.json`. If the process dies mid-write, the destination still holds its previous complete content.
+
+Temp files are named `<destination>.<random>.tmp`. The `.tmp` suffix is deliberate: file sync clients such as Dropbox, Syncthing, and iCloud are commonly configured to ignore it, so an in-progress write is not synced before it is complete. The random segment keeps two concurrent writers from sharing a temp file.
+
+**Creating and importing a book is transactional.** A new book is assembled in full — its metadata, its first source, and the current-source pointer — inside `app/tmp/`, and only then renamed into `books/` in a single step. A book therefore either appears in your library complete or does not appear at all; an interrupted import cannot leave a book with no source behind.
+
+`app/tmp/` holds only in-progress data and is wiped when a shelf is opened, so leftovers from an interrupted run are cleaned up automatically at startup.
+
+A crash can still leave a stray `*.tmp` file next to its destination. These are inert — PlainShelf ignores them when scanning — and safe to delete by hand.
+
+What this does *not* cover: two clients editing the same book at the same time. Each write lands complete, but the later one replaces the earlier one. See [known issues](../known-issue.md).
+
+---
+
 ## Practical guidance
 
 - For small or medium local shelves, the defaults are usually fine.

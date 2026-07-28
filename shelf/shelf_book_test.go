@@ -1,0 +1,226 @@
+package shelf
+
+import (
+	"errors"
+	"io"
+	"os"
+	"path"
+	"strings"
+	"sync"
+	"testing"
+)
+
+var errInitFailed = errors.New("init failed")
+
+// bookPkgEntries lists the book packages directly under dir, tolerating a dir
+// that was never created.
+func bookPkgEntries(t *testing.T, dir string) []string {
+	t.Helper()
+
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		t.Fatalf("ReadDir(%q): %v", dir, err)
+	}
+
+	var found []string
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), bookExtension) {
+			found = append(found, entry.Name())
+		}
+	}
+	return found
+}
+
+// A book whose initialization fails must leave nothing behind. Previously the
+// book folder was renamed into place first and the source was created after, so
+// a failure stranded a sourceless book in the library forever.
+func TestShelfNewBookWithRollsBackOnInitFailure(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
+
+	_, err := shelf.NewBookWith(Layers{"rollback"}, "Doomed Book", func(book *Book) error {
+		if _, err := book.NewSource(nil); err != nil {
+			t.Fatalf("NewSource on staged book: %v", err)
+		}
+		return errInitFailed
+	})
+	if !errors.Is(err, errInitFailed) {
+		t.Fatalf("NewBookWith error = %v, want %v", err, errInitFailed)
+	}
+
+	if found := bookPkgEntries(t, path.Join(tmpLib, booksFolder, "rollback")); len(found) != 0 {
+		t.Errorf("books left under the layer after a failed init: %v", found)
+	}
+
+	staged, err := os.ReadDir(path.Join(tmpLib, appFolder, appTmpFolder))
+	if err != nil {
+		t.Fatalf("ReadDir app tmp: %v", err)
+	}
+	if len(staged) != 0 {
+		names := make([]string, 0, len(staged))
+		for _, entry := range staged {
+			names = append(names, entry.Name())
+		}
+		t.Errorf("staging folder not cleaned after a failed init: %v", names)
+	}
+
+	books, err := shelf.ListBooks()
+	if err != nil {
+		t.Fatalf("ListBooks: %v", err)
+	}
+	for _, book := range books {
+		if book.Title() == "Doomed Book" {
+			t.Errorf("failed book %q is visible in the library", book.Title())
+		}
+	}
+}
+
+// Everything the initializer writes must survive the move out of staging.
+func TestShelfNewBookWithPersistsInitWrites(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
+
+	const content = "staged content\n"
+
+	book, err := shelf.NewBookWith(Layers{"staged"}, "Staged Book", func(book *Book) error {
+		source, err := book.NewSource(strings.NewReader(content))
+		if err != nil {
+			return err
+		}
+		if err := book.SetCurrentSource(source.ID()); err != nil {
+			return err
+		}
+
+		meta := book.GetMeta()
+		meta.Language = "en"
+		meta.Format = "txt"
+		return book.SetMeta(meta)
+	})
+	if err != nil {
+		t.Fatalf("NewBookWith: %v", err)
+	}
+
+	// Re-read through the shelf so the assertions run against what is on disk,
+	// not the instance the initializer mutated.
+	reopened, err := shelf.GetBook(book.ID())
+	if err != nil {
+		t.Fatalf("GetBook: %v", err)
+	}
+
+	meta := reopened.GetMeta()
+	if meta.Language != "en" {
+		t.Errorf("language = %q, want %q", meta.Language, "en")
+	}
+	if meta.Format != "txt" {
+		t.Errorf("format = %q, want %q", meta.Format, "txt")
+	}
+	if meta.CurrentSource == "" {
+		t.Fatal("current source is empty, want the source created during init")
+	}
+
+	source, err := reopened.GetSource(meta.CurrentSource)
+	if err != nil {
+		t.Fatalf("GetSource(%q): %v", meta.CurrentSource, err)
+	}
+	reader, err := source.Open()
+	if err != nil {
+		t.Fatalf("source.Open: %v", err)
+	}
+	defer reader.Close()
+
+	got, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read source: %v", err)
+	}
+	if string(got) != content {
+		t.Errorf("source content = %q, want %q", string(got), content)
+	}
+}
+
+// While the initializer runs, the book must not yet exist at its final path.
+// The final path is checked directly rather than through ListBooks, because the
+// exclusive shelf lock is still held here.
+func TestShelfNewBookWithBookNotVisibleDuringInit(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
+
+	_, err := shelf.NewBookWith(Layers{"hidden"}, "Hidden Book", func(book *Book) error {
+		if found := bookPkgEntries(t, path.Join(tmpLib, booksFolder, "hidden")); len(found) != 0 {
+			t.Errorf("book is already visible under the layer during init: %v", found)
+		}
+		if !strings.HasPrefix(book.folderPath, path.Join(appFolder, appTmpFolder)) {
+			t.Errorf("staged book folder = %q, want it under the app temp folder", book.folderPath)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("NewBookWith: %v", err)
+	}
+
+	if found := bookPkgEntries(t, path.Join(tmpLib, booksFolder, "hidden")); len(found) != 1 {
+		t.Errorf("books under the layer after init = %v, want exactly one", found)
+	}
+}
+
+// Concurrent metadata writes to one book used to race on a shared
+// "book.json.tmp": one writer's rename would consume the file the other was
+// still staging. Each write now goes through its own temp file.
+//
+// Each goroutine gets its own Book handle: sharing one instance would exercise
+// the unsynchronized in-memory meta rather than the on-disk temp file, which is
+// what this test is about.
+func TestBookSetMetaConcurrentWritersDoNotCollide(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
+
+	created, err := shelf.NewBook(Layers{"concurrent"}, "Concurrent Book")
+	if err != nil {
+		t.Fatalf("NewBook: %v", err)
+	}
+	bookPath := created.folderPath
+
+	const writers = 12
+
+	books := make([]*Book, writers)
+	for i := range books {
+		book, err := openBook(shelf.dbRoot, newLoggerForTest(), bookPath)
+		if err != nil {
+			t.Fatalf("openBook %d: %v", i, err)
+		}
+		books[i] = book
+	}
+
+	var wg sync.WaitGroup
+	errs := make([]error, writers)
+	for i := range writers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			meta := books[i].GetMeta()
+			meta.Comments = strings.Repeat("x", i+1)
+			errs[i] = books[i].SetMeta(meta)
+		}()
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("writer %d: %v", i, err)
+		}
+	}
+
+	// The surviving book.json must be one complete write, not a mix of several.
+	reopened, err := openBook(shelf.dbRoot, newLoggerForTest(), bookPath)
+	if err != nil {
+		t.Fatalf("openBook after writes: %v", err)
+	}
+	if got := reopened.GetMeta().Comments; len(got) < 1 || len(got) > writers || strings.Trim(got, "x") != "" {
+		t.Errorf("comments = %q, want a whole run of 1..%d 'x' characters", got, writers)
+	}
+
+	assertNoTempFiles(t, path.Join(tmpLib, bookPath))
+}

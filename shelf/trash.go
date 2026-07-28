@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
@@ -238,7 +239,7 @@ func (s *Shelf) writeTrashMeta(bookPath string, meta *trashMeta) error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	if err := s.dbRoot.WriteFile(path.Join(bookPath, trashMetaFile), payload); err != nil {
+	if err := fsutil.WriteFileAtomic(s.dbRoot, path.Join(bookPath, trashMetaFile), payload); err != nil {
 		return util.Errorf("%w", err)
 	}
 	return nil

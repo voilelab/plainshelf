@@ -175,24 +175,18 @@ func (app *App) HandleAPICreateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newBook, err := shelfData.NewBook(req.Layer, req.Title)
+	// The empty source and the current-source pointer are written while the book
+	// is still staged, so a failure here leaves no half-built book on disk.
+	newBook, err := shelfData.NewBookWith(req.Layer, req.Title, func(book *shelf.Book) error {
+		source, err := book.NewSource(nil)
+		if err != nil {
+			return err
+		}
+		return book.SetCurrentSource(source.ID())
+	})
 	if err != nil {
 		app.Error("failed to create new book", "error", err)
 		http.Error(w, "failed to create new book", http.StatusInternalServerError)
-		return
-	}
-
-	source, err := newBook.NewSource(nil)
-	if err != nil {
-		app.Error("failed to create source for new book", "error", err)
-		http.Error(w, "failed to create source for new book", http.StatusInternalServerError)
-		return
-	}
-
-	err = newBook.SetCurrentSource(source.ID())
-	if err != nil {
-		app.Error("failed to set current source for new book", "error", err)
-		http.Error(w, "failed to set current source for new book", http.StatusInternalServerError)
 		return
 	}
 
