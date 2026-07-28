@@ -761,3 +761,287 @@ func TestSetMetaRejectsEmptyIdentifierKey(t *testing.T) {
 		t.Fatalf("Expected error when setting identifier with empty key, got none")
 	}
 }
+
+// newBookFromFixture copies a committed book.json fixture into a fresh temp
+// directory so write-path tests never mutate the repository's testdata.
+// It returns the FS rooted at the temp library, the book's folder name, and
+// the absolute path of the copied book.json.
+func newBookFromFixture(t *testing.T, fixture string) (fsutil.FS, string, string) {
+	t.Helper()
+
+	original, err := os.ReadFile(path.Join("testdata", fixture, BookMetaFile))
+	if err != nil {
+		t.Fatalf("Failed to read fixture %s: %v", fixture, err)
+	}
+
+	tmpLib := t.TempDir()
+	bookFolder := "fixture-book"
+	bookDir := path.Join(tmpLib, bookFolder)
+	if err := os.MkdirAll(bookDir, 0o755); err != nil {
+		t.Fatalf("Failed to create book dir: %v", err)
+	}
+
+	metaPath := path.Join(bookDir, BookMetaFile)
+	if err := os.WriteFile(metaPath, original, 0o644); err != nil {
+		t.Fatalf("Failed to write fixture book.json: %v", err)
+	}
+
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	t.Cleanup(func() { tmpRoot.Close() })
+
+	return fsutil.NewRootFS(tmpRoot), bookFolder, metaPath
+}
+
+// TestOpenBookNormalizesMissingSchemaVersion verifies that a pre-v1 book.json
+// (written before schema_version existed) is read as v1 in memory, and that
+// merely opening it does not rewrite the file on disk. The "no write on read"
+// property is what keeps a large legacy shelf from being rewritten wholesale
+// on first launch after an upgrade.
+func TestOpenBookNormalizesMissingSchemaVersion(t *testing.T) {
+	fixturePath := path.Join("testdata", "schema", "v0-full", BookMetaFile)
+	before, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("Failed to read fixture: %v", err)
+	}
+
+	testdataRoot, err := os.OpenRoot("testdata")
+	if err != nil {
+		t.Fatalf("Failed to open testdata root: %v", err)
+	}
+	defer testdataRoot.Close()
+
+	rootFS := fsutil.NewRootFS(testdataRoot)
+	book, err := openBook(rootFS, newLoggerForTest(), path.Join("schema", "v0-full"))
+	if err != nil {
+		t.Fatalf("Failed to open legacy book: %v", err)
+	}
+
+	if got := book.GetMeta().SchemaVersion; got != BookMetaSchemaVersion {
+		t.Errorf("Expected normalized SchemaVersion %d, got %d", BookMetaSchemaVersion, got)
+	}
+
+	after, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("Failed to re-read fixture: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Errorf("Opening a book must not rewrite book.json on disk")
+	}
+	if strings.Contains(string(after), "schema_version") {
+		t.Errorf("Fixture must stay pre-v1 on disk, got:\n%s", after)
+	}
+}
+
+// TestOpenBookSparseLegacyBookHasSchemaVersion verifies the normalization also
+// applies to the minimal legacy book.json shape that omits most fields.
+func TestOpenBookSparseLegacyBookHasSchemaVersion(t *testing.T) {
+	testdataRoot, err := os.OpenRoot("testdata")
+	if err != nil {
+		t.Fatalf("Failed to open testdata root: %v", err)
+	}
+	defer testdataRoot.Close()
+
+	rootFS := fsutil.NewRootFS(testdataRoot)
+	book, err := openBook(rootFS, newLoggerForTest(), "book-a82m")
+	if err != nil {
+		t.Fatalf("Failed to open book: %v", err)
+	}
+
+	meta := book.GetMeta()
+	if meta.SchemaVersion != BookMetaSchemaVersion {
+		t.Errorf("Expected SchemaVersion %d, got %d", BookMetaSchemaVersion, meta.SchemaVersion)
+	}
+	if meta.Title != "Book Title" {
+		t.Errorf("Expected title 'Book Title', got '%s'", meta.Title)
+	}
+	if meta.CurrentSource != "20260315-a1" {
+		t.Errorf("Expected current_source '20260315-a1', got '%s'", meta.CurrentSource)
+	}
+}
+
+// TestSetMetaStampsSchemaVersionOnLegacyBook verifies the lazy v0 → v1 upgrade:
+// the version is written on the next SetMeta, lands as the first JSON key, and
+// no user-visible field is lost in the process.
+func TestSetMetaStampsSchemaVersionOnLegacyBook(t *testing.T) {
+	rootFS, bookFolder, metaPath := newBookFromFixture(t, path.Join("schema", "v0-full"))
+
+	book, err := openBook(rootFS, newLoggerForTest(), bookFolder)
+	if err != nil {
+		t.Fatalf("Failed to open legacy book: %v", err)
+	}
+
+	if err := book.SetMeta(book.GetMeta()); err != nil {
+		t.Fatalf("Failed to set meta: %v", err)
+	}
+
+	written, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("Failed to read back book.json: %v", err)
+	}
+
+	if !strings.HasPrefix(string(written), "{\n  \"schema_version\": 1,") {
+		t.Errorf("Expected schema_version as the first key, got:\n%s", written)
+	}
+
+	// Every user-visible field from the fixture must survive the upgrade.
+	for _, want := range []string{
+		`"id": "schema-v0-full-a1"`,
+		`"title": "Full Legacy Book"`,
+		`"format": "txt"`,
+		`"legacy"`,
+		`"isbn": "978-0-13-468599-1"`,
+		`"cover": "cover.png"`,
+		`"A. Legacy"`,
+		`"language": "en"`,
+		`"comments": "written by PlainShelf v0.8"`,
+		`"star": 4`,
+		`"created_at": "2026-03-15T08:30:00Z"`,
+		`"published_at": "2026-03-15"`,
+		`"current_source": "20260315-a1"`,
+	} {
+		if !strings.Contains(string(written), want) {
+			t.Errorf("Upgraded book.json lost %s, got:\n%s", want, written)
+		}
+	}
+}
+
+// TestCreateBookWritesSchemaVersion verifies new books are born at v1.
+func TestCreateBookWritesSchemaVersion(t *testing.T) {
+	tmpLib := t.TempDir()
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	bookID := "fresh-book-a38j"
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, "Fresh Book")
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+
+	if got := book.GetMeta().SchemaVersion; got != BookMetaSchemaVersion {
+		t.Errorf("Expected in-memory SchemaVersion %d, got %d", BookMetaSchemaVersion, got)
+	}
+
+	written, err := os.ReadFile(path.Join(tmpLib, bookID, BookMetaFile))
+	if err != nil {
+		t.Fatalf("Failed to read back book.json: %v", err)
+	}
+	if !strings.HasPrefix(string(written), "{\n  \"schema_version\": 1,") {
+		t.Errorf("Expected schema_version as the first key, got:\n%s", written)
+	}
+}
+
+// TestOpenBookAcceptsFutureSchemaVersionAsReadOnly verifies that a book.json
+// newer than this build is still readable. Failing the open would make the book
+// vanish from listings and, worse, become impossible to restore from trash.
+func TestOpenBookAcceptsFutureSchemaVersionAsReadOnly(t *testing.T) {
+	testdataRoot, err := os.OpenRoot("testdata")
+	if err != nil {
+		t.Fatalf("Failed to open testdata root: %v", err)
+	}
+	defer testdataRoot.Close()
+
+	rootFS := fsutil.NewRootFS(testdataRoot)
+	book, err := openBook(rootFS, newLoggerForTest(), path.Join("schema", "v2-future"))
+	if err != nil {
+		t.Fatalf("Expected a future-version book to open, got error: %v", err)
+	}
+
+	if book.ID() != "schema-v2-c3" {
+		t.Errorf("Expected ID 'schema-v2-c3', got '%s'", book.ID())
+	}
+	if book.Title() != "Book From The Future" {
+		t.Errorf("Expected title 'Book From The Future', got '%s'", book.Title())
+	}
+	// The reported version must not be clamped down to what this build writes,
+	// otherwise the write guard and any client-side "needs upgrade" hint break.
+	if got := book.GetMeta().SchemaVersion; got != 2 {
+		t.Errorf("Expected SchemaVersion 2 to be preserved, got %d", got)
+	}
+}
+
+// TestSetMetaRejectsFutureSchemaVersion verifies this build refuses to write a
+// book.json produced by a newer build, and that the refusal leaves the file
+// byte-for-byte intact — including keys this build does not understand.
+func TestSetMetaRejectsFutureSchemaVersion(t *testing.T) {
+	rootFS, bookFolder, metaPath := newBookFromFixture(t, path.Join("schema", "v2-future"))
+
+	before, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("Failed to read copied book.json: %v", err)
+	}
+
+	book, err := openBook(rootFS, newLoggerForTest(), bookFolder)
+	if err != nil {
+		t.Fatalf("Failed to open future book: %v", err)
+	}
+
+	meta := book.GetMeta()
+	meta.Title = "Clobbered"
+	err = book.SetMeta(meta)
+	if err == nil {
+		t.Fatalf("Expected SetMeta to reject a future schema version, got none")
+	}
+	if !errors.Is(err, ErrUnsupportedBookSchemaVersion) {
+		t.Errorf("Expected ErrUnsupportedBookSchemaVersion, got %v", err)
+	}
+
+	after, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("Failed to re-read book.json: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Errorf("Rejected write must leave book.json untouched, got:\n%s", after)
+	}
+	if !strings.Contains(string(after), "reading_direction") {
+		t.Errorf("Unknown key must survive a rejected write, got:\n%s", after)
+	}
+
+	if _, err := os.Stat(metaPath + ".tmp"); !os.IsNotExist(err) {
+		t.Errorf("Rejected write must not leave a temp meta file behind")
+	}
+}
+
+// TestSetCurrentSourceRejectsFutureSchemaVersion verifies the guard covers every
+// write path, not just SetMeta: setMeta is the single chokepoint, so the
+// CURRENT_VERSION_LOCATION.txt hint must not be written either.
+func TestSetCurrentSourceRejectsFutureSchemaVersion(t *testing.T) {
+	rootFS, bookFolder, metaPath := newBookFromFixture(t, path.Join("schema", "v2-future"))
+
+	before, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("Failed to read copied book.json: %v", err)
+	}
+
+	book, err := openBook(rootFS, newLoggerForTest(), bookFolder)
+	if err != nil {
+		t.Fatalf("Failed to open future book: %v", err)
+	}
+
+	err = book.SetCurrentSource("20260315-a1")
+	if err == nil {
+		t.Fatalf("Expected SetCurrentSource to reject a future schema version, got none")
+	}
+	if !errors.Is(err, ErrUnsupportedBookSchemaVersion) {
+		t.Errorf("Expected ErrUnsupportedBookSchemaVersion, got %v", err)
+	}
+
+	after, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("Failed to re-read book.json: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Errorf("Rejected write must leave book.json untouched, got:\n%s", after)
+	}
+
+	locationPath := path.Join(path.Dir(metaPath), CurrentVersionLocationFile)
+	if _, err := os.Stat(locationPath); !os.IsNotExist(err) {
+		t.Errorf("Rejected SetCurrentSource must not write %s", CurrentVersionLocationFile)
+	}
+}

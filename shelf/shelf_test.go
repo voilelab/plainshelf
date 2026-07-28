@@ -670,3 +670,56 @@ func TestShelfListBooksRefreshesStaleMetaAndDiscoversNewBookOnCacheMiss(t *testi
 		t.Fatalf("Expected new book title %q, got %q", "Brand New Book", newBook.Title())
 	}
 }
+
+// TestListBooksKeepsBookWithFutureSchemaVersion pins the decision that a book
+// written by a newer PlainShelf build stays visible instead of disappearing.
+// If openBook were ever changed to reject an unsupported schema version, the
+// book would vanish from listings, be evicted from the cache, 404 from the API,
+// and become impossible to restore from trash — and every other test would
+// still pass. This is the regression guard for that.
+func TestListBooksKeepsBookWithFutureSchemaVersion(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "lib")
+
+	if err := os.CopyFS(tmpLib, os.DirFS("testdata/lib")); err != nil {
+		t.Fatalf("Failed to copy test library: %v", err)
+	}
+
+	futureMeta, err := os.ReadFile(path.Join("testdata", "schema", "v2-future", BookMetaFile))
+	if err != nil {
+		t.Fatalf("Failed to read future fixture: %v", err)
+	}
+
+	futureBookPath := path.Join(tmpLib, booksFolder, "future-c3.bookpkg")
+	if err := os.MkdirAll(futureBookPath, 0o755); err != nil {
+		t.Fatalf("Failed to create future book directory: %v", err)
+	}
+	if err := os.WriteFile(path.Join(futureBookPath, BookMetaFile), futureMeta, 0o644); err != nil {
+		t.Fatalf("Failed to write future book meta: %v", err)
+	}
+
+	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, ScanInterval: "0s"})
+
+	books, err := shelf.ListBooks()
+	if err != nil {
+		t.Fatalf("Failed to list books: %v", err)
+	}
+
+	found := false
+	for _, b := range books {
+		if b.ID() == "schema-v2-c3" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("Expected a book with a future schema version to remain listed, got %d books", len(books))
+	}
+
+	book, err := shelf.GetBook("schema-v2-c3")
+	if err != nil {
+		t.Fatalf("Expected GetBook to succeed for a future schema version, got: %v", err)
+	}
+	if got := book.GetMeta().SchemaVersion; got != 2 {
+		t.Errorf("Expected SchemaVersion 2, got %d", got)
+	}
+}
