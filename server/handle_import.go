@@ -173,13 +173,8 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	}
 	layerParts := parseImportLayerParts(r.FormValue("layer"))
 
-	newBook, err := shelfData.NewBook(layerParts, title)
-	if err != nil {
-		app.Error("failed to create new book", "error", err)
-		http.Error(w, "failed to create new book", http.StatusInternalServerError)
-		return
-	}
-
+	// Re-encode before creating the book: this reads the upload, and the book
+	// initializer below runs while the exclusive shelf lock is held.
 	utf8File, _, err := util.ReEncodeToUTF8(f)
 	if err != nil {
 		app.Error("failed to re-encode uploaded file to UTF-8", "error", err)
@@ -187,22 +182,27 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	source, err := newBook.NewSource(utf8File)
+	// The source, current-source pointer, and detected metadata are all written
+	// while the book is still staged, so an import either lands complete or not
+	// at all.
+	newBook, err := shelfData.NewBookWith(layerParts, title, func(book *shelf.Book) error {
+		source, err := book.NewSource(utf8File)
+		if err != nil {
+			return err
+		}
+		if err := book.SetCurrentSource(source.ID()); err != nil {
+			return err
+		}
+
+		meta := book.GetMeta()
+		meta.Language = detectBookLang(book)
+		meta.Format = bookFormatFromFilename(header.Filename)
+		return book.SetMeta(meta)
+	})
 	if err != nil {
-		app.Error("failed to create source from uploaded file", "error", err)
-		http.Error(w, "failed to create source from uploaded file", http.StatusInternalServerError)
+		app.Error("failed to import book", "error", err)
+		http.Error(w, "failed to import book", http.StatusInternalServerError)
 		return
-	}
-
-	if err := newBook.SetCurrentSource(source.ID()); err != nil {
-		app.Error("failed to set current source", "error", err)
-	}
-
-	meta := newBook.GetMeta()
-	meta.Language = detectBookLang(newBook)
-	meta.Format = bookFormatFromFilename(header.Filename)
-	if err := newBook.SetMeta(meta); err != nil {
-		app.Error("failed to set book meta", "error", err)
 	}
 
 	resp := Book{
@@ -235,36 +235,38 @@ func (app *App) ImportFromLocalPath(shelfID string, localPath string, layerParts
 		return nil, util.Errorf("shelf not found: %s", targetShelfID)
 	}
 
-	newBook, err := shelfData.NewBook(layerParts, filepath.Base(cleanPath))
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
 	fp, err := os.Open(cleanPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 	defer fp.Close()
 
+	// Re-encode before creating the book: this reads the file, and the book
+	// initializer below runs while the exclusive shelf lock is held.
 	utf8Reader, _, err := util.ReEncodeToUTF8(fp)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	source, err := newBook.NewSource(utf8Reader)
+	// The source, current-source pointer, and detected metadata are all written
+	// while the book is still staged, so an import either lands complete or not
+	// at all.
+	newBook, err := shelfData.NewBookWith(layerParts, filepath.Base(cleanPath), func(book *shelf.Book) error {
+		source, err := book.NewSource(utf8Reader)
+		if err != nil {
+			return err
+		}
+		if err := book.SetCurrentSource(source.ID()); err != nil {
+			return err
+		}
+
+		meta := book.GetMeta()
+		meta.Language = detectBookLang(book)
+		meta.Format = bookFormatFromFilename(cleanPath)
+		return book.SetMeta(meta)
+	})
 	if err != nil {
 		return nil, util.Errorf("%w", err)
-	}
-
-	if err := newBook.SetCurrentSource(source.ID()); err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	meta := newBook.GetMeta()
-	meta.Language = detectBookLang(newBook)
-	meta.Format = bookFormatFromFilename(cleanPath)
-	if err := newBook.SetMeta(meta); err != nil {
-		app.Error("failed to set book meta", "error", err)
 	}
 
 	return newBook, nil

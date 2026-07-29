@@ -218,8 +218,10 @@ func (b *Book) EnsureWritable() error {
 }
 
 func (b *Book) SetCover(imageData []byte, ext string) error {
-	// Guard before OpenWriter: it creates or truncates the cover file, so
-	// refusing only at SetMeta would already have destroyed the existing cover.
+	// Guard before touching the filesystem: refusing only at SetMeta would
+	// already have published the new cover file. The atomic write below keeps
+	// the previous image intact either way, but a read-only book should not
+	// gain a new cover file at all.
 	if err := b.EnsureWritable(); err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -227,13 +229,11 @@ func (b *Book) SetCover(imageData []byte, ext string) error {
 	coverFilename := "cover" + ext
 	coverPath := path.Join(b.folderPath, coverFilename)
 
-	coverFile, err := b.root.OpenWriter(coverPath)
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-	defer coverFile.Close()
+	previousCover := b.meta.Cover
 
-	_, err = coverFile.Write(imageData)
+	// Write the image before pointing the meta at it, so the meta never
+	// references a half-written cover file.
+	err := fsutil.WriteFileAtomic(b.root, coverPath, imageData)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -245,7 +245,39 @@ func (b *Book) SetCover(imageData []byte, ext string) error {
 		return util.Errorf("%w", err)
 	}
 
+	// A different extension leaves the old image behind unreferenced (the API
+	// converts uploads to JPEG, so cover.png -> cover.jpg is a normal path).
+	// The shelf is meant to be browsable by hand, so don't leave the orphan.
+	if previousCover != "" && previousCover != coverFilename {
+		b.removeReplacedCover(previousCover)
+	}
+
 	return nil
+}
+
+// removeReplacedCover deletes a cover file this call replaced, but only if the
+// book still points away from it.
+//
+// An overlapping upload can write a new image under the old name and point the
+// book back at it - starting from cover.png, a JPEG upload and a concurrent PNG
+// upload can interleave that way. Deleting it then would leave book.json
+// referencing a file that no longer exists, so the persisted meta is re-read
+// and the file is left alone if it has been claimed again. Losing an orphan is
+// cheaper than losing the cover the book actually points to.
+func (b *Book) removeReplacedCover(previousCover string) {
+	persisted, err := readBookMeta(b.root, b.folderPath)
+	if err != nil {
+		b.logger.Warn("failed to re-read book meta before removing replaced cover", "cover", previousCover, "error", err)
+		return
+	}
+
+	if persisted.Cover == previousCover {
+		return
+	}
+
+	if err := b.root.Remove(path.Join(b.folderPath, previousCover)); err != nil {
+		b.logger.Warn("failed to remove replaced cover file", "cover", previousCover, "error", err)
+	}
 }
 
 func (b *Book) DeleteCover() error {
@@ -302,19 +334,9 @@ func (b *Book) updateCurrentVersionLocation(sourceID string) error {
 	sourceContent := fmt.Sprintf(CurrentVersionLocationTemplate, sourcePath)
 
 	currentVersionLocationPath := path.Join(b.folderPath, CurrentVersionLocationFile)
-	tmpCurrentVersionLocationPath := currentVersionLocationPath + ".tmp"
 
-	err := b.root.WriteFile(tmpCurrentVersionLocationPath, []byte(sourceContent))
+	err := fsutil.WriteFileAtomic(b.root, currentVersionLocationPath, []byte(sourceContent))
 	if err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	err = b.root.Rename(tmpCurrentVersionLocationPath, currentVersionLocationPath)
-	if err != nil {
-		err2 := b.root.Remove(tmpCurrentVersionLocationPath)
-		if err2 != nil {
-			b.logger.Warn("failed to remove temp current version location file", "error", err2)
-		}
 		return util.Errorf("%w", err)
 	}
 
@@ -377,23 +399,8 @@ func (b *Book) setMeta(meta *BookMeta) error {
 
 	metaPath := path.Join(b.folderPath, BookMetaFile)
 
-	// write to a temp file first, then rename to ensure atomic update
-	// When syncing to remote storage, the software should not sync the temp file,
-	// and only sync the final meta file after rename is successful,
-	// to avoid syncing incomplete meta file
-	tmpMetaPath := metaPath + ".tmp"
-
-	err = b.root.WriteFile(tmpMetaPath, bs)
+	err = fsutil.WriteFileAtomic(b.root, metaPath, bs)
 	if err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	err = b.root.Rename(tmpMetaPath, metaPath)
-	if err != nil {
-		err2 := b.root.Remove(tmpMetaPath)
-		if err2 != nil {
-			b.logger.Warn("failed to remove temp meta file", "error", err2)
-		}
 		return util.Errorf("%w", err)
 	}
 
@@ -537,15 +544,9 @@ func openBook(rt fsutil.FS, logger logutil.Logger, bookPath string) (*Book, erro
 	}
 
 	metaPath := path.Join(bookPath, BookMetaFile)
-	metaFile, err := rt.Open(metaPath)
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-	defer metaFile.Close()
 
-	var meta BookMeta
-	decoder := json.NewDecoder(metaFile)
-	if err := decoder.Decode(&meta); err != nil {
+	meta, err := readBookMeta(rt, bookPath)
+	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -554,6 +555,10 @@ func openBook(rt fsutil.FS, logger logutil.Logger, bookPath string) (*Book, erro
 	// (onlyRefreshBooksInCache), 404 from the API, and — worst — become
 	// impossible to restore from trash. A visible, explained book beats a book
 	// that silently disappears. setMeta is what protects the bytes on disk.
+	//
+	// This normalization lives here rather than in readBookMeta because that
+	// decoder is also used to re-read the persisted cover name, which needs the
+	// raw bytes and no warning.
 	switch {
 	case meta.SchemaVersion > BookMetaSchemaVersion:
 		logger.Warn("book.json schema version is newer than this build supports; book is read-only",
@@ -575,11 +580,27 @@ func openBook(rt fsutil.FS, logger logutil.Logger, bookPath string) (*Book, erro
 	return &Book{
 		root:       rt,
 		folderPath: bookPath,
-		meta:       &meta,
+		meta:       meta,
 		logger:     logger,
 
 		metaStat: *metaStat,
 	}, nil
+}
+
+// readBookMeta decodes a book's persisted metadata from disk.
+func readBookMeta(rt fsutil.FS, bookPath string) (*BookMeta, error) {
+	metaFile, err := rt.Open(path.Join(bookPath, BookMetaFile))
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer metaFile.Close()
+
+	var meta BookMeta
+	if err := json.NewDecoder(metaFile).Decode(&meta); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	return &meta, nil
 }
 
 func createBook(rt fsutil.FS, logger logutil.Logger, bookPath, bookID, title string) (*Book, error) {
@@ -601,18 +622,8 @@ func createBook(rt fsutil.FS, logger logutil.Logger, bookPath, bookID, title str
 	}
 
 	metaFilePath := path.Join(bookPath, BookMetaFile)
-	tmpMetaFilePath := metaFilePath + ".tmp"
-	err = rt.WriteFile(tmpMetaFilePath, bs)
+	err = fsutil.WriteFileAtomic(rt, metaFilePath, bs)
 	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	err = rt.Rename(tmpMetaFilePath, metaFilePath)
-	if err != nil {
-		err2 := rt.Remove(tmpMetaFilePath)
-		if err2 != nil {
-			logger.Warn("failed to remove temp meta file after failed rename, meta file may be left in an inconsistent state", "error", err2)
-		}
 		return nil, util.Errorf("%w", err)
 	}
 

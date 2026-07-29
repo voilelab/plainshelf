@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -208,6 +209,216 @@ func TestSetCover(t *testing.T) {
 	if _, err := os.Open(coverPath); err != nil {
 		t.Fatalf("Expected cover file to be created, but got error: %v", err)
 	}
+}
+
+// failWriteFS fails WriteFile for paths matching a predicate, standing in for a
+// write that is interrupted partway through.
+type failWriteFS struct {
+	fsutil.FS
+	failOn func(name string) bool
+}
+
+var errInjectedWrite = errors.New("injected write failure")
+
+func (f *failWriteFS) WriteFile(name string, data []byte) error {
+	if f.failOn != nil && f.failOn(name) {
+		return errInjectedWrite
+	}
+	return f.FS.WriteFile(name, data)
+}
+
+// assertNoTempFiles fails the test if any *.tmp file survived in dir.
+func assertNoTempFiles(t *testing.T, dir string) {
+	t.Helper()
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir(%q): %v", dir, err)
+	}
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".tmp") {
+			t.Errorf("temp file left behind in %s: %s", dir, entry.Name())
+		}
+	}
+}
+
+func newBookForCoverTest(t *testing.T) (*Book, string, string) {
+	t.Helper()
+
+	tmpLib := t.TempDir()
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("OpenRoot: %v", err)
+	}
+	t.Cleanup(func() { tmpRoot.Close() })
+
+	const bookID = "cover-book"
+	book, err := createBook(fsutil.NewRootFS(tmpRoot), newLoggerForTest(), bookID, bookID, "Cover Book")
+	if err != nil {
+		t.Fatalf("createBook: %v", err)
+	}
+
+	return book, tmpLib, path.Join(tmpLib, bookID)
+}
+
+// A failed cover write must not damage the cover already on disk. Before the
+// atomic write the destination was opened with O_TRUNC, so an interrupted write
+// left a truncated image behind.
+func TestSetCoverLeavesPreviousCoverIntactOnFailure(t *testing.T) {
+	book, _, bookDir := newBookForCoverTest(t)
+
+	original := []byte{0x89, 0x50, 0x4E, 0x47, 0x01, 0x02}
+	if err := book.SetCover(original, ".png"); err != nil {
+		t.Fatalf("SetCover: %v", err)
+	}
+
+	book.root = &failWriteFS{
+		FS:     book.root,
+		failOn: func(name string) bool { return strings.Contains(path.Base(name), "cover") },
+	}
+
+	err := book.SetCover([]byte("replacement image data"), ".png")
+	if !errors.Is(err, errInjectedWrite) {
+		t.Fatalf("SetCover error = %v, want %v", err, errInjectedWrite)
+	}
+
+	data, err := os.ReadFile(path.Join(bookDir, "cover.png"))
+	if err != nil {
+		t.Fatalf("ReadFile cover.png: %v", err)
+	}
+	if !bytes.Equal(data, original) {
+		t.Errorf("cover on disk = %v, want the original bytes %v", data, original)
+	}
+	if got := book.GetMeta().Cover; got != "cover.png" {
+		t.Errorf("meta cover = %q, want %q", got, "cover.png")
+	}
+	assertNoTempFiles(t, bookDir)
+}
+
+// The API converts uploads to JPEG, so replacing a PNG cover changes the file
+// name. The old file is then referenced by nobody and must not linger in a
+// shelf that users browse by hand.
+func TestSetCoverRemovesReplacedCoverWithDifferentExtension(t *testing.T) {
+	book, _, bookDir := newBookForCoverTest(t)
+
+	if err := book.SetCover([]byte("png data"), ".png"); err != nil {
+		t.Fatalf("SetCover png: %v", err)
+	}
+
+	jpegData := []byte("jpeg data")
+	if err := book.SetCover(jpegData, ".jpg"); err != nil {
+		t.Fatalf("SetCover jpg: %v", err)
+	}
+
+	if _, err := os.Stat(path.Join(bookDir, "cover.png")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("cover.png stat error = %v, want os.ErrNotExist", err)
+	}
+
+	data, err := os.ReadFile(path.Join(bookDir, "cover.jpg"))
+	if err != nil {
+		t.Fatalf("ReadFile cover.jpg: %v", err)
+	}
+	if !bytes.Equal(data, jpegData) {
+		t.Errorf("cover.jpg = %q, want %q", data, jpegData)
+	}
+	if got := book.GetMeta().Cover; got != "cover.jpg" {
+		t.Errorf("meta cover = %q, want %q", got, "cover.jpg")
+	}
+	assertNoTempFiles(t, bookDir)
+}
+
+// afterRenameFS runs a hook once, immediately after a rename to a matching
+// path, so a test can interleave a concurrent writer at an exact point.
+type afterRenameFS struct {
+	fsutil.FS
+	match func(newPath string) bool
+	on    func()
+	once  sync.Once
+}
+
+func (f *afterRenameFS) Rename(oldPath, newPath string) error {
+	err := f.FS.Rename(oldPath, newPath)
+	if err == nil && f.match(newPath) {
+		f.once.Do(f.on)
+	}
+	return err
+}
+
+// Two overlapping cover uploads with different extensions can interleave so
+// that the second one re-claims the first one's old file name. The cleanup of
+// the replaced cover must not delete the image the book now points to.
+func TestSetCoverKeepsReplacedCoverReclaimedByAnotherWriter(t *testing.T) {
+	book, _, bookDir := newBookForCoverTest(t)
+
+	if err := book.SetCover([]byte("original png"), ".png"); err != nil {
+		t.Fatalf("SetCover png: %v", err)
+	}
+
+	// A second handle on the same book, standing in for a concurrent request.
+	other, err := openBook(book.root, newLoggerForTest(), book.folderPath)
+	if err != nil {
+		t.Fatalf("openBook: %v", err)
+	}
+
+	const reclaimed = "reclaimed png"
+
+	// Fire the competing PNG upload right after this call's book.json rename,
+	// which lands it between our metadata write and our cleanup.
+	book.root = &afterRenameFS{
+		FS:    book.root,
+		match: func(newPath string) bool { return path.Base(newPath) == BookMetaFile },
+		on: func() {
+			if err := other.SetCover([]byte(reclaimed), ".png"); err != nil {
+				t.Errorf("concurrent SetCover png: %v", err)
+			}
+		},
+	}
+
+	if err := book.SetCover([]byte("jpeg data"), ".jpg"); err != nil {
+		t.Fatalf("SetCover jpg: %v", err)
+	}
+
+	data, err := os.ReadFile(path.Join(bookDir, "cover.png"))
+	if err != nil {
+		t.Fatalf("cover.png was deleted while the book still pointed at it: %v", err)
+	}
+	if string(data) != reclaimed {
+		t.Errorf("cover.png = %q, want %q", data, reclaimed)
+	}
+
+	persisted, err := readBookMeta(other.root, other.folderPath)
+	if err != nil {
+		t.Fatalf("readBookMeta: %v", err)
+	}
+	if persisted.Cover != "cover.png" {
+		t.Fatalf("persisted cover = %q, want %q", persisted.Cover, "cover.png")
+	}
+	if _, err := os.Stat(path.Join(bookDir, persisted.Cover)); err != nil {
+		t.Errorf("book.json points at %q but it is missing: %v", persisted.Cover, err)
+	}
+}
+
+func TestSetCoverKeepsFileWhenExtensionUnchanged(t *testing.T) {
+	book, _, bookDir := newBookForCoverTest(t)
+
+	if err := book.SetCover([]byte("first"), ".png"); err != nil {
+		t.Fatalf("SetCover first: %v", err)
+	}
+	if err := book.SetCover([]byte("second"), ".png"); err != nil {
+		t.Fatalf("SetCover second: %v", err)
+	}
+
+	data, err := os.ReadFile(path.Join(bookDir, "cover.png"))
+	if err != nil {
+		t.Fatalf("ReadFile cover.png: %v", err)
+	}
+	if string(data) != "second" {
+		t.Errorf("cover.png = %q, want %q", data, "second")
+	}
+	if got := book.GetMeta().Cover; got != "cover.png" {
+		t.Errorf("meta cover = %q, want %q", got, "cover.png")
+	}
+	assertNoTempFiles(t, bookDir)
 }
 
 func TestDeleteCoverAndETag(t *testing.T) {
