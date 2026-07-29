@@ -9,7 +9,9 @@ content. It stores the library in human-readable files and provides web,
 desktop, and experimental Android clients.
 
 > **Pre-alpha:** APIs, data layout, and UI behavior may change. Back up your
-> shelf before upgrading.
+> shelf before upgrading. See
+> [Data Format Versioning](docs/concepts/data-format-versioning.md) for what the
+> on-disk format does and does not guarantee.
 
 ![PlainShelf library preview](image.png)
 

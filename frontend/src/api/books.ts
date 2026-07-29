@@ -21,6 +21,9 @@ import {
 import { normalizeSplitConfig, buildSplitConfigPayload } from '../utils/splitConfig';
 
 interface BackendBookMeta {
+  // On-disk format version of book.json, managed by the server. Documented here
+  // for reference; the UI does not consume it yet.
+  schema_version?: number;
   id: string;
   title: string;
   authors: string[];
