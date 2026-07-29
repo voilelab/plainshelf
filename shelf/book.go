@@ -221,7 +221,7 @@ func (b *Book) SetCover(imageData []byte, ext string) error {
 	// Guard before OpenWriter: it creates or truncates the cover file, so
 	// refusing only at SetMeta would already have destroyed the existing cover.
 	if err := b.EnsureWritable(); err != nil {
-		return err
+		return util.Errorf("%w", err)
 	}
 
 	coverFilename := "cover" + ext
@@ -256,7 +256,7 @@ func (b *Book) DeleteCover() error {
 	// Guard before Remove: refusing only at setMeta would leave the cover
 	// deleted while book.json still references it.
 	if err := b.EnsureWritable(); err != nil {
-		return err
+		return util.Errorf("%w", err)
 	}
 
 	coverPath := path.Join(b.folderPath, b.meta.Cover)
@@ -347,7 +347,7 @@ func (b *Book) setMeta(meta *BookMeta) error {
 	// Never let this build overwrite a book written by a newer one. Callers that
 	// touch other files first guard earlier; this is the backstop for book.json.
 	if err := b.EnsureWritable(); err != nil {
-		return err
+		return util.Errorf("%w", err)
 	}
 
 	if !validateBCP47(meta.Language) {
