@@ -262,6 +262,9 @@ func (app *App) HandleAPISetCurrentBookSource(w http.ResponseWriter, r *http.Req
 
 	err = book.SetCurrentSource(sourceID)
 	if err != nil {
+		if handleShelfErr(w, err) {
+			return
+		}
 		app.Error("failed to set current book source", "error", err)
 		http.Error(w, "failed to set current book source", http.StatusInternalServerError)
 		return

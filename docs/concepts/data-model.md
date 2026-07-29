@@ -52,7 +52,7 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 
 | Path | Description |
 |---|---|
-| `book.json` | Book metadata (title, authors, tags, language, …). Also holds `current_source`, the authoritative pointer to the active source. |
+| `book.json` | Book metadata (title, authors, tags, language, …). Also holds `current_source`, the authoritative pointer to the active source, and `schema_version`, the on-disk format version — see [Data Format Versioning](data-format-versioning.md). |
 | `CURRENT_VERSION_LOCATION.txt` | Human-readable hint that points to the active source. It is **write-only** from the server's perspective (regenerated whenever the current source changes) and is never parsed back — `current_source` in `book.json` is the source of truth. |
 | `cover.(jpg\|png\|webp)` | Optional cover image |
 | `sources/{source-id}/source.txt` | The plain-text content for this source |
@@ -68,4 +68,4 @@ The book ID is generated once when the book is created and then persisted in `bo
 
 - **Human-readable** — the shelf directory can be opened and inspected with any file manager or text editor.
 - **Backup-friendly** — because everything is plain files, the shelf is trivially backed up with `cp`, `rsync`, or committed to Git.
-- **Rebuildable runtime state** — the file lock and temporary files under `app/` can be deleted and the server will recreate them on the next startup. The one exception is `app/stats/reading/`: it holds reading-time history that isn't derived from `books/`, so deleting it loses that history (dashboard heatmap and streak) even though nothing else breaks.
+- **Rebuildable runtime state** — the file lock and temporary files under `app/` can be deleted and the server will recreate them on the next startup. The one exception is `app/stats/reading/`: it holds reading-time history that isn't derived from `books/`, so deleting it loses that history (dashboard heatmap and streak) even though nothing else breaks. See [Back up before upgrading](data-format-versioning.md#back-up-before-upgrading) for what a complete backup covers.
