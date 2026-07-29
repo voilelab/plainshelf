@@ -1045,3 +1045,87 @@ func TestSetCurrentSourceRejectsFutureSchemaVersion(t *testing.T) {
 		t.Errorf("Rejected SetCurrentSource must not write %s", CurrentVersionLocationFile)
 	}
 }
+
+// TestSetCoverRejectsFutureSchemaVersionBeforeWriting verifies the guard runs
+// before the cover file is opened. SetCover truncates the target on open, so a
+// guard that only ran at SetMeta would destroy an existing cover and then
+// report failure.
+func TestSetCoverRejectsFutureSchemaVersionBeforeWriting(t *testing.T) {
+	rootFS, bookFolder, metaPath := newBookFromFixture(t, path.Join("schema", "v2-future"))
+
+	// An existing cover that must survive the refused write.
+	coverPath := path.Join(path.Dir(metaPath), "cover.png")
+	originalCover := []byte("original-cover-bytes")
+	if err := os.WriteFile(coverPath, originalCover, 0o644); err != nil {
+		t.Fatalf("Failed to write cover: %v", err)
+	}
+
+	book, err := openBook(rootFS, newLoggerForTest(), bookFolder)
+	if err != nil {
+		t.Fatalf("Failed to open future book: %v", err)
+	}
+
+	err = book.SetCover([]byte("replacement-bytes"), ".png")
+	if err == nil {
+		t.Fatalf("Expected SetCover to reject a future schema version, got none")
+	}
+	if !errors.Is(err, ErrUnsupportedBookSchemaVersion) {
+		t.Errorf("Expected ErrUnsupportedBookSchemaVersion, got %v", err)
+	}
+
+	after, err := os.ReadFile(coverPath)
+	if err != nil {
+		t.Fatalf("Failed to read cover back: %v", err)
+	}
+	if !bytes.Equal(originalCover, after) {
+		t.Errorf("Refused SetCover must not modify the existing cover, got %q", after)
+	}
+}
+
+// TestDeleteCoverRejectsFutureSchemaVersionBeforeRemoving verifies the guard
+// runs before the cover file is removed. DeleteCover deletes first, so a late
+// guard would lose the image and leave book.json pointing at a missing file.
+func TestDeleteCoverRejectsFutureSchemaVersionBeforeRemoving(t *testing.T) {
+	rootFS, bookFolder, metaPath := newBookFromFixture(t, path.Join("schema", "v2-future"))
+
+	bookDir := path.Dir(metaPath)
+	coverPath := path.Join(bookDir, "cover.png")
+	originalCover := []byte("original-cover-bytes")
+	if err := os.WriteFile(coverPath, originalCover, 0o644); err != nil {
+		t.Fatalf("Failed to write cover: %v", err)
+	}
+
+	// Point the future-version book at that cover.
+	raw, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("Failed to read book.json: %v", err)
+	}
+	withCover := strings.Replace(string(raw), `"cover": ""`, `"cover": "cover.png"`, 1)
+	if withCover == string(raw) {
+		t.Fatalf("Fixture did not contain an empty cover field to patch")
+	}
+	if err := os.WriteFile(metaPath, []byte(withCover), 0o644); err != nil {
+		t.Fatalf("Failed to write book.json: %v", err)
+	}
+
+	book, err := openBook(rootFS, newLoggerForTest(), bookFolder)
+	if err != nil {
+		t.Fatalf("Failed to open future book: %v", err)
+	}
+
+	err = book.DeleteCover()
+	if err == nil {
+		t.Fatalf("Expected DeleteCover to reject a future schema version, got none")
+	}
+	if !errors.Is(err, ErrUnsupportedBookSchemaVersion) {
+		t.Errorf("Expected ErrUnsupportedBookSchemaVersion, got %v", err)
+	}
+
+	after, err := os.ReadFile(coverPath)
+	if err != nil {
+		t.Fatalf("Refused DeleteCover must not remove the cover: %v", err)
+	}
+	if !bytes.Equal(originalCover, after) {
+		t.Errorf("Cover contents changed after a refused delete, got %q", after)
+	}
+}

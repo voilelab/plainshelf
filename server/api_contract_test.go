@@ -1412,3 +1412,47 @@ func TestAPIUnsupportedSchemaVersionReturns409(t *testing.T) {
 		t.Fatalf("unknown key must survive a refused write, got:\n%s", after)
 	}
 }
+
+// TestAPIUnsupportedSchemaVersionDoesNotMoveLayer verifies the schema guard runs
+// before the layer move. HandleAPIUpdateBook moves the book first, so a guard
+// that only ran at SetMeta would rename the folder on disk and then report 409,
+// leaving the client with a failed response for an applied mutation.
+func TestAPIUnsupportedSchemaVersionDoesNotMoveLayer(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Layer Guard", "origin/layer", "layer.txt", "body")
+
+	metaPath := env.bookMetaPath(t, created.Meta.ID)
+	raw, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("read book.json: %v", err)
+	}
+	var onDisk map[string]any
+	if err := json.Unmarshal(raw, &onDisk); err != nil {
+		t.Fatalf("unmarshal book.json: %v", err)
+	}
+	onDisk["schema_version"] = shelf.BookMetaSchemaVersion + 1
+	bumped, err := json.MarshalIndent(onDisk, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal book.json: %v", err)
+	}
+	if err := os.WriteFile(metaPath, bumped, 0o644); err != nil {
+		t.Fatalf("write book.json: %v", err)
+	}
+
+	patch := httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID,
+		strings.NewReader(`{"layer":["moved","elsewhere"]}`))
+	patch.Header.Set("Content-Type", "application/json")
+	rec := env.do(patch)
+	assertStatus(t, rec, http.StatusConflict)
+
+	// The book must still be in its original layer, and still on disk there.
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
+	assertStatus(t, rec, http.StatusOK)
+	book := decodeJSON[Book](t, rec)
+	if got := strings.Join(book.Layer, "/"); got != "origin/layer" {
+		t.Fatalf("layer = %q, want origin/layer — the refused request moved the book", got)
+	}
+	if _, err := os.Stat(metaPath); err != nil {
+		t.Fatalf("book.json is no longer at its original path: %v", err)
+	}
+}

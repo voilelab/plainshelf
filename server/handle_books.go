@@ -302,6 +302,17 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Refuse a book this build must not modify before doing anything, otherwise
+	// a layer move would be applied to disk and then reported as a failure.
+	if err := book.EnsureWritable(); err != nil {
+		if handleShelfErr(w, err) {
+			return
+		}
+		app.Error("failed to check book writability", "error", err)
+		http.Error(w, "failed to update book metadata", http.StatusInternalServerError)
+		return
+	}
+
 	targetLayers := req.Layer
 	if targetLayers == nil {
 		targetLayers = req.Layers

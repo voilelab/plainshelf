@@ -44,7 +44,8 @@ const CurrentVersionLocationTemplate = `[shelf 狀態指標]
 //
 // A book.json with a HIGHER schema_version is read best-effort but is never
 // written back, so an older build cannot clobber data written by a newer one.
-// That refusal is enforced in setMeta, the single write chokepoint.
+// That refusal is enforced by EnsureWritable, which every mutating operation
+// calls before touching the filesystem.
 const BookMetaSchemaVersion = 1
 
 var ErrSourceNotFound = util.NewError("source not found")
@@ -200,7 +201,29 @@ func (b *Book) OpenCover() ([]byte, string, error) {
 	return coverData, ext, nil
 }
 
+// EnsureWritable reports an error when the book's on-disk schema version is
+// newer than this build supports, meaning the book must be treated as
+// read-only.
+//
+// Call it before any filesystem mutation on the book, not only before writing
+// book.json: a guard that runs last still lets a refused request truncate a
+// cover, delete a file, or rename a folder first. It is checked against b.meta
+// — what is actually on disk — so a caller-supplied BookMeta cannot bypass it.
+func (b *Book) EnsureWritable() error {
+	if b.meta.SchemaVersion > BookMetaSchemaVersion {
+		return util.Errorf("%w: book.json is schema_version %d, this build writes %d",
+			ErrUnsupportedBookSchemaVersion, b.meta.SchemaVersion, BookMetaSchemaVersion)
+	}
+	return nil
+}
+
 func (b *Book) SetCover(imageData []byte, ext string) error {
+	// Guard before OpenWriter: it creates or truncates the cover file, so
+	// refusing only at SetMeta would already have destroyed the existing cover.
+	if err := b.EnsureWritable(); err != nil {
+		return err
+	}
+
 	coverFilename := "cover" + ext
 	coverPath := path.Join(b.folderPath, coverFilename)
 
@@ -228,6 +251,12 @@ func (b *Book) SetCover(imageData []byte, ext string) error {
 func (b *Book) DeleteCover() error {
 	if b.meta.Cover == "" {
 		return nil
+	}
+
+	// Guard before Remove: refusing only at setMeta would leave the cover
+	// deleted while book.json still references it.
+	if err := b.EnsureWritable(); err != nil {
+		return err
 	}
 
 	coverPath := path.Join(b.folderPath, b.meta.Cover)
@@ -315,12 +344,10 @@ func (b *Book) setMeta(meta *BookMeta) error {
 		return util.NewError("meta cannot be nil")
 	}
 
-	// Never let this build overwrite a book written by a newer one. Checked
-	// against b.meta — what is actually on disk — rather than the caller's copy,
-	// so a hand-built BookMeta cannot talk its way past the guard.
-	if b.meta.SchemaVersion > BookMetaSchemaVersion {
-		return util.Errorf("%w: book.json is schema_version %d, this build writes %d",
-			ErrUnsupportedBookSchemaVersion, b.meta.SchemaVersion, BookMetaSchemaVersion)
+	// Never let this build overwrite a book written by a newer one. Callers that
+	// touch other files first guard earlier; this is the backstop for book.json.
+	if err := b.EnsureWritable(); err != nil {
+		return err
 	}
 
 	if !validateBCP47(meta.Language) {
