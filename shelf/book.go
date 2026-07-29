@@ -200,12 +200,35 @@ func (b *Book) SetCover(imageData []byte, ext string) error {
 	// converts uploads to JPEG, so cover.png -> cover.jpg is a normal path).
 	// The shelf is meant to be browsable by hand, so don't leave the orphan.
 	if previousCover != "" && previousCover != coverFilename {
-		if err := b.root.Remove(path.Join(b.folderPath, previousCover)); err != nil {
-			b.logger.Warn("failed to remove replaced cover file", "cover", previousCover, "error", err)
-		}
+		b.removeReplacedCover(previousCover)
 	}
 
 	return nil
+}
+
+// removeReplacedCover deletes a cover file this call replaced, but only if the
+// book still points away from it.
+//
+// An overlapping upload can write a new image under the old name and point the
+// book back at it - starting from cover.png, a JPEG upload and a concurrent PNG
+// upload can interleave that way. Deleting it then would leave book.json
+// referencing a file that no longer exists, so the persisted meta is re-read
+// and the file is left alone if it has been claimed again. Losing an orphan is
+// cheaper than losing the cover the book actually points to.
+func (b *Book) removeReplacedCover(previousCover string) {
+	persisted, err := readBookMeta(b.root, b.folderPath)
+	if err != nil {
+		b.logger.Warn("failed to re-read book meta before removing replaced cover", "cover", previousCover, "error", err)
+		return
+	}
+
+	if persisted.Cover == previousCover {
+		return
+	}
+
+	if err := b.root.Remove(path.Join(b.folderPath, previousCover)); err != nil {
+		b.logger.Warn("failed to remove replaced cover file", "cover", previousCover, "error", err)
+	}
 }
 
 func (b *Book) DeleteCover() error {
@@ -454,20 +477,12 @@ func openBook(rt fsutil.FS, logger logutil.Logger, bookPath string) (*Book, erro
 		return nil, util.Errorf("%s is not a book directory", bookPath)
 	}
 
-	metaPath := path.Join(bookPath, BookMetaFile)
-	metaFile, err := rt.Open(metaPath)
+	meta, err := readBookMeta(rt, bookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer metaFile.Close()
 
-	var meta BookMeta
-	decoder := json.NewDecoder(metaFile)
-	if err := decoder.Decode(&meta); err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	metaStat, err := getFileStat(rt, metaPath)
+	metaStat, err := getFileStat(rt, path.Join(bookPath, BookMetaFile))
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -475,11 +490,27 @@ func openBook(rt fsutil.FS, logger logutil.Logger, bookPath string) (*Book, erro
 	return &Book{
 		root:       rt,
 		folderPath: bookPath,
-		meta:       &meta,
+		meta:       meta,
 		logger:     logger,
 
 		metaStat: *metaStat,
 	}, nil
+}
+
+// readBookMeta decodes a book's persisted metadata from disk.
+func readBookMeta(rt fsutil.FS, bookPath string) (*BookMeta, error) {
+	metaFile, err := rt.Open(path.Join(bookPath, BookMetaFile))
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer metaFile.Close()
+
+	var meta BookMeta
+	if err := json.NewDecoder(metaFile).Decode(&meta); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	return &meta, nil
 }
 
 func createBook(rt fsutil.FS, logger logutil.Logger, bookPath, bookID, title string) (*Book, error) {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -324,6 +325,77 @@ func TestSetCoverRemovesReplacedCoverWithDifferentExtension(t *testing.T) {
 		t.Errorf("meta cover = %q, want %q", got, "cover.jpg")
 	}
 	assertNoTempFiles(t, bookDir)
+}
+
+// afterRenameFS runs a hook once, immediately after a rename to a matching
+// path, so a test can interleave a concurrent writer at an exact point.
+type afterRenameFS struct {
+	fsutil.FS
+	match func(newPath string) bool
+	on    func()
+	once  sync.Once
+}
+
+func (f *afterRenameFS) Rename(oldPath, newPath string) error {
+	err := f.FS.Rename(oldPath, newPath)
+	if err == nil && f.match(newPath) {
+		f.once.Do(f.on)
+	}
+	return err
+}
+
+// Two overlapping cover uploads with different extensions can interleave so
+// that the second one re-claims the first one's old file name. The cleanup of
+// the replaced cover must not delete the image the book now points to.
+func TestSetCoverKeepsReplacedCoverReclaimedByAnotherWriter(t *testing.T) {
+	book, _, bookDir := newBookForCoverTest(t)
+
+	if err := book.SetCover([]byte("original png"), ".png"); err != nil {
+		t.Fatalf("SetCover png: %v", err)
+	}
+
+	// A second handle on the same book, standing in for a concurrent request.
+	other, err := openBook(book.root, newLoggerForTest(), book.folderPath)
+	if err != nil {
+		t.Fatalf("openBook: %v", err)
+	}
+
+	const reclaimed = "reclaimed png"
+
+	// Fire the competing PNG upload right after this call's book.json rename,
+	// which lands it between our metadata write and our cleanup.
+	book.root = &afterRenameFS{
+		FS:    book.root,
+		match: func(newPath string) bool { return path.Base(newPath) == BookMetaFile },
+		on: func() {
+			if err := other.SetCover([]byte(reclaimed), ".png"); err != nil {
+				t.Errorf("concurrent SetCover png: %v", err)
+			}
+		},
+	}
+
+	if err := book.SetCover([]byte("jpeg data"), ".jpg"); err != nil {
+		t.Fatalf("SetCover jpg: %v", err)
+	}
+
+	data, err := os.ReadFile(path.Join(bookDir, "cover.png"))
+	if err != nil {
+		t.Fatalf("cover.png was deleted while the book still pointed at it: %v", err)
+	}
+	if string(data) != reclaimed {
+		t.Errorf("cover.png = %q, want %q", data, reclaimed)
+	}
+
+	persisted, err := readBookMeta(other.root, other.folderPath)
+	if err != nil {
+		t.Fatalf("readBookMeta: %v", err)
+	}
+	if persisted.Cover != "cover.png" {
+		t.Fatalf("persisted cover = %q, want %q", persisted.Cover, "cover.png")
+	}
+	if _, err := os.Stat(path.Join(bookDir, persisted.Cover)); err != nil {
+		t.Errorf("book.json points at %q but it is missing: %v", persisted.Cover, err)
+	}
 }
 
 func TestSetCoverKeepsFileWhenExtensionUnchanged(t *testing.T) {
