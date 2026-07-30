@@ -13,6 +13,7 @@ const DuplicateContentPage = () => import('./pages/DuplicateContentPage.vue');
 const MissingAuthorPage = () => import('./pages/MissingAuthorPage.vue');
 const MissingCoverPage = () => import('./pages/MissingCoverPage.vue');
 const MissingLanguagePage = () => import('./pages/MissingLanguagePage.vue');
+const LowCharCountPage = () => import('./pages/LowCharCountPage.vue');
 const ReadHistoryPage = () => import('./pages/ReadHistoryPage.vue');
 const TrashPage = () => import('./pages/TrashPage.vue');
 const DownloadsPage = () => import('./pages/DownloadsPage.vue');
@@ -34,7 +35,9 @@ const ROUTES_WITH_OWN_TITLE = new Set([
   'admin-logs',
   'settings',
   'maintenance-missing-author',
-  'maintenance-missing-cover'
+  'maintenance-missing-cover',
+  'maintenance-missing-language',
+  'maintenance-low-char-count'
 ]);
 
 const router = createRouter({
@@ -120,6 +123,11 @@ const router = createRouter({
           path: 'books/maintenance/missing-language',
           name: 'maintenance-missing-language',
           component: MissingLanguagePage
+        },
+        {
+          path: 'books/maintenance/low-char-count',
+          name: 'maintenance-low-char-count',
+          component: LowCharCountPage
         },
         {
           path: 'admin/logs',

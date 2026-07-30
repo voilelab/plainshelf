@@ -20,6 +20,7 @@
       :total="filteredBooks.length"
       :count="filteredBooks.length"
       :empty-message="emptyMessage"
+      :filter-description="filterDescription"
       :show-edit-action="true"
       :can-open-book-folder="canOpenBookFolder"
       :read-only="readOnly"
@@ -33,7 +34,23 @@
       @delete="onRequestDeleteBook"
       @update:page="onPageChange"
       @update:page-size="onPageSizeChange"
-    />
+    >
+      <template v-if="thresholdConfig" #toolbar>
+        <div class="toolbar-bar">
+          <label class="toolbar-label" :for="THRESHOLD_INPUT_ID">{{ thresholdLabel }}</label>
+          <input
+            :id="THRESHOLD_INPUT_ID"
+            class="toolbar-control toolbar-input threshold-input"
+            type="number"
+            inputmode="numeric"
+            :min="thresholdConfig.min"
+            :step="thresholdConfig.step"
+            :value="threshold"
+            @change="onThresholdChange"
+          />
+        </div>
+      </template>
+    </BookCollectionPage>
   </div>
 </template>
 
@@ -44,11 +61,20 @@ import BookCollectionPage from '../components/BookCollectionPage.vue';
 import DeleteModal from '../components/DeleteModal.vue';
 import { useBookActions } from '../composables/useBookActions';
 import { useBookStore } from '../composables/useBookStore';
+import { useCharCountBooks } from '../composables/useCharCountBooks';
 import { useBookPagination, toSingleQueryValue, toPage } from '../composables/useBookPagination';
 import { useServerMode } from '../composables/useServerMode';
-import { MAINTENANCE_BOOK_FILTERS, type MaintenanceBookFilter } from '../utils/maintenance';
+import {
+  MAINTENANCE_BOOK_FILTERS,
+  clampThreshold,
+  hasUnknownCharCount,
+  type MaintenanceBookFilter
+} from '../utils/maintenance';
 import type { Book } from '../types/book';
 import { useI18n } from '../i18n';
+import '../styles/toolbar-controls.css';
+
+const THRESHOLD_INPUT_ID = 'maintenance-threshold';
 
 const props = defineProps<{
   filter: MaintenanceBookFilter;
@@ -56,12 +82,21 @@ const props = defineProps<{
 
 const route = useRoute();
 const router = useRouter();
-const { books, loading, error, fetchBooks } = useBookStore();
 const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
 const { readOnly } = useServerMode();
 const { t } = useI18n();
 
 const filterConfig = computed(() => MAINTENANCE_BOOK_FILTERS[props.filter]);
+
+// Filters that read char_count need the opt-in listing; every other filter keeps
+// using the shared store so it stays on the cheap /books request.
+const bookStore = useBookStore();
+const charCountBooks = useCharCountBooks();
+const source = computed(() => (filterConfig.value.requiresCharCount ? charCountBooks : bookStore));
+
+const books = computed(() => source.value.books.value);
+const loading = computed(() => source.value.loading.value);
+const error = computed(() => source.value.error.value);
 
 const heading = computed(() => {
   return t(filterConfig.value.titleKey);
@@ -71,17 +106,59 @@ const emptyMessage = computed(() => {
   return t(filterConfig.value.emptyMessageKey);
 });
 
-const filteredBooks = computed(() => {
-  return books.value.filter((book) => filterConfig.value.predicate(book));
+const thresholdConfig = computed(() => filterConfig.value.threshold);
+
+const threshold = computed(() => {
+  const config = thresholdConfig.value;
+  if (!config) {
+    return 0;
+  }
+
+  return clampThreshold(toSingleQueryValue(route.query.maxChars), config);
 });
 
-function buildPageQuery(nextPage: number): Record<string, string> {
+const filteredBooks = computed(() => {
+  return books.value.filter((book) => filterConfig.value.predicate(book, { threshold: threshold.value }));
+});
+
+const thresholdLabel = computed(() => {
+  const config = thresholdConfig.value;
+  return config ? t(config.labelKey) : '';
+});
+
+const filterDescription = computed(() => {
+  const descriptionKey = filterConfig.value.filterDescriptionKey;
+  if (!descriptionKey) {
+    return '';
+  }
+
+  const description = t(descriptionKey, { threshold: threshold.value.toLocaleString() });
+  if (!filterConfig.value.requiresCharCount) {
+    return description;
+  }
+
+  const unknownCount = filteredBooks.value.filter(hasUnknownCharCount).length;
+  if (unknownCount === 0) {
+    return description;
+  }
+
+  return `${description} — ${t('maintenance.lowCharCount.unknownNote', { count: unknownCount })}`;
+});
+
+function buildQuery(overrides: { page?: number; maxChars?: number }): Record<string, string> {
   const nextQuery = {
     ...route.query
   } as Record<string, string>;
 
-  delete nextQuery.page;
-  nextQuery.page = String(nextPage);
+  if (overrides.page !== undefined) {
+    delete nextQuery.page;
+    nextQuery.page = String(overrides.page);
+  }
+
+  if (overrides.maxChars !== undefined) {
+    delete nextQuery.maxChars;
+    nextQuery.maxChars = String(overrides.maxChars);
+  }
 
   return nextQuery;
 }
@@ -101,7 +178,7 @@ function onPageChange(nextPage: number): void {
 
   void router.push({
     path: route.path,
-    query: buildPageQuery(nextPage)
+    query: buildQuery({ page: nextPage })
   });
 }
 
@@ -109,7 +186,22 @@ function onPageSizeChange(newSize: number): void {
   setPageSize(newSize);
   void router.push({
     path: route.path,
-    query: buildPageQuery(1)
+    query: buildQuery({ page: 1 })
+  });
+}
+
+// Committed on change (blur, Enter, spinner) rather than on every keystroke, so
+// a partially typed number never filters the list or fills up history.
+function onThresholdChange(event: Event): void {
+  const config = thresholdConfig.value;
+  if (!config) {
+    return;
+  }
+
+  const nextThreshold = clampThreshold((event.target as HTMLInputElement).value, config);
+  void router.replace({
+    path: route.path,
+    query: buildQuery({ page: 1, maxChars: nextThreshold })
   });
 }
 
@@ -122,7 +214,7 @@ function openEdit(id: string): void {
 }
 
 async function loadBooks(): Promise<void> {
-  await fetchBooks();
+  await source.value.fetchBooks();
 }
 
 const {
@@ -178,7 +270,7 @@ watch(
 
     void router.replace({
       path: route.path,
-      query: buildPageQuery(normalizedPage)
+      query: buildQuery({ page: normalizedPage })
     });
   },
   { immediate: true }
@@ -188,3 +280,9 @@ onMounted(() => {
   void loadBooks();
 });
 </script>
+
+<style scoped>
+.threshold-input {
+  width: 96px;
+}
+</style>

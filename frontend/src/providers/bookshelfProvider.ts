@@ -1,4 +1,5 @@
 import type { DesktopShelfDetails } from '../api/desktop';
+import type { ListBooksOptions } from '../api/books';
 import type {
   BookmarkPayload,
   Book,
@@ -15,6 +16,7 @@ import type { SourceMeta } from '../types/source';
 
 export type { DownloadState } from '../types/book';
 export type { DesktopShelfDetails } from '../api/desktop';
+export type { ListBooksOptions } from '../api/books';
 
 export interface DesktopImportBookResult {
   path?: string;
@@ -35,7 +37,8 @@ export interface StorageEstimateResult {
 }
 
 export interface BookshelfProvider {
-  listBooks(page?: number, pageSize?: number): Promise<PaginatedBooks>;
+  /** `options` is opt-in extra work for the backend; omit it unless the caller displays the field. */
+  listBooks(page?: number, pageSize?: number, options?: ListBooksOptions): Promise<PaginatedBooks>;
   getBook(bookId: string): Promise<Book>;
   updateBook(bookId: string, payload: BookUpdateRequest): Promise<Book>;
   updateBookLayer(bookId: string, layer: string): Promise<void>;
