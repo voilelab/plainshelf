@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -88,6 +89,54 @@ func (app *App) HandleAPIGetTrashedBooks(w http.ResponseWriter, r *http.Request)
 		app.Error("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
+	}
+}
+
+type EmptyTrashResponse struct {
+	TaskChainID string `json:"taskchain_id"`
+}
+
+// POST /api/shelves/{shelf_id}/trash/empty
+func (app *App) HandleAPIEmptyTrash(w http.ResponseWriter, r *http.Request) {
+	shelfID, err := readShelfID(r)
+	if err != nil {
+		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
+		return
+	}
+
+	s, exists := app.shelfManager.GetShelf(shelfID)
+	if !exists {
+		http.Error(w, "shelf not found", http.StatusNotFound)
+		return
+	}
+
+	chain, err := app.taskChains.Submit(newEmptyTrashChain(shelfID, s.Shelf, &app.Logger))
+	switch {
+	case errors.Is(err, taskutil.ErrTaskChainRunning):
+		// Report the chain already in flight so the client can attach to its
+		// progress instead of queueing a redundant sweep.
+		app.writeEmptyTrashResponse(w, chain.ID, http.StatusConflict)
+		return
+
+	case errors.Is(err, taskutil.ErrWorkerBusy):
+		w.Header().Set("Retry-After", "5")
+		http.Error(w, "background worker is busy", http.StatusServiceUnavailable)
+		return
+
+	case err != nil:
+		app.Error("failed to schedule empty trash task", "error", err)
+		http.Error(w, "failed to schedule empty trash task", http.StatusInternalServerError)
+		return
+	}
+
+	app.writeEmptyTrashResponse(w, chain.ID, http.StatusAccepted)
+}
+
+func (app *App) writeEmptyTrashResponse(w http.ResponseWriter, taskChainID string, status int) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(EmptyTrashResponse{TaskChainID: taskChainID}); err != nil {
+		app.Error("failed to encode response", "error", err)
 	}
 }
 
