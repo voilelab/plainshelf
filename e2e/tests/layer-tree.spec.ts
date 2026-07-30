@@ -7,6 +7,7 @@ import {
   expandLayersSection,
   layerRow,
   layersQueryRegex,
+  layersSectionToggle,
   openLayerContextMenu,
   selectAllBooks,
   selectLayer,
@@ -281,6 +282,42 @@ test('the new layer dialog scrolls its parent select instead of overflowing the 
     // The last option is still reachable and selectable.
     await page.getByRole('option', { name: 'layer-9', exact: true }).click();
     await expect(dialog.getByRole('combobox')).toContainText('layer-9');
+  } finally {
+    await server.dispose();
+  }
+});
+
+test('disables layer creation while the layer list is unavailable', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    // Fail only the layer listing, so the rest of the shell still loads.
+    await page.route('**/api/shelves/*/layers', (route) =>
+      route.request().method() === 'GET' ? route.fulfill({ status: 500, body: 'boom' }) : route.fallback()
+    );
+
+    await page.goto(`${server.baseUrl}/books`);
+
+    // Not expandLayersSection(): that waits for the Layers nav, which LayerTree
+    // never renders while the fetch is failing. Expand the section directly.
+    const sectionToggle = layersSectionToggle(page);
+    if ((await sectionToggle.getAttribute('aria-expanded')) === 'false') {
+      await sectionToggle.click();
+    }
+
+    // The sidebar refuses to show the tree, so creation must be refused too --
+    // otherwise the dialog would offer parent options from a list the sidebar
+    // itself is declining to show (a previous shelf's, after a shelf switch).
+    await expect(page.getByRole('button', { name: 'Retry', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add layer', exact: true })).toBeDisabled();
+
+    await page.unroute('**/api/shelves/*/layers');
+    await page.getByRole('button', { name: 'Retry', exact: true }).click();
+
+    const addLayerButton = page.getByRole('button', { name: 'Add layer', exact: true });
+    await expect(addLayerButton).toBeEnabled();
+    await addLayerButton.click();
+    await expect(page.getByRole('dialog', { name: 'New layer' })).toBeVisible();
   } finally {
     await server.dispose();
   }

@@ -110,7 +110,7 @@
                 type="button"
                 class="create-layer-toggle"
                 aria-haspopup="dialog"
-                :disabled="readOnly || creatingLayer"
+                :disabled="readOnly || creatingLayer || layersLoading || layersError.length > 0"
                 @click="openCreateLayerModal"
               >
                 {{ t('layout.createLayer.add') }}
