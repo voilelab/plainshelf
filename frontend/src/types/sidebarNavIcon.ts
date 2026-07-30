@@ -5,6 +5,7 @@ export type SidebarNavIconName =
   | 'missing-author'
   | 'missing-cover'
   | 'missing-language'
+  | 'low-char-count'
   | 'trash'
   | 'downloads'
   | 'logs'

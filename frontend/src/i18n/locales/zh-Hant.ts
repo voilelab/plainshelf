@@ -266,6 +266,13 @@ const zhHant = {
     missingLanguage: {
       title: '缺少語言',
       empty: '沒有缺少語言的書籍。'
+    },
+    lowCharCount: {
+      title: '字數較少',
+      empty: '沒有低於此字數的書籍。',
+      thresholdLabel: '字數上限',
+      filterDescription: '字數在 {threshold} 字以下的書籍',
+      unknownNote: '其中 {count} 本字數未知'
     }
   },
   library: {

@@ -16,6 +16,7 @@ import type {
   BookshelfProvider,
   DesktopImportBookResult,
   DownloadedBookEntry,
+  ListBooksOptions,
   StorageEstimateResult
 } from './bookshelfProvider';
 import { InMemoryMobileBookCache, type MobileBookCache } from './mobileBookCache';
@@ -50,11 +51,14 @@ export class MobileBookshelfProvider implements BookshelfProvider {
     private readonly isOnline: () => boolean = defaultIsOnline
   ) {}
 
-  async listBooks(page = 1, pageSize = 20): Promise<PaginatedBooks> {
+  // `options` only affects the remote call; the offline cache stores whatever
+  // the plain /books response carried, so opt-in fields such as char_count are
+  // absent from cached results.
+  async listBooks(page = 1, pageSize = 20, options?: ListBooksOptions): Promise<PaginatedBooks> {
     if (this.isOnline()) {
       let remoteBooks: PaginatedBooks;
       try {
-        remoteBooks = await this.remote.listBooks(page, pageSize);
+        remoteBooks = await this.remote.listBooks(page, pageSize, options);
       } catch (err) {
         if (!isServerUnreachableError(err)) {
           throw err;

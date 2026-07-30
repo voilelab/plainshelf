@@ -267,6 +267,13 @@ const en = {
     missingLanguage: {
       title: 'Missing Language',
       empty: 'No books with missing language.'
+    },
+    lowCharCount: {
+      title: 'Low Character Count',
+      empty: 'No books under this character count.',
+      thresholdLabel: 'Max characters',
+      filterDescription: 'Books with {threshold} characters or fewer',
+      unknownNote: '{count} with an unknown character count'
     }
   },
   library: {

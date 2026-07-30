@@ -45,11 +45,11 @@ import type {
   TrashedBook
 } from '../types/book';
 import type { SourceMeta } from '../types/source';
-import type { BookshelfProvider } from './bookshelfProvider';
+import type { BookshelfProvider, ListBooksOptions } from './bookshelfProvider';
 
 export class ServerBookshelfProvider implements BookshelfProvider {
-  listBooks(page?: number, pageSize?: number): Promise<PaginatedBooks> {
-    return listBooks(page, pageSize);
+  listBooks(page?: number, pageSize?: number, options?: ListBooksOptions): Promise<PaginatedBooks> {
+    return listBooks(page, pageSize, options);
   }
 
   getBook(bookId: string): Promise<Book> {
