@@ -106,6 +106,12 @@ async function backfillManifestSizes(transaction: MobileDBUpgradeTransaction): P
  * IndexedDB-backed {@link MobileBookCache}. Unlike {@link InMemoryMobileBookCache}
  * this survives app restarts, so downloaded books and reading progress persist
  * across launches — the core requirement for offline reading on mobile.
+ *
+ * Not wired up: `createBookshelfProvider()` selects {@link FilesystemMobileBookCache}
+ * instead, because Directory.Data is app-private and exempt from the WebView's
+ * best-effort storage eviction. See the rationale in `providers/index.ts`. This
+ * implementation is kept as the documented alternative; nothing imports it, so it
+ * is not bundled.
  */
 export class IndexedDbMobileBookCache implements MobileBookCache {
   private dbPromise: Promise<IDBPDatabase<PlainShelfMobileDB>> | null = null;
