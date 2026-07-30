@@ -39,12 +39,15 @@ const zhHant = {
     },
     createLayer: {
       add: '新增資料夾',
-      cancel: '取消',
-      placeholder: '例如 programming/rust',
+      title: '新增資料夾',
+      nameLabel: '資料夾名稱',
+      namePlaceholder: '資料夾名稱',
+      parentLabel: '位置',
+      rootOption: '所有書籍（最上層）',
+      closeLabel: '關閉新增資料夾對話框',
+      invalidName: '資料夾名稱不得為空，也不能包含 /。',
       creating: '建立中...',
       create: '建立',
-      created: '資料夾已建立',
-      enter: '進入',
       loadingLayers: '載入資料夾中...'
     },
     deleteLayer: {

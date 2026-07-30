@@ -31,17 +31,45 @@ export function layerRow(page: Page, name: string): Locator {
     .filter({ has: page.getByRole('button', { name, exact: true }) });
 }
 
+/** Label of the top-level entry in the new-layer dialog's "Where" select. */
+const ROOT_PARENT_LABEL = 'All books (top level)';
+
 /**
- * Opens the "Add layer" inline form, submits the given path in one go
- * (which can be a nested path like "novels/scifi"), and waits for the
- * "Layer created" success confirmation.
+ * Creates one layer through the "Add layer" dialog. The name field accepts a
+ * single segment only, so the parent is chosen from the "Where" select. Reka
+ * renders the select listbox in a portal outside the dialog, so options are
+ * located from the page rather than from the dialog.
  */
-export async function addLayer(page: Page, path: string): Promise<void> {
+async function createLayer(page: Page, name: string, parentLabel: string): Promise<void> {
   await expandLayersSection(page);
   await page.getByRole('button', { name: 'Add layer', exact: true }).click();
-  await page.getByPlaceholder('e.g. programming/rust').fill(path);
-  await page.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(page.getByText('Layer created')).toBeVisible();
+
+  const dialog = page.getByRole('dialog', { name: 'New layer' });
+  await expect(dialog).toBeVisible();
+
+  await dialog.getByRole('combobox').click();
+  await page.getByRole('option', { name: parentLabel, exact: true }).click();
+  await dialog.getByLabel('Layer name').fill(name);
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+
+  await expect(dialog).not.toBeVisible();
+}
+
+/**
+ * Creates the given path one level at a time, always pinning the parent
+ * explicitly so the helper does not depend on which layer happens to be
+ * selected when it runs. Each successful submission navigates into the layer it
+ * created, which is what this waits on.
+ */
+export async function addLayer(page: Page, path: string): Promise<void> {
+  const segments = path.split('/').filter((segment) => segment.length > 0);
+  let parent = '';
+
+  for (const name of segments) {
+    await createLayer(page, name, parent === '' ? ROOT_PARENT_LABEL : parent);
+    parent = parent === '' ? name : `${parent}/${name}`;
+    await expect(page).toHaveURL(layersQueryRegex(parent));
+  }
 }
 
 /** Clicks a layer node's label button in the sidebar to filter by that layer. */

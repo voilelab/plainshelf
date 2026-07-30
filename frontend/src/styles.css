@@ -256,9 +256,37 @@ a {
   border-radius: 8px;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
   display: grid;
+  /* Popper content inherits --reka-popper-available-height (space between the
+     anchor and the viewport edge) from the wrapper, measured in visual pixels.
+     The wrapper re-applies --app-zoom to this element, so divide it back out.
+     Select content scrolls inside its own SelectViewport; DropdownMenu and
+     ContextMenu content have no viewport child and scroll here. */
+  max-height: calc(min(var(--reka-popper-available-height, 100vh), 320px) / var(--app-zoom, 1));
   min-width: 180px;
+  overflow-y: auto;
   padding: 6px;
   z-index: var(--z-modal);
+}
+
+/* SelectViewport hides its own scrollbar from inside the portal, and that style
+   lands after this file in document order, so out-specify it rather than relying
+   on the cascade. Platforms using overlay scrollbars (macOS, mobile WebViews)
+   still only reveal it while scrolling. */
+.reka-menu [data-reka-select-viewport] {
+  scrollbar-color: var(--muted) transparent;
+  scrollbar-width: thin;
+}
+
+/* Legacy fallback for WebViews predating scrollbar-width; inert where the
+   standard properties above are supported. */
+.reka-menu [data-reka-select-viewport]::-webkit-scrollbar {
+  display: block;
+  width: 8px;
+}
+
+.reka-menu [data-reka-select-viewport]::-webkit-scrollbar-thumb {
+  background: var(--muted);
+  border-radius: 999px;
 }
 
 .reka-menu-item {
