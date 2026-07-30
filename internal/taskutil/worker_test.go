@@ -29,6 +29,26 @@ func (t *fakeTask) Description() string { return t.name }
 func (t *fakeTask) Percentage() float64 { return 0 }
 func (t *fakeTask) Status() Status      { return StatusPending }
 
+// blockingTask reports when it starts, then waits for the worker context to be
+// cancelled and publishes the error it observed.
+type blockingTask struct {
+	started  chan struct{}
+	observed chan error
+}
+
+func (t *blockingTask) Run(ctx context.Context) error {
+	close(t.started)
+	<-ctx.Done()
+	t.observed <- ctx.Err()
+	return ctx.Err()
+}
+
+func (t *blockingTask) Name() string        { return "blocking" }
+func (t *blockingTask) Title() string       { return "blocking" }
+func (t *blockingTask) Description() string { return "blocking" }
+func (t *blockingTask) Percentage() float64 { return 0 }
+func (t *blockingTask) Status() Status      { return StatusRunning }
+
 func newTestWorker(t *testing.T, maxLen int) *worker {
 	t.Helper()
 
@@ -93,6 +113,55 @@ func TestWorkerStopsChainAfterFailure(t *testing.T) {
 	want := []string{"first", "failing"}
 	if !slices.Equal(ran, want) {
 		t.Errorf("Expected tasks %v to run, got %v", want, ran)
+	}
+}
+
+func TestWorkerCancelsRunningTaskOnClose(t *testing.T) {
+	w := newTestWorker(t, 1)
+	w.Start()
+
+	started := make(chan struct{})
+	observed := make(chan error, 1)
+	chain := &TaskChain{Tasks: []Task{&blockingTask{started: started, observed: observed}}}
+
+	if err := w.Run(chain); err != nil {
+		t.Fatalf("Run returned an error: %v", err)
+	}
+
+	<-started
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close returned an error: %v", err)
+	}
+
+	if err := <-observed; !errors.Is(err, context.Canceled) {
+		t.Errorf("Expected the running task to observe context.Canceled, got %v", err)
+	}
+}
+
+func TestWorkerRunAfterCloseReturnsError(t *testing.T) {
+	w := newTestWorker(t, 1)
+	w.Start()
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close returned an error: %v", err)
+	}
+
+	ran := []string{}
+	err := w.Run(&TaskChain{Tasks: []Task{&fakeTask{name: "late", record: &ran}}})
+	if !errors.Is(err, ErrWorkerClosed) {
+		t.Errorf("Expected ErrWorkerClosed, got %v", err)
+	}
+}
+
+func TestWorkerCloseIsIdempotent(t *testing.T) {
+	w := newTestWorker(t, 1)
+	w.Start()
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("first Close returned an error: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Errorf("second Close returned an error: %v", err)
 	}
 }
 

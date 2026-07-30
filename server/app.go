@@ -20,7 +20,7 @@ type App struct {
 	logutil.Logger
 
 	shelfManager *shelf.ShelfManager
-	worker       taskutil.Worker
+	taskChains   taskutil.Pool
 	storeDB      *store.DB
 	spaFS        fs.FS
 	spaHandler   http.Handler
@@ -32,6 +32,10 @@ type App struct {
 type WorkerConf struct {
 	Logger logutil.LogConf `yaml:"logger"`
 	MaxLen int             `yaml:"max_len"`
+
+	// MaxKeep bounds how many finished task chains stay queryable through the
+	// task chain API. Zero selects the package default.
+	MaxKeep int `yaml:"max_keep"`
 }
 
 type AppConf struct {
@@ -88,18 +92,29 @@ func NewApp(conf *AppConf) (*App, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	workLogger, err := logutil.NewLogger(&conf.Worker.Logger)
+	// The worker section is optional; every field has a usable zero value.
+	workerConf := conf.Worker
+	if workerConf == nil {
+		workerConf = &WorkerConf{}
+	}
+
+	workLogger, err := logutil.NewLogger(&workerConf.Logger)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
+	defer func() {
+		if failure {
+			workLogger.Close()
+		}
+	}()
 
-	worker := taskutil.NewWorker(conf.Worker.MaxLen, workLogger)
+	taskChains := taskutil.NewPool(taskutil.NewWorker(workerConf.MaxLen, workLogger), workerConf.MaxKeep)
 
 	failure = false
 	return &App{
 		Logger:       *logger,
 		shelfManager: shelfManager,
-		worker:       worker,
+		taskChains:   taskChains,
 		storeDB:      storeDB,
 		spaFS:        frontend.WebFS,
 		spaHandler:   http.FileServerFS(frontend.WebFS),
@@ -109,7 +124,7 @@ func NewApp(conf *AppConf) (*App, error) {
 }
 
 func (app *App) Start() error {
-	app.worker.Start()
+	app.taskChains.Start()
 	return nil
 }
 
@@ -129,7 +144,7 @@ func (app *App) Close() error {
 	err1 := app.storeDB.Close()
 	err2 := app.shelfManager.Close()
 	err3 := app.Logger.Close()
-	err4 := app.worker.Close()
+	err4 := app.taskChains.Close()
 
 	err := errors.Join(err1, err2, err3, err4)
 	if err != nil {
@@ -272,6 +287,10 @@ func (app *App) Serve(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/reading_activity", app.HandleAPIGetReadingActivity)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/reading_activity", app.HandleAPIPostReadingActivity)
+
+	// Task API
+
+	mux.HandleFunc("GET /api/taskchains/{taskchain_id}", app.HandleAPIGetTaskChain)
 
 	// Log API
 
