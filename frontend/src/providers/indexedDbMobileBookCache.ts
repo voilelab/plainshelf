@@ -1,7 +1,7 @@
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
 
-import type { Book, BookContent, DownloadState, ReadingProgress } from '../types/book';
-import type { SourceMeta } from '../types/source';
+import type { Book, BookContent, DownloadState, ReadingProgress } from '@/types/book';
+import type { SourceMeta } from '@/types/source';
 import type { CachedBookManifest, MobileBookCache } from './mobileBookCache';
 
 const DB_NAME = 'plainshelf-mobile';

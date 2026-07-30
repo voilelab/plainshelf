@@ -157,17 +157,17 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import ChapterModal from '../components/ChapterModal.vue';
-import ReaderSideActions from '../components/ReaderSideActions.vue';
-import SplitConfigModal from '../components/SplitConfigModal.vue';
-import { useDocumentTitle } from '../../../composables/useDocumentTitle';
-import { useReader } from '../composables/useReader';
-import { useReaderSettings } from '../composables/useReaderSettings';
-import { useReadingHeartbeat } from '../composables/useReadingHeartbeat';
-import { parseReaderBlocks } from '../utils/parseReaderBlocks';
-import { parseMarkdownBlocks } from '../utils/parseMarkdownBlocks';
-import type { SplitConfig } from '../../../types/book';
-import { useI18n } from '../../../i18n';
+import ChapterModal from '@/features/reader/components/ChapterModal.vue';
+import ReaderSideActions from '@/features/reader/components/ReaderSideActions.vue';
+import SplitConfigModal from '@/features/reader/components/SplitConfigModal.vue';
+import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useReader } from '@/features/reader/composables/useReader';
+import { useReaderSettings } from '@/features/reader/composables/useReaderSettings';
+import { useReadingHeartbeat } from '@/features/reader/composables/useReadingHeartbeat';
+import { parseReaderBlocks } from '@/features/reader/utils/parseReaderBlocks';
+import { parseMarkdownBlocks } from '@/features/reader/utils/parseMarkdownBlocks';
+import type { SplitConfig } from '@/types/book';
+import { useI18n } from '@/i18n';
 
 const route = useRoute();
 const id = computed(() => String(route.params.id));

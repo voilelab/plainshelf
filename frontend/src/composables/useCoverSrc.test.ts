@@ -1,7 +1,7 @@
 import { effectScope, nextTick, ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import bookcover from '../assets/bookcover.svg';
+import bookcover from '@/assets/bookcover.svg';
 
 const { getBookCoverMock, getBookCoverUrlMock, isMobileRuntimeMock } = vi.hoisted(() => ({
   getBookCoverMock: vi.fn(),
@@ -9,14 +9,14 @@ const { getBookCoverMock, getBookCoverUrlMock, isMobileRuntimeMock } = vi.hoiste
   isMobileRuntimeMock: vi.fn()
 }));
 
-vi.mock('../providers', () => ({
+vi.mock('@/providers', () => ({
   getBookshelfProvider: () => ({
     getBookCover: getBookCoverMock,
     getBookCoverUrl: getBookCoverUrlMock
   })
 }));
 
-vi.mock('../providers/runtime', () => ({
+vi.mock('@/providers/runtime', () => ({
   isMobileRuntime: isMobileRuntimeMock
 }));
 

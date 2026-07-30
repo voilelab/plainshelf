@@ -38,9 +38,9 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import BookCoverImg from '../../../components/BookCoverImg.vue';
-import { useI18n } from '../../../i18n';
-import type { Book } from '../../../types/book';
+import BookCoverImg from '@/components/BookCoverImg.vue';
+import { useI18n } from '@/i18n';
+import type { Book } from '@/types/book';
 
 const props = defineProps<{
   books: Book[];

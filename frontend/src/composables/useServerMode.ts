@@ -1,5 +1,5 @@
 import { ref, watch } from 'vue';
-import { getReadOnlyMode } from '../api/mode';
+import { getReadOnlyMode } from '@/api/mode';
 
 const readOnly = ref(false);
 const loading = ref(false);

@@ -68,10 +68,10 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
 import BaseDialog from './BaseDialog.vue';
-import { useImportBook } from '../composables/useImportBook';
-import { useBookStore } from '../composables/useBookStore';
-import { useLayerStore } from '../composables/useLayerStore';
-import { hasFileTransfer, readDroppedFiles, readSelectedFiles } from '../utils/file';
+import { useImportBook } from '@/composables/useImportBook';
+import { useBookStore } from '@/composables/useBookStore';
+import { useLayerStore } from '@/composables/useLayerStore';
+import { hasFileTransfer, readDroppedFiles, readSelectedFiles } from '@/utils/file';
 
 const props = defineProps<{
   open: boolean;

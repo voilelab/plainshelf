@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError } from '../api/client';
-import type { Book, PaginatedBooks, ReadingProgress } from '../types/book';
-import type { SourceMeta } from '../types/source';
+import { ApiError } from '@/api/client';
+import type { Book, PaginatedBooks, ReadingProgress } from '@/types/book';
+import type { SourceMeta } from '@/types/source';
 import type { BookshelfProvider } from './bookshelfProvider';
 import { InMemoryMobileBookCache } from './mobileBookCache';
 import { MobileBookshelfProvider } from './mobileBookshelfProvider';

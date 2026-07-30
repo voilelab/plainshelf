@@ -24,9 +24,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue';
 import BookCoverImg from './BookCoverImg.vue';
-import bookcover from '../assets/bookcover.svg';
-import type { Book } from '../types/book';
-import { getLayerPath, layerPathLabel } from '../utils/layers';
+import bookcover from '@/assets/bookcover.svg';
+import type { Book } from '@/types/book';
+import { getLayerPath, layerPathLabel } from '@/utils/layers';
 
 const props = defineProps<{ book: Book }>();
 

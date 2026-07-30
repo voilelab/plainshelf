@@ -1,4 +1,4 @@
-import type { Book } from '../types/book';
+import type { Book } from '@/types/book';
 
 export const ROOT_LAYER_PATH = '';
 

@@ -81,7 +81,7 @@ import {
   SelectViewport,
   type AcceptableValue
 } from 'reka-ui';
-import { useI18n } from '../i18n';
+import { useI18n } from '@/i18n';
 
 const props = defineProps<{
   page: number;

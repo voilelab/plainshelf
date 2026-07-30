@@ -48,7 +48,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
 import BaseDialog from './BaseDialog.vue';
-import { getBookshelfProvider } from '../providers';
+import { getBookshelfProvider } from '@/providers';
 
 const props = defineProps<{
   open: boolean;

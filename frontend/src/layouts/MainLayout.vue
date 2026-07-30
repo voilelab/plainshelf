@@ -469,20 +469,20 @@ import {
   TooltipTrigger,
   type AcceptableValue
 } from 'reka-ui';
-import CreateLayerModal, { type CreateLayerParentOption } from '../components/CreateLayerModal.vue';
-import DeleteModal from '../components/DeleteModal.vue';
-import LayerTree from '../components/LayerTree.vue';
-import RenameLayerModal from '../components/RenameLayerModal.vue';
-import SidebarNavIcon from '../components/SidebarNavIcon.vue';
-import { getBookshelfProvider, isMobileRuntime } from '../providers';
-import { createLayer, deleteLayer, moveLayer, renameLayer } from '../api/layers';
-import { useBookStore } from '../composables/useBookStore';
-import { useLayerStore } from '../composables/useLayerStore';
-import { useShelvesStore } from '../composables/useShelvesStore';
-import { useIsNarrowViewport } from '../composables/useViewport';
-import { useServerMode } from '../composables/useServerMode';
-import { buildLayerTreeNodes, flattenLayerTreePaths, getLayerPath, normalizeLayerPath } from '../utils/layers';
-import { MAINTENANCE_NAV_ITEMS } from '../utils/maintenance';
+import CreateLayerModal, { type CreateLayerParentOption } from '@/components/CreateLayerModal.vue';
+import DeleteModal from '@/components/DeleteModal.vue';
+import LayerTree from '@/components/LayerTree.vue';
+import RenameLayerModal from '@/components/RenameLayerModal.vue';
+import SidebarNavIcon from '@/components/SidebarNavIcon.vue';
+import { getBookshelfProvider, isMobileRuntime } from '@/providers';
+import { createLayer, deleteLayer, moveLayer, renameLayer } from '@/api/layers';
+import { useBookStore } from '@/composables/useBookStore';
+import { useLayerStore } from '@/composables/useLayerStore';
+import { useShelvesStore } from '@/composables/useShelvesStore';
+import { useIsNarrowViewport } from '@/composables/useViewport';
+import { useServerMode } from '@/composables/useServerMode';
+import { buildLayerTreeNodes, flattenLayerTreePaths, getLayerPath, normalizeLayerPath } from '@/utils/layers';
+import { MAINTENANCE_NAV_ITEMS } from '@/utils/maintenance';
 import {
   MIN_EXPANDED_SIDEBAR_WIDTH,
   getStoredSidebarExpandedWidth,
@@ -490,9 +490,9 @@ import {
   setStoredSidebarExpandedWidth,
   setStoredSidebarMode,
   type SidebarMode
-} from '../utils/sidebarMode';
-import appIcon from '../assets/icon-192.png';
-import { useI18n } from '../i18n';
+} from '@/utils/sidebarMode';
+import appIcon from '@/assets/icon-192.png';
+import { useI18n } from '@/i18n';
 
 // Stable reference: an inline object literal in the template would be recreated on
 // every MainLayout re-render, and reka-ui's SplitterResizeHandle re-registers itself

@@ -20,10 +20,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import LayerBreadcrumb from './LayerBreadcrumb.vue';
-import type { Book, ReadingProgress } from '../types/book';
-import type { SourceMeta } from '../types/source';
-import { formatLanguage } from '../utils/language';
-import { formatDateLabel } from '../utils/date';
+import type { Book, ReadingProgress } from '@/types/book';
+import type { SourceMeta } from '@/types/source';
+import { formatLanguage } from '@/utils/language';
+import { formatDateLabel } from '@/utils/date';
 
 const props = defineProps<{
   book: Book;

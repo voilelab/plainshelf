@@ -4,9 +4,9 @@ import { computed, ref } from 'vue';
 // provider interface for mobile/Wails too. For this skeleton we call the API
 // layer directly so char_count reaches the page without touching
 // providers/bookshelfProvider.ts (out of scope for this task).
-import { listBooks } from '../../../api/books';
-import { getBookshelfProvider } from '../../../providers';
-import type { Book } from '../../../types/book';
+import { listBooks } from '@/api/books';
+import { getBookshelfProvider } from '@/providers';
+import type { Book } from '@/types/book';
 
 const READING_ACTIVITY_RANGE_DAYS = 365;
 

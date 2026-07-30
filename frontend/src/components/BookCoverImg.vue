@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { useCoverSrc } from '../composables/useCoverSrc';
+import { useCoverSrc } from '@/composables/useCoverSrc';
 
 const props = defineProps<{
   bookId: string;

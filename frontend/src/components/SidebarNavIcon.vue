@@ -68,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-import type { SidebarNavIconName } from '../types/sidebarNavIcon';
+import type { SidebarNavIconName } from '@/types/sidebarNavIcon';
 
 defineProps<{
   name: SidebarNavIconName;

@@ -57,22 +57,22 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import BookCollectionPage from '../components/BookCollectionPage.vue';
-import DeleteModal from '../components/DeleteModal.vue';
-import { useBookActions } from '../composables/useBookActions';
-import { useBookStore } from '../composables/useBookStore';
-import { useCharCountBooks } from '../composables/useCharCountBooks';
-import { useBookPagination, toSingleQueryValue, toPage } from '../composables/useBookPagination';
-import { useServerMode } from '../composables/useServerMode';
+import BookCollectionPage from '@/components/BookCollectionPage.vue';
+import DeleteModal from '@/components/DeleteModal.vue';
+import { useBookActions } from '@/composables/useBookActions';
+import { useBookStore } from '@/composables/useBookStore';
+import { useCharCountBooks } from '@/composables/useCharCountBooks';
+import { useBookPagination, toSingleQueryValue, toPage } from '@/composables/useBookPagination';
+import { useServerMode } from '@/composables/useServerMode';
 import {
   MAINTENANCE_BOOK_FILTERS,
   clampThreshold,
   hasUnknownCharCount,
   type MaintenanceBookFilter
-} from '../utils/maintenance';
-import type { Book } from '../types/book';
-import { useI18n } from '../i18n';
-import '../styles/toolbar-controls.css';
+} from '@/utils/maintenance';
+import type { Book } from '@/types/book';
+import { useI18n } from '@/i18n';
+import '@/styles/toolbar-controls.css';
 
 const THRESHOLD_INPUT_ID = 'maintenance-threshold';
 

@@ -1,5 +1,5 @@
-import { openDesktopExternalURL } from '../api/desktop';
-import { isMobileRuntime, isWailsRuntime } from '../providers/runtime';
+import { openDesktopExternalURL } from '@/api/desktop';
+import { isMobileRuntime, isWailsRuntime } from '@/providers/runtime';
 
 export async function openExternalURL(url: string): Promise<void> {
   if (isWailsRuntime()) {

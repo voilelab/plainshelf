@@ -29,13 +29,13 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue';
-import StatsCards from '../components/StatsCards.vue';
-import TagCloud from '../components/TagCloud.vue';
-import RandomBook from '../components/RandomBook.vue';
-import ReadingHeatmap from '../components/ReadingHeatmap.vue';
-import { useDashboardData } from '../composables/useDashboardData';
-import { useDocumentTitle } from '../../../composables/useDocumentTitle';
-import { useI18n } from '../../../i18n';
+import StatsCards from '@/features/dashboard/components/StatsCards.vue';
+import TagCloud from '@/features/dashboard/components/TagCloud.vue';
+import RandomBook from '@/features/dashboard/components/RandomBook.vue';
+import ReadingHeatmap from '@/features/dashboard/components/ReadingHeatmap.vue';
+import { useDashboardData } from '@/features/dashboard/composables/useDashboardData';
+import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
 

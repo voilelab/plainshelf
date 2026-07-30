@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { getLayers } from '../api/layers';
+import { getLayers } from '@/api/layers';
 
 const layers = ref<string[]>([]);
 const loading = ref(false);

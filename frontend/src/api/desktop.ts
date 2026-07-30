@@ -1,5 +1,5 @@
 import { getActiveShelfID } from './client';
-import { isWailsRuntime } from '../providers/runtime';
+import { isWailsRuntime } from '@/providers/runtime';
 
 interface DesktopImportBookResult {
   path?: string;

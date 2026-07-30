@@ -1,7 +1,7 @@
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 
-import type { Book, BookContent, DownloadState, ReadingProgress } from '../types/book';
-import type { SourceMeta } from '../types/source';
+import type { Book, BookContent, DownloadState, ReadingProgress } from '@/types/book';
+import type { SourceMeta } from '@/types/source';
 import type { CachedBookManifest, MobileBookCache } from './mobileBookCache';
 
 // Base directory (relative to Capacitor's Directory.Data) that holds every

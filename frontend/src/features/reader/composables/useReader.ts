@@ -1,7 +1,7 @@
 import { computed, nextTick, ref } from 'vue';
-import { getDefaultSplitConfigSetting } from '../../../api/settings';
-import { getBookshelfProvider } from '../../../providers';
-import type { ReaderSection, ReadingProgress, SplitConfig } from '../../../types/book';
+import { getDefaultSplitConfigSetting } from '@/api/settings';
+import { getBookshelfProvider } from '@/providers';
+import type { ReaderSection, ReadingProgress, SplitConfig } from '@/types/book';
 
 function clampOffset(offset: number, total: number): number {
   if (total <= 0) {

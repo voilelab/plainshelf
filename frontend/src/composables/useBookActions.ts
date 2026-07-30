@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { getBookshelfProvider } from '../providers';
-import type { Book } from '../types/book';
+import { getBookshelfProvider } from '@/providers';
+import type { Book } from '@/types/book';
 
 export interface UseBookActionsOptions {
   onDeleted?: (book: Book) => void;

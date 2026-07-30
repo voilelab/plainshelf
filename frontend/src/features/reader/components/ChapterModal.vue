@@ -24,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import BaseDialog from '../../../components/BaseDialog.vue';
+import BaseDialog from '@/components/BaseDialog.vue';
 
 type ReaderSection = {
   index: number;

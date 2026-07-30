@@ -1,7 +1,7 @@
 import { ref } from 'vue';
-import { getBookshelfProvider } from '../providers';
-import type { Book, ReadingProgress } from '../types/book';
-import type { SourceMeta } from '../types/source';
+import { getBookshelfProvider } from '@/providers';
+import type { Book, ReadingProgress } from '@/types/book';
+import type { SourceMeta } from '@/types/source';
 
 export function useBookDetail(bookID: () => string) {
   const book = ref<Book | null>(null);

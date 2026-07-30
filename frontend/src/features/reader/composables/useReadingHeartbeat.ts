@@ -1,6 +1,6 @@
 import { watch } from 'vue';
 
-import { getBookshelfProvider } from '../../../providers';
+import { getBookshelfProvider } from '@/providers';
 
 const TICK_INTERVAL_MS = 45_000;
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;

@@ -1,7 +1,7 @@
 import { ref } from 'vue';
-import { ensureActiveShelf, listShelves, type ShelfInfo } from '../api/shelves';
-import { ApiError, getActiveShelfID, setActiveShelfID } from '../api/client';
-import { isMobileRuntime } from '../providers/runtime';
+import { ensureActiveShelf, listShelves, type ShelfInfo } from '@/api/shelves';
+import { ApiError, getActiveShelfID, setActiveShelfID } from '@/api/client';
+import { isMobileRuntime } from '@/providers/runtime';
 
 const shelves = ref<ShelfInfo[]>([]);
 const loading = ref(false);
