@@ -37,26 +37,131 @@
       ref="sidebarPanelRef"
       as="aside"
       class="sidebar"
-      :class="{ 'sidebar-drawer-open': isNarrowViewport && drawerOpen }"
+      :class="{ 'sidebar-drawer-open': isNarrowViewport && drawerOpen, 'sidebar-rail': isRailSidebar }"
       size-unit="px"
       :default-size="240"
-      :min-size="200"
-      :max-size="300"
-      collapsible
-      :collapsed-size="40"
-      @collapse="onSidebarCollapse"
-      @expand="onSidebarExpand"
+      :min-size="isRailSidebar ? RAIL_SIDEBAR_WIDTH : 200"
+      :max-size="isRailSidebar ? RAIL_SIDEBAR_WIDTH : 300"
     >
       <button
         class="collapse-btn"
         type="button"
-        :aria-label="isCollapsed ? t('layout.expandSidebar') : t('layout.collapseSidebar')"
-        @click="toggleSidebar"
+        :aria-label="isRailSidebar ? t('layout.expandSidebar') : t('layout.collapseSidebar')"
+        @click="toggleSidebarMode"
       >
-        {{ isCollapsed ? '→' : '←' }}
+        {{ isRailSidebar ? '→' : '←' }}
       </button>
 
-      <div v-if="!isCollapsed || isNarrowViewport" class="sidebar-inner">
+      <TooltipProvider v-if="showRailNav" :delay-duration="300">
+        <nav class="sidebar-rail-nav" :aria-label="t('layout.railNavLabel')">
+          <template v-if="hasActiveShelf">
+            <TooltipRoot>
+              <TooltipTrigger as-child>
+                <RouterLink
+                  to="/dashboard"
+                  class="sidebar-nav-item sidebar-rail-item"
+                  exact-active-class="active"
+                  :aria-label="t('layout.dashboard')"
+                >
+                  <SidebarNavIcon name="dashboard" />
+                </RouterLink>
+              </TooltipTrigger>
+              <TooltipPortal>
+                <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
+                  {{ t('layout.dashboard') }}
+                </TooltipContent>
+              </TooltipPortal>
+            </TooltipRoot>
+            <TooltipRoot>
+              <TooltipTrigger as-child>
+                <RouterLink
+                  to="/read-history"
+                  class="sidebar-nav-item sidebar-rail-item"
+                  exact-active-class="active"
+                  :aria-label="t('layout.recentlyRead')"
+                >
+                  <SidebarNavIcon name="recently-read" />
+                </RouterLink>
+              </TooltipTrigger>
+              <TooltipPortal>
+                <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
+                  {{ t('layout.recentlyRead') }}
+                </TooltipContent>
+              </TooltipPortal>
+            </TooltipRoot>
+            <TooltipRoot>
+              <TooltipTrigger as-child>
+                <RouterLink
+                  to="/trash"
+                  class="sidebar-nav-item sidebar-rail-item"
+                  exact-active-class="active"
+                  :aria-label="t('layout.trash')"
+                >
+                  <SidebarNavIcon name="trash" />
+                </RouterLink>
+              </TooltipTrigger>
+              <TooltipPortal>
+                <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
+                  {{ t('layout.trash') }}
+                </TooltipContent>
+              </TooltipPortal>
+            </TooltipRoot>
+          </template>
+          <TooltipRoot v-if="isMobileEnv">
+            <TooltipTrigger as-child>
+              <RouterLink
+                to="/downloads"
+                class="sidebar-nav-item sidebar-rail-item"
+                exact-active-class="active"
+                :aria-label="t('layout.downloads')"
+              >
+                <SidebarNavIcon name="downloads" />
+              </RouterLink>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
+                {{ t('layout.downloads') }}
+              </TooltipContent>
+            </TooltipPortal>
+          </TooltipRoot>
+          <TooltipRoot v-if="hasActiveShelf">
+            <TooltipTrigger as-child>
+              <RouterLink
+                to="/admin/logs"
+                class="sidebar-nav-item sidebar-rail-item"
+                exact-active-class="active"
+                :aria-label="t('layout.adminLogs')"
+              >
+                <SidebarNavIcon name="logs" />
+              </RouterLink>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
+                {{ t('layout.adminLogs') }}
+              </TooltipContent>
+            </TooltipPortal>
+          </TooltipRoot>
+          <TooltipRoot>
+            <TooltipTrigger as-child>
+              <RouterLink
+                to="/settings"
+                class="sidebar-nav-item sidebar-rail-item"
+                exact-active-class="active"
+                :aria-label="t('layout.settings')"
+              >
+                <SidebarNavIcon name="settings" />
+              </RouterLink>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
+                {{ t('layout.settings') }}
+              </TooltipContent>
+            </TooltipPortal>
+          </TooltipRoot>
+        </nav>
+      </TooltipProvider>
+
+      <div v-if="!isRailSidebar || isNarrowViewport" class="sidebar-inner">
         <section class="sidebar-section" :aria-label="t('layout.shelf.label')">
           <label class="sidebar-shelf-label">
             <span class="sidebar-section-title">{{ t('layout.shelf.label') }}</span>
@@ -299,7 +404,13 @@
       </div>
     </SplitterPanel>
 
-    <SplitterResizeHandle as="div" class="reka-resize-handle" :hit-area-margins="SIDEBAR_RESIZE_HIT_AREA_MARGINS" />
+    <SplitterResizeHandle
+      as="div"
+      class="reka-resize-handle"
+      :class="{ 'rail-hidden': isRailSidebar }"
+      :disabled="isRailSidebar"
+      :hit-area-margins="SIDEBAR_RESIZE_HIT_AREA_MARGINS"
+    />
 
     <SplitterPanel as="main" class="main-content">
       <!-- SplitterPanel forces inline overflow:hidden, so scrolling lives on
@@ -361,7 +472,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   SelectContent,
@@ -375,6 +486,11 @@ import {
   SplitterGroup,
   SplitterPanel,
   SplitterResizeHandle,
+  TooltipContent,
+  TooltipPortal,
+  TooltipProvider,
+  TooltipRoot,
+  TooltipTrigger,
   type AcceptableValue
 } from 'reka-ui';
 import DeleteModal from '../components/DeleteModal.vue';
@@ -390,6 +506,14 @@ import { useIsNarrowViewport } from '../composables/useViewport';
 import { useServerMode } from '../composables/useServerMode';
 import { buildLayerTreeNodes, getLayerPath, normalizeLayerPath } from '../utils/layers';
 import { MAINTENANCE_NAV_ITEMS } from '../utils/maintenance';
+import {
+  MIN_EXPANDED_SIDEBAR_WIDTH,
+  getStoredSidebarExpandedWidth,
+  getStoredSidebarMode,
+  setStoredSidebarExpandedWidth,
+  setStoredSidebarMode,
+  type SidebarMode
+} from '../utils/sidebarMode';
 import appIcon from '../assets/icon-192.png';
 import { useI18n } from '../i18n';
 
@@ -401,11 +525,18 @@ import { useI18n } from '../i18n';
 // `pointer-events: none` stuck on every panel. A hoisted constant keeps the prop
 // identity stable across renders and avoids the mid-drag re-registration entirely.
 const SIDEBAR_RESIZE_HIT_AREA_MARGINS = { coarse: 12, fine: 6 };
+const RAIL_SIDEBAR_WIDTH = 48;
+const DEFAULT_EXPANDED_SIDEBAR_WIDTH = 240;
 const SIDEBAR_SECTION_KEYS = ['layers', 'reading', 'maintenance', 'admin'] as const;
 type SidebarSectionKey = (typeof SIDEBAR_SECTION_KEYS)[number];
 
 const sidebarPanelRef = ref<InstanceType<typeof SplitterPanel> | null>(null);
-const isCollapsed = ref(false);
+const sidebarMode = ref<SidebarMode>(getStoredSidebarMode());
+const isRailSidebar = computed(() => sidebarMode.value === 'rail');
+// Rail mode resizes the panel to 48px, which overwrites the splitter's
+// auto-saved layout, so the expanded width has to be persisted separately to
+// survive a reload while railed.
+const lastExpandedSidebarWidth = ref<number | null>(getStoredSidebarExpandedWidth());
 const collapsedSidebarSections = reactive<Record<SidebarSectionKey, boolean>>({
   layers: false,
   reading: false,
@@ -424,6 +555,7 @@ const isMobileEnv = computed(() => isMobileRuntime());
 // router.push, so watching fullPath closes the drawer after nav links and
 // layer selection alike.
 const isNarrowViewport = useIsNarrowViewport();
+const showRailNav = computed(() => isRailSidebar.value && !isNarrowViewport.value);
 const drawerOpen = ref(false);
 watch(() => route.fullPath, () => {
   drawerOpen.value = false;
@@ -545,19 +677,39 @@ async function onShelfSelect(value: AcceptableValue): Promise<void> {
   await router.push({ path: '/books', query: { page: '1' } });
 }
 
-function onSidebarCollapse(): void {
-  isCollapsed.value = true;
-}
-
-function onSidebarExpand(): void {
-  isCollapsed.value = false;
-}
-
-function toggleSidebar(): void {
-  if (isCollapsed.value) {
-    sidebarPanelRef.value?.expand();
+async function toggleSidebarMode(): Promise<void> {
+  if (sidebarMode.value === 'expanded') {
+    const currentWidth = sidebarPanelRef.value?.getSize();
+    if (typeof currentWidth === 'number' && currentWidth >= MIN_EXPANDED_SIDEBAR_WIDTH) {
+      lastExpandedSidebarWidth.value = currentWidth;
+      setStoredSidebarExpandedWidth(currentWidth);
+    }
+    sidebarMode.value = 'rail';
   } else {
-    sidebarPanelRef.value?.collapse();
+    sidebarMode.value = 'expanded';
+  }
+  setStoredSidebarMode(sidebarMode.value);
+
+  // Constraint props alone should re-clamp the panel, but nudge explicitly so
+  // the width is deterministic even if reka's px re-validation misses a beat.
+  await nextTick();
+  const panel = sidebarPanelRef.value;
+  if (!panel) {
+    return;
+  }
+  if (sidebarMode.value === 'rail') {
+    panel.resize(RAIL_SIDEBAR_WIDTH);
+    return;
+  }
+
+  // Our stored width wins over whatever the splitter restores for the expanded
+  // constraint set: a drag followed immediately by railing never reaches reka's
+  // debounced auto-save, so it would otherwise fall back to the default width.
+  const expandedWidth = lastExpandedSidebarWidth.value;
+  if (expandedWidth !== null) {
+    panel.resize(expandedWidth);
+  } else if ((panel.getSize() ?? 0) < MIN_EXPANDED_SIDEBAR_WIDTH) {
+    panel.resize(DEFAULT_EXPANDED_SIDEBAR_WIDTH);
   }
 }
 
@@ -818,8 +970,6 @@ async function confirmDeleteLayer(): Promise<void> {
 
 
 onMounted(async () => {
-  isCollapsed.value = sidebarPanelRef.value?.isCollapsed ?? false;
-
   await fetchServerMode();
   if (!shelvesLoaded.value) {
     await fetchShelves();
@@ -880,6 +1030,32 @@ onMounted(async () => {
 
 .collapse-btn:hover {
   background: #ecf2f9;
+}
+
+.sidebar-rail-nav {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 4px 8px;
+}
+
+.sidebar-rail-item {
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+  width: 32px;
+}
+
+.sidebar-rail-item :deep(.sidebar-nav-icon) {
+  margin-right: 0;
+}
+
+.reka-resize-handle.rail-hidden {
+  display: none;
 }
 
 .sidebar-inner {

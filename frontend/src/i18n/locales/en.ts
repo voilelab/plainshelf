@@ -22,6 +22,7 @@ const en = {
   layout: {
     expandSidebar: 'Expand sidebar',
     collapseSidebar: 'Collapse sidebar',
+    railNavLabel: 'Sidebar navigation',
     openMenu: 'Open menu',
     closeMenu: 'Close menu',
     sections: {

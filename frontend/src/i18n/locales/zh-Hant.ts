@@ -22,6 +22,7 @@ const zhHant = {
   layout: {
     expandSidebar: '展開側欄',
     collapseSidebar: '收合側欄',
+    railNavLabel: '側邊欄導覽',
     openMenu: '開啟選單',
     closeMenu: '關閉選單',
     sections: {

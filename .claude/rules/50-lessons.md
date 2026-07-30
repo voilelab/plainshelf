@@ -66,6 +66,11 @@ Read the relevant section before working in that area. Add entries according to
 - **Large-data UI races:** when fixed mock data cannot express the required
   pagination state, intercept the Vite module or API in the test instead of
   changing production fixtures globally.
+- **Cloud e2e browser revision:** the pinned Playwright may expect a newer
+  browser revision than the preinstalled one → do not run `playwright install`;
+  run with a throwaway local config that sets
+  `launchOptions.executablePath: '/opt/pw-browsers/chromium'`.
+  (`e2e/playwright.config.ts`)
 
 ## Filesystem and API
 
