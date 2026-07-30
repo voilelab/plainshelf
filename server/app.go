@@ -10,6 +10,7 @@ import (
 
 	"github.com/voilelab/plainshelf/frontend"
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server/store"
 	"github.com/voilelab/plainshelf/shelf"
@@ -19,6 +20,7 @@ type App struct {
 	logutil.Logger
 
 	shelfManager *shelf.ShelfManager
+	worker       taskutil.Worker
 	storeDB      *store.DB
 	spaFS        fs.FS
 	spaHandler   http.Handler
@@ -27,9 +29,15 @@ type App struct {
 	security *Security
 }
 
+type WorkerConf struct {
+	Logger logutil.LogConf `yaml:"logger"`
+	MaxLen int             `yaml:"max_len"`
+}
+
 type AppConf struct {
 	Logger             logutil.LogConf          `yaml:"logger"`
 	Shelves            []*shelf.ShelfConfWithID `yaml:"shelves"`
+	Worker             *WorkerConf              `yaml:"worker"`
 	StorePath          string                   `yaml:"store_path"`
 	CoverToJPG         bool                     `yaml:"cover_to_jpg"`
 	ReadHistoryLimit   int                      `yaml:"read_history_limit"`
@@ -80,10 +88,18 @@ func NewApp(conf *AppConf) (*App, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
+	workLogger, err := logutil.NewLogger(&conf.Worker.Logger)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	worker := taskutil.NewWorker(conf.Worker.MaxLen, workLogger)
+
 	failure = false
 	return &App{
 		Logger:       *logger,
 		shelfManager: shelfManager,
+		worker:       worker,
 		storeDB:      storeDB,
 		spaFS:        frontend.WebFS,
 		spaHandler:   http.FileServerFS(frontend.WebFS),
@@ -93,6 +109,7 @@ func NewApp(conf *AppConf) (*App, error) {
 }
 
 func (app *App) Start() error {
+	app.worker.Start()
 	return nil
 }
 
@@ -112,8 +129,9 @@ func (app *App) Close() error {
 	err1 := app.storeDB.Close()
 	err2 := app.shelfManager.Close()
 	err3 := app.Logger.Close()
+	err4 := app.worker.Close()
 
-	err := errors.Join(err1, err2, err3)
+	err := errors.Join(err1, err2, err3, err4)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}

@@ -39,6 +39,8 @@ type TaskChain struct {
 type Worker interface {
 	Run(chain *TaskChain) error
 
+	Start()
+
 	Close() error
 }
 
@@ -53,6 +55,10 @@ type worker struct {
 }
 
 func NewWorker(maxLen int, logger *logutil.Logger) Worker {
+	if maxLen <= 0 {
+		maxLen = 100
+	}
+
 	return &worker{
 		maxLen: maxLen,
 		chains: make(chan *TaskChain, maxLen),
