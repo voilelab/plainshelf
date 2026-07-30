@@ -88,6 +88,12 @@ func newAPITestEnv(t *testing.T) *apiTestEnv {
 		}
 	})
 
+	// Start the background worker so endpoints backed by task chains behave as
+	// they do in production.
+	if err := app.Start(); err != nil {
+		t.Fatalf("Start app: %v", err)
+	}
+
 	return &apiTestEnv{app: app, handler: app.Handler(), libRoot: libRoot}
 }
 
