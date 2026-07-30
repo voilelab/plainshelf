@@ -235,3 +235,53 @@ test('moves a top-level layer under another layer via drag and drop', async ({ p
     await server.dispose();
   }
 });
+
+test('the new layer dialog scrolls its parent select instead of overflowing the page', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
+
+    // Enough top-level layers that the option list exceeds the 320px cap.
+    for (let i = 0; i < 10; i += 1) {
+      await addLayer(page, `layer-${i}`);
+    }
+
+    await expandLayersSection(page);
+    await page.getByRole('button', { name: 'Add layer', exact: true }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'New layer' });
+    await dialog.getByRole('combobox').click();
+
+    const listbox = page.getByRole('listbox');
+    await expect(listbox).toBeVisible();
+
+    const box = await listbox.boundingBox();
+    if (!box) {
+      throw new Error('expected the parent select listbox to have a bounding box');
+    }
+
+    const viewportSize = page.viewportSize();
+    if (!viewportSize) {
+      throw new Error('expected a viewport size');
+    }
+
+    // The height cap holds, and the menu stays fully on screen.
+    expect(box.height).toBeLessThanOrEqual(320);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(viewportSize.height);
+
+    // The options really do overflow, so the list is genuinely scrollable.
+    const scrollable = await page
+      .locator('[data-reka-select-viewport]')
+      .evaluate((el) => el.scrollHeight > el.clientHeight);
+    expect(scrollable).toBe(true);
+
+    // The last option is still reachable and selectable.
+    await page.getByRole('option', { name: 'layer-9', exact: true }).click();
+    await expect(dialog.getByRole('combobox')).toContainText('layer-9');
+  } finally {
+    await server.dispose();
+  }
+});
