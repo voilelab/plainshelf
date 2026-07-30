@@ -8,6 +8,11 @@ export type LayerTreeNode = {
   children: LayerTreeNode[];
 };
 
+export type LayerPathOption = {
+  path: string;
+  depth: number;
+};
+
 export function normalizeLayerInput(layers?: string | string[] | null): string[] {
   if (!layers) {
     return [];
@@ -102,4 +107,25 @@ export function buildLayerTreeNodes(layerPaths: string[]): LayerTreeNode[] {
 
   sortNodes(roots);
   return roots;
+}
+
+/**
+ * Flattens a layer tree into a depth-first list of selectable paths. Reads the
+ * tree rather than the raw layer list because the tree synthesizes intermediate
+ * ancestors that the flat list may omit. The synthetic '/' root node is skipped;
+ * callers that need a root entry prepend their own labelled option.
+ */
+export function flattenLayerTreePaths(nodes: LayerTreeNode[], depth = 0): LayerPathOption[] {
+  const options: LayerPathOption[] = [];
+
+  for (const node of nodes) {
+    if (node.path === '/') {
+      continue;
+    }
+
+    options.push({ path: node.path, depth });
+    options.push(...flattenLayerTreePaths(node.children, depth + 1));
+  }
+
+  return options;
 }

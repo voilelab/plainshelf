@@ -38,12 +38,15 @@ const en = {
     },
     createLayer: {
       add: 'Add layer',
-      cancel: 'Cancel',
-      placeholder: 'e.g. programming/rust',
+      title: 'New layer',
+      nameLabel: 'Layer name',
+      namePlaceholder: 'Layer name',
+      parentLabel: 'Where',
+      rootOption: 'All books (top level)',
+      closeLabel: 'Close new layer dialog',
+      invalidName: 'Layer name cannot be empty or contain /.',
       creating: 'Creating...',
       create: 'Create',
-      created: 'Layer created',
-      enter: 'Enter',
       loadingLayers: 'Loading layers...'
     },
     deleteLayer: {

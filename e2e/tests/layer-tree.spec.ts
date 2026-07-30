@@ -4,6 +4,7 @@ import { helloFixturePath, importBookFromPath } from './support/books';
 import {
   addLayer,
   emptyDataTransfer,
+  expandLayersSection,
   layerRow,
   layersQueryRegex,
   openLayerContextMenu,
@@ -12,7 +13,7 @@ import {
   switchToCardView
 } from './support/layers';
 
-test('creates a nested layer in one submission and filters books by exact layer', async ({ page }) => {
+test('creates a nested layer level by level and filters books by exact layer', async ({ page }) => {
   const server = await startServer();
 
   try {
@@ -41,6 +42,38 @@ test('creates a nested layer in one submission and filters books by exact layer'
     // "novels" itself has no directly-attached books (only its "scifi" child does).
     await selectLayer(page, 'novels');
     await expect(page.getByText('No books in novels.')).toBeVisible();
+  } finally {
+    await server.dispose();
+  }
+});
+
+test('the new layer dialog rejects a name containing a separator and cancels cleanly', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
+
+    await expandLayersSection(page);
+    await page.getByRole('button', { name: 'Add layer', exact: true }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'New layer' });
+    const nameInput = dialog.getByLabel('Layer name');
+    const createButton = dialog.getByRole('button', { name: 'Create', exact: true });
+    await expect(createButton).toBeDisabled();
+
+    await nameInput.fill('novels/scifi');
+    await expect(dialog.getByRole('alert')).toHaveText('Layer name cannot be empty or contain /.');
+    await expect(createButton).toBeDisabled();
+
+    await nameInput.fill('novels');
+    await expect(dialog.getByRole('alert')).toHaveCount(0);
+    await expect(createButton).toBeEnabled();
+
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+    await expect(page).not.toHaveURL(/[?&]layers=/);
+    await expect(layerRow(page, 'novels')).toHaveCount(0);
   } finally {
     await server.dispose();
   }

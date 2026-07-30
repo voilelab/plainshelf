@@ -18,6 +18,15 @@
       @cancel="cancelPendingRenameLayer"
       @submit="confirmRenameLayer"
     />
+    <CreateLayerModal
+      :open="showCreateLayerModal"
+      :parent-options="createLayerParentOptions"
+      :default-parent="createLayerDefaultParent"
+      :busy="creatingLayer"
+      :error="createLayerError"
+      @cancel="closeCreateLayerModal"
+      @submit="onSubmitCreateLayer"
+    />
 
     <div
       v-if="isNarrowViewport && drawerOpen"
@@ -100,48 +109,15 @@
               <button
                 type="button"
                 class="create-layer-toggle"
-                :disabled="collapsedSidebarSections.layers || readOnly || creatingLayer"
-                @click="toggleCreateLayerForm"
+                aria-haspopup="dialog"
+                :disabled="readOnly || creatingLayer"
+                @click="openCreateLayerModal"
               >
-                {{ showCreateLayerForm ? t('layout.createLayer.cancel') : t('layout.createLayer.add') }}
+                {{ t('layout.createLayer.add') }}
               </button>
             </div>
 
             <div v-show="!collapsedSidebarSections.layers" id="sidebar-section-layers" class="sidebar-foldable-content">
-              <form v-if="showCreateLayerForm && !readOnly" class="create-layer-form" @submit.prevent="onSubmitCreateLayer">
-                <input
-                  v-model="newLayerPath"
-                  class="create-layer-input"
-                  type="text"
-                  :placeholder="t('layout.createLayer.placeholder')"
-                  :disabled="creatingLayer"
-                >
-                <div class="create-layer-actions">
-                  <button
-                    type="submit"
-                    class="create-layer-submit"
-                    :disabled="readOnly || creatingLayer || !canSubmitCreateLayer"
-                  >
-                    {{ creatingLayer ? t('layout.createLayer.creating') : t('layout.createLayer.create') }}
-                  </button>
-                </div>
-              </form>
-
-              <p v-if="createLayerError" class="sidebar-error" role="alert">
-                {{ createLayerError }}
-              </p>
-              <p v-if="createLayerSuccess" class="sidebar-success" role="status">
-                {{ createLayerSuccess }}
-                <button
-                  v-if="createdLayerPath"
-                  type="button"
-                  class="success-action"
-                  @click="enterCreatedLayer"
-                >
-                  {{ t('layout.createLayer.enter') }}
-                </button>
-              </p>
-
               <div v-if="layersLoading" class="sidebar-status">{{ t('layout.createLayer.loadingLayers') }}</div>
               <div v-else-if="layersError" class="sidebar-status sidebar-error sidebar-layer-error" role="alert">
                 <p>{{ layersError }}</p>
@@ -377,6 +353,7 @@ import {
   SplitterResizeHandle,
   type AcceptableValue
 } from 'reka-ui';
+import CreateLayerModal, { type CreateLayerParentOption } from '../components/CreateLayerModal.vue';
 import DeleteModal from '../components/DeleteModal.vue';
 import LayerTree from '../components/LayerTree.vue';
 import RenameLayerModal from '../components/RenameLayerModal.vue';
@@ -388,7 +365,7 @@ import { useLayerStore } from '../composables/useLayerStore';
 import { useShelvesStore } from '../composables/useShelvesStore';
 import { useIsNarrowViewport } from '../composables/useViewport';
 import { useServerMode } from '../composables/useServerMode';
-import { buildLayerTreeNodes, getLayerPath, normalizeLayerPath } from '../utils/layers';
+import { buildLayerTreeNodes, flattenLayerTreePaths, getLayerPath, normalizeLayerPath } from '../utils/layers';
 import { MAINTENANCE_NAV_ITEMS } from '../utils/maintenance';
 import appIcon from '../assets/icon-192.png';
 import { useI18n } from '../i18n';
@@ -436,12 +413,9 @@ watch(isNarrowViewport, (narrow) => {
 const { books, loading, fetchBooks } = useBookStore();
 const { layers, loading: layersLoading, error: layersError, loaded: layersLoaded, fetchLayers } = useLayerStore();
 const moveBookError = ref('');
-const showCreateLayerForm = ref(false);
+const showCreateLayerModal = ref(false);
 const creatingLayer = ref(false);
 const createLayerError = ref('');
-const createLayerSuccess = ref('');
-const createdLayerPath = ref('');
-const newLayerPath = ref('');
 const deleteLayerError = ref('');
 const layerOperationError = ref('');
 const pendingRenameLayerPath = ref('');
@@ -464,7 +438,15 @@ const currentLayer = computed(() => {
 
 const layerTree = computed(() => buildLayerTreeNodes(layers.value));
 const canOpenLayerFolder = computed(() => Boolean(getBookshelfProvider().openDesktopLayerFolder));
-const canSubmitCreateLayer = computed(() => normalizeLayerPath(newLayerPath.value).length > 0);
+const createLayerParentOptions = computed<CreateLayerParentOption[]>(() => [
+  { value: '/', label: t('layout.createLayer.rootOption'), depth: 0 },
+  ...flattenLayerTreePaths(layerTree.value).map((option) => ({
+    value: option.path,
+    label: option.path,
+    depth: option.depth + 1
+  }))
+]);
+const createLayerDefaultParent = computed(() => normalizeLayerPath(currentLayer.value ?? '') || '/');
 const isDeletingPendingLayer = computed(
   () => pendingDeleteLayerPath.value.length > 0 && (deletingLayerMap.value[pendingDeleteLayerPath.value] ?? false)
 );
@@ -539,7 +521,6 @@ async function onShelfSelect(value: AcceptableValue): Promise<void> {
   layerOperationError.value = '';
   moveBookError.value = '';
   createLayerError.value = '';
-  createLayerSuccess.value = '';
 
   await Promise.all([fetchLayers(), fetchBooks()]);
   await router.push({ path: '/books', query: { page: '1' } });
@@ -562,52 +543,55 @@ function toggleSidebar(): void {
 }
 
 function toggleSidebarSection(section: SidebarSectionKey): void {
-  const nextCollapsed = !collapsedSidebarSections[section];
-  collapsedSidebarSections[section] = nextCollapsed;
-
-  if (section === 'layers' && nextCollapsed) {
-    showCreateLayerForm.value = false;
-    newLayerPath.value = '';
-  }
+  collapsedSidebarSections[section] = !collapsedSidebarSections[section];
 }
 
-function toggleCreateLayerForm(): void {
+function openCreateLayerModal(): void {
   if (readOnly.value) {
     return;
   }
-  showCreateLayerForm.value = !showCreateLayerForm.value;
-  createLayerError.value = '';
-  createLayerSuccess.value = '';
 
-  if (!showCreateLayerForm.value) {
-    newLayerPath.value = '';
-  }
+  createLayerError.value = '';
+  showCreateLayerModal.value = true;
 }
 
-async function onSubmitCreateLayer(): Promise<void> {
+function closeCreateLayerModal(): void {
+  if (creatingLayer.value) {
+    return;
+  }
+
+  showCreateLayerModal.value = false;
+  createLayerError.value = '';
+}
+
+async function onSubmitCreateLayer(payload: { parentPath: string; name: string }): Promise<void> {
   if (readOnly.value) {
     createLayerError.value = t('layout.readOnly.writeDisabled');
     return;
   }
-  const normalized = normalizeLayerPath(newLayerPath.value);
+
+  const name = payload.name.trim();
+  if (!name || name.includes('/')) {
+    createLayerError.value = t('layout.createLayer.invalidName');
+    return;
+  }
+
+  // normalizeLayerPath drops empty segments, so a '/' parent joins cleanly.
+  const normalized = normalizeLayerPath(`${payload.parentPath}/${name}`);
   if (!normalized) {
     createLayerError.value = t('layout.layerErrors.emptyPath');
-    createLayerSuccess.value = '';
     return;
   }
 
   creatingLayer.value = true;
   createLayerError.value = '';
-  createLayerSuccess.value = '';
 
   try {
     await createLayer(normalized);
     await fetchLayers();
 
-    createdLayerPath.value = normalized;
-    createLayerSuccess.value = t('layout.createLayer.created');
-    newLayerPath.value = '';
-    showCreateLayerForm.value = false;
+    showCreateLayerModal.value = false;
+    goToLayer(normalized);
   } catch (err) {
     const message = err instanceof Error ? err.message : t('layout.layerErrors.createFailed');
 
@@ -621,15 +605,6 @@ async function onSubmitCreateLayer(): Promise<void> {
   } finally {
     creatingLayer.value = false;
   }
-}
-
-function enterCreatedLayer(): void {
-  if (!createdLayerPath.value) {
-    return;
-  }
-
-  goToLayer(createdLayerPath.value);
-  createLayerSuccess.value = '';
 }
 
 async function onMoveBook(payload: { bookId: string; targetLayer: string }): Promise<void> {
@@ -975,42 +950,6 @@ onMounted(async () => {
   justify-self: start;
 }
 
-.create-layer-form {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0 8px 8px;
-}
-
-.create-layer-input {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 13px;
-  line-height: 1.3;
-  padding: 6px 8px;
-}
-
-.create-layer-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.create-layer-submit {
-  background: #2563eb;
-  border: 1px solid #1d4ed8;
-  border-radius: 6px;
-  color: #ffffff;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 10px;
-}
-
-.create-layer-submit:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
 .sidebar-error {
   color: #b91c1c;
   font-size: 12px;
@@ -1020,27 +959,6 @@ onMounted(async () => {
 
 .sidebar-error-pre {
   white-space: pre-line;
-}
-
-.sidebar-success {
-  align-items: center;
-  color: #166534;
-  display: flex;
-  font-size: 12px;
-  gap: 8px;
-  line-height: 1.4;
-  margin: 8px 8px 0;
-}
-
-.success-action {
-  background: transparent;
-  border: 1px solid #86efac;
-  border-radius: 6px;
-  color: #166534;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 2px 8px;
 }
 
 .sidebar-status {
