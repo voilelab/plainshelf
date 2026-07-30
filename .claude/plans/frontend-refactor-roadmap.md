@@ -140,6 +140,11 @@ backend（`mockBooks` fixture `:146-340`、`mockListBooks`/`mockGetBook`/… `:3
 ## PR 5a–5f — 逐 cluster 搬進 `features/`（每個 cluster 一個 PR）
 
 每個 PR 都是**純 rename + import 更新 + `router.ts` 的 lazy import 路徑**，零邏輯改動。
+
+**歸屬判準**（本輪一致適用，各 cluster 的清單都是照它掃 import 得出的）：模組只有一個
+消費者 → 跟著那個消費者進它的 feature；有兩個以上消費者、或消費者橫跨 cluster → **留頂層**。
+把共用模組塞進某個 feature 會製造 feature 之間的反向依賴，比攤平更難拆。
+
 由邊界最乾淨的開始：
 
 - **5a `features/maintenance/`** — `MaintenanceBooksPage.vue` + 4 個 13 行 wrapper
@@ -151,16 +156,40 @@ backend（`mockBooks` fixture `:146-340`、`mockListBooks`/`mockGetBook`/… `:3
   留在 `src/utils/`，或把 nav registry 與 filter registry 分開，只搬 filter 那半。
 - **5b `features/trash/`** — `TrashPage.vue`（自成一體，唯一消費者）。
 - **5c `features/settings/`** — `SettingsPage.vue`、`AdminLogsPage.vue`、
-  `useShelvesStore.ts`、`useServerMode.ts`、`utils/externalLinks.ts`（唯一消費者
-  `SettingsPage.vue:366`）。
+  `utils/externalLinks.ts`（唯一消費者 `SettingsPage.vue:366`）。
+  `useShelvesStore.ts` **留頂層**：消費者有三處（`SettingsPage.vue`、`MainLayout.vue`、
+  `MobileConnectPage.vue`）。`useServerMode.ts` 也**留頂層**，而且它根本不是 settings
+  的模組 —— 消費者是 `MainLayout.vue` 與 `BookDetailPage` / `LibraryPage` /
+  `MaintenanceBooksPage` / `ReadHistoryPage`，`SettingsPage.vue` 沒有 import 它。
 - **5d `features/mobile/`** — `MobileConnectPage.vue`、`DownloadsPage.vue`、
-  `useOfflineDownload.ts`、`utils/bytes.ts`（唯一消費者 `DownloadsPage.vue:98`）。
+  `utils/bytes.ts`（唯一消費者 `DownloadsPage.vue:98`）。
+  `useOfflineDownload.ts` 的唯一消費者是 `BookDetailPage.vue`，不是本 cluster 的任何一頁；
+  依「唯一消費者跟著走」它該進 5e library，但檔名讀起來屬於 mobile —— 搬之前先確認
+  （見末尾可翻轉的決定 5）。
   `src/providers/mobile*` 留在 `providers/`（runtime 基礎設施，不是 feature）。
-- **5e `features/library/`** — 最大一塊：`LibraryPage.vue`、`BookDetailPage.vue`、
-  `EditBookPage.vue`、`BookCollectionPage.vue`、`BookListView/BookCardView/BookTitleView/
-  Pagination/BookDetail/BookCover/BookCoverImg/GenerateCoverModal/EditBook/
-  ImportBookModal/NewEmptyBookModal`，以及 `useBookStore` 以外的 book 系 composable。
-  `useBookStore.ts` 與 `useCoverSrc.ts` 被 dashboard / trash 等多方 import → 留頂層。
+- **5e `features/library/`** — 只收消費者全在 library 內的模組：`LibraryPage.vue`、
+  `BookDetailPage.vue`、`EditBookPage.vue`、`BookDetail.vue`、`BookCover.vue`、
+  `GenerateCoverModal.vue`（唯一消費者 `BookCover.vue`）、`EditBook.vue`、
+  `ImportBookModal.vue`、`NewEmptyBookModal.vue`、`useBooksRouteQuery.ts`（唯一消費者
+  `LibraryPage.vue`）。`ImportBookModal` 原有兩個消費者，但 `ImportBookPage.vue` 在 PR 2
+  已刪，到這一步只剩 `LibraryPage.vue`。
+
+  **以下留頂層**：它們有跨 cluster 消費者，搬進 `features/library/` 會讓 maintenance、
+  read-history、dashboard 反向依賴 library 內部，違反本輪自訂的「兩個以上消費者就留頂層」
+  判準。
+
+  | 留頂層的模組 | 實際消費者 |
+  |---|---|
+  | `BookCollectionPage.vue` | `LibraryPage`、`MaintenanceBooksPage`、`ReadHistoryPage` |
+  | `BookListView` / `BookCardView` / `BookTitleView` / `Pagination` | 唯一消費者是 `BookCollectionPage.vue`，跟著它一起留 |
+  | `BookCoverImg.vue` | 上述四個 view 元件 + `features/dashboard/components/RandomBook.vue` |
+  | `useCoverSrc.ts` | 唯一消費者 `BookCoverImg.vue`，跟著它留 |
+  | `useBookStore.ts` | 6 處，含 `MainLayout`、`TrashPage`、`LayerTree`、`ImportBookModal` |
+  | `useBookActions.ts` / `useBookPagination.ts` | library + maintenance + read-history 三邊共用 |
+  | `useServerMode.ts` | 見 5c |
+
+  read-history 不另立 cluster：`ReadHistoryPage.vue` 的組成幾乎全是上表的共用模組，
+  獨立出來只會多一層 import 轉折，留在 `pages/`。
   務必在 PR 3 之後做，否則會跟去重的 diff 打結。
 - **5f 統一 feature 內部命名** — `features/reader/views/` → `features/reader/pages/`，
   對齊 `dashboard`/`sources`。`src/layouts/ReaderLayout.vue` **留在 `layouts/`**：它同時
@@ -258,3 +287,6 @@ desktop Go 碼，但 PR 描述要如實標註未驗證項。
    CSS 的搬移需要逐一比對 computed style。
 4. **重複的 trash 描述字串**：我預設收成共用常數、不動 `DeleteModal` 的 prop 契約
    （9 個消費者）。若你想順手做成 i18n key，那應該歸到被排除的 i18n PR 系列。
+5. **`useOfflineDownload.ts` 歸哪一邊**：唯一消費者是 `BookDetailPage.vue`，照歸屬判準
+   該進 `features/library/`，但它的職責與檔名都偏 mobile/offline。我沒有替它選邊 ——
+   進 library（照判準）或留頂層（照語意）都成立，開工到 5d／5e 時請指定一個。
