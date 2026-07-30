@@ -83,6 +83,38 @@ test('rail mode persists across a reload', async ({ page }) => {
   }
 });
 
+test('restores the dragged expanded width after railing and reloading', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
+
+    const handle = page.locator('.reka-resize-handle');
+    const handleBox = await handle.boundingBox();
+    expect(handleBox).not.toBeNull();
+    await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + handleBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handleBox!.x + 45, handleBox!.y + handleBox!.height / 2, { steps: 10 });
+    await page.mouse.up();
+
+    await expectSidebarWidth(page, (width) => width > 260);
+    const draggedWidth = (await sidebar(page).boundingBox())!.width;
+
+    await page.getByRole('button', { name: 'Collapse sidebar' }).click();
+    await expect(railNav(page)).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
+    await expect(railNav(page)).toBeVisible();
+
+    await page.getByRole('button', { name: 'Expand sidebar' }).click();
+    await expectSidebarWidth(page, (width) => Math.abs(width - draggedWidth) <= 2);
+  } finally {
+    await server.dispose();
+  }
+});
+
 test('narrow-viewport drawer shows the full sidebar even in rail mode', async ({ page }) => {
   const server = await startServer();
 

@@ -506,7 +506,14 @@ import { useIsNarrowViewport } from '../composables/useViewport';
 import { useServerMode } from '../composables/useServerMode';
 import { buildLayerTreeNodes, getLayerPath, normalizeLayerPath } from '../utils/layers';
 import { MAINTENANCE_NAV_ITEMS } from '../utils/maintenance';
-import { getStoredSidebarMode, setStoredSidebarMode, type SidebarMode } from '../utils/sidebarMode';
+import {
+  MIN_EXPANDED_SIDEBAR_WIDTH,
+  getStoredSidebarExpandedWidth,
+  getStoredSidebarMode,
+  setStoredSidebarExpandedWidth,
+  setStoredSidebarMode,
+  type SidebarMode
+} from '../utils/sidebarMode';
 import appIcon from '../assets/icon-192.png';
 import { useI18n } from '../i18n';
 
@@ -520,14 +527,16 @@ import { useI18n } from '../i18n';
 const SIDEBAR_RESIZE_HIT_AREA_MARGINS = { coarse: 12, fine: 6 };
 const RAIL_SIDEBAR_WIDTH = 48;
 const DEFAULT_EXPANDED_SIDEBAR_WIDTH = 240;
-const MIN_EXPANDED_SIDEBAR_WIDTH = 200;
 const SIDEBAR_SECTION_KEYS = ['layers', 'reading', 'maintenance', 'admin'] as const;
 type SidebarSectionKey = (typeof SIDEBAR_SECTION_KEYS)[number];
 
 const sidebarPanelRef = ref<InstanceType<typeof SplitterPanel> | null>(null);
 const sidebarMode = ref<SidebarMode>(getStoredSidebarMode());
 const isRailSidebar = computed(() => sidebarMode.value === 'rail');
-const lastExpandedSidebarWidth = ref<number | null>(null);
+// Rail mode resizes the panel to 48px, which overwrites the splitter's
+// auto-saved layout, so the expanded width has to be persisted separately to
+// survive a reload while railed.
+const lastExpandedSidebarWidth = ref<number | null>(getStoredSidebarExpandedWidth());
 const collapsedSidebarSections = reactive<Record<SidebarSectionKey, boolean>>({
   layers: false,
   reading: false,
@@ -673,6 +682,7 @@ async function toggleSidebarMode(): Promise<void> {
     const currentWidth = sidebarPanelRef.value?.getSize();
     if (typeof currentWidth === 'number' && currentWidth >= MIN_EXPANDED_SIDEBAR_WIDTH) {
       lastExpandedSidebarWidth.value = currentWidth;
+      setStoredSidebarExpandedWidth(currentWidth);
     }
     sidebarMode.value = 'rail';
   } else {
@@ -689,8 +699,17 @@ async function toggleSidebarMode(): Promise<void> {
   }
   if (sidebarMode.value === 'rail') {
     panel.resize(RAIL_SIDEBAR_WIDTH);
+    return;
+  }
+
+  // Our stored width wins over whatever the splitter restores for the expanded
+  // constraint set: a drag followed immediately by railing never reaches reka's
+  // debounced auto-save, so it would otherwise fall back to the default width.
+  const expandedWidth = lastExpandedSidebarWidth.value;
+  if (expandedWidth !== null) {
+    panel.resize(expandedWidth);
   } else if ((panel.getSize() ?? 0) < MIN_EXPANDED_SIDEBAR_WIDTH) {
-    panel.resize(lastExpandedSidebarWidth.value ?? DEFAULT_EXPANDED_SIDEBAR_WIDTH);
+    panel.resize(DEFAULT_EXPANDED_SIDEBAR_WIDTH);
   }
 }
 

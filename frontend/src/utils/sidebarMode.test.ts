@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  SIDEBAR_EXPANDED_WIDTH_STORAGE_KEY,
   SIDEBAR_MODE_STORAGE_KEY,
+  getStoredSidebarExpandedWidth,
   getStoredSidebarMode,
   isSidebarMode,
+  setStoredSidebarExpandedWidth,
   setStoredSidebarMode
 } from './sidebarMode';
 
@@ -64,5 +67,34 @@ describe('sidebarMode', () => {
     vi.unstubAllGlobals();
     expect(getStoredSidebarMode()).toBe('expanded');
     expect(() => setStoredSidebarMode('rail')).not.toThrow();
+  });
+
+  describe('expanded width', () => {
+    it('round-trips a width inside the resizable range', () => {
+      setStoredSidebarExpandedWidth(276);
+      expect(store.get(SIDEBAR_EXPANDED_WIDTH_STORAGE_KEY)).toBe('276');
+      expect(getStoredSidebarExpandedWidth()).toBe(276);
+    });
+
+    it('returns null when nothing is stored', () => {
+      expect(getStoredSidebarExpandedWidth()).toBeNull();
+    });
+
+    it('ignores widths outside the resizable range', () => {
+      setStoredSidebarExpandedWidth(48);
+      setStoredSidebarExpandedWidth(1000);
+      expect(getStoredSidebarExpandedWidth()).toBeNull();
+    });
+
+    it('ignores an unparsable stored width', () => {
+      store.set(SIDEBAR_EXPANDED_WIDTH_STORAGE_KEY, 'wide');
+      expect(getStoredSidebarExpandedWidth()).toBeNull();
+    });
+
+    it('is inert without a window', () => {
+      vi.unstubAllGlobals();
+      expect(getStoredSidebarExpandedWidth()).toBeNull();
+      expect(() => setStoredSidebarExpandedWidth(260)).not.toThrow();
+    });
   });
 });
