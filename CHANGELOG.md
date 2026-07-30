@@ -11,10 +11,23 @@ and UI behavior may still change between releases.
 
 - Added a `schema_version` field to `book.json`, establishing schema v1 as the first versioned on-disk book format. Libraries created before this release have no version marker, are read as v1, and are upgraded lazily: opening a library never rewrites it, and the version is written to a book only the next time that book is modified.
 - Added a compatibility policy and upgrade documentation covering the on-disk schema version, backing up and restoring a shelf, and what to do when PlainShelf refuses to write a book (`docs/concepts/data-format-versioning.md`).
+- Added a "Low Character Count" maintenance page listing books whose character count is at or below a threshold set from the page header, reusing the shared maintenance book list, view modes, and pagination. Books with an unknown count are listed and reported separately in the header.
 
 ### Changed
 
-- Books whose `book.json` was written by a newer PlainShelf build are now read-only rather than silently rewritten. They remain visible and readable, `schema_version` is reported in book API responses, and any attempt to modify them fails with `409 Conflict` instead of overwriting fields the running build does not understand.
+- Books whose `book.json` was written by a newer PlainShelf build are now read-only rather than silently rewritten. They remain visible and readable, `schema_version` is reported in book API responses, and any attempt to modify them fails with `409 Conflict` instead of overwriting fields the running build does not understand. The refusal is checked before any filesystem change, so a rejected cover upload, cover deletion, or layer move leaves the book untouched.
+- Changed the sidebar's collapse toggle into an explicit rail mode, replacing a collapse path that never completed and left the toggle stuck: collapsing now yields a fixed 48px icon rail with tooltipped navigation links, and both the mode and the last expanded width are restored on reload. The narrow-viewport drawer still shows the full sidebar.
+- Changed the sidebar's "Add layer" control from an inline single-field form to a dialog with a layer name field and a parent-layer select, so nesting no longer requires knowing the slash-path syntax; a successful create navigates into the new layer. The control is now unavailable until the layer list has loaded, so the dialog cannot offer parents belonging to a shelf the user has already left.
+
+### Fixed
+
+- Fixed dropdown, select, and context menus growing past the bottom of the window with long option lists, which made the lower entries unreachable; popper menus are now capped to the available height (at most 320px) and scroll.
+- Fixed book data writes that could leave the shelf inconsistent after an abrupt shutdown or a failed request: covers stage through a temp file instead of being truncated in place, `trash.json` uses the same atomic path, concurrent writers to one book no longer collide on a shared temp filename, and a newly created or imported book becomes visible only once its source, current-source pointer, and metadata are all written.
+- Fixed a cover upload race in which two overlapping uploads with different extensions could delete the image the book had just been pointed at, leaving `book.json` referencing a missing file.
+
+### Security
+
+- Updated `golang.org/x/text`, `golang.org/x/net`, `golang.org/x/crypto`, and related Go dependencies, and pinned `postcss` to 8.5.18, to pick up fixes for reported vulnerabilities.
 
 ## [v0.8.0] - 2026-07-21
 
