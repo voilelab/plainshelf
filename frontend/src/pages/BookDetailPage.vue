@@ -3,7 +3,7 @@
     <DeleteModal
       :open="!!deleteTarget"
       :item-name="deleteTarget?.title || id"
-      description="The book will be moved to Trash. You can restore it later."
+      :description="DELETE_BOOK_DESCRIPTION"
       :busy="deleting"
       @cancel="cancelDelete"
       @confirm="confirmDelete"
@@ -77,7 +77,7 @@ import { useRoute, useRouter } from 'vue-router';
 import BookCover from '@/components/BookCover.vue';
 import BookDetail from '@/components/BookDetail.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
-import { useBookActions } from '@/composables/useBookActions';
+import { DELETE_BOOK_DESCRIPTION, useBookActions } from '@/composables/useBookActions';
 import { useBookDetail } from '@/composables/useBookDetail';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useOfflineDownload } from '@/composables/useOfflineDownload';
