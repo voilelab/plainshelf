@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
-import { getBookshelfProvider } from '../providers';
-import type { DownloadState } from '../types/book';
+import { getBookshelfProvider } from '@/providers';
+import type { DownloadState } from '@/types/book';
 
 /**
  * Wraps the optional `downloadBook` / `removeDownload` / `getDownloadState`

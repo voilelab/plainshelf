@@ -13,9 +13,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { getBookshelfProvider } from '../providers';
-import EditBook from '../components/EditBook.vue';
-import type { Book, BookUpdateRequest } from '../types/book';
+import { getBookshelfProvider } from '@/providers';
+import EditBook from '@/components/EditBook.vue';
+import type { Book, BookUpdateRequest } from '@/types/book';
 
 const route = useRoute();
 const router = useRouter();

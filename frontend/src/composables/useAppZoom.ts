@@ -1,5 +1,5 @@
 import { ref, watch } from 'vue';
-import { isWailsRuntime } from '../providers/runtime';
+import { isWailsRuntime } from '@/providers/runtime';
 
 const STORAGE_KEY = 'app-zoom-level';
 const DEFAULT_ZOOM = 1;

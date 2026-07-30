@@ -94,9 +94,9 @@ import {
   SelectViewport,
   type AcceptableValue
 } from 'reka-ui';
-import { getLogContent, listLogs, type LogFileEntry } from '../api/logs';
-import { useDocumentTitle } from '../composables/useDocumentTitle';
-import { useI18n } from '../i18n';
+import { getLogContent, listLogs, type LogFileEntry } from '@/api/logs';
+import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useI18n } from '@/i18n';
 
 interface LogNameOption {
   value: string;

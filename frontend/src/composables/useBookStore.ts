@@ -1,7 +1,7 @@
 import { ref } from 'vue';
-import { getBookshelfProvider } from '../providers';
-import { ApiError } from '../api/client';
-import type { Book } from '../types/book';
+import { getBookshelfProvider } from '@/providers';
+import { ApiError } from '@/api/client';
+import type { Book } from '@/types/book';
 
 const SHELF_INIT_MAX_AUTO_RETRIES = 10; // ~30s of auto-retry before showing "unreachable"
 

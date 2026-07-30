@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Book } from '../types/book';
+import type { Book } from '@/types/book';
 import { filterBooksBySearch } from './bookSearch';
 
 function makeBook(overrides: Partial<Book> = {}): Book {

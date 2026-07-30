@@ -90,8 +90,8 @@ import {
   SelectViewport,
   type AcceptableValue
 } from 'reka-ui';
-import BaseDialog from '../../../components/BaseDialog.vue';
-import type { SplitConfig, SplitType } from '../../../types/book';
+import BaseDialog from '@/components/BaseDialog.vue';
+import type { SplitConfig, SplitType } from '@/types/book';
 
 const SPLIT_TYPE_OPTIONS: SplitType[] = ['none', 'line_count', 'regex', 'boundary'];
 

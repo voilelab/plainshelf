@@ -71,13 +71,13 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import DeleteModal from '../components/DeleteModal.vue';
-import { getBookshelfProvider } from '../providers';
-import { useBookStore } from '../composables/useBookStore';
-import { useLayerStore } from '../composables/useLayerStore';
-import { useDocumentTitle } from '../composables/useDocumentTitle';
-import { useI18n } from '../i18n';
-import type { TrashedBook } from '../types/book';
+import DeleteModal from '@/components/DeleteModal.vue';
+import { getBookshelfProvider } from '@/providers';
+import { useBookStore } from '@/composables/useBookStore';
+import { useLayerStore } from '@/composables/useLayerStore';
+import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useI18n } from '@/i18n';
+import type { TrashedBook } from '@/types/book';
 
 const { t } = useI18n();
 const { fetchBooks } = useBookStore();

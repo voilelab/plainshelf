@@ -9,9 +9,9 @@ import type {
   ReadingProgress,
   SplitConfig,
   TrashedBook
-} from '../types/book';
-import type { SourceMeta } from '../types/source';
-import { ApiError } from '../api/client';
+} from '@/types/book';
+import type { SourceMeta } from '@/types/source';
+import { ApiError } from '@/api/client';
 import type {
   BookshelfProvider,
   DesktopImportBookResult,

@@ -1,4 +1,4 @@
-import type { SplitConfig, SplitType } from '../types/book';
+import type { SplitConfig, SplitType } from '@/types/book';
 
 export interface SplitConfigPayload {
   type: SplitType | '';

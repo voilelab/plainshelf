@@ -1,5 +1,5 @@
-import type { Book, BookContent, DownloadState, ReadingProgress } from '../types/book';
-import type { SourceMeta } from '../types/source';
+import type { Book, BookContent, DownloadState, ReadingProgress } from '@/types/book';
+import type { SourceMeta } from '@/types/source';
 
 export interface CachedBookSizeBreakdown {
   content: number;

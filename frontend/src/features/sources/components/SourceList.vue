@@ -50,7 +50,7 @@
 </template>
 
 <script setup lang="ts">
-import type { SourceMeta } from '../../../types/source';
+import type { SourceMeta } from '@/types/source';
 
 defineProps<{
   sources: SourceMeta[];

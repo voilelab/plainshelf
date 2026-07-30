@@ -129,14 +129,14 @@ import BookCardView from './BookCardView.vue';
 import BookListView from './BookListView.vue';
 import BookTitleView from './BookTitleView.vue';
 import Pagination from './Pagination.vue';
-import type { Book } from '../types/book';
+import type { Book } from '@/types/book';
 import {
   getStoredBooksViewMode,
   isBooksViewMode,
   setStoredBooksViewMode,
   type BooksViewMode
-} from '../utils/booksViewMode';
-import { useI18n } from '../i18n';
+} from '@/utils/booksViewMode';
+import { useI18n } from '@/i18n';
 
 const props = withDefaults(defineProps<{
   title: string;

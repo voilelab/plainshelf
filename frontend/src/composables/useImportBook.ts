@@ -1,7 +1,7 @@
 import { ref } from 'vue';
-import { getBookshelfProvider } from '../providers';
-import { deriveTitleFromFilename, hasSupportedExtension } from '../utils/file';
-import { normalizeLayerPath } from '../utils/layers';
+import { getBookshelfProvider } from '@/providers';
+import { deriveTitleFromFilename, hasSupportedExtension } from '@/utils/file';
+import { normalizeLayerPath } from '@/utils/layers';
 
 const bookExtPattern = /\.(txt|md)$/i;
 

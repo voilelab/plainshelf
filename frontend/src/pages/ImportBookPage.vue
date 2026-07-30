@@ -4,7 +4,7 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
-import ImportBookModal from '../components/ImportBookModal.vue';
+import ImportBookModal from '@/components/ImportBookModal.vue';
 
 const router = useRouter();
 

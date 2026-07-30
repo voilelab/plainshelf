@@ -1,5 +1,5 @@
-import type { Book } from '../types/book';
-import type { SidebarNavIconName } from '../types/sidebarNavIcon';
+import type { Book } from '@/types/book';
+import type { SidebarNavIconName } from '@/types/sidebarNavIcon';
 
 export type MaintenanceNavKey =
   | 'duplicate-content'

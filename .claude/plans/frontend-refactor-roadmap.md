@@ -1,7 +1,6 @@
 # Frontend 內部結構重整路線圖
 
-> 狀態：**提案，尚未開工**。撰寫於 2026-07-30，來源分支
-> `claude/frontend-plan-refinement-o609yu`。
+> 狀態：**進行中** —— PR 1（`@/` alias）已完成，其餘未開工。撰寫於 2026-07-30。
 >
 > 這是一份一次性的工作文件，不是規則檔：不受 `.claude/rules/40-maintenance.md` 的
 > rules 責任表管轄，也不進 `mkdocs.yml`（不對外發布）。路線圖走完或被取代後請直接

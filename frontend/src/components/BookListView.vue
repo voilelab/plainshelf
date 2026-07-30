@@ -38,9 +38,9 @@
 
 <script setup lang="ts">
 import BookCoverImg from './BookCoverImg.vue';
-import type { Book } from '../types/book';
-import { getLayerPath, layerPathLabel } from '../utils/layers';
-import { formatDateLabel } from '../utils/date';
+import type { Book } from '@/types/book';
+import { getLayerPath, layerPathLabel } from '@/utils/layers';
+import { formatDateLabel } from '@/utils/date';
 
 const props = withDefaults(defineProps<{
   books: Book[];

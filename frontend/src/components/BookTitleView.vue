@@ -14,8 +14,8 @@
 </template>
 
 <script setup lang="ts">
-import type { Book } from '../types/book';
-import { getLayerPath, layerPathLabel } from '../utils/layers';
+import type { Book } from '@/types/book';
+import { getLayerPath, layerPathLabel } from '@/utils/layers';
 
 defineProps<{
   books: Book[];

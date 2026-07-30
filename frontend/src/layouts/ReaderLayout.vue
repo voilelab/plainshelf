@@ -11,10 +11,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { getActiveShelfID } from '../api/client';
-import { ensureActiveShelf, listShelves } from '../api/shelves';
-import { isMobileRuntime } from '../providers/runtime';
-import { useI18n } from '../i18n';
+import { getActiveShelfID } from '@/api/client';
+import { ensureActiveShelf, listShelves } from '@/api/shelves';
+import { isMobileRuntime } from '@/providers/runtime';
+import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
 const shelvesLoading = ref(true);

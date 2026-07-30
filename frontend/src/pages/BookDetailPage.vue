@@ -74,16 +74,16 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import BookCover from '../components/BookCover.vue';
-import BookDetail from '../components/BookDetail.vue';
-import DeleteModal from '../components/DeleteModal.vue';
-import { useBookActions } from '../composables/useBookActions';
-import { useBookDetail } from '../composables/useBookDetail';
-import { useDocumentTitle } from '../composables/useDocumentTitle';
-import { useOfflineDownload } from '../composables/useOfflineDownload';
-import { useServerMode } from '../composables/useServerMode';
-import { getBookshelfProvider, isMobileRuntime } from '../providers';
-import { useI18n } from '../i18n';
+import BookCover from '@/components/BookCover.vue';
+import BookDetail from '@/components/BookDetail.vue';
+import DeleteModal from '@/components/DeleteModal.vue';
+import { useBookActions } from '@/composables/useBookActions';
+import { useBookDetail } from '@/composables/useBookDetail';
+import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useOfflineDownload } from '@/composables/useOfflineDownload';
+import { useServerMode } from '@/composables/useServerMode';
+import { getBookshelfProvider, isMobileRuntime } from '@/providers';
+import { useI18n } from '@/i18n';
 
 const route = useRoute();
 const router = useRouter();

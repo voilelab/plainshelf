@@ -1,6 +1,6 @@
 import { ref } from 'vue';
-import { getBookshelfProvider } from '../providers';
-import type { Book } from '../types/book';
+import { getBookshelfProvider } from '@/providers';
+import type { Book } from '@/types/book';
 
 export function useBooks() {
   const books = ref<Book[]>([]);

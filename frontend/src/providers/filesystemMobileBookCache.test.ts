@@ -9,8 +9,8 @@ import type {
   WriteFileOptions
 } from '@capacitor/filesystem';
 
-import type { Book, ReadingProgress } from '../types/book';
-import type { SourceMeta } from '../types/source';
+import type { Book, ReadingProgress } from '@/types/book';
+import type { SourceMeta } from '@/types/source';
 import type { CachedBookManifest } from './mobileBookCache';
 
 // In-memory filesystem model shared between the vi.mock factory (hoisted to

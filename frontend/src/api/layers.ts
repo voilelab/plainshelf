@@ -1,6 +1,6 @@
 import { mockBooks } from './books';
 import { ApiError, buildShelfApiPath, fetchJson, isMockApiMode } from './client';
-import { normalizeLayerPath } from '../utils/layers';
+import { normalizeLayerPath } from '@/utils/layers';
 
 function delay<T>(value: T, ms = 240): Promise<T> {
   return new Promise((resolve) => {

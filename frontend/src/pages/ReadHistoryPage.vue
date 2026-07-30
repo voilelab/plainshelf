@@ -51,15 +51,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import BookCollectionPage from '../components/BookCollectionPage.vue';
-import DeleteModal from '../components/DeleteModal.vue';
-import { getBookshelfProvider } from '../providers';
-import { useBookActions } from '../composables/useBookActions';
-import { useBookPagination, toPage, toSingleQueryValue } from '../composables/useBookPagination';
-import { useDocumentTitle } from '../composables/useDocumentTitle';
-import { useServerMode } from '../composables/useServerMode';
-import type { Book } from '../types/book';
-import { useI18n } from '../i18n';
+import BookCollectionPage from '@/components/BookCollectionPage.vue';
+import DeleteModal from '@/components/DeleteModal.vue';
+import { getBookshelfProvider } from '@/providers';
+import { useBookActions } from '@/composables/useBookActions';
+import { useBookPagination, toPage, toSingleQueryValue } from '@/composables/useBookPagination';
+import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useServerMode } from '@/composables/useServerMode';
+import type { Book } from '@/types/book';
+import { useI18n } from '@/i18n';
 
 const route = useRoute();
 const router = useRouter();

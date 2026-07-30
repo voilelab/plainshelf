@@ -1,5 +1,5 @@
-import type { DesktopShelfDetails } from '../api/desktop';
-import type { ListBooksOptions } from '../api/books';
+import type { DesktopShelfDetails } from '@/api/desktop';
+import type { ListBooksOptions } from '@/api/books';
 import type {
   BookmarkPayload,
   Book,
@@ -11,12 +11,12 @@ import type {
   ReadingProgress,
   SplitConfig,
   TrashedBook
-} from '../types/book';
-import type { SourceMeta } from '../types/source';
+} from '@/types/book';
+import type { SourceMeta } from '@/types/source';
 
-export type { DownloadState } from '../types/book';
-export type { DesktopShelfDetails } from '../api/desktop';
-export type { ListBooksOptions } from '../api/books';
+export type { DownloadState } from '@/types/book';
+export type { DesktopShelfDetails } from '@/api/desktop';
+export type { ListBooksOptions } from '@/api/books';
 
 export interface DesktopImportBookResult {
   path?: string;

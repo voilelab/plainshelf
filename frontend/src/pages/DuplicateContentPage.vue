@@ -32,9 +32,9 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { getBookshelfProvider } from '../providers';
-import DuplicateGroupCard from '../components/DuplicateGroupCard.vue';
-import type { Book } from '../types/book';
+import { getBookshelfProvider } from '@/providers';
+import DuplicateGroupCard from '@/components/DuplicateGroupCard.vue';
+import type { Book } from '@/types/book';
 
 type DuplicateGroupView = {
   groupIndex: number;

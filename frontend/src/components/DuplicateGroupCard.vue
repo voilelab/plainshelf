@@ -17,7 +17,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Book } from '../types/book';
+import type { Book } from '@/types/book';
 import DuplicateBookRow from './DuplicateBookRow.vue';
 
 const emit = defineEmits<{
