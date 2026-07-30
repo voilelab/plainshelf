@@ -1,7 +1,10 @@
-import { ref } from 'vue';
+import { getCurrentInstance, onUnmounted, ref } from 'vue';
 import { getBookshelfProvider } from '../providers';
 import { ApiError } from '../api/client';
 import type { Book } from '../types/book';
+
+const SHELF_INIT_RETRY_DELAY_MS = 3000;
+const SHELF_INIT_MAX_AUTO_RETRIES = 10; // ~30s of auto-retry before giving up
 
 // Books loaded with their char_count, for the few pages that filter or display it.
 //
@@ -17,7 +20,21 @@ export function useCharCountBooks() {
   const loading = ref(false);
   const error = ref('');
 
-  async function fetchBooks(): Promise<void> {
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let initRetryCount = 0;
+
+  function clearRetry(): void {
+    if (retryTimer !== null) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+  }
+
+  async function fetchBooks(isAutoRetry = false): Promise<void> {
+    clearRetry();
+    if (!isAutoRetry) {
+      initRetryCount = 0;
+    }
     loading.value = true;
     error.value = '';
     try {
@@ -25,13 +42,33 @@ export function useCharCountBooks() {
         includeCharCount: true
       });
       books.value = data.items;
+      initRetryCount = 0;
     } catch (err) {
-      error.value = err instanceof ApiError && err.isTimeout
-        ? 'Request timed out — the shelf may be slow or unavailable.'
-        : err instanceof Error ? err.message : 'Failed to load books';
+      // A shelf that is still initializing answers 503 for a while; keep the
+      // page in its loading state and retry, matching useBookStore, instead of
+      // stranding the user on an error the shelf resolves on its own.
+      if (err instanceof ApiError && err.status === 503) {
+        initRetryCount++;
+        if (initRetryCount < SHELF_INIT_MAX_AUTO_RETRIES) {
+          retryTimer = setTimeout(() => void fetchBooks(true), SHELF_INIT_RETRY_DELAY_MS);
+          return;
+        }
+        error.value = 'The shelf is still starting up and did not become ready.';
+      } else {
+        error.value = err instanceof ApiError && err.isTimeout
+          ? 'Request timed out — the shelf may be slow or unavailable.'
+          : err instanceof Error ? err.message : 'Failed to load books';
+      }
     } finally {
-      loading.value = false;
+      if (retryTimer === null) {
+        loading.value = false;
+      }
     }
+  }
+
+  // These refs are page-scoped, so a pending retry must not outlive the page.
+  if (getCurrentInstance()) {
+    onUnmounted(clearRetry);
   }
 
   return {
