@@ -182,6 +182,54 @@ func TestPoolSubmitDoesNotRetainChainWhenWorkerRejectsIt(t *testing.T) {
 	}
 }
 
+// A chain whose first task ended partially completed is still being processed
+// while later tasks remain, so its key must stay reserved.
+func TestPoolSubmitRejectsDuplicateKeyWhileALaterTaskRemains(t *testing.T) {
+	p := newTestPool(t, 4, 0)
+
+	inFlight := &TaskChain{Key: "empty_trash:default", Tasks: []Task{
+		&statusTask{status: StatusPartiallyCompleted},
+		&statusTask{status: StatusPending},
+	}}
+	if _, err := p.Submit(inFlight); err != nil {
+		t.Fatalf("Submit returned an error: %v", err)
+	}
+
+	duplicate := &TaskChain{Key: "empty_trash:default", Tasks: []Task{&statusTask{status: StatusPending}}}
+	active, err := p.Submit(duplicate)
+	if !errors.Is(err, ErrTaskChainRunning) {
+		t.Fatalf("Expected ErrTaskChainRunning, got %v", err)
+	}
+	if active != inFlight {
+		t.Errorf("Expected the in-flight chain to be returned")
+	}
+}
+
+// A submission the worker rejects must leave the pool untouched, including the
+// results it was already retaining.
+func TestPoolSubmitRejectionDoesNotEvictRetainedChains(t *testing.T) {
+	// Queue depth of 1 and retention of 1: the second submission is rejected
+	// while the pool is already at its budget.
+	p := NewPool(newTestWorker(t, 1), 1)
+	t.Cleanup(func() { _ = p.Close() })
+
+	retained, err := p.Submit(chainWithStatus(StatusCompleted))
+	if err != nil {
+		t.Fatalf("Submit returned an error: %v", err)
+	}
+
+	if _, err := p.Submit(chainWithStatus(StatusPending)); !errors.Is(err, ErrWorkerBusy) {
+		t.Fatalf("Expected ErrWorkerBusy, got %v", err)
+	}
+
+	if _, ok := p.Get(retained.ID); !ok {
+		t.Errorf("A rejected submission evicted a chain a client can still ask for")
+	}
+	if len(p.List()) != 1 {
+		t.Errorf("Expected 1 retained chain, got %d", len(p.List()))
+	}
+}
+
 func TestPoolListReturnsNewestFirst(t *testing.T) {
 	p := newTestPool(t, 4, 0)
 

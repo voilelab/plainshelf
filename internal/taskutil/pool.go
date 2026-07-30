@@ -69,18 +69,21 @@ func (p *pool) Submit(chain *TaskChain) (*TaskChain, error) {
 		return nil, util.Errorf("task chain cannot be nil")
 	}
 
+	// The lock is held across the enqueue so that the duplicate-key check and
+	// the registration that follows it cannot interleave with another Submit.
+	// Worker.Run never acquires the pool lock, and it enqueues without
+	// blocking, so holding it here neither deadlocks nor stalls.
 	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	if chain.Key != "" {
 		if active := p.findActiveLocked(chain.Key); active != nil {
-			p.mu.Unlock()
 			return active, util.Errorf("%w", ErrTaskChainRunning)
 		}
 	}
 
 	id, err := newTaskChainID()
 	if err != nil {
-		p.mu.Unlock()
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -89,18 +92,17 @@ func (p *pool) Submit(chain *TaskChain) (*TaskChain, error) {
 		chain.CreatedAt = time.Now()
 	}
 
+	// Enqueue before retaining anything. A rejected chain must leave the pool
+	// exactly as it found it, and evicting to make room for a chain that never
+	// ran would discard a result a client can still ask for.
+	if err := p.worker.Run(chain); err != nil {
+		chain.ID = ""
+		return nil, util.Errorf("%w", err)
+	}
+
 	p.byID[id] = chain
 	p.order = append(p.order, id)
 	p.evictLocked()
-	p.mu.Unlock()
-
-	if err := p.worker.Run(chain); err != nil {
-		// The chain never entered the queue, so do not retain it.
-		p.mu.Lock()
-		p.removeLocked(id)
-		p.mu.Unlock()
-		return nil, util.Errorf("%w", err)
-	}
 
 	return chain, nil
 }
@@ -142,8 +144,13 @@ func (p *pool) findActiveLocked(key string) *TaskChain {
 }
 
 // evictLocked drops the oldest terminal chains until the pool is back within
-// its retention budget. Active chains are never evicted, because a client is
-// still polling them.
+// its retention budget. Active chains are never evicted, because a client may
+// still be polling them.
+//
+// Eviction runs on submission, so the budget is a bound on what accumulates
+// across submissions rather than an instantaneous cap: chains that settle after
+// the last submission stay retained until the next one arrives. Since only a
+// submission can add a chain, retention cannot grow without also being trimmed.
 func (p *pool) evictLocked() {
 	for len(p.order) > p.maxKeep {
 		evicted := false

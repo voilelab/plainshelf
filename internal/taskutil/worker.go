@@ -83,16 +83,19 @@ type TaskChain struct {
 
 // Status aggregates the status of every task in the chain.
 //
-// A failed task dominates, then a partially completed one; a chain is complete
-// only once every task is. A chain that has started but not finished reports
-// StatusRunning. An empty chain has nothing left to do and reports
-// StatusCompleted.
+// A failed task makes the chain failed immediately, because the worker abandons
+// the rest of the chain once a task returns an error. Any other outcome is only
+// reported once every task has settled: a chain with work still ahead of it is
+// running, never terminal, so that a pool does not release its key or evict it
+// while the worker is still processing it.
+//
+// An empty chain has nothing left to do and reports StatusCompleted.
 func (c *TaskChain) Status() Status {
 	if len(c.Tasks) == 0 {
 		return StatusCompleted
 	}
 
-	completed := 0
+	settled := 0
 	running := false
 	partial := false
 	for _, task := range c.Tasks {
@@ -101,24 +104,25 @@ func (c *TaskChain) Status() Status {
 			return StatusFailed
 		case StatusPartiallyCompleted:
 			partial = true
-			completed++
+			settled++
 		case StatusCompleted:
-			completed++
+			settled++
 		case StatusRunning:
 			running = true
 		}
 	}
 
-	switch {
-	case partial:
-		return StatusPartiallyCompleted
-	case completed == len(c.Tasks):
-		return StatusCompleted
-	case running || completed > 0:
-		return StatusRunning
-	default:
+	if settled < len(c.Tasks) {
+		if running || settled > 0 {
+			return StatusRunning
+		}
 		return StatusPending
 	}
+
+	if partial {
+		return StatusPartiallyCompleted
+	}
+	return StatusCompleted
 }
 
 // Percentage averages the completion of every task in the chain, weighting each
