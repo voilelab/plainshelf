@@ -1,17 +1,16 @@
 <template>
-  <div
+  <ProgressRoot
     class="progress-bar"
-    role="progressbar"
-    :aria-valuenow="clamped"
-    aria-valuemin="0"
-    aria-valuemax="100"
-    :aria-label="label"
+    :model-value="indeterminate ? null : clamped"
+    :max="100"
+    :get-value-label="valueLabel"
   >
-    <div class="progress-bar-fill" :class="{ indeterminate }" :style="fillStyle" />
-  </div>
+    <ProgressIndicator class="progress-bar-fill" :style="fillStyle" />
+  </ProgressRoot>
 </template>
 
 <script setup lang="ts">
+import { ProgressIndicator, ProgressRoot } from 'reka-ui';
 import { computed } from 'vue';
 
 const props = withDefaults(
@@ -27,6 +26,8 @@ const props = withDefaults(
   }
 );
 
+// ProgressRoot rejects non-finite or out-of-range values by falling back to the
+// indeterminate state, so the value is clamped before it reaches the primitive.
 const clamped = computed(() => {
   if (!Number.isFinite(props.value)) {
     return 0;
@@ -37,6 +38,10 @@ const clamped = computed(() => {
 const fillStyle = computed(() =>
   props.indeterminate ? undefined : { width: `${clamped.value}%` }
 );
+
+// ProgressRoot always labels itself through getValueLabel; returning the label
+// prop keeps the caller's description and omits the attribute when unset.
+const valueLabel = () => props.label;
 </script>
 
 <style scoped>
@@ -56,7 +61,7 @@ const fillStyle = computed(() =>
   width: 0;
 }
 
-.progress-bar-fill.indeterminate {
+.progress-bar-fill[data-state='indeterminate'] {
   animation: progress-bar-slide 1.2s ease-in-out infinite;
   width: 40%;
 }
@@ -75,7 +80,7 @@ const fillStyle = computed(() =>
     transition: none;
   }
 
-  .progress-bar-fill.indeterminate {
+  .progress-bar-fill[data-state='indeterminate'] {
     animation: none;
     width: 100%;
   }
