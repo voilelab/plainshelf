@@ -1,7 +1,7 @@
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { LocationQueryValue, NavigationFailure } from 'vue-router';
-import { toPage, toSingleQueryValue } from './useBookPagination';
+import { toPage, toSingleQueryValue } from '@/composables/useBookPagination';
 import {
   ORDER_OPTIONS,
   SORT_OPTIONS,

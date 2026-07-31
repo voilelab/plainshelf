@@ -74,11 +74,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import BookCover from '@/components/BookCover.vue';
-import BookDetail from '@/components/BookDetail.vue';
+import BookCover from '@/features/library/components/BookCover.vue';
+import BookDetail from '@/features/library/components/BookDetail.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
 import { DELETE_BOOK_DESCRIPTION, useBookActions } from '@/composables/useBookActions';
-import { useBookDetail } from '@/composables/useBookDetail';
+import { useBookDetail } from '@/features/library/composables/useBookDetail';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useOfflineDownload } from '@/composables/useOfflineDownload';
 import { useServerMode } from '@/composables/useServerMode';

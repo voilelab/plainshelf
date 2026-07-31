@@ -47,7 +47,7 @@
 
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
-import BaseDialog from './BaseDialog.vue';
+import BaseDialog from '@/components/BaseDialog.vue';
 import { getBookshelfProvider } from '@/providers';
 
 const props = defineProps<{
