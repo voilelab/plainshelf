@@ -11,6 +11,7 @@ import type {
   TrashedBook
 } from '../types/book';
 import type { SourceMeta } from '../types/source';
+import type { TaskChain } from '../types/task';
 import { ApiError } from '../api/client';
 import type {
   BookshelfProvider,
@@ -282,6 +283,14 @@ export class MobileBookshelfProvider implements BookshelfProvider {
 
   deleteTrashedBook(bookId: string): Promise<void> {
     return this.remote.deleteTrashedBook(bookId);
+  }
+
+  emptyTrash(): Promise<string> {
+    return this.remote.emptyTrash();
+  }
+
+  getTaskChain(taskChainId: string): Promise<TaskChain> {
+    return this.remote.getTaskChain(taskChainId);
   }
 
   async listSources(bookId: string): Promise<SourceMeta[]> {

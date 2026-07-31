@@ -18,6 +18,7 @@ import {
   fetchText,
   isMockApiMode
 } from './client';
+import { registerMockTaskChain } from './taskchains';
 import { normalizeSplitConfig, buildSplitConfigPayload } from '../utils/splitConfig';
 
 interface BackendBookMeta {
@@ -720,6 +721,41 @@ export async function deleteTrashedBook(id: string): Promise<void> {
   await fetchJson<void>(buildShelfApiPath(`/trash/books/${encodeURIComponent(id)}`), {
     method: 'DELETE'
   });
+}
+
+interface BackendEmptyTrashResponse {
+  taskchain_id: string;
+}
+
+/**
+ * emptyTrash schedules the background sweep that permanently deletes every
+ * trashed book, returning the ID of the task chain to poll for progress.
+ *
+ * A 409 means a sweep is already in flight for this shelf; the server reports
+ * its ID so the caller attaches to the existing progress instead of failing.
+ */
+export async function emptyTrash(): Promise<string> {
+  if (isMockApiMode()) {
+    const doomed = mockTrashedBooks.map((book) => book.id);
+    return registerMockTaskChain({
+      name: 'empty_trash',
+      title: 'Empty trash',
+      total: doomed.length,
+      onItem: (index) => {
+        const target = mockTrashedBooks.findIndex((book) => book.id === doomed[index]);
+        if (target >= 0) {
+          mockTrashedBooks.splice(target, 1);
+        }
+      }
+    });
+  }
+
+  const res = await fetchJson<BackendEmptyTrashResponse>(
+    buildShelfApiPath('/trash/empty'),
+    { method: 'POST' },
+    { acceptStatuses: [409] }
+  );
+  return res.taskchain_id;
 }
 
 export function getBookCoverUrl(id: string, cacheKey?: number): string {

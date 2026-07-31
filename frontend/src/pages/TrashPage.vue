@@ -13,11 +13,49 @@
       @confirm="confirmPermanentDelete"
     />
 
+    <ConfirmModal
+      :open="emptyModalOpen"
+      :title="t('trash.emptyAll.title')"
+      :confirm-text="t('trash.emptyAll.confirm')"
+      :cancel-text="emptyFinished ? t('trash.emptyAll.close') : t('common.cancel')"
+      :busy-text="t('trash.emptyAll.busy')"
+      :busy="emptying"
+      :confirm-disabled="emptyFinished"
+      :close-on-backdrop="!emptying"
+      variant="danger"
+      @cancel="closeEmptyModal"
+      @confirm="confirmEmptyTrash"
+    >
+      <template v-if="!emptyStarted">
+        <p>{{ emptyQuestionText }}</p>
+        <p>{{ t('trash.emptyAll.description') }}</p>
+      </template>
+      <template v-else>
+        <p>{{ emptyStatusText }}</p>
+        <ProgressBar
+          :value="emptyPercentage"
+          :label="t('trash.emptyAll.progressLabel')"
+        />
+        <p class="progress-value">{{ Math.round(emptyPercentage) }}%</p>
+      </template>
+      <p v-if="emptyError" class="error" role="alert">{{ emptyError }}</p>
+    </ConfirmModal>
+
     <header class="trash-header">
       <h2>{{ t('trash.title') }}</h2>
-      <button type="button" class="button" :disabled="loading" @click="loadTrash">
-        {{ t('common.retry') }}
-      </button>
+      <div class="header-actions">
+        <button
+          type="button"
+          class="button danger"
+          :disabled="loading || emptying"
+          @click="requestEmptyTrash"
+        >
+          {{ t('trash.emptyAll.action') }}
+        </button>
+        <button type="button" class="button" :disabled="loading" @click="loadTrash">
+          {{ t('common.retry') }}
+        </button>
+      </div>
     </header>
 
     <p v-if="error" class="error" role="alert">{{ error }}</p>
@@ -70,12 +108,15 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
+import ConfirmModal from '../components/ConfirmModal.vue';
 import DeleteModal from '../components/DeleteModal.vue';
+import ProgressBar from '../components/ProgressBar.vue';
 import { getBookshelfProvider } from '../providers';
 import { useBookStore } from '../composables/useBookStore';
 import { useLayerStore } from '../composables/useLayerStore';
 import { useDocumentTitle } from '../composables/useDocumentTitle';
+import { useTaskChainProgress } from '../composables/useTaskChainProgress';
 import { useI18n } from '../i18n';
 import type { TrashedBook } from '../types/book';
 
@@ -88,6 +129,47 @@ const error = ref('');
 const actionError = ref('');
 const pendingDeleteBook = ref<TrashedBook | null>(null);
 const busyMap = ref<Record<string, boolean>>({});
+
+const emptyModalOpen = ref(false);
+
+const {
+  status: emptyStatus,
+  percentage: emptyPercentage,
+  error: emptyError,
+  started: emptyStarted,
+  running: emptying,
+  finished: emptyFinished,
+  start: startEmptyTrash,
+  reset: resetEmptyProgress
+} = useTaskChainProgress({
+  onSettled: () => loadTrash(),
+  startFailedMessage: () => t('trash.emptyAll.startFailed'),
+  pollFailedMessage: () => t('trash.emptyAll.pollFailed')
+});
+
+// The listing hides books whose metadata cannot be read, so an empty table does
+// not mean an empty trash — and those hidden directories are exactly what the
+// sweep exists to remove. Only promise a count when one is actually known.
+const emptyQuestionText = computed(() =>
+  items.value.length > 0
+    ? t('trash.emptyAll.question', { count: items.value.length })
+    : t('trash.emptyAll.questionUnknownCount')
+);
+
+const emptyStatusText = computed(() => {
+  switch (emptyStatus.value) {
+    case 'completed':
+      return t('trash.emptyAll.completed');
+    case 'partially_completed':
+      return t('trash.emptyAll.partiallyCompleted');
+    case 'failed':
+      return t('trash.emptyAll.failed');
+    case 'running':
+      return t('trash.emptyAll.running');
+    default:
+      return t('trash.emptyAll.pending');
+  }
+});
 
 useDocumentTitle(() => [t('trash.title'), 'PlainShelf']);
 
@@ -181,6 +263,33 @@ async function confirmPermanentDelete(): Promise<void> {
   }
 }
 
+function requestEmptyTrash(): void {
+  actionError.value = '';
+  resetEmptyProgress();
+  emptyModalOpen.value = true;
+}
+
+function closeEmptyModal(): void {
+  // Closing mid-sweep would leave the user without any progress feedback, and
+  // the task keeps running on the server regardless.
+  if (emptying.value) {
+    return;
+  }
+
+  resetEmptyProgress();
+  emptyModalOpen.value = false;
+}
+
+async function confirmEmptyTrash(): Promise<void> {
+  if (emptyStarted.value) {
+    return;
+  }
+
+  // A sweep already in flight returns its own ID, so this attaches to the
+  // existing progress instead of scheduling a second one.
+  await startEmptyTrash(() => getBookshelfProvider().emptyTrash());
+}
+
 onMounted(() => {
   void loadTrash();
 });
@@ -218,9 +327,21 @@ onMounted(() => {
   font-size: 13px;
 }
 
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .actions {
   display: flex;
   gap: 8px;
+}
+
+.progress-value {
+  color: #64748b;
+  font-size: 13px;
+  margin: 0;
+  text-align: right;
 }
 
 .actions .button {

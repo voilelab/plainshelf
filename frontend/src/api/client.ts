@@ -192,7 +192,17 @@ async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = FET
   }
 }
 
-export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+export interface FetchJsonOptions {
+  // acceptStatuses lists non-2xx statuses whose JSON body is a normal result
+  // rather than an error, such as a 409 that reports the task already running.
+  acceptStatuses?: number[];
+}
+
+export async function fetchJson<T>(
+  path: string,
+  init?: RequestInit,
+  options?: FetchJsonOptions
+): Promise<T> {
   assertApiMode();
   assertWritableRequest(init);
 
@@ -207,7 +217,7 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
     headers
   });
 
-  if (!res.ok) {
+  if (!res.ok && !options?.acceptStatuses?.includes(res.status)) {
     throw await toApiError(res);
   }
 

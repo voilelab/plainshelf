@@ -371,6 +371,24 @@ const en = {
       description: 'This permanently removes all data and cannot be undone.',
       confirm: 'Delete permanently',
       busy: 'Deleting permanently...'
+    },
+    emptyAll: {
+      action: 'Empty trash',
+      title: 'Empty trash',
+      question: 'Permanently delete all {count} books in the trash?',
+      questionUnknownCount: 'Permanently delete everything in the trash? Books whose metadata cannot be read are not listed above, but will also be removed.',
+      description: 'This permanently removes all data and cannot be undone.',
+      confirm: 'Empty trash',
+      busy: 'Emptying...',
+      close: 'Close',
+      progressLabel: 'Empty trash progress',
+      pending: 'Waiting to start...',
+      running: 'Deleting books...',
+      completed: 'The trash is now empty.',
+      partiallyCompleted: 'Some books could not be deleted. Check the logs for details.',
+      failed: 'Could not start deleting. The trash may be unreadable or locked.',
+      startFailed: 'Failed to start emptying the trash',
+      pollFailed: 'Lost track of the progress. Reload the page to see the current state.'
     }
   },
   downloads: {

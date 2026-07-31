@@ -3,6 +3,7 @@ import {
   deleteBookCover,
   deleteTrashedBook,
   downloadBookContent,
+  emptyTrash,
   getBook,
   getBookContent,
   getBookCover,
@@ -31,6 +32,7 @@ import {
   setCurrentSource,
   updateSourceContent
 } from '../api/sources';
+import { getTaskChain } from '../api/taskchains';
 import { addReadHistory, clearReadHistory, listReadHistoryBooks } from '../api/readHistory';
 import { getReadingActivity, reportReadingActivity } from '../api/readingActivity';
 import type {
@@ -45,6 +47,7 @@ import type {
   TrashedBook
 } from '../types/book';
 import type { SourceMeta } from '../types/source';
+import type { TaskChain } from '../types/task';
 import type { BookshelfProvider, ListBooksOptions } from './bookshelfProvider';
 
 export class ServerBookshelfProvider implements BookshelfProvider {
@@ -150,6 +153,14 @@ export class ServerBookshelfProvider implements BookshelfProvider {
 
   deleteTrashedBook(bookId: string): Promise<void> {
     return deleteTrashedBook(bookId);
+  }
+
+  emptyTrash(): Promise<string> {
+    return emptyTrash();
+  }
+
+  getTaskChain(taskChainId: string): Promise<TaskChain> {
+    return getTaskChain(taskChainId);
   }
 
   listSources(bookId: string): Promise<SourceMeta[]> {
