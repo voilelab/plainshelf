@@ -98,7 +98,7 @@ import {
   SelectViewport,
   type AcceptableValue
 } from 'reka-ui';
-import BaseDialog from './BaseDialog.vue';
+import BaseDialog from '@/components/BaseDialog.vue';
 import { getBookshelfProvider } from '@/providers';
 
 const CANVAS_W = 400;

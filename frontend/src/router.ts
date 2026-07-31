@@ -6,9 +6,9 @@ import { isMobileRuntime } from '@/providers/runtime';
 import { loadMobileConnectionConfig } from '@/providers/mobileConfig';
 
 const DashboardPage = () => import('@/features/dashboard/pages/DashboardPage.vue');
-const LibraryPage = () => import('@/pages/LibraryPage.vue');
-const BookDetailPage = () => import('@/pages/BookDetailPage.vue');
-const EditBookPage = () => import('@/pages/EditBookPage.vue');
+const LibraryPage = () => import('@/features/library/pages/LibraryPage.vue');
+const BookDetailPage = () => import('@/features/library/pages/BookDetailPage.vue');
+const EditBookPage = () => import('@/features/library/pages/EditBookPage.vue');
 const DuplicateContentPage = () => import('@/features/maintenance/pages/DuplicateContentPage.vue');
 const MissingAuthorPage = () => import('@/features/maintenance/pages/MissingAuthorPage.vue');
 const MissingCoverPage = () => import('@/features/maintenance/pages/MissingCoverPage.vue');
@@ -20,7 +20,7 @@ const DownloadsPage = () => import('@/features/mobile/pages/DownloadsPage.vue');
 const AdminLogsPage = () => import('@/features/settings/pages/AdminLogsPage.vue');
 const SettingsPage = () => import('@/features/settings/pages/SettingsPage.vue');
 const MobileConnectPage = () => import('@/features/mobile/pages/MobileConnectPage.vue');
-const ReaderPage = () => import('@/features/reader/views/ReaderView.vue');
+const ReaderPage = () => import('@/features/reader/pages/ReaderView.vue');
 const EditBookSourcesPage = () => import('@/features/sources/pages/EditBookSourcesPage.vue');
 
 const ROUTES_WITH_OWN_TITLE = new Set([

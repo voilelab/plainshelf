@@ -67,8 +67,8 @@
 
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
-import BaseDialog from './BaseDialog.vue';
-import { useImportBook } from '@/composables/useImportBook';
+import BaseDialog from '@/components/BaseDialog.vue';
+import { useImportBook } from '@/features/library/composables/useImportBook';
 import { useBookStore } from '@/composables/useBookStore';
 import { useLayerStore } from '@/composables/useLayerStore';
 import { hasFileTransfer, readDroppedFiles, readSelectedFiles } from '@/utils/file';
