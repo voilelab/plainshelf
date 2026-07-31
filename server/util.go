@@ -68,6 +68,20 @@ func readLogID(r *http.Request) (string, error) {
 	return decoded, nil
 }
 
+func readTaskChainID(r *http.Request) (string, error) {
+	taskChainID := strings.TrimSpace(r.PathValue("taskchain_id"))
+	if taskChainID == "" {
+		return "", errors.New("missing taskchain_id")
+	}
+
+	decoded, err := url.PathUnescape(taskChainID)
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+
+	return decoded, nil
+}
+
 func readLayerParts(r *http.Request) ([]string, error) {
 	rawLayer := strings.TrimSpace(r.PathValue("layer_path"))
 

@@ -370,6 +370,24 @@ const zhHant = {
       description: '此操作會永久刪除資料，且無法復原。',
       confirm: '永久刪除',
       busy: '永久刪除中...'
+    },
+    emptyAll: {
+      action: '清空垃圾桶',
+      title: '清空垃圾桶',
+      question: '確定要永久刪除垃圾桶中的 {count} 本書嗎？',
+      questionUnknownCount: '確定要永久刪除垃圾桶中的所有內容嗎？中繼資料無法讀取的書籍不會列在上方，但同樣會被移除。',
+      description: '此操作會永久刪除資料，且無法復原。',
+      confirm: '清空垃圾桶',
+      busy: '清空中...',
+      close: '關閉',
+      progressLabel: '清空垃圾桶進度',
+      pending: '等待開始...',
+      running: '刪除書籍中...',
+      completed: '垃圾桶已清空。',
+      partiallyCompleted: '有部分書籍未能刪除，詳情請查看日誌。',
+      failed: '無法開始刪除，垃圾桶可能無法讀取或被鎖定。',
+      startFailed: '啟動清空垃圾桶失敗',
+      pollFailed: '無法取得進度，請重新整理頁面查看目前狀態。'
     }
   },
   downloads: {

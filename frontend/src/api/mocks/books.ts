@@ -10,6 +10,7 @@ import type {
   TrashedBook
 } from '@/types/book';
 import { normalizeSplitConfig } from '@/utils/splitConfig';
+import { registerMockTaskChain } from './taskchains';
 
 // In-memory backend for VITE_USE_MOCK_API. The gate that reaches for it lives in
 // api/client.ts (isMockApiMode); nothing here is reachable in a real build.
@@ -366,4 +367,23 @@ export function mockDeleteTrashedBook(id: string): void {
   if (idx >= 0) {
     mockTrashedBooks.splice(idx, 1);
   }
+}
+
+/**
+ * mockEmptyTrash schedules a task chain that drops one trashed book per poll,
+ * so mock mode exercises the same progress reporting as the real sweep.
+ */
+export function mockEmptyTrash(): string {
+  const doomed = mockTrashedBooks.map((book) => book.id);
+  return registerMockTaskChain({
+    name: 'empty_trash',
+    title: 'Empty trash',
+    total: doomed.length,
+    onItem: (index) => {
+      const target = mockTrashedBooks.findIndex((book) => book.id === doomed[index]);
+      if (target >= 0) {
+        mockTrashedBooks.splice(target, 1);
+      }
+    }
+  });
 }

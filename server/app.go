@@ -10,6 +10,7 @@ import (
 
 	"github.com/voilelab/plainshelf/frontend"
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server/store"
 	"github.com/voilelab/plainshelf/shelf"
@@ -19,6 +20,7 @@ type App struct {
 	logutil.Logger
 
 	shelfManager *shelf.ShelfManager
+	taskChains   taskutil.Pool
 	storeDB      *store.DB
 	spaFS        fs.FS
 	spaHandler   http.Handler
@@ -27,9 +29,19 @@ type App struct {
 	security *Security
 }
 
+type WorkerConf struct {
+	Logger logutil.LogConf `yaml:"logger"`
+	MaxLen int             `yaml:"max_len"`
+
+	// MaxKeep bounds how many finished task chains stay queryable through the
+	// task chain API. Zero selects the package default.
+	MaxKeep int `yaml:"max_keep"`
+}
+
 type AppConf struct {
 	Logger             logutil.LogConf          `yaml:"logger"`
 	Shelves            []*shelf.ShelfConfWithID `yaml:"shelves"`
+	Worker             *WorkerConf              `yaml:"worker"`
 	StorePath          string                   `yaml:"store_path"`
 	CoverToJPG         bool                     `yaml:"cover_to_jpg"`
 	ReadHistoryLimit   int                      `yaml:"read_history_limit"`
@@ -80,10 +92,29 @@ func NewApp(conf *AppConf) (*App, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
+	// The worker section is optional; every field has a usable zero value.
+	workerConf := conf.Worker
+	if workerConf == nil {
+		workerConf = &WorkerConf{}
+	}
+
+	workLogger, err := logutil.NewLogger(&workerConf.Logger)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer func() {
+		if failure {
+			workLogger.Close()
+		}
+	}()
+
+	taskChains := taskutil.NewPool(taskutil.NewWorker(workerConf.MaxLen, workLogger), workerConf.MaxKeep)
+
 	failure = false
 	return &App{
 		Logger:       *logger,
 		shelfManager: shelfManager,
+		taskChains:   taskChains,
 		storeDB:      storeDB,
 		spaFS:        frontend.WebFS,
 		spaHandler:   http.FileServerFS(frontend.WebFS),
@@ -93,6 +124,7 @@ func NewApp(conf *AppConf) (*App, error) {
 }
 
 func (app *App) Start() error {
+	app.taskChains.Start()
 	return nil
 }
 
@@ -112,8 +144,9 @@ func (app *App) Close() error {
 	err1 := app.storeDB.Close()
 	err2 := app.shelfManager.Close()
 	err3 := app.Logger.Close()
+	err4 := app.taskChains.Close()
 
-	err := errors.Join(err1, err2, err3)
+	err := errors.Join(err1, err2, err3, err4)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -232,6 +265,7 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}/split_config", app.HandleAPIUpdateBookSplitConfig)
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/trash/books", app.HandleAPIGetTrashedBooks)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/trash/empty", app.HandleAPIEmptyTrash)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/trash/books/{book_id}/restore", app.HandleAPIRestoreTrashedBook)
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/trash/books/{book_id}", app.HandleAPIDeleteTrashedBook)
 
@@ -254,6 +288,10 @@ func (app *App) Serve(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/reading_activity", app.HandleAPIGetReadingActivity)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/reading_activity", app.HandleAPIPostReadingActivity)
+
+	// Task API
+
+	mux.HandleFunc("GET /api/taskchains/{taskchain_id}", app.HandleAPIGetTaskChain)
 
 	// Log API
 
