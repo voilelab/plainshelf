@@ -375,6 +375,7 @@ const zhHant = {
       action: '清空垃圾桶',
       title: '清空垃圾桶',
       question: '確定要永久刪除垃圾桶中的 {count} 本書嗎？',
+      questionUnknownCount: '確定要永久刪除垃圾桶中的所有內容嗎？中繼資料無法讀取的書籍不會列在上方，但同樣會被移除。',
       description: '此操作會永久刪除資料，且無法復原。',
       confirm: '清空垃圾桶',
       busy: '清空中...',

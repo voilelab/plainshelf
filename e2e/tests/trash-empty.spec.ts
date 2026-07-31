@@ -39,7 +39,13 @@ test('should empty the trash through a background task and report its progress',
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
 
     await expect(page.getByText('Trash is empty.')).toBeVisible();
-    await expect(emptyButton).toBeDisabled();
+
+    // The button stays available on an empty-looking trash: the listing hides
+    // books whose metadata cannot be read, so the client cannot know the trash
+    // is actually empty. In that case the prompt must not promise a count.
+    await expect(emptyButton).toBeEnabled();
+    await emptyButton.click();
+    await expect(dialog.getByText(/Permanently delete everything in the trash\?/)).toBeVisible();
   } finally {
     await server.dispose();
   }

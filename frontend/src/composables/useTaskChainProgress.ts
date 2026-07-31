@@ -25,14 +25,20 @@ export function useTaskChainProgress(options: UseTaskChainProgressOptions = {}) 
   const intervalMs = options.intervalMs ?? DEFAULT_TASK_CHAIN_POLL_INTERVAL_MS;
 
   const taskChainId = ref<string | null>(null);
+  // submitting covers the window between asking for the work and learning its
+  // chain ID. The task is already under way then, so the caller must be able to
+  // treat it as running before an ID exists.
+  const submitting = ref(false);
   const status = ref<TaskStatus>('pending');
   const percentage = ref(0);
   const error = ref('');
 
   let timer: ReturnType<typeof setTimeout> | null = null;
+  // generation invalidates an in-flight submission when reset lands first.
+  let generation = 0;
 
-  const started = computed(() => taskChainId.value !== null);
-  const finished = computed(() => started.value && isTerminalTaskStatus(status.value));
+  const started = computed(() => submitting.value || taskChainId.value !== null);
+  const finished = computed(() => started.value && !submitting.value && isTerminalTaskStatus(status.value));
   const running = computed(() => started.value && !finished.value);
 
   function stop(): void {
@@ -43,8 +49,10 @@ export function useTaskChainProgress(options: UseTaskChainProgressOptions = {}) 
   }
 
   function reset(): void {
+    generation += 1;
     stop();
     taskChainId.value = null;
+    submitting.value = false;
     status.value = 'pending';
     percentage.value = 0;
     error.value = '';
@@ -94,6 +102,10 @@ export function useTaskChainProgress(options: UseTaskChainProgressOptions = {}) 
   /**
    * start runs `begin`, which schedules the work and resolves to the task chain
    * ID, then polls that chain until it settles.
+   *
+   * It reports itself as running before awaiting `begin`, so a caller that
+   * gates its UI on `running` cannot be dismissed — or fire a second
+   * submission — during a slow request for work that is already happening.
    */
   async function start(begin: () => Promise<string>): Promise<void> {
     if (running.value) {
@@ -101,13 +113,29 @@ export function useTaskChainProgress(options: UseTaskChainProgressOptions = {}) 
     }
 
     reset();
+    const submission = generation;
+    submitting.value = true;
+
     try {
-      taskChainId.value = await begin();
+      const id = await begin();
+      // A reset during the request abandoned this submission; adopting its ID
+      // now would poll a chain nothing is displaying.
+      if (generation !== submission) {
+        return;
+      }
+
+      taskChainId.value = id;
       schedule();
     } catch (err) {
-      taskChainId.value = null;
+      if (generation !== submission) {
+        return;
+      }
       error.value =
         err instanceof Error ? err.message : (options.startFailedMessage?.() ?? 'Failed to start the task');
+    } finally {
+      if (generation === submission) {
+        submitting.value = false;
+      }
     }
   }
 

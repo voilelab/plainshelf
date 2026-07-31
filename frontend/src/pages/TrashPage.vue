@@ -27,7 +27,7 @@
       @confirm="confirmEmptyTrash"
     >
       <template v-if="!emptyStarted">
-        <p>{{ t('trash.emptyAll.question', { count: items.length }) }}</p>
+        <p>{{ emptyQuestionText }}</p>
         <p>{{ t('trash.emptyAll.description') }}</p>
       </template>
       <template v-else>
@@ -47,7 +47,7 @@
         <button
           type="button"
           class="button danger"
-          :disabled="loading || emptying || items.length === 0"
+          :disabled="loading || emptying"
           @click="requestEmptyTrash"
         >
           {{ t('trash.emptyAll.action') }}
@@ -146,6 +146,15 @@ const {
   startFailedMessage: () => t('trash.emptyAll.startFailed'),
   pollFailedMessage: () => t('trash.emptyAll.pollFailed')
 });
+
+// The listing hides books whose metadata cannot be read, so an empty table does
+// not mean an empty trash — and those hidden directories are exactly what the
+// sweep exists to remove. Only promise a count when one is actually known.
+const emptyQuestionText = computed(() =>
+  items.value.length > 0
+    ? t('trash.emptyAll.question', { count: items.value.length })
+    : t('trash.emptyAll.questionUnknownCount')
+);
 
 const emptyStatusText = computed(() => {
   switch (emptyStatus.value) {
