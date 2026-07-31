@@ -1,50 +1,32 @@
 <template>
   <ProgressRoot
+    v-slot="{ modelValue }"
     class="progress-bar"
-    :model-value="indeterminate ? null : clamped"
-    :max="100"
-    :get-value-label="valueLabel"
+    :model-value="value"
+    :get-value-label="() => label"
   >
-    <ProgressIndicator class="progress-bar-fill" :style="fillStyle" />
+    <!-- modelValue is the value ProgressRoot validated, so an out-of-range
+         value renders as indeterminate instead of an oversized fill. -->
+    <ProgressIndicator
+      class="progress-bar-fill"
+      :style="typeof modelValue === 'number' ? { width: `${modelValue}%` } : undefined"
+    />
   </ProgressRoot>
 </template>
 
 <script setup lang="ts">
 import { ProgressIndicator, ProgressRoot } from 'reka-ui';
-import { computed } from 'vue';
 
-const props = withDefaults(
-  defineProps<{
-    value: number;
-    label?: string;
-    // indeterminate renders an animated bar for work whose size is not known yet.
-    indeterminate?: boolean;
-  }>(),
-  {
-    label: undefined,
-    indeterminate: false
-  }
-);
-
-// ProgressRoot rejects non-finite or out-of-range values by falling back to the
-// indeterminate state, so the value is clamped before it reaches the primitive.
-const clamped = computed(() => {
-  if (!Number.isFinite(props.value)) {
-    return 0;
-  }
-  return Math.min(Math.max(props.value, 0), 100);
-});
-
-const fillStyle = computed(() =>
-  props.indeterminate ? undefined : { width: `${clamped.value}%` }
-);
-
-// ProgressRoot always labels itself through getValueLabel; returning the label
-// prop keeps the caller's description and omits the attribute when unset.
-const valueLabel = () => props.label;
+defineProps<{
+  // null renders an animated bar for work whose size is not known yet.
+  value: number | null;
+  label?: string;
+}>();
 </script>
 
 <style scoped>
+/* Reka UI ships no styles, so the track and fill are ours; only their state
+   comes from the primitive's data-state. */
 .progress-bar {
   background: var(--surface-muted, #e2e8f0);
   border-radius: 999px;
