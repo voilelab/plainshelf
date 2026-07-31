@@ -16,10 +16,10 @@ const MissingLanguagePage = () => import('@/features/maintenance/pages/MissingLa
 const LowCharCountPage = () => import('@/features/maintenance/pages/LowCharCountPage.vue');
 const ReadHistoryPage = () => import('@/pages/ReadHistoryPage.vue');
 const TrashPage = () => import('@/features/trash/pages/TrashPage.vue');
-const DownloadsPage = () => import('@/pages/DownloadsPage.vue');
-const AdminLogsPage = () => import('@/pages/AdminLogsPage.vue');
-const SettingsPage = () => import('@/pages/SettingsPage.vue');
-const MobileConnectPage = () => import('@/pages/MobileConnectPage.vue');
+const DownloadsPage = () => import('@/features/mobile/pages/DownloadsPage.vue');
+const AdminLogsPage = () => import('@/features/settings/pages/AdminLogsPage.vue');
+const SettingsPage = () => import('@/features/settings/pages/SettingsPage.vue');
+const MobileConnectPage = () => import('@/features/mobile/pages/MobileConnectPage.vue');
 const ReaderPage = () => import('@/features/reader/views/ReaderView.vue');
 const EditBookSourcesPage = () => import('@/features/sources/pages/EditBookSourcesPage.vue');
 

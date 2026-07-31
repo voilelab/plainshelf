@@ -363,7 +363,7 @@ import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useI18n } from '@/i18n';
 import { getBookshelfProvider, isMobileRuntime, isWailsRuntime } from '@/providers';
-import { openExternalURL } from '@/utils/externalLinks';
+import { openExternalURL } from '@/features/settings/utils/externalLinks';
 
 const { t } = useI18n();
 const loading = ref(false);
