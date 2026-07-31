@@ -21,7 +21,7 @@ import {
   updateBookSplitConfig,
   uploadBookCover,
   uploadBookCoverBlob
-} from '../api/books';
+} from '@/api/books';
 import {
   createSource,
   deleteSource,
@@ -31,10 +31,10 @@ import {
   refreshSourceMeta,
   setCurrentSource,
   updateSourceContent
-} from '../api/sources';
-import { getTaskChain } from '../api/taskchains';
-import { addReadHistory, clearReadHistory, listReadHistoryBooks } from '../api/readHistory';
-import { getReadingActivity, reportReadingActivity } from '../api/readingActivity';
+} from '@/api/sources';
+import { getTaskChain } from '@/api/taskchains';
+import { addReadHistory, clearReadHistory, listReadHistoryBooks } from '@/api/readHistory';
+import { getReadingActivity, reportReadingActivity } from '@/api/readingActivity';
 import type {
   BookmarkPayload,
   Book,
@@ -45,9 +45,9 @@ import type {
   ReadingProgress,
   SplitConfig,
   TrashedBook
-} from '../types/book';
-import type { SourceMeta } from '../types/source';
-import type { TaskChain } from '../types/task';
+} from '@/types/book';
+import type { SourceMeta } from '@/types/source';
+import type { TaskChain } from '@/types/task';
 import type { BookshelfProvider, ListBooksOptions } from './bookshelfProvider';
 
 export class ServerBookshelfProvider implements BookshelfProvider {

@@ -179,15 +179,15 @@ import {
   TagsInputRoot,
   type AcceptableValue
 } from 'reka-ui';
-import type { Book, BookUpdateRequest } from '../types/book';
+import type { Book, BookUpdateRequest } from '@/types/book';
 import {
   CUSTOM_LANGUAGE_VALUE,
   LANGUAGE_OPTIONS,
   LANGUAGE_SELECT_OPTIONS,
   normalizeLanguage,
   validateLanguageTag
-} from '../utils/language';
-import { commaStringToList, listToCommaString } from '../utils/metadata';
+} from '@/utils/language';
+import { commaStringToList, listToCommaString } from '@/utils/metadata';
 
 const COMMON_LANGUAGE_VALUES: Set<string> = new Set(
   LANGUAGE_OPTIONS.map((option) => option.value).filter((value) => value && value !== CUSTOM_LANGUAGE_VALUE)

@@ -1,6 +1,6 @@
 import { ref } from 'vue';
-import en from './locales/en';
-import zhHant from './locales/zh-Hant';
+import en from '@/i18n/locales/en';
+import zhHant from '@/i18n/locales/zh-Hant';
 
 interface Messages {
   [key: string]: string | Messages;

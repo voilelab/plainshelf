@@ -1,5 +1,5 @@
 import { computed, type Ref } from 'vue';
-import type { Book } from '../types/book';
+import type { Book } from '@/types/book';
 
 export const SORT_OPTIONS = ['created_at', 'updated_at', 'title'] as const;
 export const ORDER_OPTIONS = ['asc', 'desc'] as const;

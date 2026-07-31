@@ -1,5 +1,5 @@
-import type { SplitConfig } from '../types/book';
-import { normalizeSplitConfig, buildSplitConfigPayload } from '../utils/splitConfig';
+import type { SplitConfig } from '@/types/book';
+import { normalizeSplitConfig, buildSplitConfigPayload } from '@/utils/splitConfig';
 import { fetchJson, isMockApiMode } from './client';
 
 interface SettingResponse {

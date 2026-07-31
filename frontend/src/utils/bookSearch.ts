@@ -1,4 +1,4 @@
-import type { Book } from '../types/book';
+import type { Book } from '@/types/book';
 
 /**
  * Filters books by a free-text query matched (case-insensitively) against

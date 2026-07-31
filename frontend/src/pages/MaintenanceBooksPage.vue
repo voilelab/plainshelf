@@ -3,7 +3,7 @@
     <DeleteModal
       :open="!!deleteTarget"
       :item-name="deleteTarget?.title || ''"
-      description="The book will be moved to Trash. You can restore it later."
+      :description="DELETE_BOOK_DESCRIPTION"
       :busy="deleting"
       :error="actionError"
       @cancel="cancelDelete"
@@ -26,8 +26,8 @@
       :read-only="readOnly"
       :page-size-options="PAGE_SIZE_OPTIONS"
       @retry="loadBooks"
-      @select="openBook"
-      @edit="openEdit"
+      @select="openDetail"
+      @edit="goEdit"
       @read="goRead"
       @open-book-folder="onOpenBookFolder"
       @download="onDownloadBook"
@@ -55,24 +55,24 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import BookCollectionPage from '../components/BookCollectionPage.vue';
-import DeleteModal from '../components/DeleteModal.vue';
-import { useBookActions } from '../composables/useBookActions';
-import { useBookStore } from '../composables/useBookStore';
-import { useCharCountBooks } from '../composables/useCharCountBooks';
-import { useBookPagination, toSingleQueryValue, toPage } from '../composables/useBookPagination';
-import { useServerMode } from '../composables/useServerMode';
+import BookCollectionPage from '@/components/BookCollectionPage.vue';
+import DeleteModal from '@/components/DeleteModal.vue';
+import { DELETE_BOOK_DESCRIPTION } from '@/composables/useBookActions';
+import { useBookCollectionActions } from '@/composables/useBookCollectionActions';
+import { useBookCollectionRoute } from '@/composables/useBookCollectionRoute';
+import { useBookStore } from '@/composables/useBookStore';
+import { useCharCountBooks } from '@/composables/useCharCountBooks';
+import { toSingleQueryValue } from '@/composables/useBookPagination';
 import {
   MAINTENANCE_BOOK_FILTERS,
   clampThreshold,
   hasUnknownCharCount,
   type MaintenanceBookFilter
-} from '../utils/maintenance';
-import type { Book } from '../types/book';
-import { useI18n } from '../i18n';
-import '../styles/toolbar-controls.css';
+} from '@/utils/maintenance';
+import { useI18n } from '@/i18n';
+import '@/styles/toolbar-controls.css';
 
 const THRESHOLD_INPUT_ID = 'maintenance-threshold';
 
@@ -82,8 +82,6 @@ const props = defineProps<{
 
 const route = useRoute();
 const router = useRouter();
-const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
-const { readOnly } = useServerMode();
 const { t } = useI18n();
 
 const filterConfig = computed(() => MAINTENANCE_BOOK_FILTERS[props.filter]);
@@ -163,32 +161,11 @@ function buildQuery(overrides: { page?: number; maxChars?: number }): Record<str
   return nextQuery;
 }
 
-const page = computed(() => toPage(route.query.page));
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredBooks.value.length / pageSize.value)));
-
-const visibleBooks = computed(() => {
-  const start = (page.value - 1) * pageSize.value;
-  return filteredBooks.value.slice(start, start + pageSize.value);
-});
-
-function onPageChange(nextPage: number): void {
-  if (nextPage === page.value) {
-    return;
-  }
-
-  void router.push({
-    path: route.path,
-    query: buildQuery({ page: nextPage })
+const { page, pageSize, visibleBooks, onPageChange, onPageSizeChange, PAGE_SIZE_OPTIONS } =
+  useBookCollectionRoute({
+    items: filteredBooks,
+    buildQuery: (nextPage) => buildQuery({ page: nextPage })
   });
-}
-
-function onPageSizeChange(newSize: number): void {
-  setPageSize(newSize);
-  void router.push({
-    path: route.path,
-    query: buildQuery({ page: 1 })
-  });
-}
 
 // Committed on change (blur, Enter, spinner) rather than on every keystroke, so
 // a partially typed number never filters the list or fills up history.
@@ -205,14 +182,6 @@ function onThresholdChange(event: Event): void {
   });
 }
 
-function openBook(id: string): void {
-  void router.push(`/books/${id}`);
-}
-
-function openEdit(id: string): void {
-  void router.push(`/books/${id}/edit`);
-}
-
 async function loadBooks(): Promise<void> {
   await source.value.fetchBooks();
 }
@@ -222,59 +191,21 @@ const {
   actionError,
   deleteTarget,
   deleting,
+  readOnly,
   goRead,
-  openBookFolder,
-  downloadBook,
-  requestDelete,
+  openDetail,
+  goEdit,
   cancelDelete,
-  confirmDelete
-} = useBookActions({
+  confirmDelete,
+  onOpenBookFolder,
+  onDownloadBook,
+  onRequestDeleteBook
+} = useBookCollectionActions({
+  books,
   onDeleted: () => {
     void loadBooks();
   }
 });
-
-function findBook(id: string): Book | undefined {
-  return books.value.find((candidate) => candidate.id === id);
-}
-
-function onOpenBookFolder(id: string): void {
-  void openBookFolder(id);
-}
-
-function onDownloadBook(id: string): void {
-  const book = findBook(id);
-  if (book) {
-    void downloadBook(book);
-  }
-}
-
-function onRequestDeleteBook(id: string): void {
-  if (readOnly.value) {
-    return;
-  }
-  const book = findBook(id);
-  if (book) {
-    requestDelete(book);
-  }
-}
-
-watch(
-  [page, totalPages],
-  ([currentPage, maxPage]) => {
-    const normalizedPage = Math.min(currentPage, maxPage);
-    const rawPage = toSingleQueryValue(route.query.page);
-    if (rawPage === String(normalizedPage)) {
-      return;
-    }
-
-    void router.replace({
-      path: route.path,
-      query: buildQuery({ page: normalizedPage })
-    });
-  },
-  { immediate: true }
-);
 
 onMounted(() => {
   void loadBooks();

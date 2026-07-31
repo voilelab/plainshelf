@@ -347,8 +347,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
-import ConfirmModal from '../components/ConfirmModal.vue';
-import DeleteModal from '../components/DeleteModal.vue';
+import ConfirmModal from '@/components/ConfirmModal.vue';
+import DeleteModal from '@/components/DeleteModal.vue';
 import {
   getCoverToJpgSetting,
   getDefaultSplitConfigSetting,
@@ -356,14 +356,14 @@ import {
   setCoverToJpgSetting,
   setDefaultSplitConfigSetting,
   setReadHistoryLimitSetting
-} from '../api/settings';
-import type { SplitConfig, SplitType } from '../types/book';
-import { getServerVersion } from '../api/version';
-import { useDocumentTitle } from '../composables/useDocumentTitle';
-import { useShelvesStore } from '../composables/useShelvesStore';
-import { useI18n } from '../i18n';
-import { getBookshelfProvider, isMobileRuntime, isWailsRuntime } from '../providers';
-import { openExternalURL } from '../utils/externalLinks';
+} from '@/api/settings';
+import type { SplitConfig, SplitType } from '@/types/book';
+import { getServerVersion } from '@/api/version';
+import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useShelvesStore } from '@/composables/useShelvesStore';
+import { useI18n } from '@/i18n';
+import { getBookshelfProvider, isMobileRuntime, isWailsRuntime } from '@/providers';
+import { openExternalURL } from '@/utils/externalLinks';
 
 const { t } = useI18n();
 const loading = ref(false);

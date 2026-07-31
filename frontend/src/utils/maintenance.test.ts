@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Book } from '../types/book';
-import en from '../i18n/locales/en';
-import zhHant from '../i18n/locales/zh-Hant';
+import type { Book } from '@/types/book';
+import en from '@/i18n/locales/en';
+import zhHant from '@/i18n/locales/zh-Hant';
 import {
   LOW_CHAR_COUNT_THRESHOLD,
   MAINTENANCE_BOOK_FILTERS,

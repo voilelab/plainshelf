@@ -1,12 +1,14 @@
-import { mockBooks } from './books';
 import { ApiError, buildShelfApiPath, fetchJson, isMockApiMode } from './client';
-import { normalizeLayerPath } from '../utils/layers';
-
-function delay<T>(value: T, ms = 240): Promise<T> {
-  return new Promise((resolve) => {
-    setTimeout(() => resolve(value), ms);
-  });
-}
+import { LayerHttpError } from './layerErrors';
+import { delay } from './mocks/latency';
+import {
+  addMockLayer,
+  deleteMockLayer,
+  getMockLayers,
+  moveMockLayer,
+  renameMockLayer
+} from './mocks/layers';
+import { normalizeLayerPath } from '@/utils/layers';
 
 function normalizeLayerValue(value: unknown): string | null {
   if (typeof value === 'string') {
@@ -37,54 +39,6 @@ function layersFromPath(path: string): string[] {
   return normalized.split('/').filter((segment) => segment.length > 0);
 }
 
-function pathFromLayers(layers: string[] = []): string {
-  const segments = layers.map((s) => s.trim()).filter((s) => s.length > 0);
-  return segments.length === 0 ? '/' : segments.join('/');
-}
-
-function deriveMockLayersFromBooks(): string[] {
-  const set = new Set<string>();
-  set.add('/');
-
-  for (const book of mockBooks) {
-    const path = pathFromLayers(book.layers);
-    set.add(path);
-
-    if (path !== '/') {
-      const segments = path.split('/');
-      for (let i = 1; i <= segments.length; i += 1) {
-        set.add(segments.slice(0, i).join('/'));
-      }
-    }
-  }
-
-  return Array.from(set).sort((a, b) => a.localeCompare(b));
-}
-
-const mockLayers = new Set<string>(deriveMockLayersFromBooks());
-
-function getMockLayers(): string[] {
-  return Array.from(mockLayers).sort((a, b) => a.localeCompare(b));
-}
-
-function addMockLayer(path: string): void {
-  mockLayers.add('/');
-
-  const normalized = normalizeLayerPath(path);
-  if (!normalized) {
-    return;
-  }
-
-  const segments = normalized.split('/').filter((segment) => segment.length > 0);
-  for (let i = 1; i <= segments.length; i += 1) {
-    mockLayers.add(segments.slice(0, i).join('/'));
-  }
-}
-
-function deleteMockLayer(path: string): void {
-  mockLayers.delete(path);
-}
-
 function encodeLayerPath(path: string): string {
   return path
     .split('/')
@@ -92,28 +46,6 @@ function encodeLayerPath(path: string): string {
     .map((segment) => encodeURIComponent(segment))
     .join('/');
 }
-
-function replaceLayerPrefix(path: string, oldPrefix: string, newPrefix: string): string {
-  if (path === oldPrefix) {
-    return newPrefix;
-  }
-  if (path.startsWith(`${oldPrefix}/`)) {
-    return `${newPrefix}${path.slice(oldPrefix.length)}`;
-  }
-  return path;
-}
-
-function syncMockBooksLayerPrefix(oldPrefix: string, newPrefix: string): void {
-  for (const book of mockBooks) {
-    const currentPath = pathFromLayers(book.layers);
-    const nextPath = replaceLayerPrefix(currentPath, oldPrefix, newPrefix);
-    if (nextPath !== currentPath) {
-      book.layers = layersFromPath(nextPath);
-    }
-  }
-}
-
-class LayerHttpError extends Error {}
 
 export async function getLayers(): Promise<string[]> {
   if (isMockApiMode()) {
@@ -181,17 +113,7 @@ export async function renameLayer(layerPath: string, nextName: string): Promise<
   const nextPath = [...parentSegments, name].join('/');
 
   if (isMockApiMode()) {
-    if (mockLayers.has(nextPath)) {
-      throw new LayerHttpError('Layer already exists');
-    }
-    const currentLayers = getMockLayers();
-    for (const layer of currentLayers) {
-      if (layer === normalized || layer.startsWith(`${normalized}/`)) {
-        mockLayers.delete(layer);
-        mockLayers.add(replaceLayerPrefix(layer, normalized, nextPath));
-      }
-    }
-    syncMockBooksLayerPrefix(normalized, nextPath);
+    renameMockLayer(normalized, nextPath);
     await delay(undefined);
     return;
   }
@@ -228,20 +150,7 @@ export async function moveLayer(layerPath: string, targetLayerPath: string): Pro
   const destination = [...layersFromPath(target), layerName].join('/');
 
   if (isMockApiMode()) {
-    if (!mockLayers.has(target || '/')) {
-      throw new LayerHttpError('Target layer does not exist');
-    }
-    if (mockLayers.has(destination)) {
-      throw new LayerHttpError('Target layer already contains a layer with this name');
-    }
-    const currentLayers = getMockLayers();
-    for (const layer of currentLayers) {
-      if (layer === normalized || layer.startsWith(`${normalized}/`)) {
-        mockLayers.delete(layer);
-        mockLayers.add(replaceLayerPrefix(layer, normalized, destination));
-      }
-    }
-    syncMockBooksLayerPrefix(normalized, destination);
+    moveMockLayer(normalized, target, destination);
     await delay(undefined);
     return;
   }
@@ -272,13 +181,6 @@ export async function deleteLayer(layerPath: string): Promise<void> {
   const encodedPath = encodeLayerPath(normalized);
 
   if (isMockApiMode()) {
-    const hasBooks = mockBooks.some((book) => pathFromLayers(book.layers) === normalized);
-    const hasChildren = getMockLayers().some((path) => path !== normalized && path.startsWith(`${normalized}/`));
-
-    if (hasBooks || hasChildren) {
-      throw new LayerHttpError('Cannot delete this layer because it is not empty.');
-    }
-
     deleteMockLayer(normalized);
     await delay(undefined);
     return;

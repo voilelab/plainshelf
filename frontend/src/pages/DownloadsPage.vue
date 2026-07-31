@@ -89,14 +89,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import DeleteModal from '../components/DeleteModal.vue';
-import bookcover from '../assets/bookcover.svg';
-import { getBookshelfProvider } from '../providers';
-import type { DownloadedBookEntry, StorageEstimateResult } from '../providers/bookshelfProvider';
-import type { Book } from '../types/book';
-import { formatBytes } from '../utils/bytes';
-import { useDocumentTitle } from '../composables/useDocumentTitle';
-import { useI18n } from '../i18n';
+import DeleteModal from '@/components/DeleteModal.vue';
+import bookcover from '@/assets/bookcover.svg';
+import { getBookshelfProvider } from '@/providers';
+import type { DownloadedBookEntry, StorageEstimateResult } from '@/providers/bookshelfProvider';
+import type { Book } from '@/types/book';
+import { formatBytes } from '@/utils/bytes';
+import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useI18n } from '@/i18n';
 
 const router = useRouter();
 const { t } = useI18n();

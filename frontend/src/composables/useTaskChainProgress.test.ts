@@ -1,13 +1,13 @@
 import { effectScope } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { TaskChain, TaskStatus } from '../types/task';
+import type { TaskChain, TaskStatus } from '@/types/task';
 
 const { getTaskChainMock } = vi.hoisted(() => ({
   getTaskChainMock: vi.fn()
 }));
 
-vi.mock('../providers', () => ({
+vi.mock('@/providers', () => ({
   getBookshelfProvider: () => ({
     getTaskChain: getTaskChainMock
   })

@@ -1,7 +1,7 @@
 import { onScopeDispose, ref, watch, type Ref } from 'vue';
-import { getBookshelfProvider } from '../providers';
-import { isMobileRuntime } from '../providers/runtime';
-import bookcover from '../assets/bookcover.svg';
+import { getBookshelfProvider } from '@/providers';
+import { isMobileRuntime } from '@/providers/runtime';
+import bookcover from '@/assets/bookcover.svg';
 
 export interface UseCoverSrcResult {
   src: Ref<string>;

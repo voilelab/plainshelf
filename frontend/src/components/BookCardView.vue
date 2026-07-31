@@ -72,11 +72,11 @@ import {
   ContextMenuTrigger
 } from 'reka-ui';
 import BookCoverImg from './BookCoverImg.vue';
-import bookcover from '../assets/bookcover.svg';
-import type { Book } from '../types/book';
-import { getLayerPath, layerPathLabel } from '../utils/layers';
-import { formatDateLabel } from '../utils/date';
-import { useI18n } from '../i18n';
+import bookcover from '@/assets/bookcover.svg';
+import type { Book } from '@/types/book';
+import { getLayerPath, layerPathLabel } from '@/utils/layers';
+import { formatDateLabel } from '@/utils/date';
+import { useI18n } from '@/i18n';
 
 const props = withDefaults(defineProps<{
   books: Book[];

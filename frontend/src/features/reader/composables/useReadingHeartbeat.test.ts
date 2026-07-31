@@ -5,7 +5,7 @@ const { reportReadingActivityMock } = vi.hoisted(() => ({
   reportReadingActivityMock: vi.fn()
 }));
 
-vi.mock('../../../providers', () => ({
+vi.mock('@/providers', () => ({
   getBookshelfProvider: () => ({
     reportReadingActivity: reportReadingActivityMock
   })

@@ -12,7 +12,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { RouterLink, type RouteLocationRaw } from 'vue-router';
-import { normalizeLayerInput } from '../utils/layers';
+import { normalizeLayerInput } from '@/utils/layers';
 
 const ROOT_LABEL = 'Root';
 

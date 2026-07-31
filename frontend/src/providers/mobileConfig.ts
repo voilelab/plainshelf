@@ -1,6 +1,6 @@
 import { Preferences } from '@capacitor/preferences';
 
-import { setActiveShelfID, setApiBase } from '../api/client';
+import { setActiveShelfID, setApiBase } from '@/api/client';
 
 // Native (Capacitor) builds load a static bundle with no backend to inject the
 // server address, token, or selected shelf. We persist those in Capacitor

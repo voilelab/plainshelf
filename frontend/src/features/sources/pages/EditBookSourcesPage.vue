@@ -97,13 +97,13 @@
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
-import ConfirmModal from '../../../components/ConfirmModal.vue';
-import { useDocumentTitle } from '../../../composables/useDocumentTitle';
-import type { Book } from '../../../types/book';
-import { getBookshelfProvider } from '../../../providers';
-import SourceEditor from '../components/SourceEditor.vue';
-import SourceList from '../components/SourceList.vue';
-import type { SourceMeta } from '../../../types/source';
+import ConfirmModal from '@/components/ConfirmModal.vue';
+import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import type { Book } from '@/types/book';
+import { getBookshelfProvider } from '@/providers';
+import SourceEditor from '@/features/sources/components/SourceEditor.vue';
+import SourceList from '@/features/sources/components/SourceList.vue';
+import type { SourceMeta } from '@/types/source';
 
 // Stable reference: see MainLayout.vue's SIDEBAR_RESIZE_HIT_AREA_MARGINS for why this
 // object must not be an inline template literal (reka-ui re-registers the resize handle

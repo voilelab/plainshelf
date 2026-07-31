@@ -34,10 +34,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { getBookshelfProvider } from '../providers';
-import type { Book } from '../types/book';
-import { getLayerPath, layerPathLabel } from '../utils/layers';
-import bookcover from '../assets/bookcover.svg';
+import { getBookshelfProvider } from '@/providers';
+import type { Book } from '@/types/book';
+import { getLayerPath, layerPathLabel } from '@/utils/layers';
+import bookcover from '@/assets/bookcover.svg';
 import DeleteModal from './DeleteModal.vue';
 
 const props = defineProps<{

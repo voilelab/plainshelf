@@ -3,7 +3,7 @@
     <DeleteModal
       :open="!!deleteTarget"
       :item-name="deleteTarget?.title || ''"
-      description="The book will be moved to Trash. You can restore it later."
+      :description="DELETE_BOOK_DESCRIPTION"
       :busy="deleting"
       :error="actionError"
       @cancel="cancelDelete"
@@ -25,8 +25,8 @@
       :read-only="readOnly"
       view-mode-storage-key="read-history"
       @retry="loadReadHistory"
-      @select="openBook"
-      @edit="openEdit"
+      @select="openDetail"
+      @edit="goEdit"
       @read="goRead"
       @open-book-folder="onOpenBookFolder"
       @download="onDownloadBook"
@@ -49,35 +49,26 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import BookCollectionPage from '../components/BookCollectionPage.vue';
-import DeleteModal from '../components/DeleteModal.vue';
-import { getBookshelfProvider } from '../providers';
-import { useBookActions } from '../composables/useBookActions';
-import { useBookPagination, toPage, toSingleQueryValue } from '../composables/useBookPagination';
-import { useDocumentTitle } from '../composables/useDocumentTitle';
-import { useServerMode } from '../composables/useServerMode';
-import type { Book } from '../types/book';
-import { useI18n } from '../i18n';
+import BookCollectionPage from '@/components/BookCollectionPage.vue';
+import DeleteModal from '@/components/DeleteModal.vue';
+import { getBookshelfProvider } from '@/providers';
+import { DELETE_BOOK_DESCRIPTION } from '@/composables/useBookActions';
+import { useBookCollectionActions } from '@/composables/useBookCollectionActions';
+import { useBookCollectionRoute } from '@/composables/useBookCollectionRoute';
+import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import type { Book } from '@/types/book';
+import { useI18n } from '@/i18n';
 
 const route = useRoute();
 const router = useRouter();
-const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
-const { readOnly } = useServerMode();
 const { t } = useI18n();
 
 const books = ref<Book[]>([]);
 const loading = ref(false);
 const clearing = ref(false);
 const error = ref('');
-
-const page = computed(() => toPage(route.query.page));
-const totalPages = computed(() => Math.max(1, Math.ceil(books.value.length / pageSize.value)));
-const visibleBooks = computed(() => {
-  const start = (page.value - 1) * pageSize.value;
-  return books.value.slice(start, start + pageSize.value);
-});
 
 useDocumentTitle(() => [t('readHistory.title'), t('app.name')]);
 
@@ -87,6 +78,9 @@ function buildPageQuery(nextPage: number): Record<string, string> {
     page: String(nextPage)
   } as Record<string, string>;
 }
+
+const { page, pageSize, visibleBooks, onPageChange, onPageSizeChange, PAGE_SIZE_OPTIONS } =
+  useBookCollectionRoute({ items: books, buildQuery: buildPageQuery });
 
 async function loadReadHistory(): Promise<void> {
   loading.value = true;
@@ -122,91 +116,26 @@ async function onClearHistory(): Promise<void> {
   }
 }
 
-function onPageChange(nextPage: number): void {
-  if (nextPage === page.value) {
-    return;
-  }
-
-  void router.push({
-    path: route.path,
-    query: buildPageQuery(nextPage)
-  });
-}
-
-function onPageSizeChange(newSize: number): void {
-  setPageSize(newSize);
-  void router.push({
-    path: route.path,
-    query: buildPageQuery(1)
-  });
-}
-
-function openBook(id: string): void {
-  void router.push(`/books/${id}`);
-}
-
-function openEdit(id: string): void {
-  void router.push(`/books/${id}/edit`);
-}
-
 const {
   canOpenBookFolder,
   actionError,
   deleteTarget,
   deleting,
+  readOnly,
   goRead,
-  openBookFolder,
-  downloadBook,
-  requestDelete,
+  openDetail,
+  goEdit,
   cancelDelete,
-  confirmDelete
-} = useBookActions({
+  confirmDelete,
+  onOpenBookFolder,
+  onDownloadBook,
+  onRequestDeleteBook
+} = useBookCollectionActions({
+  books,
   onDeleted: () => {
     void loadReadHistory();
   }
 });
-
-function findBook(id: string): Book | undefined {
-  return books.value.find((candidate) => candidate.id === id);
-}
-
-function onOpenBookFolder(id: string): void {
-  void openBookFolder(id);
-}
-
-function onDownloadBook(id: string): void {
-  const book = findBook(id);
-  if (book) {
-    void downloadBook(book);
-  }
-}
-
-function onRequestDeleteBook(id: string): void {
-  if (readOnly.value) {
-    return;
-  }
-  const book = findBook(id);
-  if (book) {
-    requestDelete(book);
-  }
-}
-
-watch(
-  [page, totalPages],
-  ([currentPage, maxPage]) => {
-    const normalizedPage = Math.min(currentPage, maxPage);
-    const rawPage = toSingleQueryValue(route.query.page);
-    if (rawPage === String(normalizedPage)) {
-      return;
-    }
-
-    void router.replace({
-      path: route.path,
-      query: buildPageQuery(normalizedPage)
-    });
-  },
-  { immediate: true }
-);
 
 onMounted(() => {
   void loadReadHistory();

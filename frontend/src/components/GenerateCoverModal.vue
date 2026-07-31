@@ -99,7 +99,7 @@ import {
   type AcceptableValue
 } from 'reka-ui';
 import BaseDialog from './BaseDialog.vue';
-import { getBookshelfProvider } from '../providers';
+import { getBookshelfProvider } from '@/providers';
 
 const CANVAS_W = 400;
 const CANVAS_H = 600;

@@ -71,7 +71,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { getBookshelfProvider } from '../providers';
+import { getBookshelfProvider } from '@/providers';
 import BookCoverImg from './BookCoverImg.vue';
 import ConfirmModal from './ConfirmModal.vue';
 import GenerateCoverModal from './GenerateCoverModal.vue';

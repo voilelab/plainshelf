@@ -109,16 +109,16 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import ConfirmModal from '../components/ConfirmModal.vue';
-import DeleteModal from '../components/DeleteModal.vue';
-import ProgressBar from '../components/ProgressBar.vue';
-import { getBookshelfProvider } from '../providers';
-import { useBookStore } from '../composables/useBookStore';
-import { useLayerStore } from '../composables/useLayerStore';
-import { useDocumentTitle } from '../composables/useDocumentTitle';
-import { useTaskChainProgress } from '../composables/useTaskChainProgress';
-import { useI18n } from '../i18n';
-import type { TrashedBook } from '../types/book';
+import ConfirmModal from '@/components/ConfirmModal.vue';
+import DeleteModal from '@/components/DeleteModal.vue';
+import ProgressBar from '@/components/ProgressBar.vue';
+import { getBookshelfProvider } from '@/providers';
+import { useBookStore } from '@/composables/useBookStore';
+import { useLayerStore } from '@/composables/useLayerStore';
+import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
+import { useI18n } from '@/i18n';
+import type { TrashedBook } from '@/types/book';
 
 const { t } = useI18n();
 const { fetchBooks } = useBookStore();

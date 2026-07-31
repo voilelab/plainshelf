@@ -1,7 +1,8 @@
-import { getBook, listBooks, mockBooks } from './books';
+import { getBook, listBooks } from './books';
+import { mockBooks } from './mocks/books';
 import { getReadHistoryLimitSetting } from './settings';
 import { buildShelfApiPath, fetchJson, isMockApiMode } from './client';
-import type { Book } from '../types/book';
+import type { Book } from '@/types/book';
 
 let mockReadHistory = mockBooks.slice(0, 3).map((book) => book.id);
 

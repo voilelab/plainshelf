@@ -97,13 +97,13 @@ import {
   SelectViewport,
   type AcceptableValue
 } from 'reka-ui';
-import { useI18n } from '../i18n';
-import { useShelvesStore } from '../composables/useShelvesStore';
+import { useI18n } from '@/i18n';
+import { useShelvesStore } from '@/composables/useShelvesStore';
 import {
   applyMobileConnectionConfig,
   loadMobileConnectionConfig,
   saveMobileConnectionConfig
-} from '../providers/mobileConfig';
+} from '@/providers/mobileConfig';
 
 const { t } = useI18n();
 const router = useRouter();

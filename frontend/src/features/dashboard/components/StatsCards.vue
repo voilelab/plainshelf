@@ -41,8 +41,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useI18n } from '../../../i18n';
-import type { StarDistribution } from '../composables/useDashboardData';
+import { useI18n } from '@/i18n';
+import type { StarDistribution } from '@/features/dashboard/composables/useDashboardData';
 
 const props = defineProps<{
   totalBooks: number;

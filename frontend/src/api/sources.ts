@@ -1,5 +1,5 @@
 import { buildShelfApiPath, fetchJson, fetchText, isMockApiMode } from './client';
-import type { SourceMeta as SourceMeta } from '../types/source';
+import type { SourceMeta as SourceMeta } from '@/types/source';
 
 interface SourceStoreItem {
   meta: SourceMeta;

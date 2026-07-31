@@ -1,7 +1,7 @@
 import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
-import { initAppZoom } from './composables/useAppZoom';
+import { initAppZoom } from '@/composables/useAppZoom';
 import { getBookshelfProvider, isMobileRuntime, type BookshelfProvider } from './providers';
 import './styles.css';
 
@@ -22,7 +22,7 @@ async function bootstrap(): Promise<void> {
   // On the native mobile shell, restore the saved server URL, token, and shelf
   // before mounting so the first API call already has a configured client.
   if (isMobileRuntime()) {
-    const { initMobileConfig } = await import('./providers/mobileConfig');
+    const { initMobileConfig } = await import('@/providers/mobileConfig');
     await initMobileConfig();
 
     // e2e-only: expose the provider for driving download/removeDownload/

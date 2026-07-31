@@ -1,27 +1,27 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import MainLayout from './layouts/MainLayout.vue';
-import ReaderLayout from './layouts/ReaderLayout.vue';
-import { APP_TITLE } from './composables/useDocumentTitle';
-import { isMobileRuntime } from './providers/runtime';
-import { loadMobileConnectionConfig } from './providers/mobileConfig';
+import MainLayout from '@/layouts/MainLayout.vue';
+import ReaderLayout from '@/layouts/ReaderLayout.vue';
+import { APP_TITLE } from '@/composables/useDocumentTitle';
+import { isMobileRuntime } from '@/providers/runtime';
+import { loadMobileConnectionConfig } from '@/providers/mobileConfig';
 
-const DashboardPage = () => import('./features/dashboard/pages/DashboardPage.vue');
-const LibraryPage = () => import('./pages/LibraryPage.vue');
-const BookDetailPage = () => import('./pages/BookDetailPage.vue');
-const EditBookPage = () => import('./pages/EditBookPage.vue');
-const DuplicateContentPage = () => import('./pages/DuplicateContentPage.vue');
-const MissingAuthorPage = () => import('./pages/MissingAuthorPage.vue');
-const MissingCoverPage = () => import('./pages/MissingCoverPage.vue');
-const MissingLanguagePage = () => import('./pages/MissingLanguagePage.vue');
-const LowCharCountPage = () => import('./pages/LowCharCountPage.vue');
-const ReadHistoryPage = () => import('./pages/ReadHistoryPage.vue');
-const TrashPage = () => import('./pages/TrashPage.vue');
-const DownloadsPage = () => import('./pages/DownloadsPage.vue');
-const AdminLogsPage = () => import('./pages/AdminLogsPage.vue');
-const SettingsPage = () => import('./pages/SettingsPage.vue');
-const MobileConnectPage = () => import('./pages/MobileConnectPage.vue');
-const ReaderPage = () => import('./features/reader/views/ReaderView.vue');
-const EditBookSourcesPage = () => import('./features/sources/pages/EditBookSourcesPage.vue');
+const DashboardPage = () => import('@/features/dashboard/pages/DashboardPage.vue');
+const LibraryPage = () => import('@/pages/LibraryPage.vue');
+const BookDetailPage = () => import('@/pages/BookDetailPage.vue');
+const EditBookPage = () => import('@/pages/EditBookPage.vue');
+const DuplicateContentPage = () => import('@/pages/DuplicateContentPage.vue');
+const MissingAuthorPage = () => import('@/pages/MissingAuthorPage.vue');
+const MissingCoverPage = () => import('@/pages/MissingCoverPage.vue');
+const MissingLanguagePage = () => import('@/pages/MissingLanguagePage.vue');
+const LowCharCountPage = () => import('@/pages/LowCharCountPage.vue');
+const ReadHistoryPage = () => import('@/pages/ReadHistoryPage.vue');
+const TrashPage = () => import('@/pages/TrashPage.vue');
+const DownloadsPage = () => import('@/pages/DownloadsPage.vue');
+const AdminLogsPage = () => import('@/pages/AdminLogsPage.vue');
+const SettingsPage = () => import('@/pages/SettingsPage.vue');
+const MobileConnectPage = () => import('@/pages/MobileConnectPage.vue');
+const ReaderPage = () => import('@/features/reader/views/ReaderView.vue');
+const EditBookSourcesPage = () => import('@/features/sources/pages/EditBookSourcesPage.vue');
 
 const ROUTES_WITH_OWN_TITLE = new Set([
   'dashboard',

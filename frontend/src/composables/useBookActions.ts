@@ -1,11 +1,15 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { getBookshelfProvider } from '../providers';
-import type { Book } from '../types/book';
+import { getBookshelfProvider } from '@/providers';
+import type { Book } from '@/types/book';
 
 export interface UseBookActionsOptions {
   onDeleted?: (book: Book) => void;
 }
+
+/** Shown by every DeleteModal that moves a book to Trash. */
+export const DELETE_BOOK_DESCRIPTION =
+  'The book will be moved to Trash. You can restore it later.';
 
 function sanitizeDownloadName(name: string): string {
   return name

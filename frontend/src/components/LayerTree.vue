@@ -108,9 +108,9 @@ import {
   TreeItem,
   TreeRoot
 } from 'reka-ui';
-import { useBookStore } from '../composables/useBookStore';
-import { useI18n } from '../i18n';
-import { getLayerPath } from '../utils/layers';
+import { useBookStore } from '@/composables/useBookStore';
+import { useI18n } from '@/i18n';
+import { getLayerPath } from '@/utils/layers';
 
 type LayerNode = {
   name: string;

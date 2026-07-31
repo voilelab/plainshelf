@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError } from '../api/client';
-import type { PaginatedBooks } from '../types/book';
+import { ApiError } from '@/api/client';
+import type { PaginatedBooks } from '@/types/book';
 
 const listBooks = vi.fn();
 
-vi.mock('../providers', () => ({
+vi.mock('@/providers', () => ({
   getBookshelfProvider: () => ({ listBooks })
 }));
 

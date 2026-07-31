@@ -1,7 +1,7 @@
 import { computed, onScopeDispose, ref } from 'vue';
 
-import { getBookshelfProvider } from '../providers';
-import { isTerminalTaskStatus, type TaskStatus } from '../types/task';
+import { getBookshelfProvider } from '@/providers';
+import { isTerminalTaskStatus, type TaskStatus } from '@/types/task';
 
 export const DEFAULT_TASK_CHAIN_POLL_INTERVAL_MS = 500;
 

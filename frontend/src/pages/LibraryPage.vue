@@ -3,7 +3,7 @@
     <DeleteModal
       :open="!!deleteTarget"
       :item-name="deleteTarget?.title || ''"
-      description="The book will be moved to Trash. You can restore it later."
+      :description="DELETE_BOOK_DESCRIPTION"
       :busy="deleting"
       :error="actionError"
       @cancel="cancelDelete"
@@ -26,7 +26,7 @@
       :can-open-book-folder="canOpenBookFolder"
       :read-only="readOnly"
       @retry="reloadBooks"
-      @select="openBook"
+      @select="openDetail"
       @edit="goEdit"
       @read="goRead"
       @open-book-folder="onOpenBookFolder"
@@ -143,31 +143,30 @@ import {
   DropdownMenuRoot,
   DropdownMenuTrigger
 } from 'reka-ui';
-import { useRouter } from 'vue-router';
-import type { Book } from '../types/book';
-import BookCollectionPage from '../components/BookCollectionPage.vue';
-import DeleteModal from '../components/DeleteModal.vue';
-import ImportBookModal from '../components/ImportBookModal.vue';
-import NewEmptyBookModal from '../components/NewEmptyBookModal.vue';
-import { useBookActions } from '../composables/useBookActions';
-import { useBookStore } from '../composables/useBookStore';
-import { useDocumentTitle } from '../composables/useDocumentTitle';
-import { useBookPagination } from '../composables/useBookPagination';
-import { useBooksRouteQuery } from '../composables/useBooksRouteQuery';
-import { useBooksSearch } from '../composables/useBooksSearch';
-import { useBooksSort, type BookSortKey, type SortOrder } from '../composables/useBooksSort';
-import { useServerMode } from '../composables/useServerMode';
-import { filterBooksBySearch } from '../utils/bookSearch';
-import { hasFileTransfer, readDroppedFiles } from '../utils/file';
-import { getLayerPath, layerPathEquals, normalizeLayerPath } from '../utils/layers';
-import { useI18n } from '../i18n';
-import { getBookshelfProvider } from '../providers';
-import '../styles/toolbar-controls.css';
+import type { Book } from '@/types/book';
+import BookCollectionPage from '@/components/BookCollectionPage.vue';
+import DeleteModal from '@/components/DeleteModal.vue';
+import ImportBookModal from '@/components/ImportBookModal.vue';
+import NewEmptyBookModal from '@/components/NewEmptyBookModal.vue';
+import { DELETE_BOOK_DESCRIPTION } from '@/composables/useBookActions';
+import { useBookCollectionActions } from '@/composables/useBookCollectionActions';
+import { countPages, pageSlice } from '@/composables/useBookCollectionRoute';
+import { useBookStore } from '@/composables/useBookStore';
+import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useBookPagination } from '@/composables/useBookPagination';
+import { useBooksRouteQuery } from '@/composables/useBooksRouteQuery';
+import { useBooksSearch } from '@/composables/useBooksSearch';
+import { useBooksSort, type BookSortKey, type SortOrder } from '@/composables/useBooksSort';
+import { filterBooksBySearch } from '@/utils/bookSearch';
+import { hasFileTransfer, readDroppedFiles } from '@/utils/file';
+import { getLayerPath, layerPathEquals, normalizeLayerPath } from '@/utils/layers';
+import { useI18n } from '@/i18n';
+import { getBookshelfProvider } from '@/providers';
+import '@/styles/toolbar-controls.css';
 
 const ROOT_LAYER_LABEL = '/';
 const { t } = useI18n();
 
-const router = useRouter();
 const { books, loading, error, shelfInitializing, shelfUnreachable, fetchBooks } = useBookStore();
 const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
 const {
@@ -192,7 +191,6 @@ const {
 } = useBooksSearch(searchQuery.value);
 const booksLoaded = ref<boolean>(false);
 const isNewEmptyBookModalOpen = ref(false);
-const { readOnly } = useServerMode();
 const droppedFiles = ref<File[]>([]);
 
 async function reloadBooks(): Promise<void> {
@@ -206,43 +204,21 @@ const {
   actionError,
   deleteTarget,
   deleting,
+  readOnly,
   goRead,
+  openDetail,
   goEdit,
-  openBookFolder,
-  downloadBook,
-  requestDelete,
   cancelDelete,
-  confirmDelete
-} = useBookActions({
+  confirmDelete,
+  onOpenBookFolder,
+  onDownloadBook,
+  onRequestDeleteBook
+} = useBookCollectionActions({
+  books,
   onDeleted: () => {
     void reloadBooks();
   }
 });
-
-function findBook(id: string): Book | undefined {
-  return books.value.find((candidate) => candidate.id === id);
-}
-
-function onOpenBookFolder(id: string): void {
-  void openBookFolder(id);
-}
-
-function onDownloadBook(id: string): void {
-  const book = findBook(id);
-  if (book) {
-    void downloadBook(book);
-  }
-}
-
-function onRequestDeleteBook(id: string): void {
-  if (readOnly.value) {
-    return;
-  }
-  const book = findBook(id);
-  if (book) {
-    requestDelete(book);
-  }
-}
 
 const isRootLayerSelected = computed(() => selectedLayer.value === ROOT_LAYER_LABEL);
 
@@ -291,12 +267,11 @@ const {
 } = useBooksSort(filteredBooks, sortBy, sortOrder);
 
 const total = computed(() => filteredBooks.value.length);
-const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)));
+const totalPages = computed(() => countPages(total.value, pageSize.value));
 
-const visibleBooks = computed(() => {
-  const start = (page.value - 1) * pageSize.value;
-  return sortedBooks.value.slice(start, start + pageSize.value);
-});
+// Sliced from sortedBooks, counted from filteredBooks — the sort reorders the
+// same set, so both lengths agree.
+const visibleBooks = computed(() => pageSlice(sortedBooks.value, page.value, pageSize.value));
 
 const showLayerEmptyState = computed(() => {
   return books.value.length > 0 && !!selectedLayer.value && filteredBooks.value.length === 0;
@@ -500,11 +475,6 @@ async function onImported(result: { successCount: number }): Promise<void> {
     await reloadBooks();
   }
 }
-
-function openBook(id: string): void {
-  void router.push(`/books/${id}`);
-}
-
 
 onMounted(() => {
   void reloadBooks();

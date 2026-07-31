@@ -1,14 +1,14 @@
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 
-import type { Book, BookContent, DownloadState, ReadingProgress } from '../types/book';
-import type { SourceMeta } from '../types/source';
+import type { Book, BookContent, DownloadState, ReadingProgress } from '@/types/book';
+import type { SourceMeta } from '@/types/source';
 import type { CachedBookManifest, MobileBookCache } from './mobileBookCache';
 
 // Base directory (relative to Capacitor's Directory.Data) that holds every
 // downloaded book. Directory.Data is app-private, requires no runtime
 // permission, and — unlike IndexedDB in an Android WebView — is not subject
-// to silent LRU eviction (see IndexedDbMobileBookCache's doc comment and
-// .claude/rules/50-lessons.md 2026-07-10). Layout:
+// to silent LRU eviction (see the rationale in providers/index.ts and
+// .claude/rules/50-lessons.md). Layout:
 //
 //   plainshelf-cache/books/<enc(bookId)>/
 //       manifest.json      # CachedBookManifest

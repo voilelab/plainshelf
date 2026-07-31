@@ -78,7 +78,7 @@ import {
   SelectViewport
 } from 'reka-ui';
 import ConfirmModal from './ConfirmModal.vue';
-import { useI18n } from '../i18n';
+import { useI18n } from '@/i18n';
 
 export type CreateLayerParentOption = {
   /** Slash path, or ROOT_PARENT_VALUE for the top level. Never an empty string. */
