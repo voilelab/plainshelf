@@ -63,7 +63,7 @@ import { DELETE_BOOK_DESCRIPTION } from '@/composables/useBookActions';
 import { useBookCollectionActions } from '@/composables/useBookCollectionActions';
 import { useBookCollectionRoute } from '@/composables/useBookCollectionRoute';
 import { useBookStore } from '@/composables/useBookStore';
-import { useCharCountBooks } from '@/composables/useCharCountBooks';
+import { useCharCountBooks } from '@/features/maintenance/composables/useCharCountBooks';
 import { toSingleQueryValue } from '@/composables/useBookPagination';
 import {
   MAINTENANCE_BOOK_FILTERS,

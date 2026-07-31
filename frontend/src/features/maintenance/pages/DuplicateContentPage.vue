@@ -33,7 +33,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
-import DuplicateGroupCard from '@/components/DuplicateGroupCard.vue';
+import DuplicateGroupCard from '@/features/maintenance/components/DuplicateGroupCard.vue';
 import type { Book } from '@/types/book';
 
 type DuplicateGroupView = {

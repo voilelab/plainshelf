@@ -38,7 +38,7 @@ import { getBookshelfProvider } from '@/providers';
 import type { Book } from '@/types/book';
 import { getLayerPath, layerPathLabel } from '@/utils/layers';
 import bookcover from '@/assets/bookcover.svg';
-import DeleteModal from './DeleteModal.vue';
+import DeleteModal from '@/components/DeleteModal.vue';
 
 const props = defineProps<{
   book: Book;
