@@ -1,45 +1,32 @@
 <template>
-  <div
+  <ProgressRoot
+    v-slot="{ modelValue }"
     class="progress-bar"
-    role="progressbar"
-    :aria-valuenow="clamped"
-    aria-valuemin="0"
-    aria-valuemax="100"
-    :aria-label="label"
+    :model-value="value"
+    :get-value-label="() => label"
   >
-    <div class="progress-bar-fill" :class="{ indeterminate }" :style="fillStyle" />
-  </div>
+    <!-- modelValue is the value ProgressRoot validated, so an out-of-range
+         value renders as indeterminate instead of an oversized fill. -->
+    <ProgressIndicator
+      class="progress-bar-fill"
+      :style="typeof modelValue === 'number' ? { width: `${modelValue}%` } : undefined"
+    />
+  </ProgressRoot>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ProgressIndicator, ProgressRoot } from 'reka-ui';
 
-const props = withDefaults(
-  defineProps<{
-    value: number;
-    label?: string;
-    // indeterminate renders an animated bar for work whose size is not known yet.
-    indeterminate?: boolean;
-  }>(),
-  {
-    label: undefined,
-    indeterminate: false
-  }
-);
-
-const clamped = computed(() => {
-  if (!Number.isFinite(props.value)) {
-    return 0;
-  }
-  return Math.min(Math.max(props.value, 0), 100);
-});
-
-const fillStyle = computed(() =>
-  props.indeterminate ? undefined : { width: `${clamped.value}%` }
-);
+defineProps<{
+  // null renders an animated bar for work whose size is not known yet.
+  value: number | null;
+  label?: string;
+}>();
 </script>
 
 <style scoped>
+/* Reka UI ships no styles, so the track and fill are ours; only their state
+   comes from the primitive's data-state. */
 .progress-bar {
   background: var(--surface-muted, #e2e8f0);
   border-radius: 999px;
@@ -56,7 +43,7 @@ const fillStyle = computed(() =>
   width: 0;
 }
 
-.progress-bar-fill.indeterminate {
+.progress-bar-fill[data-state='indeterminate'] {
   animation: progress-bar-slide 1.2s ease-in-out infinite;
   width: 40%;
 }
@@ -75,7 +62,7 @@ const fillStyle = computed(() =>
     transition: none;
   }
 
-  .progress-bar-fill.indeterminate {
+  .progress-bar-fill[data-state='indeterminate'] {
     animation: none;
     width: 100%;
   }
