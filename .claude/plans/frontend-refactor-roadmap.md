@@ -1,6 +1,7 @@
 # Frontend 內部結構重整路線圖
 
-> 狀態：**進行中** —— PR 1（`@/` alias）已完成，其餘未開工。撰寫於 2026-07-30。
+> 狀態：**PR 1–7 已合併**（PR 7 範圍縮小，見該節）。撰寫於 2026-07-30。
+> 唯一剩餘工作是 PR 7 的 section 元件拆分，前置條件是補 settings 的 e2e。
 >
 > 這是一份一次性的工作文件，不是規則檔：不受 `.claude/rules/40-maintenance.md` 的
 > rules 責任表管轄，也不進 `mkdocs.yml`（不對外發布）。路線圖走完或被取代後請直接
@@ -214,17 +215,19 @@ backend（`mockBooks` fixture `:146-340`、`mockListBooks`/`mockGetBook`/… `:3
 驗收：e2e `sidebar-rail.spec.ts`、`sidebar-foldable.spec.ts`、`layer-tree.spec.ts` 是這個
 PR 的回歸網，必跑。
 
-## PR 7 — SettingsPage 拆成 section 元件
+## PR 7 — SettingsPage 抽邏輯（已完成，範圍縮小）
 
-`src/pages/SettingsPage.vue` 1101 行、6 組互不相干的設定。拆成
-`features/settings/components/` 下的 `CoverFormatSection`、`ReadHistorySection`、
-`DefaultSplitSection`、`ShelfManagementSection`、`AboutSection`，頁面退化成組合外殼。
+原訂拆成 `features/settings/components/` 下的五個 section 元件、頁面退化成組合外殼。
+**實際只做了 script 抽取**：`useShelfManagement`（書架 CRUD）與 `utils/settingsDraft.ts`
+（`parseReadHistoryLimit`、`buildDefaultSplitConfig` 兩個純函式，附單元測試），
+`SettingsPage.vue` 1101 → 925 行，template 與 370 行 scoped CSS 的 diff 為零。
 
-`ShelfManagementSection`（`:280-344` template、`:542-714` script，含桌面目錄瀏覽器）是最大
-一塊，配一個自己的 composable。
+縮小的理由：`/settings` **完全沒有 e2e 覆蓋**，搬 template/CSS 沒有任何自動化回歸網。
+只抽 script 則 render 結果不可能改變，`vue-tsc` 與既有測試就足以擔保。
 
-驗收：build + test；手動走一遍每組設定的儲存路徑（此環境無法自動驗證桌面目錄瀏覽器，
-PR 描述要明說）。
+**剩餘工作**（需獨立 PR，依序）：先補 settings 的 e2e，再拆 section 元件。六個分頁在
+template 上邊界清楚、CSS 選擇器有 `.shelf-*` 這類前綴，拆分本身划算，缺的是驗證手段。
+桌面目錄瀏覽器在此環境無法自動驗證，屆時 PR 描述要明說。
 
 ---
 

@@ -360,10 +360,14 @@ import {
 import type { SplitConfig, SplitType } from '@/types/book';
 import { getServerVersion } from '@/api/version';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
-import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useI18n } from '@/i18n';
-import { getBookshelfProvider, isMobileRuntime, isWailsRuntime } from '@/providers';
+import { isMobileRuntime, isWailsRuntime } from '@/providers';
+import { useShelfManagement } from '@/features/settings/composables/useShelfManagement';
 import { openExternalURL } from '@/features/settings/utils/externalLinks';
+import {
+  buildDefaultSplitConfig,
+  parseReadHistoryLimit
+} from '@/features/settings/utils/settingsDraft';
 
 const { t } = useI18n();
 const loading = ref(false);
@@ -380,29 +384,41 @@ const githubRepoUrl = 'https://github.com/voilelab/plainshelf';
 
 const isDesktopEnv = computed(() => isWailsRuntime());
 const isMobileEnv = computed(() => isMobileRuntime());
-const { shelves, loading: shelvesLoading, error: shelvesError, fetchShelves } = useShelvesStore();
-const shelfOpError = ref('');
-const removingShelfIDs = ref<Set<string>>(new Set());
-const pendingRemoveShelf = ref<{ id: string; name: string } | null>(null);
-const shelfRemoveModalError = ref('');
-const showAddShelfModal = ref(false);
-const newShelfName = ref('');
-const newShelfDirectory = ref('');
-const newShelfScanInterval = ref('');
-const addingShelf = ref(false);
-const addShelfError = ref('');
-const canSubmitAddShelf = computed(
-  () => newShelfName.value.trim().length > 0 && newShelfDirectory.value.trim().length > 0
-);
-
-const pendingModifyShelf = ref<{ id: string; name: string } | null>(null);
-const showModifyShelfModal = ref(false);
-const modifyShelfName = ref('');
-const modifyShelfScanInterval = ref('');
-const modifyShelfPath = ref('');
-const modifyingShelf = ref(false);
-const modifyShelfError = ref('');
-const canSubmitModifyShelf = computed(() => modifyShelfName.value.trim().length > 0);
+const {
+  shelves,
+  shelvesLoading,
+  shelvesError,
+  fetchShelves,
+  shelfOpError,
+  removingShelfIDs,
+  pendingRemoveShelf,
+  shelfRemoveModalError,
+  requestRemoveShelf,
+  cancelRemoveShelf,
+  confirmRemoveShelf,
+  showAddShelfModal,
+  newShelfName,
+  newShelfDirectory,
+  newShelfScanInterval,
+  addingShelf,
+  addShelfError,
+  canSubmitAddShelf,
+  openAddShelfModal,
+  closeAddShelfModal,
+  onBrowseShelfDirectory,
+  onSubmitAddShelf,
+  pendingModifyShelf,
+  showModifyShelfModal,
+  modifyShelfName,
+  modifyShelfScanInterval,
+  modifyShelfPath,
+  modifyingShelf,
+  modifyShelfError,
+  canSubmitModifyShelf,
+  requestModifyShelf,
+  closeModifyShelfModal,
+  onSubmitModifyShelf
+} = useShelfManagement();
 
 useDocumentTitle(() => [t('settings.title'), t('app.name')]);
 
@@ -431,14 +447,6 @@ async function loadSettings(): Promise<void> {
   }
 }
 
-function parseReadHistoryLimit(value: string): number | null {
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    return null;
-  }
-  return parsed;
-}
-
 function hydrateSplitConfigDraft(config: SplitConfig): void {
   defaultSplitType.value = config.type;
   defaultSplitLineCount.value = String(config.line_count ?? 100);
@@ -457,29 +465,19 @@ function onDefaultSplitTypeChange(event: Event): void {
 async function onSaveDefaultSplitConfig(): Promise<void> {
   splitConfigError.value = '';
 
-  let config: SplitConfig;
-  if (defaultSplitType.value === 'line_count') {
-    const parsed = Number.parseInt(defaultSplitLineCount.value, 10);
-    if (!Number.isInteger(parsed) || parsed <= 0) {
-      splitConfigError.value = t('settings.defaultSplitConfig.invalidLineCount');
-      return;
-    }
-    config = { type: 'line_count', line_count: parsed };
-  } else if (defaultSplitType.value === 'regex') {
-    try {
-      new RegExp(defaultSplitRegex.value, 'gm');
-    } catch {
-      splitConfigError.value = t('settings.defaultSplitConfig.invalidRegex');
-      return;
-    }
-    config = { type: 'regex', regex: defaultSplitRegex.value };
-  } else {
-    config = { type: 'none' };
+  const result = buildDefaultSplitConfig({
+    type: defaultSplitType.value,
+    lineCount: defaultSplitLineCount.value,
+    regex: defaultSplitRegex.value
+  });
+  if (!result.ok) {
+    splitConfigError.value = t(`settings.defaultSplitConfig.${result.error}`);
+    return;
   }
 
   saving.value = true;
   try {
-    await setDefaultSplitConfigSetting(config);
+    await setDefaultSplitConfigSetting(result.config);
   } catch (err) {
     splitConfigError.value = err instanceof Error ? err.message : t('settings.saveFailed');
   } finally {
@@ -536,180 +534,6 @@ async function onReadHistoryLimitChange(event: Event): Promise<void> {
     error.value = err instanceof Error ? err.message : t('settings.saveFailed');
   } finally {
     saving.value = false;
-  }
-}
-
-function requestRemoveShelf(shelf: { id: string; name: string }): void {
-  shelfOpError.value = '';
-  shelfRemoveModalError.value = '';
-  pendingRemoveShelf.value = shelf;
-}
-
-function cancelRemoveShelf(): void {
-  const shelf = pendingRemoveShelf.value;
-  if (shelf && removingShelfIDs.value.has(shelf.id)) {
-    return;
-  }
-
-  pendingRemoveShelf.value = null;
-  shelfRemoveModalError.value = '';
-}
-
-async function confirmRemoveShelf(): Promise<void> {
-  const shelf = pendingRemoveShelf.value;
-  if (!shelf) {
-    return;
-  }
-  const provider = getBookshelfProvider();
-  if (!provider.removeDesktopShelf) {
-    return;
-  }
-
-  removingShelfIDs.value = new Set([...removingShelfIDs.value, shelf.id]);
-
-  shelfOpError.value = '';
-  try {
-    await provider.removeDesktopShelf(shelf.id);
-    await fetchShelves();
-  } catch (err) {
-    shelfOpError.value = err instanceof Error ? err.message : t('settings.shelves.removeFailed');
-  } finally {
-    const next = new Set(removingShelfIDs.value);
-    next.delete(shelf.id);
-    removingShelfIDs.value = next;
-    if (!shelfOpError.value) {
-      pendingRemoveShelf.value = null;
-      shelfRemoveModalError.value = '';
-    } else {
-      shelfRemoveModalError.value = shelfOpError.value;
-    }
-  }
-}
-
-function resetAddShelfForm(): void {
-  newShelfName.value = '';
-  newShelfDirectory.value = '';
-  newShelfScanInterval.value = '';
-  addShelfError.value = '';
-}
-
-function openAddShelfModal(): void {
-  resetAddShelfForm();
-  showAddShelfModal.value = true;
-}
-
-function closeAddShelfModal(): void {
-  if (addingShelf.value) {
-    return;
-  }
-
-  showAddShelfModal.value = false;
-  resetAddShelfForm();
-}
-
-async function onBrowseShelfDirectory(): Promise<void> {
-  const provider = getBookshelfProvider();
-  if (!provider.openDesktopShelfDirectory) {
-    return;
-  }
-  const dir = await provider.openDesktopShelfDirectory();
-  if (dir) {
-    newShelfDirectory.value = dir;
-  }
-}
-
-async function onSubmitAddShelf(): Promise<void> {
-  const name = newShelfName.value.trim();
-  const dir = newShelfDirectory.value.trim();
-  const scanInterval = newShelfScanInterval.value.trim();
-  if (!name || !dir) {
-    return;
-  }
-
-  addingShelf.value = true;
-  addShelfError.value = '';
-
-  try {
-    const provider = getBookshelfProvider();
-    await provider.addDesktopShelf!(name, dir, scanInterval);
-    await fetchShelves();
-    showAddShelfModal.value = false;
-    resetAddShelfForm();
-  } catch (err) {
-    addShelfError.value = err instanceof Error ? err.message : t('settings.shelves.addShelfFailed');
-  } finally {
-    addingShelf.value = false;
-  }
-}
-
-function resetModifyShelfForm(): void {
-  modifyShelfName.value = '';
-  modifyShelfScanInterval.value = '';
-  modifyShelfPath.value = '';
-  modifyShelfError.value = '';
-}
-
-async function requestModifyShelf(shelf: { id: string; name: string }): Promise<void> {
-  const provider = getBookshelfProvider();
-  if (!provider.getDesktopShelfDetails) {
-    return;
-  }
-
-  shelfOpError.value = '';
-  resetModifyShelfForm();
-
-  try {
-    const details = await provider.getDesktopShelfDetails(shelf.id);
-    pendingModifyShelf.value = shelf;
-    modifyShelfName.value = details.name;
-    modifyShelfScanInterval.value = details.scan_interval;
-    modifyShelfPath.value = details.path;
-    showModifyShelfModal.value = true;
-  } catch (err) {
-    shelfOpError.value = err instanceof Error ? err.message : t('settings.shelves.modifyShelfFailed');
-  }
-}
-
-function closeModifyShelfModal(): void {
-  if (modifyingShelf.value) {
-    return;
-  }
-
-  showModifyShelfModal.value = false;
-  pendingModifyShelf.value = null;
-  resetModifyShelfForm();
-}
-
-async function onSubmitModifyShelf(): Promise<void> {
-  const shelf = pendingModifyShelf.value;
-  if (!shelf) {
-    return;
-  }
-
-  const name = modifyShelfName.value.trim();
-  const scanInterval = modifyShelfScanInterval.value.trim();
-  if (!name) {
-    return;
-  }
-
-  const provider = getBookshelfProvider();
-  if (!provider.modifyDesktopShelf) {
-    return;
-  }
-
-  modifyingShelf.value = true;
-  modifyShelfError.value = '';
-
-  try {
-    await provider.modifyDesktopShelf(shelf.id, name, scanInterval);
-    await fetchShelves();
-    showModifyShelfModal.value = false;
-    pendingModifyShelf.value = null;
-    resetModifyShelfForm();
-  } catch (err) {
-    modifyShelfError.value = err instanceof Error ? err.message : t('settings.shelves.modifyShelfFailed');
-  } finally {
-    modifyingShelf.value = false;
   }
 }
 
