@@ -59,6 +59,30 @@ test('keeps selection across view modes and clears it with Escape', async ({ pag
   }
 });
 
+test('keeps selectable title rows keyboard-operable', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importBookFromPath(page, helloFixturePath);
+
+    await page.getByRole('button', { name: 'List', exact: true }).click();
+    await page.getByRole('menuitemradio', { name: 'Title', exact: true }).click();
+    const row = page.locator('.book-title-row', { hasText: 'hello' });
+    await row.focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/books\/[^/]+$/);
+
+    await page.goBack();
+    await expect(row).toBeVisible();
+    await row.focus();
+    await page.keyboard.press('Space');
+    await expect(page).toHaveURL(/\/books\/[^/]+$/);
+  } finally {
+    await server.dispose();
+  }
+});
+
 test('drags an unselected book alone and a selected group through the batch worker', async ({ page }) => {
   const server = await startServer();
 

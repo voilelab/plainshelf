@@ -217,6 +217,7 @@ import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useBooksRouteQuery } from '@/features/library/composables/useBooksRouteQuery';
 import { useBooksSearch } from '@/features/library/composables/useBooksSearch';
 import { useBooksSort, type BookSortKey, type SortOrder } from '@/features/library/composables/useBooksSort';
+import { handleLibraryMobileBack } from '@/features/library/utils/mobileBack';
 import { filterBooksBySearch } from '@/utils/bookSearch';
 import { hasFileTransfer, readDroppedFiles } from '@/utils/file';
 import { getLayerPath, layerPathEquals, normalizeLayerPath } from '@/utils/layers';
@@ -422,12 +423,14 @@ let mobileBackHandle: { remove: () => Promise<void> } | null = null;
 async function installMobileBackHandler(): Promise<void> {
   if (!isMobileEnv) return;
   const { App } = await import('@capacitor/app');
-  mobileBackHandle = await App.addListener('backButton', () => {
-    if (selection.active.value && !downloadBatchRunning.value) {
-      selection.clear();
-      return;
-    }
-    window.history.back();
+  mobileBackHandle = await App.addListener('backButton', (event) => {
+    handleLibraryMobileBack(event, {
+      selectionActive: selection.active.value,
+      downloadRunning: downloadBatchRunning.value,
+      clearSelection: selection.clear,
+      goBack: () => window.history.back(),
+      exitApp: () => App.exitApp()
+    });
   });
 }
 

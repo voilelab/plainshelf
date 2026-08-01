@@ -1,19 +1,10 @@
 <template>
   <div class="book-title-view panel">
-    <article
+    <div
       v-for="book in books"
       :key="book.id"
-      class="book-title-row"
+      class="book-title-row-container"
       :class="{ 'is-selected': selectedIds.has(book.id), 'is-dragging': interactions.draggingBookId.value === book.id }"
-      :draggable="selectable && !mobileSelection"
-      :aria-selected="selectedIds.has(book.id)"
-      @click="interactions.onClick($event, book.id)"
-      @pointerdown="interactions.onPointerDown($event, book.id)"
-      @pointermove="interactions.onPointerMove"
-      @pointerup="interactions.cancelLongPress"
-      @pointercancel="interactions.cancelLongPress"
-      @dragstart="interactions.onDragStart($event, book)"
-      @dragend="interactions.onDragEnd"
     >
       <BookSelectionCheckbox
         v-if="selectable"
@@ -21,9 +12,24 @@
         :label="t('bookCollection.selection.selectBook', { title: book.title })"
         @toggle="emit('toggle-selection', book.id)"
       />
-      <span class="book-title-text">{{ book.title }}</span>
-      <span class="book-title-meta">{{ compactMeta(book) }}</span>
-    </article>
+      <button
+        type="button"
+        class="book-title-row"
+        :class="{ 'has-selection': selectable }"
+        :draggable="selectable && !mobileSelection"
+        :aria-pressed="selectable ? selectedIds.has(book.id) : undefined"
+        @click="interactions.onClick($event, book.id)"
+        @pointerdown="interactions.onPointerDown($event, book.id)"
+        @pointermove="interactions.onPointerMove"
+        @pointerup="interactions.cancelLongPress"
+        @pointercancel="interactions.cancelLongPress"
+        @dragstart="interactions.onDragStart($event, book)"
+        @dragend="interactions.onDragEnd"
+      >
+        <span class="book-title-text">{{ book.title }}</span>
+        <span class="book-title-meta">{{ compactMeta(book) }}</span>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -85,11 +91,15 @@ function compactMeta(book: Book): string {
   overflow: hidden;
 }
 
+.book-title-row-container {
+  border-bottom: 1px solid #edf2f7;
+  position: relative;
+}
+
 .book-title-row {
   align-items: center;
   background: transparent;
   border: 0;
-  border-bottom: 1px solid #edf2f7;
   color: inherit;
   cursor: pointer;
   display: grid;
@@ -100,18 +110,26 @@ function compactMeta(book: Book): string {
   width: 100%;
 }
 
-.book-title-row.is-selected {
+.book-title-row.has-selection {
+  padding-left: 42px;
+}
+
+.book-title-row-container.is-selected .book-title-row {
   background: color-mix(in srgb, var(--accent) 8%, white);
 }
 
-.book-title-row.is-dragging { opacity: 0.4; }
+.book-title-row-container.is-dragging { opacity: 0.4; }
 
-.book-title-row:last-child {
+.book-title-row-container:last-child {
   border-bottom: 0;
 }
 
-.book-title-row:hover {
+.book-title-row-container:hover .book-title-row {
   background: #fbfdff;
+}
+
+.book-title-row-container.is-selected:hover .book-title-row {
+  background: color-mix(in srgb, var(--accent) 8%, white);
 }
 
 .book-title-text {
