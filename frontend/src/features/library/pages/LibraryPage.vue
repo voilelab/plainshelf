@@ -171,7 +171,7 @@
     </BookCollectionPage>
 
     <ImportBookModal
-      :open="isImportModalOpen"
+      :open="importModalOpen"
       :current-layer-path="selectedLayer"
       :dropped-files="droppedFiles"
       @close="closeImportModal"
@@ -308,6 +308,12 @@ const {
     void reloadBooks();
   }
 });
+
+// isImportModalOpen comes straight off ?import=1 (useBooksRouteQuery.ts), which
+// the /import route redirects to. Every other way of opening an import flow is
+// already guarded, so without this a direct link would present a full import
+// form on a client that cannot write.
+const importModalOpen = computed(() => isImportModalOpen.value && !readOnly.value);
 
 function selectedBooks(): Book[] {
   return books.value.filter((book) => selection.selectedIds.value.has(book.id));

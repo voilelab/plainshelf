@@ -9,7 +9,8 @@ The app is **read-only**: it browses, reads, and downloads books for offline
 use, and it records read history and reading activity on the server, but it
 never modifies the library. Editing pages (metadata, sources, trash, and the
 maintenance views) are not reachable on Android, and write requests are
-rejected on the device before they are sent.
+rejected on the device before they are sent. Recording read history still
+requires an access token — see [Connect a physical device](#connect-a-physical-device).
 
 ## Prerequisites
 
@@ -68,10 +69,10 @@ just run-android-app
 ```
 
 This starts the local server, waits for it to become healthy, boots an available
-emulator when needed, and builds and launches the app. In the emulator, connect
-to `http://10.0.2.2:20000`; Android maps `10.0.2.2` to the host loopback
-address. The access token the recipe prints is not needed by the app, which is
-read-only.
+emulator when needed, builds and launches the app, and prints the ephemeral
+access token. In the emulator, connect to `http://10.0.2.2:20000`; Android maps
+`10.0.2.2` to the host loopback address. Enter the printed token under
+**Settings → Connection** if you want this device to record read history.
 
 ## Connect a physical device
 
@@ -79,8 +80,12 @@ The server must listen on a LAN-reachable address instead of `127.0.0.1`. From
 the phone, verify that `http://<server-ip>:20000/health` returns `1`, then enter
 the same server URL in **Settings → Connection**.
 
-No access token is required: the app only reads. The app uses Capacitor's native
-HTTP bridge, so plain-HTTP API requests do not require adding the app origin to
+Browsing and reading require no access token. A token is still needed for the
+app to record read history and reading activity, because the server requires one
+for every mutating `/api` request, and it is required outright when the server
+sets `protect_read: true`. The token does not enable editing — the client
+rejects those requests regardless. The app uses Capacitor's native HTTP bridge,
+so plain-HTTP API requests do not require adding the app origin to
 `allowed_origins`.
 
 ## App icons and splash screens

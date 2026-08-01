@@ -164,8 +164,24 @@ export function buildShelfApiPath(path: string, shelfID = getActiveShelfID()): s
 }
 
 async function getApiToken(): Promise<string> {
-  const electronToken = await window.plainshelf?.getApiToken?.();
-  return String(electronToken ?? window.__PLAINSHELF_SECURITY__?.token ?? ENV_API_TOKEN).trim();
+  // First non-empty source wins. `??` alone is not enough: the mobile provider
+  // resolves getApiToken to '' when no token is stored, and an empty string is
+  // not nullish, so it would mask a server-injected token instead of falling
+  // through to it.
+  const candidates = [
+    await window.plainshelf?.getApiToken?.(),
+    window.__PLAINSHELF_SECURITY__?.token,
+    ENV_API_TOKEN
+  ];
+
+  for (const candidate of candidates) {
+    const token = String(candidate ?? '').trim();
+    if (token) {
+      return token;
+    }
+  }
+
+  return '';
 }
 
 async function withApiHeaders(init?: RequestInit): Promise<RequestInit> {

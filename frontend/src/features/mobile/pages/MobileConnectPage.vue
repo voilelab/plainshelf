@@ -19,6 +19,20 @@
           />
         </label>
 
+        <label class="mobile-connect-field">
+          <span class="mobile-connect-label">{{ t('mobileConnect.tokenLabel') }}</span>
+          <input
+            v-model="token"
+            class="input"
+            type="password"
+            autocapitalize="none"
+            autocorrect="off"
+            spellcheck="false"
+            :placeholder="t('mobileConnect.tokenPlaceholder')"
+          />
+          <span class="mobile-connect-hint">{{ t('mobileConnect.tokenHint') }}</span>
+        </label>
+
         <button
           type="button"
           class="button"
@@ -103,6 +117,7 @@ const {
 } = useShelvesStore();
 
 const serverUrl = ref('');
+const token = ref('');
 const saving = ref(false);
 const localError = ref('');
 
@@ -112,6 +127,7 @@ const message = computed(() => localError.value || shelvesError.value);
 onMounted(async () => {
   const config = await loadMobileConnectionConfig();
   serverUrl.value = config.serverUrl;
+  token.value = config.token;
 
   // A returning user already has a server saved; load its shelves so the
   // dropdown is populated without an extra tap.
@@ -123,7 +139,7 @@ onMounted(async () => {
 async function loadShelvesForCurrentInput(): Promise<void> {
   // Apply (without persisting) so the API client points at this server before
   // we list shelves; the values are only persisted on Save.
-  await applyMobileConnectionConfig({ serverUrl: serverUrl.value });
+  await applyMobileConnectionConfig({ serverUrl: serverUrl.value, token: token.value });
   // No persisted-shelf fallback here: a failed fetch for the server typed
   // above must leave Save disabled instead of reusing the previous server's
   // shelf id.
@@ -156,6 +172,7 @@ async function onSave(): Promise<void> {
   try {
     await saveMobileConnectionConfig({
       serverUrl: serverUrl.value,
+      token: token.value,
       shelfId: selectedShelfID.value
     });
     await router.push('/books');

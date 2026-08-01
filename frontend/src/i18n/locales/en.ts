@@ -195,7 +195,7 @@ const en = {
     },
     mobileConnect: {
       title: 'Connection',
-      description: 'Change the PlainShelf server or shelf used on this device.',
+      description: 'Change the PlainShelf server, access token, or shelf used on this device.',
       open: 'Edit connection'
     },
     downloads: {
@@ -479,6 +479,9 @@ const en = {
     description: 'Enter your PlainShelf server address to browse and read your library on this device. The app is read-only: it never changes your library.',
     serverUrlLabel: 'Server URL',
     serverUrlPlaceholder: 'http://192.168.1.10:20000',
+    tokenLabel: 'Access token (optional)',
+    tokenPlaceholder: 'Needed to record reading history',
+    tokenHint: 'Browsing and reading work without a token. Add one so this device can record read history and reading activity, or if the server has protect_read enabled.',
     loadShelves: 'Load library',
     loadingShelves: 'Connecting…',
     shelfLabel: 'Shelf',

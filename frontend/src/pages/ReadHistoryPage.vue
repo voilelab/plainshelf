@@ -36,6 +36,7 @@
     >
       <template #toolbar>
         <button
+          v-if="!readOnly"
           class="button clear-history-button"
           type="button"
           :disabled="books.length === 0 || loading || clearing"
@@ -96,7 +97,7 @@ async function loadReadHistory(): Promise<void> {
 }
 
 async function onClearHistory(): Promise<void> {
-  if (books.value.length === 0 || clearing.value) {
+  if (readOnly.value || books.value.length === 0 || clearing.value) {
     return;
   }
 
