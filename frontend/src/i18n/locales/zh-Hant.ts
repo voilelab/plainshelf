@@ -194,7 +194,7 @@ const zhHant = {
     },
     mobileConnect: {
       title: '連線',
-      description: '變更這台裝置使用的 PlainShelf 伺服器、存取權杖或書架。',
+      description: '變更這台裝置使用的 PlainShelf 伺服器或書架。',
       open: '編輯連線設定'
     },
     downloads: {
@@ -475,12 +475,9 @@ const zhHant = {
   },
   mobileConnect: {
     title: '連線到 PlainShelf',
-    description: '輸入你的 PlainShelf 伺服器位址，即可在這台裝置瀏覽與閱讀書庫。',
+    description: '輸入你的 PlainShelf 伺服器位址，即可在這台裝置瀏覽與閱讀書庫。本 App 為唯讀，不會變更你的書庫。',
     serverUrlLabel: '伺服器網址',
     serverUrlPlaceholder: 'http://192.168.1.10:20000',
-    tokenLabel: '存取權杖（選填）',
-    tokenPlaceholder: '僅編輯時需要',
-    tokenHint: '閱讀不需權杖；要修改內容才需填入。',
     loadShelves: '載入書庫',
     loadingShelves: '連線中…',
     shelfLabel: '書架',

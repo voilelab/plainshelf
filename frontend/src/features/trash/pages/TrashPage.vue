@@ -45,6 +45,7 @@
       <h2>{{ t('trash.title') }}</h2>
       <div class="header-actions">
         <button
+          v-if="!readOnly"
           type="button"
           class="button danger"
           :disabled="loading || emptying"
@@ -84,22 +85,24 @@
           <td>{{ formatDeletedAt(book.deleted_at) }}</td>
           <td class="book-id">{{ book.id }}</td>
           <td class="actions">
-            <button
-              type="button"
-              class="button"
-              :disabled="Boolean(busyMap[book.id])"
-              @click="restore(book.id)"
-            >
-              {{ t('trash.actions.restore') }}
-            </button>
-            <button
-              type="button"
-              class="button danger"
-              :disabled="Boolean(busyMap[book.id])"
-              @click="requestPermanentDelete(book)"
-            >
-              {{ t('trash.actions.permanentDelete') }}
-            </button>
+            <template v-if="!readOnly">
+              <button
+                type="button"
+                class="button"
+                :disabled="Boolean(busyMap[book.id])"
+                @click="restore(book.id)"
+              >
+                {{ t('trash.actions.restore') }}
+              </button>
+              <button
+                type="button"
+                class="button danger"
+                :disabled="Boolean(busyMap[book.id])"
+                @click="requestPermanentDelete(book)"
+              >
+                {{ t('trash.actions.permanentDelete') }}
+              </button>
+            </template>
           </td>
         </tr>
       </tbody>
@@ -117,10 +120,13 @@ import { useBookStore } from '@/composables/useBookStore';
 import { useLayerStore } from '@/composables/useLayerStore';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
+import { useWriteAccess } from '@/composables/useWriteAccess';
 import { useI18n } from '@/i18n';
 import type { TrashedBook } from '@/types/book';
 
 const { t } = useI18n();
+const { writesEnabled } = useWriteAccess();
+const readOnly = computed(() => !writesEnabled.value);
 const { fetchBooks } = useBookStore();
 const { fetchLayers } = useLayerStore();
 const items = ref<TrashedBook[]>([]);
@@ -213,7 +219,7 @@ async function loadTrash(): Promise<void> {
 }
 
 async function restore(id: string): Promise<void> {
-  if (busyMap.value[id]) {
+  if (readOnly.value || busyMap.value[id]) {
     return;
   }
 
@@ -231,6 +237,10 @@ async function restore(id: string): Promise<void> {
 }
 
 function requestPermanentDelete(book: TrashedBook): void {
+  if (readOnly.value) {
+    return;
+  }
+
   actionError.value = '';
   pendingDeleteBook.value = book;
 }
@@ -245,7 +255,7 @@ function cancelPermanentDelete(): void {
 
 async function confirmPermanentDelete(): Promise<void> {
   const book = pendingDeleteBook.value;
-  if (!book || busyMap.value[book.id]) {
+  if (readOnly.value || !book || busyMap.value[book.id]) {
     return;
   }
 
@@ -264,6 +274,10 @@ async function confirmPermanentDelete(): Promise<void> {
 }
 
 function requestEmptyTrash(): void {
+  if (readOnly.value) {
+    return;
+  }
+
   actionError.value = '';
   resetEmptyProgress();
   emptyModalOpen.value = true;
@@ -281,7 +295,7 @@ function closeEmptyModal(): void {
 }
 
 async function confirmEmptyTrash(): Promise<void> {
-  if (emptyStarted.value) {
+  if (readOnly.value || emptyStarted.value) {
     return;
   }
 

@@ -5,6 +5,12 @@ and connects to a separately running PlainShelf server. Downloaded books,
 covers, and reading progress are cached locally for offline reading; reading
 progress does not currently sync back to the server.
 
+The app is **read-only**: it browses, reads, and downloads books for offline
+use, and it records read history and reading activity on the server, but it
+never modifies the library. Editing pages (metadata, sources, trash, and the
+maintenance views) are not reachable on Android, and write requests are
+rejected on the device before they are sent.
+
 ## Prerequisites
 
 - The base [local development](setup.md) toolchain
@@ -62,9 +68,10 @@ just run-android-app
 ```
 
 This starts the local server, waits for it to become healthy, boots an available
-emulator when needed, builds and launches the app, and prints the ephemeral
-access token used for edits. In the emulator, connect to
-`http://10.0.2.2:20000`; Android maps `10.0.2.2` to the host loopback address.
+emulator when needed, and builds and launches the app. In the emulator, connect
+to `http://10.0.2.2:20000`; Android maps `10.0.2.2` to the host loopback
+address. The access token the recipe prints is not needed by the app, which is
+read-only.
 
 ## Connect a physical device
 
@@ -72,9 +79,9 @@ The server must listen on a LAN-reachable address instead of `127.0.0.1`. From
 the phone, verify that `http://<server-ip>:20000/health` returns `1`, then enter
 the same server URL in **Settings → Connection**.
 
-Reading does not require an access token. Editing requires the token configured
-by the server. The app uses Capacitor's native HTTP bridge, so plain-HTTP API
-requests do not require adding the app origin to `allowed_origins`.
+No access token is required: the app only reads. The app uses Capacitor's native
+HTTP bridge, so plain-HTTP API requests do not require adding the app origin to
+`allowed_origins`.
 
 ## App icons and splash screens
 

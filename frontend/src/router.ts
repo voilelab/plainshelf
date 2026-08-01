@@ -4,6 +4,7 @@ import ReaderLayout from '@/layouts/ReaderLayout.vue';
 import { APP_TITLE } from '@/composables/useDocumentTitle';
 import { isMobileRuntime } from '@/providers/runtime';
 import { loadMobileConnectionConfig } from '@/providers/mobileConfig';
+import { MOBILE_BLOCKED_ROUTES } from '@/features/mobile/utils/blockedRoutes';
 
 const DashboardPage = () => import('@/features/dashboard/pages/DashboardPage.vue');
 const LibraryPage = () => import('@/features/library/pages/LibraryPage.vue');
@@ -179,9 +180,12 @@ router.beforeEach(async (to) => {
   }
 
   const { serverUrl, shelfId } = await loadMobileConnectionConfig();
-  // Token is intentionally not required: reads work without it, only writes need one.
   if (!serverUrl || !shelfId) {
     return { name: 'mobile-connect' };
+  }
+
+  if (typeof to.name === 'string' && MOBILE_BLOCKED_ROUTES.has(to.name)) {
+    return { name: 'library' };
   }
   return true;
 });

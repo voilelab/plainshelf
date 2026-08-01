@@ -42,13 +42,13 @@ function withMobilePreview(route: string): string {
 
 /**
  * Drives the mobile connect flow (`/connect`) end to end: fills in the server
- * URL (and optional token), loads the shelf list, picks a shelf from the
- * reka-ui Select, and saves — landing on `/books`.
+ * URL, loads the shelf list, picks a shelf from the reka-ui Select, and saves —
+ * landing on `/books`. There is no token field: the mobile client is read-only.
  */
 export async function connectMobile(
   page: Page,
   baseUrl: string,
-  opts: { shelfName?: string; token?: string } = {}
+  opts: { shelfName?: string } = {}
 ): Promise<void> {
   const shelfName = opts.shelfName ?? 'Default Shelf';
 
@@ -56,9 +56,6 @@ export async function connectMobile(
   await expect(page.getByRole('heading', { name: 'Connect to PlainShelf' })).toBeVisible();
 
   await page.locator('input[type="url"]').fill(baseUrl);
-  if (opts.token) {
-    await page.locator('input[type="password"]').fill(opts.token);
-  }
 
   await page.getByRole('button', { name: 'Load library' }).click();
 

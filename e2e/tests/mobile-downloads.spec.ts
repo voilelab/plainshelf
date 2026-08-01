@@ -27,7 +27,7 @@ import {
 /**
  * Uploads a cover for the book currently open on the (desktop-mode) detail
  * page via drag-and-drop — same flow as import-book.spec.ts. Covers must be
- * set in desktop mode: mobile-preview mode cannot POST without a token.
+ * set in desktop mode: the mobile client is read-only and cannot POST.
  */
 async function uploadCoverOnDetailPage(page: Page): Promise<void> {
   const coverTarget = page.locator('.cover-drop-target');
@@ -54,8 +54,8 @@ test('downloads a book to the device from the detail page button', async ({ page
   const server = await startServer();
 
   try {
-    // Import and set a cover in the ordinary desktop flow first (mobile mode
-    // cannot POST without a token — see mobile-storage.spec.ts).
+    // Import and set a cover in the ordinary desktop flow first (the mobile
+    // client is read-only — see mobile-read-only.spec.ts).
     await page.goto(`${server.baseUrl}/books`);
     await importHelloBook(page);
     await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();

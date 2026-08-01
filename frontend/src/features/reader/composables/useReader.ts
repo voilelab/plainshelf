@@ -1,6 +1,7 @@
 import { computed, nextTick, ref } from 'vue';
 import { getDefaultSplitConfigSetting } from '@/api/settings';
 import { getBookshelfProvider } from '@/providers';
+import { isLibraryEditingSupported } from '@/composables/useWriteAccess';
 import type { ReaderSection, ReadingProgress, SplitConfig } from '@/types/book';
 
 function clampOffset(offset: number, total: number): number {
@@ -346,6 +347,10 @@ export function useReader(bookID: () => string) {
   }
 
   async function applySplitConfig(config: SplitConfig): Promise<void> {
+    if (!isLibraryEditingSupported()) {
+      return;
+    }
+
     const normalizedInput = normalizeSplitConfigInput(config);
     await getBookshelfProvider().updateBookSplitConfig(bookID(), normalizedInput);
 

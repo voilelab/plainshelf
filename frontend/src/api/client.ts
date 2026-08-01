@@ -1,3 +1,5 @@
+import { isMobileRuntime } from '@/providers/runtime';
+
 export class ApiError extends Error {
   status?: number;
   statusText?: string;
@@ -97,16 +99,37 @@ export function assertApiMode(): void {
 }
 
 
-function assertWritableRequest(init?: RequestInit): void {
+// The mobile shell is a reading client and never mutates the shelf, but it does
+// still record what was read. These are the only writes it may issue; everything
+// else is rejected before it leaves the device. Matching is method-aware so that
+// POST /read_history stays allowed while DELETE /read_history (clear history)
+// does not, and the trailing `(\?|$)` covers addReadHistory's `?book_id=` query.
+const MOBILE_WRITE_ALLOWLIST = [
+  /^\/api\/shelves\/[^/]+\/read_history(\?|$)/,
+  /^\/api\/shelves\/[^/]+\/reading_activity(\?|$)/
+];
+
+function isMobileAllowedWrite(path: string, method: string): boolean {
+  return method === 'POST' && MOBILE_WRITE_ALLOWLIST.some((pattern) => pattern.test(path));
+}
+
+function assertWritableRequest(path: string, init?: RequestInit): void {
   const method = String(init?.method ?? 'GET').toUpperCase();
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
     return;
   }
 
   // Dynamic import is avoided here to prevent a module cycle during startup.
+  // isMobileRuntime is imported from providers/runtime rather than the providers
+  // barrel for the same reason: the barrel pulls in the providers, which import
+  // this module.
   const readOnly = typeof window !== 'undefined' && window.__PLAINSHELF_READ_ONLY__ === true;
   if (readOnly) {
     throw new ApiError('Server is in read-only mode. Write operations are disabled.');
+  }
+
+  if (isMobileRuntime() && !isMobileAllowedWrite(path, method)) {
+    throw new ApiError('The mobile app is read-only. Write operations are disabled.');
   }
 }
 
@@ -204,7 +227,7 @@ export async function fetchJson<T>(
   options?: FetchJsonOptions
 ): Promise<T> {
   assertApiMode();
-  assertWritableRequest(init);
+  assertWritableRequest(path, init);
 
   const requestInit = await withApiHeaders(init);
   const headers = new Headers(requestInit.headers ?? {});
@@ -244,7 +267,7 @@ export async function fetchJson<T>(
 
 export async function fetchText(path: string, init?: RequestInit): Promise<string> {
   assertApiMode();
-  assertWritableRequest(init);
+  assertWritableRequest(path, init);
 
   const res = await fetchWithTimeout(buildApiUrl(path), await withApiHeaders(init), FETCH_STREAM_TIMEOUT_MS);
   if (!res.ok) {
@@ -256,7 +279,7 @@ export async function fetchText(path: string, init?: RequestInit): Promise<strin
 
 export async function fetchBlob(path: string, init?: RequestInit): Promise<Blob> {
   assertApiMode();
-  assertWritableRequest(init);
+  assertWritableRequest(path, init);
 
   const res = await fetchWithTimeout(buildApiUrl(path), await withApiHeaders(init), FETCH_STREAM_TIMEOUT_MS);
   if (!res.ok) {

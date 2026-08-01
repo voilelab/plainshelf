@@ -81,7 +81,7 @@ import { DELETE_BOOK_DESCRIPTION, useBookActions } from '@/composables/useBookAc
 import { useBookDetail } from '@/features/library/composables/useBookDetail';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useOfflineDownload } from '@/composables/useOfflineDownload';
-import { useServerMode } from '@/composables/useServerMode';
+import { useWriteAccess } from '@/composables/useWriteAccess';
 import { getBookshelfProvider, isMobileRuntime } from '@/providers';
 import { useI18n } from '@/i18n';
 
@@ -90,7 +90,8 @@ const router = useRouter();
 const id = computed(() => String(route.params.id));
 const showImportedMessage = computed(() => route.query.imported === '1');
 const showSavedMessage = computed(() => route.query.saved === '1');
-const { readOnly } = useServerMode();
+const { writesEnabled } = useWriteAccess();
+const readOnly = computed(() => !writesEnabled.value);
 const { t } = useI18n();
 
 const {
