@@ -16,6 +16,44 @@ export interface Task {
   description?: string;
   status: TaskStatus;
   percentage: number;
+  result?: unknown;
+}
+
+export type BookBatchOperation = 'move' | 'trash';
+
+export type BookBatchFailureCode =
+  | 'not_found'
+  | 'unsupported_schema'
+  | 'move_failed'
+  | 'trash_failed';
+
+export interface BookBatchFailure {
+  book_id: string;
+  code: BookBatchFailureCode;
+}
+
+export interface BookBatchResult {
+  operation: BookBatchOperation;
+  total: number;
+  succeeded_ids: string[];
+  failures: BookBatchFailure[];
+}
+
+export interface BookBatchRequest {
+  operation: BookBatchOperation;
+  book_ids: string[];
+  target_layer?: string[];
+}
+
+export function isBookBatchResult(value: unknown): value is BookBatchResult {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<BookBatchResult>;
+  return (
+    (candidate.operation === 'move' || candidate.operation === 'trash') &&
+    typeof candidate.total === 'number' &&
+    Array.isArray(candidate.succeeded_ids) &&
+    Array.isArray(candidate.failures)
+  );
 }
 
 export interface TaskChain {

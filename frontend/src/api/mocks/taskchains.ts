@@ -30,8 +30,9 @@ export function registerMockTaskChain(options: {
   total: number;
   finalStatus?: TaskStatus;
   onItem?: (index: number) => void;
+  getResult?: () => unknown;
 }): string {
-  const { name, title, total, finalStatus = 'completed', onItem } = options;
+  const { name, title, total, finalStatus = 'completed', onItem, getResult } = options;
   const id = nextMockTaskChainID();
 
   let done = 0;
@@ -67,7 +68,7 @@ export function registerMockTaskChain(options: {
       chain.percentage = percentage;
       chain.status = status;
       chain.description = description;
-      chain.tasks[0] = { ...chain.tasks[0], percentage, status, description };
+      chain.tasks[0] = { ...chain.tasks[0], percentage, status, description, result: getResult?.() };
     }
   };
 

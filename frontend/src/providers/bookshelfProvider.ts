@@ -13,7 +13,7 @@ import type {
   TrashedBook
 } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
-import type { TaskChain } from '@/types/task';
+import type { BookBatchRequest, TaskChain } from '@/types/task';
 
 export type { DownloadState } from '@/types/book';
 export type { DesktopShelfDetails } from '@/api/desktop';
@@ -73,6 +73,7 @@ export interface BookshelfProvider {
   deleteTrashedBook(bookId: string): Promise<void>;
   emptyTrash(): Promise<string>;
   getTaskChain(taskChainId: string): Promise<TaskChain>;
+  startBookBatch(request: BookBatchRequest): Promise<string>;
 
   listSources(bookId: string): Promise<SourceMeta[]>;
   getSource(bookId: string, sourceId: string): Promise<SourceMeta>;

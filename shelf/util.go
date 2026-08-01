@@ -60,6 +60,13 @@ func validateLayers(layers Layers) error {
 	return nil
 }
 
+// ValidateLayers reports whether every layer path segment is safe to use.
+// API handlers use this before scheduling background work so malformed batch
+// requests fail synchronously rather than becoming failed worker tasks.
+func ValidateLayers(layers Layers) error {
+	return validateLayers(layers)
+}
+
 func validateSourceID(sourceID string) error {
 	if err := validatePathSegment(sourceID); err != nil {
 		return util.Errorf("invalid source id %q: %w", sourceID, err)

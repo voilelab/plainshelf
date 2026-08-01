@@ -322,6 +322,43 @@ const zhHant = {
       download: '下載',
       edit: '編輯',
       delete: '刪除'
+    },
+    selection: {
+      toolbarLabel: '已選書籍操作',
+      selectedCount: '已選 {count} 本',
+      selectBook: '選取「{title}」',
+      selectAll: '選取本頁',
+      move: '移動',
+      trash: '移到垃圾桶',
+      download: '下載到裝置',
+      downloading: '下載中…',
+      moveTitle: '移動已選書籍',
+      moveTarget: '目的地',
+      rootLayer: '所有書籍（最上層）',
+      chooseLayer: '選擇目的地',
+      confirmMove: '移動 {count} 本',
+      moving: '移動中…',
+      trashTitle: '將已選書籍移到垃圾桶',
+      trashQuestion: '確定將已選的 {count} 本書移到垃圾桶嗎？',
+      trashDescription: '之後仍可從垃圾桶還原這些書籍。',
+      confirmTrash: '移到垃圾桶',
+      processing: '處理書籍中…',
+      progressLabel: '批次操作進度',
+      complete: '已完成 {count} 本書。',
+      partial: '成功 {succeeded} 本；失敗 {failed} 本。',
+      failed: '批次操作失敗。',
+      close: '關閉',
+      startFailed: '無法啟動批次操作',
+      pollFailed: '無法繼續取得批次操作進度。',
+      downloadComplete: '已下載 {count} 本書。',
+      downloadPartial: '成功下載 {succeeded} 本；失敗 {failed} 本。',
+      failureCodes: {
+        not_found: '找不到書籍',
+        unsupported_schema: '書籍由較新的 PlainShelf 版本建立',
+        move_failed: '無法移動書籍',
+        trash_failed: '無法將書籍移到垃圾桶',
+        download_failed: '無法下載書籍'
+      }
     }
   },
   pagination: {

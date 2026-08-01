@@ -11,7 +11,7 @@ import type {
   TrashedBook
 } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
-import type { TaskChain } from '@/types/task';
+import type { BookBatchRequest, TaskChain } from '@/types/task';
 import { ApiError } from '@/api/client';
 import type {
   BookshelfProvider,
@@ -291,6 +291,10 @@ export class MobileBookshelfProvider implements BookshelfProvider {
 
   getTaskChain(taskChainId: string): Promise<TaskChain> {
     return this.remote.getTaskChain(taskChainId);
+  }
+
+  startBookBatch(request: BookBatchRequest): Promise<string> {
+    return this.remote.startBookBatch(request);
   }
 
   async listSources(bookId: string): Promise<SourceMeta[]> {

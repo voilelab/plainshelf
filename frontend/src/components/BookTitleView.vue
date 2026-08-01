@@ -1,29 +1,65 @@
 <template>
   <div class="book-title-view panel">
-    <button
+    <article
       v-for="book in books"
       :key="book.id"
-      type="button"
       class="book-title-row"
-      @click="emit('select', book.id)"
+      :class="{ 'is-selected': selectedIds.has(book.id), 'is-dragging': interactions.draggingBookId.value === book.id }"
+      :draggable="selectable && !mobileSelection"
+      :aria-selected="selectedIds.has(book.id)"
+      @click="interactions.onClick($event, book.id)"
+      @pointerdown="interactions.onPointerDown($event, book.id)"
+      @pointermove="interactions.onPointerMove"
+      @pointerup="interactions.cancelLongPress"
+      @pointercancel="interactions.cancelLongPress"
+      @dragstart="interactions.onDragStart($event, book)"
+      @dragend="interactions.onDragEnd"
     >
+      <BookSelectionCheckbox
+        v-if="selectable"
+        :selected="selectedIds.has(book.id)"
+        :label="t('bookCollection.selection.selectBook', { title: book.title })"
+        @toggle="emit('toggle-selection', book.id)"
+      />
       <span class="book-title-text">{{ book.title }}</span>
       <span class="book-title-meta">{{ compactMeta(book) }}</span>
-    </button>
+    </article>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { Book } from '@/types/book';
+import type { BookActivation } from '@/types/bookSelection';
+import { useI18n } from '@/i18n';
+import BookSelectionCheckbox from './BookSelectionCheckbox.vue';
+import { useBookItemInteractions } from '@/composables/useBookItemInteractions';
 import { getLayerPath, layerPathLabel } from '@/utils/layers';
 
-defineProps<{
+const props = withDefaults(defineProps<{
   books: Book[];
-}>();
+  selectable?: boolean;
+  mobileSelection?: boolean;
+  selectedIds?: ReadonlySet<string>;
+}>(), {
+  selectable: false,
+  mobileSelection: false,
+  selectedIds: () => new Set<string>()
+});
 
 const emit = defineEmits<{
-  (event: 'select', id: string): void;
+  (event: 'activate', payload: BookActivation): void;
+  (event: 'toggle-selection', id: string): void;
+  (event: 'long-press', id: string): void;
 }>();
+
+const { t } = useI18n();
+
+const interactions = useBookItemInteractions({
+  mobile: () => props.mobileSelection,
+  selectedIds: () => props.selectedIds,
+  onActivate: (payload) => emit('activate', payload),
+  onLongPress: (id) => emit('long-press', id)
+});
 
 function compactMeta(book: Book): string {
   const metaParts: string[] = [];
@@ -63,6 +99,12 @@ function compactMeta(book: Book): string {
   text-align: left;
   width: 100%;
 }
+
+.book-title-row.is-selected {
+  background: color-mix(in srgb, var(--accent) 8%, white);
+}
+
+.book-title-row.is-dragging { opacity: 0.4; }
 
 .book-title-row:last-child {
   border-bottom: 0;

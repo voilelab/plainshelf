@@ -27,6 +27,7 @@
       @cancel="closeCreateLayerModal"
       @submit="onSubmitCreateLayer"
     />
+    <BookBatchProgressModal />
 
     <div
       v-if="isNarrowViewport && drawerOpen"
@@ -470,6 +471,7 @@ import {
   type AcceptableValue
 } from 'reka-ui';
 import CreateLayerModal from '@/components/CreateLayerModal.vue';
+import BookBatchProgressModal from '@/components/BookBatchProgressModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
 import LayerTree from '@/components/LayerTree.vue';
 import RenameLayerModal from '@/components/RenameLayerModal.vue';

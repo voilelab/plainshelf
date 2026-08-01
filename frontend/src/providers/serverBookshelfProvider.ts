@@ -33,6 +33,7 @@ import {
   updateSourceContent
 } from '@/api/sources';
 import { getTaskChain } from '@/api/taskchains';
+import { startBookBatch } from '@/api/bookBatches';
 import { addReadHistory, clearReadHistory, listReadHistoryBooks } from '@/api/readHistory';
 import { getReadingActivity, reportReadingActivity } from '@/api/readingActivity';
 import type {
@@ -47,7 +48,7 @@ import type {
   TrashedBook
 } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
-import type { TaskChain } from '@/types/task';
+import type { BookBatchRequest, TaskChain } from '@/types/task';
 import type { BookshelfProvider, ListBooksOptions } from './bookshelfProvider';
 
 export class ServerBookshelfProvider implements BookshelfProvider {
@@ -161,6 +162,10 @@ export class ServerBookshelfProvider implements BookshelfProvider {
 
   getTaskChain(taskChainId: string): Promise<TaskChain> {
     return getTaskChain(taskChainId);
+  }
+
+  startBookBatch(request: BookBatchRequest): Promise<string> {
+    return startBookBatch(request);
   }
 
   listSources(bookId: string): Promise<SourceMeta[]> {

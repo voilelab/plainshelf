@@ -1,7 +1,7 @@
 import { computed, onScopeDispose, ref } from 'vue';
 
 import { getBookshelfProvider } from '@/providers';
-import { isTerminalTaskStatus, type TaskStatus } from '@/types/task';
+import { isTerminalTaskStatus, type TaskChain, type TaskStatus } from '@/types/task';
 
 export const DEFAULT_TASK_CHAIN_POLL_INTERVAL_MS = 500;
 
@@ -32,6 +32,7 @@ export function useTaskChainProgress(options: UseTaskChainProgressOptions = {}) 
   const status = ref<TaskStatus>('pending');
   const percentage = ref(0);
   const error = ref('');
+  const chain = ref<TaskChain | null>(null);
 
   let timer: ReturnType<typeof setTimeout> | null = null;
   // generation invalidates an in-flight submission when reset lands first.
@@ -56,6 +57,7 @@ export function useTaskChainProgress(options: UseTaskChainProgressOptions = {}) 
     status.value = 'pending';
     percentage.value = 0;
     error.value = '';
+    chain.value = null;
   }
 
   function schedule(): void {
@@ -72,21 +74,22 @@ export function useTaskChainProgress(options: UseTaskChainProgressOptions = {}) 
     }
 
     try {
-      const chain = await getBookshelfProvider().getTaskChain(polling);
+      const nextChain = await getBookshelfProvider().getTaskChain(polling);
       // A reset or a new chain during the request makes this response stale.
       if (taskChainId.value !== polling) {
         return;
       }
 
-      status.value = chain.status;
-      percentage.value = chain.percentage;
+      chain.value = nextChain;
+      status.value = nextChain.status;
+      percentage.value = nextChain.percentage;
 
-      if (!isTerminalTaskStatus(chain.status)) {
+      if (!isTerminalTaskStatus(nextChain.status)) {
         schedule();
         return;
       }
 
-      await options.onSettled?.(chain.status);
+      await options.onSettled?.(nextChain.status);
     } catch (err) {
       if (taskChainId.value !== polling) {
         return;
@@ -141,5 +144,5 @@ export function useTaskChainProgress(options: UseTaskChainProgressOptions = {}) 
 
   onScopeDispose(stop);
 
-  return { taskChainId, status, percentage, error, started, running, finished, start, reset, stop };
+  return { taskChainId, chain, status, percentage, error, started, running, finished, start, reset, stop };
 }

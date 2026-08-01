@@ -128,7 +128,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   select: [path: string];
-  'move-book': [payload: { bookId: string; targetLayer: string }];
+  'move-book': [payload: { bookIds: string[]; targetLayer: string; batch: boolean }];
   'delete-layer': [path: string];
   'rename-layer': [path: string];
   'open-layer-folder': [path: string];
@@ -296,9 +296,9 @@ function onDrop(event: DragEvent, node: LayerNode): void {
     return;
   }
 
-  const bookId = event.dataTransfer?.getData('application/x-plainshelf-book-id');
-  if (bookId) {
-    emit('move-book', { bookId, targetLayer: node.path });
+  const draggedBooks = readDraggedBookIDs(event.dataTransfer);
+  if (draggedBooks.ids.length > 0) {
+    emit('move-book', { bookIds: draggedBooks.ids, targetLayer: node.path, batch: draggedBooks.batch });
     return;
   }
 
@@ -331,9 +331,9 @@ function onRootDragLeave(event: DragEvent): void {
 function onRootDrop(event: DragEvent): void {
   isRootDropTarget.value = false;
 
-  const bookId = event.dataTransfer?.getData('application/x-plainshelf-book-id');
-  if (bookId) {
-    emit('move-book', { bookId, targetLayer: '/' });
+  const draggedBooks = readDraggedBookIDs(event.dataTransfer);
+  if (draggedBooks.ids.length > 0) {
+    emit('move-book', { bookIds: draggedBooks.ids, targetLayer: '/', batch: draggedBooks.batch });
     endDragLayer();
     return;
   }
@@ -343,6 +343,21 @@ function onRootDrop(event: DragEvent): void {
     emit('move-layer', { layerPath, targetLayer: '/' });
   }
   endDragLayer();
+}
+
+function readDraggedBookIDs(dataTransfer: DataTransfer | null): { ids: string[]; batch: boolean } {
+  if (!dataTransfer) return { ids: [], batch: false };
+  const raw = dataTransfer.getData('application/x-plainshelf-book-ids');
+  if (raw) {
+    try {
+      const ids = JSON.parse(raw);
+      if (Array.isArray(ids)) return { ids: [...new Set(ids.filter((id): id is string => typeof id === 'string' && id.length > 0))], batch: true };
+    } catch {
+      // Fall back to the legacy single-book drag payload.
+    }
+  }
+  const single = dataTransfer.getData('application/x-plainshelf-book-id');
+  return { ids: single ? [single] : [], batch: false };
 }
 
 function expandPath(path: string | undefined): void {

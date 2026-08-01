@@ -8,6 +8,8 @@ import { useServerMode } from '@/composables/useServerMode';
 import { getBookshelfProvider } from '@/providers';
 import { buildLayerTreeNodes, flattenLayerTreePaths, getLayerPath, normalizeLayerPath } from '@/utils/layers';
 import { useI18n } from '@/i18n';
+import { useBookBatchOperations } from '@/composables/useBookBatchOperations';
+import type { Book } from '@/types/book';
 
 /**
  * Where to navigate after `path` is renamed to `nextName`, given the layer the
@@ -66,6 +68,7 @@ export function useLayerManagement() {
   const { books, fetchBooks } = useBookStore();
   const { layers, fetchLayers } = useLayerStore();
   const { readOnly } = useServerMode();
+  const batchOperations = useBookBatchOperations();
 
   const moveBookError = ref('');
   const showCreateLayerModal = ref(false);
@@ -198,7 +201,7 @@ export function useLayerManagement() {
     }
   }
 
-  async function onMoveBook(payload: { bookId: string; targetLayer: string }): Promise<void> {
+  async function onMoveBook(payload: { bookIds: string[]; targetLayer: string; batch: boolean }): Promise<void> {
     if (readOnly.value) {
       moveBookError.value = t('layout.readOnly.writeDisabled');
       return;
@@ -206,19 +209,29 @@ export function useLayerManagement() {
     moveBookError.value = '';
     layerOperationError.value = '';
 
-    const currentBook = books.value.find((item) => item.id === payload.bookId);
-    if (!currentBook) {
+    const selectedBooks = payload.bookIds
+      .map((id) => books.value.find((item) => item.id === id))
+      .filter((book): book is Book => Boolean(book));
+    if (selectedBooks.length === 0) {
       moveBookError.value = t('layout.moveBookErrors.notFound');
       return;
     }
 
+    if (payload.batch) {
+      const target = payload.targetLayer === '/' ? [] : normalizeLayerPath(payload.targetLayer).split('/').filter(Boolean);
+      const titles = Object.fromEntries(selectedBooks.map((book) => [book.id, book.title]));
+      await batchOperations.startMove(payload.bookIds, target, titles);
+      return;
+    }
+
+    const currentBook = selectedBooks[0];
     const currentLayerPath = getLayerPath(currentBook);
     if (currentLayerPath === payload.targetLayer) {
       return;
     }
 
     try {
-      await getBookshelfProvider().updateBookLayer(payload.bookId, payload.targetLayer);
+      await getBookshelfProvider().updateBookLayer(currentBook.id, payload.targetLayer);
       await fetchBooks();
     } catch (err) {
       moveBookError.value = err instanceof Error ? err.message : t('layout.moveBookErrors.failed');
