@@ -4,7 +4,7 @@ import type { CreateLayerParentOption } from '@/components/CreateLayerModal.vue'
 import { createLayer, deleteLayer, moveLayer, renameLayer } from '@/api/layers';
 import { useBookStore } from '@/composables/useBookStore';
 import { useLayerStore } from '@/composables/useLayerStore';
-import { useServerMode } from '@/composables/useServerMode';
+import { useWriteAccess } from '@/composables/useWriteAccess';
 import { getBookshelfProvider } from '@/providers';
 import { buildLayerTreeNodes, flattenLayerTreePaths, getLayerPath, normalizeLayerPath } from '@/utils/layers';
 import { useI18n } from '@/i18n';
@@ -67,7 +67,8 @@ export function useLayerManagement() {
   const { t } = useI18n();
   const { books, fetchBooks } = useBookStore();
   const { layers, fetchLayers } = useLayerStore();
-  const { readOnly } = useServerMode();
+  const { writesEnabled } = useWriteAccess();
+  const readOnly = computed(() => !writesEnabled.value);
   const batchOperations = useBookBatchOperations();
 
   const moveBookError = ref('');

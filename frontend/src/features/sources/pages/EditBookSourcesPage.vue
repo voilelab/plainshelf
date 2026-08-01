@@ -99,6 +99,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useWriteAccess } from '@/composables/useWriteAccess';
 import type { Book } from '@/types/book';
 import { getBookshelfProvider } from '@/providers';
 import SourceEditor from '@/features/sources/components/SourceEditor.vue';
@@ -110,6 +111,7 @@ import type { SourceMeta } from '@/types/source';
 // on every identity change, which can strand `pointer-events: none` mid-drag).
 const SOURCE_LIST_RESIZE_HIT_AREA_MARGINS = { coarse: 12, fine: 6 };
 
+const { writesEnabled } = useWriteAccess();
 const route = useRoute();
 const router = useRouter();
 
@@ -249,7 +251,7 @@ async function confirmPendingSource(): Promise<void> {
 }
 
 async function onSave(): Promise<void> {
-  if (!activeSourceId.value || !isDirty.value) {
+  if (!writesEnabled.value || !activeSourceId.value || !isDirty.value) {
     return;
   }
 
@@ -271,7 +273,7 @@ async function onSave(): Promise<void> {
 
 async function onSetCurrentSource(): Promise<void> {
   const sourceId = activeSourceId.value;
-  if (!sourceId) {
+  if (!writesEnabled.value || !sourceId) {
     return;
   }
 
@@ -293,6 +295,10 @@ async function onSetCurrentSource(): Promise<void> {
 }
 
 async function onCreateSource(): Promise<void> {
+  if (!writesEnabled.value) {
+    return;
+  }
+
   if (isDirty.value) {
     pendingCreate.value = true;
     showDiscardModal.value = true;
@@ -302,6 +308,10 @@ async function onCreateSource(): Promise<void> {
 }
 
 async function doCreateSource(): Promise<void> {
+  if (!writesEnabled.value) {
+    return;
+  }
+
   creating.value = true;
   editorError.value = '';
   saveSuccess.value = '';
@@ -318,6 +328,10 @@ async function doCreateSource(): Promise<void> {
 }
 
 function onDeleteSource(sourceId: string): void {
+  if (!writesEnabled.value) {
+    return;
+  }
+
   pendingDeleteSourceId.value = sourceId;
   deleteError.value = '';
   showDeleteModal.value = true;
@@ -331,7 +345,7 @@ function cancelDelete(): void {
 
 async function confirmDelete(): Promise<void> {
   const sourceId = pendingDeleteSourceId.value;
-  if (!sourceId) {
+  if (!writesEnabled.value || !sourceId) {
     return;
   }
 

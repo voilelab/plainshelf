@@ -62,7 +62,10 @@
         </TooltipPortal>
       </TooltipRoot>
 
-      <TooltipRoot>
+      <!-- Split settings rewrite the book's stored split config, so they are a
+           write operation; the bookmark button below is not (mobile keeps
+           reading progress on-device). -->
+      <TooltipRoot v-if="writesEnabled">
         <TooltipTrigger as-child>
           <ToolbarButton
             class="button reader-icon-button"
@@ -122,6 +125,7 @@ import {
   TooltipRoot,
   TooltipTrigger
 } from 'reka-ui';
+import { useWriteAccess } from '@/composables/useWriteAccess';
 import { useI18n } from '@/i18n';
 
 defineProps<{
@@ -140,6 +144,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const { writesEnabled } = useWriteAccess();
 </script>
 
 <style scoped src="../styles/reader-layout.css"></style>

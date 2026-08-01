@@ -72,9 +72,9 @@ test('downloads books for offline reading and isolates removal between books', a
 
   try {
     // Import two books in the ordinary (non-mobile) desktop flow first: the
-    // mobile provider wraps the same server via ServerBookshelfProvider, and
-    // mobile mode cannot POST without a token (writes need one, reads don't —
-    // see frontend/src/providers/mobileConfig.ts), so importing is done here.
+    // mobile provider wraps the same server via ServerBookshelfProvider, but
+    // the mobile client is read-only and cannot POST (see
+    // mobile-read-only.spec.ts), so importing is done here.
     await page.goto(`${server.baseUrl}/books`);
     await importHelloBook(page);
     await importBookFromPath(page, anotherFixturePath);

@@ -44,6 +44,10 @@ function withMobilePreview(route: string): string {
  * Drives the mobile connect flow (`/connect`) end to end: fills in the server
  * URL (and optional token), loads the shelf list, picks a shelf from the
  * reka-ui Select, and saves — landing on `/books`.
+ *
+ * The token does not grant write access — the client is read-only regardless —
+ * but server/security.go demands one for the allowlisted reading-telemetry
+ * POSTs, so a native install still needs it.
  */
 export async function connectMobile(
   page: Page,

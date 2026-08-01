@@ -15,8 +15,10 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getBookshelfProvider } from '@/providers';
 import EditBook from '@/features/library/components/EditBook.vue';
+import { useWriteAccess } from '@/composables/useWriteAccess';
 import type { Book, BookUpdateRequest } from '@/types/book';
 
+const { writesEnabled } = useWriteAccess();
 const route = useRoute();
 const router = useRouter();
 const id = computed(() => String(route.params.id));
@@ -40,6 +42,10 @@ async function fetchBook(): Promise<void> {
 }
 
 async function onSubmit(payload: BookUpdateRequest): Promise<void> {
+  if (!writesEnabled.value) {
+    return;
+  }
+
   saving.value = true;
   saveError.value = '';
 

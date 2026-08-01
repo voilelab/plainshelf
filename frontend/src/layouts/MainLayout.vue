@@ -99,7 +99,7 @@
                 </TooltipContent>
               </TooltipPortal>
             </TooltipRoot>
-            <TooltipRoot>
+            <TooltipRoot v-if="libraryEditingAvailable">
               <TooltipTrigger as-child>
                 <RouterLink
                   to="/trash"
@@ -292,6 +292,7 @@
                 <span>{{ t('layout.recentlyRead') }}</span>
               </RouterLink>
               <RouterLink
+                v-if="libraryEditingAvailable"
                 to="/trash"
                 class="sidebar-nav-item"
                 exact-active-class="active"
@@ -302,9 +303,13 @@
             </nav>
           </section>
 
-          <div class="sidebar-nav-divider" role="presentation"></div>
+          <div v-if="libraryEditingAvailable" class="sidebar-nav-divider" role="presentation"></div>
 
-          <section class="sidebar-section" :aria-label="t('layout.sections.maintenance')">
+          <section
+            v-if="libraryEditingAvailable"
+            class="sidebar-section"
+            :aria-label="t('layout.sections.maintenance')"
+          >
             <button
               type="button"
               class="sidebar-section-toggle"
@@ -393,7 +398,7 @@
       <!-- SplitterPanel forces inline overflow:hidden, so scrolling lives on
            this inner wrapper (same pattern as .sidebar-inner). -->
       <div class="main-scroll">
-      <div v-if="readOnly" class="read-only-banner" role="status">
+      <div v-if="showReadOnlyBanner" class="read-only-banner" role="status">
         {{ t('layout.readOnly.banner') }}
       </div>
       <header class="topbar">
@@ -482,6 +487,7 @@ import { useLayerManagement } from '@/composables/useLayerManagement';
 import { useLayerStore } from '@/composables/useLayerStore';
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useServerMode } from '@/composables/useServerMode';
+import { useWriteAccess } from '@/composables/useWriteAccess';
 import {
   RAIL_SIDEBAR_WIDTH,
   SIDEBAR_RESIZE_HIT_AREA_MARGINS,
@@ -547,7 +553,16 @@ const {
 } = useLayerManagement();
 const { locale, setLocale, supportedLocales, t } = useI18n();
 const { shelves, loading: shelvesLoading, loaded: shelvesLoaded, error: shelvesError, selectedShelfID, fetchShelves, selectShelf } = useShelvesStore();
-const { readOnly, fetchServerMode } = useServerMode();
+const { fetchServerMode } = useServerMode();
+const { writesEnabled, writeDisabledReason } = useWriteAccess();
+const readOnly = computed(() => !writesEnabled.value);
+// The Android client being read-only is its normal state, not a condition to
+// warn about, so the banner stays reserved for a server in read-only mode.
+const showReadOnlyBanner = computed(() => writeDisabledReason.value === 'server-read-only');
+// Trash and the maintenance views exist only to fix up the library, so they are
+// hidden on the platform that cannot write. Kept separate from `readOnly`: a
+// read-only server still shows them, since the lists themselves are useful.
+const libraryEditingAvailable = computed(() => !isMobileEnv.value);
 const localeLabelKeyMap: Record<(typeof supportedLocales)[number], 'language.en' | 'language.zhHant'> = {
   en: 'language.en',
   'zh-Hant': 'language.zhHant'

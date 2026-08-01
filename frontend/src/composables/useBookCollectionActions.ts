@@ -1,6 +1,7 @@
+import { computed } from 'vue';
 import type { ComputedRef, Ref } from 'vue';
 import { useBookActions } from '@/composables/useBookActions';
-import { useServerMode } from '@/composables/useServerMode';
+import { useWriteAccess } from '@/composables/useWriteAccess';
 import type { Book } from '@/types/book';
 
 export interface UseBookCollectionActionsOptions {
@@ -16,7 +17,8 @@ export interface UseBookCollectionActionsOptions {
  * place instead of once per list page.
  */
 export function useBookCollectionActions(options: UseBookCollectionActionsOptions) {
-  const { readOnly } = useServerMode();
+  const { writesEnabled } = useWriteAccess();
+  const readOnly = computed(() => !writesEnabled.value);
   const actions = useBookActions({ onDeleted: options.onDeleted });
 
   function findBook(id: string): Book | undefined {

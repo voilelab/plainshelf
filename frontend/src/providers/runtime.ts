@@ -16,7 +16,7 @@ export function isWailsRuntime(): boolean {
   );
 }
 
-export function isMobileRuntime(): boolean {
+function detectMobileRuntime(): boolean {
   if (typeof window === 'undefined') {
     return false;
   }
@@ -32,4 +32,22 @@ export function isMobileRuntime(): boolean {
   // `?desktop-shell-preview=1` escape hatch above.
   const params = new URLSearchParams(window.location.search);
   return params.get('mobile-shell-preview') === '1';
+}
+
+// Latched on first call rather than re-read per call. The runtime cannot change
+// within a page lifetime, but the preview flag lives in the URL, and an in-app
+// `router.push` (e.g. MobileConnectPage.onSave → '/books') drops the query —
+// which would otherwise silently disengage every mobile guard for the rest of
+// the session and leave the browser preview, and the e2e suite built on it,
+// writable. Native Android was never affected: Capacitor.isNativePlatform()
+// ignores the URL.
+//
+// Lazy rather than evaluated at module load so `window` is ready.
+let mobileRuntime: boolean | undefined;
+
+export function isMobileRuntime(): boolean {
+  if (mobileRuntime === undefined) {
+    mobileRuntime = detectMobileRuntime();
+  }
+  return mobileRuntime;
 }

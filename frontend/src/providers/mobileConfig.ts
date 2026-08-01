@@ -5,7 +5,13 @@ import { setActiveShelfID, setApiBase } from '@/api/client';
 // Native (Capacitor) builds load a static bundle with no backend to inject the
 // server address, token, or selected shelf. We persist those in Capacitor
 // Preferences (native key-value storage) and apply them to the API client at
-// startup. Small scalar settings only — book content lives in IndexedDB.
+// startup. Small scalar settings only — book content lives on the filesystem.
+//
+// The token is not what makes the app read-only — api/client.ts rejects every
+// non-allowlisted mutation before it is sent, token or not. It exists because
+// server/security.go requires a token for *any* mutating /api request, so
+// without one the two allowlisted reading-telemetry POSTs (read_history,
+// reading_activity) get a 401, and a `protect_read` server rejects reads too.
 const KEY_SERVER_URL = 'plainshelf.mobile.serverUrl';
 const KEY_TOKEN = 'plainshelf.mobile.token';
 const KEY_SHELF_ID = 'plainshelf.mobile.shelfId';
