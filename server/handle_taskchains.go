@@ -14,6 +14,7 @@ type Task struct {
 	Description string  `json:"description,omitempty"`
 	Status      string  `json:"status"`
 	Percentage  float64 `json:"percentage"`
+	Result      any     `json:"result,omitempty"`
 }
 
 type TaskChain struct {
@@ -30,12 +31,17 @@ type TaskChain struct {
 func newTaskChainResponse(chain *taskutil.TaskChain) TaskChain {
 	tasks := make([]Task, 0, len(chain.Tasks))
 	for _, task := range chain.Tasks {
+		var result any
+		if provider, ok := task.(taskutil.ResultProvider); ok {
+			result = provider.Result()
+		}
 		tasks = append(tasks, Task{
 			Name:        task.Name(),
 			Title:       task.Title(),
 			Description: task.Description(),
 			Status:      task.Status().String(),
 			Percentage:  task.Percentage(),
+			Result:      result,
 		})
 	}
 

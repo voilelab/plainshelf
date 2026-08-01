@@ -238,6 +238,7 @@ func (app *App) Serve(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books", app.HandleAPIGetBooks)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books", app.HandleAPICreateBook)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/book-batches", app.HandleAPIBookBatch)
 
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/import", app.HandleAPIImportBook)
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/duplicate", app.HandleAPIFindDuplicateBooks)

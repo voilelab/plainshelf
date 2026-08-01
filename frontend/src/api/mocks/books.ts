@@ -11,6 +11,7 @@ import type {
 } from '@/types/book';
 import { normalizeSplitConfig } from '@/utils/splitConfig';
 import { registerMockTaskChain } from './taskchains';
+import type { BookBatchRequest, BookBatchResult } from '@/types/task';
 
 // In-memory backend for VITE_USE_MOCK_API. The gate that reaches for it lives in
 // api/client.ts (isMockApiMode); nothing here is reachable in a real build.
@@ -385,5 +386,41 @@ export function mockEmptyTrash(): string {
         mockTrashedBooks.splice(target, 1);
       }
     }
+  });
+}
+
+export function mockStartBookBatch(request: BookBatchRequest): string {
+  const ids = [...new Set(request.book_ids)];
+  const result: BookBatchResult = {
+    operation: request.operation,
+    total: ids.length,
+    succeeded_ids: [],
+    failures: []
+  };
+
+  return registerMockTaskChain({
+    name: 'book_batch',
+    title: request.operation === 'move' ? 'Move books' : 'Move books to trash',
+    total: ids.length,
+    onItem: (index) => {
+      const id = ids[index];
+      const book = mockBooks.find((candidate) => candidate.id === id);
+      if (!book) {
+        result.failures.push({ book_id: id, code: 'not_found' });
+        return;
+      }
+      if (request.operation === 'move') {
+        book.layers = [...(request.target_layer ?? [])];
+        book.updated_at = new Date().toISOString();
+      } else {
+        mockDeleteBook(id);
+      }
+      result.succeeded_ids.push(id);
+    },
+    getResult: () => ({
+      ...result,
+      succeeded_ids: [...result.succeeded_ids],
+      failures: result.failures.map((failure) => ({ ...failure }))
+    })
   });
 }

@@ -1,5 +1,46 @@
 <template>
   <div>
+    <MoveBooksModal
+      :open="moveBooksModalOpen"
+      :count="selection.count.value"
+      :options="layerOptions"
+      :busy="batchOperations.running.value"
+      @cancel="moveBooksModalOpen = false"
+      @submit="submitBatchMove"
+    />
+    <ConfirmModal
+      :open="trashBooksModalOpen"
+      :title="t('bookCollection.selection.trashTitle')"
+      :confirm-text="t('bookCollection.selection.confirmTrash')"
+      :busy-text="t('bookCollection.selection.processing')"
+      :busy="batchOperations.running.value"
+      variant="danger"
+      @cancel="trashBooksModalOpen = false"
+      @confirm="submitBatchTrash"
+    >
+      <p>{{ t('bookCollection.selection.trashQuestion', { count: selection.count.value }) }}</p>
+      <p>{{ t('bookCollection.selection.trashDescription') }}</p>
+    </ConfirmModal>
+    <BaseDialog
+      :open="downloadBatchOpen"
+      :title="t('bookCollection.selection.download')"
+      :dismissible="!downloadBatchRunning"
+      :busy="downloadBatchRunning"
+      @close="closeDownloadBatch"
+    >
+      <section class="panel download-batch-modal">
+        <h2>{{ t('bookCollection.selection.download') }}</h2>
+        <p>{{ downloadBatchStatusText }}</p>
+        <ProgressBar :value="downloadBatchPercentage" :label="t('bookCollection.selection.progressLabel')" />
+        <p class="progress-value">{{ Math.round(downloadBatchPercentage) }}%</p>
+        <ul v-if="downloadBatchFailures.length" class="batch-failures">
+          <li v-for="failure in downloadBatchFailures" :key="failure.id">
+            <strong>{{ failure.title }}</strong> — {{ failure.message }}
+          </li>
+        </ul>
+        <footer><button type="button" class="button" :disabled="downloadBatchRunning" @click="closeDownloadBatch">{{ t('bookCollection.selection.close') }}</button></footer>
+      </section>
+    </BaseDialog>
     <DeleteModal
       :open="!!deleteTarget"
       :item-name="deleteTarget?.title || ''"
@@ -25,8 +66,19 @@
       :page-size-options="PAGE_SIZE_OPTIONS"
       :can-open-book-folder="canOpenBookFolder"
       :read-only="readOnly"
+      :selection-enabled="selectionEnabled"
+      :mobile-selection="isMobileEnv"
+      :selection-busy="batchOperations.running.value || downloadBatchRunning"
+      :selected-ids="selection.selectedIds.value"
       @retry="reloadBooks"
-      @select="openDetail"
+      @activate="onBookActivate"
+      @toggle-selection="onToggleSelection"
+      @long-press="onLongPress"
+      @clear-selection="selection.clear"
+      @select-all="selectVisibleBooks"
+      @batch-move="openBatchMove"
+      @batch-delete="openBatchTrash"
+      @batch-download="startBatchDownload"
       @edit="goEdit"
       @read="goRead"
       @open-book-folder="onOpenBookFolder"
@@ -146,28 +198,41 @@ import {
 import type { Book } from '@/types/book';
 import BookCollectionPage from '@/components/BookCollectionPage.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
+import ConfirmModal from '@/components/ConfirmModal.vue';
+import BaseDialog from '@/components/BaseDialog.vue';
+import ProgressBar from '@/components/ProgressBar.vue';
 import ImportBookModal from '@/features/library/components/ImportBookModal.vue';
 import NewEmptyBookModal from '@/features/library/components/NewEmptyBookModal.vue';
+import MoveBooksModal from '@/features/library/components/MoveBooksModal.vue';
 import { DELETE_BOOK_DESCRIPTION } from '@/composables/useBookActions';
 import { useBookCollectionActions } from '@/composables/useBookCollectionActions';
 import { countPages, pageSlice } from '@/composables/useBookCollectionRoute';
 import { useBookStore } from '@/composables/useBookStore';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useBookPagination } from '@/composables/useBookPagination';
+import { useBookSelection } from '@/composables/useBookSelection';
+import { useBookBatchOperations } from '@/composables/useBookBatchOperations';
+import { useLayerStore } from '@/composables/useLayerStore';
+import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useBooksRouteQuery } from '@/features/library/composables/useBooksRouteQuery';
 import { useBooksSearch } from '@/features/library/composables/useBooksSearch';
 import { useBooksSort, type BookSortKey, type SortOrder } from '@/features/library/composables/useBooksSort';
+import { handleLibraryMobileBack } from '@/features/library/utils/mobileBack';
 import { filterBooksBySearch } from '@/utils/bookSearch';
 import { hasFileTransfer, readDroppedFiles } from '@/utils/file';
 import { getLayerPath, layerPathEquals, normalizeLayerPath } from '@/utils/layers';
 import { useI18n } from '@/i18n';
 import { getBookshelfProvider } from '@/providers';
+import { isMobileRuntime } from '@/providers/runtime';
+import type { BookActivation } from '@/types/bookSelection';
 import '@/styles/toolbar-controls.css';
 
 const ROOT_LAYER_LABEL = '/';
 const { t } = useI18n();
 
 const { books, loading, error, shelfInitializing, shelfUnreachable, fetchBooks } = useBookStore();
+const { layers } = useLayerStore();
+const { selectedShelfID } = useShelvesStore();
 const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
 const {
   selectedLayer,
@@ -192,6 +257,30 @@ const {
 const booksLoaded = ref<boolean>(false);
 const isNewEmptyBookModalOpen = ref(false);
 const droppedFiles = ref<File[]>([]);
+const isMobileEnv = isMobileRuntime();
+const selection = useBookSelection();
+const batchOperations = useBookBatchOperations();
+const moveBooksModalOpen = ref(false);
+const trashBooksModalOpen = ref(false);
+const downloadBatchOpen = ref(false);
+const downloadBatchRunning = ref(false);
+const downloadBatchPercentage = ref(0);
+const downloadBatchSucceeded = ref(0);
+const downloadBatchTotal = ref(0);
+const downloadBatchFailures = ref<Array<{ id: string; title: string; message: string }>>([]);
+const selectionEnabled = computed(() => isMobileEnv || !readOnly.value);
+const layerOptions = computed(() => [...new Set(layers.value.filter((layer) => layer && layer !== '/'))].sort());
+const visibleBookIds = computed(() => visibleBooks.value.map((book) => book.id));
+const downloadBatchStatusText = computed(() => {
+  if (downloadBatchRunning.value) return t('bookCollection.selection.processing');
+  if (downloadBatchFailures.value.length === 0) {
+    return t('bookCollection.selection.downloadComplete', { count: downloadBatchSucceeded.value });
+  }
+  return t('bookCollection.selection.downloadPartial', {
+    succeeded: downloadBatchSucceeded.value,
+    failed: downloadBatchFailures.value.length
+  });
+});
 
 async function reloadBooks(): Promise<void> {
   booksLoaded.value = false;
@@ -219,6 +308,131 @@ const {
     void reloadBooks();
   }
 });
+
+function selectedBooks(): Book[] {
+  return books.value.filter((book) => selection.selectedIds.value.has(book.id));
+}
+
+function selectedTitles(): Record<string, string> {
+  return Object.fromEntries(selectedBooks().map((book) => [book.id, book.title]));
+}
+
+function onBookActivate(payload: BookActivation): void {
+  if (batchOperations.running.value || downloadBatchRunning.value) return;
+  if (!selectionEnabled.value) {
+    openDetail(payload.id);
+    return;
+  }
+  if (!isMobileEnv && payload.shiftKey) {
+    selection.selectRange(visibleBookIds.value, payload.id);
+    return;
+  }
+  if (selection.active.value || payload.metaKey || payload.ctrlKey) {
+    selection.toggle(payload.id);
+    return;
+  }
+  openDetail(payload.id);
+}
+
+function onToggleSelection(id: string): void {
+  if (!batchOperations.running.value && !downloadBatchRunning.value) selection.toggle(id);
+}
+
+function onLongPress(id: string): void {
+  if (isMobileEnv && !downloadBatchRunning.value) selection.toggle(id);
+}
+
+function selectVisibleBooks(): void {
+  if (!batchOperations.running.value && !downloadBatchRunning.value) selection.selectAll(visibleBookIds.value);
+}
+
+function openBatchMove(): void {
+  if (!isMobileEnv && selection.active.value && !readOnly.value) moveBooksModalOpen.value = true;
+}
+
+function openBatchTrash(): void {
+  if (!isMobileEnv && selection.active.value && !readOnly.value) trashBooksModalOpen.value = true;
+}
+
+function submitBatchMove(targetLayer: string): void {
+  moveBooksModalOpen.value = false;
+  const ids = [...selection.selectedIds.value];
+  void batchOperations.startMove(ids, targetLayer.split('/').filter(Boolean), selectedTitles());
+}
+
+function submitBatchTrash(): void {
+  trashBooksModalOpen.value = false;
+  const ids = [...selection.selectedIds.value];
+  void batchOperations.startTrash(ids, selectedTitles());
+}
+
+async function startBatchDownload(): Promise<void> {
+  const provider = getBookshelfProvider();
+  if (!isMobileEnv || !provider.downloadBook || downloadBatchRunning.value) return;
+  const targets = selectedBooks();
+  if (targets.length === 0) return;
+
+  downloadBatchOpen.value = true;
+  downloadBatchRunning.value = true;
+  downloadBatchPercentage.value = 0;
+  downloadBatchSucceeded.value = 0;
+  downloadBatchTotal.value = targets.length;
+  downloadBatchFailures.value = [];
+
+  for (let index = 0; index < targets.length; index += 1) {
+    const book = targets[index];
+    try {
+      if (book.download_state !== 'downloaded') await provider.downloadBook(book.id);
+      downloadBatchSucceeded.value += 1;
+    } catch {
+      downloadBatchFailures.value.push({
+        id: book.id,
+        title: book.title,
+        message: t('bookCollection.selection.failureCodes.download_failed')
+      });
+    }
+    downloadBatchPercentage.value = ((index + 1) / targets.length) * 100;
+  }
+
+  downloadBatchRunning.value = false;
+  const failedVisible = new Set(downloadBatchFailures.value.map((failure) => failure.id).filter((id) => visibleBookIds.value.includes(id)));
+  if (failedVisible.size > 0) selection.replace(failedVisible);
+  else selection.clear();
+  await reloadBooks();
+}
+
+function closeDownloadBatch(): void {
+  if (!downloadBatchRunning.value) downloadBatchOpen.value = false;
+}
+
+function onSelectionKeydown(event: KeyboardEvent): void {
+  if (!selection.active.value || batchOperations.running.value || downloadBatchRunning.value) return;
+  const target = event.target;
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || (target instanceof HTMLElement && target.isContentEditable)) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    selection.clear();
+  } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') {
+    event.preventDefault();
+    selection.selectAll(visibleBookIds.value);
+  }
+}
+
+let mobileBackHandle: { remove: () => Promise<void> } | null = null;
+
+async function installMobileBackHandler(): Promise<void> {
+  if (!isMobileEnv) return;
+  const { App } = await import('@capacitor/app');
+  mobileBackHandle = await App.addListener('backButton', (event) => {
+    handleLibraryMobileBack(event, {
+      selectionActive: selection.active.value,
+      downloadRunning: downloadBatchRunning.value,
+      clearSelection: selection.clear,
+      goBack: () => window.history.back(),
+      exitApp: () => App.exitApp()
+    });
+  });
+}
 
 const isRootLayerSelected = computed(() => selectedLayer.value === ROOT_LAYER_LABEL);
 
@@ -480,16 +694,36 @@ onMounted(() => {
   void reloadBooks();
   document.addEventListener('dragover', onDocumentDragOver);
   document.addEventListener('drop', onDocumentDrop);
+  document.addEventListener('keydown', onSelectionKeydown);
+  void installMobileBackHandler();
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener('dragover', onDocumentDragOver);
   document.removeEventListener('drop', onDocumentDrop);
+  document.removeEventListener('keydown', onSelectionKeydown);
+  void mobileBackHandle?.remove();
 });
 
 watch(selectedLayer, async () => {
   await reloadBooks();
 });
+
+watch(
+  [selectedLayer, page, pageSize, sortBy, sortOrder, committedSearch, selectedShelfID],
+  () => selection.clear()
+);
+
+watch(
+  batchOperations.completionVersion,
+  () => {
+    const result = batchOperations.lastResult.value;
+    if (!result) return;
+    const failed = new Set(result.failures.map((failure) => failure.book_id).filter((id) => visibleBookIds.value.includes(id)));
+    if (failed.size > 0) selection.replace(failed);
+    else selection.clear();
+  }
+);
 
 // Watch committed search: keep the URL in sync and reset to page 1.
 // Filtering itself is a pure computed (searchedBooks) — no refetch needed.
@@ -542,6 +776,19 @@ watch(
 </script>
 
 <style scoped>
+
+.download-batch-modal {
+  display: grid;
+  gap: 12px;
+  max-width: 520px;
+  padding: 18px;
+  width: min(100%, 520px);
+}
+
+.download-batch-modal h2,
+.download-batch-modal p { margin: 0; }
+.download-batch-modal footer { display: flex; justify-content: flex-end; }
+.batch-failures { margin: 0; max-height: 180px; overflow: auto; padding-left: 20px; }
 
 .breadcrumb-link {
   background: transparent;

@@ -323,6 +323,43 @@ const en = {
       download: 'Download',
       edit: 'Edit',
       delete: 'Delete'
+    },
+    selection: {
+      toolbarLabel: 'Selected books actions',
+      selectedCount: '{count} selected',
+      selectBook: 'Select {title}',
+      selectAll: 'Select page',
+      move: 'Move',
+      trash: 'Move to trash',
+      download: 'Download to device',
+      downloading: 'Downloading...',
+      moveTitle: 'Move selected books',
+      moveTarget: 'Destination',
+      rootLayer: 'All books (top level)',
+      chooseLayer: 'Choose a destination',
+      confirmMove: 'Move {count} books',
+      moving: 'Moving...',
+      trashTitle: 'Move selected books to trash',
+      trashQuestion: 'Move {count} selected books to the trash?',
+      trashDescription: 'You can restore these books later from Trash.',
+      confirmTrash: 'Move to trash',
+      processing: 'Processing books...',
+      progressLabel: 'Batch operation progress',
+      complete: '{count} books completed.',
+      partial: '{succeeded} completed; {failed} failed.',
+      failed: 'The batch operation failed.',
+      close: 'Close',
+      startFailed: 'Failed to start the batch operation',
+      pollFailed: 'Lost track of the batch operation progress.',
+      downloadComplete: '{count} books downloaded.',
+      downloadPartial: '{succeeded} downloaded; {failed} failed.',
+      failureCodes: {
+        not_found: 'Book not found',
+        unsupported_schema: 'Book was created by a newer PlainShelf version',
+        move_failed: 'Could not move the book',
+        trash_failed: 'Could not move the book to trash',
+        download_failed: 'Could not download the book'
+      }
     }
   },
   pagination: {

@@ -62,6 +62,13 @@ type Task interface {
 	Status() Status
 }
 
+// ResultProvider is implemented by tasks that expose a structured, read-only
+// result through the task-chain API. Result must return a snapshot that callers
+// can safely serialize while the task is still running.
+type ResultProvider interface {
+	Result() any
+}
+
 type TaskChain struct {
 	// ID identifies the chain once it has been submitted to a Pool. It is
 	// assigned by the pool; callers leave it empty.
