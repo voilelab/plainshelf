@@ -14,12 +14,23 @@ vi.mock('@/storage/readHistory', () => ({
   getReadHistoryIDs: getReadHistoryIDsMock
 }));
 
-import { ApiError } from '@/api/client';
+import { ApiError, setActiveShelfID, setApiBase } from '@/api/client';
 import type { Book, PaginatedBooks, ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import type { BookshelfProvider } from './bookshelfProvider';
 import { InMemoryMobileBookCache } from './mobileBookCache';
-import { MobileBookshelfProvider } from './mobileBookshelfProvider';
+import { DOWNLOAD_SHELF_CHANGED_ERROR, MobileBookshelfProvider } from './mobileBookshelfProvider';
+
+const SERVER_A = 'http://10.0.2.2:20000';
+const SERVER_B = 'http://192.168.1.50:20000';
+const SHELF_A = 'default_shelf';
+const SHELF_B = 'comics';
+
+/** Points the API client — and therefore the provider's scoping — at one shelf. */
+function connectTo(apiBase: string, shelfID: string): void {
+  setApiBase(apiBase);
+  setActiveShelfID(shelfID);
+}
 
 // These tests cover the "device online but server unreachable" fallback
 // path (e.g. phone on LTE away from the home LAN): navigator.onLine is
@@ -342,5 +353,101 @@ describe('MobileBookshelfProvider — cover write cache sync', () => {
     expect(getBookCover).toHaveBeenCalledWith('book-1');
     const result = await provider.getBookCover('book-1');
     expect(result).toBe(newCoverBlob);
+  });
+});
+
+// PR #266 review (P2): the filesystem cache is scoped by (server, shelf), but
+// two pieces of state alongside it were not — the cover object-URL memo, and
+// the window between a download's remote reads and its cache writes. Both let
+// data cross between shelves that share a book id.
+describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
+  let cache: InMemoryMobileBookCache;
+
+  beforeEach(() => {
+    cache = new InMemoryMobileBookCache();
+    connectTo(SERVER_A, SHELF_A);
+  });
+
+  function makeProvider(remote: Partial<BookshelfProvider>): MobileBookshelfProvider {
+    return new MobileBookshelfProvider(remote as BookshelfProvider, cache, () => true);
+  }
+
+  it('does not reuse a memoized cover object URL for the same book id on another shelf', async () => {
+    await seedDownloadedBook(cache, 'book-1');
+    await cache.saveCachedCover('book-1', new Blob(['cover'], { type: 'image/jpeg' }));
+
+    let created = 0;
+    const createObjectURLSpy = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockImplementation(() => `blob:mock-${(created += 1)}`);
+    const provider = makeProvider({});
+
+    const [onShelfA] = await provider.listDownloadedBookEntries();
+    expect(onShelfA.book.cover_url).toBe('blob:mock-1');
+
+    connectTo(SERVER_A, SHELF_B);
+    const [onShelfB] = await provider.listDownloadedBookEntries();
+    // A fresh lookup, not shelf A's memoized URL. With a scoped cache behind it
+    // this is what stops one shelf's cover appearing on another's book.
+    expect(onShelfB.book.cover_url).toBe('blob:mock-2');
+
+    // Returning to shelf A still uses shelf A's own memo rather than shelf B's.
+    connectTo(SERVER_A, SHELF_A);
+    const [backOnShelfA] = await provider.listDownloadedBookEntries();
+    expect(backOnShelfA.book.cover_url).toBe('blob:mock-1');
+
+    createObjectURLSpy.mockRestore();
+  });
+
+  it('memoizes covers per server, not just per shelf name', async () => {
+    await seedDownloadedBook(cache, 'book-1');
+    await cache.saveCachedCover('book-1', new Blob(['cover'], { type: 'image/jpeg' }));
+
+    let created = 0;
+    const createObjectURLSpy = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockImplementation(() => `blob:mock-${(created += 1)}`);
+    const provider = makeProvider({});
+
+    await provider.listDownloadedBookEntries();
+    connectTo(SERVER_B, SHELF_A);
+    const [onServerB] = await provider.listDownloadedBookEntries();
+    expect(onServerB.book.cover_url).toBe('blob:mock-2');
+
+    createObjectURLSpy.mockRestore();
+  });
+
+  it('discards a download when the shelf changes while it is in flight', async () => {
+    const provider = makeProvider({
+      getBook: vi.fn().mockImplementation(async () => {
+        // The user switches shelf while the remote reads are outstanding.
+        connectTo(SERVER_A, SHELF_B);
+        return makeBook('book-1');
+      }),
+      listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
+      getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
+      getSourceContent: vi.fn().mockResolvedValue('source text')
+    });
+
+    await expect(provider.downloadBook('book-1')).rejects.toThrow(DOWNLOAD_SHELF_CHANGED_ERROR);
+
+    // Nothing was written, on either shelf: a download split across two scopes
+    // is worse than no download at all.
+    expect(await cache.listDownloadedManifests()).toEqual([]);
+    expect(await cache.getCachedBookContent('book-1')).toBeNull();
+  });
+
+  it('completes a download when the shelf is unchanged', async () => {
+    const provider = makeProvider({
+      getBook: vi.fn().mockResolvedValue(makeBook('book-1')),
+      listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
+      getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
+      getSourceContent: vi.fn().mockResolvedValue('source text')
+    });
+
+    await provider.downloadBook('book-1');
+
+    expect((await cache.listDownloadedManifests()).map((m) => m.book.id)).toEqual(['book-1']);
+    expect(await cache.getCachedBookContent('book-1')).toEqual({ content: 'text' });
   });
 });
