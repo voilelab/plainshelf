@@ -124,11 +124,17 @@
 
     <TabsRoot :default-value="defaultSettingsTab" class="settings-tabs">
       <TabsList class="settings-tabs-list" :aria-label="t('settings.title')">
-        <template v-if="serverSettingsEditable">
-          <TabsTrigger value="cover" class="settings-tab-trigger">{{ t('settings.cover.title') }}</TabsTrigger>
-          <TabsTrigger value="read-history" class="settings-tab-trigger">{{ t('settings.readHistory.title') }}</TabsTrigger>
-          <TabsTrigger value="reader" class="settings-tab-trigger">{{ t('settings.reader.title') }}</TabsTrigger>
-        </template>
+        <TabsTrigger v-if="serverSettingsEditable" value="cover" class="settings-tab-trigger">{{
+          t('settings.cover.title')
+        }}</TabsTrigger>
+        <!-- Reading history is device-local, so its retention limit is
+             editable on every client, including the read-only mobile shell. -->
+        <TabsTrigger value="read-history" class="settings-tab-trigger">{{
+          t('settings.readHistory.title')
+        }}</TabsTrigger>
+        <TabsTrigger v-if="serverSettingsEditable" value="reader" class="settings-tab-trigger">{{
+          t('settings.reader.title')
+        }}</TabsTrigger>
         <TabsTrigger value="about" class="settings-tab-trigger">{{ t('settings.about.title') }}</TabsTrigger>
         <TabsTrigger value="shelves" class="settings-tab-trigger">{{ t('settings.shelves.title') }}</TabsTrigger>
       </TabsList>
@@ -152,7 +158,7 @@
         </section>
       </TabsContent>
 
-      <TabsContent v-if="serverSettingsEditable" value="read-history" class="settings-tab-content">
+      <TabsContent value="read-history" class="settings-tab-content">
         <section class="panel settings-group">
           <h3>{{ t('settings.readHistory.title') }}</h3>
           <label class="setting-item">
@@ -386,8 +392,9 @@ const githubRepoUrl = 'https://github.com/voilelab/plainshelf';
 
 const isDesktopEnv = computed(() => isWailsRuntime());
 const isMobileEnv = computed(() => isMobileRuntime());
-// Cover / read-history / reader tabs all POST to /api/setting/*, which the
-// read-only mobile client cannot do. Shelves is the useful landing tab there:
+// Cover and reader tabs POST to /api/setting/*, which the read-only mobile
+// client cannot do; the read-history tab only writes device-local state and
+// stays available everywhere. Shelves is the useful landing tab on mobile:
 // it holds the connection and downloads panels.
 const serverSettingsEditable = computed(() => !isMobileEnv.value);
 const defaultSettingsTab = computed(() => (serverSettingsEditable.value ? 'cover' : 'shelves'));
@@ -439,13 +446,18 @@ async function loadSettings(): Promise<void> {
   error.value = '';
 
   try {
-    const [nextCoverToJpg, nextReadHistoryLimit, nextDefaultSplitConfig] = await Promise.all([
+    // The retention limit is device-local, so it loads even where the
+    // server-only settings are not shown (the mobile shell).
+    readHistoryLimit.value = await getReadHistoryLimit();
+    if (!serverSettingsEditable.value) {
+      return;
+    }
+
+    const [nextCoverToJpg, nextDefaultSplitConfig] = await Promise.all([
       getCoverToJpgSetting(),
-      getReadHistoryLimit(),
       getDefaultSplitConfigSetting()
     ]);
     coverToJpg.value = nextCoverToJpg;
-    readHistoryLimit.value = nextReadHistoryLimit;
     hydrateSplitConfigDraft(nextDefaultSplitConfig);
   } catch (err) {
     error.value = err instanceof Error ? err.message : t('settings.loadFailed');

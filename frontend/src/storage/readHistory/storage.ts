@@ -59,24 +59,41 @@ export function createDesktopReadHistoryStorage(): ReadHistoryStorage {
 // storage eviction.
 export const MOBILE_READ_HISTORY_PATH = 'plainshelf-cache/read-history.json';
 
+// Matches the "file is not there" errors the Capacitor plugin and its web
+// fallback raise, mirroring FilesystemMobileBookCache.isMissingError.
+function isMissingFileError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /not exist|does not exist|enoent|no such file|not found/i.test(message);
+}
+
 /** Capacitor (Android) native shell. */
 export function createFilesystemReadHistoryStorage(
   path: string = MOBILE_READ_HISTORY_PATH
 ): ReadHistoryStorage {
   return {
     async load(): Promise<string | null> {
+      let result;
       try {
-        const result = await Filesystem.readFile({
+        result = await Filesystem.readFile({
           path,
           directory: Directory.Data,
           encoding: Encoding.UTF8
         });
-        return typeof result.data === 'string' ? result.data : null;
-      } catch {
-        // Missing file (the common case on a fresh install) and plugin errors
-        // alike mean "no history yet"; document.ts turns null into a default.
-        return null;
+      } catch (error) {
+        // Only a missing file — the normal state on a fresh install — means
+        // "no history yet". Any other read failure must propagate: reporting
+        // it as null would let the next write replace an unread document and
+        // wipe every shelf's history after a transient error.
+        if (isMissingFileError(error)) {
+          return null;
+        }
+        throw error;
       }
+
+      if (typeof result.data !== 'string') {
+        throw new Error('Unexpected reading-history file contents');
+      }
+      return result.data;
     },
     async save(text: string): Promise<void> {
       await Filesystem.writeFile({

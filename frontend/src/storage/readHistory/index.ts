@@ -1,4 +1,4 @@
-import { getActiveShelfID, isMockApiMode } from '@/api/client';
+import { getActiveShelfID, getApiBase, isMockApiMode } from '@/api/client';
 import { hasDesktopReadHistoryBinding } from '@/api/desktop';
 import { mockBooks } from '@/api/mocks/books';
 // Imported from providers/runtime rather than the providers barrel: the barrel
@@ -89,7 +89,9 @@ function createMockReadHistoryStorage(): ReadHistoryStorage {
       if (!seeded) {
         seeded = true;
         const doc = createReadHistoryDocument();
-        doc.shelves[getActiveShelfID()] = mockBooks.slice(0, 3).map((book) => book.id);
+        doc.shelves[buildReadHistoryKey(getApiBase(), getActiveShelfID())] = mockBooks
+          .slice(0, 3)
+          .map((book) => book.id);
         await backing.save(serializeReadHistoryDocument(doc));
       }
       return backing.load();
@@ -126,24 +128,36 @@ export function getReadHistoryStore(): ReadHistoryStore {
   return store;
 }
 
-function requireShelfID(): string {
+/**
+ * The key a shelf's history is stored under. Shelf id alone is not enough on a
+ * client that can be repointed at another server (the Android shell): two
+ * servers commonly both call a shelf `default_shelf` while their book ids mean
+ * different things. Same-origin clients (web, desktop) have an empty API base
+ * and keep the bare shelf id.
+ */
+export function buildReadHistoryKey(apiBase: string, shelfID: string): string {
+  const base = apiBase.trim();
+  return base ? `${base}|${shelfID}` : shelfID;
+}
+
+function requireHistoryKey(): string {
   const shelfID = getActiveShelfID().trim();
   if (!shelfID) {
     throw new Error('No shelf selected.');
   }
-  return shelfID;
+  return buildReadHistoryKey(getApiBase(), shelfID);
 }
 
 export function getReadHistoryIDs(): Promise<string[]> {
-  return getReadHistoryStore().list(requireShelfID());
+  return getReadHistoryStore().list(requireHistoryKey());
 }
 
 export function addReadHistory(bookID: string): Promise<void> {
-  return getReadHistoryStore().add(requireShelfID(), bookID);
+  return getReadHistoryStore().add(requireHistoryKey(), bookID);
 }
 
 export function clearReadHistory(): Promise<void> {
-  return getReadHistoryStore().clear(requireShelfID());
+  return getReadHistoryStore().clear(requireHistoryKey());
 }
 
 export function getReadHistoryLimit(): Promise<number> {

@@ -125,6 +125,13 @@ test('offers clear-history but ignores the import query on mobile', async ({ pag
     await expect(page.getByRole('heading', { name: 'Recently Read' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Clear history' })).toBeVisible();
 
+    // The retention limit is device-local too, so its settings tab is reachable
+    // on mobile even though the server-only tabs are not.
+    await reopenMobileAt(page, server.baseUrl, '/settings');
+    await page.getByRole('tab', { name: 'Reading history' }).click();
+    await expect(page.getByText('Reading history limit')).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Cover' })).toHaveCount(0);
+
     // /import redirects to /books?import=1, and the modal opens purely off that
     // query — a redirect the router guard cannot intercept by route name.
     await reopenMobileAt(page, server.baseUrl, '/books?import=1');

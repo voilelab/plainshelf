@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_READ_HISTORY_LIMIT } from './document';
-import { ReadHistoryStore } from './index';
+import { ReadHistoryStore, buildReadHistoryKey } from './index';
 import {
   READ_HISTORY_STORAGE_KEY,
   createInMemoryReadHistoryStorage,
@@ -100,6 +100,22 @@ describe('ReadHistoryStore', () => {
     await store.add('shelf-1', 'book-1');
 
     expect(await store.list('shelf-1')).toEqual(['book-1']);
+  });
+});
+
+describe('buildReadHistoryKey', () => {
+  it('keeps the bare shelf id for a same-origin client', () => {
+    expect(buildReadHistoryKey('', 'default_shelf')).toBe('default_shelf');
+  });
+
+  // The mobile shell can be pointed at another server that also calls its
+  // shelf `default_shelf`, whose book ids mean something else entirely.
+  it('separates identically named shelves on different servers', () => {
+    const first = buildReadHistoryKey('http://192.168.1.5:20000', 'default_shelf');
+    const second = buildReadHistoryKey('http://192.168.1.9:20000', 'default_shelf');
+
+    expect(first).not.toBe(second);
+    expect(first).toBe('http://192.168.1.5:20000|default_shelf');
   });
 });
 
