@@ -280,11 +280,6 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/marks/{book_id}", app.HandleAPIGetMarks)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/marks/{book_id}", app.HandleAPIUpdateMarks)
 
-	// Stats API
-
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/reading_activity", app.HandleAPIGetReadingActivity)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/reading_activity", app.HandleAPIPostReadingActivity)
-
 	// Task API
 
 	mux.HandleFunc("GET /api/taskchains/{taskchain_id}", app.HandleAPIGetTaskChain)

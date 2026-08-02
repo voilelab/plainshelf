@@ -152,12 +152,11 @@ rsync -a /path/to/shelf/ /path/to/backup/shelf-2026-07-28/
 Two things people miss:
 
 - **Also copy the application store** (`--store-path`, or the platform default).
-  Bookmarks live there and are *not* derived from `books/`. (Read history is
-  not in the store: each client keeps its own on the device that did the
-  reading, so it is not covered by a server-side backup.)
-- **`app/stats/reading/` is inside the shelf but is not rebuildable either.** It
-  holds reading-time history (the dashboard heatmap and streak). Everything else
-  under `app/` — the lock file and temporary files — can be discarded safely.
+  Bookmarks live there and are *not* derived from `books/`. (Read history and
+  reading time are not in the store: each client keeps its own on the device
+  that did the reading, so neither is covered by a server-side backup.)
+- **Everything under `app/`** — the lock file and temporary files — can be
+  discarded safely; the server recreates it.
 
 Stop the server or desktop app before copying if you want a guaranteed-consistent
 snapshot. The shelf lock coordinates PlainShelf's own writes; it does not stop
@@ -213,7 +212,6 @@ Only `book.json` carries `schema_version`.
 | `books/**/book.json` | Yes — `schema_version`, described on this page |
 | `books/**/sources/{id}/meta.json` | No |
 | `.trash/**/trash.json` | No |
-| `app/stats/reading/{YYYY-MM}.json` | Yes, but with its own independent `version` field |
 | Application store | No |
 
 Because source metadata is not versioned yet, an older build can still add a

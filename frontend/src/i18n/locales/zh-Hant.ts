@@ -481,7 +481,7 @@ const zhHant = {
     serverUrlPlaceholder: 'http://192.168.1.10:20000',
     tokenLabel: '存取權杖（選填）',
     tokenPlaceholder: '記錄閱讀紀錄時需要',
-    tokenHint: '瀏覽與閱讀不需權杖。若要讓這台裝置記錄閱讀紀錄與閱讀活動，或伺服器啟用了 protect_read，才需要填入。',
+    tokenHint: '瀏覽與閱讀不需權杖。閱讀紀錄與閱讀時間一律記在這台裝置上。只有伺服器啟用 protect_read 時才需要填入。',
     loadShelves: '載入書庫',
     loadingShelves: '連線中…',
     shelfLabel: '書架',

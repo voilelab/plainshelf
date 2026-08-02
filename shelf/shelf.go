@@ -42,12 +42,6 @@ var ErrShelfLockTimeout = util.NewError("shelf is busy, please retry shortly")
 const defaultLockTimeout = 30 * time.Second
 const lockRetryDelay = 50 * time.Millisecond
 
-// readingStatsFlushInterval controls how often the background goroutine
-// persists dirty reading-stats months to disk. Heartbeats from clients only
-// ever touch in-memory state; this is the only thing that writes to disk,
-// which keeps SMB-mounted libraries happy.
-const readingStatsFlushInterval = 60 * time.Second
-
 type Shelf struct {
 	logutil.Logger
 	dbRoot    fsutil.FS
@@ -58,9 +52,6 @@ type Shelf struct {
 	readyCh   chan struct{}
 	initErr   atomic.Pointer[error] // set if initCache fails; readyCh is still closed
 
-	readingStats     *ReadingStats
-	statsFlushStopCh chan struct{}
-	statsFlushDoneCh chan struct{}
 }
 
 type ShelfConf struct {
@@ -175,10 +166,6 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 
 		// cache
 		bookCache: newBookCache(scanInterval, bookCheckInterval),
-
-		readingStats:     newReadingStats(dbRoot),
-		statsFlushStopCh: make(chan struct{}),
-		statsFlushDoneCh: make(chan struct{}),
 	}
 
 	err = s.makeStructure()
@@ -194,35 +181,7 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		}
 	}()
 
-	go s.runReadingStatsFlushLoop()
-
 	return s, nil
-}
-
-// ReadingStats returns the shelf's reading-time tracker.
-func (s *Shelf) ReadingStats() *ReadingStats {
-	return s.readingStats
-}
-
-// runReadingStatsFlushLoop periodically persists dirty reading-stats months to
-// disk. It never runs on the hot path of a heartbeat request - only this
-// ticker (and a final flush in Close) ever writes to disk.
-func (s *Shelf) runReadingStatsFlushLoop() {
-	defer close(s.statsFlushDoneCh)
-
-	ticker := time.NewTicker(readingStatsFlushInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			if err := s.readingStats.Flush(); err != nil {
-				s.Warn("failed to flush reading stats", "error", err)
-			}
-		case <-s.statsFlushStopCh:
-			return
-		}
-	}
 }
 
 func (s *Shelf) makeStructure() error {
@@ -310,16 +269,6 @@ func (s *Shelf) SetScanInterval(scanInterval string) error {
 // Close releases any resources held by the Shelf instance.
 func (s *Shelf) Close() error {
 	errs := []error{}
-
-	if s.statsFlushStopCh != nil {
-		close(s.statsFlushStopCh)
-		<-s.statsFlushDoneCh
-	}
-	if s.readingStats != nil {
-		if err := s.readingStats.Flush(); err != nil {
-			errs = append(errs, err)
-		}
-	}
 
 	if err := s.shelfLock.Close(); err != nil {
 		errs = append(errs, err)

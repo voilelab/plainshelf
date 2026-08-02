@@ -145,7 +145,7 @@ test('offers clear-history but ignores the import query on mobile', async ({ pag
   }
 });
 
-test('rejects a write from the mobile client but still records read history', async ({ page }) => {
+test('rejects a write from the mobile client but still records reading on the device', async ({ page }) => {
   const server = await startServer();
 
   try {
@@ -153,10 +153,10 @@ test('rejects a write from the mobile client but still records read history', as
     await importHelloBook(page);
 
     // Take the token the way a user would (the server prints it at startup) and
-    // enter it in the connect form, so the allowlisted POST below is
-    // authenticated from Capacitor Preferences — the only source a real APK
-    // has. Relying on the server-injected window.__PLAINSHELF_SECURITY__ would
-    // pass even with the mobile token wiring removed entirely.
+    // enter it in the connect form, so it comes from Capacitor Preferences —
+    // the only source a real APK has. Relying on the server-injected
+    // window.__PLAINSHELF_SECURITY__ would pass even with the mobile token
+    // wiring removed entirely.
     const serverToken = await page.evaluate(
       () =>
         (window as unknown as { __PLAINSHELF_SECURITY__?: { token?: string } })
@@ -193,13 +193,14 @@ test('rejects a write from the mobile client but still records read history', as
     }, bookId);
     expect(writeResult).toContain('read-only');
 
-    // Opening the reader records read history on the device (no request at
-    // all — it is stored in app-private storage), and the bookmark button
-    // stays because mobile progress is stored on-device too.
-    const readHistoryRequests: string[] = [];
+    // Opening the reader records read history and reading time on the device
+    // (no request at all — both are stored in app-private storage), and the
+    // bookmark button stays because mobile progress is stored on-device too.
+    const deviceStateRequests: string[] = [];
     page.on('request', (request) => {
-      if (request.url().includes('/read_history')) {
-        readHistoryRequests.push(`${request.method()} ${request.url()}`);
+      const url = request.url();
+      if (url.includes('/read_history') || url.includes('/reading_activity')) {
+        deviceStateRequests.push(`${request.method()} ${url}`);
       }
     });
     await reopenMobileAt(page, server.baseUrl, `/reader/${bookId}`);
@@ -209,7 +210,7 @@ test('rejects a write from the mobile client but still records read history', as
     // finish before navigating away — otherwise the assertion below races the
     // in-flight write.
     await expect(page.getByText('Loading content...')).toHaveCount(0);
-    expect(readHistoryRequests).toEqual([]);
+    expect(deviceStateRequests).toEqual([]);
 
     // Read history survives the reload reopenMobileAt performs, proving it was
     // persisted rather than held in memory.

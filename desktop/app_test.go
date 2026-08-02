@@ -350,7 +350,7 @@ func TestWriteReadHistoryRejectsInvalidDocuments(t *testing.T) {
 	if err := app.WriteReadHistory("not json"); err == nil {
 		t.Fatal("WriteReadHistory accepted a non-JSON document")
 	}
-	if err := app.WriteReadHistory(`{"pad":"` + strings.Repeat("x", maxReadHistoryDocumentBytes) + `"}`); err == nil {
+	if err := app.WriteReadHistory(`{"pad":"` + strings.Repeat("x", maxDeviceDocumentBytes) + `"}`); err == nil {
 		t.Fatal("WriteReadHistory accepted an oversized document")
 	}
 
@@ -372,5 +372,115 @@ func TestReadHistoryFailsWithoutStoragePath(t *testing.T) {
 	}
 	if err := app.WriteReadHistory(`{}`); err == nil {
 		t.Fatal("WriteReadHistory succeeded before startup configured a path")
+	}
+}
+
+func TestReadReadingStatsReturnsEmptyWhenUnwritten(t *testing.T) {
+	app := &DesktopApp{readingStatsPath: filepath.Join(t.TempDir(), "reading_stats.json")}
+
+	doc, err := app.ReadReadingStats()
+	if err != nil {
+		t.Fatalf("ReadReadingStats: %v", err)
+	}
+	if doc != "" {
+		t.Fatalf("ReadReadingStats on a fresh profile = %q, want empty", doc)
+	}
+}
+
+func TestWriteAndReadReadingStatsRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "reading_stats.json")
+	app := &DesktopApp{readingStatsPath: path}
+	stored := `{"version":1,"shelves":{"main":{"2026-08-02":45}}}`
+
+	if err := app.WriteReadingStats(stored); err != nil {
+		t.Fatalf("WriteReadingStats: %v", err)
+	}
+
+	doc, err := app.ReadReadingStats()
+	if err != nil {
+		t.Fatalf("ReadReadingStats: %v", err)
+	}
+	if doc != stored {
+		t.Fatalf("ReadReadingStats = %q, want %q", doc, stored)
+	}
+
+	// A second write replaces the document rather than appending to it, and
+	// leaves no temp file behind.
+	replacement := `{"version":1,"shelves":{}}`
+	if err := app.WriteReadingStats(replacement); err != nil {
+		t.Fatalf("WriteReadingStats (replace): %v", err)
+	}
+	doc, err = app.ReadReadingStats()
+	if err != nil {
+		t.Fatalf("ReadReadingStats (replace): %v", err)
+	}
+	if doc != replacement {
+		t.Fatalf("ReadReadingStats after replace = %q, want %q", doc, replacement)
+	}
+
+	entries, err := os.ReadDir(filepath.Dir(path))
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Name() != filepath.Base(path) {
+		t.Fatalf("unexpected files left in the data directory: %v", entries)
+	}
+}
+
+func TestWriteReadingStatsRejectsInvalidDocuments(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "reading_stats.json")
+	app := &DesktopApp{readingStatsPath: path}
+	valid := `{"version":1,"shelves":{}}`
+	if err := app.WriteReadingStats(valid); err != nil {
+		t.Fatalf("WriteReadingStats: %v", err)
+	}
+
+	if err := app.WriteReadingStats("not json"); err == nil {
+		t.Fatal("WriteReadingStats accepted a non-JSON document")
+	}
+	if err := app.WriteReadingStats(`{"pad":"` + strings.Repeat("x", maxDeviceDocumentBytes) + `"}`); err == nil {
+		t.Fatal("WriteReadingStats accepted an oversized document")
+	}
+
+	// A rejected write must not disturb the document already on disk.
+	doc, err := app.ReadReadingStats()
+	if err != nil {
+		t.Fatalf("ReadReadingStats: %v", err)
+	}
+	if doc != valid {
+		t.Fatalf("stored document after rejected writes = %q, want %q", doc, valid)
+	}
+}
+
+// The two documents are separate files: writing one must not disturb the other.
+func TestDeviceDocumentsAreIndependent(t *testing.T) {
+	dir := t.TempDir()
+	app := &DesktopApp{
+		readHistoryPath:  filepath.Join(dir, "read_history.json"),
+		readingStatsPath: filepath.Join(dir, "reading_stats.json"),
+	}
+	history := `{"version":1,"limit":100,"shelves":{"main":["book-1"]}}`
+	stats := `{"version":1,"shelves":{"main":{"2026-08-02":45}}}`
+
+	if err := app.WriteReadHistory(history); err != nil {
+		t.Fatalf("WriteReadHistory: %v", err)
+	}
+	if err := app.WriteReadingStats(stats); err != nil {
+		t.Fatalf("WriteReadingStats: %v", err)
+	}
+
+	gotHistory, err := app.ReadReadHistory()
+	if err != nil {
+		t.Fatalf("ReadReadHistory: %v", err)
+	}
+	gotStats, err := app.ReadReadingStats()
+	if err != nil {
+		t.Fatalf("ReadReadingStats: %v", err)
+	}
+	if gotHistory != history {
+		t.Fatalf("ReadReadHistory = %q, want %q", gotHistory, history)
+	}
+	if gotStats != stats {
+		t.Fatalf("ReadReadingStats = %q, want %q", gotStats, stats)
 	}
 }

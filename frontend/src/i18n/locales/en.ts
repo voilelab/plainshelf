@@ -482,7 +482,7 @@ const en = {
     serverUrlPlaceholder: 'http://192.168.1.10:20000',
     tokenLabel: 'Access token (optional)',
     tokenPlaceholder: 'Needed to record reading history',
-    tokenHint: 'Browsing and reading work without a token. Add one so this device can record read history and reading activity, or if the server has protect_read enabled.',
+    tokenHint: 'Browsing and reading work without a token. Read history and reading time are recorded on this device either way. Add one only if the server has protect_read enabled.',
     loadShelves: 'Load library',
     loadingShelves: 'Connecting…',
     shelfLabel: 'Shelf',

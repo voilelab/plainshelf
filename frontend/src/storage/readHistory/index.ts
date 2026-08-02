@@ -4,6 +4,7 @@ import { mockBooks } from '@/api/mocks/books';
 // Imported from providers/runtime rather than the providers barrel: the barrel
 // pulls in the providers, which import this module.
 import { isMobileRuntime, isWailsRuntime } from '@/providers/runtime';
+import { buildDeviceDocumentKey, DeviceDocumentStore } from '@/storage/deviceDocument';
 import {
   createReadHistoryDocument,
   getShelfReadHistory,
@@ -30,15 +31,14 @@ export type { ReadHistoryStorage } from './storage';
  * Reading history, kept on the device that did the reading. The server has no
  * part in it: no API call, no shelf file, nothing shared between clients.
  *
- * Reads and writes are read-modify-write over a single stored document, so
- * every mutation is queued behind the previous one. Without that, opening the
- * reader (addReadHistory) while the settings page saves a new limit would let
- * one overwrite the other's document.
+ * Mutation serialization comes from DeviceDocumentStore: without it, opening
+ * the reader (addReadHistory) while the settings page saves a new limit would
+ * let one overwrite the other's document.
  */
-export class ReadHistoryStore {
-  private queue: Promise<unknown> = Promise.resolve();
-
-  constructor(private readonly storage: ReadHistoryStorage) {}
+export class ReadHistoryStore extends DeviceDocumentStore<ReadHistoryDocument> {
+  constructor(storage: ReadHistoryStorage) {
+    super(storage, parseReadHistoryDocument, serializeReadHistoryDocument);
+  }
 
   async list(shelfID: string): Promise<string[]> {
     return getShelfReadHistory(await this.read(), shelfID);
@@ -58,24 +58,6 @@ export class ReadHistoryStore {
 
   async setLimit(limit: number): Promise<void> {
     await this.mutate((doc) => withLimit(doc, limit));
-  }
-
-  private async read(): Promise<ReadHistoryDocument> {
-    return parseReadHistoryDocument(await this.storage.load());
-  }
-
-  private mutate(apply: (doc: ReadHistoryDocument) => ReadHistoryDocument): Promise<void> {
-    const next = this.queue.then(async () => {
-      const current = await this.read();
-      const updated = apply(current);
-      if (updated !== current) {
-        await this.storage.save(serializeReadHistoryDocument(updated));
-      }
-    });
-    // Keep the chain alive after a rejected mutation so a single failure (a
-    // full localStorage, a filesystem hiccup) does not wedge later writes.
-    this.queue = next.catch(() => undefined);
-    return next;
   }
 }
 
@@ -128,17 +110,8 @@ export function getReadHistoryStore(): ReadHistoryStore {
   return store;
 }
 
-/**
- * The key a shelf's history is stored under. Shelf id alone is not enough on a
- * client that can be repointed at another server (the Android shell): two
- * servers commonly both call a shelf `default_shelf` while their book ids mean
- * different things. Same-origin clients (web, desktop) have an empty API base
- * and keep the bare shelf id.
- */
-export function buildReadHistoryKey(apiBase: string, shelfID: string): string {
-  const base = apiBase.trim();
-  return base ? `${base}|${shelfID}` : shelfID;
-}
+/** The key a shelf's history is stored under. See buildDeviceDocumentKey. */
+export const buildReadHistoryKey = buildDeviceDocumentKey;
 
 function requireHistoryKey(): string {
   const shelfID = getActiveShelfID().trim();
