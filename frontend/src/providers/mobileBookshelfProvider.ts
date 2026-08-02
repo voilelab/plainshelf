@@ -17,6 +17,7 @@ import {
   addReadHistory as addLocalReadHistory,
   clearReadHistory as clearLocalReadHistory
 } from '@/storage/readHistory';
+import { currentCacheScopeKey } from './cacheScope';
 import { collectReadHistoryBooks } from './readHistoryBooks';
 import type {
   BookshelfProvider,
@@ -31,6 +32,8 @@ import { ServerBookshelfProvider } from './serverBookshelfProvider';
 export const OFFLINE_BOOK_CACHE_MISS_ERROR = 'Book is not downloaded and the app is offline';
 export const OFFLINE_SOURCE_CACHE_MISS_ERROR = 'Source is not downloaded and the app is offline';
 export const OFFLINE_DOWNLOAD_UNAVAILABLE_ERROR = 'Cannot download book while offline';
+export const DOWNLOAD_SHELF_CHANGED_ERROR =
+  'The shelf changed while the book was downloading; the download was discarded';
 
 const defaultIsOnline = (): boolean =>
   typeof navigator === 'undefined' ? true : navigator.onLine;
@@ -45,10 +48,16 @@ function isServerUnreachableError(err: unknown): boolean {
 }
 
 export class MobileBookshelfProvider implements BookshelfProvider {
-  // Memoized per-book object URLs for cached cover blobs, keyed by book id.
-  // Created lazily in applyCachedCover and revoked in removeDownload; the
-  // provider is a long-lived singleton so this map's lifetime matches the
+  // Memoized object URLs for cached cover blobs, keyed by (server, shelf) and
+  // book id. Created lazily in applyCachedCover and revoked in removeDownload;
+  // the provider is a long-lived singleton so this map's lifetime matches the
   // app's, which is fine given the small number of downloaded books.
+  //
+  // The scope belongs in the key for the same reason the filesystem cache puts
+  // it in the path (see cacheScope.ts): keyed by book id alone, a cover
+  // memoized while connected to one shelf would be handed back for a different
+  // book with the same id on another, and the memo would short-circuit the
+  // scoped filesystem lookup that would otherwise have corrected it.
   private readonly coverUrlCache = new Map<string, string>();
 
   constructor(
@@ -345,6 +354,15 @@ export class MobileBookshelfProvider implements BookshelfProvider {
       throw new Error(OFFLINE_DOWNLOAD_UNAVAILABLE_ERROR);
     }
 
+    // Everything below reads the connected shelf at the moment it runs: the
+    // remote calls resolve it per request, and each cache write resolves the
+    // scope it lands in. A shelf change while the fetches are in flight would
+    // therefore file this book under a shelf it does not belong to, possibly
+    // overwriting that shelf's own book of the same id, or split one download
+    // across two scopes. Abandon the download instead — the user has left the
+    // shelf they asked for it on, and a partial write is worse than none.
+    const scopeAtStart = currentCacheScopeKey();
+
     const [book, sources, bookContent] = await Promise.all([
       this.remote.getBook(bookId),
       this.remote.listSources(bookId),
@@ -367,6 +385,10 @@ export class MobileBookshelfProvider implements BookshelfProvider {
         coverBlob = null;
         console.warn(`Failed to download cover for book ${bookId}; continuing without it.`, err);
       }
+    }
+
+    if (currentCacheScopeKey() !== scopeAtStart) {
+      throw new Error(DOWNLOAD_SHELF_CHANGED_ERROR);
     }
 
     const contentSize = new Blob([bookContent.content]).size;
@@ -454,15 +476,22 @@ export class MobileBookshelfProvider implements BookshelfProvider {
     };
   }
 
-  // Revokes and forgets this book's memoized cover object URL, if any. Does
-  // not touch the cached cover blob itself — callers that also want the
-  // blob gone must call cache.deleteCachedCover separately (see
+  private coverUrlKey(bookId: string): string {
+    // Newline cannot occur in a scope key (it is a URL joined to a shelf id),
+    // so it cannot be confused with the separator.
+    return `${currentCacheScopeKey()}\n${bookId}`;
+  }
+
+  // Revokes and forgets this book's memoized cover object URL, if any, for the
+  // connected shelf. Does not touch the cached cover blob itself — callers that
+  // also want the blob gone must call cache.deleteCachedCover separately (see
   // evictCachedCover below). Safe to call for a book with no cached URL.
   private invalidateCoverUrl(bookId: string): void {
-    const cachedUrl = this.coverUrlCache.get(bookId);
+    const key = this.coverUrlKey(bookId);
+    const cachedUrl = this.coverUrlCache.get(key);
     if (cachedUrl) {
       URL.revokeObjectURL(cachedUrl);
-      this.coverUrlCache.delete(bookId);
+      this.coverUrlCache.delete(key);
     }
   }
 
@@ -516,14 +545,15 @@ export class MobileBookshelfProvider implements BookshelfProvider {
   // No-ops (returns the book unchanged) when there is no cached cover blob
   // for this book, leaving whatever cover_url the caller already set.
   private async applyCachedCover(book: Book): Promise<Book> {
-    let url = this.coverUrlCache.get(book.id);
+    const key = this.coverUrlKey(book.id);
+    let url = this.coverUrlCache.get(key);
     if (!url) {
       const blob = await this.cache.getCachedCover(book.id);
       if (!blob) {
         return book;
       }
       url = URL.createObjectURL(blob);
-      this.coverUrlCache.set(book.id, url);
+      this.coverUrlCache.set(key, url);
     }
 
     return { ...book, cover_url: url };

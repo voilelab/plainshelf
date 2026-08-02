@@ -1,9 +1,8 @@
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 
-import { getActiveShelfID, getApiBase } from '@/api/client';
-import { buildDeviceDocumentKey } from '@/storage/deviceDocument';
 import type { Book, BookContent, DownloadState, ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
+import { currentCacheScopeKey } from './cacheScope';
 import type { CachedBookManifest, MobileBookCache } from './mobileBookCache';
 
 // Base directory (relative to Capacitor's Directory.Data) that holds every
@@ -24,14 +23,10 @@ import type { CachedBookManifest, MobileBookCache } from './mobileBookCache';
 // this keeps the read path independent of the encoding scheme and of any
 // platform-specific filename quirks.
 //
-// The scope segment exists because a book id is only unique *within one
-// shelf*: the server seeds it from md5(layers + "-" + title) and only probes
-// for collisions inside that shelf. Two shelves — or two servers that both
-// call a shelf `default_shelf` — therefore hand out the same id for different
-// books. Without the scope segment their downloads would share a directory and
-// overwrite each other, and listDownloadedBooks would return them mixed
-// together. The key is buildDeviceDocumentKey(apiBase, shelfID), the same one
-// the device-local reading history and reading stats documents use.
+// The scope segment keeps two shelves' downloads apart; see cacheScope.ts for
+// why book ids alone cannot. Without it their downloads would share a directory
+// and overwrite each other, and listDownloadedBooks would return them mixed
+// together.
 //
 // Commit-point semantics, downgraded from the IndexedDB version:
 // `saveDownloadedBook` writes manifest.json, but the caller (see
@@ -55,16 +50,6 @@ const CACHE_DIRECTORY = Directory.Data;
 
 function encode(id: string): string {
   return encodeURIComponent(id);
-}
-
-/**
- * Identifies the (server, shelf) pair the downloads on screen belong to. Read
- * fresh on every call rather than captured once: `setApiBase`/`setActiveShelfID`
- * are module-level state that saveMobileConnectionConfig updates in place, while
- * the provider holding this cache is a process-wide singleton.
- */
-function currentScopeKey(): string {
-  return buildDeviceDocumentKey(getApiBase(), getActiveShelfID());
 }
 
 // Directory for a client that has no (server, shelf) identity yet. Unreachable
@@ -256,7 +241,7 @@ export class FilesystemMobileBookCache implements MobileBookCache {
    * after any one-time move of the pre-scope layout has been applied.
    */
   private async resolveBooksDir(): Promise<string> {
-    const scopeKey = currentScopeKey();
+    const scopeKey = currentCacheScopeKey();
     await this.ensureLegacyMigrated(scopeKey);
     return `${scopeDir(scopeKey)}/books`;
   }
