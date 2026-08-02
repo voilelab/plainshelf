@@ -354,11 +354,11 @@ import DeleteModal from '@/components/DeleteModal.vue';
 import {
   getCoverToJpgSetting,
   getDefaultSplitConfigSetting,
-  getReadHistoryLimitSetting,
   setCoverToJpgSetting,
-  setDefaultSplitConfigSetting,
-  setReadHistoryLimitSetting
+  setDefaultSplitConfigSetting
 } from '@/api/settings';
+// Reading history and its retention limit are per-device state, not server settings.
+import { getReadHistoryLimit, setReadHistoryLimit } from '@/storage/readHistory';
 import type { SplitConfig, SplitType } from '@/types/book';
 import { getServerVersion } from '@/api/version';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
@@ -441,7 +441,7 @@ async function loadSettings(): Promise<void> {
   try {
     const [nextCoverToJpg, nextReadHistoryLimit, nextDefaultSplitConfig] = await Promise.all([
       getCoverToJpgSetting(),
-      getReadHistoryLimitSetting(),
+      getReadHistoryLimit(),
       getDefaultSplitConfigSetting()
     ]);
     coverToJpg.value = nextCoverToJpg;
@@ -534,7 +534,7 @@ async function onReadHistoryLimitChange(event: Event): Promise<void> {
   error.value = '';
 
   try {
-    await setReadHistoryLimitSetting(nextValue);
+    await setReadHistoryLimit(nextValue);
   } catch (err) {
     readHistoryLimit.value = prevValue;
     target.value = String(prevValue);

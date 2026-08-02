@@ -77,7 +77,6 @@ func newAPITestEnv(t *testing.T) *apiTestEnv {
 		},
 		StorePath:        t.TempDir(),
 		CoverToJPG:       false,
-		ReadHistoryLimit: 2,
 	})
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
@@ -305,7 +304,6 @@ func TestAPIGetLogsContract(t *testing.T) {
 		},
 		StorePath:        t.TempDir(),
 		CoverToJPG:       false,
-		ReadHistoryLimit: 2,
 	})
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
@@ -370,7 +368,6 @@ func TestAPIGetLogContentContract(t *testing.T) {
 		},
 		StorePath:        t.TempDir(),
 		CoverToJPG:       false,
-		ReadHistoryLimit: 2,
 	})
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
@@ -467,7 +464,6 @@ func TestAPIStreamContentReturns200ForEmptyFilesInWails(t *testing.T) {
 		},
 		StorePath:        t.TempDir(),
 		CoverToJPG:       false,
-		ReadHistoryLimit: 2,
 	})
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
@@ -887,32 +883,6 @@ func TestAPIStoreContract(t *testing.T) {
 
 	rec = env.do(httptest.NewRequest(http.MethodPost, marksURL, strings.NewReader(`{"char_offset":123,"extra":true}`)))
 	assertStatus(t, rec, http.StatusBadRequest)
-
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/read_history", nil))
-	assertStatus(t, rec, http.StatusOK)
-	assertJSONContentType(t, rec)
-	if history := decodeJSON[[]string](t, rec); len(history) != 0 {
-		t.Fatalf("initial read history = %#v, want empty", history)
-	}
-
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history", nil))
-	assertStatus(t, rec, http.StatusBadRequest)
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id="+created.Meta.ID, nil))
-	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/read_history", nil))
-	assertStatus(t, rec, http.StatusOK)
-	history := decodeJSON[[]string](t, rec)
-	if len(history) != 1 || history[0] != created.Meta.ID {
-		t.Fatalf("read history = %#v, want [%s]", history, created.Meta.ID)
-	}
-
-	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/shelves/default_shelf/read_history", nil))
-	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/read_history", nil))
-	assertStatus(t, rec, http.StatusOK)
-	if history = decodeJSON[[]string](t, rec); len(history) != 0 {
-		t.Fatalf("cleared read history = %#v, want empty", history)
-	}
 }
 
 func TestAPIReadingActivityContract(t *testing.T) {
@@ -1091,61 +1061,6 @@ func TestAPISettingCoverToJPGContract(t *testing.T) {
 	got = decodeJSON[map[string]any](t, rec)
 	if val, _ := got["value"].(bool); val != false {
 		t.Fatalf("cover_to_jpg after delete = %v, want false (AppConf default)", got["value"])
-	}
-}
-
-func TestAPISettingReadHistoryLimitContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	url := "/api/setting/read_history_limit"
-
-	// Default value reflects AppConf (2 in test env).
-	rec := env.do(httptest.NewRequest(http.MethodGet, url, nil))
-	assertStatus(t, rec, http.StatusOK)
-	assertJSONContentType(t, rec)
-	got := decodeJSON[map[string]any](t, rec)
-	if val, _ := got["value"].(float64); val != 2 {
-		t.Fatalf("default read_history_limit = %v, want 2", got["value"])
-	}
-
-	// Set to 1.
-	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader("1")))
-	assertStatus(t, rec, http.StatusNoContent)
-
-	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
-	assertStatus(t, rec, http.StatusOK)
-	got = decodeJSON[map[string]any](t, rec)
-	if val, _ := got["value"].(float64); val != 1 {
-		t.Fatalf("read_history_limit after set = %v, want 1", got["value"])
-	}
-
-	first := importTextBook(t, env, "History One", "", "history-one.txt", "one")
-	second := importTextBook(t, env, "History Two", "", "history-two.txt", "two")
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id="+first.Meta.ID, nil))
-	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id="+second.Meta.ID, nil))
-	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/read_history", nil))
-	assertStatus(t, rec, http.StatusOK)
-	history := decodeJSON[[]string](t, rec)
-	if len(history) != 1 || history[0] != second.Meta.ID {
-		t.Fatalf("read history with limit 1 = %#v, want [%s]", history, second.Meta.ID)
-	}
-
-	// Invalid values return 400.
-	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader("-1")))
-	assertStatus(t, rec, http.StatusBadRequest)
-	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader("1.5")))
-	assertStatus(t, rec, http.StatusBadRequest)
-
-	// Delete resets to AppConf default (2).
-	rec = env.do(httptest.NewRequest(http.MethodDelete, url, nil))
-	assertStatus(t, rec, http.StatusNoContent)
-
-	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
-	assertStatus(t, rec, http.StatusOK)
-	got = decodeJSON[map[string]any](t, rec)
-	if val, _ := got["value"].(float64); val != 2 {
-		t.Fatalf("read_history_limit after delete = %v, want 2 (AppConf default)", got["value"])
 	}
 }
 

@@ -61,7 +61,6 @@ function buildConfigYAML(port: number, shelfDir: string, storeDir: string): stri
     `      lib_root: ${JSON.stringify(shelfDir)}`,
     `  store_path: ${JSON.stringify(storeDir)}`,
     '  cover_to_jpg: false',
-    '  read_history_limit: 10',
     '  security:',
     '    mode: "local_token"',
     '    protect_read: false',

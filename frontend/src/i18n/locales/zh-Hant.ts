@@ -183,7 +183,8 @@ const zhHant = {
     },
     readHistoryLimit: {
       label: '閱讀紀錄數量限制',
-      description: '最多保留的最近閱讀書籍數量。設為 0 可停用紀錄保留。',
+      description:
+        '這台裝置最多保留的最近閱讀書籍數量。閱讀紀錄只保存在本機，不會送到伺服器。設為 0 可停用紀錄保留。',
       invalid: '閱讀紀錄數量限制必須是非負整數。'
     },
     about: {

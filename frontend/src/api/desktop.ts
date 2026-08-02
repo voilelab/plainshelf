@@ -30,6 +30,8 @@ interface DesktopAppBinding {
   ModifyShelf?: (shelfID: string, name: string, scanInterval: string) => Promise<void>;
   SaveBookContent?: (shelfID: string, bookID: string, suggestedName: string) => Promise<void>;
   OpenExternalURL?: (url: string) => Promise<void>;
+  ReadReadHistory?: () => Promise<string>;
+  WriteReadHistory?: (doc: string) => Promise<void>;
 }
 
 interface DesktopWindow extends Window {
@@ -178,6 +180,33 @@ export async function saveDesktopBookContent(
   }
 
   await desktopApp.SaveBookContent(shelfID, bookID, suggestedName);
+}
+
+// Reading history is stored by the desktop shell itself (a JSON file next to
+// shelves.json), not by the server and not in WebView storage. These two
+// bindings are deliberately format-blind: the document is built and trimmed in
+// storage/readHistory, and Go only persists the text it is handed.
+export function hasDesktopReadHistoryBinding(): boolean {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  return Boolean(desktopApp?.ReadReadHistory && desktopApp?.WriteReadHistory);
+}
+
+export async function readDesktopReadHistory(): Promise<string> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.ReadReadHistory) {
+    throw new Error('ReadReadHistory binding not available');
+  }
+
+  return (await desktopApp.ReadReadHistory()) ?? '';
+}
+
+export async function writeDesktopReadHistory(doc: string): Promise<void> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.WriteReadHistory) {
+    throw new Error('WriteReadHistory binding not available');
+  }
+
+  await desktopApp.WriteReadHistory(doc);
 }
 
 export async function openDesktopExternalURL(url: string): Promise<void> {

@@ -9,6 +9,11 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
+// Body for the representative mutating request used throughout this file.
+// Updating a bookmark is the cheapest write that reaches the security
+// middleware: it needs no imported book and answers 204 on success.
+const markBody = `{"char_offset":0}`
+
 func newSecurityTestEnv(t *testing.T, conf *SecurityConf) *apiTestEnv {
 	t.Helper()
 	app, err := NewApp(&AppConf{
@@ -22,7 +27,6 @@ func newSecurityTestEnv(t *testing.T, conf *SecurityConf) *apiTestEnv {
 		},
 		StorePath:        t.TempDir(),
 		CoverToJPG:       false,
-		ReadHistoryLimit: 2,
 		Security:         conf,
 	})
 	if err != nil {
@@ -56,15 +60,15 @@ func TestSecurityLocalTokenProtectsMutatingAPI(t *testing.T) {
 	rec = env.doRaw(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
 	assertStatus(t, rec, http.StatusOK)
 
-	rec = env.doRaw(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id=book-1", nil))
+	rec = env.doRaw(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/marks/book-1", strings.NewReader(markBody)))
 	assertStatus(t, rec, http.StatusUnauthorized)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id=book-1", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/marks/book-1", strings.NewReader(markBody))
 	req.Header.Set(env.app.SecurityTokenHeader(), "wrong-token")
 	rec = env.doRaw(req)
 	assertStatus(t, rec, http.StatusUnauthorized)
 
-	req = httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id=book-1", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/marks/book-1", strings.NewReader(markBody))
 	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
 	rec = env.doRaw(req)
 	assertStatus(t, rec, http.StatusNoContent)
@@ -77,7 +81,7 @@ func TestSecurityOriginAndCORS(t *testing.T) {
 		AllowedOrigins:              []string{"http://localhost:20000"},
 	})
 
-	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id=book-1", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/marks/book-1", strings.NewReader(markBody))
 	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
 	req.Header.Set("Origin", "http://evil.example")
 	rec := env.doRaw(req)
@@ -86,7 +90,7 @@ func TestSecurityOriginAndCORS(t *testing.T) {
 		t.Fatalf("disallowed CORS origin header = %q, want empty", got)
 	}
 
-	req = httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id=book-1", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/marks/book-1", strings.NewReader(markBody))
 	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
 	req.Header.Set("Origin", "http://localhost:20000")
 	rec = env.doRaw(req)
@@ -95,13 +99,13 @@ func TestSecurityOriginAndCORS(t *testing.T) {
 		t.Fatalf("allowed CORS origin header = %q, want http://localhost:20000", got)
 	}
 
-	req = httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id=book-2", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/marks/book-2", strings.NewReader(markBody))
 	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
 	req.Header.Set("Referer", "http://localhost:20000/books")
 	rec = env.doRaw(req)
 	assertStatus(t, rec, http.StatusNoContent)
 
-	req = httptest.NewRequest(http.MethodOptions, "/api/shelves/default_shelf/read_history", nil)
+	req = httptest.NewRequest(http.MethodOptions, "/api/shelves/default_shelf/marks/book-1", nil)
 	req.Header.Set("Origin", "http://localhost:20000")
 	req.Header.Set("Access-Control-Request-Method", "POST")
 	rec = env.doRaw(req)

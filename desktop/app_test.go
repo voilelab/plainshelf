@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/voilelab/plainshelf/server"
@@ -283,5 +284,93 @@ func TestOpenLayerDirectoryOpensFinderForLayerPath(t *testing.T) {
 	}
 	if openedPath != layerDir {
 		t.Fatalf("openFinder path = %q, want %q", openedPath, layerDir)
+	}
+}
+
+func TestReadReadHistoryReturnsEmptyWhenUnwritten(t *testing.T) {
+	app := &DesktopApp{readHistoryPath: filepath.Join(t.TempDir(), "read_history.json")}
+
+	doc, err := app.ReadReadHistory()
+	if err != nil {
+		t.Fatalf("ReadReadHistory: %v", err)
+	}
+	if doc != "" {
+		t.Fatalf("ReadReadHistory on a fresh profile = %q, want empty", doc)
+	}
+}
+
+func TestWriteAndReadReadHistoryRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "read_history.json")
+	app := &DesktopApp{readHistoryPath: path}
+	stored := `{"version":1,"limit":100,"shelves":{"main":["book-1","book-2"]}}`
+
+	if err := app.WriteReadHistory(stored); err != nil {
+		t.Fatalf("WriteReadHistory: %v", err)
+	}
+
+	doc, err := app.ReadReadHistory()
+	if err != nil {
+		t.Fatalf("ReadReadHistory: %v", err)
+	}
+	if doc != stored {
+		t.Fatalf("ReadReadHistory = %q, want %q", doc, stored)
+	}
+
+	// A second write replaces the document rather than appending to it, and
+	// leaves no temp file behind.
+	replacement := `{"version":1,"limit":100,"shelves":{}}`
+	if err := app.WriteReadHistory(replacement); err != nil {
+		t.Fatalf("WriteReadHistory (replace): %v", err)
+	}
+	doc, err = app.ReadReadHistory()
+	if err != nil {
+		t.Fatalf("ReadReadHistory (replace): %v", err)
+	}
+	if doc != replacement {
+		t.Fatalf("ReadReadHistory after replace = %q, want %q", doc, replacement)
+	}
+
+	entries, err := os.ReadDir(filepath.Dir(path))
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Name() != filepath.Base(path) {
+		t.Fatalf("unexpected files left in the data directory: %v", entries)
+	}
+}
+
+func TestWriteReadHistoryRejectsInvalidDocuments(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "read_history.json")
+	app := &DesktopApp{readHistoryPath: path}
+	valid := `{"version":1,"limit":100,"shelves":{}}`
+	if err := app.WriteReadHistory(valid); err != nil {
+		t.Fatalf("WriteReadHistory: %v", err)
+	}
+
+	if err := app.WriteReadHistory("not json"); err == nil {
+		t.Fatal("WriteReadHistory accepted a non-JSON document")
+	}
+	if err := app.WriteReadHistory(`{"pad":"` + strings.Repeat("x", maxReadHistoryDocumentBytes) + `"}`); err == nil {
+		t.Fatal("WriteReadHistory accepted an oversized document")
+	}
+
+	// A rejected write must not disturb the document already on disk.
+	doc, err := app.ReadReadHistory()
+	if err != nil {
+		t.Fatalf("ReadReadHistory: %v", err)
+	}
+	if doc != valid {
+		t.Fatalf("stored document after rejected writes = %q, want %q", doc, valid)
+	}
+}
+
+func TestReadHistoryFailsWithoutStoragePath(t *testing.T) {
+	app := &DesktopApp{}
+
+	if _, err := app.ReadReadHistory(); err == nil {
+		t.Fatal("ReadReadHistory succeeded before startup configured a path")
+	}
+	if err := app.WriteReadHistory(`{}`); err == nil {
+		t.Fatal("WriteReadHistory succeeded before startup configured a path")
 	}
 }

@@ -100,14 +100,12 @@ export function assertApiMode(): void {
 
 
 // The mobile shell is a reading client and never mutates the shelf, but it does
-// still record what was read. These are the only writes it may issue; everything
-// else is rejected before it leaves the device. Matching is method-aware so that
-// POST /read_history stays allowed while DELETE /read_history (clear history)
-// does not, and the trailing `(\?|$)` covers addReadHistory's `?book_id=` query.
-const MOBILE_WRITE_ALLOWLIST = [
-  /^\/api\/shelves\/[^/]+\/read_history(\?|$)/,
-  /^\/api\/shelves\/[^/]+\/reading_activity(\?|$)/
-];
+// still report reading time for the dashboard heatmap. That is the only write
+// it may issue; everything else is rejected before it leaves the device.
+// (Reading history is not here: it is stored on the device and never sent.)
+// Matching is method-aware so a POST is allowed where a DELETE to the same path
+// is not, and the trailing `(\?|$)` tolerates a query string.
+const MOBILE_WRITE_ALLOWLIST = [/^\/api\/shelves\/[^/]+\/reading_activity(\?|$)/];
 
 function isMobileAllowedWrite(path: string, method: string): boolean {
   return method === 'POST' && MOBILE_WRITE_ALLOWLIST.some((pattern) => pattern.test(path));

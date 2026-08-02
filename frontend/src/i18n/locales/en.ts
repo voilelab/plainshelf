@@ -184,7 +184,8 @@ const en = {
     },
     readHistoryLimit: {
       label: 'Reading history limit',
-      description: 'Maximum number of recently read books to keep. Use 0 to disable retaining history.',
+      description:
+        'Maximum number of recently read books to keep on this device. Reading history is stored locally and never sent to the server. Use 0 to disable retaining history.',
       invalid: 'Reading history limit must be a non-negative whole number.'
     },
     about: {

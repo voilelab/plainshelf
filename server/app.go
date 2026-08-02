@@ -44,7 +44,6 @@ type AppConf struct {
 	Worker             *WorkerConf              `yaml:"worker"`
 	StorePath          string                   `yaml:"store_path"`
 	CoverToJPG         bool                     `yaml:"cover_to_jpg"`
-	ReadHistoryLimit   int                      `yaml:"read_history_limit"`
 	DefaultSplitConfig *shelf.SplitConfig       `yaml:"default_split_config"`
 	ReadOnly           bool                     `yaml:"read_only"`
 	Security           *SecurityConf            `yaml:"security"`
@@ -281,10 +280,6 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/marks/{book_id}", app.HandleAPIGetMarks)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/marks/{book_id}", app.HandleAPIUpdateMarks)
 
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/read_history", app.HandleAPIGetReadHistory)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/read_history", app.HandleAPIUpdateReadHistory)
-	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/read_history", app.HandleAPIClearReadHistory)
-
 	// Stats API
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/reading_activity", app.HandleAPIGetReadingActivity)
@@ -304,9 +299,6 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/setting/cover_to_jpg", app.HandleGetSettingCoverToJPG)
 	mux.HandleFunc("POST /api/setting/cover_to_jpg", app.HandleSetSettingCoverToJPG)
 	mux.HandleFunc("DELETE /api/setting/cover_to_jpg", app.HandleDeleteSettingCoverToJPG)
-	mux.HandleFunc("GET /api/setting/read_history_limit", app.HandleGetSettingReadHistoryLimit)
-	mux.HandleFunc("POST /api/setting/read_history_limit", app.HandleSetSettingReadHistoryLimit)
-	mux.HandleFunc("DELETE /api/setting/read_history_limit", app.HandleDeleteSettingReadHistoryLimit)
 	mux.HandleFunc("GET /api/setting/default_split_config", app.HandleGetSettingDefaultSplitConfig)
 	mux.HandleFunc("POST /api/setting/default_split_config", app.HandleSetSettingDefaultSplitConfig)
 	mux.HandleFunc("DELETE /api/setting/default_split_config", app.HandleDeleteSettingDefaultSplitConfig)

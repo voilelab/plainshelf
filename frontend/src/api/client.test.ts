@@ -59,19 +59,14 @@ describe('assertWritableRequest', () => {
       expect(fetchMock).toHaveBeenCalledOnce();
     });
 
-    it('allows recording read history', async () => {
-      await fetchJson(`/api/shelves/${SHELF}/read_history?book_id=abc`, { method: 'POST' });
-      expect(fetchMock).toHaveBeenCalledOnce();
-    });
-
     it('allows reporting reading activity', async () => {
-      await fetchJson(`/api/shelves/${SHELF}/reading_activity`, { method: 'POST' });
+      await fetchJson(`/api/shelves/${SHELF}/reading_activity?book_id=abc`, { method: 'POST' });
       expect(fetchMock).toHaveBeenCalledOnce();
     });
 
-    it('rejects clearing read history', async () => {
+    it('rejects a non-POST to the allowlisted path', async () => {
       await expect(
-        fetchJson(`/api/shelves/${SHELF}/read_history`, { method: 'DELETE' })
+        fetchJson(`/api/shelves/${SHELF}/reading_activity`, { method: 'DELETE' })
       ).rejects.toThrow(ApiError);
       expect(fetchMock).not.toHaveBeenCalled();
     });
@@ -94,7 +89,7 @@ describe('assertWritableRequest', () => {
 
     it('does not let an allowlisted suffix elsewhere in the path through', async () => {
       await expect(
-        fetchJson(`/api/shelves/${SHELF}/books/read_history`, { method: 'POST' })
+        fetchJson(`/api/shelves/${SHELF}/books/reading_activity`, { method: 'POST' })
       ).rejects.toThrow(ApiError);
       expect(fetchMock).not.toHaveBeenCalled();
     });
@@ -110,7 +105,7 @@ describe('assertWritableRequest', () => {
       (window as unknown as { __PLAINSHELF_READ_ONLY__?: boolean }).__PLAINSHELF_READ_ONLY__ = true;
 
       await expect(
-        fetchJson(`/api/shelves/${SHELF}/read_history?book_id=abc`, { method: 'POST' })
+        fetchJson(`/api/shelves/${SHELF}/reading_activity`, { method: 'POST' })
       ).rejects.toThrow(ApiError);
       expect(fetchMock).not.toHaveBeenCalled();
     });

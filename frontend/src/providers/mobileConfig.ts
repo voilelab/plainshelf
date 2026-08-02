@@ -10,8 +10,8 @@ import { setActiveShelfID, setApiBase } from '@/api/client';
 // The token is not what makes the app read-only — api/client.ts rejects every
 // non-allowlisted mutation before it is sent, token or not. It exists because
 // server/security.go requires a token for *any* mutating /api request, so
-// without one the two allowlisted reading-telemetry POSTs (read_history,
-// reading_activity) get a 401, and a `protect_read` server rejects reads too.
+// without one the allowlisted reading-telemetry POST (reading_activity) gets a
+// 401, and a `protect_read` server rejects reads too.
 const KEY_SERVER_URL = 'plainshelf.mobile.serverUrl';
 const KEY_TOKEN = 'plainshelf.mobile.token';
 const KEY_SHELF_ID = 'plainshelf.mobile.shelfId';
