@@ -29,7 +29,8 @@ export function createDesktopReadingStatsStorage(): ReadingStatsStorage {
 }
 
 // Sibling of the read-history document and FilesystemMobileBookCache's
-// `plainshelf-cache/books`.
+// `plainshelf-cache/scopes`. One file for every shelf, keyed internally by the
+// same buildDeviceDocumentKey the cache uses for its scope directory.
 export const MOBILE_READING_STATS_PATH = 'plainshelf-cache/reading-stats.json';
 
 /** Capacitor (Android) native shell. */

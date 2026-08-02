@@ -28,7 +28,9 @@ export function createDesktopReadHistoryStorage(): ReadHistoryStorage {
   });
 }
 
-// Sibling of FilesystemMobileBookCache's `plainshelf-cache/books`.
+// Sibling of FilesystemMobileBookCache's `plainshelf-cache/scopes`. One file for
+// every shelf: the document keys its shelves internally, using the same
+// buildDeviceDocumentKey the cache uses for its scope directory.
 export const MOBILE_READ_HISTORY_PATH = 'plainshelf-cache/read-history.json';
 
 /** Capacitor (Android) native shell. */
