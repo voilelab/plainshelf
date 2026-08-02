@@ -1,11 +1,12 @@
 import { computed, ref } from 'vue';
-// TODO(next phase): route this through BookshelfProvider once the dashboard's
-// data needs (char_count, per-runtime reading history) are designed into the
-// provider interface for mobile/Wails too. For this skeleton we call the API
-// layer directly so char_count reaches the page without touching
-// providers/bookshelfProvider.ts (out of scope for this task).
+// TODO(next phase): route listBooks through BookshelfProvider once the
+// dashboard's char_count need is designed into the provider interface for
+// mobile/Wails too. For this skeleton we call the API layer directly so
+// char_count reaches the page without touching providers/bookshelfProvider.ts
+// (out of scope for this task). Reading activity does not go through the
+// provider by design: it is device-local and never involves the server.
 import { listBooks } from '@/api/books';
-import { getBookshelfProvider } from '@/providers';
+import { getReadingActivityRange } from '@/storage/readingStats';
 import type { Book } from '@/types/book';
 
 const READING_ACTIVITY_RANGE_DAYS = 365;
@@ -132,7 +133,7 @@ export function useDashboardData() {
 
       const [data, activity] = await Promise.all([
         listBooks(1, Number.MAX_SAFE_INTEGER, { includeCharCount: true }),
-        getBookshelfProvider().getReadingActivity(toIsoDate(from), toIsoDate(to))
+        getReadingActivityRange(toIsoDate(from), toIsoDate(to))
       ]);
       books.value = data.items;
       readingActivity.value = activity;

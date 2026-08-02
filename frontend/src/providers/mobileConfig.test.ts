@@ -45,11 +45,11 @@ describe('mobileConfig token wiring', () => {
     setActiveShelfIDMock.mockReset();
   });
 
-  // The regression this pins: server/security.go requires a token for every
-  // mutating /api request, so without this wiring the allowlisted read_history
-  // and reading_activity POSTs 401 on a native install. The e2e suite cannot
-  // catch it — its preview loads index.html from the Go server, which injects
-  // window.__PLAINSHELF_SECURITY__, a source a real APK never has.
+  // The regression this pins: a `protect_read` server requires a token for
+  // reads too, so without this wiring a native install cannot browse one at
+  // all. The e2e suite cannot catch it — its preview loads index.html from the
+  // Go server, which injects window.__PLAINSHELF_SECURITY__, a source a real
+  // APK never has.
   it('exposes the stored token to the API client via window.plainshelf', async () => {
     store.set('plainshelf.mobile.token', 'secret-token');
 

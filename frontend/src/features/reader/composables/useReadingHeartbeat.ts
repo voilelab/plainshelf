@@ -1,6 +1,6 @@
 import { watch } from 'vue';
 
-import { getBookshelfProvider } from '@/providers';
+import { addReadingSeconds } from '@/storage/readingStats';
 
 const TICK_INTERVAL_MS = 45_000;
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -69,11 +69,9 @@ export function useReadingHeartbeat(bookID: () => string) {
     }
 
     const date = toIsoDate(new Date());
-    getBookshelfProvider()
-      .reportReadingActivity(currentBookID, rounded, date)
-      .catch((err) => {
-        console.warn('Failed to report reading activity', err);
-      });
+    addReadingSeconds(currentBookID, rounded, date).catch((err) => {
+      console.warn('Failed to record reading activity', err);
+    });
   }
 
   // Flush the stretch accumulated for the previous book under its own ID,

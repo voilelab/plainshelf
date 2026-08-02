@@ -59,18 +59,6 @@ describe('assertWritableRequest', () => {
       expect(fetchMock).toHaveBeenCalledOnce();
     });
 
-    it('allows reporting reading activity', async () => {
-      await fetchJson(`/api/shelves/${SHELF}/reading_activity?book_id=abc`, { method: 'POST' });
-      expect(fetchMock).toHaveBeenCalledOnce();
-    });
-
-    it('rejects a non-POST to the allowlisted path', async () => {
-      await expect(
-        fetchJson(`/api/shelves/${SHELF}/reading_activity`, { method: 'DELETE' })
-      ).rejects.toThrow(ApiError);
-      expect(fetchMock).not.toHaveBeenCalled();
-    });
-
     it.each([
       ['metadata edit', `/api/shelves/${SHELF}/books/abc`, 'PATCH'],
       ['cover upload', `/api/shelves/${SHELF}/books/abc/cover`, 'PUT'],
@@ -81,16 +69,12 @@ describe('assertWritableRequest', () => {
       ['delete layer', `/api/shelves/${SHELF}/layers/fiction`, 'DELETE'],
       ['empty trash', `/api/shelves/${SHELF}/trash/empty`, 'POST'],
       ['batch operation', `/api/shelves/${SHELF}/book-batches`, 'POST'],
-      ['server setting', '/api/setting/cover_to_jpg', 'POST']
+      ['server setting', '/api/setting/cover_to_jpg', 'POST'],
+      // Reading time used to be the one write the mobile shell was allowed to
+      // make; it is recorded on the device now, so no write is exempt.
+      ['reading activity', `/api/shelves/${SHELF}/reading_activity`, 'POST']
     ])('rejects %s', async (_label, path, method) => {
       await expect(fetchJson(path, { method })).rejects.toThrow(ApiError);
-      expect(fetchMock).not.toHaveBeenCalled();
-    });
-
-    it('does not let an allowlisted suffix elsewhere in the path through', async () => {
-      await expect(
-        fetchJson(`/api/shelves/${SHELF}/books/reading_activity`, { method: 'POST' })
-      ).rejects.toThrow(ApiError);
       expect(fetchMock).not.toHaveBeenCalled();
     });
   });
@@ -105,7 +89,7 @@ describe('assertWritableRequest', () => {
       (window as unknown as { __PLAINSHELF_READ_ONLY__?: boolean }).__PLAINSHELF_READ_ONLY__ = true;
 
       await expect(
-        fetchJson(`/api/shelves/${SHELF}/reading_activity`, { method: 'POST' })
+        fetchJson(`/api/shelves/${SHELF}/books/abc`, { method: 'PATCH' })
       ).rejects.toThrow(ApiError);
       expect(fetchMock).not.toHaveBeenCalled();
     });

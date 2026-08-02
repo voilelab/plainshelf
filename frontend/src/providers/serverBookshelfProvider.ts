@@ -34,7 +34,6 @@ import {
 } from '@/api/sources';
 import { getTaskChain } from '@/api/taskchains';
 import { startBookBatch } from '@/api/bookBatches';
-import { getReadingActivity, reportReadingActivity } from '@/api/readingActivity';
 import {
   addReadHistory as addLocalReadHistory,
   clearReadHistory as clearLocalReadHistory
@@ -112,14 +111,6 @@ export class ServerBookshelfProvider implements BookshelfProvider {
 
   clearReadHistory(): Promise<void> {
     return clearLocalReadHistory();
-  }
-
-  getReadingActivity(from: string, to: string): Promise<Record<string, number>> {
-    return getReadingActivity(from, to);
-  }
-
-  reportReadingActivity(bookId: string, seconds: number, date: string): Promise<void> {
-    return reportReadingActivity(bookId, seconds, date);
   }
 
   importBook(payload: BookCreateRequest): Promise<Book> {

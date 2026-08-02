@@ -62,9 +62,6 @@ func TestShelfRuntimeStateAndScanInterval(t *testing.T) {
 	if shelf.InitErr() != nil {
 		t.Fatalf("InitErr = %v, want nil", shelf.InitErr())
 	}
-	if shelf.ReadingStats() == nil {
-		t.Fatal("ReadingStats returned nil")
-	}
 
 	if err := shelf.SetScanInterval("invalid"); err == nil {
 		t.Fatal("SetScanInterval accepted an invalid duration")

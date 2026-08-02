@@ -19,10 +19,7 @@ A typical shelf looks like this:
 │        └─ {book3-folder}.bookpkg/
 └─ app/
    ├─ library.lock
-   ├─ tmp/
-   └─ stats/
-      └─ reading/
-         └─ {YYYY-MM}.json
+   └─ tmp/
 ```
 
 ### `books/`
@@ -31,7 +28,9 @@ Source of truth. This directory contains all user-owned data: book metadata, tex
 
 ### `app/`
 
-Runtime state used by the server: file lock and temporary files (rebuildable, not user data), plus per-day reading-time history under `stats/reading/` (one JSON file per calendar month) that powers the dashboard's reading heatmap and streak. Unlike the lock and temporary files, reading-time history is **not** derived from `books/` — deleting `app/` discards it.
+Runtime state used by the server: file lock and temporary files. All of it is rebuildable and none of it is user data — the server recreates it on the next startup.
+
+Older shelves may still contain `app/stats/reading/{YYYY-MM}.json`. That is reading-time history from before it moved onto each device; nothing reads it any more and it can be deleted.
 
 ---
 
@@ -68,4 +67,4 @@ The book ID is generated once when the book is created and then persisted in `bo
 
 - **Human-readable** — the shelf directory can be opened and inspected with any file manager or text editor.
 - **Backup-friendly** — because everything is plain files, the shelf is trivially backed up with `cp`, `rsync`, or committed to Git.
-- **Rebuildable runtime state** — the file lock and temporary files under `app/` can be deleted and the server will recreate them on the next startup. The one exception is `app/stats/reading/`: it holds reading-time history that isn't derived from `books/`, so deleting it loses that history (dashboard heatmap and streak) even though nothing else breaks. See [Back up before upgrading](data-format-versioning.md#back-up-before-upgrading) for what a complete backup covers.
+- **Rebuildable runtime state** — everything under `app/` can be deleted and the server will recreate it on the next startup. See [Back up before upgrading](data-format-versioning.md#back-up-before-upgrading) for what a complete backup covers.

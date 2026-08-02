@@ -2,16 +2,15 @@
 
 The Android client is experimental. It wraps the Vue frontend with Capacitor
 and connects to a separately running PlainShelf server. Downloaded books,
-covers, reading progress, and read history are stored locally in the app's
-private storage (`Directory.Data`, no runtime permission required); reading
-progress and read history do not sync back to the server.
+covers, reading progress, read history, and reading time are stored locally in
+the app's private storage (`Directory.Data`, no runtime permission required);
+none of them sync back to the server.
 
 The app is **read-only**: it browses, reads, and downloads books for offline
-use, and it reports reading activity to the server, but it never modifies the
-library. Editing pages (metadata, sources, trash, and the maintenance views)
-are not reachable on Android, and write requests are rejected on the device
-before they are sent. Reporting reading activity still requires an access token
-— see [Connect a physical device](#connect-a-physical-device).
+use, but it never modifies the library and issues no write requests at all.
+Editing pages (metadata, sources, trash, and the maintenance views) are not
+reachable on Android, and write requests are rejected on the device before they
+are sent.
 
 ## Prerequisites
 
@@ -72,8 +71,9 @@ just run-android-app
 This starts the local server, waits for it to become healthy, boots an available
 emulator when needed, builds and launches the app, and prints the ephemeral
 access token. In the emulator, connect to `http://10.0.2.2:20000`; Android maps
-`10.0.2.2` to the host loopback address. Enter the printed token under
-**Settings → Connection** if you want this device to report reading activity.
+`10.0.2.2` to the host loopback address. The printed token only needs to be
+entered under **Settings → Connection** when the server sets `protect_read:
+true`.
 
 ## Connect a physical device
 
@@ -81,13 +81,11 @@ The server must listen on a LAN-reachable address instead of `127.0.0.1`. From
 the phone, verify that `http://<server-ip>:20000/health` returns `1`, then enter
 the same server URL in **Settings → Connection**.
 
-Browsing and reading require no access token. A token is still needed for the
-app to report reading activity, because the server requires one for every
-mutating `/api` request, and it is required outright when the server sets
-`protect_read: true`. The token does not enable editing — the client
-rejects those requests regardless. The app uses Capacitor's native HTTP bridge,
-so plain-HTTP API requests do not require adding the app origin to
-`allowed_origins`.
+Browsing and reading require no access token. One is needed only when the server
+sets `protect_read: true`, which requires a token for reads as well. The token
+does not enable editing — the client rejects write requests regardless. The app
+uses Capacitor's native HTTP bridge, so plain-HTTP API requests do not require
+adding the app origin to `allowed_origins`.
 
 ## App icons and splash screens
 

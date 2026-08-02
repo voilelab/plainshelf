@@ -99,19 +99,10 @@ export function assertApiMode(): void {
 }
 
 
-// The mobile shell is a reading client and never mutates the shelf, but it does
-// still report reading time for the dashboard heatmap. That is the only write
-// it may issue; everything else is rejected before it leaves the device.
-// (Reading history is not here: it is stored on the device and never sent.)
-// Matching is method-aware so a POST is allowed where a DELETE to the same path
-// is not, and the trailing `(\?|$)` tolerates a query string.
-const MOBILE_WRITE_ALLOWLIST = [/^\/api\/shelves\/[^/]+\/reading_activity(\?|$)/];
-
-function isMobileAllowedWrite(path: string, method: string): boolean {
-  return method === 'POST' && MOBILE_WRITE_ALLOWLIST.some((pattern) => pattern.test(path));
-}
-
-function assertWritableRequest(path: string, init?: RequestInit): void {
+// The mobile shell is a reading client and issues no writes at all: reading
+// history, reading progress and reading stats are all stored on the device and
+// never sent. Every mutation is rejected before it leaves the device.
+function assertWritableRequest(init?: RequestInit): void {
   const method = String(init?.method ?? 'GET').toUpperCase();
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
     return;
@@ -126,7 +117,7 @@ function assertWritableRequest(path: string, init?: RequestInit): void {
     throw new ApiError('Server is in read-only mode. Write operations are disabled.');
   }
 
-  if (isMobileRuntime() && !isMobileAllowedWrite(path, method)) {
+  if (isMobileRuntime()) {
     throw new ApiError('The mobile app is read-only. Write operations are disabled.');
   }
 }
@@ -241,7 +232,7 @@ export async function fetchJson<T>(
   options?: FetchJsonOptions
 ): Promise<T> {
   assertApiMode();
-  assertWritableRequest(path, init);
+  assertWritableRequest(init);
 
   const requestInit = await withApiHeaders(init);
   const headers = new Headers(requestInit.headers ?? {});
@@ -281,7 +272,7 @@ export async function fetchJson<T>(
 
 export async function fetchText(path: string, init?: RequestInit): Promise<string> {
   assertApiMode();
-  assertWritableRequest(path, init);
+  assertWritableRequest(init);
 
   const res = await fetchWithTimeout(buildApiUrl(path), await withApiHeaders(init), FETCH_STREAM_TIMEOUT_MS);
   if (!res.ok) {
@@ -293,7 +284,7 @@ export async function fetchText(path: string, init?: RequestInit): Promise<strin
 
 export async function fetchBlob(path: string, init?: RequestInit): Promise<Blob> {
   assertApiMode();
-  assertWritableRequest(path, init);
+  assertWritableRequest(init);
 
   const res = await fetchWithTimeout(buildApiUrl(path), await withApiHeaders(init), FETCH_STREAM_TIMEOUT_MS);
   if (!res.ok) {

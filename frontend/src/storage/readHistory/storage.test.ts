@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// The storage backends themselves are covered by storage/deviceDocument.test.ts.
+// What this file pins is the read-history wiring on top of them: the
+// app-private path, and that a failed read never lets a write through.
+
 const { readFileMock, writeFileMock } = vi.hoisted(() => ({
   readFileMock: vi.fn(),
   writeFileMock: vi.fn()
@@ -37,20 +41,8 @@ describe('createFilesystemReadHistoryStorage', () => {
     );
   });
 
-  it('treats a missing file as no history yet', async () => {
-    readFileMock.mockRejectedValue(new Error('File does not exist.'));
-
-    expect(await createFilesystemReadHistoryStorage().load()).toBeNull();
-  });
-
   // Reporting a failed read as "no history" would let the next write replace a
   // document that was never read, wiping every shelf's history.
-  it('propagates a read failure that is not a missing file', async () => {
-    readFileMock.mockRejectedValue(new Error('EACCES: permission denied'));
-
-    await expect(createFilesystemReadHistoryStorage().load()).rejects.toThrow('permission denied');
-  });
-
   it('does not overwrite the stored document when the read fails', async () => {
     readFileMock.mockRejectedValue(new Error('EACCES: permission denied'));
     const store = new ReadHistoryStore(createFilesystemReadHistoryStorage());
