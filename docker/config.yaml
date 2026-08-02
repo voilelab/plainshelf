@@ -30,7 +30,6 @@ app_conf:
       lib_root: "/data/shelf"
   store_path: "/data/store"
   cover_to_jpg: true
-  read_history_limit: 100
   read_only: false
   security:
     # Explicitly unsafe for container deployments; put PlainShelf behind a trusted

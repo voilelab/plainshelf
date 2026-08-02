@@ -13,6 +13,11 @@ import type {
 import type { SourceMeta } from '@/types/source';
 import type { BookBatchRequest, TaskChain } from '@/types/task';
 import { ApiError } from '@/api/client';
+import {
+  addReadHistory as addLocalReadHistory,
+  clearReadHistory as clearLocalReadHistory
+} from '@/storage/readHistory';
+import { collectReadHistoryBooks } from './readHistoryBooks';
 import type {
   BookshelfProvider,
   DesktopImportBookResult,
@@ -183,31 +188,25 @@ export class MobileBookshelfProvider implements BookshelfProvider {
     return this.cache.saveReadProgress(bookId, progress);
   }
 
-  async addReadHistory(bookId: string): Promise<void> {
-    if (!this.isOnline()) {
-      return;
-    }
-
-    try {
-      await this.remote.addReadHistory(bookId);
-    } catch (err) {
-      if (!isServerUnreachableError(err)) {
-        throw err;
-      }
-    }
+  // Reading history lives on the device (see storage/readHistory), so it is
+  // recorded and cleared regardless of connectivity. Listing goes through this
+  // provider's own listBooks, which falls back to the offline cache, so the
+  // history page still shows downloaded books when the server is unreachable.
+  addReadHistory(bookId: string): Promise<void> {
+    return addLocalReadHistory(bookId);
   }
 
   listReadHistoryBooks(): Promise<Book[]> {
-    return this.remote.listReadHistoryBooks();
+    return collectReadHistoryBooks((page, pageSize) => this.listBooks(page, pageSize));
   }
 
   clearReadHistory(): Promise<void> {
-    return this.remote.clearReadHistory();
+    return clearLocalReadHistory();
   }
 
   // No local cache for reading activity: mobile only ever shows what the
   // server knows about. Offline / server-unreachable just means "no data to
-  // show yet" rather than an error, matching addReadHistory's tolerance below.
+  // show yet" rather than an error.
   async getReadingActivity(from: string, to: string): Promise<Record<string, number>> {
     if (!this.isOnline()) {
       return {};

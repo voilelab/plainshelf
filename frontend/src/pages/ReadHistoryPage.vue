@@ -35,8 +35,9 @@
       @update:page-size="onPageSizeChange"
     >
       <template #toolbar>
+        <!-- Clearing only touches this device's stored history, so it stays
+             available on read-only servers and on the mobile shell. -->
         <button
-          v-if="!readOnly"
           class="button clear-history-button"
           type="button"
           :disabled="books.length === 0 || loading || clearing"
@@ -97,7 +98,7 @@ async function loadReadHistory(): Promise<void> {
 }
 
 async function onClearHistory(): Promise<void> {
-  if (readOnly.value || books.value.length === 0 || clearing.value) {
+  if (books.value.length === 0 || clearing.value) {
     return;
   }
 

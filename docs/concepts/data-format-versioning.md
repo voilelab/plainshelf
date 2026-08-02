@@ -152,7 +152,9 @@ rsync -a /path/to/shelf/ /path/to/backup/shelf-2026-07-28/
 Two things people miss:
 
 - **Also copy the application store** (`--store-path`, or the platform default).
-  Bookmarks and read history live there and are *not* derived from `books/`.
+  Bookmarks live there and are *not* derived from `books/`. (Read history is
+  not in the store: each client keeps its own on the device that did the
+  reading, so it is not covered by a server-side backup.)
 - **`app/stats/reading/` is inside the shelf but is not rebuildable either.** It
   holds reading-time history (the dashboard heatmap and streak). Everything else
   under `app/` — the lock file and temporary files — can be discarded safely.

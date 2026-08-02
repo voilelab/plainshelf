@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -23,6 +26,7 @@ type DesktopApp struct {
 	apiHandler        http.Handler
 	ctx               context.Context
 	shelvesConfigPath string
+	readHistoryPath   string
 	startupErr        error
 }
 
@@ -96,6 +100,76 @@ func (a *DesktopApp) GetAPIHandler() http.Handler {
 		})
 	}
 	return a.apiHandler
+}
+
+// Reading history is per-device state: it never reaches the server, and on the
+// desktop it must not depend on WebView storage either (clearing site data or
+// a WebView profile change would take it with it). It is stored as a JSON file
+// next to shelves.json instead.
+//
+// The document format belongs to the frontend (frontend/src/storage/readHistory),
+// which owns the single implementation of merging and trimming; this side only
+// checks that what it is handed is JSON of a sane size, and persists it.
+const maxReadHistoryDocumentBytes = 1 << 20
+
+// ReadReadHistory returns the stored reading-history document, or an empty
+// string when this device has not stored one yet.
+func (a *DesktopApp) ReadReadHistory() (string, error) {
+	if a.readHistoryPath == "" {
+		return "", util.NewError("desktop storage is not ready")
+	}
+
+	bs, err := os.ReadFile(a.readHistoryPath)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	return string(bs), nil
+}
+
+// WriteReadHistory replaces the stored reading-history document. The write is
+// atomic (temp file plus rename) so an interrupted write cannot leave a
+// half-written document behind.
+func (a *DesktopApp) WriteReadHistory(doc string) error {
+	if a.readHistoryPath == "" {
+		return util.NewError("desktop storage is not ready")
+	}
+	if len(doc) > maxReadHistoryDocumentBytes {
+		return util.Errorf("read history document is too large: %d bytes", len(doc))
+	}
+	if !json.Valid([]byte(doc)) {
+		return util.NewError("read history document is not valid JSON")
+	}
+
+	dir := filepath.Dir(a.readHistoryPath)
+	tmp, err := os.CreateTemp(dir, ".read_history-*.json")
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	tmpPath := tmp.Name()
+
+	if _, err := tmp.WriteString(doc); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return util.Errorf("%w", err)
+	}
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return util.Errorf("%w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return util.Errorf("%w", err)
+	}
+	if err := os.Rename(tmpPath, a.readHistoryPath); err != nil {
+		os.Remove(tmpPath)
+		return util.Errorf("%w", err)
+	}
+
+	return nil
 }
 
 func (a *DesktopApp) OpenExternalURL(rawURL string) error {
@@ -620,10 +694,9 @@ func (a *DesktopApp) startServer() error {
 				Prefix: "app",
 			},
 		},
-		Shelves:          shelves,
-		StorePath:        filepath.Join(dataRoot, "store"),
-		CoverToJPG:       true,
-		ReadHistoryLimit: 100,
+		Shelves:    shelves,
+		StorePath:  filepath.Join(dataRoot, "store"),
+		CoverToJPG: true,
 		Security: &server.SecurityConf{
 			Mode: server.SecurityModeNone,
 		},
@@ -640,6 +713,7 @@ func (a *DesktopApp) startServer() error {
 	}
 
 	a.shelvesConfigPath = shelvesConfigPath
+	a.readHistoryPath = filepath.Join(dataRoot, "read_history.json")
 	a.app = app
 	return nil
 }

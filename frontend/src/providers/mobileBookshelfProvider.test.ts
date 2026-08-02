@@ -1,5 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { addReadHistoryMock, clearReadHistoryMock, getReadHistoryIDsMock } = vi.hoisted(() => ({
+  addReadHistoryMock: vi.fn(),
+  clearReadHistoryMock: vi.fn(),
+  getReadHistoryIDsMock: vi.fn()
+}));
+
+// Reading history is device-local; the provider must never route it through
+// the remote. Stubbing the store keeps these tests off real device storage.
+vi.mock('@/storage/readHistory', () => ({
+  addReadHistory: addReadHistoryMock,
+  clearReadHistory: clearReadHistoryMock,
+  getReadHistoryIDs: getReadHistoryIDsMock
+}));
+
 import { ApiError } from '@/api/client';
 import type { Book, PaginatedBooks, ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
@@ -162,21 +176,67 @@ describe('MobileBookshelfProvider — server-unreachable-while-online fallback',
       expect(result).toEqual({ char_offset: 0 });
     });
   });
+});
 
-  describe('addReadHistory', () => {
-    it('resolves silently when unreachable', async () => {
-      const addReadHistory = vi.fn().mockRejectedValue(unreachableError());
-      const provider = makeProvider({ addReadHistory });
+describe('MobileBookshelfProvider — device-local reading history', () => {
+  let cache: InMemoryMobileBookCache;
 
-      await expect(provider.addReadHistory('book-1')).resolves.toBeUndefined();
-    });
+  beforeEach(() => {
+    cache = new InMemoryMobileBookCache();
+    addReadHistoryMock.mockReset().mockResolvedValue(undefined);
+    clearReadHistoryMock.mockReset().mockResolvedValue(undefined);
+    getReadHistoryIDsMock.mockReset().mockResolvedValue([]);
+  });
 
-    it('rejects with a real HTTP error status instead of swallowing it', async () => {
-      const addReadHistory = vi.fn().mockRejectedValue(statusError(500));
-      const provider = makeProvider({ addReadHistory });
+  function makeProvider(remote: Partial<BookshelfProvider>, isOnline = () => true): MobileBookshelfProvider {
+    return new MobileBookshelfProvider(remote as BookshelfProvider, cache, isOnline);
+  }
 
-      await expect(provider.addReadHistory('book-1')).rejects.toMatchObject({ status: 500 });
-    });
+  it('records into device storage without calling the remote, even offline', async () => {
+    const addReadHistory = vi.fn();
+    const provider = makeProvider({ addReadHistory }, () => false);
+
+    await provider.addReadHistory('book-1');
+
+    expect(addReadHistoryMock).toHaveBeenCalledWith('book-1');
+    expect(addReadHistory).not.toHaveBeenCalled();
+  });
+
+  it('clears device storage without calling the remote', async () => {
+    const clearReadHistory = vi.fn();
+    const provider = makeProvider({ clearReadHistory });
+
+    await provider.clearReadHistory();
+
+    expect(clearReadHistoryMock).toHaveBeenCalledTimes(1);
+    expect(clearReadHistory).not.toHaveBeenCalled();
+  });
+
+  it('resolves history books from the offline cache when the device is offline', async () => {
+    await seedDownloadedBook(cache, 'book-1');
+    getReadHistoryIDsMock.mockResolvedValue(['book-1']);
+    const listBooks = vi.fn();
+    const provider = makeProvider({ listBooks }, () => false);
+
+    const books = await provider.listReadHistoryBooks();
+
+    expect(books.map((book) => book.id)).toEqual(['book-1']);
+    expect(listBooks).not.toHaveBeenCalled();
+  });
+
+  it('drops history entries whose book no longer exists', async () => {
+    getReadHistoryIDsMock.mockResolvedValue(['book-1', 'gone']);
+    const listBooks = vi.fn().mockResolvedValue({
+      items: [makeBook('book-1')],
+      total: 1,
+      page: 1,
+      pageSize: 20
+    } satisfies PaginatedBooks);
+    const provider = makeProvider({ listBooks });
+
+    const books = await provider.listReadHistoryBooks();
+
+    expect(books.map((book) => book.id)).toEqual(['book-1']);
   });
 });
 

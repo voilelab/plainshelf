@@ -18,6 +18,11 @@ and UI behavior may still change between releases.
 - Books whose `book.json` was written by a newer PlainShelf build are now read-only rather than silently rewritten. They remain visible and readable, `schema_version` is reported in book API responses, and any attempt to modify them fails with `409 Conflict` instead of overwriting fields the running build does not understand. The refusal is checked before any filesystem change, so a rejected cover upload, cover deletion, or layer move leaves the book untouched.
 - Changed the sidebar's collapse toggle into an explicit rail mode, replacing a collapse path that never completed and left the toggle stuck: collapsing now yields a fixed 48px icon rail with tooltipped navigation links, and both the mode and the last expanded width are restored on reload. The narrow-viewport drawer still shows the full sidebar.
 - Changed the sidebar's "Add layer" control from an inline single-field form to a dialog with a layer name field and a parent-layer select, so nesting no longer requires knowing the slash-path syntax; a successful create navigates into the new layer. The control is now unavailable until the layer list has loaded, so the dialog cannot offer parents belonging to a shelf the user has already left.
+- Changed reading history to per-device storage: each client now records recently read books itself — browser `localStorage` on the web, a `read_history.json` file next to `shelves.json` in the desktop app's config directory, and app-private storage (needing no extra permission) on Android — instead of sending them to the server. Histories are kept per shelf, the retention limit became a per-device setting stored alongside them, and clearing history now works on read-only servers and on the Android client because it no longer writes to the shelf. Reading history recorded by the server before this release is not migrated and no longer appears.
+
+### Removed
+
+- Removed the server-side reading-history API (`GET`, `POST`, and `DELETE /api/shelves/:id/read_history`) together with its storage in the application store, and the `read_history_limit` server setting (`/api/setting/read_history_limit`; the `read_history_limit` config key is now ignored if left in an existing config file).
 
 ### Fixed
 

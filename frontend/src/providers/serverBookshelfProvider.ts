@@ -34,8 +34,12 @@ import {
 } from '@/api/sources';
 import { getTaskChain } from '@/api/taskchains';
 import { startBookBatch } from '@/api/bookBatches';
-import { addReadHistory, clearReadHistory, listReadHistoryBooks } from '@/api/readHistory';
 import { getReadingActivity, reportReadingActivity } from '@/api/readingActivity';
+import {
+  addReadHistory as addLocalReadHistory,
+  clearReadHistory as clearLocalReadHistory
+} from '@/storage/readHistory';
+import { collectReadHistoryBooks } from './readHistoryBooks';
 import type {
   BookmarkPayload,
   Book,
@@ -96,16 +100,18 @@ export class ServerBookshelfProvider implements BookshelfProvider {
     return saveBookmark(bookId, progress);
   }
 
+  // Reading history is device-local (see storage/readHistory); only the books
+  // it points at come from the server.
   addReadHistory(bookId: string): Promise<void> {
-    return addReadHistory(bookId);
+    return addLocalReadHistory(bookId);
   }
 
   listReadHistoryBooks(): Promise<Book[]> {
-    return listReadHistoryBooks();
+    return collectReadHistoryBooks((page, pageSize) => this.listBooks(page, pageSize));
   }
 
   clearReadHistory(): Promise<void> {
-    return clearReadHistory();
+    return clearLocalReadHistory();
   }
 
   getReadingActivity(from: string, to: string): Promise<Record<string, number>> {

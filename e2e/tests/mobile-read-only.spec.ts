@@ -111,7 +111,7 @@ test('stays read-only after an in-app navigation drops the preview query', async
   }
 });
 
-test('hides clear-history and ignores the import query on mobile', async ({ page }) => {
+test('offers clear-history but ignores the import query on mobile', async ({ page }) => {
   const server = await startServer();
 
   try {
@@ -119,10 +119,18 @@ test('hides clear-history and ignores the import query on mobile', async ({ page
     await importHelloBook(page);
     await connectMobile(page, server.baseUrl);
 
-    // Clear History is a DELETE; the button must not be offered at all.
+    // Clearing history only touches this device's own storage — no request
+    // reaches the server — so the read-only shell still offers it.
     await reopenMobileAt(page, server.baseUrl, '/read-history');
     await expect(page.getByRole('heading', { name: 'Recently Read' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Clear history' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Clear history' })).toBeVisible();
+
+    // The retention limit is device-local too, so its settings tab is reachable
+    // on mobile even though the server-only tabs are not.
+    await reopenMobileAt(page, server.baseUrl, '/settings');
+    await page.getByRole('tab', { name: 'Reading history' }).click();
+    await expect(page.getByText('Reading history limit')).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Cover' })).toHaveCount(0);
 
     // /import redirects to /books?import=1, and the modal opens purely off that
     // query — a redirect the router guard cannot intercept by route name.
@@ -185,17 +193,26 @@ test('rejects a write from the mobile client but still records read history', as
     }, bookId);
     expect(writeResult).toContain('read-only');
 
-    // Opening the reader records read history, an allowlisted POST, and the
-    // bookmark button stays because mobile progress is stored on-device.
-    // Awaiting the response both proves the allowlist reached the server and
-    // keeps the read-history assertion below off a race with the in-flight POST.
-    const readHistoryPost = page.waitForResponse(
-      (res) => res.request().method() === 'POST' && res.url().includes('/read_history')
-    );
+    // Opening the reader records read history on the device (no request at
+    // all — it is stored in app-private storage), and the bookmark button
+    // stays because mobile progress is stored on-device too.
+    const readHistoryRequests: string[] = [];
+    page.on('request', (request) => {
+      if (request.url().includes('/read_history')) {
+        readHistoryRequests.push(`${request.method()} ${request.url()}`);
+      }
+    });
     await reopenMobileAt(page, server.baseUrl, `/reader/${bookId}`);
     await expect(page.getByRole('button', { name: /bookmark/i }).first()).toBeVisible();
-    expect((await readHistoryPost).ok()).toBe(true);
+    // The history entry is written while the reader is still loading, and the
+    // device store is asynchronous (app-private files), so wait for the load to
+    // finish before navigating away — otherwise the assertion below races the
+    // in-flight write.
+    await expect(page.getByText('Loading content...')).toHaveCount(0);
+    expect(readHistoryRequests).toEqual([]);
 
+    // Read history survives the reload reopenMobileAt performs, proving it was
+    // persisted rather than held in memory.
     await reopenMobileAt(page, server.baseUrl, '/read-history');
     await expect(page.getByRole('heading', { name: 'hello', exact: true }).first()).toBeVisible();
   } finally {
