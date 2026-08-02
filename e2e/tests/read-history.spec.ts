@@ -30,7 +30,15 @@ test('should record a book in read history after visiting the reader and clear i
     // …and still be there after a reload, proving it was persisted locally
     // rather than kept in memory for the session.
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'hello', exact: true })).toBeVisible();
+    const historyBook = page.getByRole('heading', { name: 'hello', exact: true });
+    await expect(historyBook).toBeVisible();
+
+    // Clicking a history item should open the same book detail route as the
+    // main library collection.
+    await historyBook.click();
+    await expect(page).toHaveURL(/\/books\/[^/?]+$/);
+
+    await page.goto(`${server.baseUrl}/read-history`);
 
     // Clear history
     await page.getByRole('button', { name: 'Clear history' }).click();

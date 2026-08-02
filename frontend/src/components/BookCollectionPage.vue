@@ -221,7 +221,6 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   (event: 'retry'): void;
-  (event: 'select', id: string): void;
   (event: 'activate', payload: BookActivation): void;
   (event: 'toggle-selection', id: string): void;
   (event: 'long-press', id: string): void;

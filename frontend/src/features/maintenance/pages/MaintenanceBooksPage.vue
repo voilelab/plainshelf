@@ -26,7 +26,7 @@
       :read-only="readOnly"
       :page-size-options="PAGE_SIZE_OPTIONS"
       @retry="loadBooks"
-      @select="openDetail"
+      @activate="openDetail($event.id)"
       @edit="goEdit"
       @read="goRead"
       @open-book-folder="onOpenBookFolder"
