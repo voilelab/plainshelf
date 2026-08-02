@@ -35,6 +35,9 @@ test('low character count page filters books by the threshold input', async ({ p
     await thresholdInput.blur();
 
     await expect(bookRow).toBeVisible();
+
+    await bookRow.click();
+    await expect(page).toHaveURL(/\/books\/(?!maintenance\/)[^/?]+$/);
   } finally {
     await server.dispose();
   }

@@ -25,7 +25,7 @@
       :read-only="readOnly"
       view-mode-storage-key="read-history"
       @retry="loadReadHistory"
-      @select="openDetail"
+      @activate="openDetail($event.id)"
       @edit="goEdit"
       @read="goRead"
       @open-book-folder="onOpenBookFolder"
