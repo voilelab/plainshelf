@@ -112,6 +112,11 @@ export async function pollForToken(options: PCloudAuthOptions): Promise<PCloudSe
   // Cancels the losing region's poll as soon as a winner is known, so a
   // successful sign-in does not leave a request hanging for the full timeout.
   const raceController = new AbortController();
+  // addEventListener never replays an abort that already fired, so a signal
+  // cancelled before this call would leave both polls running to the deadline.
+  if (signal?.aborted) {
+    raceController.abort();
+  }
   const onAbort = () => raceController.abort();
   signal?.addEventListener('abort', onAbort);
 

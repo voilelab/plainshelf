@@ -84,6 +84,40 @@ describe('PCloudClient.call', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it('retries a dropped connection', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(jsonResponse({ result: 0, metadata: { name: 'shelf', isfolder: true } }));
+
+    const meta = await makeClient(fetchImpl as unknown as typeof fetch).listFolder({ path: '/shelf' });
+
+    expect(meta.name).toBe('shelf');
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives up on a persistent network failure once the attempt budget is spent', async () => {
+    const fetchImpl = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+
+    await expect(makeClient(fetchImpl as unknown as typeof fetch).listFolder({ path: '/shelf' })).rejects.toBeInstanceOf(
+      PCloudError
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not retry when the caller cancels', async () => {
+    const controller = new AbortController();
+    const fetchImpl = vi.fn().mockImplementation(() => {
+      controller.abort();
+      return Promise.reject(new DOMException('Aborted', 'AbortError'));
+    });
+
+    await expect(
+      makeClient(fetchImpl as unknown as typeof fetch).listFolder({ path: '/shelf' }, { signal: controller.signal })
+    ).rejects.toBeTruthy();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it('reports an HTTP failure with its status', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response('nope', { status: 401, statusText: 'Unauthorized' }));
 
@@ -178,6 +212,38 @@ describe('PCloudClient downloads', () => {
     expect(text).toBe('book text');
     const downloadInit = fetchImpl.mock.calls[1][1] as RequestInit | undefined;
     expect(downloadInit?.headers).toBeUndefined();
+  });
+
+  it('keeps the time budget and cancellation in force while the body is read', async () => {
+    // fetch resolves on headers, but the body is the slow part. Tearing the
+    // timer and abort listener down between the two would leave a stalled
+    // transfer unbounded, so cleanup must not run until the body is consumed.
+    const controller = new AbortController();
+    const removeListener = vi.spyOn(controller.signal, 'removeEventListener');
+    let removalsAtHeaders = -1;
+    let removalsDuringBody = -1;
+
+    const fetchImpl = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      if (String(input).includes('getfilelink')) {
+        return Promise.resolve(jsonResponse({ result: 0, hosts: ['c1.pcloud.com'], path: '/dl/abc' }));
+      }
+
+      removalsAtHeaders = removeListener.mock.calls.length;
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        text: async () => {
+          removalsDuringBody = removeListener.mock.calls.length;
+          return 'book text';
+        }
+      } as unknown as Response);
+    });
+
+    const text = await makeClient(fetchImpl as unknown as typeof fetch).downloadText(42, controller.signal);
+
+    expect(text).toBe('book text');
+    expect(removalsDuringBody).toBe(removalsAtHeaders);
   });
 
   it('surfaces a failed download with its status', async () => {

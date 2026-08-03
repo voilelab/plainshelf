@@ -96,51 +96,80 @@ export class PCloudClient {
   }
 
   private async callOnce<T>(method: string, params: PCloudParams, signal?: AbortSignal): Promise<T> {
-    const res = await this.request(this.buildUrl(method, params), REQUEST_TIMEOUT_MS, signal);
+    return await this.withRequest(
+      this.buildUrl(method, params),
+      { headers: { Authorization: `Bearer ${this.accessToken}` } },
+      REQUEST_TIMEOUT_MS,
+      signal,
+      `${method} request`,
+      async (res) => {
+        if (!res.ok) {
+          throw new PCloudError(`pCloud ${method} failed: HTTP ${res.status} ${res.statusText}`, {
+            status: res.status
+          });
+        }
 
-    if (!res.ok) {
-      throw new PCloudError(`pCloud ${method} failed: HTTP ${res.status} ${res.statusText}`, {
-        status: res.status
-      });
-    }
+        const payload = (await res.json()) as { result?: number; error?: string };
+        const result = payload?.result ?? 0;
+        if (result !== 0) {
+          throw new PCloudError(`pCloud ${method} failed: ${payload?.error ?? 'unknown error'} (${result})`, {
+            result
+          });
+        }
 
-    let payload: unknown;
-    try {
-      payload = await res.json();
-    } catch (cause) {
-      throw new PCloudError(`pCloud ${method} returned an invalid JSON response.`, { cause });
-    }
-
-    const envelope = payload as { result?: number; error?: string };
-    const result = envelope?.result ?? 0;
-    if (result !== 0) {
-      throw new PCloudError(`pCloud ${method} failed: ${envelope?.error ?? 'unknown error'} (${result})`, {
-        result
-      });
-    }
-
-    return payload as T;
+        return payload as T;
+      }
+    );
   }
 
-  private async request(url: string, timeoutMs: number, signal?: AbortSignal): Promise<Response> {
+  /**
+   * Runs one request and hands the response to `handle` while the time budget
+   * and the caller's cancellation are still in force.
+   *
+   * `fetch` resolves as soon as the response headers arrive, so a helper that
+   * merely returned the Response would tear down its timer and abort listener
+   * before the body — the slow part for a book's text or a cover — had been
+   * read. Consuming inside this scope keeps a stalled transfer bounded and
+   * keeps cancellation effective for the whole download.
+   */
+  private async withRequest<T>(
+    url: string,
+    init: RequestInit,
+    timeoutMs: number,
+    signal: AbortSignal | undefined,
+    label: string,
+    handle: (res: Response) => Promise<T>
+  ): Promise<T> {
     const controller = new AbortController();
+    // addEventListener never replays an abort that already happened, so a
+    // signal cancelled before this call would otherwise be ignored entirely.
+    if (signal?.aborted) {
+      controller.abort();
+    }
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const onAbort = () => controller.abort();
     signal?.addEventListener('abort', onAbort);
 
     try {
-      return await this.fetchImpl(url, {
-        headers: { Authorization: `Bearer ${this.accessToken}` },
-        signal: controller.signal
-      });
+      const res = await this.fetchImpl(url, { ...init, signal: controller.signal });
+      return await handle(res);
     } catch (cause) {
+      // The caller cancelled: surface that as-is so it is never mistaken for a
+      // transient failure and retried.
       if (signal?.aborted) {
         throw cause;
       }
-      if (cause instanceof DOMException && cause.name === 'AbortError') {
-        throw new PCloudError('pCloud request timed out.', { cause });
+      if (controller.signal.aborted) {
+        throw new PCloudError(`pCloud ${label} timed out.`, { cause, retryable: true });
       }
-      throw cause;
+      if (cause instanceof PCloudError) {
+        throw cause;
+      }
+      // A dropped connection or an unreadable body. Worth another attempt.
+      throw new PCloudError(`pCloud ${label} failed: ${(cause as Error)?.message ?? 'network error'}`, {
+        cause,
+        retryable: true
+      });
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
@@ -216,49 +245,30 @@ export class PCloudClient {
   }
 
   async downloadBlob(fileid: number, signal?: AbortSignal): Promise<Blob> {
-    const res = await this.downloadResponse(fileid, signal);
-    return await res.blob();
+    return await this.download(fileid, signal, (res) => res.blob());
   }
 
   async downloadText(fileid: number, signal?: AbortSignal): Promise<string> {
-    const res = await this.downloadResponse(fileid, signal);
-    return await res.text();
+    return await this.download(fileid, signal, (res) => res.text());
   }
 
-  private async downloadResponse(fileid: number, signal?: AbortSignal): Promise<Response> {
+  private async download<T>(
+    fileid: number,
+    signal: AbortSignal | undefined,
+    consume: (res: Response) => Promise<T>
+  ): Promise<T> {
     const url = await this.getFileLink(fileid, signal);
-    // The download host serves the link's own credentials; sending the API
-    // Bearer token here would leak it to a different host for no benefit.
-    const res = await this.requestWithoutAuth(url, DOWNLOAD_TIMEOUT_MS, signal);
 
-    if (!res.ok) {
-      throw new PCloudError(`pCloud download failed: HTTP ${res.status} ${res.statusText}`, {
-        status: res.status
-      });
-    }
-
-    return res;
-  }
-
-  private async requestWithoutAuth(url: string, timeoutMs: number, signal?: AbortSignal): Promise<Response> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const onAbort = () => controller.abort();
-    signal?.addEventListener('abort', onAbort);
-
-    try {
-      return await this.fetchImpl(url, { signal: controller.signal });
-    } catch (cause) {
-      if (signal?.aborted) {
-        throw cause;
+    // No Authorization header: the download host honours the link's own
+    // credentials, so sending the API token would expose it to a different host
+    // for no benefit.
+    return await this.withRequest(url, {}, DOWNLOAD_TIMEOUT_MS, signal, 'download', async (res) => {
+      if (!res.ok) {
+        throw new PCloudError(`pCloud download failed: HTTP ${res.status} ${res.statusText}`, {
+          status: res.status
+        });
       }
-      if (cause instanceof DOMException && cause.name === 'AbortError') {
-        throw new PCloudError('pCloud download timed out.', { cause });
-      }
-      throw cause;
-    } finally {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', onAbort);
-    }
+      return await consume(res);
+    });
   }
 }

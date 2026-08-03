@@ -128,6 +128,17 @@ describe('pollForToken', () => {
     ).rejects.toBeInstanceOf(PCloudError);
   });
 
+  it('rejects without polling when the signal was already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const fetchImpl = vi.fn();
+
+    await expect(
+      pollForToken(pollOptions(fetchImpl as unknown as typeof fetch, { signal: controller.signal }))
+    ).rejects.toThrow(/cancelled/i);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('stops when the caller aborts', async () => {
     const controller = new AbortController();
     const fetchImpl = vi.fn().mockImplementation(() => {

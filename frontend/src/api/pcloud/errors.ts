@@ -13,12 +13,23 @@ export class PCloudError extends Error {
   /** pCloud result code, or 0 when the failure was at the HTTP/transport layer. */
   readonly result: number;
   readonly status?: number;
+  /**
+   * Set for transport failures — a dropped connection or an expired time
+   * budget — which carry neither a result code nor an HTTP status to classify.
+   * On a phone these are the failures most worth another attempt, so they are
+   * marked at the point they are raised rather than guessed at afterwards.
+   */
+  readonly retryable: boolean;
 
-  constructor(message: string, options?: { result?: number; status?: number; cause?: unknown }) {
+  constructor(
+    message: string,
+    options?: { result?: number; status?: number; cause?: unknown; retryable?: boolean }
+  ) {
     super(message);
     this.name = 'PCloudError';
     this.result = options?.result ?? 0;
     this.status = options?.status;
+    this.retryable = options?.retryable ?? false;
 
     if (options?.cause !== undefined) {
       (this as Error & { cause?: unknown }).cause = options.cause;
@@ -50,6 +61,10 @@ export function isRetryablePCloudError(err: unknown): boolean {
 
   if (err.result === PCLOUD_RESULT_RECURSIVE_ROOT_UNSUPPORTED) {
     return false;
+  }
+
+  if (err.retryable) {
+    return true;
   }
 
   const group = Math.floor(err.result / 1000);
