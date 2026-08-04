@@ -1,7 +1,7 @@
 import type { Book, BookFormat, SplitConfig } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import { normalizeSplitConfig } from '@/utils/splitConfig';
-import { PCloudError } from './errors';
+import { PCloudDataError } from './errors';
 import type { PCloudItem } from './types';
 
 // Layout constants mirroring the Go shelf (shelf/shelf.go, shelf/book.go,
@@ -226,13 +226,13 @@ function asStringArray(value: unknown): string[] {
  */
 export function parseBookJson(raw: unknown): BookJson {
   if (!raw || typeof raw !== 'object') {
-    throw new PCloudError('book.json is not a JSON object.');
+    throw new PCloudDataError('book.json is not a JSON object.');
   }
 
   const data = raw as Record<string, unknown>;
   const id = typeof data.id === 'string' ? data.id.trim() : '';
   if (!id) {
-    throw new PCloudError('book.json has no id.');
+    throw new PCloudDataError('book.json has no id.');
   }
 
   return {

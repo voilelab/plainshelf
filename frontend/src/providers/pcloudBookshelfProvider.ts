@@ -10,7 +10,8 @@ import {
 } from '@/api/pcloud/bookpkg';
 import type { BookJson, BookPackageRef, BookSourceRef, PCloudFileRef } from '@/api/pcloud/bookpkg';
 import { PCloudClient } from '@/api/pcloud/client';
-import { PCloudError } from '@/api/pcloud/errors';
+import { PCloudDataError, PCloudError, isRetryablePCloudError } from '@/api/pcloud/errors';
+import { ApiError } from '@/api/client';
 import {
   addReadHistory as addLocalReadHistory,
   clearReadHistory as clearLocalReadHistory
@@ -89,6 +90,33 @@ export interface PCloudBookshelfProviderOptions {
   scanIntervalMs?: number;
   /** Overridable so tests do not depend on wall-clock time. */
   nowImpl?: () => number;
+}
+
+/**
+ * Restates a pCloud failure in the error type the provider stack speaks.
+ *
+ * MobileBookshelfProvider decides whether to fall back to downloaded books by
+ * asking whether the backend was reachable, and it reads that off `ApiError`:
+ * anything else it assumes is unreachable. A raw PCloudError would therefore
+ * send every failure — an expired token, a shelf that no longer exists, a book
+ * that was deleted — down the offline-cache path, quietly showing stale content
+ * instead of reporting the problem.
+ *
+ * So the transient/permanent distinction the pCloud layer already draws is
+ * carried across the boundary: retryable failures become "unreachable", and
+ * everything else is surfaced. Translating here rather than teaching the
+ * wrapper about pCloud keeps that wrapper backend-agnostic.
+ */
+function toProviderError(err: unknown): unknown {
+  if (!(err instanceof PCloudError)) {
+    return err;
+  }
+
+  if (isRetryablePCloudError(err)) {
+    return new ApiError(err.message, { isTimeout: true, cause: err });
+  }
+
+  return new ApiError(err.message, { status: err.status, cause: err });
 }
 
 /**
@@ -203,13 +231,25 @@ export class PCloudBookshelfProvider implements BookshelfProvider {
         const meta = parseBookJson(await this.readJson(pkg.meta));
         return { pkg, meta, book: this.buildBook(meta, pkg) } satisfies LoadedBook;
       } catch (err) {
-        // One unreadable book must not cost the user the rest of the shelf.
+        // Only a book that is genuinely broken is skipped. A transport failure
+        // says nothing about the book, and swallowing it here would cache a
+        // successful empty shelf the moment connectivity drops mid-scan —
+        // leaving the wrapper no rejection to fall back to downloaded books on.
+        if (!(err instanceof PCloudDataError)) {
+          throw err;
+        }
         console.warn(`Skipping ${pkg.folderName}: its book.json could not be read.`, err);
         return null;
       }
     });
 
     const books = loaded.filter((entry): entry is LoadedBook => entry !== null);
+    // pCloud promises no listing order, and listBooks slices this array into
+    // pages, so an unstable order would let a book shift across a page boundary
+    // between scans and be seen twice or missed. Sorted by id to match what the
+    // server returns (shelf/shelf_cache.go).
+    books.sort((a, b) => (a.meta.id < b.meta.id ? -1 : a.meta.id > b.meta.id ? 1 : 0));
+
     const snapshot: ShelfSnapshot = {
       fetchedAt: this.now(),
       books,
@@ -252,7 +292,9 @@ export class PCloudBookshelfProvider implements BookshelfProvider {
     try {
       value = JSON.parse(text);
     } catch (cause) {
-      throw new PCloudError(`${ref.name} is not valid JSON.`, { cause });
+      // The bytes arrived and are unusable — a problem with this file, not with
+      // the connection, so a caller may skip just this book.
+      throw new PCloudDataError(`${ref.name} is not valid JSON.`, { cause });
     }
 
     this.jsonCache.set(ref.fileid, { size: ref.size, modified: ref.modified, value });
@@ -300,27 +342,39 @@ export class PCloudBookshelfProvider implements BookshelfProvider {
   /**
    * Rejects rather than throwing synchronously: every method on the provider
    * interface returns a Promise, and a caller attaching `.catch()` to the
-   * result would never see a synchronous throw.
+   * result would never see a synchronous throw. 403 mirrors how a read-only
+   * server answers a mutation (server/app.go).
    */
   private readOnly<T>(): Promise<T> {
-    return Promise.reject(new PCloudError(READ_ONLY_MESSAGE));
+    return Promise.reject(new ApiError(READ_ONLY_MESSAGE, { status: 403 }));
+  }
+
+  /** Runs a read and restates any pCloud failure for the provider stack. */
+  private async guarded<T>(run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (err) {
+      throw toProviderError(err);
+    }
   }
 
   // --- books ---------------------------------------------------------------
 
-  async listBooks(page = 1, pageSize = PAGE_SIZE_DEFAULT, options?: ListBooksOptions): Promise<PaginatedBooks> {
-    const snapshot = await this.ensureSnapshot();
-    const start = Math.max(0, (page - 1) * pageSize);
-    const pageEntries = snapshot.books.slice(start, start + pageSize);
+  listBooks(page = 1, pageSize = PAGE_SIZE_DEFAULT, options?: ListBooksOptions): Promise<PaginatedBooks> {
+    return this.guarded(async () => {
+      const snapshot = await this.ensureSnapshot();
+      const start = Math.max(0, (page - 1) * pageSize);
+      const pageEntries = snapshot.books.slice(start, start + pageSize);
 
-    // char_count lives in the current source's meta.json, so it costs a read
-    // per book. It stays opt-in for that reason, and only the requested page is
-    // charged for it.
-    const items = options?.includeCharCount
-      ? await mapWithConcurrency(pageEntries, METADATA_CONCURRENCY, (entry) => this.withCharCount(entry))
-      : pageEntries.map((entry) => entry.book);
+      // char_count lives in the current source's meta.json, so it costs a read
+      // per book. It stays opt-in for that reason, and only the requested page
+      // is charged for it.
+      const items = options?.includeCharCount
+        ? await mapWithConcurrency(pageEntries, METADATA_CONCURRENCY, (entry) => this.withCharCount(entry))
+        : pageEntries.map((entry) => entry.book);
 
-    return { items, total: snapshot.books.length, page, pageSize };
+      return { items, total: snapshot.books.length, page, pageSize };
+    });
   }
 
   private async withCharCount(entry: LoadedBook): Promise<Book> {
@@ -339,38 +393,46 @@ export class PCloudBookshelfProvider implements BookshelfProvider {
     }
   }
 
-  async getBook(bookId: string): Promise<Book> {
-    return (await this.findBook(bookId)).book;
+  getBook(bookId: string): Promise<Book> {
+    return this.guarded(async () => (await this.findBook(bookId)).book);
   }
 
-  async getBookContent(bookId: string): Promise<BookContent> {
-    const entry = await this.findBook(bookId);
-    const source = await this.currentSourceOf(entry);
-    return { content: await this.client.downloadText(this.contentRefOf(source, bookId).fileid) };
+  getBookContent(bookId: string): Promise<BookContent> {
+    return this.guarded(async () => {
+      const entry = await this.findBook(bookId);
+      const source = await this.currentSourceOf(entry);
+      return { content: await this.client.downloadText(this.contentRefOf(source, bookId).fileid) };
+    });
   }
 
-  async downloadBookContent(bookId: string): Promise<Blob> {
-    const entry = await this.findBook(bookId);
-    const source = await this.currentSourceOf(entry);
-    return await this.client.downloadBlob(this.contentRefOf(source, bookId).fileid);
+  downloadBookContent(bookId: string): Promise<Blob> {
+    return this.guarded(async () => {
+      const entry = await this.findBook(bookId);
+      const source = await this.currentSourceOf(entry);
+      return await this.client.downloadBlob(this.contentRefOf(source, bookId).fileid);
+    });
   }
 
-  async getBookSplitConfig(bookId: string): Promise<SplitConfig> {
-    const entry = await this.findBook(bookId);
-    const source = await this.currentSourceOf(entry);
-    if (!source.meta) {
-      return { type: 'none' };
-    }
-    return toSplitConfig(await this.readJson(source.meta));
+  getBookSplitConfig(bookId: string): Promise<SplitConfig> {
+    return this.guarded(async () => {
+      const entry = await this.findBook(bookId);
+      const source = await this.currentSourceOf(entry);
+      if (!source.meta) {
+        return { type: 'none' };
+      }
+      return toSplitConfig(await this.readJson(source.meta));
+    });
   }
 
-  async getBookCover(bookId: string): Promise<Blob> {
-    const { pkg, meta } = await this.findBook(bookId);
-    const cover = findCoverFile(pkg, meta);
-    if (!cover) {
-      throw new PCloudError(`Book ${bookId} has no cover.`);
-    }
-    return await this.client.downloadBlob(cover.fileid);
+  getBookCover(bookId: string): Promise<Blob> {
+    return this.guarded(async () => {
+      const { pkg, meta } = await this.findBook(bookId);
+      const cover = findCoverFile(pkg, meta);
+      if (!cover) {
+        throw new PCloudError(`Book ${bookId} has no cover.`);
+      }
+      return await this.client.downloadBlob(cover.fileid);
+    });
   }
 
   getBookCoverUrl(bookId: string): string {
@@ -379,21 +441,27 @@ export class PCloudBookshelfProvider implements BookshelfProvider {
 
   // --- sources -------------------------------------------------------------
 
-  async listSources(bookId: string): Promise<SourceMeta[]> {
-    const { pkg } = await this.findBook(bookId);
-    return await mapWithConcurrency(pkg.sources, METADATA_CONCURRENCY, async (source) =>
-      source.meta ? toSourceMeta(await this.readJson(source.meta), source.id) : toSourceMeta({}, source.id)
-    );
+  listSources(bookId: string): Promise<SourceMeta[]> {
+    return this.guarded(async () => {
+      const { pkg } = await this.findBook(bookId);
+      return await mapWithConcurrency(pkg.sources, METADATA_CONCURRENCY, async (source) =>
+        source.meta ? toSourceMeta(await this.readJson(source.meta), source.id) : toSourceMeta({}, source.id)
+      );
+    });
   }
 
-  async getSource(bookId: string, sourceId: string): Promise<SourceMeta> {
-    const source = await this.findSource(bookId, sourceId);
-    return source.meta ? toSourceMeta(await this.readJson(source.meta), source.id) : toSourceMeta({}, source.id);
+  getSource(bookId: string, sourceId: string): Promise<SourceMeta> {
+    return this.guarded(async () => {
+      const source = await this.findSource(bookId, sourceId);
+      return source.meta ? toSourceMeta(await this.readJson(source.meta), source.id) : toSourceMeta({}, source.id);
+    });
   }
 
-  async getSourceContent(bookId: string, sourceId: string): Promise<string> {
-    const source = await this.findSource(bookId, sourceId);
-    return await this.client.downloadText(this.contentRefOf(source, bookId).fileid);
+  getSourceContent(bookId: string, sourceId: string): Promise<string> {
+    return this.guarded(async () => {
+      const source = await this.findSource(bookId, sourceId);
+      return await this.client.downloadText(this.contentRefOf(source, bookId).fileid);
+    });
   }
 
   // --- reading progress and history ---------------------------------------

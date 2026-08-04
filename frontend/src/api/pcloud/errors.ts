@@ -38,6 +38,21 @@ export class PCloudError extends Error {
 }
 
 /**
+ * A file in the shelf was fetched but could not be decoded or validated.
+ *
+ * Distinct from a transport failure on purpose: this one is confined to a
+ * single book, so a caller can skip it and keep the rest of the shelf, whereas
+ * a dropped connection says nothing about the file and must not be mistaken for
+ * a book that is simply broken.
+ */
+export class PCloudDataError extends PCloudError {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'PCloudDataError';
+  }
+}
+
+/**
  * Listing the account root (folderid 0) recursively is rejected by the API.
  * A shelf normally lives in a sub-folder so this is rare, but it has to be
  * handled rather than surfaced, because the caller cannot avoid it by retrying.

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ApiError } from '@/api/client';
 import { PCloudClient } from '@/api/pcloud/client';
 import { PCloudError } from '@/api/pcloud/errors';
 import type { PCloudItem } from '@/api/pcloud/types';
@@ -94,7 +95,7 @@ function bookPackage(spec: BookSpec): PCloudItem {
  * from the bodies the tree was built with. Counts requests so the caching and
  * concurrency behaviour can be asserted.
  */
-function makeFetch(tree: PCloudItem) {
+function makeFetch(tree: PCloudItem, onDownload?: (fileid: number) => Promise<Response> | null) {
   const calls = { listfolder: 0, getfilelink: 0, download: 0 };
 
   const fetchImpl = vi.fn().mockImplementation((input: RequestInfo | URL) => {
@@ -113,6 +114,10 @@ function makeFetch(tree: PCloudItem) {
 
     calls.download += 1;
     const fileid = Number(url.pathname.replace('/dl/', ''));
+    const override = onDownload?.(fileid);
+    if (override) {
+      return override;
+    }
     const body = fileBodies.get(fileid);
     if (body === undefined) {
       return Promise.resolve(new Response('missing', { status: 404, statusText: 'Not Found' }));
@@ -130,8 +135,16 @@ function jsonResponse(body: unknown): Response {
   });
 }
 
-function makeProvider(tree: PCloudItem, overrides: { nowImpl?: () => number; scanIntervalMs?: number } = {}) {
-  const { fetchImpl, calls } = makeFetch(tree);
+function makeProvider(
+  tree: PCloudItem,
+  overrides: {
+    nowImpl?: () => number;
+    scanIntervalMs?: number;
+    onDownload?: (fileid: number) => Promise<Response> | null;
+  } = {}
+) {
+  const { onDownload, ...providerOptions } = overrides;
+  const { fetchImpl, calls } = makeFetch(tree, onDownload);
   const client = new PCloudClient({
     host: 'api.pcloud.com',
     accessToken: 'token',
@@ -139,7 +152,7 @@ function makeProvider(tree: PCloudItem, overrides: { nowImpl?: () => number; sca
     sleepImpl: async () => {}
   });
 
-  const provider = new PCloudBookshelfProvider({ client, shelfRoot: SHELF_ROOT, ...overrides });
+  const provider = new PCloudBookshelfProvider({ client, shelfRoot: SHELF_ROOT, ...providerOptions });
   return { provider, calls, fetchImpl };
 }
 
@@ -225,7 +238,45 @@ describe('shelf loading', () => {
   it('rejects a folder that is not a shelf', async () => {
     const { provider } = makeProvider(folder('holiday-photos', [file({ name: 'a.jpg', body: 'x' })]));
 
-    await expect(provider.listBooks()).rejects.toBeInstanceOf(PCloudError);
+    await expect(provider.listBooks()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('orders books by id so pagination is stable across scans', async () => {
+    // pCloud promises no listing order, and the pages are slices of this array,
+    // so an unstable order would show a book twice or skip it entirely.
+    const { provider } = makeProvider(
+      shelfTree([
+        bookPackage({ id: 'ccc', title: 'C' }),
+        bookPackage({ id: 'aaa', title: 'A' }),
+        bookPackage({ id: 'bbb', title: 'B' })
+      ])
+    );
+
+    const page = await provider.listBooks(1, 10);
+
+    expect(page.items.map((book) => book.id)).toEqual(['aaa', 'bbb', 'ccc']);
+  });
+
+  it('propagates a connectivity failure instead of caching an empty shelf', async () => {
+    // Swallowing this would hand the wrapper a successful empty listing, and it
+    // would show an empty library rather than falling back to downloaded books.
+    const { provider } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]), {
+      onDownload: () => Promise.reject(new TypeError('Failed to fetch'))
+    });
+
+    await expect(provider.listBooks(1, 10)).rejects.toMatchObject({ name: 'ApiError', isTimeout: true });
+  });
+
+  it('does not cache a failed scan', async () => {
+    let failing = true;
+    const { provider } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]), {
+      onDownload: () => (failing ? Promise.reject(new TypeError('Failed to fetch')) : null)
+    });
+
+    await expect(provider.listBooks(1, 10)).rejects.toBeInstanceOf(ApiError);
+    failing = false;
+
+    await expect(provider.listBooks(1, 10)).resolves.toMatchObject({ total: 1 });
   });
 
   it('skips an unreadable book rather than failing the whole shelf', async () => {
@@ -271,8 +322,10 @@ describe('reading a book', () => {
   it('reports an unknown book and an unknown source', async () => {
     const { provider } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
 
-    await expect(provider.getBook('missing')).rejects.toBeInstanceOf(PCloudError);
-    await expect(provider.getSource('a', 'missing')).rejects.toBeInstanceOf(PCloudError);
+    // Not a reachability problem, so it must not be reported as one: the mobile
+    // wrapper would otherwise serve a deleted book from its offline cache.
+    await expect(provider.getBook('missing')).rejects.toMatchObject({ name: 'ApiError', isTimeout: false });
+    await expect(provider.getSource('a', 'missing')).rejects.toMatchObject({ name: 'ApiError', isTimeout: false });
   });
 
   it('fills char_count only when asked, and only for the requested page', async () => {
@@ -327,7 +380,7 @@ describe('covers', () => {
   it('reports a book with no cover', async () => {
     const { provider } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
 
-    await expect(provider.getBookCover('a')).rejects.toBeInstanceOf(PCloudError);
+    await expect(provider.getBookCover('a')).rejects.toBeInstanceOf(ApiError);
   });
 });
 
@@ -356,7 +409,7 @@ describe('read-only behaviour', () => {
     ];
 
     for (const [name, run] of mutations) {
-      await expect(run(), `${name} should be refused`).rejects.toBeInstanceOf(PCloudError);
+      await expect(run(), `${name} should be refused`).rejects.toMatchObject({ name: 'ApiError', status: 403 });
     }
   });
 
