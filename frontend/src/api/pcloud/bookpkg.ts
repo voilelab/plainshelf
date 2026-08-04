@@ -265,9 +265,11 @@ export function isSchemaNewerThanSupported(meta: BookJson): boolean {
 /**
  * Maps a book.json onto the UI's Book type.
  *
- * `cover_url` is intentionally left unset: there is no stable URL to point an
- * `<img>` at, because pCloud download links expire. Covers are fetched as blobs
- * instead, which is also what the mobile runtime already requires
+ * `cover_url` is left unset here: there is no stable URL to point an `<img>` at,
+ * because pCloud download links expire, and this function does not know whether
+ * the named cover file actually exists. The provider fills it in with a
+ * presence marker once it has resolved the file, and the bytes are fetched as a
+ * blob — which is what the mobile runtime requires anyway
  * (frontend/src/composables/useCoverSrc.ts).
  */
 export function toBook(meta: BookJson, layers: string[]): Book {
