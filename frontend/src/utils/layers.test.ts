@@ -1,5 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { buildLayerTreeNodes, flattenLayerTreePaths } from './layers';
+import { booksRouteForLayerPath, buildLayerTreeNodes, flattenLayerTreePaths } from './layers';
+
+describe('booksRouteForLayerPath', () => {
+  it('lists a nested layer from its first page', () => {
+    expect(booksRouteForLayerPath('novels/scifi')).toEqual({
+      path: '/books',
+      query: { layers: 'novels/scifi', page: '1' }
+    });
+  });
+
+  it('omits the layers key for the root layer', () => {
+    expect(booksRouteForLayerPath('')).toEqual({ path: '/books', query: { page: '1' } });
+    expect(booksRouteForLayerPath('/')).toEqual({ path: '/books', query: { page: '1' } });
+  });
+
+  it('normalizes stray slashes and whitespace', () => {
+    expect(booksRouteForLayerPath('/novels//scifi/ ')).toEqual({
+      path: '/books',
+      query: { layers: 'novels/scifi', page: '1' }
+    });
+  });
+});
 
 describe('flattenLayerTreePaths', () => {
   it('returns an empty list for an empty tree', () => {

@@ -48,6 +48,34 @@ test('creates a nested layer level by level and filters books by exact layer', a
   }
 });
 
+test('returns to the layer the book lived in after moving it to trash', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await addLayer(page, 'novels/scifi');
+    await expect(page).toHaveURL(layersQueryRegex('novels/scifi'));
+
+    await importBookFromPath(page, helloFixturePath);
+    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
+    await expect(page).toHaveURL(/\/books\/[^/]+$/);
+
+    await page.getByRole('button', { name: 'Move to Trash' }).click();
+    const deleteDialog = page.getByRole('dialog', { name: 'Confirm delete' });
+    await expect(deleteDialog).toBeVisible();
+    await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();
+
+    // Back to the book's own layer, not the unfiltered library. The library is
+    // empty afterwards, so the layer is proven by the URL and the page heading
+    // rather than by the "No books in <layer>." empty state.
+    await expect(page).toHaveURL(layersQueryRegex('novels/scifi'));
+    await expect(page.getByRole('heading', { name: 'novels/scifi', exact: true })).toBeVisible();
+    await expect(page.getByText('0 books', { exact: true })).toBeVisible();
+  } finally {
+    await server.dispose();
+  }
+});
+
 test('the new layer dialog rejects a name containing a separator and cancels cleanly', async ({ page }) => {
   const server = await startServer();
 

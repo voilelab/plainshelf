@@ -13,6 +13,11 @@ export type LayerPathOption = {
   depth: number;
 };
 
+export type BooksLayerRoute = {
+  path: string;
+  query: Record<string, string>;
+};
+
 export function normalizeLayerInput(layers?: string | string[] | null): string[] {
   if (!layers) {
     return [];
@@ -58,6 +63,19 @@ export function toComparableLayerPath(path: string): string {
 
 export function layerPathEquals(left: string, right: string): boolean {
   return toComparableLayerPath(left) === toComparableLayerPath(right);
+}
+
+/**
+ * The library route that lists `layerPath` from its first page. Shared by every
+ * caller that navigates into a layer (sidebar tree, breadcrumb, post-delete
+ * redirect) so they all emit the same canonical `layers` query. The root layer
+ * omits the key entirely, which is how LibraryPage reads "all books".
+ */
+export function booksRouteForLayerPath(layerPath: string): BooksLayerRoute {
+  const normalized = normalizeLayerPath(layerPath);
+  return normalized === ROOT_LAYER_PATH
+    ? { path: '/books', query: { page: '1' } }
+    : { path: '/books', query: { layers: normalized, page: '1' } };
 }
 
 export function buildLayerTreeNodes(layerPaths: string[]): LayerTreeNode[] {
