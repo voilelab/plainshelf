@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { booksRouteForLayerPath, buildLayerTreeNodes, flattenLayerTreePaths } from './layers';
+import {
+  ROOT_LAYER_FILTER,
+  booksRouteForLayerPath,
+  buildLayerTreeNodes,
+  flattenLayerTreePaths
+} from './layers';
 
 describe('booksRouteForLayerPath', () => {
   it('lists a nested layer from its first page', () => {
@@ -9,9 +14,16 @@ describe('booksRouteForLayerPath', () => {
     });
   });
 
-  it('omits the layers key for the root layer', () => {
+  it('omits the layers key for the unfiltered All books view', () => {
     expect(booksRouteForLayerPath('')).toEqual({ path: '/books', query: { page: '1' } });
-    expect(booksRouteForLayerPath('/')).toEqual({ path: '/books', query: { page: '1' } });
+    expect(booksRouteForLayerPath('  ')).toEqual({ path: '/books', query: { page: '1' } });
+  });
+
+  it('keeps the root-layer filter, which is not the same as All books', () => {
+    expect(booksRouteForLayerPath(ROOT_LAYER_FILTER)).toEqual({
+      path: '/books',
+      query: { layers: '/', page: '1' }
+    });
   });
 
   it('normalizes stray slashes and whitespace', () => {

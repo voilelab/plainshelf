@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { startServer } from './support/server';
-import { helloFixturePath, importBookFromPath } from './support/books';
+import { anotherFixturePath, helloFixturePath, importBookFromPath } from './support/books';
 import {
   addLayer,
   emptyDataTransfer,
@@ -71,6 +71,35 @@ test('returns to the layer the book lived in after moving it to trash', async ({
     await expect(page).toHaveURL(layersQueryRegex('novels/scifi'));
     await expect(page.getByRole('heading', { name: 'novels/scifi', exact: true })).toBeVisible();
     await expect(page.getByText('0 books', { exact: true })).toBeVisible();
+  } finally {
+    await server.dispose();
+  }
+});
+
+test('the root layer node filters to books sitting directly at the shelf root', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importBookFromPath(page, helloFixturePath);
+
+    await addLayer(page, 'novels');
+    await importBookFromPath(page, anotherFixturePath);
+
+    await selectAllBooks(page);
+    await expect(page.getByText('2 books', { exact: true })).toBeVisible();
+
+    // "/" is a narrower filter than "All books": it keeps the root-level book
+    // only, so its layers query must survive rather than collapsing to no query.
+    await selectLayer(page, '/');
+    await expect(page).toHaveURL(layersQueryRegex('/'));
+    await expect(page.getByText('1 books', { exact: true })).toBeVisible();
+    await expect(
+      page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true })
+    ).toBeVisible();
+    await expect(
+      page.locator('.book-list-row').getByRole('heading', { name: 'another', exact: true })
+    ).toHaveCount(0);
   } finally {
     await server.dispose();
   }
