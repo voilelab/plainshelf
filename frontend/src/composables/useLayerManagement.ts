@@ -6,7 +6,13 @@ import { useBookStore } from '@/composables/useBookStore';
 import { useLayerStore } from '@/composables/useLayerStore';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import { getBookshelfProvider } from '@/providers';
-import { buildLayerTreeNodes, flattenLayerTreePaths, getLayerPath, normalizeLayerPath } from '@/utils/layers';
+import {
+  booksRouteForLayerPath,
+  buildLayerTreeNodes,
+  flattenLayerTreePaths,
+  getLayerPath,
+  normalizeLayerPath
+} from '@/utils/layers';
 import { useI18n } from '@/i18n';
 import { useBookBatchOperations } from '@/composables/useBookBatchOperations';
 import type { Book } from '@/types/book';
@@ -109,9 +115,7 @@ export function useLayerManagement() {
   const isRenamingPendingLayer = computed(() => pendingRenameLayerPath.value.length > 0 && renamingLayer.value);
 
   function goToLayer(layer: string | undefined): void {
-    const query: Record<string, string> = { page: '1' };
-    if (layer) query.layers = layer;
-    void router.push({ path: '/books', query });
+    void router.push(booksRouteForLayerPath(layer ?? ''));
   }
 
   /** Clears the errors a shelf switch invalidates. */

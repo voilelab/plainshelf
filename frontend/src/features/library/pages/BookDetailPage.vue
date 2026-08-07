@@ -83,6 +83,7 @@ import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useOfflineDownload } from '@/composables/useOfflineDownload';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import { getBookshelfProvider, isMobileRuntime } from '@/providers';
+import { booksRouteForLayerPath, getLayerPath } from '@/utils/layers';
 import { useI18n } from '@/i18n';
 
 const route = useRoute();
@@ -118,8 +119,9 @@ const {
   confirmDelete,
   dismissActionError
 } = useBookActions({
-  onDeleted: () => {
-    void router.push('/books');
+  // Back to the layer the deleted book lived in, not the unfiltered library.
+  onDeleted: (deleted) => {
+    void router.push(booksRouteForLayerPath(getLayerPath(deleted)));
   }
 });
 

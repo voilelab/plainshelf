@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { startServer } from './support/server';
-import { helloFixturePath, importBookFromPath } from './support/books';
+import { anotherFixturePath, helloFixturePath, importBookFromPath } from './support/books';
 import {
   addLayer,
   emptyDataTransfer,
@@ -43,6 +43,63 @@ test('creates a nested layer level by level and filters books by exact layer', a
     // "novels" itself has no directly-attached books (only its "scifi" child does).
     await selectLayer(page, 'novels');
     await expect(page.getByText('No books in novels.')).toBeVisible();
+  } finally {
+    await server.dispose();
+  }
+});
+
+test('returns to the layer the book lived in after moving it to trash', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await addLayer(page, 'novels/scifi');
+    await expect(page).toHaveURL(layersQueryRegex('novels/scifi'));
+
+    await importBookFromPath(page, helloFixturePath);
+    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
+    await expect(page).toHaveURL(/\/books\/[^/]+$/);
+
+    await page.getByRole('button', { name: 'Move to Trash' }).click();
+    const deleteDialog = page.getByRole('dialog', { name: 'Confirm delete' });
+    await expect(deleteDialog).toBeVisible();
+    await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();
+
+    // Back to the book's own layer, not the unfiltered library. The library is
+    // empty afterwards, so the layer is proven by the URL and the page heading
+    // rather than by the "No books in <layer>." empty state.
+    await expect(page).toHaveURL(layersQueryRegex('novels/scifi'));
+    await expect(page.getByRole('heading', { name: 'novels/scifi', exact: true })).toBeVisible();
+    await expect(page.getByText('0 books', { exact: true })).toBeVisible();
+  } finally {
+    await server.dispose();
+  }
+});
+
+test('the root layer node filters to books sitting directly at the shelf root', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importBookFromPath(page, helloFixturePath);
+
+    await addLayer(page, 'novels');
+    await importBookFromPath(page, anotherFixturePath);
+
+    await selectAllBooks(page);
+    await expect(page.getByText('2 books', { exact: true })).toBeVisible();
+
+    // "/" is a narrower filter than "All books": it keeps the root-level book
+    // only, so its layers query must survive rather than collapsing to no query.
+    await selectLayer(page, '/');
+    await expect(page).toHaveURL(layersQueryRegex('/'));
+    await expect(page.getByText('1 books', { exact: true })).toBeVisible();
+    await expect(
+      page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true })
+    ).toBeVisible();
+    await expect(
+      page.locator('.book-list-row').getByRole('heading', { name: 'another', exact: true })
+    ).toHaveCount(0);
   } finally {
     await server.dispose();
   }
