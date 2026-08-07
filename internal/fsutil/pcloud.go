@@ -2,7 +2,6 @@ package fsutil
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -10,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/voilelab/plainshelf/internal/util"
 )
 
 const (
@@ -33,9 +34,10 @@ type PCloudConfig struct {
 
 // PCloudFS exposes a pCloud folder through the common FS interface.
 //
-// Paths are resolved one folder at a time and all mutations are sent using
-// pCloud file/folder IDs. This keeps the configured root isolated and avoids
-// relying on pCloud's discouraged path parameters.
+// Paths are resolved one folder at a time using pCloud file/folder IDs. This
+// keeps the configured root isolated and avoids relying on pCloud's discouraged
+// path parameters. PCloudFS is read-only; every mutation returns
+// errors.ErrUnsupported.
 type PCloudFS struct {
 	accessToken  string
 	apiURL       *url.URL
@@ -56,7 +58,7 @@ func NewPCloudFS(accessToken string) *PCloudFS {
 // NewPCloudFSWithConfig creates a configured pCloud filesystem.
 func NewPCloudFSWithConfig(conf PCloudConfig) (*PCloudFS, error) {
 	if conf.RootFolderID < 0 {
-		return nil, fmt.Errorf("pcloud: root folder ID must not be negative")
+		return nil, util.NewError("pcloud: root folder ID must not be negative")
 	}
 	if conf.APIURL == "" {
 		conf.APIURL = PCloudUSAPIURL
@@ -64,7 +66,7 @@ func NewPCloudFSWithConfig(conf PCloudConfig) (*PCloudFS, error) {
 
 	apiURL, err := url.Parse(conf.APIURL)
 	if err != nil || (apiURL.Scheme != "http" && apiURL.Scheme != "https") || apiURL.Host == "" {
-		return nil, fmt.Errorf("pcloud: invalid API URL %q", conf.APIURL)
+		return nil, util.Errorf("pcloud: invalid API URL %q", conf.APIURL)
 	}
 	apiURL.Path = strings.TrimRight(apiURL.Path, "/")
 	apiURL.RawQuery = ""
@@ -231,7 +233,7 @@ func findPCloudChild(contents []pCloudMetadata, name string) (pCloudMetadata, bo
 
 func validPCloudPath(op, name string, allowRoot bool) error {
 	if !fs.ValidPath(name) || (!allowRoot && name == ".") {
-		return &fs.PathError{Op: op, Path: name, Err: fs.ErrInvalid}
+		return &fs.PathError{Op: op, Path: name, Err: util.Errorf("%w", fs.ErrInvalid)}
 	}
 	return nil
 }
@@ -244,5 +246,5 @@ func (p *PCloudFS) pathError(op, name string, err error) error {
 	if errors.As(err, &pathErr) {
 		return err
 	}
-	return &fs.PathError{Op: op, Path: name, Err: err}
+	return &fs.PathError{Op: op, Path: name, Err: util.Errorf("%w", err)}
 }

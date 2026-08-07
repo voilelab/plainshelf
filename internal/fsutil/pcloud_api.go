@@ -2,7 +2,6 @@ package fsutil
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/voilelab/plainshelf/internal/util"
 )
 
 const maxPCloudAPIResponse = 8 << 20
@@ -44,7 +45,7 @@ func (t *pCloudTimestamp) UnmarshalJSON(data []byte) error {
 	}
 	var value string
 	if err := json.Unmarshal(data, &value); err != nil {
-		return fmt.Errorf("pcloud: invalid timestamp %s", string(data))
+		return util.Errorf("pcloud: invalid timestamp %s", string(data))
 	}
 	for _, layout := range []string{time.RFC1123Z, time.RFC1123} {
 		parsed, err := time.Parse(layout, value)
@@ -53,7 +54,7 @@ func (t *pCloudTimestamp) UnmarshalJSON(data []byte) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("pcloud: invalid timestamp %q", value)
+	return util.Errorf("pcloud: invalid timestamp %q", value)
 }
 
 type pCloudFileInfo struct {
@@ -90,17 +91,17 @@ type pCloudFile struct {
 
 func (f *pCloudFile) Stat() (fs.FileInfo, error) {
 	if f.closed {
-		return nil, &fs.PathError{Op: "stat", Path: f.name, Err: fs.ErrClosed}
+		return nil, &fs.PathError{Op: "stat", Path: f.name, Err: util.Errorf("%w", fs.ErrClosed)}
 	}
 	return f.info, nil
 }
 
 func (f *pCloudFile) Read(data []byte) (int, error) {
 	if f.closed {
-		return 0, &fs.PathError{Op: "read", Path: f.name, Err: fs.ErrClosed}
+		return 0, &fs.PathError{Op: "read", Path: f.name, Err: util.Errorf("%w", fs.ErrClosed)}
 	}
 	if f.body == nil {
-		return 0, &fs.PathError{Op: "read", Path: f.name, Err: syscall.EISDIR}
+		return 0, &fs.PathError{Op: "read", Path: f.name, Err: util.Errorf("%w", syscall.EISDIR)}
 	}
 	return f.body.Read(data)
 }
@@ -111,7 +112,9 @@ func (f *pCloudFile) Close() error {
 	}
 	f.closed = true
 	if f.body != nil {
-		return f.body.Close()
+		if err := f.body.Close(); err != nil {
+			return util.Errorf("%w", err)
+		}
 	}
 	return nil
 }
@@ -148,14 +151,6 @@ func (e *PCloudError) Unwrap() error {
 	}
 }
 
-type pCloudHTTPError struct {
-	Status string
-}
-
-func (e *pCloudHTTPError) Error() string {
-	return "pcloud: unexpected HTTP response: " + e.Status
-}
-
 func (p *PCloudFS) call(method string, values url.Values, output any) error {
 	values = cloneValues(values)
 	values.Set("access_token", p.accessToken)
@@ -165,18 +160,18 @@ func (p *PCloudFS) call(method string, values url.Values, output any) error {
 	requestURL.Path = strings.TrimRight(requestURL.Path, "/") + "/" + method
 	req, err := http.NewRequest(http.MethodPost, requestURL.String(), strings.NewReader(values.Encode()))
 	if err != nil {
-		return fmt.Errorf("pcloud %s: build request: %w", method, err)
+		return util.Errorf("pcloud %s: build request: %w", method, err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", "plainshelf-pcloudfs")
 
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("pcloud %s: request failed: %w", method, err)
+		return util.Errorf("pcloud %s: request failed: %w", method, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return &pCloudHTTPError{Status: resp.Status}
+		return util.Errorf("pcloud: unexpected HTTP response: %s", resp.Status)
 	}
 	return decodePCloudResponse(resp.Body, output)
 }
@@ -184,21 +179,21 @@ func (p *PCloudFS) call(method string, values url.Values, output any) error {
 func decodePCloudResponse(reader io.Reader, output any) error {
 	data, err := io.ReadAll(io.LimitReader(reader, maxPCloudAPIResponse+1))
 	if err != nil {
-		return fmt.Errorf("pcloud: read API response: %w", err)
+		return util.Errorf("pcloud: read API response: %w", err)
 	}
 	if len(data) > maxPCloudAPIResponse {
-		return fmt.Errorf("pcloud: API response exceeds %d bytes", maxPCloudAPIResponse)
+		return util.Errorf("pcloud: API response exceeds %d bytes", maxPCloudAPIResponse)
 	}
 	var apiErr PCloudError
 	if err := json.Unmarshal(data, &apiErr); err != nil {
-		return fmt.Errorf("pcloud: decode API response: %w", err)
+		return util.Errorf("pcloud: decode API response: %w", err)
 	}
 	if apiErr.Result != 0 {
 		return &apiErr
 	}
 	if output != nil {
 		if err := json.Unmarshal(data, output); err != nil {
-			return fmt.Errorf("pcloud: decode API response: %w", err)
+			return util.Errorf("pcloud: decode API response: %w", err)
 		}
 	}
 	return nil
@@ -224,14 +219,14 @@ func (p *PCloudFS) openFile(fileID int64) (io.ReadCloser, error) {
 		return nil, err
 	}
 	if len(link.Hosts) == 0 || link.Hosts[0] == "" {
-		return nil, errors.New("pcloud: getfilelink returned no download host")
+		return nil, util.NewError("pcloud: getfilelink returned no download host")
 	}
 	if !strings.HasPrefix(link.Path, "/") {
-		return nil, errors.New("pcloud: getfilelink returned an invalid download path")
+		return nil, util.NewError("pcloud: getfilelink returned an invalid download path")
 	}
 	requestPath, err := url.ParseRequestURI(link.Path)
 	if err != nil || requestPath.Host != "" {
-		return nil, errors.New("pcloud: getfilelink returned an invalid download path")
+		return nil, util.NewError("pcloud: getfilelink returned an invalid download path")
 	}
 	downloadURL := &url.URL{
 		Scheme:   "https",
@@ -248,16 +243,16 @@ func (p *PCloudFS) openFile(fileID int64) (io.ReadCloser, error) {
 
 	req, err := http.NewRequest(http.MethodGet, downloadURL.String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("pcloud download: build request: %w", err)
+		return nil, util.Errorf("pcloud download: build request: %w", err)
 	}
 	req.Header.Set("User-Agent", "plainshelf-pcloudfs")
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("pcloud download: request failed: %w", err)
+		return nil, util.Errorf("pcloud download: request failed: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		resp.Body.Close()
-		return nil, &pCloudHTTPError{Status: resp.Status}
+		return nil, util.Errorf("pcloud: unexpected HTTP response: %s", resp.Status)
 	}
 	return resp.Body, nil
 }
