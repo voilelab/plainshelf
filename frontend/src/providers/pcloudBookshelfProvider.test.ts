@@ -292,6 +292,38 @@ describe('shelf loading', () => {
   });
 });
 
+describe('layers', () => {
+  it('lists every layer directory, including one holding no books', async () => {
+    const tree = folder('default-shelf', [
+      folder('books', [
+        bookPackage({ id: 'a', title: 'A' }),
+        folder('Fiction', [bookPackage({ id: 'b', title: 'B' })]),
+        folder('Empty', [])
+      ])
+    ]);
+    const { provider } = makeProvider(tree);
+
+    await expect(provider.listLayers()).resolves.toEqual(['/', 'Empty', 'Fiction']);
+  });
+
+  it('serves layers from the same walk as the book list', async () => {
+    const { provider, calls } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
+
+    await provider.listBooks(1, 10);
+    await provider.listLayers();
+
+    expect(calls.listfolder).toBe(1);
+  });
+
+  it('reports a failed walk rather than an empty layer tree', async () => {
+    const { provider } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]), {
+      onDownload: () => Promise.reject(new TypeError('Failed to fetch'))
+    });
+
+    await expect(provider.listLayers()).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
 describe('reading a book', () => {
   it('serves the current source content', async () => {
     const { provider } = makeProvider(

@@ -1,5 +1,6 @@
 import {
   collectBookPackages,
+  collectLayers,
   findBooksFolder,
   findCoverFile,
   findCurrentSource,
@@ -75,6 +76,8 @@ interface ShelfSnapshot {
   fetchedAt: number;
   books: LoadedBook[];
   byID: Map<string, LoadedBook>;
+  /** Every layer directory, including ones holding no books. */
+  layers: string[];
 }
 
 interface CachedJson {
@@ -219,6 +222,7 @@ export class PCloudBookshelfProvider implements BookshelfProvider {
     }
 
     const packages = collectBookPackages(booksFolder);
+    const layers = collectLayers(booksFolder);
     this.pruneJsonCache(packages);
 
     const loaded = await mapWithConcurrency(packages, METADATA_CONCURRENCY, async (pkg) => {
@@ -253,7 +257,8 @@ export class PCloudBookshelfProvider implements BookshelfProvider {
     const snapshot: ShelfSnapshot = {
       fetchedAt: this.now(),
       books,
-      byID: new Map(books.map((entry) => [entry.meta.id, entry]))
+      byID: new Map(books.map((entry) => [entry.meta.id, entry])),
+      layers
     };
 
     this.snapshot = snapshot;
@@ -437,6 +442,12 @@ export class PCloudBookshelfProvider implements BookshelfProvider {
 
   getBookCoverUrl(bookId: string): string {
     return pcloudCoverUrl(bookId);
+  }
+
+  // --- layers --------------------------------------------------------------
+
+  listLayers(): Promise<string[]> {
+    return this.guarded(async () => (await this.ensureSnapshot()).layers);
   }
 
   // --- sources -------------------------------------------------------------

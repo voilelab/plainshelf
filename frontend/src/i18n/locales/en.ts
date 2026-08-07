@@ -196,7 +196,7 @@ const en = {
     },
     mobileConnect: {
       title: 'Connection',
-      description: 'Change the PlainShelf server, access token, or shelf used on this device.',
+      description: 'Change where this device reads your library from: a PlainShelf server or pCloud.',
       open: 'Edit connection'
     },
     downloads: {
@@ -477,7 +477,29 @@ const en = {
   },
   mobileConnect: {
     title: 'Connect to PlainShelf',
-    description: 'Enter your PlainShelf server address to browse and read your library on this device. The app is read-only: it never changes your library.',
+    description: 'Choose where your library lives so you can browse and read it on this device. The app is read-only: it never changes your library.',
+    modeLabel: 'Library source',
+    modeServer: 'PlainShelf server',
+    modePCloud: 'pCloud',
+    pcloud: {
+      clientIdLabel: 'pCloud app key',
+      clientIdPlaceholder: 'Your app key',
+      clientIdHint: 'PlainShelf uses your own pCloud application. Create one in the pCloud developer console and paste its app key here.',
+      clientIdRequired: 'Enter your pCloud app key first.',
+      authorize: 'Authorize with pCloud',
+      authorizing: 'Waiting for approval…',
+      cancel: 'Cancel',
+      authorized: 'Authorized ({host}).',
+      shelfRootLabel: 'Shelf folder',
+      shelfRootPlaceholder: '/PlainShelf/default-shelf',
+      shelfRootHint: 'The folder on pCloud that holds your shelf, the one containing books/.',
+      shelfRootRequired: 'Enter the shelf folder first.',
+      verify: 'Check shelf',
+      verifying: 'Checking…',
+      shelfFound: 'Found {count} books.',
+      notAShelf: 'That folder has no books/ directory, so it is not a PlainShelf shelf.',
+      verifyRequired: 'Check the shelf before saving.'
+    },
     serverUrlLabel: 'Server URL',
     serverUrlPlaceholder: 'http://192.168.1.10:20000',
     tokenLabel: 'Access token (optional)',

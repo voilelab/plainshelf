@@ -135,6 +135,33 @@ export function collectBookPackages(booksFolder: PCloudItem): BookPackageRef[] {
   return packages;
 }
 
+/**
+ * Lists every layer under a listed `books/` tree, in the shape `getLayers()`
+ * returns (`'/'` for the top level, `Fiction/Classics` for a nested one).
+ *
+ * Derived from the directories themselves, not from the books found in them, so
+ * a layer holding no books is still listed — the Go side walks real directories
+ * too (`iterateLayers` in shelf/shelf_layer.go) and `books/` itself counts as
+ * the "no layer" group.
+ */
+export function collectLayers(booksFolder: PCloudItem): string[] {
+  const paths = new Set<string>(['/']);
+
+  const walk = (folder: PCloudItem, segments: string[]): void => {
+    for (const item of folder.contents ?? []) {
+      if (!item.isfolder || item.folderid === undefined || item.name.endsWith(BOOK_EXTENSION)) {
+        continue;
+      }
+      const next = [...segments, item.name];
+      paths.add(next.join('/'));
+      walk(item, next);
+    }
+  };
+
+  walk(booksFolder, []);
+  return Array.from(paths).sort((a, b) => a.localeCompare(b));
+}
+
 function readBookPackage(pkg: PCloudItem, layers: string[]): BookPackageRef {
   const files: Record<string, PCloudFileRef> = {};
   let sources: BookSourceRef[] = [];

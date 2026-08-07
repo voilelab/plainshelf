@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { getLayers } from '@/api/layers';
+import { getBookshelfProvider } from '@/providers';
 
 const layers = ref<string[]>([]);
 const loading = ref(false);
@@ -11,7 +11,7 @@ async function fetchLayers(): Promise<void> {
   error.value = '';
 
   try {
-    layers.value = await getLayers();
+    layers.value = await getBookshelfProvider().listLayers();
     loaded.value = true;
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load layers';
