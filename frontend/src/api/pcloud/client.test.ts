@@ -38,7 +38,7 @@ describe('PCloudClient construction', () => {
       fetchImpl: fetchImpl as unknown as typeof fetch
     });
 
-    await client.listFolder({ path: '/shelf' });
+    await client.listFolder(7);
 
     expect(fetchImpl.mock.calls[0][0]).toContain('https://eapi.pcloud.com/listfolder');
   });
@@ -47,7 +47,7 @@ describe('PCloudClient construction', () => {
 describe('PCloudClient.call', () => {
   it('sends the token as a Bearer header rather than in the URL', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ result: 0, metadata: { name: 'x', isfolder: true } }));
-    await makeClient(fetchImpl as unknown as typeof fetch).listFolder({ path: '/shelf' });
+    await makeClient(fetchImpl as unknown as typeof fetch).listFolder(7);
 
     const [url, init] = fetchImpl.mock.calls[0];
     expect(String(url)).not.toContain(TOKEN);
@@ -57,7 +57,7 @@ describe('PCloudClient.call', () => {
   it('turns a non-zero result into a PCloudError carrying the code', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ result: 2005, error: 'Directory does not exist.' }));
 
-    await expect(makeClient(fetchImpl as unknown as typeof fetch).listFolder({ path: '/missing' })).rejects.toMatchObject(
+    await expect(makeClient(fetchImpl as unknown as typeof fetch).listFolder(99)).rejects.toMatchObject(
       { name: 'PCloudError', result: 2005 }
     );
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -69,7 +69,7 @@ describe('PCloudClient.call', () => {
       .mockResolvedValueOnce(jsonResponse({ result: 4000, error: 'Too many requests.' }))
       .mockResolvedValueOnce(jsonResponse({ result: 0, metadata: { name: 'shelf', isfolder: true } }));
 
-    const meta = await makeClient(fetchImpl as unknown as typeof fetch).listFolder({ path: '/shelf' });
+    const meta = await makeClient(fetchImpl as unknown as typeof fetch).listFolder(7);
 
     expect(meta.name).toBe('shelf');
     expect(fetchImpl).toHaveBeenCalledTimes(2);
@@ -78,7 +78,7 @@ describe('PCloudClient.call', () => {
   it('does not retry a permanent error', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ result: 1101, error: 'Not supported.' }));
 
-    await expect(makeClient(fetchImpl as unknown as typeof fetch).listFolder({ path: '/' })).rejects.toBeInstanceOf(
+    await expect(makeClient(fetchImpl as unknown as typeof fetch).listFolder(7)).rejects.toBeInstanceOf(
       PCloudError
     );
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -90,7 +90,7 @@ describe('PCloudClient.call', () => {
       .mockRejectedValueOnce(new TypeError('Failed to fetch'))
       .mockResolvedValueOnce(jsonResponse({ result: 0, metadata: { name: 'shelf', isfolder: true } }));
 
-    const meta = await makeClient(fetchImpl as unknown as typeof fetch).listFolder({ path: '/shelf' });
+    const meta = await makeClient(fetchImpl as unknown as typeof fetch).listFolder(7);
 
     expect(meta.name).toBe('shelf');
     expect(fetchImpl).toHaveBeenCalledTimes(2);
@@ -99,7 +99,7 @@ describe('PCloudClient.call', () => {
   it('gives up on a persistent network failure once the attempt budget is spent', async () => {
     const fetchImpl = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
 
-    await expect(makeClient(fetchImpl as unknown as typeof fetch).listFolder({ path: '/shelf' })).rejects.toBeInstanceOf(
+    await expect(makeClient(fetchImpl as unknown as typeof fetch).listFolder(7)).rejects.toBeInstanceOf(
       PCloudError
     );
     expect(fetchImpl).toHaveBeenCalledTimes(3);
@@ -113,7 +113,7 @@ describe('PCloudClient.call', () => {
     });
 
     await expect(
-      makeClient(fetchImpl as unknown as typeof fetch).listFolder({ path: '/shelf' }, { signal: controller.signal })
+      makeClient(fetchImpl as unknown as typeof fetch).listFolder(7, { signal: controller.signal })
     ).rejects.toBeTruthy();
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
@@ -121,7 +121,7 @@ describe('PCloudClient.call', () => {
   it('reports an HTTP failure with its status', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response('nope', { status: 401, statusText: 'Unauthorized' }));
 
-    await expect(makeClient(fetchImpl as unknown as typeof fetch).listFolder({ path: '/shelf' })).rejects.toMatchObject({
+    await expect(makeClient(fetchImpl as unknown as typeof fetch).listFolder(7)).rejects.toMatchObject({
       name: 'PCloudError',
       status: 401
     });
@@ -131,13 +131,13 @@ describe('PCloudClient.call', () => {
 describe('PCloudClient.listFolderRecursive', () => {
   it('asks for the whole tree in one request', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ result: 0, metadata: { name: 'shelf', isfolder: true } }));
-    await makeClient(fetchImpl as unknown as typeof fetch).listFolderRecursive({ path: '/shelf' });
+    await makeClient(fetchImpl as unknown as typeof fetch).listFolderRecursive({ folderid: 7 });
 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(String(fetchImpl.mock.calls[0][0])).toContain('recursive=1');
   });
 
-  it('walks the tree manually when the root rejects recursive listing', async () => {
+  it('walks the account root manually, without attempting a recursive listing', async () => {
     const fetchImpl = vi.fn().mockImplementation((input: RequestInfo | URL) => {
       const url = new URL(String(input));
       const recursive = url.searchParams.get('recursive') === '1';
@@ -179,6 +179,123 @@ describe('PCloudClient.listFolderRecursive', () => {
 
     expect(tree.contents?.map((item) => item.name)).toEqual(['shelf', 'readme.txt']);
     expect(tree.contents?.[0].contents?.[0].name).toBe('books');
+    // The root is known to reject it, so it is never asked.
+    const recursiveRootCalls = fetchImpl.mock.calls.filter((call) => {
+      const url = new URL(String(call[0]));
+      return url.searchParams.get('folderid') === '0' && url.searchParams.get('recursive') === '1';
+    });
+    expect(recursiveRootCalls).toHaveLength(0);
+  });
+
+  it('falls back to a manual walk if a non-root folder refuses recursion', async () => {
+    const fetchImpl = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.searchParams.get('recursive') === '1') {
+        return Promise.resolve(jsonResponse({ result: 1101, error: 'Not supported.' }));
+      }
+      return Promise.resolve(
+        jsonResponse({
+          result: 0,
+          metadata: { name: 'shelf', isfolder: true, folderid: 7, contents: [] }
+        })
+      );
+    });
+
+    const tree = await makeClient(fetchImpl as unknown as typeof fetch).listFolderRecursive({ folderid: 7 });
+
+    expect(tree.name).toBe('shelf');
+  });
+
+  // The regression this pins: pCloud answers "Directory does not exist" for a
+  // listfolder addressed by path, even for a folder that plainly exists, so
+  // every folder must be addressed by id.
+  it('never addresses listfolder by path', async () => {
+    const fetchImpl = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      const folderid = url.searchParams.get('folderid');
+      if (folderid === '0') {
+        return Promise.resolve(
+          jsonResponse({
+            result: 0,
+            metadata: { name: '/', isfolder: true, folderid: 0, contents: [{ name: 'test1', isfolder: true, folderid: 7 }] }
+          })
+        );
+      }
+      return Promise.resolve(
+        jsonResponse({ result: 0, metadata: { name: 'test1', isfolder: true, folderid: 7, contents: [] } })
+      );
+    });
+
+    await makeClient(fetchImpl as unknown as typeof fetch).listFolderRecursive({ path: '/test1' });
+
+    for (const call of fetchImpl.mock.calls) {
+      expect(new URL(String(call[0])).searchParams.has('path')).toBe(false);
+    }
+  });
+});
+
+describe('PCloudClient.resolveFolderID', () => {
+  function treeFetch(tree: Record<string, Array<{ name: string; folderid?: number; isfolder?: boolean }>>) {
+    return vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const folderid = new URL(String(input)).searchParams.get('folderid') ?? '0';
+      const contents = tree[folderid];
+      if (!contents) {
+        return Promise.resolve(jsonResponse({ result: 2005, error: 'Directory does not exist.' }));
+      }
+      return Promise.resolve(
+        jsonResponse({
+          result: 0,
+          metadata: {
+            name: folderid,
+            isfolder: true,
+            folderid: Number(folderid),
+            contents: contents.map((item) => ({ isfolder: true, ...item }))
+          }
+        })
+      );
+    });
+  }
+
+  it('walks segment by segment from the account root', async () => {
+    const fetchImpl = treeFetch({
+      '0': [{ name: 'test1', folderid: 7 }],
+      '7': [{ name: 'books', folderid: 8 }],
+      '8': []
+    });
+
+    await expect(makeClient(fetchImpl as unknown as typeof fetch).resolveFolderID('/test1/books')).resolves.toBe(8);
+  });
+
+  it('ignores leading, trailing and repeated slashes', async () => {
+    const fetchImpl = treeFetch({ '0': [{ name: 'test1', folderid: 7 }], '7': [] });
+    const client = makeClient(fetchImpl as unknown as typeof fetch);
+
+    await expect(client.resolveFolderID('/test1')).resolves.toBe(7);
+    await expect(client.resolveFolderID('test1/')).resolves.toBe(7);
+    await expect(client.resolveFolderID('//test1//')).resolves.toBe(7);
+  });
+
+  it('resolves an empty path to the account root', async () => {
+    const fetchImpl = treeFetch({ '0': [] });
+
+    await expect(makeClient(fetchImpl as unknown as typeof fetch).resolveFolderID('/')).resolves.toBe(0);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('names the segment that is missing, and where', async () => {
+    const fetchImpl = treeFetch({ '0': [{ name: 'test1', folderid: 7 }], '7': [] });
+    const client = makeClient(fetchImpl as unknown as typeof fetch);
+
+    await expect(client.resolveFolderID('/nope')).rejects.toThrow(/"nope".*account root/);
+    await expect(client.resolveFolderID('/test1/books')).rejects.toThrow(/"books".*"\/test1"/);
+  });
+
+  it('does not match a file of the same name', async () => {
+    const fetchImpl = treeFetch({ '0': [{ name: 'test1', isfolder: false }] });
+
+    await expect(
+      makeClient(fetchImpl as unknown as typeof fetch).resolveFolderID('/test1')
+    ).rejects.toBeInstanceOf(PCloudError);
   });
 });
 

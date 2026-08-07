@@ -18,6 +18,9 @@ const DOWNLOAD_TIMEOUT_MS = 300_000;
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 500;
 
+/** The account's top-level folder. Recursive listing is rejected on this one. */
+const ROOT_FOLDER_ID = 0;
+
 export type PCloudParams = Record<string, string | number | boolean | undefined>;
 
 export interface PCloudClientOptions {
@@ -176,12 +179,12 @@ export class PCloudClient {
     }
   }
 
-  /** Lists one folder. Pass either a shelf path or a folder id. */
+  /** Lists one folder by id. */
   async listFolder(
-    target: { path: string } | { folderid: number },
+    folderid: number,
     options?: { recursive?: boolean; signal?: AbortSignal }
   ): Promise<PCloudItem> {
-    const params: PCloudParams = 'path' in target ? { path: target.path } : { folderid: target.folderid };
+    const params: PCloudParams = { folderid };
     if (options?.recursive) {
       params.recursive = 1;
     }
@@ -191,26 +194,67 @@ export class PCloudClient {
   }
 
   /**
+   * Resolves a slash-separated folder path to its pCloud folder id.
+   *
+   * Walks one segment at a time from the account root instead of handing the
+   * whole path to the API. `listfolder` is addressed by folder id — the
+   * reference implementation (rclone's pCloud backend) never sends a path and
+   * resolves every one this way — and a path-based listing answers "Directory
+   * does not exist" even for a folder that plainly exists.
+   *
+   * Naming the segment that failed matters here: this runs while the user is
+   * typing a folder into the connection form, and a bare "directory does not
+   * exist" for a path they can see in pCloud is no help at all.
+   */
+  async resolveFolderID(path: string, signal?: AbortSignal): Promise<number> {
+    const segments = path.split('/').filter((segment) => segment.length > 0);
+    let folderid = ROOT_FOLDER_ID;
+    let walked = '';
+
+    for (const segment of segments) {
+      const listing = await this.listFolder(folderid, { signal });
+      const match = listing.contents?.find((item) => item.isfolder && item.name === segment);
+
+      if (!match || match.folderid === undefined) {
+        throw new PCloudError(
+          `pCloud has no folder named "${segment}" in ${walked === '' ? 'your account root' : `"${walked}"`}.`
+        );
+      }
+
+      folderid = match.folderid;
+      walked = `${walked}/${segment}`;
+    }
+
+    return folderid;
+  }
+
+  /**
    * Lists a folder and everything beneath it.
    *
-   * One request covers the whole tree in the normal case. The account root
-   * rejects recursive listing, so that case is walked manually — the returned
-   * shape is identical either way, which keeps the parsing layer unaware of
-   * which path was taken.
+   * One request covers the whole tree once the folder id is known. The account
+   * root rejects recursive listing, so that case is walked manually — the
+   * returned shape is identical either way, which keeps the parsing layer
+   * unaware of which path was taken.
    */
   async listFolderRecursive(
     target: { path: string } | { folderid: number },
     signal?: AbortSignal
   ): Promise<PCloudItem> {
-    try {
-      return await this.listFolder(target, { recursive: true, signal });
-    } catch (err) {
-      if (!(err instanceof PCloudError) || err.result !== PCLOUD_RESULT_RECURSIVE_ROOT_UNSUPPORTED) {
-        throw err;
+    const folderid = 'path' in target ? await this.resolveFolderID(target.path, signal) : target.folderid;
+
+    if (folderid !== ROOT_FOLDER_ID) {
+      try {
+        return await this.listFolder(folderid, { recursive: true, signal });
+      } catch (err) {
+        // Kept as a safety net now that the root is handled up front: the API
+        // may refuse a recursive listing somewhere this code does not predict.
+        if (!(err instanceof PCloudError) || err.result !== PCLOUD_RESULT_RECURSIVE_ROOT_UNSUPPORTED) {
+          throw err;
+        }
       }
     }
 
-    const root = await this.listFolder(target, { signal });
+    const root = await this.listFolder(folderid, { signal });
     return { ...root, contents: await this.expandChildren(root.contents ?? [], signal) };
   }
 

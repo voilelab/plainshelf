@@ -90,20 +90,50 @@ function bookPackage(spec: BookSpec): PCloudItem {
   return folder(`${spec.title}.bookpkg`, contents);
 }
 
+function indexFolders(item: PCloudItem, into: Map<number, PCloudItem>): void {
+  if (!item.isfolder || item.folderid === undefined) {
+    return;
+  }
+  into.set(item.folderid, item);
+  for (const child of item.contents ?? []) {
+    indexFolders(child, into);
+  }
+}
+
 /**
- * A fake pCloud that answers listfolder from a fixed tree and serves downloads
- * from the bodies the tree was built with. Counts requests so the caching and
+ * A fake pCloud that answers listfolder by folder id and serves downloads from
+ * the bodies the tree was built with. Counts requests so the caching and
  * concurrency behaviour can be asserted.
+ *
+ * The fixture is mounted under SHELF_ROOT so path resolution has real folders
+ * to walk segment by segment, which is how the client addresses folders.
  */
 function makeFetch(tree: PCloudItem, onDownload?: (fileid: number) => Promise<Response> | null) {
-  const calls = { listfolder: 0, getfilelink: 0, download: 0 };
+  const calls = { listfolder: 0, recursiveListfolder: 0, getfilelink: 0, download: 0 };
+
+  const segments = SHELF_ROOT.split('/').filter((segment) => segment.length > 0);
+  let mounted: PCloudItem = { ...tree, name: segments[segments.length - 1] };
+  for (let index = segments.length - 2; index >= 0; index -= 1) {
+    mounted = { name: segments[index], isfolder: true, folderid: nextFolderID++, contents: [mounted] };
+  }
+  const accountRoot: PCloudItem = { name: '/', isfolder: true, folderid: 0, contents: [mounted] };
+
+  const foldersByID = new Map<number, PCloudItem>();
+  indexFolders(accountRoot, foldersByID);
 
   const fetchImpl = vi.fn().mockImplementation((input: RequestInfo | URL) => {
     const url = new URL(String(input));
 
     if (url.pathname === '/listfolder') {
       calls.listfolder += 1;
-      return Promise.resolve(jsonResponse({ result: 0, metadata: tree }));
+      if (url.searchParams.get('recursive') === '1') {
+        calls.recursiveListfolder += 1;
+      }
+      const folder = foldersByID.get(Number(url.searchParams.get('folderid')));
+      if (!folder) {
+        return Promise.resolve(jsonResponse({ result: 2005, error: 'Directory does not exist.' }));
+      }
+      return Promise.resolve(jsonResponse({ result: 0, metadata: folder }));
     }
 
     if (url.pathname === '/getfilelink') {
@@ -194,7 +224,7 @@ describe('shelf loading', () => {
     await provider.listBooks(1, 10);
     await provider.getBook('a');
 
-    expect(calls.listfolder).toBe(1);
+    expect(calls.recursiveListfolder).toBe(1);
   });
 
   it('collapses concurrent listings onto a single walk', async () => {
@@ -202,7 +232,7 @@ describe('shelf loading', () => {
 
     await Promise.all([provider.listBooks(1, 10), provider.listBooks(1, 10), provider.listBooks(1, 10)]);
 
-    expect(calls.listfolder).toBe(1);
+    expect(calls.recursiveListfolder).toBe(1);
   });
 
   it('re-walks after the scan interval but does not re-read unchanged book.json', async () => {
@@ -218,7 +248,7 @@ describe('shelf loading', () => {
     clock = 5_000;
     await provider.listBooks(1, 10);
 
-    expect(calls.listfolder).toBe(2);
+    expect(calls.recursiveListfolder).toBe(2);
     // Size and modified time are unchanged, so the metadata is served from cache.
     expect(calls.download).toBe(downloadsAfterFirst);
   });
@@ -312,7 +342,7 @@ describe('layers', () => {
     await provider.listBooks(1, 10);
     await provider.listLayers();
 
-    expect(calls.listfolder).toBe(1);
+    expect(calls.recursiveListfolder).toBe(1);
   });
 
   it('reports a failed walk rather than an empty layer tree', async () => {
