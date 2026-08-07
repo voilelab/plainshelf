@@ -118,6 +118,31 @@ describe('PCloudClient.call', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  // The regression this pins: a reply with no `result` used to be read as
+  // success, so a non-pCloud reply flowed on as an empty listing and only
+  // surfaced much later as a confusing "folder not found".
+  it('refuses a reply that carries no pCloud result', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ hello: 'not pcloud' }));
+
+    await expect(makeClient(fetchImpl as unknown as typeof fetch).listFolder(7)).rejects.toThrow(
+      /did not come from the pCloud API/
+    );
+  });
+
+  it('quotes the unexpected reply back, truncated', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ padding: 'x'.repeat(500) }));
+
+    await expect(makeClient(fetchImpl as unknown as typeof fetch).listFolder(7)).rejects.toThrow(/…/);
+  });
+
+  it('refuses a success that carries no folder', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ result: 0 }));
+
+    await expect(makeClient(fetchImpl as unknown as typeof fetch).listFolder(7)).rejects.toThrow(
+      /returned no folder/
+    );
+  });
+
   it('reports an HTTP failure with its status', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response('nope', { status: 401, statusText: 'Unauthorized' }));
 
@@ -288,6 +313,41 @@ describe('PCloudClient.resolveFolderID', () => {
 
     await expect(client.resolveFolderID('/nope')).rejects.toThrow(/"nope".*account root/);
     await expect(client.resolveFolderID('/test1/books')).rejects.toThrow(/"books".*"\/test1"/);
+  });
+
+  // Without this the message cannot tell a typo from "this device is signed
+  // into a different pCloud account", which look identical to the user.
+  it('lists the folders that level does contain', async () => {
+    const fetchImpl = treeFetch({
+      '0': [
+        { name: 'Photos', folderid: 5 },
+        { name: 'Documents', folderid: 6 }
+      ]
+    });
+
+    await expect(
+      makeClient(fetchImpl as unknown as typeof fetch).resolveFolderID('/test1')
+    ).rejects.toThrow(/It contains "Documents", "Photos"\./);
+  });
+
+  it('says so plainly when the level has no folders', async () => {
+    const fetchImpl = treeFetch({ '0': [] });
+
+    await expect(
+      makeClient(fetchImpl as unknown as typeof fetch).resolveFolderID('/test1')
+    ).rejects.toThrow(/contains no folders at all/);
+  });
+
+  it('caps a long list of folder names', async () => {
+    const many = Array.from({ length: 14 }, (_, index) => ({
+      name: `folder-${String(index).padStart(2, '0')}`,
+      folderid: 100 + index
+    }));
+    const fetchImpl = treeFetch({ '0': many });
+
+    await expect(
+      makeClient(fetchImpl as unknown as typeof fetch).resolveFolderID('/test1')
+    ).rejects.toThrow(/and 4 more\./);
   });
 
   it('does not match a file of the same name', async () => {

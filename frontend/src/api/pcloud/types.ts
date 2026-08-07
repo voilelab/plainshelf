@@ -48,7 +48,12 @@ export interface PCloudResponse {
 }
 
 export interface PCloudListFolderResult extends PCloudResponse {
-  metadata: PCloudItem;
+  /**
+   * Optional so callers have to check. A successful pCloud listing always
+   * carries it, but "successful" is only as trustworthy as the response being
+   * from pCloud at all — see the envelope check in client.ts.
+   */
+  metadata?: PCloudItem;
 }
 
 /**

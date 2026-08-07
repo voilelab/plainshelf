@@ -36,6 +36,35 @@ function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** How much of an unexpected reply to quote back. Enough to recognise, short
+ *  enough to read on a phone. */
+const MAX_EXCERPT_LENGTH = 200;
+
+function excerpt(value: unknown): string {
+  let text: string;
+  try {
+    text = JSON.stringify(value) ?? String(value);
+  } catch {
+    text = String(value);
+  }
+  return text.length > MAX_EXCERPT_LENGTH ? `${text.slice(0, MAX_EXCERPT_LENGTH)}…` : text;
+}
+
+/** Names of the folders at a level, for an error that has to be actionable. */
+const MAX_LISTED_FOLDERS = 10;
+
+function describeFolders(folders: PCloudItem[]): string {
+  if (folders.length === 0) {
+    return 'That level contains no folders at all.';
+  }
+
+  const names = [...folders].map((folder) => folder.name).sort((a, b) => a.localeCompare(b));
+  const shown = names.slice(0, MAX_LISTED_FOLDERS).map((name) => `"${name}"`).join(', ');
+  const remaining = names.length - MAX_LISTED_FOLDERS;
+
+  return remaining > 0 ? `It contains ${shown} and ${remaining} more.` : `It contains ${shown}.`;
+}
+
 /**
  * A thin, read-only pCloud API client.
  *
@@ -112,12 +141,23 @@ export class PCloudClient {
           });
         }
 
-        const payload = (await res.json()) as { result?: number; error?: string };
-        const result = payload?.result ?? 0;
-        if (result !== 0) {
-          throw new PCloudError(`pCloud ${method} failed: ${payload?.error ?? 'unknown error'} (${result})`, {
-            result
-          });
+        const payload = (await res.json()) as { result?: unknown; error?: unknown };
+
+        // Every pCloud reply carries `result`. Treating its absence as success
+        // would let a reply from somewhere else — a proxy, an interception
+        // layer, an error page that happens to be JSON — flow on as an empty
+        // listing, and surface much later as a confusing "folder not found".
+        if (typeof payload?.result !== 'number') {
+          throw new PCloudError(
+            `pCloud ${method} returned a reply that did not come from the pCloud API: ${excerpt(payload)}`
+          );
+        }
+
+        if (payload.result !== 0) {
+          throw new PCloudError(
+            `pCloud ${method} failed: ${payload.error ?? 'unknown error'} (${payload.result})`,
+            { result: payload.result }
+          );
         }
 
         return payload as T;
@@ -190,6 +230,12 @@ export class PCloudClient {
     }
 
     const res = await this.call<PCloudListFolderResult>('listfolder', params, options?.signal);
+    if (!res.metadata?.isfolder) {
+      throw new PCloudError(
+        `pCloud reported success for folder ${folderid} but returned no folder: ${excerpt(res)}`
+      );
+    }
+
     return res.metadata;
   }
 
@@ -213,11 +259,18 @@ export class PCloudClient {
 
     for (const segment of segments) {
       const listing = await this.listFolder(folderid, { signal });
-      const match = listing.contents?.find((item) => item.isfolder && item.name === segment);
+      const folders = (listing.contents ?? []).filter(
+        (item) => item.isfolder && item.folderid !== undefined
+      );
+      const match = folders.find((item) => item.name === segment);
 
       if (!match || match.folderid === undefined) {
+        // Naming what is there turns "we disagree about your account" into
+        // something the user can act on — a typo, or the wrong pCloud account
+        // signed in on this device.
         throw new PCloudError(
-          `pCloud has no folder named "${segment}" in ${walked === '' ? 'your account root' : `"${walked}"`}.`
+          `pCloud has no folder named "${segment}" in ${walked === '' ? 'your account root' : `"${walked}"`}. ` +
+            describeFolders(folders)
         );
       }
 
