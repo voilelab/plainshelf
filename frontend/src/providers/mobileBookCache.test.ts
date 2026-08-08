@@ -63,7 +63,9 @@ describe('InMemoryMobileBookCache', () => {
     expect(await cache.getCachedSourceContent('book1', 's10')).toBe('second');
   });
 
-  it('detaches stored manifests from the caller', async () => {
+  // Only the manifest's own objects are detached; see cloneManifest for what
+  // stays shared below that level.
+  it("detaches a stored manifest's own objects from the caller", async () => {
     const manifest = makeManifest('book1', ['s1']);
     await cache.saveDownloadedBook(manifest);
     manifest.book.title = 'mutated after saving';

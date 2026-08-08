@@ -69,11 +69,24 @@ export function downloadedBookFromManifest(manifest: CachedBookManifest): Book {
 }
 
 /**
- * Detached copy of a manifest, so neither a caller storing one nor a caller
- * reading one back can mutate what the cache holds.
+ * Copy of a manifest that shares none of its own objects with the original:
+ * assigning to a field of the returned book, of one of its sources, or of the
+ * size breakdown cannot reach the cache's copy, and vice versa.
  *
- * Deep for the fields a consumer could reasonably mutate in place (book,
- * sources, split_config, size_breakdown); the rest are strings.
+ * **One level deep, no further.** Values nested inside those objects stay
+ * shared by reference — `book.authors`, `book.tags`, `book.layers`,
+ * `book.identifiers`, a source's `split_config` — so this does not protect
+ * against a caller mutating one of those in place. `split_config` on the
+ * manifest itself is the exception, because copySplitConfig also copies its
+ * `boundaries` array.
+ *
+ * That depth is what every cache implementation applied before this was
+ * shared, and it is enough for how manifests are actually used: the only one
+ * ever handed to saveDownloadedBook is built per download in
+ * MobileBookshelfProvider.downloadBook and dropped straight after, the
+ * filesystem cache serialises to JSON on the way in, and the downloads page
+ * only reads what listDownloadedManifests returns. Deepen it here if a caller
+ * ever starts mutating a manifest it did not build.
  */
 export function cloneManifest(manifest: CachedBookManifest): CachedBookManifest {
   return {
