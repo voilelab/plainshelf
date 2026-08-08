@@ -9,6 +9,7 @@ and UI behavior may still change between releases.
 
 ### Added
 
+- Added a pCloud connection mode to the Android client, which reads a shelf directly from a pCloud folder with no PlainShelf server involved. A phone cannot mount cloud storage the way a host can, so a server keeping its shelf on a mounted cloud drive was never any help to the phone. You supply your own pCloud application: PlainShelf registers none and ships no app key. Authorization runs in the system browser through pCloud's `poll_token` flow, which needs no redirect URL and no app secret, and reports which account and region it reached, so no region has to be chosen. You then name the shelf folder — the one containing `books/` — and the app checks it before saving. The mode is read-only like the rest of the Android client, has no access token or `protect_read` equivalent because there is no server, and offers a single shelf rather than a list. Downloads, reading progress, read history, and reading time stay on the device and are kept separate per connection. The mode is experimental.
 - Added a `schema_version` field to `book.json`, establishing schema v1 as the first versioned on-disk book format. Libraries created before this release have no version marker, are read as v1, and are upgraded lazily: opening a library never rewrites it, and the version is written to a book only the next time that book is modified.
 - Added a compatibility policy and upgrade documentation covering the on-disk schema version, backing up and restoring a shelf, and what to do when PlainShelf refuses to write a book (`docs/concepts/data-format-versioning.md`).
 - Added a "Low Character Count" maintenance page listing books whose character count is at or below a threshold set from the page header, reusing the shared maintenance book list, view modes, and pagination. Books with an unknown count are listed and reported separately in the header.
@@ -28,6 +29,7 @@ and UI behavior may still change between releases.
 
 ### Fixed
 
+- Fixed deleting a book from its detail page returning to the unfiltered book list, dropping the layer the reader was browsing. The view now returns to the deleted book's own layer.
 - Fixed dropdown, select, and context menus growing past the bottom of the window with long option lists, which made the lower entries unreachable; popper menus are now capped to the available height (at most 320px) and scroll.
 - Fixed book data writes that could leave the shelf inconsistent after an abrupt shutdown or a failed request: covers stage through a temp file instead of being truncated in place, `trash.json` uses the same atomic path, concurrent writers to one book no longer collide on a shared temp filename, and a newly created or imported book becomes visible only once its source, current-source pointer, and metadata are all written.
 - Fixed a cover upload race in which two overlapping uploads with different extensions could delete the image the book had just been pointed at, leaving `book.json` referencing a missing file.

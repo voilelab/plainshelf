@@ -93,7 +93,9 @@ Create a release-style desktop build with `just build-desktop`.
 ## Android app
 
 The Android client is experimental and reuses the Vue frontend through
-Capacitor. See [Android Development](android.md) for setup and device networking.
+Capacitor. It reads from a PlainShelf server or straight from a shelf folder on
+pCloud. See [Android Development](android.md) for connection modes, setup, and
+device networking.
 
 ## Docker image
 

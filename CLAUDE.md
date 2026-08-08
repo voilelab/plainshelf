@@ -12,6 +12,8 @@ Android clients.
 - Keep single-user, local/private operation as the default.
 - EPUB, PDF, comic archives, DRM, OCR, multi-user accounts, cloud sync, public
   sharing, and plugins are outside the current scope unless the user changes it.
+- The Android client may read a shelf from pCloud, but only as a read-only
+  storage backend. That is not cloud sync: it writes nothing back.
 - Treat data-format, public API, and security changes as compatibility-sensitive.
 
 ## Repository map

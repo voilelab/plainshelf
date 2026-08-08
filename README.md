@@ -22,10 +22,12 @@ desktop, and experimental Android clients.
 - Keeps stable book IDs when titles or folders change
 - Supports covers, metadata, bookmarks, reading history, and reading stats
 - Runs as a local server, a macOS desktop app, or an experimental Android client
+  that reads from a server or straight from a shelf folder on pCloud
 
 PlainShelf is not a Calibre replacement. EPUB, PDF, comic archives, DRM, OCR,
 multi-user accounts, cloud sync, public sharing, and plugins are outside the
-current scope.
+current scope. The Android client can read a shelf held on pCloud, but that is a
+read-only storage backend, not sync: nothing is written back.
 
 ## Install
 

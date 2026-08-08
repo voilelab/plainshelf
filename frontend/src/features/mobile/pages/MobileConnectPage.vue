@@ -324,8 +324,8 @@ async function loadPCloudAccountIdentity(host: string, accessToken: string): Pro
 
 /**
  * Runs pCloud's poll_token flow: open the approval page in the system browser
- * and wait for whichever regional host answers, which is also how the account's
- * region is learned.
+ * and wait for the token. The region comes back with it, so nothing here has to
+ * be told which regional host serves the account.
  */
 async function onAuthorize(): Promise<void> {
   localError.value = '';
