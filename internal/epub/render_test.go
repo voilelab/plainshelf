@@ -158,6 +158,24 @@ func TestRenderRegexMatchesChapterLines(t *testing.T) {
 	}
 }
 
+func TestRenderUntitledChapterFallsBackToBoundaries(t *testing.T) {
+	book := sampleBook()
+	book.Chapters[1].Title = ""
+
+	got := Render(book, Strategy{Preset: PresetMarkdown})
+
+	if got.ChapterRegex != "" {
+		t.Errorf("ChapterRegex = %q, want empty because an untitled heading cannot match it", got.ChapterRegex)
+	}
+	if len(got.ChapterLines) != 2 {
+		t.Fatalf("ChapterLines = %v, want both chapter boundaries", got.ChapterLines)
+	}
+	lines := strings.Split(got.Text, "\n")
+	if line := lines[got.ChapterLines[1]-1]; line != "##" {
+		t.Errorf("untitled chapter line = %q, want normalized heading %q", line, "##")
+	}
+}
+
 func TestRenderEmptyFieldsLeaveNoBlankHoles(t *testing.T) {
 	book := &Book{
 		Title:    "無簡介",

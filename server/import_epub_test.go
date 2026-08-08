@@ -197,6 +197,28 @@ func TestSplitConfigForRender(t *testing.T) {
 	}
 }
 
+func TestSplitConfigForRenderUsesBoundariesForUntitledChapter(t *testing.T) {
+	rendered := epub.Render(&epub.Book{
+		Title: "Untitled chapter",
+		Chapters: []epub.Chapter{
+			{Title: "Chapter One", Text: "First."},
+			{Text: "Second."},
+		},
+	}, epub.Strategy{Preset: epub.PresetMarkdown})
+
+	if rendered.ChapterRegex != "" {
+		t.Fatalf("ChapterRegex = %q, want the renderer to disable the incomplete regex", rendered.ChapterRegex)
+	}
+
+	got := splitConfigForRender(rendered)
+	if got.Type != shelf.SplitTypeBoundary {
+		t.Fatalf("split type = %q, want boundary", got.Type)
+	}
+	if len(got.Boundaries) != 2 || got.Boundaries[0] != rendered.ChapterLines[0] || got.Boundaries[1] != rendered.ChapterLines[1] {
+		t.Errorf("boundaries = %v, want rendered chapter lines %v", got.Boundaries, rendered.ChapterLines)
+	}
+}
+
 func TestParseEPUBDate(t *testing.T) {
 	tests := []struct {
 		raw    string

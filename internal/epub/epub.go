@@ -9,6 +9,7 @@ package epub
 import (
 	"archive/zip"
 	"encoding/xml"
+	"errors"
 	"io"
 	"net/url"
 	"path"
@@ -24,6 +25,8 @@ const (
 	maxDocumentBytes = 32 << 20  // 32 MB for a single spine document
 	maxTotalBytes    = 256 << 20 // 256 MB across all spine documents
 )
+
+var errZipEntryTooLarge = errors.New("zip entry exceeds the maximum supported size")
 
 // Chapter is one spine document, flattened to text.
 type Chapter struct {
@@ -141,6 +144,9 @@ func Parse(r io.ReaderAt, size int64, opts Options) (*Book, error) {
 		docPath := resolveHref(baseDir, item.Href)
 		data, err := readZipEntryLimit(files, docPath, maxDocumentBytes)
 		if err != nil {
+			if errors.Is(err, errZipEntryTooLarge) {
+				return nil, util.Errorf("failed to read spine document %q: %w", docPath, err)
+			}
 			continue
 		}
 
@@ -225,7 +231,7 @@ func readZipEntryLimit(files map[string]*zip.File, name string, limit int64) ([]
 		return nil, util.Errorf("%w", err)
 	}
 	if int64(len(data)) > limit {
-		return nil, util.Errorf("entry too large: %s", name)
+		return nil, util.Errorf("%w: %s", errZipEntryTooLarge, name)
 	}
 
 	return data, nil

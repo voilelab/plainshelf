@@ -3,6 +3,7 @@ package epub
 import (
 	"archive/zip"
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -433,6 +434,30 @@ func TestParseErrors(t *testing.T) {
 				t.Errorf("Parse() error = %v, want it to contain %q", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestParseRejectsOversizedSpineDocument(t *testing.T) {
+	entries := []zipEntry{
+		{"META-INF/container.xml", containerXML},
+		{"OEBPS/content.opf", `<package xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>過大章節</dc:title></metadata>
+  <manifest>
+    <item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="c2" href="ch2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="c1"/><itemref idref="c2"/></spine>
+</package>`},
+		{"OEBPS/ch1.xhtml", `<html><body><p>可讀章節。</p></body></html>`},
+		{"OEBPS/ch2.xhtml", strings.Repeat("x", maxDocumentBytes+1)},
+	}
+
+	_, err := parseArchive(t, buildArchive(t, entries), Options{})
+	if err == nil {
+		t.Fatal("Parse() error = nil, want the oversized spine document to reject the import")
+	}
+	if !errors.Is(err, errZipEntryTooLarge) {
+		t.Fatalf("Parse() error = %v, want errZipEntryTooLarge", err)
 	}
 }
 

@@ -5,8 +5,10 @@ import (
 	"errors"
 	"mime/multipart"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -99,6 +101,47 @@ func TestIsRequestBodyTooLargeUsesMaxBytesErrorType(t *testing.T) {
 	}
 	if isRequestBodyTooLarge(errors.New("http: request body too large")) {
 		t.Fatal("plain string-compatible error must not be recognized as MaxBytesError")
+	}
+}
+
+func TestWriteEPUBImportErrorClassifiesFailures(t *testing.T) {
+	tests := []struct {
+		name         string
+		err          error
+		wantStatus   int
+		wantBody     string
+		forbidInBody string
+	}{
+		{
+			name:       "invalid archive is a client error",
+			err:        &epubInputError{cause: errors.New("broken archive")},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "broken archive",
+		},
+		{
+			name:         "storage failure is a generic server error",
+			err:          errors.New("disk is full at /private/shelf"),
+			wantStatus:   http.StatusInternalServerError,
+			wantBody:     "failed to import epub",
+			forbidInBody: "/private/shelf",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			writeEPUBImportError(rec, tt.err)
+
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d; body = %q", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+			if !strings.Contains(rec.Body.String(), tt.wantBody) {
+				t.Errorf("body = %q, want it to contain %q", rec.Body.String(), tt.wantBody)
+			}
+			if tt.forbidInBody != "" && strings.Contains(rec.Body.String(), tt.forbidInBody) {
+				t.Errorf("body = %q, must not expose %q", rec.Body.String(), tt.forbidInBody)
+			}
+		})
 	}
 }
 

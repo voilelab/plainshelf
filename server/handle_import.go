@@ -215,7 +215,7 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 		newBook, err := app.importEPUB(shelfData, f, header.Size, header.Filename, r.FormValue("title"), layerParts, strategy)
 		if err != nil {
 			app.Error("failed to import epub", "error", err)
-			http.Error(w, "failed to import epub: "+err.Error(), http.StatusBadRequest)
+			writeEPUBImportError(w, err)
 			return
 		}
 
@@ -256,6 +256,15 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeImportedBook(w, app, newBook)
+}
+
+func writeEPUBImportError(w http.ResponseWriter, err error) {
+	if isEPUBInputError(err) {
+		http.Error(w, "failed to import epub: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	http.Error(w, "failed to import epub", http.StatusInternalServerError)
 }
 
 func writeImportedBook(w http.ResponseWriter, app *App, newBook *shelf.Book) {

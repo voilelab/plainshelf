@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"strings"
 	"time"
@@ -16,6 +17,21 @@ import (
 // correct content type. An EPUB cover in any other format is converted to JPEG.
 var coverExtensions = map[string]bool{
 	".jpg": true, ".jpeg": true, ".png": true, ".webp": true, ".gif": true,
+}
+
+// epubInputError marks failures caused by the uploaded archive. Storage and
+// other operational failures remain ordinary errors so the HTTP layer can
+// report them as server errors without exposing internal details.
+type epubInputError struct {
+	cause error
+}
+
+func (e *epubInputError) Error() string { return e.cause.Error() }
+func (e *epubInputError) Unwrap() error { return e.cause }
+
+func isEPUBInputError(err error) bool {
+	var inputErr *epubInputError
+	return errors.As(err, &inputErr)
 }
 
 // parseImportStrategy reads the optional per-import strategy field. An absent or
@@ -189,7 +205,7 @@ func (app *App) importEPUB(
 	// while the exclusive shelf lock is held.
 	parsed, err := epub.Parse(r, size, strategy.ParseOptions())
 	if err != nil {
-		return nil, util.Errorf("%w", err)
+		return nil, &epubInputError{cause: err}
 	}
 
 	rendered := epub.Render(parsed, strategy)

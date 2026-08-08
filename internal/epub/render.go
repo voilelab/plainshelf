@@ -150,12 +150,41 @@ func Render(book *Book, strategy Strategy) Rendered {
 		doc.appendBlock(block)
 	}
 
+	text := doc.String()
+	chapterRegex := chapterHeadingRegex(l.chapter)
+	if !chapterRegexMatchesLines(text, chapterRegex, lines) {
+		chapterRegex = ""
+	}
+
 	return Rendered{
-		Text:         doc.String(),
+		Text:         text,
 		Format:       strategy.Format(),
-		ChapterRegex: chapterHeadingRegex(l.chapter),
+		ChapterRegex: chapterRegex,
 		ChapterLines: lines,
 	}
+}
+
+// chapterRegexMatchesLines reports whether the generated heading regex can
+// split at every exact chapter start. Normalization can remove a heading's
+// trailing space when its title is empty, so a syntactically valid template
+// regex is not necessarily valid for every rendered chapter.
+func chapterRegexMatchesLines(text, pattern string, chapterLines []int) bool {
+	if pattern == "" {
+		return false
+	}
+
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return false
+	}
+
+	lines := strings.Split(text, "\n")
+	for _, lineNo := range chapterLines {
+		if lineNo < 1 || lineNo > len(lines) || !re.MatchString(lines[lineNo-1]) {
+			return false
+		}
+	}
+	return true
 }
 
 // chapterHeadingRegex builds a pattern matching the literal text a chapter
