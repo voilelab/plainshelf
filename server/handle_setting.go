@@ -94,10 +94,7 @@ func (app *App) defaultSplitConfig() shelf.SplitConfig {
 
 // GET /api/setting/default_split_config
 func (app *App) HandleGetSettingDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
-	cfg := app.defaultSplitConfig()
-
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	json.NewEncoder(w).Encode(map[string]any{"value": cfg})
+	app.writeJSON(w, http.StatusOK, map[string]any{"value": app.defaultSplitConfig()})
 }
 
 // POST /api/setting/default_split_config
@@ -196,10 +193,7 @@ func (app *App) epubImportStrategy() epub.Strategy {
 
 // GET /api/setting/epub_import_strategy
 func (app *App) HandleGetSettingEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
-	strategy := app.epubImportStrategy()
-
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	json.NewEncoder(w).Encode(map[string]any{"value": strategy})
+	app.writeJSON(w, http.StatusOK, map[string]any{"value": app.epubImportStrategy()})
 }
 
 // POST /api/setting/epub_import_strategy
