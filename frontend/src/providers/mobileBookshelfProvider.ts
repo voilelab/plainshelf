@@ -191,6 +191,12 @@ export class MobileBookshelfProvider implements BookshelfProvider {
       if (cached) {
         return cached;
       }
+      // A legacy downloaded manifest has no split_config. Preserve the same
+      // immediate compatibility fallback as the fully offline path instead of
+      // surfacing the retryable transport error after the remote times out.
+      if ((await this.cache.getDownloadState(bookId)) === 'downloaded') {
+        return { type: 'none' };
+      }
       throw err;
     }
   }

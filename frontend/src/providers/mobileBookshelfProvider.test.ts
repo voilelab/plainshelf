@@ -220,6 +220,15 @@ describe('MobileBookshelfProvider — server-unreachable-while-online fallback',
       });
     });
 
+    it('uses the legacy single-section fallback after a retryable transport failure', async () => {
+      await seedDownloadedBook(cache, 'book-1');
+      const getBookSplitConfig = vi.fn().mockRejectedValue(unreachableError());
+      const provider = makeProvider({ getBookSplitConfig });
+
+      await expect(provider.getBookSplitConfig('book-1')).resolves.toEqual({ type: 'none' });
+      expect(getBookSplitConfig).toHaveBeenCalledWith('book-1');
+    });
+
     it('does not hide a non-retryable remote error', async () => {
       await seedDownloadedBook(cache, 'book-1', 'src-1', cachedConfig);
       const getBookSplitConfig = vi.fn().mockRejectedValue(statusError(401));
