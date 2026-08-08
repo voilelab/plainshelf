@@ -162,7 +162,7 @@
         <div v-if="shelfRefresh.supported" class="toolbar-bar shelf-refresh-bar">
           <button
             type="button"
-            class="button toolbar-control toolbar-button toolbar-regular"
+            class="button toolbar-control toolbar-button toolbar-regular shelf-refresh-button"
             :disabled="shelfRefresh.refreshing.value"
             @click="shelfRefresh.refresh"
           >
@@ -880,6 +880,13 @@ watch(
   display: flex;
   align-items: center;
   gap: 6px;
+  /* Never squeezed: shrinking this bar wraps the button's own label into a
+     one-character-per-line column before anything else gives way. */
+  flex: 0 0 auto;
+}
+
+.shelf-refresh-button {
+  white-space: nowrap;
 }
 
 .shelf-refresh-status {
@@ -906,6 +913,13 @@ watch(
 
   .sort-select {
     min-width: 92px;
+  }
+
+  /* A line of its own, and free to break between the button and the
+     timestamp: at 360px the two together are wider than the viewport. */
+  .shelf-refresh-bar {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
   }
 }
 </style>
