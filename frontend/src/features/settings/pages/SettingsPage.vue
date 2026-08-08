@@ -108,6 +108,18 @@
         </p>
       </form>
     </ConfirmModal>
+
+    <FontLicenseModal
+      :open="selectedFontLicense !== null"
+      :title="t('settings.about.licenseTitle', { font: selectedFontLicense?.name ?? '' })"
+      :text="fontLicenseText"
+      :loading="fontLicenseLoading"
+      :error="fontLicenseError"
+      :loading-label="t('settings.about.licenseLoading')"
+      :close-label="t('settings.about.licenseClose')"
+      @close="closeFontLicense"
+    />
+
     <header class="settings-header">
       <div>
         <h2>{{ t('settings.title') }}</h2>
@@ -265,6 +277,27 @@
               {{ githubRepoUrl }}
             </a>
           </div>
+          <div class="font-license-section">
+            <div class="setting-label">{{ t('settings.about.thirdPartyFonts') }}</div>
+            <article v-for="font in bundledFonts" :key="font.name" class="font-license-item">
+              <strong>{{ font.name }}</strong>
+              <span class="setting-description">{{ t('settings.about.fontAttribution') }}</span>
+              <span class="font-license-links">
+                <a
+                  class="setting-link"
+                  :href="font.source"
+                  target="_blank"
+                  rel="noreferrer"
+                  @click="onBundledFontSourceClick($event, font.source)"
+                >
+                  {{ t('settings.about.source') }}
+                </a>
+                <a class="setting-link" :href="font.license" @click.prevent="openFontLicense(font)">
+                  {{ t('settings.about.license') }}
+                </a>
+              </span>
+            </article>
+          </div>
         </section>
       </TabsContent>
 
@@ -357,6 +390,7 @@ import { computed, onMounted, ref } from 'vue';
 import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
+import FontLicenseModal from '@/features/settings/components/FontLicenseModal.vue';
 import {
   getCoverToJpgSetting,
   getDefaultSplitConfigSetting,
@@ -389,6 +423,30 @@ const defaultSplitRegex = ref('');
 const splitConfigError = ref('');
 const version = ref('');
 const githubRepoUrl = 'https://github.com/voilelab/plainshelf';
+interface BundledFont {
+  name: string;
+  source: string;
+  license: string;
+}
+
+const bundledFonts: BundledFont[] = [
+  {
+    name: 'Noto Serif TC',
+    source: 'https://fontsource.org/fonts/noto-serif-tc',
+    license: '/licenses/noto-serif-tc-OFL-1.1.txt'
+  },
+  {
+    name: 'Noto Sans TC',
+    source: 'https://fontsource.org/fonts/noto-sans-tc',
+    license: '/licenses/noto-sans-tc-OFL-1.1.txt'
+  }
+];
+const selectedFontLicense = ref<BundledFont | null>(null);
+const fontLicenseText = ref('');
+const fontLicenseLoading = ref(false);
+const fontLicenseError = ref('');
+const fontLicenseCache = new Map<string, string>();
+let fontLicenseRequest = 0;
 
 const isDesktopEnv = computed(() => isWailsRuntime());
 const isMobileEnv = computed(() => isMobileRuntime());
@@ -439,6 +497,54 @@ useDocumentTitle(() => [t('settings.title'), t('app.name')]);
 function onRepositoryLinkClick(event: MouseEvent): void {
   event.preventDefault();
   void openExternalURL(githubRepoUrl);
+}
+
+function onBundledFontSourceClick(event: MouseEvent, url: string): void {
+  event.preventDefault();
+  void openExternalURL(url);
+}
+
+async function openFontLicense(font: BundledFont): Promise<void> {
+  selectedFontLicense.value = font;
+  fontLicenseError.value = '';
+
+  const cachedText = fontLicenseCache.get(font.license);
+  if (cachedText !== undefined) {
+    fontLicenseText.value = cachedText;
+    fontLicenseLoading.value = false;
+    return;
+  }
+
+  const request = ++fontLicenseRequest;
+  fontLicenseText.value = '';
+  fontLicenseLoading.value = true;
+
+  try {
+    const response = await fetch(font.license);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const text = await response.text();
+    fontLicenseCache.set(font.license, text);
+    if (request === fontLicenseRequest) {
+      fontLicenseText.value = text;
+    }
+  } catch {
+    if (request === fontLicenseRequest) {
+      fontLicenseError.value = t('settings.about.licenseLoadFailed');
+    }
+  } finally {
+    if (request === fontLicenseRequest) {
+      fontLicenseLoading.value = false;
+    }
+  }
+}
+
+function closeFontLicense(): void {
+  fontLicenseRequest += 1;
+  selectedFontLicense.value = null;
+  fontLicenseLoading.value = false;
 }
 
 async function loadSettings(): Promise<void> {
@@ -686,6 +792,26 @@ onMounted(() => {
   font-size: 13px;
   overflow-wrap: anywhere;
   text-align: right;
+}
+
+.font-license-section {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.font-license-item {
+  align-items: start;
+  display: grid;
+  gap: 3px;
+}
+
+.font-license-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 2px;
 }
 
 

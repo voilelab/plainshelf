@@ -192,7 +192,15 @@ const en = {
       title: 'About',
       description: 'PlainShelf is a local-first personal reading library for lightweight reading content, with a filesystem-first data model and a web-based reading interface.',
       version: 'Version',
-      repository: 'Repository'
+      repository: 'Repository',
+      thirdPartyFonts: 'Third-party font licenses',
+      fontAttribution: 'Google Inc. · SIL Open Font License 1.1 · package version 5.3.0',
+      source: 'Source',
+      license: 'Full license text',
+      licenseTitle: '{font} license',
+      licenseLoading: 'Loading license text…',
+      licenseLoadFailed: 'The bundled license text could not be loaded.',
+      licenseClose: 'Close'
     },
     mobileConnect: {
       title: 'Connection',
@@ -470,6 +478,29 @@ const en = {
     actionsLabel: 'Reader actions',
     decreaseFontSize: 'Decrease font size',
     increaseFontSize: 'Increase font size',
+    chooseFont: 'Choose reading font',
+    fontDialog: {
+      title: 'Reading font',
+      description: 'Changes apply immediately and are saved on this device.',
+      optionsLabel: 'Available reading fonts',
+      close: 'Close font selection',
+      done: 'Done',
+      sample: 'A quiet place to read, between mountains and sea.',
+      fonts: {
+        system: {
+          label: 'System serif',
+          description: 'Keeps the current appearance; the exact font depends on the device.'
+        },
+        'noto-serif-tc': {
+          label: 'Noto Serif TC',
+          description: 'A consistent serif designed for comfortable long-form reading.'
+        },
+        'noto-sans-tc': {
+          label: 'Noto Sans TC',
+          description: 'A clear, consistent sans-serif reading font.'
+        }
+      }
+    },
     showChapters: 'Show chapters',
     splitSettings: 'Split settings',
     saveBookmark: 'Save bookmark',

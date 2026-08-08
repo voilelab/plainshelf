@@ -20,6 +20,7 @@
           :bookmarking="bookmarking"
           @decrease-font-size="decreaseFontSize"
           @increase-font-size="increaseFontSize"
+          @open-font-modal="openFontModal"
           @open-chapter-modal="openChapterModal"
           @open-split-modal="openSplitModal"
           @bookmark-current="bookmarkCurrent"
@@ -151,6 +152,13 @@
       @close="closeChapterModal"
       @select-section="selectSectionFromChapterModal"
     />
+
+    <FontSelectionModal
+      :open="isFontModalOpen"
+      :font-family="fontFamily"
+      @close="closeFontModal"
+      @select="setFontFamily"
+    />
   </section>
 </template>
 
@@ -158,11 +166,15 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import ChapterModal from '@/features/reader/components/ChapterModal.vue';
+import FontSelectionModal from '@/features/reader/components/FontSelectionModal.vue';
 import ReaderSideActions from '@/features/reader/components/ReaderSideActions.vue';
 import SplitConfigModal from '@/features/reader/components/SplitConfigModal.vue';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useReader } from '@/features/reader/composables/useReader';
-import { useReaderSettings } from '@/features/reader/composables/useReaderSettings';
+import {
+  getReaderFontFamily,
+  useReaderSettings
+} from '@/features/reader/composables/useReaderSettings';
 import { useReadingHeartbeat } from '@/features/reader/composables/useReadingHeartbeat';
 import { parseReaderBlocks } from '@/features/reader/utils/parseReaderBlocks';
 import { parseMarkdownBlocks } from '@/features/reader/utils/parseMarkdownBlocks';
@@ -195,12 +207,22 @@ const {
 
 const isSplitModalOpen = ref(false);
 const isChapterModalOpen = ref(false);
-const { fontSize, isAtMinFontSize, isAtMaxFontSize, increaseFontSize, decreaseFontSize } = useReaderSettings();
+const isFontModalOpen = ref(false);
+const {
+  fontSize,
+  fontFamily,
+  isAtMinFontSize,
+  isAtMaxFontSize,
+  increaseFontSize,
+  decreaseFontSize,
+  setFontFamily
+} = useReaderSettings();
 const { t } = useI18n();
 const readingHeartbeat = useReadingHeartbeat(() => id.value);
 
 const readerStyleVars = computed(() => ({
-  '--reader-font-size': `${fontSize.value}px`
+  '--reader-font-size': `${fontSize.value}px`,
+  '--reader-font-family': getReaderFontFamily(fontFamily.value)
 }));
 
 useDocumentTitle(() => [t('reader.title'), title.value, t('app.name')]);
@@ -228,8 +250,16 @@ function closeSplitModal(): void {
   isSplitModalOpen.value = false;
 }
 
+function openFontModal(): void {
+  isFontModalOpen.value = true;
+}
+
+function closeFontModal(): void {
+  isFontModalOpen.value = false;
+}
+
 function onDocumentKeydown(event: KeyboardEvent): void {
-  const hasOpenModal = isSplitModalOpen.value || isChapterModalOpen.value;
+  const hasOpenModal = isSplitModalOpen.value || isChapterModalOpen.value || isFontModalOpen.value;
 
   // Don't handle reader shortcuts when modal is open
   if (hasOpenModal) {
@@ -294,8 +324,8 @@ watch(id, () => {
   void fetchReaderData();
 }, { immediate: true });
 
-watch([isSplitModalOpen, isChapterModalOpen], ([splitOpen, chapterOpen]) => {
-  document.body.style.overflow = splitOpen || chapterOpen ? 'hidden' : '';
+watch([isSplitModalOpen, isChapterModalOpen, isFontModalOpen], ([splitOpen, chapterOpen, fontOpen]) => {
+  document.body.style.overflow = splitOpen || chapterOpen || fontOpen ? 'hidden' : '';
 });
 
 onBeforeUnmount(() => {

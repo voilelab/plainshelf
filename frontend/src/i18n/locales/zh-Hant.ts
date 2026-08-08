@@ -191,7 +191,15 @@ const zhHant = {
       title: '關於',
       description: 'PlainShelf 是本機優先的個人閱讀書庫，適合管理輕量閱讀內容，採用檔案系統優先的資料模型並提供網頁閱讀介面。',
       version: '版本',
-      repository: 'Repository'
+      repository: 'Repository',
+      thirdPartyFonts: '第三方字型授權',
+      fontAttribution: 'Google Inc. · SIL Open Font License 1.1 · 套件版本 5.3.0',
+      source: '來源',
+      license: '完整授權條款',
+      licenseTitle: '{font} 授權條款',
+      licenseLoading: '正在載入授權條款…',
+      licenseLoadFailed: '無法載入隨附的授權條款。',
+      licenseClose: '關閉'
     },
     mobileConnect: {
       title: '連線',
@@ -469,6 +477,29 @@ const zhHant = {
     actionsLabel: '閱讀器操作',
     decreaseFontSize: '縮小字體',
     increaseFontSize: '放大字體',
+    chooseFont: '選擇閱讀字型',
+    fontDialog: {
+      title: '閱讀字型',
+      description: '選擇後會立即套用，並保存在這台裝置上。',
+      optionsLabel: '可用閱讀字型',
+      close: '關閉字型選擇',
+      done: '完成',
+      sample: '山海之間，靜靜讀一本好書。',
+      fonts: {
+        system: {
+          label: '系統明體',
+          description: '維持目前外觀，實際字型依裝置而異。'
+        },
+        'noto-serif-tc': {
+          label: 'Noto Serif TC 明體',
+          description: '跨平台一致、適合長篇正文閱讀的明體。'
+        },
+        'noto-sans-tc': {
+          label: 'Noto Sans TC 黑體',
+          description: '筆畫清楚、跨平台一致的無襯線字型。'
+        }
+      }
+    },
     showChapters: '顯示章節',
     splitSettings: '切分設定',
     saveBookmark: '儲存書籤',
