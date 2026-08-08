@@ -39,9 +39,14 @@ adds a web interface, desktop integration, and an experimental Android client.
 ## Project boundaries
 
 PlainShelf prioritizes readable local files, stable internal IDs, backup-friendly
-storage, and a focused reading experience. EPUB, PDF, comic archives, DRM, OCR,
+storage, and a focused reading experience. PDF, comic archives, DRM, OCR,
 multi-user accounts, cloud sync, public sharing, and plugins are not part of the
 current scope.
+
+EPUB is an import format, not a storage format. An imported EPUB is converted to
+plain text or Markdown and stored like any other book; the original `.epub` is
+not retained, and embedded illustrations are dropped. Everything on the shelf
+stays readable in a text editor.
 
 ## Repository map
 

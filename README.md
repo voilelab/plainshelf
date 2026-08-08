@@ -18,14 +18,19 @@ desktop, and experimental Android clients.
 ## What it does
 
 - Imports and reads plain text and Markdown books
+- Imports EPUB files by converting them to plain text or Markdown
 - Organizes books in nested, filesystem-backed folders
 - Keeps stable book IDs when titles or folders change
 - Supports covers, metadata, bookmarks, reading history, and reading stats
 - Runs as a local server, a macOS desktop app, or an experimental Android client
 
-PlainShelf is not a Calibre replacement. EPUB, PDF, comic archives, DRM, OCR,
+PlainShelf is not a Calibre replacement. PDF, comic archives, DRM, OCR,
 multi-user accounts, cloud sync, public sharing, and plugins are outside the
 current scope.
+
+EPUB is supported at import time only: the text is extracted and stored as a
+normal plain-text or Markdown book, and the original `.epub` is not kept.
+Embedded illustrations are not imported.
 
 ## Install
 
