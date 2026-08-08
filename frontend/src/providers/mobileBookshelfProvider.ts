@@ -169,6 +169,12 @@ export class MobileBookshelfProvider implements BookshelfProvider {
     return this.remote.getBookSplitConfig(bookId);
   }
 
+  // Delegated without an offline branch: the layer store surfaces a failure in
+  // the sidebar, which is what the server path already does when unreachable.
+  listLayers(): Promise<string[]> {
+    return this.remote.listLayers();
+  }
+
   updateBookSplitConfig(bookId: string, config: SplitConfig): Promise<SplitConfig> {
     return this.remote.updateBookSplitConfig(bookId, config);
   }

@@ -195,7 +195,7 @@ const zhHant = {
     },
     mobileConnect: {
       title: '連線',
-      description: '變更這台裝置使用的 PlainShelf 伺服器、存取權杖或書架。',
+      description: '變更這台裝置讀取書庫的來源：PlainShelf 伺服器或 pCloud。',
       open: '編輯連線設定'
     },
     downloads: {
@@ -476,7 +476,30 @@ const zhHant = {
   },
   mobileConnect: {
     title: '連線到 PlainShelf',
-    description: '輸入你的 PlainShelf 伺服器位址，即可在這台裝置瀏覽與閱讀書庫。本 App 為唯讀，不會變更你的書庫。',
+    description: '選擇書庫的來源，即可在這台裝置瀏覽與閱讀。本 App 為唯讀，不會變更你的書庫。',
+    modeLabel: '書庫來源',
+    modeServer: 'PlainShelf 伺服器',
+    modePCloud: 'pCloud',
+    pcloud: {
+      clientIdLabel: 'pCloud 應用程式金鑰',
+      clientIdPlaceholder: '你的 app key',
+      clientIdHint: 'PlainShelf 使用你自己的 pCloud 應用程式。請到 pCloud 開發者後台建立一個，並把 app key 貼在這裡。',
+      clientIdRequired: '請先輸入 pCloud 應用程式金鑰。',
+      authorize: '以 pCloud 授權',
+      authorizing: '等待授權中…',
+      cancel: '取消',
+      authorized: '已授權（{host}）。',
+      authorizedAccount: '已授權帳號：{account}（{host}）。',
+      shelfRootLabel: '書架資料夾',
+      shelfRootPlaceholder: '/PlainShelf/default-shelf',
+      shelfRootHint: 'pCloud 上存放書架的資料夾，也就是含有 books/ 的那一層。',
+      shelfRootRequired: '請先輸入書架資料夾。',
+      verify: '檢查書架',
+      verifying: '檢查中…',
+      shelfFound: '找到 {count} 本書。',
+      notAShelf: '該資料夾沒有 books/ 目錄，不是 PlainShelf 書架。',
+      verifyRequired: '請先檢查書架再儲存。'
+    },
     serverUrlLabel: '伺服器網址',
     serverUrlPlaceholder: 'http://192.168.1.10:20000',
     tokenLabel: '存取權杖（選填）',

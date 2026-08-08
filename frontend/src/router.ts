@@ -3,7 +3,7 @@ import MainLayout from '@/layouts/MainLayout.vue';
 import ReaderLayout from '@/layouts/ReaderLayout.vue';
 import { APP_TITLE } from '@/composables/useDocumentTitle';
 import { isMobileRuntime } from '@/providers/runtime';
-import { loadMobileConnectionConfig } from '@/providers/mobileConfig';
+import { isConnectionConfigured, loadMobileConnectionConfig } from '@/providers/mobileConfig';
 import { MOBILE_BLOCKED_ROUTES } from '@/features/mobile/utils/blockedRoutes';
 
 const DashboardPage = () => import('@/features/dashboard/pages/DashboardPage.vue');
@@ -179,8 +179,7 @@ router.beforeEach(async (to) => {
     return true;
   }
 
-  const { serverUrl, shelfId } = await loadMobileConnectionConfig();
-  if (!serverUrl || !shelfId) {
+  if (!isConnectionConfigured(await loadMobileConnectionConfig())) {
     return { name: 'mobile-connect' };
   }
 

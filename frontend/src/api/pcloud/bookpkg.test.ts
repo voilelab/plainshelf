@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BOOK_META_SCHEMA_VERSION,
   collectBookPackages,
+  collectLayers,
   findBooksFolder,
   findCoverFile,
   findCurrentSource,
@@ -107,6 +108,37 @@ describe('collectBookPackages', () => {
 
     expect(pkg.meta).toBeUndefined();
     expect(pkg.sources).toEqual([]);
+  });
+});
+
+describe('collectLayers', () => {
+  it('lists nested layers plus the top level', () => {
+    const books = folder('books', [
+      bookPackage('root.bookpkg'),
+      folder('Fiction', [bookPackage('a.bookpkg'), folder('Classics', [bookPackage('b.bookpkg')])]),
+      folder('Non-Fiction', [bookPackage('c.bookpkg')])
+    ]);
+
+    expect(collectLayers(books)).toEqual(['/', 'Fiction', 'Fiction/Classics', 'Non-Fiction']);
+  });
+
+  // Derived from directories, not from the books inside them: the Go side walks
+  // real directories, so a layer created but not yet filled still exists.
+  it('includes a layer that holds no books', () => {
+    const books = folder('books', [folder('Empty', []), folder('Outer', [folder('Inner', [])])]);
+
+    expect(collectLayers(books)).toEqual(['/', 'Empty', 'Outer', 'Outer/Inner']);
+  });
+
+  it('does not descend into a book package', () => {
+    const books = folder('books', [bookPackage('a.bookpkg')]);
+
+    // `sources` lives inside the package and is not a layer.
+    expect(collectLayers(books)).toEqual(['/']);
+  });
+
+  it('returns just the top level for an empty shelf', () => {
+    expect(collectLayers(folder('books', []))).toEqual(['/']);
   });
 });
 

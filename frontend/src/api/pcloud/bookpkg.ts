@@ -1,7 +1,7 @@
 import type { Book, BookFormat, SplitConfig } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import { normalizeSplitConfig } from '@/utils/splitConfig';
-import { PCloudError } from './errors';
+import { PCloudDataError } from './errors';
 import type { PCloudItem } from './types';
 
 // Layout constants mirroring the Go shelf (shelf/shelf.go, shelf/book.go,
@@ -135,6 +135,33 @@ export function collectBookPackages(booksFolder: PCloudItem): BookPackageRef[] {
   return packages;
 }
 
+/**
+ * Lists every layer under a listed `books/` tree, in the shape `getLayers()`
+ * returns (`'/'` for the top level, `Fiction/Classics` for a nested one).
+ *
+ * Derived from the directories themselves, not from the books found in them, so
+ * a layer holding no books is still listed — the Go side walks real directories
+ * too (`iterateLayers` in shelf/shelf_layer.go) and `books/` itself counts as
+ * the "no layer" group.
+ */
+export function collectLayers(booksFolder: PCloudItem): string[] {
+  const paths = new Set<string>(['/']);
+
+  const walk = (folder: PCloudItem, segments: string[]): void => {
+    for (const item of folder.contents ?? []) {
+      if (!item.isfolder || item.folderid === undefined || item.name.endsWith(BOOK_EXTENSION)) {
+        continue;
+      }
+      const next = [...segments, item.name];
+      paths.add(next.join('/'));
+      walk(item, next);
+    }
+  };
+
+  walk(booksFolder, []);
+  return Array.from(paths).sort((a, b) => a.localeCompare(b));
+}
+
 function readBookPackage(pkg: PCloudItem, layers: string[]): BookPackageRef {
   const files: Record<string, PCloudFileRef> = {};
   let sources: BookSourceRef[] = [];
@@ -226,13 +253,13 @@ function asStringArray(value: unknown): string[] {
  */
 export function parseBookJson(raw: unknown): BookJson {
   if (!raw || typeof raw !== 'object') {
-    throw new PCloudError('book.json is not a JSON object.');
+    throw new PCloudDataError('book.json is not a JSON object.');
   }
 
   const data = raw as Record<string, unknown>;
   const id = typeof data.id === 'string' ? data.id.trim() : '';
   if (!id) {
-    throw new PCloudError('book.json has no id.');
+    throw new PCloudDataError('book.json has no id.');
   }
 
   return {
@@ -265,9 +292,11 @@ export function isSchemaNewerThanSupported(meta: BookJson): boolean {
 /**
  * Maps a book.json onto the UI's Book type.
  *
- * `cover_url` is intentionally left unset: there is no stable URL to point an
- * `<img>` at, because pCloud download links expire. Covers are fetched as blobs
- * instead, which is also what the mobile runtime already requires
+ * `cover_url` is left unset here: there is no stable URL to point an `<img>` at,
+ * because pCloud download links expire, and this function does not know whether
+ * the named cover file actually exists. The provider fills it in with a
+ * presence marker once it has resolved the file, and the bytes are fetched as a
+ * blob — which is what the mobile runtime requires anyway
  * (frontend/src/composables/useCoverSrc.ts).
  */
 export function toBook(meta: BookJson, layers: string[]): Book {
