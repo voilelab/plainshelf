@@ -3,6 +3,8 @@ import App from './App.vue';
 import router from './router';
 import { initAppZoom } from '@/composables/useAppZoom';
 import { getBookshelfProvider, isMobileRuntime, type BookshelfProvider } from './providers';
+import '@fontsource-variable/noto-serif-tc/wght.css';
+import '@fontsource-variable/noto-sans-tc/wght.css';
 import './styles.css';
 
 declare global {

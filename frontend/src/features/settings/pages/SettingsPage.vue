@@ -265,6 +265,27 @@
               {{ githubRepoUrl }}
             </a>
           </div>
+          <div class="font-license-section">
+            <div class="setting-label">{{ t('settings.about.thirdPartyFonts') }}</div>
+            <article v-for="font in bundledFonts" :key="font.name" class="font-license-item">
+              <strong>{{ font.name }}</strong>
+              <span class="setting-description">{{ t('settings.about.fontAttribution') }}</span>
+              <span class="font-license-links">
+                <a
+                  class="setting-link"
+                  :href="font.source"
+                  target="_blank"
+                  rel="noreferrer"
+                  @click="onBundledFontSourceClick($event, font.source)"
+                >
+                  {{ t('settings.about.source') }}
+                </a>
+                <a class="setting-link" :href="font.license" target="_blank" rel="noreferrer">
+                  {{ t('settings.about.license') }}
+                </a>
+              </span>
+            </article>
+          </div>
         </section>
       </TabsContent>
 
@@ -389,6 +410,18 @@ const defaultSplitRegex = ref('');
 const splitConfigError = ref('');
 const version = ref('');
 const githubRepoUrl = 'https://github.com/voilelab/plainshelf';
+const bundledFonts = [
+  {
+    name: 'Noto Serif TC',
+    source: 'https://fontsource.org/fonts/noto-serif-tc',
+    license: '/licenses/noto-serif-tc-OFL-1.1.txt'
+  },
+  {
+    name: 'Noto Sans TC',
+    source: 'https://fontsource.org/fonts/noto-sans-tc',
+    license: '/licenses/noto-sans-tc-OFL-1.1.txt'
+  }
+];
 
 const isDesktopEnv = computed(() => isWailsRuntime());
 const isMobileEnv = computed(() => isMobileRuntime());
@@ -439,6 +472,11 @@ useDocumentTitle(() => [t('settings.title'), t('app.name')]);
 function onRepositoryLinkClick(event: MouseEvent): void {
   event.preventDefault();
   void openExternalURL(githubRepoUrl);
+}
+
+function onBundledFontSourceClick(event: MouseEvent, url: string): void {
+  event.preventDefault();
+  void openExternalURL(url);
 }
 
 async function loadSettings(): Promise<void> {
@@ -686,6 +724,26 @@ onMounted(() => {
   font-size: 13px;
   overflow-wrap: anywhere;
   text-align: right;
+}
+
+.font-license-section {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.font-license-item {
+  align-items: start;
+  display: grid;
+  gap: 3px;
+}
+
+.font-license-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 2px;
 }
 
 
