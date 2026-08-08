@@ -115,6 +115,11 @@ interface are still pre-alpha and may change.
   higher than the running build understands. Such a book stays visible and
   readable on a best-effort basis, and every attempt to modify it fails with an
   explicit error rather than overwriting the file.
+- The server is no longer the only thing that reads the format. The Android
+  client reads a pCloud-held shelf directly, without a server in between. That
+  reader is read-only, so it inherits the read half of these promises and never
+  the write half: it cannot raise a version, cannot drop a field, and cannot
+  rewrite a book it does not fully understand, because it does not write at all.
 
 ### What we do not promise
 
@@ -123,7 +128,10 @@ interface are still pre-alpha and may change.
   into a fixed set of known fields and rewrites the whole file; keys it does not
   recognize are not preserved. If you run two PlainShelf versions against one
   shelf and edit a book from the older one, values that only the newer version
-  knows about are lost. Run one version against a shelf, or upgrade both.
+  knows about are lost. Run one version against a shelf, or upgrade both. A
+  read-only reader — the Android client on a pCloud shelf — is exempt from the
+  losing half of this, since it never rewrites a book, but it can still be built
+  against an older schema than the shelf and show stale or missing fields.
 - Reading a book whose `schema_version` is higher than the build supports is
   best-effort. Fields may be missing or misinterpreted, and the displayed
   metadata may be wrong. It is shown so you can see the book exists, not so you

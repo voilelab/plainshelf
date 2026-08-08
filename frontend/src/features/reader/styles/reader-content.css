@@ -103,7 +103,7 @@
 .reader-chapter-title {
   margin: 0 0 1rem;
   color: #3f3529;
-  font-family: Georgia, 'Times New Roman', 'Noto Serif TC', 'Songti TC', serif;
+  font-family: var(--reader-font-family, Georgia, 'Times New Roman', 'Noto Serif TC', 'Songti TC', serif);
   font-size: calc(var(--reader-font-size, 20px) * 1.1);
   line-height: 1.4;
 }
@@ -112,7 +112,7 @@
   word-break: break-word;
   margin: 0;
   color: #2f2a22;
-  font-family: Georgia, 'Times New Roman', 'Noto Serif TC', 'Songti TC', serif;
+  font-family: var(--reader-font-family, Georgia, 'Times New Roman', 'Noto Serif TC', 'Songti TC', serif);
   font-size: var(--reader-font-size, 20px);
   line-height: 1.9;
   letter-spacing: 0.01em;
@@ -142,7 +142,7 @@
 .reader-md-h3 {
   margin: calc(var(--reader-font-size, 20px) * 0.9) 0 calc(var(--reader-font-size, 20px) * 0.5);
   color: #3f3529;
-  font-family: Georgia, 'Times New Roman', 'Noto Serif TC', 'Songti TC', serif;
+  font-family: var(--reader-font-family, Georgia, 'Times New Roman', 'Noto Serif TC', 'Songti TC', serif);
   font-weight: 700;
   line-height: 1.4;
   white-space: normal;

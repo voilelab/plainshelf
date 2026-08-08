@@ -15,7 +15,7 @@ vi.mock('@/storage/readHistory', () => ({
 }));
 
 import { ApiError, setActiveShelfID, setApiBase } from '@/api/client';
-import type { Book, PaginatedBooks, ReadingProgress } from '@/types/book';
+import type { Book, PaginatedBooks, ReadingProgress, SplitConfig } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import type { BookshelfProvider } from './bookshelfProvider';
 import { InMemoryMobileBookCache } from './mobileBookCache';
@@ -72,10 +72,16 @@ function statusError(status: number): ApiError {
   return new ApiError(`HTTP ${status}`, { status });
 }
 
-async function seedDownloadedBook(cache: InMemoryMobileBookCache, id: string, sourceId = 'src-1'): Promise<void> {
+async function seedDownloadedBook(
+  cache: InMemoryMobileBookCache,
+  id: string,
+  sourceId = 'src-1',
+  splitConfig?: SplitConfig
+): Promise<void> {
   await cache.saveDownloadedBook({
     book: makeBook(id),
     sources: [makeSource(sourceId)],
+    split_config: splitConfig,
     downloaded_at: '2026-07-10T12:00:00Z',
     local_version: 'v-local',
     remote_version: 'v-remote'
@@ -185,6 +191,69 @@ describe('MobileBookshelfProvider — server-unreachable-while-online fallback',
       const result: ReadingProgress = await provider.getReadProgress('book-1');
 
       expect(result).toEqual({ char_offset: 0 });
+    });
+  });
+
+  describe('getBookSplitConfig', () => {
+    const cachedConfig: SplitConfig = { type: 'boundary', boundaries: [0, 120, 360] };
+
+    it('returns the complete cached config without calling remote while offline', async () => {
+      await seedDownloadedBook(cache, 'book-1', 'src-1', cachedConfig);
+      const getBookSplitConfig = vi.fn();
+      const provider = makeProvider({ getBookSplitConfig }, () => false);
+
+      await expect(provider.getBookSplitConfig('book-1')).resolves.toEqual(cachedConfig);
+      expect(getBookSplitConfig).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the complete cached config after a retryable timeout', async () => {
+      await seedDownloadedBook(cache, 'book-1', 'src-1', {
+        type: 'regex',
+        regex: '^Chapter \\d+'
+      });
+      const getBookSplitConfig = vi.fn().mockRejectedValue(timeoutError());
+      const provider = makeProvider({ getBookSplitConfig });
+
+      await expect(provider.getBookSplitConfig('book-1')).resolves.toEqual({
+        type: 'regex',
+        regex: '^Chapter \\d+'
+      });
+    });
+
+    it('uses the legacy single-section fallback after a retryable transport failure', async () => {
+      await seedDownloadedBook(cache, 'book-1');
+      const getBookSplitConfig = vi.fn().mockRejectedValue(unreachableError());
+      const provider = makeProvider({ getBookSplitConfig });
+
+      await expect(provider.getBookSplitConfig('book-1')).resolves.toEqual({ type: 'none' });
+      expect(getBookSplitConfig).toHaveBeenCalledWith('book-1');
+    });
+
+    it('does not hide a non-retryable remote error', async () => {
+      await seedDownloadedBook(cache, 'book-1', 'src-1', cachedConfig);
+      const getBookSplitConfig = vi.fn().mockRejectedValue(statusError(401));
+      const provider = makeProvider({ getBookSplitConfig });
+
+      await expect(provider.getBookSplitConfig('book-1')).rejects.toMatchObject({ status: 401 });
+    });
+
+    it('uses an immediate single-section fallback for a legacy downloaded manifest', async () => {
+      await seedDownloadedBook(cache, 'book-1');
+      const getBookSplitConfig = vi.fn();
+      const provider = makeProvider({ getBookSplitConfig }, () => false);
+
+      await expect(provider.getBookSplitConfig('book-1')).resolves.toEqual({ type: 'none' });
+      expect(getBookSplitConfig).not.toHaveBeenCalled();
+    });
+
+    it('reports an offline cache miss for a book that was never downloaded', async () => {
+      const getBookSplitConfig = vi.fn();
+      const provider = makeProvider({ getBookSplitConfig }, () => false);
+
+      await expect(provider.getBookSplitConfig('missing-book')).rejects.toThrow(
+        'Book is not downloaded and the app is offline'
+      );
+      expect(getBookSplitConfig).not.toHaveBeenCalled();
     });
   });
 });
@@ -426,6 +495,7 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
       }),
       listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
       getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
+      getBookSplitConfig: vi.fn().mockResolvedValue({ type: 'line_count', line_count: 40 }),
       getSourceContent: vi.fn().mockResolvedValue('source text')
     });
 
@@ -442,12 +512,58 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
       getBook: vi.fn().mockResolvedValue(makeBook('book-1')),
       listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
       getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
+      getBookSplitConfig: vi.fn().mockResolvedValue({ type: 'line_count', line_count: 40 }),
       getSourceContent: vi.fn().mockResolvedValue('source text')
     });
 
     await provider.downloadBook('book-1');
 
     expect((await cache.listDownloadedManifests()).map((m) => m.book.id)).toEqual(['book-1']);
+    expect((await cache.listDownloadedManifests())[0].split_config).toEqual({
+      type: 'line_count',
+      line_count: 40
+    });
     expect(await cache.getCachedBookContent('book-1')).toEqual({ content: 'text' });
+  });
+});
+
+describe('MobileBookshelfProvider — manual shelf refresh', () => {
+  function makeProvider(remote: Partial<BookshelfProvider>): MobileBookshelfProvider {
+    return new MobileBookshelfProvider(remote as BookshelfProvider, new InMemoryMobileBookCache(), () => true);
+  }
+
+  it('reports no support when the backend refreshes its own listing', async () => {
+    const provider = makeProvider({});
+
+    expect(provider.supportsShelfRefresh()).toBe(false);
+    expect(await provider.getShelfFetchedAt()).toBeNull();
+    // Still safe to call: the UI hides the control, but nothing may throw.
+    await expect(provider.refreshShelf()).resolves.toBeUndefined();
+  });
+
+  it('delegates to a backend whose listing is updated by hand', async () => {
+    const refreshShelf = vi.fn().mockResolvedValue(undefined);
+    const provider = makeProvider({
+      supportsShelfRefresh: () => true,
+      refreshShelf,
+      getShelfFetchedAt: async () => 4_242
+    });
+
+    await provider.refreshShelf();
+
+    expect(provider.supportsShelfRefresh()).toBe(true);
+    expect(refreshShelf).toHaveBeenCalledTimes(1);
+    expect(await provider.getShelfFetchedAt()).toBe(4_242);
+  });
+
+  it('surfaces a failed update instead of reporting success', async () => {
+    const provider = makeProvider({
+      supportsShelfRefresh: () => true,
+      refreshShelf: async () => {
+        throw unreachableError();
+      }
+    });
+
+    await expect(provider.refreshShelf()).rejects.toBeInstanceOf(TypeError);
   });
 });

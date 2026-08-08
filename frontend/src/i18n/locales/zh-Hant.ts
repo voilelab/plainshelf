@@ -208,11 +208,19 @@ const zhHant = {
       title: '關於',
       description: 'PlainShelf 是本機優先的個人閱讀書庫，適合管理輕量閱讀內容，採用檔案系統優先的資料模型並提供網頁閱讀介面。',
       version: '版本',
-      repository: 'Repository'
+      repository: 'Repository',
+      thirdPartyFonts: '第三方字型授權',
+      fontAttribution: 'Google Inc. · SIL Open Font License 1.1 · 套件版本 5.3.0',
+      source: '來源',
+      license: '完整授權條款',
+      licenseTitle: '{font} 授權條款',
+      licenseLoading: '正在載入授權條款…',
+      licenseLoadFailed: '無法載入隨附的授權條款。',
+      licenseClose: '關閉'
     },
     mobileConnect: {
       title: '連線',
-      description: '變更這台裝置使用的 PlainShelf 伺服器、存取權杖或書架。',
+      description: '變更這台裝置讀取書庫的來源：PlainShelf 伺服器或 pCloud。',
       open: '編輯連線設定'
     },
     downloads: {
@@ -321,7 +329,11 @@ const zhHant = {
       noBooksYet: '目前尚無書籍。'
     },
     titleSearch: '搜尋',
-    titleLayer: '資料夾'
+    titleLayer: '資料夾',
+    refreshShelf: '更新書單',
+    refreshingShelf: '更新中…',
+    lastSynced: '上次更新 {time}',
+    neverSynced: '尚未更新'
   },
   bookCollection: {
     loadingBooks: '載入書籍中...',
@@ -486,6 +498,29 @@ const zhHant = {
     actionsLabel: '閱讀器操作',
     decreaseFontSize: '縮小字體',
     increaseFontSize: '放大字體',
+    chooseFont: '選擇閱讀字型',
+    fontDialog: {
+      title: '閱讀字型',
+      description: '選擇後會立即套用，並保存在這台裝置上。',
+      optionsLabel: '可用閱讀字型',
+      close: '關閉字型選擇',
+      done: '完成',
+      sample: '山海之間，靜靜讀一本好書。',
+      fonts: {
+        system: {
+          label: '系統明體',
+          description: '維持目前外觀，實際字型依裝置而異。'
+        },
+        'noto-serif-tc': {
+          label: 'Noto Serif TC 明體',
+          description: '跨平台一致、適合長篇正文閱讀的明體。'
+        },
+        'noto-sans-tc': {
+          label: 'Noto Sans TC 黑體',
+          description: '筆畫清楚、跨平台一致的無襯線字型。'
+        }
+      }
+    },
     showChapters: '顯示章節',
     splitSettings: '切分設定',
     saveBookmark: '儲存書籤',
@@ -493,7 +528,30 @@ const zhHant = {
   },
   mobileConnect: {
     title: '連線到 PlainShelf',
-    description: '輸入你的 PlainShelf 伺服器位址，即可在這台裝置瀏覽與閱讀書庫。本 App 為唯讀，不會變更你的書庫。',
+    description: '選擇書庫的來源，即可在這台裝置瀏覽與閱讀。本 App 為唯讀，不會變更你的書庫。',
+    modeLabel: '書庫來源',
+    modeServer: 'PlainShelf 伺服器',
+    modePCloud: 'pCloud',
+    pcloud: {
+      clientIdLabel: 'pCloud 應用程式金鑰',
+      clientIdPlaceholder: '你的 app key',
+      clientIdHint: 'PlainShelf 使用你自己的 pCloud 應用程式。請到 pCloud 開發者後台建立一個，並把 app key 貼在這裡。',
+      clientIdRequired: '請先輸入 pCloud 應用程式金鑰。',
+      authorize: '以 pCloud 授權',
+      authorizing: '等待授權中…',
+      cancel: '取消',
+      authorized: '已授權（{host}）。',
+      authorizedAccount: '已授權帳號：{account}（{host}）。',
+      shelfRootLabel: '書架資料夾',
+      shelfRootPlaceholder: '/PlainShelf/default-shelf',
+      shelfRootHint: 'pCloud 上存放書架的資料夾，也就是含有 books/ 的那一層。',
+      shelfRootRequired: '請先輸入書架資料夾。',
+      verify: '檢查書架',
+      verifying: '檢查中…',
+      shelfFound: '找到 {count} 本書。',
+      notAShelf: '該資料夾沒有 books/ 目錄，不是 PlainShelf 書架。',
+      verifyRequired: '請先檢查書架再儲存。'
+    },
     serverUrlLabel: '伺服器網址',
     serverUrlPlaceholder: 'http://192.168.1.10:20000',
     tokenLabel: '存取權杖（選填）',

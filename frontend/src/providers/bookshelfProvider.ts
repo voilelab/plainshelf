@@ -71,6 +71,9 @@ export interface BookshelfProvider {
   getTaskChain(taskChainId: string): Promise<TaskChain>;
   startBookBatch(request: BookBatchRequest): Promise<string>;
 
+  /** Layer paths in the shape `api/layers.ts` returns: '/' for the top level. */
+  listLayers(): Promise<string[]>;
+
   listSources(bookId: string): Promise<SourceMeta[]>;
   getSource(bookId: string, sourceId: string): Promise<SourceMeta>;
   getSourceContent(bookId: string, sourceId: string): Promise<string>;
@@ -79,6 +82,17 @@ export interface BookshelfProvider {
   setCurrentSource(bookId: string, sourceId: string): Promise<void>;
   updateSourceContent(bookId: string, sourceId: string, content: string): Promise<void>;
   refreshSourceMeta(bookId: string, sourceId: string): Promise<SourceMeta>;
+
+  /**
+   * Manual shelf update, for backends whose listing is too expensive to refresh
+   * on its own. A server keeps its own shelf cache warm (`scan_interval`), so
+   * only the pCloud provider implements these; `supportsShelfRefresh` is what
+   * the UI asks, because a wrapper always has the methods even when the backend
+   * it wraps does not.
+   */
+  supportsShelfRefresh?(): boolean;
+  refreshShelf?(): Promise<void>;
+  getShelfFetchedAt?(): Promise<number | null>;
 
   downloadBook?(bookId: string): Promise<void>;
   removeDownload?(bookId: string): Promise<void>;

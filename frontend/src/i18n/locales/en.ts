@@ -210,11 +210,19 @@ const en = {
       title: 'About',
       description: 'PlainShelf is a local-first personal reading library for lightweight reading content, with a filesystem-first data model and a web-based reading interface.',
       version: 'Version',
-      repository: 'Repository'
+      repository: 'Repository',
+      thirdPartyFonts: 'Third-party font licenses',
+      fontAttribution: 'Google Inc. · SIL Open Font License 1.1 · package version 5.3.0',
+      source: 'Source',
+      license: 'Full license text',
+      licenseTitle: '{font} license',
+      licenseLoading: 'Loading license text…',
+      licenseLoadFailed: 'The bundled license text could not be loaded.',
+      licenseClose: 'Close'
     },
     mobileConnect: {
       title: 'Connection',
-      description: 'Change the PlainShelf server, access token, or shelf used on this device.',
+      description: 'Change where this device reads your library from: a PlainShelf server or pCloud.',
       open: 'Edit connection'
     },
     downloads: {
@@ -323,7 +331,11 @@ const en = {
       noBooksYet: 'No books yet.'
     },
     titleSearch: 'Search',
-    titleLayer: 'Layer'
+    titleLayer: 'Layer',
+    refreshShelf: 'Update book list',
+    refreshingShelf: 'Updating…',
+    lastSynced: 'Updated {time}',
+    neverSynced: 'Never updated'
   },
   bookCollection: {
     loadingBooks: 'Loading books...',
@@ -488,6 +500,29 @@ const en = {
     actionsLabel: 'Reader actions',
     decreaseFontSize: 'Decrease font size',
     increaseFontSize: 'Increase font size',
+    chooseFont: 'Choose reading font',
+    fontDialog: {
+      title: 'Reading font',
+      description: 'Changes apply immediately and are saved on this device.',
+      optionsLabel: 'Available reading fonts',
+      close: 'Close font selection',
+      done: 'Done',
+      sample: 'A quiet place to read, between mountains and sea.',
+      fonts: {
+        system: {
+          label: 'System serif',
+          description: 'Keeps the current appearance; the exact font depends on the device.'
+        },
+        'noto-serif-tc': {
+          label: 'Noto Serif TC',
+          description: 'A consistent serif designed for comfortable long-form reading.'
+        },
+        'noto-sans-tc': {
+          label: 'Noto Sans TC',
+          description: 'A clear, consistent sans-serif reading font.'
+        }
+      }
+    },
     showChapters: 'Show chapters',
     splitSettings: 'Split settings',
     saveBookmark: 'Save bookmark',
@@ -495,7 +530,30 @@ const en = {
   },
   mobileConnect: {
     title: 'Connect to PlainShelf',
-    description: 'Enter your PlainShelf server address to browse and read your library on this device. The app is read-only: it never changes your library.',
+    description: 'Choose where your library lives so you can browse and read it on this device. The app is read-only: it never changes your library.',
+    modeLabel: 'Library source',
+    modeServer: 'PlainShelf server',
+    modePCloud: 'pCloud',
+    pcloud: {
+      clientIdLabel: 'pCloud app key',
+      clientIdPlaceholder: 'Your app key',
+      clientIdHint: 'PlainShelf uses your own pCloud application. Create one in the pCloud developer console and paste its app key here.',
+      clientIdRequired: 'Enter your pCloud app key first.',
+      authorize: 'Authorize with pCloud',
+      authorizing: 'Waiting for approval…',
+      cancel: 'Cancel',
+      authorized: 'Authorized ({host}).',
+      authorizedAccount: 'Authorized account: {account} ({host}).',
+      shelfRootLabel: 'Shelf folder',
+      shelfRootPlaceholder: '/PlainShelf/default-shelf',
+      shelfRootHint: 'The folder on pCloud that holds your shelf, the one containing books/.',
+      shelfRootRequired: 'Enter the shelf folder first.',
+      verify: 'Check shelf',
+      verifying: 'Checking…',
+      shelfFound: 'Found {count} books.',
+      notAShelf: 'That folder has no books/ directory, so it is not a PlainShelf shelf.',
+      verifyRequired: 'Check the shelf before saving.'
+    },
     serverUrlLabel: 'Server URL',
     serverUrlPlaceholder: 'http://192.168.1.10:20000',
     tokenLabel: 'Access token (optional)',

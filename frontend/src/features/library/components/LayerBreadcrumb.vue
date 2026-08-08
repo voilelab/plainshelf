@@ -12,7 +12,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { RouterLink, type RouteLocationRaw } from 'vue-router';
-import { normalizeLayerInput } from '@/utils/layers';
+import { booksRouteForLayerPath, normalizeLayerInput } from '@/utils/layers';
 
 const ROOT_LABEL = 'Root';
 
@@ -32,7 +32,7 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
     {
       label: ROOT_LABEL,
       path: '',
-      to: { path: '/books', query: { page: '1' } }
+      to: booksRouteForLayerPath('')
     }
   ];
 
@@ -41,7 +41,7 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
     items.push({
       label: segments[i],
       path: layerPath,
-      to: { path: '/books', query: { layers: layerPath, page: '1' } }
+      to: booksRouteForLayerPath(layerPath)
     });
   }
 

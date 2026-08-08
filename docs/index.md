@@ -42,7 +42,10 @@ adds a web interface, desktop integration, and an experimental Android client.
 PlainShelf prioritizes readable local files, stable internal IDs, backup-friendly
 storage, and a focused reading experience. PDF, comic archives, DRM, OCR,
 multi-user accounts, cloud sync, public sharing, and plugins are not part of the
-current scope.
+current scope. The Android client can read a shelf held on pCloud
+([Android Development](development/android.md#read-a-shelf-from-pcloud)), but
+that is a read-only storage backend, not sync: nothing is written back and no
+other client is aware of it.
 
 EPUB is an import format, not a storage format. An imported EPUB is converted to
 plain text or Markdown and stored like any other book; the original `.epub` is

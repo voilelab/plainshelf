@@ -1,5 +1,6 @@
-import type { Book, BookContent, DownloadState, ReadingProgress } from '@/types/book';
+import type { Book, BookContent, DownloadState, ReadingProgress, SplitConfig } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
+import { normalizeSplitConfig } from '@/utils/splitConfig';
 
 export interface CachedBookSizeBreakdown {
   content: number;
@@ -10,6 +11,9 @@ export interface CachedBookSizeBreakdown {
 export interface CachedBookManifest {
   book: Book;
   sources: SourceMeta[];
+  // Full config for offline reader startup. SourceMeta only carries the split
+  // type, which is insufficient for line_count, regex, and boundary splitting.
+  split_config?: SplitConfig;
   downloaded_at: string;
   local_version?: string;
   remote_version?: string;
@@ -29,6 +33,7 @@ export interface MobileBookCache {
 
   listCachedSources(bookId: string): Promise<SourceMeta[]>;
   getCachedSource(bookId: string, sourceId: string): Promise<SourceMeta | null>;
+  getCachedBookSplitConfig(bookId: string): Promise<SplitConfig | null>;
 
   getCachedBookContent(bookId: string): Promise<BookContent | null>;
   saveCachedBookContent(bookId: string, content: BookContent): Promise<void>;
@@ -69,6 +74,7 @@ export class InMemoryMobileBookCache implements MobileBookCache {
     this.manifests.set(manifest.book.id, {
       book: { ...manifest.book },
       sources: manifest.sources.map((source) => ({ ...source })),
+      split_config: copySplitConfig(manifest.split_config),
       downloaded_at: manifest.downloaded_at,
       local_version: manifest.local_version,
       remote_version: manifest.remote_version,
@@ -99,6 +105,10 @@ export class InMemoryMobileBookCache implements MobileBookCache {
     const manifest = this.manifests.get(bookId);
     const source = manifest?.sources.find((item) => item.id === sourceId);
     return source ? { ...source } : null;
+  }
+
+  async getCachedBookSplitConfig(bookId: string): Promise<SplitConfig | null> {
+    return copySplitConfig(this.manifests.get(bookId)?.split_config) ?? null;
   }
 
   async getCachedBookContent(bookId: string): Promise<BookContent | null> {
@@ -143,6 +153,7 @@ export class InMemoryMobileBookCache implements MobileBookCache {
     return Array.from(this.manifests.values()).map((manifest) => ({
       book: { ...manifest.book },
       sources: manifest.sources.map((source) => ({ ...source })),
+      split_config: copySplitConfig(manifest.split_config),
       downloaded_at: manifest.downloaded_at,
       local_version: manifest.local_version,
       remote_version: manifest.remote_version,
@@ -164,4 +175,14 @@ export class InMemoryMobileBookCache implements MobileBookCache {
   private sourceContentKey(bookId: string, sourceId: string): string {
     return `${bookId}:${sourceId}`;
   }
+}
+
+export function copySplitConfig(config: unknown): SplitConfig | undefined {
+  if (config === undefined || config === null) {
+    return undefined;
+  }
+  const normalized = normalizeSplitConfig(config);
+  return normalized.boundaries
+    ? { ...normalized, boundaries: [...normalized.boundaries] }
+    : { ...normalized };
 }
