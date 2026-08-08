@@ -3,7 +3,13 @@ import { Filesystem } from '@capacitor/filesystem';
 import type { Book, BookContent, DownloadState, ReadingProgress, SplitConfig } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import { currentCacheScopeKey } from './cacheScope';
-import { copySplitConfig, type CachedBookManifest, type MobileBookCache } from './mobileBookCache';
+import {
+  cloneManifest,
+  copySplitConfig,
+  downloadedBookFromManifest,
+  type CachedBookManifest,
+  type MobileBookCache
+} from './mobileBookCache';
 import {
   BASE_DIR,
   CACHE_DIRECTORY,
@@ -121,12 +127,12 @@ export class FilesystemMobileBookCache implements MobileBookCache {
 
   async listDownloadedBooks(): Promise<Book[]> {
     const manifests = await this.readAllManifests();
-    return manifests.map((manifest) => this.toDownloadedBook(manifest));
+    return manifests.map(downloadedBookFromManifest);
   }
 
   async getCachedBook(bookId: string): Promise<Book | null> {
     const manifest = await this.readManifest(bookId);
-    return manifest ? this.toDownloadedBook(manifest) : null;
+    return manifest ? downloadedBookFromManifest(manifest) : null;
   }
 
   async getDownloadState(bookId: string): Promise<DownloadState> {
@@ -136,7 +142,7 @@ export class FilesystemMobileBookCache implements MobileBookCache {
 
   async saveDownloadedBook(manifest: CachedBookManifest): Promise<void> {
     const booksDir = await this.resolveBooksDir();
-    await writeJsonFile(manifestPath(booksDir, manifest.book.id), this.copyManifest(manifest));
+    await writeJsonFile(manifestPath(booksDir, manifest.book.id), cloneManifest(manifest));
   }
 
   async removeDownloadedBook(bookId: string): Promise<void> {
@@ -223,7 +229,7 @@ export class FilesystemMobileBookCache implements MobileBookCache {
 
   async listDownloadedManifests(): Promise<CachedBookManifest[]> {
     const manifests = await this.readAllManifests();
-    return manifests.map((manifest) => this.copyManifest(manifest));
+    return manifests.map(cloneManifest);
   }
 
   /**
@@ -313,29 +319,6 @@ export class FilesystemMobileBookCache implements MobileBookCache {
         .map((entry) => this.readManifestByDir(booksDir, entry.name))
     );
     return manifests.filter((manifest): manifest is CachedBookManifest => manifest !== null);
-  }
-
-  private copyManifest(manifest: CachedBookManifest): CachedBookManifest {
-    return {
-      book: { ...manifest.book },
-      sources: manifest.sources.map((source) => ({ ...source })),
-      split_config: copySplitConfig(manifest.split_config),
-      downloaded_at: manifest.downloaded_at,
-      local_version: manifest.local_version,
-      remote_version: manifest.remote_version,
-      size_bytes: manifest.size_bytes,
-      size_breakdown: manifest.size_breakdown ? { ...manifest.size_breakdown } : undefined
-    };
-  }
-
-  private toDownloadedBook(manifest: CachedBookManifest): Book {
-    return {
-      ...manifest.book,
-      download_state: 'downloaded',
-      downloaded_at: manifest.downloaded_at,
-      local_version: manifest.local_version ?? manifest.book.local_version,
-      remote_version: manifest.remote_version ?? manifest.book.remote_version
-    };
   }
 
   private async readManifest(bookId: string): Promise<CachedBookManifest | null> {

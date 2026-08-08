@@ -1,5 +1,10 @@
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 
+// Shared with the mobile book cache: both persist through the same Capacitor
+// plugin, so both have to recognise the same "file is not there" errors from it
+// and from its web fallback.
+import { isMissingError } from '@/providers/mobileCacheFs';
+
 /**
  * Where a client keeps a device-local document (reading history, reading
  * stats). Deliberately format-blind: parsing, merging and trimming live in each
@@ -52,13 +57,6 @@ export function createDesktopDocumentStorage(bindings: {
   };
 }
 
-// Matches the "file is not there" errors the Capacitor plugin and its web
-// fallback raise, mirroring FilesystemMobileBookCache.isMissingError.
-function isMissingFileError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /not exist|does not exist|enoent|no such file|not found/i.test(message);
-}
-
 /**
  * Capacitor (Android) native shell. Directory.Data is app-private internal
  * storage, needs no runtime permission, and — unlike IndexedDB or localStorage
@@ -79,7 +77,7 @@ export function createFilesystemDocumentStorage(path: string): DeviceDocumentSto
         // "nothing stored yet". Any other read failure must propagate:
         // reporting it as null would let the next write replace an unread
         // document and wipe every shelf's data after a transient error.
-        if (isMissingFileError(error)) {
+        if (isMissingError(error)) {
           return null;
         }
         throw error;

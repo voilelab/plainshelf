@@ -50,6 +50,44 @@ export interface MobileBookCache {
   listDownloadedManifests(): Promise<CachedBookManifest[]>;
 }
 
+/**
+ * The Book a downloaded manifest stands for.
+ *
+ * Every MobileBookCache answers listDownloadedBooks/getCachedBook from a stored
+ * manifest, and MobileBookshelfProvider.listDownloadedBookEntries builds the
+ * same shape for the downloads page — so the manifest-wins-over-book precedence
+ * for the version fields lives here rather than being restated per caller.
+ */
+export function downloadedBookFromManifest(manifest: CachedBookManifest): Book {
+  return {
+    ...manifest.book,
+    download_state: 'downloaded',
+    downloaded_at: manifest.downloaded_at,
+    local_version: manifest.local_version ?? manifest.book.local_version,
+    remote_version: manifest.remote_version ?? manifest.book.remote_version
+  };
+}
+
+/**
+ * Detached copy of a manifest, so neither a caller storing one nor a caller
+ * reading one back can mutate what the cache holds.
+ *
+ * Deep for the fields a consumer could reasonably mutate in place (book,
+ * sources, split_config, size_breakdown); the rest are strings.
+ */
+export function cloneManifest(manifest: CachedBookManifest): CachedBookManifest {
+  return {
+    book: { ...manifest.book },
+    sources: manifest.sources.map((source) => ({ ...source })),
+    split_config: copySplitConfig(manifest.split_config),
+    downloaded_at: manifest.downloaded_at,
+    local_version: manifest.local_version,
+    remote_version: manifest.remote_version,
+    size_bytes: manifest.size_bytes,
+    size_breakdown: manifest.size_breakdown ? { ...manifest.size_breakdown } : undefined
+  };
+}
+
 export class InMemoryMobileBookCache implements MobileBookCache {
   private readonly manifests = new Map<string, CachedBookManifest>();
   private readonly bookContents = new Map<string, BookContent>();
@@ -58,12 +96,12 @@ export class InMemoryMobileBookCache implements MobileBookCache {
   private readonly covers = new Map<string, Blob>();
 
   async listDownloadedBooks(): Promise<Book[]> {
-    return Array.from(this.manifests.values()).map((manifest) => this.toDownloadedBook(manifest));
+    return Array.from(this.manifests.values()).map(downloadedBookFromManifest);
   }
 
   async getCachedBook(bookId: string): Promise<Book | null> {
     const manifest = this.manifests.get(bookId);
-    return manifest ? this.toDownloadedBook(manifest) : null;
+    return manifest ? downloadedBookFromManifest(manifest) : null;
   }
 
   async getDownloadState(bookId: string): Promise<DownloadState> {
@@ -71,16 +109,7 @@ export class InMemoryMobileBookCache implements MobileBookCache {
   }
 
   async saveDownloadedBook(manifest: CachedBookManifest): Promise<void> {
-    this.manifests.set(manifest.book.id, {
-      book: { ...manifest.book },
-      sources: manifest.sources.map((source) => ({ ...source })),
-      split_config: copySplitConfig(manifest.split_config),
-      downloaded_at: manifest.downloaded_at,
-      local_version: manifest.local_version,
-      remote_version: manifest.remote_version,
-      size_bytes: manifest.size_bytes,
-      size_breakdown: manifest.size_breakdown ? { ...manifest.size_breakdown } : undefined
-    });
+    this.manifests.set(manifest.book.id, cloneManifest(manifest));
   }
 
   async removeDownloadedBook(bookId: string): Promise<void> {
@@ -150,26 +179,7 @@ export class InMemoryMobileBookCache implements MobileBookCache {
   }
 
   async listDownloadedManifests(): Promise<CachedBookManifest[]> {
-    return Array.from(this.manifests.values()).map((manifest) => ({
-      book: { ...manifest.book },
-      sources: manifest.sources.map((source) => ({ ...source })),
-      split_config: copySplitConfig(manifest.split_config),
-      downloaded_at: manifest.downloaded_at,
-      local_version: manifest.local_version,
-      remote_version: manifest.remote_version,
-      size_bytes: manifest.size_bytes,
-      size_breakdown: manifest.size_breakdown ? { ...manifest.size_breakdown } : undefined
-    }));
-  }
-
-  private toDownloadedBook(manifest: CachedBookManifest): Book {
-    return {
-      ...manifest.book,
-      download_state: 'downloaded',
-      downloaded_at: manifest.downloaded_at,
-      local_version: manifest.local_version ?? manifest.book.local_version,
-      remote_version: manifest.remote_version ?? manifest.book.remote_version
-    };
+    return Array.from(this.manifests.values()).map(cloneManifest);
   }
 
   private sourceContentKey(bookId: string, sourceId: string): string {
