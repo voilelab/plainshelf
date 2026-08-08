@@ -9,12 +9,18 @@ and UI behavior may still change between releases.
 
 ### Added
 
+- Added EPUB import. An `.epub` file selected in the import dialog, dropped on the library, or picked from the desktop file dialog is converted to text and stored as an ordinary book; the original archive is not kept and embedded illustrations are dropped. Reading-order text, table-of-contents chapter names, cover image, title, authors, language, description, identifiers, and publication date are carried over. Requires no new third-party dependency.
+- Added a choice of EPUB output layout, offered in the import dialog once the selection contains an EPUB and defaulted from a new **Settings → Import** tab. The Markdown layout writes `##` chapter headings and stores the book as Markdown, so the reader's chapter list shows real chapter names; the plain-text layout writes bare title lines, which carry no marker to match on and therefore fall back to positional "Part N" labels. A second option controls whether the book description is written at the start of the text as well as into the book metadata.
+- Added the `epub_import_strategy` server setting (`GET`, `POST`, and `DELETE /api/setting/epub_import_strategy`) and the matching `epub_import_strategy` config key, holding the default EPUB layout. It is applied server-side during import, so it also governs the desktop app's file picker, which imports without opening the dialog.
+- Added a `strategy` field to the book import endpoint, letting one request override the configured default.
+- Added [EPUB Import](docs/epub-import.md) documenting what is kept, what is dropped, how the two layouts differ, and the size limits.
 - Added a `schema_version` field to `book.json`, establishing schema v1 as the first versioned on-disk book format. Libraries created before this release have no version marker, are read as v1, and are upgraded lazily: opening a library never rewrites it, and the version is written to a book only the next time that book is modified.
 - Added a compatibility policy and upgrade documentation covering the on-disk schema version, backing up and restoring a shelf, and what to do when PlainShelf refuses to write a book (`docs/concepts/data-format-versioning.md`).
 - Added a "Low Character Count" maintenance page listing books whose character count is at or below a threshold set from the page header, reusing the shared maintenance book list, view modes, and pagination. Books with an unknown count are listed and reported separately in the header.
 
 ### Changed
 
+- Changed the project scope to include EPUB as an import format. It remains excluded as a storage and rendering format: nothing on the shelf becomes a binary blob, and every imported book stays readable in a text editor. PDF, comic archives, DRM, and OCR are still out of scope.
 - Books whose `book.json` was written by a newer PlainShelf build are now read-only rather than silently rewritten. They remain visible and readable, `schema_version` is reported in book API responses, and any attempt to modify them fails with `409 Conflict` instead of overwriting fields the running build does not understand. The refusal is checked before any filesystem change, so a rejected cover upload, cover deletion, or layer move leaves the book untouched.
 - Changed the sidebar's collapse toggle into an explicit rail mode, replacing a collapse path that never completed and left the toggle stuck: collapsing now yields a fixed 48px icon rail with tooltipped navigation links, and both the mode and the last expanded width are restored on reload. The narrow-viewport drawer still shows the full sidebar.
 - Changed the sidebar's "Add layer" control from an inline single-field form to a dialog with a layer name field and a parent-layer select, so nesting no longer requires knowing the slash-path syntax; a successful create navigates into the new layer. The control is now unavailable until the layer list has loaded, so the dialog cannot offer parents belonging to a shelf the user has already left.
@@ -28,6 +34,7 @@ and UI behavior may still change between releases.
 
 ### Fixed
 
+- Fixed the reader's chapter list showing the Markdown heading marker in section names. A regex split matches the heading line itself, so a book split on `^## ` listed sections as "## Chapter One"; the leading marker is now stripped when deriving the name.
 - Fixed dropdown, select, and context menus growing past the bottom of the window with long option lists, which made the lower entries unreachable; popper menus are now capped to the available height (at most 320px) and scroll.
 - Fixed book data writes that could leave the shelf inconsistent after an abrupt shutdown or a failed request: covers stage through a temp file instead of being truncated in place, `trash.json` uses the same atomic path, concurrent writers to one book no longer collide on a shared temp filename, and a newly created or imported book becomes visible only once its source, current-source pointer, and metadata are all written.
 - Fixed a cover upload race in which two overlapping uploads with different extensions could delete the image the book had just been pointed at, leaving `book.json` referencing a missing file.
