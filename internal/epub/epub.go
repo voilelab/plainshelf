@@ -431,8 +431,8 @@ func resolveHref(baseDir, href string) string {
 	if decoded, err := url.PathUnescape(href); err == nil {
 		href = decoded
 	}
-	if strings.HasPrefix(href, "/") {
-		return path.Clean(strings.TrimPrefix(href, "/"))
+	if after, ok := strings.CutPrefix(href, "/"); ok {
+		return path.Clean(after)
 	}
 	if baseDir == "" || baseDir == "." {
 		return path.Clean(href)
@@ -441,7 +441,7 @@ func resolveHref(baseDir, href string) string {
 }
 
 func hasProperty(properties, want string) bool {
-	for _, p := range strings.Fields(properties) {
+	for p := range strings.FieldsSeq(properties) {
 		if strings.EqualFold(p, want) {
 			return true
 		}

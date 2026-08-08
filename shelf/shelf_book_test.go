@@ -196,14 +196,12 @@ func TestBookSetMetaConcurrentWritersDoNotCollide(t *testing.T) {
 	var wg sync.WaitGroup
 	errs := make([]error, writers)
 	for i := range writers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			meta := books[i].GetMeta()
 			meta.Comments = strings.Repeat("x", i+1)
 			errs[i] = books[i].SetMeta(meta)
-		}()
+		})
 	}
 	wg.Wait()
 
