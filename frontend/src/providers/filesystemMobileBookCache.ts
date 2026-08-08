@@ -1,15 +1,24 @@
-import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
+import { Filesystem } from '@capacitor/filesystem';
 
 import type { Book, BookContent, DownloadState, ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import { currentCacheScopeKey } from './cacheScope';
 import type { CachedBookManifest, MobileBookCache } from './mobileBookCache';
+import {
+  BASE_DIR,
+  CACHE_DIRECTORY,
+  deleteFileIgnoringMissing,
+  encode,
+  readJsonFile,
+  readTextFile,
+  rmdirIgnoringMissing,
+  scopeDir,
+  writeJsonFile,
+  writeTextFile
+} from './mobileCacheFs';
 
-// Base directory (relative to Capacitor's Directory.Data) that holds every
-// downloaded book. Directory.Data is app-private, requires no runtime
-// permission, and — unlike IndexedDB in an Android WebView — is not subject
-// to silent LRU eviction (see the rationale in providers/index.ts and
-// .claude/rules/50-lessons.md). Layout:
+// Downloaded books, inside the shared on-device layout defined by
+// mobileCacheFs.ts (which owns the base directory and the scope segment):
 //
 //   plainshelf-cache/scopes/<enc(scopeKey)>/books/<enc(bookId)>/
 //       manifest.json      # CachedBookManifest
@@ -23,11 +32,6 @@ import type { CachedBookManifest, MobileBookCache } from './mobileBookCache';
 // this keeps the read path independent of the encoding scheme and of any
 // platform-specific filename quirks.
 //
-// The scope segment keeps two shelves' downloads apart; see cacheScope.ts for
-// why book ids alone cannot. Without it their downloads would share a directory
-// and overwrite each other, and listDownloadedBooks would return them mixed
-// together.
-//
 // Commit-point semantics, downgraded from the IndexedDB version:
 // `saveDownloadedBook` writes manifest.json, but the caller (see
 // mobileBookshelfProvider.ts's downloadBook) writes manifest.json *before*
@@ -40,29 +44,11 @@ import type { CachedBookManifest, MobileBookCache } from './mobileBookCache';
 // instead of throwing. A directory with no manifest.json is an orphan and is
 // ignored by listDownloadedBooks. A manifest.json that fails to parse is
 // treated the same as a missing manifest (ignored, not thrown).
-const BASE_DIR = 'plainshelf-cache';
-const SCOPES_DIR = `${BASE_DIR}/scopes`;
+
 // Pre-scope layout. Everything under it belongs to whichever connection was
 // configured when it was written, which — until the mobile shell can hold more
 // than one connection — is the one configured now. See migrateLegacyBooks.
 const LEGACY_BOOKS_DIR = `${BASE_DIR}/books`;
-const CACHE_DIRECTORY = Directory.Data;
-
-function encode(id: string): string {
-  return encodeURIComponent(id);
-}
-
-// Directory for a client that has no (server, shelf) identity yet. Unreachable
-// from the native shell this class serves — there `getApiBase()` is applied
-// before mount and the router holds the app on the connect page until it is, so
-// every key contains the `apiBase|shelfID` separator and encodes to a name with
-// `%7C` in it. Named rather than left as an empty path segment so the layout has
-// no `//` in it.
-const UNSCOPED_DIR_NAME = '_unscoped';
-
-function scopeDir(scopeKey: string): string {
-  return `${SCOPES_DIR}/${scopeKey ? encode(scopeKey) : UNSCOPED_DIR_NAME}`;
-}
 
 function bookDir(booksDir: string, bookId: string): string {
   return `${booksDir}/${encode(bookId)}`;
@@ -151,13 +137,13 @@ export class FilesystemMobileBookCache implements MobileBookCache {
 
   async saveDownloadedBook(manifest: CachedBookManifest): Promise<void> {
     const booksDir = await this.resolveBooksDir();
-    await this.writeJsonFile(manifestPath(booksDir, manifest.book.id), this.copyManifest(manifest));
+    await writeJsonFile(manifestPath(booksDir, manifest.book.id), this.copyManifest(manifest));
   }
 
   async removeDownloadedBook(bookId: string): Promise<void> {
     const booksDir = await this.resolveBooksDir();
-    await this.deleteFileIgnoringMissing(manifestPath(booksDir, bookId));
-    await this.rmdirIgnoringMissing(bookDir(booksDir, bookId));
+    await deleteFileIgnoringMissing(manifestPath(booksDir, bookId));
+    await rmdirIgnoringMissing(bookDir(booksDir, bookId));
   }
 
   async listCachedSources(bookId: string): Promise<SourceMeta[]> {
@@ -173,28 +159,28 @@ export class FilesystemMobileBookCache implements MobileBookCache {
 
   async getCachedBookContent(bookId: string): Promise<BookContent | null> {
     const booksDir = await this.resolveBooksDir();
-    const content = await this.readTextFile(contentPath(booksDir, bookId));
+    const content = await readTextFile(contentPath(booksDir, bookId));
     return content !== null ? { content } : null;
   }
 
   async saveCachedBookContent(bookId: string, content: BookContent): Promise<void> {
     const booksDir = await this.resolveBooksDir();
-    await this.writeTextFile(contentPath(booksDir, bookId), content.content);
+    await writeTextFile(contentPath(booksDir, bookId), content.content);
   }
 
   async getCachedSourceContent(bookId: string, sourceId: string): Promise<string | null> {
     const booksDir = await this.resolveBooksDir();
-    return this.readTextFile(sourcePath(booksDir, bookId, sourceId));
+    return readTextFile(sourcePath(booksDir, bookId, sourceId));
   }
 
   async saveCachedSourceContent(bookId: string, sourceId: string, content: string): Promise<void> {
     const booksDir = await this.resolveBooksDir();
-    await this.writeTextFile(sourcePath(booksDir, bookId, sourceId), content);
+    await writeTextFile(sourcePath(booksDir, bookId, sourceId), content);
   }
 
   async getReadProgress(bookId: string): Promise<ReadingProgress | null> {
     const booksDir = await this.resolveBooksDir();
-    return this.readJsonFile<ReadingProgress>(progressPath(booksDir, bookId));
+    return readJsonFile<ReadingProgress>(progressPath(booksDir, bookId));
   }
 
   async saveReadProgress(bookId: string, progress: ReadingProgress): Promise<void> {
@@ -202,12 +188,12 @@ export class FilesystemMobileBookCache implements MobileBookCache {
     // progress can be written (and read back) even for a book that was never
     // (or isn't currently) downloaded.
     const booksDir = await this.resolveBooksDir();
-    await this.writeJsonFile(progressPath(booksDir, bookId), { ...progress });
+    await writeJsonFile(progressPath(booksDir, bookId), { ...progress });
   }
 
   async getCachedCover(bookId: string): Promise<Blob | null> {
     const booksDir = await this.resolveBooksDir();
-    const stored = await this.readJsonFile<Partial<StoredCover>>(coverPath(booksDir, bookId));
+    const stored = await readJsonFile<Partial<StoredCover>>(coverPath(booksDir, bookId));
     if (!stored || typeof stored.data !== 'string') {
       return null;
     }
@@ -223,12 +209,12 @@ export class FilesystemMobileBookCache implements MobileBookCache {
   async saveCachedCover(bookId: string, blob: Blob): Promise<void> {
     const booksDir = await this.resolveBooksDir();
     const stored: StoredCover = { mime: blob.type, data: await blobToBase64(blob) };
-    await this.writeJsonFile(coverPath(booksDir, bookId), stored);
+    await writeJsonFile(coverPath(booksDir, bookId), stored);
   }
 
   async deleteCachedCover(bookId: string): Promise<void> {
     const booksDir = await this.resolveBooksDir();
-    await this.deleteFileIgnoringMissing(coverPath(booksDir, bookId));
+    await deleteFileIgnoringMissing(coverPath(booksDir, bookId));
   }
 
   async listDownloadedManifests(): Promise<CachedBookManifest[]> {
@@ -349,12 +335,12 @@ export class FilesystemMobileBookCache implements MobileBookCache {
 
   private async readManifest(bookId: string): Promise<CachedBookManifest | null> {
     const booksDir = await this.resolveBooksDir();
-    return this.asManifest(await this.readJsonFile<unknown>(manifestPath(booksDir, bookId)));
+    return this.asManifest(await readJsonFile<unknown>(manifestPath(booksDir, bookId)));
   }
 
   private async readManifestByDir(booksDir: string, dirName: string): Promise<CachedBookManifest | null> {
     return this.asManifest(
-      await this.readJsonFile<unknown>(`${booksDir}/${dirName}/manifest.json`)
+      await readJsonFile<unknown>(`${booksDir}/${dirName}/manifest.json`)
     );
   }
 
@@ -376,67 +362,4 @@ export class FilesystemMobileBookCache implements MobileBookCache {
     return manifest as CachedBookManifest;
   }
 
-  private async readTextFile(path: string): Promise<string | null> {
-    try {
-      const result = await Filesystem.readFile({
-        path,
-        directory: CACHE_DIRECTORY,
-        encoding: Encoding.UTF8
-      });
-      return typeof result.data === 'string' ? result.data : null;
-    } catch {
-      return null;
-    }
-  }
-
-  private async readJsonFile<T>(path: string): Promise<T | null> {
-    const text = await this.readTextFile(path);
-    if (text === null) {
-      return null;
-    }
-    try {
-      return JSON.parse(text) as T;
-    } catch {
-      return null;
-    }
-  }
-
-  private async writeTextFile(path: string, data: string): Promise<void> {
-    await Filesystem.writeFile({
-      path,
-      data,
-      directory: CACHE_DIRECTORY,
-      encoding: Encoding.UTF8,
-      recursive: true
-    });
-  }
-
-  private async writeJsonFile(path: string, value: unknown): Promise<void> {
-    await this.writeTextFile(path, JSON.stringify(value));
-  }
-
-  private async deleteFileIgnoringMissing(path: string): Promise<void> {
-    try {
-      await Filesystem.deleteFile({ path, directory: CACHE_DIRECTORY });
-    } catch (error) {
-      if (!this.isMissingError(error)) {
-        throw error;
-      }
-    }
-  }
-
-  private async rmdirIgnoringMissing(path: string): Promise<void> {
-    try {
-      await Filesystem.rmdir({ path, directory: CACHE_DIRECTORY, recursive: true });
-    } catch (error) {
-      if (!this.isMissingError(error)) {
-        throw error;
-      }
-    }
-  }
-
-  private isMissingError(error: unknown): boolean {
-    const message = error instanceof Error ? error.message : String(error);
-    return /not exist|does not exist|enoent|no such file|not found/i.test(message);
-  }
 }

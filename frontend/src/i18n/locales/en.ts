@@ -313,7 +313,11 @@ const en = {
       noBooksYet: 'No books yet.'
     },
     titleSearch: 'Search',
-    titleLayer: 'Layer'
+    titleLayer: 'Layer',
+    refreshShelf: 'Update book list',
+    refreshingShelf: 'Updating…',
+    lastSynced: 'Updated {time}',
+    neverSynced: 'Never updated'
   },
   bookCollection: {
     loadingBooks: 'Loading books...',

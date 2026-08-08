@@ -399,6 +399,12 @@ onMounted(() => {
   }
 
   .bookshelf-toolbar {
+    /* Wrapping, not scrolling: the toolbar is a row of independent controls
+       and the search bar already asks for a line of its own (flex-basis 100%
+       in LibraryPage). Without this, one control more than fits pushes the
+       whole page into horizontal overflow and the last control can only be
+       reached by scrolling sideways. */
+    flex-wrap: wrap;
     justify-content: space-between;
     width: 100%;
   }

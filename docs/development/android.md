@@ -147,6 +147,26 @@ Give the folder path of the shelf inside your pCloud account, such as
 reports how many books it found; it has to contain `books/` or it is not a
 shelf. Save once the check passes.
 
+### The book list is updated by hand
+
+Reading the shelf means listing the whole folder tree and downloading every
+book's `book.json` — one recursive listing plus a request per book. That is far
+too expensive to repeat on a phone every time the app opens, so the app does not
+repeat it.
+
+The listing is scanned **once**, right after you save the connection, and then
+kept on the device in full: every book's metadata and the file references needed
+to open it. From then on the library opens from that copy with no network access
+at all. Use **Update book list** on the library toolbar after adding, removing,
+or renaming books on pCloud. The button shows when the list was last updated.
+
+An update is cheaper than the first scan: a book whose `book.json` has not
+changed size or modification time is not downloaded again, so a typical update
+costs one folder listing plus only the books that actually changed.
+
+Book *contents* are unaffected — opening a book always reads it from pCloud
+unless the book has been downloaded for offline reading.
+
 ### What this mode does not have
 
 - **No access token and no `protect_read`.** Those are server settings, and

@@ -279,6 +279,21 @@ export class MobileBookshelfProvider implements BookshelfProvider {
     return this.remote.startBookBatch(request);
   }
 
+  // Shelf refresh is entirely the wrapped backend's business — nothing here
+  // caches the listing itself. Reported as unsupported unless the backend says
+  // otherwise, so a server connection shows no update button.
+  supportsShelfRefresh(): boolean {
+    return Boolean(this.remote.supportsShelfRefresh?.());
+  }
+
+  async refreshShelf(): Promise<void> {
+    await this.remote.refreshShelf?.();
+  }
+
+  async getShelfFetchedAt(): Promise<number | null> {
+    return (await this.remote.getShelfFetchedAt?.()) ?? null;
+  }
+
   async listSources(bookId: string): Promise<SourceMeta[]> {
     if (this.isOnline()) {
       try {

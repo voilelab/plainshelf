@@ -7,6 +7,7 @@ import { FilesystemMobileBookCache } from './filesystemMobileBookCache';
 import { PCloudBookshelfProvider } from './pcloudBookshelfProvider';
 import { PCloudClient } from '@/api/pcloud/client';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
+import { FilesystemShelfSnapshotStore } from './shelfSnapshotStore';
 import { WailsBookshelfProvider } from './wailsBookshelfProvider';
 
 let provider: BookshelfProvider | null = null;
@@ -27,7 +28,11 @@ function createMobileSource(config: MobileConnectionConfig | null): BookshelfPro
 
   return new PCloudBookshelfProvider({
     client: new PCloudClient({ host: config.pcloudHost, accessToken: config.pcloudAccessToken }),
-    shelfRoot: config.pcloudShelfRoot
+    shelfRoot: config.pcloudShelfRoot,
+    // Persisted for the same reason downloads are (see below): without it the
+    // shelf would be walked once per app launch, which is what manual updating
+    // exists to avoid.
+    snapshotStore: new FilesystemShelfSnapshotStore()
   });
 }
 

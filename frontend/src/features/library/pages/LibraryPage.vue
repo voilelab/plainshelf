@@ -51,6 +51,7 @@
       @confirm="confirmDelete"
     />
     <p v-if="actionError && !deleteTarget" class="error" role="alert">{{ actionError }}</p>
+    <p v-if="shelfRefresh.error.value" class="error" role="alert">{{ shelfRefresh.error.value }}</p>
     <BookCollectionPage
       :title="selectedLayerTitle"
       :books="visibleBooks"
@@ -158,6 +159,17 @@
             {{ sortOrder === 'asc' ? t('library.order.asc') : t('library.order.desc') }}
           </button>
         </div>
+        <div v-if="shelfRefresh.supported" class="toolbar-bar shelf-refresh-bar">
+          <button
+            type="button"
+            class="button toolbar-control toolbar-button toolbar-regular shelf-refresh-button"
+            :disabled="shelfRefresh.refreshing.value"
+            @click="shelfRefresh.refresh"
+          >
+            {{ shelfRefresh.refreshing.value ? t('library.refreshingShelf') : t('library.refreshShelf') }}
+          </button>
+          <span class="toolbar-label shelf-refresh-status">{{ lastSyncedLabel }}</span>
+        </div>
         <DropdownMenuRoot v-if="!readOnly">
           <DropdownMenuTrigger class="button">{{ t('library.import') }}</DropdownMenuTrigger>
           <DropdownMenuPortal>
@@ -213,6 +225,7 @@ import { useBookPagination } from '@/composables/useBookPagination';
 import { useBookSelection } from '@/composables/useBookSelection';
 import { useBookBatchOperations } from '@/composables/useBookBatchOperations';
 import { useLayerStore } from '@/composables/useLayerStore';
+import { useShelfRefresh } from '@/composables/useShelfRefresh';
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useBooksRouteQuery } from '@/features/library/composables/useBooksRouteQuery';
 import { useBooksSearch } from '@/features/library/composables/useBooksSearch';
@@ -287,6 +300,15 @@ async function reloadBooks(): Promise<void> {
   await fetchBooks();
   booksLoaded.value = true;
 }
+
+// Only a backend whose listing the user has to update themselves (pCloud)
+// reports support; everywhere else the bar stays hidden.
+const shelfRefresh = useShelfRefresh();
+const lastSyncedLabel = computed(() =>
+  shelfRefresh.lastSyncedAt.value === null
+    ? t('library.neverSynced')
+    : t('library.lastSynced', { time: new Date(shelfRefresh.lastSyncedAt.value).toLocaleString() })
+);
 
 const {
   canOpenBookFolder,
@@ -697,7 +719,10 @@ async function onImported(result: { successCount: number }): Promise<void> {
 }
 
 onMounted(() => {
-  void reloadBooks();
+  // Chained, not concurrent: on a first connection the listing itself is what
+  // creates the timestamp, so reading it alongside the initial load would find
+  // nothing and leave the toolbar saying "never updated" for the whole session.
+  void reloadBooks().then(() => shelfRefresh.loadLastSyncedAt());
   document.addEventListener('dragover', onDocumentDragOver);
   document.addEventListener('drop', onDocumentDrop);
   document.addEventListener('keydown', onSelectionKeydown);
@@ -851,6 +876,24 @@ watch(
   min-width: 64px;
 }
 
+.shelf-refresh-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* Never squeezed: shrinking this bar wraps the button's own label into a
+     one-character-per-line column before anything else gives way. */
+  flex: 0 0 auto;
+}
+
+.shelf-refresh-button {
+  white-space: nowrap;
+}
+
+.shelf-refresh-status {
+  color: var(--muted, #888);
+  white-space: nowrap;
+}
+
 /* Responsive layout */
 @media (max-width: 760px) {
   .search-bar {
@@ -870,6 +913,13 @@ watch(
 
   .sort-select {
     min-width: 92px;
+  }
+
+  /* A line of its own, and free to break between the button and the
+     timestamp: at 360px the two together are wider than the viewport. */
+  .shelf-refresh-bar {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
   }
 }
 </style>

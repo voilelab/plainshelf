@@ -451,3 +451,44 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
     expect(await cache.getCachedBookContent('book-1')).toEqual({ content: 'text' });
   });
 });
+
+describe('MobileBookshelfProvider — manual shelf refresh', () => {
+  function makeProvider(remote: Partial<BookshelfProvider>): MobileBookshelfProvider {
+    return new MobileBookshelfProvider(remote as BookshelfProvider, new InMemoryMobileBookCache(), () => true);
+  }
+
+  it('reports no support when the backend refreshes its own listing', async () => {
+    const provider = makeProvider({});
+
+    expect(provider.supportsShelfRefresh()).toBe(false);
+    expect(await provider.getShelfFetchedAt()).toBeNull();
+    // Still safe to call: the UI hides the control, but nothing may throw.
+    await expect(provider.refreshShelf()).resolves.toBeUndefined();
+  });
+
+  it('delegates to a backend whose listing is updated by hand', async () => {
+    const refreshShelf = vi.fn().mockResolvedValue(undefined);
+    const provider = makeProvider({
+      supportsShelfRefresh: () => true,
+      refreshShelf,
+      getShelfFetchedAt: async () => 4_242
+    });
+
+    await provider.refreshShelf();
+
+    expect(provider.supportsShelfRefresh()).toBe(true);
+    expect(refreshShelf).toHaveBeenCalledTimes(1);
+    expect(await provider.getShelfFetchedAt()).toBe(4_242);
+  });
+
+  it('surfaces a failed update instead of reporting success', async () => {
+    const provider = makeProvider({
+      supportsShelfRefresh: () => true,
+      refreshShelf: async () => {
+        throw unreachableError();
+      }
+    });
+
+    await expect(provider.refreshShelf()).rejects.toBeInstanceOf(TypeError);
+  });
+});

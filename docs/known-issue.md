@@ -50,15 +50,22 @@ For the operational model, initial metadata scan, and tuning guidance, see [Shel
 
 ### 4) pCloud shelf on the Android client
 
-1. **Newly added books can lag behind by up to a scan interval**
-   - The client keeps one snapshot of the shelf tree and reuses it for about a
-     minute, so a book added from another device appears on the next scan rather
-     than immediately.
+1. **The book list never updates on its own**
+   - Walking the shelf costs one recursive listing plus a request per book, so
+     the client scans once and then reads the stored copy on the device. A book
+     added, removed, or renamed from another device appears only after
+     **Update book list** on the library toolbar.
 
-2. **Change detection is stat-based, with the same imprecision as above**
-   - Cached book metadata is reused while a file's size and modification time
-     are unchanged, so an edit that preserves both is not noticed. This is the
-     same rule, and the same limitation, as the shelf cache described in 1).
+2. **A stale list can make a book fail to open**
+   - The stored copy holds the pCloud file references used to open a book. If
+     the book was replaced or moved on pCloud since the last update, opening it
+     fails until the list is updated. Downloaded books are unaffected — they are
+     read from the device.
+
+3. **Change detection is stat-based**
+   - During an update, cached book metadata is reused while a file's size and
+     modification time are unchanged, so an edit that preserves both is not
+     noticed.
 
 ---
 

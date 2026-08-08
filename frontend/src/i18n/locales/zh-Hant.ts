@@ -312,7 +312,11 @@ const zhHant = {
       noBooksYet: '目前尚無書籍。'
     },
     titleSearch: '搜尋',
-    titleLayer: '資料夾'
+    titleLayer: '資料夾',
+    refreshShelf: '更新書單',
+    refreshingShelf: '更新中…',
+    lastSynced: '上次更新 {time}',
+    neverSynced: '尚未更新'
   },
   bookCollection: {
     loadingBooks: '載入書籍中...',
