@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- CapacitorStorage may contain a legacy plaintext token until migration runs. -->
+        <exclude domain="sharedpref" path="CapacitorStorage.xml" />
+        <exclude domain="sharedpref" path="plainshelf_secure_storage.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="CapacitorStorage.xml" />
+        <exclude domain="sharedpref" path="plainshelf_secure_storage.xml" />
+    </device-transfer>
+</data-extraction-rules>

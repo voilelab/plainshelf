@@ -1,11 +1,13 @@
 import { Preferences } from '@capacitor/preferences';
 
 import { setActiveShelfID, setApiBase } from '@/api/client';
+import { SecureStorage } from '@/providers/secureStorage';
 
 // Native (Capacitor) builds load a static bundle with no backend to inject the
-// server address, token, or selected shelf. We persist those in Capacitor
-// Preferences (native key-value storage) and apply them to the API client at
-// startup. Small scalar settings only — book content lives on the filesystem.
+// server address, token, or selected shelf. We persist non-secret settings in
+// Capacitor Preferences and apply them to the API client at startup. The
+// long-lived pCloud bearer token is kept separately in Android Keystore-backed
+// storage. Small scalar settings only — book content lives on the filesystem.
 //
 // The token is not what makes the app read-only — api/client.ts rejects every
 // mutation before it is sent, token or not. The app issues no writes at all, so
@@ -70,6 +72,40 @@ async function write(key: string, value: string): Promise<void> {
   }
 }
 
+async function readPCloudAccessToken(): Promise<string> {
+  const { value } = await SecureStorage.get({ key: KEY_PCLOUD_ACCESS_TOKEN });
+  const stored = (value ?? '').trim();
+  if (stored) {
+    // Finish cleanup if a previous migration encrypted the value but the app
+    // stopped before removing the plaintext copy.
+    await Preferences.remove({ key: KEY_PCLOUD_ACCESS_TOKEN });
+    return stored;
+  }
+
+  // One-time migration for installs that predate Keystore-backed storage. Do
+  // not remove the legacy value until the encrypted write has succeeded.
+  const legacy = await read(KEY_PCLOUD_ACCESS_TOKEN);
+  if (!legacy) {
+    return '';
+  }
+
+  await SecureStorage.set({ key: KEY_PCLOUD_ACCESS_TOKEN, value: legacy });
+  await Preferences.remove({ key: KEY_PCLOUD_ACCESS_TOKEN });
+  return legacy;
+}
+
+async function writePCloudAccessToken(value: string): Promise<void> {
+  const trimmed = (value ?? '').trim();
+  if (trimmed) {
+    await SecureStorage.set({ key: KEY_PCLOUD_ACCESS_TOKEN, value: trimmed });
+  } else {
+    await SecureStorage.remove({ key: KEY_PCLOUD_ACCESS_TOKEN });
+  }
+
+  // Also erase any plaintext copy left by an older app version.
+  await Preferences.remove({ key: KEY_PCLOUD_ACCESS_TOKEN });
+}
+
 function normalizeMode(value: string): ConnectionMode {
   // Anything unrecognised — including the absent key on an install that predates
   // pCloud support — is a server connection.
@@ -92,7 +128,7 @@ export async function loadMobileConnectionConfig(): Promise<MobileConnectionConf
     read(KEY_TOKEN),
     read(KEY_SHELF_ID),
     read(KEY_PCLOUD_CLIENT_ID),
-    read(KEY_PCLOUD_ACCESS_TOKEN),
+    readPCloudAccessToken(),
     read(KEY_PCLOUD_HOST),
     read(KEY_PCLOUD_SHELF_ROOT)
   ]);
@@ -136,14 +172,18 @@ export async function saveMobileConnectionConfig(
     [KEY_TOKEN, config.token],
     [KEY_SHELF_ID, config.shelfId],
     [KEY_PCLOUD_CLIENT_ID, config.pcloudClientId],
-    [KEY_PCLOUD_ACCESS_TOKEN, config.pcloudAccessToken],
     [KEY_PCLOUD_HOST, config.pcloudHost],
     [KEY_PCLOUD_SHELF_ROOT, config.pcloudShelfRoot]
   ];
 
-  await Promise.all(
-    entries.filter(([, value]) => value !== undefined).map(([key, value]) => write(key, value as string))
-  );
+  const writes: Array<Promise<void>> = entries
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => write(key, value as string));
+  if (config.pcloudAccessToken !== undefined) {
+    writes.push(writePCloudAccessToken(config.pcloudAccessToken));
+  }
+
+  await Promise.all(writes);
 
   await applyMobileConnectionConfig(await loadMobileConnectionConfig());
 }
