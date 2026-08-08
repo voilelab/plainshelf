@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -24,13 +23,7 @@ func (app *App) HandleAPIGetLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	err = json.NewEncoder(w).Encode(logs)
-	if err != nil {
-		app.Error("failed to encode response", "error", err)
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-		return
-	}
+	app.writeJSON(w, http.StatusOK, logs)
 }
 
 // GET /api/logs/{log_id}/content

@@ -1,9 +1,7 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"strings"
 
@@ -52,28 +50,13 @@ func normalizeBookBatchIDs(ids []string) ([]string, error) {
 
 // POST /api/shelves/{shelf_id}/book-batches
 func (app *App) HandleAPIBookBatch(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
-		return
-	}
-
-	s, exists := app.shelfManager.GetShelf(shelfID)
-	if !exists {
-		http.Error(w, "shelf not found", http.StatusNotFound)
+	shelfData, ok := app.resolveShelf(w, r)
+	if !ok {
 		return
 	}
 
 	var request bookBatchRequest
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&request); err != nil {
-		http.Error(w, "invalid JSON", http.StatusBadRequest)
-		return
-	}
-	var extra any
-	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
-		http.Error(w, "invalid JSON", http.StatusBadRequest)
+	if !decodeStrictJSON(w, r, &request) {
 		return
 	}
 
@@ -101,7 +84,7 @@ func (app *App) HandleAPIBookBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chain, err := app.taskChains.Submit(newBookBatchChain(shelfID, s.Shelf, &app.Logger, request.Operation, ids, request.TargetLayer))
+	chain, err := app.taskChains.Submit(newBookBatchChain(shelfData.ID, shelfData.Shelf, &app.Logger, request.Operation, ids, request.TargetLayer))
 	switch {
 	case errors.Is(err, taskutil.ErrTaskChainRunning):
 		app.writeBookBatchResponse(w, chain.ID, http.StatusConflict)
@@ -117,9 +100,5 @@ func (app *App) HandleAPIBookBatch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) writeBookBatchResponse(w http.ResponseWriter, taskChainID string, status int) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(bookBatchResponse{TaskChainID: taskChainID}); err != nil {
-		app.Error("failed to encode book batch response", "error", err)
-	}
+	app.writeJSON(w, status, bookBatchResponse{TaskChainID: taskChainID})
 }

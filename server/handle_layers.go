@@ -10,45 +10,25 @@ import (
 
 // GET /api/shelves/{shelf_id}/layers
 func (app *App) HandleAPIGetLayers(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
+	shelfData, ok := app.resolveShelf(w, r)
+	if !ok {
 		return
 	}
 
-	shelf, exists := app.shelfManager.GetShelf(shelfID)
-	if !exists {
-		http.Error(w, "shelf not found", http.StatusNotFound)
-		return
-	}
-
-	layers, err := shelf.GetAllLayers()
+	layers, err := shelfData.GetAllLayers()
 	if err != nil {
 		app.Error("failed to get layers", "error", err)
 		http.Error(w, "failed to get layers", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	err = json.NewEncoder(w).Encode(layers)
-	if err != nil {
-		app.Error("failed to encode response", "error", err)
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-		return
-	}
+	app.writeJSON(w, http.StatusOK, layers)
 }
 
 // POST /api/shelves/{shelf_id}/layers/{layer_path}
 func (app *App) HandleAPICreateLayer(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
-		return
-	}
-
-	shelf, exists := app.shelfManager.GetShelf(shelfID)
-	if !exists {
-		http.Error(w, "shelf not found", http.StatusNotFound)
+	shelfData, ok := app.resolveShelf(w, r)
+	if !ok {
 		return
 	}
 
@@ -58,8 +38,7 @@ func (app *App) HandleAPICreateLayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = shelf.NewLayer(layerParts)
-	if err != nil {
+	if err := shelfData.NewLayer(layerParts); err != nil {
 		app.Error("failed to create layer", "error", err)
 		http.Error(w, "failed to create layer", http.StatusInternalServerError)
 		return
@@ -74,15 +53,8 @@ type renameLayerRequest struct {
 
 // PATCH /api/shelves/{shelf_id}/layers/{layer_path}
 func (app *App) HandleAPIRenameLayer(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
-		return
-	}
-
-	shelfData, exists := app.shelfManager.GetShelf(shelfID)
-	if !exists {
-		http.Error(w, "shelf not found", http.StatusNotFound)
+	shelfData, ok := app.resolveShelf(w, r)
+	if !ok {
 		return
 	}
 
@@ -122,15 +94,8 @@ type moveLayerRequest struct {
 
 // POST /api/shelves/{shelf_id}/layer-moves
 func (app *App) HandleAPIMoveLayer(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
-		return
-	}
-
-	shelfData, exists := app.shelfManager.GetShelf(shelfID)
-	if !exists {
-		http.Error(w, "shelf not found", http.StatusNotFound)
+	shelfData, ok := app.resolveShelf(w, r)
+	if !ok {
 		return
 	}
 
@@ -155,15 +120,8 @@ func (app *App) HandleAPIMoveLayer(w http.ResponseWriter, r *http.Request) {
 
 // DELETE /api/shelves/{shelf_id}/layers/{layer_path}
 func (app *App) HandleAPIDeleteLayer(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
-		return
-	}
-
-	shelf, exists := app.shelfManager.GetShelf(shelfID)
-	if !exists {
-		http.Error(w, "shelf not found", http.StatusNotFound)
+	shelfData, ok := app.resolveShelf(w, r)
+	if !ok {
 		return
 	}
 
@@ -173,8 +131,7 @@ func (app *App) HandleAPIDeleteLayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = shelf.DeleteLayer(layerParts)
-	if err != nil {
+	if err := shelfData.DeleteLayer(layerParts); err != nil {
 		app.Error("failed to delete layer", "error", err)
 		http.Error(w, "failed to delete layer", http.StatusInternalServerError)
 		return

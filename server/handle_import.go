@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -159,15 +158,8 @@ func validateLocalImportPath(localPath string) (string, error) {
 
 // POST /api/shelves/{shelf_id}/books/import
 func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
-		return
-	}
-
-	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	shelfData, ok := app.resolveShelf(w, r)
 	if !ok {
-		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
 	}
 
@@ -268,16 +260,10 @@ func writeEPUBImportError(w http.ResponseWriter, err error) {
 }
 
 func writeImportedBook(w http.ResponseWriter, app *App, newBook *shelf.Book) {
-	resp := Book{
+	app.writeJSON(w, http.StatusCreated, Book{
 		Meta:  newBook.GetMeta(),
 		Layer: newBook.Layers(),
-	}
-
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		app.Error("failed to encode response", "error", err)
-	}
+	})
 }
 
 // ImportFromLocalPath imports a book from a local file path on the server.

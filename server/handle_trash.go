@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -21,25 +20,17 @@ type TrashedBook struct {
 
 // POST /api/shelves/{shelf_id}/books/{book_id}/trash
 func (app *App) HandleAPITrashBook(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
+	shelfData, ok := app.resolveShelf(w, r)
+	if !ok {
 		return
 	}
 
-	s, exists := app.shelfManager.GetShelf(shelfID)
-	if !exists {
-		http.Error(w, "shelf not found", http.StatusNotFound)
+	bookID, ok := resolveBookID(w, r)
+	if !ok {
 		return
 	}
 
-	bookID, err := readBookID(r)
-	if err != nil {
-		http.Error(w, "invalid book_id", http.StatusBadRequest)
-		return
-	}
-
-	if err := s.MoveBookToTrash(bookID); err != nil {
+	if err := shelfData.MoveBookToTrash(bookID); err != nil {
 		if handleShelfErr(w, err) {
 			return
 		}
@@ -53,19 +44,12 @@ func (app *App) HandleAPITrashBook(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/shelves/{shelf_id}/trash/books
 func (app *App) HandleAPIGetTrashedBooks(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
+	shelfData, ok := app.resolveShelf(w, r)
+	if !ok {
 		return
 	}
 
-	s, exists := app.shelfManager.GetShelf(shelfID)
-	if !exists {
-		http.Error(w, "shelf not found", http.StatusNotFound)
-		return
-	}
-
-	books, err := s.ListTrashedBooks()
+	books, err := shelfData.ListTrashedBooks()
 	if err != nil {
 		app.Error("failed to list trashed books", "error", err)
 		http.Error(w, "failed to list trashed books", http.StatusInternalServerError)
@@ -84,12 +68,7 @@ func (app *App) HandleAPIGetTrashedBooks(w http.ResponseWriter, r *http.Request)
 		})
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		app.Error("failed to encode response", "error", err)
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-		return
-	}
+	app.writeJSON(w, http.StatusOK, resp)
 }
 
 type EmptyTrashResponse struct {
@@ -98,19 +77,12 @@ type EmptyTrashResponse struct {
 
 // POST /api/shelves/{shelf_id}/trash/empty
 func (app *App) HandleAPIEmptyTrash(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
+	shelfData, ok := app.resolveShelf(w, r)
+	if !ok {
 		return
 	}
 
-	s, exists := app.shelfManager.GetShelf(shelfID)
-	if !exists {
-		http.Error(w, "shelf not found", http.StatusNotFound)
-		return
-	}
-
-	chain, err := app.taskChains.Submit(newEmptyTrashChain(shelfID, s.Shelf, &app.Logger))
+	chain, err := app.taskChains.Submit(newEmptyTrashChain(shelfData.ID, shelfData.Shelf, &app.Logger))
 	switch {
 	case errors.Is(err, taskutil.ErrTaskChainRunning):
 		// Report the chain already in flight so the client can attach to its
@@ -133,34 +105,22 @@ func (app *App) HandleAPIEmptyTrash(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) writeEmptyTrashResponse(w http.ResponseWriter, taskChainID string, status int) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(EmptyTrashResponse{TaskChainID: taskChainID}); err != nil {
-		app.Error("failed to encode response", "error", err)
-	}
+	app.writeJSON(w, status, EmptyTrashResponse{TaskChainID: taskChainID})
 }
 
 // POST /api/shelves/{shelf_id}/trash/books/{book_id}/restore
 func (app *App) HandleAPIRestoreTrashedBook(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
+	shelfData, ok := app.resolveShelf(w, r)
+	if !ok {
 		return
 	}
 
-	s, exists := app.shelfManager.GetShelf(shelfID)
-	if !exists {
-		http.Error(w, "shelf not found", http.StatusNotFound)
+	bookID, ok := resolveBookID(w, r)
+	if !ok {
 		return
 	}
 
-	bookID, err := readBookID(r)
-	if err != nil {
-		http.Error(w, "invalid book_id", http.StatusBadRequest)
-		return
-	}
-
-	if err := s.RestoreTrashedBook(bookID); err != nil {
+	if err := shelfData.RestoreTrashedBook(bookID); err != nil {
 		if errors.Is(err, shelf.ErrTrashedBookNotFound) {
 			http.Error(w, "trashed book not found", http.StatusNotFound)
 			return
@@ -175,25 +135,17 @@ func (app *App) HandleAPIRestoreTrashedBook(w http.ResponseWriter, r *http.Reque
 
 // DELETE /api/shelves/{shelf_id}/trash/books/{book_id}
 func (app *App) HandleAPIDeleteTrashedBook(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf ID", http.StatusBadRequest)
+	shelfData, ok := app.resolveShelf(w, r)
+	if !ok {
 		return
 	}
 
-	s, exists := app.shelfManager.GetShelf(shelfID)
-	if !exists {
-		http.Error(w, "shelf not found", http.StatusNotFound)
+	bookID, ok := resolveBookID(w, r)
+	if !ok {
 		return
 	}
 
-	bookID, err := readBookID(r)
-	if err != nil {
-		http.Error(w, "invalid book_id", http.StatusBadRequest)
-		return
-	}
-
-	if err := s.DeleteTrashedBook(bookID); err != nil {
+	if err := shelfData.DeleteTrashedBook(bookID); err != nil {
 		if errors.Is(err, shelf.ErrTrashedBookNotFound) {
 			http.Error(w, "trashed book not found", http.StatusNotFound)
 			return
