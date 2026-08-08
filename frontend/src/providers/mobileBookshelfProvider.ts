@@ -165,8 +165,34 @@ export class MobileBookshelfProvider implements BookshelfProvider {
     throw new Error(OFFLINE_BOOK_CACHE_MISS_ERROR);
   }
 
-  getBookSplitConfig(bookId: string): Promise<SplitConfig> {
-    return this.remote.getBookSplitConfig(bookId);
+  async getBookSplitConfig(bookId: string): Promise<SplitConfig> {
+    if (!this.isOnline()) {
+      const cached = await this.cache.getCachedBookSplitConfig(bookId);
+      if (cached) {
+        return cached;
+      }
+
+      // Manifests written before split_config was cached still represent a
+      // downloaded book. Return the reader's safe single-section fallback
+      // immediately instead of attempting a remote call while offline.
+      if ((await this.cache.getDownloadState(bookId)) === 'downloaded') {
+        return { type: 'none' };
+      }
+      throw new Error(OFFLINE_BOOK_CACHE_MISS_ERROR);
+    }
+
+    try {
+      return await this.remote.getBookSplitConfig(bookId);
+    } catch (err) {
+      if (!isServerUnreachableError(err)) {
+        throw err;
+      }
+      const cached = await this.cache.getCachedBookSplitConfig(bookId);
+      if (cached) {
+        return cached;
+      }
+      throw err;
+    }
   }
 
   // Delegated without an offline branch: the layer store surfaces a failure in
@@ -384,10 +410,11 @@ export class MobileBookshelfProvider implements BookshelfProvider {
     // shelf they asked for it on, and a partial write is worse than none.
     const scopeAtStart = currentCacheScopeKey();
 
-    const [book, sources, bookContent] = await Promise.all([
+    const [book, sources, bookContent, splitConfig] = await Promise.all([
       this.remote.getBook(bookId),
       this.remote.listSources(bookId),
-      this.remote.getBookContent(bookId)
+      this.remote.getBookContent(bookId),
+      this.remote.getBookSplitConfig(bookId)
     ]);
     const sourceContents = await Promise.all(
       sources.map(async (source) => ({
@@ -422,6 +449,7 @@ export class MobileBookshelfProvider implements BookshelfProvider {
     await this.cache.saveDownloadedBook({
       book,
       sources,
+      split_config: splitConfig,
       downloaded_at: new Date().toISOString(),
       local_version: book.local_version,
       remote_version: book.remote_version,
