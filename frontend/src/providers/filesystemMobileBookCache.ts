@@ -32,18 +32,17 @@ import {
 // this keeps the read path independent of the encoding scheme and of any
 // platform-specific filename quirks.
 //
-// Commit-point semantics, downgraded from the IndexedDB version:
-// `saveDownloadedBook` writes manifest.json, but the caller (see
-// mobileBookshelfProvider.ts's downloadBook) writes manifest.json *before*
-// content.txt and the source files, not after — so "manifest present" cannot
-// mean "fully downloaded" the way a single atomic transaction would. Rather
-// than fight that call order, this implementation treats presence of
-// manifest.json as the sole signal for "this book is in the downloaded
-// list" (matching listDownloadedBooks/getCachedBook/getDownloadState), and
-// treats a missing content/source file as a plain cache miss (returns null)
-// instead of throwing. A directory with no manifest.json is an orphan and is
-// ignored by listDownloadedBooks. A manifest.json that fails to parse is
-// treated the same as a missing manifest (ignored, not thrown).
+// Commit-point semantics: `saveDownloadedBook` writes manifest.json, but the
+// caller (see mobileBookshelfProvider.ts's downloadBook) writes manifest.json
+// *before* content.txt and the source files, not after — and there is no
+// transaction spanning the whole set, so "manifest present" cannot mean "fully
+// downloaded". Rather than fight that call order, this implementation treats
+// presence of manifest.json as the sole signal for "this book is in the
+// downloaded list" (matching listDownloadedBooks/getCachedBook/
+// getDownloadState), and treats a missing content/source file as a plain cache
+// miss (returns null) instead of throwing. A directory with no manifest.json is
+// an orphan and is ignored by listDownloadedBooks. A manifest.json that fails
+// to parse is treated the same as a missing manifest (ignored, not thrown).
 
 // Pre-scope layout. Everything under it belongs to whichever connection was
 // configured when it was written, which — until the mobile shell can hold more
@@ -189,9 +188,9 @@ export class FilesystemMobileBookCache implements MobileBookCache {
   }
 
   async saveReadProgress(bookId: string, progress: ReadingProgress): Promise<void> {
-    // Independent of the manifest/download state, matching IndexedDbMobileBookCache:
-    // progress can be written (and read back) even for a book that was never
-    // (or isn't currently) downloaded.
+    // Independent of the manifest/download state: progress can be written (and
+    // read back) even for a book that was never (or isn't currently)
+    // downloaded.
     const booksDir = await this.resolveBooksDir();
     await writeJsonFile(progressPath(booksDir, bookId), { ...progress });
   }

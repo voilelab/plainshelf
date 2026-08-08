@@ -2,9 +2,9 @@ import { expect, type Page } from '@playwright/test';
 
 // Mirrors frontend/src/providers/runtime.ts isMobileRuntime()'s desktop-browser
 // escape hatch: appending this to a top-level goto makes the app boot with the
-// mobile (Capacitor) provider on ordinary desktop Chromium, so the IndexedDB
-// offline cache + Preferences-backed connection config get exercised without
-// an Android emulator.
+// mobile (Capacitor) provider on ordinary desktop Chromium, so the offline
+// book cache + Preferences-backed connection config get exercised without an
+// Android emulator.
 export const MOBILE_PREVIEW_QUERY = 'mobile-shell-preview=1';
 
 // Minimal shape of the hook attached by frontend/src/main.ts

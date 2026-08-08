@@ -18,7 +18,7 @@ import {
 } from './support/mobile';
 
 // These tests exercise the Android app storage layer (frontend/src/providers/
-// mobileConfig.ts + indexedDbMobileBookCache.ts + mobileBookshelfProvider.ts)
+// mobileConfig.ts + filesystemMobileBookCache.ts + mobileBookshelfProvider.ts)
 // by running the desktop Chromium build with `?mobile-shell-preview=1`, which
 // makes isMobileRuntime() true and swaps in the same MobileBookshelfProvider
 // used by the native Capacitor shell — no Android emulator required.
