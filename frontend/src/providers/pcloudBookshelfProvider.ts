@@ -18,6 +18,8 @@ import {
   clearReadHistory as clearLocalReadHistory
 } from '@/storage/readHistory';
 import { collectReadHistoryBooks } from './readHistoryBooks';
+import { SHELF_SNAPSHOT_VERSION } from './shelfSnapshotStore';
+import type { PersistedShelfSnapshot, ShelfSnapshotStore } from './shelfSnapshotStore';
 import type {
   BookmarkPayload,
   Book,
@@ -34,14 +36,6 @@ import type { BookBatchRequest, TaskChain } from '@/types/task';
 import type { BookshelfProvider, ListBooksOptions } from './bookshelfProvider';
 
 const READ_ONLY_MESSAGE = 'A pCloud shelf is read-only.';
-
-/**
- * How long a shelf listing is reused before the tree is walked again. Mirrors
- * the Go shelf's `scan_interval` default (shelf/shelf.go) and serves the same
- * purpose: on high-latency storage, re-walking on every request costs far more
- * than showing a book a minute late.
- */
-const DEFAULT_SCAN_INTERVAL_MS = 60_000;
 
 /**
  * Parallel metadata reads. Each book.json costs two requests (getfilelink plus
@@ -90,7 +84,13 @@ export interface PCloudBookshelfProviderOptions {
   client: PCloudClient;
   /** Path of the shelf directory on pCloud, e.g. `/PlainShelf/default-shelf`. */
   shelfRoot: string;
-  scanIntervalMs?: number;
+  /**
+   * Where the shelf listing survives between app runs. Omitted, the provider
+   * still works but re-walks the shelf once per process, which is what this
+   * whole mechanism exists to avoid — so production wiring always supplies one
+   * (see providers/index.ts).
+   */
+  snapshotStore?: ShelfSnapshotStore;
   /** Overridable so tests do not depend on wall-clock time. */
   nowImpl?: () => number;
 }
@@ -160,13 +160,22 @@ async function mapWithConcurrency<T, R>(
  * and downloads all live on the device, so nothing a reader does needs to be
  * written back.
  *
+ * **The listing is updated only when asked.** Walking the shelf costs one
+ * recursive listing plus a download per book.json, which on a phone is far too
+ * expensive to spend on every app launch for a library that rarely changes. So
+ * the listing is persisted to the device and reused indefinitely; only
+ * `refreshShelf()` — behind a button the user presses — goes back to pCloud.
+ * The one exception is the very first run after a connection is configured,
+ * where there is no snapshot yet and an empty library would be worse than a
+ * single scan.
+ *
  * Intended to be wrapped by MobileBookshelfProvider, which layers the offline
  * cache and device-local progress on top.
  */
 export class PCloudBookshelfProvider implements BookshelfProvider {
   private readonly client: PCloudClient;
   private readonly shelfRoot: string;
-  private readonly scanIntervalMs: number;
+  private readonly snapshotStore: ShelfSnapshotStore | null;
   private readonly now: () => number;
 
   /**
@@ -177,16 +186,27 @@ export class PCloudBookshelfProvider implements BookshelfProvider {
    * (shelf/filestate.go), and it is what keeps a re-scan cheap: the recursive
    * listing already carries size and modified time for every file, so an
    * unchanged book costs no request at all on the second walk.
+   *
+   * Warmed from the persisted snapshot on load, so that rule survives an app
+   * restart too: a manual refresh then costs one listing plus a download only
+   * for the books whose book.json actually changed.
    */
   private readonly jsonCache = new Map<number, CachedJson>();
 
   private snapshot: ShelfSnapshot | null = null;
-  private inFlight: Promise<ShelfSnapshot> | null = null;
+
+  /**
+   * The load in progress, if any, and whether it is guaranteed to contact
+   * pCloud. The kind matters: a caller that just wants *a* listing can join
+   * either, but `refreshShelf` must not join a restore, which may resolve
+   * from the device without ever reaching the network.
+   */
+  private pending: { kind: 'restore' | 'refresh'; promise: Promise<ShelfSnapshot> } | null = null;
 
   constructor(options: PCloudBookshelfProviderOptions) {
     this.client = options.client;
     this.shelfRoot = options.shelfRoot.trim();
-    this.scanIntervalMs = options.scanIntervalMs ?? DEFAULT_SCAN_INTERVAL_MS;
+    this.snapshotStore = options.snapshotStore ?? null;
     this.now = options.nowImpl ?? (() => Date.now());
 
     if (!this.shelfRoot) {
@@ -196,22 +216,86 @@ export class PCloudBookshelfProvider implements BookshelfProvider {
 
   // --- shelf loading -------------------------------------------------------
 
+  /**
+   * The listing every read works from. Never goes to pCloud when a snapshot is
+   * available — in memory or on the device — regardless of its age; only an
+   * install with no snapshot at all pays for a walk.
+   */
   private async ensureSnapshot(): Promise<ShelfSnapshot> {
     const current = this.snapshot;
-    if (current && this.now() - current.fetchedAt < this.scanIntervalMs) {
+    if (current) {
       return current;
     }
 
-    // Collapse concurrent callers onto one walk: the library grid, the layer
+    // Collapse concurrent callers onto one load: the library grid, the layer
     // tree and the dashboard all list on mount, and three simultaneous
     // recursive listings would triple the cost of opening the app.
-    if (!this.inFlight) {
-      this.inFlight = this.loadSnapshot().finally(() => {
-        this.inFlight = null;
-      });
+    if (this.pending) {
+      return await this.pending.promise;
     }
 
-    return await this.inFlight;
+    return await this.start('restore', () => this.restoreOrLoadSnapshot());
+  }
+
+  private start(kind: 'restore' | 'refresh', load: () => Promise<ShelfSnapshot>): Promise<ShelfSnapshot> {
+    const promise = load().finally(() => {
+      // Identity-checked: a refresh started while this was running has already
+      // taken the slot, and clearing it would let a third caller start a
+      // duplicate walk.
+      if (this.pending?.promise === promise) {
+        this.pending = null;
+      }
+    });
+    this.pending = { kind, promise };
+    return promise;
+  }
+
+  private async restoreOrLoadSnapshot(): Promise<ShelfSnapshot> {
+    const restored = await this.restoreSnapshot();
+    if (restored) {
+      // A refresh started while this was reading the device has the newer
+      // listing; the restored one is what it just replaced.
+      this.snapshot ??= restored;
+      return this.snapshot;
+    }
+
+    return await this.loadSnapshot();
+  }
+
+  /** Rebuilds the in-memory snapshot from the device, without any request. */
+  private async restoreSnapshot(): Promise<ShelfSnapshot | null> {
+    const persisted = await this.snapshotStore?.load();
+    if (!persisted || persisted.shelf_root !== this.shelfRoot) {
+      return null;
+    }
+
+    const books = persisted.books.map(({ pkg, meta }) => {
+      if (pkg.meta) {
+        this.jsonCache.set(pkg.meta.fileid, {
+          size: pkg.meta.size,
+          modified: pkg.meta.modified,
+          value: meta
+        });
+      }
+      return { pkg, meta, book: this.buildBook(meta, pkg) } satisfies LoadedBook;
+    });
+
+    return {
+      fetchedAt: persisted.fetched_at,
+      books,
+      byID: new Map(books.map((entry) => [entry.meta.id, entry])),
+      layers: persisted.layers
+    };
+  }
+
+  private async persistSnapshot(snapshot: ShelfSnapshot): Promise<void> {
+    await this.snapshotStore?.save({
+      version: SHELF_SNAPSHOT_VERSION,
+      shelf_root: this.shelfRoot,
+      fetched_at: snapshot.fetchedAt,
+      layers: snapshot.layers,
+      books: snapshot.books.map(({ pkg, meta }) => ({ pkg, meta }))
+    } satisfies PersistedShelfSnapshot);
   }
 
   private async loadSnapshot(): Promise<ShelfSnapshot> {
@@ -262,7 +346,40 @@ export class PCloudBookshelfProvider implements BookshelfProvider {
     };
 
     this.snapshot = snapshot;
+    await this.persistSnapshot(snapshot);
     return snapshot;
+  }
+
+  /**
+   * Walks pCloud again and replaces the stored listing. The only path that
+   * refreshes the book list; everything else reads whatever this last wrote.
+   *
+   * A failure leaves the previous snapshot in place — a refresh that could not
+   * reach pCloud must not cost the user the library they already had.
+   */
+  refreshShelf(): Promise<void> {
+    return this.guarded(async () => {
+      if (this.pending?.kind === 'refresh') {
+        await this.pending.promise;
+        return;
+      }
+      await this.start('refresh', () => this.loadSnapshot());
+    });
+  }
+
+  /** When pCloud was last walked, or null before the first successful scan. */
+  async getShelfFetchedAt(): Promise<number | null> {
+    if (this.snapshot) {
+      return this.snapshot.fetchedAt;
+    }
+    // Answering from the device rather than from ensureSnapshot() keeps the
+    // "last updated" label from triggering the very first-run scan itself.
+    const persisted = await this.snapshotStore?.load();
+    return persisted && persisted.shelf_root === this.shelfRoot ? persisted.fetched_at : null;
+  }
+
+  supportsShelfRefresh(): boolean {
+    return true;
   }
 
   /** Drops cache entries for files that no longer exist in the shelf. */

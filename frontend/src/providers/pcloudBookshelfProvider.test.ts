@@ -5,6 +5,8 @@ import { PCloudClient } from '@/api/pcloud/client';
 import { PCloudError } from '@/api/pcloud/errors';
 import type { PCloudItem } from '@/api/pcloud/types';
 import { PCloudBookshelfProvider, pcloudCoverUrl } from './pcloudBookshelfProvider';
+import { InMemoryShelfSnapshotStore, SHELF_SNAPSHOT_VERSION } from './shelfSnapshotStore';
+import type { ShelfSnapshotStore } from './shelfSnapshotStore';
 
 vi.mock('@/storage/readHistory', () => ({
   addReadHistory: vi.fn().mockResolvedValue(undefined),
@@ -169,7 +171,7 @@ function makeProvider(
   tree: PCloudItem,
   overrides: {
     nowImpl?: () => number;
-    scanIntervalMs?: number;
+    snapshotStore?: ShelfSnapshotStore;
     onDownload?: (fileid: number) => Promise<Response> | null;
   } = {}
 ) {
@@ -217,7 +219,7 @@ describe('shelf loading', () => {
     expect(page.items.find((book) => book.id === 'fic1')?.layers).toEqual(['Fiction']);
   });
 
-  it('walks the tree once and reuses the result within the scan interval', async () => {
+  it('walks the tree once and reuses the result for every later read', async () => {
     const { provider, calls } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
 
     await provider.listBooks(1, 10);
@@ -235,22 +237,148 @@ describe('shelf loading', () => {
     expect(calls.recursiveListfolder).toBe(1);
   });
 
-  it('re-walks after the scan interval but does not re-read unchanged book.json', async () => {
+  it('never re-walks on its own, however much time passes', async () => {
     let clock = 0;
     const { provider, calls } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]), {
-      nowImpl: () => clock,
-      scanIntervalMs: 1_000
+      nowImpl: () => clock
     });
+
+    await provider.listBooks(1, 10);
+
+    clock = 30 * 24 * 60 * 60 * 1_000;
+    await provider.listBooks(1, 10);
+    await provider.listLayers();
+    await provider.getBook('a');
+
+    expect(calls.recursiveListfolder).toBe(1);
+  });
+
+  it('re-walks on refreshShelf but does not re-read unchanged book.json', async () => {
+    const { provider, calls } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
 
     await provider.listBooks(1, 10);
     const downloadsAfterFirst = calls.download;
 
-    clock = 5_000;
-    await provider.listBooks(1, 10);
+    await provider.refreshShelf();
 
     expect(calls.recursiveListfolder).toBe(2);
     // Size and modified time are unchanged, so the metadata is served from cache.
     expect(calls.download).toBe(downloadsAfterFirst);
+  });
+
+  it('collapses concurrent refreshes onto a single walk', async () => {
+    const { provider, calls } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
+
+    await Promise.all([provider.refreshShelf(), provider.refreshShelf(), provider.refreshShelf()]);
+
+    expect(calls.recursiveListfolder).toBe(1);
+  });
+
+  it('keeps the previous listing when a refresh fails', async () => {
+    const { provider, calls, fetchImpl } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
+
+    await provider.listBooks(1, 10);
+    const walksAfterFirst = calls.recursiveListfolder;
+
+    // Persistent, not once: the client retries a network failure internally.
+    const reachable = fetchImpl.getMockImplementation();
+    fetchImpl.mockRejectedValue(new TypeError('Failed to fetch'));
+    await expect(provider.refreshShelf()).rejects.toBeInstanceOf(ApiError);
+    fetchImpl.mockImplementation(reachable!);
+
+    const page = await provider.listBooks(1, 10);
+    expect(page.items.map((book) => book.id)).toEqual(['a']);
+    // Served from the snapshot the failed refresh left alone.
+    expect(calls.recursiveListfolder).toBe(walksAfterFirst);
+  });
+
+  it('scans once when the store is empty, and saves what it found', async () => {
+    const store = new InMemoryShelfSnapshotStore();
+    const { provider, calls } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]), {
+      snapshotStore: store,
+      nowImpl: () => 1_700_000_000_000
+    });
+
+    await provider.listBooks(1, 10);
+
+    expect(calls.recursiveListfolder).toBe(1);
+    expect(await store.load()).toMatchObject({
+      version: SHELF_SNAPSHOT_VERSION,
+      shelf_root: SHELF_ROOT,
+      fetched_at: 1_700_000_000_000,
+      books: [{ meta: { id: 'a', title: 'A' } }]
+    });
+  });
+
+  it('serves a fresh process from the store without contacting pCloud', async () => {
+    const tree = shelfTree([bookPackage({ id: 'a', title: 'A' }), bookPackage({ id: 'b', title: 'B' })]);
+    const store = new InMemoryShelfSnapshotStore();
+    const first = makeProvider(tree, { snapshotStore: store });
+    await first.provider.listBooks(1, 10);
+
+    // A second provider over the same store stands in for the next app launch.
+    const { provider, calls } = makeProvider(tree, { snapshotStore: store });
+    const page = await provider.listBooks(1, 10);
+    await provider.listLayers();
+    await provider.getBook('b');
+
+    expect(page.items.map((book) => book.id)).toEqual(['a', 'b']);
+    expect(calls.recursiveListfolder).toBe(0);
+    expect(calls.download).toBe(0);
+  });
+
+  it('warms the metadata cache, so a later refresh re-reads no unchanged book.json', async () => {
+    const tree = shelfTree([bookPackage({ id: 'a', title: 'A' })]);
+    const store = new InMemoryShelfSnapshotStore();
+    await makeProvider(tree, { snapshotStore: store }).provider.listBooks(1, 10);
+
+    const { provider, calls } = makeProvider(tree, { snapshotStore: store });
+    await provider.listBooks(1, 10);
+    await provider.refreshShelf();
+
+    expect(calls.recursiveListfolder).toBe(1);
+    expect(calls.download).toBe(0);
+  });
+
+  it('ignores a snapshot taken from a different shelf root', async () => {
+    const tree = shelfTree([bookPackage({ id: 'a', title: 'A' })]);
+    const store = new InMemoryShelfSnapshotStore();
+    await store.save({
+      version: SHELF_SNAPSHOT_VERSION,
+      shelf_root: '/PlainShelf/some-other-shelf',
+      fetched_at: 1,
+      layers: ['/'],
+      books: []
+    });
+
+    const { provider, calls } = makeProvider(tree, { snapshotStore: store });
+    const page = await provider.listBooks(1, 10);
+
+    expect(page.items.map((book) => book.id)).toEqual(['a']);
+    expect(calls.recursiveListfolder).toBe(1);
+  });
+
+  it('reports when pCloud was last walked without triggering a walk', async () => {
+    const store = new InMemoryShelfSnapshotStore();
+    const tree = shelfTree([bookPackage({ id: 'a', title: 'A' })]);
+    await makeProvider(tree, { snapshotStore: store, nowImpl: () => 4_242 }).provider.listBooks(1, 10);
+
+    const { provider, calls } = makeProvider(tree, { snapshotStore: store });
+
+    expect(await provider.getShelfFetchedAt()).toBe(4_242);
+    expect(calls.recursiveListfolder).toBe(0);
+  });
+
+  it('reports no sync time before the first scan', async () => {
+    const { provider } = makeProvider(shelfTree([]), { snapshotStore: new InMemoryShelfSnapshotStore() });
+
+    expect(await provider.getShelfFetchedAt()).toBeNull();
+  });
+
+  it('advertises manual shelf refresh', () => {
+    const { provider } = makeProvider(shelfTree([]));
+
+    expect(provider.supportsShelfRefresh()).toBe(true);
   });
 
   it('paginates client-side', async () => {
