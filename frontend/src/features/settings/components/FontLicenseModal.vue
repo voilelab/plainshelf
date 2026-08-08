@@ -1,6 +1,9 @@
 <template>
   <BaseDialog :open="open" :title="title" @close="emit('close')">
-    <section class="panel font-license-modal">
+    <section
+      class="panel font-license-modal"
+      :class="{ 'font-license-modal-scrollable': !loading && !error }"
+    >
       <header class="font-license-modal-header">
         <h2>{{ title }}</h2>
         <button class="font-license-modal-close" type="button" :aria-label="closeLabel" @click="emit('close')">
@@ -39,11 +42,18 @@ const emit = defineEmits<{
 
 <style scoped>
 .font-license-modal {
+  box-sizing: border-box;
   display: grid;
   gap: 14px;
   max-height: min(720px, calc(100vh / var(--app-zoom, 1) - 32px));
   padding: 18px;
   width: min(680px, calc(100vw / var(--app-zoom, 1) - 32px));
+}
+
+.font-license-modal-scrollable {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: min(720px, calc(100vh / var(--app-zoom, 1) - 32px));
+  overflow: hidden;
 }
 
 .font-license-modal-header {
@@ -93,8 +103,9 @@ const emit = defineEmits<{
   font-size: 12px;
   line-height: 1.5;
   margin: 0;
-  min-height: 220px;
+  min-height: 0;
   overflow: auto;
+  overflow-wrap: anywhere;
   padding: 14px;
   white-space: pre-wrap;
 }
