@@ -1,11 +1,10 @@
 import { computed, ref } from 'vue';
-// TODO(next phase): route listBooks through BookshelfProvider once the
-// dashboard's char_count need is designed into the provider interface for
-// mobile/Wails too. For this skeleton we call the API layer directly so
-// char_count reaches the page without touching providers/bookshelfProvider.ts
-// (out of scope for this task). Reading activity does not go through the
-// provider by design: it is device-local and never involves the server.
-import { listBooks } from '@/api/books';
+// Books come through the provider so the dashboard works on every backend —
+// including a pCloud connection, which has no HTTP API to call. char_count is
+// opt-in on the provider interface, which is what this page needs from it.
+// Reading activity does not go through the provider by design: it is
+// device-local and never involves the server.
+import { getBookshelfProvider } from '@/providers';
 import { getReadingActivityRange } from '@/storage/readingStats';
 import type { Book } from '@/types/book';
 
@@ -132,7 +131,7 @@ export function useDashboardData() {
       from.setDate(from.getDate() - READING_ACTIVITY_RANGE_DAYS);
 
       const [data, activity] = await Promise.all([
-        listBooks(1, Number.MAX_SAFE_INTEGER, { includeCharCount: true }),
+        getBookshelfProvider().listBooks(1, Number.MAX_SAFE_INTEGER, { includeCharCount: true }),
         getReadingActivityRange(toIsoDate(from), toIsoDate(to))
       ]);
       books.value = data.items;

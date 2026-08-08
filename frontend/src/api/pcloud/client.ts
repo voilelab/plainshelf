@@ -1,5 +1,5 @@
 import {
-  PCLOUD_RESULT_RECURSIVE_ROOT_UNSUPPORTED,
+  PCLOUD_RESULT_RECURSIVE_LISTING_UNSUPPORTED,
   PCloudError,
   isRetryablePCloudError
 } from './errors';
@@ -7,7 +7,8 @@ import type {
   PCloudApiHost,
   PCloudGetFileLinkResult,
   PCloudItem,
-  PCloudListFolderResult
+  PCloudListFolderResult,
+  PCloudUserInfoResult
 } from './types';
 
 // Mirrors the two budgets in api/client.ts: metadata calls should fail fast,
@@ -17,6 +18,9 @@ const DOWNLOAD_TIMEOUT_MS = 300_000;
 
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 500;
+
+/** The account's top-level folder. */
+const ROOT_FOLDER_ID = 0;
 
 export type PCloudParams = Record<string, string | number | boolean | undefined>;
 
@@ -31,6 +35,35 @@ export interface PCloudClientOptions {
 
 function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** How much of an unexpected reply to quote back. Enough to recognise, short
+ *  enough to read on a phone. */
+const MAX_EXCERPT_LENGTH = 200;
+
+function excerpt(value: unknown): string {
+  let text: string;
+  try {
+    text = JSON.stringify(value) ?? String(value);
+  } catch {
+    text = String(value);
+  }
+  return text.length > MAX_EXCERPT_LENGTH ? `${text.slice(0, MAX_EXCERPT_LENGTH)}…` : text;
+}
+
+/** Names of the folders at a level, for an error that has to be actionable. */
+const MAX_LISTED_FOLDERS = 10;
+
+function describeFolders(folders: PCloudItem[]): string {
+  if (folders.length === 0) {
+    return 'That level contains no folders at all.';
+  }
+
+  const names = [...folders].map((folder) => folder.name).sort((a, b) => a.localeCompare(b));
+  const shown = names.slice(0, MAX_LISTED_FOLDERS).map((name) => `"${name}"`).join(', ');
+  const remaining = names.length - MAX_LISTED_FOLDERS;
+
+  return remaining > 0 ? `It contains ${shown} and ${remaining} more.` : `It contains ${shown}.`;
 }
 
 /**
@@ -109,12 +142,23 @@ export class PCloudClient {
           });
         }
 
-        const payload = (await res.json()) as { result?: number; error?: string };
-        const result = payload?.result ?? 0;
-        if (result !== 0) {
-          throw new PCloudError(`pCloud ${method} failed: ${payload?.error ?? 'unknown error'} (${result})`, {
-            result
-          });
+        const payload = (await res.json()) as { result?: unknown; error?: unknown };
+
+        // Every pCloud reply carries `result`. Treating its absence as success
+        // would let a reply from somewhere else — a proxy, an interception
+        // layer, an error page that happens to be JSON — flow on as an empty
+        // listing, and surface much later as a confusing "folder not found".
+        if (typeof payload?.result !== 'number') {
+          throw new PCloudError(
+            `pCloud ${method} returned a reply that did not come from the pCloud API: ${excerpt(payload)}`
+          );
+        }
+
+        if (payload.result !== 0) {
+          throw new PCloudError(
+            `pCloud ${method} failed: ${payload.error ?? 'unknown error'} (${payload.result})`,
+            { result: payload.result }
+          );
         }
 
         return payload as T;
@@ -176,41 +220,101 @@ export class PCloudClient {
     }
   }
 
-  /** Lists one folder. Pass either a shelf path or a folder id. */
+  /** Lists one folder by id. */
   async listFolder(
-    target: { path: string } | { folderid: number },
+    folderid: number,
     options?: { recursive?: boolean; signal?: AbortSignal }
   ): Promise<PCloudItem> {
-    const params: PCloudParams = 'path' in target ? { path: target.path } : { folderid: target.folderid };
+    const params: PCloudParams = { folderid };
     if (options?.recursive) {
       params.recursive = 1;
     }
 
     const res = await this.call<PCloudListFolderResult>('listfolder', params, options?.signal);
+    if (!res.metadata?.isfolder) {
+      throw new PCloudError(
+        `pCloud reported success for folder ${folderid} but returned no folder: ${excerpt(res)}`
+      );
+    }
+
     return res.metadata;
+  }
+
+  /** Returns the identity of the account authorized by this client. */
+  async getUserInfo(signal?: AbortSignal): Promise<PCloudUserInfoResult> {
+    const info = await this.call<PCloudUserInfoResult>('userinfo', {}, signal);
+    if (!info.email && info.userid === undefined) {
+      throw new PCloudError(`pCloud userinfo returned no account identity: ${excerpt(info)}`);
+    }
+    return info;
+  }
+
+  /**
+   * Resolves a slash-separated folder path to its pCloud folder id.
+   *
+   * Walks one segment at a time from the account root instead of handing the
+   * whole path to the API. `listfolder` is addressed by folder id — the
+   * reference implementation (rclone's pCloud backend) never sends a path and
+   * resolves every one this way — and a path-based listing answers "Directory
+   * does not exist" even for a folder that plainly exists.
+   *
+   * Naming the segment that failed matters here: this runs while the user is
+   * typing a folder into the connection form, and a bare "directory does not
+   * exist" for a path they can see in pCloud is no help at all.
+   */
+  async resolveFolderID(path: string, signal?: AbortSignal): Promise<number> {
+    const segments = path.split('/').filter((segment) => segment.length > 0);
+    let folderid = ROOT_FOLDER_ID;
+    let walked = '';
+
+    for (const segment of segments) {
+      const listing = await this.listFolder(folderid, { signal });
+      const folders = (listing.contents ?? []).filter(
+        (item) => item.isfolder && item.folderid !== undefined
+      );
+      const match = folders.find((item) => item.name === segment);
+
+      if (!match || match.folderid === undefined) {
+        // Naming what is there turns "we disagree about your account" into
+        // something the user can act on — a typo, or the wrong pCloud account
+        // signed in on this device.
+        throw new PCloudError(
+          `pCloud has no folder named "${segment}" in ${walked === '' ? 'your account root' : `"${walked}"`}. ` +
+            describeFolders(folders)
+        );
+      }
+
+      folderid = match.folderid;
+      walked = `${walked}/${segment}`;
+    }
+
+    return folderid;
   }
 
   /**
    * Lists a folder and everything beneath it.
    *
-   * One request covers the whole tree in the normal case. The account root
-   * rejects recursive listing, so that case is walked manually — the returned
-   * shape is identical either way, which keeps the parsing layer unaware of
-   * which path was taken.
+   * One request normally covers the whole tree once the folder id is known.
+   * If an API variant refuses recursion, the same tree is expanded manually so
+   * the parsing layer remains unaware of which path was taken.
    */
   async listFolderRecursive(
     target: { path: string } | { folderid: number },
     signal?: AbortSignal
   ): Promise<PCloudItem> {
+    const folderid = 'path' in target ? await this.resolveFolderID(target.path, signal) : target.folderid;
+
     try {
-      return await this.listFolder(target, { recursive: true, signal });
+      return await this.listFolder(folderid, { recursive: true, signal });
     } catch (err) {
-      if (!(err instanceof PCloudError) || err.result !== PCLOUD_RESULT_RECURSIVE_ROOT_UNSUPPORTED) {
+      // Some accounts or API variants may refuse recursive traversal. Preserve
+      // the manual walk as a compatibility fallback, including for folder 0.
+      if (!(err instanceof PCloudError) || err.result !== PCLOUD_RESULT_RECURSIVE_LISTING_UNSUPPORTED) {
         throw err;
       }
     }
 
-    const root = await this.listFolder(target, { signal });
+    const root = await this.listFolder(folderid, { signal });
     return { ...root, contents: await this.expandChildren(root.contents ?? [], signal) };
   }
 

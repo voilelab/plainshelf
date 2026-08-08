@@ -48,7 +48,12 @@ export interface PCloudResponse {
 }
 
 export interface PCloudListFolderResult extends PCloudResponse {
-  metadata: PCloudItem;
+  /**
+   * Optional so callers have to check. A successful pCloud listing always
+   * carries it, but "successful" is only as trustworthy as the response being
+   * from pCloud at all — see the envelope check in client.ts.
+   */
+  metadata?: PCloudItem;
 }
 
 /**
@@ -61,6 +66,13 @@ export interface PCloudGetFileLinkResult extends PCloudResponse {
   path?: string;
   expires?: string;
   size?: number;
+}
+
+/** Identity returned by `userinfo` for the account behind a bearer token. */
+export interface PCloudUserInfoResult extends PCloudResponse {
+  userid?: number;
+  email?: string;
+  emailverified?: boolean;
 }
 
 /** Response of the `poll_token` OAuth flow's `oauth2_token` long poll. */

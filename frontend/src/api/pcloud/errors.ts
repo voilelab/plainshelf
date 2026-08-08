@@ -53,11 +53,11 @@ export class PCloudDataError extends PCloudError {
 }
 
 /**
- * Listing the account root (folderid 0) recursively is rejected by the API.
- * A shelf normally lives in a sub-folder so this is rare, but it has to be
- * handled rather than surfaced, because the caller cannot avoid it by retrying.
+ * Compatibility result observed when a pCloud API variant refuses recursive
+ * traversal. The documented API supports recursive root listings, so callers
+ * attempt the efficient request first and only fall back when this is returned.
  */
-export const PCLOUD_RESULT_RECURSIVE_ROOT_UNSUPPORTED = 1101;
+export const PCLOUD_RESULT_RECURSIVE_LISTING_UNSUPPORTED = 1101;
 
 const RETRYABLE_HTTP_STATUS = new Set([429, 500, 502, 503, 504, 509]);
 
@@ -74,7 +74,7 @@ export function isRetryablePCloudError(err: unknown): boolean {
     return false;
   }
 
-  if (err.result === PCLOUD_RESULT_RECURSIVE_ROOT_UNSUPPORTED) {
+  if (err.result === PCLOUD_RESULT_RECURSIVE_LISTING_UNSUPPORTED) {
     return false;
   }
 

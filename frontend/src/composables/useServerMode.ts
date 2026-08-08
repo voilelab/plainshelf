@@ -1,5 +1,6 @@
 import { ref, watch } from 'vue';
 import { getReadOnlyMode } from '@/api/mode';
+import { getMobileConnectionConfig } from '@/providers/mobileConfig';
 
 const readOnly = ref(false);
 const loading = ref(false);
@@ -24,6 +25,15 @@ export function assertWritableMode(): void {
 
 export function useServerMode() {
   async function fetchServerMode(): Promise<void> {
+    // A pCloud connection has no server to report a mode. Skipping keeps a
+    // doomed request — awaited before the layout renders anything — out of
+    // startup. Read-only is still enforced, by the mobile guard in
+    // api/client.ts and by the pCloud provider itself.
+    if (getMobileConnectionConfig()?.mode === 'pcloud') {
+      loaded.value = true;
+      return;
+    }
+
     loading.value = true;
     error.value = '';
     try {
