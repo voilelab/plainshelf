@@ -159,6 +159,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { Browser } from '@capacitor/browser';
 import {
   SelectContent,
@@ -185,6 +186,7 @@ import {
 } from '@/providers/mobileConfig';
 
 const { t } = useI18n();
+const router = useRouter();
 const {
   shelves,
   selectedShelfID,
@@ -200,6 +202,8 @@ const modeOptions: Array<{ value: ConnectionMode; labelKey: string }> = [
 ];
 
 const mode = ref<ConnectionMode>('server');
+/** The mode as persisted when this page opened, so a switch can be detected. */
+const savedMode = ref<ConnectionMode>('server');
 const serverUrl = ref('');
 const token = ref('');
 
@@ -232,6 +236,7 @@ const canSave = computed(() =>
 onMounted(async () => {
   const config = await loadMobileConnectionConfig();
   mode.value = config.mode;
+  savedMode.value = config.mode;
   serverUrl.value = config.serverUrl;
   token.value = config.token;
   pcloudClientId.value = config.pcloudClientId;
@@ -372,19 +377,26 @@ async function onVerifyPCloudShelf(): Promise<void> {
 }
 
 /**
- * Restarts the app at its root.
+ * Restarts the app at the library, discarding everything the old connection
+ * left in memory.
  *
- * Switching connection carries more state than the settings themselves: the
- * bookshelf provider is a singleton built once at bootstrap (and a pCloud one
- * captures its client and shelf path at construction), and the shelf, layer and
- * server-mode stores are all module-level. Reloading is the only way to be sure
- * none of it survives. The root path is used rather than a route so the reload
- * works the same in the native shell and in the browser preview; the query
- * string is kept so the preview flag survives.
+ * Only a pCloud connection needs this. ServerBookshelfProvider re-reads the
+ * module-level API base on every call, so pointing it at another server takes
+ * effect on the next request — which is why saving has always been a plain
+ * route change. PCloudBookshelfProvider instead captures its client and shelf
+ * path at construction, and the provider is a singleton built once at
+ * bootstrap; the shelf, layer and server-mode stores are module-level too.
+ * Nothing short of a reload clears that.
+ *
+ * Loading a deep path directly is safe in the native shell: Capacitor serves
+ * index.html for any path whose last segment has no extension (html5mode, on
+ * by default — WebViewLocalServer.java). The query string is kept so the
+ * browser preview stays in mobile mode, which a reload would otherwise lose
+ * along with the latched runtime.
  */
 function reloadIntoApp(): void {
   const url = new URL(window.location.href);
-  url.pathname = '/';
+  url.pathname = '/books';
   url.hash = '';
   window.location.replace(url.toString());
 }
@@ -415,7 +427,11 @@ async function onSave(): Promise<void> {
             pcloudShelfRoot: pcloudShelfRoot.value.trim()
           }
     );
-    reloadIntoApp();
+    if (mode.value === 'pcloud' || savedMode.value === 'pcloud') {
+      reloadIntoApp();
+    } else {
+      await router.push('/books');
+    }
   } catch (err) {
     localError.value = err instanceof Error ? err.message : String(err);
   } finally {
