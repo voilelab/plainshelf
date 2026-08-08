@@ -196,7 +196,11 @@ const en = {
       thirdPartyFonts: 'Third-party font licenses',
       fontAttribution: 'Google Inc. · SIL Open Font License 1.1 · package version 5.3.0',
       source: 'Source',
-      license: 'Full license text'
+      license: 'Full license text',
+      licenseTitle: '{font} license',
+      licenseLoading: 'Loading license text…',
+      licenseLoadFailed: 'The bundled license text could not be loaded.',
+      licenseClose: 'Close'
     },
     mobileConnect: {
       title: 'Connection',

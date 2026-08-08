@@ -108,6 +108,18 @@
         </p>
       </form>
     </ConfirmModal>
+
+    <FontLicenseModal
+      :open="selectedFontLicense !== null"
+      :title="t('settings.about.licenseTitle', { font: selectedFontLicense?.name ?? '' })"
+      :text="fontLicenseText"
+      :loading="fontLicenseLoading"
+      :error="fontLicenseError"
+      :loading-label="t('settings.about.licenseLoading')"
+      :close-label="t('settings.about.licenseClose')"
+      @close="closeFontLicense"
+    />
+
     <header class="settings-header">
       <div>
         <h2>{{ t('settings.title') }}</h2>
@@ -280,7 +292,7 @@
                 >
                   {{ t('settings.about.source') }}
                 </a>
-                <a class="setting-link" :href="font.license" target="_blank" rel="noreferrer">
+                <a class="setting-link" :href="font.license" @click.prevent="openFontLicense(font)">
                   {{ t('settings.about.license') }}
                 </a>
               </span>
@@ -378,6 +390,7 @@ import { computed, onMounted, ref } from 'vue';
 import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
+import FontLicenseModal from '@/features/settings/components/FontLicenseModal.vue';
 import {
   getCoverToJpgSetting,
   getDefaultSplitConfigSetting,
@@ -410,7 +423,13 @@ const defaultSplitRegex = ref('');
 const splitConfigError = ref('');
 const version = ref('');
 const githubRepoUrl = 'https://github.com/voilelab/plainshelf';
-const bundledFonts = [
+interface BundledFont {
+  name: string;
+  source: string;
+  license: string;
+}
+
+const bundledFonts: BundledFont[] = [
   {
     name: 'Noto Serif TC',
     source: 'https://fontsource.org/fonts/noto-serif-tc',
@@ -422,6 +441,12 @@ const bundledFonts = [
     license: '/licenses/noto-sans-tc-OFL-1.1.txt'
   }
 ];
+const selectedFontLicense = ref<BundledFont | null>(null);
+const fontLicenseText = ref('');
+const fontLicenseLoading = ref(false);
+const fontLicenseError = ref('');
+const fontLicenseCache = new Map<string, string>();
+let fontLicenseRequest = 0;
 
 const isDesktopEnv = computed(() => isWailsRuntime());
 const isMobileEnv = computed(() => isMobileRuntime());
@@ -477,6 +502,49 @@ function onRepositoryLinkClick(event: MouseEvent): void {
 function onBundledFontSourceClick(event: MouseEvent, url: string): void {
   event.preventDefault();
   void openExternalURL(url);
+}
+
+async function openFontLicense(font: BundledFont): Promise<void> {
+  selectedFontLicense.value = font;
+  fontLicenseError.value = '';
+
+  const cachedText = fontLicenseCache.get(font.license);
+  if (cachedText !== undefined) {
+    fontLicenseText.value = cachedText;
+    fontLicenseLoading.value = false;
+    return;
+  }
+
+  const request = ++fontLicenseRequest;
+  fontLicenseText.value = '';
+  fontLicenseLoading.value = true;
+
+  try {
+    const response = await fetch(font.license);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const text = await response.text();
+    fontLicenseCache.set(font.license, text);
+    if (request === fontLicenseRequest) {
+      fontLicenseText.value = text;
+    }
+  } catch {
+    if (request === fontLicenseRequest) {
+      fontLicenseError.value = t('settings.about.licenseLoadFailed');
+    }
+  } finally {
+    if (request === fontLicenseRequest) {
+      fontLicenseLoading.value = false;
+    }
+  }
+}
+
+function closeFontLicense(): void {
+  fontLicenseRequest += 1;
+  selectedFontLicense.value = null;
+  fontLicenseLoading.value = false;
 }
 
 async function loadSettings(): Promise<void> {

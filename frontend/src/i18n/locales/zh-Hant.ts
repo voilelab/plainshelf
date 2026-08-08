@@ -195,7 +195,11 @@ const zhHant = {
       thirdPartyFonts: '第三方字型授權',
       fontAttribution: 'Google Inc. · SIL Open Font License 1.1 · 套件版本 5.3.0',
       source: '來源',
-      license: '完整授權條款'
+      license: '完整授權條款',
+      licenseTitle: '{font} 授權條款',
+      licenseLoading: '正在載入授權條款…',
+      licenseLoadFailed: '無法載入隨附的授權條款。',
+      licenseClose: '關閉'
     },
     mobileConnect: {
       title: '連線',
