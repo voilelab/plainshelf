@@ -134,7 +134,7 @@
               </TooltipContent>
             </TooltipPortal>
           </TooltipRoot>
-          <TooltipRoot v-if="hasActiveShelf">
+          <TooltipRoot v-if="hasActiveShelf && !isMobileEnv">
             <TooltipTrigger as-child>
               <RouterLink
                 to="/admin/logs"
@@ -213,6 +213,7 @@
                 <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.layers ? '▸' : '▾' }}</span>
               </button>
               <button
+                v-if="!isMobileEnv"
                 type="button"
                 class="create-layer-toggle"
                 aria-haspopup="dialog"
@@ -373,7 +374,12 @@
             class="sidebar-nav-list sidebar-foldable-content"
             :aria-label="t('layout.sections.admin')"
           >
-            <RouterLink v-if="hasActiveShelf" to="/admin/logs" class="sidebar-nav-item" exact-active-class="active">
+            <RouterLink
+              v-if="hasActiveShelf && !isMobileEnv"
+              to="/admin/logs"
+              class="sidebar-nav-item"
+              exact-active-class="active"
+            >
               <SidebarNavIcon name="logs" />
               <span>{{ t('layout.adminLogs') }}</span>
             </RouterLink>

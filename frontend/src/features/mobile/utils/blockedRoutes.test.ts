@@ -9,6 +9,7 @@ describe('MOBILE_BLOCKED_ROUTES', () => {
   it.each([
     'book-edit',
     'book-sources-edit',
+    'admin-logs',
     'trash',
     'duplicate-content',
     'maintenance-missing-author',
