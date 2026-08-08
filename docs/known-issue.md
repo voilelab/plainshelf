@@ -48,6 +48,18 @@ For the operational model, initial metadata scan, and tuning guidance, see [Shel
 3. **New/deleted books may not be reflected immediately**
    - During scan throttling windows, refresh focuses on existing cache entries.
 
+### 4) pCloud shelf on the Android client
+
+1. **Newly added books can lag behind by up to a scan interval**
+   - The client keeps one snapshot of the shelf tree and reuses it for about a
+     minute, so a book added from another device appears on the next scan rather
+     than immediately.
+
+2. **Change detection is stat-based, with the same imprecision as above**
+   - Cached book metadata is reused while a file's size and modification time
+     are unchanged, so an edit that preserves both is not noticed. This is the
+     same rule, and the same limitation, as the shelf cache described in 1).
+
 ---
 
 ## Concurrent change handling
