@@ -26,7 +26,11 @@ import type {
   ListBooksOptions,
   StorageEstimateResult
 } from './bookshelfProvider';
-import { InMemoryMobileBookCache, type MobileBookCache } from './mobileBookCache';
+import {
+  downloadedBookFromManifest,
+  InMemoryMobileBookCache,
+  type MobileBookCache
+} from './mobileBookCache';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
 
 export const OFFLINE_BOOK_CACHE_MISS_ERROR = 'Book is not downloaded and the app is offline';
@@ -482,13 +486,7 @@ export class MobileBookshelfProvider implements BookshelfProvider {
     const manifests = await this.cache.listDownloadedManifests();
     return Promise.all(
       manifests.map(async (manifest) => ({
-        book: await this.applyCachedCover({
-          ...manifest.book,
-          download_state: 'downloaded',
-          downloaded_at: manifest.downloaded_at,
-          local_version: manifest.local_version ?? manifest.book.local_version,
-          remote_version: manifest.remote_version ?? manifest.book.remote_version
-        }),
+        book: await this.applyCachedCover(downloadedBookFromManifest(manifest)),
         sizeBytes: manifest.size_bytes ?? 0,
         downloadedAt: manifest.downloaded_at
       }))

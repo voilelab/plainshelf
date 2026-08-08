@@ -19,10 +19,9 @@ import {
 // `?mobile-shell-preview=1` — same approach as mobile-storage.spec.ts.
 //
 // Assertions stay backend-agnostic: they go through the provider's public API
-// (getDownloadState / listDownloadedBookEntries) and the rendered UI, not any
-// particular cache's internal storage. The production mobile cache is
-// filesystem-backed (FilesystemMobileBookCache), not the `plainshelf-mobile`
-// IndexedDB database, so poking IDB stores directly would assert on nothing.
+// (getDownloadState / listDownloadedBookEntries) and the rendered UI, not the
+// cache's internal storage — which is filesystem-backed
+// (FilesystemMobileBookCache), under the app-private Directory.Data.
 
 /**
  * Uploads a cover for the book currently open on the (desktop-mode) detail

@@ -55,11 +55,11 @@
         class="book-list-row panel downloads-row"
         @click="openBook(entry.book.id)"
       >
-        <img
-          :src="coverSrc(entry.book)"
+        <BookCoverImg
+          :book-id="entry.book.id"
+          :cover-url="entry.book.cover_url"
           :alt="entry.book.title"
           class="book-list-cover"
-          @error="onCoverError(entry.book.id)"
         />
 
         <div class="book-list-main">
@@ -89,8 +89,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import BookCoverImg from '@/components/BookCoverImg.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
-import bookcover from '@/assets/bookcover.svg';
 import { getBookshelfProvider } from '@/providers';
 import type { DownloadedBookEntry, StorageEstimateResult } from '@/providers/bookshelfProvider';
 import type { Book } from '@/types/book';
@@ -108,27 +108,12 @@ const error = ref('');
 const deleteTarget = ref<Book | null>(null);
 const removing = ref(false);
 const actionError = ref('');
-const brokenCoverIds = ref<Record<string, boolean>>({});
 
 const totalSizeBytes = computed(() =>
   entries.value.reduce((total, entry) => total + entry.sizeBytes, 0)
 );
 
 useDocumentTitle(() => [t('downloads.title'), t('app.name')]);
-
-function coverSrc(book: Book): string {
-  if (brokenCoverIds.value[book.id]) {
-    return bookcover;
-  }
-  return book.cover_url || bookcover;
-}
-
-function onCoverError(bookId: string): void {
-  brokenCoverIds.value = {
-    ...brokenCoverIds.value,
-    [bookId]: true
-  };
-}
 
 async function loadEntries(): Promise<void> {
   loading.value = true;

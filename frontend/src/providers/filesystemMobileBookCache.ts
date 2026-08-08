@@ -3,7 +3,13 @@ import { Filesystem } from '@capacitor/filesystem';
 import type { Book, BookContent, DownloadState, ReadingProgress, SplitConfig } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import { currentCacheScopeKey } from './cacheScope';
-import { copySplitConfig, type CachedBookManifest, type MobileBookCache } from './mobileBookCache';
+import {
+  cloneManifest,
+  copySplitConfig,
+  downloadedBookFromManifest,
+  type CachedBookManifest,
+  type MobileBookCache
+} from './mobileBookCache';
 import {
   BASE_DIR,
   CACHE_DIRECTORY,
@@ -32,18 +38,17 @@ import {
 // this keeps the read path independent of the encoding scheme and of any
 // platform-specific filename quirks.
 //
-// Commit-point semantics, downgraded from the IndexedDB version:
-// `saveDownloadedBook` writes manifest.json, but the caller (see
-// mobileBookshelfProvider.ts's downloadBook) writes manifest.json *before*
-// content.txt and the source files, not after — so "manifest present" cannot
-// mean "fully downloaded" the way a single atomic transaction would. Rather
-// than fight that call order, this implementation treats presence of
-// manifest.json as the sole signal for "this book is in the downloaded
-// list" (matching listDownloadedBooks/getCachedBook/getDownloadState), and
-// treats a missing content/source file as a plain cache miss (returns null)
-// instead of throwing. A directory with no manifest.json is an orphan and is
-// ignored by listDownloadedBooks. A manifest.json that fails to parse is
-// treated the same as a missing manifest (ignored, not thrown).
+// Commit-point semantics: `saveDownloadedBook` writes manifest.json, but the
+// caller (see mobileBookshelfProvider.ts's downloadBook) writes manifest.json
+// *before* content.txt and the source files, not after — and there is no
+// transaction spanning the whole set, so "manifest present" cannot mean "fully
+// downloaded". Rather than fight that call order, this implementation treats
+// presence of manifest.json as the sole signal for "this book is in the
+// downloaded list" (matching listDownloadedBooks/getCachedBook/
+// getDownloadState), and treats a missing content/source file as a plain cache
+// miss (returns null) instead of throwing. A directory with no manifest.json is
+// an orphan and is ignored by listDownloadedBooks. A manifest.json that fails
+// to parse is treated the same as a missing manifest (ignored, not thrown).
 
 // Pre-scope layout. Everything under it belongs to whichever connection was
 // configured when it was written, which — until the mobile shell can hold more
@@ -122,12 +127,12 @@ export class FilesystemMobileBookCache implements MobileBookCache {
 
   async listDownloadedBooks(): Promise<Book[]> {
     const manifests = await this.readAllManifests();
-    return manifests.map((manifest) => this.toDownloadedBook(manifest));
+    return manifests.map(downloadedBookFromManifest);
   }
 
   async getCachedBook(bookId: string): Promise<Book | null> {
     const manifest = await this.readManifest(bookId);
-    return manifest ? this.toDownloadedBook(manifest) : null;
+    return manifest ? downloadedBookFromManifest(manifest) : null;
   }
 
   async getDownloadState(bookId: string): Promise<DownloadState> {
@@ -137,7 +142,7 @@ export class FilesystemMobileBookCache implements MobileBookCache {
 
   async saveDownloadedBook(manifest: CachedBookManifest): Promise<void> {
     const booksDir = await this.resolveBooksDir();
-    await writeJsonFile(manifestPath(booksDir, manifest.book.id), this.copyManifest(manifest));
+    await writeJsonFile(manifestPath(booksDir, manifest.book.id), cloneManifest(manifest));
   }
 
   async removeDownloadedBook(bookId: string): Promise<void> {
@@ -189,9 +194,9 @@ export class FilesystemMobileBookCache implements MobileBookCache {
   }
 
   async saveReadProgress(bookId: string, progress: ReadingProgress): Promise<void> {
-    // Independent of the manifest/download state, matching IndexedDbMobileBookCache:
-    // progress can be written (and read back) even for a book that was never
-    // (or isn't currently) downloaded.
+    // Independent of the manifest/download state: progress can be written (and
+    // read back) even for a book that was never (or isn't currently)
+    // downloaded.
     const booksDir = await this.resolveBooksDir();
     await writeJsonFile(progressPath(booksDir, bookId), { ...progress });
   }
@@ -224,7 +229,7 @@ export class FilesystemMobileBookCache implements MobileBookCache {
 
   async listDownloadedManifests(): Promise<CachedBookManifest[]> {
     const manifests = await this.readAllManifests();
-    return manifests.map((manifest) => this.copyManifest(manifest));
+    return manifests.map(cloneManifest);
   }
 
   /**
@@ -314,29 +319,6 @@ export class FilesystemMobileBookCache implements MobileBookCache {
         .map((entry) => this.readManifestByDir(booksDir, entry.name))
     );
     return manifests.filter((manifest): manifest is CachedBookManifest => manifest !== null);
-  }
-
-  private copyManifest(manifest: CachedBookManifest): CachedBookManifest {
-    return {
-      book: { ...manifest.book },
-      sources: manifest.sources.map((source) => ({ ...source })),
-      split_config: copySplitConfig(manifest.split_config),
-      downloaded_at: manifest.downloaded_at,
-      local_version: manifest.local_version,
-      remote_version: manifest.remote_version,
-      size_bytes: manifest.size_bytes,
-      size_breakdown: manifest.size_breakdown ? { ...manifest.size_breakdown } : undefined
-    };
-  }
-
-  private toDownloadedBook(manifest: CachedBookManifest): Book {
-    return {
-      ...manifest.book,
-      download_state: 'downloaded',
-      downloaded_at: manifest.downloaded_at,
-      local_version: manifest.local_version ?? manifest.book.local_version,
-      remote_version: manifest.remote_version ?? manifest.book.remote_version
-    };
   }
 
   private async readManifest(bookId: string): Promise<CachedBookManifest | null> {

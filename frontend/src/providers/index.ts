@@ -42,9 +42,9 @@ export function createBookshelfProvider(): BookshelfProvider {
   }
 
   if (isMobileRuntime()) {
-    // Persist downloads and reading progress across app restarts.
-    // Filesystem-backed (Directory.Data): app-private files are exempt from
-    // the WebView's best-effort storage eviction, unlike IndexedDB.
+    // Persist downloads and reading progress across app restarts, in
+    // Directory.Data: app-private files are exempt from the WebView's
+    // best-effort storage eviction, which the browser storage APIs are not.
     return new MobileBookshelfProvider(
       createMobileSource(getMobileConnectionConfig()),
       new FilesystemMobileBookCache()

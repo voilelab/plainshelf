@@ -100,6 +100,13 @@ export async function rmdirIgnoringMissing(path: string): Promise<void> {
   }
 }
 
+/**
+ * Whether a Capacitor Filesystem failure means "the file is not there".
+ *
+ * The plugin and its web fallback report it by message rather than by a code,
+ * so this has to match text. Also used by storage/deviceDocument.ts, which
+ * persists through the same plugin.
+ */
 export function isMissingError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /not exist|does not exist|enoent|no such file|not found/i.test(message);
