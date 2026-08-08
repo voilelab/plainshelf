@@ -257,11 +257,9 @@ func TestWriteFileAtomicConcurrentWritersUseDistinctTempFiles(t *testing.T) {
 	var wg sync.WaitGroup
 	errs := make([]error, writers)
 	for i := range writers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			errs[i] = WriteFileAtomic(faulty, name, []byte(strings.Repeat("x", i+1)))
-		}()
+		})
 	}
 	wg.Wait()
 

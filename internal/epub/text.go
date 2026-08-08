@@ -371,7 +371,7 @@ func findTOCNav(n *html.Node) *html.Node {
 			if !isEpubType {
 				continue
 			}
-			for _, v := range strings.Fields(a.Val) {
+			for v := range strings.FieldsSeq(a.Val) {
 				if strings.EqualFold(v, "toc") {
 					return n
 				}
