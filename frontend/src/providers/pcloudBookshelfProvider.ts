@@ -74,6 +74,15 @@ interface ShelfSnapshot {
   layers: string[];
 }
 
+/**
+ * A snapshot load in progress. `restore` may still be reading the device;
+ * `walk` is committed to a recursive pCloud listing.
+ */
+interface PendingLoad {
+  kind: 'restore' | 'walk';
+  promise: Promise<ShelfSnapshot>;
+}
+
 interface CachedJson {
   size: number;
   modified: string;
@@ -196,12 +205,12 @@ export class PCloudBookshelfProvider implements BookshelfProvider {
   private snapshot: ShelfSnapshot | null = null;
 
   /**
-   * The load in progress, if any, and whether it is guaranteed to contact
-   * pCloud. The kind matters: a caller that just wants *a* listing can join
-   * either, but `refreshShelf` must not join a restore, which may resolve
-   * from the device without ever reaching the network.
+   * The load in progress, if any. A caller that just wants *a* listing joins it
+   * whatever it is; `refreshShelf` needs to know whether it actually reaches
+   * pCloud, which a restore only does once it finds nothing stored — hence the
+   * mutable `kind`.
    */
-  private pending: { kind: 'restore' | 'refresh'; promise: Promise<ShelfSnapshot> } | null = null;
+  private pending: PendingLoad | null = null;
 
   constructor(options: PCloudBookshelfProviderOptions) {
     this.client = options.client;
@@ -234,31 +243,39 @@ export class PCloudBookshelfProvider implements BookshelfProvider {
       return await this.pending.promise;
     }
 
-    return await this.start('restore', () => this.restoreOrLoadSnapshot());
+    return await this.start('restore', (entry) => this.restoreOrLoadSnapshot(entry));
   }
 
-  private start(kind: 'restore' | 'refresh', load: () => Promise<ShelfSnapshot>): Promise<ShelfSnapshot> {
-    const promise = load().finally(() => {
-      // Identity-checked: a refresh started while this was running has already
+  private start(
+    kind: PendingLoad['kind'],
+    load: (entry: PendingLoad) => Promise<ShelfSnapshot>
+  ): Promise<ShelfSnapshot> {
+    const entry = { kind } as PendingLoad;
+    entry.promise = load(entry).finally(() => {
+      // Identity-checked: a load started while this one was running has already
       // taken the slot, and clearing it would let a third caller start a
       // duplicate walk.
-      if (this.pending?.promise === promise) {
+      if (this.pending === entry) {
         this.pending = null;
       }
     });
-    this.pending = { kind, promise };
-    return promise;
+    this.pending = entry;
+    return entry.promise;
   }
 
-  private async restoreOrLoadSnapshot(): Promise<ShelfSnapshot> {
+  private async restoreOrLoadSnapshot(entry: PendingLoad): Promise<ShelfSnapshot> {
     const restored = await this.restoreSnapshot();
     if (restored) {
-      // A refresh started while this was reading the device has the newer
-      // listing; the restored one is what it just replaced.
+      // A walk started while this was reading the device has the newer listing;
+      // the restored one is what it just replaced.
       this.snapshot ??= restored;
       return this.snapshot;
     }
 
+    // Nothing stored, so this restore becomes the first scan. Re-labelled
+    // before the walk starts so a refresh pressed meanwhile joins it rather
+    // than paying for a second recursive listing.
+    entry.kind = 'walk';
     return await this.loadSnapshot();
   }
 
@@ -359,11 +376,17 @@ export class PCloudBookshelfProvider implements BookshelfProvider {
    */
   refreshShelf(): Promise<void> {
     return this.guarded(async () => {
-      if (this.pending?.kind === 'refresh') {
-        await this.pending.promise;
-        return;
+      // Wait out whatever is already running before deciding. A load that
+      // reached pCloud is the work this method asks for and needs no repeat; a
+      // restore served from the device is not, so the walk still has to happen.
+      for (let pending = this.pending; pending; pending = this.pending) {
+        await pending.promise;
+        if (pending.kind === 'walk') {
+          return;
+        }
       }
-      await this.start('refresh', () => this.loadSnapshot());
+
+      await this.start('walk', () => this.loadSnapshot());
     });
   }
 

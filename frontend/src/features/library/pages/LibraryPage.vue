@@ -719,8 +719,10 @@ async function onImported(result: { successCount: number }): Promise<void> {
 }
 
 onMounted(() => {
-  void reloadBooks();
-  void shelfRefresh.loadLastSyncedAt();
+  // Chained, not concurrent: on a first connection the listing itself is what
+  // creates the timestamp, so reading it alongside the initial load would find
+  // nothing and leave the toolbar saying "never updated" for the whole session.
+  void reloadBooks().then(() => shelfRefresh.loadLastSyncedAt());
   document.addEventListener('dragover', onDocumentDragOver);
   document.addEventListener('drop', onDocumentDrop);
   document.addEventListener('keydown', onSelectionKeydown);

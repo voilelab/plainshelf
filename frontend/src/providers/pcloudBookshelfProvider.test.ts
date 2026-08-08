@@ -266,6 +266,31 @@ describe('shelf loading', () => {
     expect(calls.download).toBe(downloadsAfterFirst);
   });
 
+  it('joins the first scan instead of walking twice when refreshed during it', async () => {
+    // No stored listing, so the initial load becomes a walk of its own; a
+    // refresh pressed while it runs must not start a second one.
+    const { provider, calls } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]), {
+      snapshotStore: new InMemoryShelfSnapshotStore()
+    });
+
+    await Promise.all([provider.listBooks(1, 10), provider.refreshShelf()]);
+
+    expect(calls.recursiveListfolder).toBe(1);
+  });
+
+  it('still reaches pCloud when refreshed during a restore from the device', async () => {
+    const tree = shelfTree([bookPackage({ id: 'a', title: 'A' })]);
+    const store = new InMemoryShelfSnapshotStore();
+    await makeProvider(tree, { snapshotStore: store }).provider.listBooks(1, 10);
+
+    const { provider, calls } = makeProvider(tree, { snapshotStore: store });
+    await Promise.all([provider.listBooks(1, 10), provider.refreshShelf()]);
+
+    // The restore answered from the device, so the refresh owed a real walk.
+    expect(calls.recursiveListfolder).toBe(1);
+    expect(await provider.getShelfFetchedAt()).not.toBeNull();
+  });
+
   it('collapses concurrent refreshes onto a single walk', async () => {
     const { provider, calls } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
 
