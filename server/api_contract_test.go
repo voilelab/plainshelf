@@ -75,8 +75,8 @@ func newAPITestEnv(t *testing.T) *apiTestEnv {
 				},
 			},
 		},
-		StorePath:        t.TempDir(),
-		CoverToJPG:       false,
+		StorePath:  t.TempDir(),
+		CoverToJPG: false,
 	})
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
@@ -302,8 +302,8 @@ func TestAPIGetLogsContract(t *testing.T) {
 				},
 			},
 		},
-		StorePath:        t.TempDir(),
-		CoverToJPG:       false,
+		StorePath:  t.TempDir(),
+		CoverToJPG: false,
 	})
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
@@ -366,8 +366,8 @@ func TestAPIGetLogContentContract(t *testing.T) {
 				},
 			},
 		},
-		StorePath:        t.TempDir(),
-		CoverToJPG:       false,
+		StorePath:  t.TempDir(),
+		CoverToJPG: false,
 	})
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
@@ -462,8 +462,8 @@ func TestAPIStreamContentReturns200ForEmptyFilesInWails(t *testing.T) {
 				},
 			},
 		},
-		StorePath:        t.TempDir(),
-		CoverToJPG:       false,
+		StorePath:  t.TempDir(),
+		CoverToJPG: false,
 	})
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
@@ -536,13 +536,13 @@ func TestAPIImportBookContract(t *testing.T) {
 	buf.Reset()
 	writer = multipart.NewWriter(&buf)
 	h := make(textproto.MIMEHeader)
-	h.Set("Content-Disposition", `form-data; name="file"; filename="book.epub"`)
+	h.Set("Content-Disposition", `form-data; name="file"; filename="book.cbz"`)
 	h.Set("Content-Type", "text/plain")
 	part, err := writer.CreatePart(h)
 	if err != nil {
 		t.Fatalf("CreatePart: %v", err)
 	}
-	if _, err := part.Write([]byte("not a txt upload")); err != nil {
+	if _, err := part.Write([]byte("not a supported upload")); err != nil {
 		t.Fatalf("write bad file: %v", err)
 	}
 	if err := writer.Close(); err != nil {
@@ -955,6 +955,260 @@ func TestAPIDeleteBookSourceContract(t *testing.T) {
 	// Deleting a source from a nonexistent book should return 404.
 	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/shelves/default_shelf/books/no-such-book/sources/"+newSourceID, nil))
 	assertStatus(t, rec, http.StatusNotFound)
+}
+
+func TestAPIImportEPUBBookContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	archive := string(buildTestEPUB(t))
+
+	imported := importFileBook(t, env, "three-body.epub", "application/epub+zip", archive)
+	if imported.Meta == nil {
+		t.Fatal("import response missing meta")
+	}
+
+	// The book's own dc:title beats the filename.
+	if imported.Meta.Title != testEPUBTitle {
+		t.Fatalf("title = %q, want %q", imported.Meta.Title, testEPUBTitle)
+	}
+	// The default strategy is the Markdown preset, so the stored format is "md".
+	if imported.Meta.Format != "md" {
+		t.Fatalf("format = %q, want md", imported.Meta.Format)
+	}
+	if len(imported.Meta.Authors) != 1 || imported.Meta.Authors[0] != "林望舒" {
+		t.Fatalf("authors = %#v, want [林望舒]", imported.Meta.Authors)
+	}
+	if imported.Meta.Language != "zh-Hant" {
+		t.Fatalf("language = %q, want zh-Hant", imported.Meta.Language)
+	}
+	// dc:description lands in the metadata regardless of whether it is also
+	// written into the text.
+	if imported.Meta.Comments != "一部關於旅途的短篇小說。" {
+		t.Fatalf("comments = %q, want the epub description", imported.Meta.Comments)
+	}
+	if got := imported.Meta.Identifiers["isbn"]; got != "urn:isbn:9781234567897" {
+		t.Fatalf("identifiers[isbn] = %q", got)
+	}
+	if imported.Meta.Cover == "" {
+		t.Fatal("imported book has no cover")
+	}
+	if imported.Meta.CurrentSource == "" {
+		t.Fatal("imported book has no current source")
+	}
+
+	base := "/api/shelves/default_shelf/books/" + imported.Meta.ID
+
+	rec := env.do(httptest.NewRequest(http.MethodGet, base+"/content", nil))
+	assertStatus(t, rec, http.StatusOK)
+	content := rec.Body.String()
+	for _, want := range []string{
+		"# " + testEPUBTitle,
+		"一部關於旅途的短篇小說。",
+		"## 啟程",
+		"他走出了車站。",
+		"## 歸途",
+		"回程的路上。",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("content is missing %q:\n%s", want, content)
+		}
+	}
+	// The navigation document is not a chapter, and the headings consumed as
+	// chapter titles must not be duplicated in the body.
+	if strings.Contains(content, "第一章") || strings.Contains(content, "第二章") {
+		t.Fatalf("content still contains in-document headings:\n%s", content)
+	}
+
+	// The split config must let the reader recover the chapter names, which it
+	// only does for regex splits.
+	rec = env.do(httptest.NewRequest(http.MethodGet, base+"/split_config", nil))
+	assertStatus(t, rec, http.StatusOK)
+	assertJSONContentType(t, rec)
+	split := decodeJSON[map[string]any](t, rec)
+	if tp, _ := split["type"].(string); tp != "regex" {
+		t.Fatalf("split config type = %q, want regex", tp)
+	}
+	if re, _ := split["regex"].(string); re != "^## " {
+		t.Fatalf("split config regex = %q, want the markdown heading prefix", re)
+	}
+
+	// The cover survives the round trip.
+	rec = env.do(httptest.NewRequest(http.MethodGet, base+"/cover", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if rec.Body.Len() == 0 {
+		t.Fatal("cover endpoint returned an empty body")
+	}
+}
+
+func TestAPIImportEPUBBookStrategyContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	archive := string(buildTestEPUB(t))
+
+	// A per-import strategy overrides the configured default.
+	plain := importEPUBWithStrategy(t, env, "plain.epub", archive,
+		`{"preset":"plain","include_description":false}`)
+	if plain.Meta.Format != "txt" {
+		t.Fatalf("format = %q, want txt for the plain preset", plain.Meta.Format)
+	}
+
+	rec := env.do(httptest.NewRequest(http.MethodGet,
+		"/api/shelves/default_shelf/books/"+plain.Meta.ID+"/content", nil))
+	assertStatus(t, rec, http.StatusOK)
+	content := rec.Body.String()
+	if strings.Contains(content, "#") {
+		t.Fatalf("plain preset emitted markdown markers:\n%s", content)
+	}
+	if strings.Contains(content, "一部關於旅途的短篇小說。") {
+		t.Fatalf("include_description=false still wrote the description into the text:\n%s", content)
+	}
+	if !strings.Contains(content, "啟程") {
+		t.Fatalf("plain preset lost the chapter titles:\n%s", content)
+	}
+
+	// A bare chapter title has no prefix to anchor a regex on, so the split
+	// falls back to explicit boundaries.
+	rec = env.do(httptest.NewRequest(http.MethodGet,
+		"/api/shelves/default_shelf/books/"+plain.Meta.ID+"/split_config", nil))
+	assertStatus(t, rec, http.StatusOK)
+	split := decodeJSON[map[string]any](t, rec)
+	if tp, _ := split["type"].(string); tp != "boundary" {
+		t.Fatalf("split config type = %q, want boundary", tp)
+	}
+
+	// An unknown preset is rejected rather than silently falling back.
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	if err := writer.WriteField("strategy", `{"preset":"custom"}`); err != nil {
+		t.Fatalf("WriteField strategy: %v", err)
+	}
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", `form-data; name="file"; filename="bad.epub"`)
+	h.Set("Content-Type", "application/epub+zip")
+	part, err := writer.CreatePart(h)
+	if err != nil {
+		t.Fatalf("CreatePart: %v", err)
+	}
+	if _, err := io.Copy(part, strings.NewReader(archive)); err != nil {
+		t.Fatalf("write multipart file: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close multipart writer: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/import", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	assertStatus(t, env.do(req), http.StatusBadRequest)
+
+	// A file that is not a readable archive is rejected, not stored as a broken
+	// book.
+	notAnArchive := importEPUBExpectingStatus(t, env, "broken.epub", "this is not a zip", "", http.StatusBadRequest)
+	_ = notAnArchive
+}
+
+// importEPUBWithStrategy uploads an EPUB with an explicit strategy field and
+// asserts the import succeeds.
+func importEPUBWithStrategy(t *testing.T, env *apiTestEnv, filename, archive, strategy string) Book {
+	t.Helper()
+
+	rec := postEPUBImport(t, env, filename, archive, strategy)
+	assertStatus(t, rec, http.StatusCreated)
+	assertJSONContentType(t, rec)
+	return decodeJSON[Book](t, rec)
+}
+
+func importEPUBExpectingStatus(t *testing.T, env *apiTestEnv, filename, archive, strategy string, want int) *httptest.ResponseRecorder {
+	t.Helper()
+
+	rec := postEPUBImport(t, env, filename, archive, strategy)
+	assertStatus(t, rec, want)
+	return rec
+}
+
+func postEPUBImport(t *testing.T, env *apiTestEnv, filename, archive, strategy string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	if strategy != "" {
+		if err := writer.WriteField("strategy", strategy); err != nil {
+			t.Fatalf("WriteField strategy: %v", err)
+		}
+	}
+
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s"`, filename))
+	h.Set("Content-Type", "application/epub+zip")
+	part, err := writer.CreatePart(h)
+	if err != nil {
+		t.Fatalf("CreatePart: %v", err)
+	}
+	if _, err := io.Copy(part, strings.NewReader(archive)); err != nil {
+		t.Fatalf("write multipart file: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close multipart writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/import", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	return env.do(req)
+}
+
+func TestAPISettingEPUBImportStrategyContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	url := "/api/setting/epub_import_strategy"
+
+	// The built-in default applies when nothing is configured.
+	rec := env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	assertJSONContentType(t, rec)
+	got := decodeJSON[map[string]any](t, rec)
+	val, _ := got["value"].(map[string]any)
+	if preset, _ := val["preset"].(string); preset != "markdown" {
+		t.Fatalf("default preset = %q, want markdown", preset)
+	}
+	if include, _ := val["include_description"].(bool); !include {
+		t.Fatal("default include_description = false, want true")
+	}
+
+	// Setting it changes what an import with no strategy field uses.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url,
+		strings.NewReader(`{"preset":"plain","include_description":false}`)))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	got = decodeJSON[map[string]any](t, rec)
+	val, _ = got["value"].(map[string]any)
+	if preset, _ := val["preset"].(string); preset != "plain" {
+		t.Fatalf("preset after set = %q, want plain", preset)
+	}
+
+	imported := importFileBook(t, env, "uses-default.epub", "application/epub+zip", string(buildTestEPUB(t)))
+	if imported.Meta.Format != "txt" {
+		t.Fatalf("format = %q, want txt from the configured default", imported.Meta.Format)
+	}
+
+	// Invalid payloads are rejected.
+	for _, body := range []string{
+		`{"preset":"custom"}`,
+		`{"include_description":true}`,
+		`{"preset":"plain","template":"x"}`,
+		`not json`,
+	} {
+		rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(body)))
+		assertStatus(t, rec, http.StatusBadRequest)
+	}
+
+	// Deleting reverts to the built-in default.
+	rec = env.do(httptest.NewRequest(http.MethodDelete, url, nil))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	got = decodeJSON[map[string]any](t, rec)
+	val, _ = got["value"].(map[string]any)
+	if preset, _ := val["preset"].(string); preset != "markdown" {
+		t.Fatalf("preset after delete = %q, want markdown", preset)
+	}
 }
 
 func TestAPISettingCoverToJPGContract(t *testing.T) {

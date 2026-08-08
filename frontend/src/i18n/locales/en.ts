@@ -165,6 +165,24 @@ const en = {
     reader: {
       title: 'Reader'
     },
+    import: {
+      title: 'Import'
+    },
+    epubImport: {
+      title: 'EPUB conversion',
+      description:
+        'EPUB files are converted to text when imported. The original file is not kept and embedded illustrations are dropped. These are the defaults; the import dialog can override them for a single batch.',
+      presetLabel: 'Convert to',
+      presetHelp:
+        'Markdown keeps chapter headings, so the reader lists real chapter names. Plain text has no heading marker to match on and falls back to "Part 1", "Part 2" and so on.',
+      presetMarkdown: 'Markdown (chapter headings)',
+      presetPlain: 'Plain text',
+      includeDescriptionLabel: 'Description in the text',
+      includeDescriptionHelp:
+        'Put the book description at the start of the text as well. It is always saved to the book metadata either way.',
+      save: 'Save',
+      saving: 'Saving...'
+    },
     defaultSplitConfig: {
       label: 'Default section split rule',
       description: 'Applied automatically when a book has no explicit split configuration.',

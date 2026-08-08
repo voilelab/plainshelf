@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/voilelab/plainshelf/frontend"
+	"github.com/voilelab/plainshelf/internal/epub"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/internal/util"
@@ -45,6 +46,7 @@ type AppConf struct {
 	StorePath          string                   `yaml:"store_path"`
 	CoverToJPG         bool                     `yaml:"cover_to_jpg"`
 	DefaultSplitConfig *shelf.SplitConfig       `yaml:"default_split_config"`
+	EPUBImportStrategy *epub.Strategy           `yaml:"epub_import_strategy"`
 	ReadOnly           bool                     `yaml:"read_only"`
 	Security           *SecurityConf            `yaml:"security"`
 }
@@ -297,6 +299,9 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/setting/default_split_config", app.HandleGetSettingDefaultSplitConfig)
 	mux.HandleFunc("POST /api/setting/default_split_config", app.HandleSetSettingDefaultSplitConfig)
 	mux.HandleFunc("DELETE /api/setting/default_split_config", app.HandleDeleteSettingDefaultSplitConfig)
+	mux.HandleFunc("GET /api/setting/epub_import_strategy", app.HandleGetSettingEPUBImportStrategy)
+	mux.HandleFunc("POST /api/setting/epub_import_strategy", app.HandleSetSettingEPUBImportStrategy)
+	mux.HandleFunc("DELETE /api/setting/epub_import_strategy", app.HandleDeleteSettingEPUBImportStrategy)
 
 	mux.HandleFunc("GET /{path...}", app.HandleSPAFallback)
 }

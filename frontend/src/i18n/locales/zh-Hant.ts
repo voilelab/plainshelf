@@ -164,6 +164,23 @@ const zhHant = {
     reader: {
       title: '閱讀器'
     },
+    import: {
+      title: '匯入'
+    },
+    epubImport: {
+      title: 'EPUB 轉換',
+      description:
+        'EPUB 檔案在匯入時會轉換成文字。原始檔案不會保留，內嵌插圖也會捨棄。這裡設定的是預設值，匯入對話框可以針對單次匯入覆寫。',
+      presetLabel: '轉換成',
+      presetHelp:
+        'Markdown 會保留章節標題，閱讀器目錄可以顯示真實章名。純文字沒有可辨識的標題標記，目錄只會顯示「Part 1」「Part 2」。',
+      presetMarkdown: 'Markdown（章節標題）',
+      presetPlain: '純文字',
+      includeDescriptionLabel: '正文開頭放入簡介',
+      includeDescriptionHelp: '把書籍簡介也寫在正文開頭。無論是否勾選，簡介都會存進書籍中繼資料。',
+      save: '儲存',
+      saving: '儲存中...'
+    },
     defaultSplitConfig: {
       label: '預設章節分割規則',
       description: '書籍沒有明確分割設定時自動套用。',

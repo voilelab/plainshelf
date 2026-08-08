@@ -5,8 +5,10 @@ import (
 	"errors"
 	"mime/multipart"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -28,7 +30,32 @@ func TestValidateImportFileHeader(t *testing.T) {
 			contentType: "text/plain; charset=utf-8",
 		},
 		{
-			name:        "reject non txt extension",
+			name:        "reject unsupported extension",
+			filename:    "book.cbz",
+			contentType: "text/plain",
+			wantErr:     true,
+		},
+		{
+			name:        "epub with its own media type",
+			filename:    "book.epub",
+			contentType: "application/epub+zip",
+		},
+		{
+			name:        "epub sent as a generic zip",
+			filename:    "book.EPUB",
+			contentType: "application/zip",
+		},
+		{
+			name:        "epub sent as an opaque download",
+			filename:    "book.epub",
+			contentType: "application/octet-stream",
+		},
+		{
+			name:     "epub with no content type",
+			filename: "book.epub",
+		},
+		{
+			name:        "reject epub sent as text",
 			filename:    "book.epub",
 			contentType: "text/plain",
 			wantErr:     true,
@@ -77,6 +104,47 @@ func TestIsRequestBodyTooLargeUsesMaxBytesErrorType(t *testing.T) {
 	}
 }
 
+func TestWriteEPUBImportErrorClassifiesFailures(t *testing.T) {
+	tests := []struct {
+		name         string
+		err          error
+		wantStatus   int
+		wantBody     string
+		forbidInBody string
+	}{
+		{
+			name:       "invalid archive is a client error",
+			err:        &epubInputError{cause: errors.New("broken archive")},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "broken archive",
+		},
+		{
+			name:         "storage failure is a generic server error",
+			err:          errors.New("disk is full at /private/shelf"),
+			wantStatus:   http.StatusInternalServerError,
+			wantBody:     "failed to import epub",
+			forbidInBody: "/private/shelf",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			writeEPUBImportError(rec, tt.err)
+
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d; body = %q", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+			if !strings.Contains(rec.Body.String(), tt.wantBody) {
+				t.Errorf("body = %q, want it to contain %q", rec.Body.String(), tt.wantBody)
+			}
+			if tt.forbidInBody != "" && strings.Contains(rec.Body.String(), tt.forbidInBody) {
+				t.Errorf("body = %q, must not expose %q", rec.Body.String(), tt.forbidInBody)
+			}
+		})
+	}
+}
+
 func TestMultipartDefaultFileContentTypeIsRejected(t *testing.T) {
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
@@ -113,6 +181,10 @@ func TestValidateLocalImportPath(t *testing.T) {
 	if err := os.WriteFile(validPath, []byte("hello"), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
+	epubPath := filepath.Join(tmpDir, "book.epub")
+	if err := os.WriteFile(epubPath, []byte("PK"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
 
 	tests := []struct {
 		name    string
@@ -121,8 +193,10 @@ func TestValidateLocalImportPath(t *testing.T) {
 	}{
 		{name: "valid txt file", input: validPath},
 		{name: "trimmed path", input: " " + validPath + " "},
+		{name: "valid epub file", input: epubPath},
 		{name: "reject empty", input: "", wantErr: true},
-		{name: "reject non txt extension", input: filepath.Join(tmpDir, "book.epub"), wantErr: true},
+		{name: "reject unsupported extension", input: filepath.Join(tmpDir, "book.cbz"), wantErr: true},
+		{name: "reject missing file", input: filepath.Join(tmpDir, "absent.epub"), wantErr: true},
 		{name: "reject directory", input: tmpDir, wantErr: true},
 	}
 

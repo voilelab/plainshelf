@@ -285,8 +285,8 @@ func bookOpenDialogOptions() wailsruntime.OpenDialogOptions {
 		Title: "Select books to import",
 		Filters: []wailsruntime.FileFilter{
 			{
-				DisplayName: "Text Files (*.txt, *.md)",
-				Pattern:     "*.txt;*.md",
+				DisplayName: "Books (*.txt, *.md, *.epub)",
+				Pattern:     "*.txt;*.md;*.epub",
 			},
 		},
 	}

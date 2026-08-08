@@ -48,12 +48,15 @@ function buildSectionsFromBoundaries(content: string, starts: number[], isRegexS
 
     const text = content.slice(startOffset, endOffset);
     const firstLine = text.split(/\r?\n/, 1)[0]?.trim() ?? '';
+    // A regex split on a Markdown book matches the heading line, so the "## "
+    // marker would otherwise show up in the chapter list.
+    const sectionTitle = firstLine.replace(/^#{1,6}\s+/, '').trim();
 
     sections.push({
       index: i,
       startOffset,
       endOffset,
-      title: isRegexSplit && firstLine.length > 0 ? firstLine : `Part ${i + 1}`,
+      title: isRegexSplit && sectionTitle.length > 0 ? sectionTitle : `Part ${i + 1}`,
       text
     });
   }

@@ -327,6 +327,10 @@ export async function importBook(payload: BookCreateRequest): Promise<Book> {
     form.append('layer', trimmedLayer);
   }
 
+  if (payload.strategy) {
+    form.append('strategy', JSON.stringify(payload.strategy));
+  }
+
   const created = transformBook(await fetchJson<BackendBook>(buildShelfApiPath('/books/import'), {
     method: 'POST',
     body: form
