@@ -1,15 +1,31 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { prefGet, prefSet, prefRemove, setApiBaseMock, setActiveShelfIDMock } = vi.hoisted(() => ({
+const {
+  prefGet,
+  prefSet,
+  prefRemove,
+  secureGet,
+  secureSet,
+  secureRemove,
+  setApiBaseMock,
+  setActiveShelfIDMock
+} = vi.hoisted(() => ({
   prefGet: vi.fn(),
   prefSet: vi.fn(),
   prefRemove: vi.fn(),
+  secureGet: vi.fn(),
+  secureSet: vi.fn(),
+  secureRemove: vi.fn(),
   setApiBaseMock: vi.fn(),
   setActiveShelfIDMock: vi.fn()
 }));
 
 vi.mock('@capacitor/preferences', () => ({
   Preferences: { get: prefGet, set: prefSet, remove: prefRemove }
+}));
+
+vi.mock('@/providers/secureStorage', () => ({
+  SecureStorage: { get: secureGet, set: secureSet, remove: secureRemove }
 }));
 
 vi.mock('@/api/client', () => ({
@@ -34,6 +50,32 @@ const {
 type Config = Awaited<ReturnType<typeof loadMobileConnectionConfig>>;
 
 const store = new Map<string, string>();
+const secureStore = new Map<string, string>();
+
+function resetStores(): void {
+  store.clear();
+  secureStore.clear();
+  prefGet.mockReset().mockImplementation(async ({ key }: { key: string }) => ({
+    value: store.get(key) ?? null
+  }));
+  prefSet.mockReset().mockImplementation(async ({ key, value }: { key: string; value: string }) => {
+    store.set(key, value);
+  });
+  prefRemove.mockReset().mockImplementation(async ({ key }: { key: string }) => {
+    store.delete(key);
+  });
+  secureGet.mockReset().mockImplementation(async ({ key }: { key: string }) => ({
+    value: secureStore.get(key) ?? null
+  }));
+  secureSet.mockReset().mockImplementation(
+    async ({ key, value }: { key: string; value: string }) => {
+      secureStore.set(key, value);
+    }
+  );
+  secureRemove.mockReset().mockImplementation(async ({ key }: { key: string }) => {
+    secureStore.delete(key);
+  });
+}
 
 function config(overrides: Partial<Config> = {}): Config {
   return {
@@ -51,17 +93,8 @@ function config(overrides: Partial<Config> = {}): Config {
 
 describe('mobileConfig token wiring', () => {
   beforeEach(() => {
-    store.clear();
+    resetStores();
     (window as unknown as { plainshelf?: unknown }).plainshelf = undefined;
-    prefGet.mockReset().mockImplementation(async ({ key }: { key: string }) => ({
-      value: store.get(key) ?? null
-    }));
-    prefSet.mockReset().mockImplementation(async ({ key, value }: { key: string; value: string }) => {
-      store.set(key, value);
-    });
-    prefRemove.mockReset().mockImplementation(async ({ key }: { key: string }) => {
-      store.delete(key);
-    });
     setApiBaseMock.mockReset();
     setActiveShelfIDMock.mockReset();
   });
@@ -112,16 +145,7 @@ describe('mobileConfig token wiring', () => {
 
 describe('connection mode', () => {
   beforeEach(() => {
-    store.clear();
-    prefGet.mockReset().mockImplementation(async ({ key }: { key: string }) => ({
-      value: store.get(key) ?? null
-    }));
-    prefSet.mockReset().mockImplementation(async ({ key, value }: { key: string; value: string }) => {
-      store.set(key, value);
-    });
-    prefRemove.mockReset().mockImplementation(async ({ key }: { key: string }) => {
-      store.delete(key);
-    });
+    resetStores();
     setApiBaseMock.mockReset();
     setActiveShelfIDMock.mockReset();
   });
@@ -192,6 +216,43 @@ describe('connection mode', () => {
         pcloudShelfRoot: '/PlainShelf/shelf'
       })
     );
+    expect(secureStore.get('plainshelf.mobile.pcloud.accessToken')).toBe('tok');
+    expect(store.has('plainshelf.mobile.pcloud.accessToken')).toBe(false);
+  });
+
+  it('migrates a legacy plaintext pCloud token only after encrypting it', async () => {
+    store.set('plainshelf.mobile.pcloud.accessToken', 'legacy-token');
+
+    expect((await loadMobileConnectionConfig()).pcloudAccessToken).toBe('legacy-token');
+    expect(secureStore.get('plainshelf.mobile.pcloud.accessToken')).toBe('legacy-token');
+    expect(store.has('plainshelf.mobile.pcloud.accessToken')).toBe(false);
+    expect(secureSet).toHaveBeenCalledBefore(prefRemove);
+  });
+
+  it('removes a stale legacy copy when an encrypted pCloud token already exists', async () => {
+    secureStore.set('plainshelf.mobile.pcloud.accessToken', 'encrypted-token');
+    store.set('plainshelf.mobile.pcloud.accessToken', 'legacy-token');
+
+    expect((await loadMobileConnectionConfig()).pcloudAccessToken).toBe('encrypted-token');
+    expect(store.has('plainshelf.mobile.pcloud.accessToken')).toBe(false);
+  });
+
+  it('does not delete a legacy pCloud token when encrypted migration fails', async () => {
+    store.set('plainshelf.mobile.pcloud.accessToken', 'legacy-token');
+    secureSet.mockRejectedValueOnce(new Error('Keystore unavailable'));
+
+    await expect(loadMobileConnectionConfig()).rejects.toThrow('Keystore unavailable');
+    expect(store.get('plainshelf.mobile.pcloud.accessToken')).toBe('legacy-token');
+  });
+
+  it('clears both encrypted and legacy copies of the pCloud token', async () => {
+    secureStore.set('plainshelf.mobile.pcloud.accessToken', 'encrypted-token');
+    store.set('plainshelf.mobile.pcloud.accessToken', 'legacy-token');
+
+    await saveMobileConnectionConfig({ pcloudAccessToken: '' });
+
+    expect(secureStore.has('plainshelf.mobile.pcloud.accessToken')).toBe(false);
+    expect(store.has('plainshelf.mobile.pcloud.accessToken')).toBe(false);
   });
 
   it('publishes the applied config for synchronous callers', async () => {
