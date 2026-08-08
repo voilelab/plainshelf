@@ -71,6 +71,9 @@ export interface BookshelfProvider {
   getTaskChain(taskChainId: string): Promise<TaskChain>;
   startBookBatch(request: BookBatchRequest): Promise<string>;
 
+  /** Layer paths in the shape `api/layers.ts` returns: '/' for the top level. */
+  listLayers(): Promise<string[]>;
+
   listSources(bookId: string): Promise<SourceMeta[]>;
   getSource(bookId: string, sourceId: string): Promise<SourceMeta>;
   getSourceContent(bookId: string, sourceId: string): Promise<string>;

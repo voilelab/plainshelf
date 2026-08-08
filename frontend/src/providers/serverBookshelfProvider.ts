@@ -32,6 +32,7 @@ import {
   setCurrentSource,
   updateSourceContent
 } from '@/api/sources';
+import { getLayers } from '@/api/layers';
 import { getTaskChain } from '@/api/taskchains';
 import { startBookBatch } from '@/api/bookBatches';
 import {
@@ -163,6 +164,10 @@ export class ServerBookshelfProvider implements BookshelfProvider {
 
   startBookBatch(request: BookBatchRequest): Promise<string> {
     return startBookBatch(request);
+  }
+
+  listLayers(): Promise<string[]> {
+    return getLayers();
   }
 
   listSources(bookId: string): Promise<SourceMeta[]> {
