@@ -1,8 +1,8 @@
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
 
-import type { Book, BookContent, DownloadState, ReadingProgress } from '@/types/book';
+import type { Book, BookContent, DownloadState, ReadingProgress, SplitConfig } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
-import type { CachedBookManifest, MobileBookCache } from './mobileBookCache';
+import { copySplitConfig, type CachedBookManifest, type MobileBookCache } from './mobileBookCache';
 
 const DB_NAME = 'plainshelf-mobile';
 const DB_VERSION = 2;
@@ -175,6 +175,7 @@ export class IndexedDbMobileBookCache implements MobileBookCache {
       {
         book: { ...manifest.book },
         sources: manifest.sources.map((source) => ({ ...source })),
+        split_config: copySplitConfig(manifest.split_config),
         downloaded_at: manifest.downloaded_at,
         local_version: manifest.local_version,
         remote_version: manifest.remote_version,
@@ -223,6 +224,12 @@ export class IndexedDbMobileBookCache implements MobileBookCache {
     const manifest = await db.get(STORE_MANIFESTS, bookId);
     const source = manifest?.sources.find((item) => item.id === sourceId);
     return source ? { ...source } : null;
+  }
+
+  async getCachedBookSplitConfig(bookId: string): Promise<SplitConfig | null> {
+    const db = await this.db();
+    const manifest = await db.get(STORE_MANIFESTS, bookId);
+    return copySplitConfig(manifest?.split_config) ?? null;
   }
 
   async getCachedBookContent(bookId: string): Promise<BookContent | null> {
@@ -280,6 +287,7 @@ export class IndexedDbMobileBookCache implements MobileBookCache {
     return manifests.map((manifest) => ({
       book: { ...manifest.book },
       sources: manifest.sources.map((source) => ({ ...source })),
+      split_config: copySplitConfig(manifest.split_config),
       downloaded_at: manifest.downloaded_at,
       local_version: manifest.local_version,
       remote_version: manifest.remote_version,

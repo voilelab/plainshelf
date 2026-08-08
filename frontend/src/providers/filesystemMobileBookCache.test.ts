@@ -505,6 +505,26 @@ describe('FilesystemMobileBookCache', () => {
     expect(listed[0].sources.map((source) => source.id)).toEqual(['src-1', 'src-2']);
   });
 
+  it('round-trips a complete split config in the manifest', async () => {
+    const manifest: CachedBookManifest = {
+      ...makeManifest('split-book', ['src-1']),
+      split_config: { type: 'boundary', boundaries: [0, 125, 300] }
+    };
+    await cache.saveDownloadedBook(manifest);
+
+    expect(await cache.getCachedBookSplitConfig('split-book')).toEqual({
+      type: 'boundary',
+      boundaries: [0, 125, 300]
+    });
+    expect((await cache.listDownloadedManifests())[0].split_config).toEqual(manifest.split_config);
+  });
+
+  it('returns null for a legacy manifest without a cached split config', async () => {
+    await cache.saveDownloadedBook(makeManifest('legacy-book', ['src-1']));
+
+    expect(await cache.getCachedBookSplitConfig('legacy-book')).toBeNull();
+  });
+
   it('listDownloadedManifests omits size fields for manifests saved without them', async () => {
     await cache.saveDownloadedBook(makeManifest('no-size-book', ['src-1']));
 
