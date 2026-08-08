@@ -68,6 +68,13 @@ export interface PCloudGetFileLinkResult extends PCloudResponse {
   size?: number;
 }
 
+/** Identity returned by `userinfo` for the account behind a bearer token. */
+export interface PCloudUserInfoResult extends PCloudResponse {
+  userid?: number;
+  email?: string;
+  emailverified?: boolean;
+}
+
 /** Response of the `poll_token` OAuth flow's `oauth2_token` long poll. */
 export interface PCloudTokenResult extends PCloudResponse {
   access_token?: string;

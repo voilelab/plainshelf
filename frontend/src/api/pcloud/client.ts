@@ -1,5 +1,5 @@
 import {
-  PCLOUD_RESULT_RECURSIVE_ROOT_UNSUPPORTED,
+  PCLOUD_RESULT_RECURSIVE_LISTING_UNSUPPORTED,
   PCloudError,
   isRetryablePCloudError
 } from './errors';
@@ -7,7 +7,8 @@ import type {
   PCloudApiHost,
   PCloudGetFileLinkResult,
   PCloudItem,
-  PCloudListFolderResult
+  PCloudListFolderResult,
+  PCloudUserInfoResult
 } from './types';
 
 // Mirrors the two budgets in api/client.ts: metadata calls should fail fast,
@@ -18,7 +19,7 @@ const DOWNLOAD_TIMEOUT_MS = 300_000;
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 500;
 
-/** The account's top-level folder. Recursive listing is rejected on this one. */
+/** The account's top-level folder. */
 const ROOT_FOLDER_ID = 0;
 
 export type PCloudParams = Record<string, string | number | boolean | undefined>;
@@ -239,6 +240,15 @@ export class PCloudClient {
     return res.metadata;
   }
 
+  /** Returns the identity of the account authorized by this client. */
+  async getUserInfo(signal?: AbortSignal): Promise<PCloudUserInfoResult> {
+    const info = await this.call<PCloudUserInfoResult>('userinfo', {}, signal);
+    if (!info.email && info.userid === undefined) {
+      throw new PCloudError(`pCloud userinfo returned no account identity: ${excerpt(info)}`);
+    }
+    return info;
+  }
+
   /**
    * Resolves a slash-separated folder path to its pCloud folder id.
    *
@@ -284,10 +294,9 @@ export class PCloudClient {
   /**
    * Lists a folder and everything beneath it.
    *
-   * One request covers the whole tree once the folder id is known. The account
-   * root rejects recursive listing, so that case is walked manually — the
-   * returned shape is identical either way, which keeps the parsing layer
-   * unaware of which path was taken.
+   * One request normally covers the whole tree once the folder id is known.
+   * If an API variant refuses recursion, the same tree is expanded manually so
+   * the parsing layer remains unaware of which path was taken.
    */
   async listFolderRecursive(
     target: { path: string } | { folderid: number },
@@ -295,15 +304,13 @@ export class PCloudClient {
   ): Promise<PCloudItem> {
     const folderid = 'path' in target ? await this.resolveFolderID(target.path, signal) : target.folderid;
 
-    if (folderid !== ROOT_FOLDER_ID) {
-      try {
-        return await this.listFolder(folderid, { recursive: true, signal });
-      } catch (err) {
-        // Kept as a safety net now that the root is handled up front: the API
-        // may refuse a recursive listing somewhere this code does not predict.
-        if (!(err instanceof PCloudError) || err.result !== PCLOUD_RESULT_RECURSIVE_ROOT_UNSUPPORTED) {
-          throw err;
-        }
+    try {
+      return await this.listFolder(folderid, { recursive: true, signal });
+    } catch (err) {
+      // Some accounts or API variants may refuse recursive traversal. Preserve
+      // the manual walk as a compatibility fallback, including for folder 0.
+      if (!(err instanceof PCloudError) || err.result !== PCLOUD_RESULT_RECURSIVE_LISTING_UNSUPPORTED) {
+        throw err;
       }
     }
 

@@ -490,6 +490,7 @@ const en = {
       authorizing: 'Waiting for approval…',
       cancel: 'Cancel',
       authorized: 'Authorized ({host}).',
+      authorizedAccount: 'Authorized account: {account} ({host}).',
       shelfRootLabel: 'Shelf folder',
       shelfRootPlaceholder: '/PlainShelf/default-shelf',
       shelfRootHint: 'The folder on pCloud that holds your shelf, the one containing books/.',

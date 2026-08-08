@@ -489,6 +489,7 @@ const zhHant = {
       authorizing: '等待授權中…',
       cancel: '取消',
       authorized: '已授權（{host}）。',
+      authorizedAccount: '已授權帳號：{account}（{host}）。',
       shelfRootLabel: '書架資料夾',
       shelfRootPlaceholder: '/PlainShelf/default-shelf',
       shelfRootHint: 'pCloud 上存放書架的資料夾，也就是含有 books/ 的那一層。',

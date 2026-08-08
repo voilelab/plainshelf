@@ -153,6 +153,27 @@ describe('PCloudClient.call', () => {
   });
 });
 
+describe('PCloudClient.getUserInfo', () => {
+  it('returns the account identity and addresses the userinfo method', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({ result: 0, userid: 42, email: 'reader@example.com', emailverified: true })
+    );
+
+    const info = await makeClient(fetchImpl as unknown as typeof fetch).getUserInfo();
+
+    expect(info).toMatchObject({ userid: 42, email: 'reader@example.com' });
+    expect(String(fetchImpl.mock.calls[0][0])).toContain('/userinfo');
+  });
+
+  it('rejects a success response with no account identity', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ result: 0 }));
+
+    await expect(makeClient(fetchImpl as unknown as typeof fetch).getUserInfo()).rejects.toThrow(
+      /no account identity/
+    );
+  });
+});
+
 describe('PCloudClient.listFolderRecursive', () => {
   it('asks for the whole tree in one request', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ result: 0, metadata: { name: 'shelf', isfolder: true } }));
@@ -162,7 +183,7 @@ describe('PCloudClient.listFolderRecursive', () => {
     expect(String(fetchImpl.mock.calls[0][0])).toContain('recursive=1');
   });
 
-  it('walks the account root manually, without attempting a recursive listing', async () => {
+  it('falls back to a manual account-root walk when recursive listing is refused', async () => {
     const fetchImpl = vi.fn().mockImplementation((input: RequestInfo | URL) => {
       const url = new URL(String(input));
       const recursive = url.searchParams.get('recursive') === '1';
@@ -204,12 +225,13 @@ describe('PCloudClient.listFolderRecursive', () => {
 
     expect(tree.contents?.map((item) => item.name)).toEqual(['shelf', 'readme.txt']);
     expect(tree.contents?.[0].contents?.[0].name).toBe('books');
-    // The root is known to reject it, so it is never asked.
+    // Prefer the documented recursive request, then fall back for API variants
+    // that reject it.
     const recursiveRootCalls = fetchImpl.mock.calls.filter((call) => {
       const url = new URL(String(call[0]));
       return url.searchParams.get('folderid') === '0' && url.searchParams.get('recursive') === '1';
     });
-    expect(recursiveRootCalls).toHaveLength(0);
+    expect(recursiveRootCalls).toHaveLength(1);
   });
 
   it('falls back to a manual walk if a non-root folder refuses recursion', async () => {

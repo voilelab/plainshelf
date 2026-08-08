@@ -162,9 +162,15 @@ async function pollHost(options: PollHostOptions): Promise<PCloudSession> {
   while (!signal.aborted && nowImpl() < deadline) {
     const token = await pollOnce(url.toString(), signal, fetchImpl);
     if (token) {
-      // Trust the answering host over locationid: the account demonstrably
-      // lives here, whereas locationid is advisory and may be absent.
-      return { accessToken: token.accessToken, host };
+      // The polling endpoint is global enough that either regional host can
+      // deliver the token. pCloud's locationid identifies where the account's
+      // files actually live, so it is authoritative whenever present. Keep the
+      // answering host only as a compatibility fallback for an old response
+      // that omits locationid.
+      return {
+        accessToken: token.accessToken,
+        host: token.locationId === undefined ? host : hostForLocationId(token.locationId)
+      };
     }
 
     if (signal.aborted) {

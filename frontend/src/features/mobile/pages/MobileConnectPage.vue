@@ -115,7 +115,14 @@
           </button>
 
           <p v-if="isAuthorized" class="mobile-connect-hint" role="status">
-            {{ t('mobileConnect.pcloud.authorized', { host: pcloudHost }) }}
+            {{
+              pcloudAccountIdentity
+                ? t('mobileConnect.pcloud.authorizedAccount', {
+                    account: pcloudAccountIdentity,
+                    host: pcloudHost
+                  })
+                : t('mobileConnect.pcloud.authorized', { host: pcloudHost })
+            }}
           </p>
 
           <label class="mobile-connect-field">
@@ -211,6 +218,8 @@ const pcloudClientId = ref('');
 const pcloudAccessToken = ref('');
 const pcloudHost = ref('');
 const pcloudShelfRoot = ref('');
+/** Email (or userid fallback) returned by pCloud userinfo for the active token. */
+const pcloudAccountIdentity = ref('');
 /** Set by a successful shelf check; null means "not verified yet". */
 const pcloudBookCount = ref<number | null>(null);
 
@@ -243,6 +252,17 @@ onMounted(async () => {
   pcloudAccessToken.value = config.pcloudAccessToken;
   pcloudHost.value = config.pcloudHost;
   pcloudShelfRoot.value = config.pcloudShelfRoot;
+
+  if (config.mode === 'pcloud' && config.pcloudAccessToken && config.pcloudHost) {
+    try {
+      pcloudAccountIdentity.value = await loadPCloudAccountIdentity(
+        config.pcloudHost,
+        config.pcloudAccessToken
+      );
+    } catch (err) {
+      localError.value = err instanceof Error ? err.message : String(err);
+    }
+  }
 
   // A returning user already has a server saved; load its shelves so the
   // dropdown is populated without an extra tap.
@@ -296,6 +316,12 @@ function onShelfSelect(value: AcceptableValue): void {
   }
 }
 
+/** Verifies that a token and regional host resolve to a real pCloud account. */
+async function loadPCloudAccountIdentity(host: string, accessToken: string): Promise<string> {
+  const info = await new PCloudClient({ host, accessToken }).getUserInfo();
+  return info.email?.trim() || String(info.userid);
+}
+
 /**
  * Runs pCloud's poll_token flow: open the approval page in the system browser
  * and wait for whichever regional host answers, which is also how the account's
@@ -315,9 +341,11 @@ async function onAuthorize(): Promise<void> {
     const requestId = generateRequestId();
     await Browser.open({ url: buildAuthorizeUrl(clientId, requestId) });
     const session = await pollForToken({ clientId, requestId, signal: authAbort.signal });
+    const accountIdentity = await loadPCloudAccountIdentity(session.host, session.accessToken);
 
     pcloudAccessToken.value = session.accessToken;
     pcloudHost.value = session.host;
+    pcloudAccountIdentity.value = accountIdentity;
     // New credentials may reach a different account, so the previous shelf
     // check no longer vouches for anything.
     pcloudBookCount.value = null;

@@ -74,6 +74,32 @@ describe('pollForToken', () => {
     expect(session).toEqual({ accessToken: 'eu-token', host: 'eapi.pcloud.com' });
   });
 
+  it('uses locationid even when the other regional polling host delivered the token', async () => {
+    const fetchImpl = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      if (String(input).includes('eapi.pcloud.com')) {
+        return Promise.resolve(tokenResponse({ result: 0, access_token: 'us-token', locationid: 1 }));
+      }
+      return Promise.resolve(tokenResponse({ result: 2000, error: 'Not yet.' }));
+    });
+
+    const session = await pollForToken(pollOptions(fetchImpl as unknown as typeof fetch));
+
+    expect(session).toEqual({ accessToken: 'us-token', host: 'api.pcloud.com' });
+  });
+
+  it('falls back to the answering host when an old response omits locationid', async () => {
+    const fetchImpl = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      if (String(input).includes('eapi.pcloud.com')) {
+        return Promise.resolve(tokenResponse({ result: 0, access_token: 'legacy-token' }));
+      }
+      return Promise.resolve(tokenResponse({ result: 2000, error: 'Not yet.' }));
+    });
+
+    const session = await pollForToken(pollOptions(fetchImpl as unknown as typeof fetch));
+
+    expect(session).toEqual({ accessToken: 'legacy-token', host: 'eapi.pcloud.com' });
+  });
+
   it('keeps polling until the user approves', async () => {
     let calls = 0;
     const fetchImpl = vi.fn().mockImplementation((input: RequestInfo | URL) => {
