@@ -135,6 +135,9 @@
         <TabsTrigger v-if="serverSettingsEditable" value="reader" class="settings-tab-trigger">{{
           t('settings.reader.title')
         }}</TabsTrigger>
+        <TabsTrigger v-if="serverSettingsEditable" value="import" class="settings-tab-trigger">{{
+          t('settings.import.title')
+        }}</TabsTrigger>
         <TabsTrigger value="about" class="settings-tab-trigger">{{ t('settings.about.title') }}</TabsTrigger>
         <TabsTrigger value="shelves" class="settings-tab-trigger">{{ t('settings.shelves.title') }}</TabsTrigger>
       </TabsList>
@@ -242,6 +245,55 @@
               @click="onSaveDefaultSplitConfig"
             >
               {{ saving ? t('settings.defaultSplitConfig.saving') : t('settings.defaultSplitConfig.save') }}
+            </button>
+          </div>
+        </section>
+      </TabsContent>
+
+      <TabsContent v-if="serverSettingsEditable" value="import" class="settings-tab-content">
+        <section class="panel settings-group">
+          <h3>{{ t('settings.epubImport.title') }}</h3>
+          <p class="setting-description">{{ t('settings.epubImport.description') }}</p>
+
+          <label class="setting-item">
+            <div>
+              <div class="setting-label">{{ t('settings.epubImport.presetLabel') }}</div>
+              <p class="setting-description">{{ t('settings.epubImport.presetHelp') }}</p>
+            </div>
+            <select
+              class="setting-select"
+              :value="epubPreset"
+              :disabled="loading || saving"
+              @change="onEpubPresetChange"
+            >
+              <option value="markdown">{{ t('settings.epubImport.presetMarkdown') }}</option>
+              <option value="plain">{{ t('settings.epubImport.presetPlain') }}</option>
+            </select>
+          </label>
+
+          <label class="setting-item">
+            <div>
+              <div class="setting-label">{{ t('settings.epubImport.includeDescriptionLabel') }}</div>
+              <p class="setting-description">{{ t('settings.epubImport.includeDescriptionHelp') }}</p>
+            </div>
+            <input
+              v-model="epubIncludeDescription"
+              class="setting-checkbox"
+              type="checkbox"
+              :disabled="loading || saving"
+            />
+          </label>
+
+          <p v-if="epubImportError" class="error">{{ epubImportError }}</p>
+
+          <div class="split-config-actions">
+            <button
+              class="button primary"
+              type="button"
+              :disabled="loading || saving"
+              @click="onSaveEpubImportStrategy"
+            >
+              {{ saving ? t('settings.epubImport.saving') : t('settings.epubImport.save') }}
             </button>
           </div>
         </section>
@@ -360,12 +412,21 @@ import DeleteModal from '@/components/DeleteModal.vue';
 import {
   getCoverToJpgSetting,
   getDefaultSplitConfigSetting,
+  getEpubImportStrategySetting,
   setCoverToJpgSetting,
-  setDefaultSplitConfigSetting
+  setDefaultSplitConfigSetting,
+  setEpubImportStrategySetting
 } from '@/api/settings';
 // Reading history and its retention limit are per-device state, not server settings.
 import { getReadHistoryLimit, setReadHistoryLimit } from '@/storage/readHistory';
-import type { SplitConfig, SplitType } from '@/types/book';
+import {
+  DEFAULT_EPUB_IMPORT_STRATEGY,
+  type EpubImportPreset,
+  type EpubImportStrategy,
+  type SplitConfig,
+  type SplitType
+} from '@/types/book';
+import { normalizeEpubImportPreset } from '@/utils/epubStrategy';
 import { getServerVersion } from '@/api/version';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useI18n } from '@/i18n';
@@ -387,6 +448,9 @@ const defaultSplitType = ref<SplitType>('none');
 const defaultSplitLineCount = ref('100');
 const defaultSplitRegex = ref('');
 const splitConfigError = ref('');
+const epubPreset = ref<EpubImportPreset>(DEFAULT_EPUB_IMPORT_STRATEGY.preset);
+const epubIncludeDescription = ref(DEFAULT_EPUB_IMPORT_STRATEGY.include_description);
+const epubImportError = ref('');
 const version = ref('');
 const githubRepoUrl = 'https://github.com/voilelab/plainshelf';
 
@@ -453,12 +517,14 @@ async function loadSettings(): Promise<void> {
       return;
     }
 
-    const [nextCoverToJpg, nextDefaultSplitConfig] = await Promise.all([
+    const [nextCoverToJpg, nextDefaultSplitConfig, nextEpubStrategy] = await Promise.all([
       getCoverToJpgSetting(),
-      getDefaultSplitConfigSetting()
+      getDefaultSplitConfigSetting(),
+      getEpubImportStrategySetting()
     ]);
     coverToJpg.value = nextCoverToJpg;
     hydrateSplitConfigDraft(nextDefaultSplitConfig);
+    hydrateEpubImportDraft(nextEpubStrategy);
   } catch (err) {
     error.value = err instanceof Error ? err.message : t('settings.loadFailed');
   } finally {
@@ -470,6 +536,36 @@ function hydrateSplitConfigDraft(config: SplitConfig): void {
   defaultSplitType.value = config.type;
   defaultSplitLineCount.value = String(config.line_count ?? 100);
   defaultSplitRegex.value = config.regex ?? '';
+}
+
+function hydrateEpubImportDraft(strategy: EpubImportStrategy): void {
+  epubPreset.value = strategy.preset;
+  epubIncludeDescription.value = strategy.include_description;
+}
+
+function onEpubPresetChange(event: Event): void {
+  const target = event.target;
+  if (!(target instanceof HTMLSelectElement)) {
+    return;
+  }
+  epubPreset.value = normalizeEpubImportPreset(target.value);
+  epubImportError.value = '';
+}
+
+async function onSaveEpubImportStrategy(): Promise<void> {
+  epubImportError.value = '';
+  saving.value = true;
+
+  try {
+    await setEpubImportStrategySetting({
+      preset: epubPreset.value,
+      include_description: epubIncludeDescription.value
+    });
+  } catch (err) {
+    epubImportError.value = err instanceof Error ? err.message : t('settings.saveFailed');
+  } finally {
+    saving.value = false;
+  }
 }
 
 function onDefaultSplitTypeChange(event: Event): void {

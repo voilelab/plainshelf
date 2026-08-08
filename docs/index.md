@@ -15,9 +15,10 @@ adds a web interface, desktop integration, and an experimental Android client.
 ### Use PlainShelf
 
 1. [Install a release](installation.md) with Homebrew, a server archive, or Docker.
-2. [Start a library](getting-started.md) and import a TXT or Markdown book.
+2. [Start a library](getting-started.md) and import a TXT, Markdown or EPUB book.
 3. Configure a [local shelf](configuring-local-shelf.md), or review the
    experimental [SMB setup](configuring-smb-shelf.md).
+4. Review [EPUB Import](epub-import.md) for how EPUB files are converted.
 
 ### Understand the storage model
 

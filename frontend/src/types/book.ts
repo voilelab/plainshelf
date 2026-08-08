@@ -94,10 +94,25 @@ export interface BookUpdateRequest {
   identifiers?: Record<string, string>;
 }
 
+/** Built-in EPUB output layouts. The preset also decides the stored book format. */
+export type EpubImportPreset = 'markdown' | 'plain';
+
+export interface EpubImportStrategy {
+  preset: EpubImportPreset;
+  include_description: boolean;
+}
+
+export const DEFAULT_EPUB_IMPORT_STRATEGY: EpubImportStrategy = {
+  preset: 'markdown',
+  include_description: true
+};
+
 export interface BookCreateRequest {
   title: string;
   layer?: string;
   file: File;
+  /** Only meaningful for .epub uploads; ignored by the server for other formats. */
+  strategy?: EpubImportStrategy;
 }
 
 export type UpdateBookPayload = BookUpdateRequest;

@@ -2,8 +2,10 @@ import { ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
 import { deriveTitleFromFilename, hasSupportedExtension } from '@/utils/file';
 import { normalizeLayerPath } from '@/utils/layers';
+import { DEFAULT_EPUB_IMPORT_STRATEGY, type EpubImportStrategy } from '@/types/book';
 
-const bookExtPattern = /\.(txt|md)$/i;
+const bookExtPattern = /\.(txt|md|epub)$/i;
+const epubExtPattern = /\.epub$/i;
 
 export type ImportStatus = 'pending' | 'importing' | 'success' | 'failed';
 
@@ -32,6 +34,15 @@ export function useImportBook() {
   const submitting = ref(false);
   const success = ref('');
   const error = ref('');
+  const epubStrategy = ref<EpubImportStrategy>({ ...DEFAULT_EPUB_IMPORT_STRATEGY });
+
+  function setEpubStrategy(next: EpubImportStrategy): void {
+    epubStrategy.value = { ...next };
+  }
+
+  function hasEpubFile(): boolean {
+    return bookFiles.value.some((file) => epubExtPattern.test(file.name));
+  }
 
   function toImportBookItems(nextFiles: File[]): ImportBookItem[] {
     return nextFiles.map((file) => ({
@@ -79,7 +90,7 @@ export function useImportBook() {
     success.value = '';
 
     if (bookFiles.value.length === 0) {
-      error.value = 'Please choose at least one TXT or Markdown file.';
+      error.value = 'Please choose at least one TXT, Markdown or EPUB file.';
       return null;
     }
 
@@ -97,7 +108,7 @@ export function useImportBook() {
           files.value[index] = {
             ...current,
             status: 'failed',
-            error: 'Book file must be .txt or .md.'
+            error: 'Book file must be .txt, .md or .epub.'
           };
           failedCount += 1;
           continue;
@@ -109,11 +120,16 @@ export function useImportBook() {
           error: ''
         };
 
+        const isEpub = epubExtPattern.test(current.filename);
+
         try {
           const created = await getBookshelfProvider().importBook({
-            title: current.title,
+            // An EPUB knows its own title; sending the one derived from the
+            // filename would only override it with something worse.
+            title: isEpub ? '' : current.title,
             layer: normalizeImportLayerPath(currentLayerPath),
-            file: current.file
+            file: current.file,
+            strategy: isEpub ? epubStrategy.value : undefined
           });
 
           files.value[index] = {
@@ -165,6 +181,9 @@ export function useImportBook() {
     submitting,
     success,
     error,
+    epubStrategy,
+    setEpubStrategy,
+    hasEpubFile,
     setBookFiles,
     submit,
     reset

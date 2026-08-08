@@ -287,13 +287,18 @@ export function mockImportBook(payload: BookCreateRequest): Book {
     .map((segment) => segment.trim())
     .filter((segment) => segment.length > 0) ?? [];
 
+  const isEpub = /\.epub$/i.test(payload.file.name);
+  const epubFormat = payload.strategy?.preset === 'plain' ? 'txt' : 'md';
+
   const created: Book = {
     id,
     title: payload.title.trim() || payload.file.name,
     authors: [],
     layers: normalizedLayer,
     language: 'unknown',
-    format: 'txt',
+    // An EPUB import stores whatever the conversion strategy produces, not the
+    // uploaded file's own format.
+    format: isEpub ? epubFormat : 'txt',
     tags: [],
     created_at: now,
     updated_at: now
