@@ -12,7 +12,7 @@ import { connectMobile, reopenMobileAt, getBookIdByTitle } from './support/mobil
 // Books are imported in the ordinary desktop flow first: importing is a write,
 // which the mobile client no longer performs.
 
-test('redirects edit-only routes to the library', async ({ page }) => {
+test('redirects unavailable mobile routes to the library', async ({ page }) => {
   const server = await startServer();
 
   try {
@@ -24,6 +24,7 @@ test('redirects edit-only routes to the library', async ({ page }) => {
     for (const route of [
       `/books/${bookId}/edit`,
       `/books/${bookId}/sources`,
+      '/admin/logs',
       '/trash',
       '/duplicates',
       '/books/maintenance/missing-author',
@@ -72,9 +73,11 @@ test('hides write affordances in the library and on book detail', async ({ page 
     const bookId = await getBookIdByTitle(page, 'hello');
 
     await reopenMobileAt(page, server.baseUrl, '/books');
-    // Trash, the maintenance section, and import are edit-only.
+    // Shelf editing and server log controls are unavailable on mobile.
     await expect(page.getByRole('link', { name: 'Trash' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /^Import/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Add layer' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Logs' })).toHaveCount(0);
     // Downloads is a local-device action and must survive.
     await expect(page.getByRole('link', { name: 'Downloads' })).toHaveCount(1);
     // The banner is for a read-only *server*, not for this platform.
@@ -104,8 +107,7 @@ test('stays read-only after an in-app navigation drops the preview query', async
 
     await expect(page.getByRole('button', { name: /^Import/ })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Trash' })).toHaveCount(0);
-    // Rendered but inert, matching the read-only-server behavior.
-    await expect(page.getByRole('button', { name: 'Add layer' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Add layer' })).toHaveCount(0);
   } finally {
     await server.dispose();
   }
