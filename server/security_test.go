@@ -25,9 +25,9 @@ func newSecurityTestEnv(t *testing.T, conf *SecurityConf) *apiTestEnv {
 				},
 			},
 		},
-		StorePath:        t.TempDir(),
-		CoverToJPG:       false,
-		Security:         conf,
+		StorePath:  t.TempDir(),
+		CoverToJPG: false,
+		Security:   conf,
 	})
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)

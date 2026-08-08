@@ -28,7 +28,32 @@ func TestValidateImportFileHeader(t *testing.T) {
 			contentType: "text/plain; charset=utf-8",
 		},
 		{
-			name:        "reject non txt extension",
+			name:        "reject unsupported extension",
+			filename:    "book.cbz",
+			contentType: "text/plain",
+			wantErr:     true,
+		},
+		{
+			name:        "epub with its own media type",
+			filename:    "book.epub",
+			contentType: "application/epub+zip",
+		},
+		{
+			name:        "epub sent as a generic zip",
+			filename:    "book.EPUB",
+			contentType: "application/zip",
+		},
+		{
+			name:        "epub sent as an opaque download",
+			filename:    "book.epub",
+			contentType: "application/octet-stream",
+		},
+		{
+			name:     "epub with no content type",
+			filename: "book.epub",
+		},
+		{
+			name:        "reject epub sent as text",
 			filename:    "book.epub",
 			contentType: "text/plain",
 			wantErr:     true,
@@ -113,6 +138,10 @@ func TestValidateLocalImportPath(t *testing.T) {
 	if err := os.WriteFile(validPath, []byte("hello"), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
+	epubPath := filepath.Join(tmpDir, "book.epub")
+	if err := os.WriteFile(epubPath, []byte("PK"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
 
 	tests := []struct {
 		name    string
@@ -121,8 +150,10 @@ func TestValidateLocalImportPath(t *testing.T) {
 	}{
 		{name: "valid txt file", input: validPath},
 		{name: "trimmed path", input: " " + validPath + " "},
+		{name: "valid epub file", input: epubPath},
 		{name: "reject empty", input: "", wantErr: true},
-		{name: "reject non txt extension", input: filepath.Join(tmpDir, "book.epub"), wantErr: true},
+		{name: "reject unsupported extension", input: filepath.Join(tmpDir, "book.cbz"), wantErr: true},
+		{name: "reject missing file", input: filepath.Join(tmpDir, "absent.epub"), wantErr: true},
 		{name: "reject directory", input: tmpDir, wantErr: true},
 	}
 

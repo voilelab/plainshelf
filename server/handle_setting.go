@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/voilelab/plainshelf/internal/epub"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -154,6 +155,98 @@ func (app *App) HandleSetSettingDefaultSplitConfig(w http.ResponseWriter, r *htt
 func (app *App) HandleDeleteSettingDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
 	if err := app.storeDB.DeleteSetting("default_split_config"); err != nil {
 		app.Error("DeleteSettingDefaultSplitConfig:", "err", err)
+		http.Error(w, "failed to delete setting", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// epubImportStrategy is the conversion strategy an import uses when the request
+// does not carry one of its own.
+//
+// Unlike default_split_config, which the reader applies client-side, this is
+// applied server-side during import - the same shape as cover_to_jpg. That
+// matters for the desktop client, which imports without opening the import
+// dialog and so has no other way to choose.
+func (app *App) epubImportStrategy() epub.Strategy {
+	bs, exists, err := app.storeDB.GetSetting("epub_import_strategy")
+	if err != nil {
+		app.Error("epubImportStrategy:", "err", err)
+	} else if exists {
+		var strategy epub.Strategy
+		if err := json.Unmarshal(bs, &strategy); err != nil {
+			app.Error("epubImportStrategy: invalid stored JSON", "err", err)
+		} else if err := strategy.Validate(); err != nil {
+			app.Error("epubImportStrategy: invalid stored strategy", "err", err)
+		} else {
+			return strategy
+		}
+	}
+
+	if app.conf.EPUBImportStrategy != nil {
+		if err := app.conf.EPUBImportStrategy.Validate(); err == nil {
+			return *app.conf.EPUBImportStrategy
+		}
+		app.Error("epubImportStrategy: invalid configured strategy", "preset", app.conf.EPUBImportStrategy.Preset)
+	}
+
+	return epub.DefaultStrategy()
+}
+
+// GET /api/setting/epub_import_strategy
+func (app *App) HandleGetSettingEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
+	strategy := app.epubImportStrategy()
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	json.NewEncoder(w).Encode(map[string]any{"value": strategy})
+}
+
+// POST /api/setting/epub_import_strategy
+func (app *App) HandleSetSettingEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
+	bs, err := io.ReadAll(r.Body)
+	if err != nil {
+		app.Error("read request body:", "err", err)
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	var strategy epub.Strategy
+	dec := json.NewDecoder(strings.NewReader(string(bs)))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&strategy); err != nil {
+		http.Error(w, fmt.Sprintf("invalid JSON: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	if err := strategy.Validate(); err != nil {
+		http.Error(w, fmt.Sprintf("unsupported epub import preset: %q", strategy.Preset), http.StatusBadRequest)
+		return
+	}
+
+	// Store the decoded value rather than the raw body so the persisted setting
+	// is always exactly the fields this build understands.
+	jsonBytes, err := json.Marshal(strategy)
+	if err != nil {
+		app.Error("marshal epub_import_strategy:", "err", err)
+		http.Error(w, "failed to serialize strategy", http.StatusInternalServerError)
+		return
+	}
+
+	if err := app.storeDB.SetSetting("epub_import_strategy", jsonBytes); err != nil {
+		app.Error("SetSettingEPUBImportStrategy:", "err", err)
+		http.Error(w, "failed to save setting", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DELETE /api/setting/epub_import_strategy
+func (app *App) HandleDeleteSettingEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
+	if err := app.storeDB.DeleteSetting("epub_import_strategy"); err != nil {
+		app.Error("DeleteSettingEPUBImportStrategy:", "err", err)
 		http.Error(w, "failed to delete setting", http.StatusInternalServerError)
 		return
 	}
