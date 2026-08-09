@@ -51,6 +51,14 @@ const BookMetaSchemaVersion = 1
 var ErrSourceNotFound = util.NewError("source not found")
 var ErrInvalidIdentifierKey = util.NewError("identifier key cannot be empty")
 
+// MinStar and MaxStar bound BookMeta.Star, inclusive.
+const (
+	MinStar = 0
+	MaxStar = 5
+)
+
+var ErrInvalidStar = util.NewError("star must be between 0 and 5")
+
 // ErrUnsupportedBookSchemaVersion is returned when a write is attempted against
 // a book.json whose on-disk schema_version is newer than this build supports.
 // It is book.json specific on purpose: sources/{id}/meta.json and trash.json
@@ -376,8 +384,8 @@ func (b *Book) setMeta(meta *BookMeta) error {
 		return util.Errorf("invalid language tag: %s", meta.Language)
 	}
 
-	if meta.Star < 0 || meta.Star > 5 {
-		return util.Errorf("invalid star rating: %d", meta.Star)
+	if meta.Star < MinStar || meta.Star > MaxStar {
+		return util.Errorf("%w: got %d", ErrInvalidStar, meta.Star)
 	}
 
 	for key := range meta.Identifiers {

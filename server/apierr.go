@@ -38,6 +38,10 @@ var apiErrorTable = []struct {
 		status:  http.StatusBadRequest,
 		message: "identifier key cannot be empty",
 	}},
+	{shelf.ErrInvalidStar, apiError{
+		status:  http.StatusBadRequest,
+		message: "star must be between 0 and 5",
+	}},
 	{shelf.ErrShelfInitializing, apiError{
 		status:     http.StatusServiceUnavailable,
 		message:    "shelf is initializing, please retry shortly",

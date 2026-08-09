@@ -1340,3 +1340,48 @@ func TestDeleteCoverRejectsFutureSchemaVersionBeforeRemoving(t *testing.T) {
 		t.Errorf("Cover contents changed after a refused delete, got %q", after)
 	}
 }
+
+// TestSetMetaRejectsStarOutOfRange verifies that the star bounds are enforced
+// here rather than by callers, and that the refusal is reported as a sentinel
+// so an API layer can map it to a status without matching on the message.
+func TestSetMetaRejectsStarOutOfRange(t *testing.T) {
+	tmpLib := path.Join(t.TempDir())
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	bookID := "test-book-star"
+	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, "Test Book")
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+
+	for _, star := range []int{MinStar - 1, MaxStar + 1} {
+		meta := book.GetMeta()
+		meta.Star = star
+
+		if err := book.SetMeta(meta); !errors.Is(err, ErrInvalidStar) {
+			t.Fatalf("star %d: err = %v, want ErrInvalidStar", star, err)
+		}
+
+		// The rejection happens before anything is written.
+		if got := book.GetMeta().Star; got == star {
+			t.Fatalf("star %d was persisted despite being rejected", star)
+		}
+	}
+
+	for _, star := range []int{MinStar, MaxStar} {
+		meta := book.GetMeta()
+		meta.Star = star
+
+		if err := book.SetMeta(meta); err != nil {
+			t.Fatalf("star %d: %v", star, err)
+		}
+		if got := book.GetMeta().Star; got != star {
+			t.Fatalf("star = %d, want %d", got, star)
+		}
+	}
+}
