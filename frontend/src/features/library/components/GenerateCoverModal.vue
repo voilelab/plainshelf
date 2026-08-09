@@ -99,7 +99,7 @@ import {
   type AcceptableValue
 } from 'reka-ui';
 import BaseDialog from '@/components/BaseDialog.vue';
-import { getBookshelfProvider } from '@/providers';
+import { bookshelfWriter } from '@/providers';
 
 const CANVAS_W = 400;
 const CANVAS_H = 600;
@@ -515,7 +515,7 @@ async function onSave(): Promise<void> {
       throw new Error('Failed to export cover image.');
     }
 
-    await getBookshelfProvider().uploadBookCoverBlob(props.bookId, blob);
+    await bookshelfWriter().uploadBookCoverBlob(props.bookId, blob);
     emit('saved');
     emit('close');
   } catch (err) {

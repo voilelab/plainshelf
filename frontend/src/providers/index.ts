@@ -61,6 +61,19 @@ export function getBookshelfProvider(): BookshelfProvider {
   return provider;
 }
 
+/**
+ * The active provider, for a caller that is about to mutate the shelf.
+ *
+ * Every shelf write goes through here rather than through
+ * getBookshelfProvider(), so "this call changes the library" is visible at the
+ * call site and there is one place to refuse it. Reads — including the
+ * device-local ones on mobile, such as saveReadProgress and the reading
+ * history — keep using getBookshelfProvider().
+ */
+export function bookshelfWriter(): BookshelfProvider {
+  return getBookshelfProvider();
+}
+
 export type { BookshelfProvider } from './bookshelfProvider';
 export { isMobileRuntime, isWailsRuntime } from './runtime';
 export type { CachedBookManifest, MobileBookCache } from './mobileBookCache';

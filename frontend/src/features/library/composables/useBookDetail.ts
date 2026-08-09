@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { getBookshelfProvider } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import type { Book, ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 
@@ -41,7 +41,7 @@ export function useBookDetail(bookID: () => string) {
     deleting.value = true;
     error.value = '';
     try {
-      await getBookshelfProvider().deleteBook(bookID());
+      await bookshelfWriter().deleteBook(bookID());
       return true;
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to delete book';

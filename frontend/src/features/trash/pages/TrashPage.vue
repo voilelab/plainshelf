@@ -115,7 +115,7 @@ import { computed, onMounted, ref } from 'vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
 import ProgressBar from '@/components/ProgressBar.vue';
-import { getBookshelfProvider } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { useBookStore } from '@/composables/useBookStore';
 import { useLayerStore } from '@/composables/useLayerStore';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
@@ -226,7 +226,7 @@ async function restore(id: string): Promise<void> {
   actionError.value = '';
   busyMap.value = { ...busyMap.value, [id]: true };
   try {
-    await getBookshelfProvider().restoreTrashedBook(id);
+    await bookshelfWriter().restoreTrashedBook(id);
     await Promise.all([loadTrash(), fetchBooks(), fetchLayers()]);
   } catch (err) {
     actionError.value = err instanceof Error ? err.message : t('trash.restoreFailed');
@@ -262,7 +262,7 @@ async function confirmPermanentDelete(): Promise<void> {
   busyMap.value = { ...busyMap.value, [book.id]: true };
   actionError.value = '';
   try {
-    await getBookshelfProvider().deleteTrashedBook(book.id);
+    await bookshelfWriter().deleteTrashedBook(book.id);
     pendingDeleteBook.value = null;
     await loadTrash();
   } catch (err) {
@@ -301,7 +301,7 @@ async function confirmEmptyTrash(): Promise<void> {
 
   // A sweep already in flight returns its own ID, so this attaches to the
   // existing progress instead of scheduling a second one.
-  await startEmptyTrash(() => getBookshelfProvider().emptyTrash());
+  await startEmptyTrash(() => bookshelfWriter().emptyTrash());
 }
 
 onMounted(() => {

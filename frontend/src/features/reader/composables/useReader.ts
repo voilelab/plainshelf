@@ -1,6 +1,6 @@
 import { computed, nextTick, ref } from 'vue';
 import { getDefaultSplitConfigSetting } from '@/api/settings';
-import { getBookshelfProvider } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { isLibraryEditingSupported } from '@/composables/useWriteAccess';
 import type { ReaderSection, ReadingProgress, SplitConfig } from '@/types/book';
 
@@ -355,7 +355,7 @@ export function useReader(bookID: () => string) {
     }
 
     const normalizedInput = normalizeSplitConfigInput(config);
-    await getBookshelfProvider().updateBookSplitConfig(bookID(), normalizedInput);
+    await bookshelfWriter().updateBookSplitConfig(bookID(), normalizedInput);
 
     splitConfig.value = normalizedInput;
     splitWarning.value = '';

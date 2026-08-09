@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue';
-import { getBookshelfProvider } from '@/providers';
+import { bookshelfWriter } from '@/providers';
 import { useBookStore } from '@/composables/useBookStore';
 import { useLayerStore } from '@/composables/useLayerStore';
 import { isBookBatchResult, isTerminalTaskStatus, type BookBatchOperation, type BookBatchResult, type TaskChain, type TaskStatus } from '@/types/task';
@@ -40,7 +40,7 @@ async function settle(): Promise<void> {
 
 async function poll(id: string): Promise<void> {
   try {
-    const next = await getBookshelfProvider().getTaskChain(id);
+    const next = await bookshelfWriter().getTaskChain(id);
     if (chain.value?.id !== id) return;
     chain.value = next;
     status.value = next.status;
@@ -69,7 +69,7 @@ async function start(operation: BookBatchOperation, bookIds: string[], titles: R
   lastResult.value = null;
 
   try {
-    const id = await getBookshelfProvider().startBookBatch({
+    const id = await bookshelfWriter().startBookBatch({
       operation,
       book_ids: [...new Set(bookIds)],
       ...(operation === 'move' ? { target_layer: targetLayer ?? [] } : {})

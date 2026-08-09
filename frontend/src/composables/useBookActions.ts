@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { getBookshelfProvider } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import type { Book } from '@/types/book';
 
 export interface UseBookActionsOptions {
@@ -110,7 +110,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     actionError.value = '';
 
     try {
-      await getBookshelfProvider().deleteBook(target.id);
+      await bookshelfWriter().deleteBook(target.id);
       deleting.value = false;
       deleteTarget.value = null;
       options.onDeleted?.(target);

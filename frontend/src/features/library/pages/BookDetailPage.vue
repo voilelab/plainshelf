@@ -82,7 +82,7 @@ import { useBookDetail } from '@/features/library/composables/useBookDetail';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useOfflineDownload } from '@/composables/useOfflineDownload';
 import { useWriteAccess } from '@/composables/useWriteAccess';
-import { getBookshelfProvider, isMobileRuntime } from '@/providers';
+import { bookshelfWriter, isMobileRuntime } from '@/providers';
 import { booksRouteForLayerPath, getLayerPath } from '@/utils/layers';
 import { useI18n } from '@/i18n';
 
@@ -169,7 +169,7 @@ async function onRefreshStats(): Promise<void> {
   refreshingStats.value = true;
   actionError.value = '';
   try {
-    await getBookshelfProvider().refreshSourceMeta(id.value, src.id);
+    await bookshelfWriter().refreshSourceMeta(id.value, src.id);
     await fetchDetail();
   } catch (err) {
     actionError.value = err instanceof Error ? err.message : 'Failed to update stats';

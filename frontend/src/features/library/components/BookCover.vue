@@ -71,7 +71,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { getBookshelfProvider } from '@/providers';
+import { bookshelfWriter } from '@/providers';
 import BookCoverImg from '@/components/BookCoverImg.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import GenerateCoverModal from './GenerateCoverModal.vue';
@@ -152,7 +152,7 @@ async function uploadCover(file: File): Promise<boolean> {
   dropConfirmError.value = '';
 
   try {
-    await getBookshelfProvider().uploadBookCover(props.bookId, file);
+    await bookshelfWriter().uploadBookCover(props.bookId, file);
     coverCacheKey.value = Date.now();
     emit('cover-changed');
     coverStatus.value = 'Cover updated.';
@@ -281,7 +281,7 @@ async function removeCover(): Promise<void> {
   coverError.value = false;
 
   try {
-    await getBookshelfProvider().deleteBookCover(props.bookId);
+    await bookshelfWriter().deleteBookCover(props.bookId);
     coverCacheKey.value = undefined;
     emit('cover-changed');
     coverStatus.value = 'Cover removed.';

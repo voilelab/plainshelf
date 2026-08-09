@@ -5,7 +5,7 @@ import { createLayer, deleteLayer, moveLayer, renameLayer } from '@/api/layers';
 import { useBookStore } from '@/composables/useBookStore';
 import { useLayerStore } from '@/composables/useLayerStore';
 import { useWriteAccess } from '@/composables/useWriteAccess';
-import { getBookshelfProvider } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import {
   booksRouteForLayerPath,
   buildLayerTreeNodes,
@@ -236,7 +236,7 @@ export function useLayerManagement() {
     }
 
     try {
-      await getBookshelfProvider().updateBookLayer(currentBook.id, payload.targetLayer);
+      await bookshelfWriter().updateBookLayer(currentBook.id, payload.targetLayer);
       await fetchBooks();
     } catch (err) {
       moveBookError.value = err instanceof Error ? err.message : t('layout.moveBookErrors.failed');

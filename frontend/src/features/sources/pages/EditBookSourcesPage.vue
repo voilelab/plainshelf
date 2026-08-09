@@ -101,7 +101,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import type { Book } from '@/types/book';
-import { getBookshelfProvider } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import SourceEditor from '@/features/sources/components/SourceEditor.vue';
 import SourceList from '@/features/sources/components/SourceList.vue';
 import type { SourceMeta } from '@/types/source';
@@ -260,7 +260,7 @@ async function onSave(): Promise<void> {
   saveSuccess.value = '';
 
   try {
-    await getBookshelfProvider().updateSourceContent(bookId.value, activeSourceId.value, content.value);
+    await bookshelfWriter().updateSourceContent(bookId.value, activeSourceId.value, content.value);
     initialContent.value = content.value;
     await reloadSourceMeta();
     saveSuccess.value = 'Source saved.';
@@ -282,7 +282,7 @@ async function onSetCurrentSource(): Promise<void> {
   saveSuccess.value = '';
 
   try {
-    await getBookshelfProvider().setCurrentSource(bookId.value, sourceId);
+    await bookshelfWriter().setCurrentSource(bookId.value, sourceId);
     if (book.value) {
       book.value.current_source = sourceId;
     }
@@ -317,7 +317,7 @@ async function doCreateSource(): Promise<void> {
   saveSuccess.value = '';
 
   try {
-    const newSource = await getBookshelfProvider().createSource(bookId.value);
+    const newSource = await bookshelfWriter().createSource(bookId.value);
     await reloadSourceMeta();
     await loadSource(newSource.id);
   } catch (err) {
@@ -353,7 +353,7 @@ async function confirmDelete(): Promise<void> {
   deleteError.value = '';
 
   try {
-    await getBookshelfProvider().deleteSource(bookId.value, sourceId);
+    await bookshelfWriter().deleteSource(bookId.value, sourceId);
 
     await reloadSourceMeta();
 
