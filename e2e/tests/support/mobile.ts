@@ -14,6 +14,9 @@ export const MOBILE_PREVIEW_QUERY = 'mobile-shell-preview=1';
 declare global {
   interface Window {
     __plainshelfTestHooks?: {
+      // Refuses and throws when the active provider cannot write; the mobile
+      // shell's provider never can.
+      bookshelfWriter: () => unknown;
       provider: {
         listBooks: (
           page?: number,

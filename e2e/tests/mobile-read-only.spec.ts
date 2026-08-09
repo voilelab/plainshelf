@@ -175,24 +175,30 @@ test('rejects a write from the mobile client but still records reading on the de
     // below can read an undefined hook and pass vacuously.
     await page.waitForFunction(() => Boolean(window.__plainshelfTestHooks));
 
-    // A metadata PATCH must be refused on the device, before any request goes
-    // out — every provider write funnels through api/client.ts.
-    const writeResult = await page.evaluate(async (id) => {
+    // The shelf write surface is absent on this provider, not merely refused:
+    // asserting on a thrown message alone would now pass on a TypeError from
+    // calling a method that does not exist, which proves nothing.
+    const updateBookType = await page.evaluate(
+      () =>
+        typeof (window.__plainshelfTestHooks?.provider as unknown as { updateBook?: unknown })
+          ?.updateBook
+    );
+    expect(updateBookType).toBe('undefined');
+
+    // And asking for a writer is refused rather than handed one out. api/client.ts
+    // still rejects any mutating request that reaches it; this is the layer above.
+    const writeResult = await page.evaluate(() => {
       const hooks = window.__plainshelfTestHooks;
       if (!hooks) {
         return 'no-hook';
       }
       try {
-        await (
-          hooks.provider as unknown as {
-            updateBook: (bookId: string, payload: unknown) => Promise<unknown>;
-          }
-        ).updateBook(id, { title: 'Should Not Persist' });
+        hooks.bookshelfWriter();
         return 'resolved';
       } catch (err) {
         return err instanceof Error ? err.message : String(err);
       }
-    }, bookId);
+    });
     expect(writeResult).toContain('read-only');
 
     // Opening the reader records read history and reading time on the device
