@@ -215,9 +215,8 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 	app.writeJSON(w, http.StatusOK, Book{Meta: &meta, Layer: book.Layers()})
 }
 
-// targetLayers reports the layer the request asks the book to move to, or nil
-// when it asks for no move. "layer" is the current field; "layers" is still
-// accepted because older clients send that name.
+// "layer" is the current field name; "layers" is still accepted because older
+// clients send that one.
 func (req *UpdateBookRequest) targetLayers() *shelf.Layers {
 	if req.Layer != nil {
 		return req.Layer
@@ -225,12 +224,8 @@ func (req *UpdateBookRequest) targetLayers() *shelf.Layers {
 	return req.Layers
 }
 
-// applyBookPatch copies the fields the request actually set onto meta and
-// stamps the update time. Fields left nil are untouched, which is what makes
-// the route a PATCH rather than a replace.
-//
-// It validates nothing: the field rules belong to shelf, which enforces them in
-// SetMeta before anything reaches disk.
+// applyBookPatch validates nothing: the field rules belong to shelf, which
+// enforces them in SetMeta before anything reaches disk.
 func applyBookPatch(meta *shelf.BookMeta, req *UpdateBookRequest) {
 	if req.Title != nil {
 		meta.Title = *req.Title

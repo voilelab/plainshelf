@@ -7,15 +7,8 @@ import (
 	"testing"
 )
 
-// The shelf lookup preamble used to be copied into every handler, and the
-// copies disagreed on how to word the same failure. These tests pin the wording
-// and the JSON envelope so a future edit to the shared helpers cannot silently
-// reintroduce the drift.
-
-// resolveShelf's 400 branch is not reachable through the mux: a request whose
-// shelf_id segment is empty does not match the route, and one with a malformed
-// escape is rejected before routing. It is exercised directly so the wording
-// stays pinned regardless.
+// resolveShelf's 400 branch is not reachable through the mux, so it is
+// exercised directly.
 func TestResolveShelfRejectsMissingShelfID(t *testing.T) {
 	env := newAPITestEnv(t)
 
@@ -36,8 +29,6 @@ func TestResolveShelfRejectsMissingShelfID(t *testing.T) {
 func TestResolveShelfRejectsUnknownShelfConsistently(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	// One route per handler file that resolves a shelf, so a helper regression
-	// shows up as more than a single failing route.
 	paths := []string{
 		"/api/shelves/missing_shelf/books",
 		"/api/shelves/missing_shelf/status",
@@ -61,8 +52,6 @@ func TestResolveShelfRejectsUnknownShelfConsistently(t *testing.T) {
 func TestJSONResponsesShareOneContentType(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	// /api/mode and /api/version used to omit the charset parameter that every
-	// other JSON route sent.
 	paths := []string{
 		"/api/mode",
 		"/api/version",
@@ -85,8 +74,7 @@ func TestJSONResponsesShareOneContentType(t *testing.T) {
 func TestWriteJSONTerminatesBodyWithNewline(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	// json.Encoder.Encode appended a newline, so the shared writer must too:
-	// clients that read the body line-wise would otherwise block.
+	// A client reading the body line-wise would block without the newline.
 	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/version", nil))
 
 	assertStatus(t, rec, http.StatusOK)

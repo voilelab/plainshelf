@@ -38,10 +38,6 @@ func isEPUBInputError(err error) bool {
 // parseImportStrategy reads the optional per-import strategy field. An absent or
 // empty field means "use fallback", which is how a client that knows nothing
 // about strategies keeps working.
-//
-// Like validateImportFileHeader it returns the client message separately from
-// the error, so the rejection can be logged with its cause without that cause
-// reaching the response.
 func parseImportStrategy(raw string, fallback epub.Strategy) (epub.Strategy, string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -56,8 +52,6 @@ func parseImportStrategy(raw string, fallback epub.Strategy) (epub.Strategy, str
 		return epub.Strategy{}, "invalid strategy field", util.Errorf("%w", err)
 	}
 	if err := strategy.Validate(); err != nil {
-		// Name the preset the client sent rather than repeating what epub said
-		// about it, matching how the setting route words the same rejection.
 		return epub.Strategy{}, fmt.Sprintf("unsupported epub import preset: %q", strategy.Preset),
 			util.Errorf("%w", err)
 	}

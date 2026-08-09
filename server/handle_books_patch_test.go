@@ -8,9 +8,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// A PATCH must leave out what the request left out, which is the whole reason
-// UpdateBookRequest uses pointers. An empty request may touch nothing but the
-// update timestamp.
 func TestApplyBookPatchLeavesOmittedFieldsAlone(t *testing.T) {
 	before := shelf.BookMeta{
 		ID:       "book_1",
@@ -86,8 +83,7 @@ func TestApplyBookPatchCopiesSliceFields(t *testing.T) {
 	}
 }
 
-// Field rules belong to shelf, so applyBookPatch copies an out-of-range star
-// through unchecked and lets SetMeta reject it.
+// Field rules belong to shelf, so an out-of-range star is copied through.
 func TestApplyBookPatchDoesNotValidate(t *testing.T) {
 	meta := shelf.BookMeta{Star: 3}
 	applyBookPatch(&meta, &UpdateBookRequest{Star: new(99)})

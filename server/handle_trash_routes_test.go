@@ -7,9 +7,8 @@ import (
 	"testing"
 )
 
-// DELETE /books/{id} and POST /books/{id}/trash are served by one handler
-// because deleting a book is trashing it. These pin that the two routes stay
-// interchangeable, so pointing one of them somewhere else cannot pass silently.
+// DELETE /books/{id} and POST /books/{id}/trash share one handler; these pin
+// that they stay interchangeable.
 
 func TestDeleteAndTrashRoutesBothTrashTheBook(t *testing.T) {
 	routes := map[string]func(bookID string) *http.Request{
@@ -31,14 +30,12 @@ func TestDeleteAndTrashRoutesBothTrashTheBook(t *testing.T) {
 
 			assertStatus(t, env.do(build(bookID)), http.StatusNoContent)
 
-			// Gone from the shelf...
 			assertStatus(t,
 				env.do(httptest.NewRequest(http.MethodGet,
 					"/api/shelves/default_shelf/books/"+bookID, nil)),
 				http.StatusNotFound)
 
-			// ...and recoverable from the trash, which is what makes both
-			// routes a trash operation rather than a delete.
+			// Recoverable, which is what makes both routes a trash operation.
 			trashRec := env.do(httptest.NewRequest(http.MethodGet,
 				"/api/shelves/default_shelf/trash/books", nil))
 			assertStatus(t, trashRec, http.StatusOK)
