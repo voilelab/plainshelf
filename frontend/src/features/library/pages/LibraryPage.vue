@@ -235,7 +235,7 @@ import { filterBooksBySearch } from '@/utils/bookSearch';
 import { hasFileTransfer, readDroppedFiles } from '@/utils/file';
 import { getLayerPath, layerPathEquals, normalizeLayerPath } from '@/utils/layers';
 import { useI18n } from '@/i18n';
-import { getBookshelfProvider } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { isMobileRuntime } from '@/providers/runtime';
 import type { BookActivation } from '@/types/bookSelection';
 import '@/styles/toolbar-controls.css';
@@ -635,7 +635,10 @@ async function openImportFromFiles(): Promise<void> {
     }
 
     try {
-      const importResult = await getBookshelfProvider().importBooksFromLocalPaths?.(desktopFiles, selectedLayer.value ?? '') ?? null;
+      // A write like any other import: it creates books in the active shelf,
+      // it just takes host paths from the desktop picker instead of an upload.
+      // openLocalBookFiles above only opens a dialog, so it stays a read.
+      const importResult = await bookshelfWriter().importBooksFromLocalPaths?.(desktopFiles, selectedLayer.value ?? '') ?? null;
       if (importResult) {
         const hasImportedBook = importResult.some((item) => item.id !== undefined && item.id !== '');
         const hasFailedBook = importResult.some((item) => Boolean(item.error));
