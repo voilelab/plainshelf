@@ -330,11 +330,10 @@ func (app *App) rejectReadOnlyWrite(w http.ResponseWriter, r *http.Request) bool
 		return false
 	}
 
-	switch r.Method {
-	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
-		http.Error(w, "server is in read-only mode", http.StatusForbidden)
-		return true
-	default:
+	if !isMutatingMethod(r.Method) {
 		return false
 	}
+
+	http.Error(w, "server is in read-only mode", http.StatusForbidden)
+	return true
 }
