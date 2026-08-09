@@ -15,6 +15,15 @@ import (
 
 const maxCoverBodySize = 20 << 20 // 20 MB
 
+const (
+	minBookStar = 0
+	maxBookStar = 5
+)
+
+// errStarOutOfRange is a request validation failure, so its text is written to
+// the client verbatim.
+var errStarOutOfRange = errors.New("star must be between 0 and 5")
+
 func isRequestBodyTooLarge(err error) bool {
 	var maxBytesErr *http.MaxBytesError
 	return errors.As(err, &maxBytesErr)
@@ -196,12 +205,8 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetLayers := req.Layer
-	if targetLayers == nil {
-		targetLayers = req.Layers
-	}
-	if targetLayers != nil {
-		movedBook, err := shelfData.MoveBook(bookID, append(shelf.Layers(nil), (*targetLayers)...))
+	if target := req.targetLayers(); target != nil {
+		movedBook, err := shelfData.MoveBook(bookID, append(shelf.Layers(nil), (*target)...))
 		if err != nil {
 			http.Error(w, "failed to move book layer", http.StatusInternalServerError)
 			return
@@ -210,6 +215,38 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	meta := *book.GetMeta()
+	if err := applyBookPatch(&meta, &req); err != nil {
+		// applyBookPatch only reports field validation failures, whose text is
+		// written for the client rather than the log.
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := book.SetMeta(&meta); err != nil {
+		app.writeErr(w, err, "failed to update book metadata")
+		return
+	}
+
+	app.writeJSON(w, http.StatusOK, Book{Meta: &meta, Layer: book.Layers()})
+}
+
+// targetLayers reports the layer the request asks the book to move to, or nil
+// when it asks for no move. "layer" is the current field; "layers" is still
+// accepted because older clients send that name.
+func (req *UpdateBookRequest) targetLayers() *shelf.Layers {
+	if req.Layer != nil {
+		return req.Layer
+	}
+	return req.Layers
+}
+
+// applyBookPatch copies the fields the request actually set onto meta and
+// stamps the update time. Fields left nil are untouched, which is what makes
+// the route a PATCH rather than a replace.
+//
+// It is called after the layer move so that a rejected field leaves the same
+// state the hand-written version did; nothing here writes to disk.
+func applyBookPatch(meta *shelf.BookMeta, req *UpdateBookRequest) error {
 	if req.Title != nil {
 		meta.Title = *req.Title
 	}
@@ -232,20 +269,14 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 		meta.PublishedAt = *req.PublishedAt
 	}
 	if req.Star != nil {
-		if *req.Star < 0 || *req.Star > 5 {
-			http.Error(w, "star must be between 0 and 5", http.StatusBadRequest)
-			return
+		if *req.Star < minBookStar || *req.Star > maxBookStar {
+			return errStarOutOfRange
 		}
 		meta.Star = *req.Star
 	}
+
 	meta.UpdatedAt = util.JSONTime(time.Now())
-
-	if err := book.SetMeta(&meta); err != nil {
-		app.writeErr(w, err, "failed to update book metadata")
-		return
-	}
-
-	app.writeJSON(w, http.StatusOK, Book{Meta: &meta, Layer: book.Layers()})
+	return nil
 }
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/cover
