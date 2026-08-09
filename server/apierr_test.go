@@ -12,9 +12,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// These pin the status, message, and Retry-After of every error the API maps,
-// because those values were previously spread over one shared helper and
-// several per-handler chains that had already drifted apart.
 func TestAPIErrorForKnownSentinels(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -90,8 +87,7 @@ func TestAPIErrorForKnownSentinels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Wrapped, because handlers never see a bare sentinel: the shelf
-			// package returns it through util.Errorf.
+			// Handlers never see a bare sentinel.
 			wrapped := util.Errorf("%w", tt.err)
 
 			resp, ok := apiErrorFor(wrapped)

@@ -8,18 +8,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// This file holds the single mapping from a domain error to its HTTP response.
-//
-// It replaces the previous arrangement, where one helper knew four shelf
-// sentinels and every other sentinel was matched by a hand-written errors.Is
-// chain inside whichever handler happened to need it. Those chains disagreed:
-// a shelf that was still initializing produced 503 on the book routes and 500
-// on the source routes, purely because one chain had been copied without the
-// shelf check. Keeping the mapping in one ordered table makes that class of
-// drift impossible, and it removes the ordering hazard that came with checking
-// a specific sentinel before a general one in each caller.
-
-// apiError is the HTTP response a known domain error maps to.
 type apiError struct {
 	status  int
 	message string
@@ -83,11 +71,9 @@ var apiErrorTable = []struct {
 	}},
 }
 
-// apiErrorFor reports the response a known domain error maps to.
-//
-// taskutil.ErrTaskChainRunning is deliberately absent: it answers with a JSON
-// body carrying the running chain's ID, which this table cannot express, so
-// the task handlers match it themselves before calling writeErr.
+// taskutil.ErrTaskChainRunning is deliberately absent from the table: it
+// answers with a JSON body carrying the running chain's ID, so the task
+// handlers match it themselves.
 func apiErrorFor(err error) (apiError, bool) {
 	for _, entry := range apiErrorTable {
 		if errors.Is(err, entry.sentinel) {
@@ -98,20 +84,15 @@ func apiErrorFor(err error) (apiError, bool) {
 	return apiError{}, false
 }
 
-// writeErr writes the response a known domain error maps to. An error the table
-// does not know is logged with fallback as the message and answered with 500,
-// so an unexpected failure never leaks its detail to the client.
+// writeErr answers a known error from the table, and anything else with 500
+// and fallback, so an unexpected failure never leaks its detail to the client.
 func (app *App) writeErr(w http.ResponseWriter, err error, fallback string) {
 	app.writeErrStatus(w, err, fallback, http.StatusInternalServerError)
 }
 
-// writeErrStatus is writeErr with a caller-chosen status for errors the table
-// does not know.
-//
-// The layer routes need it: they answer a whole family of outcomes the table
-// cannot yet name -- a missing layer, an occupied destination -- with one
-// status, and answering those 500 instead would be a regression. They pass the
-// status they already used so only the errors the table does know change.
+// writeErrStatus is writeErr with a caller-chosen status for unknown errors.
+// The layer routes answer a family of outcomes the table cannot yet name with
+// a single status, and 500 would be wrong for those.
 func (app *App) writeErrStatus(w http.ResponseWriter, err error, fallback string, fallbackStatus int) {
 	if resp, ok := apiErrorFor(err); ok {
 		if resp.retryAfter != "" {

@@ -9,10 +9,8 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// NewApp opens the Badger store partway through startup, and Badger holds a
-// lock on that directory until the handle is closed. A startup that fails after
-// that point must still release it, or the failure becomes permanent: every
-// later attempt to open the same store is refused by the lock left behind.
+// Badger locks the store directory until the handle is closed, so a startup
+// that fails after opening it must still release the lock.
 func TestNewAppReleasesStoreWhenLaterStepFails(t *testing.T) {
 	storePath := filepath.Join(t.TempDir(), "store")
 
@@ -37,7 +35,6 @@ func TestNewAppReleasesStoreWhenLaterStepFails(t *testing.T) {
 		t.Fatal("NewApp succeeded, want failure from the invalid worker log level")
 	}
 
-	// The real assertion: the store must be openable again.
 	reopened, err := store.New(storePath)
 	if err != nil {
 		t.Fatalf("store still locked after failed startup: %v", err)

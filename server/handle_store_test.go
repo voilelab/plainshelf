@@ -10,9 +10,7 @@ import (
 )
 
 // Reading and writing a bookmark are the same route pair, so they agree on
-// whether the shelf has to exist. The read used to skip the check and answer
-// an unknown shelf with an empty bookmark, which reads as "this book has never
-// been opened" rather than "there is no such shelf".
+// whether the shelf has to exist.
 func TestMarksRoutesAgreeOnUnknownShelf(t *testing.T) {
 	env := newAPITestEnv(t)
 	book := importTextBook(t, env, "Marked", "", "marked.txt", "body")

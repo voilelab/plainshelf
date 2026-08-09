@@ -7,10 +7,9 @@ import (
 )
 
 // Two gates decide whether a request is a write: the token requirement in
-// security.go and the read-only rejection in Handler. They used to carry
-// separate copies of the method list. These tests enumerate the methods
-// against both gates, so a copy reintroduced in one of them shows up as a
-// disagreement rather than as silently weaker protection.
+// security.go and the read-only rejection in Handler. Enumerating the methods
+// against both makes a reintroduced copy show up as a disagreement rather than
+// as silently weaker protection.
 
 var mutatingMethods = []string{
 	http.MethodPost,

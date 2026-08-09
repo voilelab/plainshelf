@@ -7,16 +7,13 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// The stored-value path is what readJSONSetting exists for, and a break in it
-// is invisible from the outside: every getter falls back to a usable default,
-// so a getter that ignores the store entirely still answers plausibly. These
-// assert with values that differ from the fallback.
+// Every getter falls back to a usable default, so a getter that ignored the
+// store entirely would still answer plausibly. These assert with values that
+// differ from the fallback.
 
 func TestStoredJSONSettingsAreReturned(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	// "plain" is valid and is not the built-in default, so returning it can
-	// only mean the stored value was read.
 	if got := env.app.epubImportStrategy().Preset; got != epub.PresetMarkdown {
 		t.Fatalf("default preset = %q, want %q", got, epub.PresetMarkdown)
 	}

@@ -13,20 +13,14 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// Each setting is read, written, and deleted by three separate handlers, so
-// the key is declared once rather than spelled out at each of them.
 const (
 	settingKeyCoverToJPG         = "cover_to_jpg"
 	settingKeyDefaultSplitConfig = "default_split_config"
 	settingKeyEPUBImportStrategy = "epub_import_strategy"
 )
 
-// readJSONSetting returns the stored value for key when there is one this build
-// can still use.
-//
-// A stored value that no longer parses, or that fails validate, is logged and
-// reported as absent so the caller falls back to the config file or the
-// built-in default. That keeps one bad row from wedging a setting.
+// readJSONSetting reports a stored value as absent when it no longer parses or
+// validates, so one bad row cannot wedge a setting.
 func readJSONSetting[T any](app *App, key string, validate func(T) error) (T, bool) {
 	var value T
 
@@ -53,19 +47,12 @@ func readJSONSetting[T any](app *App, key string, validate func(T) error) (T, bo
 	return value, true
 }
 
-// A settingValidator reports whether a decoded setting value is acceptable.
-//
-// It returns two things because they have different audiences: the message is
-// written to the client, so it must carry no internal detail, while the error
-// is only logged and is built with util.Errorf, which prefixes it with the
-// function that produced it. Returning one value and showing it to both would
-// mean either leaking that prefix or giving up the context.
+// A settingValidator returns the message shown to the client separately from
+// the error, which is logged and carries util.Errorf's function prefix.
 type settingValidator[T any] func(T) (message string, err error)
 
-// setJSONSetting decodes a JSON setting body, validates it, and stores it.
-//
-// The decoded value is stored rather than the raw body, so what is persisted
-// is always exactly the fields this build understands.
+// setJSONSetting stores the decoded value rather than the raw body, so what is
+// persisted is always exactly the fields this build understands.
 func setJSONSetting[T any](app *App, w http.ResponseWriter, r *http.Request, key string, validate settingValidator[T]) {
 	bs, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -105,8 +92,6 @@ func setJSONSetting[T any](app *App, w http.ResponseWriter, r *http.Request, key
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// deleteSetting drops a stored setting, which returns the API to whatever the
-// config file or the built-in default supplies.
 func (app *App) deleteSetting(w http.ResponseWriter, key string) {
 	if err := app.storeDB.DeleteSetting(key); err != nil {
 		app.Error("failed to delete setting", "key", key, "err", err)
@@ -167,8 +152,6 @@ func (app *App) HandleDeleteSettingCoverToJPG(w http.ResponseWriter, r *http.Req
 	app.deleteSetting(w, settingKeyCoverToJPG)
 }
 
-// validateDefaultSplitConfig rejects the split types that make no sense as a
-// global default, and the malformed parameters of the ones that do.
 func validateDefaultSplitConfig(cfg shelf.SplitConfig) (string, error) {
 	switch cfg.Type {
 	case shelf.SplitTypeNone:
@@ -217,9 +200,8 @@ func (app *App) HandleDeleteSettingDefaultSplitConfig(w http.ResponseWriter, r *
 	app.deleteSetting(w, settingKeyDefaultSplitConfig)
 }
 
-// validateEPUBImportStrategy tells the client which preset it named rather than
-// what epub said about it, which is what the route answered before and keeps
-// internal wording out of the response. The underlying error is still logged.
+// validateEPUBImportStrategy names the preset the client sent rather than
+// repeating epub's own wording.
 func validateEPUBImportStrategy(strategy epub.Strategy) (string, error) {
 	if err := strategy.Validate(); err != nil {
 		return fmt.Sprintf("unsupported epub import preset: %q", strategy.Preset), util.Errorf("%w", err)

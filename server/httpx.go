@@ -10,21 +10,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// This file holds the small HTTP plumbing helpers shared by every handler.
-// They exist so the shelf/book lookup preamble and the JSON response tail are
-// written once instead of being copied into each route, which is how the
-// error mapping drifted apart between routes in the first place.
-//
-// The lookup helpers write the error response themselves and report whether
-// the caller may continue, so a handler reads as a sequence of guard clauses:
-//
-//	shelfData, ok := app.resolveShelf(w, r)
-//	if !ok {
-//		return
-//	}
-
-// resolveShelf reads shelf_id from the request and looks the shelf up.
-// It writes 400 for an unusable shelf_id and 404 for an unknown shelf.
 func (app *App) resolveShelf(w http.ResponseWriter, r *http.Request) (*shelf.ShelfData, bool) {
 	shelfID, err := readShelfID(r)
 	if err != nil {
@@ -41,9 +26,6 @@ func (app *App) resolveShelf(w http.ResponseWriter, r *http.Request) (*shelf.She
 	return shelfData, true
 }
 
-// resolveBookID reads book_id from the request, writing 400 when it is missing
-// or malformed. It is separate from getBook because several handlers must
-// decode the request body between reading the ID and touching the shelf.
 func resolveBookID(w http.ResponseWriter, r *http.Request) (string, bool) {
 	bookID, err := readBookID(r)
 	if err != nil {
@@ -54,8 +36,6 @@ func resolveBookID(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return bookID, true
 }
 
-// resolveSourceID reads source_id from the request, writing 400 when it is
-// missing or malformed.
 func resolveSourceID(w http.ResponseWriter, r *http.Request) (string, bool) {
 	sourceID, err := readSourceID(r)
 	if err != nil {
@@ -66,7 +46,6 @@ func resolveSourceID(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return sourceID, true
 }
 
-// getBook loads a book, mapping the domain errors through writeErr.
 func (app *App) getBook(w http.ResponseWriter, shelfData *shelf.ShelfData, bookID string) (*shelf.Book, bool) {
 	book, err := shelfData.GetBook(bookID)
 	if err != nil {
@@ -77,8 +56,6 @@ func (app *App) getBook(w http.ResponseWriter, shelfData *shelf.ShelfData, bookI
 	return book, true
 }
 
-// getSource loads a source of a book, mapping the domain errors through
-// writeErr.
 func (app *App) getSource(w http.ResponseWriter, book *shelf.Book, sourceID string) (*shelf.Source, bool) {
 	source, err := book.GetSource(sourceID)
 	if err != nil {
@@ -89,9 +66,6 @@ func (app *App) getSource(w http.ResponseWriter, book *shelf.Book, sourceID stri
 	return source, true
 }
 
-// loadBookSource resolves the shelf, book, and source for the source routes.
-// source_id is validated before the book is loaded, matching the order the
-// hand-written handlers used.
 func (app *App) loadBookSource(w http.ResponseWriter, r *http.Request) (*shelf.Book, *shelf.Source, bool) {
 	shelfData, ok := app.resolveShelf(w, r)
 	if !ok {
@@ -121,8 +95,6 @@ func (app *App) loadBookSource(w http.ResponseWriter, r *http.Request) (*shelf.B
 	return book, source, true
 }
 
-// loadBook resolves the shelf, reads book_id, and loads the book. Handlers that
-// need to do work between those steps should call the three helpers directly.
 func (app *App) loadBook(w http.ResponseWriter, r *http.Request) (*shelf.ShelfData, *shelf.Book, bool) {
 	shelfData, ok := app.resolveShelf(w, r)
 	if !ok {
@@ -142,9 +114,6 @@ func (app *App) loadBook(w http.ResponseWriter, r *http.Request) (*shelf.ShelfDa
 	return shelfData, book, true
 }
 
-// decodeStrictJSON decodes exactly one JSON value from the request body into v,
-// rejecting unknown fields and any trailing content. It writes 400 and reports
-// false when the body is not acceptable.
 func decodeStrictJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
@@ -164,10 +133,8 @@ func decodeStrictJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 
 // streamTextFile writes an open file as the plain-text response body.
 //
-// A zero-length file gets an explicit 200 rather than being handed to io.Copy:
-// a copy that writes nothing never commits the response, so the status has to
-// be written here instead. logArgs are appended to the failure log entry for
-// callers that can name the file they were serving.
+// A zero-length file needs the explicit 200: a copy that writes nothing never
+// commits the response.
 func (app *App) streamTextFile(w http.ResponseWriter, file fs.File, failureMsg string, logArgs ...any) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 
@@ -185,9 +152,8 @@ func (app *App) streamTextFile(w http.ResponseWriter, file fs.File, failureMsg s
 // writeJSON encodes v as the response body with the given status.
 //
 // The value is marshalled before any header is written so an encoding failure
-// can still be reported as 500. Once the body is on the wire a write failure
-// can only be logged: the status line is already gone, so the http.Error call
-// that the hand-written copies of this code performed never took effect.
+// can still be reported as 500; once the body is on the wire a write failure
+// can only be logged.
 func (app *App) writeJSON(w http.ResponseWriter, status int, v any) {
 	bs, err := json.Marshal(v)
 	if err != nil {
@@ -196,8 +162,7 @@ func (app *App) writeJSON(w http.ResponseWriter, status int, v any) {
 		return
 	}
 
-	// json.Encoder.Encode terminates each value with a newline; keep the bytes
-	// on the wire identical to what the previous per-handler encoders produced.
+	// json.Encoder.Encode terminates each value with a newline.
 	bs = append(bs, '\n')
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

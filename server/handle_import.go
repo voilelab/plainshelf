@@ -70,11 +70,8 @@ func bookFormatFromFilename(filename string) string {
 	return "txt"
 }
 
-// validateImportFileHeader reports why an upload cannot be imported.
-//
-// The message is written to the client, so it carries no internal detail. The
-// error is logged, and is built with util.Errorf, which prefixes it with this
-// function -- wanted in a log line, not in a response.
+// validateImportFileHeader returns the message shown to the client separately
+// from the error, which is logged and carries util.Errorf's function prefix.
 func validateImportFileHeader(header *multipart.FileHeader) (string, error) {
 	reject := func(message string) (string, error) {
 		return message, util.Errorf("%s", message)
@@ -259,12 +256,8 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	writeImportedBook(w, app, newBook)
 }
 
-// writeEPUBImportError answers a failed EPUB import.
-//
-// A bad archive is reported with its detail, because the client is the only
-// one who can act on it. Everything else goes through the shared mapping: an
-// import creates a book, so it can fail for the same reasons any other write
-// does, a layer the shelf refuses among them.
+// writeEPUBImportError reports a bad archive with its detail, because the
+// client is the only one who can act on it, and maps everything else.
 func (app *App) writeEPUBImportError(w http.ResponseWriter, err error) {
 	if isEPUBInputError(err) {
 		app.Error("failed to import epub", "error", err)

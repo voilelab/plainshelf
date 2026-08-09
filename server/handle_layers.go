@@ -76,9 +76,6 @@ func (app *App) HandleAPIRenameLayer(w http.ResponseWriter, r *http.Request) {
 
 	newLayer := append(shelf.Layers(nil), layerParts[:len(layerParts)-1]...)
 	newLayer = append(newLayer, newName)
-	// A rename fails for a family of reasons the error table cannot yet name --
-	// a missing layer, an occupied destination -- which this route has always
-	// answered as a conflict. Only the errors the table knows change status.
 	if err := shelfData.RenameLayer(layerParts, newLayer); err != nil {
 		app.writeErrStatus(w, err, "failed to rename layer", http.StatusConflict)
 		return

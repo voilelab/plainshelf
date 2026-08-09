@@ -15,9 +15,6 @@ func layerRequest(t *testing.T, env *apiTestEnv, method, path, body string) *htt
 	return env.do(httptest.NewRequest(method, path, strings.NewReader(body)))
 }
 
-// A layer name the shelf refuses is a request error. These routes used to
-// report it as a conflict or as a server failure, because shelf returned it
-// without a sentinel to match on.
 func TestInvalidLayerNameIsARequestError(t *testing.T) {
 	env := newAPITestEnv(t)
 	book := importTextBook(t, env, "Layer Book", "keep", "layer.txt", "body")
@@ -66,9 +63,8 @@ func TestInvalidLayerNameIsARequestError(t *testing.T) {
 	}
 }
 
-// The layer routes answer a family of outcomes the error table cannot name --
-// a missing layer, an occupied destination -- as a conflict. Routing them
-// through the table must not turn those into 500s.
+// The layer routes answer outcomes the error table cannot name as a conflict.
+// Routing them through the table must not turn those into 500s.
 func TestLayerConflictsStillAnswerConflict(t *testing.T) {
 	env := newAPITestEnv(t)
 
