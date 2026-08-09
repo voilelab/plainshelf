@@ -18,10 +18,6 @@ func (app *App) HandleAPIGetMarks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A book with no bookmark reads back as the zero value rather than 404,
-	// which is what lets a reader open a book it has never opened before. An
-	// unknown shelf is a different thing, and resolveShelf has already
-	// rejected it.
 	mark, err := app.storeDB.GetBookmark(shelfData.ID, bookID)
 	if err != nil {
 		app.Error("failed to get marks", "error", err)
