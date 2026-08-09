@@ -8,11 +8,8 @@ import (
 
 // GET /api/shelves/{shelf_id}/marks/{book_id}
 func (app *App) HandleAPIGetMarks(w http.ResponseWriter, r *http.Request) {
-	// Unlike the update route this one intentionally does not require the shelf
-	// to exist: an unknown shelf reads back as an empty bookmark.
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
+	shelfData, ok := app.resolveShelf(w, r)
+	if !ok {
 		return
 	}
 
@@ -21,7 +18,11 @@ func (app *App) HandleAPIGetMarks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mark, err := app.storeDB.GetBookmark(shelfID, bookID)
+	// A book with no bookmark reads back as the zero value rather than 404,
+	// which is what lets a reader open a book it has never opened before. An
+	// unknown shelf is a different thing, and resolveShelf has already
+	// rejected it.
+	mark, err := app.storeDB.GetBookmark(shelfData.ID, bookID)
 	if err != nil {
 		app.Error("failed to get marks", "error", err)
 		http.Error(w, "failed to get marks", http.StatusInternalServerError)
