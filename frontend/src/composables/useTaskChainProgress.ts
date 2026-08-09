@@ -1,6 +1,6 @@
 import { computed, onScopeDispose, ref } from 'vue';
 
-import { getBookshelfProvider } from '@/providers';
+import { bookshelfWriter } from '@/providers';
 import { isTerminalTaskStatus, type TaskChain, type TaskStatus } from '@/types/task';
 
 export const DEFAULT_TASK_CHAIN_POLL_INTERVAL_MS = 500;
@@ -74,7 +74,7 @@ export function useTaskChainProgress(options: UseTaskChainProgressOptions = {}) 
     }
 
     try {
-      const nextChain = await getBookshelfProvider().getTaskChain(polling);
+      const nextChain = await bookshelfWriter().getTaskChain(polling);
       // A reset or a new chain during the request makes this response stale.
       if (taskChainId.value !== polling) {
         return;

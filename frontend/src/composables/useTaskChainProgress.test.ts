@@ -7,8 +7,13 @@ const { getTaskChainMock } = vi.hoisted(() => ({
   getTaskChainMock: vi.fn()
 }));
 
+// A task chain id only ever comes from a write (startBookBatch, emptyTrash),
+// so polling it goes through the writer accessor.
 vi.mock('@/providers', () => ({
   getBookshelfProvider: () => ({
+    getTaskChain: getTaskChainMock
+  }),
+  bookshelfWriter: () => ({
     getTaskChain: getTaskChainMock
   })
 }));

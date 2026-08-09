@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { getBookshelfProvider } from '@/providers';
+import { bookshelfWriter } from '@/providers';
 import { deriveTitleFromFilename, hasSupportedExtension } from '@/utils/file';
 import { normalizeLayerPath } from '@/utils/layers';
 import { DEFAULT_EPUB_IMPORT_STRATEGY, type EpubImportStrategy } from '@/types/book';
@@ -123,7 +123,7 @@ export function useImportBook() {
         const isEpub = epubExtPattern.test(current.filename);
 
         try {
-          const created = await getBookshelfProvider().importBook({
+          const created = await bookshelfWriter().importBook({
             // An EPUB knows its own title; sending the one derived from the
             // filename would only override it with something worse.
             title: isEpub ? '' : current.title,

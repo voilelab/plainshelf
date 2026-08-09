@@ -13,7 +13,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { getBookshelfProvider } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import EditBook from '@/features/library/components/EditBook.vue';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import type { Book, BookUpdateRequest } from '@/types/book';
@@ -50,7 +50,7 @@ async function onSubmit(payload: BookUpdateRequest): Promise<void> {
   saveError.value = '';
 
   try {
-    await getBookshelfProvider().updateBook(id.value, payload);
+    await bookshelfWriter().updateBook(id.value, payload);
 
     await router.push({
       path: `/books/${id.value}`,

@@ -48,7 +48,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
 import BaseDialog from '@/components/BaseDialog.vue';
-import { getBookshelfProvider } from '@/providers';
+import { bookshelfWriter } from '@/providers';
 
 const props = defineProps<{
   open: boolean;
@@ -89,7 +89,7 @@ async function onSubmit(): Promise<void> {
 
   try {
     const emptyFile = new File([''], 'empty.txt', { type: 'text/plain' });
-    await getBookshelfProvider().importBook({
+    await bookshelfWriter().importBook({
       title: trimmedTitle,
       layer: props.currentLayerPath,
       file: emptyFile
