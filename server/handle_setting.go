@@ -3,13 +3,13 @@ package server
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"regexp"
 
 	"github.com/voilelab/plainshelf/internal/epub"
+	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -53,12 +53,20 @@ func readJSONSetting[T any](app *App, key string, validate func(T) error) (T, bo
 	return value, true
 }
 
+// A settingValidator reports whether a decoded setting value is acceptable.
+//
+// It returns two things because they have different audiences: the message is
+// written to the client, so it must carry no internal detail, while the error
+// is only logged and is built with util.Errorf, which prefixes it with the
+// function that produced it. Returning one value and showing it to both would
+// mean either leaking that prefix or giving up the context.
+type settingValidator[T any] func(T) (message string, err error)
+
 // setJSONSetting decodes a JSON setting body, validates it, and stores it.
 //
 // The decoded value is stored rather than the raw body, so what is persisted
-// is always exactly the fields this build understands. validate reports a
-// message that is written to the client, so it must be safe to expose.
-func setJSONSetting[T any](app *App, w http.ResponseWriter, r *http.Request, key string, validate func(T) error) {
+// is always exactly the fields this build understands.
+func setJSONSetting[T any](app *App, w http.ResponseWriter, r *http.Request, key string, validate settingValidator[T]) {
 	bs, err := io.ReadAll(r.Body)
 	if err != nil {
 		app.Error("read request body:", "err", err)
@@ -75,8 +83,9 @@ func setJSONSetting[T any](app *App, w http.ResponseWriter, r *http.Request, key
 		return
 	}
 
-	if err := validate(value); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if message, err := validate(value); err != nil {
+		app.Warn("rejected setting value", "key", key, "err", err)
+		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
 
@@ -160,22 +169,24 @@ func (app *App) HandleDeleteSettingCoverToJPG(w http.ResponseWriter, r *http.Req
 
 // validateDefaultSplitConfig rejects the split types that make no sense as a
 // global default, and the malformed parameters of the ones that do.
-func validateDefaultSplitConfig(cfg shelf.SplitConfig) error {
+func validateDefaultSplitConfig(cfg shelf.SplitConfig) (string, error) {
 	switch cfg.Type {
 	case shelf.SplitTypeNone:
-		return nil
+		return "", nil
 	case shelf.SplitTypeLineCount:
 		if cfg.LineCount <= 0 {
-			return errors.New("line_count must be a positive integer")
+			return "line_count must be a positive integer",
+				util.Errorf("line_count must be a positive integer, got %d", cfg.LineCount)
 		}
-		return nil
+		return "", nil
 	case shelf.SplitTypeRegex:
 		if _, err := regexp.Compile(cfg.Regex); err != nil {
-			return fmt.Errorf("invalid regex: %v", err)
+			return fmt.Sprintf("invalid regex: %v", err), util.Errorf("%w", err)
 		}
-		return nil
+		return "", nil
 	default:
-		return fmt.Errorf("unsupported split type for global default: %q", cfg.Type)
+		message := fmt.Sprintf("unsupported split type for global default: %q", cfg.Type)
+		return message, util.Errorf("%s", message)
 	}
 }
 
@@ -206,14 +217,14 @@ func (app *App) HandleDeleteSettingDefaultSplitConfig(w http.ResponseWriter, r *
 	app.deleteSetting(w, settingKeyDefaultSplitConfig)
 }
 
-// validateEPUBImportStrategy reports the preset rather than the underlying
-// error, which is what the route answered before and keeps internal wording
-// out of the response.
-func validateEPUBImportStrategy(strategy epub.Strategy) error {
+// validateEPUBImportStrategy tells the client which preset it named rather than
+// what epub said about it, which is what the route answered before and keeps
+// internal wording out of the response. The underlying error is still logged.
+func validateEPUBImportStrategy(strategy epub.Strategy) (string, error) {
 	if err := strategy.Validate(); err != nil {
-		return fmt.Errorf("unsupported epub import preset: %q", strategy.Preset)
+		return fmt.Sprintf("unsupported epub import preset: %q", strategy.Preset), util.Errorf("%w", err)
 	}
-	return nil
+	return "", nil
 }
 
 // epubImportStrategy is the conversion strategy an import uses when the request
