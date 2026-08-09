@@ -177,6 +177,8 @@ func TestParseDroppedImages(t *testing.T) {
 				{"META-INF/container.xml", containerXML},
 				{"OEBPS/content.opf", coverOPF},
 				{"OEBPS/images/cover.png", "cover-bytes"},
+				{"OEBPS/images/plate1.png", "plate-bytes"},
+				{"OEBPS/images/plate2.png", "plate-bytes"},
 				{"OEBPS/text/cover.xhtml", `<html><body><p>書名</p></body></html>`},
 				{"OEBPS/text/ch1.xhtml", `<html><body><p>內文。</p><img src="../images/plate1.png"/></body></html>`},
 				{"OEBPS/text/ch2.xhtml", `<html><body><p>內文。</p><img src="../images/plate2.png"/></body></html>`},
@@ -207,6 +209,7 @@ func TestParseDroppedImages(t *testing.T) {
 				{"META-INF/container.xml", containerXML},
 				{"OEBPS/content.opf", coverOPF},
 				{"OEBPS/images/cover.png", "cover-bytes"},
+				{"OEBPS/images/plate1.png", "plate-bytes"},
 				{"OEBPS/text/cover.xhtml", `<html><body><p>書名</p></body></html>`},
 				{"OEBPS/text/ch1.xhtml", `<html><body><p>內文。</p><svg xmlns:xlink="http://www.w3.org/1999/xlink"><image xlink:href="../images/plate1.png"/></svg></body></html>`},
 				{"OEBPS/text/ch2.xhtml", `<html><body><p>內文。</p></body></html>`},
@@ -234,6 +237,7 @@ func TestParseDroppedImages(t *testing.T) {
 				{"META-INF/container.xml", containerXML},
 				{"OEBPS/content.opf", coverOPF},
 				{"OEBPS/images/cover.png", "cover-bytes"},
+				{"OEBPS/images/ornament.png", "ornament-bytes"},
 				{"OEBPS/text/cover.xhtml", `<html><body><p>書名</p></body></html>`},
 				{"OEBPS/text/ch1.xhtml", `<html><body><p>內文。</p><img src="../images/ornament.png"/></body></html>`},
 				{"OEBPS/text/ch2.xhtml", `<html><body><img src="../images/ornament.png"/><p>內文。</p></body></html>`},
@@ -254,10 +258,51 @@ func TestParseDroppedImages(t *testing.T) {
   </manifest>
   <spine><itemref idref="c0"/><itemref idref="c1"/></spine>
 </package>`},
+				{"OEBPS/images/frontispiece.png", "frontispiece-bytes"},
 				{"OEBPS/text/front.xhtml", `<html><body><img src="../images/frontispiece.png"/></body></html>`},
 				{"OEBPS/text/ch1.xhtml", `<html><body><p>內文。</p></body></html>`},
 			},
 			want: 1,
+		},
+		{
+			// The archive stores the cover one way and the cover page spells it
+			// another. lookupZipEntry reads both, so the exclusion has to hold too
+			// or the book reports a loss it did not suffer.
+			name: "cover referenced with different casing is still excluded",
+			entries: []zipEntry{
+				{"META-INF/container.xml", containerXML},
+				{"OEBPS/content.opf", `<package xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>大小寫</dc:title></metadata>
+  <manifest>
+    <item id="cover-img" href="Images/Cover.PNG" media-type="image/png" properties="cover-image"/>
+    <item id="c0" href="text/cover.xhtml" media-type="application/xhtml+xml"/>
+    <item id="c1" href="text/ch1.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="c0"/><itemref idref="c1"/></spine>
+</package>`},
+				{"OEBPS/Images/Cover.PNG", "cover-bytes"},
+				{"OEBPS/text/cover.xhtml", `<html><body><img src="../images/cover.png"/></body></html>`},
+				{"OEBPS/text/ch1.xhtml", `<html><body><p>內文。</p></body></html>`},
+			},
+			want: 0,
+		},
+		{
+			// Nothing was lost: the archive never carried these. Counting a href
+			// the file cannot satisfy would report artwork that never existed.
+			name: "references the archive cannot satisfy are not counted",
+			entries: []zipEntry{
+				{"META-INF/container.xml", containerXML},
+				{"OEBPS/content.opf", coverOPF},
+				{"OEBPS/images/cover.png", "cover-bytes"},
+				{"OEBPS/text/cover.xhtml", `<html><body><p>書名</p></body></html>`},
+				{"OEBPS/text/ch1.xhtml", `<html><body><p>內文。</p>
+  <img src="../images/missing.png"/>
+  <img src="https://example.com/remote.png"/>
+  <img src="data:image/png;base64,iVBORw0KGgo="/>
+</body></html>`},
+				{"OEBPS/text/ch2.xhtml", `<html><body><p>內文。</p></body></html>`},
+			},
+			want: 0,
 		},
 		{
 			name: "an image with no reference is ignored",

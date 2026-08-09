@@ -132,8 +132,11 @@ func Parse(r io.ReaderAt, size int64, opts Options) (*Book, error) {
 	titles := readTOCTitles(files, manifest, pkg, baseDir)
 
 	// Illustrations are collected across the whole spine and deduplicated by
-	// resolved path, so an ornament repeated on every chapter counts once.
-	droppedImages := make(map[string]struct{})
+	// archive entry, so an ornament repeated on every chapter counts once. The
+	// zip entry rather than the resolved path is the identity: lookupZipEntry
+	// folds case, so two documents spelling the same file differently still
+	// land on one image.
+	droppedImages := make(map[*zip.File]struct{})
 
 	var total int64
 	for _, ref := range pkg.Spine.ItemRefs {
@@ -172,9 +175,13 @@ func Parse(r io.ReaderAt, size int64, opts Options) (*Book, error) {
 		// to nothing and is skipped as a chapter, but its illustration is only
 		// harmless when it is the cover actually stored; if cover detection came
 		// up empty, that image was lost like any other.
+		//
+		// Only references that resolve to an entry in the archive count. A stale
+		// link, an external URL and a data: URI all name artwork this file never
+		// carried, so reporting them as lost would be a lie.
 		for _, href := range imageHrefs {
-			if resolved := resolveHref(path.Dir(docPath), href); resolved != "" {
-				droppedImages[resolved] = struct{}{}
+			if image, ok := lookupZipEntry(files, resolveHref(path.Dir(docPath), href)); ok {
+				droppedImages[image] = struct{}{}
 			}
 		}
 
@@ -196,9 +203,11 @@ func Parse(r io.ReaderAt, size int64, opts Options) (*Book, error) {
 		return nil, util.NewError("epub contains no readable chapters")
 	}
 
-	// The cover survives the import, so it is not a loss to report.
-	if coverPath != "" {
-		delete(droppedImages, coverPath)
+	// The cover survives the import, so it is not a loss to report. Resolving it
+	// to its archive entry is what makes the exclusion hold when the manifest
+	// and the cover page spell the same file differently.
+	if cover, ok := lookupZipEntry(files, coverPath); ok {
+		delete(droppedImages, cover)
 	}
 	book.DroppedImages = len(droppedImages)
 
