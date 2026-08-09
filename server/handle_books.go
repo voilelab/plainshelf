@@ -141,8 +141,7 @@ func (app *App) HandleAPICreateBook(w http.ResponseWriter, r *http.Request) {
 		return book.SetCurrentSource(source.ID())
 	})
 	if err != nil {
-		app.Error("failed to create new book", "error", err)
-		http.Error(w, "failed to create new book", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to create new book")
 		return
 	}
 
@@ -199,7 +198,7 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 	if target := req.targetLayers(); target != nil {
 		movedBook, err := shelfData.MoveBook(bookID, append(shelf.Layers(nil), (*target)...))
 		if err != nil {
-			http.Error(w, "failed to move book layer", http.StatusInternalServerError)
+			app.writeErr(w, err, "failed to move book layer")
 			return
 		}
 		book = movedBook

@@ -10,6 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 func TestValidateImportFileHeader(t *testing.T) {
@@ -125,12 +128,22 @@ func TestWriteEPUBImportErrorClassifiesFailures(t *testing.T) {
 			wantBody:     "failed to import epub",
 			forbidInBody: "/private/shelf",
 		},
+		{
+			// An import creates a book, so it fails for the same reasons any
+			// other write does and must get the same status for them.
+			name:       "a refused layer is a client error",
+			err:        util.Errorf("%w", shelf.ErrInvalidLayer),
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "invalid layer name",
+		},
 	}
+
+	env := newAPITestEnv(t)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			writeEPUBImportError(rec, tt.err)
+			env.app.writeEPUBImportError(rec, tt.err)
 
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d; body = %q", rec.Code, tt.wantStatus, rec.Body.String())

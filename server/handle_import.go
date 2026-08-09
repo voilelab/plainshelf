@@ -206,8 +206,7 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 		// rather than buffered whole.
 		newBook, err := app.importEPUB(shelfData, f, header.Size, header.Filename, r.FormValue("title"), layerParts, strategy)
 		if err != nil {
-			app.Error("failed to import epub", "error", err)
-			writeEPUBImportError(w, err)
+			app.writeEPUBImportError(w, err)
 			return
 		}
 
@@ -242,21 +241,27 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 		return book.SetMeta(meta)
 	})
 	if err != nil {
-		app.Error("failed to import book", "error", err)
-		http.Error(w, "failed to import book", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to import book")
 		return
 	}
 
 	writeImportedBook(w, app, newBook)
 }
 
-func writeEPUBImportError(w http.ResponseWriter, err error) {
+// writeEPUBImportError answers a failed EPUB import.
+//
+// A bad archive is reported with its detail, because the client is the only
+// one who can act on it. Everything else goes through the shared mapping: an
+// import creates a book, so it can fail for the same reasons any other write
+// does, a layer the shelf refuses among them.
+func (app *App) writeEPUBImportError(w http.ResponseWriter, err error) {
 	if isEPUBInputError(err) {
+		app.Error("failed to import epub", "error", err)
 		http.Error(w, "failed to import epub: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	http.Error(w, "failed to import epub", http.StatusInternalServerError)
+	app.writeErr(w, err, "failed to import epub")
 }
 
 func writeImportedBook(w http.ResponseWriter, app *App, newBook *shelf.Book) {
