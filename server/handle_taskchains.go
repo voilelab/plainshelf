@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/voilelab/plainshelf/internal/taskutil"
@@ -53,6 +54,28 @@ func newTaskChainResponse(chain *taskutil.TaskChain) TaskChain {
 		Percentage:  chain.Percentage(),
 		CreatedAt:   util.JSONTime(chain.CreatedAt),
 		Tasks:       tasks,
+	}
+}
+
+// taskChainSubmitResponse is what every route that schedules background work
+// answers with, so a client can poll /api/taskchains/{id} for progress.
+type taskChainSubmitResponse struct {
+	TaskChainID string `json:"taskchain_id"`
+}
+
+// submitTaskChain schedules chain and writes the standard response: 202 with
+// the new chain's ID, or 409 with the ID of the chain already in flight so the
+// client can attach to its progress instead of queueing a redundant run.
+// Any other failure is mapped by writeErr using fallback.
+func (app *App) submitTaskChain(w http.ResponseWriter, chain *taskutil.TaskChain, fallback string) {
+	submitted, err := app.taskChains.Submit(chain)
+	switch {
+	case errors.Is(err, taskutil.ErrTaskChainRunning):
+		app.writeJSON(w, http.StatusConflict, taskChainSubmitResponse{TaskChainID: submitted.ID})
+	case err != nil:
+		app.writeErr(w, err, fallback)
+	default:
+		app.writeJSON(w, http.StatusAccepted, taskChainSubmitResponse{TaskChainID: submitted.ID})
 	}
 }
 

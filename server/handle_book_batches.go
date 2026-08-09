@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -19,10 +18,6 @@ type bookBatchRequest struct {
 	Operation   string       `json:"operation"`
 	BookIDs     []string     `json:"book_ids"`
 	TargetLayer shelf.Layers `json:"target_layer"`
-}
-
-type bookBatchResponse struct {
-	TaskChainID string `json:"taskchain_id"`
 }
 
 func normalizeBookBatchIDs(ids []string) ([]string, error) {
@@ -84,17 +79,7 @@ func (app *App) HandleAPIBookBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chain, err := app.taskChains.Submit(newBookBatchChain(shelfData.ID, shelfData.Shelf, &app.Logger, request.Operation, ids, request.TargetLayer))
-	switch {
-	case errors.Is(err, taskutil.ErrTaskChainRunning):
-		app.writeBookBatchResponse(w, chain.ID, http.StatusConflict)
-	case err != nil:
-		app.writeErr(w, err, "failed to schedule book batch task")
-	default:
-		app.writeBookBatchResponse(w, chain.ID, http.StatusAccepted)
-	}
-}
-
-func (app *App) writeBookBatchResponse(w http.ResponseWriter, taskChainID string, status int) {
-	app.writeJSON(w, status, bookBatchResponse{TaskChainID: taskChainID})
+	app.submitTaskChain(w,
+		newBookBatchChain(shelfData.ID, shelfData.Shelf, &app.Logger, request.Operation, ids, request.TargetLayer),
+		"failed to schedule book batch task")
 }

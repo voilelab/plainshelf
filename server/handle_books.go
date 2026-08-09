@@ -248,26 +248,6 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 	app.writeJSON(w, http.StatusOK, Book{Meta: &meta, Layer: book.Layers()})
 }
 
-// DELETE /api/shelves/{shelf_id}/books/{book_id}
-func (app *App) HandleAPIDeleteBook(w http.ResponseWriter, r *http.Request) {
-	shelfData, ok := app.resolveShelf(w, r)
-	if !ok {
-		return
-	}
-
-	bookID, ok := resolveBookID(w, r)
-	if !ok {
-		return
-	}
-
-	if err := shelfData.MoveBookToTrash(bookID); err != nil {
-		app.writeErr(w, err, "failed to trash book")
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
 // GET /api/shelves/{shelf_id}/books/{book_id}/cover
 func (app *App) HandleAPIGetBookCover(w http.ResponseWriter, r *http.Request) {
 	_, book, ok := app.loadBook(w, r)
@@ -405,17 +385,7 @@ func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) 
 	}
 	defer src.Close()
 
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	if fi, statErr := src.Stat(); statErr == nil && fi.Size() == 0 {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	_, err = io.Copy(w, src)
-	if err != nil {
-		app.Error("failed to write book content", "error", err)
-		http.Error(w, "failed to write book content", http.StatusInternalServerError)
-		return
-	}
+	app.streamTextFile(w, src, "failed to write book content")
 }
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/split_config

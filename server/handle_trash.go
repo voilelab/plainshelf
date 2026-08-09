@@ -1,10 +1,8 @@
 package server
 
 import (
-	"errors"
 	"net/http"
 
-	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -18,7 +16,9 @@ type TrashedBook struct {
 	DeletedAt     util.JSONTime `json:"deleted_at,omitzero"`
 }
 
-// POST /api/shelves/{shelf_id}/books/{book_id}/trash
+// Serves both DELETE /api/shelves/{shelf_id}/books/{book_id} and
+// POST /api/shelves/{shelf_id}/books/{book_id}/trash. Deleting a book is
+// trashing it -- neither route erases anything, so they are one handler.
 func (app *App) HandleAPITrashBook(w http.ResponseWriter, r *http.Request) {
 	shelfData, ok := app.resolveShelf(w, r)
 	if !ok {
@@ -66,10 +66,6 @@ func (app *App) HandleAPIGetTrashedBooks(w http.ResponseWriter, r *http.Request)
 	app.writeJSON(w, http.StatusOK, resp)
 }
 
-type EmptyTrashResponse struct {
-	TaskChainID string `json:"taskchain_id"`
-}
-
 // POST /api/shelves/{shelf_id}/trash/empty
 func (app *App) HandleAPIEmptyTrash(w http.ResponseWriter, r *http.Request) {
 	shelfData, ok := app.resolveShelf(w, r)
@@ -77,24 +73,9 @@ func (app *App) HandleAPIEmptyTrash(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chain, err := app.taskChains.Submit(newEmptyTrashChain(shelfData.ID, shelfData.Shelf, &app.Logger))
-	switch {
-	case errors.Is(err, taskutil.ErrTaskChainRunning):
-		// Report the chain already in flight so the client can attach to its
-		// progress instead of queueing a redundant sweep.
-		app.writeEmptyTrashResponse(w, chain.ID, http.StatusConflict)
-		return
-
-	case err != nil:
-		app.writeErr(w, err, "failed to schedule empty trash task")
-		return
-	}
-
-	app.writeEmptyTrashResponse(w, chain.ID, http.StatusAccepted)
-}
-
-func (app *App) writeEmptyTrashResponse(w http.ResponseWriter, taskChainID string, status int) {
-	app.writeJSON(w, status, EmptyTrashResponse{TaskChainID: taskChainID})
+	app.submitTaskChain(w,
+		newEmptyTrashChain(shelfData.ID, shelfData.Shelf, &app.Logger),
+		"failed to schedule empty trash task")
 }
 
 // POST /api/shelves/{shelf_id}/trash/books/{book_id}/restore

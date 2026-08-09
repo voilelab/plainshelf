@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"net/http"
 
 	"github.com/voilelab/plainshelf/shelf"
@@ -159,6 +160,26 @@ func decodeStrictJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 	}
 
 	return true
+}
+
+// streamTextFile writes an open file as the plain-text response body.
+//
+// A zero-length file gets an explicit 200 rather than being handed to io.Copy:
+// a copy that writes nothing never commits the response, so the status has to
+// be written here instead. logArgs are appended to the failure log entry for
+// callers that can name the file they were serving.
+func (app *App) streamTextFile(w http.ResponseWriter, file fs.File, failureMsg string, logArgs ...any) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+
+	if fi, statErr := file.Stat(); statErr == nil && fi.Size() == 0 {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if _, err := io.Copy(w, file); err != nil {
+		app.Error(failureMsg, append([]any{"error", err}, logArgs...)...)
+		http.Error(w, failureMsg, http.StatusInternalServerError)
+	}
 }
 
 // writeJSON encodes v as the response body with the given status.

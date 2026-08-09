@@ -1,7 +1,6 @@
 package server
 
 import (
-	"io"
 	"net/http"
 
 	"github.com/voilelab/plainshelf/internal/util"
@@ -125,16 +124,7 @@ func (app *App) HandleAPIGetBookSourceContent(w http.ResponseWriter, r *http.Req
 	}
 	defer src.Close()
 
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	if fi, statErr := src.Stat(); statErr == nil && fi.Size() == 0 {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	if _, err := io.Copy(w, src); err != nil {
-		app.Error("failed to write book source content", "error", err)
-		http.Error(w, "failed to write book source content", http.StatusInternalServerError)
-		return
-	}
+	app.streamTextFile(w, src, "failed to write book source content")
 }
 
 // POST /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/refresh
