@@ -23,17 +23,14 @@ import type { PersistedShelfSnapshot, ShelfSnapshotStore } from './shelfSnapshot
 import type {
   BookmarkPayload,
   Book,
-  BookCreateRequest,
   BookContent,
-  BookUpdateRequest,
   PaginatedBooks,
   ReadingProgress,
   SplitConfig,
   TrashedBook
 } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
-import type { BookBatchRequest, TaskChain } from '@/types/task';
-import type { BookshelfProvider, ListBooksOptions } from './bookshelfProvider';
+import type { BookshelfReader, ListBooksOptions } from './bookshelfProvider';
 
 const READ_ONLY_MESSAGE = 'A pCloud shelf is read-only.';
 
@@ -181,7 +178,7 @@ async function mapWithConcurrency<T, R>(
  * Intended to be wrapped by MobileBookshelfProvider, which layers the offline
  * cache and device-local progress on top.
  */
-export class PCloudBookshelfProvider implements BookshelfProvider {
+export class PCloudBookshelfProvider implements BookshelfReader {
   private readonly client: PCloudClient;
   private readonly shelfRoot: string;
   private readonly snapshotStore: ShelfSnapshotStore | null;
@@ -650,7 +647,11 @@ export class PCloudBookshelfProvider implements BookshelfProvider {
     return clearLocalReadHistory();
   }
 
-  // --- unavailable on a read-only shelf ------------------------------------
+  // --- server-only views, answered empty ------------------------------------
+  //
+  // The shelf-mutating half of the provider interface is absent rather than
+  // refused: BookshelfWriter is optional, and a pCloud shelf does not
+  // implement it. These two are reads, so they still have to answer.
 
   /**
    * Duplicate detection is computed by the server, and the trash lives outside
@@ -664,77 +665,5 @@ export class PCloudBookshelfProvider implements BookshelfProvider {
 
   async listTrashedBooks(): Promise<TrashedBook[]> {
     return [];
-  }
-
-  updateBook(_bookId: string, _payload: BookUpdateRequest): Promise<Book> {
-    return this.readOnly();
-  }
-
-  updateBookLayer(_bookId: string, _layer: string): Promise<void> {
-    return this.readOnly();
-  }
-
-  deleteBook(_bookId: string): Promise<void> {
-    return this.readOnly();
-  }
-
-  updateBookSplitConfig(_bookId: string, _config: SplitConfig): Promise<SplitConfig> {
-    return this.readOnly();
-  }
-
-  importBook(_payload: BookCreateRequest): Promise<Book> {
-    return this.readOnly();
-  }
-
-  uploadBookCover(_bookId: string, _file: File): Promise<void> {
-    return this.readOnly();
-  }
-
-  uploadBookCoverBlob(_bookId: string, _blob: Blob): Promise<void> {
-    return this.readOnly();
-  }
-
-  deleteBookCover(_bookId: string): Promise<void> {
-    return this.readOnly();
-  }
-
-  restoreTrashedBook(_bookId: string): Promise<void> {
-    return this.readOnly();
-  }
-
-  deleteTrashedBook(_bookId: string): Promise<void> {
-    return this.readOnly();
-  }
-
-  emptyTrash(): Promise<string> {
-    return this.readOnly();
-  }
-
-  getTaskChain(_taskChainId: string): Promise<TaskChain> {
-    return this.readOnly();
-  }
-
-  startBookBatch(_request: BookBatchRequest): Promise<string> {
-    return this.readOnly();
-  }
-
-  createSource(_bookId: string): Promise<SourceMeta> {
-    return this.readOnly();
-  }
-
-  deleteSource(_bookId: string, _sourceId: string): Promise<void> {
-    return this.readOnly();
-  }
-
-  setCurrentSource(_bookId: string, _sourceId: string): Promise<void> {
-    return this.readOnly();
-  }
-
-  updateSourceContent(_bookId: string, _sourceId: string, _content: string): Promise<void> {
-    return this.readOnly();
-  }
-
-  refreshSourceMeta(_bookId: string, _sourceId: string): Promise<SourceMeta> {
-    return this.readOnly();
   }
 }

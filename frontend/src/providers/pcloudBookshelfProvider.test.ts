@@ -4,6 +4,8 @@ import { ApiError } from '@/api/client';
 import { PCloudClient } from '@/api/pcloud/client';
 import { PCloudError } from '@/api/pcloud/errors';
 import type { PCloudItem } from '@/api/pcloud/types';
+import type { BookshelfWriter } from './bookshelfProvider';
+import { isWritableProvider } from './index';
 import { PCloudBookshelfProvider, pcloudCoverUrl } from './pcloudBookshelfProvider';
 import { InMemoryShelfSnapshotStore, SHELF_SNAPSHOT_VERSION } from './shelfSnapshotStore';
 import type { ShelfSnapshotStore } from './shelfSnapshotStore';
@@ -600,32 +602,31 @@ describe('covers', () => {
 });
 
 describe('read-only behaviour', () => {
-  it('refuses every mutation', async () => {
+  // The shelf-mutating methods are absent, not refused: BookshelfWriter is
+  // optional and PCloudBookshelfProvider does not implement it. Enumerating
+  // them here would not compile, which is the improvement — so this pins the
+  // structural claim instead, and writeAccess.test.ts covers what a caller
+  // asking for a writer gets.
+  it('does not implement the shelf write surface', () => {
     const { provider } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
 
-    const mutations: Array<[string, () => Promise<unknown>]> = [
-      ['updateBook', () => provider.updateBook('a', { title: 'x' })],
-      ['updateBookLayer', () => provider.updateBookLayer('a', 'L')],
-      ['deleteBook', () => provider.deleteBook('a')],
-      ['updateBookSplitConfig', () => provider.updateBookSplitConfig('a', { type: 'none' })],
-      ['uploadBookCoverBlob', () => provider.uploadBookCoverBlob('a', new Blob(['x']))],
-      ['deleteBookCover', () => provider.deleteBookCover('a')],
-      ['restoreTrashedBook', () => provider.restoreTrashedBook('a')],
-      ['deleteTrashedBook', () => provider.deleteTrashedBook('a')],
-      ['emptyTrash', () => provider.emptyTrash()],
-      ['startBookBatch', () => provider.startBookBatch({} as never)],
-      ['getTaskChain', () => provider.getTaskChain('t')],
-      ['createSource', () => provider.createSource('a')],
-      ['deleteSource', () => provider.deleteSource('a', 's')],
-      ['setCurrentSource', () => provider.setCurrentSource('a', 's')],
-      ['updateSourceContent', () => provider.updateSourceContent('a', 's', 'x')],
-      ['refreshSourceMeta', () => provider.refreshSourceMeta('a', 's')],
-      ['saveReadProgress', () => provider.saveReadProgress('a', { char_offset: 1 })]
-    ];
+    expect(isWritableProvider(provider)).toBe(false);
 
-    for (const [name, run] of mutations) {
-      await expect(run(), `${name} should be refused`).rejects.toMatchObject({ name: 'ApiError', status: 403 });
-    }
+    // @ts-expect-error a pCloud shelf must never satisfy BookshelfWriter
+    const asWriter: BookshelfWriter = provider;
+    expect(asWriter).toBeDefined();
+  });
+
+  // Still refused rather than absent: saveReadProgress is on the read surface,
+  // because on mobile it is a device-local write that this backend cannot
+  // stand in for. Silently discarding would let a caller believe it stored.
+  it('refuses to store reading progress', async () => {
+    const { provider } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
+
+    await expect(provider.saveReadProgress('a', { char_offset: 1 })).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 403
+    });
   });
 
   it('reports a zero reading position instead of failing', async () => {
