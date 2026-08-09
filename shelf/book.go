@@ -59,6 +59,10 @@ const (
 
 var ErrInvalidStar = util.NewError("star must be between 0 and 5")
 
+// ErrInvalidLanguageTag is returned when BookMeta.Language is neither empty nor
+// a well-formed BCP 47 tag.
+var ErrInvalidLanguageTag = util.NewError("language must be a BCP 47 tag")
+
 // ErrUnsupportedBookSchemaVersion is returned when a write is attempted against
 // a book.json whose on-disk schema_version is newer than this build supports.
 // It is book.json specific on purpose: sources/{id}/meta.json and trash.json
@@ -381,7 +385,7 @@ func (b *Book) setMeta(meta *BookMeta) error {
 	}
 
 	if !validateBCP47(meta.Language) {
-		return util.Errorf("invalid language tag: %s", meta.Language)
+		return util.Errorf("%w: got %q", ErrInvalidLanguageTag, meta.Language)
 	}
 
 	if meta.Star < MinStar || meta.Star > MaxStar {

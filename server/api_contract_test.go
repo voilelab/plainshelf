@@ -656,6 +656,10 @@ func TestAPIUpdateBookContract(t *testing.T) {
 
 	rec = env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID, strings.NewReader(`{"star":6}`)))
 	assertStatus(t, rec, http.StatusBadRequest)
+
+	// A malformed language tag is a client error, not a server failure.
+	rec = env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID, strings.NewReader(`{"language":"!!!not-a-tag"}`)))
+	assertStatus(t, rec, http.StatusBadRequest)
 }
 
 func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
