@@ -42,6 +42,10 @@ var apiErrorTable = []struct {
 		status:  http.StatusBadRequest,
 		message: "star must be between 0 and 5",
 	}},
+	{shelf.ErrInvalidLanguageTag, apiError{
+		status:  http.StatusBadRequest,
+		message: "language must be a BCP 47 tag",
+	}},
 	{shelf.ErrShelfInitializing, apiError{
 		status:     http.StatusServiceUnavailable,
 		message:    "shelf is initializing, please retry shortly",

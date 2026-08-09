@@ -1385,3 +1385,43 @@ func TestSetMetaRejectsStarOutOfRange(t *testing.T) {
 		}
 	}
 }
+
+// TestSetMetaRejectsInvalidLanguageTag verifies that a malformed language tag
+// is refused as a sentinel, so an API layer can answer it as a client error
+// rather than as an unexplained failure.
+func TestSetMetaRejectsInvalidLanguageTag(t *testing.T) {
+	tmpLib := path.Join(t.TempDir())
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	bookID := "test-book-lang"
+	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, "Test Book")
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+
+	meta := book.GetMeta()
+	meta.Language = "!!!not-a-tag"
+	if err := book.SetMeta(meta); !errors.Is(err, ErrInvalidLanguageTag) {
+		t.Fatalf("err = %v, want ErrInvalidLanguageTag", err)
+	}
+	if got := book.GetMeta().Language; got == "!!!not-a-tag" {
+		t.Fatal("the rejected language tag was persisted")
+	}
+
+	// An empty tag means "unknown" and stays allowed.
+	for _, lang := range []string{"", "zh-Hant"} {
+		meta := book.GetMeta()
+		meta.Language = lang
+		if err := book.SetMeta(meta); err != nil {
+			t.Fatalf("language %q: %v", lang, err)
+		}
+		if got := book.GetMeta().Language; got != lang {
+			t.Fatalf("language = %q, want %q", got, lang)
+		}
+	}
+}

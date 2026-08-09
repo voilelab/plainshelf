@@ -30,6 +30,12 @@ func TestAPIErrorForKnownSentinels(t *testing.T) {
 			wantMessage: "identifier key cannot be empty",
 		},
 		{
+			name:        "invalid language tag",
+			err:         shelf.ErrInvalidLanguageTag,
+			wantStatus:  http.StatusBadRequest,
+			wantMessage: "language must be a BCP 47 tag",
+		},
+		{
 			name:           "shelf initializing",
 			err:            shelf.ErrShelfInitializing,
 			wantStatus:     http.StatusServiceUnavailable,
