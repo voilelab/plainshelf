@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -328,12 +329,23 @@ func TestParseImportStrategy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseImportStrategy(tt.raw, fallback)
+			got, message, err := parseImportStrategy(tt.raw, fallback)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatalf("parseImportStrategy(%q) error = nil, want an error", tt.raw)
 				}
+				// The message is what the client sees; the error is logged and
+				// carries the util.Errorf prefix, which must not leak into it.
+				if message == "" {
+					t.Fatalf("parseImportStrategy(%q) returned no client message", tt.raw)
+				}
+				if strings.Contains(message, "plainshelf/") {
+					t.Fatalf("message = %q, must not name internal packages", message)
+				}
 				return
+			}
+			if message != "" {
+				t.Fatalf("parseImportStrategy(%q) message = %q, want empty when accepted", tt.raw, message)
 			}
 			if err != nil {
 				t.Fatalf("parseImportStrategy(%q) error = %v", tt.raw, err)

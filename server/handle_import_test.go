@@ -10,6 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 func TestValidateImportFileHeader(t *testing.T) {
@@ -83,12 +86,26 @@ func TestValidateImportFileHeader(t *testing.T) {
 				header.Header.Set("Content-Type", tt.contentType)
 			}
 
-			err := validateImportFileHeader(header)
+			message, err := validateImportFileHeader(header)
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error")
 			}
 			if !tt.wantErr && err != nil {
 				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// The message is what the client sees, so it must be present on a
+			// rejection and must not carry the util.Errorf function prefix the
+			// logged error has.
+			if tt.wantErr {
+				if message == "" {
+					t.Fatal("rejection returned no client message")
+				}
+				if strings.Contains(message, "plainshelf/server") {
+					t.Fatalf("message = %q, must not name internal packages", message)
+				}
+			} else if message != "" {
+				t.Fatalf("message = %q, want empty when accepted", message)
 			}
 		})
 	}
@@ -125,12 +142,22 @@ func TestWriteEPUBImportErrorClassifiesFailures(t *testing.T) {
 			wantBody:     "failed to import epub",
 			forbidInBody: "/private/shelf",
 		},
+		{
+			// An import creates a book, so it fails for the same reasons any
+			// other write does and must get the same status for them.
+			name:       "a refused layer is a client error",
+			err:        util.Errorf("%w", shelf.ErrInvalidLayer),
+			wantStatus: http.StatusBadRequest,
+			wantBody:   "invalid layer name",
+		},
 	}
+
+	env := newAPITestEnv(t)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			writeEPUBImportError(rec, tt.err)
+			env.app.writeEPUBImportError(rec, tt.err)
 
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d; body = %q", rec.Code, tt.wantStatus, rec.Body.String())
@@ -170,7 +197,7 @@ func TestMultipartDefaultFileContentTypeIsRejected(t *testing.T) {
 	if len(files) != 1 {
 		t.Fatalf("expected one file, got %d", len(files))
 	}
-	if err := validateImportFileHeader(files[0]); err == nil {
+	if _, err := validateImportFileHeader(files[0]); err == nil {
 		t.Fatal("expected default application/octet-stream upload to be rejected")
 	}
 }

@@ -17,8 +17,7 @@ func (app *App) HandleAPIGetLayers(w http.ResponseWriter, r *http.Request) {
 
 	layers, err := shelfData.GetAllLayers()
 	if err != nil {
-		app.Error("failed to get layers", "error", err)
-		http.Error(w, "failed to get layers", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to get layers")
 		return
 	}
 
@@ -39,8 +38,7 @@ func (app *App) HandleAPICreateLayer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := shelfData.NewLayer(layerParts); err != nil {
-		app.Error("failed to create layer", "error", err)
-		http.Error(w, "failed to create layer", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to create layer")
 		return
 	}
 
@@ -78,9 +76,11 @@ func (app *App) HandleAPIRenameLayer(w http.ResponseWriter, r *http.Request) {
 
 	newLayer := append(shelf.Layers(nil), layerParts[:len(layerParts)-1]...)
 	newLayer = append(newLayer, newName)
+	// A rename fails for a family of reasons the error table cannot yet name --
+	// a missing layer, an occupied destination -- which this route has always
+	// answered as a conflict. Only the errors the table knows change status.
 	if err := shelfData.RenameLayer(layerParts, newLayer); err != nil {
-		app.Error("failed to rename layer", "error", err)
-		http.Error(w, "failed to rename layer", http.StatusConflict)
+		app.writeErrStatus(w, err, "failed to rename layer", http.StatusConflict)
 		return
 	}
 
@@ -110,8 +110,7 @@ func (app *App) HandleAPIMoveLayer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := shelfData.MoveLayer(req.Layer, req.TargetLayer); err != nil {
-		app.Error("failed to move layer", "error", err)
-		http.Error(w, "failed to move layer", http.StatusConflict)
+		app.writeErrStatus(w, err, "failed to move layer", http.StatusConflict)
 		return
 	}
 
@@ -132,8 +131,7 @@ func (app *App) HandleAPIDeleteLayer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := shelfData.DeleteLayer(layerParts); err != nil {
-		app.Error("failed to delete layer", "error", err)
-		http.Error(w, "failed to delete layer", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to delete layer")
 		return
 	}
 

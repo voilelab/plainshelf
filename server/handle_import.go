@@ -70,15 +70,24 @@ func bookFormatFromFilename(filename string) string {
 	return "txt"
 }
 
-func validateImportFileHeader(header *multipart.FileHeader) error {
+// validateImportFileHeader reports why an upload cannot be imported.
+//
+// The message is written to the client, so it carries no internal detail. The
+// error is logged, and is built with util.Errorf, which prefixes it with this
+// function -- wanted in a log line, not in a response.
+func validateImportFileHeader(header *multipart.FileHeader) (string, error) {
+	reject := func(message string) (string, error) {
+		return message, util.Errorf("%s", message)
+	}
+
 	if header == nil {
-		return util.NewError("missing required field: file")
+		return reject("missing required field: file")
 	}
 
 	filename := strings.TrimSpace(header.Filename)
 	ext := strings.ToLower(filepath.Ext(filename))
 	if !isSupportedImportExt(ext) {
-		return util.NewError("book file must be a .txt, .md or .epub file")
+		return reject("book file must be a .txt, .md or .epub file")
 	}
 
 	contentType := strings.TrimSpace(header.Header.Get("Content-Type"))
@@ -89,50 +98,50 @@ func validateImportFileHeader(header *multipart.FileHeader) error {
 		// the same file depending on the platform's MIME database. The archive
 		// itself is validated when it is parsed.
 		if contentType == "" {
-			return nil
+			return "", nil
 		}
 
 		mediaType, _, err := mime.ParseMediaType(contentType)
 		if err != nil {
-			return util.NewError("book file content type must be application/epub+zip")
+			return reject("book file content type must be application/epub+zip")
 		}
 		switch strings.ToLower(mediaType) {
 		case importEPUBMediaType, importZipMediaType, importOctetStreamMediaType:
-			return nil
+			return "", nil
 		default:
-			return util.NewError("book file content type must be application/epub+zip")
+			return reject("book file content type must be application/epub+zip")
 		}
 	}
 
 	if ext == ".txt" {
 		if contentType == "" {
-			return util.NewError("book file content type must be text/plain")
+			return reject("book file content type must be text/plain")
 		}
 
 		mediaType, _, err := mime.ParseMediaType(contentType)
 		if err != nil || strings.ToLower(mediaType) != importTextMediaType {
-			return util.NewError("book file content type must be text/plain")
+			return reject("book file content type must be text/plain")
 		}
 
-		return nil
+		return "", nil
 	}
 
 	// ext == ".md": browsers disagree on what content type to send for Markdown
 	// uploads (some send text/markdown, some text/plain, some application/octet-stream,
 	// some nothing at all), so the extension is the primary signal here.
 	if contentType == "" {
-		return nil
+		return "", nil
 	}
 
 	mediaType, _, err := mime.ParseMediaType(contentType)
 	if err != nil {
-		return util.NewError("book file content type must be text/markdown or text/plain")
+		return reject("book file content type must be text/markdown or text/plain")
 	}
 	switch strings.ToLower(mediaType) {
 	case importTextMediaType, importMarkdownMediaType, importXMarkdownMediaType, importOctetStreamMediaType:
-		return nil
+		return "", nil
 	default:
-		return util.NewError("book file content type must be text/markdown or text/plain")
+		return reject("book file content type must be text/markdown or text/plain")
 	}
 }
 
@@ -183,8 +192,9 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	}
 	defer f.Close()
 
-	if err := validateImportFileHeader(header); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if message, err := validateImportFileHeader(header); err != nil {
+		app.Warn("rejected import upload", "error", err)
+		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
 
@@ -196,9 +206,10 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	layerParts := parseImportLayerParts(r.FormValue("layer"))
 
 	if isEPUBExt(strings.ToLower(filepath.Ext(header.Filename))) {
-		strategy, err := parseImportStrategy(r.FormValue("strategy"), app.epubImportStrategy())
+		strategy, message, err := parseImportStrategy(r.FormValue("strategy"), app.epubImportStrategy())
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			app.Warn("rejected import strategy", "error", err)
+			http.Error(w, message, http.StatusBadRequest)
 			return
 		}
 
@@ -206,8 +217,7 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 		// rather than buffered whole.
 		newBook, err := app.importEPUB(shelfData, f, header.Size, header.Filename, r.FormValue("title"), layerParts, strategy)
 		if err != nil {
-			app.Error("failed to import epub", "error", err)
-			writeEPUBImportError(w, err)
+			app.writeEPUBImportError(w, err)
 			return
 		}
 
@@ -242,21 +252,27 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 		return book.SetMeta(meta)
 	})
 	if err != nil {
-		app.Error("failed to import book", "error", err)
-		http.Error(w, "failed to import book", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to import book")
 		return
 	}
 
 	writeImportedBook(w, app, newBook)
 }
 
-func writeEPUBImportError(w http.ResponseWriter, err error) {
+// writeEPUBImportError answers a failed EPUB import.
+//
+// A bad archive is reported with its detail, because the client is the only
+// one who can act on it. Everything else goes through the shared mapping: an
+// import creates a book, so it can fail for the same reasons any other write
+// does, a layer the shelf refuses among them.
+func (app *App) writeEPUBImportError(w http.ResponseWriter, err error) {
 	if isEPUBInputError(err) {
+		app.Error("failed to import epub", "error", err)
 		http.Error(w, "failed to import epub: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	http.Error(w, "failed to import epub", http.StatusInternalServerError)
+	app.writeErr(w, err, "failed to import epub")
 }
 
 func writeImportedBook(w http.ResponseWriter, app *App, newBook *shelf.Book) {
