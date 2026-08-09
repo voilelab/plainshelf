@@ -94,9 +94,6 @@ func NewApp(conf *AppConf) (*App, error) {
 	}
 	defer func() {
 		if failure {
-			// Badger holds a lock on the store directory for as long as the
-			// handle is open, so skipping this would leave a failed startup
-			// blocking every later attempt to open the same store.
 			if closeErr := storeDB.Close(); closeErr != nil {
 				logger.Error("failed to close store after failed startup", "error", closeErr)
 			}
