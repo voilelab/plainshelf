@@ -92,6 +92,16 @@ func NewApp(conf *AppConf) (*App, error) {
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
+	defer func() {
+		if failure {
+			// Badger holds a lock on the store directory for as long as the
+			// handle is open, so skipping this would leave a failed startup
+			// blocking every later attempt to open the same store.
+			if closeErr := storeDB.Close(); closeErr != nil {
+				logger.Error("failed to close store after failed startup", "error", closeErr)
+			}
+		}
+	}()
 
 	// The worker section is optional; every field has a usable zero value.
 	workerConf := conf.Worker
