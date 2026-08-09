@@ -20,30 +20,6 @@ func isRequestBodyTooLarge(err error) bool {
 	return errors.As(err, &maxBytesErr)
 }
 
-// handleShelfErr writes the appropriate HTTP error for common shelf-level errors
-// (initializing → 503, lock timeout → 503, not found → 404) and returns true if handled.
-func handleShelfErr(w http.ResponseWriter, err error) bool {
-	if errors.Is(err, shelf.ErrShelfInitializing) {
-		w.Header().Set("Retry-After", "3")
-		http.Error(w, "shelf is initializing, please retry shortly", http.StatusServiceUnavailable)
-		return true
-	}
-	if errors.Is(err, shelf.ErrShelfLockTimeout) {
-		w.Header().Set("Retry-After", "5")
-		http.Error(w, "shelf is busy, please retry shortly", http.StatusServiceUnavailable)
-		return true
-	}
-	if errors.Is(err, shelf.ErrBookNotFound) {
-		http.Error(w, "book not found", http.StatusNotFound)
-		return true
-	}
-	if errors.Is(err, shelf.ErrUnsupportedBookSchemaVersion) {
-		http.Error(w, "book uses a newer on-disk format than this PlainShelf build supports; upgrade PlainShelf to modify it", http.StatusConflict)
-		return true
-	}
-	return false
-}
-
 type Book struct {
 	Meta  *shelf.BookMeta `json:"meta"`
 	Layer shelf.Layers    `json:"layer"`
@@ -100,11 +76,7 @@ func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
 
 	books, err := shelfData.ListBooks()
 	if err != nil {
-		if handleShelfErr(w, err) {
-			return
-		}
-		app.Error("failed to list books", "error", err)
-		http.Error(w, "failed to list books", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to list books")
 		return
 	}
 
@@ -220,11 +192,7 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 	// Refuse a book this build must not modify before doing anything, otherwise
 	// a layer move would be applied to disk and then reported as a failure.
 	if err := book.EnsureWritable(); err != nil {
-		if handleShelfErr(w, err) {
-			return
-		}
-		app.Error("failed to check book writability", "error", err)
-		http.Error(w, "failed to update book metadata", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to update book metadata")
 		return
 	}
 
@@ -273,15 +241,7 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 	meta.UpdatedAt = util.JSONTime(time.Now())
 
 	if err := book.SetMeta(&meta); err != nil {
-		if errors.Is(err, shelf.ErrInvalidIdentifierKey) {
-			http.Error(w, "identifier key cannot be empty", http.StatusBadRequest)
-			return
-		}
-		if handleShelfErr(w, err) {
-			return
-		}
-		app.Error("failed to update book metadata", "error", err)
-		http.Error(w, "failed to update book metadata", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to update book metadata")
 		return
 	}
 
@@ -301,11 +261,7 @@ func (app *App) HandleAPIDeleteBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := shelfData.MoveBookToTrash(bookID); err != nil {
-		if handleShelfErr(w, err) {
-			return
-		}
-		app.Error("failed to trash book", "error", err)
-		http.Error(w, "failed to trash book", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to trash book")
 		return
 	}
 
@@ -406,11 +362,7 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 
 	err = book.SetCover(data, ext)
 	if err != nil {
-		if handleShelfErr(w, err) {
-			return
-		}
-		app.Error("failed to update book cover", "error", err)
-		http.Error(w, "failed to update book cover", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to update book cover")
 		return
 	}
 
@@ -425,11 +377,7 @@ func (app *App) HandleAPIDeleteBookCover(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := book.DeleteCover(); err != nil {
-		if handleShelfErr(w, err) {
-			return
-		}
-		app.Error("failed to delete book cover", "error", err)
-		http.Error(w, "failed to delete book cover", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to delete book cover")
 		return
 	}
 
@@ -529,11 +477,7 @@ func (app *App) HandleAPIFindDuplicateBooks(w http.ResponseWriter, r *http.Reque
 	md5Groups := map[string][]string{}
 	books, err := shelfData.ListBooks()
 	if err != nil {
-		if handleShelfErr(w, err) {
-			return
-		}
-		app.Error("failed to list books", "error", err)
-		http.Error(w, "failed to list books", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to list books")
 		return
 	}
 

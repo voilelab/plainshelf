@@ -1,7 +1,6 @@
 package server
 
 import (
-	"errors"
 	"io"
 	"net/http"
 
@@ -83,12 +82,7 @@ func (app *App) HandleAPIDeleteBookSource(w http.ResponseWriter, r *http.Request
 	// DeleteSource reports a missing source itself, so the source is not
 	// loaded up front here.
 	if err := book.DeleteSource(sourceID); err != nil {
-		if errors.Is(err, shelf.ErrSourceNotFound) {
-			http.Error(w, "source not found", http.StatusNotFound)
-			return
-		}
-		app.Error("failed to delete book source", "error", err)
-		http.Error(w, "failed to delete book source", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to delete book source")
 		return
 	}
 
@@ -109,11 +103,7 @@ func (app *App) HandleAPISetCurrentBookSource(w http.ResponseWriter, r *http.Req
 	}
 
 	if err := book.SetCurrentSource(sourceID); err != nil {
-		if handleShelfErr(w, err) {
-			return
-		}
-		app.Error("failed to set current book source", "error", err)
-		http.Error(w, "failed to set current book source", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to set current book source")
 		return
 	}
 

@@ -31,11 +31,7 @@ func (app *App) HandleAPITrashBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := shelfData.MoveBookToTrash(bookID); err != nil {
-		if handleShelfErr(w, err) {
-			return
-		}
-		app.Error("failed to trash book", "error", err)
-		http.Error(w, "failed to trash book", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to trash book")
 		return
 	}
 
@@ -51,8 +47,7 @@ func (app *App) HandleAPIGetTrashedBooks(w http.ResponseWriter, r *http.Request)
 
 	books, err := shelfData.ListTrashedBooks()
 	if err != nil {
-		app.Error("failed to list trashed books", "error", err)
-		http.Error(w, "failed to list trashed books", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to list trashed books")
 		return
 	}
 
@@ -90,14 +85,8 @@ func (app *App) HandleAPIEmptyTrash(w http.ResponseWriter, r *http.Request) {
 		app.writeEmptyTrashResponse(w, chain.ID, http.StatusConflict)
 		return
 
-	case errors.Is(err, taskutil.ErrWorkerBusy):
-		w.Header().Set("Retry-After", "5")
-		http.Error(w, "background worker is busy", http.StatusServiceUnavailable)
-		return
-
 	case err != nil:
-		app.Error("failed to schedule empty trash task", "error", err)
-		http.Error(w, "failed to schedule empty trash task", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to schedule empty trash task")
 		return
 	}
 
@@ -121,12 +110,7 @@ func (app *App) HandleAPIRestoreTrashedBook(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := shelfData.RestoreTrashedBook(bookID); err != nil {
-		if errors.Is(err, shelf.ErrTrashedBookNotFound) {
-			http.Error(w, "trashed book not found", http.StatusNotFound)
-			return
-		}
-		app.Error("failed to restore trashed book", "error", err)
-		http.Error(w, "failed to restore trashed book", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to restore trashed book")
 		return
 	}
 
@@ -146,12 +130,7 @@ func (app *App) HandleAPIDeleteTrashedBook(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := shelfData.DeleteTrashedBook(bookID); err != nil {
-		if errors.Is(err, shelf.ErrTrashedBookNotFound) {
-			http.Error(w, "trashed book not found", http.StatusNotFound)
-			return
-		}
-		app.Error("failed to permanently delete trashed book", "error", err)
-		http.Error(w, "failed to permanently delete trashed book", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to permanently delete trashed book")
 		return
 	}
 

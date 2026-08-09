@@ -88,12 +88,8 @@ func (app *App) HandleAPIBookBatch(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, taskutil.ErrTaskChainRunning):
 		app.writeBookBatchResponse(w, chain.ID, http.StatusConflict)
-	case errors.Is(err, taskutil.ErrWorkerBusy):
-		w.Header().Set("Retry-After", "5")
-		http.Error(w, "background worker is busy", http.StatusServiceUnavailable)
 	case err != nil:
-		app.Error("failed to schedule book batch task", "error", err)
-		http.Error(w, "failed to schedule book batch task", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to schedule book batch task")
 	default:
 		app.writeBookBatchResponse(w, chain.ID, http.StatusAccepted)
 	}
