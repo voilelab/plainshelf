@@ -36,6 +36,12 @@ func TestAPIErrorForKnownSentinels(t *testing.T) {
 			wantMessage: "language must be a BCP 47 tag",
 		},
 		{
+			name:        "invalid layer",
+			err:         shelf.ErrInvalidLayer,
+			wantStatus:  http.StatusBadRequest,
+			wantMessage: "invalid layer name",
+		},
+		{
 			name:           "shelf initializing",
 			err:            shelf.ErrShelfInitializing,
 			wantStatus:     http.StatusServiceUnavailable,

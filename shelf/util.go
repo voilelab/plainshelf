@@ -37,6 +37,11 @@ func randomString(n int) string {
 	return string(result)
 }
 
+// ErrInvalidLayer is returned when a layer name is not a usable path segment.
+// Every operation that accepts caller-supplied layers checks them before
+// touching the filesystem, so callers can treat it as a request error.
+var ErrInvalidLayer = util.NewError("invalid layer name")
+
 var bcp47Regex = regexp.MustCompile(`^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$`)
 
 func validateBCP47(lang string) bool {
@@ -51,10 +56,10 @@ func validateBCP47(lang string) bool {
 func validateLayers(layers Layers) error {
 	for _, layer := range layers {
 		if err := validatePathSegment(layer); err != nil {
-			return util.Errorf("invalid layer name %q: %w", layer, err)
+			return util.Errorf("%w %q: %w", ErrInvalidLayer, layer, err)
 		}
 		if strings.Contains(layer, bookExtension) {
-			return util.Errorf("invalid layer name %q: must not contain %q", layer, bookExtension)
+			return util.Errorf("%w %q: must not contain %q", ErrInvalidLayer, layer, bookExtension)
 		}
 	}
 	return nil
