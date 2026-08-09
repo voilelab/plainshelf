@@ -151,6 +151,17 @@ func (r *Source) refreshContentMetadata() error {
 	return r.writebackMeta()
 }
 
+// UpdateComment replaces the source's free-form comment. It records how this
+// source came to be — for example what an import could not carry over — and is
+// rewritten whenever the content is imported again.
+func (r *Source) UpdateComment(comment string) error {
+	r.meta.Comment = comment
+	if err := r.writebackMeta(); err != nil {
+		return util.Errorf("%w", err)
+	}
+	return nil
+}
+
 func (r *Source) UpdateSplitConfig(config SplitConfig) error {
 	r.meta.SplitConfig = config
 	err := r.writebackMeta()

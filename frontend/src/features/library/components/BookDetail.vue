@@ -79,6 +79,14 @@ const metadataRows = computed<MetadataRow[]>(() => {
     }
   ];
 
+  // Only imports that lost something leave a note, so this row would read as an
+  // empty placeholder on almost every book. Show it when there is something to
+  // say and leave the list alone otherwise.
+  const importNotes = props.currentSource?.comment?.trim();
+  if (importNotes) {
+    rows.push({ label: 'Import notes', value: importNotes, className: 'comment-text' });
+  }
+
   return rows;
 });
 </script>
