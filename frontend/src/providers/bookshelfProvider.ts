@@ -91,8 +91,8 @@ export interface BookshelfReader {
   listDownloadedBookEntries?(): Promise<DownloadedBookEntry[]>;
   getStorageEstimate?(): Promise<StorageEstimateResult>;
 
+  /** Opens the host file picker. Changes nothing; the import itself is a write. */
   openLocalBookFiles?(): Promise<string[] | null>;
-  importBooksFromLocalPaths?(localPaths: string[], layerPath: string): Promise<DesktopImportBookResult[] | null>;
   openDesktopLayerFolder?(layerPath: string): Promise<void>;
   openDesktopBookFolder?(bookId: string): Promise<void>;
 
@@ -141,6 +141,13 @@ export interface BookshelfWriter {
   startBookBatch(request: BookBatchRequest): Promise<string>;
   /** A GET, but a chain id can only come from startBookBatch or emptyTrash. */
   getTaskChain(taskChainId: string): Promise<TaskChain>;
+
+  /**
+   * Optional because only the desktop shell can reach host paths, but a write
+   * either way: it creates books in the active shelf exactly as importBook
+   * does, from a picker result rather than an upload.
+   */
+  importBooksFromLocalPaths?(localPaths: string[], layerPath: string): Promise<DesktopImportBookResult[] | null>;
 
   createSource(bookId: string): Promise<SourceMeta>;
   deleteSource(bookId: string, sourceId: string): Promise<void>;

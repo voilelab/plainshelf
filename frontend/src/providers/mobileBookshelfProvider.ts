@@ -18,7 +18,6 @@ import { currentCacheScopeKey } from './cacheScope';
 import { collectReadHistoryBooks } from './readHistoryBooks';
 import type {
   BookshelfReader,
-  DesktopImportBookResult,
   DownloadedBookEntry,
   ListBooksOptions,
   StorageEstimateResult
@@ -438,9 +437,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
     return this.remote.openLocalBookFiles?.() ?? Promise.resolve(null);
   }
 
-  importBooksFromLocalPaths?(localPaths: string[], layerPath: string): Promise<DesktopImportBookResult[] | null> {
-    return this.remote.importBooksFromLocalPaths?.(localPaths, layerPath) ?? Promise.resolve(null);
-  }
 
   private async annotateDownloadState(book: Book): Promise<Book> {
     const cached = await this.cache.getCachedBook(book.id);
