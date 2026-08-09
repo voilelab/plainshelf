@@ -92,6 +92,13 @@ func NewApp(conf *AppConf) (*App, error) {
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
+	defer func() {
+		if failure {
+			if closeErr := storeDB.Close(); closeErr != nil {
+				logger.Error("failed to close store after failed startup", "error", closeErr)
+			}
+		}
+	}()
 
 	// The worker section is optional; every field has a usable zero value.
 	workerConf := conf.Worker
