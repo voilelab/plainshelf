@@ -65,31 +65,23 @@ func resolveSourceID(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return sourceID, true
 }
 
-// getBook loads a book and maps the shelf-level errors, falling back to 500.
+// getBook loads a book, mapping the domain errors through writeErr.
 func (app *App) getBook(w http.ResponseWriter, shelfData *shelf.ShelfData, bookID string) (*shelf.Book, bool) {
 	book, err := shelfData.GetBook(bookID)
 	if err != nil {
-		if handleShelfErr(w, err) {
-			return nil, false
-		}
-		app.Error("failed to get book", "error", err)
-		http.Error(w, "failed to get book", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to get book")
 		return nil, false
 	}
 
 	return book, true
 }
 
-// getSource loads a source of a book, mapping a missing source to 404.
+// getSource loads a source of a book, mapping the domain errors through
+// writeErr.
 func (app *App) getSource(w http.ResponseWriter, book *shelf.Book, sourceID string) (*shelf.Source, bool) {
 	source, err := book.GetSource(sourceID)
 	if err != nil {
-		if errors.Is(err, shelf.ErrSourceNotFound) {
-			http.Error(w, "source not found", http.StatusNotFound)
-			return nil, false
-		}
-		app.Error("failed to get book source", "error", err)
-		http.Error(w, "failed to get book source", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to get book source")
 		return nil, false
 	}
 
