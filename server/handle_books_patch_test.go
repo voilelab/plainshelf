@@ -1,15 +1,12 @@
 package server
 
 import (
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
 )
-
-func ptr[T any](v T) *T { return &v }
 
 // A PATCH must leave out what the request left out, which is the whole reason
 // UpdateBookRequest uses pointers. An empty request may touch nothing but the
@@ -26,9 +23,7 @@ func TestApplyBookPatchLeavesOmittedFieldsAlone(t *testing.T) {
 	}
 
 	meta := before
-	if err := applyBookPatch(&meta, &UpdateBookRequest{}); err != nil {
-		t.Fatalf("applyBookPatch: %v", err)
-	}
+	applyBookPatch(&meta, &UpdateBookRequest{})
 
 	meta.UpdatedAt = before.UpdatedAt
 	if meta.ID != before.ID || meta.Title != before.Title || meta.Language != before.Language ||
@@ -42,19 +37,17 @@ func TestApplyBookPatchAppliesSetFields(t *testing.T) {
 	published := util.JSONDate(time.Date(2020, 3, 4, 0, 0, 0, 0, time.UTC))
 
 	req := UpdateBookRequest{
-		Title:       ptr("New Title"),
-		Authors:     ptr([]string{"A", "B"}),
-		Tags:        ptr([]string{"t"}),
-		Identifiers: ptr(map[string]string{"isbn": "123"}),
-		Language:    ptr("zh"),
-		Comment:     ptr("updated note"),
-		Star:        ptr(5),
+		Title:       new("New Title"),
+		Authors:     new([]string{"A", "B"}),
+		Tags:        new([]string{"t"}),
+		Identifiers: new(map[string]string{"isbn": "123"}),
+		Language:    new("zh"),
+		Comment:     new("updated note"),
+		Star:        new(5),
 		PublishedAt: &published,
 	}
 
-	if err := applyBookPatch(&meta, &req); err != nil {
-		t.Fatalf("applyBookPatch: %v", err)
-	}
+	applyBookPatch(&meta, &req)
 
 	if meta.Title != "New Title" || meta.Language != "zh" || meta.Comments != "updated note" || meta.Star != 5 {
 		t.Fatalf("scalar fields not applied: %+v", meta)
@@ -80,9 +73,7 @@ func TestApplyBookPatchCopiesSliceFields(t *testing.T) {
 	tags := []string{"original"}
 
 	meta := shelf.BookMeta{}
-	if err := applyBookPatch(&meta, &UpdateBookRequest{Authors: &authors, Tags: &tags}); err != nil {
-		t.Fatalf("applyBookPatch: %v", err)
-	}
+	applyBookPatch(&meta, &UpdateBookRequest{Authors: &authors, Tags: &tags})
 
 	authors[0] = "Mutated"
 	tags[0] = "mutated"
@@ -95,25 +86,14 @@ func TestApplyBookPatchCopiesSliceFields(t *testing.T) {
 	}
 }
 
-func TestApplyBookPatchRejectsStarOutOfRange(t *testing.T) {
-	for _, star := range []int{-1, 6} {
-		meta := shelf.BookMeta{Star: 3}
-		err := applyBookPatch(&meta, &UpdateBookRequest{Star: &star})
+// Field rules belong to shelf, so applyBookPatch copies an out-of-range star
+// through unchecked and lets SetMeta reject it.
+func TestApplyBookPatchDoesNotValidate(t *testing.T) {
+	meta := shelf.BookMeta{Star: 3}
+	applyBookPatch(&meta, &UpdateBookRequest{Star: new(99)})
 
-		if !errors.Is(err, errStarOutOfRange) {
-			t.Fatalf("star %d: err = %v, want errStarOutOfRange", star, err)
-		}
-	}
-
-	// The bounds themselves are accepted.
-	for _, star := range []int{minBookStar, maxBookStar} {
-		meta := shelf.BookMeta{}
-		if err := applyBookPatch(&meta, &UpdateBookRequest{Star: &star}); err != nil {
-			t.Fatalf("star %d: %v", star, err)
-		}
-		if meta.Star != star {
-			t.Fatalf("star = %d, want %d", meta.Star, star)
-		}
+	if meta.Star != 99 {
+		t.Fatalf("star = %d, want the value copied through unchecked", meta.Star)
 	}
 }
 

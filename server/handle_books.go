@@ -15,15 +15,6 @@ import (
 
 const maxCoverBodySize = 20 << 20 // 20 MB
 
-const (
-	minBookStar = 0
-	maxBookStar = 5
-)
-
-// errStarOutOfRange is a request validation failure, so its text is written to
-// the client verbatim.
-var errStarOutOfRange = errors.New("star must be between 0 and 5")
-
 func isRequestBodyTooLarge(err error) bool {
 	var maxBytesErr *http.MaxBytesError
 	return errors.As(err, &maxBytesErr)
@@ -215,12 +206,7 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	meta := *book.GetMeta()
-	if err := applyBookPatch(&meta, &req); err != nil {
-		// applyBookPatch only reports field validation failures, whose text is
-		// written for the client rather than the log.
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+	applyBookPatch(&meta, &req)
 
 	if err := book.SetMeta(&meta); err != nil {
 		app.writeErr(w, err, "failed to update book metadata")
@@ -244,9 +230,9 @@ func (req *UpdateBookRequest) targetLayers() *shelf.Layers {
 // stamps the update time. Fields left nil are untouched, which is what makes
 // the route a PATCH rather than a replace.
 //
-// It is called after the layer move so that a rejected field leaves the same
-// state the hand-written version did; nothing here writes to disk.
-func applyBookPatch(meta *shelf.BookMeta, req *UpdateBookRequest) error {
+// It validates nothing: the field rules belong to shelf, which enforces them in
+// SetMeta before anything reaches disk.
+func applyBookPatch(meta *shelf.BookMeta, req *UpdateBookRequest) {
 	if req.Title != nil {
 		meta.Title = *req.Title
 	}
@@ -269,14 +255,10 @@ func applyBookPatch(meta *shelf.BookMeta, req *UpdateBookRequest) error {
 		meta.PublishedAt = *req.PublishedAt
 	}
 	if req.Star != nil {
-		if *req.Star < minBookStar || *req.Star > maxBookStar {
-			return errStarOutOfRange
-		}
 		meta.Star = *req.Star
 	}
 
 	meta.UpdatedAt = util.JSONTime(time.Now())
-	return nil
 }
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/cover
