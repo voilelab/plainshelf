@@ -134,7 +134,7 @@
               </TooltipContent>
             </TooltipPortal>
           </TooltipRoot>
-          <TooltipRoot v-if="hasActiveShelf && !isMobileEnv">
+          <TooltipRoot v-if="hasActiveShelf && serverAdminAvailable">
             <TooltipTrigger as-child>
               <RouterLink
                 to="/admin/logs"
@@ -213,7 +213,7 @@
                 <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.layers ? '▸' : '▾' }}</span>
               </button>
               <button
-                v-if="!isMobileEnv"
+                v-if="libraryEditingAvailable"
                 type="button"
                 class="create-layer-toggle"
                 aria-haspopup="dialog"
@@ -375,7 +375,7 @@
             :aria-label="t('layout.sections.admin')"
           >
             <RouterLink
-              v-if="hasActiveShelf && !isMobileEnv"
+              v-if="hasActiveShelf && serverAdminAvailable"
               to="/admin/logs"
               class="sidebar-nav-item"
               exact-active-class="active"
@@ -560,15 +560,12 @@ const {
 const { locale, setLocale, supportedLocales, t } = useI18n();
 const { shelves, loading: shelvesLoading, loaded: shelvesLoaded, error: shelvesError, selectedShelfID, fetchShelves, selectShelf } = useShelvesStore();
 const { fetchServerMode } = useServerMode();
-const { writesEnabled, writeDisabledReason } = useWriteAccess();
+const { writesEnabled, writeDisabledReason, libraryEditingAvailable, serverAdminAvailable } =
+  useWriteAccess();
 const readOnly = computed(() => !writesEnabled.value);
 // The Android client being read-only is its normal state, not a condition to
 // warn about, so the banner stays reserved for a server in read-only mode.
 const showReadOnlyBanner = computed(() => writeDisabledReason.value === 'server-read-only');
-// Trash and the maintenance views exist only to fix up the library, so they are
-// hidden on the platform that cannot write. Kept separate from `readOnly`: a
-// read-only server still shows them, since the lists themselves are useful.
-const libraryEditingAvailable = computed(() => !isMobileEnv.value);
 const localeLabelKeyMap: Record<(typeof supportedLocales)[number], 'language.en' | 'language.zhHant'> = {
   en: 'language.en',
   'zh-Hant': 'language.zhHant'

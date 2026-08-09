@@ -270,7 +270,10 @@ const {
 const booksLoaded = ref<boolean>(false);
 const isNewEmptyBookModalOpen = ref(false);
 const droppedFiles = ref<File[]>([]);
-const isMobileEnv = isMobileRuntime();
+// Matches the isMobileEnv pattern in MainLayout.vue and SettingsPage.vue: the
+// runtime does not change during a session, but a computed keeps it consistent
+// with the other environment checks used in the template.
+const isMobileEnv = computed(() => isMobileRuntime());
 const selection = useBookSelection();
 const batchOperations = useBookBatchOperations();
 const moveBooksModalOpen = ref(false);
@@ -281,7 +284,7 @@ const downloadBatchPercentage = ref(0);
 const downloadBatchSucceeded = ref(0);
 const downloadBatchTotal = ref(0);
 const downloadBatchFailures = ref<Array<{ id: string; title: string; message: string }>>([]);
-const selectionEnabled = computed(() => isMobileEnv || !readOnly.value);
+const selectionEnabled = computed(() => isMobileEnv.value || !readOnly.value);
 const layerOptions = computed(() => [...new Set(layers.value.filter((layer) => layer && layer !== '/'))].sort());
 const visibleBookIds = computed(() => visibleBooks.value.map((book) => book.id));
 const downloadBatchStatusText = computed(() => {
@@ -351,7 +354,7 @@ function onBookActivate(payload: BookActivation): void {
     openDetail(payload.id);
     return;
   }
-  if (!isMobileEnv && payload.shiftKey) {
+  if (!isMobileEnv.value && payload.shiftKey) {
     selection.selectRange(visibleBookIds.value, payload.id);
     return;
   }
@@ -367,7 +370,7 @@ function onToggleSelection(id: string): void {
 }
 
 function onLongPress(id: string): void {
-  if (isMobileEnv && !downloadBatchRunning.value) selection.toggle(id);
+  if (isMobileEnv.value && !downloadBatchRunning.value) selection.toggle(id);
 }
 
 function selectVisibleBooks(): void {
@@ -375,11 +378,11 @@ function selectVisibleBooks(): void {
 }
 
 function openBatchMove(): void {
-  if (!isMobileEnv && selection.active.value && !readOnly.value) moveBooksModalOpen.value = true;
+  if (!isMobileEnv.value && selection.active.value && !readOnly.value) moveBooksModalOpen.value = true;
 }
 
 function openBatchTrash(): void {
-  if (!isMobileEnv && selection.active.value && !readOnly.value) trashBooksModalOpen.value = true;
+  if (!isMobileEnv.value && selection.active.value && !readOnly.value) trashBooksModalOpen.value = true;
 }
 
 function submitBatchMove(targetLayer: string): void {
@@ -396,7 +399,7 @@ function submitBatchTrash(): void {
 
 async function startBatchDownload(): Promise<void> {
   const provider = getBookshelfProvider();
-  if (!isMobileEnv || !provider.downloadBook || downloadBatchRunning.value) return;
+  if (!isMobileEnv.value || !provider.downloadBook || downloadBatchRunning.value) return;
   const targets = selectedBooks();
   if (targets.length === 0) return;
 
@@ -449,7 +452,7 @@ function onSelectionKeydown(event: KeyboardEvent): void {
 let mobileBackHandle: { remove: () => Promise<void> } | null = null;
 
 async function installMobileBackHandler(): Promise<void> {
-  if (!isMobileEnv) return;
+  if (!isMobileEnv.value) return;
   const { App } = await import('@capacitor/app');
   mobileBackHandle = await App.addListener('backButton', (event) => {
     handleLibraryMobileBack(event, {

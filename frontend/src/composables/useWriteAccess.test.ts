@@ -65,6 +65,44 @@ describe('useWriteAccess', () => {
   });
 });
 
+// These answer "what does the Android client not have", so they must follow the
+// platform alone. A read-only *server* still shows Trash, the maintenance
+// lists, the settings tabs, and the logs — read-only there means the controls
+// render disabled, not that the pages disappear.
+describe('platform capabilities', () => {
+  it('offers every capability outside the mobile shell', () => {
+    isMobileRuntimeMock.mockReturnValue(false);
+    const { libraryEditingAvailable, serverSettingsEditable, serverAdminAvailable } =
+      useWriteAccess();
+
+    expect(libraryEditingAvailable.value).toBe(true);
+    expect(serverSettingsEditable.value).toBe(true);
+    expect(serverAdminAvailable.value).toBe(true);
+  });
+
+  it('withdraws every capability in the mobile shell', () => {
+    isMobileRuntimeMock.mockReturnValue(true);
+    const { libraryEditingAvailable, serverSettingsEditable, serverAdminAvailable } =
+      useWriteAccess();
+
+    expect(libraryEditingAvailable.value).toBe(false);
+    expect(serverSettingsEditable.value).toBe(false);
+    expect(serverAdminAvailable.value).toBe(false);
+  });
+
+  it('keeps every capability on a read-only server', () => {
+    isMobileRuntimeMock.mockReturnValue(false);
+    readOnly.value = true;
+    const { writesEnabled, libraryEditingAvailable, serverSettingsEditable, serverAdminAvailable } =
+      useWriteAccess();
+
+    expect(writesEnabled.value).toBe(false);
+    expect(libraryEditingAvailable.value).toBe(true);
+    expect(serverSettingsEditable.value).toBe(true);
+    expect(serverAdminAvailable.value).toBe(true);
+  });
+});
+
 describe('isLibraryEditingSupported', () => {
   it('mirrors the mobile runtime check', () => {
     isMobileRuntimeMock.mockReturnValue(true);

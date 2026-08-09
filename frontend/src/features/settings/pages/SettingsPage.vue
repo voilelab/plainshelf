@@ -463,6 +463,7 @@ import {
 import { normalizeEpubImportPreset } from '@/utils/epubStrategy';
 import { getServerVersion } from '@/api/version';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useWriteAccess } from '@/composables/useWriteAccess';
 import { useI18n } from '@/i18n';
 import { isMobileRuntime, isWailsRuntime } from '@/providers';
 import { useShelfManagement } from '@/features/settings/composables/useShelfManagement';
@@ -514,11 +515,9 @@ let fontLicenseRequest = 0;
 
 const isDesktopEnv = computed(() => isWailsRuntime());
 const isMobileEnv = computed(() => isMobileRuntime());
-// Cover and reader tabs POST to /api/setting/*, which the read-only mobile
-// client cannot do; the read-history tab only writes device-local state and
-// stays available everywhere. Shelves is the useful landing tab on mobile:
+// Shelves is the useful landing tab when the server settings tabs are gone:
 // it holds the connection and downloads panels.
-const serverSettingsEditable = computed(() => !isMobileEnv.value);
+const { serverSettingsEditable } = useWriteAccess();
 const defaultSettingsTab = computed(() => (serverSettingsEditable.value ? 'cover' : 'shelves'));
 const {
   shelves,
