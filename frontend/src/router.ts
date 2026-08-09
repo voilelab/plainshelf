@@ -4,7 +4,10 @@ import ReaderLayout from '@/layouts/ReaderLayout.vue';
 import { APP_TITLE } from '@/composables/useDocumentTitle';
 import { isMobileRuntime } from '@/providers/runtime';
 import { isConnectionConfigured, loadMobileConnectionConfig } from '@/providers/mobileConfig';
-import { MOBILE_BLOCKED_ROUTES } from '@/features/mobile/utils/blockedRoutes';
+import {
+  MOBILE_BLOCKED_ROUTES,
+  stripMobileBlockedQuery
+} from '@/features/mobile/utils/blockedRoutes';
 
 const DashboardPage = () => import('@/features/dashboard/pages/DashboardPage.vue');
 const LibraryPage = () => import('@/features/library/pages/LibraryPage.vue');
@@ -41,6 +44,10 @@ const ROUTES_WITH_OWN_TITLE = new Set([
   'maintenance-low-char-count'
 ]);
 
+// A route that edits the shelf, administers the server, or opens a write
+// surface from a query parameter also belongs in
+// features/mobile/utils/blockedRoutes.ts — the mobile shell is a read-only
+// reading client and the guard below is what keeps it that way.
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -186,6 +193,16 @@ router.beforeEach(async (to) => {
   if (typeof to.name === 'string' && MOBILE_BLOCKED_ROUTES.has(to.name)) {
     return { name: 'library' };
   }
+
+  // Route names cannot express every write surface: `/import` redirects to
+  // `/books?import=1`, and the modal opens off that query alone. Strip it here
+  // so the whole mobile route policy lives in this guard. LibraryPage keeps its
+  // own check as well — that is deliberate depth, not duplication.
+  const sanitizedQuery = stripMobileBlockedQuery(to.query);
+  if (sanitizedQuery) {
+    return { path: to.path, query: sanitizedQuery, hash: to.hash, replace: true };
+  }
+
   return true;
 });
 
