@@ -1,23 +1,119 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"regexp"
-	"strings"
 
 	"github.com/voilelab/plainshelf/internal/epub"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
+// Each setting is read, written, and deleted by three separate handlers, so
+// the key is declared once rather than spelled out at each of them.
+const (
+	settingKeyCoverToJPG         = "cover_to_jpg"
+	settingKeyDefaultSplitConfig = "default_split_config"
+	settingKeyEPUBImportStrategy = "epub_import_strategy"
+)
+
+// readJSONSetting returns the stored value for key when there is one this build
+// can still use.
+//
+// A stored value that no longer parses, or that fails validate, is logged and
+// reported as absent so the caller falls back to the config file or the
+// built-in default. That keeps one bad row from wedging a setting.
+func readJSONSetting[T any](app *App, key string, validate func(T) error) (T, bool) {
+	var value T
+
+	bs, exists, err := app.storeDB.GetSetting(key)
+	if err != nil {
+		app.Error("failed to read setting", "key", key, "err", err)
+		return value, false
+	}
+	if !exists {
+		return value, false
+	}
+
+	if err := json.Unmarshal(bs, &value); err != nil {
+		app.Error("stored setting is not valid JSON", "key", key, "err", err)
+		return value, false
+	}
+	if validate != nil {
+		if err := validate(value); err != nil {
+			app.Error("stored setting is no longer valid", "key", key, "err", err)
+			return value, false
+		}
+	}
+
+	return value, true
+}
+
+// setJSONSetting decodes a JSON setting body, validates it, and stores it.
+//
+// The decoded value is stored rather than the raw body, so what is persisted
+// is always exactly the fields this build understands. validate reports a
+// message that is written to the client, so it must be safe to expose.
+func setJSONSetting[T any](app *App, w http.ResponseWriter, r *http.Request, key string, validate func(T) error) {
+	bs, err := io.ReadAll(r.Body)
+	if err != nil {
+		app.Error("read request body:", "err", err)
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	var value T
+	dec := json.NewDecoder(bytes.NewReader(bs))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&value); err != nil {
+		http.Error(w, fmt.Sprintf("invalid JSON: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	if err := validate(value); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	jsonBytes, err := json.Marshal(value)
+	if err != nil {
+		app.Error("failed to serialize setting", "key", key, "err", err)
+		http.Error(w, "failed to serialize setting", http.StatusInternalServerError)
+		return
+	}
+
+	if err := app.storeDB.SetSetting(key, jsonBytes); err != nil {
+		app.Error("failed to save setting", "key", key, "err", err)
+		http.Error(w, "failed to save setting", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// deleteSetting drops a stored setting, which returns the API to whatever the
+// config file or the built-in default supplies.
+func (app *App) deleteSetting(w http.ResponseWriter, key string) {
+	if err := app.storeDB.DeleteSetting(key); err != nil {
+		app.Error("failed to delete setting", "key", key, "err", err)
+		http.Error(w, "failed to delete setting", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (app *App) coverToJPG() bool {
 	val := app.conf.CoverToJPG
 
-	bs, exists, err := app.storeDB.GetSetting("cover_to_jpg")
+	bs, exists, err := app.storeDB.GetSetting(settingKeyCoverToJPG)
 	if err != nil {
-		app.Error("coverToJPG:", "err", err)
+		app.Error("failed to read setting", "key", settingKeyCoverToJPG, "err", err)
 	} else if exists {
 		val = string(bs) == "true"
 	}
@@ -27,17 +123,13 @@ func (app *App) coverToJPG() bool {
 
 // GET /api/setting/cover_to_jpg
 func (app *App) HandleGetSettingCoverToJPG(w http.ResponseWriter, r *http.Request) {
-	val := app.coverToJPG()
-
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	if val {
-		w.Write([]byte(`{"value": true}`))
-	} else {
-		w.Write([]byte(`{"value": false}`))
-	}
+	app.writeJSON(w, http.StatusOK, map[string]any{"value": app.coverToJPG()})
 }
 
 // POST /api/setting/cover_to_jpg
+//
+// The body is the bare literal true or false, not a JSON document, so this one
+// does not go through setJSONSetting.
 func (app *App) HandleSetSettingCoverToJPG(w http.ResponseWriter, r *http.Request) {
 	bs, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -52,8 +144,8 @@ func (app *App) HandleSetSettingCoverToJPG(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if err := app.storeDB.SetSetting("cover_to_jpg", bs); err != nil {
-		app.Error("SetSettingCoverToJPG:", "err", err)
+	if err := app.storeDB.SetSetting(settingKeyCoverToJPG, bs); err != nil {
+		app.Error("failed to save setting", "key", settingKeyCoverToJPG, "err", err)
 		http.Error(w, "failed to save setting", http.StatusInternalServerError)
 		return
 	}
@@ -63,26 +155,33 @@ func (app *App) HandleSetSettingCoverToJPG(w http.ResponseWriter, r *http.Reques
 
 // DELETE /api/setting/cover_to_jpg
 func (app *App) HandleDeleteSettingCoverToJPG(w http.ResponseWriter, r *http.Request) {
-	if err := app.storeDB.DeleteSetting("cover_to_jpg"); err != nil {
-		app.Error("DeleteSettingCoverToJPG:", "err", err)
-		http.Error(w, "failed to delete setting", http.StatusInternalServerError)
-		return
-	}
+	app.deleteSetting(w, settingKeyCoverToJPG)
+}
 
-	w.WriteHeader(http.StatusNoContent)
+// validateDefaultSplitConfig rejects the split types that make no sense as a
+// global default, and the malformed parameters of the ones that do.
+func validateDefaultSplitConfig(cfg shelf.SplitConfig) error {
+	switch cfg.Type {
+	case shelf.SplitTypeNone:
+		return nil
+	case shelf.SplitTypeLineCount:
+		if cfg.LineCount <= 0 {
+			return errors.New("line_count must be a positive integer")
+		}
+		return nil
+	case shelf.SplitTypeRegex:
+		if _, err := regexp.Compile(cfg.Regex); err != nil {
+			return fmt.Errorf("invalid regex: %v", err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported split type for global default: %q", cfg.Type)
+	}
 }
 
 func (app *App) defaultSplitConfig() shelf.SplitConfig {
-	bs, exists, err := app.storeDB.GetSetting("default_split_config")
-	if err != nil {
-		app.Error("defaultSplitConfig:", "err", err)
-	} else if exists {
-		var cfg shelf.SplitConfig
-		if err := json.Unmarshal(bs, &cfg); err != nil {
-			app.Error("defaultSplitConfig: invalid stored JSON", "err", err)
-		} else {
-			return cfg
-		}
+	if cfg, ok := readJSONSetting[shelf.SplitConfig](app, settingKeyDefaultSplitConfig, nil); ok {
+		return cfg
 	}
 
 	if app.conf.DefaultSplitConfig != nil {
@@ -99,64 +198,22 @@ func (app *App) HandleGetSettingDefaultSplitConfig(w http.ResponseWriter, r *htt
 
 // POST /api/setting/default_split_config
 func (app *App) HandleSetSettingDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
-	bs, err := io.ReadAll(r.Body)
-	if err != nil {
-		app.Error("read request body:", "err", err)
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
-
-	var cfg shelf.SplitConfig
-	dec := json.NewDecoder(strings.NewReader(string(bs)))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&cfg); err != nil {
-		http.Error(w, fmt.Sprintf("invalid JSON: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	switch cfg.Type {
-	case shelf.SplitTypeNone:
-	case shelf.SplitTypeLineCount:
-		if cfg.LineCount <= 0 {
-			http.Error(w, "line_count must be a positive integer", http.StatusBadRequest)
-			return
-		}
-	case shelf.SplitTypeRegex:
-		if _, err := regexp.Compile(cfg.Regex); err != nil {
-			http.Error(w, fmt.Sprintf("invalid regex: %v", err), http.StatusBadRequest)
-			return
-		}
-	default:
-		http.Error(w, fmt.Sprintf("unsupported split type for global default: %q", cfg.Type), http.StatusBadRequest)
-		return
-	}
-
-	jsonBytes, err := json.Marshal(cfg)
-	if err != nil {
-		app.Error("marshal default_split_config:", "err", err)
-		http.Error(w, "failed to serialize config", http.StatusInternalServerError)
-		return
-	}
-
-	if err := app.storeDB.SetSetting("default_split_config", jsonBytes); err != nil {
-		app.Error("SetSettingDefaultSplitConfig:", "err", err)
-		http.Error(w, "failed to save setting", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
+	setJSONSetting(app, w, r, settingKeyDefaultSplitConfig, validateDefaultSplitConfig)
 }
 
 // DELETE /api/setting/default_split_config
 func (app *App) HandleDeleteSettingDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
-	if err := app.storeDB.DeleteSetting("default_split_config"); err != nil {
-		app.Error("DeleteSettingDefaultSplitConfig:", "err", err)
-		http.Error(w, "failed to delete setting", http.StatusInternalServerError)
-		return
-	}
+	app.deleteSetting(w, settingKeyDefaultSplitConfig)
+}
 
-	w.WriteHeader(http.StatusNoContent)
+// validateEPUBImportStrategy reports the preset rather than the underlying
+// error, which is what the route answered before and keeps internal wording
+// out of the response.
+func validateEPUBImportStrategy(strategy epub.Strategy) error {
+	if err := strategy.Validate(); err != nil {
+		return fmt.Errorf("unsupported epub import preset: %q", strategy.Preset)
+	}
+	return nil
 }
 
 // epubImportStrategy is the conversion strategy an import uses when the request
@@ -167,18 +224,8 @@ func (app *App) HandleDeleteSettingDefaultSplitConfig(w http.ResponseWriter, r *
 // matters for the desktop client, which imports without opening the import
 // dialog and so has no other way to choose.
 func (app *App) epubImportStrategy() epub.Strategy {
-	bs, exists, err := app.storeDB.GetSetting("epub_import_strategy")
-	if err != nil {
-		app.Error("epubImportStrategy:", "err", err)
-	} else if exists {
-		var strategy epub.Strategy
-		if err := json.Unmarshal(bs, &strategy); err != nil {
-			app.Error("epubImportStrategy: invalid stored JSON", "err", err)
-		} else if err := strategy.Validate(); err != nil {
-			app.Error("epubImportStrategy: invalid stored strategy", "err", err)
-		} else {
-			return strategy
-		}
+	if strategy, ok := readJSONSetting(app, settingKeyEPUBImportStrategy, epub.Strategy.Validate); ok {
+		return strategy
 	}
 
 	if app.conf.EPUBImportStrategy != nil {
@@ -198,52 +245,10 @@ func (app *App) HandleGetSettingEPUBImportStrategy(w http.ResponseWriter, r *htt
 
 // POST /api/setting/epub_import_strategy
 func (app *App) HandleSetSettingEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
-	bs, err := io.ReadAll(r.Body)
-	if err != nil {
-		app.Error("read request body:", "err", err)
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
-
-	var strategy epub.Strategy
-	dec := json.NewDecoder(strings.NewReader(string(bs)))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&strategy); err != nil {
-		http.Error(w, fmt.Sprintf("invalid JSON: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	if err := strategy.Validate(); err != nil {
-		http.Error(w, fmt.Sprintf("unsupported epub import preset: %q", strategy.Preset), http.StatusBadRequest)
-		return
-	}
-
-	// Store the decoded value rather than the raw body so the persisted setting
-	// is always exactly the fields this build understands.
-	jsonBytes, err := json.Marshal(strategy)
-	if err != nil {
-		app.Error("marshal epub_import_strategy:", "err", err)
-		http.Error(w, "failed to serialize strategy", http.StatusInternalServerError)
-		return
-	}
-
-	if err := app.storeDB.SetSetting("epub_import_strategy", jsonBytes); err != nil {
-		app.Error("SetSettingEPUBImportStrategy:", "err", err)
-		http.Error(w, "failed to save setting", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
+	setJSONSetting(app, w, r, settingKeyEPUBImportStrategy, validateEPUBImportStrategy)
 }
 
 // DELETE /api/setting/epub_import_strategy
 func (app *App) HandleDeleteSettingEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
-	if err := app.storeDB.DeleteSetting("epub_import_strategy"); err != nil {
-		app.Error("DeleteSettingEPUBImportStrategy:", "err", err)
-		http.Error(w, "failed to delete setting", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
+	app.deleteSetting(w, settingKeyEPUBImportStrategy)
 }
