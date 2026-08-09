@@ -1,8 +1,11 @@
 package server
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"strings"
 	"testing"
 )
@@ -41,6 +44,14 @@ func TestInvalidLayerNameIsARequestError(t *testing.T) {
 			path:   "/api/shelves/default_shelf/books/" + book.Meta.ID,
 			body:   `{"layer":[".."]}`,
 		},
+		{
+			// Creating and importing a book place it in a layer too, so they
+			// reject a bad one on the same terms.
+			name:   "create book in layer",
+			method: http.MethodPost,
+			path:   "/api/shelves/default_shelf/books",
+			body:   `{"title":"X","layer":[".."]}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -76,4 +87,38 @@ func TestLayerConflictsStillAnswerConflict(t *testing.T) {
 			`{"layer":["alpha"],"target_layer":["alpha"]}`)
 		assertStatus(t, rec, http.StatusConflict)
 	})
+}
+
+// Importing places the book in a layer as well, so a bad one must be refused
+// the same way rather than reported as an import failure.
+func TestImportRejectsInvalidLayerName(t *testing.T) {
+	env := newAPITestEnv(t)
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	if err := writer.WriteField("layer", ".."); err != nil {
+		t.Fatalf("WriteField layer: %v", err)
+	}
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", `form-data; name="file"; filename="import.txt"`)
+	h.Set("Content-Type", "text/plain; charset=utf-8")
+	part, err := writer.CreatePart(h)
+	if err != nil {
+		t.Fatalf("CreatePart: %v", err)
+	}
+	if _, err := part.Write([]byte("body")); err != nil {
+		t.Fatalf("write part: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close multipart writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/import", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rec := env.do(req)
+
+	assertStatus(t, rec, http.StatusBadRequest)
+	if got := strings.TrimSpace(rec.Body.String()); got != "invalid layer name" {
+		t.Fatalf("body = %q, want %q", got, "invalid layer name")
+	}
 }
