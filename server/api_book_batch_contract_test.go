@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func submitBookBatch(t *testing.T, env *apiTestEnv, payload any, wantStatus int) bookBatchResponse {
+func submitBookBatch(t *testing.T, env *apiTestEnv, payload any, wantStatus int) taskChainSubmitResponse {
 	t.Helper()
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -18,10 +18,10 @@ func submitBookBatch(t *testing.T, env *apiTestEnv, payload any, wantStatus int)
 	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/book-batches", bytes.NewReader(body)))
 	assertStatus(t, rec, wantStatus)
 	if wantStatus != http.StatusAccepted && wantStatus != http.StatusConflict {
-		return bookBatchResponse{}
+		return taskChainSubmitResponse{}
 	}
 	assertJSONContentType(t, rec)
-	return decodeJSON[bookBatchResponse](t, rec)
+	return decodeJSON[taskChainSubmitResponse](t, rec)
 }
 
 func taskBatchResult(t *testing.T, chain TaskChain) map[string]any {

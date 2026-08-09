@@ -77,14 +77,14 @@ func waitForTaskChain(t *testing.T, env *apiTestEnv, taskChainID string) TaskCha
 	}
 }
 
-func emptyTrash(t *testing.T, env *apiTestEnv, wantStatus int) EmptyTrashResponse {
+func emptyTrash(t *testing.T, env *apiTestEnv, wantStatus int) taskChainSubmitResponse {
 	t.Helper()
 
 	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/trash/empty", nil))
 	assertStatus(t, rec, wantStatus)
 	assertJSONContentType(t, rec)
 
-	resp := decodeJSON[EmptyTrashResponse](t, rec)
+	resp := decodeJSON[taskChainSubmitResponse](t, rec)
 	if resp.TaskChainID == "" {
 		t.Fatalf("response is missing taskchain_id: %s", rec.Body.String())
 	}

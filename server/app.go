@@ -246,7 +246,7 @@ func (app *App) Serve(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPIGetBook)
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPIUpdateBook)
-	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPIDeleteBook)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPITrashBook)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/trash", app.HandleAPITrashBook)
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources", app.HandleAPIGetBookSources)
