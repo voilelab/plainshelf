@@ -135,12 +135,17 @@ test('offers clear-history but ignores the import query on mobile', async ({ pag
     await expect(page.getByRole('tab', { name: 'Cover' })).toHaveCount(0);
 
     // /import redirects to /books?import=1, and the modal opens purely off that
-    // query — a redirect the router guard cannot intercept by route name.
+    // query — a redirect the router guard cannot intercept by route name. The
+    // guard strips the query instead, so assert on the URL as well: without it
+    // this test passes on LibraryPage's own check alone and would not notice
+    // the guard regressing.
     await reopenMobileAt(page, server.baseUrl, '/books?import=1');
     await expect(page).toHaveURL(/\/books/);
+    await expect(page).not.toHaveURL(/[?&]import=/);
     await expect(page.getByRole('dialog', { name: 'Import Book' })).toHaveCount(0);
 
     await reopenMobileAt(page, server.baseUrl, '/import');
+    await expect(page).not.toHaveURL(/[?&]import=/);
     await expect(page.getByRole('dialog', { name: 'Import Book' })).toHaveCount(0);
   } finally {
     await server.dispose();
