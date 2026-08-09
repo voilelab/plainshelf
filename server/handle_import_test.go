@@ -86,12 +86,26 @@ func TestValidateImportFileHeader(t *testing.T) {
 				header.Header.Set("Content-Type", tt.contentType)
 			}
 
-			err := validateImportFileHeader(header)
+			message, err := validateImportFileHeader(header)
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error")
 			}
 			if !tt.wantErr && err != nil {
 				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// The message is what the client sees, so it must be present on a
+			// rejection and must not carry the util.Errorf function prefix the
+			// logged error has.
+			if tt.wantErr {
+				if message == "" {
+					t.Fatal("rejection returned no client message")
+				}
+				if strings.Contains(message, "plainshelf/server") {
+					t.Fatalf("message = %q, must not name internal packages", message)
+				}
+			} else if message != "" {
+				t.Fatalf("message = %q, want empty when accepted", message)
 			}
 		})
 	}
@@ -183,7 +197,7 @@ func TestMultipartDefaultFileContentTypeIsRejected(t *testing.T) {
 	if len(files) != 1 {
 		t.Fatalf("expected one file, got %d", len(files))
 	}
-	if err := validateImportFileHeader(files[0]); err == nil {
+	if _, err := validateImportFileHeader(files[0]); err == nil {
 		t.Fatal("expected default application/octet-stream upload to be rejected")
 	}
 }
