@@ -3,6 +3,8 @@ package server
 import (
 	"archive/zip"
 	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -53,6 +55,49 @@ func buildTestEPUB(t *testing.T) []byte {
 		{"OEBPS/ch1.xhtml", `<html><body><h1>第一章</h1><p>他走出了車站。</p></body></html>`},
 		{"OEBPS/ch2.xhtml", `<html><body><h1>第二章</h1><p>回程的路上。</p></body></html>`},
 	}
+
+	return zipEPUBEntries(t, entries)
+}
+
+// buildIllustratedTestEPUB is buildTestEPUB with two illustrations in the
+// chapters, for the paths that report what conversion discarded.
+func buildIllustratedTestEPUB(t *testing.T) []byte {
+	t.Helper()
+
+	entries := []struct{ name, body string }{
+		{"mimetype", "application/epub+zip"},
+		{"META-INF/container.xml", `<?xml version="1.0"?>
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+</container>`},
+		{"OEBPS/content.opf", `<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>` + testEPUBTitle + `</dc:title>
+    <dc:language>zh-Hant</dc:language>
+    <dc:identifier id="pub-id">urn:isbn:9781234567897</dc:identifier>
+  </metadata>
+  <manifest>
+    <item id="cover-img" href="cover.png" media-type="image/png" properties="cover-image"/>
+    <item id="plate1" href="images/plate1.png" media-type="image/png"/>
+    <item id="plate2" href="images/plate2.png" media-type="image/png"/>
+    <item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="c2" href="ch2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="c1"/><itemref idref="c2"/></spine>
+</package>`},
+		{"OEBPS/cover.png", string(onePixelPNG())},
+		{"OEBPS/images/plate1.png", string(onePixelPNG())},
+		{"OEBPS/images/plate2.png", string(onePixelPNG())},
+		{"OEBPS/ch1.xhtml", `<html><body><h1>第一章</h1><p>他走出了車站。</p><img src="images/plate1.png"/></body></html>`},
+		{"OEBPS/ch2.xhtml", `<html><body><h1>第二章</h1><p>回程的路上。</p><img src="images/plate2.png"/></body></html>`},
+	}
+
+	return zipEPUBEntries(t, entries)
+}
+
+func zipEPUBEntries(t *testing.T, entries []struct{ name, body string }) []byte {
+	t.Helper()
 
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
@@ -307,6 +352,85 @@ func TestParseImportStrategy(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("parseImportStrategy(%q) = %+v, want %+v", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEPUBImportComment(t *testing.T) {
+	tests := []struct {
+		name string
+		book *epub.Book
+		want string
+	}{
+		{
+			// An import that lost nothing leaves no note behind, so the comment
+			// stays available for anything else and book.json stays quiet.
+			name: "nothing dropped leaves no comment",
+			book: &epub.Book{},
+			want: "",
+		},
+		{
+			name: "one image reads as singular",
+			book: &epub.Book{DroppedImages: 1},
+			want: "Converted from EPUB. 1 embedded image was dropped.",
+		},
+		{
+			name: "several images read as plural",
+			book: &epub.Book{DroppedImages: 4},
+			want: "Converted from EPUB. 4 embedded images were dropped.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := epubImportComment(tt.book); got != tt.want {
+				t.Errorf("epubImportComment() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestImportEPUBRecordsDroppedImages pins the whole path: the converter counts
+// the illustrations, the importer writes the note onto the source it created,
+// and the sources endpoint hands it back for the book detail view to show.
+func TestImportEPUBRecordsDroppedImages(t *testing.T) {
+	tests := []struct {
+		name    string
+		archive []byte
+		want    string
+	}{
+		{
+			name:    "illustrated epub records what it lost",
+			archive: buildIllustratedTestEPUB(t),
+			want:    "Converted from EPUB. 2 embedded images were dropped.",
+		},
+		{
+			// The cover is kept, so an EPUB whose only image is the cover has
+			// nothing to report.
+			name:    "epub without illustrations records nothing",
+			archive: buildTestEPUB(t),
+			want:    "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := newAPITestEnv(t)
+			imported := importFileBook(t, env, "book.epub", "application/epub+zip", string(tt.archive))
+
+			if imported.Meta == nil || imported.Meta.CurrentSource == "" {
+				t.Fatal("imported book has no current source")
+			}
+
+			path := "/api/shelves/default_shelf/books/" + imported.Meta.ID +
+				"/sources/" + imported.Meta.CurrentSource
+			rec := env.do(httptest.NewRequest(http.MethodGet, path, nil))
+			assertStatus(t, rec, http.StatusOK)
+
+			source := decodeJSON[shelf.SourceMeta](t, rec)
+			if source.Comment != tt.want {
+				t.Errorf("source comment = %q, want %q", source.Comment, tt.want)
 			}
 		})
 	}

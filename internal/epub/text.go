@@ -33,16 +33,22 @@ var headingTags = map[string]struct{}{
 	"h1": {}, "h2": {}, "h3": {}, "h4": {}, "h5": {}, "h6": {},
 }
 
-// documentToChapter flattens one spine document into a title and body text.
+// documentToChapter flattens one spine document into a title and body text, and
+// reports the illustrations it discarded along the way.
 //
 // The document's own first heading is consumed as the title and removed from
 // the body: every template prints the chapter title itself, so leaving the
 // heading in place would print it twice. The caller may still prefer a table of
 // contents title over the returned one.
-func documentToChapter(data []byte, opts Options) (string, string) {
+//
+// imageHrefs holds the raw references of every illustration in the document, in
+// document order and unresolved: only the caller knows the document's own
+// directory. They are collected before the heading is removed, so an
+// illustration inside the heading still counts as dropped.
+func documentToChapter(data []byte, opts Options) (title, text string, imageHrefs []string) {
 	doc, err := html.Parse(bytes.NewReader(data))
 	if err != nil {
-		return "", ""
+		return "", "", nil
 	}
 
 	root := findElement(doc, "body")
@@ -50,7 +56,8 @@ func documentToChapter(data []byte, opts Options) (string, string) {
 		root = doc
 	}
 
-	title := ""
+	imageHrefs = collectImageHrefs(root)
+
 	if heading := findFirstHeading(root); heading != nil {
 		title = collapseSpaces(textContent(heading))
 		if title != "" && heading.Parent != nil {
@@ -58,7 +65,42 @@ func documentToChapter(data []byte, opts Options) (string, string) {
 		}
 	}
 
-	return title, extractText(root, opts)
+	return title, extractText(root, opts), imageHrefs
+}
+
+// collectImageHrefs walks the document for illustration references.
+//
+// This is a pass of its own rather than a hook inside writeNode: the flattener
+// skips <svg> as a whole subtree, and threading a collector through every write
+// helper would touch far more code than reading the tree twice costs.
+//
+// <img> carries src; SVG's <image> carries href, or xlink:href in older files.
+// The tolerant HTML parser stores the latter with the namespace split off, so
+// looking up "href" finds both.
+func collectImageHrefs(root *html.Node) []string {
+	var hrefs []string
+
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode {
+			var href string
+			switch n.Data {
+			case "img":
+				href = attr(n, "src")
+			case "image":
+				href = attr(n, "href")
+			}
+			if href = strings.TrimSpace(href); href != "" {
+				hrefs = append(hrefs, href)
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(root)
+
+	return hrefs
 }
 
 // parseNavDocument reads an EPUB 3 navigation document into href -> title. The

@@ -115,6 +115,11 @@ func (app *App) initEPUBBook(parsed *epub.Book, rendered epub.Rendered) func(*sh
 		if err := source.UpdateSplitConfig(splitConfigForRender(rendered)); err != nil {
 			return util.Errorf("%w", err)
 		}
+		if comment := epubImportComment(parsed); comment != "" {
+			if err := source.UpdateComment(comment); err != nil {
+				return util.Errorf("%w", err)
+			}
+		}
 
 		app.setEPUBCover(book, parsed)
 
@@ -134,6 +139,24 @@ func (app *App) initEPUBBook(parsed *epub.Book, rendered epub.Rendered) func(*sh
 		}
 
 		return book.SetMeta(meta)
+	}
+}
+
+// epubImportComment describes what the conversion could not carry over, for the
+// source's comment. It returns an empty string when nothing was lost, so an
+// import that kept everything leaves no note behind.
+//
+// The text is stored verbatim on disk and is therefore not translated. That is
+// the cost of recording it in the existing comment field rather than adding a
+// structured one to the source format.
+func epubImportComment(parsed *epub.Book) string {
+	switch n := parsed.DroppedImages; {
+	case n <= 0:
+		return ""
+	case n == 1:
+		return "Converted from EPUB. 1 embedded image was dropped."
+	default:
+		return fmt.Sprintf("Converted from EPUB. %d embedded images were dropped.", n)
 	}
 }
 

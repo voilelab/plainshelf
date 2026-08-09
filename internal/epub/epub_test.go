@@ -145,6 +145,190 @@ func TestParseEPUB3(t *testing.T) {
 	if got := book.Chapters[0].Text; got != wantText {
 		t.Errorf("Chapters[0].Text = %q, want %q", got, wantText)
 	}
+
+	// The cover is kept, and no chapter references an illustration.
+	if book.DroppedImages != 0 {
+		t.Errorf("DroppedImages = %d, want 0", book.DroppedImages)
+	}
+}
+
+func TestParseDroppedImages(t *testing.T) {
+	// coverOPF declares a cover image plus the documents each case needs, so the
+	// interesting difference between cases stays in the chapter markup.
+	const coverOPF = `<package xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>插圖</dc:title></metadata>
+  <manifest>
+    <item id="cover-img" href="images/cover.png" media-type="image/png" properties="cover-image"/>
+    <item id="c0" href="text/cover.xhtml" media-type="application/xhtml+xml"/>
+    <item id="c1" href="text/ch1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="c2" href="text/ch2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="c0"/><itemref idref="c1"/><itemref idref="c2"/></spine>
+</package>`
+
+	tests := []struct {
+		name    string
+		entries []zipEntry
+		want    int
+	}{
+		{
+			name: "chapter illustrations are counted",
+			entries: []zipEntry{
+				{"META-INF/container.xml", containerXML},
+				{"OEBPS/content.opf", coverOPF},
+				{"OEBPS/images/cover.png", "cover-bytes"},
+				{"OEBPS/images/plate1.png", "plate-bytes"},
+				{"OEBPS/images/plate2.png", "plate-bytes"},
+				{"OEBPS/text/cover.xhtml", `<html><body><p>書名</p></body></html>`},
+				{"OEBPS/text/ch1.xhtml", `<html><body><p>內文。</p><img src="../images/plate1.png"/></body></html>`},
+				{"OEBPS/text/ch2.xhtml", `<html><body><p>內文。</p><img src="../images/plate2.png"/></body></html>`},
+			},
+			want: 2,
+		},
+		{
+			// Without this exclusion nearly every EPUB would report a loss: the
+			// cover page normally sits in the spine and points at the cover.
+			name: "cover page image is not counted",
+			entries: []zipEntry{
+				{"META-INF/container.xml", containerXML},
+				{"OEBPS/content.opf", coverOPF},
+				{"OEBPS/images/cover.png", "cover-bytes"},
+				{"OEBPS/text/cover.xhtml", `<html><body><img src="../images/cover.png"/></body></html>`},
+				{"OEBPS/text/ch1.xhtml", `<html><body><p>內文。</p></body></html>`},
+				{"OEBPS/text/ch2.xhtml", `<html><body><p>內文。</p></body></html>`},
+			},
+			want: 0,
+		},
+		{
+			// The flattener skips <svg> as a whole subtree, so the counter has to
+			// descend into it separately. Expecting a non-zero count here is what
+			// makes the cover case below meaningful: a counter that never entered
+			// an <svg> at all would satisfy that one by accident.
+			name: "svg wrapped illustration is counted",
+			entries: []zipEntry{
+				{"META-INF/container.xml", containerXML},
+				{"OEBPS/content.opf", coverOPF},
+				{"OEBPS/images/cover.png", "cover-bytes"},
+				{"OEBPS/images/plate1.png", "plate-bytes"},
+				{"OEBPS/text/cover.xhtml", `<html><body><p>書名</p></body></html>`},
+				{"OEBPS/text/ch1.xhtml", `<html><body><p>內文。</p><svg xmlns:xlink="http://www.w3.org/1999/xlink"><image xlink:href="../images/plate1.png"/></svg></body></html>`},
+				{"OEBPS/text/ch2.xhtml", `<html><body><p>內文。</p></body></html>`},
+			},
+			want: 1,
+		},
+		{
+			// The other common cover-page shape.
+			name: "svg wrapped cover image is not counted",
+			entries: []zipEntry{
+				{"META-INF/container.xml", containerXML},
+				{"OEBPS/content.opf", coverOPF},
+				{"OEBPS/images/cover.png", "cover-bytes"},
+				{"OEBPS/text/cover.xhtml", `<html><body><svg xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 100 100">
+  <image width="100" height="100" xlink:href="../images/cover.png"/>
+</svg></body></html>`},
+				{"OEBPS/text/ch1.xhtml", `<html><body><p>內文。</p></body></html>`},
+				{"OEBPS/text/ch2.xhtml", `<html><body><p>內文。</p></body></html>`},
+			},
+			want: 0,
+		},
+		{
+			name: "an illustration repeated across chapters counts once",
+			entries: []zipEntry{
+				{"META-INF/container.xml", containerXML},
+				{"OEBPS/content.opf", coverOPF},
+				{"OEBPS/images/cover.png", "cover-bytes"},
+				{"OEBPS/images/ornament.png", "ornament-bytes"},
+				{"OEBPS/text/cover.xhtml", `<html><body><p>書名</p></body></html>`},
+				{"OEBPS/text/ch1.xhtml", `<html><body><p>內文。</p><img src="../images/ornament.png"/></body></html>`},
+				{"OEBPS/text/ch2.xhtml", `<html><body><img src="../images/ornament.png"/><p>內文。</p></body></html>`},
+			},
+			want: 1,
+		},
+		{
+			// No cover is stored here, so the frontispiece really is lost — even
+			// though its document flattens to nothing and is skipped as a chapter.
+			name: "image on a skipped page counts when no cover is stored",
+			entries: []zipEntry{
+				{"META-INF/container.xml", containerXML},
+				{"OEBPS/content.opf", `<package xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>無封面</dc:title></metadata>
+  <manifest>
+    <item id="c0" href="text/front.xhtml" media-type="application/xhtml+xml"/>
+    <item id="c1" href="text/ch1.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="c0"/><itemref idref="c1"/></spine>
+</package>`},
+				{"OEBPS/images/frontispiece.png", "frontispiece-bytes"},
+				{"OEBPS/text/front.xhtml", `<html><body><img src="../images/frontispiece.png"/></body></html>`},
+				{"OEBPS/text/ch1.xhtml", `<html><body><p>內文。</p></body></html>`},
+			},
+			want: 1,
+		},
+		{
+			// The archive stores the cover one way and the cover page spells it
+			// another. lookupZipEntry reads both, so the exclusion has to hold too
+			// or the book reports a loss it did not suffer.
+			name: "cover referenced with different casing is still excluded",
+			entries: []zipEntry{
+				{"META-INF/container.xml", containerXML},
+				{"OEBPS/content.opf", `<package xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>大小寫</dc:title></metadata>
+  <manifest>
+    <item id="cover-img" href="Images/Cover.PNG" media-type="image/png" properties="cover-image"/>
+    <item id="c0" href="text/cover.xhtml" media-type="application/xhtml+xml"/>
+    <item id="c1" href="text/ch1.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="c0"/><itemref idref="c1"/></spine>
+</package>`},
+				{"OEBPS/Images/Cover.PNG", "cover-bytes"},
+				{"OEBPS/text/cover.xhtml", `<html><body><img src="../images/cover.png"/></body></html>`},
+				{"OEBPS/text/ch1.xhtml", `<html><body><p>內文。</p></body></html>`},
+			},
+			want: 0,
+		},
+		{
+			// Nothing was lost: the archive never carried these. Counting a href
+			// the file cannot satisfy would report artwork that never existed.
+			name: "references the archive cannot satisfy are not counted",
+			entries: []zipEntry{
+				{"META-INF/container.xml", containerXML},
+				{"OEBPS/content.opf", coverOPF},
+				{"OEBPS/images/cover.png", "cover-bytes"},
+				{"OEBPS/text/cover.xhtml", `<html><body><p>書名</p></body></html>`},
+				{"OEBPS/text/ch1.xhtml", `<html><body><p>內文。</p>
+  <img src="../images/missing.png"/>
+  <img src="https://example.com/remote.png"/>
+  <img src="data:image/png;base64,iVBORw0KGgo="/>
+</body></html>`},
+				{"OEBPS/text/ch2.xhtml", `<html><body><p>內文。</p></body></html>`},
+			},
+			want: 0,
+		},
+		{
+			name: "an image with no reference is ignored",
+			entries: []zipEntry{
+				{"META-INF/container.xml", containerXML},
+				{"OEBPS/content.opf", coverOPF},
+				{"OEBPS/images/cover.png", "cover-bytes"},
+				{"OEBPS/text/cover.xhtml", `<html><body><p>書名</p></body></html>`},
+				{"OEBPS/text/ch1.xhtml", `<html><body><p>內文。</p><img alt="broken"/></body></html>`},
+				{"OEBPS/text/ch2.xhtml", `<html><body><p>內文。</p></body></html>`},
+			},
+			want: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			book, err := parseArchive(t, buildArchive(t, tt.entries), Options{})
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if book.DroppedImages != tt.want {
+				t.Errorf("DroppedImages = %d, want %d", book.DroppedImages, tt.want)
+			}
+		})
+	}
 }
 
 func TestParseEPUB2WithNCX(t *testing.T) {

@@ -27,7 +27,9 @@ title in the import dialog, that wins.
 - **The original `.epub` file.** It is not stored anywhere. Keep your own copy if
   you want one.
 - **Embedded illustrations.** A book directory has no place to put them, and no
-  route serves arbitrary files from inside one.
+  route serves arbitrary files from inside one. The import counts them and
+  records the total on the imported source, so the loss stays visible after the
+  fact — see [What is recorded](#what-is-recorded) below.
 - **Ruby annotations** (`<rt>`/`<rp>`). The base text is kept; furigana is
   removed so it does not interleave into Japanese prose.
 - **Links, footnotes, and page structure.**
@@ -36,6 +38,25 @@ title in the import dialog, that wins.
 
 Because the original is not retained, re-importing is the only way to pick up
 improvements to the converter.
+
+## What is recorded
+
+An EPUB that carried illustrations beyond its cover gets a note on the source
+the import created, in `sources/{source-id}/meta.json`:
+
+```json
+{
+  "comment": "Converted from EPUB. 2 embedded images were dropped."
+}
+```
+
+The book detail view shows it as **Import notes**. Books that lost nothing get
+no note at all, so the row only appears when there is something to report.
+
+The cover is not counted: it is stored as the book's cover rather than dropped.
+Images referenced more than once count once, so the number reflects distinct
+artwork rather than the number of tags removed. Re-importing the same file
+rewrites the note.
 
 ## Choosing the layout
 

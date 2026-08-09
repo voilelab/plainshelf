@@ -61,6 +61,12 @@ type Book struct {
 	Cover    []byte
 	CoverExt string
 
+	// DroppedImages counts the distinct illustrations referenced by the spine
+	// documents that conversion discarded. The stored cover is not counted: it
+	// is kept, not lost. Images referenced more than once count once, so the
+	// number reflects artwork lost rather than tags removed.
+	DroppedImages int
+
 	Chapters []Chapter
 }
 
@@ -120,9 +126,17 @@ func Parse(r io.ReaderAt, size int64, opts Options) (*Book, error) {
 		Identifiers: collectIdentifiers(pkg.Metadata.Identifiers),
 	}
 
-	book.Cover, book.CoverExt = readCover(files, manifest, pkg, baseDir)
+	var coverPath string
+	book.Cover, book.CoverExt, coverPath = readCover(files, manifest, pkg, baseDir)
 
 	titles := readTOCTitles(files, manifest, pkg, baseDir)
+
+	// Illustrations are collected across the whole spine and deduplicated by
+	// archive entry, so an ornament repeated on every chapter counts once. The
+	// zip entry rather than the resolved path is the identity: lookupZipEntry
+	// folds case, so two documents spelling the same file differently still
+	// land on one image.
+	droppedImages := make(map[*zip.File]struct{})
 
 	var total int64
 	for _, ref := range pkg.Spine.ItemRefs {
@@ -155,7 +169,21 @@ func Parse(r io.ReaderAt, size int64, opts Options) (*Book, error) {
 			return nil, util.NewError("epub content exceeds the maximum supported size")
 		}
 
-		headingTitle, text := documentToChapter(data, opts)
+		headingTitle, text, imageHrefs := documentToChapter(data, opts)
+
+		// Accumulate before the empty-document skip below. A cover page flattens
+		// to nothing and is skipped as a chapter, but its illustration is only
+		// harmless when it is the cover actually stored; if cover detection came
+		// up empty, that image was lost like any other.
+		//
+		// Only references that resolve to an entry in the archive count. A stale
+		// link, an external URL and a data: URI all name artwork this file never
+		// carried, so reporting them as lost would be a lie.
+		for _, href := range imageHrefs {
+			if image, ok := lookupZipEntry(files, resolveHref(path.Dir(docPath), href)); ok {
+				droppedImages[image] = struct{}{}
+			}
+		}
 
 		// The table of contents is the authoritative chapter name; the in-document
 		// heading is only a fallback for books that ship no usable TOC.
@@ -174,6 +202,14 @@ func Parse(r io.ReaderAt, size int64, opts Options) (*Book, error) {
 	if len(book.Chapters) == 0 {
 		return nil, util.NewError("epub contains no readable chapters")
 	}
+
+	// The cover survives the import, so it is not a loss to report. Resolving it
+	// to its archive entry is what makes the exclusion hold when the manifest
+	// and the cover page spell the same file differently.
+	if cover, ok := lookupZipEntry(files, coverPath); ok {
+		delete(droppedImages, cover)
+	}
+	book.DroppedImages = len(droppedImages)
 
 	return book, nil
 }
@@ -303,7 +339,10 @@ func collectIdentifiers(ids []opfIdentifier) map[string]string {
 
 // readCover resolves the cover image through the EPUB 3 manifest property
 // first, then the EPUB 2 <meta name="cover"> convention, then a filename guess.
-func readCover(files map[string]*zip.File, manifest map[string]opfItem, pkg opfPackage, baseDir string) ([]byte, string) {
+//
+// The resolved archive path is returned alongside the bytes so callers can tell
+// the cover apart from the illustrations that conversion drops.
+func readCover(files map[string]*zip.File, manifest map[string]opfItem, pkg opfPackage, baseDir string) ([]byte, string, string) {
 	var candidates []string
 
 	for _, item := range pkg.Manifest.Items {
@@ -336,10 +375,10 @@ func readCover(files map[string]*zip.File, manifest map[string]opfItem, pkg opfP
 		if err != nil || len(data) == 0 {
 			continue
 		}
-		return data, strings.ToLower(path.Ext(coverPath))
+		return data, strings.ToLower(path.Ext(coverPath)), coverPath
 	}
 
-	return nil, ""
+	return nil, "", ""
 }
 
 // readTOCTitles returns chapter titles keyed by resolved document path, reading
