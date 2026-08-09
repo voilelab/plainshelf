@@ -53,9 +53,13 @@ import type {
 } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import type { BookBatchRequest, TaskChain } from '@/types/task';
-import type { BookshelfProvider, ListBooksOptions } from './bookshelfProvider';
+import type { BookshelfReader, BookshelfWriter, ListBooksOptions } from './bookshelfProvider';
 
-export class ServerBookshelfProvider implements BookshelfProvider {
+// Declares both halves rather than the loose BookshelfProvider alias, so
+// dropping or mistyping any write method fails to compile here.
+export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter {
+  readonly writable = true as const;
+
   listBooks(page?: number, pageSize?: number, options?: ListBooksOptions): Promise<PaginatedBooks> {
     return listBooks(page, pageSize, options);
   }

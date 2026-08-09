@@ -1,4 +1,8 @@
-import type { BookshelfProvider } from './bookshelfProvider';
+import { ApiError } from '@/api/client';
+import type {
+  BookshelfProvider,
+  WritableBookshelfProvider
+} from './bookshelfProvider';
 import { isMobileRuntime, isWailsRuntime } from './runtime';
 import { getMobileConnectionConfig, isConnectionConfigured } from './mobileConfig';
 import type { MobileConnectionConfig } from './mobileConfig';
@@ -62,6 +66,27 @@ export function getBookshelfProvider(): BookshelfProvider {
 }
 
 /**
+ * Mirrors how a read-only server answers a mutation (server/app.go), and how
+ * PCloudBookshelfProvider refuses one, so a caller that surfaces the message
+ * reads the same either way. Contains "read-only" deliberately: the mobile e2e
+ * suite asserts on that phrase.
+ */
+const WRITES_UNAVAILABLE_MESSAGE = 'This client is read-only. Write operations are disabled.';
+
+/**
+ * Whether this provider implements the whole write surface.
+ *
+ * An intersection is not a union, so `provider.writable === true` does not
+ * narrow on its own — the predicate is what does the narrowing, and
+ * `implements BookshelfWriter` on the class is what makes it true.
+ */
+export function isWritableProvider(
+  provider: BookshelfProvider
+): provider is WritableBookshelfProvider {
+  return provider.writable === true;
+}
+
+/**
  * The active provider, for a caller that is about to mutate the shelf.
  *
  * Every shelf write goes through here rather than through
@@ -69,12 +94,25 @@ export function getBookshelfProvider(): BookshelfProvider {
  * call site and there is one place to refuse it. Reads — including the
  * device-local ones on mobile, such as saveReadProgress and the reading
  * history — keep using getBookshelfProvider().
+ *
+ * Throws rather than rejecting: every call site awaits inside a try, so a
+ * synchronous throw is caught wherever this can currently be raised. Do not
+ * introduce `bookshelfWriter().x(…).catch(…)` in a non-async context.
  */
-export function bookshelfWriter(): BookshelfProvider {
-  return getBookshelfProvider();
+export function bookshelfWriter(): WritableBookshelfProvider {
+  const active = getBookshelfProvider();
+  if (!isWritableProvider(active)) {
+    throw new ApiError(WRITES_UNAVAILABLE_MESSAGE, { status: 403 });
+  }
+  return active;
 }
 
-export type { BookshelfProvider } from './bookshelfProvider';
+export type {
+  BookshelfProvider,
+  BookshelfReader,
+  BookshelfWriter,
+  WritableBookshelfProvider
+} from './bookshelfProvider';
 export { isMobileRuntime, isWailsRuntime } from './runtime';
 export type { CachedBookManifest, MobileBookCache } from './mobileBookCache';
 export { InMemoryMobileBookCache } from './mobileBookCache';
