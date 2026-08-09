@@ -48,9 +48,12 @@ function withMobilePreview(route: string): string {
  * URL (and optional token), loads the shelf list, picks a shelf from the
  * reka-ui Select, and saves — landing on `/books`.
  *
- * The token does not grant write access — the client is read-only regardless —
- * but server/security.go demands one for the allowlisted reading-telemetry
- * POSTs, so a native install still needs it.
+ * The token does not grant write access — the client is read-only regardless.
+ * It is needed only when the server sets `protect_read` (server/security.go),
+ * which makes reads require one too; without it a native install can connect
+ * untokened. It used to be needed unconditionally, for reading-telemetry POSTs
+ * that no longer exist: the read_history and reading_activity APIs were removed
+ * when both moved to device storage.
  */
 export async function connectMobile(
   page: Page,
