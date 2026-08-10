@@ -32,13 +32,24 @@ export function acquireObjectUrl(key: string, fetchBlob: () => Promise<Blob>): P
   }
 
   if (!entry.promise) {
+    const pending = entry;
     entry.promise = fetchBlob()
       .then((blob) => {
         const url = URL.createObjectURL(blob);
         const current = objectUrlCache.get(key);
-        if (current) {
-          current.url = url;
+
+        // The last holder can let go while the fetch is still in flight -- a
+        // reader leaving the chapter before a large illustration arrives. The
+        // entry is gone by then (or has been replaced by a fresh one), so
+        // nothing would ever release this URL: revoke it here instead of
+        // leaking it. Identity, not presence, is the test, so a re-acquire
+        // that started its own fetch is not clobbered.
+        if (current !== pending) {
+          URL.revokeObjectURL(url);
+          return url;
         }
+
+        current.url = url;
         return url;
       })
       .catch((err) => {

@@ -127,6 +127,35 @@ describe('useAssetSrc', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith(a.src.value);
   });
 
+  // Leaving the chapter before a large illustration arrives must not strand
+  // the blob: nothing would ever release a URL created after the last holder
+  // let go.
+  it('revokes a blob created after the last holder released', async () => {
+    let settle!: (blob: Blob) => void;
+    getSourceAssetMock.mockReturnValue(
+      new Promise<Blob>((resolve) => {
+        settle = resolve;
+      })
+    );
+
+    const scope = effectScope();
+    scope.run(() => {
+      useAssetSrc(
+        () => 'book-1',
+        () => 'src-1',
+        () => 'img-slow.png'
+      );
+    });
+
+    // Gone before the fetch settles.
+    scope.stop();
+
+    settle(new Blob(['late'], { type: 'image/png' }));
+    await flush();
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+  });
+
   it('re-resolves when the asset name changes', async () => {
     getSourceAssetMock.mockResolvedValue(new Blob(['bytes'], { type: 'image/png' }));
 

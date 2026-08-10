@@ -46,6 +46,31 @@ describe('assetNameFromSrc', () => {
       expect(assetNameFromSrc(src), src).toBeNull();
     }
   });
+
+  // A file named "A Map.JPEG" is ordinary on a shelf edited by hand, so every
+  // spelling that names it has to arrive at the same file name.
+  it('accepts every spelling of a name containing a space', () => {
+    for (const src of ['assets/A Map.JPEG', 'assets/A%20Map.JPEG', '<assets/A Map.JPEG>']) {
+      expect(assetNameFromSrc(src), src).toBe('A Map.JPEG');
+    }
+  });
+
+  // Decoding runs before validation, so an escaped separator must not slip a
+  // path segment past the checks.
+  it('validates after decoding, not before', () => {
+    for (const src of [
+      'assets/%2e%2e%2fsource.txt',
+      'assets/sub%2Fimg-0001.png',
+      '%2e%2e%2fassets%2fimg-0001.png'
+    ]) {
+      expect(assetNameFromSrc(src), src).toBeNull();
+    }
+  });
+
+  it('leaves a malformed percent escape to the other checks', () => {
+    expect(assetNameFromSrc('assets/100%.png')).toBe('100%.png');
+    expect(assetNameFromSrc('assets/100%.txt')).toBeNull();
+  });
 });
 
 describe('parseMarkdownBlocks images', () => {
@@ -89,6 +114,14 @@ describe('parseMarkdownBlocks images', () => {
       expect(block.type, line).toBe('paragraph');
       expect(block, line).toMatchObject({ segments: [{ text: line }] });
     }
+  });
+
+  it('renders an image whose file name contains a space', () => {
+    expect(firstBlock('![A map](assets/A Map.JPEG)')).toEqual({
+      type: 'image',
+      name: 'A Map.JPEG',
+      alt: 'A map'
+    });
   });
 
   it('does not treat an image line inside a code fence as an image', () => {

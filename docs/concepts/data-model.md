@@ -89,6 +89,15 @@ the directory are left as text rather than fetched, so a book's own text cannot
 make the reader reach out to the network. An image that cannot be loaded is
 replaced by its alt text instead of leaving a gap.
 
+A file name containing spaces can be written plainly, in angle brackets, or
+percent-encoded; all three name the same file:
+
+```markdown
+![](assets/A Map.png)
+![](<assets/A Map.png>)
+![](assets/A%20Map.png)
+```
+
 Today PlainShelf only reads this directory: you put the images there yourself.
 Adding them from the app, and carrying them into offline downloads, are not
 supported yet.

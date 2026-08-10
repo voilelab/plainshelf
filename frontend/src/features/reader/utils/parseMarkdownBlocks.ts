@@ -64,7 +64,13 @@ const LEADING_INDENT_RE = /^[ \t]+\S/;
 // illustration in a book is a block, and treating `![]()` inside a sentence as
 // one would mean threading images through InlineSegment for no reader benefit;
 // inline occurrences stay literal text.
-const IMAGE_LINE_RE = /^!\[([^\]]*)\]\(([^)\s]+)\)$/;
+//
+// The destination is captured loosely because the line is anchored at both
+// ends: whatever sits between the parentheses is the target, spaces included.
+// A file named "A Map.png" is ordinary on a shelf people edit by hand, and
+// requiring it to be percent-encoded would make the shelf less writable by
+// hand than the format promises.
+const IMAGE_LINE_RE = /^!\[([^\]]*)\]\((.*)\)$/;
 
 // A source asset is addressed as a single file inside `assets/`, matching the
 // flat directory the server serves from (see shelf/asset.go). Anything else --
@@ -78,11 +84,34 @@ const ASSET_SRC_RE = /^assets\/([^/\\]+)$/;
 const ASSET_EXT_RE = /\.(jpe?g|png|webp|gif)$/i;
 
 /**
+ * Normalizes a Markdown link destination to the path it names.
+ *
+ * Both spellings a hand-edited shelf produces are accepted: the angle-bracket
+ * form CommonMark provides for destinations containing spaces, and percent
+ * escapes. Decoding happens before validation, never after, so an escaped
+ * separator cannot slip a path segment past the checks below.
+ */
+function normalizeDestination(raw: string): string {
+  let dest = raw.trim();
+  if (dest.startsWith('<') && dest.endsWith('>')) {
+    dest = dest.slice(1, -1).trim();
+  }
+
+  try {
+    return decodeURIComponent(dest);
+  } catch {
+    // A malformed escape is not a decoding failure worth reporting; leave the
+    // text as written and let the checks below reject it.
+    return dest;
+  }
+}
+
+/**
  * Returns the asset file name a Markdown image target refers to, or null when
  * the target is not an illustration this reader will load.
  */
 export function assetNameFromSrc(src: string): string | null {
-  const match = ASSET_SRC_RE.exec(src.trim());
+  const match = ASSET_SRC_RE.exec(normalizeDestination(src));
   if (!match) {
     return null;
   }
