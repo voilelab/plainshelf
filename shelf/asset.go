@@ -6,6 +6,8 @@ import (
 	"path"
 	"strings"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
+
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
@@ -77,6 +79,31 @@ func (r *Source) AssetPath(name string) (string, error) {
 		return "", util.Errorf("%w", err)
 	}
 	return path.Join(r.folderPath, SourceAssetsFolder, name), nil
+}
+
+// WriteAsset stores one illustration in the source's assets/ directory.
+//
+// This is an internal writer for import, not an API surface: no HTTP route
+// reaches it, so the mutating-request boundary is untouched and assets still
+// cannot be placed through the API.
+//
+// The name goes through the same validation the read path uses, so a file the
+// server could never serve cannot be written in the first place.
+func (r *Source) WriteAsset(name string, data []byte) error {
+	assetPath, err := r.AssetPath(name)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	if err := r.root.MkdirAll(path.Join(r.folderPath, SourceAssetsFolder)); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	if err := fsutil.WriteFileAtomic(r.root, assetPath, data); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
 }
 
 // AssetETag returns a weak ETag derived from the asset's mtime and size, or an

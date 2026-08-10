@@ -78,8 +78,12 @@ The directory is flat, and file names must be a plain `.jpg`, `.jpeg`, `.png`,
 so adding or removing an image is just adding or removing a file, and
 `book.json` never changes because of it.
 
-Today PlainShelf only reads this directory: you put images there yourself, and
-the server serves them. Displaying them in the reader is not wired up yet.
+Files get here two ways: [EPUB import](../epub-import.md#illustrations) writes
+the illustrations it kept, and you can drop your own images in by hand. Nothing
+else writes to the directory — there is no route that stores an asset.
+
+The server serves these files; displaying them in the reader is not wired up
+yet.
 
 ### Book IDs
 

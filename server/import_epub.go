@@ -103,6 +103,7 @@ func (app *App) initEPUBBook(parsed *epub.Book, rendered epub.Rendered) func(*sh
 		if err != nil {
 			return util.Errorf("%w", err)
 		}
+		app.writeEPUBImages(source, parsed)
 		if err := book.SetCurrentSource(source.ID()); err != nil {
 			return util.Errorf("%w", err)
 		}
@@ -151,6 +152,20 @@ func epubImportComment(parsed *epub.Book) string {
 		return "Converted from EPUB. 1 embedded image was dropped."
 	default:
 		return fmt.Sprintf("Converted from EPUB. %d embedded images were dropped.", n)
+	}
+}
+
+// writeEPUBImages stores the illustrations the conversion kept, beside the text
+// that references them.
+//
+// An image that cannot be written is logged and skipped, the same trade the
+// cover makes: the reader falls back to the alt text for that one figure, which
+// is a better outcome than discarding a whole converted book over a picture.
+func (app *App) writeEPUBImages(source *shelf.Source, parsed *epub.Book) {
+	for _, image := range parsed.Images {
+		if err := source.WriteAsset(image.Name, image.Data); err != nil {
+			app.Error("failed to store epub illustration", "error", err, "asset", image.Name)
+		}
 	}
 }
 

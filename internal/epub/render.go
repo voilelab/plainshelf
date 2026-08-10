@@ -30,6 +30,13 @@ type Strategy struct {
 	// IncludeDescription puts the book description at the top of the text as
 	// well as in the book metadata, where it is always recorded.
 	IncludeDescription bool `json:"include_description"`
+
+	// KeepImages stores the EPUB's illustrations beside the text and links to
+	// them, for presets whose output is Markdown. Nil means "not specified",
+	// which Normalized reads as enabled: a pointer rather than a plain bool
+	// because a stored strategy written before this field existed must keep
+	// illustrations rather than inherit a false zero value.
+	KeepImages *bool `json:"keep_images,omitempty"`
 }
 
 // DefaultStrategy is what an unconfigured import uses.
@@ -53,14 +60,27 @@ func (s Strategy) Normalized() Strategy {
 	if s.Preset == "" {
 		s.Preset = DefaultStrategy().Preset
 	}
+	if s.KeepImages == nil {
+		s.KeepImages = new(true)
+	}
 	return s
+}
+
+// keepImages reports whether this strategy stores illustrations. A plain-text
+// preset never does: the Markdown link would show up literally in the reader.
+func (s Strategy) keepImages() bool {
+	n := s.Normalized()
+	return *n.KeepImages && n.Preset != PresetPlain
 }
 
 // ParseOptions returns the parser options this strategy implies. Inline emphasis
 // is only useful when the output is stored as Markdown; in plain text the
 // markers would show up literally.
 func (s Strategy) ParseOptions() Options {
-	return Options{MarkdownInline: s.Normalized().Preset == PresetMarkdown}
+	return Options{
+		MarkdownInline: s.Normalized().Preset == PresetMarkdown,
+		KeepImages:     s.keepImages(),
+	}
 }
 
 // Format is the BookMeta.Format value for books produced by this strategy.

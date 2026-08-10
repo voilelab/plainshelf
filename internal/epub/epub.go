@@ -3,13 +3,15 @@
 // The package is deliberately import-only: it converts an EPUB into the plain
 // data PlainShelf already stores (a title, some metadata, a cover image, and an
 // ordered list of chapters). It never renders EPUB, and it does not preserve the
-// original archive. Embedded illustrations are dropped.
+// original archive. Embedded illustrations are kept only when Options.KeepImages
+// asks for them, and are reported as dropped otherwise.
 package epub
 
 import (
 	"archive/zip"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
 	"net/url"
 	"path"
@@ -24,9 +26,35 @@ import (
 const (
 	maxDocumentBytes = 32 << 20  // 32 MB for a single spine document
 	maxTotalBytes    = 256 << 20 // 256 MB across all spine documents
+
+	// Illustrations get their own, tighter budget: unlike the text, every kept
+	// image is held in memory until the book is written, and it then lives on
+	// the shelf forever. An image past either ceiling is dropped and counted,
+	// so an outsized archive costs its pictures rather than the whole import.
+	maxImageBytes      = 8 << 20  // 8 MB for a single illustration
+	maxTotalImageBytes = 64 << 20 // 64 MB across all illustrations in one book
 )
 
 var errZipEntryTooLarge = errors.New("zip entry exceeds the maximum supported size")
+
+// ImageFolder is the directory, relative to the text that references them, an
+// importer is expected to store kept illustrations in. It is written into the
+// Markdown targets this package produces.
+//
+// It is declared here rather than imported so an EPUB parser does not depend on
+// the shelf's storage layer. server/import_epub_test.go asserts it still agrees
+// with shelf.SourceAssetsFolder, which is where the files actually land.
+const ImageFolder = "assets"
+
+// imageExtensions are the illustration formats worth keeping. Anything else is
+// dropped and counted, including SVG, which the shelf does not serve.
+//
+// The same drift test covers this against shelf.IsSupportedImageExt: an image
+// stored under a name the shelf refuses would be referenced by the text and
+// never load.
+var imageExtensions = map[string]bool{
+	".jpg": true, ".jpeg": true, ".png": true, ".webp": true, ".gif": true,
+}
 
 // Chapter is one spine document, flattened to text.
 type Chapter struct {
@@ -38,6 +66,15 @@ type Chapter struct {
 	// a blank line. When Options.MarkdownInline is set, emphasis is preserved as
 	// Markdown markers; otherwise the text carries no markup at all.
 	Text string
+}
+
+// Image is one illustration kept from an EPUB, ready to be stored beside the
+// text that references it.
+type Image struct {
+	// Name is the file name the text refers to, always a bare name with a
+	// supported image extension so the shelf accepts it as an asset.
+	Name string
+	Data []byte
 }
 
 // Book is everything import needs from an EPUB.
@@ -61,6 +98,10 @@ type Book struct {
 	Cover    []byte
 	CoverExt string
 
+	// Images holds the illustrations kept from the spine, in the order they
+	// were first referenced. It is empty unless Options.KeepImages was set.
+	Images []Image
+
 	// DroppedImages counts the distinct illustrations referenced by the spine
 	// documents that conversion discarded. The stored cover is not counted: it
 	// is kept, not lost. Images referenced more than once count once, so the
@@ -76,6 +117,19 @@ type Options struct {
 	// false when the output is stored as plain text, or the markers show up
 	// literally in the reader.
 	MarkdownInline bool
+
+	// KeepImages stores the illustrations the spine references and writes a
+	// Markdown image link where each one appeared. It only makes sense
+	// alongside MarkdownInline: in plain text the link would show up literally.
+	KeepImages bool
+
+	// imageTarget maps a raw href in the document currently being flattened to
+	// the Markdown target to write for it, or "" to drop it as before.
+	//
+	// It is unexported and set per document by Parse, which is the only place
+	// that knows the archive, the document's own directory, and the names the
+	// images are being stored under.
+	imageTarget func(href string) string
 }
 
 // Parse reads an EPUB from r and returns its metadata and chapter text.
@@ -138,6 +192,47 @@ func Parse(r io.ReaderAt, size int64, opts Options) (*Book, error) {
 	// land on one image.
 	droppedImages := make(map[*zip.File]struct{})
 
+	// keptImages maps an archive entry to the name it was stored under, keyed
+	// the same way as droppedImages so an illustration can never be both.
+	keptImages := make(map[*zip.File]string)
+	var imageBytes int64
+
+	// keepImage resolves one reference and reports the Markdown target to write
+	// for it, or "" when the illustration is not kept. Every "" path also marks
+	// the entry dropped, so the note the import leaves stays truthful.
+	keepImage := func(docDir, href string) string {
+		entry, ok := lookupZipEntry(files, resolveHref(docDir, href))
+		if !ok {
+			// A stale link, an external URL or a data: URI names artwork this
+			// file never carried; nothing was lost, so nothing is counted.
+			return ""
+		}
+		if name, ok := keptImages[entry]; ok {
+			return path.Join(ImageFolder, name)
+		}
+		if _, dropped := droppedImages[entry]; dropped {
+			return ""
+		}
+
+		ext := strings.ToLower(path.Ext(entry.Name))
+		if !imageExtensions[ext] {
+			droppedImages[entry] = struct{}{}
+			return ""
+		}
+
+		data, err := readZipEntryLimit(files, entry.Name, maxImageBytes)
+		if err != nil || imageBytes+int64(len(data)) > maxTotalImageBytes {
+			droppedImages[entry] = struct{}{}
+			return ""
+		}
+		imageBytes += int64(len(data))
+
+		name := fmt.Sprintf("img-%04d%s", len(book.Images)+1, ext)
+		book.Images = append(book.Images, Image{Name: name, Data: data})
+		keptImages[entry] = name
+		return path.Join(ImageFolder, name)
+	}
+
 	var total int64
 	for _, ref := range pkg.Spine.ItemRefs {
 		item, ok := manifest[ref.IDRef]
@@ -169,7 +264,16 @@ func Parse(r io.ReaderAt, size int64, opts Options) (*Book, error) {
 			return nil, util.NewError("epub content exceeds the maximum supported size")
 		}
 
-		headingTitle, text, imageHrefs := documentToChapter(data, opts)
+		// The resolver is per document because an href is relative to the
+		// document that wrote it. Copying opts keeps that scoped to this
+		// iteration rather than leaking into the next document.
+		docOpts := opts
+		if opts.KeepImages {
+			docDir := path.Dir(docPath)
+			docOpts.imageTarget = func(href string) string { return keepImage(docDir, href) }
+		}
+
+		headingTitle, text, imageHrefs := documentToChapter(data, docOpts)
 
 		// Accumulate before the empty-document skip below. A cover page flattens
 		// to nothing and is skipped as a chapter, but its illustration is only
@@ -179,8 +283,15 @@ func Parse(r io.ReaderAt, size int64, opts Options) (*Book, error) {
 		// Only references that resolve to an entry in the archive count. A stale
 		// link, an external URL and a data: URI all name artwork this file never
 		// carried, so reporting them as lost would be a lie.
+		//
+		// An illustration this pass kept is not a loss. The walk still has to
+		// run: it sees references the flattener never reaches, such as an
+		// <image> inside an <svg> canvas, and those really are dropped.
 		for _, href := range imageHrefs {
 			if image, ok := lookupZipEntry(files, resolveHref(path.Dir(docPath), href)); ok {
+				if _, kept := keptImages[image]; kept {
+					continue
+				}
 				droppedImages[image] = struct{}{}
 			}
 		}
