@@ -11,6 +11,7 @@ import (
 	"net/textproto"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -861,6 +862,143 @@ func TestAPICoverContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusNoContent)
 	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
 	assertStatus(t, rec, http.StatusNotFound)
+}
+
+// currentSourceID returns the source the imported book is reading from.
+func (env *apiTestEnv) currentSourceID(t *testing.T, bookID string) string {
+	t.Helper()
+
+	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+bookID+"/sources", nil))
+	assertStatus(t, rec, http.StatusOK)
+
+	metas := decodeJSON[[]shelf.SourceMeta](t, rec)
+	if len(metas) == 0 {
+		t.Fatalf("book %s has no sources", bookID)
+	}
+	return metas[0].ID
+}
+
+// writeSourceAsset drops a file into a source's assets/ directory, which is how
+// an illustration gets there today: the API serves assets but cannot store them.
+func (env *apiTestEnv) writeSourceAsset(t *testing.T, bookID, sourceID, name string, data []byte) {
+	t.Helper()
+
+	bookDir := filepath.Dir(env.bookMetaPath(t, bookID))
+	assetDir := filepath.Join(bookDir, shelf.SourcesFolder, sourceID, shelf.SourceAssetsFolder)
+	if err := os.MkdirAll(assetDir, 0755); err != nil {
+		t.Fatalf("MkdirAll(%q): %v", assetDir, err)
+	}
+	if err := os.WriteFile(filepath.Join(assetDir, name), data, 0644); err != nil {
+		t.Fatalf("WriteFile(%q): %v", name, err)
+	}
+}
+
+func TestAPISourceAssetContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Illustrated", "", "art.md", "body")
+	sourceID := env.currentSourceID(t, created.Meta.ID)
+	assetsURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources/" + sourceID + "/assets/"
+
+	// Nothing has been placed under assets/ yet.
+	rec := env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+
+	pngBytes := []byte("fake png bytes")
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "img-0001.png", pngBytes)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Header().Get("Content-Type"); got != "image/png" {
+		t.Fatalf("asset Content-Type = %q, want image/png", got)
+	}
+	if !bytes.Equal(rec.Body.Bytes(), pngBytes) {
+		t.Fatalf("asset bytes = %q, want %q", rec.Body.Bytes(), pngBytes)
+	}
+
+	// The asset is streamed rather than buffered, so the length has to be
+	// declared from the file's own size instead of the written body.
+	if got := rec.Header().Get("Content-Length"); got != strconv.Itoa(len(pngBytes)) {
+		t.Fatalf("asset Content-Length = %q, want %d", got, len(pngBytes))
+	}
+
+	// This env leaves protect_read off, so asset responses stay shared-cacheable.
+	// TestCacheVisibilityFollowsTheTokenGate covers the protected case.
+	if got := rec.Header().Get("Cache-Control"); got != "public, max-age=86400" {
+		t.Fatalf("asset Cache-Control = %q, want public, max-age=86400", got)
+	}
+
+	// The reader fetches every illustration on a chapter, so a revalidating
+	// request must be answerable without resending the bytes.
+	etag := rec.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("asset response carries no ETag")
+	}
+	req := httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil)
+	req.Header.Set("If-None-Match", etag)
+	rec = env.do(req)
+	assertStatus(t, rec, http.StatusNotModified)
+	if rec.Body.Len() != 0 {
+		t.Fatalf("304 response body = %q, want empty", rec.Body.String())
+	}
+
+	// Each stored extension keeps its own content type.
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "img-0002.webp", []byte("fake webp bytes"))
+	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0002.webp", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Header().Get("Content-Type"); got != "image/webp" {
+		t.Fatalf("asset Content-Type = %q, want image/webp", got)
+	}
+
+	// A missing book or source is a 404, not a 500.
+	rec = env.do(httptest.NewRequest(http.MethodGet,
+		"/api/shelves/default_shelf/books/no-such-book/sources/"+sourceID+"/assets/img-0001.png", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+	rec = env.do(httptest.NewRequest(http.MethodGet,
+		"/api/shelves/default_shelf/books/"+created.Meta.ID+"/sources/no-such-source/assets/img-0001.png", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+
+	// The route is read-only: no method may write through it.
+	for _, method := range mutatingMethods {
+		rec = env.do(httptest.NewRequest(method, assetsURL+"img-0001.png", nil))
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("%s asset status = %d, want %d", method, rec.Code, http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// The asset route reaches the filesystem by name, so it gets its own traversal
+// cases rather than trusting the shelf-level test alone.
+func TestAPISourceAssetRejectsUnsafeNames(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Unsafe Assets", "", "art.md", "secret body")
+	sourceID := env.currentSourceID(t, created.Meta.ID)
+	assetsURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources/" + sourceID + "/assets/"
+
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "img-0001.png", []byte("fake png bytes"))
+
+	// An encoded separator survives routing: the mux hands these to the handler
+	// as one path value that decodes to "../source.txt". Since source.txt really
+	// does sit one level above assets/, they name a file that exists, so 400 is
+	// evidence the name was refused rather than merely unresolvable.
+	for _, assetName := range []string{
+		"..%2fsource.txt",
+		"..%2Fsource.txt",
+		"%2e%2e%2fsource.txt",
+		"%2e%2e%2f%2e%2e%2fbook.json",
+		"..%5csource.txt",
+		"%2fetc%2fhostname",
+		".hidden.png",
+		"source.txt",
+		"img-0001",
+	} {
+		t.Run(assetName, func(t *testing.T) {
+			rec := env.do(httptest.NewRequest(http.MethodGet, assetsURL+assetName, nil))
+			assertStatus(t, rec, http.StatusBadRequest)
+			if strings.Contains(rec.Body.String(), "secret body") {
+				t.Fatalf("response leaked file contents: %s", rec.Body.String())
+			}
+		})
+	}
 }
 
 func TestAPIStoreContract(t *testing.T) {
