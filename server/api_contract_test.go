@@ -949,6 +949,42 @@ func TestAPISourceAssetContract(t *testing.T) {
 		t.Fatalf("asset Content-Type = %q, want image/webp", got)
 	}
 
+	// ServeMux has already unescaped the wildcard, so a name carrying a literal
+	// percent escape must survive addressing intact. Decoding it a second time
+	// would land on "chart one.png" instead, which exists here precisely so a
+	// regression serves the wrong bytes rather than merely 404ing.
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "chart%20one.png", []byte("percent name"))
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "chart one.png", []byte("space name"))
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"chart%2520one.png", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Body.String(); got != "percent name" {
+		t.Fatalf("asset with a percent in its name = %q, want %q", got, "percent name")
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"chart%20one.png", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Body.String(); got != "space name" {
+		t.Fatalf("asset with a space in its name = %q, want %q", got, "space name")
+	}
+
+	// A GET pattern also matches HEAD. The headers must be identical while the
+	// asset itself is never read: the empty recorder body is what shows the
+	// copy was skipped, since httptest does not suppress it the way net/http
+	// would.
+	req = httptest.NewRequest(http.MethodHead, assetsURL+"img-0001.png", nil)
+	rec = env.do(req)
+	assertStatus(t, rec, http.StatusOK)
+	if rec.Body.Len() != 0 {
+		t.Fatalf("HEAD response body = %q, want empty", rec.Body.String())
+	}
+	if got := rec.Header().Get("Content-Length"); got != strconv.Itoa(len(pngBytes)) {
+		t.Fatalf("HEAD Content-Length = %q, want %d", got, len(pngBytes))
+	}
+	if got := rec.Header().Get("Content-Type"); got != "image/png" {
+		t.Fatalf("HEAD Content-Type = %q, want image/png", got)
+	}
+
 	// A missing book or source is a 404, not a 500.
 	rec = env.do(httptest.NewRequest(http.MethodGet,
 		"/api/shelves/default_shelf/books/no-such-book/sources/"+sourceID+"/assets/img-0001.png", nil))

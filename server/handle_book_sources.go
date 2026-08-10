@@ -162,6 +162,15 @@ func (app *App) HandleAPIGetBookSourceAsset(w http.ResponseWriter, r *http.Reque
 	// Commit the response before copying: a zero-byte asset writes nothing, and
 	// a copy that writes nothing never commits a status of its own.
 	w.WriteHeader(http.StatusOK)
+
+	// A GET pattern also matches HEAD, and net/http discards the body for it.
+	// Copying anyway would read the whole asset off the shelf to write it
+	// nowhere - and an asset has no size bound, so on an SMB mount that is real
+	// I/O for nothing.
+	if r.Method == http.MethodHead {
+		return
+	}
+
 	if _, err := io.Copy(w, asset.File); err != nil {
 		app.Error("failed to write source asset", "error", err, "asset", assetName)
 	}
