@@ -28,9 +28,15 @@ Source of truth. This directory contains all user-owned data: book metadata, tex
 
 ### `app/`
 
-Runtime state used by the server: file lock and temporary files. All of it is rebuildable and none of it is user data — the server recreates it on the next startup.
+Runtime state used by the server: file lock and temporary files. Current builds
+keep no user-authored data here and recreate the runtime files on startup. The
+one exception is an upgraded v0.8 shelf: its legacy reading-time files remain
+under `app/stats/reading/` until the operator archives or removes them.
 
-Older shelves may still contain `app/stats/reading/{YYYY-MM}.json`. That is reading-time history from before it moved onto each device; nothing reads it any more and it can be deleted.
+Older shelves may still contain `app/stats/reading/{YYYY-MM}.json`. That is
+reading-time history from before it moved onto each device. v1 does not read or
+import it. Keep the files if you want an archive or may need to recover the old
+dashboard with v0.8; otherwise they can be deleted.
 
 ---
 
@@ -67,4 +73,9 @@ The book ID is generated once when the book is created and then persisted in `bo
 
 - **Human-readable** — the shelf directory can be opened and inspected with any file manager or text editor.
 - **Backup-friendly** — because everything is plain files, the shelf is trivially backed up with `cp`, `rsync`, or committed to Git.
-- **Rebuildable runtime state** — everything under `app/` can be deleted and the server will recreate it on the next startup. See [Back up before upgrading](data-format-versioning.md#back-up-before-upgrading) for what a complete backup covers.
+- **Rebuildable current runtime state** — `app/library.lock` and `app/tmp/` can
+  be deleted and the server will recreate them on the next startup. Keep a
+  v0.8 shelf's `app/stats/reading/` until it has been archived or is no longer
+  needed for recovery.
+  See [Back up before upgrading](data-format-versioning.md#back-up-before-upgrading)
+  for what a complete backup covers.

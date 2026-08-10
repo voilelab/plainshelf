@@ -102,6 +102,10 @@ Starting with `book.json` schema v1, PlainShelf makes the following
 commitments. They cover the **on-disk format only** — the HTTP API and the user
 interface are still pre-alpha and may change.
 
+Releases before v1 are not covered by this compatibility promise. In
+particular, v0.8's server-side reading history and reading time are treated as a
+documented breaking change, not as data that v1 guarantees to migrate.
+
 ### What we promise
 
 - A shelf whose books are at schema v1 stays readable by every later PlainShelf
@@ -160,15 +164,69 @@ rsync -a /path/to/shelf/ /path/to/backup/shelf-2026-07-28/
 Two things people miss:
 
 - **Also copy the application store** (`--store-path`, or the platform default).
-  Bookmarks live there and are *not* derived from `books/`. (Read history and
-  reading time are not in the store: each client keeps its own on the device
-  that did the reading, so neither is covered by a server-side backup.)
-- **Everything under `app/`** — the lock file and temporary files — can be
-  discarded safely; the server recreates it.
+  Bookmarks live there and are *not* derived from `books/`. A v0.8 store also
+  contains server-side reading history. v1 does not import or display that
+  history, so keep the backup if you may want to recover it with v0.8.
+- **Keep `app/stats/reading/` when upgrading from v0.8.** Those monthly files
+  contain the old reading-time totals. v1 leaves them in place but does not
+  read them. The lock file and `app/tmp/` can still be discarded safely; the
+  server recreates them.
+
+After upgrading, new reading history and reading time live only on the device
+that records them. They are not covered by a server-side shelf backup; back up
+the browser profile, desktop configuration directory, or mobile app data if you
+need to preserve them.
 
 Stop the server or desktop app before copying if you want a guaranteed-consistent
 snapshot. The shelf lock coordinates PlainShelf's own writes; it does not stop
 your backup tool from reading a file mid-write.
+
+## v0.8 reading-data breaking change
+
+!!! warning "Export or back up before upgrading from v0.8"
+    v1 starts a new, empty reading history and reading-time record on each
+    device. It does not import v0.8's server-side values, so the old history and
+    dashboard activity no longer appear in v1. This is an intentional pre-1.0
+    breaking change.
+
+While v0.8 is still running, a server installation can archive the old JSON
+through its existing read APIs. Replace the base URL, shelf id, and date range
+with your own values:
+
+```sh
+curl --fail --silent --show-error \
+  'http://127.0.0.1:20000/api/shelves/default_shelf/read_history' \
+  --output plainshelf-v0.8-read-history.json
+
+curl --fail --silent --show-error \
+  'http://127.0.0.1:20000/api/shelves/default_shelf/reading_activity?from=2026-01-01&to=2026-12-31' \
+  --output plainshelf-v0.8-reading-activity.json
+```
+
+If `protect_read` is enabled, add the configured token header to both commands,
+for example `--header 'X-PlainShelf-Token: YOUR_TOKEN'`. These JSON files are
+archives only: v1 has no importer for them. The history export is an ordered
+list of book IDs, so retain the matching shelf backup if you need to resolve
+those IDs back to book titles later.
+
+The desktop app does not expose its internal API on a TCP port. Before updating
+it, quit the app and copy its complete PlainShelf configuration directory
+(`~/Library/Application Support/PlainShelf` on macOS) together with every shelf
+directory. That copy contains the v0.8 application store and monthly reading
+stats.
+
+To recover or inspect old data later:
+
+1. Stop v1 and make another backup of its current data.
+2. Copy the v0.8 shelf and application-store backup to a separate location.
+3. Run v0.8 against those copies, preferably on a different local port, and
+   view or export the old history there.
+
+Never point v0.8 at the live shelf after v1 has modified it. There is no
+supported downgrade or merge path, and new device-local v1 reading data is not
+combined with the recovered v0.8 data. If no pre-upgrade backup exists, v1
+normally leaves the old store entry and `app/stats/reading/` files untouched;
+copy them before attempting best-effort recovery with v0.8.
 
 ## Restoring from a backup
 
@@ -178,7 +236,8 @@ your backup tool from reading a file mid-write.
 3. Start PlainShelf again.
 
 You can skip `app/library.lock` and `app/tmp/` when restoring; they are
-recreated on the next startup.
+recreated on the next startup. Restore `app/stats/reading/` too only when you
+are reconstructing a v0.8 environment to inspect its old reading time.
 
 ---
 
