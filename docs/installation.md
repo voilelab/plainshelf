@@ -146,6 +146,13 @@ For custom configuration and the bundled defaults, see the
 
 ## Upgrading
 
+!!! warning "v0.8 reading history and reading time do not carry into v1"
+    v1 deliberately starts new per-device records. v0.8's server-side values
+    are not migrated and no longer appear after upgrading. PlainShelf provides
+    no export, import, or recovery path for them. See
+    [v0.8 reading-data breaking change](concepts/data-format-versioning.md#v08-reading-data-breaking-change)
+    for details.
+
 1. Stop the running server (or `docker stop plainshelf`).
 2. Download/pull the new version using the steps above.
 3. Restart against the **same** data and config.

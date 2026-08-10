@@ -102,6 +102,10 @@ Starting with `book.json` schema v1, PlainShelf makes the following
 commitments. They cover the **on-disk format only** — the HTTP API and the user
 interface are still pre-alpha and may change.
 
+Releases before v1 are not covered by this compatibility promise. In
+particular, v0.8's server-side reading history and reading time are treated as a
+documented breaking change, not as data that v1 guarantees to migrate.
+
 ### What we promise
 
 - A shelf whose books are at schema v1 stays readable by every later PlainShelf
@@ -169,6 +173,17 @@ Two things people miss:
 Stop the server or desktop app before copying if you want a guaranteed-consistent
 snapshot. The shelf lock coordinates PlainShelf's own writes; it does not stop
 your backup tool from reading a file mid-write.
+
+## v0.8 reading-data breaking change
+
+!!! warning "v0.8 reading data does not carry into v1"
+    v1 starts a new, empty reading history and reading-time record on each
+    device. It does not migrate v0.8's server-side values, so the old history and
+    dashboard activity no longer appear in v1. This is an intentional pre-1.0
+    breaking change.
+
+PlainShelf provides no export, import, or recovery path for these values.
+Upgrade from v0.8 only if you accept that they will no longer be accessible.
 
 ## Restoring from a backup
 
