@@ -14,12 +14,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// coverExtensions are the cover file extensions the read path serves with a
-// correct content type. An EPUB cover in any other format is converted to JPEG.
-var coverExtensions = map[string]bool{
-	".jpg": true, ".jpeg": true, ".png": true, ".webp": true, ".gif": true,
-}
-
 // epubInputError marks failures caused by the uploaded archive. Storage and
 // other operational failures remain ordinary errors so the HTTP layer can
 // report them as server errors without exposing internal details.
@@ -171,7 +165,9 @@ func (app *App) setEPUBCover(book *shelf.Book, parsed *epub.Book) {
 	data := parsed.Cover
 	ext := parsed.CoverExt
 
-	if app.coverToJPG() || !coverExtensions[ext] {
+	// An EPUB cover the read path could not serve with a correct content type
+	// is converted to JPEG rather than stored as-is.
+	if app.coverToJPG() || !shelf.IsSupportedImageExt(ext) {
 		converted, err := imgutil.AnyToJPG(data)
 		if err != nil {
 			app.Error("failed to convert epub cover to JPEG", "error", err)

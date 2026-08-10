@@ -60,6 +60,14 @@ var apiErrorTable = []struct {
 		status:  http.StatusNotFound,
 		message: "source not found",
 	}},
+	{shelf.ErrInvalidAssetName, apiError{
+		status:  http.StatusBadRequest,
+		message: "invalid asset name",
+	}},
+	{shelf.ErrAssetNotFound, apiError{
+		status:  http.StatusNotFound,
+		message: "asset not found",
+	}},
 	{shelf.ErrUnsupportedBookSchemaVersion, apiError{
 		status:  http.StatusConflict,
 		message: "book uses a newer on-disk format than this PlainShelf build supports; upgrade PlainShelf to modify it",

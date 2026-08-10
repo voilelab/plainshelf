@@ -54,6 +54,20 @@ func readSourceID(r *http.Request) (string, error) {
 	return decoded, nil
 }
 
+func readAssetName(r *http.Request) (string, error) {
+	assetName := strings.TrimSpace(r.PathValue("asset_name"))
+	if assetName == "" {
+		return "", errors.New("missing asset_name")
+	}
+
+	decoded, err := url.PathUnescape(assetName)
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+
+	return decoded, nil
+}
+
 func readLogID(r *http.Request) (string, error) {
 	logID := strings.TrimSpace(r.PathValue("log_id"))
 	if logID == "" {

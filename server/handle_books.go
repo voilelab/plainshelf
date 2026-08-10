@@ -255,6 +255,43 @@ func applyBookPatch(meta *shelf.BookMeta, req *UpdateBookRequest) {
 	meta.UpdatedAt = util.JSONTime(time.Now())
 }
 
+// imageContentTypeForExt maps a stored image's file extension to the content
+// type the read path serves it with. An unrecognized extension falls back to
+// JPEG, which is what the cover path has always answered; source assets never
+// reach the fallback because their names are validated first.
+func imageContentTypeForExt(ext string) string {
+	switch strings.ToLower(ext) {
+	case ".png":
+		return "image/png"
+	case ".webp":
+		return "image/webp"
+	case ".gif":
+		return "image/gif"
+	default:
+		return "image/jpeg"
+	}
+}
+
+// serveImageValidator writes the caching headers for a stored image and reports
+// whether it already answered the request with 304.
+//
+// An empty etag means the file could not be stat'd; the response then carries
+// no validator and the caller goes on to serve the bytes.
+func serveImageValidator(w http.ResponseWriter, r *http.Request, etag string) bool {
+	if etag == "" {
+		return false
+	}
+
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	if r.Header.Get("If-None-Match") == etag {
+		w.WriteHeader(http.StatusNotModified)
+		return true
+	}
+
+	return false
+}
+
 // GET /api/shelves/{shelf_id}/books/{book_id}/cover
 func (app *App) HandleAPIGetBookCover(w http.ResponseWriter, r *http.Request) {
 	_, book, ok := app.loadBook(w, r)
@@ -262,13 +299,8 @@ func (app *App) HandleAPIGetBookCover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if etag := book.CoverETag(); etag != "" {
-		w.Header().Set("ETag", etag)
-		w.Header().Set("Cache-Control", "public, max-age=86400")
-		if r.Header.Get("If-None-Match") == etag {
-			w.WriteHeader(http.StatusNotModified)
-			return
-		}
+	if serveImageValidator(w, r, book.CoverETag()) {
+		return
 	}
 
 	coverData, ext, err := book.OpenCover()
@@ -283,19 +315,7 @@ func (app *App) HandleAPIGetBookCover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentType := "image/jpeg"
-	switch ext {
-	case ".png":
-		contentType = "image/png"
-	case ".jpg", ".jpeg":
-		contentType = "image/jpeg"
-	case ".webp":
-		contentType = "image/webp"
-	case ".gif":
-		contentType = "image/gif"
-	}
-
-	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Type", imageContentTypeForExt(ext))
 	w.Write(coverData)
 }
 

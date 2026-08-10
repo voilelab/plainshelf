@@ -26,10 +26,11 @@ title in the import dialog, that wins.
 
 - **The original `.epub` file.** It is not stored anywhere. Keep your own copy if
   you want one.
-- **Embedded illustrations.** A book directory has no place to put them, and no
-  route serves arbitrary files from inside one. The import counts them and
-  records the total on the imported source, so the loss stays visible after the
-  fact — see [What is recorded](#what-is-recorded) below.
+- **Embedded illustrations.** The import counts them and records the total on
+  the imported source, so the loss stays visible after the fact — see
+  [What is recorded](#what-is-recorded) below. A source can now hold
+  illustrations in an [`assets/` directory](concepts/data-model.md#source-assets),
+  but the EPUB converter does not yet write to it.
 - **Ruby annotations** (`<rt>`/`<rp>`). The base text is kept; furigana is
   removed so it does not interleave into Japanese prose.
 - **Links, footnotes, and page structure.**

@@ -46,7 +46,9 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 └─ sources/
    └─ {source-id}/
       ├─ source.txt
-      └─ meta.json
+      ├─ meta.json
+      └─ assets/
+         └─ img-0001.png
 ```
 
 | Path | Description |
@@ -56,6 +58,28 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 | `cover.(jpg\|png\|webp)` | Optional cover image |
 | `sources/{source-id}/source.txt` | The plain-text content for this source |
 | `sources/{source-id}/meta.json` | Source-level metadata |
+| `sources/{source-id}/assets/` | Optional illustrations this source's text references |
+
+### Source assets
+
+Illustrations live in an `assets/` directory beside the text that references
+them, so a Markdown image link in `source.txt` is an ordinary relative path:
+
+```markdown
+![A map of the province](assets/img-0001.png)
+```
+
+That path resolves the same way in the reader as it does in any editor you open
+`source.txt` with. It also means a source owns its images: deleting a source
+deletes its illustrations too, so nothing is left orphaned.
+
+The directory is flat, and file names must be a plain `.jpg`, `.jpeg`, `.png`,
+`.webp`, or `.gif`. Nothing records its contents — the filesystem is the list —
+so adding or removing an image is just adding or removing a file, and
+`book.json` never changes because of it.
+
+Today PlainShelf only reads this directory: you put images there yourself, and
+the server serves them. Displaying them in the reader is not wired up yet.
 
 ### Book IDs
 

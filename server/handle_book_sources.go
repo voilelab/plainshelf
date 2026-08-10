@@ -127,6 +127,38 @@ func (app *App) HandleAPIGetBookSourceContent(w http.ResponseWriter, r *http.Req
 	app.streamTextFile(w, src, "failed to write book source content")
 }
 
+// GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}
+//
+// Serves an illustration the source's text references. This is a read route
+// like the cover, so it changes nothing about the mutating-request boundary:
+// there is no way to put a file into assets/ through the API yet.
+func (app *App) HandleAPIGetBookSourceAsset(w http.ResponseWriter, r *http.Request) {
+	_, source, ok := app.loadBookSource(w, r)
+	if !ok {
+		return
+	}
+
+	assetName, ok := resolveAssetName(w, r)
+	if !ok {
+		return
+	}
+
+	if serveImageValidator(w, r, source.AssetETag(assetName)) {
+		return
+	}
+
+	assetData, ext, err := source.OpenAsset(assetName)
+	if err != nil {
+		app.writeErr(w, err, "failed to get source asset")
+		return
+	}
+
+	w.Header().Set("Content-Type", imageContentTypeForExt(ext))
+	if _, err := w.Write(assetData); err != nil {
+		app.Error("failed to write source asset", "error", err, "asset", assetName)
+	}
+}
+
 // POST /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/refresh
 func (app *App) HandleAPIRefreshBookSourceMeta(w http.ResponseWriter, r *http.Request) {
 	_, source, ok := app.loadBookSource(w, r)
