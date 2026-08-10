@@ -210,6 +210,9 @@ function normalizeSplitConfigInput(config: SplitConfig): SplitConfig {
 export function useReader(bookID: () => string) {
   const title = ref('');
   const bookFormat = ref('txt');
+  // The source the reader is showing. Illustrations are stored per source, so
+  // rendering one needs this alongside the book ID.
+  const currentSourceId = ref('');
   const content = ref('');
   const splitConfig = ref<SplitConfig>({ type: 'none' });
   const splitWarning = ref('');
@@ -320,6 +323,7 @@ export function useReader(bookID: () => string) {
 
       title.value = book.title ?? (book as { meta?: { title?: string } }).meta?.title ?? bookID();
       bookFormat.value = book.format === 'md' ? 'md' : 'txt';
+      currentSourceId.value = book.current_source ?? '';
       content.value = bookContent.content;
       splitConfig.value = effectiveSplitConfig;
 
@@ -425,6 +429,7 @@ export function useReader(bookID: () => string) {
   return {
     title,
     bookFormat,
+    currentSourceId,
     content,
     splitConfig,
     splitWarning,

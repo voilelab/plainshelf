@@ -523,6 +523,7 @@ const zhHant = {
     },
     showChapters: '顯示章節',
     splitSettings: '切分設定',
+    imageUnavailable: '插圖無法載入',
     saveBookmark: '儲存書籤',
     savingBookmark: '儲存書籤中'
   },

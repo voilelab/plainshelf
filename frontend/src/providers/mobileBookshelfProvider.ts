@@ -328,6 +328,19 @@ export class MobileBookshelfProvider implements BookshelfReader {
     throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
   }
 
+  /**
+   * Illustrations are not part of a download yet, so this only answers while
+   * online. A downloaded book therefore reads offline without its images
+   * rather than refusing to open.
+   */
+  async getSourceAsset(bookId: string, sourceId: string, name: string): Promise<Blob> {
+    if (this.isOnline() && this.remote.getSourceAsset) {
+      return this.remote.getSourceAsset(bookId, sourceId, name);
+    }
+
+    throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
+  }
+
 
   async getDownloadState(bookId: string): Promise<DownloadState> {
     return this.cache.getDownloadState(bookId);

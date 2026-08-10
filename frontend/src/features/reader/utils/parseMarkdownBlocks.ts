@@ -36,13 +36,21 @@ export type MarkdownHrBlock = {
   type: 'hr';
 };
 
+export type MarkdownImageBlock = {
+  type: 'image';
+  /** File name inside the source's `assets/` directory, never a path. */
+  name: string;
+  alt: string;
+};
+
 export type MarkdownBlock =
   | MarkdownHeadingBlock
   | MarkdownParagraphBlock
   | MarkdownQuoteBlock
   | MarkdownListBlock
   | MarkdownCodeBlock
-  | MarkdownHrBlock;
+  | MarkdownHrBlock
+  | MarkdownImageBlock;
 
 const HR_RE = /^(-{3,}|\*{3,})$/;
 const HEADING_RE = /^(#{1,6})\s+(.+)$/;
@@ -51,6 +59,41 @@ const ORDERED_ITEM_RE = /^\d+\.\s+(.*)$/;
 const INLINE_RE = /`([^`]+)`|\*\*([^*]+?)\*\*|\*([^*]+?)\*/g;
 const FENCE_RE = /^\s{0,3}```/;
 const LEADING_INDENT_RE = /^[ \t]+\S/;
+
+// Only a line that is nothing but an image becomes an image block. An
+// illustration in a book is a block, and treating `![]()` inside a sentence as
+// one would mean threading images through InlineSegment for no reader benefit;
+// inline occurrences stay literal text.
+const IMAGE_LINE_RE = /^!\[([^\]]*)\]\(([^)\s]+)\)$/;
+
+// A source asset is addressed as a single file inside `assets/`, matching the
+// flat directory the server serves from (see shelf/asset.go). Anything else --
+// a nested path, `..`, an absolute path, or an external URL -- is not loaded.
+// Refusing `http(s):` and `data:` here is deliberate: a book's text must not be
+// able to make the reader fetch from the network.
+const ASSET_SRC_RE = /^assets\/([^/\\]+)$/;
+
+// Kept in step with shelf.IsSupportedImageExt; a mismatch only costs a failed
+// request that falls back to alt text, so the server stays the authority.
+const ASSET_EXT_RE = /\.(jpe?g|png|webp|gif)$/i;
+
+/**
+ * Returns the asset file name a Markdown image target refers to, or null when
+ * the target is not an illustration this reader will load.
+ */
+export function assetNameFromSrc(src: string): string | null {
+  const match = ASSET_SRC_RE.exec(src.trim());
+  if (!match) {
+    return null;
+  }
+
+  const name = match[1];
+  if (name.startsWith('.') || !ASSET_EXT_RE.test(name)) {
+    return null;
+  }
+
+  return name;
+}
 
 function parseInlineSegments(text: string): InlineSegment[] {
   const segments: InlineSegment[] = [];
@@ -152,6 +195,19 @@ function parseTextSegmentToBlocks(text: string): MarkdownBlock[] {
       const level = headingMatch[1].length as 1 | 2 | 3 | 4 | 5 | 6;
       blocks.push({ type: 'heading', level, segments: parseInlineSegments(headingMatch[2].trim()) });
       continue;
+    }
+
+    // An image target this reader will not load falls through to the paragraph
+    // path, so the line stays visible as its own Markdown rather than silently
+    // disappearing.
+    const imageMatch = IMAGE_LINE_RE.exec(trimmed);
+    if (imageMatch) {
+      const name = assetNameFromSrc(imageMatch[2]);
+      if (name) {
+        flushAll();
+        blocks.push({ type: 'image', name, alt: imageMatch[1].trim() });
+        continue;
+      }
     }
 
     if (trimmed.startsWith('>')) {
