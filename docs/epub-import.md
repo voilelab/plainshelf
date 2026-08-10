@@ -43,8 +43,10 @@ Not every illustration can be kept. These are dropped and counted as before:
 - images drawn inside an `<svg>` canvas, which has no position in flattened text;
 - an image over 8 MB, or artwork past 64 MB for the whole book.
 
-To turn this off, set `keep_images` to `false` in the EPUB import strategy. It
-is on by default for the Markdown layout.
+To turn this off, set `keep_images` to `false` in the EPUB import strategy — in
+the config file, or through `POST /api/setting/epub_import_strategy`. It is on
+by default for the Markdown layout, and there is no control for it in the
+import dialog yet.
 
 ## What is dropped
 

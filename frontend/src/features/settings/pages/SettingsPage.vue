@@ -485,6 +485,9 @@ const defaultSplitRegex = ref('');
 const splitConfigError = ref('');
 const epubPreset = ref<EpubImportPreset>(DEFAULT_EPUB_IMPORT_STRATEGY.preset);
 const epubIncludeDescription = ref(DEFAULT_EPUB_IMPORT_STRATEGY.include_description);
+// Held only so saving another EPUB setting does not erase it. There is no
+// control for it yet; it is configured through the API or the config file.
+const epubKeepImages = ref<boolean | undefined>(undefined);
 const epubImportError = ref('');
 const version = ref('');
 const githubRepoUrl = 'https://github.com/voilelab/plainshelf';
@@ -646,6 +649,7 @@ function hydrateSplitConfigDraft(config: SplitConfig): void {
 function hydrateEpubImportDraft(strategy: EpubImportStrategy): void {
   epubPreset.value = strategy.preset;
   epubIncludeDescription.value = strategy.include_description;
+  epubKeepImages.value = strategy.keep_images;
 }
 
 function onEpubPresetChange(event: Event): void {
@@ -664,7 +668,8 @@ async function onSaveEpubImportStrategy(): Promise<void> {
   try {
     await setEpubImportStrategySetting({
       preset: epubPreset.value,
-      include_description: epubIncludeDescription.value
+      include_description: epubIncludeDescription.value,
+      ...(epubKeepImages.value === undefined ? {} : { keep_images: epubKeepImages.value })
     });
   } catch (err) {
     epubImportError.value = err instanceof Error ? err.message : t('settings.saveFailed');

@@ -50,6 +50,18 @@ func parseImportStrategy(raw string, fallback epub.Strategy) (epub.Strategy, str
 			util.Errorf("%w", err)
 	}
 
+	// A per-import strategy replaces the fallback, but only for what it
+	// actually says. A client written before keep_images existed sends a
+	// strategy without it, and reading that as "use the built-in default"
+	// would make the configured setting unreachable from every such client -
+	// including the import dialog, which always submits an explicit strategy.
+	//
+	// Only a pointer field can carry this distinction; include_description is
+	// a plain bool, where absent and false are the same value on the wire.
+	if strategy.KeepImages == nil {
+		strategy.KeepImages = fallback.KeepImages
+	}
+
 	return strategy, "", nil
 }
 

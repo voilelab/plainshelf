@@ -543,3 +543,61 @@ func TestEPUBImageNamingAgreesWithShelf(t *testing.T) {
 		}
 	}
 }
+
+// A client written before keep_images existed submits a strategy without it.
+// The import dialog does exactly that on every EPUB upload, so reading the
+// absent field as "use the built-in default" would make the configured setting
+// unreachable from the browser.
+func TestImportEPUBPerRequestStrategyInheritsKeepImages(t *testing.T) {
+	off := false
+	fallback := epub.Strategy{Preset: epub.PresetMarkdown, KeepImages: &off}
+
+	got, _, err := parseImportStrategy(`{"preset":"markdown","include_description":true}`, fallback)
+	if err != nil {
+		t.Fatalf("parseImportStrategy: %v", err)
+	}
+	if got.KeepImages == nil || *got.KeepImages {
+		t.Fatalf("keep_images = %v, want the configured false", got.KeepImages)
+	}
+
+	// An explicit value still wins over the fallback.
+	got, _, err = parseImportStrategy(`{"preset":"markdown","keep_images":true}`, fallback)
+	if err != nil {
+		t.Fatalf("parseImportStrategy with explicit keep_images: %v", err)
+	}
+	if got.KeepImages == nil || !*got.KeepImages {
+		t.Fatalf("explicit keep_images = %v, want true", got.KeepImages)
+	}
+
+	// An empty strategy field means "use fallback" and always did.
+	got, _, err = parseImportStrategy("", fallback)
+	if err != nil {
+		t.Fatalf("parseImportStrategy with no strategy: %v", err)
+	}
+	if got.KeepImages == nil || *got.KeepImages {
+		t.Fatalf("fallback keep_images = %v, want false", got.KeepImages)
+	}
+}
+
+// The end-to-end version of the same thing: with the setting off, an import
+// that submits a strategy of its own must still store no illustrations.
+func TestImportEPUBHonoursKeepImagesOff(t *testing.T) {
+	env := newAPITestEnv(t)
+
+	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/setting/epub_import_strategy",
+		strings.NewReader(`{"preset":"markdown","include_description":true,"keep_images":false}`)))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	imported := importEPUBWithStrategy(t, env, "book.epub", string(buildIllustratedTestEPUB(t)),
+		`{"preset":"markdown","include_description":true}`)
+
+	base := "/api/shelves/default_shelf/books/" + imported.Meta.ID + "/sources/" + imported.Meta.CurrentSource
+	rec = env.do(httptest.NewRequest(http.MethodGet, base+"/content", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if strings.Contains(rec.Body.String(), "![") {
+		t.Fatalf("images were stored despite keep_images=false:\n%s", rec.Body.String())
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, base+"/assets/img-0001.png", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+}

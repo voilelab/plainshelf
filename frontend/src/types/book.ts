@@ -100,6 +100,15 @@ export type EpubImportPreset = 'markdown' | 'plain';
 export interface EpubImportStrategy {
   preset: EpubImportPreset;
   include_description: boolean;
+
+  /**
+   * Whether the conversion stores the EPUB's illustrations. Optional because
+   * omitting it means "unspecified": the server then falls back to the
+   * configured setting rather than a built-in default. Dropping it while
+   * round-tripping a strategy would silently re-enable images for a user who
+   * turned them off.
+   */
+  keep_images?: boolean;
 }
 
 export const DEFAULT_EPUB_IMPORT_STRATEGY: EpubImportStrategy = {
