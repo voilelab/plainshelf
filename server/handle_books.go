@@ -272,18 +272,33 @@ func imageContentTypeForExt(ext string) string {
 	}
 }
 
+// cacheVisibility returns the Cache-Control visibility for a stored file's
+// response.
+//
+// It is derived from the token gate itself rather than read from the config
+// separately, so the two cannot drift apart. A response the gate protected must
+// not be stored by a shared cache: the token travels in a header the cache does
+// not key on, so a stored copy could answer a later request that never reached
+// the gate.
+func (app *App) cacheVisibility(r *http.Request) string {
+	if app.security.requiresToken(r) {
+		return "private"
+	}
+	return "public"
+}
+
 // serveImageValidator writes the caching headers for a stored image and reports
 // whether it already answered the request with 304.
 //
 // An empty etag means the file could not be stat'd; the response then carries
 // no validator and the caller goes on to serve the bytes.
-func serveImageValidator(w http.ResponseWriter, r *http.Request, etag string) bool {
+func (app *App) serveImageValidator(w http.ResponseWriter, r *http.Request, etag string) bool {
 	if etag == "" {
 		return false
 	}
 
 	w.Header().Set("ETag", etag)
-	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Cache-Control", app.cacheVisibility(r)+", max-age=86400")
 	if r.Header.Get("If-None-Match") == etag {
 		w.WriteHeader(http.StatusNotModified)
 		return true
@@ -299,7 +314,7 @@ func (app *App) HandleAPIGetBookCover(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if serveImageValidator(w, r, book.CoverETag()) {
+	if app.serveImageValidator(w, r, book.CoverETag()) {
 		return
 	}
 

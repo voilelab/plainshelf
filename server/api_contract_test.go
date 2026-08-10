@@ -11,6 +11,7 @@ import (
 	"net/textproto"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -912,6 +913,18 @@ func TestAPISourceAssetContract(t *testing.T) {
 	}
 	if !bytes.Equal(rec.Body.Bytes(), pngBytes) {
 		t.Fatalf("asset bytes = %q, want %q", rec.Body.Bytes(), pngBytes)
+	}
+
+	// The asset is streamed rather than buffered, so the length has to be
+	// declared from the file's own size instead of the written body.
+	if got := rec.Header().Get("Content-Length"); got != strconv.Itoa(len(pngBytes)) {
+		t.Fatalf("asset Content-Length = %q, want %d", got, len(pngBytes))
+	}
+
+	// This env leaves protect_read off, so asset responses stay shared-cacheable.
+	// TestCacheVisibilityFollowsTheTokenGate covers the protected case.
+	if got := rec.Header().Get("Cache-Control"); got != "public, max-age=86400" {
+		t.Fatalf("asset Cache-Control = %q, want public, max-age=86400", got)
 	}
 
 	// The reader fetches every illustration on a chapter, so a revalidating

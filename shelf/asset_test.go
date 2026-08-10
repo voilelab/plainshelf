@@ -2,6 +2,7 @@ package shelf
 
 import (
 	"errors"
+	"io"
 	"os"
 	"path"
 	"strings"
@@ -52,15 +53,24 @@ func TestSourceOpenAsset(t *testing.T) {
 	want := []byte("fake png bytes")
 	writeAsset(t, libRoot, source, "img-0001.png", want)
 
-	got, ext, err := source.OpenAsset("img-0001.png")
+	asset, err := source.OpenAsset("img-0001.png")
 	if err != nil {
 		t.Fatalf("OpenAsset: %v", err)
+	}
+	defer asset.File.Close()
+
+	got, err := io.ReadAll(asset.File)
+	if err != nil {
+		t.Fatalf("read asset: %v", err)
 	}
 	if string(got) != string(want) {
 		t.Errorf("asset bytes = %q, want %q", got, want)
 	}
-	if ext != ".png" {
-		t.Errorf("asset ext = %q, want .png", ext)
+	if asset.Ext != ".png" {
+		t.Errorf("asset ext = %q, want .png", asset.Ext)
+	}
+	if asset.Info.Size() != int64(len(want)) {
+		t.Errorf("asset size = %d, want %d", asset.Info.Size(), len(want))
 	}
 }
 
@@ -72,13 +82,13 @@ func TestSourceOpenAssetMissing(t *testing.T) {
 
 	// Neither an absent assets/ directory nor an absent file inside one is a
 	// server fault; both must be reported as a missing asset.
-	if _, _, err := source.OpenAsset("img-0001.png"); !errors.Is(err, ErrAssetNotFound) {
+	if _, err := source.OpenAsset("img-0001.png"); !errors.Is(err, ErrAssetNotFound) {
 		t.Fatalf("OpenAsset with no assets dir: error = %v, want ErrAssetNotFound", err)
 	}
 
 	writeAsset(t, libRoot, source, "img-0001.png", []byte("x"))
 
-	if _, _, err := source.OpenAsset("img-0002.png"); !errors.Is(err, ErrAssetNotFound) {
+	if _, err := source.OpenAsset("img-0002.png"); !errors.Is(err, ErrAssetNotFound) {
 		t.Fatalf("OpenAsset for absent file: error = %v, want ErrAssetNotFound", err)
 	}
 }
@@ -96,7 +106,7 @@ func TestSourceOpenAssetRejectsDirectory(t *testing.T) {
 		t.Fatalf("MkdirAll(%q): %v", dirPath, err)
 	}
 
-	if _, _, err := source.OpenAsset("img-0001.png"); !errors.Is(err, ErrAssetNotFound) {
+	if _, err := source.OpenAsset("img-0001.png"); !errors.Is(err, ErrAssetNotFound) {
 		t.Fatalf("OpenAsset on a directory: error = %v, want ErrAssetNotFound", err)
 	}
 }
@@ -130,7 +140,7 @@ func TestSourceOpenAssetRejectsUnsafeNames(t *testing.T) {
 
 	for name, assetName := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, _, err := source.OpenAsset(assetName); !errors.Is(err, ErrInvalidAssetName) {
+			if _, err := source.OpenAsset(assetName); !errors.Is(err, ErrInvalidAssetName) {
 				t.Fatalf("OpenAsset(%q): error = %v, want ErrInvalidAssetName", assetName, err)
 			}
 			if etag := source.AssetETag(assetName); etag != "" {
@@ -147,9 +157,11 @@ func TestSourceAssetExtensionsAreCaseInsensitive(t *testing.T) {
 	_, source := newBookWithSource(t, s, nil, "Shouty Extension", "body")
 	writeAsset(t, libRoot, source, "img-0001.JPG", []byte("x"))
 
-	if _, _, err := source.OpenAsset("img-0001.JPG"); err != nil {
+	asset, err := source.OpenAsset("img-0001.JPG")
+	if err != nil {
 		t.Fatalf("OpenAsset with uppercase extension: %v", err)
 	}
+	asset.File.Close()
 }
 
 func TestSourceAssetETagTracksContent(t *testing.T) {
@@ -213,9 +225,15 @@ func TestSourceAssetsSurviveMoveAndTrashRestore(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetSource after %s: %v", stage, err)
 		}
-		got, _, err := movedSource.OpenAsset("img-0001.png")
+		asset, err := movedSource.OpenAsset("img-0001.png")
 		if err != nil {
 			t.Fatalf("OpenAsset after %s: %v", stage, err)
+		}
+		defer asset.File.Close()
+
+		got, err := io.ReadAll(asset.File)
+		if err != nil {
+			t.Fatalf("read asset after %s: %v", stage, err)
 		}
 		if string(got) != string(want) {
 			t.Fatalf("asset bytes after %s = %q, want %q", stage, got, want)

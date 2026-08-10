@@ -2,7 +2,6 @@ package shelf
 
 import (
 	"errors"
-	"io"
 	"io/fs"
 	"path"
 	"strings"
@@ -90,41 +89,54 @@ func (r *Source) AssetETag(name string) string {
 	return fileETag(r.root, assetPath)
 }
 
-// OpenAsset reads one of this source's assets, returning its bytes and its
-// file extension including the leading dot.
+// Asset is an open handle to one of a source's illustrations. The caller owns
+// File and must close it.
+//
+// Info comes from the same open handle, so a caller can size the response
+// without a second lookup, and Ext is the name's extension including the
+// leading dot.
+type Asset struct {
+	File fs.File
+	Info fs.FileInfo
+	Ext  string
+}
+
+// OpenAsset opens one of this source's assets for reading.
+//
+// The file is handed back open rather than read into memory: unlike a cover,
+// which the API caps when it is uploaded, an asset is a file the user placed on
+// the shelf by hand and can be arbitrarily large. Buffering one per in-flight
+// request would let a handful of large illustrations decide the server's memory
+// use.
 //
 // A missing asset, and a name that resolves to something other than a regular
 // file, both report ErrAssetNotFound: from a reader's point of view they are
 // the same outcome, and neither is a server fault.
-func (r *Source) OpenAsset(name string) ([]byte, string, error) {
+func (r *Source) OpenAsset(name string) (*Asset, error) {
 	assetPath, err := r.AssetPath(name)
 	if err != nil {
-		return nil, "", util.Errorf("%w", err)
+		return nil, util.Errorf("%w", err)
 	}
 
 	assetFile, err := r.root.Open(assetPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, "", util.Errorf("%w: %s", ErrAssetNotFound, name)
+			return nil, util.Errorf("%w: %s", ErrAssetNotFound, name)
 		}
-		return nil, "", util.Errorf("%w", err)
+		return nil, util.Errorf("%w", err)
 	}
-	defer assetFile.Close()
 
 	// Stat the open handle rather than the path: it costs no extra lookup and
 	// keeps a directory named like an image from failing as a read error.
 	info, err := assetFile.Stat()
 	if err != nil {
-		return nil, "", util.Errorf("%w", err)
+		assetFile.Close() //nolint:errcheck // best-effort cleanup; stat error is returned
+		return nil, util.Errorf("%w", err)
 	}
 	if !info.Mode().IsRegular() {
-		return nil, "", util.Errorf("%w: %s", ErrAssetNotFound, name)
+		assetFile.Close() //nolint:errcheck // best-effort cleanup; the asset is unusable
+		return nil, util.Errorf("%w: %s", ErrAssetNotFound, name)
 	}
 
-	data, err := io.ReadAll(assetFile)
-	if err != nil {
-		return nil, "", util.Errorf("%w", err)
-	}
-
-	return data, path.Ext(name), nil
+	return &Asset{File: assetFile, Info: info, Ext: path.Ext(name)}, nil
 }

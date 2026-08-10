@@ -1,7 +1,9 @@
 package server
 
 import (
+	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
@@ -143,18 +145,24 @@ func (app *App) HandleAPIGetBookSourceAsset(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if serveImageValidator(w, r, source.AssetETag(assetName)) {
+	if app.serveImageValidator(w, r, source.AssetETag(assetName)) {
 		return
 	}
 
-	assetData, ext, err := source.OpenAsset(assetName)
+	asset, err := source.OpenAsset(assetName)
 	if err != nil {
 		app.writeErr(w, err, "failed to get source asset")
 		return
 	}
+	defer asset.File.Close()
 
-	w.Header().Set("Content-Type", imageContentTypeForExt(ext))
-	if _, err := w.Write(assetData); err != nil {
+	w.Header().Set("Content-Type", imageContentTypeForExt(asset.Ext))
+	w.Header().Set("Content-Length", strconv.FormatInt(asset.Info.Size(), 10))
+
+	// Commit the response before copying: a zero-byte asset writes nothing, and
+	// a copy that writes nothing never commits a status of its own.
+	w.WriteHeader(http.StatusOK)
+	if _, err := io.Copy(w, asset.File); err != nil {
 		app.Error("failed to write source asset", "error", err, "asset", assetName)
 	}
 }
