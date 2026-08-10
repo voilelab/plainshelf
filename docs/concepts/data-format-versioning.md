@@ -213,14 +213,56 @@ The desktop app does not expose its internal API on a TCP port. Before updating
 it, quit the app and copy its complete PlainShelf configuration directory
 (`~/Library/Application Support/PlainShelf` on macOS) together with every shelf
 directory. That copy contains the v0.8 application store and monthly reading
-stats.
+stats. Do not try to inspect the copy by simply relaunching the v0.8 desktop
+app: it always opens the current user's fixed configuration directory, and the
+copied `shelves.json` still points at the original shelf paths.
 
-To recover or inspect old data later:
+To inspect a desktop backup safely, run the v0.8 `plainshelf-srv` binary against
+the copies instead. Create a recovery-only configuration such as:
+
+```yaml
+logger:
+  level: info
+  format: text
+  log_file:
+    type: stderr
+
+server_conf:
+  addr: "127.0.0.1:20001"
+  read_timeout: 60s
+  write_timeout: 60s
+
+app_conf:
+  logger:
+    level: info
+    format: text
+    log_file:
+      type: stderr
+  shelves:
+    - id: default_shelf
+      name: Default Shelf
+      lib_root: "/absolute/path/to/recovery/shelf"
+  store_path: "/absolute/path/to/recovery/PlainShelf/store"
+  read_history_limit: 100
+  security:
+    mode: none
+```
+
+Copy each shelf's exact `id` and `name` from the backed-up `shelves.json`, set
+every `lib_root` to the absolute path of its **copied** shelf, and repeat the
+shelf entry when necessary. `store_path` must point to the copied desktop
+`PlainShelf/store` directory. Then start that same v0.8 server version with
+`plainshelf-srv -conf /path/to/recovery.yaml` and open
+`http://127.0.0.1:20001`; the JSON export commands above work at that address.
+
+The complete recovery sequence is therefore:
 
 1. Stop v1 and make another backup of its current data.
-2. Copy the v0.8 shelf and application-store backup to a separate location.
-3. Run v0.8 against those copies, preferably on a different local port, and
-   view or export the old history there.
+2. Copy the v0.8 shelves and application store to a separate recovery
+   location.
+3. Point a recovery-only v0.8 server configuration at those copies and use a
+   different loopback port from any current PlainShelf server.
+4. Start v0.8 with that configuration, then view or export the old history.
 
 Never point v0.8 at the live shelf after v1 has modified it. There is no
 supported downgrade or merge path, and new device-local v1 reading data is not
