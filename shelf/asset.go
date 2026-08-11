@@ -81,11 +81,8 @@ func (r *Source) AssetPath(name string) (string, error) {
 	return path.Join(r.folderPath, SourceAssetsFolder, name), nil
 }
 
-// WriteAsset stores one illustration in the source's assets/ directory.
-//
-// This is an internal writer for import, not an API surface: no HTTP route
-// reaches it, so the mutating-request boundary is untouched and assets still
-// cannot be placed through the API.
+// WriteAsset stores one illustration in the source's assets/ directory,
+// replacing one already under that name.
 //
 // The name goes through the same validation the read path uses, so a file the
 // server could never serve cannot be written in the first place.
@@ -100,6 +97,31 @@ func (r *Source) WriteAsset(name string, data []byte) error {
 	}
 
 	if err := fsutil.WriteFileAtomic(r.root, assetPath, data); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
+}
+
+// DeleteAsset removes one illustration from the source's assets/ directory.
+//
+// A name that is not stored reports ErrAssetNotFound rather than succeeding
+// quietly: unlike a cover, which a book either has or does not, an asset is
+// addressed by name, and a silent success would hide a typo.
+//
+// The text is not touched. A link left pointing at a deleted file renders as
+// its alt text, and rewriting someone's prose to keep an invariant the shelf
+// does not enforce would be a worse trade.
+func (r *Source) DeleteAsset(name string) error {
+	assetPath, err := r.AssetPath(name)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	if err := r.root.Remove(assetPath); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return util.Errorf("%w: %s", ErrAssetNotFound, name)
+		}
 		return util.Errorf("%w", err)
 	}
 

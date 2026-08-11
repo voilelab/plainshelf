@@ -10,8 +10,8 @@ import (
 )
 
 // writeAsset places a file under a source's assets/ directory the way a user
-// dropping an illustration into the shelf by hand would, since nothing writes
-// there through the API yet.
+// dropping an illustration into the shelf by hand would, bypassing WriteAsset
+// so the read path is exercised against a file it did not write itself.
 func writeAsset(t *testing.T, libRoot string, source *Source, name string, data []byte) string {
 	t.Helper()
 
@@ -138,6 +138,45 @@ func TestSourceWriteAssetRejectsUnsafeNames(t *testing.T) {
 	}
 	if _, err := os.Stat(path.Join(libRoot, source.FolderPath(), "escaped.png")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("a refused name escaped the assets dir: err = %v", err)
+	}
+}
+
+func TestSourceDeleteAsset(t *testing.T) {
+	libRoot := path.Join(t.TempDir(), "shelf_test")
+	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
+
+	_, source := newBookWithSource(t, s, nil, "Deletable Art", "body")
+	if err := source.WriteAsset("img-0001.png", []byte("x")); err != nil {
+		t.Fatalf("WriteAsset: %v", err)
+	}
+
+	if err := source.DeleteAsset("img-0001.png"); err != nil {
+		t.Fatalf("DeleteAsset: %v", err)
+	}
+	if _, err := source.OpenAsset("img-0001.png"); !errors.Is(err, ErrAssetNotFound) {
+		t.Fatalf("OpenAsset after delete: error = %v, want ErrAssetNotFound", err)
+	}
+
+	// An asset is addressed by name, so deleting one that is not there is a
+	// miss rather than a quiet success: it would otherwise hide a typo.
+	if err := source.DeleteAsset("img-0001.png"); !errors.Is(err, ErrAssetNotFound) {
+		t.Fatalf("second DeleteAsset: error = %v, want ErrAssetNotFound", err)
+	}
+
+	for _, name := range []string{"..", "../source.txt", "notes.txt", ""} {
+		if err := source.DeleteAsset(name); !errors.Is(err, ErrInvalidAssetName) {
+			t.Fatalf("DeleteAsset(%q): error = %v, want ErrInvalidAssetName", name, err)
+		}
+	}
+
+	// Deleting an illustration leaves the text alone; a link to it renders as
+	// alt text rather than the prose being rewritten underneath the reader.
+	content, err := os.ReadFile(path.Join(libRoot, source.FolderPath(), SourceFile))
+	if err != nil {
+		t.Fatalf("read source.txt: %v", err)
+	}
+	if string(content) != "body" {
+		t.Fatalf("source text changed by a delete: %q", content)
 	}
 }
 

@@ -265,6 +265,8 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", app.HandleAPIUpdateBookSourceContent)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/refresh", app.HandleAPIRefreshBookSourceMeta)
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}", app.HandleAPIGetBookSourceAsset)
+	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}", app.HandleAPIUpdateBookSourceAsset)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}", app.HandleAPIDeleteBookSourceAsset)
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/cover", app.HandleAPIGetBookCover)
 	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/cover", app.HandleAPIUpdateBookCover)

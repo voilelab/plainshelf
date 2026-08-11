@@ -131,9 +131,9 @@ func (app *App) HandleAPIGetBookSourceContent(w http.ResponseWriter, r *http.Req
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}
 //
-// Serves an illustration the source's text references. This is a read route
-// like the cover, so it changes nothing about the mutating-request boundary:
-// there is no way to put a file into assets/ through the API yet.
+// Serves an illustration the source's text references. A plain read, so
+// neither the token gate nor read-only mode stands between a reader and it -
+// unlike the PUT and DELETE below.
 func (app *App) HandleAPIGetBookSourceAsset(w http.ResponseWriter, r *http.Request) {
 	_, source, ok := app.loadBookSource(w, r)
 	if !ok {
@@ -174,6 +174,84 @@ func (app *App) HandleAPIGetBookSourceAsset(w http.ResponseWriter, r *http.Reque
 	if _, err := io.Copy(w, asset.File); err != nil {
 		app.Error("failed to write source asset", "error", err, "asset", assetName)
 	}
+}
+
+// PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}
+//
+// Stores an illustration under the name the request addressed, replacing one
+// already there. The name carries the format, so the body is written as sent
+// and Content-Type is not consulted: the extension is what the read path
+// serves by and what shelf validates, and a second opinion could only
+// disagree with it.
+//
+// This is the first route that writes into assets/, so it is a mutating
+// request like any other: the token gate and the read-only mode both apply
+// before it is reached.
+func (app *App) HandleAPIUpdateBookSourceAsset(w http.ResponseWriter, r *http.Request) {
+	book, source, ok := app.loadBookSource(w, r)
+	if !ok {
+		return
+	}
+
+	assetName, ok := resolveAssetName(w, r)
+	if !ok {
+		return
+	}
+
+	// Refuse before reading the body, not after: a book this build must not
+	// write should not have an upload spooled for it either.
+	if err := book.EnsureWritable(); err != nil {
+		app.writeErr(w, err, "failed to store source asset")
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxAssetBodySize)
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		if isRequestBodyTooLarge(err) {
+			http.Error(w, "request body too large (max 20 MB)", http.StatusRequestEntityTooLarge)
+			return
+		}
+		app.Error("failed to read request body", "error", err)
+		http.Error(w, "failed to read request body", http.StatusInternalServerError)
+		return
+	}
+
+	if err := source.WriteAsset(assetName, data); err != nil {
+		app.writeErr(w, err, "failed to store source asset")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}
+//
+// The source's text is left alone. A link pointing at a removed file renders
+// as its alt text, and editing someone's prose to preserve an invariant the
+// shelf does not enforce would be the worse trade.
+func (app *App) HandleAPIDeleteBookSourceAsset(w http.ResponseWriter, r *http.Request) {
+	book, source, ok := app.loadBookSource(w, r)
+	if !ok {
+		return
+	}
+
+	assetName, ok := resolveAssetName(w, r)
+	if !ok {
+		return
+	}
+
+	if err := book.EnsureWritable(); err != nil {
+		app.writeErr(w, err, "failed to delete source asset")
+		return
+	}
+
+	if err := source.DeleteAsset(assetName); err != nil {
+		app.writeErr(w, err, "failed to delete source asset")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // POST /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/refresh

@@ -993,13 +993,87 @@ func TestAPISourceAssetContract(t *testing.T) {
 		"/api/shelves/default_shelf/books/"+created.Meta.ID+"/sources/no-such-source/assets/img-0001.png", nil))
 	assertStatus(t, rec, http.StatusNotFound)
 
-	// The route is read-only: no method may write through it.
-	for _, method := range mutatingMethods {
+	// POST and PATCH still have no meaning on an asset; PUT and DELETE do.
+	for _, method := range []string{http.MethodPost, http.MethodPatch} {
 		rec = env.do(httptest.NewRequest(method, assetsURL+"img-0001.png", nil))
 		if rec.Code != http.StatusMethodNotAllowed {
 			t.Fatalf("%s asset status = %d, want %d", method, rec.Code, http.StatusMethodNotAllowed)
 		}
 	}
+}
+
+func TestAPISourceAssetWriteContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Editable Art", "", "art.md", "body")
+	sourceID := env.currentSourceID(t, created.Meta.ID)
+	assetsURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources/" + sourceID + "/assets/"
+
+	// Uploading creates the directory and the file.
+	pngBytes := []byte("fake png bytes")
+	rec := env.do(httptest.NewRequest(http.MethodPut, assetsURL+"img-0001.png", bytes.NewReader(pngBytes)))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if !bytes.Equal(rec.Body.Bytes(), pngBytes) {
+		t.Fatalf("stored asset = %q, want %q", rec.Body.Bytes(), pngBytes)
+	}
+
+	// Uploading again under the same name replaces it.
+	replaced := []byte("replacement bytes")
+	rec = env.do(httptest.NewRequest(http.MethodPut, assetsURL+"img-0001.png", bytes.NewReader(replaced)))
+	assertStatus(t, rec, http.StatusNoContent)
+	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
+	if !bytes.Equal(rec.Body.Bytes(), replaced) {
+		t.Fatalf("replaced asset = %q, want %q", rec.Body.Bytes(), replaced)
+	}
+
+	// The name is validated on the way in exactly as it is on the way out, so
+	// a file the read path could never serve cannot be written either.
+	for _, assetName := range []string{"..%2fescaped.png", ".hidden.png", "notes.txt", "img-0002"} {
+		rec = env.do(httptest.NewRequest(http.MethodPut, assetsURL+assetName, bytes.NewReader(pngBytes)))
+		assertStatus(t, rec, http.StatusBadRequest)
+	}
+
+	// Oversized uploads are refused rather than spooled.
+	rec = env.do(httptest.NewRequest(http.MethodPut, assetsURL+"img-0003.png",
+		bytes.NewReader(bytes.Repeat([]byte{'x'}, maxAssetBodySize+1))))
+	assertStatus(t, rec, http.StatusRequestEntityTooLarge)
+
+	// Deleting removes it; deleting again reports the miss rather than
+	// succeeding quietly, since an asset is addressed by name.
+	rec = env.do(httptest.NewRequest(http.MethodDelete, assetsURL+"img-0001.png", nil))
+	assertStatus(t, rec, http.StatusNoContent)
+	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+	rec = env.do(httptest.NewRequest(http.MethodDelete, assetsURL+"img-0001.png", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+}
+
+// Writing an asset is a mutating request like any other, so both gates that
+// decide what may write have to cover it.
+func TestAPISourceAssetWritesAreGated(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Gated Art", "", "art.md", "body")
+	sourceID := env.currentSourceID(t, created.Meta.ID)
+	assetsURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources/" + sourceID + "/assets/"
+
+	// doRaw omits the token do() would attach.
+	for _, method := range []string{http.MethodPut, http.MethodDelete} {
+		rec := env.doRaw(httptest.NewRequest(method, assetsURL+"img-0001.png", bytes.NewReader([]byte("x"))))
+		assertStatus(t, rec, http.StatusUnauthorized)
+	}
+
+	env.app.conf.ReadOnly = true
+	for _, method := range []string{http.MethodPut, http.MethodDelete} {
+		rec := env.do(httptest.NewRequest(method, assetsURL+"img-0001.png", bytes.NewReader([]byte("x"))))
+		assertStatus(t, rec, http.StatusForbidden)
+	}
+	env.app.conf.ReadOnly = false
+
+	// A read is unaffected by either gate in this configuration.
+	rec := env.doRaw(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
+	assertStatus(t, rec, http.StatusNotFound)
 }
 
 // The asset route reaches the filesystem by name, so it gets its own traversal

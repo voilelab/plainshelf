@@ -15,6 +15,11 @@ import (
 
 const maxCoverBodySize = 20 << 20 // 20 MB
 
+// maxAssetBodySize caps an uploaded illustration. A file placed on the shelf by
+// hand has no bound - which is why the read path streams rather than buffers -
+// but an upload is read into memory to be written, so it needs one.
+const maxAssetBodySize = 20 << 20 // 20 MB
+
 func isRequestBodyTooLarge(err error) bool {
 	var maxBytesErr *http.MaxBytesError
 	return errors.As(err, &maxBytesErr)
