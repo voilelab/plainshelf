@@ -1,4 +1,4 @@
-import { buildShelfApiPath, fetchJson, fetchText, isMockApiMode } from './client';
+import { buildShelfApiPath, fetchBlob, fetchJson, fetchText, isMockApiMode } from './client';
 import type { SourceMeta as SourceMeta } from '@/types/source';
 
 interface SourceStoreItem {
@@ -126,6 +126,26 @@ export async function getSourceContent(bookId: string, sourceId: string): Promis
 
   return await fetchText(
     buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/content`)
+  );
+}
+
+/**
+ * Fetches one of a source's illustrations.
+ *
+ * This goes through `fetchBlob` rather than being handed to an `<img src>`,
+ * because the request has to carry the API token: a plain image request would
+ * be issued by the browser without it and fail whenever the server sets
+ * `protect_read`.
+ */
+export async function getSourceAsset(bookId: string, sourceId: string, name: string): Promise<Blob> {
+  if (isMockApiMode()) {
+    throw new Error('Source assets are not served in mock API mode');
+  }
+
+  return await fetchBlob(
+    buildShelfApiPath(
+      `/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/assets/${encodeURIComponent(name)}`
+    )
   );
 }
 

@@ -82,8 +82,28 @@ Files get here two ways: [EPUB import](../epub-import.md#illustrations) writes
 the illustrations it kept, and you can drop your own images in by hand. Nothing
 else writes to the directory — there is no route that stores an asset.
 
-The server serves these files; displaying them in the reader is not wired up
-yet.
+The reader displays these images for books stored as Markdown (`"format": "md"`
+in `book.json`). A plain-text book has no image syntax, so its illustrations are
+never shown.
+
+Only a line that is nothing but an image becomes an illustration; an `![]()`
+inside a sentence stays as text. The link target must be a single file directly
+inside `assets/` — external URLs, `data:` targets, and paths that climb out of
+the directory are left as text rather than fetched, so a book's own text cannot
+make the reader reach out to the network. An image that cannot be loaded is
+replaced by its alt text instead of leaving a gap.
+
+A file name containing spaces can be written plainly, in angle brackets, or
+percent-encoded; all three name the same file:
+
+```markdown
+![](assets/A Map.png)
+![](<assets/A Map.png>)
+![](assets/A%20Map.png)
+```
+
+Adding images from the app, and carrying them into offline downloads, are not
+supported yet.
 
 ### Book IDs
 
