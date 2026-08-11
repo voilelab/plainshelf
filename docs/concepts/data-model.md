@@ -78,9 +78,9 @@ The directory is flat, and file names must be a plain `.jpg`, `.jpeg`, `.png`,
 so adding or removing an image is just adding or removing a file, and
 `book.json` never changes because of it.
 
-Files get here two ways: [EPUB import](../epub-import.md#illustrations) writes
-the illustrations it kept, and you can drop your own images in by hand. Nothing
-else writes to the directory — there is no route that stores an asset.
+Files get here three ways: [EPUB import](../epub-import.md#illustrations) writes
+the illustrations it kept, the API stores and removes them, and you can drop
+your own images in by hand.
 
 The reader displays these images for books stored as Markdown (`"format": "md"`
 in `book.json`). A plain-text book has no image syntax, so its illustrations are
@@ -108,7 +108,12 @@ images that text renders. A book downloaded before this existed keeps working
 and shows alt text where its pictures would be; downloading it again stores
 them.
 
-Adding images from the app is not supported yet.
+Uploading and deleting an illustration are ordinary writes: they need the same
+access a metadata edit does, and a read-only server refuses them. Deleting one
+leaves the text alone — a link to a removed file renders as its alt text rather
+than the prose being rewritten underneath you.
+
+The app has no screen for this yet; the routes are there for a client to use.
 
 ### Book IDs
 
