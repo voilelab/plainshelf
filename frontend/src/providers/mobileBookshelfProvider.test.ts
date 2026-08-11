@@ -409,6 +409,129 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
     expect(await cache.getCachedBookContent('book-1')).toBeNull();
   });
 
+  it('downloads the illustrations the text references and reads them back offline', async () => {
+    const getSourceAsset = vi
+      .fn()
+      .mockImplementation(async (_book: string, _source: string, name: string) =>
+        new Blob([`bytes of ${name}`], { type: 'image/png' })
+      );
+    const provider = makeProvider({
+      getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'md' })),
+      listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
+      getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
+      getBookSplitConfig: vi.fn().mockResolvedValue({ type: 'none' }),
+      getSourceContent: vi
+        .fn()
+        .mockResolvedValue(
+          'before\n\n![a](assets/img-0001.png)\n\n![b](assets/img-0002.png)\n\n![again](assets/img-0001.png)\n\n![no](https://example.com/x.png)'
+        ),
+      getSourceAsset
+    });
+
+    await provider.downloadBook('book-1');
+
+    // Exactly the files the reader will render: each referenced one once, and
+    // nothing for a link the reader leaves as text.
+    expect(getSourceAsset.mock.calls.map((call) => call[2])).toEqual(['img-0001.png', 'img-0002.png']);
+
+    // Offline, the cache answers without touching the remote.
+    const offline = new MobileBookshelfProvider({ getSourceAsset } as unknown as BookshelfReader, cache, () => false);
+    const blob = await offline.getSourceAsset('book-1', 'src-1', 'img-0001.png');
+    expect(await blob.text()).toBe('bytes of img-0001.png');
+
+    const [manifest] = await cache.listDownloadedManifests();
+    expect(manifest.size_breakdown?.assets).toBeGreaterThan(0);
+  });
+
+  // A plain-text book cannot render an image, so scanning it would only fetch
+  // files the reader will never ask for.
+  it('does not fetch illustrations for a plain-text book', async () => {
+    const getSourceAsset = vi.fn();
+    const provider = makeProvider({
+      getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'txt' })),
+      listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
+      getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
+      getBookSplitConfig: vi.fn().mockResolvedValue({ type: 'none' }),
+      getSourceContent: vi.fn().mockResolvedValue('![a](assets/img-0001.png)'),
+      getSourceAsset
+    });
+
+    await provider.downloadBook('book-1');
+
+    expect(getSourceAsset).not.toHaveBeenCalled();
+  });
+
+  // One unreachable picture must not cost the whole download.
+  it('completes the download when an illustration fails', async () => {
+    const provider = makeProvider({
+      getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'md' })),
+      listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
+      getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
+      getBookSplitConfig: vi.fn().mockResolvedValue({ type: 'none' }),
+      getSourceContent: vi.fn().mockResolvedValue('![a](assets/img-0001.png)'),
+      getSourceAsset: vi.fn().mockRejectedValue(new Error('boom'))
+    });
+
+    await provider.downloadBook('book-1');
+
+    expect((await cache.listDownloadedManifests()).map((m) => m.book.id)).toEqual(['book-1']);
+    expect(await cache.getCachedAsset('book-1', 'src-1', 'img-0001.png')).toBeNull();
+  });
+
+  // An asset has no size bound, so a book with many pictures must not put them
+  // all in flight — and in memory — at once.
+  it('bounds how many illustrations are fetched at a time', async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const getSourceAsset = vi.fn().mockImplementation(async () => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      inFlight -= 1;
+      return new Blob(['bytes'], { type: 'image/png' });
+    });
+
+    const links = Array.from({ length: 12 }, (_, i) => `![](assets/img-${i}.png)`).join('\n\n');
+    const provider = makeProvider({
+      getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'md' })),
+      listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
+      getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
+      getBookSplitConfig: vi.fn().mockResolvedValue({ type: 'none' }),
+      getSourceContent: vi.fn().mockResolvedValue(links),
+      getSourceAsset
+    });
+
+    await provider.downloadBook('book-1');
+
+    expect(getSourceAsset).toHaveBeenCalledTimes(12);
+    expect(peak).toBeLessThanOrEqual(3);
+  });
+
+  // A picture that cannot be stored is a figure the reader falls back on, not
+  // a reason to lose the book: the manifest is written either way.
+  it('completes the download when storing an illustration fails', async () => {
+    const failingCache = new InMemoryMobileBookCache();
+    failingCache.saveCachedAsset = vi.fn().mockRejectedValue(new Error('name too long'));
+
+    const provider = new MobileBookshelfProvider(
+      {
+        getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'md' })),
+        listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
+        getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
+        getBookSplitConfig: vi.fn().mockResolvedValue({ type: 'none' }),
+        getSourceContent: vi.fn().mockResolvedValue('![a](assets/img-0001.png)'),
+        getSourceAsset: vi.fn().mockResolvedValue(new Blob(['bytes'], { type: 'image/png' }))
+      } as unknown as BookshelfReader,
+      failingCache,
+      () => true
+    );
+
+    await provider.downloadBook('book-1');
+
+    expect((await failingCache.listDownloadedManifests()).map((m) => m.book.id)).toEqual(['book-1']);
+    expect((await failingCache.listDownloadedManifests())[0].size_breakdown?.assets).toBe(0);
+  });
+
   it('completes a download when the shelf is unchanged', async () => {
     const provider = makeProvider({
       getBook: vi.fn().mockResolvedValue(makeBook('book-1')),

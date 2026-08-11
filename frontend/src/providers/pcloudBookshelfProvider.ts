@@ -612,6 +612,26 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     });
   }
 
+  /**
+   * Reads one illustration from a source's `assets/` directory.
+   *
+   * The file is already located by the recursive listing the shelf is read
+   * through, so this costs one download and no extra lookup. A name the
+   * listing does not carry is reported as missing rather than requested: the
+   * reader shows the alt text, which is what a shelf with no such file should
+   * produce.
+   */
+  getSourceAsset(bookId: string, sourceId: string, name: string): Promise<Blob> {
+    return this.guarded(async () => {
+      const source = await this.findSource(bookId, sourceId);
+      const ref = source.assets[name];
+      if (!ref) {
+        throw new PCloudError(`Illustration ${name} was not found for source ${sourceId} of book ${bookId}.`);
+      }
+      return await this.client.downloadBlob(ref.fileid);
+    });
+  }
+
   // --- reading progress and history ---------------------------------------
 
   /**

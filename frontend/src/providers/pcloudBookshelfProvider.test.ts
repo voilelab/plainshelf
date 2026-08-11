@@ -53,10 +53,13 @@ interface BookSpec {
   currentSource?: string;
   content?: string;
   charCount?: number;
+  /** Illustrations in the source's assets/ directory, name to body. */
+  assets?: Record<string, string>;
 }
 
 function bookPackage(spec: BookSpec): PCloudItem {
   const sourceID = spec.currentSource ?? '20240101-120000';
+  const assetFiles = Object.entries(spec.assets ?? {}).map(([name, body]) => file({ name, body }));
   const contents: PCloudItem[] = [
     file({
       name: 'book.json',
@@ -82,7 +85,8 @@ function bookPackage(spec: BookSpec): PCloudItem {
             split_config: { type: 'line_count', line_count: 40 }
           })
         }),
-        file({ name: 'source.txt', body: spec.content ?? 'book text' })
+        file({ name: 'source.txt', body: spec.content ?? 'book text' }),
+        ...(assetFiles.length > 0 ? [folder('assets', assetFiles)] : [])
       ])
     ])
   ];
@@ -534,6 +538,34 @@ describe('reading a book', () => {
 
     await expect(provider.getSource('a', '20240301-090000')).resolves.toMatchObject({ md5_hash: 'abc' });
     await expect(provider.getSourceContent('a', '20240301-090000')).resolves.toBe('book text');
+  });
+
+  it('serves an illustration from a source assets/ directory', async () => {
+    const { provider } = makeProvider(
+      shelfTree([
+        bookPackage({
+          id: 'a',
+          title: 'A',
+          content: '![map](assets/img-0001.png)',
+          assets: { 'img-0001.png': 'png-bytes' }
+        })
+      ])
+    );
+
+    const blob = await provider.getSourceAsset('a', '20240101-120000', 'img-0001.png');
+    expect(await blob.text()).toBe('png-bytes');
+  });
+
+  // A missing picture must read as missing, not as the shelf being unreachable:
+  // the mobile wrapper treats a reachability failure as grounds to fall back to
+  // its cache, and the reader shows alt text for a real miss.
+  it('reports an illustration the shelf does not carry', async () => {
+    const { provider } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
+
+    await expect(provider.getSourceAsset('a', '20240101-120000', 'nope.png')).rejects.toMatchObject({
+      name: 'ApiError',
+      isTimeout: false
+    });
   });
 
   it('reports an unknown book and an unknown source', async () => {

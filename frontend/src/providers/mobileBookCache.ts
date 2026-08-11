@@ -6,6 +6,9 @@ export interface CachedBookSizeBreakdown {
   content: number;
   sources: number;
   cover: number;
+  // Optional for the same reason size_bytes is: manifests written before
+  // illustrations were downloaded carry no figure for them.
+  assets?: number;
 }
 
 export interface CachedBookManifest {
@@ -47,6 +50,17 @@ export interface MobileBookCache {
   getCachedCover(bookId: string): Promise<Blob | null>;
   saveCachedCover(bookId: string, blob: Blob): Promise<void>;
   deleteCachedCover(bookId: string): Promise<void>;
+
+  /**
+   * Illustrations belonging to a downloaded source, keyed by source and file
+   * name because assets live per source on the shelf.
+   *
+   * A miss is a normal outcome: books downloaded before assets were cached
+   * have none, and a download only stores what its text referenced.
+   */
+  getCachedAsset(bookId: string, sourceId: string, name: string): Promise<Blob | null>;
+  saveCachedAsset(bookId: string, sourceId: string, name: string, blob: Blob): Promise<void>;
+
   listDownloadedManifests(): Promise<CachedBookManifest[]>;
 }
 
@@ -107,6 +121,7 @@ export class InMemoryMobileBookCache implements MobileBookCache {
   private readonly sourceContents = new Map<string, string>();
   private readonly progress = new Map<string, ReadingProgress>();
   private readonly covers = new Map<string, Blob>();
+  private readonly assets = new Map<string, Blob>();
 
   async listDownloadedBooks(): Promise<Book[]> {
     return Array.from(this.manifests.values()).map(downloadedBookFromManifest);
@@ -134,6 +149,12 @@ export class InMemoryMobileBookCache implements MobileBookCache {
     for (const key of Array.from(this.sourceContents.keys())) {
       if (key.startsWith(`${bookId}:`)) {
         this.sourceContents.delete(key);
+      }
+    }
+
+    for (const key of Array.from(this.assets.keys())) {
+      if (key.startsWith(`${bookId}:`)) {
+        this.assets.delete(key);
       }
     }
   }
@@ -191,12 +212,24 @@ export class InMemoryMobileBookCache implements MobileBookCache {
     this.covers.delete(bookId);
   }
 
+  async getCachedAsset(bookId: string, sourceId: string, name: string): Promise<Blob | null> {
+    return this.assets.get(this.assetKey(bookId, sourceId, name)) ?? null;
+  }
+
+  async saveCachedAsset(bookId: string, sourceId: string, name: string, blob: Blob): Promise<void> {
+    this.assets.set(this.assetKey(bookId, sourceId, name), blob);
+  }
+
   async listDownloadedManifests(): Promise<CachedBookManifest[]> {
     return Array.from(this.manifests.values()).map(cloneManifest);
   }
 
   private sourceContentKey(bookId: string, sourceId: string): string {
     return `${bookId}:${sourceId}`;
+  }
+
+  private assetKey(bookId: string, sourceId: string, name: string): string {
+    return `${bookId}:${sourceId}:${name}`;
   }
 }
 

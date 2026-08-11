@@ -14,6 +14,7 @@ import {
   addReadHistory as addLocalReadHistory,
   clearReadHistory as clearLocalReadHistory
 } from '@/storage/readHistory';
+import { referencedAssetNames } from '@/features/reader/utils/parseMarkdownBlocks';
 import { currentCacheScopeKey } from './cacheScope';
 import { collectReadHistoryBooks } from './readHistoryBooks';
 import type {
@@ -34,6 +35,11 @@ export const OFFLINE_SOURCE_CACHE_MISS_ERROR = 'Source is not downloaded and the
 export const OFFLINE_DOWNLOAD_UNAVAILABLE_ERROR = 'Cannot download book while offline';
 export const DOWNLOAD_SHELF_CHANGED_ERROR =
   'The shelf changed while the book was downloading; the download was discarded';
+
+// How many illustrations are fetched and stored at a time. Small on purpose:
+// the point of the limit is to bound peak memory on a phone, and a download is
+// not a latency-sensitive operation.
+const ASSET_DOWNLOAD_CONCURRENCY = 3;
 
 const defaultIsOnline = (): boolean =>
   typeof navigator === 'undefined' ? true : navigator.onLine;
@@ -329,11 +335,19 @@ export class MobileBookshelfProvider implements BookshelfReader {
   }
 
   /**
-   * Illustrations are not part of a download yet, so this only answers while
-   * online. A downloaded book therefore reads offline without its images
-   * rather than refusing to open.
+   * The cache answers first, so a downloaded book shows its illustrations
+   * without a request even when the server is reachable.
+   *
+   * An asset the download did not store — a book downloaded before assets were
+   * cached, or one whose text changed since — still resolves online. Offline it
+   * fails, and the reader shows the alt text rather than losing the chapter.
    */
   async getSourceAsset(bookId: string, sourceId: string, name: string): Promise<Blob> {
+    const cached = await this.cache.getCachedAsset(bookId, sourceId, name);
+    if (cached) {
+      return cached;
+    }
+
     if (this.isOnline() && this.remote.getSourceAsset) {
       return this.remote.getSourceAsset(bookId, sourceId, name);
     }
@@ -389,6 +403,27 @@ export class MobileBookshelfProvider implements BookshelfReader {
       throw new Error(DOWNLOAD_SHELF_CHANGED_ERROR);
     }
 
+    // Illustrations are found by reading the text that was just downloaded
+    // rather than by listing the shelf: the reader only requests what its
+    // Markdown renders, so parsing the same text stores exactly that set and
+    // skips files no longer referenced. It also needs no listing endpoint and
+    // no index on disk, which keeps the shelf the only record of what exists.
+    //
+    // Only a Markdown book can render an image, so a plain-text one is not
+    // scanned at all.
+    //
+    // This runs before the manifest is written, so a failure leaves files under
+    // a book directory carrying no manifest - an orphan this cache already
+    // ignores - rather than a book listed as downloaded without its pictures.
+    const assetsSize =
+      book.format === 'md' ? await this.storeSourceAssets(bookId, sourceContents) : 0;
+
+    // The asset phase did network I/O of its own, so the window the check above
+    // closed has reopened.
+    if (currentCacheScopeKey() !== scopeAtStart) {
+      throw new Error(DOWNLOAD_SHELF_CHANGED_ERROR);
+    }
+
     const contentSize = new Blob([bookContent.content]).size;
     const sourcesSize = sourceContents.reduce(
       (total, { content }) => total + new Blob([content]).size,
@@ -403,8 +438,13 @@ export class MobileBookshelfProvider implements BookshelfReader {
       downloaded_at: new Date().toISOString(),
       local_version: book.local_version,
       remote_version: book.remote_version,
-      size_bytes: contentSize + sourcesSize + coverSize,
-      size_breakdown: { content: contentSize, sources: sourcesSize, cover: coverSize }
+      size_bytes: contentSize + sourcesSize + coverSize + assetsSize,
+      size_breakdown: {
+        content: contentSize,
+        sources: sourcesSize,
+        cover: coverSize,
+        assets: assetsSize
+      }
     });
     await this.cache.saveCachedBookContent(bookId, bookContent);
     await Promise.all(
@@ -415,6 +455,58 @@ export class MobileBookshelfProvider implements BookshelfReader {
     if (coverBlob) {
       await this.cache.saveCachedCover(bookId, coverBlob);
     }
+  }
+
+  /**
+   * Fetches the illustrations the downloaded text references and stores each
+   * one as it arrives.
+   *
+   * Bounded rather than all at once, and each blob dropped as soon as it is
+   * saved: an asset has no size bound, so holding every one until the end and
+   * then base64-encoding them together is how an image-heavy book would
+   * exhaust an Android process.
+   *
+   * Every file is best-effort, like the cover. One picture that will not
+   * download or will not store is a figure the reader replaces with its alt
+   * text, which is a far better outcome than failing the whole download.
+   *
+   * Returns the bytes actually stored, for the manifest's size breakdown.
+   */
+  private async storeSourceAssets(
+    bookId: string,
+    sourceContents: { sourceId: string; content: string }[]
+  ): Promise<number> {
+    const fetchAsset = this.remote.getSourceAsset?.bind(this.remote);
+    if (!fetchAsset) {
+      return 0;
+    }
+
+    const pending = sourceContents.flatMap(({ sourceId, content }) =>
+      referencedAssetNames(content).map((name) => ({ sourceId, name }))
+    );
+
+    let stored = 0;
+    let next = 0;
+
+    const worker = async (): Promise<void> => {
+      while (next < pending.length) {
+        const { sourceId, name } = pending[next];
+        next += 1;
+        try {
+          const blob = await fetchAsset(bookId, sourceId, name);
+          await this.cache.saveCachedAsset(bookId, sourceId, name, blob);
+          stored += blob.size;
+        } catch (err) {
+          console.warn(`Failed to store illustration ${name} for book ${bookId}.`, err);
+        }
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(ASSET_DOWNLOAD_CONCURRENCY, pending.length) }, worker)
+    );
+
+    return stored;
   }
 
   async removeDownload(bookId: string): Promise<void> {

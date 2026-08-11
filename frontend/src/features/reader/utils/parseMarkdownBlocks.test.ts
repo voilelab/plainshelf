@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { assetNameFromSrc, parseMarkdownBlocks, type MarkdownBlock } from './parseMarkdownBlocks';
+import {
+  assetNameFromSrc,
+  parseMarkdownBlocks,
+  referencedAssetNames,
+  type MarkdownBlock
+} from './parseMarkdownBlocks';
 
 function firstBlock(text: string): MarkdownBlock {
   const blocks = parseMarkdownBlocks(text);
@@ -128,5 +133,38 @@ describe('parseMarkdownBlocks images', () => {
     const blocks = parseMarkdownBlocks('```\n![A map](assets/img-0001.png)\n```');
 
     expect(blocks).toEqual([{ type: 'code', text: '![A map](assets/img-0001.png)' }]);
+  });
+});
+
+// An offline download uses this to decide what to fetch, so it has to agree
+// exactly with what the reader renders: a link left as text must not be
+// downloaded, and a rendered one must not be missed.
+describe('referencedAssetNames', () => {
+  it('lists rendered illustrations once, in first-use order', () => {
+    const names = referencedAssetNames(
+      ['![a](assets/b.png)', '', 'prose', '', '![c](assets/a.jpg)', '', '![again](assets/b.png)'].join('\n')
+    );
+
+    expect(names).toEqual(['b.png', 'a.jpg']);
+  });
+
+  it('skips targets the reader leaves as text', () => {
+    const names = referencedAssetNames(
+      [
+        '![ext](https://example.com/x.png)',
+        '',
+        '![up](assets/../source.txt)',
+        '',
+        '![inline](assets/ok.png) in a sentence',
+        '',
+        '![kept](assets/ok.png)'
+      ].join('\n')
+    );
+
+    expect(names).toEqual(['ok.png']);
+  });
+
+  it('returns nothing for a text carrying no illustrations', () => {
+    expect(referencedAssetNames('# Title\n\njust prose')).toEqual([]);
   });
 });

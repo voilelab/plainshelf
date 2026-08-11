@@ -473,6 +473,88 @@ describe('FilesystemMobileBookCache', () => {
     expect(new Uint8Array(await readBack!.arrayBuffer())).toEqual(bytes);
   });
 
+  it('round-trips an illustration, preserving bytes and MIME type', async () => {
+    const bytes = new Uint8Array([0, 1, 2, 250, 251, 252, 253, 254, 255]);
+    await cache.saveCachedAsset('book-1', 'src-1', 'img-0001.png', new Blob([bytes], { type: 'image/png' }));
+
+    const readBack = await cache.getCachedAsset('book-1', 'src-1', 'img-0001.png');
+    expect(readBack).not.toBeNull();
+    expect(readBack!.type).toBe('image/png');
+    expect(new Uint8Array(await readBack!.arrayBuffer())).toEqual(bytes);
+  });
+
+  // The shelf accepts an asset name up to 255 UTF-8 bytes, and percent-encoding
+  // a CJK name triples it — about 29 characters would already overflow a
+  // 255-byte filesystem component and the real write would fail. This mock
+  // filesystem enforces no such limit, so the assertion is on the path itself
+  // rather than on the write succeeding.
+  it('keeps the path component bounded for a name that would overflow encoded', async () => {
+    const name = `${'插'.repeat(40)}.png`;
+    expect(encodeURIComponent(name).length).toBeGreaterThan(255);
+
+    await cache.saveCachedAsset('book-1', 'src-1', name, new Blob([new Uint8Array([7])], { type: 'image/png' }));
+
+    const written = Array.from(fsModel.store.keys()).filter((key) => key.includes('/assets/'));
+    expect(written.length).toBeGreaterThan(0);
+    for (const key of written) {
+      for (const segment of key.split('/')) {
+        expect(new TextEncoder().encode(segment).length).toBeLessThanOrEqual(255);
+      }
+    }
+
+    const readBack = await cache.getCachedAsset('book-1', 'src-1', name);
+    expect(new Uint8Array(await readBack!.arrayBuffer())).toEqual(new Uint8Array([7]));
+  });
+
+  // The path is a hash, so the file has to say which name it holds: a
+  // collision must read as a miss, never as another illustration.
+  it('treats a stored illustration under a different name as a miss', async () => {
+    await cache.saveCachedAsset('book-1', 'src-1', 'img.png', new Blob([new Uint8Array([1])]));
+
+    const key = Array.from(fsModel.store.keys()).find(
+      (k) => k.includes('/assets/') && fsModel.store.get(k)?.type === 'file'
+    );
+    expect(key).toBeDefined();
+    const entry = fsModel.store.get(key!);
+    if (entry?.type !== 'file') {
+      throw new Error('the stored illustration is not a file');
+    }
+    fsModel.store.set(key!, {
+      type: 'file',
+      data: JSON.stringify({ ...JSON.parse(entry.data), name: 'other.png' })
+    });
+
+    expect(await cache.getCachedAsset('book-1', 'src-1', 'img.png')).toBeNull();
+  });
+
+  it('keeps illustrations of the same name apart per book and per source', async () => {
+    await cache.saveCachedAsset('book-1', 'src-1', 'img.png', new Blob([new Uint8Array([1])]));
+    await cache.saveCachedAsset('book-1', 'src-2', 'img.png', new Blob([new Uint8Array([2])]));
+    await cache.saveCachedAsset('book-2', 'src-1', 'img.png', new Blob([new Uint8Array([3])]));
+
+    const read = async (book: string, source: string): Promise<number> => {
+      const blob = await cache.getCachedAsset(book, source, 'img.png');
+      return new Uint8Array(await blob!.arrayBuffer())[0];
+    };
+
+    expect(await read('book-1', 'src-1')).toBe(1);
+    expect(await read('book-1', 'src-2')).toBe(2);
+    expect(await read('book-2', 'src-1')).toBe(3);
+  });
+
+  it('returns null for a missing illustration', async () => {
+    expect(await cache.getCachedAsset('book-1', 'src-1', 'never-stored.png')).toBeNull();
+  });
+
+  it('removeDownloadedBook also drops cached illustrations', async () => {
+    await saveFullBook(cache, 'book-with-art', 'src-1');
+    await cache.saveCachedAsset('book-with-art', 'src-1', 'img.png', new Blob([new Uint8Array([5])]));
+    expect(await cache.getCachedAsset('book-with-art', 'src-1', 'img.png')).not.toBeNull();
+
+    await cache.removeDownloadedBook('book-with-art');
+    expect(await cache.getCachedAsset('book-with-art', 'src-1', 'img.png')).toBeNull();
+  });
+
   it('returns null for a missing cover', async () => {
     expect(await cache.getCachedCover('never-had-a-cover')).toBeNull();
   });

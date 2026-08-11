@@ -2,8 +2,9 @@
 
 The Android client is experimental. It wraps the Vue frontend with Capacitor and
 reads a library from one of two places: a separately running PlainShelf server,
-or a shelf folder held on pCloud. Downloaded books, covers, reading progress,
-read history, and reading time are stored locally in the app's private storage
+or a shelf folder held on pCloud. Downloaded books, covers, illustrations,
+reading progress, read history, and reading time are stored locally in the app's
+private storage
 (`Directory.Data`, no runtime permission required) and never leave the device.
 
 The app is **read-only**: it browses, reads, and downloads books for offline
@@ -176,6 +177,10 @@ unless the book has been downloaded for offline reading.
   top of the read-only rules the Android client already applies.
 - **No shelf list.** A server can offer several shelves; here the folder you
   named is the shelf.
+
+Illustrations work here too: a source's `assets/` directory is part of the same
+folder listing the shelf is read through, so a Markdown book shows its pictures
+without an extra lookup.
 
 Downloads, reading progress, read history, and reading time work exactly as in
 server mode: they are stored on the device, kept separate per connection, and

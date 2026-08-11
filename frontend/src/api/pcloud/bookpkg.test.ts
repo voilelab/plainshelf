@@ -91,6 +91,38 @@ describe('collectBookPackages', () => {
     expect(pkg.sources[0].content?.name).toBe('source.txt');
   });
 
+  it('indexes the illustrations in a source assets/ directory', () => {
+    const root = folder('shelf', [
+      folder('books', [
+        folder('art.bookpkg', [
+          file('book.json'),
+          folder('sources', [
+            folder('20240101-120000', [
+              file('meta.json'),
+              file('source.txt'),
+              folder('assets', [file('img-0001.png'), file('A Map.JPEG')])
+            ])
+          ])
+        ])
+      ])
+    ]);
+
+    const [pkg] = collectBookPackages(findBooksFolder(root)!);
+
+    expect(Object.keys(pkg.sources[0].assets).sort()).toEqual(['A Map.JPEG', 'img-0001.png']);
+    expect(pkg.sources[0].assets['img-0001.png'].fileid).toBeGreaterThan(0);
+    // assets/ is a directory inside the source, never a source of its own.
+    expect(pkg.sources.map((source) => source.id)).toEqual(['20240101-120000']);
+  });
+
+  it('gives a source with no assets directory an empty record', () => {
+    const root = folder('shelf', [folder('books', [bookPackage('plain.bookpkg')])]);
+
+    const [pkg] = collectBookPackages(findBooksFolder(root)!);
+
+    expect(pkg.sources[0].assets).toEqual({});
+  });
+
   it('sorts sources chronologically regardless of listing order', () => {
     const [pkg] = collectBookPackages(
       folder('books', [bookPackage('a.bookpkg', ['20240301-090000', '20230101-120000'])])
