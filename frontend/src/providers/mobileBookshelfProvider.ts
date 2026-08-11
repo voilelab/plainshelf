@@ -36,6 +36,11 @@ export const OFFLINE_DOWNLOAD_UNAVAILABLE_ERROR = 'Cannot download book while of
 export const DOWNLOAD_SHELF_CHANGED_ERROR =
   'The shelf changed while the book was downloading; the download was discarded';
 
+// How many illustrations are fetched and stored at a time. Small on purpose:
+// the point of the limit is to bound peak memory on a phone, and a download is
+// not a latency-sensitive operation.
+const ASSET_DOWNLOAD_CONCURRENCY = 3;
+
 const defaultIsOnline = (): boolean =>
   typeof navigator === 'undefined' ? true : navigator.onLine;
 
@@ -382,17 +387,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
       }))
     );
 
-    // Illustrations are found by reading the text that was just downloaded
-    // rather than by listing the shelf: the reader only requests what its
-    // Markdown renders, so parsing the same text fetches exactly that set and
-    // skips files no longer referenced. It also needs no listing endpoint and
-    // no index on disk, which keeps the shelf the only record of what exists.
-    //
-    // Only a Markdown book can render an image, so a plain-text one is not
-    // scanned at all.
-    const assets =
-      book.format === 'md' ? await this.downloadSourceAssets(bookId, sourceContents) : [];
-
     // Cover download is best-effort: a failure here (network hiccup, no
     // cover uploaded, etc.) must not abort the book download itself.
     let coverBlob: Blob | null = null;
@@ -409,13 +403,33 @@ export class MobileBookshelfProvider implements BookshelfReader {
       throw new Error(DOWNLOAD_SHELF_CHANGED_ERROR);
     }
 
+    // Illustrations are found by reading the text that was just downloaded
+    // rather than by listing the shelf: the reader only requests what its
+    // Markdown renders, so parsing the same text stores exactly that set and
+    // skips files no longer referenced. It also needs no listing endpoint and
+    // no index on disk, which keeps the shelf the only record of what exists.
+    //
+    // Only a Markdown book can render an image, so a plain-text one is not
+    // scanned at all.
+    //
+    // This runs before the manifest is written, so a failure leaves files under
+    // a book directory carrying no manifest - an orphan this cache already
+    // ignores - rather than a book listed as downloaded without its pictures.
+    const assetsSize =
+      book.format === 'md' ? await this.storeSourceAssets(bookId, sourceContents) : 0;
+
+    // The asset phase did network I/O of its own, so the window the check above
+    // closed has reopened.
+    if (currentCacheScopeKey() !== scopeAtStart) {
+      throw new Error(DOWNLOAD_SHELF_CHANGED_ERROR);
+    }
+
     const contentSize = new Blob([bookContent.content]).size;
     const sourcesSize = sourceContents.reduce(
       (total, { content }) => total + new Blob([content]).size,
       0
     );
     const coverSize = coverBlob ? coverBlob.size : 0;
-    const assetsSize = assets.reduce((total, { blob }) => total + blob.size, 0);
 
     await this.cache.saveDownloadedBook({
       book,
@@ -441,42 +455,58 @@ export class MobileBookshelfProvider implements BookshelfReader {
     if (coverBlob) {
       await this.cache.saveCachedCover(bookId, coverBlob);
     }
-    await Promise.all(
-      assets.map(({ sourceId, name, blob }) =>
-        this.cache.saveCachedAsset(bookId, sourceId, name, blob)
-      )
-    );
   }
 
   /**
-   * Fetches the illustrations the downloaded text references.
+   * Fetches the illustrations the downloaded text references and stores each
+   * one as it arrives.
    *
-   * Best-effort per file, like the cover: one image that will not download is
-   * a figure the reader replaces with its alt text, which is a far better
-   * outcome than failing the whole download over a picture.
+   * Bounded rather than all at once, and each blob dropped as soon as it is
+   * saved: an asset has no size bound, so holding every one until the end and
+   * then base64-encoding them together is how an image-heavy book would
+   * exhaust an Android process.
+   *
+   * Every file is best-effort, like the cover. One picture that will not
+   * download or will not store is a figure the reader replaces with its alt
+   * text, which is a far better outcome than failing the whole download.
+   *
+   * Returns the bytes actually stored, for the manifest's size breakdown.
    */
-  private async downloadSourceAssets(
+  private async storeSourceAssets(
     bookId: string,
     sourceContents: { sourceId: string; content: string }[]
-  ): Promise<{ sourceId: string; name: string; blob: Blob }[]> {
+  ): Promise<number> {
     const fetchAsset = this.remote.getSourceAsset?.bind(this.remote);
     if (!fetchAsset) {
-      return [];
+      return 0;
     }
 
-    const requests = sourceContents.flatMap(({ sourceId, content }) =>
-      referencedAssetNames(content).map(async (name) => {
-        try {
-          return { sourceId, name, blob: await fetchAsset(bookId, sourceId, name) };
-        } catch (err) {
-          console.warn(`Failed to download illustration ${name} for book ${bookId}.`, err);
-          return null;
-        }
-      })
+    const pending = sourceContents.flatMap(({ sourceId, content }) =>
+      referencedAssetNames(content).map((name) => ({ sourceId, name }))
     );
 
-    const settled = await Promise.all(requests);
-    return settled.filter((asset): asset is { sourceId: string; name: string; blob: Blob } => asset !== null);
+    let stored = 0;
+    let next = 0;
+
+    const worker = async (): Promise<void> => {
+      while (next < pending.length) {
+        const { sourceId, name } = pending[next];
+        next += 1;
+        try {
+          const blob = await fetchAsset(bookId, sourceId, name);
+          await this.cache.saveCachedAsset(bookId, sourceId, name, blob);
+          stored += blob.size;
+        } catch (err) {
+          console.warn(`Failed to store illustration ${name} for book ${bookId}.`, err);
+        }
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(ASSET_DOWNLOAD_CONCURRENCY, pending.length) }, worker)
+    );
+
+    return stored;
   }
 
   async removeDownload(bookId: string): Promise<void> {

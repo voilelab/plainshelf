@@ -27,6 +27,33 @@ export function encode(id: string): string {
   return encodeURIComponent(id);
 }
 
+/**
+ * A short, fixed-length path component standing for an arbitrary name.
+ *
+ * `encode` suits ids the shelf generates — short and ASCII — but not a name
+ * chosen by whoever put a file on the shelf. The shelf accepts up to 255 UTF-8
+ * bytes, and percent-encoding triples a CJK name, so about 29 characters
+ * already overflow a 255-byte filesystem component and the write fails.
+ *
+ * The cache is device-private and always looked up by its logical key, so the
+ * component has no reason to be readable. Callers must still record the exact
+ * name inside the file and check it on read: this is a 64-bit non-cryptographic
+ * hash, and a collision has to read as a cache miss rather than as the wrong
+ * file.
+ */
+export function hashComponent(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let low = 0x811c9dc5;
+  let high = 0x01000193;
+
+  for (const byte of bytes) {
+    low = Math.imul(low ^ byte, 0x01000193) >>> 0;
+    high = Math.imul(high ^ byte, 0x85ebca6b) >>> 0;
+  }
+
+  return low.toString(16).padStart(8, '0') + high.toString(16).padStart(8, '0');
+}
+
 export function scopeDir(scopeKey: string): string {
   return `${SCOPES_DIR}/${scopeKey ? encode(scopeKey) : UNSCOPED_DIR_NAME}`;
 }

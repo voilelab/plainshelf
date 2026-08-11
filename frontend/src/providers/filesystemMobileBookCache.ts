@@ -15,6 +15,7 @@ import {
   CACHE_DIRECTORY,
   deleteFileIgnoringMissing,
   encode,
+  hashComponent,
   readJsonFile,
   readTextFile,
   rmdirIgnoringMissing,
@@ -32,6 +33,7 @@ import {
 //       progress.json      # ReadingProgress (independent of manifest)
 //       cover.json         # StoredCover
 //       sources/<enc(sourceId)>.txt
+//       assets/<enc(sourceId)>/<hash(name)>.json   # StoredAsset
 //
 // `enc` is encodeURIComponent. The real id is nevertheless always read from
 // the manifest.json content, never decoded back from the directory name —
@@ -91,10 +93,21 @@ function coverPath(booksDir: string, bookId: string): string {
 
 // Illustrations sit under the book directory too, so the same recursive rmdir
 // sweeps them, and are nested by source because the shelf stores them per
-// source. Each is a StoredCover-shaped sidecar for the reason above: binary
-// does not survive the text-only file API these caches share.
+// source. Each is a sidecar for the reason above: binary does not survive the
+// text-only file API these caches share.
+//
+// The file name is a hash rather than the encoded asset name. An asset name is
+// user-chosen and the shelf accepts up to 255 UTF-8 bytes; percent-encoding a
+// CJK name triples it, so ~29 characters would overflow the 255-byte component
+// limit and the write would fail. The exact name is stored inside the file and
+// checked on read, so a hash collision is a cache miss and never the wrong
+// picture.
 function assetPath(booksDir: string, bookId: string, sourceId: string, name: string): string {
-  return `${bookDir(booksDir, bookId)}/assets/${encode(sourceId)}/${encode(name)}.json`;
+  return `${bookDir(booksDir, bookId)}/assets/${encode(sourceId)}/${hashComponent(name)}.json`;
+}
+
+interface StoredAsset extends StoredCover {
+  name: string;
 }
 
 interface StoredCover {
@@ -237,8 +250,13 @@ export class FilesystemMobileBookCache implements MobileBookCache {
 
   async getCachedAsset(bookId: string, sourceId: string, name: string): Promise<Blob | null> {
     const booksDir = await this.resolveBooksDir();
-    const stored = await readJsonFile<Partial<StoredCover>>(assetPath(booksDir, bookId, sourceId, name));
+    const stored = await readJsonFile<Partial<StoredAsset>>(assetPath(booksDir, bookId, sourceId, name));
     if (!stored || typeof stored.data !== 'string') {
+      return null;
+    }
+    // The path is a hash, so the file has to confirm which name it holds. A
+    // collision must read as a cache miss rather than as another illustration.
+    if (stored.name !== name) {
       return null;
     }
     try {
@@ -252,7 +270,7 @@ export class FilesystemMobileBookCache implements MobileBookCache {
 
   async saveCachedAsset(bookId: string, sourceId: string, name: string, blob: Blob): Promise<void> {
     const booksDir = await this.resolveBooksDir();
-    const stored: StoredCover = { mime: blob.type, data: await blobToBase64(blob) };
+    const stored: StoredAsset = { name, mime: blob.type, data: await blobToBase64(blob) };
     await writeJsonFile(assetPath(booksDir, bookId, sourceId, name), stored);
   }
 
