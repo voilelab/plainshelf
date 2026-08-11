@@ -128,6 +128,17 @@ The key is not a secret. PlainShelf uses pCloud's `poll_token` authorization
 flow, which needs only the app key: there is no app secret to protect, and no
 redirect URL to register.
 
+If it is not a secret, why not ship one? Because a shared key is a shared point
+of failure. Everyone using a bundled key authorizes through the same pCloud
+application, so a single rate limit, suspension, or policy change at pCloud's
+end disconnects every user at once, and the fix is a new build rather than a
+setting. rclone bundles a pCloud key and has had exactly that happen. The
+`poll_token` flow also has no registered redirect URL tying a token back to the
+application that asked for it, which makes a widely known key belonging to a
+recognisable app more useful to somebody forging an approval link than a key
+nobody has seen before. A key you registered yourself keeps the approval page,
+the revocation, and the blast radius inside your own account.
+
 ### 2. Authorize
 
 Enter the app key under **Settings → Connection** and tap **Authorize with
