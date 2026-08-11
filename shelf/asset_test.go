@@ -74,6 +74,73 @@ func TestSourceOpenAsset(t *testing.T) {
 	}
 }
 
+func TestSourceWriteAsset(t *testing.T) {
+	libRoot := path.Join(t.TempDir(), "shelf_test")
+	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
+
+	_, source := newBookWithSource(t, s, nil, "Written Art", "body")
+
+	// The assets directory does not exist yet; writing has to create it.
+	want := []byte("fake png bytes")
+	if err := source.WriteAsset("img-0001.png", want); err != nil {
+		t.Fatalf("WriteAsset: %v", err)
+	}
+
+	asset, err := source.OpenAsset("img-0001.png")
+	if err != nil {
+		t.Fatalf("OpenAsset after WriteAsset: %v", err)
+	}
+	defer asset.File.Close()
+
+	got, err := io.ReadAll(asset.File)
+	if err != nil {
+		t.Fatalf("read asset: %v", err)
+	}
+	if string(got) != string(want) {
+		t.Errorf("asset bytes = %q, want %q", got, want)
+	}
+
+	// Rewriting replaces the contents rather than appending to them.
+	if err := source.WriteAsset("img-0001.png", []byte("replaced")); err != nil {
+		t.Fatalf("WriteAsset second time: %v", err)
+	}
+	again, err := source.OpenAsset("img-0001.png")
+	if err != nil {
+		t.Fatalf("OpenAsset after rewrite: %v", err)
+	}
+	defer again.File.Close()
+	rewritten, err := io.ReadAll(again.File)
+	if err != nil {
+		t.Fatalf("read rewritten asset: %v", err)
+	}
+	if string(rewritten) != "replaced" {
+		t.Errorf("rewritten asset = %q, want %q", rewritten, "replaced")
+	}
+}
+
+// A name the read path would refuse must never reach the filesystem: writing it
+// would create a file the server can never serve.
+func TestSourceWriteAssetRejectsUnsafeNames(t *testing.T) {
+	libRoot := path.Join(t.TempDir(), "shelf_test")
+	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
+
+	_, source := newBookWithSource(t, s, nil, "Unsafe Writes", "body")
+
+	for _, name := range []string{"", "..", "../escaped.png", "sub/img.png", ".hidden.png", "notes.txt"} {
+		if err := source.WriteAsset(name, []byte("x")); !errors.Is(err, ErrInvalidAssetName) {
+			t.Fatalf("WriteAsset(%q): error = %v, want ErrInvalidAssetName", name, err)
+		}
+	}
+
+	// Nothing was created on the way to being refused.
+	if _, err := os.Stat(path.Join(libRoot, source.FolderPath(), SourceAssetsFolder)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("assets dir exists after only refused writes: err = %v", err)
+	}
+	if _, err := os.Stat(path.Join(libRoot, source.FolderPath(), "escaped.png")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("a refused name escaped the assets dir: err = %v", err)
+	}
+}
+
 func TestSourceOpenAssetMissing(t *testing.T) {
 	libRoot := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})

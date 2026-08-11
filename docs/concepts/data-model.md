@@ -78,6 +78,10 @@ The directory is flat, and file names must be a plain `.jpg`, `.jpeg`, `.png`,
 so adding or removing an image is just adding or removing a file, and
 `book.json` never changes because of it.
 
+Files get here two ways: [EPUB import](../epub-import.md#illustrations) writes
+the illustrations it kept, and you can drop your own images in by hand. Nothing
+else writes to the directory — there is no route that stores an asset.
+
 The reader displays these images for books stored as Markdown (`"format": "md"`
 in `book.json`). A plain-text book has no image syntax, so its illustrations are
 never shown.
@@ -98,8 +102,7 @@ percent-encoded; all three name the same file:
 ![](assets/A%20Map.png)
 ```
 
-Today PlainShelf only reads this directory: you put the images there yourself.
-Adding them from the app, and carrying them into offline downloads, are not
+Adding images from the app, and carrying them into offline downloads, are not
 supported yet.
 
 ### Book IDs

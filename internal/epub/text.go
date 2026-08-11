@@ -142,6 +142,15 @@ func parseNavDocument(data []byte) map[string]string {
 	return out
 }
 
+// sanitizeImageAlt makes an EPUB's alt text safe to place inside `![...]`.
+//
+// The reader matches the alt run with `[^\]]*`, so a bracket would leave the
+// line unparsed and the raw Markdown visible; a newline would break the
+// one-image-per-line shape the reader requires.
+func sanitizeImageAlt(alt string) string {
+	return collapseSpaces(strings.NewReplacer("[", "", "]", "", "\n", " ", "\r", " ").Replace(alt))
+}
+
 func extractText(root *html.Node, opts Options) string {
 	var b strings.Builder
 	writeNode(root, &b, opts)
@@ -162,8 +171,23 @@ func writeNode(n *html.Node, b *strings.Builder, opts Options) {
 		case "br":
 			b.WriteByte('\n')
 			return
-		case "img", "image", "svg":
-			// Illustrations are not imported.
+		case "img":
+			// A kept illustration is written as its own block, the same shape
+			// blockTags get, because the reader only turns a line that is
+			// nothing but an image into a figure.
+			if opts.imageTarget != nil {
+				if target := opts.imageTarget(attr(n, "src")); target != "" {
+					b.WriteByte('\n')
+					b.WriteString("![" + sanitizeImageAlt(attr(n, "alt")) + "](" + target + ")")
+					b.WriteByte('\n')
+				}
+			}
+			return
+		case "image", "svg":
+			// An <image> lives inside an <svg> canvas, which this flattener
+			// skips as a whole subtree: there is no position in flat text that
+			// corresponds to a spot on a canvas. Such illustrations stay
+			// dropped, and are counted as such.
 			return
 		}
 
