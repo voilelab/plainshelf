@@ -921,10 +921,12 @@ func TestAPISourceAssetContract(t *testing.T) {
 		t.Fatalf("asset Content-Length = %q, want %d", got, len(pngBytes))
 	}
 
-	// This env leaves protect_read off, so asset responses stay shared-cacheable.
-	// TestCacheVisibilityFollowsTheTokenGate covers the protected case.
-	if got := rec.Header().Get("Cache-Control"); got != "public, max-age=86400" {
-		t.Fatalf("asset Cache-Control = %q, want public, max-age=86400", got)
+	// An asset can be replaced or removed while its URL stays the same, so the
+	// client has to ask every time. This env leaves protect_read off, so the
+	// response is still shared-cacheable; TestCacheVisibilityFollowsTheTokenGate
+	// covers the protected case.
+	if got := rec.Header().Get("Cache-Control"); got != "public, no-cache" {
+		t.Fatalf("asset Cache-Control = %q, want public, no-cache", got)
 	}
 
 	// The reader fetches every illustration on a chapter, so a revalidating
@@ -1047,6 +1049,63 @@ func TestAPISourceAssetWriteContract(t *testing.T) {
 	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
 	assertStatus(t, rec, http.StatusNotFound)
 	rec = env.do(httptest.NewRequest(http.MethodDelete, assetsURL+"img-0001.png", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+}
+
+// A replaced illustration keeps its URL - the reader derives it from the file
+// name in the text, and nothing records a version to bust a cache with - so a
+// client that may reuse the old bytes would show the wrong picture.
+func TestAssetRevalidationSurvivesAReplacement(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Replaced Art", "", "art.md", "body")
+	sourceID := env.currentSourceID(t, created.Meta.ID)
+	url := "/api/shelves/default_shelf/books/" + created.Meta.ID +
+		"/sources/" + sourceID + "/assets/img-0001.png"
+
+	rec := env.do(httptest.NewRequest(http.MethodPut, url, strings.NewReader("first bytes")))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	firstETag := rec.Header().Get("ETag")
+	if got := rec.Header().Get("Cache-Control"); !strings.Contains(got, "no-cache") {
+		t.Fatalf("asset Cache-Control = %q, want it to force revalidation", got)
+	}
+
+	// A cover may be cached for a day because its URL gains a cache-busting key
+	// when it changes; an asset URL never changes, hence the difference.
+	coverReq := httptest.NewRequest(http.MethodPut,
+		"/api/shelves/default_shelf/books/"+created.Meta.ID+"/cover", strings.NewReader("cover"))
+	coverReq.Header.Set("Content-Type", "image/png")
+	rec = env.do(coverReq)
+	assertStatus(t, rec, http.StatusNoContent)
+	rec = env.do(httptest.NewRequest(http.MethodGet,
+		"/api/shelves/default_shelf/books/"+created.Meta.ID+"/cover", nil))
+	if got := rec.Header().Get("Cache-Control"); !strings.Contains(got, "max-age=86400") {
+		t.Fatalf("cover Cache-Control = %q, want it to stay cacheable", got)
+	}
+
+	// Replacing changes the validator, so a client holding the old one is told
+	// to take the new bytes rather than being answered 304.
+	rec = env.do(httptest.NewRequest(http.MethodPut, url, strings.NewReader("second bytes, longer")))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	req.Header.Set("If-None-Match", firstETag)
+	rec = env.do(req)
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Body.String(); got != "second bytes, longer" {
+		t.Fatalf("revalidated asset = %q, want the replacement", got)
+	}
+
+	// And once it is deleted, the same conditional request reports the miss
+	// rather than confirming a copy that is no longer there.
+	rec = env.do(httptest.NewRequest(http.MethodDelete, url, nil))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	req = httptest.NewRequest(http.MethodGet, url, nil)
+	req.Header.Set("If-None-Match", firstETag)
+	rec = env.do(req)
 	assertStatus(t, rec, http.StatusNotFound)
 }
 

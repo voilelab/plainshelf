@@ -145,7 +145,7 @@ func (app *App) HandleAPIGetBookSourceAsset(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if app.serveImageValidator(w, r, source.AssetETag(assetName)) {
+	if app.serveImageValidator(w, r, source.AssetETag(assetName), cacheRevalidateAlways) {
 		return
 	}
 
