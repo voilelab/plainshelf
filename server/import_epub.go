@@ -14,12 +14,6 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// coverExtensions are the cover file extensions the read path serves with a
-// correct content type. An EPUB cover in any other format is converted to JPEG.
-var coverExtensions = map[string]bool{
-	".jpg": true, ".jpeg": true, ".png": true, ".webp": true, ".gif": true,
-}
-
 // epubInputError marks failures caused by the uploaded archive. Storage and
 // other operational failures remain ordinary errors so the HTTP layer can
 // report them as server errors without exposing internal details.
@@ -54,6 +48,18 @@ func parseImportStrategy(raw string, fallback epub.Strategy) (epub.Strategy, str
 	if err := strategy.Validate(); err != nil {
 		return epub.Strategy{}, fmt.Sprintf("unsupported epub import preset: %q", strategy.Preset),
 			util.Errorf("%w", err)
+	}
+
+	// A per-import strategy replaces the fallback, but only for what it
+	// actually says. A client written before keep_images existed sends a
+	// strategy without it, and reading that as "use the built-in default"
+	// would make the configured setting unreachable from every such client -
+	// including the import dialog, which always submits an explicit strategy.
+	//
+	// Only a pointer field can carry this distinction; include_description is
+	// a plain bool, where absent and false are the same value on the wire.
+	if strategy.KeepImages == nil {
+		strategy.KeepImages = fallback.KeepImages
 	}
 
 	return strategy, "", nil
@@ -109,6 +115,7 @@ func (app *App) initEPUBBook(parsed *epub.Book, rendered epub.Rendered) func(*sh
 		if err != nil {
 			return util.Errorf("%w", err)
 		}
+		app.writeEPUBImages(source, parsed)
 		if err := book.SetCurrentSource(source.ID()); err != nil {
 			return util.Errorf("%w", err)
 		}
@@ -160,6 +167,20 @@ func epubImportComment(parsed *epub.Book) string {
 	}
 }
 
+// writeEPUBImages stores the illustrations the conversion kept, beside the text
+// that references them.
+//
+// An image that cannot be written is logged and skipped, the same trade the
+// cover makes: the reader falls back to the alt text for that one figure, which
+// is a better outcome than discarding a whole converted book over a picture.
+func (app *App) writeEPUBImages(source *shelf.Source, parsed *epub.Book) {
+	for _, image := range parsed.Images {
+		if err := source.WriteAsset(image.Name, image.Data); err != nil {
+			app.Error("failed to store epub illustration", "error", err, "asset", image.Name)
+		}
+	}
+}
+
 // setEPUBCover stores the EPUB's cover image if it has one. A cover that cannot
 // be stored is logged and skipped: a book without a cover is a complete import,
 // while failing here would discard the whole book.
@@ -171,7 +192,9 @@ func (app *App) setEPUBCover(book *shelf.Book, parsed *epub.Book) {
 	data := parsed.Cover
 	ext := parsed.CoverExt
 
-	if app.coverToJPG() || !coverExtensions[ext] {
+	// An EPUB cover the read path could not serve with a correct content type
+	// is converted to JPEG rather than stored as-is.
+	if app.coverToJPG() || !shelf.IsSupportedImageExt(ext) {
 		converted, err := imgutil.AnyToJPG(data)
 		if err != nil {
 			app.Error("failed to convert epub cover to JPEG", "error", err)

@@ -75,6 +75,17 @@ export interface BookshelfReader {
   getSourceContent(bookId: string, sourceId: string): Promise<string>;
 
   /**
+   * Reads one illustration from a source's `assets/` directory.
+   *
+   * Optional because a backend can serve a book's text without being able to
+   * reach its images: the pCloud provider does not enumerate `assets/` yet, and
+   * an offline mobile cache only holds what it downloaded. The reader falls
+   * back to the image's alt text when this is absent or rejects, so a missing
+   * illustration never costs the reader the chapter.
+   */
+  getSourceAsset?(bookId: string, sourceId: string, name: string): Promise<Blob>;
+
+  /**
    * Manual shelf update, for backends whose listing is too expensive to refresh
    * on its own. A server keeps its own shelf cache warm (`scan_interval`), so
    * only the pCloud provider implements these; `supportsShelfRefresh` is what

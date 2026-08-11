@@ -1,7 +1,9 @@
 package server
 
 import (
+	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
@@ -125,6 +127,53 @@ func (app *App) HandleAPIGetBookSourceContent(w http.ResponseWriter, r *http.Req
 	defer src.Close()
 
 	app.streamTextFile(w, src, "failed to write book source content")
+}
+
+// GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}
+//
+// Serves an illustration the source's text references. This is a read route
+// like the cover, so it changes nothing about the mutating-request boundary:
+// there is no way to put a file into assets/ through the API yet.
+func (app *App) HandleAPIGetBookSourceAsset(w http.ResponseWriter, r *http.Request) {
+	_, source, ok := app.loadBookSource(w, r)
+	if !ok {
+		return
+	}
+
+	assetName, ok := resolveAssetName(w, r)
+	if !ok {
+		return
+	}
+
+	if app.serveImageValidator(w, r, source.AssetETag(assetName)) {
+		return
+	}
+
+	asset, err := source.OpenAsset(assetName)
+	if err != nil {
+		app.writeErr(w, err, "failed to get source asset")
+		return
+	}
+	defer asset.File.Close()
+
+	w.Header().Set("Content-Type", imageContentTypeForExt(asset.Ext))
+	w.Header().Set("Content-Length", strconv.FormatInt(asset.Info.Size(), 10))
+
+	// Commit the response before copying: a zero-byte asset writes nothing, and
+	// a copy that writes nothing never commits a status of its own.
+	w.WriteHeader(http.StatusOK)
+
+	// A GET pattern also matches HEAD, and net/http discards the body for it.
+	// Copying anyway would read the whole asset off the shelf to write it
+	// nowhere - and an asset has no size bound, so on an SMB mount that is real
+	// I/O for nothing.
+	if r.Method == http.MethodHead {
+		return
+	}
+
+	if _, err := io.Copy(w, asset.File); err != nil {
+		app.Error("failed to write source asset", "error", err, "asset", assetName)
+	}
 }
 
 // POST /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/refresh

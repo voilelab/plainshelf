@@ -525,6 +525,7 @@ const en = {
     },
     showChapters: 'Show chapters',
     splitSettings: 'Split settings',
+    imageUnavailable: 'Illustration unavailable',
     saveBookmark: 'Save bookmark',
     savingBookmark: 'Saving bookmark'
   },

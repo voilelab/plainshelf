@@ -18,18 +18,44 @@ imported book stays readable in a text editor.
 | `dc:identifier` | Identifiers, keyed by scheme (for example `isbn`) |
 | `dc:date` | Published date |
 | Cover image | `cover.jpg` / `cover.png` / … in the book directory |
+| Embedded illustrations | `sources/{source-id}/assets/`, linked from the text where they appeared |
 
 The book's own `dc:title` is preferred over the uploaded filename. If you type a
 title in the import dialog, that wins.
+
+### Illustrations
+
+Illustrations are stored beside the converted text as `img-0001.png`,
+`img-0002.jpg` and so on, and the text links to each one where it appeared:
+
+```markdown
+![A map of the province](assets/img-0001.png)
+```
+
+They are kept for the Markdown layout only. Plain text has no image syntax, so
+that layout drops them as it always did. An image used in several chapters is
+stored once.
+
+Not every illustration can be kept. These are dropped and counted as before:
+
+- formats the shelf does not serve — anything that is not `.jpg`, `.jpeg`,
+  `.png`, `.webp`, or `.gif`, **including SVG**;
+- images drawn inside an `<svg>` canvas, which has no position in flattened text;
+- an image over 8 MB, or artwork past 64 MB for the whole book.
+
+To turn this off, set `keep_images` to `false` in the EPUB import strategy — in
+the config file, or through `POST /api/setting/epub_import_strategy`. It is on
+by default for the Markdown layout, and there is no control for it in the
+import dialog yet.
 
 ## What is dropped
 
 - **The original `.epub` file.** It is not stored anywhere. Keep your own copy if
   you want one.
-- **Embedded illustrations.** A book directory has no place to put them, and no
-  route serves arbitrary files from inside one. The import counts them and
-  records the total on the imported source, so the loss stays visible after the
-  fact — see [What is recorded](#what-is-recorded) below.
+- **Illustrations the shelf cannot store**, listed under
+  [Illustrations](#illustrations) above. The import counts them and records the
+  total on the imported source, so the loss stays visible after the fact — see
+  [What is recorded](#what-is-recorded) below.
 - **Ruby annotations** (`<rt>`/`<rp>`). The base text is kept; furigana is
   removed so it does not interleave into Japanese prose.
 - **Links, footnotes, and page structure.**
@@ -41,7 +67,7 @@ improvements to the converter.
 
 ## What is recorded
 
-An EPUB that carried illustrations beyond its cover gets a note on the source
+An EPUB whose illustrations could not all be stored gets a note on the source
 the import created, in `sources/{source-id}/meta.json`:
 
 ```json
@@ -53,10 +79,10 @@ the import created, in `sources/{source-id}/meta.json`:
 The book detail view shows it as **Import notes**. Books that lost nothing get
 no note at all, so the row only appears when there is something to report.
 
-The cover is not counted: it is stored as the book's cover rather than dropped.
-Images referenced more than once count once, so the number reflects distinct
-artwork rather than the number of tags removed. Re-importing the same file
-rewrites the note.
+Neither the cover nor a stored illustration is counted: both are kept rather
+than lost. Images referenced more than once count once, so the number reflects
+distinct artwork rather than the number of tags removed. Re-importing the same
+file rewrites the note.
 
 ## Choosing the layout
 

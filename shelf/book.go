@@ -185,11 +185,7 @@ func (b *Book) CoverETag() string {
 	if b.meta.Cover == "" {
 		return ""
 	}
-	info, err := b.root.Stat(path.Join(b.folderPath, b.meta.Cover))
-	if err != nil {
-		return ""
-	}
-	return fmt.Sprintf(`W/"%d-%d"`, info.ModTime().UnixNano(), info.Size())
+	return fileETag(b.root, path.Join(b.folderPath, b.meta.Cover))
 }
 
 func (b *Book) OpenCover() ([]byte, string, error) {

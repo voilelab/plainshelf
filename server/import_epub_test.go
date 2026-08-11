@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"strings"
 	"testing"
 	"time"
@@ -91,6 +92,38 @@ func buildIllustratedTestEPUB(t *testing.T) []byte {
 		{"OEBPS/images/plate2.png", string(onePixelPNG())},
 		{"OEBPS/ch1.xhtml", `<html><body><h1>第一章</h1><p>他走出了車站。</p><img src="images/plate1.png"/></body></html>`},
 		{"OEBPS/ch2.xhtml", `<html><body><h1>第二章</h1><p>回程的路上。</p><img src="images/plate2.png"/></body></html>`},
+	}
+
+	return zipEPUBEntries(t, entries)
+}
+
+// buildUnstorableImageTestEPUB carries one illustration in a format the shelf
+// does not serve, which is what keeps the dropped-images note meaningful now
+// that ordinary artwork survives the import.
+func buildUnstorableImageTestEPUB(t *testing.T) []byte {
+	t.Helper()
+
+	entries := []struct{ name, body string }{
+		{"mimetype", "application/epub+zip"},
+		{"META-INF/container.xml", `<?xml version="1.0"?>
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
+</container>`},
+		{"OEBPS/content.opf", `<?xml version="1.0"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>` + testEPUBTitle + `</dc:title>
+    <dc:language>zh-Hant</dc:language>
+    <dc:identifier id="pub-id">urn:isbn:9781234567897</dc:identifier>
+  </metadata>
+  <manifest>
+    <item id="scan" href="images/scan.tiff" media-type="image/tiff"/>
+    <item id="c1" href="ch1.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="c1"/></spine>
+</package>`},
+		{"OEBPS/images/scan.tiff", "tiff-bytes"},
+		{"OEBPS/ch1.xhtml", `<html><body><h1>第一章</h1><p>他走出了車站。</p><img src="images/scan.tiff"/></body></html>`},
 	}
 
 	return zipEPUBEntries(t, entries)
@@ -401,9 +434,18 @@ func TestImportEPUBRecordsDroppedImages(t *testing.T) {
 		want    string
 	}{
 		{
-			name:    "illustrated epub records what it lost",
+			// Both plates are stored beside the text now, so an illustrated
+			// EPUB loses nothing and leaves no note.
+			name:    "illustrated epub keeps its plates and reports nothing",
 			archive: buildIllustratedTestEPUB(t),
-			want:    "Converted from EPUB. 2 embedded images were dropped.",
+			want:    "",
+		},
+		{
+			// A format the shelf cannot serve is still a loss, and is still
+			// what the note is for.
+			name:    "unstorable illustration is still reported",
+			archive: buildUnstorableImageTestEPUB(t),
+			want:    "Converted from EPUB. 1 embedded image was dropped.",
 		},
 		{
 			// The cover is kept, so an EPUB whose only image is the cover has
@@ -434,4 +476,128 @@ func TestImportEPUBRecordsDroppedImages(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The illustrations an EPUB carried must land on the shelf, be referenced by
+// the text, and come back through the asset route. This is the first test that
+// exercises storage, conversion and serving together; each side alone can pass
+// while the names they agree on have drifted apart.
+func TestImportEPUBStoresIllustrationsAsAssets(t *testing.T) {
+	env := newAPITestEnv(t)
+	imported := importFileBook(t, env, "book.epub", "application/epub+zip", string(buildIllustratedTestEPUB(t)))
+
+	if imported.Meta == nil || imported.Meta.CurrentSource == "" {
+		t.Fatal("imported book has no current source")
+	}
+	base := "/api/shelves/default_shelf/books/" + imported.Meta.ID + "/sources/" + imported.Meta.CurrentSource
+
+	rec := env.do(httptest.NewRequest(http.MethodGet, base+"/content", nil))
+	assertStatus(t, rec, http.StatusOK)
+	content := rec.Body.String()
+
+	// Both plates are stored, numbered in the order the spine reached them.
+	for _, name := range []string{"img-0001.png", "img-0002.png"} {
+		link := "![](" + shelf.SourceAssetsFolder + "/" + name + ")"
+		if !strings.Contains(content, link) {
+			t.Fatalf("converted text does not contain %q:\n%s", link, content)
+		}
+
+		rec = env.do(httptest.NewRequest(http.MethodGet, base+"/assets/"+name, nil))
+		assertStatus(t, rec, http.StatusOK)
+		if got := rec.Header().Get("Content-Type"); got != "image/png" {
+			t.Errorf("asset %s Content-Type = %q, want image/png", name, got)
+		}
+		if !bytes.Equal(rec.Body.Bytes(), onePixelPNG()) {
+			t.Errorf("asset %s bytes do not match the archive entry", name)
+		}
+	}
+
+	// The book is Markdown, which is the only format whose reader renders the
+	// link that was just written into the text.
+	if imported.Meta.Format != "md" {
+		t.Errorf("imported format = %q, want md", imported.Meta.Format)
+	}
+}
+
+// epub names its stored images without importing shelf, so the two have to be
+// checked against each other: a name shelf refuses would be referenced by the
+// text and never load, and an image written outside SourceAssetsFolder would
+// not be found at all.
+func TestEPUBImageNamingAgreesWithShelf(t *testing.T) {
+	if epub.ImageFolder != shelf.SourceAssetsFolder {
+		t.Fatalf("epub.ImageFolder = %q, shelf.SourceAssetsFolder = %q", epub.ImageFolder, shelf.SourceAssetsFolder)
+	}
+
+	archive := buildIllustratedTestEPUB(t)
+	parsed, err := epub.Parse(bytes.NewReader(archive), int64(len(archive)), epub.DefaultStrategy().ParseOptions())
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if len(parsed.Images) == 0 {
+		t.Fatal("the illustrated fixture kept no images, so this proves nothing")
+	}
+
+	for _, image := range parsed.Images {
+		if !shelf.IsSupportedImageExt(path.Ext(image.Name)) {
+			t.Errorf("epub stored %q, which shelf will not serve", image.Name)
+		}
+	}
+}
+
+// A client written before keep_images existed submits a strategy without it.
+// The import dialog does exactly that on every EPUB upload, so reading the
+// absent field as "use the built-in default" would make the configured setting
+// unreachable from the browser.
+func TestImportEPUBPerRequestStrategyInheritsKeepImages(t *testing.T) {
+	off := false
+	fallback := epub.Strategy{Preset: epub.PresetMarkdown, KeepImages: &off}
+
+	got, _, err := parseImportStrategy(`{"preset":"markdown","include_description":true}`, fallback)
+	if err != nil {
+		t.Fatalf("parseImportStrategy: %v", err)
+	}
+	if got.KeepImages == nil || *got.KeepImages {
+		t.Fatalf("keep_images = %v, want the configured false", got.KeepImages)
+	}
+
+	// An explicit value still wins over the fallback.
+	got, _, err = parseImportStrategy(`{"preset":"markdown","keep_images":true}`, fallback)
+	if err != nil {
+		t.Fatalf("parseImportStrategy with explicit keep_images: %v", err)
+	}
+	if got.KeepImages == nil || !*got.KeepImages {
+		t.Fatalf("explicit keep_images = %v, want true", got.KeepImages)
+	}
+
+	// An empty strategy field means "use fallback" and always did.
+	got, _, err = parseImportStrategy("", fallback)
+	if err != nil {
+		t.Fatalf("parseImportStrategy with no strategy: %v", err)
+	}
+	if got.KeepImages == nil || *got.KeepImages {
+		t.Fatalf("fallback keep_images = %v, want false", got.KeepImages)
+	}
+}
+
+// The end-to-end version of the same thing: with the setting off, an import
+// that submits a strategy of its own must still store no illustrations.
+func TestImportEPUBHonoursKeepImagesOff(t *testing.T) {
+	env := newAPITestEnv(t)
+
+	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/setting/epub_import_strategy",
+		strings.NewReader(`{"preset":"markdown","include_description":true,"keep_images":false}`)))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	imported := importEPUBWithStrategy(t, env, "book.epub", string(buildIllustratedTestEPUB(t)),
+		`{"preset":"markdown","include_description":true}`)
+
+	base := "/api/shelves/default_shelf/books/" + imported.Meta.ID + "/sources/" + imported.Meta.CurrentSource
+	rec = env.do(httptest.NewRequest(http.MethodGet, base+"/content", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if strings.Contains(rec.Body.String(), "![") {
+		t.Fatalf("images were stored despite keep_images=false:\n%s", rec.Body.String())
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, base+"/assets/img-0001.png", nil))
+	assertStatus(t, rec, http.StatusNotFound)
 }

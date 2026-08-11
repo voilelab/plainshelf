@@ -46,7 +46,9 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 └─ sources/
    └─ {source-id}/
       ├─ source.txt
-      └─ meta.json
+      ├─ meta.json
+      └─ assets/
+         └─ img-0001.png
 ```
 
 | Path | Description |
@@ -56,6 +58,52 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 | `cover.(jpg\|png\|webp)` | Optional cover image |
 | `sources/{source-id}/source.txt` | The plain-text content for this source |
 | `sources/{source-id}/meta.json` | Source-level metadata |
+| `sources/{source-id}/assets/` | Optional illustrations this source's text references |
+
+### Source assets
+
+Illustrations live in an `assets/` directory beside the text that references
+them, so a Markdown image link in `source.txt` is an ordinary relative path:
+
+```markdown
+![A map of the province](assets/img-0001.png)
+```
+
+That path resolves the same way in the reader as it does in any editor you open
+`source.txt` with. It also means a source owns its images: deleting a source
+deletes its illustrations too, so nothing is left orphaned.
+
+The directory is flat, and file names must be a plain `.jpg`, `.jpeg`, `.png`,
+`.webp`, or `.gif`. Nothing records its contents — the filesystem is the list —
+so adding or removing an image is just adding or removing a file, and
+`book.json` never changes because of it.
+
+Files get here two ways: [EPUB import](../epub-import.md#illustrations) writes
+the illustrations it kept, and you can drop your own images in by hand. Nothing
+else writes to the directory — there is no route that stores an asset.
+
+The reader displays these images for books stored as Markdown (`"format": "md"`
+in `book.json`). A plain-text book has no image syntax, so its illustrations are
+never shown.
+
+Only a line that is nothing but an image becomes an illustration; an `![]()`
+inside a sentence stays as text. The link target must be a single file directly
+inside `assets/` — external URLs, `data:` targets, and paths that climb out of
+the directory are left as text rather than fetched, so a book's own text cannot
+make the reader reach out to the network. An image that cannot be loaded is
+replaced by its alt text instead of leaving a gap.
+
+A file name containing spaces can be written plainly, in angle brackets, or
+percent-encoded; all three name the same file:
+
+```markdown
+![](assets/A Map.png)
+![](<assets/A Map.png>)
+![](assets/A%20Map.png)
+```
+
+Adding images from the app, and carrying them into offline downloads, are not
+supported yet.
 
 ### Book IDs
 

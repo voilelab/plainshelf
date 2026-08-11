@@ -37,6 +37,18 @@ func randomString(n int) string {
 	return string(result)
 }
 
+// fileETag returns a weak ETag derived from a file's mtime and size, or an
+// empty string when the file cannot be stat'd. Every stored file the read path
+// serves with caching headers derives its validator here, so covers and source
+// assets cannot drift apart on what counts as "changed".
+func fileETag(root fsutil.FS, filePath string) string {
+	info, err := root.Stat(filePath)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf(`W/"%d-%d"`, info.ModTime().UnixNano(), info.Size())
+}
+
 // ErrInvalidLayer is returned when a layer name is not a usable path segment.
 // Every operation that accepts caller-supplied layers checks them before
 // touching the filesystem, so callers can treat it as a request error.

@@ -46,6 +46,19 @@ func resolveSourceID(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return sourceID, true
 }
 
+// resolveAssetName reads the asset name from the path. The name is only
+// checked for presence here; shelf validates it as a safe file name before any
+// filesystem access, and answers ErrInvalidAssetName for the rest.
+func resolveAssetName(w http.ResponseWriter, r *http.Request) (string, bool) {
+	assetName, err := readAssetName(r)
+	if err != nil {
+		http.Error(w, "invalid asset_name", http.StatusBadRequest)
+		return "", false
+	}
+
+	return assetName, true
+}
+
 func (app *App) getBook(w http.ResponseWriter, shelfData *shelf.ShelfData, bookID string) (*shelf.Book, bool) {
 	book, err := shelfData.GetBook(bookID)
 	if err != nil {

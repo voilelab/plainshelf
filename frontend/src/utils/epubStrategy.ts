@@ -24,11 +24,20 @@ export function normalizeEpubImportStrategy(raw: unknown): EpubImportStrategy {
 
   const data = raw as Record<string, unknown>;
 
-  return {
+  const strategy: EpubImportStrategy = {
     preset: normalizeEpubImportPreset(data.preset),
     include_description:
       typeof data.include_description === 'boolean'
         ? data.include_description
         : DEFAULT_EPUB_IMPORT_STRATEGY.include_description
   };
+
+  // Carried through rather than defaulted: the import dialog submits this
+  // object as an explicit strategy, so dropping the field here would turn a
+  // configured opt-out back into the server's default on every import.
+  if (typeof data.keep_images === 'boolean') {
+    strategy.keep_images = data.keep_images;
+  }
+
+  return strategy;
 }
