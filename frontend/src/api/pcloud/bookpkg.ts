@@ -14,6 +14,7 @@ export const BOOK_META_FILE = 'book.json';
 export const SOURCES_FOLDER = 'sources';
 export const SOURCE_META_FILE = 'meta.json';
 export const SOURCE_FILE = 'source.txt';
+export const SOURCE_ASSETS_FOLDER = 'assets';
 
 /**
  * The book.json schema version this reader understands, matching
@@ -45,6 +46,14 @@ export interface BookSourceRef {
   folderid: number;
   meta?: PCloudFileRef;
   content?: PCloudFileRef;
+  /**
+   * Illustrations in the source's `assets/` directory, keyed by file name.
+   *
+   * Indexed from the listing that was already fetched rather than looked up on
+   * demand: the shelf is read through one recursive listing, so an image costs
+   * nothing extra to find and a book with none carries an empty record.
+   */
+  assets: Record<string, PCloudFileRef>;
 }
 
 export interface BookPackageRef {
@@ -198,7 +207,7 @@ function readSources(sourcesFolder: PCloudItem): BookSourceRef[] {
       continue;
     }
 
-    const entry: BookSourceRef = { id: item.name, folderid: item.folderid };
+    const entry: BookSourceRef = { id: item.name, folderid: item.folderid, assets: {} };
     for (const child of item.contents ?? []) {
       const ref = toFileRef(child);
       if (!ref) {
@@ -208,6 +217,14 @@ function readSources(sourcesFolder: PCloudItem): BookSourceRef[] {
         entry.meta = ref;
       } else if (ref.name === SOURCE_FILE) {
         entry.content = ref;
+      }
+    }
+
+    // Illustrations sit one level deeper, in a flat directory beside the text.
+    for (const child of findFolder(item, SOURCE_ASSETS_FOLDER)?.contents ?? []) {
+      const ref = toFileRef(child);
+      if (ref) {
+        entry.assets[ref.name] = ref;
       }
     }
 

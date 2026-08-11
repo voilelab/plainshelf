@@ -177,8 +177,10 @@ unless the book has been downloaded for offline reading.
   top of the read-only rules the Android client already applies.
 - **No shelf list.** A server can offer several shelves; here the folder you
   named is the shelf.
-- **No illustrations.** A book's `assets/` directory is not read in this mode,
-  so a Markdown book that carries pictures shows their alt text instead.
+
+Illustrations work here too: a source's `assets/` directory is part of the same
+folder listing the shelf is read through, so a Markdown book shows its pictures
+without an extra lookup.
 
 Downloads, reading progress, read history, and reading time work exactly as in
 server mode: they are stored on the device, kept separate per connection, and

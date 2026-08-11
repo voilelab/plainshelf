@@ -108,8 +108,7 @@ images that text renders. A book downloaded before this existed keeps working
 and shows alt text where its pictures would be; downloading it again stores
 them.
 
-Adding images from the app is not supported yet, and a shelf read straight from
-pCloud does not serve them.
+Adding images from the app is not supported yet.
 
 ### Book IDs
 
