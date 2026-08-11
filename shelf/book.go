@@ -63,6 +63,18 @@ var ErrInvalidStar = util.NewError("star must be between 0 and 5")
 // a well-formed BCP 47 tag.
 var ErrInvalidLanguageTag = util.NewError("language must be a BCP 47 tag")
 
+// BookFormatText and BookFormatMarkdown are the values BookMeta.Format accepts.
+// They decide how the reader renders the book's text; the bytes on disk are the
+// same either way, so switching between them rewrites nothing but book.json.
+const (
+	BookFormatText     = "txt"
+	BookFormatMarkdown = "md"
+)
+
+// ErrInvalidBookFormat is returned when BookMeta.Format is neither empty nor a
+// known format.
+var ErrInvalidBookFormat = util.NewError(`format must be "txt" or "md"`)
+
 // ErrUnsupportedBookSchemaVersion is returned when a write is attempted against
 // a book.json whose on-disk schema_version is newer than this build supports.
 // It is book.json specific on purpose: sources/{id}/meta.json and trash.json
@@ -386,6 +398,10 @@ func (b *Book) setMeta(meta *BookMeta) error {
 
 	if meta.Star < MinStar || meta.Star > MaxStar {
 		return util.Errorf("%w: got %d", ErrInvalidStar, meta.Star)
+	}
+
+	if !validateBookFormat(meta.Format) {
+		return util.Errorf("%w: got %q", ErrInvalidBookFormat, meta.Format)
 	}
 
 	for key := range meta.Identifiers {

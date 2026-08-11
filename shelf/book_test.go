@@ -1425,3 +1425,44 @@ func TestSetMetaRejectsInvalidLanguageTag(t *testing.T) {
 		}
 	}
 }
+
+// TestSetMetaFormat covers switching a book between the two stored formats,
+// which is what makes an import's format guess correctable. The empty value has
+// to stay writable: books created through the API never had a format, and
+// refusing it would make every unrelated edit to such a book fail.
+func TestSetMetaFormat(t *testing.T) {
+	tmpLib := path.Join(t.TempDir())
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	bookID := "test-book-format"
+	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, "Test Book")
+	if err != nil {
+		t.Fatalf("Failed to create new book: %v", err)
+	}
+
+	for _, format := range []string{BookFormatMarkdown, BookFormatText, ""} {
+		meta := book.GetMeta()
+		meta.Format = format
+
+		if err := book.SetMeta(meta); err != nil {
+			t.Fatalf("format %q: %v", format, err)
+		}
+		if got := book.GetMeta().Format; got != format {
+			t.Fatalf("format = %q, want %q", got, format)
+		}
+	}
+
+	meta := book.GetMeta()
+	meta.Format = "epub"
+	if err := book.SetMeta(meta); !errors.Is(err, ErrInvalidBookFormat) {
+		t.Fatalf("err = %v, want ErrInvalidBookFormat", err)
+	}
+	if got := book.GetMeta().Format; got == "epub" {
+		t.Fatal("the rejected format was persisted")
+	}
+}

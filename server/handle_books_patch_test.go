@@ -17,6 +17,7 @@ func TestApplyBookPatchLeavesOmittedFieldsAlone(t *testing.T) {
 		Language: "en",
 		Comments: "note",
 		Star:     3,
+		Format:   shelf.BookFormatMarkdown,
 	}
 
 	meta := before
@@ -24,13 +25,13 @@ func TestApplyBookPatchLeavesOmittedFieldsAlone(t *testing.T) {
 
 	meta.UpdatedAt = before.UpdatedAt
 	if meta.ID != before.ID || meta.Title != before.Title || meta.Language != before.Language ||
-		meta.Comments != before.Comments || meta.Star != before.Star {
+		meta.Comments != before.Comments || meta.Star != before.Star || meta.Format != before.Format {
 		t.Fatalf("meta = %+v, want it unchanged from %+v", meta, before)
 	}
 }
 
 func TestApplyBookPatchAppliesSetFields(t *testing.T) {
-	meta := shelf.BookMeta{Title: "Original", Star: 1}
+	meta := shelf.BookMeta{Title: "Original", Star: 1, Format: shelf.BookFormatText}
 	published := util.JSONDate(time.Date(2020, 3, 4, 0, 0, 0, 0, time.UTC))
 
 	req := UpdateBookRequest{
@@ -41,6 +42,7 @@ func TestApplyBookPatchAppliesSetFields(t *testing.T) {
 		Language:    new("zh"),
 		Comment:     new("updated note"),
 		Star:        new(5),
+		Format:      new(shelf.BookFormatMarkdown),
 		PublishedAt: &published,
 	}
 
@@ -48,6 +50,9 @@ func TestApplyBookPatchAppliesSetFields(t *testing.T) {
 
 	if meta.Title != "New Title" || meta.Language != "zh" || meta.Comments != "updated note" || meta.Star != 5 {
 		t.Fatalf("scalar fields not applied: %+v", meta)
+	}
+	if meta.Format != shelf.BookFormatMarkdown {
+		t.Fatalf("format = %q, want %q", meta.Format, shelf.BookFormatMarkdown)
 	}
 	if len(meta.Authors) != 2 || meta.Authors[0] != "A" || meta.Authors[1] != "B" {
 		t.Fatalf("authors = %v, want [A B]", meta.Authors)

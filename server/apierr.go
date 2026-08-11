@@ -34,6 +34,10 @@ var apiErrorTable = []struct {
 		status:  http.StatusBadRequest,
 		message: "language must be a BCP 47 tag",
 	}},
+	{shelf.ErrInvalidBookFormat, apiError{
+		status:  http.StatusBadRequest,
+		message: `format must be "txt" or "md"`,
+	}},
 	{shelf.ErrInvalidLayer, apiError{
 		status:  http.StatusBadRequest,
 		message: "invalid layer name",

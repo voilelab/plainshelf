@@ -65,6 +65,19 @@ func validateBCP47(lang string) bool {
 	return bcp47Regex.MatchString(lang)
 }
 
+// validateBookFormat reports whether a BookMeta.Format value is one this build
+// writes. Empty stays valid: books created through the API rather than an
+// import carry no format at all, and the reader already treats that as plain
+// text.
+func validateBookFormat(format string) bool {
+	switch format {
+	case "", BookFormatText, BookFormatMarkdown:
+		return true
+	default:
+		return false
+	}
+}
+
 func validateLayers(layers Layers) error {
 	for _, layer := range layers {
 		if err := validatePathSegment(layer); err != nil {

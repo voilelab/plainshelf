@@ -123,6 +123,12 @@ text itself.
 
 If the chapter list matters to you, use the Markdown layout.
 
+The layout decides the text itself, not just how it is read, so picking the
+wrong one is not fixed by changing the book's
+[format](concepts/data-model.md#book-format) afterwards: the plain-text layout
+never wrote the `## ` markers that the chapter list needs. Import the EPUB again
+to change layouts.
+
 ### Description in the text
 
 The book description is always saved to the book's metadata. This option
