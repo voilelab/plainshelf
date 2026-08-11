@@ -124,6 +124,28 @@ export function assetNameFromSrc(src: string): string | null {
   return name;
 }
 
+/**
+ * Lists the source assets a Markdown text actually renders, in first-use order
+ * and without duplicates.
+ *
+ * This runs the real parser rather than its own scan, so an offline download
+ * fetches exactly the files the reader will ask for: a link the reader leaves
+ * as text is not downloaded, and one it renders is never missed.
+ */
+export function referencedAssetNames(text: string): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+
+  for (const block of parseMarkdownBlocks(text)) {
+    if (block.type === 'image' && !seen.has(block.name)) {
+      seen.add(block.name);
+      names.push(block.name);
+    }
+  }
+
+  return names;
+}
+
 function parseInlineSegments(text: string): InlineSegment[] {
   const segments: InlineSegment[] = [];
   let lastIndex = 0;

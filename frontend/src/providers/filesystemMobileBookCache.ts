@@ -89,6 +89,14 @@ function coverPath(booksDir: string, bookId: string): string {
   return `${bookDir(booksDir, bookId)}/cover.json`;
 }
 
+// Illustrations sit under the book directory too, so the same recursive rmdir
+// sweeps them, and are nested by source because the shelf stores them per
+// source. Each is a StoredCover-shaped sidecar for the reason above: binary
+// does not survive the text-only file API these caches share.
+function assetPath(booksDir: string, bookId: string, sourceId: string, name: string): string {
+  return `${bookDir(booksDir, bookId)}/assets/${encode(sourceId)}/${encode(name)}.json`;
+}
+
 interface StoredCover {
   mime: string;
   data: string; // base64 (no data: prefix)
@@ -225,6 +233,27 @@ export class FilesystemMobileBookCache implements MobileBookCache {
   async deleteCachedCover(bookId: string): Promise<void> {
     const booksDir = await this.resolveBooksDir();
     await deleteFileIgnoringMissing(coverPath(booksDir, bookId));
+  }
+
+  async getCachedAsset(bookId: string, sourceId: string, name: string): Promise<Blob | null> {
+    const booksDir = await this.resolveBooksDir();
+    const stored = await readJsonFile<Partial<StoredCover>>(assetPath(booksDir, bookId, sourceId, name));
+    if (!stored || typeof stored.data !== 'string') {
+      return null;
+    }
+    try {
+      return base64ToBlob(stored.data, typeof stored.mime === 'string' ? stored.mime : '');
+    } catch {
+      // Undecodable base64 is a cache miss, not a crash: the reader falls back
+      // to the remote copy, or to the illustration's alt text when offline.
+      return null;
+    }
+  }
+
+  async saveCachedAsset(bookId: string, sourceId: string, name: string, blob: Blob): Promise<void> {
+    const booksDir = await this.resolveBooksDir();
+    const stored: StoredCover = { mime: blob.type, data: await blobToBase64(blob) };
+    await writeJsonFile(assetPath(booksDir, bookId, sourceId, name), stored);
   }
 
   async listDownloadedManifests(): Promise<CachedBookManifest[]> {

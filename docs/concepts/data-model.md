@@ -102,8 +102,14 @@ percent-encoded; all three name the same file:
 ![](assets/A%20Map.png)
 ```
 
-Adding images from the app, and carrying them into offline downloads, are not
-supported yet.
+Downloading a book for offline reading on Android brings its illustrations
+along: the download reads the text it just fetched and stores exactly the
+images that text renders. A book downloaded before this existed keeps working
+and shows alt text where its pictures would be; downloading it again stores
+them.
+
+Adding images from the app is not supported yet, and a shelf read straight from
+pCloud does not serve them.
 
 ### Book IDs
 

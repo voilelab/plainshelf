@@ -14,6 +14,7 @@ import {
   addReadHistory as addLocalReadHistory,
   clearReadHistory as clearLocalReadHistory
 } from '@/storage/readHistory';
+import { referencedAssetNames } from '@/features/reader/utils/parseMarkdownBlocks';
 import { currentCacheScopeKey } from './cacheScope';
 import { collectReadHistoryBooks } from './readHistoryBooks';
 import type {
@@ -329,11 +330,19 @@ export class MobileBookshelfProvider implements BookshelfReader {
   }
 
   /**
-   * Illustrations are not part of a download yet, so this only answers while
-   * online. A downloaded book therefore reads offline without its images
-   * rather than refusing to open.
+   * The cache answers first, so a downloaded book shows its illustrations
+   * without a request even when the server is reachable.
+   *
+   * An asset the download did not store — a book downloaded before assets were
+   * cached, or one whose text changed since — still resolves online. Offline it
+   * fails, and the reader shows the alt text rather than losing the chapter.
    */
   async getSourceAsset(bookId: string, sourceId: string, name: string): Promise<Blob> {
+    const cached = await this.cache.getCachedAsset(bookId, sourceId, name);
+    if (cached) {
+      return cached;
+    }
+
     if (this.isOnline() && this.remote.getSourceAsset) {
       return this.remote.getSourceAsset(bookId, sourceId, name);
     }
@@ -373,6 +382,17 @@ export class MobileBookshelfProvider implements BookshelfReader {
       }))
     );
 
+    // Illustrations are found by reading the text that was just downloaded
+    // rather than by listing the shelf: the reader only requests what its
+    // Markdown renders, so parsing the same text fetches exactly that set and
+    // skips files no longer referenced. It also needs no listing endpoint and
+    // no index on disk, which keeps the shelf the only record of what exists.
+    //
+    // Only a Markdown book can render an image, so a plain-text one is not
+    // scanned at all.
+    const assets =
+      book.format === 'md' ? await this.downloadSourceAssets(bookId, sourceContents) : [];
+
     // Cover download is best-effort: a failure here (network hiccup, no
     // cover uploaded, etc.) must not abort the book download itself.
     let coverBlob: Blob | null = null;
@@ -395,6 +415,7 @@ export class MobileBookshelfProvider implements BookshelfReader {
       0
     );
     const coverSize = coverBlob ? coverBlob.size : 0;
+    const assetsSize = assets.reduce((total, { blob }) => total + blob.size, 0);
 
     await this.cache.saveDownloadedBook({
       book,
@@ -403,8 +424,13 @@ export class MobileBookshelfProvider implements BookshelfReader {
       downloaded_at: new Date().toISOString(),
       local_version: book.local_version,
       remote_version: book.remote_version,
-      size_bytes: contentSize + sourcesSize + coverSize,
-      size_breakdown: { content: contentSize, sources: sourcesSize, cover: coverSize }
+      size_bytes: contentSize + sourcesSize + coverSize + assetsSize,
+      size_breakdown: {
+        content: contentSize,
+        sources: sourcesSize,
+        cover: coverSize,
+        assets: assetsSize
+      }
     });
     await this.cache.saveCachedBookContent(bookId, bookContent);
     await Promise.all(
@@ -415,6 +441,42 @@ export class MobileBookshelfProvider implements BookshelfReader {
     if (coverBlob) {
       await this.cache.saveCachedCover(bookId, coverBlob);
     }
+    await Promise.all(
+      assets.map(({ sourceId, name, blob }) =>
+        this.cache.saveCachedAsset(bookId, sourceId, name, blob)
+      )
+    );
+  }
+
+  /**
+   * Fetches the illustrations the downloaded text references.
+   *
+   * Best-effort per file, like the cover: one image that will not download is
+   * a figure the reader replaces with its alt text, which is a far better
+   * outcome than failing the whole download over a picture.
+   */
+  private async downloadSourceAssets(
+    bookId: string,
+    sourceContents: { sourceId: string; content: string }[]
+  ): Promise<{ sourceId: string; name: string; blob: Blob }[]> {
+    const fetchAsset = this.remote.getSourceAsset?.bind(this.remote);
+    if (!fetchAsset) {
+      return [];
+    }
+
+    const requests = sourceContents.flatMap(({ sourceId, content }) =>
+      referencedAssetNames(content).map(async (name) => {
+        try {
+          return { sourceId, name, blob: await fetchAsset(bookId, sourceId, name) };
+        } catch (err) {
+          console.warn(`Failed to download illustration ${name} for book ${bookId}.`, err);
+          return null;
+        }
+      })
+    );
+
+    const settled = await Promise.all(requests);
+    return settled.filter((asset): asset is { sourceId: string; name: string; blob: Blob } => asset !== null);
   }
 
   async removeDownload(bookId: string): Promise<void> {
