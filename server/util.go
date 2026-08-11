@@ -65,7 +65,16 @@ func readSourceID(r *http.Request) (string, error) {
 // the file on the shelf. Traversal is unaffected either way, because the name
 // is validated after decoding, not before.
 func readAssetName(r *http.Request) (string, error) {
-	assetName := strings.TrimSpace(r.PathValue("asset_name"))
+	// Neither unescaped nor trimmed, unlike the readers above. ServeMux has
+	// already decoded the wildcard, and both normalizations rewrite a name a
+	// user legitimately chose: "chart%20one.png" would become "chart one.png",
+	// and " lead.png" would become "lead.png" - each quietly addressing a
+	// different file than the one requested.
+	//
+	// The IDs above are shelf-generated and contain neither spaces nor percent
+	// escapes, which is why the same handling is harmless for them. An asset
+	// name comes from whoever put the file on the shelf.
+	assetName := r.PathValue("asset_name")
 	if assetName == "" {
 		return "", errors.New("missing asset_name")
 	}

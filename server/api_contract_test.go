@@ -1012,6 +1012,24 @@ func TestAPISourceAssetRejectsUnsafeNames(t *testing.T) {
 
 	env.writeSourceAsset(t, created.Meta.ID, sourceID, "img-0001.png", []byte("fake png bytes"))
 
+	// A name is served exactly as addressed. Trimming it would make " lead.png"
+	// unreachable and, with both files present, quietly answer with the other
+	// one - the same failure the double-decode used to cause.
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, " lead.png", []byte("space prefixed"))
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "lead.png", []byte("plain"))
+
+	rec := env.do(httptest.NewRequest(http.MethodGet, assetsURL+"%20lead.png", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Body.String(); got != "space prefixed" {
+		t.Fatalf("asset with a leading space = %q, want %q", got, "space prefixed")
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"lead.png", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Body.String(); got != "plain" {
+		t.Fatalf("asset without a leading space = %q, want %q", got, "plain")
+	}
+
 	// An encoded separator survives routing: the mux hands these to the handler
 	// as one path value that decodes to "../source.txt". Since source.txt really
 	// does sit one level above assets/, they name a file that exists, so 400 is
@@ -1754,5 +1772,56 @@ func TestAPIUnsupportedSchemaVersionDoesNotMoveLayer(t *testing.T) {
 	}
 	if _, err := os.Stat(metaPath); err != nil {
 		t.Fatalf("book.json is no longer at its original path: %v", err)
+	}
+}
+
+// If-None-Match is a list, may be "*", and is compared weakly for GET and HEAD.
+// A missed match costs a full body, which for an asset has no size bound.
+func TestIfNoneMatchHandlesListsAndWildcard(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Revalidate", "", "art.md", "body")
+	sourceID := env.currentSourceID(t, created.Meta.ID)
+	url := "/api/shelves/default_shelf/books/" + created.Meta.ID +
+		"/sources/" + sourceID + "/assets/img-0001.png"
+
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "img-0001.png", []byte("fake png bytes"))
+
+	rec := env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	etag := rec.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("no ETag to revalidate against")
+	}
+
+	revalidates := map[string]string{
+		"exact":             etag,
+		"list":              `W/"other-1", ` + etag,
+		"list with spacing": etag + ` , W/"other-2"`,
+		"wildcard":          "*",
+		"strong spelling":   strings.TrimPrefix(etag, "W/"),
+	}
+	for name, header := range revalidates {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, url, nil)
+			req.Header.Set("If-None-Match", header)
+			rec := env.do(req)
+			assertStatus(t, rec, http.StatusNotModified)
+		})
+	}
+
+	misses := map[string]string{
+		"unrelated tag":  `W/"nothing-like-it"`,
+		"unrelated list": `W/"a", W/"b"`,
+		"empty":          "",
+	}
+	for name, header := range misses {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, url, nil)
+			if header != "" {
+				req.Header.Set("If-None-Match", header)
+			}
+			rec := env.do(req)
+			assertStatus(t, rec, http.StatusOK)
+		})
 	}
 }
