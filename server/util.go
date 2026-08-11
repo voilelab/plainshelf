@@ -54,18 +54,23 @@ func readSourceID(r *http.Request) (string, error) {
 	return decoded, nil
 }
 
+// readAssetName deliberately does not url.PathUnescape, unlike its neighbours
+// here: ServeMux has already unescaped the wildcard, so decoding a second time
+// rewrites any name that legitimately contains a percent escape. A file named
+// "chart%20one.png" would be read as "chart one.png" and quietly serve a
+// different file.
+//
+// The IDs above are shelf-generated and never contain '%', which is why the
+// extra decode is unreachable for them; an asset name is chosen by whoever put
+// the file on the shelf. Traversal is unaffected either way, because the name
+// is validated after decoding, not before.
 func readAssetName(r *http.Request) (string, error) {
 	assetName := strings.TrimSpace(r.PathValue("asset_name"))
 	if assetName == "" {
 		return "", errors.New("missing asset_name")
 	}
 
-	decoded, err := url.PathUnescape(assetName)
-	if err != nil {
-		return "", util.Errorf("%w", err)
-	}
-
-	return decoded, nil
+	return assetName, nil
 }
 
 func readLogID(r *http.Request) (string, error) {

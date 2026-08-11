@@ -103,6 +103,15 @@
                         <hr class="reader-md-hr" />
                       </template>
 
+                      <template v-else-if="block.type === 'image'">
+                        <ReaderAssetImage
+                          :book-id="id"
+                          :source-id="currentSourceId"
+                          :name="block.name"
+                          :alt="block.alt"
+                        />
+                      </template>
+
                       <template v-else>
                         <p class="reader-text-block">
                           <template v-for="(seg, si) in block.segments" :key="si">
@@ -178,6 +187,7 @@ import {
 import { useReadingHeartbeat } from '@/features/reader/composables/useReadingHeartbeat';
 import { parseReaderBlocks } from '@/features/reader/utils/parseReaderBlocks';
 import { parseMarkdownBlocks } from '@/features/reader/utils/parseMarkdownBlocks';
+import ReaderAssetImage from '@/features/reader/components/ReaderAssetImage.vue';
 import type { SplitConfig } from '@/types/book';
 import { useI18n } from '@/i18n';
 
@@ -186,6 +196,7 @@ const id = computed(() => String(route.params.id));
 const {
   title,
   bookFormat,
+  currentSourceId,
   sections,
   currentSectionIndex,
   currentSection,
