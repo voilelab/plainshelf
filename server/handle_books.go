@@ -299,12 +299,49 @@ func (app *App) serveImageValidator(w http.ResponseWriter, r *http.Request, etag
 
 	w.Header().Set("ETag", etag)
 	w.Header().Set("Cache-Control", app.cacheVisibility(r)+", max-age=86400")
-	if r.Header.Get("If-None-Match") == etag {
+	if etagMatchesIfNoneMatch(r.Header.Get("If-None-Match"), etag) {
 		w.WriteHeader(http.StatusNotModified)
 		return true
 	}
 
 	return false
+}
+
+// etagMatchesIfNoneMatch reports whether an If-None-Match header value matches
+// the stored file's ETag.
+//
+// RFC 9110 allows a list of validators or "*", and requires the weak
+// comparison for GET and HEAD, where only the opaque tag matters. Plain string
+// equality answers a browser echoing one tag back, but misses a client sending
+// several - and the cost of a miss is a full body, which for an asset has no
+// size bound.
+//
+// Splitting on commas is safe for the tags this server issues: they are
+// mtime-size pairs and never contain one. A tag from elsewhere that did would
+// simply fail to match, which errs towards sending the body.
+func etagMatchesIfNoneMatch(header, etag string) bool {
+	header = strings.TrimSpace(header)
+	if header == "" || etag == "" {
+		return false
+	}
+	if header == "*" {
+		return true
+	}
+
+	want := opaqueETag(etag)
+	for _, candidate := range strings.Split(header, ",") {
+		if opaqueETag(candidate) == want {
+			return true
+		}
+	}
+
+	return false
+}
+
+// opaqueETag drops the weak-validator prefix and surrounding space, which is
+// what the weak comparison ignores.
+func opaqueETag(tag string) string {
+	return strings.TrimPrefix(strings.TrimSpace(tag), "W/")
 }
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/cover
