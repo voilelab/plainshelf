@@ -35,7 +35,7 @@ async function uploadCoverOnDetailPage(page: Page): Promise<void> {
   const dataTransfer = await createCoverDataTransfer(page);
   try {
     await coverTarget.dispatchEvent('dragenter', { dataTransfer });
-    await expect(page.getByText('Drop image to update cover')).toBeVisible();
+    await expect(page.getByText('Drop the image to update the cover')).toBeVisible();
     await coverTarget.dispatchEvent('dragover', { dataTransfer });
     await coverTarget.dispatchEvent('drop', { dataTransfer });
   } finally {
@@ -46,6 +46,7 @@ async function uploadCoverOnDetailPage(page: Page): Promise<void> {
   await expect(confirmDialog).toBeVisible();
   await confirmDialog.getByRole('button', { name: 'Update cover' }).click();
   await expect(confirmDialog).not.toBeVisible();
+  await page.getByRole('button', { name: 'Cover options' }).click();
   await expect(page.getByRole('button', { name: 'Remove' })).toBeEnabled();
 }
 

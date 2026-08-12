@@ -335,6 +335,113 @@ const zhHant = {
     lastSynced: '上次更新 {time}',
     neverSynced: '尚未更新'
   },
+  bookDetail: {
+    documentTitle: '書籍',
+    loading: '載入書籍詳情中...',
+    root: '所有書籍',
+    layerPath: '書籍所在資料夾',
+    ratingLabel: '評分 {rating} 顆星',
+    emptyDetails: '這本書目前沒有其他詳細資料。',
+    sections: {
+      publication: '出版資訊',
+      content: '內容資訊',
+      notes: '備註'
+    },
+    fields: {
+      format: '格式',
+      language: '語言',
+      publishedAt: '出版日期',
+      rating: '評分',
+      tags: '標籤',
+      lines: '行數',
+      characters: '字數',
+      comment: '書籍備註',
+      importNotes: '匯入備註'
+    },
+    progress: {
+      sectionLabel: '閱讀進度與操作',
+      eyebrow: '閱讀進度',
+      label: '已閱讀 {percent}%',
+      start: '尚未開始',
+      continue: '繼續上次的進度',
+      reread: '已讀完'
+    },
+    actions: {
+      startReading: '開始閱讀',
+      continueReading: '繼續閱讀 · {percent}%',
+      reread: '重新閱讀',
+      export: '匯出檔案',
+      exporting: '匯出中...',
+      more: '更多',
+      editMetadata: '編輯書籍資料',
+      editSources: '管理來源',
+      updateStats: '更新內容統計',
+      updatingStats: '更新統計中...',
+      openFolder: '開啟資料夾',
+      moveToTrash: '移至垃圾桶',
+      movingToTrash: '移動中...',
+      dismiss: '關閉'
+    },
+    messages: {
+      imported: '書籍匯入成功。',
+      saved: '書籍資料已儲存。'
+    },
+    errors: {
+      restartReading: '無法重新開始閱讀。',
+      updateStats: '更新內容統計失敗'
+    },
+    delete: {
+      description: '書籍將移至垃圾桶，之後仍可復原。'
+    },
+    cover: {
+      options: '封面選項',
+      upload: '上傳',
+      remove: '移除',
+      generate: '產生封面',
+      uploading: '正在上傳封面...',
+      removing: '正在移除封面...',
+      updated: '封面已更新。',
+      removed: '封面已移除。',
+      dropHint: '放開圖片即可更新封面',
+      unsupported: '僅支援 JPG、JPEG、PNG、WebP 與 GIF。',
+      uploadFailed: '封面上傳失敗',
+      uploadFailedWithReason: '封面上傳失敗：{reason}',
+      removeFailed: '封面移除失敗',
+      removeFailedWithReason: '封面移除失敗：{reason}',
+      confirmTitle: '更新書籍封面？',
+      confirmQuestion: '要使用這張圖片更新書籍封面嗎？',
+      confirm: '更新封面',
+      generator: {
+        title: '產生封面',
+        close: '關閉產生封面對話框',
+        bookTitle: '書名',
+        author: '作者',
+        noAuthor: '（沒有作者）',
+        background: '背景風格',
+        layout: '版面',
+        cancel: '取消',
+        save: '儲存',
+        saving: '儲存中...',
+        noTitle: '（沒有書名）',
+        canvasUnavailable: '無法產生封面：不支援畫布。',
+        exportFailed: '無法匯出封面圖片。',
+        saveFailed: '封面儲存失敗。',
+        backgrounds: {
+          plainLight: '簡潔亮色',
+          plainDark: '簡潔深色',
+          warmPaper: '溫暖紙張',
+          softGradient: '柔和漸層',
+          minimalSolid: '極簡純色'
+        },
+        layouts: {
+          centered: '書名置中，作者置於下方',
+          topBottom: '書名靠上，作者靠下',
+          largeTitle: '大型置中書名',
+          minimal: '極簡版面'
+        }
+      }
+    }
+  },
   bookCollection: {
     loadingBooks: '載入書籍中...',
     shelfInitializing: '書架載入中，請稍候...',

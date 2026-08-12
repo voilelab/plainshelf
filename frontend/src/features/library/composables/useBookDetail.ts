@@ -6,6 +6,7 @@ import type { SourceMeta } from '@/types/source';
 export function useBookDetail(bookID: () => string) {
   const book = ref<Book | null>(null);
   const progress = ref<ReadingProgress | null>(null);
+  const progressContentLength = ref<number | null>(null);
   const currentSource = ref<SourceMeta | null>(null);
   const loading = ref(false);
   const error = ref('');
@@ -21,15 +22,24 @@ export function useBookDetail(bookID: () => string) {
         provider.getBook(currentBookID),
         provider.getReadProgress(currentBookID)
       ]);
-      const currentSourceData = bookData.current_source
-        ? await provider.getSource(currentBookID, bookData.current_source)
-        : null;
+      const needsProgressContentLength =
+        progressData.percent === undefined && progressData.char_offset > 0;
+      const [currentSourceData, currentContentLength] = await Promise.all([
+        bookData.current_source
+          ? provider.getSource(currentBookID, bookData.current_source)
+          : Promise.resolve(null),
+        needsProgressContentLength
+          ? provider.getBookContent(currentBookID).then(({ content }) => content.length)
+          : Promise.resolve(null)
+      ]);
       book.value = bookData;
       progress.value = progressData;
+      progressContentLength.value = currentContentLength;
       currentSource.value = currentSourceData;
     } catch (err) {
       book.value = null;
       progress.value = null;
+      progressContentLength.value = null;
       currentSource.value = null;
       error.value = err instanceof Error ? err.message : 'Failed to load detail';
     } finally {
@@ -53,6 +63,7 @@ export function useBookDetail(bookID: () => string) {
   return {
     book,
     progress,
+    progressContentLength,
     currentSource,
     loading,
     error,

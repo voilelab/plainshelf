@@ -57,7 +57,7 @@ async function openImportedBookInReader(page: Page): Promise<void> {
   await bookTitle.click();
 
   await expect(page).toHaveURL(/\/books\/[^/]+$/);
-  await page.getByRole('button', { name: 'Read' }).click();
+  await page.getByRole('button', { name: 'Start reading' }).click();
   await expect(page).toHaveURL(/\/reader\/[^/]+$/);
 }
 

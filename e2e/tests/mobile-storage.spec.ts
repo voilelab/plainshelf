@@ -103,7 +103,7 @@ test('downloads books for offline reading and isolates removal between books', a
     await expect(helloRow).toBeVisible();
     await helloRow.click();
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await expect(page.getByRole('button', { name: 'Read' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start reading' })).toBeVisible();
     // Enter the reader via a top-level navigation instead of clicking "Read":
     // the in-app push drops the ?mobile-shell-preview=1 param, so the freshly
     // mounting ReaderLayout would see isMobileRuntime() === false. This is an

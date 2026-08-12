@@ -15,7 +15,7 @@ test('should record a book in read history after visiting the reader and clear i
     // not on the server
     await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await page.getByRole('button', { name: 'Read' }).click();
+    await page.getByRole('button', { name: 'Start reading' }).click();
     await expect(page).toHaveURL(/\/reader\/[^/]+$/);
     // Wait for content to load so the history entry has been written
     await expect(page.getByText('Hello from PlainShelf E2E.')).toBeVisible();

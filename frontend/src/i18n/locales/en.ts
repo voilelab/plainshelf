@@ -337,6 +337,113 @@ const en = {
     lastSynced: 'Updated {time}',
     neverSynced: 'Never updated'
   },
+  bookDetail: {
+    documentTitle: 'Book',
+    loading: 'Loading book details...',
+    root: 'All books',
+    layerPath: 'Book folder path',
+    ratingLabel: 'Rated {rating} stars',
+    emptyDetails: 'No additional details are available for this book.',
+    sections: {
+      publication: 'Publication',
+      content: 'Content',
+      notes: 'Notes'
+    },
+    fields: {
+      format: 'Format',
+      language: 'Language',
+      publishedAt: 'Published',
+      rating: 'Rating',
+      tags: 'Tags',
+      lines: 'Lines',
+      characters: 'Characters',
+      comment: 'Book note',
+      importNotes: 'Import note'
+    },
+    progress: {
+      sectionLabel: 'Reading progress and actions',
+      eyebrow: 'Reading progress',
+      label: '{percent}% read',
+      start: 'Not started',
+      continue: 'Continue where you left off',
+      reread: 'Finished'
+    },
+    actions: {
+      startReading: 'Start reading',
+      continueReading: 'Continue reading · {percent}%',
+      reread: 'Read again',
+      export: 'Export file',
+      exporting: 'Exporting...',
+      more: 'More',
+      editMetadata: 'Edit book details',
+      editSources: 'Manage sources',
+      updateStats: 'Update content stats',
+      updatingStats: 'Updating stats...',
+      openFolder: 'Open folder',
+      moveToTrash: 'Move to Trash',
+      movingToTrash: 'Moving...',
+      dismiss: 'Dismiss'
+    },
+    messages: {
+      imported: 'Book imported successfully.',
+      saved: 'Book details saved.'
+    },
+    errors: {
+      restartReading: 'Failed to restart the book.',
+      updateStats: 'Failed to update content stats'
+    },
+    delete: {
+      description: 'The book will be moved to Trash. You can restore it later.'
+    },
+    cover: {
+      options: 'Cover options',
+      upload: 'Upload',
+      remove: 'Remove',
+      generate: 'Generate cover',
+      uploading: 'Uploading cover...',
+      removing: 'Removing cover...',
+      updated: 'Cover updated.',
+      removed: 'Cover removed.',
+      dropHint: 'Drop the image to update the cover',
+      unsupported: 'Only JPG, JPEG, PNG, WebP, and GIF are supported.',
+      uploadFailed: 'Cover upload failed',
+      uploadFailedWithReason: 'Cover upload failed: {reason}',
+      removeFailed: 'Cover removal failed',
+      removeFailedWithReason: 'Cover removal failed: {reason}',
+      confirmTitle: 'Update book cover?',
+      confirmQuestion: 'Use this image as the new book cover?',
+      confirm: 'Update cover',
+      generator: {
+        title: 'Generate cover',
+        close: 'Close cover generator',
+        bookTitle: 'Title',
+        author: 'Author',
+        noAuthor: '(no author)',
+        background: 'Background style',
+        layout: 'Layout',
+        cancel: 'Cancel',
+        save: 'Save',
+        saving: 'Saving...',
+        noTitle: '(no title)',
+        canvasUnavailable: 'Cover generation failed: canvas is not available.',
+        exportFailed: 'Failed to export the cover image.',
+        saveFailed: 'Failed to save the cover.',
+        backgrounds: {
+          plainLight: 'Plain light',
+          plainDark: 'Plain dark',
+          warmPaper: 'Warm paper',
+          softGradient: 'Soft gradient',
+          minimalSolid: 'Minimal solid color'
+        },
+        layouts: {
+          centered: 'Centered title, author below',
+          topBottom: 'Title near top, author near bottom',
+          largeTitle: 'Large title centered',
+          minimal: 'Minimal layout'
+        }
+      }
+    }
+  },
   bookCollection: {
     loadingBooks: 'Loading books...',
     shelfInitializing: 'Shelf is loading, please wait...',

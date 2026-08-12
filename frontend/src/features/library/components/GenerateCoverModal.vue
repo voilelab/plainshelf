@@ -1,12 +1,12 @@
 <template>
-  <BaseDialog :open="open" title="Generate Cover" :busy="saving" @close="onClose">
+  <BaseDialog :open="open" :title="t('bookDetail.cover.generator.title')" :busy="saving" @close="onClose">
     <section class="panel cover-gen-modal">
       <header class="modal-header">
-        <h2>Generate Cover</h2>
+        <h2>{{ t('bookDetail.cover.generator.title') }}</h2>
         <button
           class="icon-close"
           type="button"
-          aria-label="Close dialog"
+          :aria-label="t('bookDetail.cover.generator.close')"
           :disabled="saving"
           @click="onClose"
         >
@@ -26,17 +26,17 @@
 
         <div class="controls-col">
           <label class="field">
-            <span class="field-label">Title</span>
+            <span class="field-label">{{ t('bookDetail.cover.generator.bookTitle') }}</span>
             <input v-model="titleText" class="input" type="text" :disabled="saving" />
           </label>
 
           <label class="field">
-            <span class="field-label">Author</span>
-            <input v-model="authorText" class="input" type="text" placeholder="(no author)" :disabled="saving" />
+            <span class="field-label">{{ t('bookDetail.cover.generator.author') }}</span>
+            <input v-model="authorText" class="input" type="text" :placeholder="t('bookDetail.cover.generator.noAuthor')" :disabled="saving" />
           </label>
 
           <label class="field">
-            <span class="field-label">Background style</span>
+            <span class="field-label">{{ t('bookDetail.cover.generator.background') }}</span>
             <SelectRoot :model-value="bgStyle" :disabled="saving" @update:model-value="onBgStyleSelect">
               <SelectTrigger class="input select-trigger">
                 <SelectValue />
@@ -54,7 +54,7 @@
           </label>
 
           <label class="field">
-            <span class="field-label">Layout</span>
+            <span class="field-label">{{ t('bookDetail.cover.generator.layout') }}</span>
             <SelectRoot :model-value="layout" :disabled="saving" @update:model-value="onLayoutSelect">
               <SelectTrigger class="input select-trigger">
                 <SelectValue />
@@ -76,9 +76,9 @@
       </div>
 
       <div class="modal-actions">
-        <button class="button" type="button" :disabled="saving" @click="onClose">Cancel</button>
+        <button class="button" type="button" :disabled="saving" @click="onClose">{{ t('bookDetail.cover.generator.cancel') }}</button>
         <button class="button primary" type="button" :disabled="saving" @click="onSave">
-          {{ saving ? 'Saving...' : 'Save' }}
+          {{ saving ? t('bookDetail.cover.generator.saving') : t('bookDetail.cover.generator.save') }}
         </button>
       </div>
     </section>
@@ -86,7 +86,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import {
   SelectContent,
   SelectItem,
@@ -100,6 +100,7 @@ import {
 } from 'reka-ui';
 import BaseDialog from '@/components/BaseDialog.vue';
 import { bookshelfWriter } from '@/providers';
+import { useI18n } from '@/i18n';
 
 const CANVAS_W = 400;
 const CANVAS_H = 600;
@@ -122,20 +123,21 @@ interface LayoutOption {
   label: string;
 }
 
-const bgStyleOptions: BgStyleOption[] = [
-  { value: 'plain-light', label: 'Plain light' },
-  { value: 'plain-dark', label: 'Plain dark' },
-  { value: 'warm-paper', label: 'Warm paper' },
-  { value: 'soft-gradient', label: 'Soft gradient' },
-  { value: 'minimal-solid', label: 'Minimal solid color' }
-];
+const { t } = useI18n();
+const bgStyleOptions = computed<BgStyleOption[]>(() => [
+  { value: 'plain-light', label: t('bookDetail.cover.generator.backgrounds.plainLight') },
+  { value: 'plain-dark', label: t('bookDetail.cover.generator.backgrounds.plainDark') },
+  { value: 'warm-paper', label: t('bookDetail.cover.generator.backgrounds.warmPaper') },
+  { value: 'soft-gradient', label: t('bookDetail.cover.generator.backgrounds.softGradient') },
+  { value: 'minimal-solid', label: t('bookDetail.cover.generator.backgrounds.minimalSolid') }
+]);
 
-const layoutOptions: LayoutOption[] = [
-  { value: 'centered', label: 'Centered title, author below' },
-  { value: 'top-bottom', label: 'Title near top, author near bottom' },
-  { value: 'large-title', label: 'Large title centered' },
-  { value: 'minimal', label: 'Minimal layout' }
-];
+const layoutOptions = computed<LayoutOption[]>(() => [
+  { value: 'centered', label: t('bookDetail.cover.generator.layouts.centered') },
+  { value: 'top-bottom', label: t('bookDetail.cover.generator.layouts.topBottom') },
+  { value: 'large-title', label: t('bookDetail.cover.generator.layouts.largeTitle') },
+  { value: 'minimal', label: t('bookDetail.cover.generator.layouts.minimal') }
+]);
 
 const props = defineProps<{
   open: boolean;
@@ -148,9 +150,6 @@ const emit = defineEmits<{
   close: [];
   saved: [];
 }>();
-
-const BG_STYLE_VALUES: BgStyle[] = bgStyleOptions.map((opt) => opt.value);
-const LAYOUT_VALUES: Layout[] = layoutOptions.map((opt) => opt.value);
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const titleText = ref('');
@@ -308,7 +307,7 @@ function renderCover(): void {
 
   const w = CANVAS_W;
   const h = CANVAS_H;
-  const title = titleText.value.trim() || '(no title)';
+  const title = titleText.value.trim() || t('bookDetail.cover.generator.noTitle');
   const author = authorText.value.trim();
   const cfg = getBgConfig(ctx, bgStyle.value);
 
@@ -476,13 +475,13 @@ watch(
 // ─── Actions ─────────────────────────────────────────────────────────────────
 
 function onBgStyleSelect(value: AcceptableValue): void {
-  if (typeof value === 'string' && BG_STYLE_VALUES.includes(value as BgStyle)) {
+  if (typeof value === 'string' && bgStyleOptions.value.some((option) => option.value === value)) {
     bgStyle.value = value as BgStyle;
   }
 }
 
 function onLayoutSelect(value: AcceptableValue): void {
-  if (typeof value === 'string' && LAYOUT_VALUES.includes(value as Layout)) {
+  if (typeof value === 'string' && layoutOptions.value.some((option) => option.value === value)) {
     layout.value = value as Layout;
   }
 }
@@ -496,7 +495,7 @@ async function onSave(): Promise<void> {
   if (saving.value) return;
   const canvas = canvasRef.value;
   if (!canvas) {
-    saveError.value = 'Cover generation failed: canvas not available.';
+    saveError.value = t('bookDetail.cover.generator.canvasUnavailable');
     return;
   }
 
@@ -512,14 +511,14 @@ async function onSave(): Promise<void> {
     });
 
     if (!blob) {
-      throw new Error('Failed to export cover image.');
+      throw new Error(t('bookDetail.cover.generator.exportFailed'));
     }
 
     await bookshelfWriter().uploadBookCoverBlob(props.bookId, blob);
     emit('saved');
     emit('close');
   } catch (err) {
-    saveError.value = err instanceof Error ? err.message : 'Failed to save cover.';
+    saveError.value = err instanceof Error ? err.message : t('bookDetail.cover.generator.saveFailed');
   } finally {
     saving.value = false;
   }
