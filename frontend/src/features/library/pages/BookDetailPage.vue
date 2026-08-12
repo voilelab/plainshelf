@@ -151,7 +151,7 @@ import DeleteModal from '@/components/DeleteModal.vue';
 import ProgressBar from '@/components/ProgressBar.vue';
 import { useBookActions } from '@/composables/useBookActions';
 import { useBookDetail } from '@/features/library/composables/useBookDetail';
-import { getReadingAction, normalizeReadingPercent } from '@/features/library/utils/bookDetail';
+import { getReadingAction, resolveReadingPercent } from '@/features/library/utils/bookDetail';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useOfflineDownload } from '@/composables/useOfflineDownload';
 import { useWriteAccess } from '@/composables/useWriteAccess';
@@ -197,8 +197,11 @@ const {
   }
 });
 
-const readingPercent = computed(() => normalizeReadingPercent(progress.value?.percent));
-const readingAction = computed(() => getReadingAction(progress.value?.percent));
+const readingPercent = computed(() => resolveReadingPercent(
+  progress.value,
+  currentSource.value?.char_count ?? book.value?.char_count
+));
+const readingAction = computed(() => getReadingAction(readingPercent.value));
 const readingActionLabel = computed(() => {
   if (readingAction.value === 'continue') {
     return t('bookDetail.actions.continueReading', { percent: readingPercent.value });

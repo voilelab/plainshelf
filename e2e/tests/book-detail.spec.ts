@@ -59,3 +59,29 @@ test('keeps the summary and reading action above the fold on a narrow viewport',
     await server.dispose();
   }
 });
+
+test('derives reading progress from the server bookmark offset', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.route('**/marks/**', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ char_offset: 37 })
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await openHelloDetail(page, server.baseUrl);
+
+    await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');
+    await expect(page.getByRole('button', { name: 'Continue reading · 50%' })).toBeVisible();
+    await expect(page.getByText('Continue where you left off', { exact: true })).toBeVisible();
+  } finally {
+    await server.dispose();
+  }
+});
