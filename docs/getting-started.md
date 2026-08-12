@@ -62,6 +62,11 @@ Open the library, choose **Import**, and select a `.txt`, `.md` or `.epub` file.
 You can then edit its metadata, add a cover, place it in a folder, and open the
 reader.
 
+On the Android app and narrow browser screens, the reader uses an immersive
+layout: tap the center of the page to show or hide its controls, swipe left for
+the next chapter, and swipe right for the previous chapter. Vertical swipes
+continue to scroll within the current chapter.
+
 An EPUB is converted to text as it is imported; see
 [EPUB Import](epub-import.md) for what is kept, what is dropped, and how to
 choose the output layout.

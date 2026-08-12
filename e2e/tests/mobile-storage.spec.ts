@@ -14,7 +14,8 @@ import {
   getSourceContentViaHook,
   goOffline,
   goOnline,
-  goServerUnreachable
+  goServerUnreachable,
+  showMobileReaderControls
 } from './support/mobile';
 
 // These tests exercise the Android app storage layer (frontend/src/providers/
@@ -151,6 +152,7 @@ test('persists reading progress (bookmark) across app restarts', async ({ page }
     await reopenMobileAt(page, server.baseUrl, `/reader/${helloId}`);
     await expect(page.getByText('Hello from PlainShelf E2E.')).toBeVisible();
 
+    await showMobileReaderControls(page);
     await page.getByRole('button', { name: 'Save bookmark' }).click();
     await expect(page.getByRole('button', { name: 'Save bookmark' })).toBeEnabled();
 

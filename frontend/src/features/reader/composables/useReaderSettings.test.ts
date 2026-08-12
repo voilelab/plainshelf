@@ -1,4 +1,4 @@
-import { effectScope, nextTick } from 'vue';
+import { effectScope, nextTick, ref } from 'vue';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_READER_FONT,
@@ -67,6 +67,49 @@ describe('reader font settings', () => {
 
     expect(values.get('reader-font-family')).toBe('noto-serif-tc');
     expect(localStorage.setItem).toHaveBeenCalledWith('reader-font-family', 'noto-serif-tc');
+
+    scope.stop();
+  });
+
+  it('uses a reactive presentation default until the user chooses a size', async () => {
+    const { values } = stubWindow();
+    const defaultSize = ref(20);
+    const scope = effectScope();
+    let settings!: ReturnType<typeof useReaderSettings>;
+    scope.run(() => {
+      settings = useReaderSettings(defaultSize);
+    });
+
+    expect(settings.fontSize.value).toBe(20);
+    defaultSize.value = 22;
+    await nextTick();
+    expect(settings.fontSize.value).toBe(22);
+    expect(values.has('reader-font-size')).toBe(false);
+
+    settings.increaseFontSize();
+    expect(settings.fontSize.value).toBe(24);
+    expect(values.get('reader-font-size')).toBe('24');
+
+    defaultSize.value = 20;
+    await nextTick();
+    expect(settings.fontSize.value).toBe(24);
+
+    scope.stop();
+  });
+
+  it('keeps a stored size over desktop and mobile defaults', async () => {
+    stubWindow({ 'reader-font-size': '28' });
+    const defaultSize = ref(20);
+    const scope = effectScope();
+    let settings!: ReturnType<typeof useReaderSettings>;
+    scope.run(() => {
+      settings = useReaderSettings(defaultSize);
+    });
+
+    expect(settings.fontSize.value).toBe(28);
+    defaultSize.value = 22;
+    await nextTick();
+    expect(settings.fontSize.value).toBe(28);
 
     scope.stop();
   });

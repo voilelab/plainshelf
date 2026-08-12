@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { startServer } from './support/server';
 import { importHelloBook } from './support/books';
-import { connectMobile, reopenMobileAt, getBookIdByTitle } from './support/mobile';
+import { connectMobile, reopenMobileAt, getBookIdByTitle, showMobileReaderControls } from './support/mobile';
 
 // The Android app is a read-only reading client. These tests run the desktop
 // Chromium build with `?mobile-shell-preview=1`, which makes isMobileRuntime()
@@ -217,6 +217,7 @@ test('rejects a write from the mobile client but still records reading on the de
       }
     });
     await reopenMobileAt(page, server.baseUrl, `/reader/${bookId}`);
+    await showMobileReaderControls(page);
     await expect(page.getByRole('button', { name: /bookmark/i }).first()).toBeVisible();
     // The history entry is written while the reader is still loading, and the
     // device store is asynchronous (app-private files), so wait for the load to
