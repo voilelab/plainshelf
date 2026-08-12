@@ -92,7 +92,16 @@ export interface BookUpdateRequest {
   published_at?: string;
   star?: number;
   identifiers?: Record<string, string>;
+  /** Only 'txt' and 'md' are accepted; the server rejects anything else. */
+  format?: BookFormat;
 }
+
+/** The formats a book can be stored as. Both read the same bytes on disk: the
+ *  value only decides whether the reader parses the text as Markdown. */
+export const BOOK_FORMAT_OPTIONS: { value: BookFormat; label: string }[] = [
+  { value: 'txt', label: 'Plain text' },
+  { value: 'md', label: 'Markdown' }
+];
 
 /** Built-in EPUB output layouts. The preset also decides the stored book format. */
 export type EpubImportPreset = 'markdown' | 'plain';

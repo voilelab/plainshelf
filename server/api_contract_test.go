@@ -663,6 +663,61 @@ func TestAPIUpdateBookContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusBadRequest)
 }
 
+// The stored format decides whether the reader parses the text as Markdown, and
+// import can only guess it from a file extension. This is the correction path:
+// switching it is metadata-only, so the book's content is never rewritten.
+func TestAPIUpdateBookFormatContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Format Book", "", "format.txt", "# Notes\n\nhello")
+	bookURL := "/api/shelves/default_shelf/books/" + created.Meta.ID
+
+	if created.Meta.Format != "txt" {
+		t.Fatalf("imported format = %q, want txt", created.Meta.Format)
+	}
+
+	rec := env.do(httptest.NewRequest(http.MethodGet, bookURL+"/content", nil))
+	assertStatus(t, rec, http.StatusOK)
+	contentBefore := rec.Body.String()
+
+	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"format":"md"}`)))
+	assertStatus(t, rec, http.StatusOK)
+	updated := decodeJSON[Book](t, rec)
+	if updated.Meta.Format != "md" {
+		t.Fatalf("format = %q, want md in the PATCH response", updated.Meta.Format)
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, bookURL, nil))
+	assertStatus(t, rec, http.StatusOK)
+	if fetched := decodeJSON[Book](t, rec); fetched.Meta.Format != "md" {
+		t.Fatalf("format = %q, want md after GET", fetched.Meta.Format)
+	}
+
+	// Switching the format must not touch the text it describes.
+	rec = env.do(httptest.NewRequest(http.MethodGet, bookURL+"/content", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Body.String(); got != contentBefore {
+		t.Fatalf("content = %q, want it unchanged at %q", got, contentBefore)
+	}
+
+	// A format this build cannot render is a client error, and the stored value survives it.
+	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"format":"epub"}`)))
+	assertStatus(t, rec, http.StatusBadRequest)
+
+	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"title":"Format Book Renamed"}`)))
+	assertStatus(t, rec, http.StatusOK)
+	untouched := decodeJSON[Book](t, rec)
+	if untouched.Meta.Format != "md" {
+		t.Fatalf("format = %q, want md left alone when the PATCH omits it", untouched.Meta.Format)
+	}
+
+	// The switch is reversible: nothing about going to md is one-way.
+	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"format":"txt"}`)))
+	assertStatus(t, rec, http.StatusOK)
+	if reverted := decodeJSON[Book](t, rec); reverted.Meta.Format != "txt" {
+		t.Fatalf("format = %q, want txt after switching back", reverted.Meta.Format)
+	}
+}
+
 func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Identifiers Book", "identifiers/layer", "identifiers.txt", "body")

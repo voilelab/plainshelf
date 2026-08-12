@@ -60,6 +60,26 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 | `sources/{source-id}/meta.json` | Source-level metadata |
 | `sources/{source-id}/assets/` | Optional illustrations this source's text references |
 
+### Book format
+
+`book.json` records a `format` of either `txt` or `md`. It is not a file type —
+the text is stored in `source.txt` either way — it only decides whether the
+reader parses the content as Markdown or shows it verbatim.
+
+Importing sets it by guessing: a `.md` upload becomes `md`, anything else
+becomes `txt`, and an EPUB takes the format from the layout you chose. A guess
+can be wrong, most often when a `.txt` file happens to contain Markdown, so the
+format is editable afterwards on the book's **Edit metadata** page.
+
+Switching it rewrites nothing but `book.json`, so it is always reversible: the
+book's text is untouched, and switching back restores the previous rendering.
+What it cannot do is add markup that was never written — an EPUB imported with
+the plain-text layout has no `## ` headings in its text, so marking it as `md`
+will not produce a chapter list. Re-import the EPUB for that.
+
+A book created through the API rather than an import has no `format` at all;
+that is read as plain text.
+
 ### Source assets
 
 Illustrations live in an `assets/` directory beside the text that references

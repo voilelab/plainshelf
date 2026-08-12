@@ -43,6 +43,7 @@ type UpdateBookRequest struct {
 	Language    *string            `json:"language"`
 	Comment     *string            `json:"comment"`
 	Star        *int               `json:"star"`
+	Format      *string            `json:"format"`
 	PublishedAt *util.JSONDate     `json:"published_at"`
 	Layer       *shelf.Layers      `json:"layer"`
 	Layers      *shelf.Layers      `json:"layers"`
@@ -255,6 +256,9 @@ func applyBookPatch(meta *shelf.BookMeta, req *UpdateBookRequest) {
 	}
 	if req.Star != nil {
 		meta.Star = *req.Star
+	}
+	if req.Format != nil {
+		meta.Format = *req.Format
 	}
 
 	meta.UpdatedAt = util.JSONTime(time.Now())

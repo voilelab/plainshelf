@@ -65,9 +65,9 @@ func isEPUBExt(ext string) bool {
 // It is not used for EPUB, whose stored format comes from the conversion strategy.
 func bookFormatFromFilename(filename string) string {
 	if strings.ToLower(filepath.Ext(filename)) == ".md" {
-		return "md"
+		return shelf.BookFormatMarkdown
 	}
-	return "txt"
+	return shelf.BookFormatText
 }
 
 // validateImportFileHeader returns the message shown to the client separately
