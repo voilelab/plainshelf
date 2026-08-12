@@ -68,7 +68,7 @@ test('derives reading progress using the same UTF-16 units as the reader', async
       await route.fulfill({
         status: 200,
         contentType: 'text/plain; charset=utf-8',
-        body: '😀😀'
+        body: '🍥🍥'
       });
     });
     await page.route('**/marks/**', async (route) => {

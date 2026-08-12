@@ -24,7 +24,7 @@ describe('book detail reading state', () => {
   });
 
   it('uses the same UTF-16 units as reader offsets for non-BMP content', () => {
-    const content = '😀😀';
+    const content = '🍥🍥';
     expect(content.length).toBe(4);
     expect(resolveReadingPercent({ char_offset: 2 }, content.length)).toBe(50);
   });
