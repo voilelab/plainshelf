@@ -187,7 +187,7 @@ function closeChapterModal(): void {
 }
 
 function onDocumentKeydown(event: KeyboardEvent): void {
-  if (isMobileReader.value || isSplitModalOpen.value || isChapterModalOpen.value || isFontModalOpen.value) {
+  if (isSplitModalOpen.value || isChapterModalOpen.value || isFontModalOpen.value) {
     return;
   }
   if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {

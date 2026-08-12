@@ -1,5 +1,19 @@
-import { describe, expect, it } from 'vitest';
-import { classifyReaderGesture, isInReaderCenter } from './mobileReaderGestures';
+import { afterEach, describe, expect, it } from 'vitest';
+import { classifyReaderGesture, isInReaderCenter, isReaderInteractiveTarget } from './mobileReaderGestures';
+
+const originalElement = globalThis.Element;
+
+class TestElement {
+  constructor(private readonly interactiveAncestor: string | null) {}
+
+  closest(selector: string): TestElement | null {
+    return this.interactiveAncestor && selector.includes(this.interactiveAncestor) ? this : null;
+  }
+}
+
+afterEach(() => {
+  Object.defineProperty(globalThis, 'Element', { configurable: true, value: originalElement });
+});
 
 describe('mobile reader gestures', () => {
   it('maps horizontal swipes to chapter navigation', () => {
@@ -25,5 +39,15 @@ describe('mobile reader gestures', () => {
     expect(isInReaderCenter({ clientX: 320, clientY: 640 }, bounds)).toBe(true);
     expect(isInReaderCenter({ clientX: 119, clientY: 440 }, bounds)).toBe(false);
     expect(isInReaderCenter({ clientX: 220, clientY: 641 }, bounds)).toBe(false);
+  });
+
+  it('treats code blocks and their descendants as interactive gesture targets', () => {
+    Object.defineProperty(globalThis, 'Element', { configurable: true, value: TestElement });
+
+    const codeBlock = new TestElement('.reader-md-code');
+    const codeChild = new TestElement('.reader-md-code');
+    expect(isReaderInteractiveTarget(codeBlock as unknown as EventTarget)).toBe(true);
+    expect(isReaderInteractiveTarget(codeChild as unknown as EventTarget)).toBe(true);
+    expect(isReaderInteractiveTarget(new TestElement(null) as unknown as EventTarget)).toBe(false);
   });
 });

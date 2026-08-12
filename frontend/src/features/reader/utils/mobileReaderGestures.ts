@@ -62,7 +62,7 @@ export function isReaderInteractiveTarget(target: EventTarget | null): boolean {
 
   return Boolean(
     target.closest(
-      'a, button, input, select, textarea, summary, [contenteditable="true"], [role="button"], [role="link"]'
+      'a, button, input, select, textarea, summary, .reader-md-code, [contenteditable="true"], [role="button"], [role="link"]'
     )
   );
 }

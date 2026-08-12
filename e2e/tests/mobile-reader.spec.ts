@@ -101,9 +101,27 @@ test('provides an immersive mobile reader without changing the desktop reader', 
     await page.waitForTimeout(4_100);
     await expect(mobileReader.locator('.mobile-reader-toolbar')).toBeVisible();
 
+    await page.keyboard.press('ArrowRight');
+    await expect(mobileReader.getByText('2 / 3')).toBeVisible();
+    await page.keyboard.press('ArrowLeft');
+    await expect(mobileReader.getByText('1 / 3')).toBeVisible();
+
+    const keyboardInput = mobileReader.locator('input[data-keyboard-guard]');
+    await mobileReader.evaluate((element) => {
+      const input = document.createElement('input');
+      input.dataset.keyboardGuard = 'true';
+      element.append(input);
+      input.focus();
+    });
+    await page.keyboard.press('ArrowRight');
+    await expect(mobileReader.getByText('1 / 3')).toBeVisible();
+    await keyboardInput.evaluate((element) => element.remove());
+
     await mobileReader.getByRole('button', { name: 'Choose reading font' }).click();
     const fontDialog = page.getByRole('dialog', { name: 'Reading font' });
     await expect(fontDialog).toBeVisible();
+    await page.keyboard.press('ArrowRight');
+    await expect(mobileReader.getByText('1 / 3')).toBeVisible();
     await fontDialog.getByRole('button', { name: 'Done' }).click();
     await expect(mobileReader.locator('.mobile-reader-toolbar')).toBeVisible();
     await dispatchTouch(mobileReader, [center, center], 6);
@@ -118,6 +136,22 @@ test('provides an immersive mobile reader without changing the desktop reader', 
     ], 2);
     await expect(mobileReader.getByText('2 / 3')).toBeVisible();
     await expect(mobileReader.getByRole('heading', { name: epubFixtureChapters[0] })).toBeVisible();
+
+    const codeBlock = mobileReader.locator('.reader-md-code');
+    await expect(codeBlock).toBeVisible();
+    await expect(codeBlock).toHaveCSS('touch-action', /^(?:manipulation|pan-x pan-y pinch-zoom)$/);
+    await expect.poll(() => codeBlock.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+    const codeBox = await codeBlock.boundingBox();
+    expect(codeBox).not.toBeNull();
+    await dispatchTouch(codeBlock, [
+      { x: codeBox!.x + codeBox!.width * 0.8, y: codeBox!.y + codeBox!.height / 2 },
+      { x: codeBox!.x + codeBox!.width * 0.2, y: codeBox!.y + codeBox!.height / 2 }
+    ], 11);
+    await expect(mobileReader.getByText('2 / 3')).toBeVisible();
+    await codeBlock.evaluate((element) => {
+      element.scrollLeft = element.scrollWidth;
+    });
+    await expect.poll(() => codeBlock.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
 
     await dispatchTouch(mobileReader, [
       { x: center.x, y: box!.y + box!.height * 0.75 },

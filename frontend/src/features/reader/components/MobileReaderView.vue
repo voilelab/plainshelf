@@ -420,6 +420,10 @@ onBeforeUnmount(() => {
   touch-action: pan-y pinch-zoom;
 }
 
+.mobile-reader-page :deep(.reader-md-code) {
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
 .mobile-reader-status {
   margin: auto;
   max-width: min(84vw, 560px);
