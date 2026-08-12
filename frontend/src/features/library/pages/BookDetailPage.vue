@@ -1,84 +1,157 @@
 <template>
   <section class="detail-shell">
-    <DeleteModal
-      :open="!!deleteTarget"
-      :item-name="deleteTarget?.title || id"
-      :description="DELETE_BOOK_DESCRIPTION"
-      :busy="deleting"
-      @cancel="cancelDelete"
-      @confirm="confirmDelete"
-    />
-    <div v-if="showImportedMessage" class="loading">Book imported successfully.</div>
-    <div v-if="showSavedMessage" class="loading">Metadata saved.</div>
-    <div v-if="actionError" class="error detail-error" role="alert">
-      <p>{{ actionError }}</p>
-      <button class="button" type="button" @click="dismissActionError">Dismiss</button>
-    </div>
-    <div v-if="loading" class="loading">Loading book detail...</div>
-    <div v-else-if="error" class="error detail-error" role="alert">
-      <p>{{ error }}</p>
-      <button class="button" type="button" @click="fetchDetail">Retry</button>
-    </div>
+    <div class="detail-container">
+      <DeleteModal
+        :open="!!deleteTarget"
+        :item-name="deleteTarget?.title || id"
+        :description="t('bookDetail.delete.description')"
+        :busy="deleting"
+        @cancel="cancelDelete"
+        @confirm="confirmDelete"
+      />
 
-    <article v-else-if="book" class="detail-panel">
-      <div class="detail-cover-col">
-        <BookCover
-          :book-id="book.id"
-          :title="book.title"
-          :authors="book.authors"
-          :cover-url="book.cover_url"
-          :read-only="readOnly"
-          @cover-changed="onCoverChanged"
-        />
+      <div v-if="showImportedMessage" class="loading detail-notice" role="status">
+        {{ t('bookDetail.messages.imported') }}
+      </div>
+      <div v-if="showSavedMessage" class="loading detail-notice" role="status">
+        {{ t('bookDetail.messages.saved') }}
+      </div>
+      <div v-if="actionError" class="error detail-error" role="alert">
+        <p>{{ actionError }}</p>
+        <button class="button" type="button" @click="dismissActionError">
+          {{ t('bookDetail.actions.dismiss') }}
+        </button>
+      </div>
+      <div v-if="loading" class="loading detail-notice">{{ t('bookDetail.loading') }}</div>
+      <div v-else-if="error" class="error detail-error" role="alert">
+        <p>{{ error }}</p>
+        <button class="button" type="button" @click="fetchDetail">{{ t('common.retry') }}</button>
       </div>
 
-      <div>
-        <BookDetail :book="book" :progress="progress" :current-source="currentSource" />
-        <div class="actions">
-          <button class="button primary" @click="goRead(id)">Read</button>
-          <button class="button" :disabled="downloading" @click="downloadBook(book)">
-            {{ downloading ? 'Downloading...' : 'Download' }}
-          </button>
-          <button v-if="canOpenBookFolder" class="button" @click="openBookFolder(id)">Open Folder</button>
-          <button
-            v-if="showOfflineDownloadButton"
-            class="button"
-            type="button"
-            :disabled="offlineDownloadDisabled"
-            @click="onOfflineDownloadClick"
-          >
-            {{ offlineDownloadButtonLabel }}
-          </button>
-          <button
-            v-if="!readOnly && currentSource"
-            class="button"
-            :disabled="refreshingStats"
-            @click="onRefreshStats"
-          >
-            {{ refreshingStats ? 'Updating...' : 'Update Stats' }}
-          </button>
-          <button v-if="!readOnly" class="button" @click="goEdit(id)">Edit metadata</button>
-          <button v-if="!readOnly" class="button" @click="goEditSources">Edit Sources</button>
-          <button v-if="!readOnly" class="button danger" :disabled="deleting" @click="onRequestDelete">
-            {{ deleting ? 'Moving...' : 'Move to Trash' }}
-          </button>
+      <article v-else-if="book" class="detail-panel">
+        <div class="detail-cover-col">
+          <BookCover
+            :key="book.id"
+            :book-id="book.id"
+            :title="book.title"
+            :authors="book.authors"
+            :cover-url="book.cover_url"
+            :read-only="readOnly"
+            @cover-changed="onCoverChanged"
+          />
         </div>
-        <p v-if="offlineDownloadError" class="error offline-download-error" role="alert">
-          {{ offlineDownloadError }}
-        </p>
-      </div>
-    </article>
+
+        <BookDetail :book="book" :progress="progress" :current-source="currentSource">
+          <template #reading>
+            <section class="reading-card" :aria-label="t('bookDetail.progress.sectionLabel')">
+              <div class="progress-copy">
+                <div>
+                  <p class="progress-eyebrow">{{ t('bookDetail.progress.eyebrow') }}</p>
+                  <p class="progress-status">{{ readingStatusLabel }}</p>
+                </div>
+                <strong class="progress-percent">{{ readingPercent }}%</strong>
+              </div>
+              <ProgressBar
+                :value="readingPercent"
+                :label="t('bookDetail.progress.label', { percent: readingPercent })"
+              />
+
+              <div class="primary-actions">
+                <button class="button primary read-button" type="button" @click="goRead(id)">
+                  {{ readingActionLabel }}
+                </button>
+                <button class="button" type="button" :disabled="downloading" @click="downloadBook(book)">
+                  {{ downloading ? t('bookDetail.actions.exporting') : t('bookDetail.actions.export') }}
+                </button>
+                <button
+                  v-if="showOfflineDownloadButton"
+                  class="button"
+                  type="button"
+                  :disabled="offlineDownloadDisabled"
+                  @click="onOfflineDownloadClick"
+                >
+                  {{ offlineDownloadButtonLabel }}
+                </button>
+
+                <DropdownMenuRoot v-if="showManagementMenu">
+                  <DropdownMenuTrigger class="button more-trigger" type="button">
+                    {{ t('bookDetail.actions.more') }}
+                    <span aria-hidden="true">···</span>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuPortal>
+                    <DropdownMenuContent class="reka-menu detail-actions-menu" align="end" :side-offset="6">
+                      <DropdownMenuItem
+                        v-if="!readOnly"
+                        class="reka-menu-item"
+                        @select="goEdit(id)"
+                      >
+                        {{ t('bookDetail.actions.editMetadata') }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-if="!readOnly"
+                        class="reka-menu-item"
+                        @select="goEditSources"
+                      >
+                        {{ t('bookDetail.actions.editSources') }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-if="!readOnly && currentSource"
+                        class="reka-menu-item"
+                        :disabled="refreshingStats"
+                        @select="onRefreshStats"
+                      >
+                        {{ refreshingStats ? t('bookDetail.actions.updatingStats') : t('bookDetail.actions.updateStats') }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-if="canOpenBookFolder"
+                        class="reka-menu-item"
+                        @select="openBookFolder(id)"
+                      >
+                        {{ t('bookDetail.actions.openFolder') }}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator v-if="!readOnly" class="detail-menu-separator" />
+                      <DropdownMenuItem
+                        v-if="!readOnly"
+                        class="reka-menu-item detail-menu-danger"
+                        :disabled="deleting"
+                        @select="onRequestDelete"
+                      >
+                        {{ deleting ? t('bookDetail.actions.movingToTrash') : t('bookDetail.actions.moveToTrash') }}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenuPortal>
+                </DropdownMenuRoot>
+              </div>
+
+              <p v-if="offlineDownloadError" class="offline-download-error" role="alert">
+                {{ offlineDownloadError }}
+              </p>
+            </section>
+          </template>
+        </BookDetail>
+      </article>
+    </div>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import {
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuRoot,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from 'reka-ui';
 import BookCover from '@/features/library/components/BookCover.vue';
 import BookDetail from '@/features/library/components/BookDetail.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
-import { DELETE_BOOK_DESCRIPTION, useBookActions } from '@/composables/useBookActions';
+import ProgressBar from '@/components/ProgressBar.vue';
+import { useBookActions } from '@/composables/useBookActions';
 import { useBookDetail } from '@/features/library/composables/useBookDetail';
+import { getReadingAction, normalizeReadingPercent } from '@/features/library/utils/bookDetail';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useOfflineDownload } from '@/composables/useOfflineDownload';
 import { useWriteAccess } from '@/composables/useWriteAccess';
@@ -98,7 +171,7 @@ const { t } = useI18n();
 const {
   book,
   progress,
-  currentSource: currentSource,
+  currentSource,
   loading,
   error,
   fetchDetail
@@ -119,15 +192,24 @@ const {
   confirmDelete,
   dismissActionError
 } = useBookActions({
-  // Back to the layer the deleted book lived in, not the unfiltered library.
   onDeleted: (deleted) => {
     void router.push(booksRouteForLayerPath(getLayerPath(deleted)));
   }
 });
 
-// Offline download to this device — mobile-only, and distinct from
-// useBookActions' `downloadBook`/`downloading` above, which export the book
-// content as a file. Do not conflate the two.
+const readingPercent = computed(() => normalizeReadingPercent(progress.value?.percent));
+const readingAction = computed(() => getReadingAction(progress.value?.percent));
+const readingActionLabel = computed(() => {
+  if (readingAction.value === 'continue') {
+    return t('bookDetail.actions.continueReading', { percent: readingPercent.value });
+  }
+  return t(`bookDetail.actions.${readingAction.value === 'reread' ? 'reread' : 'startReading'}`);
+});
+const readingStatusLabel = computed(() => t(`bookDetail.progress.${readingAction.value}`));
+const showManagementMenu = computed(() => !readOnly.value || canOpenBookFolder.value);
+
+// Saving content to a file and keeping an offline device copy are deliberately
+// separate actions. The labels in the template make that distinction explicit.
 const {
   state: offlineDownloadState,
   error: offlineDownloadError,
@@ -172,13 +254,13 @@ async function onRefreshStats(): Promise<void> {
     await bookshelfWriter().refreshSourceMeta(id.value, src.id);
     await fetchDetail();
   } catch (err) {
-    actionError.value = err instanceof Error ? err.message : 'Failed to update stats';
+    actionError.value = err instanceof Error ? err.message : t('bookDetail.errors.updateStats');
   } finally {
     refreshingStats.value = false;
   }
 }
 
-useDocumentTitle(() => ['Book', book.value?.title, 'PlainShelf']);
+useDocumentTitle(() => [t('bookDetail.documentTitle'), book.value?.title, 'PlainShelf']);
 
 function goEditSources(): void {
   if (readOnly.value) {
@@ -209,22 +291,32 @@ watch(id, () => {
 
 <style scoped>
 .detail-shell {
+  background: linear-gradient(145deg, #fbfaf7 0%, #f6f3ed 100%);
+  min-height: calc(100vh - 60px);
+  padding: 32px 28px 48px;
   width: 100%;
-  padding: 24px 28px 32px;
+  font-family: 'Noto Sans TC Variable', 'Noto Sans TC', 'Avenir Next', sans-serif;
+}
+
+.detail-container {
+  margin: 0 auto;
+  max-width: 1120px;
+  width: 100%;
 }
 
 .detail-panel {
-  display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
-  gap: 28px;
   align-items: start;
+  display: grid;
+  gap: clamp(28px, 4vw, 48px);
+  grid-template-columns: minmax(210px, 238px) minmax(0, 1fr);
   width: 100%;
 }
 
 .detail-cover-col {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  grid-area: auto;
+  min-width: 0;
+  position: sticky;
+  top: 92px;
 }
 
 .detail-error {
@@ -240,95 +332,167 @@ watch(id, () => {
   justify-self: start;
 }
 
-.actions {
-  margin-top: 6px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+.detail-notice {
+  margin-bottom: 18px;
 }
 
-.actions .button {
-  font-size: 18px;
-  font-weight: 600;
-  padding: 11px 18px;
-  border-radius: 10px;
-}
-
-.actions .button.primary {
-  padding-inline: 22px;
-}
-
-.button.danger {
-  background: var(--danger, #dc2626);
-  color: #fff;
-  border-color: var(--danger, #dc2626);
-}
-
-.button.danger:hover:not(:disabled) {
-  opacity: 0.85;
-}
-
-.detail-cover-col :deep(.cover-editor) {
-  gap: 12px;
-}
-
-.detail-cover-col :deep(.detail-cover) {
-  width: 100%;
-  height: 420px;
+.reading-card {
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid #e1ddd4;
   border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(61, 50, 35, 0.055);
+  display: grid;
+  gap: 12px;
+  padding: 17px 18px 18px;
 }
 
-.detail-cover-col :deep(.cover-button-row) {
-  gap: 10px;
+.progress-copy {
+  align-items: end;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-.detail-cover-col :deep(.cover-btn) {
+.progress-eyebrow,
+.progress-status {
+  margin: 0;
+}
+
+.progress-eyebrow {
+  color: #788391;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.progress-status {
+  color: #283544;
+  font-size: 16px;
+  font-weight: 720;
+  margin-top: 2px;
+}
+
+.progress-percent {
+  color: #556273;
   font-size: 18px;
-  font-weight: 600;
-  padding: 10px 12px;
+}
+
+.reading-card :deep(.progress-bar) {
+  --surface-muted: #e8e4dc;
+  height: 7px;
+}
+
+.primary-actions {
+  align-items: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 2px;
+}
+
+.primary-actions .button {
+  align-items: center;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 680;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 15px;
+}
+
+.read-button {
+  min-width: 172px;
+}
+
+.more-trigger {
+  gap: 8px;
+}
+
+.detail-actions-menu {
+  min-width: 210px;
+}
+
+.detail-actions-menu .reka-menu-item {
+  min-height: 44px;
+}
+
+.detail-menu-separator {
+  border-top: 1px solid var(--border);
+  margin: 5px 4px;
+}
+
+.detail-menu-danger {
+  color: var(--danger, #cf3d3d);
+}
+
+.offline-download-error {
+  color: #991b1b;
+  font-size: 13px;
+  margin: 0;
 }
 
 @media (max-width: 768px) {
   .detail-shell {
-    padding: 12px 0 24px;
+    min-height: calc(100vh - 54px);
+    padding: 22px 16px 36px;
   }
 
   .detail-panel {
-    grid-template-columns: 1fr;
-    gap: 18px;
+    display: grid;
+    gap: 18px 16px;
+    grid-template-areas:
+      'cover summary'
+      'reading reading'
+      'details details';
+    grid-template-columns: 112px minmax(0, 1fr);
   }
 
   .detail-cover-col {
-    width: 100%;
-    max-width: 220px;
-    margin-inline: auto;
+    grid-area: cover;
+    position: static;
   }
 
-  .detail-cover-col :deep(.detail-cover) {
-    height: auto;
-    aspect-ratio: 2 / 3;
+  .reading-card {
+    padding: 14px;
   }
 
-  .actions {
+  .primary-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
-  .actions .button {
-    font-size: 15px;
-    padding: 12px;
+  .primary-actions .button {
+    width: 100%;
   }
 
-  .actions .button.primary {
+  .read-button {
     grid-column: 1 / -1;
-    font-size: 20px;
-    padding: 15px;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .detail-panel {
+    grid-template-areas:
+      'summary'
+      'cover'
+      'reading'
+      'details';
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .actions .button.danger {
-    grid-column: 1 / -1;
+  .detail-cover-col {
+    justify-self: center;
+    width: 144px;
+  }
+
+  .primary-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .read-button {
+    grid-column: auto;
   }
 }
 </style>

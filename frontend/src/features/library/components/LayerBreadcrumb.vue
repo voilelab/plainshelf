@@ -1,5 +1,5 @@
 <template>
-  <nav class="layer-breadcrumb" aria-label="Book layer path">
+  <nav class="layer-breadcrumb" :aria-label="t('bookDetail.layerPath')">
     <template v-for="(item, index) in breadcrumbItems" :key="`${item.path}-${index}`">
       <RouterLink class="breadcrumb-item" :to="item.to">{{ item.label }}</RouterLink>
       <span v-if="index < breadcrumbItems.length - 1" class="breadcrumb-separator" aria-hidden="true">
@@ -13,8 +13,9 @@
 import { computed } from 'vue';
 import { RouterLink, type RouteLocationRaw } from 'vue-router';
 import { booksRouteForLayerPath, normalizeLayerInput } from '@/utils/layers';
+import { useI18n } from '@/i18n';
 
-const ROOT_LABEL = 'Root';
+const { t } = useI18n();
 
 const props = defineProps<{
   layers?: string | string[] | null;
@@ -30,7 +31,7 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
   const segments = normalizeLayerInput(props.layers);
   const items: BreadcrumbItem[] = [
     {
-      label: ROOT_LABEL,
+      label: t('bookDetail.root'),
       path: '',
       to: booksRouteForLayerPath('')
     }
@@ -85,5 +86,11 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
 .breadcrumb-separator {
   opacity: 0.48;
   font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .breadcrumb-item {
+    min-height: 44px;
+  }
 }
 </style>

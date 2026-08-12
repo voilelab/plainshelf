@@ -10,15 +10,15 @@
     />
     <ConfirmModal
       :open="showDropConfirmModal && !readOnly"
-      title="Update book cover?"
-      confirm-text="Update cover"
-      cancel-text="Cancel"
+      :title="t('bookDetail.cover.confirmTitle')"
+      :confirm-text="t('bookDetail.cover.confirm')"
+      :cancel-text="t('common.cancel')"
       :busy="coverBusy"
-      busy-text="Uploading..."
+      :busy-text="t('bookDetail.cover.uploading')"
       @cancel="cancelDroppedCover"
       @confirm="confirmDroppedCover"
     >
-      <p>Do you want to update the book cover?</p>
+      <p>{{ t('bookDetail.cover.confirmQuestion') }}</p>
       <p v-if="pendingCoverFile"><strong>{{ pendingCoverFile.name }}</strong></p>
       <p v-if="dropConfirmError" class="cover-modal-error" role="alert">{{ dropConfirmError }}</p>
     </ConfirmModal>
@@ -40,7 +40,7 @@
       />
       <div v-if="isDragOver || coverBusyAction === 'upload'" class="cover-drop-overlay">
         <div v-if="coverBusyAction === 'upload'" class="cover-spinner" aria-hidden="true"></div>
-        <span>{{ coverBusyAction === 'upload' ? 'Uploading cover...' : 'Drop image to update cover' }}</span>
+        <span>{{ coverBusyAction === 'upload' ? t('bookDetail.cover.uploading') : t('bookDetail.cover.dropHint') }}</span>
       </div>
     </div>
     <div v-if="!readOnly" class="cover-actions">
@@ -51,18 +51,31 @@
         accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif"
         @change="onCoverFileChange"
       />
-      <div class="cover-button-row">
-        <button class="button cover-btn" :disabled="coverBusy" @click="openPicker">
-          {{ coverBusy ? '...' : 'Upload' }}
-        </button>
-        <button class="button cover-btn" :disabled="coverBusy || !coverUrl" @click="removeCover">
-          Remove
-        </button>
-      </div>
-      <div class="cover-button-row">
-        <button class="button cover-btn" :disabled="coverBusy" @click="showGenerateModal = true">
-          Generate cover
-        </button>
+      <button
+        class="button cover-options-toggle"
+        type="button"
+        :aria-expanded="showCoverOptions"
+        aria-controls="book-cover-actions"
+        :disabled="coverBusy"
+        @click="showCoverOptions = !showCoverOptions"
+      >
+        {{ t('bookDetail.cover.options') }}
+        <span aria-hidden="true">{{ showCoverOptions ? '−' : '+' }}</span>
+      </button>
+      <div v-show="showCoverOptions" id="book-cover-actions" class="cover-action-tray">
+        <div class="cover-button-row">
+          <button class="button cover-btn" type="button" :disabled="coverBusy" @click="openPicker">
+            {{ coverBusy ? '…' : t('bookDetail.cover.upload') }}
+          </button>
+          <button class="button cover-btn" type="button" :disabled="coverBusy || !coverUrl" @click="removeCover">
+            {{ t('bookDetail.cover.remove') }}
+          </button>
+        </div>
+        <div class="cover-button-row">
+          <button class="button cover-btn" type="button" :disabled="coverBusy" @click="showGenerateModal = true">
+            {{ t('bookDetail.cover.generate') }}
+          </button>
+        </div>
       </div>
       <p v-if="coverStatus" class="cover-status" :class="{ error: coverError }">{{ coverStatus }}</p>
     </div>
@@ -75,6 +88,7 @@ import { bookshelfWriter } from '@/providers';
 import BookCoverImg from '@/components/BookCoverImg.vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import GenerateCoverModal from './GenerateCoverModal.vue';
+import { useI18n } from '@/i18n';
 
 const props = defineProps<{
   bookId: string;
@@ -90,7 +104,7 @@ const emit = defineEmits<{
 
 const allowedCoverMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const coverExtPattern = /\.(jpg|jpeg|png|webp|gif)$/i;
-const unsupportedCoverMessage = 'Only JPG, JPEG, PNG, WebP, and GIF are supported.';
+const { t } = useI18n();
 
 const coverInputRef = ref<HTMLInputElement | null>(null);
 const coverBusy = ref(false);
@@ -99,6 +113,7 @@ const coverStatus = ref('');
 const coverError = ref(false);
 const coverCacheKey = ref<number | undefined>(undefined);
 const showGenerateModal = ref(false);
+const showCoverOptions = ref(false);
 const showDropConfirmModal = ref(false);
 const isDragOver = ref(false);
 const pendingCoverFile = ref<File | null>(null);
@@ -123,7 +138,7 @@ function isSupportedCoverFile(file: File): boolean {
 }
 
 function showUnsupportedCoverError(): void {
-  coverStatus.value = unsupportedCoverMessage;
+  coverStatus.value = t('bookDetail.cover.unsupported');
   coverError.value = true;
 }
 
@@ -147,7 +162,7 @@ async function uploadCover(file: File): Promise<boolean> {
 
   coverBusy.value = true;
   coverBusyAction.value = 'upload';
-  coverStatus.value = 'Uploading cover...';
+  coverStatus.value = t('bookDetail.cover.uploading');
   coverError.value = false;
   dropConfirmError.value = '';
 
@@ -155,12 +170,14 @@ async function uploadCover(file: File): Promise<boolean> {
     await bookshelfWriter().uploadBookCover(props.bookId, file);
     coverCacheKey.value = Date.now();
     emit('cover-changed');
-    coverStatus.value = 'Cover updated.';
+    coverStatus.value = t('bookDetail.cover.updated');
     showDropConfirmModal.value = false;
     pendingCoverFile.value = null;
     return true;
   } catch (err) {
-    const message = err instanceof Error ? `Upload failed: ${err.message}` : 'Upload failed';
+    const message = err instanceof Error
+      ? t('bookDetail.cover.uploadFailedWithReason', { reason: err.message })
+      : t('bookDetail.cover.uploadFailed');
     coverStatus.value = message;
     coverError.value = true;
     if (showDropConfirmModal.value) {
@@ -277,16 +294,18 @@ async function removeCover(): Promise<void> {
 
   coverBusy.value = true;
   coverBusyAction.value = 'remove';
-  coverStatus.value = 'Removing cover...';
+  coverStatus.value = t('bookDetail.cover.removing');
   coverError.value = false;
 
   try {
     await bookshelfWriter().deleteBookCover(props.bookId);
     coverCacheKey.value = undefined;
     emit('cover-changed');
-    coverStatus.value = 'Cover removed.';
+    coverStatus.value = t('bookDetail.cover.removed');
   } catch (err) {
-    coverStatus.value = err instanceof Error ? `Remove failed: ${err.message}` : 'Remove failed';
+    coverStatus.value = err instanceof Error
+      ? t('bookDetail.cover.removeFailedWithReason', { reason: err.message })
+      : t('bookDetail.cover.removeFailed');
     coverError.value = true;
   } finally {
     coverBusy.value = false;
@@ -297,7 +316,7 @@ async function removeCover(): Promise<void> {
 function onGeneratedCoverSaved(): void {
   coverCacheKey.value = Date.now();
   emit('cover-changed');
-  coverStatus.value = 'Cover updated.';
+  coverStatus.value = t('bookDetail.cover.updated');
   coverError.value = false;
 }
 </script>
@@ -315,7 +334,8 @@ function onGeneratedCoverSaved(): void {
 
 .detail-cover {
   width: 100%;
-  height: 260px;
+  aspect-ratio: 2 / 3;
+  height: auto;
   object-fit: cover;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -356,6 +376,23 @@ function onGeneratedCoverSaved(): void {
 
 .cover-actions {
   display: grid;
+  gap: 8px;
+}
+
+.cover-options-toggle {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.66);
+  color: #596676;
+  display: flex;
+  font-size: 13px;
+  font-weight: 650;
+  justify-content: space-between;
+  min-height: 44px;
+  width: 100%;
+}
+
+.cover-action-tray {
+  display: grid;
   gap: 6px;
 }
 
@@ -367,7 +404,8 @@ function onGeneratedCoverSaved(): void {
 .cover-btn {
   flex: 1;
   font-size: 12px;
-  padding: 4px 8px;
+  min-height: 44px;
+  padding: 7px 8px;
 }
 
 .cover-file-input {
