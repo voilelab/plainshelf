@@ -492,54 +492,47 @@ func TestShelfMoveLayerRequiresExistingTarget(t *testing.T) {
 	}
 }
 
-func TestShelfRenameLayerOldNotExist(t *testing.T) {
-	tmpLib := path.Join(t.TempDir(), "shelf_test")
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
-
-	err := shelf.RenameLayer([]string{"nonexistent"}, []string{"anything"})
-	if err == nil {
-		t.Fatal("Expected error when renaming non-existent layer, got nil")
-	}
-}
-
-func TestShelfRenameLayerNewAlreadyExists(t *testing.T) {
-	tmpLib := path.Join(t.TempDir(), "shelf_test")
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
-
-	if err := shelf.NewLayer([]string{"layerA"}); err != nil {
-		t.Fatalf("Failed to create layerA: %v", err)
-	}
-	if err := shelf.NewLayer([]string{"layerB"}); err != nil {
-		t.Fatalf("Failed to create layerB: %v", err)
-	}
-
-	err := shelf.RenameLayer([]string{"layerA"}, []string{"layerB"})
-	if err == nil {
-		t.Fatal("Expected error when renaming to an already-existing layer, got nil")
-	}
-}
-
-func TestShelfRenameLayerInvalidOldName(t *testing.T) {
-	tmpLib := path.Join(t.TempDir(), "shelf_test")
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
-
-	err := shelf.RenameLayer([]string{"bad/name"}, []string{"newname"})
-	if err == nil {
-		t.Fatal("Expected error for invalid old layer name, got nil")
-	}
-}
-
-func TestShelfRenameLayerInvalidNewName(t *testing.T) {
-	tmpLib := path.Join(t.TempDir(), "shelf_test")
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
-
-	if err := shelf.NewLayer([]string{"validlayer"}); err != nil {
-		t.Fatalf("Failed to create layer: %v", err)
+func TestShelfRenameLayerRejectsBadArguments(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing [][]string
+		from, to []string
+	}{
+		{
+			name: "old layer does not exist",
+			from: []string{"nonexistent"}, to: []string{"anything"},
+		},
+		{
+			name:     "new name is already taken",
+			existing: [][]string{{"layerA"}, {"layerB"}},
+			from:     []string{"layerA"}, to: []string{"layerB"},
+		},
+		{
+			name: "old name is unsafe",
+			from: []string{"bad/name"}, to: []string{"newname"},
+		},
+		{
+			name:     "new name is unsafe",
+			existing: [][]string{{"validlayer"}},
+			from:     []string{"validlayer"}, to: []string{"bad/name"},
+		},
 	}
 
-	err := shelf.RenameLayer([]string{"validlayer"}, []string{"bad/name"})
-	if err == nil {
-		t.Fatal("Expected error for invalid new layer name, got nil")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpLib := path.Join(t.TempDir(), "shelf_test")
+			shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
+
+			for _, layer := range tt.existing {
+				if err := shelf.NewLayer(layer); err != nil {
+					t.Fatalf("Failed to create layer %v: %v", layer, err)
+				}
+			}
+
+			if err := shelf.RenameLayer(tt.from, tt.to); err == nil {
+				t.Fatalf("Expected RenameLayer(%v, %v) to fail, got nil", tt.from, tt.to)
+			}
+		})
 	}
 }
 
@@ -578,10 +571,10 @@ func TestShelfGetBookRefreshesWhenBookMetaChangesOnDisk(t *testing.T) {
 		t.Fatalf("Failed to marshal updated book meta: %v", err)
 	}
 
-	time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)))
 	if err := os.WriteFile(metaPath, updatedMetaBytes, 0o644); err != nil {
 		t.Fatalf("Failed to write updated book meta: %v", err)
 	}
+	shiftModTime(t, metaPath, 2*time.Second)
 
 	refreshedBook, err := shelf.GetBook("book-a82m")
 	if err != nil {
@@ -624,10 +617,10 @@ func TestShelfListBooksRefreshesStaleMetaAndDiscoversNewBookOnCacheMiss(t *testi
 	if err != nil {
 		t.Fatalf("Failed to marshal existing book meta: %v", err)
 	}
-	time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)))
 	if err := os.WriteFile(metaPath, updatedMetaBytes, 0o644); err != nil {
 		t.Fatalf("Failed to write existing book meta: %v", err)
 	}
+	shiftModTime(t, metaPath, 2*time.Second)
 
 	newBookPath := path.Join(tmpLib, booksFolder, "default", "test", "book-new.bookpkg")
 	if err := os.MkdirAll(newBookPath, 0o755); err != nil {

@@ -287,168 +287,143 @@ func TestOpenLayerDirectoryOpensFinderForLayerPath(t *testing.T) {
 	}
 }
 
-func TestReadReadHistoryReturnsEmptyWhenUnwritten(t *testing.T) {
-	app := &DesktopApp{readHistoryPath: filepath.Join(t.TempDir(), "read_history.json")}
+// The read history and the reading stats are two device documents over one
+// pair of helpers (readDeviceDocument/writeDeviceDocument), so they are held to
+// one set of expectations instead of two copies of the same test.
+type deviceDocument struct {
+	name        string
+	fileName    string
+	newApp      func(path string) *DesktopApp
+	read        func(*DesktopApp) (string, error)
+	write       func(*DesktopApp, string) error
+	stored      string
+	replacement string
+	valid       string
+}
 
-	doc, err := app.ReadReadHistory()
-	if err != nil {
-		t.Fatalf("ReadReadHistory: %v", err)
-	}
-	if doc != "" {
-		t.Fatalf("ReadReadHistory on a fresh profile = %q, want empty", doc)
+func deviceDocuments() []deviceDocument {
+	return []deviceDocument{
+		{
+			name:        "read history",
+			fileName:    "read_history.json",
+			newApp:      func(path string) *DesktopApp { return &DesktopApp{readHistoryPath: path} },
+			read:        (*DesktopApp).ReadReadHistory,
+			write:       (*DesktopApp).WriteReadHistory,
+			stored:      `{"version":1,"limit":100,"shelves":{"main":["book-1","book-2"]}}`,
+			replacement: `{"version":1,"limit":100,"shelves":{}}`,
+			valid:       `{"version":1,"limit":100,"shelves":{}}`,
+		},
+		{
+			name:        "reading stats",
+			fileName:    "reading_stats.json",
+			newApp:      func(path string) *DesktopApp { return &DesktopApp{readingStatsPath: path} },
+			read:        (*DesktopApp).ReadReadingStats,
+			write:       (*DesktopApp).WriteReadingStats,
+			stored:      `{"version":1,"shelves":{"main":{"2026-08-02":45}}}`,
+			replacement: `{"version":1,"shelves":{}}`,
+			valid:       `{"version":1,"shelves":{}}`,
+		},
 	}
 }
 
-func TestWriteAndReadReadHistoryRoundTrip(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "read_history.json")
-	app := &DesktopApp{readHistoryPath: path}
-	stored := `{"version":1,"limit":100,"shelves":{"main":["book-1","book-2"]}}`
+func TestDeviceDocumentReturnsEmptyWhenUnwritten(t *testing.T) {
+	for _, doc := range deviceDocuments() {
+		t.Run(doc.name, func(t *testing.T) {
+			app := doc.newApp(filepath.Join(t.TempDir(), doc.fileName))
 
-	if err := app.WriteReadHistory(stored); err != nil {
-		t.Fatalf("WriteReadHistory: %v", err)
-	}
-
-	doc, err := app.ReadReadHistory()
-	if err != nil {
-		t.Fatalf("ReadReadHistory: %v", err)
-	}
-	if doc != stored {
-		t.Fatalf("ReadReadHistory = %q, want %q", doc, stored)
-	}
-
-	// A second write replaces the document rather than appending to it, and
-	// leaves no temp file behind.
-	replacement := `{"version":1,"limit":100,"shelves":{}}`
-	if err := app.WriteReadHistory(replacement); err != nil {
-		t.Fatalf("WriteReadHistory (replace): %v", err)
-	}
-	doc, err = app.ReadReadHistory()
-	if err != nil {
-		t.Fatalf("ReadReadHistory (replace): %v", err)
-	}
-	if doc != replacement {
-		t.Fatalf("ReadReadHistory after replace = %q, want %q", doc, replacement)
-	}
-
-	entries, err := os.ReadDir(filepath.Dir(path))
-	if err != nil {
-		t.Fatalf("ReadDir: %v", err)
-	}
-	if len(entries) != 1 || entries[0].Name() != filepath.Base(path) {
-		t.Fatalf("unexpected files left in the data directory: %v", entries)
+			got, err := doc.read(app)
+			if err != nil {
+				t.Fatalf("read: %v", err)
+			}
+			if got != "" {
+				t.Fatalf("read on a fresh profile = %q, want empty", got)
+			}
+		})
 	}
 }
 
-func TestWriteReadHistoryRejectsInvalidDocuments(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "read_history.json")
-	app := &DesktopApp{readHistoryPath: path}
-	valid := `{"version":1,"limit":100,"shelves":{}}`
-	if err := app.WriteReadHistory(valid); err != nil {
-		t.Fatalf("WriteReadHistory: %v", err)
-	}
+func TestDeviceDocumentWriteAndReadRoundTrip(t *testing.T) {
+	for _, doc := range deviceDocuments() {
+		t.Run(doc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), doc.fileName)
+			app := doc.newApp(path)
 
-	if err := app.WriteReadHistory("not json"); err == nil {
-		t.Fatal("WriteReadHistory accepted a non-JSON document")
-	}
-	if err := app.WriteReadHistory(`{"pad":"` + strings.Repeat("x", maxDeviceDocumentBytes) + `"}`); err == nil {
-		t.Fatal("WriteReadHistory accepted an oversized document")
-	}
+			if err := doc.write(app, doc.stored); err != nil {
+				t.Fatalf("write: %v", err)
+			}
 
-	// A rejected write must not disturb the document already on disk.
-	doc, err := app.ReadReadHistory()
-	if err != nil {
-		t.Fatalf("ReadReadHistory: %v", err)
-	}
-	if doc != valid {
-		t.Fatalf("stored document after rejected writes = %q, want %q", doc, valid)
+			got, err := doc.read(app)
+			if err != nil {
+				t.Fatalf("read: %v", err)
+			}
+			if got != doc.stored {
+				t.Fatalf("read = %q, want %q", got, doc.stored)
+			}
+
+			// A second write replaces the document rather than appending to it,
+			// and leaves no temp file behind.
+			if err := doc.write(app, doc.replacement); err != nil {
+				t.Fatalf("write (replace): %v", err)
+			}
+			got, err = doc.read(app)
+			if err != nil {
+				t.Fatalf("read (replace): %v", err)
+			}
+			if got != doc.replacement {
+				t.Fatalf("read after replace = %q, want %q", got, doc.replacement)
+			}
+
+			entries, err := os.ReadDir(filepath.Dir(path))
+			if err != nil {
+				t.Fatalf("ReadDir: %v", err)
+			}
+			if len(entries) != 1 || entries[0].Name() != filepath.Base(path) {
+				t.Fatalf("unexpected files left in the data directory: %v", entries)
+			}
+		})
 	}
 }
 
-func TestReadHistoryFailsWithoutStoragePath(t *testing.T) {
-	app := &DesktopApp{}
+func TestDeviceDocumentWriteRejectsInvalidDocuments(t *testing.T) {
+	for _, doc := range deviceDocuments() {
+		t.Run(doc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), doc.fileName)
+			app := doc.newApp(path)
+			if err := doc.write(app, doc.valid); err != nil {
+				t.Fatalf("write: %v", err)
+			}
 
-	if _, err := app.ReadReadHistory(); err == nil {
-		t.Fatal("ReadReadHistory succeeded before startup configured a path")
-	}
-	if err := app.WriteReadHistory(`{}`); err == nil {
-		t.Fatal("WriteReadHistory succeeded before startup configured a path")
+			if err := doc.write(app, "not json"); err == nil {
+				t.Fatal("write accepted a non-JSON document")
+			}
+			if err := doc.write(app, `{"pad":"`+strings.Repeat("x", maxDeviceDocumentBytes)+`"}`); err == nil {
+				t.Fatal("write accepted an oversized document")
+			}
+
+			// A rejected write must not disturb the document already on disk.
+			got, err := doc.read(app)
+			if err != nil {
+				t.Fatalf("read: %v", err)
+			}
+			if got != doc.valid {
+				t.Fatalf("stored document after rejected writes = %q, want %q", got, doc.valid)
+			}
+		})
 	}
 }
 
-func TestReadReadingStatsReturnsEmptyWhenUnwritten(t *testing.T) {
-	app := &DesktopApp{readingStatsPath: filepath.Join(t.TempDir(), "reading_stats.json")}
+func TestDeviceDocumentFailsWithoutStoragePath(t *testing.T) {
+	for _, doc := range deviceDocuments() {
+		t.Run(doc.name, func(t *testing.T) {
+			app := &DesktopApp{}
 
-	doc, err := app.ReadReadingStats()
-	if err != nil {
-		t.Fatalf("ReadReadingStats: %v", err)
-	}
-	if doc != "" {
-		t.Fatalf("ReadReadingStats on a fresh profile = %q, want empty", doc)
-	}
-}
-
-func TestWriteAndReadReadingStatsRoundTrip(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "reading_stats.json")
-	app := &DesktopApp{readingStatsPath: path}
-	stored := `{"version":1,"shelves":{"main":{"2026-08-02":45}}}`
-
-	if err := app.WriteReadingStats(stored); err != nil {
-		t.Fatalf("WriteReadingStats: %v", err)
-	}
-
-	doc, err := app.ReadReadingStats()
-	if err != nil {
-		t.Fatalf("ReadReadingStats: %v", err)
-	}
-	if doc != stored {
-		t.Fatalf("ReadReadingStats = %q, want %q", doc, stored)
-	}
-
-	// A second write replaces the document rather than appending to it, and
-	// leaves no temp file behind.
-	replacement := `{"version":1,"shelves":{}}`
-	if err := app.WriteReadingStats(replacement); err != nil {
-		t.Fatalf("WriteReadingStats (replace): %v", err)
-	}
-	doc, err = app.ReadReadingStats()
-	if err != nil {
-		t.Fatalf("ReadReadingStats (replace): %v", err)
-	}
-	if doc != replacement {
-		t.Fatalf("ReadReadingStats after replace = %q, want %q", doc, replacement)
-	}
-
-	entries, err := os.ReadDir(filepath.Dir(path))
-	if err != nil {
-		t.Fatalf("ReadDir: %v", err)
-	}
-	if len(entries) != 1 || entries[0].Name() != filepath.Base(path) {
-		t.Fatalf("unexpected files left in the data directory: %v", entries)
-	}
-}
-
-func TestWriteReadingStatsRejectsInvalidDocuments(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "reading_stats.json")
-	app := &DesktopApp{readingStatsPath: path}
-	valid := `{"version":1,"shelves":{}}`
-	if err := app.WriteReadingStats(valid); err != nil {
-		t.Fatalf("WriteReadingStats: %v", err)
-	}
-
-	if err := app.WriteReadingStats("not json"); err == nil {
-		t.Fatal("WriteReadingStats accepted a non-JSON document")
-	}
-	if err := app.WriteReadingStats(`{"pad":"` + strings.Repeat("x", maxDeviceDocumentBytes) + `"}`); err == nil {
-		t.Fatal("WriteReadingStats accepted an oversized document")
-	}
-
-	// A rejected write must not disturb the document already on disk.
-	doc, err := app.ReadReadingStats()
-	if err != nil {
-		t.Fatalf("ReadReadingStats: %v", err)
-	}
-	if doc != valid {
-		t.Fatalf("stored document after rejected writes = %q, want %q", doc, valid)
+			if _, err := doc.read(app); err == nil {
+				t.Fatal("read succeeded before startup configured a path")
+			}
+			if err := doc.write(app, `{}`); err == nil {
+				t.Fatal("write succeeded before startup configured a path")
+			}
+		})
 	}
 }
 

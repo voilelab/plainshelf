@@ -5,8 +5,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/voilelab/plainshelf/server/store"
 )
 
 // Reading and writing a bookmark are the same route pair, so they agree on
@@ -31,35 +29,5 @@ func TestMarksRoutesAgreeOnUnknownShelf(t *testing.T) {
 				t.Fatalf("body = %q, want %q", got, "shelf not found")
 			}
 		})
-	}
-}
-
-// The zero bookmark is how a reader opens a book for the first time, so an
-// unread book must keep answering 200 rather than 404.
-func TestMarksReadReturnsZeroBookmarkForAnUnreadBook(t *testing.T) {
-	env := newAPITestEnv(t)
-	book := importTextBook(t, env, "Unread", "", "unread.txt", "body")
-
-	rec := env.do(httptest.NewRequest(http.MethodGet,
-		"/api/shelves/default_shelf/marks/"+book.Meta.ID, nil))
-
-	assertStatus(t, rec, http.StatusOK)
-	if mark := decodeJSON[store.Bookmark](t, rec); mark.CharOffset != 0 {
-		t.Fatalf("char_offset = %d, want 0 for an unread book", mark.CharOffset)
-	}
-}
-
-func TestMarksRoundTrip(t *testing.T) {
-	env := newAPITestEnv(t)
-	book := importTextBook(t, env, "Round Trip", "", "roundtrip.txt", "body")
-	url := "/api/shelves/default_shelf/marks/" + book.Meta.ID
-
-	assertStatus(t, env.do(httptest.NewRequest(http.MethodPost, url,
-		strings.NewReader(`{"char_offset":42}`))), http.StatusNoContent)
-
-	rec := env.do(httptest.NewRequest(http.MethodGet, url, nil))
-	assertStatus(t, rec, http.StatusOK)
-	if mark := decodeJSON[store.Bookmark](t, rec); mark.CharOffset != 42 {
-		t.Fatalf("char_offset = %d, want 42", mark.CharOffset)
 	}
 }

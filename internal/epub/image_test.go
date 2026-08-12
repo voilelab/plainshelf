@@ -141,33 +141,8 @@ func TestKeepImagesDisabledLeavesTheOldBehaviour(t *testing.T) {
 	}
 }
 
-// A plain-text book has no image syntax, so the strategy must not ask for
-// illustrations even when the setting says to keep them.
-func TestPlainPresetNeverKeepsImages(t *testing.T) {
-	keep := true
-	plain := Strategy{Preset: PresetPlain, KeepImages: &keep}
-	if plain.ParseOptions().KeepImages {
-		t.Fatal("plain preset asked to keep images")
-	}
-
-	markdown := Strategy{Preset: PresetMarkdown, KeepImages: &keep}
-	if !markdown.ParseOptions().KeepImages {
-		t.Fatal("markdown preset did not ask to keep images")
-	}
-}
-
-// A strategy stored before keep_images existed must keep illustrations rather
-// than inherit a false zero value.
-func TestUnspecifiedKeepImagesDefaultsToOn(t *testing.T) {
-	if !(Strategy{Preset: PresetMarkdown}).ParseOptions().KeepImages {
-		t.Fatal("an unspecified keep_images did not default to on")
-	}
-
-	off := false
-	if (Strategy{Preset: PresetMarkdown, KeepImages: &off}).ParseOptions().KeepImages {
-		t.Fatal("an explicit keep_images=false was ignored")
-	}
-}
+// Strategy.ParseOptions() derivations, including the keep_images defaulting,
+// live in TestStrategyDerivedValues (render_test.go).
 
 func TestKeepImagesRespectsThePerImageBudget(t *testing.T) {
 	entries := illustratedEntries()

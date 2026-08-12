@@ -15,147 +15,117 @@ import (
 	"github.com/voilelab/plainshelf/internal/fsutil"
 )
 
-func TestGetBook(t *testing.T) {
+// testdataFS opens the committed testdata tree read-only. Write-path tests must
+// use newBookFromFixture instead, which copies the fixture into a temp dir.
+func testdataFS(t *testing.T) fsutil.FS {
+	t.Helper()
+
 	testdataRoot, err := os.OpenRoot("testdata")
 	if err != nil {
 		t.Fatalf("Failed to open testdata root: %v", err)
 	}
-	defer testdataRoot.Close()
+	t.Cleanup(func() { testdataRoot.Close() })
 
-	rootFS := fsutil.NewRootFS(testdataRoot)
+	return fsutil.NewRootFS(testdataRoot)
+}
+
+// The getters all read one committed fixture, so they share a single open
+// rather than repeating the same preamble five times.
+func TestOpenBookReadsTheFixture(t *testing.T) {
+	const sourceID = "20260315-a1"
+
+	rootFS := testdataFS(t)
 	book, err := openBook(rootFS, newLoggerForTest(), "book-a82m")
 	if err != nil {
 		t.Fatalf("Failed to open book: %v", err)
 	}
 
-	expectedTitle := "Book Title"
-	if book.Title() != expectedTitle {
-		t.Errorf("Expected book title '%s', got '%s'", expectedTitle, book.Title())
-	}
+	t.Run("title", func(t *testing.T) {
+		if expected := "Book Title"; book.Title() != expected {
+			t.Errorf("Expected book title '%s', got '%s'", expected, book.Title())
+		}
+	})
 
-	_, err = openBook(rootFS, newLoggerForTest(), "nonexistent-book")
-	if err == nil {
-		t.Fatalf("Expected error when getting nonexistent book, but got none")
-	}
+	t.Run("a missing book is an error", func(t *testing.T) {
+		if _, err := openBook(rootFS, newLoggerForTest(), "nonexistent-book"); err == nil {
+			t.Fatalf("Expected error when getting nonexistent book, but got none")
+		}
+	})
+
+	t.Run("cover", func(t *testing.T) {
+		coverData, _, err := book.OpenCover()
+		if err != nil {
+			t.Fatalf("Failed to get book cover: %v", err)
+		}
+
+		expectedCoverData := []byte{0x89, 0x50, 0x4E, 0x47} // PNG file signature
+		if len(coverData) < 4 || !bytes.Equal(coverData[:4], expectedCoverData) {
+			t.Errorf("Expected cover data to start with PNG signature, got %v", coverData[:4])
+		}
+	})
+
+	t.Run("source by id", func(t *testing.T) {
+		source, err := book.GetSource(sourceID)
+		if err != nil {
+			t.Fatalf("Failed to get source: %v", err)
+		}
+		if source.ID() != sourceID {
+			t.Errorf("Expected source ID '%s', got '%s'", sourceID, source.ID())
+		}
+
+		if _, err := book.GetSource("nonexistent-source"); err == nil {
+			t.Fatalf("Expected error when getting nonexistent source, but got none")
+		}
+	})
+
+	t.Run("current source", func(t *testing.T) {
+		if got := book.CurrentSource(); got != sourceID {
+			t.Errorf("Expected current source ID '%s', got '%s'", sourceID, got)
+		}
+	})
+
+	t.Run("list sources", func(t *testing.T) {
+		sources, err := book.ListSource()
+		if err != nil {
+			t.Fatalf("Failed to list sources: %v", err)
+		}
+
+		if len(sources) != 1 {
+			t.Fatalf("Expected 1 source, got %d", len(sources))
+		}
+		if sources[0].ID() != sourceID {
+			t.Errorf("Expected source ID '%s', got '%s'", sourceID, sources[0].ID())
+		}
+	})
 }
 
-func TestGetBookCover(t *testing.T) {
-	testdataRoot, err := os.OpenRoot("testdata")
-	if err != nil {
-		t.Fatalf("Failed to open testdata root: %v", err)
-	}
-	defer testdataRoot.Close()
+// newTestBook creates a book in a fresh temporary library. It returns the book,
+// the FS rooted at that library, and the library's path; the book's directory is
+// path.Join(tmpLib, bookID).
+func newTestBook(t *testing.T, bookID, title string) (*Book, fsutil.FS, string) {
+	t.Helper()
 
-	rootFS := fsutil.NewRootFS(testdataRoot)
-	book, err := openBook(rootFS, newLoggerForTest(), "book-a82m")
-	if err != nil {
-		t.Fatalf("Failed to open book: %v", err)
-	}
-
-	coverData, _, err := book.OpenCover()
-	if err != nil {
-		t.Fatalf("Failed to get book cover: %v", err)
-	}
-
-	expectedCoverData := []byte{0x89, 0x50, 0x4E, 0x47} // PNG file signature
-	if len(coverData) < 4 || !bytes.Equal(coverData[:4], expectedCoverData) {
-		t.Errorf("Expected cover data to start with PNG signature, got %v", coverData[:4])
-	}
-}
-
-func TestGetSource(t *testing.T) {
-	testdataRoot, err := os.OpenRoot("testdata")
-	if err != nil {
-		t.Fatalf("Failed to open testdata root: %v", err)
-	}
-	defer testdataRoot.Close()
-
-	rootFS := fsutil.NewRootFS(testdataRoot)
-	book, err := openBook(rootFS, newLoggerForTest(), "book-a82m")
-	if err != nil {
-		t.Fatalf("Failed to open book: %v", err)
-	}
-
-	source, err := book.GetSource("20260315-a1")
-	if err != nil {
-		t.Fatalf("Failed to get source: %v", err)
-	}
-
-	expectedSourceID := "20260315-a1"
-	if source.ID() != expectedSourceID {
-		t.Errorf("Expected source ID '%s', got '%s'", expectedSourceID, source.ID())
-	}
-
-	_, err = book.GetSource("nonexistent-source")
-	if err == nil {
-		t.Fatalf("Expected error when getting nonexistent source, but got none")
-	}
-}
-
-func TestGetCurrentSource(t *testing.T) {
-	testdataRoot, err := os.OpenRoot("testdata")
-	if err != nil {
-		t.Fatalf("Failed to open testdata root: %v", err)
-	}
-	defer testdataRoot.Close()
-
-	rootFS := fsutil.NewRootFS(testdataRoot)
-	book, err := openBook(rootFS, newLoggerForTest(), "book-a82m")
-	if err != nil {
-		t.Fatalf("Failed to open book: %v", err)
-	}
-
-	currentSourceID := book.CurrentSource()
-	expectedSourceID := "20260315-a1"
-	if currentSourceID != expectedSourceID {
-		t.Errorf("Expected current source ID '%s', got '%s'", expectedSourceID, currentSourceID)
-	}
-}
-
-func TestListSources(t *testing.T) {
-	testdataRoot, err := os.OpenRoot("testdata")
-	if err != nil {
-		t.Fatalf("Failed to open testdata root: %v", err)
-	}
-	defer testdataRoot.Close()
-
-	rootFS := fsutil.NewRootFS(testdataRoot)
-	book, err := openBook(rootFS, newLoggerForTest(), "book-a82m")
-	if err != nil {
-		t.Fatalf("Failed to open book: %v", err)
-	}
-
-	sources, err := book.ListSource()
-	if err != nil {
-		t.Fatalf("Failed to list sources: %v", err)
-	}
-
-	if len(sources) != 1 {
-		t.Fatalf("Expected 1 source, got %d", len(sources))
-	}
-
-	expectedSourceID := "20260315-a1"
-	if sources[0].ID() != expectedSourceID {
-		t.Errorf("Expected source ID '%s', got '%s'", expectedSourceID, sources[0].ID())
-	}
-}
-
-func TestNewBook(t *testing.T) {
-	tmpLib := path.Join(t.TempDir())
+	tmpLib := t.TempDir()
 	tmpRoot, err := os.OpenRoot(tmpLib)
 	if err != nil {
 		t.Fatalf("Failed to open temporary root: %v", err)
 	}
-	defer tmpRoot.Close()
-
-	bookID := "test-book-a38j"
-	title := "Test Book"
+	t.Cleanup(func() { tmpRoot.Close() })
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
 	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
 	if err != nil {
 		t.Fatalf("Failed to create new book: %v", err)
 	}
+
+	return book, rootFS, tmpLib
+}
+
+func TestNewBook(t *testing.T) {
+	bookID := "test-book-a38j"
+	title := "Test Book"
+
+	book, _, tmpLib := newTestBook(t, bookID, title)
 
 	if book.ID() != bookID {
 		t.Errorf("Expected book ID '%s', got '%s'", bookID, book.ID())
@@ -172,44 +142,8 @@ func TestNewBook(t *testing.T) {
 	}
 }
 
-func TestSetCover(t *testing.T) {
-	tmpLib := path.Join(t.TempDir())
-	tmpRoot, err := os.OpenRoot(tmpLib)
-	if err != nil {
-		t.Fatalf("Failed to open temporary root: %v", err)
-	}
-	defer tmpRoot.Close()
-
-	bookID := "test-book-a38j"
-	title := "Test Book"
-
-	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
-	if err != nil {
-		t.Fatalf("Failed to create new book: %v", err)
-	}
-
-	coverData := []byte{0x89, 0x50, 0x4E, 0x47} // PNG file signature
-	err = book.SetCover(coverData, ".png")
-	if err != nil {
-		t.Fatalf("Failed to set book cover: %v", err)
-	}
-
-	retrievedCoverData, _, err := book.OpenCover()
-	if err != nil {
-		t.Fatalf("Failed to get book cover: %v", err)
-	}
-
-	if !bytes.Equal(retrievedCoverData, coverData) {
-		t.Errorf("Expected retrieved cover data to match set cover data, got %v", retrievedCoverData)
-	}
-
-	// Check if the cover file was created
-	coverPath := path.Join(tmpLib, bookID, "cover.png")
-	if _, err := os.Open(coverPath); err != nil {
-		t.Fatalf("Expected cover file to be created, but got error: %v", err)
-	}
-}
+// The cover write/read round trip is covered by
+// TestSetCoverKeepsFileWhenExtensionUnchanged and TestDeleteCoverAndETag.
 
 // failWriteFS fails WriteFile for paths matching a predicate, standing in for a
 // write that is interrupted partway through.
@@ -245,18 +179,8 @@ func assertNoTempFiles(t *testing.T, dir string) {
 func newBookForCoverTest(t *testing.T) (*Book, string, string) {
 	t.Helper()
 
-	tmpLib := t.TempDir()
-	tmpRoot, err := os.OpenRoot(tmpLib)
-	if err != nil {
-		t.Fatalf("OpenRoot: %v", err)
-	}
-	t.Cleanup(func() { tmpRoot.Close() })
-
 	const bookID = "cover-book"
-	book, err := createBook(fsutil.NewRootFS(tmpRoot), newLoggerForTest(), bookID, bookID, "Cover Book")
-	if err != nil {
-		t.Fatalf("createBook: %v", err)
-	}
+	book, _, tmpLib := newTestBook(t, bookID, "Cover Book")
 
 	return book, tmpLib, path.Join(tmpLib, bookID)
 }
@@ -422,18 +346,8 @@ func TestSetCoverKeepsFileWhenExtensionUnchanged(t *testing.T) {
 }
 
 func TestDeleteCoverAndETag(t *testing.T) {
-	tmpLib := t.TempDir()
-	tmpRoot, err := os.OpenRoot(tmpLib)
-	if err != nil {
-		t.Fatalf("OpenRoot: %v", err)
-	}
-	defer tmpRoot.Close()
+	book, _, tmpLib := newTestBook(t, "test-book", "Test Book")
 
-	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := createBook(rootFS, newLoggerForTest(), "test-book", "test-book", "Test Book")
-	if err != nil {
-		t.Fatalf("createBook: %v", err)
-	}
 	if etag := book.CoverETag(); etag != "" {
 		t.Fatalf("ETag without cover = %q, want empty", etag)
 	}
@@ -482,21 +396,10 @@ func TestNewLayersFromString(t *testing.T) {
 }
 
 func TestNewSource(t *testing.T) {
-	tmpLib := path.Join(t.TempDir())
-	tmpRoot, err := os.OpenRoot(tmpLib)
-	if err != nil {
-		t.Fatalf("Failed to open temporary root: %v", err)
-	}
-	defer tmpRoot.Close()
-
 	bookID := "test-book-a38j"
 	title := "Test Book"
 
-	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
-	if err != nil {
-		t.Fatalf("Failed to create new book: %v", err)
-	}
+	book, _, _ := newTestBook(t, bookID, title)
 
 	srcText := "This is the content of the source."
 	source, err := book.NewSource(bytes.NewReader([]byte(srcText)))
@@ -529,19 +432,7 @@ func TestNewSource(t *testing.T) {
 // second-granularity timestamp, so without collision handling these would all
 // resolve to the same folder.
 func TestNewSourceSameSecond(t *testing.T) {
-	tmpLib := path.Join(t.TempDir())
-	tmpRoot, err := os.OpenRoot(tmpLib)
-	if err != nil {
-		t.Fatalf("Failed to open temporary root: %v", err)
-	}
-	defer tmpRoot.Close()
-
-	bookID := "test-book-a38j"
-	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, "Test Book")
-	if err != nil {
-		t.Fatalf("Failed to create new book: %v", err)
-	}
+	book, _, _ := newTestBook(t, "test-book-a38j", "Test Book")
 
 	const n = 5
 	wantContent := make(map[string]string, n)
@@ -582,21 +473,10 @@ func TestNewSourceSameSecond(t *testing.T) {
 }
 
 func TestNewSourceNil(t *testing.T) {
-	tmpLib := path.Join(t.TempDir())
-	tmpRoot, err := os.OpenRoot(tmpLib)
-	if err != nil {
-		t.Fatalf("Failed to open temporary root: %v", err)
-	}
-	defer tmpRoot.Close()
-
 	bookID := "test-book-a38j"
 	title := "Test Book"
 
-	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
-	if err != nil {
-		t.Fatalf("Failed to create new book: %v", err)
-	}
+	book, _, _ := newTestBook(t, bookID, title)
 
 	source, err := book.NewSource(nil)
 	if err != nil {
@@ -628,21 +508,10 @@ func TestNewSourceNil(t *testing.T) {
 }
 
 func TestDeleteSource(t *testing.T) {
-	tmpLib := path.Join(t.TempDir())
-	tmpRoot, err := os.OpenRoot(tmpLib)
-	if err != nil {
-		t.Fatalf("Failed to open temporary root: %v", err)
-	}
-	defer tmpRoot.Close()
-
 	bookID := "test-book-a38j"
 	title := "Test Book"
 
-	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
-	if err != nil {
-		t.Fatalf("Failed to create new book: %v", err)
-	}
+	book, _, _ := newTestBook(t, bookID, title)
 
 	source, err := book.NewSource(bytes.NewReader([]byte("some content")))
 	if err != nil {
@@ -662,41 +531,19 @@ func TestDeleteSource(t *testing.T) {
 }
 
 func TestDeleteSourceNonexistent(t *testing.T) {
-	tmpLib := path.Join(t.TempDir())
-	tmpRoot, err := os.OpenRoot(tmpLib)
-	if err != nil {
-		t.Fatalf("Failed to open temporary root: %v", err)
-	}
-	defer tmpRoot.Close()
+	book, _, _ := newTestBook(t, "test-book-a38j", "Test Book")
 
-	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := createBook(rootFS, newLoggerForTest(), "test-book-a38j", "test-book-a38j", "Test Book")
-	if err != nil {
-		t.Fatalf("Failed to create new book: %v", err)
-	}
-
-	err = book.DeleteSource("nonexistent-source")
+	err := book.DeleteSource("nonexistent-source")
 	if err == nil {
 		t.Fatal("Expected error when deleting nonexistent source, but got none")
 	}
 }
 
 func TestSetCurrentSource(t *testing.T) {
-	tmpLib := path.Join(t.TempDir())
-	tmpRoot, err := os.OpenRoot(tmpLib)
-	if err != nil {
-		t.Fatalf("Failed to open temporary root: %v", err)
-	}
-	defer tmpRoot.Close()
-
 	bookID := "test-book-a38j"
 	title := "Test Book"
 
-	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
-	if err != nil {
-		t.Fatalf("Failed to create new book: %v", err)
-	}
+	book, _, _ := newTestBook(t, bookID, title)
 
 	srcText := "This is the content of the source."
 	source, err := book.NewSource(bytes.NewReader([]byte(srcText)))
@@ -740,22 +587,20 @@ func TestSetCurrentSource(t *testing.T) {
 }
 
 func TestSetMetaMarksOtherInstanceStale(t *testing.T) {
-	tmpLib := path.Join(t.TempDir())
-	tmpRoot, err := os.OpenRoot(tmpLib)
-	if err != nil {
-		t.Fatalf("Failed to open temporary root: %v", err)
-	}
-	defer tmpRoot.Close()
-
 	bookID := "test-book-a38j"
 	title := "Test Book"
 
-	rootFS := fsutil.NewRootFS(tmpRoot)
-	book1, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
-	if err != nil {
-		t.Fatalf("Failed to create new book: %v", err)
-	}
+	_, rootFS, tmpLib := newTestBook(t, bookID, title)
 
+	// SetMeta writes through the API, so its timestamp cannot be forced after
+	// the fact. Backdate the file instead and open both instances against that,
+	// which leaves the write below unambiguously newer than what they cached.
+	shiftModTime(t, path.Join(tmpLib, bookID, BookMetaFile), -2*time.Second)
+
+	book1, err := openBook(rootFS, newLoggerForTest(), bookID)
+	if err != nil {
+		t.Fatalf("Failed to open first book instance: %v", err)
+	}
 	book2, err := openBook(rootFS, newLoggerForTest(), bookID)
 	if err != nil {
 		t.Fatalf("Failed to open second book instance: %v", err)
@@ -771,8 +616,6 @@ func TestSetMetaMarksOtherInstanceStale(t *testing.T) {
 	meta := book1.GetMeta()
 	meta.Comments = "updated by book1"
 
-	// Ensure filesystem mtime has advanced on platforms with coarse timestamp precision.
-	time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)))
 	err = book1.SetMeta(meta)
 	if err != nil {
 		t.Fatalf("Failed to set book meta from first instance: %v", err)
@@ -850,21 +693,10 @@ func TestSetMetaMigratesLegacyPublishedAt(t *testing.T) {
 // persist → reopen cycle, and that GetMeta returns an independent copy of
 // the map so mutating it does not leak back into the book's internal state.
 func TestIdentifiersRoundTrip(t *testing.T) {
-	tmpLib := path.Join(t.TempDir())
-	tmpRoot, err := os.OpenRoot(tmpLib)
-	if err != nil {
-		t.Fatalf("Failed to open temporary root: %v", err)
-	}
-	defer tmpRoot.Close()
-
 	bookID := "test-book-a38j"
 	title := "Test Book"
 
-	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
-	if err != nil {
-		t.Fatalf("Failed to create new book: %v", err)
-	}
+	book, rootFS, _ := newTestBook(t, bookID, title)
 
 	meta := book.GetMeta()
 	meta.Identifiers = map[string]string{"isbn": "978-0-13-468599-1", "douban": "12345"}
@@ -950,21 +782,10 @@ func TestIdentifiersLegacyCompat(t *testing.T) {
 // TestSetMetaRejectsEmptyIdentifierKey verifies that SetMeta rejects
 // identifiers with a blank (or whitespace-only) key.
 func TestSetMetaRejectsEmptyIdentifierKey(t *testing.T) {
-	tmpLib := path.Join(t.TempDir())
-	tmpRoot, err := os.OpenRoot(tmpLib)
-	if err != nil {
-		t.Fatalf("Failed to open temporary root: %v", err)
-	}
-	defer tmpRoot.Close()
-
 	bookID := "test-book-a38j"
 	title := "Test Book"
 
-	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
-	if err != nil {
-		t.Fatalf("Failed to create new book: %v", err)
-	}
+	book, _, _ := newTestBook(t, bookID, title)
 
 	meta := book.GetMeta()
 	meta.Identifiers = map[string]string{" ": "x"}
@@ -1018,14 +839,7 @@ func TestOpenBookNormalizesMissingSchemaVersion(t *testing.T) {
 		t.Fatalf("Failed to read fixture: %v", err)
 	}
 
-	testdataRoot, err := os.OpenRoot("testdata")
-	if err != nil {
-		t.Fatalf("Failed to open testdata root: %v", err)
-	}
-	defer testdataRoot.Close()
-
-	rootFS := fsutil.NewRootFS(testdataRoot)
-	book, err := openBook(rootFS, newLoggerForTest(), path.Join("schema", "v0-full"))
+	book, err := openBook(testdataFS(t), newLoggerForTest(), path.Join("schema", "v0-full"))
 	if err != nil {
 		t.Fatalf("Failed to open legacy book: %v", err)
 	}
@@ -1049,14 +863,7 @@ func TestOpenBookNormalizesMissingSchemaVersion(t *testing.T) {
 // TestOpenBookSparseLegacyBookHasSchemaVersion verifies the normalization also
 // applies to the minimal legacy book.json shape that omits most fields.
 func TestOpenBookSparseLegacyBookHasSchemaVersion(t *testing.T) {
-	testdataRoot, err := os.OpenRoot("testdata")
-	if err != nil {
-		t.Fatalf("Failed to open testdata root: %v", err)
-	}
-	defer testdataRoot.Close()
-
-	rootFS := fsutil.NewRootFS(testdataRoot)
-	book, err := openBook(rootFS, newLoggerForTest(), "book-a82m")
+	book, err := openBook(testdataFS(t), newLoggerForTest(), "book-a82m")
 	if err != nil {
 		t.Fatalf("Failed to open book: %v", err)
 	}
@@ -1152,14 +959,7 @@ func TestCreateBookWritesSchemaVersion(t *testing.T) {
 // newer than this build is still readable. Failing the open would make the book
 // vanish from listings and, worse, become impossible to restore from trash.
 func TestOpenBookAcceptsFutureSchemaVersionAsReadOnly(t *testing.T) {
-	testdataRoot, err := os.OpenRoot("testdata")
-	if err != nil {
-		t.Fatalf("Failed to open testdata root: %v", err)
-	}
-	defer testdataRoot.Close()
-
-	rootFS := fsutil.NewRootFS(testdataRoot)
-	book, err := openBook(rootFS, newLoggerForTest(), path.Join("schema", "v2-future"))
+	book, err := openBook(testdataFS(t), newLoggerForTest(), path.Join("schema", "v2-future"))
 	if err != nil {
 		t.Fatalf("Expected a future-version book to open, got error: %v", err)
 	}
@@ -1177,167 +977,146 @@ func TestOpenBookAcceptsFutureSchemaVersionAsReadOnly(t *testing.T) {
 	}
 }
 
-// TestSetMetaRejectsFutureSchemaVersion verifies this build refuses to write a
-// book.json produced by a newer build, and that the refusal leaves the file
-// byte-for-byte intact — including keys this build does not understand.
-func TestSetMetaRejectsFutureSchemaVersion(t *testing.T) {
-	rootFS, bookFolder, metaPath := newBookFromFixture(t, path.Join("schema", "v2-future"))
-
-	before, err := os.ReadFile(metaPath)
-	if err != nil {
-		t.Fatalf("Failed to read copied book.json: %v", err)
-	}
-
-	book, err := openBook(rootFS, newLoggerForTest(), bookFolder)
-	if err != nil {
-		t.Fatalf("Failed to open future book: %v", err)
-	}
-
-	meta := book.GetMeta()
-	meta.Title = "Clobbered"
-	err = book.SetMeta(meta)
-	if err == nil {
-		t.Fatalf("Expected SetMeta to reject a future schema version, got none")
-	}
-	if !errors.Is(err, ErrUnsupportedBookSchemaVersion) {
-		t.Errorf("Expected ErrUnsupportedBookSchemaVersion, got %v", err)
-	}
-
-	after, err := os.ReadFile(metaPath)
-	if err != nil {
-		t.Fatalf("Failed to re-read book.json: %v", err)
-	}
-	if !bytes.Equal(before, after) {
-		t.Errorf("Rejected write must leave book.json untouched, got:\n%s", after)
-	}
-	if !strings.Contains(string(after), "reading_direction") {
-		t.Errorf("Unknown key must survive a rejected write, got:\n%s", after)
-	}
-
-	if _, err := os.Stat(metaPath + ".tmp"); !os.IsNotExist(err) {
-		t.Errorf("Rejected write must not leave a temp meta file behind")
-	}
-}
-
-// TestSetCurrentSourceRejectsFutureSchemaVersion verifies the guard covers every
-// write path, not just SetMeta: setMeta is the single chokepoint, so the
-// CURRENT_VERSION_LOCATION.txt hint must not be written either.
-func TestSetCurrentSourceRejectsFutureSchemaVersion(t *testing.T) {
-	rootFS, bookFolder, metaPath := newBookFromFixture(t, path.Join("schema", "v2-future"))
-
-	before, err := os.ReadFile(metaPath)
-	if err != nil {
-		t.Fatalf("Failed to read copied book.json: %v", err)
-	}
-
-	book, err := openBook(rootFS, newLoggerForTest(), bookFolder)
-	if err != nil {
-		t.Fatalf("Failed to open future book: %v", err)
-	}
-
-	err = book.SetCurrentSource("20260315-a1")
-	if err == nil {
-		t.Fatalf("Expected SetCurrentSource to reject a future schema version, got none")
-	}
-	if !errors.Is(err, ErrUnsupportedBookSchemaVersion) {
-		t.Errorf("Expected ErrUnsupportedBookSchemaVersion, got %v", err)
-	}
-
-	after, err := os.ReadFile(metaPath)
-	if err != nil {
-		t.Fatalf("Failed to re-read book.json: %v", err)
-	}
-	if !bytes.Equal(before, after) {
-		t.Errorf("Rejected write must leave book.json untouched, got:\n%s", after)
-	}
-
-	locationPath := path.Join(path.Dir(metaPath), CurrentVersionLocationFile)
-	if _, err := os.Stat(locationPath); !os.IsNotExist(err) {
-		t.Errorf("Rejected SetCurrentSource must not write %s", CurrentVersionLocationFile)
-	}
-}
-
-// TestSetCoverRejectsFutureSchemaVersionBeforeWriting verifies the guard runs
-// before the cover file is opened. SetCover truncates the target on open, so a
-// guard that only ran at SetMeta would destroy an existing cover and then
-// report failure.
-func TestSetCoverRejectsFutureSchemaVersionBeforeWriting(t *testing.T) {
-	rootFS, bookFolder, metaPath := newBookFromFixture(t, path.Join("schema", "v2-future"))
-
-	// An existing cover that must survive the refused write.
-	coverPath := path.Join(path.Dir(metaPath), "cover.png")
+// Every write path must refuse a book.json produced by a newer build, and the
+// refusal must leave that file byte-for-byte intact. What differs per path is
+// only what else must stay untouched, so each case carries its own setup and
+// its own extra check; the shared skeleton is stated once here.
+func TestWritePathsRejectFutureSchemaVersion(t *testing.T) {
+	const coverName = "cover.png"
 	originalCover := []byte("original-cover-bytes")
-	if err := os.WriteFile(coverPath, originalCover, 0o644); err != nil {
-		t.Fatalf("Failed to write cover: %v", err)
+
+	writeCover := func(t *testing.T, metaPath string) {
+		t.Helper()
+		if err := os.WriteFile(path.Join(path.Dir(metaPath), coverName), originalCover, 0o644); err != nil {
+			t.Fatalf("Failed to write cover: %v", err)
+		}
+	}
+	assertCoverIntact := func(t *testing.T, metaPath string) {
+		t.Helper()
+		after, err := os.ReadFile(path.Join(path.Dir(metaPath), coverName))
+		if err != nil {
+			t.Fatalf("Refused write must not remove the cover: %v", err)
+		}
+		if !bytes.Equal(originalCover, after) {
+			t.Errorf("Cover contents changed after a refused write, got %q", after)
+		}
 	}
 
-	book, err := openBook(rootFS, newLoggerForTest(), bookFolder)
-	if err != nil {
-		t.Fatalf("Failed to open future book: %v", err)
+	tests := []struct {
+		name string
+		// setup prepares state the refused write must not damage.
+		setup  func(t *testing.T, metaPath string)
+		mutate func(*Book) error
+		// check asserts the path-specific side effect never happened.
+		check func(t *testing.T, metaPath string)
+	}{
+		{
+			name: "SetMeta",
+			mutate: func(b *Book) error {
+				meta := b.GetMeta()
+				meta.Title = "Clobbered"
+				return b.SetMeta(meta)
+			},
+			check: func(t *testing.T, metaPath string) {
+				t.Helper()
+				after, err := os.ReadFile(metaPath)
+				if err != nil {
+					t.Fatalf("Failed to re-read book.json: %v", err)
+				}
+				// A key this build does not understand must survive untouched.
+				if !strings.Contains(string(after), "reading_direction") {
+					t.Errorf("Unknown key must survive a rejected write, got:\n%s", after)
+				}
+				if _, err := os.Stat(metaPath + ".tmp"); !os.IsNotExist(err) {
+					t.Errorf("Rejected write must not leave a temp meta file behind")
+				}
+			},
+		},
+		{
+			// setMeta is the single chokepoint, so the
+			// CURRENT_VERSION_LOCATION.txt hint must not be written either.
+			name:   "SetCurrentSource",
+			mutate: func(b *Book) error { return b.SetCurrentSource("20260315-a1") },
+			check: func(t *testing.T, metaPath string) {
+				t.Helper()
+				locationPath := path.Join(path.Dir(metaPath), CurrentVersionLocationFile)
+				if _, err := os.Stat(locationPath); !os.IsNotExist(err) {
+					t.Errorf("Rejected SetCurrentSource must not write %s", CurrentVersionLocationFile)
+				}
+			},
+		},
+		{
+			// SetCover truncates the target on open, so a guard that only ran
+			// at SetMeta would destroy an existing cover and then report failure.
+			name:   "SetCover",
+			setup:  writeCover,
+			mutate: func(b *Book) error { return b.SetCover([]byte("replacement-bytes"), ".png") },
+			check:  assertCoverIntact,
+		},
+		{
+			// DeleteCover deletes first, so a late guard would lose the image
+			// and leave book.json pointing at a missing file.
+			name: "DeleteCover",
+			setup: func(t *testing.T, metaPath string) {
+				t.Helper()
+				writeCover(t, metaPath)
+
+				// Point the future-version book at that cover.
+				raw, err := os.ReadFile(metaPath)
+				if err != nil {
+					t.Fatalf("Failed to read book.json: %v", err)
+				}
+				withCover := strings.Replace(string(raw), `"cover": ""`, `"cover": "`+coverName+`"`, 1)
+				if withCover == string(raw) {
+					t.Fatalf("Fixture did not contain an empty cover field to patch")
+				}
+				if err := os.WriteFile(metaPath, []byte(withCover), 0o644); err != nil {
+					t.Fatalf("Failed to write book.json: %v", err)
+				}
+			},
+			mutate: func(b *Book) error { return b.DeleteCover() },
+			check:  assertCoverIntact,
+		},
 	}
 
-	err = book.SetCover([]byte("replacement-bytes"), ".png")
-	if err == nil {
-		t.Fatalf("Expected SetCover to reject a future schema version, got none")
-	}
-	if !errors.Is(err, ErrUnsupportedBookSchemaVersion) {
-		t.Errorf("Expected ErrUnsupportedBookSchemaVersion, got %v", err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rootFS, bookFolder, metaPath := newBookFromFixture(t, path.Join("schema", "v2-future"))
 
-	after, err := os.ReadFile(coverPath)
-	if err != nil {
-		t.Fatalf("Failed to read cover back: %v", err)
-	}
-	if !bytes.Equal(originalCover, after) {
-		t.Errorf("Refused SetCover must not modify the existing cover, got %q", after)
-	}
-}
+			if tt.setup != nil {
+				tt.setup(t, metaPath)
+			}
 
-// TestDeleteCoverRejectsFutureSchemaVersionBeforeRemoving verifies the guard
-// runs before the cover file is removed. DeleteCover deletes first, so a late
-// guard would lose the image and leave book.json pointing at a missing file.
-func TestDeleteCoverRejectsFutureSchemaVersionBeforeRemoving(t *testing.T) {
-	rootFS, bookFolder, metaPath := newBookFromFixture(t, path.Join("schema", "v2-future"))
+			// Read after setup so a case that patches book.json still compares
+			// against what was actually on disk when the book was opened.
+			before, err := os.ReadFile(metaPath)
+			if err != nil {
+				t.Fatalf("Failed to read copied book.json: %v", err)
+			}
 
-	bookDir := path.Dir(metaPath)
-	coverPath := path.Join(bookDir, "cover.png")
-	originalCover := []byte("original-cover-bytes")
-	if err := os.WriteFile(coverPath, originalCover, 0o644); err != nil {
-		t.Fatalf("Failed to write cover: %v", err)
-	}
+			book, err := openBook(rootFS, newLoggerForTest(), bookFolder)
+			if err != nil {
+				t.Fatalf("Failed to open future book: %v", err)
+			}
 
-	// Point the future-version book at that cover.
-	raw, err := os.ReadFile(metaPath)
-	if err != nil {
-		t.Fatalf("Failed to read book.json: %v", err)
-	}
-	withCover := strings.Replace(string(raw), `"cover": ""`, `"cover": "cover.png"`, 1)
-	if withCover == string(raw) {
-		t.Fatalf("Fixture did not contain an empty cover field to patch")
-	}
-	if err := os.WriteFile(metaPath, []byte(withCover), 0o644); err != nil {
-		t.Fatalf("Failed to write book.json: %v", err)
-	}
+			err = tt.mutate(book)
+			if err == nil {
+				t.Fatalf("Expected %s to reject a future schema version, got none", tt.name)
+			}
+			if !errors.Is(err, ErrUnsupportedBookSchemaVersion) {
+				t.Errorf("Expected ErrUnsupportedBookSchemaVersion, got %v", err)
+			}
 
-	book, err := openBook(rootFS, newLoggerForTest(), bookFolder)
-	if err != nil {
-		t.Fatalf("Failed to open future book: %v", err)
-	}
+			after, err := os.ReadFile(metaPath)
+			if err != nil {
+				t.Fatalf("Failed to re-read book.json: %v", err)
+			}
+			if !bytes.Equal(before, after) {
+				t.Errorf("Rejected write must leave book.json untouched, got:\n%s", after)
+			}
 
-	err = book.DeleteCover()
-	if err == nil {
-		t.Fatalf("Expected DeleteCover to reject a future schema version, got none")
-	}
-	if !errors.Is(err, ErrUnsupportedBookSchemaVersion) {
-		t.Errorf("Expected ErrUnsupportedBookSchemaVersion, got %v", err)
-	}
-
-	after, err := os.ReadFile(coverPath)
-	if err != nil {
-		t.Fatalf("Refused DeleteCover must not remove the cover: %v", err)
-	}
-	if !bytes.Equal(originalCover, after) {
-		t.Errorf("Cover contents changed after a refused delete, got %q", after)
+			tt.check(t, metaPath)
+		})
 	}
 }
 

@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -10,7 +11,12 @@ import (
 // DELETE /books/{id} and POST /books/{id}/trash share one handler; these pin
 // that they stay interchangeable.
 
+// The full trash lifecycle is covered by TestAPITrashLifecycleContract; what is
+// unique here is that the two routes are interchangeable. One env serves both:
+// each route trashes its own book, so they never observe each other's effect.
 func TestDeleteAndTrashRoutesBothTrashTheBook(t *testing.T) {
+	env := newAPITestEnv(t)
+
 	routes := map[string]func(bookID string) *http.Request{
 		"DELETE /books/{book_id}": func(bookID string) *http.Request {
 			return httptest.NewRequest(http.MethodDelete,
@@ -24,7 +30,6 @@ func TestDeleteAndTrashRoutesBothTrashTheBook(t *testing.T) {
 
 	for name, build := range routes {
 		t.Run(name, func(t *testing.T) {
-			env := newAPITestEnv(t)
 			book := importTextBook(t, env, "Trash Me", "", "trash-me.txt", "body")
 			bookID := book.Meta.ID
 
@@ -41,8 +46,8 @@ func TestDeleteAndTrashRoutesBothTrashTheBook(t *testing.T) {
 			assertStatus(t, trashRec, http.StatusOK)
 
 			trashed := decodeJSON[[]TrashedBook](t, trashRec)
-			if len(trashed) != 1 || trashed[0].ID != bookID {
-				t.Fatalf("trash = %+v, want exactly the trashed book %s", trashed, bookID)
+			if !slices.ContainsFunc(trashed, func(b TrashedBook) bool { return b.ID == bookID }) {
+				t.Fatalf("trash = %+v, want it to contain the trashed book %s", trashed, bookID)
 			}
 		})
 	}
