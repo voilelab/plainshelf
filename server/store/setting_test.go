@@ -30,6 +30,22 @@ func TestSetSetting(t *testing.T) {
 	if string(val) != "dark" {
 		t.Fatalf("expected %q, got %q", "dark", val)
 	}
+
+	// Changing a setting the user already saved must replace the stored value,
+	// not leave the original in place.
+	if err := db.SetSetting("theme", []byte("light")); err != nil {
+		t.Fatalf("SetSetting (overwrite): %v", err)
+	}
+	val, ok, err = db.GetSetting("theme")
+	if err != nil {
+		t.Fatalf("GetSetting (overwrite): %v", err)
+	}
+	if !ok {
+		t.Fatal("expected key to exist after overwrite")
+	}
+	if string(val) != "light" {
+		t.Fatalf("expected %q after overwrite, got %q", "light", val)
+	}
 }
 
 func TestDeleteSetting(t *testing.T) {
