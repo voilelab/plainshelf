@@ -48,10 +48,10 @@ test('should switch and persist the reading font without changing code text', as
     expect(readerBox).not.toBeNull();
     const center = { x: readerBox!.x + readerBox!.width / 2, y: readerBox!.y + readerBox!.height / 2 };
     await mobileReader.dispatchEvent('pointerdown', {
-      pointerType: 'touch', pointerId: 1, isPrimary: true, clientX: center.x, clientY: center.y
+      pointerType: 'mouse', pointerId: 1, isPrimary: true, button: 0, clientX: center.x, clientY: center.y
     });
     await mobileReader.dispatchEvent('pointerup', {
-      pointerType: 'touch', pointerId: 1, isPrimary: true, clientX: center.x, clientY: center.y
+      pointerType: 'mouse', pointerId: 1, isPrimary: true, button: 0, clientX: center.x, clientY: center.y
     });
 
     const toolbarButtons = page.locator('.mobile-reader-toolbar .mobile-reader-tool');

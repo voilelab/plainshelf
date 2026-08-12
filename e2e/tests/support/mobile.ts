@@ -109,10 +109,10 @@ export async function showMobileReaderControls(page: Page): Promise<void> {
   if (!box) throw new Error('Mobile reader has no visible bounding box');
   const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   await reader.dispatchEvent('pointerdown', {
-    pointerType: 'touch', pointerId: 1, isPrimary: true, clientX: point.x, clientY: point.y
+    pointerType: 'mouse', pointerId: 1, isPrimary: true, button: 0, clientX: point.x, clientY: point.y
   });
   await reader.dispatchEvent('pointerup', {
-    pointerType: 'touch', pointerId: 1, isPrimary: true, clientX: point.x, clientY: point.y
+    pointerType: 'mouse', pointerId: 1, isPrimary: true, button: 0, clientX: point.x, clientY: point.y
   });
   await expect(toolbar).toBeVisible();
 }

@@ -6,7 +6,11 @@
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
     @pointerup="onPointerUp"
-    @pointercancel="resetPointer"
+    @pointercancel="onPointerCancel"
+    @touchstart.passive="onTouchStart"
+    @touchmove.passive="onTouchMove"
+    @touchend.passive="onTouchEnd"
+    @touchcancel="resetPointer"
   >
     <main class="mobile-reader-main">
       <div v-if="loading" class="loading mobile-reader-status">{{ t('reader.loadingContent') }}</div>
@@ -214,6 +218,12 @@ function showBoundary(message: string): void {
 }
 
 function onPointerDown(event: PointerEvent): void {
+  // Android WebView emits both pointer and touch events for a physical touch.
+  // Let TouchEvent own that path so one swipe cannot navigate twice; pointer
+  // handling remains available for mouse and pen input.
+  if (event.pointerType === 'touch') {
+    return;
+  }
   if (!event.isPrimary) {
     if (activePointer) activePointer.cancelled = true;
     return;
@@ -233,6 +243,7 @@ function onPointerDown(event: PointerEvent): void {
 }
 
 function onPointerMove(event: PointerEvent): void {
+  if (event.pointerType === 'touch') return;
   if (!activePointer || event.pointerId !== activePointer.id) return;
   const distance = Math.hypot(event.clientX - activePointer.startX, event.clientY - activePointer.startY);
   activePointer.maxMovement = Math.max(activePointer.maxMovement, distance);
@@ -243,13 +254,76 @@ function resetPointer(): void {
 }
 
 function onPointerUp(event: PointerEvent): void {
+  if (event.pointerType === 'touch') return;
   const pointer = activePointer;
   resetPointer();
   if (!pointer || pointer.id !== event.pointerId || pointer.cancelled) return;
+
+  finishGesture(pointer, event.clientX, event.clientY);
+}
+
+function onPointerCancel(event: PointerEvent): void {
+  if (event.pointerType === 'touch') return;
+  resetPointer();
+}
+
+function findTouch(touches: TouchList, identifier: number): Touch | undefined {
+  for (let index = 0; index < touches.length; index += 1) {
+    const touch = touches.item(index);
+    if (touch?.identifier === identifier) return touch;
+  }
+  return undefined;
+}
+
+function onTouchStart(event: TouchEvent): void {
+  if (event.touches.length !== 1 || isReaderInteractiveTarget(event.target)) {
+    resetPointer();
+    return;
+  }
+
+  const touch = event.touches.item(0);
+  if (!touch) return;
+  activePointer = {
+    id: touch.identifier,
+    startX: touch.clientX,
+    startY: touch.clientY,
+    startTime: performance.now(),
+    maxMovement: 0,
+    cancelled: false
+  };
+}
+
+function onTouchMove(event: TouchEvent): void {
+  if (!activePointer) return;
+  if (event.touches.length !== 1) {
+    activePointer.cancelled = true;
+    return;
+  }
+
+  const touch = findTouch(event.touches, activePointer.id);
+  if (!touch) {
+    activePointer.cancelled = true;
+    return;
+  }
+  const distance = Math.hypot(touch.clientX - activePointer.startX, touch.clientY - activePointer.startY);
+  activePointer.maxMovement = Math.max(activePointer.maxMovement, distance);
+}
+
+function onTouchEnd(event: TouchEvent): void {
+  const pointer = activePointer;
+  resetPointer();
+  if (!pointer || pointer.cancelled || event.touches.length > 0) return;
+
+  const touch = findTouch(event.changedTouches, pointer.id);
+  if (!touch) return;
+  finishGesture(pointer, touch.clientX, touch.clientY);
+}
+
+function finishGesture(pointer: ActivePointer, clientX: number, clientY: number): void {
   if (window.getSelection()?.isCollapsed === false) return;
 
-  const deltaX = event.clientX - pointer.startX;
-  const deltaY = event.clientY - pointer.startY;
+  const deltaX = clientX - pointer.startX;
+  const deltaY = clientY - pointer.startY;
   const gesture = classifyReaderGesture({
     deltaX,
     deltaY,
@@ -277,7 +351,11 @@ function onPointerUp(event: PointerEvent): void {
     return;
   }
 
-  if (gesture === 'tap' && pageRef.value && isInReaderCenter(event, pageRef.value.getBoundingClientRect())) {
+  if (
+    gesture === 'tap' &&
+    pageRef.value &&
+    isInReaderCenter({ clientX, clientY }, pageRef.value.getBoundingClientRect())
+  ) {
     clearHint();
     chromeVisible.value = !chromeVisible.value;
   }
@@ -339,6 +417,7 @@ onBeforeUnmount(() => {
     max(20px, env(safe-area-inset-left));
   scrollbar-gutter: auto;
   overscroll-behavior-y: contain;
+  touch-action: pan-y pinch-zoom;
 }
 
 .mobile-reader-status {

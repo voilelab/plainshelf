@@ -44,19 +44,34 @@ async function dispatchTouch(
   points: Array<{ x: number; y: number }>,
   pointerId = 1
 ): Promise<void> {
-  const first = points[0];
-  const last = points[points.length - 1];
-  await target.dispatchEvent('pointerdown', {
-    pointerType: 'touch', pointerId, isPrimary: true, clientX: first.x, clientY: first.y
-  });
-  for (const point of points.slice(1, -1)) {
-    await target.dispatchEvent('pointermove', {
-      pointerType: 'touch', pointerId, isPrimary: true, clientX: point.x, clientY: point.y
+  await target.evaluate((element, { gesturePoints, identifier }) => {
+    const createTouch = (point: { x: number; y: number }) => new Touch({
+      identifier,
+      target: element,
+      clientX: point.x,
+      clientY: point.y,
+      screenX: point.x,
+      screenY: point.y
     });
-  }
-  await target.dispatchEvent('pointerup', {
-    pointerType: 'touch', pointerId, isPrimary: true, clientX: last.x, clientY: last.y
-  });
+    const dispatch = (type: string, touches: Touch[], changedTouches: Touch[]) => {
+      element.dispatchEvent(new TouchEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        touches,
+        targetTouches: touches,
+        changedTouches
+      }));
+    };
+
+    const firstTouch = createTouch(gesturePoints[0]);
+    dispatch('touchstart', [firstTouch], [firstTouch]);
+    for (const point of gesturePoints.slice(1, -1)) {
+      const moveTouch = createTouch(point);
+      dispatch('touchmove', [moveTouch], [moveTouch]);
+    }
+    const lastTouch = createTouch(gesturePoints[gesturePoints.length - 1]);
+    dispatch('touchend', [], [lastTouch]);
+  }, { gesturePoints: points, identifier: pointerId });
 }
 
 test('provides an immersive mobile reader without changing the desktop reader', async ({ page }) => {
