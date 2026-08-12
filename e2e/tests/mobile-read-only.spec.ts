@@ -84,8 +84,8 @@ test('hides write affordances in the library and on book detail', async ({ page 
     await expect(page.locator('.read-only-banner')).toHaveCount(0);
 
     await reopenMobileAt(page, server.baseUrl, `/books/${bookId}`);
-    await expect(page.getByRole('button', { name: 'Edit metadata' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Edit Sources' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'More' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Cover options' })).toHaveCount(0);
   } finally {
     await server.dispose();
   }

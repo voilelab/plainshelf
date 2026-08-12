@@ -60,7 +60,8 @@ test('returns to the layer the book lived in after moving it to trash', async ({
     await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
 
-    await page.getByRole('button', { name: 'Move to Trash' }).click();
+    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('menuitem', { name: 'Move to Trash' }).click();
     const deleteDialog = page.getByRole('dialog', { name: 'Confirm delete' });
     await expect(deleteDialog).toBeVisible();
     await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();

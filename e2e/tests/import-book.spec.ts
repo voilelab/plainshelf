@@ -12,8 +12,8 @@ test('should import a txt book from the UI and render it in the reader', async (
     await bookTitle.click();
 
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await expect(page.getByRole('button', { name: 'Read' })).toBeVisible();
-    await page.getByRole('button', { name: 'Read' }).click();
+    await expect(page.getByRole('button', { name: 'Start reading' })).toBeVisible();
+    await page.getByRole('button', { name: 'Start reading' }).click();
 
     await expect(page).toHaveURL(/\/reader\/[^/]+$/);
     await expect(page.getByRole('heading', { name: 'hello', exact: true })).toBeVisible();
@@ -40,8 +40,8 @@ test('should import a markdown book from the UI and render it as formatted markd
     await bookTitle.click();
 
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await expect(page.getByRole('button', { name: 'Read' })).toBeVisible();
-    await page.getByRole('button', { name: 'Read' }).click();
+    await expect(page.getByRole('button', { name: 'Start reading' })).toBeVisible();
+    await page.getByRole('button', { name: 'Start reading' }).click();
 
     await expect(page).toHaveURL(/\/reader\/[^/]+$/);
     await expect(page.getByRole('heading', { name: 'hello', exact: true })).toBeVisible();
@@ -71,7 +71,7 @@ test('should update a book cover from drag and drop on the detail page', async (
     const dataTransfer = await createCoverDataTransfer(page);
     try {
       await coverTarget.dispatchEvent('dragenter', { dataTransfer });
-      await expect(page.getByText('Drop image to update cover')).toBeVisible();
+      await expect(page.getByText('Drop the image to update the cover')).toBeVisible();
       await coverTarget.dispatchEvent('dragover', { dataTransfer });
       await coverTarget.dispatchEvent('drop', { dataTransfer });
     } finally {
@@ -80,10 +80,11 @@ test('should update a book cover from drag and drop on the detail page', async (
 
     const confirmDialog = page.getByRole('dialog', { name: 'Update book cover?' });
     await expect(confirmDialog).toBeVisible();
-    await expect(confirmDialog.getByText('Do you want to update the book cover?')).toBeVisible();
+    await expect(confirmDialog.getByText('Use this image as the new book cover?')).toBeVisible();
     await confirmDialog.getByRole('button', { name: 'Update cover' }).click();
 
     await expect(confirmDialog).not.toBeVisible();
+    await page.getByRole('button', { name: 'Cover options' }).click();
     await expect(page.getByRole('button', { name: 'Remove' })).toBeEnabled();
     await expect(page.locator('img.detail-cover')).toHaveAttribute(
       'src',

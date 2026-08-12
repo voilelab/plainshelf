@@ -9,7 +9,7 @@ test('should switch and persist the reading font without changing code text', as
     await page.goto(`${server.baseUrl}/books`);
     await importBookFromPath(page, helloMarkdownFixturePath);
     await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
-    await page.getByRole('button', { name: 'Read' }).click();
+    await page.getByRole('button', { name: 'Start reading' }).click();
     await expect(page).toHaveURL(/\/reader\/[^/]+$/);
 
     const readerText = page.locator('.reader-text');

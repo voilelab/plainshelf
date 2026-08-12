@@ -12,7 +12,8 @@ test('should empty the trash through a background task and report its progress',
     // Move the book to the trash from its detail page.
     await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await page.getByRole('button', { name: 'Move to Trash' }).click();
+    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('menuitem', { name: 'Move to Trash' }).click();
     const deleteDialog = page.getByRole('dialog', { name: 'Confirm delete' });
     await expect(deleteDialog).toBeVisible();
     await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();

@@ -12,7 +12,8 @@ test('should edit source content and see the change reflected in the reader', as
     // Open detail page then navigate to source editor
     await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await page.getByRole('button', { name: 'Edit Sources' }).click();
+    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('menuitem', { name: 'Manage sources' }).click();
     await expect(page).toHaveURL(/\/books\/[^/]+\/sources$/);
 
     // Wait for the source to finish loading
@@ -37,7 +38,7 @@ test('should edit source content and see the change reflected in the reader', as
     // Go back to the detail page, then open the reader
     await page.getByRole('button', { name: 'Back' }).click();
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await page.getByRole('button', { name: 'Read' }).click();
+    await page.getByRole('button', { name: 'Start reading' }).click();
     await expect(page).toHaveURL(/\/reader\/[^/]+$/);
 
     // Reader should display the appended line
@@ -59,7 +60,8 @@ test('should create a new source, set it as current, and see its content in the 
     // Open source editor
     await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await page.getByRole('button', { name: 'Edit Sources' }).click();
+    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('menuitem', { name: 'Manage sources' }).click();
     await expect(page).toHaveURL(/\/books\/[^/]+\/sources$/);
 
     // Wait for initial source to load
@@ -101,7 +103,7 @@ test('should create a new source, set it as current, and see its content in the 
     // Open the reader and verify the new source is rendered
     await page.getByRole('button', { name: 'Back' }).click();
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await page.getByRole('button', { name: 'Read' }).click();
+    await page.getByRole('button', { name: 'Start reading' }).click();
     await expect(page).toHaveURL(/\/reader\/[^/]+$/);
 
     await expect(page.getByText('This is the second source.')).toBeVisible();
