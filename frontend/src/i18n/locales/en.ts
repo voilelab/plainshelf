@@ -389,6 +389,7 @@ const en = {
       saved: 'Book details saved.'
     },
     errors: {
+      restartReading: 'Failed to restart the book.',
       updateStats: 'Failed to update content stats'
     },
     delete: {

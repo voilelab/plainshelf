@@ -60,16 +60,23 @@ test('keeps the summary and reading action above the fold on a narrow viewport',
   }
 });
 
-test('derives reading progress from the server bookmark offset', async ({ page }) => {
+test('derives reading progress using the same UTF-16 units as the reader', async ({ page }) => {
   const server = await startServer();
 
   try {
+    await page.route('**/books/*/content', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/plain; charset=utf-8',
+        body: '😀😀'
+      });
+    });
     await page.route('**/marks/**', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ char_offset: 37 })
+          body: JSON.stringify({ char_offset: 2 })
         });
         return;
       }
@@ -81,6 +88,42 @@ test('derives reading progress from the server bookmark offset', async ({ page }
     await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');
     await expect(page.getByRole('button', { name: 'Continue reading · 50%' })).toBeVisible();
     await expect(page.getByText('Continue where you left off', { exact: true })).toBeVisible();
+  } finally {
+    await server.dispose();
+  }
+});
+
+test('resets a completed bookmark before reading again', async ({ page }) => {
+  const server = await startServer();
+  let bookmarkOffset = 74;
+
+  try {
+    await page.route('**/marks/**', async (route) => {
+      const request = route.request();
+      if (request.method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ char_offset: bookmarkOffset })
+        });
+        return;
+      }
+      if (request.method() === 'POST') {
+        bookmarkOffset = (request.postDataJSON() as { char_offset: number }).char_offset;
+        await route.fulfill({ status: 204 });
+        return;
+      }
+      await route.continue();
+    });
+
+    await openHelloDetail(page, server.baseUrl);
+    await expect(page.getByRole('button', { name: 'Read again' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Read again' }).click();
+
+    await expect(page).toHaveURL(/\/reader\/[^/?]+$/);
+    expect(bookmarkOffset).toBe(0);
+    await expect(page.getByText('Progress: 0%', { exact: true })).toBeVisible();
   } finally {
     await server.dispose();
   }

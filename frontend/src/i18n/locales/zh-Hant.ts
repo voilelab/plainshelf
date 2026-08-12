@@ -387,6 +387,7 @@ const zhHant = {
       saved: '書籍資料已儲存。'
     },
     errors: {
+      restartReading: '無法重新開始閱讀。',
       updateStats: '更新內容統計失敗'
     },
     delete: {

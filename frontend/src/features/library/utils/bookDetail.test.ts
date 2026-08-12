@@ -17,10 +17,16 @@ describe('book detail reading state', () => {
     expect(getReadingAction(100)).toBe('reread');
   });
 
-  it('derives server progress from the bookmark offset and source character count', () => {
+  it('derives server progress from the bookmark offset and matching total units', () => {
     expect(resolveReadingPercent({ char_offset: 37 }, 74)).toBe(50);
     expect(resolveReadingPercent({ char_offset: 74 }, 74)).toBe(100);
     expect(resolveReadingPercent({ char_offset: 80 }, 74)).toBe(100);
+  });
+
+  it('uses the same UTF-16 units as reader offsets for non-BMP content', () => {
+    const content = '😀😀';
+    expect(content.length).toBe(4);
+    expect(resolveReadingPercent({ char_offset: 2 }, content.length)).toBe(50);
   });
 
   it('prefers an explicit percentage and handles an unavailable total', () => {

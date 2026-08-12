@@ -57,7 +57,12 @@
               />
 
               <div class="primary-actions">
-                <button class="button primary read-button" type="button" @click="goRead(id)">
+                <button
+                  class="button primary read-button"
+                  type="button"
+                  :disabled="restartingRead"
+                  @click="onReadClick"
+                >
                   {{ readingActionLabel }}
                 </button>
                 <button class="button" type="button" :disabled="downloading" @click="downloadBook(book)">
@@ -155,7 +160,7 @@ import { getReadingAction, resolveReadingPercent } from '@/features/library/util
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useOfflineDownload } from '@/composables/useOfflineDownload';
 import { useWriteAccess } from '@/composables/useWriteAccess';
-import { bookshelfWriter, isMobileRuntime } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider, isMobileRuntime } from '@/providers';
 import { booksRouteForLayerPath, getLayerPath } from '@/utils/layers';
 import { useI18n } from '@/i18n';
 
@@ -171,6 +176,7 @@ const { t } = useI18n();
 const {
   book,
   progress,
+  progressContentLength,
   currentSource,
   loading,
   error,
@@ -199,7 +205,7 @@ const {
 
 const readingPercent = computed(() => resolveReadingPercent(
   progress.value,
-  currentSource.value?.char_count ?? book.value?.char_count
+  progressContentLength.value ?? undefined
 ));
 const readingAction = computed(() => getReadingAction(readingPercent.value));
 const readingActionLabel = computed(() => {
@@ -210,6 +216,29 @@ const readingActionLabel = computed(() => {
 });
 const readingStatusLabel = computed(() => t(`bookDetail.progress.${readingAction.value}`));
 const showManagementMenu = computed(() => !readOnly.value || canOpenBookFolder.value);
+const restartingRead = ref(false);
+
+async function onReadClick(): Promise<void> {
+  if (restartingRead.value) {
+    return;
+  }
+
+  if (readingAction.value !== 'reread') {
+    goRead(id.value);
+    return;
+  }
+
+  restartingRead.value = true;
+  actionError.value = '';
+  try {
+    await getBookshelfProvider().saveReadProgress(id.value, { char_offset: 0 });
+    goRead(id.value);
+  } catch (err) {
+    actionError.value = err instanceof Error ? err.message : t('bookDetail.errors.restartReading');
+  } finally {
+    restartingRead.value = false;
+  }
+}
 
 // Saving content to a file and keeping an offline device copy are deliberately
 // separate actions. The labels in the template make that distinction explicit.

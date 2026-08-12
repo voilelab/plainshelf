@@ -151,9 +151,6 @@ const emit = defineEmits<{
   saved: [];
 }>();
 
-const BG_STYLE_VALUES: BgStyle[] = ['plain-light', 'plain-dark', 'warm-paper', 'soft-gradient', 'minimal-solid'];
-const LAYOUT_VALUES: Layout[] = ['centered', 'top-bottom', 'large-title', 'minimal'];
-
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const titleText = ref('');
 const authorText = ref('');
@@ -478,13 +475,13 @@ watch(
 // ─── Actions ─────────────────────────────────────────────────────────────────
 
 function onBgStyleSelect(value: AcceptableValue): void {
-  if (typeof value === 'string' && BG_STYLE_VALUES.includes(value as BgStyle)) {
+  if (typeof value === 'string' && bgStyleOptions.value.some((option) => option.value === value)) {
     bgStyle.value = value as BgStyle;
   }
 }
 
 function onLayoutSelect(value: AcceptableValue): void {
-  if (typeof value === 'string' && LAYOUT_VALUES.includes(value as Layout)) {
+  if (typeof value === 'string' && layoutOptions.value.some((option) => option.value === value)) {
     layout.value = value as Layout;
   }
 }

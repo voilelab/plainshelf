@@ -12,7 +12,7 @@ export function normalizeReadingPercent(percent?: number): number {
 
 export function resolveReadingPercent(
   progress?: ReadingProgress | null,
-  totalCharacters?: number
+  totalOffsetUnits?: number
 ): number {
   if (typeof progress?.percent === 'number' && Number.isFinite(progress.percent)) {
     return normalizeReadingPercent(progress.percent);
@@ -21,14 +21,14 @@ export function resolveReadingPercent(
   if (
     typeof progress?.char_offset !== 'number' ||
     !Number.isFinite(progress.char_offset) ||
-    typeof totalCharacters !== 'number' ||
-    !Number.isFinite(totalCharacters) ||
-    totalCharacters <= 0
+    typeof totalOffsetUnits !== 'number' ||
+    !Number.isFinite(totalOffsetUnits) ||
+    totalOffsetUnits <= 0
   ) {
     return 0;
   }
 
-  return normalizeReadingPercent((progress.char_offset / totalCharacters) * 100);
+  return normalizeReadingPercent((progress.char_offset / totalOffsetUnits) * 100);
 }
 
 export function getReadingAction(percent?: number): ReadingAction {
