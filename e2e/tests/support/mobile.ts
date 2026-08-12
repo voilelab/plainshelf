@@ -98,6 +98,25 @@ export async function reopenMobileAt(page: Page, baseUrl: string, route: string)
   await page.goto(`${baseUrl}${withMobilePreview(route)}`);
 }
 
+/** Reveals the immersive reader chrome through its central tap gesture. */
+export async function showMobileReaderControls(page: Page): Promise<void> {
+  const reader = page.locator('[data-reader-variant="mobile"]');
+  await expect(reader).toBeVisible();
+  const toolbar = reader.locator('.mobile-reader-toolbar');
+  if (await toolbar.isVisible()) return;
+
+  const box = await reader.boundingBox();
+  if (!box) throw new Error('Mobile reader has no visible bounding box');
+  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await reader.dispatchEvent('pointerdown', {
+    pointerType: 'mouse', pointerId: 1, isPrimary: true, button: 0, clientX: point.x, clientY: point.y
+  });
+  await reader.dispatchEvent('pointerup', {
+    pointerType: 'mouse', pointerId: 1, isPrimary: true, button: 0, clientX: point.x, clientY: point.y
+  });
+  await expect(toolbar).toBeVisible();
+}
+
 async function setNavigatorOnline(page: Page, online: boolean): Promise<void> {
   await page.evaluate((isOnline) => {
     Object.defineProperty(window.navigator, 'onLine', { get: () => isOnline, configurable: true });

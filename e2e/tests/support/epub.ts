@@ -139,7 +139,8 @@ const epubEntries: ZipEntry[] = [
   {
     name: 'OEBPS/ch1.xhtml',
     body: Buffer.from(
-      '<html><body><h1>Chapter One</h1><p>This text came from a real uploaded EPUB file.</p></body></html>'
+      '<html><body><h1>Chapter One</h1><p>This text came from a real uploaded EPUB file.</p>' +
+      '<p>```ts</p><p>const longReaderExample = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";</p><p>```</p></body></html>'
     )
   },
   {

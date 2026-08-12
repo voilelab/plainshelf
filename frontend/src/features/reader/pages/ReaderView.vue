@@ -1,198 +1,111 @@
 <template>
-  <section class="reader-page" :style="readerStyleVars">
-    <div class="reader-shell">
-      <header class="reader-toolbar">
-        <RouterLink :to="`/books/${id}`" class="reader-back">{{ t('reader.backToDetail') }}</RouterLink>
-        <div class="reader-title">
-          <span class="reader-kicker">{{ t('reader.title') }}</span>
-          <h2>{{ title || id }}</h2>
-        </div>
-        <div class="reader-header-meta">
-          <span class="reader-progress">{{ t('reader.progress', { percent: progress?.percent ?? 0 }) }}</span>
-        </div>
-      </header>
+  <DesktopReaderView
+    v-if="!isMobileReader"
+    :style="readerStyleVars"
+    :book-id="id"
+    :title="title"
+    :book-format="bookFormat"
+    :source-id="currentSourceId"
+    :sections="sections"
+    :current-section-index="currentSectionIndex"
+    :current-section="currentSection"
+    :progress-percent="progress?.percent ?? 0"
+    :split-warning="splitWarning"
+    :loading="loading"
+    :bookmarking="bookmarking"
+    :error="error"
+    :is-at-min-font-size="isAtMinFontSize"
+    :is-at-max-font-size="isAtMaxFontSize"
+    @retry="fetchReaderData"
+    @scroll="onScroll"
+    @reader-ready="handleReaderReady"
+    @previous-section="goPrevSection"
+    @next-section="goNextSection"
+    @decrease-font-size="decreaseFontSize"
+    @increase-font-size="increaseFontSize"
+    @open-font-modal="openFontModal"
+    @open-chapter-modal="openChapterModal"
+    @open-split-modal="openSplitModal"
+    @bookmark-current="bookmarkCurrent"
+  />
 
-      <div class="reader-layout">
-        <ReaderSideActions
-          :is-at-min-font-size="isAtMinFontSize"
-          :is-at-max-font-size="isAtMaxFontSize"
-          :has-sections="sections.length > 0"
-          :bookmarking="bookmarking"
-          @decrease-font-size="decreaseFontSize"
-          @increase-font-size="increaseFontSize"
-          @open-font-modal="openFontModal"
-          @open-chapter-modal="openChapterModal"
-          @open-split-modal="openSplitModal"
-          @bookmark-current="bookmarkCurrent"
-        />
+  <MobileReaderView
+    v-else
+    :style="readerStyleVars"
+    :book-id="id"
+    :title="title"
+    :book-format="bookFormat"
+    :source-id="currentSourceId"
+    :sections="sections"
+    :current-section-index="currentSectionIndex"
+    :current-section="currentSection"
+    :progress-percent="progress?.percent ?? 0"
+    :split-warning="splitWarning"
+    :loading="loading"
+    :bookmarking="bookmarking"
+    :error="error"
+    :is-at-min-font-size="isAtMinFontSize"
+    :is-at-max-font-size="isAtMaxFontSize"
+    @retry="fetchReaderData"
+    @scroll="onScroll"
+    @reader-ready="handleReaderReady"
+    @previous-section="goPrevSection"
+    @next-section="goNextSection"
+    @decrease-font-size="decreaseFontSize"
+    @increase-font-size="increaseFontSize"
+    @open-font-modal="openFontModal"
+    @open-chapter-modal="openChapterModal"
+    @open-split-modal="openSplitModal"
+    @bookmark-current="bookmarkCurrent"
+  />
 
-        <main class="reader-main">
-          <div v-if="loading" class="loading reader-status">{{ t('reader.loadingContent') }}</div>
-          <div v-else-if="error" class="error reader-status reader-error" role="alert">
-            <p>{{ error }}</p>
-            <button class="button" type="button" @click="fetchReaderData">{{ t('common.retry') }}</button>
-          </div>
+  <SplitConfigModal
+    :open="isSplitModalOpen"
+    :split-config="splitConfig"
+    @close="closeSplitModal"
+    @saved="handleSplitConfigSaved"
+  />
 
-          <article v-else class="reader-document">
-            <div class="reader-nav" v-if="sections.length > 0">
-              <button class="button reader-nav-button" type="button" :disabled="currentSectionIndex <= 0" @click="goPrevSection">
-                {{ t('common.prev') }}
-              </button>
-              <div class="reader-nav-center">
-                <strong>{{ currentSectionIndex + 1 }} / {{ sections.length }}</strong>
-                <span class="reader-nav-title">{{ currentSection?.title }}</span>
-              </div>
-              <button
-                class="button reader-nav-button"
-                type="button"
-                :disabled="currentSectionIndex >= sections.length - 1"
-                @click="goNextSection"
-              >
-                {{ t('common.next') }}
-              </button>
-            </div>
+  <ChapterModal
+    :open="isChapterModalOpen"
+    :sections="sections"
+    :current-section-index="currentSectionIndex"
+    @close="closeChapterModal"
+    @select-section="selectSectionFromChapterModal"
+  />
 
-            <p v-if="splitWarning" class="reader-split-warning" role="status">{{ splitWarning }}</p>
-
-            <div class="reader-content" tabindex="-1" @scroll="onScroll" ref="readerRef">
-              <h3 v-if="currentSection?.title" class="reader-chapter-title">{{ currentSection.title }}</h3>
-              <div class="reader-text">
-                <template v-if="bookFormat === 'md'">
-                  <template v-if="markdownBlocks.length > 0">
-                    <template v-for="(block, index) in markdownBlocks" :key="`${currentSection?.index ?? 0}-md-${index}`">
-                      <template v-if="block.type === 'heading'">
-                        <component :is="mdHeadingTag(block.level)" :class="mdHeadingClass(block.level)">
-                          <template v-for="(seg, si) in block.segments" :key="si">
-                            <strong v-if="seg.bold">{{ seg.text }}</strong>
-                            <em v-else-if="seg.italic">{{ seg.text }}</em>
-                            <code v-else-if="seg.code" class="reader-md-inline-code">{{ seg.text }}</code>
-                            <template v-else>{{ seg.text }}</template>
-                          </template>
-                        </component>
-                      </template>
-
-                      <template v-else-if="block.type === 'quote'">
-                        <blockquote class="reader-text-block reader-text-quote">
-                          <template v-for="(seg, si) in block.segments" :key="si">
-                            <strong v-if="seg.bold">{{ seg.text }}</strong>
-                            <em v-else-if="seg.italic">{{ seg.text }}</em>
-                            <code v-else-if="seg.code" class="reader-md-inline-code">{{ seg.text }}</code>
-                            <template v-else>{{ seg.text }}</template>
-                          </template>
-                        </blockquote>
-                      </template>
-
-                      <template v-else-if="block.type === 'list'">
-                        <component :is="block.ordered ? 'ol' : 'ul'" class="reader-md-list">
-                          <li v-for="(item, itemIndex) in block.items" :key="itemIndex">
-                            <template v-for="(seg, si) in item" :key="si">
-                              <strong v-if="seg.bold">{{ seg.text }}</strong>
-                              <em v-else-if="seg.italic">{{ seg.text }}</em>
-                              <code v-else-if="seg.code" class="reader-md-inline-code">{{ seg.text }}</code>
-                              <template v-else>{{ seg.text }}</template>
-                            </template>
-                          </li>
-                        </component>
-                      </template>
-
-                      <template v-else-if="block.type === 'code'">
-                        <pre class="reader-md-code"><code>{{ block.text }}</code></pre>
-                      </template>
-
-                      <template v-else-if="block.type === 'hr'">
-                        <hr class="reader-md-hr" />
-                      </template>
-
-                      <template v-else-if="block.type === 'image'">
-                        <ReaderAssetImage
-                          :book-id="id"
-                          :source-id="currentSourceId"
-                          :name="block.name"
-                          :alt="block.alt"
-                        />
-                      </template>
-
-                      <template v-else>
-                        <p class="reader-text-block">
-                          <template v-for="(seg, si) in block.segments" :key="si">
-                            <strong v-if="seg.bold">{{ seg.text }}</strong>
-                            <em v-else-if="seg.italic">{{ seg.text }}</em>
-                            <code v-else-if="seg.code" class="reader-md-inline-code">{{ seg.text }}</code>
-                            <template v-else>{{ seg.text }}</template>
-                          </template>
-                        </p>
-                      </template>
-                    </template>
-                  </template>
-                  <p v-else class="reader-text-block">{{ currentSection?.text ?? '' }}</p>
-                </template>
-                <template v-else>
-                  <template v-if="sectionBlocks.length > 0">
-                    <component
-                      :is="block.type === 'quote' ? 'blockquote' : 'p'"
-                      v-for="(block, index) in sectionBlocks"
-                      :key="`${currentSection?.index ?? 0}-${index}`"
-                      class="reader-text-block"
-                      :class="{ 'reader-text-quote': block.type === 'quote' }"
-                    >
-                      {{ block.text }}
-                    </component>
-                  </template>
-                  <p v-else class="reader-text-block">{{ currentSection?.text ?? '' }}</p>
-                </template>
-              </div>
-            </div>
-          </article>
-        </main>
-      </div>
-    </div>
-
-    <SplitConfigModal
-      :open="isSplitModalOpen"
-      :split-config="splitConfig"
-      @close="closeSplitModal"
-      @saved="handleSplitConfigSaved"
-    />
-
-    <ChapterModal
-      :open="isChapterModalOpen"
-      :sections="sections"
-      :current-section-index="currentSectionIndex"
-      @close="closeChapterModal"
-      @select-section="selectSectionFromChapterModal"
-    />
-
-    <FontSelectionModal
-      :open="isFontModalOpen"
-      :font-family="fontFamily"
-      @close="closeFontModal"
-      @select="setFontFamily"
-    />
-  </section>
+  <FontSelectionModal
+    :open="isFontModalOpen"
+    :font-family="fontFamily"
+    @close="closeFontModal"
+    @select="setFontFamily"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import ChapterModal from '@/features/reader/components/ChapterModal.vue';
+import DesktopReaderView from '@/features/reader/components/DesktopReaderView.vue';
 import FontSelectionModal from '@/features/reader/components/FontSelectionModal.vue';
-import ReaderSideActions from '@/features/reader/components/ReaderSideActions.vue';
+import MobileReaderView from '@/features/reader/components/MobileReaderView.vue';
 import SplitConfigModal from '@/features/reader/components/SplitConfigModal.vue';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useReader } from '@/features/reader/composables/useReader';
+import { useMobileReaderPresentation } from '@/features/reader/composables/useReaderPresentation';
 import {
+  DEFAULT_READER_FONT_SIZE,
   getReaderFontFamily,
+  MOBILE_DEFAULT_FONT_SIZE,
   useReaderSettings
 } from '@/features/reader/composables/useReaderSettings';
 import { useReadingHeartbeat } from '@/features/reader/composables/useReadingHeartbeat';
-import { parseReaderBlocks } from '@/features/reader/utils/parseReaderBlocks';
-import { parseMarkdownBlocks } from '@/features/reader/utils/parseMarkdownBlocks';
-import ReaderAssetImage from '@/features/reader/components/ReaderAssetImage.vue';
 import type { SplitConfig } from '@/types/book';
 import { useI18n } from '@/i18n';
 
 const route = useRoute();
 const id = computed(() => String(route.params.id));
+const isMobileReader = useMobileReaderPresentation();
 const {
   title,
   bookFormat,
@@ -211,6 +124,7 @@ const {
   goPrevSection,
   goNextSection,
   goToSection,
+  syncCurrentScroll,
   splitConfig,
   applySplitConfig,
   bookmarkCurrent
@@ -219,6 +133,9 @@ const {
 const isSplitModalOpen = ref(false);
 const isChapterModalOpen = ref(false);
 const isFontModalOpen = ref(false);
+const defaultFontSize = computed(() =>
+  isMobileReader.value ? MOBILE_DEFAULT_FONT_SIZE : DEFAULT_READER_FONT_SIZE
+);
 const {
   fontSize,
   fontFamily,
@@ -227,7 +144,7 @@ const {
   increaseFontSize,
   decreaseFontSize,
   setFontFamily
-} = useReaderSettings();
+} = useReaderSettings(defaultFontSize);
 const { t } = useI18n();
 const readingHeartbeat = useReadingHeartbeat(() => id.value);
 
@@ -238,19 +155,11 @@ const readerStyleVars = computed(() => ({
 
 useDocumentTitle(() => [t('reader.title'), title.value, t('app.name')]);
 
-const sectionBlocks = computed(() => parseReaderBlocks(currentSection.value?.text ?? ''));
-const markdownBlocks = computed(() => parseMarkdownBlocks(currentSection.value?.text ?? ''));
-
-function mdHeadingTag(level: number): 'h2' | 'h3' | 'h4' {
-  if (level === 1) return 'h2';
-  if (level === 2) return 'h3';
-  return 'h4';
-}
-
-function mdHeadingClass(level: number): string {
-  if (level === 1) return 'reader-md-h1';
-  if (level === 2) return 'reader-md-h2';
-  return 'reader-md-h3';
+function handleReaderReady(element: HTMLDivElement | null): void {
+  readerRef.value = element;
+  if (element) {
+    void syncCurrentScroll();
+  }
 }
 
 function openSplitModal(): void {
@@ -269,38 +178,37 @@ function closeFontModal(): void {
   isFontModalOpen.value = false;
 }
 
-function onDocumentKeydown(event: KeyboardEvent): void {
-  const hasOpenModal = isSplitModalOpen.value || isChapterModalOpen.value || isFontModalOpen.value;
+function openChapterModal(): void {
+  isChapterModalOpen.value = true;
+}
 
-  // Don't handle reader shortcuts when modal is open
-  if (hasOpenModal) {
+function closeChapterModal(): void {
+  isChapterModalOpen.value = false;
+}
+
+function onDocumentKeydown(event: KeyboardEvent): void {
+  if (isSplitModalOpen.value || isChapterModalOpen.value || isFontModalOpen.value) {
+    return;
+  }
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
     return;
   }
 
-  // Handle left/right arrow keys to navigate sections
-  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-    // Don't handle if focus is on input/textarea/select/button/contenteditable elements
-    const activeElement = document.activeElement;
-    if (
-      activeElement instanceof HTMLInputElement ||
-      activeElement instanceof HTMLTextAreaElement ||
-      activeElement instanceof HTMLSelectElement ||
-      activeElement instanceof HTMLButtonElement ||
-      activeElement?.getAttribute?.('contenteditable') === 'true'
-    ) {
-      return;
-    }
+  const activeElement = document.activeElement;
+  if (
+    activeElement instanceof HTMLInputElement ||
+    activeElement instanceof HTMLTextAreaElement ||
+    activeElement instanceof HTMLSelectElement ||
+    activeElement instanceof HTMLButtonElement ||
+    activeElement?.getAttribute?.('contenteditable') === 'true'
+  ) {
+    return;
+  }
 
-    // Navigate to previous/next section if not at boundary
-    if (event.key === 'ArrowLeft') {
-      if (currentSectionIndex.value > 0) {
-        goPrevSection();
-      }
-    } else if (event.key === 'ArrowRight') {
-      if (currentSectionIndex.value < sections.value.length - 1) {
-        goNextSection();
-      }
-    }
+  if (event.key === 'ArrowLeft' && currentSectionIndex.value > 0) {
+    void goPrevSection();
+  } else if (event.key === 'ArrowRight' && currentSectionIndex.value < sections.value.length - 1) {
+    void goNextSection();
   }
 }
 
@@ -311,14 +219,6 @@ async function handleSplitConfigSaved(config: SplitConfig): Promise<void> {
   } catch (err) {
     console.error('Failed to update split config', err);
   }
-}
-
-function openChapterModal(): void {
-  isChapterModalOpen.value = true;
-}
-
-function closeChapterModal(): void {
-  isChapterModalOpen.value = false;
 }
 
 async function selectSectionFromChapterModal(index: number): Promise<void> {
@@ -345,7 +245,3 @@ onBeforeUnmount(() => {
   readingHeartbeat.stop();
 });
 </script>
-
-<style scoped src="../styles/reader-layout.css"></style>
-<style scoped src="../styles/reader-content.css"></style>
-<style scoped src="../styles/reader-modal.css"></style>

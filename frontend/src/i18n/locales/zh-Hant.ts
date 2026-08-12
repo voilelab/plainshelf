@@ -632,7 +632,12 @@ const zhHant = {
     splitSettings: '切分設定',
     imageUnavailable: '插圖無法載入',
     saveBookmark: '儲存書籤',
-    savingBookmark: '儲存書籤中'
+    savingBookmark: '儲存書籤中',
+    mobile: {
+      gestureHint: '點按中央顯示工具列 · 左右滑動切換章節',
+      firstSection: '已是第一章',
+      lastSection: '已是最後一章'
+    }
   },
   mobileConnect: {
     title: '連線到 PlainShelf',

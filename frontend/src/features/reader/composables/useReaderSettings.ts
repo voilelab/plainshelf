@@ -1,8 +1,9 @@
-import { computed, ref, watch } from 'vue';
+import { computed, ref, toValue, watch, type MaybeRefOrGetter } from 'vue';
 
 const FONT_SIZE_STORAGE_KEY = 'reader-font-size';
 const FONT_FAMILY_STORAGE_KEY = 'reader-font-family';
-const DEFAULT_FONT_SIZE = 20;
+export const DEFAULT_READER_FONT_SIZE = 20;
+export const MOBILE_DEFAULT_FONT_SIZE = 22;
 const MIN_FONT_SIZE = 14;
 const MAX_FONT_SIZE = 36;
 const FONT_SIZE_STEP = 2;
@@ -32,14 +33,14 @@ function clampFontSize(value: number): number {
   return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, value));
 }
 
-function parseFontSize(rawValue: string | null): number {
+function parseFontSize(rawValue: string | null, fallback: number): number {
   if (!rawValue) {
-    return DEFAULT_FONT_SIZE;
+    return clampFontSize(fallback);
   }
 
   const parsed = Number.parseInt(rawValue, 10);
   if (Number.isNaN(parsed)) {
-    return DEFAULT_FONT_SIZE;
+    return clampFontSize(fallback);
   }
 
   return clampFontSize(parsed);
@@ -56,20 +57,23 @@ export function getReaderFontFamily(font: ReaderFont): string {
   return READER_FONT_OPTIONS.find((option) => option.id === font)?.cssFamily ?? READER_FONT_OPTIONS[0].cssFamily;
 }
 
-export function useReaderSettings() {
-  const fontSize = ref(DEFAULT_FONT_SIZE);
+export function useReaderSettings(defaultFontSize: MaybeRefOrGetter<number> = DEFAULT_READER_FONT_SIZE) {
+  const fontSize = ref(clampFontSize(toValue(defaultFontSize)));
   const fontFamily = ref<ReaderFont>(DEFAULT_READER_FONT);
+  const hasExplicitFontSize = ref(false);
 
   if (typeof window !== 'undefined') {
-    fontSize.value = parseFontSize(window.localStorage.getItem(FONT_SIZE_STORAGE_KEY));
+    const storedFontSize = window.localStorage.getItem(FONT_SIZE_STORAGE_KEY);
+    const parsedStoredFontSize = storedFontSize === null ? Number.NaN : Number.parseInt(storedFontSize, 10);
+    hasExplicitFontSize.value = Number.isFinite(parsedStoredFontSize);
+    fontSize.value = parseFontSize(storedFontSize, toValue(defaultFontSize));
     fontFamily.value = parseReaderFont(window.localStorage.getItem(FONT_FAMILY_STORAGE_KEY));
   }
 
-  watch(fontSize, (value) => {
-    if (typeof window === 'undefined') {
-      return;
+  watch(() => toValue(defaultFontSize), (value) => {
+    if (!hasExplicitFontSize.value) {
+      fontSize.value = clampFontSize(value);
     }
-    window.localStorage.setItem(FONT_SIZE_STORAGE_KEY, String(clampFontSize(value)));
   });
 
   watch(fontFamily, (value) => {
@@ -84,10 +88,19 @@ export function useReaderSettings() {
 
   function increaseFontSize(): void {
     fontSize.value = clampFontSize(fontSize.value + FONT_SIZE_STEP);
+    persistFontSize();
   }
 
   function decreaseFontSize(): void {
     fontSize.value = clampFontSize(fontSize.value - FONT_SIZE_STEP);
+    persistFontSize();
+  }
+
+  function persistFontSize(): void {
+    hasExplicitFontSize.value = true;
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(FONT_SIZE_STORAGE_KEY, String(fontSize.value));
+    }
   }
 
   function setFontFamily(value: ReaderFont): void {

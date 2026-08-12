@@ -634,7 +634,12 @@ const en = {
     splitSettings: 'Split settings',
     imageUnavailable: 'Illustration unavailable',
     saveBookmark: 'Save bookmark',
-    savingBookmark: 'Saving bookmark'
+    savingBookmark: 'Saving bookmark',
+    mobile: {
+      gestureHint: 'Tap the center for controls · Swipe left or right to change chapters',
+      firstSection: 'You are at the first chapter',
+      lastSection: 'You are at the last chapter'
+    }
   },
   mobileConnect: {
     title: 'Connect to PlainShelf',

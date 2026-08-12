@@ -410,6 +410,10 @@ export function useReader(bookID: () => string) {
     await goToSection(currentSectionIndex.value + 1);
   }
 
+  async function syncCurrentScroll(): Promise<void> {
+    await syncScrollToOffset(currentOffset.value);
+  }
+
   async function bookmarkCurrent(): Promise<void> {
     bookmarking.value = true;
     error.value = '';
@@ -446,6 +450,7 @@ export function useReader(bookID: () => string) {
     goPrevSection,
     goNextSection,
     goToSection,
+    syncCurrentScroll,
     applySplitConfig,
     bookmarkCurrent
   };

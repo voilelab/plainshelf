@@ -42,7 +42,19 @@ test('should switch and persist the reading font without changing code text', as
     await reopenedDialog.getByRole('button', { name: 'Done' }).click();
 
     await page.setViewportSize({ width: 320, height: 700 });
-    const toolbarButtons = page.locator('.reader-side-actions .reader-icon-button');
+    const mobileReader = page.locator('[data-reader-variant="mobile"]');
+    await expect(mobileReader).toBeVisible();
+    const readerBox = await mobileReader.boundingBox();
+    expect(readerBox).not.toBeNull();
+    const center = { x: readerBox!.x + readerBox!.width / 2, y: readerBox!.y + readerBox!.height / 2 };
+    await mobileReader.dispatchEvent('pointerdown', {
+      pointerType: 'mouse', pointerId: 1, isPrimary: true, button: 0, clientX: center.x, clientY: center.y
+    });
+    await mobileReader.dispatchEvent('pointerup', {
+      pointerType: 'mouse', pointerId: 1, isPrimary: true, button: 0, clientX: center.x, clientY: center.y
+    });
+
+    const toolbarButtons = page.locator('.mobile-reader-toolbar .mobile-reader-tool');
     await expect(toolbarButtons).toHaveCount(6);
     const buttonTops = await toolbarButtons.evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().top));
     expect(Math.max(...buttonTops) - Math.min(...buttonTops)).toBeLessThanOrEqual(1);
