@@ -240,15 +240,25 @@ func TestStrategyValidate(t *testing.T) {
 }
 
 func TestStrategyDerivedValues(t *testing.T) {
+	keep, drop := true, false
+
 	tests := []struct {
 		name           string
 		strategy       Strategy
 		wantFormat     string
 		wantMarkdownIn bool
+		wantKeepImages bool
 	}{
-		{"markdown", Strategy{Preset: PresetMarkdown}, "md", true},
-		{"plain", Strategy{Preset: PresetPlain}, "txt", false},
-		{"empty falls back to the default preset", Strategy{}, "md", true},
+		{"markdown", Strategy{Preset: PresetMarkdown}, "md", true, true},
+		{"plain", Strategy{Preset: PresetPlain}, "txt", false, false},
+		{"empty falls back to the default preset", Strategy{}, "md", true, true},
+		// A plain-text book has no image syntax, so the strategy must not ask
+		// for illustrations even when the setting says to keep them.
+		{"plain never keeps images", Strategy{Preset: PresetPlain, KeepImages: &keep}, "txt", false, false},
+		{"markdown honours an explicit keep", Strategy{Preset: PresetMarkdown, KeepImages: &keep}, "md", true, true},
+		// A strategy stored before keep_images existed must keep illustrations
+		// rather than inherit a false zero value.
+		{"markdown honours an explicit drop", Strategy{Preset: PresetMarkdown, KeepImages: &drop}, "md", true, false},
 	}
 
 	for _, tt := range tests {
@@ -256,8 +266,12 @@ func TestStrategyDerivedValues(t *testing.T) {
 			if got := tt.strategy.Format(); got != tt.wantFormat {
 				t.Errorf("Format() = %q, want %q", got, tt.wantFormat)
 			}
-			if got := tt.strategy.ParseOptions().MarkdownInline; got != tt.wantMarkdownIn {
-				t.Errorf("ParseOptions().MarkdownInline = %v, want %v", got, tt.wantMarkdownIn)
+			opts := tt.strategy.ParseOptions()
+			if opts.MarkdownInline != tt.wantMarkdownIn {
+				t.Errorf("ParseOptions().MarkdownInline = %v, want %v", opts.MarkdownInline, tt.wantMarkdownIn)
+			}
+			if opts.KeepImages != tt.wantKeepImages {
+				t.Errorf("ParseOptions().KeepImages = %v, want %v", opts.KeepImages, tt.wantKeepImages)
 			}
 		})
 	}

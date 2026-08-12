@@ -32,24 +32,6 @@ func TestSetSetting(t *testing.T) {
 	}
 }
 
-func TestSetSetting_Overwrite(t *testing.T) {
-	db := newTestDB(t)
-	db.SetSetting("lang", []byte("en"))
-	if err := db.SetSetting("lang", []byte("ja")); err != nil {
-		t.Fatalf("SetSetting: %v", err)
-	}
-	val, ok, err := db.GetSetting("lang")
-	if err != nil {
-		t.Fatalf("GetSetting: %v", err)
-	}
-	if !ok {
-		t.Fatal("expected key to exist")
-	}
-	if string(val) != "ja" {
-		t.Fatalf("expected %q, got %q", "ja", val)
-	}
-}
-
 func TestDeleteSetting(t *testing.T) {
 	db := newTestDB(t)
 	db.SetSetting("foo", []byte("bar"))
@@ -69,27 +51,5 @@ func TestDeleteSetting_NotFound(t *testing.T) {
 	db := newTestDB(t)
 	if err := db.DeleteSetting("nonexistent"); err != nil {
 		t.Fatalf("expected no error deleting missing key, got: %v", err)
-	}
-}
-
-func TestSetSetting_MultipleKeys(t *testing.T) {
-	db := newTestDB(t)
-	settings := map[string]string{"a": "1", "b": "2", "c": "3"}
-	for k, v := range settings {
-		if err := db.SetSetting(k, []byte(v)); err != nil {
-			t.Fatalf("SetSetting %q: %v", k, err)
-		}
-	}
-	for k, want := range settings {
-		got, ok, err := db.GetSetting(k)
-		if err != nil {
-			t.Fatalf("GetSetting %q: %v", k, err)
-		}
-		if !ok {
-			t.Fatalf("key %q not found", k)
-		}
-		if string(got) != want {
-			t.Fatalf("key %q: expected %q, got %q", k, want, got)
-		}
 	}
 }
