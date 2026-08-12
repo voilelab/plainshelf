@@ -590,8 +590,17 @@ func TestSetMetaMarksOtherInstanceStale(t *testing.T) {
 	bookID := "test-book-a38j"
 	title := "Test Book"
 
-	book1, rootFS, _ := newTestBook(t, bookID, title)
+	_, rootFS, tmpLib := newTestBook(t, bookID, title)
 
+	// SetMeta writes through the API, so its timestamp cannot be forced after
+	// the fact. Backdate the file instead and open both instances against that,
+	// which leaves the write below unambiguously newer than what they cached.
+	shiftModTime(t, path.Join(tmpLib, bookID, BookMetaFile), -2*time.Second)
+
+	book1, err := openBook(rootFS, newLoggerForTest(), bookID)
+	if err != nil {
+		t.Fatalf("Failed to open first book instance: %v", err)
+	}
 	book2, err := openBook(rootFS, newLoggerForTest(), bookID)
 	if err != nil {
 		t.Fatalf("Failed to open second book instance: %v", err)
@@ -607,8 +616,6 @@ func TestSetMetaMarksOtherInstanceStale(t *testing.T) {
 	meta := book1.GetMeta()
 	meta.Comments = "updated by book1"
 
-	// Ensure filesystem mtime has advanced on platforms with coarse timestamp precision.
-	time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)))
 	err = book1.SetMeta(meta)
 	if err != nil {
 		t.Fatalf("Failed to set book meta from first instance: %v", err)

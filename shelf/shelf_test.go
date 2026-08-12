@@ -571,10 +571,10 @@ func TestShelfGetBookRefreshesWhenBookMetaChangesOnDisk(t *testing.T) {
 		t.Fatalf("Failed to marshal updated book meta: %v", err)
 	}
 
-	time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)))
 	if err := os.WriteFile(metaPath, updatedMetaBytes, 0o644); err != nil {
 		t.Fatalf("Failed to write updated book meta: %v", err)
 	}
+	shiftModTime(t, metaPath, 2*time.Second)
 
 	refreshedBook, err := shelf.GetBook("book-a82m")
 	if err != nil {
@@ -617,10 +617,10 @@ func TestShelfListBooksRefreshesStaleMetaAndDiscoversNewBookOnCacheMiss(t *testi
 	if err != nil {
 		t.Fatalf("Failed to marshal existing book meta: %v", err)
 	}
-	time.Sleep(time.Until(time.Now().Truncate(time.Second).Add(time.Second)))
 	if err := os.WriteFile(metaPath, updatedMetaBytes, 0o644); err != nil {
 		t.Fatalf("Failed to write existing book meta: %v", err)
 	}
+	shiftModTime(t, metaPath, 2*time.Second)
 
 	newBookPath := path.Join(tmpLib, booksFolder, "default", "test", "book-new.bookpkg")
 	if err := os.MkdirAll(newBookPath, 0o755); err != nil {

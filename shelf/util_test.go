@@ -3,8 +3,8 @@ package shelf
 import (
 	"context"
 	"os"
-	"path"
 	"testing"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/logutil"
@@ -25,13 +25,24 @@ func newTestShelf(t *testing.T, conf *ShelfConf) *Shelf {
 	return s
 }
 
-func TestCreateTempDir(t *testing.T) {
-	tmpDir := path.Join(os.TempDir(), "shelf-test")
-	err := os.MkdirAll(tmpDir, 0755)
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
+// shiftModTime moves a file's modification time by offset from now. Staleness
+// is detected from the meta file's stat (see getFileStat), and on a filesystem
+// with one-second timestamp granularity a fresh write can land in the same
+// second as the cached stat and go unnoticed. Setting the time outright makes
+// that deterministic instead of sleeping until the second ticks over: push the
+// file forward after writing it directly, or back before a write that has to go
+// through the API.
+func shiftModTime(t *testing.T, filePath string, offset time.Duration) {
+	t.Helper()
+
+	at := time.Now().Add(offset)
+	if err := os.Chtimes(filePath, at, at); err != nil {
+		t.Fatalf("Failed to shift mod time of %s: %v", filePath, err)
 	}
-	defer os.RemoveAll(tmpDir)
+}
+
+func TestCreateTempDir(t *testing.T) {
+	tmpDir := t.TempDir()
 
 	root, err := os.OpenRoot(tmpDir)
 	if err != nil {
