@@ -90,36 +90,18 @@ func epubBookTitle(supplied, filename string, parsed *epub.Book) string {
 	return filename
 }
 
-// splitConfigForRender turns the rendered chapter positions into the source's
-// split configuration. The regex form is preferred because the reader derives
-// section titles from it; boundaries are exact but render as "Part N".
-func splitConfigForRender(rendered epub.Rendered) shelf.SplitConfig {
-	if len(rendered.ChapterLines) < 2 {
-		// A single chapter is the whole book; splitting it gains nothing.
-		return shelf.SplitConfig{Type: shelf.SplitTypeNone}
-	}
-	if rendered.ChapterRegex != "" {
-		return shelf.SplitConfig{Type: shelf.SplitTypeRegex, Regex: rendered.ChapterRegex}
-	}
-
-	return shelf.SplitConfig{Type: shelf.SplitTypeBoundary, Boundaries: rendered.ChapterLines}
-}
-
 // initEPUBBook fills a freshly staged book with the converted EPUB.
 //
 // It runs inside NewBookWith while the exclusive shelf lock is held, so it only
 // writes; parsing and rendering happen before the book is created.
 func (app *App) initEPUBBook(parsed *epub.Book, rendered epub.Rendered) func(*shelf.Book) error {
 	return func(book *shelf.Book) error {
-		source, err := book.NewSource(strings.NewReader(rendered.Text))
+		source, err := book.NewSourceWithOptions(strings.NewReader(rendered.Text), shelf.NewSourceOptions{Format: rendered.Format})
 		if err != nil {
 			return util.Errorf("%w", err)
 		}
 		app.writeEPUBImages(source, parsed)
 		if err := book.SetCurrentSource(source.ID()); err != nil {
-			return util.Errorf("%w", err)
-		}
-		if err := source.UpdateSplitConfig(splitConfigForRender(rendered)); err != nil {
 			return util.Errorf("%w", err)
 		}
 		if comment := epubImportComment(parsed); comment != "" {

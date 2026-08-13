@@ -42,8 +42,8 @@
         <section v-if="showEpubOptions" class="epub-options">
           <h3 class="epub-options-title">EPUB Conversion</h3>
           <p class="meta">
-            EPUB files are converted to text. The original file is not kept and embedded
-            illustrations are dropped.
+            EPUB files are converted into a source. The original file is not kept;
+            supported illustrations are retained by the Markdown preset.
           </p>
 
           <label class="field">
@@ -74,8 +74,8 @@
           </label>
 
           <p v-if="epubStrategy.preset === 'plain'" class="meta epub-hint">
-            Plain text has no heading marker to match on, so the reader lists chapters as
-            "Part 1", "Part 2" and so on. Markdown keeps the chapter names.
+            Plain text has no chapter navigation or Markdown illustrations. You can create
+            a chapterized Markdown source afterwards without changing this TXT source.
           </p>
 
           <label class="epub-checkbox">

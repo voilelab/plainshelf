@@ -33,13 +33,9 @@ test('should edit book metadata and see the updated values on the detail page', 
     await page.getByRole('option', { name: '英文' }).click();
     await expect(languageTrigger).toHaveText('英文');
 
-    // Switch the stored format. The import guessed "txt" from the file
-    // extension; this is the only way to correct that guess.
-    const formatTrigger = page.locator('.edit-form').getByLabel('Format');
-    await expect(formatTrigger).toHaveText('Plain text');
-    await formatTrigger.click();
-    await page.getByRole('option', { name: 'Markdown' }).click();
-    await expect(formatTrigger).toHaveText('Markdown');
+    // Format belongs to the source and is intentionally absent from general
+    // book metadata editing. Conversions live in Manage sources.
+    await expect(page.locator('.edit-form').getByLabel('Format')).toHaveCount(0);
 
     // Add a tag
     const tagInput = page.getByPlaceholder('Type a tag and press Enter');
@@ -57,14 +53,14 @@ test('should edit book metadata and see the updated values on the detail page', 
 
     // Should redirect to detail page with saved=1
     await expect(page).toHaveURL(/\/books\/[^/]+\?saved=1$/);
-  await expect(page.getByText('Book details saved.')).toBeVisible();
+    await expect(page.getByText('Book details saved.')).toBeVisible();
 
     // Verify updated values are visible on the detail page
     await expect(page.getByRole('heading', { name: 'Updated Hello' })).toBeVisible();
     await expect(page.getByText('Alice, Bob')).toBeVisible();
     await expect(page.getByText('e2e-tag')).toBeVisible();
     await expect(page.getByText('英文')).toBeVisible();
-  await expect(page.getByText('MD', { exact: true })).toBeVisible();
+    await expect(page.getByText('TXT', { exact: true })).toBeVisible();
     await expect(page.getByText('★★★★☆')).toBeVisible();
     await expect(page.getByText('This is an E2E comment.')).toBeVisible();
   } finally {

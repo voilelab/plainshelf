@@ -14,8 +14,8 @@ export interface CachedBookSizeBreakdown {
 export interface CachedBookManifest {
   book: Book;
   sources: SourceMeta[];
-  // Full config for offline reader startup. SourceMeta only carries the split
-  // type, which is insufficient for line_count, regex, and boundary splitting.
+  // Compatibility field for a legacy source. Schema-versioned sources carry
+  // their format in SourceMeta and never need book-level split state.
   split_config?: SplitConfig;
   downloaded_at: string;
   local_version?: string;
@@ -105,7 +105,10 @@ export function downloadedBookFromManifest(manifest: CachedBookManifest): Book {
 export function cloneManifest(manifest: CachedBookManifest): CachedBookManifest {
   return {
     book: { ...manifest.book },
-    sources: manifest.sources.map((source) => ({ ...source })),
+    sources: manifest.sources.map((source) => ({
+      ...source,
+      split_config: copySplitConfig(source.split_config)
+    })),
     split_config: copySplitConfig(manifest.split_config),
     downloaded_at: manifest.downloaded_at,
     local_version: manifest.local_version,
@@ -161,13 +164,16 @@ export class InMemoryMobileBookCache implements MobileBookCache {
 
   async listCachedSources(bookId: string): Promise<SourceMeta[]> {
     const manifest = this.manifests.get(bookId);
-    return manifest ? manifest.sources.map((source) => ({ ...source })) : [];
+    return manifest ? manifest.sources.map((source) => ({
+      ...source,
+      split_config: copySplitConfig(source.split_config)
+    })) : [];
   }
 
   async getCachedSource(bookId: string, sourceId: string): Promise<SourceMeta | null> {
     const manifest = this.manifests.get(bookId);
     const source = manifest?.sources.find((item) => item.id === sourceId);
-    return source ? { ...source } : null;
+    return source ? { ...source, split_config: copySplitConfig(source.split_config) } : null;
   }
 
   async getCachedBookSplitConfig(bookId: string): Promise<SplitConfig | null> {

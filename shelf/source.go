@@ -17,6 +17,13 @@ import (
 const SourceMetaFile = "meta.json"
 const SourceFile = "source.txt"
 
+// SourceMetaSchemaVersion is the source metadata format written for sources
+// that own their content format. A missing version is a legacy source: its
+// format and chapter behaviour are inherited from book.json and split_config.
+const SourceMetaSchemaVersion = 1
+
+var ErrUnsupportedSourceSchemaVersion = util.NewError("source meta.json schema version is newer than this build supports")
+
 /*
 {source-folder}/
 ├─ meta.json
@@ -31,9 +38,12 @@ type Source struct {
 }
 
 type SourceMeta struct {
+	SchemaVersion int `json:"schema_version,omitempty"`
+
 	ID        string        `json:"id"`
 	CreatedAt util.JSONTime `json:"created_at"`
 	Comment   string        `json:"comment"`
+	Format    string        `json:"format,omitempty"`
 
 	// depending on the content
 	MD5Hash   string `json:"md5_hash,omitempty"`
@@ -53,7 +63,17 @@ func (r *Source) ID() string {
 }
 
 func (r *Source) GetMeta() *SourceMeta {
-	return r.meta
+	meta := *r.meta
+	meta.SplitConfig.Boundaries = append([]int(nil), r.meta.SplitConfig.Boundaries...)
+	return &meta
+}
+
+func (r *Source) EnsureWritable() error {
+	if r.meta.SchemaVersion > SourceMetaSchemaVersion {
+		return util.Errorf("%w: meta.json is schema_version %d, this build writes %d",
+			ErrUnsupportedSourceSchemaVersion, r.meta.SchemaVersion, SourceMetaSchemaVersion)
+	}
+	return nil
 }
 
 func (r *Source) Open() (fs.File, error) {
@@ -66,6 +86,9 @@ func (r *Source) Open() (fs.File, error) {
 }
 
 func (r *Source) UpdateContent(newContent io.Reader) error {
+	if err := r.EnsureWritable(); err != nil {
+		return util.Errorf("%w", err)
+	}
 	sourceDestPath := path.Join(r.folderPath, SourceFile)
 
 	if err := fsutil.WriteAtomic(r.root, sourceDestPath, newContent); err != nil {
@@ -95,6 +118,9 @@ func (r *Source) VerifyContent() (bool, error) {
 }
 
 func (r *Source) UpdateHash() error {
+	if err := r.EnsureWritable(); err != nil {
+		return util.Errorf("%w", err)
+	}
 	sourceFile, err := r.Open()
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -118,6 +144,9 @@ func (r *Source) RefreshContentMetadata() error {
 }
 
 func (r *Source) refreshContentMetadata() error {
+	if err := r.EnsureWritable(); err != nil {
+		return util.Errorf("%w", err)
+	}
 	// Read the file once; compute all three metrics from the buffer to avoid
 	// 3 separate SMB round-trips on network-mounted shelves.
 	f, err := r.Open()
@@ -155,6 +184,9 @@ func (r *Source) refreshContentMetadata() error {
 // source came to be — for example what an import could not carry over — and is
 // rewritten whenever the content is imported again.
 func (r *Source) UpdateComment(comment string) error {
+	if err := r.EnsureWritable(); err != nil {
+		return util.Errorf("%w", err)
+	}
 	r.meta.Comment = comment
 	if err := r.writebackMeta(); err != nil {
 		return util.Errorf("%w", err)
@@ -163,6 +195,9 @@ func (r *Source) UpdateComment(comment string) error {
 }
 
 func (r *Source) UpdateSplitConfig(config SplitConfig) error {
+	if err := r.EnsureWritable(); err != nil {
+		return util.Errorf("%w", err)
+	}
 	r.meta.SplitConfig = config
 	err := r.writebackMeta()
 	if err != nil {
@@ -209,7 +244,10 @@ func openSource(rt fsutil.FS, sourcePath string) (*Source, error) {
 	}, nil
 }
 
-func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, source io.Reader) (*Source, error) {
+func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, source io.Reader, format, comment string) (*Source, error) {
+	if !validateBookFormat(format) || format == "" {
+		return nil, util.Errorf("%w: got %q", ErrInvalidBookFormat, format)
+	}
 	err := rt.MkdirAll(sourcePath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -252,13 +290,16 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 	}
 
 	meta := SourceMeta{
-		ID:        id,
-		CreatedAt: util.JSONTime(time.Now()),
+		SchemaVersion: SourceMetaSchemaVersion,
+		ID:            id,
+		CreatedAt:     util.JSONTime(time.Now()),
+		Format:        format,
+		SplitConfig:   SplitConfig{Type: SplitTypeNone},
 
 		MD5Hash:   md5Hash,
 		LineCount: lineCount,
 		CharCount: charCount,
-		Comment:   "",
+		Comment:   comment,
 	}
 
 	metaFilePath := path.Join(sourcePath, SourceMetaFile)

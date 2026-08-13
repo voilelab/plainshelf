@@ -235,7 +235,8 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	// while the book is still staged, so an import either lands complete or not
 	// at all.
 	newBook, err := shelfData.NewBookWith(layerParts, title, func(book *shelf.Book) error {
-		source, err := book.NewSource(utf8File)
+		format := bookFormatFromFilename(header.Filename)
+		source, err := book.NewSourceWithOptions(utf8File, shelf.NewSourceOptions{Format: format})
 		if err != nil {
 			return err
 		}
@@ -245,7 +246,7 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 
 		meta := book.GetMeta()
 		meta.Language = detectBookLang(book)
-		meta.Format = bookFormatFromFilename(header.Filename)
+		meta.Format = format
 		return book.SetMeta(meta)
 	})
 	if err != nil {
@@ -320,7 +321,8 @@ func (app *App) ImportFromLocalPath(shelfID string, localPath string, layerParts
 	// while the book is still staged, so an import either lands complete or not
 	// at all.
 	newBook, err := shelfData.NewBookWith(layerParts, filepath.Base(cleanPath), func(book *shelf.Book) error {
-		source, err := book.NewSource(utf8Reader)
+		format := bookFormatFromFilename(cleanPath)
+		source, err := book.NewSourceWithOptions(utf8Reader, shelf.NewSourceOptions{Format: format})
 		if err != nil {
 			return err
 		}
@@ -330,7 +332,7 @@ func (app *App) ImportFromLocalPath(shelfID string, localPath string, layerParts
 
 		meta := book.GetMeta()
 		meta.Language = detectBookLang(book)
-		meta.Format = bookFormatFromFilename(cleanPath)
+		meta.Format = format
 		return book.SetMeta(meta)
 	})
 	if err != nil {

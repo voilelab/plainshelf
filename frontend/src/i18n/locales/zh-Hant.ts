@@ -170,10 +170,10 @@ const zhHant = {
     epubImport: {
       title: 'EPUB 轉換',
       description:
-        'EPUB 檔案在匯入時會轉換成文字。原始檔案不會保留，內嵌插圖也會捨棄。這裡設定的是預設值，匯入對話框可以針對單次匯入覆寫。',
+        'EPUB 匯入時會轉換成 source，不保留原始檔案；Markdown 可保留支援的圖片。這裡設定預設值，匯入時可針對單次批次覆寫。',
       presetLabel: '轉換成',
       presetHelp:
-        'Markdown 會保留章節標題，閱讀器目錄可以顯示真實章名。純文字沒有可辨識的標題標記，目錄只會顯示「Part 1」「Part 2」。',
+        'Markdown 以 H2 保存章節並保留支援的圖片；純文字沒有章節導覽，也不支援 Markdown 圖片。',
       presetMarkdown: 'Markdown（章節標題）',
       presetPlain: '純文字',
       includeDescriptionLabel: '正文開頭放入簡介',
@@ -182,8 +182,8 @@ const zhHant = {
       saving: '儲存中...'
     },
     defaultSplitConfig: {
-      label: '預設章節分割規則',
-      description: '書籍沒有明確分割設定時自動套用。',
+      label: '舊格式預設章節分割規則',
+      description: '只套用於沒有 source format 的舊來源；新的 Markdown 來源固定使用 H2 作為章節。',
       typeLabel: '分割類型',
       typeNone: '無',
       typeLineCount: '固定行數',

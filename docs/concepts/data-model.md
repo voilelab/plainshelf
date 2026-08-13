@@ -72,29 +72,35 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 | `book.json` | Book metadata (title, authors, tags, language, …). Also holds `current_source`, the authoritative pointer to the active source, and `schema_version`, the on-disk format version — see [Data Format Versioning](data-format-versioning.md). |
 | `CURRENT_VERSION_LOCATION.txt` | Human-readable hint that points to the active source. It is **write-only** from the server's perspective (regenerated whenever the current source changes) and is never parsed back — `current_source` in `book.json` is the source of truth. |
 | `cover.(jpg\|png\|webp)` | Optional cover image |
-| `sources/{source-id}/source.txt` | The plain-text content for this source |
-| `sources/{source-id}/meta.json` | Source-level metadata |
+| `sources/{source-id}/source.txt` | The content and, for Markdown, its chapter structure |
+| `sources/{source-id}/meta.json` | Source-level metadata, including `schema_version` and authoritative `format` for new sources |
 | `sources/{source-id}/assets/` | Optional illustrations this source's text references |
 
-### Book format
+### Source format and chapters
 
-`book.json` records a `format` of either `txt` or `md`. It is not a file type —
-the text is stored in `source.txt` either way — it only decides whether the
-reader parses the content as Markdown or shows it verbatim.
+For schema-versioned sources, `sources/{source-id}/meta.json` records `format`
+as `txt` or `md`. `book.json.format` is only a compatibility mirror of the
+current source for older clients. Readers resolve format in this order:
 
-Importing sets it by guessing: a `.md` upload becomes `md`, anything else
-becomes `txt`, and an EPUB takes the format from the layout you chose. A guess
-can be wrong, most often when a `.txt` file happens to contain Markdown, so the
-format is editable afterwards on the book's **Edit metadata** page.
+1. current source `meta.json.format`;
+2. legacy `book.json.format`;
+3. `txt`.
 
-Switching it rewrites nothing but `book.json`, so it is always reversible: the
-book's text is untouched, and switching back restores the previous rendering.
-What it cannot do is add markup that was never written — an EPUB imported with
-the plain-text layout has no `## ` headings in its text, so marking it as `md`
-will not produce a chapter list. Re-import the EPUB for that.
+Markdown chapter structure is part of `source.txt`: every ATX H2 line
+(`## Title`) outside a fenced code block begins a chapter. The H2 stays in the
+body and its text is the chapter title. Meaningful content before the first H2
+is an opening section, named by its first H1 when present. H3 and lower
+headings, `---`, and `***` never split chapters.
 
-A book created through the API rather than an import has no `format` at all;
-that is read as plain text.
+TXT sources are deliberately unstructured and always read as one section. To
+add chapters, the source editor creates a new Markdown source and leaves the
+TXT original intact. Converting Markdown to plain text likewise creates a new
+source because heading hierarchy and chapter navigation are lost.
+
+Sources made before source-level format metadata remain legacy sources. They
+continue to use their stored regex, line-count, or boundary split configuration
+(and the legacy global default) until the user explicitly upgrades them. Merely
+opening or saving such a source never changes its chapter semantics.
 
 ### Source assets
 
@@ -118,8 +124,8 @@ Files get here three ways: [EPUB import](../epub-import.md#illustrations) writes
 the illustrations it kept, the API stores and removes them, and you can drop
 your own images in by hand.
 
-The reader displays these images for books stored as Markdown (`"format": "md"`
-in `book.json`). A plain-text book has no image syntax, so its illustrations are
+The reader displays these images when the current source's effective format is
+Markdown. A plain-text source has no image syntax, so its illustrations are
 never shown.
 
 Only a line that is nothing but an image becomes an illustration; an `![]()`

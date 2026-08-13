@@ -76,6 +76,10 @@ var apiErrorTable = []struct {
 		status:  http.StatusConflict,
 		message: "book uses a newer on-disk format than this PlainShelf build supports; upgrade PlainShelf to modify it",
 	}},
+	{shelf.ErrUnsupportedSourceSchemaVersion, apiError{
+		status:  http.StatusConflict,
+		message: "source uses a newer on-disk format than this PlainShelf build supports; upgrade PlainShelf to modify it",
+	}},
 	{taskutil.ErrWorkerBusy, apiError{
 		status:     http.StatusServiceUnavailable,
 		message:    "background worker is busy",

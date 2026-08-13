@@ -10,7 +10,7 @@ imported book stays readable in a text editor.
 | From the EPUB | Where it lands |
 |---|---|
 | Reading-order text | `sources/{source-id}/source.txt` |
-| Table of contents chapter names | Chapter headings in the text, plus the source's split configuration |
+| Table of contents chapter names | H2 chapter headings in the text |
 | `dc:title` | Book title |
 | `dc:creator` | Authors |
 | `dc:language` | Language |
@@ -101,9 +101,10 @@ The book description.
 The first chapter.
 ```
 
-Stored with format `md`, so the reader renders it as Markdown. Chapter headings
-carry a `## ` marker, which the source's split configuration matches as a regex —
-so the reader's chapter list shows the **real chapter names**.
+Stored as a source with format `md`, so the reader renders it as Markdown.
+Every H2 is the chapter structure itself; no regex, line number, or separate
+chapter file is generated. An EPUB chapter without a title gets a stable
+`## Part N` heading.
 
 ### Plain text
 
@@ -115,19 +116,15 @@ Setting Out
 The first chapter.
 ```
 
-Stored with format `txt`. There is no marker on a bare title line, so nothing can
-distinguish a chapter heading from ordinary prose. The split falls back to
-explicit line boundaries, which are exact but unnamed: the reader lists sections
-as **"Part 1", "Part 2"** and so on. The chapter names are still present in the
-text itself.
+Stored as an unstructured source with format `txt`. Bare title lines remain in
+the text, but the reader deliberately treats the whole source as one section:
+there is no chapter navigation and Markdown illustrations are not kept.
 
 If the chapter list matters to you, use the Markdown layout.
 
-The layout decides the text itself, not just how it is read, so picking the
-wrong one is not fixed by changing the book's
-[format](concepts/data-model.md#book-format) afterwards: the plain-text layout
-never wrote the `## ` markers that the chapter list needs. Import the EPUB again
-to change layouts.
+The layout decides the text itself, not just how it is read. After a plain-text
+import, use the source editor to create a chapterized Markdown source; the
+original TXT source stays intact.
 
 ### Description in the text
 

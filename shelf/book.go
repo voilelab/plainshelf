@@ -332,10 +332,23 @@ func (b *Book) CurrentSource() string {
 }
 
 func (b *Book) SetCurrentSource(sourceID string) error {
+	if err := b.EnsureWritable(); err != nil {
+		return util.Errorf("%w", err)
+	}
+	source, err := b.GetSource(sourceID)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	meta := b.GetMeta()
 	meta.CurrentSource = sourceID
+	if sourceFormat := source.GetMeta().Format; sourceFormat != "" {
+		// Compatibility mirror for clients that still read book.json directly.
+		// New clients use the current source's meta.json as the authority.
+		meta.Format = sourceFormat
+	}
 
-	err := b.setMeta(meta)
+	err = b.setMeta(meta)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -446,11 +459,32 @@ func (b *Book) setMeta(meta *BookMeta) error {
 	return nil
 }
 
-// NewSource creates a new source for the book with the provided source content, and returns the created source metadata.
-// If source is nil, an empty source will be created.
+type NewSourceOptions struct {
+	Format  string
+	Comment string
+}
+
+// NewSource creates a new plain-text source. Use NewSourceWithOptions when the
+// caller knows the source is Markdown or wants to record its provenance.
 func (b *Book) NewSource(source io.Reader) (*Source, error) {
+	return b.NewSourceWithOptions(source, NewSourceOptions{Format: BookFormatText})
+}
+
+// NewSourceWithOptions atomically publishes one complete source folder. A
+// failed content or metadata write only leaves a hidden temporary directory,
+// which is removed before the call returns.
+func (b *Book) NewSourceWithOptions(source io.Reader, options NewSourceOptions) (*Source, error) {
+	if err := b.EnsureWritable(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
 	if source == nil {
 		source = io.NopCloser(strings.NewReader(""))
+	}
+	if options.Format == "" {
+		options.Format = BookFormatText
+	}
+	if !validateBookFormat(options.Format) {
+		return nil, util.Errorf("%w: got %q", ErrInvalidBookFormat, options.Format)
 	}
 
 	// create a new source for the given book with the provided source file and metadata.
@@ -471,16 +505,18 @@ func (b *Book) NewSource(source io.Reader) (*Source, error) {
 		sourceID = fmt.Sprintf("%s-%d", baseSourceID, i)
 	}
 
-	src, err := createSource(b.root, b.logger, sourcePath, sourceID, source)
+	tempSourcePath := path.Join(b.folderPath, SourcesFolder, "."+sourceID+"-"+randomString(6)+".tmp")
+	defer b.root.RemoveAll(tempSourcePath) //nolint:errcheck // best-effort cleanup of unpublished data
+
+	src, err := createSource(b.root, b.logger, tempSourcePath, sourceID, source, options.Format, options.Comment)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	err = b.updateCurrentVersionLocation(sourceID)
-	if err != nil {
-		// This error is not critical, just log it and continue.
-		b.logger.Warn("failed to update current version location", "error", err)
+	if err := b.root.Rename(tempSourcePath, sourcePath); err != nil {
+		return nil, util.Errorf("%w", err)
 	}
+	src.folderPath = sourcePath
 
 	return src, nil
 }
@@ -517,8 +553,18 @@ func (b *Book) DeleteSource(sourceID string) error {
 		}
 		return util.Errorf("%w", err)
 	}
+	// A source written by a newer model may contain metadata this build cannot
+	// preserve or even recognize. Treat deleting it as a write and refuse it by
+	// the same rule used by content, comment, split, and asset mutations.
+	source, err := openSource(b.root, sourcePath)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	if err := source.EnsureWritable(); err != nil {
+		return util.Errorf("%w", err)
+	}
 
-	err := b.root.RemoveAll(sourcePath)
+	err = b.root.RemoveAll(sourcePath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}

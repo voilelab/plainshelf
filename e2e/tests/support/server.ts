@@ -11,6 +11,7 @@ const serverShutdownTimeoutMs = 10_000;
 
 export type ServerEnv = {
   baseUrl: string;
+  shelfDir: string;
   logs: string[];
   dispose: () => Promise<void>;
 };
@@ -179,6 +180,7 @@ export async function startServer(): Promise<ServerEnv> {
 
   return {
     baseUrl,
+    shelfDir,
     logs,
     dispose: async () => {
       await stopServer(server);

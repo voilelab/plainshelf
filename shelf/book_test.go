@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"strings"
@@ -399,7 +400,7 @@ func TestNewSource(t *testing.T) {
 	bookID := "test-book-a38j"
 	title := "Test Book"
 
-	book, _, _ := newTestBook(t, bookID, title)
+	book, rootFS, _ := newTestBook(t, bookID, title)
 
 	srcText := "This is the content of the source."
 	source, err := book.NewSource(bytes.NewReader([]byte(srcText)))
@@ -424,6 +425,12 @@ func TestNewSource(t *testing.T) {
 
 	if string(retrievedSrcData) != srcText {
 		t.Errorf("Expected retrieved source to match original source, got '%s'", string(retrievedSrcData))
+	}
+	if book.CurrentSource() != "" {
+		t.Fatalf("creating a non-current source changed current source to %q", book.CurrentSource())
+	}
+	if _, err := rootFS.Stat(path.Join(book.FolderPath(), CurrentVersionLocationFile)); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("creating a non-current source wrote current pointer: %v", err)
 	}
 }
 
@@ -559,9 +566,12 @@ func TestSetCurrentSource(t *testing.T) {
 	if book.CurrentSource() != source.ID() {
 		t.Errorf("Expected current source ID to be '%s', got '%s'", source.ID(), book.CurrentSource())
 	}
+	if book.GetMeta().Format != BookFormatText {
+		t.Errorf("compatibility format = %q, want txt", book.GetMeta().Format)
+	}
 
 	srcText2 := "This is the content of the second source."
-	source2, err := book.NewSource(bytes.NewReader([]byte(srcText2)))
+	source2, err := book.NewSourceWithOptions(bytes.NewReader([]byte(srcText2)), NewSourceOptions{Format: BookFormatMarkdown})
 	if err != nil {
 		t.Fatalf("Failed to create second source: %v", err)
 	}
@@ -573,6 +583,9 @@ func TestSetCurrentSource(t *testing.T) {
 
 	if book.CurrentSource() != source2.ID() {
 		t.Errorf("Expected current source ID to be '%s', got '%s'", source2.ID(), book.CurrentSource())
+	}
+	if book.GetMeta().Format != BookFormatMarkdown {
+		t.Errorf("compatibility format = %q, want md", book.GetMeta().Format)
 	}
 
 	// Set current source back to the first source

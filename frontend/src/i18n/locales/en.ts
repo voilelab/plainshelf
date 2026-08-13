@@ -171,10 +171,10 @@ const en = {
     epubImport: {
       title: 'EPUB conversion',
       description:
-        'EPUB files are converted to text when imported. The original file is not kept and embedded illustrations are dropped. These are the defaults; the import dialog can override them for a single batch.',
+        'EPUB files are converted into a source when imported. The original file is not kept; supported illustrations can be retained by Markdown. These defaults can be overridden for one batch.',
       presetLabel: 'Convert to',
       presetHelp:
-        'Markdown keeps chapter headings, so the reader lists real chapter names. Plain text has no heading marker to match on and falls back to "Part 1", "Part 2" and so on.',
+        'Markdown stores chapters as H2 headings and keeps supported illustrations. Plain text has no chapter navigation or Markdown images.',
       presetMarkdown: 'Markdown (chapter headings)',
       presetPlain: 'Plain text',
       includeDescriptionLabel: 'Description in the text',
@@ -184,8 +184,8 @@ const en = {
       saving: 'Saving...'
     },
     defaultSplitConfig: {
-      label: 'Default section split rule',
-      description: 'Applied automatically when a book has no explicit split configuration.',
+      label: 'Legacy default section split rule',
+      description: 'Only applies to legacy sources without source-level format metadata. New Markdown sources use H2 headings.',
       typeLabel: 'Split type',
       typeNone: 'None',
       typeLineCount: 'Line count',

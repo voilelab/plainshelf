@@ -6,6 +6,7 @@
     :title="title"
     :book-format="bookFormat"
     :source-id="currentSourceId"
+    :is-legacy-source="isLegacySource"
     :sections="sections"
     :current-section-index="currentSectionIndex"
     :current-section="currentSection"
@@ -35,6 +36,7 @@
     :title="title"
     :book-format="bookFormat"
     :source-id="currentSourceId"
+    :is-legacy-source="isLegacySource"
     :sections="sections"
     :current-section-index="currentSectionIndex"
     :current-section="currentSection"
@@ -58,6 +60,7 @@
   />
 
   <SplitConfigModal
+    v-if="isLegacySource"
     :open="isSplitModalOpen"
     :split-config="splitConfig"
     @close="closeSplitModal"
@@ -108,6 +111,7 @@ const {
   title,
   bookFormat,
   currentSourceId,
+  isLegacySource,
   sections,
   currentSectionIndex,
   currentSection,
@@ -163,8 +167,13 @@ function handleReaderReady(element: HTMLDivElement | null): void {
 }
 
 function openSplitModal(): void {
+  if (!isLegacySource.value) return;
   isSplitModalOpen.value = true;
 }
+
+watch(isLegacySource, (legacy) => {
+  if (!legacy) isSplitModalOpen.value = false;
+});
 
 function closeSplitModal(): void {
   isSplitModalOpen.value = false;

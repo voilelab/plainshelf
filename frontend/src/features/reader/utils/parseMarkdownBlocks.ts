@@ -57,7 +57,7 @@ const HEADING_RE = /^(#{1,6})\s+(.+)$/;
 const UNORDERED_ITEM_RE = /^[-*]\s+(.*)$/;
 const ORDERED_ITEM_RE = /^\d+\.\s+(.*)$/;
 const INLINE_RE = /`([^`]+)`|\*\*([^*]+?)\*\*|\*([^*]+?)\*/g;
-const FENCE_RE = /^\s{0,3}```/;
+const FENCE_RE = /^\s{0,3}(?:```|~~~)/;
 const LEADING_INDENT_RE = /^[ \t]+\S/;
 
 // Only a line that is nothing but an image becomes an image block. An
@@ -82,6 +82,28 @@ const ASSET_SRC_RE = /^assets\/([^/\\]+)$/;
 // Kept in step with shelf.IsSupportedImageExt; a mismatch only costs a failed
 // request that falls back to alt text, so the server stays the authority.
 const ASSET_EXT_RE = /\.(jpe?g|png|webp|gif)$/i;
+
+export interface MarkdownHeadingLine {
+  level: 1 | 2 | 3 | 4 | 5 | 6;
+  title: string;
+}
+
+/** Shared line-level syntax used by both the renderer and chapter scanner. */
+export function parseMarkdownHeadingLine(rawLine: string): MarkdownHeadingLine | null {
+  const match = HEADING_RE.exec(rawLine.trim());
+  if (!match) {
+    return null;
+  }
+  return {
+    level: match[1].length as MarkdownHeadingLine['level'],
+    title: match[2].trim()
+  };
+}
+
+/** A fence line is structural and must never be interpreted as a heading. */
+export function isMarkdownFenceLine(rawLine: string): boolean {
+  return FENCE_RE.test(rawLine);
+}
 
 /**
  * Normalizes a Markdown link destination to the path it names.
@@ -240,11 +262,10 @@ function parseTextSegmentToBlocks(text: string): MarkdownBlock[] {
       continue;
     }
 
-    const headingMatch = HEADING_RE.exec(trimmed);
-    if (headingMatch) {
+    const heading = parseMarkdownHeadingLine(rawLine);
+    if (heading) {
       flushAll();
-      const level = headingMatch[1].length as 1 | 2 | 3 | 4 | 5 | 6;
-      blocks.push({ type: 'heading', level, segments: parseInlineSegments(headingMatch[2].trim()) });
+      blocks.push({ type: 'heading', level: heading.level, segments: parseInlineSegments(heading.title) });
       continue;
     }
 
@@ -311,11 +332,11 @@ export function parseMarkdownBlocks(text: string): MarkdownBlock[] {
 
   while (i < lines.length) {
     const line = lines[i];
-    if (FENCE_RE.test(line)) {
+    if (isMarkdownFenceLine(line)) {
       flushTextBuffer();
       const codeLines: string[] = [];
       i += 1;
-      while (i < lines.length && !FENCE_RE.test(lines[i])) {
+      while (i < lines.length && !isMarkdownFenceLine(lines[i])) {
         codeLines.push(lines[i]);
         i += 1;
       }

@@ -2,6 +2,8 @@ package shelf
 
 import (
 	"bytes"
+	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path"
@@ -83,7 +85,7 @@ func TestUpdateSource(t *testing.T) {
 	defer srcFile.Close()
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	source, err := createSource(rootFS, newLoggerForTest(), "test-source", "20260315-a4", srcFile)
+	source, err := createSource(rootFS, newLoggerForTest(), "test-source", "20260315-a4", srcFile, BookFormatText, "")
 	if err != nil {
 		t.Fatalf("Failed to create source: %v", err)
 	}
@@ -179,7 +181,7 @@ func TestCreateRootSource(t *testing.T) {
 	defer srcFile.Close()
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	source, err := createSource(rootFS, newLoggerForTest(), "test-source", "20260315-a3", srcFile)
+	source, err := createSource(rootFS, newLoggerForTest(), "test-source", "20260315-a3", srcFile, BookFormatText, "")
 	if err != nil {
 		t.Fatalf("Failed to create source: %v", err)
 	}
@@ -189,6 +191,9 @@ func TestCreateRootSource(t *testing.T) {
 	}
 
 	meta := source.GetMeta()
+	if meta.SchemaVersion != SourceMetaSchemaVersion || meta.Format != BookFormatText {
+		t.Fatalf("new source meta = %+v, want schema %d txt", meta, SourceMetaSchemaVersion)
+	}
 
 	if meta.LineCount != 1 {
 		t.Errorf("Expected line count 1, got %d", meta.LineCount)
@@ -196,6 +201,86 @@ func TestCreateRootSource(t *testing.T) {
 
 	if meta.CharCount != len(sourceContent) {
 		t.Errorf("Expected character count %d, got %d", len(sourceContent), meta.CharCount)
+	}
+}
+
+func TestLegacySourceSaveDoesNotUpgradeFormatOwnership(t *testing.T) {
+	testShelf := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
+	book, err := testShelf.NewBook(nil, "Legacy")
+	if err != nil {
+		t.Fatalf("NewBook: %v", err)
+	}
+	source, err := book.NewSource(bytes.NewBufferString("before"))
+	if err != nil {
+		t.Fatalf("NewSource: %v", err)
+	}
+	metaPath := path.Join(source.FolderPath(), SourceMetaFile)
+	legacy := `{"id":"` + source.ID() + `","created_at":"2026-01-01T00:00:00Z","comment":"legacy","split_config":{"type":"line_count","line_count":20}}`
+	if err := testShelf.dbRoot.WriteFile(metaPath, []byte(legacy)); err != nil {
+		t.Fatalf("write legacy meta: %v", err)
+	}
+
+	legacySource, err := openSource(testShelf.dbRoot, source.FolderPath())
+	if err != nil {
+		t.Fatalf("open legacy source: %v", err)
+	}
+	if err := legacySource.UpdateContent(bytes.NewBufferString("after")); err != nil {
+		t.Fatalf("UpdateContent: %v", err)
+	}
+	metaFile, err := testShelf.dbRoot.Open(metaPath)
+	if err != nil {
+		t.Fatalf("open legacy meta: %v", err)
+	}
+	raw, err := io.ReadAll(metaFile)
+	metaFile.Close()
+	if err != nil {
+		t.Fatalf("read legacy meta: %v", err)
+	}
+	var persisted map[string]any
+	if err := json.Unmarshal(raw, &persisted); err != nil {
+		t.Fatalf("decode persisted meta: %v", err)
+	}
+	if _, ok := persisted["format"]; ok {
+		t.Fatalf("ordinary save added format to legacy source: %s", raw)
+	}
+	if _, ok := persisted["schema_version"]; ok {
+		t.Fatalf("ordinary save added schema_version to legacy source: %s", raw)
+	}
+}
+
+func TestNewerSourceSchemaIsReadableButNotWritable(t *testing.T) {
+	testShelf := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
+	book, err := testShelf.NewBook(nil, "Future source")
+	if err != nil {
+		t.Fatalf("NewBook: %v", err)
+	}
+	source, err := book.NewSource(bytes.NewBufferString("original"))
+	if err != nil {
+		t.Fatalf("NewSource: %v", err)
+	}
+	metaPath := path.Join(source.FolderPath(), SourceMetaFile)
+	future := `{"schema_version":99,"id":"` + source.ID() + `","created_at":"2026-01-01T00:00:00Z","comment":"future","format":"md","future_key":true,"split_config":{"type":"none"}}`
+	if err := testShelf.dbRoot.WriteFile(metaPath, []byte(future)); err != nil {
+		t.Fatalf("write future meta: %v", err)
+	}
+	futureSource, err := openSource(testShelf.dbRoot, source.FolderPath())
+	if err != nil {
+		t.Fatalf("future source should remain readable: %v", err)
+	}
+	if err := futureSource.UpdateContent(bytes.NewBufferString("clobbered")); !errors.Is(err, ErrUnsupportedSourceSchemaVersion) {
+		t.Fatalf("UpdateContent error = %v, want ErrUnsupportedSourceSchemaVersion", err)
+	}
+	sourceFile, err := testShelf.dbRoot.Open(path.Join(source.FolderPath(), SourceFile))
+	if err != nil {
+		t.Fatalf("open source: %v", err)
+	}
+	raw, err := io.ReadAll(sourceFile)
+	sourceFile.Close()
+	if err != nil {
+		t.Fatalf("read source: %v", err)
+	}
+	if string(raw) != "original" {
+		t.Fatalf("refused write changed source to %q", raw)
 	}
 }
 

@@ -12,7 +12,7 @@ import type {
   SplitConfig,
   TrashedBook
 } from '@/types/book';
-import type { SourceMeta } from '@/types/source';
+import type { CreateSourceOptions, SourceMeta } from '@/types/source';
 import type { BookBatchRequest, TaskChain } from '@/types/task';
 
 export type { DownloadState } from '@/types/book';
@@ -50,6 +50,7 @@ export interface BookshelfReader {
 
   getBookContent(bookId: string): Promise<BookContent>;
   downloadBookContent(bookId: string): Promise<Blob>;
+  /** @deprecated Legacy sources only. New Markdown sources derive chapters from H2. */
   getBookSplitConfig(bookId: string): Promise<SplitConfig>;
 
   getReadProgress(bookId: string): Promise<ReadingProgress>;
@@ -136,6 +137,7 @@ export interface BookshelfWriter {
   updateBook(bookId: string, payload: BookUpdateRequest): Promise<Book>;
   updateBookLayer(bookId: string, layer: string): Promise<void>;
   deleteBook(bookId: string): Promise<void>;
+  /** @deprecated Legacy sources only. */
   updateBookSplitConfig(bookId: string, config: SplitConfig): Promise<SplitConfig>;
 
   importBook(payload: BookCreateRequest): Promise<Book>;
@@ -158,7 +160,7 @@ export interface BookshelfWriter {
    */
   importBooksFromLocalPaths?(localPaths: string[], layerPath: string): Promise<DesktopImportBookResult[] | null>;
 
-  createSource(bookId: string): Promise<SourceMeta>;
+  createSource(bookId: string, options?: CreateSourceOptions): Promise<SourceMeta>;
   deleteSource(bookId: string, sourceId: string): Promise<void>;
   setCurrentSource(bookId: string, sourceId: string): Promise<void>;
   updateSourceContent(bookId: string, sourceId: string, content: string): Promise<void>;
