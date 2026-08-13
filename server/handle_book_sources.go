@@ -1,9 +1,12 @@
 package server
 
 import (
+	"errors"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
@@ -48,11 +51,74 @@ func (app *App) HandleAPICreateBookSource(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	sourceMeta, err := book.NewSource(nil)
-	if err != nil {
-		app.Error("failed to create book source", "error", err)
-		http.Error(w, "failed to create book source", http.StatusInternalServerError)
+	if err := book.EnsureWritable(); err != nil {
+		app.writeErr(w, err, "failed to create book source")
 		return
+	}
+
+	var content io.Reader = strings.NewReader("")
+	options := shelf.NewSourceOptions{Format: shelf.BookFormatText}
+	setCurrent := false
+
+	if strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "multipart/form-data") {
+		r.Body = http.MaxBytesReader(w, r.Body, maxImportBodySize)
+		if err := r.ParseMultipartForm(32 << 20); err != nil {
+			if isRequestBodyTooLarge(err) {
+				http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
+				return
+			}
+			http.Error(w, "invalid multipart form: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		if r.MultipartForm != nil {
+			defer r.MultipartForm.RemoveAll() //nolint:errcheck // request temp cleanup
+		}
+
+		file, _, err := r.FormFile("content")
+		if err == nil {
+			defer file.Close()
+			// The derived-source API receives the editor's canonical UTF-8 draft.
+			// Do not run heuristic encoding detection here: short Unicode content
+			// can be misidentified, and unlike file import there is no unknown
+			// external encoding to recover.
+			content = file
+		} else if errors.Is(err, multipart.ErrMessageTooLarge) {
+			http.Error(w, "source content too large", http.StatusRequestEntityTooLarge)
+			return
+		} else if !errors.Is(err, http.ErrMissingFile) {
+			http.Error(w, "invalid source content", http.StatusBadRequest)
+			return
+		} else if text := r.FormValue("content"); text != "" {
+			content = strings.NewReader(text)
+		}
+
+		if format := strings.TrimSpace(r.FormValue("format")); format != "" {
+			options.Format = format
+		}
+		options.Comment = r.FormValue("comment")
+		if raw := strings.TrimSpace(r.FormValue("set_current")); raw != "" {
+			parsed, err := strconv.ParseBool(raw)
+			if err != nil {
+				http.Error(w, "set_current must be true or false", http.StatusBadRequest)
+				return
+			}
+			setCurrent = parsed
+		}
+	}
+
+	sourceMeta, err := book.NewSourceWithOptions(content, options)
+	if err != nil {
+		app.writeErr(w, err, "failed to create book source")
+		return
+	}
+	if setCurrent {
+		if err := book.SetCurrentSource(sourceMeta.ID()); err != nil {
+			if cleanupErr := book.DeleteSource(sourceMeta.ID()); cleanupErr != nil {
+				app.Error("failed to roll back derived source", "source_id", sourceMeta.ID(), "error", cleanupErr)
+			}
+			app.writeErr(w, err, "failed to activate new book source")
+			return
+		}
 	}
 
 	app.writeJSON(w, http.StatusOK, sourceMeta.GetMeta())
@@ -262,8 +328,7 @@ func (app *App) HandleAPIRefreshBookSourceMeta(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := source.RefreshContentMetadata(); err != nil {
-		app.Error("failed to refresh source metadata", "error", err)
-		http.Error(w, "failed to refresh source metadata", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to refresh source metadata")
 		return
 	}
 
@@ -290,8 +355,7 @@ func (app *App) HandleAPIUpdateBookSourceContent(w http.ResponseWriter, r *http.
 	}
 
 	if err := source.UpdateContent(utf8Reader); err != nil {
-		app.Error("failed to update book source content", "error", err)
-		http.Error(w, "failed to update book source content", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to update book source content")
 		return
 	}
 

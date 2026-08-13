@@ -503,6 +503,8 @@ func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) 
 }
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/split_config
+// HandleAPIGetBookSplitConfig serves legacy sources and older clients.
+// Deprecated: schema-versioned Markdown sources derive chapters from H2.
 func (app *App) HandleAPIGetBookSplitConfig(w http.ResponseWriter, r *http.Request) {
 	_, book, ok := app.loadBook(w, r)
 	if !ok {
@@ -520,6 +522,9 @@ func (app *App) HandleAPIGetBookSplitConfig(w http.ResponseWriter, r *http.Reque
 }
 
 // PATCH /api/shelves/{shelf_id}/books/{book_id}/split_config
+// HandleAPIUpdateBookSplitConfig is retained for legacy sources and clients.
+// New editor and import flows never call it.
+// Deprecated: upgrade the source to H2 Markdown instead.
 func (app *App) HandleAPIUpdateBookSplitConfig(w http.ResponseWriter, r *http.Request) {
 	_, book, ok := app.loadBook(w, r)
 	if !ok {

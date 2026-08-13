@@ -55,8 +55,8 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     }
   }
 
-  function formatDownloadFilename(book: Book): string {
-    const ext = book.format === 'md' ? 'md' : 'txt';
+  function formatDownloadFilename(book: Book, sourceFormat?: string): string {
+    const ext = (sourceFormat ?? book.format) === 'md' ? 'md' : 'txt';
     return `${sanitizeDownloadName(book.title || book.id)}.${ext}`;
   }
 
@@ -70,15 +70,18 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
 
     try {
       const provider = getBookshelfProvider();
+      const sourceFormat = book.current_source
+        ? await provider.getSource(book.id, book.current_source).then((source) => source.format).catch(() => undefined)
+        : undefined;
 
       if (provider.saveBookContentToFile) {
-        await provider.saveBookContentToFile(book.id, formatDownloadFilename(book));
+        await provider.saveBookContentToFile(book.id, formatDownloadFilename(book, sourceFormat));
       } else {
         const blob = await provider.downloadBookContent(book.id);
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = formatDownloadFilename(book);
+        link.download = formatDownloadFilename(book, sourceFormat);
         document.body.appendChild(link);
         link.click();
         link.remove();

@@ -443,6 +443,32 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
     expect(manifest.size_breakdown?.assets).toBeGreaterThan(0);
   });
 
+  it('uses current source format and omits split state for new offline manifests', async () => {
+    const getSourceAsset = vi.fn().mockResolvedValue(new Blob(['image'], { type: 'image/png' }));
+    const getBookSplitConfig = vi.fn().mockResolvedValue({ type: 'regex', regex: '^legacy$' });
+    const provider = makeProvider({
+      getBook: vi.fn().mockResolvedValue(makeBook('book-1', {
+        format: 'txt',
+        current_source: 'src-1'
+      })),
+      listSources: vi.fn().mockResolvedValue([{
+        ...makeSource('src-1'),
+        schema_version: 1,
+        format: 'md'
+      }]),
+      getBookContent: vi.fn().mockResolvedValue({ content: '![map](assets/map.png)' }),
+      getBookSplitConfig,
+      getSourceContent: vi.fn().mockResolvedValue('![map](assets/map.png)'),
+      getSourceAsset
+    });
+
+    await provider.downloadBook('book-1');
+
+    expect(getBookSplitConfig).not.toHaveBeenCalled();
+    expect(getSourceAsset).toHaveBeenCalledWith('book-1', 'src-1', 'map.png');
+    expect((await cache.listDownloadedManifests())[0].split_config).toBeUndefined();
+  });
+
   // A plain-text book cannot render an image, so scanning it would only fetch
   // files the reader will never ask for.
   it('does not fetch illustrations for a plain-text book', async () => {

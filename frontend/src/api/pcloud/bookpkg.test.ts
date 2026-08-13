@@ -285,6 +285,8 @@ describe('toSourceMeta / toSplitConfig', () => {
         created_at: '2024-01-01T12:00:00Z',
         comment: 'c',
         md5_hash: 'abc',
+        schema_version: 1,
+        format: 'md',
         line_count: 10,
         char_count: 200,
         split_config: { type: 'line_count', line_count: 40 }
@@ -293,13 +295,15 @@ describe('toSourceMeta / toSplitConfig', () => {
     );
 
     expect(meta).toEqual({
+      schema_version: 1,
       id: '20240101-120000',
       created_at: '2024-01-01T12:00:00Z',
       comment: 'c',
       md5_hash: 'abc',
+      format: 'md',
       line_count: 10,
       char_count: 200,
-      split_config: { type: 'line_count' }
+      split_config: { type: 'line_count', line_count: 40 }
     });
   });
 

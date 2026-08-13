@@ -3,6 +3,7 @@ import { getDefaultSplitConfigSetting } from '@/api/settings';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { isLibraryEditingSupported } from '@/composables/useWriteAccess';
 import { useReadingProgressAutosave } from '@/features/reader/composables/useReadingProgressAutosave';
+import { buildMarkdownH2Sections } from '@/features/reader/utils/markdownChapters';
 import type { ReaderSection, ReadingProgress, SplitConfig } from '@/types/book';
 
 function clampOffset(offset: number, total: number): number {
@@ -161,7 +162,7 @@ function buildReaderSectionsWithWarning(content: string, splitConfig: SplitConfi
   };
 }
 
-function buildReaderSections(content: string, splitConfig: SplitConfig): ReaderSection[] {
+export function buildLegacyReaderSections(content: string, splitConfig: SplitConfig): ReaderSection[] {
   return buildReaderSectionsWithWarning(content, splitConfig).sections;
 }
 
@@ -214,6 +215,7 @@ export function useReader(bookID: () => string) {
   // The source the reader is showing. Illustrations are stored per source, so
   // rendering one needs this alongside the book ID.
   const currentSourceId = ref('');
+  const isLegacySource = ref(true);
   const content = ref('');
   const splitConfig = ref<SplitConfig>({ type: 'none' });
   const splitWarning = ref('');
@@ -326,36 +328,57 @@ export function useReader(bookID: () => string) {
       }
 
       const provider = getBookshelfProvider();
-      const [book, bookContent, currentProgress, loadedSplitConfig, globalDefaultSplitConfig] = await Promise.all([
-        provider.getBook(requestedBookID),
-        provider.getBookContent(requestedBookID),
+      const book = await provider.getBook(requestedBookID);
+      if (generation !== fetchGeneration) {
+        return;
+      }
+
+      const sourceID = book.current_source ?? '';
+      const [sourceContent, currentProgress, sourceMeta] = await Promise.all([
+        sourceID
+          ? provider.getSourceContent(requestedBookID, sourceID)
+          : provider.getBookContent(requestedBookID).then((result) => result.content),
         provider.getReadProgress(requestedBookID),
-        provider.getBookSplitConfig(requestedBookID).catch((err: unknown) => {
-          const reason = err instanceof Error ? err.message : 'Unknown error';
-          splitWarning.value = `Failed to load split config, fallback to single section. ${reason}`;
-          return { type: 'none' } as SplitConfig;
-        }),
-        getDefaultSplitConfigSetting().catch(() => ({ type: 'none' }) as SplitConfig)
+        sourceID ? provider.getSource(requestedBookID, sourceID) : Promise.resolve(undefined)
       ]);
       if (generation !== fetchGeneration) {
         return;
       }
 
-      const effectiveSplitConfig =
-        loadedSplitConfig.type === 'none' && globalDefaultSplitConfig.type !== 'none'
+      title.value = book.title ?? (book as { meta?: { title?: string } }).meta?.title ?? requestedBookID;
+      currentSourceId.value = sourceID;
+      content.value = sourceContent;
+
+      const sourceFormat = sourceMeta?.format === 'md' || sourceMeta?.format === 'txt' ? sourceMeta.format : undefined;
+      isLegacySource.value = sourceFormat === undefined;
+      bookFormat.value = sourceFormat ?? (book.format === 'md' ? 'md' : 'txt');
+
+      if (!isLegacySource.value) {
+        splitConfig.value = { type: 'none' };
+        sections.value = bookFormat.value === 'md'
+          ? buildMarkdownH2Sections(content.value)
+          : buildSectionsFromBoundaries(content.value, [0], false);
+      } else {
+        const [loadedSplitConfig, globalDefaultSplitConfig] = await Promise.all([
+          provider.getBookSplitConfig(requestedBookID).catch((err: unknown) => {
+            const reason = err instanceof Error ? err.message : 'Unknown error';
+            splitWarning.value = `Failed to load split config, fallback to single section. ${reason}`;
+            return { type: 'none' } as SplitConfig;
+          }),
+          getDefaultSplitConfigSetting().catch(() => ({ type: 'none' }) as SplitConfig)
+        ]);
+        if (generation !== fetchGeneration) {
+          return;
+        }
+
+        splitConfig.value = loadedSplitConfig.type === 'none' && globalDefaultSplitConfig.type !== 'none'
           ? globalDefaultSplitConfig
           : loadedSplitConfig;
-
-      title.value = book.title ?? (book as { meta?: { title?: string } }).meta?.title ?? requestedBookID;
-      bookFormat.value = book.format === 'md' ? 'md' : 'txt';
-      currentSourceId.value = book.current_source ?? '';
-      content.value = bookContent.content;
-      splitConfig.value = effectiveSplitConfig;
-
-      const built = buildReaderSectionsWithWarning(content.value, splitConfig.value);
-      sections.value = built.sections;
-      if (built.warning) {
-        splitWarning.value = splitWarning.value ? `${splitWarning.value} ${built.warning}` : built.warning;
+        const built = buildReaderSectionsWithWarning(content.value, splitConfig.value);
+        sections.value = built.sections;
+        if (built.warning) {
+          splitWarning.value = splitWarning.value ? `${splitWarning.value} ${built.warning}` : built.warning;
+        }
       }
 
       const normalized = normalizeProgress(currentProgress);
@@ -385,7 +408,7 @@ export function useReader(bookID: () => string) {
   }
 
   async function applySplitConfig(config: SplitConfig): Promise<void> {
-    if (!isLibraryEditingSupported()) {
+    if (!isLibraryEditingSupported() || !isLegacySource.value) {
       return;
     }
 
@@ -449,6 +472,7 @@ export function useReader(bookID: () => string) {
     title,
     bookFormat,
     currentSourceId,
+    isLegacySource,
     content,
     splitConfig,
     splitWarning,

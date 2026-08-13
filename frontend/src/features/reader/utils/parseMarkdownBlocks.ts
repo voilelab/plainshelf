@@ -53,11 +53,11 @@ export type MarkdownBlock =
   | MarkdownImageBlock;
 
 const HR_RE = /^(-{3,}|\*{3,})$/;
-const HEADING_RE = /^(#{1,6})\s+(.+)$/;
+const HEADING_RE = /^ {0,3}(#{1,6})[ \t]+(.+)$/;
 const UNORDERED_ITEM_RE = /^[-*]\s+(.*)$/;
 const ORDERED_ITEM_RE = /^\d+\.\s+(.*)$/;
 const INLINE_RE = /`([^`]+)`|\*\*([^*]+?)\*\*|\*([^*]+?)\*/g;
-const FENCE_RE = /^\s{0,3}```/;
+const FENCE_OPENER_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 const LEADING_INDENT_RE = /^[ \t]+\S/;
 
 // Only a line that is nothing but an image becomes an image block. An
@@ -82,6 +82,66 @@ const ASSET_SRC_RE = /^assets\/([^/\\]+)$/;
 // Kept in step with shelf.IsSupportedImageExt; a mismatch only costs a failed
 // request that falls back to alt text, so the server stays the authority.
 const ASSET_EXT_RE = /\.(jpe?g|png|webp|gif)$/i;
+
+export interface MarkdownHeadingLine {
+  level: 1 | 2 | 3 | 4 | 5 | 6;
+  title: string;
+}
+
+export interface MarkdownFenceState {
+  marker: '`' | '~';
+  length: number;
+}
+
+/** Shared line-level syntax used by both the renderer and chapter scanner. */
+export function parseMarkdownHeadingLine(rawLine: string): MarkdownHeadingLine | null {
+  const match = HEADING_RE.exec(rawLine);
+  if (!match) {
+    return null;
+  }
+  return {
+    level: match[1].length as MarkdownHeadingLine['level'],
+    title: match[2].trim()
+  };
+}
+
+function markdownFenceOpener(rawLine: string): MarkdownFenceState | null {
+  const match = FENCE_OPENER_RE.exec(rawLine);
+  if (!match) return null;
+  const run = match[1];
+  // Backtick fence info strings cannot contain a backtick. Treating such a
+  // line as text keeps the scanner and renderer aligned with CommonMark.
+  if (run[0] === '`' && match[2].includes('`')) return null;
+  return { marker: run[0] as MarkdownFenceState['marker'], length: run.length };
+}
+
+function closesMarkdownFence(rawLine: string, fence: MarkdownFenceState): boolean {
+  const match = /^ {0,3}(`+|~+)[ \t]*$/.exec(rawLine);
+  return Boolean(match && match[1][0] === fence.marker && match[1].length >= fence.length);
+}
+
+/**
+ * Advances fenced-code state and reports whether this line is the compatible
+ * opener or closer. Fence-like text inside a block is ordinary code unless it
+ * uses the opener's marker with at least the opener's run length.
+ */
+export function updateMarkdownFenceState(
+  rawLine: string,
+  current: MarkdownFenceState | null
+): { state: MarkdownFenceState | null; boundary: boolean } {
+  if (current) {
+    return closesMarkdownFence(rawLine, current)
+      ? { state: null, boundary: true }
+      : { state: current, boundary: false };
+  }
+  const opener = markdownFenceOpener(rawLine);
+  return opener ? { state: opener, boundary: true } : { state: null, boundary: false };
+}
+
+/** A possible opening fence line; stateful consumers use updateMarkdownFenceState. */
+export function isMarkdownFenceLine(rawLine: string): boolean {
+  return markdownFenceOpener(rawLine) !== null;
+}
 
 /**
  * Normalizes a Markdown link destination to the path it names.
@@ -240,11 +300,10 @@ function parseTextSegmentToBlocks(text: string): MarkdownBlock[] {
       continue;
     }
 
-    const headingMatch = HEADING_RE.exec(trimmed);
-    if (headingMatch) {
+    const heading = parseMarkdownHeadingLine(rawLine);
+    if (heading) {
       flushAll();
-      const level = headingMatch[1].length as 1 | 2 | 3 | 4 | 5 | 6;
-      blocks.push({ type: 'heading', level, segments: parseInlineSegments(headingMatch[2].trim()) });
+      blocks.push({ type: 'heading', level: heading.level, segments: parseInlineSegments(heading.title) });
       continue;
     }
 
@@ -301,6 +360,7 @@ export function parseMarkdownBlocks(text: string): MarkdownBlock[] {
   const blocks: MarkdownBlock[] = [];
   let textBuffer: string[] = [];
   let i = 0;
+  let fence: MarkdownFenceState | null = null;
 
   const flushTextBuffer = (): void => {
     if (textBuffer.length > 0) {
@@ -311,15 +371,20 @@ export function parseMarkdownBlocks(text: string): MarkdownBlock[] {
 
   while (i < lines.length) {
     const line = lines[i];
-    if (FENCE_RE.test(line)) {
+    const transition = updateMarkdownFenceState(line, fence);
+    if (!fence && transition.boundary && transition.state) {
+      fence = transition.state;
       flushTextBuffer();
       const codeLines: string[] = [];
       i += 1;
-      while (i < lines.length && !FENCE_RE.test(lines[i])) {
+      while (i < lines.length) {
+        const innerTransition = updateMarkdownFenceState(lines[i], fence);
+        if (innerTransition.boundary && !innerTransition.state) {
+          fence = null;
+          i += 1;
+          break;
+        }
         codeLines.push(lines[i]);
-        i += 1;
-      }
-      if (i < lines.length) {
         i += 1;
       }
       blocks.push({ type: 'code', text: codeLines.join('\n') });

@@ -17,6 +17,7 @@
           :is-at-min-font-size="isAtMinFontSize"
           :is-at-max-font-size="isAtMaxFontSize"
           :has-sections="sections.length > 0"
+          :show-split-settings="isLegacySource"
           @decrease-font-size="emit('decreaseFontSize')"
           @increase-font-size="emit('increaseFontSize')"
           @open-font-modal="emit('openFontModal')"
@@ -65,6 +66,7 @@
               :source-id="sourceId"
               :book-format="bookFormat"
               :section="currentSection"
+              :show-chapter-title="isLegacySource"
               @scroll="emit('scroll')"
               @ready="emit('readerReady', $event)"
             />
@@ -86,6 +88,7 @@ defineProps<{
   title: string;
   bookFormat: string;
   sourceId: string;
+  isLegacySource: boolean;
   sections: ReaderSection[];
   currentSectionIndex: number;
   currentSection: ReaderSection | null;

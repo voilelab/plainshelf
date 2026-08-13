@@ -230,53 +230,7 @@ func TestEPUBBookTitle(t *testing.T) {
 	}
 }
 
-func TestSplitConfigForRender(t *testing.T) {
-	tests := []struct {
-		name     string
-		rendered epub.Rendered
-		want     shelf.SplitConfig
-	}{
-		{
-			name:     "regex is preferred so the reader can show chapter names",
-			rendered: epub.Rendered{ChapterRegex: "^## ", ChapterLines: []int{3, 9}},
-			want:     shelf.SplitConfig{Type: shelf.SplitTypeRegex, Regex: "^## "},
-		},
-		{
-			name:     "no regex falls back to explicit boundaries",
-			rendered: epub.Rendered{ChapterLines: []int{3, 9}},
-			want:     shelf.SplitConfig{Type: shelf.SplitTypeBoundary, Boundaries: []int{3, 9}},
-		},
-		{
-			name:     "a single chapter is not split",
-			rendered: epub.Rendered{ChapterRegex: "^## ", ChapterLines: []int{3}},
-			want:     shelf.SplitConfig{Type: shelf.SplitTypeNone},
-		},
-		{
-			name:     "no chapters is not split",
-			rendered: epub.Rendered{},
-			want:     shelf.SplitConfig{Type: shelf.SplitTypeNone},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := splitConfigForRender(tt.rendered)
-			if got.Type != tt.want.Type || got.Regex != tt.want.Regex {
-				t.Errorf("splitConfigForRender() = %+v, want %+v", got, tt.want)
-			}
-			if len(got.Boundaries) != len(tt.want.Boundaries) {
-				t.Fatalf("Boundaries = %v, want %v", got.Boundaries, tt.want.Boundaries)
-			}
-			for i := range got.Boundaries {
-				if got.Boundaries[i] != tt.want.Boundaries[i] {
-					t.Errorf("Boundaries = %v, want %v", got.Boundaries, tt.want.Boundaries)
-				}
-			}
-		})
-	}
-}
-
-func TestSplitConfigForRenderUsesBoundariesForUntitledChapter(t *testing.T) {
+func TestEPUBRenderUsesStableHeadingForUntitledChapter(t *testing.T) {
 	rendered := epub.Render(&epub.Book{
 		Title: "Untitled chapter",
 		Chapters: []epub.Chapter{
@@ -285,16 +239,8 @@ func TestSplitConfigForRenderUsesBoundariesForUntitledChapter(t *testing.T) {
 		},
 	}, epub.Strategy{Preset: epub.PresetMarkdown})
 
-	if rendered.ChapterRegex != "" {
-		t.Fatalf("ChapterRegex = %q, want the renderer to disable the incomplete regex", rendered.ChapterRegex)
-	}
-
-	got := splitConfigForRender(rendered)
-	if got.Type != shelf.SplitTypeBoundary {
-		t.Fatalf("split type = %q, want boundary", got.Type)
-	}
-	if len(got.Boundaries) != 2 || got.Boundaries[0] != rendered.ChapterLines[0] || got.Boundaries[1] != rendered.ChapterLines[1] {
-		t.Errorf("boundaries = %v, want rendered chapter lines %v", got.Boundaries, rendered.ChapterLines)
+	if !strings.Contains(rendered.Text, "## Part 2") {
+		t.Fatalf("rendered text = %q, want stable H2 for untitled chapter", rendered.Text)
 	}
 }
 

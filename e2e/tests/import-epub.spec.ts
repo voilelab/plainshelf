@@ -86,15 +86,15 @@ test('should import an EPUB and name its sections after the table of contents', 
     await expect(reader.getByText('1 / 3')).toBeVisible();
     await expect(reader.getByText(epubFixtureDescription)).toBeVisible();
 
-    // The default markdown preset produces a regex split, so sections are named
-    // after the table of contents rather than "Part N", and the "##" heading
-    // marker must not leak into the name.
-    const sectionTitle = reader.locator('.reader-chapter-title');
+    // The default Markdown preset stores the chapter names as H2. The heading
+    // remains in the body and the reader does not add a duplicate synthetic title.
+    const sectionTitle = reader.locator('.reader-nav-title');
 
     await reader.getByRole('button', { name: 'Next' }).click();
     await expect(reader.getByText('2 / 3')).toBeVisible();
     await expect(sectionTitle).toHaveText(epubFixtureChapters[0]);
-    await expect(reader.getByText(`## ${epubFixtureChapters[0]}`)).not.toBeVisible();
+    await expect(reader.getByRole('heading', { name: epubFixtureChapters[0] })).toBeVisible();
+    await expect(reader.locator('.reader-chapter-title')).toHaveCount(0);
     await expect(reader.getByText('This text came from a real uploaded EPUB file.')).toBeVisible();
 
     await reader.getByRole('button', { name: 'Next' }).click();
@@ -127,15 +127,13 @@ test('should honour the plain text conversion option', async ({ page }) => {
 
     // include_description was turned off, so the description stays in the book
     // metadata and out of the text.
-    await expect(reader.getByText('1 / 3')).toBeVisible();
+    await expect(reader.getByText('1 / 1')).toBeVisible();
     await expect(reader.getByText(epubFixtureDescription)).not.toBeVisible();
 
-    await reader.getByRole('button', { name: 'Next' }).click();
     await expect(reader.getByText('This text came from a real uploaded EPUB file.')).toBeVisible();
-    // Plain titles carry no marker to anchor a regex on, so the split falls back
-    // to boundaries and the reader labels sections positionally.
-    await expect(reader.locator('.reader-chapter-title')).toHaveText('Part 2');
-    // The chapter name is still in the text even though it is not the label.
+    await expect(reader.getByRole('button', { name: 'Next' })).toBeDisabled();
+    await expect(reader.locator('.reader-chapter-title')).toHaveCount(0);
+    // Chapter names remain ordinary text, without chapter navigation.
     await expect(reader.getByText(epubFixtureChapters[0], { exact: true }).first()).toBeVisible();
   } finally {
     await server.dispose();

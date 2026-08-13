@@ -87,6 +87,9 @@ func (r *Source) AssetPath(name string) (string, error) {
 // The name goes through the same validation the read path uses, so a file the
 // server could never serve cannot be written in the first place.
 func (r *Source) WriteAsset(name string, data []byte) error {
+	if err := r.EnsureWritable(); err != nil {
+		return util.Errorf("%w", err)
+	}
 	assetPath, err := r.AssetPath(name)
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -113,6 +116,9 @@ func (r *Source) WriteAsset(name string, data []byte) error {
 // its alt text, and rewriting someone's prose to keep an invariant the shelf
 // does not enforce would be a worse trade.
 func (r *Source) DeleteAsset(name string) error {
+	if err := r.EnsureWritable(); err != nil {
+		return util.Errorf("%w", err)
+	}
 	assetPath, err := r.AssetPath(name)
 	if err != nil {
 		return util.Errorf("%w", err)

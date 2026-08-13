@@ -87,7 +87,7 @@
 
       <!-- Split settings rewrite the book's stored split config, so they are a
            write operation. Reading progress is saved automatically on-device. -->
-      <TooltipRoot v-if="writesEnabled">
+      <TooltipRoot v-if="writesEnabled && showSplitSettings">
         <TooltipTrigger as-child>
           <ToolbarButton
             class="button reader-icon-button"
@@ -130,6 +130,7 @@ defineProps<{
   isAtMinFontSize: boolean;
   isAtMaxFontSize: boolean;
   hasSections: boolean;
+  showSplitSettings: boolean;
 }>();
 
 const emit = defineEmits<{

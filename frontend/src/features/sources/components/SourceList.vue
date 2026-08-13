@@ -31,6 +31,7 @@
         >
           <div class="source-item-top">
             <strong class="source-id">{{ source.id }}</strong>
+            <span class="source-format" :class="{ legacy: !source.format }">{{ source.format?.toUpperCase() || 'Legacy' }}</span>
             <span v-if="source.id === currentSourceId" class="current-badge">Current</span>
           </div>
           <p class="meta source-created">{{ formatTimestamp(source.created_at) }}</p>
@@ -183,6 +184,17 @@ function formatTimestamp(value: string): string {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.source-format {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  color: #075985;
+}
+
+.source-format.legacy {
+  color: #92400e;
 }
 
 .source-id {

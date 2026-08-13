@@ -56,7 +56,8 @@ schema v1, the first key in that file records the format version:
 | `schema_version` | On-disk format version of this file. Managed by PlainShelf. |
 | `id` | Stable book ID, generated once and never recomputed |
 | `title` | Display title |
-| `format` | Source format (`txt` or `md`) |
+| `format` | Compatibility mirror of the current source format (`txt` or `md`) |
+| `legacy_source_formats` | Optional compatibility snapshots used to restore `format` when reactivating a legacy source; does not upgrade that source |
 | `tags` | Free-form tags |
 | `identifiers` | External identifiers such as `isbn` |
 | `cover` | Cover filename relative to the book folder |
@@ -96,6 +97,20 @@ This has two consequences worth knowing:
 
 ---
 
+## Source metadata schema v1
+
+New `sources/{id}/meta.json` files also carry `schema_version: 1` and an
+authoritative `format` (`txt` or `md`). A source without those fields is a
+legacy source: it remains readable with its old split configuration and is not
+silently upgraded by opening or saving its text.
+
+Source schema v1 is written only when creating a new source, including imports
+and explicit TXT/Markdown conversions. A source whose schema version is newer
+than this build remains readable, but content, comment, split, asset, and delete
+operations are refused before touching its files.
+
+---
+
 ## Compatibility policy
 
 Starting with `book.json` schema v1, PlainShelf makes the following
@@ -115,8 +130,8 @@ documented breaking change, not as data that v1 guarantees to migrate.
   a new field becoming required. Cosmetic and additive changes do not raise it.
 - Upgrades are lazy and per-book. Opening a library never rewrites it. A book is
   written in the new format only when you next change something about that book.
-- PlainShelf will never write a `book.json` whose on-disk `schema_version` is
-  higher than the running build understands. Such a book stays visible and
+- PlainShelf will never write a `book.json` or source `meta.json` whose on-disk
+  `schema_version` is higher than the running build understands. Such data stays visible and
   readable on a best-effort basis, and every attempt to modify it fails with an
   explicit error rather than overwriting the file.
 - The server is no longer the only thing that reads the format. The Android
@@ -143,7 +158,7 @@ documented breaking change, not as data that v1 guarantees to migrate.
 - There is no downgrade path. PlainShelf will not rewrite a v2 book back to v1.
   To go back to an older release, restore from a backup taken before the
   upgrade.
-- Files other than `book.json` are not versioned yet — see
+- Files other than `book.json` and source `meta.json` are not versioned yet — see
   [What is versioned today](#what-is-versioned-today). They get the same
   treatment as they are covered, not retroactively.
 - Hand-edited `book.json` files are read on a best-effort basis. Malformed JSON
@@ -202,8 +217,8 @@ recreated on the next startup.
 
 ## When PlainShelf refuses to write
 
-If a book was last written by a newer PlainShelf than the one you are running,
-that book becomes **read-only**. You will see a log line like:
+If a book or source was last written by a newer PlainShelf than the one you are
+running, that object becomes **read-only**. You may see a log line like:
 
 ```text
 WARN book.json schema version is newer than this build supports; book is read-only
@@ -231,19 +246,15 @@ forward:
 
 ## What is versioned today
 
-Only `book.json` carries `schema_version`.
+Book and source metadata carry independent schema versions.
 
 | Path | Versioned? |
 |---|---|
 | `books/**/book.json` | Yes — `schema_version`, described on this page |
-| `books/**/sources/{id}/meta.json` | No |
+| `books/**/sources/{id}/meta.json` | Yes — `schema_version`; v1 owns source `format` |
 | `.trash/**/trash.json` | No |
 | Application store | No |
 
-Because source metadata is not versioned yet, an older build can still add a
-source folder to a book it cannot otherwise write. The book will not be switched
-to point at that source — that change goes through `book.json` and is refused —
-but a stray folder can be left behind under `sources/`.
-
-The practical rule while these gaps remain: **run one PlainShelf version against
-a shelf at a time.**
+The practical rule remains: **run one PlainShelf version against a shelf at a
+time.** Unversioned files and optional fields still cannot make mixed-version
+writes safe in general.

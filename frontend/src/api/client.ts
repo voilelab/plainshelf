@@ -224,6 +224,9 @@ export interface FetchJsonOptions {
   // acceptStatuses lists non-2xx statuses whose JSON body is a normal result
   // rather than an error, such as a 409 that reports the task already running.
   acceptStatuses?: number[];
+  // Uploads and other streaming requests can legitimately outlive the normal
+  // metadata request timeout, especially when the shelf is on a sync mount.
+  timeoutMs?: number;
 }
 
 export async function fetchJson<T>(
@@ -243,7 +246,7 @@ export async function fetchJson<T>(
   const res = await fetchWithTimeout(buildApiUrl(path), {
     ...requestInit,
     headers
-  });
+  }, options?.timeoutMs ?? FETCH_TIMEOUT_MS);
 
   if (!res.ok && !options?.acceptStatuses?.includes(res.status)) {
     throw await toApiError(res);

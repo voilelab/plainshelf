@@ -374,12 +374,16 @@ export class MobileBookshelfProvider implements BookshelfReader {
     // shelf they asked for it on, and a partial write is worse than none.
     const scopeAtStart = currentCacheScopeKey();
 
-    const [book, sources, bookContent, splitConfig] = await Promise.all([
+    const [book, sources, bookContent] = await Promise.all([
       this.remote.getBook(bookId),
       this.remote.listSources(bookId),
-      this.remote.getBookContent(bookId),
-      this.remote.getBookSplitConfig(bookId)
+      this.remote.getBookContent(bookId)
     ]);
+    const currentSource = sources.find((source) => source.id === book.current_source);
+    const isLegacySource = currentSource?.format !== 'txt' && currentSource?.format !== 'md';
+    const splitConfig = isLegacySource
+      ? await this.remote.getBookSplitConfig(bookId)
+      : undefined;
     const sourceContents = await Promise.all(
       sources.map(async (source) => ({
         sourceId: source.id,
@@ -415,8 +419,13 @@ export class MobileBookshelfProvider implements BookshelfReader {
     // This runs before the manifest is written, so a failure leaves files under
     // a book directory carrying no manifest - an orphan this cache already
     // ignores - rather than a book listed as downloaded without its pictures.
-    const assetsSize =
-      book.format === 'md' ? await this.storeSourceAssets(bookId, sourceContents) : 0;
+    const effectiveFormat = currentSource?.format ?? book.format ?? 'txt';
+    const currentSourceContent = book.current_source
+      ? sourceContents.filter(({ sourceId }) => sourceId === book.current_source)
+      : sourceContents;
+    const assetsSize = effectiveFormat === 'md'
+      ? await this.storeSourceAssets(bookId, currentSourceContent)
+      : 0;
 
     // The asset phase did network I/O of its own, so the window the check above
     // closed has reopened.

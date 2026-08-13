@@ -18,32 +18,6 @@
           <input v-model="authorsInput" class="input" type="text" placeholder="Author A, Author B" />
         </label>
 
-        <label class="field">
-          <span class="label">Format</span>
-          <SelectRoot :model-value="format" @update:model-value="onFormatSelect">
-            <SelectTrigger class="input select select-trigger">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectPortal>
-              <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
-                <SelectViewport>
-                  <SelectItem
-                    v-for="option in BOOK_FORMAT_OPTIONS"
-                    :key="option.value"
-                    class="reka-menu-item"
-                    :value="option.value"
-                  >
-                    <SelectItemText>{{ option.label }}</SelectItemText>
-                  </SelectItem>
-                </SelectViewport>
-              </SelectContent>
-            </SelectPortal>
-          </SelectRoot>
-          <p class="field-help">
-            只影響閱讀器如何呈現這本書：Markdown 會解析標題、粗體與 assets/ 插圖，純文字則原樣顯示。
-            書的內容檔案不會被改寫，改錯了切回來即可。
-          </p>
-        </label>
       </section>
 
       <section class="section-block">
@@ -206,7 +180,7 @@ import {
   TagsInputRoot,
   type AcceptableValue
 } from 'reka-ui';
-import { BOOK_FORMAT_OPTIONS, type Book, type BookFormat, type BookUpdateRequest } from '@/types/book';
+import type { Book, BookUpdateRequest } from '@/types/book';
 import {
   CUSTOM_LANGUAGE_VALUE,
   LANGUAGE_OPTIONS,
@@ -252,7 +226,6 @@ const languagePreset = ref('');
 const customLanguage = ref('');
 const languageError = ref('');
 const comment = ref('');
-const format = ref<BookFormat>('txt');
 const publishedAtInput = ref('');
 const star = ref(0);
 const identifierRows = ref<{ key: string; value: string }[]>([]);
@@ -288,9 +261,6 @@ watch(
     }
     languageError.value = '';
     comment.value = book.comment ?? '';
-    // A book with no format at all reads as plain text everywhere else, so the
-    // form shows the same thing rather than inventing a third empty state.
-    format.value = book.format === 'md' ? 'md' : 'txt';
     publishedAtInput.value = toFormDateValue(book.published_at);
     star.value = normalizeStar(book.star);
     identifierRows.value = Object.entries(book.identifiers ?? {}).map(([key, value]) => ({ key, value }));
@@ -313,12 +283,6 @@ watch(customLanguage, () => {
 function onLanguageSelect(value: AcceptableValue): void {
   if (typeof value === 'string') {
     languageSelectValue.value = value;
-  }
-}
-
-function onFormatSelect(value: AcceptableValue): void {
-  if (typeof value === 'string') {
-    format.value = value;
   }
 }
 
@@ -366,7 +330,6 @@ function onSubmit(): void {
     tags: tags.value,
     language: normalizedLanguage || '',
     comment: comment.value.trim(),
-    format: format.value,
     published_at: publishedAtInput.value || undefined,
     star: star.value,
     identifiers: buildIdentifiersPayload()

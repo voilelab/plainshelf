@@ -619,6 +619,22 @@ func TestAPIImportMarkdownBookContract(t *testing.T) {
 		t.Fatalf("unexpected imported book meta: %#v", txtBook.Meta)
 	}
 
+	for _, imported := range []struct {
+		book Book
+		want string
+	}{
+		{withMarkdownContentType, "md"},
+		{txtBook, "txt"},
+	} {
+		sourceURL := "/api/shelves/default_shelf/books/" + imported.book.Meta.ID + "/sources/" + imported.book.Meta.CurrentSource
+		sourceRec := env.do(httptest.NewRequest(http.MethodGet, sourceURL, nil))
+		assertStatus(t, sourceRec, http.StatusOK)
+		sourceMeta := decodeJSON[map[string]any](t, sourceRec)
+		if sourceMeta["format"] != imported.want || sourceMeta["schema_version"] != float64(1) {
+			t.Fatalf("source meta = %#v, want schema 1 format %s", sourceMeta, imported.want)
+		}
+	}
+
 	// Reading back the content must still be exactly what was uploaded, with no
 	// markdown rendering applied (rendering is out of scope for this PR).
 	contentReq := httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+withMarkdownContentType.Meta.ID+"/content", nil)
@@ -1275,6 +1291,49 @@ func TestAPICreateBookSourceContract(t *testing.T) {
 	if !found {
 		t.Fatalf("newly created source %q not found in list: %#v", newSourceID, sources)
 	}
+
+	// A derived source is uploaded as multipart so the whole book is not placed
+	// in metadata JSON. Creation and optional activation happen in one request.
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	if err := writer.WriteField("format", "md"); err != nil {
+		t.Fatalf("WriteField format: %v", err)
+	}
+	if err := writer.WriteField("comment", "derived in contract test"); err != nil {
+		t.Fatalf("WriteField comment: %v", err)
+	}
+	if err := writer.WriteField("set_current", "true"); err != nil {
+		t.Fatalf("WriteField set_current: %v", err)
+	}
+	part, err := writer.CreateFormFile("content", "source.txt")
+	if err != nil {
+		t.Fatalf("CreateFormFile content: %v", err)
+	}
+	if _, err := io.WriteString(part, "# Book\n\n## One\nBody 😀"); err != nil {
+		t.Fatalf("write source content: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close multipart writer: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, sourcesURL, &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rec = env.do(req)
+	assertStatus(t, rec, http.StatusOK)
+	derived := decodeJSON[map[string]any](t, rec)
+	derivedID, _ := derived["id"].(string)
+	if derived["format"] != "md" || derived["schema_version"] != float64(1) {
+		t.Fatalf("derived source metadata = %#v, want schema 1 Markdown", derived)
+	}
+	if derived["comment"] != "derived in contract test" {
+		t.Fatalf("derived source comment = %#v", derived["comment"])
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
+	assertStatus(t, rec, http.StatusOK)
+	activated := decodeJSON[Book](t, rec)
+	if activated.Meta == nil || activated.Meta.CurrentSource != derivedID || activated.Meta.Format != "md" {
+		t.Fatalf("activated book = %#v, want current derived Markdown source", activated.Meta)
+	}
 }
 
 func TestAPIDeleteBookSourceContract(t *testing.T) {
@@ -1375,17 +1434,20 @@ func TestAPIImportEPUBBookContract(t *testing.T) {
 		t.Fatalf("content still contains in-document headings:\n%s", content)
 	}
 
-	// The split config must let the reader recover the chapter names, which it
-	// only does for regex splits.
-	rec = env.do(httptest.NewRequest(http.MethodGet, base+"/split_config", nil))
+	// The source owns the Markdown format. H2 text is the chapter structure, so
+	// EPUB import no longer persists a parallel regex or boundary configuration.
+	rec = env.do(httptest.NewRequest(http.MethodGet, base+"/sources/"+imported.Meta.CurrentSource, nil))
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
-	split := decodeJSON[map[string]any](t, rec)
-	if tp, _ := split["type"].(string); tp != "regex" {
-		t.Fatalf("split config type = %q, want regex", tp)
+	sourceMeta := decodeJSON[map[string]any](t, rec)
+	if format, _ := sourceMeta["format"].(string); format != "md" {
+		t.Fatalf("source format = %q, want md", format)
 	}
-	if re, _ := split["regex"].(string); re != "^## " {
-		t.Fatalf("split config regex = %q, want the markdown heading prefix", re)
+	if version, _ := sourceMeta["schema_version"].(float64); version != 1 {
+		t.Fatalf("source schema_version = %v, want 1", sourceMeta["schema_version"])
+	}
+	if split, _ := sourceMeta["split_config"].(map[string]any); split["type"] != "" {
+		t.Fatalf("source split config = %#v, want none", split)
 	}
 
 	// The cover survives the round trip.
@@ -1421,14 +1483,17 @@ func TestAPIImportEPUBBookStrategyContract(t *testing.T) {
 		t.Fatalf("plain preset lost the chapter titles:\n%s", content)
 	}
 
-	// A bare chapter title has no prefix to anchor a regex on, so the split
-	// falls back to explicit boundaries.
+	// Plain EPUB output is an unstructured TXT source; it deliberately carries
+	// no chapter navigation state.
 	rec = env.do(httptest.NewRequest(http.MethodGet,
-		"/api/shelves/default_shelf/books/"+plain.Meta.ID+"/split_config", nil))
+		"/api/shelves/default_shelf/books/"+plain.Meta.ID+"/sources/"+plain.Meta.CurrentSource, nil))
 	assertStatus(t, rec, http.StatusOK)
-	split := decodeJSON[map[string]any](t, rec)
-	if tp, _ := split["type"].(string); tp != "boundary" {
-		t.Fatalf("split config type = %q, want boundary", tp)
+	plainSourceMeta := decodeJSON[map[string]any](t, rec)
+	if format, _ := plainSourceMeta["format"].(string); format != "txt" {
+		t.Fatalf("source format = %q, want txt", format)
+	}
+	if split, _ := plainSourceMeta["split_config"].(map[string]any); split["type"] != "" {
+		t.Fatalf("source split config = %#v, want none", split)
 	}
 
 	// An unknown preset is rejected rather than silently falling back.

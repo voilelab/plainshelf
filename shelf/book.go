@@ -144,6 +144,12 @@ type BookMeta struct {
 	// User should not modify CurrentSource directly, it is managed by shelf internally,
 	// and can be updated via SetCurrentSource method
 	CurrentSource string `json:"current_source"`
+
+	// LegacySourceFormats remembers the effective book-level format of a legacy
+	// source before a schema-versioned source replaces the compatibility mirror.
+	// It does not opt the legacy source into the new H2 chapter model; only
+	// sources/{id}/meta.json.format does that.
+	LegacySourceFormats map[string]string `json:"legacy_source_formats,omitempty"`
 }
 
 // setLayers only used for internal use, not persisted in book meta, and not exposed to user
@@ -332,10 +338,38 @@ func (b *Book) CurrentSource() string {
 }
 
 func (b *Book) SetCurrentSource(sourceID string) error {
-	meta := b.GetMeta()
-	meta.CurrentSource = sourceID
+	if err := b.EnsureWritable(); err != nil {
+		return util.Errorf("%w", err)
+	}
+	source, err := b.GetSource(sourceID)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
 
-	err := b.setMeta(meta)
+	meta := b.GetMeta()
+	if meta.LegacySourceFormats == nil {
+		meta.LegacySourceFormats = make(map[string]string)
+	}
+	if currentID := meta.CurrentSource; currentID != "" {
+		currentSource, currentErr := b.GetSource(currentID)
+		if currentErr == nil && currentSource.GetMeta().Format == "" {
+			legacyFormat := meta.Format
+			if legacyFormat == "" {
+				legacyFormat = BookFormatText
+			}
+			meta.LegacySourceFormats[currentID] = legacyFormat
+		}
+	}
+	meta.CurrentSource = sourceID
+	if sourceFormat := source.GetMeta().Format; sourceFormat != "" {
+		// Compatibility mirror for clients that still read book.json directly.
+		// New clients use the current source's meta.json as the authority.
+		meta.Format = sourceFormat
+	} else if legacyFormat := meta.LegacySourceFormats[sourceID]; legacyFormat != "" {
+		meta.Format = legacyFormat
+	}
+
+	err = b.setMeta(meta)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -369,6 +403,7 @@ func (b *Book) GetMeta() *BookMeta {
 	metaCopy.Tags = append([]string(nil), b.meta.Tags...)
 	metaCopy.Authors = append([]string(nil), b.meta.Authors...)
 	metaCopy.Identifiers = maps.Clone(b.meta.Identifiers)
+	metaCopy.LegacySourceFormats = maps.Clone(b.meta.LegacySourceFormats)
 	return &metaCopy
 }
 
@@ -377,6 +412,10 @@ func (b *Book) SetMeta(meta *BookMeta) error {
 	if meta.CurrentSource != b.meta.CurrentSource {
 		return util.NewError("cannot modify CurrentSource field directly, use SetCurrentSource method instead")
 	}
+	// Compatibility snapshots are managed with CurrentSource. Older callers do
+	// not know this field exists and must not erase it during an ordinary book
+	// metadata update.
+	meta.LegacySourceFormats = maps.Clone(b.meta.LegacySourceFormats)
 
 	return b.setMeta(meta)
 }
@@ -407,6 +446,14 @@ func (b *Book) setMeta(meta *BookMeta) error {
 	for key := range meta.Identifiers {
 		if strings.TrimSpace(key) == "" {
 			return util.Errorf("%w", ErrInvalidIdentifierKey)
+		}
+	}
+	for sourceID, format := range meta.LegacySourceFormats {
+		if err := validateSourceID(sourceID); err != nil {
+			return util.Errorf("invalid legacy source format key: %w", err)
+		}
+		if format != BookFormatText && format != BookFormatMarkdown {
+			return util.Errorf("%w: got %q for legacy source %q", ErrInvalidBookFormat, format, sourceID)
 		}
 	}
 
@@ -446,11 +493,32 @@ func (b *Book) setMeta(meta *BookMeta) error {
 	return nil
 }
 
-// NewSource creates a new source for the book with the provided source content, and returns the created source metadata.
-// If source is nil, an empty source will be created.
+type NewSourceOptions struct {
+	Format  string
+	Comment string
+}
+
+// NewSource creates a new plain-text source. Use NewSourceWithOptions when the
+// caller knows the source is Markdown or wants to record its provenance.
 func (b *Book) NewSource(source io.Reader) (*Source, error) {
+	return b.NewSourceWithOptions(source, NewSourceOptions{Format: BookFormatText})
+}
+
+// NewSourceWithOptions atomically publishes one complete source folder. A
+// failed content or metadata write only leaves a hidden temporary directory,
+// which is removed before the call returns.
+func (b *Book) NewSourceWithOptions(source io.Reader, options NewSourceOptions) (*Source, error) {
+	if err := b.EnsureWritable(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
 	if source == nil {
 		source = io.NopCloser(strings.NewReader(""))
+	}
+	if options.Format == "" {
+		options.Format = BookFormatText
+	}
+	if !validateBookFormat(options.Format) {
+		return nil, util.Errorf("%w: got %q", ErrInvalidBookFormat, options.Format)
 	}
 
 	// create a new source for the given book with the provided source file and metadata.
@@ -471,16 +539,18 @@ func (b *Book) NewSource(source io.Reader) (*Source, error) {
 		sourceID = fmt.Sprintf("%s-%d", baseSourceID, i)
 	}
 
-	src, err := createSource(b.root, b.logger, sourcePath, sourceID, source)
+	tempSourcePath := path.Join(b.folderPath, SourcesFolder, "."+sourceID+"-"+randomString(6)+".tmp")
+	defer b.root.RemoveAll(tempSourcePath) //nolint:errcheck // best-effort cleanup of unpublished data
+
+	src, err := createSource(b.root, b.logger, tempSourcePath, sourceID, source, options.Format, options.Comment)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	err = b.updateCurrentVersionLocation(sourceID)
-	if err != nil {
-		// This error is not critical, just log it and continue.
-		b.logger.Warn("failed to update current version location", "error", err)
+	if err := b.root.Rename(tempSourcePath, sourcePath); err != nil {
+		return nil, util.Errorf("%w", err)
 	}
+	src.folderPath = sourcePath
 
 	return src, nil
 }
@@ -517,8 +587,18 @@ func (b *Book) DeleteSource(sourceID string) error {
 		}
 		return util.Errorf("%w", err)
 	}
+	// A source written by a newer model may contain metadata this build cannot
+	// preserve or even recognize. Treat deleting it as a write and refuse it by
+	// the same rule used by content, comment, split, and asset mutations.
+	source, err := openSource(b.root, sourcePath)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	if err := source.EnsureWritable(); err != nil {
+		return util.Errorf("%w", err)
+	}
 
-	err := b.root.RemoveAll(sourcePath)
+	err = b.root.RemoveAll(sourcePath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -544,6 +624,12 @@ func (b *Book) ListSource() ([]*Source, error) {
 		}
 
 		revID := entry.Name()
+		// NewSourceWithOptions publishes from a hidden *.tmp directory. A crash
+		// can leave that unpublished directory behind, but it must never become
+		// part of the visible source model or duplicate the embedded final ID.
+		if strings.HasPrefix(revID, ".") && strings.HasSuffix(revID, ".tmp") {
+			continue
+		}
 		sourcePath := path.Join(sourcesPath, revID)
 		source, err := openSource(b.root, sourcePath)
 		if err != nil {

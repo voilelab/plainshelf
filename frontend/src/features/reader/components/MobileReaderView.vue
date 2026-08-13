@@ -94,7 +94,7 @@
           </svg>
         </button>
         <button
-          v-if="writesEnabled"
+          v-if="writesEnabled && isLegacySource"
           class="button mobile-reader-tool"
           type="button"
           :aria-label="t('reader.splitSettings')"
@@ -140,6 +140,7 @@ const props = defineProps<{
   title: string;
   bookFormat: string;
   sourceId: string;
+  isLegacySource: boolean;
   sections: ReaderSection[];
   currentSectionIndex: number;
   currentSection: ReaderSection | null;

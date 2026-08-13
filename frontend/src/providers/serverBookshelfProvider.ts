@@ -54,7 +54,7 @@ import type {
   SplitConfig,
   TrashedBook
 } from '@/types/book';
-import type { SourceMeta } from '@/types/source';
+import type { CreateSourceOptions, SourceMeta } from '@/types/source';
 import type { BookBatchRequest, TaskChain } from '@/types/task';
 import type { BookshelfReader, BookshelfWriter, ListBooksOptions } from './bookshelfProvider';
 
@@ -193,8 +193,8 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return getSourceAsset(bookId, sourceId, name);
   }
 
-  createSource(bookId: string): Promise<SourceMeta> {
-    return createSource(bookId);
+  createSource(bookId: string, options?: CreateSourceOptions): Promise<SourceMeta> {
+    return createSource(bookId, options);
   }
 
   deleteSource(bookId: string, sourceId: string): Promise<void> {

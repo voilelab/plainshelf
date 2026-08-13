@@ -343,13 +343,15 @@ export function toSourceMeta(raw: unknown, fallbackID: string): SourceMeta {
   const splitConfig = normalizeSplitConfig(data.split_config);
 
   return {
+    schema_version: typeof data.schema_version === 'number' ? Math.trunc(data.schema_version) : undefined,
     id: typeof data.id === 'string' && data.id.trim() ? data.id : fallbackID,
     created_at: typeof data.created_at === 'string' ? data.created_at : '',
     comment: typeof data.comment === 'string' ? data.comment : '',
     md5_hash: typeof data.md5_hash === 'string' ? data.md5_hash : '',
+    format: data.format === 'txt' || data.format === 'md' ? data.format : undefined,
     line_count: typeof data.line_count === 'number' ? data.line_count : undefined,
     char_count: typeof data.char_count === 'number' ? data.char_count : undefined,
-    split_config: { type: splitConfig.type }
+    split_config: splitConfig
   };
 }
 

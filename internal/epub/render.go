@@ -1,7 +1,6 @@
 package epub
 
 import (
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -91,10 +90,8 @@ func (s Strategy) Format() string {
 	return "md"
 }
 
-// layout is a two-part template. There is deliberately no loop construct: with
-// the chapter body as its own template, chapter start lines are known exactly
-// while rendering, and the chapter heading prefix is known statically, which is
-// what makes the split configuration derivable.
+// layout is a two-part template. Markdown chapter structure is carried by the
+// H2 text itself; no parallel split configuration is derived or persisted.
 type layout struct {
 	header  string
 	chapter string
@@ -126,15 +123,6 @@ type Rendered struct {
 
 	// Format is the BookMeta.Format value ("md" or "txt").
 	Format string
-
-	// ChapterRegex splits Text into chapters by matching each chapter's heading
-	// line. It is empty when the layout writes chapter titles without a literal
-	// prefix, because then no pattern can distinguish a title from prose.
-	ChapterRegex string
-
-	// ChapterLines holds the 1-based line number each chapter starts on. It is
-	// always populated, and is the fallback when ChapterRegex is empty.
-	ChapterLines []int
 }
 
 // Render lays a parsed book out as text according to strategy.
@@ -153,10 +141,13 @@ func Render(book *Book, strategy Strategy) Rendered {
 		"chapter_count": chapterCount,
 	}))
 
-	lines := make([]int, 0, len(book.Chapters))
 	for i, chapter := range book.Chapters {
+		chapterTitle := strings.TrimSpace(chapter.Title)
+		if chapterTitle == "" {
+			chapterTitle = "Part " + strconv.Itoa(i+1)
+		}
 		block := substitute(l.chapter, map[string]string{
-			"chapter_title":   chapter.Title,
+			"chapter_title":   chapterTitle,
 			"chapter_content": chapter.Text,
 			"chapter_index":   strconv.Itoa(i + 1),
 			"chapter_count":   chapterCount,
@@ -166,70 +157,19 @@ func Render(book *Book, strategy Strategy) Rendered {
 			continue
 		}
 
-		lines = append(lines, doc.nextBlockLine())
 		doc.appendBlock(block)
 	}
 
-	text := doc.String()
-	chapterRegex := chapterHeadingRegex(l.chapter)
-	if !chapterRegexMatchesLines(text, chapterRegex, lines) {
-		chapterRegex = ""
-	}
-
 	return Rendered{
-		Text:         text,
-		Format:       strategy.Format(),
-		ChapterRegex: chapterRegex,
-		ChapterLines: lines,
+		Text:   doc.String(),
+		Format: strategy.Format(),
 	}
-}
-
-// chapterRegexMatchesLines reports whether the generated heading regex can
-// split at every exact chapter start. Normalization can remove a heading's
-// trailing space when its title is empty, so a syntactically valid template
-// regex is not necessarily valid for every rendered chapter.
-func chapterRegexMatchesLines(text, pattern string, chapterLines []int) bool {
-	if pattern == "" {
-		return false
-	}
-
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		return false
-	}
-
-	lines := strings.Split(text, "\n")
-	for _, lineNo := range chapterLines {
-		if lineNo < 1 || lineNo > len(lines) || !re.MatchString(lines[lineNo-1]) {
-			return false
-		}
-	}
-	return true
-}
-
-// chapterHeadingRegex builds a pattern matching the literal text a chapter
-// template writes before its title. An empty prefix yields an empty pattern:
-// with nothing to anchor on, any pattern would match prose as readily as a
-// heading.
-func chapterHeadingRegex(chapterTemplate string) string {
-	idx := strings.Index(chapterTemplate, "{chapter_title}")
-	if idx <= 0 {
-		return ""
-	}
-
-	prefix := chapterTemplate[:idx]
-	if strings.TrimSpace(prefix) == "" || strings.Contains(prefix, "\n") {
-		return ""
-	}
-
-	return "^" + regexp.QuoteMeta(prefix)
 }
 
 // docBuilder assembles blocks separated by exactly one blank line, tracking how
 // many lines have been written so chapter start lines are exact.
 type docBuilder struct {
-	b     strings.Builder
-	lines int
+	b strings.Builder
 }
 
 func (d *docBuilder) appendBlock(block string) {
@@ -246,16 +186,6 @@ func (d *docBuilder) appendBlock(block string) {
 
 func (d *docBuilder) write(s string) {
 	d.b.WriteString(s)
-	d.lines += strings.Count(s, "\n")
-}
-
-// nextBlockLine is the 1-based line number the next appended block will start
-// on. Appending inserts a blank line first, which advances two lines.
-func (d *docBuilder) nextBlockLine() int {
-	if d.b.Len() == 0 {
-		return 1
-	}
-	return d.lines + 3
 }
 
 func (d *docBuilder) String() string {
