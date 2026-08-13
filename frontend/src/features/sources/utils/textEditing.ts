@@ -64,9 +64,12 @@ export function replaceTextRange(
 }
 
 export function replaceAllText(text: string, query: string, replacement: string): ReplaceAllResult {
-  const occurrences = matchOffsets(text, query).length;
+  if (!query) return { value: text, occurrences: 0 };
+
+  const parts = text.split(query);
+  const occurrences = parts.length - 1;
   return {
-    value: occurrences > 0 ? text.split(query).join(replacement) : text,
+    value: occurrences > 0 ? parts.join(replacement) : text,
     occurrences
   };
 }

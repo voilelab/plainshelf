@@ -39,6 +39,8 @@ describe('source editor text operations', () => {
       value: 'done done',
       occurrences: 2
     });
+    expect(replaceAllText('aaaa', 'aa', 'x')).toEqual({ value: 'xx', occurrences: 2 });
+    expect(replaceAllText('text', 'missing', 'x')).toEqual({ value: 'text', occurrences: 0 });
     expect(replaceAllText('text', '', 'x')).toEqual({ value: 'text', occurrences: 0 });
   });
 

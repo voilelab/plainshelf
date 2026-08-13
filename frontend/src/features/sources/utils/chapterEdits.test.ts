@@ -13,6 +13,15 @@ describe('source chapter edits', () => {
     expect(insertChapterEdit('Opening text\n\n', 14).replacement).toBe('## Untitled chapter\n\n');
   });
 
+  it('uses CRLF consistently when inserting into a CRLF source', () => {
+    expect(insertChapterEdit('Opening text\r\n', 14).replacement).toBe(
+      '\r\n## Untitled chapter\r\n\r\n'
+    );
+    expect(insertChapterEdit('Opening text\r\n\r\n', 16).replacement).toBe(
+      '## Untitled chapter\r\n\r\n'
+    );
+  });
+
   it('renames a CRLF heading without changing its line ending', () => {
     const content = '## Old title\r\nBody';
     const heading = scanMarkdownH2Headings(content)[0];

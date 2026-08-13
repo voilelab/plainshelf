@@ -228,9 +228,11 @@ export function useSourceEditorSession(
 
     try {
       await bookshelfWriter().setCurrentSource(requestedBookId, sourceId);
-      if (!isActiveSource(generation, requestedBookId, sourceId)) return;
+      if (!isCurrentSession(generation, requestedBookId)) return;
       if (book.value) book.value.current_source = sourceId;
-      saveSuccess.value = 'Current source updated.';
+      if (activeSourceId.value === sourceId) {
+        saveSuccess.value = 'Current source updated.';
+      }
     } catch (error) {
       if (isActiveSource(generation, requestedBookId, sourceId)) {
         editorError.value = errorMessage(error, 'Failed to set current source');

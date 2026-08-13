@@ -185,18 +185,20 @@ describe('useSourceEditorSession', () => {
     expect(session.content.value).toBe('content:source-1');
   });
 
-  it('sets the current source without replacing a newer active source', async () => {
+  it('updates current-source metadata without messaging a newer active source', async () => {
     const session = useSourceEditorSession(() => currentBookId, () => true);
     await session.fetchInitial();
+    await session.loadSource('source-1');
     const request = deferred<void>();
     mocks.setCurrentSource.mockReturnValue(request.promise);
 
     const setting = session.setCurrentSource();
-    await session.loadSource('source-1');
+    await session.loadSource('source-2');
     request.resolve(undefined);
     await setting;
 
-    expect(session.book.value?.current_source).toBe('source-2');
+    expect(session.book.value?.current_source).toBe('source-1');
+    expect(session.activeSourceId.value).toBe('source-2');
     expect(session.saveSuccess.value).toBe('');
   });
 });

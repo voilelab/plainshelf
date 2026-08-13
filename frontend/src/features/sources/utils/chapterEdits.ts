@@ -8,11 +8,12 @@ export interface SourceTextEdit {
 
 export function insertChapterEdit(content: string, offset: number): SourceTextEdit {
   const start = Math.max(0, Math.min(content.length, offset));
-  const needsLeadingBlank = start > 0 && !content.slice(0, start).endsWith('\n\n');
+  const eol = content.match(/\r?\n/)?.[0] === '\r\n' ? '\r\n' : '\n';
+  const needsLeadingBlank = start > 0 && !content.slice(0, start).endsWith(`${eol}${eol}`);
   return {
     start,
     end: start,
-    replacement: `${needsLeadingBlank ? '\n' : ''}## Untitled chapter\n\n`
+    replacement: `${needsLeadingBlank ? eol : ''}## Untitled chapter${eol}${eol}`
   };
 }
 
