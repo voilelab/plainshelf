@@ -1309,7 +1309,7 @@ func TestAPICreateBookSourceContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateFormFile content: %v", err)
 	}
-	if _, err := io.WriteString(part, "# Book\n\n## One\nBody 😀"); err != nil {
+	if _, err := io.WriteString(part, "# Book\n\n## One\nBody 🍥"); err != nil {
 		t.Fatalf("write source content: %v", err)
 	}
 	if err := writer.Close(); err != nil {

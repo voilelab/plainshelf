@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   clampTextOffset,
   findMatchOffset,
+  mapOffsetThroughReplaceAll,
+  mapOffsetThroughReplacement,
   matchOffsets,
   paragraphStartOffset,
   replaceAllText,
@@ -42,6 +44,23 @@ describe('source editor text operations', () => {
     expect(replaceAllText('aaaa', 'aa', 'x')).toEqual({ value: 'xx', occurrences: 2 });
     expect(replaceAllText('text', 'missing', 'x')).toEqual({ value: 'text', occurrences: 0 });
     expect(replaceAllText('text', '', 'x')).toEqual({ value: 'text', occurrences: 0 });
+  });
+
+  it('maps UTF-16 offsets through one replacement', () => {
+    expect(mapOffsetThroughReplacement(2, 4, 6, 5)).toBe(2);
+    expect(mapOffsetThroughReplacement(8, 4, 6, 5)).toBe(11);
+    expect(mapOffsetThroughReplacement(5, 4, 6, 5)).toBe(9);
+    expect(mapOffsetThroughReplacement(5, 4, 6, 5, 'backward')).toBe(4);
+  });
+
+  it('maps offsets through replace all without confusing duplicate matches', () => {
+    const text = '🍥 cat cat tail';
+    expect(mapOffsetThroughReplaceAll(text, 'cat', 'chapter', text.indexOf('tail'))).toBe(
+      '🍥 chapter chapter '.length
+    );
+    expect(mapOffsetThroughReplaceAll(text, 'cat', 'x', text.indexOf('cat'))).toBe(
+      text.indexOf('cat') + 1
+    );
   });
 
   it('finds paragraph starts with LF and CRLF blank lines', () => {

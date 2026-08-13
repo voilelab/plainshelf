@@ -2,17 +2,31 @@ import { computed, nextTick, ref, watch } from 'vue';
 import {
   clampTextOffset,
   findMatchOffset,
+  mapOffsetThroughReplaceAll,
   matchOffsets,
   paragraphStartOffset,
   replaceAllText,
   replaceTextRange
 } from '@/features/sources/utils/textEditing';
+import type {
+  SourceDocumentEdit,
+  SourceEditorViewRange,
+  SourceFindScope
+} from '@/features/sources/types/editorAdapter';
 
 interface SourceTextEditorOptions {
   content: () => string;
   sourceId: () => string;
   disabled: () => boolean;
-  updateContent: (value: string) => void;
+  viewRange: () => SourceEditorViewRange | null;
+  findScope: () => SourceFindScope;
+  updateDocument: (edit: SourceDocumentEdit) => void;
+  requestViewOffset: (offset: number, affinity: 'forward' | 'backward') => void;
+}
+
+interface NormalizedRange {
+  startOffset: number;
+  endOffset: number;
 }
 
 export function useSourceTextEditor(options: SourceTextEditorOptions) {
@@ -21,6 +35,11 @@ export function useSourceTextEditor(options: SourceTextEditorOptions) {
   const replaceQuery = ref('');
   const findStatus = ref('');
   const disableFind = computed(() => options.disabled() || !findQuery.value);
+  const visibleContent = computed(() => {
+    const range = currentViewRange();
+    return options.content().slice(range.startOffset, range.endOffset);
+  });
+  let composing = false;
 
   watch(options.sourceId, () => {
     findQuery.value = '';
@@ -28,150 +47,255 @@ export function useSourceTextEditor(options: SourceTextEditorOptions) {
     findStatus.value = '';
   });
 
-  watch(findQuery, () => {
+  watch([findQuery, options.findScope], () => {
     findStatus.value = '';
   });
 
-  function onInput(event: Event): void {
-    options.updateContent((event.target as HTMLTextAreaElement).value);
+  function currentViewRange(): NormalizedRange {
+    const content = options.content();
+    const requested = options.viewRange();
+    if (!requested) return { startOffset: 0, endOffset: content.length };
+    const startOffset = clampTextOffset(content, requested.startOffset);
+    return {
+      startOffset,
+      endOffset: Math.max(startOffset, clampTextOffset(content, requested.endOffset))
+    };
   }
 
-  function selectMatch(textarea: HTMLTextAreaElement, query: string, index: number): void {
-    textarea.focus();
-    textarea.setSelectionRange(index, index + query.length);
-    scrollOffsetIntoView(textarea, index);
-    const offsets = matchOffsets(textarea.value, query);
-    const ordinal = offsets.indexOf(index) + 1;
-    findStatus.value = ordinal > 0
-      ? `Match ${ordinal} of ${offsets.length}.`
-      : `${offsets.length} matches.`;
+  function currentScopeRange(): NormalizedRange {
+    if (options.findScope() === 'section' && options.viewRange()) return currentViewRange();
+    return { startOffset: 0, endOffset: options.content().length };
+  }
+
+  function documentSelection(): { start: number; end: number } {
+    const view = currentViewRange();
+    const textarea = textareaRef.value;
+    return {
+      start: view.startOffset + (textarea?.selectionStart ?? 0),
+      end: view.startOffset + (textarea?.selectionEnd ?? 0)
+    };
+  }
+
+  function syncTextarea(textarea: HTMLTextAreaElement, isComposing: boolean): void {
+    const range = currentViewRange();
+    const replacement = textarea.value;
+    const edit = replaceTextRange(
+      options.content(),
+      range.startOffset,
+      range.endOffset,
+      replacement
+    );
+    const atVisibleEnd = textarea.selectionEnd === replacement.length;
+    const selectionStart = range.startOffset + textarea.selectionStart;
+    const selectionEnd = range.startOffset + textarea.selectionEnd;
+    options.updateDocument({
+      value: edit.value,
+      selectionStart,
+      selectionEnd,
+      affinity: atVisibleEnd ? 'backward' : 'forward',
+      deferView: true,
+      composing: isComposing
+    });
+    if (!isComposing) {
+      void nextTick(() => focusAndSelect(selectionStart, selectionEnd, false));
+    }
+  }
+
+  function onInput(event: Event): void {
+    const inputEvent = event as InputEvent;
+    syncTextarea(
+      inputEvent.target as HTMLTextAreaElement,
+      composing || inputEvent.isComposing
+    );
+  }
+
+  function onCompositionStart(): void {
+    composing = true;
+  }
+
+  function onCompositionEnd(event: CompositionEvent): void {
+    composing = false;
+    // WebKit normally follows compositionend with a final non-composing input,
+    // but synchronizing here also covers engines that do not. Replacing the
+    // current projection with the same textarea value is idempotent.
+    syncTextarea(event.target as HTMLTextAreaElement, false);
   }
 
   function findMatch(backward: boolean): number | null {
-    const textarea = textareaRef.value;
     const query = findQuery.value;
-    if (!textarea || !query || options.disabled()) return null;
+    if (!query || options.disabled()) return null;
 
+    const content = options.content();
+    const scope = currentScopeRange();
+    const selection = documentSelection();
     const index = findMatchOffset(
-      textarea.value,
+      content.slice(scope.startOffset, scope.endOffset),
       query,
-      textarea.selectionStart,
-      textarea.selectionEnd,
+      selection.start - scope.startOffset,
+      selection.end - scope.startOffset,
       backward
     );
     if (index === null) {
       findStatus.value = 'No matches.';
       return null;
     }
+    return scope.startOffset + index;
+  }
 
-    selectMatch(textarea, query, index);
-    return index;
+  async function selectMatch(index: number): Promise<void> {
+    const query = findQuery.value;
+    if (!query) return;
+    options.requestViewOffset(index, 'forward');
+    await nextTick();
+    await nextTick();
+    focusAndSelect(index, index + query.length, false);
+
+    const scope = currentScopeRange();
+    const offsets = matchOffsets(
+      options.content().slice(scope.startOffset, scope.endOffset),
+      query
+    );
+    const ordinal = offsets.indexOf(index - scope.startOffset) + 1;
+    findStatus.value = ordinal > 0
+      ? `Match ${ordinal} of ${offsets.length}.`
+      : `${offsets.length} matches.`;
   }
 
   function findNext(): void {
-    findMatch(false);
+    const index = findMatch(false);
+    if (index !== null) void selectMatch(index);
   }
 
   function findPrevious(): void {
-    findMatch(true);
+    const index = findMatch(true);
+    if (index !== null) void selectMatch(index);
   }
 
-  function replaceNext(): void {
-    const textarea = textareaRef.value;
+  async function replaceNext(): Promise<void> {
     const query = findQuery.value;
-    if (!textarea || !query || options.disabled()) return;
+    if (!query || options.disabled()) return;
 
-    let start = textarea.selectionStart;
-    let end = textarea.selectionEnd;
-    if (textarea.value.slice(start, end) !== query) {
+    const selection = documentSelection();
+    let start = selection.start;
+    let end = selection.end;
+    if (options.content().slice(start, end) !== query) {
       const match = findMatch(false);
       if (match === null) return;
       start = match;
       end = match + query.length;
     }
 
-    const edit = replaceTextRange(textarea.value, start, end, replaceQuery.value);
-    const nextCursor = edit.selectionEnd;
-    options.updateContent(edit.value);
-    void nextTick(() => {
-      const current = textareaRef.value;
-      if (!current) return;
-      let nextMatch = current.value.indexOf(query, nextCursor);
-      if (nextMatch === -1) nextMatch = current.value.indexOf(query);
-      if (nextMatch === -1) {
-        current.focus();
-        current.setSelectionRange(nextCursor, nextCursor);
-        scrollOffsetIntoView(current, nextCursor);
-        findStatus.value = 'Replaced 1 occurrence. No matches remain.';
-        return;
-      }
-      selectMatch(current, query, nextMatch);
-      findStatus.value = `Replaced 1 occurrence. ${findStatus.value}`;
+    const edit = replaceTextRange(options.content(), start, end, replaceQuery.value);
+    options.updateDocument({
+      value: edit.value,
+      selectionStart: edit.selectionEnd,
+      selectionEnd: edit.selectionEnd,
+      affinity: 'forward'
     });
+    await nextTick();
+
+    const scope = currentScopeRange();
+    const nextIndex = findMatchOffset(
+      options.content().slice(scope.startOffset, scope.endOffset),
+      query,
+      edit.selectionEnd - scope.startOffset,
+      edit.selectionEnd - scope.startOffset,
+      false
+    );
+    if (nextIndex === null) {
+      focusAndSelect(edit.selectionEnd, edit.selectionEnd);
+      findStatus.value = 'Replaced 1 occurrence. No matches remain.';
+      return;
+    }
+    await selectMatch(scope.startOffset + nextIndex);
+    findStatus.value = `Replaced 1 occurrence. ${findStatus.value}`;
   }
 
   function onReplaceInputKeydown(event: KeyboardEvent): void {
     if (event.key !== 'Enter' || event.isComposing) return;
     event.preventDefault();
-    replaceNext();
+    void replaceNext();
   }
 
   function replaceAll(): void {
     const query = findQuery.value;
     if (!query || options.disabled()) return;
 
-    const textarea = textareaRef.value;
-    const result = replaceAllText(textarea?.value ?? options.content(), query, replaceQuery.value);
+    const content = options.content();
+    const scope = currentScopeRange();
+    const scopedContent = content.slice(scope.startOffset, scope.endOffset);
+    const result = replaceAllText(scopedContent, query, replaceQuery.value);
     if (result.occurrences === 0) {
       findStatus.value = 'No matches.';
       return;
     }
 
-    const previousCursor = textarea?.selectionStart ?? 0;
-    options.updateContent(result.value);
+    const selection = documentSelection();
+    const relativeCursor = clampTextOffset(scopedContent, selection.start - scope.startOffset);
+    const mappedCursor = scope.startOffset + mapOffsetThroughReplaceAll(
+      scopedContent,
+      query,
+      replaceQuery.value,
+      relativeCursor
+    );
+    const nextValue = `${content.slice(0, scope.startOffset)}${result.value}${content.slice(scope.endOffset)}`;
+    options.updateDocument({
+      value: nextValue,
+      selectionStart: mappedCursor,
+      selectionEnd: mappedCursor,
+      affinity: 'forward'
+    });
     void nextTick(() => {
-      const current = textareaRef.value;
-      if (current) {
-        const cursor = clampTextOffset(current.value, previousCursor);
-        current.focus();
-        current.setSelectionRange(cursor, cursor);
-      }
+      focusAndSelect(mappedCursor, mappedCursor);
       findStatus.value = `Replaced ${result.occurrences} occurrence${result.occurrences === 1 ? '' : 's'}.`;
     });
   }
 
   function getCurrentParagraphStart(): number {
-    return paragraphStartOffset(options.content(), textareaRef.value?.selectionStart ?? 0);
+    return paragraphStartOffset(options.content(), documentSelection().start);
   }
 
   function replaceRange(startOffset: number, endOffset: number, replacement: string): void {
     const edit = replaceTextRange(options.content(), startOffset, endOffset, replacement);
-    options.updateContent(edit.value);
+    options.updateDocument({
+      value: edit.value,
+      selectionStart: edit.selectionStart,
+      selectionEnd: edit.selectionEnd,
+      affinity: 'forward'
+    });
     void nextTick(() => focusAndSelect(edit.selectionStart, edit.selectionEnd));
   }
 
   function jumpToOffset(offset: number): void {
     focusAndSelect(offset, offset);
-    const textarea = textareaRef.value;
-    if (textarea) scrollOffsetIntoView(textarea, offset);
   }
 
-  function focusAndSelect(startOffset: number, endOffset: number): void {
+  function focusAndSelect(
+    startOffset: number,
+    endOffset: number,
+    requestView = true
+  ): void {
+    if (requestView) options.requestViewOffset(startOffset, 'forward');
     const textarea = textareaRef.value;
     if (!textarea) return;
-    const start = clampTextOffset(textarea.value, startOffset);
-    const end = Math.max(start, clampTextOffset(textarea.value, endOffset));
+    const view = currentViewRange();
+    const start = clampTextOffset(textarea.value, startOffset - view.startOffset);
+    const end = Math.max(start, clampTextOffset(textarea.value, endOffset - view.startOffset));
     textarea.focus();
     textarea.setSelectionRange(start, end);
+    scrollOffsetIntoView(textarea, start);
   }
 
   return {
     textareaRef,
+    visibleContent,
     findQuery,
     replaceQuery,
     findStatus,
     disableFind,
     onInput,
+    onCompositionStart,
+    onCompositionEnd,
     findNext,
     findPrevious,
     replaceNext,
@@ -193,9 +317,6 @@ function scrollOffsetIntoView(textarea: HTMLTextAreaElement, offset: number): vo
   const visibleBottom = textarea.scrollTop + textarea.clientHeight - lineHeight - margin;
 
   if (targetTop < visibleTop || targetTop > visibleBottom) {
-    // WebKit/Wails does not consistently scroll a textarea when only its
-    // programmatic selection changes. Assign after the current frame so this
-    // wins over any focus/selection scroll restoration performed by WebKit.
     requestAnimationFrame(() => {
       textarea.scrollTop = Math.max(0, targetTop - textarea.clientHeight / 3);
     });

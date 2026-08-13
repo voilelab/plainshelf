@@ -135,7 +135,7 @@
           />
           <SourceEditor
             ref="editorRef"
-            v-model="content"
+            :modelValue="content"
             :sourceId="activeSourceId"
             :loading="contentLoading"
             :saving="saving"
@@ -143,6 +143,10 @@
             :error="editorError"
             :isCurrent="activeSourceId === book?.current_source"
             :settingCurrent="settingCurrent"
+            :viewRange="editorViewRange"
+            :focused="editorFocused"
+            @document-edit="onDocumentEdit"
+            @request-view-offset="onRequestViewOffset"
             @set-current="onSetCurrentSource"
           />
         </template>
@@ -160,11 +164,13 @@
           :max-size="380"
         >
           <ChapterOutline
-            :headings="chapterHeadings"
-            :has-opening="hasOpeningSection"
+            :sections="markdownSections"
+            :focused="editorFocused"
+            :activeSectionIndex="activeEditorSection?.index ?? null"
             :disabled="saving || contentLoading"
             @insert="insertChapter"
-            @jump="jumpToChapter"
+            @show-all="showWholeSource"
+            @select="selectEditorSection"
             @rename="openRenameChapter"
             @remove="openMergeChapter"
           />
@@ -175,14 +181,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { getDefaultSplitConfigSetting } from '@/api/settings';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useWriteAccess } from '@/composables/useWriteAccess';
-import { scanMarkdownH2Headings } from '@/features/reader/utils/markdownChapters';
+import {
+  buildMarkdownEditorSections,
+  findMarkdownEditorSection,
+  type MarkdownEditorSection
+} from '@/features/reader/utils/markdownChapters';
 import ChapterOutline from '@/features/sources/components/ChapterOutline.vue';
 import SourceConversionModal, {
   type SourceConversionKind
@@ -191,18 +201,36 @@ import SourceEditor from '@/features/sources/components/SourceEditor.vue';
 import SourceFormatActions from '@/features/sources/components/SourceFormatActions.vue';
 import SourceList from '@/features/sources/components/SourceList.vue';
 import { useSourceEditorSession } from '@/features/sources/composables/useSourceEditorSession';
-import type { SourceEditorAdapter } from '@/features/sources/types/editorAdapter';
+import type {
+  SourceDocumentEdit,
+  SourceEditorAdapter,
+  SourceEditorViewRange
+} from '@/features/sources/types/editorAdapter';
 import {
   insertChapterEdit,
   mergeChapterEdit,
   renameChapterEdit,
   type SourceTextEdit
 } from '@/features/sources/utils/chapterEdits';
+import {
+  mapOffsetThroughReplacement,
+  replaceTextRange
+} from '@/features/sources/utils/textEditing';
 import type { SplitConfig } from '@/types/book';
 
 type PendingSourceTransition =
   | { kind: 'select'; sourceId: string }
   | { kind: 'create' };
+
+type EditorViewState =
+  | { kind: 'all' }
+  | {
+      kind: 'section';
+      startOffset: number;
+      endOffset: number;
+      anchorOffset: number;
+      affinity: 'forward' | 'backward';
+    };
 
 // Stable reference: see MainLayout.vue's SIDEBAR_RESIZE_HIT_AREA_MARGINS for why this
 // object must not be an inline template literal (reka-ui re-registers the resize handle
@@ -258,13 +286,32 @@ const pendingRenameChapterIndex = ref<number | null>(null);
 const pendingChapterTitle = ref('');
 const chapterTitleInput = ref<HTMLInputElement | null>(null);
 const pendingMergeChapterIndex = ref<number | null>(null);
+const editorViewState = ref<EditorViewState>({ kind: 'all' });
+const editorViewKey = ref(0);
+let editorViewReconcileTimer: ReturnType<typeof setTimeout> | null = null;
 
-const chapterHeadings = computed(() =>
-  activeFormat.value === 'md' ? scanMarkdownH2Headings(content.value) : []
+const markdownSections = computed(() =>
+  activeFormat.value === 'md' && !isLegacySource.value
+    ? buildMarkdownEditorSections(content.value)
+    : []
 );
-const hasOpeningSection = computed(() => {
-  const first = chapterHeadings.value[0];
-  return Boolean(first && content.value.slice(0, first.startOffset).trim());
+const chapterHeadings = computed(() =>
+  markdownSections.value.flatMap((section) => section.heading ? [section.heading] : [])
+);
+const hasMarkdownChapters = computed(() =>
+  markdownSections.value.some((section) => section.kind === 'chapter')
+);
+const activeEditorSection = computed(() => {
+  const view = editorViewState.value;
+  if (view.kind !== 'section' || !hasMarkdownChapters.value) return null;
+  return findMarkdownEditorSection(markdownSections.value, view.anchorOffset, view.affinity);
+});
+const editorFocused = computed(() => editorViewState.value.kind === 'section');
+const editorViewRange = computed<SourceEditorViewRange | null>(() => {
+  const view = editorViewState.value;
+  return view.kind === 'section'
+    ? { startOffset: view.startOffset, endOffset: view.endOffset, key: editorViewKey.value }
+    : null;
 });
 const pendingMergeChapterTitle = computed(() => {
   const index = pendingMergeChapterIndex.value;
@@ -352,19 +399,191 @@ async function submitConversion(payload: {
   }
 }
 
-function applyEdit(edit: SourceTextEdit): void {
-  editorRef.value?.replaceRange(edit.start, edit.end, edit.replacement);
+function showWholeSource(): void {
+  clearEditorViewReconcile();
+  if (editorViewState.value.kind === 'all') return;
+  editorViewState.value = { kind: 'all' };
+  editorViewKey.value += 1;
+}
+
+function resetEditorView(): void {
+  clearEditorViewReconcile();
+  editorViewState.value = { kind: 'all' };
+  editorViewKey.value += 1;
+}
+
+function selectEditorSection(section: MarkdownEditorSection): void {
+  if (!hasMarkdownChapters.value) return;
+  clearEditorViewReconcile();
+  const previous = activeEditorSection.value;
+  if (!previous || previous.index !== section.index) editorViewKey.value += 1;
+  editorViewState.value = {
+    kind: 'section',
+    startOffset: section.startOffset,
+    endOffset: section.endOffset,
+    anchorOffset: section.startOffset,
+    affinity: 'forward'
+  };
+  mobilePane.value = 'editor';
+  void nextTick(() => editorRef.value?.focusAndSelect(section.startOffset, section.startOffset));
+}
+
+function onRequestViewOffset(
+  offset: number,
+  affinity: 'forward' | 'backward'
+): void {
+  if (!editorFocused.value) return;
+  const previous = activeEditorSection.value;
+  const next = findMarkdownEditorSection(markdownSections.value, offset, affinity);
+  if (!next) return;
+  if (!previous || previous.index !== next.index) editorViewKey.value += 1;
+  clearEditorViewReconcile();
+  editorViewState.value = {
+    kind: 'section',
+    startOffset: next.startOffset,
+    endOffset: next.endOffset,
+    anchorOffset: offset,
+    affinity
+  };
+  mobilePane.value = 'editor';
+}
+
+function onDocumentEdit(edit: SourceDocumentEdit): void {
+  const previous = activeEditorSection.value;
+  const previousLength = content.value.length;
+  const view = editorViewState.value;
+  content.value = edit.value;
+  if (view.kind !== 'section') return;
+
+  if (edit.deferView) {
+    const delta = edit.value.length - previousLength;
+    editorViewState.value = {
+      kind: 'section',
+      startOffset: view.startOffset,
+      endOffset: Math.max(view.startOffset, view.endOffset + delta),
+      anchorOffset: edit.selectionEnd,
+      affinity: edit.affinity
+    };
+    if (edit.composing) clearEditorViewReconcile();
+    else scheduleEditorViewReconcile(previous);
+    return;
+  }
+
+  clearEditorViewReconcile();
+  reconcileEditorView(previous, edit.selectionEnd, edit.affinity);
+}
+
+function scheduleEditorViewReconcile(previous: MarkdownEditorSection | null): void {
+  clearEditorViewReconcile();
+  editorViewReconcileTimer = setTimeout(() => {
+    editorViewReconcileTimer = null;
+    const view = editorViewState.value;
+    if (view.kind === 'section') {
+      reconcileEditorView(previous, view.anchorOffset, view.affinity);
+    }
+  }, 80);
+}
+
+function clearEditorViewReconcile(): void {
+  if (editorViewReconcileTimer !== null) {
+    clearTimeout(editorViewReconcileTimer);
+    editorViewReconcileTimer = null;
+  }
+}
+
+onBeforeUnmount(clearEditorViewReconcile);
+
+function reconcileEditorView(
+  previous: MarkdownEditorSection | null,
+  selectionEnd: number,
+  affinity: 'forward' | 'backward'
+): void {
+  if (editorViewState.value.kind !== 'section') return;
+
+  if (!hasMarkdownChapters.value) {
+    showWholeSource();
+    return;
+  }
+  const next = findMarkdownEditorSection(markdownSections.value, selectionEnd, affinity);
+  if (!next) {
+    showWholeSource();
+    return;
+  }
+  const currentView = editorViewState.value;
+  if (
+    !previous ||
+    previous.kind !== next.kind ||
+    currentView.startOffset !== next.startOffset ||
+    currentView.endOffset !== next.endOffset
+  ) {
+    editorViewKey.value += 1;
+  }
+  editorViewState.value = {
+    kind: 'section',
+    startOffset: next.startOffset,
+    endOffset: next.endOffset,
+    anchorOffset: selectionEnd,
+    affinity
+  };
+}
+
+function applyEdit(
+  edit: SourceTextEdit,
+  followEdit = true,
+  affinity: 'forward' | 'backward' = 'forward',
+  focus = true
+): void {
+  clearEditorViewReconcile();
+  const previous = activeEditorSection.value;
+  const replacement = replaceTextRange(content.value, edit.start, edit.end, edit.replacement);
+
+  if (followEdit || !previous || editorViewState.value.kind !== 'section') {
+    onDocumentEdit({
+      value: replacement.value,
+      selectionStart: replacement.selectionStart,
+      selectionEnd: replacement.selectionEnd,
+      affinity
+    });
+    if (focus) {
+      void nextTick(() => editorRef.value?.focusAndSelect(
+        replacement.selectionStart,
+        replacement.selectionEnd
+      ));
+    }
+    return;
+  }
+
+  const view = editorViewState.value;
+  const mappedAnchor = mapOffsetThroughReplacement(
+    view.anchorOffset,
+    edit.start,
+    edit.end,
+    edit.replacement.length,
+    view.affinity
+  );
+  content.value = replacement.value;
+  const next = findMarkdownEditorSection(markdownSections.value, mappedAnchor, view.affinity);
+  if (!hasMarkdownChapters.value || !next) {
+    showWholeSource();
+    return;
+  }
+  if (previous.kind !== next.kind || previous.startOffset !== next.startOffset) {
+    editorViewKey.value += 1;
+  }
+  editorViewState.value = {
+    kind: 'section',
+    startOffset: next.startOffset,
+    endOffset: next.endOffset,
+    anchorOffset: mappedAnchor,
+    affinity: view.affinity
+  };
 }
 
 function insertChapter(): void {
   const editor = editorRef.value;
   if (!editor) return;
   applyEdit(insertChapterEdit(content.value, editor.getCurrentParagraphStart()));
-}
-
-function jumpToChapter(offset: number): void {
   mobilePane.value = 'editor';
-  editorRef.value?.jumpToOffset(offset);
 }
 
 async function openRenameChapter(index: number): Promise<void> {
@@ -388,7 +607,10 @@ function confirmRenameChapter(): void {
   const title = pendingChapterTitle.value.trim();
   if (index === null || !title) return;
   const heading = chapterHeadings.value[index];
-  if (heading) applyEdit(renameChapterEdit(content.value, heading, title));
+  if (heading) {
+    const followsActive = activeEditorSection.value?.headingIndex === index;
+    applyEdit(renameChapterEdit(content.value, heading, title), followsActive, 'forward', followsActive);
+  }
   cancelRenameChapter();
 }
 
@@ -404,7 +626,10 @@ function confirmMergeChapter(): void {
   const index = pendingMergeChapterIndex.value;
   if (index === null) return;
   const heading = chapterHeadings.value[index];
-  if (heading) applyEdit(mergeChapterEdit(content.value, heading));
+  if (heading) {
+    const followsActive = activeEditorSection.value?.headingIndex === index;
+    applyEdit(mergeChapterEdit(content.value, heading), followsActive, 'backward', false);
+  }
   cancelMergeChapter();
 }
 
@@ -431,6 +656,10 @@ function goBack(): void {
   void router.push(`/books/${bookId.value}`);
 }
 
+watch(activeSourceId, (sourceId, previousSourceId) => {
+  if (sourceId !== previousSourceId) resetEditorView();
+});
+
 watch(
   bookId,
   () => {
@@ -440,6 +669,7 @@ watch(
     showConversionModal.value = false;
     pendingRenameChapterIndex.value = null;
     pendingMergeChapterIndex.value = null;
+    resetEditorView();
     mobilePane.value = 'editor';
     void fetchInitial();
   },
