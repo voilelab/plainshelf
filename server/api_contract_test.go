@@ -28,14 +28,6 @@ type apiTestEnv struct {
 	libRoot string
 }
 
-func TestAPIMarksRoutesRemoved(t *testing.T) {
-	env := newAPITestEnv(t)
-	for _, method := range []string{http.MethodGet, http.MethodPost} {
-		rec := env.do(httptest.NewRequest(method, "/api/shelves/default_shelf/marks/book-1", nil))
-		assertStatus(t, rec, http.StatusNotFound)
-	}
-}
-
 type wailsLikeRecorder struct {
 	header      http.Header
 	body        bytes.Buffer

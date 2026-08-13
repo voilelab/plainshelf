@@ -182,9 +182,8 @@ your backup tool from reading a file mid-write.
     device. Web and desktop reading progress also starts at zero instead of
     importing v0.8's server-side bookmarks. Existing Android progress was
     already on-device and remains available. The old server-side history,
-    dashboard activity, and bookmarks no longer appear in v1; legacy bookmark
-    records are removed when the server starts. This is an intentional pre-1.0
-    breaking change.
+    dashboard activity, and bookmarks are not migrated or read by v1. This is
+    an intentional pre-1.0 breaking change.
 
 PlainShelf provides no export, import, or recovery path for these values.
 Upgrade from v0.8 only if you accept that they will no longer be accessible.

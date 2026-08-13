@@ -98,9 +98,6 @@ func NewApp(conf *AppConf) (*App, error) {
 			}
 		}
 	}()
-	if err := storeDB.DeleteLegacyBookmarks(); err != nil {
-		return nil, util.Errorf("delete legacy reading progress: %w", err)
-	}
 
 	// The worker section is optional; every field has a usable zero value.
 	workerConf := conf.Worker
@@ -310,13 +307,8 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/setting/epub_import_strategy", app.HandleSetSettingEPUBImportStrategy)
 	mux.HandleFunc("DELETE /api/setting/epub_import_strategy", app.HandleDeleteSettingEPUBImportStrategy)
 
-	// Unknown API paths must not fall through to the SPA index. Apart from being
-	// the correct API response, this makes removed pre-1.0 endpoints fail
-	// clearly instead of returning HTML with status 200.
+	// Unknown API paths must not fall through to the SPA index.
 	mux.HandleFunc("GET /api/{path...}", http.NotFound)
-	// Keep only a not-found tombstone for the removed mutation; it stores
-	// nothing and prevents old clients from seeing an ambiguous 405 response.
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/marks/{book_id}", http.NotFound)
 
 	mux.HandleFunc("GET /{path...}", app.HandleSPAFallback)
 }

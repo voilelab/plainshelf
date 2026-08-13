@@ -33,7 +33,7 @@ and UI behavior may still change between releases.
 
 - Removed the server-side reading-history API (`GET`, `POST`, and `DELETE /api/shelves/:id/read_history`) together with its storage in the application store, and the `read_history_limit` server setting (`/api/setting/read_history_limit`; the `read_history_limit` config key is now ignored if left in an existing config file).
 - Removed the server-side reading-activity API (`GET` and `POST /api/shelves/:id/reading_activity`) together with the shelf's reading-time storage under `app/stats/reading/{YYYY-MM}.json` and the background flush that maintained it. Existing files are left in place and can be deleted; nothing reads them any more.
-- Removed the server-side reading-progress API (`GET` and `POST /api/shelves/:id/marks/:book_id`). Legacy `bookmark:` records are deleted from the application store when the server starts.
+- Removed the server-side reading-progress API (`GET` and `POST /api/shelves/:id/marks/:book_id`) and all server-side bookmark handling. Existing server-side values are not migrated or read.
 
 ### Fixed
 
