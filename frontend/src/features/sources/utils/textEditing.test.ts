@@ -54,9 +54,9 @@ describe('source editor text operations', () => {
   });
 
   it('maps offsets through replace all without confusing duplicate matches', () => {
-    const text = '😀 cat cat tail';
+    const text = '🍥 cat cat tail';
     expect(mapOffsetThroughReplaceAll(text, 'cat', 'chapter', text.indexOf('tail'))).toBe(
-      '😀 chapter chapter '.length
+      '🍥 chapter chapter '.length
     );
     expect(mapOffsetThroughReplaceAll(text, 'cat', 'x', text.indexOf('cat'))).toBe(
       text.indexOf('cat') + 1

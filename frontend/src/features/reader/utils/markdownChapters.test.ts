@@ -45,7 +45,7 @@ describe('buildMarkdownH2Sections', () => {
   });
 
   it('preserves CRLF and UTF-16 offsets', () => {
-    const content = '# 📚\r\nIntro 😀\r\n## 第二章\r\nText';
+    const content = '# 📚\r\nIntro 🍥\r\n## 第二章\r\nText';
     const sections = buildMarkdownH2Sections(content);
     const headingOffset = content.indexOf('## 第二章');
     expect(sections[0].endOffset).toBe(headingOffset);
@@ -60,7 +60,7 @@ describe('buildMarkdownH2Sections', () => {
   });
 
   it('builds selectable editor ranges for opening and duplicate chapter titles', () => {
-    const content = '# Book\r\nIntro 😀\r\n## Same\r\nOne\r\n## Same\r\nTwo';
+    const content = '# Book\r\nIntro 🍥\r\n## Same\r\nOne\r\n## Same\r\nTwo';
     const sections = buildMarkdownEditorSections(content);
     expect(sections.map(({ kind, title }) => ({ kind, title }))).toEqual([
       { kind: 'opening', title: 'Book' },
