@@ -86,8 +86,7 @@
       </TooltipRoot>
 
       <!-- Split settings rewrite the book's stored split config, so they are a
-           write operation; the bookmark button below is not (mobile keeps
-           reading progress on-device). -->
+           write operation. Reading progress is saved automatically on-device. -->
       <TooltipRoot v-if="writesEnabled">
         <TooltipTrigger as-child>
           <ToolbarButton
@@ -110,30 +109,6 @@
         </TooltipPortal>
       </TooltipRoot>
 
-      <TooltipRoot>
-        <TooltipTrigger as-child>
-          <ToolbarButton
-            class="button reader-bookmark reader-icon-button"
-            :aria-label="bookmarking ? t('reader.savingBookmark') : t('reader.saveBookmark')"
-            :disabled="bookmarking"
-            @click="emit('bookmarkCurrent')"
-          >
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M7 5.5c0-.83.67-1.5 1.5-1.5h7c.83 0 1.5.67 1.5 1.5V20l-5-3-5 3V5.5z"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </ToolbarButton>
-        </TooltipTrigger>
-        <TooltipPortal>
-          <TooltipContent class="reka-tooltip" :side-offset="6">
-            {{ bookmarking ? t('reader.savingBookmark') : t('reader.saveBookmark') }}
-          </TooltipContent>
-        </TooltipPortal>
-      </TooltipRoot>
     </ToolbarRoot>
   </TooltipProvider>
 </template>
@@ -155,7 +130,6 @@ defineProps<{
   isAtMinFontSize: boolean;
   isAtMaxFontSize: boolean;
   hasSections: boolean;
-  bookmarking: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -164,7 +138,6 @@ const emit = defineEmits<{
   openFontModal: [];
   openChapterModal: [];
   openSplitModal: [];
-  bookmarkCurrent: [];
 }>();
 
 const { t } = useI18n();

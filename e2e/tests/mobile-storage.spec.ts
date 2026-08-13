@@ -138,7 +138,7 @@ test('downloads books for offline reading and isolates removal between books', a
   }
 });
 
-test('persists reading progress (bookmark) across app restarts', async ({ page }) => {
+test('automatically persists reading progress across app restarts', async ({ page }) => {
   const server = await startServer();
 
   try {
@@ -153,14 +153,23 @@ test('persists reading progress (bookmark) across app restarts', async ({ page }
     await expect(page.getByText('Hello from PlainShelf E2E.')).toBeVisible();
 
     await showMobileReaderControls(page);
-    await page.getByRole('button', { name: 'Save bookmark' }).click();
-    await expect(page.getByRole('button', { name: 'Save bookmark' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: /bookmark/i })).toHaveCount(0);
 
-    // hello.txt is short enough that scrolling may not move char_offset off
-    // 0, so assert a progress record exists rather than a strict > 0 offset.
+    // The fixture is intentionally short, so give its scroll container a
+    // deterministic viewport for this storage test and dispatch the same event
+    // a real scroll produces. Leaving through Vue Router then awaits autosave's
+    // final flush before the reader unmounts.
+    await page.locator('.reader-content').evaluate((element) => {
+      Object.defineProperty(element, 'scrollHeight', { configurable: true, value: 1_000 });
+      Object.defineProperty(element, 'clientHeight', { configurable: true, value: 100 });
+      Object.defineProperty(element, 'scrollTop', { configurable: true, value: 450, writable: true });
+      element.dispatchEvent(new Event('scroll'));
+    });
+    await page.getByRole('link', { name: 'Back to detail' }).click();
+    await expect(page).toHaveURL(new RegExp(`/books/${helloId}$`));
+
     const savedProgress = await getReadProgressViaHook(page, helloId);
-    expect(savedProgress).toBeTruthy();
-    expect(typeof savedProgress.char_offset).toBe('number');
+    expect(savedProgress.char_offset).toBeGreaterThan(0);
 
     await goOffline(page);
     await reopenMobileAt(page, server.baseUrl, `/reader/${helloId}`);

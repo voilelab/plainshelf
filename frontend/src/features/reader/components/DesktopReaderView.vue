@@ -17,13 +17,11 @@
           :is-at-min-font-size="isAtMinFontSize"
           :is-at-max-font-size="isAtMaxFontSize"
           :has-sections="sections.length > 0"
-          :bookmarking="bookmarking"
           @decrease-font-size="emit('decreaseFontSize')"
           @increase-font-size="emit('increaseFontSize')"
           @open-font-modal="emit('openFontModal')"
           @open-chapter-modal="emit('openChapterModal')"
           @open-split-modal="emit('openSplitModal')"
-          @bookmark-current="emit('bookmarkCurrent')"
         />
 
         <main class="reader-main">
@@ -58,6 +56,9 @@
             </div>
 
             <p v-if="splitWarning" class="reader-split-warning" role="status">{{ splitWarning }}</p>
+            <p v-if="saveError" class="reader-split-warning" role="status">
+              {{ t('reader.autosaveFailed') }}
+            </p>
 
             <ReaderContent
               :book-id="bookId"
@@ -91,8 +92,8 @@ defineProps<{
   progressPercent: number;
   splitWarning: string;
   loading: boolean;
-  bookmarking: boolean;
   error: string;
+  saveError: string;
   isAtMinFontSize: boolean;
   isAtMaxFontSize: boolean;
 }>();
@@ -108,7 +109,6 @@ const emit = defineEmits<{
   openFontModal: [];
   openChapterModal: [];
   openSplitModal: [];
-  bookmarkCurrent: [];
 }>();
 
 const { t } = useI18n();

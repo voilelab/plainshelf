@@ -633,8 +633,7 @@ const en = {
     showChapters: 'Show chapters',
     splitSettings: 'Split settings',
     imageUnavailable: 'Illustration unavailable',
-    saveBookmark: 'Save bookmark',
-    savingBookmark: 'Saving bookmark',
+    autosaveFailed: 'Reading progress could not be saved. PlainShelf will retry automatically.',
     mobile: {
       gestureHint: 'Tap the center for controls · Swipe left or right to change chapters',
       firstSection: 'You are at the first chapter',

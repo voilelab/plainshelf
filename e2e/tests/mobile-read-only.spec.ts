@@ -207,8 +207,8 @@ test('rejects a write from the mobile client but still records reading on the de
     expect(writeResult).toContain('read-only');
 
     // Opening the reader records read history and reading time on the device
-    // (no request at all — both are stored in app-private storage), and the
-    // bookmark button stays because mobile progress is stored on-device too.
+    // (no request at all — both are stored in app-private storage). Reading
+    // progress is automatic, so no manual bookmark action remains.
     const deviceStateRequests: string[] = [];
     page.on('request', (request) => {
       const url = request.url();
@@ -218,7 +218,7 @@ test('rejects a write from the mobile client but still records reading on the de
     });
     await reopenMobileAt(page, server.baseUrl, `/reader/${bookId}`);
     await showMobileReaderControls(page);
-    await expect(page.getByRole('button', { name: /bookmark/i }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /bookmark/i })).toHaveCount(0);
     // The history entry is written while the reader is still loading, and the
     // device store is asynchronous (app-private files), so wait for the load to
     // finish before navigating away — otherwise the assertion below races the

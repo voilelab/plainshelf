@@ -2,6 +2,7 @@ import { computed, nextTick, ref } from 'vue';
 import { getDefaultSplitConfigSetting } from '@/api/settings';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { isLibraryEditingSupported } from '@/composables/useWriteAccess';
+import { useReadingProgressAutosave } from '@/features/reader/composables/useReadingProgressAutosave';
 import type { ReaderSection, ReadingProgress, SplitConfig } from '@/types/book';
 
 function clampOffset(offset: number, total: number): number {
@@ -223,10 +224,21 @@ export function useReader(bookID: () => string) {
   );
   const progress = ref<ReadingProgress | null>(null);
   const loading = ref(false);
-  const bookmarking = ref(false);
   const error = ref('');
   const currentOffset = ref(0);
   const readerRef = ref<HTMLDivElement | null>(null);
+  let fetchGeneration = 0;
+
+  const {
+    saveError,
+    setBaseline: setProgressBaseline,
+    update: updateAutosaveOffset,
+    flush: flushReadingProgress,
+    start: startProgressAutosave,
+    stop: stopProgressAutosave
+  } = useReadingProgressAutosave(async (savedBookID, offset) => {
+    await getBookshelfProvider().saveReadProgress(savedBookID, { char_offset: offset });
+  });
 
   function normalizeProgress(next: ReadingProgress): ReadingProgress {
     const total = content.value.length;
@@ -248,6 +260,7 @@ export function useReader(bookID: () => string) {
     const percent = total > 0 ? Math.max(0, Math.min(100, Math.round((clamped / total) * 100))) : 0;
 
     currentOffset.value = clamped;
+    updateAutosaveOffset(clamped);
     if (progress.value) {
       progress.value = {
         ...progress.value,
@@ -297,31 +310,43 @@ export function useReader(bookID: () => string) {
   }
 
   async function fetchReaderData(): Promise<void> {
+    const requestedBookID = bookID();
+    const generation = ++fetchGeneration;
     loading.value = true;
     error.value = '';
     splitWarning.value = '';
     let restoredOffset: number | null = null;
 
     try {
+      // A route-param change reuses this component, so persist the previous
+      // book before replacing the autosave baseline with the next one.
+      await flushReadingProgress();
+      if (generation !== fetchGeneration) {
+        return;
+      }
+
       const provider = getBookshelfProvider();
       const [book, bookContent, currentProgress, loadedSplitConfig, globalDefaultSplitConfig] = await Promise.all([
-        provider.getBook(bookID()),
-        provider.getBookContent(bookID()),
-        provider.getReadProgress(bookID()),
-        provider.getBookSplitConfig(bookID()).catch((err: unknown) => {
+        provider.getBook(requestedBookID),
+        provider.getBookContent(requestedBookID),
+        provider.getReadProgress(requestedBookID),
+        provider.getBookSplitConfig(requestedBookID).catch((err: unknown) => {
           const reason = err instanceof Error ? err.message : 'Unknown error';
           splitWarning.value = `Failed to load split config, fallback to single section. ${reason}`;
           return { type: 'none' } as SplitConfig;
         }),
         getDefaultSplitConfigSetting().catch(() => ({ type: 'none' }) as SplitConfig)
       ]);
+      if (generation !== fetchGeneration) {
+        return;
+      }
 
       const effectiveSplitConfig =
         loadedSplitConfig.type === 'none' && globalDefaultSplitConfig.type !== 'none'
           ? globalDefaultSplitConfig
           : loadedSplitConfig;
 
-      title.value = book.title ?? (book as { meta?: { title?: string } }).meta?.title ?? bookID();
+      title.value = book.title ?? (book as { meta?: { title?: string } }).meta?.title ?? requestedBookID;
       bookFormat.value = book.format === 'md' ? 'md' : 'txt';
       currentSourceId.value = book.current_source ?? '';
       content.value = bookContent.content;
@@ -334,21 +359,27 @@ export function useReader(bookID: () => string) {
       }
 
       const normalized = normalizeProgress(currentProgress);
-      progress.value = normalized;
-      restoredOffset = normalized.char_offset;
+      const effectiveOffset = setProgressBaseline(requestedBookID, normalized.char_offset);
+      const effectiveProgress = normalizeProgress({ char_offset: effectiveOffset });
+      progress.value = effectiveProgress;
+      restoredOffset = effectiveProgress.char_offset;
 
       try {
-        await provider.addReadHistory(bookID());
+        await provider.addReadHistory(requestedBookID);
       } catch (err) {
         console.warn('Failed to update read history', err);
       }
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to load reader data';
+      if (generation === fetchGeneration) {
+        error.value = err instanceof Error ? err.message : 'Failed to load reader data';
+      }
     } finally {
-      loading.value = false;
+      if (generation === fetchGeneration) {
+        loading.value = false;
+      }
     }
 
-    if (restoredOffset !== null) {
+    if (generation === fetchGeneration && restoredOffset !== null) {
       await syncSectionAndScrollByOffset(restoredOffset);
     }
   }
@@ -414,22 +445,6 @@ export function useReader(bookID: () => string) {
     await syncScrollToOffset(currentOffset.value);
   }
 
-  async function bookmarkCurrent(): Promise<void> {
-    bookmarking.value = true;
-    error.value = '';
-    try {
-      const provider = getBookshelfProvider();
-      await provider.saveReadProgress(bookID(), { char_offset: currentOffset.value });
-      const nextProgress = await provider.getReadProgress(bookID());
-      progress.value = normalizeProgress(nextProgress);
-      await syncSectionAndScrollByOffset(progress.value.char_offset);
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to create bookmark';
-    } finally {
-      bookmarking.value = false;
-    }
-  }
-
   return {
     title,
     bookFormat,
@@ -442,8 +457,8 @@ export function useReader(bookID: () => string) {
     currentSection,
     progress,
     loading,
-    bookmarking,
     error,
+    saveError,
     readerRef,
     fetchReaderData,
     onScroll,
@@ -452,6 +467,8 @@ export function useReader(bookID: () => string) {
     goToSection,
     syncCurrentScroll,
     applySplitConfig,
-    bookmarkCurrent
+    flushReadingProgress,
+    startProgressAutosave,
+    stopProgressAutosave
   };
 }

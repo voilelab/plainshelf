@@ -631,8 +631,7 @@ const zhHant = {
     showChapters: '顯示章節',
     splitSettings: '切分設定',
     imageUnavailable: '插圖無法載入',
-    saveBookmark: '儲存書籤',
-    savingBookmark: '儲存書籤中',
+    autosaveFailed: '閱讀進度無法儲存，PlainShelf 將自動重試。',
     mobile: {
       gestureHint: '點按中央顯示工具列 · 左右滑動切換章節',
       firstSection: '已是第一章',
