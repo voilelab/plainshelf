@@ -287,7 +287,7 @@ func TestOpenLayerDirectoryOpensFinderForLayerPath(t *testing.T) {
 	}
 }
 
-// The read history and the reading stats are two device documents over one
+// Reading history, progress, and stats are device documents over one
 // pair of helpers (readDeviceDocument/writeDeviceDocument), so they are held to
 // one set of expectations instead of two copies of the same test.
 type deviceDocument struct {
@@ -312,6 +312,16 @@ func deviceDocuments() []deviceDocument {
 			stored:      `{"version":1,"limit":100,"shelves":{"main":["book-1","book-2"]}}`,
 			replacement: `{"version":1,"limit":100,"shelves":{}}`,
 			valid:       `{"version":1,"limit":100,"shelves":{}}`,
+		},
+		{
+			name:        "reading progress",
+			fileName:    "reading_progress.json",
+			newApp:      func(path string) *DesktopApp { return &DesktopApp{readingProgressPath: path} },
+			read:        (*DesktopApp).ReadReadingProgress,
+			write:       (*DesktopApp).WriteReadingProgress,
+			stored:      `{"version":1,"shelves":{"main":{"book-1":42}}}`,
+			replacement: `{"version":1,"shelves":{}}`,
+			valid:       `{"version":1,"shelves":{}}`,
 		},
 		{
 			name:        "reading stats",
@@ -431,10 +441,12 @@ func TestDeviceDocumentFailsWithoutStoragePath(t *testing.T) {
 func TestDeviceDocumentsAreIndependent(t *testing.T) {
 	dir := t.TempDir()
 	app := &DesktopApp{
-		readHistoryPath:  filepath.Join(dir, "read_history.json"),
-		readingStatsPath: filepath.Join(dir, "reading_stats.json"),
+		readHistoryPath:     filepath.Join(dir, "read_history.json"),
+		readingProgressPath: filepath.Join(dir, "reading_progress.json"),
+		readingStatsPath:    filepath.Join(dir, "reading_stats.json"),
 	}
 	history := `{"version":1,"limit":100,"shelves":{"main":["book-1"]}}`
+	progress := `{"version":1,"shelves":{"main":{"book-1":42}}}`
 	stats := `{"version":1,"shelves":{"main":{"2026-08-02":45}}}`
 
 	if err := app.WriteReadHistory(history); err != nil {
@@ -442,6 +454,9 @@ func TestDeviceDocumentsAreIndependent(t *testing.T) {
 	}
 	if err := app.WriteReadingStats(stats); err != nil {
 		t.Fatalf("WriteReadingStats: %v", err)
+	}
+	if err := app.WriteReadingProgress(progress); err != nil {
+		t.Fatalf("WriteReadingProgress: %v", err)
 	}
 
 	gotHistory, err := app.ReadReadHistory()
@@ -454,6 +469,13 @@ func TestDeviceDocumentsAreIndependent(t *testing.T) {
 	}
 	if gotHistory != history {
 		t.Fatalf("ReadReadHistory = %q, want %q", gotHistory, history)
+	}
+	gotProgress, err := app.ReadReadingProgress()
+	if err != nil {
+		t.Fatalf("ReadReadingProgress: %v", err)
+	}
+	if gotProgress != progress {
+		t.Fatalf("ReadReadingProgress = %q, want %q", gotProgress, progress)
 	}
 	if gotStats != stats {
 		t.Fatalf("ReadReadingStats = %q, want %q", gotStats, stats)

@@ -10,12 +10,10 @@ import {
   getBookCoverUrl,
   getBookSplitConfig,
   getDuplicateBookGroups,
-  getReadingProgress,
   importBook,
   listBooks,
   listTrashedBooks,
   restoreTrashedBook,
-  saveBookmark,
   updateBook,
   updateBookLayer,
   updateBookSplitConfig,
@@ -40,6 +38,10 @@ import {
   addReadHistory as addLocalReadHistory,
   clearReadHistory as clearLocalReadHistory
 } from '@/storage/readHistory';
+import {
+  getLocalReadingProgress,
+  saveLocalReadingProgress
+} from '@/storage/readingProgress';
 import { collectReadHistoryBooks } from './readHistoryBooks';
 import type {
   BookmarkPayload,
@@ -98,15 +100,15 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
   }
 
   getReadProgress(bookId: string): Promise<ReadingProgress> {
-    return getReadingProgress(bookId);
+    return getLocalReadingProgress(bookId);
   }
 
   saveReadProgress(bookId: string, progress: BookmarkPayload): Promise<void> {
-    return saveBookmark(bookId, progress);
+    return saveLocalReadingProgress(bookId, progress);
   }
 
-  // Reading history is device-local (see storage/readHistory); only the books
-  // it points at come from the server.
+  // Reading progress and history are device-local; only book data comes from
+  // the server.
   addReadHistory(bookId: string): Promise<void> {
     return addLocalReadHistory(bookId);
   }

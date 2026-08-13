@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
-	"github.com/voilelab/plainshelf/server/store"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -27,6 +26,14 @@ type apiTestEnv struct {
 	// libRoot is the shelf's on-disk root, so tests can inspect or tamper with
 	// the files behind the API.
 	libRoot string
+}
+
+func TestAPIMarksRoutesRemoved(t *testing.T) {
+	env := newAPITestEnv(t)
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		rec := env.do(httptest.NewRequest(method, "/api/shelves/default_shelf/marks/book-1", nil))
+		assertStatus(t, rec, http.StatusNotFound)
+	}
 }
 
 type wailsLikeRecorder struct {
@@ -1241,32 +1248,6 @@ func TestAPISourceAssetRejectsUnsafeNames(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestAPIStoreContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Store Me", "", "store.txt", "body")
-	marksURL := "/api/shelves/default_shelf/marks/" + created.Meta.ID
-
-	rec := env.do(httptest.NewRequest(http.MethodGet, marksURL, nil))
-	assertStatus(t, rec, http.StatusOK)
-	assertJSONContentType(t, rec)
-	mark := decodeJSON[store.Bookmark](t, rec)
-	if mark.CharOffset != 0 {
-		t.Fatalf("default mark char_offset = %d, want 0", mark.CharOffset)
-	}
-
-	rec = env.do(httptest.NewRequest(http.MethodPost, marksURL, strings.NewReader(`{"char_offset":123}`)))
-	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodGet, marksURL, nil))
-	assertStatus(t, rec, http.StatusOK)
-	mark = decodeJSON[store.Bookmark](t, rec)
-	if mark.CharOffset != 123 {
-		t.Fatalf("mark char_offset = %d, want 123", mark.CharOffset)
-	}
-
-	rec = env.do(httptest.NewRequest(http.MethodPost, marksURL, strings.NewReader(`{"char_offset":123,"extra":true}`)))
-	assertStatus(t, rec, http.StatusBadRequest)
 }
 
 func TestAPICreateBookSourceContract(t *testing.T) {

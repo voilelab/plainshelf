@@ -1,11 +1,9 @@
 import type {
-  BookmarkPayload,
   Book,
   BookCreateRequest,
   BookContent,
   BookUpdateRequest,
   PaginatedBooks,
-  ReadingProgress,
   SplitConfig,
   TrashedBook
 } from '@/types/book';
@@ -167,12 +165,6 @@ export const mockBooks: Book[] = [
   }
 ];
 
-const mockProgress: Record<string, ReadingProgress> = {
-  'book-1': { file_path: '/library/book-1.txt', char_offset: 240, percent: 15 },
-  'book-2': { file_path: '/library/book-2.txt', char_offset: 1200, percent: 42 },
-  'book-3': { file_path: '/library/book-3.txt', char_offset: 700, percent: 58 }
-};
-
 const mockContent: Record<string, string> = {
   'book-1': `# The Quiet River\n\nThe river moved slowly by the old town.\nEach house kept a small lamp lit through the night...`,
   'book-2': `Go Patterns Notes\n\n1. Keep interfaces small.\n2. Prefer composition over inheritance.\n3. Handle errors early and clearly.`,
@@ -265,19 +257,6 @@ export function mockUpdateBookLayer(id: string, layerPath: string): Book {
 export function mockGetBookContent(id: string): BookContent {
   const content = mockContent[id] ?? 'No content yet.';
   return { content };
-}
-
-export function mockGetReadingProgress(id: string): ReadingProgress {
-  return mockProgress[id] ?? { file_path: `/library/${id}.txt`, char_offset: 0, percent: 0 };
-}
-
-export function mockSaveBookmark(id: string, payload: BookmarkPayload): void {
-  const prev = mockGetReadingProgress(id);
-  const nextPercent = Math.min(
-    100,
-    Math.max(prev.percent ?? 0, Math.round(payload.char_offset / 20))
-  );
-  mockProgress[id] = { ...prev, char_offset: payload.char_offset, percent: nextPercent };
 }
 
 export function mockImportBook(payload: BookCreateRequest): Book {

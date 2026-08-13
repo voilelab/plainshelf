@@ -41,9 +41,7 @@ export interface StorageEstimateResult {
  * Everything a reading client needs. Every provider implements all of it.
  *
  * Reading progress and history are here rather than on the write surface
- * because they are not shelf state: on mobile they are written to device
- * storage and never sent, and on a server they happen to be a request. A
- * read-only backend still has to serve them.
+ * because they are per-device state and never sent to the shelf backend.
  */
 export interface BookshelfReader {
   /** `options` is opt-in extra work for the backend; omit it unless the caller displays the field. */

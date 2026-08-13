@@ -52,14 +52,14 @@ For production or service deployments, prefer an absolute path so startup behavi
 
 ## 3. Configure the application store
 
-PlainShelf also uses `app_conf.store_path` for application-level state outside the shelf itself:
+PlainShelf also uses `app_conf.store_path` for server settings outside the shelf itself:
 
 ```yaml
 app_conf:
   store_path: ./workspace/store
 ```
 
-Keep `store_path` on reliable local storage. It does not replace `lib_root`; both paths should be configured and persisted.
+Keep `store_path` on reliable local storage. It does not replace `lib_root`; both paths should be configured and persisted. Reading progress, history, and time are stored by each client rather than here.
 
 ## 4. Run PlainShelf
 
@@ -91,7 +91,7 @@ Because PlainShelf is filesystem-first, backing up a local shelf is straightforw
 
 1. Stop PlainShelf or make sure no imports, edits, moves, or deletes are running.
 2. Back up the entire `lib_root` directory.
-3. Back up `store_path` if you want to preserve application-level state.
+3. Back up `store_path` if you want to preserve server settings. Back up client profiles separately for reading progress, history, and time.
 
 Do not back up only individual `.bookpkg` folders unless you intentionally want a partial library backup.
 

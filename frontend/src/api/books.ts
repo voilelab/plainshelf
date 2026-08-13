@@ -1,5 +1,4 @@
 import type {
-  BookmarkPayload,
   Book,
   BookCreateRequest,
   BookContent,
@@ -7,7 +6,6 @@ import type {
   SplitConfig,
   BookUpdateRequest,
   PaginatedBooks,
-  ReadingProgress,
   TrashedBook,
 } from '@/types/book';
 import {
@@ -27,13 +25,11 @@ import {
   mockGetBook,
   mockGetBookContent,
   mockGetBookCover,
-  mockGetReadingProgress,
   mockGetSplitConfig,
   mockImportBook,
   mockListBooks,
   mockListTrashedBooks,
   mockRestoreTrashedBook,
-  mockSaveBookmark,
   mockSetSplitConfig,
   mockUpdateBook,
   mockUpdateBookLayer
@@ -78,11 +74,6 @@ interface BackendTrashedBook {
   original_layer?: string[];
   deleted_at?: string;
 }
-
-interface BackendMark {
-  char_offset: number;
-}
-
 
 async function uploadBookCoverInternal(bookID: string, file: File): Promise<void> {
   // NOTE:
@@ -282,31 +273,6 @@ export async function updateBookSplitConfig(id: string, config: SplitConfig): Pr
   }
 
   return normalizeSplitConfig(updated);
-}
-
-export async function getReadingProgress(id: string): Promise<ReadingProgress> {
-  if (isMockApiMode()) {
-    return delay({ ...mockGetReadingProgress(id) });
-  }
-
-  const mark = await fetchJson<BackendMark>(buildShelfApiPath(`/marks/${encodeURIComponent(id)}`));
-  return { char_offset: mark.char_offset };
-}
-
-export async function saveBookmark(id: string, payload: BookmarkPayload): Promise<void> {
-  if (isMockApiMode()) {
-    mockSaveBookmark(id, payload);
-    await delay(undefined);
-    return;
-  }
-
-  await fetchJson(buildShelfApiPath(`/marks/${encodeURIComponent(id)}`), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ char_offset: payload.char_offset })
-  });
 }
 
 export async function importBook(payload: BookCreateRequest): Promise<Book> {
