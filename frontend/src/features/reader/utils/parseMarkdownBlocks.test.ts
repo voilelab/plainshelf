@@ -171,6 +171,14 @@ describe('referencedAssetNames', () => {
     expect(names).toEqual(['b.png', 'a.jpg']);
   });
 
+  it('includes an indented list continuation image that the reader renders', () => {
+    expect(referencedAssetNames('- Floor plan\n  ![map](assets/map.png)')).toEqual(['map.png']);
+  });
+
+  it('skips an image-looking line in raw HTML that Markdown leaves literal', () => {
+    expect(referencedAssetNames('<pre>\n![map](assets/map.png)\n</pre>')).toEqual([]);
+  });
+
   it('skips targets the reader leaves as text', () => {
     const names = referencedAssetNames(
       [

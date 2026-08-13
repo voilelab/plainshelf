@@ -1,23 +1,26 @@
 import MarkdownIt from 'markdown-it';
 import {
-  assetImageFromMarkdownLine,
   updateMarkdownFenceState,
   type MarkdownFenceState
 } from './parseMarkdownBlocks';
+import {
+  rewriteMarkdownAssetImages,
+  type MarkdownAssetImage
+} from './markdownAssetImages';
+
+export type ReaderMarkdownAsset = MarkdownAssetImage & {
+  /** Opaque renderer-owned marker used to locate the sanitized component slot. */
+  token: string;
+};
 
 export type ReaderMarkdownHtmlBlock = {
   type: 'html';
   /** Unsanitized renderer output. ReaderSafeHtml is the only permitted sink. */
   html: string;
+  images: ReaderMarkdownAsset[];
 };
 
-export type ReaderMarkdownImageBlock = {
-  type: 'image';
-  name: string;
-  alt: string;
-};
-
-export type ReaderMarkdownBlock = ReaderMarkdownHtmlBlock | ReaderMarkdownImageBlock;
+export type ReaderMarkdownBlock = ReaderMarkdownHtmlBlock;
 
 const markdown = new MarkdownIt({
   html: true,
@@ -26,15 +29,56 @@ const markdown = new MarkdownIt({
   typographer: false
 });
 
-// Links and arbitrary images were not part of the old reader and could make a
-// book navigate or fetch from the network. A valid, standalone source asset is
-// extracted before this renderer runs; every other spelling stays literal.
-markdown.disable(['image', 'link', 'autolink']);
+// Links were not part of the old reader and could navigate away. Images stay
+// enabled only so renderer-owned synthetic targets can become inert component
+// slots; every source-authored target is emitted as literal text below.
+markdown.disable(['link', 'autolink']);
 
 type RenderTokens = Parameters<typeof markdown.renderer.renderToken>[0];
 
 function renderToken(tokens: RenderTokens, index: number): string {
   return markdown.renderer.renderToken(tokens, index, markdown.options);
+}
+
+interface ReaderMarkdownEnvironment {
+  [key: string]: unknown;
+  [key: symbol]: unknown;
+  assetTokenPrefix: string;
+  images: ReaderMarkdownAsset[];
+}
+
+function readerEnvironment(env: unknown): ReaderMarkdownEnvironment {
+  if (
+    env &&
+    typeof env === 'object' &&
+    typeof Reflect.get(env, 'assetTokenPrefix') === 'string' &&
+    Array.isArray(Reflect.get(env, 'images'))
+  ) {
+    return env as ReaderMarkdownEnvironment;
+  }
+  return { assetTokenPrefix: '', images: [] };
+}
+
+function assetFromToken(
+  rawSrc: string | number | null,
+  env: ReaderMarkdownEnvironment
+): ReaderMarkdownAsset | null {
+  const src = rawSrc === null ? '' : String(rawSrc);
+  if (!env.assetTokenPrefix || !src.startsWith(env.assetTokenPrefix)) return null;
+  const index = Number(src.slice(env.assetTokenPrefix.length));
+  return Number.isInteger(index) ? env.images[index] ?? null : null;
+}
+
+function paragraphContainsOnlyAsset(
+  tokens: RenderTokens,
+  index: number,
+  env: ReaderMarkdownEnvironment,
+  inlineOffset: -1 | 1
+): boolean {
+  const inline = tokens[index + inlineOffset];
+  const children = inline?.type === 'inline' ? inline.children : null;
+  if (!children || children.length !== 1 || children[0].type !== 'image') return false;
+  return assetFromToken(children[0].attrGet('src'), env) !== null;
 }
 
 markdown.renderer.rules.heading_open = (tokens, index) => {
@@ -53,10 +97,14 @@ markdown.renderer.rules.heading_close = (tokens, index) => {
   return renderToken(tokens, index);
 };
 
-markdown.renderer.rules.paragraph_open = (tokens, index) => {
+markdown.renderer.rules.paragraph_open = (tokens, index, _options, env) => {
+  if (paragraphContainsOnlyAsset(tokens, index, readerEnvironment(env), 1)) return '';
   tokens[index].attrJoin('class', 'reader-text-block');
   return renderToken(tokens, index);
 };
+
+markdown.renderer.rules.paragraph_close = (tokens, index, _options, env) =>
+  paragraphContainsOnlyAsset(tokens, index, readerEnvironment(env), -1) ? '' : renderToken(tokens, index);
 
 markdown.renderer.rules.blockquote_open = (tokens, index) => {
   tokens[index].attrJoin('class', 'reader-text-block reader-text-quote');
@@ -82,16 +130,51 @@ markdown.renderer.rules.code_inline = (tokens, index) =>
 
 markdown.renderer.rules.hr = () => '<hr class="reader-md-hr">\n';
 
+markdown.renderer.rules.image = (tokens, index, _options, rawEnv) => {
+  const env = readerEnvironment(rawEnv);
+  const token = tokens[index];
+  const rawSrc = token.attrGet('src');
+  const src = rawSrc === null ? '' : String(rawSrc);
+  const asset = assetFromToken(rawSrc, env);
+  if (asset) {
+    return `<span class="reader-asset-slot" title="${markdown.utils.escapeHtml(asset.token)}"></span>`;
+  }
+
+  // No source-authored image reaches an <img> sink. Keeping unsupported and
+  // inline spellings visible also preserves the reader's previous behavior.
+  return markdown.utils.escapeHtml(`![${token.content}](${src})`);
+};
+
 // plot is a transparent authoring wrapper, not an element in the rendered
 // document. Removing standalone markers before Markdown parsing lets the prose
 // inside become ordinary paragraphs instead of relying on white-space CSS to
 // preserve the raw HTML block's text nodes.
 const PLOT_MARKER_LINE_RE = /^\s*<\/?plot(?:\s[^>]*)?>\s*$/i;
 
-function renderHtmlBlock(source: string): ReaderMarkdownHtmlBlock | null {
+function renderHtmlBlock(
+  source: string,
+  env: ReaderMarkdownEnvironment
+): ReaderMarkdownHtmlBlock | null {
   if (!source.trim()) return null;
-  const html = markdown.render(source);
-  return html.trim() ? { type: 'html', html } : null;
+  const html = markdown.render(source, env);
+  return html.trim() ? { type: 'html', html, images: env.images } : null;
+}
+
+let assetDocumentSerial = 0;
+
+function nextAssetTokenPrefix(): string {
+  assetDocumentSerial = (assetDocumentSerial + 1) % Number.MAX_SAFE_INTEGER;
+  return `plainshelf-reader-asset-${assetDocumentSerial}-`;
+}
+
+function removePlotMarkers(source: string): string {
+  let fence: MarkdownFenceState | null = null;
+  return source.split(/\r?\n/).map((line) => {
+    const transition = updateMarkdownFenceState(line, fence);
+    const canRemove = !fence && !transition.boundary;
+    if (transition.boundary) fence = transition.state;
+    return canRemove && PLOT_MARKER_LINE_RE.test(line) ? '' : line;
+  }).join('\n');
 }
 
 /**
@@ -102,37 +185,16 @@ function renderHtmlBlock(source: string): ReaderMarkdownHtmlBlock | null {
 export function renderMarkdownBlocks(source: string): ReaderMarkdownBlock[] {
   if (!source.trim()) return [];
 
-  const blocks: ReaderMarkdownBlock[] = [];
-  const textBuffer: string[] = [];
-  let fence: MarkdownFenceState | null = null;
-
-  const flushText = (): void => {
-    const block = renderHtmlBlock(textBuffer.join('\n'));
-    if (block) blocks.push(block);
-    textBuffer.length = 0;
-  };
-
-  for (const line of source.split(/\r?\n/)) {
-    const transition = updateMarkdownFenceState(line, fence);
-
-    if (!fence && !transition.boundary) {
-      if (PLOT_MARKER_LINE_RE.test(line)) {
-        textBuffer.push('');
-        continue;
-      }
-
-      const image = assetImageFromMarkdownLine(line);
-      if (image) {
-        flushText();
-        blocks.push({ type: 'image', ...image });
-        continue;
-      }
-    }
-
-    textBuffer.push(line);
-    if (transition.boundary) fence = transition.state;
-  }
-
-  flushText();
-  return blocks;
+  const assetTokenPrefix = nextAssetTokenPrefix();
+  const rewritten = rewriteMarkdownAssetImages(source, (_image, index, rawLine) => {
+    const indent = rawLine.match(/^[ \t]*/)?.[0] ?? '';
+    return `${indent}![](${assetTokenPrefix}${index})`;
+  });
+  const images = rewritten.images.map((image, index) => ({
+    ...image,
+    token: `${assetTokenPrefix}${index}`
+  }));
+  const env: ReaderMarkdownEnvironment = { assetTokenPrefix, images };
+  const block = renderHtmlBlock(removePlotMarkers(rewritten.text), env);
+  return block ? [block] : [];
 }

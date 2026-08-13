@@ -7,6 +7,10 @@ AI風月：
 
 📝總結：開啟
 🎲選項：開啟
+
+![本地插圖](assets/missing.png)
+
+圖片後的內容仍在功能區內。
 </details>
 
 <plot>

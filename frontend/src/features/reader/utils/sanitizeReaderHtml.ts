@@ -71,7 +71,8 @@ const READER_CLASSES = new Set([
   'reader-md-list',
   'reader-md-code',
   'reader-md-inline-code',
-  'reader-md-hr'
+  'reader-md-hr',
+  'reader-asset-slot'
 ]);
 
 const UNSAFE_COLOR_VALUE_RE = /(?:url|var|expression)\s*\(|[{}\\@!]|\/\*/i;

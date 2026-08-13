@@ -71,6 +71,13 @@ describe('sanitizeReaderHtml', () => {
     expect(clean).toBe('<p class="reader-text-block reader-md-code">Text</p>');
   });
 
+  it('keeps the renderer-owned asset slot without allowing arbitrary classes', () => {
+    const clean = sanitizeReaderHtml(
+      '<span class="evil reader-asset-slot" title="slot-token" data-name="map.png"></span>'
+    );
+    expect(clean).toBe('<span class="reader-asset-slot" title="slot-token"></span>');
+  });
+
   it('safely repairs malformed markup', () => {
     const clean = sanitizeReaderHtml('<details><summary>Info<script>alert(1)</script><p>Body');
     expect(clean).toContain('<details>');

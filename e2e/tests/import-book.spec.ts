@@ -89,6 +89,8 @@ test('should render allow-listed HTML without executing or loading active conten
     await summary.click();
     await expect(details).toHaveAttribute('open', '');
     await expect(page.getByText('📝總結：開啟')).toBeVisible();
+    await expect(details.getByText('本地插圖', { exact: true })).toBeVisible();
+    await expect(details.getByText('圖片後的內容仍在功能區內。', { exact: true })).toBeVisible();
 
     await expect(page.getByText('劇情內容仍然可見。')).toBeVisible();
     await expect(page.getByText('紫色心聲')).toHaveCSS('color', 'rgb(128, 0, 128)');

@@ -1,3 +1,9 @@
+import {
+  assetImageFromMarkdownLine,
+  assetNameFromSrc,
+  referencedAssetNames
+} from './markdownAssetImages';
+
 export type InlineSegment = {
   text: string;
   bold?: boolean;
@@ -60,28 +66,7 @@ const INLINE_RE = /`([^`]+)`|\*\*([^*]+?)\*\*|\*([^*]+?)\*/g;
 const FENCE_OPENER_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 const LEADING_INDENT_RE = /^[ \t]+\S/;
 
-// Only a line that is nothing but an image becomes an image block. An
-// illustration in a book is a block, and treating `![]()` inside a sentence as
-// one would mean threading images through InlineSegment for no reader benefit;
-// inline occurrences stay literal text.
-//
-// The destination is captured loosely because the line is anchored at both
-// ends: whatever sits between the parentheses is the target, spaces included.
-// A file named "A Map.png" is ordinary on a shelf people edit by hand, and
-// requiring it to be percent-encoded would make the shelf less writable by
-// hand than the format promises.
-const IMAGE_LINE_RE = /^!\[([^\]]*)\]\((.*)\)$/;
-
-// A source asset is addressed as a single file inside `assets/`, matching the
-// flat directory the server serves from (see shelf/asset.go). Anything else --
-// a nested path, `..`, an absolute path, or an external URL -- is not loaded.
-// Refusing `http(s):` and `data:` here is deliberate: a book's text must not be
-// able to make the reader fetch from the network.
-const ASSET_SRC_RE = /^assets\/([^/\\]+)$/;
-
-// Kept in step with shelf.IsSupportedImageExt; a mismatch only costs a failed
-// request that falls back to alt text, so the server stays the authority.
-const ASSET_EXT_RE = /\.(jpe?g|png|webp|gif)$/i;
+export { assetImageFromMarkdownLine, assetNameFromSrc, referencedAssetNames };
 
 export interface MarkdownHeadingLine {
   level: 1 | 2 | 3 | 4 | 5 | 6;
@@ -141,83 +126,6 @@ export function updateMarkdownFenceState(
 /** A possible opening fence line; stateful consumers use updateMarkdownFenceState. */
 export function isMarkdownFenceLine(rawLine: string): boolean {
   return markdownFenceOpener(rawLine) !== null;
-}
-
-/**
- * Normalizes a Markdown link destination to the path it names.
- *
- * Both spellings a hand-edited shelf produces are accepted: the angle-bracket
- * form CommonMark provides for destinations containing spaces, and percent
- * escapes. Decoding happens before validation, never after, so an escaped
- * separator cannot slip a path segment past the checks below.
- */
-function normalizeDestination(raw: string): string {
-  let dest = raw.trim();
-  if (dest.startsWith('<') && dest.endsWith('>')) {
-    dest = dest.slice(1, -1).trim();
-  }
-
-  try {
-    return decodeURIComponent(dest);
-  } catch {
-    // A malformed escape is not a decoding failure worth reporting; leave the
-    // text as written and let the checks below reject it.
-    return dest;
-  }
-}
-
-/**
- * Returns the asset file name a Markdown image target refers to, or null when
- * the target is not an illustration this reader will load.
- */
-export function assetNameFromSrc(src: string): string | null {
-  const match = ASSET_SRC_RE.exec(normalizeDestination(src));
-  if (!match) {
-    return null;
-  }
-
-  const name = match[1];
-  if (name.startsWith('.') || !ASSET_EXT_RE.test(name)) {
-    return null;
-  }
-
-  return name;
-}
-
-/**
- * Parses the deliberately narrow Markdown image form supported by the reader.
- * The whole line must be an image and the target must pass assetNameFromSrc,
- * so callers can share exactly the same local-only resource policy.
- */
-export function assetImageFromMarkdownLine(
-  rawLine: string
-): Pick<MarkdownImageBlock, 'name' | 'alt'> | null {
-  const match = IMAGE_LINE_RE.exec(rawLine.trim());
-  if (!match) return null;
-  const name = assetNameFromSrc(match[2]);
-  return name ? { name, alt: match[1].trim() } : null;
-}
-
-/**
- * Lists the source assets a Markdown text actually renders, in first-use order
- * and without duplicates.
- *
- * This runs the real parser rather than its own scan, so an offline download
- * fetches exactly the files the reader will ask for: a link the reader leaves
- * as text is not downloaded, and one it renders is never missed.
- */
-export function referencedAssetNames(text: string): string[] {
-  const names: string[] = [];
-  const seen = new Set<string>();
-
-  for (const block of parseMarkdownBlocks(text)) {
-    if (block.type === 'image' && !seen.has(block.name)) {
-      seen.add(block.name);
-      names.push(block.name);
-    }
-  }
-
-  return names;
 }
 
 function parseInlineSegments(text: string): InlineSegment[] {

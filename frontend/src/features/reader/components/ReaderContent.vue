@@ -4,16 +4,14 @@
     <div class="reader-text">
       <template v-if="bookFormat === 'md'">
         <template v-if="markdownBlocks.length > 0">
-          <template v-for="(block, index) in markdownBlocks" :key="`${section?.index ?? 0}-md-${index}`">
-            <ReaderSafeHtml v-if="block.type === 'html'" :html="block.html" />
-            <ReaderAssetImage
-              v-else
-              :book-id="bookId"
-              :source-id="sourceId"
-              :name="block.name"
-              :alt="block.alt"
-            />
-          </template>
+          <ReaderSafeHtml
+            v-for="(block, index) in markdownBlocks"
+            :key="`${section?.index ?? 0}-md-${index}`"
+            :html="block.html"
+            :images="block.images"
+            :book-id="bookId"
+            :source-id="sourceId"
+          />
         </template>
         <p v-else class="reader-text-block">{{ section?.text ?? '' }}</p>
       </template>
@@ -38,7 +36,6 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import ReaderAssetImage from '@/features/reader/components/ReaderAssetImage.vue';
 import ReaderSafeHtml from '@/features/reader/components/ReaderSafeHtml.vue';
 import { renderMarkdownBlocks } from '@/features/reader/utils/renderMarkdownBlocks';
 import { parseReaderBlocks } from '@/features/reader/utils/parseReaderBlocks';
