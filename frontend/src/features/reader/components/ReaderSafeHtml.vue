@@ -1,14 +1,17 @@
 <template>
-  <!-- eslint-disable-next-line vue/no-v-html -->
-  <div ref="htmlRoot" class="reader-safe-html" v-html="sanitizedHtml" />
-  <Teleport v-for="slot in imageSlots" :key="slot.image.token" :to="slot.target">
-    <ReaderAssetImage
-      :book-id="bookId"
-      :source-id="sourceId"
-      :name="slot.image.name"
-      :alt="slot.image.alt"
-    />
-  </Teleport>
+  <!-- Keep one component root so parent reader scoped styles are inherited. -->
+  <div class="reader-safe-html">
+    <!-- eslint-disable-next-line vue/no-v-html -->
+    <div ref="htmlRoot" class="reader-safe-html-content" v-html="sanitizedHtml" />
+    <Teleport v-for="slot in imageSlots" :key="slot.image.token" :to="slot.target">
+      <ReaderAssetImage
+        :book-id="bookId"
+        :source-id="sourceId"
+        :name="slot.image.name"
+        :alt="slot.image.alt"
+      />
+    </Teleport>
+  </div>
 </template>
 
 <script setup lang="ts">
