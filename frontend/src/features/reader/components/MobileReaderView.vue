@@ -21,6 +21,9 @@
 
       <article v-else class="mobile-reader-document">
         <p v-if="splitWarning" class="mobile-reader-warning" role="status">{{ splitWarning }}</p>
+        <p v-if="saveError" class="mobile-reader-warning" role="status">
+          {{ t('reader.autosaveFailed') }}
+        </p>
         <ReaderContent
           class="mobile-reader-content"
           :book-id="bookId"
@@ -103,22 +106,6 @@
             <circle cx="18" cy="5" r="2" stroke="currentColor" stroke-width="1.8" />
           </svg>
         </button>
-        <button
-          class="button mobile-reader-tool"
-          type="button"
-          :aria-label="bookmarking ? t('reader.savingBookmark') : t('reader.saveBookmark')"
-          :disabled="bookmarking"
-          @click="emit('bookmarkCurrent')"
-        >
-          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M7 5.5c0-.83.67-1.5 1.5-1.5h7c.83 0 1.5.67 1.5 1.5V20l-5-3-5 3V5.5z"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </button>
       </div>
     </Transition>
 
@@ -159,8 +146,8 @@ const props = defineProps<{
   progressPercent: number;
   splitWarning: string;
   loading: boolean;
-  bookmarking: boolean;
   error: string;
+  saveError: string;
   isAtMinFontSize: boolean;
   isAtMaxFontSize: boolean;
 }>();
@@ -176,7 +163,6 @@ const emit = defineEmits<{
   openFontModal: [];
   openChapterModal: [];
   openSplitModal: [];
-  bookmarkCurrent: [];
 }>();
 
 interface ActivePointer {

@@ -12,8 +12,8 @@
     :progress-percent="progress?.percent ?? 0"
     :split-warning="splitWarning"
     :loading="loading"
-    :bookmarking="bookmarking"
     :error="error"
+    :save-error="saveError"
     :is-at-min-font-size="isAtMinFontSize"
     :is-at-max-font-size="isAtMaxFontSize"
     @retry="fetchReaderData"
@@ -26,7 +26,6 @@
     @open-font-modal="openFontModal"
     @open-chapter-modal="openChapterModal"
     @open-split-modal="openSplitModal"
-    @bookmark-current="bookmarkCurrent"
   />
 
   <MobileReaderView
@@ -42,8 +41,8 @@
     :progress-percent="progress?.percent ?? 0"
     :split-warning="splitWarning"
     :loading="loading"
-    :bookmarking="bookmarking"
     :error="error"
+    :save-error="saveError"
     :is-at-min-font-size="isAtMinFontSize"
     :is-at-max-font-size="isAtMaxFontSize"
     @retry="fetchReaderData"
@@ -56,7 +55,6 @@
     @open-font-modal="openFontModal"
     @open-chapter-modal="openChapterModal"
     @open-split-modal="openSplitModal"
-    @bookmark-current="bookmarkCurrent"
   />
 
   <SplitConfigModal
@@ -84,7 +82,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { onBeforeRouteLeave, useRoute } from 'vue-router';
 import ChapterModal from '@/features/reader/components/ChapterModal.vue';
 import DesktopReaderView from '@/features/reader/components/DesktopReaderView.vue';
 import FontSelectionModal from '@/features/reader/components/FontSelectionModal.vue';
@@ -116,8 +114,8 @@ const {
   splitWarning,
   progress,
   loading,
-  bookmarking,
   error,
+  saveError,
   readerRef,
   fetchReaderData,
   onScroll,
@@ -127,7 +125,9 @@ const {
   syncCurrentScroll,
   splitConfig,
   applySplitConfig,
-  bookmarkCurrent
+  flushReadingProgress,
+  startProgressAutosave,
+  stopProgressAutosave
 } = useReader(() => id.value);
 
 const isSplitModalOpen = ref(false);
@@ -229,6 +229,11 @@ async function selectSectionFromChapterModal(index: number): Promise<void> {
 onMounted(() => {
   document.addEventListener('keydown', onDocumentKeydown);
   readingHeartbeat.start();
+  startProgressAutosave();
+});
+
+onBeforeRouteLeave(async () => {
+  await flushReadingProgress();
 });
 
 watch(id, () => {
@@ -243,5 +248,6 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', onDocumentKeydown);
   document.body.style.overflow = '';
   readingHeartbeat.stop();
+  void stopProgressAutosave();
 });
 </script>
