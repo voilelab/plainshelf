@@ -292,6 +292,46 @@ test('should focus one Markdown chapter while preserving and searching the whole
     await expect(page.getByLabel('Scope')).toHaveValue('section');
     await page.setViewportSize({ width: 1280, height: 720 });
 
+    const composition = await textarea.evaluate(async (element) => {
+      const field = element as HTMLTextAreaElement;
+      field.focus();
+      field.dispatchEvent(new CompositionEvent('compositionstart', {
+        bubbles: true,
+        data: ''
+      }));
+      field.value = `${field.value}中文`;
+      const composedEnd = field.value.length;
+      field.setSelectionRange(composedEnd, composedEnd);
+      field.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        data: '中文',
+        inputType: 'insertCompositionText',
+        isComposing: true
+      }));
+
+      // Moving the range after the composing input exposes any next-tick
+      // selection restore that would prematurely interfere with the IME.
+      field.setSelectionRange(0, 0);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const selectionDuringComposition = field.selectionStart;
+
+      field.setSelectionRange(composedEnd, composedEnd);
+      field.dispatchEvent(new CompositionEvent('compositionend', {
+        bubbles: true,
+        data: '中文'
+      }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      return {
+        selectionDuringComposition,
+        selectionAfterComposition: field.selectionStart,
+        composedEnd,
+        value: field.value
+      };
+    });
+    expect(composition.selectionDuringComposition).toBe(0);
+    expect(composition.selectionAfterComposition).toBe(composition.composedEnd);
+    expect(composition.value).toContain('中文');
+
     // Pasting an H2 splits the visible chapter and follows the cursor into the
     // newly-created section without exposing the rest of the source.
     await textarea.fill([

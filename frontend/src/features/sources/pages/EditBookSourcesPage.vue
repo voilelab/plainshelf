@@ -181,7 +181,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
 import ConfirmModal from '@/components/ConfirmModal.vue';
@@ -464,7 +464,8 @@ function onDocumentEdit(edit: SourceDocumentEdit): void {
       anchorOffset: edit.selectionEnd,
       affinity: edit.affinity
     };
-    scheduleEditorViewReconcile(previous);
+    if (edit.composing) clearEditorViewReconcile();
+    else scheduleEditorViewReconcile(previous);
     return;
   }
 
@@ -489,6 +490,8 @@ function clearEditorViewReconcile(): void {
     editorViewReconcileTimer = null;
   }
 }
+
+onBeforeUnmount(clearEditorViewReconcile);
 
 function reconcileEditorView(
   previous: MarkdownEditorSection | null,

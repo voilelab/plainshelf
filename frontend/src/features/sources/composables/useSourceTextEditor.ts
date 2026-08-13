@@ -39,6 +39,7 @@ export function useSourceTextEditor(options: SourceTextEditorOptions) {
     const range = currentViewRange();
     return options.content().slice(range.startOffset, range.endOffset);
   });
+  let composing = false;
 
   watch(options.sourceId, () => {
     findQuery.value = '';
@@ -75,8 +76,7 @@ export function useSourceTextEditor(options: SourceTextEditorOptions) {
     };
   }
 
-  function onInput(event: Event): void {
-    const textarea = event.target as HTMLTextAreaElement;
+  function syncTextarea(textarea: HTMLTextAreaElement, isComposing: boolean): void {
     const range = currentViewRange();
     const replacement = textarea.value;
     const edit = replaceTextRange(
@@ -93,9 +93,32 @@ export function useSourceTextEditor(options: SourceTextEditorOptions) {
       selectionStart,
       selectionEnd,
       affinity: atVisibleEnd ? 'backward' : 'forward',
-      deferView: true
+      deferView: true,
+      composing: isComposing
     });
-    void nextTick(() => focusAndSelect(selectionStart, selectionEnd, false));
+    if (!isComposing) {
+      void nextTick(() => focusAndSelect(selectionStart, selectionEnd, false));
+    }
+  }
+
+  function onInput(event: Event): void {
+    const inputEvent = event as InputEvent;
+    syncTextarea(
+      inputEvent.target as HTMLTextAreaElement,
+      composing || inputEvent.isComposing
+    );
+  }
+
+  function onCompositionStart(): void {
+    composing = true;
+  }
+
+  function onCompositionEnd(event: CompositionEvent): void {
+    composing = false;
+    // WebKit normally follows compositionend with a final non-composing input,
+    // but synchronizing here also covers engines that do not. Replacing the
+    // current projection with the same textarea value is idempotent.
+    syncTextarea(event.target as HTMLTextAreaElement, false);
   }
 
   function findMatch(backward: boolean): number | null {
@@ -271,6 +294,8 @@ export function useSourceTextEditor(options: SourceTextEditorOptions) {
     findStatus,
     disableFind,
     onInput,
+    onCompositionStart,
+    onCompositionEnd,
     findNext,
     findPrevious,
     replaceNext,

@@ -73,6 +73,8 @@
       :value="visibleContent"
       :disabled="!sourceId || loading || saving"
       spellcheck="false"
+      @compositionstart="onCompositionStart"
+      @compositionend="onCompositionEnd"
       @input="onInput"
     ></textarea>
   </section>
@@ -126,6 +128,8 @@ const {
   findStatus,
   disableFind,
   onInput,
+  onCompositionStart,
+  onCompositionEnd,
   findNext,
   findPrevious,
   replaceNext,

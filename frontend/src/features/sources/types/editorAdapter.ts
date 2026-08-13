@@ -10,6 +10,7 @@ export interface SourceDocumentEdit {
   selectionEnd: number;
   affinity: 'forward' | 'backward';
   deferView?: boolean;
+  composing?: boolean;
 }
 
 export type SourceFindScope = 'section' | 'source';
