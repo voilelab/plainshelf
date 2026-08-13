@@ -4,6 +4,13 @@ import path from 'node:path';
 export const helloFixturePath = path.resolve(__dirname, '..', '..', 'fixtures', 'hello.txt');
 export const anotherFixturePath = path.resolve(__dirname, '..', '..', 'fixtures', 'another.txt');
 export const helloMarkdownFixturePath = path.resolve(__dirname, '..', '..', 'fixtures', 'hello.md');
+export const safeHtmlMarkdownFixturePath = path.resolve(
+  __dirname,
+  '..',
+  '..',
+  'fixtures',
+  'safe-html.md'
+);
 
 export const tinyPngBase64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9s3FoXcAAAAASUVORK5CYII=';

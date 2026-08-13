@@ -185,6 +185,20 @@ export function assetNameFromSrc(src: string): string | null {
 }
 
 /**
+ * Parses the deliberately narrow Markdown image form supported by the reader.
+ * The whole line must be an image and the target must pass assetNameFromSrc,
+ * so callers can share exactly the same local-only resource policy.
+ */
+export function assetImageFromMarkdownLine(
+  rawLine: string
+): Pick<MarkdownImageBlock, 'name' | 'alt'> | null {
+  const match = IMAGE_LINE_RE.exec(rawLine.trim());
+  if (!match) return null;
+  const name = assetNameFromSrc(match[2]);
+  return name ? { name, alt: match[1].trim() } : null;
+}
+
+/**
  * Lists the source assets a Markdown text actually renders, in first-use order
  * and without duplicates.
  *
@@ -310,14 +324,11 @@ function parseTextSegmentToBlocks(text: string): MarkdownBlock[] {
     // An image target this reader will not load falls through to the paragraph
     // path, so the line stays visible as its own Markdown rather than silently
     // disappearing.
-    const imageMatch = IMAGE_LINE_RE.exec(trimmed);
-    if (imageMatch) {
-      const name = assetNameFromSrc(imageMatch[2]);
-      if (name) {
-        flushAll();
-        blocks.push({ type: 'image', name, alt: imageMatch[1].trim() });
-        continue;
-      }
+    const image = assetImageFromMarkdownLine(trimmed);
+    if (image) {
+      flushAll();
+      blocks.push({ type: 'image', ...image });
+      continue;
     }
 
     if (trimmed.startsWith('>')) {
