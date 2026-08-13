@@ -163,10 +163,11 @@ rsync -a /path/to/shelf/ /path/to/backup/shelf-2026-07-28/
 
 Two things people miss:
 
-- **Also copy the application store** (`--store-path`, or the platform default).
-  Bookmarks live there and are *not* derived from `books/`. (Read history and
-  reading time are not in the store: each client keeps its own on the device
-  that did the reading, so neither is covered by a server-side backup.)
+- **Also copy the application store** (`--store-path`, or the platform default)
+  if you want to preserve server settings. Reading progress, history, and time
+  are not in that store: each client keeps its own on the device that did the
+  reading, so none is covered by a server-side backup. Back up the browser
+  profile or desktop app data directory separately if those records matter.
 - **Everything under `app/`** — the lock file and temporary files — can be
   discarded safely; the server recreates it.
 
@@ -178,9 +179,11 @@ your backup tool from reading a file mid-write.
 
 !!! warning "v0.8 reading data does not carry into v1"
     v1 starts a new, empty reading history and reading-time record on each
-    device. It does not migrate v0.8's server-side values, so the old history and
-    dashboard activity no longer appear in v1. This is an intentional pre-1.0
-    breaking change.
+    device. Web and desktop reading progress also starts at zero instead of
+    importing v0.8's server-side bookmarks. Existing Android progress was
+    already on-device and remains available. The old server-side history,
+    dashboard activity, and bookmarks are not migrated or read by v1. This is
+    an intentional pre-1.0 breaking change.
 
 PlainShelf provides no export, import, or recovery path for these values.
 Upgrade from v0.8 only if you accept that they will no longer be accessible.

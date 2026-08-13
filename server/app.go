@@ -74,7 +74,6 @@ func NewApp(conf *AppConf) (*App, error) {
 			logger.Close()
 		}
 	}()
-
 	shelfManager := shelf.NewShelfManager()
 	defer func() {
 		if failure {
@@ -287,11 +286,6 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/layers/{layer_path...}", app.HandleAPIRenameLayer)
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/layers/{layer_path...}", app.HandleAPIDeleteLayer)
 
-	// Store API
-
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/marks/{book_id}", app.HandleAPIGetMarks)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/marks/{book_id}", app.HandleAPIUpdateMarks)
-
 	// Task API
 
 	mux.HandleFunc("GET /api/taskchains/{taskchain_id}", app.HandleAPIGetTaskChain)
@@ -312,6 +306,9 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/setting/epub_import_strategy", app.HandleGetSettingEPUBImportStrategy)
 	mux.HandleFunc("POST /api/setting/epub_import_strategy", app.HandleSetSettingEPUBImportStrategy)
 	mux.HandleFunc("DELETE /api/setting/epub_import_strategy", app.HandleDeleteSettingEPUBImportStrategy)
+
+	// Unknown API paths must not fall through to the SPA index.
+	mux.HandleFunc("GET /api/{path...}", http.NotFound)
 
 	mux.HandleFunc("GET /{path...}", app.HandleSPAFallback)
 }

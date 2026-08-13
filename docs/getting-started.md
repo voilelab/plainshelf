@@ -51,7 +51,7 @@ application store when the container is replaced.
 A server configuration needs two durable locations:
 
 - `app_conf.shelves[].lib_root` stores book packages and shelf runtime state.
-- `app_conf.store_path` stores application-level state.
+- `app_conf.store_path` stores server settings; reading progress, history, and time stay on each client device.
 
 The sample configuration works for local development. Before a long-running
 deployment, review [Local Shelf File Source](configuring-local-shelf.md).

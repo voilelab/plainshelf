@@ -17,7 +17,7 @@ describe('book detail reading state', () => {
     expect(getReadingAction(100)).toBe('reread');
   });
 
-  it('derives server progress from the bookmark offset and matching total units', () => {
+  it('derives saved progress from the bookmark offset and matching total units', () => {
     expect(resolveReadingPercent({ char_offset: 37 }, 74)).toBe(50);
     expect(resolveReadingPercent({ char_offset: 74 }, 74)).toBe(100);
     expect(resolveReadingPercent({ char_offset: 80 }, 74)).toBe(100);

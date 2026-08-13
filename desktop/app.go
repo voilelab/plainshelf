@@ -22,13 +22,14 @@ import (
 )
 
 type DesktopApp struct {
-	app               *server.App
-	apiHandler        http.Handler
-	ctx               context.Context
-	shelvesConfigPath string
-	readHistoryPath   string
-	readingStatsPath  string
-	startupErr        error
+	app                 *server.App
+	apiHandler          http.Handler
+	ctx                 context.Context
+	shelvesConfigPath   string
+	readHistoryPath     string
+	readingProgressPath string
+	readingStatsPath    string
+	startupErr          error
 }
 
 type DesktopImportBookResult struct {
@@ -103,7 +104,7 @@ func (a *DesktopApp) GetAPIHandler() http.Handler {
 	return a.apiHandler
 }
 
-// Reading history and reading stats are per-device state: they never reach the
+// Reading history, progress, and stats are per-device state: they never reach the
 // server, and on the desktop they must not depend on WebView storage either
 // (clearing site data or a WebView profile change would take them with it).
 // Each is stored as a JSON file next to shelves.json instead.
@@ -182,6 +183,17 @@ func (a *DesktopApp) ReadReadHistory() (string, error) {
 // WriteReadHistory replaces the stored reading-history document.
 func (a *DesktopApp) WriteReadHistory(doc string) error {
 	return writeDeviceDocument(a.readHistoryPath, "read history", doc)
+}
+
+// ReadReadingProgress returns the stored reading-progress document, or an empty
+// string when this device has not stored one yet.
+func (a *DesktopApp) ReadReadingProgress() (string, error) {
+	return readDeviceDocument(a.readingProgressPath)
+}
+
+// WriteReadingProgress replaces the stored reading-progress document.
+func (a *DesktopApp) WriteReadingProgress(doc string) error {
+	return writeDeviceDocument(a.readingProgressPath, "reading progress", doc)
 }
 
 // ReadReadingStats returns the stored reading-stats document, or an empty
@@ -737,6 +749,7 @@ func (a *DesktopApp) startServer() error {
 
 	a.shelvesConfigPath = shelvesConfigPath
 	a.readHistoryPath = filepath.Join(dataRoot, "read_history.json")
+	a.readingProgressPath = filepath.Join(dataRoot, "reading_progress.json")
 	a.readingStatsPath = filepath.Join(dataRoot, "reading_stats.json")
 	a.app = app
 	return nil

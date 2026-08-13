@@ -32,6 +32,22 @@ Runtime state used by the server: file lock and temporary files. All of it is re
 
 Older shelves may still contain `app/stats/reading/{YYYY-MM}.json`. That is reading-time history from before it moved onto each device; nothing reads it any more and it can be deleted.
 
+### Per-device reading data
+
+Saved reading progress, reading history, and reading time are client state, not
+shelf or server state. They are kept independently on the device that recorded
+them and are not synchronized between devices:
+
+| Client | Saved reading progress |
+|---|---|
+| Web | Browser `localStorage`, key `plainshelf.readingProgress` |
+| Desktop | `reading_progress.json` next to `shelves.json` in the app data directory |
+| Android | App-private `progress.json` files scoped by connection, shelf, and book |
+
+Each position is a JavaScript UTF-16 character offset. Moving or renaming a
+book does not lose it because records use the persistent book ID rather than a
+filesystem path.
+
 ---
 
 ## Book folder (`.bookpkg/`)

@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
-	"github.com/voilelab/plainshelf/server/store"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -1241,32 +1240,6 @@ func TestAPISourceAssetRejectsUnsafeNames(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestAPIStoreContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Store Me", "", "store.txt", "body")
-	marksURL := "/api/shelves/default_shelf/marks/" + created.Meta.ID
-
-	rec := env.do(httptest.NewRequest(http.MethodGet, marksURL, nil))
-	assertStatus(t, rec, http.StatusOK)
-	assertJSONContentType(t, rec)
-	mark := decodeJSON[store.Bookmark](t, rec)
-	if mark.CharOffset != 0 {
-		t.Fatalf("default mark char_offset = %d, want 0", mark.CharOffset)
-	}
-
-	rec = env.do(httptest.NewRequest(http.MethodPost, marksURL, strings.NewReader(`{"char_offset":123}`)))
-	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodGet, marksURL, nil))
-	assertStatus(t, rec, http.StatusOK)
-	mark = decodeJSON[store.Bookmark](t, rec)
-	if mark.CharOffset != 123 {
-		t.Fatalf("mark char_offset = %d, want 123", mark.CharOffset)
-	}
-
-	rec = env.do(httptest.NewRequest(http.MethodPost, marksURL, strings.NewReader(`{"char_offset":123,"extra":true}`)))
-	assertStatus(t, rec, http.StatusBadRequest)
 }
 
 func TestAPICreateBookSourceContract(t *testing.T) {
