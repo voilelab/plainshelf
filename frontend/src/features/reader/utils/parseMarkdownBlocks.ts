@@ -356,7 +356,11 @@ export function parseMarkdownBlocks(text: string): MarkdownBlock[] {
     return [];
   }
 
-  const lines = text.split('\n');
+  // A source may preserve Windows CRLF line endings. Split both bytes here so
+  // line-oriented Markdown syntax sees the same text it would in an LF file;
+  // otherwise the trailing CR prevents anchored heading and fence regexes
+  // from matching.
+  const lines = text.split(/\r?\n/);
   const blocks: MarkdownBlock[] = [];
   let textBuffer: string[] = [];
   let i = 0;
