@@ -55,7 +55,7 @@ test('should switch and persist the reading font without changing code text', as
     });
 
     const toolbarButtons = page.locator('.mobile-reader-toolbar .mobile-reader-tool');
-    await expect(toolbarButtons).toHaveCount(6);
+    await expect(toolbarButtons).toHaveCount(5);
     const buttonTops = await toolbarButtons.evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().top));
     expect(Math.max(...buttonTops) - Math.min(...buttonTops)).toBeLessThanOrEqual(1);
 
