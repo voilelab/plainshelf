@@ -254,6 +254,107 @@ test('should derive chapterized Markdown from TXT and keep the original source',
   }
 });
 
+test('should focus one Markdown chapter while preserving and searching the whole source', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importHelloBook(page);
+    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
+    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('menuitem', { name: 'Manage sources' }).click();
+    await expect(page.getByText('No pending changes').first()).toBeVisible();
+
+    await page.getByRole('button', { name: 'Manual TXT → MD' }).click();
+    const conversionDialog = page.getByRole('dialog', { name: 'Create chapterized Markdown source' });
+    await conversionDialog.getByRole('button', { name: 'Create source' }).click();
+    await expect(page.getByText('Derived source created.')).toBeVisible();
+
+    const textarea = page.locator('.source-content-textarea');
+    const original = [
+      '# Focused book',
+      'Opening marker.',
+      '',
+      '## One',
+      'First marker repeat.',
+      '',
+      '## Two',
+      'Second marker repeat.'
+    ].join('\n');
+    await textarea.fill(original);
+
+    await page.setViewportSize({ width: 700, height: 700 });
+    await page.getByRole('button', { name: 'Chapters', exact: true }).click();
+    await page.locator('.chapter-jump').filter({ hasText: 'One' }).click();
+    await expect(textarea).toBeVisible();
+    await expect(textarea).toHaveValue(/^## One\nFirst marker repeat\.\n\n$/);
+    await expect(textarea).not.toHaveValue(/Opening marker|Second marker/);
+    await expect(page.getByLabel('Scope')).toHaveValue('section');
+    await page.setViewportSize({ width: 1280, height: 720 });
+
+    // Pasting an H2 splits the visible chapter and follows the cursor into the
+    // newly-created section without exposing the rest of the source.
+    await textarea.fill([
+      '## One',
+      'First marker repeat.',
+      'Chapter one edited.',
+      '',
+      '## Inserted',
+      'Inserted marker.',
+      ''
+    ].join('\n'));
+    await expect(textarea).toHaveValue(/^## Inserted\nInserted marker\.\n$/);
+    await expect(textarea).not.toHaveValue(/## One|## Two/);
+
+    const findReplace = page.getByRole('group', { name: 'Find and replace' });
+    await findReplace.getByLabel('Find').fill('Second marker');
+    await findReplace.getByRole('button', { name: 'Next' }).click();
+    await expect(findReplace.getByRole('status')).toHaveText('No matches.');
+
+    await page.getByLabel('Scope').selectOption('source');
+    await findReplace.getByRole('button', { name: 'Next' }).click();
+    await expect(textarea).toHaveValue(/^## Two\nSecond marker repeat\.$/);
+    await expect(findReplace.getByRole('status')).toHaveText('Match 1 of 1.');
+
+    await page.getByRole('button', { name: 'Whole source' }).click();
+    const draftBeforeReplace = await textarea.inputValue();
+    expect(draftBeforeReplace).toBe([
+      '# Focused book',
+      'Opening marker.',
+      '',
+      '## One',
+      'First marker repeat.',
+      'Chapter one edited.',
+      '',
+      '## Inserted',
+      'Inserted marker.',
+      '## Two',
+      'Second marker repeat.'
+    ].join('\n'));
+    await page.locator('.chapter-jump').filter({ hasText: 'Two' }).click();
+    await page.getByLabel('Scope').selectOption('source');
+
+    await findReplace.getByLabel('Find').fill('repeat');
+    await findReplace.getByLabel('Replace').fill('done');
+    await findReplace.getByRole('button', { name: 'Replace all' }).click();
+    await expect(findReplace.getByRole('status')).toHaveText('Replaced 2 occurrences.');
+    await expect(textarea).toHaveValue(/^## Two\nSecond marker done\.$/);
+
+    await page.getByRole('button', { name: 'Whole source' }).click();
+    await expect(textarea).toHaveValue(/Opening marker[\s\S]*First marker done[\s\S]*Chapter one edited[\s\S]*## Inserted[\s\S]*Second marker done/);
+    await page.getByRole('button', { name: 'Save*' }).click();
+    await expect(page.getByText('Source saved.')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Back' }).click();
+    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('menuitem', { name: 'Manage sources' }).click();
+    await expect(page.getByText('No pending changes').first()).toBeVisible();
+    await expect(textarea).toHaveValue(/Opening marker[\s\S]*First marker done[\s\S]*## Inserted[\s\S]*Second marker done/);
+  } finally {
+    await server.dispose();
+  }
+});
+
 test('should upgrade a legacy split source through the component modal', async ({ page }) => {
   const server = await startServer();
 

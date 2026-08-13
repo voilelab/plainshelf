@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildMarkdownH2Sections } from './markdownChapters';
+import {
+  buildMarkdownEditorSections,
+  buildMarkdownH2Sections,
+  findMarkdownEditorSection
+} from './markdownChapters';
 
 describe('buildMarkdownH2Sections', () => {
   it('uses H2 headings and keeps headings in section text', () => {
@@ -53,5 +57,34 @@ describe('buildMarkdownH2Sections', () => {
     expect(buildMarkdownH2Sections('# Title\nText')).toEqual([
       { index: 0, startOffset: 0, endOffset: 12, title: 'Title', text: '# Title\nText' }
     ]);
+  });
+
+  it('builds selectable editor ranges for opening and duplicate chapter titles', () => {
+    const content = '# Book\r\nIntro 😀\r\n## Same\r\nOne\r\n## Same\r\nTwo';
+    const sections = buildMarkdownEditorSections(content);
+    expect(sections.map(({ kind, title }) => ({ kind, title }))).toEqual([
+      { kind: 'opening', title: 'Book' },
+      { kind: 'chapter', title: 'Same' },
+      { kind: 'chapter', title: 'Same' }
+    ]);
+    expect(sections[1].startOffset).toBe(content.indexOf('## Same'));
+    expect(sections[1].endOffset).toBe(content.lastIndexOf('## Same'));
+    expect(sections[2].headingIndex).toBe(1);
+  });
+
+  it('keeps fenced H2 text inside one editor section', () => {
+    const content = '## One\n```md\n## Code\n```\nBody';
+    const sections = buildMarkdownEditorSections(content);
+    expect(sections).toHaveLength(1);
+    expect(sections[0]).toMatchObject({ kind: 'chapter', startOffset: 0, endOffset: content.length });
+  });
+
+  it('uses affinity to resolve a cursor exactly between chapters', () => {
+    const content = '## One\nBody\n## Two\nMore';
+    const sections = buildMarkdownEditorSections(content);
+    const boundary = content.indexOf('## Two');
+    expect(findMarkdownEditorSection(sections, boundary, 'forward')?.title).toBe('Two');
+    expect(findMarkdownEditorSection(sections, boundary, 'backward')?.title).toBe('One');
+    expect(findMarkdownEditorSection(sections, content.length, 'forward')?.title).toBe('Two');
   });
 });

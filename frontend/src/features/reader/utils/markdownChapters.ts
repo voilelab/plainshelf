@@ -11,6 +11,16 @@ export interface MarkdownChapterHeading {
   title: string;
 }
 
+export interface MarkdownEditorSection {
+  index: number;
+  startOffset: number;
+  endOffset: number;
+  title: string;
+  kind: 'opening' | 'chapter';
+  headingIndex?: number;
+  heading?: MarkdownChapterHeading;
+}
+
 function visibleHeadingText(value: string): string {
   return value
     .replace(/`([^`]*)`/g, '$1')
@@ -27,6 +37,17 @@ function visibleHeadingText(value: string): string {
  * accumulating their original lengths also preserves CRLF offsets exactly.
  */
 export function buildMarkdownH2Sections(content: string): ReaderSection[] {
+  return buildMarkdownEditorSections(content).map((section) => ({
+    index: section.index,
+    startOffset: section.startOffset,
+    endOffset: section.endOffset,
+    title: section.title,
+    text: content.slice(section.startOffset, section.endOffset)
+  }));
+}
+
+/** Builds the editor's ranges from the same H2 semantics used by the reader. */
+export function buildMarkdownEditorSections(content: string): MarkdownEditorSection[] {
   const chapters = scanMarkdownH2Headings(content);
   let preambleH1 = '';
   let fence: MarkdownFenceState | null = null;
@@ -55,10 +76,16 @@ export function buildMarkdownH2Sections(content: string): ReaderSection[] {
   }
 
   if (chapters.length === 0) {
-    return [{ index: 0, startOffset: 0, endOffset: content.length, title: preambleH1 || 'Part 1', text: content }];
+    return [{
+      index: 0,
+      startOffset: 0,
+      endOffset: content.length,
+      title: preambleH1 || 'Part 1',
+      kind: 'opening'
+    }];
   }
 
-  const sections: ReaderSection[] = [];
+  const sections: MarkdownEditorSection[] = [];
   const firstChapterOffset = chapters[0].startOffset;
   if (content.slice(0, firstChapterOffset).trim().length > 0) {
     sections.push({
@@ -66,7 +93,7 @@ export function buildMarkdownH2Sections(content: string): ReaderSection[] {
       startOffset: 0,
       endOffset: firstChapterOffset,
       title: preambleH1 || 'Opening',
-      text: content.slice(0, firstChapterOffset)
+      kind: 'opening'
     });
   }
 
@@ -80,11 +107,36 @@ export function buildMarkdownH2Sections(content: string): ReaderSection[] {
       startOffset,
       endOffset,
       title: chapter.title,
-      text: content.slice(startOffset, endOffset)
+      kind: 'chapter',
+      headingIndex: chapterIndex,
+      heading: chapter
     });
   });
 
   return sections;
+}
+
+/** Resolves a cursor boundary deterministically without using chapter titles as identity. */
+export function findMarkdownEditorSection(
+  sections: MarkdownEditorSection[],
+  offset: number,
+  affinity: 'forward' | 'backward'
+): MarkdownEditorSection | null {
+  if (sections.length === 0) return null;
+  const contentLength = sections[sections.length - 1]?.endOffset ?? 0;
+  const clamped = Math.max(0, Math.min(contentLength, offset));
+  for (let index = 0; index < sections.length; index += 1) {
+    const section = sections[index];
+    if (clamped === section.startOffset && affinity === 'backward' && index > 0) {
+      return sections[index - 1];
+    }
+    const isLast = index === sections.length - 1;
+    if (
+      clamped >= section.startOffset &&
+      (clamped < section.endOffset || (isLast && clamped <= section.endOffset))
+    ) return section;
+  }
+  return sections[sections.length - 1] ?? null;
 }
 
 /** Returns editable H2 line ranges, excluding headings inside fenced code. */

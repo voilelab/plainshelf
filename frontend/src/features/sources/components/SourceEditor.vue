@@ -43,6 +43,14 @@
         />
       </label>
 
+      <label v-if="focused" class="control-field scope-field">
+        <span class="field-label">Scope</span>
+        <select v-model="findScope" class="control-input" :disabled="isEditorDisabled">
+          <option value="section">Current chapter</option>
+          <option value="source">Whole source</option>
+        </select>
+      </label>
+
       <div class="find-actions">
         <button class="button" type="button" :disabled="disableFind" @click="findPrevious">Prev</button>
         <button class="button" type="button" :disabled="disableFind" @click="findNext">Next</button>
@@ -59,9 +67,10 @@
     <div v-if="error" class="error editor-error" role="alert">{{ error }}</div>
 
     <textarea
+      :key="viewRange?.key ?? 0"
       ref="textareaRef"
       class="source-content-textarea"
-      :value="modelValue"
+      :value="visibleContent"
       :disabled="!sourceId || loading || saving"
       spellcheck="false"
       @input="onInput"
@@ -70,9 +79,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useSourceTextEditor } from '@/features/sources/composables/useSourceTextEditor';
-import type { SourceEditorAdapter } from '@/features/sources/types/editorAdapter';
+import type {
+  SourceDocumentEdit,
+  SourceEditorAdapter,
+  SourceEditorViewRange,
+  SourceFindScope
+} from '@/features/sources/types/editorAdapter';
 
 const props = defineProps<{
   modelValue: string;
@@ -83,16 +97,30 @@ const props = defineProps<{
   error?: string;
   isCurrent?: boolean;
   settingCurrent?: boolean;
+  viewRange?: SourceEditorViewRange | null;
+  focused?: boolean;
 }>();
 
 const emit = defineEmits<{
-  'update:modelValue': [value: string];
+  documentEdit: [edit: SourceDocumentEdit];
+  requestViewOffset: [offset: number, affinity: 'forward' | 'backward'];
   setCurrent: [];
 }>();
 
 const isEditorDisabled = computed(() => !props.sourceId || props.loading || props.saving);
+const findScope = ref<SourceFindScope>(props.focused ? 'section' : 'source');
+
+watch(
+  () => props.focused,
+  (focused, wasFocused) => {
+    if (!focused) findScope.value = 'source';
+    else if (!wasFocused) findScope.value = 'section';
+  }
+);
+
 const {
   textareaRef,
+  visibleContent,
   findQuery,
   replaceQuery,
   findStatus,
@@ -111,7 +139,10 @@ const {
   content: () => props.modelValue,
   sourceId: () => props.sourceId,
   disabled: () => isEditorDisabled.value,
-  updateContent: (value) => emit('update:modelValue', value)
+  viewRange: () => props.viewRange ?? null,
+  findScope: () => findScope.value,
+  updateDocument: (edit) => emit('documentEdit', edit),
+  requestViewOffset: (offset, affinity) => emit('requestViewOffset', offset, affinity)
 });
 
 defineExpose<SourceEditorAdapter>({
@@ -200,10 +231,14 @@ defineExpose<SourceEditorAdapter>({
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(140px, auto) auto;
   gap: 8px 10px;
   align-items: end;
   background: #f8fafc;
+}
+
+.scope-field {
+  min-width: 140px;
 }
 
 .control-field {
