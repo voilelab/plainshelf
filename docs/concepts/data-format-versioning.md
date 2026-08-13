@@ -57,6 +57,7 @@ schema v1, the first key in that file records the format version:
 | `id` | Stable book ID, generated once and never recomputed |
 | `title` | Display title |
 | `format` | Compatibility mirror of the current source format (`txt` or `md`) |
+| `legacy_source_formats` | Optional compatibility snapshots used to restore `format` when reactivating a legacy source; does not upgrade that source |
 | `tags` | Free-form tags |
 | `identifiers` | External identifiers such as `isbn` |
 | `cover` | Cover filename relative to the book folder |

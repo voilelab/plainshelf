@@ -1,5 +1,9 @@
 import type { ReaderSection } from '@/types/book';
-import { isMarkdownFenceLine, parseMarkdownHeadingLine } from './parseMarkdownBlocks';
+import {
+  parseMarkdownHeadingLine,
+  updateMarkdownFenceState,
+  type MarkdownFenceState
+} from './parseMarkdownBlocks';
 
 export interface MarkdownChapterHeading {
   startOffset: number;
@@ -25,7 +29,7 @@ function visibleHeadingText(value: string): string {
 export function buildMarkdownH2Sections(content: string): ReaderSection[] {
   const chapters = scanMarkdownH2Headings(content);
   let preambleH1 = '';
-  let inFence = false;
+  let fence: MarkdownFenceState | null = null;
   let offset = 0;
 
   for (const lineWithNewline of content.split(/(?<=\n)/)) {
@@ -33,13 +37,14 @@ export function buildMarkdownH2Sections(content: string): ReaderSection[] {
       ? lineWithNewline.slice(0, -1).replace(/\r$/, '')
       : lineWithNewline.replace(/\r$/, '');
 
-    if (isMarkdownFenceLine(rawLine)) {
-      inFence = !inFence;
+    const transition = updateMarkdownFenceState(rawLine, fence);
+    if (transition.boundary) {
+      fence = transition.state;
       offset += lineWithNewline.length;
       continue;
     }
 
-    if (!inFence) {
+    if (!fence) {
       const heading = parseMarkdownHeadingLine(rawLine);
       if (heading?.level === 1 && offset < (chapters[0]?.startOffset ?? content.length) && !preambleH1) {
         preambleH1 = visibleHeadingText(heading.title);
@@ -85,15 +90,16 @@ export function buildMarkdownH2Sections(content: string): ReaderSection[] {
 /** Returns editable H2 line ranges, excluding headings inside fenced code. */
 export function scanMarkdownH2Headings(content: string): MarkdownChapterHeading[] {
   const headings: MarkdownChapterHeading[] = [];
-  let inFence = false;
+  let fence: MarkdownFenceState | null = null;
   let offset = 0;
 
   for (const lineWithNewline of content.split(/(?<=\n)/)) {
     const lineWithoutNewline = lineWithNewline.endsWith('\n') ? lineWithNewline.slice(0, -1) : lineWithNewline;
     const rawLine = lineWithoutNewline.replace(/\r$/, '');
-    if (isMarkdownFenceLine(rawLine)) {
-      inFence = !inFence;
-    } else if (!inFence) {
+    const transition = updateMarkdownFenceState(rawLine, fence);
+    if (transition.boundary) {
+      fence = transition.state;
+    } else if (!fence) {
       const heading = parseMarkdownHeadingLine(rawLine);
       if (heading?.level === 2) {
         headings.push({

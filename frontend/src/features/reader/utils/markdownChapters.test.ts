@@ -21,6 +21,25 @@ describe('buildMarkdownH2Sections', () => {
     expect(sections.map((section) => section.title)).toEqual(['Opening', 'Real']);
   });
 
+  it('only closes a fence with the same marker and a sufficient run length', () => {
+    const content = [
+      '````md',
+      '~~~',
+      '```',
+      '## Still code',
+      '````',
+      '## Real chapter',
+      'Body'
+    ].join('\n');
+    const sections = buildMarkdownH2Sections(content);
+    expect(sections.map((section) => section.title)).toEqual(['Opening', 'Real chapter']);
+  });
+
+  it('does not treat four-space-indented code as a heading', () => {
+    const sections = buildMarkdownH2Sections('    ## code example\n\n## Real\nBody');
+    expect(sections.map((section) => section.title)).toEqual(['Opening', 'Real']);
+  });
+
   it('preserves CRLF and UTF-16 offsets', () => {
     const content = '# 📚\r\nIntro 😀\r\n## 第二章\r\nText';
     const sections = buildMarkdownH2Sections(content);

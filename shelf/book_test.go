@@ -2,6 +2,7 @@ package shelf
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -596,6 +597,98 @@ func TestSetCurrentSource(t *testing.T) {
 
 	if book.CurrentSource() != source.ID() {
 		t.Errorf("Expected current source ID to be '%s', got '%s'", source.ID(), book.CurrentSource())
+	}
+}
+
+func TestSetCurrentSourceRestoresLegacyFormatAfterDerivedActivation(t *testing.T) {
+	book, rootFS, _ := newTestBook(t, "legacy-format-book", "Legacy Format")
+	legacy, err := book.NewSource(bytes.NewBufferString("plain legacy text"))
+	if err != nil {
+		t.Fatalf("NewSource legacy: %v", err)
+	}
+	if err := book.SetCurrentSource(legacy.ID()); err != nil {
+		t.Fatalf("SetCurrentSource legacy: %v", err)
+	}
+
+	legacyMetaPath := path.Join(legacy.FolderPath(), SourceMetaFile)
+	legacyMeta := legacy.GetMeta()
+	legacyMeta.SchemaVersion = 0
+	legacyMeta.Format = ""
+	legacyBytes, err := json.Marshal(legacyMeta)
+	if err != nil {
+		t.Fatalf("Marshal legacy meta: %v", err)
+	}
+	if err := rootFS.WriteFile(legacyMetaPath, legacyBytes); err != nil {
+		t.Fatalf("write legacy meta: %v", err)
+	}
+
+	derived, err := book.NewSourceWithOptions(bytes.NewBufferString("## Chapter\nBody"), NewSourceOptions{Format: BookFormatMarkdown})
+	if err != nil {
+		t.Fatalf("NewSourceWithOptions derived: %v", err)
+	}
+	if err := book.SetCurrentSource(derived.ID()); err != nil {
+		t.Fatalf("activate derived: %v", err)
+	}
+	if got := book.GetMeta().Format; got != BookFormatMarkdown {
+		t.Fatalf("derived compatibility format = %q, want md", got)
+	}
+
+	if err := book.SetCurrentSource(legacy.ID()); err != nil {
+		t.Fatalf("reactivate legacy: %v", err)
+	}
+	meta := book.GetMeta()
+	if meta.Format != BookFormatText {
+		t.Errorf("restored legacy compatibility format = %q, want txt", meta.Format)
+	}
+	if meta.LegacySourceFormats[legacy.ID()] != BookFormatText {
+		t.Errorf("legacy format snapshot = %q, want txt", meta.LegacySourceFormats[legacy.ID()])
+	}
+	meta.LegacySourceFormats = nil // simulate an older metadata client
+	meta.Title = "Renamed by old client"
+	if err := book.SetMeta(meta); err != nil {
+		t.Fatalf("SetMeta through older client shape: %v", err)
+	}
+	if got := book.GetMeta().LegacySourceFormats[legacy.ID()]; got != BookFormatText {
+		t.Errorf("ordinary metadata update erased legacy format snapshot: got %q", got)
+	}
+
+	reopened, err := openBook(rootFS, newLoggerForTest(), book.FolderPath())
+	if err != nil {
+		t.Fatalf("openBook: %v", err)
+	}
+	if got := reopened.GetMeta().LegacySourceFormats[legacy.ID()]; got != BookFormatText {
+		t.Errorf("persisted legacy format snapshot = %q, want txt", got)
+	}
+}
+
+func TestListSourceSkipsUnpublishedTemporaryDirectories(t *testing.T) {
+	book, _, tmpLib := newTestBook(t, "temp-source-book", "Temporary Source")
+	source, err := book.NewSource(bytes.NewBufferString("published"))
+	if err != nil {
+		t.Fatalf("NewSource: %v", err)
+	}
+
+	tempDir := path.Join(tmpLib, "temp-source-book", SourcesFolder, "."+source.ID()+"-crash.tmp")
+	if err := os.MkdirAll(tempDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll temp source: %v", err)
+	}
+	metaBytes, err := json.Marshal(source.GetMeta())
+	if err != nil {
+		t.Fatalf("Marshal source meta: %v", err)
+	}
+	if err := os.WriteFile(path.Join(tempDir, SourceMetaFile), metaBytes, 0o644); err != nil {
+		t.Fatalf("write temp meta: %v", err)
+	}
+	if err := os.WriteFile(path.Join(tempDir, SourceFile), []byte("unpublished"), 0o644); err != nil {
+		t.Fatalf("write temp content: %v", err)
+	}
+
+	sources, err := book.ListSource()
+	if err != nil {
+		t.Fatalf("ListSource: %v", err)
+	}
+	if len(sources) != 1 || sources[0].ID() != source.ID() {
+		t.Fatalf("ListSource = %#v, want only published source %q", sources, source.ID())
 	}
 }
 

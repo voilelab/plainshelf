@@ -334,8 +334,10 @@ export function useReader(bookID: () => string) {
       }
 
       const sourceID = book.current_source ?? '';
-      const [bookContent, currentProgress, sourceMeta] = await Promise.all([
-        provider.getBookContent(requestedBookID),
+      const [sourceContent, currentProgress, sourceMeta] = await Promise.all([
+        sourceID
+          ? provider.getSourceContent(requestedBookID, sourceID)
+          : provider.getBookContent(requestedBookID).then((result) => result.content),
         provider.getReadProgress(requestedBookID),
         sourceID ? provider.getSource(requestedBookID, sourceID) : Promise.resolve(undefined)
       ]);
@@ -345,7 +347,7 @@ export function useReader(bookID: () => string) {
 
       title.value = book.title ?? (book as { meta?: { title?: string } }).meta?.title ?? requestedBookID;
       currentSourceId.value = sourceID;
-      content.value = bookContent.content;
+      content.value = sourceContent;
 
       const sourceFormat = sourceMeta?.format === 'md' || sourceMeta?.format === 'txt' ? sourceMeta.format : undefined;
       isLegacySource.value = sourceFormat === undefined;

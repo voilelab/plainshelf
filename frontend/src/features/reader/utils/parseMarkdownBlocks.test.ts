@@ -134,6 +134,19 @@ describe('parseMarkdownBlocks images', () => {
 
     expect(blocks).toEqual([{ type: 'code', text: '![A map](assets/img-0001.png)' }]);
   });
+
+  it('keeps incompatible and shorter fence runs inside the code block', () => {
+    const blocks = parseMarkdownBlocks('````md\n~~~\n```\n## code\n````\n## Real');
+    expect(blocks).toEqual([
+      { type: 'code', text: '~~~\n```\n## code' },
+      { type: 'heading', level: 2, segments: [{ text: 'Real' }] }
+    ]);
+  });
+
+  it('keeps a four-space-indented ATX-looking line as prose', () => {
+    const block = firstBlock('    ## code example');
+    expect(block.type).toBe('paragraph');
+  });
 });
 
 // An offline download uses this to decide what to fetch, so it has to agree

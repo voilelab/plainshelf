@@ -35,4 +35,10 @@ describe('source conversions', () => {
     expect(upgradeLegacyToMarkdown('Chapter 1\nText\nChapter 2', { type: 'regex', regex: '^Chapter \\d+$' }))
       .toBe('## Chapter 1\nText\n## Chapter 2');
   });
+
+  it('does not mistake an H2-looking code example for existing chapter structure', () => {
+    const content = '```md\n## example only\n```\nBody';
+    expect(upgradeLegacyToMarkdown(content, { type: 'none' }))
+      .toBe(`## Part 1\n\n${content}`);
+  });
 });

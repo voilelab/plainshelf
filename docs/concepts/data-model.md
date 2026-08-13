@@ -101,6 +101,10 @@ Sources made before source-level format metadata remain legacy sources. They
 continue to use their stored regex, line-count, or boundary split configuration
 (and the legacy global default) until the user explicitly upgrades them. Merely
 opening or saving such a source never changes its chapter semantics.
+When a new-format source is activated, `book.json.legacy_source_formats` keeps
+the previous effective format for any legacy source that was current. This is
+compatibility bookkeeping only: it lets the mirror be restored when switching
+back and does not add `format` or `schema_version` to the legacy source.
 
 ### Source assets
 

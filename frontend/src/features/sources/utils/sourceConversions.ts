@@ -1,5 +1,10 @@
 import type { SplitConfig } from '@/types/book';
-import { isMarkdownFenceLine, parseMarkdownHeadingLine } from '@/features/reader/utils/parseMarkdownBlocks';
+import {
+  parseMarkdownHeadingLine,
+  updateMarkdownFenceState,
+  type MarkdownFenceState
+} from '@/features/reader/utils/parseMarkdownBlocks';
+import { scanMarkdownH2Headings } from '@/features/reader/utils/markdownChapters';
 
 function stripInlineMarkdown(value: string): string {
   return value
@@ -13,13 +18,14 @@ function stripInlineMarkdown(value: string): string {
 }
 
 export function markdownToPlainText(content: string): string {
-  let inFence = false;
+  let fence: MarkdownFenceState | null = null;
   return content.split(/\r?\n/).map((line) => {
-    if (isMarkdownFenceLine(line)) {
-      inFence = !inFence;
+    const transition = updateMarkdownFenceState(line, fence);
+    if (transition.boundary) {
+      fence = transition.state;
       return '';
     }
-    if (inFence) return line;
+    if (fence) return line;
     if (/^\s*(?:-{3,}|\*{3,})\s*$/.test(line)) return '';
     const image = /^\s*!\[([^\]]*)\]\([^)]*\)\s*$/.exec(line);
     if (image) return image[1];
@@ -68,7 +74,7 @@ function lineStartOffsets(content: string): number[] {
 export function upgradeLegacyToMarkdown(content: string, config: SplitConfig): string {
   // Existing H2 Markdown already expresses the intended structure. Never
   // rewrite it merely because its source metadata is legacy.
-  if (/^##\s+.+$/m.test(content)) return content;
+  if (scanMarkdownH2Headings(content).length > 0) return content;
 
   let offsets: number[] = [];
   if (config.type === 'regex' && config.regex?.trim()) {
