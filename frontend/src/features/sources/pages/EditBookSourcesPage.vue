@@ -126,22 +126,13 @@
           <button class="button" type="button" @click="fetchInitial">Retry</button>
         </div>
         <template v-else>
-          <div v-if="activeSourceId" class="source-format-actions">
-            <span class="format-badge" :class="{ legacy: isLegacySource }">{{ isLegacySource ? 'Legacy' : activeFormat.toUpperCase() }}</span>
-            <template v-if="isLegacySource">
-              <button class="button" type="button" :disabled="isDirty || creating" @click="onUpgradeLegacy">Upgrade chapter format</button>
-              <span class="meta">Creates a new Markdown source from the current legacy split result.</span>
-            </template>
-            <template v-else-if="activeFormat === 'txt'">
-              <button class="button" type="button" :disabled="isDirty || creating" @click="onCreateManualMarkdown">Manual TXT → MD</button>
-              <button class="button" type="button" :disabled="isDirty || creating" @click="onCreateRegexMarkdown">Regex → MD</button>
-              <button class="button" type="button" :disabled="isDirty || creating" @click="onCreateLineCountMarkdown">Fixed lines → MD</button>
-            </template>
-            <template v-else>
-              <button class="button" type="button" :disabled="isDirty || creating" @click="onCreatePlainText">Create plain-text source</button>
-              <span class="meta">Heading hierarchy and chapter navigation will be lost.</span>
-            </template>
-          </div>
+          <SourceFormatActions
+            v-if="activeSourceId"
+            :format="activeFormat"
+            :legacy="isLegacySource"
+            :disabled="isDirty || creating"
+            @convert="onConvertSource"
+          />
           <SourceEditor
             ref="editorRef"
             v-model="content"
@@ -188,21 +179,30 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
 import ConfirmModal from '@/components/ConfirmModal.vue';
+import { getDefaultSplitConfigSetting } from '@/api/settings';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useWriteAccess } from '@/composables/useWriteAccess';
-import type { Book } from '@/types/book';
-import { bookshelfWriter, getBookshelfProvider } from '@/providers';
-import { getDefaultSplitConfigSetting } from '@/api/settings';
 import { scanMarkdownH2Headings } from '@/features/reader/utils/markdownChapters';
 import ChapterOutline from '@/features/sources/components/ChapterOutline.vue';
-import SourceEditor from '@/features/sources/components/SourceEditor.vue';
-import SourceList from '@/features/sources/components/SourceList.vue';
 import SourceConversionModal, {
   type SourceConversionKind
 } from '@/features/sources/components/SourceConversionModal.vue';
-import type { SourceMeta } from '@/types/source';
+import SourceEditor from '@/features/sources/components/SourceEditor.vue';
+import SourceFormatActions from '@/features/sources/components/SourceFormatActions.vue';
+import SourceList from '@/features/sources/components/SourceList.vue';
+import { useSourceEditorSession } from '@/features/sources/composables/useSourceEditorSession';
 import type { SourceEditorAdapter } from '@/features/sources/types/editorAdapter';
+import {
+  insertChapterEdit,
+  mergeChapterEdit,
+  renameChapterEdit,
+  type SourceTextEdit
+} from '@/features/sources/utils/chapterEdits';
 import type { SplitConfig } from '@/types/book';
+
+type PendingSourceTransition =
+  | { kind: 'select'; sourceId: string }
+  | { kind: 'create' };
 
 // Stable reference: see MainLayout.vue's SIDEBAR_RESIZE_HIT_AREA_MARGINS for why this
 // object must not be an inline template literal (reka-ui re-registers the resize handle
@@ -212,273 +212,123 @@ const SOURCE_LIST_RESIZE_HIT_AREA_MARGINS = { coarse: 12, fine: 6 };
 const { writesEnabled } = useWriteAccess();
 const route = useRoute();
 const router = useRouter();
-
 const bookId = computed(() => String(route.params.bookId));
+const session = useSourceEditorSession(() => bookId.value, () => writesEnabled.value);
+const {
+  book,
+  sources,
+  activeSourceId,
+  content,
+  initialLoading,
+  listLoading,
+  contentLoading,
+  saving,
+  creating,
+  deleting,
+  settingCurrent,
+  loadError,
+  editorError,
+  saveSuccess,
+  deleteError,
+  conversionError,
+  activeSourceMeta,
+  isLegacySource,
+  activeFormat,
+  isDirty,
+  disableSave,
+  fetchInitial,
+  loadSource,
+  save: onSave,
+  setCurrentSource: onSetCurrentSource,
+  createSource,
+  createDerivedSource,
+  deleteSource
+} = session;
 
-const book = ref<Book | null>(null);
-const sources = ref<SourceMeta[]>([]);
-const activeSourceId = ref('');
-const initialContent = ref('');
-const content = ref('');
 const editorRef = ref<SourceEditorAdapter | null>(null);
 const mobilePane = ref<'sources' | 'editor' | 'chapters'>('editor');
-
-const initialLoading = ref(false);
-const listLoading = ref(false);
-const contentLoading = ref(false);
-const saving = ref(false);
-const creating = ref(false);
-const deleting = ref(false);
-const settingCurrent = ref(false);
-
-const loadError = ref('');
-const editorError = ref('');
-const saveSuccess = ref('');
-const showDiscardModal = ref(false);
-const pendingSourceId = ref('');
-const pendingCreate = ref(false);
+const pendingTransition = ref<PendingSourceTransition | null>(null);
+const showDiscardModal = computed(() => pendingTransition.value !== null);
 const showDeleteModal = ref(false);
 const pendingDeleteSourceId = ref('');
-const deleteError = ref('');
 const showConversionModal = ref(false);
 const conversionKind = ref<SourceConversionKind>('manual-md');
 const conversionLegacyConfig = ref<SplitConfig>({ type: 'none' });
-const conversionError = ref('');
 const pendingRenameChapterIndex = ref<number | null>(null);
 const pendingChapterTitle = ref('');
 const chapterTitleInput = ref<HTMLInputElement | null>(null);
 const pendingMergeChapterIndex = ref<number | null>(null);
 
-const activeSourceMeta = computed(() => sources.value.find((source) => source.id === activeSourceId.value));
-const isLegacySource = computed(() => !activeSourceMeta.value?.format);
-const activeFormat = computed<'txt' | 'md'>(() => activeSourceMeta.value?.format === 'md' ? 'md' : 'txt');
-const chapterHeadings = computed(() => activeFormat.value === 'md' ? scanMarkdownH2Headings(content.value) : []);
+const chapterHeadings = computed(() =>
+  activeFormat.value === 'md' ? scanMarkdownH2Headings(content.value) : []
+);
 const hasOpeningSection = computed(() => {
   const first = chapterHeadings.value[0];
   return Boolean(first && content.value.slice(0, first.startOffset).trim());
 });
-
-const isDirty = computed(() => activeSourceId.value.length > 0 && content.value !== initialContent.value);
-const disableSave = computed(
-  () =>
-    !activeSourceId.value ||
-    !isDirty.value ||
-    saving.value ||
-    contentLoading.value ||
-    initialLoading.value
-);
+const pendingMergeChapterTitle = computed(() => {
+  const index = pendingMergeChapterIndex.value;
+  return index === null ? '' : chapterHeadings.value[index]?.title ?? '';
+});
 
 useDocumentTitle(() => ['Edit Sources', book.value?.title, 'PlainShelf']);
 
-async function fetchInitial(): Promise<void> {
-  initialLoading.value = true;
-  loadError.value = '';
-  editorError.value = '';
-  saveSuccess.value = '';
-
-  try {
-    const [bookData, sourceList] = await Promise.all([
-      getBookshelfProvider().getBook(bookId.value),
-      getBookshelfProvider().listSources(bookId.value)
-    ]);
-
-    book.value = bookData;
-    sources.value = sourceList;
-
-    const preferredSource =
-      sourceList.find((source) => source.id === bookData.current_source)?.id ??
-      sourceList[0]?.id ??
-      '';
-
-    if (preferredSource) {
-      await loadSource(preferredSource);
-    } else {
-      activeSourceId.value = '';
-      content.value = '';
-      initialContent.value = '';
-    }
-  } catch (err) {
-    loadError.value = err instanceof Error ? err.message : 'Failed to load sources';
-  } finally {
-    initialLoading.value = false;
-  }
-}
-
-async function reloadSourceMeta(): Promise<void> {
-  listLoading.value = true;
-  try {
-    sources.value = await getBookshelfProvider().listSources(bookId.value);
-  } finally {
-    listLoading.value = false;
-  }
-}
-
-async function loadSource(sourceId: string): Promise<void> {
-  contentLoading.value = true;
-  editorError.value = '';
-  saveSuccess.value = '';
-
-  try {
-    const text = await getBookshelfProvider().getSourceContent(bookId.value, sourceId);
-    activeSourceId.value = sourceId;
-    mobilePane.value = 'editor';
-    content.value = text;
-    initialContent.value = text;
-  } catch (err) {
-    editorError.value = err instanceof Error ? err.message : 'Failed to load source content';
-  } finally {
-    contentLoading.value = false;
-  }
+async function selectSource(sourceId: string): Promise<void> {
+  await loadSource(sourceId);
+  if (activeSourceId.value === sourceId) mobilePane.value = 'editor';
 }
 
 async function onSelectSource(sourceId: string): Promise<void> {
-  if (sourceId === activeSourceId.value) {
-    return;
-  }
-
+  if (sourceId === activeSourceId.value) return;
   if (isDirty.value) {
-    pendingSourceId.value = sourceId;
-    showDiscardModal.value = true;
+    pendingTransition.value = { kind: 'select', sourceId };
     return;
   }
-
-  await loadSource(sourceId);
+  await selectSource(sourceId);
 }
 
 function cancelPendingSource(): void {
-  showDiscardModal.value = false;
-  pendingSourceId.value = '';
-  pendingCreate.value = false;
+  pendingTransition.value = null;
 }
 
 async function confirmPendingSource(): Promise<void> {
-  if (pendingCreate.value) {
-    cancelPendingSource();
+  const transition = pendingTransition.value;
+  pendingTransition.value = null;
+  if (!transition) return;
+  if (transition.kind === 'create') {
     await doCreateSource();
-    return;
-  }
-
-  const sourceId = pendingSourceId.value;
-  cancelPendingSource();
-
-  if (!sourceId || sourceId === activeSourceId.value) {
-    return;
-  }
-
-  await loadSource(sourceId);
-}
-
-async function onSave(): Promise<void> {
-  if (!writesEnabled.value || !activeSourceId.value || !isDirty.value) {
-    return;
-  }
-
-  saving.value = true;
-  editorError.value = '';
-  saveSuccess.value = '';
-
-  try {
-    await bookshelfWriter().updateSourceContent(bookId.value, activeSourceId.value, content.value);
-    initialContent.value = content.value;
-    await reloadSourceMeta();
-    saveSuccess.value = 'Source saved.';
-  } catch (err) {
-    editorError.value = err instanceof Error ? err.message : 'Failed to save source';
-  } finally {
-    saving.value = false;
-  }
-}
-
-async function onSetCurrentSource(): Promise<void> {
-  const sourceId = activeSourceId.value;
-  if (!writesEnabled.value || !sourceId) {
-    return;
-  }
-
-  settingCurrent.value = true;
-  editorError.value = '';
-  saveSuccess.value = '';
-
-  try {
-    await bookshelfWriter().setCurrentSource(bookId.value, sourceId);
-    if (book.value) {
-      book.value.current_source = sourceId;
-    }
-    saveSuccess.value = 'Current source updated.';
-  } catch (err) {
-    editorError.value = err instanceof Error ? err.message : 'Failed to set current source';
-  } finally {
-    settingCurrent.value = false;
+  } else if (transition.sourceId !== activeSourceId.value) {
+    await selectSource(transition.sourceId);
   }
 }
 
 async function onCreateSource(): Promise<void> {
-  if (!writesEnabled.value) {
-    return;
-  }
-
+  if (!writesEnabled.value) return;
   if (isDirty.value) {
-    pendingCreate.value = true;
-    showDiscardModal.value = true;
+    pendingTransition.value = { kind: 'create' };
     return;
   }
   await doCreateSource();
 }
 
 async function doCreateSource(): Promise<void> {
-  if (!writesEnabled.value) {
-    return;
-  }
-
-  creating.value = true;
-  editorError.value = '';
-  saveSuccess.value = '';
-
-  try {
-    const newSource = await bookshelfWriter().createSource(bookId.value);
-    await reloadSourceMeta();
-    await loadSource(newSource.id);
-  } catch (err) {
-    editorError.value = err instanceof Error ? err.message : 'Failed to create source';
-  } finally {
-    creating.value = false;
-  }
+  if (await createSource()) mobilePane.value = 'editor';
 }
 
-async function createDerivedSource(
-  nextContent: string,
-  format: 'txt' | 'md',
-  comment: string,
-  setCurrent: boolean
-): Promise<void> {
-  if (!writesEnabled.value || isDirty.value) return;
-  creating.value = true;
-  editorError.value = '';
-  conversionError.value = '';
-  saveSuccess.value = '';
-  try {
-    const next = await bookshelfWriter().createSource(bookId.value, {
-      content: nextContent,
-      format,
-      comment,
-      setCurrent
-    });
-    await reloadSourceMeta();
-    if (setCurrent && book.value) {
-      book.value.current_source = next.id;
-      book.value.format = format;
+async function onConvertSource(kind: SourceConversionKind): Promise<void> {
+  if (kind === 'legacy-upgrade') {
+    const requestedBookId = bookId.value;
+    const requestedSourceId = activeSourceId.value;
+    let config = activeSourceMeta.value?.split_config ?? { type: 'none' as const };
+    if (config.type === 'none') {
+      config = await getDefaultSplitConfigSetting().catch(() => config);
     }
-    await loadSource(next.id);
-    showConversionModal.value = false;
-    saveSuccess.value = 'Derived source created.';
-  } catch (err) {
-    conversionError.value = err instanceof Error ? err.message : 'Failed to create derived source';
-  } finally {
-    creating.value = false;
+    if (
+      bookId.value !== requestedBookId ||
+      activeSourceId.value !== requestedSourceId
+    ) return;
+    conversionLegacyConfig.value = config;
   }
-}
-
-function openConversionModal(kind: SourceConversionKind): void {
   conversionKind.value = kind;
   conversionError.value = '';
   showConversionModal.value = true;
@@ -496,40 +346,20 @@ async function submitConversion(payload: {
   comment: string;
   setCurrent: boolean;
 }): Promise<void> {
-  await createDerivedSource(payload.content, payload.format, payload.comment, payload.setCurrent);
-}
-
-function onCreateManualMarkdown(): void {
-  openConversionModal('manual-md');
-}
-
-function onCreateRegexMarkdown(): void {
-  openConversionModal('regex-md');
-}
-
-function onCreateLineCountMarkdown(): void {
-  openConversionModal('line-count-md');
-}
-
-function onCreatePlainText(): void {
-  openConversionModal('plain-text');
-}
-
-async function onUpgradeLegacy(): Promise<void> {
-  let config = activeSourceMeta.value?.split_config ?? { type: 'none' as const };
-  if (config.type === 'none') {
-    config = await getDefaultSplitConfigSetting().catch(() => config);
+  if (await createDerivedSource(payload)) {
+    showConversionModal.value = false;
+    mobilePane.value = 'editor';
   }
-  conversionLegacyConfig.value = config;
-  openConversionModal('legacy-upgrade');
+}
+
+function applyEdit(edit: SourceTextEdit): void {
+  editorRef.value?.replaceRange(edit.start, edit.end, edit.replacement);
 }
 
 function insertChapter(): void {
   const editor = editorRef.value;
   if (!editor) return;
-  const offset = editor.getCurrentParagraphStart();
-  const needsLeadingBlank = offset > 0 && !content.value.slice(0, offset).endsWith('\n\n');
-  editor.replaceRange(offset, offset, `${needsLeadingBlank ? '\n' : ''}## Untitled chapter\n\n`);
+  applyEdit(insertChapterEdit(content.value, editor.getCurrentParagraphStart()));
 }
 
 function jumpToChapter(offset: number): void {
@@ -558,23 +388,12 @@ function confirmRenameChapter(): void {
   const title = pendingChapterTitle.value.trim();
   if (index === null || !title) return;
   const heading = chapterHeadings.value[index];
-  if (!heading) {
-    cancelRenameChapter();
-    return;
-  }
-  const hadCR = content.value.slice(heading.endOffset - 1, heading.endOffset) === '\r';
-  editorRef.value?.replaceRange(heading.startOffset, heading.endOffset, `## ${title}${hadCR ? '\r' : ''}`);
+  if (heading) applyEdit(renameChapterEdit(content.value, heading, title));
   cancelRenameChapter();
 }
 
-const pendingMergeChapterTitle = computed(() => {
-  const index = pendingMergeChapterIndex.value;
-  return index === null ? '' : chapterHeadings.value[index]?.title ?? '';
-});
-
 function openMergeChapter(index: number): void {
-  if (!chapterHeadings.value[index]) return;
-  pendingMergeChapterIndex.value = index;
+  if (chapterHeadings.value[index]) pendingMergeChapterIndex.value = index;
 }
 
 function cancelMergeChapter(): void {
@@ -585,21 +404,12 @@ function confirmMergeChapter(): void {
   const index = pendingMergeChapterIndex.value;
   if (index === null) return;
   const heading = chapterHeadings.value[index];
-  if (!heading) {
-    cancelMergeChapter();
-    return;
-  }
-  let end = heading.endOffset;
-  if (content.value.slice(end, end + 1) === '\n') end += 1;
-  editorRef.value?.replaceRange(heading.startOffset, end, '');
+  if (heading) applyEdit(mergeChapterEdit(content.value, heading));
   cancelMergeChapter();
 }
 
 function onDeleteSource(sourceId: string): void {
-  if (!writesEnabled.value) {
-    return;
-  }
-
+  if (!writesEnabled.value) return;
   pendingDeleteSourceId.value = sourceId;
   deleteError.value = '';
   showDeleteModal.value = true;
@@ -613,40 +423,8 @@ function cancelDelete(): void {
 
 async function confirmDelete(): Promise<void> {
   const sourceId = pendingDeleteSourceId.value;
-  if (!writesEnabled.value || !sourceId) {
-    return;
-  }
-
-  deleting.value = true;
-  deleteError.value = '';
-
-  try {
-    await bookshelfWriter().deleteSource(bookId.value, sourceId);
-
-    await reloadSourceMeta();
-
-    if (activeSourceId.value === sourceId) {
-      const preferredSource =
-        sources.value.find((source) => source.id === book.value?.current_source)?.id ??
-        sources.value[0]?.id ??
-        '';
-
-      if (preferredSource) {
-        await loadSource(preferredSource);
-      } else {
-        activeSourceId.value = '';
-        content.value = '';
-        initialContent.value = '';
-      }
-    }
-
-    showDeleteModal.value = false;
-    pendingDeleteSourceId.value = '';
-  } catch (err) {
-    deleteError.value = err instanceof Error ? err.message : 'Failed to delete source';
-  } finally {
-    deleting.value = false;
-  }
+  if (!sourceId) return;
+  if (await deleteSource(sourceId)) cancelDelete();
 }
 
 function goBack(): void {
@@ -656,6 +434,13 @@ function goBack(): void {
 watch(
   bookId,
   () => {
+    pendingTransition.value = null;
+    showDeleteModal.value = false;
+    pendingDeleteSourceId.value = '';
+    showConversionModal.value = false;
+    pendingRenameChapterIndex.value = null;
+    pendingMergeChapterIndex.value = null;
+    mobilePane.value = 'editor';
     void fetchInitial();
   },
   { immediate: true }
@@ -760,31 +545,6 @@ watch(
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-}
-
-.source-format-actions {
-  min-height: 42px;
-  padding: 7px 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--border);
-  background: #fffdf7;
-}
-
-.format-badge {
-  font-size: 12px;
-  font-weight: 700;
-  border-radius: 999px;
-  padding: 3px 8px;
-  background: #e0f2fe;
-  color: #075985;
-}
-
-.format-badge.legacy {
-  background: #fef3c7;
-  color: #92400e;
 }
 
 .source-error {
