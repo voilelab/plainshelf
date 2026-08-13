@@ -1,7 +1,7 @@
 # Safe HTML
 
 回覆長度：中等
-AI風月：
+AI：
 
 <details><summary>🔮功能區</summary>
 
