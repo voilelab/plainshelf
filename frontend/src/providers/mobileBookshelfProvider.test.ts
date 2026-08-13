@@ -443,6 +443,23 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
     expect(manifest.size_breakdown?.assets).toBeGreaterThan(0);
   });
 
+  it('downloads an indented list image that the Markdown reader renders', async () => {
+    const getSourceAsset = vi.fn().mockResolvedValue(new Blob(['map'], { type: 'image/png' }));
+    const provider = makeProvider({
+      getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'md' })),
+      listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
+      getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
+      getBookSplitConfig: vi.fn().mockResolvedValue({ type: 'none' }),
+      getSourceContent: vi.fn().mockResolvedValue('- Floor plan\n  ![map](assets/map.png)'),
+      getSourceAsset
+    });
+
+    await provider.downloadBook('book-1');
+
+    expect(getSourceAsset).toHaveBeenCalledWith('book-1', 'src-1', 'map.png');
+    expect(await cache.getCachedAsset('book-1', 'src-1', 'map.png')).not.toBeNull();
+  });
+
   it('uses current source format and omits split state for new offline manifests', async () => {
     const getSourceAsset = vi.fn().mockResolvedValue(new Blob(['image'], { type: 'image/png' }));
     const getBookSplitConfig = vi.fn().mockResolvedValue({ type: 'regex', regex: '^legacy$' });
