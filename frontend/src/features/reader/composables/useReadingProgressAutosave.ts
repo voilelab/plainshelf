@@ -4,9 +4,9 @@ export const READING_PROGRESS_AUTOSAVE_INTERVAL_MS = 10_000;
 
 type SaveProgress = (bookID: string, offset: number) => Promise<void>;
 
-interface ProgressSnapshot {
-  bookID: string;
-  offset: number;
+interface BookProgressState {
+  currentOffset: number;
+  savedOffset: number;
 }
 
 /**
@@ -16,45 +16,60 @@ interface ProgressSnapshot {
  */
 export function useReadingProgressAutosave(saveProgress: SaveProgress) {
   const saveError = ref('');
-  let current: ProgressSnapshot | null = null;
-  let saved: ProgressSnapshot | null = null;
+  const progressByBook = new Map<string, BookProgressState>();
+  const errorsByBook = new Map<string, string>();
+  let currentBookID = '';
   let intervalID: ReturnType<typeof setInterval> | null = null;
   let queue: Promise<void> = Promise.resolve();
 
-  function setBaseline(bookID: string, offset: number): void {
-    current = { bookID, offset };
-    saved = { bookID, offset };
-    saveError.value = '';
+  function refreshSaveError(): void {
+    saveError.value = errorsByBook.values().next().value ?? '';
+  }
+
+  /**
+   * Selects the book being read and records what storage returned for it. If a
+   * previous save for this book failed, keep its newer in-memory position so a
+   * route change cannot discard the dirty snapshot before it can be retried.
+   */
+  function setBaseline(bookID: string, offset: number): number {
+    currentBookID = bookID;
+    const existing = progressByBook.get(bookID);
+    if (existing && existing.currentOffset !== existing.savedOffset) {
+      return existing.currentOffset;
+    }
+
+    progressByBook.set(bookID, { currentOffset: offset, savedOffset: offset });
+    errorsByBook.delete(bookID);
+    refreshSaveError();
+    return offset;
   }
 
   function update(offset: number): void {
-    if (!current || current.offset === offset) {
+    const progress = progressByBook.get(currentBookID);
+    if (!progress || progress.currentOffset === offset) {
       return;
     }
-    current = { ...current, offset };
+    progress.currentOffset = offset;
   }
 
-  function isDirty(): boolean {
-    return Boolean(
-      current &&
-        (!saved || current.bookID !== saved.bookID || current.offset !== saved.offset)
-    );
-  }
+  async function saveDirtySnapshots(): Promise<void> {
+    for (const [bookID, progress] of progressByBook) {
+      if (progress.currentOffset === progress.savedOffset) {
+        continue;
+      }
 
-  async function saveLatestSnapshot(): Promise<void> {
-    if (!current || !isDirty()) {
-      return;
+      const offset = progress.currentOffset;
+      try {
+        await saveProgress(bookID, offset);
+        progress.savedOffset = offset;
+        errorsByBook.delete(bookID);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to save reading progress';
+        errorsByBook.set(bookID, message);
+        console.warn('Failed to save reading progress; it will be retried', error);
+      }
     }
-
-    const snapshot = { ...current };
-    try {
-      await saveProgress(snapshot.bookID, snapshot.offset);
-      saved = snapshot;
-      saveError.value = '';
-    } catch (error) {
-      saveError.value = error instanceof Error ? error.message : 'Failed to save reading progress';
-      console.warn('Failed to save reading progress; it will be retried', error);
-    }
+    refreshSaveError();
   }
 
   /**
@@ -63,7 +78,7 @@ export function useReadingProgressAutosave(saveProgress: SaveProgress) {
    * after the earlier write completed.
    */
   function flush(): Promise<void> {
-    const next = queue.then(saveLatestSnapshot);
+    const next = queue.then(saveDirtySnapshots);
     queue = next.catch(() => undefined);
     return next;
   }

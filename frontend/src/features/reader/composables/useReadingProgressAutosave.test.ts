@@ -108,6 +108,41 @@ describe('useReadingProgressAutosave', () => {
     await autosave.stop();
   });
 
+  it('retains failed progress for an old book after switching books', async () => {
+    const save = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('disk unavailable'))
+      .mockResolvedValue(undefined);
+    const autosave = useReadingProgressAutosave(save);
+    autosave.setBaseline('book-a', 0);
+    autosave.update(10);
+
+    await autosave.flush();
+    expect(autosave.saveError.value).toBe('disk unavailable');
+
+    autosave.setBaseline('book-b', 0);
+    autosave.update(20);
+    await autosave.flush();
+
+    expect(save.mock.calls).toEqual([
+      ['book-a', 10],
+      ['book-a', 10],
+      ['book-b', 20]
+    ]);
+    expect(autosave.saveError.value).toBe('');
+  });
+
+  it('restores an unsaved in-memory position when revisiting a book', async () => {
+    const save = vi.fn().mockRejectedValue(new Error('disk unavailable'));
+    const autosave = useReadingProgressAutosave(save);
+    autosave.setBaseline('book-a', 0);
+    autosave.update(10);
+    await autosave.flush();
+
+    autosave.setBaseline('book-b', 0);
+    expect(autosave.setBaseline('book-a', 0)).toBe(10);
+  });
+
   it('latches each book id before switching baselines', async () => {
     const save = vi.fn().mockResolvedValue(undefined);
     const autosave = useReadingProgressAutosave(save);

@@ -359,9 +359,10 @@ export function useReader(bookID: () => string) {
       }
 
       const normalized = normalizeProgress(currentProgress);
-      progress.value = normalized;
-      restoredOffset = normalized.char_offset;
-      setProgressBaseline(requestedBookID, normalized.char_offset);
+      const effectiveOffset = setProgressBaseline(requestedBookID, normalized.char_offset);
+      const effectiveProgress = normalizeProgress({ char_offset: effectiveOffset });
+      progress.value = effectiveProgress;
+      restoredOffset = effectiveProgress.char_offset;
 
       try {
         await provider.addReadHistory(requestedBookID);
