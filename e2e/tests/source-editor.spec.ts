@@ -288,6 +288,11 @@ test('should upgrade a legacy split source through the component modal', async (
     await expect(page.getByText('2 total')).toBeVisible();
     await expect(page.getByText('MD', { exact: true }).first()).toBeVisible();
     await expect(page.locator('.source-content-textarea')).toHaveValue(/^## Hello from PlainShelf E2E\./);
+
+    await page.getByRole('button', { name: 'Back' }).click();
+    await page.getByRole('button', { name: 'Start reading' }).click();
+    await expect(page.getByRole('heading', { name: 'Hello from PlainShelf E2E.' })).toBeVisible();
+    await expect(page.getByText('## Hello from PlainShelf E2E.')).toHaveCount(0);
   } finally {
     await server.dispose();
   }

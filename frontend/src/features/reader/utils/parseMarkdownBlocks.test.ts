@@ -78,6 +78,16 @@ describe('assetNameFromSrc', () => {
   });
 });
 
+describe('parseMarkdownBlocks line endings', () => {
+  it('renders headings and fenced code in CRLF sources', () => {
+    expect(parseMarkdownBlocks('## Part 1\r\n\r\nBody\r\n\r\n```txt\r\ncode\r\n```\r\n')).toEqual([
+      { type: 'heading', level: 2, segments: [{ text: 'Part 1' }] },
+      { type: 'paragraph', segments: [{ text: 'Body' }] },
+      { type: 'code', text: 'code' }
+    ]);
+  });
+});
+
 describe('parseMarkdownBlocks images', () => {
   it('turns a line that is only an image into an image block', () => {
     expect(firstBlock('![A map](assets/img-0001.png)')).toEqual({
