@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
 import { ApiError } from '@/api/client';
 import type { Book } from '@/types/book';
+import { t } from '@/i18n';
 
 const SHELF_INIT_MAX_AUTO_RETRIES = 10; // ~30s of auto-retry before showing "unreachable"
 
@@ -49,8 +50,8 @@ async function fetchBooks(_isAutoRetry = false): Promise<void> {
       return;
     }
     const msg = err instanceof ApiError && err.isTimeout
-      ? 'Request timed out — the shelf may be slow or unavailable.'
-      : err instanceof Error ? err.message : 'Failed to load books';
+      ? t('library.requestTimeout')
+      : err instanceof Error ? err.message : t('library.loadFailed');
     error.value = msg;
   } finally {
     if (!shelfInitializing.value) {

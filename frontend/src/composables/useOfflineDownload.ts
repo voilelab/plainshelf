@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
 import type { DownloadState } from '@/types/book';
+import { t } from '@/i18n';
 
 /**
  * Wraps the optional `downloadBook` / `removeDownload` / `getDownloadState`
@@ -51,7 +52,7 @@ export function useOfflineDownload(bookId: () => string) {
       state.value = 'downloaded';
     } catch (err) {
       state.value = 'failed';
-      error.value = err instanceof Error ? err.message : 'Failed to download book';
+      error.value = err instanceof Error ? err.message : t('downloads.detail.downloadFailed');
     }
   }
 
@@ -67,7 +68,7 @@ export function useOfflineDownload(bookId: () => string) {
       await provider.removeDownload(bookId());
       state.value = 'not_downloaded';
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to remove download';
+      error.value = err instanceof Error ? err.message : t('downloads.removeConfirm.failed');
     }
   }
 

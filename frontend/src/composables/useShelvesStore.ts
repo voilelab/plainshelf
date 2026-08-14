@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import { ensureActiveShelf, listShelves, type ShelfInfo } from '@/api/shelves';
 import { ApiError, getActiveShelfID, setActiveShelfID } from '@/api/client';
 import { isMobileRuntime } from '@/providers/runtime';
+import { t } from '@/i18n';
 
 const shelves = ref<ShelfInfo[]>([]);
 const loading = ref(false);
@@ -50,7 +51,7 @@ async function fetchShelves(options?: { allowPersistedFallback?: boolean }): Pro
     } else {
       selectedShelfID.value = '';
     }
-    error.value = err instanceof Error ? err.message : 'Failed to load shelves';
+    error.value = err instanceof Error ? err.message : t('settings.shelves.loadFailed');
   } finally {
     loading.value = false;
   }

@@ -3,6 +3,7 @@ import { bookshelfWriter } from '@/providers';
 import { useBookStore } from '@/composables/useBookStore';
 import { useLayerStore } from '@/composables/useLayerStore';
 import { isBookBatchResult, isTerminalTaskStatus, type BookBatchOperation, type BookBatchResult, type TaskChain, type TaskStatus } from '@/types/task';
+import { t } from '@/i18n';
 
 const POLL_INTERVAL_MS = 500;
 const open = ref(false);
@@ -51,7 +52,7 @@ async function poll(id: string): Promise<void> {
     }
     timer = setTimeout(() => void poll(id), POLL_INTERVAL_MS);
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to read batch progress';
+    error.value = err instanceof Error ? err.message : t('bookCollection.selection.pollFailed');
     status.value = 'failed';
   }
 }
@@ -77,7 +78,7 @@ async function start(operation: BookBatchOperation, bookIds: string[], titles: R
     chain.value = { id, name: 'book_batch', title: '', status: 'pending', percentage: 0, tasks: [] };
     timer = setTimeout(() => void poll(id), POLL_INTERVAL_MS);
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to start batch operation';
+    error.value = err instanceof Error ? err.message : t('bookCollection.selection.startFailed');
   } finally {
     submitting.value = false;
   }

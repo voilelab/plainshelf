@@ -1,6 +1,7 @@
 import { ref, watch } from 'vue';
 import { getReadOnlyMode } from '@/api/mode';
 import { getMobileConnectionConfig } from '@/providers/mobileConfig';
+import { t } from '@/i18n';
 
 const readOnly = ref(false);
 const loading = ref(false);
@@ -40,7 +41,7 @@ export function useServerMode() {
       readOnly.value = await getReadOnlyMode();
       loaded.value = true;
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to load server mode';
+      error.value = err instanceof Error ? err.message : t('settings.serverModeLoadFailed');
     } finally {
       loading.value = false;
     }

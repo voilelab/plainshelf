@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
 import { useBookStore } from './useBookStore';
 import { useLayerStore } from './useLayerStore';
+import { t } from '@/i18n';
 
 // Module-level singleton, matching useBookStore: the button and any other
 // consumer must agree on whether an update is currently running.
@@ -43,7 +44,7 @@ export function useShelfRefresh() {
       await Promise.all([fetchBooks(), fetchLayers()]);
       await loadLastSyncedAt();
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to update the book list';
+      error.value = err instanceof Error ? err.message : t('library.refreshFailed');
     } finally {
       refreshing.value = false;
     }

@@ -17,7 +17,9 @@ const en = {
     prev: 'Prev',
     next: 'Next',
     page: 'Page {page} / {total}',
-    inLayer: ' in {layer}'
+    inLayer: ' in {layer}',
+    taskStartFailed: 'Failed to start the task',
+    taskPollFailed: 'Failed to read task progress'
   },
   layout: {
     expandSidebar: 'Expand sidebar',
@@ -79,7 +81,8 @@ const en = {
     },
     layerErrors: {
       emptyPath: 'Layer path cannot be empty',
-      createFailed: 'Failed to create layer'
+      createFailed: 'Failed to create layer',
+      loadFailed: 'Failed to load layers'
     },
     moveBookErrors: {
       notFound: 'Book not found.',
@@ -88,20 +91,9 @@ const en = {
     shelf: {
       label: 'Shelf',
       loading: 'Loading shelves...',
-      failed: 'Failed to load shelves',
       empty: 'No shelves configured',
       unavailableTitle: 'No shelf selected',
-      unavailableDescription: 'Configure at least one shelf to browse and read books.',
-      addShelf: 'Add shelf',
-      addShelfTitle: 'Create shelf',
-      addShelfCloseLabel: 'Close create shelf dialog',
-      addShelfCancel: 'Cancel',
-      addShelfNamePlaceholder: 'Shelf name',
-      addShelfDirectoryPlaceholder: 'Directory',
-      addShelfBrowse: 'Browse...',
-      addShelfSubmit: 'Add',
-      addShelfAdding: 'Adding...',
-      addShelfFailed: 'Failed to add shelf'
+      unavailableDescription: 'Configure at least one shelf to browse and read books.'
     },
     dashboard: 'Dashboard',
     recentlyRead: 'Recently Read',
@@ -152,6 +144,7 @@ const en = {
     description: 'Manage application options.',
     loadFailed: 'Failed to load settings',
     saveFailed: 'Failed to save setting',
+    serverModeLoadFailed: 'Failed to load server mode',
     cover: {
       title: 'Cover'
     },
@@ -236,7 +229,6 @@ const en = {
       empty: 'No shelves configured.',
       serverManaged: 'Shelves are managed by the server configuration.',
       name: 'Name',
-      directory: 'Directory',
       remove: 'Delete',
       removing: 'Removing...',
       removeFailed: 'Failed to remove shelf',
@@ -245,7 +237,6 @@ const en = {
       addShelf: 'Add shelf',
       addShelfTitle: 'Create shelf',
       addShelfCloseLabel: 'Close create shelf dialog',
-      addShelfCancel: 'Cancel',
       addShelfNamePlaceholder: 'Shelf name',
       addShelfDirectoryPlaceholder: 'Directory path',
       addShelfScanIntervalPlaceholder: 'Scan interval (optional, e.g. 10m)',
@@ -254,8 +245,6 @@ const en = {
       addShelfSubmit: 'Add shelf',
       addShelfAdding: 'Adding...',
       addShelfFailed: 'Failed to add shelf',
-      removeConfirm: 'Remove shelf "{name}"? This only removes it from PlainShelf; the directory will not be deleted.',
-      removeConfirmInline: 'Remove?',
       removeConfirmYes: 'Delete shelf',
       modify: 'Modify',
       modifyShelfTitle: 'Modify shelf',
@@ -335,7 +324,11 @@ const en = {
     refreshShelf: 'Update book list',
     refreshingShelf: 'Updating…',
     lastSynced: 'Updated {time}',
-    neverSynced: 'Never updated'
+    neverSynced: 'Never updated',
+    loadFailed: 'Failed to load books',
+    refreshFailed: 'Failed to update the book list',
+    requestTimeout: 'Request timed out — the shelf may be slow or unavailable.',
+    shelfNotReady: 'The shelf is still starting up and did not become ready.'
   },
   bookDetail: {
     documentTitle: 'Book',
@@ -353,7 +346,6 @@ const en = {
       format: 'Format',
       language: 'Language',
       publishedAt: 'Published',
-      rating: 'Rating',
       tags: 'Tags',
       lines: 'Lines',
       characters: 'Characters',
@@ -390,7 +382,11 @@ const en = {
     },
     errors: {
       restartReading: 'Failed to restart the book.',
-      updateStats: 'Failed to update content stats'
+      updateStats: 'Failed to update content stats',
+      loadFailed: 'Failed to load detail',
+      deleteFailed: 'Failed to delete book',
+      downloadFailed: 'Failed to download book',
+      openFolderFailed: 'Failed to open book folder'
     },
     delete: {
       description: 'The book will be moved to Trash. You can restore it later.'
@@ -589,7 +585,8 @@ const en = {
       download: 'Download to device',
       downloading: 'Downloading...',
       remove: 'Remove download',
-      retry: 'Download failed, retry'
+      retry: 'Download failed, retry',
+      downloadFailed: 'Failed to download book'
     },
     removeConfirm: {
       title: 'Remove download',
@@ -604,6 +601,11 @@ const en = {
     title: 'Reader',
     progress: 'Progress: {percent}%',
     loadingContent: 'Loading content...',
+    errors: {
+      loadFailed: 'Failed to load reader data',
+      unknown: 'Unknown error',
+      splitConfigFallback: 'Failed to load split config, fallback to single section. {reason}'
+    },
     actionsLabel: 'Reader actions',
     decreaseFontSize: 'Decrease font size',
     increaseFontSize: 'Increase font size',

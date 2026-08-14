@@ -7,6 +7,7 @@ import { computed, ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
 import { getReadingActivityRange } from '@/storage/readingStats';
 import type { Book } from '@/types/book';
+import { t } from '@/i18n';
 
 const READING_ACTIVITY_RANGE_DAYS = 365;
 
@@ -137,7 +138,7 @@ export function useDashboardData() {
       books.value = data.items;
       readingActivity.value = activity;
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to load dashboard data';
+      error.value = err instanceof Error ? err.message : t('dashboard.loadFailed');
     } finally {
       loading.value = false;
     }

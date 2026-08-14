@@ -2,6 +2,7 @@ import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import type { Book } from '@/types/book';
+import { t } from '@/i18n';
 
 export interface UseBookActionsOptions {
   onDeleted?: (book: Book) => void;
@@ -51,7 +52,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
       await getBookshelfProvider().openDesktopBookFolder?.(id);
       actionError.value = '';
     } catch (err) {
-      actionError.value = err instanceof Error ? err.message : 'Failed to open book folder';
+      actionError.value = err instanceof Error ? err.message : t('bookDetail.errors.openFolderFailed');
     }
   }
 
@@ -89,7 +90,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
       }
       actionError.value = '';
     } catch (err) {
-      actionError.value = err instanceof Error ? err.message : 'Failed to download book';
+      actionError.value = err instanceof Error ? err.message : t('bookDetail.errors.downloadFailed');
     } finally {
       downloading.value = false;
     }
@@ -119,7 +120,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
       options.onDeleted?.(target);
     } catch (err) {
       deleting.value = false;
-      actionError.value = err instanceof Error ? err.message : 'Failed to delete book';
+      actionError.value = err instanceof Error ? err.message : t('bookDetail.errors.deleteFailed');
     }
   }
 
