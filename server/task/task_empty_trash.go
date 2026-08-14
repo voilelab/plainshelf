@@ -1,4 +1,4 @@
-package server
+package task
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-const emptyTrashTaskName = "empty_trash"
+const EmptyTrashTaskName = "empty_trash"
 
 // emptyTrashTask permanently deletes every book in a shelf's trash.
 //
@@ -31,11 +31,11 @@ type emptyTrashTask struct {
 	failed  int
 }
 
-func newEmptyTrashTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *emptyTrashTask {
+func NewEmptyTrashTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *emptyTrashTask {
 	return &emptyTrashTask{shelfID: shelfID, shelf: s, logger: logger}
 }
 
-func (t *emptyTrashTask) Name() string { return emptyTrashTaskName }
+func (t *emptyTrashTask) Name() string { return EmptyTrashTaskName }
 
 func (t *emptyTrashTask) Title() string { return "Empty trash" }
 
@@ -113,12 +113,12 @@ func (t *emptyTrashTask) Run(ctx context.Context) error {
 	return nil
 }
 
-func newEmptyTrashChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *taskutil.TaskChain {
+func NewEmptyTrashChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *taskutil.TaskChain {
 	return &taskutil.TaskChain{
-		Key:         emptyTrashTaskName + ":" + shelfID,
-		Name:        emptyTrashTaskName,
+		Key:         EmptyTrashTaskName + ":" + shelfID,
+		Name:        EmptyTrashTaskName,
 		Title:       "Empty trash",
 		Description: "Permanently delete every book in the trash",
-		Tasks:       []taskutil.Task{newEmptyTrashTask(shelfID, s, logger)},
+		Tasks:       []taskutil.Task{NewEmptyTrashTask(shelfID, s, logger)},
 	}
 }

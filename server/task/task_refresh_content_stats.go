@@ -1,4 +1,4 @@
-package server
+package task
 
 import (
 	"context"
@@ -12,14 +12,14 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-const refreshContentStatsTaskName = "refresh_content_stats"
+const RefreshContentStatsTaskName = "refresh_content_stats"
 
 type refreshContentStatsFailure struct {
 	BookID string `json:"book_id"`
 	Code   string `json:"code"`
 }
 
-type refreshContentStatsResult struct {
+type RefreshContentStatsResult struct {
 	Total     int                          `json:"total"`
 	Refreshed int                          `json:"refreshed"`
 	Failures  []refreshContentStatsFailure `json:"failures"`
@@ -49,7 +49,7 @@ type refreshContentStatsTask struct {
 	failures  []refreshContentStatsFailure
 }
 
-func newRefreshContentStatsTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *refreshContentStatsTask {
+func NewRefreshContentStatsTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *refreshContentStatsTask {
 	return &refreshContentStatsTask{
 		shelfID:  shelfID,
 		shelf:    s,
@@ -58,7 +58,7 @@ func newRefreshContentStatsTask(shelfID string, s *shelf.Shelf, logger *logutil.
 	}
 }
 
-func (t *refreshContentStatsTask) Name() string { return refreshContentStatsTaskName }
+func (t *refreshContentStatsTask) Name() string { return RefreshContentStatsTaskName }
 
 func (t *refreshContentStatsTask) Title() string { return "Update content statistics" }
 
@@ -85,7 +85,7 @@ func (t *refreshContentStatsTask) Result() any {
 	defer t.mu.Unlock()
 
 	_, total := t.progress.Counts()
-	return refreshContentStatsResult{
+	return RefreshContentStatsResult{
 		Total:     total,
 		Refreshed: t.refreshed,
 		Failures:  append(make([]refreshContentStatsFailure, 0, len(t.failures)), t.failures...),
@@ -209,12 +209,12 @@ func (t *refreshContentStatsTask) Run(ctx context.Context) error {
 	return nil
 }
 
-func newRefreshContentStatsChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *taskutil.TaskChain {
+func NewRefreshContentStatsChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *taskutil.TaskChain {
 	return &taskutil.TaskChain{
-		Key:         refreshContentStatsTaskName + ":" + shelfID,
-		Name:        refreshContentStatsTaskName,
+		Key:         RefreshContentStatsTaskName + ":" + shelfID,
+		Name:        RefreshContentStatsTaskName,
 		Title:       "Update content statistics",
 		Description: "Recompute content statistics for books with an unknown character count",
-		Tasks:       []taskutil.Task{newRefreshContentStatsTask(shelfID, s, logger)},
+		Tasks:       []taskutil.Task{NewRefreshContentStatsTask(shelfID, s, logger)},
 	}
 }

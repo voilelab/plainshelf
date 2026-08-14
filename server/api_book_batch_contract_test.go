@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"slices"
 	"testing"
+
+	"github.com/voilelab/plainshelf/server/task"
 )
 
 func submitBookBatch(t *testing.T, env *apiTestEnv, payload any, wantStatus int) taskChainSubmitResponse {
@@ -29,7 +31,7 @@ func taskBatchResult(t *testing.T, chain TaskChain) map[string]any {
 	if len(chain.Tasks) != 1 {
 		t.Fatalf("task count = %d, want 1", len(chain.Tasks))
 	}
-	result, ok := chain.Tasks[0].Result.(bookBatchResult)
+	result, ok := chain.Tasks[0].Result.(task.BookBatchResult)
 	if ok {
 		body, _ := json.Marshal(result)
 		var generic map[string]any
@@ -123,7 +125,7 @@ func TestAPIBookBatchValidationContract(t *testing.T) {
 		{"trash with target", map[string]any{"operation": "trash", "book_ids": []string{"book"}, "target_layer": []string{}}},
 		{"invalid target", map[string]any{"operation": "move", "book_ids": []string{"book"}, "target_layer": []string{".."}}},
 	}
-	tooMany := make([]string, maxBookBatchSize+1)
+	tooMany := make([]string, task.MaxBookBatchSize+1)
 	for i := range tooMany {
 		tooMany[i] = string(rune(i + 1))
 	}

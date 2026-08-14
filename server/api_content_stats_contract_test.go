@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/voilelab/plainshelf/server/task"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -123,11 +124,11 @@ func TestAPIRefreshContentStatsContract(t *testing.T) {
 	if chain.Percentage != 100 {
 		t.Errorf("percentage = %v, want 100", chain.Percentage)
 	}
-	if chain.Name != refreshContentStatsTaskName {
-		t.Errorf("name = %q, want %q", chain.Name, refreshContentStatsTaskName)
+	if chain.Name != task.RefreshContentStatsTaskName {
+		t.Errorf("name = %q, want %q", chain.Name, task.RefreshContentStatsTaskName)
 	}
 
-	result := taskResult[refreshContentStatsResult](t, chain)
+	result := taskResult[task.RefreshContentStatsResult](t, chain)
 	if result.Total != 1 || result.Refreshed != 1 || len(result.Failures) != 0 {
 		t.Errorf("result = %+v, want total 1, refreshed 1, no failures", result)
 	}
@@ -156,7 +157,7 @@ func TestAPIRefreshContentStatsWithNothingToDoContract(t *testing.T) {
 	if chain.Percentage != 100 {
 		t.Errorf("percentage = %v, want 100", chain.Percentage)
 	}
-	if result := taskResult[refreshContentStatsResult](t, chain); result.Total != 0 || result.Refreshed != 0 {
+	if result := taskResult[task.RefreshContentStatsResult](t, chain); result.Total != 0 || result.Refreshed != 0 {
 		t.Errorf("result = %+v, want an empty sweep", result)
 	}
 }

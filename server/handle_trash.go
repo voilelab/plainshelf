@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/server/task"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -74,7 +75,7 @@ func (app *App) HandleAPIEmptyTrash(w http.ResponseWriter, r *http.Request) {
 	}
 
 	app.submitTaskChain(w,
-		newEmptyTrashChain(shelfData.ID, shelfData.Shelf, &app.Logger),
+		task.NewEmptyTrashChain(shelfData.ID, shelfData.Shelf, &app.Logger),
 		"failed to schedule empty trash task")
 }
 
