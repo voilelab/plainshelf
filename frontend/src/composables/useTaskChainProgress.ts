@@ -2,6 +2,7 @@ import { computed, onScopeDispose, ref } from 'vue';
 
 import { bookshelfWriter } from '@/providers';
 import { isTerminalTaskStatus, type TaskChain, type TaskStatus } from '@/types/task';
+import { t } from '@/i18n';
 
 export const DEFAULT_TASK_CHAIN_POLL_INTERVAL_MS = 500;
 
@@ -95,7 +96,7 @@ export function useTaskChainProgress(options: UseTaskChainProgressOptions = {}) 
         return;
       }
       error.value =
-        err instanceof Error ? err.message : (options.pollFailedMessage?.() ?? 'Failed to read task progress');
+        err instanceof Error ? err.message : (options.pollFailedMessage?.() ?? t('common.taskPollFailed'));
       // Settle so the caller stops reporting itself as busy even though the
       // progress is no longer observable.
       status.value = 'failed';
@@ -134,7 +135,7 @@ export function useTaskChainProgress(options: UseTaskChainProgressOptions = {}) 
         return;
       }
       error.value =
-        err instanceof Error ? err.message : (options.startFailedMessage?.() ?? 'Failed to start the task');
+        err instanceof Error ? err.message : (options.startFailedMessage?.() ?? t('common.taskStartFailed'));
     } finally {
       if (generation === submission) {
         submitting.value = false;

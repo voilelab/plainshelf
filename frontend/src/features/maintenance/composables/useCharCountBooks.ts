@@ -2,6 +2,7 @@ import { getCurrentInstance, onUnmounted, ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
 import { ApiError } from '@/api/client';
 import type { Book } from '@/types/book';
+import { t } from '@/i18n';
 
 const SHELF_INIT_RETRY_DELAY_MS = 3000;
 const SHELF_INIT_MAX_AUTO_RETRIES = 10; // ~30s of auto-retry before giving up
@@ -53,11 +54,11 @@ export function useCharCountBooks() {
           retryTimer = setTimeout(() => void fetchBooks(true), SHELF_INIT_RETRY_DELAY_MS);
           return;
         }
-        error.value = 'The shelf is still starting up and did not become ready.';
+        error.value = t('library.shelfNotReady');
       } else {
         error.value = err instanceof ApiError && err.isTimeout
-          ? 'Request timed out — the shelf may be slow or unavailable.'
-          : err instanceof Error ? err.message : 'Failed to load books';
+          ? t('library.requestTimeout')
+          : err instanceof Error ? err.message : t('library.loadFailed');
       }
     } finally {
       if (retryTimer === null) {

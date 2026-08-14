@@ -5,6 +5,7 @@ import { isLibraryEditingSupported } from '@/composables/useWriteAccess';
 import { useReadingProgressAutosave } from '@/features/reader/composables/useReadingProgressAutosave';
 import { buildMarkdownH2Sections } from '@/features/reader/utils/markdownChapters';
 import type { ReaderSection, ReadingProgress, SplitConfig } from '@/types/book';
+import { t } from '@/i18n';
 
 function clampOffset(offset: number, total: number): number {
   if (total <= 0) {
@@ -361,8 +362,8 @@ export function useReader(bookID: () => string) {
       } else {
         const [loadedSplitConfig, globalDefaultSplitConfig] = await Promise.all([
           provider.getBookSplitConfig(requestedBookID).catch((err: unknown) => {
-            const reason = err instanceof Error ? err.message : 'Unknown error';
-            splitWarning.value = `Failed to load split config, fallback to single section. ${reason}`;
+            const reason = err instanceof Error ? err.message : t('reader.errors.unknown');
+            splitWarning.value = t('reader.errors.splitConfigFallback', { reason });
             return { type: 'none' } as SplitConfig;
           }),
           getDefaultSplitConfigSetting().catch(() => ({ type: 'none' }) as SplitConfig)
@@ -394,7 +395,7 @@ export function useReader(bookID: () => string) {
       }
     } catch (err) {
       if (generation === fetchGeneration) {
-        error.value = err instanceof Error ? err.message : 'Failed to load reader data';
+        error.value = err instanceof Error ? err.message : t('reader.errors.loadFailed');
       }
     } finally {
       if (generation === fetchGeneration) {

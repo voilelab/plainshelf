@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import type { Book, ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
+import { t } from '@/i18n';
 
 export function useBookDetail(bookID: () => string) {
   const book = ref<Book | null>(null);
@@ -41,7 +42,7 @@ export function useBookDetail(bookID: () => string) {
       progress.value = null;
       progressContentLength.value = null;
       currentSource.value = null;
-      error.value = err instanceof Error ? err.message : 'Failed to load detail';
+      error.value = err instanceof Error ? err.message : t('bookDetail.errors.loadFailed');
     } finally {
       loading.value = false;
     }
@@ -54,7 +55,7 @@ export function useBookDetail(bookID: () => string) {
       await bookshelfWriter().deleteBook(bookID());
       return true;
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to delete book';
+      error.value = err instanceof Error ? err.message : t('bookDetail.errors.deleteFailed');
       deleting.value = false;
       return false;
     }

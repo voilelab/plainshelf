@@ -17,7 +17,9 @@ const zhHant = {
     prev: '上一頁',
     next: '下一頁',
     page: '第 {page} / {total} 頁',
-    inLayer: '（在 {layer}）'
+    inLayer: '（在 {layer}）',
+    taskStartFailed: '啟動工作失敗',
+    taskPollFailed: '讀取工作進度失敗'
   },
   layout: {
     expandSidebar: '展開側欄',
@@ -78,7 +80,8 @@ const zhHant = {
     },
     layerErrors: {
       emptyPath: '資料夾路徑不得為空',
-      createFailed: '建立資料夾失敗'
+      createFailed: '建立資料夾失敗',
+      loadFailed: '載入資料夾失敗'
     },
     moveBookErrors: {
       notFound: '找不到書籍。',
@@ -87,20 +90,9 @@ const zhHant = {
     shelf: {
       label: '書架',
       loading: '載入書架中...',
-      failed: '載入書架失敗',
       empty: '尚未設定書架',
       unavailableTitle: '尚未選擇書架',
-      unavailableDescription: '請先設定至少一個書架，才能瀏覽與閱讀書籍。',
-      addShelf: '新增書架',
-      addShelfTitle: '建立書架',
-      addShelfCloseLabel: '關閉建立書架對話框',
-      addShelfCancel: '取消',
-      addShelfNamePlaceholder: '書架名稱',
-      addShelfDirectoryPlaceholder: '目錄',
-      addShelfBrowse: '瀏覽…',
-      addShelfSubmit: '新增',
-      addShelfAdding: '新增中...',
-      addShelfFailed: '新增書架失敗'
+      unavailableDescription: '請先設定至少一個書架，才能瀏覽與閱讀書籍。'
     },
     dashboard: '儀表板',
     recentlyRead: '最近閱讀',
@@ -151,6 +143,7 @@ const zhHant = {
     description: '管理應用程式選項。',
     loadFailed: '載入設定失敗',
     saveFailed: '儲存設定失敗',
+    serverModeLoadFailed: '載入伺服器模式失敗',
     cover: {
       title: '封面'
     },
@@ -208,7 +201,7 @@ const zhHant = {
       title: '關於',
       description: 'PlainShelf 是本機優先的個人閱讀書庫，適合管理輕量閱讀內容，採用檔案系統優先的資料模型並提供網頁閱讀介面。',
       version: '版本',
-      repository: 'Repository',
+      repository: '程式碼倉庫',
       thirdPartyFonts: '第三方字型授權',
       fontAttribution: 'Google Inc. · SIL Open Font License 1.1 · 套件版本 5.3.0',
       source: '來源',
@@ -234,7 +227,6 @@ const zhHant = {
       empty: '尚未設定書架。',
       serverManaged: '書架由伺服器設定管理。',
       name: '名稱',
-      directory: '目錄',
       remove: '刪除',
       removing: '移除中...',
       removeFailed: '移除書架失敗',
@@ -243,7 +235,6 @@ const zhHant = {
       addShelf: '新增書架',
       addShelfTitle: '建立書架',
       addShelfCloseLabel: '關閉建立書架對話框',
-      addShelfCancel: '取消',
       addShelfNamePlaceholder: '書架名稱',
       addShelfDirectoryPlaceholder: '目錄路徑',
       addShelfScanIntervalPlaceholder: '掃描間隔（選填，例如 10m）',
@@ -252,8 +243,6 @@ const zhHant = {
       addShelfSubmit: '新增書架',
       addShelfAdding: '新增中...',
       addShelfFailed: '新增書架失敗',
-      removeConfirm: '移除書架「{name}」？此操作只會從 PlainShelf 中移除，不會刪除目錄。',
-      removeConfirmInline: '確定移除？',
       removeConfirmYes: '刪除書架',
       modify: '修改',
       modifyShelfTitle: '修改書架',
@@ -333,7 +322,11 @@ const zhHant = {
     refreshShelf: '更新書單',
     refreshingShelf: '更新中…',
     lastSynced: '上次更新 {time}',
-    neverSynced: '尚未更新'
+    neverSynced: '尚未更新',
+    loadFailed: '載入書籍失敗',
+    refreshFailed: '更新書單失敗',
+    requestTimeout: '請求逾時——書架可能較慢或無法連線。',
+    shelfNotReady: '書架仍在啟動中，尚未就緒。'
   },
   bookDetail: {
     documentTitle: '書籍',
@@ -351,7 +344,6 @@ const zhHant = {
       format: '格式',
       language: '語言',
       publishedAt: '出版日期',
-      rating: '評分',
       tags: '標籤',
       lines: '行數',
       characters: '字數',
@@ -388,7 +380,11 @@ const zhHant = {
     },
     errors: {
       restartReading: '無法重新開始閱讀。',
-      updateStats: '更新內容統計失敗'
+      updateStats: '更新內容統計失敗',
+      loadFailed: '載入詳情失敗',
+      deleteFailed: '刪除書籍失敗',
+      downloadFailed: '下載書籍失敗',
+      openFolderFailed: '開啟書籍資料夾失敗'
     },
     delete: {
       description: '書籍將移至垃圾桶，之後仍可復原。'
@@ -587,7 +583,8 @@ const zhHant = {
       download: '下載到裝置',
       downloading: '下載中...',
       remove: '移除下載',
-      retry: '下載失敗，重試'
+      retry: '下載失敗，重試',
+      downloadFailed: '下載書籍失敗'
     },
     removeConfirm: {
       title: '移除下載',
@@ -602,6 +599,11 @@ const zhHant = {
     title: '閱讀器',
     progress: '進度：{percent}%',
     loadingContent: '內容載入中...',
+    errors: {
+      loadFailed: '載入閱讀器資料失敗',
+      unknown: '未知錯誤',
+      splitConfigFallback: '載入分章設定失敗，改以單一章節顯示。{reason}'
+    },
     actionsLabel: '閱讀器操作',
     decreaseFontSize: '縮小字體',
     increaseFontSize: '放大字體',
