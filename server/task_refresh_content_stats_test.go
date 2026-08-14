@@ -31,7 +31,7 @@ func TestRefreshContentStatsRereadsSourceBeforeWriting(t *testing.T) {
 	}
 	task := newRefreshContentStatsTask("default_shelf", shelfData.Shelf, &env.app.Logger)
 
-	books, err := shelfData.Shelf.ListBooks()
+	books, err := shelfData.ListBooks()
 	if err != nil {
 		t.Fatalf("ListBooks: %v", err)
 	}
