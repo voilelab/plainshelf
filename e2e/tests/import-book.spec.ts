@@ -79,7 +79,7 @@ test('should render allow-listed HTML without executing or loading active conten
 
     const details = page.locator('.reader-safe-html details');
     const summary = details.getByText('🔮功能區', { exact: true });
-    const precedingTextBox = await page.getByText('AI風月：').boundingBox();
+    const precedingTextBox = await page.getByText('回覆長度：中等').boundingBox();
     const detailsBox = await details.boundingBox();
     expect(precedingTextBox).not.toBeNull();
     expect(detailsBox).not.toBeNull();
