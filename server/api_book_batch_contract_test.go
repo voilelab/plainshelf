@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"slices"
 	"testing"
+
+	"github.com/voilelab/plainshelf/server/task"
 )
 
 func submitBookBatch(t *testing.T, env *apiTestEnv, payload any, wantStatus int) taskChainSubmitResponse {
@@ -29,7 +31,7 @@ func taskBatchResult(t *testing.T, chain TaskChain) map[string]any {
 	if len(chain.Tasks) != 1 {
 		t.Fatalf("task count = %d, want 1", len(chain.Tasks))
 	}
-	result, ok := chain.Tasks[0].Result.(bookBatchResult)
+	result, ok := chain.Tasks[0].Result.(task.BookBatchResult)
 	if ok {
 		body, _ := json.Marshal(result)
 		var generic map[string]any

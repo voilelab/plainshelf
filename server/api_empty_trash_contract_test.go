@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/taskutil"
+	"github.com/voilelab/plainshelf/server/task"
 )
 
 // gateTask occupies the worker until it is released.
@@ -109,8 +110,8 @@ func TestAPIEmptyTrashContract(t *testing.T) {
 	if chain.Percentage != 100 {
 		t.Errorf("percentage = %v, want 100", chain.Percentage)
 	}
-	if chain.Name != emptyTrashTaskName {
-		t.Errorf("name = %q, want %q", chain.Name, emptyTrashTaskName)
+	if chain.Name != task.EmptyTrashTaskName {
+		t.Errorf("name = %q, want %q", chain.Name, task.EmptyTrashTaskName)
 	}
 
 	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/trash/books", nil))

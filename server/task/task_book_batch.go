@@ -1,4 +1,4 @@
-package server
+package task
 
 import (
 	"context"
@@ -14,14 +14,19 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-const bookBatchTaskName = "book_batch"
+const BookBatchTaskName = "book_batch"
+
+const (
+	BookBatchOperationMove  = "move"
+	BookBatchOperationTrash = "trash"
+)
 
 type bookBatchFailure struct {
 	BookID string `json:"book_id"`
 	Code   string `json:"code"`
 }
 
-type bookBatchResult struct {
+type BookBatchResult struct {
 	Operation    string             `json:"operation"`
 	Total        int                `json:"total"`
 	SucceededIDs []string           `json:"succeeded_ids"`
@@ -38,7 +43,7 @@ type bookBatchTask struct {
 
 	progress taskutil.Progress
 	mu       sync.Mutex
-	result   bookBatchResult
+	result   BookBatchResult
 }
 
 func newBookBatchTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetLayer shelf.Layers) *bookBatchTask {
@@ -49,7 +54,7 @@ func newBookBatchTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger, op
 		operation:   operation,
 		bookIDs:     append([]string(nil), bookIDs...),
 		targetLayer: append(shelf.Layers(nil), targetLayer...),
-		result: bookBatchResult{
+		result: BookBatchResult{
 			Operation:    operation,
 			Total:        len(bookIDs),
 			SucceededIDs: []string{},
@@ -58,10 +63,12 @@ func newBookBatchTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger, op
 	}
 }
 
-func (t *bookBatchTask) Name() string { return bookBatchTaskName }
+func (t *bookBatchTask) Name() string {
+	return BookBatchTaskName
+}
 
 func (t *bookBatchTask) Title() string {
-	if t.operation == bookBatchOperationMove {
+	if t.operation == BookBatchOperationMove {
 		return "Move books"
 	}
 	return "Move books to trash"
@@ -74,7 +81,7 @@ func (t *bookBatchTask) Description() string {
 
 	_, total := t.progress.Counts()
 	description := "moved " + strconv.Itoa(succeeded) + " of " + strconv.Itoa(total) + " books to trash"
-	if t.operation == bookBatchOperationMove {
+	if t.operation == BookBatchOperationMove {
 		description = "moved " + strconv.Itoa(succeeded) + " of " + strconv.Itoa(total) + " books"
 	}
 	if failed > 0 {
@@ -93,13 +100,18 @@ func (t *bookBatchTask) interruptedStatus() taskutil.Status {
 	return taskutil.StatusPartiallyCompleted
 }
 
-func (t *bookBatchTask) Percentage() float64     { return t.progress.Percentage() }
-func (t *bookBatchTask) Status() taskutil.Status { return t.progress.Status() }
+func (t *bookBatchTask) Percentage() float64 {
+	return t.progress.Percentage()
+}
+
+func (t *bookBatchTask) Status() taskutil.Status {
+	return t.progress.Status()
+}
 
 func (t *bookBatchTask) Result() any {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return bookBatchResult{
+	return BookBatchResult{
 		Operation:    t.result.Operation,
 		Total:        t.result.Total,
 		SucceededIDs: append(make([]string, 0, len(t.result.SucceededIDs)), t.result.SucceededIDs...),
@@ -124,7 +136,8 @@ func (t *bookBatchTask) recordFailure(bookID string, err error) {
 	t.mu.Lock()
 	t.result.Failures = append(t.result.Failures, bookBatchFailure{BookID: bookID, Code: code})
 	t.mu.Unlock()
-	t.logger.Error("book batch item failed", "shelf_id", t.shelfID, "operation", t.operation, "book_id", bookID, "error", err)
+	t.logger.Error("book batch item failed",
+		"shelf_id", t.shelfID, "operation", t.operation, "book_id", bookID, "error", err)
 }
 
 func (t *bookBatchTask) finishStatus() taskutil.Status {
@@ -154,7 +167,7 @@ func (t *bookBatchTask) Run(ctx context.Context) error {
 
 		var err error
 		switch t.operation {
-		case bookBatchOperationMove:
+		case BookBatchOperationMove:
 			var book *shelf.Book
 			book, err = t.shelf.GetBook(bookID)
 			if err == nil && book.Layers().Equal(t.targetLayer) {
@@ -165,7 +178,7 @@ func (t *bookBatchTask) Run(ctx context.Context) error {
 			if err == nil {
 				_, err = t.shelf.MoveBook(bookID, t.targetLayer)
 			}
-		case bookBatchOperationTrash:
+		case BookBatchOperationTrash:
 			err = t.shelf.DeleteBook(bookID)
 		}
 
@@ -181,14 +194,14 @@ func (t *bookBatchTask) Run(ctx context.Context) error {
 	return nil
 }
 
-func newBookBatchChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetLayer shelf.Layers) *taskutil.TaskChain {
+func NewBookBatchChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetLayer shelf.Layers) *taskutil.TaskChain {
 	keyIDs := append([]string(nil), bookIDs...)
 	slices.Sort(keyIDs)
-	key := strings.Join([]string{bookBatchTaskName, shelfID, operation, strings.Join(targetLayer, "/"), strings.Join(keyIDs, ",")}, ":")
+	key := strings.Join([]string{BookBatchTaskName, shelfID, operation, targetLayer.String(), strings.Join(keyIDs, ",")}, ":")
 	task := newBookBatchTask(shelfID, s, logger, operation, bookIDs, targetLayer)
 	return &taskutil.TaskChain{
 		Key:         key,
-		Name:        bookBatchTaskName,
+		Name:        BookBatchTaskName,
 		Title:       task.Title(),
 		Description: "Process a batch of books",
 		Tasks:       []taskutil.Task{task},

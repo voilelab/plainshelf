@@ -5,13 +5,12 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/voilelab/plainshelf/server/task"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
 const (
-	bookBatchOperationMove  = "move"
-	bookBatchOperationTrash = "trash"
-	maxBookBatchSize        = 200
+	maxBookBatchSize = 200
 )
 
 type bookBatchRequest struct {
@@ -56,7 +55,7 @@ func (app *App) HandleAPIBookBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	request.Operation = strings.TrimSpace(request.Operation)
-	if request.Operation != bookBatchOperationMove && request.Operation != bookBatchOperationTrash {
+	if request.Operation != task.BookBatchOperationMove && request.Operation != task.BookBatchOperationTrash {
 		http.Error(w, "invalid operation", http.StatusBadRequest)
 		return
 	}
@@ -65,7 +64,7 @@ func (app *App) HandleAPIBookBatch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if request.Operation == bookBatchOperationMove {
+	if request.Operation == task.BookBatchOperationMove {
 		if request.TargetLayer == nil {
 			http.Error(w, "target_layer is required for move", http.StatusBadRequest)
 			return
@@ -80,6 +79,6 @@ func (app *App) HandleAPIBookBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	app.submitTaskChain(w,
-		newBookBatchChain(shelfData.ID, shelfData.Shelf, &app.Logger, request.Operation, ids, request.TargetLayer),
+		task.NewBookBatchChain(shelfData.ID, shelfData.Shelf, &app.Logger, request.Operation, ids, request.TargetLayer),
 		"failed to schedule book batch task")
 }

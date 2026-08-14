@@ -1,4 +1,4 @@
-package server
+package task
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-const emptyTrashTaskName = "empty_trash"
+const EmptyTrashTaskName = "empty_trash"
 
 // emptyTrashTask permanently deletes every book in a shelf's trash.
 //
@@ -35,9 +35,13 @@ func newEmptyTrashTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *
 	return &emptyTrashTask{shelfID: shelfID, shelf: s, logger: logger}
 }
 
-func (t *emptyTrashTask) Name() string { return emptyTrashTaskName }
+func (t *emptyTrashTask) Name() string {
+	return EmptyTrashTaskName
+}
 
-func (t *emptyTrashTask) Title() string { return "Empty trash" }
+func (t *emptyTrashTask) Title() string {
+	return "Empty trash"
+}
 
 func (t *emptyTrashTask) Description() string {
 	t.mu.Lock()
@@ -53,9 +57,13 @@ func (t *emptyTrashTask) Description() string {
 	return desc
 }
 
-func (t *emptyTrashTask) Percentage() float64 { return t.progress.Percentage() }
+func (t *emptyTrashTask) Percentage() float64 {
+	return t.progress.Percentage()
+}
 
-func (t *emptyTrashTask) Status() taskutil.Status { return t.progress.Status() }
+func (t *emptyTrashTask) Status() taskutil.Status {
+	return t.progress.Status()
+}
 
 func (t *emptyTrashTask) Run(ctx context.Context) error {
 	t.progress.SetStatus(taskutil.StatusRunning)
@@ -87,7 +95,8 @@ func (t *emptyTrashTask) Run(ctx context.Context) error {
 			t.mu.Lock()
 			t.failed++
 			t.mu.Unlock()
-			t.logger.Error("failed to permanently delete trashed book", "shelf_id", t.shelfID, "book_id", id, "error", err)
+			t.logger.Error("failed to permanently delete trashed book",
+				"shelf_id", t.shelfID, "book_id", id, "error", err)
 		} else {
 			t.mu.Lock()
 			t.deleted++
@@ -113,10 +122,10 @@ func (t *emptyTrashTask) Run(ctx context.Context) error {
 	return nil
 }
 
-func newEmptyTrashChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *taskutil.TaskChain {
+func NewEmptyTrashChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *taskutil.TaskChain {
 	return &taskutil.TaskChain{
-		Key:         emptyTrashTaskName + ":" + shelfID,
-		Name:        emptyTrashTaskName,
+		Key:         EmptyTrashTaskName + ":" + shelfID,
+		Name:        EmptyTrashTaskName,
 		Title:       "Empty trash",
 		Description: "Permanently delete every book in the trash",
 		Tasks:       []taskutil.Task{newEmptyTrashTask(shelfID, s, logger)},
