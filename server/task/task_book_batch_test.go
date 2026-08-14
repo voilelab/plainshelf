@@ -17,6 +17,8 @@ func TestBookBatchTaskNoOpStillCompletes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewShelf: %v", err)
 	}
+	defer newShelf.Close()
+	newShelf.WaitReady(t.Context())
 
 	book, err := newShelf.NewBook(shelf.Layers{"target"}, "test")
 	if err != nil {
@@ -49,6 +51,8 @@ func TestBookBatchTaskAllFailuresStillProcessesEveryBook(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewShelf: %v", err)
 	}
+	defer newShelf.Close()
+	newShelf.WaitReady(t.Context())
 
 	_, err = newShelf.NewBook(shelf.Layers{}, "test")
 	if err != nil {
@@ -86,6 +90,8 @@ func TestBookBatchTaskCancelledBeforeStart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewShelf: %v", err)
 	}
+	defer newShelf.Close()
+	newShelf.WaitReady(t.Context())
 
 	book, err := newShelf.NewBook(shelf.Layers{}, "test")
 	if err != nil {
@@ -126,6 +132,8 @@ func TestBookBatchTaskResultSnapshotsAreIndependent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewShelf: %v", err)
 	}
+	defer newShelf.Close()
+	newShelf.WaitReady(t.Context())
 
 	book, err := newShelf.NewBook(shelf.Layers{}, "test")
 	if err != nil {
