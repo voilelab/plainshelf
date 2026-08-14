@@ -7,7 +7,7 @@ installation, see [Installation](../installation.md).
 
 | Tool | Minimum version | Purpose |
 |---|---:|---|
-| Go | 1.26.1 | server, core library, desktop backend |
+| Go | 1.26.6 | server, core library, desktop backend |
 | Node.js | 22 | frontend and end-to-end tests |
 | npm | bundled with Node.js | JavaScript dependencies |
 | just | recent | repository task runner |
