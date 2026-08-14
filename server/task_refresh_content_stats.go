@@ -107,32 +107,52 @@ func (t *refreshContentStatsTask) recordFailure(bookID string, err error) {
 	t.logger.Error("failed to refresh content stats", "shelf_id", t.shelfID, "book_id", bookID, "error", err)
 }
 
-// candidate pairs a book with the source that needs recomputing. srcErr records
-// a source that could not be opened at all: such a book still counts towards the
-// sweep so the user sees it reported rather than silently skipped.
-type refreshContentStatsCandidate struct {
-	bookID string
-	source *shelf.Source
-	srcErr error
-}
-
-// collectCandidates opens each book's current source to read its stored count.
-// This only touches meta.json, the same work GET /books?include=char_count
-// already does, so it is far cheaper than the recompute pass that follows and
-// lets the task report an accurate total before it starts.
-func (t *refreshContentStatsTask) collectCandidates(books []*shelf.Book) []refreshContentStatsCandidate {
-	candidates := make([]refreshContentStatsCandidate, 0)
+// collectCandidates opens each book's current source to read its stored count
+// and returns the IDs of the books that need recomputing. This only touches
+// meta.json, the same work GET /books?include=char_count already does, so it is
+// far cheaper than the recompute pass that follows and lets the task report an
+// accurate total before it starts.
+//
+// It deliberately returns IDs rather than the opened sources: a Source carries
+// its whole meta.json in memory and writes all of it back, so keeping one for
+// the length of the sweep would let this task overwrite a split config or
+// comment that another request stored in the meantime.
+func (t *refreshContentStatsTask) collectCandidates(books []*shelf.Book) []string {
+	ids := make([]string, 0)
 	for _, book := range books {
 		source, err := book.GetSource(book.CurrentSource())
 		if err != nil {
-			candidates = append(candidates, refreshContentStatsCandidate{bookID: book.ID(), srcErr: err})
+			// A source that cannot be opened has no count to report, so it
+			// belongs in the sweep: the recompute pass reports why it failed
+			// rather than skipping it silently.
+			ids = append(ids, book.ID())
 			continue
 		}
 		if source.GetMeta().CharCount == 0 {
-			candidates = append(candidates, refreshContentStatsCandidate{bookID: book.ID(), source: source})
+			ids = append(ids, book.ID())
 		}
 	}
-	return candidates
+	return ids
+}
+
+// refreshBook re-resolves the book and its current source immediately before
+// writing, so the sweep reads and writes the same meta.json the single-source
+// refresh endpoint would.
+func (t *refreshContentStatsTask) refreshBook(bookID string) error {
+	book, err := t.shelf.GetBook(bookID)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	source, err := book.GetSource(book.CurrentSource())
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	if err := source.RefreshContentMetadata(); err != nil {
+		return util.Errorf("%w", err)
+	}
+	return nil
 }
 
 func (t *refreshContentStatsTask) Run(ctx context.Context) error {
@@ -148,27 +168,22 @@ func (t *refreshContentStatsTask) Run(ctx context.Context) error {
 		return util.Errorf("%w", err)
 	}
 
-	candidates := t.collectCandidates(books)
-	t.progress.SetTotal(len(candidates))
-	if len(candidates) == 0 {
+	bookIDs := t.collectCandidates(books)
+	t.progress.SetTotal(len(bookIDs))
+	if len(bookIDs) == 0 {
 		t.progress.SetStatus(taskutil.StatusCompleted)
 		return nil
 	}
 
-	for _, candidate := range candidates {
+	for _, bookID := range bookIDs {
 		if err := ctx.Err(); err != nil {
 			t.progress.SetStatus(taskutil.StatusPartiallyCompleted)
-			t.logger.Info("content stats refresh cancelled", "shelf_id", t.shelfID, "book_id", candidate.bookID)
+			t.logger.Info("content stats refresh cancelled", "shelf_id", t.shelfID, "book_id", bookID)
 			return util.Errorf("%w", err)
 		}
 
-		refreshErr := candidate.srcErr
-		if refreshErr == nil {
-			refreshErr = candidate.source.RefreshContentMetadata()
-		}
-
-		if refreshErr != nil {
-			t.recordFailure(candidate.bookID, refreshErr)
+		if refreshErr := t.refreshBook(bookID); refreshErr != nil {
+			t.recordFailure(bookID, refreshErr)
 		} else {
 			t.mu.Lock()
 			t.refreshed++
