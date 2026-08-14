@@ -9,7 +9,7 @@ import type {
 } from '@/types/book';
 import { normalizeSplitConfig } from '@/utils/splitConfig';
 import { registerMockTaskChain } from './taskchains';
-import type { BookBatchRequest, BookBatchResult } from '@/types/task';
+import type { BookBatchRequest, BookBatchResult, RefreshContentStatsResult } from '@/types/task';
 
 // In-memory backend for VITE_USE_MOCK_API. The gate that reaches for it lives in
 // api/client.ts (isMockApiMode); nothing here is reachable in a real build.
@@ -160,8 +160,9 @@ export const mockBooks: Book[] = [
     format: 'md',
     tags: ['notes', 'markdown'],
     created_at: '2026-07-05T09:00:00Z',
-    cover_url: 'https://picsum.photos/seed/shelf11/120/180',
-    char_count: 9_800
+    cover_url: 'https://picsum.photos/seed/shelf11/120/180'
+    // char_count is deliberately absent: this is the "unknown character count"
+    // case the maintenance page reports and the content-stats sweep repairs.
   }
 ];
 
@@ -371,6 +372,42 @@ export function mockEmptyTrash(): string {
         mockTrashedBooks.splice(target, 1);
       }
     }
+  });
+}
+
+/**
+ * mockRefreshContentStats schedules a task chain that fills in one missing
+ * char_count per poll, so mock mode exercises the same progress reporting as
+ * the real sweep.
+ */
+export function mockRefreshContentStats(): string {
+  const pending = mockBooks.filter((book) => typeof book.char_count !== 'number').map((book) => book.id);
+  const result: RefreshContentStatsResult = {
+    total: pending.length,
+    refreshed: 0,
+    failures: []
+  };
+
+  return registerMockTaskChain({
+    name: 'refresh_content_stats',
+    title: 'Update content statistics',
+    total: pending.length,
+    onItem: (index) => {
+      const id = pending[index];
+      const book = mockBooks.find((candidate) => candidate.id === id);
+      if (!book) {
+        result.failures.push({ book_id: id, code: 'not_found' });
+        return;
+      }
+      // Spread rather than .length so the count is code points, matching the
+      // server's rune-based count.
+      book.char_count = [...(mockContent[id] ?? '')].length;
+      result.refreshed += 1;
+    },
+    getResult: () => ({
+      ...result,
+      failures: result.failures.map((failure) => ({ ...failure }))
+    })
   });
 }
 

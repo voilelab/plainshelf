@@ -29,6 +29,7 @@ import {
   mockImportBook,
   mockListBooks,
   mockListTrashedBooks,
+  mockRefreshContentStats,
   mockRestoreTrashedBook,
   mockSetSplitConfig,
   mockUpdateBook,
@@ -385,7 +386,7 @@ export async function deleteTrashedBook(id: string): Promise<void> {
   });
 }
 
-interface BackendEmptyTrashResponse {
+interface BackendTaskChainSubmitResponse {
   taskchain_id: string;
 }
 
@@ -401,8 +402,29 @@ export async function emptyTrash(): Promise<string> {
     return mockEmptyTrash();
   }
 
-  const res = await fetchJson<BackendEmptyTrashResponse>(
+  const res = await fetchJson<BackendTaskChainSubmitResponse>(
     buildShelfApiPath('/trash/empty'),
+    { method: 'POST' },
+    { acceptStatuses: [409] }
+  );
+  return res.taskchain_id;
+}
+
+/**
+ * refreshContentStats schedules the background sweep that recomputes the
+ * content statistics of every book whose character count is unknown, returning
+ * the ID of the task chain to poll for progress.
+ *
+ * A 409 means a sweep is already in flight for this shelf; the server reports
+ * its ID so the caller attaches to the existing progress instead of failing.
+ */
+export async function refreshContentStats(): Promise<string> {
+  if (isMockApiMode()) {
+    return mockRefreshContentStats();
+  }
+
+  const res = await fetchJson<BackendTaskChainSubmitResponse>(
+    buildShelfApiPath('/content-stat-refreshes'),
     { method: 'POST' },
     { acceptStatuses: [409] }
   );

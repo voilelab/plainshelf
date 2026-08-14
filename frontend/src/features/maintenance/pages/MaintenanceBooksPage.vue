@@ -9,7 +9,7 @@
       @cancel="cancelDelete"
       @confirm="confirmDelete"
     />
-    <p v-if="actionError && !deleteTarget" class="error" role="alert">{{ actionError }}</p>
+    <p v-if="pageError && !deleteTarget" class="error" role="alert">{{ pageError }}</p>
     <BookCollectionPage
       :title="heading"
       :books="visibleBooks"
@@ -35,19 +35,31 @@
       @update:page="onPageChange"
       @update:page-size="onPageSizeChange"
     >
-      <template v-if="thresholdConfig" #toolbar>
+      <template v-if="thresholdConfig || showRefreshStats" #toolbar>
         <div class="toolbar-bar">
-          <label class="toolbar-label" :for="THRESHOLD_INPUT_ID">{{ thresholdLabel }}</label>
-          <input
-            :id="THRESHOLD_INPUT_ID"
-            class="toolbar-control toolbar-input threshold-input"
-            type="number"
-            inputmode="numeric"
-            :min="thresholdConfig.min"
-            :step="thresholdConfig.step"
-            :value="threshold"
-            @change="onThresholdChange"
-          />
+          <template v-if="thresholdConfig">
+            <label class="toolbar-label" :for="THRESHOLD_INPUT_ID">{{ thresholdLabel }}</label>
+            <input
+              :id="THRESHOLD_INPUT_ID"
+              class="toolbar-control toolbar-input threshold-input"
+              type="number"
+              inputmode="numeric"
+              :min="thresholdConfig.min"
+              :step="thresholdConfig.step"
+              :value="threshold"
+              @change="onThresholdChange"
+            />
+          </template>
+          <button
+            v-if="showRefreshStats"
+            type="button"
+            class="toolbar-control toolbar-button toolbar-regular"
+            :disabled="refreshStatsRunning || loading || unknownCount === 0"
+            @click="onRefreshStats"
+          >
+            {{ refreshStatsLabel }}
+          </button>
+          <span v-if="refreshStatsOutcome" class="toolbar-label" role="status">{{ refreshStatsOutcome }}</span>
         </div>
       </template>
     </BookCollectionPage>
@@ -63,8 +75,11 @@ import { DELETE_BOOK_DESCRIPTION } from '@/composables/useBookActions';
 import { useBookCollectionActions } from '@/composables/useBookCollectionActions';
 import { useBookCollectionRoute } from '@/composables/useBookCollectionRoute';
 import { useBookStore } from '@/composables/useBookStore';
+import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
 import { useCharCountBooks } from '@/features/maintenance/composables/useCharCountBooks';
 import { toSingleQueryValue } from '@/composables/useBookPagination';
+import { bookshelfWriter } from '@/providers';
+import { isRefreshContentStatsResult } from '@/types/task';
 import {
   MAINTENANCE_BOOK_FILTERS,
   clampThreshold,
@@ -124,6 +139,14 @@ const thresholdLabel = computed(() => {
   return config ? t(config.labelKey) : '';
 });
 
+const unknownCount = computed(() => {
+  if (!filterConfig.value.requiresCharCount) {
+    return 0;
+  }
+
+  return filteredBooks.value.filter(hasUnknownCharCount).length;
+});
+
 const filterDescription = computed(() => {
   const descriptionKey = filterConfig.value.filterDescriptionKey;
   if (!descriptionKey) {
@@ -131,16 +154,11 @@ const filterDescription = computed(() => {
   }
 
   const description = t(descriptionKey, { threshold: threshold.value.toLocaleString() });
-  if (!filterConfig.value.requiresCharCount) {
+  if (unknownCount.value === 0) {
     return description;
   }
 
-  const unknownCount = filteredBooks.value.filter(hasUnknownCharCount).length;
-  if (unknownCount === 0) {
-    return description;
-  }
-
-  return `${description} — ${t('maintenance.lowCharCount.unknownNote', { count: unknownCount })}`;
+  return `${description} — ${t('maintenance.lowCharCount.unknownNote', { count: unknownCount.value })}`;
 });
 
 function buildQuery(overrides: { page?: number; maxChars?: number }): Record<string, string> {
@@ -206,6 +224,75 @@ const {
     void loadBooks();
   }
 });
+
+// Recomputing statistics is a shelf-wide background sweep, so the page tracks
+// the task chain the server hands back rather than calling per book.
+const {
+  percentage: refreshStatsPercentage,
+  error: refreshStatsError,
+  running: refreshStatsRunning,
+  finished: refreshStatsFinished,
+  chain: refreshStatsChain,
+  status: refreshStatsStatus,
+  start: startRefreshStats
+} = useTaskChainProgress({
+  // The list comes from this page's own useCharCountBooks refs, so the shared
+  // book store would not reflect the recomputed counts.
+  onSettled: () => loadBooks(),
+  startFailedMessage: () => t('maintenance.lowCharCount.refreshStats.failed'),
+  pollFailedMessage: () => t('maintenance.lowCharCount.refreshStats.failed')
+});
+
+const showRefreshStats = computed(() => filterConfig.value.requiresCharCount && !readOnly.value);
+
+const refreshStatsLabel = computed(() => {
+  if (refreshStatsRunning.value) {
+    return t('maintenance.lowCharCount.refreshStats.busy', {
+      percent: Math.round(refreshStatsPercentage.value)
+    });
+  }
+
+  return t('maintenance.lowCharCount.refreshStats.action', { count: unknownCount.value });
+});
+
+const refreshStatsResult = computed(() => {
+  for (const task of refreshStatsChain.value?.tasks ?? []) {
+    if (isRefreshContentStatsResult(task.result)) {
+      return task.result;
+    }
+  }
+  return null;
+});
+
+const refreshStatsOutcome = computed(() => {
+  if (!refreshStatsFinished.value || refreshStatsError.value) {
+    return '';
+  }
+
+  const result = refreshStatsResult.value;
+  if (!result || refreshStatsStatus.value === 'failed') {
+    return t('maintenance.lowCharCount.refreshStats.failed');
+  }
+  if (result.failures.length === 0) {
+    return t('maintenance.lowCharCount.refreshStats.done', { count: result.refreshed });
+  }
+  return t('maintenance.lowCharCount.refreshStats.partial', {
+    succeeded: result.refreshed,
+    failed: result.failures.length
+  });
+});
+
+const pageError = computed(() => actionError.value || refreshStatsError.value);
+
+async function onRefreshStats(): Promise<void> {
+  if (readOnly.value) {
+    return;
+  }
+
+  // A sweep already in flight returns its own ID, so this attaches to the
+  // existing progress instead of scheduling a second one.
+  await startRefreshStats(() => bookshelfWriter().refreshContentStats());
+}
 
 onMounted(() => {
   void loadBooks();

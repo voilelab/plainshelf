@@ -150,7 +150,9 @@ export interface BookshelfWriter {
   emptyTrash(): Promise<string>;
 
   startBookBatch(request: BookBatchRequest): Promise<string>;
-  /** A GET, but a chain id can only come from startBookBatch or emptyTrash. */
+  /** Recomputes content statistics for every book with an unknown char_count. */
+  refreshContentStats(): Promise<string>;
+  /** A GET, but a chain id can only come from a write that schedules a chain. */
   getTaskChain(taskChainId: string): Promise<TaskChain>;
 
   /**

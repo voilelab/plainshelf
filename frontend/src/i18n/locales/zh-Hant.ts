@@ -291,7 +291,14 @@ const zhHant = {
       empty: '沒有低於此字數的書籍。',
       thresholdLabel: '字數上限',
       filterDescription: '字數在 {threshold} 字以下的書籍',
-      unknownNote: '其中 {count} 本字數未知'
+      unknownNote: '其中 {count} 本字數未知',
+      refreshStats: {
+        action: '更新 {count} 本的內容統計',
+        busy: '更新中… {percent}%',
+        done: '已更新 {count} 本',
+        partial: '已更新 {succeeded} 本，{failed} 本失敗',
+        failed: '無法更新內容統計。'
+      }
     }
   },
   library: {
