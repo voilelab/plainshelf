@@ -13,6 +13,7 @@ import {
   importBook,
   listBooks,
   listTrashedBooks,
+  refreshContentStats,
   restoreTrashedBook,
   updateBook,
   updateBookLayer,
@@ -171,6 +172,10 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
 
   startBookBatch(request: BookBatchRequest): Promise<string> {
     return startBookBatch(request);
+  }
+
+  refreshContentStats(): Promise<string> {
+    return refreshContentStats();
   }
 
   listLayers(): Promise<string[]> {

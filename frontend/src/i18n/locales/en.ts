@@ -304,7 +304,14 @@ const en = {
       empty: 'No books under this character count.',
       thresholdLabel: 'Max characters',
       filterDescription: 'Books with {threshold} characters or fewer',
-      unknownNote: '{count} with an unknown character count'
+      unknownNote: '{count} with an unknown character count',
+      refreshStats: {
+        action: 'Update statistics for {count} books',
+        busy: 'Updating… {percent}%',
+        done: 'Updated {count} books',
+        partial: 'Updated {succeeded} books, {failed} failed',
+        failed: 'Could not update content statistics.'
+      }
     }
   },
   library: {
