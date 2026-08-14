@@ -28,7 +28,7 @@ func TestBookBatchTaskNoOpStillCompletes(t *testing.T) {
 		t.Fatalf("NewLogger: %v", err)
 	}
 
-	task := NewBookBatchTask("default_shelf", newShelf, logger,
+	task := newBookBatchTask("default_shelf", newShelf, logger,
 		BookBatchOperationMove, []string{book.ID()}, shelf.Layers{"target"})
 
 	if err := task.Run(context.Background()); err != nil {
@@ -60,7 +60,7 @@ func TestBookBatchTaskAllFailuresStillProcessesEveryBook(t *testing.T) {
 		t.Fatalf("NewLogger: %v", err)
 	}
 
-	task := NewBookBatchTask("default_shelf", newShelf, logger,
+	task := newBookBatchTask("default_shelf", newShelf, logger,
 		BookBatchOperationTrash, []string{"missing-a", "missing-b"}, shelf.Layers{})
 
 	if err := task.Run(context.Background()); err != nil {
@@ -97,7 +97,7 @@ func TestBookBatchTaskCancelledBeforeStart(t *testing.T) {
 		t.Fatalf("NewLogger: %v", err)
 	}
 
-	task := NewBookBatchTask("default_shelf", newShelf, logger,
+	task := newBookBatchTask("default_shelf", newShelf, logger,
 		BookBatchOperationTrash, []string{book.ID()}, shelf.Layers{})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -137,7 +137,7 @@ func TestBookBatchTaskResultSnapshotsAreIndependent(t *testing.T) {
 		t.Fatalf("NewLogger: %v", err)
 	}
 
-	task := NewBookBatchTask("default_shelf", newShelf, logger,
+	task := newBookBatchTask("default_shelf", newShelf, logger,
 		BookBatchOperationMove, []string{book.ID()}, shelf.Layers{"target"})
 
 	if err := task.Run(context.Background()); err != nil {

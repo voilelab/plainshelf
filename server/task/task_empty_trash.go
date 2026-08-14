@@ -31,13 +31,17 @@ type emptyTrashTask struct {
 	failed  int
 }
 
-func NewEmptyTrashTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *emptyTrashTask {
+func newEmptyTrashTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *emptyTrashTask {
 	return &emptyTrashTask{shelfID: shelfID, shelf: s, logger: logger}
 }
 
-func (t *emptyTrashTask) Name() string { return EmptyTrashTaskName }
+func (t *emptyTrashTask) Name() string {
+	return EmptyTrashTaskName
+}
 
-func (t *emptyTrashTask) Title() string { return "Empty trash" }
+func (t *emptyTrashTask) Title() string {
+	return "Empty trash"
+}
 
 func (t *emptyTrashTask) Description() string {
 	t.mu.Lock()
@@ -53,9 +57,13 @@ func (t *emptyTrashTask) Description() string {
 	return desc
 }
 
-func (t *emptyTrashTask) Percentage() float64 { return t.progress.Percentage() }
+func (t *emptyTrashTask) Percentage() float64 {
+	return t.progress.Percentage()
+}
 
-func (t *emptyTrashTask) Status() taskutil.Status { return t.progress.Status() }
+func (t *emptyTrashTask) Status() taskutil.Status {
+	return t.progress.Status()
+}
 
 func (t *emptyTrashTask) Run(ctx context.Context) error {
 	t.progress.SetStatus(taskutil.StatusRunning)
@@ -87,7 +95,8 @@ func (t *emptyTrashTask) Run(ctx context.Context) error {
 			t.mu.Lock()
 			t.failed++
 			t.mu.Unlock()
-			t.logger.Error("failed to permanently delete trashed book", "shelf_id", t.shelfID, "book_id", id, "error", err)
+			t.logger.Error("failed to permanently delete trashed book",
+				"shelf_id", t.shelfID, "book_id", id, "error", err)
 		} else {
 			t.mu.Lock()
 			t.deleted++
@@ -119,6 +128,6 @@ func NewEmptyTrashChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger) 
 		Name:        EmptyTrashTaskName,
 		Title:       "Empty trash",
 		Description: "Permanently delete every book in the trash",
-		Tasks:       []taskutil.Task{NewEmptyTrashTask(shelfID, s, logger)},
+		Tasks:       []taskutil.Task{newEmptyTrashTask(shelfID, s, logger)},
 	}
 }

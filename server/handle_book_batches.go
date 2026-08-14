@@ -9,6 +9,10 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
+const (
+	maxBookBatchSize = 200
+)
+
 type bookBatchRequest struct {
 	Operation   string       `json:"operation"`
 	BookIDs     []string     `json:"book_ids"`
@@ -32,7 +36,7 @@ func normalizeBookBatchIDs(ids []string) ([]string, error) {
 	if len(result) == 0 {
 		return nil, errors.New("book_ids must not be empty")
 	}
-	if len(result) > task.MaxBookBatchSize {
+	if len(result) > maxBookBatchSize {
 		return nil, errors.New("too many book_ids")
 	}
 	return result, nil

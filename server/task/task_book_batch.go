@@ -14,12 +14,11 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-const bookBatchTaskName = "book_batch"
+const BookBatchTaskName = "book_batch"
 
 const (
 	BookBatchOperationMove  = "move"
 	BookBatchOperationTrash = "trash"
-	MaxBookBatchSize        = 200
 )
 
 type bookBatchFailure struct {
@@ -47,7 +46,7 @@ type bookBatchTask struct {
 	result   BookBatchResult
 }
 
-func NewBookBatchTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetLayer shelf.Layers) *bookBatchTask {
+func newBookBatchTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetLayer shelf.Layers) *bookBatchTask {
 	return &bookBatchTask{
 		shelfID:     shelfID,
 		shelf:       s,
@@ -64,7 +63,9 @@ func NewBookBatchTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger, op
 	}
 }
 
-func (t *bookBatchTask) Name() string { return bookBatchTaskName }
+func (t *bookBatchTask) Name() string {
+	return BookBatchTaskName
+}
 
 func (t *bookBatchTask) Title() string {
 	if t.operation == BookBatchOperationMove {
@@ -99,8 +100,13 @@ func (t *bookBatchTask) interruptedStatus() taskutil.Status {
 	return taskutil.StatusPartiallyCompleted
 }
 
-func (t *bookBatchTask) Percentage() float64     { return t.progress.Percentage() }
-func (t *bookBatchTask) Status() taskutil.Status { return t.progress.Status() }
+func (t *bookBatchTask) Percentage() float64 {
+	return t.progress.Percentage()
+}
+
+func (t *bookBatchTask) Status() taskutil.Status {
+	return t.progress.Status()
+}
 
 func (t *bookBatchTask) Result() any {
 	t.mu.Lock()
@@ -130,7 +136,8 @@ func (t *bookBatchTask) recordFailure(bookID string, err error) {
 	t.mu.Lock()
 	t.result.Failures = append(t.result.Failures, bookBatchFailure{BookID: bookID, Code: code})
 	t.mu.Unlock()
-	t.logger.Error("book batch item failed", "shelf_id", t.shelfID, "operation", t.operation, "book_id", bookID, "error", err)
+	t.logger.Error("book batch item failed",
+		"shelf_id", t.shelfID, "operation", t.operation, "book_id", bookID, "error", err)
 }
 
 func (t *bookBatchTask) finishStatus() taskutil.Status {
@@ -190,11 +197,11 @@ func (t *bookBatchTask) Run(ctx context.Context) error {
 func NewBookBatchChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetLayer shelf.Layers) *taskutil.TaskChain {
 	keyIDs := append([]string(nil), bookIDs...)
 	slices.Sort(keyIDs)
-	key := strings.Join([]string{bookBatchTaskName, shelfID, operation, strings.Join(targetLayer, "/"), strings.Join(keyIDs, ",")}, ":")
-	task := NewBookBatchTask(shelfID, s, logger, operation, bookIDs, targetLayer)
+	key := strings.Join([]string{BookBatchTaskName, shelfID, operation, targetLayer.String(), strings.Join(keyIDs, ",")}, ":")
+	task := newBookBatchTask(shelfID, s, logger, operation, bookIDs, targetLayer)
 	return &taskutil.TaskChain{
 		Key:         key,
-		Name:        bookBatchTaskName,
+		Name:        BookBatchTaskName,
 		Title:       task.Title(),
 		Description: "Process a batch of books",
 		Tasks:       []taskutil.Task{task},

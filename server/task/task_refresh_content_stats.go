@@ -49,7 +49,7 @@ type refreshContentStatsTask struct {
 	failures  []refreshContentStatsFailure
 }
 
-func NewRefreshContentStatsTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *refreshContentStatsTask {
+func newRefreshContentStatsTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *refreshContentStatsTask {
 	return &refreshContentStatsTask{
 		shelfID:  shelfID,
 		shelf:    s,
@@ -58,9 +58,13 @@ func NewRefreshContentStatsTask(shelfID string, s *shelf.Shelf, logger *logutil.
 	}
 }
 
-func (t *refreshContentStatsTask) Name() string { return RefreshContentStatsTaskName }
+func (t *refreshContentStatsTask) Name() string {
+	return RefreshContentStatsTaskName
+}
 
-func (t *refreshContentStatsTask) Title() string { return "Update content statistics" }
+func (t *refreshContentStatsTask) Title() string {
+	return "Update content statistics"
+}
 
 func (t *refreshContentStatsTask) Description() string {
 	t.mu.Lock()
@@ -76,9 +80,13 @@ func (t *refreshContentStatsTask) Description() string {
 	return desc
 }
 
-func (t *refreshContentStatsTask) Percentage() float64 { return t.progress.Percentage() }
+func (t *refreshContentStatsTask) Percentage() float64 {
+	return t.progress.Percentage()
+}
 
-func (t *refreshContentStatsTask) Status() taskutil.Status { return t.progress.Status() }
+func (t *refreshContentStatsTask) Status() taskutil.Status {
+	return t.progress.Status()
+}
 
 func (t *refreshContentStatsTask) Result() any {
 	t.mu.Lock()
@@ -215,6 +223,6 @@ func NewRefreshContentStatsChain(shelfID string, s *shelf.Shelf, logger *logutil
 		Name:        RefreshContentStatsTaskName,
 		Title:       "Update content statistics",
 		Description: "Recompute content statistics for books with an unknown character count",
-		Tasks:       []taskutil.Task{NewRefreshContentStatsTask(shelfID, s, logger)},
+		Tasks:       []taskutil.Task{newRefreshContentStatsTask(shelfID, s, logger)},
 	}
 }
