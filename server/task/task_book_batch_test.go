@@ -18,7 +18,7 @@ func TestBookBatchTaskNoOpStillCompletes(t *testing.T) {
 		t.Fatalf("NewShelf: %v", err)
 	}
 
-	book, err := newShelf.NewBook(shelf.Layers{}, "test")
+	book, err := newShelf.NewBook(shelf.Layers{"target"}, "test")
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
@@ -81,9 +81,6 @@ func TestBookBatchTaskAllFailuresStillProcessesEveryBook(t *testing.T) {
 }
 
 func TestBookBatchTaskCancelledBeforeStart(t *testing.T) {
-
-	// rewrite
-
 	shelfDir := path.Join(t.TempDir(), "shelf")
 	newShelf, err := shelf.NewShelf(&shelf.ShelfConf{LibRoot: shelfDir})
 	if err != nil {
