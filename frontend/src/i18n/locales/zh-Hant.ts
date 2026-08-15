@@ -295,20 +295,6 @@ const zhHant = {
     missingLanguage: {
       title: '缺少語言',
       empty: '沒有缺少語言的書籍。'
-    },
-    lowCharCount: {
-      title: '字數較少',
-      empty: '沒有低於此字數的書籍。',
-      thresholdLabel: '字數上限',
-      filterDescription: '字數在 {threshold} 字以下的書籍',
-      unknownNote: '其中 {count} 本字數未知',
-      refreshStats: {
-        action: '更新 {count} 本的內容統計',
-        busy: '更新中… {percent}%',
-        done: '已更新 {count} 本',
-        partial: '已更新 {succeeded} 本，{failed} 本失敗',
-        failed: '無法更新內容統計。'
-      }
     }
   },
   library: {
@@ -326,13 +312,30 @@ const zhHant = {
       asc: '升冪',
       desc: '降冪'
     },
+    charCount: {
+      label: '字數',
+      minLabel: '字數下限',
+      maxLabel: '字數上限',
+      minPlaceholder: '下限',
+      maxPlaceholder: '上限',
+      clear: '清除字數範圍',
+      unknownNote: '其中 {count} 本字數未知',
+      refreshStats: {
+        action: '更新 {count} 本的內容統計',
+        busy: '更新中… {percent}%',
+        done: '已更新 {count} 本',
+        partial: '已更新 {succeeded} 本，{failed} 本失敗',
+        failed: '無法更新內容統計。'
+      }
+    },
     import: '匯入 ▾',
     importFromFiles: '從檔案匯入',
     newEmptyBook: '建立空白書籍',
     empty: {
       noBooksFound: '找不到「{query}」相關書籍{layerSuffix}。',
       noBooksInLayer: '{layer} 目前沒有書籍。',
-      noBooksYet: '目前尚無書籍。'
+      noBooksYet: '目前尚無書籍。',
+      noBooksInCharCountRange: '沒有落在此字數範圍的書籍。'
     },
     titleSearch: '搜尋',
     titleLayer: '資料夾',
