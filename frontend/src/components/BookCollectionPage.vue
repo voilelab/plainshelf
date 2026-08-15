@@ -143,7 +143,11 @@
         </button>
       </div>
 
+      <!-- `total` is the post-filter count, so 0 means there is nothing to page
+           through: without this the empty state is followed by a "Page 1 / 0"
+           control row. -->
       <Pagination
+        v-if="total > 0"
         :page="page"
         :page-size="pageSize"
         :total="total"
