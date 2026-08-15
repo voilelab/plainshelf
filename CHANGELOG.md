@@ -9,9 +9,15 @@ and UI behavior may still change between releases.
 
 ### Added
 
+- Added a character-count range filter to the book list. The library toolbar now carries a minimum and a maximum character count; leaving both empty keeps the list unfiltered, and setting either one narrows it. The bounds are held in the URL as `minChars` and `maxChars`, so a filtered view can be bookmarked and shared, and they combine with the folder, search, and sort controls already on the page. Bounds entered in reverse order are stored in order. A book whose character count cannot be read still counts as zero, and while the filter is on the toolbar reports how many of the listed books those are and offers the content-statistics sweep that computes them. Character counts are fetched only while a range is set, because asking the API for them makes the server open every book's current source. The filter is not offered on the Android client, whose pCloud mode would have to read every book's source metadata over the network to answer the same request.
+
 ### Changed
 
 ### Fixed
+
+### Removed
+
+- Removed the **Maintenance → Low Character Count** page (`/books/maintenance/low-char-count`), replaced by the character-count range filter on the book list. The page could only express "at most N characters" and could not be combined with the folder, search, or sort controls; its "update content statistics" action is now offered by the new filter instead. The underlying API is unchanged.
 
 ## [v0.9.0] - 2026-08-15
 
