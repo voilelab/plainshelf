@@ -2,6 +2,7 @@ import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { LocationQueryValue, NavigationFailure } from 'vue-router';
 import { toPage, toSingleQueryValue } from '@/composables/useBookPagination';
+import { parseCharCountRange, type CharCountRange } from '@/utils/charCountFilter';
 import {
   ORDER_OPTIONS,
   SORT_OPTIONS,
@@ -15,6 +16,12 @@ export type BooksQueryInput = {
   search?: string;
   sort?: BookSortKey;
   order?: SortOrder;
+  /**
+   * Character-count bounds. Omitting the key carries the current bounds
+   * through; passing a range replaces both, so `{ charCount: {} }` clears the
+   * filter rather than leaving it untouched.
+   */
+  charCount?: CharCountRange;
 };
 
 type RouterNavigationResult = Promise<void | NavigationFailure | undefined>;
@@ -94,6 +101,12 @@ export function useBooksRouteQuery() {
   const sortBy = computed<BookSortKey>(() => toBookSort(route.query.sort));
   const sortOrder = computed<SortOrder>(() => toSortOrder(route.query.order));
   const searchQuery = computed(() => (toSingleQueryValue(route.query.search) ?? '').trim());
+  const charCountRange = computed<CharCountRange>(() =>
+    parseCharCountRange(
+      toSingleQueryValue(route.query.minChars),
+      toSingleQueryValue(route.query.maxChars)
+    )
+  );
   const isImportModalOpen = computed(() => toSingleQueryValue(route.query.import) === '1');
 
   function buildBooksQuery(input: BooksQueryInput = {}) {
@@ -107,6 +120,8 @@ export function useBooksRouteQuery() {
     delete nextQuery.search;
     delete nextQuery.sort;
     delete nextQuery.order;
+    delete nextQuery.minChars;
+    delete nextQuery.maxChars;
 
     const layerValue = input.layer !== undefined ? input.layer : selectedLayer.value;
     const normalizedLayer = layerValue?.trim();
@@ -126,6 +141,14 @@ export function useBooksRouteQuery() {
 
     nextQuery.sort = input.sort ?? sortBy.value;
     nextQuery.order = input.order ?? sortOrder.value;
+
+    const charCountValue = input.charCount ?? charCountRange.value;
+    if (charCountValue.min !== undefined) {
+      nextQuery.minChars = String(charCountValue.min);
+    }
+    if (charCountValue.max !== undefined) {
+      nextQuery.maxChars = String(charCountValue.max);
+    }
 
     return nextQuery;
   }
@@ -188,6 +211,7 @@ export function useBooksRouteQuery() {
     sortBy,
     sortOrder,
     searchQuery,
+    charCountRange,
     isImportModalOpen,
     toLayerPath,
     toBookSort,

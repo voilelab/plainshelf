@@ -17,7 +17,6 @@ const DuplicateContentPage = () => import('@/features/maintenance/pages/Duplicat
 const MissingAuthorPage = () => import('@/features/maintenance/pages/MissingAuthorPage.vue');
 const MissingCoverPage = () => import('@/features/maintenance/pages/MissingCoverPage.vue');
 const MissingLanguagePage = () => import('@/features/maintenance/pages/MissingLanguagePage.vue');
-const LowCharCountPage = () => import('@/features/maintenance/pages/LowCharCountPage.vue');
 const ReadHistoryPage = () => import('@/pages/ReadHistoryPage.vue');
 const TrashPage = () => import('@/features/trash/pages/TrashPage.vue');
 const DownloadsPage = () => import('@/features/mobile/pages/DownloadsPage.vue');
@@ -41,8 +40,7 @@ const ROUTES_WITH_OWN_TITLE = new Set([
   'settings',
   'maintenance-missing-author',
   'maintenance-missing-cover',
-  'maintenance-missing-language',
-  'maintenance-low-char-count'
+  'maintenance-missing-language'
 ]);
 
 // A route that edits the shelf, administers the server, or opens a write
@@ -142,11 +140,6 @@ const router = createRouter({
           path: 'books/maintenance/missing-language',
           name: 'maintenance-missing-language',
           component: MissingLanguagePage
-        },
-        {
-          path: 'books/maintenance/low-char-count',
-          name: 'maintenance-low-char-count',
-          component: LowCharCountPage
         },
         {
           path: 'admin/logs',

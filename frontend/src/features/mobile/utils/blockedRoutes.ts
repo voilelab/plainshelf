@@ -17,8 +17,7 @@ export const MOBILE_BLOCKED_ROUTES = new Set([
   'duplicate-content',
   'maintenance-missing-author',
   'maintenance-missing-cover',
-  'maintenance-missing-language',
-  'maintenance-low-char-count'
+  'maintenance-missing-language'
 ]);
 
 /**

@@ -14,8 +14,7 @@ describe('MOBILE_BLOCKED_ROUTES', () => {
     'duplicate-content',
     'maintenance-missing-author',
     'maintenance-missing-cover',
-    'maintenance-missing-language',
-    'maintenance-low-char-count'
+    'maintenance-missing-language'
   ])('blocks %s', (name) => {
     expect(MOBILE_BLOCKED_ROUTES.has(name)).toBe(true);
   });

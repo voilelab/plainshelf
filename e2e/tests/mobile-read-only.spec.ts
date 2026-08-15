@@ -29,8 +29,7 @@ test('redirects unavailable mobile routes to the library', async ({ page }) => {
       '/duplicates',
       '/books/maintenance/missing-author',
       '/books/maintenance/missing-cover',
-      '/books/maintenance/missing-language',
-      '/books/maintenance/low-char-count'
+      '/books/maintenance/missing-language'
     ]) {
       await reopenMobileAt(page, server.baseUrl, route);
       await expect(page, `${route} should redirect to the library`).toHaveURL(/\/books(\?|$)/);

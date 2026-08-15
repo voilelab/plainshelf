@@ -15,9 +15,7 @@
         <div>
           <h2 class="bookshelf-title">{{ title }}</h2>
           <p v-if="hasMetaLine" class="bookshelf-meta">
-            <slot name="title-meta">
-              {{ filterDescription }}
-            </slot>
+            <slot name="title-meta" />
           </p>
         </div>
 
@@ -190,7 +188,6 @@ const props = withDefaults(defineProps<{
   emptyMessage: string;
   totalLabel?: string;
   count?: number;
-  filterDescription?: string;
   showEditAction?: boolean;
   canOpenBookFolder?: boolean;
   readOnly?: boolean;
@@ -207,7 +204,6 @@ const props = withDefaults(defineProps<{
   error: '',
   totalLabel: '',
   count: undefined,
-  filterDescription: '',
   showEditAction: false,
   canOpenBookFolder: false,
   readOnly: false,
@@ -248,7 +244,7 @@ const viewModeOptions = computed<Array<{ value: BooksViewMode; label: string }>>
 const viewMode = ref<BooksViewMode>('list');
 const slots = useSlots();
 
-const hasMetaLine = computed(() => !!props.filterDescription || !!slots['title-meta']);
+const hasMetaLine = computed(() => !!slots['title-meta']);
 
 const resolvedTotalLabel = computed(() => {
   if (props.totalLabel) {

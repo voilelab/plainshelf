@@ -297,20 +297,6 @@ const en = {
     missingLanguage: {
       title: 'Missing Language',
       empty: 'No books with missing language.'
-    },
-    lowCharCount: {
-      title: 'Low Character Count',
-      empty: 'No books under this character count.',
-      thresholdLabel: 'Max characters',
-      filterDescription: 'Books with {threshold} characters or fewer',
-      unknownNote: '{count} with an unknown character count',
-      refreshStats: {
-        action: 'Update statistics for {count} books',
-        busy: 'Updating… {percent}%',
-        done: 'Updated {count} books',
-        partial: 'Updated {succeeded} books, {failed} failed',
-        failed: 'Could not update content statistics.'
-      }
     }
   },
   library: {
@@ -328,13 +314,30 @@ const en = {
       asc: 'Asc',
       desc: 'Desc'
     },
+    charCount: {
+      label: 'Characters',
+      minLabel: 'Minimum characters',
+      maxLabel: 'Maximum characters',
+      minPlaceholder: 'Min',
+      maxPlaceholder: 'Max',
+      clear: 'Clear character range',
+      unknownNote: '{count} with an unknown character count',
+      refreshStats: {
+        action: 'Update statistics for {count} books',
+        busy: 'Updating… {percent}%',
+        done: 'Updated {count} books',
+        partial: 'Updated {succeeded} books, {failed} failed',
+        failed: 'Could not update content statistics.'
+      }
+    },
     import: 'Import ▾',
     importFromFiles: 'Import from files',
     newEmptyBook: 'New empty book',
     empty: {
       noBooksFound: 'No books found for "{query}"{layerSuffix}.',
       noBooksInLayer: 'No books in {layer}.',
-      noBooksYet: 'No books yet.'
+      noBooksYet: 'No books yet.',
+      noBooksInCharCountRange: 'No books in this character range.'
     },
     titleSearch: 'Search',
     titleLayer: 'Layer',

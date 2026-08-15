@@ -52,10 +52,11 @@
     />
     <p v-if="actionError && !deleteTarget" class="error" role="alert">{{ actionError }}</p>
     <p v-if="shelfRefresh.error.value" class="error" role="alert">{{ shelfRefresh.error.value }}</p>
+    <p v-if="charCountError" class="error" role="alert">{{ charCountError }}</p>
     <BookCollectionPage
       :title="selectedLayerTitle"
       :books="visibleBooks"
-      :loading="loading"
+      :loading="collectionLoading"
       :shelf-initializing="shelfInitializing"
       :shelf-unreachable="shelfUnreachable"
       :error="error"
@@ -159,6 +160,14 @@
             {{ sortOrder === 'asc' ? t('library.order.asc') : t('library.order.desc') }}
           </button>
         </div>
+        <CharCountFilterBar
+          v-if="charCountFilterSupported"
+          :range="charCountRange"
+          :unknown-count="unknownCharCountCount"
+          :read-only="readOnly"
+          @update:range="onCharCountRangeChange"
+          @stats-refreshed="onCharCountStatsRefreshed"
+        />
         <div v-if="shelfRefresh.supported" class="toolbar-bar shelf-refresh-bar">
           <button
             type="button"
@@ -216,10 +225,12 @@ import ProgressBar from '@/components/ProgressBar.vue';
 import ImportBookModal from '@/features/library/components/ImportBookModal.vue';
 import NewEmptyBookModal from '@/features/library/components/NewEmptyBookModal.vue';
 import MoveBooksModal from '@/features/library/components/MoveBooksModal.vue';
+import CharCountFilterBar from '@/features/library/components/CharCountFilterBar.vue';
 import { DELETE_BOOK_DESCRIPTION } from '@/composables/useBookActions';
 import { useBookCollectionActions } from '@/composables/useBookCollectionActions';
 import { countPages, pageSlice } from '@/composables/useBookCollectionRoute';
 import { useBookStore } from '@/composables/useBookStore';
+import { useCharCountIndex } from '@/composables/useCharCountIndex';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useBookPagination } from '@/composables/useBookPagination';
 import { useBookSelection } from '@/composables/useBookSelection';
@@ -232,6 +243,11 @@ import { useBooksSearch } from '@/features/library/composables/useBooksSearch';
 import { useBooksSort, type BookSortKey, type SortOrder } from '@/features/library/composables/useBooksSort';
 import { handleLibraryMobileBack } from '@/features/library/utils/mobileBack';
 import { filterBooksBySearch } from '@/utils/bookSearch';
+import {
+  isCharCountInRange,
+  isCharCountRangeActive,
+  type CharCountRange
+} from '@/utils/charCountFilter';
 import { hasFileTransfer, readDroppedFiles } from '@/utils/file';
 import { getLayerPath, layerPathEquals, normalizeLayerPath } from '@/utils/layers';
 import { useI18n } from '@/i18n';
@@ -253,6 +269,7 @@ const {
   sortBy,
   sortOrder,
   searchQuery,
+  charCountRange,
   isImportModalOpen,
   pushBooksQuery,
   replaceBooksQuery,
@@ -298,10 +315,37 @@ const downloadBatchStatusText = computed(() => {
   });
 });
 
+// Character counts are not part of the shared listing: asking for them makes
+// the backend open every book's current source, so they are fetched lazily and
+// only while a character-count range is actually set.
+const charCountIndex = useCharCountIndex();
+
+// Hidden on the mobile shell: its pCloud-backed provider has to read each
+// book's source meta.json over the network to answer includeCharCount, which is
+// why the maintenance page that used to own this filter was blocked there too.
+const charCountFilterSupported = computed(() => !isMobileRuntime());
+
 async function reloadBooks(): Promise<void> {
   booksLoaded.value = false;
   await fetchBooks();
   booksLoaded.value = true;
+  // A no-op once the counts are cached, so navigating between layers does not
+  // pay for them again: they are keyed by book ID and do not depend on a layer.
+  await loadCharCountsIfNeeded();
+}
+
+async function loadCharCountsIfNeeded(): Promise<void> {
+  if (!charCountFilterSupported.value || !isCharCountRangeActive(charCountRange.value)) {
+    return;
+  }
+  await charCountIndex.load();
+}
+
+// Books added since the counts were cached are absent from the index and read
+// as unknown, so an import is the one listing change that invalidates it.
+async function reloadBooksAfterImport(): Promise<void> {
+  charCountIndex.invalidate();
+  await reloadBooks();
 }
 
 // Only a backend whose listing the user has to update themselves (pCloud)
@@ -504,12 +548,61 @@ function matchesLayer(book: Book): boolean {
   return layerPathEquals(getLayerPath(book), selectedLayer.value);
 }
 
+const charCountFilterActive = computed(
+  () => charCountFilterSupported.value && isCharCountRangeActive(charCountRange.value)
+);
+
+// charCountRange is a fresh object on every recompute, so watching it directly
+// would fire on any unrelated query change. This collapses it to a value that
+// only changes when a bound does.
+const charCountKey = computed(
+  () => `${charCountRange.value.min ?? ''}:${charCountRange.value.max ?? ''}`
+);
+
+function charCountOf(book: Book): number | undefined {
+  return book.char_count ?? charCountIndex.counts.value.get(book.id);
+}
+
+// Only applied once the counts have arrived: filtering against an empty index
+// would read every book as zero characters and briefly show the wrong set.
+function matchesCharCount(book: Book): boolean {
+  if (!charCountFilterActive.value || !charCountIndex.ready.value) {
+    return true;
+  }
+  return isCharCountInRange(charCountOf(book), charCountRange.value);
+}
+
 const searchedBooks = computed(() => filterBooksBySearch(books.value, committedSearch.value));
-const filteredBooks = computed(() => searchedBooks.value.filter((book) => matchesLayer(book)));
+const filteredBooks = computed(() =>
+  searchedBooks.value.filter((book) => matchesLayer(book) && matchesCharCount(book))
+);
 const {
   SORT_OPTIONS,
   sortedBooks
 } = useBooksSort(filteredBooks, sortBy, sortOrder);
+
+const unknownCharCountCount = computed(() => {
+  if (!charCountFilterActive.value || !charCountIndex.ready.value) {
+    return 0;
+  }
+  return filteredBooks.value.filter((book) => charCountOf(book) === undefined).length;
+});
+
+// The counts are a second request, so the first one keeps the page reporting
+// itself as loading rather than briefly showing an unfiltered list. A later
+// refresh keeps the previous counts on screen instead, which is what stops the
+// toolbar - and any refresh progress it is showing - from being torn down.
+const collectionLoading = computed(
+  () => loading.value
+    || (charCountFilterActive.value && charCountIndex.loading.value && !charCountIndex.ready.value)
+);
+
+// Reported next to the shelf-refresh error rather than through
+// BookCollectionPage, which would replace the list with the message: the books
+// are still readable when only their character counts failed to load.
+const charCountError = computed(() =>
+  charCountFilterActive.value ? charCountIndex.error.value : ''
+);
 
 const total = computed(() => filteredBooks.value.length);
 const totalPages = computed(() => countPages(total.value, pageSize.value));
@@ -523,6 +616,14 @@ const showLayerEmptyState = computed(() => {
 });
 
 const emptyMessage = computed(() => {
+  if (
+    charCountFilterActive.value
+    && charCountIndex.ready.value
+    && filteredBooks.value.length === 0
+    && !collectionLoading.value
+  ) {
+    return t('library.empty.noBooksInCharCountRange');
+  }
   const q = committedSearch.value.trim();
   if (q && filteredBooks.value.length === 0 && !loading.value) {
     const layerSuffix = selectedLayer.value
@@ -619,6 +720,27 @@ function toggleOrder(): void {
   onOrderChange(sortOrder.value === 'asc' ? 'desc' : 'asc');
 }
 
+function onCharCountRangeChange(nextRange: CharCountRange): void {
+  if (nextRange.min === charCountRange.value.min && nextRange.max === charCountRange.value.max) {
+    return;
+  }
+
+  void replaceBooksQuery({
+    layer: selectedLayer.value,
+    page: 1,
+    search: committedSearch.value,
+    sort: sortBy.value,
+    order: sortOrder.value,
+    charCount: nextRange
+  });
+}
+
+// The sweep rewrites char_count in each source's meta.json, so the cached
+// counts - not the book listing - are what went stale.
+function onCharCountStatsRefreshed(): void {
+  void charCountIndex.refresh();
+}
+
 async function openImportFromFiles(): Promise<void> {
   if (readOnly.value) {
     return;
@@ -646,7 +768,7 @@ async function openImportFromFiles(): Promise<void> {
         const hasImportedBook = importResult.some((item) => item.id !== undefined && item.id !== '');
         const hasFailedBook = importResult.some((item) => Boolean(item.error));
         if (hasImportedBook) {
-          await reloadBooks();
+          await reloadBooksAfterImport();
         } else if (hasFailedBook && !isImportModalOpen.value) {
           void openImportModalQuery();
         }
@@ -720,7 +842,7 @@ function closeImportModal(): void {
 
 async function onImported(result: { successCount: number }): Promise<void> {
   if (result.successCount > 0) {
-    await reloadBooks();
+    await reloadBooksAfterImport();
   }
 }
 
@@ -747,9 +869,19 @@ watch(selectedLayer, async () => {
 });
 
 watch(
-  [selectedLayer, page, pageSize, sortBy, sortOrder, committedSearch, selectedShelfID],
+  [selectedLayer, page, pageSize, sortBy, sortOrder, committedSearch, charCountKey, selectedShelfID],
   () => selection.clear()
 );
+
+// Setting a range is what pays for the counts; clearing it leaves them cached
+// so turning the filter back on does not refetch the whole shelf. The initial
+// load is left to reloadBooks() in onMounted, which already covers a direct
+// link that arrives with a range in the URL.
+watch(charCountFilterActive, (active) => {
+  if (active) {
+    void charCountIndex.load();
+  }
+});
 
 watch(
   batchOperations.completionVersion,

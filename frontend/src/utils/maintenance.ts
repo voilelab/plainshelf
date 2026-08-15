@@ -5,8 +5,7 @@ export type MaintenanceNavKey =
   | 'duplicate-content'
   | 'missing-author'
   | 'missing-cover'
-  | 'missing-language'
-  | 'low-char-count';
+  | 'missing-language';
 
 export type MaintenanceNavIcon = Extract<MaintenanceNavKey, SidebarNavIconName>;
 
@@ -41,39 +40,15 @@ export const MAINTENANCE_NAV_ITEMS: MaintenanceNavItem[] = [
     labelKey: 'maintenance.missingLanguage.title',
     to: '/books/maintenance/missing-language',
     icon: 'missing-language'
-  },
-  {
-    key: 'low-char-count',
-    labelKey: 'maintenance.lowCharCount.title',
-    to: '/books/maintenance/low-char-count',
-    icon: 'low-char-count'
   }
 ];
 
 export type MaintenanceBookFilter = Exclude<MaintenanceNavKey, 'duplicate-content'>;
 
-/** Runtime inputs a filter predicate may read; ignored by predicates that don't need them. */
-export interface MaintenanceFilterOptions {
-  threshold: number;
-}
-
-/** Bounds for a filter's user-adjustable numeric threshold. */
-export interface MaintenanceThresholdConfig {
-  labelKey: string;
-  defaultValue: number;
-  min: number;
-  step: number;
-}
-
 export interface MaintenanceBookFilterConfig {
   titleKey: string;
   emptyMessageKey: string;
-  predicate: (book: Book, options: MaintenanceFilterOptions) => boolean;
-  /** Present when the filter exposes a threshold control in the page toolbar. */
-  threshold?: MaintenanceThresholdConfig;
-  /** Set when the predicate reads char_count, which the API only returns on request. */
-  requiresCharCount?: boolean;
-  filterDescriptionKey?: string;
+  predicate: (book: Book) => boolean;
 }
 
 function isNonEmptyString(value: unknown): boolean {
@@ -181,45 +156,6 @@ export function isMissingLanguage(book: Book): boolean {
   return languageValue.trim().length === 0;
 }
 
-export const LOW_CHAR_COUNT_THRESHOLD: MaintenanceThresholdConfig = {
-  labelKey: 'maintenance.lowCharCount.thresholdLabel',
-  defaultValue: 1000,
-  min: 0,
-  step: 100
-};
-
-/**
- * The backend omits char_count when the source cannot be read, and `omitempty`
- * also drops a genuine 0, so an absent count is treated as 0: both cases are
- * exactly what this maintenance page exists to surface.
- */
-export function isLowCharCount(book: Book, options: MaintenanceFilterOptions): boolean {
-  return (book.char_count ?? 0) <= options.threshold;
-}
-
-export function hasUnknownCharCount(book: Book): boolean {
-  return typeof book.char_count !== 'number';
-}
-
-/** Parses a raw query value into a usable threshold, falling back to the default. */
-export function clampThreshold(raw: string | undefined, config: MaintenanceThresholdConfig): number {
-  if (raw === undefined) {
-    return config.defaultValue;
-  }
-
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) {
-    return config.defaultValue;
-  }
-
-  const parsed = Number(trimmed);
-  if (!Number.isInteger(parsed)) {
-    return config.defaultValue;
-  }
-
-  return Math.min(Math.max(parsed, config.min), Number.MAX_SAFE_INTEGER);
-}
-
 export const MAINTENANCE_BOOK_FILTERS: Record<MaintenanceBookFilter, MaintenanceBookFilterConfig> = {
   'missing-author': {
     titleKey: 'maintenance.missingAuthor.title',
@@ -235,13 +171,5 @@ export const MAINTENANCE_BOOK_FILTERS: Record<MaintenanceBookFilter, Maintenance
     titleKey: 'maintenance.missingLanguage.title',
     emptyMessageKey: 'maintenance.missingLanguage.empty',
     predicate: isMissingLanguage
-  },
-  'low-char-count': {
-    titleKey: 'maintenance.lowCharCount.title',
-    emptyMessageKey: 'maintenance.lowCharCount.empty',
-    predicate: isLowCharCount,
-    threshold: LOW_CHAR_COUNT_THRESHOLD,
-    requiresCharCount: true,
-    filterDescriptionKey: 'maintenance.lowCharCount.filterDescription'
   }
 };
