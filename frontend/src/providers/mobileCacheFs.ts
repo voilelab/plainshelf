@@ -72,6 +72,13 @@ export function scopeDir(scopeKey: string): string {
  * from the library.
  */
 export async function removeCacheScope(scopeKey: string): Promise<void> {
+  // An empty key is not a shelf identity — scopeDir maps it to the shared
+  // pre-scope directory, so deleting a corrupt entry with no server URL and no
+  // shelf id would take unrelated downloads with it. Nothing to reclaim here
+  // anyway: an entry that derives no scope never wrote one.
+  if (!scopeKey) {
+    return;
+  }
   await rmdirIgnoringMissing(scopeDir(scopeKey));
 }
 

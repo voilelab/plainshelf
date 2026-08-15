@@ -71,6 +71,19 @@ export interface PCloudShelfEntry extends ShelfEntryBase {
   pcloudHost: string;
   /** Path of the shelf directory on pCloud, e.g. `/PlainShelf/default-shelf`. */
   pcloudShelfRoot: string;
+  /**
+   * pCloud's numeric user id for the authorized account, recorded so two
+   * accounts can be told apart.
+   *
+   * Optional, and deliberately so: the host and folder path alone are not
+   * unique — two accounts in the same region can both hold
+   * `/PlainShelf/shelf` — and without this they would derive the same cache
+   * scope and share every downloaded book. Entries saved before this existed
+   * have no id and keep their original scope, so their downloads survive; it
+   * is recorded at authorization, which is the only moment the account is
+   * known for certain.
+   */
+  pcloudUserId?: string;
 }
 
 export type ShelfEntry = ServerShelfEntry | PCloudShelfEntry;
@@ -172,13 +185,17 @@ function parseShelfEntry(raw: unknown): ShelfEntry | null {
   const name = normalizeString(record.name);
 
   if (record.type === 'pcloud') {
+    const pcloudUserId = normalizeString(record.pcloudUserId);
     return {
       id,
       type: 'pcloud',
       name,
       pcloudClientId: normalizeString(record.pcloudClientId),
       pcloudHost: normalizeString(record.pcloudHost),
-      pcloudShelfRoot: normalizeString(record.pcloudShelfRoot)
+      pcloudShelfRoot: normalizeString(record.pcloudShelfRoot),
+      // Left off entirely when absent, so an entry that predates it keeps
+      // deriving the scope key it already has data under.
+      ...(pcloudUserId ? { pcloudUserId } : {})
     };
   }
 
@@ -352,8 +369,18 @@ export function shelfEntryTarget(entry: ShelfEntry | null): {
     return { apiBase: '', shelfID: '' };
   }
   if (entry.type === 'pcloud') {
+    if (!entry.pcloudHost) {
+      return { apiBase: '', shelfID: entry.pcloudShelfRoot };
+    }
+    // The account is part of the identity when it is known: the regional host
+    // and folder path are not unique, so two accounts both holding
+    // `/PlainShelf/shelf` would otherwise share one cache — showing each
+    // other's books, and taking each other's downloads down on delete. An
+    // entry authorized before the id was recorded has none, and keeps the
+    // scope its data already lives under.
+    const account = entry.pcloudUserId ? `/${entry.pcloudUserId}` : '';
     return {
-      apiBase: entry.pcloudHost ? normalizeApiBase(`pcloud://${entry.pcloudHost}`) : '',
+      apiBase: normalizeApiBase(`pcloud://${entry.pcloudHost}${account}`),
       shelfID: entry.pcloudShelfRoot
     };
   }

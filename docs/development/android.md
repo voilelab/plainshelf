@@ -28,6 +28,14 @@ One entry is one shelf. Two shelves on the same server are two entries, added
 the same way. Access tokens are kept in Android Keystore-backed storage, one per
 entry, so two entries never share credentials.
 
+Each entry's downloads and reading data are filed under where its library
+lives, so two entries never read each other's books. For pCloud that includes
+which account authorized it, since two accounts in the same region can both
+hold a folder of the same name. An entry authorized by an older build has no
+account recorded and keeps the filing it already had; re-authorizing it records
+one, which means its existing downloads are left behind — the same thing that
+happens when you point an entry at a different server or folder.
+
 The pCloud source needs no server at all, which is the point of it: a phone
 cannot mount cloud storage the way a host can, so a server keeping its shelf on
 pCloud through an rclone mount is no help to the phone.

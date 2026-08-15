@@ -242,6 +242,41 @@ describe('applying an entry', () => {
     });
   });
 
+  // Host and folder path are not unique across accounts. Without the account
+  // id these two share one cache: each shows the other's books, and removing
+  // either deletes the other's downloads.
+  it('separates the same folder path in two pCloud accounts', () => {
+    const first = shelfEntryTarget(pcloudEntry({ pcloudUserId: '111', pcloudShelfRoot: '/shelf' }));
+    const second = shelfEntryTarget(pcloudEntry({ pcloudUserId: '222', pcloudShelfRoot: '/shelf' }));
+
+    expect(first).toEqual({ apiBase: 'pcloud://api.pcloud.com/111', shelfID: '/shelf' });
+    expect(first).not.toEqual(second);
+  });
+
+  // The account id is recorded at authorization, so entries that predate it
+  // have none — and must keep deriving the scope their downloads live under.
+  it('leaves the scope unchanged for an entry with no recorded account', () => {
+    expect(shelfEntryTarget(pcloudEntry({ pcloudShelfRoot: '/shelf' })).apiBase).toBe(
+      'pcloud://api.pcloud.com'
+    );
+  });
+
+  it('does not invent an account id when reloading a stored entry', async () => {
+    store.set(ENTRIES_KEY, JSON.stringify([pcloudEntry()]));
+    store.set(ACTIVE_KEY, 'entry-2');
+
+    const [reloaded] = (await loadShelfEntries()).entries;
+    expect(reloaded && 'pcloudUserId' in reloaded).toBe(false);
+  });
+
+  it('keeps a recorded account id across a save and reload', async () => {
+    await reinit();
+    await upsertShelfEntry(pcloudEntry({ pcloudUserId: '111' }));
+
+    const [reloaded] = (await loadShelfEntries()).entries;
+    expect(reloaded).toMatchObject({ pcloudUserId: '111' });
+  });
+
   it('clears the client when the device has no shelf left', async () => {
     store.set(ENTRIES_KEY, JSON.stringify([serverEntry()]));
     store.set(ACTIVE_KEY, 'entry-1');

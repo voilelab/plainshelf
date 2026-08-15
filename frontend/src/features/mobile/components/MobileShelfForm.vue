@@ -243,6 +243,8 @@ const pcloudClientId = ref('');
 const pcloudAccessToken = ref('');
 const pcloudHost = ref('');
 const pcloudShelfRoot = ref('');
+/** Carried through an edit unchanged; only re-authorizing rewrites it. */
+const pcloudUserId = ref('');
 /** Email (or userid fallback) returned by pCloud userinfo for the active token. */
 const pcloudAccountIdentity = ref('');
 /** Set by a successful shelf check; null means "not verified yet". */
@@ -282,9 +284,14 @@ onMounted(async () => {
     pcloudHost.value = existing.pcloudHost;
     pcloudShelfRoot.value = existing.pcloudShelfRoot;
     pcloudAccessToken.value = secret;
+    // Carried, not re-derived: an entry saved before the account id was
+    // recorded must keep deriving the cache scope its downloads already live
+    // under, so merely opening it for editing cannot start writing one.
+    pcloudUserId.value = existing.pcloudUserId ?? '';
     if (secret && existing.pcloudHost) {
       try {
-        pcloudAccountIdentity.value = await loadPCloudAccountIdentity(existing.pcloudHost, secret);
+        const account = await loadPCloudAccountIdentity(existing.pcloudHost, secret);
+        pcloudAccountIdentity.value = account.label;
       } catch (err) {
         localError.value = err instanceof Error ? err.message : String(err);
       }
@@ -362,10 +369,20 @@ function onShelfSelect(value: AcceptableValue): void {
   }
 }
 
-/** Verifies that a token and regional host resolve to a real pCloud account. */
-async function loadPCloudAccountIdentity(host: string, accessToken: string): Promise<string> {
+/**
+ * Verifies that a token and regional host resolve to a real pCloud account.
+ *
+ * Returns the numeric id alongside the label: the id is what separates two
+ * accounts' caches (see PCloudShelfEntry.pcloudUserId), while the label is only
+ * shown so the user can confirm which account the system browser reached.
+ */
+async function loadPCloudAccountIdentity(
+  host: string,
+  accessToken: string
+): Promise<{ label: string; userId: string }> {
   const info = await new PCloudClient({ host, accessToken }).getUserInfo();
-  return info.email?.trim() || String(info.userid);
+  const userId = info.userid === undefined ? '' : String(info.userid);
+  return { label: info.email?.trim() || userId, userId };
 }
 
 /**
@@ -387,11 +404,16 @@ async function onAuthorize(): Promise<void> {
     const requestId = generateRequestId();
     await Browser.open({ url: buildAuthorizeUrl(clientId, requestId) });
     const session = await pollForToken({ clientId, requestId, signal: authAbort.signal });
-    const accountIdentity = await loadPCloudAccountIdentity(session.host, session.accessToken);
+    const account = await loadPCloudAccountIdentity(session.host, session.accessToken);
 
     pcloudAccessToken.value = session.accessToken;
     pcloudHost.value = session.host;
-    pcloudAccountIdentity.value = accountIdentity;
+    pcloudAccountIdentity.value = account.label;
+    // Only set here. Authorization is the one moment the account is known for
+    // certain, and it is also the only moment at which changing the entry's
+    // cache scope is the right thing to do — a fresh token can belong to a
+    // different account than the one whose books are on the device.
+    pcloudUserId.value = account.userId;
     // New credentials may reach a different account, so the previous shelf
     // check no longer vouches for anything.
     pcloudBookCount.value = null;
@@ -462,7 +484,8 @@ function draftEntry(): { entry: ShelfEntry; secret: string } {
         name: name.value.trim(),
         pcloudClientId: pcloudClientId.value.trim(),
         pcloudHost: pcloudHost.value,
-        pcloudShelfRoot: pcloudShelfRoot.value.trim()
+        pcloudShelfRoot: pcloudShelfRoot.value.trim(),
+        ...(pcloudUserId.value ? { pcloudUserId: pcloudUserId.value } : {})
       },
       secret: pcloudAccessToken.value
     };
