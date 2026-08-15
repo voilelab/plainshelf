@@ -156,13 +156,25 @@ So the server and the desktop app write the listing down. Each one exports `app/
 ### When it is written
 
 - after the initial scan, so a client that arrives before anything else has read the shelf still finds a file;
-- when the shelf has changed and `book_cache_interval` (default one hour) has elapsed since the last export;
-- when the shelf is closed, if anything changed since the last export;
+- once `book_cache_interval` (default one hour) has elapsed since the last export, the next time the shelf is read or written;
+- when the shelf is closed;
 - on demand, from **Settings → Shelves → Mobile book cache**, or `POST /api/shelves/{shelf_id}/book-cache-exports`.
 
-There is no background timer. An export only has something new to say after the shelf has been read or written, and those are the moments it is considered. If the content has not actually changed, the file is left alone rather than rewritten — an identical rewrite would be a pointless upload on the cloud and network shelves this feature exists for.
+Each of those is a moment the export is *considered*, not a write. Whether anything reaches the disk is decided by comparing the content against what was written last: an unchanged shelf is left alone, because an identical rewrite is a pointless upload on exactly the cloud and network shelves this feature exists for. That comparison is also why there is no "something changed" flag anywhere — book metadata is edited in place, and a flag would have to be set by every edit path, with the one that got missed silently ending the exports.
 
-The manual trigger always rescans the shelf first. The `timestamp` in the file records when the shelf was **walked**, not when the file was written, and a client uses it to decide which books it can take from the cache: anything whose `book.json` was modified after that time is read directly instead. Writing a fresh timestamp without a fresh walk would claim knowledge the export never had.
+There is no background timer either. An export only has something new to say after the shelf has been read or written, and every such path already passes through the check.
+
+### What `timestamp` means
+
+The manual trigger always rescans the shelf first, because `timestamp` records when the walk behind the file **began** — not when the file was written, and not when the walk finished.
+
+A client uses it to decide which books it can take from the cache: a `book.json` whose modification time is at or after that second is read directly instead. All three choices are the conservative one:
+
+- a write time would claim freshness the walk never verified;
+- the walk's *end* time would cover a book edited while the walk was still running, after it had already been read;
+- and because both sides carry whole seconds, an edit inside the same second as the walk cannot be ordered against it, so equality means "read it".
+
+Each of those costs a couple of requests for one book. The alternative is showing a title or current source that is quietly wrong.
 
 ### Several machines, one shelf
 

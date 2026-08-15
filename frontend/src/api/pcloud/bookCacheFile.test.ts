@@ -166,8 +166,11 @@ describe('isCoveredByBookCache', () => {
     expect(isCoveredByBookCache(fileRef('book.json', 'Sat, 15 Mar 2014 17:26:04 +0000'), walkedAt)).toBe(true);
   });
 
-  it('covers a book.json modified exactly at the walk', () => {
-    expect(isCoveredByBookCache(fileRef('book.json', 'Sun, 16 Mar 2014 17:26:04 +0000'), walkedAt)).toBe(true);
+  // Both sides carry whole seconds only, so an edit inside the same second as
+  // the walk is indistinguishable from one just before it. "Cannot tell" has to
+  // resolve to "read it" or the reader shows metadata it knows might be wrong.
+  it('does not cover a book.json modified in the same second as the walk', () => {
+    expect(isCoveredByBookCache(fileRef('book.json', 'Sun, 16 Mar 2014 17:26:04 +0000'), walkedAt)).toBe(false);
   });
 
   it('does not cover a book.json modified after the walk', () => {

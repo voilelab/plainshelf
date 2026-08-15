@@ -35,8 +35,9 @@ export interface BookCacheFile {
   schema_version: number;
   writer_id: string;
   /**
-   * When the writer last walked the shelf, in Unix seconds. A book.json modified
-   * after this was changed after the walk and is not covered by `books`.
+   * When the writer's walk of the shelf began, in Unix seconds. A book.json
+   * modified at or after this may have changed since the walk read it and is
+   * not covered by `books`.
    */
   timestamp: number;
   generator?: string;
@@ -170,10 +171,17 @@ export function indexBookCacheByPath(cache: BookCacheFile): Map<string, BookJson
 /**
  * Whether a listed book.json is old enough for the cache to speak for it.
  *
- * A file modified after the walk was changed after the cache was built, so it
- * has to be read. Anything unparseable is treated as newer: re-reading a book
- * needlessly costs two requests, whereas trusting a stale entry shows the user
- * the wrong metadata.
+ * The comparison is strict, and that matters. `timestamp` is the walk in whole
+ * seconds and pCloud reports modification times in whole seconds too, so a book
+ * edited within the same second as the walk is indistinguishable from one
+ * edited just before it. Equality therefore has to mean "cannot tell", which
+ * means "read it".
+ *
+ * Everything here errs the same way. An unparseable time is treated as newer,
+ * and the writer stamps `timestamp` with the moment its walk *began* rather
+ * than ended, so a book edited while the walk was still running also falls
+ * outside. Each of those costs two requests for one book; the alternative is
+ * showing the user a title or current source that is quietly wrong.
  */
 export function isCoveredByBookCache(meta: PCloudFileRef | undefined, cacheTimestamp: number): boolean {
   if (!meta) {
@@ -183,5 +191,5 @@ export function isCoveredByBookCache(meta: PCloudFileRef | undefined, cacheTimes
   if (Number.isNaN(modifiedAt)) {
     return false;
   }
-  return modifiedAt <= cacheTimestamp * 1000;
+  return modifiedAt < cacheTimestamp * 1000;
 }

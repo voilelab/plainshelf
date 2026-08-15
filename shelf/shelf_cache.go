@@ -27,10 +27,16 @@ type bookCache struct {
 	bookCheckInterval time.Duration
 	refreshing        bool
 
-	// Exported cache state; see shelf_cache_export.go. lastExportDigest
-	// fingerprints what was last written, so an unchanged shelf stops rewriting
-	// the file once the first export has happened.
-	exportDirty      bool
+	// lastScanStart is when the walk behind the current cache began. See
+	// scanToBookCache for why the start and not the end.
+	lastScanStart time.Time
+
+	// Exported cache state; see shelf_cache_export.go. There is deliberately no
+	// "export is dirty" flag: books are edited in place through *Book, which the
+	// cache holds a pointer to, so a flag would have to be set from every
+	// mutating method and any one that was missed would silently stop exporting.
+	// lastExportDigest fingerprints what was written instead, which cannot be
+	// forgotten because it is computed from the content itself.
 	lastExport       time.Time
 	lastExportDigest string
 	exporting        bool
@@ -48,7 +54,6 @@ func newBookCache(scanInterval, bookCheckInterval time.Duration) *bookCache {
 func (s *Shelf) markBookCacheTreeDirty() {
 	s.bookCache.Lock()
 	s.bookCache.treeDirty = true
-	s.bookCache.exportDirty = true
 	s.bookCache.Unlock()
 }
 
@@ -75,6 +80,12 @@ func (s *Shelf) refreshBookCacheIfNeeded(force bool) error {
 func (s *Shelf) scanToBookCache() error {
 	cache := make(map[string]*bookIDCacheEntry)
 
+	// Recorded before the walk, not after. A book read early in the walk can be
+	// edited before the walk ends, so only the start time is a moment the whole
+	// result is known to be current as of. The exported cache publishes this as
+	// its Timestamp and readers use it to decide what they must re-read.
+	scanStart := time.Now()
+
 	err := s.iterateBooks(nil, func(b *Book) bool {
 		cache[b.ID()] = &bookIDCacheEntry{
 			layers: b.Layers(),
@@ -91,10 +102,7 @@ func (s *Shelf) scanToBookCache() error {
 	s.bookCache.cache = cache
 	s.bookCache.treeDirty = false
 	s.bookCache.lastFullScan = time.Now()
-	// A completed walk is what BookCacheFile.Timestamp reports, so every scan
-	// gives the exported cache something new to say even when no book changed.
-	// exportBookCache still compares content before it writes anything.
-	s.bookCache.exportDirty = true
+	s.bookCache.lastScanStart = scanStart
 	s.bookCache.Unlock()
 
 	return nil
@@ -148,9 +156,6 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 		} else {
 			delete(s.bookCache.cache, bookID)
 		}
-	}
-	if len(updated) > 0 {
-		s.bookCache.exportDirty = true
 	}
 	s.bookCache.lastBookCheck = time.Now()
 	s.bookCache.Unlock()
@@ -286,7 +291,6 @@ func (s *Shelf) updateBookCacheEntry(layers Layers, path string, book *Book) {
 		path:   path,
 		book:   book,
 	}
-	s.bookCache.exportDirty = true
 }
 
 func (s *Shelf) deleteBookCacheEntry(bookID string) {
@@ -294,5 +298,4 @@ func (s *Shelf) deleteBookCacheEntry(bookID string) {
 	defer s.bookCache.Unlock()
 
 	delete(s.bookCache.cache, bookID)
-	s.bookCache.exportDirty = true
 }

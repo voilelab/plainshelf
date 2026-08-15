@@ -26,6 +26,11 @@ type App struct {
 	spaFS        fs.FS
 	spaHandler   http.Handler
 
+	// bookCacheWriterID names this installation in the book cache every shelf
+	// exports; see book_cache_writer.go. Held so shelves opened after startup
+	// get it too.
+	bookCacheWriterID string
+
 	conf     *AppConf
 	security *Security
 }
@@ -141,6 +146,8 @@ func NewApp(conf *AppConf) (*App, error) {
 		spaHandler:   http.FileServerFS(frontend.WebFS),
 		conf:         conf,
 		security:     security,
+
+		bookCacheWriterID: writerID,
 	}, nil
 }
 
@@ -149,7 +156,15 @@ func (app *App) Start() error {
 	return nil
 }
 
+// AddShelf opens a shelf after startup — the desktop app's "add shelf" flow.
+//
+// The writer ID has to be applied here as well as in NewApp: a shelf added this
+// way otherwise exports nothing until the app is restarted, and its manual
+// export fails.
 func (app *App) AddShelf(conf shelf.ShelfConfWithID) error {
+	if conf.BookCacheWriterID == "" {
+		conf.BookCacheWriterID = app.bookCacheWriterID
+	}
 	return app.shelfManager.AddShelf(conf)
 }
 

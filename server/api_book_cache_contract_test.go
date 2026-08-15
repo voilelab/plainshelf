@@ -166,3 +166,36 @@ func TestBookCacheWriterIDIsStableAcrossRestarts(t *testing.T) {
 	// readExportedBookCache fails when a second file appears, so reaching here
 	// also proves the restart did not orphan the first run's cache.
 }
+
+// A shelf opened after startup — the desktop "add shelf" flow — must get the
+// installation's writer ID too. Without it the new shelf exports nothing and
+// its manual export fails until the app is restarted.
+func TestBookCacheWriterIDAppliesToShelvesAddedAtRuntime(t *testing.T) {
+	env := newAPITestEnv(t)
+	startupWriterID := readExportedBookCache(t, env.libRoot).WriterID
+
+	addedRoot := t.TempDir()
+	if err := env.app.AddShelf(shelf.ShelfConfWithID{
+		ID:        "added_later",
+		Name:      "Added Later",
+		ShelfConf: shelf.ShelfConf{LibRoot: addedRoot},
+	}); err != nil {
+		t.Fatalf("AddShelf: %v", err)
+	}
+
+	shelfData, ok := env.app.shelfManager.GetShelf("added_later")
+	if !ok {
+		t.Fatal("added_later missing from the shelf manager")
+	}
+	if err := shelfData.WaitReady(t.Context()); err != nil {
+		t.Fatalf("WaitReady: %v", err)
+	}
+
+	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/added_later/book-cache-exports", nil))
+	assertStatus(t, rec, http.StatusOK)
+
+	added := readExportedBookCache(t, addedRoot)
+	if added.WriterID != startupWriterID {
+		t.Errorf("writer_id = %q, want the installation's %q", added.WriterID, startupWriterID)
+	}
+}

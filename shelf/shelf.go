@@ -343,16 +343,16 @@ func (s *Shelf) Close() error {
 	// Flush before the lock goes away: this is the one write that is guaranteed
 	// to happen, and it is what keeps the exported cache useful for a desktop
 	// app that is opened, used and closed inside a single interval.
+	//
+	// Offered unconditionally, because the only trustworthy answer to "did
+	// anything change" is to compare the content — a book edited in place
+	// through *Book leaves no other trace here. exportBookCache does that
+	// comparison and writes nothing when the shelf is unchanged, so the cost of
+	// a quiet shutdown is one directory walk.
 	if s.bookCacheWriterID != "" {
-		s.bookCache.RLock()
-		dirty := s.bookCache.exportDirty
-		s.bookCache.RUnlock()
-
-		if dirty {
-			if err := s.exportBookCache(false); err != nil {
-				// Shutdown must not fail over a rebuildable file.
-				s.Warn("failed to export the book cache while closing", "error", err)
-			}
+		if err := s.exportBookCache(false); err != nil {
+			// Shutdown must not fail over a rebuildable file.
+			s.Warn("failed to export the book cache while closing", "error", err)
 		}
 	}
 

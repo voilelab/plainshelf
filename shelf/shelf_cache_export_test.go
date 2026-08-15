@@ -386,3 +386,90 @@ func TestValidateBookCacheWriterID(t *testing.T) {
 		t.Fatal("NewShelf accepted an unsafe book cache writer ID")
 	}
 }
+
+// An edit made through *Book changes the cached book in place, without going
+// anywhere near the export bookkeeping. Nothing marks it, so the export has to
+// notice by comparing content — which is why there is no dirty flag.
+func TestBookCacheExportPicksUpInPlaceMetadataEdits(t *testing.T) {
+	libRoot := t.TempDir()
+	shelf, err := NewShelf(&ShelfConf{
+		LibRoot:           libRoot,
+		LockMode:          "none",
+		BookCacheWriterID: testWriterID,
+		// Long enough that only Close can produce the second export, and long
+		// enough that no rescan can quietly do the job for it.
+		BookCacheInterval: "24h",
+		ScanInterval:      "24h",
+	})
+	if err != nil {
+		t.Fatalf("NewShelf: %v", err)
+	}
+	if err := shelf.WaitReady(t.Context()); err != nil {
+		t.Fatalf("WaitReady: %v", err)
+	}
+
+	created, err := shelf.NewBook(nil, "Before The Edit")
+	if err != nil {
+		t.Fatalf("NewBook: %v", err)
+	}
+	if _, err := shelf.ExportBookCache(); err != nil {
+		t.Fatalf("ExportBookCache: %v", err)
+	}
+
+	// Through GetBook, which is how the API reaches a book: it hands back the
+	// instance the cache holds, so SetMeta edits the cached book in place.
+	book, err := shelf.GetBook(created.ID())
+	if err != nil {
+		t.Fatalf("GetBook: %v", err)
+	}
+	meta := book.GetMeta()
+	meta.Title = "After The Edit"
+	if err := book.SetMeta(meta); err != nil {
+		t.Fatalf("SetMeta: %v", err)
+	}
+
+	if err := shelf.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	cache := waitForBookCacheExport(t, libRoot, testWriterID)
+	entry, ok := cache.Books[created.ID()]
+	if !ok {
+		t.Fatalf("book missing from the exported cache: %v", cache.Books)
+	}
+	if entry.Meta.Title != "After The Edit" {
+		t.Errorf("exported title = %q, want the edited title", entry.Meta.Title)
+	}
+}
+
+// Timestamp must be the moment the walk started. Stamping the end would cover
+// a book edited while the walk was still running, after it had been read.
+func TestBookCacheExportTimestampIsTheScanStart(t *testing.T) {
+	libRoot := t.TempDir()
+	shelf := newTestShelf(t, &ShelfConf{
+		LibRoot:           libRoot,
+		LockMode:          "none",
+		BookCacheWriterID: testWriterID,
+	})
+	if _, err := shelf.NewBook(nil, "Timed"); err != nil {
+		t.Fatalf("NewBook: %v", err)
+	}
+
+	scanStart, err := shelf.ExportBookCache()
+	if err != nil {
+		t.Fatalf("ExportBookCache: %v", err)
+	}
+
+	shelf.bookCache.RLock()
+	scanEnd := shelf.bookCache.lastFullScan
+	shelf.bookCache.RUnlock()
+
+	if scanStart.After(scanEnd) {
+		t.Errorf("reported scan start %v is after the scan end %v", scanStart, scanEnd)
+	}
+
+	cache := waitForBookCacheExport(t, libRoot, testWriterID)
+	if cache.Timestamp != scanStart.Unix() {
+		t.Errorf("timestamp = %d, want the scan start %d", cache.Timestamp, scanStart.Unix())
+	}
+}

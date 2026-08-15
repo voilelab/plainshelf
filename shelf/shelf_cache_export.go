@@ -61,14 +61,17 @@ type BookCacheFile struct {
 	// each other. See docs/concepts/shelf-cache-and-io.md.
 	WriterID string `json:"writer_id"`
 
-	// Timestamp is when the shelf was last walked, in Unix seconds — NOT when
-	// the file was written. A reader compares it against the modification time
-	// of each book.json it can see: anything newer than this was changed after
-	// the walk and must be re-read, everything else is covered by Books below.
+	// Timestamp is when the walk behind this file BEGAN, in Unix seconds — not
+	// when the file was written, and not when the walk finished. A reader
+	// compares it against the modification time of each book.json it can see:
+	// anything at or after this may have changed since the walk read it and
+	// must be re-read, everything older is covered by Books below.
 	//
-	// Using the walk time rather than the write time is what makes that
-	// comparison sound; a write time would claim freshness the walk never
-	// verified.
+	// Each of those three choices is the conservative one. A write time would
+	// claim freshness the walk never verified. The walk's end time would cover
+	// books edited while it was still running, after it had already read them.
+	// And whole seconds cannot order two events inside the same second, which
+	// is why a reader treats equality as "must re-read" rather than "covered".
 	Timestamp int64 `json:"timestamp"`
 
 	// Generator records the build that wrote the file, for diagnostics only.
@@ -110,31 +113,31 @@ func (s *Shelf) bookCacheFileName() string {
 	return bookCacheFilePrefix + s.bookCacheWriterID + bookCacheFileSuffix
 }
 
-// The dirty flag itself is set inline by the bookCache mutators in
-// shelf_cache.go, inside the lock each of them already holds. Marking is cheap
-// and deliberately liberal; exportBookCache decides whether anything actually
-// changed before it writes.
-
-// scheduleBookCacheExportIfNeeded exports in the background when the cache has
-// changed and the interval has elapsed.
+// scheduleBookCacheExportIfNeeded considers an export in the background once the
+// interval has elapsed. Whether anything is actually written is decided by
+// comparing content, in exportBookCache.
 //
-// There is no ticker behind this. An export only has something to say after the
-// shelf has been read or written, and every such path passes through here, so
-// polling would add a goroutine and a shutdown concern without making any file
-// fresher. A shelf that is genuinely idle has nothing to export; one that is
-// closed while dirty is exported by Close.
+// Deciding on content rather than on a "something changed" flag is the point:
+// the cache holds pointers to live *Book values, and every metadata edit —
+// SetMeta, SetCover, DeleteCover, SetCurrentSource — mutates one in place
+// without going near this file. A flag would have to be set from each of them,
+// and the one that got missed would silently stop exporting.
+//
+// There is no ticker behind this either. An export only has something to say
+// after the shelf has been read or written, and every such path passes through
+// here, so polling would add a goroutine and a shutdown concern without making
+// any file fresher. A shelf closed with unexported changes is handled by Close.
 func (s *Shelf) scheduleBookCacheExportIfNeeded() {
 	if s.bookCacheWriterID == "" {
 		return
 	}
 
 	s.bookCache.RLock()
-	dirty := s.bookCache.exportDirty
 	lastExport := s.bookCache.lastExport
 	exporting := s.bookCache.exporting
 	s.bookCache.RUnlock()
 
-	if !dirty || exporting || time.Since(lastExport) < s.bookCacheInterval {
+	if exporting || time.Since(lastExport) < s.bookCacheInterval {
 		return
 	}
 
@@ -164,9 +167,8 @@ func (s *Shelf) scheduleBookCacheExportIfNeeded() {
 // ExportBookCache rescans the shelf and writes the exported cache immediately,
 // ignoring the interval. This is the manual trigger behind the API endpoint.
 //
-// The rescan is not optional: Timestamp promises the shelf was walked at that
-// moment, so writing without one would advertise freshness that was never
-// checked.
+// The rescan is not optional: Timestamp promises a walk began at that moment,
+// so writing without one would advertise freshness that was never checked.
 func (s *Shelf) ExportBookCache() (time.Time, error) {
 	if s.bookCacheWriterID == "" {
 		return time.Time{}, util.NewError("book cache export is not configured for this shelf")
@@ -191,7 +193,7 @@ func (s *Shelf) ExportBookCache() (time.Time, error) {
 
 	s.bookCache.RLock()
 	defer s.bookCache.RUnlock()
-	return s.bookCache.lastFullScan, nil
+	return s.bookCache.lastScanStart, nil
 }
 
 // exportBookCache builds the cache payload and writes it when it differs from
@@ -228,14 +230,13 @@ func (s *Shelf) exportBookCache(force bool) error {
 	}
 
 	s.bookCache.RLock()
-	scannedAt := s.bookCache.lastFullScan
+	scannedAt := s.bookCache.lastScanStart
 	unchanged := digest == s.bookCache.lastExportDigest
 	s.bookCache.RUnlock()
 
 	if !force && unchanged {
 		// Nothing to say, but the question has now been asked and answered.
 		s.bookCache.Lock()
-		s.bookCache.exportDirty = false
 		s.bookCache.lastExport = time.Now()
 		s.bookCache.Unlock()
 		return nil
@@ -264,7 +265,6 @@ func (s *Shelf) exportBookCache(force bool) error {
 	}
 
 	s.bookCache.Lock()
-	s.bookCache.exportDirty = false
 	s.bookCache.lastExport = time.Now()
 	s.bookCache.lastExportDigest = digest
 	s.bookCache.Unlock()
