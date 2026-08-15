@@ -183,8 +183,8 @@ Two things people miss:
   are not in that store: each client keeps its own on the device that did the
   reading, so none is covered by a server-side backup. Back up the browser
   profile or desktop app data directory separately if those records matter.
-- **Everything under `app/`** — the lock file and temporary files — can be
-  discarded safely; the server recreates it.
+- **Everything under `app/`** — the lock file, temporary files, and the exported
+  book caches — can be discarded safely; the server recreates it.
 
 Stop the server or desktop app before copying if you want a guaranteed-consistent
 snapshot. The shelf lock coordinates PlainShelf's own writes; it does not stop
@@ -210,8 +210,8 @@ Upgrade from v0.8 only if you accept that they will no longer be accessible.
 2. Restore the shelf directory, and the application store if you backed it up.
 3. Start PlainShelf again.
 
-You can skip `app/library.lock` and `app/tmp/` when restoring; they are
-recreated on the next startup.
+You can skip `app/library.lock`, `app/tmp/`, and `app/book-cache-*.json` when
+restoring; they are recreated on the next startup.
 
 ---
 

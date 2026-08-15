@@ -96,6 +96,25 @@ export async function getShelfStatus(shelfID?: string): Promise<{ ready: boolean
   return fetchJson<{ ready: boolean }>(buildShelfApiPath('/status', shelfID));
 }
 
+/**
+ * Rewrites the shelf's exported book cache now, and reports when the shelf was
+ * walked (epoch seconds).
+ *
+ * The server refreshes that file on its own schedule; this is for a user who
+ * has just changed something and does not want to wait before a phone reading
+ * the same shelf from cloud storage sees it.
+ */
+export async function exportShelfBookCache(shelfID?: string): Promise<number> {
+  if (isMockApiMode()) {
+    return Math.floor(Date.now() / 1000);
+  }
+
+  const res = await fetchJson<{ timestamp?: number }>(buildShelfApiPath('/book-cache-exports', shelfID), {
+    method: 'POST'
+  });
+  return typeof res?.timestamp === 'number' ? res.timestamp : 0;
+}
+
 export function ensureActiveShelf(shelves: ShelfInfo[]): string {
   const currentShelfID = getActiveShelfID();
   if (shelves.some((shelf) => shelf.id === currentShelfID)) {

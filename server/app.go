@@ -74,19 +74,9 @@ func NewApp(conf *AppConf) (*App, error) {
 			logger.Close()
 		}
 	}()
-	shelfManager := shelf.NewShelfManager()
-	defer func() {
-		if failure {
-			shelfManager.Close()
-		}
-	}()
-
-	for _, conf := range conf.Shelves {
-		if err := shelfManager.AddShelf(*conf); err != nil {
-			return nil, util.Errorf("%w", err)
-		}
-	}
-
+	// Opened before the shelves because each shelf is configured with the book
+	// cache writer ID this store holds, and a shelf starts scanning — and
+	// exporting — the moment it is created.
 	storeDB, err := store.New(conf.StorePath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -98,6 +88,30 @@ func NewApp(conf *AppConf) (*App, error) {
 			}
 		}
 	}()
+
+	writerID, err := resolveBookCacheWriterID(storeDB)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	shelfManager := shelf.NewShelfManager()
+	defer func() {
+		if failure {
+			shelfManager.Close()
+		}
+	}()
+
+	for _, conf := range conf.Shelves {
+		shelfConf := *conf
+		// An operator who pins the ID in the config keeps it; everyone else gets
+		// this installation's generated one.
+		if shelfConf.BookCacheWriterID == "" {
+			shelfConf.BookCacheWriterID = writerID
+		}
+		if err := shelfManager.AddShelf(shelfConf); err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+	}
 
 	// The worker section is optional; every field has a usable zero value.
 	workerConf := conf.Worker
@@ -247,6 +261,7 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books", app.HandleAPICreateBook)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/book-batches", app.HandleAPIBookBatch)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/content-stat-refreshes", app.HandleAPIRefreshContentStats)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/book-cache-exports", app.HandleAPIExportBookCache)
 
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/import", app.HandleAPIImportBook)
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/duplicate", app.HandleAPIFindDuplicateBooks)

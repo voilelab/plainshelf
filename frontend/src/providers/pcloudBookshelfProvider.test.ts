@@ -687,3 +687,225 @@ describe('read-only behaviour', () => {
     expect(() => new PCloudBookshelfProvider({ client, shelfRoot: '  ' })).toThrow(PCloudError);
   });
 });
+
+describe('exported book cache', () => {
+  // Every fixture file defaults to this modification time, so a cache stamped
+  // later than it covers the whole shelf.
+  const FIXTURE_MODIFIED_SECONDS = Math.floor(Date.parse('Sun, 16 Mar 2014 17:26:04 +0000') / 1000);
+  const CACHE_TIMESTAMP = FIXTURE_MODIFIED_SECONDS + 3600;
+
+  interface CacheSpec {
+    name?: string;
+    modified?: string;
+    timestamp?: number;
+    writerID?: string;
+    schemaVersion?: number;
+    layers?: string[];
+    books?: Record<string, { path: string; meta: Record<string, unknown> }>;
+    /** Replaces the whole body, for malformed-file cases. */
+    rawBody?: string;
+  }
+
+  function cachedBook(id: string, title: string, folderName: string, layers: string[] = []) {
+    return {
+      path: ['books', ...layers, folderName].join('/'),
+      meta: {
+        schema_version: 1,
+        id,
+        title,
+        authors: ['Author'],
+        cover: '',
+        current_source: '20240101-120000'
+      }
+    };
+  }
+
+  function bookCacheItem(spec: CacheSpec = {}): PCloudItem {
+    const body =
+      spec.rawBody ??
+      JSON.stringify({
+        schema_version: spec.schemaVersion ?? 1,
+        writer_id: spec.writerID ?? 'writer01',
+        timestamp: spec.timestamp ?? CACHE_TIMESTAMP,
+        generator: 'plainshelf/test',
+        layers: spec.layers ?? ['/'],
+        books: spec.books ?? {}
+      });
+
+    return file({
+      name: spec.name ?? 'book-cache-writer01.json',
+      body,
+      modified: spec.modified
+    });
+  }
+
+  function shelfWithCache(books: PCloudItem[], caches: PCloudItem[]): PCloudItem {
+    return shelfTree(books, [folder('app', [file({ name: 'library.lock', body: '' }), ...caches])]);
+  }
+
+  it('lists books from the cache without downloading any book.json', async () => {
+    const tree = shelfWithCache(
+      [bookPackage({ id: 'a', title: 'Alpha' }), bookPackage({ id: 'b', title: 'Beta' })],
+      [
+        bookCacheItem({
+          books: {
+            // Titles differ from the on-disk fixtures purely so the assertion
+            // can prove the listing came from the cache and not from a download.
+            a: cachedBook('a', 'Alpha From Cache', 'Alpha.bookpkg'),
+            b: cachedBook('b', 'Beta From Cache', 'Beta.bookpkg')
+          }
+        })
+      ]
+    );
+
+    const { provider, calls } = makeProvider(tree);
+    const page = await provider.listBooks(1, 10);
+
+    expect(page.items.map((book) => book.title)).toEqual(['Alpha From Cache', 'Beta From Cache']);
+    // One download: the cache itself. Without it this shelf costs two per book.
+    expect(calls.download).toBe(1);
+    expect(calls.recursiveListfolder).toBe(1);
+  });
+
+  it('re-reads only the books changed after the cache was written', async () => {
+    const stale = bookPackage({ id: 'a', title: 'Alpha' });
+    const changed = folder('Beta.bookpkg', [
+      file({
+        name: 'book.json',
+        body: JSON.stringify({
+          schema_version: 1,
+          id: 'b',
+          title: 'Beta Updated',
+          authors: ['Author'],
+          cover: '',
+          current_source: '20240101-120000'
+        }),
+        // Modified after the walk, so the cache cannot speak for it.
+        modified: 'Mon, 17 Mar 2014 17:26:04 +0000'
+      })
+    ]);
+
+    const tree = shelfWithCache(
+      [stale, changed],
+      [
+        bookCacheItem({
+          books: {
+            a: cachedBook('a', 'Alpha From Cache', 'Alpha.bookpkg'),
+            b: cachedBook('b', 'Beta Before The Change', 'Beta.bookpkg')
+          }
+        })
+      ]
+    );
+
+    const { provider, calls } = makeProvider(tree);
+    const page = await provider.listBooks(1, 10);
+
+    expect(page.items.map((book) => book.title)).toEqual(['Alpha From Cache', 'Beta Updated']);
+    // The cache plus the one book.json that moved on.
+    expect(calls.download).toBe(2);
+  });
+
+  it('reads a book missing from the cache rather than dropping it', async () => {
+    const tree = shelfWithCache(
+      [bookPackage({ id: 'a', title: 'Alpha' }), bookPackage({ id: 'b', title: 'Beta' })],
+      [bookCacheItem({ books: { a: cachedBook('a', 'Alpha From Cache', 'Alpha.bookpkg') } })]
+    );
+
+    const { provider, calls } = makeProvider(tree);
+    const page = await provider.listBooks(1, 10);
+
+    expect(page.items.map((book) => book.title)).toEqual(['Alpha From Cache', 'Beta']);
+    expect(calls.download).toBe(2);
+  });
+
+  it.each([
+    ['a corrupt file', { rawBody: '{not json' }],
+    ['an unknown schema version', { schemaVersion: 99 }],
+    ['a payload missing required fields', { rawBody: JSON.stringify({ schema_version: 1, books: {} }) }]
+  ])('falls back to a full scan on %s', async (_label, spec) => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const tree = shelfWithCache([bookPackage({ id: 'a', title: 'Alpha' })], [bookCacheItem(spec as CacheSpec)]);
+
+    const { provider, calls } = makeProvider(tree);
+    const page = await provider.listBooks(1, 10);
+
+    // The listing is still correct; only the saving is lost.
+    expect(page.items.map((book) => book.title)).toEqual(['Alpha']);
+    expect(calls.download).toBe(2);
+  });
+
+  it('uses the most recently written cache when several machines wrote one', async () => {
+    const tree = shelfWithCache(
+      [bookPackage({ id: 'a', title: 'Alpha' })],
+      [
+        bookCacheItem({
+          name: 'book-cache-olddesktop.json',
+          modified: 'Sun, 16 Mar 2014 18:00:00 +0000',
+          books: { a: cachedBook('a', 'From The Old Desktop', 'Alpha.bookpkg') }
+        }),
+        bookCacheItem({
+          name: 'book-cache-newlaptop.json',
+          modified: 'Tue, 18 Mar 2014 18:00:00 +0000',
+          books: { a: cachedBook('a', 'From The New Laptop', 'Alpha.bookpkg') }
+        })
+      ]
+    );
+
+    const { provider, calls } = makeProvider(tree);
+    const page = await provider.listBooks(1, 10);
+
+    expect(page.items.map((book) => book.title)).toEqual(['From The New Laptop']);
+    // Only the chosen cache is fetched; the others are never downloaded.
+    expect(calls.download).toBe(1);
+  });
+
+  it('matches cache entries by layer path, not by folder name alone', async () => {
+    const tree = shelfWithCache(
+      [folder('Fiction', [bookPackage({ id: 'a', title: 'Alpha' })])],
+      [
+        bookCacheItem({
+          layers: ['/', 'Fiction'],
+          books: {
+            // Recorded at the top level; the book actually lives under Fiction,
+            // so this entry must not be applied to it.
+            a: cachedBook('a', 'Wrong Layer', 'Alpha.bookpkg')
+          }
+        })
+      ]
+    );
+
+    const { provider, calls } = makeProvider(tree);
+    const page = await provider.listBooks(1, 10);
+
+    expect(page.items.map((book) => book.title)).toEqual(['Alpha']);
+    expect(page.items[0]?.layers).toEqual(['Fiction']);
+    expect(calls.download).toBe(2);
+  });
+
+  it('does not fetch the cache on a refresh that has nothing to read', async () => {
+    const tree = shelfWithCache(
+      [bookPackage({ id: 'a', title: 'Alpha' })],
+      [bookCacheItem({ books: { a: cachedBook('a', 'Alpha From Cache', 'Alpha.bookpkg') } })]
+    );
+
+    const { provider, calls } = makeProvider(tree);
+    await provider.listBooks(1, 10);
+    expect(calls.download).toBe(1);
+
+    // Every book.json is already known and unchanged, so there is nothing the
+    // cache could answer — fetching it would make refreshing cost more than it
+    // did before the cache existed.
+    await provider.refreshShelf();
+    expect(calls.download).toBe(1);
+  });
+
+  it('scans normally when the shelf has no exported cache', async () => {
+    const { provider, calls } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'Alpha' })]));
+
+    const page = await provider.listBooks(1, 10);
+
+    expect(page.items.map((book) => book.title)).toEqual(['Alpha']);
+    expect(calls.download).toBe(1);
+  });
+});

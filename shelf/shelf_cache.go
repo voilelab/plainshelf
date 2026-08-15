@@ -26,6 +26,14 @@ type bookCache struct {
 	lastBookCheck     time.Time
 	bookCheckInterval time.Duration
 	refreshing        bool
+
+	// Exported cache state; see shelf_cache_export.go. lastExportDigest
+	// fingerprints what was last written, so an unchanged shelf stops rewriting
+	// the file once the first export has happened.
+	exportDirty      bool
+	lastExport       time.Time
+	lastExportDigest string
+	exporting        bool
 }
 
 func newBookCache(scanInterval, bookCheckInterval time.Duration) *bookCache {
@@ -40,6 +48,7 @@ func newBookCache(scanInterval, bookCheckInterval time.Duration) *bookCache {
 func (s *Shelf) markBookCacheTreeDirty() {
 	s.bookCache.Lock()
 	s.bookCache.treeDirty = true
+	s.bookCache.exportDirty = true
 	s.bookCache.Unlock()
 }
 
@@ -82,6 +91,10 @@ func (s *Shelf) scanToBookCache() error {
 	s.bookCache.cache = cache
 	s.bookCache.treeDirty = false
 	s.bookCache.lastFullScan = time.Now()
+	// A completed walk is what BookCacheFile.Timestamp reports, so every scan
+	// gives the exported cache something new to say even when no book changed.
+	// exportBookCache still compares content before it writes anything.
+	s.bookCache.exportDirty = true
 	s.bookCache.Unlock()
 
 	return nil
@@ -136,6 +149,9 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 			delete(s.bookCache.cache, bookID)
 		}
 	}
+	if len(updated) > 0 {
+		s.bookCache.exportDirty = true
+	}
 	s.bookCache.lastBookCheck = time.Now()
 	s.bookCache.Unlock()
 }
@@ -149,6 +165,10 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 // that list operations are never blocked by N filesystem stat calls — the main performance
 // concern on SMB mounts. The check is rate-limited by bookCheckInterval.
 func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
+	// Deferred so it runs on every return path below: whichever tier of refresh
+	// this call decides on, the exported cache is offered the result.
+	defer s.scheduleBookCacheExportIfNeeded()
+
 	s.bookCache.RLock()
 	treeDirty := s.bookCache.treeDirty
 	lastFullScan := s.bookCache.lastFullScan
@@ -266,6 +286,7 @@ func (s *Shelf) updateBookCacheEntry(layers Layers, path string, book *Book) {
 		path:   path,
 		book:   book,
 	}
+	s.bookCache.exportDirty = true
 }
 
 func (s *Shelf) deleteBookCacheEntry(bookID string) {
@@ -273,4 +294,5 @@ func (s *Shelf) deleteBookCacheEntry(bookID string) {
 	defer s.bookCache.Unlock()
 
 	delete(s.bookCache.cache, bookID)
+	s.bookCache.exportDirty = true
 }

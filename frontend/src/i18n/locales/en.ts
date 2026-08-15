@@ -224,6 +224,15 @@ const en = {
       description: 'Manage books saved to this device for offline reading.',
       open: 'Manage downloads'
     },
+    bookCache: {
+      title: 'Mobile book cache',
+      description:
+        'Each shelf keeps a listing of its books in its app folder so a phone reading the same shelf from cloud storage does not have to scan it. It is refreshed automatically; update it now if a phone should see recent changes right away.',
+      export: 'Update now',
+      exporting: 'Updating…',
+      success: 'Book cache updated.',
+      failed: 'Failed to update the book cache.'
+    },
     shelves: {
       title: 'Shelves',
       loadFailed: 'Failed to load shelves',

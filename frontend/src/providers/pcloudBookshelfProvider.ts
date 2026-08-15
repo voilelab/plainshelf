@@ -10,7 +10,17 @@ import {
   toSplitConfig
 } from '@/api/pcloud/bookpkg';
 import type { BookJson, BookPackageRef, BookSourceRef, PCloudFileRef } from '@/api/pcloud/bookpkg';
+import {
+  bookPackagePath,
+  findBookCacheFiles,
+  indexBookCacheByPath,
+  isCoveredByBookCache,
+  parseBookCacheFile,
+  pickNewestBookCache
+} from '@/api/pcloud/bookCacheFile';
+import type { BookCacheFile } from '@/api/pcloud/bookCacheFile';
 import { PCloudClient } from '@/api/pcloud/client';
+import type { PCloudItem } from '@/api/pcloud/types';
 import { PCloudDataError, PCloudError, isRetryablePCloudError } from '@/api/pcloud/errors';
 import { ApiError } from '@/api/client';
 import {
@@ -312,6 +322,31 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     } satisfies PersistedShelfSnapshot);
   }
 
+  /**
+   * Loads the cache the shelf's server or desktop app exported, if there is one.
+   *
+   * Never throws: a shelf with no exporter, an older file or a corrupt one is a
+   * cache miss, and the walk below still produces a correct listing — only more
+   * slowly. Costs two requests, against two per book without it.
+   */
+  private async loadBookCache(root: PCloudItem): Promise<BookCacheFile | null> {
+    const newest = pickNewestBookCache(findBookCacheFiles(root));
+    if (!newest) {
+      return null;
+    }
+
+    try {
+      const cache = parseBookCacheFile(JSON.parse(await this.client.downloadText(newest.fileid)));
+      if (!cache) {
+        console.warn(`Ignoring ${newest.name}: not a book cache this version understands.`);
+      }
+      return cache;
+    } catch (err) {
+      console.warn(`Ignoring ${newest.name}: it could not be read.`, err);
+      return null;
+    }
+  }
+
   private async loadSnapshot(): Promise<ShelfSnapshot> {
     const root = await this.client.listFolderRecursive({ path: this.shelfRoot });
     const booksFolder = findBooksFolder(root);
@@ -320,13 +355,46 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     }
 
     const packages = collectBookPackages(booksFolder);
+    // Layers stay derived from the listing rather than read from the cache. The
+    // directories are in the response already, so they cost nothing here and
+    // cannot be out of date, which the cache's copy can be.
     const layers = collectLayers(booksFolder);
     this.pruneJsonCache(packages);
+
+    // Only worth two requests when something actually has to be read. A refresh
+    // where no book.json changed is already free from jsonCache, and fetching
+    // the exported cache to answer nothing would make refreshing more expensive
+    // than it was before the cache existed.
+    const needsMetadata = packages.some((pkg) => pkg.meta && !this.isJsonCached(pkg.meta));
+    const bookCache = needsMetadata ? await this.loadBookCache(root) : null;
+    const cachedMetaByPath = bookCache ? indexBookCacheByPath(bookCache) : null;
 
     const loaded = await mapWithConcurrency(packages, METADATA_CONCURRENCY, async (pkg) => {
       if (!pkg.meta) {
         console.warn(`Skipping ${pkg.folderName}: no ${'book.json'} in the package.`);
         return null;
+      }
+
+      // A book the exporter recorded and nobody has touched since needs no
+      // request at all. One changed afterwards falls through to the download,
+      // so a stale cache costs accuracy for nothing.
+      if (bookCache && cachedMetaByPath && isCoveredByBookCache(pkg.meta, bookCache.timestamp)) {
+        const cachedMeta = cachedMetaByPath.get(bookPackagePath(pkg));
+        if (cachedMeta) {
+          try {
+            const meta = parseBookJson(cachedMeta);
+            // Warm the freshness cache too, so a later refresh re-reads only
+            // the books whose book.json actually changed.
+            this.jsonCache.set(pkg.meta.fileid, {
+              size: pkg.meta.size,
+              modified: pkg.meta.modified,
+              value: cachedMeta
+            });
+            return { pkg, meta, book: this.buildBook(meta, pkg) } satisfies LoadedBook;
+          } catch (err) {
+            console.warn(`Ignoring the cached entry for ${pkg.folderName}; reading its book.json instead.`, err);
+          }
+        }
       }
 
       try {
@@ -421,6 +489,12 @@ export class PCloudBookshelfProvider implements BookshelfReader {
         this.jsonCache.delete(fileid);
       }
     }
+  }
+
+  /** Whether readJson would answer this reference without a request. */
+  private isJsonCached(ref: PCloudFileRef): boolean {
+    const cached = this.jsonCache.get(ref.fileid);
+    return cached !== undefined && cached.size === ref.size && cached.modified === ref.modified;
   }
 
   private async readJson(ref: PCloudFileRef): Promise<unknown> {

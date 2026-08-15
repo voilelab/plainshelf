@@ -97,6 +97,21 @@ app_conf:
 
 If `book_check_interval` is omitted, it defaults to the same duration as `scan_interval`.
 
+### `book_cache_interval`
+
+`book_cache_interval` bounds how quickly a change reaches the exported book cache described below. It defaults to one hour, and only applies to shelves that export one.
+
+It is not how often the file is rewritten: an export whose content matches what was written last does not touch the disk, so a shelf nobody changes is never rewritten no matter how short the interval is.
+
+```yaml
+app_conf:
+  shelves:
+    - id: default_shelf
+      name: Default Shelf
+      lib_root: /path/to/shelf
+      book_cache_interval: 30m
+```
+
 ---
 
 ## Storage impact by filesystem type
@@ -127,6 +142,39 @@ app_conf:
 ```
 
 If browsing is still slow, increase `book_check_interval` first. If external additions or moves do not need to appear immediately, increase `scan_interval` too.
+
+---
+
+## The exported book cache
+
+Everything above is in-memory state, rebuilt from the shelf whenever PlainShelf starts. It does nothing for a client that reads the shelf directly instead of through the server.
+
+The Android app opening a shelf from pCloud is that client. It has no server to ask, so it walks the shelf itself, and each book costs two HTTP requests — one to get a download link for `book.json`, one to fetch it. On a shelf of any size that is slow, and it can hit pCloud's request limit.
+
+So the server and the desktop app write the listing down. Each one exports `app/book-cache-{writer-id}.json`, containing every book's `book.json`, each book's package path, and the shelf's layers. A client downloads that one file instead of walking the shelf, and the cost of opening a library stops growing with the number of books in it.
+
+### When it is written
+
+- after the initial scan, so a client that arrives before anything else has read the shelf still finds a file;
+- when the shelf has changed and `book_cache_interval` (default one hour) has elapsed since the last export;
+- when the shelf is closed, if anything changed since the last export;
+- on demand, from **Settings → Shelves → Mobile book cache**, or `POST /api/shelves/{shelf_id}/book-cache-exports`.
+
+There is no background timer. An export only has something new to say after the shelf has been read or written, and those are the moments it is considered. If the content has not actually changed, the file is left alone rather than rewritten — an identical rewrite would be a pointless upload on the cloud and network shelves this feature exists for.
+
+The manual trigger always rescans the shelf first. The `timestamp` in the file records when the shelf was **walked**, not when the file was written, and a client uses it to decide which books it can take from the cache: anything whose `book.json` was modified after that time is read directly instead. Writing a fresh timestamp without a fresh walk would claim knowledge the export never had.
+
+### Several machines, one shelf
+
+The writer ID is generated on first start and stored outside the shelf, with the server's other settings. It identifies the installation, not the shelf, so a machine that opens three shelves writes the same ID into all three, and two machines sharing one shelf keep separate files. A client picks the most recently written one.
+
+An installation removes another's file only after 30 days without an update — long enough that a machine switched off for a holiday keeps its entry. Files it cannot parse are never removed, so anything else under `app/` is left alone.
+
+### Notes
+
+- The file is disposable. Delete it and it comes back; a client that finds none, or one it cannot read, falls back to scanning the shelf.
+- It contains exactly what `book.json` already contains. If your shelf is private, it is no more revealing than the shelf itself — but it does put every book's metadata in one file, which matters if you share `app/` more widely than `books/`.
+- `book_cache_writer_id` can be pinned per shelf in the config file if you want a predictable name; leave it unset and PlainShelf supplies one.
 
 ---
 

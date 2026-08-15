@@ -222,6 +222,15 @@ const zhHant = {
       description: '管理已下載到這台裝置、供離線閱讀的書籍。',
       open: '管理已下載書籍'
     },
+    bookCache: {
+      title: '行動裝置書籍快取',
+      description:
+        '每個書架都會在自己的 app 資料夾裡保存一份書目清單，讓透過雲端儲存讀取同一個書架的手機不必自行掃描。這份清單會自動更新；若希望手機立刻看到剛才的變更，可以在這裡手動更新。',
+      export: '立即更新',
+      exporting: '更新中...',
+      success: '書籍快取已更新。',
+      failed: '更新書籍快取失敗。'
+    },
     shelves: {
       title: '書架',
       loadFailed: '載入書架失敗',
