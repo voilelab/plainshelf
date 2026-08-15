@@ -198,6 +198,31 @@ An update is cheaper than the first scan: a book whose `book.json` has not
 changed size or modification time is not downloaded again, so a typical update
 costs one folder listing plus only the books that actually changed.
 
+### If a server or the desktop app also uses the shelf
+
+The per-book downloads above are the expensive part, and they can be skipped
+entirely. A PlainShelf server or desktop app that opens the same shelf writes a
+copy of its book listing to `app/book-cache-{writer-id}.json`, and the Android
+client reads that instead: one download for the whole shelf rather than two
+requests per book. Nothing needs to be configured on the phone — the file is
+used when it is there.
+
+The first scan is where this matters most, but **Update book list** uses it too,
+for the books the update actually has to read — a newly added book comes from
+the file rather than from a download of its own. An update with nothing to read
+does not fetch the file at all, so it stays as cheap as it was before.
+
+Books changed since the file was written are still read individually, so a cache
+that has fallen behind costs a few requests rather than showing stale metadata.
+
+The file is refreshed automatically, but on the machine that owns the shelf, not
+on the phone. If books were just added and the phone should see them now, use
+**Settings → Shelves → Mobile book cache → Update now** there first. See
+[Shelf cache and disk I/O](../concepts/shelf-cache-and-io.md#the-exported-book-cache).
+
+A shelf kept on pCloud with no PlainShelf server anywhere has no such file, and
+the app scans as described above.
+
 Book *contents* are unaffected — opening a book always reads it from pCloud
 unless the book has been downloaded for offline reading.
 

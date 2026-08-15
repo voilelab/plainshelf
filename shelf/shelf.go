@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -23,6 +24,7 @@ Layout:
 	  {book2-folder}.bookpkg/
 {library}/app/
   library.lock
+  book-cache-{writer-id}.json
   tmp/
 */
 
@@ -52,6 +54,11 @@ type Shelf struct {
 	readyCh   chan struct{}
 	initErr   atomic.Pointer[error] // set if initCache fails; readyCh is still closed
 
+	// Exported book cache; see shelf_cache_export.go. An empty writer ID
+	// disables the export entirely, which is what a bare ShelfConf gets.
+	bookCacheWriterID string
+	bookCacheInterval time.Duration
+	exportMu          sync.Mutex
 }
 
 type ShelfConf struct {
@@ -87,6 +94,24 @@ type ShelfConf struct {
 	// Default: same as scan_interval. For SMB mounts, consider setting this to a higher value
 	// (e.g. "5m") to reduce network round-trips on list operations.
 	BookCheckInterval string `yaml:"book_check_interval" json:"book_check_interval"`
+
+	// BookCacheWriterID identifies this installation in the name of the exported
+	// book cache it owns, app/book-cache-{id}.json. Several machines can share
+	// one shelf without overwriting each other's file.
+	//
+	// Empty (the default) disables the export. Callers that want it — the server
+	// and the desktop app — supply a stable random ID; see shelf_cache_export.go
+	// and docs/concepts/shelf-cache-and-io.md.
+	BookCacheWriterID string `yaml:"book_cache_writer_id" json:"book_cache_writer_id"`
+
+	// BookCacheInterval throttles how often the exported book cache is
+	// refreshed. Default: 1 hour. Set to "0s" to export on every opportunity.
+	// Only used when book_cache_writer_id is set.
+	//
+	// The export is skipped entirely when the shelf content has not changed, so
+	// this bounds how quickly a change reaches the file, not how often the file
+	// is rewritten.
+	BookCacheInterval string `yaml:"book_cache_interval" json:"book_cache_interval"`
 }
 
 func NewShelf(conf *ShelfConf) (*Shelf, error) {
@@ -119,6 +144,21 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		if err != nil {
 			return nil, util.Errorf("invalid book check interval: %w", err)
 		}
+	}
+
+	bookCacheInterval := defaultBookCacheInterval
+	if conf.BookCacheInterval != "" {
+		var err error
+		bookCacheInterval, err = time.ParseDuration(conf.BookCacheInterval)
+		if err != nil {
+			return nil, util.Errorf("invalid book cache interval: %w", err)
+		}
+	}
+
+	// The ID becomes a file name, so anything that could escape app/ or produce
+	// an unreadable name is rejected here rather than at write time.
+	if err := validateBookCacheWriterID(conf.BookCacheWriterID); err != nil {
+		return nil, util.Errorf("%w", err)
 	}
 
 	logger, err := logutil.NewLogger(&conf.Logger)
@@ -165,7 +205,9 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		readyCh:   make(chan struct{}),
 
 		// cache
-		bookCache: newBookCache(scanInterval, bookCheckInterval),
+		bookCache:         newBookCache(scanInterval, bookCheckInterval),
+		bookCacheWriterID: conf.BookCacheWriterID,
+		bookCacheInterval: bookCacheInterval,
 	}
 
 	err = s.makeStructure()
@@ -223,6 +265,15 @@ func (s *Shelf) initCache() error {
 	s.ready.Store(true)
 	close(s.readyCh)
 	s.Debug("shelf cache initialized")
+
+	// Export once the shelf is known, so a client that shows up before anything
+	// else has read this shelf still finds a usable file.
+	if s.bookCacheWriterID != "" {
+		if err := s.exportBookCache(false); err != nil {
+			s.Warn("failed to export the book cache after the initial scan", "error", err)
+		}
+	}
+
 	return nil
 }
 
@@ -266,9 +317,44 @@ func (s *Shelf) SetScanInterval(scanInterval string) error {
 	return nil
 }
 
+// validateBookCacheWriterID rejects anything that would not be safe or legible
+// as part of a file name under app/.
+func validateBookCacheWriterID(writerID string) error {
+	if writerID == "" {
+		return nil
+	}
+	if len(writerID) > 64 {
+		return util.NewError("book cache writer id must be at most 64 characters")
+	}
+	for _, r := range writerID {
+		isAllowed := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') || r == '-' || r == '_'
+		if !isAllowed {
+			return util.Errorf("book cache writer id may only contain letters, digits, %q and %q", "-", "_")
+		}
+	}
+	return nil
+}
+
 // Close releases any resources held by the Shelf instance.
 func (s *Shelf) Close() error {
 	errs := []error{}
+
+	// Flush before the lock goes away: this is the one write that is guaranteed
+	// to happen, and it is what keeps the exported cache useful for a desktop
+	// app that is opened, used and closed inside a single interval.
+	//
+	// Offered unconditionally, because the only trustworthy answer to "did
+	// anything change" is to compare the content — a book edited in place
+	// through *Book leaves no other trace here. exportBookCache does that
+	// comparison and writes nothing when the shelf is unchanged, so the cost of
+	// a quiet shutdown is one directory walk.
+	if s.bookCacheWriterID != "" {
+		if err := s.exportBookCache(false); err != nil {
+			// Shutdown must not fail over a rebuildable file.
+			s.Warn("failed to export the book cache while closing", "error", err)
+		}
+	}
 
 	if err := s.shelfLock.Close(); err != nil {
 		errs = append(errs, err)

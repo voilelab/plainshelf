@@ -26,6 +26,20 @@ type bookCache struct {
 	lastBookCheck     time.Time
 	bookCheckInterval time.Duration
 	refreshing        bool
+
+	// lastScanStart is when the walk behind the current cache began. See
+	// scanToBookCache for why the start and not the end.
+	lastScanStart time.Time
+
+	// Exported cache state; see shelf_cache_export.go. There is deliberately no
+	// "export is dirty" flag: books are edited in place through *Book, which the
+	// cache holds a pointer to, so a flag would have to be set from every
+	// mutating method and any one that was missed would silently stop exporting.
+	// lastExportDigest fingerprints what was written instead, which cannot be
+	// forgotten because it is computed from the content itself.
+	lastExport       time.Time
+	lastExportDigest string
+	exporting        bool
 }
 
 func newBookCache(scanInterval, bookCheckInterval time.Duration) *bookCache {
@@ -66,6 +80,12 @@ func (s *Shelf) refreshBookCacheIfNeeded(force bool) error {
 func (s *Shelf) scanToBookCache() error {
 	cache := make(map[string]*bookIDCacheEntry)
 
+	// Recorded before the walk, not after. A book read early in the walk can be
+	// edited before the walk ends, so only the start time is a moment the whole
+	// result is known to be current as of. The exported cache publishes this as
+	// its Timestamp and readers use it to decide what they must re-read.
+	scanStart := time.Now()
+
 	err := s.iterateBooks(nil, func(b *Book) bool {
 		cache[b.ID()] = &bookIDCacheEntry{
 			layers: b.Layers(),
@@ -82,6 +102,7 @@ func (s *Shelf) scanToBookCache() error {
 	s.bookCache.cache = cache
 	s.bookCache.treeDirty = false
 	s.bookCache.lastFullScan = time.Now()
+	s.bookCache.lastScanStart = scanStart
 	s.bookCache.Unlock()
 
 	return nil
@@ -149,6 +170,10 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 // that list operations are never blocked by N filesystem stat calls — the main performance
 // concern on SMB mounts. The check is rate-limited by bookCheckInterval.
 func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
+	// Deferred so it runs on every return path below: whichever tier of refresh
+	// this call decides on, the exported cache is offered the result.
+	defer s.scheduleBookCacheExportIfNeeded()
+
 	s.bookCache.RLock()
 	treeDirty := s.bookCache.treeDirty
 	lastFullScan := s.bookCache.lastFullScan

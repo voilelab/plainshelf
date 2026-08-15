@@ -37,6 +37,13 @@ func newSecurityTestEnv(t *testing.T, conf *SecurityConf) *apiTestEnv {
 			t.Fatalf("Close app: %v", err)
 		}
 	})
+
+	// These tests assert what the security layer does with a request, not how
+	// long a shelf takes to open. A read that arrives before the initial scan
+	// finishes is answered 503 by design, which would fail them for a reason
+	// that has nothing to do with security.
+	waitForShelves(t, app)
+
 	return &apiTestEnv{app: app, handler: app.Handler()}
 }
 

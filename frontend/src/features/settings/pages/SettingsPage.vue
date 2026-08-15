@@ -432,6 +432,32 @@
             </button>
           </div>
         </section>
+
+        <!-- The export is written by whatever serves these shelves, so the panel
+             belongs to the server and desktop shells and not to the mobile one,
+             which is the client that reads the file. -->
+        <section v-if="!isMobileEnv && serverSettingsEditable" class="panel settings-group">
+          <h3>{{ t('settings.bookCache.title') }}</h3>
+          <p class="setting-description">{{ t('settings.bookCache.description') }}</p>
+
+          <p v-if="bookCacheError" class="settings-message settings-message-error" role="alert">
+            {{ bookCacheError }}
+          </p>
+          <p v-else-if="bookCacheExported" class="settings-message" role="status">
+            {{ t('settings.bookCache.success') }}
+          </p>
+
+          <div class="shelf-add-row">
+            <button
+              type="button"
+              class="shelf-add-toggle"
+              :disabled="bookCacheExporting || shelves.length === 0"
+              @click="onExportBookCache"
+            >
+              {{ bookCacheExporting ? t('settings.bookCache.exporting') : t('settings.bookCache.export') }}
+            </button>
+          </div>
+        </section>
       </TabsContent>
     </TabsRoot>
   </section>
@@ -461,6 +487,7 @@ import {
   type SplitType
 } from '@/types/book';
 import { normalizeEpubImportPreset } from '@/utils/epubStrategy';
+import { exportShelfBookCache } from '@/api/shelves';
 import { getServerVersion } from '@/api/version';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useWriteAccess } from '@/composables/useWriteAccess';
@@ -490,6 +517,9 @@ const epubIncludeDescription = ref(DEFAULT_EPUB_IMPORT_STRATEGY.include_descript
 const epubKeepImages = ref<boolean | undefined>(undefined);
 const epubImportError = ref('');
 const version = ref('');
+const bookCacheExporting = ref(false);
+const bookCacheExported = ref(false);
+const bookCacheError = ref('');
 const githubRepoUrl = 'https://github.com/voilelab/plainshelf';
 interface BundledFont {
   name: string;
@@ -675,6 +705,30 @@ async function onSaveEpubImportStrategy(): Promise<void> {
     epubImportError.value = err instanceof Error ? err.message : t('settings.saveFailed');
   } finally {
     saving.value = false;
+  }
+}
+
+/**
+ * Rewrites every listed shelf's exported book cache.
+ *
+ * Sequential rather than concurrent: each call makes the server walk a shelf,
+ * and on a network shelf several walks at once is exactly the load this cache
+ * exists to avoid.
+ */
+async function onExportBookCache(): Promise<void> {
+  bookCacheError.value = '';
+  bookCacheExported.value = false;
+  bookCacheExporting.value = true;
+
+  try {
+    for (const shelf of shelves.value) {
+      await exportShelfBookCache(shelf.id);
+    }
+    bookCacheExported.value = true;
+  } catch (err) {
+    bookCacheError.value = err instanceof Error ? err.message : t('settings.bookCache.failed');
+  } finally {
+    bookCacheExporting.value = false;
   }
 }
 

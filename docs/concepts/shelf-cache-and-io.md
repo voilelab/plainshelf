@@ -97,6 +97,21 @@ app_conf:
 
 If `book_check_interval` is omitted, it defaults to the same duration as `scan_interval`.
 
+### `book_cache_interval`
+
+`book_cache_interval` bounds how quickly a change reaches the exported book cache described below. It defaults to one hour, and only applies to shelves that export one.
+
+It is not how often the file is rewritten: an export whose content matches what was written last does not touch the disk, so a shelf nobody changes is never rewritten no matter how short the interval is.
+
+```yaml
+app_conf:
+  shelves:
+    - id: default_shelf
+      name: Default Shelf
+      lib_root: /path/to/shelf
+      book_cache_interval: 30m
+```
+
 ---
 
 ## Storage impact by filesystem type
@@ -127,6 +142,51 @@ app_conf:
 ```
 
 If browsing is still slow, increase `book_check_interval` first. If external additions or moves do not need to appear immediately, increase `scan_interval` too.
+
+---
+
+## The exported book cache
+
+Everything above is in-memory state, rebuilt from the shelf whenever PlainShelf starts. It does nothing for a client that reads the shelf directly instead of through the server.
+
+The Android app opening a shelf from pCloud is that client. It has no server to ask, so it walks the shelf itself, and each book costs two HTTP requests — one to get a download link for `book.json`, one to fetch it. On a shelf of any size that is slow, and it can hit pCloud's request limit.
+
+So the server and the desktop app write the listing down. Each one exports `app/book-cache-{writer-id}.json`, containing every book's `book.json`, each book's package path, and the shelf's layers. A client downloads that one file instead of walking the shelf, and the cost of opening a library stops growing with the number of books in it.
+
+### When it is written
+
+- after the initial scan, so a client that arrives before anything else has read the shelf still finds a file;
+- once `book_cache_interval` (default one hour) has elapsed since the last export, the next time the shelf is read or written;
+- when the shelf is closed;
+- on demand, from **Settings → Shelves → Mobile book cache**, or `POST /api/shelves/{shelf_id}/book-cache-exports`.
+
+Each of those is a moment the export is *considered*, not a write. Whether anything reaches the disk is decided by comparing the content against what was written last: an unchanged shelf is left alone, because an identical rewrite is a pointless upload on exactly the cloud and network shelves this feature exists for. That comparison is also why there is no "something changed" flag anywhere — book metadata is edited in place, and a flag would have to be set by every edit path, with the one that got missed silently ending the exports.
+
+There is no background timer either. An export only has something new to say after the shelf has been read or written, and every such path already passes through the check.
+
+### What `timestamp` means
+
+The manual trigger always rescans the shelf first, because `timestamp` records when the walk behind the file **began** — not when the file was written, and not when the walk finished.
+
+A client uses it to decide which books it can take from the cache: a `book.json` whose modification time is at or after that second is read directly instead. All three choices are the conservative one:
+
+- a write time would claim freshness the walk never verified;
+- the walk's *end* time would cover a book edited while the walk was still running, after it had already been read;
+- and because both sides carry whole seconds, an edit inside the same second as the walk cannot be ordered against it, so equality means "read it".
+
+Each of those costs a couple of requests for one book. The alternative is showing a title or current source that is quietly wrong.
+
+### Several machines, one shelf
+
+The writer ID is generated on first start and stored outside the shelf, with the server's other settings. It identifies the installation, not the shelf, so a machine that opens three shelves writes the same ID into all three, and two machines sharing one shelf keep separate files. A client picks the most recently written one.
+
+An installation removes another's file only after 30 days without an update — long enough that a machine switched off for a holiday keeps its entry. Files it cannot parse are never removed, so anything else under `app/` is left alone.
+
+### Notes
+
+- The file is disposable. Delete it and it comes back; a client that finds none, or one it cannot read, falls back to scanning the shelf.
+- It contains exactly what `book.json` already contains. If your shelf is private, it is no more revealing than the shelf itself — but it does put every book's metadata in one file, which matters if you share `app/` more widely than `books/`.
+- `book_cache_writer_id` can be pinned per shelf in the config file if you want a predictable name; leave it unset and PlainShelf supplies one.
 
 ---
 
