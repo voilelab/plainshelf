@@ -3,7 +3,7 @@ import MainLayout from '@/layouts/MainLayout.vue';
 import ReaderLayout from '@/layouts/ReaderLayout.vue';
 import { APP_TITLE } from '@/composables/useDocumentTitle';
 import { isMobileRuntime } from '@/providers/runtime';
-import { isConnectionConfigured, loadMobileConnectionConfig } from '@/providers/mobileConfig';
+import { isShelfEntryUsable, loadShelfEntries } from '@/providers/mobileConfig';
 import {
   MOBILE_BLOCKED_ROUTES,
   stripMobileBlockedQuery
@@ -23,6 +23,7 @@ const TrashPage = () => import('@/features/trash/pages/TrashPage.vue');
 const DownloadsPage = () => import('@/features/mobile/pages/DownloadsPage.vue');
 const AdminLogsPage = () => import('@/features/settings/pages/AdminLogsPage.vue');
 const SettingsPage = () => import('@/features/settings/pages/SettingsPage.vue');
+const MobileShelvesPage = () => import('@/features/mobile/pages/MobileShelvesPage.vue');
 const MobileConnectPage = () => import('@/features/mobile/pages/MobileConnectPage.vue');
 const ReaderPage = () => import('@/features/reader/pages/ReaderView.vue');
 const EditBookSourcesPage = () => import('@/features/sources/pages/EditBookSourcesPage.vue');
@@ -57,7 +58,17 @@ const router = createRouter({
     },
     {
       path: '/connect',
-      name: 'mobile-connect',
+      name: 'mobile-shelves',
+      component: MobileShelvesPage
+    },
+    {
+      path: '/connect/new',
+      name: 'mobile-shelf-add',
+      component: MobileConnectPage
+    },
+    {
+      path: '/connect/:entryId',
+      name: 'mobile-shelf-edit',
       component: MobileConnectPage
     },
     {
@@ -176,18 +187,27 @@ const router = createRouter({
   ]
 });
 
+// The shelf-list routes: reachable even with nothing configured, because they
+// are where the user configures it.
+const MOBILE_SETUP_ROUTES = new Set(['mobile-shelves', 'mobile-shelf-add', 'mobile-shelf-edit']);
+
 // On the native mobile shell there is no backend to inject a server address or
-// selected shelf, so gate every route behind a completed connection setup.
+// selected shelf, so gate every route behind a usable shelf entry.
 router.beforeEach(async (to) => {
   if (!isMobileRuntime()) {
     return true;
   }
-  if (to.name === 'mobile-connect') {
+  if (typeof to.name === 'string' && MOBILE_SETUP_ROUTES.has(to.name)) {
     return true;
   }
 
-  if (!isConnectionConfigured(await loadMobileConnectionConfig())) {
-    return { name: 'mobile-connect' };
+  const { entries, activeEntryID } = await loadShelfEntries();
+  const activeEntry = entries.find((entry) => entry.id === activeEntryID) ?? null;
+  if (!(await isShelfEntryUsable(activeEntry))) {
+    // Carries the query so a redirect cannot drop `?mobile-shell-preview=1`,
+    // which is what keeps the browser preview in mobile mode across the
+    // reload that saving a shelf performs.
+    return { name: 'mobile-shelves', query: to.query };
   }
 
   if (typeof to.name === 'string' && MOBILE_BLOCKED_ROUTES.has(to.name)) {

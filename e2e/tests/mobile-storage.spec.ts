@@ -3,6 +3,7 @@ import { startServer } from './support/server';
 import { importHelloBook, importBookFromPath, anotherFixturePath } from './support/books';
 import {
   connectMobile,
+  openMobileShelfEditor,
   reopenMobileAt,
   getBookIdByTitle,
   downloadBookViaHook,
@@ -49,12 +50,12 @@ test('does not resurrect the saved shelf when validating an unreachable server o
   try {
     await connectMobile(page, server.baseUrl);
 
-    // Revisit the connect page (Settings → "Edit connection" in the real app)
-    // and point it at a server that cannot be reached. The failed shelf fetch
-    // must NOT fall back to the previously saved shelf id (that fallback is
-    // reserved for the routed content layouts), otherwise "Save and continue"
-    // would persist a stale shelf for a server that was never validated.
-    await reopenMobileAt(page, server.baseUrl, '/connect');
+    // Reopen the saved shelf for editing (Settings → "Manage shelves" in the
+    // real app) and point it at a server that cannot be reached. The failed
+    // shelf fetch must NOT fall back to the previously saved shelf id,
+    // otherwise "Save and continue" would persist a stale shelf for a server
+    // that was never validated.
+    await openMobileShelfEditor(page, server.baseUrl);
     const urlInput = page.locator('input[type="url"]');
     await expect(urlInput).toHaveValue(server.baseUrl);
 

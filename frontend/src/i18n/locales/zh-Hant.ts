@@ -92,7 +92,8 @@ const zhHant = {
       loading: '載入書架中...',
       empty: '尚未設定書架',
       unavailableTitle: '尚未選擇書架',
-      unavailableDescription: '請先設定至少一個書架，才能瀏覽與閱讀書籍。'
+      unavailableDescription: '請先設定至少一個書架，才能瀏覽與閱讀書籍。',
+      manage: '管理書架'
     },
     dashboard: '儀表板',
     recentlyRead: '最近閱讀',
@@ -212,9 +213,9 @@ const zhHant = {
       licenseClose: '關閉'
     },
     mobileConnect: {
-      title: '連線',
-      description: '變更這台裝置讀取書庫的來源：PlainShelf 伺服器或 pCloud。',
-      open: '編輯連線設定'
+      title: '書架',
+      description: '這台裝置可以開啟的所有書庫，來源可以是 PlainShelf 伺服器或 pCloud。',
+      open: '管理書架'
     },
     downloads: {
       title: '已下載書籍',
@@ -685,7 +686,26 @@ const zhHant = {
     save: '儲存並繼續',
     saving: '儲存中…',
     serverUrlRequired: '請先輸入伺服器網址。',
-    shelfRequired: '請選擇一個書架。'
+    shelfRequired: '請選擇一個書架。',
+    editTitle: '編輯書架',
+    nameLabel: '名稱',
+    namePlaceholder: '客廳的伺服器',
+    nameHint: '這個書架在這台裝置上顯示的名稱，可留空。',
+    cancel: '取消',
+    retargetHint: '更改書架的位置後，先前從它下載的書會留在裝置上但無法再開啟。'
+  },
+  mobileShelves: {
+    title: '書架列表',
+    description: '這台裝置可以開啟的所有書庫。一次使用其中一個，切換時會重新啟動 App。',
+    add: '新增書架',
+    edit: '編輯',
+    remove: '移除',
+    active: '使用中',
+    use: '改用這個書架',
+    removeTitle: '要移除「{name}」嗎？',
+    removeDescription: '從這個書架下載的書會從裝置上刪除。閱讀進度與紀錄會保留，日後重新加入時可以接續。',
+    removeConfirm: '移除',
+    removeCancel: '先留著'
   }
 } as const;
 

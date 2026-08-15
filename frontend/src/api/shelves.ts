@@ -1,5 +1,9 @@
 import { buildShelfApiPath, fetchJson, getActiveShelfID, isMockApiMode, setActiveShelfID } from './client';
-import { getMobileConnectionConfig } from '@/providers/mobileConfig';
+import {
+  getActiveShelfEntry,
+  shelfEntryDisplayName,
+  shelfEntryTarget
+} from '@/providers/mobileConfig';
 
 export interface ShelfInfo {
   id: string;
@@ -7,25 +11,30 @@ export interface ShelfInfo {
 }
 
 /**
- * The single shelf a pCloud connection exposes, or null in any other mode.
+ * The one shelf the mobile shell is pointed at, or null off the mobile shell.
  *
- * There is nothing to enumerate: the user names one folder, so the shelf is
- * synthesized from it. Keeping the `{id, name}` shape means the sidebar picker,
- * the active-shelf gate in the layouts and the library's shelf watcher all work
- * unchanged. The id is the folder path, matching what mobileConfig set as the
- * active shelf id so the device-local cache scope agrees.
+ * The device keeps its own list of shelves — several servers and pCloud folders
+ * side by side — and exactly one of them is active. There is nothing here for a
+ * server to enumerate: the other entries are not shelves *of this shelf's*
+ * server, and a pCloud entry is a folder the user named. So the app-wide shelf
+ * list collapses to the active entry, synthesized from it.
+ *
+ * Keeping the `{id, name}` shape means the sidebar picker, the active-shelf
+ * gate in the layouts and the library's shelf watcher all work unchanged. The
+ * id is whatever mobileConfig set as the active shelf id — the server's shelf
+ * id, or the pCloud folder path — so the device-local cache scope agrees.
  */
-export function pcloudShelfInfo(): ShelfInfo | null {
-  const config = getMobileConnectionConfig();
-  if (config?.mode !== 'pcloud' || !config.pcloudShelfRoot) {
+export function activeMobileShelfInfo(): ShelfInfo | null {
+  const entry = getActiveShelfEntry();
+  if (!entry) {
     return null;
   }
 
-  const segments = config.pcloudShelfRoot.split('/').filter((segment) => segment.length > 0);
-  return {
-    id: config.pcloudShelfRoot,
-    name: segments[segments.length - 1] ?? config.pcloudShelfRoot
-  };
+  const { shelfID } = shelfEntryTarget(entry);
+  if (!shelfID) {
+    return null;
+  }
+  return { id: shelfID, name: shelfEntryDisplayName(entry) };
 }
 
 const mockShelves: ShelfInfo[] = [
@@ -35,15 +44,14 @@ const mockShelves: ShelfInfo[] = [
   }
 ];
 
-export async function listShelves(): Promise<ShelfInfo[]> {
-  // Short-circuited here rather than at each call site so every consumer —
-  // the shelves store, the reader layout, the sidebar — gets it for free and
-  // none of them issues a request that has no server to answer it.
-  const pcloudShelf = pcloudShelfInfo();
-  if (pcloudShelf) {
-    return [pcloudShelf];
-  }
-
+/**
+ * Enumerates the shelves a PlainShelf server offers.
+ *
+ * Separate from listShelves() because the mobile shelf-entry form has to ask a
+ * server the user is still typing in which shelves it has, which is the one
+ * place that must not collapse to the active entry.
+ */
+export async function listServerShelves(): Promise<ShelfInfo[]> {
   if (isMockApiMode()) {
     return mockShelves;
   }
@@ -67,6 +75,18 @@ export async function listShelves(): Promise<ShelfInfo[]> {
 
       return [{ id, name }];
     });
+}
+
+export async function listShelves(): Promise<ShelfInfo[]> {
+  // Short-circuited here rather than at each call site so every consumer — the
+  // shelves store, the reader layout, the sidebar — gets it for free and none
+  // of them issues a request that has no server to answer it.
+  const mobileShelf = activeMobileShelfInfo();
+  if (mobileShelf) {
+    return [mobileShelf];
+  }
+
+  return listServerShelves();
 }
 
 export async function getShelfStatus(shelfID?: string): Promise<{ ready: boolean }> {

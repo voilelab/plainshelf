@@ -70,8 +70,21 @@ export function getApiBase(): string {
   return apiBase;
 }
 
+/**
+ * The canonical form of a base URL.
+ *
+ * Exported because the stored value and the applied value have to agree
+ * exactly: on the mobile shell the applied base is half of the key that scopes
+ * device-local book data (providers/cacheScope.ts), so a caller deriving that
+ * key from a saved shelf must normalize the same way this does — a trailing
+ * slash left on one side and stripped on the other points at a different cache.
+ */
+export function normalizeApiBase(base: string): string {
+  return String(base ?? '').trim().replace(/\/+$/, '');
+}
+
 export function setApiBase(base: string): void {
-  apiBase = String(base ?? '').trim().replace(/\/+$/, '');
+  apiBase = normalizeApiBase(base);
 }
 
 const SHELF_STORAGE_KEY = 'plainshelf.shelf';

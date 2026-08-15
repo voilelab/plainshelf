@@ -93,7 +93,8 @@ const en = {
       loading: 'Loading shelves...',
       empty: 'No shelves configured',
       unavailableTitle: 'No shelf selected',
-      unavailableDescription: 'Configure at least one shelf to browse and read books.'
+      unavailableDescription: 'Configure at least one shelf to browse and read books.',
+      manage: 'Manage shelves'
     },
     dashboard: 'Dashboard',
     recentlyRead: 'Recently Read',
@@ -214,9 +215,9 @@ const en = {
       licenseClose: 'Close'
     },
     mobileConnect: {
-      title: 'Connection',
-      description: 'Change where this device reads your library from: a PlainShelf server or pCloud.',
-      open: 'Edit connection'
+      title: 'Shelves',
+      description: 'Every library this device can open, from PlainShelf servers or from pCloud.',
+      open: 'Manage shelves'
     },
     downloads: {
       title: 'Downloaded books',
@@ -687,7 +688,26 @@ const en = {
     save: 'Save and continue',
     saving: 'Saving…',
     serverUrlRequired: 'Enter a server URL first.',
-    shelfRequired: 'Select a shelf to continue.'
+    shelfRequired: 'Select a shelf to continue.',
+    editTitle: 'Edit shelf',
+    nameLabel: 'Name',
+    namePlaceholder: 'Living room server',
+    nameHint: 'What this shelf is called on this device. Optional.',
+    cancel: 'Cancel',
+    retargetHint: 'Changing where this shelf lives leaves books already downloaded from it stranded on this device.'
+  },
+  mobileShelves: {
+    title: 'Shelves',
+    description: 'Every library this device can open. One is in use at a time; switching restarts the app.',
+    add: 'Add a shelf',
+    edit: 'Edit',
+    remove: 'Remove',
+    active: 'In use',
+    use: 'Use this shelf',
+    removeTitle: 'Remove {name}?',
+    removeDescription: 'Books downloaded from this shelf are deleted from the device. Reading progress and history are kept, so adding it back later picks up where you left off.',
+    removeConfirm: 'Remove',
+    removeCancel: 'Keep it'
   }
 } as const;
 
