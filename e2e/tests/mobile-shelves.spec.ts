@@ -130,3 +130,36 @@ test('edits a saved shelf without adding a second one', async ({ page }) => {
     await server.dispose();
   }
 });
+
+// The setup routes sit outside MainLayout, so its .main-scroll wrapper is not
+// there to absorb a form taller than the screen: the page root has to scroll
+// itself (features/mobile/styles/mobile-connect.css). It did not, and the
+// global `html, body { overflow: hidden }` simply cut the form off at the
+// bottom of a phone screen — Save included, with no way to reach it.
+test('scrolls the shelf editor when it is taller than the screen', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importHelloBook(page);
+    await connectMobile(page, server.baseUrl);
+
+    // Phone-sized, so the form genuinely overflows. The pCloud variant is the
+    // tallest one, but it needs a real OAuth approval; the server form
+    // overflows too at this height, which is all this asserts about.
+    await page.setViewportSize({ width: 360, height: 480 });
+    await openMobileShelfEditor(page, server.baseUrl);
+
+    const shell = page.locator('.mobile-connect');
+    await expect
+      .poll(async () => shell.evaluate((el) => el.scrollHeight - el.clientHeight))
+      .toBeGreaterThan(0);
+
+    // The Save button is what the user was actually locked out of.
+    const save = page.getByRole('button', { name: 'Save and continue' });
+    await save.scrollIntoViewIfNeeded();
+    await expect(save).toBeInViewport();
+  } finally {
+    await server.dispose();
+  }
+});

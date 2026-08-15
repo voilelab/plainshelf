@@ -179,21 +179,9 @@ async function onRemove(): Promise<void> {
 }
 </script>
 
-<style scoped>
-.mobile-connect {
-  min-height: calc(100vh / var(--app-zoom, 1));
-  width: 100%;
-  box-sizing: border-box;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 32px 16px;
-  overflow-y: auto;
-  background:
-    radial-gradient(circle at top, rgba(255, 250, 240, 0.92), rgba(245, 241, 232, 0.96) 42%),
-    linear-gradient(180deg, #f7f2e7 0%, #efe7d7 100%);
-}
+<style scoped src="../styles/mobile-connect.css"></style>
 
+<style scoped>
 .mobile-shelves {
   width: min(480px, 100%);
   padding: 24px;
