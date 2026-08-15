@@ -1,18 +1,36 @@
 import { Capacitor } from '@capacitor/core';
 
+// Latched on first read for the same reason as the mobile flag below: an
+// in-app `router.push` drops the query string, which would otherwise turn the
+// desktop preview off mid-session and leave the browser preview — and the e2e
+// suite built on it — indistinguishable from a plain web build.
+//
+// Only the URL flag is latched. The three real-runtime signals stay live per
+// call, so a Wails binding that lands after the first read (the first read is
+// initAppZoom() in main.ts) still switches desktop mode on, instead of being
+// frozen out by a latch taken too early.
+let desktopPreview: boolean | undefined;
+
+function hasDesktopPreviewFlag(): boolean {
+  if (desktopPreview === undefined) {
+    const params = new URLSearchParams(window.location.search);
+    desktopPreview = params.get('desktop-shell-preview') === '1';
+  }
+  return desktopPreview;
+}
+
 export function isWailsRuntime(): boolean {
   if (typeof window === 'undefined') {
     return false;
   }
 
-  const params = new URLSearchParams(window.location.search);
   const hasWailsBinding = Boolean((window as { go?: unknown }).go);
 
   return (
     hasWailsBinding ||
     window.location.protocol === 'wails:' ||
     window.location.host.endsWith('.wails.localhost') ||
-    params.get('desktop-shell-preview') === '1'
+    hasDesktopPreviewFlag()
   );
 }
 
