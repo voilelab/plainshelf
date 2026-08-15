@@ -1,0 +1,32 @@
+/*
+ * Shared page shell for the device shelf-setup routes: /connect,
+ * /connect/new and /connect/:entryId (router.ts).
+ *
+ * These are top-level routes, not children of MainLayout, so nothing above
+ * them supplies the bounded-height ancestor that .main-scroll relies on — the
+ * page root has to be the scroll container itself.
+ *
+ * A *definite* height is what makes it one. With min-height the box simply
+ * grows to its content and never scrolls, and the overflow is then clipped by
+ * the global `html, body { overflow: hidden }`, which is how the shelf form
+ * used to lose its Save button off the bottom of the screen.
+ */
+.mobile-connect {
+  /* First line is the fallback for engines without dvh; the second follows the
+     visual viewport when the Android soft keyboard opens. The --app-zoom
+     divisor mirrors .layout-root in MainLayout.vue. */
+  height: calc(100vh / var(--app-zoom, 1));
+  height: calc(100dvh / var(--app-zoom, 1));
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  /* Not center: a card taller than the viewport would have its top cut off
+     with no way to scroll back up to it. */
+  align-items: flex-start;
+  justify-content: center;
+  padding: 32px 16px;
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at top, rgba(255, 250, 240, 0.92), rgba(245, 241, 232, 0.96) 42%),
+    linear-gradient(180deg, #f7f2e7 0%, #efe7d7 100%);
+}
