@@ -9,6 +9,14 @@ and UI behavior may still change between releases.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [v0.9.0] - 2026-08-15
+
+### Added
+
 - Added EPUB import. An `.epub` file selected in the import dialog, dropped on the library, or picked from the desktop file dialog is converted to text and stored as an ordinary book; the original archive is not kept. Reading-order text, table-of-contents chapter names, cover image, title, authors, language, description, identifiers, and publication date are carried over. Requires no new third-party dependency.
 - Added a choice of EPUB output layout, offered in the import dialog once the selection contains an EPUB and defaulted from a new **Settings → Import** tab. The Markdown layout writes `##` chapter headings and stores the book as Markdown, so the reader's chapter list shows real chapter names; the plain-text layout writes bare title lines, which carry no chapter structure, so the reader treats the whole source as a single section. A second option controls whether the book description is written at the start of the text as well as into the book metadata.
 - Added the `epub_import_strategy` server setting (`GET`, `POST`, and `DELETE /api/setting/epub_import_strategy`) and the matching `epub_import_strategy` config key, holding the default EPUB layout. It is applied server-side during import, so it also governs the desktop app's file picker, which imports without opening the dialog.
