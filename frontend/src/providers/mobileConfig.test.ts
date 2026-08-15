@@ -28,15 +28,28 @@ vi.mock('@/providers/secureStorage', () => ({
   SecureStorage: { get: secureGet, set: secureSet, remove: secureRemove }
 }));
 
-vi.mock('@/api/client', () => ({
-  setApiBase: setApiBaseMock,
-  setActiveShelfID: setActiveShelfIDMock
-}));
+vi.mock('@/api/client', async () => {
+  const actual = await vi.importActual<typeof import('@/api/client')>('@/api/client');
+  return {
+    normalizeApiBase: actual.normalizeApiBase,
+    setApiBase: setApiBaseMock,
+    setActiveShelfID: setActiveShelfIDMock
+  };
+});
 
+// api/client.ts reads the persisted shelf id at module load, and this suite
+// imports it for real to prove shelfEntryTarget normalizes a base exactly the
+// way setApiBase does.
 Object.defineProperty(globalThis, 'window', {
   configurable: true,
   writable: true,
-  value: {}
+  value: {
+    localStorage: {
+      getItem: () => null,
+      setItem: () => undefined,
+      removeItem: () => undefined
+    }
+  }
 });
 
 const {
@@ -47,6 +60,7 @@ const {
   getShelfEntries,
   initMobileConfig,
   isShelfEntryConfigured,
+  isShelfEntryUsable,
   loadShelfEntries,
   newShelfEntry,
   setActiveShelfEntry,
@@ -201,6 +215,20 @@ describe('applying an entry', () => {
 
     expect(setApiBaseMock).toHaveBeenLastCalledWith('pcloud://eapi.pcloud.com');
     expect(setActiveShelfIDMock).toHaveBeenLastCalledWith('/PlainShelf/default-shelf');
+  });
+
+  // setApiBase normalizes what it is given, so a server URL saved with a
+  // trailing slash produced one scope key while the shelf was active and a
+  // different one when its downloads were located for deletion — the delete
+  // then swept a directory that never existed and left the real one on disk.
+  it('normalizes a server URL the same way the API client does', () => {
+    expect(shelfEntryTarget(serverEntry({ serverUrl: 'http://host:20000/' }))).toEqual({
+      apiBase: 'http://host:20000',
+      shelfID: 'main'
+    });
+    expect(shelfEntryTarget(serverEntry({ serverUrl: ' http://host:20000// ' })).apiBase).toBe(
+      'http://host:20000'
+    );
   });
 
   it('separates two folders in one pCloud account', async () => {
@@ -441,6 +469,34 @@ describe('isShelfEntryConfigured', () => {
 
   it('treats a device with no active entry as unconfigured', () => {
     expect(isShelfEntryConfigured(null)).toBe(false);
+  });
+});
+
+describe('isShelfEntryUsable', () => {
+  // Without this the router lets the user into a library whose every read
+  // fails: createMobileSource falls back to the server provider while the API
+  // base is still `pcloud://…`, so nothing can answer. The form that could
+  // re-authorize is the only useful destination.
+  it('refuses a pCloud entry whose token is gone', async () => {
+    store.set(ENTRIES_KEY, JSON.stringify([pcloudEntry()]));
+    store.set(ACTIVE_KEY, 'entry-2');
+    await reinit();
+
+    await expect(isShelfEntryUsable(pcloudEntry())).resolves.toBe(false);
+
+    secureStore.set('plainshelf.mobile.secret.entry-2', 'tok');
+    await expect(isShelfEntryUsable(pcloudEntry())).resolves.toBe(true);
+  });
+
+  // The opposite rule for a server: a token is only needed when the server sets
+  // `protect_read`, so requiring one would lock a working connection out.
+  it('accepts a server entry with no token', async () => {
+    await expect(isShelfEntryUsable(serverEntry())).resolves.toBe(true);
+  });
+
+  it('refuses an incomplete entry and a device with none', async () => {
+    await expect(isShelfEntryUsable(serverEntry({ shelfId: '' }))).resolves.toBe(false);
+    await expect(isShelfEntryUsable(null)).resolves.toBe(false);
   });
 });
 

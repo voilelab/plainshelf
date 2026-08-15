@@ -1,6 +1,6 @@
 import { Preferences } from '@capacitor/preferences';
 
-import { setActiveShelfID, setApiBase } from '@/api/client';
+import { normalizeApiBase, setActiveShelfID, setApiBase } from '@/api/client';
 import { SecureStorage } from '@/providers/secureStorage';
 
 // Native (Capacitor) builds load a static bundle with no backend to inject the
@@ -353,20 +353,25 @@ export function shelfEntryTarget(entry: ShelfEntry | null): {
   }
   if (entry.type === 'pcloud') {
     return {
-      apiBase: entry.pcloudHost ? `pcloud://${entry.pcloudHost}` : '',
+      apiBase: entry.pcloudHost ? normalizeApiBase(`pcloud://${entry.pcloudHost}`) : '',
       shelfID: entry.pcloudShelfRoot
     };
   }
-  return { apiBase: entry.serverUrl, shelfID: entry.shelfId };
+  // Normalized here, not just on the way into the API client: a server URL
+  // saved with a trailing slash would otherwise produce one scope key while it
+  // is active (from the normalized applied base) and a different one when its
+  // downloads are located for deletion, so the delete would sweep a directory
+  // that never existed and leave the real one on disk.
+  return { apiBase: normalizeApiBase(entry.serverUrl), shelfID: entry.shelfId };
 }
 
 /**
- * Whether this entry is complete enough to open the library.
+ * Whether this entry's stored fields are complete.
  *
- * Each source type has its own answer, which is why the router guard asks here
- * rather than testing fields itself. The token is not part of it: a server only
- * needs one when it sets `protect_read`, and asking for it unconditionally
- * would lock a legitimate connection out of its own library.
+ * Field-level only, so it stays synchronous for the bootstrap path that has to
+ * choose a provider before anything can await. Whether the shelf can actually
+ * be opened is isShelfEntryUsable() — a pCloud entry also needs its token,
+ * which lives in Keystore-backed storage.
  */
 export function isShelfEntryConfigured(entry: ShelfEntry | null | undefined): boolean {
   if (!entry) {
@@ -376,6 +381,31 @@ export function isShelfEntryConfigured(entry: ShelfEntry | null | undefined): bo
     return Boolean(entry.pcloudHost && entry.pcloudShelfRoot);
   }
   return Boolean(entry.serverUrl && entry.shelfId);
+}
+
+/**
+ * Whether this entry can actually open its library, which is what the router
+ * guard needs to know.
+ *
+ * A pCloud shelf is unusable without its bearer token: there is no anonymous
+ * read and no server to refuse the request, so letting the guard through would
+ * land the user in a library whose every read fails, instead of on the form
+ * that can re-authorize it. The token can be missing while the metadata
+ * survives — preferences restored onto a device whose Keystore data did not
+ * come with them, or a legacy connection migrated mid-authorization.
+ *
+ * A server shelf is the opposite case and deliberately does not require one: a
+ * token is only needed when the server sets `protect_read`, so demanding one
+ * would lock a perfectly good connection out of its own library.
+ */
+export async function isShelfEntryUsable(entry: ShelfEntry | null | undefined): Promise<boolean> {
+  if (!isShelfEntryConfigured(entry) || !entry) {
+    return false;
+  }
+  if (entry.type !== 'pcloud') {
+    return true;
+  }
+  return Boolean(await getShelfEntryToken(entry.id));
 }
 
 /** Reads the stored list, migrating a single-connection install on first run. */

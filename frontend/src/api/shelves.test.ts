@@ -5,13 +5,19 @@ const { fetchJsonMock, getActiveShelfEntryMock } = vi.hoisted(() => ({
   getActiveShelfEntryMock: vi.fn()
 }));
 
-vi.mock('./client', () => ({
-  fetchJson: fetchJsonMock,
-  buildShelfApiPath: (path: string) => path,
-  getActiveShelfID: () => '',
-  setActiveShelfID: vi.fn(),
-  isMockApiMode: () => false
-}));
+vi.mock('./client', async () => {
+  const actual = await vi.importActual<typeof import('./client')>('./client');
+  return {
+    fetchJson: fetchJsonMock,
+    buildShelfApiPath: (path: string) => path,
+    getActiveShelfID: () => '',
+    setActiveShelfID: vi.fn(),
+    isMockApiMode: () => false,
+    // Reached through mobileConfig's shelfEntryTarget, which normalizes the
+    // base the same way the real client does.
+    normalizeApiBase: actual.normalizeApiBase
+  };
+});
 
 vi.mock('@/providers/mobileConfig', async () => {
   const actual = await vi.importActual<typeof import('@/providers/mobileConfig')>(

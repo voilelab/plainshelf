@@ -3,7 +3,7 @@ import MainLayout from '@/layouts/MainLayout.vue';
 import ReaderLayout from '@/layouts/ReaderLayout.vue';
 import { APP_TITLE } from '@/composables/useDocumentTitle';
 import { isMobileRuntime } from '@/providers/runtime';
-import { isShelfEntryConfigured, loadShelfEntries } from '@/providers/mobileConfig';
+import { isShelfEntryUsable, loadShelfEntries } from '@/providers/mobileConfig';
 import {
   MOBILE_BLOCKED_ROUTES,
   stripMobileBlockedQuery
@@ -203,7 +203,7 @@ router.beforeEach(async (to) => {
 
   const { entries, activeEntryID } = await loadShelfEntries();
   const activeEntry = entries.find((entry) => entry.id === activeEntryID) ?? null;
-  if (!isShelfEntryConfigured(activeEntry)) {
+  if (!(await isShelfEntryUsable(activeEntry))) {
     // Carries the query so a redirect cannot drop `?mobile-shell-preview=1`,
     // which is what keeps the browser preview in mobile mode across the
     // reload that saving a shelf performs.
