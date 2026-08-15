@@ -4,7 +4,12 @@ const en = {
     mockModeBadge: 'MOCK API MODE',
     desktopHistoryNavigation: 'Desktop history navigation',
     previousPage: 'Previous page',
-    nextPage: 'Next page'
+    nextPage: 'Next page',
+    renderError: {
+      title: 'This page stopped responding',
+      description: 'Something went wrong while drawing this page. Reloading usually clears it.',
+      reload: 'Reload'
+    }
   },
   language: {
     label: 'Language',
@@ -721,6 +726,11 @@ const en = {
     removeDescription: 'Books downloaded from this shelf are deleted from the device. Reading progress and history are kept, so adding it back later picks up where you left off.',
     removeConfirm: 'Remove',
     removeCancel: 'Keep it'
+  },
+  notFound: {
+    title: 'Page not found',
+    description: 'There is nothing at this address. It may have been renamed, or the link may be out of date.',
+    backToLibrary: 'Back to the library'
   }
 } as const;
 
