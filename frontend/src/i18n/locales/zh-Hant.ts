@@ -478,6 +478,7 @@ const zhHant = {
     },
     selection: {
       toolbarLabel: '已選書籍操作',
+      mobileToolbarLabel: '已選書籍下載列',
       selectedCount: '已選 {count} 本',
       selectBook: '選取「{title}」',
       selectAll: '選取本頁',

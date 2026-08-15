@@ -480,6 +480,7 @@ const en = {
     },
     selection: {
       toolbarLabel: 'Selected books actions',
+      mobileToolbarLabel: 'Selected books download bar',
       selectedCount: '{count} selected',
       selectBook: 'Select {title}',
       selectAll: 'Select page',
