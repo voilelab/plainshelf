@@ -843,9 +843,10 @@ onMounted(async () => {
   padding: 8px 24px;
 }
 
-/* Sticks to the top of the viewport, so on the Android shell (edge-to-edge
-   since targetSdk 35) it sits under the status bar unless it carries the top
-   inset itself. Insets are 0 everywhere else, leaving the padding unchanged. */
+/* Sticks to the top of the viewport, so on the Android shell — which targets
+   SDK 36, past the SDK 35 cutoff where edge-to-edge became mandatory — it sits
+   under the status bar unless it carries the top inset itself. Insets are 0
+   everywhere else, leaving the padding unchanged. */
 .topbar {
   position: sticky;
   top: 0;
@@ -933,8 +934,14 @@ onMounted(async () => {
   font-weight: 600;
 }
 
+/* The scrolling content reaches the bottom and side edges of the window, so it
+   needs those insets to keep the last row — pagination, the mobile action bar's
+   neighbours — clear of the gesture bar and of a landscape cutout. No top
+   inset: .topbar sits above it inside the same scroller and already consumes
+   that one, and adding it here would count it twice. */
 .page-area {
-  padding: 16px 24px;
+  padding: 16px calc(24px + env(safe-area-inset-right, 0px))
+    calc(16px + env(safe-area-inset-bottom, 0px)) calc(24px + env(safe-area-inset-left, 0px));
 }
 
 .no-shelf-panel {
