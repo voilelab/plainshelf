@@ -573,9 +573,12 @@ function matchesCharCount(book: Book): boolean {
 }
 
 const searchedBooks = computed(() => filterBooksBySearch(books.value, committedSearch.value));
-const filteredBooks = computed(() =>
-  searchedBooks.value.filter((book) => matchesLayer(book) && matchesCharCount(book))
-);
+
+// The set the search and layer alone produce. Kept separate from filteredBooks
+// so the empty state can tell "this layer/search has nothing" apart from "the
+// character range excluded everything it found".
+const layerFilteredBooks = computed(() => searchedBooks.value.filter((book) => matchesLayer(book)));
+const filteredBooks = computed(() => layerFilteredBooks.value.filter((book) => matchesCharCount(book)));
 const {
   SORT_OPTIONS,
   sortedBooks
@@ -612,20 +615,15 @@ const totalPages = computed(() => countPages(total.value, pageSize.value));
 const visibleBooks = computed(() => pageSlice(sortedBooks.value, page.value, pageSize.value));
 
 const showLayerEmptyState = computed(() => {
-  return books.value.length > 0 && !!selectedLayer.value && filteredBooks.value.length === 0;
+  return books.value.length > 0 && !!selectedLayer.value && layerFilteredBooks.value.length === 0;
 });
 
+// Ordered narrowest cause first: the search and the layer are checked against
+// the set that precedes the character range, so the range is only blamed when
+// it is what emptied a set the search and layer had already filled.
 const emptyMessage = computed(() => {
-  if (
-    charCountFilterActive.value
-    && charCountIndex.ready.value
-    && filteredBooks.value.length === 0
-    && !collectionLoading.value
-  ) {
-    return t('library.empty.noBooksInCharCountRange');
-  }
   const q = committedSearch.value.trim();
-  if (q && filteredBooks.value.length === 0 && !loading.value) {
+  if (q && layerFilteredBooks.value.length === 0 && !loading.value) {
     const layerSuffix = selectedLayer.value
       ? t('common.inLayer', { layer: selectedLayerTitle.value })
       : '';
@@ -633,6 +631,14 @@ const emptyMessage = computed(() => {
   }
   if (showLayerEmptyState.value) {
     return t('library.empty.noBooksInLayer', { layer: selectedLayerTitle.value });
+  }
+  if (
+    charCountFilterActive.value
+    && charCountIndex.ready.value
+    && filteredBooks.value.length === 0
+    && !collectionLoading.value
+  ) {
+    return t('library.empty.noBooksInCharCountRange');
   }
   return t('library.empty.noBooksYet');
 });

@@ -90,6 +90,32 @@ test('library filters books by a character-count range', async ({ page }) => {
   }
 });
 
+// An active range must not take the blame for a set the search had already
+// emptied: the message has to name the cause the user can act on.
+test('an active range does not mask the search empty state', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importHelloBook(page);
+
+    const maxInput = page.getByLabel('Maximum characters');
+    await maxInput.fill('5000');
+    await maxInput.blur();
+    await expect(
+      page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true })
+    ).toBeVisible();
+
+    await page.locator('input[type="search"]').fill('nothingmatchesthis');
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+
+    await expect(page.getByText('No books found for "nothingmatchesthis"')).toBeVisible();
+    await expect(page.getByText('No books in this character range.')).toBeHidden();
+  } finally {
+    await server.dispose();
+  }
+});
+
 test('reversed bounds are applied as a single ordered range', async ({ page }) => {
   const server = await startServer();
 
