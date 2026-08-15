@@ -176,6 +176,10 @@
     box-shadow: 0 10px 26px rgba(96, 75, 44, 0.12);
   }
 
+  .reader-side-actions.reader-side-actions-writable {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
   .reader-icon-button {
     width: 100%;
     height: 40px;

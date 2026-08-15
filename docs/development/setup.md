@@ -7,7 +7,7 @@ installation, see [Installation](../installation.md).
 
 | Tool | Minimum version | Purpose |
 |---|---:|---|
-| Go | 1.26.1 | server, core library, desktop backend |
+| Go | 1.26.6 | server, core library, desktop backend |
 | Node.js | 22 | frontend and end-to-end tests |
 | npm | bundled with Node.js | JavaScript dependencies |
 | just | recent | repository task runner |
@@ -93,7 +93,9 @@ Create a release-style desktop build with `just build-desktop`.
 ## Android app
 
 The Android client is experimental and reuses the Vue frontend through
-Capacitor. See [Android Development](android.md) for setup and device networking.
+Capacitor. It reads from a PlainShelf server or straight from a shelf folder on
+pCloud. See [Android Development](android.md) for connection modes, setup, and
+device networking.
 
 ## Docker image
 

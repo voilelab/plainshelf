@@ -1,6 +1,11 @@
 import { computed, nextTick, ref } from 'vue';
-import { getBookshelfProvider } from '../../../providers';
-import type { ReaderSection, ReadingProgress, SplitConfig } from '../../../types/book';
+import { getDefaultSplitConfigSetting } from '@/api/settings';
+import { bookshelfWriter, getBookshelfProvider } from '@/providers';
+import { isLibraryEditingSupported } from '@/composables/useWriteAccess';
+import { useReadingProgressAutosave } from '@/features/reader/composables/useReadingProgressAutosave';
+import { buildMarkdownH2Sections } from '@/features/reader/utils/markdownChapters';
+import type { ReaderSection, ReadingProgress, SplitConfig } from '@/types/book';
+import { t } from '@/i18n';
 
 function clampOffset(offset: number, total: number): number {
   if (total <= 0) {
@@ -46,12 +51,15 @@ function buildSectionsFromBoundaries(content: string, starts: number[], isRegexS
 
     const text = content.slice(startOffset, endOffset);
     const firstLine = text.split(/\r?\n/, 1)[0]?.trim() ?? '';
+    // A regex split on a Markdown book matches the heading line, so the "## "
+    // marker would otherwise show up in the chapter list.
+    const sectionTitle = firstLine.replace(/^#{1,6}\s+/, '').trim();
 
     sections.push({
       index: i,
       startOffset,
       endOffset,
-      title: isRegexSplit && firstLine.length > 0 ? firstLine : `Part ${i + 1}`,
+      title: isRegexSplit && sectionTitle.length > 0 ? sectionTitle : `Part ${i + 1}`,
       text
     });
   }
@@ -155,7 +163,7 @@ function buildReaderSectionsWithWarning(content: string, splitConfig: SplitConfi
   };
 }
 
-function buildReaderSections(content: string, splitConfig: SplitConfig): ReaderSection[] {
+export function buildLegacyReaderSections(content: string, splitConfig: SplitConfig): ReaderSection[] {
   return buildReaderSectionsWithWarning(content, splitConfig).sections;
 }
 
@@ -205,6 +213,10 @@ function normalizeSplitConfigInput(config: SplitConfig): SplitConfig {
 export function useReader(bookID: () => string) {
   const title = ref('');
   const bookFormat = ref('txt');
+  // The source the reader is showing. Illustrations are stored per source, so
+  // rendering one needs this alongside the book ID.
+  const currentSourceId = ref('');
+  const isLegacySource = ref(true);
   const content = ref('');
   const splitConfig = ref<SplitConfig>({ type: 'none' });
   const splitWarning = ref('');
@@ -215,10 +227,21 @@ export function useReader(bookID: () => string) {
   );
   const progress = ref<ReadingProgress | null>(null);
   const loading = ref(false);
-  const bookmarking = ref(false);
   const error = ref('');
   const currentOffset = ref(0);
   const readerRef = ref<HTMLDivElement | null>(null);
+  let fetchGeneration = 0;
+
+  const {
+    saveError,
+    setBaseline: setProgressBaseline,
+    update: updateAutosaveOffset,
+    flush: flushReadingProgress,
+    start: startProgressAutosave,
+    stop: stopProgressAutosave
+  } = useReadingProgressAutosave(async (savedBookID, offset) => {
+    await getBookshelfProvider().saveReadProgress(savedBookID, { char_offset: offset });
+  });
 
   function normalizeProgress(next: ReadingProgress): ReadingProgress {
     const total = content.value.length;
@@ -240,6 +263,7 @@ export function useReader(bookID: () => string) {
     const percent = total > 0 ? Math.max(0, Math.min(100, Math.round((clamped / total) * 100))) : 0;
 
     currentOffset.value = clamped;
+    updateAutosaveOffset(clamped);
     if (progress.value) {
       progress.value = {
         ...progress.value,
@@ -289,58 +313,108 @@ export function useReader(bookID: () => string) {
   }
 
   async function fetchReaderData(): Promise<void> {
+    const requestedBookID = bookID();
+    const generation = ++fetchGeneration;
     loading.value = true;
     error.value = '';
     splitWarning.value = '';
     let restoredOffset: number | null = null;
 
     try {
+      // A route-param change reuses this component, so persist the previous
+      // book before replacing the autosave baseline with the next one.
+      await flushReadingProgress();
+      if (generation !== fetchGeneration) {
+        return;
+      }
+
       const provider = getBookshelfProvider();
-      const [book, bookContent, currentProgress, loadedSplitConfig] = await Promise.all([
-        provider.getBook(bookID()),
-        provider.getBookContent(bookID()),
-        provider.getReadProgress(bookID()),
-        provider.getBookSplitConfig(bookID()).catch((err: unknown) => {
-          const reason = err instanceof Error ? err.message : 'Unknown error';
-          splitWarning.value = `Failed to load split config, fallback to single section. ${reason}`;
-          return { type: 'none' } as SplitConfig;
-        })
+      const book = await provider.getBook(requestedBookID);
+      if (generation !== fetchGeneration) {
+        return;
+      }
+
+      const sourceID = book.current_source ?? '';
+      const [sourceContent, currentProgress, sourceMeta] = await Promise.all([
+        sourceID
+          ? provider.getSourceContent(requestedBookID, sourceID)
+          : provider.getBookContent(requestedBookID).then((result) => result.content),
+        provider.getReadProgress(requestedBookID),
+        sourceID ? provider.getSource(requestedBookID, sourceID) : Promise.resolve(undefined)
       ]);
+      if (generation !== fetchGeneration) {
+        return;
+      }
 
-      title.value = book.title ?? (book as { meta?: { title?: string } }).meta?.title ?? bookID();
-      bookFormat.value = book.format === 'md' ? 'md' : 'txt';
-      content.value = bookContent.content;
-      splitConfig.value = loadedSplitConfig;
+      title.value = book.title ?? (book as { meta?: { title?: string } }).meta?.title ?? requestedBookID;
+      currentSourceId.value = sourceID;
+      content.value = sourceContent;
 
-      const built = buildReaderSectionsWithWarning(content.value, splitConfig.value);
-      sections.value = built.sections;
-      if (built.warning) {
-        splitWarning.value = splitWarning.value ? `${splitWarning.value} ${built.warning}` : built.warning;
+      const sourceFormat = sourceMeta?.format === 'md' || sourceMeta?.format === 'txt' ? sourceMeta.format : undefined;
+      isLegacySource.value = sourceFormat === undefined;
+      bookFormat.value = sourceFormat ?? (book.format === 'md' ? 'md' : 'txt');
+
+      if (!isLegacySource.value) {
+        splitConfig.value = { type: 'none' };
+        sections.value = bookFormat.value === 'md'
+          ? buildMarkdownH2Sections(content.value)
+          : buildSectionsFromBoundaries(content.value, [0], false);
+      } else {
+        const [loadedSplitConfig, globalDefaultSplitConfig] = await Promise.all([
+          provider.getBookSplitConfig(requestedBookID).catch((err: unknown) => {
+            const reason = err instanceof Error ? err.message : t('reader.errors.unknown');
+            splitWarning.value = t('reader.errors.splitConfigFallback', { reason });
+            return { type: 'none' } as SplitConfig;
+          }),
+          getDefaultSplitConfigSetting().catch(() => ({ type: 'none' }) as SplitConfig)
+        ]);
+        if (generation !== fetchGeneration) {
+          return;
+        }
+
+        splitConfig.value = loadedSplitConfig.type === 'none' && globalDefaultSplitConfig.type !== 'none'
+          ? globalDefaultSplitConfig
+          : loadedSplitConfig;
+        const built = buildReaderSectionsWithWarning(content.value, splitConfig.value);
+        sections.value = built.sections;
+        if (built.warning) {
+          splitWarning.value = splitWarning.value ? `${splitWarning.value} ${built.warning}` : built.warning;
+        }
       }
 
       const normalized = normalizeProgress(currentProgress);
-      progress.value = normalized;
-      restoredOffset = normalized.char_offset;
+      const effectiveOffset = setProgressBaseline(requestedBookID, normalized.char_offset);
+      const effectiveProgress = normalizeProgress({ char_offset: effectiveOffset });
+      progress.value = effectiveProgress;
+      restoredOffset = effectiveProgress.char_offset;
 
       try {
-        await provider.addReadHistory(bookID());
+        await provider.addReadHistory(requestedBookID);
       } catch (err) {
         console.warn('Failed to update read history', err);
       }
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to load reader data';
+      if (generation === fetchGeneration) {
+        error.value = err instanceof Error ? err.message : t('reader.errors.loadFailed');
+      }
     } finally {
-      loading.value = false;
+      if (generation === fetchGeneration) {
+        loading.value = false;
+      }
     }
 
-    if (restoredOffset !== null) {
+    if (generation === fetchGeneration && restoredOffset !== null) {
       await syncSectionAndScrollByOffset(restoredOffset);
     }
   }
 
   async function applySplitConfig(config: SplitConfig): Promise<void> {
+    if (!isLibraryEditingSupported() || !isLegacySource.value) {
+      return;
+    }
+
     const normalizedInput = normalizeSplitConfigInput(config);
-    await getBookshelfProvider().updateBookSplitConfig(bookID(), normalizedInput);
+    await bookshelfWriter().updateBookSplitConfig(bookID(), normalizedInput);
 
     splitConfig.value = normalizedInput;
     splitWarning.value = '';
@@ -380,6 +454,7 @@ export function useReader(bookID: () => string) {
     const section = sections.value[clampedIndex];
     updateProgressByOffset(section.startOffset);
     await syncScrollToOffset(section.startOffset);
+    readerRef.value?.focus();
   }
 
   async function goPrevSection(): Promise<void> {
@@ -390,25 +465,15 @@ export function useReader(bookID: () => string) {
     await goToSection(currentSectionIndex.value + 1);
   }
 
-  async function bookmarkCurrent(): Promise<void> {
-    bookmarking.value = true;
-    error.value = '';
-    try {
-      const provider = getBookshelfProvider();
-      await provider.saveReadProgress(bookID(), { char_offset: currentOffset.value });
-      const nextProgress = await provider.getReadProgress(bookID());
-      progress.value = normalizeProgress(nextProgress);
-      await syncSectionAndScrollByOffset(progress.value.char_offset);
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to create bookmark';
-    } finally {
-      bookmarking.value = false;
-    }
+  async function syncCurrentScroll(): Promise<void> {
+    await syncScrollToOffset(currentOffset.value);
   }
 
   return {
     title,
     bookFormat,
+    currentSourceId,
+    isLegacySource,
     content,
     splitConfig,
     splitWarning,
@@ -417,15 +482,18 @@ export function useReader(bookID: () => string) {
     currentSection,
     progress,
     loading,
-    bookmarking,
     error,
+    saveError,
     readerRef,
     fetchReaderData,
     onScroll,
     goPrevSection,
     goNextSection,
     goToSection,
+    syncCurrentScroll,
     applySplitConfig,
-    bookmarkCurrent
+    flushReadingProgress,
+    startProgressAutosave,
+    stopProgressAutosave
   };
 }

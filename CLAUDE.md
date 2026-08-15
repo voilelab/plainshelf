@@ -10,8 +10,12 @@ Android clients.
   the authoritative book store.
 - Stable book IDs must survive title changes and moves between folders.
 - Keep single-user, local/private operation as the default.
-- EPUB, PDF, comic archives, DRM, OCR, multi-user accounts, cloud sync, public
+- PDF, comic archives, DRM, OCR, multi-user accounts, cloud sync, public
   sharing, and plugins are outside the current scope unless the user changes it.
+- EPUB is an import format only: it is converted to text/Markdown at import and
+  the original file is not stored. Do not add EPUB rendering or storage.
+- The Android client may read a shelf from pCloud, but only as a read-only
+  storage backend. That is not cloud sync: it writes nothing back.
 - Treat data-format, public API, and security changes as compatibility-sensitive.
 
 ## Repository map
@@ -37,6 +41,7 @@ tests when that directory is absent or stale.
 | Frontend type-check + build | `npm --prefix frontend run build` |
 | Main Go module | `go test ./...` |
 | Desktop Go module | `cd desktop && go test ./...` |
+| Go lint (both modules) | `golangci-lint run` and `cd desktop && golangci-lint run` |
 | All Go tests with frontend build | `just test-go` |
 | End-to-end tests | `just test-e2e` |
 | Mock frontend | `VITE_USE_MOCK_API=true npm --prefix frontend run dev` |

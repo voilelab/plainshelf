@@ -1,11 +1,16 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { getBookshelfProvider } from '../providers';
-import type { Book } from '../types/book';
+import { bookshelfWriter, getBookshelfProvider } from '@/providers';
+import type { Book } from '@/types/book';
+import { t } from '@/i18n';
 
 export interface UseBookActionsOptions {
   onDeleted?: (book: Book) => void;
 }
+
+/** Shown by every DeleteModal that moves a book to Trash. */
+export const DELETE_BOOK_DESCRIPTION =
+  'The book will be moved to Trash. You can restore it later.';
 
 function sanitizeDownloadName(name: string): string {
   return name
@@ -47,12 +52,12 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
       await getBookshelfProvider().openDesktopBookFolder?.(id);
       actionError.value = '';
     } catch (err) {
-      actionError.value = err instanceof Error ? err.message : 'Failed to open book folder';
+      actionError.value = err instanceof Error ? err.message : t('bookDetail.errors.openFolderFailed');
     }
   }
 
-  function formatDownloadFilename(book: Book): string {
-    const ext = book.format === 'md' ? 'md' : 'txt';
+  function formatDownloadFilename(book: Book, sourceFormat?: string): string {
+    const ext = (sourceFormat ?? book.format) === 'md' ? 'md' : 'txt';
     return `${sanitizeDownloadName(book.title || book.id)}.${ext}`;
   }
 
@@ -66,15 +71,18 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
 
     try {
       const provider = getBookshelfProvider();
+      const sourceFormat = book.current_source
+        ? await provider.getSource(book.id, book.current_source).then((source) => source.format).catch(() => undefined)
+        : undefined;
 
       if (provider.saveBookContentToFile) {
-        await provider.saveBookContentToFile(book.id, formatDownloadFilename(book));
+        await provider.saveBookContentToFile(book.id, formatDownloadFilename(book, sourceFormat));
       } else {
         const blob = await provider.downloadBookContent(book.id);
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = formatDownloadFilename(book);
+        link.download = formatDownloadFilename(book, sourceFormat);
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -82,7 +90,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
       }
       actionError.value = '';
     } catch (err) {
-      actionError.value = err instanceof Error ? err.message : 'Failed to download book';
+      actionError.value = err instanceof Error ? err.message : t('bookDetail.errors.downloadFailed');
     } finally {
       downloading.value = false;
     }
@@ -106,13 +114,13 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     actionError.value = '';
 
     try {
-      await getBookshelfProvider().deleteBook(target.id);
+      await bookshelfWriter().deleteBook(target.id);
       deleting.value = false;
       deleteTarget.value = null;
       options.onDeleted?.(target);
     } catch (err) {
       deleting.value = false;
-      actionError.value = err instanceof Error ? err.message : 'Failed to delete book';
+      actionError.value = err instanceof Error ? err.message : t('bookDetail.errors.deleteFailed');
     }
   }
 

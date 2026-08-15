@@ -1,14 +1,12 @@
 import { effectScope, nextTick, ref } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { reportReadingActivityMock } = vi.hoisted(() => ({
-  reportReadingActivityMock: vi.fn()
+const { addReadingSecondsMock } = vi.hoisted(() => ({
+  addReadingSecondsMock: vi.fn()
 }));
 
-vi.mock('../../../providers', () => ({
-  getBookshelfProvider: () => ({
-    reportReadingActivity: reportReadingActivityMock
-  })
+vi.mock('@/storage/readingStats', () => ({
+  addReadingSeconds: addReadingSecondsMock
 }));
 
 const { useReadingHeartbeat } = await import('./useReadingHeartbeat');
@@ -36,8 +34,8 @@ describe('useReadingHeartbeat', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     stubDocument();
-    reportReadingActivityMock.mockReset();
-    reportReadingActivityMock.mockResolvedValue(undefined);
+    addReadingSecondsMock.mockReset();
+    addReadingSecondsMock.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -53,8 +51,8 @@ describe('useReadingHeartbeat', () => {
     heartbeat.start();
     vi.advanceTimersByTime(45_000);
 
-    expect(reportReadingActivityMock).toHaveBeenCalledTimes(1);
-    expect(reportReadingActivityMock).toHaveBeenCalledWith('book-a', 45, expect.any(String));
+    expect(addReadingSecondsMock).toHaveBeenCalledTimes(1);
+    expect(addReadingSecondsMock).toHaveBeenCalledWith('book-a', 45, expect.any(String));
 
     heartbeat.stop();
     scope.stop();
@@ -72,17 +70,17 @@ describe('useReadingHeartbeat', () => {
     id.value = 'book-b';
     await nextTick();
 
-    expect(reportReadingActivityMock).toHaveBeenCalledTimes(1);
-    expect(reportReadingActivityMock.mock.calls[0][0]).toBe('book-a');
-    expect(reportReadingActivityMock.mock.calls[0][1]).toBe(20);
+    expect(addReadingSecondsMock).toHaveBeenCalledTimes(1);
+    expect(addReadingSecondsMock.mock.calls[0][0]).toBe('book-a');
+    expect(addReadingSecondsMock.mock.calls[0][1]).toBe(20);
 
     // The next interval tick fires 45s after start; only the 25s that passed
     // since the switch belong to book B.
     vi.advanceTimersByTime(25_000);
 
-    expect(reportReadingActivityMock).toHaveBeenCalledTimes(2);
-    expect(reportReadingActivityMock.mock.calls[1][0]).toBe('book-b');
-    expect(reportReadingActivityMock.mock.calls[1][1]).toBe(25);
+    expect(addReadingSecondsMock).toHaveBeenCalledTimes(2);
+    expect(addReadingSecondsMock.mock.calls[1][0]).toBe('book-b');
+    expect(addReadingSecondsMock.mock.calls[1][1]).toBe(25);
 
     heartbeat.stop();
     scope.stop();
@@ -96,8 +94,8 @@ describe('useReadingHeartbeat', () => {
     vi.advanceTimersByTime(10_000);
     heartbeat.stop();
 
-    expect(reportReadingActivityMock).toHaveBeenCalledTimes(1);
-    expect(reportReadingActivityMock).toHaveBeenCalledWith('book-a', 10, expect.any(String));
+    expect(addReadingSecondsMock).toHaveBeenCalledTimes(1);
+    expect(addReadingSecondsMock).toHaveBeenCalledWith('book-a', 10, expect.any(String));
 
     scope.stop();
   });

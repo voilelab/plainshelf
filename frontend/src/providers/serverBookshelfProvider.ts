@@ -3,35 +3,47 @@ import {
   deleteBookCover,
   deleteTrashedBook,
   downloadBookContent,
+  emptyTrash,
   getBook,
   getBookContent,
   getBookCover,
   getBookCoverUrl,
   getBookSplitConfig,
   getDuplicateBookGroups,
-  getReadingProgress,
   importBook,
   listBooks,
   listTrashedBooks,
+  refreshContentStats,
   restoreTrashedBook,
-  saveBookmark,
   updateBook,
   updateBookLayer,
   updateBookSplitConfig,
   uploadBookCover,
   uploadBookCoverBlob
-} from '../api/books';
+} from '@/api/books';
 import {
   createSource,
   deleteSource,
   getSource,
+  getSourceAsset,
   getSourceContent,
   listSource,
+  refreshSourceMeta,
   setCurrentSource,
   updateSourceContent
-} from '../api/sources';
-import { addReadHistory, clearReadHistory, listReadHistoryBooks } from '../api/readHistory';
-import { getReadingActivity, reportReadingActivity } from '../api/readingActivity';
+} from '@/api/sources';
+import { getLayers } from '@/api/layers';
+import { getTaskChain } from '@/api/taskchains';
+import { startBookBatch } from '@/api/bookBatches';
+import {
+  addReadHistory as addLocalReadHistory,
+  clearReadHistory as clearLocalReadHistory
+} from '@/storage/readHistory';
+import {
+  getLocalReadingProgress,
+  saveLocalReadingProgress
+} from '@/storage/readingProgress';
+import { collectReadHistoryBooks } from './readHistoryBooks';
 import type {
   BookmarkPayload,
   Book,
@@ -42,13 +54,18 @@ import type {
   ReadingProgress,
   SplitConfig,
   TrashedBook
-} from '../types/book';
-import type { SourceMeta } from '../types/source';
-import type { BookshelfProvider } from './bookshelfProvider';
+} from '@/types/book';
+import type { CreateSourceOptions, SourceMeta } from '@/types/source';
+import type { BookBatchRequest, TaskChain } from '@/types/task';
+import type { BookshelfReader, BookshelfWriter, ListBooksOptions } from './bookshelfProvider';
 
-export class ServerBookshelfProvider implements BookshelfProvider {
-  listBooks(page?: number, pageSize?: number): Promise<PaginatedBooks> {
-    return listBooks(page, pageSize);
+// Declares both halves rather than the loose BookshelfProvider alias, so
+// dropping or mistyping any write method fails to compile here.
+export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter {
+  readonly writable = true as const;
+
+  listBooks(page?: number, pageSize?: number, options?: ListBooksOptions): Promise<PaginatedBooks> {
+    return listBooks(page, pageSize, options);
   }
 
   getBook(bookId: string): Promise<Book> {
@@ -84,31 +101,25 @@ export class ServerBookshelfProvider implements BookshelfProvider {
   }
 
   getReadProgress(bookId: string): Promise<ReadingProgress> {
-    return getReadingProgress(bookId);
+    return getLocalReadingProgress(bookId);
   }
 
   saveReadProgress(bookId: string, progress: BookmarkPayload): Promise<void> {
-    return saveBookmark(bookId, progress);
+    return saveLocalReadingProgress(bookId, progress);
   }
 
+  // Reading progress and history are device-local; only book data comes from
+  // the server.
   addReadHistory(bookId: string): Promise<void> {
-    return addReadHistory(bookId);
+    return addLocalReadHistory(bookId);
   }
 
   listReadHistoryBooks(): Promise<Book[]> {
-    return listReadHistoryBooks();
+    return collectReadHistoryBooks((page, pageSize) => this.listBooks(page, pageSize));
   }
 
   clearReadHistory(): Promise<void> {
-    return clearReadHistory();
-  }
-
-  getReadingActivity(from: string, to: string): Promise<Record<string, number>> {
-    return getReadingActivity(from, to);
-  }
-
-  reportReadingActivity(bookId: string, seconds: number, date: string): Promise<void> {
-    return reportReadingActivity(bookId, seconds, date);
+    return clearLocalReadHistory();
   }
 
   importBook(payload: BookCreateRequest): Promise<Book> {
@@ -151,6 +162,26 @@ export class ServerBookshelfProvider implements BookshelfProvider {
     return deleteTrashedBook(bookId);
   }
 
+  emptyTrash(): Promise<string> {
+    return emptyTrash();
+  }
+
+  getTaskChain(taskChainId: string): Promise<TaskChain> {
+    return getTaskChain(taskChainId);
+  }
+
+  startBookBatch(request: BookBatchRequest): Promise<string> {
+    return startBookBatch(request);
+  }
+
+  refreshContentStats(): Promise<string> {
+    return refreshContentStats();
+  }
+
+  listLayers(): Promise<string[]> {
+    return getLayers();
+  }
+
   listSources(bookId: string): Promise<SourceMeta[]> {
     return listSource(bookId);
   }
@@ -163,8 +194,12 @@ export class ServerBookshelfProvider implements BookshelfProvider {
     return getSourceContent(bookId, sourceId);
   }
 
-  createSource(bookId: string): Promise<SourceMeta> {
-    return createSource(bookId);
+  getSourceAsset(bookId: string, sourceId: string, name: string): Promise<Blob> {
+    return getSourceAsset(bookId, sourceId, name);
+  }
+
+  createSource(bookId: string, options?: CreateSourceOptions): Promise<SourceMeta> {
+    return createSource(bookId, options);
   }
 
   deleteSource(bookId: string, sourceId: string): Promise<void> {
@@ -177,5 +212,9 @@ export class ServerBookshelfProvider implements BookshelfProvider {
 
   updateSourceContent(bookId: string, sourceId: string, content: string): Promise<void> {
     return updateSourceContent(bookId, sourceId, content);
+  }
+
+  refreshSourceMeta(bookId: string, sourceId: string): Promise<SourceMeta> {
+    return refreshSourceMeta(bookId, sourceId);
   }
 }

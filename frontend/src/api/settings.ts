@@ -1,3 +1,6 @@
+import { DEFAULT_EPUB_IMPORT_STRATEGY, type EpubImportStrategy, type SplitConfig } from '@/types/book';
+import { normalizeEpubImportStrategy } from '@/utils/epubStrategy';
+import { normalizeSplitConfig, buildSplitConfigPayload } from '@/utils/splitConfig';
 import { fetchJson, isMockApiMode } from './client';
 
 interface SettingResponse {
@@ -5,25 +8,11 @@ interface SettingResponse {
 }
 
 let mockCoverToJpg = false;
-let mockReadHistoryLimit = 100;
+let mockDefaultSplitConfig: SplitConfig = { type: 'none' };
+let mockEpubImportStrategy: EpubImportStrategy = { ...DEFAULT_EPUB_IMPORT_STRATEGY };
 
 function toBoolean(value: unknown): boolean {
   return value === true || value === 'true' || value === 1 || value === '1';
-}
-
-function toNonNegativeInteger(value: unknown, fallback = 0): number {
-  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) {
-    return value;
-  }
-
-  if (typeof value === 'string') {
-    const parsed = Number(value.trim());
-    if (Number.isInteger(parsed) && parsed >= 0) {
-      return parsed;
-    }
-  }
-
-  return fallback;
 }
 
 export async function getCoverToJpgSetting(): Promise<boolean> {
@@ -50,30 +39,54 @@ export async function setCoverToJpgSetting(enabled: boolean): Promise<void> {
   });
 }
 
-export async function getReadHistoryLimitSetting(): Promise<number> {
+export async function getDefaultSplitConfigSetting(): Promise<SplitConfig> {
   if (isMockApiMode()) {
-    return mockReadHistoryLimit;
+    return mockDefaultSplitConfig;
   }
 
-  const res = await fetchJson<SettingResponse>('/api/setting/read_history_limit');
-  return toNonNegativeInteger(res?.value);
+  const res = await fetchJson<SettingResponse>('/api/setting/default_split_config');
+  return normalizeSplitConfig(res?.value);
 }
 
-export async function setReadHistoryLimitSetting(limit: number): Promise<void> {
-  if (!Number.isInteger(limit) || limit < 0) {
-    throw new Error('Read history limit must be a non-negative integer.');
-  }
+export async function setDefaultSplitConfigSetting(config: SplitConfig): Promise<void> {
+  const payload = buildSplitConfigPayload(config);
 
   if (isMockApiMode()) {
-    mockReadHistoryLimit = limit;
+    mockDefaultSplitConfig = normalizeSplitConfig(payload);
     return;
   }
 
-  await fetchJson<void>('/api/setting/read_history_limit', {
+  await fetchJson<void>('/api/setting/default_split_config', {
     method: 'POST',
     headers: {
-      'Content-Type': 'text/plain;charset=UTF-8'
+      'Content-Type': 'application/json'
     },
-    body: String(limit)
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function getEpubImportStrategySetting(): Promise<EpubImportStrategy> {
+  if (isMockApiMode()) {
+    return mockEpubImportStrategy;
+  }
+
+  const res = await fetchJson<SettingResponse>('/api/setting/epub_import_strategy');
+  return normalizeEpubImportStrategy(res?.value);
+}
+
+export async function setEpubImportStrategySetting(strategy: EpubImportStrategy): Promise<void> {
+  const payload = normalizeEpubImportStrategy(strategy);
+
+  if (isMockApiMode()) {
+    mockEpubImportStrategy = payload;
+    return;
+  }
+
+  await fetchJson<void>('/api/setting/epub_import_strategy', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
   });
 }

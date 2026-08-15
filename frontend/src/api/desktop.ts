@@ -1,5 +1,5 @@
 import { getActiveShelfID } from './client';
-import { isWailsRuntime } from '../providers/runtime';
+import { isWailsRuntime } from '@/providers/runtime';
 
 interface DesktopImportBookResult {
   path?: string;
@@ -30,6 +30,12 @@ interface DesktopAppBinding {
   ModifyShelf?: (shelfID: string, name: string, scanInterval: string) => Promise<void>;
   SaveBookContent?: (shelfID: string, bookID: string, suggestedName: string) => Promise<void>;
   OpenExternalURL?: (url: string) => Promise<void>;
+  ReadReadHistory?: () => Promise<string>;
+  WriteReadHistory?: (doc: string) => Promise<void>;
+  ReadReadingProgress?: () => Promise<string>;
+  WriteReadingProgress?: (doc: string) => Promise<void>;
+  ReadReadingStats?: () => Promise<string>;
+  WriteReadingStats?: (doc: string) => Promise<void>;
 }
 
 interface DesktopWindow extends Window {
@@ -178,6 +184,80 @@ export async function saveDesktopBookContent(
   }
 
   await desktopApp.SaveBookContent(shelfID, bookID, suggestedName);
+}
+
+// Reading history, progress, and stats are stored by the desktop shell itself
+// (JSON files next to shelves.json), not by the server and not in WebView
+// storage. These bindings are deliberately format-blind: the documents are
+// built in storage/readHistory, storage/readingProgress, and
+// storage/readingStats; Go only persists the text it is handed.
+export function hasDesktopReadHistoryBinding(): boolean {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  return Boolean(desktopApp?.ReadReadHistory && desktopApp?.WriteReadHistory);
+}
+
+export async function readDesktopReadHistory(): Promise<string> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.ReadReadHistory) {
+    throw new Error('ReadReadHistory binding not available');
+  }
+
+  return (await desktopApp.ReadReadHistory()) ?? '';
+}
+
+export async function writeDesktopReadHistory(doc: string): Promise<void> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.WriteReadHistory) {
+    throw new Error('WriteReadHistory binding not available');
+  }
+
+  await desktopApp.WriteReadHistory(doc);
+}
+
+export function hasDesktopReadingProgressBinding(): boolean {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  return Boolean(desktopApp?.ReadReadingProgress && desktopApp?.WriteReadingProgress);
+}
+
+export async function readDesktopReadingProgress(): Promise<string> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.ReadReadingProgress) {
+    throw new Error('ReadReadingProgress binding not available');
+  }
+
+  return (await desktopApp.ReadReadingProgress()) ?? '';
+}
+
+export async function writeDesktopReadingProgress(doc: string): Promise<void> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.WriteReadingProgress) {
+    throw new Error('WriteReadingProgress binding not available');
+  }
+
+  await desktopApp.WriteReadingProgress(doc);
+}
+
+export function hasDesktopReadingStatsBinding(): boolean {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  return Boolean(desktopApp?.ReadReadingStats && desktopApp?.WriteReadingStats);
+}
+
+export async function readDesktopReadingStats(): Promise<string> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.ReadReadingStats) {
+    throw new Error('ReadReadingStats binding not available');
+  }
+
+  return (await desktopApp.ReadReadingStats()) ?? '';
+}
+
+export async function writeDesktopReadingStats(doc: string): Promise<void> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.WriteReadingStats) {
+    throw new Error('WriteReadingStats binding not available');
+  }
+
+  await desktopApp.WriteReadingStats(doc);
 }
 
 export async function openDesktopExternalURL(url: string): Promise<void> {

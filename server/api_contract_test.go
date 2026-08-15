@@ -11,18 +11,21 @@ import (
 	"net/textproto"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
-	"github.com/voilelab/plainshelf/server/store"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
 type apiTestEnv struct {
 	app     *App
 	handler http.Handler
+	// libRoot is the shelf's on-disk root, so tests can inspect or tamper with
+	// the files behind the API.
+	libRoot string
 }
 
 type wailsLikeRecorder struct {
@@ -61,18 +64,19 @@ func (rec *wailsLikeRecorder) WriteHeader(code int) {
 func newAPITestEnv(t *testing.T) *apiTestEnv {
 	t.Helper()
 
+	libRoot := t.TempDir()
+
 	app, err := NewApp(&AppConf{
 		Shelves: []*shelf.ShelfConfWithID{
 			{
 				ID: "default_shelf",
 				ShelfConf: shelf.ShelfConf{
-					LibRoot: t.TempDir(),
+					LibRoot: libRoot,
 				},
 			},
 		},
-		StorePath:        t.TempDir(),
-		CoverToJPG:       false,
-		ReadHistoryLimit: 2,
+		StorePath:  t.TempDir(),
+		CoverToJPG: false,
 	})
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
@@ -83,7 +87,61 @@ func newAPITestEnv(t *testing.T) *apiTestEnv {
 		}
 	})
 
-	return &apiTestEnv{app: app, handler: app.Handler()}
+	// Start the background worker so endpoints backed by task chains behave as
+	// they do in production.
+	if err := app.Start(); err != nil {
+		t.Fatalf("Start app: %v", err)
+	}
+
+	// Contract tests assert response shapes and status codes, so they must not
+	// race the shelf's initial scan: a read issued before it finishes is
+	// answered 503, which is correct behaviour and a meaningless failure here.
+	waitForShelves(t, app)
+
+	return &apiTestEnv{app: app, handler: app.Handler(), libRoot: libRoot}
+}
+
+// waitForShelves blocks until every configured shelf has finished its initial
+// scan, so a test's first request cannot arrive while the shelf is still
+// initializing. Endpoints that report "shelf is initializing" have their own
+// tests; everywhere else it is noise.
+func waitForShelves(t *testing.T, app *App) {
+	t.Helper()
+
+	for _, shelfData := range app.shelfManager.GetAllShelves() {
+		if err := shelfData.WaitReady(t.Context()); err != nil {
+			t.Fatalf("WaitReady for shelf %s: %v", shelfData.ID, err)
+		}
+	}
+}
+
+// bookMetaPath locates the on-disk book.json for the given book ID by walking
+// the shelf root, so tests do not have to reproduce the folder-naming scheme.
+func (env *apiTestEnv) bookMetaPath(t *testing.T, bookID string) string {
+	t.Helper()
+
+	var found string
+	err := filepath.WalkDir(env.libRoot, func(p string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || d.Name() != shelf.BookMetaFile || found != "" {
+			return err
+		}
+		raw, readErr := os.ReadFile(p)
+		if readErr != nil {
+			return readErr
+		}
+		var meta shelf.BookMeta
+		if json.Unmarshal(raw, &meta) == nil && meta.ID == bookID {
+			found = p
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk lib root: %v", err)
+	}
+	if found == "" {
+		t.Fatalf("could not find book.json for book %s under %s", bookID, env.libRoot)
+	}
+	return found
 }
 
 func (env *apiTestEnv) do(req *http.Request) *httptest.ResponseRecorder {
@@ -263,9 +321,8 @@ func TestAPIGetLogsContract(t *testing.T) {
 				},
 			},
 		},
-		StorePath:        t.TempDir(),
-		CoverToJPG:       false,
-		ReadHistoryLimit: 2,
+		StorePath:  t.TempDir(),
+		CoverToJPG: false,
 	})
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
@@ -328,9 +385,8 @@ func TestAPIGetLogContentContract(t *testing.T) {
 				},
 			},
 		},
-		StorePath:        t.TempDir(),
-		CoverToJPG:       false,
-		ReadHistoryLimit: 2,
+		StorePath:  t.TempDir(),
+		CoverToJPG: false,
 	})
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
@@ -425,9 +481,8 @@ func TestAPIStreamContentReturns200ForEmptyFilesInWails(t *testing.T) {
 				},
 			},
 		},
-		StorePath:        t.TempDir(),
-		CoverToJPG:       false,
-		ReadHistoryLimit: 2,
+		StorePath:  t.TempDir(),
+		CoverToJPG: false,
 	})
 	if err != nil {
 		t.Fatalf("NewApp: %v", err)
@@ -500,13 +555,13 @@ func TestAPIImportBookContract(t *testing.T) {
 	buf.Reset()
 	writer = multipart.NewWriter(&buf)
 	h := make(textproto.MIMEHeader)
-	h.Set("Content-Disposition", `form-data; name="file"; filename="book.epub"`)
+	h.Set("Content-Disposition", `form-data; name="file"; filename="book.cbz"`)
 	h.Set("Content-Type", "text/plain")
 	part, err := writer.CreatePart(h)
 	if err != nil {
 		t.Fatalf("CreatePart: %v", err)
 	}
-	if _, err := part.Write([]byte("not a txt upload")); err != nil {
+	if _, err := part.Write([]byte("not a supported upload")); err != nil {
 		t.Fatalf("write bad file: %v", err)
 	}
 	if err := writer.Close(); err != nil {
@@ -583,6 +638,22 @@ func TestAPIImportMarkdownBookContract(t *testing.T) {
 		t.Fatalf("unexpected imported book meta: %#v", txtBook.Meta)
 	}
 
+	for _, imported := range []struct {
+		book Book
+		want string
+	}{
+		{withMarkdownContentType, "md"},
+		{txtBook, "txt"},
+	} {
+		sourceURL := "/api/shelves/default_shelf/books/" + imported.book.Meta.ID + "/sources/" + imported.book.Meta.CurrentSource
+		sourceRec := env.do(httptest.NewRequest(http.MethodGet, sourceURL, nil))
+		assertStatus(t, sourceRec, http.StatusOK)
+		sourceMeta := decodeJSON[map[string]any](t, sourceRec)
+		if sourceMeta["format"] != imported.want || sourceMeta["schema_version"] != float64(1) {
+			t.Fatalf("source meta = %#v, want schema 1 format %s", sourceMeta, imported.want)
+		}
+	}
+
 	// Reading back the content must still be exactly what was uploaded, with no
 	// markdown rendering applied (rendering is out of scope for this PR).
 	contentReq := httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+withMarkdownContentType.Meta.ID+"/content", nil)
@@ -620,6 +691,65 @@ func TestAPIUpdateBookContract(t *testing.T) {
 
 	rec = env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID, strings.NewReader(`{"star":6}`)))
 	assertStatus(t, rec, http.StatusBadRequest)
+
+	// A malformed language tag is a client error, not a server failure.
+	rec = env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID, strings.NewReader(`{"language":"!!!not-a-tag"}`)))
+	assertStatus(t, rec, http.StatusBadRequest)
+}
+
+// The stored format decides whether the reader parses the text as Markdown, and
+// import can only guess it from a file extension. This is the correction path:
+// switching it is metadata-only, so the book's content is never rewritten.
+func TestAPIUpdateBookFormatContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Format Book", "", "format.txt", "# Notes\n\nhello")
+	bookURL := "/api/shelves/default_shelf/books/" + created.Meta.ID
+
+	if created.Meta.Format != "txt" {
+		t.Fatalf("imported format = %q, want txt", created.Meta.Format)
+	}
+
+	rec := env.do(httptest.NewRequest(http.MethodGet, bookURL+"/content", nil))
+	assertStatus(t, rec, http.StatusOK)
+	contentBefore := rec.Body.String()
+
+	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"format":"md"}`)))
+	assertStatus(t, rec, http.StatusOK)
+	updated := decodeJSON[Book](t, rec)
+	if updated.Meta.Format != "md" {
+		t.Fatalf("format = %q, want md in the PATCH response", updated.Meta.Format)
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, bookURL, nil))
+	assertStatus(t, rec, http.StatusOK)
+	if fetched := decodeJSON[Book](t, rec); fetched.Meta.Format != "md" {
+		t.Fatalf("format = %q, want md after GET", fetched.Meta.Format)
+	}
+
+	// Switching the format must not touch the text it describes.
+	rec = env.do(httptest.NewRequest(http.MethodGet, bookURL+"/content", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Body.String(); got != contentBefore {
+		t.Fatalf("content = %q, want it unchanged at %q", got, contentBefore)
+	}
+
+	// A format this build cannot render is a client error, and the stored value survives it.
+	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"format":"epub"}`)))
+	assertStatus(t, rec, http.StatusBadRequest)
+
+	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"title":"Format Book Renamed"}`)))
+	assertStatus(t, rec, http.StatusOK)
+	untouched := decodeJSON[Book](t, rec)
+	if untouched.Meta.Format != "md" {
+		t.Fatalf("format = %q, want md left alone when the PATCH omits it", untouched.Meta.Format)
+	}
+
+	// The switch is reversible: nothing about going to md is one-way.
+	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"format":"txt"}`)))
+	assertStatus(t, rec, http.StatusOK)
+	if reverted := decodeJSON[Book](t, rec); reverted.Meta.Format != "txt" {
+		t.Fatalf("format = %q, want txt after switching back", reverted.Meta.Format)
+	}
 }
 
 func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
@@ -823,108 +953,327 @@ func TestAPICoverContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusNotFound)
 }
 
-func TestAPIStoreContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Store Me", "", "store.txt", "body")
-	marksURL := "/api/shelves/default_shelf/marks/" + created.Meta.ID
+// currentSourceID returns the source the imported book is reading from.
+func (env *apiTestEnv) currentSourceID(t *testing.T, bookID string) string {
+	t.Helper()
 
-	rec := env.do(httptest.NewRequest(http.MethodGet, marksURL, nil))
+	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+bookID+"/sources", nil))
 	assertStatus(t, rec, http.StatusOK)
-	assertJSONContentType(t, rec)
-	mark := decodeJSON[store.Bookmark](t, rec)
-	if mark.CharOffset != 0 {
-		t.Fatalf("default mark char_offset = %d, want 0", mark.CharOffset)
+
+	metas := decodeJSON[[]shelf.SourceMeta](t, rec)
+	if len(metas) == 0 {
+		t.Fatalf("book %s has no sources", bookID)
 	}
+	return metas[0].ID
+}
 
-	rec = env.do(httptest.NewRequest(http.MethodPost, marksURL, strings.NewReader(`{"char_offset":123}`)))
-	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodGet, marksURL, nil))
-	assertStatus(t, rec, http.StatusOK)
-	mark = decodeJSON[store.Bookmark](t, rec)
-	if mark.CharOffset != 123 {
-		t.Fatalf("mark char_offset = %d, want 123", mark.CharOffset)
+// writeSourceAsset drops a file into a source's assets/ directory, which is how
+// an illustration gets there today: the API serves assets but cannot store them.
+func (env *apiTestEnv) writeSourceAsset(t *testing.T, bookID, sourceID, name string, data []byte) {
+	t.Helper()
+
+	bookDir := filepath.Dir(env.bookMetaPath(t, bookID))
+	assetDir := filepath.Join(bookDir, shelf.SourcesFolder, sourceID, shelf.SourceAssetsFolder)
+	if err := os.MkdirAll(assetDir, 0755); err != nil {
+		t.Fatalf("MkdirAll(%q): %v", assetDir, err)
 	}
-
-	rec = env.do(httptest.NewRequest(http.MethodPost, marksURL, strings.NewReader(`{"char_offset":123,"extra":true}`)))
-	assertStatus(t, rec, http.StatusBadRequest)
-
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/read_history", nil))
-	assertStatus(t, rec, http.StatusOK)
-	assertJSONContentType(t, rec)
-	if history := decodeJSON[[]string](t, rec); len(history) != 0 {
-		t.Fatalf("initial read history = %#v, want empty", history)
-	}
-
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history", nil))
-	assertStatus(t, rec, http.StatusBadRequest)
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id="+created.Meta.ID, nil))
-	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/read_history", nil))
-	assertStatus(t, rec, http.StatusOK)
-	history := decodeJSON[[]string](t, rec)
-	if len(history) != 1 || history[0] != created.Meta.ID {
-		t.Fatalf("read history = %#v, want [%s]", history, created.Meta.ID)
-	}
-
-	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/shelves/default_shelf/read_history", nil))
-	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/read_history", nil))
-	assertStatus(t, rec, http.StatusOK)
-	if history = decodeJSON[[]string](t, rec); len(history) != 0 {
-		t.Fatalf("cleared read history = %#v, want empty", history)
+	if err := os.WriteFile(filepath.Join(assetDir, name), data, 0644); err != nil {
+		t.Fatalf("WriteFile(%q): %v", name, err)
 	}
 }
 
-func TestAPIReadingActivityContract(t *testing.T) {
+func TestAPISourceAssetContract(t *testing.T) {
 	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Reading Time", "", "reading.txt", "body")
-	activityURL := "/api/shelves/default_shelf/reading_activity"
-	today := time.Now().Format("2006-01-02")
+	created := importTextBook(t, env, "Illustrated", "", "art.md", "body")
+	sourceID := env.currentSourceID(t, created.Meta.ID)
+	assetsURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources/" + sourceID + "/assets/"
 
-	// Old vault / fresh shelf with no stats file yet: GET must succeed with
-	// empty days, not error.
-	rec := env.do(httptest.NewRequest(http.MethodGet, activityURL, nil))
-	assertStatus(t, rec, http.StatusOK)
-	assertJSONContentType(t, rec)
-	initial := decodeJSON[readingActivityResponse](t, rec)
-	if len(initial.Days) != 0 {
-		t.Fatalf("initial reading activity days = %#v, want empty", initial.Days)
-	}
-	if initial.Unit != "seconds" {
-		t.Fatalf("unit = %q, want seconds", initial.Unit)
-	}
-
-	// Missing book_id -> 400.
-	rec = env.do(httptest.NewRequest(http.MethodPost, activityURL, strings.NewReader(`{"seconds":30}`)))
-	assertStatus(t, rec, http.StatusBadRequest)
-
-	// Unknown shelf -> 404.
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/no_such_shelf/reading_activity", strings.NewReader(`{"book_id":"x","seconds":30}`)))
+	// Nothing has been placed under assets/ yet.
+	rec := env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
 	assertStatus(t, rec, http.StatusNotFound)
 
-	// Record 45s for today, then read it back.
-	body := fmt.Sprintf(`{"book_id":%q,"seconds":45,"date":%q}`, created.Meta.ID, today)
-	rec = env.do(httptest.NewRequest(http.MethodPost, activityURL, strings.NewReader(body)))
-	assertStatus(t, rec, http.StatusNoContent)
+	pngBytes := []byte("fake png bytes")
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "img-0001.png", pngBytes)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, activityURL, nil))
+	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
 	assertStatus(t, rec, http.StatusOK)
-	resp := decodeJSON[readingActivityResponse](t, rec)
-	day, ok := resp.Days[today]
-	if !ok || day.TotalSeconds != 45 {
-		t.Fatalf("days[%s] = %#v (ok=%v), want total_seconds=45", today, day, ok)
+	if got := rec.Header().Get("Content-Type"); got != "image/png" {
+		t.Fatalf("asset Content-Type = %q, want image/png", got)
+	}
+	if !bytes.Equal(rec.Body.Bytes(), pngBytes) {
+		t.Fatalf("asset bytes = %q, want %q", rec.Body.Bytes(), pngBytes)
 	}
 
-	// seconds:9999 gets clamped to the per-call max (120), not rejected.
-	body = fmt.Sprintf(`{"book_id":%q,"seconds":9999,"date":%q}`, created.Meta.ID, today)
-	rec = env.do(httptest.NewRequest(http.MethodPost, activityURL, strings.NewReader(body)))
+	// The asset is streamed rather than buffered, so the length has to be
+	// declared from the file's own size instead of the written body.
+	if got := rec.Header().Get("Content-Length"); got != strconv.Itoa(len(pngBytes)) {
+		t.Fatalf("asset Content-Length = %q, want %d", got, len(pngBytes))
+	}
+
+	// An asset can be replaced or removed while its URL stays the same, so the
+	// client has to ask every time. This env leaves protect_read off, so the
+	// response is still shared-cacheable; TestCacheVisibilityFollowsTheTokenGate
+	// covers the protected case.
+	if got := rec.Header().Get("Cache-Control"); got != "public, no-cache" {
+		t.Fatalf("asset Cache-Control = %q, want public, no-cache", got)
+	}
+
+	// The reader fetches every illustration on a chapter, so a revalidating
+	// request must be answerable without resending the bytes.
+	etag := rec.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("asset response carries no ETag")
+	}
+	req := httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil)
+	req.Header.Set("If-None-Match", etag)
+	rec = env.do(req)
+	assertStatus(t, rec, http.StatusNotModified)
+	if rec.Body.Len() != 0 {
+		t.Fatalf("304 response body = %q, want empty", rec.Body.String())
+	}
+
+	// Each stored extension keeps its own content type.
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "img-0002.webp", []byte("fake webp bytes"))
+	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0002.webp", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Header().Get("Content-Type"); got != "image/webp" {
+		t.Fatalf("asset Content-Type = %q, want image/webp", got)
+	}
+
+	// ServeMux has already unescaped the wildcard, so a name carrying a literal
+	// percent escape must survive addressing intact. Decoding it a second time
+	// would land on "chart one.png" instead, which exists here precisely so a
+	// regression serves the wrong bytes rather than merely 404ing.
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "chart%20one.png", []byte("percent name"))
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "chart one.png", []byte("space name"))
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"chart%2520one.png", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Body.String(); got != "percent name" {
+		t.Fatalf("asset with a percent in its name = %q, want %q", got, "percent name")
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"chart%20one.png", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Body.String(); got != "space name" {
+		t.Fatalf("asset with a space in its name = %q, want %q", got, "space name")
+	}
+
+	// A GET pattern also matches HEAD. The headers must be identical while the
+	// asset itself is never read: the empty recorder body is what shows the
+	// copy was skipped, since httptest does not suppress it the way net/http
+	// would.
+	req = httptest.NewRequest(http.MethodHead, assetsURL+"img-0001.png", nil)
+	rec = env.do(req)
+	assertStatus(t, rec, http.StatusOK)
+	if rec.Body.Len() != 0 {
+		t.Fatalf("HEAD response body = %q, want empty", rec.Body.String())
+	}
+	if got := rec.Header().Get("Content-Length"); got != strconv.Itoa(len(pngBytes)) {
+		t.Fatalf("HEAD Content-Length = %q, want %d", got, len(pngBytes))
+	}
+	if got := rec.Header().Get("Content-Type"); got != "image/png" {
+		t.Fatalf("HEAD Content-Type = %q, want image/png", got)
+	}
+
+	// A missing book or source is a 404, not a 500.
+	rec = env.do(httptest.NewRequest(http.MethodGet,
+		"/api/shelves/default_shelf/books/no-such-book/sources/"+sourceID+"/assets/img-0001.png", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+	rec = env.do(httptest.NewRequest(http.MethodGet,
+		"/api/shelves/default_shelf/books/"+created.Meta.ID+"/sources/no-such-source/assets/img-0001.png", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+
+	// POST and PATCH still have no meaning on an asset; PUT and DELETE do.
+	for _, method := range []string{http.MethodPost, http.MethodPatch} {
+		rec = env.do(httptest.NewRequest(method, assetsURL+"img-0001.png", nil))
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("%s asset status = %d, want %d", method, rec.Code, http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+func TestAPISourceAssetWriteContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Editable Art", "", "art.md", "body")
+	sourceID := env.currentSourceID(t, created.Meta.ID)
+	assetsURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources/" + sourceID + "/assets/"
+
+	// Uploading creates the directory and the file.
+	pngBytes := []byte("fake png bytes")
+	rec := env.do(httptest.NewRequest(http.MethodPut, assetsURL+"img-0001.png", bytes.NewReader(pngBytes)))
 	assertStatus(t, rec, http.StatusNoContent)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, activityURL+"?from="+today+"&to="+today, nil))
+	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
 	assertStatus(t, rec, http.StatusOK)
-	resp = decodeJSON[readingActivityResponse](t, rec)
-	if resp.Days[today].TotalSeconds != 45+120 {
-		t.Fatalf("days[%s].total_seconds = %d, want %d (45 + clamped 120)", today, resp.Days[today].TotalSeconds, 45+120)
+	if !bytes.Equal(rec.Body.Bytes(), pngBytes) {
+		t.Fatalf("stored asset = %q, want %q", rec.Body.Bytes(), pngBytes)
+	}
+
+	// Uploading again under the same name replaces it.
+	replaced := []byte("replacement bytes")
+	rec = env.do(httptest.NewRequest(http.MethodPut, assetsURL+"img-0001.png", bytes.NewReader(replaced)))
+	assertStatus(t, rec, http.StatusNoContent)
+	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
+	if !bytes.Equal(rec.Body.Bytes(), replaced) {
+		t.Fatalf("replaced asset = %q, want %q", rec.Body.Bytes(), replaced)
+	}
+
+	// The name is validated on the way in exactly as it is on the way out, so
+	// a file the read path could never serve cannot be written either.
+	for _, assetName := range []string{"..%2fescaped.png", ".hidden.png", "notes.txt", "img-0002"} {
+		rec = env.do(httptest.NewRequest(http.MethodPut, assetsURL+assetName, bytes.NewReader(pngBytes)))
+		assertStatus(t, rec, http.StatusBadRequest)
+	}
+
+	// Oversized uploads are refused rather than spooled.
+	rec = env.do(httptest.NewRequest(http.MethodPut, assetsURL+"img-0003.png",
+		bytes.NewReader(bytes.Repeat([]byte{'x'}, maxAssetBodySize+1))))
+	assertStatus(t, rec, http.StatusRequestEntityTooLarge)
+
+	// Deleting removes it; deleting again reports the miss rather than
+	// succeeding quietly, since an asset is addressed by name.
+	rec = env.do(httptest.NewRequest(http.MethodDelete, assetsURL+"img-0001.png", nil))
+	assertStatus(t, rec, http.StatusNoContent)
+	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+	rec = env.do(httptest.NewRequest(http.MethodDelete, assetsURL+"img-0001.png", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+}
+
+// A replaced illustration keeps its URL - the reader derives it from the file
+// name in the text, and nothing records a version to bust a cache with - so a
+// client that may reuse the old bytes would show the wrong picture.
+func TestAssetRevalidationSurvivesAReplacement(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Replaced Art", "", "art.md", "body")
+	sourceID := env.currentSourceID(t, created.Meta.ID)
+	url := "/api/shelves/default_shelf/books/" + created.Meta.ID +
+		"/sources/" + sourceID + "/assets/img-0001.png"
+
+	rec := env.do(httptest.NewRequest(http.MethodPut, url, strings.NewReader("first bytes")))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	firstETag := rec.Header().Get("ETag")
+	if got := rec.Header().Get("Cache-Control"); !strings.Contains(got, "no-cache") {
+		t.Fatalf("asset Cache-Control = %q, want it to force revalidation", got)
+	}
+
+	// A cover may be cached for a day because its URL gains a cache-busting key
+	// when it changes; an asset URL never changes, hence the difference.
+	coverReq := httptest.NewRequest(http.MethodPut,
+		"/api/shelves/default_shelf/books/"+created.Meta.ID+"/cover", strings.NewReader("cover"))
+	coverReq.Header.Set("Content-Type", "image/png")
+	rec = env.do(coverReq)
+	assertStatus(t, rec, http.StatusNoContent)
+	rec = env.do(httptest.NewRequest(http.MethodGet,
+		"/api/shelves/default_shelf/books/"+created.Meta.ID+"/cover", nil))
+	if got := rec.Header().Get("Cache-Control"); !strings.Contains(got, "max-age=86400") {
+		t.Fatalf("cover Cache-Control = %q, want it to stay cacheable", got)
+	}
+
+	// Replacing changes the validator, so a client holding the old one is told
+	// to take the new bytes rather than being answered 304.
+	rec = env.do(httptest.NewRequest(http.MethodPut, url, strings.NewReader("second bytes, longer")))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	req.Header.Set("If-None-Match", firstETag)
+	rec = env.do(req)
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Body.String(); got != "second bytes, longer" {
+		t.Fatalf("revalidated asset = %q, want the replacement", got)
+	}
+
+	// And once it is deleted, the same conditional request reports the miss
+	// rather than confirming a copy that is no longer there.
+	rec = env.do(httptest.NewRequest(http.MethodDelete, url, nil))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	req = httptest.NewRequest(http.MethodGet, url, nil)
+	req.Header.Set("If-None-Match", firstETag)
+	rec = env.do(req)
+	assertStatus(t, rec, http.StatusNotFound)
+}
+
+// Writing an asset is a mutating request like any other, so both gates that
+// decide what may write have to cover it.
+func TestAPISourceAssetWritesAreGated(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Gated Art", "", "art.md", "body")
+	sourceID := env.currentSourceID(t, created.Meta.ID)
+	assetsURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources/" + sourceID + "/assets/"
+
+	// doRaw omits the token do() would attach.
+	for _, method := range []string{http.MethodPut, http.MethodDelete} {
+		rec := env.doRaw(httptest.NewRequest(method, assetsURL+"img-0001.png", bytes.NewReader([]byte("x"))))
+		assertStatus(t, rec, http.StatusUnauthorized)
+	}
+
+	env.app.conf.ReadOnly = true
+	for _, method := range []string{http.MethodPut, http.MethodDelete} {
+		rec := env.do(httptest.NewRequest(method, assetsURL+"img-0001.png", bytes.NewReader([]byte("x"))))
+		assertStatus(t, rec, http.StatusForbidden)
+	}
+	env.app.conf.ReadOnly = false
+
+	// A read is unaffected by either gate in this configuration.
+	rec := env.doRaw(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+}
+
+// The asset route reaches the filesystem by name, so it gets its own traversal
+// cases rather than trusting the shelf-level test alone.
+func TestAPISourceAssetRejectsUnsafeNames(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Unsafe Assets", "", "art.md", "secret body")
+	sourceID := env.currentSourceID(t, created.Meta.ID)
+	assetsURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources/" + sourceID + "/assets/"
+
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "img-0001.png", []byte("fake png bytes"))
+
+	// A name is served exactly as addressed. Trimming it would make " lead.png"
+	// unreachable and, with both files present, quietly answer with the other
+	// one - the same failure the double-decode used to cause.
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, " lead.png", []byte("space prefixed"))
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "lead.png", []byte("plain"))
+
+	rec := env.do(httptest.NewRequest(http.MethodGet, assetsURL+"%20lead.png", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Body.String(); got != "space prefixed" {
+		t.Fatalf("asset with a leading space = %q, want %q", got, "space prefixed")
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"lead.png", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Body.String(); got != "plain" {
+		t.Fatalf("asset without a leading space = %q, want %q", got, "plain")
+	}
+
+	// An encoded separator survives routing: the mux hands these to the handler
+	// as one path value that decodes to "../source.txt". Since source.txt really
+	// does sit one level above assets/, they name a file that exists, so 400 is
+	// evidence the name was refused rather than merely unresolvable.
+	for _, assetName := range []string{
+		"..%2fsource.txt",
+		"..%2Fsource.txt",
+		"%2e%2e%2fsource.txt",
+		"%2e%2e%2f%2e%2e%2fbook.json",
+		"..%5csource.txt",
+		"%2fetc%2fhostname",
+		".hidden.png",
+		"source.txt",
+		"img-0001",
+	} {
+		t.Run(assetName, func(t *testing.T) {
+			rec := env.do(httptest.NewRequest(http.MethodGet, assetsURL+assetName, nil))
+			assertStatus(t, rec, http.StatusBadRequest)
+			if strings.Contains(rec.Body.String(), "secret body") {
+				t.Fatalf("response leaked file contents: %s", rec.Body.String())
+			}
+		})
 	}
 }
 
@@ -960,6 +1309,49 @@ func TestAPICreateBookSourceContract(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("newly created source %q not found in list: %#v", newSourceID, sources)
+	}
+
+	// A derived source is uploaded as multipart so the whole book is not placed
+	// in metadata JSON. Creation and optional activation happen in one request.
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	if err := writer.WriteField("format", "md"); err != nil {
+		t.Fatalf("WriteField format: %v", err)
+	}
+	if err := writer.WriteField("comment", "derived in contract test"); err != nil {
+		t.Fatalf("WriteField comment: %v", err)
+	}
+	if err := writer.WriteField("set_current", "true"); err != nil {
+		t.Fatalf("WriteField set_current: %v", err)
+	}
+	part, err := writer.CreateFormFile("content", "source.txt")
+	if err != nil {
+		t.Fatalf("CreateFormFile content: %v", err)
+	}
+	if _, err := io.WriteString(part, "# Book\n\n## One\nBody 🍥"); err != nil {
+		t.Fatalf("write source content: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close multipart writer: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, sourcesURL, &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rec = env.do(req)
+	assertStatus(t, rec, http.StatusOK)
+	derived := decodeJSON[map[string]any](t, rec)
+	derivedID, _ := derived["id"].(string)
+	if derived["format"] != "md" || derived["schema_version"] != float64(1) {
+		t.Fatalf("derived source metadata = %#v, want schema 1 Markdown", derived)
+	}
+	if derived["comment"] != "derived in contract test" {
+		t.Fatalf("derived source comment = %#v", derived["comment"])
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
+	assertStatus(t, rec, http.StatusOK)
+	activated := decodeJSON[Book](t, rec)
+	if activated.Meta == nil || activated.Meta.CurrentSource != derivedID || activated.Meta.Format != "md" {
+		t.Fatalf("activated book = %#v, want current derived Markdown source", activated.Meta)
 	}
 }
 
@@ -998,6 +1390,266 @@ func TestAPIDeleteBookSourceContract(t *testing.T) {
 	// Deleting a source from a nonexistent book should return 404.
 	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/shelves/default_shelf/books/no-such-book/sources/"+newSourceID, nil))
 	assertStatus(t, rec, http.StatusNotFound)
+}
+
+func TestAPIImportEPUBBookContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	archive := string(buildTestEPUB(t))
+
+	imported := importFileBook(t, env, "three-body.epub", "application/epub+zip", archive)
+	if imported.Meta == nil {
+		t.Fatal("import response missing meta")
+	}
+
+	// The book's own dc:title beats the filename.
+	if imported.Meta.Title != testEPUBTitle {
+		t.Fatalf("title = %q, want %q", imported.Meta.Title, testEPUBTitle)
+	}
+	// The default strategy is the Markdown preset, so the stored format is "md".
+	if imported.Meta.Format != "md" {
+		t.Fatalf("format = %q, want md", imported.Meta.Format)
+	}
+	if len(imported.Meta.Authors) != 1 || imported.Meta.Authors[0] != "林望舒" {
+		t.Fatalf("authors = %#v, want [林望舒]", imported.Meta.Authors)
+	}
+	if imported.Meta.Language != "zh-Hant" {
+		t.Fatalf("language = %q, want zh-Hant", imported.Meta.Language)
+	}
+	// dc:description lands in the metadata regardless of whether it is also
+	// written into the text.
+	if imported.Meta.Comments != "一部關於旅途的短篇小說。" {
+		t.Fatalf("comments = %q, want the epub description", imported.Meta.Comments)
+	}
+	if got := imported.Meta.Identifiers["isbn"]; got != "urn:isbn:9781234567897" {
+		t.Fatalf("identifiers[isbn] = %q", got)
+	}
+	if imported.Meta.Cover == "" {
+		t.Fatal("imported book has no cover")
+	}
+	if imported.Meta.CurrentSource == "" {
+		t.Fatal("imported book has no current source")
+	}
+
+	base := "/api/shelves/default_shelf/books/" + imported.Meta.ID
+
+	rec := env.do(httptest.NewRequest(http.MethodGet, base+"/content", nil))
+	assertStatus(t, rec, http.StatusOK)
+	content := rec.Body.String()
+	for _, want := range []string{
+		"# " + testEPUBTitle,
+		"一部關於旅途的短篇小說。",
+		"## 啟程",
+		"他走出了車站。",
+		"## 歸途",
+		"回程的路上。",
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("content is missing %q:\n%s", want, content)
+		}
+	}
+	// The navigation document is not a chapter, and the headings consumed as
+	// chapter titles must not be duplicated in the body.
+	if strings.Contains(content, "第一章") || strings.Contains(content, "第二章") {
+		t.Fatalf("content still contains in-document headings:\n%s", content)
+	}
+
+	// The source owns the Markdown format. H2 text is the chapter structure, so
+	// EPUB import no longer persists a parallel regex or boundary configuration.
+	rec = env.do(httptest.NewRequest(http.MethodGet, base+"/sources/"+imported.Meta.CurrentSource, nil))
+	assertStatus(t, rec, http.StatusOK)
+	assertJSONContentType(t, rec)
+	sourceMeta := decodeJSON[map[string]any](t, rec)
+	if format, _ := sourceMeta["format"].(string); format != "md" {
+		t.Fatalf("source format = %q, want md", format)
+	}
+	if version, _ := sourceMeta["schema_version"].(float64); version != 1 {
+		t.Fatalf("source schema_version = %v, want 1", sourceMeta["schema_version"])
+	}
+	if split, _ := sourceMeta["split_config"].(map[string]any); split["type"] != "" {
+		t.Fatalf("source split config = %#v, want none", split)
+	}
+
+	// The cover survives the round trip.
+	rec = env.do(httptest.NewRequest(http.MethodGet, base+"/cover", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if rec.Body.Len() == 0 {
+		t.Fatal("cover endpoint returned an empty body")
+	}
+}
+
+func TestAPIImportEPUBBookStrategyContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	archive := string(buildTestEPUB(t))
+
+	// A per-import strategy overrides the configured default.
+	plain := importEPUBWithStrategy(t, env, "plain.epub", archive,
+		`{"preset":"plain","include_description":false}`)
+	if plain.Meta.Format != "txt" {
+		t.Fatalf("format = %q, want txt for the plain preset", plain.Meta.Format)
+	}
+
+	rec := env.do(httptest.NewRequest(http.MethodGet,
+		"/api/shelves/default_shelf/books/"+plain.Meta.ID+"/content", nil))
+	assertStatus(t, rec, http.StatusOK)
+	content := rec.Body.String()
+	if strings.Contains(content, "#") {
+		t.Fatalf("plain preset emitted markdown markers:\n%s", content)
+	}
+	if strings.Contains(content, "一部關於旅途的短篇小說。") {
+		t.Fatalf("include_description=false still wrote the description into the text:\n%s", content)
+	}
+	if !strings.Contains(content, "啟程") {
+		t.Fatalf("plain preset lost the chapter titles:\n%s", content)
+	}
+
+	// Plain EPUB output is an unstructured TXT source; it deliberately carries
+	// no chapter navigation state.
+	rec = env.do(httptest.NewRequest(http.MethodGet,
+		"/api/shelves/default_shelf/books/"+plain.Meta.ID+"/sources/"+plain.Meta.CurrentSource, nil))
+	assertStatus(t, rec, http.StatusOK)
+	plainSourceMeta := decodeJSON[map[string]any](t, rec)
+	if format, _ := plainSourceMeta["format"].(string); format != "txt" {
+		t.Fatalf("source format = %q, want txt", format)
+	}
+	if split, _ := plainSourceMeta["split_config"].(map[string]any); split["type"] != "" {
+		t.Fatalf("source split config = %#v, want none", split)
+	}
+
+	// An unknown preset is rejected rather than silently falling back.
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	if err := writer.WriteField("strategy", `{"preset":"custom"}`); err != nil {
+		t.Fatalf("WriteField strategy: %v", err)
+	}
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", `form-data; name="file"; filename="bad.epub"`)
+	h.Set("Content-Type", "application/epub+zip")
+	part, err := writer.CreatePart(h)
+	if err != nil {
+		t.Fatalf("CreatePart: %v", err)
+	}
+	if _, err := io.Copy(part, strings.NewReader(archive)); err != nil {
+		t.Fatalf("write multipart file: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close multipart writer: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/import", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	assertStatus(t, env.do(req), http.StatusBadRequest)
+
+	// A file that is not a readable archive is rejected, not stored as a broken
+	// book.
+	notAnArchive := importEPUBExpectingStatus(t, env, "broken.epub", "this is not a zip", "", http.StatusBadRequest)
+	_ = notAnArchive
+}
+
+// importEPUBWithStrategy uploads an EPUB with an explicit strategy field and
+// asserts the import succeeds.
+func importEPUBWithStrategy(t *testing.T, env *apiTestEnv, filename, archive, strategy string) Book {
+	t.Helper()
+
+	rec := postEPUBImport(t, env, filename, archive, strategy)
+	assertStatus(t, rec, http.StatusCreated)
+	assertJSONContentType(t, rec)
+	return decodeJSON[Book](t, rec)
+}
+
+func importEPUBExpectingStatus(t *testing.T, env *apiTestEnv, filename, archive, strategy string, want int) *httptest.ResponseRecorder {
+	t.Helper()
+
+	rec := postEPUBImport(t, env, filename, archive, strategy)
+	assertStatus(t, rec, want)
+	return rec
+}
+
+func postEPUBImport(t *testing.T, env *apiTestEnv, filename, archive, strategy string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	if strategy != "" {
+		if err := writer.WriteField("strategy", strategy); err != nil {
+			t.Fatalf("WriteField strategy: %v", err)
+		}
+	}
+
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s"`, filename))
+	h.Set("Content-Type", "application/epub+zip")
+	part, err := writer.CreatePart(h)
+	if err != nil {
+		t.Fatalf("CreatePart: %v", err)
+	}
+	if _, err := io.Copy(part, strings.NewReader(archive)); err != nil {
+		t.Fatalf("write multipart file: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close multipart writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/import", &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	return env.do(req)
+}
+
+func TestAPISettingEPUBImportStrategyContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	url := "/api/setting/epub_import_strategy"
+
+	// The built-in default applies when nothing is configured.
+	rec := env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	assertJSONContentType(t, rec)
+	got := decodeJSON[map[string]any](t, rec)
+	val, _ := got["value"].(map[string]any)
+	if preset, _ := val["preset"].(string); preset != "markdown" {
+		t.Fatalf("default preset = %q, want markdown", preset)
+	}
+	if include, _ := val["include_description"].(bool); !include {
+		t.Fatal("default include_description = false, want true")
+	}
+
+	// Setting it changes what an import with no strategy field uses.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url,
+		strings.NewReader(`{"preset":"plain","include_description":false}`)))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	got = decodeJSON[map[string]any](t, rec)
+	val, _ = got["value"].(map[string]any)
+	if preset, _ := val["preset"].(string); preset != "plain" {
+		t.Fatalf("preset after set = %q, want plain", preset)
+	}
+
+	imported := importFileBook(t, env, "uses-default.epub", "application/epub+zip", string(buildTestEPUB(t)))
+	if imported.Meta.Format != "txt" {
+		t.Fatalf("format = %q, want txt from the configured default", imported.Meta.Format)
+	}
+
+	// Invalid payloads are rejected.
+	for _, body := range []string{
+		`{"preset":"custom"}`,
+		`{"include_description":true}`,
+		`{"preset":"plain","template":"x"}`,
+		`not json`,
+	} {
+		rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(body)))
+		assertStatus(t, rec, http.StatusBadRequest)
+	}
+
+	// Deleting reverts to the built-in default.
+	rec = env.do(httptest.NewRequest(http.MethodDelete, url, nil))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	got = decodeJSON[map[string]any](t, rec)
+	val, _ = got["value"].(map[string]any)
+	if preset, _ := val["preset"].(string); preset != "markdown" {
+		t.Fatalf("preset after delete = %q, want markdown", preset)
+	}
 }
 
 func TestAPISettingCoverToJPGContract(t *testing.T) {
@@ -1054,58 +1706,84 @@ func TestAPISettingCoverToJPGContract(t *testing.T) {
 	}
 }
 
-func TestAPISettingReadHistoryLimitContract(t *testing.T) {
+func TestAPISettingDefaultSplitConfigContract(t *testing.T) {
 	env := newAPITestEnv(t)
-	url := "/api/setting/read_history_limit"
+	url := "/api/setting/default_split_config"
 
-	// Default value reflects AppConf (2 in test env).
+	// Default value is no splitting.
 	rec := env.do(httptest.NewRequest(http.MethodGet, url, nil))
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
 	got := decodeJSON[map[string]any](t, rec)
-	if val, _ := got["value"].(float64); val != 2 {
-		t.Fatalf("default read_history_limit = %v, want 2", got["value"])
+	val, _ := got["value"].(map[string]any)
+	if tp, _ := val["type"].(string); tp != "" {
+		t.Fatalf("default split config type = %q, want empty", tp)
 	}
 
-	// Set to 1.
-	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader("1")))
+	// Set to regex.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":"regex","regex":"^Chapter\\s+\\d+"}`)))
 	assertStatus(t, rec, http.StatusNoContent)
 
 	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
 	assertStatus(t, rec, http.StatusOK)
 	got = decodeJSON[map[string]any](t, rec)
-	if val, _ := got["value"].(float64); val != 1 {
-		t.Fatalf("read_history_limit after set = %v, want 1", got["value"])
+	val, _ = got["value"].(map[string]any)
+	if tp, _ := val["type"].(string); tp != "regex" {
+		t.Fatalf("split config type after set regex = %q, want regex", tp)
+	}
+	if re, _ := val["regex"].(string); re != `^Chapter\s+\d+` {
+		t.Fatalf("split config regex = %q, want ^Chapter\\s+\\d+", re)
 	}
 
-	first := importTextBook(t, env, "History One", "", "history-one.txt", "one")
-	second := importTextBook(t, env, "History Two", "", "history-two.txt", "two")
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id="+first.Meta.ID, nil))
+	// Set to line_count.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":"line_count","line_count":50}`)))
 	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/read_history?book_id="+second.Meta.ID, nil))
-	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/read_history", nil))
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
 	assertStatus(t, rec, http.StatusOK)
-	history := decodeJSON[[]string](t, rec)
-	if len(history) != 1 || history[0] != second.Meta.ID {
-		t.Fatalf("read history with limit 1 = %#v, want [%s]", history, second.Meta.ID)
+	got = decodeJSON[map[string]any](t, rec)
+	val, _ = got["value"].(map[string]any)
+	if tp, _ := val["type"].(string); tp != "line_count" {
+		t.Fatalf("split config type after set line_count = %q", tp)
+	}
+	if lc, _ := val["line_count"].(float64); lc != 50 {
+		t.Fatalf("split config line_count = %v, want 50", lc)
 	}
 
-	// Invalid values return 400.
-	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader("-1")))
-	assertStatus(t, rec, http.StatusBadRequest)
-	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader("1.5")))
+	// Setting type to empty string (none) is accepted.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":""}`)))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	got = decodeJSON[map[string]any](t, rec)
+	val, _ = got["value"].(map[string]any)
+	if tp, _ := val["type"].(string); tp != "" {
+		t.Fatalf("split config type after set empty = %q, want empty", tp)
+	}
+
+	// Boundary type is rejected.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":"boundary","boundaries":[1,100]}`)))
 	assertStatus(t, rec, http.StatusBadRequest)
 
-	// Delete resets to AppConf default (2).
+	// Invalid regex is rejected.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":"regex","regex":"[invalid"}`)))
+	assertStatus(t, rec, http.StatusBadRequest)
+
+	// Non-positive line_count is rejected.
+	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":"line_count","line_count":0}`)))
+	assertStatus(t, rec, http.StatusBadRequest)
+
+	// Delete resets to default.
 	rec = env.do(httptest.NewRequest(http.MethodDelete, url, nil))
 	assertStatus(t, rec, http.StatusNoContent)
 
 	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
 	assertStatus(t, rec, http.StatusOK)
 	got = decodeJSON[map[string]any](t, rec)
-	if val, _ := got["value"].(float64); val != 2 {
-		t.Fatalf("read_history_limit after delete = %v, want 2 (AppConf default)", got["value"])
+	val, _ = got["value"].(map[string]any)
+	if tp, _ := val["type"].(string); tp != "" {
+		t.Fatalf("split config type after delete = %q, want empty", tp)
 	}
 }
 
@@ -1145,6 +1823,35 @@ func TestAPISetCurrentBookSourceContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusNotFound)
 }
 
+func TestAPIRefreshBookSourceMetaContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Refresh Source", "", "refresh.txt", "line one\nline two\nline three")
+	sourceID := created.Meta.CurrentSource
+	refreshURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources/" + sourceID + "/refresh"
+
+	rec := env.do(httptest.NewRequest(http.MethodPost, refreshURL, nil))
+	assertStatus(t, rec, http.StatusOK)
+	assertJSONContentType(t, rec)
+	meta := decodeJSON[map[string]any](t, rec)
+	if id, _ := meta["id"].(string); id != sourceID {
+		t.Fatalf("refreshed source id = %q, want %q", id, sourceID)
+	}
+	if lc, _ := meta["line_count"].(float64); lc <= 0 {
+		t.Fatalf("line_count = %v, want > 0", lc)
+	}
+	if cc, _ := meta["char_count"].(float64); cc <= 0 {
+		t.Fatalf("char_count = %v, want > 0", cc)
+	}
+
+	// Refreshing a nonexistent source returns 404.
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/"+created.Meta.ID+"/sources/nonexistent/refresh", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+
+	// Refreshing a nonexistent book returns 404.
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/no-such-book/sources/"+sourceID+"/refresh", nil))
+	assertStatus(t, rec, http.StatusNotFound)
+}
+
 func TestAPIVersionContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
@@ -1172,4 +1879,194 @@ func TestAPIReadOnlyModeContract(t *testing.T) {
 
 	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/layers", nil))
 	assertStatus(t, rec, http.StatusOK)
+}
+
+// TestAPIBookSchemaVersionContract asserts schema_version is present on the
+// wire. It decodes into map[string]any rather than the Book struct on purpose:
+// asserting through the Go type would pass tautologically even if the field
+// never reached the JSON response.
+func TestAPIBookSchemaVersionContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Schema Version Book", "", "schema.txt", "body")
+
+	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
+	assertStatus(t, rec, http.StatusOK)
+
+	books := decodeJSON[[]map[string]any](t, rec)
+	if len(books) != 1 {
+		t.Fatalf("list returned %d books, want 1", len(books))
+	}
+	meta, ok := books[0]["meta"].(map[string]any)
+	if !ok {
+		t.Fatalf("book has no meta object: %#v", books[0])
+	}
+	if got := meta["schema_version"]; got != float64(shelf.BookMetaSchemaVersion) {
+		t.Fatalf("list schema_version = %#v, want %d", got, shelf.BookMetaSchemaVersion)
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
+	assertStatus(t, rec, http.StatusOK)
+
+	book := decodeJSON[map[string]any](t, rec)
+	meta, ok = book["meta"].(map[string]any)
+	if !ok {
+		t.Fatalf("book has no meta object: %#v", book)
+	}
+	if got := meta["schema_version"]; got != float64(shelf.BookMetaSchemaVersion) {
+		t.Fatalf("get schema_version = %#v, want %d", got, shelf.BookMetaSchemaVersion)
+	}
+}
+
+// TestAPIUnsupportedSchemaVersionReturns409 verifies the end-to-end behavior for
+// a book written by a newer build: still readable over the API, but every
+// attempt to modify it fails with 409 and leaves the file untouched.
+func TestAPIUnsupportedSchemaVersionReturns409(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Future Book", "", "future.txt", "body")
+
+	metaPath := env.bookMetaPath(t, created.Meta.ID)
+	raw, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("read book.json: %v", err)
+	}
+
+	var onDisk map[string]any
+	if err := json.Unmarshal(raw, &onDisk); err != nil {
+		t.Fatalf("unmarshal book.json: %v", err)
+	}
+	onDisk["schema_version"] = shelf.BookMetaSchemaVersion + 1
+	onDisk["reading_direction"] = "vertical-rl"
+	bumped, err := json.MarshalIndent(onDisk, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal book.json: %v", err)
+	}
+	if err := os.WriteFile(metaPath, bumped, 0o644); err != nil {
+		t.Fatalf("write book.json: %v", err)
+	}
+
+	// The book stays readable and reports its real (newer) version, so a client
+	// can tell the user this book needs a newer PlainShelf.
+	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
+	assertStatus(t, rec, http.StatusOK)
+	book := decodeJSON[map[string]any](t, rec)
+	meta, ok := book["meta"].(map[string]any)
+	if !ok {
+		t.Fatalf("book has no meta object: %#v", book)
+	}
+	if got := meta["schema_version"]; got != float64(shelf.BookMetaSchemaVersion+1) {
+		t.Fatalf("schema_version = %#v, want %d", got, shelf.BookMetaSchemaVersion+1)
+	}
+
+	// Writing is refused.
+	patch := httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID,
+		strings.NewReader(`{"title":"Clobbered"}`))
+	patch.Header.Set("Content-Type", "application/json")
+	rec = env.do(patch)
+	assertStatus(t, rec, http.StatusConflict)
+
+	after, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("re-read book.json: %v", err)
+	}
+	if !bytes.Equal(bumped, after) {
+		t.Fatalf("refused write must leave book.json untouched, got:\n%s", after)
+	}
+	if !strings.Contains(string(after), "reading_direction") {
+		t.Fatalf("unknown key must survive a refused write, got:\n%s", after)
+	}
+}
+
+// TestAPIUnsupportedSchemaVersionDoesNotMoveLayer verifies the schema guard runs
+// before the layer move. HandleAPIUpdateBook moves the book first, so a guard
+// that only ran at SetMeta would rename the folder on disk and then report 409,
+// leaving the client with a failed response for an applied mutation.
+func TestAPIUnsupportedSchemaVersionDoesNotMoveLayer(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Layer Guard", "origin/layer", "layer.txt", "body")
+
+	metaPath := env.bookMetaPath(t, created.Meta.ID)
+	raw, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("read book.json: %v", err)
+	}
+	var onDisk map[string]any
+	if err := json.Unmarshal(raw, &onDisk); err != nil {
+		t.Fatalf("unmarshal book.json: %v", err)
+	}
+	onDisk["schema_version"] = shelf.BookMetaSchemaVersion + 1
+	bumped, err := json.MarshalIndent(onDisk, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal book.json: %v", err)
+	}
+	if err := os.WriteFile(metaPath, bumped, 0o644); err != nil {
+		t.Fatalf("write book.json: %v", err)
+	}
+
+	patch := httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID,
+		strings.NewReader(`{"layer":["moved","elsewhere"]}`))
+	patch.Header.Set("Content-Type", "application/json")
+	rec := env.do(patch)
+	assertStatus(t, rec, http.StatusConflict)
+
+	// The book must still be in its original layer, and still on disk there.
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
+	assertStatus(t, rec, http.StatusOK)
+	book := decodeJSON[Book](t, rec)
+	if got := strings.Join(book.Layer, "/"); got != "origin/layer" {
+		t.Fatalf("layer = %q, want origin/layer — the refused request moved the book", got)
+	}
+	if _, err := os.Stat(metaPath); err != nil {
+		t.Fatalf("book.json is no longer at its original path: %v", err)
+	}
+}
+
+// If-None-Match is a list, may be "*", and is compared weakly for GET and HEAD.
+// A missed match costs a full body, which for an asset has no size bound.
+func TestIfNoneMatchHandlesListsAndWildcard(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Revalidate", "", "art.md", "body")
+	sourceID := env.currentSourceID(t, created.Meta.ID)
+	url := "/api/shelves/default_shelf/books/" + created.Meta.ID +
+		"/sources/" + sourceID + "/assets/img-0001.png"
+
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "img-0001.png", []byte("fake png bytes"))
+
+	rec := env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusOK)
+	etag := rec.Header().Get("ETag")
+	if etag == "" {
+		t.Fatal("no ETag to revalidate against")
+	}
+
+	revalidates := map[string]string{
+		"exact":             etag,
+		"list":              `W/"other-1", ` + etag,
+		"list with spacing": etag + ` , W/"other-2"`,
+		"wildcard":          "*",
+		"strong spelling":   strings.TrimPrefix(etag, "W/"),
+	}
+	for name, header := range revalidates {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, url, nil)
+			req.Header.Set("If-None-Match", header)
+			rec := env.do(req)
+			assertStatus(t, rec, http.StatusNotModified)
+		})
+	}
+
+	misses := map[string]string{
+		"unrelated tag":  `W/"nothing-like-it"`,
+		"unrelated list": `W/"a", W/"b"`,
+		"empty":          "",
+	}
+	for name, header := range misses {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, url, nil)
+			if header != "" {
+				req.Header.Set("If-None-Match", header)
+			}
+			rec := env.do(req)
+			assertStatus(t, rec, http.StatusOK)
+		})
+	}
 }

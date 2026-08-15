@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"net/http"
 	"sort"
 )
@@ -25,13 +24,7 @@ func (app *App) HandleGetShelves(w http.ResponseWriter, _ *http.Request) {
 		return shelfInfos[i].ID < shelfInfos[j].ID
 	})
 
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	err := json.NewEncoder(w).Encode(shelfInfos)
-	if err != nil {
-		app.Error("failed to encode response", "error", err)
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-		return
-	}
+	app.writeJSON(w, http.StatusOK, shelfInfos)
 }
 
 type ShelfStatusResponse struct {
@@ -41,15 +34,8 @@ type ShelfStatusResponse struct {
 
 // GET /api/shelves/{shelf_id}/status
 func (app *App) HandleAPIGetShelfStatus(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
-		return
-	}
-
-	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	shelfData, ok := app.resolveShelf(w, r)
 	if !ok {
-		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
 	}
 
@@ -58,9 +44,5 @@ func (app *App) HandleAPIGetShelfStatus(w http.ResponseWriter, r *http.Request) 
 		resp.Error = initErr.Error()
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		app.Error("failed to encode response", "error", err)
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-	}
+	app.writeJSON(w, http.StatusOK, resp)
 }

@@ -15,7 +15,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { isMockApiMode } from './api/client';
+import { isMockApiMode } from '@/api/client';
 import { isWailsRuntime } from './providers';
 import { useI18n } from './i18n';
 

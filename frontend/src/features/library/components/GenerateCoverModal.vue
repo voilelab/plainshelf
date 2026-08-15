@@ -1,0 +1,641 @@
+<template>
+  <BaseDialog :open="open" :title="t('bookDetail.cover.generator.title')" :busy="saving" @close="onClose">
+    <section class="panel cover-gen-modal">
+      <header class="modal-header">
+        <h2>{{ t('bookDetail.cover.generator.title') }}</h2>
+        <button
+          class="icon-close"
+          type="button"
+          :aria-label="t('bookDetail.cover.generator.close')"
+          :disabled="saving"
+          @click="onClose"
+        >
+          ×
+        </button>
+      </header>
+
+      <div class="modal-body">
+        <div class="preview-col">
+          <canvas
+            ref="canvasRef"
+            class="cover-canvas"
+            :width="CANVAS_W"
+            :height="CANVAS_H"
+          />
+        </div>
+
+        <div class="controls-col">
+          <label class="field">
+            <span class="field-label">{{ t('bookDetail.cover.generator.bookTitle') }}</span>
+            <input v-model="titleText" class="input" type="text" :disabled="saving" />
+          </label>
+
+          <label class="field">
+            <span class="field-label">{{ t('bookDetail.cover.generator.author') }}</span>
+            <input v-model="authorText" class="input" type="text" :placeholder="t('bookDetail.cover.generator.noAuthor')" :disabled="saving" />
+          </label>
+
+          <label class="field">
+            <span class="field-label">{{ t('bookDetail.cover.generator.background') }}</span>
+            <SelectRoot :model-value="bgStyle" :disabled="saving" @update:model-value="onBgStyleSelect">
+              <SelectTrigger class="input select-trigger">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectPortal>
+                <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
+                  <SelectViewport>
+                    <SelectItem v-for="opt in bgStyleOptions" :key="opt.value" class="reka-menu-item" :value="opt.value">
+                      <SelectItemText>{{ opt.label }}</SelectItemText>
+                    </SelectItem>
+                  </SelectViewport>
+                </SelectContent>
+              </SelectPortal>
+            </SelectRoot>
+          </label>
+
+          <label class="field">
+            <span class="field-label">{{ t('bookDetail.cover.generator.layout') }}</span>
+            <SelectRoot :model-value="layout" :disabled="saving" @update:model-value="onLayoutSelect">
+              <SelectTrigger class="input select-trigger">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectPortal>
+                <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
+                  <SelectViewport>
+                    <SelectItem v-for="opt in layoutOptions" :key="opt.value" class="reka-menu-item" :value="opt.value">
+                      <SelectItemText>{{ opt.label }}</SelectItemText>
+                    </SelectItem>
+                  </SelectViewport>
+                </SelectContent>
+              </SelectPortal>
+            </SelectRoot>
+          </label>
+
+          <div v-if="saveError" class="error-msg" role="alert">{{ saveError }}</div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="button" type="button" :disabled="saving" @click="onClose">{{ t('bookDetail.cover.generator.cancel') }}</button>
+        <button class="button primary" type="button" :disabled="saving" @click="onSave">
+          {{ saving ? t('bookDetail.cover.generator.saving') : t('bookDetail.cover.generator.save') }}
+        </button>
+      </div>
+    </section>
+  </BaseDialog>
+</template>
+
+<script setup lang="ts">
+import { computed, nextTick, ref, watch } from 'vue';
+import {
+  SelectContent,
+  SelectItem,
+  SelectItemText,
+  SelectPortal,
+  SelectRoot,
+  SelectTrigger,
+  SelectValue,
+  SelectViewport,
+  type AcceptableValue
+} from 'reka-ui';
+import BaseDialog from '@/components/BaseDialog.vue';
+import { bookshelfWriter } from '@/providers';
+import { useI18n } from '@/i18n';
+
+const CANVAS_W = 400;
+const CANVAS_H = 600;
+const JPEG_EXPORT_QUALITY = 0.92;
+
+// Layout spacing constants
+const LAYOUT_PADDING = 36;
+const AUTHOR_LINE_HEIGHT = 28;
+
+type BgStyle = 'plain-light' | 'plain-dark' | 'warm-paper' | 'soft-gradient' | 'minimal-solid';
+type Layout = 'centered' | 'top-bottom' | 'large-title' | 'minimal';
+
+interface BgStyleOption {
+  value: BgStyle;
+  label: string;
+}
+
+interface LayoutOption {
+  value: Layout;
+  label: string;
+}
+
+const { t } = useI18n();
+const bgStyleOptions = computed<BgStyleOption[]>(() => [
+  { value: 'plain-light', label: t('bookDetail.cover.generator.backgrounds.plainLight') },
+  { value: 'plain-dark', label: t('bookDetail.cover.generator.backgrounds.plainDark') },
+  { value: 'warm-paper', label: t('bookDetail.cover.generator.backgrounds.warmPaper') },
+  { value: 'soft-gradient', label: t('bookDetail.cover.generator.backgrounds.softGradient') },
+  { value: 'minimal-solid', label: t('bookDetail.cover.generator.backgrounds.minimalSolid') }
+]);
+
+const layoutOptions = computed<LayoutOption[]>(() => [
+  { value: 'centered', label: t('bookDetail.cover.generator.layouts.centered') },
+  { value: 'top-bottom', label: t('bookDetail.cover.generator.layouts.topBottom') },
+  { value: 'large-title', label: t('bookDetail.cover.generator.layouts.largeTitle') },
+  { value: 'minimal', label: t('bookDetail.cover.generator.layouts.minimal') }
+]);
+
+const props = defineProps<{
+  open: boolean;
+  bookId: string;
+  initialTitle: string;
+  initialAuthor: string;
+}>();
+
+const emit = defineEmits<{
+  close: [];
+  saved: [];
+}>();
+
+const canvasRef = ref<HTMLCanvasElement | null>(null);
+const titleText = ref('');
+const authorText = ref('');
+const bgStyle = ref<BgStyle>('plain-light');
+const layout = ref<Layout>('centered');
+const saving = ref(false);
+const saveError = ref('');
+
+// ─── Background painters ────────────────────────────────────────────────────
+
+interface BgConfig {
+  textColor: string;
+  mutedColor: string;
+  paint: (ctx: CanvasRenderingContext2D) => void;
+}
+
+function getBgConfig(ctx: CanvasRenderingContext2D, style: BgStyle): BgConfig {
+  const w = CANVAS_W;
+  const h = CANVAS_H;
+
+  switch (style) {
+    case 'plain-dark':
+      return {
+        textColor: '#f0f0f0',
+        mutedColor: '#b0b8c8',
+        paint(c) {
+          c.fillStyle = '#1a1a2e';
+          c.fillRect(0, 0, w, h);
+        }
+      };
+    case 'warm-paper':
+      return {
+        textColor: '#3d2b1f',
+        mutedColor: '#7a5c44',
+        paint(c) {
+          c.fillStyle = '#f5f0e8';
+          c.fillRect(0, 0, w, h);
+          // subtle texture lines
+          c.strokeStyle = 'rgba(120,90,60,0.06)';
+          c.lineWidth = 1;
+          for (let y = 20; y < h; y += 28) {
+            c.beginPath();
+            c.moveTo(0, y);
+            c.lineTo(w, y);
+            c.stroke();
+          }
+        }
+      };
+    case 'soft-gradient':
+      return {
+        textColor: '#ffffff',
+        mutedColor: '#d8dff0',
+        paint(c) {
+          const grad = c.createLinearGradient(0, 0, w, h);
+          grad.addColorStop(0, '#667eea');
+          grad.addColorStop(1, '#764ba2');
+          c.fillStyle = grad;
+          c.fillRect(0, 0, w, h);
+        }
+      };
+    case 'minimal-solid':
+      return {
+        textColor: '#ffffff',
+        mutedColor: '#c8deff',
+        paint(c) {
+          c.fillStyle = '#1f6feb';
+          c.fillRect(0, 0, w, h);
+        }
+      };
+    case 'plain-light':
+    default:
+      return {
+        textColor: '#1a1a2e',
+        mutedColor: '#66758a',
+        paint(c) {
+          c.fillStyle = '#ffffff';
+          c.fillRect(0, 0, w, h);
+          // subtle top/bottom accent bars
+          c.fillStyle = '#e8eef5';
+          c.fillRect(0, 0, w, 6);
+          c.fillRect(0, h - 6, w, 6);
+        }
+      };
+  }
+}
+
+// ─── Text helpers ────────────────────────────────────────────────────────────
+
+function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number
+): string[] {
+  if (!text) return [];
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let current = '';
+
+  const splitLongWord = (word: string): string[] => {
+    const chunks: string[] = [];
+    let currentChunk = '';
+
+    for (const char of word) {
+      const testChunk = currentChunk + char;
+      if (currentChunk && ctx.measureText(testChunk).width > maxWidth) {
+        chunks.push(currentChunk);
+        currentChunk = char;
+      } else {
+        currentChunk = testChunk;
+      }
+    }
+
+    if (currentChunk) chunks.push(currentChunk);
+    return chunks;
+  };
+
+  for (const word of words) {
+    const test = current ? `${current} ${word}` : word;
+    if (ctx.measureText(test).width <= maxWidth) {
+      current = test;
+    } else {
+      if (current) lines.push(current);
+      if (ctx.measureText(word).width > maxWidth) {
+        lines.push(...splitLongWord(word));
+        current = '';
+      } else {
+        current = word;
+      }
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+function drawTextBlock(
+  ctx: CanvasRenderingContext2D,
+  lines: string[],
+  centerX: number,
+  startY: number,
+  lineHeight: number
+): void {
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], centerX, startY + i * lineHeight);
+  }
+}
+
+// ─── Main render ─────────────────────────────────────────────────────────────
+
+function renderCover(): void {
+  const canvas = canvasRef.value;
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const w = CANVAS_W;
+  const h = CANVAS_H;
+  const title = titleText.value.trim() || t('bookDetail.cover.generator.noTitle');
+  const author = authorText.value.trim();
+  const cfg = getBgConfig(ctx, bgStyle.value);
+
+  // Paint background
+  cfg.paint(ctx);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+
+  const pad = LAYOUT_PADDING;
+  const maxW = w - pad * 2;
+
+  switch (layout.value) {
+    case 'top-bottom': {
+      // Title near top
+      ctx.font = `bold 32px 'Segoe UI', 'Avenir Next', sans-serif`;
+      ctx.fillStyle = cfg.textColor;
+      const titleLines = wrapText(ctx, title, maxW);
+      const titleLineH = 42;
+      const titleBlock = titleLines.length * titleLineH;
+      const titleY = 80;
+      drawTextBlock(ctx, titleLines, w / 2, titleY, titleLineH);
+
+      // Separator
+      if (titleLines.length > 0) {
+        const sepY = titleY + titleBlock + 18;
+        ctx.strokeStyle = cfg.mutedColor;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(w / 2 - 40, sepY);
+        ctx.lineTo(w / 2 + 40, sepY);
+        ctx.stroke();
+      }
+
+      // Author near bottom
+      if (author) {
+        ctx.font = `18px 'Segoe UI', 'Avenir Next', sans-serif`;
+        ctx.fillStyle = cfg.mutedColor;
+        const authorLines = wrapText(ctx, author, maxW);
+        const authorLineH = 26;
+        const authorBlock = authorLines.length * authorLineH;
+        const authorY = h - pad - authorBlock;
+        drawTextBlock(ctx, authorLines, w / 2, authorY, authorLineH);
+      }
+      break;
+    }
+
+    case 'large-title': {
+      // Large title centered, author small below
+      ctx.font = `bold 44px 'Segoe UI', 'Avenir Next', sans-serif`;
+      ctx.fillStyle = cfg.textColor;
+      const titleLines = wrapText(ctx, title, maxW);
+      const titleLineH = 56;
+      const titleBlock = titleLines.length * titleLineH;
+      let authorLines: string[] = [];
+      let authorBlock = 0;
+      if (author) {
+        ctx.font = `16px 'Segoe UI', 'Avenir Next', sans-serif`;
+        authorLines = wrapText(ctx, author, maxW);
+        authorBlock = authorLines.length * AUTHOR_LINE_HEIGHT;
+      }
+      const totalBlock = titleBlock + (authorLines.length > 0 ? 20 + authorBlock : 0);
+      const startY = (h - totalBlock) / 2;
+
+      ctx.font = `bold 44px 'Segoe UI', 'Avenir Next', sans-serif`;
+      ctx.fillStyle = cfg.textColor;
+      drawTextBlock(ctx, titleLines, w / 2, startY, titleLineH);
+
+      if (authorLines.length > 0) {
+        ctx.font = `16px 'Segoe UI', 'Avenir Next', sans-serif`;
+        ctx.fillStyle = cfg.mutedColor;
+        drawTextBlock(ctx, authorLines, w / 2, startY + titleBlock + 20, AUTHOR_LINE_HEIGHT);
+      }
+      break;
+    }
+
+    case 'minimal': {
+      // Bottom-left aligned, small text
+      ctx.textAlign = 'left';
+      const leftPad = 40;
+      const botPad = 60;
+
+      if (author) {
+        ctx.font = `14px 'Segoe UI', 'Avenir Next', sans-serif`;
+        ctx.fillStyle = cfg.mutedColor;
+        ctx.fillText(author, leftPad, h - botPad);
+      }
+
+      ctx.font = `bold 28px 'Segoe UI', 'Avenir Next', sans-serif`;
+      ctx.fillStyle = cfg.textColor;
+      const titleLines = wrapText(ctx, title, w - leftPad * 2);
+      const titleLineH = 38;
+      const titleBlock = titleLines.length * titleLineH;
+      const titleY = h - botPad - (author ? 28 : 0) - titleBlock - 8;
+      drawTextBlock(ctx, titleLines, leftPad, titleY, titleLineH);
+
+      // Top accent line
+      ctx.strokeStyle = cfg.mutedColor;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(leftPad, titleY - 16);
+      ctx.lineTo(leftPad + 48, titleY - 16);
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      break;
+    }
+
+    case 'centered':
+    default: {
+      // Centered title, author below
+      ctx.font = `bold 34px 'Segoe UI', 'Avenir Next', sans-serif`;
+      ctx.fillStyle = cfg.textColor;
+      const titleLines = wrapText(ctx, title, maxW);
+      const titleLineH = 46;
+      const titleBlock = titleLines.length * titleLineH;
+
+      let authorBlock = 0;
+      if (author) {
+        ctx.font = `18px 'Segoe UI', 'Avenir Next', sans-serif`;
+        const authorLines = wrapText(ctx, author, maxW);
+        authorBlock = authorLines.length * AUTHOR_LINE_HEIGHT;
+      }
+
+      const gap = author ? AUTHOR_LINE_HEIGHT : 0;
+      const totalBlock = titleBlock + gap + authorBlock;
+      const startY = (h - totalBlock) / 2;
+
+      ctx.font = `bold 34px 'Segoe UI', 'Avenir Next', sans-serif`;
+      ctx.fillStyle = cfg.textColor;
+      drawTextBlock(ctx, titleLines, w / 2, startY, titleLineH);
+
+      if (author) {
+        ctx.font = `18px 'Segoe UI', 'Avenir Next', sans-serif`;
+        ctx.fillStyle = cfg.mutedColor;
+        const authorLines = wrapText(ctx, author, maxW);
+        drawTextBlock(ctx, authorLines, w / 2, startY + titleBlock + gap, AUTHOR_LINE_HEIGHT);
+      }
+      break;
+    }
+  }
+}
+
+// ─── Watchers ────────────────────────────────────────────────────────────────
+
+watch([titleText, authorText, bgStyle, layout], () => {
+  void nextTick(renderCover);
+});
+
+watch(
+  () => props.open,
+  async (open) => {
+    if (!open) return;
+    titleText.value = props.initialTitle;
+    authorText.value = props.initialAuthor;
+    bgStyle.value = 'plain-light';
+    layout.value = 'centered';
+    saveError.value = '';
+    saving.value = false;
+    await nextTick();
+    renderCover();
+  }
+);
+
+// ─── Actions ─────────────────────────────────────────────────────────────────
+
+function onBgStyleSelect(value: AcceptableValue): void {
+  if (typeof value === 'string' && bgStyleOptions.value.some((option) => option.value === value)) {
+    bgStyle.value = value as BgStyle;
+  }
+}
+
+function onLayoutSelect(value: AcceptableValue): void {
+  if (typeof value === 'string' && layoutOptions.value.some((option) => option.value === value)) {
+    layout.value = value as Layout;
+  }
+}
+
+function onClose(): void {
+  if (saving.value) return;
+  emit('close');
+}
+
+async function onSave(): Promise<void> {
+  if (saving.value) return;
+  const canvas = canvasRef.value;
+  if (!canvas) {
+    saveError.value = t('bookDetail.cover.generator.canvasUnavailable');
+    return;
+  }
+
+  saving.value = true;
+  saveError.value = '';
+
+  try {
+    // Render one final time to ensure latest state
+    renderCover();
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, 'image/jpeg', JPEG_EXPORT_QUALITY);
+    });
+
+    if (!blob) {
+      throw new Error(t('bookDetail.cover.generator.exportFailed'));
+    }
+
+    await bookshelfWriter().uploadBookCoverBlob(props.bookId, blob);
+    emit('saved');
+    emit('close');
+  } catch (err) {
+    saveError.value = err instanceof Error ? err.message : t('bookDetail.cover.generator.saveFailed');
+  } finally {
+    saving.value = false;
+  }
+}
+</script>
+
+<style scoped>
+.cover-gen-modal {
+  display: grid;
+  gap: 16px;
+  max-height: calc(100vh / var(--app-zoom, 1) - 32px);
+  overflow: auto;
+  padding: 20px;
+  width: min(100%, 760px);
+}
+
+.modal-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.modal-header h2 {
+  margin: 0;
+}
+
+.icon-close {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 20px;
+  height: 32px;
+  justify-content: center;
+  line-height: 1;
+  width: 32px;
+}
+
+.icon-close:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.modal-body {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+}
+
+.preview-col {
+  display: flex;
+  justify-content: center;
+}
+
+.cover-canvas {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: block;
+  width: 200px;
+  height: 300px;
+}
+
+.controls-col {
+  display: grid;
+  gap: 12px;
+}
+
+.field {
+  display: grid;
+  gap: 5px;
+}
+
+.field-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.select-trigger {
+  cursor: pointer;
+  text-align: left;
+}
+
+.error-msg {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #991b1b;
+  font-size: 13px;
+  padding: 8px 12px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 600px) {
+  .modal-body {
+    grid-template-columns: 1fr;
+  }
+
+  .preview-col {
+    order: -1;
+  }
+
+  .cover-canvas {
+    width: 160px;
+    height: 240px;
+  }
+
+  .cover-gen-modal {
+    padding: 14px;
+  }
+}
+</style>

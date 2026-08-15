@@ -33,6 +33,11 @@
       <path d="M18.5 15.5c1.18 0 2 .75 2 1.75 0 1.5-2 1.52-2 2.75" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       <path d="M18.5 22h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
     </svg>
+    <svg v-else-if="name === 'low-char-count'" viewBox="0 0 24 24" fill="none">
+      <rect x="4" y="3.5" width="12" height="17" rx="2" stroke="currentColor" stroke-width="1.8" />
+      <path d="M7.5 8h5M7.5 11.5h3.5M7.5 15h2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M19 12v7M16.75 16.75 19 19l2.25-2.25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
     <svg v-else-if="name === 'trash'" viewBox="0 0 24 24" fill="none">
       <path d="M5 7h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       <path d="M9 7V5.8c0-.44.36-.8.8-.8h4.4c.44 0 .8.36.8.8V7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
@@ -63,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-import type { SidebarNavIconName } from '../types/sidebarNavIcon';
+import type { SidebarNavIconName } from '@/types/sidebarNavIcon';
 
 defineProps<{
   name: SidebarNavIconName;

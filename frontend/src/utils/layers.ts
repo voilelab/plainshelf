@@ -1,11 +1,28 @@
-import type { Book } from '../types/book';
+import type { Book } from '@/types/book';
 
 export const ROOT_LAYER_PATH = '';
+
+/**
+ * The `layers` query value that filters to books sitting directly at the shelf
+ * root. Distinct from ROOT_LAYER_PATH / a missing query, which mean "all books
+ * in every layer".
+ */
+export const ROOT_LAYER_FILTER = '/';
 
 export type LayerTreeNode = {
   name: string;
   path: string;
   children: LayerTreeNode[];
+};
+
+export type LayerPathOption = {
+  path: string;
+  depth: number;
+};
+
+export type BooksLayerRoute = {
+  path: string;
+  query: Record<string, string>;
 };
 
 export function normalizeLayerInput(layers?: string | string[] | null): string[] {
@@ -55,6 +72,25 @@ export function layerPathEquals(left: string, right: string): boolean {
   return toComparableLayerPath(left) === toComparableLayerPath(right);
 }
 
+/**
+ * The library route that lists `layerPath` from its first page. Shared by every
+ * caller that navigates into a layer (sidebar tree, breadcrumb, post-delete
+ * redirect) so they all emit the same canonical `layers` query.
+ *
+ * Three destinations, not two: an empty path is the unfiltered "All books"
+ * view (no `layers` key), `ROOT_LAYER_FILTER` is the narrower "books sitting
+ * directly at the shelf root" filter that the sidebar's root node selects, and
+ * anything else is a normalized layer path. `ROOT_LAYER_FILTER` must survive
+ * verbatim — LibraryPage's `matchesLayer` tells it apart from a missing query.
+ */
+export function booksRouteForLayerPath(layerPath: string): BooksLayerRoute {
+  const trimmed = layerPath.trim();
+  const normalized = trimmed === ROOT_LAYER_FILTER ? ROOT_LAYER_FILTER : normalizeLayerPath(trimmed);
+  return normalized === ROOT_LAYER_PATH
+    ? { path: '/books', query: { page: '1' } }
+    : { path: '/books', query: { layers: normalized, page: '1' } };
+}
+
 export function buildLayerTreeNodes(layerPaths: string[]): LayerTreeNode[] {
   const roots: LayerTreeNode[] = [];
   const nodeByPath = new Map<string, LayerTreeNode>();
@@ -102,4 +138,25 @@ export function buildLayerTreeNodes(layerPaths: string[]): LayerTreeNode[] {
 
   sortNodes(roots);
   return roots;
+}
+
+/**
+ * Flattens a layer tree into a depth-first list of selectable paths. Reads the
+ * tree rather than the raw layer list because the tree synthesizes intermediate
+ * ancestors that the flat list may omit. The synthetic '/' root node is skipped;
+ * callers that need a root entry prepend their own labelled option.
+ */
+export function flattenLayerTreePaths(nodes: LayerTreeNode[], depth = 0): LayerPathOption[] {
+  const options: LayerPathOption[] = [];
+
+  for (const node of nodes) {
+    if (node.path === '/') {
+      continue;
+    }
+
+    options.push({ path: node.path, depth });
+    options.push(...flattenLayerTreePaths(node.children, depth + 1));
+  }
+
+  return options;
 }

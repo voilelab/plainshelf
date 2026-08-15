@@ -1,10 +1,12 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
@@ -12,31 +14,8 @@ import (
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/sources
 func (app *App) HandleAPIGetBookSources(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
-		return
-	}
-
-	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	_, book, ok := app.loadBook(w, r)
 	if !ok {
-		http.Error(w, "shelf not found", http.StatusNotFound)
-		return
-	}
-
-	bookID, err := readBookID(r)
-	if err != nil {
-		http.Error(w, "invalid book_id", http.StatusBadRequest)
-		return
-	}
-
-	book, err := shelfData.GetBook(bookID)
-	if err != nil {
-		if handleShelfErr(w, err) {
-			return
-		}
-		app.Error("failed to get book", "error", err)
-		http.Error(w, "failed to get book", http.StatusInternalServerError)
 		return
 	}
 
@@ -52,161 +31,125 @@ func (app *App) HandleAPIGetBookSources(w http.ResponseWriter, r *http.Request) 
 		sourceMetas[i] = s.GetMeta()
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	err = json.NewEncoder(w).Encode(sourceMetas)
-	if err != nil {
-		app.Error("failed to encode response", "error", err)
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-		return
-	}
+	app.writeJSON(w, http.StatusOK, sourceMetas)
 }
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}
 func (app *App) HandleAPIGetBookSource(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
-		return
-	}
-
-	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	_, source, ok := app.loadBookSource(w, r)
 	if !ok {
-		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
 	}
 
-	bookID, err := readBookID(r)
-	if err != nil {
-		http.Error(w, "invalid book_id", http.StatusBadRequest)
-		return
-	}
-
-	sourceID, err := readSourceID(r)
-	if err != nil {
-		http.Error(w, "invalid source_id", http.StatusBadRequest)
-		return
-	}
-
-	book, err := shelfData.GetBook(bookID)
-	if err != nil {
-		if handleShelfErr(w, err) {
-			return
-		}
-		app.Error("failed to get book", "error", err)
-		http.Error(w, "failed to get book", http.StatusInternalServerError)
-		return
-	}
-
-	source, err := book.GetSource(sourceID)
-	if err != nil {
-		if errors.Is(err, shelf.ErrSourceNotFound) {
-			http.Error(w, "source not found", http.StatusNotFound)
-			return
-		}
-		app.Error("failed to get book source", "error", err)
-		http.Error(w, "failed to get book source", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	err = json.NewEncoder(w).Encode(source.GetMeta())
-	if err != nil {
-		app.Error("failed to encode response", "error", err)
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-		return
-	}
+	app.writeJSON(w, http.StatusOK, source.GetMeta())
 }
 
 // POST /api/shelves/{shelf_id}/books/{book_id}/sources
 func (app *App) HandleAPICreateBookSource(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
-		return
-	}
-
-	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	_, book, ok := app.loadBook(w, r)
 	if !ok {
-		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
 	}
 
-	bookID, err := readBookID(r)
-	if err != nil {
-		http.Error(w, "invalid book_id", http.StatusBadRequest)
+	if err := book.EnsureWritable(); err != nil {
+		app.writeErr(w, err, "failed to create book source")
 		return
 	}
 
-	book, err := shelfData.GetBook(bookID)
-	if err != nil {
-		if handleShelfErr(w, err) {
+	var content io.Reader = strings.NewReader("")
+	options := shelf.NewSourceOptions{Format: shelf.BookFormatText}
+	setCurrent := false
+
+	if strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "multipart/form-data") {
+		r.Body = http.MaxBytesReader(w, r.Body, maxImportBodySize)
+		if err := r.ParseMultipartForm(32 << 20); err != nil {
+			if isRequestBodyTooLarge(err) {
+				http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
+				return
+			}
+			http.Error(w, "invalid multipart form: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-		app.Error("failed to get book", "error", err)
-		http.Error(w, "failed to get book", http.StatusInternalServerError)
-		return
+		if r.MultipartForm != nil {
+			defer r.MultipartForm.RemoveAll() //nolint:errcheck // request temp cleanup
+		}
+
+		file, _, err := r.FormFile("content")
+		if err == nil {
+			defer file.Close()
+			// The derived-source API receives the editor's canonical UTF-8 draft.
+			// Do not run heuristic encoding detection here: short Unicode content
+			// can be misidentified, and unlike file import there is no unknown
+			// external encoding to recover.
+			content = file
+		} else if errors.Is(err, multipart.ErrMessageTooLarge) {
+			http.Error(w, "source content too large", http.StatusRequestEntityTooLarge)
+			return
+		} else if !errors.Is(err, http.ErrMissingFile) {
+			http.Error(w, "invalid source content", http.StatusBadRequest)
+			return
+		} else if text := r.FormValue("content"); text != "" {
+			content = strings.NewReader(text)
+		}
+
+		if format := strings.TrimSpace(r.FormValue("format")); format != "" {
+			options.Format = format
+		}
+		options.Comment = r.FormValue("comment")
+		if raw := strings.TrimSpace(r.FormValue("set_current")); raw != "" {
+			parsed, err := strconv.ParseBool(raw)
+			if err != nil {
+				http.Error(w, "set_current must be true or false", http.StatusBadRequest)
+				return
+			}
+			setCurrent = parsed
+		}
 	}
 
-	sourceMeta, err := book.NewSource(nil)
+	sourceMeta, err := book.NewSourceWithOptions(content, options)
 	if err != nil {
-		app.Error("failed to create book source", "error", err)
-		http.Error(w, "failed to create book source", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to create book source")
 		return
+	}
+	if setCurrent {
+		if err := book.SetCurrentSource(sourceMeta.ID()); err != nil {
+			if cleanupErr := book.DeleteSource(sourceMeta.ID()); cleanupErr != nil {
+				app.Error("failed to roll back derived source", "source_id", sourceMeta.ID(), "error", cleanupErr)
+			}
+			app.writeErr(w, err, "failed to activate new book source")
+			return
+		}
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	err = json.NewEncoder(w).Encode(sourceMeta.GetMeta())
-	if err != nil {
-		app.Error("failed to encode response", "error", err)
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-		return
-	}
+	app.writeJSON(w, http.StatusOK, sourceMeta.GetMeta())
 }
 
 // DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}
 func (app *App) HandleAPIDeleteBookSource(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
-		return
-	}
-
-	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	shelfData, ok := app.resolveShelf(w, r)
 	if !ok {
-		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
 	}
 
-	bookID, err := readBookID(r)
-	if err != nil {
-		http.Error(w, "invalid book_id", http.StatusBadRequest)
+	bookID, ok := resolveBookID(w, r)
+	if !ok {
 		return
 	}
 
-	sourceID, err := readSourceID(r)
-	if err != nil {
-		http.Error(w, "invalid source_id", http.StatusBadRequest)
+	sourceID, ok := resolveSourceID(w, r)
+	if !ok {
 		return
 	}
 
-	book, err := shelfData.GetBook(bookID)
-	if err != nil {
-		if handleShelfErr(w, err) {
-			return
-		}
-		app.Error("failed to get book", "error", err)
-		http.Error(w, "failed to get book", http.StatusInternalServerError)
+	book, ok := app.getBook(w, shelfData, bookID)
+	if !ok {
 		return
 	}
 
-	err = book.DeleteSource(sourceID)
-	if err != nil {
-		if errors.Is(err, shelf.ErrSourceNotFound) {
-			http.Error(w, "source not found", http.StatusNotFound)
-			return
-		}
-		app.Error("failed to delete book source", "error", err)
-		http.Error(w, "failed to delete book source", http.StatusInternalServerError)
+	// DeleteSource reports a missing source itself, so the source is not
+	// loaded up front here.
+	if err := book.DeleteSource(sourceID); err != nil {
+		app.writeErr(w, err, "failed to delete book source")
 		return
 	}
 
@@ -215,55 +158,19 @@ func (app *App) HandleAPIDeleteBookSource(w http.ResponseWriter, r *http.Request
 
 // PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/current
 func (app *App) HandleAPISetCurrentBookSource(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
-		return
-	}
-
-	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	book, _, ok := app.loadBookSource(w, r)
 	if !ok {
-		http.Error(w, "shelf not found", http.StatusNotFound)
 		return
 	}
 
-	bookID, err := readBookID(r)
-	if err != nil {
-		http.Error(w, "invalid book_id", http.StatusBadRequest)
+	// loadBookSource has already rejected an unknown source_id.
+	sourceID, ok := resolveSourceID(w, r)
+	if !ok {
 		return
 	}
 
-	sourceID, err := readSourceID(r)
-	if err != nil {
-		http.Error(w, "invalid source_id", http.StatusBadRequest)
-		return
-	}
-
-	book, err := shelfData.GetBook(bookID)
-	if err != nil {
-		if handleShelfErr(w, err) {
-			return
-		}
-		app.Error("failed to get book", "error", err)
-		http.Error(w, "failed to get book", http.StatusInternalServerError)
-		return
-	}
-
-	_, err = book.GetSource(sourceID)
-	if err != nil {
-		if errors.Is(err, shelf.ErrSourceNotFound) {
-			http.Error(w, "source not found", http.StatusNotFound)
-			return
-		}
-		app.Error("failed to get book source", "error", err)
-		http.Error(w, "failed to get book source", http.StatusInternalServerError)
-		return
-	}
-
-	err = book.SetCurrentSource(sourceID)
-	if err != nil {
-		app.Error("failed to set current book source", "error", err)
-		http.Error(w, "failed to set current book source", http.StatusInternalServerError)
+	if err := book.SetCurrentSource(sourceID); err != nil {
+		app.writeErr(w, err, "failed to set current book source")
 		return
 	}
 
@@ -272,48 +179,8 @@ func (app *App) HandleAPISetCurrentBookSource(w http.ResponseWriter, r *http.Req
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content
 func (app *App) HandleAPIGetBookSourceContent(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
-		return
-	}
-
-	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	_, source, ok := app.loadBookSource(w, r)
 	if !ok {
-		http.Error(w, "shelf not found", http.StatusNotFound)
-		return
-	}
-
-	bookID, err := readBookID(r)
-	if err != nil {
-		http.Error(w, "invalid book_id", http.StatusBadRequest)
-		return
-	}
-
-	sourceID, err := readSourceID(r)
-	if err != nil {
-		http.Error(w, "invalid source_id", http.StatusBadRequest)
-		return
-	}
-
-	book, err := shelfData.GetBook(bookID)
-	if err != nil {
-		if handleShelfErr(w, err) {
-			return
-		}
-		app.Error("failed to get book", "error", err)
-		http.Error(w, "failed to get book", http.StatusInternalServerError)
-		return
-	}
-
-	source, err := book.GetSource(sourceID)
-	if err != nil {
-		if errors.Is(err, shelf.ErrSourceNotFound) {
-			http.Error(w, "source not found", http.StatusNotFound)
-			return
-		}
-		app.Error("failed to get book source", "error", err)
-		http.Error(w, "failed to get book source", http.StatusInternalServerError)
 		return
 	}
 
@@ -325,63 +192,153 @@ func (app *App) HandleAPIGetBookSourceContent(w http.ResponseWriter, r *http.Req
 	}
 	defer src.Close()
 
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	if fi, statErr := src.Stat(); statErr == nil && fi.Size() == 0 {
-		w.WriteHeader(http.StatusOK)
+	app.streamTextFile(w, src, "failed to write book source content")
+}
+
+// GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}
+//
+// Serves an illustration the source's text references. A plain read, so
+// neither the token gate nor read-only mode stands between a reader and it -
+// unlike the PUT and DELETE below.
+func (app *App) HandleAPIGetBookSourceAsset(w http.ResponseWriter, r *http.Request) {
+	_, source, ok := app.loadBookSource(w, r)
+	if !ok {
 		return
 	}
-	_, err = io.Copy(w, src)
+
+	assetName, ok := resolveAssetName(w, r)
+	if !ok {
+		return
+	}
+
+	if app.serveImageValidator(w, r, source.AssetETag(assetName), cacheRevalidateAlways) {
+		return
+	}
+
+	asset, err := source.OpenAsset(assetName)
 	if err != nil {
-		app.Error("failed to write book source content", "error", err)
-		http.Error(w, "failed to write book source content", http.StatusInternalServerError)
+		app.writeErr(w, err, "failed to get source asset")
 		return
 	}
+	defer asset.File.Close()
+
+	w.Header().Set("Content-Type", imageContentTypeForExt(asset.Ext))
+	w.Header().Set("Content-Length", strconv.FormatInt(asset.Info.Size(), 10))
+
+	// Commit the response before copying: a zero-byte asset writes nothing, and
+	// a copy that writes nothing never commits a status of its own.
+	w.WriteHeader(http.StatusOK)
+
+	// A GET pattern also matches HEAD, and net/http discards the body for it.
+	// Copying anyway would read the whole asset off the shelf to write it
+	// nowhere - and an asset has no size bound, so on an SMB mount that is real
+	// I/O for nothing.
+	if r.Method == http.MethodHead {
+		return
+	}
+
+	if _, err := io.Copy(w, asset.File); err != nil {
+		app.Error("failed to write source asset", "error", err, "asset", assetName)
+	}
+}
+
+// PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}
+//
+// Stores an illustration under the name the request addressed, replacing one
+// already there. The name carries the format, so the body is written as sent
+// and Content-Type is not consulted: the extension is what the read path
+// serves by and what shelf validates, and a second opinion could only
+// disagree with it.
+//
+// This is the first route that writes into assets/, so it is a mutating
+// request like any other: the token gate and the read-only mode both apply
+// before it is reached.
+func (app *App) HandleAPIUpdateBookSourceAsset(w http.ResponseWriter, r *http.Request) {
+	book, source, ok := app.loadBookSource(w, r)
+	if !ok {
+		return
+	}
+
+	assetName, ok := resolveAssetName(w, r)
+	if !ok {
+		return
+	}
+
+	// Refuse before reading the body, not after: a book this build must not
+	// write should not have an upload spooled for it either.
+	if err := book.EnsureWritable(); err != nil {
+		app.writeErr(w, err, "failed to store source asset")
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxAssetBodySize)
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		if isRequestBodyTooLarge(err) {
+			http.Error(w, "request body too large (max 20 MB)", http.StatusRequestEntityTooLarge)
+			return
+		}
+		app.Error("failed to read request body", "error", err)
+		http.Error(w, "failed to read request body", http.StatusInternalServerError)
+		return
+	}
+
+	if err := source.WriteAsset(assetName, data); err != nil {
+		app.writeErr(w, err, "failed to store source asset")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}
+//
+// The source's text is left alone. A link pointing at a removed file renders
+// as its alt text, and editing someone's prose to preserve an invariant the
+// shelf does not enforce would be the worse trade.
+func (app *App) HandleAPIDeleteBookSourceAsset(w http.ResponseWriter, r *http.Request) {
+	book, source, ok := app.loadBookSource(w, r)
+	if !ok {
+		return
+	}
+
+	assetName, ok := resolveAssetName(w, r)
+	if !ok {
+		return
+	}
+
+	if err := book.EnsureWritable(); err != nil {
+		app.writeErr(w, err, "failed to delete source asset")
+		return
+	}
+
+	if err := source.DeleteAsset(assetName); err != nil {
+		app.writeErr(w, err, "failed to delete source asset")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// POST /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/refresh
+func (app *App) HandleAPIRefreshBookSourceMeta(w http.ResponseWriter, r *http.Request) {
+	_, source, ok := app.loadBookSource(w, r)
+	if !ok {
+		return
+	}
+
+	if err := source.RefreshContentMetadata(); err != nil {
+		app.writeErr(w, err, "failed to refresh source metadata")
+		return
+	}
+
+	app.writeJSON(w, http.StatusOK, source.GetMeta())
 }
 
 // PATCH /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content
 func (app *App) HandleAPIUpdateBookSourceContent(w http.ResponseWriter, r *http.Request) {
-	shelfID, err := readShelfID(r)
-	if err != nil {
-		http.Error(w, "invalid shelf_id", http.StatusBadRequest)
-		return
-	}
-
-	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	_, source, ok := app.loadBookSource(w, r)
 	if !ok {
-		http.Error(w, "shelf not found", http.StatusNotFound)
-		return
-	}
-
-	bookID, err := readBookID(r)
-	if err != nil {
-		http.Error(w, "invalid book_id", http.StatusBadRequest)
-		return
-	}
-
-	sourceID, err := readSourceID(r)
-	if err != nil {
-		http.Error(w, "invalid source_id", http.StatusBadRequest)
-		return
-	}
-
-	book, err := shelfData.GetBook(bookID)
-	if err != nil {
-		if handleShelfErr(w, err) {
-			return
-		}
-		app.Error("failed to get book", "error", err)
-		http.Error(w, "failed to get book", http.StatusInternalServerError)
-		return
-	}
-
-	source, err := book.GetSource(sourceID)
-	if err != nil {
-		if errors.Is(err, shelf.ErrSourceNotFound) {
-			http.Error(w, "source not found", http.StatusNotFound)
-			return
-		}
-		app.Error("failed to get book source", "error", err)
-		http.Error(w, "failed to get book source", http.StatusInternalServerError)
 		return
 	}
 
@@ -397,10 +354,8 @@ func (app *App) HandleAPIUpdateBookSourceContent(w http.ResponseWriter, r *http.
 		return
 	}
 
-	err = source.UpdateContent(utf8Reader)
-	if err != nil {
-		app.Error("failed to update book source content", "error", err)
-		http.Error(w, "failed to update book source content", http.StatusInternalServerError)
+	if err := source.UpdateContent(utf8Reader); err != nil {
+		app.writeErr(w, err, "failed to update book source content")
 		return
 	}
 

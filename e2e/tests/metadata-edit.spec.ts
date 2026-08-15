@@ -12,7 +12,8 @@ test('should edit book metadata and see the updated values on the detail page', 
     await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
 
-    await page.getByRole('button', { name: 'Edit metadata' }).click();
+    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('menuitem', { name: 'Edit book details' }).click();
     await expect(page).toHaveURL(/\/books\/[^/]+\/edit$/);
 
     // Fill metadata fields
@@ -32,6 +33,10 @@ test('should edit book metadata and see the updated values on the detail page', 
     await page.getByRole('option', { name: '英文' }).click();
     await expect(languageTrigger).toHaveText('英文');
 
+    // Format belongs to the source and is intentionally absent from general
+    // book metadata editing. Conversions live in Manage sources.
+    await expect(page.locator('.edit-form').getByLabel('Format')).toHaveCount(0);
+
     // Add a tag
     const tagInput = page.getByPlaceholder('Type a tag and press Enter');
     await tagInput.fill('e2e-tag');
@@ -48,13 +53,14 @@ test('should edit book metadata and see the updated values on the detail page', 
 
     // Should redirect to detail page with saved=1
     await expect(page).toHaveURL(/\/books\/[^/]+\?saved=1$/);
-    await expect(page.getByText('Metadata saved.')).toBeVisible();
+    await expect(page.getByText('Book details saved.')).toBeVisible();
 
     // Verify updated values are visible on the detail page
     await expect(page.getByRole('heading', { name: 'Updated Hello' })).toBeVisible();
     await expect(page.getByText('Alice, Bob')).toBeVisible();
     await expect(page.getByText('e2e-tag')).toBeVisible();
     await expect(page.getByText('英文')).toBeVisible();
+    await expect(page.getByText('TXT', { exact: true })).toBeVisible();
     await expect(page.getByText('★★★★☆')).toBeVisible();
     await expect(page.getByText('This is an E2E comment.')).toBeVisible();
   } finally {

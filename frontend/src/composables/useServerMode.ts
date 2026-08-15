@@ -1,5 +1,7 @@
 import { ref, watch } from 'vue';
-import { getReadOnlyMode } from '../api/mode';
+import { getReadOnlyMode } from '@/api/mode';
+import { getActiveShelfEntry } from '@/providers/mobileConfig';
+import { t } from '@/i18n';
 
 const readOnly = ref(false);
 const loading = ref(false);
@@ -24,13 +26,22 @@ export function assertWritableMode(): void {
 
 export function useServerMode() {
   async function fetchServerMode(): Promise<void> {
+    // A pCloud shelf has no server to report a mode. Skipping keeps a doomed
+    // request — awaited before the layout renders anything — out of startup.
+    // Read-only is still enforced, by the mobile guard in api/client.ts and by
+    // the pCloud provider itself.
+    if (getActiveShelfEntry()?.type === 'pcloud') {
+      loaded.value = true;
+      return;
+    }
+
     loading.value = true;
     error.value = '';
     try {
       readOnly.value = await getReadOnlyMode();
       loaded.value = true;
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to load server mode';
+      error.value = err instanceof Error ? err.message : t('settings.serverModeLoadFailed');
     } finally {
       loading.value = false;
     }

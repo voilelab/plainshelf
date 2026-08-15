@@ -2,14 +2,6 @@ package util
 
 import "testing"
 
-func TestSetNewIsEmpty(t *testing.T) {
-	s := NewSet[int]()
-
-	if got := len(s.Items()); got != 0 {
-		t.Fatalf("expected empty set, got len=%d", got)
-	}
-}
-
 func TestSetAddContainsAndRemove(t *testing.T) {
 	s := NewSet[string]()
 

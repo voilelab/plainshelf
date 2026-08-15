@@ -37,6 +37,23 @@ func randomString(n int) string {
 	return string(result)
 }
 
+// fileETag returns a weak ETag derived from a file's mtime and size, or an
+// empty string when the file cannot be stat'd. Every stored file the read path
+// serves with caching headers derives its validator here, so covers and source
+// assets cannot drift apart on what counts as "changed".
+func fileETag(root fsutil.FS, filePath string) string {
+	info, err := root.Stat(filePath)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf(`W/"%d-%d"`, info.ModTime().UnixNano(), info.Size())
+}
+
+// ErrInvalidLayer is returned when a layer name is not a usable path segment.
+// Every operation that accepts caller-supplied layers checks them before
+// touching the filesystem, so callers can treat it as a request error.
+var ErrInvalidLayer = util.NewError("invalid layer name")
+
 var bcp47Regex = regexp.MustCompile(`^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$`)
 
 func validateBCP47(lang string) bool {
@@ -48,16 +65,36 @@ func validateBCP47(lang string) bool {
 	return bcp47Regex.MatchString(lang)
 }
 
+// validateBookFormat reports whether a BookMeta.Format value is one this build
+// writes. Empty stays valid: books created through the API rather than an
+// import carry no format at all, and the reader already treats that as plain
+// text.
+func validateBookFormat(format string) bool {
+	switch format {
+	case "", BookFormatText, BookFormatMarkdown:
+		return true
+	default:
+		return false
+	}
+}
+
 func validateLayers(layers Layers) error {
 	for _, layer := range layers {
 		if err := validatePathSegment(layer); err != nil {
-			return util.Errorf("invalid layer name %q: %w", layer, err)
+			return util.Errorf("%w %q: %w", ErrInvalidLayer, layer, err)
 		}
 		if strings.Contains(layer, bookExtension) {
-			return util.Errorf("invalid layer name %q: must not contain %q", layer, bookExtension)
+			return util.Errorf("%w %q: must not contain %q", ErrInvalidLayer, layer, bookExtension)
 		}
 	}
 	return nil
+}
+
+// ValidateLayers reports whether every layer path segment is safe to use.
+// API handlers use this before scheduling background work so malformed batch
+// requests fail synchronously rather than becoming failed worker tasks.
+func ValidateLayers(layers Layers) error {
+	return validateLayers(layers)
 }
 
 func validateSourceID(sourceID string) error {

@@ -92,12 +92,45 @@ export interface BookUpdateRequest {
   published_at?: string;
   star?: number;
   identifiers?: Record<string, string>;
+  /** Only 'txt' and 'md' are accepted; the server rejects anything else. */
+  format?: BookFormat;
 }
+
+/** The formats a book can be stored as. Both read the same bytes on disk: the
+ *  value only decides whether the reader parses the text as Markdown. */
+export const BOOK_FORMAT_OPTIONS: { value: BookFormat; label: string }[] = [
+  { value: 'txt', label: 'Plain text' },
+  { value: 'md', label: 'Markdown' }
+];
+
+/** Built-in EPUB output layouts. The preset also decides the stored book format. */
+export type EpubImportPreset = 'markdown' | 'plain';
+
+export interface EpubImportStrategy {
+  preset: EpubImportPreset;
+  include_description: boolean;
+
+  /**
+   * Whether the conversion stores the EPUB's illustrations. Optional because
+   * omitting it means "unspecified": the server then falls back to the
+   * configured setting rather than a built-in default. Dropping it while
+   * round-tripping a strategy would silently re-enable images for a user who
+   * turned them off.
+   */
+  keep_images?: boolean;
+}
+
+export const DEFAULT_EPUB_IMPORT_STRATEGY: EpubImportStrategy = {
+  preset: 'markdown',
+  include_description: true
+};
 
 export interface BookCreateRequest {
   title: string;
   layer?: string;
   file: File;
+  /** Only meaningful for .epub uploads; ignored by the server for other formats. */
+  strategy?: EpubImportStrategy;
 }
 
 export type UpdateBookPayload = BookUpdateRequest;

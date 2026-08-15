@@ -2,15 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   DeleteFileOptions,
+  MkdirOptions,
   ReaddirOptions,
   ReadFileOptions,
+  RenameOptions,
   RmdirOptions,
   StatOptions,
   WriteFileOptions
 } from '@capacitor/filesystem';
 
-import type { Book, ReadingProgress } from '../types/book';
-import type { SourceMeta } from '../types/source';
+import type { Book, ReadingProgress } from '@/types/book';
+import type { SourceMeta } from '@/types/source';
 import type { CachedBookManifest } from './mobileBookCache';
 
 // In-memory filesystem model shared between the vi.mock factory (hoisted to
@@ -144,6 +146,58 @@ vi.mock('@capacitor/filesystem', async (importOriginal) => {
           };
         })
       };
+    },
+
+    async mkdir(options: MkdirOptions) {
+      const key = normalize(options.directory, options.path);
+      const existing = store.get(key);
+      if (existing?.type === 'file') {
+        throw new Error('The supplied path is a file, not a directory.');
+      }
+      if (existing !== undefined && !options.recursive) {
+        throw new Error('Directory exists.');
+      }
+      if (options.recursive) {
+        createParents(key);
+      } else if (key.includes('/') && store.get(parentOf(key))?.type !== 'directory') {
+        throw new Error('Parent directory does not exist.');
+      }
+      store.set(key, { type: 'directory' });
+    },
+
+    async rename(options: RenameOptions) {
+      const from = normalize(options.directory, options.from);
+      const to = normalize(options.toDirectory ?? options.directory, options.to);
+      const entry = store.get(from);
+      if (entry === undefined) {
+        throw new Error('Entry does not exist.');
+      }
+      if (store.get(to) !== undefined) {
+        throw new Error('Destination exists.');
+      }
+      if (to.includes('/') && store.get(parentOf(to))?.type !== 'directory') {
+        throw new Error('Parent directory does not exist.');
+      }
+
+      const moved: [string, { type: 'file'; data: string } | { type: 'directory' }][] = [
+        [to, entry]
+      ];
+      for (const [key, value] of store) {
+        if (key.startsWith(`${from}/`)) {
+          moved.push([`${to}${key.slice(from.length)}`, value]);
+        }
+      }
+      // Collect first, then delete, then insert: the destination may live inside
+      // a subtree that the delete pass would otherwise sweep away.
+      store.delete(from);
+      for (const key of Array.from(store.keys())) {
+        if (key.startsWith(`${from}/`)) {
+          store.delete(key);
+        }
+      }
+      for (const [key, value] of moved) {
+        store.set(key, value);
+      }
     }
   };
 
@@ -153,7 +207,27 @@ vi.mock('@capacitor/filesystem', async (importOriginal) => {
 // Imported after vi.mock so the implementation binds to the mocked plugin,
 // and Filesystem/Directory here refer to the mock (used to seed corrupt data).
 import { Directory, Filesystem } from '@capacitor/filesystem';
+import { setActiveShelfID, setApiBase } from '@/api/client';
+import { buildDeviceDocumentKey } from '@/storage/deviceDocument';
 import { FilesystemMobileBookCache } from './filesystemMobileBookCache';
+
+const SERVER_A = 'http://10.0.2.2:20000';
+const SERVER_B = 'http://192.168.1.50:20000';
+const SHELF_A = 'default_shelf';
+const SHELF_B = 'comics';
+
+/** Points the API client — and therefore the cache — at one (server, shelf). */
+function connectTo(apiBase: string, shelfID: string): void {
+  setApiBase(apiBase);
+  setActiveShelfID(shelfID);
+}
+
+/** Mirrors the production layout, so tests can seed and assert raw paths. */
+function booksDirFor(apiBase: string, shelfID: string): string {
+  return `plainshelf-cache/scopes/${encodeURIComponent(buildDeviceDocumentKey(apiBase, shelfID))}/books`;
+}
+
+const LEGACY_BOOKS_DIR = 'plainshelf-cache/books';
 
 function makeBook(id: string): Book {
   return {
@@ -197,9 +271,12 @@ async function saveFullBook(
 
 describe('FilesystemMobileBookCache', () => {
   let cache: FilesystemMobileBookCache;
+  let booksDir: string;
 
   beforeEach(() => {
     fsModel.store.clear();
+    connectTo(SERVER_A, SHELF_A);
+    booksDir = booksDirFor(SERVER_A, SHELF_A);
     cache = new FilesystemMobileBookCache();
   });
 
@@ -244,7 +321,7 @@ describe('FilesystemMobileBookCache', () => {
     await saveFullBook(cache, 'real-book', 'src-1');
     // Orphan: a directory under books/ containing a stray file but no manifest.
     await Filesystem.writeFile({
-      path: 'plainshelf-cache/books/orphan-dir/leftover.txt',
+      path: `${booksDir}/orphan-dir/leftover.txt`,
       data: 'junk',
       directory: Directory.Data,
       recursive: true
@@ -258,7 +335,7 @@ describe('FilesystemMobileBookCache', () => {
     await saveFullBook(cache, 'good-book', 'src-1');
     const badId = 'bad-book';
     await Filesystem.writeFile({
-      path: `plainshelf-cache/books/${encodeURIComponent(badId)}/manifest.json`,
+      path: `${booksDir}/${encodeURIComponent(badId)}/manifest.json`,
       data: '{ this is not valid JSON',
       directory: Directory.Data,
       recursive: true
@@ -280,7 +357,7 @@ describe('FilesystemMobileBookCache', () => {
     };
     for (const [badId, data] of Object.entries(wrongShapes)) {
       await Filesystem.writeFile({
-        path: `plainshelf-cache/books/${encodeURIComponent(badId)}/manifest.json`,
+        path: `${booksDir}/${encodeURIComponent(badId)}/manifest.json`,
         data,
         directory: Directory.Data,
         recursive: true
@@ -396,6 +473,88 @@ describe('FilesystemMobileBookCache', () => {
     expect(new Uint8Array(await readBack!.arrayBuffer())).toEqual(bytes);
   });
 
+  it('round-trips an illustration, preserving bytes and MIME type', async () => {
+    const bytes = new Uint8Array([0, 1, 2, 250, 251, 252, 253, 254, 255]);
+    await cache.saveCachedAsset('book-1', 'src-1', 'img-0001.png', new Blob([bytes], { type: 'image/png' }));
+
+    const readBack = await cache.getCachedAsset('book-1', 'src-1', 'img-0001.png');
+    expect(readBack).not.toBeNull();
+    expect(readBack!.type).toBe('image/png');
+    expect(new Uint8Array(await readBack!.arrayBuffer())).toEqual(bytes);
+  });
+
+  // The shelf accepts an asset name up to 255 UTF-8 bytes, and percent-encoding
+  // a CJK name triples it — about 29 characters would already overflow a
+  // 255-byte filesystem component and the real write would fail. This mock
+  // filesystem enforces no such limit, so the assertion is on the path itself
+  // rather than on the write succeeding.
+  it('keeps the path component bounded for a name that would overflow encoded', async () => {
+    const name = `${'插'.repeat(40)}.png`;
+    expect(encodeURIComponent(name).length).toBeGreaterThan(255);
+
+    await cache.saveCachedAsset('book-1', 'src-1', name, new Blob([new Uint8Array([7])], { type: 'image/png' }));
+
+    const written = Array.from(fsModel.store.keys()).filter((key) => key.includes('/assets/'));
+    expect(written.length).toBeGreaterThan(0);
+    for (const key of written) {
+      for (const segment of key.split('/')) {
+        expect(new TextEncoder().encode(segment).length).toBeLessThanOrEqual(255);
+      }
+    }
+
+    const readBack = await cache.getCachedAsset('book-1', 'src-1', name);
+    expect(new Uint8Array(await readBack!.arrayBuffer())).toEqual(new Uint8Array([7]));
+  });
+
+  // The path is a hash, so the file has to say which name it holds: a
+  // collision must read as a miss, never as another illustration.
+  it('treats a stored illustration under a different name as a miss', async () => {
+    await cache.saveCachedAsset('book-1', 'src-1', 'img.png', new Blob([new Uint8Array([1])]));
+
+    const key = Array.from(fsModel.store.keys()).find(
+      (k) => k.includes('/assets/') && fsModel.store.get(k)?.type === 'file'
+    );
+    expect(key).toBeDefined();
+    const entry = fsModel.store.get(key!);
+    if (entry?.type !== 'file') {
+      throw new Error('the stored illustration is not a file');
+    }
+    fsModel.store.set(key!, {
+      type: 'file',
+      data: JSON.stringify({ ...JSON.parse(entry.data), name: 'other.png' })
+    });
+
+    expect(await cache.getCachedAsset('book-1', 'src-1', 'img.png')).toBeNull();
+  });
+
+  it('keeps illustrations of the same name apart per book and per source', async () => {
+    await cache.saveCachedAsset('book-1', 'src-1', 'img.png', new Blob([new Uint8Array([1])]));
+    await cache.saveCachedAsset('book-1', 'src-2', 'img.png', new Blob([new Uint8Array([2])]));
+    await cache.saveCachedAsset('book-2', 'src-1', 'img.png', new Blob([new Uint8Array([3])]));
+
+    const read = async (book: string, source: string): Promise<number> => {
+      const blob = await cache.getCachedAsset(book, source, 'img.png');
+      return new Uint8Array(await blob!.arrayBuffer())[0];
+    };
+
+    expect(await read('book-1', 'src-1')).toBe(1);
+    expect(await read('book-1', 'src-2')).toBe(2);
+    expect(await read('book-2', 'src-1')).toBe(3);
+  });
+
+  it('returns null for a missing illustration', async () => {
+    expect(await cache.getCachedAsset('book-1', 'src-1', 'never-stored.png')).toBeNull();
+  });
+
+  it('removeDownloadedBook also drops cached illustrations', async () => {
+    await saveFullBook(cache, 'book-with-art', 'src-1');
+    await cache.saveCachedAsset('book-with-art', 'src-1', 'img.png', new Blob([new Uint8Array([5])]));
+    expect(await cache.getCachedAsset('book-with-art', 'src-1', 'img.png')).not.toBeNull();
+
+    await cache.removeDownloadedBook('book-with-art');
+    expect(await cache.getCachedAsset('book-with-art', 'src-1', 'img.png')).toBeNull();
+  });
+
   it('returns null for a missing cover', async () => {
     expect(await cache.getCachedCover('never-had-a-cover')).toBeNull();
   });
@@ -428,6 +587,26 @@ describe('FilesystemMobileBookCache', () => {
     expect(listed[0].sources.map((source) => source.id)).toEqual(['src-1', 'src-2']);
   });
 
+  it('round-trips a complete split config in the manifest', async () => {
+    const manifest: CachedBookManifest = {
+      ...makeManifest('split-book', ['src-1']),
+      split_config: { type: 'boundary', boundaries: [0, 125, 300] }
+    };
+    await cache.saveDownloadedBook(manifest);
+
+    expect(await cache.getCachedBookSplitConfig('split-book')).toEqual({
+      type: 'boundary',
+      boundaries: [0, 125, 300]
+    });
+    expect((await cache.listDownloadedManifests())[0].split_config).toEqual(manifest.split_config);
+  });
+
+  it('returns null for a legacy manifest without a cached split config', async () => {
+    await cache.saveDownloadedBook(makeManifest('legacy-book', ['src-1']));
+
+    expect(await cache.getCachedBookSplitConfig('legacy-book')).toBeNull();
+  });
+
   it('listDownloadedManifests omits size fields for manifests saved without them', async () => {
     await cache.saveDownloadedBook(makeManifest('no-size-book', ['src-1']));
 
@@ -440,7 +619,7 @@ describe('FilesystemMobileBookCache', () => {
   it('listDownloadedManifests ignores orphan and malformed directories', async () => {
     await cache.saveDownloadedBook(makeManifest('good-book', ['src-1']));
     await Filesystem.writeFile({
-      path: 'plainshelf-cache/books/orphan-dir/leftover.txt',
+      path: `${booksDir}/orphan-dir/leftover.txt`,
       data: 'junk',
       directory: Directory.Data,
       recursive: true
@@ -448,5 +627,160 @@ describe('FilesystemMobileBookCache', () => {
 
     const listed = await cache.listDownloadedManifests();
     expect(listed.map((manifest) => manifest.book.id)).toEqual(['good-book']);
+  });
+});
+
+// A book id is only unique within one shelf, so the same id routinely means two
+// different books across shelves or servers. Downloads must not share storage.
+describe('FilesystemMobileBookCache scoping', () => {
+  let cache: FilesystemMobileBookCache;
+
+  beforeEach(() => {
+    fsModel.store.clear();
+    connectTo(SERVER_A, SHELF_A);
+    cache = new FilesystemMobileBookCache();
+  });
+
+  it('keeps the same book id separate across two shelves on one server', async () => {
+    const bookId = 'collide';
+
+    await saveFullBook(cache, bookId, 'src-a');
+    await cache.saveCachedCover(bookId, new Blob([new Uint8Array([1])], { type: 'image/png' }));
+
+    connectTo(SERVER_A, SHELF_B);
+    expect(await cache.getCachedBook(bookId)).toBeNull();
+    expect(await cache.getDownloadState(bookId)).toBe('not_downloaded');
+    expect(await cache.getCachedBookContent(bookId)).toBeNull();
+    expect(await cache.getReadProgress(bookId)).toBeNull();
+    expect(await cache.getCachedCover(bookId)).toBeNull();
+
+    await cache.saveDownloadedBook(makeManifest(bookId, ['src-b']));
+    await cache.saveCachedBookContent(bookId, { content: 'shelf B content' });
+    await cache.saveReadProgress(bookId, { char_offset: 7, percent: 0.1 });
+
+    connectTo(SERVER_A, SHELF_A);
+    expect((await cache.getCachedBookContent(bookId))?.content).toBe(`content of ${bookId}`);
+    expect(await cache.getReadProgress(bookId)).toEqual({ char_offset: 42, percent: 0.5 });
+    expect((await cache.listCachedSources(bookId)).map((source) => source.id)).toEqual(['src-a']);
+    expect(await cache.getCachedCover(bookId)).not.toBeNull();
+  });
+
+  it('keeps identically named shelves on different servers separate', async () => {
+    await saveFullBook(cache, 'book-1', 'src-1');
+
+    connectTo(SERVER_B, SHELF_A);
+    expect(await cache.listDownloadedBooks()).toEqual([]);
+
+    await saveFullBook(cache, 'book-2', 'src-2');
+    expect((await cache.listDownloadedBooks()).map((book) => book.id)).toEqual(['book-2']);
+
+    connectTo(SERVER_A, SHELF_A);
+    expect((await cache.listDownloadedBooks()).map((book) => book.id)).toEqual(['book-1']);
+  });
+
+  it('listDownloadedManifests returns only the connected shelf', async () => {
+    await cache.saveDownloadedBook(makeManifest('book-1', ['src-1']));
+
+    connectTo(SERVER_A, SHELF_B);
+    await cache.saveDownloadedBook(makeManifest('book-2', ['src-2']));
+
+    expect((await cache.listDownloadedManifests()).map((manifest) => manifest.book.id)).toEqual([
+      'book-2'
+    ]);
+
+    connectTo(SERVER_A, SHELF_A);
+    expect((await cache.listDownloadedManifests()).map((manifest) => manifest.book.id)).toEqual([
+      'book-1'
+    ]);
+  });
+
+  it('removeDownloadedBook leaves the same id on another shelf intact', async () => {
+    const bookId = 'collide';
+    await saveFullBook(cache, bookId, 'src-a');
+
+    connectTo(SERVER_A, SHELF_B);
+    await saveFullBook(cache, bookId, 'src-b');
+    await cache.removeDownloadedBook(bookId);
+    expect(await cache.getCachedBook(bookId)).toBeNull();
+
+    connectTo(SERVER_A, SHELF_A);
+    expect(await cache.getCachedBook(bookId)).not.toBeNull();
+    expect((await cache.getCachedBookContent(bookId))?.content).toBe(`content of ${bookId}`);
+  });
+});
+
+describe('FilesystemMobileBookCache legacy migration', () => {
+  // Writes a fully downloaded book straight to disk, bypassing the cache — the
+  // migration runs on first use, so seeding through a cache instance would
+  // already have triggered it.
+  async function seedBookAt(booksDir: string, bookId: string, sourceId: string): Promise<void> {
+    const dir = `${booksDir}/${encodeURIComponent(bookId)}`;
+    const write = async (path: string, data: string): Promise<void> => {
+      await Filesystem.writeFile({ path, data, directory: Directory.Data, recursive: true });
+    };
+    await write(`${dir}/manifest.json`, JSON.stringify(makeManifest(bookId, [sourceId])));
+    await write(`${dir}/content.txt`, `content of ${bookId}`);
+    await write(`${dir}/sources/${encodeURIComponent(sourceId)}.txt`, `source text of ${bookId}`);
+    await write(`${dir}/progress.json`, JSON.stringify({ char_offset: 42, percent: 0.5 }));
+  }
+
+  /** Seeds the pre-scope layout: a book directly under plainshelf-cache/books. */
+  async function seedLegacyBook(bookId: string, sourceId: string): Promise<void> {
+    await seedBookAt(LEGACY_BOOKS_DIR, bookId, sourceId);
+  }
+
+  beforeEach(() => {
+    fsModel.store.clear();
+    connectTo(SERVER_A, SHELF_A);
+  });
+
+  it('adopts pre-scope downloads into the connected shelf', async () => {
+    await seedLegacyBook('legacy-book', 'src-1');
+
+    const cache = new FilesystemMobileBookCache();
+    expect((await cache.listDownloadedBooks()).map((book) => book.id)).toEqual(['legacy-book']);
+    expect((await cache.getCachedBookContent('legacy-book'))?.content).toBe(
+      'content of legacy-book'
+    );
+    expect(await cache.getCachedSourceContent('legacy-book', 'src-1')).toBe(
+      'source text of legacy-book'
+    );
+    expect(await cache.getReadProgress('legacy-book')).toEqual({ char_offset: 42, percent: 0.5 });
+
+    // Moved, not copied.
+    expect(fsModel.store.has(`${Directory.Data}/${LEGACY_BOOKS_DIR}`)).toBe(false);
+  });
+
+  it('does not adopt pre-scope downloads into a shelf that already has its own', async () => {
+    await seedLegacyBook('legacy-book', 'src-1');
+    await seedBookAt(booksDirFor(SERVER_A, SHELF_A), 'own-book', 'src-2');
+
+    const cache = new FilesystemMobileBookCache();
+    expect((await cache.listDownloadedBooks()).map((book) => book.id)).toEqual(['own-book']);
+    // The legacy directory is kept rather than merged or deleted: merging could
+    // overwrite this shelf's books with same-id books from another one.
+    expect(fsModel.store.has(`${Directory.Data}/${LEGACY_BOOKS_DIR}`)).toBe(true);
+  });
+
+  it('adopts pre-scope downloads only into the shelf connected at the time', async () => {
+    await seedLegacyBook('legacy-book', 'src-1');
+
+    const cache = new FilesystemMobileBookCache();
+    expect((await cache.listDownloadedBooks()).map((book) => book.id)).toEqual(['legacy-book']);
+
+    connectTo(SERVER_B, SHELF_B);
+    expect(await cache.listDownloadedBooks()).toEqual([]);
+  });
+
+  it('runs at most once, so a later write is not undone by a second move', async () => {
+    await seedLegacyBook('legacy-book', 'src-1');
+
+    const cache = new FilesystemMobileBookCache();
+    await cache.saveDownloadedBook(makeManifest('added-later', ['src-2']));
+
+    expect((await cache.listDownloadedBooks()).map((book) => book.id).sort()).toEqual([
+      'added-later',
+      'legacy-book'
+    ]);
   });
 });

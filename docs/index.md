@@ -6,20 +6,26 @@ adds a web interface, desktop integration, and an experimental Android client.
 
 !!! warning "Pre-alpha"
     APIs, data layout, and UI behavior may change. Keep a current backup of the
-    shelf and application store, especially before upgrades.
+    shelf and application store, especially before upgrades. See
+    [Data Format Versioning](concepts/data-format-versioning.md) for what the
+    on-disk format does and does not guarantee.
 
 ## Choose a path
 
 ### Use PlainShelf
 
 1. [Install a release](installation.md) with Homebrew, a server archive, or Docker.
-2. [Start a library](getting-started.md) and import a TXT or Markdown book.
+2. [Start a library](getting-started.md) and import a TXT, Markdown or EPUB book.
 3. Configure a [local shelf](configuring-local-shelf.md), or review the
    experimental [SMB setup](configuring-smb-shelf.md).
+4. Review [EPUB Import](epub-import.md) for how EPUB files are converted.
 
 ### Understand the storage model
 
 - [Data Model](concepts/data-model.md) explains what is stored under a shelf.
+- [Data Format Versioning](concepts/data-format-versioning.md) explains the
+  on-disk schema version, the compatibility policy, and how to back up and
+  restore a shelf.
 - [Layers](concepts/layers.md) explains the nested folder hierarchy.
 - [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md) explains scanning,
   cache freshness, and network-filesystem tuning.
@@ -34,9 +40,17 @@ adds a web interface, desktop integration, and an experimental Android client.
 ## Project boundaries
 
 PlainShelf prioritizes readable local files, stable internal IDs, backup-friendly
-storage, and a focused reading experience. EPUB, PDF, comic archives, DRM, OCR,
+storage, and a focused reading experience. PDF, comic archives, DRM, OCR,
 multi-user accounts, cloud sync, public sharing, and plugins are not part of the
-current scope.
+current scope. The Android client can read a shelf held on pCloud
+([Android Development](development/android.md#read-a-shelf-from-pcloud)), but
+that is a read-only storage backend, not sync: nothing is written back and no
+other client is aware of it.
+
+EPUB is an import format, not a storage format. An imported EPUB is converted to
+plain text or Markdown and stored like any other book; the original `.epub` is
+not retained, and embedded illustrations are dropped. Everything on the shelf
+stays readable in a text editor.
 
 ## Repository map
 

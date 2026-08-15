@@ -28,11 +28,13 @@ nav:
   - Home: index.md
   - Installation: installation.md
   - Getting Started: getting-started.md
+  - EPUB Import: epub-import.md
   - Configuration:
       - Local Shelf File Source: configuring-local-shelf.md
       - SMB Shelf File Source: configuring-smb-shelf.md
   - Concepts:
       - Data Model: concepts/data-model.md
+      - Data Format Versioning: concepts/data-format-versioning.md
       - Shelf Cache and Disk I/O: concepts/shelf-cache-and-io.md
       - Layers: concepts/layers.md
   - Development:

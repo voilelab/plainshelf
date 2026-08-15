@@ -1,8 +1,16 @@
 import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
-import { initAppZoom } from './composables/useAppZoom';
-import { getBookshelfProvider, isMobileRuntime, type BookshelfProvider } from './providers';
+import { initAppZoom } from '@/composables/useAppZoom';
+import {
+  bookshelfWriter,
+  getBookshelfProvider,
+  isMobileRuntime,
+  type BookshelfProvider,
+  type WritableBookshelfProvider
+} from './providers';
+import '@fontsource-variable/noto-serif-tc/wght.css';
+import '@fontsource-variable/noto-sans-tc/wght.css';
 import './styles.css';
 
 declare global {
@@ -12,7 +20,15 @@ declare global {
     // point. Gated by isMobileRuntime() — the same exposure level as the
     // existing __plainshelfZoom Wails test hook (useAppZoom.ts) — so it also
     // ships in native Android builds, not just this browser preview.
-    __plainshelfTestHooks?: { provider: BookshelfProvider };
+    //
+    // bookshelfWriter comes with it so a test can assert that the shelf write
+    // surface is refused. Reaching for a write method on `provider` no longer
+    // demonstrates that: on mobile the method is absent, so the call fails as a
+    // TypeError rather than as the refusal being tested for.
+    __plainshelfTestHooks?: {
+      provider: BookshelfProvider;
+      bookshelfWriter: () => WritableBookshelfProvider;
+    };
   }
 }
 
@@ -22,12 +38,12 @@ async function bootstrap(): Promise<void> {
   // On the native mobile shell, restore the saved server URL, token, and shelf
   // before mounting so the first API call already has a configured client.
   if (isMobileRuntime()) {
-    const { initMobileConfig } = await import('./providers/mobileConfig');
+    const { initMobileConfig } = await import('@/providers/mobileConfig');
     await initMobileConfig();
 
     // e2e-only: expose the provider for driving download/removeDownload/
     // getDownloadState, which have no UI trigger to click in tests.
-    window.__plainshelfTestHooks = { provider: getBookshelfProvider() };
+    window.__plainshelfTestHooks = { provider: getBookshelfProvider(), bookshelfWriter };
   }
 
   createApp(App).use(router).mount('#app');

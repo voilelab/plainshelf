@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -19,11 +22,14 @@ import (
 )
 
 type DesktopApp struct {
-	app               *server.App
-	apiHandler        http.Handler
-	ctx               context.Context
-	shelvesConfigPath string
-	startupErr        error
+	app                 *server.App
+	apiHandler          http.Handler
+	ctx                 context.Context
+	shelvesConfigPath   string
+	readHistoryPath     string
+	readingProgressPath string
+	readingStatsPath    string
+	startupErr          error
 }
 
 type DesktopImportBookResult struct {
@@ -96,6 +102,109 @@ func (a *DesktopApp) GetAPIHandler() http.Handler {
 		})
 	}
 	return a.apiHandler
+}
+
+// Reading history, progress, and stats are per-device state: they never reach the
+// server, and on the desktop they must not depend on WebView storage either
+// (clearing site data or a WebView profile change would take them with it).
+// Each is stored as a JSON file next to shelves.json instead.
+//
+// The document formats belong to the frontend (frontend/src/storage/*), which
+// owns the single implementation of merging and trimming; this side only checks
+// that what it is handed is JSON of a sane size, and persists it.
+const maxDeviceDocumentBytes = 1 << 20
+
+// readDeviceDocument returns the stored document, or an empty string when this
+// device has not stored one yet.
+func readDeviceDocument(path string) (string, error) {
+	if path == "" {
+		return "", util.NewError("desktop storage is not ready")
+	}
+
+	bs, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	return string(bs), nil
+}
+
+// writeDeviceDocument replaces the stored document. The write is atomic (temp
+// file plus rename) so an interrupted write cannot leave a half-written
+// document behind.
+func writeDeviceDocument(path, label, doc string) error {
+	if path == "" {
+		return util.NewError("desktop storage is not ready")
+	}
+	if len(doc) > maxDeviceDocumentBytes {
+		return util.Errorf("%s document is too large: %d bytes", label, len(doc))
+	}
+	if !json.Valid([]byte(doc)) {
+		return util.Errorf("%s document is not valid JSON", label)
+	}
+
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".device_document-*.json")
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	tmpPath := tmp.Name()
+
+	if _, err := tmp.WriteString(doc); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return util.Errorf("%w", err)
+	}
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return util.Errorf("%w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return util.Errorf("%w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		return util.Errorf("%w", err)
+	}
+
+	return nil
+}
+
+// ReadReadHistory returns the stored reading-history document, or an empty
+// string when this device has not stored one yet.
+func (a *DesktopApp) ReadReadHistory() (string, error) {
+	return readDeviceDocument(a.readHistoryPath)
+}
+
+// WriteReadHistory replaces the stored reading-history document.
+func (a *DesktopApp) WriteReadHistory(doc string) error {
+	return writeDeviceDocument(a.readHistoryPath, "read history", doc)
+}
+
+// ReadReadingProgress returns the stored reading-progress document, or an empty
+// string when this device has not stored one yet.
+func (a *DesktopApp) ReadReadingProgress() (string, error) {
+	return readDeviceDocument(a.readingProgressPath)
+}
+
+// WriteReadingProgress replaces the stored reading-progress document.
+func (a *DesktopApp) WriteReadingProgress(doc string) error {
+	return writeDeviceDocument(a.readingProgressPath, "reading progress", doc)
+}
+
+// ReadReadingStats returns the stored reading-stats document, or an empty
+// string when this device has not stored one yet.
+func (a *DesktopApp) ReadReadingStats() (string, error) {
+	return readDeviceDocument(a.readingStatsPath)
+}
+
+// WriteReadingStats replaces the stored reading-stats document.
+func (a *DesktopApp) WriteReadingStats(doc string) error {
+	return writeDeviceDocument(a.readingStatsPath, "reading stats", doc)
 }
 
 func (a *DesktopApp) OpenExternalURL(rawURL string) error {
@@ -188,8 +297,8 @@ func bookOpenDialogOptions() wailsruntime.OpenDialogOptions {
 		Title: "Select books to import",
 		Filters: []wailsruntime.FileFilter{
 			{
-				DisplayName: "Text Files (*.txt, *.md)",
-				Pattern:     "*.txt;*.md",
+				DisplayName: "Books (*.txt, *.md, *.epub)",
+				Pattern:     "*.txt;*.md;*.epub",
 			},
 		},
 	}
@@ -620,10 +729,9 @@ func (a *DesktopApp) startServer() error {
 				Prefix: "app",
 			},
 		},
-		Shelves:          shelves,
-		StorePath:        filepath.Join(dataRoot, "store"),
-		CoverToJPG:       true,
-		ReadHistoryLimit: 100,
+		Shelves:    shelves,
+		StorePath:  filepath.Join(dataRoot, "store"),
+		CoverToJPG: true,
 		Security: &server.SecurityConf{
 			Mode: server.SecurityModeNone,
 		},
@@ -640,6 +748,9 @@ func (a *DesktopApp) startServer() error {
 	}
 
 	a.shelvesConfigPath = shelvesConfigPath
+	a.readHistoryPath = filepath.Join(dataRoot, "read_history.json")
+	a.readingProgressPath = filepath.Join(dataRoot, "reading_progress.json")
+	a.readingStatsPath = filepath.Join(dataRoot, "reading_stats.json")
 	a.app = app
 	return nil
 }

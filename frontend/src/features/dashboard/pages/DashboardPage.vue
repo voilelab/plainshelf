@@ -11,6 +11,7 @@
     <p v-else-if="loading" class="loading">{{ t('dashboard.loading') }}</p>
 
     <div v-else class="dashboard-grid">
+      <ReadingHeatmap class="dashboard-cell dashboard-cell-heatmap" :data="heatmapData" />
       <StatsCards
         class="dashboard-cell dashboard-cell-stats"
         :total-books="totalBooks"
@@ -22,20 +23,19 @@
       />
       <TagCloud class="dashboard-cell dashboard-cell-tags" :tag-counts="tagCounts" />
       <RandomBook class="dashboard-cell dashboard-cell-random" :books="books" />
-      <ReadingHeatmap class="dashboard-cell dashboard-cell-heatmap" :data="heatmapData" />
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
 import { onMounted } from 'vue';
-import StatsCards from '../components/StatsCards.vue';
-import TagCloud from '../components/TagCloud.vue';
-import RandomBook from '../components/RandomBook.vue';
-import ReadingHeatmap from '../components/ReadingHeatmap.vue';
-import { useDashboardData } from '../composables/useDashboardData';
-import { useDocumentTitle } from '../../../composables/useDocumentTitle';
-import { useI18n } from '../../../i18n';
+import StatsCards from '@/features/dashboard/components/StatsCards.vue';
+import TagCloud from '@/features/dashboard/components/TagCloud.vue';
+import RandomBook from '@/features/dashboard/components/RandomBook.vue';
+import ReadingHeatmap from '@/features/dashboard/components/ReadingHeatmap.vue';
+import { useDashboardData } from '@/features/dashboard/composables/useDashboardData';
+import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
 
@@ -84,6 +84,11 @@ onMounted(() => {
 .dashboard-cell-stats,
 .dashboard-cell-heatmap {
   grid-column: 1 / -1;
+}
+
+.dashboard-cell-heatmap {
+  box-sizing: border-box;
+  width: 100%;
 }
 
 @media (max-width: 900px) {

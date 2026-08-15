@@ -1,26 +1,32 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import MainLayout from './layouts/MainLayout.vue';
-import ReaderLayout from './layouts/ReaderLayout.vue';
-import { APP_TITLE } from './composables/useDocumentTitle';
-import { isMobileRuntime } from './providers/runtime';
-import { loadMobileConnectionConfig } from './providers/mobileConfig';
+import MainLayout from '@/layouts/MainLayout.vue';
+import ReaderLayout from '@/layouts/ReaderLayout.vue';
+import { APP_TITLE } from '@/composables/useDocumentTitle';
+import { isMobileRuntime } from '@/providers/runtime';
+import { isShelfEntryUsable, loadShelfEntries } from '@/providers/mobileConfig';
+import {
+  MOBILE_BLOCKED_ROUTES,
+  stripMobileBlockedQuery
+} from '@/features/mobile/utils/blockedRoutes';
 
-const DashboardPage = () => import('./features/dashboard/pages/DashboardPage.vue');
-const LibraryPage = () => import('./pages/LibraryPage.vue');
-const BookDetailPage = () => import('./pages/BookDetailPage.vue');
-const EditBookPage = () => import('./pages/EditBookPage.vue');
-const DuplicateContentPage = () => import('./pages/DuplicateContentPage.vue');
-const MissingAuthorPage = () => import('./pages/MissingAuthorPage.vue');
-const MissingCoverPage = () => import('./pages/MissingCoverPage.vue');
-const MissingLanguagePage = () => import('./pages/MissingLanguagePage.vue');
-const ReadHistoryPage = () => import('./pages/ReadHistoryPage.vue');
-const TrashPage = () => import('./pages/TrashPage.vue');
-const DownloadsPage = () => import('./pages/DownloadsPage.vue');
-const AdminLogsPage = () => import('./pages/AdminLogsPage.vue');
-const SettingsPage = () => import('./pages/SettingsPage.vue');
-const MobileConnectPage = () => import('./pages/MobileConnectPage.vue');
-const ReaderPage = () => import('./features/reader/views/ReaderView.vue');
-const EditBookSourcesPage = () => import('./features/sources/pages/EditBookSourcesPage.vue');
+const DashboardPage = () => import('@/features/dashboard/pages/DashboardPage.vue');
+const LibraryPage = () => import('@/features/library/pages/LibraryPage.vue');
+const BookDetailPage = () => import('@/features/library/pages/BookDetailPage.vue');
+const EditBookPage = () => import('@/features/library/pages/EditBookPage.vue');
+const DuplicateContentPage = () => import('@/features/maintenance/pages/DuplicateContentPage.vue');
+const MissingAuthorPage = () => import('@/features/maintenance/pages/MissingAuthorPage.vue');
+const MissingCoverPage = () => import('@/features/maintenance/pages/MissingCoverPage.vue');
+const MissingLanguagePage = () => import('@/features/maintenance/pages/MissingLanguagePage.vue');
+const LowCharCountPage = () => import('@/features/maintenance/pages/LowCharCountPage.vue');
+const ReadHistoryPage = () => import('@/pages/ReadHistoryPage.vue');
+const TrashPage = () => import('@/features/trash/pages/TrashPage.vue');
+const DownloadsPage = () => import('@/features/mobile/pages/DownloadsPage.vue');
+const AdminLogsPage = () => import('@/features/settings/pages/AdminLogsPage.vue');
+const SettingsPage = () => import('@/features/settings/pages/SettingsPage.vue');
+const MobileShelvesPage = () => import('@/features/mobile/pages/MobileShelvesPage.vue');
+const MobileConnectPage = () => import('@/features/mobile/pages/MobileConnectPage.vue');
+const ReaderPage = () => import('@/features/reader/pages/ReaderView.vue');
+const EditBookSourcesPage = () => import('@/features/sources/pages/EditBookSourcesPage.vue');
 
 const ROUTES_WITH_OWN_TITLE = new Set([
   'dashboard',
@@ -34,9 +40,15 @@ const ROUTES_WITH_OWN_TITLE = new Set([
   'admin-logs',
   'settings',
   'maintenance-missing-author',
-  'maintenance-missing-cover'
+  'maintenance-missing-cover',
+  'maintenance-missing-language',
+  'maintenance-low-char-count'
 ]);
 
+// A route that edits the shelf, administers the server, or opens a write
+// surface from a query parameter also belongs in
+// features/mobile/utils/blockedRoutes.ts — the mobile shell is a read-only
+// reading client and the guard below is what keeps it that way.
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -46,7 +58,17 @@ const router = createRouter({
     },
     {
       path: '/connect',
-      name: 'mobile-connect',
+      name: 'mobile-shelves',
+      component: MobileShelvesPage
+    },
+    {
+      path: '/connect/new',
+      name: 'mobile-shelf-add',
+      component: MobileConnectPage
+    },
+    {
+      path: '/connect/:entryId',
+      name: 'mobile-shelf-edit',
       component: MobileConnectPage
     },
     {
@@ -122,6 +144,11 @@ const router = createRouter({
           component: MissingLanguagePage
         },
         {
+          path: 'books/maintenance/low-char-count',
+          name: 'maintenance-low-char-count',
+          component: LowCharCountPage
+        },
+        {
           path: 'admin/logs',
           name: 'admin-logs',
           component: AdminLogsPage
@@ -160,21 +187,42 @@ const router = createRouter({
   ]
 });
 
+// The shelf-list routes: reachable even with nothing configured, because they
+// are where the user configures it.
+const MOBILE_SETUP_ROUTES = new Set(['mobile-shelves', 'mobile-shelf-add', 'mobile-shelf-edit']);
+
 // On the native mobile shell there is no backend to inject a server address or
-// selected shelf, so gate every route behind a completed connection setup.
+// selected shelf, so gate every route behind a usable shelf entry.
 router.beforeEach(async (to) => {
   if (!isMobileRuntime()) {
     return true;
   }
-  if (to.name === 'mobile-connect') {
+  if (typeof to.name === 'string' && MOBILE_SETUP_ROUTES.has(to.name)) {
     return true;
   }
 
-  const { serverUrl, shelfId } = await loadMobileConnectionConfig();
-  // Token is intentionally not required: reads work without it, only writes need one.
-  if (!serverUrl || !shelfId) {
-    return { name: 'mobile-connect' };
+  const { entries, activeEntryID } = await loadShelfEntries();
+  const activeEntry = entries.find((entry) => entry.id === activeEntryID) ?? null;
+  if (!(await isShelfEntryUsable(activeEntry))) {
+    // Carries the query so a redirect cannot drop `?mobile-shell-preview=1`,
+    // which is what keeps the browser preview in mobile mode across the
+    // reload that saving a shelf performs.
+    return { name: 'mobile-shelves', query: to.query };
   }
+
+  if (typeof to.name === 'string' && MOBILE_BLOCKED_ROUTES.has(to.name)) {
+    return { name: 'library' };
+  }
+
+  // Route names cannot express every write surface: `/import` redirects to
+  // `/books?import=1`, and the modal opens off that query alone. Strip it here
+  // so the whole mobile route policy lives in this guard. LibraryPage keeps its
+  // own check as well — that is deliberate depth, not duplication.
+  const sanitizedQuery = stripMobileBlockedQuery(to.query);
+  if (sanitizedQuery) {
+    return { path: to.path, query: sanitizedQuery, hash: to.hash, replace: true };
+  }
+
   return true;
 });
 

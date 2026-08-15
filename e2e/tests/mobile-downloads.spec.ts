@@ -19,15 +19,14 @@ import {
 // `?mobile-shell-preview=1` — same approach as mobile-storage.spec.ts.
 //
 // Assertions stay backend-agnostic: they go through the provider's public API
-// (getDownloadState / listDownloadedBookEntries) and the rendered UI, not any
-// particular cache's internal storage. The production mobile cache is
-// filesystem-backed (FilesystemMobileBookCache), not the `plainshelf-mobile`
-// IndexedDB database, so poking IDB stores directly would assert on nothing.
+// (getDownloadState / listDownloadedBookEntries) and the rendered UI, not the
+// cache's internal storage — which is filesystem-backed
+// (FilesystemMobileBookCache), under the app-private Directory.Data.
 
 /**
  * Uploads a cover for the book currently open on the (desktop-mode) detail
  * page via drag-and-drop — same flow as import-book.spec.ts. Covers must be
- * set in desktop mode: mobile-preview mode cannot POST without a token.
+ * set in desktop mode: the mobile client is read-only and cannot POST.
  */
 async function uploadCoverOnDetailPage(page: Page): Promise<void> {
   const coverTarget = page.locator('.cover-drop-target');
@@ -36,7 +35,7 @@ async function uploadCoverOnDetailPage(page: Page): Promise<void> {
   const dataTransfer = await createCoverDataTransfer(page);
   try {
     await coverTarget.dispatchEvent('dragenter', { dataTransfer });
-    await expect(page.getByText('Drop image to update cover')).toBeVisible();
+    await expect(page.getByText('Drop the image to update the cover')).toBeVisible();
     await coverTarget.dispatchEvent('dragover', { dataTransfer });
     await coverTarget.dispatchEvent('drop', { dataTransfer });
   } finally {
@@ -47,6 +46,7 @@ async function uploadCoverOnDetailPage(page: Page): Promise<void> {
   await expect(confirmDialog).toBeVisible();
   await confirmDialog.getByRole('button', { name: 'Update cover' }).click();
   await expect(confirmDialog).not.toBeVisible();
+  await page.getByRole('button', { name: 'Cover options' }).click();
   await expect(page.getByRole('button', { name: 'Remove' })).toBeEnabled();
 }
 
@@ -54,8 +54,8 @@ test('downloads a book to the device from the detail page button', async ({ page
   const server = await startServer();
 
   try {
-    // Import and set a cover in the ordinary desktop flow first (mobile mode
-    // cannot POST without a token — see mobile-storage.spec.ts).
+    // Import and set a cover in the ordinary desktop flow first (the mobile
+    // client is read-only — see mobile-read-only.spec.ts).
     await page.goto(`${server.baseUrl}/books`);
     await importHelloBook(page);
     await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();

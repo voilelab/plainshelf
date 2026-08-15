@@ -48,9 +48,64 @@ For the operational model, initial metadata scan, and tuning guidance, see [Shel
 3. **New/deleted books may not be reflected immediately**
    - During scan throttling windows, refresh focuses on existing cache entries.
 
+### 4) pCloud shelf on the Android client
+
+1. **The book list never updates on its own**
+   - Walking the shelf costs one recursive listing plus a request per book, so
+     the client scans once and then reads the stored copy on the device. A book
+     added, removed, or renamed from another device appears only after
+     **Update book list** on the library toolbar.
+
+2. **A stale list can make a book fail to open**
+   - The stored copy holds the pCloud file references used to open a book. If
+     the book was replaced or moved on pCloud since the last update, opening it
+     fails until the list is updated. Downloaded books are unaffected — they are
+     read from the device.
+
+3. **Change detection is stat-based**
+   - During an update, cached book metadata is reused while a file's size and
+     modification time are unchanged, so an edit that preserves both is not
+     noticed.
+
+---
+
+## Concurrent change handling
+
+PlainShelf is designed for single-user operation. Shelf-level structural
+operations (creating, moving, trashing, and restoring books) are serialized by a
+file lock, and every file write goes through an atomic temp-file-then-rename
+pattern, so a crash cannot leave a half-written file in the shelf. However,
+per-book mutations (editing metadata, changing covers, updating source content)
+are not individually serialized, which produces the following known behavior.
+
+### Last-writer-wins on the same book
+
+When two requests modify the same book concurrently — for example, editing
+metadata in two browser tabs — both read the current `book.json`, apply their
+changes independently, and write the result back. The second write silently
+replaces the first, and the first edit's changes are lost without warning.
+
+Each write stages through its own uniquely named temp file, so concurrent
+writers do not collide with each other and no request fails for that reason;
+the file left on disk is always one complete write. What is not guaranteed is
+that it contains both edits.
+
+Affected operations: metadata updates, cover uploads/deletes, source content
+updates, split-config changes, and current-source selection.
+
+### Practical impact
+
+For normal single-user, single-tab usage this limitation does not surface.
+It can matter when multiple browser tabs or clients edit the same book at the
+same time.
+
+In that case the shelf directory remains structurally valid and every file is
+individually complete, but logical consistency across concurrent edits (no lost
+updates) is not guaranteed.
+
 ---
 
 ## Notes
 
-- These are design trade-offs in the current cache strategy (scan throttling + per-book stale checks).
+- These are design trade-offs in the current cache strategy (scan throttling + per-book stale checks) and write-side concurrency model.
 - For personal Tailscale with one server, the main concerns are usually external folder mutations and scan interval tuning, not distributed cache coherence.

@@ -11,6 +11,7 @@ const serverShutdownTimeoutMs = 10_000;
 
 export type ServerEnv = {
   baseUrl: string;
+  shelfDir: string;
   logs: string[];
   dispose: () => Promise<void>;
 };
@@ -61,7 +62,6 @@ function buildConfigYAML(port: number, shelfDir: string, storeDir: string): stri
     `      lib_root: ${JSON.stringify(shelfDir)}`,
     `  store_path: ${JSON.stringify(storeDir)}`,
     '  cover_to_jpg: false',
-    '  read_history_limit: 10',
     '  security:',
     '    mode: "local_token"',
     '    protect_read: false',
@@ -180,6 +180,7 @@ export async function startServer(): Promise<ServerEnv> {
 
   return {
     baseUrl,
+    shelfDir,
     logs,
     dispose: async () => {
       await stopServer(server);

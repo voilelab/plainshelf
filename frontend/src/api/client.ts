@@ -1,3 +1,5 @@
+import { isMobileRuntime } from '@/providers/runtime';
+
 export class ApiError extends Error {
   status?: number;
   statusText?: string;
@@ -68,8 +70,21 @@ export function getApiBase(): string {
   return apiBase;
 }
 
+/**
+ * The canonical form of a base URL.
+ *
+ * Exported because the stored value and the applied value have to agree
+ * exactly: on the mobile shell the applied base is half of the key that scopes
+ * device-local book data (providers/cacheScope.ts), so a caller deriving that
+ * key from a saved shelf must normalize the same way this does — a trailing
+ * slash left on one side and stripped on the other points at a different cache.
+ */
+export function normalizeApiBase(base: string): string {
+  return String(base ?? '').trim().replace(/\/+$/, '');
+}
+
 export function setApiBase(base: string): void {
-  apiBase = String(base ?? '').trim().replace(/\/+$/, '');
+  apiBase = normalizeApiBase(base);
 }
 
 const SHELF_STORAGE_KEY = 'plainshelf.shelf';
@@ -97,6 +112,9 @@ export function assertApiMode(): void {
 }
 
 
+// The mobile shell is a reading client and issues no writes at all: reading
+// history, reading progress and reading stats are all stored on the device and
+// never sent. Every mutation is rejected before it leaves the device.
 function assertWritableRequest(init?: RequestInit): void {
   const method = String(init?.method ?? 'GET').toUpperCase();
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
@@ -104,9 +122,16 @@ function assertWritableRequest(init?: RequestInit): void {
   }
 
   // Dynamic import is avoided here to prevent a module cycle during startup.
+  // isMobileRuntime is imported from providers/runtime rather than the providers
+  // barrel for the same reason: the barrel pulls in the providers, which import
+  // this module.
   const readOnly = typeof window !== 'undefined' && window.__PLAINSHELF_READ_ONLY__ === true;
   if (readOnly) {
     throw new ApiError('Server is in read-only mode. Write operations are disabled.');
+  }
+
+  if (isMobileRuntime()) {
+    throw new ApiError('The mobile app is read-only. Write operations are disabled.');
   }
 }
 
@@ -141,8 +166,24 @@ export function buildShelfApiPath(path: string, shelfID = getActiveShelfID()): s
 }
 
 async function getApiToken(): Promise<string> {
-  const electronToken = await window.plainshelf?.getApiToken?.();
-  return String(electronToken ?? window.__PLAINSHELF_SECURITY__?.token ?? ENV_API_TOKEN).trim();
+  // First non-empty source wins. `??` alone is not enough: the mobile provider
+  // resolves getApiToken to '' when no token is stored, and an empty string is
+  // not nullish, so it would mask a server-injected token instead of falling
+  // through to it.
+  const candidates = [
+    await window.plainshelf?.getApiToken?.(),
+    window.__PLAINSHELF_SECURITY__?.token,
+    ENV_API_TOKEN
+  ];
+
+  for (const candidate of candidates) {
+    const token = String(candidate ?? '').trim();
+    if (token) {
+      return token;
+    }
+  }
+
+  return '';
 }
 
 async function withApiHeaders(init?: RequestInit): Promise<RequestInit> {
@@ -192,7 +233,20 @@ async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = FET
   }
 }
 
-export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+export interface FetchJsonOptions {
+  // acceptStatuses lists non-2xx statuses whose JSON body is a normal result
+  // rather than an error, such as a 409 that reports the task already running.
+  acceptStatuses?: number[];
+  // Uploads and other streaming requests can legitimately outlive the normal
+  // metadata request timeout, especially when the shelf is on a sync mount.
+  timeoutMs?: number;
+}
+
+export async function fetchJson<T>(
+  path: string,
+  init?: RequestInit,
+  options?: FetchJsonOptions
+): Promise<T> {
   assertApiMode();
   assertWritableRequest(init);
 
@@ -205,9 +259,9 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
   const res = await fetchWithTimeout(buildApiUrl(path), {
     ...requestInit,
     headers
-  });
+  }, options?.timeoutMs ?? FETCH_TIMEOUT_MS);
 
-  if (!res.ok) {
+  if (!res.ok && !options?.acceptStatuses?.includes(res.status)) {
     throw await toApiError(res);
   }
 

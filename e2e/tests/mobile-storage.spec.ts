@@ -3,6 +3,7 @@ import { startServer } from './support/server';
 import { importHelloBook, importBookFromPath, anotherFixturePath } from './support/books';
 import {
   connectMobile,
+  openMobileShelfEditor,
   reopenMobileAt,
   getBookIdByTitle,
   downloadBookViaHook,
@@ -14,11 +15,12 @@ import {
   getSourceContentViaHook,
   goOffline,
   goOnline,
-  goServerUnreachable
+  goServerUnreachable,
+  showMobileReaderControls
 } from './support/mobile';
 
 // These tests exercise the Android app storage layer (frontend/src/providers/
-// mobileConfig.ts + indexedDbMobileBookCache.ts + mobileBookshelfProvider.ts)
+// mobileConfig.ts + filesystemMobileBookCache.ts + mobileBookshelfProvider.ts)
 // by running the desktop Chromium build with `?mobile-shell-preview=1`, which
 // makes isMobileRuntime() true and swaps in the same MobileBookshelfProvider
 // used by the native Capacitor shell — no Android emulator required.
@@ -48,12 +50,12 @@ test('does not resurrect the saved shelf when validating an unreachable server o
   try {
     await connectMobile(page, server.baseUrl);
 
-    // Revisit the connect page (Settings → "Edit connection" in the real app)
-    // and point it at a server that cannot be reached. The failed shelf fetch
-    // must NOT fall back to the previously saved shelf id (that fallback is
-    // reserved for the routed content layouts), otherwise "Save and continue"
-    // would persist a stale shelf for a server that was never validated.
-    await reopenMobileAt(page, server.baseUrl, '/connect');
+    // Reopen the saved shelf for editing (Settings → "Manage shelves" in the
+    // real app) and point it at a server that cannot be reached. The failed
+    // shelf fetch must NOT fall back to the previously saved shelf id,
+    // otherwise "Save and continue" would persist a stale shelf for a server
+    // that was never validated.
+    await openMobileShelfEditor(page, server.baseUrl);
     const urlInput = page.locator('input[type="url"]');
     await expect(urlInput).toHaveValue(server.baseUrl);
 
@@ -72,9 +74,9 @@ test('downloads books for offline reading and isolates removal between books', a
 
   try {
     // Import two books in the ordinary (non-mobile) desktop flow first: the
-    // mobile provider wraps the same server via ServerBookshelfProvider, and
-    // mobile mode cannot POST without a token (writes need one, reads don't —
-    // see frontend/src/providers/mobileConfig.ts), so importing is done here.
+    // mobile provider wraps the same server via ServerBookshelfProvider, but
+    // the mobile client is read-only and cannot POST (see
+    // mobile-read-only.spec.ts), so importing is done here.
     await page.goto(`${server.baseUrl}/books`);
     await importHelloBook(page);
     await importBookFromPath(page, anotherFixturePath);
@@ -103,7 +105,7 @@ test('downloads books for offline reading and isolates removal between books', a
     await expect(helloRow).toBeVisible();
     await helloRow.click();
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await expect(page.getByRole('button', { name: 'Read' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start reading' })).toBeVisible();
     // Enter the reader via a top-level navigation instead of clicking "Read":
     // the in-app push drops the ?mobile-shell-preview=1 param, so the freshly
     // mounting ReaderLayout would see isMobileRuntime() === false. This is an
@@ -137,7 +139,7 @@ test('downloads books for offline reading and isolates removal between books', a
   }
 });
 
-test('persists reading progress (bookmark) across app restarts', async ({ page }) => {
+test('automatically persists reading progress across app restarts', async ({ page }) => {
   const server = await startServer();
 
   try {
@@ -151,14 +153,24 @@ test('persists reading progress (bookmark) across app restarts', async ({ page }
     await reopenMobileAt(page, server.baseUrl, `/reader/${helloId}`);
     await expect(page.getByText('Hello from PlainShelf E2E.')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Save bookmark' }).click();
-    await expect(page.getByRole('button', { name: 'Save bookmark' })).toBeEnabled();
+    await showMobileReaderControls(page);
+    await expect(page.getByRole('button', { name: /bookmark/i })).toHaveCount(0);
 
-    // hello.txt is short enough that scrolling may not move char_offset off
-    // 0, so assert a progress record exists rather than a strict > 0 offset.
+    // The fixture is intentionally short, so give its scroll container a
+    // deterministic viewport for this storage test and dispatch the same event
+    // a real scroll produces. Leaving through Vue Router then awaits autosave's
+    // final flush before the reader unmounts.
+    await page.locator('.reader-content').evaluate((element) => {
+      Object.defineProperty(element, 'scrollHeight', { configurable: true, value: 1_000 });
+      Object.defineProperty(element, 'clientHeight', { configurable: true, value: 100 });
+      Object.defineProperty(element, 'scrollTop', { configurable: true, value: 450, writable: true });
+      element.dispatchEvent(new Event('scroll'));
+    });
+    await page.getByRole('link', { name: 'Back to detail' }).click();
+    await expect(page).toHaveURL(new RegExp(`/books/${helloId}$`));
+
     const savedProgress = await getReadProgressViaHook(page, helloId);
-    expect(savedProgress).toBeTruthy();
-    expect(typeof savedProgress.char_offset).toBe('number');
+    expect(savedProgress.char_offset).toBeGreaterThan(0);
 
     await goOffline(page);
     await reopenMobileAt(page, server.baseUrl, `/reader/${helloId}`);

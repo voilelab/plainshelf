@@ -1,78 +1,16 @@
 import { onScopeDispose, ref, watch, type Ref } from 'vue';
-import { getBookshelfProvider } from '../providers';
-import { isMobileRuntime } from '../providers/runtime';
-import bookcover from '../assets/bookcover.svg';
+import { getBookshelfProvider } from '@/providers';
+import { isMobileRuntime } from '@/providers/runtime';
+import { acquireObjectUrl, releaseObjectUrl } from '@/composables/objectUrlCache';
+import bookcover from '@/assets/bookcover.svg';
 
 export interface UseCoverSrcResult {
   src: Ref<string>;
   handleError: () => void;
 }
 
-interface ObjectUrlEntry {
-  url?: string;
-  promise?: Promise<string>;
-  refCount: number;
-}
-
-// Module-level so object URLs are shared and ref-counted across every
-// BookCoverImg instance that ends up showing the same book/cacheKey pair
-// (e.g. the same book appearing in both the shelf grid and a "recently
-// read" list), not just within a single component instance.
-const objectUrlCache = new Map<string, ObjectUrlEntry>();
-
 function objectUrlCacheKey(bookId: string, cacheKey: number | undefined): string {
-  return `${bookId}::${cacheKey ?? ''}`;
-}
-
-function acquireObjectUrl(bookId: string, cacheKey: number | undefined): { key: string; promise: Promise<string> } {
-  const key = objectUrlCacheKey(bookId, cacheKey);
-  let entry = objectUrlCache.get(key);
-  if (!entry) {
-    entry = { refCount: 0 };
-    objectUrlCache.set(key, entry);
-  }
-  entry.refCount += 1;
-
-  if (entry.url) {
-    return { key, promise: Promise.resolve(entry.url) };
-  }
-
-  if (!entry.promise) {
-    entry.promise = getBookshelfProvider()
-      .getBookCover(bookId)
-      .then((blob) => {
-        const url = URL.createObjectURL(blob);
-        const current = objectUrlCache.get(key);
-        if (current) {
-          current.url = url;
-        }
-        return url;
-      })
-      .catch((err) => {
-        // Do not cache a failed fetch: drop the entry so a later attempt
-        // (next mount, or the server becoming reachable again) can retry
-        // instead of being stuck replaying the same rejection.
-        objectUrlCache.delete(key);
-        throw err;
-      });
-  }
-
-  return { key, promise: entry.promise };
-}
-
-function releaseObjectUrl(key: string): void {
-  const entry = objectUrlCache.get(key);
-  if (!entry) {
-    return;
-  }
-  entry.refCount -= 1;
-  if (entry.refCount > 0) {
-    return;
-  }
-  if (entry.url) {
-    URL.revokeObjectURL(entry.url);
-  }
-  objectUrlCache.delete(key);
+  return `cover::${bookId}::${cacheKey ?? ''}`;
 }
 
 function isShelfCoverApiUrl(url: string): boolean {
@@ -131,10 +69,10 @@ export function useCoverSrc(
       return;
     }
 
-    const { key, promise } = acquireObjectUrl(bookId(), cacheKeyGetter());
+    const key = objectUrlCacheKey(bookId(), cacheKeyGetter());
     activeKey = key;
 
-    promise
+    acquireObjectUrl(key, () => getBookshelfProvider().getBookCover(bookId()))
       .then((objectUrl) => {
         if (token === requestToken) {
           src.value = objectUrl;

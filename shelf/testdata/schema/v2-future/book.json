@@ -1,0 +1,14 @@
+{
+  "schema_version": 2,
+  "id": "schema-v2-c3",
+  "title": "Book From The Future",
+  "cover": "",
+  "authors": [
+    "F. Uture"
+  ],
+  "language": "en",
+  "comments": "",
+  "star": 3,
+  "reading_direction": "vertical-rl",
+  "current_source": ""
+}

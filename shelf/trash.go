@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
@@ -129,6 +130,38 @@ func (s *Shelf) ListTrashedBooks() ([]*TrashedBook, error) {
 	return items, nil
 }
 
+// ListTrashedBookIDs returns the ID of every book directory under the trash.
+//
+// Unlike ListTrashedBooks it neither opens the books nor reads their trash
+// metadata, so it also reports entries that cannot be opened. Emptying the
+// trash must see those, otherwise it would leave behind directories the UI
+// never showed.
+func (s *Shelf) ListTrashedBookIDs() ([]string, error) {
+	if err := s.shelfLock.RLock(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer s.shelfLock.Unlock()
+
+	entries, err := s.dbRoot.ReadDir(trashBooksFolder)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, util.Errorf("%w", err)
+	}
+
+	ids := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasSuffix(entry.Name(), bookExtension) {
+			continue
+		}
+		ids = append(ids, strings.TrimSuffix(entry.Name(), bookExtension))
+	}
+
+	sort.Strings(ids)
+	return ids, nil
+}
+
 func (s *Shelf) RestoreTrashedBook(bookID string) error {
 	if err := s.shelfLock.Lock(); err != nil {
 		return util.Errorf("%w", err)
@@ -238,7 +271,7 @@ func (s *Shelf) writeTrashMeta(bookPath string, meta *trashMeta) error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	if err := s.dbRoot.WriteFile(path.Join(bookPath, trashMetaFile), payload); err != nil {
+	if err := fsutil.WriteFileAtomic(s.dbRoot, path.Join(bookPath, trashMetaFile), payload); err != nil {
 		return util.Errorf("%w", err)
 	}
 	return nil

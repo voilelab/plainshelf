@@ -1,18 +1,20 @@
 import { expect, test } from '@playwright/test';
 import { startServer } from './support/server';
-import { helloFixturePath, importBookFromPath } from './support/books';
+import { anotherFixturePath, helloFixturePath, importBookFromPath } from './support/books';
 import {
   addLayer,
   emptyDataTransfer,
+  expandLayersSection,
   layerRow,
   layersQueryRegex,
+  layersSectionToggle,
   openLayerContextMenu,
   selectAllBooks,
   selectLayer,
   switchToCardView
 } from './support/layers';
 
-test('creates a nested layer in one submission and filters books by exact layer', async ({ page }) => {
+test('creates a nested layer level by level and filters books by exact layer', async ({ page }) => {
   const server = await startServer();
 
   try {
@@ -41,6 +43,96 @@ test('creates a nested layer in one submission and filters books by exact layer'
     // "novels" itself has no directly-attached books (only its "scifi" child does).
     await selectLayer(page, 'novels');
     await expect(page.getByText('No books in novels.')).toBeVisible();
+  } finally {
+    await server.dispose();
+  }
+});
+
+test('returns to the layer the book lived in after moving it to trash', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await addLayer(page, 'novels/scifi');
+    await expect(page).toHaveURL(layersQueryRegex('novels/scifi'));
+
+    await importBookFromPath(page, helloFixturePath);
+    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
+    await expect(page).toHaveURL(/\/books\/[^/]+$/);
+
+    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('menuitem', { name: 'Move to Trash' }).click();
+    const deleteDialog = page.getByRole('dialog', { name: 'Confirm delete' });
+    await expect(deleteDialog).toBeVisible();
+    await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();
+
+    // Back to the book's own layer, not the unfiltered library. The library is
+    // empty afterwards, so the layer is proven by the URL and the page heading
+    // rather than by the "No books in <layer>." empty state.
+    await expect(page).toHaveURL(layersQueryRegex('novels/scifi'));
+    await expect(page.getByRole('heading', { name: 'novels/scifi', exact: true })).toBeVisible();
+    await expect(page.getByText('0 books', { exact: true })).toBeVisible();
+  } finally {
+    await server.dispose();
+  }
+});
+
+test('the root layer node filters to books sitting directly at the shelf root', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importBookFromPath(page, helloFixturePath);
+
+    await addLayer(page, 'novels');
+    await importBookFromPath(page, anotherFixturePath);
+
+    await selectAllBooks(page);
+    await expect(page.getByText('2 books', { exact: true })).toBeVisible();
+
+    // "/" is a narrower filter than "All books": it keeps the root-level book
+    // only, so its layers query must survive rather than collapsing to no query.
+    await selectLayer(page, '/');
+    await expect(page).toHaveURL(layersQueryRegex('/'));
+    await expect(page.getByText('1 books', { exact: true })).toBeVisible();
+    await expect(
+      page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true })
+    ).toBeVisible();
+    await expect(
+      page.locator('.book-list-row').getByRole('heading', { name: 'another', exact: true })
+    ).toHaveCount(0);
+  } finally {
+    await server.dispose();
+  }
+});
+
+test('the new layer dialog rejects a name containing a separator and cancels cleanly', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
+
+    await expandLayersSection(page);
+    await page.getByRole('button', { name: 'Add layer', exact: true }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'New layer' });
+    const nameInput = dialog.getByLabel('Layer name');
+    const createButton = dialog.getByRole('button', { name: 'Create', exact: true });
+    await expect(createButton).toBeDisabled();
+
+    await nameInput.fill('novels/scifi');
+    await expect(dialog.getByRole('alert')).toHaveText('Layer name cannot be empty or contain /.');
+    await expect(createButton).toBeDisabled();
+
+    await nameInput.fill('novels');
+    await expect(dialog.getByRole('alert')).toHaveCount(0);
+    await expect(createButton).toBeEnabled();
+
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+    await expect(page).not.toHaveURL(/[?&]layers=/);
+    await expect(layerRow(page, 'novels')).toHaveCount(0);
   } finally {
     await server.dispose();
   }
@@ -198,6 +290,92 @@ test('moves a top-level layer under another layer via drag and drop', async ({ p
 
     await bRowAfter.getByRole('button', { name: 'B', exact: true }).click();
     await expect(page).toHaveURL(layersQueryRegex('A/B'));
+  } finally {
+    await server.dispose();
+  }
+});
+
+test('the new layer dialog scrolls its parent select instead of overflowing the page', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
+
+    // Enough top-level layers that the option list exceeds the 320px cap.
+    for (let i = 0; i < 10; i += 1) {
+      await addLayer(page, `layer-${i}`);
+    }
+
+    await expandLayersSection(page);
+    await page.getByRole('button', { name: 'Add layer', exact: true }).click();
+
+    const dialog = page.getByRole('dialog', { name: 'New layer' });
+    await dialog.getByRole('combobox').click();
+
+    const listbox = page.getByRole('listbox');
+    await expect(listbox).toBeVisible();
+
+    const box = await listbox.boundingBox();
+    if (!box) {
+      throw new Error('expected the parent select listbox to have a bounding box');
+    }
+
+    const viewportSize = page.viewportSize();
+    if (!viewportSize) {
+      throw new Error('expected a viewport size');
+    }
+
+    // The height cap holds, and the menu stays fully on screen.
+    expect(box.height).toBeLessThanOrEqual(320);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(viewportSize.height);
+
+    // The options really do overflow, so the list is genuinely scrollable.
+    const scrollable = await page
+      .locator('[data-reka-select-viewport]')
+      .evaluate((el) => el.scrollHeight > el.clientHeight);
+    expect(scrollable).toBe(true);
+
+    // The last option is still reachable and selectable.
+    await page.getByRole('option', { name: 'layer-9', exact: true }).click();
+    await expect(dialog.getByRole('combobox')).toContainText('layer-9');
+  } finally {
+    await server.dispose();
+  }
+});
+
+test('disables layer creation while the layer list is unavailable', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    // Fail only the layer listing, so the rest of the shell still loads.
+    await page.route('**/api/shelves/*/layers', (route) =>
+      route.request().method() === 'GET' ? route.fulfill({ status: 500, body: 'boom' }) : route.fallback()
+    );
+
+    await page.goto(`${server.baseUrl}/books`);
+
+    // Not expandLayersSection(): that waits for the Layers nav, which LayerTree
+    // never renders while the fetch is failing. Expand the section directly.
+    const sectionToggle = layersSectionToggle(page);
+    if ((await sectionToggle.getAttribute('aria-expanded')) === 'false') {
+      await sectionToggle.click();
+    }
+
+    // The sidebar refuses to show the tree, so creation must be refused too --
+    // otherwise the dialog would offer parent options from a list the sidebar
+    // itself is declining to show (a previous shelf's, after a shelf switch).
+    await expect(page.getByRole('button', { name: 'Retry', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add layer', exact: true })).toBeDisabled();
+
+    await page.unroute('**/api/shelves/*/layers');
+    await page.getByRole('button', { name: 'Retry', exact: true }).click();
+
+    const addLayerButton = page.getByRole('button', { name: 'Add layer', exact: true });
+    await expect(addLayerButton).toBeEnabled();
+    await addLayerButton.click();
+    await expect(page.getByRole('dialog', { name: 'New layer' })).toBeVisible();
   } finally {
     await server.dispose();
   }

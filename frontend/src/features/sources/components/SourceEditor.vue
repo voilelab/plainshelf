@@ -43,6 +43,14 @@
         />
       </label>
 
+      <label v-if="focused" class="control-field scope-field">
+        <span class="field-label">Scope</span>
+        <select v-model="findScope" class="control-input" :disabled="isEditorDisabled">
+          <option value="section">Current chapter</option>
+          <option value="source">Whole source</option>
+        </select>
+      </label>
+
       <div class="find-actions">
         <button class="button" type="button" :disabled="disableFind" @click="findPrevious">Prev</button>
         <button class="button" type="button" :disabled="disableFind" @click="findNext">Next</button>
@@ -53,23 +61,34 @@
           Replace all
         </button>
       </div>
+      <p class="find-status" role="status" aria-live="polite">{{ findStatus }}</p>
     </div>
 
     <div v-if="error" class="error editor-error" role="alert">{{ error }}</div>
 
     <textarea
+      :key="viewRange?.key ?? 0"
       ref="textareaRef"
       class="source-content-textarea"
-      :value="modelValue"
+      :value="visibleContent"
       :disabled="!sourceId || loading || saving"
       spellcheck="false"
+      @compositionstart="onCompositionStart"
+      @compositionend="onCompositionEnd"
       @input="onInput"
     ></textarea>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useSourceTextEditor } from '@/features/sources/composables/useSourceTextEditor';
+import type {
+  SourceDocumentEdit,
+  SourceEditorAdapter,
+  SourceEditorViewRange,
+  SourceFindScope
+} from '@/features/sources/types/editorAdapter';
 
 const props = defineProps<{
   modelValue: string;
@@ -80,112 +99,62 @@ const props = defineProps<{
   error?: string;
   isCurrent?: boolean;
   settingCurrent?: boolean;
+  viewRange?: SourceEditorViewRange | null;
+  focused?: boolean;
 }>();
 
 const emit = defineEmits<{
-  'update:modelValue': [value: string];
+  documentEdit: [edit: SourceDocumentEdit];
+  requestViewOffset: [offset: number, affinity: 'forward' | 'backward'];
   setCurrent: [];
 }>();
 
-const textareaRef = ref<HTMLTextAreaElement | null>(null);
-const findQuery = ref('');
-const replaceQuery = ref('');
-
 const isEditorDisabled = computed(() => !props.sourceId || props.loading || props.saving);
-const disableFind = computed(() => isEditorDisabled.value || !findQuery.value);
+const findScope = ref<SourceFindScope>(props.focused ? 'section' : 'source');
 
 watch(
-  () => props.sourceId,
-  () => {
-    findQuery.value = '';
-    replaceQuery.value = '';
+  () => props.focused,
+  (focused, wasFocused) => {
+    if (!focused) findScope.value = 'source';
+    else if (!wasFocused) findScope.value = 'section';
   }
 );
 
-function onInput(event: Event): void {
-  const target = event.target as HTMLTextAreaElement;
-  emit('update:modelValue', target.value);
-}
+const {
+  textareaRef,
+  visibleContent,
+  findQuery,
+  replaceQuery,
+  findStatus,
+  disableFind,
+  onInput,
+  onCompositionStart,
+  onCompositionEnd,
+  findNext,
+  findPrevious,
+  replaceNext,
+  onReplaceInputKeydown,
+  replaceAll,
+  getCurrentParagraphStart,
+  replaceRange,
+  jumpToOffset,
+  focusAndSelect
+} = useSourceTextEditor({
+  content: () => props.modelValue,
+  sourceId: () => props.sourceId,
+  disabled: () => isEditorDisabled.value,
+  viewRange: () => props.viewRange ?? null,
+  findScope: () => findScope.value,
+  updateDocument: (edit) => emit('documentEdit', edit),
+  requestViewOffset: (offset, affinity) => emit('requestViewOffset', offset, affinity)
+});
 
-function findNext(): void {
-  findMatch(false);
-}
-
-function findPrevious(): void {
-  findMatch(true);
-}
-
-function findMatch(backward: boolean): void {
-  const textarea = textareaRef.value;
-  const query = findQuery.value;
-  if (!textarea || !query || isEditorDisabled.value) {
-    return;
-  }
-
-  const text = textarea.value;
-  let index = backward
-    ? text.slice(0, textarea.selectionStart).lastIndexOf(query)
-    : text.indexOf(query, textarea.selectionEnd);
-
-  if (index === -1) {
-    index = backward ? text.lastIndexOf(query) : text.indexOf(query);
-  }
-
-  if (index === -1) {
-    return;
-  }
-
-  textarea.focus();
-  textarea.setSelectionRange(index, index + query.length);
-}
-
-function replaceNext(): void {
-  const textarea = textareaRef.value;
-  const query = findQuery.value;
-  if (!textarea || !query || isEditorDisabled.value) {
-    return;
-  }
-
-  const selection = textarea.value.slice(textarea.selectionStart, textarea.selectionEnd);
-  if (selection === query) {
-    const before = textarea.value.slice(0, textarea.selectionStart);
-    const after = textarea.value.slice(textarea.selectionEnd);
-    const replaced = `${before}${replaceQuery.value}${after}`;
-    const nextCursor = before.length + replaceQuery.value.length;
-    emit('update:modelValue', replaced);
-    void nextTick(() => {
-      const current = textareaRef.value;
-      if (!current) {
-        return;
-      }
-      current.focus();
-      current.setSelectionRange(nextCursor, nextCursor);
-      findNext();
-    });
-    return;
-  }
-
-  findNext();
-}
-
-function onReplaceInputKeydown(event: KeyboardEvent): void {
-  if (event.key !== 'Enter' || event.isComposing) {
-    return;
-  }
-
-  event.preventDefault();
-  replaceNext();
-}
-
-function replaceAll(): void {
-  const query = findQuery.value;
-  if (!query || isEditorDisabled.value) {
-    return;
-  }
-
-  const source = textareaRef.value?.value ?? props.modelValue;
-  emit('update:modelValue', source.split(query).join(replaceQuery.value));
-}
+defineExpose<SourceEditorAdapter>({
+  getCurrentParagraphStart,
+  replaceRange,
+  jumpToOffset,
+  focusAndSelect
+});
 </script>
 
 <style scoped>
@@ -237,11 +206,10 @@ function replaceAll(): void {
 }
 
 .source-content-textarea {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
   min-height: 0;
   width: 100%;
-  height: 100%;
   box-sizing: border-box;
   border: none;
   outline: none;
@@ -263,13 +231,18 @@ function replaceAll(): void {
 }
 
 .editor-find-replace {
+  flex-shrink: 0;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(140px, auto) auto;
   gap: 8px 10px;
   align-items: end;
   background: #f8fafc;
+}
+
+.scope-field {
+  min-width: 140px;
 }
 
 .control-field {
@@ -296,7 +269,16 @@ function replaceAll(): void {
   gap: 8px;
 }
 
+.find-status {
+  color: var(--muted);
+  font-size: 12px;
+  grid-column: 1 / -1;
+  margin: 0;
+  min-height: 1.2em;
+}
+
 .editor-error {
+  flex-shrink: 0;
   margin: 10px 12px;
 }
 

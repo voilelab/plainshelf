@@ -1,10 +1,8 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"reflect"
@@ -24,13 +22,7 @@ func (app *App) HandleAPIGetLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	err = json.NewEncoder(w).Encode(logs)
-	if err != nil {
-		app.Error("failed to encode response", "error", err)
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
-		return
-	}
+	app.writeJSON(w, http.StatusOK, logs)
 }
 
 // GET /api/logs/{log_id}/content
@@ -53,17 +45,7 @@ func (app *App) HandleAPIGetLogContent(w http.ResponseWriter, r *http.Request) {
 	}
 	defer fp.Close()
 
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	if fi, statErr := fp.Stat(); statErr == nil && fi.Size() == 0 {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	_, err = io.Copy(w, fp)
-	if err != nil {
-		app.Error("failed to write log file content", "error", err, "log_id", logID, "filename", entry.Filename)
-		http.Error(w, "failed to write log file content", http.StatusInternalServerError)
-		return
-	}
+	app.streamTextFile(w, fp, "failed to write log file content", "log_id", logID, "filename", entry.Filename)
 }
 
 func (app *App) logSources() []logutil.SourceConf {

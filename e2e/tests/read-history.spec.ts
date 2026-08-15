@@ -11,12 +11,13 @@ test('should record a book in read history after visiting the reader and clear i
     await page.goto(`${server.baseUrl}/books`);
     await importHelloBook(page);
 
-    // Visit the reader — this triggers addReadHistory on the server
+    // Visit the reader — this records the book in the browser's own storage,
+    // not on the server
     await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await page.getByRole('button', { name: 'Read' }).click();
+    await page.getByRole('button', { name: 'Start reading' }).click();
     await expect(page).toHaveURL(/\/reader\/[^/]+$/);
-    // Wait for content to load so the read-history POST has been sent
+    // Wait for content to load so the history entry has been written
     await expect(page.getByText('Hello from PlainShelf E2E.')).toBeVisible();
 
     // Navigate to the read history page
@@ -25,6 +26,19 @@ test('should record a book in read history after visiting the reader and clear i
 
     // The book should appear in the list
     await expect(page.getByRole('heading', { name: 'hello', exact: true })).toBeVisible();
+
+    // …and still be there after a reload, proving it was persisted locally
+    // rather than kept in memory for the session.
+    await page.reload();
+    const historyBook = page.getByRole('heading', { name: 'hello', exact: true });
+    await expect(historyBook).toBeVisible();
+
+    // Clicking a history item should open the same book detail route as the
+    // main library collection.
+    await historyBook.click();
+    await expect(page).toHaveURL(/\/books\/[^/?]+$/);
+
+    await page.goto(`${server.baseUrl}/read-history`);
 
     // Clear history
     await page.getByRole('button', { name: 'Clear history' }).click();

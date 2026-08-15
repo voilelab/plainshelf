@@ -9,7 +9,9 @@ import (
 	"strings"
 
 	"github.com/voilelab/plainshelf/frontend"
+	"github.com/voilelab/plainshelf/internal/epub"
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server/store"
 	"github.com/voilelab/plainshelf/shelf"
@@ -19,22 +21,39 @@ type App struct {
 	logutil.Logger
 
 	shelfManager *shelf.ShelfManager
+	taskChains   taskutil.Pool
 	storeDB      *store.DB
 	spaFS        fs.FS
 	spaHandler   http.Handler
+
+	// bookCacheWriterID names this installation in the book cache every shelf
+	// exports; see book_cache_writer.go. Held so shelves opened after startup
+	// get it too.
+	bookCacheWriterID string
 
 	conf     *AppConf
 	security *Security
 }
 
+type WorkerConf struct {
+	Logger logutil.LogConf `yaml:"logger"`
+	MaxLen int             `yaml:"max_len"`
+
+	// MaxKeep bounds how many finished task chains stay queryable through the
+	// task chain API. Zero selects the package default.
+	MaxKeep int `yaml:"max_keep"`
+}
+
 type AppConf struct {
-	Logger           logutil.LogConf          `yaml:"logger"`
-	Shelves          []*shelf.ShelfConfWithID `yaml:"shelves"`
-	StorePath        string                   `yaml:"store_path"`
-	CoverToJPG       bool                     `yaml:"cover_to_jpg"`
-	ReadHistoryLimit int                      `yaml:"read_history_limit"`
-	ReadOnly         bool                     `yaml:"read_only"`
-	Security         *SecurityConf            `yaml:"security"`
+	Logger             logutil.LogConf          `yaml:"logger"`
+	Shelves            []*shelf.ShelfConfWithID `yaml:"shelves"`
+	Worker             *WorkerConf              `yaml:"worker"`
+	StorePath          string                   `yaml:"store_path"`
+	CoverToJPG         bool                     `yaml:"cover_to_jpg"`
+	DefaultSplitConfig *shelf.SplitConfig       `yaml:"default_split_config"`
+	EPUBImportStrategy *epub.Strategy           `yaml:"epub_import_strategy"`
+	ReadOnly           bool                     `yaml:"read_only"`
+	Security           *SecurityConf            `yaml:"security"`
 }
 
 func NewApp(conf *AppConf) (*App, error) {
@@ -60,6 +79,25 @@ func NewApp(conf *AppConf) (*App, error) {
 			logger.Close()
 		}
 	}()
+	// Opened before the shelves because each shelf is configured with the book
+	// cache writer ID this store holds, and a shelf starts scanning — and
+	// exporting — the moment it is created.
+	storeDB, err := store.New(conf.StorePath)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer func() {
+		if failure {
+			if closeErr := storeDB.Close(); closeErr != nil {
+				logger.Error("failed to close store after failed startup", "error", closeErr)
+			}
+		}
+	}()
+
+	writerID, err := resolveBookCacheWriterID(storeDB)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
 
 	shelfManager := shelf.NewShelfManager()
 	defer func() {
@@ -69,33 +107,64 @@ func NewApp(conf *AppConf) (*App, error) {
 	}()
 
 	for _, conf := range conf.Shelves {
-		if err := shelfManager.AddShelf(*conf); err != nil {
+		shelfConf := *conf
+		// An operator who pins the ID in the config keeps it; everyone else gets
+		// this installation's generated one.
+		if shelfConf.BookCacheWriterID == "" {
+			shelfConf.BookCacheWriterID = writerID
+		}
+		if err := shelfManager.AddShelf(shelfConf); err != nil {
 			return nil, util.Errorf("%w", err)
 		}
 	}
 
-	storeDB, err := store.New(conf.StorePath)
+	// The worker section is optional; every field has a usable zero value.
+	workerConf := conf.Worker
+	if workerConf == nil {
+		workerConf = &WorkerConf{}
+	}
+
+	workLogger, err := logutil.NewLogger(&workerConf.Logger)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
+	defer func() {
+		if failure {
+			workLogger.Close()
+		}
+	}()
+
+	taskChains := taskutil.NewPool(taskutil.NewWorker(workerConf.MaxLen, workLogger), workerConf.MaxKeep)
 
 	failure = false
 	return &App{
 		Logger:       *logger,
 		shelfManager: shelfManager,
+		taskChains:   taskChains,
 		storeDB:      storeDB,
 		spaFS:        frontend.WebFS,
 		spaHandler:   http.FileServerFS(frontend.WebFS),
 		conf:         conf,
 		security:     security,
+
+		bookCacheWriterID: writerID,
 	}, nil
 }
 
 func (app *App) Start() error {
+	app.taskChains.Start()
 	return nil
 }
 
+// AddShelf opens a shelf after startup — the desktop app's "add shelf" flow.
+//
+// The writer ID has to be applied here as well as in NewApp: a shelf added this
+// way otherwise exports nothing until the app is restarted, and its manual
+// export fails.
 func (app *App) AddShelf(conf shelf.ShelfConfWithID) error {
+	if conf.BookCacheWriterID == "" {
+		conf.BookCacheWriterID = app.bookCacheWriterID
+	}
 	return app.shelfManager.AddShelf(conf)
 }
 
@@ -111,8 +180,9 @@ func (app *App) Close() error {
 	err1 := app.storeDB.Close()
 	err2 := app.shelfManager.Close()
 	err3 := app.Logger.Close()
+	err4 := app.taskChains.Close()
 
-	err := errors.Join(err1, err2, err3)
+	err := errors.Join(err1, err2, err3, err4)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -204,13 +274,16 @@ func (app *App) Serve(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books", app.HandleAPIGetBooks)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books", app.HandleAPICreateBook)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/book-batches", app.HandleAPIBookBatch)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/content-stat-refreshes", app.HandleAPIRefreshContentStats)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/book-cache-exports", app.HandleAPIExportBookCache)
 
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/import", app.HandleAPIImportBook)
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/duplicate", app.HandleAPIFindDuplicateBooks)
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPIGetBook)
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPIUpdateBook)
-	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPIDeleteBook)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPITrashBook)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/trash", app.HandleAPITrashBook)
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources", app.HandleAPIGetBookSources)
@@ -220,6 +293,10 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/current", app.HandleAPISetCurrentBookSource)
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", app.HandleAPIGetBookSourceContent)
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", app.HandleAPIUpdateBookSourceContent)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/refresh", app.HandleAPIRefreshBookSourceMeta)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}", app.HandleAPIGetBookSourceAsset)
+	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}", app.HandleAPIUpdateBookSourceAsset)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}", app.HandleAPIDeleteBookSourceAsset)
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/cover", app.HandleAPIGetBookCover)
 	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/cover", app.HandleAPIUpdateBookCover)
@@ -230,6 +307,7 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}/split_config", app.HandleAPIUpdateBookSplitConfig)
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/trash/books", app.HandleAPIGetTrashedBooks)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/trash/empty", app.HandleAPIEmptyTrash)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/trash/books/{book_id}/restore", app.HandleAPIRestoreTrashedBook)
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/trash/books/{book_id}", app.HandleAPIDeleteTrashedBook)
 
@@ -239,19 +317,9 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/layers/{layer_path...}", app.HandleAPIRenameLayer)
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/layers/{layer_path...}", app.HandleAPIDeleteLayer)
 
-	// Store API
+	// Task API
 
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/marks/{book_id}", app.HandleAPIGetMarks)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/marks/{book_id}", app.HandleAPIUpdateMarks)
-
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/read_history", app.HandleAPIGetReadHistory)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/read_history", app.HandleAPIUpdateReadHistory)
-	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/read_history", app.HandleAPIClearReadHistory)
-
-	// Stats API
-
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/reading_activity", app.HandleAPIGetReadingActivity)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/reading_activity", app.HandleAPIPostReadingActivity)
+	mux.HandleFunc("GET /api/taskchains/{taskchain_id}", app.HandleAPIGetTaskChain)
 
 	// Log API
 
@@ -263,9 +331,15 @@ func (app *App) Serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/setting/cover_to_jpg", app.HandleGetSettingCoverToJPG)
 	mux.HandleFunc("POST /api/setting/cover_to_jpg", app.HandleSetSettingCoverToJPG)
 	mux.HandleFunc("DELETE /api/setting/cover_to_jpg", app.HandleDeleteSettingCoverToJPG)
-	mux.HandleFunc("GET /api/setting/read_history_limit", app.HandleGetSettingReadHistoryLimit)
-	mux.HandleFunc("POST /api/setting/read_history_limit", app.HandleSetSettingReadHistoryLimit)
-	mux.HandleFunc("DELETE /api/setting/read_history_limit", app.HandleDeleteSettingReadHistoryLimit)
+	mux.HandleFunc("GET /api/setting/default_split_config", app.HandleGetSettingDefaultSplitConfig)
+	mux.HandleFunc("POST /api/setting/default_split_config", app.HandleSetSettingDefaultSplitConfig)
+	mux.HandleFunc("DELETE /api/setting/default_split_config", app.HandleDeleteSettingDefaultSplitConfig)
+	mux.HandleFunc("GET /api/setting/epub_import_strategy", app.HandleGetSettingEPUBImportStrategy)
+	mux.HandleFunc("POST /api/setting/epub_import_strategy", app.HandleSetSettingEPUBImportStrategy)
+	mux.HandleFunc("DELETE /api/setting/epub_import_strategy", app.HandleDeleteSettingEPUBImportStrategy)
+
+	// Unknown API paths must not fall through to the SPA index.
+	mux.HandleFunc("GET /api/{path...}", http.NotFound)
 
 	mux.HandleFunc("GET /{path...}", app.HandleSPAFallback)
 }
@@ -287,11 +361,10 @@ func (app *App) rejectReadOnlyWrite(w http.ResponseWriter, r *http.Request) bool
 		return false
 	}
 
-	switch r.Method {
-	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
-		http.Error(w, "server is in read-only mode", http.StatusForbidden)
-		return true
-	default:
+	if !isMutatingMethod(r.Method) {
 		return false
 	}
+
+	http.Error(w, "server is in read-only mode", http.StatusForbidden)
+	return true
 }

@@ -51,15 +51,25 @@ application store when the container is replaced.
 A server configuration needs two durable locations:
 
 - `app_conf.shelves[].lib_root` stores book packages and shelf runtime state.
-- `app_conf.store_path` stores application-level state.
+- `app_conf.store_path` stores server settings; reading progress, history, and time stay on each client device.
 
 The sample configuration works for local development. Before a long-running
 deployment, review [Local Shelf File Source](configuring-local-shelf.md).
 
 ## 3. Add a book
 
-Open the library, choose **Import**, and select a `.txt` or `.md` file. You can
-then edit its metadata, add a cover, place it in a folder, and open the reader.
+Open the library, choose **Import**, and select a `.txt`, `.md` or `.epub` file.
+You can then edit its metadata, add a cover, place it in a folder, and open the
+reader.
+
+On the Android app and narrow browser screens, the reader uses an immersive
+layout: tap the center of the page to show or hide its controls, swipe left for
+the next chapter, and swipe right for the previous chapter. Vertical swipes
+continue to scroll within the current chapter.
+
+An EPUB is converted to text as it is imported; see
+[EPUB Import](epub-import.md) for what is kept, what is dropped, and how to
+choose the output layout.
 
 PlainShelf creates a `.bookpkg` directory in the shelf and assigns a stable book
 ID. Renaming the title or moving the book between folders does not change that

@@ -48,6 +48,20 @@ func (s *Shelf) GetBook(bookID string) (*Book, error) {
 // NewBook creates a new book with the given ID and title, and returns the created Book instance.
 // It is an atomic operation that ensures the book is fully created before it becomes visible in the library.
 func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
+	return s.NewBookWith(layers, title, nil)
+}
+
+// NewBookWith creates a new book and, if init is non-nil, runs it against the
+// book while the book is still staged in the app temp folder.
+//
+// The book only becomes visible under the books folder after init succeeds, so
+// a failing init - or a crash partway through it - leaves nothing behind but
+// temp data, which is wiped on the next startup. This is what makes multi-step
+// creation (book, source, current-source pointer, metadata) transactional.
+//
+// init runs while the exclusive shelf lock is held, so it should not perform
+// long-running work beyond writing the book's own initial content.
+func (s *Shelf) NewBookWith(layers Layers, title string, init func(*Book) error) (*Book, error) {
 	if err := validateLayers(layers); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -83,9 +97,17 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 		bookID = fmt.Sprintf("%s-%d", baseBookID, i)
 	}
 
-	_, err = createBook(s.dbRoot, s.Logger, bookPath, bookID, title)
+	stagedBook, err := createBook(s.dbRoot, s.Logger, bookPath, bookID, title)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
+	}
+
+	// Everything init writes lands inside the staging folder, which the deferred
+	// RemoveAll above discards if init fails.
+	if init != nil {
+		if err := init(stagedBook); err != nil {
+			return nil, util.Errorf("%w", err)
+		}
 	}
 
 	layerPath := path.Join(booksFolder, path.Join(layers...))

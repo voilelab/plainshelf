@@ -4,12 +4,23 @@
       <ContextMenuTrigger as-child>
         <article
           class="book-card-view panel"
-          :class="{ 'is-dragging': draggingBookId === book.id }"
-          draggable="true"
-          @click="emit('select', book.id)"
-          @dragstart="onDragStart($event, book)"
-          @dragend="onDragEnd"
+          :class="{ 'is-dragging': interactions.draggingBookId.value === book.id, 'is-selected': selectedIds.has(book.id) }"
+          :draggable="selectable && !mobileSelection"
+          :aria-selected="selectedIds.has(book.id)"
+          @click="interactions.onClick($event, book.id)"
+          @pointerdown="interactions.onPointerDown($event, book.id)"
+          @pointermove="interactions.onPointerMove"
+          @pointerup="interactions.cancelLongPress"
+          @pointercancel="interactions.cancelLongPress"
+          @dragstart="interactions.onDragStart($event, book)"
+          @dragend="interactions.onDragEnd"
         >
+          <BookSelectionCheckbox
+            v-if="selectable"
+            :selected="selectedIds.has(book.id)"
+            :label="t('bookCollection.selection.selectBook', { title: book.title })"
+            @toggle="emit('toggle-selection', book.id)"
+          />
           <BookCoverImg :book-id="book.id" :cover-url="book.cover_url" :alt="book.title" class="book-card-cover" />
 
           <div class="book-card-body">
@@ -26,36 +37,46 @@
       </ContextMenuTrigger>
       <ContextMenuPortal>
         <ContextMenuContent class="reka-menu">
-          <ContextMenuItem class="reka-menu-item" @select="emit('read', book.id)">
-            {{ t('bookCollection.contextMenu.read') }}
-          </ContextMenuItem>
-          <ContextMenuItem class="reka-menu-item" @select="emit('select', book.id)">
-            {{ t('bookCollection.contextMenu.openDetail') }}
-          </ContextMenuItem>
-          <ContextMenuItem
-            v-if="canOpenBookFolder"
-            class="reka-menu-item"
-            @select="emit('open-book-folder', book.id)"
-          >
-            {{ t('bookCollection.contextMenu.openBookFolder') }}
-          </ContextMenuItem>
-          <ContextMenuItem class="reka-menu-item" @select="emit('download', book.id)">
-            {{ t('bookCollection.contextMenu.download') }}
-          </ContextMenuItem>
-          <ContextMenuItem
-            v-if="!readOnly"
-            class="reka-menu-item"
-            @select="emit('edit', book.id)"
-          >
-            {{ t('bookCollection.contextMenu.edit') }}
-          </ContextMenuItem>
-          <ContextMenuItem
-            v-if="!readOnly"
-            class="reka-menu-item danger"
-            @select="emit('delete', book.id)"
-          >
-            {{ t('bookCollection.contextMenu.delete') }}
-          </ContextMenuItem>
+          <template v-if="selectedIds.has(book.id) && selectedIds.size > 1">
+            <ContextMenuItem class="reka-menu-item" @select="emit('batch-move')">
+              {{ t('bookCollection.selection.move') }}
+            </ContextMenuItem>
+            <ContextMenuItem class="reka-menu-item danger" @select="emit('batch-delete')">
+              {{ t('bookCollection.selection.trash') }}
+            </ContextMenuItem>
+          </template>
+          <template v-else>
+            <ContextMenuItem class="reka-menu-item" @select="emit('read', book.id)">
+              {{ t('bookCollection.contextMenu.read') }}
+            </ContextMenuItem>
+            <ContextMenuItem class="reka-menu-item" @select="emit('activate', { id: book.id, metaKey: false, ctrlKey: false, shiftKey: false })">
+              {{ t('bookCollection.contextMenu.openDetail') }}
+            </ContextMenuItem>
+            <ContextMenuItem
+              v-if="canOpenBookFolder"
+              class="reka-menu-item"
+              @select="emit('open-book-folder', book.id)"
+            >
+              {{ t('bookCollection.contextMenu.openBookFolder') }}
+            </ContextMenuItem>
+            <ContextMenuItem class="reka-menu-item" @select="emit('download', book.id)">
+              {{ t('bookCollection.contextMenu.download') }}
+            </ContextMenuItem>
+            <ContextMenuItem
+              v-if="!readOnly"
+              class="reka-menu-item"
+              @select="emit('edit', book.id)"
+            >
+              {{ t('bookCollection.contextMenu.edit') }}
+            </ContextMenuItem>
+            <ContextMenuItem
+              v-if="!readOnly"
+              class="reka-menu-item danger"
+              @select="emit('delete', book.id)"
+            >
+              {{ t('bookCollection.contextMenu.delete') }}
+            </ContextMenuItem>
+          </template>
         </ContextMenuContent>
       </ContextMenuPortal>
     </ContextMenuRoot>
@@ -63,7 +84,6 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue';
 import {
   ContextMenuContent,
   ContextMenuItem,
@@ -72,23 +92,35 @@ import {
   ContextMenuTrigger
 } from 'reka-ui';
 import BookCoverImg from './BookCoverImg.vue';
-import bookcover from '../assets/bookcover.svg';
-import type { Book } from '../types/book';
-import { getLayerPath, layerPathLabel } from '../utils/layers';
-import { formatDateLabel } from '../utils/date';
-import { useI18n } from '../i18n';
+import BookSelectionCheckbox from './BookSelectionCheckbox.vue';
+import { useBookItemInteractions } from '@/composables/useBookItemInteractions';
+import type { Book } from '@/types/book';
+import type { BookActivation } from '@/types/bookSelection';
+import { getLayerPath, layerPathLabel } from '@/utils/layers';
+import { formatDateLabel } from '@/utils/date';
+import { useI18n } from '@/i18n';
 
 const props = withDefaults(defineProps<{
   books: Book[];
   canOpenBookFolder?: boolean;
   readOnly?: boolean;
+  selectable?: boolean;
+  mobileSelection?: boolean;
+  selectedIds?: ReadonlySet<string>;
 }>(), {
   canOpenBookFolder: false,
-  readOnly: false
+  readOnly: false,
+  selectable: false,
+  mobileSelection: false,
+  selectedIds: () => new Set<string>()
 });
 
 const emit = defineEmits<{
-  (event: 'select', id: string): void;
+  (event: 'activate', payload: BookActivation): void;
+  (event: 'toggle-selection', id: string): void;
+  (event: 'long-press', id: string): void;
+  (event: 'batch-move'): void;
+  (event: 'batch-delete'): void;
   (event: 'edit', id: string): void;
   (event: 'read', id: string): void;
   (event: 'open-book-folder', id: string): void;
@@ -97,9 +129,12 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-
-const draggingBookId = ref<string | null>(null);
-const dragPreviewEl = ref<HTMLElement | null>(null);
+const interactions = useBookItemInteractions({
+  mobile: () => props.mobileSelection,
+  selectedIds: () => props.selectedIds,
+  onActivate: (payload) => emit('activate', payload),
+  onLongPress: (id) => emit('long-press', id)
+});
 
 function layerLabel(book: Book): string {
   const path = getLayerPath(book);
@@ -121,57 +156,6 @@ function primaryDateLabel(book: Book): string {
   return rawValue ? formatDateLabel(rawValue) : 'No date';
 }
 
-function createDragPreview(book: Book): HTMLElement {
-  const el = document.createElement('div');
-  const coverEl = document.createElement('img');
-  const titleEl = document.createElement('div');
-  const authorEl = document.createElement('div');
-
-  el.className = 'book-drag-preview';
-
-  coverEl.src = book.cover_url || bookcover;
-  coverEl.alt = '';
-  coverEl.className = 'book-drag-preview-cover';
-
-  titleEl.textContent = book.title;
-  titleEl.className = 'book-drag-preview-title';
-
-  authorEl.textContent = (book.authors ?? []).join(', ');
-  authorEl.className = 'book-drag-preview-author';
-
-  el.append(coverEl, titleEl, authorEl);
-  return el;
-}
-
-function cleanupDragPreview(): void {
-  dragPreviewEl.value?.remove();
-  dragPreviewEl.value = null;
-}
-
-function onDragStart(event: DragEvent, book: Book): void {
-  draggingBookId.value = book.id;
-  cleanupDragPreview();
-
-  event.dataTransfer?.setData('application/x-plainshelf-book-id', book.id);
-  event.dataTransfer?.setData('text/plain', book.id);
-
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move';
-    const preview = createDragPreview(book);
-    document.body.appendChild(preview);
-    dragPreviewEl.value = preview;
-    event.dataTransfer.setDragImage(preview, 60, 80);
-  }
-}
-
-function onDragEnd(): void {
-  draggingBookId.value = null;
-  cleanupDragPreview();
-}
-
-onBeforeUnmount(() => {
-  cleanupDragPreview();
-});
 </script>
 
 <style scoped>
@@ -182,12 +166,18 @@ onBeforeUnmount(() => {
 }
 
 .book-card-view {
+  position: relative;
   cursor: pointer;
   display: grid;
   grid-template-rows: 220px minmax(0, 1fr);
   min-height: 100%;
   overflow: hidden;
   transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.book-card-view.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .book-card-view:hover {
@@ -285,50 +275,4 @@ onBeforeUnmount(() => {
   }
 }
 
-:global(.book-drag-preview) {
-  position: fixed;
-  top: -1000px;
-  left: -1000px;
-  width: 120px;
-  height: 160px;
-  padding: 8px;
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
-  overflow: hidden;
-  pointer-events: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  box-sizing: border-box;
-}
-
-:global(.book-drag-preview-cover) {
-  width: 100%;
-  height: 96px;
-  object-fit: cover;
-  border-radius: 8px;
-  background: #f2f2f2;
-}
-
-:global(.book-drag-preview-title) {
-  color: #0f172a;
-  display: -webkit-box;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.2;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-}
-
-:global(.book-drag-preview-author) {
-  color: #475569;
-  font-size: 11px;
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 </style>

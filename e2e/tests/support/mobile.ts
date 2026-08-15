@@ -2,9 +2,9 @@ import { expect, type Page } from '@playwright/test';
 
 // Mirrors frontend/src/providers/runtime.ts isMobileRuntime()'s desktop-browser
 // escape hatch: appending this to a top-level goto makes the app boot with the
-// mobile (Capacitor) provider on ordinary desktop Chromium, so the IndexedDB
-// offline cache + Preferences-backed connection config get exercised without
-// an Android emulator.
+// mobile (Capacitor) provider on ordinary desktop Chromium, so the offline
+// book cache + Preferences-backed connection config get exercised without an
+// Android emulator.
 export const MOBILE_PREVIEW_QUERY = 'mobile-shell-preview=1';
 
 // Minimal shape of the hook attached by frontend/src/main.ts
@@ -14,6 +14,9 @@ export const MOBILE_PREVIEW_QUERY = 'mobile-shell-preview=1';
 declare global {
   interface Window {
     __plainshelfTestHooks?: {
+      // Refuses and throws when the active provider cannot write; the mobile
+      // shell's provider never can.
+      bookshelfWriter: () => unknown;
       provider: {
         listBooks: (
           page?: number,
@@ -41,9 +44,20 @@ function withMobilePreview(route: string): string {
 }
 
 /**
- * Drives the mobile connect flow (`/connect`) end to end: fills in the server
- * URL (and optional token), loads the shelf list, picks a shelf from the
+ * Drives the mobile shelf setup (`/connect`) end to end: fills in the server
+ * URL (and optional token), loads the server's shelves, picks one from the
  * reka-ui Select, and saves — landing on `/books`.
+ *
+ * `/connect` is the device's shelf list, but a device with no shelves has
+ * nothing to list, so it renders the add form directly — which is what this
+ * walks. Use openMobileShelfEditor() to reach the form once a shelf exists.
+ *
+ * The token does not grant write access — the client is read-only regardless.
+ * It is needed only when the server sets `protect_read` (server/security.go),
+ * which makes reads require one too; without it a native install can connect
+ * untokened. It used to be needed unconditionally, for reading-telemetry POSTs
+ * that no longer exist: the read_history and reading_activity APIs were removed
+ * when both moved to device storage.
  */
 export async function connectMobile(
   page: Page,
@@ -75,17 +89,95 @@ export async function connectMobile(
   await expect(saveButton).toBeEnabled();
   await saveButton.click();
   await expect(page).toHaveURL(/\/books(\?|$)/);
+  await waitForMobileApp(page);
+}
+
+/**
+ * Waits for the mobile shell to have finished booting.
+ *
+ * Saving a shelf restarts the app (features/mobile/utils/reloadIntoApp.ts), and
+ * a URL assertion is satisfied the moment that navigation commits — before
+ * main.ts has run its bootstrap and attached the hooks every mobile spec drives
+ * the provider through. Waiting on the hook itself is the signal that the app,
+ * and its saved shelf, are actually up.
+ */
+export async function waitForMobileApp(page: Page): Promise<void> {
+  await page.waitForFunction(() => Boolean(window.__plainshelfTestHooks));
+}
+
+/**
+ * Adds a second shelf to a device that already has one, by walking the list
+ * page's "Add a shelf" button rather than the empty-list shortcut.
+ */
+export async function addMobileShelf(
+  page: Page,
+  baseUrl: string,
+  opts: { name: string; shelfName: string }
+): Promise<void> {
+  await reopenMobileAt(page, baseUrl, '/connect');
+  await page.getByRole('button', { name: 'Add a shelf' }).click();
+
+  await page.getByLabel('Name').fill(opts.name);
+  await page.locator('input[type="url"]').fill(baseUrl);
+  await page.getByRole('button', { name: 'Load library' }).click();
+
+  const shelfTrigger = page.locator('.mobile-connect-shelf-select');
+  await expect(shelfTrigger).toBeEnabled();
+  await shelfTrigger.click();
+  await page.getByRole('option', { name: opts.shelfName }).click();
+
+  await page.getByRole('button', { name: 'Save and continue' }).click();
+  await expect(page).toHaveURL(/\/books(\?|$)/);
+  await waitForMobileApp(page);
+}
+
+/** Opens the edit form for a saved shelf from the device's shelf list. */
+export async function openMobileShelfEditor(
+  page: Page,
+  baseUrl: string,
+  shelfName?: string
+): Promise<void> {
+  await reopenMobileAt(page, baseUrl, '/connect');
+  const row = shelfName
+    ? page.locator('.mobile-shelves-item').filter({ hasText: shelfName })
+    : page.locator('.mobile-shelves-item').first();
+  await row.getByRole('button', { name: 'Edit' }).click();
+  await expect(page.getByRole('heading', { name: 'Edit shelf' })).toBeVisible();
 }
 
 /**
  * Standard "reopen the app" action: a top-level navigation (not an in-app
- * router push) carrying the mobile-shell-preview param, since the param is
- * dropped from the URL by in-app navigations (MobileConnectPage.onSave does a
- * bare `router.push('/books')`) and isMobileRuntime() reads location.search
- * live on every check.
+ * router push) carrying the mobile-shell-preview param, since in-app
+ * navigations drop the param from the URL and isMobileRuntime() reads
+ * location.search on its first check.
+ *
+ * Waits for the boot to finish, because main.ts restores the device's shelves
+ * before it mounts anything: `goto` resolves on the document load, which is
+ * ahead of that await, so a caller reaching straight for the provider hook
+ * would otherwise race the bootstrap it just triggered.
  */
 export async function reopenMobileAt(page: Page, baseUrl: string, route: string): Promise<void> {
   await page.goto(`${baseUrl}${withMobilePreview(route)}`);
+  await waitForMobileApp(page);
+}
+
+/** Reveals the immersive reader chrome through its central tap gesture. */
+export async function showMobileReaderControls(page: Page): Promise<void> {
+  const reader = page.locator('[data-reader-variant="mobile"]');
+  await expect(reader).toBeVisible();
+  const toolbar = reader.locator('.mobile-reader-toolbar');
+  if (await toolbar.isVisible()) return;
+
+  const box = await reader.boundingBox();
+  if (!box) throw new Error('Mobile reader has no visible bounding box');
+  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await reader.dispatchEvent('pointerdown', {
+    pointerType: 'mouse', pointerId: 1, isPrimary: true, button: 0, clientX: point.x, clientY: point.y
+  });
+  await reader.dispatchEvent('pointerup', {
+    pointerType: 'mouse', pointerId: 1, isPrimary: true, button: 0, clientX: point.x, clientY: point.y
+  });
+  await expect(toolbar).toBeVisible();
 }
 
 async function setNavigatorOnline(page: Page, online: boolean): Promise<void> {

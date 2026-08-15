@@ -18,6 +18,16 @@
       @cancel="cancelPendingRenameLayer"
       @submit="confirmRenameLayer"
     />
+    <CreateLayerModal
+      :open="showCreateLayerModal"
+      :parent-options="createLayerParentOptions"
+      :default-parent="createLayerDefaultParent"
+      :busy="creatingLayer"
+      :error="createLayerError"
+      @cancel="closeCreateLayerModal"
+      @submit="onSubmitCreateLayer"
+    />
+    <BookBatchProgressModal />
 
     <div
       v-if="isNarrowViewport && drawerOpen"
@@ -37,49 +47,161 @@
       ref="sidebarPanelRef"
       as="aside"
       class="sidebar"
-      :class="{ 'sidebar-drawer-open': isNarrowViewport && drawerOpen }"
+      :class="{ 'sidebar-drawer-open': isNarrowViewport && drawerOpen, 'sidebar-rail': isRailSidebar }"
       size-unit="px"
       :default-size="240"
-      :min-size="200"
-      :max-size="300"
-      collapsible
-      :collapsed-size="40"
-      @collapse="onSidebarCollapse"
-      @expand="onSidebarExpand"
+      :min-size="isRailSidebar ? RAIL_SIDEBAR_WIDTH : 200"
+      :max-size="isRailSidebar ? RAIL_SIDEBAR_WIDTH : 300"
     >
       <button
         class="collapse-btn"
         type="button"
-        :aria-label="isCollapsed ? t('layout.expandSidebar') : t('layout.collapseSidebar')"
-        @click="toggleSidebar"
+        :aria-label="isRailSidebar ? t('layout.expandSidebar') : t('layout.collapseSidebar')"
+        @click="toggleSidebarMode"
       >
-        {{ isCollapsed ? '→' : '←' }}
+        {{ isRailSidebar ? '→' : '←' }}
       </button>
 
-      <div v-if="!isCollapsed || isNarrowViewport" class="sidebar-inner">
+      <TooltipProvider v-if="showRailNav" :delay-duration="300">
+        <nav class="sidebar-rail-nav" :aria-label="t('layout.railNavLabel')">
+          <template v-if="hasActiveShelf">
+            <TooltipRoot>
+              <TooltipTrigger as-child>
+                <RouterLink
+                  to="/dashboard"
+                  class="sidebar-nav-item sidebar-rail-item"
+                  exact-active-class="active"
+                  :aria-label="t('layout.dashboard')"
+                >
+                  <SidebarNavIcon name="dashboard" />
+                </RouterLink>
+              </TooltipTrigger>
+              <TooltipPortal>
+                <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
+                  {{ t('layout.dashboard') }}
+                </TooltipContent>
+              </TooltipPortal>
+            </TooltipRoot>
+            <TooltipRoot>
+              <TooltipTrigger as-child>
+                <RouterLink
+                  to="/read-history"
+                  class="sidebar-nav-item sidebar-rail-item"
+                  exact-active-class="active"
+                  :aria-label="t('layout.recentlyRead')"
+                >
+                  <SidebarNavIcon name="recently-read" />
+                </RouterLink>
+              </TooltipTrigger>
+              <TooltipPortal>
+                <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
+                  {{ t('layout.recentlyRead') }}
+                </TooltipContent>
+              </TooltipPortal>
+            </TooltipRoot>
+            <TooltipRoot v-if="libraryEditingAvailable">
+              <TooltipTrigger as-child>
+                <RouterLink
+                  to="/trash"
+                  class="sidebar-nav-item sidebar-rail-item"
+                  exact-active-class="active"
+                  :aria-label="t('layout.trash')"
+                >
+                  <SidebarNavIcon name="trash" />
+                </RouterLink>
+              </TooltipTrigger>
+              <TooltipPortal>
+                <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
+                  {{ t('layout.trash') }}
+                </TooltipContent>
+              </TooltipPortal>
+            </TooltipRoot>
+          </template>
+          <TooltipRoot v-if="isMobileEnv">
+            <TooltipTrigger as-child>
+              <RouterLink
+                to="/downloads"
+                class="sidebar-nav-item sidebar-rail-item"
+                exact-active-class="active"
+                :aria-label="t('layout.downloads')"
+              >
+                <SidebarNavIcon name="downloads" />
+              </RouterLink>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
+                {{ t('layout.downloads') }}
+              </TooltipContent>
+            </TooltipPortal>
+          </TooltipRoot>
+          <TooltipRoot v-if="hasActiveShelf && serverAdminAvailable">
+            <TooltipTrigger as-child>
+              <RouterLink
+                to="/admin/logs"
+                class="sidebar-nav-item sidebar-rail-item"
+                exact-active-class="active"
+                :aria-label="t('layout.adminLogs')"
+              >
+                <SidebarNavIcon name="logs" />
+              </RouterLink>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
+                {{ t('layout.adminLogs') }}
+              </TooltipContent>
+            </TooltipPortal>
+          </TooltipRoot>
+          <TooltipRoot>
+            <TooltipTrigger as-child>
+              <RouterLink
+                to="/settings"
+                class="sidebar-nav-item sidebar-rail-item"
+                exact-active-class="active"
+                :aria-label="t('layout.settings')"
+              >
+                <SidebarNavIcon name="settings" />
+              </RouterLink>
+            </TooltipTrigger>
+            <TooltipPortal>
+              <TooltipContent class="reka-tooltip" side="right" :side-offset="8">
+                {{ t('layout.settings') }}
+              </TooltipContent>
+            </TooltipPortal>
+          </TooltipRoot>
+        </nav>
+      </TooltipProvider>
+
+      <div v-if="!isRailSidebar || isNarrowViewport" class="sidebar-inner">
         <section class="sidebar-section" :aria-label="t('layout.shelf.label')">
           <label class="sidebar-shelf-label">
             <span class="sidebar-section-title">{{ t('layout.shelf.label') }}</span>
             <SelectRoot
-              :model-value="selectedShelfID"
-              :disabled="shelvesLoading || shelves.length === 0"
+              :model-value="shelfPicker.value.value"
+              :disabled="shelfPicker.disabled.value"
               @update:model-value="onShelfSelect"
             >
               <SelectTrigger class="button sidebar-shelf-select">
-                <SelectValue :placeholder="shelfSelectPlaceholder" />
+                <SelectValue :placeholder="shelfPicker.placeholder.value" />
               </SelectTrigger>
               <SelectPortal>
                 <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
                   <SelectViewport>
-                    <SelectItem v-for="shelf in shelves" :key="shelf.id" class="reka-menu-item" :value="shelf.id">
-                      <SelectItemText>{{ shelf.name }}</SelectItemText>
+                    <SelectItem v-for="item in shelfPicker.items.value" :key="item.id" class="reka-menu-item" :value="item.id">
+                      <SelectItemText>{{ item.name }}</SelectItemText>
+                      <!-- Sibling of SelectItemText, not inside it: the trigger
+                           echoes the item text, and a badge in there would read
+                           as part of the shelf's name. -->
+                      <span v-if="item.typeLabel" class="sidebar-shelf-type">{{ item.typeLabel }}</span>
                     </SelectItem>
                   </SelectViewport>
                 </SelectContent>
               </SelectPortal>
             </SelectRoot>
           </label>
-          <p v-if="shelvesError" class="sidebar-error" role="alert">{{ shelvesError }}</p>
+          <RouterLink v-if="shelfPicker.managed" :to="{ path: '/connect', query: route.query }" class="sidebar-shelf-manage">
+            {{ t('layout.shelf.manage') }}
+          </RouterLink>
+          <p v-if="shelfPicker.error.value" class="sidebar-error" role="alert">{{ shelfPicker.error.value }}</p>
         </section>
 
         <template v-if="hasActiveShelf">
@@ -98,50 +220,18 @@
                 <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.layers ? '▸' : '▾' }}</span>
               </button>
               <button
+                v-if="libraryEditingAvailable"
                 type="button"
                 class="create-layer-toggle"
-                :disabled="collapsedSidebarSections.layers || readOnly || creatingLayer"
-                @click="toggleCreateLayerForm"
+                aria-haspopup="dialog"
+                :disabled="readOnly || creatingLayer || layersLoading || layersError.length > 0"
+                @click="openCreateLayerModal"
               >
-                {{ showCreateLayerForm ? t('layout.createLayer.cancel') : t('layout.createLayer.add') }}
+                {{ t('layout.createLayer.add') }}
               </button>
             </div>
 
             <div v-show="!collapsedSidebarSections.layers" id="sidebar-section-layers" class="sidebar-foldable-content">
-              <form v-if="showCreateLayerForm && !readOnly" class="create-layer-form" @submit.prevent="onSubmitCreateLayer">
-                <input
-                  v-model="newLayerPath"
-                  class="create-layer-input"
-                  type="text"
-                  :placeholder="t('layout.createLayer.placeholder')"
-                  :disabled="creatingLayer"
-                >
-                <div class="create-layer-actions">
-                  <button
-                    type="submit"
-                    class="create-layer-submit"
-                    :disabled="readOnly || creatingLayer || !canSubmitCreateLayer"
-                  >
-                    {{ creatingLayer ? t('layout.createLayer.creating') : t('layout.createLayer.create') }}
-                  </button>
-                </div>
-              </form>
-
-              <p v-if="createLayerError" class="sidebar-error" role="alert">
-                {{ createLayerError }}
-              </p>
-              <p v-if="createLayerSuccess" class="sidebar-success" role="status">
-                {{ createLayerSuccess }}
-                <button
-                  v-if="createdLayerPath"
-                  type="button"
-                  class="success-action"
-                  @click="enterCreatedLayer"
-                >
-                  {{ t('layout.createLayer.enter') }}
-                </button>
-              </p>
-
               <div v-if="layersLoading" class="sidebar-status">{{ t('layout.createLayer.loadingLayers') }}</div>
               <div v-else-if="layersError" class="sidebar-status sidebar-error sidebar-layer-error" role="alert">
                 <p>{{ layersError }}</p>
@@ -210,6 +300,7 @@
                 <span>{{ t('layout.recentlyRead') }}</span>
               </RouterLink>
               <RouterLink
+                v-if="libraryEditingAvailable"
                 to="/trash"
                 class="sidebar-nav-item"
                 exact-active-class="active"
@@ -220,9 +311,13 @@
             </nav>
           </section>
 
-          <div class="sidebar-nav-divider" role="presentation"></div>
+          <div v-if="libraryEditingAvailable" class="sidebar-nav-divider" role="presentation"></div>
 
-          <section class="sidebar-section" :aria-label="t('layout.sections.maintenance')">
+          <section
+            v-if="libraryEditingAvailable"
+            class="sidebar-section"
+            :aria-label="t('layout.sections.maintenance')"
+          >
             <button
               type="button"
               class="sidebar-section-toggle"
@@ -286,7 +381,12 @@
             class="sidebar-nav-list sidebar-foldable-content"
             :aria-label="t('layout.sections.admin')"
           >
-            <RouterLink v-if="hasActiveShelf" to="/admin/logs" class="sidebar-nav-item" exact-active-class="active">
+            <RouterLink
+              v-if="hasActiveShelf && serverAdminAvailable"
+              to="/admin/logs"
+              class="sidebar-nav-item"
+              exact-active-class="active"
+            >
               <SidebarNavIcon name="logs" />
               <span>{{ t('layout.adminLogs') }}</span>
             </RouterLink>
@@ -299,13 +399,19 @@
       </div>
     </SplitterPanel>
 
-    <SplitterResizeHandle as="div" class="reka-resize-handle" :hit-area-margins="SIDEBAR_RESIZE_HIT_AREA_MARGINS" />
+    <SplitterResizeHandle
+      as="div"
+      class="reka-resize-handle"
+      :class="{ 'rail-hidden': isRailSidebar }"
+      :disabled="isRailSidebar"
+      :hit-area-margins="SIDEBAR_RESIZE_HIT_AREA_MARGINS"
+    />
 
     <SplitterPanel as="main" class="main-content">
       <!-- SplitterPanel forces inline overflow:hidden, so scrolling lives on
            this inner wrapper (same pattern as .sidebar-inner). -->
       <div class="main-scroll">
-      <div v-if="readOnly" class="read-only-banner" role="status">
+      <div v-if="showReadOnlyBanner" class="read-only-banner" role="status">
         {{ t('layout.readOnly.banner') }}
       </div>
       <header class="topbar">
@@ -361,7 +467,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   SelectContent,
@@ -375,43 +481,47 @@ import {
   SplitterGroup,
   SplitterPanel,
   SplitterResizeHandle,
+  TooltipContent,
+  TooltipPortal,
+  TooltipProvider,
+  TooltipRoot,
+  TooltipTrigger,
   type AcceptableValue
 } from 'reka-ui';
-import DeleteModal from '../components/DeleteModal.vue';
-import LayerTree from '../components/LayerTree.vue';
-import RenameLayerModal from '../components/RenameLayerModal.vue';
-import SidebarNavIcon from '../components/SidebarNavIcon.vue';
-import { getBookshelfProvider, isMobileRuntime } from '../providers';
-import { createLayer, deleteLayer, moveLayer, renameLayer } from '../api/layers';
-import { useBookStore } from '../composables/useBookStore';
-import { useLayerStore } from '../composables/useLayerStore';
-import { useShelvesStore } from '../composables/useShelvesStore';
-import { useIsNarrowViewport } from '../composables/useViewport';
-import { useServerMode } from '../composables/useServerMode';
-import { buildLayerTreeNodes, getLayerPath, normalizeLayerPath } from '../utils/layers';
-import { MAINTENANCE_NAV_ITEMS } from '../utils/maintenance';
-import appIcon from '../assets/icon-192.png';
-import { useI18n } from '../i18n';
+import CreateLayerModal from '@/components/CreateLayerModal.vue';
+import BookBatchProgressModal from '@/components/BookBatchProgressModal.vue';
+import DeleteModal from '@/components/DeleteModal.vue';
+import LayerTree from '@/components/LayerTree.vue';
+import RenameLayerModal from '@/components/RenameLayerModal.vue';
+import SidebarNavIcon from '@/components/SidebarNavIcon.vue';
+import { isMobileRuntime } from '@/providers';
+import { useBookStore } from '@/composables/useBookStore';
+import { useLayerManagement } from '@/composables/useLayerManagement';
+import { useLayerStore } from '@/composables/useLayerStore';
+import { useShelvesStore } from '@/composables/useShelvesStore';
+import { useShelfPicker } from '@/composables/useShelfPicker';
+import { useServerMode } from '@/composables/useServerMode';
+import { useWriteAccess } from '@/composables/useWriteAccess';
+import {
+  RAIL_SIDEBAR_WIDTH,
+  SIDEBAR_RESIZE_HIT_AREA_MARGINS,
+  useSidebarLayout
+} from '@/composables/useSidebarLayout';
+import { MAINTENANCE_NAV_ITEMS } from '@/utils/maintenance';
+import appIcon from '@/assets/icon-192.png';
+import { useI18n } from '@/i18n';
 
-// Stable reference: an inline object literal in the template would be recreated on
-// every MainLayout re-render, and reka-ui's SplitterResizeHandle re-registers itself
-// with the group whenever its `hitAreaMargins` prop identity changes. Re-registering
-// mid-drag replaces the handle's internal registry entry, so the `mouseup` handler's
-// reference-based lookup misses and `stopDragging()` never fires — leaving
-// `pointer-events: none` stuck on every panel. A hoisted constant keeps the prop
-// identity stable across renders and avoids the mid-drag re-registration entirely.
-const SIDEBAR_RESIZE_HIT_AREA_MARGINS = { coarse: 12, fine: 6 };
-const SIDEBAR_SECTION_KEYS = ['layers', 'reading', 'maintenance', 'admin'] as const;
-type SidebarSectionKey = (typeof SIDEBAR_SECTION_KEYS)[number];
+const {
+  sidebarPanelRef,
+  isRailSidebar,
+  showRailNav,
+  isNarrowViewport,
+  drawerOpen,
+  collapsedSidebarSections,
+  toggleSidebarMode,
+  toggleSidebarSection
+} = useSidebarLayout();
 
-const sidebarPanelRef = ref<InstanceType<typeof SplitterPanel> | null>(null);
-const isCollapsed = ref(false);
-const collapsedSidebarSections = reactive<Record<SidebarSectionKey, boolean>>({
-  layers: false,
-  reading: false,
-  maintenance: false,
-  admin: false
-});
 const route = useRoute();
 const router = useRouter();
 
@@ -419,100 +529,74 @@ const router = useRouter();
 // change during a session, but a computed keeps it consistent with the
 // other environment checks used in the template.
 const isMobileEnv = computed(() => isMobileRuntime());
-
-// Narrow-viewport (mobile) drawer state. Every sidebar action ends in a
-// router.push, so watching fullPath closes the drawer after nav links and
-// layer selection alike.
-const isNarrowViewport = useIsNarrowViewport();
-const drawerOpen = ref(false);
-watch(() => route.fullPath, () => {
-  drawerOpen.value = false;
-});
-watch(isNarrowViewport, (narrow) => {
-  if (!narrow) {
-    drawerOpen.value = false;
-  }
-});
 const { books, loading, fetchBooks } = useBookStore();
-const { layers, loading: layersLoading, error: layersError, loaded: layersLoaded, fetchLayers } = useLayerStore();
-const moveBookError = ref('');
-const showCreateLayerForm = ref(false);
-const creatingLayer = ref(false);
-const createLayerError = ref('');
-const createLayerSuccess = ref('');
-const createdLayerPath = ref('');
-const newLayerPath = ref('');
-const deleteLayerError = ref('');
-const layerOperationError = ref('');
-const pendingRenameLayerPath = ref('');
-const renameLayerError = ref('');
-const renamingLayer = ref(false);
-const deletingLayerMap = ref<Record<string, boolean>>({});
-const pendingDeleteLayerPath = ref('');
+const { loading: layersLoading, error: layersError, loaded: layersLoaded, fetchLayers } = useLayerStore();
+const {
+  moveBookError,
+  showCreateLayerModal,
+  creatingLayer,
+  createLayerError,
+  deleteLayerError,
+  layerOperationError,
+  pendingRenameLayerPath,
+  renameLayerError,
+  deletingLayerMap,
+  pendingDeleteLayerPath,
+  currentLayer,
+  layerTree,
+  canOpenLayerFolder,
+  createLayerParentOptions,
+  createLayerDefaultParent,
+  isDeletingPendingLayer,
+  pendingRenameLayerName,
+  isRenamingPendingLayer,
+  clearLayerErrors,
+  onSelectLayer,
+  openCreateLayerModal,
+  closeCreateLayerModal,
+  onSubmitCreateLayer,
+  onMoveBook,
+  requestRenameLayer,
+  cancelPendingRenameLayer,
+  confirmRenameLayer,
+  onMoveLayer,
+  onOpenLayerFolder,
+  requestDeleteLayer,
+  cancelPendingDeleteLayer,
+  confirmDeleteLayer
+} = useLayerManagement();
 const { locale, setLocale, supportedLocales, t } = useI18n();
-const { shelves, loading: shelvesLoading, loaded: shelvesLoaded, error: shelvesError, selectedShelfID, fetchShelves, selectShelf } = useShelvesStore();
-const { readOnly, fetchServerMode } = useServerMode();
+// The dropdown itself goes through useShelfPicker; what is left here is the
+// resolved-shelf gate the rest of the layout hangs off, which is the same on
+// every client.
+const { loading: shelvesLoading, loaded: shelvesLoaded, selectedShelfID, fetchShelves } = useShelvesStore();
+const { fetchServerMode } = useServerMode();
+const { writesEnabled, writeDisabledReason, libraryEditingAvailable, serverAdminAvailable } =
+  useWriteAccess();
+const readOnly = computed(() => !writesEnabled.value);
+// The Android client being read-only is its normal state, not a condition to
+// warn about, so the banner stays reserved for a server in read-only mode.
+const showReadOnlyBanner = computed(() => writeDisabledReason.value === 'server-read-only');
 const localeLabelKeyMap: Record<(typeof supportedLocales)[number], 'language.en' | 'language.zhHant'> = {
   en: 'language.en',
   'zh-Hant': 'language.zhHant'
 };
 
-const currentLayer = computed(() => {
-  const q = route.query.layers;
-  return typeof q === 'string' && q.length > 0 ? q : undefined;
-});
-
-const layerTree = computed(() => buildLayerTreeNodes(layers.value));
-const canOpenLayerFolder = computed(() => Boolean(getBookshelfProvider().openDesktopLayerFolder));
-const canSubmitCreateLayer = computed(() => normalizeLayerPath(newLayerPath.value).length > 0);
-const isDeletingPendingLayer = computed(
-  () => pendingDeleteLayerPath.value.length > 0 && (deletingLayerMap.value[pendingDeleteLayerPath.value] ?? false)
-);
-const pendingRenameLayerName = computed(() => {
-  const segments = pendingRenameLayerPath.value.split('/').filter((segment) => segment.length > 0);
-  return segments[segments.length - 1] ?? '';
-});
-const isRenamingPendingLayer = computed(() => pendingRenameLayerPath.value.length > 0 && renamingLayer.value);
 const hasActiveShelf = computed(() => shelvesLoaded.value && selectedShelfID.value.length > 0);
 const isSettingsRoute = computed(() => route.name === 'settings');
 const canShowRouteContent = computed(() => isSettingsRoute.value || hasActiveShelf.value);
 const shelfUnavailableMessage = computed(() =>
   shelvesLoading.value ? t('layout.shelf.loading') : t('layout.shelf.unavailableDescription')
 );
-const shelfSelectPlaceholder = computed(() => {
-  if (shelvesLoading.value) {
-    return t('layout.shelf.loading');
+// What the sidebar dropdown lists differs by client: the server's shelves on
+// web and desktop, the device's own shelf list on the mobile shell.
+const shelfPicker = useShelfPicker({
+  onServerShelfSelected: async () => {
+    clearLayerErrors();
+    await Promise.all([fetchLayers(), fetchBooks()]);
+    await router.push({ path: '/books', query: { page: '1' } });
   }
-  if (shelves.value.length === 0) {
-    return t('layout.shelf.empty');
-  }
-  return '';
 });
-
-function goToLayer(layer: string | undefined): void {
-  const query: Record<string, string> = { page: '1' };
-  if (layer) query.layers = layer;
-  void router.push({ path: '/books', query });
-}
-
-function normalizeLayerSelectionPath(path: string): string | undefined {
-  const trimmed = path.trim();
-  if (trimmed === '') {
-    return undefined;
-  }
-  if (trimmed === '/') {
-    return '/';
-  }
-
-  const normalized = normalizeLayerPath(trimmed);
-  return normalized.length > 0 ? normalized : undefined;
-}
-
-function onSelectLayer(path: string): void {
-  deleteLayerError.value = '';
-  layerOperationError.value = '';
-  goToLayer(normalizeLayerSelectionPath(path));
-}
 
 function onLocaleSelect(value: AcceptableValue): void {
   if (typeof value !== 'string') {
@@ -529,297 +613,15 @@ async function onShelfSelect(value: AcceptableValue): Promise<void> {
     return;
   }
 
-  const nextShelfID = value.trim();
-  if (!nextShelfID || nextShelfID === selectedShelfID.value) {
+  const nextID = value.trim();
+  if (!nextID || nextID === shelfPicker.value.value) {
     return;
   }
 
-  selectShelf(nextShelfID);
-  deleteLayerError.value = '';
-  layerOperationError.value = '';
-  moveBookError.value = '';
-  createLayerError.value = '';
-  createLayerSuccess.value = '';
-
-  await Promise.all([fetchLayers(), fetchBooks()]);
-  await router.push({ path: '/books', query: { page: '1' } });
+  await shelfPicker.select(nextID);
 }
-
-function onSidebarCollapse(): void {
-  isCollapsed.value = true;
-}
-
-function onSidebarExpand(): void {
-  isCollapsed.value = false;
-}
-
-function toggleSidebar(): void {
-  if (isCollapsed.value) {
-    sidebarPanelRef.value?.expand();
-  } else {
-    sidebarPanelRef.value?.collapse();
-  }
-}
-
-function toggleSidebarSection(section: SidebarSectionKey): void {
-  const nextCollapsed = !collapsedSidebarSections[section];
-  collapsedSidebarSections[section] = nextCollapsed;
-
-  if (section === 'layers' && nextCollapsed) {
-    showCreateLayerForm.value = false;
-    newLayerPath.value = '';
-  }
-}
-
-function toggleCreateLayerForm(): void {
-  if (readOnly.value) {
-    return;
-  }
-  showCreateLayerForm.value = !showCreateLayerForm.value;
-  createLayerError.value = '';
-  createLayerSuccess.value = '';
-
-  if (!showCreateLayerForm.value) {
-    newLayerPath.value = '';
-  }
-}
-
-async function onSubmitCreateLayer(): Promise<void> {
-  if (readOnly.value) {
-    createLayerError.value = t('layout.readOnly.writeDisabled');
-    return;
-  }
-  const normalized = normalizeLayerPath(newLayerPath.value);
-  if (!normalized) {
-    createLayerError.value = t('layout.layerErrors.emptyPath');
-    createLayerSuccess.value = '';
-    return;
-  }
-
-  creatingLayer.value = true;
-  createLayerError.value = '';
-  createLayerSuccess.value = '';
-
-  try {
-    await createLayer(normalized);
-    await fetchLayers();
-
-    createdLayerPath.value = normalized;
-    createLayerSuccess.value = t('layout.createLayer.created');
-    newLayerPath.value = '';
-    showCreateLayerForm.value = false;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : t('layout.layerErrors.createFailed');
-
-    if (message === 'Layer path cannot be empty') {
-      createLayerError.value = t('layout.layerErrors.emptyPath');
-    } else if (message === 'Failed to create layer') {
-      createLayerError.value = t('layout.layerErrors.createFailed');
-    } else {
-      createLayerError.value = message || t('layout.layerErrors.createFailed');
-    }
-  } finally {
-    creatingLayer.value = false;
-  }
-}
-
-function enterCreatedLayer(): void {
-  if (!createdLayerPath.value) {
-    return;
-  }
-
-  goToLayer(createdLayerPath.value);
-  createLayerSuccess.value = '';
-}
-
-async function onMoveBook(payload: { bookId: string; targetLayer: string }): Promise<void> {
-  if (readOnly.value) {
-    moveBookError.value = t('layout.readOnly.writeDisabled');
-    return;
-  }
-  moveBookError.value = '';
-  layerOperationError.value = '';
-
-  const currentBook = books.value.find((item) => item.id === payload.bookId);
-  if (!currentBook) {
-    moveBookError.value = t('layout.moveBookErrors.notFound');
-    return;
-  }
-
-  const currentLayerPath = getLayerPath(currentBook);
-  if (currentLayerPath === payload.targetLayer) {
-    return;
-  }
-
-  try {
-    await getBookshelfProvider().updateBookLayer(payload.bookId, payload.targetLayer);
-    await fetchBooks();
-  } catch (err) {
-    moveBookError.value = err instanceof Error ? err.message : t('layout.moveBookErrors.failed');
-  }
-}
-
-function requestRenameLayer(path: string): void {
-  if (readOnly.value) {
-    layerOperationError.value = t('layout.readOnly.writeDisabled');
-    return;
-  }
-
-  pendingRenameLayerPath.value = path;
-  renameLayerError.value = '';
-  layerOperationError.value = '';
-}
-
-function cancelPendingRenameLayer(): void {
-  if (renamingLayer.value) {
-    return;
-  }
-
-  pendingRenameLayerPath.value = '';
-  renameLayerError.value = '';
-}
-
-async function confirmRenameLayer(nextName: string): Promise<void> {
-  const path = pendingRenameLayerPath.value;
-  if (!path || renamingLayer.value) {
-    return;
-  }
-
-  if (!nextName || nextName === pendingRenameLayerName.value) {
-    renameLayerError.value = t('layout.renameLayer.invalid');
-    return;
-  }
-
-  renamingLayer.value = true;
-  renameLayerError.value = '';
-  layerOperationError.value = '';
-
-  try {
-    await renameLayer(path, nextName);
-    await Promise.all([fetchLayers(), fetchBooks()]);
-
-    if (currentLayer.value === path || currentLayer.value?.startsWith(`${path}/`)) {
-      const parent = path.split('/').filter((segment) => segment.length > 0).slice(0, -1);
-      const renamedPath = [...parent, nextName].join('/');
-      goToLayer(currentLayer.value === path ? renamedPath : `${renamedPath}${currentLayer.value.slice(path.length)}`);
-    }
-
-    pendingRenameLayerPath.value = '';
-  } catch (err) {
-    const message = err instanceof Error ? err.message : '';
-    if (message === 'Invalid layer name') {
-      renameLayerError.value = t('layout.renameLayer.invalid');
-    } else {
-      renameLayerError.value = message || t('layout.renameLayer.failed');
-    }
-  } finally {
-    renamingLayer.value = false;
-  }
-}
-
-async function onMoveLayer(payload: { layerPath: string; targetLayer: string }): Promise<void> {
-  if (readOnly.value) {
-    layerOperationError.value = t('layout.readOnly.writeDisabled');
-    return;
-  }
-  layerOperationError.value = '';
-
-  try {
-    await moveLayer(payload.layerPath, payload.targetLayer);
-    await Promise.all([fetchLayers(), fetchBooks()]);
-
-    if (currentLayer.value === payload.layerPath || currentLayer.value?.startsWith(`${payload.layerPath}/`)) {
-      const layerSegments = payload.layerPath.split('/').filter((segment) => segment.length > 0);
-      const layerName = layerSegments[layerSegments.length - 1];
-      if (layerName) {
-        const targetSegments = payload.targetLayer === '/' ? [] : payload.targetLayer.split('/').filter(Boolean);
-        const movedPath = [...targetSegments, layerName].join('/');
-        goToLayer(currentLayer.value === payload.layerPath ? movedPath : `${movedPath}${currentLayer.value.slice(payload.layerPath.length)}`);
-      }
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : '';
-    layerOperationError.value = message || t('layout.moveLayer.failed');
-  }
-}
-
-async function onOpenLayerFolder(path: string): Promise<void> {
-  layerOperationError.value = '';
-  const openDesktopLayerFolder = getBookshelfProvider().openDesktopLayerFolder;
-  if (!openDesktopLayerFolder) {
-    return;
-  }
-
-  try {
-    await openDesktopLayerFolder(path);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : '';
-    layerOperationError.value = message || t('layout.openLayerFolder.failed');
-  }
-}
-
-function requestDeleteLayer(path: string): void {
-  if (readOnly.value) {
-    deleteLayerError.value = t('layout.readOnly.writeDisabled');
-    return;
-  }
-  if (deletingLayerMap.value[path]) {
-    return;
-  }
-
-  deleteLayerError.value = '';
-  pendingDeleteLayerPath.value = path;
-}
-
-function cancelPendingDeleteLayer(): void {
-  if (isDeletingPendingLayer.value) {
-    return;
-  }
-
-  pendingDeleteLayerPath.value = '';
-  deleteLayerError.value = '';
-}
-
-async function confirmDeleteLayer(): Promise<void> {
-  const path = pendingDeleteLayerPath.value;
-  if (!path || deletingLayerMap.value[path]) {
-    return;
-  }
-
-  deleteLayerError.value = '';
-  deletingLayerMap.value = {
-    ...deletingLayerMap.value,
-    [path]: true
-  };
-
-  try {
-    await deleteLayer(path);
-    await Promise.all([fetchLayers(), fetchBooks()]);
-
-    if (currentLayer.value === path) {
-      goToLayer(undefined);
-    }
-
-    pendingDeleteLayerPath.value = '';
-  } catch (err) {
-    const message = err instanceof Error ? err.message : '';
-    if (message === 'Cannot delete this layer because it is not empty.') {
-      deleteLayerError.value = t('layout.deleteLayer.notEmpty');
-    } else if (message) {
-      deleteLayerError.value = message;
-    } else {
-      deleteLayerError.value = t('layout.deleteLayer.failed');
-    }
-  } finally {
-    const { [path]: _deleted, ...rest } = deletingLayerMap.value;
-    deletingLayerMap.value = rest;
-  }
-}
-
 
 onMounted(async () => {
-  isCollapsed.value = sidebarPanelRef.value?.isCollapsed ?? false;
-
   await fetchServerMode();
   if (!shelvesLoaded.value) {
     await fetchShelves();
@@ -880,6 +682,32 @@ onMounted(async () => {
 
 .collapse-btn:hover {
   background: #ecf2f9;
+}
+
+.sidebar-rail-nav {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 4px 8px;
+}
+
+.sidebar-rail-item {
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+  width: 32px;
+}
+
+.sidebar-rail-item :deep(.sidebar-nav-icon) {
+  margin-right: 0;
+}
+
+.reka-resize-handle.rail-hidden {
+  display: none;
 }
 
 .sidebar-inner {
@@ -975,42 +803,6 @@ onMounted(async () => {
   justify-self: start;
 }
 
-.create-layer-form {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0 8px 8px;
-}
-
-.create-layer-input {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 13px;
-  line-height: 1.3;
-  padding: 6px 8px;
-}
-
-.create-layer-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.create-layer-submit {
-  background: #2563eb;
-  border: 1px solid #1d4ed8;
-  border-radius: 6px;
-  color: #ffffff;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 10px;
-}
-
-.create-layer-submit:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
 .sidebar-error {
   color: #b91c1c;
   font-size: 12px;
@@ -1020,27 +812,6 @@ onMounted(async () => {
 
 .sidebar-error-pre {
   white-space: pre-line;
-}
-
-.sidebar-success {
-  align-items: center;
-  color: #166534;
-  display: flex;
-  font-size: 12px;
-  gap: 8px;
-  line-height: 1.4;
-  margin: 8px 8px 0;
-}
-
-.success-action {
-  background: transparent;
-  border: 1px solid #86efac;
-  border-radius: 6px;
-  color: #166534;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 2px 8px;
 }
 
 .sidebar-status {
@@ -1199,6 +970,21 @@ onMounted(async () => {
   min-height: 30px;
   min-width: 0;
   padding: 0 6px;
+}
+
+/* Source type of a shelf, shown only on the mobile shell where one list can
+   hold both PlainShelf servers and pCloud folders. */
+.sidebar-shelf-type {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-left: auto;
+  padding-left: 8px;
+}
+
+.sidebar-shelf-manage {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-top: 6px;
 }
 
 /* ── Narrow viewport (mobile): sidebar becomes an off-canvas drawer ── */

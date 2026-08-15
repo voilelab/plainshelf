@@ -22,7 +22,7 @@
         </div>
 
         <div class="bookshelf-toolbar">
-          <p v-if="resolvedTotalLabel" class="bookshelf-count">{{ resolvedTotalLabel }}</p>
+          <p v-if="!selectionActive && resolvedTotalLabel" class="bookshelf-count">{{ resolvedTotalLabel }}</p>
 
           <DropdownMenuRoot>
             <DropdownMenuTrigger class="button view-mode-trigger" type="button">
@@ -67,7 +67,22 @@
             </DropdownMenuPortal>
           </DropdownMenuRoot>
 
-          <slot name="toolbar" />
+          <template v-if="!selectionActive"><slot name="toolbar" /></template>
+          <div v-else class="selection-toolbar" role="toolbar" :aria-label="t('bookCollection.selection.toolbarLabel')">
+            <button type="button" class="button selection-close" :disabled="selectionBusy" @click="emit('clear-selection')">×</button>
+            <strong>{{ t('bookCollection.selection.selectedCount', { count: selectedIds.size }) }}</strong>
+            <button type="button" class="button" :disabled="selectionBusy || allVisibleSelected" @click="emit('select-all')">
+              {{ t('bookCollection.selection.selectAll') }}
+            </button>
+            <template v-if="!mobileSelection">
+              <button type="button" class="button" :disabled="selectionBusy" @click="emit('batch-move')">
+                {{ t('bookCollection.selection.move') }}
+              </button>
+              <button type="button" class="button danger" :disabled="selectionBusy" @click="emit('batch-delete')">
+                {{ t('bookCollection.selection.trash') }}
+              </button>
+            </template>
+          </div>
         </div>
       </header>
 
@@ -79,7 +94,12 @@
         v-else-if="viewMode === 'list'"
         :books="books"
         :show-edit-action="showEditAction"
-        @select="emit('select', $event)"
+        :selectable="selectionEnabled"
+        :mobile-selection="mobileSelection"
+        :selected-ids="selectedIds"
+        @activate="emit('activate', $event)"
+        @toggle-selection="emit('toggle-selection', $event)"
+        @long-press="emit('long-press', $event)"
         @edit="emit('edit', $event)"
       />
 
@@ -88,7 +108,14 @@
         :books="books"
         :can-open-book-folder="canOpenBookFolder"
         :read-only="readOnly"
-        @select="emit('select', $event)"
+        :selectable="selectionEnabled"
+        :mobile-selection="mobileSelection"
+        :selected-ids="selectedIds"
+        @activate="emit('activate', $event)"
+        @toggle-selection="emit('toggle-selection', $event)"
+        @long-press="emit('long-press', $event)"
+        @batch-move="emit('batch-move')"
+        @batch-delete="emit('batch-delete')"
         @edit="emit('edit', $event)"
         @read="emit('read', $event)"
         @open-book-folder="emit('open-book-folder', $event)"
@@ -99,8 +126,19 @@
       <BookTitleView
         v-else
         :books="books"
-        @select="emit('select', $event)"
+        :selectable="selectionEnabled"
+        :mobile-selection="mobileSelection"
+        :selected-ids="selectedIds"
+        @activate="emit('activate', $event)"
+        @toggle-selection="emit('toggle-selection', $event)"
+        @long-press="emit('long-press', $event)"
       />
+
+      <div v-if="selectionActive && mobileSelection" class="mobile-selection-actions" role="toolbar">
+        <button type="button" class="button primary" :disabled="selectionBusy" @click="emit('batch-download')">
+          {{ selectionBusy ? t('bookCollection.selection.downloading') : t('bookCollection.selection.download') }}
+        </button>
+      </div>
 
       <Pagination
         :page="page"
@@ -129,14 +167,15 @@ import BookCardView from './BookCardView.vue';
 import BookListView from './BookListView.vue';
 import BookTitleView from './BookTitleView.vue';
 import Pagination from './Pagination.vue';
-import type { Book } from '../types/book';
+import type { Book } from '@/types/book';
+import type { BookActivation } from '@/types/bookSelection';
 import {
   getStoredBooksViewMode,
   isBooksViewMode,
   setStoredBooksViewMode,
   type BooksViewMode
-} from '../utils/booksViewMode';
-import { useI18n } from '../i18n';
+} from '@/utils/booksViewMode';
+import { useI18n } from '@/i18n';
 
 const props = withDefaults(defineProps<{
   title: string;
@@ -157,6 +196,10 @@ const props = withDefaults(defineProps<{
   readOnly?: boolean;
   viewModeStorageKey?: string;
   pageSizeOptions?: number[];
+  selectionEnabled?: boolean;
+  mobileSelection?: boolean;
+  selectionBusy?: boolean;
+  selectedIds?: ReadonlySet<string>;
 }>(), {
   loading: false,
   shelfInitializing: false,
@@ -169,12 +212,23 @@ const props = withDefaults(defineProps<{
   canOpenBookFolder: false,
   readOnly: false,
   viewModeStorageKey: undefined,
-  pageSizeOptions: undefined
+  pageSizeOptions: undefined,
+  selectionEnabled: false,
+  mobileSelection: false,
+  selectionBusy: false,
+  selectedIds: () => new Set<string>()
 });
 
 const emit = defineEmits<{
   (event: 'retry'): void;
-  (event: 'select', id: string): void;
+  (event: 'activate', payload: BookActivation): void;
+  (event: 'toggle-selection', id: string): void;
+  (event: 'long-press', id: string): void;
+  (event: 'clear-selection'): void;
+  (event: 'select-all'): void;
+  (event: 'batch-move'): void;
+  (event: 'batch-delete'): void;
+  (event: 'batch-download'): void;
   (event: 'edit', id: string): void;
   (event: 'read', id: string): void;
   (event: 'open-book-folder', id: string): void;
@@ -210,6 +264,9 @@ const currentViewModeLabel = computed(() => {
   return viewModeOptions.value.find((option) => option.value === viewMode.value)?.label ?? t('bookCollection.viewMode.list');
 });
 
+const selectionActive = computed(() => props.selectedIds.size > 0);
+const allVisibleSelected = computed(() => props.books.length > 0 && props.books.every((book) => props.selectedIds.has(book.id)));
+
 function onViewModeSelect(value: AcceptableValue): void {
   if (typeof value !== 'string' || !isBooksViewMode(value)) {
     return;
@@ -232,6 +289,36 @@ onMounted(() => {
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+}
+
+.selection-toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.selection-close { font-size: 18px; line-height: 1; }
+
+.mobile-selection-actions { display: none; }
+
+@media (max-width: 760px) {
+  .selection-toolbar { justify-content: flex-start; width: 100%; }
+  .mobile-selection-actions {
+    background: color-mix(in srgb, #fff 94%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+    display: flex;
+    left: 12px;
+    padding: 10px;
+    position: fixed;
+    right: 12px;
+    z-index: var(--z-overlay, 20);
+  }
+  .mobile-selection-actions .button { width: 100%; }
 }
 
 .collection-error {
@@ -312,6 +399,12 @@ onMounted(() => {
   }
 
   .bookshelf-toolbar {
+    /* Wrapping, not scrolling: the toolbar is a row of independent controls
+       and the search bar already asks for a line of its own (flex-basis 100%
+       in LibraryPage). Without this, one control more than fits pushes the
+       whole page into horizontal overflow and the last control can only be
+       reached by scrolling sideways. */
+    flex-wrap: wrap;
     justify-content: space-between;
     width: 100%;
   }

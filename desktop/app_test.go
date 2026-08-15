@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/voilelab/plainshelf/server"
@@ -15,8 +16,8 @@ func TestBookOpenDialogOptions(t *testing.T) {
 	}
 
 	filter := options.Filters[0]
-	if filter.Pattern != "*.txt;*.md" {
-		t.Fatalf("expected txt+md filter pattern, got %q", filter.Pattern)
+	if filter.Pattern != "*.txt;*.md;*.epub" {
+		t.Fatalf("expected txt+md+epub filter pattern, got %q", filter.Pattern)
 	}
 }
 
@@ -283,5 +284,200 @@ func TestOpenLayerDirectoryOpensFinderForLayerPath(t *testing.T) {
 	}
 	if openedPath != layerDir {
 		t.Fatalf("openFinder path = %q, want %q", openedPath, layerDir)
+	}
+}
+
+// Reading history, progress, and stats are device documents over one
+// pair of helpers (readDeviceDocument/writeDeviceDocument), so they are held to
+// one set of expectations instead of two copies of the same test.
+type deviceDocument struct {
+	name        string
+	fileName    string
+	newApp      func(path string) *DesktopApp
+	read        func(*DesktopApp) (string, error)
+	write       func(*DesktopApp, string) error
+	stored      string
+	replacement string
+	valid       string
+}
+
+func deviceDocuments() []deviceDocument {
+	return []deviceDocument{
+		{
+			name:        "read history",
+			fileName:    "read_history.json",
+			newApp:      func(path string) *DesktopApp { return &DesktopApp{readHistoryPath: path} },
+			read:        (*DesktopApp).ReadReadHistory,
+			write:       (*DesktopApp).WriteReadHistory,
+			stored:      `{"version":1,"limit":100,"shelves":{"main":["book-1","book-2"]}}`,
+			replacement: `{"version":1,"limit":100,"shelves":{}}`,
+			valid:       `{"version":1,"limit":100,"shelves":{}}`,
+		},
+		{
+			name:        "reading progress",
+			fileName:    "reading_progress.json",
+			newApp:      func(path string) *DesktopApp { return &DesktopApp{readingProgressPath: path} },
+			read:        (*DesktopApp).ReadReadingProgress,
+			write:       (*DesktopApp).WriteReadingProgress,
+			stored:      `{"version":1,"shelves":{"main":{"book-1":42}}}`,
+			replacement: `{"version":1,"shelves":{}}`,
+			valid:       `{"version":1,"shelves":{}}`,
+		},
+		{
+			name:        "reading stats",
+			fileName:    "reading_stats.json",
+			newApp:      func(path string) *DesktopApp { return &DesktopApp{readingStatsPath: path} },
+			read:        (*DesktopApp).ReadReadingStats,
+			write:       (*DesktopApp).WriteReadingStats,
+			stored:      `{"version":1,"shelves":{"main":{"2026-08-02":45}}}`,
+			replacement: `{"version":1,"shelves":{}}`,
+			valid:       `{"version":1,"shelves":{}}`,
+		},
+	}
+}
+
+func TestDeviceDocumentReturnsEmptyWhenUnwritten(t *testing.T) {
+	for _, doc := range deviceDocuments() {
+		t.Run(doc.name, func(t *testing.T) {
+			app := doc.newApp(filepath.Join(t.TempDir(), doc.fileName))
+
+			got, err := doc.read(app)
+			if err != nil {
+				t.Fatalf("read: %v", err)
+			}
+			if got != "" {
+				t.Fatalf("read on a fresh profile = %q, want empty", got)
+			}
+		})
+	}
+}
+
+func TestDeviceDocumentWriteAndReadRoundTrip(t *testing.T) {
+	for _, doc := range deviceDocuments() {
+		t.Run(doc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), doc.fileName)
+			app := doc.newApp(path)
+
+			if err := doc.write(app, doc.stored); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+
+			got, err := doc.read(app)
+			if err != nil {
+				t.Fatalf("read: %v", err)
+			}
+			if got != doc.stored {
+				t.Fatalf("read = %q, want %q", got, doc.stored)
+			}
+
+			// A second write replaces the document rather than appending to it,
+			// and leaves no temp file behind.
+			if err := doc.write(app, doc.replacement); err != nil {
+				t.Fatalf("write (replace): %v", err)
+			}
+			got, err = doc.read(app)
+			if err != nil {
+				t.Fatalf("read (replace): %v", err)
+			}
+			if got != doc.replacement {
+				t.Fatalf("read after replace = %q, want %q", got, doc.replacement)
+			}
+
+			entries, err := os.ReadDir(filepath.Dir(path))
+			if err != nil {
+				t.Fatalf("ReadDir: %v", err)
+			}
+			if len(entries) != 1 || entries[0].Name() != filepath.Base(path) {
+				t.Fatalf("unexpected files left in the data directory: %v", entries)
+			}
+		})
+	}
+}
+
+func TestDeviceDocumentWriteRejectsInvalidDocuments(t *testing.T) {
+	for _, doc := range deviceDocuments() {
+		t.Run(doc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), doc.fileName)
+			app := doc.newApp(path)
+			if err := doc.write(app, doc.valid); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+
+			if err := doc.write(app, "not json"); err == nil {
+				t.Fatal("write accepted a non-JSON document")
+			}
+			if err := doc.write(app, `{"pad":"`+strings.Repeat("x", maxDeviceDocumentBytes)+`"}`); err == nil {
+				t.Fatal("write accepted an oversized document")
+			}
+
+			// A rejected write must not disturb the document already on disk.
+			got, err := doc.read(app)
+			if err != nil {
+				t.Fatalf("read: %v", err)
+			}
+			if got != doc.valid {
+				t.Fatalf("stored document after rejected writes = %q, want %q", got, doc.valid)
+			}
+		})
+	}
+}
+
+func TestDeviceDocumentFailsWithoutStoragePath(t *testing.T) {
+	for _, doc := range deviceDocuments() {
+		t.Run(doc.name, func(t *testing.T) {
+			app := &DesktopApp{}
+
+			if _, err := doc.read(app); err == nil {
+				t.Fatal("read succeeded before startup configured a path")
+			}
+			if err := doc.write(app, `{}`); err == nil {
+				t.Fatal("write succeeded before startup configured a path")
+			}
+		})
+	}
+}
+
+// The two documents are separate files: writing one must not disturb the other.
+func TestDeviceDocumentsAreIndependent(t *testing.T) {
+	dir := t.TempDir()
+	app := &DesktopApp{
+		readHistoryPath:     filepath.Join(dir, "read_history.json"),
+		readingProgressPath: filepath.Join(dir, "reading_progress.json"),
+		readingStatsPath:    filepath.Join(dir, "reading_stats.json"),
+	}
+	history := `{"version":1,"limit":100,"shelves":{"main":["book-1"]}}`
+	progress := `{"version":1,"shelves":{"main":{"book-1":42}}}`
+	stats := `{"version":1,"shelves":{"main":{"2026-08-02":45}}}`
+
+	if err := app.WriteReadHistory(history); err != nil {
+		t.Fatalf("WriteReadHistory: %v", err)
+	}
+	if err := app.WriteReadingStats(stats); err != nil {
+		t.Fatalf("WriteReadingStats: %v", err)
+	}
+	if err := app.WriteReadingProgress(progress); err != nil {
+		t.Fatalf("WriteReadingProgress: %v", err)
+	}
+
+	gotHistory, err := app.ReadReadHistory()
+	if err != nil {
+		t.Fatalf("ReadReadHistory: %v", err)
+	}
+	gotStats, err := app.ReadReadingStats()
+	if err != nil {
+		t.Fatalf("ReadReadingStats: %v", err)
+	}
+	if gotHistory != history {
+		t.Fatalf("ReadReadHistory = %q, want %q", gotHistory, history)
+	}
+	gotProgress, err := app.ReadReadingProgress()
+	if err != nil {
+		t.Fatalf("ReadReadingProgress: %v", err)
+	}
+	if gotProgress != progress {
+		t.Fatalf("ReadReadingProgress = %q, want %q", gotProgress, progress)
+	}
+	if gotStats != stats {
+		t.Fatalf("ReadReadingStats = %q, want %q", gotStats, stats)
 	}
 }

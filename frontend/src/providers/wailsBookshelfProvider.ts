@@ -9,9 +9,9 @@ import {
   openDesktopShelfDirectory,
   removeDesktopShelf,
   saveDesktopBookContent
-} from '../api/desktop';
-import type { DesktopShelfDetails } from '../api/desktop';
-import { getActiveShelfID } from '../api/client';
+} from '@/api/desktop';
+import type { DesktopShelfDetails } from '@/api/desktop';
+import { getActiveShelfID } from '@/api/client';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
 import type { DesktopImportBookResult } from './bookshelfProvider';
 

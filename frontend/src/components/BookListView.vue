@@ -4,8 +4,23 @@
       v-for="book in books"
       :key="book.id"
       class="book-list-row panel"
-      @click="emit('select', book.id)"
+      :class="{ 'is-selected': selectedIds.has(book.id), 'is-dragging': interactions.draggingBookId.value === book.id }"
+      :draggable="selectable && !mobileSelection"
+      :aria-selected="selectedIds.has(book.id)"
+      @click="interactions.onClick($event, book.id)"
+      @pointerdown="interactions.onPointerDown($event, book.id)"
+      @pointermove="interactions.onPointerMove"
+      @pointerup="interactions.cancelLongPress"
+      @pointercancel="interactions.cancelLongPress"
+      @dragstart="interactions.onDragStart($event, book)"
+      @dragend="interactions.onDragEnd"
     >
+      <BookSelectionCheckbox
+        v-if="selectable"
+        :selected="selectedIds.has(book.id)"
+        :label="t('bookCollection.selection.selectBook', { title: book.title })"
+        @toggle="emit('toggle-selection', book.id)"
+      />
       <BookCoverImg :book-id="book.id" :cover-url="book.cover_url" :alt="book.title" class="book-list-cover" />
 
       <div class="book-list-main">
@@ -38,21 +53,42 @@
 
 <script setup lang="ts">
 import BookCoverImg from './BookCoverImg.vue';
-import type { Book } from '../types/book';
-import { getLayerPath, layerPathLabel } from '../utils/layers';
-import { formatDateLabel } from '../utils/date';
+import BookSelectionCheckbox from './BookSelectionCheckbox.vue';
+import { useBookItemInteractions } from '@/composables/useBookItemInteractions';
+import type { Book } from '@/types/book';
+import type { BookActivation } from '@/types/bookSelection';
+import { getLayerPath, layerPathLabel } from '@/utils/layers';
+import { formatDateLabel } from '@/utils/date';
+import { useI18n } from '@/i18n';
 
 const props = withDefaults(defineProps<{
   books: Book[];
   showEditAction?: boolean;
+  selectable?: boolean;
+  mobileSelection?: boolean;
+  selectedIds?: ReadonlySet<string>;
 }>(), {
-  showEditAction: false
+  showEditAction: false,
+  selectable: false,
+  mobileSelection: false,
+  selectedIds: () => new Set<string>()
 });
 
 const emit = defineEmits<{
-  (event: 'select', id: string): void;
+  (event: 'activate', payload: BookActivation): void;
+  (event: 'toggle-selection', id: string): void;
+  (event: 'long-press', id: string): void;
   (event: 'edit', id: string): void;
 }>();
+
+const { t } = useI18n();
+
+const interactions = useBookItemInteractions({
+  mobile: () => props.mobileSelection,
+  selectedIds: () => props.selectedIds,
+  onActivate: (payload) => emit('activate', payload),
+  onLongPress: (id) => emit('long-press', id)
+});
 
 function layerLabel(book: Book): string {
   const path = getLayerPath(book);
@@ -73,6 +109,7 @@ function primaryDateLabel(book: Book): string {
 }
 
 .book-list-row {
+  position: relative;
   align-items: center;
   cursor: pointer;
   display: grid;
@@ -81,6 +118,13 @@ function primaryDateLabel(book: Book): string {
   padding: 10px 12px;
   transition: border-color 120ms ease, background 120ms ease, transform 120ms ease;
 }
+
+.book-list-row.is-selected {
+  background: color-mix(in srgb, var(--accent) 8%, white);
+  border-color: var(--accent);
+}
+
+.book-list-row.is-dragging { opacity: 0.4; }
 
 .book-list-row:hover {
   background: #fbfdff;
