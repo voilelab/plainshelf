@@ -59,6 +59,23 @@ export function scopeDir(scopeKey: string): string {
 }
 
 /**
+ * Deletes everything one shelf downloaded — book content, covers, per-book
+ * progress files and the pCloud shelf snapshot.
+ *
+ * Takes the scope key as an argument rather than reading the active one, so
+ * removing a shelf the app is *not* currently reading does not have to
+ * repoint the API client at it first. Nothing else enumerates scope
+ * directories, so this is the only path by which that space is reclaimed.
+ *
+ * Reading history and reading stats are untouched: they live in documents
+ * shared across shelves and are the only device data that cannot be rebuilt
+ * from the library.
+ */
+export async function removeCacheScope(scopeKey: string): Promise<void> {
+  await rmdirIgnoringMissing(scopeDir(scopeKey));
+}
+
+/**
  * Reads a UTF-8 file, treating every failure — missing file, plugin error,
  * unexpected payload type — as a cache miss.
  *

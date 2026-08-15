@@ -1,5 +1,6 @@
 import { getActiveShelfID, getApiBase } from '@/api/client';
 import { buildDeviceDocumentKey } from '@/storage/deviceDocument';
+import { shelfEntryTarget, type ShelfEntry } from '@/providers/mobileConfig';
 
 /**
  * Identifies the (server, shelf) pair that device-local book data belongs to.
@@ -24,4 +25,19 @@ import { buildDeviceDocumentKey } from '@/storage/deviceDocument';
  */
 export function currentCacheScopeKey(): string {
   return buildDeviceDocumentKey(getApiBase(), getActiveShelfID());
+}
+
+/**
+ * The same key for a shelf entry that is not the active one.
+ *
+ * Deleting an entry has to find its downloads without repointing the live API
+ * client at it, which is what currentCacheScopeKey() would report. Both go
+ * through shelfEntryTarget() so there is one derivation, not two that can
+ * drift: a drift here does not fail loudly, it silently strands every
+ * downloaded book — and the reading history and reading stats documents key
+ * their per-shelf sections by this string as well.
+ */
+export function cacheScopeKeyForEntry(entry: ShelfEntry): string {
+  const { apiBase, shelfID } = shelfEntryTarget(entry);
+  return buildDeviceDocumentKey(apiBase, shelfID);
 }

@@ -98,10 +98,10 @@ test('stays read-only after an in-app navigation drops the preview query', async
     await page.goto(`${server.baseUrl}/books`);
     await importHelloBook(page);
 
-    // connectMobile ends with MobileConnectPage's own `router.push('/books')`,
-    // an in-app navigation that strips ?mobile-shell-preview=1. Assert here
-    // deliberately WITHOUT reopenMobileAt: before the runtime was latched,
-    // isMobileRuntime() went false at this point and every guard disengaged.
+    // Assert here deliberately WITHOUT reopenMobileAt: before the runtime was
+    // latched, any in-app navigation that dropped ?mobile-shell-preview=1 sent
+    // isMobileRuntime() false and disengaged every guard for the rest of the
+    // session.
     await connectMobile(page, server.baseUrl);
     await expect(page).toHaveURL(/\/books(\?|$)/);
 

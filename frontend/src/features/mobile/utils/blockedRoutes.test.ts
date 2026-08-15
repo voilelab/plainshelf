@@ -28,7 +28,9 @@ describe('MOBILE_BLOCKED_ROUTES', () => {
     'read-history',
     'downloads',
     'settings',
-    'mobile-connect'
+    'mobile-shelves',
+    'mobile-shelf-add',
+    'mobile-shelf-edit'
   ])('keeps %s reachable', (name) => {
     expect(MOBILE_BLOCKED_ROUTES.has(name)).toBe(false);
   });

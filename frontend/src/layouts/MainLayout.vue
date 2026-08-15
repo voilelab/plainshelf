@@ -176,25 +176,32 @@
           <label class="sidebar-shelf-label">
             <span class="sidebar-section-title">{{ t('layout.shelf.label') }}</span>
             <SelectRoot
-              :model-value="selectedShelfID"
-              :disabled="shelvesLoading || shelves.length === 0"
+              :model-value="shelfPicker.value.value"
+              :disabled="shelfPicker.disabled.value"
               @update:model-value="onShelfSelect"
             >
               <SelectTrigger class="button sidebar-shelf-select">
-                <SelectValue :placeholder="shelfSelectPlaceholder" />
+                <SelectValue :placeholder="shelfPicker.placeholder.value" />
               </SelectTrigger>
               <SelectPortal>
                 <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
                   <SelectViewport>
-                    <SelectItem v-for="shelf in shelves" :key="shelf.id" class="reka-menu-item" :value="shelf.id">
-                      <SelectItemText>{{ shelf.name }}</SelectItemText>
+                    <SelectItem v-for="item in shelfPicker.items.value" :key="item.id" class="reka-menu-item" :value="item.id">
+                      <SelectItemText>{{ item.name }}</SelectItemText>
+                      <!-- Sibling of SelectItemText, not inside it: the trigger
+                           echoes the item text, and a badge in there would read
+                           as part of the shelf's name. -->
+                      <span v-if="item.typeLabel" class="sidebar-shelf-type">{{ item.typeLabel }}</span>
                     </SelectItem>
                   </SelectViewport>
                 </SelectContent>
               </SelectPortal>
             </SelectRoot>
           </label>
-          <p v-if="shelvesError" class="sidebar-error" role="alert">{{ shelvesError }}</p>
+          <RouterLink v-if="shelfPicker.managed" :to="{ path: '/connect', query: route.query }" class="sidebar-shelf-manage">
+            {{ t('layout.shelf.manage') }}
+          </RouterLink>
+          <p v-if="shelfPicker.error.value" class="sidebar-error" role="alert">{{ shelfPicker.error.value }}</p>
         </section>
 
         <template v-if="hasActiveShelf">
@@ -492,6 +499,7 @@ import { useBookStore } from '@/composables/useBookStore';
 import { useLayerManagement } from '@/composables/useLayerManagement';
 import { useLayerStore } from '@/composables/useLayerStore';
 import { useShelvesStore } from '@/composables/useShelvesStore';
+import { useShelfPicker } from '@/composables/useShelfPicker';
 import { useServerMode } from '@/composables/useServerMode';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import {
@@ -558,7 +566,10 @@ const {
   confirmDeleteLayer
 } = useLayerManagement();
 const { locale, setLocale, supportedLocales, t } = useI18n();
-const { shelves, loading: shelvesLoading, loaded: shelvesLoaded, error: shelvesError, selectedShelfID, fetchShelves, selectShelf } = useShelvesStore();
+// The dropdown itself goes through useShelfPicker; what is left here is the
+// resolved-shelf gate the rest of the layout hangs off, which is the same on
+// every client.
+const { loading: shelvesLoading, loaded: shelvesLoaded, selectedShelfID, fetchShelves } = useShelvesStore();
 const { fetchServerMode } = useServerMode();
 const { writesEnabled, writeDisabledReason, libraryEditingAvailable, serverAdminAvailable } =
   useWriteAccess();
@@ -577,14 +588,14 @@ const canShowRouteContent = computed(() => isSettingsRoute.value || hasActiveShe
 const shelfUnavailableMessage = computed(() =>
   shelvesLoading.value ? t('layout.shelf.loading') : t('layout.shelf.unavailableDescription')
 );
-const shelfSelectPlaceholder = computed(() => {
-  if (shelvesLoading.value) {
-    return t('layout.shelf.loading');
+// What the sidebar dropdown lists differs by client: the server's shelves on
+// web and desktop, the device's own shelf list on the mobile shell.
+const shelfPicker = useShelfPicker({
+  onServerShelfSelected: async () => {
+    clearLayerErrors();
+    await Promise.all([fetchLayers(), fetchBooks()]);
+    await router.push({ path: '/books', query: { page: '1' } });
   }
-  if (shelves.value.length === 0) {
-    return t('layout.shelf.empty');
-  }
-  return '';
 });
 
 function onLocaleSelect(value: AcceptableValue): void {
@@ -602,16 +613,12 @@ async function onShelfSelect(value: AcceptableValue): Promise<void> {
     return;
   }
 
-  const nextShelfID = value.trim();
-  if (!nextShelfID || nextShelfID === selectedShelfID.value) {
+  const nextID = value.trim();
+  if (!nextID || nextID === shelfPicker.value.value) {
     return;
   }
 
-  selectShelf(nextShelfID);
-  clearLayerErrors();
-
-  await Promise.all([fetchLayers(), fetchBooks()]);
-  await router.push({ path: '/books', query: { page: '1' } });
+  await shelfPicker.select(nextID);
 }
 
 onMounted(async () => {
@@ -963,6 +970,21 @@ onMounted(async () => {
   min-height: 30px;
   min-width: 0;
   padding: 0 6px;
+}
+
+/* Source type of a shelf, shown only on the mobile shell where one list can
+   hold both PlainShelf servers and pCloud folders. */
+.sidebar-shelf-type {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-left: auto;
+  padding-left: 8px;
+}
+
+.sidebar-shelf-manage {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-top: 6px;
 }
 
 /* ── Narrow viewport (mobile): sidebar becomes an off-canvas drawer ── */

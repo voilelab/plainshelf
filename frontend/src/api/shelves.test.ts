@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { fetchJsonMock, getMobileConnectionConfigMock } = vi.hoisted(() => ({
+const { fetchJsonMock, getActiveShelfEntryMock } = vi.hoisted(() => ({
   fetchJsonMock: vi.fn(),
-  getMobileConnectionConfigMock: vi.fn()
+  getActiveShelfEntryMock: vi.fn()
 }));
 
 vi.mock('./client', () => ({
@@ -13,99 +13,128 @@ vi.mock('./client', () => ({
   isMockApiMode: () => false
 }));
 
-vi.mock('@/providers/mobileConfig', () => ({
-  getMobileConnectionConfig: getMobileConnectionConfigMock
-}));
-
-const { listShelves, pcloudShelfInfo } = await import('./shelves');
-
-type Config = {
-  mode: 'server' | 'pcloud';
-  serverUrl: string;
-  token: string;
-  shelfId: string;
-  pcloudClientId: string;
-  pcloudAccessToken: string;
-  pcloudHost: string;
-  pcloudShelfRoot: string;
-};
-
-function config(overrides: Partial<Config> = {}): Config {
+vi.mock('@/providers/mobileConfig', async () => {
+  const actual = await vi.importActual<typeof import('@/providers/mobileConfig')>(
+    '@/providers/mobileConfig'
+  );
   return {
-    mode: 'server',
-    serverUrl: '',
-    token: '',
-    shelfId: '',
-    pcloudClientId: '',
-    pcloudAccessToken: '',
-    pcloudHost: '',
-    pcloudShelfRoot: '',
-    ...overrides
+    ...actual,
+    getActiveShelfEntry: getActiveShelfEntryMock
   };
+});
+
+const { activeMobileShelfInfo, listServerShelves, listShelves } = await import('./shelves');
+type ShelfEntry = import('@/providers/mobileConfig').ShelfEntry;
+
+function serverEntry(overrides: Record<string, unknown> = {}): ShelfEntry {
+  return {
+    id: 'entry-1',
+    type: 'server',
+    name: '',
+    serverUrl: 'http://host',
+    shelfId: 'main',
+    ...overrides
+  } as ShelfEntry;
+}
+
+function pcloudEntry(overrides: Record<string, unknown> = {}): ShelfEntry {
+  return {
+    id: 'entry-2',
+    type: 'pcloud',
+    name: '',
+    pcloudClientId: '',
+    pcloudHost: 'api.pcloud.com',
+    pcloudShelfRoot: '/PlainShelf/default-shelf',
+    ...overrides
+  } as ShelfEntry;
 }
 
 beforeEach(() => {
   fetchJsonMock.mockReset();
-  getMobileConnectionConfigMock.mockReset().mockReturnValue(null);
+  getActiveShelfEntryMock.mockReset().mockReturnValue(null);
 });
 
-describe('pcloudShelfInfo', () => {
-  it('names the shelf after the last segment of the folder path', () => {
-    getMobileConnectionConfigMock.mockReturnValue(
-      config({ mode: 'pcloud', pcloudShelfRoot: '/PlainShelf/default-shelf' })
-    );
+describe('activeMobileShelfInfo', () => {
+  it('names a pCloud shelf after the last segment of the folder path', () => {
+    getActiveShelfEntryMock.mockReturnValue(pcloudEntry());
 
     // The id is the full path, matching the active shelf id mobileConfig sets,
     // so the device-local cache scope agrees with the picker.
-    expect(pcloudShelfInfo()).toEqual({ id: '/PlainShelf/default-shelf', name: 'default-shelf' });
+    expect(activeMobileShelfInfo()).toEqual({
+      id: '/PlainShelf/default-shelf',
+      name: 'default-shelf'
+    });
   });
 
   it('tolerates a trailing slash', () => {
-    getMobileConnectionConfigMock.mockReturnValue(
-      config({ mode: 'pcloud', pcloudShelfRoot: '/shelf/' })
-    );
+    getActiveShelfEntryMock.mockReturnValue(pcloudEntry({ pcloudShelfRoot: '/shelf/' }));
 
-    expect(pcloudShelfInfo()?.name).toBe('shelf');
+    expect(activeMobileShelfInfo()?.name).toBe('shelf');
   });
 
-  it('returns null in server mode and when no folder is set', () => {
-    getMobileConnectionConfigMock.mockReturnValue(config({ serverUrl: 'http://host' }));
-    expect(pcloudShelfInfo()).toBeNull();
+  it('uses the entry name when the user gave it one', () => {
+    getActiveShelfEntryMock.mockReturnValue(serverEntry({ name: 'Living room' }));
 
-    getMobileConnectionConfigMock.mockReturnValue(config({ mode: 'pcloud' }));
-    expect(pcloudShelfInfo()).toBeNull();
+    expect(activeMobileShelfInfo()).toEqual({ id: 'main', name: 'Living room' });
+  });
 
-    getMobileConnectionConfigMock.mockReturnValue(null);
-    expect(pcloudShelfInfo()).toBeNull();
+  it('returns null off the mobile shell and for an entry with no shelf yet', () => {
+    expect(activeMobileShelfInfo()).toBeNull();
+
+    getActiveShelfEntryMock.mockReturnValue(serverEntry({ shelfId: '' }));
+    expect(activeMobileShelfInfo()).toBeNull();
   });
 });
 
 describe('listShelves', () => {
-  it('answers from the configured folder without a request in pCloud mode', async () => {
-    getMobileConnectionConfigMock.mockReturnValue(
-      config({ mode: 'pcloud', pcloudShelfRoot: '/PlainShelf/default-shelf' })
-    );
+  // On the mobile shell the app-wide shelf list is the one entry the device is
+  // pointed at: the other entries belong to other servers and other pCloud
+  // folders, so no server can enumerate them.
+  it('answers from the active entry without a request on the mobile shell', async () => {
+    getActiveShelfEntryMock.mockReturnValue(pcloudEntry());
 
     await expect(listShelves()).resolves.toEqual([
       { id: '/PlainShelf/default-shelf', name: 'default-shelf' }
     ]);
-    // There is no server to ask; issuing the request would fail and, worse,
-    // ensureActiveShelf would then clear the id the cache scope is keyed on.
+    // Issuing the request would fail and, worse, ensureActiveShelf would then
+    // clear the id the cache scope is keyed on.
     expect(fetchJsonMock).not.toHaveBeenCalled();
   });
 
-  it('still asks the server in server mode', async () => {
-    getMobileConnectionConfigMock.mockReturnValue(config({ serverUrl: 'http://host' }));
+  it('does the same for a server entry', async () => {
+    getActiveShelfEntryMock.mockReturnValue(serverEntry());
+
+    await expect(listShelves()).resolves.toEqual([{ id: 'main', name: 'main' }]);
+    expect(fetchJsonMock).not.toHaveBeenCalled();
+  });
+
+  it('asks the server everywhere else', async () => {
     fetchJsonMock.mockResolvedValue([{ id: 'main', name: 'Main' }]);
 
     await expect(listShelves()).resolves.toEqual([{ id: 'main', name: 'Main' }]);
     expect(fetchJsonMock).toHaveBeenCalledWith('/api/shelves');
   });
+});
+
+describe('listServerShelves', () => {
+  // The shelf-entry form has to ask a server the user is still typing in what
+  // shelves it offers, so this one must never collapse to the active entry.
+  it('asks the server even while a shelf entry is active', async () => {
+    getActiveShelfEntryMock.mockReturnValue(serverEntry());
+    fetchJsonMock.mockResolvedValue([
+      { id: 'main', name: 'Main' },
+      { id: 'other', name: 'Other' }
+    ]);
+
+    await expect(listServerShelves()).resolves.toEqual([
+      { id: 'main', name: 'Main' },
+      { id: 'other', name: 'Other' }
+    ]);
+  });
 
   it('drops malformed entries from a server response', async () => {
-    getMobileConnectionConfigMock.mockReturnValue(config({ serverUrl: 'http://host' }));
     fetchJsonMock.mockResolvedValue([{ id: 'main', name: 'Main' }, { id: '' }, null, 'nope']);
 
-    await expect(listShelves()).resolves.toEqual([{ id: 'main', name: 'Main' }]);
+    await expect(listServerShelves()).resolves.toEqual([{ id: 'main', name: 'Main' }]);
   });
 });

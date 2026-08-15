@@ -13,21 +13,35 @@ Editing pages (metadata, sources, trash, and the maintenance views) are not
 reachable on Android, and write requests are rejected on the device before they
 are sent.
 
-## Connection modes
+## The shelf list
 
-Pick one under **Settings → Connection**. The choice is stored on the device and
-changing it restarts the app.
+The device keeps a list of shelves under **Settings → Shelves**, and each
+entry carries its own source type. One list can hold a couple of PlainShelf
+servers and a couple of pCloud folders at once:
 
-| Mode | Where the library lives | What you need |
+| Source type | Where the library lives | What the entry stores |
 |---|---|---|
-| PlainShelf server | A server you run, reachable over the network | Its URL, and an access token only when the server sets `protect_read` |
-| pCloud | A shelf folder in your pCloud account | Your own pCloud app key, and the folder path |
+| PlainShelf server | A server you run, reachable over the network | Its URL, which shelf on it, and an access token only when the server sets `protect_read` |
+| pCloud | A shelf folder in your pCloud account | Your own pCloud app key, the region learned during authorization, and the folder path |
 
-The pCloud mode needs no server at all, which is the point of it: a phone cannot
-mount cloud storage the way a host can, so a server keeping its shelf on pCloud
-through an rclone mount is no help to the phone.
+One entry is one shelf. Two shelves on the same server are two entries, added
+the same way. Access tokens are kept in Android Keystore-backed storage, one per
+entry, so two entries never share credentials.
 
-Both modes are read-only. The rest of this page covers the server mode first,
+The pCloud source needs no server at all, which is the point of it: a phone
+cannot mount cloud storage the way a host can, so a server keeping its shelf on
+pCloud through an rclone mount is no help to the phone.
+
+**Switching shelves.** Exactly one entry is in use at a time. Pick another from
+the shelf dropdown in the sidebar, or from the list itself. Switching restarts
+the app, because what the app reads from is decided once at startup.
+
+**Removing a shelf** deletes the books downloaded from it, freeing that space
+on the device. Reading progress, read history, and reading time are kept —
+they are the only records that cannot be rebuilt from the library, so adding
+the same shelf back picks up where you left off.
+
+Every entry is read-only. The rest of this page covers the server source first,
 then [Read a shelf from pCloud](#read-a-shelf-from-pcloud).
 
 ## Prerequisites
@@ -82,7 +96,7 @@ If the native project is ever regenerated from scratch, run
 
 ## Run with a local emulator
 
-Server mode.
+With a server shelf.
 
 ```bash
 just run-android-app
@@ -92,14 +106,14 @@ This starts the local server, waits for it to become healthy, boots an available
 emulator when needed, builds and launches the app, and prints the ephemeral
 access token. In the emulator, connect to `http://10.0.2.2:20000`; Android maps
 `10.0.2.2` to the host loopback address. The printed token only needs to be
-entered under **Settings → Connection** when the server sets `protect_read:
-true`.
+entered into the shelf entry when the server sets `protect_read: true`.
 
 ## Connect a physical device
 
-Server mode. The server must listen on a LAN-reachable address instead of
-`127.0.0.1`. From the phone, verify that `http://<server-ip>:20000/health`
-returns `1`, then enter the same server URL in **Settings → Connection**.
+With a server shelf. The server must listen on a LAN-reachable address instead
+of `127.0.0.1`. From the phone, verify that `http://<server-ip>:20000/health`
+returns `1`, then add a shelf with that server URL under
+**Settings → Shelves**.
 
 Browsing and reading require no access token. One is needed only when the server
 sets `protect_read: true`, which requires a token for reads as well. The token
@@ -113,7 +127,7 @@ adding the app origin to `allowed_origins`.
     pCloud support is newer than the rest of the Android client and has seen
     little use. Keep a shelf you care about reachable another way.
 
-In this mode the app talks to pCloud directly and no PlainShelf server is
+For a pCloud shelf the app talks to pCloud directly and no PlainShelf server is
 involved. It reads the same on-disk shelf layout the server writes — see the
 [data model](../concepts/data-model.md) — so the folder you point it at must be
 a shelf directory, the one containing `books/`.
@@ -141,9 +155,9 @@ the revocation, and the blast radius inside your own account.
 
 ### 2. Authorize
 
-Enter the app key under **Settings → Connection** and tap **Authorize with
-pCloud**. The approval page opens in the system browser; the app waits for you
-to approve it, for up to five minutes.
+Add a pCloud shelf under **Settings → Shelves**, enter the app key, and tap
+**Authorize with pCloud**. The approval page opens in the system browser; the
+app waits for you to approve it, for up to five minutes.
 
 Sign in as the account that holds the shelf. The system browser keeps its own
 session, so it may already be signed in as somebody else — after authorizing,
@@ -186,16 +200,17 @@ unless the book has been downloaded for offline reading.
   alone.
 - **No writing, ever.** Every mutating operation is refused by the client, on
   top of the read-only rules the Android client already applies.
-- **No shelf list.** A server can offer several shelves; here the folder you
-  named is the shelf.
+- **Nothing to enumerate.** A server can offer several shelves; here the folder
+  you named is the shelf. The device's own shelf list is unaffected — it can
+  hold as many pCloud folders as you add.
 
 Illustrations work here too: a source's `assets/` directory is part of the same
 folder listing the shelf is read through, so a Markdown book shows its pictures
 without an extra lookup.
 
-Downloads, reading progress, read history, and reading time work exactly as in
-server mode: they are stored on the device, kept separate per connection, and
-never written back.
+Downloads, reading progress, read history, and reading time work exactly as for
+a server shelf: they are stored on the device, kept separate per shelf entry,
+and never written back.
 
 ## App icons and splash screens
 
