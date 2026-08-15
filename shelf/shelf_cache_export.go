@@ -110,14 +110,10 @@ func (s *Shelf) bookCacheFileName() string {
 	return bookCacheFilePrefix + s.bookCacheWriterID + bookCacheFileSuffix
 }
 
-// markBookCacheExportDirty records that the exported cache may no longer match
-// the shelf. Marking is cheap and deliberately liberal; exportBookCache decides
-// whether anything actually changed before it writes.
-func (s *Shelf) markBookCacheExportDirty() {
-	s.bookCache.Lock()
-	s.bookCache.exportDirty = true
-	s.bookCache.Unlock()
-}
+// The dirty flag itself is set inline by the bookCache mutators in
+// shelf_cache.go, inside the lock each of them already holds. Marking is cheap
+// and deliberately liberal; exportBookCache decides whether anything actually
+// changed before it writes.
 
 // scheduleBookCacheExportIfNeeded exports in the background when the cache has
 // changed and the interval has elapsed.

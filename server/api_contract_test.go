@@ -93,7 +93,26 @@ func newAPITestEnv(t *testing.T) *apiTestEnv {
 		t.Fatalf("Start app: %v", err)
 	}
 
+	// Contract tests assert response shapes and status codes, so they must not
+	// race the shelf's initial scan: a read issued before it finishes is
+	// answered 503, which is correct behaviour and a meaningless failure here.
+	waitForShelves(t, app)
+
 	return &apiTestEnv{app: app, handler: app.Handler(), libRoot: libRoot}
+}
+
+// waitForShelves blocks until every configured shelf has finished its initial
+// scan, so a test's first request cannot arrive while the shelf is still
+// initializing. Endpoints that report "shelf is initializing" have their own
+// tests; everywhere else it is noise.
+func waitForShelves(t *testing.T, app *App) {
+	t.Helper()
+
+	for _, shelfData := range app.shelfManager.GetAllShelves() {
+		if err := shelfData.WaitReady(t.Context()); err != nil {
+			t.Fatalf("WaitReady for shelf %s: %v", shelfData.ID, err)
+		}
+	}
 }
 
 // bookMetaPath locates the on-disk book.json for the given book ID by walking

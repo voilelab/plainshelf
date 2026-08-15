@@ -18,6 +18,17 @@ Read the relevant section before working in that area. Add entries according to
 - **Cold end-to-end startup:** the first `go run` may exceed the e2e server wait
   while downloading/building modules; build the frontend and run `go build ./...`
   once before diagnosing a timeout as a test failure.
+- **Preinstalled golangci-lint is too old:** the container's binary refuses this
+  repo with "Go language version used to build golangci-lint is lower than the
+  targeted Go version", and `go install` reproduces it. Download the release
+  build CI uses instead:
+  `curl -sSL https://github.com/golangci/golangci-lint/releases/download/v2.12.2/golangci-lint-2.12.2-linux-amd64.tar.gz | tar xz`.
+  CI enables `unused`, so a helper left without callers fails the build even
+  when `go vet` and `go test` pass. (`.golangci.yml`, `.github/workflows/ci.yml`)
+- **Server tests race the initial shelf scan:** a read issued before it finishes
+  is answered 503 `ErrShelfInitializing`. Test envs must wait via
+  `WaitReady`; do not rely on unrelated startup work to mask it.
+  (`server/api_contract_test.go`)
 
 ## Frontend and Reka UI
 

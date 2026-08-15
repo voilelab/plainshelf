@@ -41,6 +41,7 @@ tests when that directory is absent or stale.
 | Frontend type-check + build | `npm --prefix frontend run build` |
 | Main Go module | `go test ./...` |
 | Desktop Go module | `cd desktop && go test ./...` |
+| Go lint (both modules) | `golangci-lint run` and `cd desktop && golangci-lint run` |
 | All Go tests with frontend build | `just test-go` |
 | End-to-end tests | `just test-e2e` |
 | Mock frontend | `VITE_USE_MOCK_API=true npm --prefix frontend run dev` |
