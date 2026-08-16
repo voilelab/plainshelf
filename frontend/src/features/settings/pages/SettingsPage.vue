@@ -902,6 +902,14 @@ onMounted(() => {
   gap: 16px;
 }
 
+/* Reka mounts every tab panel and only marks the inactive ones with `hidden`.
+   An author rule outranks the user-agent `[hidden]` default, so the rule above
+   would keep those empty panels as grid items and each one's 16px gap would
+   push the active panel further down the further right its tab sits. */
+.settings-tab-content[hidden] {
+  display: none;
+}
+
 .settings-group {
   display: grid;
   gap: 12px;
