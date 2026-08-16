@@ -1,7 +1,6 @@
 package server
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/voilelab/plainshelf/internal/taskutil"
@@ -54,24 +53,6 @@ func newTaskChainResponse(chain *taskutil.TaskChain) TaskChain {
 		Percentage:  chain.Percentage(),
 		CreatedAt:   util.JSONTime(chain.CreatedAt),
 		Tasks:       tasks,
-	}
-}
-
-type taskChainSubmitResponse struct {
-	TaskChainID string `json:"taskchain_id"`
-}
-
-// submitTaskChain answers 202 with the new chain's ID, or 409 with the ID of
-// the chain already in flight so the client can attach to it instead.
-func (app *App) submitTaskChain(w http.ResponseWriter, chain *taskutil.TaskChain, fallback string) {
-	submitted, err := app.taskChains.Submit(chain)
-	switch {
-	case errors.Is(err, taskutil.ErrTaskChainRunning):
-		app.writeJSON(w, http.StatusConflict, taskChainSubmitResponse{TaskChainID: submitted.ID})
-	case err != nil:
-		app.writeErr(w, err, fallback)
-	default:
-		app.writeJSON(w, http.StatusAccepted, taskChainSubmitResponse{TaskChainID: submitted.ID})
 	}
 }
 

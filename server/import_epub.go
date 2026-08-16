@@ -176,7 +176,7 @@ func (app *App) setEPUBCover(book *shelf.Book, parsed *epub.Book) {
 
 	// An EPUB cover the read path could not serve with a correct content type
 	// is converted to JPEG rather than stored as-is.
-	if app.coverToJPG() || !shelf.IsSupportedImageExt(ext) {
+	if app.settings.coverToJPG() || !shelf.IsSupportedImageExt(ext) {
 		converted, err := imgutil.AnyToJPG(data)
 		if err != nil {
 			app.Error("failed to convert epub cover to JPEG", "error", err)

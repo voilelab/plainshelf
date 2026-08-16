@@ -78,7 +78,7 @@ func (app *App) HandleAPIBookBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	app.submitTaskChain(w,
+	app.tasks.submitTaskChain(w,
 		task.NewBookBatchChain(shelfData.ID, shelfData.Shelf, &app.Logger, request.Operation, ids, request.TargetLayer),
 		"failed to schedule book batch task")
 }
