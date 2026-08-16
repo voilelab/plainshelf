@@ -746,6 +746,163 @@ const zhHant = {
     removeConfirm: '移除',
     removeCancel: '先留著'
   },
+  sources: {
+    list: {
+      title: '來源',
+      total: '共 {count} 個',
+      create: '新增',
+      creating: '建立中...',
+      loading: '載入來源中...',
+      empty: '尚無來源。',
+      listLabel: '書籍來源',
+      current: '使用中',
+      delete: '刪除',
+      deleteLabel: '刪除來源 {id}'
+    },
+    // 沒有記錄格式的來源屬於 source format 出現之前的舊資料。
+    // 其他情況徽章直接顯示大寫的格式名，不需要字典條目。
+    format: {
+      legacy: '舊格式'
+    },
+    formatActions: {
+      legacyUpgrade: '升級章節格式',
+      legacyUpgradeHelp: '依目前的舊版分割結果建立一個新的 Markdown 來源。',
+      manualMarkdown: '手動 TXT → MD',
+      regexMarkdown: '正規表示式 → MD',
+      lineCountMarkdown: '固定行數 → MD',
+      plainText: '建立純文字來源',
+      plainTextHelp: '標題階層與章節導覽會遺失。'
+    },
+    editor: {
+      loading: '載入來源中...',
+      noSelection: '請先選擇一個來源再開始編輯。',
+      dirty: '有未儲存的變更',
+      clean: '沒有待儲存的變更',
+      setCurrent: '設為使用中',
+      settingCurrent: '設定中...',
+      contentLabel: '來源內容',
+      find: {
+        groupLabel: '尋找與取代',
+        findLabel: '尋找',
+        findPlaceholder: '搜尋文字',
+        replaceLabel: '取代',
+        replacePlaceholder: '取代為',
+        scopeLabel: '範圍',
+        scopeSection: '目前章節',
+        scopeSource: '整份來源',
+        previous: '上一個',
+        next: '下一個',
+        replace: '取代',
+        replaceAll: '全部取代',
+        noMatches: '沒有符合的結果。',
+        matchOrdinal: '第 {ordinal} 個，共 {total} 個。',
+        matchCount: '共 {total} 個符合。',
+        // 中文沒有單複數變化，兩個形式的譯文相同；分成兩個 key 是為了英文。
+        replacedOne: '已取代 1 處。',
+        replacedMany: '已取代 {count} 處。',
+        replacedOneNoneRemain: '已取代 1 處，沒有其他符合的結果。',
+        replacedOneThenMatch: '已取代 1 處。第 {ordinal} 個，共 {total} 個。',
+        replacedOneThenCount: '已取代 1 處。共 {total} 個符合。'
+      }
+    },
+    conversion: {
+      confirm: '建立來源',
+      busy: '建立中...',
+      titles: {
+        manualMd: '建立分章的 Markdown 來源',
+        regexMd: '把標題行轉成章節',
+        lineCountMd: '依固定長度分割章節',
+        plainText: '建立純文字來源',
+        legacyUpgrade: '升級章節格式'
+      },
+      descriptions: {
+        manualMd: '把目前的 TXT 來源複製成 Markdown 草稿。建立之後可以在來源編輯器裡自行加上 H2 章節。',
+        regexMd: '符合的標題行會改寫成 Markdown 的 H2 標題。',
+        lineCountMd: '每個預覽到的分界處都會插入一個 H2「Part N」標題。',
+        plainText: 'Markdown 標記會被移除，標題階層與章節導覽會遺失。',
+        legacyUpgrade: '目前的舊版分割結果會變成 H2 章節，原本的來源維持不變。'
+      },
+      patternLabel: '章節標題的正規表示式',
+      patternHelp: '第 1 個擷取群組會成為 H2 標題；沒有擷取群組時，會使用整個符合的內容。',
+      lineCountLabel: '每章行數',
+      previewTitle: '預覽',
+      emptySource: '（來源是空的）',
+      setCurrent: '把新來源設為使用中',
+      summaries: {
+        manualMdOne: 'Markdown 草稿一開始會有 1 個 H2 章節。',
+        manualMdMany: 'Markdown 草稿一開始會有 {count} 個 H2 章節。',
+        regexMd: '會建立 {count} 個 H2 章節標題。',
+        lineCountMd: '會插入 {count} 個 H2 章節標題。',
+        plainText: '會建立一個沒有章節結構的 TXT 段落。',
+        legacyUpgradeOne: '會依目前的舊版分割結果建立 1 個 H2 章節。',
+        legacyUpgradeMany: '會依目前的舊版分割結果建立 {count} 個 H2 章節。'
+      },
+      errors: {
+        emptyPattern: '請輸入正規表示式。',
+        patternMatchedNothing: '這個正規表示式沒有比對到任何章節標題行。',
+        invalidLineCount: '每章行數必須是正整數。',
+        previewFailed: '無法預覽這個轉換。'
+      }
+    },
+    page: {
+      title: '編輯來源',
+      back: '返回',
+      save: '儲存',
+      saveDirty: '儲存*',
+      saving: '儲存中...',
+      loading: '載入來源中...',
+      panelsLabel: '來源編輯器面板',
+      paneSources: '來源',
+      paneEditor: '編輯器',
+      paneChapters: '章節',
+      discard: {
+        title: '要捨棄未儲存的變更嗎？',
+        message: '你有尚未儲存的變更，要捨棄嗎？',
+        confirm: '捨棄',
+        cancel: '繼續編輯'
+      },
+      deleteSource: {
+        title: '要刪除來源嗎？',
+        confirm: '刪除',
+        question: '確定要刪除來源「{id}」嗎？這個動作無法復原。',
+        dirtyWarning: '你有尚未儲存的變更，將會遺失。'
+      },
+      renameChapter: {
+        title: '重新命名章節',
+        confirm: '重新命名',
+        titleLabel: '章節標題'
+      },
+      mergeChapter: {
+        title: '要合併章節嗎？',
+        confirm: '合併',
+        question: '移除 H2 標題「{title}」，並把它的內文與相鄰段落合併？'
+      },
+      messages: {
+        sourceSaved: '來源已儲存。',
+        currentUpdated: '已更新使用中的來源。',
+        derivedCreated: '已建立衍生來源。'
+      },
+      errors: {
+        loadSources: '載入來源失敗',
+        loadContent: '載入來源內容失敗',
+        save: '儲存來源失敗',
+        setCurrent: '設定使用中來源失敗',
+        create: '建立來源失敗',
+        createDerived: '建立衍生來源失敗',
+        delete: '刪除來源失敗'
+      }
+    },
+    chapters: {
+      title: '章節',
+      headingCount: '{count} 個 H2 標題',
+      add: '新增',
+      allMarker: '全部',
+      wholeSource: '整份來源',
+      rename: '重新命名',
+      merge: '合併',
+      empty: '尚無 H2 章節。'
+    }
+  },
   notFound: {
     title: '找不到頁面',
     description: '這個網址沒有對應的內容。可能已經改名，或是連結過期了。',

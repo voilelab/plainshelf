@@ -1,4 +1,5 @@
 import { computed, nextTick, ref, watch } from 'vue';
+import { t } from '@/i18n';
 import {
   clampTextOffset,
   findMatchOffset,
@@ -29,11 +30,61 @@ interface NormalizedRange {
   endOffset: number;
 }
 
+/**
+ * What the find/replace line is currently reporting, as data.
+ *
+ * Not the rendered sentence: a translated string held in a ref freezes at
+ * whichever locale produced it, so the status would stay in the old language
+ * after a switch while the controls around it updated.
+ */
+type FindState =
+  | { kind: 'noMatches' }
+  | { kind: 'match'; ordinal: number; total: number }
+  | { kind: 'count'; total: number }
+  | { kind: 'replaced'; count: number }
+  | { kind: 'replacedOneNoneRemain' }
+  | { kind: 'replacedOneThenMatch'; ordinal: number; total: number }
+  | { kind: 'replacedOneThenCount'; total: number };
+
+function renderFindState(state: FindState | null): string {
+  if (!state) {
+    return '';
+  }
+
+  switch (state.kind) {
+    case 'noMatches':
+      return t('sources.editor.find.noMatches');
+    case 'match':
+      return t('sources.editor.find.matchOrdinal', { ordinal: state.ordinal, total: state.total });
+    case 'count':
+      return t('sources.editor.find.matchCount', { total: state.total });
+    // English distinguishes one from many here, and did so before these
+    // strings moved into the catalog; the catalog has no plural rules, so the
+    // two forms are separate keys. Replace-next always replaces exactly one.
+    case 'replaced':
+      return state.count === 1
+        ? t('sources.editor.find.replacedOne')
+        : t('sources.editor.find.replacedMany', { count: state.count });
+    case 'replacedOneNoneRemain':
+      return t('sources.editor.find.replacedOneNoneRemain');
+    case 'replacedOneThenMatch':
+      return t('sources.editor.find.replacedOneThenMatch', {
+        ordinal: state.ordinal,
+        total: state.total
+      });
+    case 'replacedOneThenCount':
+      return t('sources.editor.find.replacedOneThenCount', { total: state.total });
+  }
+}
+
 export function useSourceTextEditor(options: SourceTextEditorOptions) {
   const textareaRef = ref<HTMLTextAreaElement | null>(null);
   const findQuery = ref('');
   const replaceQuery = ref('');
-  const findStatus = ref('');
+  const findState = ref<FindState | null>(null);
+  // Rendered here rather than in the component so the sentence re-resolves on a
+  // locale change: t() reads the locale ref, and this computed depends on it.
+  const findStatus = computed(() => renderFindState(findState.value));
   const disableFind = computed(() => options.disabled() || !findQuery.value);
   const visibleContent = computed(() => {
     const range = currentViewRange();
@@ -44,11 +95,11 @@ export function useSourceTextEditor(options: SourceTextEditorOptions) {
   watch(options.sourceId, () => {
     findQuery.value = '';
     replaceQuery.value = '';
-    findStatus.value = '';
+    findState.value = null;
   });
 
   watch([findQuery, options.findScope], () => {
-    findStatus.value = '';
+    findState.value = null;
   });
 
   function currentViewRange(): NormalizedRange {
@@ -136,7 +187,7 @@ export function useSourceTextEditor(options: SourceTextEditorOptions) {
       backward
     );
     if (index === null) {
-      findStatus.value = 'No matches.';
+      findState.value = { kind: 'noMatches' };
       return null;
     }
     return scope.startOffset + index;
@@ -156,9 +207,9 @@ export function useSourceTextEditor(options: SourceTextEditorOptions) {
       query
     );
     const ordinal = offsets.indexOf(index - scope.startOffset) + 1;
-    findStatus.value = ordinal > 0
-      ? `Match ${ordinal} of ${offsets.length}.`
-      : `${offsets.length} matches.`;
+    findState.value = ordinal > 0
+      ? { kind: 'match', ordinal, total: offsets.length }
+      : { kind: 'count', total: offsets.length };
   }
 
   function findNext(): void {
@@ -204,11 +255,26 @@ export function useSourceTextEditor(options: SourceTextEditorOptions) {
     );
     if (nextIndex === null) {
       focusAndSelect(edit.selectionEnd, edit.selectionEnd);
-      findStatus.value = 'Replaced 1 occurrence. No matches remain.';
+      findState.value = { kind: 'replacedOneNoneRemain' };
       return;
     }
     await selectMatch(scope.startOffset + nextIndex);
-    findStatus.value = `Replaced 1 occurrence. ${findStatus.value}`;
+    // selectMatch has just written the match position; fold the replacement
+    // count into it rather than concatenating two rendered sentences, which
+    // would not survive a locale change and reads badly in languages that do
+    // not join clauses the way English does.
+    const matched = findState.value;
+    if (matched?.kind === 'match') {
+      findState.value = {
+        kind: 'replacedOneThenMatch',
+        ordinal: matched.ordinal,
+        total: matched.total
+      };
+    } else if (matched?.kind === 'count') {
+      findState.value = { kind: 'replacedOneThenCount', total: matched.total };
+    } else {
+      findState.value = { kind: 'replaced', count: 1 };
+    }
   }
 
   function onReplaceInputKeydown(event: KeyboardEvent): void {
@@ -226,7 +292,7 @@ export function useSourceTextEditor(options: SourceTextEditorOptions) {
     const scopedContent = content.slice(scope.startOffset, scope.endOffset);
     const result = replaceAllText(scopedContent, query, replaceQuery.value);
     if (result.occurrences === 0) {
-      findStatus.value = 'No matches.';
+      findState.value = { kind: 'noMatches' };
       return;
     }
 
@@ -247,7 +313,7 @@ export function useSourceTextEditor(options: SourceTextEditorOptions) {
     });
     void nextTick(() => {
       focusAndSelect(mappedCursor, mappedCursor);
-      findStatus.value = `Replaced ${result.occurrences} occurrence${result.occurrences === 1 ? '' : 's'}.`;
+      findState.value = { kind: 'replaced', count: result.occurrences };
     });
   }
 

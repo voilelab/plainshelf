@@ -1,22 +1,22 @@
 <template>
   <aside class="source-list">
     <div class="source-list-header">
-      <h3>Sources</h3>
-      <p class="meta">{{ sources.length }} total</p>
+      <h3>{{ t('sources.list.title') }}</h3>
+      <p class="meta">{{ t('sources.list.total', { count: sources.length }) }}</p>
       <button
         class="button source-new-btn"
         type="button"
         :disabled="creating || loading"
         @click="$emit('create')"
       >
-        {{ creating ? 'Creating...' : 'New' }}
+        {{ creating ? t('sources.list.creating') : t('sources.list.create') }}
       </button>
     </div>
 
-    <div v-if="loading" class="loading list-status">Loading sources...</div>
-    <div v-else-if="sources.length === 0" class="meta list-status">No sources yet.</div>
+    <div v-if="loading" class="loading list-status">{{ t('sources.list.loading') }}</div>
+    <div v-else-if="sources.length === 0" class="meta list-status">{{ t('sources.list.empty') }}</div>
 
-    <div v-else class="source-items" role="list" aria-label="Book sources">
+    <div v-else class="source-items" role="list" :aria-label="t('sources.list.listLabel')">
       <div
         v-for="source in sources"
         :key="source.id"
@@ -31,8 +31,8 @@
         >
           <div class="source-item-top">
             <strong class="source-id">{{ source.id }}</strong>
-            <span class="source-format" :class="{ legacy: !source.format }">{{ source.format?.toUpperCase() || 'Legacy' }}</span>
-            <span v-if="source.id === currentSourceId" class="current-badge">Current</span>
+            <span class="source-format" :class="{ legacy: !source.format }">{{ source.format?.toUpperCase() || t('sources.format.legacy') }}</span>
+            <span v-if="source.id === currentSourceId" class="current-badge">{{ t('sources.list.current') }}</span>
           </div>
           <p class="meta source-created">{{ formatTimestamp(source.created_at) }}</p>
           <p class="meta source-hash">md5: {{ shortHash(source.md5_hash) }}</p>
@@ -40,10 +40,10 @@
         <button
           type="button"
           class="source-delete-btn"
-          :aria-label="`Delete source ${source.id}`"
+          :aria-label="t('sources.list.deleteLabel', { id: source.id })"
           @click="$emit('delete', source.id)"
         >
-          Delete
+          {{ t('sources.list.delete') }}
         </button>
       </div>
     </div>
@@ -52,6 +52,9 @@
 
 <script setup lang="ts">
 import type { SourceMeta } from '@/types/source';
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n();
 
 defineProps<{
   sources: SourceMeta[];

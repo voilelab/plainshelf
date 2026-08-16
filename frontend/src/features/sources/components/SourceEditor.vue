@@ -1,12 +1,12 @@
 <template>
   <section class="editor-panel">
     <div class="source-editor-status" role="status">
-      <p v-if="loading" class="meta">Loading source...</p>
-      <p v-else-if="!sourceId" class="meta">Select a source to start editing.</p>
-      <p v-else-if="dirty" class="meta dirty">Unsaved changes</p>
-      <p v-else class="meta">No pending changes</p>
+      <p v-if="loading" class="meta">{{ t('sources.editor.loading') }}</p>
+      <p v-else-if="!sourceId" class="meta">{{ t('sources.editor.noSelection') }}</p>
+      <p v-else-if="dirty" class="meta dirty">{{ t('sources.editor.dirty') }}</p>
+      <p v-else class="meta">{{ t('sources.editor.clean') }}</p>
       <span v-if="sourceId && !loading" class="status-spacer"></span>
-      <span v-if="sourceId && !loading && isCurrent" class="current-badge">Current</span>
+      <span v-if="sourceId && !loading && isCurrent" class="current-badge">{{ t('sources.list.current') }}</span>
       <button
         v-if="sourceId && !loading && !isCurrent"
         class="button set-current-btn"
@@ -14,51 +14,51 @@
         :disabled="settingCurrent"
         @click="$emit('setCurrent')"
       >
-        {{ settingCurrent ? 'Setting...' : 'Set as current' }}
+        {{ settingCurrent ? t('sources.editor.settingCurrent') : t('sources.editor.setCurrent') }}
       </button>
     </div>
 
-    <div class="editor-find-replace" role="group" aria-label="Find and replace">
+    <div class="editor-find-replace" role="group" :aria-label="t('sources.editor.find.groupLabel')">
       <label class="control-field">
-        <span class="field-label">Find</span>
+        <span class="field-label">{{ t('sources.editor.find.findLabel') }}</span>
         <input
           v-model="findQuery"
           class="control-input"
           type="text"
-          placeholder="Search text"
+          :placeholder="t('sources.editor.find.findPlaceholder')"
           :disabled="isEditorDisabled"
           @keydown.enter.prevent="findNext"
         />
       </label>
 
       <label class="control-field">
-        <span class="field-label">Replace</span>
+        <span class="field-label">{{ t('sources.editor.find.replaceLabel') }}</span>
         <input
           v-model="replaceQuery"
           class="control-input"
           type="text"
-          placeholder="Replace with"
+          :placeholder="t('sources.editor.find.replacePlaceholder')"
           :disabled="isEditorDisabled"
           @keydown="onReplaceInputKeydown"
         />
       </label>
 
       <label v-if="focused" class="control-field scope-field">
-        <span class="field-label">Scope</span>
+        <span class="field-label">{{ t('sources.editor.find.scopeLabel') }}</span>
         <select v-model="findScope" class="control-input" :disabled="isEditorDisabled">
-          <option value="section">Current chapter</option>
-          <option value="source">Whole source</option>
+          <option value="section">{{ t('sources.editor.find.scopeSection') }}</option>
+          <option value="source">{{ t('sources.editor.find.scopeSource') }}</option>
         </select>
       </label>
 
       <div class="find-actions">
-        <button class="button" type="button" :disabled="disableFind" @click="findPrevious">Prev</button>
-        <button class="button" type="button" :disabled="disableFind" @click="findNext">Next</button>
+        <button class="button" type="button" :disabled="disableFind" @click="findPrevious">{{ t('sources.editor.find.previous') }}</button>
+        <button class="button" type="button" :disabled="disableFind" @click="findNext">{{ t('sources.editor.find.next') }}</button>
         <button class="button" type="button" :disabled="disableFind" @click="replaceNext">
-          Replace
+          {{ t('sources.editor.find.replace') }}
         </button>
         <button class="button" type="button" :disabled="disableFind" @click="replaceAll">
-          Replace all
+          {{ t('sources.editor.find.replaceAll') }}
         </button>
       </div>
       <p class="find-status" role="status" aria-live="polite">{{ findStatus }}</p>
@@ -70,6 +70,7 @@
       :key="viewRange?.key ?? 0"
       ref="textareaRef"
       class="source-content-textarea"
+      :aria-label="t('sources.editor.contentLabel')"
       :value="visibleContent"
       :disabled="!sourceId || loading || saving"
       spellcheck="false"
@@ -89,6 +90,9 @@ import type {
   SourceEditorViewRange,
   SourceFindScope
 } from '@/features/sources/types/editorAdapter';
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   modelValue: string;

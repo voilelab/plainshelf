@@ -748,6 +748,169 @@ const en = {
     removeConfirm: 'Remove',
     removeCancel: 'Keep it'
   },
+  sources: {
+    list: {
+      title: 'Sources',
+      total: '{count} total',
+      create: 'New',
+      creating: 'Creating...',
+      loading: 'Loading sources...',
+      empty: 'No sources yet.',
+      listLabel: 'Book sources',
+      current: 'Current',
+      delete: 'Delete',
+      deleteLabel: 'Delete source {id}'
+    },
+    // A source without a stored format predates source-level format metadata.
+    // The badge shows the format otherwise, uppercased, which needs no catalog
+    // entry.
+    format: {
+      legacy: 'Legacy'
+    },
+    formatActions: {
+      legacyUpgrade: 'Upgrade chapter format',
+      legacyUpgradeHelp: 'Creates a new Markdown source from the current legacy split result.',
+      manualMarkdown: 'Manual TXT → MD',
+      regexMarkdown: 'Regex → MD',
+      lineCountMarkdown: 'Fixed lines → MD',
+      plainText: 'Create plain-text source',
+      plainTextHelp: 'Heading hierarchy and chapter navigation will be lost.'
+    },
+    editor: {
+      loading: 'Loading source...',
+      noSelection: 'Select a source to start editing.',
+      dirty: 'Unsaved changes',
+      clean: 'No pending changes',
+      setCurrent: 'Set as current',
+      settingCurrent: 'Setting...',
+      contentLabel: 'Source content',
+      find: {
+        groupLabel: 'Find and replace',
+        findLabel: 'Find',
+        findPlaceholder: 'Search text',
+        replaceLabel: 'Replace',
+        replacePlaceholder: 'Replace with',
+        scopeLabel: 'Scope',
+        scopeSection: 'Current chapter',
+        scopeSource: 'Whole source',
+        previous: 'Prev',
+        next: 'Next',
+        replace: 'Replace',
+        replaceAll: 'Replace all',
+        // The catalog has no pluralization, so counted nouns that can be one
+        // or many get a key per form. Replacing that with a "(s)" suffix would
+        // have made the English worse than it was before it was translated.
+        noMatches: 'No matches.',
+        matchOrdinal: 'Match {ordinal} of {total}.',
+        matchCount: '{total} matches.',
+        replacedOne: 'Replaced 1 occurrence.',
+        replacedMany: 'Replaced {count} occurrences.',
+        replacedOneNoneRemain: 'Replaced 1 occurrence. No matches remain.',
+        replacedOneThenMatch: 'Replaced 1 occurrence. Match {ordinal} of {total}.',
+        replacedOneThenCount: 'Replaced 1 occurrence. {total} matches.'
+      }
+    },
+    conversion: {
+      confirm: 'Create source',
+      busy: 'Creating...',
+      titles: {
+        manualMd: 'Create chapterized Markdown source',
+        regexMd: 'Convert title lines to chapters',
+        lineCountMd: 'Split into fixed-size chapters',
+        plainText: 'Create plain-text source',
+        legacyUpgrade: 'Upgrade chapter format'
+      },
+      descriptions: {
+        manualMd:
+          'Copy the current TXT source into a Markdown draft. You can add H2 chapters in the source editor after creation.',
+        regexMd: 'Matching title lines will be rewritten as Markdown H2 headings.',
+        lineCountMd: 'An H2 “Part N” heading will be inserted at every previewed boundary.',
+        plainText:
+          'Markdown markers will be removed. Heading hierarchy and chapter navigation will be lost.',
+        legacyUpgrade:
+          'The current legacy split result will become H2 chapters. The original source remains unchanged.'
+      },
+      patternLabel: 'Chapter title regular expression',
+      patternHelp: 'Capture group 1 becomes the H2 title. Without a capture group, the full match is used.',
+      lineCountLabel: 'Lines per chapter',
+      previewTitle: 'Preview',
+      emptySource: '(empty source)',
+      setCurrent: 'Set the new source as current',
+      summaries: {
+        manualMdOne: 'The Markdown draft contains 1 H2 chapter initially.',
+        manualMdMany: 'The Markdown draft contains {count} H2 chapters initially.',
+        regexMd: '{count} H2 chapter headings will be created.',
+        lineCountMd: '{count} H2 chapter headings will be inserted.',
+        plainText: 'A single unstructured TXT section will be created.',
+        legacyUpgradeOne: '1 H2 chapter will be created from the current legacy split result.',
+        legacyUpgradeMany: '{count} H2 chapters will be created from the current legacy split result.'
+      },
+      errors: {
+        emptyPattern: 'Enter a regular expression.',
+        patternMatchedNothing: 'The regular expression matched no chapter title lines.',
+        invalidLineCount: 'Lines per chapter must be a positive number.',
+        previewFailed: 'Unable to preview this conversion.'
+      }
+    },
+    page: {
+      title: 'Edit Sources',
+      back: 'Back',
+      save: 'Save',
+      saveDirty: 'Save*',
+      saving: 'Saving...',
+      loading: 'Loading sources...',
+      panelsLabel: 'Source editor panels',
+      paneSources: 'Sources',
+      paneEditor: 'Editor',
+      paneChapters: 'Chapters',
+      discard: {
+        title: 'Discard unsaved changes?',
+        message: 'You have unsaved changes. Discard them?',
+        confirm: 'Discard',
+        cancel: 'Keep editing'
+      },
+      deleteSource: {
+        title: 'Delete source?',
+        confirm: 'Delete',
+        question: 'Are you sure you want to delete source {id}? This action cannot be undone.',
+        dirtyWarning: 'You have unsaved changes that will be lost.'
+      },
+      renameChapter: {
+        title: 'Rename chapter',
+        confirm: 'Rename',
+        titleLabel: 'Chapter title'
+      },
+      mergeChapter: {
+        title: 'Merge chapter?',
+        confirm: 'Merge',
+        question: 'Remove the H2 heading “{title}” and merge its text with the adjacent section?'
+      },
+      messages: {
+        sourceSaved: 'Source saved.',
+        currentUpdated: 'Current source updated.',
+        derivedCreated: 'Derived source created.'
+      },
+      errors: {
+        loadSources: 'Failed to load sources',
+        loadContent: 'Failed to load source content',
+        save: 'Failed to save source',
+        setCurrent: 'Failed to set current source',
+        create: 'Failed to create source',
+        createDerived: 'Failed to create derived source',
+        delete: 'Failed to delete source'
+      }
+    },
+    chapters: {
+      title: 'Chapters',
+      headingCount: '{count} H2 headings',
+      add: 'Add',
+      allMarker: 'All',
+      wholeSource: 'Whole source',
+      rename: 'Rename',
+      merge: 'Merge',
+      empty: 'No H2 chapters yet.'
+    }
+  },
   notFound: {
     title: 'Page not found',
     description: 'There is nothing at this address. It may have been renamed, or the link may be out of date.',

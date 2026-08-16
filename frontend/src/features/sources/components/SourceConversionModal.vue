@@ -2,9 +2,8 @@
   <ConfirmModal
     :open="open"
     :title="title"
-    confirm-text="Create source"
-    cancel-text="Cancel"
-    busy-text="Creating..."
+    :confirm-text="t('sources.conversion.confirm')"
+    :busy-text="t('sources.conversion.busy')"
     :busy="busy"
     :confirm-disabled="!preview.canSubmit"
     @cancel="emit('cancel')"
@@ -14,7 +13,7 @@
       <p>{{ description }}</p>
 
       <label v-if="kind === 'regex-md'" class="conversion-field">
-        <span>Chapter title regular expression</span>
+        <span>{{ t('sources.conversion.patternLabel') }}</span>
         <input
           ref="primaryInput"
           v-model="pattern"
@@ -23,11 +22,11 @@
           :disabled="busy"
           autocomplete="off"
         >
-        <small>Capture group 1 becomes the H2 title. Without a capture group, the full match is used.</small>
+        <small>{{ t('sources.conversion.patternHelp') }}</small>
       </label>
 
       <label v-else-if="kind === 'line-count-md'" class="conversion-field">
-        <span>Lines per chapter</span>
+        <span>{{ t('sources.conversion.lineCountLabel') }}</span>
         <input
           ref="primaryInput"
           v-model="lineCount"
@@ -40,7 +39,7 @@
       </label>
 
       <div class="conversion-preview" aria-live="polite">
-        <strong>Preview</strong>
+        <strong>{{ t('sources.conversion.previewTitle') }}</strong>
         <p v-if="preview.error" class="conversion-error" role="alert">{{ preview.error }}</p>
         <template v-else>
           <p>{{ preview.summary }}</p>
@@ -50,7 +49,7 @@
 
       <label class="set-current-option">
         <input v-model="setCurrent" type="checkbox" :disabled="busy">
-        Set the new source as current
+        {{ t('sources.conversion.setCurrent') }}
       </label>
 
       <p v-if="error" class="conversion-error" role="alert">{{ error }}</p>
@@ -69,6 +68,9 @@ import {
   textToMarkdownByRegex,
   upgradeLegacyToMarkdown
 } from '@/features/sources/utils/sourceConversions';
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n();
 
 export type SourceConversionKind =
   | 'manual-md'
@@ -103,21 +105,21 @@ const primaryInput = ref<HTMLInputElement | null>(null);
 
 const title = computed(() => {
   switch (props.kind) {
-    case 'manual-md': return 'Create chapterized Markdown source';
-    case 'regex-md': return 'Convert title lines to chapters';
-    case 'line-count-md': return 'Split into fixed-size chapters';
-    case 'plain-text': return 'Create plain-text source';
-    case 'legacy-upgrade': return 'Upgrade chapter format';
+    case 'manual-md': return t('sources.conversion.titles.manualMd');
+    case 'regex-md': return t('sources.conversion.titles.regexMd');
+    case 'line-count-md': return t('sources.conversion.titles.lineCountMd');
+    case 'plain-text': return t('sources.conversion.titles.plainText');
+    case 'legacy-upgrade': return t('sources.conversion.titles.legacyUpgrade');
   }
 });
 
 const description = computed(() => {
   switch (props.kind) {
-    case 'manual-md': return 'Copy the current TXT source into a Markdown draft. You can add H2 chapters in the source editor after creation.';
-    case 'regex-md': return 'Matching title lines will be rewritten as Markdown H2 headings.';
-    case 'line-count-md': return 'An H2 “Part N” heading will be inserted at every previewed boundary.';
-    case 'plain-text': return 'Markdown markers will be removed. Heading hierarchy and chapter navigation will be lost.';
-    case 'legacy-upgrade': return 'The current legacy split result will become H2 chapters. The original source remains unchanged.';
+    case 'manual-md': return t('sources.conversion.descriptions.manualMd');
+    case 'regex-md': return t('sources.conversion.descriptions.regexMd');
+    case 'line-count-md': return t('sources.conversion.descriptions.lineCountMd');
+    case 'plain-text': return t('sources.conversion.descriptions.plainText');
+    case 'legacy-upgrade': return t('sources.conversion.descriptions.legacyUpgrade');
   }
 });
 
@@ -133,7 +135,7 @@ type ConversionPreview = {
 
 function excerpt(value: string): string {
   const normalized = value.slice(0, 800).trim();
-  return value.length > 800 ? `${normalized}\n…` : normalized || '(empty source)';
+  return value.length > 800 ? `${normalized}\n…` : normalized || t('sources.conversion.emptySource');
 }
 
 const preview = computed<ConversionPreview>(() => {
@@ -147,39 +149,47 @@ const preview = computed<ConversionPreview>(() => {
       case 'manual-md': {
         comment = `Manual Markdown copy of ${props.sourceId}`;
         const chapters = scanMarkdownH2Headings(nextContent).length;
-        summary = `The Markdown draft contains ${chapters} H2 chapter${chapters === 1 ? '' : 's'} initially.`;
+        summary = chapters === 1
+          ? t('sources.conversion.summaries.manualMdOne')
+          : t('sources.conversion.summaries.manualMdMany', { count: chapters });
         break;
       }
       case 'regex-md': {
-        if (!pattern.value.trim()) throw new Error('Enter a regular expression.');
+        if (!pattern.value.trim()) throw new Error(t('sources.conversion.errors.emptyPattern'));
         const converted = textToMarkdownByRegex(props.content, pattern.value);
-        if (converted.chapters === 0) throw new Error('The regular expression matched no chapter title lines.');
+        if (converted.chapters === 0) {
+          throw new Error(t('sources.conversion.errors.patternMatchedNothing'));
+        }
         nextContent = converted.content;
         comment = `Regex chapter conversion of ${props.sourceId}: ${pattern.value}`;
-        summary = `${converted.chapters} H2 chapter headings will be created.`;
+        summary = t('sources.conversion.summaries.regexMd', { count: converted.chapters });
         break;
       }
       case 'line-count-md': {
         const size = Number(lineCount.value);
-        if (!Number.isFinite(size) || size < 1) throw new Error('Lines per chapter must be a positive number.');
+        if (!Number.isFinite(size) || size < 1) {
+          throw new Error(t('sources.conversion.errors.invalidLineCount'));
+        }
         const converted = textToMarkdownByLineCount(props.content, size);
         nextContent = converted.content;
         comment = `Fixed ${Math.trunc(size)} line conversion of ${props.sourceId}`;
-        summary = `${converted.chapters} H2 chapter headings will be inserted.`;
+        summary = t('sources.conversion.summaries.lineCountMd', { count: converted.chapters });
         break;
       }
       case 'plain-text': {
         nextContent = markdownToPlainText(props.content);
         format = 'txt';
         comment = `Plain-text conversion of ${props.sourceId}`;
-        summary = 'A single unstructured TXT section will be created.';
+        summary = t('sources.conversion.summaries.plainText');
         break;
       }
       case 'legacy-upgrade': {
         nextContent = upgradeLegacyToMarkdown(props.content, props.legacyConfig);
         const chapters = scanMarkdownH2Headings(nextContent).length;
         comment = `Legacy chapter upgrade of ${props.sourceId}`;
-        summary = `${chapters} H2 chapter${chapters === 1 ? '' : 's'} will be created from the current legacy split result.`;
+        summary = chapters === 1
+          ? t('sources.conversion.summaries.legacyUpgradeOne')
+          : t('sources.conversion.summaries.legacyUpgradeMany', { count: chapters });
         break;
       }
     }
@@ -201,7 +211,7 @@ const preview = computed<ConversionPreview>(() => {
       comment: '',
       summary: '',
       excerpt: '',
-      error: err instanceof Error ? err.message : 'Unable to preview this conversion.'
+      error: err instanceof Error ? err.message : t('sources.conversion.errors.previewFailed')
     };
   }
 });

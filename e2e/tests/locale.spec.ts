@@ -137,6 +137,43 @@ test('a shown validation error follows an in-place locale switch', async ({ page
   }
 });
 
+// The whole source editor bypassed the catalog — the densest cluster of
+// hardcoded strings in the app, and the one a zh-Hant reader would notice
+// first, since editing sources is where the English used to be unavoidable.
+test('the source editor renders from the zh-Hant catalog', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importBookFromPath(page, helloFixturePath);
+
+    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
+    await expect(page).toHaveURL(/\/books\/[^/]+$/);
+    // Straight to the route: the More menu is part of a later pass.
+    await page.goto(`${page.url()}/sources`);
+    await expect(page.getByText('No pending changes').first()).toBeVisible();
+
+    await useLocale(page, 'zh-Hant');
+    await page.reload();
+
+    // SourceList, the editor status line, and the find/replace group each came
+    // from a different file.
+    await expect(page.getByRole('heading', { name: '來源', exact: true })).toBeVisible();
+    await expect(page.getByText('沒有待儲存的變更').first()).toBeVisible();
+    await expect(page.getByRole('group', { name: '尋找與取代' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '全部取代', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '儲存', exact: true })).toBeVisible();
+
+    // The find status is built from a state descriptor rather than a stored
+    // sentence, so it has to come out translated too.
+    await page.getByRole('textbox', { name: '尋找' }).fill('zzz-no-such-text');
+    await page.getByRole('button', { name: '下一個', exact: true }).click();
+    await expect(page.getByText('沒有符合的結果。')).toBeVisible();
+  } finally {
+    await server.dispose();
+  }
+});
+
 // The guard below is only as good as this pattern, and an earlier version of it
 // required two dots — which silently excluded every two-segment key, half of
 // what it was written to catch. Pinning both directions keeps that from
