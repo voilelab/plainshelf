@@ -203,7 +203,7 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	layerParts := parseImportLayerParts(r.FormValue("layer"))
 
 	if isEPUBExt(strings.ToLower(filepath.Ext(header.Filename))) {
-		strategy, message, err := parseImportStrategy(r.FormValue("strategy"), app.epubImportStrategy())
+		strategy, message, err := parseImportStrategy(r.FormValue("strategy"), app.settings.epubImportStrategy())
 		if err != nil {
 			app.Warn("rejected import strategy", "error", err)
 			http.Error(w, message, http.StatusBadRequest)
@@ -307,7 +307,7 @@ func (app *App) ImportFromLocalPath(shelfID string, localPath string, layerParts
 		}
 		// The desktop client has no per-import options, so the configured
 		// default strategy is the whole story here.
-		return app.importEPUB(shelfData, fp, info.Size(), filepath.Base(cleanPath), "", layerParts, app.epubImportStrategy())
+		return app.importEPUB(shelfData, fp, info.Size(), filepath.Base(cleanPath), "", layerParts, app.settings.epubImportStrategy())
 	}
 
 	// Re-encode before creating the book: this reads the file, and the book

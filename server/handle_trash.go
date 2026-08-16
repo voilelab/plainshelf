@@ -74,7 +74,7 @@ func (app *App) HandleAPIEmptyTrash(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	app.submitTaskChain(w,
+	app.tasks.submitTaskChain(w,
 		task.NewEmptyTrashChain(shelfData.ID, shelfData.Shelf, &app.Logger),
 		"failed to schedule empty trash task")
 }

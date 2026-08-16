@@ -16,6 +16,13 @@ import (
 type App struct {
 	logutil.Logger
 
+	// The handlers reach the shelves, the store and the worker through these
+	// three, which hold only what they each need. App keeps its own references
+	// because it owns their lifecycle.
+	*apiCore
+	settings *settings
+	tasks    *taskSubmitter
+
 	shelfManager *shelf.ShelfManager
 	taskChains   taskutil.Pool
 	storeDB      *store.DB
@@ -112,7 +119,7 @@ func NewApp(conf *AppConf) (*App, error) {
 	taskChains := taskutil.NewPool(taskutil.NewWorker(workerConf.MaxLen, workLogger), workerConf.MaxKeep)
 
 	failure = false
-	return &App{
+	app := &App{
 		Logger:       *logger,
 		shelfManager: shelfManager,
 		taskChains:   taskChains,
@@ -123,7 +130,15 @@ func NewApp(conf *AppConf) (*App, error) {
 		security:     security,
 
 		bookCacheWriterID: writerID,
-	}, nil
+	}
+
+	// Built after App so they share its logger rather than opening one of their
+	// own.
+	app.apiCore = &apiCore{Logger: &app.Logger, shelves: shelfManager, security: security}
+	app.settings = &settings{Logger: &app.Logger, db: storeDB, conf: conf}
+	app.tasks = &taskSubmitter{apiCore: app.apiCore, pool: taskChains}
+
+	return app, nil
 }
 
 func (app *App) Start() error {

@@ -1,8 +1,6 @@
 package server
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,111 +11,9 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-const (
-	settingKeyCoverToJPG         = "cover_to_jpg"
-	settingKeyDefaultSplitConfig = "default_split_config"
-	settingKeyEPUBImportStrategy = "epub_import_strategy"
-)
-
-// readJSONSetting reports a stored value as absent when it no longer parses or
-// validates, so one bad row cannot wedge a setting.
-func readJSONSetting[T any](app *App, key string, validate func(T) error) (T, bool) {
-	var value T
-
-	bs, exists, err := app.storeDB.GetSetting(key)
-	if err != nil {
-		app.Error("failed to read setting", "key", key, "err", err)
-		return value, false
-	}
-	if !exists {
-		return value, false
-	}
-
-	if err := json.Unmarshal(bs, &value); err != nil {
-		app.Error("stored setting is not valid JSON", "key", key, "err", err)
-		return value, false
-	}
-	if validate != nil {
-		if err := validate(value); err != nil {
-			app.Error("stored setting is no longer valid", "key", key, "err", err)
-			return value, false
-		}
-	}
-
-	return value, true
-}
-
-// A settingValidator returns the message shown to the client separately from
-// the error, which is logged and carries util.Errorf's function prefix.
-type settingValidator[T any] func(T) (message string, err error)
-
-// setJSONSetting stores the decoded value rather than the raw body, so what is
-// persisted is always exactly the fields this build understands.
-func setJSONSetting[T any](app *App, w http.ResponseWriter, r *http.Request, key string, validate settingValidator[T]) {
-	bs, err := io.ReadAll(r.Body)
-	if err != nil {
-		app.Error("read request body:", "err", err)
-		http.Error(w, "invalid request body", http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
-
-	var value T
-	dec := json.NewDecoder(bytes.NewReader(bs))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&value); err != nil {
-		http.Error(w, fmt.Sprintf("invalid JSON: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	if message, err := validate(value); err != nil {
-		app.Warn("rejected setting value", "key", key, "err", err)
-		http.Error(w, message, http.StatusBadRequest)
-		return
-	}
-
-	jsonBytes, err := json.Marshal(value)
-	if err != nil {
-		app.Error("failed to serialize setting", "key", key, "err", err)
-		http.Error(w, "failed to serialize setting", http.StatusInternalServerError)
-		return
-	}
-
-	if err := app.storeDB.SetSetting(key, jsonBytes); err != nil {
-		app.Error("failed to save setting", "key", key, "err", err)
-		http.Error(w, "failed to save setting", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (app *App) deleteSetting(w http.ResponseWriter, key string) {
-	if err := app.storeDB.DeleteSetting(key); err != nil {
-		app.Error("failed to delete setting", "key", key, "err", err)
-		http.Error(w, "failed to delete setting", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (app *App) coverToJPG() bool {
-	val := app.conf.CoverToJPG
-
-	bs, exists, err := app.storeDB.GetSetting(settingKeyCoverToJPG)
-	if err != nil {
-		app.Error("failed to read setting", "key", settingKeyCoverToJPG, "err", err)
-	} else if exists {
-		val = string(bs) == "true"
-	}
-
-	return val
-}
-
 // GET /api/setting/cover_to_jpg
 func (app *App) HandleGetSettingCoverToJPG(w http.ResponseWriter, r *http.Request) {
-	app.writeJSON(w, http.StatusOK, map[string]any{"value": app.coverToJPG()})
+	app.writeJSON(w, http.StatusOK, map[string]any{"value": app.settings.coverToJPG()})
 }
 
 // POST /api/setting/cover_to_jpg
@@ -149,7 +45,7 @@ func (app *App) HandleSetSettingCoverToJPG(w http.ResponseWriter, r *http.Reques
 
 // DELETE /api/setting/cover_to_jpg
 func (app *App) HandleDeleteSettingCoverToJPG(w http.ResponseWriter, r *http.Request) {
-	app.deleteSetting(w, settingKeyCoverToJPG)
+	app.settings.deleteSetting(w, settingKeyCoverToJPG)
 }
 
 func validateDefaultSplitConfig(cfg shelf.SplitConfig) (string, error) {
@@ -173,31 +69,19 @@ func validateDefaultSplitConfig(cfg shelf.SplitConfig) (string, error) {
 	}
 }
 
-func (app *App) defaultSplitConfig() shelf.SplitConfig {
-	if cfg, ok := readJSONSetting[shelf.SplitConfig](app, settingKeyDefaultSplitConfig, nil); ok {
-		return cfg
-	}
-
-	if app.conf.DefaultSplitConfig != nil {
-		return *app.conf.DefaultSplitConfig
-	}
-
-	return shelf.SplitConfig{}
-}
-
 // GET /api/setting/default_split_config
 func (app *App) HandleGetSettingDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
-	app.writeJSON(w, http.StatusOK, map[string]any{"value": app.defaultSplitConfig()})
+	app.writeJSON(w, http.StatusOK, map[string]any{"value": app.settings.defaultSplitConfig()})
 }
 
 // POST /api/setting/default_split_config
 func (app *App) HandleSetSettingDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
-	setJSONSetting(app, w, r, settingKeyDefaultSplitConfig, validateDefaultSplitConfig)
+	setJSONSetting(app.settings, w, r, settingKeyDefaultSplitConfig, validateDefaultSplitConfig)
 }
 
 // DELETE /api/setting/default_split_config
 func (app *App) HandleDeleteSettingDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
-	app.deleteSetting(w, settingKeyDefaultSplitConfig)
+	app.settings.deleteSetting(w, settingKeyDefaultSplitConfig)
 }
 
 // validateEPUBImportStrategy names the preset the client sent rather than
@@ -209,39 +93,17 @@ func validateEPUBImportStrategy(strategy epub.Strategy) (string, error) {
 	return "", nil
 }
 
-// epubImportStrategy is the conversion strategy an import uses when the request
-// does not carry one of its own.
-//
-// Unlike default_split_config, which the reader applies client-side, this is
-// applied server-side during import - the same shape as cover_to_jpg. That
-// matters for the desktop client, which imports without opening the import
-// dialog and so has no other way to choose.
-func (app *App) epubImportStrategy() epub.Strategy {
-	if strategy, ok := readJSONSetting(app, settingKeyEPUBImportStrategy, epub.Strategy.Validate); ok {
-		return strategy
-	}
-
-	if app.conf.EPUBImportStrategy != nil {
-		if err := app.conf.EPUBImportStrategy.Validate(); err == nil {
-			return *app.conf.EPUBImportStrategy
-		}
-		app.Error("epubImportStrategy: invalid configured strategy", "preset", app.conf.EPUBImportStrategy.Preset)
-	}
-
-	return epub.DefaultStrategy()
-}
-
 // GET /api/setting/epub_import_strategy
 func (app *App) HandleGetSettingEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
-	app.writeJSON(w, http.StatusOK, map[string]any{"value": app.epubImportStrategy()})
+	app.writeJSON(w, http.StatusOK, map[string]any{"value": app.settings.epubImportStrategy()})
 }
 
 // POST /api/setting/epub_import_strategy
 func (app *App) HandleSetSettingEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
-	setJSONSetting(app, w, r, settingKeyEPUBImportStrategy, validateEPUBImportStrategy)
+	setJSONSetting(app.settings, w, r, settingKeyEPUBImportStrategy, validateEPUBImportStrategy)
 }
 
 // DELETE /api/setting/epub_import_strategy
 func (app *App) HandleDeleteSettingEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
-	app.deleteSetting(w, settingKeyEPUBImportStrategy)
+	app.settings.deleteSetting(w, settingKeyEPUBImportStrategy)
 }

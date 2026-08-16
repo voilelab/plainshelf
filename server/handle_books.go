@@ -299,7 +299,7 @@ func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request)
 	}
 
 	contentType := r.Header.Get("Content-Type")
-	coverToJPG := app.coverToJPG()
+	coverToJPG := app.settings.coverToJPG()
 	var ext string
 	switch contentType {
 	case "image/png":

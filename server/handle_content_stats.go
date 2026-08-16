@@ -13,7 +13,7 @@ func (app *App) HandleAPIRefreshContentStats(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	app.submitTaskChain(w,
+	app.tasks.submitTaskChain(w,
 		task.NewRefreshContentStatsChain(shelfData.ID, shelfData.Shelf, &app.Logger),
 		"failed to schedule content stats refresh task")
 }
