@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/voilelab/plainshelf/internal/testutil"
 	"github.com/voilelab/plainshelf/server"
 )
 
@@ -123,7 +124,7 @@ func TestAPIImportMarkdownBookContract(t *testing.T) {
 
 func TestAPIImportEPUBBookContract(t *testing.T) {
 	env := newAPITestEnv(t)
-	archive := string(buildTestEPUB(t))
+	archive := string(testutil.BuildTestEPUB(t))
 
 	imported := importFileBook(t, env, "three-body.epub", "application/epub+zip", archive)
 	if imported.Meta == nil {
@@ -131,8 +132,8 @@ func TestAPIImportEPUBBookContract(t *testing.T) {
 	}
 
 	// The book's own dc:title beats the filename.
-	if imported.Meta.Title != testEPUBTitle {
-		t.Fatalf("title = %q, want %q", imported.Meta.Title, testEPUBTitle)
+	if imported.Meta.Title != testutil.TestEPUBTitle {
+		t.Fatalf("title = %q, want %q", imported.Meta.Title, testutil.TestEPUBTitle)
 	}
 	// The default strategy is the Markdown preset, so the stored format is "md".
 	if imported.Meta.Format != "md" {
@@ -165,7 +166,7 @@ func TestAPIImportEPUBBookContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusOK)
 	content := rec.Body.String()
 	for _, want := range []string{
-		"# " + testEPUBTitle,
+		"# " + testutil.TestEPUBTitle,
 		"一部關於旅途的短篇小說。",
 		"## 啟程",
 		"他走出了車站。",
@@ -208,7 +209,7 @@ func TestAPIImportEPUBBookContract(t *testing.T) {
 
 func TestAPIImportEPUBBookStrategyContract(t *testing.T) {
 	env := newAPITestEnv(t)
-	archive := string(buildTestEPUB(t))
+	archive := string(testutil.BuildTestEPUB(t))
 
 	// A per-import strategy overrides the configured default.
 	plain := importEPUBWithStrategy(t, env, "plain.epub", archive,
