@@ -308,6 +308,21 @@ const zhHant = {
   },
   maintenance: {
     duplicateContent: '重複內容',
+    duplicates: {
+      description: '用來檢視內容完全相同的書籍。',
+      scanning: '掃描重複內容群組中...',
+      empty: '沒有發現重複內容。',
+      emptyHint: '你的書庫很乾淨。',
+      loadFailed: '載入重複內容失敗',
+      groupTitle: '重複群組 #{index}',
+      groupSummary: '{count} 本書的內容完全相同',
+      open: '開啟',
+      delete: '刪除',
+      deleting: '刪除中...',
+      deleteLabel: '刪除「{title}」',
+      untitledBook: '這本書',
+      deleteFailed: '刪除書籍失敗'
+    },
     missingAuthor: {
       title: '缺少作者',
       empty: '沒有缺少作者的書籍'
@@ -483,6 +498,7 @@ const zhHant = {
     }
   },
   bookCollection: {
+    noLayer: '未分類',
     loadingBooks: '載入書籍中...',
     shelfInitializing: '書架載入中，請稍候...',
     shelfUnreachable: '書架回應逾時，可能無法連線（例如 SMB 掛載已中斷）。',
@@ -679,6 +695,32 @@ const zhHant = {
     },
     showChapters: '顯示章節',
     splitSettings: '切分設定',
+    split: {
+      title: '閱讀器分割設定',
+      closeLabel: '關閉分割設定對話框',
+      description: '不離開閱讀器就能套用章節分割，目前的閱讀位置會保留。',
+      typeLabel: '分割類型',
+      // 這些值是 API token，這裡替它們取讀者看得懂的名字。
+      types: {
+        none: '無',
+        line_count: '固定行數',
+        regex: '正規表示式',
+        boundary: '指定分界'
+      },
+      lineCountLabel: '每節行數',
+      lineCountPlaceholder: '例如 100',
+      regexLabel: '正規表示式模式',
+      regexPlaceholder: '例如 ^第[一二三四五六七八九十百]+章',
+      boundaryLabel: '分界（以 1 起算的行號，用逗號或空白分隔）',
+      boundaryPlaceholder: '例如 1, 101, 201',
+      save: '儲存分割設定',
+      saving: '儲存中...',
+      saveFailed: '更新分割設定失敗'
+    },
+    chapterDialog: {
+      title: '章節',
+      closeLabel: '關閉章節對話框'
+    },
     imageUnavailable: '插圖無法載入',
     autosaveFailed: '閱讀進度無法儲存，PlainShelf 將自動重試。',
     mobile: {
@@ -745,6 +787,89 @@ const zhHant = {
     removeDescription: '從這個書架下載的書會從裝置上刪除。閱讀進度與紀錄會保留，日後重新加入時可以接續。',
     removeConfirm: '移除',
     removeCancel: '先留著'
+  },
+  libraryForms: {
+    editBook: {
+      title: '編輯中繼資料',
+      description: '可更新目前 API 支援的欄位。',
+      basicInfo: '基本資訊',
+      titleLabel: '書名',
+      titlePlaceholder: '書名',
+      authorsLabel: '作者（以逗號分隔）',
+      authorsPlaceholder: '作者 A, 作者 B',
+      organization: '整理',
+      publishedAt: '出版日期',
+      languageLabel: '語言',
+      starRating: '星等',
+      starValueOne: '1 星',
+      starValueMany: '{count} 星',
+      clearRating: '清除',
+      tags: '標籤',
+      tagsPlaceholder: '輸入標籤後按 Enter',
+      tagsHelp: '按 Enter 或逗號新增標籤，點 × 可移除。',
+      removeTag: '移除標籤「{tag}」',
+      comment: '備註',
+      commentPlaceholder: '關於這本書的筆記',
+      identifiers: '識別碼',
+      identifierKeyPlaceholder: 'isbn',
+      identifierValuePlaceholder: '9787020002207',
+      identifierKeyLabel: '第 {index} 個識別碼名稱',
+      identifierValueLabel: '第 {index} 個識別碼內容',
+      removeIdentifier: '移除識別碼「{name}」',
+      addIdentifier: '新增識別碼',
+      save: '儲存中繼資料',
+      saving: '儲存中...',
+      loading: '載入書籍中繼資料中...',
+      loadFailed: '載入中繼資料失敗',
+      saveFailed: '儲存中繼資料失敗'
+    },
+    newBook: {
+      title: '新增空白書籍',
+      closeLabel: '關閉新增空白書籍對話框',
+      description: '只用書名建立一本空白的 TXT 書籍。',
+      titleLabel: '書名',
+      titlePlaceholder: '請輸入書名',
+      create: '建立',
+      creating: '建立中...',
+      createFailed: '建立空白書籍失敗。'
+    },
+    importBook: {
+      title: '匯入書籍',
+      closeLabel: '關閉匯入對話框',
+      description: '上傳 TXT、Markdown 或 EPUB 檔案來建立新書，也可以把檔案拖曳到這裡。',
+      fileLabel: '書籍檔案（.txt、.md、.epub）',
+      epubTitle: 'EPUB 轉換',
+      epubDescription:
+        'EPUB 匯入時會轉換成 source，不保留原始檔案；Markdown 預設可保留支援的圖片。',
+      convertTo: '轉換成',
+      presetMarkdown: 'Markdown（章節標題）',
+      presetPlain: '純文字',
+      plainHint:
+        '純文字沒有章節導覽，也不支援 Markdown 圖片。日後仍可另外建立分章的 Markdown 來源，不會動到這份 TXT。',
+      includeDescription: '正文開頭放入書籍簡介',
+      selectedFiles: '已選檔案',
+      fileTitle: '書名：{title}',
+      fileStatus: '狀態：',
+      submit: '匯入',
+      submitting: '匯入中...',
+      statuses: {
+        pending: '等待中',
+        importing: '匯入中',
+        success: '已匯入',
+        failed: '失敗'
+      },
+      errors: {
+        noFiles: '請至少選擇一個 TXT、Markdown 或 EPUB 檔案。',
+        unsupportedExtension: '書籍檔案必須是 .txt、.md 或 .epub。',
+        allFailed: '匯入失敗。',
+        someFailed: '有 {count} 個檔案失敗。'
+      },
+      results: {
+        one: '匯入成功。',
+        many: '已匯入 {count} 個檔案。',
+        partial: '已匯入 {count} 個檔案，共 {total} 個。'
+      }
+    }
   },
   sources: {
     list: {

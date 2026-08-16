@@ -1,3 +1,4 @@
+import { t } from '@/i18n';
 import type { Book } from '@/types/book';
 
 export const ROOT_LAYER_PATH = '';
@@ -51,7 +52,7 @@ export function getLayerPath(book: Pick<Book, 'layers'>): string {
 }
 
 export function layerPathLabel(path: string): string {
-  return path || 'No layer';
+  return path || t('bookCollection.noLayer');
 }
 
 export function normalizeLayerPath(path: string): string {

@@ -1,5 +1,5 @@
 <template>
-  <BaseDialog :open="open" title="Import Book" :busy="submitting" @close="onClose">
+  <BaseDialog :open="open" :title="t('libraryForms.importBook.title')" :busy="submitting" @close="onClose">
     <section
       class="panel import-modal"
       :class="{ 'is-drop-target': isDropTarget }"
@@ -8,11 +8,11 @@
       @drop="onDrop"
     >
       <header class="import-header">
-        <h2>Import Book</h2>
+        <h2>{{ t('libraryForms.importBook.title') }}</h2>
         <button
           class="icon-close"
           type="button"
-          aria-label="Close import dialog"
+          :aria-label="t('libraryForms.importBook.closeLabel')"
           :disabled="submitting"
           @click="onClose"
         >
@@ -20,14 +20,14 @@
         </button>
       </header>
 
-      <p class="meta">Upload a TXT, Markdown or EPUB file to create a new book entry, or drag-and-drop files here.</p>
+      <p class="meta">{{ t('libraryForms.importBook.description') }}</p>
 
       <div v-if="success" class="success">{{ success }}</div>
       <div v-if="error" class="error">{{ error }}</div>
 
       <form class="import-form" @submit.prevent="onSubmit">
         <label class="field">
-          <span class="label">Book File (.txt, .md, .epub)</span>
+          <span class="label">{{ t('libraryForms.importBook.fileLabel') }}</span>
           <input
             ref="bookInput"
             class="input file-input"
@@ -40,14 +40,11 @@
         </label>
 
         <section v-if="showEpubOptions" class="epub-options">
-          <h3 class="epub-options-title">EPUB Conversion</h3>
-          <p class="meta">
-            EPUB files are converted into a source. The original file is not kept;
-            supported illustrations are retained by the Markdown preset.
-          </p>
+          <h3 class="epub-options-title">{{ t('libraryForms.importBook.epubTitle') }}</h3>
+          <p class="meta">{{ t('libraryForms.importBook.epubDescription') }}</p>
 
           <label class="field">
-            <span class="label">Convert to</span>
+            <span class="label">{{ t('libraryForms.importBook.convertTo') }}</span>
             <SelectRoot
               :model-value="epubStrategy.preset"
               :disabled="submitting"
@@ -60,7 +57,7 @@
                 <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
                   <SelectViewport>
                     <SelectItem
-                      v-for="opt in EPUB_PRESET_OPTIONS"
+                      v-for="opt in epubPresetOptions"
                       :key="opt.value"
                       class="reka-menu-item"
                       :value="opt.value"
@@ -74,8 +71,7 @@
           </label>
 
           <p v-if="epubStrategy.preset === 'plain'" class="meta epub-hint">
-            Plain text has no chapter navigation or Markdown illustrations. You can create
-            a chapterized Markdown source afterwards without changing this TXT source.
+            {{ t('libraryForms.importBook.plainHint') }}
           </p>
 
           <label class="epub-checkbox">
@@ -85,19 +81,19 @@
               :disabled="submitting"
               @change="onIncludeDescriptionChange"
             />
-            <span>Put the book description at the start of the text</span>
+            <span>{{ t('libraryForms.importBook.includeDescription') }}</span>
           </label>
         </section>
 
         <section v-if="files.length > 0" class="selected-files" aria-live="polite">
-          <h3 class="selected-files-title">Selected Files</h3>
+          <h3 class="selected-files-title">{{ t('libraryForms.importBook.selectedFiles') }}</h3>
           <ul class="file-list">
             <li v-for="(item, index) in files" :key="`${item.filename}-${index}`" class="file-item">
               <p class="file-name">{{ item.filename }}</p>
-              <p class="file-meta">Title: {{ item.title }}</p>
+              <p class="file-meta">{{ t('libraryForms.importBook.fileTitle', { title: item.title }) }}</p>
               <p class="file-meta">
-                Status:
-                <span class="file-status" :class="`status-${item.status}`">{{ item.status }}</span>
+                {{ t('libraryForms.importBook.fileStatus') }}
+                <span class="file-status" :class="`status-${item.status}`">{{ statusLabel(item.status) }}</span>
               </p>
               <p v-if="item.status === 'failed' && item.error" class="file-error">{{ item.error }}</p>
             </li>
@@ -105,9 +101,9 @@
         </section>
 
         <div class="actions">
-          <button class="button" type="button" :disabled="submitting" @click="onClose">Cancel</button>
+          <button class="button" type="button" :disabled="submitting" @click="onClose">{{ t('common.cancel') }}</button>
           <button class="button primary" type="submit" :disabled="submitting || files.length === 0">
-            {{ submitting ? 'Importing...' : 'Import' }}
+            {{ submitting ? t('libraryForms.importBook.submitting') : t('libraryForms.importBook.submit') }}
           </button>
         </div>
       </form>
@@ -136,10 +132,22 @@ import { hasFileTransfer, readDroppedFiles, readSelectedFiles } from '@/utils/fi
 import { getEpubImportStrategySetting } from '@/api/settings';
 import type { EpubImportPreset } from '@/types/book';
 
-const EPUB_PRESET_OPTIONS: { value: EpubImportPreset; label: string }[] = [
-  { value: 'markdown', label: 'Markdown (chapter headings)' },
-  { value: 'plain', label: 'Plain text' }
-];
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n();
+
+// A function, not a const array: the labels have to follow a locale change, and
+// a module-level array resolves them once at import.
+const epubPresetOptions = computed<{ value: EpubImportPreset; label: string }[]>(() => [
+  { value: 'markdown', label: t('libraryForms.importBook.presetMarkdown') },
+  { value: 'plain', label: t('libraryForms.importBook.presetPlain') }
+]);
+
+// The status is an enum token the UI used to render raw, so users saw
+// "importing" rather than a sentence in their language.
+function statusLabel(status: string): string {
+  return t(`libraryForms.importBook.statuses.${status}`);
+}
 
 const props = defineProps<{
   open: boolean;

@@ -1,9 +1,9 @@
 <template>
-  <BaseDialog :open="open" title="Chapters" @close="emit('close')">
+  <BaseDialog :open="open" :title="t('reader.chapterDialog.title')" @close="emit('close')">
     <section class="panel chapter-modal">
       <header class="chapter-modal-header">
-        <h3>Chapters</h3>
-        <button class="chapter-icon-close" type="button" aria-label="Close chapter dialog" @click="emit('close')">×</button>
+        <h3>{{ t('reader.chapterDialog.title') }}</h3>
+        <button class="chapter-icon-close" type="button" :aria-label="t('reader.chapterDialog.closeLabel')" @click="emit('close')">×</button>
       </header>
 
       <div class="chapter-modal-list">
@@ -25,6 +25,9 @@
 
 <script setup lang="ts">
 import BaseDialog from '@/components/BaseDialog.vue';
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n();
 
 type ReaderSection = {
   index: number;

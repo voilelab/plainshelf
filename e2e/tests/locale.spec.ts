@@ -91,7 +91,10 @@ test('book language labels follow the locale', async ({ page }) => {
     // that have not moved yet.
     await page.goto(`${page.url()}/edit`);
 
-    const languageTrigger = page.locator('.edit-form').getByLabel('Language');
+    // By role, not by label: the field's accessible name now comes from the
+    // translated label, and getByLabel matches substrings — it was quietly
+    // matching "language tag" inside the help text below the field instead.
+    const languageTrigger = page.locator('.edit-form').getByRole('combobox');
     await languageTrigger.click();
     await page.getByRole('option', { name: '英文', exact: true }).click();
     await expect(languageTrigger).toHaveText('英文');
@@ -115,7 +118,7 @@ test('a shown validation error follows an in-place locale switch', async ({ page
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
     await page.goto(`${page.url()}/edit`);
 
-    const languageTrigger = page.locator('.edit-form').getByLabel('Language');
+    const languageTrigger = page.locator('.edit-form').getByRole('combobox');
     await languageTrigger.click();
     await page.getByRole('option', { name: 'Custom...', exact: true }).click();
     await page.getByPlaceholder('e.g. zh-TW, zh-HK, fr, de').fill('not a tag');
@@ -169,6 +172,36 @@ test('the source editor renders from the zh-Hant catalog', async ({ page }) => {
     await page.getByRole('textbox', { name: '尋找' }).fill('zzz-no-such-text');
     await page.getByRole('button', { name: '下一個', exact: true }).click();
     await expect(page.getByText('沒有符合的結果。')).toBeVisible();
+  } finally {
+    await server.dispose();
+  }
+});
+
+// The library's own forms were the last cluster: the metadata editor, the
+// import dialog and the duplicate-content page. The import dialog also used to
+// render its per-file status as the raw enum token.
+test('the library forms render from the zh-Hant catalog', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importBookFromPath(page, helloFixturePath);
+
+    await useLocale(page, 'zh-Hant');
+    await page.reload();
+
+    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
+    await expect(page).toHaveURL(/\/books\/[^/]+$/);
+    await page.goto(`${page.url()}/edit`);
+
+    await expect(page.getByRole('heading', { name: '編輯中繼資料' })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: '書名' }).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: '儲存中繼資料' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '新增識別碼' })).toBeVisible();
+
+    await page.goto(`${server.baseUrl}/duplicates`);
+    await expect(page.getByRole('heading', { name: '重複內容' })).toBeVisible();
+    await expect(page.getByText('沒有發現重複內容。')).toBeVisible();
   } finally {
     await server.dispose();
   }

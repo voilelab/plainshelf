@@ -1,3 +1,4 @@
+import { t } from '@/i18n';
 import { ref } from 'vue';
 import { bookshelfWriter } from '@/providers';
 import { deriveTitleFromFilename, hasSupportedExtension } from '@/utils/file';
@@ -90,7 +91,7 @@ export function useImportBook() {
     success.value = '';
 
     if (bookFiles.value.length === 0) {
-      error.value = 'Please choose at least one TXT, Markdown or EPUB file.';
+      error.value = t('libraryForms.importBook.errors.noFiles');
       return null;
     }
 
@@ -108,7 +109,7 @@ export function useImportBook() {
           files.value[index] = {
             ...current,
             status: 'failed',
-            error: 'Book file must be .txt, .md or .epub.'
+            error: t('libraryForms.importBook.errors.unsupportedExtension')
           };
           failedCount += 1;
           continue;
@@ -154,14 +155,16 @@ export function useImportBook() {
 
       const total = files.value.length;
       if (successCount === total) {
-        success.value = total === 1 ? 'Import successful.' : `Imported ${successCount} files.`;
+        success.value = total === 1
+          ? t('libraryForms.importBook.results.one')
+          : t('libraryForms.importBook.results.many', { count: successCount });
         error.value = '';
       } else if (successCount > 0) {
-        success.value = `Imported ${successCount} of ${total} files.`;
-        error.value = `${failedCount} file(s) failed.`;
+        success.value = t('libraryForms.importBook.results.partial', { count: successCount, total });
+        error.value = t('libraryForms.importBook.errors.someFailed', { count: failedCount });
       } else {
         success.value = '';
-        error.value = 'Import failed.';
+        error.value = t('libraryForms.importBook.errors.allFailed');
       }
 
       return {
