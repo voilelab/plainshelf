@@ -4,9 +4,9 @@ import {
   CUSTOM_LANGUAGE_VALUE,
   LANGUAGE_VALUES,
   formatLanguage,
+  isValidLanguageTag,
   languageSelectOptions,
-  normalizeLanguage,
-  validateLanguageTag
+  normalizeLanguage
 } from './language';
 
 // These labels used to be hardcoded Traditional Chinese, so an English UI
@@ -54,18 +54,20 @@ describe('book language labels', () => {
     expect(zhOptions[zhOptions.length - 1].label).toBe('自訂...');
   });
 
-  it('translates the invalid-tag message and stays silent otherwise', () => {
-    expect(validateLanguageTag('zh-Hant')).toBeNull();
-    expect(validateLanguageTag('')).toBeNull();
+  it('judges tag validity without producing a message', () => {
+    expect(isValidLanguageTag('zh-Hant')).toBe(true);
+    expect(isValidLanguageTag('fr')).toBe(true);
+    // Empty means "unspecified", which is a legitimate choice.
+    expect(isValidLanguageTag('')).toBe(true);
+    expect(isValidLanguageTag('  ')).toBe(true);
 
-    expect(validateLanguageTag('not a tag')).toBe(
-      'That is not a valid language tag. Use a form like en, ja, zh-Hant or zh-TW.'
-    );
+    expect(isValidLanguageTag('not a tag')).toBe(false);
+    expect(isValidLanguageTag('zh_Hant')).toBe(false);
 
+    // The verdict is locale-independent: it is the caller that renders a
+    // message, so a shown error follows a switch instead of freezing.
     setLocale('zh-Hant');
-    expect(validateLanguageTag('not a tag')).toBe(
-      '語言格式不正確，請使用 en、ja、zh-Hant、zh-TW 這類格式。'
-    );
+    expect(isValidLanguageTag('not a tag')).toBe(false);
   });
 
   it('leaves tag normalization alone', () => {

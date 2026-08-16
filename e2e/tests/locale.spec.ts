@@ -100,6 +100,43 @@ test('book language labels follow the locale', async ({ page }) => {
   }
 });
 
+// A validation message shown on screen has to follow a locale switch like
+// everything around it. This one is derived from a flag rather than stored as
+// text, and this drives the switcher in place — seeding storage would reload
+// and clear the error before it could be observed.
+test('a shown validation error follows an in-place locale switch', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importBookFromPath(page, helloFixturePath);
+
+    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
+    await expect(page).toHaveURL(/\/books\/[^/]+$/);
+    await page.goto(`${page.url()}/edit`);
+
+    const languageTrigger = page.locator('.edit-form').getByLabel('Language');
+    await languageTrigger.click();
+    await page.getByRole('option', { name: 'Custom...', exact: true }).click();
+    await page.getByPlaceholder('e.g. zh-TW, zh-HK, fr, de').fill('not a tag');
+    await page.getByRole('button', { name: 'Save metadata' }).click();
+
+    const invalidEn = 'That is not a valid language tag. Use a form like en, ja, zh-Hant or zh-TW.';
+    await expect(page.getByText(invalidEn)).toBeVisible();
+
+    // The UI-language switcher lives in the topbar; scope past the edit form's
+    // own Language combobox. The option label is an endonym, so it reads the
+    // same whichever locale you start from.
+    await page.locator('.language-select').getByRole('combobox').click();
+    await page.getByRole('option', { name: '繁體中文', exact: true }).click();
+
+    await expect(page.getByText('語言格式不正確，請使用 en、ja、zh-Hant、zh-TW 這類格式。')).toBeVisible();
+    await expect(page.getByText(invalidEn)).toHaveCount(0);
+  } finally {
+    await server.dispose();
+  }
+});
+
 // t() returns the key itself on a miss — no throw, no warning — so a typo'd or
 // not-yet-added key reaches the screen as a literal dotted path. That failure
 // is invisible to the catalog tests, because the catalogs are fine; it is the

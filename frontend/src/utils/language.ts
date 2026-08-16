@@ -88,16 +88,16 @@ export function formatLanguage(input?: string): string {
 
 const languageTagRE = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
 
-export function validateLanguageTag(input: string): string | null {
+/**
+ * True when the tag is empty — meaning "unspecified" — or a well-formed BCP 47
+ * tag.
+ *
+ * A verdict rather than a message on purpose. Returning translated text invites
+ * the caller to capture it in a ref, where it freezes at whichever locale
+ * produced it: the same trap the label constants above used to have, one step
+ * removed. The caller renders the message from this through a computed.
+ */
+export function isValidLanguageTag(input: string): boolean {
   const value = input.trim();
-
-  if (value === '') {
-    return null;
-  }
-
-  if (!languageTagRE.test(value)) {
-    return t('language.book.invalidTag');
-  }
-
-  return null;
+  return value === '' || languageTagRE.test(value);
 }

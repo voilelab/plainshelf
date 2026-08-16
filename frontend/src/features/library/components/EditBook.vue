@@ -184,9 +184,9 @@ import type { Book, BookUpdateRequest } from '@/types/book';
 import {
   CUSTOM_LANGUAGE_VALUE,
   LANGUAGE_VALUES,
+  isValidLanguageTag,
   languageSelectOptions,
-  normalizeLanguage,
-  validateLanguageTag
+  normalizeLanguage
 } from '@/utils/language';
 import { commaStringToList, listToCommaString } from '@/utils/metadata';
 import { useI18n } from '@/i18n';
@@ -232,7 +232,11 @@ const tags = computed<string[]>({
 const tagsInputRef = ref<InstanceType<typeof TagsInputInput> | null>(null);
 const languagePreset = ref('');
 const customLanguage = ref('');
-const languageError = ref('');
+// A flag, not the message. Holding translated text here would leave a shown
+// error stranded in the locale it was produced in while the placeholder, help
+// text and options around it follow a switch.
+const languageTagInvalid = ref(false);
+const languageError = computed(() => (languageTagInvalid.value ? t('language.book.invalidTag') : ''));
 const comment = ref('');
 const publishedAtInput = ref('');
 const star = ref(0);
@@ -269,7 +273,7 @@ watch(
       languagePreset.value = CUSTOM_LANGUAGE_VALUE;
       customLanguage.value = initialLanguage;
     }
-    languageError.value = '';
+    languageTagInvalid.value = false;
     comment.value = book.comment ?? '';
     publishedAtInput.value = toFormDateValue(book.published_at);
     star.value = normalizeStar(book.star);
@@ -280,13 +284,13 @@ watch(
 
 watch(languagePreset, (nextPreset) => {
   if (nextPreset !== CUSTOM_LANGUAGE_VALUE) {
-    languageError.value = '';
+    languageTagInvalid.value = false;
   }
 });
 
 watch(customLanguage, () => {
-  if (languageError.value) {
-    languageError.value = '';
+  if (languageTagInvalid.value) {
+    languageTagInvalid.value = false;
   }
 });
 
@@ -324,12 +328,9 @@ function buildIdentifiersPayload(): Record<string, string> {
 
 function onSubmit(): void {
   const rawLanguage = languagePreset.value === CUSTOM_LANGUAGE_VALUE ? customLanguage.value : languagePreset.value;
-  if (languagePreset.value === CUSTOM_LANGUAGE_VALUE) {
-    const errorMessage = validateLanguageTag(rawLanguage);
-    if (errorMessage) {
-      languageError.value = errorMessage;
-      return;
-    }
+  if (languagePreset.value === CUSTOM_LANGUAGE_VALUE && !isValidLanguageTag(rawLanguage)) {
+    languageTagInvalid.value = true;
+    return;
   }
 
   const normalizedLanguage = normalizeLanguage(rawLanguage);
