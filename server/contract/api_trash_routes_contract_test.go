@@ -1,4 +1,4 @@
-package server
+package contract_test
 
 import (
 	"net/http"
@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/voilelab/plainshelf/server"
 )
 
 // DELETE /books/{id} and POST /books/{id}/trash share one handler; these pin
@@ -14,17 +16,15 @@ import (
 // The full trash lifecycle is covered by TestAPITrashLifecycleContract; what is
 // unique here is that the two routes are interchangeable. One env serves both:
 // each route trashes its own book, so they never observe each other's effect.
-func TestDeleteAndTrashRoutesBothTrashTheBook(t *testing.T) {
+func TestAPIDeleteAndTrashRoutesBothTrashTheBookContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
 	routes := map[string]func(bookID string) *http.Request{
 		"DELETE /books/{book_id}": func(bookID string) *http.Request {
-			return httptest.NewRequest(http.MethodDelete,
-				"/api/shelves/default_shelf/books/"+bookID, nil)
+			return httptest.NewRequest(http.MethodDelete, bookURL(bookID), nil)
 		},
 		"POST /books/{book_id}/trash": func(bookID string) *http.Request {
-			return httptest.NewRequest(http.MethodPost,
-				"/api/shelves/default_shelf/books/"+bookID+"/trash", nil)
+			return httptest.NewRequest(http.MethodPost, bookURL(bookID, "trash"), nil)
 		},
 	}
 
@@ -35,32 +35,25 @@ func TestDeleteAndTrashRoutesBothTrashTheBook(t *testing.T) {
 
 			assertStatus(t, env.do(build(bookID)), http.StatusNoContent)
 
-			assertStatus(t,
-				env.do(httptest.NewRequest(http.MethodGet,
-					"/api/shelves/default_shelf/books/"+bookID, nil)),
-				http.StatusNotFound)
+			assertStatus(t, env.get(bookURL(bookID)), http.StatusNotFound)
 
 			// Recoverable, which is what makes both routes a trash operation.
-			trashRec := env.do(httptest.NewRequest(http.MethodGet,
-				"/api/shelves/default_shelf/trash/books", nil))
-			assertStatus(t, trashRec, http.StatusOK)
-
-			trashed := decodeJSON[[]TrashedBook](t, trashRec)
-			if !slices.ContainsFunc(trashed, func(b TrashedBook) bool { return b.ID == bookID }) {
+			trashed := getJSON[[]server.TrashedBook](t, env, shelfURL("trash", "books"))
+			if !slices.ContainsFunc(trashed, func(b server.TrashedBook) bool { return b.ID == bookID }) {
 				t.Fatalf("trash = %+v, want it to contain the trashed book %s", trashed, bookID)
 			}
 		})
 	}
 }
 
-func TestDeleteAndTrashRoutesAgreeOnUnknownBook(t *testing.T) {
+func TestAPIDeleteAndTrashRoutesAgreeOnUnknownBookContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
 	requests := map[string]*http.Request{
 		"DELETE /books/{book_id}": httptest.NewRequest(http.MethodDelete,
-			"/api/shelves/default_shelf/books/no_such_book", nil),
+			bookURL("no_such_book"), nil),
 		"POST /books/{book_id}/trash": httptest.NewRequest(http.MethodPost,
-			"/api/shelves/default_shelf/books/no_such_book/trash", nil),
+			bookURL("no_such_book", "trash"), nil),
 	}
 
 	for name, req := range requests {

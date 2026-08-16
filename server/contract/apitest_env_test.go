@@ -66,6 +66,14 @@ func withShelfLogDir(dir, prefix string) appConfOption {
 	}
 }
 
+// withSecurity pins the security configuration, which is what the local-token
+// and CORS gates are asserted against.
+func withSecurity(security *server.SecurityConf) appConfOption {
+	return func(conf *server.AppConf) {
+		conf.Security = security
+	}
+}
+
 func rotatingLogConf(dir, prefix string) logutil.LogConf {
 	return logutil.LogConf{
 		LogFile: logutil.LogFileConf{

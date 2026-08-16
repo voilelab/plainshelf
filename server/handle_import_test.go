@@ -152,12 +152,12 @@ func TestWriteEPUBImportErrorClassifiesFailures(t *testing.T) {
 		},
 	}
 
-	env := newAPITestEnv(t)
+	app := newTestApp(t)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			env.app.handlers.imports.writeEPUBImportError(rec, tt.err)
+			app.handlers.imports.writeEPUBImportError(rec, tt.err)
 
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d; body = %q", rec.Code, tt.wantStatus, rec.Body.String())

@@ -12,22 +12,22 @@ import (
 // differ from the fallback.
 
 func TestStoredJSONSettingsAreReturned(t *testing.T) {
-	env := newAPITestEnv(t)
+	app := newTestApp(t)
 
-	if got := env.app.handlers.settings.epubImportStrategy().Preset; got != epub.PresetMarkdown {
+	if got := app.handlers.settings.epubImportStrategy().Preset; got != epub.PresetMarkdown {
 		t.Fatalf("default preset = %q, want %q", got, epub.PresetMarkdown)
 	}
-	if err := env.app.storeDB.SetSetting(settingKeyEPUBImportStrategy, []byte(`{"preset":"plain"}`)); err != nil {
+	if err := app.storeDB.SetSetting(settingKeyEPUBImportStrategy, []byte(`{"preset":"plain"}`)); err != nil {
 		t.Fatalf("seed strategy: %v", err)
 	}
-	if got := env.app.handlers.settings.epubImportStrategy().Preset; got != epub.PresetPlain {
+	if got := app.handlers.settings.epubImportStrategy().Preset; got != epub.PresetPlain {
 		t.Fatalf("preset = %q, want %q from the store", got, epub.PresetPlain)
 	}
 
-	if err := env.app.storeDB.SetSetting(settingKeyDefaultSplitConfig, []byte(`{"type":"line_count","line_count":42}`)); err != nil {
+	if err := app.storeDB.SetSetting(settingKeyDefaultSplitConfig, []byte(`{"type":"line_count","line_count":42}`)); err != nil {
 		t.Fatalf("seed split config: %v", err)
 	}
-	cfg := env.app.handlers.settings.defaultSplitConfig()
+	cfg := app.handlers.settings.defaultSplitConfig()
 	if cfg.Type != shelf.SplitTypeLineCount || cfg.LineCount != 42 {
 		t.Fatalf("split config = %+v, want line_count 42 from the store", cfg)
 	}
@@ -37,44 +37,44 @@ func TestStoredJSONSettingsAreReturned(t *testing.T) {
 // fallback rather than surfaced.
 func TestUnusableStoredSettingsFallBack(t *testing.T) {
 	t.Run("corrupt JSON", func(t *testing.T) {
-		env := newAPITestEnv(t)
-		if err := env.app.storeDB.SetSetting(settingKeyDefaultSplitConfig, []byte("{{{")); err != nil {
+		app := newTestApp(t)
+		if err := app.storeDB.SetSetting(settingKeyDefaultSplitConfig, []byte("{{{")); err != nil {
 			t.Fatalf("seed split config: %v", err)
 		}
 
 		// SplitConfig holds a slice, so it is not comparable as a whole.
-		if cfg := env.app.handlers.settings.defaultSplitConfig(); cfg.Type != "" || cfg.LineCount != 0 {
+		if cfg := app.handlers.settings.defaultSplitConfig(); cfg.Type != "" || cfg.LineCount != 0 {
 			t.Fatalf("split config = %+v, want the zero fallback", cfg)
 		}
 	})
 
 	t.Run("parses but fails validation", func(t *testing.T) {
-		env := newAPITestEnv(t)
-		if err := env.app.storeDB.SetSetting(settingKeyEPUBImportStrategy, []byte(`{"preset":"no-such-preset"}`)); err != nil {
+		app := newTestApp(t)
+		if err := app.storeDB.SetSetting(settingKeyEPUBImportStrategy, []byte(`{"preset":"no-such-preset"}`)); err != nil {
 			t.Fatalf("seed strategy: %v", err)
 		}
 
-		if got := env.app.handlers.settings.epubImportStrategy().Preset; got != epub.PresetMarkdown {
+		if got := app.handlers.settings.epubImportStrategy().Preset; got != epub.PresetMarkdown {
 			t.Fatalf("preset = %q, want the %q fallback", got, epub.PresetMarkdown)
 		}
 	})
 }
 
 func TestDeleteSettingRestoresTheFallback(t *testing.T) {
-	env := newAPITestEnv(t)
+	app := newTestApp(t)
 
-	if err := env.app.storeDB.SetSetting(settingKeyEPUBImportStrategy, []byte(`{"preset":"plain"}`)); err != nil {
+	if err := app.storeDB.SetSetting(settingKeyEPUBImportStrategy, []byte(`{"preset":"plain"}`)); err != nil {
 		t.Fatalf("seed strategy: %v", err)
 	}
-	if got := env.app.handlers.settings.epubImportStrategy().Preset; got != epub.PresetPlain {
+	if got := app.handlers.settings.epubImportStrategy().Preset; got != epub.PresetPlain {
 		t.Fatalf("preset = %q, want %q before delete", got, epub.PresetPlain)
 	}
 
-	if err := env.app.storeDB.DeleteSetting(settingKeyEPUBImportStrategy); err != nil {
+	if err := app.storeDB.DeleteSetting(settingKeyEPUBImportStrategy); err != nil {
 		t.Fatalf("delete strategy: %v", err)
 	}
 
-	if got := env.app.handlers.settings.epubImportStrategy().Preset; got != epub.PresetMarkdown {
+	if got := app.handlers.settings.epubImportStrategy().Preset; got != epub.PresetMarkdown {
 		t.Fatalf("preset = %q, want the %q fallback after delete", got, epub.PresetMarkdown)
 	}
 }
