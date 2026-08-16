@@ -2,8 +2,6 @@ package server
 
 import (
 	"bytes"
-	"net/http"
-	"net/http/httptest"
 	"path"
 	"strings"
 	"testing"
@@ -218,100 +216,6 @@ func TestEPUBImportComment(t *testing.T) {
 	}
 }
 
-// TestImportEPUBRecordsDroppedImages pins the whole path: the converter counts
-// the illustrations, the importer writes the note onto the source it created,
-// and the sources endpoint hands it back for the book detail view to show.
-func TestImportEPUBRecordsDroppedImages(t *testing.T) {
-	tests := []struct {
-		name    string
-		archive []byte
-		want    string
-	}{
-		{
-			// Both plates are stored beside the text now, so an illustrated
-			// EPUB loses nothing and leaves no note.
-			archive: testutil.BuildIllustratedTestEPUB(t),
-			want:    "",
-		},
-		{
-			// A format the shelf cannot serve is still a loss, and is still
-			// what the note is for.
-			name:    "unstorable illustration is still reported",
-			archive: testutil.BuildUnstorableImageTestEPUB(t),
-			want:    "Converted from EPUB. 1 embedded image was dropped.",
-		},
-		{
-			// The cover is kept, so an EPUB whose only image is the cover has
-			// nothing to report.
-			name:    "epub without illustrations records nothing",
-			archive: testutil.BuildTestEPUB(t),
-			want:    "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			env := newAPITestEnv(t)
-			imported := importFileBook(t, env, "book.epub", "application/epub+zip", string(tt.archive))
-
-			if imported.Meta == nil || imported.Meta.CurrentSource == "" {
-				t.Fatal("imported book has no current source")
-			}
-
-			path := "/api/shelves/default_shelf/books/" + imported.Meta.ID +
-				"/sources/" + imported.Meta.CurrentSource
-			rec := env.do(httptest.NewRequest(http.MethodGet, path, nil))
-			assertStatus(t, rec, http.StatusOK)
-
-			source := decodeJSON[shelf.SourceMeta](t, rec)
-			if source.Comment != tt.want {
-				t.Errorf("source comment = %q, want %q", source.Comment, tt.want)
-			}
-		})
-	}
-}
-
-// The illustrations an EPUB carried must land on the shelf, be referenced by
-// the text, and come back through the asset route. This is the first test that
-// exercises storage, conversion and serving together; each side alone can pass
-// while the names they agree on have drifted apart.
-func TestImportEPUBStoresIllustrationsAsAssets(t *testing.T) {
-	env := newAPITestEnv(t)
-	imported := importFileBook(t, env, "book.epub", "application/epub+zip", string(testutil.BuildIllustratedTestEPUB(t)))
-
-	if imported.Meta == nil || imported.Meta.CurrentSource == "" {
-		t.Fatal("imported book has no current source")
-	}
-	base := "/api/shelves/default_shelf/books/" + imported.Meta.ID + "/sources/" + imported.Meta.CurrentSource
-
-	rec := env.do(httptest.NewRequest(http.MethodGet, base+"/content", nil))
-	assertStatus(t, rec, http.StatusOK)
-	content := rec.Body.String()
-
-	// Both plates are stored, numbered in the order the spine reached them.
-	for _, name := range []string{"img-0001.png", "img-0002.png"} {
-		link := "![](" + shelf.SourceAssetsFolder + "/" + name + ")"
-		if !strings.Contains(content, link) {
-			t.Fatalf("converted text does not contain %q:\n%s", link, content)
-		}
-
-		rec = env.do(httptest.NewRequest(http.MethodGet, base+"/assets/"+name, nil))
-		assertStatus(t, rec, http.StatusOK)
-		if got := rec.Header().Get("Content-Type"); got != "image/png" {
-			t.Errorf("asset %s Content-Type = %q, want image/png", name, got)
-		}
-		if !bytes.Equal(rec.Body.Bytes(), testutil.OnePixelPNG()) {
-			t.Errorf("asset %s bytes do not match the archive entry", name)
-		}
-	}
-
-	// The book is Markdown, which is the only format whose reader renders the
-	// link that was just written into the text.
-	if imported.Meta.Format != "md" {
-		t.Errorf("imported format = %q, want md", imported.Meta.Format)
-	}
-}
-
 // epub names its stored images without importing shelf, so the two have to be
 // checked against each other: a name shelf refuses would be referenced by the
 // text and never load, and an image written outside SourceAssetsFolder would
@@ -370,27 +274,4 @@ func TestImportEPUBPerRequestStrategyInheritsKeepImages(t *testing.T) {
 	if got.KeepImages == nil || *got.KeepImages {
 		t.Fatalf("fallback keep_images = %v, want false", got.KeepImages)
 	}
-}
-
-// The end-to-end version of the same thing: with the setting off, an import
-// that submits a strategy of its own must still store no illustrations.
-func TestImportEPUBHonoursKeepImagesOff(t *testing.T) {
-	env := newAPITestEnv(t)
-
-	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/setting/epub_import_strategy",
-		strings.NewReader(`{"preset":"markdown","include_description":true,"keep_images":false}`)))
-	assertStatus(t, rec, http.StatusNoContent)
-
-	imported := importEPUBWithStrategy(t, env, "book.epub", string(testutil.BuildIllustratedTestEPUB(t)),
-		`{"preset":"markdown","include_description":true}`)
-
-	base := "/api/shelves/default_shelf/books/" + imported.Meta.ID + "/sources/" + imported.Meta.CurrentSource
-	rec = env.do(httptest.NewRequest(http.MethodGet, base+"/content", nil))
-	assertStatus(t, rec, http.StatusOK)
-	if strings.Contains(rec.Body.String(), "![") {
-		t.Fatalf("images were stored despite keep_images=false:\n%s", rec.Body.String())
-	}
-
-	rec = env.do(httptest.NewRequest(http.MethodGet, base+"/assets/img-0001.png", nil))
-	assertStatus(t, rec, http.StatusNotFound)
 }

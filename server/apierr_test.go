@@ -108,10 +108,10 @@ func TestAPIErrorForKnownSentinels(t *testing.T) {
 }
 
 func TestWriteErrSendsRetryAfterHeader(t *testing.T) {
-	env := newAPITestEnv(t)
+	app := newTestApp(t)
 
 	rec := httptest.NewRecorder()
-	env.app.handlers.core.writeErr(rec, util.Errorf("%w", shelf.ErrShelfLockTimeout), "failed to restore trashed book")
+	app.handlers.core.writeErr(rec, util.Errorf("%w", shelf.ErrShelfLockTimeout), "failed to restore trashed book")
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
@@ -127,10 +127,10 @@ func TestWriteErrSendsRetryAfterHeader(t *testing.T) {
 // An error the table does not know must not reach the client verbatim: the
 // caller's fallback is sent instead, so internal detail stays in the log.
 func TestWriteErrHidesUnknownErrorBehindFallback(t *testing.T) {
-	env := newAPITestEnv(t)
+	app := newTestApp(t)
 
 	rec := httptest.NewRecorder()
-	env.app.handlers.core.writeErr(rec, errors.New("disk offline at /srv/secret-mount"), "failed to restore trashed book")
+	app.handlers.core.writeErr(rec, errors.New("disk offline at /srv/secret-mount"), "failed to restore trashed book")
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)

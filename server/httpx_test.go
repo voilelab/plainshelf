@@ -11,10 +11,10 @@ import (
 // exercised directly. What the routed shelf errors look like to a client is
 // pinned by the contract tests instead.
 func TestResolveShelfRejectsMissingShelfID(t *testing.T) {
-	env := newAPITestEnv(t)
+	app := newTestApp(t)
 
 	rec := httptest.NewRecorder()
-	shelfData, ok := env.app.handlers.core.resolveShelf(rec, httptest.NewRequest(http.MethodGet, "/api/shelves", nil))
+	shelfData, ok := app.handlers.core.resolveShelf(rec, httptest.NewRequest(http.MethodGet, "/api/shelves", nil))
 
 	if ok || shelfData != nil {
 		t.Fatalf("resolveShelf = (%v, %v), want (nil, false)", shelfData, ok)
