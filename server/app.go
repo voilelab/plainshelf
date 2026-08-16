@@ -23,6 +23,10 @@ type App struct {
 	settings *settings
 	tasks    *taskSubmitter
 
+	books   *bookHandlers
+	sources *sourceHandlers
+	imports *importHandlers
+
 	shelfManager *shelf.ShelfManager
 	taskChains   taskutil.Pool
 	storeDB      *store.DB
@@ -138,6 +142,10 @@ func NewApp(conf *AppConf) (*App, error) {
 	app.settings = &settings{Logger: &app.Logger, db: storeDB, conf: conf}
 	app.tasks = &taskSubmitter{apiCore: app.apiCore, pool: taskChains}
 
+	app.books = &bookHandlers{apiCore: app.apiCore, settings: app.settings}
+	app.sources = &sourceHandlers{apiCore: app.apiCore}
+	app.imports = &importHandlers{apiCore: app.apiCore, settings: app.settings}
+
 	return app, nil
 }
 
@@ -198,6 +206,18 @@ func (app *App) Handler() http.Handler {
 	})
 
 	return app.security.Middleware(loggerHandler)
+}
+
+// ImportFromLocalPath imports a book the desktop client picked from disk,
+// without going through an upload.
+func (app *App) ImportFromLocalPath(shelfID string, localPath string, layerParts shelf.Layers) (*shelf.Book, error) {
+	return app.imports.fromLocalPath(shelfID, localPath, layerParts)
+}
+
+// GetBookFolderPath locates a book on disk for the desktop client's "show in
+// file manager" action.
+func (app *App) GetBookFolderPath(shelfID, bookID string) (string, error) {
+	return app.books.folderPath(shelfID, bookID)
 }
 
 func (app *App) SecurityToken() string {

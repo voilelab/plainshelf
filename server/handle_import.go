@@ -1,6 +1,7 @@
 package server
 
 import (
+	"io"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -20,6 +21,15 @@ const importXMarkdownMediaType = "text/x-markdown"
 const importOctetStreamMediaType = "application/octet-stream"
 const importEPUBMediaType = "application/epub+zip"
 const importZipMediaType = "application/zip"
+
+// importHandlers turns an uploaded or local file into a book. It reads settings
+// because an EPUB import that carries no strategy of its own falls back to the
+// configured one.
+type importHandlers struct {
+	*apiCore
+
+	settings *settings
+}
 
 func parseImportLayerParts(rawLayer string) []string {
 	trimmed := strings.TrimSpace(rawLayer)
@@ -162,9 +172,39 @@ func validateLocalImportPath(localPath string) (string, error) {
 	return cleanPath, nil
 }
 
+// newPlainTextBook stores an already re-encoded .txt or .md file as a new book.
+//
+// The source, the current-source pointer and the detected metadata are all
+// written while the book is still staged, so an import either lands complete or
+// not at all. The caller re-encodes before calling: that reads the file, while
+// this initializer runs with the exclusive shelf lock held.
+func newPlainTextBook(
+	shelfData *shelf.ShelfData,
+	utf8Reader io.Reader,
+	layerParts shelf.Layers,
+	title string,
+	filename string,
+) (*shelf.Book, error) {
+	return shelfData.NewBookWith(layerParts, title, func(book *shelf.Book) error {
+		format := bookFormatFromFilename(filename)
+		source, err := book.NewSourceWithOptions(utf8Reader, shelf.NewSourceOptions{Format: format})
+		if err != nil {
+			return err
+		}
+		if err := book.SetCurrentSource(source.ID()); err != nil {
+			return err
+		}
+
+		meta := book.GetMeta()
+		meta.Language = detectBookLang(book)
+		meta.Format = format
+		return book.SetMeta(meta)
+	})
+}
+
 // POST /api/shelves/{shelf_id}/books/import
-func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
-	shelfData, ok := app.resolveShelf(w, r)
+func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
@@ -190,7 +230,7 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	defer f.Close()
 
 	if message, err := validateImportFileHeader(header); err != nil {
-		app.Warn("rejected import upload", "error", err)
+		h.Warn("rejected import upload", "error", err)
 		http.Error(w, message, http.StatusBadRequest)
 		return
 	}
@@ -203,82 +243,66 @@ func (app *App) HandleAPIImportBook(w http.ResponseWriter, r *http.Request) {
 	layerParts := parseImportLayerParts(r.FormValue("layer"))
 
 	if isEPUBExt(strings.ToLower(filepath.Ext(header.Filename))) {
-		strategy, message, err := parseImportStrategy(r.FormValue("strategy"), app.settings.epubImportStrategy())
+		strategy, message, err := parseImportStrategy(r.FormValue("strategy"), h.settings.epubImportStrategy())
 		if err != nil {
-			app.Warn("rejected import strategy", "error", err)
+			h.Warn("rejected import strategy", "error", err)
 			http.Error(w, message, http.StatusBadRequest)
 			return
 		}
 
 		// multipart.File is an io.ReaderAt, so the archive is read randomly
 		// rather than buffered whole.
-		newBook, err := app.importEPUB(shelfData, f, header.Size, header.Filename, r.FormValue("title"), layerParts, strategy)
+		newBook, err := h.importEPUB(shelfData, f, header.Size, header.Filename, r.FormValue("title"), layerParts, strategy)
 		if err != nil {
-			app.writeEPUBImportError(w, err)
+			h.writeEPUBImportError(w, err)
 			return
 		}
 
-		writeImportedBook(w, app, newBook)
+		h.writeImportedBook(w, newBook)
 		return
 	}
 
 	// Re-encode before creating the book: this reads the upload, and the book
-	// initializer below runs while the exclusive shelf lock is held.
+	// initializer runs while the exclusive shelf lock is held.
 	utf8File, _, err := util.ReEncodeToUTF8(f)
 	if err != nil {
-		app.Error("failed to re-encode uploaded file to UTF-8", "error", err)
+		h.Error("failed to re-encode uploaded file to UTF-8", "error", err)
 		http.Error(w, "failed to re-encode uploaded file to UTF-8", http.StatusInternalServerError)
 		return
 	}
 
-	// The source, current-source pointer, and detected metadata are all written
-	// while the book is still staged, so an import either lands complete or not
-	// at all.
-	newBook, err := shelfData.NewBookWith(layerParts, title, func(book *shelf.Book) error {
-		format := bookFormatFromFilename(header.Filename)
-		source, err := book.NewSourceWithOptions(utf8File, shelf.NewSourceOptions{Format: format})
-		if err != nil {
-			return err
-		}
-		if err := book.SetCurrentSource(source.ID()); err != nil {
-			return err
-		}
-
-		meta := book.GetMeta()
-		meta.Language = detectBookLang(book)
-		meta.Format = format
-		return book.SetMeta(meta)
-	})
+	newBook, err := newPlainTextBook(shelfData, utf8File, layerParts, title, header.Filename)
 	if err != nil {
-		app.writeErr(w, err, "failed to import book")
+		h.writeErr(w, err, "failed to import book")
 		return
 	}
 
-	writeImportedBook(w, app, newBook)
+	h.writeImportedBook(w, newBook)
 }
 
 // writeEPUBImportError reports a bad archive with its detail, because the
 // client is the only one who can act on it, and maps everything else.
-func (app *App) writeEPUBImportError(w http.ResponseWriter, err error) {
+func (h *importHandlers) writeEPUBImportError(w http.ResponseWriter, err error) {
 	if isEPUBInputError(err) {
-		app.Error("failed to import epub", "error", err)
+		h.Error("failed to import epub", "error", err)
 		http.Error(w, "failed to import epub: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	app.writeErr(w, err, "failed to import epub")
+	h.writeErr(w, err, "failed to import epub")
 }
 
-func writeImportedBook(w http.ResponseWriter, app *App, newBook *shelf.Book) {
-	app.writeJSON(w, http.StatusCreated, Book{
+func (h *importHandlers) writeImportedBook(w http.ResponseWriter, newBook *shelf.Book) {
+	h.writeJSON(w, http.StatusCreated, Book{
 		Meta:  newBook.GetMeta(),
 		Layer: newBook.Layers(),
 	})
 }
 
-// ImportFromLocalPath imports a book from a local file path on the server.
-// This is intended for desktop application use, where the client can specify a local file path and the server can access it directly.
-func (app *App) ImportFromLocalPath(shelfID string, localPath string, layerParts shelf.Layers) (*shelf.Book, error) {
+// fromLocalPath imports a book from a local file path on the server.
+// This is intended for desktop application use, where the client can specify a
+// local file path and the server can access it directly.
+func (h *importHandlers) fromLocalPath(shelfID string, localPath string, layerParts shelf.Layers) (*shelf.Book, error) {
 	cleanPath, err := validateLocalImportPath(localPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -289,7 +313,7 @@ func (app *App) ImportFromLocalPath(shelfID string, localPath string, layerParts
 		return nil, util.Errorf("shelf ID cannot be empty")
 	}
 
-	shelfData, ok := app.shelfManager.GetShelf(targetShelfID)
+	shelfData, ok := h.shelves.GetShelf(targetShelfID)
 	if !ok {
 		return nil, util.Errorf("shelf not found: %s", targetShelfID)
 	}
@@ -307,34 +331,17 @@ func (app *App) ImportFromLocalPath(shelfID string, localPath string, layerParts
 		}
 		// The desktop client has no per-import options, so the configured
 		// default strategy is the whole story here.
-		return app.importEPUB(shelfData, fp, info.Size(), filepath.Base(cleanPath), "", layerParts, app.settings.epubImportStrategy())
+		return h.importEPUB(shelfData, fp, info.Size(), filepath.Base(cleanPath), "", layerParts, h.settings.epubImportStrategy())
 	}
 
 	// Re-encode before creating the book: this reads the file, and the book
-	// initializer below runs while the exclusive shelf lock is held.
+	// initializer runs while the exclusive shelf lock is held.
 	utf8Reader, _, err := util.ReEncodeToUTF8(fp)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	// The source, current-source pointer, and detected metadata are all written
-	// while the book is still staged, so an import either lands complete or not
-	// at all.
-	newBook, err := shelfData.NewBookWith(layerParts, filepath.Base(cleanPath), func(book *shelf.Book) error {
-		format := bookFormatFromFilename(cleanPath)
-		source, err := book.NewSourceWithOptions(utf8Reader, shelf.NewSourceOptions{Format: format})
-		if err != nil {
-			return err
-		}
-		if err := book.SetCurrentSource(source.ID()); err != nil {
-			return err
-		}
-
-		meta := book.GetMeta()
-		meta.Language = detectBookLang(book)
-		meta.Format = format
-		return book.SetMeta(meta)
-	})
+	newBook, err := newPlainTextBook(shelfData, utf8Reader, layerParts, filepath.Base(cleanPath), cleanPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

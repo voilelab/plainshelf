@@ -30,8 +30,8 @@ func imageContentTypeForExt(ext string) string {
 // not be stored by a shared cache: the token travels in a header the cache does
 // not key on, so a stored copy could answer a later request that never reached
 // the gate.
-func (app *App) cacheVisibility(r *http.Request) string {
-	if app.security.requiresToken(r) {
+func (c *apiCore) cacheVisibility(r *http.Request) string {
+	if c.security.requiresToken(r) {
 		return "private"
 	}
 	return "public"
@@ -63,7 +63,7 @@ const (
 //
 // An empty etag means the file could not be stat'd; the response then carries
 // no validator and the caller goes on to serve the bytes.
-func (app *App) serveImageValidator(
+func (c *apiCore) serveImageValidator(
 	w http.ResponseWriter,
 	r *http.Request,
 	etag string,
@@ -74,7 +74,7 @@ func (app *App) serveImageValidator(
 	}
 
 	w.Header().Set("ETag", etag)
-	w.Header().Set("Cache-Control", app.cacheVisibility(r)+", "+string(freshness))
+	w.Header().Set("Cache-Control", c.cacheVisibility(r)+", "+string(freshness))
 	if etagMatchesIfNoneMatch(r.Header.Get("If-None-Match"), etag) {
 		w.WriteHeader(http.StatusNotModified)
 		return true
