@@ -23,32 +23,6 @@ type apiTestEnv struct {
 	libRoot string
 }
 
-type wailsLikeRecorder struct {
-	header      http.Header
-	body        bytes.Buffer
-	code        int
-	wroteHeader bool
-}
-
-func (rec *wailsLikeRecorder) Header() http.Header {
-	return rec.header
-}
-
-func (rec *wailsLikeRecorder) Write(buf []byte) (int, error) {
-	if !rec.wroteHeader {
-		rec.WriteHeader(http.StatusOK)
-	}
-	return rec.body.Write(buf)
-}
-
-func (rec *wailsLikeRecorder) WriteHeader(code int) {
-	if rec.wroteHeader {
-		return
-	}
-	rec.wroteHeader = true
-	rec.code = code
-}
-
 func newAPITestEnv(t *testing.T) *apiTestEnv {
 	t.Helper()
 
