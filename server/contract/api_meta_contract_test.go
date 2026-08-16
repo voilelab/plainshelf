@@ -2,7 +2,6 @@ package contract_test
 
 import (
 	"net/http"
-	"net/http/httptest"
 	"testing"
 )
 
@@ -17,28 +16,23 @@ type versionResponse struct {
 func TestAPIVersionContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/version", nil))
-	assertStatus(t, rec, http.StatusOK)
-	resp := decodeJSON[versionResponse](t, rec)
-	if resp.Version == "" {
+	if resp := getJSON[versionResponse](t, env, "/api/version"); resp.Version == "" {
 		t.Fatalf("version is empty, want a non-empty value")
 	}
 }
 
 func TestAPIReadOnlyModeContract(t *testing.T) {
 	env := newAPITestEnv(t)
-	env.app.Conf().ReadOnly = true
+	env.setReadOnly(t, true)
 
-	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/mode", nil))
-	assertStatus(t, rec, http.StatusOK)
-	mode := decodeJSON[modeResponse](t, rec)
-	if !mode.ReadOnly {
+	if mode := getJSON[modeResponse](t, env, "/api/mode"); !mode.ReadOnly {
 		t.Fatalf("read_only = false, want true")
 	}
 
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/layers/blocked", nil))
+	// Read-only mode refuses writes while leaving reads alone.
+	rec := env.post(shelfURL("layers", "blocked"), nil)
 	assertStatus(t, rec, http.StatusForbidden)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/layers", nil))
+	rec = env.get(shelfURL("layers"))
 	assertStatus(t, rec, http.StatusOK)
 }

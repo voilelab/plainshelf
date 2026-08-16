@@ -3,7 +3,6 @@ package contract_test
 import (
 	"context"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/taskutil"
@@ -40,7 +39,7 @@ func TestAPIGetTaskChainContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	chain := submitContractChain(t, env)
 
-	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/taskchains/"+chain.ID, nil))
+	rec := env.get(taskChainURL(chain.ID))
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
 
@@ -74,10 +73,7 @@ func TestAPIGetTaskChainSchemaContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	chain := submitContractChain(t, env)
 
-	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/taskchains/"+chain.ID, nil))
-	assertStatus(t, rec, http.StatusOK)
-
-	payload := decodeJSON[map[string]any](t, rec)
+	payload := getJSON[map[string]any](t, env, taskChainURL(chain.ID))
 	for _, key := range []string{"id", "name", "title", "description", "status", "percentage", "created_at", "tasks"} {
 		if _, ok := payload[key]; !ok {
 			t.Errorf("response is missing the %q field: %v", key, payload)
@@ -107,6 +103,6 @@ func TestAPIGetTaskChainSchemaContract(t *testing.T) {
 func TestAPIGetTaskChainNotFoundContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/taskchains/does-not-exist", nil))
+	rec := env.get(taskChainURL("does-not-exist"))
 	assertStatus(t, rec, http.StatusNotFound)
 }

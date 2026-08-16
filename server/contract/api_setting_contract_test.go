@@ -2,40 +2,66 @@ package contract_test
 
 import (
 	"net/http"
-	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/testutil"
 )
 
-func TestAPISettingEPUBImportStrategyContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	url := "/api/setting/epub_import_strategy"
+func settingURL(key string) string {
+	return "/api/setting/" + key
+}
 
-	// The built-in default applies when nothing is configured.
-	rec := env.do(httptest.NewRequest(http.MethodGet, url, nil))
+// settingValue reads a setting and returns the "value" the endpoint wraps it in.
+// The response is decoded generically so the wrapper's field name is pinned too.
+func settingValue[T any](t *testing.T, env *apiTestEnv, key string) T {
+	t.Helper()
+
+	rec := env.get(settingURL(key))
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
-	got := decodeJSON[map[string]any](t, rec)
-	val, _ := got["value"].(map[string]any)
-	if preset, _ := val["preset"].(string); preset != "markdown" {
+
+	value, _ := decodeJSON[map[string]any](t, rec)["value"].(T)
+	return value
+}
+
+// setSetting stores a setting value, asserting the status the endpoint must
+// answer with — 204 for an accepted value, 400 for a rejected one.
+func setSetting(t *testing.T, env *apiTestEnv, key, body string, wantStatus int) {
+	t.Helper()
+
+	rec := env.post(settingURL(key), strings.NewReader(body))
+	assertStatus(t, rec, wantStatus)
+}
+
+// deleteSetting clears a stored setting, which reverts it to the built-in or
+// configured default.
+func deleteSetting(t *testing.T, env *apiTestEnv, key string) {
+	t.Helper()
+
+	rec := env.delete(settingURL(key))
+	assertStatus(t, rec, http.StatusNoContent)
+}
+
+func TestAPISettingEPUBImportStrategyContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	const key = "epub_import_strategy"
+
+	// The built-in default applies when nothing is configured.
+	value := settingValue[map[string]any](t, env, key)
+	if preset, _ := value["preset"].(string); preset != "markdown" {
 		t.Fatalf("default preset = %q, want markdown", preset)
 	}
-	if include, _ := val["include_description"].(bool); !include {
+	if include, _ := value["include_description"].(bool); !include {
 		t.Fatal("default include_description = false, want true")
 	}
 
 	// Setting it changes what an import with no strategy field uses.
-	rec = env.do(httptest.NewRequest(http.MethodPost, url,
-		strings.NewReader(`{"preset":"plain","include_description":false}`)))
-	assertStatus(t, rec, http.StatusNoContent)
+	setSetting(t, env, key, `{"preset":"plain","include_description":false}`, http.StatusNoContent)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
-	assertStatus(t, rec, http.StatusOK)
-	got = decodeJSON[map[string]any](t, rec)
-	val, _ = got["value"].(map[string]any)
-	if preset, _ := val["preset"].(string); preset != "plain" {
+	value = settingValue[map[string]any](t, env, key)
+	if preset, _ := value["preset"].(string); preset != "plain" {
 		t.Fatalf("preset after set = %q, want plain", preset)
 	}
 
@@ -51,154 +77,96 @@ func TestAPISettingEPUBImportStrategyContract(t *testing.T) {
 		`{"preset":"plain","template":"x"}`,
 		`not json`,
 	} {
-		rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(body)))
-		assertStatus(t, rec, http.StatusBadRequest)
+		setSetting(t, env, key, body, http.StatusBadRequest)
 	}
 
 	// Deleting reverts to the built-in default.
-	rec = env.do(httptest.NewRequest(http.MethodDelete, url, nil))
-	assertStatus(t, rec, http.StatusNoContent)
+	deleteSetting(t, env, key)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
-	assertStatus(t, rec, http.StatusOK)
-	got = decodeJSON[map[string]any](t, rec)
-	val, _ = got["value"].(map[string]any)
-	if preset, _ := val["preset"].(string); preset != "markdown" {
+	value = settingValue[map[string]any](t, env, key)
+	if preset, _ := value["preset"].(string); preset != "markdown" {
 		t.Fatalf("preset after delete = %q, want markdown", preset)
 	}
 }
 
 func TestAPISettingCoverToJPGContract(t *testing.T) {
 	env := newAPITestEnv(t)
-	url := "/api/setting/cover_to_jpg"
+	const key = "cover_to_jpg"
 
-	// Default value reflects AppConf (false in test env).
-	rec := env.do(httptest.NewRequest(http.MethodGet, url, nil))
-	assertStatus(t, rec, http.StatusOK)
-	assertJSONContentType(t, rec)
-	got := decodeJSON[map[string]any](t, rec)
-	if val, _ := got["value"].(bool); val != false {
-		t.Fatalf("default cover_to_jpg = %v, want false", got["value"])
+	// The default value reflects AppConf, which is false in the test env.
+	if got := settingValue[bool](t, env, key); got {
+		t.Fatalf("default cover_to_jpg = %v, want false", got)
 	}
 
-	// Set to true.
-	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader("true")))
-	assertStatus(t, rec, http.StatusNoContent)
-
-	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
-	assertStatus(t, rec, http.StatusOK)
-	got = decodeJSON[map[string]any](t, rec)
-	if val, _ := got["value"].(bool); val != true {
-		t.Fatalf("cover_to_jpg after set = %v, want true", got["value"])
+	for _, want := range []bool{true, false} {
+		setSetting(t, env, key, strconv.FormatBool(want), http.StatusNoContent)
+		if got := settingValue[bool](t, env, key); got != want {
+			t.Fatalf("cover_to_jpg after set = %v, want %v", got, want)
+		}
 	}
 
-	// Set to false.
-	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader("false")))
-	assertStatus(t, rec, http.StatusNoContent)
+	// A value that is not a boolean is rejected.
+	setSetting(t, env, key, "maybe", http.StatusBadRequest)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
-	assertStatus(t, rec, http.StatusOK)
-	got = decodeJSON[map[string]any](t, rec)
-	if val, _ := got["value"].(bool); val != false {
-		t.Fatalf("cover_to_jpg after set false = %v, want false", got["value"])
-	}
-
-	// Invalid value returns 400.
-	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader("maybe")))
-	assertStatus(t, rec, http.StatusBadRequest)
-
-	// Set to true then delete resets to AppConf default (false).
-	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader("true")))
-	assertStatus(t, rec, http.StatusNoContent)
-
-	rec = env.do(httptest.NewRequest(http.MethodDelete, url, nil))
-	assertStatus(t, rec, http.StatusNoContent)
-
-	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
-	assertStatus(t, rec, http.StatusOK)
-	got = decodeJSON[map[string]any](t, rec)
-	if val, _ := got["value"].(bool); val != false {
-		t.Fatalf("cover_to_jpg after delete = %v, want false (AppConf default)", got["value"])
+	// Deleting a stored value resets it to the AppConf default (false).
+	setSetting(t, env, key, "true", http.StatusNoContent)
+	deleteSetting(t, env, key)
+	if got := settingValue[bool](t, env, key); got {
+		t.Fatalf("cover_to_jpg after delete = %v, want false (AppConf default)", got)
 	}
 }
 
 func TestAPISettingDefaultSplitConfigContract(t *testing.T) {
 	env := newAPITestEnv(t)
-	url := "/api/setting/default_split_config"
+	const key = "default_split_config"
 
-	// Default value is no splitting.
-	rec := env.do(httptest.NewRequest(http.MethodGet, url, nil))
-	assertStatus(t, rec, http.StatusOK)
-	assertJSONContentType(t, rec)
-	got := decodeJSON[map[string]any](t, rec)
-	val, _ := got["value"].(map[string]any)
-	if tp, _ := val["type"].(string); tp != "" {
+	// The default value is no splitting.
+	value := settingValue[map[string]any](t, env, key)
+	if tp, _ := value["type"].(string); tp != "" {
 		t.Fatalf("default split config type = %q, want empty", tp)
 	}
 
 	// Set to regex.
-	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":"regex","regex":"^Chapter\\s+\\d+"}`)))
-	assertStatus(t, rec, http.StatusNoContent)
-
-	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
-	assertStatus(t, rec, http.StatusOK)
-	got = decodeJSON[map[string]any](t, rec)
-	val, _ = got["value"].(map[string]any)
-	if tp, _ := val["type"].(string); tp != "regex" {
+	setSetting(t, env, key, `{"type":"regex","regex":"^Chapter\\s+\\d+"}`, http.StatusNoContent)
+	value = settingValue[map[string]any](t, env, key)
+	if tp, _ := value["type"].(string); tp != "regex" {
 		t.Fatalf("split config type after set regex = %q, want regex", tp)
 	}
-	if re, _ := val["regex"].(string); re != `^Chapter\s+\d+` {
+	if re, _ := value["regex"].(string); re != `^Chapter\s+\d+` {
 		t.Fatalf("split config regex = %q, want ^Chapter\\s+\\d+", re)
 	}
 
 	// Set to line_count.
-	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":"line_count","line_count":50}`)))
-	assertStatus(t, rec, http.StatusNoContent)
-
-	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
-	assertStatus(t, rec, http.StatusOK)
-	got = decodeJSON[map[string]any](t, rec)
-	val, _ = got["value"].(map[string]any)
-	if tp, _ := val["type"].(string); tp != "line_count" {
+	setSetting(t, env, key, `{"type":"line_count","line_count":50}`, http.StatusNoContent)
+	value = settingValue[map[string]any](t, env, key)
+	if tp, _ := value["type"].(string); tp != "line_count" {
 		t.Fatalf("split config type after set line_count = %q", tp)
 	}
-	if lc, _ := val["line_count"].(float64); lc != 50 {
+	if lc, _ := value["line_count"].(float64); lc != 50 {
 		t.Fatalf("split config line_count = %v, want 50", lc)
 	}
 
-	// Setting type to empty string (none) is accepted.
-	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":""}`)))
-	assertStatus(t, rec, http.StatusNoContent)
-
-	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
-	assertStatus(t, rec, http.StatusOK)
-	got = decodeJSON[map[string]any](t, rec)
-	val, _ = got["value"].(map[string]any)
-	if tp, _ := val["type"].(string); tp != "" {
+	// Setting the type to an empty string (none) is accepted.
+	setSetting(t, env, key, `{"type":""}`, http.StatusNoContent)
+	value = settingValue[map[string]any](t, env, key)
+	if tp, _ := value["type"].(string); tp != "" {
 		t.Fatalf("split config type after set empty = %q, want empty", tp)
 	}
 
-	// Boundary type is rejected.
-	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":"boundary","boundaries":[1,100]}`)))
-	assertStatus(t, rec, http.StatusBadRequest)
+	// A type this endpoint does not accept, an invalid regex and a non-positive
+	// line count are all client errors.
+	for _, body := range []string{
+		`{"type":"boundary","boundaries":[1,100]}`,
+		`{"type":"regex","regex":"[invalid"}`,
+		`{"type":"line_count","line_count":0}`,
+	} {
+		setSetting(t, env, key, body, http.StatusBadRequest)
+	}
 
-	// Invalid regex is rejected.
-	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":"regex","regex":"[invalid"}`)))
-	assertStatus(t, rec, http.StatusBadRequest)
-
-	// Non-positive line_count is rejected.
-	rec = env.do(httptest.NewRequest(http.MethodPost, url, strings.NewReader(`{"type":"line_count","line_count":0}`)))
-	assertStatus(t, rec, http.StatusBadRequest)
-
-	// Delete resets to default.
-	rec = env.do(httptest.NewRequest(http.MethodDelete, url, nil))
-	assertStatus(t, rec, http.StatusNoContent)
-
-	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
-	assertStatus(t, rec, http.StatusOK)
-	got = decodeJSON[map[string]any](t, rec)
-	val, _ = got["value"].(map[string]any)
-	if tp, _ := val["type"].(string); tp != "" {
+	// Deleting resets to the default.
+	deleteSetting(t, env, key)
+	value = settingValue[map[string]any](t, env, key)
+	if tp, _ := value["type"].(string); tp != "" {
 		t.Fatalf("split config type after delete = %q, want empty", tp)
 	}
 }

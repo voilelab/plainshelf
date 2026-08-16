@@ -2,9 +2,7 @@ package contract_test
 
 import (
 	"bytes"
-	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -13,39 +11,41 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// TestAPIBookSchemaVersionContract asserts schema_version is present on the
-// wire. It decodes into map[string]any rather than the Book struct on purpose:
-// asserting through the Go type would pass tautologically even if the field
-// never reached the JSON response.
+// bookMetaSchemaVersion reads the schema_version the API reports for a book. It
+// decodes into map[string]any rather than the Book struct on purpose: asserting
+// through the Go type would pass tautologically even if the field never reached
+// the JSON response.
+func bookMetaSchemaVersion(t *testing.T, book map[string]any) float64 {
+	t.Helper()
+
+	meta, ok := book["meta"].(map[string]any)
+	if !ok {
+		t.Fatalf("book has no meta object: %#v", book)
+	}
+	version, ok := meta["schema_version"].(float64)
+	if !ok {
+		t.Fatalf("meta has no schema_version: %#v", meta)
+	}
+	return version
+}
+
+// TestAPIBookSchemaVersionContract asserts schema_version is present on the wire
+// in both the list and the single-book response.
 func TestAPIBookSchemaVersionContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Schema Version Book", "", "schema.txt", "body")
 
-	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
-	assertStatus(t, rec, http.StatusOK)
-
-	books := decodeJSON[[]map[string]any](t, rec)
+	books := getJSON[[]map[string]any](t, env, booksURL())
 	if len(books) != 1 {
 		t.Fatalf("list returned %d books, want 1", len(books))
 	}
-	meta, ok := books[0]["meta"].(map[string]any)
-	if !ok {
-		t.Fatalf("book has no meta object: %#v", books[0])
-	}
-	if got := meta["schema_version"]; got != float64(shelf.BookMetaSchemaVersion) {
-		t.Fatalf("list schema_version = %#v, want %d", got, shelf.BookMetaSchemaVersion)
+	if got := bookMetaSchemaVersion(t, books[0]); got != float64(shelf.BookMetaSchemaVersion) {
+		t.Fatalf("list schema_version = %v, want %d", got, shelf.BookMetaSchemaVersion)
 	}
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
-	assertStatus(t, rec, http.StatusOK)
-
-	book := decodeJSON[map[string]any](t, rec)
-	meta, ok = book["meta"].(map[string]any)
-	if !ok {
-		t.Fatalf("book has no meta object: %#v", book)
-	}
-	if got := meta["schema_version"]; got != float64(shelf.BookMetaSchemaVersion) {
-		t.Fatalf("get schema_version = %#v, want %d", got, shelf.BookMetaSchemaVersion)
+	book := getJSON[map[string]any](t, env, bookURL(created.Meta.ID))
+	if got := bookMetaSchemaVersion(t, book); got != float64(shelf.BookMetaSchemaVersion) {
+		t.Fatalf("get schema_version = %v, want %d", got, shelf.BookMetaSchemaVersion)
 	}
 }
 
@@ -56,45 +56,20 @@ func TestAPIUnsupportedSchemaVersionReturns409(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Future Book", "", "future.txt", "body")
 
-	metaPath := env.bookMetaPath(t, created.Meta.ID)
-	raw, err := os.ReadFile(metaPath)
-	if err != nil {
-		t.Fatalf("read book.json: %v", err)
-	}
-
-	var onDisk map[string]any
-	if err := json.Unmarshal(raw, &onDisk); err != nil {
-		t.Fatalf("unmarshal book.json: %v", err)
-	}
-	onDisk["schema_version"] = shelf.BookMetaSchemaVersion + 1
-	onDisk["reading_direction"] = "vertical-rl"
-	bumped, err := json.MarshalIndent(onDisk, "", "  ")
-	if err != nil {
-		t.Fatalf("marshal book.json: %v", err)
-	}
-	if err := os.WriteFile(metaPath, bumped, 0o644); err != nil {
-		t.Fatalf("write book.json: %v", err)
-	}
+	// The unknown key is written alongside the bumped version so a refused write
+	// can be shown to have preserved it.
+	metaPath, bumped := bumpBookSchemaVersion(t, env, created.Meta.ID,
+		map[string]any{"reading_direction": "vertical-rl"})
 
 	// The book stays readable and reports its real (newer) version, so a client
 	// can tell the user this book needs a newer PlainShelf.
-	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
-	assertStatus(t, rec, http.StatusOK)
-	book := decodeJSON[map[string]any](t, rec)
-	meta, ok := book["meta"].(map[string]any)
-	if !ok {
-		t.Fatalf("book has no meta object: %#v", book)
-	}
-	if got := meta["schema_version"]; got != float64(shelf.BookMetaSchemaVersion+1) {
-		t.Fatalf("schema_version = %#v, want %d", got, shelf.BookMetaSchemaVersion+1)
+	book := getJSON[map[string]any](t, env, bookURL(created.Meta.ID))
+	if got := bookMetaSchemaVersion(t, book); got != float64(shelf.BookMetaSchemaVersion+1) {
+		t.Fatalf("schema_version = %v, want %d", got, shelf.BookMetaSchemaVersion+1)
 	}
 
 	// Writing is refused.
-	patch := httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID,
-		strings.NewReader(`{"title":"Clobbered"}`))
-	patch.Header.Set("Content-Type", "application/json")
-	rec = env.do(patch)
-	assertStatus(t, rec, http.StatusConflict)
+	patchBook(t, env, created.Meta.ID, `{"title":"Clobbered"}`, http.StatusConflict)
 
 	after, err := os.ReadFile(metaPath)
 	if err != nil {
@@ -116,34 +91,12 @@ func TestAPIUnsupportedSchemaVersionDoesNotMoveLayer(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Layer Guard", "origin/layer", "layer.txt", "body")
 
-	metaPath := env.bookMetaPath(t, created.Meta.ID)
-	raw, err := os.ReadFile(metaPath)
-	if err != nil {
-		t.Fatalf("read book.json: %v", err)
-	}
-	var onDisk map[string]any
-	if err := json.Unmarshal(raw, &onDisk); err != nil {
-		t.Fatalf("unmarshal book.json: %v", err)
-	}
-	onDisk["schema_version"] = shelf.BookMetaSchemaVersion + 1
-	bumped, err := json.MarshalIndent(onDisk, "", "  ")
-	if err != nil {
-		t.Fatalf("marshal book.json: %v", err)
-	}
-	if err := os.WriteFile(metaPath, bumped, 0o644); err != nil {
-		t.Fatalf("write book.json: %v", err)
-	}
+	metaPath, _ := bumpBookSchemaVersion(t, env, created.Meta.ID, nil)
 
-	patch := httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID,
-		strings.NewReader(`{"layer":["moved","elsewhere"]}`))
-	patch.Header.Set("Content-Type", "application/json")
-	rec := env.do(patch)
-	assertStatus(t, rec, http.StatusConflict)
+	patchBook(t, env, created.Meta.ID, `{"layer":["moved","elsewhere"]}`, http.StatusConflict)
 
 	// The book must still be in its original layer, and still on disk there.
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
-	assertStatus(t, rec, http.StatusOK)
-	book := decodeJSON[server.Book](t, rec)
+	book := getJSON[server.Book](t, env, bookURL(created.Meta.ID))
 	if got := strings.Join(book.Layer, "/"); got != "origin/layer" {
 		t.Fatalf("layer = %q, want origin/layer — the refused request moved the book", got)
 	}

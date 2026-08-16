@@ -3,7 +3,6 @@ package contract_test
 import (
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,7 +12,9 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-const contentStatsPath = "/api/shelves/default_shelf/content-stat-refreshes"
+func contentStatsURL() string {
+	return shelfURL("content-stat-refreshes")
+}
 
 // clearSourceCharCount rewrites a book's current source meta.json with a zero
 // character count, reproducing the on-disk state of a book whose count was
@@ -56,11 +57,8 @@ func clearSourceCharCount(t *testing.T, env *apiTestEnv, bookID string) {
 func charCountByBookID(t *testing.T, env *apiTestEnv) map[string]int {
 	t.Helper()
 
-	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books?include=char_count", nil))
-	assertStatus(t, rec, http.StatusOK)
-
 	counts := make(map[string]int)
-	for _, book := range decodeJSON[[]server.Book](t, rec) {
+	for _, book := range getJSON[[]server.Book](t, env, booksURL()+"?include=char_count") {
 		if book.Meta == nil {
 			continue
 		}
@@ -71,33 +69,7 @@ func charCountByBookID(t *testing.T, env *apiTestEnv) map[string]int {
 
 func refreshContentStats(t *testing.T, env *apiTestEnv, wantStatus int) taskChainSubmitResponse {
 	t.Helper()
-
-	rec := env.do(httptest.NewRequest(http.MethodPost, contentStatsPath, nil))
-	assertStatus(t, rec, wantStatus)
-	assertJSONContentType(t, rec)
-
-	resp := decodeJSON[taskChainSubmitResponse](t, rec)
-	if resp.TaskChainID == "" {
-		t.Fatalf("response is missing taskchain_id: %s", rec.Body.String())
-	}
-	return resp
-}
-
-func taskResult[T any](t *testing.T, chain server.TaskChain) T {
-	t.Helper()
-
-	if len(chain.Tasks) != 1 {
-		t.Fatalf("chain has %d tasks, want 1", len(chain.Tasks))
-	}
-	raw, err := json.Marshal(chain.Tasks[0].Result)
-	if err != nil {
-		t.Fatalf("re-encode task result: %v", err)
-	}
-	var out T
-	if err := json.Unmarshal(raw, &out); err != nil {
-		t.Fatalf("decode task result %q: %v", raw, err)
-	}
-	return out
+	return submitTaskChain(t, env, contentStatsURL(), nil, wantStatus)
 }
 
 func TestAPIRefreshContentStatsContract(t *testing.T) {
@@ -189,23 +161,14 @@ func TestAPIRefreshContentStatsConflictReportsRunningChainContract(t *testing.T)
 func TestAPIRefreshContentStatsRejectsUnknownShelfContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/missing_shelf/content-stat-refreshes", nil))
+	rec := env.post(shelfIDURL("missing_shelf", "content-stat-refreshes"), nil)
 	assertStatus(t, rec, http.StatusNotFound)
 }
 
-// The endpoint rewrites meta.json, so it must sit inside the local_token
-// boundary and be refused in read-only mode.
-func TestAPIRefreshContentStatsRequiresTokenContract(t *testing.T) {
+// The endpoint rewrites meta.json, so it must sit inside the local_token boundary
+// and be refused in read-only mode.
+func TestAPIRefreshContentStatsIsGatedContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	rec := env.doRaw(httptest.NewRequest(http.MethodPost, contentStatsPath, nil))
-	assertStatus(t, rec, http.StatusUnauthorized)
-}
-
-func TestAPIRefreshContentStatsRejectedInReadOnlyModeContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	env.app.Conf().ReadOnly = true
-
-	rec := env.do(httptest.NewRequest(http.MethodPost, contentStatsPath, nil))
-	assertStatus(t, rec, http.StatusForbidden)
+	assertMutationGated(t, env, http.MethodPost, contentStatsURL(), nil)
 }

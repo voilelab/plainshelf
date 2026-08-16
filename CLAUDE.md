@@ -58,8 +58,9 @@ web builds; do not use it for Capacitor asset generation.
    they are part of the request.
 3. Add or update tests for behavior changes. Run the narrowest relevant check
    while iterating and the full affected-area check before completion.
-4. For server API changes, read the matching `server/api_*_contract_test.go` and
-   preserve the `local_token` security boundary.
+4. For server API changes, read the matching
+   `server/contract/api_*_contract_test.go` and preserve the `local_token`
+   security boundary.
 5. Update user-facing docs when setup, configuration, storage, or behavior
    changes. Update `CHANGELOG.md` only when the task calls for release notes.
 6. Report checks that were not run or could not pass; do not imply verification.

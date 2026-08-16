@@ -1,12 +1,7 @@
 package contract_test
 
 import (
-	"bytes"
-	"io"
-	"mime/multipart"
 	"net/http"
-	"net/http/httptest"
-	"net/textproto"
 	"strings"
 	"testing"
 
@@ -28,37 +23,15 @@ func TestAPIImportBookContract(t *testing.T) {
 		t.Fatal("import response missing current_source")
 	}
 
-	var buf bytes.Buffer
-	writer := multipart.NewWriter(&buf)
-	if err := writer.WriteField("title", "Missing File"); err != nil {
-		t.Fatalf("WriteField: %v", err)
-	}
-	if err := writer.Close(); err != nil {
-		t.Fatalf("Close multipart writer: %v", err)
-	}
-	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/import", &buf)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	rec := env.do(req)
+	// A form with no file part at all, and a file whose extension this build does
+	// not import, are both client errors.
+	rec := postBookImport(t, env, formUpload{
+		fields:    [][2]string{{"title", "Missing File"}},
+		fileField: "file",
+	})
 	assertStatus(t, rec, http.StatusBadRequest)
 
-	buf.Reset()
-	writer = multipart.NewWriter(&buf)
-	h := make(textproto.MIMEHeader)
-	h.Set("Content-Disposition", `form-data; name="file"; filename="book.cbz"`)
-	h.Set("Content-Type", "text/plain")
-	part, err := writer.CreatePart(h)
-	if err != nil {
-		t.Fatalf("CreatePart: %v", err)
-	}
-	if _, err := part.Write([]byte("not a supported upload")); err != nil {
-		t.Fatalf("write bad file: %v", err)
-	}
-	if err := writer.Close(); err != nil {
-		t.Fatalf("Close multipart writer: %v", err)
-	}
-	req = httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/import", &buf)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	rec = env.do(req)
+	rec = postBookImport(t, env, bookUpload("book.cbz", "text/plain", "not a supported upload"))
 	assertStatus(t, rec, http.StatusBadRequest)
 }
 
@@ -67,24 +40,21 @@ func TestAPIImportMarkdownBookContract(t *testing.T) {
 
 	// Browsers vary in what Content-Type they send for a .md upload; the
 	// extension is the primary signal, so all of these must succeed.
-	withMarkdownContentType := importFileBook(t, env, "notes.md", "text/markdown; charset=utf-8", "# Notes\n\nhello markdown")
-	if withMarkdownContentType.Meta == nil || withMarkdownContentType.Meta.Format != "md" {
-		t.Fatalf("unexpected imported book meta: %#v", withMarkdownContentType.Meta)
-	}
-
-	withTextPlainContentType := importFileBook(t, env, "plain-notes.md", "text/plain; charset=utf-8", "# Notes\n\nhello markdown")
-	if withTextPlainContentType.Meta == nil || withTextPlainContentType.Meta.Format != "md" {
-		t.Fatalf("unexpected imported book meta: %#v", withTextPlainContentType.Meta)
-	}
-
-	withNoContentType := importFileBook(t, env, "no-content-type.md", "", "# Notes\n\nhello markdown")
-	if withNoContentType.Meta == nil || withNoContentType.Meta.Format != "md" {
-		t.Fatalf("unexpected imported book meta: %#v", withNoContentType.Meta)
-	}
-
-	withXMarkdownContentType := importFileBook(t, env, "legacy-notes.md", "text/x-markdown; charset=utf-8", "# Notes\n\nhello markdown")
-	if withXMarkdownContentType.Meta == nil || withXMarkdownContentType.Meta.Format != "md" {
-		t.Fatalf("unexpected imported book meta: %#v", withXMarkdownContentType.Meta)
+	const markdown = "# Notes\n\nhello markdown"
+	var markdownBook server.Book
+	for _, tc := range []struct{ name, filename, contentType string }{
+		{"markdown content type", "notes.md", "text/markdown; charset=utf-8"},
+		{"text/plain content type", "plain-notes.md", plainTextContentType},
+		{"no content type", "no-content-type.md", ""},
+		{"legacy x-markdown content type", "legacy-notes.md", "text/x-markdown; charset=utf-8"},
+	} {
+		imported := importFileBook(t, env, tc.filename, tc.contentType, markdown)
+		if imported.Meta == nil || imported.Meta.Format != "md" {
+			t.Fatalf("%s: unexpected imported book meta: %#v", tc.name, imported.Meta)
+		}
+		if markdownBook.Meta == nil {
+			markdownBook = imported
+		}
 	}
 
 	// A plain .txt import must still be recognized as "txt" format.
@@ -93,17 +63,16 @@ func TestAPIImportMarkdownBookContract(t *testing.T) {
 		t.Fatalf("unexpected imported book meta: %#v", txtBook.Meta)
 	}
 
+	// The source carries the same format as the book it was created for.
 	for _, imported := range []struct {
 		book server.Book
 		want string
 	}{
-		{withMarkdownContentType, "md"},
+		{markdownBook, "md"},
 		{txtBook, "txt"},
 	} {
-		sourceURL := "/api/shelves/default_shelf/books/" + imported.book.Meta.ID + "/sources/" + imported.book.Meta.CurrentSource
-		sourceRec := env.do(httptest.NewRequest(http.MethodGet, sourceURL, nil))
-		assertStatus(t, sourceRec, http.StatusOK)
-		sourceMeta := decodeJSON[map[string]any](t, sourceRec)
+		sourceMeta := getJSON[map[string]any](t, env,
+			sourceURL(imported.book.Meta.ID, imported.book.Meta.CurrentSource))
 		if sourceMeta["format"] != imported.want || sourceMeta["schema_version"] != float64(1) {
 			t.Fatalf("source meta = %#v, want schema 1 format %s", sourceMeta, imported.want)
 		}
@@ -111,13 +80,10 @@ func TestAPIImportMarkdownBookContract(t *testing.T) {
 
 	// Reading back the content must still be exactly what was uploaded, with no
 	// markdown rendering applied (rendering is out of scope for this PR).
-	contentReq := httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+withMarkdownContentType.Meta.ID+"/content", nil)
-	contentRec := env.do(contentReq)
+	contentRec := env.get(bookURL(markdownBook.Meta.ID, "content"))
 	assertStatus(t, contentRec, http.StatusOK)
-	if got := contentRec.Header().Get("Content-Type"); got != "text/plain; charset=utf-8" {
-		t.Fatalf("Content-Type = %q, want text/plain; charset=utf-8", got)
-	}
-	if got := contentRec.Body.String(); got != "# Notes\n\nhello markdown" {
+	assertContentType(t, contentRec, plainTextContentType)
+	if got := contentRec.Body.String(); got != markdown {
 		t.Fatalf("content = %q, want raw markdown source", got)
 	}
 }
@@ -160,9 +126,7 @@ func TestAPIImportEPUBBookContract(t *testing.T) {
 		t.Fatal("imported book has no current source")
 	}
 
-	base := "/api/shelves/default_shelf/books/" + imported.Meta.ID
-
-	rec := env.do(httptest.NewRequest(http.MethodGet, base+"/content", nil))
+	rec := env.get(bookURL(imported.Meta.ID, "content"))
 	assertStatus(t, rec, http.StatusOK)
 	content := rec.Body.String()
 	for _, want := range []string{
@@ -185,22 +149,13 @@ func TestAPIImportEPUBBookContract(t *testing.T) {
 
 	// The source owns the Markdown format. H2 text is the chapter structure, so
 	// EPUB import no longer persists a parallel regex or boundary configuration.
-	rec = env.do(httptest.NewRequest(http.MethodGet, base+"/sources/"+imported.Meta.CurrentSource, nil))
+	rec = env.get(sourceURL(imported.Meta.ID, imported.Meta.CurrentSource))
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
-	sourceMeta := decodeJSON[map[string]any](t, rec)
-	if format, _ := sourceMeta["format"].(string); format != "md" {
-		t.Fatalf("source format = %q, want md", format)
-	}
-	if version, _ := sourceMeta["schema_version"].(float64); version != 1 {
-		t.Fatalf("source schema_version = %v, want 1", sourceMeta["schema_version"])
-	}
-	if split, _ := sourceMeta["split_config"].(map[string]any); split["type"] != "" {
-		t.Fatalf("source split config = %#v, want none", split)
-	}
+	assertSourceFormat(t, decodeJSON[map[string]any](t, rec), "md")
 
 	// The cover survives the round trip.
-	rec = env.do(httptest.NewRequest(http.MethodGet, base+"/cover", nil))
+	rec = env.get(bookURL(imported.Meta.ID, "cover"))
 	assertStatus(t, rec, http.StatusOK)
 	if rec.Body.Len() == 0 {
 		t.Fatal("cover endpoint returned an empty body")
@@ -218,8 +173,7 @@ func TestAPIImportEPUBBookStrategyContract(t *testing.T) {
 		t.Fatalf("format = %q, want txt for the plain preset", plain.Meta.Format)
 	}
 
-	rec := env.do(httptest.NewRequest(http.MethodGet,
-		"/api/shelves/default_shelf/books/"+plain.Meta.ID+"/content", nil))
+	rec := env.get(bookURL(plain.Meta.ID, "content"))
 	assertStatus(t, rec, http.StatusOK)
 	content := rec.Body.String()
 	if strings.Contains(content, "#") {
@@ -234,42 +188,29 @@ func TestAPIImportEPUBBookStrategyContract(t *testing.T) {
 
 	// Plain EPUB output is an unstructured TXT source; it deliberately carries
 	// no chapter navigation state.
-	rec = env.do(httptest.NewRequest(http.MethodGet,
-		"/api/shelves/default_shelf/books/"+plain.Meta.ID+"/sources/"+plain.Meta.CurrentSource, nil))
-	assertStatus(t, rec, http.StatusOK)
-	plainSourceMeta := decodeJSON[map[string]any](t, rec)
-	if format, _ := plainSourceMeta["format"].(string); format != "txt" {
-		t.Fatalf("source format = %q, want txt", format)
+	plainSourceMeta := getJSON[map[string]any](t, env, sourceURL(plain.Meta.ID, plain.Meta.CurrentSource))
+	assertSourceFormat(t, plainSourceMeta, "txt")
+
+	// An unknown preset is rejected rather than silently falling back, and a file
+	// that is not a readable archive is rejected rather than stored as a broken
+	// book.
+	importEPUBExpectingStatus(t, env, "bad.epub", archive, `{"preset":"custom"}`, http.StatusBadRequest)
+	importEPUBExpectingStatus(t, env, "broken.epub", "this is not a zip", "", http.StatusBadRequest)
+}
+
+// assertSourceFormat pins the two fields an imported source's meta must report:
+// the format the reader parses it with, and the absence of a split config, since
+// chapter structure now comes from the text itself.
+func assertSourceFormat(t *testing.T, sourceMeta map[string]any, wantFormat string) {
+	t.Helper()
+
+	if format, _ := sourceMeta["format"].(string); format != wantFormat {
+		t.Fatalf("source format = %q, want %s", format, wantFormat)
 	}
-	if split, _ := plainSourceMeta["split_config"].(map[string]any); split["type"] != "" {
+	if version, _ := sourceMeta["schema_version"].(float64); version != 1 {
+		t.Fatalf("source schema_version = %v, want 1", sourceMeta["schema_version"])
+	}
+	if split, _ := sourceMeta["split_config"].(map[string]any); split["type"] != "" {
 		t.Fatalf("source split config = %#v, want none", split)
 	}
-
-	// An unknown preset is rejected rather than silently falling back.
-	var buf bytes.Buffer
-	writer := multipart.NewWriter(&buf)
-	if err := writer.WriteField("strategy", `{"preset":"custom"}`); err != nil {
-		t.Fatalf("WriteField strategy: %v", err)
-	}
-	h := make(textproto.MIMEHeader)
-	h.Set("Content-Disposition", `form-data; name="file"; filename="bad.epub"`)
-	h.Set("Content-Type", "application/epub+zip")
-	part, err := writer.CreatePart(h)
-	if err != nil {
-		t.Fatalf("CreatePart: %v", err)
-	}
-	if _, err := io.Copy(part, strings.NewReader(archive)); err != nil {
-		t.Fatalf("write multipart file: %v", err)
-	}
-	if err := writer.Close(); err != nil {
-		t.Fatalf("Close multipart writer: %v", err)
-	}
-	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/import", &buf)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	assertStatus(t, env.do(req), http.StatusBadRequest)
-
-	// A file that is not a readable archive is rejected, not stored as a broken
-	// book.
-	notAnArchive := importEPUBExpectingStatus(t, env, "broken.epub", "this is not a zip", "", http.StatusBadRequest)
-	_ = notAnArchive
 }

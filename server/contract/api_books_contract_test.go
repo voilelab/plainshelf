@@ -10,10 +10,29 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
+// patchBook sends a PATCH to a book and asserts the status it must answer with.
+// The body is JSON in every case, so the tests below read as the field-level
+// contract they are.
+func patchBook(t *testing.T, env *apiTestEnv, bookID, body string, wantStatus int) *httptest.ResponseRecorder {
+	t.Helper()
+
+	rec := env.patch(bookURL(bookID), strings.NewReader(body))
+	assertStatus(t, rec, wantStatus)
+	return rec
+}
+
+// patchBookOK patches a book, asserts it succeeded, and returns the updated book
+// the response carries.
+func patchBookOK(t *testing.T, env *apiTestEnv, bookID, body string) server.Book {
+	t.Helper()
+
+	return decodeJSON[server.Book](t, patchBook(t, env, bookID, body, http.StatusOK))
+}
+
 func TestAPIGetBooksContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
+	rec := env.get(booksURL())
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
 	if got := decodeJSON[[]server.Book](t, rec); len(got) != 0 {
@@ -23,13 +42,10 @@ func TestAPIGetBooksContract(t *testing.T) {
 	alpha := importTextBook(t, env, "Alpha Tale", "/fiction/adventure", "alpha.txt", "alpha body")
 	_ = importTextBook(t, env, "Beta Notes", "/notes", "beta.txt", "beta body")
 
-	patchBody := `{"authors":["Ada"],"tags":["contract","api"],"language":"en","comment":"needle comment"}`
-	rec = env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+alpha.Meta.ID, strings.NewReader(patchBody)))
-	assertStatus(t, rec, http.StatusOK)
+	patchBookOK(t, env, alpha.Meta.ID,
+		`{"authors":["Ada"],"tags":["contract","api"],"language":"en","comment":"needle comment"}`)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
-	assertStatus(t, rec, http.StatusOK)
-	books := decodeJSON[[]server.Book](t, rec)
+	books := getJSON[[]server.Book](t, env, booksURL())
 	if len(books) != 2 {
 		t.Fatalf("list returned %d books, want 2", len(books))
 	}
@@ -62,16 +78,14 @@ func TestAPIGetBooksCharCountContract(t *testing.T) {
 	_ = importTextBook(t, env, "Char Count Me", "", "charcount.txt", "alpha body")
 
 	// Without include=char_count, the field must not appear in the response at all.
-	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
+	rec := env.get(booksURL())
 	assertStatus(t, rec, http.StatusOK)
 	if strings.Contains(rec.Body.String(), "char_count") {
 		t.Fatalf("response without include=char_count must not contain char_count field: %s", rec.Body.String())
 	}
 
 	// With include=char_count, every book carries a positive char_count.
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books?include=char_count", nil))
-	assertStatus(t, rec, http.StatusOK)
-	books := decodeJSON[[]server.Book](t, rec)
+	books := getJSON[[]server.Book](t, env, booksURL()+"?include=char_count")
 	if len(books) != 1 {
 		t.Fatalf("list returned %d books, want 1", len(books))
 	}
@@ -84,9 +98,9 @@ func TestAPIUpdateBookContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Patch Me", "old/layer", "patch.txt", "body")
 
-	body := `{"title":"Patched","authors":["Author A","Author B"],"tags":["tag1"],"language":"zh-Hant","comment":"updated comment","star":5,"layer":["new","layer"]}`
-	rec := env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID, strings.NewReader(body)))
-	assertStatus(t, rec, http.StatusOK)
+	rec := patchBook(t, env, created.Meta.ID,
+		`{"title":"Patched","authors":["Author A","Author B"],"tags":["tag1"],"language":"zh-Hant","comment":"updated comment","star":5,"layer":["new","layer"]}`,
+		http.StatusOK)
 	assertJSONContentType(t, rec)
 	updated := decodeJSON[server.Book](t, rec)
 	if updated.Meta.Title != "Patched" || updated.Meta.Comments != "updated comment" || updated.Meta.Language != "zh-Hant" || updated.Meta.Star != 5 {
@@ -99,15 +113,15 @@ func TestAPIUpdateBookContract(t *testing.T) {
 		t.Fatalf("layer = %#v, want new/layer", updated.Layer)
 	}
 
-	rec = env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID, strings.NewReader(`{"unexpected":true}`)))
-	assertStatus(t, rec, http.StatusBadRequest)
-
-	rec = env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID, strings.NewReader(`{"star":6}`)))
-	assertStatus(t, rec, http.StatusBadRequest)
-
-	// A malformed language tag is a client error, not a server failure.
-	rec = env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID, strings.NewReader(`{"language":"!!!not-a-tag"}`)))
-	assertStatus(t, rec, http.StatusBadRequest)
+	// An unknown field, an out-of-range star and a malformed language tag are all
+	// client errors rather than server failures.
+	for _, body := range []string{
+		`{"unexpected":true}`,
+		`{"star":6}`,
+		`{"language":"!!!not-a-tag"}`,
+	} {
+		patchBook(t, env, created.Meta.ID, body, http.StatusBadRequest)
+	}
 }
 
 // The stored format decides whether the reader parses the text as Markdown, and
@@ -116,51 +130,41 @@ func TestAPIUpdateBookContract(t *testing.T) {
 func TestAPIUpdateBookFormatContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Format Book", "", "format.txt", "# Notes\n\nhello")
-	bookURL := "/api/shelves/default_shelf/books/" + created.Meta.ID
+	bookID := created.Meta.ID
 
 	if created.Meta.Format != "txt" {
 		t.Fatalf("imported format = %q, want txt", created.Meta.Format)
 	}
 
-	rec := env.do(httptest.NewRequest(http.MethodGet, bookURL+"/content", nil))
+	rec := env.get(bookURL(bookID, "content"))
 	assertStatus(t, rec, http.StatusOK)
 	contentBefore := rec.Body.String()
 
-	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"format":"md"}`)))
-	assertStatus(t, rec, http.StatusOK)
-	updated := decodeJSON[server.Book](t, rec)
-	if updated.Meta.Format != "md" {
+	if updated := patchBookOK(t, env, bookID, `{"format":"md"}`); updated.Meta.Format != "md" {
 		t.Fatalf("format = %q, want md in the PATCH response", updated.Meta.Format)
 	}
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, bookURL, nil))
-	assertStatus(t, rec, http.StatusOK)
-	if fetched := decodeJSON[server.Book](t, rec); fetched.Meta.Format != "md" {
+	if fetched := getJSON[server.Book](t, env, bookURL(bookID)); fetched.Meta.Format != "md" {
 		t.Fatalf("format = %q, want md after GET", fetched.Meta.Format)
 	}
 
 	// Switching the format must not touch the text it describes.
-	rec = env.do(httptest.NewRequest(http.MethodGet, bookURL+"/content", nil))
+	rec = env.get(bookURL(bookID, "content"))
 	assertStatus(t, rec, http.StatusOK)
 	if got := rec.Body.String(); got != contentBefore {
 		t.Fatalf("content = %q, want it unchanged at %q", got, contentBefore)
 	}
 
 	// A format this build cannot render is a client error, and the stored value survives it.
-	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"format":"epub"}`)))
-	assertStatus(t, rec, http.StatusBadRequest)
+	patchBook(t, env, bookID, `{"format":"epub"}`, http.StatusBadRequest)
 
-	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"title":"Format Book Renamed"}`)))
-	assertStatus(t, rec, http.StatusOK)
-	untouched := decodeJSON[server.Book](t, rec)
+	untouched := patchBookOK(t, env, bookID, `{"title":"Format Book Renamed"}`)
 	if untouched.Meta.Format != "md" {
 		t.Fatalf("format = %q, want md left alone when the PATCH omits it", untouched.Meta.Format)
 	}
 
 	// The switch is reversible: nothing about going to md is one-way.
-	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"format":"txt"}`)))
-	assertStatus(t, rec, http.StatusOK)
-	if reverted := decodeJSON[server.Book](t, rec); reverted.Meta.Format != "txt" {
+	if reverted := patchBookOK(t, env, bookID, `{"format":"txt"}`); reverted.Meta.Format != "txt" {
 		t.Fatalf("format = %q, want txt after switching back", reverted.Meta.Format)
 	}
 }
@@ -168,27 +172,21 @@ func TestAPIUpdateBookFormatContract(t *testing.T) {
 func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Identifiers Book", "identifiers/layer", "identifiers.txt", "body")
-	bookURL := "/api/shelves/default_shelf/books/" + created.Meta.ID
+	bookID := created.Meta.ID
 
 	// Setting identifiers is reflected in the PATCH response and a subsequent GET.
-	rec := env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"identifiers":{"isbn":"978-0-13-468599-1","douban":"123"}}`)))
-	assertStatus(t, rec, http.StatusOK)
-	updated := decodeJSON[server.Book](t, rec)
+	updated := patchBookOK(t, env, bookID, `{"identifiers":{"isbn":"978-0-13-468599-1","douban":"123"}}`)
 	if updated.Meta.Identifiers["isbn"] != "978-0-13-468599-1" || updated.Meta.Identifiers["douban"] != "123" {
 		t.Fatalf("identifiers not set in PATCH response: %#v", updated.Meta.Identifiers)
 	}
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, bookURL, nil))
-	assertStatus(t, rec, http.StatusOK)
-	fetched := decodeJSON[server.Book](t, rec)
+	fetched := getJSON[server.Book](t, env, bookURL(bookID))
 	if fetched.Meta.Identifiers["isbn"] != "978-0-13-468599-1" || fetched.Meta.Identifiers["douban"] != "123" {
 		t.Fatalf("identifiers not set after GET: %#v", fetched.Meta.Identifiers)
 	}
 
 	// A subsequent PATCH with a new identifiers map fully replaces the old one (not a merge).
-	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"identifiers":{"isbn":"999"}}`)))
-	assertStatus(t, rec, http.StatusOK)
-	replaced := decodeJSON[server.Book](t, rec)
+	replaced := patchBookOK(t, env, bookID, `{"identifiers":{"isbn":"999"}}`)
 	if replaced.Meta.Identifiers["isbn"] != "999" {
 		t.Fatalf("identifiers isbn not replaced: %#v", replaced.Meta.Identifiers)
 	}
@@ -197,9 +195,7 @@ func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
 	}
 
 	// A PATCH that omits the identifiers field entirely leaves the existing value untouched.
-	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"title":"Identifiers Book Renamed"}`)))
-	assertStatus(t, rec, http.StatusOK)
-	untouched := decodeJSON[server.Book](t, rec)
+	untouched := patchBookOK(t, env, bookID, `{"title":"Identifiers Book Renamed"}`)
 	if untouched.Meta.Title != "Identifiers Book Renamed" {
 		t.Fatalf("title not updated: %#v", untouched.Meta)
 	}
@@ -208,24 +204,21 @@ func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
 	}
 
 	// An explicit empty identifiers object clears the map.
-	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"identifiers":{}}`)))
-	assertStatus(t, rec, http.StatusOK)
-	cleared := decodeJSON[server.Book](t, rec)
+	cleared := patchBookOK(t, env, bookID, `{"identifiers":{}}`)
 	if len(cleared.Meta.Identifiers) != 0 {
 		t.Fatalf("expected identifiers to be cleared, got: %#v", cleared.Meta.Identifiers)
 	}
 
 	// An identifiers map with an empty key is rejected.
-	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"identifiers":{"":"x"}}`)))
-	assertStatus(t, rec, http.StatusBadRequest)
+	patchBook(t, env, bookID, `{"identifiers":{"":"x"}}`, http.StatusBadRequest)
 }
 
 func TestAPISplitConfigContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Split Me", "", "split.txt", "one\ntwo\nthree")
-	url := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/split_config"
+	url := bookURL(created.Meta.ID, "split_config")
 
-	rec := env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	rec := env.get(url)
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
 	initial := decodeJSON[shelf.SplitConfig](t, rec)
@@ -233,13 +226,10 @@ func TestAPISplitConfigContract(t *testing.T) {
 		t.Fatalf("initial split type = %q, want none", initial.Type)
 	}
 
-	payload := `{"type":"line_count","line_count":42}`
-	rec = env.do(httptest.NewRequest(http.MethodPatch, url, strings.NewReader(payload)))
+	rec = env.patch(url, strings.NewReader(`{"type":"line_count","line_count":42}`))
 	assertStatus(t, rec, http.StatusNoContent)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
-	assertStatus(t, rec, http.StatusOK)
-	roundTrip := decodeJSON[shelf.SplitConfig](t, rec)
+	roundTrip := getJSON[shelf.SplitConfig](t, env, url)
 	if roundTrip.Type != shelf.SplitTypeLineCount || roundTrip.LineCount != 42 {
 		t.Fatalf("round-trip split config = %#v", roundTrip)
 	}

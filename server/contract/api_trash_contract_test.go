@@ -2,29 +2,37 @@ package contract_test
 
 import (
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/server/task"
 )
 
+func trashBooksURL(elem ...string) string {
+	return shelfURL(append([]string{"trash", "books"}, elem...)...)
+}
+
+func emptyTrashURL() string {
+	return shelfURL("trash", "empty")
+}
+
+func emptyTrash(t *testing.T, env *apiTestEnv, wantStatus int) taskChainSubmitResponse {
+	t.Helper()
+	return submitTaskChain(t, env, emptyTrashURL(), nil, wantStatus)
+}
+
 func TestAPITrashLifecycleContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Trash API", "origin/layer", "trash.txt", "body")
 
-	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/"+created.Meta.ID+"/trash", nil))
+	rec := env.post(bookURL(created.Meta.ID, "trash"), nil)
 	assertStatus(t, rec, http.StatusNoContent)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
-	assertStatus(t, rec, http.StatusOK)
-	if books := decodeJSON[[]server.Book](t, rec); len(books) != 0 {
+	if books := getJSON[[]server.Book](t, env, booksURL()); len(books) != 0 {
 		t.Fatalf("active books after trash = %d, want 0", len(books))
 	}
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/trash/books", nil))
-	assertStatus(t, rec, http.StatusOK)
-	trashed := decodeJSON[[]map[string]any](t, rec)
+	trashed := getJSON[[]map[string]any](t, env, trashBooksURL())
 	if len(trashed) != 1 {
 		t.Fatalf("trashed books = %d, want 1", len(trashed))
 	}
@@ -32,35 +40,19 @@ func TestAPITrashLifecycleContract(t *testing.T) {
 		t.Fatalf("trashed id = %q, want %q", id, created.Meta.ID)
 	}
 
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/trash/books/"+created.Meta.ID+"/restore", nil))
+	rec = env.post(trashBooksURL(created.Meta.ID, "restore"), nil)
 	assertStatus(t, rec, http.StatusNoContent)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
-	assertStatus(t, rec, http.StatusOK)
-	if books := decodeJSON[[]server.Book](t, rec); len(books) != 1 {
+	if books := getJSON[[]server.Book](t, env, booksURL()); len(books) != 1 {
 		t.Fatalf("active books after restore = %d, want 1", len(books))
 	}
 
-	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
+	rec = env.delete(bookURL(created.Meta.ID))
 	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/shelves/default_shelf/trash/books/"+created.Meta.ID, nil))
+	rec = env.delete(trashBooksURL(created.Meta.ID))
 	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/trash/books/"+created.Meta.ID+"/restore", nil))
+	rec = env.post(trashBooksURL(created.Meta.ID, "restore"), nil)
 	assertStatus(t, rec, http.StatusNotFound)
-}
-
-func emptyTrash(t *testing.T, env *apiTestEnv, wantStatus int) taskChainSubmitResponse {
-	t.Helper()
-
-	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/trash/empty", nil))
-	assertStatus(t, rec, wantStatus)
-	assertJSONContentType(t, rec)
-
-	resp := decodeJSON[taskChainSubmitResponse](t, rec)
-	if resp.TaskChainID == "" {
-		t.Fatalf("response is missing taskchain_id: %s", rec.Body.String())
-	}
-	return resp
 }
 
 func TestAPIEmptyTrashContract(t *testing.T) {
@@ -68,7 +60,7 @@ func TestAPIEmptyTrashContract(t *testing.T) {
 
 	for _, title := range []string{"First", "Second"} {
 		created := importTextBook(t, env, title, "", title+".txt", "body")
-		rec := env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/"+created.Meta.ID+"/trash", nil))
+		rec := env.post(bookURL(created.Meta.ID, "trash"), nil)
 		assertStatus(t, rec, http.StatusNoContent)
 	}
 
@@ -85,9 +77,7 @@ func TestAPIEmptyTrashContract(t *testing.T) {
 		t.Errorf("name = %q, want %q", chain.Name, task.EmptyTrashTaskName)
 	}
 
-	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/trash/books", nil))
-	assertStatus(t, rec, http.StatusOK)
-	if trashed := decodeJSON[[]map[string]any](t, rec); len(trashed) != 0 {
+	if trashed := getJSON[[]map[string]any](t, env, trashBooksURL()); len(trashed) != 0 {
 		t.Errorf("trashed books after empty = %d, want 0", len(trashed))
 	}
 }
@@ -135,23 +125,14 @@ func TestAPIEmptyTrashConflictReportsRunningChainContract(t *testing.T) {
 func TestAPIEmptyTrashRejectsUnknownShelfContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/missing_shelf/trash/empty", nil))
+	rec := env.post(shelfIDURL("missing_shelf", "trash", "empty"), nil)
 	assertStatus(t, rec, http.StatusNotFound)
 }
 
-// The endpoint mutates the shelf, so it must sit inside the local_token
-// boundary and be refused in read-only mode.
-func TestAPIEmptyTrashRequiresTokenContract(t *testing.T) {
+// The endpoint mutates the shelf, so it must sit inside the local_token boundary
+// and be refused in read-only mode.
+func TestAPIEmptyTrashIsGatedContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	rec := env.doRaw(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/trash/empty", nil))
-	assertStatus(t, rec, http.StatusUnauthorized)
-}
-
-func TestAPIEmptyTrashRejectedInReadOnlyModeContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	env.app.Conf().ReadOnly = true
-
-	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/trash/empty", nil))
-	assertStatus(t, rec, http.StatusForbidden)
+	assertMutationGated(t, env, http.MethodPost, emptyTrashURL(), nil)
 }

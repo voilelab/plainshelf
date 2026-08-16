@@ -3,7 +3,6 @@ package contract_test
 import (
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,7 +13,9 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-const bookCacheExportPath = "/api/shelves/default_shelf/book-cache-exports"
+func bookCacheExportURL() string {
+	return shelfURL("book-cache-exports")
+}
 
 // readExportedBookCache returns the single book cache file the app wrote into
 // the shelf's app folder. Its name carries the installation's writer ID, which
@@ -57,7 +58,7 @@ func TestAPIExportBookCacheContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	book := importTextBook(t, env, "Exported Book", "Fiction", "exported.txt", "Some content.")
 
-	rec := env.do(httptest.NewRequest(http.MethodPost, bookCacheExportPath, nil))
+	rec := env.post(bookCacheExportURL(), nil)
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
 
@@ -103,25 +104,16 @@ func TestAPIExportBookCacheContract(t *testing.T) {
 func TestAPIExportBookCacheRejectsUnknownShelfContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/missing_shelf/book-cache-exports", nil))
+	rec := env.post(shelfIDURL("missing_shelf", "book-cache-exports"), nil)
 	assertStatus(t, rec, http.StatusNotFound)
 }
 
 // The endpoint writes into the shelf, so it must sit inside the local_token
 // boundary and be refused in read-only mode.
-func TestAPIExportBookCacheRequiresTokenContract(t *testing.T) {
+func TestAPIExportBookCacheIsGatedContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	rec := env.doRaw(httptest.NewRequest(http.MethodPost, bookCacheExportPath, nil))
-	assertStatus(t, rec, http.StatusUnauthorized)
-}
-
-func TestAPIExportBookCacheRejectedInReadOnlyModeContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	env.app.Conf().ReadOnly = true
-
-	rec := env.do(httptest.NewRequest(http.MethodPost, bookCacheExportPath, nil))
-	assertStatus(t, rec, http.StatusForbidden)
+	assertMutationGated(t, env, http.MethodPost, bookCacheExportURL(), nil)
 }
 
 // The writer ID identifies the installation, so it has to outlive a restart:
@@ -132,12 +124,7 @@ func TestBookCacheWriterIDIsStableAcrossRestarts(t *testing.T) {
 	libRoot := t.TempDir()
 
 	newRun := func() string {
-		app, err := server.NewApp(&server.AppConf{
-			Shelves: []*shelf.ShelfConfWithID{
-				{ID: "default_shelf", ShelfConf: shelf.ShelfConf{LibRoot: libRoot}},
-			},
-			StorePath: storePath,
-		})
+		app, err := server.NewApp(apiAppConf(t, withLibRoot(libRoot), withStorePath(storePath)))
 		if err != nil {
 			t.Fatalf("NewApp: %v", err)
 		}
@@ -147,9 +134,9 @@ func TestBookCacheWriterIDIsStableAcrossRestarts(t *testing.T) {
 			}
 		}()
 
-		shelfData, ok := app.ShelfManager().GetShelf("default_shelf")
+		shelfData, ok := app.ShelfManager().GetShelf(defaultShelfID)
 		if !ok {
-			t.Fatal("default_shelf missing")
+			t.Fatalf("%s missing", defaultShelfID)
 		}
 		if err := shelfData.WaitReady(t.Context()); err != nil {
 			t.Fatalf("WaitReady: %v", err)
@@ -197,7 +184,7 @@ func TestBookCacheWriterIDAppliesToShelvesAddedAtRuntime(t *testing.T) {
 		t.Fatalf("WaitReady: %v", err)
 	}
 
-	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/added_later/book-cache-exports", nil))
+	rec := env.post(shelfIDURL("added_later", "book-cache-exports"), nil)
 	assertStatus(t, rec, http.StatusOK)
 
 	added := readExportedBookCache(t, addedRoot)
