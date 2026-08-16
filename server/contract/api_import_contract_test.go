@@ -1,4 +1,4 @@
-package server
+package contract_test
 
 import (
 	"bytes"
@@ -9,6 +9,8 @@ import (
 	"net/textproto"
 	"strings"
 	"testing"
+
+	"github.com/voilelab/plainshelf/server"
 )
 
 func TestAPIImportBookContract(t *testing.T) {
@@ -91,7 +93,7 @@ func TestAPIImportMarkdownBookContract(t *testing.T) {
 	}
 
 	for _, imported := range []struct {
-		book Book
+		book server.Book
 		want string
 	}{
 		{withMarkdownContentType, "md"},

@@ -1,10 +1,11 @@
-package server
+package contract_test
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/server/task"
 )
 
@@ -17,7 +18,7 @@ func TestAPITrashLifecycleContract(t *testing.T) {
 
 	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
 	assertStatus(t, rec, http.StatusOK)
-	if books := decodeJSON[[]Book](t, rec); len(books) != 0 {
+	if books := decodeJSON[[]server.Book](t, rec); len(books) != 0 {
 		t.Fatalf("active books after trash = %d, want 0", len(books))
 	}
 
@@ -36,7 +37,7 @@ func TestAPITrashLifecycleContract(t *testing.T) {
 
 	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
 	assertStatus(t, rec, http.StatusOK)
-	if books := decodeJSON[[]Book](t, rec); len(books) != 1 {
+	if books := decodeJSON[[]server.Book](t, rec); len(books) != 1 {
 		t.Fatalf("active books after restore = %d, want 1", len(books))
 	}
 
@@ -149,7 +150,7 @@ func TestAPIEmptyTrashRequiresTokenContract(t *testing.T) {
 
 func TestAPIEmptyTrashRejectedInReadOnlyModeContract(t *testing.T) {
 	env := newAPITestEnv(t)
-	env.app.conf.ReadOnly = true
+	env.app.Conf().ReadOnly = true
 
 	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/trash/empty", nil))
 	assertStatus(t, rec, http.StatusForbidden)

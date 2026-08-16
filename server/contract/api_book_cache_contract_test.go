@@ -1,4 +1,4 @@
-package server
+package contract_test
 
 import (
 	"encoding/json"
@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -59,7 +60,7 @@ func TestAPIExportBookCacheContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
 
-	resp := decodeJSON[BookCacheExportResponse](t, rec)
+	resp := decodeJSON[server.BookCacheExportResponse](t, rec)
 	if resp.Timestamp <= 0 {
 		t.Fatalf("timestamp = %d, want the Unix time of the walk", resp.Timestamp)
 	}
@@ -116,7 +117,7 @@ func TestAPIExportBookCacheRequiresTokenContract(t *testing.T) {
 
 func TestAPIExportBookCacheRejectedInReadOnlyModeContract(t *testing.T) {
 	env := newAPITestEnv(t)
-	env.app.conf.ReadOnly = true
+	env.app.Conf().ReadOnly = true
 
 	rec := env.do(httptest.NewRequest(http.MethodPost, bookCacheExportPath, nil))
 	assertStatus(t, rec, http.StatusForbidden)
@@ -130,7 +131,7 @@ func TestBookCacheWriterIDIsStableAcrossRestarts(t *testing.T) {
 	libRoot := t.TempDir()
 
 	newRun := func() string {
-		app, err := NewApp(&AppConf{
+		app, err := server.NewApp(&server.AppConf{
 			Shelves: []*shelf.ShelfConfWithID{
 				{ID: "default_shelf", ShelfConf: shelf.ShelfConf{LibRoot: libRoot}},
 			},
@@ -145,7 +146,7 @@ func TestBookCacheWriterIDIsStableAcrossRestarts(t *testing.T) {
 			}
 		}()
 
-		shelfData, ok := app.shelfManager.GetShelf("default_shelf")
+		shelfData, ok := app.ShelfManager().GetShelf("default_shelf")
 		if !ok {
 			t.Fatal("default_shelf missing")
 		}
@@ -183,7 +184,7 @@ func TestBookCacheWriterIDAppliesToShelvesAddedAtRuntime(t *testing.T) {
 		t.Fatalf("AddShelf: %v", err)
 	}
 
-	shelfData, ok := env.app.shelfManager.GetShelf("added_later")
+	shelfData, ok := env.app.ShelfManager().GetShelf("added_later")
 	if !ok {
 		t.Fatal("added_later missing from the shelf manager")
 	}

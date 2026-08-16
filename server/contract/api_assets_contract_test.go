@@ -1,4 +1,4 @@
-package server
+package contract_test
 
 import (
 	"bytes"
@@ -155,7 +155,7 @@ func TestAPISourceAssetWriteContract(t *testing.T) {
 
 	// Oversized uploads are refused rather than spooled.
 	rec = env.do(httptest.NewRequest(http.MethodPut, assetsURL+"img-0003.png",
-		bytes.NewReader(bytes.Repeat([]byte{'x'}, maxAssetBodySize+1))))
+		bytes.NewReader(bytes.Repeat([]byte{'x'}, (20<<20)+1))))
 	assertStatus(t, rec, http.StatusRequestEntityTooLarge)
 
 	// Deleting removes it; deleting again reports the miss rather than
@@ -239,12 +239,12 @@ func TestAPISourceAssetWritesAreGated(t *testing.T) {
 		assertStatus(t, rec, http.StatusUnauthorized)
 	}
 
-	env.app.conf.ReadOnly = true
+	env.app.Conf().ReadOnly = true
 	for _, method := range []string{http.MethodPut, http.MethodDelete} {
 		rec := env.do(httptest.NewRequest(method, assetsURL+"img-0001.png", bytes.NewReader([]byte("x"))))
 		assertStatus(t, rec, http.StatusForbidden)
 	}
-	env.app.conf.ReadOnly = false
+	env.app.Conf().ReadOnly = false
 
 	// A read is unaffected by either gate in this configuration.
 	rec := env.doRaw(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))

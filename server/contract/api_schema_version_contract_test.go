@@ -1,4 +1,4 @@
-package server
+package contract_test
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -142,7 +143,7 @@ func TestAPIUnsupportedSchemaVersionDoesNotMoveLayer(t *testing.T) {
 	// The book must still be in its original layer, and still on disk there.
 	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
 	assertStatus(t, rec, http.StatusOK)
-	book := decodeJSON[Book](t, rec)
+	book := decodeJSON[server.Book](t, rec)
 	if got := strings.Join(book.Layer, "/"); got != "origin/layer" {
 		t.Fatalf("layer = %q, want origin/layer — the refused request moved the book", got)
 	}

@@ -1,4 +1,4 @@
-package server
+package contract_test
 
 import (
 	"bytes"
@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/voilelab/plainshelf/server"
 )
 
 func TestAPICreateBookSourceContract(t *testing.T) {
@@ -81,7 +83,7 @@ func TestAPICreateBookSourceContract(t *testing.T) {
 
 	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
 	assertStatus(t, rec, http.StatusOK)
-	activated := decodeJSON[Book](t, rec)
+	activated := decodeJSON[server.Book](t, rec)
 	if activated.Meta == nil || activated.Meta.CurrentSource != derivedID || activated.Meta.Format != "md" {
 		t.Fatalf("activated book = %#v, want current derived Markdown source", activated.Meta)
 	}

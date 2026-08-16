@@ -137,6 +137,18 @@ func (app *App) Start() error {
 	return nil
 }
 
+func (app *App) Conf() *AppConf {
+	return app.conf
+}
+
+func (app *App) ShelfManager() *shelf.ShelfManager {
+	return app.shelfManager
+}
+
+func (app *App) TaskChains() taskutil.Pool {
+	return app.taskChains
+}
+
 // AddShelf opens a shelf after startup — the desktop app's "add shelf" flow.
 //
 // The writer ID has to be applied here as well as in NewApp: a shelf added this
@@ -210,7 +222,7 @@ func (app *App) rejectReadOnlyWrite(w http.ResponseWriter, r *http.Request) bool
 		return false
 	}
 
-	if !isMutatingMethod(r.Method) {
+	if !IsMutatingMethod(r.Method) {
 		return false
 	}
 

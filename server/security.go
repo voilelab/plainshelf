@@ -179,14 +179,14 @@ func (sec *Security) requiresToken(r *http.Request) bool {
 	if sec.conf.ProtectRead {
 		return true
 	}
-	return isMutatingMethod(r.Method)
+	return IsMutatingMethod(r.Method)
 }
 
-// isMutatingMethod is the single definition of "this request writes". Both
+// IsMutatingMethod is the single definition of "this request writes". Both
 // gates that care -- the token requirement here and the read-only rejection in
 // Handler -- read it, so the two cannot drift apart into disagreeing about
 // which methods are writes.
-func isMutatingMethod(method string) bool {
+func IsMutatingMethod(method string) bool {
 	switch method {
 	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
 		return true

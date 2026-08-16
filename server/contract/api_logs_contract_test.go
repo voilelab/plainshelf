@@ -1,4 +1,4 @@
-package server
+package contract_test
 
 import (
 	"net/http"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -16,7 +17,7 @@ func TestAPIGetLogsContract(t *testing.T) {
 	appLogDir := t.TempDir()
 	appLogFile := filepath.Join(appLogDir, "app.log")
 	shelfLogDir := t.TempDir()
-	app, err := NewApp(&AppConf{
+	app, err := server.NewApp(&server.AppConf{
 		Logger: logutil.LogConf{
 			LogFile: logutil.LogFileConf{
 				Type:     logutil.LogFileTypeName,
@@ -71,7 +72,7 @@ func TestAPIGetLogsContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
 
-	logs := decodeJSON[[]LogFileEntry](t, rec)
+	logs := decodeJSON[[]server.LogFileEntry](t, rec)
 	if len(logs) != 2 {
 		t.Fatalf("log count = %d, want 2", len(logs))
 	}
@@ -86,7 +87,7 @@ func TestAPIGetLogsContract(t *testing.T) {
 
 func TestAPIGetLogContentContract(t *testing.T) {
 	logDir := t.TempDir()
-	app, err := NewApp(&AppConf{
+	app, err := server.NewApp(&server.AppConf{
 		Logger: logutil.LogConf{
 			LogFile: logutil.LogFileConf{
 				Type:   logutil.LogFileTypeNameRotate,
@@ -123,8 +124,8 @@ func TestAPIGetLogContentContract(t *testing.T) {
 	handler.ServeHTTP(listRec, httptest.NewRequest(http.MethodGet, "/api/logs", nil))
 	assertStatus(t, listRec, http.StatusOK)
 
-	logs := decodeJSON[[]LogFileEntry](t, listRec)
-	var target *LogFileEntry
+	logs := decodeJSON[[]server.LogFileEntry](t, listRec)
+	var target *server.LogFileEntry
 	for i := range logs {
 		if logs[i].Filename == "app-2024-01-02.log" {
 			target = &logs[i]

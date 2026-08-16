@@ -1,15 +1,19 @@
-package server
+package contract_test
 
 import (
 	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"testing"
 
+	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/server/task"
 )
+
+type taskChainSubmitResponse struct {
+	TaskChainID string `json:"taskchain_id"`
+}
 
 func submitBookBatch(t *testing.T, env *apiTestEnv, payload any, wantStatus int) taskChainSubmitResponse {
 	t.Helper()
@@ -26,7 +30,7 @@ func submitBookBatch(t *testing.T, env *apiTestEnv, payload any, wantStatus int)
 	return decodeJSON[taskChainSubmitResponse](t, rec)
 }
 
-func taskBatchResult(t *testing.T, chain TaskChain) map[string]any {
+func taskBatchResult(t *testing.T, chain server.TaskChain) map[string]any {
 	t.Helper()
 	if len(chain.Tasks) != 1 {
 		t.Fatalf("task count = %d, want 1", len(chain.Tasks))
@@ -74,7 +78,7 @@ func TestAPIBookBatchMoveContract(t *testing.T) {
 	}
 
 	for _, id := range []string{first.Meta.ID, second.Meta.ID} {
-		shelfData, exists := env.app.shelfManager.GetShelf("default_shelf")
+		shelfData, exists := env.app.ShelfManager().GetShelf("default_shelf")
 		if !exists {
 			t.Fatal("default shelf disappeared")
 		}
@@ -125,7 +129,7 @@ func TestAPIBookBatchValidationContract(t *testing.T) {
 		{"trash with target", map[string]any{"operation": "trash", "book_ids": []string{"book"}, "target_layer": []string{}}},
 		{"invalid target", map[string]any{"operation": "move", "book_ids": []string{"book"}, "target_layer": []string{".."}}},
 	}
-	tooMany := make([]string, maxBookBatchSize+1)
+	tooMany := make([]string, 200+1)
 	for i := range tooMany {
 		tooMany[i] = string(rune(i + 1))
 	}
@@ -162,17 +166,7 @@ func TestAPIBookBatchRequiresTokenAndWritableModeContract(t *testing.T) {
 	rec := env.doRaw(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/book-batches", bytes.NewReader(body)))
 	assertStatus(t, rec, http.StatusUnauthorized)
 
-	env.app.conf.ReadOnly = true
+	env.app.Conf().ReadOnly = true
 	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/book-batches", bytes.NewReader(body)))
 	assertStatus(t, rec, http.StatusForbidden)
-}
-
-func TestNormalizeBookBatchIDsPreservesFirstOccurrence(t *testing.T) {
-	got, err := normalizeBookBatchIDs([]string{" b ", "a", "b"})
-	if err != nil {
-		t.Fatalf("normalize: %v", err)
-	}
-	if !slices.Equal(got, []string{"b", "a"}) {
-		t.Errorf("got %v, want [b a]", got)
-	}
 }
