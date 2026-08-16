@@ -40,7 +40,7 @@ func (c *apiCore) resolveShelf(w http.ResponseWriter, r *http.Request) (*shelf.S
 	return shelfData, true
 }
 
-func (c *apiCore) getBook(w http.ResponseWriter, shelfData *shelf.ShelfData, bookID string) (*shelf.Book, bool) {
+func (c *apiCore) lookupBook(w http.ResponseWriter, shelfData *shelf.ShelfData, bookID string) (*shelf.Book, bool) {
 	book, err := shelfData.GetBook(bookID)
 	if err != nil {
 		c.writeErr(w, err, "failed to get book")
@@ -50,7 +50,7 @@ func (c *apiCore) getBook(w http.ResponseWriter, shelfData *shelf.ShelfData, boo
 	return book, true
 }
 
-func (c *apiCore) getSource(w http.ResponseWriter, book *shelf.Book, sourceID string) (*shelf.Source, bool) {
+func (c *apiCore) lookupSource(w http.ResponseWriter, book *shelf.Book, sourceID string) (*shelf.Source, bool) {
 	source, err := book.GetSource(sourceID)
 	if err != nil {
 		c.writeErr(w, err, "failed to get book source")
@@ -71,7 +71,7 @@ func (c *apiCore) loadBook(w http.ResponseWriter, r *http.Request) (*shelf.Shelf
 		return nil, nil, false
 	}
 
-	book, ok := c.getBook(w, shelfData, bookID)
+	book, ok := c.lookupBook(w, shelfData, bookID)
 	if !ok {
 		return nil, nil, false
 	}
@@ -95,12 +95,12 @@ func (c *apiCore) loadBookSource(w http.ResponseWriter, r *http.Request) (*shelf
 		return nil, nil, false
 	}
 
-	book, ok := c.getBook(w, shelfData, bookID)
+	book, ok := c.lookupBook(w, shelfData, bookID)
 	if !ok {
 		return nil, nil, false
 	}
 
-	source, ok := c.getSource(w, book, sourceID)
+	source, ok := c.lookupSource(w, book, sourceID)
 	if !ok {
 		return nil, nil, false
 	}

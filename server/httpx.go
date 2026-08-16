@@ -56,3 +56,8 @@ func decodeStrictJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 
 	return true
 }
+
+func isRequestBodyTooLarge(err error) bool {
+	var maxBytesErr *http.MaxBytesError
+	return errors.As(err, &maxBytesErr)
+}
