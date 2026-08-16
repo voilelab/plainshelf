@@ -2,7 +2,6 @@ package server
 
 import (
 	"errors"
-	"io/fs"
 	"net/http"
 
 	"github.com/voilelab/plainshelf/frontend"
@@ -13,25 +12,17 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
+// App owns the server's resources - the shelves, the store, the worker pool -
+// and starts and stops them. Answering requests belongs to handlers, which
+// App assembles once and then only routes through.
 type App struct {
 	logutil.Logger
 
-	// The handlers reach the shelves, the store and the worker through these
-	// three, which hold only what they each need. App keeps its own references
-	// because it owns their lifecycle.
-	*apiCore
-	settings *settings
-	tasks    *taskSubmitter
-
-	books   *bookHandlers
-	sources *sourceHandlers
-	imports *importHandlers
+	handlers *apiHandlers
 
 	shelfManager *shelf.ShelfManager
 	taskChains   taskutil.Pool
 	storeDB      *store.DB
-	spaFS        fs.FS
-	spaHandler   http.Handler
 
 	// bookCacheWriterID names this installation in the book cache every shelf
 	// exports; see book_cache_writer.go. Held so shelves opened after startup
@@ -128,23 +119,15 @@ func NewApp(conf *AppConf) (*App, error) {
 		shelfManager: shelfManager,
 		taskChains:   taskChains,
 		storeDB:      storeDB,
-		spaFS:        frontend.WebFS,
-		spaHandler:   http.FileServerFS(frontend.WebFS),
 		conf:         conf,
 		security:     security,
 
 		bookCacheWriterID: writerID,
 	}
 
-	// Built after App so they share its logger rather than opening one of their
-	// own.
-	app.apiCore = &apiCore{Logger: &app.Logger, shelves: shelfManager, security: security}
-	app.settings = &settings{Logger: &app.Logger, db: storeDB, conf: conf}
-	app.tasks = &taskSubmitter{apiCore: app.apiCore, pool: taskChains}
-
-	app.books = &bookHandlers{apiCore: app.apiCore, settings: app.settings}
-	app.sources = &sourceHandlers{apiCore: app.apiCore}
-	app.imports = &importHandlers{apiCore: app.apiCore, settings: app.settings}
+	// Assembled after App so the handlers share its logger rather than opening
+	// one of their own.
+	app.handlers = newAPIHandlers(&app.Logger, shelfManager, security, storeDB, taskChains, frontend.WebFS, conf)
 
 	return app, nil
 }
@@ -187,15 +170,9 @@ func (app *App) Close() error {
 	return nil
 }
 
-func (app *App) Health(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("1"))
-}
-
 func (app *App) Handler() http.Handler {
 	mux := http.NewServeMux()
-	app.Serve(mux)
+	app.handlers.serve(mux)
 
 	loggerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		app.Info("app handler", "method", r.Method, "path", r.URL.Path, "remote_addr", r.RemoteAddr)
@@ -211,13 +188,13 @@ func (app *App) Handler() http.Handler {
 // ImportFromLocalPath imports a book the desktop client picked from disk,
 // without going through an upload.
 func (app *App) ImportFromLocalPath(shelfID string, localPath string, layerParts shelf.Layers) (*shelf.Book, error) {
-	return app.imports.fromLocalPath(shelfID, localPath, layerParts)
+	return app.handlers.imports.fromLocalPath(shelfID, localPath, layerParts)
 }
 
 // GetBookFolderPath locates a book on disk for the desktop client's "show in
 // file manager" action.
 func (app *App) GetBookFolderPath(shelfID, bookID string) (string, error) {
-	return app.books.folderPath(shelfID, bookID)
+	return app.handlers.books.folderPath(shelfID, bookID)
 }
 
 func (app *App) SecurityToken() string {

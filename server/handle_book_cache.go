@@ -22,8 +22,8 @@ type BookCacheExportResponse struct {
 //
 // Synchronous rather than a task chain: it is one rescan plus one file write,
 // and reporting the recorded timestamp back is the whole point of the call.
-func (app *App) HandleAPIExportBookCache(w http.ResponseWriter, r *http.Request) {
-	shelfData, ok := app.resolveShelf(w, r)
+func (h *shelfHandlers) exportBookCache(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
@@ -34,10 +34,10 @@ func (app *App) HandleAPIExportBookCache(w http.ResponseWriter, r *http.Request)
 			http.Error(w, "shelf is still initializing", http.StatusServiceUnavailable)
 			return
 		}
-		app.Error("failed to export book cache", "shelf_id", shelfData.ID, "error", err)
+		h.Error("failed to export book cache", "shelf_id", shelfData.ID, "error", err)
 		http.Error(w, "failed to export book cache", http.StatusInternalServerError)
 		return
 	}
 
-	app.writeJSON(w, http.StatusOK, BookCacheExportResponse{Timestamp: scannedAt.Unix()})
+	h.writeJSON(w, http.StatusOK, BookCacheExportResponse{Timestamp: scannedAt.Unix()})
 }
