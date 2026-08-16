@@ -1,4 +1,4 @@
-package server
+package contract_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/taskutil"
+	"github.com/voilelab/plainshelf/server"
 )
 
 // contractTask reports fixed values so the endpoint's output does not depend on
@@ -23,7 +24,7 @@ func (t *contractTask) Status() taskutil.Status       { return taskutil.StatusRu
 func submitContractChain(t *testing.T, env *apiTestEnv) *taskutil.TaskChain {
 	t.Helper()
 
-	chain, err := env.app.taskChains.Submit(&taskutil.TaskChain{
+	chain, err := env.app.TaskChains().Submit(&taskutil.TaskChain{
 		Name:        "contract_chain",
 		Title:       "Contract chain",
 		Description: "a chain used by the API contract test",
@@ -43,7 +44,7 @@ func TestAPIGetTaskChainContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
 
-	resp := decodeJSON[TaskChain](t, rec)
+	resp := decodeJSON[server.TaskChain](t, rec)
 	if resp.ID != chain.ID {
 		t.Errorf("id = %q, want %q", resp.ID, chain.ID)
 	}

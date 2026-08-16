@@ -13,7 +13,7 @@ func TestResolveShelfRejectsMissingShelfID(t *testing.T) {
 	env := newAPITestEnv(t)
 
 	rec := httptest.NewRecorder()
-	shelfData, ok := env.app.resolveShelf(rec, httptest.NewRequest(http.MethodGet, "/api/shelves", nil))
+	shelfData, ok := env.app.handlers.core.resolveShelf(rec, httptest.NewRequest(http.MethodGet, "/api/shelves", nil))
 
 	if ok || shelfData != nil {
 		t.Fatalf("resolveShelf = (%v, %v), want (nil, false)", shelfData, ok)

@@ -9,6 +9,11 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
+// batchHandlers serves the endpoints that start a sweep over many books.
+type batchHandlers struct {
+	*taskSubmitter
+}
+
 const (
 	maxBookBatchSize = 200
 )
@@ -43,8 +48,8 @@ func normalizeBookBatchIDs(ids []string) ([]string, error) {
 }
 
 // POST /api/shelves/{shelf_id}/book-batches
-func (app *App) HandleAPIBookBatch(w http.ResponseWriter, r *http.Request) {
-	shelfData, ok := app.resolveShelf(w, r)
+func (h *batchHandlers) bookBatch(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
@@ -78,7 +83,7 @@ func (app *App) HandleAPIBookBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	app.submitTaskChain(w,
-		task.NewBookBatchChain(shelfData.ID, shelfData.Shelf, &app.Logger, request.Operation, ids, request.TargetLayer),
+	h.submitTaskChain(w,
+		task.NewBookBatchChain(shelfData.ID, shelfData.Shelf, h.Logger, request.Operation, ids, request.TargetLayer),
 		"failed to schedule book batch task")
 }

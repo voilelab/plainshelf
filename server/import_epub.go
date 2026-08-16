@@ -94,13 +94,13 @@ func epubBookTitle(supplied, filename string, parsed *epub.Book) string {
 //
 // It runs inside NewBookWith while the exclusive shelf lock is held, so it only
 // writes; parsing and rendering happen before the book is created.
-func (app *App) initEPUBBook(parsed *epub.Book, rendered epub.Rendered) func(*shelf.Book) error {
+func (h *importHandlers) initEPUBBook(parsed *epub.Book, rendered epub.Rendered) func(*shelf.Book) error {
 	return func(book *shelf.Book) error {
 		source, err := book.NewSourceWithOptions(strings.NewReader(rendered.Text), shelf.NewSourceOptions{Format: rendered.Format})
 		if err != nil {
 			return util.Errorf("%w", err)
 		}
-		app.writeEPUBImages(source, parsed)
+		h.writeEPUBImages(source, parsed)
 		if err := book.SetCurrentSource(source.ID()); err != nil {
 			return util.Errorf("%w", err)
 		}
@@ -110,7 +110,7 @@ func (app *App) initEPUBBook(parsed *epub.Book, rendered epub.Rendered) func(*sh
 			}
 		}
 
-		app.setEPUBCover(book, parsed)
+		h.setEPUBCover(book, parsed)
 
 		meta := book.GetMeta()
 		meta.Format = rendered.Format
@@ -155,10 +155,10 @@ func epubImportComment(parsed *epub.Book) string {
 // An image that cannot be written is logged and skipped, the same trade the
 // cover makes: the reader falls back to the alt text for that one figure, which
 // is a better outcome than discarding a whole converted book over a picture.
-func (app *App) writeEPUBImages(source *shelf.Source, parsed *epub.Book) {
+func (h *importHandlers) writeEPUBImages(source *shelf.Source, parsed *epub.Book) {
 	for _, image := range parsed.Images {
 		if err := source.WriteAsset(image.Name, image.Data); err != nil {
-			app.Error("failed to store epub illustration", "error", err, "asset", image.Name)
+			h.Error("failed to store epub illustration", "error", err, "asset", image.Name)
 		}
 	}
 }
@@ -166,7 +166,7 @@ func (app *App) writeEPUBImages(source *shelf.Source, parsed *epub.Book) {
 // setEPUBCover stores the EPUB's cover image if it has one. A cover that cannot
 // be stored is logged and skipped: a book without a cover is a complete import,
 // while failing here would discard the whole book.
-func (app *App) setEPUBCover(book *shelf.Book, parsed *epub.Book) {
+func (h *importHandlers) setEPUBCover(book *shelf.Book, parsed *epub.Book) {
 	if len(parsed.Cover) == 0 {
 		return
 	}
@@ -176,17 +176,17 @@ func (app *App) setEPUBCover(book *shelf.Book, parsed *epub.Book) {
 
 	// An EPUB cover the read path could not serve with a correct content type
 	// is converted to JPEG rather than stored as-is.
-	if app.coverToJPG() || !shelf.IsSupportedImageExt(ext) {
+	if h.settings.coverToJPG() || !shelf.IsSupportedImageExt(ext) {
 		converted, err := imgutil.AnyToJPG(data)
 		if err != nil {
-			app.Error("failed to convert epub cover to JPEG", "error", err)
+			h.Error("failed to convert epub cover to JPEG", "error", err)
 			return
 		}
 		data, ext = converted, ".jpg"
 	}
 
 	if err := book.SetCover(data, ext); err != nil {
-		app.Error("failed to store epub cover", "error", err)
+		h.Error("failed to store epub cover", "error", err)
 	}
 }
 
@@ -222,7 +222,7 @@ func parseEPUBDate(raw string) (util.JSONDate, bool) {
 // importEPUB parses, renders and stores an EPUB as a new book. The reader must
 // also be an io.ReaderAt because zip access is random; size is the archive
 // length.
-func (app *App) importEPUB(
+func (h *importHandlers) importEPUB(
 	shelfData *shelf.ShelfData,
 	r io.ReaderAt,
 	size int64,
@@ -241,7 +241,7 @@ func (app *App) importEPUB(
 	rendered := epub.Render(parsed, strategy)
 	title := epubBookTitle(suppliedTitle, filename, parsed)
 
-	book, err := shelfData.NewBookWith(layerParts, title, app.initEPUBBook(parsed, rendered))
+	book, err := shelfData.NewBookWith(layerParts, title, h.initEPUBBook(parsed, rendered))
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

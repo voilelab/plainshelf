@@ -1,12 +1,16 @@
 package server
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/internal/util"
 )
+
+// taskHandlers reports on the chains the other groups submit.
+type taskHandlers struct {
+	*taskSubmitter
+}
 
 type Task struct {
 	Name        string  `json:"name"`
@@ -57,37 +61,19 @@ func newTaskChainResponse(chain *taskutil.TaskChain) TaskChain {
 	}
 }
 
-type taskChainSubmitResponse struct {
-	TaskChainID string `json:"taskchain_id"`
-}
-
-// submitTaskChain answers 202 with the new chain's ID, or 409 with the ID of
-// the chain already in flight so the client can attach to it instead.
-func (app *App) submitTaskChain(w http.ResponseWriter, chain *taskutil.TaskChain, fallback string) {
-	submitted, err := app.taskChains.Submit(chain)
-	switch {
-	case errors.Is(err, taskutil.ErrTaskChainRunning):
-		app.writeJSON(w, http.StatusConflict, taskChainSubmitResponse{TaskChainID: submitted.ID})
-	case err != nil:
-		app.writeErr(w, err, fallback)
-	default:
-		app.writeJSON(w, http.StatusAccepted, taskChainSubmitResponse{TaskChainID: submitted.ID})
-	}
-}
-
 // GET /api/taskchains/{taskchain_id}
-func (app *App) HandleAPIGetTaskChain(w http.ResponseWriter, r *http.Request) {
+func (h *taskHandlers) getTaskChain(w http.ResponseWriter, r *http.Request) {
 	taskChainID, err := readTaskChainID(r)
 	if err != nil {
 		http.Error(w, "invalid taskchain_id", http.StatusBadRequest)
 		return
 	}
 
-	chain, exists := app.taskChains.Get(taskChainID)
+	chain, exists := h.pool.Get(taskChainID)
 	if !exists {
 		http.Error(w, "task chain not found", http.StatusNotFound)
 		return
 	}
 
-	app.writeJSON(w, http.StatusOK, newTaskChainResponse(chain))
+	h.writeJSON(w, http.StatusOK, newTaskChainResponse(chain))
 }

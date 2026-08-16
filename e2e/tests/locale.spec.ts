@@ -137,6 +137,27 @@ test('a shown validation error follows an in-place locale switch', async ({ page
   }
 });
 
+// The guard below is only as good as this pattern, and an earlier version of it
+// required two dots — which silently excluded every two-segment key, half of
+// what it was written to catch. Pinning both directions keeps that from
+// happening again without anyone noticing.
+test('the missing-key pattern matches keys and not ordinary content', () => {
+  for (const key of [
+    'pagination.firstPage',
+    'common.confirm',
+    'layout.layersNavLabel',
+    'settings.shelves.idColumn',
+    'notFound.title'
+  ]) {
+    expect(key, `${key} should look like a missing key`).toMatch(MISSING_KEY_PATTERN);
+  }
+
+  // A book library renders filenames as titles; those are content, not bugs.
+  for (const text of ['hello.txt', 'notes.md', 'book.epub', 'Settings', 'No books yet.']) {
+    expect(text, `${text} should not look like a missing key`).not.toMatch(MISSING_KEY_PATTERN);
+  }
+});
+
 // t() returns the key itself on a miss — no throw, no warning — so a typo'd or
 // not-yet-added key reaches the screen as a literal dotted path. That failure
 // is invisible to the catalog tests, because the catalogs are fine; it is the

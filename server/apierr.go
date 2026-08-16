@@ -102,14 +102,14 @@ func apiErrorFor(err error) (apiError, bool) {
 
 // writeErr answers a known error from the table, and anything else with 500
 // and fallback, so an unexpected failure never leaks its detail to the client.
-func (app *App) writeErr(w http.ResponseWriter, err error, fallback string) {
-	app.writeErrStatus(w, err, fallback, http.StatusInternalServerError)
+func (c *apiCore) writeErr(w http.ResponseWriter, err error, fallback string) {
+	c.writeErrStatus(w, err, fallback, http.StatusInternalServerError)
 }
 
 // writeErrStatus is writeErr with a caller-chosen status for unknown errors.
 // The layer routes answer a family of outcomes the table cannot yet name with
 // a single status, and 500 would be wrong for those.
-func (app *App) writeErrStatus(w http.ResponseWriter, err error, fallback string, fallbackStatus int) {
+func (c *apiCore) writeErrStatus(w http.ResponseWriter, err error, fallback string, fallbackStatus int) {
 	if resp, ok := apiErrorFor(err); ok {
 		if resp.retryAfter != "" {
 			w.Header().Set("Retry-After", resp.retryAfter)
@@ -118,6 +118,6 @@ func (app *App) writeErrStatus(w http.ResponseWriter, err error, fallback string
 		return
 	}
 
-	app.Error(fallback, "error", err)
+	c.Error(fallback, "error", err)
 	http.Error(w, fallback, fallbackStatus)
 }
