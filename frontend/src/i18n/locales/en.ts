@@ -19,6 +19,9 @@ const en = {
   common: {
     retry: 'Retry',
     cancel: 'Cancel',
+    confirm: 'Confirm',
+    working: 'Working...',
+    closeDialog: 'Close confirmation dialog',
     prev: 'Prev',
     next: 'Next',
     page: 'Page {page} / {total}',
@@ -30,6 +33,7 @@ const en = {
     expandSidebar: 'Expand sidebar',
     collapseSidebar: 'Collapse sidebar',
     railNavLabel: 'Sidebar navigation',
+    layersNavLabel: 'Layers',
     openMenu: 'Open menu',
     closeMenu: 'Close menu',
     sections: {
@@ -244,6 +248,7 @@ const en = {
       empty: 'No shelves configured.',
       serverManaged: 'Shelves are managed by the server configuration.',
       name: 'Name',
+      idColumn: 'ID',
       remove: 'Delete',
       removing: 'Removing...',
       removeFailed: 'Failed to remove shelf',
@@ -524,7 +529,9 @@ const en = {
   },
   pagination: {
     perPage: 'Per page',
-    booksSuffix: ' books'
+    booksSuffix: ' books',
+    firstPage: 'First page',
+    lastPage: 'Last page'
   },
   deleteModal: {
     closeLabel: 'Close delete confirmation dialog',

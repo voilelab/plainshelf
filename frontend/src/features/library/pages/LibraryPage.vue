@@ -94,7 +94,7 @@
           {{ ROOT_LAYER_LABEL }}
         </template>
         <template v-else-if="selectedLayerSegments.length > 0">
-          <button type="button" class="breadcrumb-link" @click="onSelectAllBooks">All books</button>
+          <button type="button" class="breadcrumb-link" @click="onSelectAllBooks">{{ t('library.allBooks') }}</button>
           <span class="breadcrumb-separator" aria-hidden="true">/</span>
           <template v-for="(segment, index) in selectedLayerSegments" :key="`${segment}-${index}`">
             <button

@@ -390,7 +390,7 @@
               <thead>
                 <tr>
                   <th>{{ t('settings.shelves.name') }}</th>
-                  <th>ID</th>
+                  <th>{{ t('settings.shelves.idColumn') }}</th>
                   <th v-if="isDesktopEnv"></th>
                 </tr>
               </thead>

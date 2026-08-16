@@ -19,6 +19,9 @@ const zhHant = {
   common: {
     retry: '重試',
     cancel: '取消',
+    confirm: '確認',
+    working: '處理中…',
+    closeDialog: '關閉確認對話框',
     prev: '上一頁',
     next: '下一頁',
     page: '第 {page} / {total} 頁',
@@ -30,6 +33,7 @@ const zhHant = {
     expandSidebar: '展開側欄',
     collapseSidebar: '收合側欄',
     railNavLabel: '側邊欄導覽',
+    layersNavLabel: '資料夾',
     openMenu: '開啟選單',
     closeMenu: '關閉選單',
     sections: {
@@ -242,6 +246,7 @@ const zhHant = {
       empty: '尚未設定書架。',
       serverManaged: '書架由伺服器設定管理。',
       name: '名稱',
+      idColumn: 'ID',
       remove: '刪除',
       removing: '移除中...',
       removeFailed: '移除書架失敗',
@@ -522,7 +527,9 @@ const zhHant = {
   },
   pagination: {
     perPage: '每頁',
-    booksSuffix: ' 本'
+    booksSuffix: ' 本',
+    firstPage: '第一頁',
+    lastPage: '最後一頁'
   },
   deleteModal: {
     closeLabel: '關閉刪除確認視窗',
