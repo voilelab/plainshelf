@@ -11,19 +11,26 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
+// settingHandlers is the HTTP face of the settings service.
+type settingHandlers struct {
+	*apiCore
+
+	settings *settings
+}
+
 // GET /api/setting/cover_to_jpg
-func (app *App) HandleGetSettingCoverToJPG(w http.ResponseWriter, r *http.Request) {
-	app.writeJSON(w, http.StatusOK, map[string]any{"value": app.settings.coverToJPG()})
+func (h *settingHandlers) getCoverToJPG(w http.ResponseWriter, r *http.Request) {
+	h.writeJSON(w, http.StatusOK, map[string]any{"value": h.settings.coverToJPG()})
 }
 
 // POST /api/setting/cover_to_jpg
 //
 // The body is the bare literal true or false, not a JSON document, so this one
 // does not go through setJSONSetting.
-func (app *App) HandleSetSettingCoverToJPG(w http.ResponseWriter, r *http.Request) {
+func (h *settingHandlers) setCoverToJPG(w http.ResponseWriter, r *http.Request) {
 	bs, err := io.ReadAll(r.Body)
 	if err != nil {
-		app.Error("read request body:", "err", err)
+		h.Error("read request body:", "err", err)
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -34,8 +41,8 @@ func (app *App) HandleSetSettingCoverToJPG(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if err := app.storeDB.SetSetting(settingKeyCoverToJPG, bs); err != nil {
-		app.Error("failed to save setting", "key", settingKeyCoverToJPG, "err", err)
+	if err := h.settings.setRaw(settingKeyCoverToJPG, bs); err != nil {
+		h.Error("failed to save setting", "key", settingKeyCoverToJPG, "err", err)
 		http.Error(w, "failed to save setting", http.StatusInternalServerError)
 		return
 	}
@@ -44,8 +51,8 @@ func (app *App) HandleSetSettingCoverToJPG(w http.ResponseWriter, r *http.Reques
 }
 
 // DELETE /api/setting/cover_to_jpg
-func (app *App) HandleDeleteSettingCoverToJPG(w http.ResponseWriter, r *http.Request) {
-	app.settings.deleteSetting(w, settingKeyCoverToJPG)
+func (h *settingHandlers) deleteCoverToJPG(w http.ResponseWriter, r *http.Request) {
+	h.settings.deleteSetting(w, settingKeyCoverToJPG)
 }
 
 func validateDefaultSplitConfig(cfg shelf.SplitConfig) (string, error) {
@@ -70,18 +77,18 @@ func validateDefaultSplitConfig(cfg shelf.SplitConfig) (string, error) {
 }
 
 // GET /api/setting/default_split_config
-func (app *App) HandleGetSettingDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
-	app.writeJSON(w, http.StatusOK, map[string]any{"value": app.settings.defaultSplitConfig()})
+func (h *settingHandlers) getDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
+	h.writeJSON(w, http.StatusOK, map[string]any{"value": h.settings.defaultSplitConfig()})
 }
 
 // POST /api/setting/default_split_config
-func (app *App) HandleSetSettingDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
-	setJSONSetting(app.settings, w, r, settingKeyDefaultSplitConfig, validateDefaultSplitConfig)
+func (h *settingHandlers) setDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
+	setJSONSetting(h.settings, w, r, settingKeyDefaultSplitConfig, validateDefaultSplitConfig)
 }
 
 // DELETE /api/setting/default_split_config
-func (app *App) HandleDeleteSettingDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
-	app.settings.deleteSetting(w, settingKeyDefaultSplitConfig)
+func (h *settingHandlers) deleteDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
+	h.settings.deleteSetting(w, settingKeyDefaultSplitConfig)
 }
 
 // validateEPUBImportStrategy names the preset the client sent rather than
@@ -94,16 +101,16 @@ func validateEPUBImportStrategy(strategy epub.Strategy) (string, error) {
 }
 
 // GET /api/setting/epub_import_strategy
-func (app *App) HandleGetSettingEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
-	app.writeJSON(w, http.StatusOK, map[string]any{"value": app.settings.epubImportStrategy()})
+func (h *settingHandlers) getEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
+	h.writeJSON(w, http.StatusOK, map[string]any{"value": h.settings.epubImportStrategy()})
 }
 
 // POST /api/setting/epub_import_strategy
-func (app *App) HandleSetSettingEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
-	setJSONSetting(app.settings, w, r, settingKeyEPUBImportStrategy, validateEPUBImportStrategy)
+func (h *settingHandlers) setEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
+	setJSONSetting(h.settings, w, r, settingKeyEPUBImportStrategy, validateEPUBImportStrategy)
 }
 
 // DELETE /api/setting/epub_import_strategy
-func (app *App) HandleDeleteSettingEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
-	app.settings.deleteSetting(w, settingKeyEPUBImportStrategy)
+func (h *settingHandlers) deleteEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
+	h.settings.deleteSetting(w, settingKeyEPUBImportStrategy)
 }

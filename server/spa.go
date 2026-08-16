@@ -8,33 +8,41 @@ import (
 	"strings"
 )
 
-// Handle SPA fallback for all non-API GET requests
-func (app *App) HandleSPAFallback(w http.ResponseWriter, r *http.Request) {
+// spaHandlers serves the embedded frontend. It holds security because the
+// index it serves carries the token the frontend bootstraps from.
+type spaHandlers struct {
+	fs       fs.FS
+	files    http.Handler
+	security *Security
+}
+
+// fallback serves index.html for all non-API GET requests that do not name a
+// file, so the SPA's own router can handle the path.
+func (h *spaHandlers) fallback(w http.ResponseWriter, r *http.Request) {
 	cleanPath := strings.TrimPrefix(r.URL.Path, "/")
 	if cleanPath == "" || !hasFileExtension(cleanPath) {
-		// SPA fallback: serve index.html for root and all non-file paths
-		data, err := fs.ReadFile(app.spaFS, "index.html")
+		data, err := fs.ReadFile(h.fs, "index.html")
 		if err != nil {
 			http.NotFound(w, r)
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write(app.injectSecurityBootstrap(data))
+		w.Write(h.injectSecurityBootstrap(data))
 		return
 	}
 
-	app.spaHandler.ServeHTTP(w, r)
+	h.files.ServeHTTP(w, r)
 }
 
-func (app *App) injectSecurityBootstrap(data []byte) []byte {
-	if app.security == nil || !app.security.IsEnabled() || app.security.Token() == "" {
+func (h *spaHandlers) injectSecurityBootstrap(data []byte) []byte {
+	if h.security == nil || !h.security.IsEnabled() || h.security.Token() == "" {
 		return data
 	}
-	token, err := json.Marshal(app.security.Token())
+	token, err := json.Marshal(h.security.Token())
 	if err != nil {
 		return data
 	}
-	header, err := json.Marshal(app.security.TokenHeader())
+	header, err := json.Marshal(h.security.TokenHeader())
 	if err != nil {
 		return data
 	}

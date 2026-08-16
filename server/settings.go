@@ -105,6 +105,12 @@ func setJSONSetting[T any](s *settings, w http.ResponseWriter, r *http.Request, 
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// setRaw stores a value that is not a JSON document. cover_to_jpg is the only
+// one: its body is the bare literal true or false.
+func (s *settings) setRaw(key string, value []byte) error {
+	return s.db.SetSetting(key, value)
+}
+
 func (s *settings) deleteSetting(w http.ResponseWriter, key string) {
 	if err := s.db.DeleteSetting(key); err != nil {
 		s.Error("failed to delete setting", "key", key, "err", err)

@@ -179,7 +179,7 @@ func TestCacheVisibilityFollowsTheTokenGate(t *testing.T) {
 			env := newSecurityTestEnv(t, tc.conf)
 			req := httptest.NewRequest(http.MethodGet, imagePath, nil)
 
-			if got := env.app.cacheVisibility(req); got != tc.want {
+			if got := env.app.handlers.core.cacheVisibility(req); got != tc.want {
 				t.Fatalf("cacheVisibility = %q, want %q", got, tc.want)
 			}
 		})
