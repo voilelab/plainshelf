@@ -1,9 +1,9 @@
 <template>
   <section>
-    <div v-if="loading" class="loading">Loading book metadata...</div>
+    <div v-if="loading" class="loading">{{ t('libraryForms.editBook.loading') }}</div>
     <div v-else-if="error" class="error edit-error" role="alert">
       <p>{{ error }}</p>
-      <button class="button" type="button" @click="fetchBook">Retry</button>
+      <button class="button" type="button" @click="fetchBook">{{ t('common.retry') }}</button>
     </div>
 
     <EditBook v-else-if="book" :book="book" :saving="saving" :error="saveError" @submit="onSubmit" @cancel="goBack" />
@@ -17,6 +17,9 @@ import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import EditBook from '@/features/library/components/EditBook.vue';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import type { Book, BookUpdateRequest } from '@/types/book';
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n();
 
 const { writesEnabled } = useWriteAccess();
 const route = useRoute();
@@ -35,7 +38,7 @@ async function fetchBook(): Promise<void> {
   try {
     book.value = await getBookshelfProvider().getBook(id.value);
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load metadata';
+    error.value = err instanceof Error ? err.message : t('libraryForms.editBook.loadFailed');
   } finally {
     loading.value = false;
   }
@@ -59,7 +62,7 @@ async function onSubmit(payload: BookUpdateRequest): Promise<void> {
       }
     });
   } catch (err) {
-    saveError.value = err instanceof Error ? err.message : 'Failed to save metadata';
+    saveError.value = err instanceof Error ? err.message : t('libraryForms.editBook.saveFailed');
   } finally {
     saving.value = false;
   }

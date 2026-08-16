@@ -310,6 +310,21 @@ const en = {
   },
   maintenance: {
     duplicateContent: 'Duplicate Content',
+    duplicates: {
+      description: 'Maintenance view for books with identical content.',
+      scanning: 'Scanning duplicate content groups...',
+      empty: 'No duplicate content found.',
+      emptyHint: 'Your library looks clean.',
+      loadFailed: 'Failed to load duplicate content',
+      groupTitle: 'Duplicate Group #{index}',
+      groupSummary: '{count} books share identical content',
+      open: 'Open',
+      delete: 'Delete',
+      deleting: 'Deleting...',
+      deleteLabel: 'Delete {title}',
+      untitledBook: 'book',
+      deleteFailed: 'Failed to delete book'
+    },
     missingAuthor: {
       title: 'Missing Author',
       empty: 'No books missing author'
@@ -485,6 +500,7 @@ const en = {
     }
   },
   bookCollection: {
+    noLayer: 'No layer',
     loadingBooks: 'Loading books...',
     shelfInitializing: 'Shelf is loading, please wait...',
     shelfUnreachable: 'The shelf is taking too long to respond. It may be unavailable (e.g. SMB mount disconnected).',
@@ -681,6 +697,33 @@ const en = {
     },
     showChapters: 'Show chapters',
     splitSettings: 'Split settings',
+    split: {
+      title: 'Reader Split Settings',
+      closeLabel: 'Close split dialog',
+      description:
+        'Apply section splitting without leaving reader. Current reading position will be preserved.',
+      typeLabel: 'Split Type',
+      // The values are API tokens; these name them for the reader.
+      types: {
+        none: 'None',
+        line_count: 'Line count',
+        regex: 'Regex',
+        boundary: 'Boundaries'
+      },
+      lineCountLabel: 'Lines per section',
+      lineCountPlaceholder: 'e.g. 100',
+      regexLabel: 'Regex pattern',
+      regexPlaceholder: 'e.g. ^Chapter\\s+\\d+',
+      boundaryLabel: 'Boundaries (1-based line numbers, comma or space separated)',
+      boundaryPlaceholder: 'e.g. 1, 101, 201',
+      save: 'Save Split Config',
+      saving: 'Saving...',
+      saveFailed: 'Failed to update split config'
+    },
+    chapterDialog: {
+      title: 'Chapters',
+      closeLabel: 'Close chapter dialog'
+    },
     imageUnavailable: 'Illustration unavailable',
     autosaveFailed: 'Reading progress could not be saved. PlainShelf will retry automatically.',
     mobile: {
@@ -747,6 +790,90 @@ const en = {
     removeDescription: 'Books downloaded from this shelf are deleted from the device. Reading progress and history are kept, so adding it back later picks up where you left off.',
     removeConfirm: 'Remove',
     removeCancel: 'Keep it'
+  },
+  libraryForms: {
+    editBook: {
+      title: 'Edit metadata',
+      description: 'Update fields supported by the current API.',
+      basicInfo: 'Basic info',
+      titleLabel: 'Title',
+      titlePlaceholder: 'Book title',
+      authorsLabel: 'Authors (comma separated)',
+      authorsPlaceholder: 'Author A, Author B',
+      organization: 'Organization',
+      publishedAt: 'Published At',
+      languageLabel: 'Language',
+      starRating: 'Star rating',
+      starValueOne: '1 star',
+      starValueMany: '{count} stars',
+      clearRating: 'Clear',
+      tags: 'Tags',
+      tagsPlaceholder: 'Type a tag and press Enter',
+      tagsHelp: 'Press Enter or comma to add tags. Click × to remove.',
+      removeTag: 'Remove tag {tag}',
+      comment: 'Comment',
+      commentPlaceholder: 'Notes about this book',
+      identifiers: 'Identifiers',
+      identifierKeyPlaceholder: 'isbn',
+      identifierValuePlaceholder: '9787020002207',
+      identifierKeyLabel: 'Identifier key {index}',
+      identifierValueLabel: 'Identifier value {index}',
+      removeIdentifier: 'Remove identifier {name}',
+      addIdentifier: 'Add identifier',
+      save: 'Save metadata',
+      saving: 'Saving...',
+      loading: 'Loading book metadata...',
+      loadFailed: 'Failed to load metadata',
+      saveFailed: 'Failed to save metadata'
+    },
+    newBook: {
+      title: 'New empty book',
+      closeLabel: 'Close new empty book dialog',
+      description: 'Create a new empty TXT book with title only.',
+      titleLabel: 'Book Title',
+      titlePlaceholder: 'Enter book title',
+      create: 'Create',
+      creating: 'Creating...',
+      createFailed: 'Failed to create empty book.'
+    },
+    importBook: {
+      title: 'Import Book',
+      closeLabel: 'Close import dialog',
+      description:
+        'Upload a TXT, Markdown or EPUB file to create a new book entry, or drag-and-drop files here.',
+      fileLabel: 'Book File (.txt, .md, .epub)',
+      epubTitle: 'EPUB Conversion',
+      epubDescription:
+        'EPUB files are converted into a source. The original file is not kept; supported illustrations are retained by the Markdown preset.',
+      convertTo: 'Convert to',
+      presetMarkdown: 'Markdown (chapter headings)',
+      presetPlain: 'Plain text',
+      plainHint:
+        'Plain text has no chapter navigation or Markdown illustrations. You can create a chapterized Markdown source afterwards without changing this TXT source.',
+      includeDescription: 'Put the book description at the start of the text',
+      selectedFiles: 'Selected Files',
+      fileTitle: 'Title: {title}',
+      fileStatus: 'Status:',
+      submit: 'Import',
+      submitting: 'Importing...',
+      statuses: {
+        pending: 'Pending',
+        importing: 'Importing',
+        success: 'Imported',
+        failed: 'Failed'
+      },
+      errors: {
+        noFiles: 'Please choose at least one TXT, Markdown or EPUB file.',
+        unsupportedExtension: 'Book file must be .txt, .md or .epub.',
+        allFailed: 'Import failed.',
+        someFailed: '{count} file(s) failed.'
+      },
+      results: {
+        one: 'Import successful.',
+        many: 'Imported {count} files.',
+        partial: 'Imported {count} of {total} files.'
+      }
+    }
   },
   sources: {
     list: {

@@ -1,36 +1,36 @@
 <template>
   <article class="panel edit-panel">
     <header class="edit-header">
-      <h2>Edit metadata</h2>
-      <p class="meta">Update fields supported by the current API.</p>
+      <h2>{{ t('libraryForms.editBook.title') }}</h2>
+      <p class="meta">{{ t('libraryForms.editBook.description') }}</p>
     </header>
 
     <form class="edit-form" @submit.prevent="onSubmit">
       <section class="section-block">
-        <h3>Basic info</h3>
+        <h3>{{ t('libraryForms.editBook.basicInfo') }}</h3>
         <label class="field">
-          <span class="label">Title</span>
-          <input v-model="title" class="input" type="text" placeholder="Book title" />
+          <span class="label">{{ t('libraryForms.editBook.titleLabel') }}</span>
+          <input v-model="title" class="input" type="text" :placeholder="t('libraryForms.editBook.titlePlaceholder')" />
         </label>
 
         <label class="field">
-          <span class="label">Authors (comma separated)</span>
-          <input v-model="authorsInput" class="input" type="text" placeholder="Author A, Author B" />
+          <span class="label">{{ t('libraryForms.editBook.authorsLabel') }}</span>
+          <input v-model="authorsInput" class="input" type="text" :placeholder="t('libraryForms.editBook.authorsPlaceholder')" />
         </label>
 
       </section>
 
       <section class="section-block">
-        <h3>Organization</h3>
+        <h3>{{ t('libraryForms.editBook.organization') }}</h3>
         <label class="field">
-          <span class="label">Published At</span>
+          <span class="label">{{ t('libraryForms.editBook.publishedAt') }}</span>
           <input v-model="publishedAtInput" class="input" type="date" />
         </label>
 
         <fieldset class="field rating-field">
-          <legend class="label">Star rating</legend>
+          <legend class="label">{{ t('libraryForms.editBook.starRating') }}</legend>
           <div class="star-rating">
-            <RatingRoot v-model="star" as="div" class="star-rating-root" :length="5" clearable aria-label="Star rating">
+            <RatingRoot v-model="star" as="div" class="star-rating-root" :length="5" clearable :aria-label="t('libraryForms.editBook.starRating')">
               <RatingItem
                 v-for="value in STAR_VALUES"
                 :key="value"
@@ -44,18 +44,18 @@
                   :key="step"
                   :step="step"
                   class="star-indicator"
-                  :aria-label="`${value} star${value === 1 ? '' : 's'}`"
+                  :aria-label="starLabel(value)"
                 >
                   ★
                 </RatingItemIndicator>
               </RatingItem>
             </RatingRoot>
-            <button class="clear-rating" type="button" :disabled="star === 0" @click="star = 0">Clear</button>
+            <button class="clear-rating" type="button" :disabled="star === 0" @click="star = 0">{{ t('libraryForms.editBook.clearRating') }}</button>
           </div>
         </fieldset>
 
         <label class="field">
-          <span class="label">Language</span>
+          <span class="label">{{ t('libraryForms.editBook.languageLabel') }}</span>
           <SelectRoot :model-value="languageSelectValue" @update:model-value="onLanguageSelect">
             <SelectTrigger class="input select select-trigger">
               <SelectValue />
@@ -87,7 +87,7 @@
         </label>
 
         <label class="field">
-          <span class="label">Tags</span>
+          <span class="label">{{ t('libraryForms.editBook.tags') }}</span>
           <TagsInputRoot
             v-model="tags"
             class="tag-input-shell"
@@ -98,52 +98,52 @@
           >
             <TagsInputItem v-for="tag in tags" :key="tag" :value="tag" class="tag-chip">
               <TagsInputItemText />
-              <TagsInputItemDelete class="tag-remove" :aria-label="`Remove tag ${tag}`">×</TagsInputItemDelete>
+              <TagsInputItemDelete class="tag-remove" :aria-label="t('libraryForms.editBook.removeTag', { tag })">×</TagsInputItemDelete>
             </TagsInputItem>
-            <TagsInputInput ref="tagsInputRef" class="tag-input" placeholder="Type a tag and press Enter" />
+            <TagsInputInput ref="tagsInputRef" class="tag-input" :placeholder="t('libraryForms.editBook.tagsPlaceholder')" />
           </TagsInputRoot>
-          <p class="field-help">Press Enter or comma to add tags. Click × to remove.</p>
+          <p class="field-help">{{ t('libraryForms.editBook.tagsHelp') }}</p>
         </label>
 
         <label class="field">
-          <span class="label">Comment</span>
+          <span class="label">{{ t('libraryForms.editBook.comment') }}</span>
           <textarea
             v-model="comment"
             class="input textarea"
             rows="5"
-            placeholder="Notes about this book"
+            :placeholder="t('libraryForms.editBook.commentPlaceholder')"
           ></textarea>
         </label>
 
         <div class="field">
-          <span class="label">Identifiers</span>
+          <span class="label">{{ t('libraryForms.editBook.identifiers') }}</span>
           <div class="identifier-rows">
             <div v-for="(row, index) in identifierRows" :key="index" class="identifier-row">
               <input
                 v-model="row.key"
                 class="input identifier-key"
                 type="text"
-                placeholder="isbn"
-                :aria-label="`Identifier key ${index + 1}`"
+                :placeholder="t('libraryForms.editBook.identifierKeyPlaceholder')"
+                :aria-label="t('libraryForms.editBook.identifierKeyLabel', { index: index + 1 })"
               />
               <input
                 v-model="row.value"
                 class="input identifier-value"
                 type="text"
-                placeholder="9787020002207"
-                :aria-label="`Identifier value ${index + 1}`"
+                :placeholder="t('libraryForms.editBook.identifierValuePlaceholder')"
+                :aria-label="t('libraryForms.editBook.identifierValueLabel', { index: index + 1 })"
               />
               <button
                 class="identifier-remove"
                 type="button"
-                :aria-label="`Remove identifier ${row.key || index + 1}`"
+                :aria-label="t('libraryForms.editBook.removeIdentifier', { name: row.key || index + 1 })"
                 @click="removeIdentifierRow(index)"
               >
                 ×
               </button>
             </div>
           </div>
-          <button class="button" type="button" @click="addIdentifierRow">Add identifier</button>
+          <button class="button" type="button" @click="addIdentifierRow">{{ t('libraryForms.editBook.addIdentifier') }}</button>
         </div>
       </section>
 
@@ -151,9 +151,9 @@
 
       <div class="form-actions">
         <button class="button primary" type="submit" :disabled="saving">
-          {{ saving ? 'Saving...' : 'Save metadata' }}
+          {{ saving ? t('libraryForms.editBook.saving') : t('libraryForms.editBook.save') }}
         </button>
-        <button class="button" type="button" :disabled="saving" @click="emit('cancel')">Cancel</button>
+        <button class="button" type="button" :disabled="saving" @click="emit('cancel')">{{ t('common.cancel') }}</button>
       </div>
     </form>
   </article>
@@ -191,9 +191,15 @@ import {
 import { commaStringToList, listToCommaString } from '@/utils/metadata';
 import { useI18n } from '@/i18n';
 
-// Only the language field is translated here. The rest of this form is part of
-// a later pass.
 const { t } = useI18n();
+
+// English says "1 star" but "2 stars"; the catalog has no plural rules, so the
+// two forms are separate keys.
+function starLabel(value: number): string {
+  return value === 1
+    ? t('libraryForms.editBook.starValueOne')
+    : t('libraryForms.editBook.starValueMany', { count: value });
+}
 
 // The custom sentinel is not one of these — it only ever exists as a Select
 // choice — so the preset list needs no guard against it beyond dropping the

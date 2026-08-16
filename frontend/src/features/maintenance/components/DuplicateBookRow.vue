@@ -17,15 +17,15 @@
     </div>
 
     <div class="duplicate-actions">
-      <button type="button" class="button duplicate-open" :disabled="deleting" @click="openBook">Open</button>
+      <button type="button" class="button duplicate-open" :disabled="deleting" @click="openBook">{{ t('maintenance.duplicates.open') }}</button>
       <button
         type="button"
         class="button danger duplicate-delete"
         :disabled="deleting"
-        :aria-label="`Delete ${book.title || 'book'}`"
+        :aria-label="t('maintenance.duplicates.deleteLabel', { title: book.title || t('maintenance.duplicates.untitledBook') })"
         @click="showDeleteModal = true"
       >
-        {{ deleting ? 'Deleting...' : 'Delete' }}
+        {{ deleting ? t('maintenance.duplicates.deleting') : t('maintenance.duplicates.delete') }}
       </button>
     </div>
   </article>
@@ -39,6 +39,9 @@ import type { Book } from '@/types/book';
 import { getLayerPath, layerPathLabel } from '@/utils/layers';
 import bookcover from '@/assets/bookcover.svg';
 import DeleteModal from '@/components/DeleteModal.vue';
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   book: Book;
@@ -95,7 +98,7 @@ async function confirmDelete(): Promise<void> {
     showDeleteModal.value = false;
     emit('deleted', props.book.id);
   } catch (err) {
-    deleteError.value = err instanceof Error ? err.message : 'Failed to delete book';
+    deleteError.value = err instanceof Error ? err.message : t('maintenance.duplicates.deleteFailed');
   } finally {
     deleting.value = false;
   }

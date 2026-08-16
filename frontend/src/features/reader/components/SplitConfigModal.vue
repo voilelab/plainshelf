@@ -1,20 +1,20 @@
 <template>
-  <BaseDialog :open="open" title="Reader Split Settings" :busy="savingSplit" @close="onClose">
+  <BaseDialog :open="open" :title="t('reader.split.title')" :busy="savingSplit" @close="onClose">
     <section class="panel split-modal">
       <header class="split-header">
-        <h3>Reader Split Settings</h3>
-        <button class="icon-close" type="button" aria-label="Close split dialog" :disabled="savingSplit" @click="onClose">
+        <h3>{{ t('reader.split.title') }}</h3>
+        <button class="icon-close" type="button" :aria-label="t('reader.split.closeLabel')" :disabled="savingSplit" @click="onClose">
           ×
         </button>
       </header>
 
-      <p class="split-desc">Apply section splitting without leaving reader. Current reading position will be preserved.</p>
+      <p class="split-desc">{{ t('reader.split.description') }}</p>
 
       <div v-if="splitModalError" class="error" role="alert">{{ splitModalError }}</div>
 
       <form class="split-form" @submit.prevent="onSubmitSplitConfig">
         <label class="field">
-          <span class="label">Split Type</span>
+          <span class="label">{{ t('reader.split.typeLabel') }}</span>
           <SelectRoot :model-value="draftType" :disabled="savingSplit" @update:model-value="onDraftTypeSelect">
             <SelectTrigger class="input select-trigger">
               <SelectValue />
@@ -23,7 +23,7 @@
               <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
                 <SelectViewport>
                   <SelectItem v-for="opt in SPLIT_TYPE_OPTIONS" :key="opt" class="reka-menu-item" :value="opt">
-                    <SelectItemText>{{ opt }}</SelectItemText>
+                    <SelectItemText>{{ splitTypeLabel(opt) }}</SelectItemText>
                   </SelectItem>
                 </SelectViewport>
               </SelectContent>
@@ -32,44 +32,44 @@
         </label>
 
         <label v-if="draftType === 'line_count'" class="field">
-          <span class="label">line_count</span>
+          <span class="label">{{ t('reader.split.lineCountLabel') }}</span>
           <input
             v-model="draftLineCount"
             class="input"
             type="number"
             min="1"
             step="1"
-            placeholder="e.g. 100"
+            :placeholder="t('reader.split.lineCountPlaceholder')"
             :disabled="savingSplit"
           />
         </label>
 
         <label v-if="draftType === 'regex'" class="field">
-          <span class="label">regex</span>
+          <span class="label">{{ t('reader.split.regexLabel') }}</span>
           <textarea
             v-model="draftRegex"
             class="input split-textarea"
             rows="4"
-            placeholder="e.g. ^Chapter\\s+\\d+"
+            :placeholder="t('reader.split.regexPlaceholder')"
             :disabled="savingSplit"
           />
         </label>
 
         <label v-if="draftType === 'boundary'" class="field">
-          <span class="label">boundaries (1-based line numbers, comma or space separated)</span>
+          <span class="label">{{ t('reader.split.boundaryLabel') }}</span>
           <textarea
             v-model="draftBoundaries"
             class="input split-textarea"
             rows="4"
-            placeholder="e.g. 1, 101, 201"
+            :placeholder="t('reader.split.boundaryPlaceholder')"
             :disabled="savingSplit"
           />
         </label>
 
         <div class="actions">
-          <button class="button" type="button" :disabled="savingSplit" @click="onClose">Cancel</button>
+          <button class="button" type="button" :disabled="savingSplit" @click="onClose">{{ t('common.cancel') }}</button>
           <button class="button primary" type="submit" :disabled="savingSplit">
-            {{ savingSplit ? 'Saving...' : 'Save Split Config' }}
+            {{ savingSplit ? t('reader.split.saving') : t('reader.split.save') }}
           </button>
         </div>
       </form>
@@ -92,6 +92,15 @@ import {
 } from 'reka-ui';
 import BaseDialog from '@/components/BaseDialog.vue';
 import type { SplitConfig, SplitType } from '@/types/book';
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n();
+
+// The option values are API tokens ('none', 'line_count', ...), which the
+// Select used to render straight to the user.
+function splitTypeLabel(type: string): string {
+  return t(`reader.split.types.${type}`);
+}
 
 const SPLIT_TYPE_OPTIONS: SplitType[] = ['none', 'line_count', 'regex', 'boundary'];
 
@@ -170,7 +179,7 @@ function onSubmitSplitConfig(): void {
   try {
     emit('saved', buildDraftSplitConfig());
   } catch (err) {
-    splitModalError.value = err instanceof Error ? err.message : 'Failed to update split config';
+    splitModalError.value = err instanceof Error ? err.message : t('reader.split.saveFailed');
   } finally {
     savingSplit.value = false;
   }
