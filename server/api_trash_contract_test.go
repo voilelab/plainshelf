@@ -1,81 +1,51 @@
 package server
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
-	"time"
 
-	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/server/task"
 )
 
-// gateTask occupies the worker until it is released.
-type gateTask struct {
-	started chan struct{}
-	release chan struct{}
-	once    sync.Once
-}
+func TestAPITrashLifecycleContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Trash API", "origin/layer", "trash.txt", "body")
 
-func (t *gateTask) Run(ctx context.Context) error {
-	t.once.Do(func() { close(t.started) })
-	select {
-	case <-t.release:
-	case <-ctx.Done():
-	}
-	return nil
-}
+	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/"+created.Meta.ID+"/trash", nil))
+	assertStatus(t, rec, http.StatusNoContent)
 
-func (t *gateTask) Name() string            { return "gate" }
-func (t *gateTask) Title() string           { return "gate" }
-func (t *gateTask) Description() string     { return "gate" }
-func (t *gateTask) Percentage() float64     { return 0 }
-func (t *gateTask) Status() taskutil.Status { return taskutil.StatusRunning }
-
-// blockWorker occupies the single worker goroutine so that chains submitted
-// afterwards stay queued. The returned function releases it.
-func blockWorker(t *testing.T, env *apiTestEnv) func() {
-	t.Helper()
-
-	gate := &gateTask{started: make(chan struct{}), release: make(chan struct{})}
-	if _, err := env.app.taskChains.Submit(&taskutil.TaskChain{
-		Name:  "gate_chain",
-		Tasks: []taskutil.Task{gate},
-	}); err != nil {
-		t.Fatalf("Submit gate chain: %v", err)
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if books := decodeJSON[[]Book](t, rec); len(books) != 0 {
+		t.Fatalf("active books after trash = %d, want 0", len(books))
 	}
 
-	<-gate.started
-
-	var once sync.Once
-	release := func() { once.Do(func() { close(gate.release) }) }
-	t.Cleanup(release)
-	return release
-}
-
-// waitForTaskChain polls the task chain endpoint until the chain reaches a
-// terminal status, mirroring what the trash page does.
-func waitForTaskChain(t *testing.T, env *apiTestEnv, taskChainID string) TaskChain {
-	t.Helper()
-
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		rec := env.do(httptest.NewRequest(http.MethodGet, "/api/taskchains/"+taskChainID, nil))
-		assertStatus(t, rec, http.StatusOK)
-		chain := decodeJSON[TaskChain](t, rec)
-
-		switch chain.Status {
-		case "completed", "partially_completed", "failed":
-			return chain
-		}
-
-		if time.Now().After(deadline) {
-			t.Fatalf("task chain %s did not finish, last status %q", taskChainID, chain.Status)
-		}
-		time.Sleep(5 * time.Millisecond)
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/trash/books", nil))
+	assertStatus(t, rec, http.StatusOK)
+	trashed := decodeJSON[[]map[string]any](t, rec)
+	if len(trashed) != 1 {
+		t.Fatalf("trashed books = %d, want 1", len(trashed))
 	}
+	if id, _ := trashed[0]["id"].(string); id != created.Meta.ID {
+		t.Fatalf("trashed id = %q, want %q", id, created.Meta.ID)
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/trash/books/"+created.Meta.ID+"/restore", nil))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
+	assertStatus(t, rec, http.StatusOK)
+	if books := decodeJSON[[]Book](t, rec); len(books) != 1 {
+		t.Fatalf("active books after restore = %d, want 1", len(books))
+	}
+
+	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
+	assertStatus(t, rec, http.StatusNoContent)
+	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/shelves/default_shelf/trash/books/"+created.Meta.ID, nil))
+	assertStatus(t, rec, http.StatusNoContent)
+	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/trash/books/"+created.Meta.ID+"/restore", nil))
+	assertStatus(t, rec, http.StatusNotFound)
 }
 
 func emptyTrash(t *testing.T, env *apiTestEnv, wantStatus int) taskChainSubmitResponse {

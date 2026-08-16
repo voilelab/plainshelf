@@ -28,7 +28,7 @@ Read the relevant section before working in that area. Add entries according to
 - **Server tests race the initial shelf scan:** a read issued before it finishes
   is answered 503 `ErrShelfInitializing`. Test envs must wait via
   `WaitReady`; do not rely on unrelated startup work to mask it.
-  (`server/api_contract_test.go`)
+  (`server/apitest_test.go`)
 
 ## Frontend and Reka UI
 
@@ -85,8 +85,9 @@ Read the relevant section before working in that area. Add entries according to
 
 ## Filesystem and API
 
-- **Mutating API requests:** preserve the `local_token` boundary and review
-  `server/api_contract_test.go` whenever routes or request handling change.
+- **Mutating API requests:** preserve the `local_token` boundary and review the
+  matching `server/api_*_contract_test.go` whenever routes or request handling
+  change.
 - **Book identity:** moving or renaming a book must not regenerate its persisted
   ID. The directory name and display title are not identity.
 - **Network shelves:** SMB latency amplifies directory walks and stat calls;

@@ -53,7 +53,7 @@ Minimum checks by area:
 | Desktop Go | main Go check plus `cd desktop && go test ./...` |
 | Vue/TypeScript | `npm --prefix frontend test` and `npm --prefix frontend run build` |
 | UI behavior | relevant Playwright test or an explicitly described manual/browser check |
-| Server API | Go tests plus review of `server/api_contract_test.go` |
+| Server API | Go tests plus review of `server/api_*_contract_test.go` |
 | Documentation/rules | link/build validation and read-back of the diff |
 
 Use stronger independent review for security, data migration, deletion, or other
