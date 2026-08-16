@@ -2,25 +2,24 @@
   <section class="source-editor-page">
     <ConfirmModal
       :open="showDiscardModal"
-      title="Discard unsaved changes?"
-      message="You have unsaved changes. Discard them?"
-      confirm-text="Discard"
-      cancel-text="Keep editing"
+      :title="t('sources.page.discard.title')"
+      :message="t('sources.page.discard.message')"
+      :confirm-text="t('sources.page.discard.confirm')"
+      :cancel-text="t('sources.page.discard.cancel')"
       @cancel="cancelPendingSource"
       @confirm="confirmPendingSource"
     />
     <ConfirmModal
       :open="showDeleteModal"
-      title="Delete source?"
-      confirm-text="Delete"
-      cancel-text="Cancel"
+      :title="t('sources.page.deleteSource.title')"
+      :confirm-text="t('sources.page.deleteSource.confirm')"
       variant="danger"
       :busy="deleting"
       @cancel="cancelDelete"
       @confirm="confirmDelete"
     >
-      <p>Are you sure you want to delete source <strong>{{ pendingDeleteSourceId }}</strong>? This action cannot be undone.</p>
-      <p v-if="activeSourceId === pendingDeleteSourceId && isDirty" class="delete-warning" role="alert">You have unsaved changes that will be lost.</p>
+      <p>{{ t('sources.page.deleteSource.question', { id: pendingDeleteSourceId }) }}</p>
+      <p v-if="activeSourceId === pendingDeleteSourceId && isDirty" class="delete-warning" role="alert">{{ t('sources.page.deleteSource.dirtyWarning') }}</p>
       <p v-if="deleteError" class="delete-error" role="alert">{{ deleteError }}</p>
     </ConfirmModal>
     <SourceConversionModal
@@ -36,15 +35,15 @@
     />
     <ConfirmModal
       :open="pendingRenameChapterIndex !== null"
-      title="Rename chapter"
-      confirm-text="Rename"
+      :title="t('sources.page.renameChapter.title')"
+      :confirm-text="t('sources.page.renameChapter.confirm')"
       :confirm-disabled="!pendingChapterTitle.trim()"
       @cancel="cancelRenameChapter"
       @confirm="confirmRenameChapter"
     >
       <form class="chapter-edit-form" @submit.prevent="confirmRenameChapter">
         <label>
-          <span>Chapter title</span>
+          <span>{{ t('sources.page.renameChapter.titleLabel') }}</span>
           <input
             ref="chapterTitleInput"
             v-model="pendingChapterTitle"
@@ -57,16 +56,16 @@
     </ConfirmModal>
     <ConfirmModal
       :open="pendingMergeChapterIndex !== null"
-      title="Merge chapter?"
-      confirm-text="Merge"
+      :title="t('sources.page.mergeChapter.title')"
+      :confirm-text="t('sources.page.mergeChapter.confirm')"
       variant="danger"
       @cancel="cancelMergeChapter"
       @confirm="confirmMergeChapter"
     >
-      <p>Remove the H2 heading “{{ pendingMergeChapterTitle }}” and merge its text with the adjacent section?</p>
+      <p>{{ t('sources.page.mergeChapter.question', { title: pendingMergeChapterTitle }) }}</p>
     </ConfirmModal>
     <header class="source-editor-topbar">
-      <button class="button" type="button" @click="goBack">Back</button>
+      <button class="button" type="button" @click="goBack">{{ t('sources.page.back') }}</button>
 
       <div class="topbar-title" :title="book?.title || bookId">{{ book?.title || bookId }}</div>
       <div class="topbar-sep">/</div>
@@ -75,18 +74,18 @@
       <div class="topbar-spacer"></div>
 
       <p v-if="saveSuccess" class="topbar-message success" role="status">{{ saveSuccess }}</p>
-      <p v-else-if="isDirty" class="topbar-message dirty">Unsaved changes</p>
-      <p v-else class="topbar-message">No pending changes</p>
+      <p v-else-if="isDirty" class="topbar-message dirty">{{ t('sources.editor.dirty') }}</p>
+      <p v-else class="topbar-message">{{ t('sources.editor.clean') }}</p>
 
       <button class="button primary" type="button" :disabled="disableSave" @click="onSave">
-        {{ saving ? 'Saving...' : isDirty ? 'Save*' : 'Save' }}
+        {{ saving ? t('sources.page.saving') : isDirty ? t('sources.page.saveDirty') : t('sources.page.save') }}
       </button>
     </header>
 
-    <nav class="mobile-pane-tabs" aria-label="Source editor panels">
-      <button type="button" :class="{ active: mobilePane === 'sources' }" @click="mobilePane = 'sources'">Sources</button>
-      <button type="button" :class="{ active: mobilePane === 'editor' }" @click="mobilePane = 'editor'">Editor</button>
-      <button v-if="activeFormat === 'md'" type="button" :class="{ active: mobilePane === 'chapters' }" @click="mobilePane = 'chapters'">Chapters</button>
+    <nav class="mobile-pane-tabs" :aria-label="t('sources.page.panelsLabel')">
+      <button type="button" :class="{ active: mobilePane === 'sources' }" @click="mobilePane = 'sources'">{{ t('sources.page.paneSources') }}</button>
+      <button type="button" :class="{ active: mobilePane === 'editor' }" @click="mobilePane = 'editor'">{{ t('sources.page.paneEditor') }}</button>
+      <button v-if="activeFormat === 'md'" type="button" :class="{ active: mobilePane === 'chapters' }" @click="mobilePane = 'chapters'">{{ t('sources.page.paneChapters') }}</button>
     </nav>
 
     <SplitterGroup
@@ -120,10 +119,10 @@
       <SplitterResizeHandle as="div" class="reka-resize-handle" :hit-area-margins="SOURCE_LIST_RESIZE_HIT_AREA_MARGINS" />
 
       <SplitterPanel as="main" class="source-editor-main" :class="{ 'mobile-active': mobilePane === 'editor' }">
-        <div v-if="initialLoading" class="loading editor-loading">Loading sources...</div>
+        <div v-if="initialLoading" class="loading editor-loading">{{ t('sources.page.loading') }}</div>
         <div v-else-if="loadError" class="error source-error" role="alert">
           <p>{{ loadError }}</p>
-          <button class="button" type="button" @click="fetchInitial">Retry</button>
+          <button class="button" type="button" @click="fetchInitial">{{ t('common.retry') }}</button>
         </div>
         <template v-else>
           <SourceFormatActions
@@ -217,6 +216,9 @@ import {
   replaceTextRange
 } from '@/features/sources/utils/textEditing';
 import type { SplitConfig } from '@/types/book';
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n();
 
 type PendingSourceTransition =
   | { kind: 'select'; sourceId: string }
@@ -318,7 +320,7 @@ const pendingMergeChapterTitle = computed(() => {
   return index === null ? '' : chapterHeadings.value[index]?.title ?? '';
 });
 
-useDocumentTitle(() => ['Edit Sources', book.value?.title, 'PlainShelf']);
+useDocumentTitle(() => [t('sources.page.title'), book.value?.title, t('app.name')]);
 
 async function selectSource(sourceId: string): Promise<void> {
   await loadSource(sourceId);
