@@ -71,6 +71,35 @@ test('ConfirmModal falls back to translated defaults', async ({ page }) => {
   }
 });
 
+// The book-language labels were hardcoded Traditional Chinese, so they showed
+// Chinese in the English UI and could not follow a switch in either direction.
+// metadata-edit.spec.ts covers the English side; this covers zh-Hant.
+test('book language labels follow the locale', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importBookFromPath(page, helloFixturePath);
+
+    await useLocale(page, 'zh-Hant');
+    await page.reload();
+
+    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
+    await expect(page).toHaveURL(/\/books\/[^/]+$/);
+    // Straight to the edit route rather than through the More menu: that menu
+    // belongs to a later pass, so driving it would couple this test to strings
+    // that have not moved yet.
+    await page.goto(`${page.url()}/edit`);
+
+    const languageTrigger = page.locator('.edit-form').getByLabel('Language');
+    await languageTrigger.click();
+    await page.getByRole('option', { name: '英文', exact: true }).click();
+    await expect(languageTrigger).toHaveText('英文');
+  } finally {
+    await server.dispose();
+  }
+});
+
 // t() returns the key itself on a miss — no throw, no warning — so a typo'd or
 // not-yet-added key reaches the screen as a literal dotted path. That failure
 // is invisible to the catalog tests, because the catalogs are fine; it is the

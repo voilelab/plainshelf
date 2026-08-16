@@ -64,7 +64,7 @@
               <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
                 <SelectViewport>
                   <SelectItem
-                    v-for="option in languageSelectOptions"
+                    v-for="option in languageSelectItems"
                     :key="option.value"
                     class="reka-menu-item"
                     :value="option.value"
@@ -80,9 +80,9 @@
             v-model="customLanguage"
             class="input"
             type="text"
-            placeholder="例如 zh-TW, zh-HK, fr, de"
+            :placeholder="t('language.book.customPlaceholder')"
           />
-          <p class="field-help">建議使用 en、ja、ko、zh-Hant、zh-Hans；也可填 zh-TW 這類 BCP 47 language tag。</p>
+          <p class="field-help">{{ t('language.book.help') }}</p>
           <p v-if="languageError" class="error field-error">{{ languageError }}</p>
         </label>
 
@@ -183,19 +183,27 @@ import {
 import type { Book, BookUpdateRequest } from '@/types/book';
 import {
   CUSTOM_LANGUAGE_VALUE,
-  LANGUAGE_OPTIONS,
-  LANGUAGE_SELECT_OPTIONS,
+  LANGUAGE_VALUES,
+  languageSelectOptions,
   normalizeLanguage,
   validateLanguageTag
 } from '@/utils/language';
 import { commaStringToList, listToCommaString } from '@/utils/metadata';
+import { useI18n } from '@/i18n';
 
+// Only the language field is translated here. The rest of this form is part of
+// a later pass.
+const { t } = useI18n();
+
+// The custom sentinel is not one of these — it only ever exists as a Select
+// choice — so the preset list needs no guard against it beyond dropping the
+// empty "unspecified" entry.
 const COMMON_LANGUAGE_VALUES: Set<string> = new Set(
-  LANGUAGE_OPTIONS.map((option) => option.value).filter((value) => value && value !== CUSTOM_LANGUAGE_VALUE)
+  LANGUAGE_VALUES.filter((value) => value)
 );
 const STAR_VALUES = [1, 2, 3, 4, 5] as const;
 // reka-ui SelectItem forbids an empty-string value (it's reserved to mean
-// "clear selection / show placeholder"), but LANGUAGE_SELECT_OPTIONS uses ''
+// "clear selection / show placeholder"), but languageSelectOptions() uses ''
 // for "unspecified". Map it to this sentinel for the Select only; the
 // underlying languagePreset ref keeps using '' so the custom-language v-if
 // and watchers below are untouched.
@@ -229,8 +237,10 @@ const comment = ref('');
 const publishedAtInput = ref('');
 const star = ref(0);
 const identifierRows = ref<{ key: string; value: string }[]>([]);
-const languageSelectOptions = computed(() =>
-  LANGUAGE_SELECT_OPTIONS.map((option) => ({
+// languageSelectOptions() resolves its labels through t(), so reading it inside
+// a computed is what keeps them following a locale change.
+const languageSelectItems = computed(() =>
+  languageSelectOptions().map((option) => ({
     value: option.value === '' ? EMPTY_LANGUAGE_SELECT_VALUE : option.value,
     label: option.label
   }))
