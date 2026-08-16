@@ -3,18 +3,15 @@ package server
 import (
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// Representative mutation used throughout this file. Updating this setting
-// needs no imported book and answers 204 on success.
-const mutationPath = "/api/setting/cover_to_jpg"
-const mutationBody = `true`
-
-func newSecurityTestEnv(t *testing.T, conf *SecurityConf) *apiTestEnv {
+// newSecurityTestApp builds an app under the given security configuration. What
+// the security layer does to a request is pinned by the contract tests; this is
+// for the parts that are reached past the HTTP surface.
+func newSecurityTestApp(t *testing.T, conf *SecurityConf) *App {
 	t.Helper()
 	app, err := NewApp(&AppConf{
 		Shelves: []*shelf.ShelfConfWithID{
@@ -38,105 +35,11 @@ func newSecurityTestEnv(t *testing.T, conf *SecurityConf) *apiTestEnv {
 		}
 	})
 
-	// These tests assert what the security layer does with a request, not how
-	// long a shelf takes to open. A read that arrives before the initial scan
-	// finishes is answered 503 by design, which would fail them for a reason
-	// that has nothing to do with security.
+	// Closing an app whose initial scan is still running is not what is under
+	// test here, so the scan is allowed to finish first.
 	waitForShelves(t, app)
 
-	return &apiTestEnv{app: app, handler: app.Handler()}
-}
-
-func TestSecurityLocalTokenProtectsMutatingAPI(t *testing.T) {
-	env := newSecurityTestEnv(t, &SecurityConf{
-		Mode:                        SecurityModeLocalToken,
-		AllowMissingOriginWithToken: new(true),
-		AllowedOrigins:              []string{"http://localhost:20000"},
-	})
-
-	if len(env.app.SecurityToken()) < 32 {
-		t.Fatalf("security token length = %d, want at least 32", len(env.app.SecurityToken()))
-	}
-
-	rec := env.doRaw(httptest.NewRequest(http.MethodGet, "/health", nil))
-	assertStatus(t, rec, http.StatusOK)
-	if strings.TrimSpace(rec.Body.String()) != "1" {
-		t.Fatalf("health body = %q, want 1", rec.Body.String())
-	}
-
-	rec = env.doRaw(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
-	assertStatus(t, rec, http.StatusOK)
-
-	rec = env.doRaw(httptest.NewRequest(http.MethodPost, mutationPath, strings.NewReader(mutationBody)))
-	assertStatus(t, rec, http.StatusUnauthorized)
-
-	req := httptest.NewRequest(http.MethodPost, mutationPath, strings.NewReader(mutationBody))
-	req.Header.Set(env.app.SecurityTokenHeader(), "wrong-token")
-	rec = env.doRaw(req)
-	assertStatus(t, rec, http.StatusUnauthorized)
-
-	req = httptest.NewRequest(http.MethodPost, mutationPath, strings.NewReader(mutationBody))
-	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
-	rec = env.doRaw(req)
-	assertStatus(t, rec, http.StatusNoContent)
-}
-
-func TestSecurityOriginAndCORS(t *testing.T) {
-	env := newSecurityTestEnv(t, &SecurityConf{
-		Mode:                        SecurityModeLocalToken,
-		AllowMissingOriginWithToken: new(true),
-		AllowedOrigins:              []string{"http://localhost:20000"},
-	})
-
-	req := httptest.NewRequest(http.MethodPost, mutationPath, strings.NewReader(mutationBody))
-	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
-	req.Header.Set("Origin", "http://evil.example")
-	rec := env.doRaw(req)
-	assertStatus(t, rec, http.StatusForbidden)
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
-		t.Fatalf("disallowed CORS origin header = %q, want empty", got)
-	}
-
-	req = httptest.NewRequest(http.MethodPost, mutationPath, strings.NewReader(mutationBody))
-	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
-	req.Header.Set("Origin", "http://localhost:20000")
-	rec = env.doRaw(req)
-	assertStatus(t, rec, http.StatusNoContent)
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:20000" {
-		t.Fatalf("allowed CORS origin header = %q, want http://localhost:20000", got)
-	}
-
-	req = httptest.NewRequest(http.MethodPost, mutationPath, strings.NewReader(mutationBody))
-	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
-	req.Header.Set("Referer", "http://localhost:20000/books")
-	rec = env.doRaw(req)
-	assertStatus(t, rec, http.StatusNoContent)
-
-	req = httptest.NewRequest(http.MethodOptions, mutationPath, nil)
-	req.Header.Set("Origin", "http://localhost:20000")
-	req.Header.Set("Access-Control-Request-Method", "POST")
-	rec = env.doRaw(req)
-	assertStatus(t, rec, http.StatusNoContent)
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:20000" {
-		t.Fatalf("preflight origin header = %q, want http://localhost:20000", got)
-	}
-}
-
-func TestSecurityProtectReadOption(t *testing.T) {
-	env := newSecurityTestEnv(t, &SecurityConf{
-		Mode:                        SecurityModeLocalToken,
-		ProtectRead:                 true,
-		AllowMissingOriginWithToken: new(true),
-		AllowedOrigins:              []string{"http://localhost:20000"},
-	})
-
-	rec := env.doRaw(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
-	assertStatus(t, rec, http.StatusUnauthorized)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil)
-	req.Header.Set("Authorization", "Bearer "+env.app.SecurityToken())
-	rec = env.doRaw(req)
-	assertStatus(t, rec, http.StatusOK)
+	return app
 }
 
 // A response the token gate protected must not be storable by a shared cache:
@@ -176,10 +79,10 @@ func TestCacheVisibilityFollowsTheTokenGate(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			env := newSecurityTestEnv(t, tc.conf)
+			app := newSecurityTestApp(t, tc.conf)
 			req := httptest.NewRequest(http.MethodGet, imagePath, nil)
 
-			if got := env.app.handlers.core.cacheVisibility(req); got != tc.want {
+			if got := app.handlers.core.cacheVisibility(req); got != tc.want {
 				t.Fatalf("cacheVisibility = %q, want %q", got, tc.want)
 			}
 		})

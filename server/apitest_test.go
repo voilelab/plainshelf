@@ -77,14 +77,14 @@ func waitForShelves(t *testing.T, app *App) {
 	}
 }
 
+// do sends the request, filling in the local token for mutating methods so each
+// test does not have to. The token gate itself is exercised by the contract
+// tests, which have a doRaw that leaves the request untouched.
 func (env *apiTestEnv) do(req *http.Request) *httptest.ResponseRecorder {
 	if IsMutatingMethod(req.Method) && req.Header.Get(env.app.SecurityTokenHeader()) == "" && req.Header.Get("Authorization") == "" {
 		req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
 	}
-	return env.doRaw(req)
-}
 
-func (env *apiTestEnv) doRaw(req *http.Request) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
 	env.handler.ServeHTTP(rec, req)
 	return rec
