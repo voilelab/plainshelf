@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
@@ -173,6 +174,10 @@ func TestBookCacheWriterIDIsStableAcrossRestarts(t *testing.T) {
 // its manual export fails until the app is restarted.
 func TestBookCacheWriterIDAppliesToShelvesAddedAtRuntime(t *testing.T) {
 	env := newAPITestEnv(t)
+
+	// Wait a moment for the initial book cache export to finish.
+	time.Sleep(2 * time.Second)
+
 	startupWriterID := readExportedBookCache(t, env.libRoot).WriterID
 
 	addedRoot := t.TempDir()

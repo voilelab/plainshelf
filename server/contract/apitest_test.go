@@ -73,7 +73,8 @@ func newAPITestEnv(t *testing.T) *apiTestEnv {
 			{
 				ID: "default_shelf",
 				ShelfConf: shelf.ShelfConf{
-					LibRoot: libRoot,
+					LibRoot:           libRoot,
+					BookCacheInterval: "1s",
 				},
 			},
 		},
