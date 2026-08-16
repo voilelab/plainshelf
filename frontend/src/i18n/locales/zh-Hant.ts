@@ -4,7 +4,12 @@ const zhHant = {
     mockModeBadge: '模擬 API 模式',
     desktopHistoryNavigation: '桌面版歷史導覽',
     previousPage: '上一頁',
-    nextPage: '下一頁'
+    nextPage: '下一頁',
+    renderError: {
+      title: '這個頁面停止回應',
+      description: '繪製這個頁面時發生錯誤。重新載入通常就能恢復。',
+      reload: '重新載入'
+    }
   },
   language: {
     label: '語言',
@@ -478,6 +483,7 @@ const zhHant = {
     },
     selection: {
       toolbarLabel: '已選書籍操作',
+      mobileToolbarLabel: '已選書籍下載列',
       selectedCount: '已選 {count} 本',
       selectBook: '選取「{title}」',
       selectAll: '選取本頁',
@@ -718,6 +724,11 @@ const zhHant = {
     removeDescription: '從這個書架下載的書會從裝置上刪除。閱讀進度與紀錄會保留，日後重新加入時可以接續。',
     removeConfirm: '移除',
     removeCancel: '先留著'
+  },
+  notFound: {
+    title: '找不到頁面',
+    description: '這個網址沒有對應的內容。可能已經改名，或是連結過期了。',
+    backToLibrary: '回到書庫'
   }
 } as const;
 

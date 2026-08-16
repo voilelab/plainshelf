@@ -843,6 +843,10 @@ onMounted(async () => {
   padding: 8px 24px;
 }
 
+/* Sticks to the top of the viewport, so on the Android shell — which targets
+   SDK 36, past the SDK 35 cutoff where edge-to-edge became mandatory — it sits
+   under the status bar unless it carries the top inset itself. Insets are 0
+   everywhere else, leaving the padding unchanged. */
 .topbar {
   position: sticky;
   top: 0;
@@ -853,7 +857,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 24px;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-right, 0px))
+    14px calc(24px + env(safe-area-inset-left, 0px));
 }
 
 .topbar-left {
@@ -929,8 +934,14 @@ onMounted(async () => {
   font-weight: 600;
 }
 
+/* The scrolling content reaches the bottom and side edges of the window, so it
+   needs those insets to keep the last row — pagination, the mobile action bar's
+   neighbours — clear of the gesture bar and of a landscape cutout. No top
+   inset: .topbar sits above it inside the same scroller and already consumes
+   that one, and adding it here would count it twice. */
 .page-area {
-  padding: 16px 24px;
+  padding: 16px calc(24px + env(safe-area-inset-right, 0px))
+    calc(16px + env(safe-area-inset-bottom, 0px)) calc(24px + env(safe-area-inset-left, 0px));
 }
 
 .no-shelf-panel {
@@ -1005,6 +1016,11 @@ onMounted(async () => {
     bottom: 0;
     box-shadow: 4px 0 24px rgba(15, 23, 42, 0.25);
     left: 0;
+    /* Off-canvas and full-height, so it spans the status and gesture bars on
+       the edge-to-edge Android shell. box-sizing is border-box globally, so
+       this insets the content without widening the drawer. */
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px)
+      env(safe-area-inset-left, 0px);
     position: fixed;
     top: 0;
     transform: translateX(-105%);
@@ -1023,7 +1039,8 @@ onMounted(async () => {
   }
 
   .topbar {
-    padding: 10px 12px;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px))
+      10px calc(12px + env(safe-area-inset-left, 0px));
   }
 
   .language-select > span {

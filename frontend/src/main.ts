@@ -46,7 +46,16 @@ async function bootstrap(): Promise<void> {
     window.__plainshelfTestHooks = { provider: getBookshelfProvider(), bookshelfWriter };
   }
 
-  createApp(App).use(router).mount('#app');
+  const app = createApp(App);
+
+  // Vue swallows component errors by default, so a bug in a render function or
+  // a lifecycle hook leaves no trace in the console. App.vue's onErrorCaptured
+  // handles what the user sees; this makes the cause diagnosable.
+  app.config.errorHandler = (err, _instance, info) => {
+    console.error(`Unhandled Vue error (${info})`, err);
+  };
+
+  app.use(router).mount('#app');
 }
 
 void bootstrap();

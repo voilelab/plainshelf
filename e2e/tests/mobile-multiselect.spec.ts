@@ -119,3 +119,42 @@ test('mobile long press selects, retries failed downloads, and skips downloaded 
     await server.dispose();
   }
 });
+
+// The download bar used to be styled only inside a max-width:760px media query,
+// so on a tablet-sized mobile shell multi-select opened a toolbar whose every
+// action had been removed — Move and Trash are write surfaces the mobile client
+// never offers, and Download was hidden by width. There was no way out but to
+// cancel.
+test('mobile download action stays reachable on a tablet-width screen', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.goto(`${server.baseUrl}/books`);
+    await importBookFromPath(page, helloFixturePath);
+    await connectMobile(page, server.baseUrl);
+    await reopenMobileAt(page, server.baseUrl, '/books');
+
+    const helloId = await getBookIdByTitle(page, 'hello');
+    const helloRow = page.locator('.book-list-row', { hasText: 'hello' });
+
+    await longPress(page, helloRow);
+    await expect(
+      page.getByRole('toolbar', { name: 'Selected books actions' }).getByText('1 selected')
+    ).toBeVisible();
+
+    const downloadBar = page.getByRole('toolbar', { name: 'Selected books download bar' });
+    await expect(downloadBar).toBeVisible();
+
+    const downloadButton = downloadBar.getByRole('button', { name: 'Download to device' });
+    await expect(downloadButton).toBeVisible();
+    await downloadButton.click();
+
+    const downloadDialog = page.getByRole('dialog', { name: 'Download to device' });
+    await expect(downloadDialog.getByText('1 books downloaded.')).toBeVisible();
+    await downloadDialog.getByRole('button', { name: 'Close' }).click();
+    expect(await getDownloadStateViaHook(page, helloId)).toBe('downloaded');
+  } finally {
+    await server.dispose();
+  }
+});

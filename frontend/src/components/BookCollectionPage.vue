@@ -132,13 +132,22 @@
         @long-press="emit('long-press', $event)"
       />
 
-      <div v-if="selectionActive && mobileSelection" class="mobile-selection-actions" role="toolbar">
+      <div
+        v-if="selectionActive && mobileSelection"
+        class="mobile-selection-actions"
+        role="toolbar"
+        :aria-label="t('bookCollection.selection.mobileToolbarLabel')"
+      >
         <button type="button" class="button primary" :disabled="selectionBusy" @click="emit('batch-download')">
           {{ selectionBusy ? t('bookCollection.selection.downloading') : t('bookCollection.selection.download') }}
         </button>
       </div>
 
+      <!-- `total` is the post-filter count, so 0 means there is nothing to page
+           through: without this the empty state is followed by a "Page 1 / 0"
+           control row. -->
       <Pagination
+        v-if="total > 0"
         :page="page"
         :page-size="pageSize"
         :total="total"
@@ -297,24 +306,31 @@ onMounted(() => {
 
 .selection-close { font-size: 18px; line-height: 1; }
 
-.mobile-selection-actions { display: none; }
+/* The `v-if` already limits this bar to the mobile runtime, where Download is
+   the only batch action left (Move and Trash are write surfaces). Gating it on
+   viewport width as well used to hide it on tablets, leaving multi-select with
+   no action to perform at all. Width now only tunes the layout. */
+.mobile-selection-actions {
+  background: color-mix(in srgb, #fff 94%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+  display: flex;
+  left: max(12px, env(safe-area-inset-left, 0px));
+  margin-inline: auto;
+  max-width: 420px;
+  padding: 10px;
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  z-index: var(--z-overlay, 20);
+}
+
+.mobile-selection-actions .button { width: 100%; }
 
 @media (max-width: 760px) {
   .selection-toolbar { justify-content: flex-start; width: 100%; }
-  .mobile-selection-actions {
-    background: color-mix(in srgb, #fff 94%, transparent);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
-    display: flex;
-    left: 12px;
-    padding: 10px;
-    position: fixed;
-    right: 12px;
-    z-index: var(--z-overlay, 20);
-  }
-  .mobile-selection-actions .button { width: 100%; }
+  .mobile-selection-actions { max-width: none; }
 }
 
 .collection-error {

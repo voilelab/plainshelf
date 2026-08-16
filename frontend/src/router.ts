@@ -26,6 +26,7 @@ const MobileShelvesPage = () => import('@/features/mobile/pages/MobileShelvesPag
 const MobileConnectPage = () => import('@/features/mobile/pages/MobileConnectPage.vue');
 const ReaderPage = () => import('@/features/reader/pages/ReaderView.vue');
 const EditBookSourcesPage = () => import('@/features/sources/pages/EditBookSourcesPage.vue');
+const NotFoundPage = () => import('@/pages/NotFoundPage.vue');
 
 const ROUTES_WITH_OWN_TITLE = new Set([
   'dashboard',
@@ -40,7 +41,8 @@ const ROUTES_WITH_OWN_TITLE = new Set([
   'settings',
   'maintenance-missing-author',
   'maintenance-missing-cover',
-  'maintenance-missing-language'
+  'maintenance-missing-language',
+  'not-found'
 ]);
 
 // A route that edits the shelf, administers the server, or opens a write
@@ -150,6 +152,17 @@ const router = createRouter({
           path: 'settings',
           name: 'settings',
           component: SettingsPage
+        },
+        {
+          // Lowest-ranked pattern in the table, so it only matches what nothing
+          // else did. Without it an unknown URL renders the shell around an
+          // empty <RouterView>, which reads as a broken app rather than a bad
+          // address. It lives under MainLayout so the sidebar stays usable, and
+          // the mobile shelf-gate below still applies: an unconfigured mobile
+          // shell is sent to /connect instead.
+          path: ':pathMatch(.*)*',
+          name: 'not-found',
+          component: NotFoundPage
         }
       ]
     },
