@@ -1,4 +1,4 @@
-package server
+package contract_test
 
 import (
 	"net/http"
@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -44,7 +45,7 @@ func TestAPIStreamContentReturns200ForEmptyFilesInWails(t *testing.T) {
 	}
 
 	logDir := t.TempDir()
-	logApp, err := NewApp(&AppConf{
+	logApp, err := server.NewApp(&server.AppConf{
 		Shelves: []*shelf.ShelfConfWithID{
 			{
 				ID: "default_shelf",
@@ -81,7 +82,7 @@ func TestAPIStreamContentReturns200ForEmptyFilesInWails(t *testing.T) {
 	logHandler.ServeHTTP(listRec, httptest.NewRequest(http.MethodGet, "/api/logs", nil))
 	assertStatus(t, listRec, http.StatusOK)
 
-	logs := decodeJSON[[]LogFileEntry](t, listRec)
+	logs := decodeJSON[[]server.LogFileEntry](t, listRec)
 	var emptyLogID string
 	for i := range logs {
 		if logs[i].Filename == "shelf-2024-01-02.log" {

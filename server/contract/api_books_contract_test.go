@@ -1,4 +1,4 @@
-package server
+package contract_test
 
 import (
 	"net/http"
@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -15,7 +16,7 @@ func TestAPIGetBooksContract(t *testing.T) {
 	rec := env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
-	if got := decodeJSON[[]Book](t, rec); len(got) != 0 {
+	if got := decodeJSON[[]server.Book](t, rec); len(got) != 0 {
 		t.Fatalf("empty library returned %d books", len(got))
 	}
 
@@ -28,11 +29,11 @@ func TestAPIGetBooksContract(t *testing.T) {
 
 	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books", nil))
 	assertStatus(t, rec, http.StatusOK)
-	books := decodeJSON[[]Book](t, rec)
+	books := decodeJSON[[]server.Book](t, rec)
 	if len(books) != 2 {
 		t.Fatalf("list returned %d books, want 2", len(books))
 	}
-	var got *Book
+	var got *server.Book
 	for i := range books {
 		if books[i].Meta != nil && books[i].Meta.ID == alpha.Meta.ID {
 			got = &books[i]
@@ -70,7 +71,7 @@ func TestAPIGetBooksCharCountContract(t *testing.T) {
 	// With include=char_count, every book carries a positive char_count.
 	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books?include=char_count", nil))
 	assertStatus(t, rec, http.StatusOK)
-	books := decodeJSON[[]Book](t, rec)
+	books := decodeJSON[[]server.Book](t, rec)
 	if len(books) != 1 {
 		t.Fatalf("list returned %d books, want 1", len(books))
 	}
@@ -87,7 +88,7 @@ func TestAPIUpdateBookContract(t *testing.T) {
 	rec := env.do(httptest.NewRequest(http.MethodPatch, "/api/shelves/default_shelf/books/"+created.Meta.ID, strings.NewReader(body)))
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
-	updated := decodeJSON[Book](t, rec)
+	updated := decodeJSON[server.Book](t, rec)
 	if updated.Meta.Title != "Patched" || updated.Meta.Comments != "updated comment" || updated.Meta.Language != "zh-Hant" || updated.Meta.Star != 5 {
 		t.Fatalf("metadata was not updated: %#v", updated.Meta)
 	}
@@ -127,14 +128,14 @@ func TestAPIUpdateBookFormatContract(t *testing.T) {
 
 	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"format":"md"}`)))
 	assertStatus(t, rec, http.StatusOK)
-	updated := decodeJSON[Book](t, rec)
+	updated := decodeJSON[server.Book](t, rec)
 	if updated.Meta.Format != "md" {
 		t.Fatalf("format = %q, want md in the PATCH response", updated.Meta.Format)
 	}
 
 	rec = env.do(httptest.NewRequest(http.MethodGet, bookURL, nil))
 	assertStatus(t, rec, http.StatusOK)
-	if fetched := decodeJSON[Book](t, rec); fetched.Meta.Format != "md" {
+	if fetched := decodeJSON[server.Book](t, rec); fetched.Meta.Format != "md" {
 		t.Fatalf("format = %q, want md after GET", fetched.Meta.Format)
 	}
 
@@ -151,7 +152,7 @@ func TestAPIUpdateBookFormatContract(t *testing.T) {
 
 	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"title":"Format Book Renamed"}`)))
 	assertStatus(t, rec, http.StatusOK)
-	untouched := decodeJSON[Book](t, rec)
+	untouched := decodeJSON[server.Book](t, rec)
 	if untouched.Meta.Format != "md" {
 		t.Fatalf("format = %q, want md left alone when the PATCH omits it", untouched.Meta.Format)
 	}
@@ -159,7 +160,7 @@ func TestAPIUpdateBookFormatContract(t *testing.T) {
 	// The switch is reversible: nothing about going to md is one-way.
 	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"format":"txt"}`)))
 	assertStatus(t, rec, http.StatusOK)
-	if reverted := decodeJSON[Book](t, rec); reverted.Meta.Format != "txt" {
+	if reverted := decodeJSON[server.Book](t, rec); reverted.Meta.Format != "txt" {
 		t.Fatalf("format = %q, want txt after switching back", reverted.Meta.Format)
 	}
 }
@@ -172,14 +173,14 @@ func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
 	// Setting identifiers is reflected in the PATCH response and a subsequent GET.
 	rec := env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"identifiers":{"isbn":"978-0-13-468599-1","douban":"123"}}`)))
 	assertStatus(t, rec, http.StatusOK)
-	updated := decodeJSON[Book](t, rec)
+	updated := decodeJSON[server.Book](t, rec)
 	if updated.Meta.Identifiers["isbn"] != "978-0-13-468599-1" || updated.Meta.Identifiers["douban"] != "123" {
 		t.Fatalf("identifiers not set in PATCH response: %#v", updated.Meta.Identifiers)
 	}
 
 	rec = env.do(httptest.NewRequest(http.MethodGet, bookURL, nil))
 	assertStatus(t, rec, http.StatusOK)
-	fetched := decodeJSON[Book](t, rec)
+	fetched := decodeJSON[server.Book](t, rec)
 	if fetched.Meta.Identifiers["isbn"] != "978-0-13-468599-1" || fetched.Meta.Identifiers["douban"] != "123" {
 		t.Fatalf("identifiers not set after GET: %#v", fetched.Meta.Identifiers)
 	}
@@ -187,7 +188,7 @@ func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
 	// A subsequent PATCH with a new identifiers map fully replaces the old one (not a merge).
 	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"identifiers":{"isbn":"999"}}`)))
 	assertStatus(t, rec, http.StatusOK)
-	replaced := decodeJSON[Book](t, rec)
+	replaced := decodeJSON[server.Book](t, rec)
 	if replaced.Meta.Identifiers["isbn"] != "999" {
 		t.Fatalf("identifiers isbn not replaced: %#v", replaced.Meta.Identifiers)
 	}
@@ -198,7 +199,7 @@ func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
 	// A PATCH that omits the identifiers field entirely leaves the existing value untouched.
 	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"title":"Identifiers Book Renamed"}`)))
 	assertStatus(t, rec, http.StatusOK)
-	untouched := decodeJSON[Book](t, rec)
+	untouched := decodeJSON[server.Book](t, rec)
 	if untouched.Meta.Title != "Identifiers Book Renamed" {
 		t.Fatalf("title not updated: %#v", untouched.Meta)
 	}
@@ -209,7 +210,7 @@ func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
 	// An explicit empty identifiers object clears the map.
 	rec = env.do(httptest.NewRequest(http.MethodPatch, bookURL, strings.NewReader(`{"identifiers":{}}`)))
 	assertStatus(t, rec, http.StatusOK)
-	cleared := decodeJSON[Book](t, rec)
+	cleared := decodeJSON[server.Book](t, rec)
 	if len(cleared.Meta.Identifiers) != 0 {
 		t.Fatalf("expected identifiers to be cleared, got: %#v", cleared.Meta.Identifiers)
 	}

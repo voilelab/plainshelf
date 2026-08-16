@@ -1,4 +1,4 @@
-package server
+package contract_test
 
 import (
 	"bytes"
@@ -21,7 +21,7 @@ func TestAPICoverContract(t *testing.T) {
 	rec = env.do(req)
 	assertStatus(t, rec, http.StatusBadRequest)
 
-	req = httptest.NewRequest(http.MethodPut, url, bytes.NewReader(bytes.Repeat([]byte{'x'}, maxCoverBodySize+1)))
+	req = httptest.NewRequest(http.MethodPut, url, bytes.NewReader(bytes.Repeat([]byte{'x'}, (20<<20)+1)))
 	req.Header.Set("Content-Type", "image/png")
 	rec = env.do(req)
 	assertStatus(t, rec, http.StatusRequestEntityTooLarge)

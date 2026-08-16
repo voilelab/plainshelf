@@ -1,4 +1,4 @@
-package server
+package contract_test
 
 import (
 	"encoding/json"
@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/server/task"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -59,7 +60,7 @@ func charCountByBookID(t *testing.T, env *apiTestEnv) map[string]int {
 	assertStatus(t, rec, http.StatusOK)
 
 	counts := make(map[string]int)
-	for _, book := range decodeJSON[[]Book](t, rec) {
+	for _, book := range decodeJSON[[]server.Book](t, rec) {
 		if book.Meta == nil {
 			continue
 		}
@@ -82,7 +83,7 @@ func refreshContentStats(t *testing.T, env *apiTestEnv, wantStatus int) taskChai
 	return resp
 }
 
-func taskResult[T any](t *testing.T, chain TaskChain) T {
+func taskResult[T any](t *testing.T, chain server.TaskChain) T {
 	t.Helper()
 
 	if len(chain.Tasks) != 1 {
@@ -203,7 +204,7 @@ func TestAPIRefreshContentStatsRequiresTokenContract(t *testing.T) {
 
 func TestAPIRefreshContentStatsRejectedInReadOnlyModeContract(t *testing.T) {
 	env := newAPITestEnv(t)
-	env.app.conf.ReadOnly = true
+	env.app.Conf().ReadOnly = true
 
 	rec := env.do(httptest.NewRequest(http.MethodPost, contentStatsPath, nil))
 	assertStatus(t, rec, http.StatusForbidden)

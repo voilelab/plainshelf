@@ -1,10 +1,12 @@
-package server
+package contract_test
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/voilelab/plainshelf/server"
 )
 
 func TestAPILayerMoveAndRenameContract(t *testing.T) {
@@ -22,7 +24,7 @@ func TestAPILayerMoveAndRenameContract(t *testing.T) {
 
 	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
 	assertStatus(t, rec, http.StatusOK)
-	got := decodeJSON[Book](t, rec)
+	got := decodeJSON[server.Book](t, rec)
 	if strings.Join(got.Layer, "/") != "gamma/renamed" {
 		t.Fatalf("layer = %#v, want gamma/renamed", got.Layer)
 	}
