@@ -15,7 +15,7 @@
             :disabled="isAtMinFontSize"
             @click="emit('decreaseFontSize')"
           >
-            A-
+            A−
           </ToolbarButton>
         </TooltipTrigger>
         <TooltipPortal>

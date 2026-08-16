@@ -34,7 +34,7 @@
               class="book-list-edit"
               @click.stop="emit('edit', book.id)"
             >
-              Edit
+              {{ t('bookCollection.contextMenu.edit') }}
             </button>
           </div>
         </div>

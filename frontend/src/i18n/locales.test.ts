@@ -10,6 +10,7 @@ const SHARED_VALUE_KEYS = new Set([
   'app.name',
   'language.en',
   'language.zhHant',
+  'settings.shelves.idColumn',
   'settings.shelves.modifyShelfIDLabel',
   'mobileConnect.modePCloud',
   'mobileConnect.pcloud.shelfRootPlaceholder',

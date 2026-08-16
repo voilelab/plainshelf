@@ -49,6 +49,9 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useId, watch } from 'vue';
 import BaseDialog from './BaseDialog.vue';
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n();
 
 const props = withDefaults(
   defineProps<{
@@ -66,16 +69,21 @@ const props = withDefaults(
   }>(),
   {
     message: '',
-    confirmText: 'Confirm',
-    cancelText: 'Cancel',
-    busyText: 'Working...',
     busy: false,
     confirmDisabled: false,
     closeOnBackdrop: true,
-    closeLabel: 'Close confirmation dialog',
     variant: 'primary'
   }
 );
+
+// The four text props fall back through computeds rather than through
+// withDefaults: a default is evaluated once where the component is defined, so
+// a t() call there would freeze the English string in place and never follow a
+// locale change. Same pattern as DeleteModal.vue.
+const confirmText = computed(() => props.confirmText ?? t('common.confirm'));
+const cancelText = computed(() => props.cancelText ?? t('common.cancel'));
+const busyText = computed(() => props.busyText ?? t('common.working'));
+const closeLabel = computed(() => props.closeLabel ?? t('common.closeDialog'));
 
 const emit = defineEmits<{
   cancel: [];

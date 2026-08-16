@@ -1,5 +1,5 @@
 <template>
-  <nav class="sidebar-nav-list" aria-label="Layers">
+  <nav class="sidebar-nav-list" :aria-label="t('layout.layersNavLabel')">
     <div
       class="sidebar-nav-item"
       :class="{ active: !selected, 'drop-target': isRootDropTarget }"
@@ -10,7 +10,7 @@
     >
       <span class="tree-toggle-placeholder" aria-hidden="true"></span>
       <button type="button" class="sidebar-nav-item-label" @click="emit('select', '')">
-        All books
+        {{ t('library.allBooks') }}
       </button>
       <span class="sidebar-nav-count">{{ totalBookCount }}</span>
     </div>

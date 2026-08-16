@@ -112,6 +112,22 @@ function resolveInitialLocale(): SupportedLocale {
 
 const localeRef = ref<SupportedLocale>(resolveInitialLocale());
 
+// index.html ships `lang="en"`, so without this the document stays declared as
+// English while rendering Chinese: screen readers pick the wrong voice and
+// browser translation heuristics misfire.
+function applyDocumentLanguage(locale: SupportedLocale): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  document.documentElement.lang = locale;
+}
+
+// The initial locale is resolved above rather than passed through setLocale,
+// which early-returns when the value has not changed — so the detected locale
+// would never reach the document without this call.
+applyDocumentLanguage(localeRef.value);
+
 function persistLocale(locale: SupportedLocale): void {
   if (typeof window === 'undefined') {
     return;
@@ -131,6 +147,7 @@ export function setLocale(locale: SupportedLocale): void {
 
   localeRef.value = locale;
   persistLocale(locale);
+  applyDocumentLanguage(locale);
 }
 
 export function t(key: string, params?: Record<string, string | number>): string {
