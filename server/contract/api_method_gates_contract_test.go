@@ -1,4 +1,4 @@
-package server
+package contract_test
 
 import (
 	"net/http"
@@ -25,11 +25,11 @@ var nonMutatingMethods = []string{
 
 // The read-only gate runs before routing, so the path only has to be under
 // /api/ for the token gate to also apply to it.
-const methodGateTestPath = "/api/shelves/default_shelf/layers/blocked"
+var methodGateTestPath = shelfURL("layers", "blocked")
 
-func TestReadOnlyModeRejectsExactlyTheMutatingMethods(t *testing.T) {
+func TestAPIReadOnlyModeRejectsExactlyTheMutatingMethodsContract(t *testing.T) {
 	env := newAPITestEnv(t)
-	env.app.conf.ReadOnly = true
+	env.setReadOnly(t, true)
 
 	for _, method := range mutatingMethods {
 		t.Run("rejects "+method, func(t *testing.T) {
@@ -52,7 +52,7 @@ func TestReadOnlyModeRejectsExactlyTheMutatingMethods(t *testing.T) {
 	}
 }
 
-func TestTokenIsRequiredForExactlyTheMutatingMethods(t *testing.T) {
+func TestAPITokenIsRequiredForExactlyTheMutatingMethodsContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
 	// doRaw sends the request as-is, without the token do() would attach.

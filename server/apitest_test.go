@@ -113,48 +113,8 @@ func decodeJSON[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 	return out
 }
 
-func importTextBook(t *testing.T, env *apiTestEnv, title, layer, filename, body string) Book {
-	t.Helper()
-
-	var buf bytes.Buffer
-	writer := multipart.NewWriter(&buf)
-	if title != "" {
-		if err := writer.WriteField("title", title); err != nil {
-			t.Fatalf("WriteField title: %v", err)
-		}
-	}
-	if layer != "" {
-		if err := writer.WriteField("layer", layer); err != nil {
-			t.Fatalf("WriteField layer: %v", err)
-		}
-	}
-
-	h := make(textproto.MIMEHeader)
-	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s"`, filename))
-	h.Set("Content-Type", "text/plain; charset=utf-8")
-	part, err := writer.CreatePart(h)
-	if err != nil {
-		t.Fatalf("CreatePart: %v", err)
-	}
-	if _, err := io.Copy(part, strings.NewReader("\ufeff"+body+"\n世界")); err != nil {
-		t.Fatalf("write multipart file: %v", err)
-	}
-	if err := writer.Close(); err != nil {
-		t.Fatalf("Close multipart writer: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/import", &buf)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	rec := env.do(req)
-	assertStatus(t, rec, http.StatusCreated)
-	assertJSONContentType(t, rec)
-	return decodeJSON[Book](t, rec)
-}
-
 // importFileBook uploads a book file with an explicit filename and content type,
-// asserting the import succeeds. It complements importTextBook (which always
-// uses "text/plain; charset=utf-8") by letting callers exercise other
-// browser-supplied content types (e.g. for Markdown uploads).
+// asserting the import succeeds.
 func importFileBook(t *testing.T, env *apiTestEnv, filename, contentType, body string) Book {
 	t.Helper()
 
