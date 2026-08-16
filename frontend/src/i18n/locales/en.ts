@@ -14,7 +14,21 @@ const en = {
   language: {
     label: 'Language',
     en: 'English',
-    zhHant: '繁體中文'
+    zhHant: '繁體中文',
+    // The language a book is written in, distinct from the two keys above,
+    // which name the UI locale and stay in their own endonym either way.
+    book: {
+      unspecified: 'Unspecified',
+      zhHant: 'Chinese (Traditional)',
+      zhHans: 'Chinese (Simplified)',
+      ja: 'Japanese',
+      ko: 'Korean',
+      en: 'English',
+      custom: 'Custom...',
+      customPlaceholder: 'e.g. zh-TW, zh-HK, fr, de',
+      help: 'Use en, ja, ko, zh-Hant or zh-Hans; any BCP 47 language tag such as zh-TW also works.',
+      invalidTag: 'That is not a valid language tag. Use a form like en, ja, zh-Hant or zh-TW.'
+    }
   },
   common: {
     retry: 'Retry',

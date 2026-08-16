@@ -14,7 +14,21 @@ const zhHant = {
   language: {
     label: '語言',
     en: 'English',
-    zhHant: '繁體中文'
+    zhHant: '繁體中文',
+    // 書籍本身的語言，與上面兩個 key 不同：那兩個指的是介面語言，
+    // 且無論介面切到哪一種都維持各自的母語寫法。
+    book: {
+      unspecified: '未指定',
+      zhHant: '中文（繁體）',
+      zhHans: '中文（簡體）',
+      ja: '日文',
+      ko: '韓文',
+      en: '英文',
+      custom: '自訂...',
+      customPlaceholder: '例如 zh-TW, zh-HK, fr, de',
+      help: '建議使用 en、ja、ko、zh-Hant、zh-Hans；也可填 zh-TW 這類 BCP 47 language tag。',
+      invalidTag: '語言格式不正確，請使用 en、ja、zh-Hant、zh-TW 這類格式。'
+    }
   },
   common: {
     retry: '重試',

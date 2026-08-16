@@ -30,8 +30,8 @@ test('should edit book metadata and see the updated values on the detail page', 
     // <select>-only selectOption() API.
     const languageTrigger = page.locator('.edit-form').getByLabel('Language');
     await languageTrigger.click();
-    await page.getByRole('option', { name: '英文' }).click();
-    await expect(languageTrigger).toHaveText('英文');
+    await page.getByRole('option', { name: 'English' }).click();
+    await expect(languageTrigger).toHaveText('English');
 
     // Format belongs to the source and is intentionally absent from general
     // book metadata editing. Conversions live in Manage sources.
@@ -59,7 +59,9 @@ test('should edit book metadata and see the updated values on the detail page', 
     await expect(page.getByRole('heading', { name: 'Updated Hello' })).toBeVisible();
     await expect(page.getByText('Alice, Bob')).toBeVisible();
     await expect(page.getByText('e2e-tag')).toBeVisible();
-    await expect(page.getByText('英文')).toBeVisible();
+    // Scoped to the detail card: the book's language now reads "English" in an
+    // English UI, which is also what the topbar's UI-language switcher shows.
+    await expect(page.getByRole('article').getByText('English')).toBeVisible();
     await expect(page.getByText('TXT', { exact: true })).toBeVisible();
     await expect(page.getByText('★★★★☆')).toBeVisible();
     await expect(page.getByText('This is an E2E comment.')).toBeVisible();

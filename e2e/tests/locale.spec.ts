@@ -71,6 +71,72 @@ test('ConfirmModal falls back to translated defaults', async ({ page }) => {
   }
 });
 
+// The book-language labels were hardcoded Traditional Chinese, so they showed
+// Chinese in the English UI and could not follow a switch in either direction.
+// metadata-edit.spec.ts covers the English side; this covers zh-Hant.
+test('book language labels follow the locale', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importBookFromPath(page, helloFixturePath);
+
+    await useLocale(page, 'zh-Hant');
+    await page.reload();
+
+    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
+    await expect(page).toHaveURL(/\/books\/[^/]+$/);
+    // Straight to the edit route rather than through the More menu: that menu
+    // belongs to a later pass, so driving it would couple this test to strings
+    // that have not moved yet.
+    await page.goto(`${page.url()}/edit`);
+
+    const languageTrigger = page.locator('.edit-form').getByLabel('Language');
+    await languageTrigger.click();
+    await page.getByRole('option', { name: '英文', exact: true }).click();
+    await expect(languageTrigger).toHaveText('英文');
+  } finally {
+    await server.dispose();
+  }
+});
+
+// A validation message shown on screen has to follow a locale switch like
+// everything around it. This one is derived from a flag rather than stored as
+// text, and this drives the switcher in place — seeding storage would reload
+// and clear the error before it could be observed.
+test('a shown validation error follows an in-place locale switch', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importBookFromPath(page, helloFixturePath);
+
+    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
+    await expect(page).toHaveURL(/\/books\/[^/]+$/);
+    await page.goto(`${page.url()}/edit`);
+
+    const languageTrigger = page.locator('.edit-form').getByLabel('Language');
+    await languageTrigger.click();
+    await page.getByRole('option', { name: 'Custom...', exact: true }).click();
+    await page.getByPlaceholder('e.g. zh-TW, zh-HK, fr, de').fill('not a tag');
+    await page.getByRole('button', { name: 'Save metadata' }).click();
+
+    const invalidEn = 'That is not a valid language tag. Use a form like en, ja, zh-Hant or zh-TW.';
+    await expect(page.getByText(invalidEn)).toBeVisible();
+
+    // The UI-language switcher lives in the topbar; scope past the edit form's
+    // own Language combobox. The option label is an endonym, so it reads the
+    // same whichever locale you start from.
+    await page.locator('.language-select').getByRole('combobox').click();
+    await page.getByRole('option', { name: '繁體中文', exact: true }).click();
+
+    await expect(page.getByText('語言格式不正確，請使用 en、ja、zh-Hant、zh-TW 這類格式。')).toBeVisible();
+    await expect(page.getByText(invalidEn)).toHaveCount(0);
+  } finally {
+    await server.dispose();
+  }
+});
+
 // The guard below is only as good as this pattern, and an earlier version of it
 // required two dots — which silently excluded every two-segment key, half of
 // what it was written to catch. Pinning both directions keeps that from
