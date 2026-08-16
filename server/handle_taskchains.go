@@ -7,6 +7,11 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
+// taskHandlers reports on the chains the other groups submit.
+type taskHandlers struct {
+	*taskSubmitter
+}
+
 type Task struct {
 	Name        string  `json:"name"`
 	Title       string  `json:"title"`
@@ -57,18 +62,18 @@ func newTaskChainResponse(chain *taskutil.TaskChain) TaskChain {
 }
 
 // GET /api/taskchains/{taskchain_id}
-func (app *App) HandleAPIGetTaskChain(w http.ResponseWriter, r *http.Request) {
+func (h *taskHandlers) getTaskChain(w http.ResponseWriter, r *http.Request) {
 	taskChainID, err := readTaskChainID(r)
 	if err != nil {
 		http.Error(w, "invalid taskchain_id", http.StatusBadRequest)
 		return
 	}
 
-	chain, exists := app.taskChains.Get(taskChainID)
+	chain, exists := h.pool.Get(taskChainID)
 	if !exists {
 		http.Error(w, "task chain not found", http.StatusNotFound)
 		return
 	}
 
-	app.writeJSON(w, http.StatusOK, newTaskChainResponse(chain))
+	h.writeJSON(w, http.StatusOK, newTaskChainResponse(chain))
 }

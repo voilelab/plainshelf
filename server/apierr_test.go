@@ -111,7 +111,7 @@ func TestWriteErrSendsRetryAfterHeader(t *testing.T) {
 	env := newAPITestEnv(t)
 
 	rec := httptest.NewRecorder()
-	env.app.writeErr(rec, util.Errorf("%w", shelf.ErrShelfLockTimeout), "failed to restore trashed book")
+	env.app.handlers.core.writeErr(rec, util.Errorf("%w", shelf.ErrShelfLockTimeout), "failed to restore trashed book")
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
@@ -130,7 +130,7 @@ func TestWriteErrHidesUnknownErrorBehindFallback(t *testing.T) {
 	env := newAPITestEnv(t)
 
 	rec := httptest.NewRecorder()
-	env.app.writeErr(rec, errors.New("disk offline at /srv/secret-mount"), "failed to restore trashed book")
+	env.app.handlers.core.writeErr(rec, errors.New("disk offline at /srv/secret-mount"), "failed to restore trashed book")
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)

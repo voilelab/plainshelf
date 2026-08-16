@@ -7,13 +7,13 @@ import (
 )
 
 // POST /api/shelves/{shelf_id}/content-stat-refreshes
-func (app *App) HandleAPIRefreshContentStats(w http.ResponseWriter, r *http.Request) {
-	shelfData, ok := app.resolveShelf(w, r)
+func (h *batchHandlers) refreshContentStats(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
 
-	app.tasks.submitTaskChain(w,
-		task.NewRefreshContentStatsChain(shelfData.ID, shelfData.Shelf, &app.Logger),
+	h.submitTaskChain(w,
+		task.NewRefreshContentStatsChain(shelfData.ID, shelfData.Shelf, h.Logger),
 		"failed to schedule content stats refresh task")
 }
