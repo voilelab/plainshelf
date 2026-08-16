@@ -86,8 +86,8 @@ Read the relevant section before working in that area. Add entries according to
 ## Filesystem and API
 
 - **Mutating API requests:** preserve the `local_token` boundary and review the
-  matching `server/api_*_contract_test.go` whenever routes or request handling
-  change.
+  matching `server/contract/api_*_contract_test.go` whenever routes or request
+  handling change.
 - **Book identity:** moving or renaming a book must not regenerate its persisted
   ID. The directory name and display title are not identity.
 - **Network shelves:** SMB latency amplifies directory walks and stat calls;

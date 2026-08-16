@@ -1,52 +1,23 @@
 package contract_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"testing"
-
-	"github.com/voilelab/plainshelf/server"
-	"github.com/voilelab/plainshelf/server/task"
 )
 
-type taskChainSubmitResponse struct {
-	TaskChainID string `json:"taskchain_id"`
+func bookBatchURL() string {
+	return shelfURL("book-batches")
 }
 
 func submitBookBatch(t *testing.T, env *apiTestEnv, payload any, wantStatus int) taskChainSubmitResponse {
 	t.Helper()
+
 	body, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatalf("marshal batch request: %v", err)
 	}
-	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/book-batches", bytes.NewReader(body)))
-	assertStatus(t, rec, wantStatus)
-	if wantStatus != http.StatusAccepted && wantStatus != http.StatusConflict {
-		return taskChainSubmitResponse{}
-	}
-	assertJSONContentType(t, rec)
-	return decodeJSON[taskChainSubmitResponse](t, rec)
-}
-
-func taskBatchResult(t *testing.T, chain server.TaskChain) map[string]any {
-	t.Helper()
-	if len(chain.Tasks) != 1 {
-		t.Fatalf("task count = %d, want 1", len(chain.Tasks))
-	}
-	result, ok := chain.Tasks[0].Result.(task.BookBatchResult)
-	if ok {
-		body, _ := json.Marshal(result)
-		var generic map[string]any
-		_ = json.Unmarshal(body, &generic)
-		return generic
-	}
-	generic, ok := chain.Tasks[0].Result.(map[string]any)
-	if !ok {
-		t.Fatalf("task result = %#v, want object", chain.Tasks[0].Result)
-	}
-	return generic
+	return submitTaskChain(t, env, bookBatchURL(), body, wantStatus)
 }
 
 func TestAPIBookBatchMoveContract(t *testing.T) {
@@ -64,7 +35,7 @@ func TestAPIBookBatchMoveContract(t *testing.T) {
 		t.Fatalf("chain = %+v, want completed at 100%%", chain)
 	}
 
-	result := taskBatchResult(t, chain)
+	result := taskResult[map[string]any](t, chain)
 	if result["operation"] != "move" || result["total"] != float64(2) {
 		t.Errorf("result = %#v, want move total 2", result)
 	}
@@ -78,7 +49,7 @@ func TestAPIBookBatchMoveContract(t *testing.T) {
 	}
 
 	for _, id := range []string{first.Meta.ID, second.Meta.ID} {
-		shelfData, exists := env.app.ShelfManager().GetShelf("default_shelf")
+		shelfData, exists := env.app.ShelfManager().GetShelf(defaultShelfID)
 		if !exists {
 			t.Fatal("default shelf disappeared")
 		}
@@ -105,12 +76,15 @@ func TestAPIBookBatchPartialFailureContract(t *testing.T) {
 		t.Fatalf("chain = %+v, want partially_completed at 100%%", chain)
 	}
 
-	result := taskBatchResult(t, chain)
+	result := taskResult[map[string]any](t, chain)
 	failures, ok := result["failures"].([]any)
 	if !ok || len(failures) != 1 {
 		t.Fatalf("failures = %#v, want one", result["failures"])
 	}
-	failure := failures[0].(map[string]any)
+	failure, ok := failures[0].(map[string]any)
+	if !ok {
+		t.Fatalf("failure = %#v, want an object", failures[0])
+	}
 	if failure["book_id"] != "missing-book" || failure["code"] != "not_found" {
 		t.Errorf("failure = %#v, want missing-book/not_found", failure)
 	}
@@ -118,6 +92,11 @@ func TestAPIBookBatchPartialFailureContract(t *testing.T) {
 
 func TestAPIBookBatchValidationContract(t *testing.T) {
 	env := newAPITestEnv(t)
+
+	tooMany := make([]string, 200+1)
+	for i := range tooMany {
+		tooMany[i] = string(rune(i + 1))
+	}
 
 	cases := []struct {
 		name    string
@@ -128,15 +107,8 @@ func TestAPIBookBatchValidationContract(t *testing.T) {
 		{"move without target", map[string]any{"operation": "move", "book_ids": []string{"book"}}},
 		{"trash with target", map[string]any{"operation": "trash", "book_ids": []string{"book"}, "target_layer": []string{}}},
 		{"invalid target", map[string]any{"operation": "move", "book_ids": []string{"book"}, "target_layer": []string{".."}}},
+		{"too many", map[string]any{"operation": "trash", "book_ids": tooMany}},
 	}
-	tooMany := make([]string, 200+1)
-	for i := range tooMany {
-		tooMany[i] = string(rune(i + 1))
-	}
-	cases = append(cases, struct {
-		name    string
-		payload any
-	}{"too many", map[string]any{"operation": "trash", "book_ids": tooMany}})
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -159,14 +131,9 @@ func TestAPIBookBatchDuplicateRunningChainContract(t *testing.T) {
 	waitForTaskChain(t, env, first.TaskChainID)
 }
 
-func TestAPIBookBatchRequiresTokenAndWritableModeContract(t *testing.T) {
+func TestAPIBookBatchIsGatedContract(t *testing.T) {
 	env := newAPITestEnv(t)
-	body := []byte(`{"operation":"trash","book_ids":["book"]}`)
 
-	rec := env.doRaw(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/book-batches", bytes.NewReader(body)))
-	assertStatus(t, rec, http.StatusUnauthorized)
-
-	env.app.Conf().ReadOnly = true
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/book-batches", bytes.NewReader(body)))
-	assertStatus(t, rec, http.StatusForbidden)
+	assertMutationGated(t, env, http.MethodPost, bookBatchURL(),
+		[]byte(`{"operation":"trash","book_ids":["book"]}`))
 }

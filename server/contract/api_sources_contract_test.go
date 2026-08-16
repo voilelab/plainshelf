@@ -1,76 +1,71 @@
 package contract_test
 
 import (
-	"bytes"
-	"io"
-	"mime/multipart"
 	"net/http"
-	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/voilelab/plainshelf/server"
 )
 
+// createBookSource creates an empty source on a book and returns its ID, which is
+// how these tests get a second source to delete or activate.
+func createBookSource(t *testing.T, env *apiTestEnv, bookID string) string {
+	t.Helper()
+
+	rec := env.post(bookURL(bookID, "sources"), nil)
+	assertStatus(t, rec, http.StatusOK)
+	assertJSONContentType(t, rec)
+
+	created := decodeJSON[map[string]any](t, rec)
+	sourceID, _ := created["id"].(string)
+	if sourceID == "" {
+		t.Fatalf("expected non-empty source id in response, got %#v", created)
+	}
+	return sourceID
+}
+
+// sourceIDs lists the IDs the sources endpoint reports for a book.
+func sourceIDs(t *testing.T, env *apiTestEnv, bookID string) []string {
+	t.Helper()
+
+	var ids []string
+	for _, source := range getJSON[[]map[string]any](t, env, bookURL(bookID, "sources")) {
+		id, _ := source["id"].(string)
+		ids = append(ids, id)
+	}
+	return ids
+}
+
 func TestAPICreateBookSourceContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Source Book", "", "src.txt", "content")
-	sourcesURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources"
 
 	// Creating a source on a nonexistent book should return 404.
-	rec := env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/no-such-book/sources", nil))
+	rec := env.post(bookURL("no-such-book", "sources"), nil)
 	assertStatus(t, rec, http.StatusNotFound)
 
-	// Creating a source returns 200 with the new source metadata.
-	rec = env.do(httptest.NewRequest(http.MethodPost, sourcesURL, nil))
-	assertStatus(t, rec, http.StatusOK)
-	assertJSONContentType(t, rec)
-	newSource := decodeJSON[map[string]any](t, rec)
-	newSourceID, _ := newSource["id"].(string)
-	if newSourceID == "" {
-		t.Fatalf("expected non-empty source id in response, got %#v", newSource)
-	}
-
-	// The new source should appear in the list.
-	rec = env.do(httptest.NewRequest(http.MethodGet, sourcesURL, nil))
-	assertStatus(t, rec, http.StatusOK)
-	sources := decodeJSON[[]map[string]any](t, rec)
-	found := false
-	for _, s := range sources {
-		if id, _ := s["id"].(string); id == newSourceID {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("newly created source %q not found in list: %#v", newSourceID, sources)
+	// Creating a source returns 200 with the new source metadata, and the new
+	// source appears in the list.
+	newSourceID := createBookSource(t, env, created.Meta.ID)
+	if ids := sourceIDs(t, env, created.Meta.ID); !slices.Contains(ids, newSourceID) {
+		t.Fatalf("newly created source %q not found in list: %#v", newSourceID, ids)
 	}
 
 	// A derived source is uploaded as multipart so the whole book is not placed
 	// in metadata JSON. Creation and optional activation happen in one request.
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-	if err := writer.WriteField("format", "md"); err != nil {
-		t.Fatalf("WriteField format: %v", err)
+	derivedUpload := formUpload{
+		fields: [][2]string{
+			{"format", "md"},
+			{"comment", "derived in contract test"},
+			{"set_current", "true"},
+		},
+		fileField:   "content",
+		filename:    "source.txt",
+		contentType: "application/octet-stream",
+		content:     "# Book\n\n## One\nBody 🍥",
 	}
-	if err := writer.WriteField("comment", "derived in contract test"); err != nil {
-		t.Fatalf("WriteField comment: %v", err)
-	}
-	if err := writer.WriteField("set_current", "true"); err != nil {
-		t.Fatalf("WriteField set_current: %v", err)
-	}
-	part, err := writer.CreateFormFile("content", "source.txt")
-	if err != nil {
-		t.Fatalf("CreateFormFile content: %v", err)
-	}
-	if _, err := io.WriteString(part, "# Book\n\n## One\nBody 🍥"); err != nil {
-		t.Fatalf("write source content: %v", err)
-	}
-	if err := writer.Close(); err != nil {
-		t.Fatalf("Close multipart writer: %v", err)
-	}
-	req := httptest.NewRequest(http.MethodPost, sourcesURL, &body)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	rec = env.do(req)
+	rec = env.do(derivedUpload.request(t, http.MethodPost, bookURL(created.Meta.ID, "sources")))
 	assertStatus(t, rec, http.StatusOK)
 	derived := decodeJSON[map[string]any](t, rec)
 	derivedID, _ := derived["id"].(string)
@@ -81,9 +76,7 @@ func TestAPICreateBookSourceContract(t *testing.T) {
 		t.Fatalf("derived source comment = %#v", derived["comment"])
 	}
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
-	assertStatus(t, rec, http.StatusOK)
-	activated := decodeJSON[server.Book](t, rec)
+	activated := getJSON[server.Book](t, env, bookURL(created.Meta.ID))
 	if activated.Meta == nil || activated.Meta.CurrentSource != derivedID || activated.Meta.Format != "md" {
 		t.Fatalf("activated book = %#v, want current derived Markdown source", activated.Meta)
 	}
@@ -92,73 +85,42 @@ func TestAPICreateBookSourceContract(t *testing.T) {
 func TestAPIDeleteBookSourceContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Delete Source Book", "", "del.txt", "content")
-	sourcesURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources"
+	newSourceID := createBookSource(t, env, created.Meta.ID)
 
-	// Create a new source to delete.
-	rec := env.do(httptest.NewRequest(http.MethodPost, sourcesURL, nil))
-	assertStatus(t, rec, http.StatusOK)
-	newSource := decodeJSON[map[string]any](t, rec)
-	newSourceID, _ := newSource["id"].(string)
-	if newSourceID == "" {
-		t.Fatalf("expected non-empty source id in response, got %#v", newSource)
-	}
-
-	// Deleting the source should succeed.
-	rec = env.do(httptest.NewRequest(http.MethodDelete, sourcesURL+"/"+newSourceID, nil))
+	// Deleting the source should succeed, and it should leave the list.
+	rec := env.delete(sourceURL(created.Meta.ID, newSourceID))
 	assertStatus(t, rec, http.StatusNoContent)
-
-	// The deleted source should no longer appear in the list.
-	rec = env.do(httptest.NewRequest(http.MethodGet, sourcesURL, nil))
-	assertStatus(t, rec, http.StatusOK)
-	sources := decodeJSON[[]map[string]any](t, rec)
-	for _, s := range sources {
-		if id, _ := s["id"].(string); id == newSourceID {
-			t.Fatalf("deleted source %q still present in list", newSourceID)
-		}
+	if ids := sourceIDs(t, env, created.Meta.ID); slices.Contains(ids, newSourceID) {
+		t.Fatalf("deleted source %q still present in list", newSourceID)
 	}
 
-	// Deleting a nonexistent source should return 404.
-	rec = env.do(httptest.NewRequest(http.MethodDelete, sourcesURL+"/nonexistent-source", nil))
+	// Deleting a nonexistent source, or a source of a nonexistent book, is a 404.
+	rec = env.delete(sourceURL(created.Meta.ID, "nonexistent-source"))
 	assertStatus(t, rec, http.StatusNotFound)
-
-	// Deleting a source from a nonexistent book should return 404.
-	rec = env.do(httptest.NewRequest(http.MethodDelete, "/api/shelves/default_shelf/books/no-such-book/sources/"+newSourceID, nil))
+	rec = env.delete(sourceURL("no-such-book", newSourceID))
 	assertStatus(t, rec, http.StatusNotFound)
 }
 
 func TestAPISetCurrentBookSourceContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Set Current Source Book", "", "src.txt", "content")
-	sourcesURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources"
-
-	// Create a second source.
-	rec := env.do(httptest.NewRequest(http.MethodPost, sourcesURL, nil))
-	assertStatus(t, rec, http.StatusOK)
-	newSource := decodeJSON[map[string]any](t, rec)
-	newSourceID, _ := newSource["id"].(string)
-	if newSourceID == "" {
-		t.Fatalf("expected non-empty source id in response, got %#v", newSource)
-	}
+	newSourceID := createBookSource(t, env, created.Meta.ID)
 
 	// Setting the current source should succeed.
-	rec = env.do(httptest.NewRequest(http.MethodPut, sourcesURL+"/"+newSourceID+"/current", nil))
+	rec := env.put(sourceURL(created.Meta.ID, newSourceID, "current"), nil)
 	assertStatus(t, rec, http.StatusNoContent)
 
 	// The book should reflect the new current source.
-	rec = env.do(httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/"+created.Meta.ID, nil))
-	assertStatus(t, rec, http.StatusOK)
-	bookData := decodeJSON[map[string]any](t, rec)
+	bookData := getJSON[map[string]any](t, env, bookURL(created.Meta.ID))
 	meta, _ := bookData["meta"].(map[string]any)
 	if currentSource, _ := meta["current_source"].(string); currentSource != newSourceID {
 		t.Fatalf("expected current_source %q, got %q", newSourceID, currentSource)
 	}
 
-	// Setting current source for a nonexistent source should return 404.
-	rec = env.do(httptest.NewRequest(http.MethodPut, sourcesURL+"/nonexistent-source/current", nil))
+	// A nonexistent source, or a nonexistent book, is a 404.
+	rec = env.put(sourceURL(created.Meta.ID, "nonexistent-source", "current"), nil)
 	assertStatus(t, rec, http.StatusNotFound)
-
-	// Setting current source for a nonexistent book should return 404.
-	rec = env.do(httptest.NewRequest(http.MethodPut, "/api/shelves/default_shelf/books/no-such-book/sources/"+newSourceID+"/current", nil))
+	rec = env.put(sourceURL("no-such-book", newSourceID, "current"), nil)
 	assertStatus(t, rec, http.StatusNotFound)
 }
 
@@ -166,9 +128,8 @@ func TestAPIRefreshBookSourceMetaContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Refresh Source", "", "refresh.txt", "line one\nline two\nline three")
 	sourceID := created.Meta.CurrentSource
-	refreshURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources/" + sourceID + "/refresh"
 
-	rec := env.do(httptest.NewRequest(http.MethodPost, refreshURL, nil))
+	rec := env.post(sourceURL(created.Meta.ID, sourceID, "refresh"), nil)
 	assertStatus(t, rec, http.StatusOK)
 	assertJSONContentType(t, rec)
 	meta := decodeJSON[map[string]any](t, rec)
@@ -182,11 +143,9 @@ func TestAPIRefreshBookSourceMetaContract(t *testing.T) {
 		t.Fatalf("char_count = %v, want > 0", cc)
 	}
 
-	// Refreshing a nonexistent source returns 404.
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/"+created.Meta.ID+"/sources/nonexistent/refresh", nil))
+	// Refreshing a nonexistent source, or a source of a nonexistent book, is a 404.
+	rec = env.post(sourceURL(created.Meta.ID, "nonexistent", "refresh"), nil)
 	assertStatus(t, rec, http.StatusNotFound)
-
-	// Refreshing a nonexistent book returns 404.
-	rec = env.do(httptest.NewRequest(http.MethodPost, "/api/shelves/default_shelf/books/no-such-book/sources/"+sourceID+"/refresh", nil))
+	rec = env.post(sourceURL("no-such-book", sourceID, "refresh"), nil)
 	assertStatus(t, rec, http.StatusNotFound)
 }

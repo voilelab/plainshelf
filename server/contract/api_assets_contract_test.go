@@ -13,20 +13,18 @@ func TestAPISourceAssetContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Illustrated", "", "art.md", "body")
 	sourceID := env.currentSourceID(t, created.Meta.ID)
-	assetsURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources/" + sourceID + "/assets/"
+	asset := func(name string) string { return assetURL(created.Meta.ID, sourceID, name) }
 
 	// Nothing has been placed under assets/ yet.
-	rec := env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
+	rec := env.get(asset("img-0001.png"))
 	assertStatus(t, rec, http.StatusNotFound)
 
 	pngBytes := []byte("fake png bytes")
 	env.writeSourceAsset(t, created.Meta.ID, sourceID, "img-0001.png", pngBytes)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
+	rec = env.get(asset("img-0001.png"))
 	assertStatus(t, rec, http.StatusOK)
-	if got := rec.Header().Get("Content-Type"); got != "image/png" {
-		t.Fatalf("asset Content-Type = %q, want image/png", got)
-	}
+	assertContentType(t, rec, "image/png")
 	if !bytes.Equal(rec.Body.Bytes(), pngBytes) {
 		t.Fatalf("asset bytes = %q, want %q", rec.Body.Bytes(), pngBytes)
 	}
@@ -51,9 +49,7 @@ func TestAPISourceAssetContract(t *testing.T) {
 	if etag == "" {
 		t.Fatal("asset response carries no ETag")
 	}
-	req := httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil)
-	req.Header.Set("If-None-Match", etag)
-	rec = env.do(req)
+	rec = env.getIfNoneMatch(asset("img-0001.png"), etag)
 	assertStatus(t, rec, http.StatusNotModified)
 	if rec.Body.Len() != 0 {
 		t.Fatalf("304 response body = %q, want empty", rec.Body.String())
@@ -61,11 +57,9 @@ func TestAPISourceAssetContract(t *testing.T) {
 
 	// Each stored extension keeps its own content type.
 	env.writeSourceAsset(t, created.Meta.ID, sourceID, "img-0002.webp", []byte("fake webp bytes"))
-	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0002.webp", nil))
+	rec = env.get(asset("img-0002.webp"))
 	assertStatus(t, rec, http.StatusOK)
-	if got := rec.Header().Get("Content-Type"); got != "image/webp" {
-		t.Fatalf("asset Content-Type = %q, want image/webp", got)
-	}
+	assertContentType(t, rec, "image/webp")
 
 	// ServeMux has already unescaped the wildcard, so a name carrying a literal
 	// percent escape must survive addressing intact. Decoding it a second time
@@ -74,24 +68,22 @@ func TestAPISourceAssetContract(t *testing.T) {
 	env.writeSourceAsset(t, created.Meta.ID, sourceID, "chart%20one.png", []byte("percent name"))
 	env.writeSourceAsset(t, created.Meta.ID, sourceID, "chart one.png", []byte("space name"))
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"chart%2520one.png", nil))
-	assertStatus(t, rec, http.StatusOK)
-	if got := rec.Body.String(); got != "percent name" {
-		t.Fatalf("asset with a percent in its name = %q, want %q", got, "percent name")
-	}
-
-	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"chart%20one.png", nil))
-	assertStatus(t, rec, http.StatusOK)
-	if got := rec.Body.String(); got != "space name" {
-		t.Fatalf("asset with a space in its name = %q, want %q", got, "space name")
+	for _, tc := range []struct{ name, want string }{
+		{"chart%2520one.png", "percent name"},
+		{"chart%20one.png", "space name"},
+	} {
+		rec = env.get(asset(tc.name))
+		assertStatus(t, rec, http.StatusOK)
+		if got := rec.Body.String(); got != tc.want {
+			t.Fatalf("asset %q = %q, want %q", tc.name, got, tc.want)
+		}
 	}
 
 	// A GET pattern also matches HEAD. The headers must be identical while the
 	// asset itself is never read: the empty recorder body is what shows the
 	// copy was skipped, since httptest does not suppress it the way net/http
 	// would.
-	req = httptest.NewRequest(http.MethodHead, assetsURL+"img-0001.png", nil)
-	rec = env.do(req)
+	rec = env.request(http.MethodHead, asset("img-0001.png"), nil)
 	assertStatus(t, rec, http.StatusOK)
 	if rec.Body.Len() != 0 {
 		t.Fatalf("HEAD response body = %q, want empty", rec.Body.String())
@@ -99,21 +91,17 @@ func TestAPISourceAssetContract(t *testing.T) {
 	if got := rec.Header().Get("Content-Length"); got != strconv.Itoa(len(pngBytes)) {
 		t.Fatalf("HEAD Content-Length = %q, want %d", got, len(pngBytes))
 	}
-	if got := rec.Header().Get("Content-Type"); got != "image/png" {
-		t.Fatalf("HEAD Content-Type = %q, want image/png", got)
-	}
+	assertContentType(t, rec, "image/png")
 
 	// A missing book or source is a 404, not a 500.
-	rec = env.do(httptest.NewRequest(http.MethodGet,
-		"/api/shelves/default_shelf/books/no-such-book/sources/"+sourceID+"/assets/img-0001.png", nil))
+	rec = env.get(assetURL("no-such-book", sourceID, "img-0001.png"))
 	assertStatus(t, rec, http.StatusNotFound)
-	rec = env.do(httptest.NewRequest(http.MethodGet,
-		"/api/shelves/default_shelf/books/"+created.Meta.ID+"/sources/no-such-source/assets/img-0001.png", nil))
+	rec = env.get(assetURL(created.Meta.ID, "no-such-source", "img-0001.png"))
 	assertStatus(t, rec, http.StatusNotFound)
 
 	// POST and PATCH still have no meaning on an asset; PUT and DELETE do.
 	for _, method := range []string{http.MethodPost, http.MethodPatch} {
-		rec = env.do(httptest.NewRequest(method, assetsURL+"img-0001.png", nil))
+		rec = env.request(method, asset("img-0001.png"), nil)
 		if rec.Code != http.StatusMethodNotAllowed {
 			t.Fatalf("%s asset status = %d, want %d", method, rec.Code, http.StatusMethodNotAllowed)
 		}
@@ -124,14 +112,14 @@ func TestAPISourceAssetWriteContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Editable Art", "", "art.md", "body")
 	sourceID := env.currentSourceID(t, created.Meta.ID)
-	assetsURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources/" + sourceID + "/assets/"
+	asset := func(name string) string { return assetURL(created.Meta.ID, sourceID, name) }
 
 	// Uploading creates the directory and the file.
 	pngBytes := []byte("fake png bytes")
-	rec := env.do(httptest.NewRequest(http.MethodPut, assetsURL+"img-0001.png", bytes.NewReader(pngBytes)))
+	rec := env.put(asset("img-0001.png"), bytes.NewReader(pngBytes))
 	assertStatus(t, rec, http.StatusNoContent)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
+	rec = env.get(asset("img-0001.png"))
 	assertStatus(t, rec, http.StatusOK)
 	if !bytes.Equal(rec.Body.Bytes(), pngBytes) {
 		t.Fatalf("stored asset = %q, want %q", rec.Body.Bytes(), pngBytes)
@@ -139,9 +127,9 @@ func TestAPISourceAssetWriteContract(t *testing.T) {
 
 	// Uploading again under the same name replaces it.
 	replaced := []byte("replacement bytes")
-	rec = env.do(httptest.NewRequest(http.MethodPut, assetsURL+"img-0001.png", bytes.NewReader(replaced)))
+	rec = env.put(asset("img-0001.png"), bytes.NewReader(replaced))
 	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
+	rec = env.get(asset("img-0001.png"))
 	if !bytes.Equal(rec.Body.Bytes(), replaced) {
 		t.Fatalf("replaced asset = %q, want %q", rec.Body.Bytes(), replaced)
 	}
@@ -149,22 +137,21 @@ func TestAPISourceAssetWriteContract(t *testing.T) {
 	// The name is validated on the way in exactly as it is on the way out, so
 	// a file the read path could never serve cannot be written either.
 	for _, assetName := range []string{"..%2fescaped.png", ".hidden.png", "notes.txt", "img-0002"} {
-		rec = env.do(httptest.NewRequest(http.MethodPut, assetsURL+assetName, bytes.NewReader(pngBytes)))
+		rec = env.put(asset(assetName), bytes.NewReader(pngBytes))
 		assertStatus(t, rec, http.StatusBadRequest)
 	}
 
 	// Oversized uploads are refused rather than spooled.
-	rec = env.do(httptest.NewRequest(http.MethodPut, assetsURL+"img-0003.png",
-		bytes.NewReader(bytes.Repeat([]byte{'x'}, (20<<20)+1))))
+	rec = env.put(asset("img-0003.png"), bytes.NewReader(bytes.Repeat([]byte{'x'}, maxBinaryUploadSize+1)))
 	assertStatus(t, rec, http.StatusRequestEntityTooLarge)
 
 	// Deleting removes it; deleting again reports the miss rather than
 	// succeeding quietly, since an asset is addressed by name.
-	rec = env.do(httptest.NewRequest(http.MethodDelete, assetsURL+"img-0001.png", nil))
+	rec = env.delete(asset("img-0001.png"))
 	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
+	rec = env.get(asset("img-0001.png"))
 	assertStatus(t, rec, http.StatusNotFound)
-	rec = env.do(httptest.NewRequest(http.MethodDelete, assetsURL+"img-0001.png", nil))
+	rec = env.delete(asset("img-0001.png"))
 	assertStatus(t, rec, http.StatusNotFound)
 }
 
@@ -175,13 +162,12 @@ func TestAssetRevalidationSurvivesAReplacement(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Replaced Art", "", "art.md", "body")
 	sourceID := env.currentSourceID(t, created.Meta.ID)
-	url := "/api/shelves/default_shelf/books/" + created.Meta.ID +
-		"/sources/" + sourceID + "/assets/img-0001.png"
+	url := assetURL(created.Meta.ID, sourceID, "img-0001.png")
 
-	rec := env.do(httptest.NewRequest(http.MethodPut, url, strings.NewReader("first bytes")))
+	rec := env.put(url, strings.NewReader("first bytes"))
 	assertStatus(t, rec, http.StatusNoContent)
 
-	rec = env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	rec = env.get(url)
 	assertStatus(t, rec, http.StatusOK)
 	firstETag := rec.Header().Get("ETag")
 	if got := rec.Header().Get("Cache-Control"); !strings.Contains(got, "no-cache") {
@@ -190,25 +176,20 @@ func TestAssetRevalidationSurvivesAReplacement(t *testing.T) {
 
 	// A cover may be cached for a day because its URL gains a cache-busting key
 	// when it changes; an asset URL never changes, hence the difference.
-	coverReq := httptest.NewRequest(http.MethodPut,
-		"/api/shelves/default_shelf/books/"+created.Meta.ID+"/cover", strings.NewReader("cover"))
-	coverReq.Header.Set("Content-Type", "image/png")
-	rec = env.do(coverReq)
+	coverURL := bookURL(created.Meta.ID, "cover")
+	rec = env.putContent(coverURL, "image/png", strings.NewReader("cover"))
 	assertStatus(t, rec, http.StatusNoContent)
-	rec = env.do(httptest.NewRequest(http.MethodGet,
-		"/api/shelves/default_shelf/books/"+created.Meta.ID+"/cover", nil))
+	rec = env.get(coverURL)
 	if got := rec.Header().Get("Cache-Control"); !strings.Contains(got, "max-age=86400") {
 		t.Fatalf("cover Cache-Control = %q, want it to stay cacheable", got)
 	}
 
 	// Replacing changes the validator, so a client holding the old one is told
 	// to take the new bytes rather than being answered 304.
-	rec = env.do(httptest.NewRequest(http.MethodPut, url, strings.NewReader("second bytes, longer")))
+	rec = env.put(url, strings.NewReader("second bytes, longer"))
 	assertStatus(t, rec, http.StatusNoContent)
 
-	req := httptest.NewRequest(http.MethodGet, url, nil)
-	req.Header.Set("If-None-Match", firstETag)
-	rec = env.do(req)
+	rec = env.getIfNoneMatch(url, firstETag)
 	assertStatus(t, rec, http.StatusOK)
 	if got := rec.Body.String(); got != "second bytes, longer" {
 		t.Fatalf("revalidated asset = %q, want the replacement", got)
@@ -216,12 +197,10 @@ func TestAssetRevalidationSurvivesAReplacement(t *testing.T) {
 
 	// And once it is deleted, the same conditional request reports the miss
 	// rather than confirming a copy that is no longer there.
-	rec = env.do(httptest.NewRequest(http.MethodDelete, url, nil))
+	rec = env.delete(url)
 	assertStatus(t, rec, http.StatusNoContent)
 
-	req = httptest.NewRequest(http.MethodGet, url, nil)
-	req.Header.Set("If-None-Match", firstETag)
-	rec = env.do(req)
+	rec = env.getIfNoneMatch(url, firstETag)
 	assertStatus(t, rec, http.StatusNotFound)
 }
 
@@ -231,23 +210,14 @@ func TestAPISourceAssetWritesAreGated(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Gated Art", "", "art.md", "body")
 	sourceID := env.currentSourceID(t, created.Meta.ID)
-	assetsURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources/" + sourceID + "/assets/"
+	url := assetURL(created.Meta.ID, sourceID, "img-0001.png")
 
-	// doRaw omits the token do() would attach.
 	for _, method := range []string{http.MethodPut, http.MethodDelete} {
-		rec := env.doRaw(httptest.NewRequest(method, assetsURL+"img-0001.png", bytes.NewReader([]byte("x"))))
-		assertStatus(t, rec, http.StatusUnauthorized)
+		assertMutationGated(t, env, method, url, []byte("x"))
 	}
-
-	env.app.Conf().ReadOnly = true
-	for _, method := range []string{http.MethodPut, http.MethodDelete} {
-		rec := env.do(httptest.NewRequest(method, assetsURL+"img-0001.png", bytes.NewReader([]byte("x"))))
-		assertStatus(t, rec, http.StatusForbidden)
-	}
-	env.app.Conf().ReadOnly = false
 
 	// A read is unaffected by either gate in this configuration.
-	rec := env.doRaw(httptest.NewRequest(http.MethodGet, assetsURL+"img-0001.png", nil))
+	rec := env.doRaw(httptest.NewRequest(http.MethodGet, url, nil))
 	assertStatus(t, rec, http.StatusNotFound)
 }
 
@@ -257,7 +227,7 @@ func TestAPISourceAssetRejectsUnsafeNames(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Unsafe Assets", "", "art.md", "secret body")
 	sourceID := env.currentSourceID(t, created.Meta.ID)
-	assetsURL := "/api/shelves/default_shelf/books/" + created.Meta.ID + "/sources/" + sourceID + "/assets/"
+	asset := func(name string) string { return assetURL(created.Meta.ID, sourceID, name) }
 
 	env.writeSourceAsset(t, created.Meta.ID, sourceID, "img-0001.png", []byte("fake png bytes"))
 
@@ -267,16 +237,15 @@ func TestAPISourceAssetRejectsUnsafeNames(t *testing.T) {
 	env.writeSourceAsset(t, created.Meta.ID, sourceID, " lead.png", []byte("space prefixed"))
 	env.writeSourceAsset(t, created.Meta.ID, sourceID, "lead.png", []byte("plain"))
 
-	rec := env.do(httptest.NewRequest(http.MethodGet, assetsURL+"%20lead.png", nil))
-	assertStatus(t, rec, http.StatusOK)
-	if got := rec.Body.String(); got != "space prefixed" {
-		t.Fatalf("asset with a leading space = %q, want %q", got, "space prefixed")
-	}
-
-	rec = env.do(httptest.NewRequest(http.MethodGet, assetsURL+"lead.png", nil))
-	assertStatus(t, rec, http.StatusOK)
-	if got := rec.Body.String(); got != "plain" {
-		t.Fatalf("asset without a leading space = %q, want %q", got, "plain")
+	for _, tc := range []struct{ name, want string }{
+		{"%20lead.png", "space prefixed"},
+		{"lead.png", "plain"},
+	} {
+		rec := env.get(asset(tc.name))
+		assertStatus(t, rec, http.StatusOK)
+		if got := rec.Body.String(); got != tc.want {
+			t.Fatalf("asset %q = %q, want %q", tc.name, got, tc.want)
+		}
 	}
 
 	// An encoded separator survives routing: the mux hands these to the handler
@@ -295,7 +264,7 @@ func TestAPISourceAssetRejectsUnsafeNames(t *testing.T) {
 		"img-0001",
 	} {
 		t.Run(assetName, func(t *testing.T) {
-			rec := env.do(httptest.NewRequest(http.MethodGet, assetsURL+assetName, nil))
+			rec := env.get(asset(assetName))
 			assertStatus(t, rec, http.StatusBadRequest)
 			if strings.Contains(rec.Body.String(), "secret body") {
 				t.Fatalf("response leaked file contents: %s", rec.Body.String())
@@ -310,12 +279,11 @@ func TestIfNoneMatchHandlesListsAndWildcard(t *testing.T) {
 	env := newAPITestEnv(t)
 	created := importTextBook(t, env, "Revalidate", "", "art.md", "body")
 	sourceID := env.currentSourceID(t, created.Meta.ID)
-	url := "/api/shelves/default_shelf/books/" + created.Meta.ID +
-		"/sources/" + sourceID + "/assets/img-0001.png"
+	url := assetURL(created.Meta.ID, sourceID, "img-0001.png")
 
 	env.writeSourceAsset(t, created.Meta.ID, sourceID, "img-0001.png", []byte("fake png bytes"))
 
-	rec := env.do(httptest.NewRequest(http.MethodGet, url, nil))
+	rec := env.get(url)
 	assertStatus(t, rec, http.StatusOK)
 	etag := rec.Header().Get("ETag")
 	if etag == "" {
@@ -331,10 +299,7 @@ func TestIfNoneMatchHandlesListsAndWildcard(t *testing.T) {
 	}
 	for name, header := range revalidates {
 		t.Run(name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, url, nil)
-			req.Header.Set("If-None-Match", header)
-			rec := env.do(req)
-			assertStatus(t, rec, http.StatusNotModified)
+			assertStatus(t, env.getIfNoneMatch(url, header), http.StatusNotModified)
 		})
 	}
 
@@ -345,12 +310,7 @@ func TestIfNoneMatchHandlesListsAndWildcard(t *testing.T) {
 	}
 	for name, header := range misses {
 		t.Run(name, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, url, nil)
-			if header != "" {
-				req.Header.Set("If-None-Match", header)
-			}
-			rec := env.do(req)
-			assertStatus(t, rec, http.StatusOK)
+			assertStatus(t, env.getIfNoneMatch(url, header), http.StatusOK)
 		})
 	}
 }
