@@ -4,6 +4,7 @@ workspace/
 .DS_Store
 
 # frontend artifacts
+node_modules/
 frontend/node_modules/
 frontend/dist/
 e2e/node_modules/
