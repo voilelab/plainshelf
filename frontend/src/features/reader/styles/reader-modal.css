@@ -9,6 +9,10 @@
   padding: 16px;
 }
 
+.chapter-modal {
+  min-width: min(320px, 90vw);
+}
+
 .split-modal {
   overflow: auto;
 }
