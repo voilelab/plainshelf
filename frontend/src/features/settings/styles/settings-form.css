@@ -1,0 +1,112 @@
+/* Form primitives shared by the settings page shell and every tab panel.
+   Scoped styles do not cross component boundaries, so each SFC that renders
+   these classes pulls this file in with `<style scoped src="...">`. */
+
+.settings-message {
+  margin: 0;
+}
+
+.settings-message-error {
+  color: #b91c1c;
+}
+
+.settings-group {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.settings-group h3 {
+  margin: 0;
+}
+
+.setting-item {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.setting-label {
+  font-weight: 600;
+}
+
+.setting-value {
+  color: #475569;
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.setting-description {
+  color: #475569;
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+
+.setting-link {
+  color: #2563eb;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.setting-checkbox {
+  cursor: pointer;
+  height: 18px;
+  width: 18px;
+}
+
+.setting-checkbox:disabled {
+  cursor: not-allowed;
+}
+
+.setting-number {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font: inherit;
+  max-width: 120px;
+  padding: 8px 10px;
+}
+
+.setting-number:disabled {
+  cursor: not-allowed;
+}
+
+.setting-select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+}
+
+.setting-select:disabled {
+  cursor: not-allowed;
+}
+
+.setting-textarea {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font: inherit;
+  font-family: monospace;
+  font-size: 13px;
+  padding: 8px 10px;
+  resize: vertical;
+  width: 100%;
+}
+
+.setting-textarea:disabled {
+  cursor: not-allowed;
+}
+
+.setting-item-stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.split-config-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+}

@@ -40,12 +40,20 @@ Read the relevant section before working in that area. Add entries according to
 - **Primitive DOM defaults:** confirm the element rendered by Reka primitives;
   default `ul`/`ol` styles can consume layout space. Prefer an explicit `as` or
   reset list styles where the semantic element is not wanted.
-- **Hidden tab/collapsible panels:** Reka keeps inactive panels mounted and only
-  sets the `hidden` attribute; any author `display` rule on the panel class beats
-  the user-agent `[hidden]` default, so the empty panels stay as layout boxes and
-  their parent's grid/flex gap shifts the visible one. Pair such a rule with
-  `.panel-class[hidden] { display: none; }`.
+- **Hidden tab/collapsible panels:** Reka keeps every panel's wrapper element in
+  the DOM and only sets the `hidden` attribute; any author `display` rule on the
+  panel class beats the user-agent `[hidden]` default, so inactive panels stay as
+  layout boxes and their parent's grid/flex gap shifts the visible one. Pair such
+  a rule with `.panel-class[hidden] { display: none; }`.
   (`frontend/src/features/settings/pages/SettingsPage.vue`)
+- **Tab content is unmounted, the wrapper is not:** the persistent wrapper above
+  hides that `TabsRoot` defaults `unmountOnHide` to true, so an inactive tab's
+  *slot content* is destroyed and rebuilt on every visit. A tab body that owns
+  state — an in-flight request, a fetched list, a cache — silently resets and
+  refetches. Set `:unmount-on-hide="false"` when moving stateful markup into a
+  per-tab component, and keep the `[hidden]` rule above, which is then what stops
+  the retained content from rendering in full.
+  (`reka-ui/src/Tabs/TabsRoot.vue`, `reka-ui/src/Tabs/TabsContent.vue`)
 - **Scoped styles and fragments:** styles targeting nodes rendered through a
   fragment may need a stable parent plus `:deep(...)`; verify selected and
   unselected computed styles, not only `data-state`.
