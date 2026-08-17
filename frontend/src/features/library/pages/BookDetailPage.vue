@@ -329,7 +329,7 @@ watch(id, () => {
    the shell's own spacing so the visible content offset is unchanged. */
 .detail-shell {
   background: linear-gradient(145deg, #fbfaf7 0%, #f6f3ed 100%);
-  min-height: calc(100vh - 60px + 16px);
+  min-height: calc(100vh - 60px + 16px + env(safe-area-inset-bottom, 0px));
   margin: -16px calc(-24px - env(safe-area-inset-right, 0px)) calc(-16px - env(safe-area-inset-bottom, 0px))
     calc(-24px - env(safe-area-inset-left, 0px));
   padding: 48px calc(52px + env(safe-area-inset-right, 0px)) calc(64px + env(safe-area-inset-bottom, 0px))
@@ -474,7 +474,7 @@ watch(id, () => {
 
 @media (max-width: 768px) {
   .detail-shell {
-    min-height: calc(100vh - 54px + 16px);
+    min-height: calc(100vh - 54px + 16px + env(safe-area-inset-bottom, 0px));
     padding: 38px calc(40px + env(safe-area-inset-right, 0px)) calc(52px + env(safe-area-inset-bottom, 0px))
       calc(40px + env(safe-area-inset-left, 0px));
   }
