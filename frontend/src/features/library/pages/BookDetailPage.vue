@@ -334,7 +334,6 @@ watch(id, () => {
     calc(-24px - env(safe-area-inset-left, 0px));
   padding: 48px calc(52px + env(safe-area-inset-right, 0px)) calc(64px + env(safe-area-inset-bottom, 0px))
     calc(52px + env(safe-area-inset-left, 0px));
-  width: 100%;
   font-family: 'Noto Sans TC Variable', 'Noto Sans TC', 'Avenir Next', sans-serif;
 }
 
