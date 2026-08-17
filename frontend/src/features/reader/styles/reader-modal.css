@@ -9,6 +9,10 @@
   padding: 16px;
 }
 
+.chapter-modal {
+  min-width: min(320px, calc(90vw / var(--app-zoom, 1)));
+}
+
 .split-modal {
   overflow: auto;
 }
