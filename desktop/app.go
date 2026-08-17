@@ -244,7 +244,11 @@ func (a *DesktopApp) ensureReaderServer() (string, error) {
 	}
 
 	a.readerSrv = &http.Server{Handler: a.app.Handler()}
-	go a.readerSrv.Serve(ln)
+	go func() {
+		if err := a.readerSrv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Println("Reader server error:", err)
+		}
+	}()
 
 	a.readerAddr = ln.Addr().String()
 	log.Printf("Reader server listening on %s", a.readerAddr)
