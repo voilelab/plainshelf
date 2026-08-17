@@ -14,7 +14,11 @@
       {{ error }}
     </p>
 
-    <TabsRoot :default-value="defaultSettingsTab" class="settings-tabs">
+    <!-- Reka unmounts an inactive tab's content by default. These panels own
+         state that has to outlive a tab switch — a book-cache export in flight,
+         the fetched shelf list, the font-licence cache — so they stay mounted,
+         the way they did when every tab body lived in this component. -->
+    <TabsRoot :default-value="defaultSettingsTab" class="settings-tabs" :unmount-on-hide="false">
       <TabsList class="settings-tabs-list" :aria-label="t('settings.title')">
         <TabsTrigger v-if="serverSettingsEditable" value="cover" class="settings-tab-trigger">{{
           t('settings.cover.title')
@@ -199,10 +203,13 @@ onMounted(() => {
   gap: 16px;
 }
 
-/* Reka mounts every tab panel and only marks the inactive ones with `hidden`.
-   An author rule outranks the user-agent `[hidden]` default, so the rule above
-   would keep those empty panels as grid items and each one's 16px gap would
-   push the active panel further down the further right its tab sits. */
+/* Reka keeps every tab panel in the DOM and only marks the inactive ones with
+   `hidden`. An author rule outranks the user-agent `[hidden]` default, so the
+   rule above would keep those panels as grid items and each one's 16px gap
+   would push the active panel further down the further right its tab sits.
+   With `unmount-on-hide` off the inactive panels also hold their content, so
+   without this rule they would render in full rather than merely take up
+   space. */
 .settings-tab-content[hidden] {
   display: none;
 }
