@@ -16,7 +16,7 @@
 
     <!-- Reka unmounts an inactive tab's content by default. These panels own
          state that has to outlive a tab switch — a book-cache export in flight,
-         the fetched shelf list, the font-licence cache — so they stay mounted,
+         the fetched shelf list, the font-license cache — so they stay mounted,
          the way they did when every tab body lived in this component. -->
     <TabsRoot :default-value="defaultSettingsTab" class="settings-tabs" :unmount-on-hide="false">
       <TabsList class="settings-tabs-list" :aria-label="t('settings.title')">

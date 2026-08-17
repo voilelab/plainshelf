@@ -42,7 +42,7 @@ test('every settings tab starts at the same offset below the tab list', async ({
 /**
  * Each tab body is its own component, and several of them own state that has to
  * outlive a tab switch: a book-cache export in flight, the fetched shelf list,
- * the font-licence cache. Reka unmounts an inactive tab's content unless the
+ * the font-license cache. Reka unmounts an inactive tab's content unless the
  * root opts out, which would silently reset that state and refetch on every
  * visit, so the panels have to stay mounted behind the tab list.
  */
