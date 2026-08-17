@@ -28,6 +28,7 @@ import {
   InMemoryMobileBookCache,
   type MobileBookCache
 } from './mobileBookCache';
+import { InMemoryMobileCoverCache, type MobileCoverCache } from './mobileCoverCache';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
 
 export const OFFLINE_BOOK_CACHE_MISS_ERROR = 'Book is not downloaded and the app is offline';
@@ -69,7 +70,8 @@ export class MobileBookshelfProvider implements BookshelfReader {
   constructor(
     private readonly remote: BookshelfReader = new ServerBookshelfProvider(),
     private readonly cache: MobileBookCache = new InMemoryMobileBookCache(),
-    private readonly isOnline: () => boolean = defaultIsOnline
+    private readonly isOnline: () => boolean = defaultIsOnline,
+    private readonly coverCache: MobileCoverCache = new InMemoryMobileCoverCache()
   ) {}
 
   // `options` only affects the remote call; the offline cache stores whatever
@@ -250,7 +252,14 @@ export class MobileBookshelfProvider implements BookshelfReader {
       return cached;
     }
 
-    return this.remote.getBookCover(bookId);
+    const persisted = await this.coverCache.getCover(bookId);
+    if (persisted) {
+      return persisted;
+    }
+
+    const blob = await this.remote.getBookCover(bookId);
+    this.coverCache.setCover(bookId, blob).catch(() => {});
+    return blob;
   }
 
   getBookCoverUrl(bookId: string, cacheKey?: number): string {

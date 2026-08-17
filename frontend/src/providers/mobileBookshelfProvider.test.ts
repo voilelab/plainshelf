@@ -19,6 +19,7 @@ import type { Book, PaginatedBooks, ReadingProgress, SplitConfig } from '@/types
 import type { SourceMeta } from '@/types/source';
 import type { BookshelfReader } from './bookshelfProvider';
 import { InMemoryMobileBookCache } from './mobileBookCache';
+import { InMemoryMobileCoverCache } from './mobileCoverCache';
 import { DOWNLOAD_SHELF_CHANGED_ERROR, MobileBookshelfProvider } from './mobileBookshelfProvider';
 
 const SERVER_A = 'http://10.0.2.2:20000';
@@ -633,5 +634,65 @@ describe('MobileBookshelfProvider — manual shelf refresh', () => {
     });
 
     await expect(provider.refreshShelf()).rejects.toBeInstanceOf(TypeError);
+  });
+});
+
+describe('MobileBookshelfProvider — persistent cover cache', () => {
+  let cache: InMemoryMobileBookCache;
+  let coverCache: InMemoryMobileCoverCache;
+
+  beforeEach(() => {
+    cache = new InMemoryMobileBookCache();
+    coverCache = new InMemoryMobileCoverCache();
+    connectTo(SERVER_A, SHELF_A);
+  });
+
+  function makeProvider(remote: Partial<BookshelfReader>, isOnline = () => true): MobileBookshelfProvider {
+    return new MobileBookshelfProvider(remote as BookshelfReader, cache, isOnline, coverCache);
+  }
+
+  it('returns the cover from the persistent cache when the download cache misses', async () => {
+    await coverCache.setCover('book-1', new Blob(['cached-cover'], { type: 'image/png' }));
+    const getBookCover = vi.fn();
+    const provider = makeProvider({ getBookCover });
+
+    const result = await provider.getBookCover('book-1');
+    expect(await result.text()).toBe('cached-cover');
+    expect(getBookCover).not.toHaveBeenCalled();
+  });
+
+  it('fetches from remote and writes through to the persistent cache on a full miss', async () => {
+    const getBookCover = vi.fn().mockResolvedValue(new Blob(['remote-cover'], { type: 'image/jpeg' }));
+    const provider = makeProvider({ getBookCover });
+
+    const result = await provider.getBookCover('book-1');
+    expect(await result.text()).toBe('remote-cover');
+    expect(getBookCover).toHaveBeenCalledTimes(1);
+
+    // Wait for the fire-and-forget write to complete.
+    await vi.waitFor(async () => {
+      expect(await coverCache.getCover('book-1')).not.toBeNull();
+    });
+    const persisted = await coverCache.getCover('book-1');
+    expect(await persisted!.text()).toBe('remote-cover');
+  });
+
+  it('prefers the download cache over the persistent cover cache', async () => {
+    await seedDownloadedBook(cache, 'book-1');
+    await cache.saveCachedCover('book-1', new Blob(['download-cover'], { type: 'image/jpeg' }));
+    await coverCache.setCover('book-1', new Blob(['persistent-cover'], { type: 'image/png' }));
+
+    const provider = makeProvider({});
+    const result = await provider.getBookCover('book-1');
+    expect(await result.text()).toBe('download-cover');
+  });
+
+  it('does not block on a cache write failure', async () => {
+    coverCache.setCover = vi.fn().mockRejectedValue(new Error('disk full'));
+    const getBookCover = vi.fn().mockResolvedValue(new Blob(['cover'], { type: 'image/jpeg' }));
+    const provider = makeProvider({ getBookCover });
+
+    const result = await provider.getBookCover('book-1');
+    expect(await result.text()).toBe('cover');
   });
 });

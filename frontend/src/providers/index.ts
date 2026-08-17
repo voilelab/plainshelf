@@ -12,6 +12,7 @@ import {
 import type { ShelfEntry } from './mobileConfig';
 import { MobileBookshelfProvider } from './mobileBookshelfProvider';
 import { FilesystemMobileBookCache } from './filesystemMobileBookCache';
+import { FilesystemMobileCoverCache } from './filesystemMobileCoverCache';
 import { PCloudBookshelfProvider } from './pcloudBookshelfProvider';
 import { PCloudClient } from '@/api/pcloud/client';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
@@ -56,7 +57,9 @@ export function createBookshelfProvider(): BookshelfProvider {
     // best-effort storage eviction, which the browser storage APIs are not.
     return new MobileBookshelfProvider(
       createMobileSource(getActiveShelfEntry()),
-      new FilesystemMobileBookCache()
+      new FilesystemMobileBookCache(),
+      undefined,
+      new FilesystemMobileCoverCache()
     );
   }
 
