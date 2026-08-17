@@ -467,7 +467,13 @@ watch(id, () => {
 @media (max-width: 768px) {
   .detail-shell {
     min-height: calc(100vh - 54px);
-    padding: 22px 16px 36px;
+    width: auto;
+    margin: -16px calc(-24px - env(safe-area-inset-right, 0px))
+      calc(-16px - env(safe-area-inset-bottom, 0px))
+      calc(-24px - env(safe-area-inset-left, 0px));
+    padding: 38px calc(40px + env(safe-area-inset-right, 0px))
+      calc(52px + env(safe-area-inset-bottom, 0px))
+      calc(40px + env(safe-area-inset-left, 0px));
   }
 
   .detail-panel {
