@@ -88,6 +88,11 @@ Read the relevant section before working in that area. Add entries according to
   run with a throwaway local config that sets
   `launchOptions.executablePath: '/opt/pw-browsers/chromium'`.
   (`e2e/playwright.config.ts`)
+- **Teardown ENOTEMPTY:** whole-suite runs fail a handful of unrelated specs with
+  `ENOTEMPTY … rmdir '<tmp>/shelf/app'` → the temp shelf is deleted while the
+  just-signalled server still writes into it, so the failure is teardown-only and
+  lands on different specs each run; re-run the spec alone before charging it to
+  the diff. (`e2e/tests/support/server.ts`)
 
 ## Filesystem and API
 
