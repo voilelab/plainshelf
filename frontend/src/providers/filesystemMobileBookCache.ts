@@ -12,6 +12,8 @@ import {
 } from './mobileBookCache';
 import {
   BASE_DIR,
+  base64ToBlob,
+  blobToBase64,
   CACHE_DIRECTORY,
   deleteFileIgnoringMissing,
   encode,
@@ -113,24 +115,6 @@ interface StoredAsset extends StoredCover {
 interface StoredCover {
   mime: string;
   data: string; // base64 (no data: prefix)
-}
-
-async function blobToBase64(blob: Blob): Promise<string> {
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += 1) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-function base64ToBlob(base64: string, mime: string): Blob {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return new Blob([bytes], mime ? { type: mime } : undefined);
 }
 
 /**
