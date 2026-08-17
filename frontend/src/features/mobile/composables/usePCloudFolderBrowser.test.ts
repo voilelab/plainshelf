@@ -89,8 +89,10 @@ describe('usePCloudFolderBrowser', () => {
   });
 
   // A saved path can name a folder that was renamed, or one belonging to the
-  // account authorized before this one.
-  it('falls back to the root and keeps the reason when a path does not resolve', async () => {
+  // account authorized before this one. The root has to stay browsable
+  // underneath the explanation, which is why the reason is not an error: the
+  // picker hides the folder list while one is set.
+  it('falls back to a browsable root and explains why, when a path does not resolve', async () => {
     const client = fakeClient(TREE);
     const browser = usePCloudFolderBrowser(() => client);
 
@@ -98,7 +100,31 @@ describe('usePCloudFolderBrowser', () => {
 
     expect(browser.currentPath.value).toBe('/');
     expect(browser.folders.value.map((item) => item.name)).toEqual(['Photos', 'PlainShelf']);
-    expect(browser.error.value).toMatch(/"gone"/);
+    expect(browser.notice.value).toMatch(/"gone"/);
+    expect(browser.error.value).toBe('');
+  });
+
+  it('drops the explanation once the user navigates', async () => {
+    const client = fakeClient(TREE);
+    const browser = usePCloudFolderBrowser(() => client);
+
+    await browser.open('/PlainShelf/gone');
+    await browser.enter({ name: 'PlainShelf', folderid: 10 });
+
+    expect(browser.notice.value).toBe('');
+  });
+
+  // Otherwise the reason the saved path failed would be reported as though it
+  // were the reason the root could not be listed.
+  it('reports a failed fallback listing on its own terms', async () => {
+    const client = fakeClient(TREE);
+    const browser = usePCloudFolderBrowser(() => client);
+
+    client.listFolder.mockRejectedValueOnce(new Error('pCloud listfolder timed out.'));
+    await browser.open('/PlainShelf/gone');
+
+    expect(browser.error.value).toBe('pCloud listfolder timed out.');
+    expect(browser.notice.value).toMatch(/"gone"/);
   });
 
   it('walks down and back up, and reports which level is a shelf', async () => {

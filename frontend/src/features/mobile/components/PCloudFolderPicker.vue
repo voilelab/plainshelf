@@ -35,6 +35,8 @@
         </template>
       </nav>
 
+      <p v-if="notice" class="pcloud-picker-notice" role="status">{{ notice }}</p>
+
       <div class="pcloud-picker-list">
         <button
           v-if="trail.length > 0"
@@ -139,6 +141,7 @@ const {
   isShelf,
   loading,
   error,
+  notice,
   open: openAt,
   enter,
   goTo,
@@ -167,9 +170,11 @@ onBeforeUnmount(close);
 
 <style scoped>
 .pcloud-picker {
-  display: grid;
-  /* The list is the only part that may grow, so it gets the free row. */
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  /* Flex, not a fixed grid template: the notice line is conditional, and a
+     template would have to name a row for it that shifts every other row when
+     it is absent. Here the list is simply the one part that may shrink. */
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   padding: 16px;
   width: min(480px, calc(100vw / var(--app-zoom, 1) - 32px));
@@ -185,6 +190,7 @@ onBeforeUnmount(close);
 .pcloud-picker-header {
   align-items: center;
   display: flex;
+  flex: 0 0 auto;
   gap: 12px;
   justify-content: space-between;
 }
@@ -213,6 +219,7 @@ onBeforeUnmount(close);
 .pcloud-picker-crumbs {
   align-items: center;
   display: flex;
+  flex: 0 0 auto;
   gap: 4px;
   /* Deep paths scroll sideways instead of wrapping into a growing block that
      would eat the list's room. */
@@ -240,10 +247,20 @@ onBeforeUnmount(close);
   font-size: 13px;
 }
 
+.pcloud-picker-notice {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 12px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .pcloud-picker-list {
   border: 1px solid var(--border);
   border-radius: 8px;
   display: flex;
+  /* The one part that gives way when the dialog hits its cap. */
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 2px;
   /* So the box does not collapse to nothing while a level is loading or when a
@@ -303,6 +320,7 @@ onBeforeUnmount(close);
 
 .pcloud-picker-footer {
   display: grid;
+  flex: 0 0 auto;
   gap: 8px;
 }
 

@@ -26,7 +26,14 @@ export interface PCloudFolderBrowser {
   /** Whether the current level holds a `books/` directory, i.e. is a shelf. */
   isShelf: ComputedRef<boolean>;
   loading: Ref<boolean>;
+  /** The current level could not be listed; nothing is on screen to browse. */
   error: Ref<string>;
+  /**
+   * Why the requested starting path was not opened. Kept apart from `error`
+   * because the level below it did load: the user can carry on browsing, and
+   * a later listing failure must not be overwritten by this.
+   */
+  notice: Ref<string>;
   open: (path: string) => Promise<void>;
   enter: (folder: PCloudFolderRef) => Promise<void>;
   /** Jumps to a trail level; -1 is the account root. */
@@ -57,6 +64,7 @@ export function usePCloudFolderBrowser(createClient: () => PCloudFolderClient): 
   const contents = shallowRef<PCloudItem[]>([]);
   const loading = ref(false);
   const error = ref('');
+  const notice = ref('');
 
   const cache = new Map<number, PCloudItem[]>();
 
@@ -109,6 +117,8 @@ export function usePCloudFolderBrowser(createClient: () => PCloudFolderClient): 
     const controller = begin();
     trail.value = next;
     error.value = '';
+    // Whatever the notice was about, the user has moved on from it.
+    notice.value = '';
 
     const folderid = next.length > 0 ? next[next.length - 1].folderid : ROOT_FOLDER_ID;
     const cached = cache.get(folderid);
@@ -146,6 +156,8 @@ export function usePCloudFolderBrowser(createClient: () => PCloudFolderClient): 
    * A path that no longer resolves — renamed, deleted, or belonging to the
    * account that was authorized before — is reported and then browsed around:
    * dropping the user at the root with an explanation beats refusing to open.
+   * That explanation is a notice rather than an error, so the root stays
+   * listed and browsable underneath it.
    */
   async function open(path: string): Promise<void> {
     // A fresh open may be reading a different account than the last one.
@@ -161,6 +173,7 @@ export function usePCloudFolderBrowser(createClient: () => PCloudFolderClient): 
     trail.value = [];
     contents.value = [];
     error.value = '';
+    notice.value = '';
     loading.value = true;
     try {
       const resolved = await createClient().resolveFolderTrail(target, controller.signal);
@@ -174,7 +187,7 @@ export function usePCloudFolderBrowser(createClient: () => PCloudFolderClient): 
       }
       const reason = describe(err);
       await show([]);
-      error.value = reason;
+      notice.value = reason;
     }
   }
 
@@ -197,5 +210,18 @@ export function usePCloudFolderBrowser(createClient: () => PCloudFolderClient): 
     loading.value = false;
   }
 
-  return { trail, folders, currentPath, isShelf, loading, error, open, enter, goTo, retry, close };
+  return {
+    trail,
+    folders,
+    currentPath,
+    isShelf,
+    loading,
+    error,
+    notice,
+    open,
+    enter,
+    goTo,
+    retry,
+    close
+  };
 }
