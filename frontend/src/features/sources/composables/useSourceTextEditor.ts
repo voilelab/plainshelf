@@ -148,8 +148,32 @@ export function useSourceTextEditor(options: SourceTextEditorOptions) {
       composing: isComposing
     });
     if (!isComposing) {
-      void nextTick(() => focusAndSelect(selectionStart, selectionEnd, false));
+      void nextTick(() => restoreSelectionAfterInput(selectionStart, selectionEnd));
     }
+  }
+
+  /**
+   * Puts the caret back once Vue has patched the projection.
+   *
+   * Typing does not change what the textarea already displays — the document
+   * update reprojects to the very string the browser just produced — so the DOM
+   * selection is normally still exactly where the input left it. Re-asserting it
+   * anyway means running scrollOffsetIntoView on every keystroke, and its DOM
+   * mirror cannot reproduce the textarea's line breaking in every environment
+   * (a scrollbar gutter, the desktop shell's zoom, or font fallback all shift
+   * it). Each disagreement parks the view somewhere the browser then corrects on
+   * the next keystroke, which reads as the scrollbar jittering back and forth
+   * while typing. Only a projection that really was rewritten needs the caret
+   * restored and revealed.
+   */
+  function restoreSelectionAfterInput(selectionStart: number, selectionEnd: number): void {
+    const textarea = textareaRef.value;
+    if (!textarea) return;
+    const view = currentViewRange();
+    const start = clampTextOffset(textarea.value, selectionStart - view.startOffset);
+    const end = Math.max(start, clampTextOffset(textarea.value, selectionEnd - view.startOffset));
+    if (textarea.selectionStart === start && textarea.selectionEnd === end) return;
+    focusAndSelect(selectionStart, selectionEnd, false);
   }
 
   function onInput(event: Event): void {

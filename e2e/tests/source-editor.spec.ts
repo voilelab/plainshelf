@@ -438,3 +438,54 @@ test('should upgrade a legacy split source through the component modal', async (
     await server.dispose();
   }
 });
+
+test('should not move the view while typing into a source taller than the screen', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importHelloBook(page);
+    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
+    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('menuitem', { name: 'Manage sources' }).click();
+    await expect(page.getByText('No pending changes').first()).toBeVisible();
+
+    const textarea = page.locator('.source-content-textarea');
+    await expect(textarea).toBeEnabled();
+
+    const filler = Array.from(
+      { length: 60 },
+      (_, index) => `Filler line ${index + 1}: ${'wrapped content '.repeat(24)}`
+    ).join('\n');
+    await textarea.fill(`${filler}\nTyping anchor\n${filler}`);
+
+    // Park the caret deep inside the document, where the browser has no reason
+    // of its own to scroll while typing.
+    const findReplace = page.getByRole('group', { name: 'Find and replace' });
+    await findReplace.getByLabel('Find').fill('Typing anchor');
+    await findReplace.getByRole('button', { name: 'Next' }).click();
+    await expect(findReplace.getByRole('status')).toHaveText('Match 1 of 1.');
+
+    const scrollTop = () => textarea.evaluate((element) => (element as HTMLTextAreaElement).scrollTop);
+    await expect.poll(scrollTop).toBeGreaterThan(1_000);
+
+    // Collapse the match and lift the caret close to the top edge: still fully
+    // visible, so nothing should scroll, but near enough to the edge that a
+    // caret-revealing pass would jump the view.
+    await textarea.press('ArrowRight');
+    await textarea.evaluate((element) => {
+      const field = element as HTMLTextAreaElement;
+      field.scrollTop += field.clientHeight / 3 - 20;
+    });
+    const parked = await scrollTop();
+
+    for (const character of 'typed') {
+      await page.keyboard.type(character);
+      await page.waitForTimeout(120);
+      expect(await scrollTop()).toBe(parked);
+    }
+    await expect(textarea).toHaveValue(/Typing anchortyped/);
+  } finally {
+    await server.dispose();
+  }
+});
