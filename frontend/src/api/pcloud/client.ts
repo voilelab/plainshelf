@@ -20,7 +20,7 @@ const MAX_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 500;
 
 /** The account's top-level folder. */
-const ROOT_FOLDER_ID = 0;
+export const ROOT_FOLDER_ID = 0;
 
 export type PCloudParams = Record<string, string | number | boolean | undefined>;
 
@@ -263,7 +263,24 @@ export class PCloudClient {
    * exist" for a path they can see in pCloud is no help at all.
    */
   async resolveFolderID(path: string, signal?: AbortSignal): Promise<number> {
+    const trail = await this.resolveFolderTrail(path, signal);
+    return trail.length > 0 ? trail[trail.length - 1].folderid : ROOT_FOLDER_ID;
+  }
+
+  /**
+   * Resolves a path to one entry per segment, outermost first.
+   *
+   * The same walk as `resolveFolderID`, keeping what that walk already learned
+   * on the way down: the folder picker needs every ancestor's id to offer a
+   * breadcrumb that can jump back to any level without listing the path again.
+   * The account root is not included — it is implicit, and has no name.
+   */
+  async resolveFolderTrail(
+    path: string,
+    signal?: AbortSignal
+  ): Promise<Array<{ name: string; folderid: number }>> {
     const segments = path.split('/').filter((segment) => segment.length > 0);
+    const trail: Array<{ name: string; folderid: number }> = [];
     let folderid = ROOT_FOLDER_ID;
     let walked = '';
 
@@ -286,9 +303,10 @@ export class PCloudClient {
 
       folderid = match.folderid;
       walked = `${walked}/${segment}`;
+      trail.push({ name: segment, folderid });
     }
 
-    return folderid;
+    return trail;
   }
 
   /**

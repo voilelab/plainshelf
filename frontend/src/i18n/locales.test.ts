@@ -15,6 +15,7 @@ const SHARED_VALUE_KEYS = new Set([
   'settings.shelves.idColumn',
   'settings.shelves.modifyShelfIDLabel',
   'mobileConnect.modePCloud',
+  'mobileConnect.pcloud.picker.rootLabel',
   'mobileConnect.pcloud.shelfRootPlaceholder',
   'mobileConnect.serverUrlPlaceholder'
 ]);

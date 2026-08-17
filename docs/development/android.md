@@ -176,10 +176,17 @@ configured. Nothing needs to be chosen for a US or EU account.
 
 ### 3. Point it at the shelf
 
-Give the folder path of the shelf inside your pCloud account, such as
-`/PlainShelf/default-shelf`, then tap **Check shelf**. That reads the folder and
-reports how many books it found; it has to contain `books/` or it is not a
-shelf. Save once the check passes.
+Tap **Browse pCloud…** and walk to the shelf folder. The picker lists one level
+at a time — a tap opens a folder, the breadcrumb at the top jumps back to any
+level above — and reads only the level on screen, so browsing costs one folder
+listing per tap. **Use this folder** is offered on the folder that holds
+`books/`, which is the shelf directory itself, not `books/` and not the folder
+above it. Picking one fills the path in and runs the shelf check for you.
+
+The path field stays editable if you would rather type or paste one, such as
+`/PlainShelf/default-shelf`; tap **Check shelf** afterwards. Either way the
+check reads the folder and reports how many books it found, and it has to
+contain `books/` or it is not a shelf. Save once the check passes.
 
 ### The book list is updated by hand
 

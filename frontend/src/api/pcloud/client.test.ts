@@ -379,6 +379,32 @@ describe('PCloudClient.resolveFolderID', () => {
       makeClient(fetchImpl as unknown as typeof fetch).resolveFolderID('/test1')
     ).rejects.toBeInstanceOf(PCloudError);
   });
+
+  // The folder picker's breadcrumb needs every ancestor's id, which the same
+  // walk already learns on the way down.
+  it('reports one entry per segment, outermost first', async () => {
+    const fetchImpl = treeFetch({
+      '0': [{ name: 'test1', folderid: 7 }],
+      '7': [{ name: 'books', folderid: 8 }],
+      '8': []
+    });
+
+    await expect(
+      makeClient(fetchImpl as unknown as typeof fetch).resolveFolderTrail('/test1/books')
+    ).resolves.toEqual([
+      { name: 'test1', folderid: 7 },
+      { name: 'books', folderid: 8 }
+    ]);
+  });
+
+  it('reports an empty trail for the account root', async () => {
+    const fetchImpl = treeFetch({ '0': [] });
+
+    await expect(
+      makeClient(fetchImpl as unknown as typeof fetch).resolveFolderTrail('/')
+    ).resolves.toEqual([]);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
 });
 
 describe('PCloudClient downloads', () => {
