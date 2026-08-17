@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { isDesktopRuntime, openDesktopReaderWindow } from '@/api/desktop';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import type { Book } from '@/types/book';
 import { t } from '@/i18n';
@@ -36,7 +37,14 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
   const canOpenBookFolder = computed(() => Boolean(getBookshelfProvider().openDesktopBookFolder));
 
   function goRead(id: string): void {
-    void router.push(`/reader/${id}`);
+    if (isDesktopRuntime()) {
+      if (openDesktopReaderWindow(id)) {
+        return;
+      }
+      void router.push(`/reader/${id}`);
+      return;
+    }
+    window.open(`/reader/${id}`, '_blank');
   }
 
   function openDetail(id: string): void {

@@ -6,12 +6,14 @@ import (
 	"errors"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
@@ -30,6 +32,10 @@ type DesktopApp struct {
 	readingProgressPath string
 	readingStatsPath    string
 	startupErr          error
+
+	readerMu  sync.Mutex
+	readerSrv *http.Server
+	readerAddr string
 }
 
 type DesktopImportBookResult struct {
@@ -87,6 +93,9 @@ func (a *DesktopApp) DomReady(ctx context.Context) {
 }
 
 func (a *DesktopApp) Shutdown() {
+	if a.readerSrv != nil {
+		a.readerSrv.Close()
+	}
 	if a.app != nil {
 		err := a.app.Close()
 		if err != nil {
@@ -215,6 +224,41 @@ func (a *DesktopApp) OpenExternalURL(rawURL string) error {
 	}
 
 	wailsruntime.BrowserOpenURL(a.ctx, parsed.String())
+	return nil
+}
+
+func (a *DesktopApp) ensureReaderServer() (string, error) {
+	a.readerMu.Lock()
+	defer a.readerMu.Unlock()
+
+	if a.readerAddr != "" {
+		return a.readerAddr, nil
+	}
+	if a.app == nil {
+		return "", util.NewError("backend not ready")
+	}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", util.Errorf("starting reader server: %w", err)
+	}
+
+	a.readerSrv = &http.Server{Handler: a.app.Handler()}
+	go a.readerSrv.Serve(ln)
+
+	a.readerAddr = ln.Addr().String()
+	log.Printf("Reader server listening on %s", a.readerAddr)
+	return a.readerAddr, nil
+}
+
+func (a *DesktopApp) OpenReaderWindow(bookID string) error {
+	addr, err := a.ensureReaderServer()
+	if err != nil {
+		return err
+	}
+
+	readerURL := "http://" + addr + "/reader/" + url.PathEscape(bookID)
+	wailsruntime.BrowserOpenURL(a.ctx, readerURL)
 	return nil
 }
 

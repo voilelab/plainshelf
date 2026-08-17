@@ -30,6 +30,7 @@ interface DesktopAppBinding {
   ModifyShelf?: (shelfID: string, name: string, scanInterval: string) => Promise<void>;
   SaveBookContent?: (shelfID: string, bookID: string, suggestedName: string) => Promise<void>;
   OpenExternalURL?: (url: string) => Promise<void>;
+  OpenReaderWindow?: (bookID: string) => Promise<void>;
   ReadReadHistory?: () => Promise<string>;
   WriteReadHistory?: (doc: string) => Promise<void>;
   ReadReadingProgress?: () => Promise<string>;
@@ -258,6 +259,16 @@ export async function writeDesktopReadingStats(doc: string): Promise<void> {
   }
 
   await desktopApp.WriteReadingStats(doc);
+}
+
+export function openDesktopReaderWindow(bookID: string): boolean {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.OpenReaderWindow) {
+    return false;
+  }
+
+  void desktopApp.OpenReaderWindow(bookID);
+  return true;
 }
 
 export async function openDesktopExternalURL(url: string): Promise<void> {
