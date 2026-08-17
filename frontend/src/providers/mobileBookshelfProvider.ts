@@ -258,7 +258,9 @@ export class MobileBookshelfProvider implements BookshelfReader {
     }
 
     const blob = await this.remote.getBookCover(bookId);
-    this.coverCache.setCover(bookId, blob).catch(() => {});
+    this.coverCache.setCover(bookId, blob).catch((err) => {
+      console.warn(`Failed to persist cover cache for book ${bookId}.`, err);
+    });
     return blob;
   }
 
