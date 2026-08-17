@@ -10,7 +10,7 @@
 }
 
 .chapter-modal {
-  min-width: min(320px, 90vw);
+  min-width: min(320px, calc(90vw / var(--app-zoom, 1)));
 }
 
 .split-modal {
