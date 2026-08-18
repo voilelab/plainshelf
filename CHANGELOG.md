@@ -13,7 +13,11 @@ and UI behavior may still change between releases.
 
 ### Changed
 
+- Changed source deletion so a book always keeps a usable current source. Deleting the current source hands `current_source` over to the newest remaining source before the folder is removed, and deleting a book's only source leaves an empty plain-text source behind, so `book.json` is never left pointing at a source that no longer exists. Deleting any other source is unchanged and still does not touch `book.json`. Because the hand-over writes `book.json`, deleting the current source of a book written by a newer PlainShelf is now refused with `409 Conflict`, the same as any other write to that book; other sources of such a book can still be deleted.
+
 ### Fixed
+
+- Fixed a book becoming unreadable after its current source was deleted. The pointer was left naming the removed source, which made the book's content and split-config endpoints fail, blanked the book detail page down to an error message, and left the reader unable to load anything. Alongside the deletion fix, reads now fall back to the newest source a book still has whenever `current_source` cannot be resolved — which also repairs books already in this state, and books left there by a hand edit or a sync tool. The fallback does not rewrite `book.json`: the filesystem stays the source of truth. A book with no source at all is now reported as a missing source (`404`) instead of a server error (`500`).
 
 ### Removed
 

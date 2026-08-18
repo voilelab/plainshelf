@@ -109,6 +109,26 @@ the previous effective format for any legacy source that was current. This is
 compatibility bookkeeping only: it lets the mirror be restored when switching
 back and does not add `format` or `schema_version` to the legacy source.
 
+### Adding and removing sources
+
+A book always has at least one source. Creating a book creates an empty one and
+points `current_source` at it, and deleting a book's only source leaves an empty
+plain-text source behind rather than a book with nothing to read. That
+replacement is a new source with its own ID, so `book.json.format` follows it to
+`txt` and it carries no assets.
+
+Deleting the current source hands `current_source` over to the newest surviving
+source before the folder is removed, so the pointer is never left naming
+something that is gone. Deleting any other source does not touch `book.json` at
+all.
+
+The shelf is also edited by hand and by sync tools, so `current_source` can still
+end up naming a source that no longer exists. Reads tolerate this: the server
+serves the newest source the book does have and logs a warning. It does **not**
+rewrite `book.json` — the filesystem stays the source of truth, and only an
+explicit write may change it. A book with no source at all is reported as a
+missing source, not a server error.
+
 ### Source assets
 
 Illustrations live in an `assets/` directory beside the text that references

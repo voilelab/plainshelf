@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/util"
 )
 
 // testdataFS opens the committed testdata tree read-only. Write-path tests must
@@ -1083,12 +1084,40 @@ func TestOpenBookAcceptsFutureSchemaVersionAsReadOnly(t *testing.T) {
 	}
 }
 
+// writeFutureBookSource plants a source this build can write next to a book.json
+// it cannot, so a refused DeleteSource can be shown to leave the text alone.
+func writeFutureBookSource(t *testing.T, metaPath, sourceID string) {
+	t.Helper()
+
+	sourceDir := path.Join(path.Dir(metaPath), SourcesFolder, sourceID)
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("Failed to create source dir: %v", err)
+	}
+	if err := os.WriteFile(path.Join(sourceDir, SourceFile), []byte("source body"), 0o644); err != nil {
+		t.Fatalf("Failed to write source body: %v", err)
+	}
+
+	raw, err := json.Marshal(&SourceMeta{
+		SchemaVersion: SourceMetaSchemaVersion,
+		ID:            sourceID,
+		CreatedAt:     util.JSONTime(time.Now()),
+		Format:        BookFormatText,
+	})
+	if err != nil {
+		t.Fatalf("Failed to marshal source meta: %v", err)
+	}
+	if err := os.WriteFile(path.Join(sourceDir, SourceMetaFile), raw, 0o644); err != nil {
+		t.Fatalf("Failed to write source meta: %v", err)
+	}
+}
+
 // Every write path must refuse a book.json produced by a newer build, and the
 // refusal must leave that file byte-for-byte intact. What differs per path is
 // only what else must stay untouched, so each case carries its own setup and
 // its own extra check; the shared skeleton is stated once here.
 func TestWritePathsRejectFutureSchemaVersion(t *testing.T) {
 	const coverName = "cover.png"
+	const futureSourceID = "20260315-a1"
 	originalCover := []byte("original-cover-bytes")
 
 	writeCover := func(t *testing.T, metaPath string) {
@@ -1148,6 +1177,37 @@ func TestWritePathsRejectFutureSchemaVersion(t *testing.T) {
 				locationPath := path.Join(path.Dir(metaPath), CurrentVersionLocationFile)
 				if _, err := os.Stat(locationPath); !os.IsNotExist(err) {
 					t.Errorf("Rejected SetCurrentSource must not write %s", CurrentVersionLocationFile)
+				}
+			},
+		},
+		{
+			// Deleting the current source hands the pointer over first, which
+			// writes book.json, so the whole operation has to be refused — and
+			// refusing it must leave the source's text where it was.
+			name: "DeleteSource",
+			setup: func(t *testing.T, metaPath string) {
+				t.Helper()
+				writeFutureBookSource(t, metaPath, futureSourceID)
+
+				raw, err := os.ReadFile(metaPath)
+				if err != nil {
+					t.Fatalf("Failed to read book.json: %v", err)
+				}
+				withCurrent := strings.Replace(string(raw), `"current_source": ""`,
+					`"current_source": "`+futureSourceID+`"`, 1)
+				if withCurrent == string(raw) {
+					t.Fatalf("Fixture did not contain an empty current_source field to patch")
+				}
+				if err := os.WriteFile(metaPath, []byte(withCurrent), 0o644); err != nil {
+					t.Fatalf("Failed to write book.json: %v", err)
+				}
+			},
+			mutate: func(b *Book) error { return b.DeleteSource(futureSourceID) },
+			check: func(t *testing.T, metaPath string) {
+				t.Helper()
+				sourcePath := path.Join(path.Dir(metaPath), SourcesFolder, futureSourceID, SourceFile)
+				if _, err := os.Stat(sourcePath); err != nil {
+					t.Errorf("Rejected DeleteSource must not remove the source: %v", err)
 				}
 			},
 		},
@@ -1349,5 +1409,340 @@ func TestSetMetaFormat(t *testing.T) {
 	}
 	if got := book.GetMeta().Format; got == "epub" {
 		t.Fatal("the rejected format was persisted")
+	}
+}
+
+// makeSourceLegacy rewrites a source's meta.json to the pre-versioning shape:
+// no schema_version and no format, the state that makes book.json the authority
+// for how the text is read.
+func makeSourceLegacy(t *testing.T, rootFS fsutil.FS, source *Source) {
+	t.Helper()
+
+	meta := source.GetMeta()
+	meta.SchemaVersion = 0
+	meta.Format = ""
+	raw, err := json.Marshal(meta)
+	if err != nil {
+		t.Fatalf("Marshal legacy source meta: %v", err)
+	}
+	if err := rootFS.WriteFile(path.Join(source.FolderPath(), SourceMetaFile), raw); err != nil {
+		t.Fatalf("Write legacy source meta: %v", err)
+	}
+}
+
+// breakCurrentSource removes the book's current source behind DeleteSource's
+// back, reproducing the dangling current_source a hand edit or a sync tool can
+// leave. book.json keeps naming the source that is now gone.
+func breakCurrentSource(t *testing.T, book *Book, rootFS fsutil.FS) string {
+	t.Helper()
+
+	danglingID := book.CurrentSource()
+	if danglingID == "" {
+		t.Fatal("breakCurrentSource needs a book with a current source")
+	}
+	if err := rootFS.RemoveAll(path.Join(book.FolderPath(), SourcesFolder, danglingID)); err != nil {
+		t.Fatalf("Failed to remove current source folder: %v", err)
+	}
+	if book.CurrentSource() != danglingID {
+		t.Fatalf("current_source = %q, want it left dangling at %q", book.CurrentSource(), danglingID)
+	}
+	return danglingID
+}
+
+func TestDeleteCurrentSourcePromotesLatestSurvivor(t *testing.T) {
+	book, _, _ := newTestBook(t, "delete-current-book", "Delete Current")
+
+	var ids []string
+	for i := range 3 {
+		source, err := book.NewSource(bytes.NewBufferString(fmt.Sprintf("body %d", i)))
+		if err != nil {
+			t.Fatalf("NewSource %d: %v", i, err)
+		}
+		ids = append(ids, source.ID())
+	}
+	// Delete the middle one so "promote the newest" is distinguishable from
+	// both "promote the first" and "promote whatever ReadDir returned first".
+	if err := book.SetCurrentSource(ids[1]); err != nil {
+		t.Fatalf("SetCurrentSource: %v", err)
+	}
+
+	if err := book.DeleteSource(ids[1]); err != nil {
+		t.Fatalf("DeleteSource: %v", err)
+	}
+
+	newest := ids[len(ids)-1]
+	if got := book.CurrentSource(); got != newest {
+		t.Errorf("current_source = %q, want the newest survivor %q", got, newest)
+	}
+	if _, err := book.GetSource(book.CurrentSource()); err != nil {
+		t.Errorf("Promoted source is not openable: %v", err)
+	}
+	if _, err := book.GetSource(ids[1]); !errors.Is(err, ErrSourceNotFound) {
+		t.Errorf("GetSource(deleted) error = %v, want ErrSourceNotFound", err)
+	}
+}
+
+func TestDeleteLastSourceCreatesEmptyReplacement(t *testing.T) {
+	book, _, _ := newTestBook(t, "delete-last-book", "Delete Last")
+
+	source, err := book.NewSourceWithOptions(bytes.NewBufferString("# Only\n\n## One\nBody"),
+		NewSourceOptions{Format: BookFormatMarkdown})
+	if err != nil {
+		t.Fatalf("NewSourceWithOptions: %v", err)
+	}
+	if err := book.SetCurrentSource(source.ID()); err != nil {
+		t.Fatalf("SetCurrentSource: %v", err)
+	}
+
+	if err := book.DeleteSource(source.ID()); err != nil {
+		t.Fatalf("DeleteSource: %v", err)
+	}
+
+	sources, err := book.ListSource()
+	if err != nil {
+		t.Fatalf("ListSource: %v", err)
+	}
+	if len(sources) != 1 {
+		t.Fatalf("ListSource returned %d sources, want the empty replacement only", len(sources))
+	}
+	replacement := sources[0]
+	if replacement.ID() == source.ID() {
+		t.Errorf("Replacement reused the deleted source ID %q", source.ID())
+	}
+	if got := book.CurrentSource(); got != replacement.ID() {
+		t.Errorf("current_source = %q, want the replacement %q", got, replacement.ID())
+	}
+
+	content, err := replacement.Open()
+	if err != nil {
+		t.Fatalf("Open replacement: %v", err)
+	}
+	defer content.Close()
+	body, err := io.ReadAll(content)
+	if err != nil {
+		t.Fatalf("Read replacement: %v", err)
+	}
+	if len(body) != 0 {
+		t.Errorf("Replacement content = %q, want it empty", body)
+	}
+	// The replacement really is an empty plain-text source, so the book.json
+	// compatibility mirror has to follow it away from Markdown.
+	if got := book.GetMeta().Format; got != BookFormatText {
+		t.Errorf("book format mirror = %q, want %q", got, BookFormatText)
+	}
+}
+
+func TestDeleteNonCurrentSourceLeavesBookMetaUntouched(t *testing.T) {
+	book, _, tmpLib := newTestBook(t, "delete-other-book", "Delete Other")
+
+	keep, err := book.NewSource(bytes.NewBufferString("keep"))
+	if err != nil {
+		t.Fatalf("NewSource keep: %v", err)
+	}
+	drop, err := book.NewSource(bytes.NewBufferString("drop"))
+	if err != nil {
+		t.Fatalf("NewSource drop: %v", err)
+	}
+	if err := book.SetCurrentSource(keep.ID()); err != nil {
+		t.Fatalf("SetCurrentSource: %v", err)
+	}
+
+	metaPath := path.Join(tmpLib, book.FolderPath(), BookMetaFile)
+	before, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("Read book.json: %v", err)
+	}
+
+	if err := book.DeleteSource(drop.ID()); err != nil {
+		t.Fatalf("DeleteSource: %v", err)
+	}
+
+	after, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("Re-read book.json: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Errorf("Deleting a non-current source rewrote book.json:\nbefore %s\nafter  %s", before, after)
+	}
+	if got := book.CurrentSource(); got != keep.ID() {
+		t.Errorf("current_source = %q, want it unchanged at %q", got, keep.ID())
+	}
+}
+
+func TestDeleteCurrentSourceClearsLegacyFormatSnapshot(t *testing.T) {
+	book, rootFS, _ := newTestBook(t, "delete-legacy-book", "Delete Legacy")
+
+	legacy, err := book.NewSource(bytes.NewBufferString("plain legacy text"))
+	if err != nil {
+		t.Fatalf("NewSource legacy: %v", err)
+	}
+	makeSourceLegacy(t, rootFS, legacy)
+	if err := book.SetCurrentSource(legacy.ID()); err != nil {
+		t.Fatalf("SetCurrentSource legacy: %v", err)
+	}
+
+	derived, err := book.NewSourceWithOptions(bytes.NewBufferString("# Derived"),
+		NewSourceOptions{Format: BookFormatMarkdown})
+	if err != nil {
+		t.Fatalf("NewSourceWithOptions derived: %v", err)
+	}
+	if err := book.SetCurrentSource(derived.ID()); err != nil {
+		t.Fatalf("SetCurrentSource derived: %v", err)
+	}
+	if got := book.GetMeta().LegacySourceFormats[legacy.ID()]; got != BookFormatText {
+		t.Fatalf("legacy format snapshot = %q, want it recorded as txt", got)
+	}
+
+	// Deleting the derived source hands current back to the legacy source, which
+	// still needs its snapshot; deleting the legacy source afterwards must drop it.
+	if err := book.DeleteSource(derived.ID()); err != nil {
+		t.Fatalf("DeleteSource derived: %v", err)
+	}
+	if got := book.CurrentSource(); got != legacy.ID() {
+		t.Fatalf("current_source = %q, want the legacy source %q", got, legacy.ID())
+	}
+	if got := book.GetMeta().Format; got != BookFormatText {
+		t.Errorf("book format mirror = %q, want the legacy snapshot %q restored", got, BookFormatText)
+	}
+
+	if err := book.DeleteSource(legacy.ID()); err != nil {
+		t.Fatalf("DeleteSource legacy: %v", err)
+	}
+	if _, ok := book.GetMeta().LegacySourceFormats[legacy.ID()]; ok {
+		t.Errorf("legacy format snapshot survived deletion of its source")
+	}
+
+	reopened, err := openBook(rootFS, newLoggerForTest(), book.FolderPath())
+	if err != nil {
+		t.Fatalf("openBook: %v", err)
+	}
+	if _, ok := reopened.GetMeta().LegacySourceFormats[legacy.ID()]; ok {
+		t.Errorf("legacy format snapshot was not persisted as removed")
+	}
+}
+
+func TestListSourceReturnsIDsInAscendingOrder(t *testing.T) {
+	book, _, _ := newTestBook(t, "sorted-source-book", "Sorted Sources")
+
+	for i := range 4 {
+		if _, err := book.NewSource(bytes.NewBufferString(fmt.Sprintf("body %d", i))); err != nil {
+			t.Fatalf("NewSource %d: %v", i, err)
+		}
+	}
+
+	sources, err := book.ListSource()
+	if err != nil {
+		t.Fatalf("ListSource: %v", err)
+	}
+	for i := 1; i < len(sources); i++ {
+		if sources[i-1].ID() >= sources[i].ID() {
+			t.Fatalf("ListSource is not ascending: %q came before %q", sources[i-1].ID(), sources[i].ID())
+		}
+	}
+}
+
+func TestResolveCurrentSourceFallsBackToLatest(t *testing.T) {
+	book, rootFS, tmpLib := newTestBook(t, "dangling-book", "Dangling Pointer")
+
+	survivor, err := book.NewSource(bytes.NewBufferString("survivor body"))
+	if err != nil {
+		t.Fatalf("NewSource survivor: %v", err)
+	}
+	broken, err := book.NewSource(bytes.NewBufferString("doomed body"))
+	if err != nil {
+		t.Fatalf("NewSource broken: %v", err)
+	}
+	if err := book.SetCurrentSource(broken.ID()); err != nil {
+		t.Fatalf("SetCurrentSource: %v", err)
+	}
+
+	metaPath := path.Join(tmpLib, book.FolderPath(), BookMetaFile)
+	before, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("Read book.json: %v", err)
+	}
+
+	danglingID := breakCurrentSource(t, book, rootFS)
+
+	resolved, err := book.ResolveCurrentSource()
+	if err != nil {
+		t.Fatalf("ResolveCurrentSource: %v", err)
+	}
+	if resolved.ID() != survivor.ID() {
+		t.Errorf("Resolved source = %q, want the surviving source %q", resolved.ID(), survivor.ID())
+	}
+
+	// A read must never repair the shelf; only an explicit write may.
+	after, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("Re-read book.json: %v", err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Errorf("ResolveCurrentSource rewrote book.json:\nbefore %s\nafter  %s", before, after)
+	}
+	if got := book.CurrentSource(); got != danglingID {
+		t.Errorf("current_source = %q, want it left at %q", got, danglingID)
+	}
+}
+
+func TestResolveCurrentSourceFallsBackOnUnreadableSource(t *testing.T) {
+	book, rootFS, _ := newTestBook(t, "corrupt-source-book", "Corrupt Source")
+
+	survivor, err := book.NewSource(bytes.NewBufferString("survivor body"))
+	if err != nil {
+		t.Fatalf("NewSource survivor: %v", err)
+	}
+	broken, err := book.NewSource(bytes.NewBufferString("broken body"))
+	if err != nil {
+		t.Fatalf("NewSource broken: %v", err)
+	}
+	if err := book.SetCurrentSource(broken.ID()); err != nil {
+		t.Fatalf("SetCurrentSource: %v", err)
+	}
+
+	// A half-removed folder fails in openSource, which does not report
+	// ErrSourceNotFound; the fallback must not depend on that sentinel.
+	if err := rootFS.Remove(path.Join(broken.FolderPath(), SourceMetaFile)); err != nil {
+		t.Fatalf("Remove source meta: %v", err)
+	}
+
+	resolved, err := book.ResolveCurrentSource()
+	if err != nil {
+		t.Fatalf("ResolveCurrentSource: %v", err)
+	}
+	if resolved.ID() != survivor.ID() {
+		t.Errorf("Resolved source = %q, want the readable source %q", resolved.ID(), survivor.ID())
+	}
+}
+
+func TestResolveCurrentSourceWithoutAnySource(t *testing.T) {
+	// A freshly created book has no sources/ folder at all, so listing reports
+	// fs.ErrNotExist rather than an empty list.
+	book, _, _ := newTestBook(t, "empty-book", "No Sources")
+
+	if _, err := book.ResolveCurrentSource(); !errors.Is(err, ErrSourceNotFound) {
+		t.Errorf("ResolveCurrentSource error = %v, want ErrSourceNotFound", err)
+	}
+}
+
+func TestResolveCurrentSourceWithUnsetPointer(t *testing.T) {
+	book, _, _ := newTestBook(t, "unset-current-book", "Unset Current")
+
+	source, err := book.NewSource(bytes.NewBufferString("body"))
+	if err != nil {
+		t.Fatalf("NewSource: %v", err)
+	}
+	if book.CurrentSource() != "" {
+		t.Fatalf("Expected an unset current_source, got %q", book.CurrentSource())
+	}
+
+	// An empty pointer fails path validation rather than reporting a missing
+	// source, so it has to be answered before GetSource is asked.
+	resolved, err := book.ResolveCurrentSource()
+	if err != nil {
+		t.Fatalf("ResolveCurrentSource: %v", err)
+	}
+	if resolved.ID() != source.ID() {
+		t.Errorf("Resolved source = %q, want %q", resolved.ID(), source.ID())
 	}
 }

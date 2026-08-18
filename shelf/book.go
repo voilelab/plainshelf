@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"maps"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -575,9 +576,83 @@ func (b *Book) GetSource(sourceID string) (*Source, error) {
 	return source, nil
 }
 
+// ResolveCurrentSource opens the source a reader should be served, tolerating a
+// current_source pointer that no longer resolves. A shelf is edited by hand and
+// by sync tools, so the pointer can name a source that was removed or damaged
+// outside this build; falling back to the newest surviving source keeps such a
+// book readable. This is a read path: it never repairs book.json, because the
+// filesystem stays the source of truth and only an explicit write may change it.
+func (b *Book) ResolveCurrentSource() (*Source, error) {
+	// GetSource("") fails path-segment validation rather than reporting a
+	// missing source, so an unset pointer is answered before asking for it.
+	if currentID := b.CurrentSource(); currentID != "" {
+		source, err := b.GetSource(currentID)
+		if err == nil {
+			return source, nil
+		}
+		// A half-removed or unreadable source folder fails in openSource and is
+		// not ErrSourceNotFound; for a reader every one of those means the same
+		// thing, so the reason is logged and the fallback runs regardless.
+		b.logger.Warn("current source is unusable, falling back to the newest source",
+			"book", b.folderPath, "current_source", currentID, "error", err)
+	}
+
+	sources, err := b.ListSource()
+	if err != nil {
+		// A book that never had a source has no sources/ folder at all, so this
+		// reports fs.ErrNotExist rather than an empty list. That is "nothing to
+		// serve", not a broken shelf, so it must not be reported as one.
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, util.Errorf("%w", ErrSourceNotFound)
+		}
+		return nil, util.Errorf("%w", err)
+	}
+	if len(sources) == 0 {
+		return nil, util.Errorf("%w", ErrSourceNotFound)
+	}
+
+	return sources[len(sources)-1], nil
+}
+
+// latestSourceExcluding returns the newest source that is not excludeID, or nil
+// when the book has no other source. ListSource sorts by ID, but the choice is
+// made explicitly here so it does not silently depend on that.
+func (b *Book) latestSourceExcluding(excludeID string) (*Source, error) {
+	sources, err := b.ListSource()
+	if err != nil {
+		// A missing sources/ folder means there is nothing to promote, which is
+		// the same answer as an empty list.
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, util.Errorf("%w", err)
+	}
+
+	var latest *Source
+	for _, source := range sources {
+		if source.ID() == excludeID {
+			continue
+		}
+		if latest == nil || source.ID() > latest.ID() {
+			latest = source
+		}
+	}
+
+	return latest, nil
+}
+
 func (b *Book) DeleteSource(sourceID string) error {
 	if err := validateSourceID(sourceID); err != nil {
 		return util.Errorf("%w", err)
+	}
+
+	deletingCurrent := sourceID == b.CurrentSource()
+	if deletingCurrent {
+		// The current-source branch rewrites book.json, so the book-level guard
+		// has to run before anything is removed from disk.
+		if err := b.EnsureWritable(); err != nil {
+			return util.Errorf("%w", err)
+		}
 	}
 
 	sourcePath := path.Join(b.folderPath, SourcesFolder, sourceID)
@@ -598,14 +673,79 @@ func (b *Book) DeleteSource(sourceID string) error {
 		return util.Errorf("%w", err)
 	}
 
+	// Deleting the active source must not leave current_source dangling, which
+	// would make the book unreadable. Hand the pointer over first and only then
+	// remove the folder: SetCurrentSource snapshots the outgoing source's legacy
+	// format by reading it, a replacement created after the removal could reuse
+	// the freed ID within the same second, and a failure here leaves the book
+	// pointing at a source that exists rather than at one that does not.
+	if deletingCurrent {
+		if err := b.handOverCurrentSource(sourceID); err != nil {
+			return util.Errorf("%w", err)
+		}
+	}
+
 	err = b.root.RemoveAll(sourcePath)
 	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	if deletingCurrent {
+		if err := b.forgetLegacySourceFormat(sourceID); err != nil {
+			return util.Errorf("%w", err)
+		}
+	}
+
+	return nil
+}
+
+// handOverCurrentSource points current_source at the newest source other than
+// leavingID. A book always keeps at least one source — NewBookWith creates an
+// empty one — so deleting the last source leaves an empty replacement behind
+// instead of a book with nothing to read.
+func (b *Book) handOverCurrentSource(leavingID string) error {
+	successor, err := b.latestSourceExcluding(leavingID)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	successorID := ""
+	if successor != nil {
+		successorID = successor.ID()
+	} else {
+		replacement, err := b.NewSource(nil)
+		if err != nil {
+			return util.Errorf("%w", err)
+		}
+		successorID = replacement.ID()
+	}
+
+	if err := b.SetCurrentSource(successorID); err != nil {
 		return util.Errorf("%w", err)
 	}
 
 	return nil
 }
 
+// forgetLegacySourceFormat drops the compatibility snapshot of a source that no
+// longer exists. SetMeta deliberately restores this map, so the internal setter
+// is the only way to remove an entry.
+func (b *Book) forgetLegacySourceFormat(sourceID string) error {
+	if _, ok := b.meta.LegacySourceFormats[sourceID]; !ok {
+		return nil
+	}
+
+	meta := b.GetMeta()
+	delete(meta.LegacySourceFormats, sourceID)
+
+	return b.setMeta(meta)
+}
+
+// ListSource returns every source of the book, sorted by ID in ascending
+// order. The order is this method's own contract: both fsutil.FS
+// implementations happen to return sorted directory entries today, but the
+// interface does not promise it, and the source list UI and the current-source
+// fallback both depend on it.
 func (b *Book) ListSource() ([]*Source, error) {
 	sourcesPath := path.Join(b.folderPath, SourcesFolder)
 
@@ -639,6 +779,10 @@ func (b *Book) ListSource() ([]*Source, error) {
 
 		sources = append(sources, source)
 	}
+
+	slices.SortFunc(sources, func(a, c *Source) int {
+		return strings.Compare(a.ID(), c.ID())
+	})
 
 	return sources, nil
 }
