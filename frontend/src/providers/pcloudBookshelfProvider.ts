@@ -655,6 +655,16 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     return pcloudCoverUrl(bookId);
   }
 
+  /**
+   * pcloudCoverUrl() is an internal reference this provider resolves itself,
+   * not an address the browser can fetch. Reaching this backend goes through
+   * the mobile shell today, which would ask for a blob anyway; declaring it
+   * here keeps the reason attached to the backend that has it.
+   */
+  coversMustBeFetchedAsBlob(): boolean {
+    return true;
+  }
+
   // --- layers --------------------------------------------------------------
 
   listLayers(): Promise<string[]> {

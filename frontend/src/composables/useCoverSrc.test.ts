@@ -3,21 +3,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import bookcover from '@/assets/bookcover.svg';
 
-const { getBookCoverMock, getBookCoverUrlMock, isMobileRuntimeMock } = vi.hoisted(() => ({
-  getBookCoverMock: vi.fn(),
-  getBookCoverUrlMock: vi.fn(),
-  isMobileRuntimeMock: vi.fn()
-}));
+const { getBookCoverMock, getBookCoverUrlMock, coversMustBeFetchedAsBlobMock } = vi.hoisted(
+  () => ({
+    getBookCoverMock: vi.fn(),
+    getBookCoverUrlMock: vi.fn(),
+    coversMustBeFetchedAsBlobMock: vi.fn()
+  })
+);
 
+// The composable now asks the provider what its cover URL is good for, so the
+// test describes a provider rather than a runtime.
 vi.mock('@/providers', () => ({
   getBookshelfProvider: () => ({
     getBookCover: getBookCoverMock,
-    getBookCoverUrl: getBookCoverUrlMock
+    getBookCoverUrl: getBookCoverUrlMock,
+    coversMustBeFetchedAsBlob: coversMustBeFetchedAsBlobMock
   })
-}));
-
-vi.mock('@/providers/runtime', () => ({
-  isMobileRuntime: isMobileRuntimeMock
 }));
 
 const { useCoverSrc } = await import('./useCoverSrc');
@@ -30,7 +31,7 @@ describe('useCoverSrc', () => {
   beforeEach(() => {
     getBookCoverMock.mockReset();
     getBookCoverUrlMock.mockReset();
-    isMobileRuntimeMock.mockReset();
+    coversMustBeFetchedAsBlobMock.mockReset();
   });
 
   afterEach(() => {
@@ -38,7 +39,7 @@ describe('useCoverSrc', () => {
   });
 
   it('mobile: resolves src to a blob: object URL fetched through the provider', async () => {
-    isMobileRuntimeMock.mockReturnValue(true);
+    coversMustBeFetchedAsBlobMock.mockReturnValue(true);
     getBookCoverMock.mockResolvedValue(new Blob(['fake-cover-bytes'], { type: 'image/png' }));
 
     const scope = effectScope();
@@ -61,7 +62,7 @@ describe('useCoverSrc', () => {
   });
 
   it('desktop: src passes through coverUrl unchanged, no blob is created', async () => {
-    isMobileRuntimeMock.mockReturnValue(false);
+    coversMustBeFetchedAsBlobMock.mockReturnValue(false);
 
     const coverUrl = 'https://example.com/book-desktop-1/cover.jpg';
     const scope = effectScope();
@@ -80,7 +81,7 @@ describe('useCoverSrc', () => {
   });
 
   it('cacheKey change triggers a refetch (mobile) and yields a fresh object URL', async () => {
-    isMobileRuntimeMock.mockReturnValue(true);
+    coversMustBeFetchedAsBlobMock.mockReturnValue(true);
     getBookCoverMock
       .mockResolvedValueOnce(new Blob(['v1'], { type: 'image/png' }))
       .mockResolvedValueOnce(new Blob(['v2'], { type: 'image/png' }));
@@ -114,7 +115,7 @@ describe('useCoverSrc', () => {
   });
 
   it('dispose releases the object URL only once every consumer with the same key has disposed', async () => {
-    isMobileRuntimeMock.mockReturnValue(true);
+    coversMustBeFetchedAsBlobMock.mockReturnValue(true);
     getBookCoverMock.mockResolvedValue(new Blob(['shared'], { type: 'image/png' }));
     const revokeSpy = vi.spyOn(URL, 'revokeObjectURL');
 
@@ -150,7 +151,7 @@ describe('useCoverSrc', () => {
   });
 
   it('falls back to bookcover when the cover fetch fails (mobile)', async () => {
-    isMobileRuntimeMock.mockReturnValue(true);
+    coversMustBeFetchedAsBlobMock.mockReturnValue(true);
     getBookCoverMock.mockRejectedValue(new Error('network error'));
 
     const scope = effectScope();
@@ -171,7 +172,7 @@ describe('useCoverSrc', () => {
   });
 
   it('handleError resets src back to bookcover', async () => {
-    isMobileRuntimeMock.mockReturnValue(true);
+    coversMustBeFetchedAsBlobMock.mockReturnValue(true);
     getBookCoverMock.mockResolvedValue(new Blob(['ok'], { type: 'image/png' }));
 
     const scope = effectScope();
@@ -189,6 +190,30 @@ describe('useCoverSrc', () => {
 
     result.handleError();
     expect(result.src.value).toBe(bookcover);
+
+    scope.stop();
+  });
+
+  it('passes the URL through when the provider does not declare the capability', async () => {
+    // Absent, not false: server and desktop providers never define the method,
+    // and the composable reaches it as an optional call. Returning undefined
+    // here is what those providers actually look like.
+    coversMustBeFetchedAsBlobMock.mockReturnValue(undefined);
+    getBookCoverUrlMock.mockReturnValue('http://localhost:20000/api/shelves/s/books/b/cover');
+
+    const scope = effectScope();
+    let src!: { value: string };
+    scope.run(() => {
+      ({ src } = useCoverSrc(
+        () => 'b',
+        () => 'https://example.test/other.jpg'
+      ));
+    });
+    await nextTick();
+    await flush();
+
+    expect(src.value).toBe('https://example.test/other.jpg');
+    expect(getBookCoverMock).not.toHaveBeenCalled();
 
     scope.stop();
   });

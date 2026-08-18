@@ -1,6 +1,5 @@
 import { onScopeDispose, ref, watch, type Ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
-import { isMobileRuntime } from '@/providers/runtime';
 import { acquireObjectUrl, releaseObjectUrl } from '@/composables/objectUrlCache';
 import bookcover from '@/assets/bookcover.svg';
 
@@ -26,13 +25,13 @@ function isShelfCoverApiUrl(url: string): boolean {
  * (same string when `cacheKey` is unset — this only matters for adding
  * cache-busting after a cover upload, see BookCover.vue).
  *
- * Mobile (Capacitor native, or `?mobile-shell-preview=1`): a plain `<img
- * src="http://...">` request is issued by the WebView directly and bypasses
- * CapacitorHttp, which trips mixed-content blocking against the
- * `https://localhost` origin. Fetch the cover through the bookshelf
- * provider instead (which goes through CapacitorHttp on native, and reuses
- * the offline cover cache when the book is downloaded) and expose it as a
- * `blob:` object URL.
+ * A provider that reports coversMustBeFetchedAsBlob(): the cover is fetched
+ * through the provider and exposed as a `blob:` object URL instead. That is
+ * the mobile shell, where a plain `<img src="http://...">` is issued by the
+ * WebView directly and bypasses CapacitorHttp — tripping mixed-content
+ * blocking against the `https://localhost` origin — and pCloud, whose cover
+ * URL is an internal reference rather than a fetchable address. Going through
+ * the provider also reuses the offline cover cache for a downloaded book.
  */
 export function useCoverSrc(
   bookId: () => string,
@@ -62,9 +61,10 @@ export function useCoverSrc(
       return;
     }
 
-    if (!isMobileRuntime()) {
+    const provider = getBookshelfProvider();
+    if (!provider.coversMustBeFetchedAsBlob?.()) {
       src.value = isShelfCoverApiUrl(url)
-        ? getBookshelfProvider().getBookCoverUrl(bookId(), cacheKeyGetter())
+        ? provider.getBookCoverUrl(bookId(), cacheKeyGetter())
         : url;
       return;
     }

@@ -62,6 +62,19 @@ export interface BookshelfReader {
   getBookCover(bookId: string): Promise<Blob>;
   getBookCoverUrl(bookId: string, cacheKey?: number): string;
 
+  /**
+   * Whether getBookCoverUrl() produces something an `<img src>` cannot load on
+   * its own, so the cover has to be fetched through getBookCover() and handed
+   * to the element as a `blob:` URL instead.
+   *
+   * True for a backend whose cover URL is not a plain fetchable address — the
+   * pCloud provider returns an internal `pcloud:` reference — and for the
+   * mobile shell, where a direct `<img src="http://...">` is issued by the
+   * WebView itself, bypassing CapacitorHttp and tripping mixed-content
+   * blocking against the `https://localhost` origin.
+   */
+  coversMustBeFetchedAsBlob?(): boolean;
+
   /** A read-only backend may answer these with an empty result rather than refuse. */
   getDuplicateBookGroups(): Promise<string[][]>;
   listTrashedBooks(): Promise<TrashedBook[]>;
