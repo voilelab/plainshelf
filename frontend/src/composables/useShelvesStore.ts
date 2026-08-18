@@ -43,10 +43,10 @@ async function fetchShelves(options?: { allowPersistedFallback?: boolean }): Pro
     // offline-cached books stay reachable; the error is still surfaced in the
     // sidebar. The connect page opts out: while validating a newly typed
     // server, a failed fetch must not resurrect a shelf that belongs to the
-    // previous server.
-    const provider = getBookshelfProvider();
+    // previous server — so the provider is asked for only when the fallback is
+    // wanted, since reaching for it is what creates it on first use.
     const persistedShelfID = allowPersistedFallback
-      ? (provider.getPersistedShelfID?.() ?? '')
+      ? (getBookshelfProvider().getPersistedShelfID?.() ?? '')
       : '';
     if (persistedShelfID) {
       selectedShelfID.value = persistedShelfID;
