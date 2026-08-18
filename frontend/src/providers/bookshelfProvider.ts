@@ -86,6 +86,18 @@ export interface BookshelfReader {
    */
   supportsServerMode?(): boolean;
 
+  /**
+   * Whether asking for character counts alongside a book listing is affordable
+   * on this backend.
+   *
+   * Absent means yes — a PlainShelf server computes them from its own shelf
+   * cache. pCloud answers false: it has no server to aggregate, so it would
+   * have to fetch every book's source meta.json over the network to answer one
+   * listing. That is a property of the backend, not of the device asking, so a
+   * phone pointed at a self-hosted server can offer the filter.
+   */
+  supportsCharCountListing?(): boolean;
+
   /** A read-only backend may answer these with an empty result rather than refuse. */
   getDuplicateBookGroups(): Promise<string[][]>;
   listTrashedBooks(): Promise<TrashedBook[]>;

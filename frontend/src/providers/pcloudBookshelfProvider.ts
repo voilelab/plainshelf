@@ -670,6 +670,14 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     return false;
   }
 
+  /**
+   * Answering would cost one meta.json download per book, on a metered
+   * transport, for a filter the user may not use.
+   */
+  supportsCharCountListing(): boolean {
+    return false;
+  }
+
   // --- layers --------------------------------------------------------------
 
   listLayers(): Promise<string[]> {

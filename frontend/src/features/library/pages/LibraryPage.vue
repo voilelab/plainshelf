@@ -320,10 +320,14 @@ const downloadBatchStatusText = computed(() => {
 // only while a character-count range is actually set.
 const charCountIndex = useCharCountIndex();
 
-// Hidden on the mobile shell: its pCloud-backed provider has to read each
-// book's source meta.json over the network to answer includeCharCount, which is
-// why the maintenance page that used to own this filter was blocked there too.
-const charCountFilterSupported = computed(() => !isMobileRuntime());
+// Hidden on a backend that cannot afford the counts: pCloud would have to read
+// each book's source meta.json over the network to answer includeCharCount,
+// which is why the maintenance page that used to own this filter was blocked
+// there too. A phone pointed at a self-hosted server is not in that position,
+// so it keeps the filter.
+const charCountFilterSupported = computed(
+  () => getBookshelfProvider().supportsCharCountListing?.() !== false
+);
 
 async function reloadBooks(): Promise<void> {
   booksLoaded.value = false;

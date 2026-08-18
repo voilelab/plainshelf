@@ -909,3 +909,17 @@ describe('exported book cache', () => {
     expect(calls.download).toBe(1);
   });
 });
+
+describe('PCloudBookshelfProvider listing cost', () => {
+  // The filter is hidden here because answering costs one meta.json download
+  // per book on a metered transport — a property of this backend, not of the
+  // device asking. A phone pointed at a self-hosted server keeps the filter.
+  it('declares character-count listing unaffordable', () => {
+    const provider = new PCloudBookshelfProvider({
+      client: {} as ConstructorParameters<typeof PCloudBookshelfProvider>[0]['client'],
+      shelfRoot: '/plainshelf'
+    });
+
+    expect(provider.supportsCharCountListing()).toBe(false);
+  });
+});
