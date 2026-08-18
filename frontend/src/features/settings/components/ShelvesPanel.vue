@@ -189,8 +189,9 @@
 
   <!-- The export is written by whatever serves these shelves, so the panel
        belongs to the server and desktop shells and not to the mobile one,
-       which is the client that reads the file. -->
-  <section v-if="!isMobileEnv && serverSettingsEditable" class="panel settings-group">
+       which is the client that reads the file. serverSettingsEditable already
+       says exactly that: it is false on any client that cannot write. -->
+  <section v-if="serverSettingsEditable" class="panel settings-group">
     <h3>{{ t('settings.bookCache.title') }}</h3>
     <p class="setting-description">{{ t('settings.bookCache.description') }}</p>
 

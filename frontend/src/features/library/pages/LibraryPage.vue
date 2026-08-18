@@ -443,7 +443,7 @@ function submitBatchTrash(): void {
 
 async function startBatchDownload(): Promise<void> {
   const provider = getBookshelfProvider();
-  if (!isMobileEnv.value || !provider.downloadBook || downloadBatchRunning.value) return;
+  if (!provider.downloadBook || downloadBatchRunning.value) return;
   const targets = selectedBooks();
   if (targets.length === 0) return;
 

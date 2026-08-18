@@ -160,7 +160,7 @@ import { getReadingAction, resolveReadingPercent } from '@/features/library/util
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useOfflineDownload } from '@/composables/useOfflineDownload';
 import { useWriteAccess } from '@/composables/useWriteAccess';
-import { bookshelfWriter, getBookshelfProvider, isMobileRuntime } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { booksRouteForLayerPath, getLayerPath } from '@/utils/layers';
 import { useI18n } from '@/i18n';
 
@@ -251,7 +251,7 @@ const {
   remove: removeOfflineDownload
 } = useOfflineDownload(() => id.value);
 
-const showOfflineDownloadButton = computed(() => isMobileRuntime() && offlineDownloadSupported.value);
+const showOfflineDownloadButton = offlineDownloadSupported;
 const offlineDownloadDisabled = computed(() => offlineDownloadState.value === 'downloading');
 const offlineDownloadButtonLabel = computed(() => {
   switch (offlineDownloadState.value) {
@@ -315,7 +315,7 @@ function onRequestDelete(): void {
 watch(id, () => {
   dismissActionError();
   void fetchDetail();
-  if (isMobileRuntime()) {
+  if (offlineDownloadSupported.value) {
     void refreshOfflineDownload();
   }
 }, { immediate: true });

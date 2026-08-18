@@ -117,7 +117,7 @@
               </TooltipPortal>
             </TooltipRoot>
           </template>
-          <TooltipRoot v-if="isMobileEnv">
+          <TooltipRoot v-if="hasDownloadsStore">
             <TooltipTrigger as-child>
               <RouterLink
                 to="/downloads"
@@ -349,7 +349,7 @@
           </section>
         </template>
 
-        <template v-if="isMobileEnv">
+        <template v-if="hasDownloadsStore">
           <div class="sidebar-nav-divider" role="presentation"></div>
           <section class="sidebar-section" :aria-label="t('layout.downloads')">
             <nav class="sidebar-nav-list" :aria-label="t('layout.downloads')">
@@ -494,7 +494,7 @@ import DeleteModal from '@/components/DeleteModal.vue';
 import LayerTree from '@/components/LayerTree.vue';
 import RenameLayerModal from '@/components/RenameLayerModal.vue';
 import SidebarNavIcon from '@/components/SidebarNavIcon.vue';
-import { isMobileRuntime } from '@/providers';
+import { getBookshelfProvider } from '@/providers';
 import { useBookStore } from '@/composables/useBookStore';
 import { useLayerManagement } from '@/composables/useLayerManagement';
 import { useLayerStore } from '@/composables/useLayerStore';
@@ -525,10 +525,13 @@ const {
 const route = useRoute();
 const router = useRouter();
 
-// Matches the isMobileEnv pattern in SettingsPage.vue; runtime does not
-// change during a session, but a computed keeps it consistent with the
-// other environment checks used in the template.
-const isMobileEnv = computed(() => isMobileRuntime());
+// Both uses of this are the Downloads nav entry, so ask what that entry
+// actually needs — a provider that keeps downloads — rather than which
+// runtime we are on. Only MobileBookshelfProvider implements it, so this is
+// the same answer by a name that says why.
+const hasDownloadsStore = computed(() =>
+  Boolean(getBookshelfProvider().listDownloadedBookEntries)
+);
 const { books, loading, fetchBooks } = useBookStore();
 const { loading: layersLoading, error: layersError, loaded: layersLoaded, fetchLayers } = useLayerStore();
 const {
