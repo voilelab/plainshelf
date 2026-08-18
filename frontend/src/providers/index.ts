@@ -121,7 +121,7 @@ export type {
   BookshelfWriter,
   WritableBookshelfProvider
 } from './bookshelfProvider';
-export { isMobileRuntime, isWailsRuntime } from './runtime';
+export { isMobileRuntime, isMobileShellPreview, isWailsRuntime } from './runtime';
 export type { CachedBookManifest, MobileBookCache } from './mobileBookCache';
 export { InMemoryMobileBookCache } from './mobileBookCache';
 export { FilesystemMobileBookCache } from './filesystemMobileBookCache';

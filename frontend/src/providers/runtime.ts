@@ -34,6 +34,43 @@ export function isWailsRuntime(): boolean {
   );
 }
 
+// Desktop-browser preview of the mobile shell, mirroring the Wails
+// `?desktop-shell-preview=1` escape hatch above.
+//
+// Latched on first read: the flag lives in the URL, and an in-app `router.push`
+// (e.g. MobileConnectPage.onSave → '/books') drops the query — which would
+// otherwise silently disengage every mobile guard for the rest of the session
+// and leave the browser preview, and the e2e suite built on it, writable.
+// Native Android was never affected: Capacitor.isNativePlatform() ignores the
+// URL.
+//
+// One latch serves both readers below, so the runtime and the preview cannot
+// disagree about the same query string.
+let mobilePreview: boolean | undefined;
+
+function hasMobilePreviewFlag(): boolean {
+  if (mobilePreview === undefined) {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    const params = new URLSearchParams(window.location.search);
+    mobilePreview = params.get('mobile-shell-preview') === '1';
+  }
+  return mobilePreview;
+}
+
+/**
+ * Whether the mobile shell is being previewed in an ordinary browser rather
+ * than running natively.
+ *
+ * True only for `?mobile-shell-preview=1`; a native Capacitor shell is a mobile
+ * runtime but never a preview. That distinction is what keeps browser-only
+ * affordances — the e2e provider hooks in main.ts — out of shipped app builds.
+ */
+export function isMobileShellPreview(): boolean {
+  return hasMobilePreviewFlag();
+}
+
 function detectMobileRuntime(): boolean {
   if (typeof window === 'undefined') {
     return false;
@@ -46,19 +83,13 @@ function detectMobileRuntime(): boolean {
     return true;
   }
 
-  // Desktop-browser preview of the mobile shell, mirroring the Wails
-  // `?desktop-shell-preview=1` escape hatch above.
-  const params = new URLSearchParams(window.location.search);
-  return params.get('mobile-shell-preview') === '1';
+  return hasMobilePreviewFlag();
 }
 
-// Latched on first call rather than re-read per call. The runtime cannot change
-// within a page lifetime, but the preview flag lives in the URL, and an in-app
-// `router.push` (e.g. MobileConnectPage.onSave → '/books') drops the query —
-// which would otherwise silently disengage every mobile guard for the rest of
-// the session and leave the browser preview, and the e2e suite built on it,
-// writable. Native Android was never affected: Capacitor.isNativePlatform()
-// ignores the URL.
+// Latched on first call rather than re-read per call, so the runtime cannot
+// flip mid-session. The URL half of the decision is latched by
+// hasMobilePreviewFlag() above — see the reasoning there; this second latch
+// covers the Capacitor half, which is stable for a page lifetime anyway.
 //
 // Lazy rather than evaluated at module load so `window` is ready.
 let mobileRuntime: boolean | undefined;
