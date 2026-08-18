@@ -1,4 +1,5 @@
 import type { BookshelfProvider } from './bookshelfProvider';
+import type { DeviceDocumentStorage } from '@/storage/deviceDocument';
 
 /**
  * What a host shell contributes to the shared app.
@@ -20,6 +21,16 @@ export interface RuntimeShell {
    * anything it set up during installation.
    */
   createProvider(): BookshelfProvider;
+
+  /**
+   * Where this shell keeps a device-local document — the reading history and
+   * reading stats, which are per-device state and never sent to the shelf.
+   *
+   * Optional: a shell that is happy with the browser default does not implement
+   * it, and the stores fall back to localStorage. `path` is the shell-agnostic
+   * key each store already defines for itself.
+   */
+  createDeviceDocumentStorage?(path: string): DeviceDocumentStorage;
 }
 
 let shell: RuntimeShell | null = null;

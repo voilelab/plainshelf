@@ -1,7 +1,6 @@
 import { readDesktopReadHistory, writeDesktopReadHistory } from '@/api/desktop';
 import {
   createDesktopDocumentStorage,
-  createFilesystemDocumentStorage,
   createInMemoryDocumentStorage,
   createLocalStorageDocumentStorage,
   type DeviceDocumentStorage
@@ -32,13 +31,6 @@ export function createDesktopReadHistoryStorage(): ReadHistoryStorage {
 // every shelf: the document keys its shelves internally, using the same
 // buildDeviceDocumentKey the cache uses for its scope directory.
 export const MOBILE_READ_HISTORY_PATH = 'plainshelf-cache/read-history.json';
-
-/** Capacitor (Android) native shell. */
-export function createFilesystemReadHistoryStorage(
-  path: string = MOBILE_READ_HISTORY_PATH
-): ReadHistoryStorage {
-  return createFilesystemDocumentStorage(path);
-}
 
 /** Mock API mode and unit tests. */
 export function createInMemoryReadHistoryStorage(initial: string | null = null): ReadHistoryStorage {

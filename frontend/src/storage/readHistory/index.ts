@@ -3,7 +3,8 @@ import { hasDesktopReadHistoryBinding } from '@/api/desktop';
 import { mockBooks } from '@/api/mocks/books';
 // Imported from providers/runtime rather than the providers barrel: the barrel
 // pulls in the providers, which import this module.
-import { isMobileRuntime, isWailsRuntime } from '@/providers/runtime';
+import { isWailsRuntime } from '@/providers/runtime';
+import { getShell } from '@/providers/shell';
 import { buildDeviceDocumentKey, DeviceDocumentStore } from '@/storage/deviceDocument';
 import {
   createReadHistoryDocument,
@@ -16,8 +17,8 @@ import {
   type ReadHistoryDocument
 } from './document';
 import {
+  MOBILE_READ_HISTORY_PATH,
   createDesktopReadHistoryStorage,
-  createFilesystemReadHistoryStorage,
   createInMemoryReadHistoryStorage,
   createLocalStorageReadHistoryStorage,
   type ReadHistoryStorage
@@ -94,8 +95,12 @@ export function createReadHistoryStorage(): ReadHistoryStorage {
     return createDesktopReadHistoryStorage();
   }
 
-  if (isMobileRuntime()) {
-    return createFilesystemReadHistoryStorage();
+  // A shell that keeps documents somewhere other than the browser says so;
+  // the mobile one writes to app-private storage, which an Android WebView
+  // does not silently evict the way it may evict localStorage.
+  const fromShell = getShell()?.createDeviceDocumentStorage?.(MOBILE_READ_HISTORY_PATH);
+  if (fromShell) {
+    return fromShell;
   }
 
   return createLocalStorageReadHistoryStorage();

@@ -12,6 +12,7 @@ import {
 } from '@/providers/mobileConfig';
 import { PCloudBookshelfProvider } from '@/providers/pcloudBookshelfProvider';
 import { registerShell } from '@/providers/shell';
+import { createMobileDeviceDocumentStorage } from './deviceDocumentStorage';
 import { ServerBookshelfProvider } from '@/providers/serverBookshelfProvider';
 import { FilesystemShelfSnapshotStore } from '@/providers/shelfSnapshotStore';
 
@@ -56,6 +57,8 @@ export async function installMobileShell(): Promise<void> {
   await initMobileConfig();
 
   registerShell({
+    createDeviceDocumentStorage: createMobileDeviceDocumentStorage,
+
     createProvider: () =>
       // Persist downloads and reading progress across app restarts, in
       // Directory.Data: app-private files are exempt from the WebView's
