@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches:
-      - main
+      - dev
   pull_request:
 
 permissions:
@@ -145,3 +145,57 @@ jobs:
       - name: Run frontend E2E tests
         working-directory: e2e
         run: npm test
+
+  android:
+    name: Android build
+    runs-on: ubuntu-latest
+    needs: frontend
+    # Not a merge gate yet: this job is new, and its SDK/Gradle setup has not
+    # run often enough here to tell a real break from its own flakiness. Drop
+    # this line once it has been green across a week of ordinary PRs.
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # cap sync copies this into the Android project, so the APK is built from
+      # the same dist the other jobs test rather than a second build of it.
+      - name: Download frontend dist
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      # @capacitor/cli only; the web build is already downloaded above.
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Sync the web build into the Android project
+        working-directory: frontend
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: frontend/android
+        run: ./gradlew assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: plainshelf-debug-apk
+          path: frontend/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
