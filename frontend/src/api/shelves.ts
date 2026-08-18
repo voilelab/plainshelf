@@ -1,40 +1,9 @@
 import { buildShelfApiPath, fetchJson, getActiveShelfID, isMockApiMode, setActiveShelfID } from './client';
-import {
-  getActiveShelfEntry,
-  shelfEntryDisplayName,
-  shelfEntryTarget
-} from '@/providers/mobileConfig';
+import { getShell } from '@/providers/shell';
 
 export interface ShelfInfo {
   id: string;
   name: string;
-}
-
-/**
- * The one shelf the mobile shell is pointed at, or null off the mobile shell.
- *
- * The device keeps its own list of shelves — several servers and pCloud folders
- * side by side — and exactly one of them is active. There is nothing here for a
- * server to enumerate: the other entries are not shelves *of this shelf's*
- * server, and a pCloud entry is a folder the user named. So the app-wide shelf
- * list collapses to the active entry, synthesized from it.
- *
- * Keeping the `{id, name}` shape means the sidebar picker, the active-shelf
- * gate in the layouts and the library's shelf watcher all work unchanged. The
- * id is whatever mobileConfig set as the active shelf id — the server's shelf
- * id, or the pCloud folder path — so the device-local cache scope agrees.
- */
-export function activeMobileShelfInfo(): ShelfInfo | null {
-  const entry = getActiveShelfEntry();
-  if (!entry) {
-    return null;
-  }
-
-  const { shelfID } = shelfEntryTarget(entry);
-  if (!shelfID) {
-    return null;
-  }
-  return { id: shelfID, name: shelfEntryDisplayName(entry) };
 }
 
 const mockShelves: ShelfInfo[] = [
@@ -81,9 +50,9 @@ export async function listShelves(): Promise<ShelfInfo[]> {
   // Short-circuited here rather than at each call site so every consumer — the
   // shelves store, the reader layout, the sidebar — gets it for free and none
   // of them issues a request that has no server to answer it.
-  const mobileShelf = activeMobileShelfInfo();
-  if (mobileShelf) {
-    return [mobileShelf];
+  const shellShelf = getShell()?.activeShelfInfo?.();
+  if (shellShelf) {
+    return [shellShelf];
   }
 
   return listServerShelves();
