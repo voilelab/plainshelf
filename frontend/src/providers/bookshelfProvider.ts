@@ -75,6 +75,17 @@ export interface BookshelfReader {
    */
   coversMustBeFetchedAsBlob?(): boolean;
 
+  /**
+   * Whether there is a PlainShelf server behind this backend to report its
+   * `read_only` mode.
+   *
+   * Absent means yes — a server, desktop or mock client all have one, and that
+   * is the ordinary case. pCloud answers false: it is storage, not a server, so
+   * asking would be a request nothing can answer. Writes stay refused either
+   * way, by the provider's own missing write surface.
+   */
+  supportsServerMode?(): boolean;
+
   /** A read-only backend may answer these with an empty result rather than refuse. */
   getDuplicateBookGroups(): Promise<string[][]>;
   listTrashedBooks(): Promise<TrashedBook[]>;
@@ -104,17 +115,6 @@ export interface BookshelfReader {
    * the UI asks, because a wrapper always has the methods even when the backend
    * it wraps does not.
    */
-  /**
-   * Whether there is a PlainShelf server behind this backend to report its
-   * `read_only` mode.
-   *
-   * Absent means yes — a server, desktop or mock client all have one, and that
-   * is the ordinary case. pCloud answers false: it is storage, not a server, so
-   * asking would be a request nothing can answer. Writes stay refused either
-   * way, by the provider's own missing write surface.
-   */
-  supportsServerMode?(): boolean;
-
   supportsShelfRefresh?(): boolean;
   refreshShelf?(): Promise<void>;
   getShelfFetchedAt?(): Promise<number | null>;
