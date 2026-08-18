@@ -202,6 +202,60 @@ test('should create a new source, set it as current, and see its content in the 
   }
 });
 
+test('should keep the book readable after deleting its current source', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importHelloBook(page);
+
+    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
+    await expect(page).toHaveURL(/\/books\/[^/]+$/);
+    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('menuitem', { name: 'Manage sources' }).click();
+    await expect(page).toHaveURL(/\/books\/[^/]+\/sources$/);
+    await expect(page.getByText('No pending changes').first()).toBeVisible();
+
+    // The imported source is the one to keep; give the book a second source and
+    // make that the current one, so deleting it exercises the hand-over.
+    const importedId = await page.locator('.source-item .source-id').first().innerText();
+    const newBtn = page.getByRole('button', { name: 'New' });
+    await newBtn.click();
+    await expect(newBtn).toBeEnabled();
+    await expect(page.locator('.source-item')).toHaveCount(2);
+
+    const doomedId = (await page.locator('.source-item .source-id').allInnerTexts())
+      .find((id) => id !== importedId);
+    if (!doomedId) {
+      throw new Error(`Expected a second source alongside ${importedId}`);
+    }
+
+    const setCurrent = page.getByRole('button', { name: 'Set as current' });
+    if (await setCurrent.isVisible()) {
+      await setCurrent.click();
+      await expect(page.getByText('Current source updated.')).toBeVisible();
+    }
+    await expect(page.locator('.source-item', { hasText: doomedId }).getByText('Current')).toBeVisible();
+
+    // Deleting the current source must hand the pointer to the survivor rather
+    // than leave the book pointing at something that no longer exists.
+    await page.getByRole('button', { name: `Delete source ${doomedId}` }).click();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(page.locator('.source-item')).toHaveCount(1);
+    await expect(page.locator('.source-item', { hasText: importedId }).getByText('Current')).toBeVisible();
+
+    // The detail page and the reader both have to survive that.
+    await page.getByRole('button', { name: 'Back' }).click();
+    await expect(page).toHaveURL(/\/books\/[^/]+$/);
+    await expect(page.getByRole('heading', { name: 'hello' })).toBeVisible();
+    await page.getByRole('button', { name: 'Start reading' }).click();
+    await expect(page).toHaveURL(/\/reader\/[^/]+$/);
+    await expect(page.getByText('Hello from PlainShelf E2E.')).toBeVisible();
+  } finally {
+    await server.dispose();
+  }
+});
+
 test('should derive chapterized Markdown from TXT and keep the original source', async ({ page }) => {
   const server = await startServer();
 

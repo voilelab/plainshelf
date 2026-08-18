@@ -68,7 +68,7 @@ schema v1, the first key in that file records the format version:
 | `created_at` | Creation timestamp (RFC 3339) |
 | `updated_at` | Last modification timestamp (RFC 3339) |
 | `published_at` | Publication date (`YYYY-MM-DD`) |
-| `current_source` | Authoritative pointer to the active source |
+| `current_source` | Authoritative pointer to the active source; see [Adding and removing sources](data-model.md#adding-and-removing-sources) for how it moves when a source is deleted |
 
 !!! warning "`schema_version` is managed by PlainShelf"
     Editing it by hand is unsupported. Raising it is a reliable way to lock
@@ -109,6 +109,15 @@ and explicit TXT/Markdown conversions. A source whose schema version is newer
 than this build remains readable, but content, comment, split, asset, and delete
 operations are refused before touching its files.
 
+Deleting a book's *current* source also writes `book.json`, because the pointer
+has to be handed over to another source first. That makes it a write to the book
+as well as to the source, so it is refused for a book whose own schema version is
+newer than this build understands. Deleting any other source only touches that
+source. Its `legacy_source_formats` entry, if it had one, is left behind rather
+than cleaned up, precisely so that the deletion does not write `book.json`. Such
+a leftover is inert: an entry is only consulted for a source that carries no
+`format` of its own, and every source this build creates carries one.
+
 ### Migrating legacy sources in place
 
 Because legacy sources are never upgraded on their own, a shelf can carry them
@@ -127,7 +136,8 @@ headings — the same conversion the source editor's "upgrade chapter format"
 action performs, except that this one rewrites the source in place instead of
 creating a new one. A source whose split produces nothing keeps its bytes
 untouched. Once every source of a book owns its format, the book's
-`legacy_source_formats` snapshots are dropped.
+`legacy_source_formats` snapshots are dropped, including any inert leftover from
+a deleted source.
 
 Before running it with `-dry-run=false`:
 

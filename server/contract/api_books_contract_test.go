@@ -3,6 +3,9 @@ package contract_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -233,4 +236,66 @@ func TestAPISplitConfigContract(t *testing.T) {
 	if roundTrip.Type != shelf.SplitTypeLineCount || roundTrip.LineCount != 42 {
 		t.Fatalf("round-trip split config = %#v", roundTrip)
 	}
+}
+
+// removeSourceFolder deletes a source's folder behind the API's back, which is
+// how a shelf edited by hand or by a sync tool ends up with a current_source
+// pointing at nothing. Removing the folder rather than rewriting book.json keeps
+// the book metadata's own staleness checks out of the picture.
+func removeSourceFolder(t *testing.T, env *apiTestEnv, bookID, sourceID string) {
+	t.Helper()
+
+	bookDir := filepath.Dir(env.bookMetaPath(t, bookID))
+	if err := os.RemoveAll(filepath.Join(bookDir, shelf.SourcesFolder, sourceID)); err != nil {
+		t.Fatalf("remove source folder: %v", err)
+	}
+}
+
+// TestAPIDanglingCurrentSourceFallsBackOnRead pins the read-path tolerance: a
+// book whose current_source names a source that no longer exists still serves
+// its text, from the newest source it does have. The reads must not repair
+// book.json, because the filesystem stays the source of truth.
+func TestAPIDanglingCurrentSourceFallsBackOnRead(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Dangling Current Source", "", "dangle.txt", "surviving body")
+	survivingID := created.Meta.CurrentSource
+
+	danglingID := createBookSource(t, env, created.Meta.ID)
+	rec := env.put(sourceURL(created.Meta.ID, danglingID, "current"), nil)
+	assertStatus(t, rec, http.StatusNoContent)
+
+	removeSourceFolder(t, env, created.Meta.ID, danglingID)
+
+	content := env.get(bookURL(created.Meta.ID, "content"))
+	assertStatus(t, content, http.StatusOK)
+	if body := content.Body.String(); !strings.Contains(body, "surviving body") {
+		t.Fatalf("content = %q, want the surviving source's text", body)
+	}
+	assertStatus(t, env.get(bookURL(created.Meta.ID, "split_config")), http.StatusOK)
+
+	if got := currentSourceOf(t, env, created.Meta.ID); got != danglingID {
+		t.Fatalf("current_source = %q, want reads to leave it at %q", got, danglingID)
+	}
+	if ids := sourceIDs(t, env, created.Meta.ID); !slices.Equal(ids, []string{survivingID}) {
+		t.Fatalf("sources = %#v, want only %q", ids, survivingID)
+	}
+}
+
+// TestAPIBookWithoutAnySourceReturns404 pins the other end of that tolerance: a
+// book with nothing to read is a missing source, not a server fault, so the
+// content routes answer 404 rather than 500.
+func TestAPIBookWithoutAnySourceReturns404(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Sourceless Book", "", "gone.txt", "body")
+
+	removeSourceFolder(t, env, created.Meta.ID, created.Meta.CurrentSource)
+
+	assertStatus(t, env.get(bookURL(created.Meta.ID, "content")), http.StatusNotFound)
+	assertStatus(t, env.get(bookURL(created.Meta.ID, "split_config")), http.StatusNotFound)
+	assertStatus(t, env.patch(bookURL(created.Meta.ID, "split_config"),
+		strings.NewReader(`{"type":"none"}`)), http.StatusNotFound)
+
+	// The book itself is still perfectly readable, which is what keeps its
+	// detail page working while the shelf is in this state.
+	assertStatus(t, env.get(bookURL(created.Meta.ID)), http.StatusOK)
 }

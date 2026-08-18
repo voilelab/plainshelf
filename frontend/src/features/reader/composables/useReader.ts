@@ -334,13 +334,20 @@ export function useReader(bookID: () => string) {
         return;
       }
 
+      // current_source can name a source that no longer exists — a shelf is
+      // edited by hand and by sync tools. The server answers the book-scoped
+      // content route from the newest surviving source, so falling back to it
+      // keeps such a book readable instead of failing the whole reader.
       const sourceID = book.current_source ?? '';
+      const bookContent = () => provider.getBookContent(requestedBookID).then((result) => result.content);
       const [sourceContent, currentProgress, sourceMeta] = await Promise.all([
         sourceID
-          ? provider.getSourceContent(requestedBookID, sourceID)
-          : provider.getBookContent(requestedBookID).then((result) => result.content),
+          ? provider.getSourceContent(requestedBookID, sourceID).catch(bookContent)
+          : bookContent(),
         provider.getReadProgress(requestedBookID),
-        sourceID ? provider.getSource(requestedBookID, sourceID) : Promise.resolve(undefined)
+        sourceID
+          ? provider.getSource(requestedBookID, sourceID).catch(() => undefined)
+          : Promise.resolve(undefined)
       ]);
       if (generation !== fetchGeneration) {
         return;

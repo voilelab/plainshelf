@@ -88,7 +88,9 @@ func (r *Source) UpgradeLegacyToSchemaV1(format string, content io.Reader) error
 // The map only exists to restore the book-level format mirror when a legacy
 // source is reactivated (see SetCurrentSource), so it is dead data once every
 // source owns its own format. SetMeta deliberately refuses to let an ordinary
-// metadata update erase it; this is the narrow, explicit way.
+// metadata update erase it, so removal needs the internal setter; this is the
+// whole-map counterpart to forgetLegacySourceFormat, which drops the single
+// entry of a source being deleted.
 //
 // It refuses while any source is still legacy, so it cannot throw away a
 // snapshot that is still load-bearing. A book that later regains a legacy source

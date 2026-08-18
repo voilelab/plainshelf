@@ -145,6 +145,11 @@ func migrateBook(book *shelf.Book, opts Options, report *Report) {
 
 	// Keep book.json's compatibility mirror honest for clients that still read
 	// it. New clients take the format from the current source's meta.json.
+	//
+	// This reads the recorded pointer rather than Book.ResolveCurrentSource: the
+	// fallback that resolver applies to a dangling pointer is deliberately never
+	// persisted, so writing a mirror derived from it would put a guess into
+	// book.json. A pointer naming no migrated source simply leaves the mirror be.
 	if format, ok := migratedFormats[bookMeta.CurrentSource]; ok && format != bookMeta.Format {
 		if opts.DryRun {
 			bookMeta.Format = format
