@@ -189,8 +189,10 @@
 
   <!-- The export is written by whatever serves these shelves, so the panel
        belongs to the server and desktop shells and not to the mobile one,
-       which is the client that reads the file. serverSettingsEditable already
-       says exactly that: it is false on any client that cannot write. -->
+       which is the client that reads the file. serverSettingsEditable is that
+       platform question already: it is false on the mobile shell. It is
+       deliberately not the server's own read_only mode, which leaves these
+       panels rendered and disabled rather than dropping them. -->
   <section v-if="serverSettingsEditable" class="panel settings-group">
     <h3>{{ t('settings.bookCache.title') }}</h3>
     <p class="setting-description">{{ t('settings.bookCache.description') }}</p>
