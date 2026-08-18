@@ -226,7 +226,9 @@ test('should keep the book readable after deleting its current source', async ({
 
     const doomedId = (await page.locator('.source-item .source-id').allInnerTexts())
       .find((id) => id !== importedId);
-    expect(doomedId).toBeTruthy();
+    if (!doomedId) {
+      throw new Error(`Expected a second source alongside ${importedId}`);
+    }
 
     const setCurrent = page.getByRole('button', { name: 'Set as current' });
     if (await setCurrent.isVisible()) {

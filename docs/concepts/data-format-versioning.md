@@ -113,8 +113,10 @@ Deleting a book's *current* source also writes `book.json`, because the pointer
 has to be handed over to another source first. That makes it a write to the book
 as well as to the source, so it is refused for a book whose own schema version is
 newer than this build understands. Deleting any other source only touches that
-source. `legacy_source_formats` entries are dropped along with the source they
-describe.
+source. Its `legacy_source_formats` entry, if it had one, is left behind rather
+than cleaned up, precisely so that the deletion does not write `book.json`. Such
+a leftover is inert: an entry is only consulted for a source that carries no
+`format` of its own, and every source this build creates carries one.
 
 ---
 
