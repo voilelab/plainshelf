@@ -109,6 +109,13 @@ the previous effective format for any legacy source that was current. This is
 compatibility bookkeeping only: it lets the mirror be restored when switching
 back and does not add `format` or `schema_version` to the legacy source.
 
+An explicit upgrade takes one of two forms. The source editor's conversion
+creates a new source and leaves the legacy one intact, as above. The one-off
+`cmd/migrate-legacy-sources` tool instead upgrades every legacy source in place,
+keeping its id, and drops a book's `legacy_source_formats` once all of its
+sources own their format. See
+[Data format versioning](data-format-versioning.md#migrating-legacy-sources-in-place).
+
 ### Source assets
 
 Illustrations live in an `assets/` directory beside the text that references

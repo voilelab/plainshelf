@@ -109,6 +109,48 @@ and explicit TXT/Markdown conversions. A source whose schema version is newer
 than this build remains readable, but content, comment, split, asset, and delete
 operations are refused before touching its files.
 
+### Migrating legacy sources in place
+
+Because legacy sources are never upgraded on their own, a shelf can carry them
+indefinitely. `cmd/migrate-legacy-sources` upgrades them all in one pass. It is
+opt-in, one-off, and not part of the server or any release build:
+
+```sh
+go run ./cmd/migrate-legacy-sources -conf conf/config.yaml            # dry run
+go run ./cmd/migrate-legacy-sources -conf conf/config.yaml -dry-run=false
+```
+
+For each legacy source it stamps `schema_version` and the format the source
+renders as today, and resets the split config the new schema ignores. Where that
+split actually produced chapters, it first bakes them into the text as `## `
+headings — the same conversion the source editor's "upgrade chapter format"
+action performs, except that this one rewrites the source in place instead of
+creating a new one. A source whose split produces nothing keeps its bytes
+untouched. Once every source of a book owns its format, the book's
+`legacy_source_formats` snapshots are dropped.
+
+Before running it with `-dry-run=false`:
+
+- **Stop the server and the desktop app.** The tool refuses to start while it
+  can tell another PlainShelf process holds the shelf, but that detection is not
+  airtight and a concurrent run is actively harmful.
+- **Back up the shelf directory.** The rewrite is in place and there is no undo.
+
+`-dry-run` is the default and performs the full computation, so its report is a
+real rehearsal. Read it before applying. Two things in it deserve attention:
+
+- Sources reported as `needs-attention` are left legacy and untouched. That
+  happens when a split regex uses JavaScript-only syntax Go's engine cannot run,
+  or when it compiles but matches nothing — the tool cannot tell "this pattern
+  never matched" from "the two regex dialects disagree", and collapsing a book
+  into a single chapter is not a safe guess.
+- The per-source chapter count is there to be compared against what the reader
+  has been showing. The tool translates the two known dialect differences that
+  would otherwise lose chapters silently (JavaScript treats a carriage return as
+  a line terminator for `^`/`$`; its `\s` covers the ideographic space and other
+  Unicode spaces), but it cannot guarantee every pattern means the same thing in
+  both engines.
+
 ---
 
 ## Compatibility policy
