@@ -135,6 +135,34 @@ describe('useBookCollectionRoute', () => {
     expect(api.visibleBooks.value.map((row) => row.id)).toEqual(['id-21', 'id-22', 'id-23', 'id-24', 'id-25']);
   });
 
+  it('leaves a URL without a page untouched, since that already means page 1', async () => {
+    setPageSize(10);
+    const items = ref<TrashedRow[]>(rows(25));
+    const loaded = ref(true);
+
+    const { router } = await mountCollection({
+      items,
+      initialPath: '/trash',
+      clampEnabled: loaded
+    });
+
+    expect(router.currentRoute.value.fullPath).toBe('/trash');
+  });
+
+  it('still rewrites a page the URL states but cannot honour', async () => {
+    setPageSize(10);
+    const items = ref<TrashedRow[]>(rows(25));
+    const loaded = ref(true);
+
+    const { router } = await mountCollection({
+      items,
+      initialPath: '/trash?page=nonsense',
+      clampEnabled: loaded
+    });
+
+    expect(router.currentRoute.value.query.page).toBe('1');
+  });
+
   it('clamps back into range when the list shrinks under the current page', async () => {
     setPageSize(10);
     const items = ref<TrashedRow[]>(rows(25));

@@ -82,7 +82,10 @@ export function useBookCollectionRoute<T = Book>(options: UseBookCollectionRoute
       }
 
       const normalizedPage = Math.min(currentPage, maxPage);
-      if (toSingleQueryValue(route.query.page) === String(normalizedPage)) {
+      const queryPage = toSingleQueryValue(route.query.page);
+      // A URL with no `page` already means page 1, so writing it in would only
+      // add noise — and turn a plain `/trash` into `/trash?page=1` on load.
+      if (queryPage === String(normalizedPage) || (queryPage === undefined && normalizedPage === 1)) {
         return;
       }
 
