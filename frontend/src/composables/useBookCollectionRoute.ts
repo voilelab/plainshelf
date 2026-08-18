@@ -15,7 +15,10 @@ export function pageSlice<T>(items: readonly T[], page: number, pageSize: number
 }
 
 export interface UseBookCollectionRouteOptions<T> {
-  /** The full list being paginated, already filtered by the page. */
+  /**
+   * The complete list to paginate, with the caller's own filtering already
+   * applied. The page-sized slice is cut here, not by the caller.
+   */
   items: Ref<T[]> | ComputedRef<T[]>;
   /**
    * Builds the route query for a page change. Injected rather than shared: each
