@@ -267,9 +267,9 @@ func (h *bookHandlers) getBookContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	source, err := book.GetSource(book.CurrentSource())
+	source, err := book.ResolveCurrentSource()
 	if err != nil {
-		http.Error(w, "failed to get book source", http.StatusInternalServerError)
+		h.writeErr(w, err, "failed to get book source")
 		return
 	}
 
@@ -293,10 +293,9 @@ func (h *bookHandlers) getSplitConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	source, err := book.GetSource(book.CurrentSource())
+	source, err := book.ResolveCurrentSource()
 	if err != nil {
-		h.Error("failed to get book source", "error", err)
-		http.Error(w, "failed to get book source", http.StatusInternalServerError)
+		h.writeErr(w, err, "failed to get book source")
 		return
 	}
 
@@ -321,10 +320,9 @@ func (h *bookHandlers) updateSplitConfig(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	source, err := book.GetSource(book.CurrentSource())
+	source, err := book.ResolveCurrentSource()
 	if err != nil {
-		h.Error("failed to get book source", "error", err)
-		http.Error(w, "failed to get book source", http.StatusInternalServerError)
+		h.writeErr(w, err, "failed to get book source")
 		return
 	}
 

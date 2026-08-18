@@ -154,6 +154,25 @@ export function useSourceEditorSession(
     }
   }
 
+  // reloadBookMeta refreshes only book.json-level state, which listSources does
+  // not carry. Deleting the current source moves current_source server-side, so
+  // the cached copy would otherwise keep naming a source that is gone. A failure
+  // here leaves the stale copy in place rather than failing the caller's action.
+  async function reloadBookMeta(
+    expectedSession = sessionGeneration,
+    requestedBookId = bookId()
+  ): Promise<void> {
+    if (!isCurrentSession(expectedSession, requestedBookId)) return;
+    try {
+      const bookData = await getBookshelfProvider().getBook(requestedBookId);
+      if (isCurrentSession(expectedSession, requestedBookId)) {
+        book.value = bookData;
+      }
+    } catch {
+      // Keep the previous metadata; the caller's own result still stands.
+    }
+  }
+
   async function loadSource(sourceId: string): Promise<void> {
     await loadSourceForSession(sourceId, sessionGeneration, bookId());
   }
@@ -321,7 +340,12 @@ export function useSourceEditorSession(
     try {
       await bookshelfWriter().deleteSource(requestedBookId, sourceId);
       if (!isCurrentSession(generation, requestedBookId)) return false;
-      await reloadSourceMeta(generation, requestedBookId);
+      // The server hands current_source over to another source when the deleted
+      // one was current, so refresh both halves before choosing what to show.
+      await Promise.all([
+        reloadSourceMeta(generation, requestedBookId),
+        reloadBookMeta(generation, requestedBookId)
+      ]);
       if (!isCurrentSession(generation, requestedBookId)) return false;
 
       if (

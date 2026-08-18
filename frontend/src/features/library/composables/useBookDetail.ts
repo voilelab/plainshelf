@@ -25,12 +25,18 @@ export function useBookDetail(bookID: () => string) {
       ]);
       const needsProgressContentLength =
         progressData.percent === undefined && progressData.char_offset > 0;
+      // Neither of these is worth failing the page over: current_source can name
+      // a source that no longer exists, and a book with no source at all has no
+      // content to measure. Both only fill in detail beside the book itself.
       const [currentSourceData, currentContentLength] = await Promise.all([
         bookData.current_source
-          ? provider.getSource(currentBookID, bookData.current_source)
+          ? provider.getSource(currentBookID, bookData.current_source).catch(() => null)
           : Promise.resolve(null),
         needsProgressContentLength
-          ? provider.getBookContent(currentBookID).then(({ content }) => content.length)
+          ? provider
+              .getBookContent(currentBookID)
+              .then(({ content }) => content.length)
+              .catch(() => null)
           : Promise.resolve(null)
       ]);
       book.value = bookData;

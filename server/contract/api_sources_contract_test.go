@@ -149,3 +149,69 @@ func TestAPIRefreshBookSourceMetaContract(t *testing.T) {
 	rec = env.post(sourceURL("no-such-book", sourceID, "refresh"), nil)
 	assertStatus(t, rec, http.StatusNotFound)
 }
+
+// currentSourceOf reports the pointer the book endpoint publishes, which is what
+// a client reads back after a source is deleted.
+func currentSourceOf(t *testing.T, env *apiTestEnv, bookID string) string {
+	t.Helper()
+
+	book := getJSON[server.Book](t, env, bookURL(bookID))
+	if book.Meta == nil {
+		t.Fatalf("book %s carried no meta", bookID)
+	}
+	return book.Meta.CurrentSource
+}
+
+// TestAPIDeleteCurrentBookSourceContract pins the promise that deleting the
+// active source leaves a readable book: the pointer moves to a source that
+// exists instead of being left dangling, which used to fail every read.
+func TestAPIDeleteCurrentBookSourceContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Delete Current Source", "", "cur.txt", "imported body")
+	importedID := created.Meta.CurrentSource
+
+	newSourceID := createBookSource(t, env, created.Meta.ID)
+	rec := env.put(sourceURL(created.Meta.ID, newSourceID, "current"), nil)
+	assertStatus(t, rec, http.StatusNoContent)
+
+	rec = env.delete(sourceURL(created.Meta.ID, newSourceID))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	if got := currentSourceOf(t, env, created.Meta.ID); got != importedID {
+		t.Fatalf("current_source = %q, want the surviving source %q", got, importedID)
+	}
+	if ids := sourceIDs(t, env, created.Meta.ID); !slices.Equal(ids, []string{importedID}) {
+		t.Fatalf("sources = %#v, want only %q", ids, importedID)
+	}
+	assertStatus(t, env.get(bookURL(created.Meta.ID, "content")), http.StatusOK)
+	assertStatus(t, env.get(bookURL(created.Meta.ID, "split_config")), http.StatusOK)
+}
+
+// TestAPIDeleteLastBookSourceContract pins the other half: a book always keeps
+// at least one source, so deleting the only one leaves an empty replacement
+// rather than a book with nothing to read.
+func TestAPIDeleteLastBookSourceContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Delete Last Source", "", "last.txt", "imported body")
+	importedID := created.Meta.CurrentSource
+
+	rec := env.delete(sourceURL(created.Meta.ID, importedID))
+	assertStatus(t, rec, http.StatusNoContent)
+
+	ids := sourceIDs(t, env, created.Meta.ID)
+	if len(ids) != 1 {
+		t.Fatalf("sources = %#v, want exactly the empty replacement", ids)
+	}
+	if ids[0] == importedID {
+		t.Fatalf("replacement reused the deleted source ID %q", importedID)
+	}
+	if got := currentSourceOf(t, env, created.Meta.ID); got != ids[0] {
+		t.Fatalf("current_source = %q, want the replacement %q", got, ids[0])
+	}
+
+	content := env.get(bookURL(created.Meta.ID, "content"))
+	assertStatus(t, content, http.StatusOK)
+	if body := content.Body.String(); body != "" {
+		t.Fatalf("content = %q, want the replacement to be empty", body)
+	}
+}
