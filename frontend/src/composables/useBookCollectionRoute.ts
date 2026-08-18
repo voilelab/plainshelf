@@ -14,15 +14,25 @@ export function pageSlice<T>(items: readonly T[], page: number, pageSize: number
   return items.slice(start, start + pageSize);
 }
 
-export interface UseBookCollectionRouteOptions {
-  /** The full list being paginated, already filtered by the page. */
-  items: Ref<Book[]> | ComputedRef<Book[]>;
+export interface UseBookCollectionRouteOptions<T> {
+  /**
+   * The complete list to paginate, with the caller's own filtering already
+   * applied. The page-sized slice is cut here, not by the caller.
+   */
+  items: Ref<T[]> | ComputedRef<T[]>;
   /**
    * Builds the route query for a page change. Injected rather than shared: each
    * page owns extra query keys (`maxChars`, …) and the key order they produce is
    * part of the URL those pages already emit.
    */
   buildQuery: (page: number) => LocationQueryRaw;
+  /**
+   * Gates the clamp watcher below. Omit it when the list is already in hand on
+   * setup; pass a "first load finished" flag when it is fetched asynchronously,
+   * otherwise the still-empty list clamps a deep-linked `?page=3` back to 1
+   * before the response arrives.
+   */
+  clampEnabled?: Ref<boolean> | ComputedRef<boolean>;
 }
 
 /**
@@ -34,7 +44,7 @@ export interface UseBookCollectionRouteOptions {
  * useBooksRouteQuery, and its clamp watcher carries extra guards for search and
  * initial load. It shares only `countPages`/`pageSlice` above.
  */
-export function useBookCollectionRoute(options: UseBookCollectionRouteOptions) {
+export function useBookCollectionRoute<T = Book>(options: UseBookCollectionRouteOptions<T>) {
   const route = useRoute();
   const router = useRouter();
   const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
@@ -65,10 +75,17 @@ export function useBookCollectionRoute(options: UseBookCollectionRouteOptions) {
   // Keep the URL's page within range as the list shrinks (filtering, deleting,
   // clearing history). Runs immediately so a hand-typed page lands in range.
   watch(
-    [page, totalPages],
-    ([currentPage, maxPage]) => {
+    [page, totalPages, () => options.clampEnabled?.value ?? true],
+    ([currentPage, maxPage, enabled]) => {
+      if (!enabled) {
+        return;
+      }
+
       const normalizedPage = Math.min(currentPage, maxPage);
-      if (toSingleQueryValue(route.query.page) === String(normalizedPage)) {
+      const queryPage = toSingleQueryValue(route.query.page);
+      // A URL with no `page` already means page 1, so writing it in would only
+      // add noise — and turn a plain `/trash` into `/trash?page=1` on load.
+      if (queryPage === String(normalizedPage) || (queryPage === undefined && normalizedPage === 1)) {
         return;
       }
 
