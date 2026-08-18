@@ -41,14 +41,16 @@ declare global {
 async function bootstrap(): Promise<void> {
   initAppZoom();
 
-  // On the native mobile shell, restore the saved server URL, token, and shelf
-  // before mounting so the first API call already has a configured client.
+  // Bring up the mobile shell before mounting: it restores the saved server
+  // URL, token and shelf, and registers the provider the app reads through.
+  // Dynamically imported so the mobile stack — its provider, its on-device
+  // caches, the pCloud client — stays out of the web and desktop bundles.
   if (isMobileRuntime()) {
-    const { initMobileConfig } = await import('@/providers/mobileConfig');
-    await initMobileConfig();
+    const { installMobileShell } = await import('@/shells/mobile');
+    await installMobileShell();
 
-    // Browser preview only — see the declaration above. Attached after
-    // initMobileConfig() so the provider the tests read is the configured one.
+    // Browser preview only — see the declaration above. Attached after the
+    // shell is installed so the provider the tests read is the configured one.
     if (isMobileShellPreview()) {
       window.__plainshelfTestHooks = { provider: getBookshelfProvider(), bookshelfWriter };
     }
