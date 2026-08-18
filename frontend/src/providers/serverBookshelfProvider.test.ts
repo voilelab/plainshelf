@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { BookshelfReader } from './bookshelfProvider';
+
 const { getLocalReadingProgress, saveLocalReadingProgress } = vi.hoisted(() => ({
   getLocalReadingProgress: vi.fn(),
   saveLocalReadingProgress: vi.fn()
@@ -33,7 +35,9 @@ describe('ServerBookshelfProvider reading progress', () => {
 
 describe('ServerBookshelfProvider shelf fallback', () => {
   it('does not offer a persisted shelf to fall back to', () => {
-    const provider = new ServerBookshelfProvider();
+    // Typed as the interface on purpose: the property is optional there, and
+    // "absent" is only a meaningful assertion against the shape callers hold.
+    const provider: BookshelfReader = new ServerBookshelfProvider();
 
     // The optional capability must be absent, not merely return ''. Callers
     // reach it as `provider.getPersistedShelfID?.() ?? ''`, so "this backend
