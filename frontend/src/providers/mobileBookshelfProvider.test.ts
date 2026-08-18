@@ -696,3 +696,21 @@ describe('MobileBookshelfProvider — persistent cover cache', () => {
     expect(await result.text()).toBe('cover');
   });
 });
+
+describe('MobileBookshelfProvider shelf fallback', () => {
+  it('reports the shelf chosen during connection setup', () => {
+    const provider = new MobileBookshelfProvider(
+      {} as BookshelfReader,
+      new InMemoryMobileBookCache()
+    );
+
+    connectTo(SERVER_A, SHELF_A);
+    expect(provider.getPersistedShelfID()).toBe(SHELF_A);
+
+    // Read live, not captured: the settings UI repoints this process-wide
+    // state in place, and a stale answer here would strand the user on the
+    // previous shelf's downloads after switching.
+    connectTo(SERVER_B, SHELF_B);
+    expect(provider.getPersistedShelfID()).toBe(SHELF_B);
+  });
+});

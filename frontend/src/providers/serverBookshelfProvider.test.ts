@@ -30,3 +30,16 @@ describe('ServerBookshelfProvider reading progress', () => {
     expect(saveLocalReadingProgress).toHaveBeenCalledWith('book-1', { char_offset: 99 });
   });
 });
+
+describe('ServerBookshelfProvider shelf fallback', () => {
+  it('does not offer a persisted shelf to fall back to', () => {
+    const provider = new ServerBookshelfProvider();
+
+    // The optional capability must be absent, not merely return ''. Callers
+    // reach it as `provider.getPersistedShelfID?.() ?? ''`, so "this backend
+    // has no device-local shelf identity" is expressed by the method not
+    // existing — a server's shelf list is its own source of truth, and a
+    // failure to fetch it leaves nothing to fall back to.
+    expect(provider.getPersistedShelfID).toBeUndefined();
+  });
+});

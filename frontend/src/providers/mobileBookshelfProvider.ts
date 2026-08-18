@@ -9,7 +9,7 @@ import type {
   TrashedBook
 } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
-import { ApiError } from '@/api/client';
+import { ApiError, getActiveShelfID } from '@/api/client';
 import {
   addReadHistory as addLocalReadHistory,
   clearReadHistory as clearLocalReadHistory
@@ -366,6 +366,16 @@ export class MobileBookshelfProvider implements BookshelfReader {
     throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
   }
 
+
+  /**
+   * The shelf chosen during connection setup, applied to the API client at
+   * bootstrap by initMobileConfig(). Read live rather than captured, for the
+   * same reason currentCacheScopeKey() is: the settings UI repoints this
+   * process-wide state in place.
+   */
+  getPersistedShelfID(): string {
+    return getActiveShelfID();
+  }
 
   async getDownloadState(bookId: string): Promise<DownloadState> {
     return this.cache.getDownloadState(bookId);

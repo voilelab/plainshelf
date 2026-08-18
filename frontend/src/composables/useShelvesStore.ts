@@ -1,7 +1,7 @@
 import { ref } from 'vue';
 import { ensureActiveShelf, listShelves, type ShelfInfo } from '@/api/shelves';
-import { ApiError, getActiveShelfID, setActiveShelfID } from '@/api/client';
-import { isMobileRuntime } from '@/providers/runtime';
+import { ApiError, setActiveShelfID } from '@/api/client';
+import { getBookshelfProvider } from '@/providers';
 import { t } from '@/i18n';
 
 const shelves = ref<ShelfInfo[]>([]);
@@ -38,13 +38,16 @@ async function fetchShelves(options?: { allowPersistedFallback?: boolean }): Pro
     selectedShelfID.value = ensureActiveShelf(nextShelves);
     loaded.value = true;
   } catch (err) {
-    // On the mobile shell, listing shelves needs the network, but a shelf was
-    // already chosen during connection setup (persisted by mobileConfig and
-    // applied at bootstrap). Fall back to it so offline-cached books stay
-    // reachable; the error is still surfaced in the sidebar. The connect page
-    // opts out: while validating a newly typed server, a failed fetch must not
-    // resurrect a shelf that belongs to the previous server.
-    const persistedShelfID = allowPersistedFallback && isMobileRuntime() ? getActiveShelfID() : '';
+    // Listing shelves needs the network, but a backend whose shelf choice is
+    // device-local already knows which one it is pointed at. Fall back to it so
+    // offline-cached books stay reachable; the error is still surfaced in the
+    // sidebar. The connect page opts out: while validating a newly typed
+    // server, a failed fetch must not resurrect a shelf that belongs to the
+    // previous server.
+    const provider = getBookshelfProvider();
+    const persistedShelfID = allowPersistedFallback
+      ? (provider.getPersistedShelfID?.() ?? '')
+      : '';
     if (persistedShelfID) {
       selectedShelfID.value = persistedShelfID;
       loaded.value = true;

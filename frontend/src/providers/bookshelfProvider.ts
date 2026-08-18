@@ -95,6 +95,20 @@ export interface BookshelfReader {
   refreshShelf?(): Promise<void>;
   getShelfFetchedAt?(): Promise<number | null>;
 
+  /**
+   * The shelf this client already knows it is pointed at, for use when listing
+   * shelves fails.
+   *
+   * Present only on a backend whose shelf choice is device-local and outlives a
+   * failed request — the mobile shell persists it during connection setup — so
+   * offline-cached books stay reachable when the network does not. A server or
+   * desktop client has no such fallback: its shelf list *is* the source of
+   * truth, and a failure there means there is nothing to fall back to.
+   *
+   * Returns '' when nothing has been chosen yet.
+   */
+  getPersistedShelfID?(): string;
+
   downloadBook?(bookId: string): Promise<void>;
   removeDownload?(bookId: string): Promise<void>;
   getDownloadState?(bookId: string): Promise<DownloadState>;
