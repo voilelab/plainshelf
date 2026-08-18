@@ -1,152 +1,152 @@
 package main
 
 import (
-	"encoding/json"
+	"os"
 	"path/filepath"
-	"reflect"
+	"strings"
 	"testing"
 
-	"github.com/voilelab/plainshelf/server/store"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// TestExampleConfigDecodes guards the config keys this tool re-declares instead
-// of importing from server.AppConf. If someone renames one there, the shipped
-// example config stops feeding this tool and the failure would otherwise be a
-// silent "no shelves in the config".
-func TestExampleConfigDecodes(t *testing.T) {
-	conf, err := loadConf(filepath.Join("..", "plainshelf-srv", "conf", "config.yaml"))
-	if err != nil {
-		t.Fatalf("loadConf: %v", err)
+func TestParseDefaultSplit(t *testing.T) {
+	tests := []struct {
+		name    string
+		raw     string
+		want    shelf.SplitConfig
+		wantErr string
+	}{
+		{
+			name: "empty means no default",
+			raw:  "",
+			want: shelf.SplitConfig{},
+		},
+		{
+			name: "blank means no default",
+			raw:  "   ",
+			want: shelf.SplitConfig{},
+		},
+		{
+			name: "line count",
+			raw:  `{"type":"line_count","line_count":500}`,
+			want: shelf.SplitConfig{Type: shelf.SplitTypeLineCount, LineCount: 500},
+		},
+		{
+			name: "regex",
+			raw:  `{"type":"regex","regex":"^Chapter \\d+$"}`,
+			want: shelf.SplitConfig{Type: shelf.SplitTypeRegex, Regex: `^Chapter \d+$`},
+		},
+		{
+			name: "an explicit none is accepted",
+			raw:  `{"type":""}`,
+			want: shelf.SplitConfig{},
+		},
+		{
+			name:    "malformed JSON is refused",
+			raw:     `{"type":`,
+			wantErr: "parse -default-split-config",
+		},
+		{
+			name:    "an unknown type is refused rather than silently ignored",
+			raw:     `{"type":"paragraph"}`,
+			wantErr: `unknown split type "paragraph"`,
+		},
 	}
 
-	if len(conf.AppConf.Shelves) != 1 {
-		t.Fatalf("got %d shelves, want the example config's one", len(conf.AppConf.Shelves))
-	}
-	if got := conf.AppConf.Shelves[0].ID; got != "default_shelf" {
-		t.Errorf("shelf id = %q, want %q", got, "default_shelf")
-	}
-	if got := conf.AppConf.Shelves[0].LibRoot; got != "./shelf" {
-		t.Errorf("lib_root = %q, want %q", got, "./shelf")
-	}
-	if got := conf.AppConf.StorePath; got != "./store" {
-		t.Errorf("store_path = %q, want %q", got, "./store")
-	}
-}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := parseDefaultSplit(test.raw)
 
-func TestSelectShelf(t *testing.T) {
-	one := &migrateConf{}
-	one.AppConf.Shelves = []*shelf.ShelfConfWithID{{ID: "only"}}
-
-	two := &migrateConf{}
-	two.AppConf.Shelves = []*shelf.ShelfConfWithID{{ID: "first"}, {ID: "second"}}
-
-	t.Run("a single shelf needs no flag", func(t *testing.T) {
-		selected, err := selectShelf(one, "")
-		if err != nil {
-			t.Fatalf("selectShelf: %v", err)
-		}
-		if selected.ID != "only" {
-			t.Errorf("selected %q, want %q", selected.ID, "only")
-		}
-	})
-
-	t.Run("several shelves need the flag", func(t *testing.T) {
-		if _, err := selectShelf(two, ""); err == nil {
-			t.Fatalf("selectShelf accepted an ambiguous config")
-		}
-	})
-
-	t.Run("an unknown id is refused", func(t *testing.T) {
-		if _, err := selectShelf(two, "third"); err == nil {
-			t.Fatalf("selectShelf accepted an unknown shelf id")
-		}
-	})
-
-	t.Run("no shelves at all is refused", func(t *testing.T) {
-		if _, err := selectShelf(&migrateConf{}, ""); err == nil {
-			t.Fatalf("selectShelf accepted a config with no shelves")
-		}
-	})
-}
-
-func TestResolveDefaultSplit(t *testing.T) {
-	configured := &shelf.SplitConfig{Type: shelf.SplitTypeLineCount, LineCount: 100}
-
-	newStore := func(t *testing.T, value string) *store.DB {
-		t.Helper()
-		db, err := store.New(t.TempDir())
-		if err != nil {
-			t.Fatalf("store.New: %v", err)
-		}
-		t.Cleanup(func() { db.Close() })
-		if value != "" {
-			if err := db.SetSetting(settingKeyDefaultSplitConfig, []byte(value)); err != nil {
-				t.Fatalf("SetSetting: %v", err)
+			if test.wantErr != "" {
+				if err == nil {
+					t.Fatalf("parseDefaultSplit(%q) = %+v, want an error", test.raw, got)
+				}
+				if !strings.Contains(err.Error(), test.wantErr) {
+					t.Errorf("error = %q, want it to mention %q", err, test.wantErr)
+				}
+				return
 			}
-		}
-		return db
+
+			if err != nil {
+				t.Fatalf("parseDefaultSplit(%q) returned error: %v", test.raw, err)
+			}
+			if got.Type != test.want.Type || got.LineCount != test.want.LineCount || got.Regex != test.want.Regex {
+				t.Errorf("parseDefaultSplit(%q) = %+v, want %+v", test.raw, got, test.want)
+			}
+		})
+	}
+}
+
+// TestCheckShelfDir covers the guard that keeps a mistyped path from being
+// created as an empty shelf and reported as a clean run.
+func TestCheckShelfDir(t *testing.T) {
+	shelfPath := t.TempDir()
+	if err := checkShelfDir(shelfPath); err == nil {
+		t.Errorf("checkShelfDir accepted a directory with no %s/", booksFolder)
 	}
 
-	t.Run("the stored setting wins", func(t *testing.T) {
-		db := newStore(t, `{"type":"regex","regex":"^Chapter"}`)
-		got := resolveDefaultSplit(db, configured)
-		if got.Type != shelf.SplitTypeRegex || got.Regex != "^Chapter" {
-			t.Errorf("got %+v, want the stored regex", got)
-		}
-	})
+	if err := os.Mkdir(filepath.Join(shelfPath, booksFolder), 0o755); err != nil {
+		t.Fatalf("create books dir: %v", err)
+	}
+	if err := checkShelfDir(shelfPath); err != nil {
+		t.Errorf("checkShelfDir rejected a real shelf: %v", err)
+	}
 
-	t.Run("no stored setting falls back to the config", func(t *testing.T) {
-		got := resolveDefaultSplit(newStore(t, ""), configured)
-		if !reflect.DeepEqual(got, *configured) {
-			t.Errorf("got %+v, want %+v", got, *configured)
-		}
-	})
+	if err := checkShelfDir(filepath.Join(shelfPath, "nope")); err == nil {
+		t.Errorf("checkShelfDir accepted a path that does not exist")
+	}
 
-	t.Run("an unparsable stored setting counts as absent", func(t *testing.T) {
-		got := resolveDefaultSplit(newStore(t, "not json"), configured)
-		if !reflect.DeepEqual(got, *configured) {
-			t.Errorf("got %+v, want the configured value %+v", got, *configured)
-		}
-	})
-
-	t.Run("no store and no config means no split", func(t *testing.T) {
-		got := resolveDefaultSplit(nil, nil)
-		if got.Type != shelf.SplitTypeNone {
-			t.Errorf("got %+v, want the empty split", got)
-		}
-	})
-
-	t.Run("the stored shape matches what the server writes", func(t *testing.T) {
-		// The server stores the setting as the JSON encoding of the same type,
-		// so a round trip must survive.
-		want := shelf.SplitConfig{Type: shelf.SplitTypeBoundary, Boundaries: []int{4, 9}}
-		raw, err := json.Marshal(want)
-		if err != nil {
-			t.Fatalf("Marshal: %v", err)
-		}
-		got := resolveDefaultSplit(newStore(t, string(raw)), nil)
-		if got.Type != want.Type || len(got.Boundaries) != len(want.Boundaries) {
-			t.Errorf("got %+v, want %+v", got, want)
-		}
-	})
+	// A file named books/ is not a shelf either.
+	filePath := t.TempDir()
+	if err := os.WriteFile(filepath.Join(filePath, booksFolder), []byte("x"), 0o644); err != nil {
+		t.Fatalf("write books file: %v", err)
+	}
+	if err := checkShelfDir(filePath); err == nil {
+		t.Errorf("checkShelfDir accepted a shelf whose books/ is a file")
+	}
 }
 
 func TestSplitBookIDs(t *testing.T) {
 	tests := []struct {
-		value string
-		want  int
+		raw  string
+		want []string
 	}{
-		{"", 0},
-		{"  ", 0},
-		{"a", 1},
-		{"a,b", 2},
-		{" a , b , ", 2},
+		{"", nil},
+		{"  ", nil},
+		{"a", []string{"a"}},
+		{"a,b", []string{"a", "b"}},
+		{" a , ,b ", []string{"a", "b"}},
 	}
 
 	for _, test := range tests {
-		if got := splitBookIDs(test.value); len(got) != test.want {
-			t.Errorf("splitBookIDs(%q) = %v, want %d ids", test.value, got, test.want)
+		got := splitBookIDs(test.raw)
+		if len(got) != len(test.want) {
+			t.Errorf("splitBookIDs(%q) = %v, want %v", test.raw, got, test.want)
+			continue
+		}
+		for index := range got {
+			if got[index] != test.want[index] {
+				t.Errorf("splitBookIDs(%q) = %v, want %v", test.raw, got, test.want)
+				break
+			}
+		}
+	}
+}
+
+func TestDescribeSplit(t *testing.T) {
+	tests := []struct {
+		config shelf.SplitConfig
+		want   string
+	}{
+		{shelf.SplitConfig{}, "none"},
+		{shelf.SplitConfig{Type: shelf.SplitTypeLineCount, LineCount: 20}, "line_count(20)"},
+		{shelf.SplitConfig{Type: shelf.SplitTypeRegex, Regex: "^x$"}, `regex("^x$")`},
+		{shelf.SplitConfig{Type: shelf.SplitTypeBoundary, Boundaries: []int{1, 2}}, "boundary(2 lines)"},
+	}
+
+	for _, test := range tests {
+		if got := describeSplit(test.config); got != test.want {
+			t.Errorf("describeSplit(%+v) = %q, want %q", test.config, got, test.want)
 		}
 	}
 }

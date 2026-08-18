@@ -125,9 +125,17 @@ indefinitely. `cmd/migrate-legacy-sources` upgrades them all in one pass. It is
 opt-in, one-off, and not part of the server or any release build:
 
 ```sh
-go run ./cmd/migrate-legacy-sources -conf conf/config.yaml            # dry run
-go run ./cmd/migrate-legacy-sources -conf conf/config.yaml -dry-run=false
+go run ./cmd/migrate-legacy-sources -shelf ./shelf              # dry run
+go run ./cmd/migrate-legacy-sources -shelf ./shelf -dry-run=false
 ```
+
+It takes the shelf directory itself, not a server config, so it works on a
+detached copy of a shelf as readily as on the live one. That also means it
+cannot see the `default_split_config` setting, which lives in the application
+store rather than in the shelf: if you have set one, repeat it here with
+`-default-split-config '{"type":"line_count","line_count":500}'`, or the legacy
+sources that relied on it migrate as the single-chapter text they would be
+without it.
 
 For each legacy source it stamps `schema_version` and the format the source
 renders as today, and resets the split config the new schema ignores. Where that
@@ -141,9 +149,11 @@ a deleted source.
 
 Before running it with `-dry-run=false`:
 
-- **Stop the server and the desktop app.** The tool refuses to start while it
-  can tell another PlainShelf process holds the shelf, but that detection is not
-  airtight and a concurrent run is actively harmful.
+- **Stop the server and the desktop app.** The tool takes the shelf lock, which
+  stops two migrations racing each other, but a running PlainShelf holds that
+  lock only for the length of one operation — so it cannot tell you one is
+  running. A concurrent run is actively harmful; closing PlainShelf first is
+  your job.
 - **Back up the shelf directory.** The rewrite is in place and there is no undo.
 
 `-dry-run` is the default and performs the full computation, so its report is a
