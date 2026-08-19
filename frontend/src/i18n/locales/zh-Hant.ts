@@ -884,6 +884,9 @@ const zhHant = {
         scopeLabel: '範圍',
         scopeSection: '目前章節',
         scopeSource: '整份來源',
+        caseSensitive: '大小寫相符',
+        wholeWord: '全字比對',
+        regexp: '正規表示式',
         previous: '上一個',
         next: '下一個',
         replace: '取代',
@@ -896,7 +899,15 @@ const zhHant = {
         replacedMany: '已取代 {count} 處。',
         replacedOneNoneRemain: '已取代 1 處，沒有其他符合的結果。',
         replacedOneThenMatch: '已取代 1 處。第 {ordinal} 個，共 {total} 個。',
-        replacedOneThenCount: '已取代 1 處。共 {total} 個符合。'
+        replacedOneThenCount: '已取代 1 處。共 {total} 個符合。',
+        invalidRegexp: '這個正規表示式不合法。',
+        // 由編輯器自己的 live region 唸出，與上方看得見的狀態列各自獨立。
+        announce: {
+          currentMatch: '目前的符合項目',
+          onLine: '位於行號',
+          replacedOnLine: '已取代第 $ 行的符合項目',
+          replacedMatches: '已取代 $ 處'
+        }
       }
     },
     conversion: {
