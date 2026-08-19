@@ -72,7 +72,9 @@ export function useCoverSrc(
     const key = objectUrlCacheKey(bookId(), cacheKeyGetter());
     activeKey = key;
 
-    acquireObjectUrl(key, () => getBookshelfProvider().getBookCover(bookId()))
+    // The provider resolved above, not a fresh lookup: the fetch has to come
+    // from the same one whose capability decided this path.
+    acquireObjectUrl(key, () => provider.getBookCover(bookId()))
       .then((objectUrl) => {
         if (token === requestToken) {
           src.value = objectUrl;

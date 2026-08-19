@@ -3,22 +3,31 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import bookcover from '@/assets/bookcover.svg';
 
-const { getBookCoverMock, getBookCoverUrlMock, coversMustBeFetchedAsBlobMock } = vi.hoisted(
-  () => ({
+const { getBookCoverMock, getBookCoverUrlMock, coversMustBeFetchedAsBlobMock, capability } =
+  vi.hoisted(() => ({
     getBookCoverMock: vi.fn(),
     getBookCoverUrlMock: vi.fn(),
-    coversMustBeFetchedAsBlobMock: vi.fn()
-  })
-);
+    coversMustBeFetchedAsBlobMock: vi.fn(),
+    // Whether the mocked provider declares the capability at all. Server and
+    // desktop providers do not define the method, so "absent" has to be a
+    // missing property rather than a function returning undefined — otherwise
+    // dropping the `?.` in production code would still pass here.
+    capability: { declared: true }
+  }));
 
-// The composable now asks the provider what its cover URL is good for, so the
-// test describes a provider rather than a runtime.
+// The composable asks the provider what its cover URL is good for, so the test
+// describes a provider rather than a runtime.
 vi.mock('@/providers', () => ({
-  getBookshelfProvider: () => ({
-    getBookCover: getBookCoverMock,
-    getBookCoverUrl: getBookCoverUrlMock,
-    coversMustBeFetchedAsBlob: coversMustBeFetchedAsBlobMock
-  })
+  getBookshelfProvider: () => {
+    const provider: Record<string, unknown> = {
+      getBookCover: getBookCoverMock,
+      getBookCoverUrl: getBookCoverUrlMock
+    };
+    if (capability.declared) {
+      provider.coversMustBeFetchedAsBlob = coversMustBeFetchedAsBlobMock;
+    }
+    return provider;
+  }
 }));
 
 const { useCoverSrc } = await import('./useCoverSrc');
@@ -32,6 +41,7 @@ describe('useCoverSrc', () => {
     getBookCoverMock.mockReset();
     getBookCoverUrlMock.mockReset();
     coversMustBeFetchedAsBlobMock.mockReset();
+    capability.declared = true;
   });
 
   afterEach(() => {
@@ -196,9 +206,8 @@ describe('useCoverSrc', () => {
 
   it('passes the URL through when the provider does not declare the capability', async () => {
     // Absent, not false: server and desktop providers never define the method,
-    // and the composable reaches it as an optional call. Returning undefined
-    // here is what those providers actually look like.
-    coversMustBeFetchedAsBlobMock.mockReturnValue(undefined);
+    // and the composable reaches it as an optional call.
+    capability.declared = false;
     getBookCoverUrlMock.mockReturnValue('http://localhost:20000/api/shelves/s/books/b/cover');
 
     const scope = effectScope();
