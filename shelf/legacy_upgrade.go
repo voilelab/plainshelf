@@ -10,9 +10,8 @@ import (
 
 // The affordances in this file exist for the one-off legacy source migration in
 // internal/legacyupgrade. Ordinary shelf operations deliberately never change a
-// legacy source's format ownership, nor erase a book's compatibility snapshots;
-// see UpdateContent and SetMeta. Both are narrow on purpose, and both go away
-// with the migration once no legacy shelves remain.
+// legacy source's format ownership; see UpdateContent. They are narrow on
+// purpose, and go away with the migration once no legacy shelves remain.
 
 // ErrSourceNotLegacy is returned when a source already owns its content format.
 var ErrSourceNotLegacy = util.NewError("source already owns its content format")
@@ -74,39 +73,6 @@ func (r *Source) UpgradeLegacyToSchemaV1(format string, content io.Reader) error
 	}
 
 	if err := r.writebackMeta(); err != nil {
-		return util.Errorf("%w", err)
-	}
-	return nil
-}
-
-// ClearLegacySourceFormats drops book.json's legacy_source_formats snapshots.
-//
-// The map only exists to restore the book-level format mirror when a legacy
-// source is reactivated (see SetCurrentSource), so it is dead data once every
-// source owns its own format. SetMeta deliberately refuses to let an ordinary
-// metadata update erase it, so removal needs the internal setter; this is the
-// whole-map counterpart to forgetLegacySourceFormat, which drops the single
-// entry of a source being deleted.
-//
-// It drops the whole map unconditionally, including entries for sources that
-// are still legacy. A book left with one is a book the migration could not
-// finish, and the entry only ever decided which format the compatibility mirror
-// took on reactivating that source; without it the mirror follows book.json's
-// own format instead, which is the same fallback a shelf edited by hand gets.
-func (b *Book) ClearLegacySourceFormats() error {
-	if err := b.EnsureWritable(); err != nil {
-		return util.Errorf("%w", err)
-	}
-	if len(b.meta.LegacySourceFormats) == 0 {
-		// Nothing to drop. Returning here also keeps the book's file untouched,
-		// rather than rewriting it only to stamp a schema version.
-		return nil
-	}
-
-	meta := b.GetMeta()
-	meta.LegacySourceFormats = nil
-	// setMeta, not SetMeta: SetMeta clones the persisted map back over this.
-	if err := b.setMeta(meta); err != nil {
 		return util.Errorf("%w", err)
 	}
 	return nil

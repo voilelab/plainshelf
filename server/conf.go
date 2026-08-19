@@ -21,7 +21,6 @@ type AppConf struct {
 	Worker             *WorkerConf              `yaml:"worker"`
 	StorePath          string                   `yaml:"store_path"`
 	CoverToJPG         bool                     `yaml:"cover_to_jpg"`
-	DefaultSplitConfig *shelf.SplitConfig       `yaml:"default_split_config"`
 	EPUBImportStrategy *epub.Strategy           `yaml:"epub_import_strategy"`
 	ReadOnly           bool                     `yaml:"read_only"`
 	Security           *SecurityConf            `yaml:"security"`

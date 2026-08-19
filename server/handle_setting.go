@@ -4,11 +4,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 
 	"github.com/voilelab/plainshelf/internal/epub"
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/voilelab/plainshelf/shelf"
 )
 
 // settingHandlers is the HTTP face of the settings service.
@@ -53,42 +51,6 @@ func (h *settingHandlers) setCoverToJPG(w http.ResponseWriter, r *http.Request) 
 // DELETE /api/setting/cover_to_jpg
 func (h *settingHandlers) deleteCoverToJPG(w http.ResponseWriter, r *http.Request) {
 	h.settings.deleteSetting(w, settingKeyCoverToJPG)
-}
-
-func validateDefaultSplitConfig(cfg shelf.SplitConfig) (string, error) {
-	switch cfg.Type {
-	case shelf.SplitTypeNone:
-		return "", nil
-	case shelf.SplitTypeLineCount:
-		if cfg.LineCount <= 0 {
-			return "line_count must be a positive integer",
-				util.Errorf("line_count must be a positive integer, got %d", cfg.LineCount)
-		}
-		return "", nil
-	case shelf.SplitTypeRegex:
-		if _, err := regexp.Compile(cfg.Regex); err != nil {
-			return fmt.Sprintf("invalid regex: %v", err), util.Errorf("%w", err)
-		}
-		return "", nil
-	default:
-		message := fmt.Sprintf("unsupported split type for global default: %q", cfg.Type)
-		return message, util.Errorf("%s", message)
-	}
-}
-
-// GET /api/setting/default_split_config
-func (h *settingHandlers) getDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
-	h.writeJSON(w, http.StatusOK, map[string]any{"value": h.settings.defaultSplitConfig()})
-}
-
-// POST /api/setting/default_split_config
-func (h *settingHandlers) setDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
-	setJSONSetting(h.settings, w, r, settingKeyDefaultSplitConfig, validateDefaultSplitConfig)
-}
-
-// DELETE /api/setting/default_split_config
-func (h *settingHandlers) deleteDefaultSplitConfig(w http.ResponseWriter, r *http.Request) {
-	h.settings.deleteSetting(w, settingKeyDefaultSplitConfig)
 }
 
 // validateEPUBImportStrategy names the preset the client sent rather than

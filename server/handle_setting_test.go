@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/epub"
-	"github.com/voilelab/plainshelf/shelf"
 )
 
 // Every getter falls back to a usable default, so a getter that ignored the
@@ -23,14 +22,6 @@ func TestStoredJSONSettingsAreReturned(t *testing.T) {
 	if got := app.handlers.settings.epubImportStrategy().Preset; got != epub.PresetPlain {
 		t.Fatalf("preset = %q, want %q from the store", got, epub.PresetPlain)
 	}
-
-	if err := app.storeDB.SetSetting(settingKeyDefaultSplitConfig, []byte(`{"type":"line_count","line_count":42}`)); err != nil {
-		t.Fatalf("seed split config: %v", err)
-	}
-	cfg := app.handlers.settings.defaultSplitConfig()
-	if cfg.Type != shelf.SplitTypeLineCount || cfg.LineCount != 42 {
-		t.Fatalf("split config = %+v, want line_count 42 from the store", cfg)
-	}
 }
 
 // One unreadable row must not wedge a setting: it is ignored in favour of the
@@ -38,13 +29,12 @@ func TestStoredJSONSettingsAreReturned(t *testing.T) {
 func TestUnusableStoredSettingsFallBack(t *testing.T) {
 	t.Run("corrupt JSON", func(t *testing.T) {
 		app := newTestApp(t)
-		if err := app.storeDB.SetSetting(settingKeyDefaultSplitConfig, []byte("{{{")); err != nil {
-			t.Fatalf("seed split config: %v", err)
+		if err := app.storeDB.SetSetting(settingKeyEPUBImportStrategy, []byte("{{{")); err != nil {
+			t.Fatalf("seed strategy: %v", err)
 		}
 
-		// SplitConfig holds a slice, so it is not comparable as a whole.
-		if cfg := app.handlers.settings.defaultSplitConfig(); cfg.Type != "" || cfg.LineCount != 0 {
-			t.Fatalf("split config = %+v, want the zero fallback", cfg)
+		if got := app.handlers.settings.epubImportStrategy().Preset; got != epub.DefaultStrategy().Preset {
+			t.Fatalf("preset = %q, want the configured fallback", got)
 		}
 	})
 

@@ -216,28 +216,6 @@ func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
 	patchBook(t, env, bookID, `{"identifiers":{"":"x"}}`, http.StatusBadRequest)
 }
 
-func TestAPISplitConfigContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Split Me", "", "split.txt", "one\ntwo\nthree")
-	url := bookURL(created.Meta.ID, "split_config")
-
-	rec := env.get(url)
-	assertStatus(t, rec, http.StatusOK)
-	assertJSONContentType(t, rec)
-	initial := decodeJSON[shelf.SplitConfig](t, rec)
-	if initial.Type != shelf.SplitTypeNone {
-		t.Fatalf("initial split type = %q, want none", initial.Type)
-	}
-
-	rec = env.patch(url, strings.NewReader(`{"type":"line_count","line_count":42}`))
-	assertStatus(t, rec, http.StatusNoContent)
-
-	roundTrip := getJSON[shelf.SplitConfig](t, env, url)
-	if roundTrip.Type != shelf.SplitTypeLineCount || roundTrip.LineCount != 42 {
-		t.Fatalf("round-trip split config = %#v", roundTrip)
-	}
-}
-
 // removeSourceFolder deletes a source's folder behind the API's back, which is
 // how a shelf edited by hand or by a sync tool ends up with a current_source
 // pointing at nothing. Removing the folder rather than rewriting book.json keeps
@@ -271,7 +249,6 @@ func TestAPIDanglingCurrentSourceFallsBackOnRead(t *testing.T) {
 	if body := content.Body.String(); !strings.Contains(body, "surviving body") {
 		t.Fatalf("content = %q, want the surviving source's text", body)
 	}
-	assertStatus(t, env.get(bookURL(created.Meta.ID, "split_config")), http.StatusOK)
 
 	if got := currentSourceOf(t, env, created.Meta.ID); got != danglingID {
 		t.Fatalf("current_source = %q, want reads to leave it at %q", got, danglingID)
@@ -291,9 +268,6 @@ func TestAPIBookWithoutAnySourceReturns404(t *testing.T) {
 	removeSourceFolder(t, env, created.Meta.ID, created.Meta.CurrentSource)
 
 	assertStatus(t, env.get(bookURL(created.Meta.ID, "content")), http.StatusNotFound)
-	assertStatus(t, env.get(bookURL(created.Meta.ID, "split_config")), http.StatusNotFound)
-	assertStatus(t, env.patch(bookURL(created.Meta.ID, "split_config"),
-		strings.NewReader(`{"type":"none"}`)), http.StatusNotFound)
 
 	// The book itself is still perfectly readable, which is what keeps its
 	// detail page working while the shelf is in this state.

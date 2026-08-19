@@ -284,58 +284,6 @@ func (h *bookHandlers) getBookContent(w http.ResponseWriter, r *http.Request) {
 	h.streamTextFile(w, src, "failed to write book content")
 }
 
-// GET /api/shelves/{shelf_id}/books/{book_id}/split_config
-// getSplitConfig serves legacy sources and older clients.
-// Deprecated: schema-versioned Markdown sources derive chapters from H2.
-func (h *bookHandlers) getSplitConfig(w http.ResponseWriter, r *http.Request) {
-	_, book, ok := h.loadBook(w, r)
-	if !ok {
-		return
-	}
-
-	source, err := book.ResolveCurrentSource()
-	if err != nil {
-		h.writeErr(w, err, "failed to get book source")
-		return
-	}
-
-	h.writeJSON(w, http.StatusOK, source.GetMeta().SplitConfig)
-}
-
-// PATCH /api/shelves/{shelf_id}/books/{book_id}/split_config
-// updateSplitConfig is retained for legacy sources and clients.
-// New editor and import flows never call it.
-// Deprecated: upgrade the source to H2 Markdown instead.
-func (h *bookHandlers) updateSplitConfig(w http.ResponseWriter, r *http.Request) {
-	_, book, ok := h.loadBook(w, r)
-	if !ok {
-		return
-	}
-
-	var splitConfig shelf.SplitConfig
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&splitConfig); err != nil {
-		http.Error(w, "invalid JSON", http.StatusBadRequest)
-		return
-	}
-
-	source, err := book.ResolveCurrentSource()
-	if err != nil {
-		h.writeErr(w, err, "failed to get book source")
-		return
-	}
-
-	err = source.UpdateSplitConfig(splitConfig)
-	if err != nil {
-		h.Error("failed to update book split config", "error", err)
-		http.Error(w, "failed to update split config", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
 // GET /api/shelves/{shelf_id}/books/duplicate
 func (h *bookHandlers) findDuplicateBooks(w http.ResponseWriter, r *http.Request) {
 	shelfData, ok := h.resolveShelf(w, r)

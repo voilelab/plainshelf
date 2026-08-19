@@ -468,129 +468,16 @@ func TestMigrateShelfDryRunWritesNothing(t *testing.T) {
 	}
 }
 
-// legacyBookWithSnapshot prepares a book whose book.json carries a
-// legacy_source_formats entry for its legacy source.
-func legacyBookWithSnapshot(t *testing.T, content, splitJSON string) (string, legacySource) {
-	t.Helper()
-
-	libRoot, source := newLegacyShelf(t, content, splitJSON)
-
-	withShelf(t, libRoot, func(sh *shelf.Shelf) {
-		book, err := sh.GetBook(source.bookID)
-		if err != nil {
-			t.Fatalf("GetBook: %v", err)
-		}
-		// Deactivating the legacy source is what records the snapshot.
-		derived, err := book.NewSourceWithOptions(strings.NewReader("## Derived\nbody"),
-			shelf.NewSourceOptions{Format: shelf.BookFormatMarkdown})
-		if err != nil {
-			t.Fatalf("NewSourceWithOptions: %v", err)
-		}
-		if err := book.SetCurrentSource(derived.ID()); err != nil {
-			t.Fatalf("SetCurrentSource derived: %v", err)
-		}
-		if err := book.SetCurrentSource(source.sourceID); err != nil {
-			t.Fatalf("SetCurrentSource legacy: %v", err)
-		}
-		if book.GetMeta().LegacySourceFormats[source.sourceID] == "" {
-			t.Fatalf("expected a legacy_source_formats snapshot for %s", source.sourceID)
-		}
-	})
-
-	return libRoot, source
-}
-
-// TestMigrateShelfTreatsTheLiteralNoneAsNoSplit covers real shelves: the split
-// type has always been documented as defaulting to "none", and the frontend
-// accepts that spelling, so meta.json files carry it. Reading it as an unknown
-// type stranded sources that simply have no chapters.
-func TestMigrateShelfTreatsTheLiteralNoneAsNoSplit(t *testing.T) {
-	libRoot, source := newLegacyShelf(t, "plain\ntext", `{"type":"none"}`)
-
-	result := onlyResult(t, migrate(t, libRoot, Options{}))
-
-	if result.Action != ActionStamped {
-		t.Fatalf("action = %q (%v), want %q", result.Action, result.Err, ActionStamped)
-	}
-	if result.Format != shelf.BookFormatText {
-		t.Errorf("format = %q, want txt", result.Format)
-	}
-	if got := source.content(t); got != "plain\ntext" {
-		t.Errorf("source.txt = %q, want it untouched", got)
-	}
-}
-
-// TestMigrateShelfAppliesTheDefaultOverTheLiteralNone pins the other half: a
-// source spelling no-split as "none" must still fall back to the shelf-wide
-// default, exactly as one spelling it "" does.
-func TestMigrateShelfAppliesTheDefaultOverTheLiteralNone(t *testing.T) {
-	libRoot, _ := newLegacyShelf(t, "a\nb\nc\nd", `{"type":"none"}`)
-
-	result := onlyResult(t, migrate(t, libRoot, Options{
-		DefaultSplit: shelf.SplitConfig{Type: shelf.SplitTypeLineCount, LineCount: 2},
-	}))
-
-	if result.Action != ActionRewrote {
-		t.Fatalf("action = %q (%v), want %q", result.Action, result.Err, ActionRewrote)
-	}
-	if result.Chapters != 2 {
-		t.Errorf("chapters = %d, want 2", result.Chapters)
-	}
-}
-
-func TestMigrateShelfClearsLegacySourceFormatsOnceEverySourceOwnsItsFormat(t *testing.T) {
-	libRoot, source := legacyBookWithSnapshot(t, "a\nb\nc\nd", `{"type":"line_count","line_count":2}`)
-
-	report := migrate(t, libRoot, Options{})
-
-	if len(report.BooksCleared) != 1 || report.BooksCleared[0] != source.bookID {
-		t.Fatalf("BooksCleared = %v, want [%s]", report.BooksCleared, source.bookID)
-	}
-	if _, ok := source.bookMeta(t)["legacy_source_formats"]; ok {
-		t.Errorf("book.json still carries legacy_source_formats")
-	}
-}
-
-// TestMigrateShelfClearsLegacySourceFormatsEvenWithASourceLeftBehind pins the
-// deliberate part: the snapshots are retired with the migration, not per source,
-// so a book keeping one source at needs-attention still loses them.
-func TestMigrateShelfClearsLegacySourceFormatsEvenWithASourceLeftBehind(t *testing.T) {
-	libRoot, source := legacyBookWithSnapshot(t, "a\nb", `{"type":"regex","regex":"^(?=x)x$"}`)
-
-	report := migrate(t, libRoot, Options{})
-
-	if len(report.BooksCleared) != 1 {
-		t.Errorf("BooksCleared = %v, want the book to be cleared", report.BooksCleared)
-	}
-	if _, ok := source.bookMeta(t)["legacy_source_formats"]; ok {
-		t.Errorf("book.json still carries legacy_source_formats")
-	}
-	// The source it described is still legacy and still untouched.
-	if _, ok := source.meta(t)["schema_version"]; ok {
-		t.Errorf("the skipped source was migrated after all")
-	}
-	if report.Clean() {
-		t.Errorf("a run with a skipped source is not clean")
-	}
-}
-
-// TestMigrateShelfPrefersTheSnapshotOverTheBookMirror pins the format
-// resolution order: the per-source snapshot beats book.json's mirror.
-func TestMigrateShelfPrefersTheSnapshotOverTheBookMirror(t *testing.T) {
-	libRoot, source := legacyBookWithSnapshot(t, "plain text", `{"type":""}`)
-	// The snapshot recorded txt while the book mirror now claims md.
+// TestMigrateShelfTakesTheFormatFromTheBookMirror pins the format resolution a
+// legacy source gets: book.json's mirror, which is all that is left to consult.
+func TestMigrateShelfTakesTheFormatFromTheBookMirror(t *testing.T) {
+	libRoot, source := newLegacyShelf(t, "plain text", `{"type":""}`)
 	setBookFormat(t, source, shelf.BookFormatMarkdown)
 
-	for _, result := range migrate(t, libRoot, Options{}).Results {
-		if result.SourceID != source.sourceID {
-			continue
-		}
-		if result.Format != shelf.BookFormatText {
-			t.Errorf("format = %q, want the snapshot's txt", result.Format)
-		}
-		return
+	result := onlyResult(t, migrate(t, libRoot, Options{}))
+	if result.Format != shelf.BookFormatMarkdown {
+		t.Errorf("format = %q, want the mirror's md", result.Format)
 	}
-	t.Fatalf("no result for the legacy source")
 }
 
 func TestMigrateShelfFallsBackToPlainTextWithoutAnyFormat(t *testing.T) {
