@@ -187,6 +187,9 @@ func (s *Shelf) RestoreTrashedBook(bookID string) error {
 		return util.Errorf("%w", err)
 	}
 
+	// The original layer may have been deleted while the book sat in trash.
+	s.addLayersToBookCache(targetLayers)
+
 	targetPath, err := s.resolveBookPathCollision(targetLayerPath, targetFolder)
 	if err != nil {
 		return util.Errorf("%w", err)

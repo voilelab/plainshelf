@@ -214,10 +214,7 @@ func (s *Shelf) exportBookCache(force bool) error {
 	s.exportMu.Lock()
 	defer s.exportMu.Unlock()
 
-	layers, err := s.collectExportLayers()
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
+	layers := s.collectExportLayers()
 	books := s.collectExportBooks()
 
 	// Hash only the content, never the timestamp, so an unchanged shelf does
@@ -277,27 +274,23 @@ func (s *Shelf) exportBookCache(force bool) error {
 
 // collectExportLayers lists every layer directory, in the shape the API and the
 // pCloud client both use ("/" for the top level).
-func (s *Shelf) collectExportLayers() ([]string, error) {
-	seen := make(map[string]bool)
+//
+// Snapshots the in-memory cache, like collectExportBooks: both halves of the
+// file then describe the same walk, and an export costs no filesystem access of
+// its own. The scan behind that cache is what ExportBookCache forces before
+// writing.
+func (s *Shelf) collectExportLayers() []string {
 	var layers []string
-
-	err := s.iterateLayers(func(ls Layers) bool {
-		name := strings.Join(ls, "/")
+	for _, layer := range s.listLayersFromCache() {
+		name := layer.String()
 		if name == "" {
 			name = "/"
 		}
-		if !seen[name] {
-			seen[name] = true
-			layers = append(layers, name)
-		}
-		return true
-	})
-	if err != nil {
-		return nil, util.Errorf("%w", err)
+		layers = append(layers, name)
 	}
 
 	sort.Strings(layers)
-	return layers, nil
+	return layers
 }
 
 // collectExportBooks snapshots the in-memory cache. No filesystem access: the

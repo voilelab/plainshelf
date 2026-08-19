@@ -27,6 +27,7 @@ books/
 - **Nestable** — there is no hard limit on nesting depth.
 - **Independent from book IDs** — moving a book between layers does not change its ID or break reading progress.
 - **Managed via the UI** — the web interface lets you create layers, delete empty layers, and move books between layers without touching the filesystem manually.
+- **Cached like the book listing** — layer changes you make in PlainShelf show up immediately; a layer directory created or removed outside PlainShelf appears after the next shelf scan. See [Shelf cache and disk I/O](shelf-cache-and-io.md#layer-listing).
 
 ---
 

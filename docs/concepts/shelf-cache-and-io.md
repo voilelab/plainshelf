@@ -13,10 +13,11 @@ When a shelf is opened, PlainShelf initializes the book cache in the background.
 During that first scan, PlainShelf:
 
 1. walks directories under `books/`;
-2. detects book package folders ending in `.bookpkg`;
-3. opens each book's `book.json` metadata file;
-4. decodes the metadata into memory;
-5. records the metadata file's modified time and size for later cache validation.
+2. records every layer directory it passes, including empty ones;
+3. detects book package folders ending in `.bookpkg`;
+4. opens each book's `book.json` metadata file;
+5. decodes the metadata into memory;
+6. records the metadata file's modified time and size for later cache validation.
 
 So yes: the first successful cache initialization reads every book metadata file once. It does **not** scan the whole operating system disk; it scans the configured shelf root, specifically the shelf book tree.
 
@@ -44,7 +45,7 @@ PlainShelf still needs to keep the cache reasonably fresh. It does this with two
 
 1. **Full scan**
    - Walks the `books/` tree again.
-   - Discovers new, moved, or removed book folders.
+   - Discovers new, moved, or removed book folders and layer directories.
    - Reopens book metadata for discovered books.
    - Controlled mainly by `scan_interval`.
 
@@ -56,6 +57,12 @@ PlainShelf still needs to keep the cache reasonably fresh. It does this with two
 
 Within the configured intervals, repeated browsing can be served from memory with little or no filesystem I/O.
 
+### Layer listing
+
+The layer tree comes from the same cache, filled by the same walk, so listing layers is not a separate traversal of `books/` and is throttled by `scan_interval` like any book listing.
+
+Layers created, renamed, moved, or deleted through PlainShelf update the cache as they happen, so they appear in the very next listing regardless of the interval. Only a layer directory created or removed outside PlainShelf waits for the next full scan.
+
 ---
 
 ## Tuning options
@@ -64,7 +71,7 @@ Within the configured intervals, repeated browsing can be served from memory wit
 
 `scan_interval` controls how often PlainShelf performs a full on-disk scan of the shelf book tree.
 
-A shorter interval discovers externally added, moved, or deleted books sooner, but performs more directory traversal and metadata reads. A longer interval reduces filesystem and network I/O, but external changes may appear later.
+A shorter interval discovers externally added, moved, or deleted books and layers sooner, but performs more directory traversal and metadata reads. A longer interval reduces filesystem and network I/O, but external changes may appear later.
 
 Example:
 
