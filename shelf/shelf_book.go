@@ -248,6 +248,9 @@ func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 		}
 
 		folderName := path.Base(pth)
+		if isIgnoredDir(folderName) {
+			return
+		}
 		if strings.HasSuffix(folderName, bookExtension) {
 			book, err := openBook(s.dbRoot, s.Logger, pth)
 			if err != nil {

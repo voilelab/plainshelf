@@ -49,6 +49,31 @@ func fileETag(root fsutil.FS, filePath string) string {
 	return fmt.Sprintf(`W/"%d-%d"`, info.ModTime().UnixNano(), info.Size())
 }
 
+// ignoredDirNames are directory names that filesystems, NAS firmware and sync
+// clients create inside a shelf. They are never layers the user made, so both
+// scanners skip them: on Synology every directory carries its own "@eaDir",
+// which would otherwise double the layer tree and travel into the exported book
+// cache. Keys are lower case; isIgnoredDir folds the name before looking it up,
+// because a share exported over SMB may spell "$RECYCLE.BIN" either way.
+var ignoredDirNames = map[string]bool{
+	"@eadir":       true, // Synology index and thumbnail sidecar
+	"#recycle":     true, // Synology network recycle bin
+	"$recycle.bin": true, // Windows recycle bin, visible over SMB
+	"lost+found":   true, // ext filesystem recovery directory
+}
+
+// isIgnoredDir reports whether a directory name under books/ must be skipped by
+// the shelf scanners. The leading-dot rule covers the open-ended set of hidden
+// helper directories (.git, .stfolder, .dropbox.cache, .Spotlight-V100,
+// .fseventsd, .TemporaryItems) in one condition; ignoredDirNames lists the known
+// system directories that carry no leading dot.
+func isIgnoredDir(name string) bool {
+	if strings.HasPrefix(name, ".") {
+		return true
+	}
+	return ignoredDirNames[strings.ToLower(name)]
+}
+
 // ErrInvalidLayer is returned when a layer name is not a usable path segment.
 // Every operation that accepts caller-supplied layers checks them before
 // touching the filesystem, so callers can treat it as a request error.
@@ -110,6 +135,11 @@ func validatePathSegment(segment string) error {
 	}
 	if segment == "." || segment == ".." {
 		return util.NewError("path segment cannot be . or ..")
+	}
+	if isIgnoredDir(segment) {
+		// Creating one would succeed on disk and then vanish: the scanners skip
+		// exactly these names, so the layer would never be listed again.
+		return util.NewError("path segment cannot be a hidden or system directory name (leading dot, @eaDir, #recycle, $RECYCLE.BIN, lost+found)")
 	}
 	if strings.ContainsAny(segment, `/\`) {
 		return util.NewError("path segment cannot contain path separators")

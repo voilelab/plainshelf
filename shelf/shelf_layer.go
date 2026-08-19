@@ -61,6 +61,9 @@ func (s *Shelf) iterateLayers(fn func(Layers) bool) error {
 		}
 
 		folderName := path.Base(pth)
+		if isIgnoredDir(folderName) {
+			return
+		}
 		if strings.HasSuffix(folderName, bookExtension) {
 			return
 		}
