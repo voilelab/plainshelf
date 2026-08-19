@@ -894,6 +894,9 @@ const en = {
         scopeLabel: 'Scope',
         scopeSection: 'Current chapter',
         scopeSource: 'Whole source',
+        caseSensitive: 'Match case',
+        wholeWord: 'Whole word',
+        regexp: 'Regular expression',
         previous: 'Prev',
         next: 'Next',
         replace: 'Replace',
@@ -908,7 +911,16 @@ const en = {
         replacedMany: 'Replaced {count} occurrences.',
         replacedOneNoneRemain: 'Replaced 1 occurrence. No matches remain.',
         replacedOneThenMatch: 'Replaced 1 occurrence. Match {ordinal} of {total}.',
-        replacedOneThenCount: 'Replaced 1 occurrence. {total} matches.'
+        replacedOneThenCount: 'Replaced 1 occurrence. {total} matches.',
+        invalidRegexp: 'That regular expression is not valid.',
+        // Spoken by the editor's own live region when a command moves or
+        // replaces a match; the visible status line above stays separate.
+        announce: {
+          currentMatch: 'Current match',
+          onLine: 'on line',
+          replacedOnLine: 'replaced match on line $',
+          replacedMatches: 'replaced $ matches'
+        }
       }
     },
     conversion: {

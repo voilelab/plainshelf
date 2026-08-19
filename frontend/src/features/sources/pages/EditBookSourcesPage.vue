@@ -142,8 +142,8 @@
             :settingCurrent="settingCurrent"
             :viewRange="editorViewRange"
             :focused="editorFocused"
+            :format="activeFormat"
             @document-edit="onDocumentEdit"
-            @request-view-offset="onRequestViewOffset"
             @set-current="onSetCurrentSource"
           />
         </template>
@@ -178,7 +178,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
 import ConfirmModal from '@/components/ConfirmModal.vue';
@@ -199,7 +199,7 @@ import SourceList from '@/features/sources/components/SourceList.vue';
 import { useSourceEditorSession } from '@/features/sources/composables/useSourceEditorSession';
 import type {
   SourceDocumentEdit,
-  SourceEditorAdapter,
+  SourceEditorHandle,
   SourceEditorViewRange
 } from '@/features/sources/types/editorAdapter';
 import {
@@ -208,10 +208,6 @@ import {
   renameChapterEdit,
   type SourceTextEdit
 } from '@/features/sources/utils/chapterEdits';
-import {
-  mapOffsetThroughReplacement,
-  replaceTextRange
-} from '@/features/sources/utils/textEditing';
 import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
@@ -219,16 +215,6 @@ const { t } = useI18n();
 type PendingSourceTransition =
   | { kind: 'select'; sourceId: string }
   | { kind: 'create' };
-
-type EditorViewState =
-  | { kind: 'all' }
-  | {
-      kind: 'section';
-      startOffset: number;
-      endOffset: number;
-      anchorOffset: number;
-      affinity: 'forward' | 'backward';
-    };
 
 // Stable reference: see MainLayout.vue's SIDEBAR_RESIZE_HIT_AREA_MARGINS for why this
 // object must not be an inline template literal (reka-ui re-registers the resize handle
@@ -263,14 +249,14 @@ const {
   disableSave,
   fetchInitial,
   loadSource,
-  save: onSave,
+  save: saveSource,
   setCurrentSource: onSetCurrentSource,
   createSource,
   createDerivedSource,
   deleteSource
 } = session;
 
-const editorRef = ref<SourceEditorAdapter | null>(null);
+const editorRef = ref<SourceEditorHandle | null>(null);
 const mobilePane = ref<'sources' | 'editor' | 'chapters'>('editor');
 const pendingTransition = ref<PendingSourceTransition | null>(null);
 const showDiscardModal = computed(() => pendingTransition.value !== null);
@@ -282,9 +268,15 @@ const pendingRenameChapterIndex = ref<number | null>(null);
 const pendingChapterTitle = ref('');
 const chapterTitleInput = ref<HTMLInputElement | null>(null);
 const pendingMergeChapterIndex = ref<number | null>(null);
-const editorViewState = ref<EditorViewState>({ kind: 'all' });
-const editorViewKey = ref(0);
-let editorViewReconcileTimer: ReturnType<typeof setTimeout> | null = null;
+/**
+ * Whether the outline has narrowed the editor to one chapter.
+ *
+ * The chapter itself is not stored: the editor holds the whole source and
+ * reports where its caret is, so the active chapter is whatever contains that
+ * caret. That is the whole of the coordinate bookkeeping this page used to do.
+ */
+const sectionFocus = ref(false);
+const caretOffset = ref(0);
 
 const markdownSections = computed(() =>
   activeFormat.value === 'md'
@@ -298,15 +290,14 @@ const hasMarkdownChapters = computed(() =>
   markdownSections.value.some((section) => section.kind === 'chapter')
 );
 const activeEditorSection = computed(() => {
-  const view = editorViewState.value;
-  if (view.kind !== 'section' || !hasMarkdownChapters.value) return null;
-  return findMarkdownEditorSection(markdownSections.value, view.anchorOffset, view.affinity);
+  if (!sectionFocus.value || !hasMarkdownChapters.value) return null;
+  return findMarkdownEditorSection(markdownSections.value, caretOffset.value, 'forward');
 });
-const editorFocused = computed(() => editorViewState.value.kind === 'section');
+const editorFocused = computed(() => activeEditorSection.value !== null);
 const editorViewRange = computed<SourceEditorViewRange | null>(() => {
-  const view = editorViewState.value;
-  return view.kind === 'section'
-    ? { startOffset: view.startOffset, endOffset: view.endOffset, key: editorViewKey.value }
+  const section = activeEditorSection.value;
+  return section
+    ? { startOffset: section.startOffset, endOffset: section.endOffset }
     : null;
 });
 const pendingMergeChapterTitle = computed(() => {
@@ -323,6 +314,7 @@ async function selectSource(sourceId: string): Promise<void> {
 
 async function onSelectSource(sourceId: string): Promise<void> {
   if (sourceId === activeSourceId.value) return;
+  syncEditorDocument();
   if (isDirty.value) {
     pendingTransition.value = { kind: 'select', sourceId };
     return;
@@ -347,6 +339,7 @@ async function confirmPendingSource(): Promise<void> {
 
 async function onCreateSource(): Promise<void> {
   if (!writesEnabled.value) return;
+  syncEditorDocument();
   if (isDirty.value) {
     pendingTransition.value = { kind: 'create' };
     return;
@@ -358,7 +351,13 @@ async function doCreateSource(): Promise<void> {
   if (await createSource()) mobilePane.value = 'editor';
 }
 
+async function onSave(): Promise<void> {
+  syncEditorDocument();
+  await saveSource();
+}
+
 async function onConvertSource(kind: SourceConversionKind): Promise<void> {
+  syncEditorDocument();
   conversionKind.value = kind;
   conversionError.value = '';
   showConversionModal.value = true;
@@ -383,193 +382,63 @@ async function submitConversion(payload: {
 }
 
 function showWholeSource(): void {
-  clearEditorViewReconcile();
-  if (editorViewState.value.kind === 'all') return;
-  editorViewState.value = { kind: 'all' };
-  editorViewKey.value += 1;
+  sectionFocus.value = false;
 }
 
 function resetEditorView(): void {
-  clearEditorViewReconcile();
-  editorViewState.value = { kind: 'all' };
-  editorViewKey.value += 1;
+  sectionFocus.value = false;
+  caretOffset.value = 0;
 }
 
 function selectEditorSection(section: MarkdownEditorSection): void {
   if (!hasMarkdownChapters.value) return;
-  clearEditorViewReconcile();
-  const previous = activeEditorSection.value;
-  if (!previous || previous.index !== section.index) editorViewKey.value += 1;
-  editorViewState.value = {
-    kind: 'section',
-    startOffset: section.startOffset,
-    endOffset: section.endOffset,
-    anchorOffset: section.startOffset,
-    affinity: 'forward'
-  };
+  sectionFocus.value = true;
+  caretOffset.value = section.startOffset;
   mobilePane.value = 'editor';
   void nextTick(() => editorRef.value?.focusAndSelect(section.startOffset, section.startOffset));
 }
 
-function onRequestViewOffset(
-  offset: number,
-  affinity: 'forward' | 'backward'
-): void {
-  if (!editorFocused.value) return;
-  const previous = activeEditorSection.value;
-  const next = findMarkdownEditorSection(markdownSections.value, offset, affinity);
-  if (!next) return;
-  if (!previous || previous.index !== next.index) editorViewKey.value += 1;
-  clearEditorViewReconcile();
-  editorViewState.value = {
-    kind: 'section',
-    startOffset: next.startOffset,
-    endOffset: next.endOffset,
-    anchorOffset: offset,
-    affinity
-  };
-  mobilePane.value = 'editor';
-}
-
 function onDocumentEdit(edit: SourceDocumentEdit): void {
-  const previous = activeEditorSection.value;
-  const previousLength = content.value.length;
-  const view = editorViewState.value;
   content.value = edit.value;
-  if (view.kind !== 'section') return;
-
-  if (edit.deferView) {
-    const delta = edit.value.length - previousLength;
-    editorViewState.value = {
-      kind: 'section',
-      startOffset: view.startOffset,
-      endOffset: Math.max(view.startOffset, view.endOffset + delta),
-      anchorOffset: edit.selectionEnd,
-      affinity: edit.affinity
-    };
-    if (edit.composing) clearEditorViewReconcile();
-    else scheduleEditorViewReconcile(previous);
-    return;
-  }
-
-  clearEditorViewReconcile();
-  reconcileEditorView(previous, edit.selectionEnd, edit.affinity);
+  caretOffset.value = edit.selectionEnd;
 }
 
-function scheduleEditorViewReconcile(previous: MarkdownEditorSection | null): void {
-  clearEditorViewReconcile();
-  editorViewReconcileTimer = setTimeout(() => {
-    editorViewReconcileTimer = null;
-    const view = editorViewState.value;
-    if (view.kind === 'section') {
-      reconcileEditorView(previous, view.anchorOffset, view.affinity);
-    }
-  }, 80);
+/**
+ * Publishes the editor's document before anything computes offsets against it.
+ *
+ * The editor batches its snapshots, so `content` can trail the text on screen
+ * by a keystroke or two. Everything below turns `content` into document offsets
+ * — chapter edits, the saved payload, the conversion preview — and has to see
+ * exactly what the user does.
+ */
+function syncEditorDocument(): void {
+  editorRef.value?.flushDocument();
 }
 
-function clearEditorViewReconcile(): void {
-  if (editorViewReconcileTimer !== null) {
-    clearTimeout(editorViewReconcileTimer);
-    editorViewReconcileTimer = null;
-  }
-}
-
-onBeforeUnmount(clearEditorViewReconcile);
-
-function reconcileEditorView(
-  previous: MarkdownEditorSection | null,
-  selectionEnd: number,
-  affinity: 'forward' | 'backward'
-): void {
-  if (editorViewState.value.kind !== 'section') return;
-
-  if (!hasMarkdownChapters.value) {
-    showWholeSource();
-    return;
-  }
-  const next = findMarkdownEditorSection(markdownSections.value, selectionEnd, affinity);
-  if (!next) {
-    showWholeSource();
-    return;
-  }
-  const currentView = editorViewState.value;
-  if (
-    !previous ||
-    previous.kind !== next.kind ||
-    currentView.startOffset !== next.startOffset ||
-    currentView.endOffset !== next.endOffset
-  ) {
-    editorViewKey.value += 1;
-  }
-  editorViewState.value = {
-    kind: 'section',
-    startOffset: next.startOffset,
-    endOffset: next.endOffset,
-    anchorOffset: selectionEnd,
-    affinity
-  };
-}
-
-function applyEdit(
-  edit: SourceTextEdit,
-  followEdit = true,
-  affinity: 'forward' | 'backward' = 'forward',
-  focus = true
-): void {
-  clearEditorViewReconcile();
-  const previous = activeEditorSection.value;
-  const replacement = replaceTextRange(content.value, edit.start, edit.end, edit.replacement);
-
-  if (followEdit || !previous || editorViewState.value.kind !== 'section') {
-    onDocumentEdit({
-      value: replacement.value,
-      selectionStart: replacement.selectionStart,
-      selectionEnd: replacement.selectionEnd,
-      affinity
-    });
-    if (focus) {
-      void nextTick(() => editorRef.value?.focusAndSelect(
-        replacement.selectionStart,
-        replacement.selectionEnd
-      ));
-    }
-    return;
-  }
-
-  const view = editorViewState.value;
-  const mappedAnchor = mapOffsetThroughReplacement(
-    view.anchorOffset,
-    edit.start,
-    edit.end,
-    edit.replacement.length,
-    view.affinity
-  );
-  content.value = replacement.value;
-  const next = findMarkdownEditorSection(markdownSections.value, mappedAnchor, view.affinity);
-  if (!hasMarkdownChapters.value || !next) {
-    showWholeSource();
-    return;
-  }
-  if (previous.kind !== next.kind || previous.startOffset !== next.startOffset) {
-    editorViewKey.value += 1;
-  }
-  editorViewState.value = {
-    kind: 'section',
-    startOffset: next.startOffset,
-    endOffset: next.endOffset,
-    anchorOffset: mappedAnchor,
-    affinity: view.affinity
-  };
+/**
+ * Hands a chapter edit to the editor as a transaction.
+ *
+ * Rewriting the whole document would move every position in it, which is the
+ * class of bug this editor was rebuilt to remove; a ranged edit lets the caret,
+ * the focused chapter and the undo history map through it.
+ */
+function applyEdit(edit: SourceTextEdit, focus = true): void {
+  const editor = editorRef.value;
+  if (!editor) return;
+  if (focus) editor.replaceRange(edit.start, edit.end, edit.replacement);
+  else editor.replaceRangeQuietly(edit.start, edit.end, edit.replacement);
 }
 
 function insertChapter(): void {
   const editor = editorRef.value;
   if (!editor) return;
+  syncEditorDocument();
   applyEdit(insertChapterEdit(content.value, editor.getCurrentParagraphStart()));
   mobilePane.value = 'editor';
 }
 
 async function openRenameChapter(index: number): Promise<void> {
+  syncEditorDocument();
   const heading = chapterHeadings.value[index];
   if (!heading) return;
   pendingRenameChapterIndex.value = index;
@@ -589,15 +458,19 @@ function confirmRenameChapter(): void {
   const index = pendingRenameChapterIndex.value;
   const title = pendingChapterTitle.value.trim();
   if (index === null || !title) return;
+  syncEditorDocument();
   const heading = chapterHeadings.value[index];
   if (heading) {
+    // Renaming the chapter being edited should leave the caret in it; renaming
+    // another one from the outline must not pull focus out of the current one.
     const followsActive = activeEditorSection.value?.headingIndex === index;
-    applyEdit(renameChapterEdit(content.value, heading, title), followsActive, 'forward', followsActive);
+    applyEdit(renameChapterEdit(content.value, heading, title), followsActive);
   }
   cancelRenameChapter();
 }
 
 function openMergeChapter(index: number): void {
+  syncEditorDocument();
   if (chapterHeadings.value[index]) pendingMergeChapterIndex.value = index;
 }
 
@@ -608,11 +481,11 @@ function cancelMergeChapter(): void {
 function confirmMergeChapter(): void {
   const index = pendingMergeChapterIndex.value;
   if (index === null) return;
+  syncEditorDocument();
   const heading = chapterHeadings.value[index];
-  if (heading) {
-    const followsActive = activeEditorSection.value?.headingIndex === index;
-    applyEdit(mergeChapterEdit(content.value, heading), followsActive, 'backward', false);
-  }
+  // Dropping the heading leaves the caret where it was, which is now part of
+  // the preceding chapter — the outline follows it there on its own.
+  if (heading) applyEdit(mergeChapterEdit(content.value, heading), false);
   cancelMergeChapter();
 }
 

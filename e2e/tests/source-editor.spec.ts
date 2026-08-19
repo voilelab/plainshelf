@@ -1,6 +1,17 @@
 import { expect, test, type Page } from '@playwright/test';
 import { startServer } from './support/server';
 import { importHelloBook } from './support/books';
+import {
+  dimmedRanges,
+  hasMarkdownStyling,
+  editorScrollTop,
+  editorSelectionText,
+  editorText,
+  scrollEditorTo,
+  setEditorCaret,
+  setEditorText,
+  sourceEditor
+} from './support/sourceEditor';
 
 async function expectSourceEditorFitsViewport(page: Page): Promise<void> {
   const metrics = await page.evaluate(() => {
@@ -17,36 +28,39 @@ async function expectSourceEditorFitsViewport(page: Page): Promise<void> {
       viewportHeight: window.innerHeight,
       page: rect('.source-editor-page'),
       editor: rect('.editor-panel'),
-      textarea: rect('.source-content-textarea')
+      surface: rect('.source-content-editor')
     };
   });
 
   expect(metrics.page.bottom).toBeLessThanOrEqual(metrics.viewportHeight + 1);
   expect(metrics.editor.bottom).toBeLessThanOrEqual(metrics.page.bottom + 1);
-  expect(metrics.textarea.top).toBeGreaterThanOrEqual(metrics.editor.top - 1);
-  expect(metrics.textarea.bottom).toBeLessThanOrEqual(metrics.editor.bottom + 1);
+  expect(metrics.surface.top).toBeGreaterThanOrEqual(metrics.editor.top - 1);
+  expect(metrics.surface.bottom).toBeLessThanOrEqual(metrics.editor.bottom + 1);
+}
+
+async function openSourceEditor(page: Page, baseUrl: string): Promise<void> {
+  await page.goto(`${baseUrl}/books`);
+  await importHelloBook(page);
+  await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
+  await expect(page).toHaveURL(/\/books\/[^/]+$/);
+  await page.getByRole('button', { name: 'More' }).click();
+  await page.getByRole('menuitem', { name: 'Manage sources' }).click();
+  await expect(page).toHaveURL(/\/books\/[^/]+\/sources$/);
+  await expect(page.getByText('No pending changes').first()).toBeVisible();
+  await expect(sourceEditor(page)).toBeVisible();
 }
 
 test('should edit source content and see the change reflected in the reader', async ({ page }) => {
   const server = await startServer();
 
   try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
+    await openSourceEditor(page, server.baseUrl);
 
-    // Open detail page then navigate to source editor
-    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
-    await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await page.getByRole('button', { name: 'More' }).click();
-    await page.getByRole('menuitem', { name: 'Manage sources' }).click();
-    await expect(page).toHaveURL(/\/books\/[^/]+\/sources$/);
-
-    // Wait for the source to finish loading
-    await expect(page.getByText('No pending changes').first()).toBeVisible();
-
-    const textarea = page.locator('.source-content-textarea');
-    await expect(textarea).toBeEnabled();
+    const editor = sourceEditor(page);
+    await expect(editor).toBeVisible();
     await expectSourceEditorFitsViewport(page);
+    // The imported source is TXT, so nothing in it is Markdown syntax.
+    expect(await hasMarkdownStyling(page)).toBe(false);
 
     await page.setViewportSize({ width: 800, height: 500 });
     await expectSourceEditorFitsViewport(page);
@@ -54,50 +68,45 @@ test('should edit source content and see the change reflected in the reader', as
     await expectSourceEditorFitsViewport(page);
 
     // Append unique content to the existing source
-    const original = await textarea.inputValue();
+    const original = await editorText(page);
     const filler = Array.from(
       { length: 40 },
       (_, index) => `Filler line ${index + 1}: ${'wrapped content '.repeat(24)}`
     ).join('\n');
-    await textarea.fill(`${original}\nrepeat repeat\n${filler}\nDeep search marker.\nEdited by E2E source editor.`);
+    await setEditorText(
+      page,
+      `${original}\nrepeat repeat\n${filler}\nDeep search marker.\nEdited by E2E source editor.`
+    );
 
     const findReplace = page.getByRole('group', { name: 'Find and replace' });
     await findReplace.getByLabel('Find').fill('PlainShelf');
     await findReplace.getByRole('button', { name: 'Next' }).click();
     await expect(findReplace.getByRole('status')).toHaveText('Match 1 of 1.');
-    await expect.poll(() => textarea.evaluate((element) => {
-      const field = element as HTMLTextAreaElement;
-      return field.value.slice(field.selectionStart, field.selectionEnd);
-    })).toBe('PlainShelf');
+    await expect.poll(() => editorSelectionText(page)).toBe('PlainShelf');
 
     await findReplace.getByLabel('Find').fill('Deep search marker');
     await findReplace.getByRole('button', { name: 'Next' }).click();
-    // Newline-count scrolling lands around 1,100px here, but these long lines
-    // wrap into several visual rows. The mirror measurement must include those
-    // rows and therefore move substantially farther down.
-    await expect.poll(() => textarea.evaluate((element) => (element as HTMLTextAreaElement).scrollTop)).toBeGreaterThan(4_000);
-    await expect.poll(() => textarea.evaluate((element) => {
-      const field = element as HTMLTextAreaElement;
-      return field.value.slice(field.selectionStart, field.selectionEnd);
-    })).toBe('Deep search marker');
-    await textarea.evaluate((element) => {
-      const field = element as HTMLTextAreaElement;
-      field.setSelectionRange(0, 0);
-      field.scrollTop = 0;
-    });
+    await expect.poll(() => editorSelectionText(page)).toBe('Deep search marker');
+    // The match is thousands of pixels down: these filler lines wrap into
+    // several visual rows each, and the height map accounts for every one of
+    // them without the document ever being measured off-screen.
+    await expect.poll(() => editorScrollTop(page)).toBeGreaterThan(2_000);
 
-    // Replace must find and replace in one click even when another match is
+    await setEditorCaret(page, 0);
+    await scrollEditorTo(page, 0);
+
+    // Replace must find and replace in one click even when nothing is
     // currently selected; it must not require a separate Find click first.
     await findReplace.getByLabel('Find').fill('E2E');
     await findReplace.getByLabel('Replace').fill('browser');
     await findReplace.getByRole('button', { name: 'Replace', exact: true }).click();
-    await expect(textarea).toHaveValue(/Hello from PlainShelf browser\./);
+    await expect.poll(() => editorText(page)).toMatch(/Hello from PlainShelf browser\./);
     await expect(findReplace.getByRole('status')).toHaveText('Replaced 1 occurrence. Match 1 of 1.');
 
     await findReplace.getByLabel('Find').fill('repeat');
     await findReplace.getByLabel('Replace').fill('done');
     await findReplace.getByRole('button', { name: 'Replace all' }).click();
-    await expect(textarea).toHaveValue(/done done/);
+    await expect.poll(() => editorText(page)).toMatch(/done done/);
     await expect(findReplace.getByRole('status')).toHaveText('Replaced 2 occurrences.');
 
     // Status should flip to "Unsaved changes" and Save button should enable
@@ -122,24 +131,60 @@ test('should edit source content and see the change reflected in the reader', as
   }
 });
 
+test('should search with case, whole-word and regular-expression options', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await openSourceEditor(page, server.baseUrl);
+    await setEditorText(page, 'Cat cats CAT concat\n');
+
+    const findReplace = page.getByRole('group', { name: 'Find and replace' });
+    await findReplace.getByLabel('Find').fill('cat');
+    await findReplace.getByRole('button', { name: 'Next' }).click();
+    await expect(findReplace.getByRole('status')).toHaveText('Match 1 of 4.');
+    await expect.poll(() => editorSelectionText(page)).toBe('Cat');
+
+    // The caret is parked at the first match, so each option below is measured
+    // from the same starting point.
+    await findReplace.getByLabel('Match case').check();
+    await setEditorCaret(page, 0);
+    await findReplace.getByRole('button', { name: 'Next' }).click();
+    await expect(findReplace.getByRole('status')).toHaveText('Match 1 of 2.');
+    await expect.poll(() => editorSelectionText(page)).toBe('cat');
+
+    await findReplace.getByLabel('Match case').uncheck();
+    // "cats" and "concat" carry the word further, so only the two standalone
+    // spellings count once whole-word matching is on.
+    await findReplace.getByLabel('Whole word').check();
+    await setEditorCaret(page, 0);
+    await findReplace.getByRole('button', { name: 'Next' }).click();
+    await expect(findReplace.getByRole('status')).toHaveText('Match 1 of 2.');
+    await expect.poll(() => editorSelectionText(page)).toBe('Cat');
+
+    await findReplace.getByLabel('Whole word').uncheck();
+    await findReplace.getByLabel('Regular expression').check();
+    await findReplace.getByLabel('Find').fill('c(a)ts?');
+    await findReplace.getByLabel('Replace').fill('d[$1]');
+    await findReplace.getByRole('button', { name: 'Replace all' }).click();
+    await expect(findReplace.getByRole('status')).toHaveText('Replaced 4 occurrences.');
+    // The capture keeps the text as it was written, so CAT yields d[A].
+    await expect.poll(() => editorText(page)).toBe('d[a] d[a] d[A] cond[a]\n');
+
+    await findReplace.getByLabel('Find').fill('d[a');
+    await findReplace.getByRole('button', { name: 'Next' }).click();
+    await expect(findReplace.getByRole('status')).toHaveText('That regular expression is not valid.');
+  } finally {
+    await server.dispose();
+  }
+});
+
 test('should create a new source, set it as current, and see its content in the reader', async ({
   page
 }) => {
   const server = await startServer();
 
   try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
-
-    // Open source editor
-    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
-    await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await page.getByRole('button', { name: 'More' }).click();
-    await page.getByRole('menuitem', { name: 'Manage sources' }).click();
-    await expect(page).toHaveURL(/\/books\/[^/]+\/sources$/);
-
-    // Wait for initial source to load
-    await expect(page.getByText('No pending changes').first()).toBeVisible();
+    await openSourceEditor(page, server.baseUrl);
 
     // Create a new source
     const newBtn = page.getByRole('button', { name: 'New' });
@@ -147,18 +192,17 @@ test('should create a new source, set it as current, and see its content in the 
 
     // Wait for the entire creation cycle to settle:
     //   - "New" button re-enabled means creating=false and loadSource finished
-    //   - textarea enabled and empty confirms the new source is active
+    //   - an empty, editable document confirms the new source is active
     //   - "No pending changes" confirms isDirty=false (content===initialContent==='')
     await expect(newBtn).toBeEnabled();
-    const textarea = page.locator('.source-content-textarea');
-    await expect(textarea).toBeEnabled();
-    await expect(textarea).toHaveValue('');
+    const editor = sourceEditor(page);
+    await expect(editor).toBeVisible();
+    await expect.poll(() => editorText(page)).toBe('');
     await expect(page.getByText('No pending changes').first()).toBeVisible();
 
-    // Type unique content; use keyboard.type so Vue's controlled :value binding
-    // stays in sync across individual input events rather than a single bulk fill
-    await textarea.click();
+    await editor.click();
     await page.keyboard.type('This is the second source.');
+    await expect.poll(() => editorText(page)).toBe('This is the second source.');
 
     // Save the new source
     await expect(page.getByText('Unsaved changes').first()).toBeVisible();
@@ -190,15 +234,7 @@ test('should keep the book readable after deleting its current source', async ({
   const server = await startServer();
 
   try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
-
-    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
-    await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await page.getByRole('button', { name: 'More' }).click();
-    await page.getByRole('menuitem', { name: 'Manage sources' }).click();
-    await expect(page).toHaveURL(/\/books\/[^/]+\/sources$/);
-    await expect(page.getByText('No pending changes').first()).toBeVisible();
+    await openSourceEditor(page, server.baseUrl);
 
     // The imported source is the one to keep; give the book a second source and
     // make that the current one, so deleting it exercises the hand-over.
@@ -244,12 +280,7 @@ test('should derive chapterized Markdown from TXT and keep the original source',
   const server = await startServer();
 
   try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
-    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
-    await page.getByRole('button', { name: 'More' }).click();
-    await page.getByRole('menuitem', { name: 'Manage sources' }).click();
-    await expect(page.getByText('No pending changes').first()).toBeVisible();
+    await openSourceEditor(page, server.baseUrl);
 
     await page.getByRole('button', { name: 'Manual TXT → MD' }).click();
     const conversionDialog = page.getByRole('dialog', { name: 'Create chapterized Markdown source' });
@@ -262,8 +293,7 @@ test('should derive chapterized Markdown from TXT and keep the original source',
     await expect(page.getByText('MD', { exact: true }).first()).toBeVisible();
 
     await page.getByRole('button', { name: 'Add', exact: true }).click();
-    const textarea = page.locator('.source-content-textarea');
-    await expect(textarea).toHaveValue(/## Untitled chapter/);
+    await expect.poll(() => editorText(page)).toMatch(/## Untitled chapter/);
     await page.getByRole('button', { name: 'Save*' }).click();
     await expect(page.getByText('Source saved.')).toBeVisible();
 
@@ -292,23 +322,17 @@ test('should derive chapterized Markdown from TXT and keep the original source',
   }
 });
 
-test('should focus one Markdown chapter while preserving and searching the whole source', async ({ page }) => {
+test('should focus one Markdown chapter without splitting the document', async ({ page }) => {
   const server = await startServer();
 
   try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
-    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
-    await page.getByRole('button', { name: 'More' }).click();
-    await page.getByRole('menuitem', { name: 'Manage sources' }).click();
-    await expect(page.getByText('No pending changes').first()).toBeVisible();
+    await openSourceEditor(page, server.baseUrl);
 
     await page.getByRole('button', { name: 'Manual TXT → MD' }).click();
     const conversionDialog = page.getByRole('dialog', { name: 'Create chapterized Markdown source' });
     await conversionDialog.getByRole('button', { name: 'Create source' }).click();
     await expect(page.getByText('Derived source created.')).toBeVisible();
 
-    const textarea = page.locator('.source-content-textarea');
     const original = [
       '# Focused book',
       'Opening marker.',
@@ -319,71 +343,40 @@ test('should focus one Markdown chapter while preserving and searching the whole
       '## Two',
       'Second marker repeat.'
     ].join('\n');
-    await textarea.fill(original);
+    await setEditorText(page, original);
 
     await page.setViewportSize({ width: 700, height: 700 });
     await page.getByRole('button', { name: 'Chapters', exact: true }).click();
     await page.locator('.chapter-jump').filter({ hasText: 'One' }).click();
-    await expect(textarea).toBeVisible();
-    await expect(textarea).toHaveValue(/^## One\nFirst marker repeat\.\n\n$/);
-    await expect(textarea).not.toHaveValue(/Opening marker|Second marker/);
-    await expect(page.getByLabel('Scope')).toHaveValue('section');
+    await expect(sourceEditor(page)).toBeVisible();
     await page.setViewportSize({ width: 1280, height: 720 });
 
-    const composition = await textarea.evaluate(async (element) => {
-      const field = element as HTMLTextAreaElement;
-      field.focus();
-      field.dispatchEvent(new CompositionEvent('compositionstart', {
-        bubbles: true,
-        data: ''
-      }));
-      field.value = `${field.value}中文`;
-      const composedEnd = field.value.length;
-      field.setSelectionRange(composedEnd, composedEnd);
-      field.dispatchEvent(new InputEvent('input', {
-        bubbles: true,
-        data: '中文',
-        inputType: 'insertCompositionText',
-        isComposing: true
-      }));
+    // A Markdown source is highlighted as Markdown: the headings above render
+    // bold even though the source itself is unchanged.
+    await expect.poll(() => hasMarkdownStyling(page)).toBe(true);
 
-      // Moving the range after the composing input exposes any next-tick
-      // selection restore that would prematurely interfere with the IME.
-      field.setSelectionRange(0, 0);
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      const selectionDuringComposition = field.selectionStart;
+    // Focusing a chapter is now purely visual: the document is untouched and
+    // only the text outside the chapter is dimmed.
+    await expect.poll(() => editorText(page)).toBe(original);
+    await expect.poll(async () => (await dimmedRanges(page)).join('\n')).toContain('Opening marker.');
+    await expect.poll(async () => (await dimmedRanges(page)).join('\n')).toContain('Second marker repeat.');
+    expect((await dimmedRanges(page)).join('\n')).not.toContain('First marker repeat.');
+    await expect(page.getByLabel('Scope')).toHaveValue('section');
 
-      field.setSelectionRange(composedEnd, composedEnd);
-      field.dispatchEvent(new CompositionEvent('compositionend', {
-        bubbles: true,
-        data: '中文'
-      }));
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      return {
-        selectionDuringComposition,
-        selectionAfterComposition: field.selectionStart,
-        composedEnd,
-        value: field.value
-      };
-    });
-    expect(composition.selectionDuringComposition).toBe(0);
-    expect(composition.selectionAfterComposition).toBe(composition.composedEnd);
-    expect(composition.value).toContain('中文');
+    // Typing survives a chapter switch, and so does the undo history: neither
+    // rebuilds the editor any more.
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('End');
+    await page.keyboard.type('X');
+    await expect.poll(() => editorText(page)).toContain('First marker repeat.X');
+    await page.locator('.chapter-jump').filter({ hasText: 'Two' }).click();
+    await expect.poll(async () => (await dimmedRanges(page)).join('\n')).toContain('First marker repeat.X');
+    await page.keyboard.press('Control+z');
+    await expect.poll(() => editorText(page)).toBe(original);
 
-    // Pasting an H2 splits the visible chapter and follows the cursor into the
-    // newly-created section without exposing the rest of the source.
-    await textarea.fill([
-      '## One',
-      'First marker repeat.',
-      'Chapter one edited.',
-      '',
-      '## Inserted',
-      'Inserted marker.',
-      ''
-    ].join('\n'));
-    await expect(textarea).toHaveValue(/^## Inserted\nInserted marker\.\n$/);
-    await expect(textarea).not.toHaveValue(/## One|## Two/);
-
+    // Chapter scope is a filter on matches, so the same query answers
+    // differently in the chapter and in the whole source.
+    await page.locator('.chapter-jump').filter({ hasText: 'One' }).click();
     const findReplace = page.getByRole('group', { name: 'Find and replace' });
     await findReplace.getByLabel('Find').fill('Second marker');
     await findReplace.getByRole('button', { name: 'Next' }).click();
@@ -391,35 +384,24 @@ test('should focus one Markdown chapter while preserving and searching the whole
 
     await page.getByLabel('Scope').selectOption('source');
     await findReplace.getByRole('button', { name: 'Next' }).click();
-    await expect(textarea).toHaveValue(/^## Two\nSecond marker repeat\.$/);
     await expect(findReplace.getByRole('status')).toHaveText('Match 1 of 1.');
+    await expect.poll(() => editorSelectionText(page)).toBe('Second marker');
 
-    await page.getByRole('button', { name: 'Whole source' }).click();
-    const draftBeforeReplace = await textarea.inputValue();
-    expect(draftBeforeReplace).toBe([
-      '# Focused book',
-      'Opening marker.',
-      '',
-      '## One',
-      'First marker repeat.',
-      'Chapter one edited.',
-      '',
-      '## Inserted',
-      'Inserted marker.',
-      '## Two',
-      'Second marker repeat.'
-    ].join('\n'));
-    await page.locator('.chapter-jump').filter({ hasText: 'Two' }).click();
-    await page.getByLabel('Scope').selectOption('source');
+    // Following the caret into another chapter re-scopes the outline without
+    // rewriting anything.
+    await expect(page.locator('.chapter-list li.selected')).toHaveText(/Two/);
 
+    await page.getByLabel('Scope').selectOption('section');
     await findReplace.getByLabel('Find').fill('repeat');
     await findReplace.getByLabel('Replace').fill('done');
     await findReplace.getByRole('button', { name: 'Replace all' }).click();
-    await expect(findReplace.getByRole('status')).toHaveText('Replaced 2 occurrences.');
-    await expect(textarea).toHaveValue(/^## Two\nSecond marker done\.$/);
+    await expect(findReplace.getByRole('status')).toHaveText('Replaced 1 occurrence.');
+    await expect.poll(() => editorText(page)).toBe(
+      original.replace('Second marker repeat.', 'Second marker done.')
+    );
 
     await page.getByRole('button', { name: 'Whole source' }).click();
-    await expect(textarea).toHaveValue(/Opening marker[\s\S]*First marker done[\s\S]*Chapter one edited[\s\S]*## Inserted[\s\S]*Second marker done/);
+    await expect.poll(() => dimmedRanges(page)).toEqual([]);
     await page.getByRole('button', { name: 'Save*' }).click();
     await expect(page.getByText('Source saved.')).toBeVisible();
 
@@ -427,7 +409,10 @@ test('should focus one Markdown chapter while preserving and searching the whole
     await page.getByRole('button', { name: 'More' }).click();
     await page.getByRole('menuitem', { name: 'Manage sources' }).click();
     await expect(page.getByText('No pending changes').first()).toBeVisible();
-    await expect(textarea).toHaveValue(/Opening marker[\s\S]*First marker done[\s\S]*## Inserted[\s\S]*Second marker done/);
+    await expect(sourceEditor(page)).toBeVisible();
+    await expect.poll(() => editorText(page)).toBe(
+      original.replace('Second marker repeat.', 'Second marker done.')
+    );
   } finally {
     await server.dispose();
   }
@@ -437,48 +422,34 @@ test('should not move the view while typing into a source taller than the screen
   const server = await startServer();
 
   try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
-    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
-    await page.getByRole('button', { name: 'More' }).click();
-    await page.getByRole('menuitem', { name: 'Manage sources' }).click();
-    await expect(page.getByText('No pending changes').first()).toBeVisible();
-
-    const textarea = page.locator('.source-content-textarea');
-    await expect(textarea).toBeEnabled();
+    await openSourceEditor(page, server.baseUrl);
 
     const filler = Array.from(
       { length: 60 },
       (_, index) => `Filler line ${index + 1}: ${'wrapped content '.repeat(24)}`
     ).join('\n');
-    await textarea.fill(`${filler}\nTyping anchor\n${filler}`);
+    await setEditorText(page, `${filler}\nTyping anchor\n${filler}`);
 
-    // Park the caret deep inside the document, where the browser has no reason
+    // Park the caret deep inside the document, where the editor has no reason
     // of its own to scroll while typing.
     const findReplace = page.getByRole('group', { name: 'Find and replace' });
     await findReplace.getByLabel('Find').fill('Typing anchor');
     await findReplace.getByRole('button', { name: 'Next' }).click();
     await expect(findReplace.getByRole('status')).toHaveText('Match 1 of 1.');
+    await expect.poll(() => editorScrollTop(page)).toBeGreaterThan(1_000);
 
-    const scrollTop = () => textarea.evaluate((element) => (element as HTMLTextAreaElement).scrollTop);
-    await expect.poll(scrollTop).toBeGreaterThan(1_000);
-
-    // Collapse the match and lift the caret close to the top edge: still fully
-    // visible, so nothing should scroll, but near enough to the edge that a
-    // caret-revealing pass would jump the view.
-    await textarea.press('ArrowRight');
-    await textarea.evaluate((element) => {
-      const field = element as HTMLTextAreaElement;
-      field.scrollTop += field.clientHeight / 3 - 20;
-    });
-    const parked = await scrollTop();
+    // Collapse the match and lift the caret well clear of both edges, so that
+    // nothing has to scroll for it to stay visible.
+    await page.keyboard.press('ArrowRight');
+    await scrollEditorTo(page, (await editorScrollTop(page)) + 200);
+    const parked = await editorScrollTop(page);
 
     for (const character of 'typed') {
       await page.keyboard.type(character);
       await page.waitForTimeout(120);
-      expect(await scrollTop()).toBe(parked);
+      expect(await editorScrollTop(page)).toBe(parked);
     }
-    await expect(textarea).toHaveValue(/Typing anchortyped/);
+    await expect.poll(() => editorText(page)).toMatch(/Typing anchortyped/);
   } finally {
     await server.dispose();
   }
