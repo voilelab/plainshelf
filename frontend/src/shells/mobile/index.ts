@@ -14,6 +14,7 @@ import { PCloudBookshelfProvider } from '@/providers/pcloudBookshelfProvider';
 import { registerShell } from '@/providers/shell';
 import { createMobileDeviceDocumentStorage } from './deviceDocumentStorage';
 import { activeMobileShelfInfo } from './shelfInfo';
+import { installMobileRouterGuards } from './routerGuard';
 import { createMobileShelfPicker } from './shelfPicker';
 import { ServerBookshelfProvider } from '@/providers/serverBookshelfProvider';
 import { FilesystemShelfSnapshotStore } from '@/providers/shelfSnapshotStore';
@@ -61,6 +62,7 @@ export async function installMobileShell(): Promise<void> {
   registerShell({
     activeShelfInfo: activeMobileShelfInfo,
     createShelfPicker: createMobileShelfPicker,
+    installRouterGuards: installMobileRouterGuards,
     createDeviceDocumentStorage: createMobileDeviceDocumentStorage,
 
     createProvider: () =>
