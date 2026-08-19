@@ -40,6 +40,9 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+      - name: Check module boundaries
+        run: npm run check-boundaries
+
       - name: Check dependency licenses
         run: npm run check-licenses
 
