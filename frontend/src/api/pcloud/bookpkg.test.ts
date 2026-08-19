@@ -36,7 +36,7 @@ function bookPackage(name: string, sourceIDs: string[] = ['20240101-120000']): P
   return folder(name, [
     file('book.json'),
     file('cover.jpg'),
-    file('CURRENT_VERSION_LOCATION.txt'),
+    file('CURRENT_SOURCE.txt'),
     folder(
       'sources',
       sourceIDs.map((id) => folder(id, [file('meta.json'), file('source.txt')]))
@@ -81,7 +81,7 @@ describe('collectBookPackages', () => {
     expect(pkg.meta?.size).toBe(128);
     expect(pkg.meta?.modified).toBe('Sun, 16 Mar 2014 17:26:04 +0000');
     expect(Object.keys(pkg.files).sort()).toEqual([
-      'CURRENT_VERSION_LOCATION.txt',
+      'CURRENT_SOURCE.txt',
       'book.json',
       'cover.jpg'
     ]);

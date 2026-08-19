@@ -20,7 +20,7 @@ import (
 /*
 {book-folder}/
 ├─ book.json
-├─ CURRENT_VERSION_LOCATION.txt
+├─ CURRENT_SOURCE.txt
 ├─ cover.(jpg|png|webp)
 └─ sources/
    └─ {source-id}
@@ -28,12 +28,28 @@ import (
 
 const SourcesFolder = "sources"
 const BookMetaFile = "book.json"
-const CurrentVersionLocationFile = "CURRENT_VERSION_LOCATION.txt"
-const CurrentVersionLocationTemplate = `[shelf 狀態指標]
-當前閱讀版本存放於：
+
+// CurrentSourceHintFile names the human-readable pointer to the active source.
+//
+// LegacyCurrentSourceHintFile is the name earlier builds used. Nothing ever
+// reads either file back — current_source in book.json is the only authority —
+// so the rename needs no migration: the next hint write drops the legacy file
+// so a shelf never carries both.
+const CurrentSourceHintFile = "CURRENT_SOURCE.txt"
+const LegacyCurrentSourceHintFile = "CURRENT_VERSION_LOCATION.txt"
+
+// CurrentSourceHintTemplate is written in English rather than following a UI
+// locale: i18n lives in the frontend, and the server has no locale setting to
+// read, so a shelf written by a headless server would otherwise have no
+// defensible language to pick. The file is disposable, so this costs nothing
+// that a future locale-aware write could not undo.
+const CurrentSourceHintTemplate = `[PlainShelf hint]
+This book currently reads from:
 %s
 
-(註：請勿修改此檔案內容，shelf 會自動更新此指標)
+This file is a hint written by PlainShelf, not the source of truth: nothing
+reads it back, and current_source in book.json is what the app follows. You
+can safely delete it; it is rewritten the next time the current source changes.
 `
 
 // BookMetaSchemaVersion is the book.json schema version this build writes.
@@ -354,23 +370,31 @@ func (b *Book) SetCurrentSource(sourceID string) error {
 		return util.Errorf("%w", err)
 	}
 
-	err = b.updateCurrentVersionLocation(sourceID)
+	err = b.writeCurrentSourceHint(sourceID)
 	if err != nil {
 		// This error is not critical, just log it and continue.
-		b.logger.Warn("failed to update current version location", "error", err)
+		b.logger.Warn("failed to write current source hint", "error", err)
 	}
 
 	return nil
 }
 
-func (b *Book) updateCurrentVersionLocation(sourceID string) error {
+func (b *Book) writeCurrentSourceHint(sourceID string) error {
 	sourcePath := path.Join(SourcesFolder, sourceID, SourceFile)
-	sourceContent := fmt.Sprintf(CurrentVersionLocationTemplate, sourcePath)
+	hintContent := fmt.Sprintf(CurrentSourceHintTemplate, sourcePath)
 
-	currentVersionLocationPath := path.Join(b.folderPath, CurrentVersionLocationFile)
+	hintPath := path.Join(b.folderPath, CurrentSourceHintFile)
 
-	err := fsutil.WriteFileAtomic(b.root, currentVersionLocationPath, []byte(sourceContent))
+	err := fsutil.WriteFileAtomic(b.root, hintPath, []byte(hintContent))
 	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	// A shelf written by an older build still carries the previous name. Drop
+	// it here so the two hints never sit side by side, contradicting each other
+	// once the current source moves again.
+	err = b.root.Remove(path.Join(b.folderPath, LegacyCurrentSourceHintFile))
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return util.Errorf("%w", err)
 	}
 
