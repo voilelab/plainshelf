@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { startServer } from './support/server';
 
-const tabNames = ['Cover', 'Reading history', 'Reader', 'Import', 'About', 'Shelves'];
+const tabNames = ['Cover', 'Reading history', 'Import', 'About', 'Shelves'];
 
 /**
  * Vertical distance between the bottom of the tab list and the top of the

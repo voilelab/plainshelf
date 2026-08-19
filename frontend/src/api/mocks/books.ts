@@ -4,10 +4,8 @@ import type {
   BookContent,
   BookUpdateRequest,
   PaginatedBooks,
-  SplitConfig,
   TrashedBook
 } from '@/types/book';
-import { normalizeSplitConfig } from '@/utils/splitConfig';
 import { registerMockTaskChain } from './taskchains';
 import type { BookBatchRequest, BookBatchResult, RefreshContentStatsResult } from '@/types/task';
 
@@ -203,7 +201,6 @@ const mockContent: Record<string, string> = {
   ].join('\n')
 };
 
-const mockSplitConfigs: Record<string, SplitConfig> = {};
 const mockTrashedBooks: TrashedBook[] = [];
 
 export function findBookOrThrow(id: string): Book {
@@ -287,15 +284,6 @@ export function mockImportBook(payload: BookCreateRequest): Book {
 
   mockBooks.unshift(created);
   return created;
-}
-
-export function mockGetSplitConfig(id: string): SplitConfig {
-  return normalizeSplitConfig(mockSplitConfigs[id] ?? { type: 'none' });
-}
-
-export function mockSetSplitConfig(id: string, payload: unknown): SplitConfig {
-  mockSplitConfigs[id] = normalizeSplitConfig(payload);
-  return mockSplitConfigs[id];
 }
 
 export async function mockGetBookCover(id: string): Promise<Blob> {

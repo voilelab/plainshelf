@@ -15,7 +15,7 @@ vi.mock('@/storage/readHistory', () => ({
 }));
 
 import { ApiError, setActiveShelfID, setApiBase } from '@/api/client';
-import type { Book, PaginatedBooks, ReadingProgress, SplitConfig } from '@/types/book';
+import type { Book, PaginatedBooks, ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import type { BookshelfReader } from './bookshelfProvider';
 import { InMemoryMobileBookCache } from './mobileBookCache';
@@ -77,13 +77,11 @@ function statusError(status: number): ApiError {
 async function seedDownloadedBook(
   cache: InMemoryMobileBookCache,
   id: string,
-  sourceId = 'src-1',
-  splitConfig?: SplitConfig
+  sourceId = 'src-1'
 ): Promise<void> {
   await cache.saveDownloadedBook({
     book: makeBook(id),
     sources: [makeSource(sourceId)],
-    split_config: splitConfig,
     downloaded_at: '2026-07-10T12:00:00Z',
     local_version: 'v-local',
     remote_version: 'v-remote'
@@ -196,68 +194,6 @@ describe('MobileBookshelfProvider — server-unreachable-while-online fallback',
     });
   });
 
-  describe('getBookSplitConfig', () => {
-    const cachedConfig: SplitConfig = { type: 'boundary', boundaries: [0, 120, 360] };
-
-    it('returns the complete cached config without calling remote while offline', async () => {
-      await seedDownloadedBook(cache, 'book-1', 'src-1', cachedConfig);
-      const getBookSplitConfig = vi.fn();
-      const provider = makeProvider({ getBookSplitConfig }, () => false);
-
-      await expect(provider.getBookSplitConfig('book-1')).resolves.toEqual(cachedConfig);
-      expect(getBookSplitConfig).not.toHaveBeenCalled();
-    });
-
-    it('falls back to the complete cached config after a retryable timeout', async () => {
-      await seedDownloadedBook(cache, 'book-1', 'src-1', {
-        type: 'regex',
-        regex: '^Chapter \\d+'
-      });
-      const getBookSplitConfig = vi.fn().mockRejectedValue(timeoutError());
-      const provider = makeProvider({ getBookSplitConfig });
-
-      await expect(provider.getBookSplitConfig('book-1')).resolves.toEqual({
-        type: 'regex',
-        regex: '^Chapter \\d+'
-      });
-    });
-
-    it('uses the legacy single-section fallback after a retryable transport failure', async () => {
-      await seedDownloadedBook(cache, 'book-1');
-      const getBookSplitConfig = vi.fn().mockRejectedValue(unreachableError());
-      const provider = makeProvider({ getBookSplitConfig });
-
-      await expect(provider.getBookSplitConfig('book-1')).resolves.toEqual({ type: 'none' });
-      expect(getBookSplitConfig).toHaveBeenCalledWith('book-1');
-    });
-
-    it('does not hide a non-retryable remote error', async () => {
-      await seedDownloadedBook(cache, 'book-1', 'src-1', cachedConfig);
-      const getBookSplitConfig = vi.fn().mockRejectedValue(statusError(401));
-      const provider = makeProvider({ getBookSplitConfig });
-
-      await expect(provider.getBookSplitConfig('book-1')).rejects.toMatchObject({ status: 401 });
-    });
-
-    it('uses an immediate single-section fallback for a legacy downloaded manifest', async () => {
-      await seedDownloadedBook(cache, 'book-1');
-      const getBookSplitConfig = vi.fn();
-      const provider = makeProvider({ getBookSplitConfig }, () => false);
-
-      await expect(provider.getBookSplitConfig('book-1')).resolves.toEqual({ type: 'none' });
-      expect(getBookSplitConfig).not.toHaveBeenCalled();
-    });
-
-    it('reports an offline cache miss for a book that was never downloaded', async () => {
-      const getBookSplitConfig = vi.fn();
-      const provider = makeProvider({ getBookSplitConfig }, () => false);
-
-      await expect(provider.getBookSplitConfig('missing-book')).rejects.toThrow(
-        'Book is not downloaded and the app is offline'
-      );
-      expect(getBookSplitConfig).not.toHaveBeenCalled();
-    });
-  });
 });
 
 describe('MobileBookshelfProvider — device-local reading history', () => {
@@ -399,7 +335,6 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
       }),
       listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
       getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
-      getBookSplitConfig: vi.fn().mockResolvedValue({ type: 'line_count', line_count: 40 }),
       getSourceContent: vi.fn().mockResolvedValue('source text')
     });
 
@@ -421,7 +356,6 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
       getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'md' })),
       listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
       getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
-      getBookSplitConfig: vi.fn().mockResolvedValue({ type: 'none' }),
       getSourceContent: vi
         .fn()
         .mockResolvedValue(
@@ -451,7 +385,6 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
       getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'md' })),
       listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
       getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
-      getBookSplitConfig: vi.fn().mockResolvedValue({ type: 'none' }),
       getSourceContent: vi.fn().mockResolvedValue('- Floor plan\n  ![map](assets/map.png)'),
       getSourceAsset
     });
@@ -462,9 +395,8 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
     expect(await cache.getCachedAsset('book-1', 'src-1', 'map.png')).not.toBeNull();
   });
 
-  it('uses current source format and omits split state for new offline manifests', async () => {
+  it('uses the current source format when deciding to fetch illustrations', async () => {
     const getSourceAsset = vi.fn().mockResolvedValue(new Blob(['image'], { type: 'image/png' }));
-    const getBookSplitConfig = vi.fn().mockResolvedValue({ type: 'regex', regex: '^legacy$' });
     const provider = makeProvider({
       getBook: vi.fn().mockResolvedValue(makeBook('book-1', {
         format: 'txt',
@@ -476,16 +408,13 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
         format: 'md'
       }]),
       getBookContent: vi.fn().mockResolvedValue({ content: '![map](assets/map.png)' }),
-      getBookSplitConfig,
       getSourceContent: vi.fn().mockResolvedValue('![map](assets/map.png)'),
       getSourceAsset
     });
 
     await provider.downloadBook('book-1');
 
-    expect(getBookSplitConfig).not.toHaveBeenCalled();
     expect(getSourceAsset).toHaveBeenCalledWith('book-1', 'src-1', 'map.png');
-    expect((await cache.listDownloadedManifests())[0].split_config).toBeUndefined();
   });
 
   // A plain-text book cannot render an image, so scanning it would only fetch
@@ -496,7 +425,6 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
       getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'txt' })),
       listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
       getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
-      getBookSplitConfig: vi.fn().mockResolvedValue({ type: 'none' }),
       getSourceContent: vi.fn().mockResolvedValue('![a](assets/img-0001.png)'),
       getSourceAsset
     });
@@ -512,7 +440,6 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
       getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'md' })),
       listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
       getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
-      getBookSplitConfig: vi.fn().mockResolvedValue({ type: 'none' }),
       getSourceContent: vi.fn().mockResolvedValue('![a](assets/img-0001.png)'),
       getSourceAsset: vi.fn().mockRejectedValue(new Error('boom'))
     });
@@ -541,7 +468,6 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
       getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'md' })),
       listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
       getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
-      getBookSplitConfig: vi.fn().mockResolvedValue({ type: 'none' }),
       getSourceContent: vi.fn().mockResolvedValue(links),
       getSourceAsset
     });
@@ -563,7 +489,6 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
         getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'md' })),
         listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
         getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
-        getBookSplitConfig: vi.fn().mockResolvedValue({ type: 'none' }),
         getSourceContent: vi.fn().mockResolvedValue('![a](assets/img-0001.png)'),
         getSourceAsset: vi.fn().mockResolvedValue(new Blob(['bytes'], { type: 'image/png' }))
       } as unknown as BookshelfReader,
@@ -582,17 +507,12 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
       getBook: vi.fn().mockResolvedValue(makeBook('book-1')),
       listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
       getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
-      getBookSplitConfig: vi.fn().mockResolvedValue({ type: 'line_count', line_count: 40 }),
       getSourceContent: vi.fn().mockResolvedValue('source text')
     });
 
     await provider.downloadBook('book-1');
 
     expect((await cache.listDownloadedManifests()).map((m) => m.book.id)).toEqual(['book-1']);
-    expect((await cache.listDownloadedManifests())[0].split_config).toEqual({
-      type: 'line_count',
-      line_count: 40
-    });
     expect(await cache.getCachedBookContent('book-1')).toEqual({ content: 'text' });
   });
 });

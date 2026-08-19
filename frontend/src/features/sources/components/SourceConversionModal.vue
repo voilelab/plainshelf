@@ -61,12 +61,10 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { scanMarkdownH2Headings } from '@/features/reader/utils/markdownChapters';
-import type { SplitConfig } from '@/types/book';
 import {
   markdownToPlainText,
   textToMarkdownByLineCount,
-  textToMarkdownByRegex,
-  upgradeLegacyToMarkdown
+  textToMarkdownByRegex
 } from '@/features/sources/utils/sourceConversions';
 import { useI18n } from '@/i18n';
 
@@ -77,18 +75,16 @@ export type SourceConversionKind =
   | 'regex-md'
   | 'line-count-md'
   | 'plain-text'
-  | 'legacy-upgrade';
+;
 
 const props = withDefaults(defineProps<{
   open: boolean;
   kind: SourceConversionKind;
   sourceId: string;
   content: string;
-  legacyConfig?: SplitConfig;
   busy?: boolean;
   error?: string;
 }>(), {
-  legacyConfig: () => ({ type: 'none' }),
   busy: false,
   error: ''
 });
@@ -109,7 +105,6 @@ const title = computed(() => {
     case 'regex-md': return t('sources.conversion.titles.regexMd');
     case 'line-count-md': return t('sources.conversion.titles.lineCountMd');
     case 'plain-text': return t('sources.conversion.titles.plainText');
-    case 'legacy-upgrade': return t('sources.conversion.titles.legacyUpgrade');
   }
 });
 
@@ -119,7 +114,6 @@ const description = computed(() => {
     case 'regex-md': return t('sources.conversion.descriptions.regexMd');
     case 'line-count-md': return t('sources.conversion.descriptions.lineCountMd');
     case 'plain-text': return t('sources.conversion.descriptions.plainText');
-    case 'legacy-upgrade': return t('sources.conversion.descriptions.legacyUpgrade');
   }
 });
 
@@ -181,15 +175,6 @@ const preview = computed<ConversionPreview>(() => {
         format = 'txt';
         comment = `Plain-text conversion of ${props.sourceId}`;
         summary = t('sources.conversion.summaries.plainText');
-        break;
-      }
-      case 'legacy-upgrade': {
-        nextContent = upgradeLegacyToMarkdown(props.content, props.legacyConfig);
-        const chapters = scanMarkdownH2Headings(nextContent).length;
-        comment = `Legacy chapter upgrade of ${props.sourceId}`;
-        summary = chapters === 1
-          ? t('sources.conversion.summaries.legacyUpgradeOne')
-          : t('sources.conversion.summaries.legacyUpgradeMany', { count: chapters });
         break;
       }
     }

@@ -179,9 +179,6 @@ const en = {
     readHistory: {
       title: 'Reading history'
     },
-    reader: {
-      title: 'Reader'
-    },
     import: {
       title: 'Import'
     },
@@ -197,23 +194,6 @@ const en = {
       includeDescriptionLabel: 'Description in the text',
       includeDescriptionHelp:
         'Put the book description at the start of the text as well. It is always saved to the book metadata either way.',
-      save: 'Save',
-      saving: 'Saving...'
-    },
-    defaultSplitConfig: {
-      label: 'Legacy default section split rule',
-      description: 'Only applies to legacy sources without source-level format metadata. New Markdown sources use H2 headings.',
-      typeLabel: 'Split type',
-      typeNone: 'None',
-      typeLineCount: 'Line count',
-      typeRegex: 'Regex',
-      lineCountLabel: 'Lines per section',
-      lineCountPlaceholder: 'e.g. 100',
-      regexLabel: 'Regex pattern',
-      regexPlaceholder: 'e.g. ^Chapter\\s+\\d+',
-      regexHelp: 'Lines matching this pattern start a new section.',
-      invalidRegex: 'Invalid regular expression.',
-      invalidLineCount: 'Line count must be a positive integer.',
       save: 'Save',
       saving: 'Saving...'
     },
@@ -666,8 +646,7 @@ const en = {
     loadingContent: 'Loading content...',
     errors: {
       loadFailed: 'Failed to load reader data',
-      unknown: 'Unknown error',
-      splitConfigFallback: 'Failed to load split config, fallback to single section. {reason}'
+      unknown: 'Unknown error'
     },
     actionsLabel: 'Reader actions',
     decreaseFontSize: 'Decrease font size',
@@ -696,30 +675,6 @@ const en = {
       }
     },
     showChapters: 'Show chapters',
-    splitSettings: 'Split settings',
-    split: {
-      title: 'Reader Split Settings',
-      closeLabel: 'Close split dialog',
-      description:
-        'Apply section splitting without leaving reader. Current reading position will be preserved.',
-      typeLabel: 'Split Type',
-      // The values are API tokens; these name them for the reader.
-      types: {
-        none: 'None',
-        line_count: 'Line count',
-        regex: 'Regex',
-        boundary: 'Boundaries'
-      },
-      lineCountLabel: 'Lines per section',
-      lineCountPlaceholder: 'e.g. 100',
-      regexLabel: 'Regex pattern',
-      regexPlaceholder: 'e.g. ^Chapter\\s+\\d+',
-      boundaryLabel: 'Boundaries (1-based line numbers, comma or space separated)',
-      boundaryPlaceholder: 'e.g. 1, 101, 201',
-      save: 'Save Split Config',
-      saving: 'Saving...',
-      saveFailed: 'Failed to update split config'
-    },
     chapterDialog: {
       title: 'Chapters',
       closeLabel: 'Close chapter dialog'
@@ -910,8 +865,6 @@ const en = {
       legacy: 'Legacy'
     },
     formatActions: {
-      legacyUpgrade: 'Upgrade chapter format',
-      legacyUpgradeHelp: 'Creates a new Markdown source from the current legacy split result.',
       manualMarkdown: 'Manual TXT → MD',
       regexMarkdown: 'Regex → MD',
       lineCountMarkdown: 'Fixed lines → MD',
@@ -959,8 +912,7 @@ const en = {
         manualMd: 'Create chapterized Markdown source',
         regexMd: 'Convert title lines to chapters',
         lineCountMd: 'Split into fixed-size chapters',
-        plainText: 'Create plain-text source',
-        legacyUpgrade: 'Upgrade chapter format'
+        plainText: 'Create plain-text source'
       },
       descriptions: {
         manualMd:
@@ -968,9 +920,7 @@ const en = {
         regexMd: 'Matching title lines will be rewritten as Markdown H2 headings.',
         lineCountMd: 'An H2 “Part N” heading will be inserted at every previewed boundary.',
         plainText:
-          'Markdown markers will be removed. Heading hierarchy and chapter navigation will be lost.',
-        legacyUpgrade:
-          'The current legacy split result will become H2 chapters. The original source remains unchanged.'
+          'Markdown markers will be removed. Heading hierarchy and chapter navigation will be lost.'
       },
       patternLabel: 'Chapter title regular expression',
       patternHelp: 'Capture group 1 becomes the H2 title. Without a capture group, the full match is used.',
@@ -983,9 +933,7 @@ const en = {
         manualMdMany: 'The Markdown draft contains {count} H2 chapters initially.',
         regexMd: '{count} H2 chapter headings will be created.',
         lineCountMd: '{count} H2 chapter headings will be inserted.',
-        plainText: 'A single unstructured TXT section will be created.',
-        legacyUpgradeOne: '1 H2 chapter will be created from the current legacy split result.',
-        legacyUpgradeMany: '{count} H2 chapters will be created from the current legacy split result.'
+        plainText: 'A single unstructured TXT section will be created.'
       },
       errors: {
         emptyPattern: 'Enter a regular expression.',

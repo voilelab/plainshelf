@@ -62,15 +62,6 @@ export interface BookContent {
   content: string;
 }
 
-export type SplitType = 'none' | 'line_count' | 'regex' | 'boundary';
-
-export interface SplitConfig {
-  type: SplitType;
-  line_count?: number;
-  regex?: string;
-  boundaries?: number[];
-}
-
 export interface ReaderSection {
   index: number;
   startOffset: number;

@@ -1,11 +1,7 @@
 <template>
   <div class="source-format-actions">
-    <span class="format-badge" :class="{ legacy }">{{ legacy ? t('sources.format.legacy') : format.toUpperCase() }}</span>
-    <template v-if="legacy">
-      <button class="button" type="button" :disabled="disabled" @click="emit('convert', 'legacy-upgrade')">{{ t('sources.formatActions.legacyUpgrade') }}</button>
-      <span class="meta">{{ t('sources.formatActions.legacyUpgradeHelp') }}</span>
-    </template>
-    <template v-else-if="format === 'txt'">
+    <span class="format-badge">{{ format.toUpperCase() }}</span>
+    <template v-if="format === 'txt'">
       <button class="button" type="button" :disabled="disabled" @click="emit('convert', 'manual-md')">{{ t('sources.formatActions.manualMarkdown') }}</button>
       <button class="button" type="button" :disabled="disabled" @click="emit('convert', 'regex-md')">{{ t('sources.formatActions.regexMarkdown') }}</button>
       <button class="button" type="button" :disabled="disabled" @click="emit('convert', 'line-count-md')">{{ t('sources.formatActions.lineCountMarkdown') }}</button>
@@ -25,7 +21,6 @@ const { t } = useI18n();
 
 defineProps<{
   format: 'txt' | 'md';
-  legacy: boolean;
   disabled: boolean;
 }>();
 
@@ -55,8 +50,4 @@ const emit = defineEmits<{
   color: #075985;
 }
 
-.format-badge.legacy {
-  background: #fef3c7;
-  color: #92400e;
-}
 </style>

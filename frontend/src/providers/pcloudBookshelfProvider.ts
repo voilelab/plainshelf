@@ -7,7 +7,6 @@ import {
   parseBookJson,
   toBook,
   toSourceMeta,
-  toSplitConfig
 } from '@/api/pcloud/bookpkg';
 import type { BookJson, BookPackageRef, BookSourceRef, PCloudFileRef } from '@/api/pcloud/bookpkg';
 import {
@@ -36,7 +35,6 @@ import type {
   BookContent,
   PaginatedBooks,
   ReadingProgress,
-  SplitConfig,
   TrashedBook
 } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
@@ -626,17 +624,6 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       const entry = await this.findBook(bookId);
       const source = await this.currentSourceOf(entry);
       return await this.client.downloadBlob(this.contentRefOf(source, bookId).fileid);
-    });
-  }
-
-  getBookSplitConfig(bookId: string): Promise<SplitConfig> {
-    return this.guarded(async () => {
-      const entry = await this.findBook(bookId);
-      const source = await this.currentSourceOf(entry);
-      if (!source.meta) {
-        return { type: 'none' };
-      }
-      return toSplitConfig(await this.readJson(source.meta));
     });
   }
 

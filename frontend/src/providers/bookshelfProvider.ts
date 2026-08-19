@@ -9,7 +9,6 @@ import type {
   DownloadState,
   PaginatedBooks,
   ReadingProgress,
-  SplitConfig,
   TrashedBook
 } from '@/types/book';
 import type { CreateSourceOptions, SourceMeta } from '@/types/source';
@@ -51,7 +50,6 @@ export interface BookshelfReader {
   getBookContent(bookId: string): Promise<BookContent>;
   downloadBookContent(bookId: string): Promise<Blob>;
   /** @deprecated Legacy sources only. New Markdown sources derive chapters from H2. */
-  getBookSplitConfig(bookId: string): Promise<SplitConfig>;
 
   getReadProgress(bookId: string): Promise<ReadingProgress>;
   saveReadProgress(bookId: string, progress: BookmarkPayload): Promise<void>;
@@ -188,7 +186,6 @@ export interface BookshelfWriter {
   updateBookLayer(bookId: string, layer: string): Promise<void>;
   deleteBook(bookId: string): Promise<void>;
   /** @deprecated Legacy sources only. */
-  updateBookSplitConfig(bookId: string, config: SplitConfig): Promise<SplitConfig>;
 
   importBook(payload: BookCreateRequest): Promise<Book>;
   uploadBookCover(bookId: string, file: File): Promise<void>;
