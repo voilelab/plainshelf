@@ -17,15 +17,83 @@ A typical shelf looks like this:
 │  └─ {layer2}/
 │     └─ {layer3}/
 │        └─ {book3-folder}.bookpkg/
+├─ trash/
+│  └─ books/
+│     └─ {book-id}.bookpkg/
+│        └─ trash.json
 └─ app/
    ├─ library.lock
    ├─ book-cache-{writer-id}.json
    └─ tmp/
 ```
 
+The three top-level directories are not the same kind of thing:
+
+| Directory | Contents | Safe to delete? |
+|---|---|---|
+| `books/` | Your library. The source of truth. | No |
+| `trash/` | Books you deleted, kept until you empty the trash. Your data too. | No — deleting it discards those books for good |
+| `app/` | Runtime state the server rebuilds. | Yes |
+
 ### `books/`
 
 Source of truth. This directory contains all user-owned data: book metadata, text files, cover images, and other long-lived files. Books can be nested under [layers](layers.md) by placing them inside sub-directories.
+
+### `trash/`
+
+Books you deleted. Trashing a book moves its whole `.bookpkg` directory here
+unchanged and writes a `trash.json` beside its `book.json`; restoring moves it
+back and removes that file. Nothing is deleted until you empty the trash or
+delete a single book from it, so this is user data and **not** rebuildable
+state — a backup that skips it loses whatever you had not yet emptied.
+
+```text
+trash/
+└─ books/
+   └─ {book-id}.bookpkg/
+      ├─ trash.json
+      └─ …the book's own files, untouched
+```
+
+The folder here is named after the book's ID rather than its title, so two
+books with the same title cannot collide. `trash.json` records when the book
+was deleted and where it came from:
+
+| Field | Description |
+|---|---|
+| `deleted_at` | When the book was moved to the trash |
+| `original_path` | The path it was moved from, used to restore its folder name |
+| `original_layer` | The [layer](layers.md) it lived in, recreated on restore |
+| `delete_reason` | Why it was deleted; `user` for a deletion you asked for |
+
+If the file is missing or unreadable the book still appears in the trash and can
+still be restored — it lands at the top level of `books/` under the folder name
+it has in the trash.
+
+Restoring never overwrites: if something already occupies the original path, the
+restored folder gets a `-1`, `-2`, … suffix. The book ID inside `book.json` is
+unchanged either way, so reading progress and bookmarks survive the round trip.
+
+### `trash/` was `.trash/` before
+
+Older shelves keep the trash in a hidden `.trash/` directory. PlainShelf renames
+it to `trash/` the next time it opens such a shelf; if both names exist — a
+shelf opened by an older build again after the rename — every book under
+`.trash/books/` is moved into `trash/books/`, a book ID already taken there
+getting a `-1` suffix, and the emptied `.trash/` is removed. Files you put under
+`.trash/` yourself are moved along or, if they block the removal, left exactly
+where they are; the migration deletes nothing.
+
+That suffix is the one case where the trash holds two folders for the same book
+ID. A book ID is never rewritten — everything else, including your reading
+progress, is keyed on it — so the trash screen cannot tell the two apart: it
+lists both and restores or deletes the one without the suffix. Move the extra
+folder back into `books/` with a file manager if you want it, or empty the
+trash, which removes both.
+
+The trash is now visible because it holds your data. A shelf you open in a file
+manager should show every directory PlainShelf keeps, and the one directory that
+is genuinely disposable, `app/`, is the one you would least mind seeing.
 
 ### `app/`
 
@@ -192,4 +260,4 @@ The book ID is generated once when the book is created and then persisted in `bo
 
 - **Human-readable** — the shelf directory can be opened and inspected with any file manager or text editor.
 - **Backup-friendly** — because everything is plain files, the shelf is trivially backed up with `cp`, `rsync`, or committed to Git.
-- **Rebuildable runtime state** — everything under `app/` can be deleted and the server will recreate it on the next startup. See [Back up before upgrading](data-format-versioning.md#back-up-before-upgrading) for what a complete backup covers.
+- **Rebuildable runtime state** — everything under `app/` can be deleted and the server will recreate it on the next startup. `books/` and `trash/` are not: both hold your books. See [Back up before upgrading](data-format-versioning.md#back-up-before-upgrading) for what a complete backup covers.

@@ -236,7 +236,7 @@ cp -a /path/to/shelf /path/to/backup/shelf-2026-07-28
 rsync -a /path/to/shelf/ /path/to/backup/shelf-2026-07-28/
 ```
 
-Two things people miss:
+Three things people miss:
 
 - **Also copy the application store** (`--store-path`, or the platform default)
   if you want to preserve server settings. Reading progress, history, and time
@@ -245,6 +245,12 @@ Two things people miss:
   profile or desktop app data directory separately if those records matter.
 - **Everything under `app/`** — the lock file, temporary files, and the exported
   book caches — can be discarded safely; the server recreates it.
+- **`trash/` is not in that category.** It holds books you deleted but have not
+  emptied yet, and nothing rebuilds them. Copying the shelf directory as shown
+  above already includes it; only leave it out if you are certain you want the
+  backup to drop those books. Older shelves keep the same directory hidden as
+  `.trash/`, so a backup command that skips dotfiles silently loses it — see
+  [`trash/` was `.trash/` before](data-model.md#trash-was-trash-before).
 
 Stop the server or desktop app before copying if you want a guaranteed-consistent
 snapshot. The shelf lock coordinates PlainShelf's own writes; it does not stop
@@ -271,7 +277,9 @@ Upgrade from v0.8 only if you accept that they will no longer be accessible.
 3. Start PlainShelf again.
 
 You can skip `app/library.lock`, `app/tmp/`, and `app/book-cache-*.json` when
-restoring; they are recreated on the next startup.
+restoring; they are recreated on the next startup. Restore `books/` and `trash/`
+in full: both hold books, and a restored `.trash/` from an older backup is
+renamed to `trash/` on the next start.
 
 ---
 
@@ -312,7 +320,7 @@ Book and source metadata carry independent schema versions.
 |---|---|
 | `books/**/book.json` | Yes — `schema_version`, described on this page |
 | `books/**/sources/{id}/meta.json` | Yes — `schema_version`; v1 owns source `format` |
-| `.trash/**/trash.json` | No |
+| `trash/**/trash.json` | No |
 | Application store | No |
 
 The practical rule remains: **run one PlainShelf version against a shelf at a
