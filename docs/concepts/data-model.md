@@ -278,5 +278,5 @@ random form makes that plain.
 ## Design principles
 
 - **Human-readable** — the shelf directory can be opened and inspected with any file manager or text editor.
-- **Backup-friendly** — because everything is plain files, the shelf is trivially backed up with `cp`, `rsync`, or committed to Git.
+- **Backup-friendly** — because everything is plain files, the shelf is trivially backed up with `cp -a` or `rsync`. Committing it to Git is *not* an equivalent option: Git does not track empty directories, so a layer holding no book is not in the commit and is not there after a checkout. See [Git does not back up empty layers](data-format-versioning.md#git-does-not-back-up-empty-layers).
 - **Rebuildable runtime state** — everything under `app/` can be deleted and the server will recreate it on the next startup. `books/` and `trash/` are not: both hold your books. See [Back up before upgrading](data-format-versioning.md#back-up-before-upgrading) for what a complete backup covers.

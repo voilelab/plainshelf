@@ -236,6 +236,10 @@ cp -a /path/to/shelf /path/to/backup/shelf-2026-07-28
 rsync -a /path/to/shelf/ /path/to/backup/shelf-2026-07-28/
 ```
 
+Those two are equivalent for this purpose. Committing the shelf to Git is not —
+see [Git does not back up empty layers](#git-does-not-back-up-empty-layers)
+below.
+
 Three things people miss:
 
 - **Also copy the application store** (`--store-path`, or the platform default)
@@ -255,6 +259,35 @@ Three things people miss:
 Stop the server or desktop app before copying if you want a guaranteed-consistent
 snapshot. The shelf lock coordinates PlainShelf's own writes; it does not stop
 your backup tool from reading a file mid-write.
+
+### Git does not back up empty layers
+
+Git tracks files, not directories, so a [layer](layers.md) that holds no book —
+one you created ahead of time, or one whose books you have since moved out — is
+not in the commit and is not there after a checkout. Books themselves are
+directories full of files and come back intact; what a Git backup loses is the
+shape of the shelf around them.
+
+PlainShelf hits the same property internally, which is why it records the layer
+list in its own right instead of deriving it from the books: an empty layer
+holds no book, so nothing can rebuild it from the library.
+
+Two ways to live with that:
+
+- **Accept it,** and re-create the empty layers by hand after a restore. They
+  are only directories, so `mkdir` under `books/` or the app's own layer
+  creation is enough. [Restoring from a backup](#restoring-from-a-backup) below
+  says how to spot which ones are gone.
+- **Put a `.gitkeep` (or any placeholder file) in each layer you want
+  preserved.** Git then has a file to track and keeps the directory.
+  PlainShelf's scanners look only at directories under `books/`, so such a file
+  never shows up as a layer or a book — but it is still a file you did not put
+  in your library, and while it is there PlainShelf refuses to delete that
+  layer, reporting `cannot delete non-empty layer`; remove the file first.
+  PlainShelf neither creates nor removes these files, and does not plan to:
+  `books/` holds your files, not the app's.
+
+Use `cp -a` or `rsync` when you want a backup with none of these caveats.
 
 ## v0.8 reading-data breaking change
 
@@ -280,6 +313,13 @@ You can skip `app/library.lock`, `app/tmp/`, and `app/book-cache-*.json` when
 restoring; they are recreated on the next startup. Restore `books/` and `trash/`
 in full: both hold books, and a restored `.trash/` from an older backup is
 renamed to `trash/` on the next start.
+
+If you restored from a Git checkout rather than a file copy, check the layer
+tree before you start filing books again: every layer that was empty at commit
+time is missing, and no error says so — the library simply comes back one or
+more folders shallower. Compare the layer list in the app (or `find books/ -type d`)
+with what you expect, and re-create the ones that are gone. No book can go
+missing this way: a layer that still holds a book holds files, so Git kept it.
 
 ---
 
