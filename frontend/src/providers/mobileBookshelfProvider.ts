@@ -268,6 +268,16 @@ export class MobileBookshelfProvider implements BookshelfReader {
     return this.remote.getBookCoverUrl(bookId, cacheKey);
   }
 
+  /**
+   * Always, on this shell: the WebView issues an `<img src="http://...">`
+   * itself rather than through CapacitorHttp, so the request is not the one
+   * the native bridge would have made. Going through getBookCover() also
+   * reuses the offline cover cache for a downloaded book.
+   */
+  coversMustBeFetchedAsBlob(): boolean {
+    return true;
+  }
+
 
   getDuplicateBookGroups(): Promise<string[][]> {
     return this.remote.getDuplicateBookGroups();
