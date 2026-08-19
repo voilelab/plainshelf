@@ -278,6 +278,11 @@ export class MobileBookshelfProvider implements BookshelfReader {
     return true;
   }
 
+  /** Whatever this shell is pointed at answers; a wrapper has no mode of its own. */
+  supportsServerMode(): boolean {
+    return this.remote.supportsServerMode?.() ?? true;
+  }
+
 
   getDuplicateBookGroups(): Promise<string[][]> {
     return this.remote.getDuplicateBookGroups();

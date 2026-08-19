@@ -665,6 +665,11 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     return true;
   }
 
+  /** Cloud storage, not a PlainShelf server: there is no mode to fetch. */
+  supportsServerMode(): boolean {
+    return false;
+  }
+
   // --- layers --------------------------------------------------------------
 
   listLayers(): Promise<string[]> {

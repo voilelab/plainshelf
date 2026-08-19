@@ -1,4 +1,5 @@
 import type { BookshelfProvider } from './bookshelfProvider';
+import type { ShelfInfo } from '@/api/shelves';
 import type { DeviceDocumentStorage } from '@/storage/deviceDocument';
 
 /**
@@ -31,6 +32,17 @@ export interface RuntimeShell {
    * key each store already defines for itself.
    */
   createDeviceDocumentStorage?(path: string): DeviceDocumentStorage;
+
+  /**
+   * The one shelf this shell is pointed at, when its shelf list is device-local
+   * rather than something a server enumerates.
+   *
+   * The mobile device keeps its own list — several servers and pCloud folders
+   * side by side — of which exactly one is active, and the others are not
+   * shelves *of this shelf's* server. So the app-wide list collapses to this.
+   * Absent on a shell whose shelves come from the server.
+   */
+  activeShelfInfo?(): ShelfInfo | null;
 }
 
 let shell: RuntimeShell | null = null;
