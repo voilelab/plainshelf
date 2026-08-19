@@ -84,6 +84,13 @@ getting a `-1` suffix, and the emptied `.trash/` is removed. Files you put under
 `.trash/` yourself are moved along or, if they block the removal, left exactly
 where they are; the migration deletes nothing.
 
+That suffix is the one case where the trash holds two folders for the same book
+ID. A book ID is never rewritten — everything else, including your reading
+progress, is keyed on it — so the trash screen cannot tell the two apart: it
+lists both and restores or deletes the one without the suffix. Move the extra
+folder back into `books/` with a file manager if you want it, or empty the
+trash, which removes both.
+
 The trash is now visible because it holds your data. A shelf you open in a file
 manager should show every directory PlainShelf keeps, and the one directory that
 is genuinely disposable, `app/`, is the one you would least mind seeing.

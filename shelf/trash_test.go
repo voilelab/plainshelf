@@ -224,3 +224,40 @@ func TestOpenShelfKeepsUnknownLegacyTrashContentOnMerge(t *testing.T) {
 		t.Errorf("stray file was removed: %v", err)
 	}
 }
+
+// A trash.json edited by hand into something unparseable must not hide the book
+// from the trash, nor block restoring it. Without the metadata the book cannot
+// go back to its original layer, so it lands at the top level of books/.
+func TestTrashToleratesUnreadableTrashMeta(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
+
+	book, err := s.NewBook(Layers{"layer"}, "Corrupted")
+	if err != nil {
+		t.Fatalf("NewBook: %v", err)
+	}
+	bookID := book.ID()
+	if err := s.MoveBookToTrash(bookID); err != nil {
+		t.Fatalf("MoveBookToTrash: %v", err)
+	}
+
+	metaPath := path.Join(tmpLib, trashBooksFolder, bookID+bookExtension, trashMetaFile)
+	if err := os.WriteFile(metaPath, []byte("{not json"), 0o644); err != nil {
+		t.Fatalf("corrupt trash.json: %v", err)
+	}
+
+	items, err := s.ListTrashedBooks()
+	if err != nil {
+		t.Fatalf("ListTrashedBooks: %v", err)
+	}
+	if len(items) != 1 || items[0].ID != bookID {
+		t.Fatalf("ListTrashedBooks() = %+v, want the book with ID %q", items, bookID)
+	}
+
+	if err := s.RestoreTrashedBook(bookID); err != nil {
+		t.Fatalf("RestoreTrashedBook: %v", err)
+	}
+	if _, err := os.Stat(path.Join(tmpLib, booksFolder, bookID+bookExtension)); err != nil {
+		t.Errorf("restored book is not at the top level of books/: %v", err)
+	}
+}

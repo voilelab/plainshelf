@@ -101,11 +101,7 @@ func (s *Shelf) ListTrashedBooks() ([]*TrashedBook, error) {
 			continue
 		}
 
-		meta, err := s.readTrashMeta(bookPath)
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			s.Warn("failed to read trash metadata, skipping", "path", bookPath, "error", err)
-			continue
-		}
+		meta := s.readTrashMetaTolerant(bookPath)
 
 		item := &TrashedBook{
 			ID:      book.ID(),
@@ -258,12 +254,7 @@ func (s *Shelf) findTrashedBook(bookID string) (string, *Book, *trashMeta, error
 		return "", nil, nil, util.Errorf("%w", err)
 	}
 
-	meta, err := s.readTrashMeta(trashPath)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", nil, nil, util.Errorf("%w", err)
-	}
-
-	return trashPath, book, meta, nil
+	return trashPath, book, s.readTrashMetaTolerant(trashPath), nil
 }
 
 func (s *Shelf) writeTrashMeta(bookPath string, meta *trashMeta) error {
@@ -275,6 +266,24 @@ func (s *Shelf) writeTrashMeta(bookPath string, meta *trashMeta) error {
 		return util.Errorf("%w", err)
 	}
 	return nil
+}
+
+// readTrashMetaTolerant reads a trashed book's metadata and reports nil when it
+// is absent or unusable.
+//
+// The shelf is hand-editable, so trash.json can be truncated or edited into
+// something that no longer parses. That must not hide the book from the trash
+// or refuse to restore it: the file only records where the book came from, and
+// a book without it is simply restored to the top level of books/.
+func (s *Shelf) readTrashMetaTolerant(bookPath string) *trashMeta {
+	meta, err := s.readTrashMeta(bookPath)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			s.Warn("failed to read trash metadata, treating the book as having none", "path", bookPath, "error", err)
+		}
+		return nil
+	}
+	return meta
 }
 
 func (s *Shelf) readTrashMeta(bookPath string) (*trashMeta, error) {
