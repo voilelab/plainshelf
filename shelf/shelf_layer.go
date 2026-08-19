@@ -2,94 +2,28 @@ package shelf
 
 import (
 	"errors"
-	"io/fs"
 	"os"
 	"path"
-	"sort"
-	"strings"
 
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
 // GetAllLayers returns a sorted list of all unique layers present in the library.
+//
+// The list comes from the book cache, which records layers during the same walk
+// it builds the book listing from, so this is throttled by scan_interval like
+// any other listing instead of walking books/ on every request. Layers created,
+// renamed, moved or deleted through this process update the cache immediately,
+// so only a change made outside PlainShelf waits for the next scan.
 func (s *Shelf) GetAllLayers() ([]Layers, error) {
 	if err := s.shelfLock.RLock(); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 	defer s.shelfLock.Unlock()
 
-	var layers []Layers
-	seen := make(map[string]bool)
-	err := s.iterateLayers(func(ls Layers) bool {
-		key := strings.Join(ls, "/")
-		if !seen[key] {
-			layers = append(layers, ls)
-			seen[key] = true
-		}
-		return true
-	})
+	s.scheduleBookCacheRefreshIfNeeded()
 
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	sort.Slice(layers, func(i, j int) bool {
-		return strings.Join(layers[i], "/") < strings.Join(layers[j], "/")
-	})
-
-	return layers, nil
-}
-
-// iterateLayers iterates over all unique layers in the library and applies the provided function to each layer.
-// If the function returns false, the iteration will stop.
-func (s *Shelf) iterateLayers(fn func(Layers) bool) error {
-	skipAll := false
-
-	var dfsFunc func(string, fs.DirEntry)
-
-	dfsFunc = func(pth string, entry fs.DirEntry) {
-		if skipAll {
-			return
-		}
-
-		isDir, err := entryIsDir(s.dbRoot, pth, entry)
-		if err != nil {
-			return
-		}
-
-		if !isDir {
-			return
-		}
-
-		folderName := path.Base(pth)
-		if isIgnoredDir(folderName) {
-			return
-		}
-		if strings.HasSuffix(folderName, bookExtension) {
-			return
-		}
-
-		// path.Join always uses "/" separators on every platform, so split on
-		// "/" rather than os.PathSeparator ("\" on Windows would break parsing).
-		layers := strings.Split(pth, "/")[1:]
-		if !fn(layers) {
-			skipAll = true
-			return
-		}
-
-		entries, err := s.dbRoot.ReadDir(pth)
-		if err != nil {
-			return
-		}
-
-		for _, child := range entries {
-			fullPath := path.Join(pth, child.Name())
-			dfsFunc(fullPath, child)
-		}
-	}
-
-	dfsFunc(booksFolder, nil)
-	return nil
+	return s.listLayersFromCache(), nil
 }
 
 // NewLayer creates a new layer in the library. It validates the layer name to ensure it does not contain invalid characters and then creates the necessary directory structure for the layer.
@@ -108,6 +42,11 @@ func (s *Shelf) NewLayer(layer Layers) error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
+
+	// Recorded rather than left to the next scan: a layer the user just created
+	// has to appear in the very next listing, and an empty one holds no book to
+	// rebuild it from.
+	s.addLayersToBookCache(layer)
 
 	return nil
 }
@@ -138,6 +77,10 @@ func (s *Shelf) DeleteLayer(layer Layers) error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
+
+	// The layer was verified empty above, so it has no descendants in the cache
+	// either and dropping this one entry is enough.
+	s.removeLayerFromBookCache(layer)
 
 	return nil
 }

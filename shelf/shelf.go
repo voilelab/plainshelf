@@ -364,8 +364,9 @@ func (s *Shelf) Close() error {
 	// Offered unconditionally, because the only trustworthy answer to "did
 	// anything change" is to compare the content — a book edited in place
 	// through *Book leaves no other trace here. exportBookCache does that
-	// comparison and writes nothing when the shelf is unchanged, so the cost of
-	// a quiet shutdown is one directory walk.
+	// comparison and writes nothing when the shelf is unchanged, and it reads
+	// the in-memory cache rather than the disk, so a quiet shutdown costs
+	// nothing beyond hashing what is already in memory.
 	if s.bookCacheWriterID != "" {
 		if err := s.exportBookCache(false); err != nil {
 			// Shutdown must not fail over a rebuildable file.
