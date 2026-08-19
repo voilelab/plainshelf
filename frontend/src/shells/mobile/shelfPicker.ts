@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
 
-import type { ShelfPicker, ShelfPickerItem } from '@/composables/useShelfPicker';
+import type { ShelfPicker, ShelfPickerItem } from '@/types/shelfPicker';
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import { reloadIntoApp } from '@/features/mobile/utils/reloadIntoApp';
 import { t } from '@/i18n';

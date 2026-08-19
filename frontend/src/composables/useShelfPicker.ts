@@ -1,27 +1,11 @@
-import { computed, ref, type ComputedRef, type Ref } from 'vue';
+import { computed } from 'vue';
 
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import { getShell } from '@/providers/shell';
+import type { ShelfPicker } from '@/types/shelfPicker';
 import { t } from '@/i18n';
 
-export interface ShelfPickerItem {
-  id: string;
-  name: string;
-  /** Source type, shown only on the mobile shell; empty everywhere else. */
-  typeLabel: string;
-}
-
-export interface ShelfPicker {
-  items: ComputedRef<ShelfPickerItem[]>;
-  value: ComputedRef<string>;
-  disabled: ComputedRef<boolean>;
-  loading: Ref<boolean>;
-  error: ComputedRef<string>;
-  placeholder: ComputedRef<string>;
-  /** Whether the picker offers a link out to shelf management. */
-  managed: boolean;
-  select: (id: string) => Promise<void>;
-}
+export type { ShelfPicker, ShelfPickerItem } from '@/types/shelfPicker';
 
 /**
  * What the sidebar shelf dropdown offers, which differs by client.

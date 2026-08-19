@@ -1,6 +1,6 @@
 import type { BookshelfProvider } from './bookshelfProvider';
 import type { ShelfInfo } from '@/api/shelves';
-import type { ShelfPicker } from '@/composables/useShelfPicker';
+import type { ShelfPicker } from '@/types/shelfPicker';
 import type { DeviceDocumentStorage } from '@/storage/deviceDocument';
 
 /**
