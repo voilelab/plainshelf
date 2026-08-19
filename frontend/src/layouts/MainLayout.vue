@@ -572,7 +572,7 @@ const { locale, setLocale, supportedLocales, t } = useI18n();
 // The dropdown itself goes through useShelfPicker; what is left here is the
 // resolved-shelf gate the rest of the layout hangs off, which is the same on
 // every client.
-const { loading: shelvesLoading, loaded: shelvesLoaded, selectedShelfID, fetchShelves } = useShelvesStore();
+const { loading: shelvesLoading, loaded: shelvesLoaded, selectedShelfID, ensureShelvesLoaded } = useShelvesStore();
 const { fetchServerMode } = useServerMode();
 const { writesEnabled, writeDisabledReason, libraryEditingAvailable, serverAdminAvailable } =
   useWriteAccess();
@@ -626,9 +626,7 @@ async function onShelfSelect(value: AcceptableValue): Promise<void> {
 
 onMounted(async () => {
   await fetchServerMode();
-  if (!shelvesLoaded.value) {
-    await fetchShelves();
-  }
+  await ensureShelvesLoaded();
 
   if (!hasActiveShelf.value) {
     return;

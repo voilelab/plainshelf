@@ -240,7 +240,7 @@ const {
   shelves,
   shelvesLoading,
   shelvesError,
-  fetchShelves,
+  ensureShelvesLoaded,
   shelfOpError,
   removingShelfIDs,
   pendingRemoveShelf,
@@ -297,7 +297,7 @@ async function onExportBookCache(): Promise<void> {
 }
 
 onMounted(() => {
-  void fetchShelves();
+  void ensureShelvesLoaded();
 });
 </script>
 
