@@ -17,6 +17,9 @@ import {
   type ViewUpdate
 } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { tags } from '@lezer/highlight';
 import {
   SearchQuery,
   findNext as cmFindNext,
@@ -54,6 +57,8 @@ export interface SourceCodeMirrorOptions {
   /** The focused chapter, or null while the whole source is shown. */
   viewRange: () => SourceEditorViewRange | null;
   findScope: () => SourceFindScope;
+  /** Only a Markdown source is parsed as Markdown; a TXT one is prose. */
+  format: () => 'txt' | 'md';
   contentLabel: () => string;
   updateDocument: (edit: SourceDocumentEdit) => void;
 }
@@ -258,6 +263,35 @@ const matchHighlighter = ViewPlugin.fromClass(
   { decorations: (plugin) => plugin.decorations }
 );
 
+/**
+ * Markdown styled as prose rather than as code.
+ *
+ * The reader renders these sources with `html: true`, so the embedded tags are
+ * part of the format and are highlighted alongside it. The syntax characters
+ * themselves — hashes, bullets, fences, emphasis markers — recede instead of
+ * being coloured, so what is left reading like the text it produces.
+ */
+const markdownHighlight = HighlightStyle.define([
+  { tag: tags.heading, fontWeight: '700' },
+  { tag: tags.strong, fontWeight: '700' },
+  { tag: tags.emphasis, fontStyle: 'italic' },
+  { tag: tags.strikethrough, textDecoration: 'line-through' },
+  { tag: tags.quote, color: '#4b5c72', fontStyle: 'italic' },
+  { tag: [tags.link, tags.url], color: '#1f6feb' },
+  { tag: tags.monospace, color: '#9d174d' },
+  { tag: [tags.processingInstruction, tags.contentSeparator, tags.escape, tags.character],
+    color: '#94a3b8' },
+  { tag: [tags.tagName, tags.angleBracket], color: '#0f766e' },
+  { tag: tags.attributeName, color: '#a16207' },
+  { tag: tags.attributeValue, color: '#b45309' },
+  { tag: tags.comment, color: '#94a3b8', fontStyle: 'italic' }
+]);
+
+const markdownExtension: Extension = [
+  markdown({ base: markdownLanguage }),
+  syntaxHighlighting(markdownHighlight)
+];
+
 const editorTheme = EditorView.theme({
   '&': {
     height: '100%',
@@ -277,8 +311,11 @@ const editorTheme = EditorView.theme({
     padding: '24px 32px',
     caretColor: 'var(--text)'
   },
+  // Opacity, not colour: the syntax highlighting below paints colours onto
+  // spans nested inside this one, and those would win. Opacity applies to the
+  // whole subtree, so the chapter outside the focused one recedes either way.
   '.cm-source-dimmed': {
-    color: 'color-mix(in srgb, var(--text) 34%, transparent)'
+    opacity: '0.38'
   },
   '.cm-searchMatch': {
     backgroundColor: '#fde68a'
@@ -327,6 +364,7 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
   const findStatus = computed(() => renderFindState(findState.value));
   const disableFind = computed(() => options.disabled() || !findQuery.value);
 
+  const languageCompartment = new Compartment();
   const editableCompartment = new Compartment();
   const labelCompartment = new Compartment();
   const phraseCompartment = new Compartment();
@@ -343,6 +381,10 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
   function editableExtension(): Extension {
     const disabled = options.disabled();
     return [EditorState.readOnly.of(disabled), EditorView.editable.of(!disabled)];
+  }
+
+  function languageExtension(): Extension {
+    return options.format() === 'md' ? markdownExtension : [];
   }
 
   function labelExtension(): Extension {
@@ -431,6 +473,7 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
       editorTheme,
       updateListener,
       blurHandler,
+      languageCompartment.of(languageExtension()),
       editableCompartment.of(editableExtension()),
       labelCompartment.of(labelExtension()),
       phraseCompartment.of(searchPhrases())
@@ -795,6 +838,12 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
   watch(options.disabled, () => {
     view.value?.dispatch({
       effects: editableCompartment.reconfigure(editableExtension())
+    });
+  });
+
+  watch(options.format, () => {
+    view.value?.dispatch({
+      effects: languageCompartment.reconfigure(languageExtension())
     });
   });
 

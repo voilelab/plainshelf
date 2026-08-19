@@ -79,6 +79,17 @@ export async function setEditorCaret(page: Page, offset: number): Promise<void> 
 }
 
 /**
+ * Whether any rendered line carries Markdown styling, i.e. the source is being
+ * parsed as Markdown rather than shown as prose.
+ */
+export function hasMarkdownStyling(page: Page): Promise<boolean> {
+  return page.evaluate(`Array.from(
+    document.querySelectorAll('.source-content-editor .cm-content span'),
+    (node) => getComputedStyle(node).fontWeight
+  ).some((weight) => Number(weight) >= 700)`) as Promise<boolean>;
+}
+
+/**
  * The document ranges the editor is dimming, i.e. everything outside the
  * chapter the outline focused. Empty when the whole source is shown.
  */

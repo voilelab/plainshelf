@@ -88,6 +88,9 @@ Read the relevant section before working in that area. Add entries according to
   `doc.sliceString(0, len, separator)`. A break is one *position* whatever it was
   written with, so a string offset is not a document offset — build the `Text`
   before deriving any position from it.
+- **Dimming under highlighting:** a `Decoration.mark` that dims by `color` is
+  overridden wherever syntax highlighting paints a nested span. Dim with
+  `opacity`, which applies to the whole subtree.
 - **Caret on load:** a textarea parks its caret at the end once its value is
   assigned; a fresh `EditorState` starts at zero. Anything that acts on "where
   the caret is" — the chapter outline's Add button — silently changes target.

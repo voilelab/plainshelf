@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { createApp, h, nextTick, ref, type App } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EditorSelection } from '@codemirror/state';
+import { EditorSelection, type EditorState } from '@codemirror/state';
+import { ensureSyntaxTree } from '@codemirror/language';
 
 import { useSourceCodeMirror } from './useSourceCodeMirror';
 import type {
@@ -19,6 +20,8 @@ interface Harness {
   content: () => string;
   doc: () => string;
   lineBreak: () => string;
+  state: () => EditorState;
+  setFormat: (format: 'txt' | 'md') => Promise<void>;
   selection: () => { from: number; to: number };
   setViewRange: (range: SourceEditorViewRange | null) => Promise<void>;
   setFindScope: (scope: SourceFindScope) => Promise<void>;
@@ -33,6 +36,7 @@ async function mountEditor(initialContent: string): Promise<Harness> {
   const content = ref(initialContent);
   const viewRange = ref<SourceEditorViewRange | null>(null);
   const findScope = ref<SourceFindScope>('source');
+  const format = ref<'txt' | 'md'>('md');
   const edits: SourceDocumentEdit[] = [];
   let editor!: Editor;
 
@@ -44,6 +48,7 @@ async function mountEditor(initialContent: string): Promise<Harness> {
         disabled: () => false,
         viewRange: () => viewRange.value,
         findScope: () => findScope.value,
+        format: () => format.value,
         contentLabel: () => 'Source content',
         updateDocument: (edit) => {
           edits.push(edit);
@@ -71,6 +76,11 @@ async function mountEditor(initialContent: string): Promise<Harness> {
     content: () => content.value,
     doc: () => view().state.doc.toString(),
     lineBreak: () => view().state.lineBreak,
+    state: () => view().state,
+    setFormat: async (next) => {
+      format.value = next;
+      await nextTick();
+    },
     selection: () => {
       const range = view().state.selection.main;
       return { from: range.from, to: range.to };
@@ -328,6 +338,19 @@ describe('useSourceCodeMirror editing adapter', () => {
 
     editor.editor.focusAndSelect(content.indexOf('paragraph'), content.indexOf('paragraph'));
     expect(editor.editor.getCurrentParagraphStart()).toBe(content.indexOf('second'));
+  });
+
+  it('parses a Markdown source, and stops when the source is plain text', async () => {
+    const editor = await mount('# Title\n\n**bold** text\n');
+    const parsed = () =>
+      ensureSyntaxTree(editor.state(), editor.state().doc.length)?.topNode.firstChild?.name ?? null;
+
+    expect(parsed()).toBe('ATXHeading1');
+
+    // A TXT source is prose, not Markdown; nothing in it should be styled as
+    // syntax just because it happens to start with a hash.
+    await editor.setFormat('txt');
+    expect(parsed()).toBeNull();
   });
 
   it('destroys the view when the component unmounts', async () => {

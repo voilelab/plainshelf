@@ -3,6 +3,7 @@ import { startServer } from './support/server';
 import { importHelloBook } from './support/books';
 import {
   dimmedRanges,
+  hasMarkdownStyling,
   editorScrollTop,
   editorSelectionText,
   editorText,
@@ -58,6 +59,8 @@ test('should edit source content and see the change reflected in the reader', as
     const editor = sourceEditor(page);
     await expect(editor).toBeVisible();
     await expectSourceEditorFitsViewport(page);
+    // The imported source is TXT, so nothing in it is Markdown syntax.
+    expect(await hasMarkdownStyling(page)).toBe(false);
 
     await page.setViewportSize({ width: 800, height: 500 });
     await expectSourceEditorFitsViewport(page);
@@ -347,6 +350,10 @@ test('should focus one Markdown chapter without splitting the document', async (
     await page.locator('.chapter-jump').filter({ hasText: 'One' }).click();
     await expect(sourceEditor(page)).toBeVisible();
     await page.setViewportSize({ width: 1280, height: 720 });
+
+    // A Markdown source is highlighted as Markdown: the headings above render
+    // bold even though the source itself is unchanged.
+    await expect.poll(() => hasMarkdownStyling(page)).toBe(true);
 
     // Focusing a chapter is now purely visual: the document is untouched and
     // only the text outside the chapter is dimmed.

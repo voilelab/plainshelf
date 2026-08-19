@@ -110,6 +110,7 @@ const props = defineProps<{
   settingCurrent?: boolean;
   viewRange?: SourceEditorViewRange | null;
   focused?: boolean;
+  format?: 'txt' | 'md';
 }>();
 
 const emit = defineEmits<{
@@ -154,6 +155,7 @@ const {
   disabled: () => isEditorDisabled.value,
   viewRange: () => props.viewRange ?? null,
   findScope: () => findScope.value,
+  format: () => props.format ?? 'txt',
   contentLabel: () => t('sources.editor.contentLabel'),
   updateDocument: (edit) => emit('documentEdit', edit)
 });

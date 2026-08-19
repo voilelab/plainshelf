@@ -142,6 +142,7 @@
             :settingCurrent="settingCurrent"
             :viewRange="editorViewRange"
             :focused="editorFocused"
+            :format="activeFormat"
             @document-edit="onDocumentEdit"
             @set-current="onSetCurrentSource"
           />
