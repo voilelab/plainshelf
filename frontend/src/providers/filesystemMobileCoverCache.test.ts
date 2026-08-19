@@ -81,6 +81,21 @@ describe('FilesystemMobileCoverCache', () => {
     expect(blob?.type).toBe(mime);
   });
 
+  // Without these, tightening the signatures would be untestable: the happy
+  // cases pass either way, so only a near-miss can tell a full check from a
+  // partial one.
+  it.each([
+    ['PNG missing its trailing CRLF/EOF bytes', [0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0, 0, 0, 0, 0]],
+    ['GIF without a version', [0x47, 0x49, 0x46, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
+    ['RIFF that is not WebP', [...'RIFF'].map((c) => c.charCodeAt(0)).concat([0, 0, 0, 0], [...'WAVE'].map((c) => c.charCodeAt(0)))]
+  ])('does not claim %s is that format', async (_label, bytes) => {
+    readFileMock.mockResolvedValue({ data: b64(...bytes) });
+
+    const blob = await new FilesystemMobileCoverCache().getCover('book-1');
+
+    expect(blob?.type).toBe('');
+  });
+
   it('still returns the image when the header is not one it knows', async () => {
     readFileMock.mockResolvedValue({ data: b64(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12) });
 
