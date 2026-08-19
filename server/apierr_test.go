@@ -39,6 +39,12 @@ func TestAPIErrorForKnownSentinels(t *testing.T) {
 			wantMessage: "invalid layer name",
 		},
 		{
+			name:        "ignored layer name",
+			err:         shelf.ErrIgnoredLayerName,
+			wantStatus:  http.StatusBadRequest,
+			wantMessage: "invalid layer name: hidden and system directory names (a leading dot, @eaDir, #recycle, $RECYCLE.BIN, lost+found) are skipped by the shelf scanner, so a layer named this way would not stay visible",
+		},
+		{
 			name:           "shelf initializing",
 			err:            shelf.ErrShelfInitializing,
 			wantStatus:     http.StatusServiceUnavailable,
@@ -149,5 +155,21 @@ func TestWriteErrHidesUnknownErrorBehindFallback(t *testing.T) {
 func TestAPIErrorForExcludesTaskChainRunning(t *testing.T) {
 	if _, ok := apiErrorFor(util.Errorf("%w", taskutil.ErrTaskChainRunning)); ok {
 		t.Fatal("ErrTaskChainRunning must not be in the table; the task handlers answer it with a JSON body")
+	}
+}
+
+// ErrIgnoredLayerName also matches ErrInvalidLayer, so the table's ordering
+// rule is what makes the specific message reachable at all.
+func TestAPIErrorForPrefersIgnoredLayerNameOverInvalidLayer(t *testing.T) {
+	if !errors.Is(shelf.ErrIgnoredLayerName, shelf.ErrInvalidLayer) {
+		t.Fatal("ErrIgnoredLayerName must stay an ErrInvalidLayer for callers that only classify layer errors")
+	}
+
+	resp, ok := apiErrorFor(util.Errorf("%w", shelf.ErrIgnoredLayerName))
+	if !ok {
+		t.Fatal("apiErrorFor(ErrIgnoredLayerName) not found in table")
+	}
+	if resp.message == "invalid layer name" {
+		t.Fatalf("message = %q, want the ignored-name explanation; the entry must precede ErrInvalidLayer", resp.message)
 	}
 }

@@ -38,6 +38,10 @@ var apiErrorTable = []struct {
 		status:  http.StatusBadRequest,
 		message: `format must be "txt" or "md"`,
 	}},
+	{shelf.ErrIgnoredLayerName, apiError{
+		status:  http.StatusBadRequest,
+		message: "invalid layer name: hidden and system directory names (a leading dot, @eaDir, #recycle, $RECYCLE.BIN, lost+found) are skipped by the shelf scanner, so a layer named this way would not stay visible",
+	}},
 	{shelf.ErrInvalidLayer, apiError{
 		status:  http.StatusBadRequest,
 		message: "invalid layer name",
