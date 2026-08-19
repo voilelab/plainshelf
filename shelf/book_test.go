@@ -13,6 +13,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
@@ -431,7 +432,7 @@ func TestNewSource(t *testing.T) {
 	if book.CurrentSource() != "" {
 		t.Fatalf("creating a non-current source changed current source to %q", book.CurrentSource())
 	}
-	if _, err := rootFS.Stat(path.Join(book.FolderPath(), CurrentVersionLocationFile)); !errors.Is(err, fs.ErrNotExist) {
+	if _, err := rootFS.Stat(path.Join(book.FolderPath(), CurrentSourceHintFile)); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("creating a non-current source wrote current pointer: %v", err)
 	}
 }
@@ -599,6 +600,60 @@ func TestSetCurrentSource(t *testing.T) {
 	if book.CurrentSource() != source.ID() {
 		t.Errorf("Expected current source ID to be '%s', got '%s'", source.ID(), book.CurrentSource())
 	}
+}
+
+// TestCurrentSourceHintFile covers the disposable pointer file: its name, that
+// its content is English and points at the current source, and that a shelf
+// written by an older build ends up with one hint file rather than two.
+func TestCurrentSourceHintFile(t *testing.T) {
+	book, rootFS, _ := newTestBook(t, "hint-book", "Hint Book")
+
+	source, err := book.NewSource(bytes.NewBufferString("first"))
+	if err != nil {
+		t.Fatalf("NewSource: %v", err)
+	}
+
+	// Pretend an older build already wrote its hint under the previous name.
+	legacyPath := path.Join(book.FolderPath(), LegacyCurrentSourceHintFile)
+	if err := rootFS.WriteFile(legacyPath, []byte("stale pointer")); err != nil {
+		t.Fatalf("Failed to seed the legacy hint file: %v", err)
+	}
+
+	if err := book.SetCurrentSource(source.ID()); err != nil {
+		t.Fatalf("SetCurrentSource: %v", err)
+	}
+
+	hint, err := fs.ReadFile(rootFS, path.Join(book.FolderPath(), CurrentSourceHintFile))
+	if err != nil {
+		t.Fatalf("Failed to read %s: %v", CurrentSourceHintFile, err)
+	}
+	wantPath := path.Join(SourcesFolder, source.ID(), SourceFile)
+	if !strings.Contains(string(hint), wantPath) {
+		t.Errorf("%s does not point at %s, got:\n%s", CurrentSourceHintFile, wantPath, hint)
+	}
+	if r, found := firstCJKRune(string(hint)); found {
+		t.Errorf("%s contains the non-English character %q:\n%s", CurrentSourceHintFile, r, hint)
+	}
+	if !strings.Contains(string(hint), "book.json") {
+		t.Errorf("%s should name book.json as the source of truth, got:\n%s", CurrentSourceHintFile, hint)
+	}
+	if !strings.Contains(string(hint), "safely delete") {
+		t.Errorf("%s should say it can be deleted, got:\n%s", CurrentSourceHintFile, hint)
+	}
+
+	if _, err := rootFS.Stat(legacyPath); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("Legacy %s must be removed once the new hint is written, got err %v", LegacyCurrentSourceHintFile, err)
+	}
+}
+
+func firstCJKRune(s string) (rune, bool) {
+	for _, r := range s {
+		if unicode.Is(unicode.Han, r) || unicode.Is(unicode.Hiragana, r) ||
+			unicode.Is(unicode.Katakana, r) || unicode.Is(unicode.Hangul, r) {
+			return r, true
+		}
+	}
+	return 0, false
 }
 
 func TestListSourceSkipsUnpublishedTemporaryDirectories(t *testing.T) {
@@ -1107,15 +1162,15 @@ func TestWritePathsRejectFutureSchemaVersion(t *testing.T) {
 			},
 		},
 		{
-			// setMeta is the single chokepoint, so the
-			// CURRENT_VERSION_LOCATION.txt hint must not be written either.
+			// setMeta is the single chokepoint, so the CURRENT_SOURCE.txt
+			// hint must not be written either.
 			name:   "SetCurrentSource",
 			mutate: func(b *Book) error { return b.SetCurrentSource("20260315-a1") },
 			check: func(t *testing.T, metaPath string) {
 				t.Helper()
-				locationPath := path.Join(path.Dir(metaPath), CurrentVersionLocationFile)
-				if _, err := os.Stat(locationPath); !os.IsNotExist(err) {
-					t.Errorf("Rejected SetCurrentSource must not write %s", CurrentVersionLocationFile)
+				hintPath := path.Join(path.Dir(metaPath), CurrentSourceHintFile)
+				if _, err := os.Stat(hintPath); !os.IsNotExist(err) {
+					t.Errorf("Rejected SetCurrentSource must not write %s", CurrentSourceHintFile)
 				}
 			},
 		},

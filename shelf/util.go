@@ -3,6 +3,7 @@ package shelf
 import (
 	cryptorand "crypto/rand"
 	"encoding/base32"
+	"errors"
 	"fmt"
 	"io/fs"
 	"math/rand"
@@ -111,6 +112,19 @@ func isIgnoredDir(name string) bool {
 // touching the filesystem, so callers can treat it as a request error.
 var ErrInvalidLayer = util.NewError("invalid layer name")
 
+// ErrIgnoredLayerName is the ErrInvalidLayer case where the name is well formed
+// but names a directory the scanners skip. It wraps ErrInvalidLayer, so callers
+// that only classify layer errors keep matching it, while the API can tell this
+// reason apart and explain it: a user filing an existing "@eaDir" under
+// PlainShelf is not making a typo, they are hitting a deliberate rule.
+var ErrIgnoredLayerName = util.Errorf("%w: hidden or system directory name", ErrInvalidLayer)
+
+// errIgnoredPathSegment marks the isIgnoredDir rejection inside
+// validatePathSegment. The segment validator serves layers, source IDs, book
+// IDs and asset names, so it stays sentinel-neutral and each caller wraps the
+// result in the sentinel of its own domain.
+var errIgnoredPathSegment = util.NewError("path segment cannot be a hidden or system directory name (leading dot, @eaDir, #recycle, $RECYCLE.BIN, lost+found)")
+
 var bcp47Regex = regexp.MustCompile(`^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$`)
 
 func validateBCP47(lang string) bool {
@@ -138,6 +152,9 @@ func validateBookFormat(format string) bool {
 func validateLayers(layers Layers) error {
 	for _, layer := range layers {
 		if err := validatePathSegment(layer); err != nil {
+			if errors.Is(err, errIgnoredPathSegment) {
+				return util.Errorf("%w %q: %w", ErrIgnoredLayerName, layer, err)
+			}
 			return util.Errorf("%w %q: %w", ErrInvalidLayer, layer, err)
 		}
 		if strings.Contains(layer, bookExtension) {
@@ -171,7 +188,7 @@ func validatePathSegment(segment string) error {
 	if isIgnoredDir(segment) {
 		// Creating one would succeed on disk and then vanish: the scanners skip
 		// exactly these names, so the layer would never be listed again.
-		return util.NewError("path segment cannot be a hidden or system directory name (leading dot, @eaDir, #recycle, $RECYCLE.BIN, lost+found)")
+		return errIgnoredPathSegment
 	}
 	if strings.ContainsAny(segment, `/\`) {
 		return util.NewError("path segment cannot contain path separators")

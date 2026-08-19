@@ -61,32 +61,37 @@
           {{ t('sources.editor.find.replaceAll') }}
         </button>
       </div>
+
+      <div class="find-options">
+        <label class="find-option">
+          <input v-model="caseSensitive" type="checkbox" :disabled="isEditorDisabled" />
+          <span>{{ t('sources.editor.find.caseSensitive') }}</span>
+        </label>
+        <label class="find-option">
+          <input v-model="wholeWord" type="checkbox" :disabled="isEditorDisabled" />
+          <span>{{ t('sources.editor.find.wholeWord') }}</span>
+        </label>
+        <label class="find-option">
+          <input v-model="useRegexp" type="checkbox" :disabled="isEditorDisabled" />
+          <span>{{ t('sources.editor.find.regexp') }}</span>
+        </label>
+      </div>
+
       <p class="find-status" role="status" aria-live="polite">{{ findStatus }}</p>
     </div>
 
     <div v-if="error" class="error editor-error" role="alert">{{ error }}</div>
 
-    <textarea
-      :key="viewRange?.key ?? 0"
-      ref="textareaRef"
-      class="source-content-textarea"
-      :aria-label="t('sources.editor.contentLabel')"
-      :value="visibleContent"
-      :disabled="!sourceId || loading || saving"
-      spellcheck="false"
-      @compositionstart="onCompositionStart"
-      @compositionend="onCompositionEnd"
-      @input="onInput"
-    ></textarea>
+    <div ref="hostRef" class="source-content-editor"></div>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { useSourceTextEditor } from '@/features/sources/composables/useSourceTextEditor';
+import { useSourceCodeMirror } from '@/features/sources/composables/useSourceCodeMirror';
 import type {
   SourceDocumentEdit,
-  SourceEditorAdapter,
+  SourceEditorHandle,
   SourceEditorViewRange,
   SourceFindScope
 } from '@/features/sources/types/editorAdapter';
@@ -105,11 +110,11 @@ const props = defineProps<{
   settingCurrent?: boolean;
   viewRange?: SourceEditorViewRange | null;
   focused?: boolean;
+  format?: 'txt' | 'md';
 }>();
 
 const emit = defineEmits<{
   documentEdit: [edit: SourceDocumentEdit];
-  requestViewOffset: [offset: number, affinity: 'forward' | 'backward'];
   setCurrent: [];
 }>();
 
@@ -125,39 +130,43 @@ watch(
 );
 
 const {
-  textareaRef,
-  visibleContent,
+  hostRef,
   findQuery,
   replaceQuery,
+  caseSensitive,
+  useRegexp,
+  wholeWord,
   findStatus,
   disableFind,
-  onInput,
-  onCompositionStart,
-  onCompositionEnd,
   findNext,
   findPrevious,
   replaceNext,
   onReplaceInputKeydown,
   replaceAll,
+  flushDocument,
   getCurrentParagraphStart,
   replaceRange,
+  replaceRangeQuietly,
   jumpToOffset,
   focusAndSelect
-} = useSourceTextEditor({
+} = useSourceCodeMirror({
   content: () => props.modelValue,
   sourceId: () => props.sourceId,
   disabled: () => isEditorDisabled.value,
   viewRange: () => props.viewRange ?? null,
   findScope: () => findScope.value,
-  updateDocument: (edit) => emit('documentEdit', edit),
-  requestViewOffset: (offset, affinity) => emit('requestViewOffset', offset, affinity)
+  format: () => props.format ?? 'txt',
+  contentLabel: () => t('sources.editor.contentLabel'),
+  updateDocument: (edit) => emit('documentEdit', edit)
 });
 
-defineExpose<SourceEditorAdapter>({
+defineExpose<SourceEditorHandle>({
   getCurrentParagraphStart,
   replaceRange,
+  replaceRangeQuietly,
   jumpToOffset,
-  focusAndSelect
+  focusAndSelect,
+  flushDocument
 });
 </script>
 
@@ -209,29 +218,19 @@ defineExpose<SourceEditorAdapter>({
   padding: 3px 10px;
 }
 
-.source-content-textarea {
+/*
+ * The host box only owns the layout; everything inside it is CodeMirror's own
+ * DOM and is styled through EditorView.theme, which reaches past this scoped
+ * stylesheet's attribute selector.
+ */
+.source-content-editor {
   flex: 1 1 0;
   min-width: 0;
   min-height: 0;
   width: 100%;
   box-sizing: border-box;
-  border: none;
-  outline: none;
+  overflow: hidden;
   background: #fff;
-  color: var(--text);
-  padding: 24px 32px;
-  font-size: 16px;
-  line-height: 1.7;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
-  resize: none;
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.source-content-textarea:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent) 32%, transparent);
-  outline-offset: -2px;
 }
 
 .editor-find-replace {
@@ -271,6 +270,22 @@ defineExpose<SourceEditorAdapter>({
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.find-options {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+}
+
+.find-option {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .find-status {

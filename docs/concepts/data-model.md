@@ -128,7 +128,7 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 ```text
 {book-folder}.bookpkg/
 ├─ book.json
-├─ CURRENT_VERSION_LOCATION.txt
+├─ CURRENT_SOURCE.txt
 ├─ cover.(jpg|png|webp)
 └─ sources/
    └─ {source-id}/
@@ -141,7 +141,7 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 | Path | Description |
 |---|---|
 | `book.json` | Book metadata (title, authors, tags, language, …). Also holds `current_source`, the authoritative pointer to the active source, and `schema_version`, the on-disk format version — see [Data Format Versioning](data-format-versioning.md). Fields you add yourself are kept: see [Fields PlainShelf does not know](data-format-versioning.md#fields-plainshelf-does-not-know). |
-| `CURRENT_VERSION_LOCATION.txt` | Human-readable hint that points to the active source. It is **write-only** from the server's perspective (regenerated whenever the current source changes) and is never parsed back — `current_source` in `book.json` is the source of truth. |
+| `CURRENT_SOURCE.txt` | Human-readable hint, in English, that points to the active source. The server writes it whenever the current source changes and never parses it back — `current_source` in `book.json` is the source of truth — so deleting it is safe. Shelves written by older builds carry the same hint as `CURRENT_VERSION_LOCATION.txt`; the next write replaces it with `CURRENT_SOURCE.txt` rather than leaving both. |
 | `cover.(jpg\|png\|webp)` | Optional cover image |
 | `sources/{source-id}/source.txt` | The content and, for Markdown, its chapter structure |
 | `sources/{source-id}/meta.json` | Source-level metadata, including `schema_version` and authoritative `format` for new sources |
@@ -278,5 +278,5 @@ random form makes that plain.
 ## Design principles
 
 - **Human-readable** — the shelf directory can be opened and inspected with any file manager or text editor.
-- **Backup-friendly** — because everything is plain files, the shelf is trivially backed up with `cp`, `rsync`, or committed to Git.
+- **Backup-friendly** — because everything is plain files, the shelf is trivially backed up with `cp -a` or `rsync`. Committing it to Git is *not* an equivalent option: Git does not track empty directories, so a layer holding no book is not in the commit and is not there after a checkout. See [Git does not back up empty layers](data-format-versioning.md#git-does-not-back-up-empty-layers).
 - **Rebuildable runtime state** — everything under `app/` can be deleted and the server will recreate it on the next startup. `books/` and `trash/` are not: both hold your books. See [Back up before upgrading](data-format-versioning.md#back-up-before-upgrading) for what a complete backup covers.
