@@ -1,5 +1,6 @@
 import type { BookshelfProvider } from './bookshelfProvider';
 import type { ShelfInfo } from '@/api/shelves';
+import type { ShelfPicker } from '@/types/shelfPicker';
 import type { DeviceDocumentStorage } from '@/storage/deviceDocument';
 
 /**
@@ -43,6 +44,16 @@ export interface RuntimeShell {
    * Absent on a shell whose shelves come from the server.
    */
   activeShelfInfo?(): ShelfInfo | null;
+
+  /**
+   * The shelf dropdown this shell puts in the sidebar, when its shelves are not
+   * the ones a server enumerates.
+   *
+   * The mobile device lists its own entries — several servers and pCloud
+   * folders — and picking one restarts the app rather than swapping shelves in
+   * place. Absent on a shell that is happy with the server-backed picker.
+   */
+  createShelfPicker?(): ShelfPicker;
 }
 
 let shell: RuntimeShell | null = null;
