@@ -1,7 +1,7 @@
 import { computed } from 'vue';
 
 import { useServerMode } from '@/composables/useServerMode';
-import { isMobileRuntime } from '@/providers/runtime';
+import { getBookshelfProvider, isWritableProvider } from '@/providers';
 
 /**
  * Why write operations are unavailable, in precedence order. `platform` wins
@@ -11,35 +11,39 @@ import { isMobileRuntime } from '@/providers/runtime';
 export type WriteDisabledReason = 'platform' | 'server-read-only' | null;
 
 /**
- * The Android client is a reading client: it browses, reads, downloads for
- * offline use, and records reading progress, but never mutates the shelf.
+ * Whether this client can mutate the shelf at all.
  *
- * This is a platform capability, deliberately separate from the server's
- * `read_only` config (see useServerMode). Both can be true at once, and the two
- * carry different user-facing meanings.
+ * Asks the active provider rather than the runtime: a reading client is one
+ * whose provider does not implement the write surface, which is the same thing
+ * `bookshelfWriter()` refuses on. Today that is the Android shell and the
+ * pCloud backend — both browse, read, download for offline use and record
+ * reading progress, but never mutate the shelf — while the server and desktop
+ * providers are writable.
+ *
+ * Deliberately separate from the server's `read_only` config (see
+ * useServerMode). Both can be true at once, and the two carry different
+ * user-facing meanings.
  */
 export function isLibraryEditingSupported(): boolean {
-  return !isMobileRuntime();
+  return isWritableProvider(getBookshelfProvider());
 }
 
 /**
  * Write access plus the named platform capabilities that depend on it.
  *
- * The capability flags below answer "what does the Android client not have",
- * and they live here rather than in each component so that question has one
- * answer. They are deliberately *not* interchangeable with a plain mobile-runtime
- * check: `isMobileRuntime()` stays the right tool for mobile UX branching —
- * the Downloads nav entry, tap-to-select in the book grid, the Android back
- * button — which is about how a screen behaves, not about what the platform
- * is allowed to do.
+ * The capability flags below answer "what can a reading client not do", and
+ * they live here rather than in each component so that question has one answer.
+ * They are deliberately *not* interchangeable with a runtime check:
+ * `isMobileRuntime()` stays the right tool for mobile UX branching — tap-to-
+ * select in the book grid, the Android back button — which is about how a
+ * screen behaves, not about what the client is allowed to do.
  */
 export function useWriteAccess() {
   const { readOnly } = useServerMode();
 
   // isLibraryEditingSupported() is called inside the computed rather than
-  // hoisted, matching the isMobileEnv pattern elsewhere: the runtime never
-  // changes mid-session, but the ?mobile-shell-preview=1 escape hatch is read
-  // from the URL.
+  // hoisted: the provider is created lazily on first use, so reading it at
+  // module scope could resolve before the shell has finished configuring it.
   const writesEnabled = computed(() => !readOnly.value && isLibraryEditingSupported());
 
   const writeDisabledReason = computed<WriteDisabledReason>(() => {
