@@ -95,7 +95,8 @@ type BookCacheEntry struct {
 	// its ID afterwards.
 	Path string `json:"path"`
 
-	// Meta is the content of the book's book.json.
+	// Meta is the content of the book's book.json, minus any key this build
+	// does not know: see collectExportBooks.
 	//
 	// Taken from the in-memory cache rather than re-read from disk, so exporting
 	// costs no per-book I/O — the point of the file is to spare a slow shelf
@@ -294,7 +295,10 @@ func (s *Shelf) collectExportLayers() []string {
 }
 
 // collectExportBooks snapshots the in-memory cache. No filesystem access: the
-// cache already holds every book.json this process has read.
+// cache already holds every book.json this process has read. Entries are taken
+// through GetMeta, which is also what keeps hand-added unknown keys out of this
+// file: the reader it exists for is read-only and cannot use them, and the
+// transport it exists for charges by the byte.
 func (s *Shelf) collectExportBooks() map[string]BookCacheEntry {
 	s.bookCache.RLock()
 	defer s.bookCache.RUnlock()
@@ -303,7 +307,7 @@ func (s *Shelf) collectExportBooks() map[string]BookCacheEntry {
 	for bookID, entry := range s.bookCache.cache {
 		books[bookID] = BookCacheEntry{
 			Path: entry.path,
-			Meta: entry.book.meta,
+			Meta: entry.book.GetMeta(),
 		}
 	}
 	return books

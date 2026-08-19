@@ -74,6 +74,39 @@ schema v1, the first key in that file records the format version:
     yourself out of your own books: PlainShelf refuses to write any book whose
     version is higher than the running build understands.
 
+### Fields PlainShelf does not know
+
+`book.json` is yours to edit, so anything you put in it that is not in the table
+above is kept. Add `series`, `douban_id`, or a note of your own, and it is still
+there after PlainShelf next writes that book — after a rating, a cover upload, a
+move to another layer, or a source switch:
+
+```json
+{
+  "schema_version": 1,
+  "id": "q7f2mzk4x6rt3vbd",
+  "title": "The Tale of Genji",
+  "…": "…",
+  "current_source": "20260315-a1",
+  "series": "Genji Cycle",
+  "douban_id": 1770782
+}
+```
+
+Values are written back exactly as you typed them, including nested objects,
+array order, and the digits of a number. What is not preserved is where they
+sit: PlainShelf writes the fields it knows first, in its own order, and puts
+everything else after them in alphabetical order.
+
+Two consequences are worth knowing:
+
+- **A key PlainShelf knows always wins.** If a later release adds a field with
+  the name you were already using for something else, that field takes the key
+  over. The file never ends up with two values for one key.
+- **These keys stay in the file.** They are not returned by the HTTP API and not
+  copied into the exported book cache, because nothing in PlainShelf can
+  interpret them. They are a fact about your file, not part of an interface.
+
 ---
 
 ## Reading a shelf created before v1
@@ -194,6 +227,10 @@ documented breaking change, not as data that v1 guarantees to migrate.
   `schema_version` is higher than the running build understands. Such data stays visible and
   readable on a best-effort basis, and every attempt to modify it fails with an
   explicit error rather than overwriting the file.
+- Keys in a `book.json` that PlainShelf does not recognize are written back
+  unchanged, so a field you added by hand — or one a newer release added and
+  this build knows nothing about — survives every write. See
+  [Fields PlainShelf does not know](#fields-plainshelf-does-not-know).
 - The server is no longer the only thing that reads the format. The Android
   client reads a pCloud-held shelf directly, without a server in between. That
   reader is read-only, so it inherits the read half of these promises and never
@@ -202,15 +239,17 @@ documented breaking change, not as data that v1 guarantees to migrate.
 
 ### What we do not promise
 
-- **Adding a new optional field does not raise the version — and an older build
-  that writes such a book will drop that field.** PlainShelf reads `book.json`
-  into a fixed set of known fields and rewrites the whole file; keys it does not
-  recognize are not preserved. If you run two PlainShelf versions against one
-  shelf and edit a book from the older one, values that only the newer version
-  knows about are lost. Run one version against a shelf, or upgrade both. A
-  read-only reader — the Android client on a pCloud shelf — is exempt from the
-  losing half of this, since it never rewrites a book, but it can still be built
-  against an older schema than the shelf and show stale or missing fields.
+- **Only `book.json` carries unknown keys through.** A source's `meta.json` and
+  a `trash.json` are still read into a fixed set of fields and rewritten whole,
+  so a key an older build does not recognize is dropped from those files.
+- **Adding a new optional field does not raise the version.** An older build
+  keeps such a field in `book.json` instead of dropping it, but it cannot act on
+  it: it will not show the value, and a field whose meaning depends on another
+  one it does not understand can still end up inconsistent. It shows and edits
+  the book as its own schema sees it. Run one version against a shelf, or
+  upgrade both. A read-only reader — the Android client on a pCloud shelf —
+  never rewrites a book at all, but it can still be built against an older
+  schema than the shelf and show stale or missing fields.
 - Reading a book whose `schema_version` is higher than the build supports is
   best-effort. Fields may be missing or misinterpreted, and the displayed
   metadata may be wrong. It is shown so you can see the book exists, not so you
@@ -324,5 +363,6 @@ Book and source metadata carry independent schema versions.
 | Application store | No |
 
 The practical rule remains: **run one PlainShelf version against a shelf at a
-time.** Unversioned files and optional fields still cannot make mixed-version
-writes safe in general.
+time.** Unknown keys in `book.json` now survive such a write, but unversioned
+files do not carry them, and each build still shows and edits a book as its own
+schema sees it.

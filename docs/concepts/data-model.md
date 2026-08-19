@@ -140,7 +140,7 @@ Each book is stored as a directory whose name ends with `.bookpkg`:
 
 | Path | Description |
 |---|---|
-| `book.json` | Book metadata (title, authors, tags, language, …). Also holds `current_source`, the authoritative pointer to the active source, and `schema_version`, the on-disk format version — see [Data Format Versioning](data-format-versioning.md). |
+| `book.json` | Book metadata (title, authors, tags, language, …). Also holds `current_source`, the authoritative pointer to the active source, and `schema_version`, the on-disk format version — see [Data Format Versioning](data-format-versioning.md). Fields you add yourself are kept: see [Fields PlainShelf does not know](data-format-versioning.md#fields-plainshelf-does-not-know). |
 | `CURRENT_VERSION_LOCATION.txt` | Human-readable hint that points to the active source. It is **write-only** from the server's perspective (regenerated whenever the current source changes) and is never parsed back — `current_source` in `book.json` is the source of truth. |
 | `cover.(jpg\|png\|webp)` | Optional cover image |
 | `sources/{source-id}/source.txt` | The content and, for Markdown, its chapter structure |

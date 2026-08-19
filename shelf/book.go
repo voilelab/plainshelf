@@ -1,6 +1,7 @@
 package shelf
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"io/fs"
 	"maps"
 	"path"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -145,6 +147,134 @@ type BookMeta struct {
 	// User should not modify CurrentSource directly, it is managed by shelf internally,
 	// and can be updated via SetCurrentSource method
 	CurrentSource string `json:"current_source"`
+
+	// Extra holds every key found in book.json that this build does not know.
+	//
+	// A shelf is meant to be edited by hand, so a field the user added on their
+	// own — series, douban_id, a private note — has to survive the next write.
+	// BookMeta is a fixed struct and setMeta rewrites the whole file, so without
+	// this the next star rating would silently drop it.
+	//
+	// Values are kept as raw JSON rather than decoded: that is what preserves a
+	// nested object, an array's order, and the exact digits of a number, none of
+	// which survives a round trip through `any`.
+	//
+	// The field is shelf-managed, like SchemaVersion. GetMeta does not hand it
+	// out and setMeta takes it from what was last read off disk, so no write
+	// path can drop unknown keys by forgetting to carry them, and no caller can
+	// invent them. It is therefore never part of an API response or of the
+	// exported book cache.
+	Extra map[string]json.RawMessage `json:"-"`
+}
+
+// bookMetaKnownKeys is the set of book.json keys BookMeta itself owns. It is
+// derived from the struct tags instead of being written out by hand, so a field
+// added later cannot be mistaken for a hand-added one and end up in the file
+// twice.
+var bookMetaKnownKeys = buildBookMetaKnownKeys()
+
+func buildBookMetaKnownKeys() map[string]struct{} {
+	metaType := reflect.TypeFor[BookMeta]()
+	keys := make(map[string]struct{}, metaType.NumField())
+	for i := range metaType.NumField() {
+		field := metaType.Field(i)
+		tag, tagged := field.Tag.Lookup("json")
+		if !tagged {
+			keys[field.Name] = struct{}{}
+			continue
+		}
+		name, _, _ := strings.Cut(tag, ",")
+		switch name {
+		case "-":
+			// Not persisted at all, so it claims no key on disk.
+			continue
+		case "":
+			name = field.Name
+		}
+		keys[name] = struct{}{}
+	}
+	return keys
+}
+
+// UnmarshalJSON decodes the known fields and collects everything else into
+// Extra, so that keys this build does not understand can be written back
+// unchanged. See the Extra field for why they are kept.
+func (m *BookMeta) UnmarshalJSON(data []byte) error {
+	// A distinct type is what stops this from calling itself: it has the same
+	// fields and none of the methods.
+	type bookMetaFields BookMeta
+
+	var known bookMetaFields
+	if err := json.Unmarshal(data, &known); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	var all map[string]json.RawMessage
+	if err := json.Unmarshal(data, &all); err != nil {
+		return util.Errorf("%w", err)
+	}
+	for key := range bookMetaKnownKeys {
+		delete(all, key)
+	}
+
+	*m = BookMeta(known)
+	if len(all) > 0 {
+		m.Extra = all
+	}
+
+	return nil
+}
+
+// MarshalJSON writes the known fields first, in their declared order, and
+// appends the unknown keys captured by UnmarshalJSON.
+//
+// Unknown keys are sorted so that writing the same book twice produces the same
+// bytes; their original position in the file is not preserved, only their
+// values. An empty Extra adds nothing at all, so a book without hand-added
+// fields is written exactly as it was before this existed.
+func (m BookMeta) MarshalJSON() ([]byte, error) {
+	// See UnmarshalJSON: the alias sheds this method and marshals the fields.
+	type bookMetaFields BookMeta
+
+	known, err := json.Marshal(bookMetaFields(m))
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	if len(m.Extra) == 0 {
+		return known, nil
+	}
+
+	var buf bytes.Buffer
+	// Reopen the object marshalled above by dropping its closing brace.
+	buf.Write(known[:len(known)-1])
+
+	for _, key := range slices.Sorted(maps.Keys(m.Extra)) {
+		if _, owned := bookMetaKnownKeys[key]; owned {
+			// The struct field is the authority for a key it owns; writing this
+			// too would leave the file with two values for one key.
+			continue
+		}
+
+		value := m.Extra[key]
+		if !json.Valid(value) {
+			return nil, util.Errorf("book.json field %q holds invalid JSON", key)
+		}
+
+		encodedKey, err := json.Marshal(key)
+		if err != nil {
+			return nil, util.Errorf("%w", err)
+		}
+
+		if buf.Len() > 1 {
+			buf.WriteByte(',')
+		}
+		buf.Write(encodedKey)
+		buf.WriteByte(':')
+		buf.Write(value)
+	}
+	buf.WriteByte('}')
+
+	return buf.Bytes(), nil
 }
 
 // setLayers only used for internal use, not persisted in book meta, and not exposed to user
@@ -378,11 +508,18 @@ func (b *Book) updateCurrentVersionLocation(sourceID string) error {
 }
 
 // GetMeta returns a copy of the book meta, user can modify the returned meta and call SetMeta to update the book meta, but should not modify the CurrentSource field directly
+//
+// The copy carries no Extra: unknown book.json keys are shelf-managed and are
+// merged back in by setMeta. Leaving them out here keeps them off every path
+// that starts from a caller-held meta — the HTTP API responses and the exported
+// book cache both do — so a hand-added field stays a fact about the file rather
+// than becoming public schema.
 func (b *Book) GetMeta() *BookMeta {
 	metaCopy := *b.meta
 	metaCopy.Tags = append([]string(nil), b.meta.Tags...)
 	metaCopy.Authors = append([]string(nil), b.meta.Authors...)
 	metaCopy.Identifiers = maps.Clone(b.meta.Identifiers)
+	metaCopy.Extra = nil
 	return &metaCopy
 }
 
@@ -427,8 +564,15 @@ func (b *Book) setMeta(meta *BookMeta) error {
 	// lazy — the version reaches disk only when the book is next written.
 	meta.SchemaVersion = BookMetaSchemaVersion
 
+	// Same for the unknown keys: they come from the book.json this build last
+	// read, never from the caller. Every mutation — a star rating, a cover, a
+	// current-source switch — rewrites the whole file, so taking them from here
+	// is what makes "the filesystem is the source of truth, you may edit it by
+	// hand" hold for fields this build knows nothing about.
+	meta.Extra = b.meta.Extra
+
 	// write back to book meta
-	bs, err := json.MarshalIndent(meta, "", "  ")
+	bs, err := marshalBookMetaFile(meta)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -784,6 +928,29 @@ func openBook(rt fsutil.FS, logger logutil.Logger, bookPath string) (*Book, erro
 	}, nil
 }
 
+// marshalBookMetaFile encodes the bytes of a book.json. It is the only place
+// that produces them, so createBook and setMeta cannot drift apart.
+//
+// HTML escaping is off on purpose. book.json is a local file people are invited
+// to open in an editor, and a value holding & or < should read back the way it
+// was written instead of as \u0026. json.MarshalIndent, which this replaces,
+// escapes them — harmless for a known field, but for an unknown key carried
+// through verbatim it would rewrite bytes this build has no business touching.
+func marshalBookMetaFile(meta *BookMeta) ([]byte, error) {
+	var buf bytes.Buffer
+
+	encoder := json.NewEncoder(&buf)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(meta); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	// Encode terminates the value with a newline and MarshalIndent does not, so
+	// drop it: the file keeps the exact shape earlier builds wrote.
+	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
+}
+
 // readBookMeta decodes a book's persisted metadata from disk.
 func readBookMeta(rt fsutil.FS, bookPath string) (*BookMeta, error) {
 	metaFile, err := rt.Open(path.Join(bookPath, BookMetaFile))
@@ -813,7 +980,7 @@ func createBook(rt fsutil.FS, logger logutil.Logger, bookPath, bookID, title str
 		CreatedAt:     util.JSONTime(time.Now()),
 	}
 
-	bs, err := json.MarshalIndent(meta, "", "  ")
+	bs, err := marshalBookMetaFile(&meta)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
