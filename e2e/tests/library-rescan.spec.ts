@@ -46,9 +46,50 @@ test('Update book list shows a book copied into the shelf from outside', async (
       page.locator('.book-list-row').getByRole('heading', { name: 'Dropped In', exact: true })
     ).toBeVisible();
     await expect(page.getByText('2 books', { exact: true })).toBeVisible();
-    // What the walk found, reported beside the button.
-    await expect(page.getByText('Found 2 books in 1 folders')).toBeVisible();
     await expect(rescan).toBeEnabled();
+
+    // What the walk found is announced and goes. It must not take a permanent
+    // line in the toolbar: the count is five digits on a real shelf, and a
+    // label that wide pushes the controls beside it around.
+    //
+    // Located by class rather than by text: Reka renders the same words a
+    // second time in its off-screen live region, so a text locator matches two
+    // elements. The toast body itself is teleported into the viewport.
+    const toast = page.locator('.reka-toast-viewport .reka-toast');
+    await expect(toast).toHaveText(/Found 2 books in 1 folders/);
+    await expect(page.locator('.toolbar-bar.shelf-refresh-bar')).not.toContainText('Found');
+
+    await toast.getByRole('button', { name: 'Dismiss notification' }).click();
+    await expect(toast).toHaveCount(0);
+  } finally {
+    await server.dispose();
+  }
+});
+
+// Adding this button took the toolbar past the width it had left, and a row
+// that cannot wrap does not shrink — it pushes its last control out of the
+// header and clips it, which is how the button becomes unreachable.
+test('the library toolbar fits its header instead of clipping its last control', async ({
+  page
+}) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importHelloBook(page);
+
+    for (const width of [1600, 1280, 1024, 800]) {
+      await page.setViewportSize({ width, height: 800 });
+      // The rescan button is the last control and therefore the first casualty.
+      await expect(page.getByRole('button', { name: 'Update book list' })).toBeInViewport();
+
+      const overflowPx = await page.evaluate(() => {
+        const toolbar = document.querySelector('.bookshelf-toolbar') as HTMLElement;
+        const header = toolbar.parentElement as HTMLElement;
+        return toolbar.getBoundingClientRect().right - header.getBoundingClientRect().right;
+      });
+      expect(overflowPx, `toolbar overflows its header at ${width}px`).toBeLessThanOrEqual(1);
+    }
   } finally {
     await server.dispose();
   }

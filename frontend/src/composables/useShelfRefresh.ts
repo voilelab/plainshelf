@@ -1,15 +1,14 @@
 import { ref } from 'vue';
 import { ShelfScanInProgressError } from '@/api/shelves';
 import { getBookshelfProvider } from '@/providers';
-import type { ShelfRefreshResult } from '@/providers/bookshelfProvider';
 import { useBookStore } from './useBookStore';
 import { useLayerStore } from './useLayerStore';
+import { useToasts } from './useToasts';
 import { t } from '@/i18n';
 
 // Module-level singleton, matching useBookStore: the button and any other
 // consumer must agree on whether an update is currently running.
 const lastSyncedAt = ref<number | null>(null);
-const lastResult = ref<ShelfRefreshResult | null>(null);
 const refreshing = ref(false);
 const error = ref('');
 
@@ -24,11 +23,15 @@ const error = ref('');
  * need the update for different reasons.
  *
  * The two backends report their result differently and neither reports both.
- * pCloud dates its stored listing (`lastSyncedAt`); a server has no stored
- * listing to date and instead says what the walk found (`lastResult`).
+ * pCloud dates its stored listing, which is durable state and belongs beside
+ * the button as `lastSyncedAt`. A server has no such date and instead says what
+ * the walk found, which is a fact about one press: it goes to a toast, because
+ * a line whose width follows a book count would push the toolbar around every
+ * time the shelf grows.
  */
 export function useShelfRefresh() {
   const provider = getBookshelfProvider();
+  const { showToast } = useToasts();
   const supported = Boolean(provider.supportsShelfRefresh?.());
   const tracksLastSynced = supported && typeof provider.getShelfFetchedAt === 'function';
 
@@ -53,13 +56,18 @@ export function useShelfRefresh() {
       const { fetchLayers } = useLayerStore();
       await Promise.all([fetchBooks(), fetchLayers()]);
       await loadLastSyncedAt();
-      lastResult.value = result ?? null;
+      if (result) {
+        showToast(t('library.scanFound', { books: result.bookCount, layers: result.layerCount }));
+      }
     } catch (err) {
       // The one refusal that is not a failure: another client is already
-      // walking this shelf, so the answer is to wait rather than to retry.
+      // walking this shelf, so the answer is to wait for it rather than to
+      // retry, and the previous listing is still correct in the meantime. That
+      // makes it a remark about this press, not a state the page has to keep
+      // showing, so it goes to a toast while real failures stay on the page.
       // Translated here because the api and provider layers hold no strings.
       if (err instanceof ShelfScanInProgressError) {
-        error.value = t('library.scanInProgress');
+        showToast(t('library.scanInProgress'));
       } else {
         error.value = err instanceof Error ? err.message : t('library.refreshFailed');
       }
@@ -68,5 +76,5 @@ export function useShelfRefresh() {
     }
   }
 
-  return { supported, tracksLastSynced, lastSyncedAt, lastResult, refreshing, error, loadLastSyncedAt, refresh };
+  return { supported, tracksLastSynced, lastSyncedAt, refreshing, error, loadLastSyncedAt, refresh };
 }

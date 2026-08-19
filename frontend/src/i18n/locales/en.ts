@@ -11,6 +11,10 @@ const en = {
       reload: 'Reload'
     }
   },
+  toast: {
+    label: 'Notifications',
+    dismiss: 'Dismiss notification'
+  },
   language: {
     label: 'Language',
     en: 'English',

@@ -11,6 +11,10 @@ const zhHant = {
       reload: '重新載入'
     }
   },
+  toast: {
+    label: '通知',
+    dismiss: '關閉通知'
+  },
   language: {
     label: '語言',
     en: 'English',

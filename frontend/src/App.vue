@@ -19,12 +19,19 @@
   <div v-if="showMockModeBadge" class="mock-mode-badge" role="status" aria-live="polite">
     {{ t('app.mockModeBadge') }}
   </div>
+  <!--
+    Outside RouterView so a toast raised by one page survives the navigation it
+    may itself have caused, and so every route - library, reader, mobile shell -
+    gets the same one host without mounting its own.
+  -->
+  <ToastHost />
 </template>
 
 <script setup lang="ts">
 import { computed, onErrorCaptured, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { isMockApiMode } from '@/api/client';
+import ToastHost from '@/components/ToastHost.vue';
 import { isWailsRuntime } from './providers';
 import { useI18n } from './i18n';
 
