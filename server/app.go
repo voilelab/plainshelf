@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/voilelab/plainshelf/frontend"
 	"github.com/voilelab/plainshelf/internal/logutil"
@@ -226,6 +227,39 @@ func (app *App) rejectReadOnlyWrite(w http.ResponseWriter, r *http.Request) bool
 		return false
 	}
 
+	if isReadOnlySafeRequest(r) {
+		return false
+	}
+
 	http.Error(w, "server is in read-only mode", http.StatusForbidden)
 	return true
+}
+
+// isReadOnlySafeRequest reports a POST that writes nothing to the shelf, so
+// read-only mode has no reason to refuse it.
+//
+// The rescan endpoint is the only one: it walks the shelf and rebuilds the
+// in-memory cache, which is what a read does. Keeping it to a named exception
+// rather than a general "reads may POST" rule is deliberate — the gate stays a
+// method test that one route opts out of, so adding a second one has to be
+// written down here.
+//
+// The token gate is not affected. This runs after it, and a rescan still costs
+// the server real work, so it stays behind the same local_token boundary as
+// every other POST.
+func isReadOnlySafeRequest(r *http.Request) bool {
+	return r.Method == http.MethodPost && isShelfScanPath(r.URL.Path)
+}
+
+// isShelfScanPath matches /api/shelves/{shelf_id}/scans. The gate runs before
+// routing, so the pattern the mux will apply is not available here and the path
+// is taken apart by hand.
+func isShelfScanPath(urlPath string) bool {
+	rest, ok := strings.CutPrefix(urlPath, "/api/shelves/")
+	if !ok {
+		return false
+	}
+
+	shelfID, tail, ok := strings.Cut(rest, "/")
+	return ok && shelfID != "" && tail == "scans"
 }

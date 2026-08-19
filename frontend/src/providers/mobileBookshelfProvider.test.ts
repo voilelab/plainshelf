@@ -546,6 +546,17 @@ describe('MobileBookshelfProvider — manual shelf refresh', () => {
     expect(await provider.getShelfFetchedAt()).toBe(4_242);
   });
 
+  // Only the backend can say what the walk found, so the wrapper must not eat
+  // the answer on its way to the button.
+  it('passes through what the backend found', async () => {
+    const provider = makeProvider({
+      supportsShelfRefresh: () => true,
+      refreshShelf: async () => ({ bookCount: 12, layerCount: 3 })
+    });
+
+    await expect(provider.refreshShelf()).resolves.toEqual({ bookCount: 12, layerCount: 3 });
+  });
+
   it('surfaces a failed update instead of reporting success', async () => {
     const provider = makeProvider({
       supportsShelfRefresh: () => true,

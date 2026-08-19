@@ -56,6 +56,10 @@ A book package placed inside one of these directories is invisible to
 PlainShelf, so deleting a book on a NAS does not bring it back through the
 recycle bin. The list is fixed; custom ignore patterns are not configurable yet.
 
+Trying to create a layer with one of these names is refused with a message that
+says so, rather than the generic "invalid layer name" reported for a name that
+is malformed.
+
 ---
 
 ## Example use cases

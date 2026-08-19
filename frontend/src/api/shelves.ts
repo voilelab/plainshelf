@@ -1,4 +1,6 @@
 import { buildShelfApiPath, fetchJson, getActiveShelfID, isMockApiMode, setActiveShelfID } from './client';
+import { mockListBooks } from './mocks/books';
+import { getMockLayers } from './mocks/layers';
 import { getShell } from '@/providers/shell';
 
 export interface ShelfInfo {
@@ -56,6 +58,70 @@ export async function listShelves(): Promise<ShelfInfo[]> {
   }
 
   return listServerShelves();
+}
+
+// A full walk of a shelf can take minutes on an SMB or cloud mount, which is
+// exactly where this button is most needed, so it gets the streaming timeout
+// rather than the metadata one.
+const SCAN_TIMEOUT_MS = 300_000;
+
+/**
+ * What one shelf rescan found.
+ */
+export interface ShelfScanResult {
+  bookCount: number;
+  layerCount: number;
+}
+
+/**
+ * Thrown when the shelf is already being rescanned, so this request was refused
+ * rather than started alongside it. `scanID` names the walk already running.
+ */
+export class ShelfScanInProgressError extends Error {
+  readonly scanID: string;
+
+  constructor(scanID: string) {
+    super('A rescan of this shelf is already running.');
+    this.name = 'ShelfScanInProgressError';
+    this.scanID = scanID;
+  }
+}
+
+/**
+ * Walks the shelf now and rebuilds the server's book cache, reporting what it
+ * found.
+ *
+ * This is the answer to "I put a book in the folder and it is not there": the
+ * server discovers external changes on its own only every `scan_interval`, and
+ * on an SMB or cloud-mounted shelf there is no change notification that could
+ * make it sooner.
+ *
+ * A POST that writes nothing, which is why it is marked `readOnlySafe` — a
+ * read-only server accepts it, and so does the mobile shell.
+ */
+export async function rescanShelf(shelfID?: string): Promise<ShelfScanResult> {
+  if (isMockApiMode()) {
+    // Reports the fixture set, so the button says the same thing the grid
+    // beside it shows rather than "found nothing".
+    return { bookCount: mockListBooks(1, Number.MAX_SAFE_INTEGER).total, layerCount: getMockLayers().length };
+  }
+
+  const res = await fetchJson<{ scan_id?: string; book_count?: number; layer_count?: number }>(
+    buildShelfApiPath('/scans', shelfID),
+    { method: 'POST' },
+    { readOnlySafe: true, acceptStatuses: [409], timeoutMs: SCAN_TIMEOUT_MS }
+  );
+
+  // The 409 body carries only the running walk's ID; the counts are absent
+  // because they belong to a walk this request did not perform.
+  if (res?.book_count === undefined) {
+    throw new ShelfScanInProgressError(res?.scan_id ?? '');
+  }
+
+  return {
+    bookCount: res.book_count,
+    layerCount: typeof res.layer_count === 'number' ? res.layer_count : 0
+  };
 }
 
 export async function getShelfStatus(shelfID?: string): Promise<{ ready: boolean }> {

@@ -359,8 +359,16 @@ onMounted(() => {
 .bookshelf-toolbar {
   align-items: center;
   display: flex;
-  flex: 0 0 auto;
+  /* Wraps at every width, not only on a narrow viewport. The row is a set of
+     independent controls that pages add to over time, and `flex: 0 0 auto`
+     means one control more than fits is not squeezed but pushed past the
+     header and clipped — the last one then cannot be reached at all. Wrapping
+     costs a second line only in the case that is already broken. The narrow
+     rules below still apply on top of this. */
+  flex-wrap: wrap;
+  flex: 0 1 auto;
   gap: 10px;
+  justify-content: flex-end;
 }
 
 .bookshelf-title {
@@ -411,12 +419,9 @@ onMounted(() => {
   }
 
   .bookshelf-toolbar {
-    /* Wrapping, not scrolling: the toolbar is a row of independent controls
-       and the search bar already asks for a line of its own (flex-basis 100%
-       in LibraryPage). Without this, one control more than fits pushes the
-       whole page into horizontal overflow and the last control can only be
-       reached by scrolling sideways. */
-    flex-wrap: wrap;
+    /* The wrap itself is unconditional now (see .bookshelf-toolbar above).
+       What is specific to a narrow viewport is spreading the controls across
+       the full width, since the header stacks and the toolbar owns its line. */
     justify-content: space-between;
     width: 100%;
   }

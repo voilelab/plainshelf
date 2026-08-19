@@ -1,6 +1,7 @@
 package shelf
 
 import (
+	"errors"
 	"os"
 	"path"
 	"sort"
@@ -221,6 +222,45 @@ func TestValidateLayersRejectsIgnoredNames(t *testing.T) {
 
 	if err := validateLayers(Layers{"Fiction", "Classics"}); err != nil {
 		t.Errorf("Expected an ordinary layer to stay valid, got %v", err)
+	}
+}
+
+// The API answers a name from the ignore list with its own explanation, so the
+// rejection has to be distinguishable from every other invalid layer while
+// still classifying as one.
+func TestValidateLayersReportsIgnoredNamesAsTheirOwnSentinel(t *testing.T) {
+	for _, name := range ignoredDirFixtures {
+		err := validateLayers(Layers{name})
+		if !errors.Is(err, ErrIgnoredLayerName) {
+			t.Errorf("validateLayers(%q) = %v, want ErrIgnoredLayerName", name, err)
+		}
+		if !errors.Is(err, ErrInvalidLayer) {
+			t.Errorf("validateLayers(%q) = %v, want ErrInvalidLayer too", name, err)
+		}
+	}
+
+	// Any other rejection keeps the general sentinel alone.
+	for _, name := range []string{"", "..", "with/separator", "Book.bookpkg"} {
+		err := validateLayers(Layers{name})
+		if !errors.Is(err, ErrInvalidLayer) {
+			t.Errorf("validateLayers(%q) = %v, want ErrInvalidLayer", name, err)
+		}
+		if errors.Is(err, ErrIgnoredLayerName) {
+			t.Errorf("validateLayers(%q) matched ErrIgnoredLayerName, want the general sentinel only", name)
+		}
+	}
+}
+
+// validatePathSegment serves asset names too, and the API classifies those
+// under ErrInvalidAssetName. The shared ignore rule must not pull them into the
+// layer sentinels.
+func TestIgnoredAssetNamesStayAssetErrors(t *testing.T) {
+	err := validateAssetName("@eaDir")
+	if !errors.Is(err, ErrInvalidAssetName) {
+		t.Fatalf("validateAssetName(@eaDir) = %v, want ErrInvalidAssetName", err)
+	}
+	if errors.Is(err, ErrInvalidLayer) || errors.Is(err, ErrIgnoredLayerName) {
+		t.Errorf("validateAssetName(@eaDir) = %v, want no layer sentinel", err)
 	}
 }
 

@@ -16,7 +16,7 @@ vi.mock('./client', async () => {
   };
 });
 
-const { listServerShelves, listShelves } = await import('./shelves');
+const { ShelfScanInProgressError, listServerShelves, listShelves, rescanShelf } = await import('./shelves');
 const { registerShell } = await import('@/providers/shell');
 
 /** Stands in for a shell whose shelf list is device-local. */
@@ -83,5 +83,41 @@ describe('listServerShelves', () => {
     fetchJsonMock.mockResolvedValue([{ id: 'main', name: 'Main' }, { id: '' }, null, 'nope']);
 
     await expect(listServerShelves()).resolves.toEqual([{ id: 'main', name: 'Main' }]);
+  });
+});
+
+describe('rescanShelf', () => {
+  it('reports what the walk found', async () => {
+    fetchJsonMock.mockResolvedValue({ scan_id: 'abc', scanned_at: 1_700_000_000, book_count: 12, layer_count: 3 });
+
+    await expect(rescanShelf()).resolves.toEqual({ bookCount: 12, layerCount: 3 });
+  });
+
+  // The gate that would otherwise reject this POST is the one that exists to
+  // stop writes, and a rescan is not one; the server draws the same exception.
+  it('marks the request as writing nothing, and takes the 409 body as a result', async () => {
+    fetchJsonMock.mockResolvedValue({ scan_id: 'abc', book_count: 0, layer_count: 0 });
+
+    await rescanShelf();
+
+    expect(fetchJsonMock).toHaveBeenCalledWith(
+      '/scans',
+      { method: 'POST' },
+      expect.objectContaining({ readOnlySafe: true, acceptStatuses: [409] })
+    );
+  });
+
+  // A 409 body carries no counts, which is how it is told apart from a walk
+  // that ran and genuinely found an empty shelf.
+  it('rejects with the running scan when the shelf is already being walked', async () => {
+    fetchJsonMock.mockResolvedValue({ scan_id: 'running-one' });
+
+    await expect(rescanShelf()).rejects.toBeInstanceOf(ShelfScanInProgressError);
+  });
+
+  it('does not mistake an empty shelf for a refusal', async () => {
+    fetchJsonMock.mockResolvedValue({ scan_id: 'abc', scanned_at: 1, book_count: 0, layer_count: 1 });
+
+    await expect(rescanShelf()).resolves.toEqual({ bookCount: 0, layerCount: 1 });
   });
 });

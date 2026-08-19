@@ -90,7 +90,11 @@ export async function createLayer(layerPath: string): Promise<void> {
     });
   } catch (err) {
     if (err instanceof ApiError && err.status === 400) {
-      throw new LayerHttpError('Layer path cannot be empty');
+      // The server names the reason it refused the name - an empty path, or a
+      // hidden/system directory name its scanner would skip - and the user
+      // cannot guess between them, so pass the message through instead of
+      // replacing it with one fixed guess.
+      throw new LayerHttpError(err.message || 'Layer path cannot be empty');
     }
 
     if (err instanceof ApiError && err.status === 500) {
