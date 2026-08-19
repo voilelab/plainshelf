@@ -27,6 +27,11 @@ type bookCache struct {
 	bookCheckInterval time.Duration
 	refreshing        bool
 
+	// rescanID names the manual rescan currently walking the shelf, empty when
+	// none is. See shelf_rescan.go for why a second one is refused rather than
+	// queued.
+	rescanID string
+
 	// lastScanStart is when the walk behind the current cache began. See
 	// scanToBookCache for why the start and not the end.
 	lastScanStart time.Time

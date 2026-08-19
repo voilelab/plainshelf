@@ -364,6 +364,8 @@ const en = {
     refreshingShelf: 'Updating…',
     lastSynced: 'Updated {time}',
     neverSynced: 'Never updated',
+    scanFound: 'Found {books} books in {layers} folders',
+    scanInProgress: 'This shelf is already being scanned. Try again once it finishes.',
     loadFailed: 'Failed to load books',
     refreshFailed: 'Failed to update the book list',
     requestTimeout: 'Request timed out — the shelf may be slow or unavailable.',

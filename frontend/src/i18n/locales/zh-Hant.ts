@@ -362,6 +362,8 @@ const zhHant = {
     refreshingShelf: '更新中…',
     lastSynced: '上次更新 {time}',
     neverSynced: '尚未更新',
+    scanFound: '找到 {books} 本書、{layers} 個資料夾',
+    scanInProgress: '這個書架正在掃描中，請等這次掃描結束後再試。',
     loadFailed: '載入書籍失敗',
     refreshFailed: '更新書單失敗',
     requestTimeout: '請求逾時——書架可能較慢或無法連線。',

@@ -98,6 +98,11 @@ func TestShelfWaitReadyCancellationAndInitializingReads(t *testing.T) {
 	if _, err := shelf.GetBooksByLayer(nil); !errors.Is(err, ErrShelfInitializing) {
 		t.Fatalf("GetBooksByLayer error = %v, want ErrShelfInitializing", err)
 	}
+	// A rescan is refused for the same reason: the initial scan is the very walk
+	// it would duplicate.
+	if _, err := shelf.Rescan(); !errors.Is(err, ErrShelfInitializing) {
+		t.Fatalf("Rescan error = %v, want ErrShelfInitializing", err)
+	}
 }
 
 func TestShelfDeleteLayer(t *testing.T) {

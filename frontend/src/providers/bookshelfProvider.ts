@@ -36,6 +36,12 @@ export interface StorageEstimateResult {
   quota?: number;
 }
 
+/** What a manual shelf update found, when the backend can report it. */
+export interface ShelfRefreshResult {
+  bookCount: number;
+  layerCount: number;
+}
+
 /**
  * Everything a reading client needs. Every provider implements all of it.
  *
@@ -119,14 +125,25 @@ export interface BookshelfReader {
   getSourceAsset?(bookId: string, sourceId: string, name: string): Promise<Blob>;
 
   /**
-   * Manual shelf update, for backends whose listing is too expensive to refresh
-   * on its own. A server keeps its own shelf cache warm (`scan_interval`), so
-   * only the pCloud provider implements these; `supportsShelfRefresh` is what
-   * the UI asks, because a wrapper always has the methods even when the backend
-   * it wraps does not.
+   * Manual shelf update, for a listing that does not necessarily reflect the
+   * shelf right now.
+   *
+   * Two backends have that problem for different reasons. The pCloud provider
+   * scans once and then reads a stored copy, because walking the shelf costs a
+   * request per book. A server keeps its own cache warm, but only every
+   * `scan_interval`, and no filesystem change notification reaches it from an
+   * SMB or cloud mount — so a book added from outside PlainShelf waits out the
+   * interval unless the user asks for the walk.
+   *
+   * `supportsShelfRefresh` is what the UI asks, because a wrapper always has
+   * the methods even when the backend it wraps does not.
+   *
+   * `refreshShelf` returns what the update found when the backend can say;
+   * `getShelfFetchedAt` is for a backend that instead dates its stored listing.
+   * No backend does both, and neither is required.
    */
   supportsShelfRefresh?(): boolean;
-  refreshShelf?(): Promise<void>;
+  refreshShelf?(): Promise<ShelfRefreshResult | void>;
   getShelfFetchedAt?(): Promise<number | null>;
 
   /**

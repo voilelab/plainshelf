@@ -352,14 +352,24 @@ async function reloadBooksAfterImport(): Promise<void> {
   await reloadBooks();
 }
 
-// Only a backend whose listing the user has to update themselves (pCloud)
-// reports support; everywhere else the bar stays hidden.
+// Every backend whose listing can lag the shelf reports support: pCloud, whose
+// listing the user updates themselves, and a server, which finds an externally
+// added book only on its next `scan_interval` walk.
 const shelfRefresh = useShelfRefresh();
-const lastSyncedLabel = computed(() =>
-  shelfRefresh.lastSyncedAt.value === null
-    ? t('library.neverSynced')
-    : t('library.lastSynced', { time: new Date(shelfRefresh.lastSyncedAt.value).toLocaleString() })
-);
+
+// What the last update has to say, which differs by backend: a server reports
+// what its walk found, pCloud dates its stored listing. A backend that does
+// neither gets no status text rather than a misleading "never updated".
+const lastSyncedLabel = computed(() => {
+  const result = shelfRefresh.lastResult.value;
+  if (result) {
+    return t('library.scanFound', { books: result.bookCount, layers: result.layerCount });
+  }
+  if (shelfRefresh.lastSyncedAt.value !== null) {
+    return t('library.lastSynced', { time: new Date(shelfRefresh.lastSyncedAt.value).toLocaleString() });
+  }
+  return shelfRefresh.tracksLastSynced ? t('library.neverSynced') : '';
+});
 
 const {
   canOpenBookFolder,

@@ -58,13 +58,29 @@ Within the configured intervals, repeated browsing can be served from memory wit
 
 ---
 
+## Rescanning on demand
+
+Everything above is on a timer. Nothing tells PlainShelf that you just copied a book into `books/` from outside it, so within `scan_interval` the book is not there yet — and on an SMB, NAS, or cloud-mounted shelf there is no change notification that could tell it sooner.
+
+**Update book list** on the library toolbar is the answer. It walks the shelf immediately and reports what it found, and it is the same action in every setup: local disk, SMB, rclone or another cloud mount, and the Android client's pCloud shelf alike. If something you changed outside PlainShelf has not appeared, this is the thing to press.
+
+Its endpoint is `POST /api/shelves/{shelf_id}/scans`.
+
+- **`scan_interval` does not apply to it.** The interval exists to stop repeated browsing from re-walking the tree; pressing the button has already answered the question it asks.
+- **It writes nothing.** The walk rebuilds the in-memory cache and touches no file in the shelf, so it works on a read-only server. That is what separates it from the manual export below, which forces the same walk but then writes a file.
+- **The shelf stays readable while it runs.** The walk holds the same shared lock every read takes, so browsing is not blocked, and a large or slow shelf does not go unavailable for the duration.
+- **One walk at a time.** If a rescan is already running on that shelf, a second request is refused with `409` naming the one in progress, rather than starting a duplicate walk. It is refused rather than attached to it because a walk that began before your change cannot report your change — waiting for it and asking again is what actually answers the question.
+- **It reports the counts it found**, so the button can say how many books and folders are on the shelf now.
+
+---
+
 ## Tuning options
 
 ### `scan_interval`
 
 `scan_interval` controls how often PlainShelf performs a full on-disk scan of the shelf book tree.
 
-A shorter interval discovers externally added, moved, or deleted books sooner, but performs more directory traversal and metadata reads. A longer interval reduces filesystem and network I/O, but external changes may appear later.
+A shorter interval discovers externally added, moved, or deleted books sooner, but performs more directory traversal and metadata reads. A longer interval reduces filesystem and network I/O, but external changes may appear later — and when they do, the rescan above is what you press instead of shortening the interval for the one time a year you need it.
 
 Example:
 
@@ -160,6 +176,10 @@ So the server and the desktop app write the listing down. Each one exports `app/
 - when the shelf is closed;
 - on demand, from **Settings → Shelves → Mobile book cache**, or `POST /api/shelves/{shelf_id}/book-cache-exports`.
 
+That manual export also forces a rescan, but it is not the way to ask for one: it exists to publish the file a phone reads, and it writes to the shelf. To make a book appear in the library, use the rescan above.
+
+
+
 Each of those is a moment the export is *considered*, not a write. Whether anything reaches the disk is decided by comparing the content against what was written last: an unchanged shelf is left alone, because an identical rewrite is a pointless upload on exactly the cloud and network shelves this feature exists for. That comparison is also why there is no "something changed" flag anywhere — book metadata is edited in place, and a flag would have to be set by every edit path, with the one that got missed silently ending the exports.
 
 There is no background timer either. An export only has something new to say after the shelf has been read or written, and every such path already passes through the check.
@@ -213,4 +233,4 @@ What this does *not* cover: two clients editing the same book at the same time. 
 - For small or medium local shelves, the defaults are usually fine.
 - For large local shelves, consider increasing `scan_interval` if startup or browsing causes noticeable disk activity.
 - For SMB/NAS shelves, start with `scan_interval: 10m` and `book_check_interval: 5m`, then tune upward if browsing is still slow.
-- If you edit shelf files outside PlainShelf, remember that longer intervals trade immediate visibility for lower I/O.
+- If you edit shelf files outside PlainShelf, remember that longer intervals trade immediate visibility for lower I/O — and that **Update book list** overrides the trade whenever you need it to.

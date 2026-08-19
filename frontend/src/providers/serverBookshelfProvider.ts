@@ -31,6 +31,7 @@ import {
   updateSourceContent
 } from '@/api/sources';
 import { getLayers } from '@/api/layers';
+import { rescanShelf } from '@/api/shelves';
 import { getTaskChain } from '@/api/taskchains';
 import { startBookBatch } from '@/api/bookBatches';
 import {
@@ -54,7 +55,12 @@ import type {
 } from '@/types/book';
 import type { CreateSourceOptions, SourceMeta } from '@/types/source';
 import type { BookBatchRequest, TaskChain } from '@/types/task';
-import type { BookshelfReader, BookshelfWriter, ListBooksOptions } from './bookshelfProvider';
+import type {
+  BookshelfReader,
+  BookshelfWriter,
+  ListBooksOptions,
+  ShelfRefreshResult
+} from './bookshelfProvider';
 
 // Declares both halves rather than the loose BookshelfProvider alias, so
 // dropping or mistyping any write method fails to compile here.
@@ -205,5 +211,17 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
 
   refreshSourceMeta(bookId: string, sourceId: string): Promise<SourceMeta> {
     return refreshSourceMeta(bookId, sourceId);
+  }
+
+  // A server discovers external changes only every `scan_interval`, and on an
+  // SMB or cloud-mounted shelf nothing notifies it sooner, so the user needs a
+  // way to say "look now". There is no stored listing to date, hence no
+  // getShelfFetchedAt: the counts refreshShelf reports are what the UI shows.
+  supportsShelfRefresh(): boolean {
+    return true;
+  }
+
+  refreshShelf(): Promise<ShelfRefreshResult> {
+    return rescanShelf();
   }
 }
