@@ -78,24 +78,35 @@ func (s *Shelf) NewBookWith(layers Layers, title string, init func(*Book) error)
 	}
 	defer s.dbRoot.RemoveAll(bookPath)
 
-	// Generate a unique book ID based on the layers and title
-	// TBD: Use UUID
-	baseBookID := seedBookID(layers, title)
-	bookID := baseBookID
-	for i := 1; ; i++ {
-		_, err := s.getUpdatedBookFromBookID(bookID)
+	// The ID is drawn at random, not derived from the layers and title: what
+	// keeps two books apart is the entropy behind it, not the probe below. The
+	// probe only sees books this process already knows about - the cache does not
+	// notice a book another machine added to a shared shelf, or one copied in
+	// with a file manager, until it rescans - so it is insurance against an ID
+	// this shelf demonstrably holds, and is expected never to fire.
+	bookID := ""
+	for range MaxBookIDCreationAttempts {
+		candidate, idErr := newBookID()
+		if idErr != nil {
+			return nil, util.Errorf("%w", idErr)
+		}
+
+		_, err := s.getUpdatedBookFromBookID(candidate)
 		if errors.Is(err, ErrBookNotFound) {
-			inTrash, trashErr := s.isBookIDInTrash(bookID)
+			inTrash, trashErr := s.isBookIDInTrash(candidate)
 			if trashErr != nil {
 				return nil, util.Errorf("%w", trashErr)
 			}
 			if !inTrash {
+				bookID = candidate
 				break
 			}
 		} else if err != nil {
 			return nil, util.Errorf("%w", err)
 		}
-		bookID = fmt.Sprintf("%s-%d", baseBookID, i)
+	}
+	if bookID == "" {
+		return nil, util.NewError("failed to draw an unused book ID after multiple attempts")
 	}
 
 	stagedBook, err := createBook(s.dbRoot, s.Logger, bookPath, bookID, title)
@@ -117,6 +128,10 @@ func (s *Shelf) NewBookWith(layers Layers, title string, init func(*Book) error)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
+
+	// Creating a book can create layers on the way, and the layer listing is
+	// served from the cache; record them now rather than at the next scan.
+	s.addLayersToBookCache(layers)
 
 	folderName := titleToFolderName(title)
 	for i := 1; ; i++ {
@@ -204,6 +219,8 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
+	s.addLayersToBookCache(newLayers)
+
 	newBookPath := path.Join(newLayerPath, path.Base(book.FolderPath()))
 	err = s.dbRoot.Rename(book.FolderPath(), newBookPath)
 	if err != nil {
@@ -222,11 +239,15 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 	return movedBook, nil
 }
 
-// iterateBooks iterates over all books under the specified layers and applies the provided function to each book.
-// If the function returns false, the iteration will stop.
-func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
-	visitFolder := path.Join(booksFolder, path.Join(rLayers...))
-
+// iterateShelfTree walks the books folder once, reporting every layer
+// directory to onLayer and every book package to onBook. Either callback may be
+// nil. Returning false from a callback stops the whole walk.
+//
+// Books and layers share one walk because they are answers to the same
+// question: a listing and a layer tree both describe the shape of books/, and
+// walking it twice is the cost this shelf can least afford on a network mount.
+// scanToBookCache is the only production caller for that reason.
+func (s *Shelf) iterateShelfTree(onLayer func(Layers) bool, onBook func(*Book) bool) error {
 	skipAll := false
 
 	var dfsFunc func(string, fs.DirEntry)
@@ -252,22 +273,32 @@ func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 		if isIgnoredDir(folderName) {
 			return
 		}
+
+		// Paths are always built with path.Join, which uses "/" on every
+		// platform, so split on "/" rather than os.PathSeparator (which would
+		// be "\" on Windows and break layer parsing).
 		if strings.HasSuffix(folderName, bookExtension) {
+			if onBook == nil {
+				return
+			}
+
 			book, err := openBook(s.dbRoot, s.Logger, pth)
 			if err != nil {
 				s.Error("Error opening book", "path", pth, "error", err)
 				return
 			}
 
-			// Paths are always built with path.Join, which uses "/" on every
-			// platform, so split on "/" rather than os.PathSeparator (which would
-			// be "\" on Windows and break layer parsing).
 			layers := strings.Split(path.Dir(pth), "/")[1:]
 			book.setLayers(layers)
 
-			if !fn(book) {
+			if !onBook(book) {
 				skipAll = true
 			}
+			return
+		}
+
+		if onLayer != nil && !onLayer(strings.Split(pth, "/")[1:]) {
+			skipAll = true
 			return
 		}
 
@@ -285,6 +316,6 @@ func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 		}
 	}
 
-	dfsFunc(visitFolder, nil)
+	dfsFunc(booksFolder, nil)
 	return nil
 }

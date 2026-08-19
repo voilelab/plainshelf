@@ -2,6 +2,7 @@ package shelf
 
 import (
 	"maps"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -18,6 +19,13 @@ type bookIDCacheEntry struct {
 type bookCache struct {
 	sync.RWMutex
 	cache map[string]*bookIDCacheEntry
+
+	// layers is every layer directory the shelf holds, sorted, with the root as
+	// an empty Layers. Kept beside the book cache because both come out of the
+	// same walk, and kept as its own list because an empty layer holds no book
+	// and could not be rebuilt from cache above — the same reason
+	// BookCacheFile.Layers exists.
+	layers []Layers
 
 	treeDirty    bool
 	lastFullScan time.Time
@@ -91,7 +99,12 @@ func (s *Shelf) scanToBookCache() error {
 	// its Timestamp and readers use it to decide what they must re-read.
 	scanStart := time.Now()
 
-	err := s.iterateBooks(nil, func(b *Book) bool {
+	var layers []Layers
+
+	err := s.iterateShelfTree(func(ls Layers) bool {
+		layers = append(layers, ls)
+		return true
+	}, func(b *Book) bool {
 		cache[b.ID()] = &bookIDCacheEntry{
 			layers: b.Layers(),
 			path:   b.FolderPath(),
@@ -103,8 +116,11 @@ func (s *Shelf) scanToBookCache() error {
 		return util.Errorf("%w", err)
 	}
 
+	sortLayers(layers)
+
 	s.bookCache.Lock()
 	s.bookCache.cache = cache
+	s.bookCache.layers = layers
 	s.bookCache.treeDirty = false
 	s.bookCache.lastFullScan = time.Now()
 	s.bookCache.lastScanStart = scanStart
@@ -238,6 +254,58 @@ func (s *Shelf) listBooksFromCache() []*Book {
 	})
 
 	return books
+}
+
+// listLayersFromCache returns the cached layer list. The copy is deliberate:
+// the caller marshals it into a response while the next scan may already be
+// replacing the cached slice.
+func (s *Shelf) listLayersFromCache() []Layers {
+	s.bookCache.RLock()
+	defer s.bookCache.RUnlock()
+
+	layers := make([]Layers, len(s.bookCache.layers))
+	for i, layer := range s.bookCache.layers {
+		layers[i] = slices.Clone(layer)
+	}
+	return layers
+}
+
+// addLayersToBookCache records a layer and every ancestor it needed, so that a
+// directory this process just created shows up in the next listing instead of
+// waiting for the scan interval. Every place that MkdirAll's a layer path calls
+// it; a layer created outside PlainShelf is still found by the next scan.
+func (s *Shelf) addLayersToBookCache(layer Layers) {
+	s.bookCache.Lock()
+	defer s.bookCache.Unlock()
+
+	added := false
+	for i := 0; i <= len(layer); i++ {
+		prefix := layer[:i]
+		if slices.ContainsFunc(s.bookCache.layers, prefix.Equal) {
+			continue
+		}
+		s.bookCache.layers = append(s.bookCache.layers, slices.Clone(prefix))
+		added = true
+	}
+
+	if added {
+		sortLayers(s.bookCache.layers)
+	}
+}
+
+// removeLayerFromBookCache drops one layer entry. Only for a layer known to
+// have no children; a subtree change marks the tree dirty instead.
+func (s *Shelf) removeLayerFromBookCache(layer Layers) {
+	s.bookCache.Lock()
+	defer s.bookCache.Unlock()
+
+	s.bookCache.layers = slices.DeleteFunc(s.bookCache.layers, layer.Equal)
+}
+
+func sortLayers(layers []Layers) {
+	sort.Slice(layers, func(i, j int) bool {
+		return layers[i].String() < layers[j].String()
+	})
 }
 
 func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, error) {

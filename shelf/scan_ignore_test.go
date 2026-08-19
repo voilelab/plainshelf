@@ -134,11 +134,11 @@ func TestIterateBooksSkipsIgnoredDirectories(t *testing.T) {
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
 
 	var found []string
-	if err := shelf.iterateBooks(nil, func(b *Book) bool {
+	if err := shelf.iterateShelfTree(nil, func(b *Book) bool {
 		found = append(found, b.ID())
 		return true
 	}); err != nil {
-		t.Fatalf("iterateBooks: %v", err)
+		t.Fatalf("iterateShelfTree: %v", err)
 	}
 	sort.Strings(found)
 

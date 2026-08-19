@@ -24,7 +24,7 @@ func requireSymlinks(t *testing.T) {
 // the case that cannot be answered that way: its readdir type byte describes
 // the link, not the directory behind it, so a symlinked layer and a symlinked
 // book package must still be walked rather than silently skipped.
-func TestIterateBooksFollowsSymlinks(t *testing.T) {
+func TestIterateShelfTreeFollowsSymlinks(t *testing.T) {
 	requireSymlinks(t)
 
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
@@ -52,11 +52,11 @@ func TestIterateBooksFollowsSymlinks(t *testing.T) {
 	}
 
 	var visited []string
-	if err := shelf.iterateBooks(nil, func(b *Book) bool {
+	if err := shelf.iterateShelfTree(nil, func(b *Book) bool {
 		visited = append(visited, b.FolderPath())
 		return true
 	}); err != nil {
-		t.Fatalf("iterateBooks: %v", err)
+		t.Fatalf("iterateShelfTree: %v", err)
 	}
 
 	for _, want := range []string{
@@ -70,7 +70,7 @@ func TestIterateBooksFollowsSymlinks(t *testing.T) {
 	}
 }
 
-func TestIterateLayersFollowsSymlinkedLayer(t *testing.T) {
+func TestIterateShelfTreeFollowsSymlinkedLayer(t *testing.T) {
 	requireSymlinks(t)
 
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
@@ -86,11 +86,11 @@ func TestIterateLayersFollowsSymlinkedLayer(t *testing.T) {
 	}
 
 	var visited []string
-	if err := shelf.iterateLayers(func(ls Layers) bool {
+	if err := shelf.iterateShelfTree(func(ls Layers) bool {
 		visited = append(visited, strings.Join(ls, "/"))
 		return true
-	}); err != nil {
-		t.Fatalf("iterateLayers: %v", err)
+	}, nil); err != nil {
+		t.Fatalf("iterateShelfTree: %v", err)
 	}
 
 	for _, want := range []string{"real", "real/nested", "linked-layer", "linked-layer/nested"} {
@@ -102,7 +102,7 @@ func TestIterateLayersFollowsSymlinkedLayer(t *testing.T) {
 
 // A plain file must not be descended into, and a file that merely carries the
 // book extension is not a book package.
-func TestIterateBooksIgnoresFiles(t *testing.T) {
+func TestIterateShelfTreeIgnoresFiles(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
@@ -119,14 +119,14 @@ func TestIterateBooksIgnoresFiles(t *testing.T) {
 	}
 
 	count := 0
-	if err := shelf.iterateBooks(nil, func(b *Book) bool {
+	if err := shelf.iterateShelfTree(nil, func(b *Book) bool {
 		count++
 		return true
 	}); err != nil {
-		t.Fatalf("iterateBooks: %v", err)
+		t.Fatalf("iterateShelfTree: %v", err)
 	}
 
 	if count != 1 {
-		t.Errorf("iterateBooks visited %d books, want 1", count)
+		t.Errorf("iterateShelfTree visited %d books, want 1", count)
 	}
 }

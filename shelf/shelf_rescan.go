@@ -65,14 +65,10 @@ func (s *Shelf) Rescan() (RescanResult, error) {
 		return RescanResult{}, util.Errorf("%w", err)
 	}
 
-	// Layers are counted from their own walk rather than from the books just
-	// cached, because a layer holding no books is still a layer the user made
-	// and still part of the shelf this number describes.
-	layers, err := s.collectExportLayers()
-	if err != nil {
-		return RescanResult{}, util.Errorf("%w", err)
-	}
-
+	// Both counts come from the cache the walk just filled, which is also why
+	// the layer count includes a folder holding no books: the walk reports every
+	// layer directory it enters, and a layer the user made but has not filed
+	// anything into is still part of the shelf this number describes.
 	s.bookCache.RLock()
 	defer s.bookCache.RUnlock()
 
@@ -80,7 +76,7 @@ func (s *Shelf) Rescan() (RescanResult, error) {
 		ID:         scanID,
 		StartedAt:  s.bookCache.lastScanStart,
 		BookCount:  len(s.bookCache.cache),
-		LayerCount: len(layers),
+		LayerCount: len(s.bookCache.layers),
 	}, nil
 }
 

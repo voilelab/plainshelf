@@ -187,6 +187,9 @@ func (s *Shelf) RestoreTrashedBook(bookID string) error {
 		return util.Errorf("%w", err)
 	}
 
+	// The original layer may have been deleted while the book sat in trash.
+	s.addLayersToBookCache(targetLayers)
+
 	targetPath, err := s.resolveBookPathCollision(targetLayerPath, targetFolder)
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -212,6 +215,10 @@ func (s *Shelf) RestoreTrashedBook(bookID string) error {
 }
 
 func (s *Shelf) DeleteTrashedBook(bookID string) error {
+	if err := validateBookID(bookID); err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	if err := s.shelfLock.Lock(); err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -245,6 +252,10 @@ func (s *Shelf) isBookIDInTrash(bookID string) (bool, error) {
 }
 
 func (s *Shelf) findTrashedBook(bookID string) (string, *Book, *trashMeta, error) {
+	if err := validateBookID(bookID); err != nil {
+		return "", nil, nil, util.Errorf("%w", err)
+	}
+
 	trashPath := path.Join(trashBooksFolder, bookID+bookExtension)
 	book, err := openBook(s.dbRoot, s.Logger, trashPath)
 	if err != nil {

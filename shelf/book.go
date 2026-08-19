@@ -748,7 +748,7 @@ func openBook(rt fsutil.FS, logger logutil.Logger, bookPath string) (*Book, erro
 	}
 
 	// A too-new book is deliberately NOT an error here. Failing would make the
-	// book vanish from listings (iterateBooks), get evicted from the cache
+	// book vanish from listings (iterateShelfTree), get evicted from the cache
 	// (onlyRefreshBooksInCache), 404 from the API, and — worst — become
 	// impossible to restore from trash. A visible, explained book beats a book
 	// that silently disappears. setMeta is what protects the bytes on disk.
