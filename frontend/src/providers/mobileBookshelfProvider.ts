@@ -20,6 +20,7 @@ import type {
   BookshelfReader,
   DownloadedBookEntry,
   ListBooksOptions,
+  ShelfRefreshResult,
   StorageEstimateResult
 } from './bookshelfProvider';
 import {
@@ -263,13 +264,17 @@ export class MobileBookshelfProvider implements BookshelfReader {
 
   // Shelf refresh is entirely the wrapped backend's business — nothing here
   // caches the listing itself. Reported as unsupported unless the backend says
-  // otherwise, so a server connection shows no update button.
+  // otherwise, and both backends do: pCloud because its stored listing is only
+  // ever as fresh as the last update, a server because a book added to the
+  // shelf from outside waits out `scan_interval` otherwise.
   supportsShelfRefresh(): boolean {
     return Boolean(this.remote.supportsShelfRefresh?.());
   }
 
-  async refreshShelf(): Promise<void> {
-    await this.remote.refreshShelf?.();
+  // Whatever the backend found is passed straight through: it is the only thing
+  // that can say, and dropping it would leave the button with nothing to report.
+  async refreshShelf(): Promise<ShelfRefreshResult | void> {
+    return this.remote.refreshShelf?.();
   }
 
   async getShelfFetchedAt(): Promise<number | null> {

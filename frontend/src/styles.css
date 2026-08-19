@@ -8,6 +8,8 @@
   --danger: #cf3d3d;
   --shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
   --z-modal: 80;
+  /* Above modals: a toast raised while a dialog is open still has to be seen. */
+  --z-toast: 90;
 }
 
 * {
@@ -321,6 +323,84 @@ a {
   font-size: 12px;
   padding: 4px 8px;
   z-index: var(--z-modal);
+}
+
+/* Shared reka-ui Toast styling, mounted once by ToastHost in App.vue. Same
+   caveat as .reka-menu above for a different reason: ToastRoot renders a
+   fragment and teleports its body into the viewport, so a consumer's `scoped`
+   attribute reaches neither the viewport nor the toast — keep these global.
+
+   A list, not a stack: two rescans in a row queue downward instead of
+   overwriting each other. The list styles are reset because ToastViewport
+   renders an <ol>, whose markers and padding are layout this does not want. */
+.reka-toast-viewport {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* 100vw is in visual pixels, which the zoomed shell has already scaled; divide
+     it back out so the toast does not overhang the window there. */
+  width: min(360px, calc(100vw / var(--app-zoom, 1) - 32px));
+  outline: none;
+}
+
+.reka-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+  color: var(--text);
+  font-size: 13px;
+  transition: opacity 150ms ease;
+}
+
+.reka-toast[data-state='closed'] {
+  opacity: 0;
+}
+
+.reka-toast-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.reka-toast-message {
+  flex: 1;
+  margin: 0;
+  /* A book title or a server error can be arbitrarily long; wrap, do not clip. */
+  overflow-wrap: anywhere;
+}
+
+.reka-toast-close {
+  flex: none;
+  border: 0;
+  padding: 0 2px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.4;
+  opacity: 0.6;
+}
+
+.reka-toast-close:hover,
+.reka-toast-close:focus-visible {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reka-toast {
+    transition: none;
+  }
 }
 
 /* Shared reka-ui Splitter resize-handle styling, used by any SplitterGroup

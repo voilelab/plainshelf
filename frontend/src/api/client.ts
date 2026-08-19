@@ -115,9 +115,16 @@ export function assertApiMode(): void {
 // The mobile shell is a reading client and issues no writes at all: reading
 // history, reading progress and reading stats are all stored on the device and
 // never sent. Every mutation is rejected before it leaves the device.
-function assertWritableRequest(init?: RequestInit): void {
+function assertWritableRequest(init?: RequestInit, options?: FetchJsonOptions): void {
   const method = String(init?.method ?? 'GET').toUpperCase();
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    return;
+  }
+
+  // A POST that only reads is still a read, and both gates below exist to stop
+  // writes. The server draws the same exception for the same route; see
+  // isReadOnlySafeRequest in server/app.go.
+  if (options?.readOnlySafe) {
     return;
   }
 
@@ -240,6 +247,10 @@ export interface FetchJsonOptions {
   // Uploads and other streaming requests can legitimately outlive the normal
   // metadata request timeout, especially when the shelf is on a sync mount.
   timeoutMs?: number;
+  // readOnlySafe marks a POST that changes nothing on disk, so a read-only
+  // server and the read-only mobile shell both accept it. Only the shelf rescan
+  // endpoint qualifies today.
+  readOnlySafe?: boolean;
 }
 
 export async function fetchJson<T>(
@@ -248,7 +259,7 @@ export async function fetchJson<T>(
   options?: FetchJsonOptions
 ): Promise<T> {
   assertApiMode();
-  assertWritableRequest(init);
+  assertWritableRequest(init, options);
 
   const requestInit = await withApiHeaders(init);
   const headers = new Headers(requestInit.headers ?? {});

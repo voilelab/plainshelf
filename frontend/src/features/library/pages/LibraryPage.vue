@@ -177,7 +177,7 @@
           >
             {{ shelfRefresh.refreshing.value ? t('library.refreshingShelf') : t('library.refreshShelf') }}
           </button>
-          <span class="toolbar-label shelf-refresh-status">{{ lastSyncedLabel }}</span>
+          <span v-if="lastSyncedLabel" class="toolbar-label shelf-refresh-status">{{ lastSyncedLabel }}</span>
         </div>
         <DropdownMenuRoot v-if="!readOnly">
           <DropdownMenuTrigger class="button">{{ t('library.import') }}</DropdownMenuTrigger>
@@ -352,14 +352,23 @@ async function reloadBooksAfterImport(): Promise<void> {
   await reloadBooks();
 }
 
-// Only a backend whose listing the user has to update themselves (pCloud)
-// reports support; everywhere else the bar stays hidden.
+// Every backend whose listing can lag the shelf reports support: pCloud, whose
+// listing the user updates themselves, and a server, which finds an externally
+// added book only on its next `scan_interval` walk.
 const shelfRefresh = useShelfRefresh();
-const lastSyncedLabel = computed(() =>
-  shelfRefresh.lastSyncedAt.value === null
+
+// Only durable state sits beside the button. A backend that dates its stored
+// listing (pCloud) says when; a server has no such date and reports what its
+// walk found in a toast instead, so that a count of five digits cannot widen
+// the toolbar.
+const lastSyncedLabel = computed(() => {
+  if (!shelfRefresh.tracksLastSynced) {
+    return '';
+  }
+  return shelfRefresh.lastSyncedAt.value === null
     ? t('library.neverSynced')
-    : t('library.lastSynced', { time: new Date(shelfRefresh.lastSyncedAt.value).toLocaleString() })
-);
+    : t('library.lastSynced', { time: new Date(shelfRefresh.lastSyncedAt.value).toLocaleString() });
+});
 
 const {
   canOpenBookFolder,

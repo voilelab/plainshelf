@@ -77,6 +77,7 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/version", h.meta.getVersion)
 	mux.HandleFunc("GET /api/shelves", h.shelves.getShelves)
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/status", h.shelves.getShelfStatus)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/scans", h.shelves.rescanShelf)
 
 	// Book API
 
