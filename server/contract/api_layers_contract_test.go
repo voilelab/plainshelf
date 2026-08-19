@@ -117,3 +117,64 @@ func TestAPIImportRejectsInvalidLayerNameContract(t *testing.T) {
 		t.Fatalf("body = %q, want %q", got, "invalid layer name")
 	}
 }
+
+// A layer named after a directory the scanners skip is refused for a reason the
+// user cannot guess from "invalid layer name": the folder would be created and
+// then never listed again. The shelf error already explains it, so the API must
+// carry that reason out instead of flattening every rejection into one message.
+func TestAPIIgnoredLayerNameExplainsTheRuleContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	book := importTextBook(t, env, "Ignored Layer Book", "keep", "layer.txt", "body")
+
+	ignored := []struct {
+		name         string
+		method, path string
+		body         string
+	}{
+		{
+			name:   "create layer",
+			method: http.MethodPost,
+			path:   shelfURL("layers", "%40eaDir"),
+		},
+		{
+			name:   "create book in layer",
+			method: http.MethodPost,
+			path:   booksURL(),
+			body:   `{"title":"X","layer":[".backup"]}`,
+		},
+		{
+			name:   "move book to layer",
+			method: http.MethodPatch,
+			path:   bookURL(book.Meta.ID),
+			body:   `{"layer":["lost+found"]}`,
+		},
+	}
+
+	for _, tt := range ignored {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := env.request(tt.method, tt.path, strings.NewReader(tt.body))
+
+			assertStatus(t, rec, http.StatusBadRequest)
+			got := strings.TrimSpace(rec.Body.String())
+			if got == "invalid layer name" {
+				t.Fatalf("body = %q, want a message naming the ignore rule", got)
+			}
+			for _, want := range []string{"@eaDir", "skipped by the shelf scanner"} {
+				if !strings.Contains(got, want) {
+					t.Fatalf("body = %q, want it to contain %q", got, want)
+				}
+			}
+		})
+	}
+
+	// A layer that is invalid for any other reason keeps the general message,
+	// so the specific entry must not swallow the table's existing one.
+	t.Run("other invalid layer keeps the general message", func(t *testing.T) {
+		rec := env.post(shelfURL("layers", "bad%2F..%2Fesc"), nil)
+
+		assertStatus(t, rec, http.StatusBadRequest)
+		if got := strings.TrimSpace(rec.Body.String()); got != "invalid layer name" {
+			t.Fatalf("body = %q, want %q", got, "invalid layer name")
+		}
+	})
+}
