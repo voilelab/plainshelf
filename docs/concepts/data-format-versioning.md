@@ -118,6 +118,69 @@ than cleaned up, precisely so that the deletion does not write `book.json`. Such
 a leftover is inert: an entry is only consulted for a source that carries no
 `format` of its own, and every source this build creates carries one.
 
+### Migrating legacy sources in place
+
+Because legacy sources are never upgraded on their own, a shelf can carry them
+indefinitely. `cmd/migrate-legacy-sources` upgrades them all in one pass. It is
+opt-in, one-off, and not part of the server or any release build:
+
+```sh
+go run ./cmd/migrate-legacy-sources -shelf ./shelf              # dry run
+go run ./cmd/migrate-legacy-sources -shelf ./shelf -dry-run=false
+```
+
+It takes the shelf directory itself, not a server config, so it works on a
+detached copy of a shelf as readily as on the live one. That also means it
+cannot see the `default_split_config` setting, which lives in the application
+store rather than in the shelf: if you have set one, repeat it here with
+`-default-split-config '{"type":"line_count","line_count":500}'`, or the legacy
+sources that relied on it migrate as the single-chapter text they would be
+without it.
+
+For each legacy source it stamps `schema_version` and the format the source
+renders as today, and resets the split config the new schema ignores. Where that
+split actually produced chapters, it first bakes them into the text as `## `
+headings — the same conversion the source editor's "upgrade chapter format"
+action performs, except that this one rewrites the source in place instead of
+creating a new one. A source whose split produces nothing keeps its bytes
+untouched. Every book it visits also loses its `legacy_source_formats`
+snapshots, including any inert leftover from a deleted source — so a migrated
+shelf carries none at all.
+
+That last part is unconditional: a book still holding a source the migration
+could not finish loses its snapshots too. The cost is contained. An entry only
+decided which format `book.json`'s compatibility mirror took when its source was
+reactivated; without one the mirror keeps the book's own `format` instead, which
+is the same fallback a shelf edited by hand already relies on.
+
+Before running it with `-dry-run=false`:
+
+- **Stop the server and the desktop app.** The tool takes the shelf lock, which
+  stops two migrations racing each other, but a running PlainShelf holds that
+  lock only for the length of one operation — so it cannot tell you one is
+  running. A concurrent run is actively harmful; closing PlainShelf first is
+  your job.
+- **Back up the shelf directory.** The rewrite is in place and there is no undo.
+
+`-dry-run` is the default and performs the full computation, so its report is a
+real rehearsal. Read it before applying. Two things in it deserve attention:
+
+- Sources reported as `needs-attention` are left legacy and untouched. That
+  happens when a split regex uses JavaScript-only syntax Go's engine cannot run,
+  or when the split type is not one this build knows. The tool cannot reproduce
+  those chapters, and guessing at them is not something an unundoable in-place
+  rewrite should do. Convert such a source from the source editor instead.
+- A split that names no boundary at all — a line count of zero, a blank pattern,
+  or a regex that matches nothing — is not an error. It is what "no chapters"
+  looks like, so the source is stamped with the format it already rendered as
+  and its bytes are left alone.
+- The per-source chapter count is there to be compared against what the reader
+  has been showing. The tool translates the two known dialect differences that
+  would otherwise lose chapters silently (JavaScript treats a carriage return as
+  a line terminator for `^`/`$`; its `\s` covers the ideographic space and other
+  Unicode spaces), but it cannot guarantee every pattern means the same thing in
+  both engines.
+
 ---
 
 ## Compatibility policy
