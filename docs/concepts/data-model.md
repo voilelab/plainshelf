@@ -100,19 +100,11 @@ add chapters, the source editor creates a new Markdown source and leaves the
 TXT original intact. Converting Markdown to plain text likewise creates a new
 source because heading hierarchy and chapter navigation are lost.
 
-Sources made before source-level format metadata remain legacy sources. They
-continue to use their stored regex, line-count, or boundary split configuration
-(and the legacy global default) until the user explicitly upgrades them. Merely
-opening or saving such a source never changes its chapter semantics.
-When a new-format source is activated, `book.json.legacy_source_formats` keeps
-the previous effective format for any legacy source that was current. This is
-compatibility bookkeeping only: it lets the mirror be restored when switching
-back and does not add `format` or `schema_version` to the legacy source.
-
-An explicit upgrade takes one of two forms. The source editor's conversion
-creates a new source and leaves the legacy one intact, as above. The one-off
-`cmd/migrate-legacy-sources` tool instead upgrades every legacy source in place,
-keeping its id, and drops every book's `legacy_source_formats` as it goes. See
+Sources made before source-level format metadata remain legacy sources. Their
+stored `split_config` is no longer interpreted: such a source reads as
+`book.json.format` says, which is one plain-text section unless the book is
+Markdown. The one-off `cmd/migrate-legacy-sources` tool upgrades them in place,
+keeping each source's id — see
 [Data format versioning](data-format-versioning.md#migrating-legacy-sources-in-place).
 
 ### Adding and removing sources

@@ -145,12 +145,6 @@ type BookMeta struct {
 	// User should not modify CurrentSource directly, it is managed by shelf internally,
 	// and can be updated via SetCurrentSource method
 	CurrentSource string `json:"current_source"`
-
-	// LegacySourceFormats remembers the effective book-level format of a legacy
-	// source before a schema-versioned source replaces the compatibility mirror.
-	// It does not opt the legacy source into the new H2 chapter model; only
-	// sources/{id}/meta.json.format does that.
-	LegacySourceFormats map[string]string `json:"legacy_source_formats,omitempty"`
 }
 
 // setLayers only used for internal use, not persisted in book meta, and not exposed to user
@@ -348,26 +342,11 @@ func (b *Book) SetCurrentSource(sourceID string) error {
 	}
 
 	meta := b.GetMeta()
-	if meta.LegacySourceFormats == nil {
-		meta.LegacySourceFormats = make(map[string]string)
-	}
-	if currentID := meta.CurrentSource; currentID != "" {
-		currentSource, currentErr := b.GetSource(currentID)
-		if currentErr == nil && currentSource.GetMeta().Format == "" {
-			legacyFormat := meta.Format
-			if legacyFormat == "" {
-				legacyFormat = BookFormatText
-			}
-			meta.LegacySourceFormats[currentID] = legacyFormat
-		}
-	}
 	meta.CurrentSource = sourceID
 	if sourceFormat := source.GetMeta().Format; sourceFormat != "" {
 		// Compatibility mirror for clients that still read book.json directly.
 		// New clients use the current source's meta.json as the authority.
 		meta.Format = sourceFormat
-	} else if legacyFormat := meta.LegacySourceFormats[sourceID]; legacyFormat != "" {
-		meta.Format = legacyFormat
 	}
 
 	err = b.setMeta(meta)
@@ -404,7 +383,6 @@ func (b *Book) GetMeta() *BookMeta {
 	metaCopy.Tags = append([]string(nil), b.meta.Tags...)
 	metaCopy.Authors = append([]string(nil), b.meta.Authors...)
 	metaCopy.Identifiers = maps.Clone(b.meta.Identifiers)
-	metaCopy.LegacySourceFormats = maps.Clone(b.meta.LegacySourceFormats)
 	return &metaCopy
 }
 
@@ -413,11 +391,6 @@ func (b *Book) SetMeta(meta *BookMeta) error {
 	if meta.CurrentSource != b.meta.CurrentSource {
 		return util.NewError("cannot modify CurrentSource field directly, use SetCurrentSource method instead")
 	}
-	// Compatibility snapshots are managed with CurrentSource. Older callers do
-	// not know this field exists and must not erase it during an ordinary book
-	// metadata update.
-	meta.LegacySourceFormats = maps.Clone(b.meta.LegacySourceFormats)
-
 	return b.setMeta(meta)
 }
 
@@ -449,15 +422,6 @@ func (b *Book) setMeta(meta *BookMeta) error {
 			return util.Errorf("%w", ErrInvalidIdentifierKey)
 		}
 	}
-	for sourceID, format := range meta.LegacySourceFormats {
-		if err := validateSourceID(sourceID); err != nil {
-			return util.Errorf("invalid legacy source format key: %w", err)
-		}
-		if format != BookFormatText && format != BookFormatMarkdown {
-			return util.Errorf("%w: got %q for legacy source %q", ErrInvalidBookFormat, format, sourceID)
-		}
-	}
-
 	// Stamp unconditionally: the schema version is shelf-managed and any value
 	// the caller supplied is ignored. This is what makes the v0 → v1 upgrade
 	// lazy — the version reaches disk only when the book is next written.
@@ -675,9 +639,8 @@ func (b *Book) DeleteSource(sourceID string) error {
 
 	// Deleting the active source must not leave current_source dangling, which
 	// would make the book unreadable. Hand the pointer over first and only then
-	// remove the folder: SetCurrentSource snapshots the outgoing source's legacy
-	// format by reading it, a replacement created after the removal could reuse
-	// the freed ID within the same second, and a failure here leaves the book
+	// remove the folder: a replacement created after the removal could reuse the
+	// freed ID within the same second, and a failure here leaves the book
 	// pointing at a source that exists rather than at one that does not.
 	if deletingCurrent {
 		if err := b.handOverCurrentSource(sourceID); err != nil {
@@ -688,12 +651,6 @@ func (b *Book) DeleteSource(sourceID string) error {
 	err = b.root.RemoveAll(sourcePath)
 	if err != nil {
 		return util.Errorf("%w", err)
-	}
-
-	if deletingCurrent {
-		if err := b.forgetLegacySourceFormat(sourceID); err != nil {
-			return util.Errorf("%w", err)
-		}
 	}
 
 	return nil
@@ -725,20 +682,6 @@ func (b *Book) handOverCurrentSource(leavingID string) error {
 	}
 
 	return nil
-}
-
-// forgetLegacySourceFormat drops the compatibility snapshot of a source that no
-// longer exists. SetMeta deliberately restores this map, so the internal setter
-// is the only way to remove an entry.
-func (b *Book) forgetLegacySourceFormat(sourceID string) error {
-	if _, ok := b.meta.LegacySourceFormats[sourceID]; !ok {
-		return nil
-	}
-
-	meta := b.GetMeta()
-	delete(meta.LegacySourceFormats, sourceID)
-
-	return b.setMeta(meta)
 }
 
 // ListSource returns every source of the book, sorted by ID in ascending

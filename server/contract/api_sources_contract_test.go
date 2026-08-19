@@ -184,7 +184,6 @@ func TestAPIDeleteCurrentBookSourceContract(t *testing.T) {
 		t.Fatalf("sources = %#v, want only %q", ids, importedID)
 	}
 	assertStatus(t, env.get(bookURL(created.Meta.ID, "content")), http.StatusOK)
-	assertStatus(t, env.get(bookURL(created.Meta.ID, "split_config")), http.StatusOK)
 }
 
 // TestAPIDeleteLastBookSourceContract pins the other half: a book always keeps

@@ -37,7 +37,6 @@ func TestAPIJSONResponsesShareOneContentTypeContract(t *testing.T) {
 		"/api/version",
 		"/api/shelves",
 		booksURL(),
-		"/api/setting/default_split_config",
 		"/api/setting/epub_import_strategy",
 	}
 

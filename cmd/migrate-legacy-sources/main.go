@@ -263,10 +263,6 @@ func printReport(report *legacyupgrade.Report, dryRun, verbose bool) {
 			fmt.Printf("  %-16s %d\n", action, counts[action])
 		}
 	}
-	if len(report.BooksCleared) > 0 {
-		fmt.Printf("  legacy_source_formats cleared on %d book(s)\n", len(report.BooksCleared))
-	}
-
 	if counts[legacyupgrade.ActionRewrote] > 0 {
 		fmt.Println("\nCompare the chapter counts above against what the reader used to show:" +
 			" a split regex does not always mean the same thing to Go as it did in the browser.")

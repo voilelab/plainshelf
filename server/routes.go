@@ -111,8 +111,6 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/cover", h.books.deleteCover)
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/content", h.books.getBookContent)
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/split_config", h.books.getSplitConfig)
-	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}/split_config", h.books.updateSplitConfig)
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/trash/books", h.trash.getTrashedBooks)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/trash/empty", h.trash.emptyTrash)
@@ -139,9 +137,6 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/setting/cover_to_jpg", h.setting.getCoverToJPG)
 	mux.HandleFunc("POST /api/setting/cover_to_jpg", h.setting.setCoverToJPG)
 	mux.HandleFunc("DELETE /api/setting/cover_to_jpg", h.setting.deleteCoverToJPG)
-	mux.HandleFunc("GET /api/setting/default_split_config", h.setting.getDefaultSplitConfig)
-	mux.HandleFunc("POST /api/setting/default_split_config", h.setting.setDefaultSplitConfig)
-	mux.HandleFunc("DELETE /api/setting/default_split_config", h.setting.deleteDefaultSplitConfig)
 	mux.HandleFunc("GET /api/setting/epub_import_strategy", h.setting.getEPUBImportStrategy)
 	mux.HandleFunc("POST /api/setting/epub_import_strategy", h.setting.setEPUBImportStrategy)
 	mux.HandleFunc("DELETE /api/setting/epub_import_strategy", h.setting.deleteEPUBImportStrategy)

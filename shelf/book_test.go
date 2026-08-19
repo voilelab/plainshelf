@@ -601,67 +601,6 @@ func TestSetCurrentSource(t *testing.T) {
 	}
 }
 
-func TestSetCurrentSourceRestoresLegacyFormatAfterDerivedActivation(t *testing.T) {
-	book, rootFS, _ := newTestBook(t, "legacy-format-book", "Legacy Format")
-	legacy, err := book.NewSource(bytes.NewBufferString("plain legacy text"))
-	if err != nil {
-		t.Fatalf("NewSource legacy: %v", err)
-	}
-	if err := book.SetCurrentSource(legacy.ID()); err != nil {
-		t.Fatalf("SetCurrentSource legacy: %v", err)
-	}
-
-	legacyMetaPath := path.Join(legacy.FolderPath(), SourceMetaFile)
-	legacyMeta := legacy.GetMeta()
-	legacyMeta.SchemaVersion = 0
-	legacyMeta.Format = ""
-	legacyBytes, err := json.Marshal(legacyMeta)
-	if err != nil {
-		t.Fatalf("Marshal legacy meta: %v", err)
-	}
-	if err := rootFS.WriteFile(legacyMetaPath, legacyBytes); err != nil {
-		t.Fatalf("write legacy meta: %v", err)
-	}
-
-	derived, err := book.NewSourceWithOptions(bytes.NewBufferString("## Chapter\nBody"), NewSourceOptions{Format: BookFormatMarkdown})
-	if err != nil {
-		t.Fatalf("NewSourceWithOptions derived: %v", err)
-	}
-	if err := book.SetCurrentSource(derived.ID()); err != nil {
-		t.Fatalf("activate derived: %v", err)
-	}
-	if got := book.GetMeta().Format; got != BookFormatMarkdown {
-		t.Fatalf("derived compatibility format = %q, want md", got)
-	}
-
-	if err := book.SetCurrentSource(legacy.ID()); err != nil {
-		t.Fatalf("reactivate legacy: %v", err)
-	}
-	meta := book.GetMeta()
-	if meta.Format != BookFormatText {
-		t.Errorf("restored legacy compatibility format = %q, want txt", meta.Format)
-	}
-	if meta.LegacySourceFormats[legacy.ID()] != BookFormatText {
-		t.Errorf("legacy format snapshot = %q, want txt", meta.LegacySourceFormats[legacy.ID()])
-	}
-	meta.LegacySourceFormats = nil // simulate an older metadata client
-	meta.Title = "Renamed by old client"
-	if err := book.SetMeta(meta); err != nil {
-		t.Fatalf("SetMeta through older client shape: %v", err)
-	}
-	if got := book.GetMeta().LegacySourceFormats[legacy.ID()]; got != BookFormatText {
-		t.Errorf("ordinary metadata update erased legacy format snapshot: got %q", got)
-	}
-
-	reopened, err := openBook(rootFS, newLoggerForTest(), book.FolderPath())
-	if err != nil {
-		t.Fatalf("openBook: %v", err)
-	}
-	if got := reopened.GetMeta().LegacySourceFormats[legacy.ID()]; got != BookFormatText {
-		t.Errorf("persisted legacy format snapshot = %q, want txt", got)
-	}
-}
-
 func TestListSourceSkipsUnpublishedTemporaryDirectories(t *testing.T) {
 	book, _, tmpLib := newTestBook(t, "temp-source-book", "Temporary Source")
 	source, err := book.NewSource(bytes.NewBufferString("published"))
@@ -1412,24 +1351,6 @@ func TestSetMetaFormat(t *testing.T) {
 	}
 }
 
-// makeSourceLegacy rewrites a source's meta.json to the pre-versioning shape:
-// no schema_version and no format, the state that makes book.json the authority
-// for how the text is read.
-func makeSourceLegacy(t *testing.T, rootFS fsutil.FS, source *Source) {
-	t.Helper()
-
-	meta := source.GetMeta()
-	meta.SchemaVersion = 0
-	meta.Format = ""
-	raw, err := json.Marshal(meta)
-	if err != nil {
-		t.Fatalf("Marshal legacy source meta: %v", err)
-	}
-	if err := rootFS.WriteFile(path.Join(source.FolderPath(), SourceMetaFile), raw); err != nil {
-		t.Fatalf("Write legacy source meta: %v", err)
-	}
-}
-
 // breakCurrentSource removes the book's current source behind DeleteSource's
 // back, reproducing the dangling current_source a hand edit or a sync tool can
 // leave. book.json keeps naming the source that is now gone.
@@ -1566,58 +1487,6 @@ func TestDeleteNonCurrentSourceLeavesBookMetaUntouched(t *testing.T) {
 	}
 	if got := book.CurrentSource(); got != keep.ID() {
 		t.Errorf("current_source = %q, want it unchanged at %q", got, keep.ID())
-	}
-}
-
-func TestDeleteCurrentSourceClearsLegacyFormatSnapshot(t *testing.T) {
-	book, rootFS, _ := newTestBook(t, "delete-legacy-book", "Delete Legacy")
-
-	legacy, err := book.NewSource(bytes.NewBufferString("plain legacy text"))
-	if err != nil {
-		t.Fatalf("NewSource legacy: %v", err)
-	}
-	makeSourceLegacy(t, rootFS, legacy)
-	if err := book.SetCurrentSource(legacy.ID()); err != nil {
-		t.Fatalf("SetCurrentSource legacy: %v", err)
-	}
-
-	derived, err := book.NewSourceWithOptions(bytes.NewBufferString("# Derived"),
-		NewSourceOptions{Format: BookFormatMarkdown})
-	if err != nil {
-		t.Fatalf("NewSourceWithOptions derived: %v", err)
-	}
-	if err := book.SetCurrentSource(derived.ID()); err != nil {
-		t.Fatalf("SetCurrentSource derived: %v", err)
-	}
-	if got := book.GetMeta().LegacySourceFormats[legacy.ID()]; got != BookFormatText {
-		t.Fatalf("legacy format snapshot = %q, want it recorded as txt", got)
-	}
-
-	// Deleting the derived source hands current back to the legacy source, which
-	// still needs its snapshot; deleting the legacy source afterwards must drop it.
-	if err := book.DeleteSource(derived.ID()); err != nil {
-		t.Fatalf("DeleteSource derived: %v", err)
-	}
-	if got := book.CurrentSource(); got != legacy.ID() {
-		t.Fatalf("current_source = %q, want the legacy source %q", got, legacy.ID())
-	}
-	if got := book.GetMeta().Format; got != BookFormatText {
-		t.Errorf("book format mirror = %q, want the legacy snapshot %q restored", got, BookFormatText)
-	}
-
-	if err := book.DeleteSource(legacy.ID()); err != nil {
-		t.Fatalf("DeleteSource legacy: %v", err)
-	}
-	if _, ok := book.GetMeta().LegacySourceFormats[legacy.ID()]; ok {
-		t.Errorf("legacy format snapshot survived deletion of its source")
-	}
-
-	reopened, err := openBook(rootFS, newLoggerForTest(), book.FolderPath())
-	if err != nil {
-		t.Fatalf("openBook: %v", err)
-	}
-	if _, ok := reopened.GetMeta().LegacySourceFormats[legacy.ID()]; ok {
-		t.Errorf("legacy format snapshot was not persisted as removed")
 	}
 }
 

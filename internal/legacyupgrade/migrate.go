@@ -62,10 +62,6 @@ type SourceResult struct {
 type Report struct {
 	Results      []SourceResult
 	BooksScanned int
-	// BooksCleared lists books whose legacy_source_formats snapshots were
-	// dropped. Every book carrying them is cleared, including one still holding
-	// a source the run could not migrate; see clearLegacySnapshots.
-	BooksCleared []string
 }
 
 // Counts tallies the results by action.
@@ -121,8 +117,7 @@ func MigrateShelf(sh *shelf.Shelf, opts Options) (*Report, error) {
 	return report, nil
 }
 
-// migrateBook migrates one book's sources and then retires the book-level
-// compatibility snapshots the sources no longer need.
+// migrateBook migrates every source of one book.
 func migrateBook(book *shelf.Book, opts Options, report *Report) {
 	bookMeta := book.GetMeta()
 
@@ -167,37 +162,6 @@ func migrateBook(book *shelf.Book, opts Options, report *Report) {
 		}
 	}
 
-	clearLegacySnapshots(book, bookMeta, opts, report)
-}
-
-// clearLegacySnapshots drops book.json's legacy_source_formats.
-//
-// The map is retired with the migration itself rather than per source, so a
-// book keeping one source at needs-attention still loses it. What that costs is
-// small and bounded: the entry only decided which format book.json's mirror took
-// when that source was reactivated, and the mirror falls back to the book's own
-// format without it. What it buys is that a migrated shelf carries no snapshots
-// at all, which is the point of running this.
-func clearLegacySnapshots(
-	book *shelf.Book,
-	bookMeta *shelf.BookMeta,
-	opts Options,
-	report *Report,
-) {
-	if len(bookMeta.LegacySourceFormats) == 0 {
-		return
-	}
-
-	if !opts.DryRun {
-		if err := book.ClearLegacySourceFormats(); err != nil {
-			report.Results = append(report.Results, SourceResult{
-				BookID: book.ID(), Action: ActionFailed,
-				Err: util.Errorf("clear legacy_source_formats: %w", err),
-			})
-			return
-		}
-	}
-	report.BooksCleared = append(report.BooksCleared, book.ID())
 }
 
 // migrateSource decides and, unless this is a dry run, performs one source's
@@ -219,7 +183,7 @@ func migrateSource(book *shelf.Book, bookMeta *shelf.BookMeta, source *shelf.Sou
 		return result
 	}
 
-	plan, err := PlanUpgrade(content, result.Split, effectiveFormat(bookMeta, source.ID()))
+	plan, err := PlanUpgrade(content, result.Split, effectiveFormat(bookMeta))
 	if err != nil {
 		// The source keeps its legacy metadata and its text. A shelf with a mix
 		// of legacy and schema-v1 sources is an ordinary supported state, so
@@ -279,12 +243,9 @@ func NormalizeSplitType(config shelf.SplitConfig) shelf.SplitConfig {
 	return config
 }
 
-// effectiveFormat is the format a legacy source renders as today: its
-// book-level snapshot, then book.json's mirror, then plain text.
-func effectiveFormat(bookMeta *shelf.BookMeta, sourceID string) string {
-	if format := bookMeta.LegacySourceFormats[sourceID]; format != "" {
-		return format
-	}
+// effectiveFormat is the format a legacy source renders as today: book.json's
+// mirror, then plain text.
+func effectiveFormat(bookMeta *shelf.BookMeta) string {
 	if bookMeta.Format != "" {
 		return bookMeta.Format
 	}
