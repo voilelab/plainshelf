@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path"
-	"reflect"
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
@@ -284,7 +283,7 @@ func TestNewerSourceSchemaIsReadableButNotWritable(t *testing.T) {
 	}
 }
 
-func TestSourceHashAndSplitConfigPersist(t *testing.T) {
+func TestSourceHashPersists(t *testing.T) {
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 	book, err := shelf.NewBook(Layers{"tests"}, "Source Metadata")
 	if err != nil {
@@ -317,17 +316,5 @@ func TestSourceHashAndSplitConfigPersist(t *testing.T) {
 	}
 	if !verified {
 		t.Fatal("VerifyContent rejected content after UpdateHash")
-	}
-
-	wantConfig := SplitConfig{Type: SplitTypeBoundary, Boundaries: []int{10, 25, 50}}
-	if err := source.UpdateSplitConfig(wantConfig); err != nil {
-		t.Fatalf("UpdateSplitConfig: %v", err)
-	}
-	reopened, err := book.GetSource(source.ID())
-	if err != nil {
-		t.Fatalf("GetSource: %v", err)
-	}
-	if got := reopened.GetMeta().SplitConfig; !reflect.DeepEqual(got, wantConfig) {
-		t.Fatalf("persisted split config = %#v, want %#v", got, wantConfig)
 	}
 }

@@ -2,12 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router';
 import MainLayout from '@/layouts/MainLayout.vue';
 import ReaderLayout from '@/layouts/ReaderLayout.vue';
 import { APP_TITLE } from '@/composables/useDocumentTitle';
-import { isMobileRuntime } from '@/providers/runtime';
-import { isShelfEntryUsable, loadShelfEntries } from '@/providers/mobileConfig';
-import {
-  MOBILE_BLOCKED_ROUTES,
-  stripMobileBlockedQuery
-} from '@/features/mobile/utils/blockedRoutes';
 
 const DashboardPage = () => import('@/features/dashboard/pages/DashboardPage.vue');
 const LibraryPage = () => import('@/features/library/pages/LibraryPage.vue');
@@ -48,7 +42,8 @@ const ROUTES_WITH_OWN_TITLE = new Set([
 // A route that edits the shelf, administers the server, or opens a write
 // surface from a query parameter also belongs in
 // features/mobile/utils/blockedRoutes.ts — the mobile shell is a read-only
-// reading client and the guard below is what keeps it that way.
+// reading client, and the guard that shell installs (shells/mobile/routerGuard)
+// is what keeps it that way.
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -158,8 +153,8 @@ const router = createRouter({
           // else did. Without it an unknown URL renders the shell around an
           // empty <RouterView>, which reads as a broken app rather than a bad
           // address. It lives under MainLayout so the sidebar stays usable, and
-          // the mobile shelf-gate below still applies: an unconfigured mobile
-          // shell is sent to /connect instead.
+          // the mobile shell's shelf gate still applies to it: an unconfigured
+          // mobile shell is sent to /connect instead.
           path: ':pathMatch(.*)*',
           name: 'not-found',
           component: NotFoundPage
@@ -191,45 +186,6 @@ const router = createRouter({
       ]
     },
   ]
-});
-
-// The shelf-list routes: reachable even with nothing configured, because they
-// are where the user configures it.
-const MOBILE_SETUP_ROUTES = new Set(['mobile-shelves', 'mobile-shelf-add', 'mobile-shelf-edit']);
-
-// On the native mobile shell there is no backend to inject a server address or
-// selected shelf, so gate every route behind a usable shelf entry.
-router.beforeEach(async (to) => {
-  if (!isMobileRuntime()) {
-    return true;
-  }
-  if (typeof to.name === 'string' && MOBILE_SETUP_ROUTES.has(to.name)) {
-    return true;
-  }
-
-  const { entries, activeEntryID } = await loadShelfEntries();
-  const activeEntry = entries.find((entry) => entry.id === activeEntryID) ?? null;
-  if (!(await isShelfEntryUsable(activeEntry))) {
-    // Carries the query so a redirect cannot drop `?mobile-shell-preview=1`,
-    // which is what keeps the browser preview in mobile mode across the
-    // reload that saving a shelf performs.
-    return { name: 'mobile-shelves', query: to.query };
-  }
-
-  if (typeof to.name === 'string' && MOBILE_BLOCKED_ROUTES.has(to.name)) {
-    return { name: 'library' };
-  }
-
-  // Route names cannot express every write surface: `/import` redirects to
-  // `/books?import=1`, and the modal opens off that query alone. Strip it here
-  // so the whole mobile route policy lives in this guard. LibraryPage keeps its
-  // own check as well — that is deliberate depth, not duplication.
-  const sanitizedQuery = stripMobileBlockedQuery(to.query);
-  if (sanitizedQuery) {
-    return { path: to.path, query: sanitizedQuery, hash: to.hash, replace: true };
-  }
-
-  return true;
 });
 
 router.afterEach((to) => {

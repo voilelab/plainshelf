@@ -38,6 +38,25 @@ books/
 
 ---
 
+## Ignored directories
+
+Some directories inside `books/` are not created by you, and PlainShelf never
+treats them as layers. They are skipped when scanning for layers and for books,
+they never reach the exported book cache the Android client reads, and you
+cannot create a layer with one of these names.
+
+- Any directory whose name starts with a dot — for example `.git`, `.stfolder`
+  (Syncthing), `.dropbox.cache`, `.Spotlight-V100`, `.fseventsd`, and
+  `.TemporaryItems`.
+- `@eaDir` (Synology index and thumbnails), `#recycle` (Synology network recycle
+  bin), `$RECYCLE.BIN` (Windows recycle bin over SMB), and `lost+found`.
+
+A book package placed inside one of these directories is invisible to
+PlainShelf, so deleting a book on a NAS does not bring it back through the
+recycle bin. The list is fixed; custom ignore patterns are not configurable yet.
+
+---
+
 ## Example use cases
 
 | Use case | Layer structure |

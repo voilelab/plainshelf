@@ -57,7 +57,6 @@ schema v1, the first key in that file records the format version:
 | `id` | Stable book ID, generated once and never recomputed |
 | `title` | Display title |
 | `format` | Compatibility mirror of the current source format (`txt` or `md`) |
-| `legacy_source_formats` | Optional compatibility snapshots used to restore `format` when reactivating a legacy source; does not upgrade that source |
 | `tags` | Free-form tags |
 | `identifiers` | External identifiers such as `isbn` |
 | `cover` | Cover filename relative to the book folder |
@@ -101,22 +100,21 @@ This has two consequences worth knowing:
 
 New `sources/{id}/meta.json` files also carry `schema_version: 1` and an
 authoritative `format` (`txt` or `md`). A source without those fields is a
-legacy source: it remains readable with its old split configuration and is not
-silently upgraded by opening or saving its text.
+legacy source. It is still listed and still readable, but nothing interprets its
+`split_config` any more: it renders as `book.json`'s `format` says, which means
+one plain-text section unless the book is Markdown. Run the migration tool below
+to give it chapters again.
 
 Source schema v1 is written only when creating a new source, including imports
 and explicit TXT/Markdown conversions. A source whose schema version is newer
-than this build remains readable, but content, comment, split, asset, and delete
+than this build remains readable, but content, comment, asset, and delete
 operations are refused before touching its files.
 
 Deleting a book's *current* source also writes `book.json`, because the pointer
 has to be handed over to another source first. That makes it a write to the book
 as well as to the source, so it is refused for a book whose own schema version is
 newer than this build understands. Deleting any other source only touches that
-source. Its `legacy_source_formats` entry, if it had one, is left behind rather
-than cleaned up, precisely so that the deletion does not write `book.json`. Such
-a leftover is inert: an entry is only consulted for a source that carries no
-`format` of its own, and every source this build creates carries one.
+source and does not write `book.json` at all.
 
 ### Migrating legacy sources in place
 
@@ -130,28 +128,17 @@ go run ./cmd/migrate-legacy-sources -shelf ./shelf -dry-run=false
 ```
 
 It takes the shelf directory itself, not a server config, so it works on a
-detached copy of a shelf as readily as on the live one. That also means it
-cannot see the `default_split_config` setting, which lives in the application
-store rather than in the shelf: if you have set one, repeat it here with
-`-default-split-config '{"type":"line_count","line_count":500}'`, or the legacy
-sources that relied on it migrate as the single-chapter text they would be
-without it.
+detached copy of a shelf as readily as on the live one. Older PlainShelf
+releases had a shelf-wide `default_split_config` setting that legacy sources fell
+back on; if a shelf relied on one, repeat it here with
+`-default-split-config '{"type":"line_count","line_count":500}'`, or those
+sources migrate as the single-chapter text they would be without it.
 
 For each legacy source it stamps `schema_version` and the format the source
 renders as today, and resets the split config the new schema ignores. Where that
 split actually produced chapters, it first bakes them into the text as `## `
-headings — the same conversion the source editor's "upgrade chapter format"
-action performs, except that this one rewrites the source in place instead of
-creating a new one. A source whose split produces nothing keeps its bytes
-untouched. Every book it visits also loses its `legacy_source_formats`
-snapshots, including any inert leftover from a deleted source — so a migrated
-shelf carries none at all.
-
-That last part is unconditional: a book still holding a source the migration
-could not finish loses its snapshots too. The cost is contained. An entry only
-decided which format `book.json`'s compatibility mirror took when its source was
-reactivated; without one the mirror keeps the book's own `format` instead, which
-is the same fallback a shelf edited by hand already relies on.
+headings, rewriting the source in place. A source whose split produces nothing
+keeps its bytes untouched.
 
 Before running it with `-dry-run=false`:
 
@@ -169,7 +156,8 @@ real rehearsal. Read it before applying. Two things in it deserve attention:
   happens when a split regex uses JavaScript-only syntax Go's engine cannot run,
   or when the split type is not one this build knows. The tool cannot reproduce
   those chapters, and guessing at them is not something an unundoable in-place
-  rewrite should do. Convert such a source from the source editor instead.
+  rewrite should do. Such a source reads as one section; add `## ` headings to
+  its text in the source editor to give it chapters.
 - A split that names no boundary at all — a line count of zero, a blank pattern,
   or a regex that matches nothing — is not an error. It is what "no chapters"
   looks like, so the source is stamped with the format it already rendered as
@@ -248,7 +236,7 @@ cp -a /path/to/shelf /path/to/backup/shelf-2026-07-28
 rsync -a /path/to/shelf/ /path/to/backup/shelf-2026-07-28/
 ```
 
-Two things people miss:
+Three things people miss:
 
 - **Also copy the application store** (`--store-path`, or the platform default)
   if you want to preserve server settings. Reading progress, history, and time
@@ -257,6 +245,12 @@ Two things people miss:
   profile or desktop app data directory separately if those records matter.
 - **Everything under `app/`** — the lock file, temporary files, and the exported
   book caches — can be discarded safely; the server recreates it.
+- **`trash/` is not in that category.** It holds books you deleted but have not
+  emptied yet, and nothing rebuilds them. Copying the shelf directory as shown
+  above already includes it; only leave it out if you are certain you want the
+  backup to drop those books. Older shelves keep the same directory hidden as
+  `.trash/`, so a backup command that skips dotfiles silently loses it — see
+  [`trash/` was `.trash/` before](data-model.md#trash-was-trash-before).
 
 Stop the server or desktop app before copying if you want a guaranteed-consistent
 snapshot. The shelf lock coordinates PlainShelf's own writes; it does not stop
@@ -283,7 +277,9 @@ Upgrade from v0.8 only if you accept that they will no longer be accessible.
 3. Start PlainShelf again.
 
 You can skip `app/library.lock`, `app/tmp/`, and `app/book-cache-*.json` when
-restoring; they are recreated on the next startup.
+restoring; they are recreated on the next startup. Restore `books/` and `trash/`
+in full: both hold books, and a restored `.trash/` from an older backup is
+renamed to `trash/` on the next start.
 
 ---
 
@@ -324,7 +320,7 @@ Book and source metadata carry independent schema versions.
 |---|---|
 | `books/**/book.json` | Yes — `schema_version`, described on this page |
 | `books/**/sources/{id}/meta.json` | Yes — `schema_version`; v1 owns source `format` |
-| `.trash/**/trash.json` | No |
+| `trash/**/trash.json` | No |
 | Application store | No |
 
 The practical rule remains: **run one PlainShelf version against a shelf at a

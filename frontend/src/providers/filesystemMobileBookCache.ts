@@ -1,11 +1,10 @@
 import { Filesystem } from '@capacitor/filesystem';
 
-import type { Book, BookContent, DownloadState, ReadingProgress, SplitConfig } from '@/types/book';
+import type { Book, BookContent, DownloadState, ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import { currentCacheScopeKey } from './cacheScope';
 import {
   cloneManifest,
-  copySplitConfig,
   downloadedBookFromManifest,
   type CachedBookManifest,
   type MobileBookCache
@@ -165,11 +164,6 @@ export class FilesystemMobileBookCache implements MobileBookCache {
     const manifest = await this.readManifest(bookId);
     const source = manifest?.sources.find((item) => item.id === sourceId);
     return source ? { ...source } : null;
-  }
-
-  async getCachedBookSplitConfig(bookId: string): Promise<SplitConfig | null> {
-    const manifest = await this.readManifest(bookId);
-    return copySplitConfig(manifest?.split_config) ?? null;
   }
 
   async getCachedBookContent(bookId: string): Promise<BookContent | null> {

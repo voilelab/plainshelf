@@ -101,11 +101,7 @@ func (s *Shelf) ListTrashedBooks() ([]*TrashedBook, error) {
 			continue
 		}
 
-		meta, err := s.readTrashMeta(bookPath)
-		if err != nil && !errors.Is(err, os.ErrNotExist) {
-			s.Warn("failed to read trash metadata, skipping", "path", bookPath, "error", err)
-			continue
-		}
+		meta := s.readTrashMetaTolerant(bookPath)
 
 		item := &TrashedBook{
 			ID:      book.ID(),
@@ -258,12 +254,7 @@ func (s *Shelf) findTrashedBook(bookID string) (string, *Book, *trashMeta, error
 		return "", nil, nil, util.Errorf("%w", err)
 	}
 
-	meta, err := s.readTrashMeta(trashPath)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", nil, nil, util.Errorf("%w", err)
-	}
-
-	return trashPath, book, meta, nil
+	return trashPath, book, s.readTrashMetaTolerant(trashPath), nil
 }
 
 func (s *Shelf) writeTrashMeta(bookPath string, meta *trashMeta) error {
@@ -275,6 +266,24 @@ func (s *Shelf) writeTrashMeta(bookPath string, meta *trashMeta) error {
 		return util.Errorf("%w", err)
 	}
 	return nil
+}
+
+// readTrashMetaTolerant reads a trashed book's metadata and reports nil when it
+// is absent or unusable.
+//
+// The shelf is hand-editable, so trash.json can be truncated or edited into
+// something that no longer parses. That must not hide the book from the trash
+// or refuse to restore it: the file only records where the book came from, and
+// a book without it is simply restored to the top level of books/.
+func (s *Shelf) readTrashMetaTolerant(bookPath string) *trashMeta {
+	meta, err := s.readTrashMeta(bookPath)
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			s.Warn("failed to read trash metadata, treating the book as having none", "path", bookPath, "error", err)
+		}
+		return nil
+	}
+	return meta
 }
 
 func (s *Shelf) readTrashMeta(bookPath string) (*trashMeta, error) {
@@ -316,4 +325,91 @@ func (s *Shelf) resolveBookPathCollision(layerPath, folderName string) (string, 
 	}
 
 	return "", util.Errorf("failed to resolve unique book path for %q", folderName)
+}
+
+// migrateLegacyTrash moves a shelf written by an older build, which kept the
+// trash hidden in ".trash/", onto the visible "trash/" name.
+//
+// The presence of ".trash/" is the whole detection mechanism: no shelf-level
+// manifest is introduced, so the layout gains no file that would have to be
+// preserved on backup alongside the disposable contents of app/.
+//
+// Like the rest of makeStructure this runs without the shelf lock, on the same
+// assumption the format documentation states: one PlainShelf version opens a
+// shelf at a time.
+func (s *Shelf) migrateLegacyTrash() error {
+	legacyInfo, err := s.dbRoot.Stat(legacyTrashFolder)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return util.Errorf("%w", err)
+	}
+	if !legacyInfo.IsDir() {
+		// Not something this migration wrote; leave the user's file alone.
+		return nil
+	}
+
+	_, err = s.dbRoot.Stat(trashFolder)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		if err := s.dbRoot.Rename(legacyTrashFolder, trashFolder); err != nil {
+			return util.Errorf("%w", err)
+		}
+		s.Info("renamed legacy trash directory", "from", legacyTrashFolder, "to", trashFolder)
+		return nil
+	case err != nil:
+		return util.Errorf("%w", err)
+	}
+
+	return s.mergeLegacyTrashBooks()
+}
+
+// mergeLegacyTrashBooks handles the case where both trash directories exist,
+// which happens when a shelf is opened by an older build again after the
+// rename. Every book is carried over; nothing under the legacy path is deleted
+// unless it is an empty directory left behind by the move.
+func (s *Shelf) mergeLegacyTrashBooks() error {
+	entries, err := s.dbRoot.ReadDir(legacyTrashBooksFolder)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return util.Errorf("%w", err)
+	}
+
+	if len(entries) > 0 {
+		if err := s.dbRoot.MkdirAll(trashBooksFolder); err != nil {
+			return util.Errorf("%w", err)
+		}
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasSuffix(entry.Name(), bookExtension) {
+			continue
+		}
+
+		src := path.Join(legacyTrashBooksFolder, entry.Name())
+		dst, err := s.resolveBookPathCollision(trashBooksFolder, entry.Name())
+		if err != nil {
+			return util.Errorf("%w", err)
+		}
+		if err := s.dbRoot.Rename(src, dst); err != nil {
+			return util.Errorf("%w", err)
+		}
+		if dst != path.Join(trashBooksFolder, entry.Name()) {
+			s.Warn("legacy trashed book collided with an existing one; kept under a new folder name", "from", src, "to", dst)
+		} else {
+			s.Info("moved legacy trashed book", "from", src, "to", dst)
+		}
+	}
+
+	// Remove, not RemoveAll: it fails on a non-empty directory, so anything the
+	// user put under the legacy path by hand is left where they can find it.
+	if err := s.dbRoot.Remove(legacyTrashBooksFolder); err != nil && !errors.Is(err, os.ErrNotExist) {
+		s.Warn("legacy trash directory is not empty; leaving it in place", "path", legacyTrashBooksFolder, "error", err)
+		return nil
+	}
+	if err := s.dbRoot.Remove(legacyTrashFolder); err != nil && !errors.Is(err, os.ErrNotExist) {
+		s.Warn("legacy trash directory is not empty; leaving it in place", "path", legacyTrashFolder, "error", err)
+	}
+
+	return nil
 }

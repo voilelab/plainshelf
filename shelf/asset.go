@@ -59,13 +59,16 @@ func IsSupportedImageExt(ext string) bool {
 }
 
 func validateAssetName(name string) error {
-	if err := validatePathSegment(name); err != nil {
-		return util.Errorf("%w %q: %w", ErrInvalidAssetName, name, err)
-	}
 	// A leading dot would let a request name a hidden file. The shelf never
-	// writes one under assets/, so nothing legitimate is refused here.
+	// writes one under assets/, so nothing legitimate is refused here. Checked
+	// before validatePathSegment, which rejects dot-prefixed segments too but
+	// reports them in terms of the directory names the shelf scanner skips —
+	// wrong vocabulary for an asset request.
 	if strings.HasPrefix(name, ".") {
 		return util.Errorf("%w %q: must not start with a dot", ErrInvalidAssetName, name)
+	}
+	if err := validatePathSegment(name); err != nil {
+		return util.Errorf("%w %q: %w", ErrInvalidAssetName, name, err)
 	}
 	if !IsSupportedImageExt(path.Ext(name)) {
 		return util.Errorf("%w %q: not a supported image extension", ErrInvalidAssetName, name)

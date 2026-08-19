@@ -10,12 +10,10 @@ import (
 	"github.com/voilelab/plainshelf/internal/epub"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/server/store"
-	"github.com/voilelab/plainshelf/shelf"
 )
 
 const (
 	settingKeyCoverToJPG         = "cover_to_jpg"
-	settingKeyDefaultSplitConfig = "default_split_config"
 	settingKeyEPUBImportStrategy = "epub_import_strategy"
 )
 
@@ -134,23 +132,10 @@ func (s *settings) coverToJPG() bool {
 	return val
 }
 
-func (s *settings) defaultSplitConfig() shelf.SplitConfig {
-	if cfg, ok := readJSONSetting[shelf.SplitConfig](s, settingKeyDefaultSplitConfig, nil); ok {
-		return cfg
-	}
-
-	if s.conf.DefaultSplitConfig != nil {
-		return *s.conf.DefaultSplitConfig
-	}
-
-	return shelf.SplitConfig{}
-}
-
 // epubImportStrategy is the conversion strategy an import uses when the request
 // does not carry one of its own.
 //
-// Unlike default_split_config, which the reader applies client-side, this is
-// applied server-side during import - the same shape as cover_to_jpg. That
+// It is applied server-side during import, the same shape as cover_to_jpg. That
 // matters for the desktop client, which imports without opening the import
 // dialog and so has no other way to choose.
 func (s *settings) epubImportStrategy() epub.Strategy {

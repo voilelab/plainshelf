@@ -20,7 +20,6 @@
       </div>
 
       <article v-else class="mobile-reader-document">
-        <p v-if="splitWarning" class="mobile-reader-warning" role="status">{{ splitWarning }}</p>
         <p v-if="saveError" class="mobile-reader-warning" role="status">
           {{ t('reader.autosaveFailed') }}
         </p>
@@ -30,7 +29,6 @@
           :source-id="sourceId"
           :book-format="bookFormat"
           :section="currentSection"
-          :show-chapter-title="false"
           @scroll="emit('scroll')"
           @ready="emit('readerReady', $event)"
         />
@@ -93,19 +91,6 @@
             <path d="M4 6h.01M4 12h.01M4 18h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
           </svg>
         </button>
-        <button
-          v-if="writesEnabled && isLegacySource"
-          class="button mobile-reader-tool"
-          type="button"
-          :aria-label="t('reader.splitSettings')"
-          @click="emit('openSplitModal')"
-        >
-          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
-            <path d="M14 5l-9 14M10 5l9 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-            <circle cx="6" cy="5" r="2" stroke="currentColor" stroke-width="1.8" />
-            <circle cx="18" cy="5" r="2" stroke="currentColor" stroke-width="1.8" />
-          </svg>
-        </button>
       </div>
     </Transition>
 
@@ -140,12 +125,10 @@ const props = defineProps<{
   title: string;
   bookFormat: string;
   sourceId: string;
-  isLegacySource: boolean;
   sections: ReaderSection[];
   currentSectionIndex: number;
   currentSection: ReaderSection | null;
   progressPercent: number;
-  splitWarning: string;
   loading: boolean;
   error: string;
   saveError: string;
@@ -163,7 +146,6 @@ const emit = defineEmits<{
   increaseFontSize: [];
   openFontModal: [];
   openChapterModal: [];
-  openSplitModal: [];
 }>();
 
 interface ActivePointer {

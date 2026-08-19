@@ -91,7 +91,7 @@ the file left on disk is always one complete write. What is not guaranteed is
 that it contains both edits.
 
 Affected operations: metadata updates, cover uploads/deletes, source content
-updates, split-config changes, and current-source selection.
+updates, and current-source selection.
 
 ### Practical impact
 

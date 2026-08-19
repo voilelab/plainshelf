@@ -1,6 +1,5 @@
-import type { Book, BookFormat, SplitConfig } from '@/types/book';
+import type { Book, BookFormat } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
-import { normalizeSplitConfig } from '@/utils/splitConfig';
 import { PCloudDataError } from './errors';
 import type { PCloudItem } from './types';
 
@@ -340,8 +339,6 @@ export function toBook(meta: BookJson, layers: string[]): Book {
 /** Maps a source's meta.json onto the UI's SourceMeta type. */
 export function toSourceMeta(raw: unknown, fallbackID: string): SourceMeta {
   const data = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  const splitConfig = normalizeSplitConfig(data.split_config);
-
   return {
     schema_version: typeof data.schema_version === 'number' ? Math.trunc(data.schema_version) : undefined,
     id: typeof data.id === 'string' && data.id.trim() ? data.id : fallbackID,
@@ -350,13 +347,6 @@ export function toSourceMeta(raw: unknown, fallbackID: string): SourceMeta {
     md5_hash: typeof data.md5_hash === 'string' ? data.md5_hash : '',
     format: data.format === 'txt' || data.format === 'md' ? data.format : undefined,
     line_count: typeof data.line_count === 'number' ? data.line_count : undefined,
-    char_count: typeof data.char_count === 'number' ? data.char_count : undefined,
-    split_config: splitConfig
+    char_count: typeof data.char_count === 'number' ? data.char_count : undefined
   };
-}
-
-/** Extracts the reader's split configuration from a source's meta.json. */
-export function toSplitConfig(raw: unknown): SplitConfig {
-  const data = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  return normalizeSplitConfig(data.split_config);
 }

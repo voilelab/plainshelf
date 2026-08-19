@@ -1,10 +1,8 @@
 import { ref, type Ref } from 'vue';
 import {
   getCoverToJpgSetting,
-  getDefaultSplitConfigSetting,
   getEpubImportStrategySetting,
   setCoverToJpgSetting,
-  setDefaultSplitConfigSetting,
   setEpubImportStrategySetting
 } from '@/api/settings';
 // Reading history and its retention limit are per-device state, not server settings.
@@ -13,13 +11,10 @@ import {
   DEFAULT_EPUB_IMPORT_STRATEGY,
   type EpubImportPreset,
   type EpubImportStrategy,
-  type SplitConfig,
-  type SplitType
 } from '@/types/book';
 import { useI18n } from '@/i18n';
 import { normalizeEpubImportPreset } from '@/utils/epubStrategy';
 import {
-  buildDefaultSplitConfig,
   parseReadHistoryLimit
 } from '@/features/settings/utils/settingsDraft';
 
@@ -29,18 +24,12 @@ export interface ServerSettingsForm {
   error: Ref<string>;
   coverToJpg: Ref<boolean>;
   readHistoryLimit: Ref<number>;
-  defaultSplitType: Ref<SplitType>;
-  defaultSplitLineCount: Ref<string>;
-  defaultSplitRegex: Ref<string>;
-  splitConfigError: Ref<string>;
   epubPreset: Ref<EpubImportPreset>;
   epubIncludeDescription: Ref<boolean>;
   epubImportError: Ref<string>;
   loadSettings: () => Promise<void>;
   onCoverToJpgChange: (event: Event) => Promise<void>;
   onReadHistoryLimitChange: (event: Event) => Promise<void>;
-  onDefaultSplitTypeChange: (event: Event) => void;
-  onSaveDefaultSplitConfig: () => Promise<void>;
   onEpubPresetChange: (event: Event) => void;
   onSaveEpubImportStrategy: () => Promise<void>;
 }
@@ -64,10 +53,6 @@ export function useServerSettingsForm(options: {
   const error = ref('');
   const coverToJpg = ref(false);
   const readHistoryLimit = ref(0);
-  const defaultSplitType = ref<SplitType>('none');
-  const defaultSplitLineCount = ref('100');
-  const defaultSplitRegex = ref('');
-  const splitConfigError = ref('');
   const epubPreset = ref<EpubImportPreset>(DEFAULT_EPUB_IMPORT_STRATEGY.preset);
   const epubIncludeDescription = ref(DEFAULT_EPUB_IMPORT_STRATEGY.include_description);
   // Held only so saving another EPUB setting does not erase it. There is no
@@ -87,25 +72,17 @@ export function useServerSettingsForm(options: {
         return;
       }
 
-      const [nextCoverToJpg, nextDefaultSplitConfig, nextEpubStrategy] = await Promise.all([
+      const [nextCoverToJpg, nextEpubStrategy] = await Promise.all([
         getCoverToJpgSetting(),
-        getDefaultSplitConfigSetting(),
         getEpubImportStrategySetting()
       ]);
       coverToJpg.value = nextCoverToJpg;
-      hydrateSplitConfigDraft(nextDefaultSplitConfig);
       hydrateEpubImportDraft(nextEpubStrategy);
     } catch (err) {
       error.value = err instanceof Error ? err.message : t('settings.loadFailed');
     } finally {
       loading.value = false;
     }
-  }
-
-  function hydrateSplitConfigDraft(config: SplitConfig): void {
-    defaultSplitType.value = config.type;
-    defaultSplitLineCount.value = String(config.line_count ?? 100);
-    defaultSplitRegex.value = config.regex ?? '';
   }
 
   function hydrateEpubImportDraft(strategy: EpubImportStrategy): void {
@@ -135,38 +112,6 @@ export function useServerSettingsForm(options: {
       });
     } catch (err) {
       epubImportError.value = err instanceof Error ? err.message : t('settings.saveFailed');
-    } finally {
-      saving.value = false;
-    }
-  }
-
-  function onDefaultSplitTypeChange(event: Event): void {
-    const target = event.target;
-    if (!(target instanceof HTMLSelectElement)) {
-      return;
-    }
-    defaultSplitType.value = target.value as SplitType;
-    splitConfigError.value = '';
-  }
-
-  async function onSaveDefaultSplitConfig(): Promise<void> {
-    splitConfigError.value = '';
-
-    const result = buildDefaultSplitConfig({
-      type: defaultSplitType.value,
-      lineCount: defaultSplitLineCount.value,
-      regex: defaultSplitRegex.value
-    });
-    if (!result.ok) {
-      splitConfigError.value = t(`settings.defaultSplitConfig.${result.error}`);
-      return;
-    }
-
-    saving.value = true;
-    try {
-      await setDefaultSplitConfigSetting(result.config);
-    } catch (err) {
-      splitConfigError.value = err instanceof Error ? err.message : t('settings.saveFailed');
     } finally {
       saving.value = false;
     }
@@ -230,18 +175,12 @@ export function useServerSettingsForm(options: {
     error,
     coverToJpg,
     readHistoryLimit,
-    defaultSplitType,
-    defaultSplitLineCount,
-    defaultSplitRegex,
-    splitConfigError,
     epubPreset,
     epubIncludeDescription,
     epubImportError,
     loadSettings,
     onCoverToJpgChange,
     onReadHistoryLimitChange,
-    onDefaultSplitTypeChange,
-    onSaveDefaultSplitConfig,
     onEpubPresetChange,
     onSaveEpubImportStrategy
   };

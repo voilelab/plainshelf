@@ -131,6 +131,37 @@ export async function writeJsonFile(path: string, value: unknown): Promise<void>
   await writeTextFile(path, JSON.stringify(value));
 }
 
+/**
+ * Reads a file written by {@link writeBinaryFile}, as base64.
+ *
+ * Omitting `encoding` is what makes the plugin treat the file as bytes; it
+ * hands them back base64-encoded, which is the shape base64ToBlob wants.
+ * A miss degrades to null for the same reason readTextFile's does.
+ */
+export async function readBinaryFile(path: string): Promise<string | null> {
+  try {
+    const result = await Filesystem.readFile({ path, directory: CACHE_DIRECTORY });
+    return typeof result.data === 'string' ? result.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Writes a base64 payload as raw bytes.
+ *
+ * Without `encoding` the plugin decodes the base64 before writing, so what
+ * lands on disk is the image itself rather than its ~33% larger text form.
+ */
+export async function writeBinaryFile(path: string, base64: string): Promise<void> {
+  await Filesystem.writeFile({
+    path,
+    data: base64,
+    directory: CACHE_DIRECTORY,
+    recursive: true
+  });
+}
+
 export async function deleteFileIgnoringMissing(path: string): Promise<void> {
   try {
     await Filesystem.deleteFile({ path, directory: CACHE_DIRECTORY });

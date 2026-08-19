@@ -27,7 +27,6 @@
       :kind="conversionKind"
       :source-id="activeSourceId"
       :content="content"
-      :legacy-config="conversionLegacyConfig"
       :busy="creating"
       :error="conversionError"
       @cancel="closeConversionModal"
@@ -128,7 +127,6 @@
           <SourceFormatActions
             v-if="activeSourceId"
             :format="activeFormat"
-            :legacy="isLegacySource"
             :disabled="isDirty || creating"
             @convert="onConvertSource"
           />
@@ -151,7 +149,7 @@
         </template>
       </SplitterPanel>
 
-      <template v-if="activeFormat === 'md' && !isLegacySource">
+      <template v-if="activeFormat === 'md'">
         <SplitterResizeHandle as="div" class="reka-resize-handle outline-resize" :hit-area-margins="SOURCE_LIST_RESIZE_HIT_AREA_MARGINS" />
         <SplitterPanel
           as="div"
@@ -184,7 +182,6 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
 import ConfirmModal from '@/components/ConfirmModal.vue';
-import { getDefaultSplitConfigSetting } from '@/api/settings';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import {
@@ -215,7 +212,6 @@ import {
   mapOffsetThroughReplacement,
   replaceTextRange
 } from '@/features/sources/utils/textEditing';
-import type { SplitConfig } from '@/types/book';
 import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
@@ -262,7 +258,6 @@ const {
   deleteError,
   conversionError,
   activeSourceMeta,
-  isLegacySource,
   activeFormat,
   isDirty,
   disableSave,
@@ -283,7 +278,6 @@ const showDeleteModal = ref(false);
 const pendingDeleteSourceId = ref('');
 const showConversionModal = ref(false);
 const conversionKind = ref<SourceConversionKind>('manual-md');
-const conversionLegacyConfig = ref<SplitConfig>({ type: 'none' });
 const pendingRenameChapterIndex = ref<number | null>(null);
 const pendingChapterTitle = ref('');
 const chapterTitleInput = ref<HTMLInputElement | null>(null);
@@ -293,7 +287,7 @@ const editorViewKey = ref(0);
 let editorViewReconcileTimer: ReturnType<typeof setTimeout> | null = null;
 
 const markdownSections = computed(() =>
-  activeFormat.value === 'md' && !isLegacySource.value
+  activeFormat.value === 'md'
     ? buildMarkdownEditorSections(content.value)
     : []
 );
@@ -365,19 +359,6 @@ async function doCreateSource(): Promise<void> {
 }
 
 async function onConvertSource(kind: SourceConversionKind): Promise<void> {
-  if (kind === 'legacy-upgrade') {
-    const requestedBookId = bookId.value;
-    const requestedSourceId = activeSourceId.value;
-    let config = activeSourceMeta.value?.split_config ?? { type: 'none' as const };
-    if (config.type === 'none') {
-      config = await getDefaultSplitConfigSetting().catch(() => config);
-    }
-    if (
-      bookId.value !== requestedBookId ||
-      activeSourceId.value !== requestedSourceId
-    ) return;
-    conversionLegacyConfig.value = config;
-  }
   conversionKind.value = kind;
   conversionError.value = '';
   showConversionModal.value = true;

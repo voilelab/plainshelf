@@ -178,9 +178,6 @@ const zhHant = {
     readHistory: {
       title: '閱讀紀錄'
     },
-    reader: {
-      title: '閱讀器'
-    },
     import: {
       title: '匯入'
     },
@@ -195,23 +192,6 @@ const zhHant = {
       presetPlain: '純文字',
       includeDescriptionLabel: '正文開頭放入簡介',
       includeDescriptionHelp: '把書籍簡介也寫在正文開頭。無論是否勾選，簡介都會存進書籍中繼資料。',
-      save: '儲存',
-      saving: '儲存中...'
-    },
-    defaultSplitConfig: {
-      label: '舊格式預設章節分割規則',
-      description: '只套用於沒有 source format 的舊來源；新的 Markdown 來源固定使用 H2 作為章節。',
-      typeLabel: '分割類型',
-      typeNone: '無',
-      typeLineCount: '固定行數',
-      typeRegex: '正規表示式',
-      lineCountLabel: '每節行數',
-      lineCountPlaceholder: '例如 100',
-      regexLabel: '正規表示式模式',
-      regexPlaceholder: '例如 ^第[一二三四五六七八九十百]+章',
-      regexHelp: '符合此模式的行會開始新的章節。',
-      invalidRegex: '無效的正規表示式。',
-      invalidLineCount: '行數必須是正整數。',
       save: '儲存',
       saving: '儲存中...'
     },
@@ -664,8 +644,7 @@ const zhHant = {
     loadingContent: '內容載入中...',
     errors: {
       loadFailed: '載入閱讀器資料失敗',
-      unknown: '未知錯誤',
-      splitConfigFallback: '載入分章設定失敗，改以單一章節顯示。{reason}'
+      unknown: '未知錯誤'
     },
     actionsLabel: '閱讀器操作',
     decreaseFontSize: '縮小字體',
@@ -694,29 +673,6 @@ const zhHant = {
       }
     },
     showChapters: '顯示章節',
-    splitSettings: '切分設定',
-    split: {
-      title: '閱讀器分割設定',
-      closeLabel: '關閉分割設定對話框',
-      description: '不離開閱讀器就能套用章節分割，目前的閱讀位置會保留。',
-      typeLabel: '分割類型',
-      // 這些值是 API token，這裡替它們取讀者看得懂的名字。
-      types: {
-        none: '無',
-        line_count: '固定行數',
-        regex: '正規表示式',
-        boundary: '指定分界'
-      },
-      lineCountLabel: '每節行數',
-      lineCountPlaceholder: '例如 100',
-      regexLabel: '正規表示式模式',
-      regexPlaceholder: '例如 ^第[一二三四五六七八九十百]+章',
-      boundaryLabel: '分界（以 1 起算的行號，用逗號或空白分隔）',
-      boundaryPlaceholder: '例如 1, 101, 201',
-      save: '儲存分割設定',
-      saving: '儲存中...',
-      saveFailed: '更新分割設定失敗'
-    },
     chapterDialog: {
       title: '章節',
       closeLabel: '關閉章節對話框'
@@ -905,8 +861,6 @@ const zhHant = {
       legacy: '舊格式'
     },
     formatActions: {
-      legacyUpgrade: '升級章節格式',
-      legacyUpgradeHelp: '依目前的舊版分割結果建立一個新的 Markdown 來源。',
       manualMarkdown: '手動 TXT → MD',
       regexMarkdown: '正規表示式 → MD',
       lineCountMarkdown: '固定行數 → MD',
@@ -952,15 +906,13 @@ const zhHant = {
         manualMd: '建立分章的 Markdown 來源',
         regexMd: '把標題行轉成章節',
         lineCountMd: '依固定長度分割章節',
-        plainText: '建立純文字來源',
-        legacyUpgrade: '升級章節格式'
+        plainText: '建立純文字來源'
       },
       descriptions: {
         manualMd: '把目前的 TXT 來源複製成 Markdown 草稿。建立之後可以在來源編輯器裡自行加上 H2 章節。',
         regexMd: '符合的標題行會改寫成 Markdown 的 H2 標題。',
         lineCountMd: '每個預覽到的分界處都會插入一個 H2「Part N」標題。',
-        plainText: 'Markdown 標記會被移除，標題階層與章節導覽會遺失。',
-        legacyUpgrade: '目前的舊版分割結果會變成 H2 章節，原本的來源維持不變。'
+        plainText: 'Markdown 標記會被移除，標題階層與章節導覽會遺失。'
       },
       patternLabel: '章節標題的正規表示式',
       patternHelp: '第 1 個擷取群組會成為 H2 標題；沒有擷取群組時，會使用整個符合的內容。',
@@ -973,9 +925,7 @@ const zhHant = {
         manualMdMany: 'Markdown 草稿一開始會有 {count} 個 H2 章節。',
         regexMd: '會建立 {count} 個 H2 章節標題。',
         lineCountMd: '會插入 {count} 個 H2 章節標題。',
-        plainText: '會建立一個沒有章節結構的 TXT 段落。',
-        legacyUpgradeOne: '會依目前的舊版分割結果建立 1 個 H2 章節。',
-        legacyUpgradeMany: '會依目前的舊版分割結果建立 {count} 個 H2 章節。'
+        plainText: '會建立一個沒有章節結構的 TXT 段落。'
       },
       errors: {
         emptyPattern: '請輸入正規表示式。',

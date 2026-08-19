@@ -60,6 +60,30 @@ async function fetchShelves(options?: { allowPersistedFallback?: boolean }): Pro
   }
 }
 
+let pendingLoad: Promise<void> | null = null;
+
+/**
+ * Loads the shelf list once for the page.
+ *
+ * Two independent places want the list on a settings page load — the layout and
+ * the Shelves panel — and a child's onMounted runs before its parent's, so
+ * whether the second one saw `loaded` already set came down to which network
+ * round-trip finished first. Sharing the in-flight promise settles it: the list
+ * is fetched once, whoever asks first.
+ *
+ * fetchShelves stays the explicit refresh, for when a shelf was just added or
+ * removed and the caller needs the new list rather than the one already loading.
+ */
+async function ensureShelvesLoaded(): Promise<void> {
+  if (loaded.value) {
+    return;
+  }
+  pendingLoad ??= fetchShelves().finally(() => {
+    pendingLoad = null;
+  });
+  return pendingLoad;
+}
+
 function selectShelf(id: string): void {
   setActiveShelfID(id);
   selectedShelfID.value = id;
@@ -73,6 +97,7 @@ export function useShelvesStore() {
     error,
     selectedShelfID,
     fetchShelves,
+    ensureShelvesLoaded,
     selectShelf
   };
 }

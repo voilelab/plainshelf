@@ -3,7 +3,6 @@ import type {
   BookCreateRequest,
   BookContent,
   BookFormat,
-  SplitConfig,
   BookUpdateRequest,
   PaginatedBooks,
   TrashedBook,
@@ -16,7 +15,6 @@ import {
   fetchText,
   isMockApiMode
 } from './client';
-import { normalizeSplitConfig, buildSplitConfigPayload } from '@/utils/splitConfig';
 import { delay } from './mocks/latency';
 import {
   mockDeleteBook,
@@ -25,13 +23,11 @@ import {
   mockGetBook,
   mockGetBookContent,
   mockGetBookCover,
-  mockGetSplitConfig,
   mockImportBook,
   mockListBooks,
   mockListTrashedBooks,
   mockRefreshContentStats,
   mockRestoreTrashedBook,
-  mockSetSplitConfig,
   mockUpdateBook,
   mockUpdateBookLayer
 } from './mocks/books';
@@ -243,37 +239,6 @@ export async function downloadBookContent(id: string): Promise<Blob> {
   }
 
   return await fetchBlob(buildShelfApiPath(`/books/${encodeURIComponent(id)}/content`));
-}
-
-export async function getBookSplitConfig(id: string): Promise<SplitConfig> {
-  if (isMockApiMode()) {
-    return delay(mockGetSplitConfig(id));
-  }
-
-  const config = await fetchJson<unknown>(buildShelfApiPath(`/books/${encodeURIComponent(id)}/split_config`));
-  return normalizeSplitConfig(config);
-}
-
-export async function updateBookSplitConfig(id: string, config: SplitConfig): Promise<SplitConfig> {
-  const payload = buildSplitConfigPayload(config);
-
-  if (isMockApiMode()) {
-    return await delay(mockSetSplitConfig(id, payload));
-  }
-
-  const updated = await fetchJson<unknown>(buildShelfApiPath(`/books/${encodeURIComponent(id)}/split_config`), {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
-
-  if (updated === undefined) {
-    return normalizeSplitConfig(payload);
-  }
-
-  return normalizeSplitConfig(updated);
 }
 
 export async function importBook(payload: BookCreateRequest): Promise<Book> {

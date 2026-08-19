@@ -22,6 +22,10 @@ Layout:
 	{book2-folder}.bookpkg/
 	{layer2}/
 	  {book2-folder}.bookpkg/
+{library}/trash/
+  books/
+    {book-id}.bookpkg/
+      trash.json
 {library}/app/
   library.lock
   book-cache-{writer-id}.json
@@ -29,8 +33,14 @@ Layout:
 */
 
 const booksFolder = "books"
-const trashFolder = ".trash"
+const trashFolder = "trash"
 const trashBooksFolder = trashFolder + "/" + booksFolder
+
+// Trash used to be hidden as ".trash". It holds books the user deleted, which
+// is their data and not disposable runtime state, so it is now a visible
+// top-level directory like books/. See migrateLegacyTrash.
+const legacyTrashFolder = ".trash"
+const legacyTrashBooksFolder = legacyTrashFolder + "/" + booksFolder
 const bookExtension = ".bookpkg"
 const appFolder = "app"
 const appTmpFolder = "tmp"
@@ -242,6 +252,13 @@ func (s *Shelf) makeStructure() error {
 	}
 
 	err = s.dbRoot.MkdirAll(path.Join(appFolder, appTmpFolder))
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	// Runs before the trash directory is created below, so that a shelf holding
+	// only the legacy name can still take the cheap rename path.
+	err = s.migrateLegacyTrash()
 	if err != nil {
 		return util.Errorf("%w", err)
 	}

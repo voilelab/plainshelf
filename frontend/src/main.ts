@@ -5,6 +5,7 @@ import { initAppZoom } from '@/composables/useAppZoom';
 import {
   bookshelfWriter,
   getBookshelfProvider,
+  getShell,
   isMobileRuntime,
   isMobileShellPreview,
   type BookshelfProvider,
@@ -55,6 +56,10 @@ async function bootstrap(): Promise<void> {
       window.__plainshelfTestHooks = { provider: getBookshelfProvider(), bookshelfWriter };
     }
   }
+
+  // Before createApp: app.use(router) triggers the first navigation, and a
+  // guard registered after that would let the first route through ungated.
+  getShell()?.installRouterGuards?.(router);
 
   const app = createApp(App);
 

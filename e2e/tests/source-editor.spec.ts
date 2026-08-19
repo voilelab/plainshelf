@@ -1,22 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
 import { startServer } from './support/server';
 import { importHelloBook } from './support/books';
-
-async function findBookPackage(root: string, bookId: string): Promise<string> {
-  for (const entry of await fs.readdir(root, { withFileTypes: true })) {
-    const entryPath = path.join(root, entry.name);
-    if (!entry.isDirectory()) continue;
-    if (entry.name.endsWith('.bookpkg')) {
-      const meta = JSON.parse(await fs.readFile(path.join(entryPath, 'book.json'), 'utf8')) as { id?: string };
-      if (meta.id === bookId) return entryPath;
-    }
-    const found = await findBookPackage(entryPath, bookId).catch(() => '');
-    if (found) return found;
-  }
-  throw new Error(`Book package ${bookId} not found below ${root}`);
-}
 
 async function expectSourceEditorFitsViewport(page: Page): Promise<void> {
   const metrics = await page.evaluate(() => {
@@ -444,50 +428,6 @@ test('should focus one Markdown chapter while preserving and searching the whole
     await page.getByRole('menuitem', { name: 'Manage sources' }).click();
     await expect(page.getByText('No pending changes').first()).toBeVisible();
     await expect(textarea).toHaveValue(/Opening marker[\s\S]*First marker done[\s\S]*## Inserted[\s\S]*Second marker done/);
-  } finally {
-    await server.dispose();
-  }
-});
-
-test('should upgrade a legacy split source through the component modal', async ({ page }) => {
-  const server = await startServer();
-
-  try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
-    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
-    await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    const bookId = new URL(page.url()).pathname.split('/').filter(Boolean).at(-1) ?? '';
-    const bookPackage = await findBookPackage(server.shelfDir, bookId);
-    const sourceId = (await fs.readdir(path.join(bookPackage, 'sources'), { withFileTypes: true }))
-      .find((entry) => entry.isDirectory())?.name ?? '';
-    const sourceMetaPath = path.join(bookPackage, 'sources', sourceId, 'meta.json');
-    const sourceMeta = JSON.parse(await fs.readFile(sourceMetaPath, 'utf8')) as Record<string, unknown>;
-    delete sourceMeta.schema_version;
-    delete sourceMeta.format;
-    sourceMeta.split_config = { type: 'regex', regex: '^Hello from PlainShelf E2E\\.$' };
-    await fs.writeFile(sourceMetaPath, `${JSON.stringify(sourceMeta, null, 2)}\n`, 'utf8');
-
-    await page.getByRole('button', { name: 'More' }).click();
-    await page.getByRole('menuitem', { name: 'Manage sources' }).click();
-    await expect(page.getByText('Legacy', { exact: true }).first()).toBeVisible();
-    await page.getByRole('button', { name: 'Upgrade chapter format' }).click();
-
-    const dialog = page.getByRole('dialog', { name: 'Upgrade chapter format' });
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByText('1 H2 chapter will be created')).toBeVisible();
-    await expect(dialog.locator('pre')).toContainText('## Hello from PlainShelf E2E.');
-    await dialog.getByRole('button', { name: 'Create source' }).click();
-
-    await expect(page.getByText('Derived source created.')).toBeVisible();
-    await expect(page.getByText('2 total')).toBeVisible();
-    await expect(page.getByText('MD', { exact: true }).first()).toBeVisible();
-    await expect(page.locator('.source-content-textarea')).toHaveValue(/^## Hello from PlainShelf E2E\./);
-
-    await page.getByRole('button', { name: 'Back' }).click();
-    await page.getByRole('button', { name: 'Start reading' }).click();
-    await expect(page.getByRole('heading', { name: 'Hello from PlainShelf E2E.' })).toBeVisible();
-    await expect(page.getByText('## Hello from PlainShelf E2E.')).toHaveCount(0);
   } finally {
     await server.dispose();
   }
