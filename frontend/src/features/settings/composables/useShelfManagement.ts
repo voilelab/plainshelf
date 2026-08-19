@@ -20,7 +20,7 @@ interface ShelfRef {
  */
 export function useShelfManagement() {
   const { t } = useI18n();
-  const { shelves, loading: shelvesLoading, error: shelvesError, fetchShelves } = useShelvesStore();
+  const { shelves, loading: shelvesLoading, error: shelvesError, fetchShelves, ensureShelvesLoaded } = useShelvesStore();
 
   const shelfOpError = ref('');
 
@@ -229,6 +229,7 @@ export function useShelfManagement() {
     shelvesLoading,
     shelvesError,
     fetchShelves,
+    ensureShelvesLoaded,
     shelfOpError,
     removingShelfIDs,
     pendingRemoveShelf,
