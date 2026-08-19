@@ -194,18 +194,6 @@ func (r *Source) UpdateComment(comment string) error {
 	return nil
 }
 
-func (r *Source) UpdateSplitConfig(config SplitConfig) error {
-	if err := r.EnsureWritable(); err != nil {
-		return util.Errorf("%w", err)
-	}
-	r.meta.SplitConfig = config
-	err := r.writebackMeta()
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-	return nil
-}
-
 func (r *Source) writebackMeta() error {
 	metaFilePath := path.Join(r.folderPath, SourceMetaFile)
 
