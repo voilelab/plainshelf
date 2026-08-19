@@ -1,4 +1,4 @@
-import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
+import { Directory, Encoding, Filesystem, type WriteFileOptions } from '@capacitor/filesystem';
 
 // Shared layout and file access for everything the mobile shell keeps on the
 // device. Directory.Data is app-private, requires no runtime permission, and —
@@ -117,8 +117,38 @@ export async function readJsonFile<T>(path: string): Promise<T | null> {
   }
 }
 
+/**
+ * Writes through the plugin, retrying once when another write has already
+ * created the directory this one was about to create.
+ *
+ * `writeFile({ recursive: true })` makes a missing parent by checking whether
+ * it exists and then creating it. In the web fallback those are separate
+ * IndexedDB round trips, so two writes into the same not-yet-created directory
+ * both see it missing, both create it, and the loser fails with "Current
+ * directory does already exist." Downloading a book is exactly that shape: it
+ * writes a manifest, content and a cover into a fresh book directory while the
+ * shelf snapshot may still be landing in the scope directory above it.
+ *
+ * Repeating the write settles it, and costs nothing beyond the failed attempt:
+ * the directory exists by then, so the retry does no mkdir at all. A second
+ * collision cannot happen for the same reason. Only the web fallback needs
+ * this - the native plugin creates parents in one `mkdirs` call.
+ */
+async function writeFileCreatingParents(options: WriteFileOptions): Promise<void> {
+  try {
+    await Filesystem.writeFile(options);
+    return;
+  } catch (error) {
+    if (!isDirectoryExistsError(error)) {
+      throw error;
+    }
+  }
+
+  await Filesystem.writeFile(options);
+}
+
 export async function writeTextFile(path: string, data: string): Promise<void> {
-  await Filesystem.writeFile({
+  await writeFileCreatingParents({
     path,
     data,
     directory: CACHE_DIRECTORY,
@@ -154,7 +184,7 @@ export async function readBinaryFile(path: string): Promise<string | null> {
  * lands on disk is the image itself rather than its ~33% larger text form.
  */
 export async function writeBinaryFile(path: string, base64: string): Promise<void> {
-  await Filesystem.writeFile({
+  await writeFileCreatingParents({
     path,
     data: base64,
     directory: CACHE_DIRECTORY,
@@ -192,6 +222,16 @@ export async function rmdirIgnoringMissing(path: string): Promise<void> {
 export function isMissingError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /not exist|does not exist|enoent|no such file|not found/i.test(message);
+}
+
+/**
+ * Whether a Capacitor Filesystem failure means "that directory is already
+ * there". Reported by message rather than by a code, the same way a missing
+ * file is; see {@link writeFileCreatingParents} for when it happens.
+ */
+function isDirectoryExistsError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /already exist/i.test(message);
 }
 
 export async function blobToBase64(blob: Blob): Promise<string> {
