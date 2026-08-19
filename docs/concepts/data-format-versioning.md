@@ -143,9 +143,15 @@ split actually produced chapters, it first bakes them into the text as `## `
 headings — the same conversion the source editor's "upgrade chapter format"
 action performs, except that this one rewrites the source in place instead of
 creating a new one. A source whose split produces nothing keeps its bytes
-untouched. Once every source of a book owns its format, the book's
-`legacy_source_formats` snapshots are dropped, including any inert leftover from
-a deleted source.
+untouched. Every book it visits also loses its `legacy_source_formats`
+snapshots, including any inert leftover from a deleted source — so a migrated
+shelf carries none at all.
+
+That last part is unconditional: a book still holding a source the migration
+could not finish loses its snapshots too. The cost is contained. An entry only
+decided which format `book.json`'s compatibility mirror took when its source was
+reactivated; without one the mirror keeps the book's own `format` instead, which
+is the same fallback a shelf edited by hand already relies on.
 
 Before running it with `-dry-run=false`:
 

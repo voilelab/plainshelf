@@ -17,10 +17,6 @@ import (
 // ErrSourceNotLegacy is returned when a source already owns its content format.
 var ErrSourceNotLegacy = util.NewError("source already owns its content format")
 
-// ErrBookHasLegacySources is returned when a book still has a source without
-// source-level format metadata.
-var ErrBookHasLegacySources = util.NewError("book still has legacy sources")
-
 // IsLegacy reports whether this source predates source-level format metadata.
 // Such a source inherits its format from book.json and its chapters from
 // split_config; see SourceMetaSchemaVersion.
@@ -92,10 +88,11 @@ func (r *Source) UpgradeLegacyToSchemaV1(format string, content io.Reader) error
 // whole-map counterpart to forgetLegacySourceFormat, which drops the single
 // entry of a source being deleted.
 //
-// It refuses while any source is still legacy, so it cannot throw away a
-// snapshot that is still load-bearing. A book that later regains a legacy source
-// — a hand-restored folder, or one written by an older build — has no snapshot
-// to fall back on and takes its mirror from book.json's format instead.
+// It drops the whole map unconditionally, including entries for sources that
+// are still legacy. A book left with one is a book the migration could not
+// finish, and the entry only ever decided which format the compatibility mirror
+// took on reactivating that source; without it the mirror follows book.json's
+// own format instead, which is the same fallback a shelf edited by hand gets.
 func (b *Book) ClearLegacySourceFormats() error {
 	if err := b.EnsureWritable(); err != nil {
 		return util.Errorf("%w", err)
@@ -104,16 +101,6 @@ func (b *Book) ClearLegacySourceFormats() error {
 		// Nothing to drop. Returning here also keeps the book's file untouched,
 		// rather than rewriting it only to stamp a schema version.
 		return nil
-	}
-
-	sources, err := b.ListSource()
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-	for _, source := range sources {
-		if source.IsLegacy() {
-			return util.Errorf("%w: %q", ErrBookHasLegacySources, source.ID())
-		}
 	}
 
 	meta := b.GetMeta()

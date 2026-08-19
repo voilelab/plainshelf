@@ -166,26 +166,25 @@ func migrateBook(book *shelf.Book, opts Options, report *Report) {
 		}
 	}
 
-	clearLegacySnapshots(book, bookMeta, sources, migratedFormats, opts, report)
+	clearLegacySnapshots(book, bookMeta, opts, report)
 }
 
-// clearLegacySnapshots drops book.json's legacy_source_formats once no source
-// depends on them any more.
+// clearLegacySnapshots drops book.json's legacy_source_formats.
+//
+// The map is retired with the migration itself rather than per source, so a
+// book keeping one source at needs-attention still loses it. What that costs is
+// small and bounded: the entry only decided which format book.json's mirror took
+// when that source was reactivated, and the mirror falls back to the book's own
+// format without it. What it buys is that a migrated shelf carries no snapshots
+// at all, which is the point of running this.
 func clearLegacySnapshots(
 	book *shelf.Book,
 	bookMeta *shelf.BookMeta,
-	sources []*shelf.Source,
-	migratedFormats map[string]string,
 	opts Options,
 	report *Report,
 ) {
 	if len(bookMeta.LegacySourceFormats) == 0 {
 		return
-	}
-	for _, source := range sources {
-		if _, migrated := migratedFormats[source.ID()]; !migrated && source.IsLegacy() {
-			return
-		}
 	}
 
 	if !opts.DryRun {

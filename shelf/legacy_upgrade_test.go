@@ -248,13 +248,6 @@ func legacyBookWithSnapshot(t *testing.T) (*Shelf, *Book, *Source, string) {
 func TestClearLegacySourceFormats(t *testing.T) {
 	testShelf, book, legacy, _ := legacyBookWithSnapshot(t)
 
-	if err := book.ClearLegacySourceFormats(); !errors.Is(err, ErrBookHasLegacySources) {
-		t.Fatalf("error = %v, want ErrBookHasLegacySources while a legacy source remains", err)
-	}
-	if len(book.GetMeta().LegacySourceFormats) == 0 {
-		t.Fatalf("a refused clear must leave the snapshots in place")
-	}
-
 	if err := legacy.UpgradeLegacyToSchemaV1(BookFormatText, nil); err != nil {
 		t.Fatalf("UpgradeLegacyToSchemaV1: %v", err)
 	}
@@ -268,6 +261,35 @@ func TestClearLegacySourceFormats(t *testing.T) {
 	}
 	if len(book.GetMeta().LegacySourceFormats) != 0 {
 		t.Errorf("in-memory meta still carries snapshots")
+	}
+}
+
+// TestClearLegacySourceFormatsDropsEntriesOfSourcesStillLegacy pins the
+// deliberate part of the contract: the map goes even when a source it describes
+// has not been migrated. Such a source loses only the format its book-level
+// mirror would have been restored to, and falls back to book.json's own format.
+func TestClearLegacySourceFormatsDropsEntriesOfSourcesStillLegacy(t *testing.T) {
+	testShelf, book, legacy, _ := legacyBookWithSnapshot(t)
+
+	if !legacy.IsLegacy() {
+		t.Fatalf("test setup: the first source should still be legacy")
+	}
+	if err := book.ClearLegacySourceFormats(); err != nil {
+		t.Fatalf("ClearLegacySourceFormats: %v", err)
+	}
+
+	persisted := readPersistedJSON(t, testShelf, path.Join(book.FolderPath(), BookMetaFile))
+	if _, ok := persisted["legacy_source_formats"]; ok {
+		t.Errorf("book.json still carries legacy_source_formats: %v", persisted["legacy_source_formats"])
+	}
+
+	// The legacy source itself is untouched: only the book-level snapshot went.
+	reopened, err := openSource(testShelf.dbRoot, legacy.FolderPath())
+	if err != nil {
+		t.Fatalf("reopen legacy source: %v", err)
+	}
+	if !reopened.IsLegacy() {
+		t.Errorf("clearing the snapshots must not change the source itself")
 	}
 }
 

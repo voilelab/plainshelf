@@ -487,17 +487,23 @@ func TestMigrateShelfClearsLegacySourceFormatsOnceEverySourceOwnsItsFormat(t *te
 	}
 }
 
-func TestMigrateShelfKeepsLegacySourceFormatsWhileASourceStaysLegacy(t *testing.T) {
+// TestMigrateShelfClearsLegacySourceFormatsEvenWithASourceLeftBehind pins the
+// deliberate part: the snapshots are retired with the migration, not per source,
+// so a book keeping one source at needs-attention still loses them.
+func TestMigrateShelfClearsLegacySourceFormatsEvenWithASourceLeftBehind(t *testing.T) {
 	libRoot, source := legacyBookWithSnapshot(t, "a\nb", `{"type":"regex","regex":"^(?=x)x$"}`)
 
 	report := migrate(t, libRoot, Options{})
 
-	if len(report.BooksCleared) != 0 {
-		t.Errorf("BooksCleared = %v, want none while a source stays legacy", report.BooksCleared)
+	if len(report.BooksCleared) != 1 {
+		t.Errorf("BooksCleared = %v, want the book to be cleared", report.BooksCleared)
 	}
-	snapshots, ok := source.bookMeta(t)["legacy_source_formats"].(map[string]any)
-	if !ok || snapshots[source.sourceID] == nil {
-		t.Errorf("book.json lost the snapshot its legacy source still needs")
+	if _, ok := source.bookMeta(t)["legacy_source_formats"]; ok {
+		t.Errorf("book.json still carries legacy_source_formats")
+	}
+	// The source it described is still legacy and still untouched.
+	if _, ok := source.meta(t)["schema_version"]; ok {
+		t.Errorf("the skipped source was migrated after all")
 	}
 	if report.Clean() {
 		t.Errorf("a run with a skipped source is not clean")
