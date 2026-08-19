@@ -283,6 +283,11 @@ export class MobileBookshelfProvider implements BookshelfReader {
     return this.remote.supportsServerMode?.() ?? true;
   }
 
+  /** Likewise: the cost belongs to whatever backend this shell is pointed at. */
+  supportsCharCountListing(): boolean {
+    return this.remote.supportsCharCountListing?.() ?? true;
+  }
+
 
   getDuplicateBookGroups(): Promise<string[][]> {
     return this.remote.getDuplicateBookGroups();

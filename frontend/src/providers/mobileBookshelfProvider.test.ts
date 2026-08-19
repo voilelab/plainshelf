@@ -20,6 +20,7 @@ import type { SourceMeta } from '@/types/source';
 import type { BookshelfReader } from './bookshelfProvider';
 import { InMemoryMobileBookCache } from './mobileBookCache';
 import { InMemoryMobileCoverCache } from './mobileCoverCache';
+import { ServerBookshelfProvider } from './serverBookshelfProvider';
 import { DOWNLOAD_SHELF_CHANGED_ERROR, MobileBookshelfProvider } from './mobileBookshelfProvider';
 
 const SERVER_A = 'http://10.0.2.2:20000';
@@ -712,5 +713,24 @@ describe('MobileBookshelfProvider shelf fallback', () => {
     // previous shelf's downloads after switching.
     connectTo(SERVER_B, SHELF_B);
     expect(provider.getPersistedShelfID()).toBe(SHELF_B);
+  });
+});
+
+describe('MobileBookshelfProvider backend cost forwarding', () => {
+  // The behaviour change this PR makes: a phone pointed at a self-hosted
+  // server can afford character counts, because the server aggregates them.
+  // Only a pCloud-backed shelf cannot.
+  it('reports what the wrapped backend can afford', () => {
+    const overServer = new MobileBookshelfProvider(
+      new ServerBookshelfProvider(),
+      new InMemoryMobileBookCache()
+    );
+    expect(overServer.supportsCharCountListing()).toBe(true);
+
+    const overPCloud = new MobileBookshelfProvider(
+      { supportsCharCountListing: () => false } as unknown as BookshelfReader,
+      new InMemoryMobileBookCache()
+    );
+    expect(overPCloud.supportsCharCountListing()).toBe(false);
   });
 });
