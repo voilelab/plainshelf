@@ -63,7 +63,8 @@ type Report struct {
 	Results      []SourceResult
 	BooksScanned int
 	// BooksCleared lists books whose legacy_source_formats snapshots were
-	// dropped because every source now owns its format.
+	// dropped. Every book carrying them is cleared, including one still holding
+	// a source the run could not migrate; see clearLegacySnapshots.
 	BooksCleared []string
 }
 
@@ -257,10 +258,25 @@ func migrateSource(book *shelf.Book, bookMeta *shelf.BookMeta, source *shelf.Sou
 // effectiveSplit is the source's own split configuration, falling back to the
 // shelf-wide default the reader applies when a legacy source has none.
 func effectiveSplit(sourceSplit, defaultSplit shelf.SplitConfig) shelf.SplitConfig {
+	sourceSplit = NormalizeSplitType(sourceSplit)
 	if sourceSplit.Type != shelf.SplitTypeNone {
 		return sourceSplit
 	}
-	return defaultSplit
+	return NormalizeSplitType(defaultSplit)
+}
+
+// NormalizeSplitType maps the literal "none" onto the empty split type.
+//
+// Go spells "no split" as the empty string, but the field has always been
+// documented as defaulting to "none" and the frontend accepts that spelling, so
+// shelves carry legacy meta.json files written either way. Both mean the same
+// thing, and reading one as an unknown type would strand a source that simply
+// has no chapters.
+func NormalizeSplitType(config shelf.SplitConfig) shelf.SplitConfig {
+	if config.Type == "none" {
+		config.Type = shelf.SplitTypeNone
+	}
+	return config
 }
 
 // effectiveFormat is the format a legacy source renders as today: its
@@ -294,8 +310,6 @@ func reasonFor(err error) string {
 	switch {
 	case errors.Is(err, ErrUnsupportedSplitRegex):
 		return "split regex cannot run here; convert this source from the source editor"
-	case errors.Is(err, ErrSplitRegexNoMatch):
-		return "split regex matched no line; check whether the reader still shows chapters"
 	case errors.Is(err, ErrUnrecognizedSplitType):
 		return "split type is not one this build knows"
 	default:

@@ -193,13 +193,6 @@ func TestUpgradeLegacyToMarkdownRejectsUnusableRegex(t *testing.T) {
 		{"lookahead", "第一章\nText", `^(?=第)第.+章$`, ErrUnsupportedSplitRegex},
 		{"lookbehind", "aChapter\nText", `(?<=a)Chapter`, ErrUnsupportedSplitRegex},
 		{"backreference", "aa\nText", `(a)\1`, ErrUnsupportedSplitRegex},
-		{
-			// The frontend degrades to one chapter here. In a one-off in-place
-			// migration that would silently discard the book's structure, so the
-			// source is reported and left legacy instead.
-			name: "compiles but matches nothing", content: "a\nb", regex: "^ZZZ$",
-			wantErr: ErrSplitRegexNoMatch,
-		},
 	}
 
 	for _, test := range tests {
@@ -292,6 +285,14 @@ func TestPlanUpgrade(t *testing.T) {
 		{
 			name: "a blank regex names no boundary", content: "a\nb",
 			split: shelf.SplitConfig{Type: shelf.SplitTypeRegex, Regex: "  "}, format: shelf.BookFormatText,
+			wantFormat: shelf.BookFormatText, wantChapters: 1, wantReason: true,
+		},
+		{
+			// A pattern that finds nothing splits nothing, so the source keeps its
+			// bytes and the format it already rendered as.
+			name: "a regex that matches nothing is treated as no split", content: "a\nb",
+			split:      shelf.SplitConfig{Type: shelf.SplitTypeRegex, Regex: "^ZZZ$"},
+			format:     shelf.BookFormatText,
 			wantFormat: shelf.BookFormatText, wantChapters: 1, wantReason: true,
 		},
 		{

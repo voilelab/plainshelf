@@ -1,6 +1,7 @@
 package legacyupgrade
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"slices"
@@ -19,10 +20,9 @@ var (
 	ErrUnsupportedSplitRegex = util.NewError("legacy split regex is not supported by Go's regexp engine")
 
 	// ErrSplitRegexNoMatch reports a split regex that compiled but matched
-	// nothing. The reader may well have been showing chapters this build cannot
-	// reproduce - the JavaScript and RE2 dialects are not identical - and there
-	// is no way to tell that apart from a pattern that never matched anything.
-	// Reporting the source beats silently migrating it down to one chapter.
+	// nothing, so it names no chapter boundary. PlanUpgrade treats that as the
+	// no-split configuration it is; the error stays a distinct value so a caller
+	// can tell it from a pattern this engine could not run at all.
 	ErrSplitRegexNoMatch = util.NewError("legacy split regex matched no line")
 
 	// ErrUnrecognizedSplitType reports a split type this build does not know.
@@ -284,18 +284,22 @@ func PlanUpgrade(content string, effectiveSplit shelf.SplitConfig, effectiveForm
 
 	headings := ScanMarkdownH2Headings(content)
 
-	if !SplitProducesChapters(effectiveSplit) {
-		// Nothing is splitting this source today, so its bytes already say
-		// everything its chapters do. Claim the format and leave the text alone.
+	// planNoSplit claims the format and leaves the text alone: the source's bytes
+	// already say everything its chapters do.
+	planNoSplit := func(reason string) (Plan, error) {
 		chapters := 1
 		if effectiveFormat == shelf.BookFormatMarkdown && len(headings) > 0 {
 			chapters = len(headings)
 		}
-		plan := Plan{Format: effectiveFormat, Chapters: chapters}
+		return Plan{Format: effectiveFormat, Chapters: chapters, Reason: reason}, nil
+	}
+
+	if !SplitProducesChapters(effectiveSplit) {
+		reason := ""
 		if effectiveSplit.Type != shelf.SplitTypeNone {
-			plan.Reason = "split configuration names no chapter boundary"
+			reason = "split configuration names no chapter boundary"
 		}
-		return plan, nil
+		return planNoSplit(reason)
 	}
 
 	if len(headings) > 0 {
@@ -310,6 +314,17 @@ func PlanUpgrade(content string, effectiveSplit shelf.SplitConfig, effectiveForm
 	}
 
 	upgraded, err := UpgradeLegacyToMarkdown(content, effectiveSplit)
+	if errors.Is(err, ErrSplitRegexNoMatch) {
+		// A pattern that matches nothing splits nothing, which is the same state
+		// as the configurations SplitProducesChapters rejects above — it just
+		// takes the text to find out. The source reads as one section today and
+		// reads as one section after, with its bytes and its format untouched.
+		//
+		// The frontend instead prepends "## Part 1" and calls the result
+		// Markdown. That is a visible change to a book that had no chapters, so
+		// it is the wrong end state for a migration that cannot be undone.
+		return planNoSplit("split regex matched no line, so nothing was splitting this source")
+	}
 	if err != nil {
 		return Plan{}, util.Errorf("%w", err)
 	}

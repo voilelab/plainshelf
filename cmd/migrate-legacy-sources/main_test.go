@@ -37,8 +37,14 @@ func TestParseDefaultSplit(t *testing.T) {
 			want: shelf.SplitConfig{Type: shelf.SplitTypeRegex, Regex: `^Chapter \d+$`},
 		},
 		{
-			name: "an explicit none is accepted",
+			name: "an explicit empty type is accepted",
 			raw:  `{"type":""}`,
+			want: shelf.SplitConfig{},
+		},
+		{
+			// Legacy shelves spell no-split both ways; see NormalizeSplitType.
+			name: "the literal none is accepted",
+			raw:  `{"type":"none"}`,
 			want: shelf.SplitConfig{},
 		},
 		{

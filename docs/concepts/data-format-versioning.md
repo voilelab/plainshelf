@@ -167,9 +167,13 @@ real rehearsal. Read it before applying. Two things in it deserve attention:
 
 - Sources reported as `needs-attention` are left legacy and untouched. That
   happens when a split regex uses JavaScript-only syntax Go's engine cannot run,
-  or when it compiles but matches nothing — the tool cannot tell "this pattern
-  never matched" from "the two regex dialects disagree", and collapsing a book
-  into a single chapter is not a safe guess.
+  or when the split type is not one this build knows. The tool cannot reproduce
+  those chapters, and guessing at them is not something an unundoable in-place
+  rewrite should do. Convert such a source from the source editor instead.
+- A split that names no boundary at all — a line count of zero, a blank pattern,
+  or a regex that matches nothing — is not an error. It is what "no chapters"
+  looks like, so the source is stamped with the format it already rendered as
+  and its bytes are left alone.
 - The per-source chapter count is there to be compared against what the reader
   has been showing. The tool translates the two known dialect differences that
   would otherwise lose chapters silently (JavaScript treats a carriage return as

@@ -137,6 +137,8 @@ func parseDefaultSplit(raw string) (shelf.SplitConfig, error) {
 	if err := json.Unmarshal([]byte(raw), &config); err != nil {
 		return shelf.SplitConfig{}, fmt.Errorf("parse -default-split-config: %w", err)
 	}
+	// "none" and "" are the two spellings of no split; see NormalizeSplitType.
+	config = legacyupgrade.NormalizeSplitType(config)
 	switch config.Type {
 	case shelf.SplitTypeNone, shelf.SplitTypeLineCount, shelf.SplitTypeRegex, shelf.SplitTypeBoundary:
 		return config, nil

@@ -311,6 +311,33 @@ func TestMigrateShelfAppliesTheShelfWideDefaultSplit(t *testing.T) {
 	}
 }
 
+// TestMigrateShelfStampsARegexThatMatchesNothing covers the case a real shelf
+// turned up: a pattern that compiles and finds no line is splitting nothing, so
+// the source already reads as one section and only needs its metadata. Its bytes
+// and its format stay as they are, which is what the reader has been showing.
+func TestMigrateShelfStampsARegexThatMatchesNothing(t *testing.T) {
+	libRoot, source := newLegacyShelf(t, "a\nb", `{"type":"regex","regex":"^ZZZ$"}`)
+	before := source.content(t)
+
+	result := onlyResult(t, migrate(t, libRoot, Options{}))
+
+	if result.Action != ActionStamped {
+		t.Fatalf("action = %q (%v), want %q", result.Action, result.Err, ActionStamped)
+	}
+	if result.Format != shelf.BookFormatText {
+		t.Errorf("format = %q, want the format it already rendered as", result.Format)
+	}
+	if result.Reason == "" {
+		t.Errorf("want a reason explaining why the split produced nothing")
+	}
+	if got := source.content(t); got != before {
+		t.Errorf("source.txt = %q, want it untouched", got)
+	}
+	if _, ok := source.meta(t)["schema_version"]; !ok {
+		t.Errorf("meta.json was not stamped: %v", source.meta(t))
+	}
+}
+
 func TestMigrateShelfLeavesSourcesItCannotReproduce(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -318,7 +345,6 @@ func TestMigrateShelfLeavesSourcesItCannotReproduce(t *testing.T) {
 		wantErr   error
 	}{
 		{"regex RE2 rejects", `{"type":"regex","regex":"^(?=x)x$"}`, ErrUnsupportedSplitRegex},
-		{"regex that matches nothing", `{"type":"regex","regex":"^ZZZ$"}`, ErrSplitRegexNoMatch},
 		{"split type this build does not know", `{"type":"chapters"}`, ErrUnrecognizedSplitType},
 	}
 
@@ -472,6 +498,44 @@ func legacyBookWithSnapshot(t *testing.T, content, splitJSON string) (string, le
 	})
 
 	return libRoot, source
+}
+
+// TestMigrateShelfTreatsTheLiteralNoneAsNoSplit covers real shelves: the split
+// type has always been documented as defaulting to "none", and the frontend
+// accepts that spelling, so meta.json files carry it. Reading it as an unknown
+// type stranded sources that simply have no chapters.
+func TestMigrateShelfTreatsTheLiteralNoneAsNoSplit(t *testing.T) {
+	libRoot, source := newLegacyShelf(t, "plain\ntext", `{"type":"none"}`)
+
+	result := onlyResult(t, migrate(t, libRoot, Options{}))
+
+	if result.Action != ActionStamped {
+		t.Fatalf("action = %q (%v), want %q", result.Action, result.Err, ActionStamped)
+	}
+	if result.Format != shelf.BookFormatText {
+		t.Errorf("format = %q, want txt", result.Format)
+	}
+	if got := source.content(t); got != "plain\ntext" {
+		t.Errorf("source.txt = %q, want it untouched", got)
+	}
+}
+
+// TestMigrateShelfAppliesTheDefaultOverTheLiteralNone pins the other half: a
+// source spelling no-split as "none" must still fall back to the shelf-wide
+// default, exactly as one spelling it "" does.
+func TestMigrateShelfAppliesTheDefaultOverTheLiteralNone(t *testing.T) {
+	libRoot, _ := newLegacyShelf(t, "a\nb\nc\nd", `{"type":"none"}`)
+
+	result := onlyResult(t, migrate(t, libRoot, Options{
+		DefaultSplit: shelf.SplitConfig{Type: shelf.SplitTypeLineCount, LineCount: 2},
+	}))
+
+	if result.Action != ActionRewrote {
+		t.Fatalf("action = %q (%v), want %q", result.Action, result.Err, ActionRewrote)
+	}
+	if result.Chapters != 2 {
+		t.Errorf("chapters = %d, want 2", result.Chapters)
+	}
 }
 
 func TestMigrateShelfClearsLegacySourceFormatsOnceEverySourceOwnsItsFormat(t *testing.T) {
