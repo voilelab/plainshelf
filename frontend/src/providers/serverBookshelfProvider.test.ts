@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { BookshelfReader } from './bookshelfProvider';
+
 const { getLocalReadingProgress, saveLocalReadingProgress } = vi.hoisted(() => ({
   getLocalReadingProgress: vi.fn(),
   saveLocalReadingProgress: vi.fn()
@@ -28,5 +30,20 @@ describe('ServerBookshelfProvider reading progress', () => {
 
     expect(getLocalReadingProgress).toHaveBeenCalledWith('book-1');
     expect(saveLocalReadingProgress).toHaveBeenCalledWith('book-1', { char_offset: 99 });
+  });
+});
+
+describe('ServerBookshelfProvider shelf fallback', () => {
+  it('does not offer a persisted shelf to fall back to', () => {
+    // Typed as the interface on purpose: the property is optional there, and
+    // "absent" is only a meaningful assertion against the shape callers hold.
+    const provider: BookshelfReader = new ServerBookshelfProvider();
+
+    // The optional capability must be absent, not merely return ''. Callers
+    // reach it as `provider.getPersistedShelfID?.() ?? ''`, so "this backend
+    // has no device-local shelf identity" is expressed by the method not
+    // existing — a server's shelf list is its own source of truth, and a
+    // failure to fetch it leaves nothing to fall back to.
+    expect(provider.getPersistedShelfID).toBeUndefined();
   });
 });
