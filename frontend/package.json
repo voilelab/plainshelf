@@ -9,6 +9,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "check-boundaries": "node scripts/check-module-boundaries.mjs",
     "check-licenses": "license-checker --production --excludePrivatePackages --failOn \"UNLICENSED;UNKNOWN\" && node scripts/check-font-licenses.mjs"
   },
   "dependencies": {
