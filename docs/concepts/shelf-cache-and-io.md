@@ -26,7 +26,7 @@ So yes: the first successful cache initialization reads every book metadata file
 
 For each discovered book package, the important disk operations are roughly:
 
-- a directory/path stat while walking the tree;
+- a stat of the book package folder when it is opened (the tree walk itself takes entry types from the directory listing and only stats an entry that is a symlink);
 - an open/read/decode of `{book}.bookpkg/book.json`;
 - a stat of `book.json` to remember its `mtime` and size.
 

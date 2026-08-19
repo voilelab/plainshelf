@@ -2,6 +2,7 @@ package shelf
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path"
 	"sort"
@@ -44,19 +45,19 @@ func (s *Shelf) GetAllLayers() ([]Layers, error) {
 func (s *Shelf) iterateLayers(fn func(Layers) bool) error {
 	skipAll := false
 
-	var dfsFunc func(string)
+	var dfsFunc func(string, fs.DirEntry)
 
-	dfsFunc = func(pth string) {
+	dfsFunc = func(pth string, entry fs.DirEntry) {
 		if skipAll {
 			return
 		}
 
-		stat, err := s.dbRoot.Stat(pth)
+		isDir, err := entryIsDir(s.dbRoot, pth, entry)
 		if err != nil {
 			return
 		}
 
-		if !stat.IsDir() {
+		if !isDir {
 			return
 		}
 
@@ -78,13 +79,13 @@ func (s *Shelf) iterateLayers(fn func(Layers) bool) error {
 			return
 		}
 
-		for _, entry := range entries {
-			fullPath := path.Join(pth, entry.Name())
-			dfsFunc(fullPath)
+		for _, child := range entries {
+			fullPath := path.Join(pth, child.Name())
+			dfsFunc(fullPath, child)
 		}
 	}
 
-	dfsFunc(booksFolder)
+	dfsFunc(booksFolder, nil)
 	return nil
 }
 

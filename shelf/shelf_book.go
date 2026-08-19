@@ -3,6 +3,7 @@ package shelf
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"strings"
@@ -228,14 +229,14 @@ func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 
 	skipAll := false
 
-	var dfsFunc func(string)
+	var dfsFunc func(string, fs.DirEntry)
 
-	dfsFunc = func(pth string) {
+	dfsFunc = func(pth string, entry fs.DirEntry) {
 		if skipAll {
 			return
 		}
 
-		stat, err := s.dbRoot.Stat(pth)
+		isDir, err := entryIsDir(s.dbRoot, pth, entry)
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				s.Warn("failed to stat path during book scan", "path", pth, "error", err)
@@ -243,7 +244,7 @@ func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 			return
 		}
 
-		if !stat.IsDir() {
+		if !isDir {
 			return
 		}
 
@@ -275,12 +276,12 @@ func (s *Shelf) iterateBooks(rLayers Layers, fn func(*Book) bool) error {
 			return
 		}
 
-		for _, entry := range entries {
-			fullPath := path.Join(pth, entry.Name())
-			dfsFunc(fullPath)
+		for _, child := range entries {
+			fullPath := path.Join(pth, child.Name())
+			dfsFunc(fullPath, child)
 		}
 	}
 
-	dfsFunc(visitFolder)
+	dfsFunc(visitFolder, nil)
 	return nil
 }
