@@ -78,24 +78,35 @@ func (s *Shelf) NewBookWith(layers Layers, title string, init func(*Book) error)
 	}
 	defer s.dbRoot.RemoveAll(bookPath)
 
-	// Generate a unique book ID based on the layers and title
-	// TBD: Use UUID
-	baseBookID := seedBookID(layers, title)
-	bookID := baseBookID
-	for i := 1; ; i++ {
-		_, err := s.getUpdatedBookFromBookID(bookID)
+	// The ID is drawn at random, not derived from the layers and title: what
+	// keeps two books apart is the entropy behind it, not the probe below. The
+	// probe only sees books this process already knows about - the cache does not
+	// notice a book another machine added to a shared shelf, or one copied in
+	// with a file manager, until it rescans - so it is insurance against an ID
+	// this shelf demonstrably holds, and is expected never to fire.
+	bookID := ""
+	for range MaxBookIDCreationAttempts {
+		candidate, idErr := newBookID()
+		if idErr != nil {
+			return nil, util.Errorf("%w", idErr)
+		}
+
+		_, err := s.getUpdatedBookFromBookID(candidate)
 		if errors.Is(err, ErrBookNotFound) {
-			inTrash, trashErr := s.isBookIDInTrash(bookID)
+			inTrash, trashErr := s.isBookIDInTrash(candidate)
 			if trashErr != nil {
 				return nil, util.Errorf("%w", trashErr)
 			}
 			if !inTrash {
+				bookID = candidate
 				break
 			}
 		} else if err != nil {
 			return nil, util.Errorf("%w", err)
 		}
-		bookID = fmt.Sprintf("%s-%d", baseBookID, i)
+	}
+	if bookID == "" {
+		return nil, util.NewError("failed to draw an unused book ID after multiple attempts")
 	}
 
 	stagedBook, err := createBook(s.dbRoot, s.Logger, bookPath, bookID, title)

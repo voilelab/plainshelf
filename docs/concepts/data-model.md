@@ -252,7 +252,26 @@ The app has no screen for this yet; the routes are there for a client to use.
 
 ### Book IDs
 
-The book ID is generated once when the book is created and then persisted in `book.json`; it is **not** recomputed from the folder name or the display title afterwards. This means you can rename a book's title, or move the book to a different layer, without breaking reading progress, bookmarks, or any external references.
+The book ID is generated once when the book is created and then persisted in
+`book.json`; it is **not** recomputed from the folder name or the display title
+afterwards. This means you can rename a book's title, or move the book to a
+different layer, without breaking reading progress, bookmarks, or any external
+references.
+
+The ID is a random 16-character word drawn from `a`–`z` and `2`–`7`, such as
+`q7f2mzk4x6rt3vbd`. It carries no information about the book: 80 bits of
+randomness is what keeps two books apart, so a book you add on one machine
+cannot collide with one another machine added to the same shared shelf, or one
+you copied in with a file manager, even though neither side can see the other's
+book yet. PlainShelf still checks the shelf and its trash for the drawn ID
+before using it, but that check is insurance, not the guarantee.
+
+Shelves created by earlier versions hold 8-character hexadecimal IDs, some with
+a `-1`-style suffix, which were derived from the layer path and title at
+creation time. Those are kept exactly as they are — nothing is renumbered, and
+old and new IDs work side by side in the same shelf. An ID that looks derived
+never was reproducible in practice, because it was only ever computed once; the
+random form makes that plain.
 
 ---
 
