@@ -1,7 +1,8 @@
 package shelf
 
 import (
-	"crypto/md5"
+	cryptorand "crypto/rand"
+	"encoding/base32"
 	"fmt"
 	"io/fs"
 	"math/rand"
@@ -16,6 +17,12 @@ import (
 )
 
 const MaxTempDirCreationAttempts = 10
+
+// MaxBookIDCreationAttempts bounds the retry loop that draws a fresh random
+// book ID when the drawn one is already taken. With the entropy below a single
+// retry is already unreachable in practice; the bound only keeps a filesystem
+// that answers every probe with "taken" from spinning forever.
+const MaxBookIDCreationAttempts = 10
 
 func createTempDir(root fsutil.FS, prefix string) (string, error) {
 	for range MaxTempDirCreationAttempts {
@@ -178,15 +185,49 @@ func validatePathSegment(segment string) error {
 	return nil
 }
 
-// seedBookID derives an initial book ID from the layers and title. This is only
-// a seed for the first ID candidate: once a book is created the ID is persisted
-// in book.json and never recomputed, so renaming the title or moving the book to
-// another layer does NOT change its ID (callers still de-duplicate on collision).
-func seedBookID(layers Layers, title string) string {
-	cont := strings.Join(layers, "-") + "-" + title
-	md5Hash := md5.Sum([]byte(cont))
-	hash := fmt.Sprintf("%x", md5Hash)
-	return hash[:8] // Use the first 8 characters of the hash as the book ID
+// bookIDEntropyBytes is how much randomness stands behind a new book ID. Ten
+// bytes is 80 bits, which is what makes the ID unique on its own rather than by
+// agreement with anyone: a shelf would need on the order of a trillion books
+// before two IDs collided with any meaningful probability. That is the property
+// this needs, because the collision probe at creation time cannot see a book
+// another machine wrote into a shared shelf moments ago, nor one copied in with
+// a file manager.
+const bookIDEntropyBytes = 10
+
+// bookIDEncoding keeps an ID to lowercase letters and the digits 2-7. The trash
+// names a folder after the book ID, so the ID has to survive a case-insensitive
+// filesystem and sit in a URL path without escaping; base32 gives both, and
+// dropping the padding keeps the ID a single unbroken word.
+var bookIDEncoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567").WithPadding(base32.NoPadding)
+
+// newBookID draws a random book ID.
+//
+// The ID is opaque. It is generated once when the book is created, persisted in
+// book.json, and never recomputed, so renaming the title, moving the book to
+// another layer, and restoring it from the trash all leave it alone. Builds
+// before this one derived it from the layers and title, which read as if the ID
+// could be recomputed from them when it never was, and handed two different
+// books the same ID whenever they shared a layer path and title - the case a
+// shelf shared between machines produces routinely.
+func newBookID() (string, error) {
+	buf := make([]byte, bookIDEntropyBytes)
+	if _, err := cryptorand.Read(buf); err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	return bookIDEncoding.EncodeToString(buf), nil
+}
+
+// validateBookID reports whether a caller-supplied ID is usable as one.
+//
+// It deliberately says nothing about the shape of the ID beyond path safety.
+// Shelves written by older builds carry 8-character hex IDs, some with a "-1"
+// de-duplication suffix, and those stay valid forever alongside the random ones
+// this build writes; a shelf holds both at once and neither is migrated.
+func validateBookID(bookID string) error {
+	if err := validatePathSegment(bookID); err != nil {
+		return util.Errorf("invalid book id %q: %w", bookID, err)
+	}
+	return nil
 }
 
 func titleToFolderName(title string) string {
