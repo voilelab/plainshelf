@@ -10,8 +10,7 @@ import {
   isSchemaNewerThanSupported,
   parseBookJson,
   toBook,
-  toSourceMeta,
-  toSplitConfig
+  toSourceMeta
 } from './bookpkg';
 import { PCloudError } from './errors';
 import type { PCloudItem } from './types';
@@ -277,7 +276,7 @@ describe('findCoverFile / findCurrentSource', () => {
   });
 });
 
-describe('toSourceMeta / toSplitConfig', () => {
+describe('toSourceMeta', () => {
   it('maps meta.json and normalizes the split type', () => {
     const meta = toSourceMeta(
       {
@@ -288,8 +287,7 @@ describe('toSourceMeta / toSplitConfig', () => {
         schema_version: 1,
         format: 'md',
         line_count: 10,
-        char_count: 200,
-        split_config: { type: 'line_count', line_count: 40 }
+        char_count: 200
       },
       'fallback'
     );
@@ -302,8 +300,7 @@ describe('toSourceMeta / toSplitConfig', () => {
       md5_hash: 'abc',
       format: 'md',
       line_count: 10,
-      char_count: 200,
-      split_config: { type: 'line_count', line_count: 40 }
+      char_count: 200
     });
   });
 
@@ -311,11 +308,4 @@ describe('toSourceMeta / toSplitConfig', () => {
     expect(toSourceMeta({}, '20240101-120000').id).toBe('20240101-120000');
   });
 
-  it('extracts the full split config for the reader', () => {
-    expect(toSplitConfig({ split_config: { type: 'line_count', line_count: 40 } })).toEqual({
-      type: 'line_count',
-      line_count: 40
-    });
-    expect(toSplitConfig({})).toEqual({ type: 'none' });
-  });
 });

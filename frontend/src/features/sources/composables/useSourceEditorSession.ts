@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue';
 import { t } from '@/i18n';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
-import type { Book, SplitConfig } from '@/types/book';
+import type { Book } from '@/types/book';
 import type { CreateSourceOptions, SourceMeta } from '@/types/source';
 
 export interface DerivedSourceInput {
@@ -47,7 +47,6 @@ export function useSourceEditorSession(
   const activeSourceMeta = computed(() =>
     sources.value.find((source) => source.id === activeSourceId.value)
   );
-  const isLegacySource = computed(() => !activeSourceMeta.value?.format);
   const activeFormat = computed<'txt' | 'md'>(() =>
     activeSourceMeta.value?.format === 'md' ? 'md' : 'txt'
   );
@@ -399,7 +398,6 @@ export function useSourceEditorSession(
     deleteError,
     conversionError,
     activeSourceMeta,
-    isLegacySource,
     activeFormat,
     isDirty,
     disableSave,

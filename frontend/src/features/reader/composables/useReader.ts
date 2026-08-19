@@ -1,10 +1,9 @@
 import { computed, nextTick, ref } from 'vue';
-import { getDefaultSplitConfigSetting } from '@/api/settings';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { isLibraryEditingSupported } from '@/composables/useWriteAccess';
 import { useReadingProgressAutosave } from '@/features/reader/composables/useReadingProgressAutosave';
 import { buildMarkdownH2Sections } from '@/features/reader/utils/markdownChapters';
-import type { ReaderSection, ReadingProgress, SplitConfig } from '@/types/book';
+import type { ReaderSection, ReadingProgress } from '@/types/book';
 import { t } from '@/i18n';
 
 function clampOffset(offset: number, total: number): number {
@@ -14,157 +13,17 @@ function clampOffset(offset: number, total: number): number {
   return Math.max(0, Math.min(total, Math.round(offset)));
 }
 
-function buildLineStartOffsets(content: string): number[] {
-  const starts = [0];
-  for (let i = 0; i < content.length; i += 1) {
-    if (content[i] === '\n') {
-      starts.push(i + 1);
-    }
-  }
-  return starts;
-}
-
-function buildSectionsFromBoundaries(content: string, starts: number[], isRegexSplit: boolean): ReaderSection[] {
-  const total = content.length;
-  const uniqueSorted = Array.from(
-    new Set(
-      starts
-        .map((offset) => clampOffset(offset, total))
-        .filter((offset) => offset >= 0 && offset <= total)
-    )
-  ).sort((a, b) => a - b);
-
-  if (uniqueSorted[0] !== 0) {
-    uniqueSorted.unshift(0);
-  }
-  if (uniqueSorted[uniqueSorted.length - 1] !== total) {
-    uniqueSorted.push(total);
-  }
-
-  const sections: ReaderSection[] = [];
-  for (let i = 0; i < uniqueSorted.length - 1; i += 1) {
-    const startOffset = uniqueSorted[i];
-    const endOffset = uniqueSorted[i + 1];
-    if (endOffset <= startOffset) {
-      continue;
-    }
-
-    const text = content.slice(startOffset, endOffset);
-    const firstLine = text.split(/\r?\n/, 1)[0]?.trim() ?? '';
-    // A regex split on a Markdown book matches the heading line, so the "## "
-    // marker would otherwise show up in the chapter list.
-    const sectionTitle = firstLine.replace(/^#{1,6}\s+/, '').trim();
-
-    sections.push({
-      index: i,
-      startOffset,
-      endOffset,
-      title: isRegexSplit && sectionTitle.length > 0 ? sectionTitle : `Part ${i + 1}`,
-      text
-    });
-  }
-
-  if (sections.length > 0) {
-    return sections;
-  }
-
+/** The whole source as one section, which is all a TXT source ever has. */
+function buildSingleSection(content: string): ReaderSection[] {
   return [
     {
       index: 0,
       startOffset: 0,
-      endOffset: total,
+      endOffset: content.length,
       title: 'Part 1',
       text: content
     }
   ];
-}
-
-function buildReaderSectionsWithWarning(content: string, splitConfig: SplitConfig): { sections: ReaderSection[]; warning?: string } {
-  const safeConfig = splitConfig ?? { type: 'none' };
-
-  if (safeConfig.type === 'none') {
-    return {
-      sections: buildSectionsFromBoundaries(content, [0], false)
-    };
-  }
-
-  if (safeConfig.type === 'line_count') {
-    const lineCount = Math.trunc(safeConfig.line_count ?? 0);
-    if (lineCount <= 0) {
-      return {
-        sections: buildSectionsFromBoundaries(content, [0], false)
-      };
-    }
-
-    const lineStarts = buildLineStartOffsets(content);
-    const boundaries: number[] = [];
-    for (let i = 0; i < lineStarts.length; i += lineCount) {
-      boundaries.push(lineStarts[i]);
-    }
-
-    return {
-      sections: buildSectionsFromBoundaries(content, boundaries.length > 0 ? boundaries : [0], false)
-    };
-  }
-
-  if (safeConfig.type === 'boundary') {
-    const lineStarts = buildLineStartOffsets(content);
-    const boundaries = (safeConfig.boundaries ?? [])
-      .map((lineNumber) => Math.trunc(lineNumber))
-      .filter((lineNumber) => lineNumber >= 1 && lineNumber <= lineStarts.length)
-      .map((lineNumber) => lineStarts[lineNumber - 1]);
-
-    return {
-      sections: buildSectionsFromBoundaries(content, boundaries.length > 0 ? boundaries : [0], false)
-    };
-  }
-
-  if (safeConfig.type === 'regex') {
-    const pattern = safeConfig.regex ?? '';
-    if (!pattern.trim()) {
-      return {
-        sections: buildSectionsFromBoundaries(content, [0], false)
-      };
-    }
-
-    try {
-      const regex = new RegExp(pattern, 'gm');
-      const boundaries: number[] = [0];
-      let matched = false;
-
-      for (const match of content.matchAll(regex)) {
-        const start = match.index ?? 0;
-        if ((match[0] ?? '').length === 0) {
-          continue;
-        }
-        boundaries.push(start);
-        matched = true;
-      }
-
-      if (!matched) {
-        return {
-          sections: buildSectionsFromBoundaries(content, [0], false)
-        };
-      }
-
-      return {
-        sections: buildSectionsFromBoundaries(content, boundaries, true)
-      };
-    } catch {
-      return {
-        sections: buildSectionsFromBoundaries(content, [0], false),
-        warning: 'Split config regex is invalid. Reader is using a single section.'
-      };
-    }
-  }
-
-  return {
-    sections: buildSectionsFromBoundaries(content, [0], false)
-  };
-}
-
-export function buildLegacyReaderSections(content: string, splitConfig: SplitConfig): ReaderSection[] {
-  return buildReaderSectionsWithWarning(content, splitConfig).sections;
 }
 
 function findSectionIndexByOffset(sections: ReaderSection[], offset: number): number {
@@ -183,43 +42,13 @@ function findSectionIndexByOffset(sections: ReaderSection[], offset: number): nu
   return sections.length - 1;
 }
 
-function normalizeSplitConfigInput(config: SplitConfig): SplitConfig {
-  if (config.type === 'line_count') {
-    return {
-      type: 'line_count',
-      line_count: Math.trunc(config.line_count ?? 0)
-    };
-  }
-
-  if (config.type === 'regex') {
-    return {
-      type: 'regex',
-      regex: String(config.regex ?? '')
-    };
-  }
-
-  if (config.type === 'boundary') {
-    return {
-      type: 'boundary',
-      boundaries: (config.boundaries ?? [])
-        .filter((line) => Number.isFinite(line))
-        .map((line) => Math.trunc(line))
-    };
-  }
-
-  return { type: 'none' };
-}
-
 export function useReader(bookID: () => string) {
   const title = ref('');
   const bookFormat = ref('txt');
   // The source the reader is showing. Illustrations are stored per source, so
   // rendering one needs this alongside the book ID.
   const currentSourceId = ref('');
-  const isLegacySource = ref(true);
   const content = ref('');
-  const splitConfig = ref<SplitConfig>({ type: 'none' });
-  const splitWarning = ref('');
   const sections = ref<ReaderSection[]>([]);
   const currentSectionIndex = ref(0);
   const currentSection = computed<ReaderSection | null>(
@@ -317,7 +146,6 @@ export function useReader(bookID: () => string) {
     const generation = ++fetchGeneration;
     loading.value = true;
     error.value = '';
-    splitWarning.value = '';
     let restoredOffset: number | null = null;
 
     try {
@@ -358,36 +186,11 @@ export function useReader(bookID: () => string) {
       content.value = sourceContent;
 
       const sourceFormat = sourceMeta?.format === 'md' || sourceMeta?.format === 'txt' ? sourceMeta.format : undefined;
-      isLegacySource.value = sourceFormat === undefined;
       bookFormat.value = sourceFormat ?? (book.format === 'md' ? 'md' : 'txt');
 
-      if (!isLegacySource.value) {
-        splitConfig.value = { type: 'none' };
-        sections.value = bookFormat.value === 'md'
-          ? buildMarkdownH2Sections(content.value)
-          : buildSectionsFromBoundaries(content.value, [0], false);
-      } else {
-        const [loadedSplitConfig, globalDefaultSplitConfig] = await Promise.all([
-          provider.getBookSplitConfig(requestedBookID).catch((err: unknown) => {
-            const reason = err instanceof Error ? err.message : t('reader.errors.unknown');
-            splitWarning.value = t('reader.errors.splitConfigFallback', { reason });
-            return { type: 'none' } as SplitConfig;
-          }),
-          getDefaultSplitConfigSetting().catch(() => ({ type: 'none' }) as SplitConfig)
-        ]);
-        if (generation !== fetchGeneration) {
-          return;
-        }
-
-        splitConfig.value = loadedSplitConfig.type === 'none' && globalDefaultSplitConfig.type !== 'none'
-          ? globalDefaultSplitConfig
-          : loadedSplitConfig;
-        const built = buildReaderSectionsWithWarning(content.value, splitConfig.value);
-        sections.value = built.sections;
-        if (built.warning) {
-          splitWarning.value = splitWarning.value ? `${splitWarning.value} ${built.warning}` : built.warning;
-        }
-      }
+      sections.value = bookFormat.value === 'md'
+        ? buildMarkdownH2Sections(content.value)
+        : buildSingleSection(content.value);
 
       const normalized = normalizeProgress(currentProgress);
       const effectiveOffset = setProgressBaseline(requestedBookID, normalized.char_offset);
@@ -413,26 +216,6 @@ export function useReader(bookID: () => string) {
     if (generation === fetchGeneration && restoredOffset !== null) {
       await syncSectionAndScrollByOffset(restoredOffset);
     }
-  }
-
-  async function applySplitConfig(config: SplitConfig): Promise<void> {
-    if (!isLibraryEditingSupported() || !isLegacySource.value) {
-      return;
-    }
-
-    const normalizedInput = normalizeSplitConfigInput(config);
-    await bookshelfWriter().updateBookSplitConfig(bookID(), normalizedInput);
-
-    splitConfig.value = normalizedInput;
-    splitWarning.value = '';
-
-    const built = buildReaderSectionsWithWarning(content.value, splitConfig.value);
-    sections.value = built.sections;
-    if (built.warning) {
-      splitWarning.value = built.warning;
-    }
-
-    await syncSectionAndScrollByOffset(currentOffset.value);
   }
 
   function onScroll(): void {
@@ -480,10 +263,7 @@ export function useReader(bookID: () => string) {
     title,
     bookFormat,
     currentSourceId,
-    isLegacySource,
     content,
-    splitConfig,
-    splitWarning,
     sections,
     currentSectionIndex,
     currentSection,
@@ -498,7 +278,6 @@ export function useReader(bookID: () => string) {
     goNextSection,
     goToSection,
     syncCurrentScroll,
-    applySplitConfig,
     flushReadingProgress,
     startProgressAutosave,
     stopProgressAutosave

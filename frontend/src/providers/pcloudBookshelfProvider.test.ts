@@ -82,7 +82,6 @@ function bookPackage(spec: BookSpec): PCloudItem {
             comment: '',
             md5_hash: 'abc',
             char_count: spec.charCount ?? 42,
-            split_config: { type: 'line_count', line_count: 40 }
           })
         }),
         file({ name: 'source.txt', body: spec.content ?? 'book text' }),
@@ -520,12 +519,6 @@ describe('reading a book', () => {
     );
 
     await expect(provider.getBookContent('a')).resolves.toEqual({ content: 'chapter one' });
-  });
-
-  it('reads the split config from the current source meta', async () => {
-    const { provider } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
-
-    await expect(provider.getBookSplitConfig('a')).resolves.toEqual({ type: 'line_count', line_count: 40 });
   });
 
   it('lists sources and reads one by id', async () => {

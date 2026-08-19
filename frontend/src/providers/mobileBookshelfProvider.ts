@@ -5,7 +5,6 @@ import type {
   DownloadState,
   PaginatedBooks,
   ReadingProgress,
-  SplitConfig,
   TrashedBook
 } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
@@ -160,42 +159,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
     }
 
     throw new Error(OFFLINE_BOOK_CACHE_MISS_ERROR);
-  }
-
-  async getBookSplitConfig(bookId: string): Promise<SplitConfig> {
-    if (!this.isOnline()) {
-      const cached = await this.cache.getCachedBookSplitConfig(bookId);
-      if (cached) {
-        return cached;
-      }
-
-      // Manifests written before split_config was cached still represent a
-      // downloaded book. Return the reader's safe single-section fallback
-      // immediately instead of attempting a remote call while offline.
-      if ((await this.cache.getDownloadState(bookId)) === 'downloaded') {
-        return { type: 'none' };
-      }
-      throw new Error(OFFLINE_BOOK_CACHE_MISS_ERROR);
-    }
-
-    try {
-      return await this.remote.getBookSplitConfig(bookId);
-    } catch (err) {
-      if (!isServerUnreachableError(err)) {
-        throw err;
-      }
-      const cached = await this.cache.getCachedBookSplitConfig(bookId);
-      if (cached) {
-        return cached;
-      }
-      // A legacy downloaded manifest has no split_config. Preserve the same
-      // immediate compatibility fallback as the fully offline path instead of
-      // surfacing the retryable transport error after the remote times out.
-      if ((await this.cache.getDownloadState(bookId)) === 'downloaded') {
-        return { type: 'none' };
-      }
-      throw err;
-    }
   }
 
   // Delegated without an offline branch: the layer store surfaces a failure in
@@ -420,11 +383,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
       this.remote.listSources(bookId),
       this.remote.getBookContent(bookId)
     ]);
-    const currentSource = sources.find((source) => source.id === book.current_source);
-    const isLegacySource = currentSource?.format !== 'txt' && currentSource?.format !== 'md';
-    const splitConfig = isLegacySource
-      ? await this.remote.getBookSplitConfig(bookId)
-      : undefined;
     const sourceContents = await Promise.all(
       sources.map(async (source) => ({
         sourceId: source.id,
@@ -460,6 +418,7 @@ export class MobileBookshelfProvider implements BookshelfReader {
     // This runs before the manifest is written, so a failure leaves files under
     // a book directory carrying no manifest - an orphan this cache already
     // ignores - rather than a book listed as downloaded without its pictures.
+    const currentSource = sources.find((source) => source.id === book.current_source);
     const effectiveFormat = currentSource?.format ?? book.format ?? 'txt';
     const currentSourceContent = book.current_source
       ? sourceContents.filter(({ sourceId }) => sourceId === book.current_source)
@@ -484,7 +443,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
     await this.cache.saveDownloadedBook({
       book,
       sources,
-      split_config: splitConfig,
       downloaded_at: new Date().toISOString(),
       local_version: book.local_version,
       remote_version: book.remote_version,

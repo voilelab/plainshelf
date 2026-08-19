@@ -1,6 +1,5 @@
 <template>
   <div ref="contentRef" class="reader-content" tabindex="-1" @scroll="emit('scroll')">
-    <h3 v-if="showChapterTitle && section?.title" class="reader-chapter-title">{{ section.title }}</h3>
     <div class="reader-text">
       <template v-if="bookFormat === 'md'">
         <template v-if="markdownBlocks.length > 0">
@@ -41,15 +40,12 @@ import { renderMarkdownBlocks } from '@/features/reader/utils/renderMarkdownBloc
 import { parseReaderBlocks } from '@/features/reader/utils/parseReaderBlocks';
 import type { ReaderSection } from '@/types/book';
 
-const props = withDefaults(defineProps<{
+const props = defineProps<{
   bookId: string;
   sourceId: string;
   bookFormat: string;
   section: ReaderSection | null;
-  showChapterTitle?: boolean;
-}>(), {
-  showChapterTitle: true
-});
+}>();
 
 const emit = defineEmits<{
   scroll: [];

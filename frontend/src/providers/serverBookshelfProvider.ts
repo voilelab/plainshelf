@@ -8,7 +8,6 @@ import {
   getBookContent,
   getBookCover,
   getBookCoverUrl,
-  getBookSplitConfig,
   getDuplicateBookGroups,
   importBook,
   listBooks,
@@ -17,7 +16,6 @@ import {
   restoreTrashedBook,
   updateBook,
   updateBookLayer,
-  updateBookSplitConfig,
   uploadBookCover,
   uploadBookCoverBlob
 } from '@/api/books';
@@ -52,7 +50,6 @@ import type {
   BookUpdateRequest,
   PaginatedBooks,
   ReadingProgress,
-  SplitConfig,
   TrashedBook
 } from '@/types/book';
 import type { CreateSourceOptions, SourceMeta } from '@/types/source';
@@ -90,14 +87,6 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
 
   downloadBookContent(bookId: string): Promise<Blob> {
     return downloadBookContent(bookId);
-  }
-
-  getBookSplitConfig(bookId: string): Promise<SplitConfig> {
-    return getBookSplitConfig(bookId);
-  }
-
-  updateBookSplitConfig(bookId: string, config: SplitConfig): Promise<SplitConfig> {
-    return updateBookSplitConfig(bookId, config);
   }
 
   getReadProgress(bookId: string): Promise<ReadingProgress> {

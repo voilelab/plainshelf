@@ -28,9 +28,6 @@
         <TabsTrigger value="read-history" class="settings-tab-trigger">{{
           t('settings.readHistory.title')
         }}</TabsTrigger>
-        <TabsTrigger v-if="serverSettingsEditable" value="reader" class="settings-tab-trigger">{{
-          t('settings.reader.title')
-        }}</TabsTrigger>
         <TabsTrigger v-if="serverSettingsEditable" value="import" class="settings-tab-trigger">{{
           t('settings.import.title')
         }}</TabsTrigger>
@@ -47,21 +44,6 @@
           :value="readHistoryLimit"
           :disabled="loading || saving"
           @change="onReadHistoryLimitChange"
-        />
-      </TabsContent>
-
-      <TabsContent v-if="serverSettingsEditable" value="reader" class="settings-tab-content">
-        <ReaderSplitPanel
-          :type="defaultSplitType"
-          :line-count="defaultSplitLineCount"
-          :regex="defaultSplitRegex"
-          :error="splitConfigError"
-          :disabled="loading || saving"
-          :saving="saving"
-          @update:type="onDefaultSplitTypeChange"
-          @update:line-count="defaultSplitLineCount = $event"
-          @update:regex="defaultSplitRegex = $event"
-          @save="onSaveDefaultSplitConfig"
         />
       </TabsContent>
 
@@ -96,7 +78,6 @@ import AboutPanel from '@/features/settings/components/AboutPanel.vue';
 import CoverPanel from '@/features/settings/components/CoverPanel.vue';
 import EpubImportPanel from '@/features/settings/components/EpubImportPanel.vue';
 import ReadHistoryPanel from '@/features/settings/components/ReadHistoryPanel.vue';
-import ReaderSplitPanel from '@/features/settings/components/ReaderSplitPanel.vue';
 import ShelvesPanel from '@/features/settings/components/ShelvesPanel.vue';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useWriteAccess } from '@/composables/useWriteAccess';
@@ -115,18 +96,12 @@ const {
   error,
   coverToJpg,
   readHistoryLimit,
-  defaultSplitType,
-  defaultSplitLineCount,
-  defaultSplitRegex,
-  splitConfigError,
   epubPreset,
   epubIncludeDescription,
   epubImportError,
   loadSettings,
   onCoverToJpgChange,
   onReadHistoryLimitChange,
-  onDefaultSplitTypeChange,
-  onSaveDefaultSplitConfig,
   onEpubPresetChange,
   onSaveEpubImportStrategy
 } = useServerSettingsForm({ serverSettingsEditable });

@@ -1,6 +1,5 @@
 import { buildShelfApiPath, fetchBlob, fetchJson, fetchText, isMockApiMode } from './client';
 import type { CreateSourceOptions, SourceMeta } from '@/types/source';
-import { normalizeSplitConfig } from '@/utils/splitConfig';
 
 interface SourceStoreItem {
   meta: SourceMeta;
@@ -51,10 +50,6 @@ function normalizeSourceMeta(raw: unknown): SourceMeta {
 
   if (typeof record.char_count === 'number' && Number.isFinite(record.char_count)) {
     meta.char_count = Math.trunc(record.char_count);
-  }
-
-  if (record.split_config && typeof record.split_config === 'object') {
-    meta.split_config = normalizeSplitConfig(record.split_config);
   }
 
   return meta;
@@ -254,8 +249,7 @@ export async function refreshSourceMeta(bookId: string, sourceId: string): Promi
     }
     item.meta = {
       ...buildSourceMeta(item.meta.id, item.meta.created_at, item.content, item.meta.format === 'md' ? 'md' : 'txt'),
-      comment: item.meta.comment,
-      split_config: item.meta.split_config
+      comment: item.meta.comment
     };
     return { ...item.meta };
   }
@@ -277,8 +271,7 @@ export async function updateSourceContent(bookId: string, sourceId: string, cont
     item.content = content;
     item.meta = {
       ...buildSourceMeta(item.meta.id, item.meta.created_at, content, item.meta.format === 'md' ? 'md' : 'txt'),
-      comment: item.meta.comment,
-      split_config: item.meta.split_config
+      comment: item.meta.comment
     };
     return;
   }
