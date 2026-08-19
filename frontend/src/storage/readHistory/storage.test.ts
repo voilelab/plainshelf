@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// The storage backends themselves are covered by storage/deviceDocument.test.ts.
+// The backend itself is covered by shells/mobile/deviceDocumentStorage.test.ts.
 // What this file pins is the read-history wiring on top of them: the
 // app-private path, and that a failed read never lets a write through.
 
@@ -16,9 +16,14 @@ vi.mock('@capacitor/filesystem', () => ({
 }));
 
 const { ReadHistoryStore } = await import('./index');
-const { MOBILE_READ_HISTORY_PATH, createFilesystemReadHistoryStorage } = await import('./storage');
+const { MOBILE_READ_HISTORY_PATH } = await import('./storage');
+const { createMobileDeviceDocumentStorage } = await import('@/shells/mobile/deviceDocumentStorage');
 
-describe('createFilesystemReadHistoryStorage', () => {
+/** What the mobile shell builds for this document. */
+const createFilesystemReadHistoryStorage = () =>
+  createMobileDeviceDocumentStorage(MOBILE_READ_HISTORY_PATH);
+
+describe('read history on the mobile shell backend', () => {
   beforeEach(() => {
     readFileMock.mockReset();
     writeFileMock.mockReset().mockResolvedValue(undefined);

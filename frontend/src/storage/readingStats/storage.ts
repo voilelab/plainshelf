@@ -1,7 +1,6 @@
 import { readDesktopReadingStats, writeDesktopReadingStats } from '@/api/desktop';
 import {
   createDesktopDocumentStorage,
-  createFilesystemDocumentStorage,
   createInMemoryDocumentStorage,
   createLocalStorageDocumentStorage,
   type DeviceDocumentStorage
@@ -32,13 +31,6 @@ export function createDesktopReadingStatsStorage(): ReadingStatsStorage {
 // `plainshelf-cache/scopes`. One file for every shelf, keyed internally by the
 // same buildDeviceDocumentKey the cache uses for its scope directory.
 export const MOBILE_READING_STATS_PATH = 'plainshelf-cache/reading-stats.json';
-
-/** Capacitor (Android) native shell. */
-export function createFilesystemReadingStatsStorage(
-  path: string = MOBILE_READING_STATS_PATH
-): ReadingStatsStorage {
-  return createFilesystemDocumentStorage(path);
-}
 
 /** Mock API mode and unit tests. */
 export function createInMemoryReadingStatsStorage(

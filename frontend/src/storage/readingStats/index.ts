@@ -2,7 +2,8 @@ import { getActiveShelfID, getApiBase, isMockApiMode } from '@/api/client';
 import { hasDesktopReadingStatsBinding } from '@/api/desktop';
 // Imported from providers/runtime rather than the providers barrel: the barrel
 // pulls in the providers, which import this module.
-import { isMobileRuntime, isWailsRuntime } from '@/providers/runtime';
+import { isWailsRuntime } from '@/providers/runtime';
+import { getShell } from '@/providers/shell';
 import { buildDeviceDocumentKey, DeviceDocumentStore } from '@/storage/deviceDocument';
 import {
   createReadingStatsDocument,
@@ -16,8 +17,8 @@ import {
 } from './document';
 import { mockReadingSecondsForDate } from './mock';
 import {
+  MOBILE_READING_STATS_PATH,
   createDesktopReadingStatsStorage,
-  createFilesystemReadingStatsStorage,
   createInMemoryReadingStatsStorage,
   createLocalStorageReadingStatsStorage,
   type ReadingStatsStorage
@@ -90,8 +91,12 @@ export function createReadingStatsStorage(): ReadingStatsStorage {
     return createDesktopReadingStatsStorage();
   }
 
-  if (isMobileRuntime()) {
-    return createFilesystemReadingStatsStorage();
+  // A shell that keeps documents somewhere other than the browser says so;
+  // the mobile one writes to app-private storage, which an Android WebView
+  // does not silently evict the way it may evict localStorage.
+  const fromShell = getShell()?.createDeviceDocumentStorage?.(MOBILE_READING_STATS_PATH);
+  if (fromShell) {
+    return fromShell;
   }
 
   return createLocalStorageReadingStatsStorage();

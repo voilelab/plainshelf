@@ -1,10 +1,3 @@
-import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
-
-// Shared with the mobile book cache: both persist through the same Capacitor
-// plugin, so both have to recognise the same "file is not there" errors from it
-// and from its web fallback.
-import { isMissingError } from '@/providers/mobileCacheFs';
-
 /**
  * Where a client keeps a device-local document (reading history, reading
  * stats). Deliberately format-blind: parsing, merging and trimming live in each
@@ -53,49 +46,6 @@ export function createDesktopDocumentStorage(bindings: {
     },
     async save(text: string): Promise<void> {
       await bindings.write(text);
-    }
-  };
-}
-
-/**
- * Capacitor (Android) native shell. Directory.Data is app-private internal
- * storage, needs no runtime permission, and — unlike IndexedDB or localStorage
- * in an Android WebView — is not subject to silent storage eviction.
- */
-export function createFilesystemDocumentStorage(path: string): DeviceDocumentStorage {
-  return {
-    async load(): Promise<string | null> {
-      let result;
-      try {
-        result = await Filesystem.readFile({
-          path,
-          directory: Directory.Data,
-          encoding: Encoding.UTF8
-        });
-      } catch (error) {
-        // Only a missing file — the normal state on a fresh install — means
-        // "nothing stored yet". Any other read failure must propagate:
-        // reporting it as null would let the next write replace an unread
-        // document and wipe every shelf's data after a transient error.
-        if (isMissingError(error)) {
-          return null;
-        }
-        throw error;
-      }
-
-      if (typeof result.data !== 'string') {
-        throw new Error(`Unexpected contents in ${path}`);
-      }
-      return result.data;
-    },
-    async save(text: string): Promise<void> {
-      await Filesystem.writeFile({
-        path,
-        data: text,
-        directory: Directory.Data,
-        encoding: Encoding.UTF8,
-        recursive: true
-      });
     }
   };
 }
