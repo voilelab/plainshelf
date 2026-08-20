@@ -39,6 +39,16 @@ describe('toPlainSummary', () => {
     expect(toPlainSummary('<style>p { color: red }</style><p>簡介</p><script>alert(1)</script>')).toBe('簡介');
   });
 
+  // A summary that read a subtree the sanitizer deletes would report words the
+  // detail page never shows, and would make an empty block look worth a row.
+  it('reads nothing out of a subtree the sanitizer deletes whole', () => {
+    for (const source of ['<svg><text>Hello</text></svg>', '<math><mi>x</mi></math>']) {
+      expect(toPlainSummary(source), source).toBe('');
+      expect(sanitizeHtml(renderDescriptionHtml(source), 'summary').replace(/<[^>]+>|\s/g, ''), source)
+        .toBe('');
+    }
+  });
+
   it('reports a description that amounts to no words as empty', () => {
     expect(toPlainSummary('<br>')).toBe('');
     expect(toPlainSummary('<p> </p><div></div>')).toBe('');

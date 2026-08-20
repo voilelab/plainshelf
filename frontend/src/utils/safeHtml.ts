@@ -45,8 +45,26 @@ const SEPARATING_ELEMENTS = new Set([
   'TH', 'THEAD', 'TR', 'UL'
 ]);
 
-/** Elements whose text is markup rather than prose, and never part of a summary. */
-const NON_PROSE_ELEMENTS = new Set(['IFRAME', 'NOSCRIPT', 'OBJECT', 'SCRIPT', 'STYLE', 'TEMPLATE']);
+/**
+ * Elements holding markup or a document of their own rather than prose. The
+ * sanitizer drops these subtrees whole, contents included, so a summary that
+ * read them would report words no rendered description can ever show - and a
+ * detail page would label a row whose sanitized body is empty. One list serves
+ * both readings for that reason; they cannot be allowed to disagree.
+ */
+const NON_PROSE_ELEMENTS = [
+  'embed',
+  'iframe',
+  'math',
+  'noscript',
+  'object',
+  'script',
+  'style',
+  'svg',
+  'template'
+];
+
+const NON_PROSE_TAG_NAMES = new Set(NON_PROSE_ELEMENTS.map((name) => name.toUpperCase()));
 
 function collectText(node: Node, parts: string[]): void {
   for (const child of Array.from(node.childNodes)) {
@@ -59,7 +77,9 @@ function collectText(node: Node, parts: string[]): void {
     }
 
     const element = child as Element;
-    if (NON_PROSE_ELEMENTS.has(element.tagName)) {
+    // `tagName` is uppercased for HTML elements only: an `<svg>` or a `<math>`
+    // belongs to another namespace and reports the case it was written in.
+    if (NON_PROSE_TAG_NAMES.has(element.tagName.toUpperCase())) {
       continue;
     }
 
@@ -266,16 +286,6 @@ export function sanitizeHtml(html: string, profile: SafeHtmlProfile): string {
     ALLOW_DATA_ATTR: false,
     ALLOW_UNKNOWN_PROTOCOLS: false,
     KEEP_CONTENT: true,
-    FORBID_CONTENTS: [
-      'script',
-      'style',
-      'template',
-      'noscript',
-      'iframe',
-      'object',
-      'embed',
-      'svg',
-      'math'
-    ]
+    FORBID_CONTENTS: NON_PROSE_ELEMENTS
   });
 }

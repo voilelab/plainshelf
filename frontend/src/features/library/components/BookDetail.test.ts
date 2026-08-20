@@ -105,7 +105,7 @@ describe('BookDetail notes', () => {
   });
 
   it('leaves out a description that amounts to no words', () => {
-    for (const comment of ['', '   ', '<br>', '<p> </p><div></div>', '<img src="x">']) {
+    for (const comment of ['', '   ', '<br>', '<p> </p><div></div>', '<img src="x">', '<svg><text>Hello</text></svg>']) {
       const host = mount({ book: book(comment) });
       expect(host.querySelector('.detail-card-notes'), comment).toBeNull();
       mounted?.app.unmount();
