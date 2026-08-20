@@ -1,6 +1,7 @@
 package contract_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -142,6 +143,41 @@ func TestAPIGetBooksCharCountFollowsSourceWritesContract(t *testing.T) {
 	assertStatus(t, env.post(sourceURL(bookID, currentSourceOf(t, env, bookID), "refresh"), nil), http.StatusOK)
 	if got := charCountByBookID(t, env)[bookID]; got != wantRewritten {
 		t.Fatalf("char_count after the refresh route = %d, want %d", got, wantRewritten)
+	}
+}
+
+// A description is Markdown, and for an EPUB import it is the HTML the OPF
+// carried over. The detail page sanitizes it at the moment it renders it, which
+// is the only place that may: the shelf keeps the source text, so book.json
+// stays a file its owner can edit by hand and read back unchanged, and nothing
+// on disk drifts from the EPUB it came from.
+func TestAPIBookCommentIsStoredVerbatimContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Described", "", "described.txt", "body")
+
+	const description = "<p>第一段</p>\n\n**粗體** 與 <script>alert(1)</script>\n\n- 項目"
+	body, err := json.Marshal(map[string]string{"comment": description})
+	if err != nil {
+		t.Fatalf("marshal patch body: %v", err)
+	}
+
+	if updated := patchBookOK(t, env, created.Meta.ID, string(body)); updated.Meta.Comments != description {
+		t.Fatalf("PATCH answered comment %q, want %q", updated.Meta.Comments, description)
+	}
+	if fetched := getJSON[server.Book](t, env, bookURL(created.Meta.ID)); fetched.Meta.Comments != description {
+		t.Fatalf("GET answered comment %q, want %q", fetched.Meta.Comments, description)
+	}
+
+	raw, err := os.ReadFile(env.bookMetaPath(t, created.Meta.ID))
+	if err != nil {
+		t.Fatalf("read book.json: %v", err)
+	}
+	var meta shelf.BookMeta
+	if err := json.Unmarshal(raw, &meta); err != nil {
+		t.Fatalf("unmarshal book.json: %v", err)
+	}
+	if meta.Comments != description {
+		t.Fatalf("book.json holds comment %q, want %q", meta.Comments, description)
 	}
 }
 

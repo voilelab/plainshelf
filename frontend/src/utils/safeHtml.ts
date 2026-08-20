@@ -3,12 +3,12 @@
  *
  * A book's description is a mix of hand-written Markdown and whatever HTML an
  * EPUB import carried over, and the reader renders whole chapters of the same
- * kind of text, so no view may interpolate either as it stands. Two outputs
- * come out of here: `toPlainSummary` for the places that want words — the card
- * and the list summaries print `<p>` at the reader today, and a `<ul>` or an
- * `<h1>` resizes a card the grid needs to keep at one height — and
- * `sanitizeHtml` for the places that render the markup, with `SafeHtml.vue` as
- * the only permitted `v-html` sink.
+ * kind of text, so no view may interpolate either as it stands. Two kinds of
+ * output come out of here: `toPlainSummary` for the places that want words —
+ * the card and the list summaries print `<p>` at the reader today, and a `<ul>`
+ * or an `<h1>` resizes a card the grid needs to keep at one height — and, for
+ * the places that render the markup, `renderDescriptionHtml` followed by
+ * `sanitizeHtml`, with `SafeHtml.vue` as the only permitted `v-html` sink.
  *
  * Every caller that needs the description as words goes through this module,
  * which is what keeps a summary and the description itself reading the same
@@ -22,6 +22,9 @@ import MarkdownIt from 'markdown-it';
  * a line break. Links stay enabled, unlike in the reader, which refuses to
  * render a navigable anchor - here only the link text survives anyway, and
  * leaving the rule off would spell it out as `[text](target)`.
+ *
+ * One instance serves both outputs, so the words a card reports and the markup
+ * a detail page renders are the same parse of the same source.
  */
 const markdown = new MarkdownIt({
   html: true,
@@ -42,8 +45,26 @@ const SEPARATING_ELEMENTS = new Set([
   'TH', 'THEAD', 'TR', 'UL'
 ]);
 
-/** Elements whose text is markup rather than prose, and never part of a summary. */
-const NON_PROSE_ELEMENTS = new Set(['IFRAME', 'NOSCRIPT', 'OBJECT', 'SCRIPT', 'STYLE', 'TEMPLATE']);
+/**
+ * Elements holding markup or a document of their own rather than prose. The
+ * sanitizer drops these subtrees whole, contents included, so a summary that
+ * read them would report words no rendered description can ever show - and a
+ * detail page would label a row whose sanitized body is empty. One list serves
+ * both readings for that reason; they cannot be allowed to disagree.
+ */
+const NON_PROSE_ELEMENTS = [
+  'embed',
+  'iframe',
+  'math',
+  'noscript',
+  'object',
+  'script',
+  'style',
+  'svg',
+  'template'
+];
+
+const NON_PROSE_TAG_NAMES = new Set(NON_PROSE_ELEMENTS.map((name) => name.toUpperCase()));
 
 function collectText(node: Node, parts: string[]): void {
   for (const child of Array.from(node.childNodes)) {
@@ -56,7 +77,9 @@ function collectText(node: Node, parts: string[]): void {
     }
 
     const element = child as Element;
-    if (NON_PROSE_ELEMENTS.has(element.tagName)) {
+    // `tagName` is uppercased for HTML elements only: an `<svg>` or a `<math>`
+    // belongs to another namespace and reports the case it was written in.
+    if (NON_PROSE_TAG_NAMES.has(element.tagName.toUpperCase())) {
       continue;
     }
 
@@ -95,6 +118,25 @@ export function toPlainSummary(source: string | null | undefined): string {
   const parts: string[] = [];
   collectText(document.body, parts);
   return parts.join('').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Renders a description as the markup it describes, for `SafeHtml` to sanitize
+ * with the `summary` profile. The return value is renderer output and nothing
+ * more: the dialect above keeps raw HTML by design, so whatever an EPUB import
+ * carried over is still in it, and no view may put it on screen unsanitized.
+ *
+ * A link and an image are left to the profile rather than disabled here. The
+ * profile allows neither tag and keeps their contents, so a link arrives as its
+ * text - the same words `toPlainSummary` would report - while an image, which
+ * has no text, arrives as nothing.
+ */
+export function renderDescriptionHtml(source: string | null | undefined): string {
+  if (!source || !source.trim()) {
+    return '';
+  }
+
+  return markdown.render(source);
 }
 
 export type SafeHtmlProfile = 'reader' | 'summary';
@@ -244,16 +286,6 @@ export function sanitizeHtml(html: string, profile: SafeHtmlProfile): string {
     ALLOW_DATA_ATTR: false,
     ALLOW_UNKNOWN_PROTOCOLS: false,
     KEEP_CONTENT: true,
-    FORBID_CONTENTS: [
-      'script',
-      'style',
-      'template',
-      'noscript',
-      'iframe',
-      'object',
-      'embed',
-      'svg',
-      'math'
-    ]
+    FORBID_CONTENTS: NON_PROSE_ELEMENTS
   });
 }
