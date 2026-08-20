@@ -1,10 +1,22 @@
-/** The chapter the editor is focused on, in whole-document coordinates. */
+/**
+ * The chapter the editor is focused on.
+ *
+ * Every offset in this file is an index into the source text itself — the same
+ * UTF-16 coordinates `content` and the Markdown chapter model use, where a CRLF
+ * is two characters. The editor works in document positions internally, where a
+ * line break is one position however it was written, and converts at its own
+ * boundary so that no caller has to hold both systems.
+ */
 export interface SourceEditorViewRange {
   startOffset: number;
   endOffset: number;
 }
 
-/** A document snapshot published by the editor, with the caret it left behind. */
+/**
+ * A document snapshot published by the editor, with the caret it left behind.
+ *
+ * The caret is an offset into `value`, per the coordinates described above.
+ */
 export interface SourceDocumentEdit {
   value: string;
   selectionStart: number;
