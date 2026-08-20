@@ -56,7 +56,10 @@
         <dl class="detail-definition-list">
           <div v-for="row in noteRows" :key="row.label" class="detail-definition-row note-row">
             <dt>{{ row.label }}</dt>
-            <dd>{{ row.value }}</dd>
+            <dd v-if="row.render === 'html'">
+              <SafeHtml class="note-description" :html="row.html" profile="summary" />
+            </dd>
+            <dd v-else>{{ row.value }}</dd>
           </div>
         </dl>
       </section>
@@ -69,10 +72,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import LayerBreadcrumb from './LayerBreadcrumb.vue';
+import SafeHtml from '@/components/SafeHtml.vue';
 import type { Book, ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import { formatLanguage } from '@/utils/language';
 import { formatDateLabel } from '@/utils/date';
+import { renderDescriptionHtml, toPlainSummary } from '@/utils/safeHtml';
 import { useI18n } from '@/i18n';
 
 const props = defineProps<{
@@ -88,6 +93,16 @@ interface DetailRow {
   value: string;
   className?: string;
 }
+
+/**
+ * The two notes rows differ in kind, not in label. A description is written by
+ * a person in Markdown, or arrives from an EPUB import as the HTML the OPF
+ * carried, and is rendered; an import note is prose this app generated to say
+ * what the conversion could not keep, and stays the literal text it is.
+ */
+type NoteRow =
+  | { label: string; render: 'text'; value: string }
+  | { label: string; render: 'html'; html: string };
 
 function formatList(values: string[]): string {
   return values.join(', ');
@@ -140,16 +155,23 @@ const contentRows = computed<DetailRow[]>(() => {
   return rows;
 });
 
-const noteRows = computed<DetailRow[]>(() => {
-  const rows: DetailRow[] = [];
-  const comment = props.book.comment?.trim();
+const noteRows = computed<NoteRow[]>(() => {
+  const rows: NoteRow[] = [];
+  const description = props.book.comment ?? '';
   const importNotes = props.currentSource?.comment?.trim();
 
-  if (comment) {
-    rows.push({ label: t('bookDetail.fields.comment'), value: comment });
+  // A description earns a row when it amounts to words. Markup with no text in
+  // it - `<br>`, an empty `<p>`, an image on its own - survives sanitizing as
+  // an empty block, which is a labelled row with nothing under it.
+  if (toPlainSummary(description)) {
+    rows.push({
+      label: t('bookDetail.fields.comment'),
+      render: 'html',
+      html: renderDescriptionHtml(description)
+    });
   }
   if (importNotes) {
-    rows.push({ label: t('bookDetail.fields.importNotes'), value: importNotes });
+    rows.push({ label: t('bookDetail.fields.importNotes'), render: 'text', value: importNotes });
   }
   return rows;
 });
@@ -326,6 +348,84 @@ const hasDetailSections = computed(() =>
 
 .note-row dd {
   white-space: pre-wrap;
+}
+
+/* The description is markup, so the newlines between its block tags belong to
+   the renderer rather than to the text, and must not be preserved. */
+.note-description {
+  white-space: normal;
+}
+
+/* v-html descendants never receive the scoped-style attribute, so every
+   selector crossing the safe HTML boundary is explicit, as in the reader. */
+.note-description :deep(p),
+.note-description :deep(ul),
+.note-description :deep(ol),
+.note-description :deep(dl),
+.note-description :deep(pre),
+.note-description :deep(blockquote) {
+  margin: 0 0 8px;
+}
+
+.note-description :deep(h1),
+.note-description :deep(h2),
+.note-description :deep(h3),
+.note-description :deep(h4),
+.note-description :deep(h5),
+.note-description :deep(h6) {
+  color: #283544;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 12px 0 6px;
+}
+
+.note-description :deep(ul),
+.note-description :deep(ol) {
+  padding-left: 1.4em;
+}
+
+.note-description :deep(li) {
+  margin: 0 0 2px;
+}
+
+.note-description :deep(blockquote) {
+  border-left: 3px solid #ddd8cd;
+  color: #556273;
+  padding: 2px 0 2px 10px;
+}
+
+.note-description :deep(pre) {
+  background: rgba(63, 53, 41, 0.06);
+  border-radius: 8px;
+  overflow-x: auto;
+  padding: 9px 11px;
+  white-space: pre;
+}
+
+.note-description :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.note-description :deep(pre code) {
+  font-size: inherit;
+}
+
+.note-description :deep(hr) {
+  border: none;
+  border-top: 1px solid #e5e1d9;
+  margin: 10px 0;
+}
+
+/* dd opens no block-formatting context of its own here, so a margin on the
+   first or last block escapes it and widens the row's own gap instead. */
+.note-description :deep(> :first-child) {
+  margin-top: 0;
+}
+
+.note-description :deep(> :last-child) {
+  margin-bottom: 0;
 }
 
 .detail-empty {
