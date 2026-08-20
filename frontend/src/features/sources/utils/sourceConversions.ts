@@ -2,7 +2,7 @@ import {
   parseMarkdownHeadingLine,
   updateMarkdownFenceState,
   type MarkdownFenceState
-} from '@/features/reader/utils/markdownLineSyntax';
+} from '@/utils/markdownLineSyntax';
 
 function stripInlineMarkdown(value: string): string {
   return value

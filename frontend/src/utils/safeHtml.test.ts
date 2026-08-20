@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 
 import { describe, expect, it } from 'vitest';
-import { sanitizeReaderColorStyle, sanitizeReaderHtml } from './sanitizeReaderHtml';
+import { sanitizeColorStyle, sanitizeHtml, toPlainSummary } from './safeHtml';
 
-describe('sanitizeReaderColorStyle', () => {
+/** Every case below the color block is the reader profile unless it says otherwise. */
+const sanitizeReaderHtml = (html: string): string => sanitizeHtml(html, 'reader');
+
+describe('sanitizeColorStyle', () => {
   it('keeps only the last valid color declaration', () => {
-    expect(sanitizeReaderColorStyle('position: fixed; color: purple; color: rgb(0, 0, 255)'))
+    expect(sanitizeColorStyle('position: fixed; color: purple; color: rgb(0, 0, 255)'))
       .toBe('color: rgb(0, 0, 255)');
   });
 
@@ -17,7 +20,7 @@ describe('sanitizeReaderColorStyle', () => {
       'color: red !important',
       'background: red'
     ]) {
-      expect(sanitizeReaderColorStyle(value), value).toBe('');
+      expect(sanitizeColorStyle(value), value).toBe('');
     }
   });
 
@@ -32,29 +35,29 @@ describe('sanitizeReaderColorStyle', () => {
       'color: expression (alert(1))',
       'color: color(display-p3 var (--secret) 0 0)'
     ]) {
-      expect(sanitizeReaderColorStyle(value), value).toBe('');
+      expect(sanitizeColorStyle(value), value).toBe('');
     }
   });
 
   // The regex guards a style attribute, so over-blocking would silently strip
   // an author's colors; these spellings all have to survive it.
   it('keeps every spelling of a plain color the CSS parser understands', () => {
-    expect(sanitizeReaderColorStyle('color: RED')).toBe('color: red');
-    expect(sanitizeReaderColorStyle('color: #abc')).toBe('color: rgb(170, 187, 204)');
-    expect(sanitizeReaderColorStyle('color: rgb(1, 2, 3)')).toBe('color: rgb(1, 2, 3)');
-    expect(sanitizeReaderColorStyle('color: rgba(1, 2, 3, 0.5)')).toBe('color: rgba(1, 2, 3, 0.5)');
-    expect(sanitizeReaderColorStyle('COLOR: purple')).toBe('color: purple');
+    expect(sanitizeColorStyle('color: RED')).toBe('color: red');
+    expect(sanitizeColorStyle('color: #abc')).toBe('color: rgb(170, 187, 204)');
+    expect(sanitizeColorStyle('color: rgb(1, 2, 3)')).toBe('color: rgb(1, 2, 3)');
+    expect(sanitizeColorStyle('color: rgba(1, 2, 3, 0.5)')).toBe('color: rgba(1, 2, 3, 0.5)');
+    expect(sanitizeColorStyle('COLOR: purple')).toBe('color: purple');
   });
 
   // A later unparseable value must not take the earlier one down with it,
   // otherwise one typo further along the attribute silently drops the color.
   it('keeps the last color the parser accepted, not the last one written', () => {
-    expect(sanitizeReaderColorStyle('color: purple; color: bogus')).toBe('color: purple');
-    expect(sanitizeReaderColorStyle('color: purple; color: var(--secret)')).toBe('color: purple');
+    expect(sanitizeColorStyle('color: purple; color: bogus')).toBe('color: purple');
+    expect(sanitizeColorStyle('color: purple; color: var(--secret)')).toBe('color: purple');
   });
 });
 
-describe('sanitizeReaderHtml', () => {
+describe('sanitizeHtml, reader profile', () => {
   it('keeps reading markup, details state, tables, and safe colors', () => {
     const clean = sanitizeReaderHtml([
       '<details open><summary>Info</summary><p style="color: purple; position: fixed">Body</p></details>',
@@ -197,5 +200,67 @@ describe('sanitizeReaderHtml', () => {
     expect(clean).toContain('</summary></details>');
     expect(clean).not.toContain('script');
     expect(clean).not.toContain('alert(1)');
+  });
+});
+
+describe('sanitizeHtml, summary profile', () => {
+  it('drops disclosure widgets and tables but keeps their text', () => {
+    expect(sanitizeHtml('<details><summary>Title</summary><p>Body</p></details>', 'summary'))
+      .toBe('Title<p>Body</p>');
+    expect(sanitizeHtml('<table><caption>C</caption><tr><td>D</td></tr></table>', 'summary'))
+      .toBe('CD');
+  });
+
+  it('keeps the prose elements a summary is written in', () => {
+    expect(sanitizeHtml('<p>Text <strong>bold</strong> <em>italic</em></p>', 'summary'))
+      .toBe('<p>Text <strong>bold</strong> <em>italic</em></p>');
+    expect(sanitizeHtml('<ol start="3"><li>x</li></ol>', 'summary'))
+      .toBe('<ol start="3"><li>x</li></ol>');
+  });
+
+  it('keeps color-only styles and still refuses everything else', () => {
+    expect(sanitizeHtml('<span style="position: fixed; color: red">T</span>', 'summary'))
+      .toBe('<span style="color: red">T</span>');
+    expect(sanitizeHtml('<p onclick="alert(1)">T</p>', 'summary')).toBe('<p>T</p>');
+    expect(sanitizeHtml('<script>alert(1)</script>', 'summary')).toBe('');
+  });
+
+  // The class allowlist used to be a module-level DOMPurify hook shared by every
+  // caller. Interleaving the profiles is what a single hook would get wrong.
+  it('does not leak its class allowlist into the reader profile, in either order', () => {
+    const markup = '<h2 class="reader-md-h2">Heading</h2>';
+    const results = [
+      sanitizeHtml(markup, 'summary'),
+      sanitizeHtml(markup, 'reader'),
+      sanitizeHtml(markup, 'summary'),
+      sanitizeHtml(markup, 'reader')
+    ];
+    expect(results).toEqual([
+      '<h2>Heading</h2>',
+      '<h2 class="reader-md-h2">Heading</h2>',
+      '<h2>Heading</h2>',
+      '<h2 class="reader-md-h2">Heading</h2>'
+    ]);
+  });
+
+  it('drops the reader asset slot rather than leaving an empty element', () => {
+    expect(sanitizeHtml('<span class="reader-asset-slot" title="tok"></span>', 'summary'))
+      .toBe('<span title="tok"></span>');
+  });
+});
+
+describe('toPlainSummary', () => {
+  it('renders Markdown and returns one line of text', () => {
+    expect(toPlainSummary('## Title\n\nFirst *line*.\n\nSecond line.'))
+      .toBe('Title First line. Second line.');
+  });
+
+  it('flattens lists, code and quotes into their text', () => {
+    expect(toPlainSummary('- one\n- two\n\n> quoted\n\n`code`')).toBe('one two quoted code');
+  });
+
+  it('returns nothing for blank input and keeps markup out of the result', () => {
+    expect(toPlainSummary('   \n  ')).toBe('');
+    expect(toPlainSummary('<img src=x onerror=alert(1)>text')).toBe('text');
   });
 });

@@ -60,7 +60,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
-import { scanMarkdownH2Headings } from '@/features/reader/utils/markdownChapters';
+import { scanMarkdownH2Headings } from '@/utils/markdownChapters';
 import {
   markdownToPlainText,
   textToMarkdownByLineCount,

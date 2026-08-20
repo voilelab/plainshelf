@@ -69,9 +69,9 @@ token injected into the served frontend.
 Run the narrowest relevant check while iterating, then run the full check for
 every area changed before opening a pull request.
 
-[Mutation testing](mutation-testing.md) is available for
-`frontend/src/features/reader/utils/` as an on-demand check of how much the unit
-tests actually verify. It is not part of the checks above.
+[Mutation testing](mutation-testing.md) is available for the reader's helpers and
+the shared Markdown modules as an on-demand check of how much the unit tests
+actually verify. It is not part of the checks above.
 
 ## Versioning
 

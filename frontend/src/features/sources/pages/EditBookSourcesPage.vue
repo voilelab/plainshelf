@@ -188,7 +188,7 @@ import {
   buildMarkdownEditorSections,
   findMarkdownEditorSection,
   type MarkdownEditorSection
-} from '@/features/reader/utils/markdownChapters';
+} from '@/utils/markdownChapters';
 import ChapterOutline from '@/features/sources/components/ChapterOutline.vue';
 import SourceConversionModal, {
   type SourceConversionKind

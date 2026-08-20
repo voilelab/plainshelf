@@ -15,7 +15,7 @@ export type ReaderMarkdownAsset = MarkdownAssetImage & {
 
 export type ReaderMarkdownHtmlBlock = {
   type: 'html';
-  /** Unsanitized renderer output. ReaderSafeHtml is the only permitted sink. */
+  /** Unsanitized renderer output. SafeHtml is the only permitted sink. */
   html: string;
   images: ReaderMarkdownAsset[];
 };
@@ -180,7 +180,7 @@ function removePlotMarkers(source: string): string {
 /**
  * Produces reader blocks while keeping local illustrations as Vue components.
  * All other Markdown, including raw HTML, remains an untrusted HTML string and
- * must pass through ReaderSafeHtml before it reaches the DOM.
+ * must pass through SafeHtml before it reaches the DOM.
  */
 export function renderMarkdownBlocks(source: string): ReaderMarkdownBlock[] {
   if (!source.trim()) return [];
@@ -197,4 +197,15 @@ export function renderMarkdownBlocks(source: string): ReaderMarkdownBlock[] {
   const env: ReaderMarkdownEnvironment = { assetTokenPrefix, images };
   const block = renderHtmlBlock(removePlotMarkers(rewritten.text), env);
   return block ? [block] : [];
+}
+
+/**
+ * Renders Markdown that carries no local illustrations, for callers outside the
+ * reader's asset pipeline. Same renderer, so a passage reads the same wherever
+ * it appears; the profile the output is sanitized with decides what survives.
+ */
+export function renderMarkdownHtml(source: string): string {
+  if (!source.trim()) return '';
+  const env: ReaderMarkdownEnvironment = { assetTokenPrefix: '', images: [] };
+  return markdown.render(removePlotMarkers(source), env);
 }
