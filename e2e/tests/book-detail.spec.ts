@@ -153,6 +153,21 @@ test('moves the book to another folder from the More menu', async ({ page }) => 
 
     const moveDialog = page.getByRole('dialog', { name: 'Move book' });
     await moveDialog.getByLabel('Destination').selectOption('moved-here');
+
+    // A failed move has to report inside the dialog: the overlay hides the
+    // page's own error banner. The dialog stays open with the destination
+    // still picked, so retrying is one more click.
+    await page.route('**/books/*', async (route) => {
+      if (route.request().method() !== 'PATCH') {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({ status: 500, contentType: 'text/plain', body: 'move failed' });
+    });
+    await moveDialog.getByRole('button', { name: 'Move 1 book', exact: true }).click();
+    await expect(moveDialog.getByRole('alert')).toHaveText('move failed');
+    await page.unroute('**/books/*');
+
     await moveDialog.getByRole('button', { name: 'Move 1 book', exact: true }).click();
     await expect(moveDialog).not.toBeVisible();
 

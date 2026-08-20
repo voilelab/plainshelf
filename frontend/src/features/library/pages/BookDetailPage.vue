@@ -8,6 +8,7 @@
         :title="t('bookDetail.move.title')"
         :options="moveLayerOptions"
         :busy="moving"
+        :error="actionError"
         @cancel="cancelMove"
         @submit="submitMove"
       />

@@ -10,6 +10,7 @@
           <option v-for="option in options" :key="option" :value="option">{{ option }}</option>
         </select>
       </label>
+      <p v-if="error" class="move-books-error" role="alert">{{ error }}</p>
       <footer>
         <button type="button" class="button" :disabled="busy" @click="emit('cancel')">{{ t('common.cancel') }}</button>
         <button type="button" class="button primary" :disabled="busy || !target" @click="submit">
@@ -26,8 +27,17 @@ import BaseDialog from '@/components/BaseDialog.vue';
 import { useI18n } from '@/i18n';
 
 // `title` lets a single-book caller name what it is moving; batch callers omit
-// it and keep the selection wording.
-const props = defineProps<{ open: boolean; count: number; options: string[]; busy?: boolean; title?: string }>();
+// it and keep the selection wording. `error` belongs in here rather than on the
+// page behind it: the dialog stays open after a failed move, and the overlay
+// hides — and takes out of the accessibility tree — anything outside it.
+const props = defineProps<{
+  open: boolean;
+  count: number;
+  options: string[];
+  busy?: boolean;
+  title?: string;
+  error?: string;
+}>();
 const emit = defineEmits<{ cancel: []; submit: [targetLayer: string] }>();
 const { t } = useI18n();
 const target = ref('');
@@ -48,4 +58,5 @@ function submit(): void { if (target.value) emit('submit', target.value === '/' 
 .move-books-modal h2 { margin: 0; }
 .move-books-modal label { display: grid; gap: 6px; }
 .move-books-modal footer { display: flex; gap: 8px; justify-content: flex-end; }
+.move-books-error { color: #991b1b; font-size: 13px; margin: 0; }
 </style>

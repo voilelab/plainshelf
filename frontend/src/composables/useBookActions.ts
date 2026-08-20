@@ -120,6 +120,9 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
 
   function requestMove(book: Book): void {
     moveTarget.value = book;
+    // The move dialog shows actionError itself, so it must not open carrying
+    // the message some earlier action left behind.
+    actionError.value = '';
     // The sidebar normally fills the layer store on load, but the detail page
     // can be opened directly by URL, and mobile has no sidebar at all.
     if (!layersLoaded.value) {
