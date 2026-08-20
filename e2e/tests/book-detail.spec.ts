@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { startServer } from './support/server';
-import { importHelloBook } from './support/books';
+import { chaptersMarkdownFixturePath, importBookFromPath, importHelloBook } from './support/books';
 import { addLayer, layersQueryRegex, selectAllBooks } from './support/layers';
 
 async function openHelloDetail(page: import('@playwright/test').Page, baseUrl: string): Promise<void> {
@@ -179,6 +179,49 @@ test('moves the book to another folder from the More menu', async ({ page }) => 
     await expect(
       page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true })
     ).toBeVisible();
+  } finally {
+    await server.dispose();
+  }
+});
+
+test('opens the reader at a chapter picked from the detail page', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importBookFromPath(page, chaptersMarkdownFixturePath);
+    await page.locator('.book-list-row').getByRole('heading', { name: 'chapters', exact: true }).click();
+    await expect(page).toHaveURL(/\/books\/[^/?]+$/);
+
+    // The list is a deep link into the reader, so it has to show the reader's
+    // own sections: the opening ahead of the first H2 included, in that order.
+    const chapterCard = page.locator('.detail-card-chapters');
+    await expect(chapterCard.locator('.chapter-item-title')).toHaveText([
+      'Chapter Sampler',
+      'First Light',
+      'Second Wind',
+      'Third Rail'
+    ]);
+
+    await chapterCard.getByRole('button', { name: 'Second Wind' }).click();
+    await expect(page).toHaveURL(/\/reader\/[^/?]+\?section=2$/);
+    await expect(page.locator('.reader-text')).toContainText('Text of the second chapter.');
+
+    await page.getByRole('button', { name: 'Show chapters' }).click();
+    await expect(page.locator('.chapter-modal-item.active')).toContainText('Second Wind');
+  } finally {
+    await server.dispose();
+  }
+});
+
+test('shows no chapter card for a plain text book', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await openHelloDetail(page, server.baseUrl);
+
+    await expect(page.getByRole('button', { name: 'Start reading' })).toBeVisible();
+    await expect(page.locator('.detail-card-chapters')).toHaveCount(0);
   } finally {
     await server.dispose();
   }

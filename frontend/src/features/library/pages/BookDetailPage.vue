@@ -52,7 +52,13 @@
           />
         </div>
 
-        <BookDetail :book="book" :progress="progress" :current-source="currentSource">
+        <BookDetail
+          :book="book"
+          :progress="progress"
+          :current-source="currentSource"
+          :chapters="chapters"
+          @select-chapter="goRead(id, $event)"
+        >
           <template #reading>
             <section class="reading-card" :aria-label="t('bookDetail.progress.sectionLabel')">
               <div class="progress-copy">
@@ -197,6 +203,7 @@ const {
   progress,
   progressContentLength,
   currentSource,
+  chapters,
   loading,
   error,
   fetchDetail

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildMarkdownChapterList,
   buildMarkdownEditorSections,
   buildMarkdownH2Sections,
   findMarkdownEditorSection,
@@ -191,5 +192,37 @@ describe('buildMarkdownH2Sections', () => {
     }
     expect(findMarkdownEditorSection(sections, content.length + 99, 'forward')?.title).toBe('Two');
     expect(findMarkdownEditorSection([], 0, 'forward')).toBeNull();
+  });
+});
+
+describe('buildMarkdownChapterList', () => {
+  // The detail page's list is a deep link into the reader, so an index that
+  // does not name the same section the reader would open is a wrong jump.
+  it('numbers chapters exactly as the reader sections do', () => {
+    const content = '# Book\nPreface\n\n## One\nBody\n## Two\nMore';
+    expect(buildMarkdownChapterList(content)).toEqual(
+      buildMarkdownH2Sections(content).map((section) => ({
+        index: section.index,
+        title: section.title
+      }))
+    );
+    expect(buildMarkdownChapterList(content).map((chapter) => chapter.title)).toEqual([
+      'Book',
+      'One',
+      'Two'
+    ]);
+  });
+
+  // Text with nothing to jump to must yield no list rather than a one-item one:
+  // the detail page hides the whole card on an empty result.
+  it('returns nothing when the text has no H2 to navigate to', () => {
+    expect(buildMarkdownChapterList('Just prose, no headings at all.')).toEqual([]);
+    expect(buildMarkdownChapterList('# Title\nBody\n### Detail\nMore')).toEqual([]);
+    expect(buildMarkdownChapterList('```md\n## Not a chapter\n```\n')).toEqual([]);
+    expect(buildMarkdownChapterList('')).toEqual([]);
+  });
+
+  it('keeps a single chapter listed', () => {
+    expect(buildMarkdownChapterList('## Only\nBody')).toEqual([{ index: 0, title: 'Only' }]);
   });
 });

@@ -388,7 +388,12 @@ const en = {
     sections: {
       publication: 'Publication',
       content: 'Content',
-      notes: 'Notes'
+      notes: 'Notes',
+      chapters: 'Chapters'
+    },
+    chapters: {
+      showAll: 'Show all {count} chapters',
+      showLess: 'Show fewer chapters'
     },
     fields: {
       format: 'Format',

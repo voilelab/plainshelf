@@ -15,7 +15,7 @@
     :save-error="saveError"
     :is-at-min-font-size="isAtMinFontSize"
     :is-at-max-font-size="isAtMaxFontSize"
-    @retry="fetchReaderData"
+    @retry="loadReader"
     @scroll="onScroll"
     @reader-ready="handleReaderReady"
     @previous-section="goPrevSection"
@@ -42,7 +42,7 @@
     :save-error="saveError"
     :is-at-min-font-size="isAtMinFontSize"
     :is-at-max-font-size="isAtMaxFontSize"
-    @retry="fetchReaderData"
+    @retry="loadReader"
     @scroll="onScroll"
     @reader-ready="handleReaderReady"
     @previous-section="goPrevSection"
@@ -86,6 +86,7 @@ import {
   useReaderSettings
 } from '@/features/reader/composables/useReaderSettings';
 import { useReadingHeartbeat } from '@/features/reader/composables/useReadingHeartbeat';
+import { parseSectionQuery } from '@/features/reader/utils/sectionDeepLink';
 import { useI18n } from '@/i18n';
 
 const route = useRoute();
@@ -187,6 +188,25 @@ function onDocumentKeydown(event: KeyboardEvent): void {
   }
 }
 
+/**
+ * Loads the book, then honours a `?section=` link by opening that chapter
+ * instead of the restored progress. Jumping writes progress, which is the
+ * point: the reader asked for this chapter. The book ID is re-checked because
+ * a navigation during the load leaves the newer book owning the reader.
+ */
+async function loadReader(): Promise<void> {
+  const requestedBookID = id.value;
+  const requestedSection = parseSectionQuery(route.query.section);
+  await fetchReaderData();
+
+  if (requestedSection === null || id.value !== requestedBookID) {
+    return;
+  }
+
+  // goToSection clamps, so an out-of-range link opens the nearest chapter.
+  await goToSection(requestedSection);
+}
+
 async function selectSectionFromChapterModal(index: number): Promise<void> {
   await goToSection(index);
   isChapterModalOpen.value = false;
@@ -203,7 +223,7 @@ onBeforeRouteLeave(async () => {
 });
 
 watch(id, () => {
-  void fetchReaderData();
+  void loadReader();
 }, { immediate: true });
 
 watch([isChapterModalOpen, isFontModalOpen], ([chapterOpen, fontOpen]) => {
