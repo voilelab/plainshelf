@@ -488,6 +488,7 @@ const en = {
   },
   bookCollection: {
     noLayer: 'No layer',
+    noSummary: 'No summary',
     loadingBooks: 'Loading books...',
     shelfInitializing: 'Shelf is loading, please wait...',
     shelfUnreachable: 'The shelf is taking too long to respond. It may be unavailable (e.g. SMB mount disconnected).',

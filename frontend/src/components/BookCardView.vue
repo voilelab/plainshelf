@@ -91,6 +91,7 @@ import {
   ContextMenuRoot,
   ContextMenuTrigger
 } from 'reka-ui';
+import { computed } from 'vue';
 import BookCoverImg from './BookCoverImg.vue';
 import BookSelectionCheckbox from './BookSelectionCheckbox.vue';
 import { useBookItemInteractions } from '@/composables/useBookItemInteractions';
@@ -98,6 +99,7 @@ import type { Book } from '@/types/book';
 import type { BookActivation } from '@/types/bookSelection';
 import { getLayerPath, layerPathLabel } from '@/utils/layers';
 import { formatDateLabel } from '@/utils/date';
+import { toPlainSummary } from '@/utils/safeHtml';
 import { useI18n } from '@/i18n';
 
 const props = withDefaults(defineProps<{
@@ -141,14 +143,26 @@ function layerLabel(book: Book): string {
   return path === '' ? '/' : layerPathLabel(path);
 }
 
+/**
+ * Stripped once per book rather than once per render: the card re-renders on
+ * selection and on every pointer move of a drag.
+ */
+const summaries = computed(
+  () => new Map(props.books.map((book) => [book.id, toPlainSummary(book.comment)]))
+);
+
 function summaryText(book: Book): string {
-  if (book.comment?.trim()) {
-    return book.comment;
+  // A description of nothing but markup - `<br>`, an empty tag - reads as a
+  // summary until it is stripped, which is why the fallback asks the plain
+  // text rather than `comment` itself.
+  const summary = summaries.value.get(book.id);
+  if (summary) {
+    return summary;
   }
   if (book.authors?.length) {
     return book.authors.join(', ');
   }
-  return 'No summary';
+  return t('bookCollection.noSummary');
 }
 
 function primaryDateLabel(book: Book): string {
