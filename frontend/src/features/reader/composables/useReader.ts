@@ -2,6 +2,7 @@ import { computed, nextTick, ref } from 'vue';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { isLibraryEditingSupported } from '@/composables/useWriteAccess';
 import { useReadingProgressAutosave } from '@/features/reader/composables/useReadingProgressAutosave';
+import { resolveReadingFormat } from '@/utils/bookFormat';
 import { buildMarkdownH2Sections } from '@/utils/markdownChapters';
 import type { ReaderSection, ReadingProgress } from '@/types/book';
 import { t } from '@/i18n';
@@ -185,8 +186,7 @@ export function useReader(bookID: () => string) {
       currentSourceId.value = sourceID;
       content.value = sourceContent;
 
-      const sourceFormat = sourceMeta?.format === 'md' || sourceMeta?.format === 'txt' ? sourceMeta.format : undefined;
-      bookFormat.value = sourceFormat ?? (book.format === 'md' ? 'md' : 'txt');
+      bookFormat.value = resolveReadingFormat(sourceMeta?.format, book.format);
 
       sections.value = bookFormat.value === 'md'
         ? buildMarkdownH2Sections(content.value)

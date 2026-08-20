@@ -4,6 +4,13 @@ import path from 'node:path';
 export const helloFixturePath = path.resolve(__dirname, '..', '..', 'fixtures', 'hello.txt');
 export const anotherFixturePath = path.resolve(__dirname, '..', '..', 'fixtures', 'another.txt');
 export const helloMarkdownFixturePath = path.resolve(__dirname, '..', '..', 'fixtures', 'hello.md');
+export const chaptersMarkdownFixturePath = path.resolve(
+  __dirname,
+  '..',
+  '..',
+  'fixtures',
+  'chapters.md'
+);
 export const safeHtmlMarkdownFixturePath = path.resolve(
   __dirname,
   '..',

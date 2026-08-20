@@ -46,6 +46,25 @@ export function buildMarkdownH2Sections(content: string): ReaderSection[] {
   }));
 }
 
+export interface MarkdownChapterListItem {
+  index: number;
+  title: string;
+}
+
+/**
+ * The reader's section list reduced to what a chapter list needs, and empty
+ * when the source has no H2 chapter to navigate to. Indexes are the reader's
+ * own section indexes, so they can be handed straight to a `?section=` link.
+ */
+export function buildMarkdownChapterList(content: string): MarkdownChapterListItem[] {
+  const sections = buildMarkdownEditorSections(content);
+  if (!sections.some((section) => section.kind === 'chapter')) {
+    return [];
+  }
+
+  return sections.map((section) => ({ index: section.index, title: section.title }));
+}
+
 /** Builds the editor's ranges from the same H2 semantics used by the reader. */
 export function buildMarkdownEditorSections(content: string): MarkdownEditorSection[] {
   const chapters = scanMarkdownH2Headings(content);

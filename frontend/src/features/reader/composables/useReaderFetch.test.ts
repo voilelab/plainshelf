@@ -65,3 +65,38 @@ describe('useReader source consistency', () => {
     expect(reader.error.value).toBe('');
   });
 });
+
+describe('useReader section navigation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getBook.mockResolvedValue({ id: 'book-1', title: 'Book', format: 'md', current_source: 'source-1' });
+    mocks.getSource.mockResolvedValue({ id: 'source-1', format: 'md' });
+    mocks.getSourceContent.mockResolvedValue('## One\nBody\n## Two\nMore');
+    mocks.getReadProgress.mockResolvedValue({ char_offset: 0, percent: 0 });
+    mocks.addReadHistory.mockResolvedValue(undefined);
+    mocks.saveReadProgress.mockResolvedValue(undefined);
+  });
+
+  it('opens the requested chapter and its offset', async () => {
+    const reader = useReader(() => 'book-1');
+    await reader.fetchReaderData();
+    await reader.goToSection(1);
+
+    expect(reader.currentSectionIndex.value).toBe(1);
+    expect(reader.progress.value?.char_offset).toBe('## One\nBody\n'.length);
+  });
+
+  // A `?section=` deep link is a URL: it can name a chapter this book does not
+  // have, and the nearest chapter is a better answer than an error page.
+  it('clamps an out-of-range index to the nearest chapter', async () => {
+    const reader = useReader(() => 'book-1');
+    await reader.fetchReaderData();
+
+    await reader.goToSection(99);
+    expect(reader.currentSectionIndex.value).toBe(1);
+
+    await reader.goToSection(-4);
+    expect(reader.currentSectionIndex.value).toBe(0);
+    expect(reader.progress.value?.char_offset).toBe(0);
+  });
+});

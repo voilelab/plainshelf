@@ -57,7 +57,16 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
 
   const canOpenBookFolder = computed(() => Boolean(getBookshelfProvider().openDesktopBookFolder));
 
-  function goRead(id: string): void {
+  /**
+   * Opens the reader, optionally at one chapter instead of the saved progress.
+   * The index is the reader's own section index, so it survives a title change.
+   */
+  function goRead(id: string, sectionIndex?: number): void {
+    if (typeof sectionIndex === 'number' && Number.isFinite(sectionIndex)) {
+      void router.push({ path: `/reader/${id}`, query: { section: String(Math.trunc(sectionIndex)) } });
+      return;
+    }
+
     void router.push(`/reader/${id}`);
   }
 

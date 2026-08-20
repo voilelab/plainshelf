@@ -386,7 +386,12 @@ const zhHant = {
     sections: {
       publication: '出版資訊',
       content: '內容資訊',
-      notes: '備註'
+      notes: '備註',
+      chapters: '章節'
+    },
+    chapters: {
+      showAll: '顯示全部 {count} 章',
+      showLess: '收合章節'
     },
     fields: {
       format: '格式',
