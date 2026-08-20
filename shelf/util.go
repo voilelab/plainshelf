@@ -50,7 +50,7 @@ func randomString(n int) string {
 // empty string when the file cannot be stat'd. Every stored file the read path
 // serves with caching headers derives its validator here, so covers and source
 // assets cannot drift apart on what counts as "changed".
-func fileETag(root fsutil.FS, filePath string) string {
+func fileETag(root fsutil.ReadFS, filePath string) string {
 	info, err := root.Stat(filePath)
 	if err != nil {
 		return ""
@@ -69,7 +69,7 @@ func fileETag(root fsutil.FS, filePath string) string {
 // exactly as the walk always did.
 //
 // entry is nil at the root of a walk, which has no directory entry of its own.
-func entryIsDir(root fsutil.FS, pth string, entry fs.DirEntry) (bool, error) {
+func entryIsDir(root fsutil.ReadFS, pth string, entry fs.DirEntry) (bool, error) {
 	if entry != nil && entry.Type()&fs.ModeSymlink == 0 {
 		return entry.IsDir(), nil
 	}

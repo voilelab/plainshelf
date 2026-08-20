@@ -52,8 +52,12 @@ func (r *Source) UpgradeLegacyToSchemaV1(format string, content io.Reader) error
 
 	rewritten := false
 	if content != nil {
+		root, err := r.writeRoot()
+		if err != nil {
+			return util.Errorf("%w", err)
+		}
 		sourceDestPath := path.Join(r.folderPath, SourceFile)
-		if err := fsutil.WriteAtomic(r.root, sourceDestPath, content); err != nil {
+		if err := fsutil.WriteAtomic(root, sourceDestPath, content); err != nil {
 			return util.Errorf("%w", err)
 		}
 		rewritten = true

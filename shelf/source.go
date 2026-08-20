@@ -31,7 +31,9 @@ var ErrUnsupportedSourceSchemaVersion = util.NewError("source meta.json schema v
 */
 
 type Source struct {
-	root       fsutil.FS
+	// root reads the shelf. It is a ReadFS so that a read path cannot mutate
+	// the source by accident; every mutation narrows it back through writeRoot.
+	root       fsutil.ReadFS
 	folderPath string
 
 	meta *SourceMeta
@@ -68,6 +70,16 @@ func (r *Source) GetMeta() *SourceMeta {
 	return &meta
 }
 
+// writeRoot returns the source's filesystem as a writable handle, reporting
+// fsutil.ErrReadOnly when the source was opened on a read-only shelf.
+func (r *Source) writeRoot() (fsutil.FS, error) {
+	root, err := fsutil.Writable(r.root)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	return root, nil
+}
+
 func (r *Source) EnsureWritable() error {
 	if r.meta.SchemaVersion > SourceMetaSchemaVersion {
 		return util.Errorf("%w: meta.json is schema_version %d, this build writes %d",
@@ -89,9 +101,13 @@ func (r *Source) UpdateContent(newContent io.Reader) error {
 	if err := r.EnsureWritable(); err != nil {
 		return util.Errorf("%w", err)
 	}
+	root, err := r.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
 	sourceDestPath := path.Join(r.folderPath, SourceFile)
 
-	if err := fsutil.WriteAtomic(r.root, sourceDestPath, newContent); err != nil {
+	if err := fsutil.WriteAtomic(root, sourceDestPath, newContent); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -195,6 +211,10 @@ func (r *Source) UpdateComment(comment string) error {
 }
 
 func (r *Source) writebackMeta() error {
+	root, err := r.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
 	metaFilePath := path.Join(r.folderPath, SourceMetaFile)
 
 	bs, err := json.MarshalIndent(r.meta, "", "  ")
@@ -203,14 +223,14 @@ func (r *Source) writebackMeta() error {
 	}
 	bs = append(bs, '\n')
 
-	if err := fsutil.WriteFileAtomic(r.root, metaFilePath, bs); err != nil {
+	if err := fsutil.WriteFileAtomic(root, metaFilePath, bs); err != nil {
 		return util.Errorf("%w", err)
 	}
 
 	return nil
 }
 
-func openSource(rt fsutil.FS, sourcePath string) (*Source, error) {
+func openSource(rt fsutil.ReadFS, sourcePath string) (*Source, error) {
 	metaPath := path.Join(sourcePath, SourceMetaFile)
 	metaFile, err := rt.Open(metaPath)
 	if err != nil {
