@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 960 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="plainshelf-architecture-title plainshelf-architecture-desc">
+      <title id="plainshelf-architecture-title">PlainShelf System Architecture</title>
+      <desc id="plainshelf-architecture-desc">Web, desktop, and Android clients reach a local Go server behind a local-token boundary, where a shelf manager keeps an in-memory book cache over the shelf filesystem that holds the library; a separate key-value store holds app settings, and the Android client can also read a pCloud-hosted shelf directly as a read-only backend.</desc>
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#66758a"/></marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#1f6feb"/></marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f4f6f8"/>
+
+      <rect x="40" y="40" width="880" height="104" rx="8" fill="rgba(20,32,51,0.02)" stroke="rgba(20,32,51,0.10)" stroke-width="0.8"/>
+      <rect x="52" y="44" width="64" height="12" rx="2" fill="#f4f6f8"/>
+      <text x="84" y="53" fill="rgba(20,32,51,0.40)" font-size="7" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.14em">CLIENTS</text>
+
+      <rect x="288" y="176" width="552" height="224" rx="8" fill="rgba(31,111,235,0.05)" stroke="rgba(31,111,235,0.50)" stroke-width="0.8" stroke-dasharray="4,4"/>
+      <rect x="688" y="180" width="140" height="12" rx="2" fill="#f4f6f8"/>
+      <text x="758" y="189" fill="rgba(31,111,235,0.85)" font-size="7" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.14em">GO SERVER &#183; LOCAL_TOKEN</text>
+
+      <rect x="40" y="408" width="880" height="104" rx="8" fill="rgba(20,32,51,0.02)" stroke="rgba(20,32,51,0.10)" stroke-width="0.8"/>
+      <rect x="52" y="412" width="64" height="12" rx="2" fill="#f4f6f8"/>
+      <text x="84" y="421" fill="rgba(20,32,51,0.40)" font-size="7" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.14em">STORAGE</text>
+
+      <path d="M 160,128 V 160 Q 160,168 168,168 H 382 Q 390,168 390,176 V 208" fill="none" stroke="#66758a" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <rect x="168" y="136" width="40" height="12" rx="2" fill="#f4f6f8"/>
+      <text x="168" y="144" fill="#8d99ab" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="start" letter-spacing="0.06em">HTTP</text>
+
+      <path d="M 480,128 V 208" fill="none" stroke="#66758a" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+
+      <rect x="488" y="152" width="64" height="12" rx="2" fill="#f4f6f8"/>
+      <text x="488" y="160" fill="#8d99ab" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="start" letter-spacing="0.06em">IN-PROCESS</text>
+
+      <path d="M 768,128 V 160 Q 768,168 760,168 H 578 Q 570,168 570,176 V 208" fill="none" stroke="#66758a" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <rect x="776" y="136" width="40" height="12" rx="2" fill="#f4f6f8"/>
+      <text x="776" y="144" fill="#8d99ab" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="start" letter-spacing="0.06em">HTTP</text>
+
+      <path d="M 856,128 V 440" fill="none" stroke="#66758a" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <rect x="792" y="416" width="56" height="12" rx="2" fill="#f4f6f8"/>
+      <text x="820" y="424" fill="#8d99ab" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.06em">READ-ONLY</text>
+
+      <path d="M 460,264 V 320" fill="none" stroke="#66758a" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <rect x="380" y="280" width="72" height="12" rx="2" fill="#f4f6f8"/>
+      <text x="416" y="288" fill="#8d99ab" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.06em">READ / WRITE</text>
+
+      <path d="M 532,264 V 284 Q 532,292 540,292 H 736 Q 744,292 744,300 V 320" fill="none" stroke="#66758a" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+
+      <rect x="616" y="272" width="48" height="12" rx="2" fill="#f4f6f8"/>
+      <text x="640" y="280" fill="#8d99ab" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.06em">SUBMIT</text>
+
+      <path d="M 664,352 H 600" fill="none" stroke="#66758a" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+
+      <rect x="608" y="332" width="48" height="12" rx="2" fill="#f4f6f8"/>
+      <text x="632" y="340" fill="#8d99ab" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.06em">RUNS ON</text>
+
+      <path d="M 460,384 V 440" fill="none" stroke="#1f6feb" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+
+      <rect x="376" y="416" width="76" height="12" rx="2" fill="#f4f6f8"/>
+      <text x="414" y="424" fill="#1a5ecc" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.06em">SCAN + WRITE</text>
+
+      <path d="M 320,236 H 180 Q 172,236 172,244 V 440" fill="none" stroke="#66758a" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+      <rect x="220" y="216" width="56" height="12" rx="2" fill="#f4f6f8"/>
+      <text x="248" y="224" fill="#8d99ab" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.06em">SETTINGS</text>
+
+      <rect x="64" y="72" width="192" height="56" rx="6" fill="#f4f6f8"/>
+      <rect x="64" y="72" width="192" height="56" rx="6" fill="rgba(102,117,138,0.10)" stroke="#8d99ab" stroke-width="1"/>
+      <rect x="72" y="78" width="32" height="12" rx="2" fill="transparent" stroke="rgba(141,153,171,0.45)" stroke-width="0.8"/>
+      <text x="88" y="87" fill="rgba(102,117,138,0.95)" font-size="7" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.08em">WEB</text>
+      <text x="160" y="108" fill="#142033" font-size="12" font-weight="600" font-family="'Avenir Next','Segoe UI',system-ui,sans-serif" text-anchor="middle">Browser</text>
+      <text x="160" y="121" fill="#66758a" font-size="9" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle">Vue 3 SPA</text>
+
+      <rect x="384" y="72" width="192" height="56" rx="6" fill="#f4f6f8"/>
+      <rect x="384" y="72" width="192" height="56" rx="6" fill="rgba(102,117,138,0.10)" stroke="#8d99ab" stroke-width="1"/>
+      <rect x="392" y="78" width="52" height="12" rx="2" fill="transparent" stroke="rgba(141,153,171,0.45)" stroke-width="0.8"/>
+      <text x="418" y="87" fill="rgba(102,117,138,0.95)" font-size="7" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.08em">DESKTOP</text>
+      <text x="480" y="108" fill="#142033" font-size="12" font-weight="600" font-family="'Avenir Next','Segoe UI',system-ui,sans-serif" text-anchor="middle">Wails app</text>
+      <text x="480" y="121" fill="#66758a" font-size="9" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle">macOS</text>
+
+      <rect x="704" y="72" width="192" height="56" rx="6" fill="#f4f6f8"/>
+      <rect x="704" y="72" width="192" height="56" rx="6" fill="rgba(102,117,138,0.10)" stroke="#8d99ab" stroke-width="1"/>
+      <rect x="712" y="78" width="48" height="12" rx="2" fill="transparent" stroke="rgba(141,153,171,0.45)" stroke-width="0.8"/>
+      <text x="736" y="87" fill="rgba(102,117,138,0.95)" font-size="7" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.08em">MOBILE</text>
+      <text x="800" y="108" fill="#142033" font-size="12" font-weight="600" font-family="'Avenir Next','Segoe UI',system-ui,sans-serif" text-anchor="middle">Android app</text>
+      <text x="800" y="121" fill="#66758a" font-size="9" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle">Capacitor WebView</text>
+
+      <rect x="320" y="208" width="280" height="56" rx="6" fill="#f4f6f8"/>
+      <rect x="320" y="208" width="280" height="56" rx="6" fill="#ffffff" stroke="#142033" stroke-width="1"/>
+      <rect x="328" y="214" width="32" height="12" rx="2" fill="transparent" stroke="rgba(20,32,51,0.40)" stroke-width="0.8"/>
+      <text x="344" y="223" fill="rgba(20,32,51,0.85)" font-size="7" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
+      <text x="460" y="244" fill="#142033" font-size="12" font-weight="600" font-family="'Avenir Next','Segoe UI',system-ui,sans-serif" text-anchor="middle">HTTP API + SPA</text>
+      <text x="460" y="257" fill="#66758a" font-size="9" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle">server/routes.go</text>
+
+      <rect x="320" y="320" width="280" height="64" rx="6" fill="#f4f6f8"/>
+      <rect x="320" y="320" width="280" height="64" rx="6" fill="rgba(20,32,51,0.05)" stroke="#66758a" stroke-width="1"/>
+      <rect x="328" y="326" width="36" height="12" rx="2" fill="transparent" stroke="rgba(102,117,138,0.45)" stroke-width="0.8"/>
+      <text x="346" y="335" fill="rgba(102,117,138,0.95)" font-size="7" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.08em">CORE</text>
+      <text x="460" y="360" fill="#142033" font-size="12" font-weight="600" font-family="'Avenir Next','Segoe UI',system-ui,sans-serif" text-anchor="middle">ShelfManager</text>
+      <text x="460" y="373" fill="#66758a" font-size="9" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle">in-memory book cache</text>
+
+      <rect x="664" y="320" width="160" height="64" rx="6" fill="#f4f6f8"/>
+      <rect x="664" y="320" width="160" height="64" rx="6" fill="rgba(20,32,51,0.02)" stroke="rgba(20,32,51,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+      <rect x="672" y="326" width="44" height="12" rx="2" fill="transparent" stroke="rgba(20,32,51,0.25)" stroke-width="0.8"/>
+      <text x="694" y="335" fill="rgba(20,32,51,0.55)" font-size="7" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.08em">ASYNC</text>
+      <text x="744" y="360" fill="#142033" font-size="12" font-weight="600" font-family="'Avenir Next','Segoe UI',system-ui,sans-serif" text-anchor="middle">Task pool</text>
+      <text x="744" y="373" fill="#66758a" font-size="9" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle">taskchains</text>
+
+      <rect x="64" y="440" width="216" height="56" rx="6" fill="#f4f6f8"/>
+      <rect x="64" y="440" width="216" height="56" rx="6" fill="rgba(20,32,51,0.05)" stroke="#66758a" stroke-width="1"/>
+      <rect x="72" y="446" width="28" height="12" rx="2" fill="transparent" stroke="rgba(102,117,138,0.45)" stroke-width="0.8"/>
+      <text x="86" y="455" fill="rgba(102,117,138,0.95)" font-size="7" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.08em">KV</text>
+      <text x="172" y="476" fill="#142033" font-size="12" font-weight="600" font-family="'Avenir Next','Segoe UI',system-ui,sans-serif" text-anchor="middle">Settings store</text>
+      <text x="172" y="489" fill="#66758a" font-size="9" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle">Badger &#183; app state</text>
+
+      <rect x="320" y="440" width="280" height="56" rx="6" fill="#f4f6f8"/>
+      <rect x="320" y="440" width="280" height="56" rx="6" fill="rgba(31,111,235,0.08)" stroke="#1f6feb" stroke-width="1"/>
+      <rect x="328" y="446" width="28" height="12" rx="2" fill="transparent" stroke="rgba(31,111,235,0.45)" stroke-width="0.8"/>
+      <text x="342" y="455" fill="#1a5ecc" font-size="7" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.08em">FS</text>
+      <text x="460" y="476" fill="#142033" font-size="12" font-weight="600" font-family="'Avenir Next','Segoe UI',system-ui,sans-serif" text-anchor="middle">Shelf filesystem</text>
+      <text x="460" y="489" fill="#66758a" font-size="9" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle">books/ &#183; trash/ &#183; app/</text>
+
+      <rect x="680" y="440" width="216" height="56" rx="6" fill="#f4f6f8"/>
+      <rect x="680" y="440" width="216" height="56" rx="6" fill="rgba(20,32,51,0.03)" stroke="rgba(20,32,51,0.30)" stroke-width="1"/>
+      <rect x="688" y="446" width="44" height="12" rx="2" fill="transparent" stroke="rgba(20,32,51,0.30)" stroke-width="0.8"/>
+      <text x="710" y="455" fill="rgba(20,32,51,0.60)" font-size="7" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle" letter-spacing="0.08em">CLOUD</text>
+      <text x="788" y="476" fill="#142033" font-size="12" font-weight="600" font-family="'Avenir Next','Segoe UI',system-ui,sans-serif" text-anchor="middle">pCloud shelf</text>
+      <text x="788" y="489" fill="#66758a" font-size="9" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" text-anchor="middle">read-only backend</text>
+
+      <line x1="40" y1="532" x2="920" y2="532" stroke="rgba(20,32,51,0.12)" stroke-width="0.8"/>
+      <text x="40" y="560" fill="#66758a" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace" letter-spacing="0.14em">LEGEND</text>
+      <rect x="104" y="548" width="12" height="12" rx="2" fill="rgba(102,117,138,0.10)" stroke="#8d99ab" stroke-width="1"/>
+      <text x="124" y="560" fill="#66758a" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace">Client</text>
+      <rect x="244" y="548" width="12" height="12" rx="2" fill="#ffffff" stroke="#142033" stroke-width="1"/>
+      <text x="264" y="560" fill="#66758a" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace">Server API</text>
+      <rect x="384" y="548" width="12" height="12" rx="2" fill="rgba(20,32,51,0.02)" stroke="rgba(20,32,51,0.20)" stroke-width="1" stroke-dasharray="4,3"/>
+      <text x="404" y="560" fill="#66758a" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace">Async task</text>
+      <rect x="524" y="548" width="12" height="12" rx="2" fill="rgba(20,32,51,0.05)" stroke="#66758a" stroke-width="1"/>
+      <text x="544" y="560" fill="#66758a" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace">Cached state</text>
+      <rect x="664" y="548" width="12" height="12" rx="2" fill="rgba(31,111,235,0.08)" stroke="#1f6feb" stroke-width="1"/>
+      <text x="684" y="560" fill="#66758a" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace">Source of truth</text>
+      <rect x="804" y="548" width="12" height="12" rx="2" fill="rgba(20,32,51,0.03)" stroke="rgba(20,32,51,0.30)" stroke-width="1"/>
+      <text x="824" y="560" fill="#66758a" font-size="8" font-family="ui-monospace,'SF Mono',Menlo,Consolas,monospace">External</text>
+    </svg>
