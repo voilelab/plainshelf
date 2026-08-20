@@ -84,11 +84,11 @@ func NewApp(conf *AppConf) (*App, error) {
 		}
 	}()
 
-	for _, conf := range conf.Shelves {
-		shelfConf := *conf
+	for _, shelfEntry := range conf.Shelves {
+		shelfConf := applyAppReadOnly(*shelfEntry, conf.ReadOnly)
 		// An operator who pins the ID in the config keeps it; everyone else gets
 		// this installation's generated one.
-		if shelfConf.BookCacheWriterID == "" {
+		if shelfConf.BookCacheWriterID == "" && !shelfConf.ReadOnly {
 			shelfConf.BookCacheWriterID = writerID
 		}
 		if err := shelfManager.AddShelf(shelfConf); err != nil {
@@ -154,12 +154,33 @@ func (app *App) TaskChains() taskutil.Pool {
 //
 // The writer ID has to be applied here as well as in NewApp: a shelf added this
 // way otherwise exports nothing until the app is restarted, and its manual
-// export fails.
+// export fails. Read-only mode has to be applied here for the same reason, and
+// it is what withholds the writer ID rather than granting it.
 func (app *App) AddShelf(conf shelf.ShelfConfWithID) error {
-	if conf.BookCacheWriterID == "" {
-		conf.BookCacheWriterID = app.bookCacheWriterID
+	shelfConf := applyAppReadOnly(conf, app.conf.ReadOnly)
+	if shelfConf.BookCacheWriterID == "" && !shelfConf.ReadOnly {
+		shelfConf.BookCacheWriterID = app.bookCacheWriterID
 	}
-	return app.shelfManager.AddShelf(conf)
+	return app.shelfManager.AddShelf(shelfConf)
+}
+
+// applyAppReadOnly carries AppConf.ReadOnly down into the shelf configuration.
+//
+// rejectReadOnlyWrite only turns away requests that ask for a write, which is
+// not the same thing as not writing: a shelf writes on its own account too -
+// it creates its folders, clears app/tmp/, takes the lock file and exports the
+// book cache on a timer, none of which has a request behind it. A server
+// declared read-only that still did all that would be read-only in name only,
+// and its exported cache would additionally prune the files other installations
+// wrote into a shelf they share.
+//
+// The app-wide setting can only add the restriction; a shelf already configured
+// read_only stays read-only on a writable server.
+func applyAppReadOnly(conf shelf.ShelfConfWithID, appReadOnly bool) shelf.ShelfConfWithID {
+	if appReadOnly {
+		conf.ReadOnly = true
+	}
+	return conf
 }
 
 func (app *App) UpdateShelf(id, name, scanInterval string) error {

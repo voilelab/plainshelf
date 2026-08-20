@@ -74,6 +74,16 @@ func withReadOnlyShelf() appConfOption {
 	}
 }
 
+// withReadOnlyServer starts the whole app in read-only mode, which is the
+// app-wide setting an operator writes as `read_only` next to `shelves`. Unlike
+// setReadOnly it is applied before the shelves are opened, so the shelf sees it
+// too rather than only the HTTP gate.
+func withReadOnlyServer() appConfOption {
+	return func(conf *server.AppConf) {
+		conf.ReadOnly = true
+	}
+}
+
 // withSecurity pins the security configuration, which is what the local-token
 // and CORS gates are asserted against.
 func withSecurity(security *server.SecurityConf) appConfOption {
