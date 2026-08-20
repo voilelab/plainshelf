@@ -16,6 +16,10 @@ npm --prefix frontend ci
 npm --prefix frontend run test:mutation
 ```
 
+Stryker instruments through Babel 8, which needs Node.js 22.18 or newer. That is
+the floor recorded in the [setup prerequisites](setup.md#prerequisites), because
+`npm ci` installs the dependency whether or not the mutation run is used.
+
 The run takes roughly five minutes on a laptop and writes
 `frontend/reports/mutation/mutation.html` (a browsable report) plus
 `mutation.json`. Both are ignored by Git.

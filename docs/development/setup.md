@@ -8,10 +8,14 @@ installation, see [Installation](../installation.md).
 | Tool | Minimum version | Purpose |
 |---|---:|---|
 | Go | 1.26.6 | server, core library, desktop backend |
-| Node.js | 22 | frontend and end-to-end tests |
+| Node.js | 22.18 | frontend and end-to-end tests |
 | npm | bundled with Node.js | JavaScript dependencies |
 | just | recent | repository task runner |
 | zsh | recent | shell used by the `justfile` |
+
+The frontend itself runs on any Node.js 22. The 22.18 floor comes from Babel 8,
+which the mutation-testing dev dependency pulls in; below it `npm ci` warns and
+fails outright where npm engine enforcement is on.
 
 Desktop development also needs the
 [Wails platform dependencies](https://wails.io/docs/gettingstarted/installation).
