@@ -68,14 +68,7 @@
             :disabled="!hasSections"
             @click="emit('openChapterModal')"
           >
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
-              <path d="M8 6h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-              <path d="M8 12h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-              <path d="M8 18h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-              <path d="M4 6h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
-              <path d="M4 12h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
-              <path d="M4 18h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
-            </svg>
+            <Icon name="menu" />
           </ToolbarButton>
         </TooltipTrigger>
         <TooltipPortal>
@@ -99,6 +92,7 @@ import {
   TooltipRoot,
   TooltipTrigger
 } from 'reka-ui';
+import Icon from '@/components/Icon.vue';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import { useI18n } from '@/i18n';
 

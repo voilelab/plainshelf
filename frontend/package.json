@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "check-boundaries": "node scripts/check-module-boundaries.mjs",
-    "check-licenses": "license-checker --production --excludePrivatePackages --failOn \"UNLICENSED;UNKNOWN\" && node scripts/check-font-licenses.mjs"
+    "check-licenses": "license-checker --production --excludePrivatePackages --failOn \"UNLICENSED;UNKNOWN\" && node scripts/check-font-licenses.mjs && node scripts/check-icon-licenses.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",
@@ -37,11 +37,13 @@
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.4.2",
+    "@iconify-json/tabler": "1.2.38",
     "@types/node": "^22.7.5",
     "@vitejs/plugin-vue": "^6.0.7",
     "jsdom": "^26.1.0",
     "license-checker": "^25.0.1",
     "typescript": "^5.6.2",
+    "unplugin-icons": "^23.0.1",
     "vite": "^8.0.16",
     "vitest": "^4.1.10",
     "vue-tsc": "^2.1.6"
