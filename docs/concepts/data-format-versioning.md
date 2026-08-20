@@ -202,15 +202,18 @@ documented breaking change, not as data that v1 guarantees to migrate.
 
 ### What we do not promise
 
-- **Adding a new optional field does not raise the version — and an older build
-  that writes such a book will drop that field.** PlainShelf reads `book.json`
-  into a fixed set of known fields and rewrites the whole file; keys it does not
-  recognize are not preserved. If you run two PlainShelf versions against one
-  shelf and edit a book from the older one, values that only the newer version
-  knows about are lost. Run one version against a shelf, or upgrade both. A
-  read-only reader — the Android client on a pCloud shelf — is exempt from the
-  losing half of this, since it never rewrites a book, but it can still be built
-  against an older schema than the shelf and show stale or missing fields.
+- **Top-level keys PlainShelf does not recognize are removed the next time it
+  writes that book.** PlainShelf reads `book.json` into the fixed set of fields
+  in the table above and rewrites the whole file from them; anything else in the
+  file is not carried over. This applies to a key you added by hand and to one a
+  newer build wrote — which is why adding an optional field does not raise the
+  schema version, and why editing such a book from an older build loses the
+  values only the newer one knows about. Run one version against a shelf, or
+  upgrade both. A read-only reader — the Android client on a pCloud shelf — is
+  exempt from the losing half of this, since it never rewrites a book, but it can
+  still be built against an older schema than the shelf and show stale or missing
+  fields. [Hand-editing `book.json`](#hand-editing-bookjson) below says which
+  edits do survive.
 - Reading a book whose `schema_version` is higher than the build supports is
   best-effort. Fields may be missing or misinterpreted, and the displayed
   metadata may be wrong. It is shown so you can see the book exists, not so you
@@ -223,6 +226,78 @@ documented breaking change, not as data that v1 guarantees to migrate.
   treatment as they are covered, not retroactively.
 - Hand-edited `book.json` files are read on a best-effort basis. Malformed JSON
   makes that book unopenable; the error is logged with the file path.
+
+### Hand-editing `book.json`
+
+`book.json` is a plain file and nothing stops you from opening it in an editor.
+What decides whether an edit lasts is whether PlainShelf knows the field.
+
+**Any top-level key outside the schema is gone after the next write to that
+book.** Add `"series": "The Tale of Genji"` or `"douban_id": "1770782"` next to
+`"title"` and it stays there — until something writes the file. Then the file is
+rebuilt from the known fields and your key is not one of them. There is no
+warning, no log line, and no copy of the previous file.
+
+The actions that write `book.json` go well beyond what looks like metadata
+editing:
+
+- setting or clearing a star rating;
+- editing the title, authors, tags, identifiers, language, published date, or
+  comments;
+- uploading, replacing, or deleting the cover;
+- importing a file into the book, or converting a source between TXT and
+  Markdown;
+- switching the current source, or deleting the source that is currently active;
+- moving the book to another layer.
+
+Treat that list as illustrative rather than complete: assume every change you
+make to a book rewrites its `book.json`. Rating one book does not touch any
+other, so a hand-added key disappears one book at a time — the shelf keeps
+looking fine while the book you just rated has quietly lost it.
+
+None of this is a reason to leave the file alone. These edits are safe:
+
+- **Changing the value of any field in the
+  [schema table](#bookjson-schema-v1), within the type and range that table
+  gives** — title, authors, tags, identifiers, language, comments, star,
+  published date. A value that fits is read back exactly as written. A value
+  that does not is worse than a typo, because PlainShelf validates on write
+  rather than on read: `"star": 6`, a `language` that is not a BCP-47 tag, or a
+  blank key in `identifiers` all load fine, and then every later edit to that
+  book is refused until you repair the file by hand. A `published_at` that is
+  neither `YYYY-MM-DD` nor an RFC 3339 timestamp is worse still — it fails at
+  read time and makes the book unopenable, exactly like malformed JSON.
+  `schema_version` is its own exception: it is managed by PlainShelf, and
+  raising it locks you out of the book.
+- **Renaming the `.bookpkg` directory, or moving it into another layer with a
+  file manager.** Identity lives in the `id` field, not in the path — see
+  [Book IDs](data-model.md#book-ids).
+- **Deleting `CURRENT_SOURCE.txt`.** It is a hint that is never read back; see
+  [Book folder](data-model.md#book-folder-bookpkg).
+
+If you have custom data you want to keep, put it somewhere PlainShelf owns or
+somewhere PlainShelf never touches, not in an invented key:
+
+- **An external identifier belongs in `identifiers`.** Its keys are free-form,
+  so `douban_id` goes there and survives every write. The book edit screen
+  exposes it, so you do not have to hand-edit the file at all.
+- **A short note or a grouping belongs in `comments` or `tags`.** A series name
+  works as a tag today.
+- **Anything larger belongs in a file of your own.** PlainShelf neither reads nor
+  deletes files it does not know about, so a `notes.md` you drop in the
+  `.bookpkg` directory itself travels with the book, including into `trash/`.
+  Keep it out of `sources/`, which is deleted along with its source, and give it
+  a distinctive name — the book folder is also where PlainShelf writes. A file
+  outside the shelf is the fully independent option.
+- **Text that belongs to the book itself belongs in the source.** Content you
+  edit in the source editor is stored verbatim.
+
+PlainShelf does not promise to preserve unknown keys, and no build implements
+passthrough today. Carrying a key through means writing back data this build
+cannot validate, into the file the promises above rest on. A narrower scheme —
+reserving a prefix such as `x_` for keys PlainShelf preserves untouched — is
+still under consideration, but nothing is committed and nothing has been built.
+Until that changes, assume any key outside the table is temporary.
 
 ---
 
