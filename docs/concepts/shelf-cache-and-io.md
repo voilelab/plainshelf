@@ -333,6 +333,8 @@ Two consequences worth knowing:
 
 `read_only` is per shelf, so one server can serve a writable shelf and an archived one side by side.
 
+`app_conf.read_only` puts the whole server in that mode instead: every write request is refused, and every shelf — including one added after startup — is opened exactly as if it carried `read_only: true`, so nothing in the table above is written for any of them. Rescanning stays allowed, because a rescan only walks the shelf and rebuilds the in-memory cache.
+
 ---
 
 ## Practical guidance
