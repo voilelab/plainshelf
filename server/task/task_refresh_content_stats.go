@@ -116,9 +116,11 @@ func (t *refreshContentStatsTask) recordFailure(bookID string, err error) {
 }
 
 // collectCandidates opens each book's current source to read its stored count
-// and returns the IDs of the books that need recomputing. This only touches
-// meta.json, the same work GET /books?include=char_count already does, so it is
-// far cheaper than the recompute pass that follows and lets the task report an
+// and returns the IDs of the books that need recomputing. It deliberately reads
+// meta.json rather than the count the book cache holds: the sweep exists to
+// repair counts that were never computed, including ones written into the shelf
+// from outside, and only the file says what is actually stored. That is still
+// far cheaper than the recompute pass that follows, and lets the task report an
 // accurate total before it starts.
 //
 // It deliberately returns IDs rather than the opened sources: a Source carries
@@ -160,6 +162,8 @@ func (t *refreshContentStatsTask) refreshBook(bookID string) error {
 	if err := source.RefreshContentMetadata(); err != nil {
 		return util.Errorf("%w", err)
 	}
+
+	t.shelf.RefreshBookCharCount(bookID)
 	return nil
 }
 

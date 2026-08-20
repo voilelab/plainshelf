@@ -79,33 +79,33 @@ func (c *apiCore) loadBook(w http.ResponseWriter, r *http.Request) (*shelf.Shelf
 	return shelfData, book, true
 }
 
-func (c *apiCore) loadBookSource(w http.ResponseWriter, r *http.Request) (*shelf.Book, *shelf.Source, bool) {
+func (c *apiCore) loadBookSource(w http.ResponseWriter, r *http.Request) (*shelf.ShelfData, *shelf.Book, *shelf.Source, bool) {
 	shelfData, ok := c.resolveShelf(w, r)
 	if !ok {
-		return nil, nil, false
+		return nil, nil, nil, false
 	}
 
 	bookID, ok := resolveBookID(w, r)
 	if !ok {
-		return nil, nil, false
+		return nil, nil, nil, false
 	}
 
 	sourceID, ok := resolveSourceID(w, r)
 	if !ok {
-		return nil, nil, false
+		return nil, nil, nil, false
 	}
 
 	book, ok := c.lookupBook(w, shelfData, bookID)
 	if !ok {
-		return nil, nil, false
+		return nil, nil, nil, false
 	}
 
 	source, ok := c.lookupSource(w, book, sourceID)
 	if !ok {
-		return nil, nil, false
+		return nil, nil, nil, false
 	}
 
-	return book, source, true
+	return shelfData, book, source, true
 }
 
 // streamTextFile writes an open file as the plain-text response body.

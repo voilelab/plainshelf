@@ -76,7 +76,10 @@ func (h *bookHandlers) getBooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	books, err := shelfData.ListBooks()
+	// The listing carries the character counts whether or not this request
+	// asked for them: they come out of the book cache, so fetching them costs
+	// nothing beyond the listing itself.
+	books, err := shelfData.ListBooksWithCharCount()
 	if err != nil {
 		h.writeErr(w, err, "failed to list books")
 		return
@@ -93,15 +96,13 @@ func (h *bookHandlers) getBooks(w http.ResponseWriter, r *http.Request) {
 	jsonBooks := make([]Book, len(books))
 	for i, b := range books {
 		jsonBooks[i] = Book{
-			Meta:  b.GetMeta(),
-			Layer: b.Layers(),
+			Meta:  b.Book.GetMeta(),
+			Layer: b.Book.Layers(),
 		}
 		if includeCharCount {
-			// A single book with a broken/missing source shouldn't fail the
-			// whole list - just skip char_count for that book.
-			if source, srcErr := b.GetSource(b.CurrentSource()); srcErr == nil {
-				jsonBooks[i].CharCount = source.GetMeta().CharCount
-			}
+			// A book with a broken or missing source reports 0, which omitempty
+			// drops: one damaged book must not fail the whole listing.
+			jsonBooks[i].CharCount = b.CharCount
 		}
 	}
 

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
@@ -94,6 +95,53 @@ func TestAPIGetBooksCharCountContract(t *testing.T) {
 	}
 	if books[0].CharCount <= 0 {
 		t.Fatalf("char_count = %d, want > 0", books[0].CharCount)
+	}
+}
+
+// char_count is answered from the book cache rather than by opening one source
+// per request, so every route that changes what the current source holds has to
+// leave the cached count correct. A stale entry can only be seen from the
+// listing, which is what this reads back after each write.
+func TestAPIGetBooksCharCountFollowsSourceWritesContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Rewritten", "", "rewrite.txt", "alpha body")
+	bookID := created.Meta.ID
+
+	const rewritten = "alpha body, extended"
+	wantRewritten := utf8.RuneCountInString(rewritten)
+
+	rec := env.patchContent(sourceURL(bookID, created.Meta.CurrentSource, "content"),
+		plainTextContentType, strings.NewReader(rewritten))
+	assertStatus(t, rec, http.StatusNoContent)
+	if got := charCountByBookID(t, env)[bookID]; got != wantRewritten {
+		t.Fatalf("char_count after rewriting the current source = %d, want %d", got, wantRewritten)
+	}
+
+	// A second source changes the count only once it is the current one.
+	empty := createBookSource(t, env, bookID)
+	assertStatus(t, env.put(sourceURL(bookID, empty, "current"), nil), http.StatusNoContent)
+	if got := charCountByBookID(t, env)[bookID]; got != 0 {
+		t.Fatalf("char_count of an empty current source = %d, want 0", got)
+	}
+
+	// Deleting the current source hands the pointer back to the text.
+	assertStatus(t, env.delete(sourceURL(bookID, empty)), http.StatusNoContent)
+	if got := charCountByBookID(t, env)[bookID]; got != wantRewritten {
+		t.Fatalf("char_count after deleting the current source = %d, want %d", got, wantRewritten)
+	}
+
+	// The refresh route recomputes a count that was never stored - the state
+	// clearSourceCharCount reproduces - and the listing must report the result
+	// straight away rather than at the next walk of the shelf.
+	clearSourceCharCount(t, env, bookID)
+	assertStatus(t, env.post(scansURL(), nil), http.StatusOK)
+	if got := charCountByBookID(t, env)[bookID]; got != 0 {
+		t.Fatalf("char_count of a cleared source = %d, want 0", got)
+	}
+
+	assertStatus(t, env.post(sourceURL(bookID, currentSourceOf(t, env, bookID), "refresh"), nil), http.StatusOK)
+	if got := charCountByBookID(t, env)[bookID]; got != wantRewritten {
+		t.Fatalf("char_count after the refresh route = %d, want %d", got, wantRewritten)
 	}
 }
 

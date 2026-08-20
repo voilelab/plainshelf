@@ -17,7 +17,8 @@ During that first scan, PlainShelf:
 3. detects book package folders ending in `.bookpkg`;
 4. opens each book's `book.json` metadata file;
 5. decodes the metadata into memory;
-6. records the metadata file's modified time and size for later cache validation.
+6. records the metadata file's modified time and size for later cache validation;
+7. opens the book's current source `meta.json` to record its character count.
 
 So yes: the first successful cache initialization reads every book metadata file once. It does **not** scan the whole operating system disk; it scans the configured shelf root, specifically the shelf book tree.
 
@@ -29,7 +30,8 @@ For each discovered book package, the important disk operations are roughly:
 
 - a stat of the book package folder when it is opened (the tree walk itself takes entry types from the directory listing and only stats an entry that is a symlink);
 - an open/read/decode of `{book}.bookpkg/book.json`;
-- a stat of `book.json` to remember its `mtime` and size.
+- a stat of `book.json` to remember its `mtime` and size;
+- an open/read/decode of the current source's `sources/{source}/meta.json`, which is where a book's character count is stored.
 
 The amount of data read is usually small because `book.json` is a metadata file. The cost is mostly from many small filesystem operations, not from raw throughput.
 
@@ -55,7 +57,7 @@ PlainShelf still needs to keep the cache reasonably fresh. It does this with two
    - Reopens a book only when its tracked metadata file stat changed.
    - Controlled mainly by `book_check_interval`.
 
-Within the configured intervals, repeated browsing can be served from memory with little or no filesystem I/O.
+Within the configured intervals, repeated browsing can be served from memory with little or no filesystem I/O. That includes the character counts the home page shows: they are cached beside each book, so asking for them adds no disk operation to a listing.
 
 ![Flowchart of a book or layer listing: a book listing issued while the shelf is
 still building its first cache is refused with 503 and Retry-After 3; a dirty
@@ -76,6 +78,14 @@ it.
     arrives during initial construction performs its own full scan and answers
     `200` — slowly — rather than `503`. Everything after that first gate is
     identical for both.
+
+### Character counts
+
+A book's character count is not stored in `book.json` but in its current source's `meta.json`, so the per-book freshness check above — which compares `book.json` — cannot see a count change on its own.
+
+PlainShelf closes that gap at the point of writing: every request that rewrites a source's content, recomputes its statistics, or moves the current-source pointer refreshes that book's cached count before it answers. A count is therefore correct immediately after any change made through PlainShelf.
+
+A source edited outside PlainShelf is the exception, and behaves like every other external change: the new count appears after the next full scan, or immediately after **Update book list**.
 
 ### Layer listing
 

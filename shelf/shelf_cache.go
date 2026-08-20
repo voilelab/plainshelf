@@ -14,6 +14,29 @@ type bookIDCacheEntry struct {
 	layers Layers
 	path   string
 	book   *Book
+
+	// charCount is the character count of the book's current source, read when
+	// this entry was built. It is kept here because a listing that reports it
+	// would otherwise open and decode one source meta.json per book on the
+	// request path - the same N-filesystem-operations cost the background
+	// refresh below exists to keep off it.
+	//
+	// A published entry is never modified: every path that changes a stored
+	// value replaces the whole entry, so a reader that copied values out under
+	// the cache lock cannot observe a half-updated one.
+	charCount int
+}
+
+// newBookIDCacheEntry builds the cache entry for one book. It reads the book's
+// current source meta.json, so call it before taking the cache lock wherever
+// that is possible.
+func newBookIDCacheEntry(layers Layers, path string, book *Book) *bookIDCacheEntry {
+	return &bookIDCacheEntry{
+		layers:    layers,
+		path:      path,
+		book:      book,
+		charCount: book.currentSourceCharCount(),
+	}
 }
 
 type bookCache struct {
@@ -105,11 +128,7 @@ func (s *Shelf) scanToBookCache() error {
 		layers = append(layers, ls)
 		return true
 	}, func(b *Book) bool {
-		cache[b.ID()] = &bookIDCacheEntry{
-			layers: b.Layers(),
-			path:   b.FolderPath(),
-			book:   b,
-		}
+		cache[b.ID()] = newBookIDCacheEntry(b.Layers(), b.FolderPath(), b)
 		return true
 	})
 	if err != nil {
@@ -162,11 +181,7 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 		}
 
 		book.setLayers(cacheEntry.layers)
-		updated[bookID] = &bookIDCacheEntry{
-			layers: cacheEntry.layers,
-			path:   cacheEntry.path,
-			book:   book,
-		}
+		updated[bookID] = newBookIDCacheEntry(cacheEntry.layers, cacheEntry.path, book)
 	}
 
 	// Apply only the changed entries under a brief write lock.
@@ -241,19 +256,33 @@ func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
 }
 
 func (s *Shelf) listBooksFromCache() []*Book {
+	var books []*Book
+	for _, listing := range s.listBookListingsFromCache() {
+		books = append(books, listing.Book)
+	}
+	return books
+}
+
+// listBookListingsFromCache returns every cached book together with the values
+// the cache keeps beside it. The values are copied out under the lock so that
+// no caller reads a cache entry after releasing it.
+func (s *Shelf) listBookListingsFromCache() []BookListing {
 	s.bookCache.RLock()
 	defer s.bookCache.RUnlock()
 
-	var books []*Book
+	var listings []BookListing
 	for _, cacheEntry := range s.bookCache.cache {
-		books = append(books, cacheEntry.book)
+		listings = append(listings, BookListing{
+			Book:      cacheEntry.book,
+			CharCount: cacheEntry.charCount,
+		})
 	}
 
-	sort.Slice(books, func(i, j int) bool {
-		return books[i].ID() < books[j].ID()
+	sort.Slice(listings, func(i, j int) bool {
+		return listings[i].Book.ID() < listings[j].Book.ID()
 	})
 
-	return books
+	return listings
 }
 
 // listLayersFromCache returns the cached layer list. The copy is deliberate:
@@ -324,11 +353,7 @@ func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, error) {
 		book, err := openBook(s.dbRoot, s.Logger, cacheEntry.path)
 		if err == nil {
 			book.setLayers(cacheEntry.layers)
-			s.bookCache.cache[bookID] = &bookIDCacheEntry{
-				layers: cacheEntry.layers,
-				path:   cacheEntry.path,
-				book:   book,
-			}
+			s.bookCache.cache[bookID] = newBookIDCacheEntry(cacheEntry.layers, cacheEntry.path, book)
 			s.bookCache.Unlock()
 			return book, nil
 		} else {
@@ -356,13 +381,47 @@ func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, error) {
 }
 
 func (s *Shelf) updateBookCacheEntry(layers Layers, path string, book *Book) {
+	// Built before the lock: the entry reads the book's current source from
+	// disk, and no listing should wait on that.
+	entry := newBookIDCacheEntry(layers, path, book)
+
 	s.bookCache.Lock()
 	defer s.bookCache.Unlock()
 
-	s.bookCache.cache[book.ID()] = &bookIDCacheEntry{
-		layers: layers,
-		path:   path,
-		book:   book,
+	s.bookCache.cache[book.ID()] = entry
+}
+
+// RefreshBookCharCount re-reads one book's current-source character count into
+// its cache entry.
+//
+// Everything else in an entry is kept current by the book.json stat check in
+// Book.IsStale, but a character count is stored in the source's own meta.json
+// and writing it leaves book.json untouched. Such a change is therefore
+// invisible to that check, and the entry would keep answering with the previous
+// count until the next full scan. Every request path that rewrites a source's
+// content or moves the current-source pointer calls this instead.
+//
+// A book that is not in the cache is a no-op: the entry built for it later
+// reads the count from disk anyway.
+func (s *Shelf) RefreshBookCharCount(bookID string) {
+	s.bookCache.RLock()
+	cacheEntry := s.bookCache.cache[bookID]
+	s.bookCache.RUnlock()
+
+	if cacheEntry == nil {
+		return
+	}
+
+	refreshed := newBookIDCacheEntry(cacheEntry.layers, cacheEntry.path, cacheEntry.book)
+
+	s.bookCache.Lock()
+	defer s.bookCache.Unlock()
+
+	// A scan or a per-book refresh may have replaced the entry while the count
+	// was being read. That one was built from a later look at the shelf, so it
+	// is left alone.
+	if s.bookCache.cache[bookID] == cacheEntry {
+		s.bookCache.cache[bookID] = refreshed
 	}
 }
 

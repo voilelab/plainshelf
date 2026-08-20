@@ -11,9 +11,39 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
+// BookListing is one book of a listing together with the values the book cache
+// keeps beside it.
+type BookListing struct {
+	Book *Book
+
+	// CharCount is the character count of the book's current source as of the
+	// last time its cache entry was built, and 0 when the book has no readable
+	// current source. See Shelf.RefreshBookCharCount for what keeps it current.
+	CharCount int
+}
+
 // ListBooks returns a list of all books in the library.
 // Books are sorted by their ID in ascending order.
 func (s *Shelf) ListBooks() ([]*Book, error) {
+	listings, err := s.ListBooksWithCharCount()
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	var books []*Book
+	for _, listing := range listings {
+		books = append(books, listing.Book)
+	}
+	return books, nil
+}
+
+// ListBooksWithCharCount is ListBooks plus each book's character count, taken
+// from the book cache rather than from the shelf.
+//
+// It exists so that a listing can report character counts without opening one
+// source meta.json per book on the request path; see bookIDCacheEntry.charCount
+// for why that cost does not belong there.
+func (s *Shelf) ListBooksWithCharCount() ([]BookListing, error) {
 	if !s.IsReady() {
 		return nil, util.Errorf("%w", ErrShelfInitializing)
 	}
@@ -25,7 +55,7 @@ func (s *Shelf) ListBooks() ([]*Book, error) {
 
 	s.scheduleBookCacheRefreshIfNeeded()
 
-	return s.listBooksFromCache(), nil
+	return s.listBookListingsFromCache(), nil
 }
 
 // GetBook returns the details of a specific book by its ID.

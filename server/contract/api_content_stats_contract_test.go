@@ -18,8 +18,9 @@ func contentStatsURL() string {
 
 // clearSourceCharCount rewrites a book's current source meta.json with a zero
 // character count, reproducing the on-disk state of a book whose count was
-// never computed. The API then omits char_count for it, which is exactly what
-// the maintenance page reports as an unknown count.
+// never computed. Once the shelf has been walked again the API omits
+// char_count for it, which is exactly what the maintenance page reports as an
+// unknown count.
 func clearSourceCharCount(t *testing.T, env *apiTestEnv, bookID string) {
 	t.Helper()
 
@@ -84,6 +85,12 @@ func TestAPIRefreshContentStatsContract(t *testing.T) {
 	}
 
 	clearSourceCharCount(t, env, stale.Meta.ID)
+
+	// The listing reports counts held in the book cache, so an edit made
+	// straight on disk reaches it through a walk of the shelf - the rescan a
+	// user runs after changing a shelf from outside PlainShelf.
+	assertStatus(t, env.post(scansURL(), nil), http.StatusOK)
+
 	if got := charCountByBookID(t, env)[stale.Meta.ID]; got != 0 {
 		t.Fatalf("char_count after clearing = %d, want 0", got)
 	}
