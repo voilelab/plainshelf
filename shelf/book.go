@@ -95,7 +95,8 @@ var ErrInvalidBookFormat = util.NewError(`format must be "txt" or "md"`)
 // ErrUnsupportedBookSchemaVersion is returned when a write is attempted against
 // a book.json whose on-disk schema_version is newer than this build supports.
 // It is book.json specific on purpose: sources/{id}/meta.json and trash.json
-// will need their own sentinels so errors.Is can tell which file is too new.
+// carry their own sentinels (ErrUnsupportedSourceSchemaVersion and
+// ErrUnsupportedTrashSchemaVersion) so errors.Is can tell which file is too new.
 var ErrUnsupportedBookSchemaVersion = util.NewError("book.json schema version is newer than this build supports")
 
 type Layers []string

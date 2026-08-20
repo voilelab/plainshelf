@@ -171,6 +171,45 @@ real rehearsal. Read it before applying. Two things in it deserve attention:
 
 ---
 
+## Trash metadata schema v1
+
+Every book you delete moves into `trash/books/{id}.bookpkg` with a `trash.json`
+beside its `book.json`. As of schema v1 that file, too, records its format
+version in the first key:
+
+```json
+{
+  "schema_version": 1,
+  "deleted_at": "2026-08-12T09:41:00Z",
+  "original_path": "books/fiction/genji.bookpkg",
+  "original_layer": [
+    "fiction"
+  ],
+  "delete_reason": "user"
+}
+```
+
+`trash.json` is the only record of where a book came from, so it is versioned
+for the same reason `book.json` is: a build that rewrote it with fields it did
+not understand would restore the book to the wrong place. A `trash.json` from
+an older shelf has no `schema_version` and is read as v1; the version is written
+only when a book is moved to the trash, never by listing it.
+
+A trashed book whose `trash.json` is newer than the running build stays in the
+trash list and keeps showing where it came from, but this build will not modify
+it. Restoring it and permanently deleting it both fail with `409 Conflict`, and
+the refusal happens before anything moves, so the book is never left half
+restored. Emptying the trash is background work rather than a single request: it
+skips that book, reports the sweep as partially completed, and leaves the book
+in the trash.
+
+Deleting a book is also a *write to the trash*: if the book folder already
+carries a `trash.json` from a newer build — which happens when a book was
+carried back out of the trash by hand — moving it to the trash is refused
+before the book is moved.
+
+---
+
 ## Compatibility policy
 
 Starting with `book.json` schema v1, PlainShelf makes the following
@@ -190,10 +229,12 @@ documented breaking change, not as data that v1 guarantees to migrate.
   a new field becoming required. Cosmetic and additive changes do not raise it.
 - Upgrades are lazy and per-book. Opening a library never rewrites it. A book is
   written in the new format only when you next change something about that book.
-- PlainShelf will never write a `book.json` or source `meta.json` whose on-disk
-  `schema_version` is higher than the running build understands. Such data stays visible and
-  readable on a best-effort basis, and every attempt to modify it fails with an
-  explicit error rather than overwriting the file.
+- PlainShelf will never write a `book.json`, source `meta.json`, or `trash.json`
+  whose on-disk `schema_version` is higher than the running build understands.
+  Such data stays visible and readable on a best-effort basis, and every attempt
+  to modify it fails with an explicit error rather than overwriting the file.
+  For a trashed book that covers restoring, permanently deleting, and moving a
+  book into the trash on top of such a record.
 - The server is no longer the only thing that reads the format. The Android
   client reads a pCloud-held shelf directly, without a server in between. That
   reader is read-only, so it inherits the read half of these promises and never
@@ -221,7 +262,8 @@ documented breaking change, not as data that v1 guarantees to migrate.
 - There is no downgrade path. PlainShelf will not rewrite a v2 book back to v1.
   To go back to an older release, restore from a backup taken before the
   upgrade.
-- Files other than `book.json` and source `meta.json` are not versioned yet — see
+- Files other than `book.json`, source `meta.json`, and `trash.json` are not
+  versioned yet — see
   [What is versioned today](#what-is-versioned-today). They get the same
   treatment as they are covered, not retroactively.
 - Hand-edited `book.json` files are read on a best-effort basis. Malformed JSON
@@ -425,17 +467,26 @@ forward:
 - **Restore that book's folder from a backup** taken before the newer build
   touched it, if you intend to stay on the older release.
 
+A book in the trash behaves the same way, with `trash.json` in place of
+`book.json`: it is still listed, and restoring or permanently deleting it
+returns `409 Conflict` with
+
+```text
+trashed book uses a newer on-disk format than this PlainShelf build supports;
+upgrade PlainShelf to modify it
+```
+
 ---
 
 ## What is versioned today
 
-Book and source metadata carry independent schema versions.
+Book, source, and trash metadata carry independent schema versions.
 
 | Path | Versioned? |
 |---|---|
 | `books/**/book.json` | Yes — `schema_version`, described on this page |
 | `books/**/sources/{id}/meta.json` | Yes — `schema_version`; v1 owns source `format` |
-| `trash/**/trash.json` | No |
+| `trash/**/trash.json` | Yes — `schema_version`; v1 owns the book's restore path |
 | Application store | No |
 
 The practical rule remains: **run one PlainShelf version against a shelf at a
