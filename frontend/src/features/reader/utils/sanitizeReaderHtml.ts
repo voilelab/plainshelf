@@ -54,7 +54,6 @@ const ALLOWED_ATTR = [
   'type',
   'colspan',
   'rowspan',
-  'span',
   'scope',
   'headers',
   'title',
