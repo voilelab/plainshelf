@@ -57,7 +57,13 @@ const lockRetryDelay = 50 * time.Millisecond
 
 type Shelf struct {
 	logutil.Logger
-	dbRoot    fsutil.FS
+
+	// dbRoot reads the shelf. It is a ReadFS so that a read path cannot mutate
+	// the shelf by accident, and so that a read-only shelf can be represented
+	// by a handle that has no write half at all; every mutation narrows it back
+	// with writeRoot. See ShelfConf.ReadOnly.
+	dbRoot    fsutil.ReadFS
+	readOnly  bool
 	close     func() error
 	shelfLock ShelfLock
 	bookCache *bookCache
@@ -78,6 +84,20 @@ type Shelf struct {
 type ShelfConf struct {
 	Logger  logutil.LogConf `yaml:"logger" json:"logger"`
 	LibRoot string          `yaml:"lib_root" json:"lib_root"`
+
+	// ReadOnly opens the shelf without writing to it at all.
+	//
+	// A read-only shelf is taken exactly as it is found: no directory is
+	// created, leftover temp data is not cleared, a legacy .trash/ is not
+	// migrated, neither runtime cache under app/ is written, and every mutating
+	// operation is refused with fsutil.ErrReadOnly before it touches anything.
+	// It also forces lock_mode to "none" and disables the exported book cache,
+	// because both of those write to the shelf.
+	//
+	// Use it for a shelf this process cannot or must not write: a read-only
+	// mount or snapshot, a backup image, a share exported read-only. lib_root
+	// is never created in this mode - a path that does not open is an error.
+	ReadOnly bool `yaml:"read_only" json:"read_only"`
 
 	// for cache
 
@@ -203,9 +223,25 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
+	// Silently keeping the ID would leave the export enabled on a shelf that
+	// must not be written; failing to start over it would make read_only
+	// unusable on a config that merely carries the server's default ID.
+	bookCacheWriterID := conf.BookCacheWriterID
+	if conf.ReadOnly && bookCacheWriterID != "" {
+		logger.Warn("ignoring book_cache_writer_id on a read-only shelf: exporting the book cache writes to the shelf", "lib_root", conf.LibRoot)
+		bookCacheWriterID = ""
+	}
+
 	var rt *os.Root
 	rt, err = os.OpenRoot(conf.LibRoot)
 	if err != nil {
+		// A read-only shelf is never created: the path either already holds a
+		// shelf or the caller pointed at the wrong one, and creating it is
+		// itself a write.
+		if conf.ReadOnly {
+			return nil, util.Errorf("%w", err)
+		}
+
 		// Auto create the library if it doesn't exist
 		if !os.IsNotExist(err) {
 			return nil, util.Errorf("%w", err)
@@ -232,11 +268,23 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		return nil, util.Errorf("unknown lock_mode %q: must be \"flock\" or \"none\"", conf.LockMode)
 	}
 
-	dbRoot := fsutil.NewRootFS(rt)
+	// Whatever the config asked for: the lock file is created on first use,
+	// which a read-only shelf cannot do, and a shelf that writes nothing has
+	// nothing to serialize against another instance. The mode is still
+	// validated above so a typo is not hidden by read_only.
+	if conf.ReadOnly {
+		shelfLock = newNoneLock()
+	}
+
+	var dbRoot fsutil.ReadFS = fsutil.NewRootFS(rt)
+	if conf.ReadOnly {
+		dbRoot = fsutil.ReadOnly(dbRoot)
+	}
 
 	s := &Shelf{
 		Logger:    *logger,
 		dbRoot:    dbRoot,
+		readOnly:  conf.ReadOnly,
 		close:     rt.Close,
 		shelfLock: shelfLock,
 		readyCh:   make(chan struct{}),
@@ -244,7 +292,7 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		// cache
 		bookCache:         newBookCache(scanInterval, bookCheckInterval),
 		scanCacheEnabled:  scanCacheEnabled,
-		bookCacheWriterID: conf.BookCacheWriterID,
+		bookCacheWriterID: bookCacheWriterID,
 		bookCacheInterval: bookCacheInterval,
 	}
 
@@ -254,7 +302,7 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	s.Debug("initializing shelf cache in background", "lib_root", conf.LibRoot, "scan_interval", scanInterval, "book_check_interval", bookCheckInterval, "lock_timeout", lockTimeout)
+	s.Debug("initializing shelf cache in background", "lib_root", conf.LibRoot, "read_only", conf.ReadOnly, "scan_interval", scanInterval, "book_check_interval", bookCheckInterval, "lock_timeout", lockTimeout)
 	go func() {
 		if err := s.initCache(); err != nil {
 			s.Error("failed to initialize shelf cache", "error", err)
@@ -265,8 +313,21 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 }
 
 func (s *Shelf) makeStructure() error {
+	// Every step below writes, and none of them is needed to read a shelf that
+	// already exists: books/ and trash/books/ are tolerated missing by the walk
+	// and the trash listing, app/tmp/ is only ever used by a mutation, and the
+	// legacy trash migration has nothing to migrate for a reader.
+	if s.readOnly {
+		return nil
+	}
+
+	root, err := s.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	// create the directory structure for the library
-	err := s.dbRoot.MkdirAll(booksFolder)
+	err = root.MkdirAll(booksFolder)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -274,29 +335,49 @@ func (s *Shelf) makeStructure() error {
 	// Wipe any leftover temp data from a previous run that may have crashed
 	// mid-operation (e.g. a partially created book under app/tmp). This folder
 	// only ever holds transient in-progress data, so it is safe to clear on startup.
-	err = s.dbRoot.RemoveAll(path.Join(appFolder, appTmpFolder))
+	err = root.RemoveAll(path.Join(appFolder, appTmpFolder))
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	err = s.dbRoot.MkdirAll(path.Join(appFolder, appTmpFolder))
+	err = root.MkdirAll(path.Join(appFolder, appTmpFolder))
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
 	// Runs before the trash directory is created below, so that a shelf holding
 	// only the legacy name can still take the cheap rename path.
-	err = s.migrateLegacyTrash()
+	err = s.migrateLegacyTrash(root)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	err = s.dbRoot.MkdirAll(trashBooksFolder)
+	err = root.MkdirAll(trashBooksFolder)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
 	return nil
+}
+
+// writeRoot narrows the shelf's read handle back to a writable one, reporting
+// fsutil.ErrReadOnly when the shelf was opened read-only.
+//
+// This is the single door between reading and writing the shelf: every mutation
+// asks here first, which is what makes ShelfConf.ReadOnly a guarantee the
+// compiler enforces rather than a flag each call site has to remember.
+func (s *Shelf) writeRoot() (fsutil.FS, error) {
+	root, err := fsutil.Writable(s.dbRoot)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	return root, nil
+}
+
+// ReadOnly reports whether this shelf was opened read-only, in which case every
+// mutating operation fails with fsutil.ErrReadOnly.
+func (s *Shelf) ReadOnly() bool {
+	return s.readOnly
 }
 
 func (s *Shelf) initCache() error {

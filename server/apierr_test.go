@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
@@ -75,6 +76,12 @@ func TestAPIErrorForKnownSentinels(t *testing.T) {
 			err:         shelf.ErrSourceNotFound,
 			wantStatus:  http.StatusNotFound,
 			wantMessage: "source not found",
+		},
+		{
+			name:        "read-only shelf",
+			err:         fsutil.ErrReadOnly,
+			wantStatus:  http.StatusConflict,
+			wantMessage: "shelf is opened read-only; this PlainShelf instance cannot modify it",
 		},
 		{
 			name:        "unsupported book schema version",

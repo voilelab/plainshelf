@@ -12,6 +12,9 @@ func (h *batchHandlers) refreshContentStats(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
+	if h.rejectReadOnlyShelf(w, shelfData) {
+		return
+	}
 
 	h.submitTaskChain(w,
 		task.NewRefreshContentStatsChain(shelfData.ID, shelfData.Shelf, h.Logger),

@@ -24,6 +24,7 @@ and UI behavior may still change between releases.
 ### Fixed
 
 - Fixed a book becoming unreadable after its current source was deleted. The pointer was left naming the removed source, which made the book's content and split-config endpoints fail, blanked the book detail page down to an error message, and left the reader unable to load anything. Alongside the deletion fix, reads now fall back to the newest source a book still has whenever `current_source` cannot be resolved — which also repairs books already in this state, and books left there by a hand edit or a sync tool. The fallback does not rewrite `book.json`: the filesystem stays the source of truth. A book with no source at all is now reported as a missing source (`404`) instead of a server error (`500`).
+- Fixed the Android client's pCloud mode listing the directories a NAS or a sync client leaves inside a shelf. `@eaDir`, `#recycle`, `$RECYCLE.BIN`, `lost+found`, and dot-prefixed helper directories such as `.stfolder` appeared as layers — on a shelf hosted by a Synology NAS that is one `@eaDir` beside every real folder — and a book package sitting in one of them, a book in the network recycle bin among them, was listed as an ordinary book. The server has always skipped these directories; the pCloud mode walks the shelf itself and now applies the same rule. A shelf reached through a PlainShelf server was never affected.
 
 ### Removed
 

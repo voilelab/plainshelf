@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "writer_id": "desktop-9f2a",
+  "timestamp": 1772000000,
+  "generator": "plainshelf/0.0.0-fixture",
+  "layers": [
+    "/",
+    "Fiction"
+  ],
+  "books": {
+    "a3d7pq9km2xv5nrt": {
+      "path": "books/almanac.bookpkg",
+      "meta": {
+        "schema_version": 1,
+        "id": "a3d7pq9km2xv5nrt",
+        "title": "Almanac",
+        "format": "txt",
+        "cover": "",
+        "authors": [],
+        "language": "",
+        "comments": "",
+        "star": 0,
+        "created_at": "2026-02-21T12:00:00Z",
+        "current_source": "20260221-120000"
+      }
+    },
+    "s9k4mt2xq7vz3ndp": {
+      "path": "books/Fiction/solaris.bookpkg",
+      "meta": {
+        "schema_version": 1,
+        "id": "s9k4mt2xq7vz3ndp",
+        "title": "Solaris",
+        "format": "txt",
+        "cover": "",
+        "authors": [
+          "Stanisław Lem"
+        ],
+        "language": "pl",
+        "comments": "",
+        "star": 0,
+        "created_at": "2026-02-20T11:00:00Z",
+        "current_source": "20260220-110000"
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "z2p8mk4c7vqx3nrs",
+  "title": "Atlas",
+  "format": "txt",
+  "cover": "cover.png",
+  "authors": [],
+  "language": "",
+  "comments": "current_source and cover both point at files that are gone.",
+  "star": 0,
+  "created_at": "2026-03-15T10:15:00Z",
+  "current_source": "20260101-000000"
+}

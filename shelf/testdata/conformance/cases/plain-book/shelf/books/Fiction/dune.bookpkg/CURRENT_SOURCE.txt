@@ -1,0 +1,7 @@
+[PlainShelf hint]
+This book currently reads from:
+sources/20260315-101500
+
+This file is a hint written by PlainShelf, not the source of truth: nothing
+reads it back, and current_source in book.json is what the app follows. You
+can safely delete it; it is rewritten the next time the current source changes.

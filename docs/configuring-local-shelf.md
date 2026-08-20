@@ -95,6 +95,21 @@ Because PlainShelf is filesystem-first, backing up a local shelf is straightforw
 
 Do not back up only individual `.bookpkg` folders unless you intentionally want a partial library backup.
 
+## Open a shelf read-only
+
+To browse a shelf without writing anything to it — a restored backup, a read-only mount, an archived snapshot — set `read_only` on that shelf:
+
+```yaml
+app_conf:
+  shelves:
+    - id: archive_shelf
+      name: Archive (read-only)
+      lib_root: /mnt/backup/plainshelf-shelf
+      read_only: true
+```
+
+PlainShelf then creates no folders, writes no lock or cache files under `app/`, and refuses every edit with an error instead of touching the shelf. `lib_root` must already exist. See [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md#opening-a-shelf-read-only) for exactly what is skipped.
+
 ## Troubleshooting
 
 ### PlainShelf cannot create or update books

@@ -74,3 +74,20 @@ func Writable(rfs ReadFS) (FS, error) {
 	}
 	return fsys, nil
 }
+
+// ReadOnly hides the write half of a filesystem, so that Writable can no longer
+// hand it back.
+//
+// A value that implements FS still satisfies FS after it is stored in a ReadFS
+// field, and Writable's type assertion would return it unchanged. Wrapping it
+// here is what turns "this handle must never be written through" into a
+// property of the value: every mutation behind it fails with ErrReadOnly
+// instead of reaching a filesystem that may not accept writes at all.
+func ReadOnly(rfs ReadFS) ReadFS {
+	return readOnlyFS{rfs}
+}
+
+// readOnlyFS embeds the read half only, so it deliberately does not implement FS.
+type readOnlyFS struct {
+	ReadFS
+}

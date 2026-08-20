@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net/http"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -38,6 +39,23 @@ func (c *apiCore) resolveShelf(w http.ResponseWriter, r *http.Request) (*shelf.S
 	}
 
 	return shelfData, true
+}
+
+// rejectReadOnlyShelf answers a request that would write to a shelf opened
+// read-only, reporting whether it did.
+//
+// Handlers whose work reaches the shelf synchronously do not need it: the shelf
+// itself refuses them with fsutil.ErrReadOnly and writeErr turns that into 409.
+// This is for the endpoints that queue a background chain instead, which would
+// otherwise answer 202 and let the caller discover the refusal in a task
+// report - or not at all.
+func (c *apiCore) rejectReadOnlyShelf(w http.ResponseWriter, shelfData *shelf.ShelfData) bool {
+	if !shelfData.ReadOnly() {
+		return false
+	}
+
+	c.writeErr(w, fsutil.ErrReadOnly, "shelf is read-only")
+	return true
 }
 
 func (c *apiCore) lookupBook(w http.ResponseWriter, shelfData *shelf.ShelfData, bookID string) (*shelf.Book, bool) {

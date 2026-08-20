@@ -1,0 +1,34 @@
+{
+  "layers": [
+    "/"
+  ],
+  "books": [
+    {
+      "path": "books/tomorrow.bookpkg",
+      "layers": [],
+      "id": "t4v9dq2mx7kz5nhb",
+      "title": "Written By A Newer Build",
+      "format": "txt",
+      "authors": [
+        "Future Writer"
+      ],
+      "tags": [],
+      "star": 5,
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 2,
+      "read_only": true,
+      "current_source_field": "20260501-120000",
+      "current_source": "20260501-120000",
+      "sources": [
+        {
+          "id": "20260501-120000",
+          "has_content": true,
+          "char_count": 58,
+          "assets": []
+        }
+      ]
+    }
+  ],
+  "book_caches": []
+}

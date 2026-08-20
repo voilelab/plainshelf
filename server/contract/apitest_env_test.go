@@ -66,6 +66,14 @@ func withShelfLogDir(dir, prefix string) appConfOption {
 	}
 }
 
+// withReadOnlyShelf opens the shelf read-only, which is the per-shelf setting
+// rather than the app-wide read-only mode setReadOnly toggles.
+func withReadOnlyShelf() appConfOption {
+	return func(conf *server.AppConf) {
+		conf.Shelves[0].ReadOnly = true
+	}
+}
+
 // withSecurity pins the security configuration, which is what the local-token
 // and CORS gates are asserted against.
 func withSecurity(security *server.SecurityConf) appConfOption {

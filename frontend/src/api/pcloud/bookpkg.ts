@@ -16,6 +16,34 @@ export const SOURCE_FILE = 'source.txt';
 export const SOURCE_ASSETS_FOLDER = 'assets';
 
 /**
+ * Directory names filesystems, NAS firmware and sync clients create inside a
+ * shelf, mirroring `ignoredDirNames` in shelf/util.go. Keys are lower case;
+ * `isIgnoredDirName` folds the name before looking it up, because a share
+ * exported over SMB may spell "$RECYCLE.BIN" either way.
+ */
+const IGNORED_DIR_NAMES = new Set([
+  '@eadir', // Synology index and thumbnail sidecar
+  '#recycle', // Synology network recycle bin
+  '$recycle.bin', // Windows recycle bin, visible over SMB
+  'lost+found' // ext filesystem recovery directory
+]);
+
+/**
+ * Reports whether a directory under `books/` must be skipped, matching
+ * `isIgnoredDir` in shelf/util.go — a shelf reached over pCloud is the same
+ * shelf, and one that was synced from a NAS carries the same debris.
+ *
+ * Skipping matters more here than the names suggest: on Synology every
+ * directory carries its own "@eaDir", which would otherwise double the layer
+ * tree, and a book in "#recycle" is one the user deleted. The leading-dot rule
+ * covers the open-ended set of hidden helper directories (.git, .stfolder,
+ * .dropbox.cache, .Spotlight-V100) in one condition.
+ */
+export function isIgnoredDirName(name: string): boolean {
+  return name.startsWith('.') || IGNORED_DIR_NAMES.has(name.toLowerCase());
+}
+
+/**
  * The book.json schema version this reader understands, matching
  * `BookMetaSchemaVersion` in shelf/book.go.
  *
@@ -119,14 +147,15 @@ export function findBooksFolder(shelfRoot: PCloudItem): PCloudItem | undefined {
  *
  * Directories are layers until one ends in `.bookpkg`; that one is a book and is
  * not descended into further, matching how the Go shelf scans the tree
- * (shelf/shelf_book.go).
+ * (shelf/shelf_book.go). System directories are skipped before that test, so a
+ * package inside one is not a book either.
  */
 export function collectBookPackages(booksFolder: PCloudItem): BookPackageRef[] {
   const packages: BookPackageRef[] = [];
 
   const walk = (folder: PCloudItem, layers: string[]): void => {
     for (const item of folder.contents ?? []) {
-      if (!item.isfolder || item.folderid === undefined) {
+      if (!item.isfolder || item.folderid === undefined || isIgnoredDirName(item.name)) {
         continue;
       }
 
@@ -150,14 +179,20 @@ export function collectBookPackages(booksFolder: PCloudItem): BookPackageRef[] {
  * Derived from the directories themselves, not from the books found in them, so
  * a layer holding no books is still listed — the Go side walks real directories
  * too (`iterateLayers` in shelf/shelf_layer.go) and `books/` itself counts as
- * the "no layer" group.
+ * the "no layer" group. System directories are not layers, for the same reason
+ * the Go scan refuses to make one (`ErrIgnoredLayerName`).
  */
 export function collectLayers(booksFolder: PCloudItem): string[] {
   const paths = new Set<string>(['/']);
 
   const walk = (folder: PCloudItem, segments: string[]): void => {
     for (const item of folder.contents ?? []) {
-      if (!item.isfolder || item.folderid === undefined || item.name.endsWith(BOOK_EXTENSION)) {
+      if (
+        !item.isfolder ||
+        item.folderid === undefined ||
+        item.name.endsWith(BOOK_EXTENSION) ||
+        isIgnoredDirName(item.name)
+      ) {
         continue;
       }
       const next = [...segments, item.name];

@@ -1,0 +1,9 @@
+# Atlas of Clouds
+
+Cumulus rises in heaps.
+
+![Cumulus](assets/fig-cumulus.png)
+
+Stratus lies in sheets.
+
+![Stratus](assets/fig-stratus.png)

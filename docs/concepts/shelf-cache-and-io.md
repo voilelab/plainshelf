@@ -297,6 +297,44 @@ What this does *not* cover: two clients editing the same book at the same time. 
 
 ---
 
+## Opening a shelf read-only
+
+Opening a shelf normally writes to it before anything is read: the folder layout is created if missing, `app/tmp/` is wiped, a legacy `.trash/` is migrated, and the lock file, the scan cache, and the exported book cache are all written under `app/`.
+
+`read_only` turns every one of those off, so the shelf is taken exactly as it is found:
+
+```yaml
+app_conf:
+  shelves:
+    - id: archive_shelf
+      name: Archive (read-only)
+      lib_root: /mnt/backup/plainshelf-shelf
+      read_only: true
+```
+
+Use it for a shelf this PlainShelf instance cannot or must not write to — a read-only mount or snapshot, a restored backup image, a share exported read-only.
+
+What changes:
+
+| | Normal shelf | `read_only: true` |
+|---|---|---|
+| Missing `lib_root` | Created | Startup fails |
+| `books/`, `trash/books/`, `app/tmp/` | Created if missing | Not created; a shelf without them still lists |
+| Legacy `.trash/` migration | Runs at startup | Skipped |
+| `app/library.lock` | Written (`lock_mode: flock`) | Never written; `lock_mode` is forced to `none` |
+| `app/scan-cache.json` | Written at startup and shutdown | Never written; an existing one is still read |
+| `app/book-cache-*.json` | Written when `book_cache_writer_id` is set | Never written; the ID is ignored |
+| Creating, editing, moving, deleting | Allowed | Refused with HTTP 409 before anything is touched |
+
+Two consequences worth knowing:
+
+- **Every start pays for a full walk.** The scan cache is read but never written, so a read-only shelf cannot get cheaper across restarts the way a writable one does. On a large or high-latency shelf, that is the cost of the guarantee.
+- **The whole shelf is read-only, not just its files.** The write endpoints stay routed and answer 409; nothing in the UI is hidden yet.
+
+`read_only` is per shelf, so one server can serve a writable shelf and an archived one side by side.
+
+---
+
 ## Practical guidance
 
 - For small or medium local shelves, the defaults are usually fine.

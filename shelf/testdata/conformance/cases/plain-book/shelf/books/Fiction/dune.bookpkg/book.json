@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "k3xq7pm2vh4td6bz",
+  "title": "Dune",
+  "format": "txt",
+  "tags": [
+    "sci-fi"
+  ],
+  "cover": "cover.png",
+  "authors": [
+    "Frank Herbert"
+  ],
+  "language": "en",
+  "comments": "",
+  "star": 4,
+  "created_at": "2026-03-15T10:15:00Z",
+  "updated_at": "2026-03-15T10:15:00Z",
+  "current_source": "20260315-101500"
+}

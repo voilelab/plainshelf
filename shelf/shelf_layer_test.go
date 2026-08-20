@@ -39,7 +39,7 @@ func countBookTreeReads(t *testing.T, s *Shelf) *countingDirFS {
 		t.Fatal("countBookTreeReads needs a shelf without a book cache writer ID")
 	}
 
-	counting := &countingDirFS{FS: s.dbRoot}
+	counting := &countingDirFS{FS: writeRootForTest(t, s)}
 	s.dbRoot = counting
 	return counting
 }
