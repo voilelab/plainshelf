@@ -4,6 +4,7 @@ import (
 	"path"
 	"strings"
 	"testing"
+	"time"
 )
 
 // newCountingTestShelf builds a shelf whose intervals are long enough that no
@@ -161,5 +162,65 @@ func TestScanFillsCharCountsFromTheShelf(t *testing.T) {
 
 	if got := listedCharCount(t, s, book.ID()); got != 5 {
 		t.Errorf("char count after a scan = %d, want 5", got)
+	}
+}
+
+// A full scan reads each book early in its walk and publishes the whole map at
+// the end, so a source rewritten in between is already refreshed by the time
+// the scan lands. The scan's older reading of that file must not undo it: a
+// character count is written without touching book.json, so the per-book
+// staleness check could never correct it and the shelf would answer with the
+// pre-rewrite count until the next scan.
+func TestScanKeepsACharCountObservedAfterItsOwnRead(t *testing.T) {
+	s := newCountingTestShelf(t)
+
+	book := newBookWithContent(t, s, "Raced", "abcde")
+
+	// Stands in for a refresh that lands while the walk below is still running:
+	// a count observed after the walk read the same book's source.
+	s.bookCache.Lock()
+	refreshed := *s.bookCache.cache[book.ID()]
+	refreshed.charCount = 99
+	refreshed.charCountAt = time.Now().Add(time.Minute)
+	s.bookCache.cache[book.ID()] = &refreshed
+	s.bookCache.Unlock()
+
+	if err := s.scanToBookCache(); err != nil {
+		t.Fatalf("scanToBookCache: %v", err)
+	}
+
+	if got := listedCharCount(t, s, book.ID()); got != 99 {
+		t.Errorf("char count after the scan published its older reading = %d, want the newer 99", got)
+	}
+}
+
+// The same overlap the other way round: the walk publishes first, so the entry
+// the refresh read is gone by the time it has a count to store. The count still
+// belongs to the book, so it lands on whatever entry is published instead of
+// being dropped.
+func TestRefreshBookCharCountAppliesToAReplacedEntry(t *testing.T) {
+	s := newCountingTestShelf(t)
+
+	book := newBookWithContent(t, s, "Replaced", "abcde")
+
+	// What a walk that read this book before the rewrite below would publish.
+	stale := newBookIDCacheEntry(book.Layers(), book.FolderPath(), book)
+
+	source, err := book.GetSource(book.CurrentSource())
+	if err != nil {
+		t.Fatalf("GetSource: %v", err)
+	}
+	if err := source.UpdateContent(strings.NewReader("abcdefgh")); err != nil {
+		t.Fatalf("UpdateContent: %v", err)
+	}
+
+	s.bookCache.Lock()
+	s.bookCache.cache[book.ID()] = stale
+	s.bookCache.Unlock()
+
+	s.RefreshBookCharCount(book.ID())
+
+	if got := listedCharCount(t, s, book.ID()); got != 8 {
+		t.Errorf("char count after refreshing a replaced entry = %d, want 8", got)
 	}
 }

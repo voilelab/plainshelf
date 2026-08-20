@@ -25,18 +25,60 @@ type bookIDCacheEntry struct {
 	// value replaces the whole entry, so a reader that copied values out under
 	// the cache lock cannot observe a half-updated one.
 	charCount int
+
+	// charCountAt is when the read behind charCount began, and is what orders
+	// two observations of the same book against each other.
+	//
+	// It is needed because a character count is written without touching
+	// book.json: a walk that read a source before it was rewritten and the
+	// refresh that followed the write are then two views of the same book that
+	// can be published in either order, and nothing else in the entry can tell
+	// which one is older. Publishing the older one would stick, because the
+	// book.json stat check cannot see a count change. So a count is only ever
+	// replaced by one observed later; see keepNewerCharCount.
+	charCountAt time.Time
 }
 
 // newBookIDCacheEntry builds the cache entry for one book. It reads the book's
 // current source meta.json, so call it before taking the cache lock wherever
 // that is possible.
 func newBookIDCacheEntry(layers Layers, path string, book *Book) *bookIDCacheEntry {
+	charCount, charCountAt := readCharCount(book)
+
 	return &bookIDCacheEntry{
-		layers:    layers,
-		path:      path,
-		book:      book,
-		charCount: book.currentSourceCharCount(),
+		layers:      layers,
+		path:        path,
+		book:        book,
+		charCount:   charCount,
+		charCountAt: charCountAt,
 	}
+}
+
+// readCharCount reads a book's current-source character count and reports the
+// moment the read began. The start and not the end: a read that overlaps a
+// write may see either state, and the caller that started later is the one
+// whose write it followed.
+func readCharCount(book *Book) (int, time.Time) {
+	readAt := time.Now()
+	return book.currentSourceCharCount(), readAt
+}
+
+// keepNewerCharCount returns entry with the character count of the entry it
+// replaces, when that one was observed later. Call it under the cache write
+// lock, with the entry currently published for the same book.
+//
+// This is what stops a full scan from undoing a refresh: the scan reads a book
+// early in its walk and publishes the whole map at the end, so a source
+// rewritten in between is already refreshed by the time the scan lands.
+func keepNewerCharCount(entry, published *bookIDCacheEntry) *bookIDCacheEntry {
+	if published == nil || !published.charCountAt.After(entry.charCountAt) {
+		return entry
+	}
+
+	merged := *entry
+	merged.charCount = published.charCount
+	merged.charCountAt = published.charCountAt
+	return &merged
 }
 
 type bookCache struct {
@@ -138,6 +180,9 @@ func (s *Shelf) scanToBookCache() error {
 	sortLayers(layers)
 
 	s.bookCache.Lock()
+	for bookID, entry := range cache {
+		cache[bookID] = keepNewerCharCount(entry, s.bookCache.cache[bookID])
+	}
 	s.bookCache.cache = cache
 	s.bookCache.layers = layers
 	s.bookCache.treeDirty = false
@@ -188,7 +233,7 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 	s.bookCache.Lock()
 	for bookID, entry := range updated {
 		if entry != nil {
-			s.bookCache.cache[bookID] = entry
+			s.bookCache.cache[bookID] = keepNewerCharCount(entry, s.bookCache.cache[bookID])
 		} else {
 			delete(s.bookCache.cache, bookID)
 		}
@@ -353,7 +398,10 @@ func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, error) {
 		book, err := openBook(s.dbRoot, s.Logger, cacheEntry.path)
 		if err == nil {
 			book.setLayers(cacheEntry.layers)
-			s.bookCache.cache[bookID] = newBookIDCacheEntry(cacheEntry.layers, cacheEntry.path, book)
+			s.bookCache.cache[bookID] = keepNewerCharCount(
+				newBookIDCacheEntry(cacheEntry.layers, cacheEntry.path, book),
+				s.bookCache.cache[bookID],
+			)
 			s.bookCache.Unlock()
 			return book, nil
 		} else {
@@ -388,7 +436,7 @@ func (s *Shelf) updateBookCacheEntry(layers Layers, path string, book *Book) {
 	s.bookCache.Lock()
 	defer s.bookCache.Unlock()
 
-	s.bookCache.cache[book.ID()] = entry
+	s.bookCache.cache[book.ID()] = keepNewerCharCount(entry, s.bookCache.cache[book.ID()])
 }
 
 // RefreshBookCharCount re-reads one book's current-source character count into
@@ -412,17 +460,24 @@ func (s *Shelf) RefreshBookCharCount(bookID string) {
 		return
 	}
 
-	refreshed := newBookIDCacheEntry(cacheEntry.layers, cacheEntry.path, cacheEntry.book)
+	charCount, charCountAt := readCharCount(cacheEntry.book)
 
 	s.bookCache.Lock()
 	defer s.bookCache.Unlock()
 
 	// A scan or a per-book refresh may have replaced the entry while the count
-	// was being read. That one was built from a later look at the shelf, so it
-	// is left alone.
-	if s.bookCache.cache[bookID] == cacheEntry {
-		s.bookCache.cache[bookID] = refreshed
+	// was being read, so the count lands on whatever is published now rather
+	// than on the entry it was read from - discarding it would leave a count
+	// read before this book's source was rewritten in place.
+	published := s.bookCache.cache[bookID]
+	if published == nil || published.charCountAt.After(charCountAt) {
+		return
 	}
+
+	refreshed := *published
+	refreshed.charCount = charCount
+	refreshed.charCountAt = charCountAt
+	s.bookCache.cache[bookID] = &refreshed
 }
 
 func (s *Shelf) deleteBookCacheEntry(bookID string) {
