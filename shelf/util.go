@@ -5,7 +5,6 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
-	"io/fs"
 	"math/rand"
 	"regexp"
 	"strings"
@@ -50,36 +49,12 @@ func randomString(n int) string {
 // empty string when the file cannot be stat'd. Every stored file the read path
 // serves with caching headers derives its validator here, so covers and source
 // assets cannot drift apart on what counts as "changed".
-func fileETag(root fsutil.FS, filePath string) string {
+func fileETag(root fsutil.ReadFS, filePath string) string {
 	info, err := root.Stat(filePath)
 	if err != nil {
 		return ""
 	}
 	return fmt.Sprintf(`W/"%d-%d"`, info.ModTime().UnixNano(), info.Size())
-}
-
-// entryIsDir reports whether pth is a directory, paying for a Stat call only
-// when the directory entry cannot answer on its own.
-//
-// ReadDir already reports each entry's type, so a walk does not need to stat
-// every child it visits; on a network shelf that removes roughly half the round
-// trips of a full scan. The exception is a symlink: DirEntry.IsDir comes from
-// the readdir type byte, which describes the link itself, so a link pointing at
-// a directory reports false. Those fall back to Stat, which resolves the link
-// exactly as the walk always did.
-//
-// entry is nil at the root of a walk, which has no directory entry of its own.
-func entryIsDir(root fsutil.FS, pth string, entry fs.DirEntry) (bool, error) {
-	if entry != nil && entry.Type()&fs.ModeSymlink == 0 {
-		return entry.IsDir(), nil
-	}
-
-	info, err := root.Stat(pth)
-	if err != nil {
-		return false, util.Errorf("%w", err)
-	}
-
-	return info.IsDir(), nil
 }
 
 // ignoredDirNames are directory names that filesystems, NAS firmware and sync

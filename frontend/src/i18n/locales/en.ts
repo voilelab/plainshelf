@@ -109,7 +109,8 @@ const en = {
     layerErrors: {
       emptyPath: 'Layer path cannot be empty',
       createFailed: 'Failed to create layer',
-      loadFailed: 'Failed to load layers'
+      loadFailed: 'Failed to load layers',
+      shelfNotReady: 'The shelf is still starting up and did not become ready.'
     },
     moveBookErrors: {
       notFound: 'Book not found.',

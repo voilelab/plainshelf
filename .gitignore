@@ -15,3 +15,7 @@ e2e/test-results/
 
 # mkdocs build output
 site/
+
+# runtime state the shelf writes into the committed fixture library when tests
+# open it in place
+shelf/testdata/lib/app/scan-cache.json

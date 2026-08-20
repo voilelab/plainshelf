@@ -13,7 +13,7 @@ import {
   addReadHistory as addLocalReadHistory,
   clearReadHistory as clearLocalReadHistory
 } from '@/storage/readHistory';
-import { referencedAssetNames } from '@/features/reader/utils/parseMarkdownBlocks';
+import { referencedAssetNames } from '@/features/reader/utils/markdownLineSyntax';
 import { currentCacheScopeKey } from './cacheScope';
 import { collectReadHistoryBooks } from './readHistoryBooks';
 import type {

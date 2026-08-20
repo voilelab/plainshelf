@@ -31,7 +31,9 @@ var ErrUnsupportedSourceSchemaVersion = util.NewError("source meta.json schema v
 */
 
 type Source struct {
-	root       fsutil.FS
+	// root reads the shelf. It is a ReadFS so that a read path cannot mutate
+	// the source by accident; every mutation narrows it back through writeRoot.
+	root       fsutil.ReadFS
 	folderPath string
 
 	meta *SourceMeta
@@ -68,6 +70,16 @@ func (r *Source) GetMeta() *SourceMeta {
 	return &meta
 }
 
+// writeRoot returns the source's filesystem as a writable handle, reporting
+// fsutil.ErrReadOnly when the source was opened on a read-only shelf.
+func (r *Source) writeRoot() (fsutil.FS, error) {
+	root, err := fsutil.Writable(r.root)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	return root, nil
+}
+
 func (r *Source) EnsureWritable() error {
 	if r.meta.SchemaVersion > SourceMetaSchemaVersion {
 		return util.Errorf("%w: meta.json is schema_version %d, this build writes %d",
@@ -89,9 +101,13 @@ func (r *Source) UpdateContent(newContent io.Reader) error {
 	if err := r.EnsureWritable(); err != nil {
 		return util.Errorf("%w", err)
 	}
+	root, err := r.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
 	sourceDestPath := path.Join(r.folderPath, SourceFile)
 
-	if err := fsutil.WriteAtomic(r.root, sourceDestPath, newContent); err != nil {
+	if err := fsutil.WriteAtomic(root, sourceDestPath, newContent); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -121,6 +137,10 @@ func (r *Source) UpdateHash() error {
 	if err := r.EnsureWritable(); err != nil {
 		return util.Errorf("%w", err)
 	}
+	root, err := r.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
 	sourceFile, err := r.Open()
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -132,7 +152,7 @@ func (r *Source) UpdateHash() error {
 		return util.Errorf("%w", err)
 	}
 
-	err = r.writebackMeta()
+	err = r.writebackMeta(root)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -145,6 +165,10 @@ func (r *Source) RefreshContentMetadata() error {
 
 func (r *Source) refreshContentMetadata() error {
 	if err := r.EnsureWritable(); err != nil {
+		return util.Errorf("%w", err)
+	}
+	root, err := r.writeRoot()
+	if err != nil {
 		return util.Errorf("%w", err)
 	}
 	// Read the file once; compute all three metrics from the buffer to avoid
@@ -177,7 +201,7 @@ func (r *Source) refreshContentMetadata() error {
 		return util.Errorf("%w", err)
 	}
 
-	return r.writebackMeta()
+	return r.writebackMeta(root)
 }
 
 // UpdateComment replaces the source's free-form comment. It records how this
@@ -187,14 +211,22 @@ func (r *Source) UpdateComment(comment string) error {
 	if err := r.EnsureWritable(); err != nil {
 		return util.Errorf("%w", err)
 	}
+	root, err := r.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
 	r.meta.Comment = comment
-	if err := r.writebackMeta(); err != nil {
+	if err := r.writebackMeta(root); err != nil {
 		return util.Errorf("%w", err)
 	}
 	return nil
 }
 
-func (r *Source) writebackMeta() error {
+// writebackMeta persists r.meta. It takes the writable handle rather than
+// narrowing r.root itself: a caller has already changed r.meta in memory by the
+// time it gets here, so refusing a read-only shelf at this point would leave
+// GetMeta reporting a value that never reached disk.
+func (r *Source) writebackMeta(root fsutil.FS) error {
 	metaFilePath := path.Join(r.folderPath, SourceMetaFile)
 
 	bs, err := json.MarshalIndent(r.meta, "", "  ")
@@ -203,14 +235,14 @@ func (r *Source) writebackMeta() error {
 	}
 	bs = append(bs, '\n')
 
-	if err := fsutil.WriteFileAtomic(r.root, metaFilePath, bs); err != nil {
+	if err := fsutil.WriteFileAtomic(root, metaFilePath, bs); err != nil {
 		return util.Errorf("%w", err)
 	}
 
 	return nil
 }
 
-func openSource(rt fsutil.FS, sourcePath string) (*Source, error) {
+func openSource(rt fsutil.ReadFS, sourcePath string) (*Source, error) {
 	metaPath := path.Join(sourcePath, SourceMetaFile)
 	metaFile, err := rt.Open(metaPath)
 	if err != nil {

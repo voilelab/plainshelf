@@ -20,7 +20,7 @@ Stryker instruments through Babel 8, which needs Node.js 22.18 or newer. That is
 the floor recorded in the [setup prerequisites](setup.md#prerequisites), because
 `npm ci` installs the dependency whether or not the mutation run is used.
 
-The run takes roughly five minutes on a laptop and writes
+The run takes roughly three minutes and writes
 `frontend/reports/mutation/mutation.html` (a browsable report) plus
 `mutation.json`. Both are ignored by Git.
 
@@ -34,7 +34,7 @@ npm --prefix frontend exec -- vitest run --coverage \
 ```
 
 Configuration lives in `frontend/stryker.conf.json`. Widening `mutate` to the
-whole frontend is not practical: seven files already cost five minutes.
+whole frontend is not practical: seven files already cost minutes per run.
 
 ## Reading a survivor
 
@@ -74,24 +74,39 @@ mutation to the source, run the tests, and revert.
 ## Pilot results
 
 Measured on `frontend/src/features/reader/utils/` (seven files, Node 22,
-`concurrency: 2`, `coverageAnalysis: perTest`, 986 mutants, ~5 minutes per run).
+`concurrency: 2`, `coverageAnalysis: perTest`, 753 mutants, ~3 minutes per run).
+"Before" is the state the pilot found; "after" is the current run.
 
 | File | Line coverage before → after | Mutation score before → after |
 |---|---|---|
 | `markdownAssetImages.ts` | 100% → 100% | 83.13% → 92.77% |
 | `markdownChapters.ts` | 98.18% → 98.18% | 70.41% → 88.17% |
+| `markdownLineSyntax.ts` (was `parseMarkdownBlocks.ts`) | 73.94% → 100% | 46.60% → 95.16% |
 | `mobileReaderGestures.ts` | 90.47% → 100% | 73.68% → 98.68% |
-| `parseMarkdownBlocks.ts` | 73.94% → 73.94% | 46.60% → 51.36% |
 | `parseReaderBlocks.ts` | 0% → 100% | 0.00% → 84.21% |
 | `renderMarkdownBlocks.ts` | 94.59% → 98.64% | 47.87% → 84.04% |
-| `sanitizeReaderHtml.ts` | 100% → 100% | 52.90% → 92.03% |
-| **All files** | **85.17% → 89.48%** | **55.17% → 77.99%** |
+| `sanitizeReaderHtml.ts` | 100% → 100% | 52.90% → 92.70% |
+| **All files** | **85.17% → 99.18%** | **55.17% → 89.91%** |
 
 The two columns disagree most where it matters most: `sanitizeReaderHtml.ts` had
 every line covered and barely half its behavior verified.
 
 The pilot added 61 tests and changed no implementation code. 225 mutants moved
-from surviving to killed; the 217 that remain are dispositioned below.
+from surviving to killed, and 217 remained.
+
+Later work has moved those numbers twice, and only one of the two is an
+improvement. Removing the unreachable `'span'` entry from `ALLOWED_ATTR` took its
+mutant away with the line, which is one fewer survivor in code that is still
+there.
+
+**The other is not an improvement at all.** `markdownLineSyntax.ts` is the
+pilot's `parseMarkdownBlocks.ts` after the dead block model it also held was
+deleted (see its disposition below). Nothing about the surviving code is better
+verified than it was: the same three mutants survive it now as then. Its score
+rose, and carried the totals and the whole-suite mutant count (985 → 753) with
+it, because code no consumer reached left the denominator. Read that row as a
+smaller module, not a stronger one — the 140 undisposed-of mutants it used to
+contribute are gone along with the module, leaving 76 dispositioned below.
 
 ## Standing dispositions
 
@@ -106,16 +121,15 @@ suite's job, `T` = tool artifact. Line numbers refer to the implementation file.
 | 20 | 2 | E | `quoteLines.length > 0` cannot be false. The chunk reached this line through `.filter(Boolean)` after `.trim()`, so it holds at least one non-empty line. |
 | 31 | 1 | E | Dropping `^` from `/^>\s?/` changes nothing: the replace is non-global, so it rewrites the first match, and every line here starts with `>`. |
 
-### `sanitizeReaderHtml.ts` — 11
+### `sanitizeReaderHtml.ts` — 10
 
 | Lines | # | | Reasoning |
 |---|---:|---|---|
 | 43 | 1 | E | Emptying `'tbody'` in `ALLOWED_TAGS` leaves a full table byte-identical after sanitization (verified by hand). |
-| 57 | 1 | N | `span` is a `<col>`/`<colgroup>` attribute and neither tag is allowed, so no reading markup can carry it. Candidate for removal from `ALLOWED_ATTR`. |
-| 86–88 | 3 | E | `colon < 0` is subsumed by the property-name comparison beside it, and trimming the value duplicates what CSSOM does when the value is assigned. |
-| 108 | 1 | E | `/\s+/` → `/\s/` only introduces empty strings into the split, and the empty string is not a reader class. |
-| 120 | 1 | N | `ALLOW_UNKNOWN_PROTOCOLS: false` has no reachable effect while no URL-bearing attribute is allowed. Kept as defense in depth for a future `ALLOWED_ATTR` change. |
-| 124–126, 129 | 4 | E | `style` and `template` content is dropped by the tag rules regardless. `noscript` and `embed` content is never parsed as a child of those elements, so `FORBID_CONTENTS` cannot act on it — it leaks with or without the entry (verified by hand). |
+| 85–87 | 3 | E | `colon < 0` is subsumed by the property-name comparison beside it, and trimming the value duplicates what CSSOM does when the value is assigned. |
+| 107 | 1 | E | `/\s+/` → `/\s/` only introduces empty strings into the split, and the empty string is not a reader class. |
+| 119 | 1 | N | `ALLOW_UNKNOWN_PROTOCOLS: false` has no reachable effect while no URL-bearing attribute is allowed. Kept as defense in depth for a future `ALLOWED_ATTR` change. |
+| 123–125, 128 | 4 | E | `style` and `template` content is dropped by the tag rules regardless. `noscript` and `embed` content is never parsed as a child of those elements, so `FORBID_CONTENTS` cannot act on it — it leaks with or without the entry (verified by hand). |
 
 ### `mobileReaderGestures.ts` — 1
 
@@ -155,39 +169,39 @@ suite's job, `T` = tool artifact. Line numbers refer to the implementation file.
 | 175 | 1 | E | Assigning `fence = transition.state` unconditionally is identical, because `updateMarkdownFenceState` returns the current state on a non-boundary line. |
 | 190 | 3 | E | `/^[ \t]*/` always matches, so the `?? ''` fallback is unreachable and dropping the anchor matches at the same position. |
 
-### `parseMarkdownBlocks.ts` — 143
+### `markdownLineSyntax.ts` — 3
 
-This file holds two unrelated things.
-
-The **shared line syntax** — `parseMarkdownHeadingLine` and
-`updateMarkdownFenceState` — is used by the chapter scanner, the reader's
-renderer, and the source converter. It now scores what its callers need:
+`parseMarkdownHeadingLine` and `updateMarkdownFenceState` are used by the chapter
+scanner, the reader's renderer, and the source converter. The module scores what
+its callers need:
 
 | Lines | # | | Reasoning |
 |---|---:|---|---|
-| 62, 66 | 3 | E | Dropping `$` from a regex applied to a single line changes nothing (`.` never matches a newline), and narrowing `[ \t]+` to `[ \t]` is neutralized by the `.trim()` applied to the captured title. |
-| 82–124 | 0 | — | No survivors. |
+| 14, 15 | 3 | E | Dropping `$` from a regex applied to a single line changes nothing (`.` never matches a newline), and narrowing `[ \t]+` to `[ \t]` is neutralized by the `.trim()` applied to the captured title. |
 
-The **block model** — `parseMarkdownBlocks()` itself, `parseTextSegmentToBlocks`,
-`parseInlineSegments`, `isMarkdownFenceLine`, and the `HR_RE`,
-`UNORDERED_ITEM_RE`, `ORDERED_ITEM_RE`, `INLINE_RE`, `LEADING_INDENT_RE`
-constants — **has no production caller**. The reader renders Markdown through
-`renderMarkdownBlocks`; the only importers of this file take the line helpers and
-the re-exported asset helpers.
-
-| Lines | # | | Reasoning |
-|---|---:|---|---|
-| 61, 63–65, 67, 127–323 | 140 | N | Unreachable from the application. Its quote, list, and horizontal-rule paths are neither used nor tested, which is why 79 of these mutants have no covering test at all. Adding tests would pin behavior nothing consumes; the right fix is deletion, proposed as a separate change. |
+The file used to be `parseMarkdownBlocks.ts` and also held a **block model** —
+`parseMarkdownBlocks()`, `parseTextSegmentToBlocks`, `parseInlineSegments`,
+`isMarkdownFenceLine`, and the constants serving them — with no production
+caller: the reader renders Markdown through `renderMarkdownBlocks` and plain text
+through `parseReaderBlocks`, and every importer took only the line helpers and
+the re-exported asset helpers. It contributed 140 undisposed-of mutants, 79 of
+them with no covering test at all. Adding tests would have pinned behavior
+nothing consumes, so it was deleted instead and the file renamed to what remains
+of it.
 
 ### Totals
 
+Of the current run's 753 mutants, 676 are killed and one times out. The remaining
+76 are the dispositions above:
+
 | | Count |
 |---|---:|
-| Assertion added (mutants newly killed) | 225 |
 | Equivalent mutant | 53 |
-| Not the unit suite's job | 162 |
+| Not the unit suite's job | 21 |
 | Tool artifact | 2 |
 
-140 of the 162 "not the unit suite's job" mutants are the dead block model in
-`parseMarkdownBlocks.ts`. Excluding that file, 74 mutants remain undisposed of by
-a test, against 764 killed.
+The pilot's tally of 225 newly killed mutants stays as recorded above: it is a
+before/after measurement of that pilot, and part of it fell inside the module
+since deleted, so it does not reconcile against this run. What the deletion
+removed from the run is 232 mutants of code nothing called, 140 of which no test
+had answered for.

@@ -149,6 +149,18 @@ func TestNewBook(t *testing.T) {
 // The cover write/read round trip is covered by
 // TestSetCoverKeepsFileWhenExtensionUnchanged and TestDeleteCoverAndETag.
 
+// writableRoot narrows a book's read handle back to a writable one so a test
+// can wrap it in a fault-injecting filesystem.
+func writableRoot(t *testing.T, root fsutil.ReadFS) fsutil.FS {
+	t.Helper()
+
+	writable, err := fsutil.Writable(root)
+	if err != nil {
+		t.Fatalf("Writable: %v", err)
+	}
+	return writable
+}
+
 // failWriteFS fails WriteFile for paths matching a predicate, standing in for a
 // write that is interrupted partway through.
 type failWriteFS struct {
@@ -201,7 +213,7 @@ func TestSetCoverLeavesPreviousCoverIntactOnFailure(t *testing.T) {
 	}
 
 	book.root = &failWriteFS{
-		FS:     book.root,
+		FS:     writableRoot(t, book.root),
 		failOn: func(name string) bool { return strings.Contains(path.Base(name), "cover") },
 	}
 
@@ -293,7 +305,7 @@ func TestSetCoverKeepsReplacedCoverReclaimedByAnotherWriter(t *testing.T) {
 	// Fire the competing PNG upload right after this call's book.json rename,
 	// which lands it between our metadata write and our cleanup.
 	book.root = &afterRenameFS{
-		FS:    book.root,
+		FS:    writableRoot(t, book.root),
 		match: func(newPath string) bool { return path.Base(newPath) == BookMetaFile },
 		on: func() {
 			if err := other.SetCover([]byte(reclaimed), ".png"); err != nil {

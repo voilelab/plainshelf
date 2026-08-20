@@ -129,8 +129,10 @@ func NewLayersFromString(s string) Layers {
 }
 
 type Book struct {
-	logger     logutil.Logger
-	root       fsutil.FS
+	logger logutil.Logger
+	// root reads the shelf. It is a ReadFS so that a read path cannot mutate
+	// the book by accident; every mutation narrows it back through writeRoot.
+	root       fsutil.ReadFS
 	folderPath string
 	meta       *BookMeta
 	layers     Layers
@@ -239,6 +241,20 @@ func (b *Book) OpenCover() ([]byte, string, error) {
 	return coverData, ext, nil
 }
 
+// writeRoot returns the book's filesystem as a writable handle, reporting
+// fsutil.ErrReadOnly when the book was opened on a read-only shelf.
+//
+// This is a different question from EnsureWritable, which asks whether this
+// build understands the book well enough to rewrite it. Both guards run before
+// a mutation: one is about the shelf, the other about the book.
+func (b *Book) writeRoot() (fsutil.FS, error) {
+	root, err := fsutil.Writable(b.root)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	return root, nil
+}
+
 // EnsureWritable reports an error when the book's on-disk schema version is
 // newer than this build supports, meaning the book must be treated as
 // read-only.
@@ -264,6 +280,11 @@ func (b *Book) SetCover(imageData []byte, ext string) error {
 		return util.Errorf("%w", err)
 	}
 
+	root, err := b.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	coverFilename := "cover" + ext
 	coverPath := path.Join(b.folderPath, coverFilename)
 
@@ -271,7 +292,7 @@ func (b *Book) SetCover(imageData []byte, ext string) error {
 
 	// Write the image before pointing the meta at it, so the meta never
 	// references a half-written cover file.
-	err := fsutil.WriteFileAtomic(b.root, coverPath, imageData)
+	err = fsutil.WriteFileAtomic(root, coverPath, imageData)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -287,7 +308,7 @@ func (b *Book) SetCover(imageData []byte, ext string) error {
 	// converts uploads to JPEG, so cover.png -> cover.jpg is a normal path).
 	// The shelf is meant to be browsable by hand, so don't leave the orphan.
 	if previousCover != "" && previousCover != coverFilename {
-		b.removeReplacedCover(previousCover)
+		b.removeReplacedCover(root, previousCover)
 	}
 
 	return nil
@@ -302,7 +323,7 @@ func (b *Book) SetCover(imageData []byte, ext string) error {
 // referencing a file that no longer exists, so the persisted meta is re-read
 // and the file is left alone if it has been claimed again. Losing an orphan is
 // cheaper than losing the cover the book actually points to.
-func (b *Book) removeReplacedCover(previousCover string) {
+func (b *Book) removeReplacedCover(root fsutil.FS, previousCover string) {
 	persisted, err := readBookMeta(b.root, b.folderPath)
 	if err != nil {
 		b.logger.Warn("failed to re-read book meta before removing replaced cover", "cover", previousCover, "error", err)
@@ -313,7 +334,7 @@ func (b *Book) removeReplacedCover(previousCover string) {
 		return
 	}
 
-	if err := b.root.Remove(path.Join(b.folderPath, previousCover)); err != nil {
+	if err := root.Remove(path.Join(b.folderPath, previousCover)); err != nil {
 		b.logger.Warn("failed to remove replaced cover file", "cover", previousCover, "error", err)
 	}
 }
@@ -329,8 +350,13 @@ func (b *Book) DeleteCover() error {
 		return util.Errorf("%w", err)
 	}
 
+	root, err := b.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	coverPath := path.Join(b.folderPath, b.meta.Cover)
-	err := b.root.Remove(coverPath)
+	err = root.Remove(coverPath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -381,12 +407,17 @@ func (b *Book) SetCurrentSource(sourceID string) error {
 }
 
 func (b *Book) writeCurrentSourceHint(sourceID string) error {
+	root, err := b.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	sourcePath := path.Join(SourcesFolder, sourceID, SourceFile)
 	hintContent := fmt.Sprintf(CurrentSourceHintTemplate, sourcePath)
 
 	hintPath := path.Join(b.folderPath, CurrentSourceHintFile)
 
-	err := fsutil.WriteFileAtomic(b.root, hintPath, []byte(hintContent))
+	err = fsutil.WriteFileAtomic(root, hintPath, []byte(hintContent))
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -394,7 +425,7 @@ func (b *Book) writeCurrentSourceHint(sourceID string) error {
 	// A shelf written by an older build still carries the previous name. Drop
 	// it here so the two hints never sit side by side, contradicting each other
 	// once the current source moves again.
-	err = b.root.Remove(path.Join(b.folderPath, LegacyCurrentSourceHintFile))
+	err = root.Remove(path.Join(b.folderPath, LegacyCurrentSourceHintFile))
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return util.Errorf("%w", err)
 	}
@@ -430,6 +461,11 @@ func (b *Book) setMeta(meta *BookMeta) error {
 		return util.Errorf("%w", err)
 	}
 
+	root, err := b.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	if !validateBCP47(meta.Language) {
 		return util.Errorf("%w: got %q", ErrInvalidLanguageTag, meta.Language)
 	}
@@ -460,7 +496,7 @@ func (b *Book) setMeta(meta *BookMeta) error {
 
 	metaPath := path.Join(b.folderPath, BookMetaFile)
 
-	err = fsutil.WriteFileAtomic(b.root, metaPath, bs)
+	err = fsutil.WriteFileAtomic(root, metaPath, bs)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -501,6 +537,10 @@ func (b *Book) NewSourceWithOptions(source io.Reader, options NewSourceOptions) 
 	if err := b.EnsureWritable(); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
+	root, err := b.writeRoot()
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
 	if source == nil {
 		source = io.NopCloser(strings.NewReader(""))
 	}
@@ -530,14 +570,14 @@ func (b *Book) NewSourceWithOptions(source io.Reader, options NewSourceOptions) 
 	}
 
 	tempSourcePath := path.Join(b.folderPath, SourcesFolder, "."+sourceID+"-"+randomString(6)+".tmp")
-	defer b.root.RemoveAll(tempSourcePath) //nolint:errcheck // best-effort cleanup of unpublished data
+	defer root.RemoveAll(tempSourcePath) //nolint:errcheck // best-effort cleanup of unpublished data
 
-	src, err := createSource(b.root, b.logger, tempSourcePath, sourceID, source, options.Format, options.Comment)
+	src, err := createSource(root, b.logger, tempSourcePath, sourceID, source, options.Format, options.Comment)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	if err := b.root.Rename(tempSourcePath, sourcePath); err != nil {
+	if err := root.Rename(tempSourcePath, sourcePath); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 	src.folderPath = sourcePath
@@ -658,6 +698,11 @@ func (b *Book) DeleteSource(sourceID string) error {
 		return util.Errorf("%w", err)
 	}
 
+	root, err := b.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	deletingCurrent := sourceID == b.CurrentSource()
 	if deletingCurrent {
 		// The current-source branch rewrites book.json, so the book-level guard
@@ -696,7 +741,7 @@ func (b *Book) DeleteSource(sourceID string) error {
 		}
 	}
 
-	err = b.root.RemoveAll(sourcePath)
+	err = root.RemoveAll(sourcePath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -733,8 +778,8 @@ func (b *Book) handOverCurrentSource(leavingID string) error {
 }
 
 // ListSource returns every source of the book, sorted by ID in ascending
-// order. The order is this method's own contract: both fsutil.FS
-// implementations happen to return sorted directory entries today, but the
+// order. The order is this method's own contract: the fsutil.ReadFS
+// implementation happens to return sorted directory entries today, but the
 // interface does not promise it, and the source list UI and the current-source
 // fallback both depend on it.
 func (b *Book) ListSource() ([]*Source, error) {
@@ -778,7 +823,7 @@ func (b *Book) ListSource() ([]*Source, error) {
 	return sources, nil
 }
 
-func openBook(rt fsutil.FS, logger logutil.Logger, bookPath string) (*Book, error) {
+func openBook(rt fsutil.ReadFS, logger logutil.Logger, bookPath string) (*Book, error) {
 	bookFolder, err := rt.Stat(bookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -833,7 +878,7 @@ func openBook(rt fsutil.FS, logger logutil.Logger, bookPath string) (*Book, erro
 }
 
 // readBookMeta decodes a book's persisted metadata from disk.
-func readBookMeta(rt fsutil.FS, bookPath string) (*BookMeta, error) {
+func readBookMeta(rt fsutil.ReadFS, bookPath string) (*BookMeta, error) {
 	metaFile, err := rt.Open(path.Join(bookPath, BookMetaFile))
 	if err != nil {
 		return nil, util.Errorf("%w", err)

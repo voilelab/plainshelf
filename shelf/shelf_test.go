@@ -98,6 +98,11 @@ func TestShelfWaitReadyCancellationAndInitializingReads(t *testing.T) {
 	if _, err := shelf.GetBooksByLayer(nil); !errors.Is(err, ErrShelfInitializing) {
 		t.Fatalf("GetBooksByLayer error = %v, want ErrShelfInitializing", err)
 	}
+	// The layer tree comes from the same cache, so an empty list before the
+	// first scan would read as "no layers" instead of "not scanned yet".
+	if _, err := shelf.GetAllLayers(); !errors.Is(err, ErrShelfInitializing) {
+		t.Fatalf("GetAllLayers error = %v, want ErrShelfInitializing", err)
+	}
 	// A rescan is refused for the same reason: the initial scan is the very walk
 	// it would duplicate.
 	if _, err := shelf.Rescan(); !errors.Is(err, ErrShelfInitializing) {

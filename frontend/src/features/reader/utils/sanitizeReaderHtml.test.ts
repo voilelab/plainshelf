@@ -164,6 +164,16 @@ describe('sanitizeReaderHtml', () => {
       .toBe('<table><tbody><tr><th headers="a">H</th><td rowspan="2">D</td></tr></tbody></table>');
   });
 
+  // `span` is a <col>/<colgroup> attribute and neither tag is allowed here, so
+  // on any tag the reader can render it is noise the sanitizer should remove.
+  it('drops the span attribute while keeping the table attributes beside it', () => {
+    expect(sanitizeReaderHtml('<table><tr><td span="2" colspan="2">D</td></tr></table>'))
+      .toBe('<table><tbody><tr><td colspan="2">D</td></tr></tbody></table>');
+    expect(sanitizeReaderHtml('<table><tr><th span="2" scope="col" headers="a">H</th></tr></table>'))
+      .toBe('<table><tbody><tr><th scope="col" headers="a">H</th></tr></tbody></table>');
+    expect(sanitizeReaderHtml('<span span="2">Text</span>')).toBe('<span>Text</span>');
+  });
+
   // Unwrapping an unknown element keeps its prose on purpose, but the text
   // inside active content is markup for another engine, never reading matter.
   it('drops the text inside active content instead of unwrapping it', () => {
