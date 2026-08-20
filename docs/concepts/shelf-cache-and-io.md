@@ -84,8 +84,8 @@ adds each book's character count to the response, and that number lives in the
 current source's `meta.json`, which the cache does not hold. The handler opens
 one metadata file per book on every such request, however fresh the cache is.
 
-Measured on a local SSD, that is roughly 30 µs per book — 0.3 s for a shelf of
-10,000 books, against 20 ms for the same listing without the parameter. The work
+Measured on a local SSD, that is roughly 30 µs per book — 0.34 s for a shelf of
+10,000 books, against 28 ms for the same listing without the parameter. The work
 is many small filesystem operations rather than bytes read, so a high-latency
 mount multiplies it: see
 [Homepage Load Cost](../development/homepage-load-cost.md) for the measurements

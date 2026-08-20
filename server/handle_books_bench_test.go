@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/shelf"
@@ -31,6 +32,9 @@ import (
 const benchBooksEnv = "PLAINSHELF_BENCH_BOOKS"
 
 var defaultBenchBookCounts = []int{100, 1000}
+
+// benchSourceID is the single source every staged book carries.
+const benchSourceID = "20260101-b1"
 
 func benchBookCounts(b *testing.B) []int {
 	b.Helper()
@@ -114,6 +118,13 @@ func benchAppWithBooks(b *testing.B, count int) http.Handler {
 				ShelfConf: shelf.ShelfConf{
 					LibRoot: libRoot,
 					Logger:  silent,
+
+					// Both refresh tiers are pushed far beyond any benchmark
+					// run, so neither can fire inside a timed loop. This does
+					// not by itself keep the first tier out: see
+					// drainInitialBookCheck.
+					ScanInterval:      "30m",
+					BookCheckInterval: "30m",
 				},
 			},
 		},
@@ -138,7 +149,57 @@ func benchAppWithBooks(b *testing.B, count int) http.Handler {
 		}
 	}
 
-	return app.Handler()
+	handler := app.Handler()
+	drainInitialBookCheck(b, handler, libRoot)
+	return handler
+}
+
+// drainInitialBookCheck runs the per-book staleness check to completion before
+// anything is timed.
+//
+// The initial scan leaves lastBookCheck at its zero value, so however recent the
+// cache is, the first ListBooks schedules onlyRefreshBooksInCache — a background
+// goroutine that stats every book.json on the shelf. A benchmark that merely
+// issues a warmup request and returns leaves that sweep running underneath its
+// first timed iterations, and since both variants share this handler, only the
+// one that runs first pays for it. Measuring the steady state means getting the
+// sweep over with first.
+//
+// There is no exported way to wait for it, so the wait is on its only
+// observable effect: one book's metadata is rewritten before the first request,
+// and the sweep is finished once the listing reports the new title. The refresh
+// applies every updated entry and stamps lastBookCheck under one write lock, so
+// seeing the title also means the interval above is now in force.
+func drainInitialBookCheck(b *testing.B, handler http.Handler, libRoot string) {
+	b.Helper()
+
+	const drainedTitle = "Bench Book bench-000000 (cache check drained)"
+
+	writeBenchJSON(b, filepath.Join(libRoot, "books", "bench-000000.bookpkg", shelf.BookMetaFile), map[string]any{
+		"schema_version": shelf.BookMetaSchemaVersion,
+		"id":             "bench-000000",
+		"title":          drainedTitle,
+		"authors":        []string{"Bench Author"},
+		"language":       "zh-TW",
+		"cover":          "",
+		"current_source": benchSourceID,
+	})
+
+	deadline := time.Now().Add(2 * time.Minute)
+	for {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/shelves/bench_shelf/books", nil))
+		if rec.Code != http.StatusOK {
+			b.Fatalf("draining book check: status %d, body %s", rec.Code, rec.Body.String())
+		}
+		if strings.Contains(rec.Body.String(), drainedTitle) {
+			return
+		}
+		if time.Now().After(deadline) {
+			b.Fatal("the initial per-book cache check did not finish within 2 minutes")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 // writeBenchShelf writes the book packages directly rather than going through
@@ -148,13 +209,12 @@ func benchAppWithBooks(b *testing.B, count int) http.Handler {
 func writeBenchShelf(b *testing.B, libRoot string, count int) {
 	b.Helper()
 
-	const sourceID = "20260101-b1"
 	sourceText := strings.Repeat("這是一段測試用的內文。\n", 40)
 
 	for i := range count {
 		bookID := fmt.Sprintf("bench-%06d", i)
 		bookDir := filepath.Join(libRoot, "books", bookID+".bookpkg")
-		sourceDir := filepath.Join(bookDir, shelf.SourcesFolder, sourceID)
+		sourceDir := filepath.Join(bookDir, shelf.SourcesFolder, benchSourceID)
 		if err := os.MkdirAll(sourceDir, 0o755); err != nil {
 			b.Fatalf("MkdirAll %s: %v", sourceDir, err)
 		}
@@ -166,12 +226,12 @@ func writeBenchShelf(b *testing.B, libRoot string, count int) {
 			"authors":        []string{"Bench Author"},
 			"language":       "zh-TW",
 			"cover":          "",
-			"current_source": sourceID,
+			"current_source": benchSourceID,
 		})
 
 		writeBenchJSON(b, filepath.Join(sourceDir, shelf.SourceMetaFile), map[string]any{
 			"schema_version": shelf.SourceMetaSchemaVersion,
-			"id":             sourceID,
+			"id":             benchSourceID,
 			"created_at":     "2026-01-01T00:00:00+08:00",
 			"format":         "txt",
 			"line_count":     40,

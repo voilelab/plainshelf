@@ -31,16 +31,21 @@ round trip per book.
 
 ```bash
 go test ./server -run '^$' -bench BenchmarkGetBooks -benchtime 30x -count 5
-PLAINSHELF_BENCH_BOOKS=10000 go test ./server -run '^$' -bench BenchmarkGetBooks -benchtime 10x -count 3 -timeout 30m
+PLAINSHELF_BENCH_BOOKS=10000 go test ./server -run '^$' -bench BenchmarkGetBooks -benchtime 10x -count 5 -timeout 30m
 ```
 
-Medians, one HTTP request per operation:
+Medians of five runs, one HTTP request per operation:
 
 | Books | `GET /books` | `+ include=char_count` | Difference | Ratio | Per book |
 |---:|---:|---:|---:|---:|---:|
-| 100 | 0.17 ms | 2.92 ms | +2.75 ms | 17× | +27.5 µs |
-| 1,000 | 1.64 ms | 35.7 ms | +34.1 ms | 22× | +34.1 µs |
-| 10,000 | 20.4 ms | 334 ms | +314 ms | 16× | +31.4 µs |
+| 100 | 0.19 ms | 3.19 ms | +3.00 ms | 17× | +30.0 µs |
+| 1,000 | 1.38 ms | 30.5 ms | +29.1 ms | 22× | +29.1 µs |
+| 10,000 | 27.9 ms | 338 ms | +310 ms | 12× | +31.0 µs |
+
+The per-book cost is the stable figure here: about 30 µs at every size. The
+ratio falls at 10,000 books only because the plain listing is by then building
+an 8.7 MB response and is allocation-bound, which also makes it the noisiest
+column (22.6–51.2 ms across the five runs).
 
 Allocation follows the same shape: 5 allocations per book without the parameter,
 39 with it.
@@ -67,11 +72,11 @@ Per book, `include=char_count` adds:
 
 | Syscall | Extra calls per book |
 |---|---:|
-| `openat` | 8.2 |
-| `close` | 8.2 |
-| `newfstatat` | 1.1 |
-| `read` | 1.0 |
-| `fcntl` | 4.0 |
+| `openat` | 8.00 |
+| `close` | 8.00 |
+| `fcntl` | 4.00 |
+| `newfstatat` | 1.00 |
+| `read` | 1.00 |
 
 Eight opens for one small JSON file is not a bug, it is `os.Root`: it resolves a
 path one component at a time so that no lookup can escape the shelf root. The
@@ -81,8 +86,8 @@ again:
 - `Stat("books/{book}.bookpkg/sources/{source}")` — 3 `openat` + 1 `newfstatat`
 - `Open(".../{source}/meta.json")` — 5 `openat` + 1 `read`
 
-That is **about ten filesystem-facing operations per book**, of which two concern
-the file the handler actually wants. The rest re-walk `books/` and the package
+That is **exactly ten filesystem-facing operations per book**, of which two
+concern the file the handler actually wants. The rest re-walk `books/` and the package
 directory that the previous book already walked.
 
 ### Extrapolating to a high-latency mount
@@ -104,12 +109,11 @@ PLAINSHELF_BENCH_BOOKS=100 strace -f -e trace=openat,newfstatat,read \
   /tmp/server.test -test.run '^$' -test.bench 'BenchmarkGetBooks/books=100/char_count$' -test.benchtime 3x
 ```
 
-At 100 books, `include=char_count` cost 352 ms with no injected delay, 868 ms at
-250 µs, and 1,816 ms at 1,000 µs — a slope of about 12.6 delayed operations per
-book, against the 10.3 counted above; `strace`'s own scheduling accounts for the
-gap. `GET /books` without the parameter stayed at 1.5–2.3 ms across all three,
-which is the same finding from the other side: it performs no per-book I/O to
-delay.
+At 100 books, `include=char_count` cost 318 ms with no injected delay, 673 ms at
+250 µs, and 1,475 ms at 1,000 µs. Between the last two that is a slope of 10.7
+delayed operations per book, against the ten counted above — the model holds.
+`GET /books` without the parameter stayed at 1.4–2.3 ms across all three, which
+is the same finding from the other side: it has no per-book I/O to delay.
 
 Taking the counted 10 operations per book as the pessimistic end and 2 as the
 optimistic one (an SMB client that caches directory handles pays for `meta.json`
@@ -189,6 +193,17 @@ ls -l frontend/dist/assets/index-*.js frontend/dist/assets/index-*.css
 
 The benchmark stages a synthetic shelf under `b.TempDir()` — one source per book,
 one `meta.json` each — and starts a real app on it, so the timed loop measures
-the steady state a running server answers from. Logging is switched off for both
-the app and the shelf; a benchmark's stdout is a captured pipe, and leaving the
-per-request log line on prices the pipe instead of the handler.
+the steady state a running server answers from. Two details are what make it the
+steady state:
+
+- **The first per-book cache check is drained before anything is timed.** A
+  freshly scanned shelf has never run one, so the first listing schedules a
+  background sweep that stats every `book.json`. Left running, it lands
+  underneath the first timed iterations of whichever variant runs first — which
+  is exactly what an earlier version of this benchmark did, and it is why the
+  syscall counts above came out at 8.2 and 1.1 per book instead of 8 and 1.
+  `drainInitialBookCheck` waits it out by rewriting one book's title and polling
+  the listing until it appears.
+- **Logging is switched off** for both the app and the shelf; a benchmark's
+  stdout is a captured pipe, and leaving the per-request log line on prices the
+  pipe instead of the handler.
