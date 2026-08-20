@@ -69,6 +69,12 @@ token injected into the served frontend.
 Run the narrowest relevant check while iterating, then run the full check for
 every area changed before opening a pull request.
 
+The book package format has two independent readers — the Go shelf and the
+pCloud client the Android app reads a shelf with — so both run the shared
+fixtures in `shelf/testdata/conformance/`. A change to how a shelf is read
+belongs in that dataset, and the frontend unit tests are where the pCloud side
+of it fails. The dataset's own README explains the contract.
+
 [Mutation testing](mutation-testing.md) is available for
 `frontend/src/features/reader/utils/` as an on-demand check of how much the unit
 tests actually verify. It is not part of the checks above.

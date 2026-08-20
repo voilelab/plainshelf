@@ -1,0 +1,87 @@
+{
+  "layers": [
+    "/",
+    "Fiction"
+  ],
+  "books": [
+    {
+      "path": "books/Fiction/solaris.bookpkg",
+      "layers": [
+        "Fiction"
+      ],
+      "id": "s9k4mt2xq7vz3ndp",
+      "title": "Solaris",
+      "format": "txt",
+      "authors": [
+        "Stanisław Lem"
+      ],
+      "tags": [],
+      "star": 0,
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "current_source_field": "20260220-110000",
+      "current_source": "20260220-110000",
+      "sources": [
+        {
+          "id": "20260220-110000",
+          "has_content": true,
+          "char_count": 18,
+          "assets": []
+        }
+      ]
+    },
+    {
+      "path": "books/almanac.bookpkg",
+      "layers": [],
+      "id": "a3d7pq9km2xv5nrt",
+      "title": "Almanac",
+      "format": "txt",
+      "authors": [],
+      "tags": [],
+      "star": 0,
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "current_source_field": "20260221-120000",
+      "current_source": "20260221-120000",
+      "sources": [
+        {
+          "id": "20260221-120000",
+          "has_content": true,
+          "char_count": 16,
+          "assets": []
+        }
+      ]
+    }
+  ],
+  "book_caches": [
+    {
+      "name": "book-cache-desktop-9f2a.json",
+      "usable": true,
+      "book_ids": [
+        "a3d7pq9km2xv5nrt",
+        "s9k4mt2xq7vz3ndp"
+      ]
+    },
+    {
+      "name": "book-cache-future-7b13.json",
+      "usable": false,
+      "book_ids": []
+    },
+    {
+      "name": "book-cache-server-41cd.json",
+      "usable": true,
+      "book_ids": [
+        "a3d7pq9km2xv5nrt"
+      ]
+    },
+    {
+      "name": "book-cache-unnamed.json",
+      "usable": false,
+      "book_ids": []
+    }
+  ]
+}
