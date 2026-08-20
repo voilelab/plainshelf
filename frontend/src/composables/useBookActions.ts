@@ -1,11 +1,15 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { useBookStore } from '@/composables/useBookStore';
+import { useLayerStore } from '@/composables/useLayerStore';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import type { Book } from '@/types/book';
+import { getLayerPath, layerPathEquals } from '@/utils/layers';
 import { t } from '@/i18n';
 
 export interface UseBookActionsOptions {
   onDeleted?: (book: Book) => void;
+  onMoved?: (book: Book, targetLayer: string) => void;
 }
 
 /** Shown by every DeleteModal that moves a book to Trash. */
@@ -21,17 +25,35 @@ function sanitizeDownloadName(name: string): string {
 
 /**
  * Shared book-level actions (read / open detail / edit / open book folder /
- * download / delete) used by both BookDetailPage and the card view's
- * context menu. Each call site gets its own instance — the delete/download
- * busy state below is intentionally per-instance, not a module singleton.
+ * download / move to another layer / delete) used by both BookDetailPage and
+ * the card view's context menu. Each call site gets its own instance — the
+ * delete/download busy state below is intentionally per-instance, not a module
+ * singleton.
  */
 export function useBookActions(options: UseBookActionsOptions = {}) {
   const router = useRouter();
+  const { layers, loaded: layersLoaded, fetchLayers } = useLayerStore();
+  const { fetchBooks } = useBookStore();
 
   const downloading = ref(false);
   const actionError = ref('');
   const deleteTarget = ref<Book | null>(null);
   const deleting = ref(false);
+  const moveTarget = ref<Book | null>(null);
+  const moving = ref(false);
+
+  /**
+   * Destinations offered for `moveTarget`, flat and sorted like the batch move
+   * modal's list. The book's own layer is dropped because moving there is a
+   * no-op; the root entry is not in here at all — MoveBooksModal renders its
+   * own labelled root option.
+   */
+  const moveLayerOptions = computed(() => {
+    const currentLayer = moveTarget.value ? getLayerPath(moveTarget.value) : '';
+    return [...new Set(layers.value.filter((layer) => layer && layer !== '/'))]
+      .filter((layer) => !layerPathEquals(layer, currentLayer))
+      .sort();
+  });
 
   const canOpenBookFolder = computed(() => Boolean(getBookshelfProvider().openDesktopBookFolder));
 
@@ -96,6 +118,52 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     }
   }
 
+  function requestMove(book: Book): void {
+    moveTarget.value = book;
+    // The sidebar normally fills the layer store on load, but the detail page
+    // can be opened directly by URL, and mobile has no sidebar at all.
+    if (!layersLoaded.value) {
+      void fetchLayers();
+    }
+  }
+
+  function cancelMove(): void {
+    if (!moving.value) {
+      moveTarget.value = null;
+    }
+  }
+
+  async function submitMove(targetLayer: string): Promise<void> {
+    const target = moveTarget.value;
+    if (!target || moving.value) {
+      return;
+    }
+
+    // moveLayerOptions already drops the book's own layer, but the modal always
+    // offers the root entry, so a book at the root can still land here.
+    if (layerPathEquals(getLayerPath(target), targetLayer)) {
+      moveTarget.value = null;
+      return;
+    }
+
+    moving.value = true;
+    actionError.value = '';
+
+    try {
+      await bookshelfWriter().updateBookLayer(target.id, targetLayer);
+      moveTarget.value = null;
+      // The sidebar derives its per-layer counts from the book store, the same
+      // refresh the drag-to-layer path performs after a move.
+      void fetchBooks();
+      options.onMoved?.(target, targetLayer);
+    } catch (err) {
+      // Leaves the modal open so the destination stays picked for a retry.
+      actionError.value = err instanceof Error ? err.message : t('bookDetail.errors.moveFailed');
+    } finally {
+      moving.value = false;
+    }
+  }
+
   function requestDelete(book: Book): void {
     deleteTarget.value = book;
   }
@@ -133,12 +201,18 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     actionError,
     deleteTarget,
     deleting,
+    moveTarget,
+    moving,
+    moveLayerOptions,
     canOpenBookFolder,
     goRead,
     openDetail,
     goEdit,
     openBookFolder,
     downloadBook,
+    requestMove,
+    cancelMove,
+    submitMove,
     requestDelete,
     cancelDelete,
     confirmDelete,

@@ -418,6 +418,7 @@ const en = {
       updateStats: 'Update content stats',
       updatingStats: 'Updating stats...',
       openFolder: 'Open folder',
+      moveTo: 'Move to…',
       moveToTrash: 'Move to Trash',
       movingToTrash: 'Moving...',
       dismiss: 'Dismiss'
@@ -432,7 +433,11 @@ const en = {
       loadFailed: 'Failed to load detail',
       deleteFailed: 'Failed to delete book',
       downloadFailed: 'Failed to download book',
-      openFolderFailed: 'Failed to open book folder'
+      openFolderFailed: 'Failed to open book folder',
+      moveFailed: 'Failed to move book'
+    },
+    move: {
+      title: 'Move book'
     },
     delete: {
       description: 'The book will be moved to Trash. You can restore it later.'
@@ -520,6 +525,7 @@ const en = {
       rootLayer: 'All books (top level)',
       chooseLayer: 'Choose a destination',
       confirmMove: 'Move {count} books',
+      confirmMoveOne: 'Move 1 book',
       moving: 'Moving...',
       trashTitle: 'Move selected books to trash',
       trashQuestion: 'Move {count} selected books to the trash?',

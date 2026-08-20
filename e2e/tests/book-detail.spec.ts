@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { startServer } from './support/server';
 import { importHelloBook } from './support/books';
+import { addLayer, layersQueryRegex, selectAllBooks } from './support/layers';
 
 async function openHelloDetail(page: import('@playwright/test').Page, baseUrl: string): Promise<void> {
   await page.goto(`${baseUrl}/books`);
@@ -131,6 +132,38 @@ test('resets a completed bookmark before reading again', async ({ page }) => {
     )).toBe(0);
     await expect(page.getByText('Progress: 0%', { exact: true })).toBeVisible();
     expect(markRequests).toEqual([]);
+  } finally {
+    await server.dispose();
+  }
+});
+
+test('moves the book to another folder from the More menu', async ({ page }) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importHelloBook(page);
+    await addLayer(page, 'moved-here');
+    await selectAllBooks(page);
+    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
+    await expect(page).toHaveURL(/\/books\/[^/?]+$/);
+
+    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('menuitem', { name: 'Move to…', exact: true }).click();
+
+    const moveDialog = page.getByRole('dialog', { name: 'Move book' });
+    await moveDialog.getByLabel('Destination').selectOption('moved-here');
+    await moveDialog.getByRole('button', { name: 'Move 1 book', exact: true }).click();
+    await expect(moveDialog).not.toBeVisible();
+
+    const breadcrumb = page.getByRole('navigation', { name: 'Book folder path' });
+    await expect(breadcrumb.getByRole('link', { name: 'moved-here', exact: true })).toBeVisible();
+
+    await breadcrumb.getByRole('link', { name: 'moved-here', exact: true }).click();
+    await expect(page).toHaveURL(layersQueryRegex('moved-here'));
+    await expect(
+      page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true })
+    ).toBeVisible();
   } finally {
     await server.dispose();
   }
