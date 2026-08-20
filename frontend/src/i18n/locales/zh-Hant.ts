@@ -418,6 +418,7 @@ const zhHant = {
       updateStats: '更新內容統計',
       updatingStats: '更新統計中...',
       openFolder: '開啟資料夾',
+      moveTo: '移動到…',
       moveToTrash: '移至垃圾桶',
       movingToTrash: '移動中...',
       dismiss: '關閉'
@@ -432,7 +433,11 @@ const zhHant = {
       loadFailed: '載入詳情失敗',
       deleteFailed: '刪除書籍失敗',
       downloadFailed: '下載書籍失敗',
-      openFolderFailed: '開啟書籍資料夾失敗'
+      openFolderFailed: '開啟書籍資料夾失敗',
+      moveFailed: '移動書籍失敗'
+    },
+    move: {
+      title: '移動書籍'
     },
     delete: {
       description: '書籍將移至垃圾桶，之後仍可復原。'
@@ -521,6 +526,7 @@ const zhHant = {
       rootLayer: '所有書籍（最上層）',
       chooseLayer: '選擇目的地',
       confirmMove: '移動 {count} 本',
+      confirmMoveOne: '移動 1 本',
       moving: '移動中…',
       trashTitle: '將已選書籍移到垃圾桶',
       trashQuestion: '確定將已選的 {count} 本書移到垃圾桶嗎？',

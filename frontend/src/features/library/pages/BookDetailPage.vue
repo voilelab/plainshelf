@@ -1,6 +1,17 @@
 <template>
   <section class="detail-shell">
     <div class="detail-container">
+      <MoveBooksModal
+        v-if="!readOnly"
+        :open="!!moveTarget"
+        :count="1"
+        :title="t('bookDetail.move.title')"
+        :options="moveLayerOptions"
+        :busy="moving"
+        :error="actionError"
+        @cancel="cancelMove"
+        @submit="submitMove"
+      />
       <DeleteModal
         :open="!!deleteTarget"
         :item-name="deleteTarget?.title || id"
@@ -114,6 +125,13 @@
                       >
                         {{ t('bookDetail.actions.openFolder') }}
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-if="!readOnly"
+                        class="reka-menu-item"
+                        @select="onRequestMove"
+                      >
+                        {{ t('bookDetail.actions.moveTo') }}
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator v-if="!readOnly" class="detail-menu-separator" />
                       <DropdownMenuItem
                         v-if="!readOnly"
@@ -153,6 +171,7 @@ import {
 import BookCover from '@/features/library/components/BookCover.vue';
 import BookDetail from '@/features/library/components/BookDetail.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
+import MoveBooksModal from '@/features/library/components/MoveBooksModal.vue';
 import ProgressBar from '@/components/ProgressBar.vue';
 import { useBookActions } from '@/composables/useBookActions';
 import { useBookDetail } from '@/features/library/composables/useBookDetail';
@@ -188,11 +207,17 @@ const {
   actionError,
   deleteTarget,
   deleting,
+  moveTarget,
+  moving,
+  moveLayerOptions,
   canOpenBookFolder,
   goRead,
   goEdit,
   openBookFolder,
   downloadBook,
+  requestMove,
+  cancelMove,
+  submitMove,
   requestDelete,
   cancelDelete,
   confirmDelete,
@@ -200,6 +225,11 @@ const {
 } = useBookActions({
   onDeleted: (deleted) => {
     void router.push(booksRouteForLayerPath(getLayerPath(deleted)));
+  },
+  // The book keeps its id across a move, so the route stays valid and only the
+  // detail payload (breadcrumb included) has to be re-read.
+  onMoved: () => {
+    void fetchDetail();
   }
 });
 
@@ -303,6 +333,13 @@ function goEditSources(): void {
 
 function onCoverChanged(): void {
   void fetchDetail();
+}
+
+function onRequestMove(): void {
+  if (readOnly.value || !book.value) {
+    return;
+  }
+  requestMove(book.value);
 }
 
 function onRequestDelete(): void {
