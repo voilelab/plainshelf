@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Pilot scope: only the pure helpers under src/features/reader/utils. Not wired into CI; run locally with `npm run test:mutation`.",
+  "packageManager": "npm",
+  "testRunner": "vitest",
+  "reporters": ["html", "clear-text", "progress", "json"],
+  "coverageAnalysis": "perTest",
+  "concurrency": 2,
+  "mutate": [
+    "src/features/reader/utils/*.ts",
+    "!src/features/reader/utils/*.test.ts"
+  ]
+}
