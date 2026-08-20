@@ -26,6 +26,7 @@
  */
 import { readdir, readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const SRC = 'src';
 
@@ -63,7 +64,15 @@ const READER_PRIVATE = [/^@\/features\/reader\//];
 /** Files allowed to reach them: the reader feature itself. */
 const READER_SIDE = [/^src\/features\/reader\//];
 
-const STATIC_IMPORT_PATTERN = /(?:^|\n)\s*(?:import|export)[^;\n]*?from\s*['"]([^'"]+)['"]/g;
+/**
+ * A static `import`/`export … from '…'` statement, which the repository writes
+ * across several lines as often as one. The statement may therefore span
+ * newlines, and only a `;` ends it — stopping at the first newline instead let
+ * every multiline named import through unchecked. Requiring the keyword to open
+ * a line is still what excludes a dynamic `import()`, which is never written
+ * there.
+ */
+const STATIC_IMPORT_PATTERN = /(?:^|\n)\s*(?:import|export)\b[^;]*?\bfrom\s*['"]([^'"]+)['"]/g;
 
 const RULES = [
   {
@@ -98,35 +107,52 @@ async function* walk(dir) {
   }
 }
 
-let failed = false;
-const sources = [];
+/**
+ * Returns each rule alongside the imports that broke it, for `base`, the
+ * directory holding `src`. Separated from the reporting below so the rules can
+ * be exercised against fixtures: a boundary rule that matches nothing looks
+ * exactly like a boundary nobody crosses.
+ */
+export async function findViolations(base = '.') {
+  const sources = [];
+  for await (const path of walk(join(base, SRC))) {
+    sources.push([relative(base, path).replaceAll('\\', '/'), await readFile(path, 'utf8')]);
+  }
 
-for await (const path of walk(SRC)) {
-  sources.push([relative('.', path).replaceAll('\\', '/'), await readFile(path, 'utf8')]);
+  return RULES.map((rule) => {
+    const violations = [];
+
+    for (const [file, source] of sources) {
+      if (rule.side.some((pattern) => pattern.test(file))) {
+        continue;
+      }
+
+      const exempt = rule.exempt.get(file) ?? new Set();
+
+      for (const match of source.matchAll(STATIC_IMPORT_PATTERN)) {
+        const specifier = match[1];
+        if (exempt.has(specifier)) {
+          continue;
+        }
+        if (rule.restricted.some((restricted) => restricted.test(specifier))) {
+          violations.push(`${file} imports ${specifier}`);
+        }
+      }
+    }
+
+    return { rule, violations };
+  });
 }
 
-for (const rule of RULES) {
-  const violations = [];
+async function main() {
+  const results = await findViolations();
+  let failed = false;
 
-  for (const [file, source] of sources) {
-    if (rule.side.some((pattern) => pattern.test(file))) {
+  for (const { rule, violations } of results) {
+    if (violations.length === 0) {
       continue;
     }
 
-    const exempt = rule.exempt.get(file) ?? new Set();
-
-    for (const match of source.matchAll(STATIC_IMPORT_PATTERN)) {
-      const specifier = match[1];
-      if (exempt.has(specifier)) {
-        continue;
-      }
-      if (rule.restricted.some((restricted) => restricted.test(specifier))) {
-        violations.push(`${file} imports ${specifier}`);
-      }
-    }
-  }
-
-  if (violations.length > 0) {
     failed = true;
     console.error(`${rule.problem}\n`);
     for (const violation of violations) {
@@ -134,10 +160,14 @@ for (const rule of RULES) {
     }
     console.error(`\n${rule.hint}\n`);
   }
+
+  if (failed) {
+    process.exit(1);
+  }
+
+  console.log(`Module boundaries OK (${RULES.length} rules).`);
 }
 
-if (failed) {
-  process.exit(1);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
 }
-
-console.log(`Module boundaries OK (${RULES.length} rules).`);
