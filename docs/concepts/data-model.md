@@ -61,6 +61,7 @@ was deleted and where it came from:
 
 | Field | Description |
 |---|---|
+| `schema_version` | On-disk format version of this file. Managed by PlainShelf; see [Data Format Versioning](data-format-versioning.md#trash-metadata-schema-v1) |
 | `deleted_at` | When the book was moved to the trash |
 | `original_path` | The path it was moved from, used to restore its folder name |
 | `original_layer` | The [layer](layers.md) it lived in, recreated on restore |
@@ -69,6 +70,11 @@ was deleted and where it came from:
 If the file is missing or unreadable the book still appears in the trash and can
 still be restored — it lands at the top level of `books/` under the folder name
 it has in the trash.
+
+A `trash.json` written by a *newer* PlainShelf is the opposite case: the book is
+still listed with everything the file says, but this build will not rewrite that
+record, so restoring or permanently deleting it is refused. See
+[Data Format Versioning](data-format-versioning.md#trash-metadata-schema-v1).
 
 Restoring never overwrites: if something already occupies the original path, the
 restored folder gets a `-1`, `-2`, … suffix. The book ID inside `book.json` is

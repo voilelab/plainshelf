@@ -2,8 +2,10 @@ package contract_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -102,5 +104,109 @@ func TestAPIUnsupportedSchemaVersionDoesNotMoveLayer(t *testing.T) {
 	}
 	if _, err := os.Stat(metaPath); err != nil {
 		t.Fatalf("book.json is no longer at its original path: %v", err)
+	}
+}
+
+// trashMetaPath returns the on-disk path of a trashed book's trash.json. The
+// layout is spelled out rather than derived from the shelf package's unexported
+// constants: a contract test asserting on disk should notice if it moves.
+func (env *apiTestEnv) trashMetaPath(bookID string) string {
+	return filepath.Join(env.libRoot, "trash", "books", bookID+".bookpkg", "trash.json")
+}
+
+// bumpTrashSchemaVersion rewrites a trashed book's trash.json with a schema
+// version this build does not support, reproducing a book trashed by a newer
+// PlainShelf. It returns the bytes now on disk so a caller can prove a refused
+// operation left them alone.
+func bumpTrashSchemaVersion(t *testing.T, env *apiTestEnv, bookID string) (metaPath string, onDisk []byte) {
+	t.Helper()
+
+	metaPath = env.trashMetaPath(bookID)
+	raw, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("read trash.json: %v", err)
+	}
+
+	var meta map[string]any
+	if err := json.Unmarshal(raw, &meta); err != nil {
+		t.Fatalf("unmarshal trash.json: %v", err)
+	}
+	meta["schema_version"] = shelf.TrashMetaSchemaVersion + 1
+	meta["restore_note"] = "written by a newer build"
+
+	bumped, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal trash.json: %v", err)
+	}
+	if err := os.WriteFile(metaPath, bumped, 0o644); err != nil {
+		t.Fatalf("write trash.json: %v", err)
+	}
+	return metaPath, bumped
+}
+
+// TestAPITrashSchemaVersionContract asserts trashing a book stamps the version
+// this build writes into trash.json.
+func TestAPITrashSchemaVersionContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Trash Schema Version", "", "trash.txt", "body")
+
+	assertStatus(t, env.post(bookURL(created.Meta.ID, "trash"), nil), http.StatusNoContent)
+
+	raw, err := os.ReadFile(env.trashMetaPath(created.Meta.ID))
+	if err != nil {
+		t.Fatalf("read trash.json: %v", err)
+	}
+	var meta map[string]any
+	if err := json.Unmarshal(raw, &meta); err != nil {
+		t.Fatalf("unmarshal trash.json: %v", err)
+	}
+	if got, _ := meta["schema_version"].(float64); got != float64(shelf.TrashMetaSchemaVersion) {
+		t.Fatalf("trash.json schema_version = %v, want %d", meta["schema_version"], shelf.TrashMetaSchemaVersion)
+	}
+}
+
+// TestAPIUnsupportedTrashSchemaVersionReturns409 verifies the behavior for a
+// book trashed by a newer build: still listed in the trash, but restoring or
+// permanently deleting it fails with 409 and leaves the files alone.
+func TestAPIUnsupportedTrashSchemaVersionReturns409(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Future Trash", "origin/layer", "future.txt", "body")
+
+	assertStatus(t, env.post(bookURL(created.Meta.ID, "trash"), nil), http.StatusNoContent)
+	metaPath, bumped := bumpTrashSchemaVersion(t, env, created.Meta.ID)
+
+	// The book stays visible in the trash, so a client can tell the user it
+	// needs a newer PlainShelf instead of finding it simply gone.
+	trashed := getJSON[[]map[string]any](t, env, trashBooksURL())
+	if len(trashed) != 1 {
+		t.Fatalf("trashed books = %d, want 1", len(trashed))
+	}
+	if id, _ := trashed[0]["id"].(string); id != created.Meta.ID {
+		t.Fatalf("trashed id = %q, want %q", id, created.Meta.ID)
+	}
+
+	assertStatus(t, env.post(trashBooksURL(created.Meta.ID, "restore"), nil), http.StatusConflict)
+	assertStatus(t, env.delete(trashBooksURL(created.Meta.ID)), http.StatusConflict)
+
+	// Emptying the trash is background work, so the refusal cannot be a status
+	// code: the sweep reports a partial result and the book stays.
+	accepted := emptyTrash(t, env, http.StatusAccepted)
+	chain := waitForTaskChain(t, env, accepted.TaskChainID)
+	if chain.Status != "partially_completed" {
+		t.Fatalf("chain status = %q, want partially_completed: %+v", chain.Status, chain)
+	}
+
+	if trashed := getJSON[[]map[string]any](t, env, trashBooksURL()); len(trashed) != 1 {
+		t.Fatalf("trashed books after empty = %d, want the refused book to remain", len(trashed))
+	}
+	after, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("re-read trash.json: %v", err)
+	}
+	if !bytes.Equal(bumped, after) {
+		t.Fatalf("refused operations must leave trash.json untouched, got:\n%s", after)
+	}
+	if !strings.Contains(string(after), "restore_note") {
+		t.Fatalf("unknown key must survive a refused operation, got:\n%s", after)
 	}
 }
