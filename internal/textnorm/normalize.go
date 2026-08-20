@@ -14,8 +14,9 @@ import (
 const NormalizeVersion = "nfkc-strip-space-punct-v1"
 
 // Normalize reduces text to the characters that carry its content: it applies
-// NFKC, then drops every whitespace, punctuation, symbol and separator rune.
-// What survives is letters, digits and marks.
+// NFKC and drops every whitespace, punctuation, symbol and separator rune,
+// repeating until the string stops changing. What survives is letters, digits
+// and marks, in a form that does not depend on where the layout used to be.
 //
 // Two layouts of one text therefore normalize to one string. A chapter rewrapped
 // at a different width, corner brackets traded for curly quotes, an ideographic
@@ -49,11 +50,41 @@ const NormalizeVersion = "nfkc-strip-space-punct-v1"
 // caller already makes for the other content metrics, rather than costing a
 // second pass over a network-mounted shelf.
 func Normalize(s string) string {
-	folded := norm.NFKC.String(s)
+	// NFKC has to run before the filter, because a compatibility form can expand
+	// into punctuation that only the filter knows to drop. The filter then has to
+	// be followed by NFKC again, because removing a rune can leave a base
+	// character next to a combining mark that a line break had kept apart, and
+	// NFKC could not compose the two until that break was gone. Without the
+	// second round, "e\n" + U+0301 and a precomposed "é" normalize differently —
+	// which is exactly the layout difference this function exists to erase.
+	//
+	// One extra round settles every input we know of; the loop is what turns that
+	// into a guarantee. It terminates because after the first round every
+	// compatibility decomposition is already applied, so each further round only
+	// composes, and composing never lengthens the string.
+	for i := 0; i < maxNormalizeRounds; i++ {
+		stripped := stripLayout(norm.NFKC.String(s))
+		if stripped == s {
+			break
+		}
+		s = stripped
+	}
 
+	return s
+}
+
+// maxNormalizeRounds bounds the loop above so a rune we have not thought of
+// cannot spin it. Reaching the bound costs idempotence, not determinism:
+// Normalize stays a pure function of its input, which is the property every
+// cached fingerprint depends on.
+const maxNormalizeRounds = 4
+
+// stripLayout removes every rune that describes presentation rather than
+// content.
+func stripLayout(s string) string {
 	var b strings.Builder
-	b.Grow(len(folded))
-	for _, r := range folded {
+	b.Grow(len(s))
+	for _, r := range s {
 		if isLayout(r) {
 			continue
 		}

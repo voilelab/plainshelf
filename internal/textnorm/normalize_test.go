@@ -150,6 +150,40 @@ func TestNormalizeRunsLatinWordsTogether(t *testing.T) {
 	}
 }
 
+// TestNormalizeComposesAcrossRemovedLayout covers the case that makes stripping
+// layout and normalizing a single step rather than two: a line break, or a space
+// a converter left behind, can sit between a base character and its combining
+// mark. NFKC cannot compose them while it is there, so the pair has to be
+// normalized again once the layout is gone — otherwise a wrapped text and the
+// same text unwrapped end up as different strings, and hash to different values.
+func TestNormalizeComposesAcrossRemovedLayout(t *testing.T) {
+	testCases := []struct {
+		name  string
+		split string
+		whole string
+	}{
+		{"newline before a combining acute", "e\n\u0301", "é"},
+		{"space before a combining acute", "e \u0301", "é"},
+		{"line break inside a decomposed word", "caf\u0065\n\u0301 au lait", "café au lait"},
+		{"halfwidth voiced mark split from its kana", "\uFF76\n\uFF9E", "ガ"},
+		{"two marks parted from one base", "\uFF43\u0327 \u0301", "ḉ"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotSplit, gotWhole := Normalize(tc.split), Normalize(tc.whole)
+			if gotSplit != gotWhole {
+				t.Errorf("Normalize(%q) = %q, want %q from Normalize(%q)",
+					tc.split, gotSplit, gotWhole, tc.whole)
+			}
+			if Hash64String(gotSplit) != Hash64String(gotWhole) {
+				t.Errorf("layout changed the hash: %#016x vs %#016x",
+					Hash64String(gotSplit), Hash64String(gotWhole))
+			}
+		})
+	}
+}
+
 // TestNormalizeKeepsChineseVariantsApart pins the deliberate absence of a
 // traditional/simplified conversion. Adding one later invalidates every cached
 // fingerprint, so it has to arrive with a version bump rather than by accident.
@@ -218,6 +252,11 @@ func TestNormalizeIsIdempotent(t *testing.T) {
 		"話說天下大勢，分久必合。",
 		"　ＰｌａｉｎＳｈｅｌｆ　v1.0 ─ the shelf\r\n",
 		"㌀ﬁ㍿",
+		// A combining mark parted from its base by layout. Removing the break
+		// lets NFKC compose the pair, which it could not do while the break was
+		// between them, so a single pass would leave this decomposed.
+		"e\n\u0301",
+		"\uFF43\u0327 \u0301",
 	}
 
 	for _, in := range inputs {
