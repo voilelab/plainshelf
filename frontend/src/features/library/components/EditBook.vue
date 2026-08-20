@@ -646,11 +646,13 @@ function toFormDateValue(rawValue?: string): string {
   outline-offset: 2px;
 }
 
-/* A window of its own, not a box the content sizes: the form must not grow and
-   shrink under the cursor while the description is being typed. */
+/* A window of its own, not a box the content sizes. The height is fixed rather
+   than bounded: any range between a min and a max is still a box that grows a
+   line at a time, and everything below it - the identifiers, the save button -
+   moves down as the description is typed. An empty preview showing empty space
+   is the price of the field under it staying where it was. */
 .comment-preview {
-  max-height: 220px;
-  min-height: 96px;
+  height: 180px;
   overflow-y: auto;
   padding: 10px 12px;
   border: 1px solid var(--border);
