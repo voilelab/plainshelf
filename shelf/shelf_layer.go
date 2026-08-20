@@ -16,6 +16,10 @@ import (
 // renamed, moved or deleted through this process update the cache immediately,
 // so only a change made outside PlainShelf waits for the next scan.
 func (s *Shelf) GetAllLayers() ([]Layers, error) {
+	if !s.IsReady() {
+		return nil, util.Errorf("%w", ErrShelfInitializing)
+	}
+
 	if err := s.shelfLock.RLock(); err != nil {
 		return nil, util.Errorf("%w", err)
 	}

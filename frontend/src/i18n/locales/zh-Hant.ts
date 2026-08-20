@@ -108,7 +108,8 @@ const zhHant = {
     layerErrors: {
       emptyPath: '資料夾路徑不得為空',
       createFailed: '建立資料夾失敗',
-      loadFailed: '載入資料夾失敗'
+      loadFailed: '載入資料夾失敗',
+      shelfNotReady: '書架仍在啟動中，尚未就緒。'
     },
     moveBookErrors: {
       notFound: '找不到書籍。',
