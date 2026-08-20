@@ -34,13 +34,13 @@ function mount(props: { book: Book; currentSource?: SourceMeta | null }): HTMLEl
 
 /** The rendered description, which is the only notes row carrying markup. */
 function description(host: HTMLElement): HTMLElement | null {
-  return host.querySelector('.detail-card-notes .note-description');
+  return host.querySelector('.detail-card-notes .description-body');
 }
 
 /** The notes rows that stay literal text, in the order the card lists them. */
 function textRows(host: HTMLElement): HTMLElement[] {
   return Array.from(host.querySelectorAll<HTMLElement>('.detail-card-notes .note-row dd')).filter(
-    (dd) => !dd.querySelector('.note-description')
+    (dd) => !dd.querySelector('.description-body')
   );
 }
 

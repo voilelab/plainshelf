@@ -57,7 +57,7 @@
           <div v-for="row in noteRows" :key="row.label" class="detail-definition-row note-row">
             <dt>{{ row.label }}</dt>
             <dd v-if="row.render === 'html'">
-              <SafeHtml class="note-description" :html="row.html" profile="summary" />
+              <SafeHtml class="description-body" :html="row.html" profile="summary" />
             </dd>
             <dd v-else>{{ row.value }}</dd>
           </div>
@@ -350,84 +350,6 @@ const hasDetailSections = computed(() =>
   white-space: pre-wrap;
 }
 
-/* The description is markup, so the newlines between its block tags belong to
-   the renderer rather than to the text, and must not be preserved. */
-.note-description {
-  white-space: normal;
-}
-
-/* v-html descendants never receive the scoped-style attribute, so every
-   selector crossing the safe HTML boundary is explicit, as in the reader. */
-.note-description :deep(p),
-.note-description :deep(ul),
-.note-description :deep(ol),
-.note-description :deep(dl),
-.note-description :deep(pre),
-.note-description :deep(blockquote) {
-  margin: 0 0 8px;
-}
-
-.note-description :deep(h1),
-.note-description :deep(h2),
-.note-description :deep(h3),
-.note-description :deep(h4),
-.note-description :deep(h5),
-.note-description :deep(h6) {
-  color: #283544;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.4;
-  margin: 12px 0 6px;
-}
-
-.note-description :deep(ul),
-.note-description :deep(ol) {
-  padding-left: 1.4em;
-}
-
-.note-description :deep(li) {
-  margin: 0 0 2px;
-}
-
-.note-description :deep(blockquote) {
-  border-left: 3px solid #ddd8cd;
-  color: #556273;
-  padding: 2px 0 2px 10px;
-}
-
-.note-description :deep(pre) {
-  background: rgba(63, 53, 41, 0.06);
-  border-radius: 8px;
-  overflow-x: auto;
-  padding: 9px 11px;
-  white-space: pre;
-}
-
-.note-description :deep(code) {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.9em;
-}
-
-.note-description :deep(pre code) {
-  font-size: inherit;
-}
-
-.note-description :deep(hr) {
-  border: none;
-  border-top: 1px solid #e5e1d9;
-  margin: 10px 0;
-}
-
-/* dd opens no block-formatting context of its own here, so a margin on the
-   first or last block escapes it and widens the row's own gap instead. */
-.note-description :deep(> :first-child) {
-  margin-top: 0;
-}
-
-.note-description :deep(> :last-child) {
-  margin-bottom: 0;
-}
-
 .detail-empty {
   border-top: 1px solid #e5e1d9;
   color: #788391;
@@ -509,3 +431,5 @@ const hasDetailSections = computed(() =>
   }
 }
 </style>
+
+<style scoped src="@/styles/description.css"></style>
