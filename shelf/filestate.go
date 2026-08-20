@@ -17,7 +17,7 @@ func (f *FileStat) Equal(other *FileStat) bool {
 	return f.ModTime.Equal(other.ModTime) && f.Size == other.Size
 }
 
-func getFileStat(rt fsutil.FS, path string) (*FileStat, error) {
+func getFileStat(rt fsutil.ReadFS, path string) (*FileStat, error) {
 	info, err := rt.Stat(path)
 	if err != nil {
 		return nil, err

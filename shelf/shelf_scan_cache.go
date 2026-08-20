@@ -255,7 +255,7 @@ func dirChildren(entries []fs.DirEntry) []dirChild {
 // target can change without the directory holding it being modified.
 //
 // child is nil at the root of a walk, which has no directory entry of its own.
-func childIsDir(root fsutil.FS, pth string, child *dirChild) (bool, error) {
+func childIsDir(root fsutil.ReadFS, pth string, child *dirChild) (bool, error) {
 	if child != nil && !child.Symlink {
 		return true, nil
 	}

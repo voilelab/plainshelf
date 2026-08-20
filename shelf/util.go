@@ -49,7 +49,7 @@ func randomString(n int) string {
 // empty string when the file cannot be stat'd. Every stored file the read path
 // serves with caching headers derives its validator here, so covers and source
 // assets cannot drift apart on what counts as "changed".
-func fileETag(root fsutil.FS, filePath string) string {
+func fileETag(root fsutil.ReadFS, filePath string) string {
 	info, err := root.Stat(filePath)
 	if err != nil {
 		return ""

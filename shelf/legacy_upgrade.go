@@ -49,11 +49,18 @@ func (r *Source) UpgradeLegacyToSchemaV1(format string, content io.Reader) error
 	if format != BookFormatText && format != BookFormatMarkdown {
 		return util.Errorf("%w: got %q", ErrInvalidBookFormat, format)
 	}
+	// Narrowed before the in-memory stamp below, not just before the write:
+	// a refused upgrade must not leave this Source claiming a schema version
+	// and format that never reached meta.json.
+	root, err := r.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
 
 	rewritten := false
 	if content != nil {
 		sourceDestPath := path.Join(r.folderPath, SourceFile)
-		if err := fsutil.WriteAtomic(r.root, sourceDestPath, content); err != nil {
+		if err := fsutil.WriteAtomic(root, sourceDestPath, content); err != nil {
 			return util.Errorf("%w", err)
 		}
 		rewritten = true
@@ -72,7 +79,7 @@ func (r *Source) UpgradeLegacyToSchemaV1(format string, content io.Reader) error
 		return nil
 	}
 
-	if err := r.writebackMeta(); err != nil {
+	if err := r.writebackMeta(root); err != nil {
 		return util.Errorf("%w", err)
 	}
 	return nil

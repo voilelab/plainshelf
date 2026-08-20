@@ -91,7 +91,12 @@ The two columns disagree most where it matters most: `sanitizeReaderHtml.ts` had
 every line covered and barely half its behavior verified.
 
 The pilot added 61 tests and changed no implementation code. 225 mutants moved
-from surviving to killed; the 217 that remain are dispositioned below.
+from surviving to killed; the ones that remain are dispositioned below.
+
+Later work has moved those numbers slightly. Removing the unreachable `'span'`
+entry from `ALLOWED_ATTR` took its mutant away with the line, so the current run
+has 985 mutants and 216 survivors, with `sanitizeReaderHtml.ts` at 92.70% and all
+files at 78.07%.
 
 ## Standing dispositions
 
@@ -106,16 +111,15 @@ suite's job, `T` = tool artifact. Line numbers refer to the implementation file.
 | 20 | 2 | E | `quoteLines.length > 0` cannot be false. The chunk reached this line through `.filter(Boolean)` after `.trim()`, so it holds at least one non-empty line. |
 | 31 | 1 | E | Dropping `^` from `/^>\s?/` changes nothing: the replace is non-global, so it rewrites the first match, and every line here starts with `>`. |
 
-### `sanitizeReaderHtml.ts` — 11
+### `sanitizeReaderHtml.ts` — 10
 
 | Lines | # | | Reasoning |
 |---|---:|---|---|
 | 43 | 1 | E | Emptying `'tbody'` in `ALLOWED_TAGS` leaves a full table byte-identical after sanitization (verified by hand). |
-| 57 | 1 | N | `span` is a `<col>`/`<colgroup>` attribute and neither tag is allowed, so no reading markup can carry it. Candidate for removal from `ALLOWED_ATTR`. |
-| 86–88 | 3 | E | `colon < 0` is subsumed by the property-name comparison beside it, and trimming the value duplicates what CSSOM does when the value is assigned. |
-| 108 | 1 | E | `/\s+/` → `/\s/` only introduces empty strings into the split, and the empty string is not a reader class. |
-| 120 | 1 | N | `ALLOW_UNKNOWN_PROTOCOLS: false` has no reachable effect while no URL-bearing attribute is allowed. Kept as defense in depth for a future `ALLOWED_ATTR` change. |
-| 124–126, 129 | 4 | E | `style` and `template` content is dropped by the tag rules regardless. `noscript` and `embed` content is never parsed as a child of those elements, so `FORBID_CONTENTS` cannot act on it — it leaks with or without the entry (verified by hand). |
+| 85–87 | 3 | E | `colon < 0` is subsumed by the property-name comparison beside it, and trimming the value duplicates what CSSOM does when the value is assigned. |
+| 107 | 1 | E | `/\s+/` → `/\s/` only introduces empty strings into the split, and the empty string is not a reader class. |
+| 119 | 1 | N | `ALLOW_UNKNOWN_PROTOCOLS: false` has no reachable effect while no URL-bearing attribute is allowed. Kept as defense in depth for a future `ALLOWED_ATTR` change. |
+| 123–125, 128 | 4 | E | `style` and `template` content is dropped by the tag rules regardless. `noscript` and `embed` content is never parsed as a child of those elements, so `FORBID_CONTENTS` cannot act on it — it leaks with or without the entry (verified by hand). |
 
 ### `mobileReaderGestures.ts` — 1
 
@@ -185,9 +189,9 @@ the re-exported asset helpers.
 |---|---:|
 | Assertion added (mutants newly killed) | 225 |
 | Equivalent mutant | 53 |
-| Not the unit suite's job | 162 |
+| Not the unit suite's job | 161 |
 | Tool artifact | 2 |
 
-140 of the 162 "not the unit suite's job" mutants are the dead block model in
-`parseMarkdownBlocks.ts`. Excluding that file, 74 mutants remain undisposed of by
+140 of the 161 "not the unit suite's job" mutants are the dead block model in
+`parseMarkdownBlocks.ts`. Excluding that file, 73 mutants remain undisposed of by
 a test, against 764 killed.
