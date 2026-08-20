@@ -50,14 +50,22 @@ export function useBookDetail(bookID: () => string) {
       const format = resolveReadingFormat(currentSourceData?.format, bookData.format);
       const needsProgressContentLength =
         progressData.percent === undefined && progressData.char_offset > 0;
+      // Read the text the reader will read. The book-scoped route answers from
+      // the newest surviving source, which is not always current_source, so
+      // going through the source keeps the chapter indexes and the percentage
+      // describing the same content the reader opens — with the same fallback
+      // the reader uses when that source is gone.
+      const bookContent = () =>
+        provider.getBookContent(currentBookID).then(({ content }) => content);
+      const sourceID = bookData.current_source ?? '';
       // The percentage and the chapter list want the same text, so one load
       // reads the book at most once — and not at all when neither asks for it.
       const contentText =
         needsProgressContentLength || format === 'md'
-          ? await provider
-              .getBookContent(currentBookID)
-              .then(({ content }) => content)
-              .catch(() => null)
+          ? await (sourceID
+              ? provider.getSourceContent(currentBookID, sourceID).catch(bookContent)
+              : bookContent()
+            ).catch(() => null)
           : null;
 
       book.value = bookData;

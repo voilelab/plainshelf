@@ -69,13 +69,17 @@ test('derives reading progress using the same UTF-16 units as the reader', async
   });
 
   try {
-    await page.route('**/books/*/content', async (route) => {
+    // The detail page reads the current source, the same text the reader opens,
+    // and falls back to the book-scoped route only when that source is gone.
+    const serveEmoji = async (route: import('@playwright/test').Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'text/plain; charset=utf-8',
         body: '🍥🍥'
       });
-    });
+    };
+    await page.route('**/books/*/content', serveEmoji);
+    await page.route('**/books/*/sources/*/content', serveEmoji);
     await openHelloDetail(page, server.baseUrl);
     const bookID = new URL(page.url()).pathname.split('/').pop()!;
     await page.evaluate(
