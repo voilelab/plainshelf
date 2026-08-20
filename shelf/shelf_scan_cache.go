@@ -331,6 +331,18 @@ func (s *Shelf) saveScanCache() error {
 		return nil
 	}
 
+	// Not an error worth reporting on a read-only shelf: the snapshot is
+	// rebuildable runtime state that this shelf was never going to keep, and
+	// both call sites would only log a warning at every startup and shutdown.
+	if s.readOnly {
+		return nil
+	}
+
+	root, err := s.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	s.bookCache.RLock()
 	dirs := s.bookCache.dirs
 	lastDigest := s.bookCache.scanCacheDigest
@@ -360,7 +372,7 @@ func (s *Shelf) saveScanCache() error {
 	// Atomic, like every other file under app/: a sync client copying the shelf
 	// away must never pick up half a snapshot.
 	filePath := path.Join(appFolder, scanCacheFileName)
-	if err := fsutil.WriteFileAtomic(s.dbRoot, filePath, data); err != nil {
+	if err := fsutil.WriteFileAtomic(root, filePath, data); err != nil {
 		return util.Errorf("%w", err)
 	}
 

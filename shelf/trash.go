@@ -61,6 +61,11 @@ type trashMeta struct {
 }
 
 func (s *Shelf) MoveBookToTrash(bookID string) error {
+	root, err := s.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	if err := s.shelfLock.Lock(); err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -89,7 +94,7 @@ func (s *Shelf) MoveBookToTrash(bookID string) error {
 		return util.Errorf("%w", err)
 	}
 
-	if err := s.dbRoot.Rename(activePath, trashPath); err != nil {
+	if err := root.Rename(activePath, trashPath); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -99,8 +104,8 @@ func (s *Shelf) MoveBookToTrash(bookID string) error {
 		OriginalLayer: append(Layers(nil), book.Layers()...),
 		DeleteReason:  "user",
 	}
-	if err := s.writeTrashMeta(trashPath, &meta); err != nil {
-		_ = s.dbRoot.Rename(trashPath, activePath)
+	if err := s.writeTrashMeta(root, trashPath, &meta); err != nil {
+		_ = root.Rename(trashPath, activePath)
 		return util.Errorf("%w", err)
 	}
 
@@ -193,6 +198,11 @@ func (s *Shelf) ListTrashedBookIDs() ([]string, error) {
 }
 
 func (s *Shelf) RestoreTrashedBook(bookID string) error {
+	root, err := s.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	if err := s.shelfLock.Lock(); err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -224,7 +234,7 @@ func (s *Shelf) RestoreTrashedBook(bookID string) error {
 	}
 
 	targetLayerPath := path.Join(booksFolder, path.Join(targetLayers...))
-	if err := s.dbRoot.MkdirAll(targetLayerPath); err != nil {
+	if err := root.MkdirAll(targetLayerPath); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -236,10 +246,10 @@ func (s *Shelf) RestoreTrashedBook(bookID string) error {
 		return util.Errorf("%w", err)
 	}
 
-	if err := s.dbRoot.Rename(trashPath, targetPath); err != nil {
+	if err := root.Rename(trashPath, targetPath); err != nil {
 		return util.Errorf("%w", err)
 	}
-	_ = s.dbRoot.Remove(path.Join(targetPath, trashMetaFile))
+	_ = root.Remove(path.Join(targetPath, trashMetaFile))
 
 	restoredBook, err := openBook(s.dbRoot, s.Logger, targetPath)
 	if err != nil {
@@ -257,6 +267,11 @@ func (s *Shelf) RestoreTrashedBook(bookID string) error {
 
 func (s *Shelf) DeleteTrashedBook(bookID string) error {
 	if err := validateBookID(bookID); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	root, err := s.writeRoot()
+	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -279,7 +294,7 @@ func (s *Shelf) DeleteTrashedBook(bookID string) error {
 		return util.Errorf("%w", err)
 	}
 
-	if err := s.dbRoot.RemoveAll(trashPath); err != nil {
+	if err := root.RemoveAll(trashPath); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -315,7 +330,7 @@ func (s *Shelf) findTrashedBook(bookID string) (string, *Book, *trashMeta, error
 	return trashPath, book, s.readTrashMetaTolerant(trashPath), nil
 }
 
-func (s *Shelf) writeTrashMeta(bookPath string, meta *trashMeta) error {
+func (s *Shelf) writeTrashMeta(root fsutil.FS, bookPath string, meta *trashMeta) error {
 	// Stamp unconditionally: the schema version is shelf-managed, so a caller
 	// cannot write a version this build does not itself produce.
 	meta.SchemaVersion = TrashMetaSchemaVersion
@@ -324,7 +339,7 @@ func (s *Shelf) writeTrashMeta(bookPath string, meta *trashMeta) error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	if err := fsutil.WriteFileAtomic(s.dbRoot, path.Join(bookPath, trashMetaFile), payload); err != nil {
+	if err := fsutil.WriteFileAtomic(root, path.Join(bookPath, trashMetaFile), payload); err != nil {
 		return util.Errorf("%w", err)
 	}
 	return nil
@@ -433,7 +448,7 @@ func (s *Shelf) resolveBookPathCollision(layerPath, folderName string) (string, 
 // Like the rest of makeStructure this runs without the shelf lock, on the same
 // assumption the format documentation states: one PlainShelf version opens a
 // shelf at a time.
-func (s *Shelf) migrateLegacyTrash() error {
+func (s *Shelf) migrateLegacyTrash(root fsutil.FS) error {
 	legacyInfo, err := s.dbRoot.Stat(legacyTrashFolder)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -449,7 +464,7 @@ func (s *Shelf) migrateLegacyTrash() error {
 	_, err = s.dbRoot.Stat(trashFolder)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
-		if err := s.dbRoot.Rename(legacyTrashFolder, trashFolder); err != nil {
+		if err := root.Rename(legacyTrashFolder, trashFolder); err != nil {
 			return util.Errorf("%w", err)
 		}
 		s.Info("renamed legacy trash directory", "from", legacyTrashFolder, "to", trashFolder)
@@ -458,21 +473,21 @@ func (s *Shelf) migrateLegacyTrash() error {
 		return util.Errorf("%w", err)
 	}
 
-	return s.mergeLegacyTrashBooks()
+	return s.mergeLegacyTrashBooks(root)
 }
 
 // mergeLegacyTrashBooks handles the case where both trash directories exist,
 // which happens when a shelf is opened by an older build again after the
 // rename. Every book is carried over; nothing under the legacy path is deleted
 // unless it is an empty directory left behind by the move.
-func (s *Shelf) mergeLegacyTrashBooks() error {
+func (s *Shelf) mergeLegacyTrashBooks(root fsutil.FS) error {
 	entries, err := s.dbRoot.ReadDir(legacyTrashBooksFolder)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return util.Errorf("%w", err)
 	}
 
 	if len(entries) > 0 {
-		if err := s.dbRoot.MkdirAll(trashBooksFolder); err != nil {
+		if err := root.MkdirAll(trashBooksFolder); err != nil {
 			return util.Errorf("%w", err)
 		}
 	}
@@ -487,7 +502,7 @@ func (s *Shelf) mergeLegacyTrashBooks() error {
 		if err != nil {
 			return util.Errorf("%w", err)
 		}
-		if err := s.dbRoot.Rename(src, dst); err != nil {
+		if err := root.Rename(src, dst); err != nil {
 			return util.Errorf("%w", err)
 		}
 		if dst != path.Join(trashBooksFolder, entry.Name()) {
@@ -499,11 +514,11 @@ func (s *Shelf) mergeLegacyTrashBooks() error {
 
 	// Remove, not RemoveAll: it fails on a non-empty directory, so anything the
 	// user put under the legacy path by hand is left where they can find it.
-	if err := s.dbRoot.Remove(legacyTrashBooksFolder); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := root.Remove(legacyTrashBooksFolder); err != nil && !errors.Is(err, os.ErrNotExist) {
 		s.Warn("legacy trash directory is not empty; leaving it in place", "path", legacyTrashBooksFolder, "error", err)
 		return nil
 	}
-	if err := s.dbRoot.Remove(legacyTrashFolder); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := root.Remove(legacyTrashFolder); err != nil && !errors.Is(err, os.ErrNotExist) {
 		s.Warn("legacy trash directory is not empty; leaving it in place", "path", legacyTrashFolder, "error", err)
 	}
 

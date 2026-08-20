@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -75,6 +76,10 @@ var apiErrorTable = []struct {
 	{shelf.ErrAssetNotFound, apiError{
 		status:  http.StatusNotFound,
 		message: "asset not found",
+	}},
+	{fsutil.ErrReadOnly, apiError{
+		status:  http.StatusConflict,
+		message: "shelf is opened read-only; this PlainShelf instance cannot modify it",
 	}},
 	{shelf.ErrUnsupportedBookSchemaVersion, apiError{
 		status:  http.StatusConflict,

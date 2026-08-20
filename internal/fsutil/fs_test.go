@@ -97,15 +97,44 @@ func TestWritableNarrowsOnlyWritableImplementations(t *testing.T) {
 		t.Errorf("Writable(RootFS) error = %v, want nil", err)
 	}
 
-	if _, err := Writable(readOnlyFS{}); !errors.Is(err, ErrReadOnly) {
-		t.Errorf("Writable(readOnlyFS) error = %v, want %v", err, ErrReadOnly)
+	if _, err := Writable(readOnlyStub{}); !errors.Is(err, ErrReadOnly) {
+		t.Errorf("Writable(readOnlyStub) error = %v, want %v", err, ErrReadOnly)
 	}
 }
 
-// readOnlyFS implements ReadFS and nothing more, standing in for a future
-// read-only backend.
-type readOnlyFS struct{}
+// ReadOnly is what a caller reaches for when the implementation it holds can
+// write but this handle must not: the wrapper has to keep reading and has to
+// stop Writable from handing the writes straight back.
+func TestReadOnlyKeepsReadsAndRefusesNarrowing(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "book.json"), []byte("{}"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
 
-func (readOnlyFS) Open(string) (fs.File, error)          { return nil, fs.ErrNotExist }
-func (readOnlyFS) ReadDir(string) ([]fs.DirEntry, error) { return nil, fs.ErrNotExist }
-func (readOnlyFS) Stat(string) (fs.FileInfo, error)      { return nil, fs.ErrNotExist }
+	readOnly := ReadOnly(newTestFS(t, root))
+
+	if _, err := readOnly.Stat("book.json"); err != nil {
+		t.Errorf("Stat through a read-only handle: %v", err)
+	}
+	if _, err := readOnly.ReadDir("."); err != nil {
+		t.Errorf("ReadDir through a read-only handle: %v", err)
+	}
+	file, err := readOnly.Open("book.json")
+	if err != nil {
+		t.Errorf("Open through a read-only handle: %v", err)
+	} else {
+		file.Close()
+	}
+
+	if _, err := Writable(readOnly); !errors.Is(err, ErrReadOnly) {
+		t.Errorf("Writable(ReadOnly(RootFS)) error = %v, want %v", err, ErrReadOnly)
+	}
+}
+
+// readOnlyStub implements ReadFS and nothing more, standing in for a backend
+// that has no write half at all.
+type readOnlyStub struct{}
+
+func (readOnlyStub) Open(string) (fs.File, error)          { return nil, fs.ErrNotExist }
+func (readOnlyStub) ReadDir(string) ([]fs.DirEntry, error) { return nil, fs.ErrNotExist }
+func (readOnlyStub) Stat(string) (fs.FileInfo, error)      { return nil, fs.ErrNotExist }

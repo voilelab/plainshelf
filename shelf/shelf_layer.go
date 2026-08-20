@@ -36,13 +36,18 @@ func (s *Shelf) NewLayer(layer Layers) error {
 		return util.Errorf("%w", err)
 	}
 
+	root, err := s.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	if err := s.shelfLock.Lock(); err != nil {
 		return util.Errorf("%w", err)
 	}
 	defer s.shelfLock.Unlock()
 
 	layerPath := path.Join(booksFolder, path.Join(layer...))
-	err := s.dbRoot.MkdirAll(layerPath)
+	err = root.MkdirAll(layerPath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -58,6 +63,11 @@ func (s *Shelf) NewLayer(layer Layers) error {
 // DeleteLayer removes a layer from the library. It checks if the layer is empty (i.e., contains no books) before deleting it. If the layer is not empty, it returns an error.
 func (s *Shelf) DeleteLayer(layer Layers) error {
 	if err := validateLayers(layer); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	root, err := s.writeRoot()
+	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -77,7 +87,7 @@ func (s *Shelf) DeleteLayer(layer Layers) error {
 		return util.Errorf("cannot delete non-empty layer")
 	}
 
-	err = s.dbRoot.RemoveAll(layerPath)
+	err = root.RemoveAll(layerPath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -96,6 +106,11 @@ func (s *Shelf) RenameLayer(oldLayer Layers, newLayer Layers) error {
 	}
 	if err := validateLayers(newLayer); err != nil {
 		return util.Errorf("invalid new layer: %w", err)
+	}
+
+	root, err := s.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
 	}
 
 	if err := s.shelfLock.Lock(); err != nil {
@@ -132,11 +147,11 @@ func (s *Shelf) RenameLayer(oldLayer Layers, newLayer Layers) error {
 	}
 
 	newLayerParent := path.Dir(newLayerPath)
-	if err := s.dbRoot.MkdirAll(newLayerParent); err != nil {
+	if err := root.MkdirAll(newLayerParent); err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	err := s.dbRoot.Rename(oldLayerPath, newLayerPath)
+	err = root.Rename(oldLayerPath, newLayerPath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -156,6 +171,11 @@ func (s *Shelf) MoveLayer(layer Layers, targetParent Layers) error {
 	}
 	if len(layer) == 0 {
 		return util.Errorf("cannot move root layer")
+	}
+
+	root, err := s.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
 	}
 
 	if err := s.shelfLock.Lock(); err != nil {
@@ -194,7 +214,7 @@ func (s *Shelf) MoveLayer(layer Layers, targetParent Layers) error {
 		return util.Errorf("%w", err)
 	}
 
-	if err := s.dbRoot.Rename(oldLayerPath, newLayerPath); err != nil {
+	if err := root.Rename(oldLayerPath, newLayerPath); err != nil {
 		return util.Errorf("%w", err)
 	}
 
