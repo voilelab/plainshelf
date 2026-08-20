@@ -605,6 +605,29 @@ func (b *Book) GetSource(sourceID string) (*Source, error) {
 	return source, nil
 }
 
+// currentSourceCharCount reports the character count of the book's current
+// source, and 0 when there is no current source or it cannot be read. A
+// listing treats an unknown count as absent rather than failing over one
+// damaged book, so there is nothing for a caller to handle.
+//
+// The source's meta.json is opened directly instead of through GetSource,
+// which stats the source folder first: the open below already reports a
+// missing source, and on a network mount that stat is another round trip for
+// every book in the shelf. See bookIDCacheEntry.charCount for who reads this.
+func (b *Book) currentSourceCharCount() int {
+	sourceID := b.CurrentSource()
+	if err := validateSourceID(sourceID); err != nil {
+		return 0
+	}
+
+	source, err := openSource(b.root, path.Join(b.folderPath, SourcesFolder, sourceID))
+	if err != nil {
+		return 0
+	}
+
+	return source.GetMeta().CharCount
+}
+
 // ResolveCurrentSource opens the source a reader should be served, tolerating a
 // current_source pointer that no longer resolves. A shelf is edited by hand and
 // by sync tools, so the pointer can name a source that was removed or damaged

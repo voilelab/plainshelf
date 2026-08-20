@@ -151,6 +151,12 @@ test('updates the content statistics of books with an unknown character count', 
 
     expect(await clearStoredCharCounts(server.shelfDir)).toBeGreaterThan(0);
 
+    // Character counts are answered from the server's book cache, so an edit
+    // made straight on disk reaches it through a walk of the shelf - the same
+    // button a user presses after changing a shelf from outside PlainShelf.
+    await page.getByRole('button', { name: 'Update book list' }).click();
+    await expect(page.locator('.reka-toast-viewport .reka-toast')).toContainText(/Found 1 books/);
+
     // A book with no stored count reads as zero characters, so it still falls
     // inside a range whose maximum is 1.
     await page.goto(`${server.baseUrl}/books?maxChars=1`);

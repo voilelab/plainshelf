@@ -17,7 +17,7 @@ const maxAssetBodySize = 20 << 20 // 20 MB
 // neither the token gate nor read-only mode stands between a reader and it -
 // unlike the PUT and DELETE below.
 func (h *sourceHandlers) getAsset(w http.ResponseWriter, r *http.Request) {
-	_, source, ok := h.loadBookSource(w, r)
+	_, _, source, ok := h.loadBookSource(w, r)
 	if !ok {
 		return
 	}
@@ -70,7 +70,7 @@ func (h *sourceHandlers) getAsset(w http.ResponseWriter, r *http.Request) {
 // request like any other: the token gate and the read-only mode both apply
 // before it is reached.
 func (h *sourceHandlers) updateAsset(w http.ResponseWriter, r *http.Request) {
-	book, source, ok := h.loadBookSource(w, r)
+	_, book, source, ok := h.loadBookSource(w, r)
 	if !ok {
 		return
 	}
@@ -113,7 +113,7 @@ func (h *sourceHandlers) updateAsset(w http.ResponseWriter, r *http.Request) {
 // as its alt text, and editing someone's prose to preserve an invariant the
 // shelf does not enforce would be the worse trade.
 func (h *sourceHandlers) deleteAsset(w http.ResponseWriter, r *http.Request) {
-	book, source, ok := h.loadBookSource(w, r)
+	_, book, source, ok := h.loadBookSource(w, r)
 	if !ok {
 		return
 	}

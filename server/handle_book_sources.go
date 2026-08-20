@@ -42,7 +42,7 @@ func (h *sourceHandlers) listSources(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}
 func (h *sourceHandlers) getSource(w http.ResponseWriter, r *http.Request) {
-	_, source, ok := h.loadBookSource(w, r)
+	_, _, source, ok := h.loadBookSource(w, r)
 	if !ok {
 		return
 	}
@@ -52,7 +52,7 @@ func (h *sourceHandlers) getSource(w http.ResponseWriter, r *http.Request) {
 
 // POST /api/shelves/{shelf_id}/books/{book_id}/sources
 func (h *sourceHandlers) createSource(w http.ResponseWriter, r *http.Request) {
-	_, book, ok := h.loadBook(w, r)
+	shelfData, book, ok := h.loadBook(w, r)
 	if !ok {
 		return
 	}
@@ -125,6 +125,7 @@ func (h *sourceHandlers) createSource(w http.ResponseWriter, r *http.Request) {
 			h.writeErr(w, err, "failed to activate new book source")
 			return
 		}
+		shelfData.RefreshBookCharCount(book.ID())
 	}
 
 	h.writeJSON(w, http.StatusOK, sourceMeta.GetMeta())
@@ -159,12 +160,16 @@ func (h *sourceHandlers) deleteSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Deleting the current source hands the pointer to another one, so the
+	// cached character count is now somebody else's.
+	shelfData.RefreshBookCharCount(book.ID())
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
 // PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/current
 func (h *sourceHandlers) setCurrentSource(w http.ResponseWriter, r *http.Request) {
-	book, _, ok := h.loadBookSource(w, r)
+	shelfData, book, _, ok := h.loadBookSource(w, r)
 	if !ok {
 		return
 	}
@@ -180,12 +185,14 @@ func (h *sourceHandlers) setCurrentSource(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	shelfData.RefreshBookCharCount(book.ID())
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content
 func (h *sourceHandlers) getSourceContent(w http.ResponseWriter, r *http.Request) {
-	_, source, ok := h.loadBookSource(w, r)
+	_, _, source, ok := h.loadBookSource(w, r)
 	if !ok {
 		return
 	}
@@ -203,7 +210,7 @@ func (h *sourceHandlers) getSourceContent(w http.ResponseWriter, r *http.Request
 
 // POST /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/refresh
 func (h *sourceHandlers) refreshSourceMeta(w http.ResponseWriter, r *http.Request) {
-	_, source, ok := h.loadBookSource(w, r)
+	shelfData, book, source, ok := h.loadBookSource(w, r)
 	if !ok {
 		return
 	}
@@ -213,12 +220,17 @@ func (h *sourceHandlers) refreshSourceMeta(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Recomputed unconditionally rather than only for the current source: one
+	// meta.json read is cheaper than deciding, and a listing that reports a
+	// count this request just changed must not report the previous one.
+	shelfData.RefreshBookCharCount(book.ID())
+
 	h.writeJSON(w, http.StatusOK, source.GetMeta())
 }
 
 // PATCH /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content
 func (h *sourceHandlers) updateSourceContent(w http.ResponseWriter, r *http.Request) {
-	_, source, ok := h.loadBookSource(w, r)
+	shelfData, book, source, ok := h.loadBookSource(w, r)
 	if !ok {
 		return
 	}
@@ -239,6 +251,8 @@ func (h *sourceHandlers) updateSourceContent(w http.ResponseWriter, r *http.Requ
 		h.writeErr(w, err, "failed to update book source content")
 		return
 	}
+
+	shelfData.RefreshBookCharCount(book.ID())
 
 	w.WriteHeader(http.StatusNoContent)
 }
