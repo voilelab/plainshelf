@@ -82,7 +82,11 @@ export function toPlainSummary(source: string | null | undefined): string {
   }
 
   // The parsed document has no browsing context: scripts do not run and no
-  // element loads anything, which is what makes reading it back safe.
+  // element loads anything, which is what makes reading it back safe. That
+  // property belongs to DOMParser rather than to the traversal below - the
+  // same markup assigned to a detached element's innerHTML does fetch an
+  // `<img>`, a `<video>` poster and its `<source>`, which would let a
+  // description PlainShelf did not write call home the moment a card is drawn.
   const document = new DOMParser().parseFromString(markdown.render(source), 'text/html');
   const parts: string[] = [];
   collectText(document.body, parts);
