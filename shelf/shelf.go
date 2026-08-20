@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -64,6 +65,9 @@ type Shelf struct {
 	readyCh   chan struct{}
 	initErr   atomic.Pointer[error] // set if initCache fails; readyCh is still closed
 
+	// scanCacheEnabled is ShelfConf.ScanCache resolved to a decision.
+	scanCacheEnabled bool
+
 	// Exported book cache; see shelf_cache_export.go. An empty writer ID
 	// disables the export entirely, which is what a bare ShelfConf gets.
 	bookCacheWriterID string
@@ -104,6 +108,17 @@ type ShelfConf struct {
 	// Default: same as scan_interval. For SMB mounts, consider setting this to a higher value
 	// (e.g. "5m") to reduce network round-trips on list operations.
 	BookCheckInterval string `yaml:"book_check_interval" json:"book_check_interval"`
+
+	// ScanCache controls the directory scan cache: the walk remembers each
+	// directory's mtime and replaces the next walk's ReadDir with a Stat for
+	// every directory that has not changed. The snapshot is kept under app/.
+	// See shelf_scan_cache.go and docs/concepts/shelf-cache-and-io.md.
+	//
+	// "" or "on" (default): enabled. "off": every walk lists every directory.
+	// Turn it off on a mount whose directory mtimes cannot be trusted - some
+	// cloud storage gateways do not update them when a child is added, which
+	// would keep new books from ever being discovered.
+	ScanCache string `yaml:"scan_cache" json:"scan_cache"`
 
 	// BookCacheWriterID identifies this installation in the name of the exported
 	// book cache it owns, app/book-cache-{id}.json. Several machines can share
@@ -165,6 +180,18 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		}
 	}
 
+	// Folded rather than matched exactly: YAML hands "off", "Off" and "OFF"
+	// through as three different strings, and a server that refuses to start
+	// over the capitalization of a tuning switch is a poor trade.
+	scanCacheEnabled := true
+	switch strings.ToLower(strings.TrimSpace(conf.ScanCache)) {
+	case "", "on":
+	case "off":
+		scanCacheEnabled = false
+	default:
+		return nil, util.Errorf("unknown scan_cache %q: must be \"on\" or \"off\"", conf.ScanCache)
+	}
+
 	// The ID becomes a file name, so anything that could escape app/ or produce
 	// an unreadable name is rejected here rather than at write time.
 	if err := validateBookCacheWriterID(conf.BookCacheWriterID); err != nil {
@@ -216,6 +243,7 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 
 		// cache
 		bookCache:         newBookCache(scanInterval, bookCheckInterval),
+		scanCacheEnabled:  scanCacheEnabled,
 		bookCacheWriterID: conf.BookCacheWriterID,
 		bookCacheInterval: bookCacheInterval,
 	}
@@ -272,6 +300,10 @@ func (s *Shelf) makeStructure() error {
 }
 
 func (s *Shelf) initCache() error {
+	// Before the first walk, not after: the snapshot from the previous run is
+	// what makes this walk - the one the user waits for at startup - cheap.
+	s.loadScanCache()
+
 	err := s.scanToBookCache()
 	if err != nil {
 		wrapped := util.Errorf("%w", err)
@@ -289,6 +321,14 @@ func (s *Shelf) initCache() error {
 		if err := s.exportBookCache(false); err != nil {
 			s.Warn("failed to export the book cache after the initial scan", "error", err)
 		}
+	}
+
+	// Offered here as well as at Close so that a process which is killed rather
+	// than shut down still leaves a usable snapshot behind. A shelf whose
+	// folders did not change since the last run produces the same snapshot, and
+	// the digest check turns that into no write at all.
+	if err := s.saveScanCache(); err != nil {
+		s.Warn("failed to write the directory scan cache after the initial scan", "error", err)
 	}
 
 	return nil
@@ -372,6 +412,12 @@ func (s *Shelf) Close() error {
 			// Shutdown must not fail over a rebuildable file.
 			s.Warn("failed to export the book cache while closing", "error", err)
 		}
+	}
+
+	// Same reasoning as the export above, and equally not worth failing a
+	// shutdown over: the snapshot is rebuildable runtime state.
+	if err := s.saveScanCache(); err != nil {
+		s.Warn("failed to write the directory scan cache while closing", "error", err)
 	}
 
 	if err := s.shelfLock.Close(); err != nil {

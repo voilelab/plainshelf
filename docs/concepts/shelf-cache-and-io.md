@@ -83,6 +83,22 @@ The layer tree comes from the same cache, filled by the same walk, so listing la
 
 Layers created, renamed, moved, or deleted through PlainShelf update the cache as they happen, so they appear in the very next listing regardless of the interval. Only a layer directory created or removed outside PlainShelf waits for the next full scan.
 
+### Skipping folders that did not change
+
+A full scan does not have to list every folder to find out that nothing moved.
+
+A directory's modification time changes whenever one of its **direct** children is added, removed, or renamed. So each scan writes down the modification time of every directory under `books/` together with the entries it found there, and the next scan replaces the directory listing with a single stat wherever that time is unchanged. On a shelf where most folders sit untouched between scans — the normal case — the cost of a full scan drops from one listing per directory to one stat per directory, plus a listing for the few that actually changed.
+
+This is polling made cheaper, not polling removed, so it helps on an SMB, NAS, or cloud mount for the same reason it helps on a local disk: on those mounts a directory listing is several round trips and a stat is one.
+
+Three things it deliberately does not do:
+
+- **It does not decide whether a book changed.** A directory's modification time says nothing about what happened inside its subdirectories, so everything inside a `.bookpkg` folder — `book.json` above all — is still checked by the per-book stat described above. Editing a book is never hidden by this.
+- **It does not trust a folder that was just touched.** Timestamps are coarse: ext3 and HFS+ store whole seconds, a FAT-backed share reached over SMB stores two. A folder modified again inside the same tick would keep the recorded time and then look unchanged forever, so a folder modified within the last two seconds is left out of the record entirely and listed normally next time.
+- **It does not survive being wrong.** The record lives in `app/scan-cache.json`, is checked against the real modification times on every use, and is discarded whole if it is missing, unreadable, or written by a newer build. The worst case is a scan that costs what it cost before.
+
+The file is written after the first scan of a process and again at shutdown, not after every scan — a shelf whose folders are not changing produces the same record every time, and an identical record is not rewritten. Pressing **Update book list** still writes nothing.
+
 ---
 
 ## Rescanning on demand
@@ -139,6 +155,21 @@ app_conf:
 ```
 
 If `book_check_interval` is omitted, it defaults to the same duration as `scan_interval`.
+
+### `scan_cache`
+
+`scan_cache` controls the folder-skipping behavior described above. It is `on` by default; set it to `off` to make every scan list every directory again.
+
+Turn it off only for a mount whose directory modification times cannot be trusted. Some cloud storage gateways do not update a directory's time when a child is added, and on such a mount a book copied in from outside would never be discovered. If new books appear only after you restart the server or delete `app/scan-cache.json`, this is the setting to try.
+
+```yaml
+app_conf:
+  shelves:
+    - id: default_shelf
+      name: Default Shelf
+      lib_root: /path/to/shelf
+      scan_cache: off
+```
 
 ### `book_cache_interval`
 
