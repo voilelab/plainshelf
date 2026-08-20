@@ -9,6 +9,7 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:mutation": "stryker run",
     "check-boundaries": "node scripts/check-module-boundaries.mjs",
     "check-licenses": "license-checker --production --excludePrivatePackages --failOn \"UNLICENSED;UNKNOWN\" && node scripts/check-font-licenses.mjs"
   },
@@ -37,8 +38,11 @@
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.4.2",
+    "@stryker-mutator/core": "^10.0.0",
+    "@stryker-mutator/vitest-runner": "^10.0.0",
     "@types/node": "^22.7.5",
     "@vitejs/plugin-vue": "^6.0.7",
+    "@vitest/coverage-v8": "^4.1.11",
     "jsdom": "^26.1.0",
     "license-checker": "^25.0.1",
     "typescript": "^5.6.2",

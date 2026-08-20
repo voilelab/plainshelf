@@ -41,4 +41,5 @@ nav:
       - Local Setup: development/setup.md
       - Android: development/android.md
       - Docker: development/docker.md
+      - Mutation Testing: development/mutation-testing.md
   - Known Issues: known-issue.md
