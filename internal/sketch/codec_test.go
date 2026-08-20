@@ -2,6 +2,8 @@ package sketch
 
 import (
 	"encoding/base64"
+	"encoding/binary"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -78,6 +80,16 @@ func TestDecodeRejectsMalformedInput(t *testing.T) {
 		}),
 		"more hashes than distinct shingles": corrupt(func(raw []byte) []byte {
 			raw[5] = 1
+
+			return raw
+		}),
+		"distinct shingles but no retained hashes": corrupt(func(raw []byte) []byte {
+			binary.LittleEndian.PutUint32(raw[13:17], 0)
+
+			return raw[:headerLen]
+		}),
+		"distinct count beyond the platform's range": corrupt(func(raw []byte) []byte {
+			binary.LittleEndian.PutUint64(raw[5:13], math.MaxUint64)
 
 			return raw
 		}),

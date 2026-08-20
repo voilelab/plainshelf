@@ -3,6 +3,7 @@ package sketch
 import (
 	"encoding/base64"
 	"encoding/binary"
+	"math"
 
 	"github.com/voilelab/plainshelf/internal/util"
 )
@@ -52,8 +53,14 @@ func Decode(encoded string) (Sketch, error) {
 	if n < 1 {
 		return Sketch{}, util.NewError("sketch shingle width is zero")
 	}
+	if distinct > math.MaxInt {
+		return Sketch{}, util.Errorf("sketch counts %d distinct shingles, beyond this platform's range", distinct)
+	}
 	if uint64(count) > distinct {
 		return Sketch{}, util.Errorf("sketch holds %d hashes but counts %d distinct shingles", count, distinct)
+	}
+	if count == 0 && distinct > 0 {
+		return Sketch{}, util.Errorf("sketch counts %d distinct shingles but retains none", distinct)
 	}
 	if uint64(len(raw)) != uint64(headerLen)+uint64(count)*8 {
 		return Sketch{}, util.Errorf("sketch holds %d hashes but has %d bytes", count, len(raw))
