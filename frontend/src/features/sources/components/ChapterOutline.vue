@@ -57,7 +57,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { MarkdownEditorSection } from '@/features/reader/utils/markdownChapters';
+import type { MarkdownEditorSection } from '@/utils/markdownChapters';
 import { useI18n } from '@/i18n';
 
 const { t } = useI18n();

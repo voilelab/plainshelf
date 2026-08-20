@@ -36,7 +36,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import ReaderSafeHtml from '@/features/reader/components/ReaderSafeHtml.vue';
-import { renderMarkdownBlocks } from '@/features/reader/utils/renderMarkdownBlocks';
+import { renderMarkdownBlocks } from '@/utils/renderMarkdownBlocks';
 import { parseReaderBlocks } from '@/features/reader/utils/parseReaderBlocks';
 import type { ReaderSection } from '@/types/book';
 

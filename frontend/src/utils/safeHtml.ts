@@ -2,15 +2,19 @@
  * Turns untrusted book text into something safe to put on screen.
  *
  * A book's description is a mix of hand-written Markdown and whatever HTML an
- * EPUB import carried over, so no view may interpolate it as it stands: the
- * card and list summaries print `<p>` at the reader today. Rendering it there
- * is not the answer either - a `<ul>` or an `<h1>` resizes a card that the
- * grid needs to keep at one height.
+ * EPUB import carried over, and the reader renders whole chapters of the same
+ * kind of text, so no view may interpolate either as it stands. Two outputs
+ * come out of here: `toPlainSummary` for the places that want words — the card
+ * and the list summaries print `<p>` at the reader today, and a `<ul>` or an
+ * `<h1>` resizes a card the grid needs to keep at one height — and
+ * `sanitizeHtml` for the places that render the markup, with `SafeHtml.vue` as
+ * the only permitted `v-html` sink.
  *
  * Every caller that needs the description as words goes through this module,
  * which is what keeps a summary and the description itself reading the same
- * source the same way. Plain text is the only output it produces so far.
+ * source the same way.
  */
+import createSanitizer, { type DOMPurify } from 'dompurify';
 import MarkdownIt from 'markdown-it';
 
 /**
@@ -91,4 +95,165 @@ export function toPlainSummary(source: string | null | undefined): string {
   const parts: string[] = [];
   collectText(document.body, parts);
   return parts.join('').replace(/\s+/g, ' ').trim();
+}
+
+export type SafeHtmlProfile = 'reader' | 'summary';
+
+interface SafeHtmlProfileConfig {
+  allowedTags: string[];
+  allowedAttr: string[];
+  /** Class names kept on any element; every other name is dropped. */
+  allowedClasses: ReadonlySet<string>;
+}
+
+const INLINE_TAGS = [
+  'p',
+  'div',
+  'section',
+  'article',
+  'blockquote',
+  'pre',
+  'span',
+  'strong',
+  'b',
+  'em',
+  'i',
+  'u',
+  's',
+  'del',
+  'mark',
+  'small',
+  'sub',
+  'sup',
+  'code',
+  'kbd',
+  'br',
+  'hr',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'ul',
+  'ol',
+  'li',
+  'dl',
+  'dt',
+  'dd'
+];
+
+const TABLE_TAGS = ['table', 'caption', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td'];
+
+const DISCLOSURE_TAGS = ['details', 'summary'];
+
+const TABLE_ATTR = ['colspan', 'rowspan', 'scope', 'headers'];
+
+const LIST_ATTR = ['start', 'reversed', 'type'];
+
+const READER_CLASSES = new Set([
+  'reader-text-block',
+  'reader-text-quote',
+  'reader-md-h1',
+  'reader-md-h2',
+  'reader-md-h3',
+  'reader-md-list',
+  'reader-md-code',
+  'reader-md-inline-code',
+  'reader-md-hr',
+  'reader-asset-slot'
+]);
+
+const PROFILES: Record<SafeHtmlProfile, SafeHtmlProfileConfig> = {
+  reader: {
+    allowedTags: [...DISCLOSURE_TAGS, ...INLINE_TAGS, ...TABLE_TAGS],
+    allowedAttr: ['open', ...LIST_ATTR, ...TABLE_ATTR, 'title', 'style', 'class'],
+    allowedClasses: READER_CLASSES
+  },
+  // A summary is prose shown beside other UI: no disclosure widgets, no
+  // tables, and no class names, which also drops the reader's asset slots.
+  summary: {
+    allowedTags: INLINE_TAGS,
+    allowedAttr: [...LIST_ATTR, 'title', 'style', 'class'],
+    allowedClasses: new Set<string>()
+  }
+};
+
+const UNSAFE_COLOR_VALUE_RE = /(?:url|var|expression)\s*\(|[{}\\@!]|\/\*/i;
+
+/** Returns a canonical color-only style or an empty string when none is safe. */
+export function sanitizeColorStyle(rawStyle: string): string {
+  let safeColor = '';
+
+  for (const declaration of rawStyle.split(';')) {
+    const colon = declaration.indexOf(':');
+    if (colon < 0 || declaration.slice(0, colon).trim().toLowerCase() !== 'color') continue;
+
+    const value = declaration.slice(colon + 1).trim();
+    if (!value || UNSAFE_COLOR_VALUE_RE.test(value)) continue;
+
+    const probe = document.createElement('span');
+    probe.style.color = value;
+    if (probe.style.color) safeColor = probe.style.color;
+  }
+
+  return safeColor ? `color: ${safeColor}` : '';
+}
+
+/**
+ * Hooks are per-instance global state in DOMPurify, so a single shared instance
+ * could only serve one class allowlist at a time and the profiles would leak
+ * into each other. Each profile therefore owns its instance and its hook.
+ * Creation is lazy because the hook and `sanitizeColorStyle` both need a DOM,
+ * which a module-level side effect would demand at import time.
+ */
+const instances = new Map<SafeHtmlProfile, DOMPurify>();
+
+function instanceFor(profile: SafeHtmlProfile): DOMPurify {
+  const existing = instances.get(profile);
+  if (existing) return existing;
+
+  const { allowedClasses } = PROFILES[profile];
+  const purify = createSanitizer(window);
+
+  purify.addHook('uponSanitizeAttribute', (_node, data) => {
+    if (data.attrName === 'style') {
+      const style = sanitizeColorStyle(data.attrValue);
+      data.keepAttr = Boolean(style);
+      data.attrValue = style;
+      return;
+    }
+
+    if (data.attrName === 'class') {
+      const classes = data.attrValue.split(/\s+/).filter((name) => allowedClasses.has(name));
+      data.keepAttr = classes.length > 0;
+      data.attrValue = classes.join(' ');
+    }
+  });
+
+  instances.set(profile, purify);
+  return purify;
+}
+
+export function sanitizeHtml(html: string, profile: SafeHtmlProfile): string {
+  const { allowedTags, allowedAttr } = PROFILES[profile];
+  return instanceFor(profile).sanitize(html, {
+    ALLOWED_TAGS: allowedTags,
+    ALLOWED_ATTR: allowedAttr,
+    ALLOW_ARIA_ATTR: false,
+    ALLOW_DATA_ATTR: false,
+    ALLOW_UNKNOWN_PROTOCOLS: false,
+    KEEP_CONTENT: true,
+    FORBID_CONTENTS: [
+      'script',
+      'style',
+      'template',
+      'noscript',
+      'iframe',
+      'object',
+      'embed',
+      'svg',
+      'math'
+    ]
+  });
 }

@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Pilot scope: only the pure helpers under src/features/reader/utils. Not wired into CI; run locally with `npm run test:mutation`.",
+  "_comment": "Pilot scope: the reader's pure helpers and the shared Markdown/safe-HTML modules they were split from. Not wired into CI; run locally with `npm run test:mutation`.",
   "packageManager": "npm",
   "testRunner": "vitest",
   "reporters": ["html", "clear-text", "progress", "json"],
@@ -8,6 +8,11 @@
   "concurrency": 2,
   "mutate": [
     "src/features/reader/utils/*.ts",
-    "!src/features/reader/utils/*.test.ts"
+    "src/utils/markdownAssetImages.ts",
+    "src/utils/markdownChapters.ts",
+    "src/utils/markdownLineSyntax.ts",
+    "src/utils/renderMarkdownBlocks.ts",
+    "src/utils/safeHtml.ts",
+    "!**/*.test.ts"
   ]
 }

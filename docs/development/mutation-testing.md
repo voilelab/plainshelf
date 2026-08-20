@@ -5,9 +5,12 @@ testing asks the sharper question directly: it introduces small breaking changes
 into the implementation ("mutants") and reports the ones no test noticed. Every
 surviving mutant marks behavior that is executed but not verified.
 
-This page describes the pilot configuration, which covers
-`frontend/src/features/reader/utils/` only. It is **not** wired into CI and has
-no score threshold.
+This page describes the pilot configuration. It covers
+`frontend/src/features/reader/utils/` and the shared Markdown and safe-HTML
+modules that were split out of it — `markdownAssetImages.ts`,
+`markdownChapters.ts`, `markdownLineSyntax.ts`, `renderMarkdownBlocks.ts` and
+`safeHtml.ts`, all under `frontend/src/utils/`. It is **not** wired into CI and
+has no score threshold.
 
 ## Run it
 
@@ -30,6 +33,9 @@ Line coverage for the same files, for comparison:
 npm --prefix frontend exec -- vitest run --coverage \
   --coverage.provider=v8 \
   --coverage.include='src/features/reader/utils/**' \
+  --coverage.include='src/utils/markdown*.ts' \
+  --coverage.include='src/utils/renderMarkdownBlocks.ts' \
+  --coverage.include='src/utils/safeHtml.ts' \
   --coverage.exclude='**/*.test.ts' --coverage.all
 ```
 
@@ -73,7 +79,8 @@ mutation to the source, run the tests, and revert.
 
 ## Pilot results
 
-Measured on `frontend/src/features/reader/utils/` (seven files, Node 22,
+Measured on `frontend/src/features/reader/utils/`, which then held all seven
+files (Node 22,
 `concurrency: 2`, `coverageAnalysis: perTest`, 753 mutants, ~3 minutes per run).
 "Before" is the state the pilot found; "after" is the current run.
 
@@ -85,7 +92,7 @@ Measured on `frontend/src/features/reader/utils/` (seven files, Node 22,
 | `mobileReaderGestures.ts` | 90.47% → 100% | 73.68% → 98.68% |
 | `parseReaderBlocks.ts` | 0% → 100% | 0.00% → 84.21% |
 | `renderMarkdownBlocks.ts` | 94.59% → 98.64% | 47.87% → 84.04% |
-| `sanitizeReaderHtml.ts` | 100% → 100% | 52.90% → 92.70% |
+| `sanitizeReaderHtml.ts` (now `safeHtml.ts`) | 100% → 100% | 52.90% → 92.70% |
 | **All files** | **85.17% → 99.18%** | **55.17% → 89.91%** |
 
 The two columns disagree most where it matters most: `sanitizeReaderHtml.ts` had
@@ -121,7 +128,10 @@ suite's job, `T` = tool artifact. Line numbers refer to the implementation file.
 | 20 | 2 | E | `quoteLines.length > 0` cannot be false. The chunk reached this line through `.filter(Boolean)` after `.trim()`, so it holds at least one non-empty line. |
 | 31 | 1 | E | Dropping `^` from `/^>\s?/` changes nothing: the replace is non-global, so it rewrites the first match, and every line here starts with `>`. |
 
-### `sanitizeReaderHtml.ts` — 10
+### `safeHtml.ts` (was `sanitizeReaderHtml.ts`) — 10
+
+Line numbers here are the file's before it moved to `src/utils/` and grew the
+profile allowlists; the code each row describes is unchanged.
 
 | Lines | # | | Reasoning |
 |---|---:|---|---|

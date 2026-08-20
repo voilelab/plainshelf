@@ -75,9 +75,9 @@ fixtures in `shelf/testdata/conformance/`. A change to how a shelf is read
 belongs in that dataset, and the frontend unit tests are where the pCloud side
 of it fails. The dataset's own README explains the contract.
 
-[Mutation testing](mutation-testing.md) is available for
-`frontend/src/features/reader/utils/` as an on-demand check of how much the unit
-tests actually verify. It is not part of the checks above.
+[Mutation testing](mutation-testing.md) is available for the reader's helpers and
+the shared Markdown modules as an on-demand check of how much the unit tests
+actually verify. It is not part of the checks above.
 
 ## Versioning
 

@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { renderMarkdownBlocks } from './renderMarkdownBlocks';
-import { sanitizeReaderHtml } from './sanitizeReaderHtml';
+import { sanitizeHtml } from './safeHtml';
 
 describe('renderMarkdownBlocks', () => {
   it('renders Markdown and raw HTML together', () => {
@@ -83,7 +83,7 @@ describe('renderMarkdownBlocks', () => {
     ].join('\n'));
 
     expect(block.images).toMatchObject([{ name: 'map.png', alt: 'floor plan' }]);
-    const clean = sanitizeReaderHtml(block.html);
+    const clean = sanitizeHtml(block.html, 'reader');
     const template = document.createElement('template');
     template.innerHTML = clean;
     const details = template.content.querySelector('details');
@@ -95,7 +95,7 @@ describe('renderMarkdownBlocks', () => {
     const [block] = renderMarkdownBlocks('- Floor\n  ![map](assets/map.png)');
 
     expect(block.images).toMatchObject([{ name: 'map.png', alt: 'map' }]);
-    const clean = sanitizeReaderHtml(block.html);
+    const clean = sanitizeHtml(block.html, 'reader');
     const template = document.createElement('template');
     template.innerHTML = clean;
     expect(template.content.querySelector('li .reader-asset-slot')).not.toBeNull();
@@ -163,7 +163,7 @@ describe('renderMarkdownBlocks', () => {
   // list item has to stay indented or it leaves the item it illustrates.
   it('keeps an illustration inside the list item it was indented under', () => {
     const [block] = renderMarkdownBlocks('- Floor\n\n  ![map](assets/map.png)\n');
-    const clean = sanitizeReaderHtml(block.html);
+    const clean = sanitizeHtml(block.html, 'reader');
     const template = document.createElement('template');
     template.innerHTML = clean;
     expect(template.content.querySelector('li .reader-asset-slot')).not.toBeNull();

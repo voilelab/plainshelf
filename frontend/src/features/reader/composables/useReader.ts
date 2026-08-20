@@ -2,7 +2,7 @@ import { computed, nextTick, ref } from 'vue';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { isLibraryEditingSupported } from '@/composables/useWriteAccess';
 import { useReadingProgressAutosave } from '@/features/reader/composables/useReadingProgressAutosave';
-import { buildMarkdownH2Sections } from '@/features/reader/utils/markdownChapters';
+import { buildMarkdownH2Sections } from '@/utils/markdownChapters';
 import type { ReaderSection, ReadingProgress } from '@/types/book';
 import { t } from '@/i18n';
 
