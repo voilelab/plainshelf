@@ -1,3 +1,6 @@
+// @vitest-environment jsdom
+
+import { createApp, defineComponent, h } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/api/client';
@@ -104,6 +107,35 @@ describe('useDashboardData', () => {
     expect(store.loading.value).toBe(false);
     expect(store.shelfInitializing.value).toBe(false);
     expect(store.error.value).toBe('boom');
+  });
+
+  it('stops retrying once the page it belongs to is unmounted', async () => {
+    let rejectFirst: ((reason: unknown) => void) | undefined;
+    listBooks.mockImplementationOnce(() => new Promise<PaginatedBooks>((_resolve, reject) => {
+      rejectFirst = reject;
+    }));
+
+    let store: ReturnType<typeof useDashboardData> | undefined;
+    const Host = defineComponent({
+      setup() {
+        store = useDashboardData();
+        return () => h('div');
+      }
+    });
+    const app = createApp(Host);
+    app.mount(document.createElement('div'));
+
+    const pending = store?.fetchDashboardData();
+    app.unmount();
+
+    // The request was still in flight at unmount, so cancelling the (absent)
+    // timer is not enough: the rejection must not schedule a new one.
+    rejectFirst?.(shelfInitializing());
+    await pending;
+    await vi.runAllTimersAsync();
+
+    expect(listBooks).toHaveBeenCalledTimes(1);
+    expect(store?.shelfInitializing.value).toBe(false);
   });
 
   it('cancels a pending retry when a manual refresh starts', async () => {

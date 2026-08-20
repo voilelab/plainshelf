@@ -53,6 +53,7 @@ export function useDashboardData() {
 
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
   let initRetryCount = 0;
+  let disposed = false;
 
   function clearRetry(): void {
     if (retryTimer !== null) {
@@ -159,6 +160,13 @@ export function useDashboardData() {
       shelfInitializing.value = false;
       initRetryCount = 0;
     } catch (err) {
+      // The page can go away while the request is in flight, and cancelling on
+      // unmount only reaches a timer that already exists. Scheduling a retry
+      // from here would outlive the page and keep polling for the rest of the
+      // budget, alongside whatever a freshly mounted dashboard is requesting.
+      if (disposed) {
+        return;
+      }
       // A shelf still running its initial scan answers 503 for every read. The
       // book listing and the layer tree retry through that, so the dashboard
       // has to as well: otherwise a cold start puts an error in the middle of
@@ -191,9 +199,13 @@ export function useDashboardData() {
     await run(false);
   }
 
-  // These refs are page-scoped, so a pending retry must not outlive the page.
+  // These refs are page-scoped, so neither a pending retry nor a request that
+  // is still in flight may outlive the page.
   if (getCurrentInstance()) {
-    onUnmounted(clearRetry);
+    onUnmounted(() => {
+      disposed = true;
+      clearRetry();
+    });
   }
 
   return {
