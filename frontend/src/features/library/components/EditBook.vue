@@ -105,15 +105,47 @@
           <p class="field-help">{{ t('libraryForms.editBook.tagsHelp') }}</p>
         </label>
 
-        <label class="field">
-          <span class="label">{{ t('libraryForms.editBook.comment') }}</span>
+        <div class="field">
+          <label class="label" :for="commentFieldId">{{ t('libraryForms.editBook.comment') }}</label>
           <textarea
+            :id="commentFieldId"
             v-model="comment"
             class="input textarea"
             rows="5"
             :placeholder="t('libraryForms.editBook.commentPlaceholder')"
           ></textarea>
-        </label>
+          <p class="field-help">{{ t('libraryForms.editBook.commentHelp') }}</p>
+          <button
+            class="comment-preview-toggle"
+            type="button"
+            :aria-expanded="showCommentPreview"
+            :aria-controls="commentPreviewId"
+            @click="showCommentPreview = !showCommentPreview"
+          >
+            {{
+              showCommentPreview
+                ? t('libraryForms.editBook.commentPreviewHide')
+                : t('libraryForms.editBook.commentPreviewShow')
+            }}
+          </button>
+          <div
+            v-if="showCommentPreview"
+            :id="commentPreviewId"
+            class="comment-preview"
+            role="region"
+            :aria-label="t('libraryForms.editBook.commentPreviewLabel')"
+          >
+            <SafeHtml
+              v-if="commentPreviewHtml"
+              class="description-body"
+              :html="commentPreviewHtml"
+              profile="summary"
+            />
+            <p v-else class="comment-preview-empty">
+              {{ t('libraryForms.editBook.commentPreviewEmpty') }}
+            </p>
+          </div>
+        </div>
 
         <div class="field">
           <span class="label">{{ t('libraryForms.editBook.identifiers') }}</span>
@@ -160,7 +192,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, useId, watch } from 'vue';
 import {
   RatingItem,
   RatingItemIndicator,
@@ -180,6 +212,7 @@ import {
   TagsInputRoot,
   type AcceptableValue
 } from 'reka-ui';
+import SafeHtml from '@/components/SafeHtml.vue';
 import type { Book, BookUpdateRequest } from '@/types/book';
 import {
   CUSTOM_LANGUAGE_VALUE,
@@ -189,6 +222,7 @@ import {
   normalizeLanguage
 } from '@/utils/language';
 import { commaStringToList, listToCommaString } from '@/utils/metadata';
+import { renderDescriptionHtml } from '@/utils/safeHtml';
 import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
@@ -244,6 +278,14 @@ const customLanguage = ref('');
 const languageTagInvalid = ref(false);
 const languageError = computed(() => (languageTagInvalid.value ? t('language.book.invalidTag') : ''));
 const comment = ref('');
+const commentFieldId = useId();
+const commentPreviewId = useId();
+const showCommentPreview = ref(false);
+// The same render the detail page runs, so what is previewed here and what is
+// shown there are one output of one function; `SafeHtml` sanitizes it under the
+// same `summary` profile. The textarea keeps the source text either way - a
+// preview never changes what is submitted.
+const commentPreviewHtml = computed(() => renderDescriptionHtml(comment.value));
 const publishedAtInput = ref('');
 const star = ref(0);
 const identifierRows = ref<{ key: string; value: string }[]>([]);
@@ -589,6 +631,45 @@ function toFormDateValue(rawValue?: string): string {
   min-height: 120px;
 }
 
+.comment-preview-toggle {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.comment-preview-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* A window of its own, not a box the content sizes. The height is fixed rather
+   than bounded: any range between a min and a max is still a box that grows a
+   line at a time, and everything below it - the identifiers, the save button -
+   moves down as the description is typed. An empty preview showing empty space
+   is the price of the field under it staying where it was. */
+.comment-preview {
+  height: 180px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.comment-preview-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .submit-error {
   margin: 0;
 }
@@ -608,3 +689,5 @@ function toFormDateValue(rawValue?: string): string {
   }
 }
 </style>
+
+<style scoped src="@/styles/description.css"></style>
