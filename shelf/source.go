@@ -137,6 +137,10 @@ func (r *Source) UpdateHash() error {
 	if err := r.EnsureWritable(); err != nil {
 		return util.Errorf("%w", err)
 	}
+	root, err := r.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
 	sourceFile, err := r.Open()
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -148,7 +152,7 @@ func (r *Source) UpdateHash() error {
 		return util.Errorf("%w", err)
 	}
 
-	err = r.writebackMeta()
+	err = r.writebackMeta(root)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -161,6 +165,10 @@ func (r *Source) RefreshContentMetadata() error {
 
 func (r *Source) refreshContentMetadata() error {
 	if err := r.EnsureWritable(); err != nil {
+		return util.Errorf("%w", err)
+	}
+	root, err := r.writeRoot()
+	if err != nil {
 		return util.Errorf("%w", err)
 	}
 	// Read the file once; compute all three metrics from the buffer to avoid
@@ -193,7 +201,7 @@ func (r *Source) refreshContentMetadata() error {
 		return util.Errorf("%w", err)
 	}
 
-	return r.writebackMeta()
+	return r.writebackMeta(root)
 }
 
 // UpdateComment replaces the source's free-form comment. It records how this
@@ -203,18 +211,22 @@ func (r *Source) UpdateComment(comment string) error {
 	if err := r.EnsureWritable(); err != nil {
 		return util.Errorf("%w", err)
 	}
+	root, err := r.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
 	r.meta.Comment = comment
-	if err := r.writebackMeta(); err != nil {
+	if err := r.writebackMeta(root); err != nil {
 		return util.Errorf("%w", err)
 	}
 	return nil
 }
 
-func (r *Source) writebackMeta() error {
-	root, err := r.writeRoot()
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
+// writebackMeta persists r.meta. It takes the writable handle rather than
+// narrowing r.root itself: a caller has already changed r.meta in memory by the
+// time it gets here, so refusing a read-only shelf at this point would leave
+// GetMeta reporting a value that never reached disk.
+func (r *Source) writebackMeta(root fsutil.FS) error {
 	metaFilePath := path.Join(r.folderPath, SourceMetaFile)
 
 	bs, err := json.MarshalIndent(r.meta, "", "  ")

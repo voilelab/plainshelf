@@ -63,3 +63,49 @@ func TestBookOnReadOnlyFSRefusesWrites(t *testing.T) {
 		})
 	}
 }
+
+// A refused write must not leave the in-memory source ahead of meta.json. Each
+// of these mutates r.meta on its way to writebackMeta, so narrowing the
+// filesystem at the write itself would report ErrReadOnly while GetMeta already
+// reported the value that never reached disk.
+func TestRefusedSourceWriteLeavesMetaUntouched(t *testing.T) {
+	root := readOnlyFS{testdataFS(t)}
+
+	book, err := openBook(root, newLoggerForTest(), "book-a82m")
+	if err != nil {
+		t.Fatalf("openBook: %v", err)
+	}
+	source, err := book.GetSource("20260315-a1")
+	if err != nil {
+		t.Fatalf("GetSource: %v", err)
+	}
+	before := source.GetMeta()
+
+	writes := map[string]func() error{
+		"UpdateComment":     func() error { return source.UpdateComment("comment that cannot be stored") },
+		"UpdateHash":        func() error { return source.UpdateHash() },
+		"UpgradeLegacyToV1": func() error { return source.UpgradeLegacyToSchemaV1(BookFormatMarkdown, nil) },
+	}
+
+	for name, write := range writes {
+		t.Run(name, func(t *testing.T) {
+			if err := write(); !errors.Is(err, fsutil.ErrReadOnly) {
+				t.Fatalf("%s error = %v, want %v", name, err, fsutil.ErrReadOnly)
+			}
+
+			after := source.GetMeta()
+			if after.Comment != before.Comment {
+				t.Errorf("comment = %q, want the unpersisted value to be discarded (%q)", after.Comment, before.Comment)
+			}
+			if after.MD5Hash != before.MD5Hash {
+				t.Errorf("md5 hash = %q, want %q", after.MD5Hash, before.MD5Hash)
+			}
+			if after.SchemaVersion != before.SchemaVersion {
+				t.Errorf("schema version = %d, want %d", after.SchemaVersion, before.SchemaVersion)
+			}
+			if after.Format != before.Format {
+				t.Errorf("format = %q, want %q", after.Format, before.Format)
+			}
+		})
+	}
+}
