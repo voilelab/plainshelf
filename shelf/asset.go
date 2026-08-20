@@ -93,16 +93,20 @@ func (r *Source) WriteAsset(name string, data []byte) error {
 	if err := r.EnsureWritable(); err != nil {
 		return util.Errorf("%w", err)
 	}
+	root, err := r.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
 	assetPath, err := r.AssetPath(name)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	if err := r.root.MkdirAll(path.Join(r.folderPath, SourceAssetsFolder)); err != nil {
+	if err := root.MkdirAll(path.Join(r.folderPath, SourceAssetsFolder)); err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	if err := fsutil.WriteFileAtomic(r.root, assetPath, data); err != nil {
+	if err := fsutil.WriteFileAtomic(root, assetPath, data); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -122,12 +126,16 @@ func (r *Source) DeleteAsset(name string) error {
 	if err := r.EnsureWritable(); err != nil {
 		return util.Errorf("%w", err)
 	}
+	root, err := r.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
 	assetPath, err := r.AssetPath(name)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	if err := r.root.Remove(assetPath); err != nil {
+	if err := root.Remove(assetPath); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return util.Errorf("%w: %s", ErrAssetNotFound, name)
 		}
