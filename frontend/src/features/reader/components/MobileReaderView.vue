@@ -86,10 +86,7 @@
           :disabled="sections.length === 0"
           @click="emit('openChapterModal')"
         >
-          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
-            <path d="M8 6h12M8 12h12M8 18h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-            <path d="M4 6h.01M4 12h.01M4 18h.01" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
-          </svg>
+          <Icon name="menu" />
         </button>
       </div>
     </Transition>
@@ -106,6 +103,7 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import Icon from '@/components/Icon.vue';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import ReaderContent from '@/features/reader/components/ReaderContent.vue';
 import {
