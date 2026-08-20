@@ -2,7 +2,7 @@ import MarkdownIt from 'markdown-it';
 import {
   updateMarkdownFenceState,
   type MarkdownFenceState
-} from './parseMarkdownBlocks';
+} from './markdownLineSyntax';
 import {
   rewriteMarkdownAssetImages,
   type MarkdownAssetImage

@@ -1,20 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  assetImageFromMarkdownLine,
   assetNameFromSrc,
-  parseMarkdownBlocks,
   parseMarkdownHeadingLine,
   referencedAssetNames,
-  updateMarkdownFenceState,
-  type MarkdownBlock
-} from './parseMarkdownBlocks';
+  updateMarkdownFenceState
+} from './markdownLineSyntax';
 import { rewriteMarkdownAssetImages } from './markdownAssetImages';
-
-function firstBlock(text: string): MarkdownBlock {
-  const blocks = parseMarkdownBlocks(text);
-  expect(blocks).toHaveLength(1);
-  return blocks[0];
-}
 
 describe('assetNameFromSrc', () => {
   it('accepts a single file inside assets/', () => {
@@ -102,105 +95,53 @@ describe('assetNameFromSrc', () => {
   });
 });
 
-describe('parseMarkdownBlocks line endings', () => {
-  it('renders headings and fenced code in CRLF sources', () => {
-    expect(parseMarkdownBlocks('## Part 1\r\n\r\nBody\r\n\r\n```txt\r\ncode\r\n```\r\n')).toEqual([
-      { type: 'heading', level: 2, segments: [{ text: 'Part 1' }] },
-      { type: 'paragraph', segments: [{ text: 'Body' }] },
-      { type: 'code', text: 'code' }
-    ]);
-  });
-});
-
-describe('parseMarkdownBlocks images', () => {
-  it('turns a line that is only an image into an image block', () => {
-    expect(firstBlock('![A map](assets/img-0001.png)')).toEqual({
-      type: 'image',
+describe('assetImageFromMarkdownLine', () => {
+  it('reads the name and alt of a line that is only an image', () => {
+    expect(assetImageFromMarkdownLine('![A map](assets/img-0001.png)')).toEqual({
       name: 'img-0001.png',
       alt: 'A map'
     });
   });
 
   it('keeps an empty alt', () => {
-    expect(firstBlock('![](assets/img-0001.png)')).toEqual({
-      type: 'image',
+    expect(assetImageFromMarkdownLine('![](assets/img-0001.png)')).toEqual({
       name: 'img-0001.png',
       alt: ''
     });
   });
 
-  it('separates an image from the paragraphs around it', () => {
-    const blocks = parseMarkdownBlocks('before\n![A map](assets/img-0001.png)\nafter');
-
-    expect(blocks.map((block) => block.type)).toEqual(['paragraph', 'image', 'paragraph']);
-  });
-
-  // Inline images are deliberately not supported: an illustration is a block,
-  // and the line must stay readable rather than silently losing content.
-  it('leaves an image inside a sentence as text', () => {
-    const block = firstBlock('see ![A map](assets/img-0001.png) here');
-
-    expect(block.type).toBe('paragraph');
-    expect(block).toMatchObject({
-      segments: [{ text: 'see ![A map](assets/img-0001.png) here' }]
-    });
-  });
-
-  // An unloadable target must remain visible instead of disappearing.
-  it('falls back to a paragraph when the target is not a source asset', () => {
-    for (const line of ['![A map](https://example.com/x.png)', '![A map](assets/../source.txt)']) {
-      const block = firstBlock(line);
-      expect(block.type, line).toBe('paragraph');
-      expect(block, line).toMatchObject({ segments: [{ text: line }] });
-    }
-  });
-
-  // Only a line that is nothing but an image becomes an illustration, so an
-  // image with prose on either side has to stay in its sentence.
-  it('leaves an image with text on only one side as text', () => {
-    for (const line of [
-      'see ![A map](assets/img-0001.png)',
-      '![A map](assets/img-0001.png) here'
-    ]) {
-      const block = firstBlock(line);
-      expect(block.type, line).toBe('paragraph');
-      expect(block, line).toMatchObject({ segments: [{ text: line }] });
-    }
-  });
-
   it('trims the alt text an author padded', () => {
-    expect(firstBlock('![  A map  ](assets/img-0001.png)')).toEqual({
-      type: 'image',
+    expect(assetImageFromMarkdownLine('![  A map  ](assets/img-0001.png)')).toEqual({
       name: 'img-0001.png',
       alt: 'A map'
     });
   });
 
-  it('renders an image whose file name contains a space', () => {
-    expect(firstBlock('![A map](assets/A Map.JPEG)')).toEqual({
-      type: 'image',
+  it('reads an image whose file name contains a space', () => {
+    expect(assetImageFromMarkdownLine('![A map](assets/A Map.JPEG)')).toEqual({
       name: 'A Map.JPEG',
       alt: 'A map'
     });
   });
 
-  it('does not treat an image line inside a code fence as an image', () => {
-    const blocks = parseMarkdownBlocks('```\n![A map](assets/img-0001.png)\n```');
-
-    expect(blocks).toEqual([{ type: 'code', text: '![A map](assets/img-0001.png)' }]);
+  // An unloadable target is not an illustration: the caller leaves the line as
+  // text so it stays visible instead of disappearing.
+  it('refuses a target that is not a source asset', () => {
+    for (const line of ['![A map](https://example.com/x.png)', '![A map](assets/../source.txt)']) {
+      expect(assetImageFromMarkdownLine(line), line).toBeNull();
+    }
   });
 
-  it('keeps incompatible and shorter fence runs inside the code block', () => {
-    const blocks = parseMarkdownBlocks('````md\n~~~\n```\n## code\n````\n## Real');
-    expect(blocks).toEqual([
-      { type: 'code', text: '~~~\n```\n## code' },
-      { type: 'heading', level: 2, segments: [{ text: 'Real' }] }
-    ]);
-  });
-
-  it('keeps a four-space-indented ATX-looking line as prose', () => {
-    const block = firstBlock('    ## code example');
-    expect(block.type).toBe('paragraph');
+  // Only a line that is nothing but an image becomes an illustration, so an
+  // image with prose on either side has to stay in its sentence.
+  it('refuses an image that shares its line with prose', () => {
+    for (const line of [
+      'see ![A map](assets/img-0001.png) here',
+      'see ![A map](assets/img-0001.png)',
+      '![A map](assets/img-0001.png) here'
+    ]) {
+      expect(assetImageFromMarkdownLine(line), line).toBeNull();
+    }
   });
 });
 
