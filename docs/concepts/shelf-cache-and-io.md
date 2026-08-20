@@ -77,6 +77,20 @@ it.
     `200` — slowly — rather than `503`. Everything after that first gate is
     identical for both.
 
+### `include=char_count` is not served from the cache
+
+One book listing is an exception to everything above. `GET /books?include=char_count`
+adds each book's character count to the response, and that number lives in the
+current source's `meta.json`, which the cache does not hold. The handler opens
+one metadata file per book on every such request, however fresh the cache is.
+
+Measured on a local SSD, that is roughly 30 µs per book — 0.3 s for a shelf of
+10,000 books, against 20 ms for the same listing without the parameter. The work
+is many small filesystem operations rather than bytes read, so a high-latency
+mount multiplies it: see
+[Homepage Load Cost](../development/homepage-load-cost.md) for the measurements
+and for how the cost scales with round-trip time.
+
 ### Layer listing
 
 The layer tree comes from the same cache, filled by the same walk, so listing layers is not a separate traversal of `books/` and is throttled by `scan_interval` like any book listing.

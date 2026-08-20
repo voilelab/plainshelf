@@ -43,4 +43,5 @@ nav:
       - Android: development/android.md
       - Docker: development/docker.md
       - Mutation Testing: development/mutation-testing.md
+      - Homepage Load Cost: development/homepage-load-cost.md
   - Known Issues: known-issue.md
