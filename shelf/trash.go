@@ -19,6 +19,26 @@ const maxBookPathCollisionAttempts = 10000
 
 var ErrTrashedBookNotFound = util.NewError("trashed book not found")
 
+// TrashMetaSchemaVersion is the trash.json schema version this build writes.
+//
+// trash.json is not a cache: it records where each book came from, so losing or
+// rewriting it restores the book to the wrong place. It therefore follows the
+// same rules as book.json. A trash.json with no schema_version predates
+// versioning ("v0"): it is read as v1 and normalized in memory, and the version
+// reaches disk only the next time the file is written (lazy upgrade). Opening a
+// shelf never rewrites it.
+//
+// A trash.json with a HIGHER schema_version is still listed and still readable,
+// but every operation that would modify the trashed book is refused before it
+// touches the filesystem, so an older build cannot clobber a newer one's record.
+const TrashMetaSchemaVersion = 1
+
+// ErrUnsupportedTrashSchemaVersion is returned when an operation would modify a
+// trashed book whose on-disk trash.json is newer than this build supports. It is
+// separate from ErrUnsupportedBookSchemaVersion so errors.Is can tell which file
+// is too new.
+var ErrUnsupportedTrashSchemaVersion = util.NewError("trash.json schema version is newer than this build supports")
+
 type TrashedBook struct {
 	ID            string        `json:"id"`
 	Title         string        `json:"title"`
@@ -29,6 +49,11 @@ type TrashedBook struct {
 }
 
 type trashMeta struct {
+	// SchemaVersion is the on-disk format version of trash.json. It is
+	// shelf-managed: writeTrashMeta stamps it, and any value a caller supplies
+	// is ignored. Declared first so it marshals as the first key, matching
+	// book.json.
+	SchemaVersion int           `json:"schema_version"`
 	DeletedAt     util.JSONTime `json:"deleted_at,omitzero"`
 	OriginalPath  string        `json:"original_path,omitempty"`
 	OriginalLayer Layers        `json:"original_layer,omitempty"`
@@ -48,6 +73,15 @@ func (s *Shelf) MoveBookToTrash(bookID string) error {
 
 	activePath := book.FolderPath()
 	trashPath := path.Join(trashBooksFolder, bookID+bookExtension)
+
+	// A book carried out of the trash by hand keeps its old trash.json, so an
+	// active book can still hold one written by a newer build. Refuse before the
+	// rename: a guard at writeTrashMeta would already have moved the book into
+	// trash/ and would then roll it back, and the rollback is not free — it
+	// leaves the user's book somewhere it was not a moment ago if it fails.
+	if err := s.ensureTrashMetaWritable(activePath); err != nil {
+		return util.Errorf("%w", err)
+	}
 
 	if _, err := s.dbRoot.Stat(trashPath); err == nil {
 		return util.Errorf("book %q already exists in trash", bookID)
@@ -169,6 +203,13 @@ func (s *Shelf) RestoreTrashedBook(bookID string) error {
 		return util.Errorf("%w", err)
 	}
 
+	// Restoring moves the book out of trash/ and deletes trash.json, so it is a
+	// modification of a record this build may not understand. Refuse here, while
+	// nothing on disk has moved yet.
+	if err := trashMetaWritable(meta); err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	targetLayers := Layers(nil)
 	targetFolder := path.Base(trashPath)
 	if meta != nil {
@@ -232,6 +273,12 @@ func (s *Shelf) DeleteTrashedBook(bookID string) error {
 		return util.Errorf("%w", err)
 	}
 
+	// Deleting the folder deletes trash.json with it, which is as destructive as
+	// rewriting it. Refuse before RemoveAll rather than after.
+	if err := s.ensureTrashMetaWritable(trashPath); err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	if err := s.dbRoot.RemoveAll(trashPath); err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -269,6 +316,10 @@ func (s *Shelf) findTrashedBook(bookID string) (string, *Book, *trashMeta, error
 }
 
 func (s *Shelf) writeTrashMeta(bookPath string, meta *trashMeta) error {
+	// Stamp unconditionally: the schema version is shelf-managed, so a caller
+	// cannot write a version this build does not itself produce.
+	meta.SchemaVersion = TrashMetaSchemaVersion
+
 	payload, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -294,7 +345,41 @@ func (s *Shelf) readTrashMetaTolerant(bookPath string) *trashMeta {
 		}
 		return nil
 	}
+
+	switch {
+	case meta.SchemaVersion > TrashMetaSchemaVersion:
+		s.Warn("trash.json schema version is newer than this build supports; the trashed book cannot be modified",
+			"path", bookPath,
+			"schema_version", meta.SchemaVersion,
+			"supported", TrashMetaSchemaVersion)
+	default:
+		// Missing (pre-v1), zero, or garbage. Normalize in memory only; nothing
+		// here rewrites the file.
+		meta.SchemaVersion = TrashMetaSchemaVersion
+	}
+
 	return meta
+}
+
+// trashMetaWritable reports an error when a trashed book's on-disk trash.json
+// was written by a newer build, meaning the book must be treated as read-only.
+//
+// A nil meta — no trash.json, or one hand-edited into something that no longer
+// parses — is writable. That file cannot state a version, and refusing on it
+// would strand the book in the trash, which is exactly what
+// readTrashMetaTolerant exists to prevent.
+func trashMetaWritable(meta *trashMeta) error {
+	if meta == nil || meta.SchemaVersion <= TrashMetaSchemaVersion {
+		return nil
+	}
+	return util.Errorf("%w: trash.json is schema_version %d, this build writes %d",
+		ErrUnsupportedTrashSchemaVersion, meta.SchemaVersion, TrashMetaSchemaVersion)
+}
+
+// ensureTrashMetaWritable is trashMetaWritable for a book whose trash.json has
+// not been read yet. Call it before any filesystem mutation on that book.
+func (s *Shelf) ensureTrashMetaWritable(bookPath string) error {
+	return trashMetaWritable(s.readTrashMetaTolerant(bookPath))
 }
 
 func (s *Shelf) readTrashMeta(bookPath string) (*trashMeta, error) {

@@ -5,6 +5,7 @@ import { EditorSelection, type EditorState } from '@codemirror/state';
 import { ensureSyntaxTree } from '@codemirror/language';
 
 import { useSourceCodeMirror } from './useSourceCodeMirror';
+import { insertChapterEdit } from '@/features/sources/utils/chapterEdits';
 import type {
   SourceDocumentEdit,
   SourceEditorViewRange,
@@ -24,6 +25,7 @@ interface Harness {
   setFormat: (format: 'txt' | 'md') => Promise<void>;
   selection: () => { from: number; to: number };
   setViewRange: (range: SourceEditorViewRange | null) => Promise<void>;
+  dimmed: () => string[];
   setFindScope: (scope: SourceFindScope) => Promise<void>;
   type: (from: number, to: number, insert: string) => void;
 }
@@ -89,6 +91,13 @@ async function mountEditor(initialContent: string): Promise<Harness> {
       viewRange.value = range;
       await nextTick();
     },
+    // One entry per rendered line the dimming covers: a mark decoration is
+    // split at every line, so the last entry is where the focused chapter
+    // begins.
+    dimmed: () =>
+      Array.from(view().dom.querySelectorAll('.cm-source-dimmed')).map(
+        (node) => node.textContent ?? ''
+      ),
     setFindScope: async (scope) => {
       findScope.value = scope;
       await nextTick();
@@ -362,5 +371,66 @@ describe('useSourceCodeMirror editing adapter', () => {
     harnesses = harnesses.filter((entry) => entry !== editor);
     expect(editor.editor.view.value).toBeNull();
     expect(view?.dom.isConnected).toBe(false);
+  });
+});
+/**
+ * The coordinates the page and the editor disagreed on.
+ *
+ * Everything the adapter takes or publishes is an offset into the source text,
+ * where a CRLF is two characters; the document counts a line break as one
+ * position. The drift is one character per preceding line break, so each case
+ * below deliberately acts past several of them.
+ */
+describe('useSourceCodeMirror CRLF coordinates', () => {
+  const CRLF_CHAPTERS = CHAPTERS.replace(/\n/g, '\r\n');
+
+  it('dims up to the chapter heading, not past it', async () => {
+    const editor = await mount(CRLF_CHAPTERS);
+    await editor.setViewRange({
+      startOffset: CRLF_CHAPTERS.indexOf('## Two'),
+      endOffset: CRLF_CHAPTERS.length
+    });
+
+    const dimmed = editor.dimmed();
+    // Six line breaks precede the heading, so reading the range as document
+    // positions used to swallow "## Two" whole.
+    expect(dimmed.join('')).not.toContain('Two');
+    expect(dimmed[dimmed.length - 1]).toBe('First marker.');
+    expect(dimmed[0]).toBe('# Book');
+  });
+
+  it('publishes the caret as an offset into the source text', async () => {
+    const editor = await mount('alpha\r\nbravo\r\n');
+
+    // Typed at a document position, the way the user's keystroke arrives.
+    editor.type(6, 6, 'X');
+    const published = editor.edits[editor.edits.length - 1];
+    expect(published.value).toBe('alpha\r\nXbravo\r\n');
+    expect(published.selectionStart).toBe(8);
+    expect(published.value.slice(0, published.selectionStart)).toBe('alpha\r\nX');
+  });
+
+  it('replaces the range the source text names', async () => {
+    const content = 'alpha\r\nbravo\r\ncharlie\r\n';
+    const editor = await mount(content);
+    const start = content.indexOf('bravo');
+
+    editor.editor.replaceRange(start, start + 'bravo'.length, 'BRAVO');
+    expect(editor.content()).toBe('alpha\r\nBRAVO\r\ncharlie\r\n');
+  });
+
+  it('reports a paragraph start a chapter insertion can be computed from', async () => {
+    const content = 'first\r\n\r\nsecond paragraph\r\n\r\nthird\r\n';
+    const editor = await mount(content);
+    const caret = content.indexOf('paragraph');
+
+    editor.editor.focusAndSelect(caret, caret);
+    const start = editor.editor.getCurrentParagraphStart();
+    expect(start).toBe(content.indexOf('second'));
+    // The blank line before the paragraph is already there, so the heading is
+    // inserted without one — which is only decidable in source coordinates.
+    expect(insertChapterEdit(content, start).replacement).toBe(
+      '## Untitled chapter\r\n\r\n'
+    );
   });
 });

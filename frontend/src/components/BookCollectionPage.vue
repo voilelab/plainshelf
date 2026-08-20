@@ -25,15 +25,7 @@
           <DropdownMenuRoot>
             <DropdownMenuTrigger class="button view-mode-trigger" type="button">
               <span class="view-mode-trigger-icon" aria-hidden="true">
-                <svg v-if="viewMode === 'list'" viewBox="0 0 16 16" class="view-mode-svg">
-                  <path d="M2 3.5h2v2H2zM5.5 4h8v1h-8zM2 7h2v2H2zM5.5 7.5h8v1h-8zM2 10.5h2v2H2zM5.5 11h8v1h-8z" fill="currentColor" />
-                </svg>
-                <svg v-else-if="viewMode === 'card'" viewBox="0 0 16 16" class="view-mode-svg">
-                  <path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z" fill="currentColor" />
-                </svg>
-                <svg v-else viewBox="0 0 16 16" class="view-mode-svg">
-                  <path d="M2 4h12v1H2zM2 7.5h12v1H2zM2 11h12v1H2z" fill="currentColor" />
-                </svg>
+                <Icon :name="VIEW_MODE_ICONS[viewMode]" class="view-mode-svg" />
               </span>
               <span>{{ currentViewModeLabel }}</span>
             </DropdownMenuTrigger>
@@ -48,15 +40,7 @@
                     :value="option.value"
                   >
                     <span class="view-mode-option-icon" aria-hidden="true">
-                      <svg v-if="option.value === 'list'" viewBox="0 0 16 16" class="view-mode-svg">
-                        <path d="M2 3.5h2v2H2zM5.5 4h8v1h-8zM2 7h2v2H2zM5.5 7.5h8v1h-8zM2 10.5h2v2H2zM5.5 11h8v1h-8z" fill="currentColor" />
-                      </svg>
-                      <svg v-else-if="option.value === 'card'" viewBox="0 0 16 16" class="view-mode-svg">
-                        <path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z" fill="currentColor" />
-                      </svg>
-                      <svg v-else viewBox="0 0 16 16" class="view-mode-svg">
-                        <path d="M2 4h12v1H2zM2 7.5h12v1H2zM2 11h12v1H2z" fill="currentColor" />
-                      </svg>
+                      <Icon :name="VIEW_MODE_ICONS[option.value]" class="view-mode-svg" />
                     </span>
                     <span>{{ option.label }}</span>
                   </DropdownMenuRadioItem>
@@ -173,9 +157,11 @@ import {
 import BookCardView from './BookCardView.vue';
 import BookListView from './BookListView.vue';
 import BookTitleView from './BookTitleView.vue';
+import Icon from './Icon.vue';
 import Pagination from './Pagination.vue';
 import type { Book } from '@/types/book';
 import type { BookActivation } from '@/types/bookSelection';
+import type { IconName } from '@/components/icons/registry';
 import {
   getStoredBooksViewMode,
   isBooksViewMode,
@@ -249,6 +235,12 @@ const viewModeOptions = computed<Array<{ value: BooksViewMode; label: string }>>
   { value: 'card', label: t('bookCollection.viewMode.card') },
   { value: 'title', label: t('bookCollection.viewMode.title') }
 ]);
+
+const VIEW_MODE_ICONS: Record<BooksViewMode, IconName> = {
+  list: 'view-list',
+  card: 'view-card',
+  title: 'view-title'
+};
 
 const viewMode = ref<BooksViewMode>('list');
 const slots = useSlots();
@@ -436,9 +428,11 @@ onMounted(() => {
      component's DOM subtree, so this component's scope attribute never
      lands on them. Style portalled popper content with plain CSS. -->
 <style>
+/* 16px, matching the sidebar: these are now the same 24-grid stroke icons, and
+   the old 14px was sized for the denser 16-grid solid glyphs they replaced. */
 .view-mode-svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
 .view-mode-menu {

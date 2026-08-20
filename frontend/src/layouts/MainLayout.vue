@@ -424,7 +424,7 @@
             :aria-expanded="drawerOpen"
             @click="drawerOpen = !drawerOpen"
           >
-            ☰
+            <Icon name="menu" />
           </button>
           <h1 class="brand">
             <img class="brand-icon" :src="appIcon" alt="" aria-hidden="true">
@@ -491,6 +491,7 @@ import {
 import CreateLayerModal from '@/components/CreateLayerModal.vue';
 import BookBatchProgressModal from '@/components/BookBatchProgressModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
+import Icon from '@/components/Icon.vue';
 import LayerTree from '@/components/LayerTree.vue';
 import RenameLayerModal from '@/components/RenameLayerModal.vue';
 import SidebarNavIcon from '@/components/SidebarNavIcon.vue';
@@ -881,6 +882,11 @@ onMounted(async () => {
   height: 34px;
   justify-content: center;
   width: 38px;
+}
+
+.menu-btn svg {
+  height: 18px;
+  width: 18px;
 }
 
 .topbar-controls {

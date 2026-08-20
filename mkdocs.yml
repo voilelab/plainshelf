@@ -33,6 +33,7 @@ nav:
       - Local Shelf File Source: configuring-local-shelf.md
       - SMB Shelf File Source: configuring-smb-shelf.md
   - Concepts:
+      - Architecture: concepts/architecture.md
       - Data Model: concepts/data-model.md
       - Data Format Versioning: concepts/data-format-versioning.md
       - Shelf Cache and Disk I/O: concepts/shelf-cache-and-io.md

@@ -88,6 +88,15 @@ Read the relevant section before working in that area. Add entries according to
   `doc.sliceString(0, len, separator)`. A break is one *position* whatever it was
   written with, so a string offset is not a document offset — build the `Text`
   before deriving any position from it.
+- **Editor/page offset boundary:** the chapter dimming, the outline's jumps and
+  the rename/merge edits all drifted on CRLF sources by one character per
+  preceding line break → the page indexes `content` as a plain string
+  (`markdownChapters.ts`, shared with the reader's persisted progress) while
+  CodeMirror counts positions. The adapter contract is stated in source-text
+  offsets and `useSourceCodeMirror` converts at its own edge; never hand a
+  `markdownChapters` offset straight to a CodeMirror API, and cover a change
+  here with a CRLF case — an LF-only test cannot see the difference.
+  (`frontend/src/features/sources/types/editorAdapter.ts`)
 - **Dimming under highlighting:** a `Decoration.mark` that dims by `color` is
   overridden wherever syntax highlighting paints a nested span. Dim with
   `opacity`, which applies to the whole subtree.

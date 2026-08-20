@@ -83,6 +83,12 @@ func TestAPIErrorForKnownSentinels(t *testing.T) {
 			wantMessage: "book uses a newer on-disk format than this PlainShelf build supports; upgrade PlainShelf to modify it",
 		},
 		{
+			name:        "unsupported trash schema version",
+			err:         shelf.ErrUnsupportedTrashSchemaVersion,
+			wantStatus:  http.StatusConflict,
+			wantMessage: "trashed book uses a newer on-disk format than this PlainShelf build supports; upgrade PlainShelf to modify it",
+		},
+		{
 			name:           "worker busy",
 			err:            taskutil.ErrWorkerBusy,
 			wantStatus:     http.StatusServiceUnavailable,
