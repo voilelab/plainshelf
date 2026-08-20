@@ -258,9 +258,16 @@ looking fine while the book you just rated has quietly lost it.
 None of this is a reason to leave the file alone. These edits are safe:
 
 - **Changing the value of any field in the
-  [schema table](#bookjson-schema-v1)** — title, authors, tags, identifiers,
-  language, comments, star, published date. PlainShelf reads them back as
-  written. `schema_version` is the exception: it is managed by PlainShelf, and
+  [schema table](#bookjson-schema-v1), within the type and range that table
+  gives** — title, authors, tags, identifiers, language, comments, star,
+  published date. A value that fits is read back exactly as written. A value
+  that does not is worse than a typo, because PlainShelf validates on write
+  rather than on read: `"star": 6`, a `language` that is not a BCP-47 tag, or a
+  blank key in `identifiers` all load fine, and then every later edit to that
+  book is refused until you repair the file by hand. A `published_at` that is
+  neither `YYYY-MM-DD` nor an RFC 3339 timestamp is worse still — it fails at
+  read time and makes the book unopenable, exactly like malformed JSON.
+  `schema_version` is its own exception: it is managed by PlainShelf, and
   raising it locks you out of the book.
 - **Renaming the `.bookpkg` directory, or moving it into another layer with a
   file manager.** Identity lives in the `id` field, not in the path — see
