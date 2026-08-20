@@ -255,9 +255,9 @@ func (s *Shelf) iterateShelfTree(onLayer func(Layers) bool, onBook func(*Book) b
 	// walk. See shelf_scan_cache.go.
 	dirCache := s.newScanDirCache()
 
-	var dfsFunc func(string, *dirChild)
+	var dfsFunc func(string, *dirChild, bool)
 
-	dfsFunc = func(pth string, child *dirChild) {
+	dfsFunc = func(pth string, child *dirChild, trusted bool) {
 		if skipAll {
 			return
 		}
@@ -307,7 +307,7 @@ func (s *Shelf) iterateShelfTree(onLayer func(Layers) bool, onBook func(*Book) b
 			return
 		}
 
-		children, err := dirCache.readDir(pth)
+		children, childrenTrusted, err := dirCache.readDir(pth, trusted)
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				s.Warn("failed to read directory during book scan", "path", pth, "error", err)
@@ -317,10 +317,10 @@ func (s *Shelf) iterateShelfTree(onLayer func(Layers) bool, onBook func(*Book) b
 
 		for i := range children {
 			fullPath := path.Join(pth, children[i].Name)
-			dfsFunc(fullPath, &children[i])
+			dfsFunc(fullPath, &children[i], childrenTrusted)
 		}
 	}
 
-	dfsFunc(booksFolder, nil)
+	dfsFunc(booksFolder, nil, true)
 	return dirCache.install(!skipAll), nil
 }

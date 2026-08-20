@@ -331,3 +331,53 @@ func TestScanCacheLargeTreeMeasurement(t *testing.T) {
 		t.Errorf("warm scan listed %d directories, want 0", warm.ReadDirs)
 	}
 }
+
+// A directory's mtime identifies its content, not the directory. If one is
+// moved away and another takes its place carrying the same mtime - which
+// coarse-timestamp filesystems and timestamp-preserving copies both make
+// possible - matching the mtime alone would serve the old directory's children
+// forever, and the books under the new one would never appear.
+func TestScanCacheDistrustsAReplacedDirectory(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
+
+	booksDir := path.Join(tmpLib, booksFolder)
+	if err := os.MkdirAll(path.Join(booksDir, "Fiction", "kept"), 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	ageShelfDirs(t, tmpLib, time.Minute)
+	mustScan(t, s)
+	mustScan(t, s)
+
+	info, err := os.Stat(path.Join(booksDir, "Fiction"))
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+
+	// Move the layer out of the shelf and put a different one in its place,
+	// then give it the mtime the scan remembered.
+	replaced := path.Join(t.TempDir(), "moved-away")
+	if err := os.Rename(path.Join(booksDir, "Fiction"), replaced); err != nil {
+		t.Fatalf("move away: %v", err)
+	}
+	staged := path.Join(t.TempDir(), "Fiction")
+	if err := os.MkdirAll(path.Join(staged, "brought-in"), 0755); err != nil {
+		t.Fatalf("mkdir staged: %v", err)
+	}
+	if err := os.Rename(staged, path.Join(booksDir, "Fiction")); err != nil {
+		t.Fatalf("move in: %v", err)
+	}
+	at := info.ModTime()
+	if err := os.Chtimes(path.Join(booksDir, "Fiction"), at, at); err != nil {
+		t.Fatalf("chtimes: %v", err)
+	}
+
+	mustScan(t, s)
+	names := cachedLayerNames(s)
+	if !slices.Contains(names, "Fiction/brought-in") {
+		t.Errorf("scan did not find the replacement directory's layer, got %v", names)
+	}
+	if slices.Contains(names, "Fiction/kept") {
+		t.Errorf("scan still reports the replaced directory's layer, got %v", names)
+	}
+}

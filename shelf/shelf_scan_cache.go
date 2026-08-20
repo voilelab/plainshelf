@@ -147,17 +147,36 @@ func (s *Shelf) newScanDirCache() *scanDirCache {
 }
 
 // readDir returns the children of pth that the walk may descend into, listing
-// the directory only when its mtime shows the listing could have changed.
-func (c *scanDirCache) readDir(pth string) ([]dirChild, error) {
+// the directory only when its mtime shows the listing could have changed. It
+// also reports whether that listing is proven unchanged, which is what the
+// walk passes down as its children's trusted flag.
+//
+// trusted says the caller established that pth is still the same directory the
+// snapshot describes. A modification time identifies a directory's content,
+// not the directory: move one away and rename another into its place and the
+// path now holds something else entirely, with an mtime of its own that may
+// well equal the recorded one - coarse-timestamp filesystems (the ones this
+// cache is most useful on) and timestamp-preserving copies both produce that.
+// Matching the mtime alone would then serve the old directory's children
+// forever and hide every book under the new one.
+//
+// What rules that out is the parent. Renaming a directory into place changes
+// its new parent's mtime, so a parent whose own listing is proven unchanged
+// proves that none of its children were swapped, and only then may a child's
+// recorded mtime be believed. A parent that had to be relisted distrusts every
+// child, which cascades down that subtree for the same reason - the cost is
+// one scan at the old price for the part of the tree that actually changed.
+// The walk's root is trusted by definition; it has no parent under the shelf.
+func (c *scanDirCache) readDir(pth string, trusted bool) ([]dirChild, bool, error) {
 	c.stats.Dirs++
 
 	if !c.enabled {
 		entries, err := c.shelf.dbRoot.ReadDir(pth)
 		if err != nil {
-			return nil, util.Errorf("%w", err)
+			return nil, false, util.Errorf("%w", err)
 		}
 		c.stats.ReadDirs++
-		return dirChildren(entries), nil
+		return dirChildren(entries), false, nil
 	}
 
 	// Stat before the listing, never after. Read the other way round, a
@@ -169,25 +188,28 @@ func (c *scanDirCache) readDir(pth string) ([]dirChild, error) {
 	if info, err := c.shelf.dbRoot.Stat(pth); err == nil {
 		modTime = info.ModTime()
 
-		if prev, ok := c.prev[pth]; ok && prev.ModTime.Equal(modTime) {
+		if prev, ok := c.prev[pth]; trusted && ok && prev.ModTime.Equal(modTime) {
 			c.next[pth] = prev
 			c.stats.ReusedDirs++
-			return prev.Children, nil
+			return prev.Children, true, nil
 		}
 	}
 
 	readAt := time.Now()
 	entries, err := c.shelf.dbRoot.ReadDir(pth)
 	if err != nil {
-		return nil, util.Errorf("%w", err)
+		return nil, false, util.Errorf("%w", err)
 	}
 	c.stats.ReadDirs++
 
+	// Recorded even when the listing was only re-read because the parent
+	// changed: these are the children this directory really holds at this
+	// mtime, which is what the next walk needs.
 	children := dirChildren(entries)
 	if !modTime.IsZero() && modTime.Before(readAt.Add(-scanCacheRacyWindow)) {
 		c.next[pth] = dirSnapshot{ModTime: modTime, Children: children}
 	}
-	return children, nil
+	return children, false, nil
 }
 
 // install publishes what this walk learned. A walk that was stopped early is
