@@ -3,7 +3,7 @@ import {
   parseMarkdownHeadingLine,
   updateMarkdownFenceState,
   type MarkdownFenceState
-} from './parseMarkdownBlocks';
+} from './markdownLineSyntax';
 
 export interface MarkdownChapterHeading {
   startOffset: number;

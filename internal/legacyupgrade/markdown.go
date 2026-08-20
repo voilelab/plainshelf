@@ -8,7 +8,7 @@
 //
 //	frontend/src/features/sources/utils/sourceConversions.ts   upgradeLegacyToMarkdown
 //	frontend/src/features/reader/utils/markdownChapters.ts     scanMarkdownH2Headings
-//	frontend/src/features/reader/utils/parseMarkdownBlocks.ts  heading and fence syntax
+//	frontend/src/features/reader/utils/markdownLineSyntax.ts     heading and fence syntax
 //
 // Keep the two in step: a divergence here silently moves chapter boundaries.
 package legacyupgrade
