@@ -401,8 +401,8 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     const selection = current.state.selection.main;
     options.updateDocument({
       value: syncedDocument,
-      selectionStart: selection.from,
-      selectionEnd: selection.to
+      selectionStart: docToStringOffset(current.state, selection.from),
+      selectionEnd: docToStringOffset(current.state, selection.to)
     });
   }
 
@@ -505,6 +505,48 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     return state.doc.sliceString(0, state.doc.length, lineSeparator);
   }
 
+  /**
+   * The same position, measured in the file's characters rather than the
+   * document's.
+   *
+   * The page indexes `content` as a plain string, where a CRLF is two
+   * characters, and derives every chapter range from it; CodeMirror counts a
+   * line break as one position however it was written. Both directions of this
+   * boundary are converted here — the caret the editor publishes, the focused
+   * range it is handed, the ranges chapter edits act on — so that the whole
+   * adapter contract is stated in the file's coordinates and nothing outside
+   * this composable has to know the document has its own.
+   *
+   * A document that mixes endings normalizes to `\n` on the way in, so its text
+   * and the file's diverge until the first edit publishes the normalized
+   * version; identity is the closest either direction can get in that window.
+   */
+  function docToStringOffset(state: EditorState, pos: number): number {
+    const clamped = Math.max(0, Math.min(state.doc.length, pos));
+    if (lineSeparator !== '\r\n') return clamped;
+    return clamped + state.doc.lineAt(clamped).number - 1;
+  }
+
+  /** The inverse: a position in the file's characters, as a document position. */
+  function stringToDocOffset(state: EditorState, offset: number): number {
+    const doc = state.doc;
+    if (lineSeparator !== '\r\n') return Math.max(0, Math.min(doc.length, offset));
+    // One character per line break precedes each line, so a line's own start is
+    // the last one at or before the offset and the search below is monotonic.
+    const clamped = Math.max(0, Math.min(doc.length + doc.lines - 1, offset));
+    let low = 1;
+    let high = doc.lines;
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2);
+      if (doc.line(mid).from + mid - 1 <= clamped) low = mid;
+      else high = mid - 1;
+    }
+    const line = doc.line(low);
+    // An offset landing between a `\r` and its `\n` is the end of the line they
+    // terminate together: the pair is one position in the document.
+    return Math.min(clamped - (low - 1), line.to);
+  }
+
   function createView(host: HTMLElement): void {
     // The host's own string, not the document's: a source that mixes line
     // endings normalizes on the way in, and reporting that as an unsaved change
@@ -596,15 +638,23 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     const current = view.value;
     if (!current) return;
     const requested = options.viewRange();
+    // The field holds document positions so that it maps through every edit;
+    // what the page asks for is stated in the file's characters.
+    const mapped = requested
+      ? {
+          startOffset: stringToDocOffset(current.state, requested.startOffset),
+          endOffset: stringToDocOffset(current.state, requested.endOffset)
+        }
+      : null;
     const stored = current.state.field(sectionRangeField);
     if (
-      (requested === null && stored === null) ||
-      (requested &&
+      (mapped === null && stored === null) ||
+      (mapped &&
         stored &&
-        requested.startOffset === stored.startOffset &&
-        requested.endOffset === stored.endOffset)
+        mapped.startOffset === stored.startOffset &&
+        mapped.endOffset === stored.endOffset)
     ) return;
-    current.dispatch({ effects: setSectionRange.of(requested) });
+    current.dispatch({ effects: setSectionRange.of(mapped) });
   }
 
   function buildQuery(): SearchQuery {
@@ -757,7 +807,12 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
     if (!current) return 0;
     // toString(), not documentText(): the caret is a document position, so the
     // text it is measured against has to use one character per line break too.
-    return paragraphStartOffset(current.state.doc.toString(), current.state.selection.main.from);
+    // The result is handed back to the page, so it converts on the way out.
+    const start = paragraphStartOffset(
+      current.state.doc.toString(),
+      current.state.selection.main.from
+    );
+    return docToStringOffset(current.state, start);
   }
 
   function dispatchReplace(
@@ -768,9 +823,8 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
   ): void {
     const current = view.value;
     if (!current) return;
-    const length = current.state.doc.length;
-    const from = Math.max(0, Math.min(length, startOffset));
-    const to = Math.max(from, Math.min(length, endOffset));
+    const from = stringToDocOffset(current.state, startOffset);
+    const to = Math.max(from, stringToDocOffset(current.state, endOffset));
     // Built as a document rather than passed as a string: the caller writes its
     // own line breaks, and this is what both renders them with the document's
     // ending and makes the selection below a position rather than a character
@@ -803,9 +857,8 @@ export function useSourceCodeMirror(options: SourceCodeMirrorOptions) {
   function focusAndSelect(startOffset: number, endOffset: number): void {
     const current = view.value;
     if (!current) return;
-    const length = current.state.doc.length;
-    const from = Math.max(0, Math.min(length, startOffset));
-    const to = Math.max(from, Math.min(length, endOffset));
+    const from = stringToDocOffset(current.state, startOffset);
+    const to = Math.max(from, stringToDocOffset(current.state, endOffset));
     const selection = EditorSelection.range(from, to);
     current.focus();
     current.dispatch({
