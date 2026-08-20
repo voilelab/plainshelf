@@ -1,0 +1,56 @@
+{
+  "layers": [
+    "/",
+    "Fiction"
+  ],
+  "books": [
+    {
+      "path": "books/Fiction/dune.bookpkg",
+      "layers": [
+        "Fiction"
+      ],
+      "id": "k3xq7pm2vh4td6bz",
+      "title": "Dune",
+      "format": "txt",
+      "authors": [
+        "Frank Herbert"
+      ],
+      "tags": [
+        "sci-fi"
+      ],
+      "star": 4,
+      "cover": "cover.png",
+      "cover_present": true,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "current_source_field": "20260315-101500",
+      "current_source": "20260315-101500",
+      "sources": [
+        {
+          "id": "20260315-101500",
+          "has_content": true,
+          "char_count": 23,
+          "assets": []
+        }
+      ]
+    },
+    {
+      "path": "books/notebook.bookpkg",
+      "layers": [],
+      "id": "q7w4nd5r2kx3ma6t",
+      "title": "Notebook",
+      "format": "",
+      "authors": [],
+      "tags": [],
+      "star": 0,
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "current_source_field": "",
+      "current_source": null,
+      "sources": []
+    }
+  ],
+  "book_caches": []
+}

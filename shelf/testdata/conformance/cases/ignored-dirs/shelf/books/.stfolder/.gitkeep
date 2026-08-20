@@ -1,0 +1,2 @@
+Git cannot commit an empty directory. The system directories in this case exist
+to be skipped, so each one holds a placeholder file or a decoy book package.

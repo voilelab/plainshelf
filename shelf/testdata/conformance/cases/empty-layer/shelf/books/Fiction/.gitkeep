@@ -1,0 +1,2 @@
+Git cannot commit an empty directory, and this case is about a layer that holds
+no book. Both scanners walk directories only, so this file is invisible to them.

@@ -74,6 +74,16 @@ describe('collectBookPackages', () => {
     expect(byName.get('b.bookpkg')?.layers).toEqual(['Fiction', 'Classics']);
   });
 
+  it('does not read a package out of a system directory', () => {
+    const books = folder('books', [
+      folder('@eaDir', [bookPackage('thumbnail.bookpkg')]),
+      folder('#recycle', [bookPackage('deleted.bookpkg')]),
+      bookPackage('kept.bookpkg')
+    ]);
+
+    expect(collectBookPackages(books).map((pkg) => pkg.folderName)).toEqual(['kept.bookpkg']);
+  });
+
   it('captures book.json, sibling files and sources', () => {
     const [pkg] = collectBookPackages(folder('books', [bookPackage('a.bookpkg')]));
 
@@ -170,6 +180,21 @@ describe('collectLayers', () => {
 
   it('returns just the top level for an empty shelf', () => {
     expect(collectLayers(folder('books', []))).toEqual(['/']);
+  });
+
+  // The dataset in shelf/testdata/conformance covers the directory names a real
+  // shelf carries; what is pinned here is the case folding, which a fixture on a
+  // case-insensitive filesystem could not express.
+  it('skips system directories however they are spelled', () => {
+    const books = folder('books', [
+      folder('$RECYCLE.BIN', [folder('Deleted', [])]),
+      folder('$Recycle.Bin', []),
+      folder('@eaDir', []),
+      folder('.stfolder', []),
+      folder('Poetry', [folder('@EAdir', [])])
+    ]);
+
+    expect(collectLayers(books)).toEqual(['/', 'Poetry']);
   });
 });
 
