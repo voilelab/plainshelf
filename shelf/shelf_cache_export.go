@@ -170,6 +170,13 @@ func (s *Shelf) scheduleBookCacheExportIfNeeded() {
 // The rescan is not optional: Timestamp promises a walk began at that moment,
 // so writing without one would advertise freshness that was never checked.
 func (s *Shelf) ExportBookCache() (time.Time, error) {
+	// Before the writer ID, which read_only clears: "not configured" would be
+	// true and would send the caller looking for a setting to change, when what
+	// they need to know is that this shelf is never written to.
+	if s.readOnly {
+		return time.Time{}, util.Errorf("%w", fsutil.ErrReadOnly)
+	}
+
 	if s.bookCacheWriterID == "" {
 		return time.Time{}, util.NewError("book cache export is not configured for this shelf")
 	}
@@ -209,6 +216,14 @@ func (s *Shelf) ExportBookCache() (time.Time, error) {
 func (s *Shelf) exportBookCache(force bool) error {
 	if s.bookCacheWriterID == "" {
 		return nil
+	}
+
+	// A read-only shelf never reaches this point, because read_only clears the
+	// writer ID the guard above checks. Narrowing here anyway keeps that true
+	// if the two ever stop being wired together.
+	root, err := s.writeRoot()
+	if err != nil {
+		return util.Errorf("%w", err)
 	}
 
 	s.exportMu.Lock()
@@ -257,7 +272,7 @@ func (s *Shelf) exportBookCache(force bool) error {
 	// shelf away, and it must never see a half-written listing. Its temp naming
 	// is also the one scans deliberately ignore (see book.go).
 	target := path.Join(appFolder, s.bookCacheFileName())
-	if err := fsutil.WriteFileAtomic(s.dbRoot, target, data); err != nil {
+	if err := fsutil.WriteFileAtomic(root, target, data); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -268,7 +283,7 @@ func (s *Shelf) exportBookCache(force bool) error {
 
 	s.Debug("exported book cache", "path", target, "books", len(books), "layers", len(layers))
 
-	s.pruneStaleBookCaches()
+	s.pruneStaleBookCaches(root)
 	return nil
 }
 
@@ -332,7 +347,7 @@ func bookCacheDigest(layers []string, books map[string]BookCacheEntry) (string, 
 // removed. Anything unreadable is left alone: app/ is shared with whatever else
 // a user or a future build puts there, and silently deleting a file we do not
 // understand is a worse failure than leaving a stale one.
-func (s *Shelf) pruneStaleBookCaches() {
+func (s *Shelf) pruneStaleBookCaches(root fsutil.FS) {
 	entries, err := s.dbRoot.ReadDir(appFolder)
 	if err != nil {
 		s.Warn("failed to list the app folder while pruning book caches", "error", err)
@@ -361,7 +376,7 @@ func (s *Shelf) pruneStaleBookCaches() {
 			continue
 		}
 
-		if err := s.dbRoot.Remove(filePath); err != nil {
+		if err := root.Remove(filePath); err != nil {
 			s.Warn("failed to remove a stale book cache file", "path", filePath, "error", err)
 			continue
 		}

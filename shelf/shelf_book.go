@@ -96,16 +96,21 @@ func (s *Shelf) NewBookWith(layers Layers, title string, init func(*Book) error)
 		return nil, util.Errorf("%w", err)
 	}
 
+	root, err := s.writeRoot()
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
 	if err := s.shelfLock.Lock(); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 	defer s.shelfLock.Unlock()
 
-	bookPath, err := createTempDir(s.dbRoot, path.Join(appFolder, appTmpFolder, "book"))
+	bookPath, err := createTempDir(root, path.Join(appFolder, appTmpFolder, "book"))
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer s.dbRoot.RemoveAll(bookPath)
+	defer root.RemoveAll(bookPath)
 
 	// The ID is drawn at random, not derived from the layers and title: what
 	// keeps two books apart is the entropy behind it, not the probe below. The
@@ -138,7 +143,7 @@ func (s *Shelf) NewBookWith(layers Layers, title string, init func(*Book) error)
 		return nil, util.NewError("failed to draw an unused book ID after multiple attempts")
 	}
 
-	stagedBook, err := createBook(s.dbRoot, s.Logger, bookPath, bookID, title)
+	stagedBook, err := createBook(root, s.Logger, bookPath, bookID, title)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -153,7 +158,7 @@ func (s *Shelf) NewBookWith(layers Layers, title string, init func(*Book) error)
 
 	layerPath := path.Join(booksFolder, path.Join(layers...))
 
-	err = s.dbRoot.MkdirAll(layerPath)
+	err = root.MkdirAll(layerPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -176,7 +181,7 @@ func (s *Shelf) NewBookWith(layers Layers, title string, init func(*Book) error)
 	}
 
 	finalBookPath := path.Join(layerPath, folderName)
-	err = s.dbRoot.Rename(bookPath, finalBookPath)
+	err = root.Rename(bookPath, finalBookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -232,6 +237,11 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
+	root, err := s.writeRoot()
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
 	if err := s.shelfLock.Lock(); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -243,7 +253,7 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 	}
 
 	newLayerPath := path.Join(booksFolder, path.Join(newLayers...))
-	err = s.dbRoot.MkdirAll(newLayerPath)
+	err = root.MkdirAll(newLayerPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -251,7 +261,7 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 	s.addLayersToBookCache(newLayers)
 
 	newBookPath := path.Join(newLayerPath, path.Base(book.FolderPath()))
-	err = s.dbRoot.Rename(book.FolderPath(), newBookPath)
+	err = root.Rename(book.FolderPath(), newBookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

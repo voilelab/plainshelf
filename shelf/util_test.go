@@ -25,6 +25,19 @@ func newTestShelf(t *testing.T, conf *ShelfConf) *Shelf {
 	return s
 }
 
+// writeRootForTest narrows a test shelf's read handle back to a writable one,
+// for tests that plant files in the shelf directly. Every writable test shelf
+// returns one, so a failure here is a broken fixture rather than a result.
+func writeRootForTest(t *testing.T, s *Shelf) fsutil.FS {
+	t.Helper()
+
+	root, err := s.writeRoot()
+	if err != nil {
+		t.Fatalf("writeRoot: %v", err)
+	}
+	return root
+}
+
 // shiftModTime moves a file's modification time by offset from now. Staleness
 // is detected from the meta file's stat (see getFileStat), and on a filesystem
 // with one-second timestamp granularity a fresh write can land in the same

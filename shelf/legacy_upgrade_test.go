@@ -19,7 +19,7 @@ func downgradeToLegacy(t *testing.T, testShelf *Shelf, source *Source, split str
 	metaPath := path.Join(source.FolderPath(), SourceMetaFile)
 	legacy := `{"id":"` + source.ID() + `","created_at":"2026-01-01T00:00:00Z",` +
 		`"comment":"legacy","split_config":` + split + `}`
-	if err := testShelf.dbRoot.WriteFile(metaPath, []byte(legacy)); err != nil {
+	if err := writeRootForTest(t, testShelf).WriteFile(metaPath, []byte(legacy)); err != nil {
 		t.Fatalf("write legacy meta: %v", err)
 	}
 
@@ -189,7 +189,7 @@ func TestUpgradeLegacyToSchemaV1Refusals(t *testing.T) {
 		metaPath := path.Join(source.FolderPath(), SourceMetaFile)
 		future := `{"schema_version":99,"id":"` + source.ID() +
 			`","created_at":"2026-01-01T00:00:00Z","comment":"","split_config":{"type":""}}`
-		if err := testShelf.dbRoot.WriteFile(metaPath, []byte(future)); err != nil {
+		if err := writeRootForTest(t, testShelf).WriteFile(metaPath, []byte(future)); err != nil {
 			t.Fatalf("write future meta: %v", err)
 		}
 		futureSource, err := openSource(testShelf.dbRoot, source.FolderPath())
