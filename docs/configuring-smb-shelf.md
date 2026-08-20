@@ -61,6 +61,7 @@ The important fields for SMB shelves are:
 | `scan_interval` | How often PlainShelf performs a full on-disk scan. | Increase this on large or high-latency shares to reduce network I/O. |
 | `book_check_interval` | How often list operations check per-book metadata freshness. | Increase this when browsing feels slow over SMB. |
 | `lock_timeout` | Maximum time to wait for the shelf file lock. | Keep a finite timeout so unreliable SMB locking cannot hang indefinitely. |
+| `scan_cache` | Whether a scan may skip listing folders whose modification time has not changed. | Leave it on: it turns most of a scan's directory listings into single stats, which is exactly what SMB round trips make expensive. Turn it off only if the share does not update directory times. |
 | `server_conf.write_timeout` | Maximum time for the HTTP server to write a response. | Increase this when large books transfer slowly over the network. |
 
 ## 4. Tune server timeouts for slow shares
@@ -114,6 +115,12 @@ rm /mnt/plainshelf/default-shelf/.write-test-renamed
 ### Browsing is slow
 
 Increase `scan_interval` and `book_check_interval`. SMB round trips can make frequent metadata checks expensive, especially for large shelves.
+
+### Books copied onto the share never appear
+
+Press **Update book list** first; within `scan_interval` PlainShelf has not looked yet.
+
+If they still do not appear, and appear only after restarting the server, the share may not be updating directory modification times — some gateways do not. Set `scan_cache: off` on the shelf and delete `app/scan-cache.json`. See [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md#scan_cache).
 
 ### Requests time out while opening large books
 

@@ -3,7 +3,6 @@ package shelf
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path"
 	"strings"
@@ -241,23 +240,29 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 
 // iterateShelfTree walks the books folder once, reporting every layer
 // directory to onLayer and every book package to onBook. Either callback may be
-// nil. Returning false from a callback stops the whole walk.
+// nil. Returning false from a callback stops the whole walk. It returns what
+// the walk cost, which is what makes the effect of the scan cache visible.
 //
 // Books and layers share one walk because they are answers to the same
 // question: a listing and a layer tree both describe the shape of books/, and
 // walking it twice is the cost this shelf can least afford on a network mount.
 // scanToBookCache is the only production caller for that reason.
-func (s *Shelf) iterateShelfTree(onLayer func(Layers) bool, onBook func(*Book) bool) error {
+func (s *Shelf) iterateShelfTree(onLayer func(Layers) bool, onBook func(*Book) bool) (scanStats, error) {
 	skipAll := false
 
-	var dfsFunc func(string, fs.DirEntry)
+	// The walk reads each directory through the scan cache, which turns a
+	// ReadDir into a Stat for every folder that has not changed since the last
+	// walk. See shelf_scan_cache.go.
+	dirCache := s.newScanDirCache()
 
-	dfsFunc = func(pth string, entry fs.DirEntry) {
+	var dfsFunc func(string, *dirChild, bool)
+
+	dfsFunc = func(pth string, child *dirChild, trusted bool) {
 		if skipAll {
 			return
 		}
 
-		isDir, err := entryIsDir(s.dbRoot, pth, entry)
+		isDir, err := childIsDir(s.dbRoot, pth, child)
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				s.Warn("failed to stat path during book scan", "path", pth, "error", err)
@@ -302,7 +307,7 @@ func (s *Shelf) iterateShelfTree(onLayer func(Layers) bool, onBook func(*Book) b
 			return
 		}
 
-		entries, err := s.dbRoot.ReadDir(pth)
+		children, childrenTrusted, err := dirCache.readDir(pth, trusted)
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				s.Warn("failed to read directory during book scan", "path", pth, "error", err)
@@ -310,12 +315,12 @@ func (s *Shelf) iterateShelfTree(onLayer func(Layers) bool, onBook func(*Book) b
 			return
 		}
 
-		for _, child := range entries {
-			fullPath := path.Join(pth, child.Name())
-			dfsFunc(fullPath, child)
+		for i := range children {
+			fullPath := path.Join(pth, children[i].Name)
+			dfsFunc(fullPath, &children[i], childrenTrusted)
 		}
 	}
 
-	dfsFunc(booksFolder, nil)
-	return nil
+	dfsFunc(booksFolder, nil, true)
+	return dirCache.install(!skipAll), nil
 }
