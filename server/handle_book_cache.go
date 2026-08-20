@@ -1,11 +1,6 @@
 package server
 
-import (
-	"errors"
-	"net/http"
-
-	"github.com/voilelab/plainshelf/shelf"
-)
+import "net/http"
 
 // BookCacheExportResponse reports the walk the export recorded.
 type BookCacheExportResponse struct {
@@ -30,12 +25,10 @@ func (h *shelfHandlers) exportBookCache(w http.ResponseWriter, r *http.Request) 
 
 	scannedAt, err := shelfData.ExportBookCache()
 	if err != nil {
-		if errors.Is(err, shelf.ErrShelfInitializing) {
-			http.Error(w, "shelf is still initializing", http.StatusServiceUnavailable)
-			return
-		}
-		h.Error("failed to export book cache", "shelf_id", shelfData.ID, "error", err)
-		http.Error(w, "failed to export book cache", http.StatusInternalServerError)
+		// Through the error table rather than a 500 for everything that is not
+		// ErrShelfInitializing: a read-only shelf refuses this write, and that
+		// is a 409 the caller can act on, not a server fault.
+		h.writeErr(w, err, "failed to export book cache")
 		return
 	}
 

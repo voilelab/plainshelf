@@ -170,6 +170,13 @@ func (s *Shelf) scheduleBookCacheExportIfNeeded() {
 // The rescan is not optional: Timestamp promises a walk began at that moment,
 // so writing without one would advertise freshness that was never checked.
 func (s *Shelf) ExportBookCache() (time.Time, error) {
+	// Before the writer ID, which read_only clears: "not configured" would be
+	// true and would send the caller looking for a setting to change, when what
+	// they need to know is that this shelf is never written to.
+	if s.readOnly {
+		return time.Time{}, util.Errorf("%w", fsutil.ErrReadOnly)
+	}
+
 	if s.bookCacheWriterID == "" {
 		return time.Time{}, util.NewError("book cache export is not configured for this shelf")
 	}

@@ -53,6 +53,9 @@ func (h *batchHandlers) bookBatch(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if h.rejectReadOnlyShelf(w, shelfData) {
+		return
+	}
 
 	var request bookBatchRequest
 	if !decodeStrictJSON(w, r, &request) {
