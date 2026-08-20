@@ -57,11 +57,11 @@ PlainShelf still needs to keep the cache reasonably fresh. It does this with two
 
 Within the configured intervals, repeated browsing can be served from memory with little or no filesystem I/O.
 
-![Flowchart of a book or layer listing: a shelf still building its first cache
-refuses the read with 503 and Retry-After 3; a dirty tree or an elapsed scan
-interval triggers a full synchronous walk that blocks the caller; otherwise an
-elapsed book-check interval spawns a background per-book stat that does not
-block. Every surviving path is answered from the in-memory
+![Flowchart of a book or layer listing: a book listing issued while the shelf is
+still building its first cache is refused with 503 and Retry-After 3; a dirty
+tree or an elapsed scan interval triggers a full synchronous walk that blocks the
+caller; otherwise an elapsed book-check interval spawns a background per-book
+stat that does not block. Every surviving path is answered from the in-memory
 cache.](../assets/plainshelf-cache-refresh.svg)
 
 The two tiers differ in more than frequency. A full scan is **synchronous**, so
@@ -69,6 +69,13 @@ mutations are visible to the caller that triggered it — and a slow shelf makes
 that caller wait. The per-book check runs in a **background goroutine** under the
 same shared lock every read takes, so it never blocks the listing that scheduled
 it.
+
+!!! note "The first gate is a book-listing gate"
+    Only book listings are refused while the initial cache is still being built.
+    A layer listing takes the shared lock without that check, so a request that
+    arrives during initial construction performs its own full scan and answers
+    `200` — slowly — rather than `503`. Everything after that first gate is
+    identical for both.
 
 ### Layer listing
 

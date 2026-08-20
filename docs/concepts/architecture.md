@@ -52,16 +52,42 @@ and two devices pointed at the same shelf keep their own.
 ![Architecture diagram: three feature documents — reading progress, read history
 and reading stats — all mutate through one queued device document store, which
 narrows to a single format-blind interface that only loads and saves a plain
-string. Three platform backends implement it: browser localStorage, a JSON file
-beside shelves.json on the Wails desktop, and an in-memory store for mock mode
-and unit tests.](../assets/plainshelf-device-storage.svg)
+string. Four platform backends implement it: browser localStorage, Capacitor
+Filesystem in app-private storage on Android, a JSON file beside shelves.json on
+the Wails desktop, and an in-memory store for mock mode and unit
+tests.](../assets/plainshelf-device-storage.svg)
 
 The pivot is deliberately narrow. `DeviceDocumentStorage` only knows how to load
 and save **one string**; parsing, merging and trimming live in each feature's own
 document module, so every platform shares one implementation and a new backend
 only has to persist text.
 
-Two details the diagram cannot show:
+### Which backend a document actually gets
+
+The backend is resolved per document, not per platform, so the table is not
+uniform:
+
+| Document | Browser | Android shell | Wails desktop |
+|---|---|---|---|
+| `readingProgress` | localStorage | localStorage | JSON file |
+| `readHistory` | localStorage | Capacitor Filesystem | JSON file |
+| `readingStats` | localStorage | Capacitor Filesystem | JSON file |
+
+Mock API mode and unit tests use the in-memory backend for all three.
+
+`readingProgress` has no Android-specific path today: it stays on the WebView's
+localStorage there, while read history and reading stats do not. That matters,
+because the Capacitor backend was chosen precisely to escape WebView storage —
+`Directory.Data` is app-private internal storage, needs no runtime permission,
+and, unlike localStorage or IndexedDB in an Android WebView, is not subject to
+silent storage eviction.
+
+The Capacitor backend lives in `frontend/src/shells/mobile/`, not in
+`frontend/src/storage/`, and the seam is deliberate: it is what stops
+`@capacitor/filesystem` from being pulled into the web and desktop bundles by
+the read-history and reading-stats stores.
+
+Two more details the diagram cannot show:
 
 - **Mutations are queued.** Every change is a read-modify-write chained behind
   the previous one. Without that, opening the reader while a reading-time tick
