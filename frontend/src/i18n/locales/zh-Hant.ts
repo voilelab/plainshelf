@@ -139,6 +139,8 @@ const zhHant = {
     refresh: '重新整理',
     loading: '載入儀表板中...',
     loadFailed: '載入儀表板資料失敗',
+    shelfInitializing: '書架載入中，請稍候...',
+    shelfNotReady: '書架仍在啟動中，尚未就緒。',
     stats: {
       totalBooks: '藏書總數',
       addedThisMonth: '本月新增',

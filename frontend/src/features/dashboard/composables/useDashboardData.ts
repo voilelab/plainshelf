@@ -1,15 +1,18 @@
-import { computed, ref } from 'vue';
+import { computed, getCurrentInstance, onUnmounted, ref } from 'vue';
 // Books come through the provider so the dashboard works on every backend —
 // including a pCloud connection, which has no HTTP API to call. char_count is
 // opt-in on the provider interface, which is what this page needs from it.
 // Reading activity does not go through the provider by design: it is
 // device-local and never involves the server.
 import { getBookshelfProvider } from '@/providers';
+import { ApiError } from '@/api/client';
 import { getReadingActivityRange } from '@/storage/readingStats';
 import type { Book } from '@/types/book';
 import { t } from '@/i18n';
 
 const READING_ACTIVITY_RANGE_DAYS = 365;
+const SHELF_INIT_RETRY_DELAY_MS = 3000;
+const SHELF_INIT_MAX_AUTO_RETRIES = 10; // ~30s of auto-retry before showing an error
 
 export interface StarDistribution {
   1: number;
@@ -46,6 +49,17 @@ export function useDashboardData() {
   const loading = ref(false);
   const error = ref('');
   const readingActivity = ref<Record<string, number>>({});
+  const shelfInitializing = ref(false);
+
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let initRetryCount = 0;
+
+  function clearRetry(): void {
+    if (retryTimer !== null) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+  }
 
   const totalBooks = computed(() => books.value.length);
 
@@ -123,7 +137,12 @@ export function useDashboardData() {
     return streak;
   });
 
-  async function fetchDashboardData(): Promise<void> {
+  async function run(isAutoRetry: boolean): Promise<void> {
+    clearRetry();
+    if (!isAutoRetry) {
+      initRetryCount = 0;
+      shelfInitializing.value = false;
+    }
     loading.value = true;
     error.value = '';
     try {
@@ -137,17 +156,51 @@ export function useDashboardData() {
       ]);
       books.value = data.items;
       readingActivity.value = activity;
+      shelfInitializing.value = false;
+      initRetryCount = 0;
     } catch (err) {
-      error.value = err instanceof Error ? err.message : t('dashboard.loadFailed');
+      // A shelf still running its initial scan answers 503 for every read. The
+      // book listing and the layer tree retry through that, so the dashboard
+      // has to as well: otherwise a cold start puts an error in the middle of
+      // the home page while the sidebar beside it is quietly recovering.
+      if (err instanceof ApiError && err.status === 503) {
+        initRetryCount++;
+        if (initRetryCount < SHELF_INIT_MAX_AUTO_RETRIES) {
+          shelfInitializing.value = true;
+          retryTimer = setTimeout(() => void run(true), SHELF_INIT_RETRY_DELAY_MS);
+          return;
+        }
+        shelfInitializing.value = false;
+        error.value = t('dashboard.shelfNotReady');
+      } else {
+        shelfInitializing.value = false;
+        error.value = err instanceof Error ? err.message : t('dashboard.loadFailed');
+      }
     } finally {
-      loading.value = false;
+      // A pending retry keeps the page in its loading state rather than
+      // flashing an error between attempts.
+      if (retryTimer === null) {
+        loading.value = false;
+      }
     }
+  }
+
+  // Takes no arguments on purpose: it is bound straight to a template click
+  // handler, which would otherwise pass the event in as the retry flag.
+  async function fetchDashboardData(): Promise<void> {
+    await run(false);
+  }
+
+  // These refs are page-scoped, so a pending retry must not outlive the page.
+  if (getCurrentInstance()) {
+    onUnmounted(clearRetry);
   }
 
   return {
     books,
     loading,
     error,
+    shelfInitializing,
     totalBooks,
     addedThisMonth,
     starAvg,

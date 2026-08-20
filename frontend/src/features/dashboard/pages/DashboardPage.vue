@@ -8,7 +8,9 @@
     </header>
 
     <p v-if="error" class="error" role="alert">{{ error }}</p>
-    <p v-else-if="loading" class="loading">{{ t('dashboard.loading') }}</p>
+    <p v-else-if="loading" class="loading">
+      {{ shelfInitializing ? t('dashboard.shelfInitializing') : t('dashboard.loading') }}
+    </p>
 
     <div v-else class="dashboard-grid">
       <ReadingHeatmap class="dashboard-cell dashboard-cell-heatmap" :data="heatmapData" />
@@ -43,6 +45,7 @@ const {
   books,
   loading,
   error,
+  shelfInitializing,
   totalBooks,
   addedThisMonth,
   starAvg,
