@@ -120,7 +120,7 @@ func TestTempPathKeepsTmpSuffixAndIsUnique(t *testing.T) {
 
 func TestWriteFileAtomicReplacesExistingFile(t *testing.T) {
 	root := t.TempDir()
-	ffs := NewLocalFS(root)
+	ffs := newTestFS(t, root)
 
 	const name = "book.json"
 
@@ -146,7 +146,7 @@ func TestWriteFileAtomicReplacesExistingFile(t *testing.T) {
 
 func TestWriteFileAtomicLeavesDestinationIntactOnWriteFailure(t *testing.T) {
 	root := t.TempDir()
-	ffs := NewLocalFS(root)
+	ffs := newTestFS(t, root)
 
 	const name = "book.json"
 	if err := ffs.WriteFile(name, []byte("original")); err != nil {
@@ -169,7 +169,7 @@ func TestWriteFileAtomicLeavesDestinationIntactOnWriteFailure(t *testing.T) {
 
 func TestWriteFileAtomicRemovesTempOnRenameFailure(t *testing.T) {
 	root := t.TempDir()
-	faulty := &faultFS{FS: NewLocalFS(root), failRename: true}
+	faulty := &faultFS{FS: newTestFS(t, root), failRename: true}
 
 	if err := WriteFileAtomic(faulty, "book.json", []byte("payload")); !errors.Is(err, errInjected) {
 		t.Fatalf("WriteFileAtomic error = %v, want %v", err, errInjected)
@@ -185,7 +185,7 @@ func TestWriteFileAtomicRemovesTempOnRenameFailure(t *testing.T) {
 
 func TestWriteAtomicStreamsReader(t *testing.T) {
 	root := t.TempDir()
-	ffs := NewLocalFS(root)
+	ffs := newTestFS(t, root)
 
 	const name = "source.txt"
 	const content = "line one\nline two\n"
@@ -209,7 +209,7 @@ func TestWriteAtomicStreamsReader(t *testing.T) {
 
 func TestWriteAtomicLeavesDestinationIntactWhenReaderFails(t *testing.T) {
 	root := t.TempDir()
-	ffs := NewLocalFS(root)
+	ffs := newTestFS(t, root)
 
 	const name = "source.txt"
 	if err := ffs.WriteFile(name, []byte("original")); err != nil {
@@ -235,7 +235,7 @@ func TestWriteAtomicLeavesDestinationIntactWhenReaderFails(t *testing.T) {
 
 func TestWriteAtomicRemovesTempWhenOpenWriterFails(t *testing.T) {
 	root := t.TempDir()
-	faulty := &faultFS{FS: NewLocalFS(root), failOpenWriter: true}
+	faulty := &faultFS{FS: newTestFS(t, root), failOpenWriter: true}
 
 	if err := WriteAtomic(faulty, "source.txt", strings.NewReader("payload")); !errors.Is(err, errInjected) {
 		t.Fatalf("WriteAtomic error = %v, want %v", err, errInjected)
@@ -249,7 +249,7 @@ func TestWriteAtomicRemovesTempWhenOpenWriterFails(t *testing.T) {
 // With a fixed "<name>.tmp" they would overwrite each other's staged data.
 func TestWriteFileAtomicConcurrentWritersUseDistinctTempFiles(t *testing.T) {
 	root := t.TempDir()
-	faulty := &faultFS{FS: NewLocalFS(root)}
+	faulty := &faultFS{FS: newTestFS(t, root)}
 
 	const name = "book.json"
 	const writers = 16

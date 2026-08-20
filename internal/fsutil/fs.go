@@ -3,11 +3,21 @@ package fsutil
 import (
 	"io"
 	"io/fs"
+
+	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// FS is a common interface for file system operations.
-// It abstracts over different file system implementations, such as local file systems.
-type FS interface {
+// ErrReadOnly is returned when a write is requested through a handle that only
+// carries read access. See Writable.
+var ErrReadOnly = util.NewError("filesystem is read-only")
+
+// ReadFS is the read-only half of FS.
+//
+// It exists so that "this handle is only ever read from" can be a property of
+// the type rather than a naming convention: a value stored as a ReadFS cannot
+// be written through without narrowing it back with Writable, which makes the
+// compiler enumerate every mutation path.
+type ReadFS interface {
 	// Open opens a file for reading.
 	// User should call Close() on the returned file when done.
 	Open(name string) (fs.File, error)
@@ -17,6 +27,12 @@ type FS interface {
 
 	// Stat returns the FileInfo structure describing the specified file or directory.
 	Stat(name string) (fs.FileInfo, error)
+}
+
+// FS is a common interface for file system operations.
+// It abstracts over different file system implementations, such as local file systems.
+type FS interface {
+	ReadFS
 
 	// OpenWriter opens a file for writing.
 	// If the file does not exist, it will be created.
@@ -43,4 +59,18 @@ type FS interface {
 
 	// RemoveAll removes the specified file or directory and any children it contains.
 	RemoveAll(name string) error
+}
+
+// Writable narrows a read handle back to a writable one, reporting ErrReadOnly
+// when the underlying implementation offers reads only.
+//
+// This is the single door between the two interfaces: a caller that holds a
+// ReadFS asks for write access here, once, and gets an error it can return
+// instead of a panic when the shelf behind it cannot be written.
+func Writable(rfs ReadFS) (FS, error) {
+	fsys, ok := rfs.(FS)
+	if !ok {
+		return nil, util.Errorf("%w", ErrReadOnly)
+	}
+	return fsys, nil
 }

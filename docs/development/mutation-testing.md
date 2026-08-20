@@ -74,7 +74,7 @@ mutation to the source, run the tests, and revert.
 ## Pilot results
 
 Measured on `frontend/src/features/reader/utils/` (seven files, Node 22,
-`concurrency: 2`, `coverageAnalysis: perTest`, 754 mutants, ~3 minutes per run).
+`concurrency: 2`, `coverageAnalysis: perTest`, 753 mutants, ~3 minutes per run).
 "Before" is the state the pilot found; "after" is the current run.
 
 | File | Line coverage before → after | Mutation score before → after |
@@ -85,8 +85,8 @@ Measured on `frontend/src/features/reader/utils/` (seven files, Node 22,
 | `mobileReaderGestures.ts` | 90.47% → 100% | 73.68% → 98.68% |
 | `parseReaderBlocks.ts` | 0% → 100% | 0.00% → 84.21% |
 | `renderMarkdownBlocks.ts` | 94.59% → 98.64% | 47.87% → 84.04% |
-| `sanitizeReaderHtml.ts` | 100% → 100% | 52.90% → 92.03% |
-| **All files** | **85.17% → 99.18%** | **55.17% → 89.79%** |
+| `sanitizeReaderHtml.ts` | 100% → 100% | 52.90% → 92.70% |
+| **All files** | **85.17% → 99.18%** | **55.17% → 89.91%** |
 
 The two columns disagree most where it matters most: `sanitizeReaderHtml.ts` had
 every line covered and barely half its behavior verified.
@@ -94,14 +94,19 @@ every line covered and barely half its behavior verified.
 The pilot added 61 tests and changed no implementation code. 225 mutants moved
 from surviving to killed, and 217 remained.
 
-**One row did not move for that reason.** `markdownLineSyntax.ts` is the pilot's
-`parseMarkdownBlocks.ts` after the dead block model it also held was deleted
-(see its disposition below). Nothing about the surviving code is better verified
-than it was: the same three mutants survive it now as then. Its score rose, and
-carried the totals and the whole-suite mutant count (986 → 754) with it, because
-code no consumer reached left the denominator. Read that row as a smaller module,
-not a stronger one — the 140 undisposed-of mutants it used to contribute are gone
-along with the module, leaving 77 dispositioned below.
+Later work has moved those numbers twice, and only one of the two is an
+improvement. Removing the unreachable `'span'` entry from `ALLOWED_ATTR` took its
+mutant away with the line, which is one fewer survivor in code that is still
+there.
+
+**The other is not an improvement at all.** `markdownLineSyntax.ts` is the
+pilot's `parseMarkdownBlocks.ts` after the dead block model it also held was
+deleted (see its disposition below). Nothing about the surviving code is better
+verified than it was: the same three mutants survive it now as then. Its score
+rose, and carried the totals and the whole-suite mutant count (985 → 753) with
+it, because code no consumer reached left the denominator. Read that row as a
+smaller module, not a stronger one — the 140 undisposed-of mutants it used to
+contribute are gone along with the module, leaving 76 dispositioned below.
 
 ## Standing dispositions
 
@@ -116,16 +121,15 @@ suite's job, `T` = tool artifact. Line numbers refer to the implementation file.
 | 20 | 2 | E | `quoteLines.length > 0` cannot be false. The chunk reached this line through `.filter(Boolean)` after `.trim()`, so it holds at least one non-empty line. |
 | 31 | 1 | E | Dropping `^` from `/^>\s?/` changes nothing: the replace is non-global, so it rewrites the first match, and every line here starts with `>`. |
 
-### `sanitizeReaderHtml.ts` — 11
+### `sanitizeReaderHtml.ts` — 10
 
 | Lines | # | | Reasoning |
 |---|---:|---|---|
 | 43 | 1 | E | Emptying `'tbody'` in `ALLOWED_TAGS` leaves a full table byte-identical after sanitization (verified by hand). |
-| 57 | 1 | N | `span` is a `<col>`/`<colgroup>` attribute and neither tag is allowed, so no reading markup can carry it. Candidate for removal from `ALLOWED_ATTR`. |
-| 86–88 | 3 | E | `colon < 0` is subsumed by the property-name comparison beside it, and trimming the value duplicates what CSSOM does when the value is assigned. |
-| 108 | 1 | E | `/\s+/` → `/\s/` only introduces empty strings into the split, and the empty string is not a reader class. |
-| 120 | 1 | N | `ALLOW_UNKNOWN_PROTOCOLS: false` has no reachable effect while no URL-bearing attribute is allowed. Kept as defense in depth for a future `ALLOWED_ATTR` change. |
-| 124–126, 129 | 4 | E | `style` and `template` content is dropped by the tag rules regardless. `noscript` and `embed` content is never parsed as a child of those elements, so `FORBID_CONTENTS` cannot act on it — it leaks with or without the entry (verified by hand). |
+| 85–87 | 3 | E | `colon < 0` is subsumed by the property-name comparison beside it, and trimming the value duplicates what CSSOM does when the value is assigned. |
+| 107 | 1 | E | `/\s+/` → `/\s/` only introduces empty strings into the split, and the empty string is not a reader class. |
+| 119 | 1 | N | `ALLOW_UNKNOWN_PROTOCOLS: false` has no reachable effect while no URL-bearing attribute is allowed. Kept as defense in depth for a future `ALLOWED_ATTR` change. |
+| 123–125, 128 | 4 | E | `style` and `template` content is dropped by the tag rules regardless. `noscript` and `embed` content is never parsed as a child of those elements, so `FORBID_CONTENTS` cannot act on it — it leaks with or without the entry (verified by hand). |
 
 ### `mobileReaderGestures.ts` — 1
 
@@ -187,13 +191,13 @@ of it.
 
 ### Totals
 
-Of the current run's 754 mutants, 676 are killed and one times out. The remaining
-77 are the dispositions above:
+Of the current run's 753 mutants, 676 are killed and one times out. The remaining
+76 are the dispositions above:
 
 | | Count |
 |---|---:|
 | Equivalent mutant | 53 |
-| Not the unit suite's job | 22 |
+| Not the unit suite's job | 21 |
 | Tool artifact | 2 |
 
 The pilot's tally of 225 newly killed mutants stays as recorded above: it is a
