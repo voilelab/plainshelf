@@ -105,7 +105,7 @@ func etagMatchesIfNoneMatch(header, etag string) bool {
 	}
 
 	want := opaqueETag(etag)
-	for _, candidate := range strings.Split(header, ",") {
+	for candidate := range strings.SplitSeq(header, ",") {
 		if opaqueETag(candidate) == want {
 			return true
 		}
