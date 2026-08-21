@@ -226,6 +226,24 @@ type FingerprintCacheStats struct {
 	Repaired int
 }
 
+// FingerprintCoverage is how much of the shelf the fingerprint cache can already
+// answer for, as the maintenance UI reports it before offering to build the
+// rest. It is a pure read of the cache file and the in-memory book list; see
+// Shelf.FingerprintStatus.
+type FingerprintCoverage struct {
+	// Total is how many books the shelf holds, Fingerprinted how many have a
+	// fingerprint on record for their current source, and Missing the
+	// difference - the books the next build would still have to read.
+	Total         int `json:"total"`
+	Fingerprinted int `json:"fingerprinted"`
+	Missing       int `json:"missing"`
+
+	// Algo is the ruleset the count was taken under, so a caller can tell "no
+	// book is fingerprinted" from "the cache was built with other rules and
+	// discarded": both leave Fingerprinted at zero, but only the algo says why.
+	Algo FingerprintAlgo `json:"algo"`
+}
+
 // FingerprintBuilder computes the fingerprint of one source. The cache calls it
 // only when neither level of key could answer, and hands it the content it has
 // already read so the builder does not read the file a second time.
@@ -286,6 +304,38 @@ func (s *Shelf) OpenFingerprintCache(algo FingerprintAlgo) (*FingerprintCache, e
 	}
 
 	return cache, nil
+}
+
+// FingerprintStatus reports how many books already have a fingerprint for their
+// current source under algo, reading only app/fingerprint-cache.json and the
+// books the shelf holds in memory - never a source.txt. A book counts as
+// fingerprinted when the cache holds an index record for its current source and
+// the entry that record names; a cache built under different rules answers for
+// none, which is what tells the UI a rebuild is due.
+func (s *Shelf) FingerprintStatus(algo FingerprintAlgo) (FingerprintCoverage, error) {
+	cache, err := s.OpenFingerprintCache(algo)
+	if err != nil {
+		return FingerprintCoverage{}, util.Errorf("%w", err)
+	}
+
+	books, err := s.ListBooks()
+	if err != nil {
+		return FingerprintCoverage{}, util.Errorf("%w", err)
+	}
+
+	fingerprinted := 0
+	for _, book := range books {
+		if _, ok := cache.Lookup(book.ID(), book.CurrentSource()); ok {
+			fingerprinted++
+		}
+	}
+
+	return FingerprintCoverage{
+		Total:         len(books),
+		Fingerprinted: fingerprinted,
+		Missing:       len(books) - fingerprinted,
+		Algo:          algo,
+	}, nil
 }
 
 // Stats reports what the run so far cost.
@@ -396,6 +446,34 @@ func (c *FingerprintCache) lookupByContent(md5Hash string) (FingerprintEntry, bo
 		c.stats.ContentHits++
 	}
 	return entry, ok
+}
+
+// Lookup returns the fingerprint on record for a source without opening any
+// file: it reads only the index and entries already loaded into memory, and ok
+// is false unless an index record names the source and the entry that record
+// names is present. It is the read side of the cache, for the status count and
+// the similarity sweep that report what the cache knows rather than recompute
+// it.
+//
+// Unlike lookupByStat it does not compare a stat, and unlike Resolve it never
+// falls back to reading the file. Confirming the record still describes the
+// current bytes would cost the very Stat the caller is here to avoid; keeping
+// the record fresh is the incremental fingerprint task's job, and a source
+// changed since it last ran simply reads stale until the next build. Lookups do
+// not touch the run's Stats: nothing was resolved.
+func (c *FingerprintCache) Lookup(bookID, sourceID string) (FingerprintEntry, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	indexed, ok := c.index[fingerprintIndexKey(bookID, sourceID)]
+	if !ok {
+		return FingerprintEntry{}, false
+	}
+	entry, ok := c.entries[indexed.MD5]
+	if !ok {
+		return FingerprintEntry{}, false
+	}
+	return entry, true
 }
 
 // record stores what the run just learned. The entry is stored under its

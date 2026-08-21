@@ -186,6 +186,70 @@ export async function getDuplicateBookGroups(): Promise<string[][]> {
   return await fetchJson<string[][]>(buildShelfApiPath('/books/duplicate'));
 }
 
+/** How two sources are alike, as classified by the server so every client
+ *  reads the same vocabulary. `subset` is one book edited down from the other;
+ *  `identical_after_normalize` matches after layout is stripped. */
+export type SimilarRelation =
+  | 'identical_after_normalize'
+  | 'subset'
+  | 'near_identical'
+  | 'same_source';
+
+/** One similar-but-not-identical pair. `a` and `b` are book IDs in a stable
+ *  order, and `containment_a` is how much of `a` lies inside `b`. */
+export interface SimilarBookPair {
+  a: string;
+  b: string;
+  jaccard: number;
+  containment_a: number;
+  containment_b: number;
+  norm_chars_a: number;
+  norm_chars_b: number;
+  relation: SimilarRelation;
+}
+
+/** Coverage of the fingerprint cache, for the status bar that offers to build
+ *  what is missing. `algo` names the ruleset the count was taken under. */
+export interface FingerprintStatus {
+  total: number;
+  fingerprinted: number;
+  missing: number;
+  algo: {
+    normalize: string;
+    shingle: string;
+    hash: string;
+    k: number;
+  };
+}
+
+/**
+ * Similar book pairs scored by the server in a single pass. `floor` is the
+ * lowest Jaccard the server returns; the page filters upward from there in
+ * memory rather than re-requesting, so this is called once per visit with the
+ * widest floor the UI offers.
+ */
+export async function getSimilarBookPairs(floor?: number): Promise<SimilarBookPair[]> {
+  if (isMockApiMode()) {
+    return delay([]);
+  }
+
+  const query = floor === undefined ? '' : `?floor=${encodeURIComponent(floor)}`;
+  return await fetchJson<SimilarBookPair[]>(buildShelfApiPath(`/books/similar${query}`));
+}
+
+/**
+ * How many books already have a fingerprint on record. A pure cache read on the
+ * server: it never opens a source file, so it is cheap enough to call on every
+ * visit to the similarity page.
+ */
+export async function getFingerprintStatus(): Promise<FingerprintStatus> {
+  if (isMockApiMode()) {
+    return delay({ total: 0, fingerprinted: 0, missing: 0, algo: { normalize: '', shingle: '', hash: '', k: 0 } });
+  }
+
+  return await fetchJson<FingerprintStatus>(buildShelfApiPath('/fingerprints/status'));
+}
+
 export async function updateBook(id: string, payload: BookUpdateRequest): Promise<Book> {
   if (isMockApiMode()) {
     return delay(mockUpdateBook(id, payload));

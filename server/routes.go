@@ -24,6 +24,7 @@ type apiHandlers struct {
 	layers  *layerHandlers
 	trash   *trashHandlers
 	batches *batchHandlers
+	fps     *fingerprintHandlers
 	taskAPI *taskHandlers
 	setting *settingHandlers
 	logs    *logHandlers
@@ -56,6 +57,7 @@ func newAPIHandlers(
 		layers:  &layerHandlers{apiCore: core},
 		trash:   &trashHandlers{taskSubmitter: tasks},
 		batches: &batchHandlers{taskSubmitter: tasks},
+		fps:     &fingerprintHandlers{apiCore: core},
 		taskAPI: &taskHandlers{taskSubmitter: tasks},
 		setting: &settingHandlers{apiCore: core, settings: settingsSvc},
 		logs:    &logHandlers{apiCore: core, conf: conf},
@@ -86,10 +88,12 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/book-batches", h.batches.bookBatch)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/content-stat-refreshes", h.batches.refreshContentStats)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/source-fingerprints", h.batches.fingerprintSources)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/fingerprints/status", h.fps.getFingerprintStatus)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/book-cache-exports", h.shelves.exportBookCache)
 
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/import", h.imports.importBook)
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/duplicate", h.books.findDuplicateBooks)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/similar", h.fps.findSimilarBooks)
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}", h.books.getBook)
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}", h.books.updateBook)
