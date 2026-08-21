@@ -6,7 +6,7 @@
           v-if="markdownBlocks.length > 0"
           :key="windowKey"
           :items="markdownBlocks"
-          :estimate="estimateMarkdownHeight"
+          :estimate="estimateMarkdownBlockHeight"
         >
           <template #default="{ item }">
             <ReaderSafeHtml
@@ -25,7 +25,7 @@
           v-if="sectionBlocks.length > 0"
           :key="windowKey"
           :items="sectionBlocks"
-          :estimate="estimateTextHeight"
+          :estimate="estimateTextBlockHeight"
         >
           <template #default="{ item }">
             <component
@@ -45,8 +45,12 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import ReaderSafeHtml from '@/features/reader/components/ReaderSafeHtml.vue';
 import ReaderBlockWindow from '@/features/reader/components/ReaderBlockWindow.vue';
-import { renderMarkdownBlocks, type ReaderMarkdownBlock } from '@/utils/renderMarkdownBlocks';
-import { parseReaderBlocks, type ReaderTextBlock } from '@/features/reader/utils/parseReaderBlocks';
+import { renderMarkdownBlocks } from '@/utils/renderMarkdownBlocks';
+import { parseReaderBlocks } from '@/features/reader/utils/parseReaderBlocks';
+import {
+  estimateMarkdownBlockHeight,
+  estimateTextBlockHeight
+} from '@/features/reader/utils/estimateBlockHeight';
 import type { ReaderSection } from '@/types/book';
 
 const props = defineProps<{
@@ -68,22 +72,6 @@ const markdownBlocks = computed(() => renderMarkdownBlocks(props.section?.text ?
 // Remount the window when the shown source or section changes so its observer
 // and placeholder heights start clean for the new block list.
 const windowKey = computed(() => `${props.bookId}::${props.sourceId}::${props.section?.index ?? 0}`);
-
-// Placeholder heights for off-screen blocks. They only need to be in the right
-// ballpark: a block is measured for real once it mounts, and the estimate keeps
-// the scroll height stable enough that a restored offset lands close.
-function charsToHeight(chars: number): number {
-  const lines = Math.max(1, Math.ceil(chars / 40));
-  return lines * 38 + 18;
-}
-
-function estimateMarkdownHeight(block: ReaderMarkdownBlock): number {
-  return charsToHeight(block.html.replace(/<[^>]+>/g, '').length);
-}
-
-function estimateTextHeight(block: ReaderTextBlock): number {
-  return charsToHeight(block.text.length);
-}
 
 onMounted(() => emit('ready', contentRef.value));
 onBeforeUnmount(() => emit('ready', null));
