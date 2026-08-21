@@ -149,19 +149,27 @@ func (s *Shelf) scheduleBookCacheExportIfNeeded() {
 	s.bookCache.exporting = true
 	s.bookCache.Unlock()
 
-	go func() {
-		defer func() {
-			s.bookCache.Lock()
-			s.bookCache.exporting = false
-			s.bookCache.Unlock()
-		}()
+	done := func() {
+		s.bookCache.Lock()
+		s.bookCache.exporting = false
+		s.bookCache.Unlock()
+	}
+
+	started := s.goBackground(func() {
+		defer done()
 
 		if err := s.exportBookCache(false); err != nil {
 			// A cache the mobile client can fall back from is not worth failing
 			// the read that happened to trigger it.
 			s.Warn("failed to export the book cache", "error", err)
 		}
-	}()
+	})
+
+	// Same as the book check: the claim has to be released when nothing took it.
+	// Close exports once more itself, so nothing is lost by skipping this one.
+	if !started {
+		done()
+	}
 }
 
 // ExportBookCache rescans the shelf and writes the exported cache immediately,
