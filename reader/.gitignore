@@ -1,6 +1,12 @@
 # wails
 /frontend/
 
-/build
-/build
-/build/
+# Wails build output, except the committed macOS packaging assets: the app
+# icon and the Info.plist templates that pin the reader's own bundle identifier
+# (com.voilelab.plainshelf-reader), which the Homebrew cask relies on.
+/build/*
+!/build/appicon.png
+!/build/darwin
+/build/darwin/*
+!/build/darwin/Info.plist
+!/build/darwin/Info.dev.plist
