@@ -1,4 +1,5 @@
 import {
+  copyBook,
   deleteBook,
   deleteBookCover,
   deleteTrashedBook,
@@ -81,6 +82,10 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
 
   updateBookLayer(bookId: string, layer: string): Promise<void> {
     return updateBookLayer(bookId, layer);
+  }
+
+  copyBook(bookId: string, layer: string): Promise<Book> {
+    return copyBook(bookId, layer);
   }
 
   deleteBook(bookId: string): Promise<void> {

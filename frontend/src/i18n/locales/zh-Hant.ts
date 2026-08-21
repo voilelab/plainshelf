@@ -423,6 +423,7 @@ const zhHant = {
       updateStats: '更新內容統計',
       updatingStats: '更新統計中...',
       openFolder: '開啟資料夾',
+      copyTo: '複製到…',
       moveTo: '移動到…',
       moveToTrash: '移至垃圾桶',
       movingToTrash: '移動中...',
@@ -430,7 +431,8 @@ const zhHant = {
     },
     messages: {
       imported: '書籍匯入成功。',
-      saved: '書籍資料已儲存。'
+      saved: '書籍資料已儲存。',
+      copied: '書籍已複製。'
     },
     errors: {
       restartReading: '無法重新開始閱讀。',
@@ -439,10 +441,16 @@ const zhHant = {
       deleteFailed: '刪除書籍失敗',
       downloadFailed: '下載書籍失敗',
       openFolderFailed: '開啟書籍資料夾失敗',
-      moveFailed: '移動書籍失敗'
+      moveFailed: '移動書籍失敗',
+      copyFailed: '複製書籍失敗'
     },
     move: {
       title: '移動書籍'
+    },
+    copy: {
+      title: '複製書籍',
+      confirm: '複製',
+      copying: '複製中...'
     },
     delete: {
       description: '書籍將移至垃圾桶，之後仍可復原。'

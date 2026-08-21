@@ -425,6 +425,7 @@ const en = {
       updateStats: 'Update content stats',
       updatingStats: 'Updating stats...',
       openFolder: 'Open folder',
+      copyTo: 'Copy to…',
       moveTo: 'Move to…',
       moveToTrash: 'Move to Trash',
       movingToTrash: 'Moving...',
@@ -432,7 +433,8 @@ const en = {
     },
     messages: {
       imported: 'Book imported successfully.',
-      saved: 'Book details saved.'
+      saved: 'Book details saved.',
+      copied: 'Book copied.'
     },
     errors: {
       restartReading: 'Failed to restart the book.',
@@ -441,10 +443,16 @@ const en = {
       deleteFailed: 'Failed to delete book',
       downloadFailed: 'Failed to download book',
       openFolderFailed: 'Failed to open book folder',
-      moveFailed: 'Failed to move book'
+      moveFailed: 'Failed to move book',
+      copyFailed: 'Failed to copy book'
     },
     move: {
       title: 'Move book'
+    },
+    copy: {
+      title: 'Copy book',
+      confirm: 'Copy',
+      copying: 'Copying...'
     },
     delete: {
       description: 'The book will be moved to Trash. You can restore it later.'

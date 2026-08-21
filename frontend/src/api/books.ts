@@ -22,6 +22,7 @@ import {
   mockEmptyTrash,
   mockGetBook,
   mockGetBookContent,
+  mockCopyBook,
   mockGetBookCover,
   mockImportBook,
   mockListBooks,
@@ -304,6 +305,35 @@ export async function updateBookLayer(bookId: string, layer: string): Promise<vo
       layer: normalized
     })
   });
+}
+
+/**
+ * Duplicates a book into `layer` and returns the copy, which the server gives a
+ * fresh id so it coexists with the original. Copying into the book's own layer
+ * is allowed - it is how "duplicate here" works - so unlike updateBookLayer this
+ * never treats the current layer as a no-op. An empty `layer` lands the copy at
+ * the shelf root.
+ */
+export async function copyBook(bookId: string, layer: string): Promise<Book> {
+  const normalized = layer
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+
+  if (isMockApiMode()) {
+    return delay(mockCopyBook(bookId, layer));
+  }
+
+  const b = await fetchJson<BackendBook>(buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/copies`), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      layer: normalized
+    })
+  });
+  return transformBook(b);
 }
 
 export async function getBookContent(id: string): Promise<BookContent> {
