@@ -29,13 +29,12 @@ type bookIDCacheEntry struct {
 	// charCountAt is when the read behind charCount began, and is what orders
 	// two observations of the same book against each other.
 	//
-	// It is needed because a character count is written without touching
-	// book.json: a walk that read a source before it was rewritten and the
-	// refresh that followed the write are then two views of the same book that
-	// can be published in either order, and nothing else in the entry can tell
-	// which one is older. Publishing the older one would stick, because the
-	// book.json stat check cannot see a count change. So a count is only ever
-	// replaced by one observed later; see keepNewerCharCount.
+	// A character count is written without touching book.json, so a walk that
+	// read a source before it was rewritten and the refresh that followed the
+	// write are two views of the same book, publishable in either order, and
+	// nothing else in the entry tells which is older. Publishing the older would
+	// stick, because the book.json stat check cannot see a count change. So a
+	// count is only ever replaced by one observed later; see keepNewerCharCount.
 	charCountAt time.Time
 }
 
@@ -258,12 +257,12 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 
 // scheduleBookCacheRefreshIfNeeded triggers a refresh based on the current cache state.
 //
-// Full scans (when the tree is dirty or the scan interval has elapsed) run synchronously so
-// that callers immediately see structural changes such as moved or renamed layers.
+// Full scans (tree dirty or scan interval elapsed) run synchronously so callers
+// immediately see structural changes such as moved or renamed layers.
 //
-// Per-book staleness checks (within the scan interval) run in a background goroutine so
-// that list operations are never blocked by N filesystem stat calls — the main performance
-// concern on SMB mounts. The check is rate-limited by bookCheckInterval.
+// Per-book staleness checks (within the scan interval) run in a background
+// goroutine so list operations are never blocked by N filesystem stat calls —
+// the main performance concern on SMB mounts, rate-limited by bookCheckInterval.
 func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
 	// Deferred so it runs on every return path below: whichever tier of refresh
 	// this call decides on, the exported cache is offered the result.
@@ -466,14 +465,14 @@ func (s *Shelf) updateBookCacheEntry(layers Layers, path string, book *Book) {
 // its cache entry.
 //
 // Everything else in an entry is kept current by the book.json stat check in
-// Book.IsStale, but a character count is stored in the source's own meta.json
-// and writing it leaves book.json untouched. Such a change is therefore
-// invisible to that check, and the entry would keep answering with the previous
-// count until the next full scan. Every request path that rewrites a source's
-// content or moves the current-source pointer calls this instead.
+// Book.IsStale, but a character count lives in the source's own meta.json and
+// writing it leaves book.json untouched. That change is invisible to the check,
+// so the entry would answer with the previous count until the next full scan.
+// Every request path that rewrites a source's content or moves the
+// current-source pointer calls this instead.
 //
-// A book that is not in the cache is a no-op: the entry built for it later
-// reads the count from disk anyway.
+// A book not in the cache is a no-op: the entry built for it later reads the
+// count from disk anyway.
 func (s *Shelf) RefreshBookCharCount(bookID string) {
 	s.bookCache.RLock()
 	cacheEntry := s.bookCache.cache[bookID]

@@ -230,20 +230,14 @@ func (r *Source) refreshContentMetadata() error {
 }
 
 // repairContentHash rewrites meta.json's md5_hash when it disagrees with the
-// hash of the content, reporting whether it wrote anything.
+// content hash, reporting whether it wrote anything. A source edited outside
+// PlainShelf carries a confidently wrong hash (nothing revalidates it after
+// import); only a caller that just read the whole file knows the true value.
 //
-// md5_hash is written when a source is imported and validated by nothing
-// afterwards, so a source edited outside PlainShelf carries a hash that is
-// confidently wrong. Only a caller that has just read the whole file knows the
-// true value, and this is how it hands it back.
-//
-// Deliberately narrow in two ways. line_count and char_count are stale in
-// exactly the same situation, but they are read by the UI and repairing them
-// here would change what a listing shows as a side effect of a background task.
-// And a source with no md5_hash at all - a legacy import - is left alone: a
-// missing hash is honest where a wrong one is a lie, and filling them in would
-// rewrite every legacy meta.json in the shelf the first time a fingerprint run
-// touched it, which is the whole-library rewrite
+// Deliberately narrow: line_count and char_count are stale in the same case
+// but are UI-visible, so a background task must not change them as a side
+// effect; and a source with no md5_hash (a legacy import) is left alone, since
+// filling it in would trigger the whole-library rewrite
 // docs/concepts/data-format-versioning.md exists to avoid.
 func (r *Source) repairContentHash(md5Hash string) (bool, error) {
 	if md5Hash == "" || r.meta.MD5Hash == "" || r.meta.MD5Hash == md5Hash {

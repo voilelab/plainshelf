@@ -310,11 +310,10 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 	s.Debug("initializing shelf cache in background", "lib_root", conf.LibRoot, "read_only", conf.ReadOnly, "scan_interval", scanInterval, "book_check_interval", bookCheckInterval, "lock_timeout", lockTimeout)
 	// Tracked like every other background write: initCache goes on writing the
 	// scan cache and the exported book cache after readyCh is closed, so a Close
-	// that did not wait for it would release the shelf lock with a walk still
-	// running - which is also what turns those writes into "file already closed"
-	// noise today. The cost is that closing a shelf mid-scan now waits for that
-	// first walk to finish rather than having the filesystem pulled out from
-	// under it.
+	// that did not wait would release the shelf lock with a walk still running -
+	// which is also what turns those writes into "file already closed" noise
+	// today. The cost is that closing mid-scan now waits for that first walk to
+	// finish rather than having the filesystem pulled out from under it.
 	s.goBackground(func() {
 		if err := s.initCache(); err != nil {
 			s.Error("failed to initialize shelf cache", "error", err)
@@ -488,16 +487,16 @@ func validateBookCacheWriterID(writerID string) error {
 // goBackground runs fn in a goroutine that Close waits for, and reports whether
 // it started one.
 //
-// A read schedules work that outlives the call it came from - the per-book
-// staleness check and the exported book cache - and both of those write under
-// app/, the check by taking the shelf lock, which creates app/library.lock when
-// it is missing. Left untracked, such a goroutine writes into a shelf whose
-// owner has already closed it and released that lock: it can put a file back
-// into a directory the caller is deleting, and on a shared shelf it writes
-// without holding the lock that keeps concurrent instances apart.
+// A read schedules work that outlives its call - the per-book staleness check
+// and the exported book cache - and both write under app/, the check by taking
+// the shelf lock, which creates app/library.lock when missing. Left untracked,
+// such a goroutine writes into a shelf whose owner has already closed it and
+// released that lock: it can put a file back into a directory the caller is
+// deleting, and on a shared shelf it writes without the lock that keeps
+// concurrent instances apart.
 //
-// A shelf that is closing starts nothing new, which is also what keeps the
-// counter from being raised while Close waits on it.
+// A closing shelf starts nothing new, which also keeps the counter from being
+// raised while Close waits on it.
 func (s *Shelf) goBackground(fn func()) bool {
 	s.backgroundMu.Lock()
 	defer s.backgroundMu.Unlock()
@@ -532,16 +531,16 @@ func (s *Shelf) Close() error {
 
 	errs := []error{}
 
-	// Flush before the lock goes away: this is the one write that is guaranteed
-	// to happen, and it is what keeps the exported cache useful for a desktop
-	// app that is opened, used and closed inside a single interval.
+	// Flush before the lock goes away: this is the one write guaranteed to
+	// happen, and it keeps the exported cache useful for a desktop app opened,
+	// used and closed inside a single interval.
 	//
 	// Offered unconditionally, because the only trustworthy answer to "did
 	// anything change" is to compare the content — a book edited in place
 	// through *Book leaves no other trace here. exportBookCache does that
-	// comparison and writes nothing when the shelf is unchanged, and it reads
-	// the in-memory cache rather than the disk, so a quiet shutdown costs
-	// nothing beyond hashing what is already in memory.
+	// comparison, writes nothing when the shelf is unchanged, and reads the
+	// in-memory cache rather than disk, so a quiet shutdown costs nothing beyond
+	// hashing what is already in memory.
 	if s.bookCacheWriterID != "" {
 		if err := s.exportBookCache(false); err != nil {
 			// Shutdown must not fail over a rebuildable file.
