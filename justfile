@@ -17,10 +17,11 @@ default:
 build-server-frontend:
 	npm --prefix {{srv_frontend_dir}} run build
 
-# Run tests: run Go tests for server and desktop.
+# Run tests: run Go tests for server, desktop and reader.
 test-go: build-server-frontend
 	go test ./...
 	cd desktop && go test ./...
+	cd reader && go test ./...
 
 # Run e2e tests: build frontend and run e2e tests.
 test-e2e: build-server-frontend
@@ -44,6 +45,28 @@ build-desktop: build-server-frontend
 # Run desktop app
 run-desktop: build-server-frontend
 	cd desktop && go mod tidy && go tool wails dev
+
+# Build reader app (standalone .bookpkg reader)
+build-reader: build-server-frontend
+	cd reader && go mod tidy && go tool wails build -ldflags "-X {{version_pkg}}.Version={{version}}"
+	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString {{native_version}}" reader/build/bin/PlainShelfReader.app/Contents/Info.plist
+	/usr/libexec/PlistBuddy -c "Set :CFBundleVersion {{native_version}}" reader/build/bin/PlainShelfReader.app/Contents/Info.plist
+	plutil -lint reader/build/bin/PlainShelfReader.app/Contents/Info.plist
+	test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' reader/build/bin/PlainShelfReader.app/Contents/Info.plist)" = "{{native_version}}"
+	test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' reader/build/bin/PlainShelfReader.app/Contents/Info.plist)" = "{{native_version}}"
+
+# Run reader app in dev mode. Opens a book straight away when given one:
+# `just run-reader path/to/book.bookpkg`; otherwise the app asks for a folder.
+run-reader book="": build-server-frontend
+	#!/usr/bin/env zsh
+	set -eu
+	cd reader
+	go mod tidy
+	if [[ -n "{{book}}" ]]; then
+		go tool wails dev -appargs "-book {{book}}"
+	else
+		go tool wails dev
+	fi
 
 # Add the Android platform (one-time; requires Android SDK + JDK 21)
 mobile-add-android: build-server-frontend
