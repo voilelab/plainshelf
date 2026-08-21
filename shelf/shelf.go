@@ -338,7 +338,6 @@ func (s *Shelf) makeStructure() error {
 		return util.Errorf("%w", err)
 	}
 
-	// create the directory structure for the library
 	err = root.MkdirAll(booksFolder)
 	if err != nil {
 		return util.Errorf("%w", err)

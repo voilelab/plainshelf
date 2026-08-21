@@ -57,7 +57,6 @@ func (s *Shelf) ListBooksWithCharCount() ([]BookListing, error) {
 	return s.listBookListingsFromCache(), nil
 }
 
-// GetBook returns the details of a specific book by its ID.
 func (s *Shelf) GetBook(bookID string) (*Book, error) {
 	if !s.IsReady() {
 		return nil, util.Errorf("%w", ErrShelfInitializing)
@@ -203,7 +202,6 @@ func (s *Shelf) DeleteBook(bookID string) error {
 	return s.MoveBookToTrash(bookID)
 }
 
-// GetBooksByLayer returns a list of books that belong to the specified layers.
 func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
 	if err := validateLayers(layers); err != nil {
 		return nil, util.Errorf("%w", err)

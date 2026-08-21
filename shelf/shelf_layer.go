@@ -131,7 +131,6 @@ func (s *Shelf) RenameLayer(oldLayer Layers, newLayer Layers) error {
 	oldLayerPath := path.Join(booksFolder, path.Join(oldLayer...))
 	newLayerPath := path.Join(booksFolder, path.Join(newLayer...))
 
-	// Check if old layer exists
 	if _, err := s.dbRoot.Stat(oldLayerPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return util.Errorf("old layer does not exist")
@@ -139,7 +138,6 @@ func (s *Shelf) RenameLayer(oldLayer Layers, newLayer Layers) error {
 		return util.Errorf("%w", err)
 	}
 
-	// Check if new layer already exists
 	if _, err := s.dbRoot.Stat(newLayerPath); err == nil {
 		return util.Errorf("new layer already exists")
 	} else if !errors.Is(err, os.ErrNotExist) {

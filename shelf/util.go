@@ -223,7 +223,6 @@ func validateBookID(bookID string) error {
 }
 
 func titleToFolderName(title string) string {
-	// Replace spaces with dashes and remove special characters for folder naming
 	folderName := strings.ReplaceAll(title, " ", "-")
 	return slugify.Slugify(folderName) + bookExtension
 }
