@@ -2,7 +2,7 @@ import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useBookStore } from '@/composables/useBookStore';
 import { useLayerStore } from '@/composables/useLayerStore';
-import { bookshelfWriter, getBookshelfProvider } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider, isWebRuntime } from '@/providers';
 import type { Book } from '@/types/book';
 import { getLayerPath, layerPathEquals } from '@/utils/layers';
 import { t } from '@/i18n';
@@ -74,12 +74,25 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
    * The index is the reader's own section index, so it survives a title change.
    */
   function goRead(id: string, sectionIndex?: number): void {
-    if (typeof sectionIndex === 'number' && Number.isFinite(sectionIndex)) {
-      void router.push({ path: `/reader/${id}`, query: { section: String(Math.trunc(sectionIndex)) } });
-      return;
+    const to =
+      typeof sectionIndex === 'number' && Number.isFinite(sectionIndex)
+        ? { path: `/reader/${id}`, query: { section: String(Math.trunc(sectionIndex)) } }
+        : { path: `/reader/${id}` };
+
+    // On a plain web-server build the reader opens in a new tab so the library
+    // or book page it was launched from is not replaced wholesale — closing the
+    // tab returns the reader there. The desktop, mobile and reader shells keep
+    // the in-place SPA navigation. Matches externalLinks.ts's window.open idiom.
+    if (isWebRuntime()) {
+      const opened = window.open(router.resolve(to).href, '_blank', 'noopener,noreferrer');
+      // A blocked pop-up falls back to in-place navigation rather than dropping
+      // the read action entirely.
+      if (opened) {
+        return;
+      }
     }
 
-    void router.push(`/reader/${id}`);
+    void router.push(to);
   }
 
   function openDetail(id: string): void {

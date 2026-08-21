@@ -1,3 +1,6 @@
+/**
+ * @vitest-environment jsdom
+ */
 import { ref } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Book } from '@/types/book';
@@ -5,18 +8,30 @@ import type { Book } from '@/types/book';
 const mocks = vi.hoisted(() => ({
   copyBook: vi.fn(),
   push: vi.fn(),
+  resolve: vi.fn((to: unknown) => ({
+    href:
+      typeof to === 'string'
+        ? to
+        : `${(to as { path: string }).path}${
+            (to as { query?: { section?: string } }).query?.section !== undefined
+              ? `?section=${(to as { query: { section: string } }).query.section}`
+              : ''
+          }`
+  })),
   fetchBooks: vi.fn(),
   fetchLayers: vi.fn(),
+  isWebRuntime: vi.fn(() => false),
   layers: ['', 'fiction', 'notes']
 }));
 
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: mocks.push })
+  useRouter: () => ({ push: mocks.push, resolve: mocks.resolve })
 }));
 
 vi.mock('@/providers', () => ({
   bookshelfWriter: () => mocks,
-  getBookshelfProvider: () => ({})
+  getBookshelfProvider: () => ({}),
+  isWebRuntime: mocks.isWebRuntime
 }));
 
 vi.mock('@/composables/useLayerStore', () => ({
@@ -48,6 +63,59 @@ function book(overrides: Partial<Book> = {}): Book {
     ...overrides
   } as Book;
 }
+
+describe('useBookActions goRead', () => {
+  let openSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.isWebRuntime.mockReturnValue(false);
+    // window.open is unimplemented in jsdom; a spy both silences it and lets us
+    // assert the new-tab call. Default to a truthy handle (pop-up allowed).
+    openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window);
+  });
+
+  it('opens the reader in a new tab on a web build instead of navigating in place', () => {
+    mocks.isWebRuntime.mockReturnValue(true);
+    const actions = useBookActions();
+
+    actions.goRead('book-1');
+
+    expect(openSpy).toHaveBeenCalledWith('/reader/book-1', '_blank', 'noopener,noreferrer');
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it('carries the section index into the new-tab URL on a web build', () => {
+    mocks.isWebRuntime.mockReturnValue(true);
+    const actions = useBookActions();
+
+    actions.goRead('book-1', 3);
+
+    expect(openSpy).toHaveBeenCalledWith('/reader/book-1?section=3', '_blank', 'noopener,noreferrer');
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it('navigates in place via router.push on a non-web build', () => {
+    mocks.isWebRuntime.mockReturnValue(false);
+    const actions = useBookActions();
+
+    actions.goRead('book-1', 3);
+
+    expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1', query: { section: '3' } });
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it('falls back to in-place navigation when the pop-up is blocked on a web build', () => {
+    mocks.isWebRuntime.mockReturnValue(true);
+    openSpy.mockReturnValue(null);
+    const actions = useBookActions();
+
+    actions.goRead('book-1');
+
+    expect(openSpy).toHaveBeenCalled();
+    expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1' });
+  });
+});
 
 describe('useBookActions copy', () => {
   beforeEach(() => {

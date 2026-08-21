@@ -57,3 +57,44 @@ describe('isMobileRuntime / isMobileShellPreview', () => {
     expect(runtime.isMobileRuntime()).toBe(true);
   });
 });
+
+describe('isWebRuntime', () => {
+  beforeEach(() => {
+    isNativePlatform.mockReset();
+  });
+
+  it('is true for a plain web page', async () => {
+    const runtime = await loadRuntime('/books', false);
+
+    expect(runtime.isWebRuntime()).toBe(true);
+  });
+
+  it('is false inside a native mobile shell', async () => {
+    const runtime = await loadRuntime('/books', true);
+
+    expect(runtime.isWebRuntime()).toBe(false);
+  });
+
+  it('is false under the mobile shell preview', async () => {
+    const runtime = await loadRuntime('/books?mobile-shell-preview=1', false);
+
+    expect(runtime.isWebRuntime()).toBe(false);
+  });
+
+  it('is false under the desktop shell preview', async () => {
+    const runtime = await loadRuntime('/books?desktop-shell-preview=1', false);
+
+    expect(runtime.isWebRuntime()).toBe(false);
+  });
+
+  it('is false for the standalone reader app', async () => {
+    const runtime = await loadRuntime('/books', false);
+    (window as { __PLAINSHELF_READER__?: unknown }).__PLAINSHELF_READER__ = {};
+
+    try {
+      expect(runtime.isWebRuntime()).toBe(false);
+    } finally {
+      delete (window as { __PLAINSHELF_READER__?: unknown }).__PLAINSHELF_READER__;
+    }
+  });
+});
