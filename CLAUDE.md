@@ -95,5 +95,3 @@ Read only the rule needed for the task:
   `.claude/rules/90-letter.md`
 
 Project workflows live in `.claude/skills/` (`update-changelog`, `update-docs`).
-`.claude/plans/frontend-refactor-roadmap.md` is a one-off work document, not a
-rule: read it only for the frontend restructure it describes, then delete it.
