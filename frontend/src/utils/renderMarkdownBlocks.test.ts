@@ -1,8 +1,17 @@
 // @vitest-environment jsdom
 
 import { describe, expect, it } from 'vitest';
-import { renderMarkdownBlocks } from './renderMarkdownBlocks';
+import {
+  READER_BLOCK_CHAR_BUDGET,
+  READER_BLOCK_LINE_BUDGET,
+  renderMarkdownBlocks
+} from './renderMarkdownBlocks';
 import { sanitizeHtml } from './safeHtml';
+
+/** A one-line paragraph of the given character length, tagged for lookup. */
+function paragraph(tag: string, length: number): string {
+  return tag + 'x'.repeat(Math.max(0, length - tag.length));
+}
 
 describe('renderMarkdownBlocks', () => {
   it('renders Markdown and raw HTML together', () => {
@@ -241,5 +250,115 @@ describe('renderMarkdownBlocks', () => {
     const [block] = renderMarkdownBlocks('[outside](https://example.com)');
     expect((block as { html: string }).html).toContain('[outside](https://example.com)');
     expect((block as { html: string }).html).not.toContain('<a');
+  });
+});
+
+describe('renderMarkdownBlocks section chunking', () => {
+  const oversized = READER_BLOCK_CHAR_BUDGET + 500;
+
+  it('keeps a small section as a single block', () => {
+    const blocks = renderMarkdownBlocks('One paragraph.\n\nTwo paragraphs.');
+    expect(blocks).toHaveLength(1);
+  });
+
+  it('cuts a large section at paragraph boundaries once the char budget is met', () => {
+    const source = [
+      paragraph('P1_', READER_BLOCK_CHAR_BUDGET),
+      paragraph('P2_', READER_BLOCK_CHAR_BUDGET),
+      paragraph('P3_', READER_BLOCK_CHAR_BUDGET)
+    ].join('\n\n');
+    const blocks = renderMarkdownBlocks(source);
+
+    expect(blocks.length).toBeGreaterThan(1);
+    // Every paragraph lands whole in exactly one block: no tag is split across
+    // blocks, and each block ends at a paragraph boundary (closes its <p>).
+    for (const tag of ['P1_', 'P2_', 'P3_']) {
+      const owners = blocks.filter((block) => block.html.includes(tag));
+      expect(owners).toHaveLength(1);
+    }
+    for (const block of blocks) {
+      expect(block.html.trim().endsWith('</p>')).toBe(true);
+    }
+  });
+
+  it('cuts on the line budget for many short paragraphs', () => {
+    const source = Array.from({ length: READER_BLOCK_LINE_BUDGET * 2 }, (_unused, index) => `L${index}`)
+      .join('\n\n');
+    const blocks = renderMarkdownBlocks(source);
+    expect(blocks.length).toBeGreaterThan(1);
+    // First and last markers survive and stay in order across the split.
+    expect(blocks[0].html).toContain('L0');
+    expect(blocks[blocks.length - 1].html).toContain(`L${READER_BLOCK_LINE_BUDGET * 2 - 1}`);
+  });
+
+  it('normalizes and splits a CRLF section without dropping content', () => {
+    const source = [
+      paragraph('C1_', READER_BLOCK_CHAR_BUDGET),
+      paragraph('C2_', READER_BLOCK_CHAR_BUDGET)
+    ].join('\r\n\r\n');
+    const blocks = renderMarkdownBlocks(source);
+
+    expect(blocks.length).toBeGreaterThan(1);
+    expect(blocks.some((block) => block.html.includes('C1_'))).toBe(true);
+    expect(blocks.some((block) => block.html.includes('C2_'))).toBe(true);
+    for (const block of blocks) {
+      expect(block.html).not.toContain('\r');
+    }
+  });
+
+  it('keeps a single over-budget paragraph whole rather than cutting mid-line', () => {
+    const blocks = renderMarkdownBlocks(paragraph('LONG_', oversized));
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].html).toContain('LONG_');
+  });
+
+  it('never cuts inside an over-budget fenced code block', () => {
+    const code = Array.from({ length: 120 }, (_unused, index) => `line ${index} ${'z'.repeat(40)}`)
+      .join('\n');
+    const source = `intro paragraph\n\n\`\`\`\n${code}\n\`\`\`\n\ntail paragraph`;
+    const blocks = renderMarkdownBlocks(source);
+
+    const fenceBlocks = blocks.filter((block) => block.html.includes('reader-md-code'));
+    // The whole fence renders in exactly one <pre>: not split into two code blocks.
+    expect(fenceBlocks).toHaveLength(1);
+    expect((fenceBlocks[0].html.match(/reader-md-code/g) ?? [])).toHaveLength(1);
+    expect(fenceBlocks[0].html).toContain('line 0 ');
+    expect(fenceBlocks[0].html).toContain('line 119 ');
+  });
+
+  it('never splits an over-budget ordered list into renumbered halves', () => {
+    const items = Array.from(
+      { length: 40 },
+      (_unused, index) => `${index + 1}. item ${index} ${'y'.repeat(60)}`
+    ).join('\n');
+    const source = `${items}\n\ntrailing paragraph`;
+    const blocks = renderMarkdownBlocks(source);
+
+    const listBlocks = blocks.filter((block) => block.html.includes('<ol'));
+    expect(listBlocks).toHaveLength(1);
+    // A single <ol> means list-item numbering is never restarted mid-list.
+    expect((listBlocks[0].html.match(/<ol/g) ?? [])).toHaveLength(1);
+    expect(listBlocks[0].html).toContain('item 0 ');
+    expect(listBlocks[0].html).toContain('item 39 ');
+  });
+
+  it('attributes each illustration only to the block that renders it', () => {
+    const source = [
+      '![first](assets/a.png)',
+      paragraph('MID_', oversized),
+      '![second](assets/b.png)'
+    ].join('\n\n');
+    const blocks = renderMarkdownBlocks(source);
+
+    expect(blocks.length).toBeGreaterThan(1);
+    const withA = blocks.filter((block) => block.images.some((image) => image.name === 'a.png'));
+    const withB = blocks.filter((block) => block.images.some((image) => image.name === 'b.png'));
+    expect(withA).toHaveLength(1);
+    expect(withB).toHaveLength(1);
+    // The two illustrations land in different blocks, and neither block carries
+    // the other's asset token.
+    expect(withA[0]).not.toBe(withB[0]);
+    expect(withA[0].images).toHaveLength(1);
+    expect(withB[0].images).toHaveLength(1);
   });
 });
