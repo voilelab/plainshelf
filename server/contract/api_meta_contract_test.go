@@ -6,7 +6,8 @@ import (
 )
 
 type modeResponse struct {
-	ReadOnly bool `json:"read_only"`
+	ReadOnly bool   `json:"read_only"`
+	Mode     string `json:"mode"`
 }
 
 type versionResponse struct {

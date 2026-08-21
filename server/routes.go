@@ -68,20 +68,59 @@ func newAPIHandlers(
 // serve is the one place the whole HTTP surface is written down. The patterns
 // stay literal: the frontend and the end-to-end tests find a route by searching
 // for its path.
-func (h *apiHandlers) serve(mux *http.ServeMux) {
-	mux.HandleFunc("GET /health", h.meta.health)
+//
+// mode decides how much of it is mounted. A reader server stops after the
+// reading routes — not because the rest would be refused anyway (read-only mode
+// already does that for writes), but because a binary whose whole purpose is to
+// read a shelf has no reason to expose the log, setting, task, trash or
+// duplicate-scan surfaces at all.
+func (h *apiHandlers) serve(mux *http.ServeMux, mode ServerMode) {
+	h.serveReading(mux)
+	if mode != ServerModeReader {
+		h.serveLibrary(mux)
+	}
+	h.serveFallbacks(mux)
+}
 
-	// Shelf API
+// serveReading mounts what it takes to browse a shelf and read a book, and
+// nothing else. Every route here is a GET, and none of them reaches a handler
+// that can write.
+//
+// This is the whole API surface of the standalone reader binary
+// (cmd/plainshelf-read), so a route added here is a route that binary starts
+// serving. Reads that belong to running a library rather than to reading one —
+// the duplicate scan, the trash listing, the logs, the stored settings — belong
+// in serveLibrary below.
+func (h *apiHandlers) serveReading(mux *http.ServeMux) {
+	mux.HandleFunc("GET /health", h.meta.health)
 
 	mux.HandleFunc("GET /api/mode", h.meta.getMode)
 	mux.HandleFunc("GET /api/version", h.meta.getVersion)
 	mux.HandleFunc("GET /api/shelves", h.shelves.getShelves)
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/status", h.shelves.getShelfStatus)
+
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books", h.books.getBooks)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}", h.books.getBook)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/content", h.books.getBookContent)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/cover", h.books.getCover)
+
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources", h.sources.listSources)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}", h.sources.getSource)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", h.sources.getSourceContent)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}", h.sources.getAsset)
+
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/layers", h.layers.getLayers)
+}
+
+// serveLibrary mounts everything else: the writes, the background work they
+// schedule, and the reads that only make sense while running a library.
+func (h *apiHandlers) serveLibrary(mux *http.ServeMux) {
+	// Shelf API
+
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/scans", h.shelves.rescanShelf)
 
 	// Book API
 
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books", h.books.getBooks)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books", h.books.createBook)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/book-batches", h.batches.bookBatch)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/content-stat-refreshes", h.batches.refreshContentStats)
@@ -90,35 +129,26 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/import", h.imports.importBook)
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/duplicate", h.books.findDuplicateBooks)
 
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}", h.books.getBook)
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}", h.books.updateBook)
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}", h.trash.trashBook)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/trash", h.trash.trashBook)
 
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources", h.sources.listSources)
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}", h.sources.getSource)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/sources", h.sources.createSource)
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}", h.sources.deleteSource)
 	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/current", h.sources.setCurrentSource)
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", h.sources.getSourceContent)
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", h.sources.updateSourceContent)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/refresh", h.sources.refreshSourceMeta)
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}", h.sources.getAsset)
 	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}", h.sources.updateAsset)
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}", h.sources.deleteAsset)
 
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/cover", h.books.getCover)
 	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/cover", h.books.updateCover)
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/cover", h.books.deleteCover)
-
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/content", h.books.getBookContent)
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/trash/books", h.trash.getTrashedBooks)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/trash/empty", h.trash.emptyTrash)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/trash/books/{book_id}/restore", h.trash.restoreTrashedBook)
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/trash/books/{book_id}", h.trash.deleteTrashedBook)
 
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/layers", h.layers.getLayers)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/layer-moves", h.layers.moveLayer)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/layers/{layer_path...}", h.layers.createLayer)
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/layers/{layer_path...}", h.layers.renameLayer)
@@ -141,8 +171,16 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/setting/epub_import_strategy", h.setting.getEPUBImportStrategy)
 	mux.HandleFunc("POST /api/setting/epub_import_strategy", h.setting.setEPUBImportStrategy)
 	mux.HandleFunc("DELETE /api/setting/epub_import_strategy", h.setting.deleteEPUBImportStrategy)
+}
 
-	// Unknown API paths must not fall through to the SPA index.
+// serveFallbacks mounts the two lowest-ranked patterns, so they only ever match
+// what the routes above did not. Registered last for readability; the mux ranks
+// by specificity rather than by registration order.
+func (h *apiHandlers) serveFallbacks(mux *http.ServeMux) {
+	// Unknown API paths must not fall through to the SPA index. In reader mode
+	// this is also what answers the routes serveLibrary did not mount: the SPA
+	// is served whole, so a page that asks for one gets a 404 rather than an
+	// HTML document parsed as JSON.
 	mux.HandleFunc("GET /api/{path...}", http.NotFound)
 
 	mux.HandleFunc("GET /{path...}", h.spa.fallback)

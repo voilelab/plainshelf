@@ -39,6 +39,10 @@ func NewApp(conf *AppConf) (*App, error) {
 		return nil, util.Errorf("config cannot be nil")
 	}
 
+	if !conf.Mode.valid() {
+		return nil, util.Errorf("unknown server mode %q", conf.Mode)
+	}
+
 	security, err := NewSecurity(conf.Security)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -60,7 +64,7 @@ func NewApp(conf *AppConf) (*App, error) {
 	// Opened before the shelves because each shelf is configured with the book
 	// cache writer ID this store holds, and a shelf starts scanning — and
 	// exporting — the moment it is created.
-	storeDB, err := store.New(conf.StorePath)
+	storeDB, err := openStore(conf)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -85,7 +89,7 @@ func NewApp(conf *AppConf) (*App, error) {
 	}()
 
 	for _, shelfEntry := range conf.Shelves {
-		shelfConf := applyAppReadOnly(*shelfEntry, conf.ReadOnly)
+		shelfConf := applyAppReadOnly(*shelfEntry, conf.readOnly())
 		// An operator who pins the ID in the config keeps it; everyone else gets
 		// this installation's generated one.
 		if shelfConf.BookCacheWriterID == "" && !shelfConf.ReadOnly {
@@ -157,11 +161,26 @@ func (app *App) TaskChains() taskutil.Pool {
 // export fails. Read-only mode has to be applied here for the same reason, and
 // it is what withholds the writer ID rather than granting it.
 func (app *App) AddShelf(conf shelf.ShelfConfWithID) error {
-	shelfConf := applyAppReadOnly(conf, app.conf.ReadOnly)
+	shelfConf := applyAppReadOnly(conf, app.conf.readOnly())
 	if shelfConf.BookCacheWriterID == "" && !shelfConf.ReadOnly {
 		shelfConf.BookCacheWriterID = app.bookCacheWriterID
 	}
 	return app.shelfManager.AddShelf(shelfConf)
+}
+
+// openStore opens the settings store this server keeps beside the shelf.
+//
+// A reader server gets one that never reaches the disk. Its whole promise is
+// that pointing it at a shelf writes nothing, and a Badger directory next to
+// the binary would break that promise before the first request arrives. Nothing
+// it serves needs the store to outlive the process either: the setting routes
+// are not mounted, and the writer ID it generates belongs to a book cache export
+// a read-only shelf never performs.
+func openStore(conf *AppConf) (*store.DB, error) {
+	if conf.Mode == ServerModeReader {
+		return store.NewInMemory()
+	}
+	return store.New(conf.StorePath)
 }
 
 // applyAppReadOnly carries AppConf.ReadOnly down into the shelf configuration.
@@ -206,7 +225,7 @@ func (app *App) Close() error {
 
 func (app *App) Handler() http.Handler {
 	mux := http.NewServeMux()
-	app.handlers.serve(mux)
+	app.handlers.serve(mux, app.conf.Mode)
 
 	loggerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		app.Info("app handler", "method", r.Method, "path", r.URL.Path, "remote_addr", r.RemoteAddr)
@@ -240,7 +259,7 @@ func (app *App) SecurityTokenHeader() string {
 }
 
 func (app *App) rejectReadOnlyWrite(w http.ResponseWriter, r *http.Request) bool {
-	if app == nil || app.conf == nil || !app.conf.ReadOnly {
+	if app == nil || app.conf == nil || !app.conf.readOnly() {
 		return false
 	}
 

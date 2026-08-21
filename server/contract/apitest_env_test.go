@@ -84,6 +84,14 @@ func withReadOnlyServer() appConfOption {
 	}
 }
 
+// withReaderMode starts the app as the standalone reading binary does: only the
+// reading routes mounted, and read-only implied rather than configured.
+func withReaderMode() appConfOption {
+	return func(conf *server.AppConf) {
+		conf.Mode = server.ServerModeReader
+	}
+}
+
 // withSecurity pins the security configuration, which is what the local-token
 // and CORS gates are asserted against.
 func withSecurity(security *server.SecurityConf) appConfOption {
