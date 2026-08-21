@@ -312,6 +312,40 @@ const en = {
       untitledBook: 'book',
       deleteFailed: 'Failed to delete book'
     },
+    similarContent: 'Similar Content',
+    similar: {
+      description: 'Books that are similar but not byte-for-byte identical: other editions, trimmed copies, or two transcripts of one recording.',
+      scanning: 'Comparing books…',
+      empty: 'No similar books at this level.',
+      emptyHint: 'Loosen the level, or turn off the trimmed-copies filter, to widen the search.',
+      loadFailed: 'Failed to compare books',
+      tooLarge: 'This shelf has {total} books, past the {limit} the comparison can handle at once. Narrow the shelf down and try again.',
+      resultCount: '{count} pairs',
+      tiersLabel: 'Similarity',
+      tiers: {
+        nearIdentical: 'Nearly identical',
+        sameBook: 'Same book, other edition',
+        sameSource: 'Possibly same source'
+      },
+      advanced: 'Advanced',
+      thresholdLabel: 'Minimum similarity',
+      diffReadout: '≈ {count} in 100 characters differ',
+      subsetToggle: 'Only trimmed copies (one edited down from the other)',
+      relations: {
+        identical_after_normalize: 'Identical after normalizing',
+        subset: 'Trimmed copy',
+        near_identical: 'Nearly identical',
+        same_source: 'Same source'
+      },
+      pairSimilarity: '{percent}% similar',
+      fingerprint: {
+        missingNote: '{missing} of {total} books have no fingerprint yet',
+        build: 'Build fingerprints',
+        building: 'Building… {percent}%',
+        failed: 'Could not build fingerprints.',
+        readOnly: 'A read-only shelf cannot build fingerprints.'
+      }
+    },
     missingAuthor: {
       title: 'Missing Author',
       empty: 'No books missing author'

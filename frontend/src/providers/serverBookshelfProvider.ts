@@ -9,10 +9,13 @@ import {
   getBookCover,
   getBookCoverUrl,
   getDuplicateBookGroups,
+  getFingerprintStatus,
+  getSimilarBookPairs,
   importBook,
   listBooks,
   listTrashedBooks,
   refreshContentStats,
+  startFingerprintSources,
   restoreTrashedBook,
   updateBook,
   updateBookLayer,
@@ -53,6 +56,7 @@ import type {
   ReadingProgress,
   TrashedBook
 } from '@/types/book';
+import type { FingerprintStatus, SimilarBookPair } from '@/api/books';
 import type { CreateSourceOptions, SourceMeta } from '@/types/source';
 import type { BookBatchRequest, TaskChain } from '@/types/task';
 import type {
@@ -145,6 +149,14 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return getDuplicateBookGroups();
   }
 
+  getSimilarBookPairs(floor?: number): Promise<SimilarBookPair[]> {
+    return getSimilarBookPairs(floor);
+  }
+
+  getFingerprintStatus(): Promise<FingerprintStatus> {
+    return getFingerprintStatus();
+  }
+
   listTrashedBooks(): Promise<TrashedBook[]> {
     return listTrashedBooks();
   }
@@ -171,6 +183,10 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
 
   refreshContentStats(): Promise<string> {
     return refreshContentStats();
+  }
+
+  startFingerprintSources(): Promise<string> {
+    return startFingerprintSources();
   }
 
   listLayers(): Promise<string[]> {

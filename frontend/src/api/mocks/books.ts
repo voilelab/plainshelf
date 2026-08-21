@@ -399,6 +399,21 @@ export function mockRefreshContentStats(): string {
   });
 }
 
+/**
+ * mockStartFingerprintSources schedules a task chain that walks every mock book
+ * once, so mock mode exercises the same progress reporting as the real
+ * fingerprint sweep. Mock mode reports full fingerprint coverage
+ * (getFingerprintStatus → missing: 0), so this is here for completeness rather
+ * than to change any mock state.
+ */
+export function mockStartFingerprintSources(): string {
+  return registerMockTaskChain({
+    name: 'fingerprint_sources',
+    title: 'Build fingerprints',
+    total: mockBooks.length
+  });
+}
+
 export function mockStartBookBatch(request: BookBatchRequest): string {
   const ids = [...new Set(request.book_ids)];
   const result: BookBatchResult = {
