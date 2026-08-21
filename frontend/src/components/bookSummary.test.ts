@@ -50,11 +50,12 @@ describe('book summaries', () => {
   });
 
   it('falls back when the description strips down to nothing', async () => {
-    const value = book({ comment: '<br>', authors: ['作者甲', '作者乙'] });
-    const { card, list } = await summaries(value);
+    for (const comment of ['<br>', '<p></p>', '![封面](cover.png)']) {
+      const { card, list } = await summaries(book({ comment, authors: ['作者甲', '作者乙'] }));
 
-    expect(card).toBe('作者甲, 作者乙');
-    expect(list).toBeNull();
+      expect(card, comment).toBe('作者甲, 作者乙');
+      expect(list, comment).toBeNull();
+    }
   });
 
   it('says so when a book has neither a description nor an author', async () => {

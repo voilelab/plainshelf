@@ -298,12 +298,14 @@ func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
 	s.bookCache.refreshing = true
 	s.bookCache.Unlock()
 
-	go func() {
-		defer func() {
-			s.bookCache.Lock()
-			s.bookCache.refreshing = false
-			s.bookCache.Unlock()
-		}()
+	done := func() {
+		s.bookCache.Lock()
+		s.bookCache.refreshing = false
+		s.bookCache.Unlock()
+	}
+
+	started := s.goBackground(func() {
+		defer done()
 
 		if err := s.shelfLock.RLock(); err != nil {
 			s.Warn("background book check skipped: failed to acquire lock", "error", err)
@@ -312,7 +314,14 @@ func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
 		defer s.shelfLock.Unlock()
 
 		s.onlyRefreshBooksInCache()
-	}()
+	})
+
+	// A closing shelf runs no check, so the flag it was claimed with has to be
+	// given back here instead: leaving it set would make a shelf that is opened
+	// and closed in a loop look permanently busy to the next read.
+	if !started {
+		done()
+	}
 }
 
 func (s *Shelf) listBooksFromCache() []*Book {
