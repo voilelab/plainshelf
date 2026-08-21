@@ -73,7 +73,6 @@ interface BackendTrashedBook {
 }
 
 async function uploadBookCoverInternal(bookID: string, file: File): Promise<void> {
-  // NOTE:
   // In Wails/WebView runtime, passing `File` directly as fetch body can result in
   // an empty request body (0 bytes) for same-origin custom protocol requests.
   // Sending a concrete byte payload avoids that runtime-specific body stream issue.
