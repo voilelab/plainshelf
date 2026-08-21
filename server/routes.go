@@ -97,6 +97,7 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}", h.books.getBook)
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}", h.books.updateBook)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/copies", h.books.copyBook)
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}", h.trash.trashBook)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/trash", h.trash.trashBook)
 

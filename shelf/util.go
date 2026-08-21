@@ -5,7 +5,9 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
+	"path"
 	"regexp"
 	"strings"
 	"time"
@@ -34,6 +36,70 @@ func createTempDir(root fsutil.FS, prefix string) (string, error) {
 	}
 
 	return "", util.NewError("failed to create temp directory after multiple attempts")
+}
+
+// copyTree recursively copies the tree rooted at src onto dst, reproducing every
+// file and subdirectory. dst is created if it does not exist. It backs CopyBook:
+// a book package copied whole stays self-contained, so the relative asset paths a
+// source records need no rewriting.
+//
+// Whether a child is a directory is decided by Stat, not by the directory
+// entry's own type, so that a symlinked directory is descended into and copied
+// as a real one - the same way the shelf scanner (childIsDir) treats it. A
+// listing reports a symlink as a non-directory, but opening it as a file fails,
+// so keying the copy on the entry type would break a package that holds one.
+func copyTree(root fsutil.FS, src, dst string) error {
+	info, err := root.Stat(src)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	if !info.IsDir() {
+		return copyFile(root, src, dst)
+	}
+
+	if err := root.MkdirAll(dst); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	entries, err := root.ReadDir(src)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	for _, entry := range entries {
+		if err := copyTree(root, path.Join(src, entry.Name()), path.Join(dst, entry.Name())); err != nil {
+			return util.Errorf("%w", err)
+		}
+	}
+
+	return nil
+}
+
+// copyFile copies a single regular file from src to dst, creating or truncating
+// dst.
+func copyFile(root fsutil.FS, src, dst string) error {
+	in, err := root.Open(src)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	defer in.Close()
+
+	out, err := root.OpenWriter(dst)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return util.Errorf("%w", err)
+	}
+
+	if err := out.Close(); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
 }
 
 func randomString(n int) string {
