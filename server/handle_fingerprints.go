@@ -1,6 +1,7 @@
 package server
 
 import (
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -161,7 +162,11 @@ func parseSimilarFloor(r *http.Request) (float64, bool) {
 		return defaultSimilarFloor, true
 	}
 	floor, err := strconv.ParseFloat(raw, 64)
-	if err != nil || floor < 0 || floor > 1 {
+	// NaN slips past both range comparisons (every comparison against it is
+	// false), and a NaN floor then passes every later "jaccard < floor" test too,
+	// so it would return every pair and run the full O(n^2) sweep. Reject any
+	// non-finite value outright.
+	if err != nil || math.IsNaN(floor) || math.IsInf(floor, 0) || floor < 0 || floor > 1 {
 		return 0, false
 	}
 	return floor, true

@@ -222,11 +222,23 @@ export interface FingerprintStatus {
   };
 }
 
+/** The 202 body a shelf too large for the synchronous comparison answers with,
+ *  instead of the pair array. */
+interface SimilarTooLarge {
+  status: 'too_large';
+  total: number;
+  limit: number;
+}
+
 /**
  * Similar book pairs scored by the server in a single pass. `floor` is the
  * lowest Jaccard the server returns; the page filters upward from there in
  * memory rather than re-requesting, so this is called once per visit with the
  * widest floor the UI offers.
+ *
+ * A shelf past the server's synchronous limit answers 202 with a
+ * {@link SimilarTooLarge} body rather than a pair array; that is surfaced as a
+ * thrown error so a caller never iterates a non-array as if it were the list.
  */
 export async function getSimilarBookPairs(floor?: number): Promise<SimilarBookPair[]> {
   if (isMockApiMode()) {
@@ -234,7 +246,15 @@ export async function getSimilarBookPairs(floor?: number): Promise<SimilarBookPa
   }
 
   const query = floor === undefined ? '' : `?floor=${encodeURIComponent(floor)}`;
-  return await fetchJson<SimilarBookPair[]>(buildShelfApiPath(`/books/similar${query}`));
+  const result = await fetchJson<SimilarBookPair[] | SimilarTooLarge>(
+    buildShelfApiPath(`/books/similar${query}`)
+  );
+  if (!Array.isArray(result)) {
+    throw new Error(
+      `similarity comparison is unavailable: ${result.total} books exceed the limit of ${result.limit}`
+    );
+  }
+  return result;
 }
 
 /**

@@ -122,6 +122,9 @@ func TestParseSimilarFloor(t *testing.T) {
 		{"?floor=abc", 0, false},
 		{"?floor=1.5", 0, false},
 		{"?floor=-0.1", 0, false},
+		{"?floor=NaN", 0, false},
+		{"?floor=Inf", 0, false},
+		{"?floor=-Inf", 0, false},
 	}
 
 	for _, tc := range cases {
