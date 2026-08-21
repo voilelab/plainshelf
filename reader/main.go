@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/voilelab/plainshelf/frontend"
@@ -30,6 +31,18 @@ func main() {
 	}
 
 	app := NewReaderApp(logger)
+
+	// -book opens that package instead of prompting for one:
+	// `just run-reader path/to/book.bookpkg`, and `open -a PlainShelfReader
+	// --args -book path/to/book.bookpkg`. A path that cannot be opened falls
+	// through to the folder dialog rather than taking the window down — the
+	// user is already looking at an app that can ask.
+	if bookPath := bookPathFromArgs(os.Args[1:]); bookPath != "" {
+		if _, err := app.Library().Open(bookPath); err != nil {
+			log.Println("failed to open the book package given on the command line:", err)
+		}
+	}
+
 	api := readerapi.NewHandler(app.Library(), version.Version)
 	spa := readerapi.NewSPAHandler(frontend.WebFS, app.BootConfig)
 
@@ -63,6 +76,28 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// bookPathFromArgs reads the -book argument the app was launched with.
+//
+// Scanned rather than parsed with the flag package, and named rather than
+// positional, because the app does not own its whole command line: `wails dev`
+// passes its own flags through to the binary, so an unknown flag must not stop
+// the parse and a bare value like the "debug" in "-loglevel debug" must not be
+// mistaken for a path.
+func bookPathFromArgs(args []string) string {
+	for i, arg := range args {
+		if value, found := strings.CutPrefix(arg, "-book="); found {
+			return value
+		}
+		if value, found := strings.CutPrefix(arg, "--book="); found {
+			return value
+		}
+		if (arg == "-book" || arg == "--book") && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	return ""
 }
 
 // newApplicationMenu keeps the reader's menu to what a reader can do: open

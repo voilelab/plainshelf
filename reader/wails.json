@@ -1,6 +1,6 @@
 {
   "name": "plainshelf-reader",
-  "outputfilename": "PlainShelf Reader",
+  "outputfilename": "PlainShelfReader",
   "frontend:install": "",
   "frontend:build": "",
   "frontend:dev:watcher": "",
