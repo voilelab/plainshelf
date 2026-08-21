@@ -166,7 +166,7 @@ func TestBookCacheExportOmitsIgnoredDirectories(t *testing.T) {
 	cache := waitForBookCacheExport(t, libRoot, testWriterID)
 
 	for _, layer := range cache.Layers {
-		for _, segment := range strings.Split(layer, "/") {
+		for segment := range strings.SplitSeq(layer, "/") {
 			if segment != "" && isIgnoredDir(segment) {
 				t.Errorf("Exported cache layer %q contains ignored directory %q", layer, segment)
 			}

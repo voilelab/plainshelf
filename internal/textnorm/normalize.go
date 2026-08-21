@@ -62,7 +62,7 @@ func Normalize(s string) string {
 	// into a guarantee. It terminates because after the first round every
 	// compatibility decomposition is already applied, so each further round only
 	// composes, and composing never lengthens the string.
-	for i := 0; i < maxNormalizeRounds; i++ {
+	for range maxNormalizeRounds {
 		stripped := stripLayout(norm.NFKC.String(s))
 		if stripped == s {
 			break

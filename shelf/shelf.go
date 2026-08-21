@@ -505,11 +505,7 @@ func (s *Shelf) goBackground(fn func()) bool {
 		return false
 	}
 
-	s.background.Add(1)
-	go func() {
-		defer s.background.Done()
-		fn()
-	}()
+	s.background.Go(fn)
 	return true
 }
 

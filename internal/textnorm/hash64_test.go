@@ -52,7 +52,7 @@ func TestHash64IsStableAcrossCalls(t *testing.T) {
 	const input = "話說天下大勢，分久必合，合久必分。"
 
 	first := Hash64String(input)
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		if got := Hash64String(input); got != first {
 			t.Fatalf("Hash64String is not a pure function: %#016x then %#016x", first, got)
 		}
