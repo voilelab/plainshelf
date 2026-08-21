@@ -81,6 +81,52 @@ func addFingerprintBook(t *testing.T, testShelf *shelf.Shelf, libRoot, title, co
 	return book
 }
 
+// addSource gives an existing book another source, the way a reader who keeps
+// an earlier import around ends up with one.
+func addSource(t *testing.T, libRoot string, book *shelf.Book, content string) {
+	t.Helper()
+
+	if _, err := book.NewSource(strings.NewReader(content)); err != nil {
+		t.Fatalf("NewSource: %v", err)
+	}
+
+	old := time.Now().Add(-time.Hour)
+	for _, sourcePath := range sourceFilePaths(t, libRoot, book) {
+		if err := os.Chtimes(sourcePath, old, old); err != nil {
+			t.Fatalf("backdating %s: %v", sourcePath, err)
+		}
+	}
+}
+
+// Every source is fingerprinted, not only the one the book currently points
+// at: a reader who kept an earlier import wants it compared too.
+func TestFingerprintSourcesTaskCoversEverySourceOfABook(t *testing.T) {
+	libRoot := t.TempDir()
+	testShelf := newFingerprintTestShelf(t, libRoot, false)
+
+	book := addFingerprintBook(t, testShelf, libRoot, "Dune", "the spice must flow")
+	addSource(t, libRoot, book, "the spice must flow, revised")
+
+	task, err := runFingerprintSources(t, testShelf)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	got := fingerprintResult(t, task)
+	if got.Books != 1 || got.Sources != 2 || got.Fingerprinted != 2 || got.Built != 2 {
+		t.Fatalf("result = %+v, want both sources of the one book fingerprinted", got)
+	}
+
+	// And both are remembered separately, so the second run reads neither.
+	second, err := runFingerprintSources(t, testShelf)
+	if err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+	if got := fingerprintResult(t, second); got.StatHits != 2 || got.Built != 0 {
+		t.Errorf("second run = %+v, want both sources answered from the index", got)
+	}
+}
+
 // runFingerprintSources runs one whole task, the way a later press of the
 // button would: nothing is carried over in memory, so every read the cache
 // avoids is a read that really did not happen.

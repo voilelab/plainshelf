@@ -192,15 +192,42 @@ func (t *fingerprintSourcesTask) recordFailure(bookID, sourceID string, err erro
 		"shelf_id", t.shelfID, "book_id", bookID, "source_id", sourceID, "error", err)
 }
 
+// sourceIDs is every source ID of one book, taken from a listing that is then
+// dropped.
+//
+// The listing is not kept because it opens every source at once, and a Source
+// carries its whole meta.json in memory and writes all of it back when the
+// cache repairs a stale md5_hash. Held while the earlier sources of the book
+// are read, the last one's snapshot would be old enough to revert a comment or
+// a split config another request stored in the meantime. IDs cannot go stale
+// that way, so each source is opened again at the moment it is used.
+//
+// A source this build cannot open at all - a missing or malformed meta.json -
+// is not listed here: ListSource logs it and leaves it out, which is what the
+// source list UI shows too. Surfacing it would mean enumerating the directory
+// rather than the model, and a source PlainShelf cannot open is invisible
+// everywhere in the app, not only in this sweep.
+func (t *fingerprintSourcesTask) sourceIDs(book *shelf.Book) ([]string, error) {
+	sources, err := book.ListSource()
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	ids := make([]string, 0, len(sources))
+	for _, source := range sources {
+		ids = append(ids, source.ID())
+	}
+	return ids, nil
+}
+
 // fingerprintBook resolves every source of one book, reporting each failure
 // separately: one unreadable source must not cost the rest of the book its
 // fingerprints, let alone the rest of the sweep.
 //
-// The book is re-resolved by ID immediately before it is read, and its sources
-// are opened and dropped within this call. A Source carries its whole meta.json
-// in memory and writes all of it back when the cache repairs a stale md5_hash,
-// so one held for the length of the sweep could overwrite a comment or split
-// config another request stored in the meantime.
+// The book and each of its sources are re-resolved by ID immediately before
+// they are read, the way refreshContentStatsTask re-resolves before it writes,
+// so this task reads and writes the same meta.json a single-source request
+// would.
 func (t *fingerprintSourcesTask) fingerprintBook(cache *shelf.FingerprintCache, bookID string) {
 	book, err := t.shelf.GetBook(bookID)
 	if err != nil {
@@ -208,19 +235,25 @@ func (t *fingerprintSourcesTask) fingerprintBook(cache *shelf.FingerprintCache, 
 		return
 	}
 
-	sources, err := book.ListSource()
+	sourceIDs, err := t.sourceIDs(book)
 	if err != nil {
-		t.recordFailure(bookID, "", util.Errorf("%w", err))
+		t.recordFailure(bookID, "", err)
 		return
 	}
 
 	t.mu.Lock()
-	t.sources += len(sources)
+	t.sources += len(sourceIDs)
 	t.mu.Unlock()
 
-	for _, source := range sources {
+	for _, sourceID := range sourceIDs {
+		source, err := book.GetSource(sourceID)
+		if err != nil {
+			t.recordFailure(bookID, sourceID, util.Errorf("%w", err))
+			continue
+		}
+
 		if _, err := cache.Resolve(book, source, BuildFingerprint); err != nil {
-			t.recordFailure(bookID, source.ID(), err)
+			t.recordFailure(bookID, sourceID, err)
 			continue
 		}
 
