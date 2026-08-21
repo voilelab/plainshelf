@@ -246,6 +246,44 @@ func TestFingerprintCacheAnswersUnchangedSourcesWithoutReadingThem(t *testing.T)
 	if got := second.Stats().StatHits; got != 1 {
 		t.Errorf("stat hits %d, want 1", got)
 	}
+
+	// And saving that run rewrites nothing: an unchanged shelf must not cost a
+	// pointless upload on the transports this file will live on.
+	cachePath := path.Join(libRoot, appFolder, fingerprintCacheFileName)
+	before, err := os.ReadFile(cachePath)
+	if err != nil {
+		t.Fatalf("reading the fingerprint cache: %v", err)
+	}
+	writtenAt := shiftedModTime(t, cachePath, -time.Hour)
+
+	saveFingerprintCache(t, second)
+
+	after, err := os.ReadFile(cachePath)
+	if err != nil {
+		t.Fatalf("re-reading the fingerprint cache: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Error("saving an unchanged run rewrote the cache")
+	}
+	if info, err := os.Stat(cachePath); err != nil {
+		t.Fatalf("stat: %v", err)
+	} else if !info.ModTime().Equal(writtenAt) {
+		t.Error("saving an unchanged run replaced the cache file")
+	}
+}
+
+// shiftedModTime backdates a file and reports the time it was given, so a test
+// can tell "not rewritten" from "rewritten with the same bytes".
+func shiftedModTime(t *testing.T, filePath string, offset time.Duration) time.Time {
+	t.Helper()
+
+	shiftModTime(t, filePath, offset)
+
+	info, err := os.Stat(filePath)
+	if err != nil {
+		t.Fatalf("stat %s: %v", filePath, err)
+	}
+	return info.ModTime()
 }
 
 // A book moved between layers keeps its fingerprints: the index is keyed on the
@@ -774,5 +812,105 @@ func TestFingerprintCacheLeavesAMissingSourceHashAlone(t *testing.T) {
 	}
 	if got := cache.Stats().Repaired; got != 0 {
 		t.Errorf("reported %d repairs, want 0", got)
+	}
+}
+
+// A source too freshly written to index still has its fingerprint kept: it was
+// computed by this very run, so collecting it would mean building it again next
+// time for nothing.
+func TestFingerprintCacheKeepsAnUnindexedFingerprintItJustBuilt(t *testing.T) {
+	libRoot := t.TempDir()
+	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+
+	book, err := shelf.NewBookWith(nil, "Just Written", func(book *Book) error {
+		source, err := book.NewSource(strings.NewReader("written moments ago"))
+		if err != nil {
+			return err
+		}
+		return book.SetCurrentSource(source.ID())
+	})
+	if err != nil {
+		t.Fatalf("NewBookWith: %v", err)
+	}
+
+	counting := countSourceReads(t, shelf)
+	builder := &fakeFingerprint{label: "v1"}
+
+	first := openFingerprintCache(t, shelf, testAlgo)
+	resolveFingerprint(t, first, counting, book.FolderPath(), builder)
+	saveFingerprintCache(t, first)
+
+	stored := readFingerprintCacheAt(t, libRoot)
+	if len(stored.Index) != 0 {
+		t.Errorf("a racily fresh source was indexed: %d records, want 0", len(stored.Index))
+	}
+	if len(stored.Entries) != 1 {
+		t.Fatalf("the saved cache holds %d entries, want the one just built", len(stored.Entries))
+	}
+
+	second := openFingerprintCache(t, shelf, testAlgo)
+	resolveFingerprint(t, second, counting, book.FolderPath(), builder)
+
+	if got := builder.calls.Load(); got != 1 {
+		t.Errorf("the next run rebuilt a fingerprint the last one saved: builds %d, want 1", got)
+	}
+	if got := second.Stats().ContentHits; got != 1 {
+		t.Errorf("content hits %d, want 1", got)
+	}
+}
+
+// A source restored from a backup has new content under an older modification
+// time. The record this run observed must win anyway, or the stale one would be
+// reinstated on every save and the source reread and rebuilt forever.
+func TestFingerprintCacheKeepsTheRecordItJustObserved(t *testing.T) {
+	libRoot := t.TempDir()
+	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+
+	book := addFingerprintBook(t, shelf, libRoot, "Dune", "the spice must flow")
+	bookPath := book.FolderPath()
+	sourcePath := sourceFilePath(t, libRoot, book)
+
+	counting := countSourceReads(t, shelf)
+	builder := &fakeFingerprint{label: "v1"}
+
+	first := openFingerprintCache(t, shelf, testAlgo)
+	resolveFingerprint(t, first, counting, bookPath, builder)
+	saveFingerprintCache(t, first)
+
+	// Restored from a backup: other content, and a modification time older than
+	// the one already recorded.
+	if err := os.WriteFile(sourcePath, []byte("the spice as it was two backups ago"), 0644); err != nil {
+		t.Fatalf("restoring source.txt: %v", err)
+	}
+	shiftModTime(t, sourcePath, -24*time.Hour)
+
+	second := openFingerprintCache(t, shelf, testAlgo)
+	restored := resolveFingerprint(t, second, counting, bookPath, builder)
+	saveFingerprintCache(t, second)
+
+	stored := readFingerprintCacheAt(t, libRoot)
+	if len(stored.Index) != 1 {
+		t.Fatalf("the saved cache holds %d index records, want 1", len(stored.Index))
+	}
+	for key, record := range stored.Index {
+		if _, ok := stored.Entries[record.MD5]; !ok {
+			t.Fatalf("the record at %q names an entry the cache does not hold", key)
+		}
+		if stored.Entries[record.MD5] != restored {
+			t.Errorf("the record at %q resolves to %+v, want the restored %+v", key, stored.Entries[record.MD5], restored)
+		}
+	}
+
+	// And the run after that answers from the index, which is what the merge
+	// getting it wrong would cost.
+	opensBefore := counting.opens.Load()
+	third := openFingerprintCache(t, shelf, testAlgo)
+	resolveFingerprint(t, third, counting, bookPath, builder)
+
+	if got := counting.opens.Load(); got != opensBefore {
+		t.Errorf("the restored source was read again: opens %d, want %d", got, opensBefore)
+	}
+	if got := builder.calls.Load(); got != 2 {
+		t.Errorf("the restored source was fingerprinted again: builds %d, want 2", got)
 	}
 }

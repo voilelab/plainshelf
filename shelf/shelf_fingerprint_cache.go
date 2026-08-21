@@ -154,10 +154,43 @@ type fingerprintIndexEntry struct {
 	// MD5 is the hash of the content that stat described, which is the key the
 	// fingerprint itself is stored under.
 	MD5 string `json:"md5"`
+
+	// SeenAt is when these values were FIRST observed, and orders two machines'
+	// records of the same source against each other. A run that re-observes the
+	// same values carries the original timestamp forward, so an untouched shelf
+	// still produces byte-identical files and is never rewritten.
+	//
+	// The file's own mtime cannot play this part. Restoring a source from a
+	// backup gives it new content under an OLDER modification time, and a merge
+	// that ranked records by mtime would reinstate the record describing the
+	// content that is no longer there - permanently, because every later run
+	// would observe the restored file, lose the merge again, and rebuild.
+	//
+	// Two machines with skewed clocks can still order each other's records
+	// wrongly. The cost is bounded the same way everything else here is: a
+	// record that loses when it should have won fails its next Stat check and
+	// costs one re-read.
+	SeenAt time.Time `json:"seen_at,omitzero"`
 }
 
 func (e fingerprintIndexEntry) matches(stat *FileStat) bool {
 	return stat != nil && e.Size == stat.Size && e.ModTime.Equal(stat.ModTime)
+}
+
+// describesSame reports whether two records make the same claim about a file,
+// ignoring when each was observed.
+func (e fingerprintIndexEntry) describesSame(other fingerprintIndexEntry) bool {
+	return e.Size == other.Size && e.ModTime.Equal(other.ModTime) && e.MD5 == other.MD5
+}
+
+// supersedes reports whether e is the record worth keeping. Observation time
+// decides it; a record written before this build added that field falls back to
+// the file's modification time, which is what the older format has to offer.
+func (e fingerprintIndexEntry) supersedes(other fingerprintIndexEntry) bool {
+	if !e.SeenAt.Equal(other.SeenAt) {
+		return e.SeenAt.After(other.SeenAt)
+	}
+	return e.ModTime.After(other.ModTime)
 }
 
 // fingerprintCacheFile is the on-disk shape of app/fingerprint-cache.json.
@@ -211,6 +244,10 @@ type FingerprintCache struct {
 	index   map[string]fingerprintIndexEntry
 	entries map[string]FingerprintEntry
 	stats   FingerprintCacheStats
+
+	// resolved is every content hash this run answered for, which survives a
+	// prune even while nothing in the index points at it. See record.
+	resolved map[string]struct{}
 }
 
 // OpenFingerprintCache loads the cache for algo, starting from empty whenever
@@ -227,10 +264,11 @@ func (s *Shelf) OpenFingerprintCache(algo FingerprintAlgo) (*FingerprintCache, e
 	}
 
 	cache := &FingerprintCache{
-		shelf:   s,
-		algo:    algo,
-		index:   map[string]fingerprintIndexEntry{},
-		entries: map[string]FingerprintEntry{},
+		shelf:    s,
+		algo:     algo,
+		index:    map[string]fingerprintIndexEntry{},
+		entries:  map[string]FingerprintEntry{},
+		resolved: map[string]struct{}{},
 	}
 
 	filePath := path.Join(appFolder, fingerprintCacheFileName)
@@ -373,11 +411,22 @@ func (c *FingerprintCache) record(key string, stat *FileStat, readAt time.Time, 
 		c.stats.Built++
 	}
 
+	// Pinned whether or not it can be indexed below. An entry nothing points at
+	// is normally collectable, but one this run just computed is not garbage: a
+	// source too freshly written to index would otherwise have its fingerprint
+	// built, saved, dropped by the same Save, and built again next time.
+	c.resolved[md5Hash] = struct{}{}
+
 	if stat == nil || !stat.ModTime.Before(readAt.Add(-fingerprintCacheRacyWindow)) {
 		return
 	}
 
-	c.index[key] = fingerprintIndexEntry{Size: stat.Size, ModTime: stat.ModTime, MD5: md5Hash}
+	observed := fingerprintIndexEntry{Size: stat.Size, ModTime: stat.ModTime, MD5: md5Hash, SeenAt: readAt}
+	if current, ok := c.index[key]; ok && current.describesSame(observed) {
+		observed.SeenAt = current.SeenAt
+	}
+
+	c.index[key] = observed
 }
 
 // repairSourceHash rewrites meta.json when its md5_hash disagrees with the
@@ -406,6 +455,14 @@ func (c *FingerprintCache) repairSourceHash(source *Source, md5Hash string) {
 // The merge happens at write time rather than at load time because the file is
 // shared: another machine may have fingerprinted a book of its own since this
 // run started, and a plain overwrite would throw its work away.
+//
+// It is a merge, not a transaction. Two machines saving at the same instant can
+// still both read the same older file and replace it in turn, and the second
+// write then loses what the first added. Serializing that would mean holding the
+// shelf lock across a read and a write, which no other file under app/ does and
+// which lock_mode: none cannot offer at all. The trade is deliberate: what such
+// a race costs is a fingerprint computed again on some later run, never a wrong
+// answer, because an entry is keyed by the content it describes.
 //
 // Whether there is anything to write is decided by comparing the result against
 // the bytes already on disk, not by a "something was computed" flag. A run that
@@ -439,7 +496,7 @@ func (c *FingerprintCache) Save() error {
 	// Only against a shelf that has finished scanning: an empty book list from
 	// a shelf that has not looked yet would prune the whole file.
 	if live, ok := c.shelf.liveBookIDs(); ok {
-		pruneFingerprintCache(index, entries, live)
+		pruneFingerprintCache(index, entries, live, c.resolved)
 	}
 
 	data, err := json.Marshal(fingerprintCacheFile{
@@ -514,13 +571,14 @@ func mergeFingerprintEntries(entries, other map[string]FingerprintEntry) {
 	}
 }
 
-// mergeFingerprintIndex folds other into index, keeping the record that was
-// taken later wherever both describe the same source. An index record, unlike
-// an entry, is a claim about a file that can have changed since - so the newer
-// observation is the one worth keeping.
+// mergeFingerprintIndex folds other into index, keeping the later observation
+// wherever both describe the same source. An index record, unlike an entry, is
+// a claim about a file that can have changed since it was made - so the machine
+// that looked most recently is the one to believe. See
+// fingerprintIndexEntry.SeenAt for why that is not the same as the later mtime.
 func mergeFingerprintIndex(index, other map[string]fingerprintIndexEntry) {
 	for key, candidate := range other {
-		if current, ok := index[key]; ok && !candidate.ModTime.After(current.ModTime) {
+		if current, ok := index[key]; ok && !candidate.supersedes(current) {
 			continue
 		}
 		index[key] = candidate
@@ -535,8 +593,21 @@ func mergeFingerprintIndex(index, other map[string]fingerprintIndexEntry) {
 // some source still hashes to it. A book another machine added since this
 // shelf last scanned loses its record here and is fingerprinted again there,
 // which costs one recomputation and cannot lose data.
-func pruneFingerprintCache(index map[string]fingerprintIndexEntry, entries map[string]FingerprintEntry, live map[string]struct{}) {
-	referenced := make(map[string]struct{}, len(index))
+//
+// keep holds the content hashes this run answered for, which are exempt: a
+// source may deliberately have no index record yet, and its fingerprint is the
+// newest thing in the file rather than the stalest.
+//
+// What this does NOT collect is a record for a source deleted from a book that
+// is still there. Deciding that needs the source IDs each book still holds,
+// which is a directory listing per book at save time - the per-book I/O this
+// whole file exists to avoid - or a promise from the caller that its run
+// covered every source in the shelf. Until a fingerprint task exists to make
+// that promise, such a record is left in place: it costs about 1.5 kB and is
+// never served, because the source it names is gone.
+func pruneFingerprintCache(index map[string]fingerprintIndexEntry, entries map[string]FingerprintEntry, live, keep map[string]struct{}) {
+	referenced := make(map[string]struct{}, len(index)+len(keep))
+	maps.Copy(referenced, keep)
 	for key, record := range index {
 		bookID, _, ok := splitFingerprintIndexKey(key)
 		if !ok {
