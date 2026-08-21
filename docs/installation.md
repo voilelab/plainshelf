@@ -44,6 +44,34 @@ first launch.
 For other platforms, build the desktop client from source — see
 [Local Setup](development/setup.md).
 
+### Experimental — standalone book-package reader
+
+!!! warning "Experimental — not installable yet"
+    `bookpkg-reader` is an **experimental** cask for the standalone reader
+    that opens a single `.bookpkg` package. It is separate from the
+    `plainshelf` desktop app and installs alongside it.
+
+    `Casks/bookpkg-reader.rb` is committed as a placeholder: its `version` and
+    `sha256` are pinned only when the first release ships the reader artifact.
+    Until that release lands the cask is present in the tap but **cannot be
+    installed** — `brew install` would try to fetch a release that does not
+    exist yet.
+
+Once that first release is published, install it the same way as the desktop
+app — macOS on Apple Silicon (`darwin`/`arm64`):
+
+```bash
+brew install --cask voilelab/plainshelf/bookpkg-reader
+```
+
+The reader `.app` is also unsigned and unnotarized; its `postflight` clears
+the quarantine attribute the same way. Uninstall with
+`brew uninstall --cask bookpkg-reader`.
+
+`brew zap --cask bookpkg-reader` removes only the reader's own data (keyed to
+its `com.voilelab.plainshelf-reader` bundle identifier). It does **not** touch
+the `plainshelf` desktop app's library.
+
 ---
 
 ## Option 2 — Prebuilt server binary
