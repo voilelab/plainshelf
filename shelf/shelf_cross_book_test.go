@@ -2,9 +2,11 @@ package shelf
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -263,6 +265,87 @@ func TestShelfTransferSameShelfRefused(t *testing.T) {
 
 	if _, err := s.CopyBookFrom(s, book.ID(), Layers{"elsewhere"}, false); !errors.Is(err, ErrSameShelfTransfer) {
 		t.Fatalf("CopyBookFrom onto the same shelf = %v, want ErrSameShelfTransfer", err)
+	}
+}
+
+// plantBookOnDisk writes a minimal book package straight onto a shelf's disk,
+// bypassing its book cache, the way another instance or a file manager would add
+// one between scans.
+func plantBookOnDisk(t *testing.T, lib string, layer Layers, bookID, title string) {
+	t.Helper()
+
+	dir := filepath.Join(append([]string{lib, booksFolder}, layer...)...)
+	dir = filepath.Join(dir, "planted"+bookExtension)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("MkdirAll planted book: %v", err)
+	}
+	meta := fmt.Sprintf(`{"schema_version":%d,"id":%q,"title":%q,"current_source":""}`,
+		BookMetaSchemaVersion, bookID, title)
+	if err := os.WriteFile(filepath.Join(dir, BookMetaFile), []byte(meta), 0o644); err != nil {
+		t.Fatalf("write planted book.json: %v", err)
+	}
+}
+
+// A move from a read-only source is refused before anything is copied, so the
+// target gains nothing and the source keeps the book. Without the guard the copy
+// would publish on the target and only the trailing source delete would fail.
+func TestShelfMoveBookFromRefusesReadOnlySource(t *testing.T) {
+	sourceLib := path.Join(t.TempDir(), "source")
+
+	seed, err := NewShelf(&ShelfConf{LibRoot: sourceLib})
+	if err != nil {
+		t.Fatalf("seed source shelf: %v", err)
+	}
+	if err := seed.WaitReady(t.Context()); err != nil {
+		t.Fatalf("WaitReady seed: %v", err)
+	}
+	original := seedBook(t, seed, Layers{"fiction"}, "Locked")
+	id := original.ID()
+	if err := seed.Close(); err != nil {
+		t.Fatalf("close seed: %v", err)
+	}
+
+	source := newTestShelf(t, &ShelfConf{LibRoot: sourceLib, ReadOnly: true})
+	target := newTestShelf(t, &ShelfConf{LibRoot: path.Join(t.TempDir(), "target")})
+
+	if _, err := target.MoveBookFrom(source, id, Layers{"archive"}); !errors.Is(err, fsutil.ErrReadOnly) {
+		t.Fatalf("MoveBookFrom from a read-only source = %v, want fsutil.ErrReadOnly", err)
+	}
+
+	targetBooks, err := target.ListBooks()
+	if err != nil {
+		t.Fatalf("target ListBooks: %v", err)
+	}
+	if len(targetBooks) != 0 {
+		t.Errorf("a refused read-only-source move published %d books on the target, want none", len(targetBooks))
+	}
+	if _, err := source.GetBook(id); err != nil {
+		t.Fatalf("read-only source lost the book: %v", err)
+	}
+}
+
+// The move ID-conflict check forces a fresh scan, so it catches a book added to
+// the target's disk since the last scan - not just one already in the cache.
+func TestShelfMoveBookFromDetectsUnscannedTargetConflict(t *testing.T) {
+	source, target, targetLib := twoShelves(t)
+	original := seedBook(t, source, Layers{"fiction"}, "Racer")
+	id := original.ID()
+
+	plantBookOnDisk(t, targetLib, Layers{"existing"}, id, "Planted")
+
+	if _, err := target.MoveBookFrom(source, id, Layers{"archive"}); !errors.Is(err, ErrBookIDConflict) {
+		t.Fatalf("MoveBookFrom into an unscanned conflict = %v, want ErrBookIDConflict", err)
+	}
+
+	if _, err := source.GetBook(id); err != nil {
+		t.Fatalf("source lost the book after a refused move: %v", err)
+	}
+	inTrash, err := source.isBookIDInTrash(id)
+	if err != nil {
+		t.Fatalf("isBookIDInTrash: %v", err)
+	}
+	if inTrash {
+		t.Errorf("a refused move trashed the source book")
 	}
 }
 

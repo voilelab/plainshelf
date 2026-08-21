@@ -91,6 +91,14 @@ func (h *bookTransferHandlers) transferBook(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// A move ends by deleting the source, so a read-only source is refused too:
+	// scheduling it would publish the copy on the target and then fail to remove
+	// the source, leaving the book on both shelves. A copy only reads the source,
+	// so a read-only source is fine for it.
+	if operation == task.BookTransferOperationMove && h.rejectReadOnlyShelf(w, sourceShelf) {
+		return
+	}
+
 	// A move keeps the source ID, so refuse up front when the target already lists
 	// a book under it; the transfer re-checks under lock (and also guards its
 	// trash) before publishing.

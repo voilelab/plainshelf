@@ -195,6 +195,13 @@ func (target *Shelf) CopyBookFrom(source *Shelf, bookID string, targetLayer Laye
 // delete, so a move is still recoverable on the source side until that trash is
 // emptied.
 func (target *Shelf) MoveBookFrom(source *Shelf, bookID string, targetLayer Layers) (*Book, error) {
+	// A move ends by deleting the source, so refuse a read-only source before
+	// copying anything. Otherwise the copy is published on the target and only
+	// the trailing delete fails, stranding the book on both shelves.
+	if _, err := source.writeRoot(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
 	moved, err := target.CopyBookFrom(source, bookID, targetLayer, true)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -213,7 +220,17 @@ func (target *Shelf) MoveBookFrom(source *Shelf, bookID string, targetLayer Laye
 // ensureBookIDFree reports ErrBookIDConflict when this shelf already holds a book
 // with bookID, whether it is listed or sitting in the trash. The caller must hold
 // the shelf lock, exactly as drawUnusedBookID's own probes assume.
+//
+// A move forces the destination ID rather than drawing a free one, so the check
+// forces a full rescan first: a cache miss alone only re-reads books already
+// cached until the scan interval expires, which would miss a book another
+// instance or a file manager added since the last scan and let the move publish a
+// second package under the same ID.
 func (s *Shelf) ensureBookIDFree(bookID string) error {
+	if err := s.refreshBookCacheIfNeeded(true); err != nil {
+		return util.Errorf("%w", err)
+	}
+
 	if _, err := s.getUpdatedBookFromBookID(bookID); err == nil {
 		return util.Errorf("%w: %q", ErrBookIDConflict, bookID)
 	} else if !errors.Is(err, ErrBookNotFound) {
