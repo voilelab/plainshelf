@@ -31,28 +31,6 @@
     </div>
 
     <div class="detail-sections">
-      <section v-if="chapters.length > 0" class="detail-card detail-card-chapters">
-        <h3>{{ t('bookDetail.sections.chapters') }}</h3>
-        <ul class="chapter-list">
-          <li v-for="chapter in visibleChapters" :key="chapter.index">
-            <button class="chapter-item" type="button" @click="emit('selectChapter', chapter.index)">
-              <span class="chapter-item-index">{{ chapter.index + 1 }}</span>
-              <span class="chapter-item-title">{{ chapter.title }}</span>
-            </button>
-          </li>
-        </ul>
-        <button
-          v-if="chapters.length > CHAPTER_PREVIEW_LIMIT"
-          class="chapter-toggle"
-          type="button"
-          @click="showAllChapters = !showAllChapters"
-        >
-          {{ showAllChapters
-            ? t('bookDetail.chapters.showLess')
-            : t('bookDetail.chapters.showAll', { count: chapters.length }) }}
-        </button>
-      </section>
-
       <section v-if="publicationRows.length > 0" class="detail-card">
         <h3>{{ t('bookDetail.sections.publication') }}</h3>
         <dl class="detail-definition-list">
@@ -84,6 +62,28 @@
             <dd v-else>{{ row.value }}</dd>
           </div>
         </dl>
+      </section>
+
+      <section v-if="chapters.length > 0" class="detail-card detail-card-chapters">
+        <h3>{{ t('bookDetail.sections.chapters') }}</h3>
+        <ul class="chapter-list">
+          <li v-for="chapter in visibleChapters" :key="chapter.index">
+            <button class="chapter-item" type="button" @click="emit('selectChapter', chapter.index)">
+              <span class="chapter-item-index">{{ chapter.index + 1 }}</span>
+              <span class="chapter-item-title">{{ chapter.title }}</span>
+            </button>
+          </li>
+        </ul>
+        <button
+          v-if="chapters.length > CHAPTER_PREVIEW_LIMIT"
+          class="chapter-toggle"
+          type="button"
+          @click="showAllChapters = !showAllChapters"
+        >
+          {{ showAllChapters
+            ? t('bookDetail.chapters.showLess')
+            : t('bookDetail.chapters.showAll', { count: chapters.length }) }}
+        </button>
       </section>
 
       <p v-if="!hasDetailSections" class="detail-empty">{{ t('bookDetail.emptyDetails') }}</p>
