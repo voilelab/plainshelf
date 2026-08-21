@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"mime/multipart"
@@ -16,6 +17,13 @@ import (
 // hold, their content, and the illustrations stored beside them.
 type sourceHandlers struct {
 	*apiCore
+}
+
+type createSourceJSONRequest struct {
+	Content    string `json:"content"`
+	Format     string `json:"format"`
+	Comment    string `json:"comment"`
+	SetCurrent bool   `json:"set_current"`
 }
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/sources
@@ -66,7 +74,8 @@ func (h *sourceHandlers) createSource(w http.ResponseWriter, r *http.Request) {
 	options := shelf.NewSourceOptions{Format: shelf.BookFormatText}
 	setCurrent := false
 
-	if strings.HasPrefix(strings.ToLower(r.Header.Get("Content-Type")), "multipart/form-data") {
+	contentType := strings.ToLower(r.Header.Get("Content-Type"))
+	if strings.HasPrefix(contentType, "multipart/form-data") {
 		r.Body = http.MaxBytesReader(w, r.Body, maxImportBodySize)
 		if err := r.ParseMultipartForm(32 << 20); err != nil {
 			if isRequestBodyTooLarge(err) {
@@ -110,6 +119,35 @@ func (h *sourceHandlers) createSource(w http.ResponseWriter, r *http.Request) {
 			}
 			setCurrent = parsed
 		}
+	} else if strings.HasPrefix(contentType, "application/json") {
+		r.Body = http.MaxBytesReader(w, r.Body, maxImportBodySize)
+		var request createSourceJSONRequest
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&request); err != nil {
+			if isRequestBodyTooLarge(err) {
+				http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
+				return
+			}
+			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			return
+		}
+		var extra any
+		if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+			if isRequestBodyTooLarge(err) {
+				http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
+				return
+			}
+			http.Error(w, "invalid JSON", http.StatusBadRequest)
+			return
+		}
+
+		content = strings.NewReader(request.Content)
+		if format := strings.TrimSpace(request.Format); format != "" {
+			options.Format = format
+		}
+		options.Comment = request.Comment
+		setCurrent = request.SetCurrent
 	}
 
 	sourceMeta, err := book.NewSourceWithOptions(content, options)

@@ -3,6 +3,7 @@ package contract_test
 import (
 	"net/http"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/voilelab/plainshelf/server"
@@ -52,20 +53,12 @@ func TestAPICreateBookSourceContract(t *testing.T) {
 		t.Fatalf("newly created source %q not found in list: %#v", newSourceID, ids)
 	}
 
-	// A derived source is uploaded as multipart so the whole book is not placed
-	// in metadata JSON. Creation and optional activation happen in one request.
-	derivedUpload := formUpload{
-		fields: [][2]string{
-			{"format", "md"},
-			{"comment", "derived in contract test"},
-			{"set_current", "true"},
-		},
-		fileField:   "content",
-		filename:    "source.txt",
-		contentType: "application/octet-stream",
-		content:     "# Book\n\n## One\nBody 🍥",
-	}
-	rec = env.do(derivedUpload.request(t, http.MethodPost, bookURL(created.Meta.ID, "sources")))
+	// A derived source uses JSON so Wails does not have to stream generated
+	// multipart data through WebKit's custom-scheme handler. Creation and
+	// optional activation still happen atomically in one request.
+	derivedBody := `{"content":"# Book\n\n## One\nBody 🍥","format":"md","comment":"derived in contract test","set_current":true}`
+	rec = env.requestTyped(http.MethodPost, bookURL(created.Meta.ID, "sources"),
+		"application/json; charset=utf-8", strings.NewReader(derivedBody))
 	assertStatus(t, rec, http.StatusOK)
 	derived := decodeJSON[map[string]any](t, rec)
 	derivedID, _ := derived["id"].(string)
@@ -75,6 +68,27 @@ func TestAPICreateBookSourceContract(t *testing.T) {
 	if derived["comment"] != "derived in contract test" {
 		t.Fatalf("derived source comment = %#v", derived["comment"])
 	}
+
+	contentRec := env.get(sourceURL(created.Meta.ID, derivedID, "content"))
+	assertStatus(t, contentRec, http.StatusOK)
+	if got := contentRec.Body.String(); got != "# Book\n\n## One\nBody 🍥" {
+		t.Fatalf("derived source content = %q", got)
+	}
+
+	// Keep accepting multipart requests from clients released before the JSON
+	// transport was introduced.
+	legacyUpload := formUpload{
+		fields: [][2]string{
+			{"format", "txt"},
+			{"comment", "legacy multipart client"},
+		},
+		fileField:   "content",
+		filename:    "source.txt",
+		contentType: "application/octet-stream",
+		content:     "legacy body",
+	}
+	rec = env.do(legacyUpload.request(t, http.MethodPost, bookURL(created.Meta.ID, "sources")))
+	assertStatus(t, rec, http.StatusOK)
 
 	activated := getJSON[server.Book](t, env, bookURL(created.Meta.ID))
 	if activated.Meta == nil || activated.Meta.CurrentSource != derivedID || activated.Meta.Format != "md" {

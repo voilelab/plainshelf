@@ -7,7 +7,6 @@ interface SourceStoreItem {
 }
 
 const mockSource: Record<string, SourceStoreItem[]> = {};
-const MULTIPART_TEXT_CONTENT_LIMIT = 8 << 20;
 const SOURCE_UPLOAD_TIMEOUT_MS = 300_000;
 
 function countLines(value: string): number {
@@ -175,32 +174,21 @@ export async function createSource(bookId: string, options?: CreateSourceOptions
     return { ...newItem.meta };
   }
 
-  const body = options
-    ? (() => {
-        const form = new FormData();
-        const sourceContent = options.content ?? '';
-        // WKWebView can stall while streaming a programmatically-created Blob
-        // in FormData. The client then aborts at its timeout and Go observes a
-        // truncated multipart boundary (`NextPart: EOF`). Keep ordinary book
-        // text as a multipart value; use a real File only when the value is
-        // large enough that ParseMultipartForm should spill it to disk.
-        if (new Blob([sourceContent]).size <= MULTIPART_TEXT_CONTENT_LIMIT) {
-          form.append('content', sourceContent);
-        } else {
-          form.append('content', new File([sourceContent], 'source.txt', { type: 'text/plain;charset=utf-8' }));
-        }
-        form.append('format', options.format ?? 'txt');
-        if (options.comment) {
-          form.append('comment', options.comment);
-        }
-        if (options.setCurrent) {
-          form.append('set_current', 'true');
-        }
-        return form;
-      })()
-    : undefined;
+  // Wails routes fetches through the WebView's custom scheme handler. WebKit
+  // can truncate a generated multipart body there, especially once a derived
+  // source crosses the old in-memory form-field threshold; Go then reports
+  // `multipart: NextPart: EOF`. JSON is serialized as one ordinary request
+  // body and avoids that streaming path. The server still accepts multipart
+  // for older clients.
+  const body = options ? JSON.stringify({
+    content: options.content ?? '',
+    format: options.format ?? 'txt',
+    comment: options.comment ?? '',
+    set_current: options.setCurrent ?? false
+  }) : undefined;
   const data = await fetchJson<unknown>(buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/sources`), {
     method: 'POST',
+    ...(options ? { headers: { 'Content-Type': 'application/json' } } : {}),
     body
   }, {
     timeoutMs: SOURCE_UPLOAD_TIMEOUT_MS
