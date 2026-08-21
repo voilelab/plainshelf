@@ -97,6 +97,39 @@ func (r *Source) Open() (fs.File, error) {
 	return fp, nil
 }
 
+// contentStat is the size and modification time of source.txt, which is what a
+// cache keyed on "has this file changed" compares. Reported as an error rather
+// than a zero value so a caller cannot mistake a missing source for an
+// unchanged one.
+func (r *Source) contentStat() (*FileStat, error) {
+	stat, err := getFileStat(r.root, path.Join(r.folderPath, SourceFile))
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	return stat, nil
+}
+
+// readContent reads the whole source file. Every caller here needs more than
+// one metric out of the same bytes, and reading once keeps that at a single
+// round trip on a network-mounted shelf.
+func (r *Source) readContent() ([]byte, error) {
+	f, err := r.Open()
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	data, readErr := io.ReadAll(f)
+	closeErr := f.Close()
+	if readErr != nil {
+		return nil, util.Errorf("%w", readErr)
+	}
+	if closeErr != nil {
+		return nil, util.Errorf("%w", closeErr)
+	}
+
+	return data, nil
+}
+
 func (r *Source) UpdateContent(newContent io.Reader) error {
 	if err := r.EnsureWritable(); err != nil {
 		return util.Errorf("%w", err)
@@ -173,17 +206,9 @@ func (r *Source) refreshContentMetadata() error {
 	}
 	// Read the file once; compute all three metrics from the buffer to avoid
 	// 3 separate SMB round-trips on network-mounted shelves.
-	f, err := r.Open()
+	data, err := r.readContent()
 	if err != nil {
 		return util.Errorf("%w", err)
-	}
-	data, readErr := io.ReadAll(f)
-	closeErr := f.Close()
-	if readErr != nil {
-		return util.Errorf("%w", readErr)
-	}
-	if closeErr != nil {
-		return util.Errorf("%w", closeErr)
 	}
 
 	r.meta.MD5Hash, err = hashutil.MD5Hash(bytes.NewReader(data))
@@ -202,6 +227,41 @@ func (r *Source) refreshContentMetadata() error {
 	}
 
 	return r.writebackMeta(root)
+}
+
+// repairContentHash rewrites meta.json's md5_hash when it disagrees with the
+// hash of the content, reporting whether it wrote anything.
+//
+// md5_hash is written when a source is imported and validated by nothing
+// afterwards, so a source edited outside PlainShelf carries a hash that is
+// confidently wrong. Only a caller that has just read the whole file knows the
+// true value, and this is how it hands it back.
+//
+// Deliberately narrow in two ways. line_count and char_count are stale in
+// exactly the same situation, but they are read by the UI and repairing them
+// here would change what a listing shows as a side effect of a background task.
+// And a source with no md5_hash at all - a legacy import - is left alone: a
+// missing hash is honest where a wrong one is a lie, and filling them in would
+// rewrite every legacy meta.json in the shelf the first time a fingerprint run
+// touched it, which is the whole-library rewrite
+// docs/concepts/data-format-versioning.md exists to avoid.
+func (r *Source) repairContentHash(md5Hash string) (bool, error) {
+	if md5Hash == "" || r.meta.MD5Hash == "" || r.meta.MD5Hash == md5Hash {
+		return false, nil
+	}
+	if err := r.EnsureWritable(); err != nil {
+		return false, util.Errorf("%w", err)
+	}
+	root, err := r.writeRoot()
+	if err != nil {
+		return false, util.Errorf("%w", err)
+	}
+
+	r.meta.MD5Hash = md5Hash
+	if err := r.writebackMeta(root); err != nil {
+		return false, util.Errorf("%w", err)
+	}
+	return true, nil
 }
 
 // UpdateComment replaces the source's free-form comment. It records how this
