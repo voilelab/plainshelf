@@ -91,15 +91,14 @@ import {
   ContextMenuRoot,
   ContextMenuTrigger
 } from 'reka-ui';
-import { computed } from 'vue';
 import BookCoverImg from './BookCoverImg.vue';
 import BookSelectionCheckbox from './BookSelectionCheckbox.vue';
 import { useBookItemInteractions } from '@/composables/useBookItemInteractions';
+import { useBookSummaries } from '@/composables/useBookSummaries';
 import type { Book } from '@/types/book';
 import type { BookActivation } from '@/types/bookSelection';
 import { getLayerPath, layerPathLabel } from '@/utils/layers';
 import { formatDateLabel } from '@/utils/date';
-import { toPlainSummary } from '@/utils/safeHtml';
 import { useI18n } from '@/i18n';
 
 const props = withDefaults(defineProps<{
@@ -143,13 +142,7 @@ function layerLabel(book: Book): string {
   return path === '' ? '/' : layerPathLabel(path);
 }
 
-/**
- * Stripped once per book rather than once per render: the card re-renders on
- * selection and on every pointer move of a drag.
- */
-const summaries = computed(
-  () => new Map(props.books.map((book) => [book.id, toPlainSummary(book.comment)]))
-);
+const summaries = useBookSummaries(() => props.books);
 
 function summaryText(book: Book): string {
   // A description of nothing but markup - `<br>`, an empty tag - reads as a

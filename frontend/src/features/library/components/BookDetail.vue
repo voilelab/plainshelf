@@ -100,7 +100,7 @@ import type { SourceMeta } from '@/types/source';
 import type { MarkdownChapterListItem } from '@/utils/markdownChapters';
 import { formatLanguage } from '@/utils/language';
 import { formatDateLabel } from '@/utils/date';
-import { renderDescriptionHtml, toPlainSummary } from '@/utils/safeHtml';
+import { renderDescription } from '@/utils/safeHtml';
 import { useI18n } from '@/i18n';
 
 const props = withDefaults(
@@ -200,17 +200,17 @@ const contentRows = computed<DetailRow[]>(() => {
 
 const noteRows = computed<NoteRow[]>(() => {
   const rows: NoteRow[] = [];
-  const description = props.book.comment ?? '';
+  const description = renderDescription(props.book.comment);
   const importNotes = props.currentSource?.comment?.trim();
 
   // A description earns a row when it amounts to words. Markup with no text in
   // it - `<br>`, an empty `<p>`, an image on its own - survives sanitizing as
   // an empty block, which is a labelled row with nothing under it.
-  if (toPlainSummary(description)) {
+  if (description.text) {
     rows.push({
       label: t('bookDetail.fields.comment'),
       render: 'html',
-      html: renderDescriptionHtml(description)
+      html: description.html
     });
   }
   if (importNotes) {

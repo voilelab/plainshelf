@@ -39,7 +39,7 @@
           </div>
         </div>
 
-        <p v-if="summaryText(book)" class="book-list-comment">{{ summaryText(book) }}</p>
+        <p v-if="summaries.get(book.id)" class="book-list-comment">{{ summaries.get(book.id) }}</p>
 
         <p class="book-list-meta">
           <span v-if="book.authors?.length">{{ book.authors.join(', ') }}</span>
@@ -52,15 +52,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
 import BookCoverImg from './BookCoverImg.vue';
 import BookSelectionCheckbox from './BookSelectionCheckbox.vue';
 import { useBookItemInteractions } from '@/composables/useBookItemInteractions';
+import { useBookSummaries } from '@/composables/useBookSummaries';
 import type { Book } from '@/types/book';
 import type { BookActivation } from '@/types/bookSelection';
 import { getLayerPath, layerPathLabel } from '@/utils/layers';
 import { formatDateLabel } from '@/utils/date';
-import { toPlainSummary } from '@/utils/safeHtml';
 import { useI18n } from '@/i18n';
 
 const props = withDefaults(defineProps<{
@@ -92,18 +91,7 @@ const interactions = useBookItemInteractions({
   onLongPress: (id) => emit('long-press', id)
 });
 
-/**
- * Stripped once per book rather than once per render: the row re-renders on
- * selection and on every pointer move of a drag.
- */
-const summaries = computed(
-  () => new Map(props.books.map((book) => [book.id, toPlainSummary(book.comment)]))
-);
-
-/** Empty for a description that is only markup, which is what hides the row's summary. */
-function summaryText(book: Book): string {
-  return summaries.value.get(book.id) ?? '';
-}
+const summaries = useBookSummaries(() => props.books);
 
 function layerLabel(book: Book): string {
   const path = getLayerPath(book);
