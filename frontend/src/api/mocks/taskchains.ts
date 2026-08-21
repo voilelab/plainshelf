@@ -4,7 +4,6 @@ import type { TaskChain, TaskStatus } from '@/types/task';
 // Mock task chains live here so that any mock endpoint scheduling background
 // work can expose progress through the same polling API the real server uses.
 interface MockTaskChain extends TaskChain {
-  // advance moves the chain one step forward each time it is polled.
   advance: () => void;
 }
 

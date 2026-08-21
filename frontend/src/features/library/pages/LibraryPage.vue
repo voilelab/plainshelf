@@ -997,7 +997,6 @@ watch(
   opacity: 0.6;
 }
 
-/* Search bar layout adjustments */
 .search-bar {
   display: flex;
   align-items: center;
@@ -1018,7 +1017,6 @@ watch(
   color: var(--text, #333);
 }
 
-/* Sort bar layout adjustments */
 .sort-bar {
   display: flex;
   align-items: center;
@@ -1051,7 +1049,6 @@ watch(
   white-space: nowrap;
 }
 
-/* Responsive layout */
 @media (max-width: 760px) {
   .search-bar {
     flex: 1 1 100%;
