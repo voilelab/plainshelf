@@ -31,7 +31,10 @@
             <component
               :is="item.type === 'quote' ? 'blockquote' : 'p'"
               class="reader-text-block"
-              :class="{ 'reader-text-quote': item.type === 'quote' }"
+              :class="{
+                'reader-text-quote': item.type === 'quote',
+                'reader-text-block--joined': item.spacedAfter === false
+              }"
             >{{ item.text }}</component>
           </template>
         </ReaderBlockWindow>
