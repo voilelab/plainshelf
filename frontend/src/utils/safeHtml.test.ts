@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it } from 'vitest';
-import { renderDescriptionHtml, sanitizeColorStyle, sanitizeHtml, toPlainSummary } from './safeHtml';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  renderDescription,
+  renderDescriptionHtml,
+  sanitizeColorStyle,
+  sanitizeHtml,
+  toPlainSummary
+} from './safeHtml';
 
 /** Every case in the sanitizer blocks is the reader profile unless it says otherwise. */
 const sanitizeReaderHtml = (html: string): string => sanitizeHtml(html, 'reader');
@@ -311,37 +317,37 @@ describe('sanitizeHtml, summary profile', () => {
  * summary may contain. Neither step is safe on its own, so the cases below
  * assert on the pair.
  */
-const renderDescription = (source: string): string =>
+const sanitizedDescription = (source: string): string =>
   sanitizeHtml(renderDescriptionHtml(source), 'summary');
 
 describe('renderDescriptionHtml', () => {
   it('renders the Markdown a description is hand-written in', () => {
-    expect(renderDescription('**粗體**與*斜體*')).toBe('<p><strong>粗體</strong>與<em>斜體</em></p>\n');
-    expect(renderDescription('第一行\n第二行')).toBe('<p>第一行<br>\n第二行</p>\n');
-    expect(renderDescription('- 項目一\n- 項目二'))
+    expect(sanitizedDescription('**粗體**與*斜體*')).toBe('<p><strong>粗體</strong>與<em>斜體</em></p>\n');
+    expect(sanitizedDescription('第一行\n第二行')).toBe('<p>第一行<br>\n第二行</p>\n');
+    expect(sanitizedDescription('- 項目一\n- 項目二'))
       .toBe('<ul>\n<li>項目一</li>\n<li>項目二</li>\n</ul>\n');
-    expect(renderDescription('> 引文')).toBe('<blockquote>\n<p>引文</p>\n</blockquote>\n');
+    expect(sanitizedDescription('> 引文')).toBe('<blockquote>\n<p>引文</p>\n</blockquote>\n');
   });
 
   // The paragraphs an EPUB import carried over are already HTML on disk, which
   // is what the detail page used to print as text.
   it('renders the HTML an EPUB description arrives as', () => {
-    expect(renderDescription('<p>第一段</p><p>第二段</p>')).toBe('<p>第一段</p><p>第二段</p>');
+    expect(sanitizedDescription('<p>第一段</p><p>第二段</p>')).toBe('<p>第一段</p><p>第二段</p>');
   });
 
   it('strips active content without taking the words beside it', () => {
-    expect(renderDescription('簡介<script>alert(1)</script>結束')).toBe('<p>簡介結束</p>\n');
-    expect(renderDescription('<img src=x onerror=alert(1)>看得到的字')).toBe('<p>看得到的字</p>\n');
-    expect(renderDescription('<a href="javascript:alert(1)">連結文字</a>後面'))
+    expect(sanitizedDescription('簡介<script>alert(1)</script>結束')).toBe('<p>簡介結束</p>\n');
+    expect(sanitizedDescription('<img src=x onerror=alert(1)>看得到的字')).toBe('<p>看得到的字</p>\n');
+    expect(sanitizedDescription('<a href="javascript:alert(1)">連結文字</a>後面'))
       .toBe('<p>連結文字後面</p>\n');
-    expect(renderDescription('<iframe src="https://example.com"></iframe>後面')).toBe('後面');
-    expect(renderDescription('<style>p { color: red }</style>正文')).toBe('正文');
+    expect(sanitizedDescription('<iframe src="https://example.com"></iframe>後面')).toBe('後面');
+    expect(sanitizedDescription('<style>p { color: red }</style>正文')).toBe('正文');
   });
 
   // A target the dialect refuses is never a link to begin with, so nothing
   // downstream has to recognize the scheme.
   it('leaves a Markdown link to a script target as the text it was written as', () => {
-    expect(renderDescription('[連結](javascript:alert(1))')).toBe('<p>[連結](javascript:alert(1))</p>\n');
+    expect(sanitizedDescription('[連結](javascript:alert(1))')).toBe('<p>[連結](javascript:alert(1))</p>\n');
   });
 
   it('renders nothing for a description with nothing in it', () => {
@@ -349,5 +355,46 @@ describe('renderDescriptionHtml', () => {
     expect(renderDescriptionHtml('   ')).toBe('');
     expect(renderDescriptionHtml(null)).toBe('');
     expect(renderDescriptionHtml(undefined)).toBe('');
+  });
+});
+
+/**
+ * The detail page decides whether a description earns a row from `text` and
+ * renders `html`, so the two readings must never disagree about the same
+ * source - a row labelled over an empty body is exactly what that would look
+ * like.
+ */
+describe('renderDescription', () => {
+  it('returns the same two readings the single-purpose functions do', () => {
+    for (const source of ['**粗體**與*斜體*', '<p>第一段</p><p>第二段</p>', '見[官方網站](https://example.com)。']) {
+      expect(renderDescription(source), source).toEqual({
+        html: renderDescriptionHtml(source),
+        text: toPlainSummary(source)
+      });
+    }
+  });
+
+  it('reports no text for markup that amounts to no words', () => {
+    for (const source of ['<br>', '<p> </p><div></div>', '![封面](cover.png)', '<style>p { color: red }</style>']) {
+      expect(renderDescription(source).text, source).toBe('');
+    }
+  });
+
+  // The detail page used to render the source twice, once only to ask whether
+  // it had any words in it.
+  it('reads the source once for both', () => {
+    const parse = vi.spyOn(DOMParser.prototype, 'parseFromString');
+    try {
+      renderDescription('<p>第一段</p><p>第二段</p>');
+      expect(parse).toHaveBeenCalledTimes(1);
+    } finally {
+      parse.mockRestore();
+    }
+  });
+
+  it('returns both readings empty for a description with nothing in it', () => {
+    for (const source of ['', '   ', null, undefined]) {
+      expect(renderDescription(source)).toEqual({ html: '', text: '' });
+    }
   });
 });
