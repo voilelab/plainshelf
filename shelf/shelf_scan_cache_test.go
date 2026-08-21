@@ -264,7 +264,8 @@ func TestScanCacheIgnoresUnreadableSnapshot(t *testing.T) {
 // The escape hatch for a mount whose directory mtimes cannot be trusted.
 func TestScanCacheOffListsEveryDirectory(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
-	conf := &ShelfConf{LibRoot: tmpLib, ScanCache: "off"}
+	scanCacheOff := false
+	conf := &ShelfConf{LibRoot: tmpLib, ScanCache: &scanCacheOff}
 
 	s := openShelf(t, conf)
 	if _, err := s.NewBook(Layers{"Fiction"}, "Alpha"); err != nil {
@@ -286,13 +287,6 @@ func TestScanCacheOffListsEveryDirectory(t *testing.T) {
 	}
 	if _, err := os.Stat(path.Join(tmpLib, appFolder, scanCacheFileName)); !os.IsNotExist(err) {
 		t.Errorf("disabled cache still wrote a snapshot (err=%v)", err)
-	}
-}
-
-func TestScanCacheRejectsUnknownMode(t *testing.T) {
-	tmpLib := path.Join(t.TempDir(), "shelf_test")
-	if _, err := NewShelf(&ShelfConf{LibRoot: tmpLib, ScanCache: "maybe"}); err == nil {
-		t.Fatalf("NewShelf accepted scan_cache %q", "maybe")
 	}
 }
 
