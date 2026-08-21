@@ -660,6 +660,11 @@ const en = {
       failed: 'Failed to remove download'
     }
   },
+  readerApp: {
+    noBook: 'No book is open.',
+    openBook: 'Open a book…',
+    openFailed: 'That folder could not be opened as a book.'
+  },
   reader: {
     backToDetail: 'Back to detail',
     title: 'Reader',

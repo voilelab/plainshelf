@@ -100,3 +100,23 @@ export function isMobileRuntime(): boolean {
   }
   return mobileRuntime;
 }
+
+/**
+ * Whether this is the standalone reader app rather than the desktop client or a
+ * browser.
+ *
+ * The reader injects its boot config into index.html before the app's scripts
+ * run (see shells/reader/bootConfig), so this is answerable during bootstrap —
+ * which is what lets main.ts install the reader shell before the first
+ * navigation, instead of after a request has come back.
+ *
+ * Not latched: the flag is written into the page itself, and the app reloads
+ * the window when a book is opened, so it cannot change under a running app.
+ */
+export function isReaderRuntime(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return Boolean((window as { __PLAINSHELF_READER__?: unknown }).__PLAINSHELF_READER__);
+}

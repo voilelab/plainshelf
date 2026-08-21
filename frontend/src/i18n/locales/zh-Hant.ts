@@ -658,6 +658,11 @@ const zhHant = {
       failed: '移除下載失敗'
     }
   },
+  readerApp: {
+    noBook: '目前沒有開啟任何書籍。',
+    openBook: '開啟書籍…',
+    openFailed: '無法以書籍格式開啟這個資料夾。'
+  },
   reader: {
     backToDetail: '返回詳情',
     title: '閱讀器',

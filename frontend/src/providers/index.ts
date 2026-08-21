@@ -82,6 +82,6 @@ export type {
   BookshelfWriter,
   WritableBookshelfProvider
 } from './bookshelfProvider';
-export { isMobileRuntime, isMobileShellPreview, isWailsRuntime } from './runtime';
+export { isMobileRuntime, isMobileShellPreview, isReaderRuntime, isWailsRuntime } from './runtime';
 export type { RuntimeShell } from './shell';
 export { getShell, registerShell } from './shell';

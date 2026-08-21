@@ -8,6 +8,7 @@ import {
   getShell,
   isMobileRuntime,
   isMobileShellPreview,
+  isReaderRuntime,
   type BookshelfProvider,
   type WritableBookshelfProvider
 } from './providers';
@@ -41,6 +42,14 @@ declare global {
 
 async function bootstrap(): Promise<void> {
   initAppZoom();
+
+  // The standalone reader app: one book, opened from a folder the user picked,
+  // and no library around it. Dynamically imported for the same reason the
+  // mobile shell is — its shell stays out of the web and desktop bundles.
+  if (isReaderRuntime()) {
+    const { installReaderShell } = await import('@/shells/reader');
+    installReaderShell();
+  }
 
   // Bring up the mobile shell before mounting: it restores the saved server
   // URL, token and shelf, and registers the provider the app reads through.
