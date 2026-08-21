@@ -275,6 +275,18 @@ you copied in with a file manager, even though neither side can see the other's
 book yet. PlainShelf still checks the shelf and its trash for the drawn ID
 before using it, but that check is insurance, not the guarantee.
 
+Copying or moving a book to a **different shelf** applies the same principle from
+two directions. A **move** keeps the ID: it is the same book, now living on
+another shelf, so reading progress and any external reference to it carry over
+unbroken. The move publishes the book on the destination in full before removing
+it from the source, so an interruption never loses it from both — at worst it
+ends up copied to the destination and still recoverable in the source's trash.
+Because the ID is preserved, a move onto a shelf that already holds a book with
+that ID is refused rather than silently overwriting it. A **copy** does the
+opposite: the copy is a new, independent book, so it is minted a fresh ID drawn
+from the destination shelf and the original and the copy coexist — the same
+reason a copy made within one shelf gets a new ID.
+
 Shelves created by earlier versions hold 8-character hexadecimal IDs, some with
 a `-1`-style suffix, which were derived from the layer path and title at
 creation time. Those are kept exactly as they are — nothing is renumbered, and
