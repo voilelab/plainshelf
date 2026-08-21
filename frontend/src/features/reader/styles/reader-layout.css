@@ -90,6 +90,8 @@
   min-height: 42px;
   padding: 0;
   border-radius: 11px;
+  display: flex;
+  align-items: center;
   justify-content: center;
 }
 
