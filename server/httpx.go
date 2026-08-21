@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -42,6 +43,41 @@ func resolveAssetName(w http.ResponseWriter, r *http.Request) (string, bool) {
 
 func decodeStrictJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(v); err != nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return false
+	}
+
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return false
+	}
+
+	return true
+}
+
+// decodeOptionalStrictJSON is decodeStrictJSON that treats an empty body as "no
+// fields set", leaving v at its zero value. It suits a request whose every field
+// is optional - copying a book carries only an optional destination layer, so an
+// empty body is a valid "copy in place" rather than a malformed request.
+func decodeOptionalStrictJSON(w http.ResponseWriter, r *http.Request, v any) bool {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		if isRequestBodyTooLarge(err) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return false
+		}
+		http.Error(w, "failed to read request body", http.StatusInternalServerError)
+		return false
+	}
+
+	if len(bytes.TrimSpace(body)) == 0 {
+		return true
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(v); err != nil {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)

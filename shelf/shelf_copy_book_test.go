@@ -1,0 +1,188 @@
+package shelf
+
+import (
+	"errors"
+	"io"
+	"os"
+	"path"
+	"strings"
+	"testing"
+)
+
+// Copying a book must hand the copy a fresh ID so that the original and the copy
+// can both be listed. This is the exact case a hand-made `cp -r` loses: the book
+// cache keys on book.json's id, so two books sharing one collapse to a single
+// listing entry and the other silently disappears.
+func TestShelfCopyBookGivesNewIDAndCoexists(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
+
+	original, err := s.NewBook(Layers{"fiction"}, "Copy Me")
+	if err != nil {
+		t.Fatalf("NewBook: %v", err)
+	}
+	if err := original.SetCover([]byte("cover bytes"), ".png"); err != nil {
+		t.Fatalf("SetCover: %v", err)
+	}
+	source, err := original.NewSource(strings.NewReader("chapter body reading ![](assets/img-0001.png)\n"))
+	if err != nil {
+		t.Fatalf("NewSource: %v", err)
+	}
+	if err := source.WriteAsset("img-0001.png", []byte("asset bytes")); err != nil {
+		t.Fatalf("WriteAsset: %v", err)
+	}
+	if err := original.SetCurrentSource(source.ID()); err != nil {
+		t.Fatalf("SetCurrentSource: %v", err)
+	}
+
+	copied, err := s.CopyBook(original.ID(), Layers{"fiction"})
+	if err != nil {
+		t.Fatalf("CopyBook: %v", err)
+	}
+
+	if copied.ID() == original.ID() {
+		t.Fatalf("the copy reuses the original ID %q", original.ID())
+	}
+	if err := validateBookID(copied.ID()); err != nil {
+		t.Errorf("copy ID %q is not usable as one: %v", copied.ID(), err)
+	}
+
+	// A copy into the source's own layer under the same title must not overwrite
+	// it: the folder name gets a suffix, exactly as a second new book would.
+	if path.Base(copied.FolderPath()) == path.Base(original.FolderPath()) {
+		t.Errorf("copy folder %q collides with the original", copied.FolderPath())
+	}
+
+	books, err := s.ListBooks()
+	if err != nil {
+		t.Fatalf("ListBooks: %v", err)
+	}
+	ids := map[string]bool{}
+	for _, b := range books {
+		ids[b.ID()] = true
+	}
+	if len(books) != 2 || !ids[original.ID()] || !ids[copied.ID()] {
+		t.Fatalf("ListBooks holds %v, want exactly the original %q and the copy %q",
+			ids, original.ID(), copied.ID())
+	}
+
+	// The copy is self-contained. Re-read it through the shelf so the checks run
+	// against what reached disk, not the handle CopyBook returned.
+	reopened, err := s.GetBook(copied.ID())
+	if err != nil {
+		t.Fatalf("GetBook copy: %v", err)
+	}
+	if reopened.Title() != "Copy Me" {
+		t.Errorf("copy title = %q, want %q", reopened.Title(), "Copy Me")
+	}
+	if !reopened.Layers().Equal(Layers{"fiction"}) {
+		t.Errorf("copy layers = %v, want [fiction]", reopened.Layers())
+	}
+
+	copiedSource, err := reopened.ResolveCurrentSource()
+	if err != nil {
+		t.Fatalf("ResolveCurrentSource copy: %v", err)
+	}
+	if copiedSource.ID() != source.ID() {
+		t.Errorf("copy current source = %q, want the copied-over %q", copiedSource.ID(), source.ID())
+	}
+
+	content, err := copiedSource.Open()
+	if err != nil {
+		t.Fatalf("open copy source: %v", err)
+	}
+	raw, err := io.ReadAll(content)
+	content.Close()
+	if err != nil {
+		t.Fatalf("read copy source: %v", err)
+	}
+	if !strings.Contains(string(raw), "chapter body") {
+		t.Errorf("copy source content = %q, want the original body", raw)
+	}
+
+	asset, err := copiedSource.OpenAsset("img-0001.png")
+	if err != nil {
+		t.Fatalf("OpenAsset copy: %v", err)
+	}
+	assetBytes, err := io.ReadAll(asset.File)
+	asset.File.Close()
+	if err != nil {
+		t.Fatalf("read copy asset: %v", err)
+	}
+	if string(assetBytes) != "asset bytes" {
+		t.Errorf("copy asset = %q, want %q", assetBytes, "asset bytes")
+	}
+
+	cover, ext, err := reopened.OpenCover()
+	if err != nil {
+		t.Fatalf("OpenCover copy: %v", err)
+	}
+	if string(cover) != "cover bytes" || ext != ".png" {
+		t.Errorf("copy cover = %q, %q, want %q, .png", cover, ext, "cover bytes")
+	}
+
+	// Independent IDs mean independent files: writing to the copy leaves the
+	// original untouched.
+	meta := reopened.GetMeta()
+	meta.Title = "Renamed Copy"
+	if err := reopened.SetMeta(meta); err != nil {
+		t.Fatalf("SetMeta copy: %v", err)
+	}
+	originalAfter, err := s.GetBook(original.ID())
+	if err != nil {
+		t.Fatalf("GetBook original: %v", err)
+	}
+	if originalAfter.Title() != "Copy Me" {
+		t.Errorf("original title = %q, want it left as %q", originalAfter.Title(), "Copy Me")
+	}
+
+	// The copy is published by renaming it out of staging, so a successful copy
+	// must leave nothing behind under app/tmp.
+	staged, err := os.ReadDir(path.Join(tmpLib, appFolder, appTmpFolder))
+	if err == nil && len(staged) != 0 {
+		t.Errorf("staging folder not clean after a copy: %d entries", len(staged))
+	}
+}
+
+// A copy can land in a different layer than the source, and the destination
+// layer becomes visible without waiting for the next scan.
+func TestShelfCopyBookIntoAnotherLayer(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
+
+	original, err := s.NewBook(Layers{"origin"}, "Move And Copy")
+	if err != nil {
+		t.Fatalf("NewBook: %v", err)
+	}
+
+	copied, err := s.CopyBook(original.ID(), Layers{"elsewhere", "deep"})
+	if err != nil {
+		t.Fatalf("CopyBook: %v", err)
+	}
+	if !copied.Layers().Equal(Layers{"elsewhere", "deep"}) {
+		t.Fatalf("copy layers = %v, want [elsewhere deep]", copied.Layers())
+	}
+
+	books, err := s.GetBooksByLayer(Layers{"elsewhere", "deep"})
+	if err != nil {
+		t.Fatalf("GetBooksByLayer: %v", err)
+	}
+	if len(books) != 1 || books[0].ID() != copied.ID() {
+		t.Fatalf("GetBooksByLayer returned %d books, want just the copy %q", len(books), copied.ID())
+	}
+}
+
+// Copying an unknown book reports ErrBookNotFound and leaves nothing staged.
+func TestShelfCopyBookNotFound(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
+
+	if _, err := s.CopyBook("does-not-exist", Layers{"fiction"}); !errors.Is(err, ErrBookNotFound) {
+		t.Fatalf("CopyBook of a missing book error = %v, want ErrBookNotFound", err)
+	}
+
+	staged, err := os.ReadDir(path.Join(tmpLib, appFolder, appTmpFolder))
+	if err == nil && len(staged) != 0 {
+		t.Errorf("staging folder not clean after a failed copy: %d entries", len(staged))
+	}
+}

@@ -369,6 +369,7 @@ func TestReadOnlyShelfRefusesMutations(t *testing.T) {
 	mutations := map[string]func() error{
 		"NewBook":            func() error { _, err := s.NewBook(Layers{"fiction"}, "New"); return err },
 		"MoveBook":           func() error { _, err := s.MoveBook(bookID, Layers{"moved"}); return err },
+		"CopyBook":           func() error { _, err := s.CopyBook(bookID, Layers{"copied"}); return err },
 		"DeleteBook":         func() error { return s.DeleteBook(bookID) },
 		"NewLayer":           func() error { return s.NewLayer(Layers{"added"}) },
 		"DeleteLayer":        func() error { return s.DeleteLayer(Layers{"fiction"}) },
