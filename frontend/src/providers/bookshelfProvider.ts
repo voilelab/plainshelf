@@ -200,6 +200,8 @@ export interface BookshelfWriter {
 
   updateBook(bookId: string, payload: BookUpdateRequest): Promise<Book>;
   updateBookLayer(bookId: string, layer: string): Promise<void>;
+  /** Duplicates a book into `layer`, returning the copy with its fresh id. */
+  copyBook(bookId: string, layer: string): Promise<Book>;
   deleteBook(bookId: string): Promise<void>;
   /** @deprecated Legacy sources only. */
 

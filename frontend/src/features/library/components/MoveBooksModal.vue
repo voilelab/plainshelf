@@ -14,7 +14,7 @@
       <footer>
         <button type="button" class="button" :disabled="busy" @click="emit('cancel')">{{ t('common.cancel') }}</button>
         <button type="button" class="button primary" :disabled="busy || !target" @click="submit">
-          {{ busy ? t('bookCollection.selection.moving') : confirmLabel }}
+          {{ busy ? busyText : confirmText }}
         </button>
       </footer>
     </section>
@@ -27,9 +27,11 @@ import BaseDialog from '@/components/BaseDialog.vue';
 import { useI18n } from '@/i18n';
 
 // `title` lets a single-book caller name what it is moving; batch callers omit
-// it and keep the selection wording. `error` belongs in here rather than on the
-// page behind it: the dialog stays open after a failed move, and the overlay
-// hides — and takes out of the accessibility tree — anything outside it.
+// it and keep the selection wording. `busyLabel`/`confirmLabel` override the
+// move-specific button wording so the same dialog serves the copy action. `error`
+// belongs in here rather than on the page behind it: the dialog stays open after
+// a failed move, and the overlay hides — and takes out of the accessibility tree
+// — anything outside it.
 const props = defineProps<{
   open: boolean;
   count: number;
@@ -37,17 +39,21 @@ const props = defineProps<{
   busy?: boolean;
   title?: string;
   error?: string;
+  busyLabel?: string;
+  confirmLabel?: string;
 }>();
 const emit = defineEmits<{ cancel: []; submit: [targetLayer: string] }>();
 const { t } = useI18n();
 const target = ref('');
 const heading = computed(() => props.title ?? t('bookCollection.selection.moveTitle'));
+const busyText = computed(() => props.busyLabel ?? t('bookCollection.selection.moving'));
 // Neither locale has plural forms, so one book gets its own phrasing instead of
 // reading "Move 1 books".
-const confirmLabel = computed(() => (
-  props.count === 1
-    ? t('bookCollection.selection.confirmMoveOne')
-    : t('bookCollection.selection.confirmMove', { count: props.count })
+const confirmText = computed(() => (
+  props.confirmLabel
+    ?? (props.count === 1
+      ? t('bookCollection.selection.confirmMoveOne')
+      : t('bookCollection.selection.confirmMove', { count: props.count }))
 ));
 watch(() => props.open, (open) => { if (open) target.value = ''; });
 function submit(): void { if (target.value) emit('submit', target.value === '/' ? '' : target.value); }

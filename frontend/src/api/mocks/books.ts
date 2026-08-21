@@ -252,6 +252,24 @@ export function mockUpdateBookLayer(id: string, layerPath: string): Book {
   return { ...book };
 }
 
+export function mockCopyBook(id: string, layerPath: string): Book {
+  const source = findBookOrThrow(id);
+  const normalized = layerPath
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+  const now = new Date().toISOString();
+  const copy: Book = {
+    ...source,
+    id: `mock-${Date.now()}`,
+    layers: normalized,
+    created_at: now,
+    updated_at: now
+  };
+  mockBooks.unshift(copy);
+  return { ...copy };
+}
+
 export function mockGetBookContent(id: string): BookContent {
   const content = mockContent[id] ?? 'No content yet.';
   return { content };
