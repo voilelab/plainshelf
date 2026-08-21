@@ -23,9 +23,14 @@ var ErrNotBookPackage = util.NewError("directory is not a book package")
 //
 // A package is self-contained — book.json, sources/, assets/ and the cover all
 // live inside it — which is what lets a reader open a folder a user points at
-// instead of a whole library. The package is opened read-only, so every write
-// path on the returned Book fails with fsutil.ErrReadOnly rather than touching
-// a directory the caller may not own.
+// instead of a whole library.
+//
+// The package is opened read-only: every mutation on the returned Book is
+// refused before it touches a directory the caller may not own. Most report
+// fsutil.ErrReadOnly, but a guard that runs earlier answers first — a book.json
+// newer than this build is refused as ErrUnsupportedBookSchemaVersion, on a
+// package exactly as on a read-only shelf. Test for "was it refused", not for
+// one particular error, unless the book's schema version is known.
 type BookPackage struct {
 	root *os.Root
 	book *Book

@@ -244,3 +244,47 @@ func TestBookPackageCloseIsIdempotent(t *testing.T) {
 		t.Errorf("second Close: %v", err)
 	}
 }
+
+// A package whose book.json is newer than this build is refused twice over,
+// and the schema guard is the one that answers: it deliberately runs before
+// the write handle is narrowed, so that a refused write cannot truncate a
+// cover or delete a file on its way to failing.
+//
+// This is Book's behaviour on any read-only shelf, not something the package
+// reader chooses — the point of pinning it here is that "every mutation is
+// refused" is the guarantee, and fsutil.ErrReadOnly is only how most of them
+// say so.
+func TestOpenBookPackageRefusesWritesToAFutureSchemaBook(t *testing.T) {
+	dir := newBookPackageFixture(t)
+	future, err := os.ReadFile("testdata/schema/v2-future/book.json")
+	if err != nil {
+		t.Fatalf("reading future fixture: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, BookMetaFile), future, 0o644); err != nil {
+		t.Fatalf("writing future book.json: %v", err)
+	}
+
+	before := treeSnapshot(t, dir)
+	book := openFixturePackage(t, dir).Book()
+
+	// DeleteCover is absent deliberately: this fixture records no cover, so it
+	// has nothing to delete and returns nil without reaching a guard.
+	writes := map[string]func() error{
+		"SetMeta":  func() error { return book.SetMeta(book.GetMeta()) },
+		"SetCover": func() error { return book.SetCover([]byte("data"), ".png") },
+	}
+	for name, write := range writes {
+		err := write()
+		if err == nil {
+			t.Errorf("%s: expected a refusal", name)
+			continue
+		}
+		if !errors.Is(err, ErrUnsupportedBookSchemaVersion) && !errors.Is(err, fsutil.ErrReadOnly) {
+			t.Errorf("%s error = %v, want the schema guard or %v", name, err, fsutil.ErrReadOnly)
+		}
+	}
+
+	if diff := snapshotDiff(before, treeSnapshot(t, dir)); diff != "" {
+		t.Errorf("a refused write changed the package:\n%s", diff)
+	}
+}
