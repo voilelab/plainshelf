@@ -267,6 +267,11 @@ export function mockCopyBook(id: string, layerPath: string): Book {
     updated_at: now
   };
   mockBooks.unshift(copy);
+  // The server duplicates the whole package, so the copy reads the same body.
+  // Carry the content entry across too, otherwise the mock copy would open empty.
+  if (mockContent[id] !== undefined) {
+    mockContent[copy.id] = mockContent[id];
+  }
   return { ...copy };
 }
 
