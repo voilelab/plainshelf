@@ -22,12 +22,15 @@ Android clients.
 
 | Path | Responsibility |
 |---|---|
+| `cmd/` | server and migration entry points |
 | `shelf/` | filesystem-backed library core |
 | `server/` | HTTP API, security, and runtime |
+| `internal/` | shared Go internals: EPUB import, hashing, sketches, version |
 | `frontend/` | Vue UI and Capacitor Android project |
 | `desktop/` | Wails desktop client |
 | `e2e/` | Playwright end-to-end tests |
 | `docs/` | user and contributor documentation |
+| `scripts/` | version and toolchain helpers called by `justfile` and CI |
 
 ## Commands
 
@@ -39,12 +42,18 @@ tests when that directory is absent or stale.
 | Install frontend deps | `npm --prefix frontend ci` |
 | Frontend unit tests | `npm --prefix frontend test` |
 | Frontend type-check + build | `npm --prefix frontend run build` |
+| Frontend module boundaries | `npm --prefix frontend run check-boundaries` |
+| Frontend dependency licenses | `npm --prefix frontend run check-licenses` |
+| Version resolver | `./scripts/test-resolve-version.sh` |
 | Main Go module | `go test ./...` |
 | Desktop Go module | `cd desktop && go test ./...` |
 | Go lint (both modules) | `golangci-lint run` and `cd desktop && golangci-lint run` |
 | All Go tests with frontend build | `just test-go` |
 | End-to-end tests | `just test-e2e` |
 | Mock frontend | `VITE_USE_MOCK_API=true npm --prefix frontend run dev` |
+
+The boundary, license, and version-resolver checks are pull-request gates in
+`.github/workflows/ci.yml`; its Android build job is not a gate yet.
 
 `just` uses `zsh`. If either is unavailable, run the underlying commands from
 the `justfile`. In restricted environments where `sharp` cannot download its
@@ -61,9 +70,17 @@ web builds; do not use it for Capacitor asset generation.
 4. For server API changes, read the matching
    `server/contract/api_*_contract_test.go` and preserve the `local_token`
    security boundary.
-5. Update user-facing docs when setup, configuration, storage, or behavior
-   changes. Update `CHANGELOG.md` only when the task calls for release notes.
-6. Report checks that were not run or could not pass; do not imply verification.
+5. For changes to how a shelf is read or written, update the shared fixtures in
+   `shelf/testdata/conformance/`. The Go shelf and the Android pCloud client are
+   two independent readers of it; the pCloud side fails in the frontend tests.
+6. In the frontend, the mobile stack reaches the bundle only through
+   `src/shells/mobile`, and a feature directory is private to itself. A stray
+   static import silently returns the mobile stack to the embedded web build and
+   only `npm --prefix frontend run check-boundaries` notices.
+7. Update user-facing docs when setup, configuration, storage, or behavior
+   changes. Update `CHANGELOG.md` only when the task calls for release notes,
+   and use the `update-changelog` skill instead of writing entries by hand.
+8. Report checks that were not run or could not pass; do not imply verification.
 
 ## Rule routing
 
@@ -76,3 +93,7 @@ Read only the rule needed for the task:
 - Verified project-specific pitfalls: `.claude/rules/50-lessons.md`
 - Historical context only: `.claude/rules/00-diagnosis.md` and
   `.claude/rules/90-letter.md`
+
+Project workflows live in `.claude/skills/` (`update-changelog`, `update-docs`).
+`.claude/plans/frontend-refactor-roadmap.md` is a one-off work document, not a
+rule: read it only for the frontend restructure it describes, then delete it.
