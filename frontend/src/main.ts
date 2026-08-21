@@ -8,6 +8,7 @@ import {
   getShell,
   isMobileRuntime,
   isMobileShellPreview,
+  isWailsRuntime,
   type BookshelfProvider,
   type WritableBookshelfProvider
 } from './providers';
@@ -55,6 +56,20 @@ async function bootstrap(): Promise<void> {
     if (isMobileShellPreview()) {
       window.__plainshelfTestHooks = { provider: getBookshelfProvider(), bookshelfWriter };
     }
+  } else if (!isWailsRuntime()) {
+    // A browser cannot tell an ordinary server from the standalone reading
+    // binary, which serves this same bundle, so it asks: installReaderShell
+    // probes GET /api/mode and installs the shell only when the answer is
+    // `reader`. Skipped on the desktop shell, which is its own full server and
+    // has no such question to ask.
+    //
+    // Awaited here rather than left to MainLayout because the route policy has
+    // to be in place before the first navigation, and because the provider must
+    // be chosen before anything reaches for one. The answer is cached in
+    // api/mode.ts, so MainLayout's own read of the mode costs no second
+    // request.
+    const { installReaderShell } = await import('@/shells/reader');
+    await installReaderShell();
   }
 
   // Before createApp: app.use(router) triggers the first navigation, and a
