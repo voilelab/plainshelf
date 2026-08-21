@@ -22,15 +22,12 @@ var ErrTrashedBookNotFound = util.NewError("trashed book not found")
 // TrashMetaSchemaVersion is the trash.json schema version this build writes.
 //
 // trash.json is not a cache: it records where each book came from, so losing or
-// rewriting it restores the book to the wrong place. It therefore follows the
-// same rules as book.json. A trash.json with no schema_version predates
-// versioning ("v0"): it is read as v1 and normalized in memory, and the version
-// reaches disk only the next time the file is written (lazy upgrade). Opening a
-// shelf never rewrites it.
-//
-// A trash.json with a HIGHER schema_version is still listed and still readable,
-// but every operation that would modify the trashed book is refused before it
-// touches the filesystem, so an older build cannot clobber a newer one's record.
+// rewriting it restores the book to the wrong place. It follows the same rules
+// as book.json. No schema_version predates versioning ("v0"): read as v1,
+// normalized in memory, persisted only on the next write (lazy upgrade); opening
+// a shelf never rewrites it. A HIGHER schema_version is still listed and
+// readable, but any operation that would modify the trashed book is refused
+// before touching the filesystem, so an older build cannot clobber a newer one.
 const TrashMetaSchemaVersion = 1
 
 // ErrUnsupportedTrashSchemaVersion is returned when an operation would modify a

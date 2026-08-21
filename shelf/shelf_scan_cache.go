@@ -148,25 +148,25 @@ func (s *Shelf) newScanDirCache() *scanDirCache {
 
 // readDir returns the children of pth that the walk may descend into, listing
 // the directory only when its mtime shows the listing could have changed. It
-// also reports whether that listing is proven unchanged, which is what the
-// walk passes down as its children's trusted flag.
+// also reports whether that listing is proven unchanged - the trusted flag the
+// walk passes down to those children.
 //
 // trusted says the caller established that pth is still the same directory the
-// snapshot describes. A modification time identifies a directory's content,
-// not the directory: move one away and rename another into its place and the
-// path now holds something else entirely, with an mtime of its own that may
-// well equal the recorded one - coarse-timestamp filesystems (the ones this
-// cache is most useful on) and timestamp-preserving copies both produce that.
-// Matching the mtime alone would then serve the old directory's children
-// forever and hide every book under the new one.
+// snapshot describes. An mtime identifies a directory's content, not the
+// directory: move one away and rename another into its place and the path holds
+// something else entirely, with an mtime of its own that may well equal the
+// recorded one - coarse-timestamp filesystems (the ones this cache is most
+// useful on) and timestamp-preserving copies both produce that. Matching the
+// mtime alone would then serve the old directory's children forever and hide
+// every book under the new one.
 //
-// What rules that out is the parent. Renaming a directory into place changes
-// its new parent's mtime, so a parent whose own listing is proven unchanged
-// proves that none of its children were swapped, and only then may a child's
-// recorded mtime be believed. A parent that had to be relisted distrusts every
-// child, which cascades down that subtree for the same reason - the cost is
-// one scan at the old price for the part of the tree that actually changed.
-// The walk's root is trusted by definition; it has no parent under the shelf.
+// The parent rules that out. Renaming a directory into place changes its new
+// parent's mtime, so a parent whose own listing is proven unchanged proves none
+// of its children were swapped, and only then may a child's recorded mtime be
+// believed. A parent that had to be relisted distrusts every child, cascading
+// down that subtree for the same reason - the cost is one scan at the old price
+// for the part of the tree that actually changed. The walk's root is trusted by
+// definition; it has no parent under the shelf.
 func (c *scanDirCache) readDir(pth string, trusted bool) ([]dirChild, bool, error) {
 	c.stats.Dirs++
 
@@ -246,13 +246,13 @@ func dirChildren(entries []fs.DirEntry) []dirChild {
 // childIsDir reports whether pth is a directory, paying for a Stat call only
 // when the directory entry could not answer on its own.
 //
-// A listing already reports each entry's type, so a walk does not need to stat
-// every child it visits; on a network shelf that removes roughly half the round
-// trips of a full scan. The exception is a symlink: the readdir type byte
-// describes the link itself, so a link pointing at a directory reports false.
-// Those fall back to Stat, which resolves the link exactly as the walk always
-// did - including when the entry came from the scan cache, because a symlink's
-// target can change without the directory holding it being modified.
+// A listing already reports each entry's type, so a walk need not stat every
+// child it visits; on a network shelf that removes roughly half a full scan's
+// round trips. The exception is a symlink: the readdir type byte describes the
+// link itself, so a link pointing at a directory reports false. Those fall back
+// to Stat, which resolves the link exactly as the walk always did - including
+// when the entry came from the scan cache, because a symlink's target can change
+// without the directory holding it being modified.
 //
 // child is nil at the root of a walk, which has no directory entry of its own.
 func childIsDir(root fsutil.ReadFS, pth string, child *dirChild) (bool, error) {

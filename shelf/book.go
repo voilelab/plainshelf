@@ -38,11 +38,10 @@ const BookMetaFile = "book.json"
 const CurrentSourceHintFile = "CURRENT_SOURCE.txt"
 const LegacyCurrentSourceHintFile = "CURRENT_VERSION_LOCATION.txt"
 
-// CurrentSourceHintTemplate is written in English rather than following a UI
-// locale: i18n lives in the frontend, and the server has no locale setting to
-// read, so a shelf written by a headless server would otherwise have no
-// defensible language to pick. The file is disposable, so this costs nothing
-// that a future locale-aware write could not undo.
+// CurrentSourceHintTemplate is English rather than a UI locale: i18n lives in
+// the frontend and the server has no locale to read, so a headless write has no
+// defensible language to pick. The file is disposable, so a future locale-aware
+// write could undo this at no cost.
 const CurrentSourceHintTemplate = `[PlainShelf hint]
 This book currently reads from:
 %s
@@ -54,15 +53,14 @@ can safely delete it; it is rewritten the next time the current source changes.
 
 // BookMetaSchemaVersion is the book.json schema version this build writes.
 //
-// A book.json with no schema_version field predates versioning ("v0"): it is
-// read as v1 and normalized in memory, and the version is only persisted the
-// next time the book is written (lazy upgrade, same pattern as published_at in
-// internal/util/json_date.go). Opening a library never rewrites it.
+// A book.json with no schema_version predates versioning ("v0"): it is read as
+// v1 and normalized in memory, and the version reaches disk only on the next
+// write (lazy upgrade, as with published_at in internal/util/json_date.go).
+// Opening a library never rewrites it.
 //
-// A book.json with a HIGHER schema_version is read best-effort but is never
-// written back, so an older build cannot clobber data written by a newer one.
-// That refusal is enforced by EnsureWritable, which every mutating operation
-// calls before touching the filesystem.
+// A HIGHER schema_version is read best-effort but never written back, so an
+// older build cannot clobber a newer one's data. EnsureWritable enforces that
+// refusal, and every mutating operation calls it before touching the filesystem.
 const BookMetaSchemaVersion = 1
 
 var ErrSourceNotFound = util.NewError("source not found")
@@ -318,11 +316,10 @@ func (b *Book) SetCover(imageData []byte, ext string) error {
 // book still points away from it.
 //
 // An overlapping upload can write a new image under the old name and point the
-// book back at it - starting from cover.png, a JPEG upload and a concurrent PNG
-// upload can interleave that way. Deleting it then would leave book.json
-// referencing a file that no longer exists, so the persisted meta is re-read
-// and the file is left alone if it has been claimed again. Losing an orphan is
-// cheaper than losing the cover the book actually points to.
+// book back at it (from cover.png, a JPEG upload and a concurrent PNG upload can
+// interleave that way). Deleting it then would leave book.json referencing a
+// missing file, so the persisted meta is re-read and the file left alone if it
+// has been reclaimed: losing an orphan is cheaper than losing the live cover.
 func (b *Book) removeReplacedCover(root fsutil.FS, previousCover string) {
 	persisted, err := readBookMeta(b.root, b.folderPath)
 	if err != nil {
@@ -628,11 +625,11 @@ func (b *Book) currentSourceCharCount() int {
 }
 
 // ResolveCurrentSource opens the source a reader should be served, tolerating a
-// current_source pointer that no longer resolves. A shelf is edited by hand and
-// by sync tools, so the pointer can name a source that was removed or damaged
-// outside this build; falling back to the newest surviving source keeps such a
-// book readable. This is a read path: it never repairs book.json, because the
-// filesystem stays the source of truth and only an explicit write may change it.
+// current_source pointer that no longer resolves. A shelf edited by hand or by
+// sync tools can point at a source removed or damaged outside this build;
+// falling back to the newest surviving source keeps the book readable. This is
+// a read path and never repairs book.json: the filesystem stays the source of
+// truth, and only an explicit write may change it.
 func (b *Book) ResolveCurrentSource() (*Source, error) {
 	// GetSource("") fails path-segment validation rather than reporting a
 	// missing source, so an unset pointer is answered before asking for it.
@@ -839,15 +836,12 @@ func openBook(rt fsutil.ReadFS, logger logutil.Logger, bookPath string) (*Book, 
 		return nil, util.Errorf("%w", err)
 	}
 
-	// A too-new book is deliberately NOT an error here. Failing would make the
-	// book vanish from listings (iterateShelfTree), get evicted from the cache
-	// (onlyRefreshBooksInCache), 404 from the API, and — worst — become
-	// impossible to restore from trash. A visible, explained book beats a book
-	// that silently disappears. setMeta is what protects the bytes on disk.
-	//
-	// This normalization lives here rather than in readBookMeta because that
-	// decoder is also used to re-read the persisted cover name, which needs the
-	// raw bytes and no warning.
+	// A too-new book is deliberately NOT an error here. Failing would drop it from
+	// listings (iterateShelfTree), evict it from the cache (onlyRefreshBooksInCache),
+	// 404 from the API, and — worst — make it unrestorable from trash. A visible,
+	// explained book beats one that silently disappears; setMeta protects the bytes
+	// on disk. This normalization is not in readBookMeta because that decoder also
+	// re-reads the persisted cover name, which needs the raw bytes and no warning.
 	switch {
 	case meta.SchemaVersion > BookMetaSchemaVersion:
 		logger.Warn("book.json schema version is newer than this build supports; book is read-only",

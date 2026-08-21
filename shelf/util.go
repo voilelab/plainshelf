@@ -178,12 +178,11 @@ func validatePathSegment(segment string) error {
 }
 
 // bookIDEntropyBytes is how much randomness stands behind a new book ID. Ten
-// bytes is 80 bits, which is what makes the ID unique on its own rather than by
-// agreement with anyone: a shelf would need on the order of a trillion books
-// before two IDs collided with any meaningful probability. That is the property
-// this needs, because the collision probe at creation time cannot see a book
-// another machine wrote into a shared shelf moments ago, nor one copied in with
-// a file manager.
+// bytes (80 bits) makes the ID unique on its own rather than by agreement: a
+// shelf would need on the order of a trillion books before two collided. That
+// standalone uniqueness is needed because the creation-time collision probe
+// cannot see a book another machine just wrote into a shared shelf, or one
+// copied in with a file manager.
 const bookIDEntropyBytes = 10
 
 // bookIDEncoding keeps an ID to lowercase letters and the digits 2-7. The trash
@@ -194,13 +193,11 @@ var bookIDEncoding = base32.NewEncoding("abcdefghijklmnopqrstuvwxyz234567").With
 
 // newBookID draws a random book ID.
 //
-// The ID is opaque. It is generated once when the book is created, persisted in
-// book.json, and never recomputed, so renaming the title, moving the book to
-// another layer, and restoring it from the trash all leave it alone. Builds
-// before this one derived it from the layers and title, which read as if the ID
-// could be recomputed from them when it never was, and handed two different
-// books the same ID whenever they shared a layer path and title - the case a
-// shelf shared between machines produces routinely.
+// The ID is opaque: generated once at creation, persisted in book.json, and
+// never recomputed, so renaming the title, moving the book, or restoring it
+// from trash all leave it alone. Older builds derived it from layers and title,
+// which read as if it could be recomputed and gave two books the same ID
+// whenever they shared a layer path and title — routine on a shared shelf.
 func newBookID() (string, error) {
 	buf := make([]byte, bookIDEntropyBytes)
 	if _, err := cryptorand.Read(buf); err != nil {

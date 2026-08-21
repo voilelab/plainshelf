@@ -81,14 +81,14 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 }
 
 // NewBookWith creates a new book and, if init is non-nil, runs it against the
-// book while the book is still staged in the app temp folder.
+// book while it is still staged in the app temp folder.
 //
-// The book only becomes visible under the books folder after init succeeds, so
-// a failing init - or a crash partway through it - leaves nothing behind but
-// temp data, which is wiped on the next startup. This is what makes multi-step
-// creation (book, source, current-source pointer, metadata) transactional.
+// The book becomes visible under the books folder only after init succeeds, so
+// a failing init - or a crash partway through it - leaves nothing but temp
+// data, wiped on the next startup. This is what makes multi-step creation
+// (book, source, current-source pointer, metadata) transactional.
 //
-// init runs while the exclusive shelf lock is held, so it should not perform
+// init runs while the exclusive shelf lock is held, so it should not do
 // long-running work beyond writing the book's own initial content.
 func (s *Shelf) NewBookWith(layers Layers, title string, init func(*Book) error) (*Book, error) {
 	if err := validateLayers(layers); err != nil {

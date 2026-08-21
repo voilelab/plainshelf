@@ -114,19 +114,19 @@ func (s *Shelf) bookCacheFileName() string {
 }
 
 // scheduleBookCacheExportIfNeeded considers an export in the background once the
-// interval has elapsed. Whether anything is actually written is decided by
-// comparing content, in exportBookCache.
+// interval has elapsed. Whether anything is written is decided by comparing
+// content, in exportBookCache.
 //
-// Deciding on content rather than on a "something changed" flag is the point:
-// the cache holds pointers to live *Book values, and every metadata edit —
-// SetMeta, SetCover, DeleteCover, SetCurrentSource — mutates one in place
-// without going near this file. A flag would have to be set from each of them,
-// and the one that got missed would silently stop exporting.
+// Deciding on content rather than a "something changed" flag is the point: the
+// cache holds pointers to live *Book values, and every metadata edit — SetMeta,
+// SetCover, DeleteCover, SetCurrentSource — mutates one in place without going
+// near this file. A flag would have to be set from each, and the one missed
+// would silently stop exporting.
 //
-// There is no ticker behind this either. An export only has something to say
-// after the shelf has been read or written, and every such path passes through
-// here, so polling would add a goroutine and a shutdown concern without making
-// any file fresher. A shelf closed with unexported changes is handled by Close.
+// There is no ticker either. An export only has something to say after the shelf
+// is read or written, and every such path passes through here, so polling would
+// add a goroutine and a shutdown concern without making any file fresher. A
+// shelf closed with unexported changes is handled by Close.
 func (s *Shelf) scheduleBookCacheExportIfNeeded() {
 	if s.bookCacheWriterID == "" {
 		return
@@ -216,11 +216,11 @@ func (s *Shelf) ExportBookCache() (time.Time, error) {
 //
 // It intentionally does not take the shelf lock. The only file it writes is
 // named after this installation, so no other instance contends for it, and the
-// write itself is atomic. Reading a directory tree while another process
-// mutates it can miss a book that is being added — which is exactly the kind of
-// staleness this file is already defined to tolerate, and the next export
-// corrects it. Taking the lock here would instead mean acquiring it from
-// Close and from goroutines whose caller already holds it.
+// write is atomic. Reading a directory tree while another process mutates it
+// can miss a book being added — exactly the staleness this file is already
+// defined to tolerate, and the next export corrects it. Taking the lock here
+// would instead mean acquiring it from Close and from goroutines whose caller
+// already holds it.
 func (s *Shelf) exportBookCache(force bool) error {
 	if s.bookCacheWriterID == "" {
 		return nil

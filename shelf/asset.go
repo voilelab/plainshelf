@@ -22,19 +22,17 @@ import (
 
 // SourceAssetsFolder holds the illustrations a source's text references.
 //
-// Assets sit beside the text that references them, so `![](assets/img-0001.jpg)`
-// in source.txt resolves the same way in the reader as it does in any ordinary
-// editor opened on that file. It also means a source owns its images:
-// DeleteSource already removes the whole source folder, so there are no
-// orphans to collect.
+// Assets sit beside the text, so `![](assets/img-0001.jpg)` in source.txt
+// resolves the same way in the reader as in any editor opened on that file. A
+// source thus owns its images: DeleteSource removes the whole source folder, so
+// there are no orphans to collect.
 //
-// The directory is deliberately flat. An asset name is a single path segment,
-// which makes "contains no separator" a complete traversal defense rather than
-// one rule among several.
+// The directory is deliberately flat — an asset name is a single path segment,
+// which makes "contains no separator" a complete traversal defense on its own.
 //
-// Nothing records the contents of this directory: the filesystem is the list.
-// That is what keeps book.json's schema unchanged, so a build without asset
-// support reads such a shelf as it always did.
+// Nothing records the directory's contents: the filesystem is the list. That
+// keeps book.json's schema unchanged, so a build without asset support reads
+// such a shelf as it always did.
 const SourceAssetsFolder = "assets"
 
 // ErrAssetNotFound is returned when a source has no asset under the given name.
@@ -169,15 +167,14 @@ type Asset struct {
 
 // OpenAsset opens one of this source's assets for reading.
 //
-// The file is handed back open rather than read into memory: unlike a cover,
-// which the API caps when it is uploaded, an asset is a file the user placed on
-// the shelf by hand and can be arbitrarily large. Buffering one per in-flight
-// request would let a handful of large illustrations decide the server's memory
-// use.
+// The file is handed back open rather than buffered: unlike a cover, which the
+// API caps on upload, an asset is placed on the shelf by hand and can be
+// arbitrarily large, so buffering one per in-flight request would let a few big
+// illustrations decide the server's memory use.
 //
-// A missing asset, and a name that resolves to something other than a regular
-// file, both report ErrAssetNotFound: from a reader's point of view they are
-// the same outcome, and neither is a server fault.
+// A missing asset and a name resolving to a non-regular file both report
+// ErrAssetNotFound: to a reader they are the same outcome, and neither is a
+// server fault.
 func (r *Source) OpenAsset(name string) (*Asset, error) {
 	assetPath, err := r.AssetPath(name)
 	if err != nil {

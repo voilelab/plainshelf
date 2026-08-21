@@ -161,15 +161,14 @@ type fingerprintIndexEntry struct {
 	// still produces byte-identical files and is never rewritten.
 	//
 	// The file's own mtime cannot play this part. Restoring a source from a
-	// backup gives it new content under an OLDER modification time, and a merge
-	// that ranked records by mtime would reinstate the record describing the
-	// content that is no longer there - permanently, because every later run
-	// would observe the restored file, lose the merge again, and rebuild.
+	// backup gives it new content under an OLDER mtime, and a merge that ranked
+	// records by mtime would reinstate the record describing the content that is
+	// no longer there - permanently, because every later run would observe the
+	// restored file, lose the merge again, and rebuild.
 	//
 	// Two machines with skewed clocks can still order each other's records
-	// wrongly. The cost is bounded the same way everything else here is: a
-	// record that loses when it should have won fails its next Stat check and
-	// costs one re-read.
+	// wrongly. The cost is bounded as everything here is: a record that loses
+	// when it should have won fails its next Stat check and costs one re-read.
 	SeenAt time.Time `json:"seen_at,omitzero"`
 }
 
@@ -457,16 +456,16 @@ func (c *FingerprintCache) repairSourceHash(source *Source, md5Hash string) {
 // run started, and a plain overwrite would throw its work away.
 //
 // It is a merge, not a transaction. Two machines saving at the same instant can
-// still both read the same older file and replace it in turn, and the second
-// write then loses what the first added. Serializing that would mean holding the
-// shelf lock across a read and a write, which no other file under app/ does and
-// which lock_mode: none cannot offer at all. The trade is deliberate: what such
-// a race costs is a fingerprint computed again on some later run, never a wrong
-// answer, because an entry is keyed by the content it describes.
+// both read the same older file and replace it in turn, and the second write
+// then loses what the first added. Serializing that would mean holding the shelf
+// lock across a read and a write, which no other file under app/ does and which
+// lock_mode: none cannot offer at all. The trade is deliberate: such a race
+// costs a fingerprint computed again on some later run, never a wrong answer,
+// because an entry is keyed by the content it describes.
 //
 // Whether there is anything to write is decided by comparing the result against
 // the bytes already on disk, not by a "something was computed" flag. A run that
-// only ever hit the cache still has something to say when a book has since been
+// only hit the cache still has something to say when a book has since been
 // deleted - that is when its records become collectable - and a flag would skip
 // exactly that write.
 func (c *FingerprintCache) Save() error {
@@ -588,23 +587,23 @@ func mergeFingerprintIndex(index, other map[string]fingerprintIndexEntry) {
 // pruneFingerprintCache drops what the shelf no longer holds: index records for
 // books that are gone, and then every entry no surviving record names.
 //
-// Entries are collected the same way pruneStaleBookCaches works - by what is
-// still referenced, not by age - because an entry is only worth keeping while
-// some source still hashes to it. A book another machine added since this
-// shelf last scanned loses its record here and is fingerprinted again there,
-// which costs one recomputation and cannot lose data.
+// Entries are collected the way pruneStaleBookCaches does - by what is still
+// referenced, not by age - because an entry is only worth keeping while some
+// source still hashes to it. A book another machine added since this shelf last
+// scanned loses its record here and is fingerprinted again there, which costs
+// one recomputation and cannot lose data.
 //
 // keep holds the content hashes this run answered for, which are exempt: a
 // source may deliberately have no index record yet, and its fingerprint is the
 // newest thing in the file rather than the stalest.
 //
 // What this does NOT collect is a record for a source deleted from a book that
-// is still there. Deciding that needs the source IDs each book still holds,
-// which is a directory listing per book at save time - the per-book I/O this
-// whole file exists to avoid - or a promise from the caller that its run
-// covered every source in the shelf. Until a fingerprint task exists to make
-// that promise, such a record is left in place: it costs about 1.5 kB and is
-// never served, because the source it names is gone.
+// is still there. Deciding that needs the source IDs each book still holds - a
+// directory listing per book at save time, the per-book I/O this whole file
+// exists to avoid - or a promise from the caller that its run covered every
+// source in the shelf. Until a fingerprint task exists to make that promise,
+// such a record is left in place: it costs about 1.5 kB and is never served,
+// because the source it names is gone.
 func pruneFingerprintCache(index map[string]fingerprintIndexEntry, entries map[string]FingerprintEntry, live, keep map[string]struct{}) {
 	referenced := make(map[string]struct{}, len(index)+len(keep))
 	maps.Copy(referenced, keep)

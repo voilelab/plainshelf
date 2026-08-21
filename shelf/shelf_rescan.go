@@ -10,13 +10,12 @@ import (
 // shelf, so this one was refused rather than started alongside it.
 //
 // Refused rather than queued or attached: a second walk would cost the same
-// directory traversal to answer a question the first walk is already
-// answering, and on the SMB and cloud-mounted shelves this button exists for,
-// that traversal is the expensive part. Attaching to the running walk was the
-// alternative, and it is worse for the reason the button exists at all — a walk
-// that began before the user dropped their file in cannot report the file, so
-// attaching would answer "scanned, still not there" while a retry after it ends
-// finds the book.
+// directory traversal to answer a question the first is already answering, and
+// on the SMB and cloud-mounted shelves this button exists for, that traversal
+// is the expensive part. Attaching to the running walk is worse for the very
+// reason the button exists — a walk that began before the user dropped their
+// file in cannot report it, so attaching would answer "scanned, still not
+// there" while a retry after it ends finds the book.
 var ErrRescanInProgress = util.NewError("a rescan is already in progress")
 
 // RescanResult reports what a manual rescan found.
@@ -36,12 +35,12 @@ type RescanResult struct {
 
 // Rescan walks the shelf now and rebuilds the book cache from what it finds.
 //
-// scanInterval does not apply. It exists to stop repeated browsing from
+// scanInterval does not apply: it exists to stop repeated browsing from
 // re-walking the tree, and a user who pressed a button has already answered the
 // question it asks. This is the one unconditional full scan the API can reach
-// without a side effect: ExportBookCache also forces a walk, but it writes a
-// file afterwards, which makes it the wrong thing to reach for when all that is
-// wanted is for a book dropped into books/ to show up.
+// without a side effect — ExportBookCache also forces a walk but writes a file
+// afterwards, the wrong thing to reach for when all that is wanted is for a book
+// dropped into books/ to show up.
 func (s *Shelf) Rescan() (RescanResult, error) {
 	if !s.IsReady() {
 		return RescanResult{}, util.Errorf("%w", ErrShelfInitializing)
