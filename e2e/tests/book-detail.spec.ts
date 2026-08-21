@@ -200,6 +200,11 @@ test('opens the reader at a chapter picked from the detail page', async ({ page 
     // The list is a deep link into the reader, so it has to show the reader's
     // own sections: the opening ahead of the first H2 included, in that order.
     const chapterCard = page.locator('.detail-card-chapters');
+    // The chapter list is the way into the book rather than a fact about it, so
+    // it reads after the cards describing the book.
+    await expect(page.locator('.detail-sections > section').last()).toHaveClass(
+      /detail-card-chapters/
+    );
     await expect(chapterCard.locator('.chapter-item-title')).toHaveText([
       'Chapter Sampler',
       'First Light',
