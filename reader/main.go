@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -78,26 +80,20 @@ func main() {
 	}
 }
 
-// bookPathFromArgs reads the -book argument the app was launched with.
+// bookPathFromArgs reads -book from the arguments the app was launched with.
 //
-// Scanned rather than parsed with the flag package, and named rather than
-// positional, because the app does not own its whole command line: `wails dev`
-// passes its own flags through to the binary, so an unknown flag must not stop
-// the parse and a bare value like the "debug" in "-loglevel debug" must not be
-// mistaken for a path.
+// Its own FlagSet rather than the package-level one: wails parses os.Args
+// itself in dev mode, and this has to be callable from a test. Errors are
+// discarded the same way wails discards its own ("Parse args but ignore errors
+// in case -appargs was used"): an argument this app does not define is not its
+// to reject, and either way there is no book to open.
 func bookPathFromArgs(args []string) string {
-	for i, arg := range args {
-		if value, found := strings.CutPrefix(arg, "-book="); found {
-			return value
-		}
-		if value, found := strings.CutPrefix(arg, "--book="); found {
-			return value
-		}
-		if (arg == "-book" || arg == "--book") && i+1 < len(args) {
-			return args[i+1]
-		}
-	}
-	return ""
+	flags := flag.NewFlagSet("plainshelf-reader", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	book := flags.String("book", "", "path to the .bookpkg folder to open")
+
+	_ = flags.Parse(args)
+	return *book
 }
 
 // newApplicationMenu keeps the reader's menu to what a reader can do: open
