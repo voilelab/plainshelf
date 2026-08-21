@@ -8,7 +8,9 @@
  * the card and the list summaries print `<p>` at the reader today, and a `<ul>`
  * or an `<h1>` resizes a card the grid needs to keep at one height — and, for
  * the places that render the markup, `renderDescriptionHtml` followed by
- * `sanitizeHtml`, with `SafeHtml.vue` as the only permitted `v-html` sink.
+ * `sanitizeHtml`, with `SafeHtml.vue` as the only permitted `v-html` sink. A
+ * caller that needs both readings of one description asks `renderDescription`
+ * rather than the two in turn.
  *
  * Every caller that needs the description as words goes through this module,
  * which is what keeps a summary and the description itself reading the same
@@ -95,10 +97,26 @@ function collectText(node: Node, parts: string[]): void {
 }
 
 /**
+ * Reads rendered markup back as its words: one line, no tags left over. A
+ * parser rather than a tag-shaped regular expression, so a `<` that is a real
+ * less-than sign keeps the text that follows it.
+ */
+function textOf(html: string): string {
+  // The parsed document has no browsing context: scripts do not run and no
+  // element loads anything, which is what makes reading it back safe. That
+  // property belongs to DOMParser rather than to the traversal below - the
+  // same markup assigned to a detached element's innerHTML does fetch an
+  // `<img>`, a `<video>` poster and its `<source>`, which would let a
+  // description PlainShelf did not write call home the moment a card is drawn.
+  const document = new DOMParser().parseFromString(html, 'text/html');
+  const parts: string[] = [];
+  collectText(document.body, parts);
+  return parts.join('').replace(/\s+/g, ' ').trim();
+}
+
+/**
  * Reads `source` as the document it describes and returns its words: one line,
- * no HTML tags, no Markdown syntax left over. A parser rather than a tag-shaped
- * regular expression, so a `<` that is a real less-than sign keeps the text
- * that follows it.
+ * no HTML tags, no Markdown syntax left over.
  *
  * Text that amounts to no words - `<br>`, an empty tag, spaces - returns an
  * empty string, which is the caller's cue to fall back to something else.
@@ -108,16 +126,7 @@ export function toPlainSummary(source: string | null | undefined): string {
     return '';
   }
 
-  // The parsed document has no browsing context: scripts do not run and no
-  // element loads anything, which is what makes reading it back safe. That
-  // property belongs to DOMParser rather than to the traversal below - the
-  // same markup assigned to a detached element's innerHTML does fetch an
-  // `<img>`, a `<video>` poster and its `<source>`, which would let a
-  // description PlainShelf did not write call home the moment a card is drawn.
-  const document = new DOMParser().parseFromString(markdown.render(source), 'text/html');
-  const parts: string[] = [];
-  collectText(document.body, parts);
-  return parts.join('').replace(/\s+/g, ' ').trim();
+  return textOf(markdown.render(source));
 }
 
 /**
@@ -137,6 +146,24 @@ export function renderDescriptionHtml(source: string | null | undefined): string
   }
 
   return markdown.render(source);
+}
+
+export interface RenderedDescription {
+  /** Renderer output, for `SafeHtml` to sanitize; never a `v-html` sink itself. */
+  html: string;
+  /** That same markup read back as words, empty when it amounts to none. */
+  text: string;
+}
+
+/**
+ * Both readings of one description from one parse, for a view that needs to
+ * decide whether there is anything to show *and* show it - the detail page asks
+ * exactly that. Deciding on `text` and rendering `html` keeps "this description
+ * has content" and "this is the content" answering from the same source.
+ */
+export function renderDescription(source: string | null | undefined): RenderedDescription {
+  const html = renderDescriptionHtml(source);
+  return { html, text: html ? textOf(html) : '' };
 }
 
 export type SafeHtmlProfile = 'reader' | 'summary';

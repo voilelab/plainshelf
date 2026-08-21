@@ -79,6 +79,11 @@ type Shelf struct {
 	bookCacheWriterID string
 	bookCacheInterval time.Duration
 	exportMu          sync.Mutex
+
+	// background counts the goroutines a read leaves running; see goBackground.
+	backgroundMu sync.Mutex
+	background   sync.WaitGroup
+	closing      bool
 }
 
 type ShelfConf struct {
@@ -303,11 +308,18 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 	}
 
 	s.Debug("initializing shelf cache in background", "lib_root", conf.LibRoot, "read_only", conf.ReadOnly, "scan_interval", scanInterval, "book_check_interval", bookCheckInterval, "lock_timeout", lockTimeout)
-	go func() {
+	// Tracked like every other background write: initCache goes on writing the
+	// scan cache and the exported book cache after readyCh is closed, so a Close
+	// that did not wait for it would release the shelf lock with a walk still
+	// running - which is also what turns those writes into "file already closed"
+	// noise today. The cost is that closing a shelf mid-scan now waits for that
+	// first walk to finish rather than having the filesystem pulled out from
+	// under it.
+	s.goBackground(func() {
 		if err := s.initCache(); err != nil {
 			s.Error("failed to initialize shelf cache", "error", err)
 		}
-	}()
+	})
 
 	return s, nil
 }
@@ -474,8 +486,51 @@ func validateBookCacheWriterID(writerID string) error {
 	return nil
 }
 
+// goBackground runs fn in a goroutine that Close waits for, and reports whether
+// it started one.
+//
+// A read schedules work that outlives the call it came from - the per-book
+// staleness check and the exported book cache - and both of those write under
+// app/, the check by taking the shelf lock, which creates app/library.lock when
+// it is missing. Left untracked, such a goroutine writes into a shelf whose
+// owner has already closed it and released that lock: it can put a file back
+// into a directory the caller is deleting, and on a shared shelf it writes
+// without holding the lock that keeps concurrent instances apart.
+//
+// A shelf that is closing starts nothing new, which is also what keeps the
+// counter from being raised while Close waits on it.
+func (s *Shelf) goBackground(fn func()) bool {
+	s.backgroundMu.Lock()
+	defer s.backgroundMu.Unlock()
+
+	if s.closing {
+		return false
+	}
+
+	s.background.Add(1)
+	go func() {
+		defer s.background.Done()
+		fn()
+	}()
+	return true
+}
+
+// stopBackground refuses further background work and waits for what is already
+// running. It is idempotent, so a second Close is not an error.
+func (s *Shelf) stopBackground() {
+	s.backgroundMu.Lock()
+	s.closing = true
+	s.backgroundMu.Unlock()
+
+	s.background.Wait()
+}
+
 // Close releases any resources held by the Shelf instance.
 func (s *Shelf) Close() error {
+	// Before anything else, and before the lock is released below: a straggler
+	// would otherwise write to a shelf this process has stopped holding.
+	s.stopBackground()
+
 	errs := []error{}
 
 	// Flush before the lock goes away: this is the one write that is guaranteed
