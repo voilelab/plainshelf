@@ -82,10 +82,14 @@ tar -xzf plainshelf_<version>_linux_amd64.tar.gz -C plainshelf
 cd plainshelf
 ```
 
-Each archive contains the `plainshelf-srv` binary, `LICENSE`, `README.md`, the
-version-matched `docs/` directory, the README preview image, and a
-`config.sample.yaml` to use as a starting point. The relative documentation
-links in `README.md` therefore work both online and from the extracted archive.
+Each archive contains the `plainshelf-srv` and `plainshelf-read` binaries,
+`LICENSE`, `README.md`, the version-matched `docs/` directory, the README
+preview image, and a `config.sample.yaml` to use as a starting point. The
+relative documentation links in `README.md` therefore work both online and from
+the extracted archive.
+
+`plainshelf-srv` is the server. `plainshelf-read` opens one shelf folder for
+reading and writes nothing at all — see [Standalone Reader](standalone-reader.md).
 
 !!! note "macOS Gatekeeper"
     The macOS binaries are unsigned. On first run you may need to clear the
@@ -104,6 +108,13 @@ cp config.sample.yaml config.yaml
 
 By default the server listens on <http://127.0.0.1:20000>. See
 [Local Shelf File Source](configuring-local-shelf.md) for shelf configuration.
+
+To read a shelf without configuring anything, run the standalone reader against
+the folder instead:
+
+```bash
+./plainshelf-read ~/Books
+```
 
 ---
 

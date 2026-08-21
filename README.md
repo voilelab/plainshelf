@@ -24,6 +24,8 @@ desktop, and experimental Android clients.
 - Supports covers, metadata, bookmarks, reading history, and reading stats
 - Runs as a local server, a macOS desktop app, or an experimental Android client
   that reads from a server or straight from a shelf folder on pCloud
+- Ships a standalone reader binary that opens a shelf folder for reading and
+  writes nothing to it
 
 PlainShelf is not a Calibre replacement. PDF, comic archives, DRM, OCR,
 multi-user accounts, cloud sync, public sharing, and plugins are outside the
@@ -63,6 +65,7 @@ in the [development guide](docs/development/setup.md).
 - [Documentation home](docs/index.md)
 - [Installation](docs/installation.md)
 - [Getting Started](docs/getting-started.md)
+- [Standalone reader](docs/standalone-reader.md)
 - [Local shelf configuration](docs/configuring-local-shelf.md)
 - [SMB shelf configuration](docs/configuring-smb-shelf.md)
 - [Data model](docs/concepts/data-model.md)

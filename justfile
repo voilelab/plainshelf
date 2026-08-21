@@ -32,6 +32,10 @@ test-e2e: build-server-frontend
 build-server-backend: build-server-frontend
 	go build -ldflags "-X {{version_pkg}}.Version={{version}}" -o plainshelf-srv cmd/plainshelf-srv/main.go
 
+# Build reader: build the standalone read-only reader binary.
+build-reader: build-server-frontend
+	go build -ldflags "-X {{version_pkg}}.Version={{version}}" -o plainshelf-read cmd/plainshelf-read/main.go
+
 # Build desktop app
 build-desktop: build-server-frontend
 	cd desktop && go mod tidy && go tool wails build -ldflags "-X {{version_pkg}}.Version={{version}}"

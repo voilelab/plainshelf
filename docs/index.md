@@ -58,6 +58,7 @@ stays readable in a text editor.
 
 ```text
 cmd/plainshelf-srv/  server entry point
+cmd/plainshelf-read/ standalone read-only reader entry point
 shelf/               filesystem-backed library core
 server/              HTTP API and server runtime
 frontend/            Vue web UI and Capacitor Android project
