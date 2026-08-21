@@ -324,6 +324,7 @@ What changes:
 | `app/library.lock` | Written (`lock_mode: flock`) | Never written; `lock_mode` is forced to `none` |
 | `app/scan-cache.json` | Written at startup and shutdown | Never written; an existing one is still read |
 | `app/book-cache-*.json` | Written when `book_cache_writer_id` is set | Never written; the ID is ignored |
+| `app/fingerprint-cache.json` | Written by the fingerprint sweep | Never written; an existing one is still read, and the sweep is refused with HTTP 409 |
 | Creating, editing, moving, deleting | Allowed | Refused with HTTP 409 before anything is touched |
 
 Two consequences worth knowing:

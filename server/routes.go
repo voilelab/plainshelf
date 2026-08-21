@@ -24,6 +24,7 @@ type apiHandlers struct {
 	layers  *layerHandlers
 	trash   *trashHandlers
 	batches *batchHandlers
+	prints  *fingerprintHandlers
 	taskAPI *taskHandlers
 	setting *settingHandlers
 	logs    *logHandlers
@@ -56,6 +57,7 @@ func newAPIHandlers(
 		layers:  &layerHandlers{apiCore: core},
 		trash:   &trashHandlers{taskSubmitter: tasks},
 		batches: &batchHandlers{taskSubmitter: tasks},
+		prints:  &fingerprintHandlers{taskSubmitter: tasks},
 		taskAPI: &taskHandlers{taskSubmitter: tasks},
 		setting: &settingHandlers{apiCore: core, settings: settingsSvc},
 		logs:    &logHandlers{apiCore: core, conf: conf},
@@ -86,6 +88,7 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/book-batches", h.batches.bookBatch)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/content-stat-refreshes", h.batches.refreshContentStats)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/book-cache-exports", h.shelves.exportBookCache)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/fingerprint-refreshes", h.prints.refreshFingerprints)
 
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/import", h.imports.importBook)
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/duplicate", h.books.findDuplicateBooks)

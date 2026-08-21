@@ -426,10 +426,12 @@ Upgrade from v0.8 only if you accept that they will no longer be accessible.
 2. Restore the shelf directory, and the application store if you backed it up.
 3. Start PlainShelf again.
 
-You can skip `app/library.lock`, `app/tmp/`, and `app/book-cache-*.json` when
-restoring; they are recreated on the next startup. Restore `books/` and `trash/`
-in full: both hold books, and a restored `.trash/` from an older backup is
-renamed to `trash/` on the next start.
+You can skip `app/library.lock`, `app/tmp/`, `app/book-cache-*.json`,
+`app/scan-cache.json`, and `app/fingerprint-cache.json` when restoring; they are
+recreated on the next startup, though rebuilding the fingerprints reads every
+book once. Restore `books/` and `trash/` in full: both hold books, and a
+restored `.trash/` from an older backup is renamed to `trash/` on the next
+start.
 
 If you restored from a Git checkout rather than a file copy, check the layer
 tree before you start filing books again: every layer that was empty at commit
