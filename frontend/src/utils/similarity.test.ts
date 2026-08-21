@@ -6,6 +6,7 @@ import {
   DEFAULT_SIMILARITY_TIER,
   filterSimilarPairs,
   SIMILARITY_FLOOR,
+  SIMILARITY_SLIDER_MIN,
   SIMILARITY_TIERS,
   tierThreshold
 } from '@/utils/similarity';
@@ -48,6 +49,12 @@ describe('similarity tiers', () => {
   it('opens on the same-book tier', () => {
     expect(DEFAULT_SIMILARITY_TIER).toBe('same-book');
     expect(tierThreshold('same-book')).toBe(0.45);
+  });
+
+  it('never lets the slider ask below the fetched floor (would under-report)', () => {
+    // The page fetches once at the floor; a slider minimum beneath it would
+    // filter a set the server never returned pairs below.
+    expect(SIMILARITY_SLIDER_MIN).toBe(SIMILARITY_FLOOR);
   });
 });
 

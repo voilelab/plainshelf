@@ -43,8 +43,13 @@ export const SIMILARITY_TIERS: readonly SimilarityTier[] = [
 /** "Same book, different edition" — the tier the page opens on. */
 export const DEFAULT_SIMILARITY_TIER: SimilarityTierKey = 'same-book';
 
-/** Advanced slider bounds, matching the tier range the fetch covers. */
-export const SIMILARITY_SLIDER_MIN = 0.1;
+/**
+ * Advanced slider bounds. The minimum is pinned to {@link SIMILARITY_FLOOR}, not
+ * lower: the page fetches once at the floor, so a threshold below it would filter
+ * a set the server never returned pairs beneath and silently under-report. The
+ * slider therefore cannot ask for less similarity than the one fetch can answer.
+ */
+export const SIMILARITY_SLIDER_MIN = SIMILARITY_FLOOR;
 export const SIMILARITY_SLIDER_MAX = 1;
 export const SIMILARITY_SLIDER_STEP = 0.01;
 
