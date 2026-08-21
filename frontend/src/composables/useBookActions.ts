@@ -83,13 +83,16 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     // or book page it was launched from is not replaced wholesale — closing the
     // tab returns the reader there. The desktop, mobile and reader shells keep
     // the in-place SPA navigation. Matches externalLinks.ts's window.open idiom.
+    //
+    // No router.push fallback here: with noopener/noreferrer window.open returns
+    // null even on success (per the HTML spec), so its result cannot tell a
+    // blocked pop-up from an opened one. Pushing "on failure" would therefore
+    // fire on every success too and navigate the original tab as well, which is
+    // exactly the wholesale replacement this feature avoids. A user-gesture open
+    // is not pop-up-blocked in practice.
     if (isWebRuntime()) {
-      const opened = window.open(router.resolve(to).href, '_blank', 'noopener,noreferrer');
-      // A blocked pop-up falls back to in-place navigation rather than dropping
-      // the read action entirely.
-      if (opened) {
-        return;
-      }
+      window.open(router.resolve(to).href, '_blank', 'noopener,noreferrer');
+      return;
     }
 
     void router.push(to);

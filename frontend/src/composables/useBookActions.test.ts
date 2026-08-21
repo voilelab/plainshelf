@@ -105,15 +105,19 @@ describe('useBookActions goRead', () => {
     expect(openSpy).not.toHaveBeenCalled();
   });
 
-  it('falls back to in-place navigation when the pop-up is blocked on a web build', () => {
+  // noopener/noreferrer make window.open return null even on success, so the web
+  // path must never touch router.push — doing so would navigate the original tab
+  // on every successful open, defeating the new-tab behaviour. openSpy returns
+  // null here to model that spec behaviour.
+  it('does not navigate the original tab on a web build even when window.open returns null', () => {
     mocks.isWebRuntime.mockReturnValue(true);
     openSpy.mockReturnValue(null);
     const actions = useBookActions();
 
     actions.goRead('book-1');
 
-    expect(openSpy).toHaveBeenCalled();
-    expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1' });
+    expect(openSpy).toHaveBeenCalledWith('/reader/book-1', '_blank', 'noopener,noreferrer');
+    expect(mocks.push).not.toHaveBeenCalled();
   });
 });
 
