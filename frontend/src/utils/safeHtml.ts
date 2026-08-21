@@ -18,20 +18,28 @@ import createSanitizer, { type DOMPurify } from 'dompurify';
 import MarkdownIt from 'markdown-it';
 
 /**
- * The dialect a description is written in: raw HTML kept, a single newline is
- * a line break. Links stay enabled, unlike in the reader, which refuses to
- * render a navigable anchor - here only the link text survives anyway, and
- * leaving the rule off would spell it out as `[text](target)`.
- *
- * One instance serves both outputs, so the words a card reports and the markup
- * a detail page renders are the same parse of the same source.
+ * The dialect every reading of a book's text is parsed in: raw HTML kept, a
+ * single newline is a line break. The reader's chapters
+ * (`renderMarkdownBlocks`) are the same kind of text as a description and are
+ * written in the same dialect, so these four values are stated once; the
+ * instances cannot be shared, because each configures rules of its own on top.
  */
-const markdown = new MarkdownIt({
+export const BOOK_TEXT_MARKDOWN_OPTIONS = {
   html: true,
   breaks: true,
   linkify: false,
   typographer: false
-});
+} as const;
+
+/**
+ * Links stay enabled here, unlike in the reader, which refuses to render a
+ * navigable anchor - only the link text survives sanitizing anyway, and leaving
+ * the rule off would spell it out as `[text](target)`.
+ *
+ * One instance serves both outputs, so the words a card reports and the markup
+ * a detail page renders are the same parse of the same source.
+ */
+const markdown = new MarkdownIt(BOOK_TEXT_MARKDOWN_OPTIONS);
 
 /**
  * Elements whose boundaries separate words. Two paragraphs must not read as
@@ -104,7 +112,8 @@ function collectText(node: Node, parts: string[]): void {
  * empty string, which is the caller's cue to fall back to something else.
  */
 export function toPlainSummary(source: string | null | undefined): string {
-  if (!source || !source.trim()) {
+  const html = renderDescriptionHtml(source);
+  if (!html) {
     return '';
   }
 
@@ -114,7 +123,7 @@ export function toPlainSummary(source: string | null | undefined): string {
   // same markup assigned to a detached element's innerHTML does fetch an
   // `<img>`, a `<video>` poster and its `<source>`, which would let a
   // description PlainShelf did not write call home the moment a card is drawn.
-  const document = new DOMParser().parseFromString(markdown.render(source), 'text/html');
+  const document = new DOMParser().parseFromString(html, 'text/html');
   const parts: string[] = [];
   collectText(document.body, parts);
   return parts.join('').replace(/\s+/g, ' ').trim();
@@ -216,7 +225,7 @@ const PROFILES: Record<SafeHtmlProfile, SafeHtmlProfileConfig> = {
   // tables, and no class names, which also drops the reader's asset slots.
   summary: {
     allowedTags: INLINE_TAGS,
-    allowedAttr: [...LIST_ATTR, 'title', 'style', 'class'],
+    allowedAttr: [...LIST_ATTR, 'title', 'style'],
     allowedClasses: new Set<string>()
   }
 };

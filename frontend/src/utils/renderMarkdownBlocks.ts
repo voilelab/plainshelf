@@ -1,4 +1,5 @@
 import MarkdownIt from 'markdown-it';
+import { BOOK_TEXT_MARKDOWN_OPTIONS } from './safeHtml';
 import {
   updateMarkdownFenceState,
   type MarkdownFenceState
@@ -22,12 +23,9 @@ export type ReaderMarkdownHtmlBlock = {
 
 export type ReaderMarkdownBlock = ReaderMarkdownHtmlBlock;
 
-const markdown = new MarkdownIt({
-  html: true,
-  breaks: true,
-  linkify: false,
-  typographer: false
-});
+// The dialect is the one a description is parsed in; the rules below are what
+// the reader adds on top, which is why the instance is its own.
+const markdown = new MarkdownIt(BOOK_TEXT_MARKDOWN_OPTIONS);
 
 // Links were not part of the old reader and could navigate away. Images stay
 // enabled only so renderer-owned synthetic targets can become inert component
