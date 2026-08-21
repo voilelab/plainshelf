@@ -34,6 +34,7 @@ func TestAPIReadOnlyShelfRefusesWritesContract(t *testing.T) {
 		{name: "book batch", url: shelfURL("book-batches"),
 			body: `{"operation":"trash","book_ids":["book-0001"]}`},
 		{name: "content stat refresh", url: shelfURL("content-stat-refreshes")},
+		{name: "source fingerprints", url: shelfURL("source-fingerprints")},
 		{name: "empty trash", url: shelfURL("trash", "empty")},
 		{name: "book cache export", url: bookCacheExportURL()},
 	}
