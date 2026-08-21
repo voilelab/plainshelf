@@ -488,7 +488,6 @@ func (b *Book) setMeta(meta *BookMeta) error {
 	// lazy — the version reaches disk only when the book is next written.
 	meta.SchemaVersion = BookMetaSchemaVersion
 
-	// write back to book meta
 	bs, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
 		return util.Errorf("%w", err)

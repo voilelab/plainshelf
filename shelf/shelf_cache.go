@@ -164,7 +164,6 @@ func (s *Shelf) refreshBookCacheIfNeeded(force bool) error {
 	return nil
 }
 
-// scanToBookCache scans the book folders and updates the book cache with the current state of the books.
 func (s *Shelf) scanToBookCache() error {
 	cache := make(map[string]*bookIDCacheEntry)
 
