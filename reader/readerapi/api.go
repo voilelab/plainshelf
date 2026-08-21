@@ -46,22 +46,25 @@ type handlers struct {
 	version string
 }
 
-// book resolves the request's book, answering the request itself when it
+// withBook resolves the request's book and answers the request itself when it
 // cannot: no book open yet (503, the window is still asking for a folder), or
 // a request for a book this reader does not hold (404).
-func (h *handlers) book(w http.ResponseWriter, r *http.Request) (*shelf.Book, bool) {
-	book, ok := h.lib.book()
-	if !ok {
+//
+// read runs while the package is held open, so a book opened in another window
+// — or from the File menu — cannot close the directory handle midway through
+// this response.
+func (h *handlers) withBook(w http.ResponseWriter, r *http.Request, read func(*shelf.Book)) {
+	held := h.lib.withBook(func(book *shelf.Book) {
+		if requested := r.PathValue("book_id"); requested != book.ID() {
+			http.Error(w, "book not found", http.StatusNotFound)
+			return
+		}
+		read(book)
+	})
+
+	if !held {
 		http.Error(w, "no book is open", http.StatusServiceUnavailable)
-		return nil, false
 	}
-
-	if requested := r.PathValue("book_id"); requested != book.ID() {
-		http.Error(w, "book not found", http.StatusNotFound)
-		return nil, false
-	}
-
-	return book, true
 }
 
 // source resolves the source named in the path, or the current one when the
@@ -113,37 +116,33 @@ func (h *handlers) getVersion(w http.ResponseWriter, _ *http.Request) {
 // A package has no layers — it is not inside a shelf — so the list is empty
 // rather than absent, which is what the frontend's transform expects.
 func (h *handlers) getBook(w http.ResponseWriter, r *http.Request) {
-	book, ok := h.book(w, r)
-	if !ok {
-		return
-	}
-
-	writeJSON(w, struct {
-		Meta  *shelf.BookMeta `json:"meta"`
-		Layer []string        `json:"layer"`
-	}{Meta: book.GetMeta(), Layer: []string{}})
+	h.withBook(w, r, func(book *shelf.Book) {
+		writeJSON(w, struct {
+			Meta  *shelf.BookMeta `json:"meta"`
+			Layer []string        `json:"layer"`
+		}{Meta: book.GetMeta(), Layer: []string{}})
+	})
 }
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/content
 func (h *handlers) getBookContent(w http.ResponseWriter, r *http.Request) {
-	book, ok := h.book(w, r)
-	if !ok {
-		return
-	}
-	source, ok := h.source(w, r, book)
-	if !ok {
-		return
-	}
-	h.streamSource(w, source)
+	h.withBook(w, r, func(book *shelf.Book) {
+		source, ok := h.source(w, r, book)
+		if !ok {
+			return
+		}
+		h.streamSource(w, source)
+	})
 }
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/sources
 func (h *handlers) listSources(w http.ResponseWriter, r *http.Request) {
-	book, ok := h.book(w, r)
-	if !ok {
-		return
-	}
+	h.withBook(w, r, func(book *shelf.Book) {
+		h.writeSourceList(w, book)
+	})
+}
 
+func (h *handlers) writeSourceList(w http.ResponseWriter, book *shelf.Book) {
 	sources, err := book.ListSource()
 	if err != nil {
 		http.Error(w, "failed to list the book's sources", http.StatusInternalServerError)
@@ -159,28 +158,24 @@ func (h *handlers) listSources(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}
 func (h *handlers) getSource(w http.ResponseWriter, r *http.Request) {
-	book, ok := h.book(w, r)
-	if !ok {
-		return
-	}
-	source, ok := h.source(w, r, book)
-	if !ok {
-		return
-	}
-	writeJSON(w, source.GetMeta())
+	h.withBook(w, r, func(book *shelf.Book) {
+		source, ok := h.source(w, r, book)
+		if !ok {
+			return
+		}
+		writeJSON(w, source.GetMeta())
+	})
 }
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content
 func (h *handlers) getSourceContent(w http.ResponseWriter, r *http.Request) {
-	book, ok := h.book(w, r)
-	if !ok {
-		return
-	}
-	source, ok := h.source(w, r, book)
-	if !ok {
-		return
-	}
-	h.streamSource(w, source)
+	h.withBook(w, r, func(book *shelf.Book) {
+		source, ok := h.source(w, r, book)
+		if !ok {
+			return
+		}
+		h.streamSource(w, source)
+	})
 }
 
 func (h *handlers) streamSource(w http.ResponseWriter, source *shelf.Source) {
@@ -201,11 +196,12 @@ func (h *handlers) streamSource(w http.ResponseWriter, source *shelf.Source) {
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/cover
 func (h *handlers) getCover(w http.ResponseWriter, r *http.Request) {
-	book, ok := h.book(w, r)
-	if !ok {
-		return
-	}
+	h.withBook(w, r, func(book *shelf.Book) {
+		h.writeCover(w, book)
+	})
+}
 
+func (h *handlers) writeCover(w http.ResponseWriter, book *shelf.Book) {
 	cover, ext, err := book.OpenCover()
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -226,19 +222,20 @@ func (h *handlers) getCover(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}
 func (h *handlers) getAsset(w http.ResponseWriter, r *http.Request) {
-	book, ok := h.book(w, r)
-	if !ok {
-		return
-	}
-	source, ok := h.source(w, r, book)
-	if !ok {
-		return
-	}
+	h.withBook(w, r, func(book *shelf.Book) {
+		source, ok := h.source(w, r, book)
+		if !ok {
+			return
+		}
+		h.writeAsset(w, source, r.PathValue("asset_name"))
+	})
+}
 
+func (h *handlers) writeAsset(w http.ResponseWriter, source *shelf.Source, name string) {
 	// Whatever the name is, it is resolved by the shelf's own asset rules
 	// (assets/ only, no traversal, supported extensions) rather than by string
 	// handling here.
-	asset, err := source.OpenAsset(r.PathValue("asset_name"))
+	asset, err := source.OpenAsset(name)
 	if err != nil {
 		http.Error(w, "asset not found", http.StatusNotFound)
 		return
