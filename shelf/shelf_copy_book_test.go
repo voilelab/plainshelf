@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -169,6 +170,47 @@ func TestShelfCopyBookIntoAnotherLayer(t *testing.T) {
 	}
 	if len(books) != 1 || books[0].ID() != copied.ID() {
 		t.Fatalf("GetBooksByLayer returned %d books, want just the copy %q", len(books), copied.ID())
+	}
+}
+
+// A symlinked directory inside a book package must be copied as a real
+// directory. os.Root lists a symlink as a non-directory but stats through it as
+// a directory, so a copy that keyed on the directory entry alone would try to
+// copy the link as a file and fail with "is a directory".
+func TestShelfCopyBookFollowsSymlinkedDir(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
+
+	original, err := s.NewBook(Layers{"fiction"}, "Linked")
+	if err != nil {
+		t.Fatalf("NewBook: %v", err)
+	}
+
+	bookAbs := filepath.Join(tmpLib, original.FolderPath())
+	if err := os.MkdirAll(filepath.Join(bookAbs, "extra"), 0o755); err != nil {
+		t.Fatalf("MkdirAll extra: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(bookAbs, "extra", "note.txt"), []byte("linked bytes"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	// A relative link to a sibling keeps the target inside the shelf root, so
+	// os.Root follows it rather than refusing it as an escape.
+	if err := os.Symlink("extra", filepath.Join(bookAbs, "linked")); err != nil {
+		t.Skipf("symlinks unavailable on this platform: %v", err)
+	}
+
+	copied, err := s.CopyBook(original.ID(), Layers{"fiction"})
+	if err != nil {
+		t.Fatalf("CopyBook: %v", err)
+	}
+
+	copyAbs := filepath.Join(tmpLib, copied.FolderPath())
+	got, err := os.ReadFile(filepath.Join(copyAbs, "linked", "note.txt"))
+	if err != nil {
+		t.Fatalf("read copied linked file: %v", err)
+	}
+	if string(got) != "linked bytes" {
+		t.Errorf("copied linked file = %q, want %q", got, "linked bytes")
 	}
 }
 

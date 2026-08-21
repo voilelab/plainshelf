@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -62,24 +61,18 @@ func decodeStrictJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 // fields set", leaving v at its zero value. It suits a request whose every field
 // is optional - copying a book carries only an optional destination layer, so an
 // empty body is a valid "copy in place" rather than a malformed request.
+//
+// It streams through json.Decoder rather than buffering the body, so an
+// oversized or whitespace-only payload cannot force an unbounded read before
+// validation. An empty body surfaces as io.EOF on the first token.
 func decodeOptionalStrictJSON(w http.ResponseWriter, r *http.Request, v any) bool {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		if isRequestBodyTooLarge(err) {
-			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
-			return false
-		}
-		http.Error(w, "failed to read request body", http.StatusInternalServerError)
-		return false
-	}
-
-	if len(bytes.TrimSpace(body)) == 0 {
-		return true
-	}
-
-	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
+
 	if err := decoder.Decode(v); err != nil {
+		if errors.Is(err, io.EOF) {
+			return true
+		}
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return false
 	}

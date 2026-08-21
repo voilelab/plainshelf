@@ -39,9 +39,15 @@ func createTempDir(root fsutil.FS, prefix string) (string, error) {
 }
 
 // copyTree recursively copies the tree rooted at src onto dst, reproducing every
-// file and subdirectory verbatim. dst is created if it does not exist. It backs
-// CopyBook: a book package copied whole stays self-contained, so the relative
-// asset paths a source records need no rewriting.
+// file and subdirectory. dst is created if it does not exist. It backs CopyBook:
+// a book package copied whole stays self-contained, so the relative asset paths a
+// source records need no rewriting.
+//
+// Whether a child is a directory is decided by Stat, not by the directory
+// entry's own type, so that a symlinked directory is descended into and copied
+// as a real one - the same way the shelf scanner (childIsDir) treats it. A
+// listing reports a symlink as a non-directory, but opening it as a file fails,
+// so keying the copy on the entry type would break a package that holds one.
 func copyTree(root fsutil.FS, src, dst string) error {
 	info, err := root.Stat(src)
 	if err != nil {
@@ -62,15 +68,7 @@ func copyTree(root fsutil.FS, src, dst string) error {
 	}
 
 	for _, entry := range entries {
-		srcChild := path.Join(src, entry.Name())
-		dstChild := path.Join(dst, entry.Name())
-		if entry.IsDir() {
-			if err := copyTree(root, srcChild, dstChild); err != nil {
-				return util.Errorf("%w", err)
-			}
-			continue
-		}
-		if err := copyFile(root, srcChild, dstChild); err != nil {
+		if err := copyTree(root, path.Join(src, entry.Name()), path.Join(dst, entry.Name())); err != nil {
 			return util.Errorf("%w", err)
 		}
 	}

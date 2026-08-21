@@ -42,6 +42,24 @@ func TestAPIBookCopyInPlaceContract(t *testing.T) {
 	}
 }
 
+// An empty request body is a valid "copy in place": every field of the copy
+// request is optional, so no body means the source book's own layer.
+func TestAPIBookCopyEmptyBodyContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	original := importTextBook(t, env, "No Body", "shelf", "nobody.txt", "body")
+
+	rec := env.post(bookCopiesURL(original.Meta.ID), nil)
+	assertStatus(t, rec, http.StatusCreated)
+	copied := decodeJSON[server.Book](t, rec)
+
+	if copied.Meta.ID == original.Meta.ID {
+		t.Errorf("copy id = %q, want it distinct from the original", copied.Meta.ID)
+	}
+	if !copied.Layer.Equal(original.Layer) {
+		t.Errorf("copy layer = %v, want the source layer %v", copied.Layer, original.Layer)
+	}
+}
+
 // A copy can name a destination layer in the body and lands there.
 func TestAPIBookCopyToLayerContract(t *testing.T) {
 	env := newAPITestEnv(t)
