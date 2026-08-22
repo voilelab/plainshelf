@@ -49,19 +49,6 @@ const scanCacheSchemaVersion = 1
 // used. A foreign snapshot can therefore only ever cost a cache miss.
 const scanCacheFileName = "scan-cache.json"
 
-// scanCacheRacyWindow is how recently a directory may have been modified before
-// the walk refuses to remember it.
-//
-// Timestamps are coarse: ext3 and HFS+ store whole seconds, and a FAT-backed
-// share reached over SMB stores two. A directory modified again inside the same
-// tick keeps the mtime the walk just recorded, and would then look unchanged
-// forever - a book added moments after the scan would never appear. Recording
-// only directories whose mtime is already older than this window closes that
-// race: a modification that could still share the recorded timestamp leaves the
-// directory out of the snapshot, so the next scan reads it normally. This is
-// the same "racily clean" rule Git applies to its index.
-const scanCacheRacyWindow = 2 * time.Second
-
 // dirChild is one child of a scanned directory that the walk may descend into.
 //
 // Plain files are dropped rather than recorded: the walk only ever descends
@@ -206,7 +193,8 @@ func (c *scanDirCache) readDir(pth string, trusted bool) ([]dirChild, bool, erro
 	// changed: these are the children this directory really holds at this
 	// mtime, which is what the next walk needs.
 	children := dirChildren(entries)
-	if !modTime.IsZero() && modTime.Before(readAt.Add(-scanCacheRacyWindow)) {
+	// Only remember directories whose mtime is settled; see fsutil.RacyWindow.
+	if !modTime.IsZero() && modTime.Before(readAt.Add(-fsutil.RacyWindow)) {
 		c.next[pth] = dirSnapshot{ModTime: modTime, Children: children}
 	}
 	return children, false, nil

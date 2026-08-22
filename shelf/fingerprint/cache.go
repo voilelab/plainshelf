@@ -9,25 +9,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/hashutil"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/internal/version"
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
-
-// racyWindow is how recently source.txt may have been written before the cache
-// refuses to remember its stat.
-//
-// This is the same "racily clean" rule the directory scan cache applies, for
-// the same reason: timestamps are coarse - whole seconds on ext3 and HFS+, two
-// on a FAT-backed SMB share - so a file rewritten inside the tick that was just
-// recorded keeps a stat the cache would go on believing. Here the consequence
-// is worse than a stale directory listing, because the fingerprint that would
-// be served is the previous content's. Leaving such a source out of the index
-// costs one re-read on the next run, after which its mtime is old enough to
-// record.
-const racyWindow = 2 * time.Second
 
 // indexEntry is what one Stat has to match for a source to be answered without
 // opening it.
@@ -268,11 +256,11 @@ func (c *Cache) Resolve(book *bookpkg.Book, source *bookpkg.Source, build Builde
 //
 // Its reason to exist is that path 1 cannot be trusted to notice every change.
 // The index answers from a stat, and a stat is coarse - a source rewritten
-// inside racyWindow, or under a filesystem whose clock ticks in whole seconds,
-// can keep the size and mtime the index already recorded. When that happens the
-// incremental Resolve serves the previous content's fingerprint, and the only
-// way back is to read the file regardless of what the stat claims. That is the
-// one path this skips.
+// inside fsutil.RacyWindow, or under a filesystem whose clock ticks in whole
+// seconds, can keep the size and mtime the index already recorded. When that
+// happens the incremental Resolve serves the previous content's fingerprint,
+// and the only way back is to read the file regardless of what the stat claims.
+// That is the one path this skips.
 //
 // A needless Rebuild is not a wrong answer, only a wasted one: the entry it
 // stores is byte-identical whenever the content really was unchanged, so the
@@ -412,7 +400,7 @@ func (c *Cache) Lookup(bookID, sourceID string) (Entry, bool) {
 // record stores what the run just learned. The entry is stored under its
 // content hash whether or not it was just built - it is the same value either
 // way - while the index is only extended for a source whose stat is old enough
-// to be believed later. See racyWindow.
+// to be believed later. See fsutil.RacyWindow.
 func (c *Cache) record(key string, stat *bookpkg.FileStat, readAt time.Time, md5Hash string, entry Entry, known bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -428,7 +416,10 @@ func (c *Cache) record(key string, stat *bookpkg.FileStat, readAt time.Time, md5
 	// built, saved, dropped by the same Save, and built again next time.
 	c.resolved[md5Hash] = struct{}{}
 
-	if stat == nil || !stat.ModTime.Before(readAt.Add(-racyWindow)) {
+	// Index a source only once its stat is settled; see fsutil.RacyWindow. The
+	// consequence of trusting a racily-clean stat here is worse than a stale
+	// directory listing: the fingerprint served would be the previous content's.
+	if stat == nil || !stat.ModTime.Before(readAt.Add(-fsutil.RacyWindow)) {
 		return
 	}
 
