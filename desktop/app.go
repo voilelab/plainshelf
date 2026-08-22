@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/internal/readingprogress"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/internal/version"
 	"github.com/voilelab/plainshelf/server"
@@ -29,6 +30,7 @@ type DesktopApp struct {
 	readHistoryPath     string
 	readingProgressPath string
 	readingStatsPath    string
+	readingProgressSync *readingprogress.Store
 	startupErr          error
 }
 
@@ -187,13 +189,102 @@ func (a *DesktopApp) WriteReadHistory(doc string) error {
 
 // ReadReadingProgress returns the stored reading-progress document, or an empty
 // string when this device has not stored one yet.
+//
+// The standalone reader writes progress into the same file under its own
+// synthetic shelf id ("book"). Before handing the document to the desktop
+// frontend, any such reader progress is projected onto the real shelves it
+// belongs to (by stable book id, taking the max) so the library reflects it.
+// This is the projection trigger: it runs whenever the desktop reads progress —
+// which is what a returning-from-the-reader user causes — and is cheap when
+// there is no reader progress to fold (the common case): no lock, no write.
 func (a *DesktopApp) ReadReadingProgress() (string, error) {
-	return readDeviceDocument(a.readingProgressPath)
+	if a.readingProgressSync == nil {
+		return readDeviceDocument(a.readingProgressPath)
+	}
+	return projectStoredReaderProgress(a.readingProgressSync, a.resolveBookShelf)
 }
 
-// WriteReadingProgress replaces the stored reading-progress document.
+// projectStoredReaderProgress folds any standalone-reader progress in store onto
+// the real shelves resolve reports, and returns the document text to hand the
+// frontend. It is cheap when there is no reader progress to fold — the common
+// case — taking no lock and writing nothing; only genuinely new reader progress
+// triggers a locked read-modify-write.
+func projectStoredReaderProgress(store *readingprogress.Store, resolve readingprogress.ResolveShelf) (string, error) {
+	doc, raw, err := store.Read()
+	if err != nil {
+		return "", err
+	}
+	if len(doc.Shelves[readingprogress.ReaderShelfID]) == 0 {
+		return raw, nil
+	}
+
+	projected := readingprogress.Project(doc, readingprogress.ReaderShelfID, resolve)
+	projectedText, err := readingprogress.Serialize(projected)
+	if err != nil {
+		return raw, nil //nolint:nilerr // convenience state: fall back to the stored view
+	}
+	currentText, err := readingprogress.Serialize(doc)
+	if err != nil || projectedText == currentText {
+		return raw, nil //nolint:nilerr // nothing new to fold in
+	}
+
+	// There is new reader progress to persist. Fold it in under the store's lock
+	// (re-reading fresh, so a concurrent reader write is not lost). Best-effort:
+	// still return the projected view if the write fails.
+	final, err := store.Mutate(func(disk readingprogress.Document) readingprogress.Document {
+		return readingprogress.Project(disk, readingprogress.ReaderShelfID, resolve)
+	})
+	if err != nil {
+		log.Println("failed to persist projected reading progress:", err)
+		return projectedText, nil
+	}
+	finalText, err := readingprogress.Serialize(final)
+	if err != nil {
+		return projectedText, nil //nolint:nilerr // convenience state: return the projected view
+	}
+	return finalText, nil
+}
+
+// WriteReadingProgress replaces the desktop's reading-progress entries. It only
+// mutates the real-shelf namespaces the desktop owns: the standalone reader's
+// "book" entries in the same file are re-read under the store's lock and
+// preserved, so a desktop write never clobbers reader progress it has not yet
+// projected.
 func (a *DesktopApp) WriteReadingProgress(doc string) error {
-	return writeDeviceDocument(a.readingProgressPath, "reading progress", doc)
+	if a.readingProgressSync == nil {
+		return writeDeviceDocument(a.readingProgressPath, "reading progress", doc)
+	}
+
+	incoming, err := readingprogress.ParseStrict(doc)
+	if err != nil {
+		return err
+	}
+	_, err = a.readingProgressSync.Mutate(func(disk readingprogress.Document) readingprogress.Document {
+		return readingprogress.MergeDesktopWrite(disk, incoming, readingprogress.ReaderShelfID)
+	})
+	return err
+}
+
+// resolveBookShelf reports which real shelf holds the given stable book id.
+//
+// Book ids are per-shelf, so it asks each shelf in turn and returns the first
+// that holds the book. A shelf that is still initializing (or otherwise errors)
+// is treated as "not here": the book stays under the reader's namespace and a
+// later read re-attempts the projection once the shelf is ready.
+func (a *DesktopApp) resolveBookShelf(bookID string) (string, bool) {
+	if a.app == nil {
+		return "", false
+	}
+	manager := a.app.ShelfManager()
+	if manager == nil {
+		return "", false
+	}
+	for _, shelfData := range manager.GetAllShelves() {
+		if _, err := shelfData.GetBook(bookID); err == nil {
+			return shelfData.ID, true
+		}
+	}
+	return "", false
 }
 
 // ReadReadingStats returns the stored reading-stats document, or an empty
@@ -751,6 +842,7 @@ func (a *DesktopApp) startServer() error {
 	a.readHistoryPath = filepath.Join(dataRoot, "read_history.json")
 	a.readingProgressPath = filepath.Join(dataRoot, "reading_progress.json")
 	a.readingStatsPath = filepath.Join(dataRoot, "reading_stats.json")
+	a.readingProgressSync = readingprogress.NewStore(a.readingProgressPath)
 	a.app = app
 	return nil
 }

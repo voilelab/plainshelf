@@ -125,11 +125,18 @@ them and are not synchronized between devices:
 |---|---|
 | Web | Browser `localStorage`, key `plainshelf.readingProgress` |
 | Desktop | `reading_progress.json` next to `shelves.json` in the app data directory |
+| Standalone reader | The desktop's `reading_progress.json` (shared), under a synthetic `book` shelf key |
 | Android | App-private `progress.json` files scoped by connection, shelf, and book |
 
 Each position is a JavaScript UTF-16 character offset. Moving or renaming a
 book does not lose it because records use the persistent book ID rather than a
 filesystem path.
+
+The standalone reader writes into the desktop app's `reading_progress.json` so a
+book read there shows the same position in the desktop library. Because the
+reader has no real shelf, it stores progress under a synthetic `book` shelf key,
+which the desktop app projects onto the book's real shelf by stable book ID; see
+[Reading state is not part of the shelf](architecture.md#reading-state-is-not-part-of-the-shelf).
 
 ---
 

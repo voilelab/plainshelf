@@ -67,13 +67,18 @@ only has to persist text.
 The backend is resolved per document, not per platform, so the table is not
 uniform:
 
-| Document | Browser | Android shell | Wails desktop |
-|---|---|---|---|
-| `readingProgress` | localStorage | localStorage | JSON file |
-| `readHistory` | localStorage | Capacitor Filesystem | JSON file |
-| `readingStats` | localStorage | Capacitor Filesystem | JSON file |
+| Document | Browser | Android shell | Wails desktop | Standalone reader |
+|---|---|---|---|---|
+| `readingProgress` | localStorage | localStorage | JSON file | JSON file (shared with desktop) |
+| `readHistory` | localStorage | Capacitor Filesystem | JSON file | localStorage |
+| `readingStats` | localStorage | Capacitor Filesystem | JSON file | localStorage |
 
 Mock API mode and unit tests use the in-memory backend for all three.
+
+The standalone reader binds only the reading-progress methods, so its read
+history and reading stats fall back to WebView localStorage; its reading
+progress goes to the same JSON file the desktop app uses, which is what lets it
+reach the desktop library (below).
 
 `readingProgress` has no Android-specific path today: it stays on the WebView's
 localStorage there, while read history and reading stats do not. That matters,
@@ -86,6 +91,38 @@ The Capacitor backend lives in `frontend/src/shells/mobile/`, not in
 `frontend/src/storage/`, and the seam is deliberate: it is what stops
 `@capacitor/filesystem` from being pulled into the web and desktop bundles by
 the read-history and reading-stats stores.
+
+### Reader progress reaches the desktop library
+
+The standalone reader is a separate process with its own window. It has no real
+shelf, so it keys every book's progress under one synthetic shelf id, `book`.
+To make that progress show up in the desktop library, the reader writes into the
+**same** `reading_progress.json` the desktop app keeps, rather than its own
+WebView storage.
+
+One file now has two writers, so:
+
+- The desktop app **projects** the reader's `book` entries onto the real shelves
+  that hold those books. Each entry is matched by its stable book ID — the ID
+  survives moves and renames, and identifies exactly one book in the library —
+  and copied to that book's real shelf, keeping whichever offset is larger. This
+  is one-way (reader → desktop) and monotonic: a book's saved position never
+  moves backwards, which is the safe rule to pick when the document carries no
+  timestamps to arbitrate by. The projection runs whenever the desktop reads
+  progress, so a book read in the reader shows its new position the next time the
+  library or that book is opened.
+- An entry the desktop cannot place — a book that has been removed, or a loose
+  book opened in the reader from outside every shelf — is left under `book`
+  untouched, never guessed onto the wrong shelf, and folded in later if that book
+  is imported.
+- Each process only rewrites its own part of the file (the reader its `book`
+  entries, the desktop the real-shelf entries), and the two coordinate through a
+  lock on the file, so neither loses the other's writes.
+
+This is not two-way sync: progress recorded in the desktop app does not appear
+in the standalone reader, which still reads only its own `book` entries. Nothing
+here is written into the shelf; reading progress stays device-local convenience
+state.
 
 Two more details the diagram cannot show:
 
