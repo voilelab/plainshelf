@@ -1,227 +1,31 @@
-package shelf
+package fingerprint
 
 import (
 	"encoding/json"
 	"errors"
-	"io/fs"
 	"os"
 	"path"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
-	"github.com/voilelab/plainshelf/internal/hashutil"
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
-
-// testAlgo is what a fingerprint task would pass in. The values are opaque to
-// the cache, which is the point: it stores answers, it does not compute them.
-var testAlgo = FingerprintAlgo{
-	Normalize: "nfkc-strip-space-punct-v1",
-	Shingle:   "char-5gram",
-	Hash:      "xxhash64",
-	K:         128,
-}
-
-// countingSourceFS counts how often a source.txt is opened, which is the cost
-// this cache exists to avoid. Reads of meta.json and book.json are not counted:
-// they are what opening a book costs with or without a fingerprint cache.
-type countingSourceFS struct {
-	fsutil.FS
-	opens atomic.Int64
-}
-
-func (f *countingSourceFS) Open(name string) (fs.File, error) {
-	if path.Base(name) == SourceFile {
-		f.opens.Add(1)
-	}
-	return f.FS.Open(name)
-}
-
-// countSourceReads swaps a counting filesystem into a shelf whose initial scan
-// has already finished, so only the I/O a test causes is counted. The shelf
-// must have no book cache writer ID, or the export started by that scan would
-// still be running. Compare countBookTreeReads.
-func countSourceReads(t *testing.T, s *Shelf) *countingSourceFS {
-	t.Helper()
-
-	if s.bookCacheWriterID != "" {
-		t.Fatal("countSourceReads needs a shelf without a book cache writer ID")
-	}
-
-	counting := &countingSourceFS{FS: writeRootForTest(t, s)}
-	s.dbRoot = counting
-	return counting
-}
-
-// fakeFingerprint stands in for the sketch builder. It counts its calls, which
-// is how the tests tell a cache hit from a recomputation, and derives every
-// field from the content so that two copies of one book produce one entry.
-type fakeFingerprint struct {
-	label string
-	calls atomic.Int64
-}
-
-func (f *fakeFingerprint) build(content []byte) (FingerprintEntry, error) {
-	f.calls.Add(1)
-
-	sum, err := hashutil.MD5Hash(strings.NewReader(normalizeForTest(string(content))))
-	if err != nil {
-		return FingerprintEntry{}, err
-	}
-
-	return FingerprintEntry{
-		NormMD5:   sum,
-		NormChars: len(normalizeForTest(string(content))),
-		Shingles:  len(content),
-		Sketch:    f.label + ":" + sum,
-	}, nil
-}
-
-func normalizeForTest(s string) string {
-	return strings.ReplaceAll(s, " ", "")
-}
-
-// addFingerprintBook creates a book holding one source and backdates that
-// source's modification time.
-//
-// The backdating is not cosmetic: a source written moments ago is deliberately
-// left out of the index, because a coarse filesystem clock cannot tell a second
-// write inside the same tick from no write at all (see
-// fingerprintCacheRacyWindow). A book being fingerprinted in the real world is
-// older than that; a book created by a test is not.
-func addFingerprintBook(t *testing.T, s *Shelf, libRoot, title, content string) *Book {
-	t.Helper()
-
-	book, err := s.NewBookWith(nil, title, func(book *Book) error {
-		source, err := book.NewSource(strings.NewReader(content))
-		if err != nil {
-			return err
-		}
-		return book.SetCurrentSource(source.ID())
-	})
-	if err != nil {
-		t.Fatalf("NewBookWith(%q): %v", title, err)
-	}
-
-	shiftModTime(t, sourceFilePath(t, libRoot, book), -time.Hour)
-	return book
-}
-
-// sourceFilePath is where a book's only source.txt really lives, for the tests
-// that have to reach past PlainShelf and edit the shelf the way a user would.
-func sourceFilePath(t *testing.T, libRoot string, book *Book) string {
-	t.Helper()
-
-	sources, err := book.ListSource()
-	if err != nil {
-		t.Fatalf("ListSource: %v", err)
-	}
-	if len(sources) != 1 {
-		t.Fatalf("expected exactly one source, got %d", len(sources))
-	}
-
-	return path.Join(libRoot, sources[0].FolderPath(), SourceFile)
-}
-
-// reopen returns a fresh book and source read through root, standing in for the
-// next run of a fingerprint task: nothing is carried over in memory, so every
-// read the cache avoids is a read that really did not happen.
-func reopen(t *testing.T, root fsutil.ReadFS, bookPath string) (*Book, *Source) {
-	t.Helper()
-
-	book, err := bookpkg.Open(root, newLoggerForTest(), bookPath)
-	if err != nil {
-		t.Fatalf("bookpkg.Open(%q): %v", bookPath, err)
-	}
-
-	sources, err := book.ListSource()
-	if err != nil {
-		t.Fatalf("ListSource: %v", err)
-	}
-	if len(sources) != 1 {
-		t.Fatalf("expected exactly one source under %q, got %d", bookPath, len(sources))
-	}
-
-	return book, sources[0]
-}
-
-// resolveFingerprint resolves a book that is opened fresh for the call, the way
-// a new run of a fingerprint task would see it.
-func resolveFingerprint(t *testing.T, cache *FingerprintCache, root fsutil.ReadFS, bookPath string, builder *fakeFingerprint) FingerprintEntry {
-	t.Helper()
-
-	book, source := reopen(t, root, bookPath)
-
-	entry, err := cache.Resolve(book, source, builder.build)
-	if err != nil {
-		t.Fatalf("Resolve(%q): %v", book.Title(), err)
-	}
-	return entry
-}
-
-func openFingerprintCache(t *testing.T, s *Shelf, algo FingerprintAlgo) *FingerprintCache {
-	t.Helper()
-
-	cache, err := s.OpenFingerprintCache(algo)
-	if err != nil {
-		t.Fatalf("OpenFingerprintCache: %v", err)
-	}
-	return cache
-}
-
-func saveFingerprintCache(t *testing.T, cache *FingerprintCache) {
-	t.Helper()
-
-	if err := cache.Save(); err != nil {
-		t.Fatalf("Save: %v", err)
-	}
-}
-
-func readFingerprintCacheAt(t *testing.T, libRoot string) fingerprintCacheFile {
-	t.Helper()
-
-	data, err := os.ReadFile(path.Join(libRoot, appFolder, fingerprintCacheFileName))
-	if err != nil {
-		t.Fatalf("reading the fingerprint cache: %v", err)
-	}
-
-	var stored fingerprintCacheFile
-	if err := json.Unmarshal(data, &stored); err != nil {
-		t.Fatalf("decoding the fingerprint cache: %v", err)
-	}
-	return stored
-}
-
-func writeFingerprintCacheAt(t *testing.T, libRoot string, stored fingerprintCacheFile) {
-	t.Helper()
-
-	data, err := json.Marshal(stored)
-	if err != nil {
-		t.Fatalf("encoding a fingerprint cache: %v", err)
-	}
-	if err := os.WriteFile(path.Join(libRoot, appFolder, fingerprintCacheFileName), data, 0644); err != nil {
-		t.Fatalf("writing a fingerprint cache: %v", err)
-	}
-}
 
 // The point of the whole file: a second run over an unchanged shelf opens no
 // source at all. The first run reads each source once, the second reads none.
 func TestFingerprintCacheAnswersUnchangedSourcesWithoutReadingThem(t *testing.T) {
-	libRoot := t.TempDir()
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
-
-	book := addFingerprintBook(t, shelf, libRoot, "Dune", "the spice must flow")
+	ts := newTestShelf(t)
+	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 	bookPath := book.FolderPath()
 
-	counting := countSourceReads(t, shelf)
+	counting := ts.countSourceReads()
 	builder := &fakeFingerprint{label: "v1"}
 
-	first := openFingerprintCache(t, shelf, testAlgo)
+	first := openCache(t, ts, counting, testAlgo)
 	firstEntry := resolveFingerprint(t, first, counting, bookPath, builder)
-	saveFingerprintCache(t, first)
+	saveCache(t, first)
 
 	if got := counting.opens.Load(); got != 1 {
 		t.Fatalf("the first run opened source.txt %d times, want 1", got)
@@ -232,7 +36,7 @@ func TestFingerprintCacheAnswersUnchangedSourcesWithoutReadingThem(t *testing.T)
 
 	// A fresh cache, loaded from disk: the second run shares nothing with the
 	// first but the file.
-	second := openFingerprintCache(t, shelf, testAlgo)
+	second := openCache(t, ts, counting, testAlgo)
 	secondEntry := resolveFingerprint(t, second, counting, bookPath, builder)
 
 	if got := counting.opens.Load(); got != 1 {
@@ -250,14 +54,14 @@ func TestFingerprintCacheAnswersUnchangedSourcesWithoutReadingThem(t *testing.T)
 
 	// And saving that run rewrites nothing: an unchanged shelf must not cost a
 	// pointless upload on the transports this file will live on.
-	cachePath := path.Join(libRoot, appFolder, fingerprintCacheFileName)
+	cachePath := path.Join(ts.libRoot, appDir, cacheFileName)
 	before, err := os.ReadFile(cachePath)
 	if err != nil {
 		t.Fatalf("reading the fingerprint cache: %v", err)
 	}
 	writtenAt := shiftedModTime(t, cachePath, -time.Hour)
 
-	saveFingerprintCache(t, second)
+	saveCache(t, second)
 
 	after, err := os.ReadFile(cachePath)
 	if err != nil {
@@ -273,46 +77,28 @@ func TestFingerprintCacheAnswersUnchangedSourcesWithoutReadingThem(t *testing.T)
 	}
 }
 
-// shiftedModTime backdates a file and reports the time it was given, so a test
-// can tell "not rewritten" from "rewritten with the same bytes".
-func shiftedModTime(t *testing.T, filePath string, offset time.Duration) time.Time {
-	t.Helper()
-
-	shiftModTime(t, filePath, offset)
-
-	info, err := os.Stat(filePath)
-	if err != nil {
-		t.Fatalf("stat %s: %v", filePath, err)
-	}
-	return info.ModTime()
-}
-
 // A book moved between layers keeps its fingerprints: the index is keyed on the
 // book ID, which survives the move, and not on the path, which does not.
 func TestFingerprintCacheSurvivesMovingABook(t *testing.T) {
-	libRoot := t.TempDir()
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+	ts := newTestShelf(t)
+	book := ts.addBook("a.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 
-	book := addFingerprintBook(t, shelf, libRoot, "Dune", "the spice must flow")
-
-	counting := countSourceReads(t, shelf)
+	counting := ts.countSourceReads()
 	builder := &fakeFingerprint{label: "v1"}
 
-	first := openFingerprintCache(t, shelf, testAlgo)
+	first := openCache(t, ts, counting, testAlgo)
 	before := resolveFingerprint(t, first, counting, book.FolderPath(), builder)
-	saveFingerprintCache(t, first)
+	saveCache(t, first)
 
-	moved, err := shelf.MoveBook(book.ID(), Layers{"Fiction", "Classics"})
-	if err != nil {
-		t.Fatalf("MoveBook: %v", err)
-	}
-	if moved.FolderPath() == book.FolderPath() {
-		t.Fatalf("the book was not moved: still at %q", moved.FolderPath())
+	// A move is a rename of the package directory: the book ID inside book.json
+	// and the source's stat both survive it, the folder name does not.
+	if err := os.Rename(path.Join(ts.libRoot, "a.bookpkg"), path.Join(ts.libRoot, "b.bookpkg")); err != nil {
+		t.Fatalf("moving the book: %v", err)
 	}
 
 	opensBefore := counting.opens.Load()
-	second := openFingerprintCache(t, shelf, testAlgo)
-	after := resolveFingerprint(t, second, counting, moved.FolderPath(), builder)
+	second := openCache(t, ts, counting, testAlgo)
+	after := resolveFingerprint(t, second, counting, "b.bookpkg", builder)
 
 	if got := counting.opens.Load(); got != opensBefore {
 		t.Errorf("the moved book was read again: opens %d, want %d", got, opensBefore)
@@ -329,20 +115,19 @@ func TestFingerprintCacheSurvivesMovingABook(t *testing.T) {
 // answer - but its content is already known, so it costs one read and no
 // fingerprinting.
 func TestFingerprintCacheRecognizesACopiedBookByItsContent(t *testing.T) {
-	libRoot := t.TempDir()
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+	ts := newTestShelf(t)
 
 	const content = "the spice must flow"
-	original := addFingerprintBook(t, shelf, libRoot, "Dune", content)
-	copied := addFingerprintBook(t, shelf, libRoot, "Dune (copy)", content)
+	original := ts.addBook("dune.bookpkg", "book-orig", "Dune", content, -time.Hour)
+	copied := ts.addBook("dune-copy.bookpkg", "book-copy", "Dune (copy)", content, -time.Hour)
 
 	if original.ID() == copied.ID() {
 		t.Fatal("the copy shares the original's book ID")
 	}
 
-	counting := countSourceReads(t, shelf)
+	counting := ts.countSourceReads()
 	builder := &fakeFingerprint{label: "v1"}
-	cache := openFingerprintCache(t, shelf, testAlgo)
+	cache := openCache(t, ts, counting, testAlgo)
 
 	first := resolveFingerprint(t, cache, counting, original.FolderPath(), builder)
 	opensAfterOriginal := counting.opens.Load()
@@ -362,8 +147,8 @@ func TestFingerprintCacheRecognizesACopiedBookByItsContent(t *testing.T) {
 		t.Errorf("content hits %d, want 1", got)
 	}
 
-	saveFingerprintCache(t, cache)
-	stored := readFingerprintCacheAt(t, libRoot)
+	saveCache(t, cache)
+	stored := readCacheAt(t, ts.libRoot)
 	if len(stored.Entries) != 1 {
 		t.Errorf("two identical books stored %d entries, want 1", len(stored.Entries))
 	}
@@ -376,19 +161,17 @@ func TestFingerprintCacheRecognizesACopiedBookByItsContent(t *testing.T) {
 // again, and has the md5_hash in its meta.json - which nothing else validates -
 // repaired from the content that was just read.
 func TestFingerprintCacheRepairsAStaleSourceHash(t *testing.T) {
-	libRoot := t.TempDir()
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
-
-	book := addFingerprintBook(t, shelf, libRoot, "Dune", "the spice must flow")
+	ts := newTestShelf(t)
+	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 	bookPath := book.FolderPath()
-	sourcePath := sourceFilePath(t, libRoot, book)
+	sourcePath := ts.sourceFilePath(book)
 
-	counting := countSourceReads(t, shelf)
+	counting := ts.countSourceReads()
 	builder := &fakeFingerprint{label: "v1"}
 
-	cache := openFingerprintCache(t, shelf, testAlgo)
+	cache := openCache(t, ts, counting, testAlgo)
 	before := resolveFingerprint(t, cache, counting, bookPath, builder)
-	saveFingerprintCache(t, cache)
+	saveCache(t, cache)
 
 	const edited = "the spice must flow, and then some"
 	if err := os.WriteFile(sourcePath, []byte(edited), 0644); err != nil {
@@ -401,7 +184,7 @@ func TestFingerprintCacheRepairsAStaleSourceHash(t *testing.T) {
 		t.Fatalf("the edited source should carry a stale hash: ok=%v err=%v", ok, err)
 	}
 
-	second := openFingerprintCache(t, shelf, testAlgo)
+	second := openCache(t, ts, counting, testAlgo)
 	after := resolveFingerprint(t, second, counting, bookPath, builder)
 
 	if got := builder.calls.Load(); got != 2 {
@@ -424,32 +207,30 @@ func TestFingerprintCacheRepairsAStaleSourceHash(t *testing.T) {
 // nothing can vouch for the comparability of an entry whose normalization or
 // sketch parameters are not the ones in use.
 func TestFingerprintCacheIsDiscardedWhenTheAlgorithmChanges(t *testing.T) {
-	libRoot := t.TempDir()
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
-
-	book := addFingerprintBook(t, shelf, libRoot, "Dune", "the spice must flow")
+	ts := newTestShelf(t)
+	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 	bookPath := book.FolderPath()
 
-	counting := countSourceReads(t, shelf)
+	counting := ts.countSourceReads()
 	oldBuilder := &fakeFingerprint{label: "v1"}
 
-	first := openFingerprintCache(t, shelf, testAlgo)
+	first := openCache(t, ts, counting, testAlgo)
 	resolveFingerprint(t, first, counting, bookPath, oldBuilder)
-	saveFingerprintCache(t, first)
+	saveCache(t, first)
 
 	newAlgo := testAlgo
 	newAlgo.Normalize = "nfkc-strip-space-punct-v2"
 	newBuilder := &fakeFingerprint{label: "v2"}
 
-	second := openFingerprintCache(t, shelf, newAlgo)
+	second := openCache(t, ts, counting, newAlgo)
 	rebuilt := resolveFingerprint(t, second, counting, bookPath, newBuilder)
 
 	if got := newBuilder.calls.Load(); got != 1 {
 		t.Errorf("the new algorithm reused a stored fingerprint: builds %d, want 1", got)
 	}
-	saveFingerprintCache(t, second)
+	saveCache(t, second)
 
-	stored := readFingerprintCacheAt(t, libRoot)
+	stored := readCacheAt(t, ts.libRoot)
 	if stored.Algo != newAlgo {
 		t.Errorf("the stored algorithm is %+v, want %+v", stored.Algo, newAlgo)
 	}
@@ -466,31 +247,29 @@ func TestFingerprintCacheIsDiscardedWhenTheAlgorithmChanges(t *testing.T) {
 // Two machines sharing a shelf must not overwrite each other: entries are a
 // union, so neither side loses work it computed.
 func TestFingerprintCacheMergesAnotherWritersEntries(t *testing.T) {
-	libRoot := t.TempDir()
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+	ts := newTestShelf(t)
+	mine := ts.addBook("mine.bookpkg", "book-mine", "Mine", "a book only this machine has read", -time.Hour)
+	theirs := ts.addBook("theirs.bookpkg", "book-theirs", "Theirs", "a book only the other machine has read", -time.Hour)
 
-	mine := addFingerprintBook(t, shelf, libRoot, "Mine", "a book only this machine has read")
-	theirs := addFingerprintBook(t, shelf, libRoot, "Theirs", "a book only the other machine has read")
-
-	counting := countSourceReads(t, shelf)
+	counting := ts.countSourceReads()
 	builder := &fakeFingerprint{label: "v1"}
 
-	cache := openFingerprintCache(t, shelf, testAlgo)
+	cache := openCache(t, ts, counting, testAlgo)
 	resolveFingerprint(t, cache, counting, mine.FolderPath(), builder)
-	saveFingerprintCache(t, cache)
+	saveCache(t, cache)
 
 	// What the other machine wrote in the meantime: its own book, plus a later
 	// look at the book this one already knows.
 	_, theirSource := reopen(t, counting, theirs.FolderPath())
 	theirStat, err := theirSource.ContentStat()
 	if err != nil {
-		t.Fatalf("contentStat: %v", err)
+		t.Fatalf("ContentStat: %v", err)
 	}
-	theirKey := fingerprintIndexKey(theirs.ID(), theirSource.ID())
+	theirKey := indexKey(theirs.ID(), theirSource.ID())
 	const theirMD5 = "0123456789abcdef0123456789abcdef"
 
-	stored := readFingerprintCacheAt(t, libRoot)
-	myKey := fingerprintIndexKey(mine.ID(), func() string {
+	stored := readCacheAt(t, ts.libRoot)
+	myKey := indexKey(mine.ID(), func() string {
 		_, source := reopen(t, counting, mine.FolderPath())
 		return source.ID()
 	}())
@@ -502,14 +281,14 @@ func TestFingerprintCacheMergesAnotherWritersEntries(t *testing.T) {
 	newer.ModTime = myRecord.ModTime.Add(time.Minute)
 
 	stored.Index[myKey] = newer
-	stored.Index[theirKey] = fingerprintIndexEntry{Size: theirStat.Size, ModTime: theirStat.ModTime, MD5: theirMD5}
-	stored.Entries[theirMD5] = FingerprintEntry{NormMD5: theirMD5, NormChars: 7, Shingles: 7, Sketch: "theirs"}
-	writeFingerprintCacheAt(t, libRoot, stored)
+	stored.Index[theirKey] = indexEntry{Size: theirStat.Size, ModTime: theirStat.ModTime, MD5: theirMD5}
+	stored.Entries[theirMD5] = Entry{NormMD5: theirMD5, NormChars: 7, Shingles: 7, Sketch: "theirs"}
+	writeCacheAt(t, ts.libRoot, stored)
 
 	// Any later save has to fold that in rather than replace it.
-	saveFingerprintCache(t, cache)
+	saveCache(t, cache)
 
-	merged := readFingerprintCacheAt(t, libRoot)
+	merged := readCacheAt(t, ts.libRoot)
 	if len(merged.Entries) != 2 {
 		t.Errorf("the merged cache holds %d entries, want 2", len(merged.Entries))
 	}
@@ -526,21 +305,21 @@ func TestFingerprintCacheMergesAnotherWritersEntries(t *testing.T) {
 
 // The newer-observation rule on its own, including the case a whole-file test
 // cannot stage: the older record arriving second.
-func TestMergeFingerprintIndexKeepsTheNewerRecord(t *testing.T) {
+func TestMergeIndexKeepsTheNewerRecord(t *testing.T) {
 	older := time.Date(2026, 3, 15, 8, 30, 0, 0, time.UTC)
 	newer := older.Add(time.Hour)
 
-	index := map[string]fingerprintIndexEntry{
+	index := map[string]indexEntry{
 		"book-a/source-1": {Size: 1, ModTime: newer, MD5: "newer"},
 		"book-b/source-1": {Size: 2, ModTime: older, MD5: "older"},
 	}
-	other := map[string]fingerprintIndexEntry{
+	other := map[string]indexEntry{
 		"book-a/source-1": {Size: 3, ModTime: older, MD5: "older"},
 		"book-b/source-1": {Size: 4, ModTime: newer, MD5: "newer"},
 		"book-c/source-1": {Size: 5, ModTime: older, MD5: "only-theirs"},
 	}
 
-	mergeFingerprintIndex(index, other)
+	mergeIndex(index, other)
 
 	for key, want := range map[string]string{
 		"book-a/source-1": "newer",
@@ -557,41 +336,40 @@ func TestMergeFingerprintIndexKeepsTheNewerRecord(t *testing.T) {
 // along with the entries nothing points at any more. An entry a surviving book
 // still hashes to stays.
 func TestFingerprintCachePrunesDeletedBooks(t *testing.T) {
-	libRoot := t.TempDir()
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+	ts := newTestShelf(t)
 
 	const shared = "a text two books hold"
-	kept := addFingerprintBook(t, shelf, libRoot, "Kept", shared)
-	alsoKept := addFingerprintBook(t, shelf, libRoot, "Also Kept", shared)
-	doomed := addFingerprintBook(t, shelf, libRoot, "Doomed", "a text only one book holds")
+	kept := ts.addBook("kept.bookpkg", "book-kept", "Kept", shared, -time.Hour)
+	alsoKept := ts.addBook("also.bookpkg", "book-also", "Also Kept", shared, -time.Hour)
+	doomed := ts.addBook("doomed.bookpkg", "book-doomed", "Doomed", "a text only one book holds", -time.Hour)
 
-	counting := countSourceReads(t, shelf)
+	counting := ts.countSourceReads()
 	builder := &fakeFingerprint{label: "v1"}
-	cache := openFingerprintCache(t, shelf, testAlgo)
+	cache := openCache(t, ts, counting, testAlgo)
 
-	for _, book := range []*Book{kept, alsoKept, doomed} {
+	for _, book := range []*bookpkg.Book{kept, alsoKept, doomed} {
 		resolveFingerprint(t, cache, counting, book.FolderPath(), builder)
 	}
-	saveFingerprintCache(t, cache)
+	saveCache(t, cache)
 
-	before := readFingerprintCacheAt(t, libRoot)
+	before := readCacheAt(t, ts.libRoot)
 	if len(before.Index) != 3 || len(before.Entries) != 2 {
 		t.Fatalf("before the delete the cache holds %d records and %d entries, want 3 and 2", len(before.Index), len(before.Entries))
 	}
 
-	if err := shelf.DeleteBook(doomed.ID()); err != nil {
-		t.Fatalf("DeleteBook: %v", err)
-	}
+	// A delete is a book leaving the live set: the pruning input the caller now
+	// owns, rather than a bookCache the cache used to read.
+	delete(ts.live, doomed.ID())
 
 	// A run that computes nothing new still collects: this is the only moment
 	// the deleted book's records can be noticed.
-	next := openFingerprintCache(t, shelf, testAlgo)
-	for _, book := range []*Book{kept, alsoKept} {
+	next := openCache(t, ts, counting, testAlgo)
+	for _, book := range []*bookpkg.Book{kept, alsoKept} {
 		resolveFingerprint(t, next, counting, book.FolderPath(), builder)
 	}
-	saveFingerprintCache(t, next)
+	saveCache(t, next)
 
-	after := readFingerprintCacheAt(t, libRoot)
+	after := readCacheAt(t, ts.libRoot)
 	for key := range after.Index {
 		if strings.HasPrefix(key, doomed.ID()+"/") {
 			t.Errorf("the deleted book still has an index record at %q", key)
@@ -609,26 +387,22 @@ func TestFingerprintCachePrunesDeletedBooks(t *testing.T) {
 // caller can recognize rather than a panic. A stale md5_hash it cannot repair
 // is not allowed to fail the lookup either.
 func TestFingerprintCacheOnAReadOnlyShelf(t *testing.T) {
-	libRoot := t.TempDir()
-
-	writable := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
-	book := addFingerprintBook(t, writable, libRoot, "Dune", "the spice must flow")
+	ts := newTestShelf(t)
+	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 	bookPath := book.FolderPath()
-	sourcePath := sourceFilePath(t, libRoot, book)
+	sourcePath := ts.sourceFilePath(book)
 
 	builder := &fakeFingerprint{label: "v1"}
-	cache := openFingerprintCache(t, writable, testAlgo)
-	stored := resolveFingerprint(t, cache, writable.dbRoot, bookPath, builder)
-	saveFingerprintCache(t, cache)
+	cache := openCache(t, ts, ts.base, testAlgo)
+	stored := resolveFingerprint(t, cache, ts.base, bookPath, builder)
+	saveCache(t, cache)
 
-	if err := writable.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
+	// The same shelf reopened without write access: reads still work, every
+	// write is refused with fsutil.ErrReadOnly.
+	readOnly := fsutil.ReadOnly(ts.base)
+	reader := openCache(t, ts, readOnly, testAlgo)
 
-	readOnly := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none", ReadOnly: true})
-	reader := openFingerprintCache(t, readOnly, testAlgo)
-
-	if got := resolveFingerprint(t, reader, readOnly.dbRoot, bookPath, builder); got != stored {
+	if got := resolveFingerprint(t, reader, readOnly, bookPath, builder); got != stored {
 		t.Errorf("the read-only shelf resolved to %+v, want the stored %+v", got, stored)
 	}
 	if got := builder.calls.Load(); got != 1 {
@@ -646,7 +420,7 @@ func TestFingerprintCacheOnAReadOnlyShelf(t *testing.T) {
 	}
 	shiftModTime(t, sourcePath, -30*time.Minute)
 
-	edited := resolveFingerprint(t, reader, readOnly.dbRoot, bookPath, builder)
+	edited := resolveFingerprint(t, reader, readOnly, bookPath, builder)
 	if edited == stored {
 		t.Error("the edited source resolved to the fingerprint of its old content")
 	}
@@ -659,23 +433,12 @@ func TestFingerprintCacheOnAReadOnlyShelf(t *testing.T) {
 // with a coarse clock its stat cannot yet prove the content behind it. The
 // content level still answers, so the cost is a read and never a rebuild.
 func TestFingerprintCacheWillNotIndexAFreshlyWrittenSource(t *testing.T) {
-	libRoot := t.TempDir()
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+	ts := newTestShelf(t)
+	book := ts.addBook("fresh.bookpkg", "book-fresh", "Just Written", "written moments ago", 0)
 
-	book, err := shelf.NewBookWith(nil, "Just Written", func(book *Book) error {
-		source, err := book.NewSource(strings.NewReader("written moments ago"))
-		if err != nil {
-			return err
-		}
-		return book.SetCurrentSource(source.ID())
-	})
-	if err != nil {
-		t.Fatalf("NewBookWith: %v", err)
-	}
-
-	counting := countSourceReads(t, shelf)
+	counting := ts.countSourceReads()
 	builder := &fakeFingerprint{label: "v1"}
-	cache := openFingerprintCache(t, shelf, testAlgo)
+	cache := openCache(t, ts, counting, testAlgo)
 
 	resolveFingerprint(t, cache, counting, book.FolderPath(), builder)
 	resolveFingerprint(t, cache, counting, book.FolderPath(), builder)
@@ -691,10 +454,10 @@ func TestFingerprintCacheWillNotIndexAFreshlyWrittenSource(t *testing.T) {
 	}
 }
 
-func TestOpenFingerprintCacheRefusesAnIncompleteAlgorithm(t *testing.T) {
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
+func TestOpenRefusesAnIncompleteAlgorithm(t *testing.T) {
+	ts := newTestShelf(t)
 
-	incomplete := map[string]FingerprintAlgo{
+	incomplete := map[string]Algo{
 		"no normalization": {Shingle: "char-5gram", Hash: "xxhash64", K: 128},
 		"no shingling":     {Normalize: "v1", Hash: "xxhash64", K: 128},
 		"no hash":          {Normalize: "v1", Shingle: "char-5gram", K: 128},
@@ -702,8 +465,9 @@ func TestOpenFingerprintCacheRefusesAnIncompleteAlgorithm(t *testing.T) {
 	}
 
 	for name, algo := range incomplete {
-		if _, err := shelf.OpenFingerprintCache(algo); !errors.Is(err, ErrIncompleteFingerprintAlgo) {
-			t.Errorf("%s: OpenFingerprintCache returned %v, want %v", name, err, ErrIncompleteFingerprintAlgo)
+		_, err := Open(Config{Store: NewFSStore(ts.base, appDir), Algo: algo, Logger: newLoggerForTest()})
+		if !errors.Is(err, ErrIncompleteAlgo) {
+			t.Errorf("%s: Open returned %v, want %v", name, err, ErrIncompleteAlgo)
 		}
 	}
 }
@@ -719,22 +483,21 @@ func TestFingerprintCacheIgnoresAnUnusableFile(t *testing.T) {
 		{"a newer schema", []byte(`{"schema_version":99,"algo":{},"index":{},"entries":{}}`)},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			libRoot := t.TempDir()
-			shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
-			book := addFingerprintBook(t, shelf, libRoot, "Dune", "the spice must flow")
+			ts := newTestShelf(t)
+			book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 
-			if err := os.WriteFile(path.Join(libRoot, appFolder, fingerprintCacheFileName), testCase.content, 0644); err != nil {
+			if err := os.WriteFile(path.Join(ts.libRoot, appDir, cacheFileName), testCase.content, 0644); err != nil {
 				t.Fatalf("planting a cache file: %v", err)
 			}
 
 			builder := &fakeFingerprint{label: "v1"}
-			cache := openFingerprintCache(t, shelf, testAlgo)
-			resolveFingerprint(t, cache, shelf.dbRoot, book.FolderPath(), builder)
-			saveFingerprintCache(t, cache)
+			cache := openCache(t, ts, ts.base, testAlgo)
+			resolveFingerprint(t, cache, ts.base, book.FolderPath(), builder)
+			saveCache(t, cache)
 
-			stored := readFingerprintCacheAt(t, libRoot)
-			if stored.SchemaVersion != fingerprintCacheSchemaVersion || len(stored.Entries) != 1 {
-				t.Errorf("the rewritten cache is version %d with %d entries, want %d and 1", stored.SchemaVersion, len(stored.Entries), fingerprintCacheSchemaVersion)
+			stored := readCacheAt(t, ts.libRoot)
+			if stored.SchemaVersion != schemaVersion || len(stored.Entries) != 1 {
+				t.Errorf("the rewritten cache is version %d with %d entries, want %d and 1", stored.SchemaVersion, len(stored.Entries), schemaVersion)
 			}
 		})
 	}
@@ -743,15 +506,14 @@ func TestFingerprintCacheIgnoresAnUnusableFile(t *testing.T) {
 // An entry is keyed by content and never revisited, so a builder that produces
 // nothing must not be allowed to store that nothing.
 func TestFingerprintCacheRefusesAnEmptyFingerprint(t *testing.T) {
-	libRoot := t.TempDir()
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
-	book := addFingerprintBook(t, shelf, libRoot, "Dune", "the spice must flow")
+	ts := newTestShelf(t)
+	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 
-	cache := openFingerprintCache(t, shelf, testAlgo)
-	target, source := reopen(t, shelf.dbRoot, book.FolderPath())
+	cache := openCache(t, ts, ts.base, testAlgo)
+	target, source := reopen(t, ts.base, book.FolderPath())
 
-	if _, err := cache.Resolve(target, source, func([]byte) (FingerprintEntry, error) {
-		return FingerprintEntry{}, nil
+	if _, err := cache.Resolve(target, source, func([]byte) (Entry, error) {
+		return Entry{}, nil
 	}); err == nil {
 		t.Fatal("Resolve accepted a fingerprint with no sketch")
 	}
@@ -769,15 +531,14 @@ func TestFingerprintCacheRefusesAnEmptyFingerprint(t *testing.T) {
 // rewrite every such meta.json on the first fingerprint run, and a missing hash
 // is honest in a way a wrong one is not.
 func TestFingerprintCacheLeavesAMissingSourceHashAlone(t *testing.T) {
-	libRoot := t.TempDir()
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
-	book := addFingerprintBook(t, shelf, libRoot, "Legacy", "imported before hashes were stored")
+	ts := newTestShelf(t)
+	book := ts.addBook("legacy.bookpkg", "book-legacy", "Legacy", "imported before hashes were stored", -time.Hour)
 
 	sources, err := book.ListSource()
 	if err != nil {
 		t.Fatalf("ListSource: %v", err)
 	}
-	metaPath := path.Join(libRoot, sources[0].FolderPath(), SourceMetaFile)
+	metaPath := path.Join(ts.libRoot, sources[0].FolderPath(), bookpkg.SourceMetaFile)
 
 	raw, err := os.ReadFile(metaPath)
 	if err != nil {
@@ -797,14 +558,14 @@ func TestFingerprintCacheLeavesAMissingSourceHashAlone(t *testing.T) {
 	}
 
 	builder := &fakeFingerprint{label: "v1"}
-	cache := openFingerprintCache(t, shelf, testAlgo)
-	resolveFingerprint(t, cache, shelf.dbRoot, book.FolderPath(), builder)
+	cache := openCache(t, ts, ts.base, testAlgo)
+	resolveFingerprint(t, cache, ts.base, book.FolderPath(), builder)
 
 	after, err := os.ReadFile(metaPath)
 	if err != nil {
 		t.Fatalf("re-reading meta.json: %v", err)
 	}
-	var repaired SourceMeta
+	var repaired bookpkg.SourceMeta
 	if err := json.Unmarshal(after, &repaired); err != nil {
 		t.Fatalf("decoding meta.json: %v", err)
 	}
@@ -820,28 +581,17 @@ func TestFingerprintCacheLeavesAMissingSourceHashAlone(t *testing.T) {
 // computed by this very run, so collecting it would mean building it again next
 // time for nothing.
 func TestFingerprintCacheKeepsAnUnindexedFingerprintItJustBuilt(t *testing.T) {
-	libRoot := t.TempDir()
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+	ts := newTestShelf(t)
+	book := ts.addBook("fresh.bookpkg", "book-fresh", "Just Written", "written moments ago", 0)
 
-	book, err := shelf.NewBookWith(nil, "Just Written", func(book *Book) error {
-		source, err := book.NewSource(strings.NewReader("written moments ago"))
-		if err != nil {
-			return err
-		}
-		return book.SetCurrentSource(source.ID())
-	})
-	if err != nil {
-		t.Fatalf("NewBookWith: %v", err)
-	}
-
-	counting := countSourceReads(t, shelf)
+	counting := ts.countSourceReads()
 	builder := &fakeFingerprint{label: "v1"}
 
-	first := openFingerprintCache(t, shelf, testAlgo)
+	first := openCache(t, ts, counting, testAlgo)
 	resolveFingerprint(t, first, counting, book.FolderPath(), builder)
-	saveFingerprintCache(t, first)
+	saveCache(t, first)
 
-	stored := readFingerprintCacheAt(t, libRoot)
+	stored := readCacheAt(t, ts.libRoot)
 	if len(stored.Index) != 0 {
 		t.Errorf("a racily fresh source was indexed: %d records, want 0", len(stored.Index))
 	}
@@ -849,7 +599,7 @@ func TestFingerprintCacheKeepsAnUnindexedFingerprintItJustBuilt(t *testing.T) {
 		t.Fatalf("the saved cache holds %d entries, want the one just built", len(stored.Entries))
 	}
 
-	second := openFingerprintCache(t, shelf, testAlgo)
+	second := openCache(t, ts, counting, testAlgo)
 	resolveFingerprint(t, second, counting, book.FolderPath(), builder)
 
 	if got := builder.calls.Load(); got != 1 {
@@ -864,19 +614,17 @@ func TestFingerprintCacheKeepsAnUnindexedFingerprintItJustBuilt(t *testing.T) {
 // time. The record this run observed must win anyway, or the stale one would be
 // reinstated on every save and the source reread and rebuilt forever.
 func TestFingerprintCacheKeepsTheRecordItJustObserved(t *testing.T) {
-	libRoot := t.TempDir()
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
-
-	book := addFingerprintBook(t, shelf, libRoot, "Dune", "the spice must flow")
+	ts := newTestShelf(t)
+	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
 	bookPath := book.FolderPath()
-	sourcePath := sourceFilePath(t, libRoot, book)
+	sourcePath := ts.sourceFilePath(book)
 
-	counting := countSourceReads(t, shelf)
+	counting := ts.countSourceReads()
 	builder := &fakeFingerprint{label: "v1"}
 
-	first := openFingerprintCache(t, shelf, testAlgo)
+	first := openCache(t, ts, counting, testAlgo)
 	resolveFingerprint(t, first, counting, bookPath, builder)
-	saveFingerprintCache(t, first)
+	saveCache(t, first)
 
 	// Restored from a backup: other content, and a modification time older than
 	// the one already recorded.
@@ -885,11 +633,11 @@ func TestFingerprintCacheKeepsTheRecordItJustObserved(t *testing.T) {
 	}
 	shiftModTime(t, sourcePath, -24*time.Hour)
 
-	second := openFingerprintCache(t, shelf, testAlgo)
+	second := openCache(t, ts, counting, testAlgo)
 	restored := resolveFingerprint(t, second, counting, bookPath, builder)
-	saveFingerprintCache(t, second)
+	saveCache(t, second)
 
-	stored := readFingerprintCacheAt(t, libRoot)
+	stored := readCacheAt(t, ts.libRoot)
 	if len(stored.Index) != 1 {
 		t.Fatalf("the saved cache holds %d index records, want 1", len(stored.Index))
 	}
@@ -905,7 +653,7 @@ func TestFingerprintCacheKeepsTheRecordItJustObserved(t *testing.T) {
 	// And the run after that answers from the index, which is what the merge
 	// getting it wrong would cost.
 	opensBefore := counting.opens.Load()
-	third := openFingerprintCache(t, shelf, testAlgo)
+	third := openCache(t, ts, counting, testAlgo)
 	resolveFingerprint(t, third, counting, bookPath, builder)
 
 	if got := counting.opens.Load(); got != opensBefore {
