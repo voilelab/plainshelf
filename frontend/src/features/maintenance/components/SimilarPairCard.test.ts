@@ -6,13 +6,11 @@ import type { SimilarBookPair, SimilarRelation } from '@/api/books';
 import type { Book } from '@/types/book';
 
 const mocks = vi.hoisted(() => ({
-  listSources: vi.fn(),
   deleteBook: vi.fn(),
   push: vi.fn()
 }));
 
 vi.mock('@/providers', () => ({
-  getBookshelfProvider: () => ({ listSources: mocks.listSources }),
   bookshelfWriter: () => ({ deleteBook: mocks.deleteBook })
 }));
 
@@ -100,7 +98,6 @@ function bookRows(host: HTMLElement): HTMLElement[] {
 
 beforeEach(() => {
   setLocale('en');
-  mocks.listSources.mockReset().mockResolvedValue([{ id: 's1' }, { id: 's2' }]);
   mocks.deleteBook.mockReset().mockResolvedValue(undefined);
   mocks.push.mockReset();
 });
@@ -158,14 +155,13 @@ describe('SimilarPairCard', () => {
     expect(host.querySelector('.similar-badge')).toBeNull();
   });
 
-  it('shows each book its own source count once resolved', async () => {
-    mocks.listSources.mockImplementation((id: string) =>
-      Promise.resolve(id === 'book-a' ? [{ id: 's1' }, { id: 's2' }, { id: 's3' }] : [{ id: 's1' }])
-    );
+  it('shows each book the source count handed down for it', async () => {
     const host = mount({
       pair: pair(),
       bookA: book('book-a'),
-      bookB: book('book-b')
+      bookB: book('book-b'),
+      sourceCountA: 3,
+      sourceCountB: 1
     });
     await flush();
 
@@ -176,6 +172,20 @@ describe('SimilarPairCard', () => {
         ?.querySelector('dd')?.textContent;
     expect(sourceValue(rows[0])).toBe('3');
     expect(sourceValue(rows[1])).toBe('1');
+  });
+
+  it('hides the delete action on a read-only shelf', async () => {
+    const host = mount({
+      pair: pair(),
+      bookA: book('book-a'),
+      bookB: book('book-b'),
+      readOnly: true
+    });
+    await flush();
+
+    expect(host.querySelector('.similar-delete')).toBeNull();
+    // Open stays available so results are still inspectable read-only.
+    expect(host.querySelector('.similar-open')).not.toBeNull();
   });
 
   it('confirming a delete warns when the fuller copy is the target, then deletes and emits', async () => {

@@ -39,6 +39,7 @@
         {{ t('maintenance.duplicates.open') }}
       </button>
       <button
+        v-if="canDelete"
         type="button"
         class="button danger similar-delete"
         :disabled="disabled || deleting"
@@ -75,6 +76,8 @@ const props = withDefaults(
     isMoreComplete?: boolean;
     /** Pre-formatted "how much less" note (subset percentage or character delta). */
     fewerNote?: string;
+    /** Whether the shelf accepts deletes; false hides the action on a read-only shelf. */
+    canDelete?: boolean;
     /** This row's own delete is in flight. */
     deleting?: boolean;
     /** Another row in the same card is mid-delete, so this one is inert. */
@@ -83,6 +86,7 @@ const props = withDefaults(
   {
     isMoreComplete: false,
     fewerNote: '',
+    canDelete: true,
     deleting: false,
     disabled: false
   }

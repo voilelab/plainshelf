@@ -28,6 +28,7 @@
         :source-count="entry.sourceCount"
         :is-more-complete="entry.isMoreComplete"
         :fewer-note="entry.fewerNote"
+        :can-delete="!readOnly"
         :deleting="deleting && pendingDeleteId === entry.id"
         :disabled="deleting && pendingDeleteId !== entry.id"
         @open="openBook(entry.id)"
@@ -38,36 +39,48 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import type { SimilarBookPair } from '@/api/books';
 import DeleteModal from '@/components/DeleteModal.vue';
 import SimilarBookRow from '@/features/maintenance/components/SimilarBookRow.vue';
-import { bookshelfWriter, getBookshelfProvider } from '@/providers';
+import { bookshelfWriter } from '@/providers';
 import type { Book } from '@/types/book';
 import { useI18n } from '@/i18n';
 import { estimatedDiffPer100, subsetShortfallPercent } from '@/utils/similarity';
 
 const { t } = useI18n();
 
-const props = defineProps<{
-  pair: SimilarBookPair;
-  /** Resolved from the shelf listing; undefined when it could not be matched. */
-  bookA?: Book;
-  bookB?: Book;
-}>();
+const props = withDefaults(
+  defineProps<{
+    pair: SimilarBookPair;
+    /** Resolved from the shelf listing; undefined when it could not be matched. */
+    bookA?: Book;
+    bookB?: Book;
+    /**
+     * Source counts, resolved once per distinct book by the page. Kept out of
+     * the card so a book appearing in several pairs is fetched once, not once
+     * per card. null = unresolved or the lookup failed; the row shows a dash
+     * rather than a wrong "0 sources".
+     */
+    sourceCountA?: number | null;
+    sourceCountB?: number | null;
+    /** A read-only shelf cannot delete, so the action is hidden rather than offered and refused. */
+    readOnly?: boolean;
+  }>(),
+  {
+    sourceCountA: null,
+    sourceCountB: null,
+    readOnly: false
+  }
+);
 
 const emit = defineEmits<{
   deleted: [bookId: string];
 }>();
 
 const router = useRouter();
-
-// Source counts are the one field neither the pair nor the book listing carries,
-// so the card fetches them itself. null = unresolved or lookup failed; the row
-// shows a dash rather than a wrong "0 sources".
-const sourceCounts = ref<Record<string, number | null>>({});
 
 const pendingDeleteId = ref<string | null>(null);
 const deleting = ref(false);
@@ -133,17 +146,22 @@ const orderedEntries = computed<RowEntry[]>(() => {
   const delta = charA !== null && charB !== null ? Math.abs(charA - charB) : 0;
   const fewerNote = delta > 0 ? t('maintenance.similar.card.fewerChars', { count: delta.toLocaleString() }) : '';
 
-  const build = (id: string, book: Book | undefined, charCount: number | null): RowEntry => ({
+  const build = (
+    id: string,
+    book: Book | undefined,
+    charCount: number | null,
+    sourceCount: number | null
+  ): RowEntry => ({
     id,
     book: bookFor(id, book),
     charCount,
-    sourceCount: sourceCounts.value[id] ?? null,
+    sourceCount,
     isMoreComplete: isSubset && id === moreCompleteId,
     fewerNote: id === fewerId ? fewerNote : ''
   });
 
-  const entryA = build(pair.a, props.bookA, charA);
-  const entryB = build(pair.b, props.bookB, charB);
+  const entryA = build(pair.a, props.bookA, charA, props.sourceCountA);
+  const entryB = build(pair.b, props.bookB, charB, props.sourceCountB);
 
   return isSubset && !supersetIsA ? [entryB, entryA] : [entryA, entryB];
 });
@@ -178,17 +196,6 @@ const deleteDescription = computed(() => {
   }
   return parts.join(' ');
 });
-
-async function loadSourceCounts(): Promise<void> {
-  const provider = getBookshelfProvider();
-  const ids = [props.pair.a, props.pair.b];
-  const results = await Promise.allSettled(ids.map((id) => provider.listSources(id)));
-  const next: Record<string, number | null> = {};
-  results.forEach((result, index) => {
-    next[ids[index]] = result.status === 'fulfilled' ? result.value.length : null;
-  });
-  sourceCounts.value = next;
-}
 
 function openBook(id: string): void {
   void router.push(`/books/${id}`);
@@ -229,17 +236,6 @@ async function confirmDelete(): Promise<void> {
   }
 }
 
-watch(
-  () => [props.pair.a, props.pair.b],
-  () => {
-    sourceCounts.value = {};
-    void loadSourceCounts();
-  }
-);
-
-onMounted(() => {
-  void loadSourceCounts();
-});
 </script>
 
 <style scoped>

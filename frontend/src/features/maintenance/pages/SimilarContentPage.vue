@@ -64,6 +64,9 @@
           :pair="pair"
           :book-a="booksById.get(pair.a)"
           :book-b="booksById.get(pair.b)"
+          :source-count-a="sourceCounts[pair.a] ?? null"
+          :source-count-b="sourceCounts[pair.b] ?? null"
+          :read-only="readOnly"
           @deleted="onDeleted"
         />
       </div>
@@ -72,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { SimilarTooLargeError, type FingerprintStatus, type SimilarBookPair } from '@/api/books';
@@ -107,6 +110,12 @@ const fingerprint = ref<FingerprintStatus | null>(null);
 // enough for the user to decide which copy to delete. Best-effort: a card falls
 // back to an id-only stand-in for any book missing here.
 const booksById = ref<Map<string, Book>>(new Map());
+// Source count per book, resolved once per distinct id — a book can appear in
+// many pairs, so fetching per card would enqueue the same lookup repeatedly (a
+// dense result has no pair-count cap). null means the lookup failed; an id
+// absent from the map is simply not fetched yet.
+const sourceCounts = ref<Record<string, number | null>>({});
+const sourceCountsInflight = new Set<string>();
 
 // Filter state. The tier drives the threshold until the advanced slider is
 // opened, which then owns it; the subset toggle is orthogonal to both.
@@ -126,10 +135,44 @@ const totalBooks = computed(() => fingerprint.value?.total ?? 0);
 const missingCount = computed(() => fingerprint.value?.missing ?? 0);
 const showFingerprintBar = computed(() => missingCount.value > 0);
 
+// Fetch each still-unknown book's source count once. Driven by the pairs the
+// filter actually shows, so only visible books are looked up, and the inflight
+// set plus the cached result stop a book being fetched twice across cards or
+// across filter changes.
+async function ensureSourceCounts(ids: readonly string[]): Promise<void> {
+  const provider = getBookshelfProvider();
+  const todo = [...new Set(ids)].filter(
+    (id) => !(id in sourceCounts.value) && !sourceCountsInflight.has(id)
+  );
+  if (todo.length === 0) {
+    return;
+  }
+
+  todo.forEach((id) => sourceCountsInflight.add(id));
+  const results = await Promise.allSettled(todo.map((id) => provider.listSources(id)));
+  const next = { ...sourceCounts.value };
+  results.forEach((result, index) => {
+    next[todo[index]] = result.status === 'fulfilled' ? result.value.length : null;
+  });
+  sourceCounts.value = next;
+  todo.forEach((id) => sourceCountsInflight.delete(id));
+}
+
+watch(
+  visiblePairs,
+  (shown) => {
+    void ensureSourceCounts(shown.flatMap((pair) => [pair.a, pair.b]));
+  },
+  { immediate: true }
+);
+
 async function load(): Promise<void> {
   loading.value = true;
   error.value = '';
   tooLarge.value = null;
+  // A reload is fresh data; drop cached counts so the watch re-resolves them.
+  sourceCounts.value = {};
+  sourceCountsInflight.clear();
 
   const provider = getBookshelfProvider();
   // Skip the char_count join on backends that would answer it one network
