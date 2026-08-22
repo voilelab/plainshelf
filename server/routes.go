@@ -25,6 +25,7 @@ type apiHandlers struct {
 	trash     *trashHandlers
 	batches   *batchHandlers
 	transfers *bookTransferHandlers
+	layerXfer *layerTransferHandlers
 	fps       *fingerprintHandlers
 	taskAPI   *taskHandlers
 	setting   *settingHandlers
@@ -59,6 +60,7 @@ func newAPIHandlers(
 		trash:     &trashHandlers{taskSubmitter: tasks},
 		batches:   &batchHandlers{taskSubmitter: tasks},
 		transfers: &bookTransferHandlers{taskSubmitter: tasks},
+		layerXfer: &layerTransferHandlers{taskSubmitter: tasks},
 		fps:       &fingerprintHandlers{apiCore: core},
 		taskAPI:   &taskHandlers{taskSubmitter: tasks},
 		setting:   &settingHandlers{apiCore: core, settings: settingsSvc},
@@ -129,6 +131,7 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/layers", h.layers.getLayers)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/layer-moves", h.layers.moveLayer)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/layer-transfers", h.layerXfer.transferLayer)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/layers/{layer_path...}", h.layers.createLayer)
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/layers/{layer_path...}", h.layers.renameLayer)
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/layers/{layer_path...}", h.layers.deleteLayer)
