@@ -120,3 +120,21 @@ export function isReaderRuntime(): boolean {
 
   return Boolean((window as { __PLAINSHELF_READER__?: unknown }).__PLAINSHELF_READER__);
 }
+
+/**
+ * Whether this is a plain web-server build running in an ordinary browser — the
+ * frontend that `frontend/web.go` embeds, served over HTTP — rather than the
+ * Wails desktop client, a native or previewed mobile shell, or the standalone
+ * reader app.
+ *
+ * Defined as the negation of the three real shells so a shell added later is
+ * excluded here the moment its own predicate reports it, instead of silently
+ * counting as web.
+ */
+export function isWebRuntime(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return !isWailsRuntime() && !isMobileRuntime() && !isReaderRuntime();
+}

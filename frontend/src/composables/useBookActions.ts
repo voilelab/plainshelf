@@ -2,7 +2,7 @@ import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useBookStore } from '@/composables/useBookStore';
 import { useLayerStore } from '@/composables/useLayerStore';
-import { bookshelfWriter, getBookshelfProvider } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider, isWebRuntime } from '@/providers';
 import type { Book } from '@/types/book';
 import { getLayerPath, layerPathEquals } from '@/utils/layers';
 import { t } from '@/i18n';
@@ -74,12 +74,28 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
    * The index is the reader's own section index, so it survives a title change.
    */
   function goRead(id: string, sectionIndex?: number): void {
-    if (typeof sectionIndex === 'number' && Number.isFinite(sectionIndex)) {
-      void router.push({ path: `/reader/${id}`, query: { section: String(Math.trunc(sectionIndex)) } });
+    const to =
+      typeof sectionIndex === 'number' && Number.isFinite(sectionIndex)
+        ? { path: `/reader/${id}`, query: { section: String(Math.trunc(sectionIndex)) } }
+        : { path: `/reader/${id}` };
+
+    // On a plain web-server build the reader opens in a new tab so the library
+    // or book page it was launched from is not replaced wholesale — closing the
+    // tab returns the reader there. The desktop, mobile and reader shells keep
+    // the in-place SPA navigation. Matches externalLinks.ts's window.open idiom.
+    //
+    // No router.push fallback here: with noopener/noreferrer window.open returns
+    // null even on success (per the HTML spec), so its result cannot tell a
+    // blocked pop-up from an opened one. Pushing "on failure" would therefore
+    // fire on every success too and navigate the original tab as well, which is
+    // exactly the wholesale replacement this feature avoids. A user-gesture open
+    // is not pop-up-blocked in practice.
+    if (isWebRuntime()) {
+      window.open(router.resolve(to).href, '_blank', 'noopener,noreferrer');
       return;
     }
 
-    void router.push(`/reader/${id}`);
+    void router.push(to);
   }
 
   function openDetail(id: string): void {

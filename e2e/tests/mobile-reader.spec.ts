@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { startServer } from './support/server';
+import { openReaderTab } from './support/reader';
 import {
   epubFixtureChapters,
   epubFixtureDescription,
@@ -33,10 +34,12 @@ async function importEpub(page: Page): Promise<void> {
   await dialog.getByRole('button', { name: 'Cancel' }).click();
 }
 
-async function openReader(page: Page): Promise<void> {
+async function openReader(page: Page): Promise<Page> {
   await page.locator('.book-list-row').getByRole('heading', { name: epubFixtureTitle, exact: true }).click();
-  await page.getByRole('button', { name: 'Start reading' }).click();
-  await expect(page).toHaveURL(/\/reader\/[^/]+$/);
+  // The web build opens the reader in a new tab. A popup inherits the browser
+  // context's default viewport, not this page's mobile override, so the caller
+  // must size the returned reader tab itself.
+  return openReaderTab(page, () => page.getByRole('button', { name: 'Start reading' }).click());
 }
 
 async function dispatchTouch(
@@ -81,14 +84,17 @@ test('provides an immersive mobile reader without changing the desktop reader', 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${server.baseUrl}/books`);
     await importEpub(page);
-    await openReader(page);
+    const reader = await openReader(page);
+    // The reader opened in its own tab; give it the mobile viewport this test
+    // exercises (the popup inherited the context's desktop default).
+    await reader.setViewportSize({ width: 390, height: 844 });
 
-    const mobileReader = page.locator('[data-reader-variant="mobile"]');
+    const mobileReader = reader.locator('[data-reader-variant="mobile"]');
     const readerText = mobileReader.locator('.reader-text');
     await expect(mobileReader).toBeVisible();
     await expect(readerText).toHaveCSS('font-size', '22px');
-    await expect(page.getByText('Tap the center for controls · Swipe left or right to change chapters')).toBeVisible();
-    await expect.poll(() => page.evaluate(() => localStorage.getItem('reader-mobile-gesture-hint-seen'))).toBe('1');
+    await expect(reader.getByText('Tap the center for controls · Swipe left or right to change chapters')).toBeVisible();
+    await expect.poll(() => reader.evaluate(() => localStorage.getItem('reader-mobile-gesture-hint-seen'))).toBe('1');
     await expect(mobileReader.getByRole('button', { name: 'Next' })).toHaveCount(0);
     await expect(mobileReader.locator('.mobile-reader-toolbar')).toHaveCount(0);
 
@@ -98,12 +104,12 @@ test('provides an immersive mobile reader without changing the desktop reader', 
     await dispatchTouch(mobileReader, [center, center]);
     await expect(mobileReader.locator('.mobile-reader-toolbar')).toBeVisible();
     await expect(mobileReader.getByText('1 / 3')).toBeVisible();
-    await page.waitForTimeout(4_100);
+    await reader.waitForTimeout(4_100);
     await expect(mobileReader.locator('.mobile-reader-toolbar')).toBeVisible();
 
-    await page.keyboard.press('ArrowRight');
+    await reader.keyboard.press('ArrowRight');
     await expect(mobileReader.getByText('2 / 3')).toBeVisible();
-    await page.keyboard.press('ArrowLeft');
+    await reader.keyboard.press('ArrowLeft');
     await expect(mobileReader.getByText('1 / 3')).toBeVisible();
 
     const keyboardInput = mobileReader.locator('input[data-keyboard-guard]');
@@ -113,14 +119,14 @@ test('provides an immersive mobile reader without changing the desktop reader', 
       element.append(input);
       input.focus();
     });
-    await page.keyboard.press('ArrowRight');
+    await reader.keyboard.press('ArrowRight');
     await expect(mobileReader.getByText('1 / 3')).toBeVisible();
     await keyboardInput.evaluate((element) => element.remove());
 
     await mobileReader.getByRole('button', { name: 'Choose reading font' }).click();
-    const fontDialog = page.getByRole('dialog', { name: 'Reading font' });
+    const fontDialog = reader.getByRole('dialog', { name: 'Reading font' });
     await expect(fontDialog).toBeVisible();
-    await page.keyboard.press('ArrowRight');
+    await reader.keyboard.press('ArrowRight');
     await expect(mobileReader.getByText('1 / 3')).toBeVisible();
     await fontDialog.getByRole('button', { name: 'Done' }).click();
     await expect(mobileReader.locator('.mobile-reader-toolbar')).toBeVisible();
@@ -172,7 +178,7 @@ test('provides an immersive mobile reader without changing the desktop reader', 
       { x: box!.x + box!.width * 0.2, y: center.y },
       { x: box!.x + box!.width * 0.8, y: center.y }
     ], 5);
-    await expect(page.getByText('You are at the first chapter').last()).toBeVisible();
+    await expect(reader.getByText('You are at the first chapter').last()).toBeVisible();
 
     for (const [index, pointerId] of [8, 9].entries()) {
       await dispatchTouch(mobileReader, [
@@ -185,14 +191,14 @@ test('provides an immersive mobile reader without changing the desktop reader', 
       { x: box!.x + box!.width * 0.8, y: center.y },
       { x: box!.x + box!.width * 0.2, y: center.y }
     ], 10);
-    await expect(page.getByText('You are at the last chapter').last()).toBeVisible();
+    await expect(reader.getByText('You are at the last chapter').last()).toBeVisible();
 
-    await page.reload();
-    await expect(page.locator('[data-reader-variant="mobile"]')).toBeVisible();
-    await expect(page.getByText('Tap the center for controls · Swipe left or right to change chapters')).toHaveCount(0);
+    await reader.reload();
+    await expect(reader.locator('[data-reader-variant="mobile"]')).toBeVisible();
+    await expect(reader.getByText('Tap the center for controls · Swipe left or right to change chapters')).toHaveCount(0);
 
-    await page.setViewportSize({ width: 1280, height: 720 });
-    const desktopReader = page.locator('[data-reader-variant="desktop"]');
+    await reader.setViewportSize({ width: 1280, height: 720 });
+    const desktopReader = reader.locator('[data-reader-variant="desktop"]');
     await expect(desktopReader).toBeVisible();
     await expect(desktopReader.getByRole('button', { name: 'Prev' })).toBeVisible();
     await expect(desktopReader.getByRole('button', { name: 'Next' })).toBeVisible();
