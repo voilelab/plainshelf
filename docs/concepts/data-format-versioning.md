@@ -478,6 +478,28 @@ upgrade PlainShelf to modify it
 
 ---
 
+## Fingerprint cache
+
+`app/fingerprint-cache.json`, the cache behind the
+[Similar Books](../finding-similar-books.md) page, also carries a
+`schema_version` — but it is versioned the opposite way to everything above,
+because it is rebuildable cache rather than your data.
+
+The file records both its `schema_version` and an `algo` block naming the exact
+rules its fingerprints were produced under (the text normalization, the shingle
+size, the hash, and how many hashes each fingerprint keeps). When a build meets a
+`schema_version` it does not read, **or** an `algo` block that does not match the
+rules it fingerprints by, it throws the whole file away and rebuilds it. There is
+no migration and, deliberately, no field-level salvage: changing how text is
+normalized invalidates every fingerprint built on top of it, so keeping "the
+parts that did not change" would mean trusting entries nobody can vouch for.
+
+That is the right trade only because the file is a cache. Discarding it costs one
+recomputation — the next similarity build reads the sources again — and never
+loses anything, which is exactly what the migration promises above exist to avoid
+for `books/` and `trash/`. See
+[the `app/` directory](data-model.md#app) for what the file holds.
+
 ## What is versioned today
 
 Book, source, and trash metadata carry independent schema versions.
@@ -487,6 +509,7 @@ Book, source, and trash metadata carry independent schema versions.
 | `books/**/book.json` | Yes — `schema_version`, described on this page |
 | `books/**/sources/{id}/meta.json` | Yes — `schema_version`; v1 owns source `format` |
 | `trash/**/trash.json` | Yes — `schema_version`; v1 owns the book's restore path |
+| `app/fingerprint-cache.json` | Yes — `schema_version` and an `algo` block, but discarded and rebuilt on any mismatch, never migrated (it is a cache) |
 | Application store | No |
 
 The practical rule remains: **run one PlainShelf version against a shelf at a
