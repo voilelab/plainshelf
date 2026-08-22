@@ -38,7 +38,9 @@ test('the shared chrome renders from the zh-Hant catalog', async ({ page }) => {
     // an old /books/maintenance/missing-author link redirects to the library
     // filtered by ?author=none, whose toolbar renders from the zh-Hant catalog.
     await page.goto(`${server.baseUrl}/books/maintenance/missing-author`);
-    await expect(page).toHaveURL(/\/books\?author=none/);
+    // author=none can sit anywhere in the query once LibraryPage normalizes
+    // page/sort/order in, so match it position-independently.
+    await expect(page).toHaveURL(/\/books\?[^#]*author=none/);
     await expect(page.getByRole('button', { name: '搜尋', exact: true })).toBeVisible();
   } finally {
     await server.dispose();

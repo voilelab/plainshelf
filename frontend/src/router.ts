@@ -126,18 +126,20 @@ const router = createRouter({
         },
         // The dedicated "missing X" pages are gone: each condition is now a
         // book-list filter, so these paths redirect to the library query that
-        // expresses them. Old links and bookmarks keep working.
+        // expresses them. Old links and bookmarks keep working. The incoming
+        // query is preserved (like the /import redirect above) so a carried flag
+        // such as ?mobile-shell-preview=1 survives the redirect.
         {
           path: 'books/maintenance/missing-author',
-          redirect: { path: '/books', query: { author: 'none' } }
+          redirect: (to) => ({ path: '/books', query: { ...to.query, author: 'none' } })
         },
         {
           path: 'books/maintenance/missing-cover',
-          redirect: { path: '/books', query: { cover: 'none' } }
+          redirect: (to) => ({ path: '/books', query: { ...to.query, cover: 'none' } })
         },
         {
           path: 'books/maintenance/missing-language',
-          redirect: { path: '/books', query: { language: 'none' } }
+          redirect: (to) => ({ path: '/books', query: { ...to.query, language: 'none' } })
         },
         {
           path: 'admin/logs',

@@ -52,10 +52,12 @@ test('keeps reading routes reachable', async ({ page }) => {
       ['/settings', /\/settings/],
       // The former "missing X" maintenance routes are now read-only book-list
       // filters. They redirect through `library`, which the mobile shell keeps
-      // reachable, so these conditions are available on mobile by design.
-      ['/books/maintenance/missing-author', /\/books\?author=none/],
-      ['/books/maintenance/missing-cover', /\/books\?cover=none/],
-      ['/books/maintenance/missing-language', /\/books\?language=none/]
+      // reachable, so these conditions are available on mobile by design. The
+      // filter param can sit anywhere in the query once LibraryPage normalizes
+      // page/sort/order in, so match it position-independently.
+      ['/books/maintenance/missing-author', /\/books\?[^#]*author=none/],
+      ['/books/maintenance/missing-cover', /\/books\?[^#]*cover=none/],
+      ['/books/maintenance/missing-language', /\/books\?[^#]*language=none/]
     ] as const) {
       await reopenMobileAt(page, server.baseUrl, route);
       await expect(page, `${route} should stay reachable`).toHaveURL(pattern);
