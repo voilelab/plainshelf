@@ -45,7 +45,8 @@ func createTempDir(root fsutil.FS, prefix string) (string, error) {
 //
 // Whether a child is a directory is decided by Stat, not by the directory
 // entry's own type, so that a symlinked directory is descended into and copied
-// as a real one - the same way the shelf scanner (childIsDir) treats it. A
+// as a real one - the same way the shelf scanner (scancache.ChildIsDir) treats
+// it. A
 // listing reports a symlink as a non-directory, but opening it as a file fails,
 // so keying the copy on the entry type would break a package that holds one.
 func copyTreeAcross(srcRoot fsutil.ReadFS, src string, dstRoot fsutil.FS, dst string) error {
