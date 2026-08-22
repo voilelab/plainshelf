@@ -179,6 +179,13 @@ export interface BookshelfReader {
   openDesktopLayerFolder?(layerPath: string): Promise<void>;
   openDesktopBookFolder?(bookId: string): Promise<void>;
 
+  /**
+   * Opens a book in the standalone reader's own window (desktop only). Present
+   * only on the desktop provider; its absence is what keeps web and mobile on
+   * the in-app reader.
+   */
+  openDesktopReader?(bookId: string): Promise<void>;
+
   openDesktopShelfDirectory?(): Promise<string | null>;
   addDesktopShelf?(name: string, libRoot: string, scanInterval: string): Promise<void>;
   removeDesktopShelf?(shelfID: string): Promise<void>;

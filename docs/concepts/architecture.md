@@ -100,6 +100,14 @@ To make that progress show up in the desktop library, the reader writes into the
 **same** `reading_progress.json` the desktop app keeps, rather than its own
 WebView storage.
 
+On the desktop app (macOS), reading a book launches this standalone reader in
+its own window rather than the in-app reader: the read action shells out to the
+installed `PlainShelfReader` with the book's `.bookpkg` path. Only the desktop
+does this — web and mobile keep the in-app reader, which is the same shared code
+and stays the desktop's fallback if the reader will not launch. A specific
+chapter jump also stays in the in-app reader, which can target a section the
+standalone reader cannot yet.
+
 One file now has two writers, so:
 
 - The desktop app **projects** the reader's `book` entries onto the real shelves

@@ -117,10 +117,10 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
    * The index is the reader's own section index, so it survives a title change.
    */
   function goRead(id: string, sectionIndex?: number): void {
-    const to =
-      typeof sectionIndex === 'number' && Number.isFinite(sectionIndex)
-        ? { path: `/reader/${id}`, query: { section: String(Math.trunc(sectionIndex)) } }
-        : { path: `/reader/${id}` };
+    const hasSection = typeof sectionIndex === 'number' && Number.isFinite(sectionIndex);
+    const to = hasSection
+      ? { path: `/reader/${id}`, query: { section: String(Math.trunc(sectionIndex)) } }
+      : { path: `/reader/${id}` };
 
     // On a plain web-server build the reader opens in a new tab so the library
     // or book page it was launched from is not replaced wholesale — closing the
@@ -135,6 +135,20 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     // is not pop-up-blocked in practice.
     if (isWebRuntime()) {
       window.open(router.resolve(to).href, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    // On the desktop app the default read opens the standalone reader in its own
+    // window; its progress flows back into this library (reading_progress.json).
+    // Only the desktop provider defines openDesktopReader, so web/mobile fall
+    // through. A specific chapter jump keeps the in-app reader, which can target
+    // a section the standalone reader cannot yet, and the in-app /reader/:id
+    // route stays the fallback if the reader will not launch (e.g. not installed).
+    const provider = getBookshelfProvider();
+    if (!hasSection && provider.openDesktopReader) {
+      provider.openDesktopReader(id).catch(() => {
+        void router.push(to);
+      });
       return;
     }
 
