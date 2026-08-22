@@ -369,8 +369,7 @@ const zhHant = {
         deleteCompare: '這一本有 {thisChars} 字，另一本有 {otherChars} 字。',
         deleteMoreCompleteWarning: '這是比較完整的一本 —— 刪掉它會失去另一本沒有的內容。'
       }
-    },
-    incomplete: '待整理'
+    }
   },
   library: {
     allBooks: '所有書籍',

@@ -17,11 +17,7 @@ const {
   authorFilter,
   coverFilter,
   languageFilter,
-  tagsFilter,
-  incompleteFilter,
-  isMissingAuthor,
-  isMissingCover,
-  isMissingLanguage
+  tagsFilter
 } = await import('./registry');
 
 function book(id: string, charCount?: number): Book {
@@ -136,27 +132,5 @@ describe('metadata field filters', () => {
     const none = tagsFilter.parse({ tags: 'none' });
     expect(tagsFilter.predicate(metaBook({ tags: [] }), none)).toBe(true);
     expect(tagsFilter.predicate(metaBook({ tags: ['待整理'] }), none)).toBe(false);
-  });
-
-  it('derives incomplete as the OR of the same missing-field checks the fields use', () => {
-    const books = [
-      metaBook({ authors: [], cover: 'c.jpg', language: 'zh' }), // missing author
-      metaBook({ authors: ['x'], cover: '', language: 'zh' }), // missing cover
-      metaBook({ authors: ['x'], cover: 'c.jpg', language: '' }), // missing language
-      metaBook({ authors: ['x'], cover: 'c.jpg', language: 'zh' }), // complete
-      metaBook({ authors: ['x'], cover: 'c.jpg', language: 'zh', tags: [] }) // no tags, still complete
-    ];
-
-    // One implementation: incomplete must agree book-for-book with the fields'
-    // own `none` predicates, so a facet count can never disagree with the list.
-    for (const b of books) {
-      const expected = isMissingAuthor(b) || isMissingCover(b) || isMissingLanguage(b);
-      expect(incompleteFilter.predicate(b, true)).toBe(expected);
-    }
-
-    expect(incompleteFilter.predicate(books[0], true)).toBe(true);
-    expect(incompleteFilter.predicate(books[3], true)).toBe(false);
-    // Tags are intentionally not part of "incomplete".
-    expect(incompleteFilter.predicate(books[4], true)).toBe(false);
   });
 });

@@ -5,8 +5,8 @@ describe('mock book listing shape', () => {
   // The cover filter decides presence from `cover` (the on-disk filename a real
   // listing carries), never the derived `cover_url`. A seed book that renders a
   // cover but omits `cover` would be classified as missing one, making
-  // ?cover=none / ?incomplete=1 return nearly the whole seed library in mock
-  // mode. Keep the two fields in sync.
+  // ?cover=none return nearly the whole seed library in mock mode. Keep the two
+  // fields in sync.
   it('carries a cover filename wherever it carries a cover_url', () => {
     const inconsistent = mockBooks
       .filter((book) => book.cover_url)

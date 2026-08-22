@@ -595,12 +595,11 @@ const searchedBooks = computed(() => filterBooksBySearch(books.value, committedS
 // character range excluded everything it found".
 const layerFilteredBooks = computed(() => searchedBooks.value.filter((book) => matchesLayer(book)));
 
-// author/tags/cover/language/incomplete are free client-side predicates over
-// data already on every book, so the page applies the registry's metadata
-// filters generically: each parses its own value from the URL and, when active,
-// narrows the list. Their panel UI is a later change — for now they arrive only
-// through the URL and the sidebar's "needs tidying" link. The registry ANDs
-// them, so an inactive filter is simply skipped.
+// author/tags/cover/language are free client-side predicates over data already
+// on every book, so the page applies the registry's metadata filters
+// generically: each parses its own value from the URL and, when active, narrows
+// the list. Their panel UI is a later change — for now they arrive only through
+// the URL. The registry ANDs them, so an inactive filter is simply skipped.
 const activeMetadataFilters = computed(() =>
   METADATA_BOOK_FILTERS
     .map((filter) => ({ filter, value: filter.parse(route.query) }))
@@ -608,9 +607,9 @@ const activeMetadataFilters = computed(() =>
 );
 // A stable string that only changes when an active metadata filter does, so the
 // selection-clearing watcher below can depend on it the way it depends on
-// charCountKey. Without this, following the "needs tidying" link (or any change
-// to these filters) reuses LibraryPage and leaves now-hidden books selected —
-// and a batch move/trash would then act on books the user can no longer see.
+// charCountKey. Without this, changing any of these filters reuses LibraryPage
+// and leaves now-hidden books selected — and a batch move/trash would then act
+// on books the user can no longer see.
 const metadataFilterKey = computed(() =>
   activeMetadataFilters.value
     .map(({ filter, value }) => `${filter.key}=${JSON.stringify(filter.serialize(value))}`)
@@ -687,8 +686,8 @@ const emptyMessage = computed(() => {
   ) {
     return t('library.empty.noBooksInCharCountRange');
   }
-  // A metadata filter (author/tags/cover/language/incomplete) emptied a shelf
-  // that has books — e.g. a fully tidy shelf opened through "needs tidying".
+  // A metadata filter (author/tags/cover/language) emptied a shelf that has
+  // books — e.g. ?author=none on a shelf where every book already has an author.
   // Without this it would fall through to "no books yet" and read as an empty
   // shelf. Checked after search/layer/charCount so a more specific cause wins.
   if (

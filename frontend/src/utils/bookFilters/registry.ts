@@ -196,10 +196,10 @@ export const charCountFilter = defineBookFilter<CharCountRange>({
 
 /**
  * A book's non-blank entries for a field, trimmed. This is the single place
- * "the field is absent" is decided, so a field filter's `none` value, the facet
- * that will count it, and the derived `incomplete` condition can never disagree
- * about what counts as missing. Accepts a bare string (treated as one entry) as
- * well as the string arrays `authors`/`tags` carry.
+ * "the field is absent" is decided, so a field filter's `none` value and the
+ * facet that will count it can never disagree about what counts as missing.
+ * Accepts a bare string (treated as one entry) as well as the string arrays
+ * `authors`/`tags` carry.
  */
 function nonBlankValues(raw: unknown): string[] {
   if (typeof raw === 'string') {
@@ -235,18 +235,6 @@ function coverValues(book: Book): string[] {
 
 function languageValues(book: Book): string[] {
   return nonBlankValues(book.language);
-}
-
-export function isMissingAuthor(book: Book): boolean {
-  return authorValues(book).length === 0;
-}
-
-export function isMissingCover(book: Book): boolean {
-  return coverValues(book).length === 0;
-}
-
-export function isMissingLanguage(book: Book): boolean {
-  return languageValues(book).length === 0;
 }
 
 /** Decides one field value against a book's own non-blank entries for that field. */
@@ -325,28 +313,6 @@ export const tagsFilter = defineBookFilter<MultiFieldValue>({
   }
 });
 
-export const incompleteFilter = defineBookFilter<boolean>({
-  key: 'incomplete',
-  queryKeys: ['incomplete'],
-  // Reached from the sidebar's "needs tidying" entry, not a panel control, so it
-  // is `inline` like the navigation-driven layer filter.
-  chrome: 'inline',
-  parse: (query) => toSingleQueryValue(query.incomplete) === '1',
-  serialize: (value) => {
-    const query: Record<string, string> = {};
-    if (value) {
-      query.incomplete = '1';
-    }
-    return query;
-  },
-  isActive: (value) => value,
-  // The one derived condition — a book still needing metadata work — kept as a
-  // single OR predicate rather than three composed filters, which the registry
-  // would AND together. Tags are intentionally excluded: an empty tag set is
-  // not "incomplete".
-  predicate: (book) => isMissingAuthor(book) || isMissingCover(book) || isMissingLanguage(book)
-});
-
 /**
  * The filters in the order the query builder applies them. New conditions are
  * added here (and, when they narrow the list, wired into the page's filtering);
@@ -359,8 +325,7 @@ export const BOOK_FILTERS: readonly AnyBookFilterDef[] = [
   authorFilter,
   tagsFilter,
   coverFilter,
-  languageFilter,
-  incompleteFilter
+  languageFilter
 ] as unknown as readonly AnyBookFilterDef[];
 
 /**
@@ -374,6 +339,5 @@ export const METADATA_BOOK_FILTERS: readonly AnyBookFilterDef[] = [
   authorFilter,
   tagsFilter,
   coverFilter,
-  languageFilter,
-  incompleteFilter
+  languageFilter
 ] as unknown as readonly AnyBookFilterDef[];

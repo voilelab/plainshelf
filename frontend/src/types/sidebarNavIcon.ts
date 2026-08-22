@@ -3,7 +3,6 @@ export type SidebarNavIconName =
   | 'recently-read'
   | 'duplicate-content'
   | 'similar-content'
-  | 'incomplete'
   | 'trash'
   | 'downloads'
   | 'logs'

@@ -1,6 +1,6 @@
 import type { SidebarNavIconName } from '@/types/sidebarNavIcon';
 
-export type MaintenanceNavKey = 'duplicate-content' | 'similar-content' | 'incomplete';
+export type MaintenanceNavKey = 'duplicate-content' | 'similar-content';
 
 export type MaintenanceNavIcon = Extract<MaintenanceNavKey, SidebarNavIconName>;
 
@@ -23,14 +23,8 @@ export const MAINTENANCE_NAV_ITEMS: MaintenanceNavItem[] = [
     labelKey: 'maintenance.similarContent',
     to: '/similar',
     icon: 'similar-content'
-  },
-  // The three "missing X" pages collapsed into one book-list filter: the library
-  // renders `incomplete=1` (missing author, cover, or language) as its own view,
-  // and the individual conditions are reachable by URL and the filter panel.
-  {
-    key: 'incomplete',
-    labelKey: 'maintenance.incomplete',
-    to: '/books?incomplete=1',
-    icon: 'incomplete'
   }
+  // The former "missing author/cover/language" entries are gone: each is now a
+  // book-list filter reached by URL (?author=none etc.) and, later, the filter
+  // panel — not a maintenance sidebar entry.
 ];

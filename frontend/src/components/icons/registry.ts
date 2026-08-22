@@ -7,7 +7,6 @@
  * only ever name a key, which keeps swapping the icon set to an import rewrite.
  */
 import IconBaselineDensityMedium from '~icons/tabler/baseline-density-medium';
-import IconChecklist from '~icons/tabler/checklist';
 import IconCopy from '~icons/tabler/copy';
 import IconDownload from '~icons/tabler/download';
 import IconFileText from '~icons/tabler/file-text';
@@ -25,7 +24,6 @@ export const ICONS = {
   'recently-read': IconHistory,
   'duplicate-content': IconCopy,
   'similar-content': IconVersions,
-  incomplete: IconChecklist,
   trash: IconTrash,
   downloads: IconDownload,
   logs: IconFileText,

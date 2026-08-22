@@ -372,7 +372,6 @@ const en = {
         deleteMoreCompleteWarning: 'This is the more complete copy — deleting it drops content the other one is missing.'
       }
     },
-    incomplete: 'Needs Tidying'
   },
   library: {
     allBooks: 'All books',

@@ -16,17 +16,11 @@ function resolve(messages: unknown, key: string): string | undefined {
 }
 
 describe('maintenance navigation', () => {
-  it('lists the two dedicated pages and the incomplete book-list filter', () => {
+  it('lists only the two dedicated maintenance pages', () => {
     expect(MAINTENANCE_NAV_ITEMS.map((item) => item.key)).toEqual([
       'duplicate-content',
-      'similar-content',
-      'incomplete'
+      'similar-content'
     ]);
-  });
-
-  it('points the incomplete entry at the library incomplete query', () => {
-    const incomplete = MAINTENANCE_NAV_ITEMS.find((item) => item.key === 'incomplete');
-    expect(incomplete?.to).toBe('/books?incomplete=1');
   });
 
   it('resolves every nav label in both locales', () => {
