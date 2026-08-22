@@ -369,18 +369,6 @@ const zhHant = {
         deleteCompare: '這一本有 {thisChars} 字，另一本有 {otherChars} 字。',
         deleteMoreCompleteWarning: '這是比較完整的一本 —— 刪掉它會失去另一本沒有的內容。'
       }
-    },
-    missingAuthor: {
-      title: '缺少作者',
-      empty: '沒有缺少作者的書籍'
-    },
-    missingCover: {
-      title: '缺少封面',
-      empty: '沒有缺少封面的書籍'
-    },
-    missingLanguage: {
-      title: '缺少語言',
-      empty: '沒有缺少語言的書籍。'
     }
   },
   library: {
@@ -421,7 +409,8 @@ const zhHant = {
       noBooksFound: '找不到「{query}」相關書籍{layerSuffix}。',
       noBooksInLayer: '{layer} 目前沒有書籍。',
       noBooksYet: '目前尚無書籍。',
-      noBooksInCharCountRange: '沒有落在此字數範圍的書籍。'
+      noBooksInCharCountRange: '沒有落在此字數範圍的書籍。',
+      noBooksMatchFilters: '沒有符合目前篩選條件的書籍。'
     },
     titleSearch: '搜尋',
     titleLayer: '資料夾',

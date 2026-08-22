@@ -9,9 +9,6 @@ const BookDetailPage = () => import('@/features/library/pages/BookDetailPage.vue
 const EditBookPage = () => import('@/features/library/pages/EditBookPage.vue');
 const DuplicateContentPage = () => import('@/features/maintenance/pages/DuplicateContentPage.vue');
 const SimilarContentPage = () => import('@/features/maintenance/pages/SimilarContentPage.vue');
-const MissingAuthorPage = () => import('@/features/maintenance/pages/MissingAuthorPage.vue');
-const MissingCoverPage = () => import('@/features/maintenance/pages/MissingCoverPage.vue');
-const MissingLanguagePage = () => import('@/features/maintenance/pages/MissingLanguagePage.vue');
 const ReadHistoryPage = () => import('@/pages/ReadHistoryPage.vue');
 const TrashPage = () => import('@/features/trash/pages/TrashPage.vue');
 const DownloadsPage = () => import('@/features/mobile/pages/DownloadsPage.vue');
@@ -35,9 +32,6 @@ const ROUTES_WITH_OWN_TITLE = new Set([
   'admin-logs',
   'settings',
   'similar-content',
-  'maintenance-missing-author',
-  'maintenance-missing-cover',
-  'maintenance-missing-language',
   'not-found'
 ]);
 
@@ -130,20 +124,22 @@ const router = createRouter({
           name: 'downloads',
           component: DownloadsPage
         },
+        // The dedicated "missing X" pages are gone: each condition is now a
+        // book-list filter, so these paths redirect to the library query that
+        // expresses them. Old links and bookmarks keep working. The incoming
+        // query is preserved (like the /import redirect above) so a carried flag
+        // such as ?mobile-shell-preview=1 survives the redirect.
         {
           path: 'books/maintenance/missing-author',
-          name: 'maintenance-missing-author',
-          component: MissingAuthorPage
+          redirect: (to) => ({ path: '/books', query: { ...to.query, author: 'none' } })
         },
         {
           path: 'books/maintenance/missing-cover',
-          name: 'maintenance-missing-cover',
-          component: MissingCoverPage
+          redirect: (to) => ({ path: '/books', query: { ...to.query, cover: 'none' } })
         },
         {
           path: 'books/maintenance/missing-language',
-          name: 'maintenance-missing-language',
-          component: MissingLanguagePage
+          redirect: (to) => ({ path: '/books', query: { ...to.query, language: 'none' } })
         },
         {
           path: 'admin/logs',

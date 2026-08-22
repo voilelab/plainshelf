@@ -372,18 +372,6 @@ const en = {
         deleteMoreCompleteWarning: 'This is the more complete copy — deleting it drops content the other one is missing.'
       }
     },
-    missingAuthor: {
-      title: 'Missing Author',
-      empty: 'No books missing author'
-    },
-    missingCover: {
-      title: 'Missing Cover',
-      empty: 'No books missing cover'
-    },
-    missingLanguage: {
-      title: 'Missing Language',
-      empty: 'No books with missing language.'
-    }
   },
   library: {
     allBooks: 'All books',
@@ -423,7 +411,8 @@ const en = {
       noBooksFound: 'No books found for "{query}"{layerSuffix}.',
       noBooksInLayer: 'No books in {layer}.',
       noBooksYet: 'No books yet.',
-      noBooksInCharCountRange: 'No books in this character range.'
+      noBooksInCharCountRange: 'No books in this character range.',
+      noBooksMatchFilters: 'No books match the current filters.'
     },
     titleSearch: 'Search',
     titleLayer: 'Layer',

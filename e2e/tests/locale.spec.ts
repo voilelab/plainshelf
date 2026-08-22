@@ -34,11 +34,14 @@ test('the shared chrome renders from the zh-Hant catalog', async ({ page }) => {
     await expect(page.getByRole('button', { name: '第一頁', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: '最後一頁', exact: true })).toBeVisible();
 
-    // BookListView's per-row Edit action. Only the maintenance pages pass
-    // show-edit-action, so the library list never renders it — the fixture has
-    // no author, which is what puts it on this page.
+    // The former "missing author" maintenance page is now a book-list filter:
+    // an old /books/maintenance/missing-author link redirects to the library
+    // filtered by ?author=none, whose toolbar renders from the zh-Hant catalog.
     await page.goto(`${server.baseUrl}/books/maintenance/missing-author`);
-    await expect(page.getByRole('button', { name: '編輯', exact: true })).toBeVisible();
+    // author=none can sit anywhere in the query once LibraryPage normalizes
+    // page/sort/order in, so match it position-independently.
+    await expect(page).toHaveURL(/\/books\?[^#]*author=none/);
+    await expect(page.getByRole('button', { name: '搜尋', exact: true })).toBeVisible();
   } finally {
     await server.dispose();
   }

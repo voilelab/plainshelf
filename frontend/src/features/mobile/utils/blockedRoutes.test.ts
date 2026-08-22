@@ -12,10 +12,7 @@ describe('MOBILE_BLOCKED_ROUTES', () => {
     'admin-logs',
     'trash',
     'duplicate-content',
-    'similar-content',
-    'maintenance-missing-author',
-    'maintenance-missing-cover',
-    'maintenance-missing-language'
+    'similar-content'
   ])('blocks %s', (name) => {
     expect(MOBILE_BLOCKED_ROUTES.has(name)).toBe(true);
   });
@@ -30,7 +27,12 @@ describe('MOBILE_BLOCKED_ROUTES', () => {
     'settings',
     'mobile-shelves',
     'mobile-shelf-add',
-    'mobile-shelf-edit'
+    'mobile-shelf-edit',
+    // Now read-only book-list filters that redirect through `library`, so the
+    // mobile shell must no longer refuse them by name.
+    'maintenance-missing-author',
+    'maintenance-missing-cover',
+    'maintenance-missing-language'
   ])('keeps %s reachable', (name) => {
     expect(MOBILE_BLOCKED_ROUTES.has(name)).toBe(false);
   });

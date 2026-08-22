@@ -209,6 +209,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import {
   DropdownMenuContent,
   DropdownMenuItem,
@@ -243,6 +244,7 @@ import { useBooksSearch } from '@/features/library/composables/useBooksSearch';
 import { useBooksSort, type BookSortKey, type SortOrder } from '@/features/library/composables/useBooksSort';
 import { handleLibraryMobileBack } from '@/features/library/utils/mobileBack';
 import { filterBooksBySearch } from '@/utils/bookSearch';
+import { METADATA_BOOK_FILTERS } from '@/utils/bookFilters/registry';
 import {
   isCharCountInRange,
   isCharCountRangeActive,
@@ -258,6 +260,7 @@ import '@/styles/toolbar-controls.css';
 
 const ROOT_LAYER_LABEL = '/';
 const { t } = useI18n();
+const route = useRoute();
 
 const { books, loading, error, shelfInitializing, shelfUnreachable, fetchBooks } = useBookStore();
 const { layers } = useLayerStore();
@@ -591,7 +594,37 @@ const searchedBooks = computed(() => filterBooksBySearch(books.value, committedS
 // so the empty state can tell "this layer/search has nothing" apart from "the
 // character range excluded everything it found".
 const layerFilteredBooks = computed(() => searchedBooks.value.filter((book) => matchesLayer(book)));
-const filteredBooks = computed(() => layerFilteredBooks.value.filter((book) => matchesCharCount(book)));
+
+// author/tags/cover/language are free client-side predicates over data already
+// on every book, so the page applies the registry's metadata filters
+// generically: each parses its own value from the URL and, when active, narrows
+// the list. Their panel UI is a later change — for now they arrive only through
+// the URL. The registry ANDs them, so an inactive filter is simply skipped.
+const activeMetadataFilters = computed(() =>
+  METADATA_BOOK_FILTERS
+    .map((filter) => ({ filter, value: filter.parse(route.query) }))
+    .filter(({ filter, value }) => filter.isActive(value))
+);
+// A stable string that only changes when an active metadata filter does, so the
+// selection-clearing watcher below can depend on it the way it depends on
+// charCountKey. Without this, changing any of these filters reuses LibraryPage
+// and leaves now-hidden books selected — and a batch move/trash would then act
+// on books the user can no longer see.
+const metadataFilterKey = computed(() =>
+  activeMetadataFilters.value
+    .map(({ filter, value }) => `${filter.key}=${JSON.stringify(filter.serialize(value))}`)
+    .join('&')
+);
+const metadataFilteredBooks = computed(() => {
+  const active = activeMetadataFilters.value;
+  if (active.length === 0) {
+    return layerFilteredBooks.value;
+  }
+  return layerFilteredBooks.value.filter((book) =>
+    active.every(({ filter, value }) => filter.predicate(book, value))
+  );
+});
+const filteredBooks = computed(() => metadataFilteredBooks.value.filter((book) => matchesCharCount(book)));
 const {
   SORT_OPTIONS,
   sortedBooks
@@ -652,6 +685,18 @@ const emptyMessage = computed(() => {
     && !collectionLoading.value
   ) {
     return t('library.empty.noBooksInCharCountRange');
+  }
+  // A metadata filter (author/tags/cover/language) emptied a shelf that has
+  // books — e.g. ?author=none on a shelf where every book already has an author.
+  // Without this it would fall through to "no books yet" and read as an empty
+  // shelf. Checked after search/layer/charCount so a more specific cause wins.
+  if (
+    activeMetadataFilters.value.length > 0
+    && books.value.length > 0
+    && filteredBooks.value.length === 0
+    && !collectionLoading.value
+  ) {
+    return t('library.empty.noBooksMatchFilters');
   }
   return t('library.empty.noBooksYet');
 });
@@ -888,7 +933,7 @@ watch(selectedLayer, async () => {
 });
 
 watch(
-  [selectedLayer, page, pageSize, sortBy, sortOrder, committedSearch, charCountKey, selectedShelfID],
+  [selectedLayer, page, pageSize, sortBy, sortOrder, committedSearch, charCountKey, metadataFilterKey, selectedShelfID],
   () => selection.clear()
 );
 

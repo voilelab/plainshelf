@@ -11,15 +11,12 @@ import IconCopy from '~icons/tabler/copy';
 import IconDownload from '~icons/tabler/download';
 import IconFileText from '~icons/tabler/file-text';
 import IconHistory from '~icons/tabler/history';
-import IconLanguageOff from '~icons/tabler/language-off';
 import IconLayoutDashboard from '~icons/tabler/layout-dashboard';
 import IconLayoutGrid from '~icons/tabler/layout-grid';
 import IconListDetails from '~icons/tabler/list-details';
 import IconMenu2 from '~icons/tabler/menu-2';
-import IconPhotoOff from '~icons/tabler/photo-off';
 import IconSettings from '~icons/tabler/settings';
 import IconTrash from '~icons/tabler/trash';
-import IconUserQuestion from '~icons/tabler/user-question';
 import IconVersions from '~icons/tabler/versions';
 
 export const ICONS = {
@@ -27,9 +24,6 @@ export const ICONS = {
   'recently-read': IconHistory,
   'duplicate-content': IconCopy,
   'similar-content': IconVersions,
-  'missing-author': IconUserQuestion,
-  'missing-cover': IconPhotoOff,
-  'missing-language': IconLanguageOff,
   trash: IconTrash,
   downloads: IconDownload,
   logs: IconFileText,

@@ -15,11 +15,13 @@ export const MOBILE_BLOCKED_ROUTES = new Set([
   'admin-logs',
   'trash',
   'duplicate-content',
-  'similar-content',
-  'maintenance-missing-author',
-  'maintenance-missing-cover',
-  'maintenance-missing-language'
+  'similar-content'
 ]);
+// The former missing-author/cover/language routes are intentionally absent: they
+// are now read-only book-list filters that redirect to `/books?<field>=none`, so
+// the mobile shell reaches them through `library`, the same way it reaches any
+// other filtered view. This is a deliberate behavior change — those conditions
+// were blocked only because the page that owned them offered an edit action.
 
 /**
  * Query parameters that open a write surface on a route that is otherwise
