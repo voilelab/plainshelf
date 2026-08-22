@@ -68,15 +68,13 @@ func (s *Shelf) MoveBookToTrash(bookID string) error {
 	}
 	defer s.shelfLock.Unlock()
 
-	book, err := s.getUpdatedBookFromBookID(bookID)
+	// The layer is the book's position in the tree, owned by its cache entry
+	// rather than the book itself; getUpdatedBookFromBookID hands both back from
+	// one cache snapshot so the trash record remembers where the book came from.
+	book, originalLayer, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-
-	// The layer is the book's position in the tree, owned by its cache entry
-	// rather than the book itself. Read it now, before the entry is dropped
-	// below, so the trash record remembers where the book came from.
-	originalLayer := s.bookLayers(bookID)
 
 	activePath := book.FolderPath()
 	trashPath := path.Join(trashBooksFolder, bookID+bookExtension)

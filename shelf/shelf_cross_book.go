@@ -154,7 +154,7 @@ func (target *Shelf) CopyBookFrom(source *Shelf, bookID string, targetLayer Laye
 	}
 	defer target.shelfLock.Unlock()
 
-	sourceBook, err := source.getUpdatedBookFromBookID(bookID)
+	sourceBook, _, err := source.getUpdatedBookFromBookID(bookID)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -229,7 +229,7 @@ func (s *Shelf) ensureBookIDFree(bookID string) error {
 		return util.Errorf("%w", err)
 	}
 
-	if _, err := s.getUpdatedBookFromBookID(bookID); err == nil {
+	if _, _, err := s.getUpdatedBookFromBookID(bookID); err == nil {
 		return util.Errorf("%w: %q", ErrBookIDConflict, bookID)
 	} else if !errors.Is(err, ErrBookNotFound) {
 		return util.Errorf("%w", err)

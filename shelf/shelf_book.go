@@ -73,7 +73,7 @@ func (s *Shelf) GetBook(bookID string) (*Book, error) {
 	}
 	defer s.shelfLock.Unlock()
 
-	book, err := s.getUpdatedBookFromBookID(bookID)
+	book, _, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -190,12 +190,12 @@ func (s *Shelf) GetBookListing(bookID string) (BookListing, error) {
 	}
 	defer s.shelfLock.Unlock()
 
-	book, err := s.getUpdatedBookFromBookID(bookID)
+	book, layers, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
 		return BookListing{}, util.Errorf("%w", err)
 	}
 
-	return BookListing{Book: book, Layers: s.bookLayers(bookID)}, nil
+	return BookListing{Book: book, Layers: layers}, nil
 }
 
 // drawUnusedBookID returns a random book ID that this shelf does not already
@@ -214,7 +214,7 @@ func (s *Shelf) drawUnusedBookID() (string, error) {
 			return "", util.Errorf("%w", idErr)
 		}
 
-		_, err := s.getUpdatedBookFromBookID(candidate)
+		_, _, err := s.getUpdatedBookFromBookID(candidate)
 		if errors.Is(err, ErrBookNotFound) {
 			inTrash, trashErr := s.isBookIDInTrash(candidate)
 			if trashErr != nil {
@@ -279,7 +279,7 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 	}
 	defer s.shelfLock.Unlock()
 
-	book, err := s.getUpdatedBookFromBookID(bookID)
+	book, _, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -337,7 +337,7 @@ func (s *Shelf) CopyBook(bookID string, targetLayer Layers) (*Book, error) {
 	}
 	defer s.shelfLock.Unlock()
 
-	sourceBook, err := s.getUpdatedBookFromBookID(bookID)
+	sourceBook, _, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

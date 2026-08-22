@@ -404,14 +404,19 @@ func sortLayers(layers []Layers) {
 	})
 }
 
-func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, error) {
+// getUpdatedBookFromBookID resolves a book and the layer it sits in from the
+// cache, refreshing a stale entry first. The book and the layer come from the
+// same cache entry read under one lock, so a concurrent refresh cannot pair a
+// book with a different entry's layer, or report a nested book as having none.
+func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, Layers, error) {
 	s.bookCache.Lock()
 
 	cacheEntry := s.bookCache.cache[bookID]
 	if cacheEntry != nil {
 		if !cacheEntry.book.IsStale() {
+			book, layers := cacheEntry.book, slices.Clone(cacheEntry.layers)
 			s.bookCache.Unlock()
-			return cacheEntry.book, nil
+			return book, layers, nil
 		}
 
 		// If the cache entry is stale or doesn't exist, we need to refresh it.
@@ -423,8 +428,9 @@ func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, error) {
 				newBookIDCacheEntry(cacheEntry.layers, cacheEntry.path, book),
 				s.bookCache.cache[bookID],
 			)
+			layers := slices.Clone(cacheEntry.layers)
 			s.bookCache.Unlock()
-			return book, nil
+			return book, layers, nil
 		} else {
 			s.Warn("Failed to refresh book cache entry, will attempt to refresh entire book cache", "bookID", bookID, "error", err)
 		}
@@ -436,17 +442,17 @@ func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, error) {
 	// We should refresh the entire book cache to ensure we have the most up-to-date information.
 
 	if err := s.refreshBookCacheIfNeeded(false); err != nil {
-		return nil, util.Errorf("%w", err)
+		return nil, nil, util.Errorf("%w", err)
 	}
 
 	s.bookCache.RLock()
 	defer s.bookCache.RUnlock()
 	bookCacheEntry := s.bookCache.cache[bookID]
 	if bookCacheEntry != nil {
-		return bookCacheEntry.book, nil
+		return bookCacheEntry.book, slices.Clone(bookCacheEntry.layers), nil
 	}
 
-	return nil, util.Errorf("%w", ErrBookNotFound)
+	return nil, nil, util.Errorf("%w", ErrBookNotFound)
 }
 
 func (s *Shelf) updateBookCacheEntry(layers Layers, path string, book *Book) {
@@ -499,21 +505,6 @@ func (s *Shelf) RefreshBookCharCount(bookID string) {
 	refreshed.charCount = charCount
 	refreshed.charCountAt = charCountAt
 	s.bookCache.cache[bookID] = &refreshed
-}
-
-// bookLayers returns a copy of the layer recorded for a cached book, or nil
-// when the book is not in the cache. The cache entry is the single owner of a
-// book's layer, so this is how the shelf answers "where does this book sit"
-// away from a full listing.
-func (s *Shelf) bookLayers(bookID string) Layers {
-	s.bookCache.RLock()
-	defer s.bookCache.RUnlock()
-
-	entry := s.bookCache.cache[bookID]
-	if entry == nil {
-		return nil
-	}
-	return slices.Clone(entry.layers)
 }
 
 func (s *Shelf) deleteBookCacheEntry(bookID string) {
