@@ -42,6 +42,13 @@ type LayerTransferResult struct {
 	Total        int                    `json:"total"`
 	SucceededIDs []string               `json:"succeeded_ids"`
 	Failures     []layerTransferFailure `json:"failures"`
+
+	// LayerFailures counts destination folders that could not be created. A book's
+	// own layer is re-created when the book publishes, so this only ever bites an
+	// empty sub-folder that has no book to rebuild it - but it still means the
+	// transfer did not fully reproduce the structure, so it holds the task back
+	// from a clean completion.
+	LayerFailures int `json:"layer_failures"`
 }
 
 // plannedTransfer is one book paired with the destination layer it lands in,
@@ -150,9 +157,10 @@ func (t *layerTransferTask) Result() any {
 		TargetShelf:  t.result.TargetShelf,
 		SourceLayer:  append(shelf.Layers(nil), t.result.SourceLayer...),
 		TargetLayer:  append(shelf.Layers(nil), t.result.TargetLayer...),
-		Total:        t.result.Total,
-		SucceededIDs: append(make([]string, 0, len(t.result.SucceededIDs)), t.result.SucceededIDs...),
-		Failures:     append(make([]layerTransferFailure, 0, len(t.result.Failures)), t.result.Failures...),
+		Total:         t.result.Total,
+		SucceededIDs:  append(make([]string, 0, len(t.result.SucceededIDs)), t.result.SucceededIDs...),
+		Failures:      append(make([]layerTransferFailure, 0, len(t.result.Failures)), t.result.Failures...),
+		LayerFailures: t.result.LayerFailures,
 	}
 }
 
@@ -193,14 +201,21 @@ func (t *layerTransferTask) finishStatus() taskutil.Status {
 	succeeded, failed := len(t.result.SucceededIDs), len(t.result.Failures)
 	t.mu.Unlock()
 
+	layerFailures := t.layerFailures()
 	switch {
-	case failed == 0:
+	case failed == 0 && layerFailures == 0:
 		return taskutil.StatusCompleted
 	case succeeded == 0:
 		return taskutil.StatusFailed
 	default:
 		return taskutil.StatusPartiallyCompleted
 	}
+}
+
+func (t *layerTransferTask) layerFailures() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.result.LayerFailures
 }
 
 func (t *layerTransferTask) Run(ctx context.Context) error {
@@ -217,9 +232,15 @@ func (t *layerTransferTask) Run(ctx context.Context) error {
 	// Reproduce the destination folder tree first - empty sub-folders included -
 	// so the structure carries across even where there is no book to publish.
 	// Publishing a book re-creates its own layer, so re-creating one here is
-	// harmless; a failure only costs an empty folder, so it is logged, not fatal.
+	// harmless and a book's layer survives a failure here. A failure only strands
+	// an empty folder, so it does not abort the transfer, but it is counted so the
+	// task settles short of a clean completion rather than claiming it copied a
+	// structure it did not.
 	for _, layer := range t.createLayers {
 		if err := t.target.NewLayer(layer); err != nil {
+			t.mu.Lock()
+			t.result.LayerFailures++
+			t.mu.Unlock()
 			t.logger.Error("layer transfer could not create a target layer",
 				"target_shelf", t.result.TargetShelf, "layer", layer.String(), "error", err)
 		}

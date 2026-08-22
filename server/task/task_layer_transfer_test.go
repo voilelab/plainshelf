@@ -291,6 +291,51 @@ func TestLayerTransferTaskCancelledMidMove(t *testing.T) {
 	}
 }
 
+// A destination folder that cannot be created must not read as a clean success:
+// an empty-layer transfer onto a read-only target creates nothing, so the task
+// settles failed and records the layer failure rather than reporting completed.
+func TestLayerTransferTaskLayerCreateFailureSettlesFailed(t *testing.T) {
+	source := newTransferTestShelf(t, "source")
+	if err := source.NewLayer(shelf.Layers{"fiction"}); err != nil {
+		t.Fatalf("NewLayer: %v", err)
+	}
+
+	// Lay the target down writable, then reopen it read-only so NewLayer fails.
+	targetDir := path.Join(t.TempDir(), "target")
+	seed, err := shelf.NewShelf(&shelf.ShelfConf{LibRoot: targetDir})
+	if err != nil {
+		t.Fatalf("seed target: %v", err)
+	}
+	if err := seed.WaitReady(t.Context()); err != nil {
+		t.Fatalf("WaitReady seed: %v", err)
+	}
+	if err := seed.Close(); err != nil {
+		t.Fatalf("close seed: %v", err)
+	}
+	target, err := shelf.NewShelf(&shelf.ShelfConf{LibRoot: targetDir, ReadOnly: true})
+	if err != nil {
+		t.Fatalf("reopen target read-only: %v", err)
+	}
+	t.Cleanup(func() { target.Close() })
+	if err := target.WaitReady(t.Context()); err != nil {
+		t.Fatalf("WaitReady target: %v", err)
+	}
+
+	books, sublayers := layerTransferPlan(t, source, shelf.Layers{"fiction"})
+	task := newLayerTransferTask("source", source, "target", target, newTestLogger(t),
+		BookTransferOperationCopy, shelf.Layers{"fiction"}, shelf.Layers{"imported"}, books, sublayers)
+
+	if err := task.Run(context.Background()); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if task.Status() != taskutil.StatusFailed {
+		t.Fatalf("status = %v, want failed when the destination layer cannot be created", task.Status())
+	}
+	if result := task.Result().(LayerTransferResult); result.LayerFailures == 0 {
+		t.Fatalf("result = %+v, want a recorded layer failure", result)
+	}
+}
+
 func hasLayer(layers []shelf.Layers, want shelf.Layers) bool {
 	for _, l := range layers {
 		if l.Equal(want) {

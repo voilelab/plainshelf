@@ -121,6 +121,16 @@ func (h *layerTransferHandlers) transferLayer(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Force a fresh scan of both shelves before resolving anything. A plain listing
+	// only schedules a refresh and answers from the cache, so a book or layer added
+	// to a shared or network shelf since its last scan would be missed - the plan
+	// would skip those books and the conflict checks would not see an externally
+	// created layer. This mirrors the shelf-level layer-transfer preflight, which
+	// forces the same scan. ErrRescanInProgress means another scan is already
+	// refreshing the cache, so the following reads are as fresh as one here.
+	rescanForTransfer(sourceShelf)
+	rescanForTransfer(targetShelf)
+
 	// Resolve the transfer plan from a single snapshot of the source: the layers
 	// to reproduce and the books to carry. The same snapshot screens for conflicts
 	// below, so the 409 check and the scheduled work see the same set.
@@ -222,6 +232,15 @@ func layerHasPrefix(layer, prefix shelf.Layers) bool {
 		}
 	}
 	return true
+}
+
+// rescanForTransfer forces a shelf to rebuild its book cache now, so the plan and
+// the conflict checks read an authoritative listing rather than a throttled one.
+// It is best-effort: a rescan already in progress is refreshing the cache anyway,
+// and any other failure is left for the reads that follow to surface, since they
+// answer with a real error a caller can act on.
+func rescanForTransfer(shelfData *shelf.ShelfData) {
+	_, _ = shelfData.Rescan()
 }
 
 // targetBookIDs is the set of book IDs the target shelf already holds, whether
