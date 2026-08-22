@@ -370,18 +370,7 @@ const zhHant = {
         deleteMoreCompleteWarning: '這是比較完整的一本 —— 刪掉它會失去另一本沒有的內容。'
       }
     },
-    missingAuthor: {
-      title: '缺少作者',
-      empty: '沒有缺少作者的書籍'
-    },
-    missingCover: {
-      title: '缺少封面',
-      empty: '沒有缺少封面的書籍'
-    },
-    missingLanguage: {
-      title: '缺少語言',
-      empty: '沒有缺少語言的書籍。'
-    }
+    incomplete: '待整理'
   },
   library: {
     allBooks: '所有書籍',

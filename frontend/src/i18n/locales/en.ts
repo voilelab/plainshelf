@@ -372,18 +372,7 @@ const en = {
         deleteMoreCompleteWarning: 'This is the more complete copy — deleting it drops content the other one is missing.'
       }
     },
-    missingAuthor: {
-      title: 'Missing Author',
-      empty: 'No books missing author'
-    },
-    missingCover: {
-      title: 'Missing Cover',
-      empty: 'No books missing cover'
-    },
-    missingLanguage: {
-      title: 'Missing Language',
-      empty: 'No books with missing language.'
-    }
+    incomplete: 'Needs Tidying'
   },
   library: {
     allBooks: 'All books',

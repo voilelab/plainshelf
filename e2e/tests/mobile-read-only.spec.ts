@@ -26,10 +26,7 @@ test('redirects unavailable mobile routes to the library', async ({ page }) => {
       `/books/${bookId}/sources`,
       '/admin/logs',
       '/trash',
-      '/duplicates',
-      '/books/maintenance/missing-author',
-      '/books/maintenance/missing-cover',
-      '/books/maintenance/missing-language'
+      '/duplicates'
     ]) {
       await reopenMobileAt(page, server.baseUrl, route);
       await expect(page, `${route} should redirect to the library`).toHaveURL(/\/books(\?|$)/);
@@ -52,7 +49,13 @@ test('keeps reading routes reachable', async ({ page }) => {
       ['/books', /\/books/],
       ['/read-history', /\/read-history/],
       ['/downloads', /\/downloads/],
-      ['/settings', /\/settings/]
+      ['/settings', /\/settings/],
+      // The former "missing X" maintenance routes are now read-only book-list
+      // filters. They redirect through `library`, which the mobile shell keeps
+      // reachable, so these conditions are available on mobile by design.
+      ['/books/maintenance/missing-author', /\/books\?author=none/],
+      ['/books/maintenance/missing-cover', /\/books\?cover=none/],
+      ['/books/maintenance/missing-language', /\/books\?language=none/]
     ] as const) {
       await reopenMobileAt(page, server.baseUrl, route);
       await expect(page, `${route} should stay reachable`).toHaveURL(pattern);

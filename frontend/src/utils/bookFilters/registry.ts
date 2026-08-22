@@ -26,6 +26,15 @@ import {
   parseCharCountRange,
   type CharCountRange
 } from '@/utils/charCountFilter';
+import {
+  filterFieldOpKey,
+  parseFilterField,
+  parseFilterFieldOp,
+  serializeFilterField,
+  serializeFilterFieldOp,
+  type FilterFieldOp,
+  type FilterFieldValue
+} from './codec';
 
 /**
  * Where a filter's control lives. `inline` conditions sit in the toolbar (or are
@@ -186,6 +195,159 @@ export const charCountFilter = defineBookFilter<CharCountRange>({
 });
 
 /**
+ * A book's non-blank entries for a field, trimmed. This is the single place
+ * "the field is absent" is decided, so a field filter's `none` value, the facet
+ * that will count it, and the derived `incomplete` condition can never disagree
+ * about what counts as missing. Accepts a bare string (treated as one entry) as
+ * well as the string arrays `authors`/`tags` carry.
+ */
+function nonBlankValues(raw: unknown): string[] {
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    return trimmed.length > 0 ? [trimmed] : [];
+  }
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function authorValues(book: Book): string[] {
+  return nonBlankValues(book.authors);
+}
+
+function tagValues(book: Book): string[] {
+  return nonBlankValues(book.tags);
+}
+
+// The cover contract is presence, not a URL. The listing carries `cover` — the
+// on-disk filename, '' when the book has none — while `cover_url` is derived
+// downstream (api/books.ts) and is deliberately left unset on the pCloud
+// backend even when a cover exists, because its links expire. Reading it here
+// would report every pCloud book as missing its cover, so both this predicate
+// and any future facet read `cover` alone.
+function coverValues(book: Book): string[] {
+  return nonBlankValues(book.cover);
+}
+
+function languageValues(book: Book): string[] {
+  return nonBlankValues(book.language);
+}
+
+export function isMissingAuthor(book: Book): boolean {
+  return authorValues(book).length === 0;
+}
+
+export function isMissingCover(book: Book): boolean {
+  return coverValues(book).length === 0;
+}
+
+export function isMissingLanguage(book: Book): boolean {
+  return languageValues(book).length === 0;
+}
+
+/** Decides one field value against a book's own non-blank entries for that field. */
+function matchesFieldValue(values: readonly string[], value: FilterFieldValue): boolean {
+  switch (value.kind) {
+    case 'none':
+      return values.length === 0;
+    case 'has':
+      return values.length > 0;
+    case 'eq':
+      return values.includes(value.value);
+  }
+}
+
+/**
+ * A presence/equality condition over one book field, carried in the URL as a
+ * single `none` / `has` / `eq:<value>` token (see codec.ts). All four metadata
+ * filters read data the listing already returns, so — unlike charCount — they
+ * are free client-side predicates with no `supported`/`createDependency`. Their
+ * control lives in the filter panel added in a later change, hence `panel`.
+ */
+function fieldFilter(
+  key: string,
+  values: (book: Book) => string[]
+): BookFilterDef<FilterFieldValue | undefined> {
+  return defineBookFilter<FilterFieldValue | undefined>({
+    key,
+    queryKeys: [key],
+    chrome: 'panel',
+    parse: (query) => parseFilterField(toSingleQueryValue(query[key])),
+    serialize: (value) => (value ? { [key]: serializeFilterField(value) } : {}),
+    isActive: (value) => value !== undefined,
+    predicate: (book, value) => value === undefined || matchesFieldValue(values(book), value)
+  });
+}
+
+// `author` is a single token = one author selectable at a time, even though the
+// datum is an array; if multi-select AND is ever wanted, give it a `<field>Op`
+// like `tags` below rather than changing the key.
+export const authorFilter = fieldFilter('author', authorValues);
+export const coverFilter = fieldFilter('cover', coverValues);
+export const languageFilter = fieldFilter('language', languageValues);
+
+/** A repeatable field with a sibling `<field>Op` operator. */
+export interface MultiFieldValue {
+  readonly values: readonly FilterFieldValue[];
+  readonly op: FilterFieldOp;
+}
+
+export const tagsFilter = defineBookFilter<MultiFieldValue>({
+  key: 'tags',
+  queryKeys: ['tags', filterFieldOpKey('tags')],
+  chrome: 'panel',
+  parse: (query) => {
+    const raw = query.tags;
+    const tokens = Array.isArray(raw) ? raw : raw == null ? [] : [raw];
+    const values = tokens
+      .map((token) => parseFilterField(token ?? undefined))
+      .filter((value): value is FilterFieldValue => value !== undefined);
+    const op = parseFilterFieldOp(toSingleQueryValue(query[filterFieldOpKey('tags')])) ?? 'all';
+    return { values, op };
+  },
+  serialize: (value) => {
+    const query: Record<string, string | string[]> = {};
+    if (value.values.length > 0) {
+      query.tags = value.values.map(serializeFilterField);
+      query[filterFieldOpKey('tags')] = serializeFilterFieldOp(value.op);
+    }
+    return query;
+  },
+  isActive: (value) => value.values.length > 0,
+  // `all` (AND) is the only operator today: every listed value must match.
+  predicate: (book, value) => {
+    const tags = tagValues(book);
+    return value.values.every((entry) => matchesFieldValue(tags, entry));
+  }
+});
+
+export const incompleteFilter = defineBookFilter<boolean>({
+  key: 'incomplete',
+  queryKeys: ['incomplete'],
+  // Reached from the sidebar's "needs tidying" entry, not a panel control, so it
+  // is `inline` like the navigation-driven layer filter.
+  chrome: 'inline',
+  parse: (query) => toSingleQueryValue(query.incomplete) === '1',
+  serialize: (value) => {
+    const query: Record<string, string> = {};
+    if (value) {
+      query.incomplete = '1';
+    }
+    return query;
+  },
+  isActive: (value) => value,
+  // The one derived condition — a book still needing metadata work — kept as a
+  // single OR predicate rather than three composed filters, which the registry
+  // would AND together. Tags are intentionally excluded: an empty tag set is
+  // not "incomplete".
+  predicate: (book) => isMissingAuthor(book) || isMissingCover(book) || isMissingLanguage(book)
+});
+
+/**
  * The filters in the order the query builder applies them. New conditions are
  * added here (and, when they narrow the list, wired into the page's filtering);
  * nothing in `buildBooksQuery` needs to change.
@@ -193,5 +355,25 @@ export const charCountFilter = defineBookFilter<CharCountRange>({
 export const BOOK_FILTERS: readonly AnyBookFilterDef[] = [
   searchFilter,
   layersFilter,
-  charCountFilter
+  charCountFilter,
+  authorFilter,
+  tagsFilter,
+  coverFilter,
+  languageFilter,
+  incompleteFilter
+] as unknown as readonly AnyBookFilterDef[];
+
+/**
+ * The subset the library page applies itself as plain client-side predicates
+ * over the listing. search/layer/charCount are filtered by LibraryPage's own
+ * computeds (charCount needs its lazy index, and the empty state distinguishes
+ * their causes); these read data already on every book, so the page loops them
+ * generically. Ordering is irrelevant — they are ANDed together.
+ */
+export const METADATA_BOOK_FILTERS: readonly AnyBookFilterDef[] = [
+  authorFilter,
+  tagsFilter,
+  coverFilter,
+  languageFilter,
+  incompleteFilter
 ] as unknown as readonly AnyBookFilterDef[];
