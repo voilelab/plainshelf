@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/voilelab/plainshelf/internal/appcache"
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
@@ -463,7 +464,7 @@ func TestOpenDefaultsAMissingLogger(t *testing.T) {
 
 	// Open logs on the missing-cache-file path; reaching past it already proves
 	// the zero-value logger did not panic.
-	cache, err := Open(Config{Store: NewFSStore(ts.base, appDir), Algo: testAlgo})
+	cache, err := Open(Config{Store: appcache.NewFSStore(ts.base, appDir), Algo: testAlgo})
 	if err != nil {
 		t.Fatalf("Open with no logger: %v", err)
 	}
@@ -489,7 +490,7 @@ func TestOpenRefusesAnIncompleteAlgorithm(t *testing.T) {
 	}
 
 	for name, algo := range incomplete {
-		_, err := Open(Config{Store: NewFSStore(ts.base, appDir), Algo: algo, Logger: newLoggerForTest()})
+		_, err := Open(Config{Store: appcache.NewFSStore(ts.base, appDir), Algo: algo, Logger: newLoggerForTest()})
 		if !errors.Is(err, ErrIncompleteAlgo) {
 			t.Errorf("%s: Open returned %v, want %v", name, err, ErrIncompleteAlgo)
 		}
