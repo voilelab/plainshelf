@@ -32,7 +32,9 @@ export class ReadingProgressStore extends DeviceDocumentStore<ReadingProgressDoc
 
   async save(shelfKey: string, bookID: string, progress: BookmarkPayload): Promise<void> {
     await this.mutate((doc) =>
-      withBookReadingOffset(doc, shelfKey, bookID, progress.char_offset)
+      // progress.at is the time the position changed; withBookReadingOffset
+      // falls back to now when it is absent.
+      withBookReadingOffset(doc, shelfKey, bookID, progress.char_offset, progress.at)
     );
   }
 }
@@ -44,15 +46,14 @@ function createMockReadingProgressStorage(): ReadingProgressStorage {
     async load(): Promise<string | null> {
       if (!seeded) {
         seeded = true;
-        const doc = createReadingProgressDocument();
         // Seed lazily so bootstrap has selected the active shelf. Small,
         // deterministic offsets keep the mock detail view populated while the
         // real percentage is derived from the mock content's UTF-16 length.
-        doc.shelves[buildDeviceDocumentKey(getApiBase(), getActiveShelfID())] = {
-          'book-1': 17,
-          'book-2': 50,
-          'book-3': 40
-        };
+        const shelfKey = buildDeviceDocumentKey(getApiBase(), getActiveShelfID());
+        let doc = createReadingProgressDocument();
+        doc = withBookReadingOffset(doc, shelfKey, 'book-1', 17);
+        doc = withBookReadingOffset(doc, shelfKey, 'book-2', 50);
+        doc = withBookReadingOffset(doc, shelfKey, 'book-3', 40);
         await backing.save(serializeReadingProgressDocument(doc));
       }
       return backing.load();

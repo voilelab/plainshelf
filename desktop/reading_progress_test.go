@@ -20,7 +20,7 @@ func readerOffset(t *testing.T, store *readingprogress.Store, shelfKey, bookID s
 	if err != nil {
 		t.Fatalf("read store: %v", err)
 	}
-	return doc.Shelves[shelfKey][bookID]
+	return doc.Shelves[shelfKey][bookID].Offset
 }
 
 // A reader progress entry is projected onto the real shelf that holds the book,
@@ -29,7 +29,7 @@ func TestProjectStoredReaderProgress_FoldsAndPersists(t *testing.T) {
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	seedStore(t, store, func(doc readingprogress.Document) readingprogress.Document {
 		out := doc.Clone()
-		out.Shelves[readingprogress.ReaderShelfID] = map[string]int64{"book-a": 120}
+		out.Shelves[readingprogress.ReaderShelfID] = map[string]readingprogress.Entry{"book-a": {Offset: 120, At: 1000}}
 		return out
 	})
 
@@ -46,7 +46,7 @@ func TestProjectStoredReaderProgress_FoldsAndPersists(t *testing.T) {
 	}
 
 	got := readingprogress.Parse(text)
-	if v := got.Shelves["real-shelf"]["book-a"]; v != 120 {
+	if v := got.Shelves["real-shelf"]["book-a"].Offset; v != 120 {
 		t.Fatalf("returned real-shelf offset = %d, want 120", v)
 	}
 	// Persisted, and the reader namespace is kept.
@@ -64,7 +64,7 @@ func TestProjectStoredReaderProgress_UnresolvedStays(t *testing.T) {
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	seedStore(t, store, func(doc readingprogress.Document) readingprogress.Document {
 		out := doc.Clone()
-		out.Shelves[readingprogress.ReaderShelfID] = map[string]int64{"book-loose": 30}
+		out.Shelves[readingprogress.ReaderShelfID] = map[string]readingprogress.Entry{"book-loose": {Offset: 30, At: 1000}}
 		return out
 	})
 
@@ -80,33 +80,38 @@ func TestProjectStoredReaderProgress_UnresolvedStays(t *testing.T) {
 	if len(doc.Shelves) != 1 {
 		t.Fatalf("unresolved book must not create a real-shelf entry; shelves = %v", doc.Shelves)
 	}
-	if v := doc.Shelves[readingprogress.ReaderShelfID]["book-loose"]; v != 30 {
+	if v := doc.Shelves[readingprogress.ReaderShelfID]["book-loose"].Offset; v != 30 {
 		t.Fatalf("loose reader entry = %d, want 30", v)
 	}
 }
 
-// A desktop write preserves the reader's namespace even when the desktop's
-// in-memory copy of it is stale.
-func TestWriteReadingProgress_PreservesReaderNamespace(t *testing.T) {
+// A desktop write does not clobber a newer reader entry the desktop's in-memory
+// copy is stale about, in either namespace — recency decides.
+func TestWriteReadingProgress_DoesNotClobberNewerReaderEntry(t *testing.T) {
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	seedStore(t, store, func(doc readingprogress.Document) readingprogress.Document {
 		out := doc.Clone()
-		out.Shelves[readingprogress.ReaderShelfID] = map[string]int64{"book-a": 999}
+		// A recent reader entry under the synthetic namespace, and an older
+		// desktop-owned real-shelf entry.
+		out.Shelves[readingprogress.ReaderShelfID] = map[string]readingprogress.Entry{"book-a": {Offset: 999, At: 2000}}
+		out.Shelves["real-shelf"] = map[string]readingprogress.Entry{"book-a": {Offset: 200, At: 1000}}
 		return out
 	})
 
 	app := &DesktopApp{readingProgressSync: store}
-	// A desktop-side write that advances a real shelf and carries a stale reader
-	// entry it happened to read earlier.
-	if err := app.WriteReadingProgress(`{"version":1,"shelves":{"real-shelf":{"book-a":40},"book":{"book-a":1}}}`); err != nil {
+	// A desktop write that advances the real shelf (newer) but carries a stale
+	// copy of the reader namespace (older) it read before the reader's last write.
+	if err := app.WriteReadingProgress(
+		`{"version":2,"shelves":{"real-shelf":{"book-a":{"offset":260,"at":3000}},"book":{"book-a":{"offset":1,"at":500}}}}`,
+	); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 
-	if v := readerOffset(t, store, "real-shelf", "book-a"); v != 40 {
-		t.Fatalf("desktop real-shelf offset = %d, want 40", v)
+	if v := readerOffset(t, store, "real-shelf", "book-a"); v != 260 {
+		t.Fatalf("desktop real-shelf offset = %d, want 260 (newer desktop write wins)", v)
 	}
 	if v := readerOffset(t, store, readingprogress.ReaderShelfID, "book-a"); v != 999 {
-		t.Fatalf("reader namespace offset = %d, want 999 (must be preserved)", v)
+		t.Fatalf("reader namespace offset = %d, want 999 (stale desktop copy must not clobber it)", v)
 	}
 }
 
@@ -131,7 +136,7 @@ func TestWriteReadingProgress_RejectsCorruptJSON(t *testing.T) {
 	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
 	seedStore(t, store, func(doc readingprogress.Document) readingprogress.Document {
 		out := doc.Clone()
-		out.Shelves["real-shelf"] = map[string]int64{"book-a": 50}
+		out.Shelves["real-shelf"] = map[string]readingprogress.Entry{"book-a": {Offset: 50, At: 1000}}
 		return out
 	})
 

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"strings"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
@@ -21,6 +22,15 @@ type ReaderApp struct {
 	ctx     context.Context
 	library *readerapi.Library
 
+	// shelfID is the shelf id this reader reports as active and keys its progress
+	// under. It is the real desktop shelf id when the desktop app launched the
+	// reader with -shelf, so the reader opens at — and writes back to — the same
+	// shelves.<realShelfID>.<bookID> position the desktop library already holds.
+	// When the reader runs standalone (no -shelf) it is the synthetic
+	// readerapi.ShelfID ("book"), which the desktop side projects onto real
+	// shelves; see internal/readingprogress.
+	shelfID string
+
 	// progressStore is the shared reading-progress document, the same file the
 	// desktop app keeps. It is nil only when the user config directory could not
 	// be resolved, in which case progress simply is not persisted.
@@ -31,8 +41,16 @@ type ReaderApp struct {
 	promptedForBook bool
 }
 
-func NewReaderApp(logger *logutil.Logger) *ReaderApp {
-	app := &ReaderApp{library: readerapi.NewLibrary(logger)}
+// NewReaderApp builds the reader window's app. shelfID is the active shelf id
+// the reader reports and stores progress under; an empty value falls back to the
+// synthetic readerapi.ShelfID, which is the standalone (no -shelf) case.
+func NewReaderApp(logger *logutil.Logger, shelfID string) *ReaderApp {
+	shelfID = strings.TrimSpace(shelfID)
+	if shelfID == "" {
+		shelfID = readerapi.ShelfID
+	}
+
+	app := &ReaderApp{library: readerapi.NewLibrary(logger), shelfID: shelfID}
 
 	// Persist progress to the desktop app's reading_progress.json so a book read
 	// in the standalone reader shows the same position in the desktop library.
@@ -103,13 +121,23 @@ func (a *ReaderApp) OpenBookPackage() (string, error) {
 		return "", util.Errorf("%w", err)
 	}
 
+	// A manually opened book is not the one the desktop launched us for: it may be
+	// a loose book or one from another shelf, so its real shelf id is unknown. Fall
+	// back to the synthetic reader shelf and let the desktop projection re-home its
+	// progress, rather than keep booting and persisting it under the original
+	// launch shelf, where it could neither resume nor land in the right namespace.
+	a.shelfID = readerapi.ShelfID
+
 	wailsruntime.WindowReloadApp(a.ctx)
 	return bookID, nil
 }
 
-// BootConfig is what the served index.html carries into the frontend.
+// BootConfig is what the served index.html carries into the frontend. The
+// frontend uses ShelfID as its active shelf, so injecting the real shelf id here
+// is what makes a desktop-launched reader address the book — and read its stored
+// progress — under the desktop library's own shelf.
 func (a *ReaderApp) BootConfig() readerapi.BootConfig {
-	return readerapi.BootConfig{ShelfID: readerapi.ShelfID, BookID: a.library.BookID()}
+	return readerapi.BootConfig{ShelfID: a.shelfID, BookID: a.library.BookID()}
 }
 
 func (a *ReaderApp) Library() *readerapi.Library {
@@ -117,9 +145,11 @@ func (a *ReaderApp) Library() *readerapi.Library {
 }
 
 // ReadReadingProgress returns the reader's own progress from the shared
-// document, or an empty string when it has stored none. Only the reader's shelf
-// namespace is returned: the desktop app's real-shelf entries live in the same
-// file but are not the reader's to display or rewrite.
+// document, or an empty string when it has stored none. Only the reader's active
+// shelf namespace is returned: when launched from desktop that is the real shelf
+// (so the reader opens at the desktop library's existing position); when
+// standalone it is the synthetic readerapi.ShelfID. Other shelves' entries live
+// in the same file but are not this reader's to display or rewrite.
 //
 // The frontend detects this binding (frontend/src/api/desktop.ts) and stores
 // progress through the shared file rather than WebView localStorage.
@@ -131,20 +161,24 @@ func (a *ReaderApp) ReadReadingProgress() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	books := doc.Shelves[readerapi.ShelfID]
+	books := doc.Shelves[a.shelfID]
 	if len(books) == 0 {
 		return "", nil
 	}
 	filtered := readingprogress.New()
-	filtered.Shelves[readerapi.ShelfID] = books
+	filtered.Shelves[a.shelfID] = books
 	return readingprogress.Serialize(filtered)
 }
 
 // WriteReadingProgress records the reader's progress into the shared document.
-// It only ever touches the reader's own shelf namespace: the desktop app's
-// real-shelf entries in the same file are re-read under the store's lock and
-// preserved, so the reader can never clobber (or its stale in-memory copy roll
-// back) progress the desktop side has projected.
+// The incoming write is merged newest-wins per book against the on-disk document
+// re-read under the store's lock, so every other entry — other shelves, and any
+// other book, including one another process wrote concurrently — is preserved
+// unless the reader's write is more recent. When launched from desktop the active
+// shelf is the real shelf, so the write lands straight at
+// shelves.<realShelfID>.<bookID>; recency arbitration is what keeps a concurrent
+// desktop write from clobbering it (or being clobbered by the reader's stale
+// copy of another book).
 func (a *ReaderApp) WriteReadingProgress(doc string) error {
 	if a.progressStore == nil {
 		return util.NewError("reading progress storage is not ready")
@@ -153,12 +187,8 @@ func (a *ReaderApp) WriteReadingProgress(doc string) error {
 	if err != nil {
 		return err
 	}
-	// The reader shows exactly one book, so only that book's entry is this
-	// process's to write; merging at book granularity keeps a second reader
-	// process's concurrent write to another book from being lost.
-	bookID := a.library.BookID()
 	_, err = a.progressStore.Mutate(func(disk readingprogress.Document) readingprogress.Document {
-		return readingprogress.MergeReaderBookWrite(disk, incoming, readerapi.ShelfID, bookID)
+		return readingprogress.MergeNewest(disk, incoming)
 	})
 	return err
 }

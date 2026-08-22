@@ -32,7 +32,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	app := NewReaderApp(logger)
+	// -shelf carries the real desktop shelf id when the desktop app shells out to
+	// the reader, so the reader opens at (and writes back to) the book's existing
+	// position in the desktop library. Empty (standalone launch) falls back to the
+	// synthetic reader shelf.
+	app := NewReaderApp(logger, shelfIDFromArgs(os.Args[1:]))
 
 	// -book opens that package instead of prompting for one:
 	// `just run-reader path/to/book.bookpkg`, and `open -a PlainShelfReader
@@ -80,20 +84,42 @@ func main() {
 	}
 }
 
-// bookPathFromArgs reads -book from the arguments the app was launched with.
-//
-// Its own FlagSet rather than the package-level one: wails parses os.Args
-// itself in dev mode, and this has to be callable from a test. Errors are
-// discarded the same way wails discards its own ("Parse args but ignore errors
-// in case -appargs was used"): an argument this app does not define is not its
-// to reject, and either way there is no book to open.
+// bookPathFromArgs reads -book from the arguments the app was launched with, and
+// shelfIDFromArgs reads -shelf. Both delegate to parseLaunchArgs so the two flags
+// are defined on one FlagSet: flag.Parse stops at the first argument it does not
+// recognize, so a set that knew only -book would drop a following -shelf (and one
+// that knew only -shelf would stop at a leading -book). The desktop app passes
+// both together.
 func bookPathFromArgs(args []string) string {
+	return parseLaunchArgs(args).bookPath
+}
+
+func shelfIDFromArgs(args []string) string {
+	return parseLaunchArgs(args).shelfID
+}
+
+// launchArgs holds the reader-specific flags parsed from the launch arguments.
+type launchArgs struct {
+	bookPath string
+	shelfID  string
+}
+
+// parseLaunchArgs reads -book and -shelf from the arguments the app was launched
+// with.
+//
+// Its own FlagSet rather than the package-level one: wails parses os.Args itself
+// in dev mode, and this has to be callable from a test. Errors are discarded the
+// same way wails discards its own ("Parse args but ignore errors in case -appargs
+// was used"): an argument this app does not define is not its to reject, and
+// either way there is nothing here to act on.
+func parseLaunchArgs(args []string) launchArgs {
 	flags := flag.NewFlagSet("plainshelf-reader", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	book := flags.String("book", "", "path to the .bookpkg folder to open")
+	shelf := flags.String("shelf", "", "real shelf id the book belongs to; empty uses the synthetic reader shelf")
 
 	_ = flags.Parse(args)
-	return *book
+	return launchArgs{bookPath: *book, shelfID: *shelf}
 }
 
 // newApplicationMenu keeps the reader's menu to what a reader can do: open

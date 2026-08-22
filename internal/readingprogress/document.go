@@ -3,18 +3,25 @@
 // back into the desktop library.
 //
 // Two independent processes share one reading_progress.json: the desktop app
-// (which keys progress by a book's real shelf id) and the standalone reader
-// (which has no real shelf and keys everything under the synthetic shelf id
-// "book"). This package owns the document shape both sides agree on, the pure
-// projection that maps the reader's "book" entries onto real shelves by stable
-// book id, and the namespace-scoped merges that keep one process from
-// clobbering the other's entries. The file-backed, cross-process-locked store
-// lives in store.go.
+// (which keys progress by a book's real shelf id) and the standalone reader. A
+// reader launched from the desktop is handed the book's real shelf id and keys
+// progress directly under it; a reader run on its own has no real shelf and keys
+// everything under the synthetic shelf id "book", which the projection folds onto
+// real shelves.
+//
+// Every entry carries the wall-clock time it was written, and all reconciliation
+// is newest-wins per book: a concurrent write from either process is arbitrated
+// by recency rather than by namespace ownership, so the reader and desktop can
+// both write the same real shelf without losing each other's updates. A reset is
+// a timestamped tombstone (offset 0) rather than a deletion, so it too wins by
+// recency instead of being silently resurrected by an older advance. This package
+// owns the document shape both sides agree on, the newest-wins merge, and the
+// newest-wins projection. The file-backed, cross-process-locked store lives in
+// store.go.
 //
 // The document shape mirrors frontend/src/storage/readingProgress/document.ts,
 // which owns the single client-side implementation. This package only reads and
-// writes what that format defines; it never invents new fields (there is
-// deliberately no timestamp — see the design note referenced from the ticket).
+// writes what that format defines.
 package readingprogress
 
 import (
@@ -26,8 +33,10 @@ import (
 )
 
 // DocumentVersion matches READING_PROGRESS_DOCUMENT_VERSION in the frontend. A
-// document of any other version is treated as absent rather than upgraded.
-const DocumentVersion = 1
+// document of any other version is treated as absent rather than upgraded — the
+// timestamped v2 format deliberately does not read the untimestamped v1 one (the
+// app is pre-alpha; stale progress is discarded rather than migrated).
+const DocumentVersion = 2
 
 // ReaderShelfID is the synthetic shelf key the standalone reader writes progress
 // under. It is the canonical value; reader/readerapi.ShelfID must equal it (a
@@ -35,25 +44,34 @@ const DocumentVersion = 1
 const ReaderShelfID = "book"
 
 // maxSafeInteger mirrors JavaScript's Number.MAX_SAFE_INTEGER: the frontend
-// stores offsets as JSON numbers, so anything larger could not round-trip.
+// stores offsets and timestamps as JSON numbers, so anything larger could not
+// round-trip.
 const maxSafeInteger = 1<<53 - 1
 
+// Entry is one book's stored progress: a UTF-16 character offset and the epoch
+// milliseconds it was written. At arbitrates concurrent writes (newest wins); a
+// zero Offset with a non-zero At is a reset tombstone.
+type Entry struct {
+	Offset int64 `json:"offset"`
+	At     int64 `json:"at"`
+}
+
 // Document is the on-device reading-progress document: a shelf key maps to a set
-// of book ids, each carrying a UTF-16 character offset. It never reaches the
-// server and is not authoritative shelf data.
+// of book ids, each carrying an Entry. It never reaches the server and is not
+// authoritative shelf data.
 type Document struct {
 	Version int                         `json:"version"`
-	Shelves map[string]map[string]int64 `json:"shelves"`
+	Shelves map[string]map[string]Entry `json:"shelves"`
 }
 
 // New returns an empty, current-version document.
 func New() Document {
-	return Document{Version: DocumentVersion, Shelves: map[string]map[string]int64{}}
+	return Document{Version: DocumentVersion, Shelves: map[string]map[string]Entry{}}
 }
 
 // Parse reads a stored document. A missing, corrupt, wrongly shaped, or
-// future-version document yields an empty document rather than an error, so a
-// bad file can never keep a reader from opening — this mirrors the frontend
+// non-current-version document yields an empty document rather than an error, so
+// a bad file can never keep a reader from opening — this mirrors the frontend
 // parser's leniency.
 func Parse(text string) Document {
 	doc := New()
@@ -63,8 +81,11 @@ func Parse(text string) Document {
 	}
 
 	var raw struct {
-		Version int                           `json:"version"`
-		Shelves map[string]map[string]float64 `json:"shelves"`
+		Version int `json:"version"`
+		Shelves map[string]map[string]struct {
+			Offset float64 `json:"offset"`
+			At     float64 `json:"at"`
+		} `json:"shelves"`
 	}
 	if err := json.Unmarshal([]byte(text), &raw); err != nil {
 		return doc
@@ -78,10 +99,10 @@ func Parse(text string) Document {
 		if trimmedKey == "" {
 			continue
 		}
-		normalized := map[string]int64{}
-		for bookID, offset := range books {
+		normalized := map[string]Entry{}
+		for bookID, entry := range books {
 			trimmedID := strings.TrimSpace(bookID)
-			value, ok := normalizeOffset(offset)
+			value, ok := normalizeEntry(entry.Offset, entry.At)
 			if trimmedID != "" && ok {
 				normalized[trimmedID] = value
 			}
@@ -111,7 +132,7 @@ func Serialize(doc Document) (string, error) {
 		doc.Version = DocumentVersion
 	}
 	if doc.Shelves == nil {
-		doc.Shelves = map[string]map[string]int64{}
+		doc.Shelves = map[string]map[string]Entry{}
 	}
 	bs, err := json.Marshal(doc)
 	if err != nil {
@@ -121,10 +142,10 @@ func Serialize(doc Document) (string, error) {
 }
 
 // Clone returns a deep copy so callers can mutate freely without touching the
-// input — the projection and merges all build their result this way, which is
+// input — the projection and merge both build their result this way, which is
 // what makes them safe to call repeatedly on the same document.
 func (d Document) Clone() Document {
-	out := Document{Version: d.Version, Shelves: make(map[string]map[string]int64, len(d.Shelves))}
+	out := Document{Version: d.Version, Shelves: make(map[string]map[string]Entry, len(d.Shelves))}
 	if out.Version == 0 {
 		out.Version = DocumentVersion
 	}
@@ -141,13 +162,12 @@ type ResolveShelf func(bookID string) (realShelfID string, ok bool)
 // Project folds the reader's synthetic-shelf progress onto real shelves.
 //
 // For every book the reader recorded under readerShelfID, it asks resolve which
-// real shelf holds that stable book id and, when one does, copies the offset to
-// shelves[realShelfID][bookID] taking the max — reader progress can advance the
-// desktop's position but never drag it backwards. Entries under readerShelfID
-// are always kept: an unresolved book (removed, or a loose book outside every
-// shelf) stays there untouched, so a later import can pick it up on the next
-// projection. The projection is therefore idempotent: running it again changes
-// nothing once every resolvable book has been folded in.
+// real shelf holds that stable book id and, when one does, copies the entry to
+// shelves[realShelfID][bookID] when the entry is newer (by At) than whatever is
+// there. Entries under readerShelfID are always kept: an unresolved book (removed,
+// or a loose book outside every shelf) stays there untouched, so a later import
+// can pick it up on the next projection. The projection is therefore idempotent:
+// running it again changes nothing once every resolvable book has been folded in.
 func Project(doc Document, readerShelfID string, resolve ResolveShelf) Document {
 	out := doc.Clone()
 	readerShelfID = strings.TrimSpace(readerShelfID)
@@ -156,7 +176,7 @@ func Project(doc Document, readerShelfID string, resolve ResolveShelf) Document 
 		return out
 	}
 
-	for bookID, offset := range readerBooks {
+	for bookID, entry := range readerBooks {
 		realShelfID, ok := resolve(bookID)
 		if !ok {
 			continue
@@ -167,88 +187,84 @@ func Project(doc Document, readerShelfID string, resolve ResolveShelf) Document 
 		}
 		dst := out.Shelves[realShelfID]
 		if dst == nil {
-			dst = map[string]int64{}
+			dst = map[string]Entry{}
 			out.Shelves[realShelfID] = dst
 		}
-		if offset > dst[bookID] {
-			dst[bookID] = offset
+		if cur, exists := dst[bookID]; !exists || entry.At >= cur.At {
+			dst[bookID] = entry
 		}
 	}
 
 	return out
 }
 
-// MergeReaderBookWrite folds a single reader-updated book into the on-disk
-// document under the reader's namespace. Only the one book the reader has open
-// (bookID) is taken from the write; every other entry is preserved from disk —
-// the desktop's real shelves, and any other reader book, including one a second
-// reader process wrote concurrently. The book is set to the incoming offset, or
-// removed when the write cleared it (a progress reset). Merging at book
-// granularity is what keeps two reader processes from clobbering each other
-// within the shared "book" namespace even though each rewrites the whole file.
-func MergeReaderBookWrite(disk, write Document, readerShelfID, bookID string) Document {
+// MergeNewest overlays one process's write onto the on-disk document, keeping the
+// newer entry (by At) for every book present in both. Books only on disk are
+// preserved; books only in the write are added. This is the single reconciliation
+// both the desktop and the reader use: because every entry is timestamped and a
+// reset is a tombstone rather than a deletion, neither process can clobber the
+// other's concurrent update, whichever shelf namespace it wrote — so both may
+// write the same real shelf safely. On an equal timestamp the incoming write
+// wins, which only ever happens when it carries the same value it just read.
+func MergeNewest(disk, write Document) Document {
 	out := disk.Clone()
-	readerShelfID = strings.TrimSpace(readerShelfID)
-	bookID = strings.TrimSpace(bookID)
-	if readerShelfID == "" || bookID == "" {
-		return out
-	}
-
-	books := out.Shelves[readerShelfID]
-	if books == nil {
-		books = map[string]int64{}
-	}
-	if offset, ok := write.Shelves[readerShelfID][bookID]; ok {
-		books[bookID] = offset
-	} else {
-		delete(books, bookID)
-	}
-
-	if len(books) == 0 {
-		delete(out.Shelves, readerShelfID)
-	} else {
-		out.Shelves[readerShelfID] = books
-	}
-	return out
-}
-
-// MergeDesktopWrite folds a desktop-side write into the on-disk document. Every
-// shelf key except the reader's is taken from the write; the reader namespace is
-// kept from disk. This is how the desktop process mutates the shared file
-// without ever clobbering standalone-reader progress it has not yet projected.
-func MergeDesktopWrite(disk, write Document, readerShelfID string) Document {
-	out := write.Clone()
-	setShelf(out, readerShelfID, disk.Shelves[strings.TrimSpace(readerShelfID)])
-	return out
-}
-
-func setShelf(doc Document, shelfID string, books map[string]int64) {
-	shelfID = strings.TrimSpace(shelfID)
-	if shelfID == "" {
-		return
-	}
-	if len(books) == 0 {
-		delete(doc.Shelves, shelfID)
-		return
-	}
-	doc.Shelves[shelfID] = cloneBooks(books)
-}
-
-func cloneBooks(books map[string]int64) map[string]int64 {
-	out := make(map[string]int64, len(books))
-	for bookID, offset := range books {
-		out[bookID] = offset
+	for shelfKey, books := range write.Shelves {
+		shelfKey = strings.TrimSpace(shelfKey)
+		if shelfKey == "" || len(books) == 0 {
+			continue
+		}
+		dst := out.Shelves[shelfKey]
+		if dst == nil {
+			dst = map[string]Entry{}
+			out.Shelves[shelfKey] = dst
+		}
+		for bookID, entry := range books {
+			bookID = strings.TrimSpace(bookID)
+			if bookID == "" {
+				continue
+			}
+			if cur, exists := dst[bookID]; !exists || entry.At >= cur.At {
+				dst[bookID] = entry
+			}
+		}
 	}
 	return out
 }
 
-// normalizeOffset keeps only the offsets the frontend would keep: positive,
-// integral, and within the JSON-safe integer range.
-func normalizeOffset(value float64) (int64, bool) {
+func cloneBooks(books map[string]Entry) map[string]Entry {
+	out := make(map[string]Entry, len(books))
+	for bookID, entry := range books {
+		out[bookID] = entry
+	}
+	return out
+}
+
+// normalizeEntry keeps only the entries the frontend would keep. The offset must
+// be a non-negative integer within the JSON-safe range; a non-integer or
+// out-of-range timestamp is treated as unknown (0, the oldest) rather than
+// dropping the entry. An entry with a zero offset survives only when it carries a
+// timestamp — that is a reset tombstone; a bare {0,0} is nothing and is dropped.
+func normalizeEntry(offset, at float64) (Entry, bool) {
+	normalizedOffset, ok := normalizeNumber(offset)
+	if !ok {
+		return Entry{}, false
+	}
+	normalizedAt, ok := normalizeNumber(at)
+	if !ok {
+		normalizedAt = 0
+	}
+	if normalizedOffset == 0 && normalizedAt == 0 {
+		return Entry{}, false
+	}
+	return Entry{Offset: normalizedOffset, At: normalizedAt}, true
+}
+
+// normalizeNumber accepts a non-negative, integral, JSON-safe value.
+func normalizeNumber(value float64) (int64, bool) {
 	if math.IsNaN(value) || math.IsInf(value, 0) {
 		return 0, false
 	}
-	if value <= 0 || value > maxSafeInteger {
+	if value < 0 || value > maxSafeInteger {
 		return 0, false
 	}
 	if value != math.Trunc(value) {

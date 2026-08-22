@@ -36,3 +36,33 @@ func TestBookPathFromArgs(t *testing.T) {
 		})
 	}
 }
+
+// -shelf carries the real desktop shelf id. It is parsed on the same FlagSet as
+// -book so that either flag order the desktop app might emit is read whole — a
+// FlagSet that knew only one of them would stop at the other.
+func TestParseLaunchArgs(t *testing.T) {
+	tests := map[string]struct {
+		args      []string
+		wantBook  string
+		wantShelf string
+	}{
+		"neither flag":          {args: nil},
+		"shelf only":            {args: []string{"-shelf", "shelf-real"}, wantShelf: "shelf-real"},
+		"book then shelf":       {args: []string{"-book", "/books/dune.bookpkg", "-shelf", "shelf-real"}, wantBook: "/books/dune.bookpkg", wantShelf: "shelf-real"},
+		"shelf then book":       {args: []string{"-shelf", "shelf-real", "-book", "/books/dune.bookpkg"}, wantBook: "/books/dune.bookpkg", wantShelf: "shelf-real"},
+		"joined values":         {args: []string{"-book=/books/dune.bookpkg", "-shelf=shelf-real"}, wantBook: "/books/dune.bookpkg", wantShelf: "shelf-real"},
+		"no value after -shelf": {args: []string{"-shelf"}},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			got := parseLaunchArgs(test.args)
+			if got.bookPath != test.wantBook {
+				t.Errorf("parseLaunchArgs(%q).bookPath = %q, want %q", test.args, got.bookPath, test.wantBook)
+			}
+			if got.shelfID != test.wantShelf {
+				t.Errorf("parseLaunchArgs(%q).shelfID = %q, want %q", test.args, got.shelfID, test.wantShelf)
+			}
+		})
+	}
+}
