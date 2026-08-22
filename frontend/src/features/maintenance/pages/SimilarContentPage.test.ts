@@ -41,7 +41,7 @@ vi.mock('@/composables/useServerMode', () => {
 
 import SimilarContentPage from './SimilarContentPage.vue';
 import { setLocale } from '@/i18n';
-import { SimilarTooLargeError } from '@/api/books';
+import { FingerprintSweepBusyError, SimilarTooLargeError } from '@/api/books';
 
 function pair(jaccard: number, relation: SimilarRelation = 'near_identical'): SimilarBookPair {
   return {
@@ -91,6 +91,14 @@ function rows(host: HTMLElement): HTMLElement[] {
 function buttonByText(host: HTMLElement, text: string): HTMLButtonElement {
   const button = [...host.querySelectorAll('button')].find((el) => el.textContent?.trim() === text);
   if (!button) throw new Error(`no button with text "${text}"`);
+  return button as HTMLButtonElement;
+}
+
+// The confirmation dialog is portalled to document.body (reka DialogPortal), so
+// its buttons live outside the page host.
+function dialogButtonByText(text: string): HTMLButtonElement {
+  const button = [...document.body.querySelectorAll('button')].find((el) => el.textContent?.trim() === text);
+  if (!button) throw new Error(`no dialog button with text "${text}"`);
   return button as HTMLButtonElement;
 }
 
@@ -159,13 +167,29 @@ describe('SimilarContentPage', () => {
     expect(mocks.getSimilarBookPairs).toHaveBeenCalledTimes(1);
   });
 
-  it('hides the fingerprint bar when nothing is missing', async () => {
+  it('keeps the bar with only a force button when nothing is missing', async () => {
+    const host = mount();
+    await flush();
+
+    const bar = host.querySelector('.similar-fingerprint-bar');
+    expect(bar).not.toBeNull();
+    expect(bar!.textContent).toContain('All 10 books are fingerprinted');
+    // The incremental build button is gone once nothing is missing, but force
+    // stays: a stat comparison can miss a change that leaves nothing "missing".
+    expect(
+      [...host.querySelectorAll('button')].some((b) => b.textContent?.trim() === 'Build fingerprints')
+    ).toBe(false);
+    expect(buttonByText(host, 'Force rebuild')).toBeTruthy();
+  });
+
+  it('hides the whole bar when the shelf has no books', async () => {
+    mocks.getFingerprintStatus.mockResolvedValue({ ...NO_MISSING, total: 0, fingerprinted: 0 });
     const host = mount();
     await flush();
     expect(host.querySelector('.similar-fingerprint-bar')).toBeNull();
   });
 
-  it('offers a build button when fingerprints are missing on a writable shelf', async () => {
+  it('offers both a build and a force button when fingerprints are missing on a writable shelf', async () => {
     mocks.getFingerprintStatus.mockResolvedValue({ ...NO_MISSING, missing: 3 });
     const host = mount();
     await flush();
@@ -174,9 +198,59 @@ describe('SimilarContentPage', () => {
     expect(bar).not.toBeNull();
     expect(bar!.textContent).toContain('3 of 10 books have no fingerprint yet');
     expect(buttonByText(host, 'Build fingerprints')).toBeTruthy();
+    expect(buttonByText(host, 'Force rebuild')).toBeTruthy();
   });
 
-  it('a read-only shelf explains it cannot build and hides the button', async () => {
+  it('force rebuild asks for confirmation before it runs anything', async () => {
+    const host = mount();
+    await flush();
+
+    buttonByText(host, 'Force rebuild').click();
+    await flush();
+
+    // The click only opened the dialog; the destructive-feeling sweep has not
+    // started, so a stray click costs nothing.
+    expect(document.body.textContent).toContain('Rebuild every fingerprint?');
+    expect(mocks.startFingerprintSources).not.toHaveBeenCalled();
+
+    // Cancelling dismisses it and still runs nothing.
+    dialogButtonByText('Cancel').click();
+    await flush();
+    expect(mocks.startFingerprintSources).not.toHaveBeenCalled();
+  });
+
+  it('confirming the dialog schedules a forced sweep, ignoring the cache', async () => {
+    const host = mount();
+    await flush();
+
+    buttonByText(host, 'Force rebuild').click();
+    await flush();
+    dialogButtonByText('Rebuild all').click();
+    await flush();
+
+    expect(mocks.startFingerprintSources).toHaveBeenCalledTimes(1);
+    expect(mocks.startFingerprintSources).toHaveBeenCalledWith(true);
+  });
+
+  it('a busy sweep after confirming shows a retryable notice, not "rebuilding"', async () => {
+    mocks.startFingerprintSources.mockReset().mockRejectedValueOnce(new FingerprintSweepBusyError());
+    const host = mount();
+    await flush();
+
+    buttonByText(host, 'Force rebuild').click();
+    await flush();
+    dialogButtonByText('Rebuild all').click();
+    await flush();
+
+    expect(mocks.startFingerprintSources).toHaveBeenCalledWith(true);
+    // A benign notice, and crucially no chain is polled and no "Rebuilding…"
+    // label — the forced rebuild did not happen and must not claim it did.
+    expect(host.querySelector('.similar-fingerprint-note')?.textContent).toContain('already running');
+    expect(mocks.getTaskChain).not.toHaveBeenCalled();
+    expect([...host.querySelectorAll('button')].some((b) => b.textContent?.includes('Rebuilding'))).toBe(false);
+  });
+
+  it('a read-only shelf explains it cannot build and hides both buttons', async () => {
     mocks.getFingerprintStatus.mockResolvedValue({ ...NO_MISSING, missing: 3 });
     mocks.readOnly.value = true;
     const host = mount();
@@ -185,9 +259,9 @@ describe('SimilarContentPage', () => {
     expect(host.querySelector('.similar-fingerprint-readonly')?.textContent).toContain(
       'read-only shelf cannot build fingerprints'
     );
-    expect(
-      [...host.querySelectorAll('button')].some((b) => b.textContent?.trim() === 'Build fingerprints')
-    ).toBe(false);
+    const labels = [...host.querySelectorAll('button')].map((b) => b.textContent?.trim());
+    expect(labels).not.toContain('Build fingerprints');
+    expect(labels).not.toContain('Force rebuild');
     expect(mocks.startFingerprintSources).not.toHaveBeenCalled();
   });
 

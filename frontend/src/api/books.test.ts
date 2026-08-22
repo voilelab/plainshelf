@@ -18,7 +18,7 @@ vi.mock('./client', async () => {
 });
 
 const { ApiError } = await import('./client');
-const { transferBook } = await import('./books');
+const { transferBook, startFingerprintSources, FingerprintSweepBusyError } = await import('./books');
 
 describe('transferBook', () => {
   beforeEach(() => {
@@ -72,5 +72,53 @@ describe('transferBook', () => {
     await expect(transferBook('book-1', 'shelf-b', '', 'move')).rejects.toThrow(
       'the target shelf already holds a book with this ID'
     );
+  });
+});
+
+describe('startFingerprintSources', () => {
+  beforeEach(() => {
+    fetchJsonMock.mockReset();
+  });
+
+  it('posts the incremental sweep and adopts a 409 already-running chain', async () => {
+    fetchJsonMock.mockResolvedValueOnce({ taskchain_id: 'chain-1' });
+
+    const id = await startFingerprintSources();
+
+    expect(id).toBe('chain-1');
+    const [path, init, options] = fetchJsonMock.mock.calls[0];
+    expect(path).toBe('/source-fingerprints');
+    expect(init).toMatchObject({ method: 'POST' });
+    // The incremental request accepts a 409 so a second press attaches to the
+    // sweep already running.
+    expect(options).toEqual({ acceptStatuses: [409] });
+  });
+
+  it('posts a forced sweep with the force flag and does not accept a 409', async () => {
+    fetchJsonMock.mockResolvedValueOnce({ taskchain_id: 'chain-2' });
+
+    const id = await startFingerprintSources(true);
+
+    expect(id).toBe('chain-2');
+    const [path, init, options] = fetchJsonMock.mock.calls[0];
+    expect(path).toBe('/source-fingerprints?force=true');
+    expect(init).toMatchObject({ method: 'POST' });
+    // No acceptStatuses: a 409 must reject so the force path can classify it
+    // rather than silently adopt whatever chain is already running.
+    expect(options).toBeUndefined();
+  });
+
+  it('maps a forced 409 to a FingerprintSweepBusyError', async () => {
+    fetchJsonMock.mockRejectedValueOnce(
+      new ApiError(JSON.stringify({ taskchain_id: 'chain-incremental' }), { status: 409 })
+    );
+
+    await expect(startFingerprintSources(true)).rejects.toBeInstanceOf(FingerprintSweepBusyError);
+  });
+
+  it('propagates a non-conflict failure from a forced sweep unchanged', async () => {
+    fetchJsonMock.mockRejectedValueOnce(new ApiError('boom', { status: 500 }));
+
+    await expect(startFingerprintSources(true)).rejects.toThrow('boom');
   });
 });
