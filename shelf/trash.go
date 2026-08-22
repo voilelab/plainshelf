@@ -68,7 +68,10 @@ func (s *Shelf) MoveBookToTrash(bookID string) error {
 	}
 	defer s.shelfLock.Unlock()
 
-	book, err := s.getUpdatedBookFromBookID(bookID)
+	// The layer is the book's position in the tree, owned by its cache entry
+	// rather than the book itself; getUpdatedBookFromBookID hands both back from
+	// one cache snapshot so the trash record remembers where the book came from.
+	book, originalLayer, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -98,7 +101,7 @@ func (s *Shelf) MoveBookToTrash(bookID string) error {
 	meta := trashMeta{
 		DeletedAt:     util.JSONTime(time.Now()),
 		OriginalPath:  activePath,
-		OriginalLayer: append(Layers(nil), book.Layers()...),
+		OriginalLayer: append(Layers(nil), originalLayer...),
 		DeleteReason:  "user",
 	}
 	if err := s.writeTrashMeta(root, trashPath, &meta); err != nil {
@@ -252,8 +255,7 @@ func (s *Shelf) RestoreTrashedBook(bookID string) error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	restoredBook.setLayers(targetLayers)
-	s.updateBookCacheEntry(restoredBook.Layers(), targetPath, restoredBook)
+	s.updateBookCacheEntry(targetLayers, targetPath, restoredBook)
 
 	if restoredBook.ID() != book.ID() {
 		return util.Errorf("restored book id mismatch")

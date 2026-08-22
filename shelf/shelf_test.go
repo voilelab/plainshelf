@@ -292,11 +292,11 @@ func TestShelfTrashLifecycle(t *testing.T) {
 		t.Fatalf("Failed to restore trashed book: %v", err)
 	}
 
-	restored, err := shelf.GetBook(book.ID())
+	restored, err := shelf.GetBookListing(book.ID())
 	if err != nil {
 		t.Fatalf("Failed to get restored book: %v", err)
 	}
-	if got := restored.Layers().String(); got != "new/layer" {
+	if got := restored.Layers.String(); got != "new/layer" {
 		t.Fatalf("Restored layer = %s, want new/layer", got)
 	}
 
@@ -334,14 +334,14 @@ func TestShelfRestoreTrashResolvesFolderCollision(t *testing.T) {
 	if err := shelf.RestoreTrashedBook(original.ID()); err != nil {
 		t.Fatalf("RestoreTrashedBook: %v", err)
 	}
-	restored, err := shelf.GetBook(original.ID())
+	restored, err := shelf.GetBookListing(original.ID())
 	if err != nil {
-		t.Fatalf("GetBook(restored): %v", err)
+		t.Fatalf("GetBookListing(restored): %v", err)
 	}
-	if restored.FolderPath() == replacement.FolderPath() {
-		t.Fatalf("restored book reused occupied path %q", restored.FolderPath())
+	if restored.Book.FolderPath() == replacement.FolderPath() {
+		t.Fatalf("restored book reused occupied path %q", restored.Book.FolderPath())
 	}
-	if got := restored.Layers().String(); got != "fiction" {
+	if got := restored.Layers.String(); got != "fiction" {
 		t.Fatalf("restored layer = %q, want fiction", got)
 	}
 }

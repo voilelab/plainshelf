@@ -51,9 +51,10 @@ func TestOpenBookPackageReadsWithoutAShelf(t *testing.T) {
 	if book.Title() == "" {
 		t.Error("expected the book to carry its title")
 	}
-	if got := book.Layers(); len(got) != 0 {
-		t.Errorf("expected a package to have no layers, got %v", got)
-	}
+	// A package opened outside a shelf has no layer: layer is a book's position
+	// in the tree, and there is no tree here. There is nothing to assert about a
+	// layer the book no longer carries — the point is that opening a bare
+	// package needs no layer information at all.
 
 	source, err := book.ResolveCurrentSource()
 	if err != nil {

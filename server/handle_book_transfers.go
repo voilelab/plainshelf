@@ -69,14 +69,14 @@ func (h *bookTransferHandlers) transferBook(w http.ResponseWriter, r *http.Reque
 
 	// The source book must exist before anything is scheduled: a transfer of a
 	// missing book is a 404 now, not a task that fails later.
-	book, ok := h.lookupBook(w, sourceShelf, bookID)
+	listing, ok := h.lookupBookListing(w, sourceShelf, bookID)
 	if !ok {
 		return
 	}
 
 	// Default to the source book's own layer so a plain "move it to that shelf"
 	// needs no layer in the body, mirroring the copy endpoint.
-	targetLayer := append(shelf.Layers(nil), book.Layers()...)
+	targetLayer := append(shelf.Layers(nil), listing.Layers...)
 	if request.TargetLayer != nil {
 		targetLayer = append(shelf.Layers(nil), (*request.TargetLayer)...)
 	}

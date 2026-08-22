@@ -133,7 +133,6 @@ type Book struct {
 	root       fsutil.ReadFS
 	folderPath string
 	meta       *BookMeta
-	layers     Layers
 
 	metaStat FileStat
 }
@@ -164,11 +163,6 @@ type BookMeta struct {
 	CurrentSource string `json:"current_source"`
 }
 
-// setLayers only used for internal use, not persisted in book meta, and not exposed to user
-func (b *Book) setLayers(layers Layers) {
-	b.layers = layers
-}
-
 // IsStale checks whether the cached book metadata is out of date by comparing
 // the current file stat of the book meta file with the cached metaStat. If the
 // file stat differs, the book is considered stale and should be refreshed.
@@ -191,10 +185,6 @@ func (b *Book) IsStale() bool {
 	}
 
 	return false
-}
-
-func (b *Book) Layers() Layers {
-	return b.layers
 }
 
 func (b *Book) ID() string {

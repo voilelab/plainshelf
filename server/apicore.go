@@ -68,6 +68,19 @@ func (c *apiCore) lookupBook(w http.ResponseWriter, shelfData *shelf.ShelfData, 
 	return book, true
 }
 
+// lookupBookListing is lookupBook for a handler that also needs the book's
+// layer, which the book itself no longer carries. It writes the same error
+// response on failure.
+func (c *apiCore) lookupBookListing(w http.ResponseWriter, shelfData *shelf.ShelfData, bookID string) (shelf.BookListing, bool) {
+	listing, err := shelfData.GetBookListing(bookID)
+	if err != nil {
+		c.writeErr(w, err, "failed to get book")
+		return shelf.BookListing{}, false
+	}
+
+	return listing, true
+}
+
 func (c *apiCore) lookupSource(w http.ResponseWriter, book *shelf.Book, sourceID string) (*shelf.Source, bool) {
 	source, err := book.GetSource(sourceID)
 	if err != nil {
@@ -95,6 +108,26 @@ func (c *apiCore) loadBook(w http.ResponseWriter, r *http.Request) (*shelf.Shelf
 	}
 
 	return shelfData, book, true
+}
+
+// loadBookListing is loadBook for a handler that also needs the book's layer.
+func (c *apiCore) loadBookListing(w http.ResponseWriter, r *http.Request) (*shelf.ShelfData, shelf.BookListing, bool) {
+	shelfData, ok := c.resolveShelf(w, r)
+	if !ok {
+		return nil, shelf.BookListing{}, false
+	}
+
+	bookID, ok := resolveBookID(w, r)
+	if !ok {
+		return nil, shelf.BookListing{}, false
+	}
+
+	listing, ok := c.lookupBookListing(w, shelfData, bookID)
+	if !ok {
+		return nil, shelf.BookListing{}, false
+	}
+
+	return shelfData, listing, true
 }
 
 func (c *apiCore) loadBookSource(w http.ResponseWriter, r *http.Request) (*shelf.ShelfData, *shelf.Book, *shelf.Source, bool) {

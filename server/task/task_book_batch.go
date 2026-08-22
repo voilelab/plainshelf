@@ -168,9 +168,9 @@ func (t *bookBatchTask) Run(ctx context.Context) error {
 		var err error
 		switch t.operation {
 		case BookBatchOperationMove:
-			var book *shelf.Book
-			book, err = t.shelf.GetBook(bookID)
-			if err == nil && book.Layers().Equal(t.targetLayer) {
+			var listing shelf.BookListing
+			listing, err = t.shelf.GetBookListing(bookID)
+			if err == nil && listing.Layers.Equal(t.targetLayer) {
 				t.recordSuccess(bookID)
 				t.progress.Advance()
 				continue

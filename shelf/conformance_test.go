@@ -210,13 +210,14 @@ func readConformanceCase(t *testing.T, shelfDir string) conformanceReading {
 func readConformanceBooks(t *testing.T, s *Shelf) []conformanceBook {
 	t.Helper()
 
-	books, err := s.ListBooks()
+	listings, err := s.ListBooksWithCharCount()
 	if err != nil {
-		t.Fatalf("ListBooks: %v", err)
+		t.Fatalf("ListBooksWithCharCount: %v", err)
 	}
 
-	observed := make([]conformanceBook, 0, len(books))
-	for _, book := range books {
+	observed := make([]conformanceBook, 0, len(listings))
+	for _, listing := range listings {
+		book := listing.Book
 		meta := book.GetMeta()
 
 		// The normalized SchemaVersion in meta cannot tell a pre-v1 book from a
@@ -243,7 +244,7 @@ func readConformanceBooks(t *testing.T, s *Shelf) []conformanceBook {
 
 		observed = append(observed, conformanceBook{
 			Path:                book.FolderPath(),
-			Layers:              orEmpty(book.Layers()),
+			Layers:              orEmpty(listing.Layers),
 			ID:                  book.ID(),
 			Title:               book.Title(),
 			Format:              meta.Format,

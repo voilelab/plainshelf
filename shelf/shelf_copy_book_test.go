@@ -69,15 +69,16 @@ func TestShelfCopyBookGivesNewIDAndCoexists(t *testing.T) {
 
 	// The copy is self-contained. Re-read it through the shelf so the checks run
 	// against what reached disk, not the handle CopyBook returned.
-	reopened, err := s.GetBook(copied.ID())
+	reopenedListing, err := s.GetBookListing(copied.ID())
 	if err != nil {
-		t.Fatalf("GetBook copy: %v", err)
+		t.Fatalf("GetBookListing copy: %v", err)
 	}
+	reopened := reopenedListing.Book
 	if reopened.Title() != "Copy Me" {
 		t.Errorf("copy title = %q, want %q", reopened.Title(), "Copy Me")
 	}
-	if !reopened.Layers().Equal(Layers{"fiction"}) {
-		t.Errorf("copy layers = %v, want [fiction]", reopened.Layers())
+	if !reopenedListing.Layers.Equal(Layers{"fiction"}) {
+		t.Errorf("copy layers = %v, want [fiction]", reopenedListing.Layers)
 	}
 
 	copiedSource, err := reopened.ResolveCurrentSource()
@@ -160,8 +161,12 @@ func TestShelfCopyBookIntoAnotherLayer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CopyBook: %v", err)
 	}
-	if !copied.Layers().Equal(Layers{"elsewhere", "deep"}) {
-		t.Fatalf("copy layers = %v, want [elsewhere deep]", copied.Layers())
+	copiedListing, err := s.GetBookListing(copied.ID())
+	if err != nil {
+		t.Fatalf("GetBookListing: %v", err)
+	}
+	if !copiedListing.Layers.Equal(Layers{"elsewhere", "deep"}) {
+		t.Fatalf("copy layers = %v, want [elsewhere deep]", copiedListing.Layers)
 	}
 
 	books, err := s.GetBooksByLayer(Layers{"elsewhere", "deep"})

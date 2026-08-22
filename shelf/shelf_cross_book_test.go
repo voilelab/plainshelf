@@ -75,8 +75,12 @@ func TestShelfCopyBookFromGivesNewIDAndKeepsSource(t *testing.T) {
 	if copied.ID() == original.ID() {
 		t.Fatalf("cross-shelf copy reuses the original ID %q", original.ID())
 	}
-	if !copied.Layers().Equal(Layers{"imported"}) {
-		t.Errorf("copy layers = %v, want [imported]", copied.Layers())
+	copiedListing, err := target.GetBookListing(copied.ID())
+	if err != nil {
+		t.Fatalf("GetBookListing: %v", err)
+	}
+	if !copiedListing.Layers.Equal(Layers{"imported"}) {
+		t.Errorf("copy layers = %v, want [imported]", copiedListing.Layers)
 	}
 
 	// The source shelf still holds the original, alone.
@@ -157,8 +161,12 @@ func TestShelfMoveBookFromPreservesIDAndRemovesSource(t *testing.T) {
 	if moved.ID() != originalID {
 		t.Fatalf("move changed the ID: got %q, want %q", moved.ID(), originalID)
 	}
-	if !moved.Layers().Equal(Layers{"archive"}) {
-		t.Errorf("moved layers = %v, want [archive]", moved.Layers())
+	movedListing, err := target.GetBookListing(moved.ID())
+	if err != nil {
+		t.Fatalf("GetBookListing: %v", err)
+	}
+	if !movedListing.Layers.Equal(Layers{"archive"}) {
+		t.Errorf("moved layers = %v, want [archive]", movedListing.Layers)
 	}
 
 	// The target now lists the book under its original ID.
