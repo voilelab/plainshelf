@@ -102,6 +102,16 @@ release artifact exists by running `scripts/update-cask.sh <tag>`.
 just run-desktop
 ```
 
+On macOS the desktop app's **read** action opens the standalone reader in its own
+window (it shells out to it). To test against the reader you are developing rather
+than the brew-installed one, build it first with `just build-reader`; `just
+run-desktop` then auto-detects `reader/build/bin/PlainShelfReader.app` and opens
+reads with it. Override the target explicitly with `just run-desktop
+/path/to/PlainShelfReader.app`, or by exporting `PLAINSHELF_READER_APP` (a `.app`
+path/name is launched via `open -a`); an already-set `PLAINSHELF_READER_APP` takes
+precedence. Because the dev and brew readers share a bundle id, keep only the one
+you want registered with LaunchServices if `open -a` activates the wrong copy.
+
 Create a release-style desktop build with `just build-desktop`.
 
 ## Android app

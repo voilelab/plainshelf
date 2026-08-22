@@ -42,9 +42,31 @@ build-desktop: build-server-frontend
 	test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' desktop/build/bin/PlainShelf.app/Contents/Info.plist)" = "{{native_version}}"
 	test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' desktop/build/bin/PlainShelf.app/Contents/Info.plist)" = "{{native_version}}"
 
-# Run desktop app
-run-desktop: build-server-frontend
-	cd desktop && go mod tidy && go tool wails dev
+# Run desktop app. On macOS the in-app "read" action shells out to the standalone
+# reader; in dev this points it at your locally built reader
+# (reader/build/bin/PlainShelfReader.app, from `just build-reader`) instead of the
+# brew-installed one, so reads open the dev-line reader. Override with a path or app
+# name — `just run-desktop /path/to/PlainShelfReader.app` — and an already-set
+# PLAINSHELF_READER_APP in the environment wins over both.
+run-desktop reader="": build-server-frontend
+	#!/usr/bin/env zsh
+	set -eu
+	dev_reader="{{justfile_directory()}}/reader/build/bin/PlainShelfReader.app"
+	reader_app="${PLAINSHELF_READER_APP:-}"
+	if [[ -z "$reader_app" ]]; then
+		reader_app="{{reader}}"
+	fi
+	if [[ -z "$reader_app" && -d "$dev_reader" ]]; then
+		reader_app="$dev_reader"
+	fi
+	cd desktop
+	go mod tidy
+	if [[ -n "$reader_app" ]]; then
+		echo "run-desktop: reads open the reader at $reader_app"
+		PLAINSHELF_READER_APP="$reader_app" go tool wails dev
+	else
+		go tool wails dev
+	fi
 
 # Build reader app (standalone .bookpkg reader)
 build-reader: build-server-frontend
