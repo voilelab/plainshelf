@@ -106,51 +106,6 @@ func TestScanCacheReusesUnchangedDirectories(t *testing.T) {
 	}
 }
 
-// A directory's mtime only reports on its direct children, so the cache has to
-// be consulted per directory rather than per subtree: a book added deep in the
-// tree must still be found while every directory above it is reused.
-func TestScanCacheFindsBookAddedUnderReusedParent(t *testing.T) {
-	tmpLib := path.Join(t.TempDir(), "shelf_test")
-	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
-
-	if _, err := s.NewBook(Layers{"Fiction", "Classics"}, "Alpha"); err != nil {
-		t.Fatalf("NewBook: %v", err)
-	}
-	ageShelfDirs(t, tmpLib, time.Minute)
-	mustScan(t, s)
-
-	// Copy an existing book package in from outside, the way a file manager or
-	// a sync client would.
-	src := path.Join(tmpLib, s.listBooksFromCache()[0].FolderPath())
-	dst := path.Join(tmpLib, booksFolder, "Fiction", "Classics", "beta.bookpkg")
-	if err := os.CopyFS(dst, os.DirFS(src)); err != nil {
-		t.Fatalf("copy book package: %v", err)
-	}
-
-	warm := mustScan(t, s)
-	if warm.ReadDirs == 0 {
-		t.Errorf("scan listed no directory, but Fiction/Classics changed")
-	}
-	if warm.ReusedDirs == 0 {
-		t.Errorf("scan reused no directory, but books/ and books/Fiction did not change")
-	}
-
-	// The copy carries the same book ID, so the listing cannot count it; what
-	// the walk has to have noticed is the directory itself.
-	found := false
-	if _, err := s.iterateShelfTree(nil, func(b *Book) bool {
-		if b.FolderPath() == path.Join(booksFolder, "Fiction", "Classics", "beta.bookpkg") {
-			found = true
-		}
-		return true
-	}); err != nil {
-		t.Fatalf("iterateShelfTree: %v", err)
-	}
-	if !found {
-		t.Errorf("the walk did not find the book package added under a reused parent")
-	}
-}
-
 // A new layer directory created outside PlainShelf is what the full scan exists
 // for; the cache must not swallow it.
 func TestScanCacheFindsLayerAddedAfterWarmScan(t *testing.T) {
@@ -171,34 +126,6 @@ func TestScanCacheFindsLayerAddedAfterWarmScan(t *testing.T) {
 	mustScan(t, s)
 	if !slices.Contains(cachedLayerNames(s), "Fiction/Poetry") {
 		t.Errorf("scan did not find the externally created layer, got %v", cachedLayerNames(s))
-	}
-}
-
-// Timestamps are coarse. A directory modified in the same tick the walk read it
-// would keep that mtime, so remembering it would hide every later change to it
-// forever. Such a directory must simply not enter the snapshot.
-func TestScanCacheRefusesRacyDirectories(t *testing.T) {
-	tmpLib := path.Join(t.TempDir(), "shelf_test")
-	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
-
-	if _, err := s.NewBook(Layers{"Fiction"}, "Alpha"); err != nil {
-		t.Fatalf("NewBook: %v", err)
-	}
-
-	// No ageing here: every directory was modified moments ago.
-	mustScan(t, s)
-	warm := mustScan(t, s)
-	if warm.ReusedDirs != 0 {
-		t.Errorf("scan reused %d directories modified inside the racy window, want 0", warm.ReusedDirs)
-	}
-
-	// And the change that race would have hidden is still found.
-	if err := os.Mkdir(path.Join(tmpLib, booksFolder, "Fiction", "Poetry"), 0755); err != nil {
-		t.Fatalf("mkdir layer: %v", err)
-	}
-	mustScan(t, s)
-	if !slices.Contains(cachedLayerNames(s), "Fiction/Poetry") {
-		t.Errorf("scan did not find the layer added after a racy scan, got %v", cachedLayerNames(s))
 	}
 }
 
@@ -326,52 +253,44 @@ func TestScanCacheLargeTreeMeasurement(t *testing.T) {
 	}
 }
 
-// A directory's mtime identifies its content, not the directory. If one is
-// moved away and another takes its place carrying the same mtime - which
-// coarse-timestamp filesystems and timestamp-preserving copies both make
-// possible - matching the mtime alone would serve the old directory's children
-// forever, and the books under the new one would never appear.
-func TestScanCacheDistrustsAReplacedDirectory(t *testing.T) {
+// An unchanged shelf must not rewrite its snapshot: the digest short-circuit is
+// the property most easily broken when the cache is extracted, so it is guarded
+// end to end here as well as by the unit tests in shelf/scancache. Open a shelf
+// that already has a settled snapshot, close it again, and the file's mtime must
+// not move.
+func TestScanCacheUnchangedShelfIsNotRewritten(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
-	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
+	conf := &ShelfConf{LibRoot: tmpLib}
 
-	booksDir := path.Join(tmpLib, booksFolder)
-	if err := os.MkdirAll(path.Join(booksDir, "Fiction", "kept"), 0755); err != nil {
-		t.Fatalf("mkdir: %v", err)
+	first := openShelf(t, conf)
+	if _, err := first.NewBook(Layers{"Fiction", "Classics"}, "Alpha"); err != nil {
+		t.Fatalf("NewBook: %v", err)
 	}
 	ageShelfDirs(t, tmpLib, time.Minute)
-	mustScan(t, s)
-	mustScan(t, s)
+	mustScan(t, first)
+	if err := first.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
 
-	info, err := os.Stat(path.Join(booksDir, "Fiction"))
+	snapshotPath := path.Join(tmpLib, appFolder, scanCacheFileName)
+	before, err := os.Stat(snapshotPath)
 	if err != nil {
-		t.Fatalf("stat: %v", err)
+		t.Fatalf("stat %s: %v", snapshotPath, err)
 	}
 
-	// Move the layer out of the shelf and put a different one in its place,
-	// then give it the mtime the scan remembered.
-	replaced := path.Join(t.TempDir(), "moved-away")
-	if err := os.Rename(path.Join(booksDir, "Fiction"), replaced); err != nil {
-		t.Fatalf("move away: %v", err)
-	}
-	staged := path.Join(t.TempDir(), "Fiction")
-	if err := os.MkdirAll(path.Join(staged, "brought-in"), 0755); err != nil {
-		t.Fatalf("mkdir staged: %v", err)
-	}
-	if err := os.Rename(staged, path.Join(booksDir, "Fiction")); err != nil {
-		t.Fatalf("move in: %v", err)
-	}
-	at := info.ModTime()
-	if err := os.Chtimes(path.Join(booksDir, "Fiction"), at, at); err != nil {
-		t.Fatalf("chtimes: %v", err)
+	// Reopen and close without changing anything: the loaded snapshot's digest
+	// matches what the walk reproduces, so neither the initial scan nor Close
+	// should touch the file.
+	second := openShelf(t, conf)
+	if err := second.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
 	}
 
-	mustScan(t, s)
-	names := cachedLayerNames(s)
-	if !slices.Contains(names, "Fiction/brought-in") {
-		t.Errorf("scan did not find the replacement directory's layer, got %v", names)
+	after, err := os.Stat(snapshotPath)
+	if err != nil {
+		t.Fatalf("stat %s: %v", snapshotPath, err)
 	}
-	if slices.Contains(names, "Fiction/kept") {
-		t.Errorf("scan still reports the replaced directory's layer, got %v", names)
+	if !after.ModTime().Equal(before.ModTime()) {
+		t.Errorf("an unchanged shelf rewrote its snapshot: mtime moved from %s to %s", before.ModTime(), after.ModTime())
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/shelf/scancache"
 )
 
 /*
@@ -69,8 +70,9 @@ type Shelf struct {
 	readyCh   chan struct{}
 	initErr   atomic.Pointer[error] // set if initCache fails; readyCh is still closed
 
-	// scanCacheEnabled is ShelfConf.ScanCache resolved to a decision.
-	scanCacheEnabled bool
+	// scanCache is the directory scan snapshot that makes a full walk cheap; see
+	// scancache_facade.go and shelf/scancache.
+	scanCache *scancache.Cache
 
 	// Exported book cache; see shelf_cache_export.go. An empty writer ID
 	// disables the export entirely, which is what a bare ShelfConf gets.
@@ -135,7 +137,7 @@ type ShelfConf struct {
 	// ScanCache controls the directory scan cache: the walk remembers each
 	// directory's mtime and replaces the next walk's ReadDir with a Stat for
 	// every directory that has not changed. The snapshot is kept under app/.
-	// See shelf_scan_cache.go and docs/concepts/shelf-cache-and-io.md.
+	// See shelf/scancache and docs/concepts/shelf-cache-and-io.md.
 	//
 	// nil (the default) is enabled; a non-nil pointer takes its bool value.
 	// Turn it off on a mount whose directory mtimes cannot be trusted - some
@@ -288,7 +290,7 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 
 		// cache
 		bookCache:         newBookCache(scanInterval, bookCheckInterval),
-		scanCacheEnabled:  scanCacheEnabled,
+		scanCache:         newScanCache(dbRoot, scanCacheEnabled, *logger),
 		bookCacheWriterID: bookCacheWriterID,
 		bookCacheInterval: bookCacheInterval,
 	}
@@ -383,10 +385,8 @@ func (s *Shelf) ReadOnly() bool {
 }
 
 func (s *Shelf) initCache() error {
-	// Before the first walk, not after: the snapshot from the previous run is
-	// what makes this walk - the one the user waits for at startup - cheap.
-	s.loadScanCache()
-
+	// The scan cache loaded its previous snapshot when the shelf was built
+	// (newScanCache), so this first walk is already cheap.
 	err := s.scanToBookCache()
 	if err != nil {
 		wrapped := util.Errorf("%w", err)
@@ -410,7 +410,7 @@ func (s *Shelf) initCache() error {
 	// than shut down still leaves a usable snapshot behind. A shelf whose
 	// folders did not change since the last run produces the same snapshot, and
 	// the digest check turns that into no write at all.
-	if err := s.saveScanCache(); err != nil {
+	if err := s.scanCache.Save(); err != nil {
 		s.Warn("failed to write the directory scan cache after the initial scan", "error", err)
 	}
 
@@ -538,7 +538,7 @@ func (s *Shelf) Close() error {
 
 	// Same reasoning as the export above, and equally not worth failing a
 	// shutdown over: the snapshot is rebuildable runtime state.
-	if err := s.saveScanCache(); err != nil {
+	if err := s.scanCache.Save(); err != nil {
 		s.Warn("failed to write the directory scan cache while closing", "error", err)
 	}
 

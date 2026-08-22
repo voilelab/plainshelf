@@ -105,16 +105,6 @@ type bookCache struct {
 	// queued.
 	rescanID string
 
-	// dirs is the directory snapshot the last complete walk left behind, and
-	// scanCacheDigest fingerprints the copy of it that is on disk so an
-	// unchanged shelf is never rewritten. See shelf_scan_cache.go.
-	dirs            map[string]dirSnapshot
-	scanCacheDigest string
-
-	// lastScanStats is what the most recent walk cost, kept so the effect of
-	// the directory snapshot is observable rather than only inferable.
-	lastScanStats scanStats
-
 	// lastScanStart is when the walk behind the current cache began. See
 	// scanToBookCache for why the start and not the end.
 	lastScanStart time.Time

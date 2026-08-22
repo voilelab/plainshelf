@@ -10,6 +10,7 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
+	"github.com/voilelab/plainshelf/shelf/scancache"
 )
 
 // BookListing is one book of a listing together with the values the book cache
@@ -388,17 +389,17 @@ func (s *Shelf) iterateShelfTree(onLayer func(Layers) bool, onBook func(*Book) b
 
 	// The walk reads each directory through the scan cache, which turns a
 	// ReadDir into a Stat for every folder that has not changed since the last
-	// walk. See shelf_scan_cache.go.
-	dirCache := s.newScanDirCache()
+	// walk. See shelf/scancache.
+	walk := s.scanCache.NewWalk()
 
-	var dfsFunc func(string, *dirChild, bool)
+	var dfsFunc func(string, *scancache.DirChild, bool)
 
-	dfsFunc = func(pth string, child *dirChild, trusted bool) {
+	dfsFunc = func(pth string, child *scancache.DirChild, trusted bool) {
 		if skipAll {
 			return
 		}
 
-		isDir, err := childIsDir(s.dbRoot, pth, child)
+		isDir, err := scancache.ChildIsDir(s.dbRoot, pth, child)
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				s.Warn("failed to stat path during book scan", "path", pth, "error", err)
@@ -440,7 +441,7 @@ func (s *Shelf) iterateShelfTree(onLayer func(Layers) bool, onBook func(*Book) b
 			return
 		}
 
-		children, childrenTrusted, err := dirCache.readDir(pth, trusted)
+		children, childrenTrusted, err := walk.ReadDir(s.dbRoot, pth, trusted)
 		if err != nil {
 			if !errors.Is(err, os.ErrNotExist) {
 				s.Warn("failed to read directory during book scan", "path", pth, "error", err)
@@ -455,5 +456,5 @@ func (s *Shelf) iterateShelfTree(onLayer func(Layers) bool, onBook func(*Book) b
 	}
 
 	dfsFunc(booksFolder, nil, true)
-	return dirCache.install(!skipAll), nil
+	return walk.Install(!skipAll), nil
 }
