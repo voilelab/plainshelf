@@ -32,7 +32,7 @@ const defaultSimilarFloor = 0.15
 // still well under a second, but past this a request could outlast its
 // deadline, so the endpoint answers 202 instead of timing out. It is a var, not
 // a const, so a test can lower it without standing up thousands of books.
-var similarBookLimit = 3000
+var similarBookLimit = 3200
 
 // The relation names describe how two sources are alike. The server decides
 // this rather than the frontend so the classification lives in one place, and a
