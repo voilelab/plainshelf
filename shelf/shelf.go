@@ -385,9 +385,8 @@ func (s *Shelf) ReadOnly() bool {
 }
 
 func (s *Shelf) initCache() error {
-	// The scan cache is loaded when the shelf is built (newScanCache), before
-	// this first walk - the one the user waits for at startup - so the snapshot
-	// from the previous run is already in memory to make it cheap.
+	// The scan cache loaded its previous snapshot when the shelf was built
+	// (newScanCache), so this first walk is already cheap.
 	err := s.scanToBookCache()
 	if err != nil {
 		wrapped := util.Errorf("%w", err)

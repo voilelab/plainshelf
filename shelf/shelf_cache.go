@@ -105,11 +105,6 @@ type bookCache struct {
 	// queued.
 	rescanID string
 
-	// The directory scan snapshot that the last complete walk left behind used
-	// to live here; it now has its own lock in shelf/scancache, because
-	// publishing it and publishing this book cache are two separate critical
-	// sections with no invariant between them. See scancache_facade.go.
-
 	// lastScanStart is when the walk behind the current cache began. See
 	// scanToBookCache for why the start and not the end.
 	lastScanStart time.Time
