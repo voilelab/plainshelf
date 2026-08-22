@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { startServer } from './support/server';
@@ -37,6 +37,15 @@ async function clearStoredCharCounts(shelfDir: string): Promise<number> {
   return cleared;
 }
 
+// The character-range control lives inside the filter panel now. The panel is
+// opened once and kept open: a bound is committed with Tab (which fires the
+// input's change while focus stays inside the panel, so it does not close), and
+// the results behind the panel are still visible to assert against.
+async function openFilterPanel(page: Page): Promise<void> {
+  await page.getByRole('button', { name: /^Filter/ }).click();
+  await expect(page.getByRole('heading', { name: 'Filters' })).toBeVisible();
+}
+
 // hello.txt is 74 characters, so it sits inside a 0-5000 range, above a
 // maximum of 1, and below a minimum of 100.
 test('library filters books by a character-count range', async ({ page }) => {
@@ -49,6 +58,7 @@ test('library filters books by a character-count range', async ({ page }) => {
     const bookRow = page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true });
     await expect(bookRow).toBeVisible();
 
+    await openFilterPanel(page);
     const minInput = page.getByLabel('Minimum characters');
     const maxInput = page.getByLabel('Maximum characters');
 
@@ -57,26 +67,26 @@ test('library filters books by a character-count range', async ({ page }) => {
     await expect(maxInput).toHaveValue('');
 
     await maxInput.fill('1');
-    await maxInput.blur();
+    await maxInput.press('Tab');
 
     await expect(page).toHaveURL(/maxChars=1(&|$)/);
     await expect(page.getByText('No books in this character range.')).toBeVisible();
 
     await maxInput.fill('5000');
-    await maxInput.blur();
+    await maxInput.press('Tab');
 
     await expect(page).toHaveURL(/maxChars=5000(&|$)/);
     await expect(bookRow).toBeVisible();
 
     // A lower bound above the book's length excludes it from the same range.
     await minInput.fill('100');
-    await minInput.blur();
+    await minInput.press('Tab');
 
     await expect(page).toHaveURL(/minChars=100(&|$)/);
     await expect(page.getByText('No books in this character range.')).toBeVisible();
 
     await minInput.fill('10');
-    await minInput.blur();
+    await minInput.press('Tab');
     await expect(bookRow).toBeVisible();
 
     await page.getByRole('button', { name: 'Clear character range' }).click();
@@ -99,9 +109,10 @@ test('an active range does not mask the search empty state', async ({ page }) =>
     await page.goto(`${server.baseUrl}/books`);
     await importHelloBook(page);
 
+    await openFilterPanel(page);
     const maxInput = page.getByLabel('Maximum characters');
     await maxInput.fill('5000');
-    await maxInput.blur();
+    await maxInput.press('Tab');
     await expect(
       page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true })
     ).toBeVisible();
@@ -123,13 +134,14 @@ test('reversed bounds are applied as a single ordered range', async ({ page }) =
     await page.goto(`${server.baseUrl}/books`);
     await importHelloBook(page);
 
+    await openFilterPanel(page);
     const minInput = page.getByLabel('Minimum characters');
     const maxInput = page.getByLabel('Maximum characters');
 
     await minInput.fill('5000');
-    await minInput.blur();
+    await minInput.press('Tab');
     await maxInput.fill('10');
-    await maxInput.blur();
+    await maxInput.press('Tab');
 
     // Committed reversed, stored in order.
     await expect(minInput).toHaveValue('10');
@@ -163,6 +175,8 @@ test('updates the content statistics of books with an unknown character count', 
 
     const bookRow = page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true });
     await expect(bookRow).toBeVisible();
+
+    await openFilterPanel(page);
     await expect(page.getByText('1 with an unknown character count')).toBeVisible();
 
     const refreshButton = page.getByRole('button', { name: /^Update statistics for/ });

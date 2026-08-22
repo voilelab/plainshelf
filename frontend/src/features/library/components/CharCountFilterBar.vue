@@ -1,6 +1,6 @@
 <template>
   <div class="toolbar-bar char-count-bar">
-    <label class="toolbar-label" :for="MIN_INPUT_ID">{{ t('library.charCount.label') }}</label>
+    <label v-if="!hideLabel" class="toolbar-label" :for="MIN_INPUT_ID">{{ t('library.charCount.label') }}</label>
     <input
       :id="MIN_INPUT_ID"
       class="toolbar-control toolbar-input char-count-input"
@@ -75,6 +75,8 @@ const props = defineProps<{
   /** Books in the current result set whose character count could not be read. */
   unknownCount: number;
   readOnly: boolean;
+  /** Hide the built-in "Characters" label when a surrounding heading supplies it. */
+  hideLabel?: boolean;
 }>();
 
 const emit = defineEmits<{

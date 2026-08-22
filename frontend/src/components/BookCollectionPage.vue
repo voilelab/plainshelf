@@ -68,6 +68,11 @@
         </div>
       </header>
 
+      <!-- Active-condition chips sit above the list, between the header and the
+           results, so what is narrowing the list is visible without opening the
+           panel. Empty when nothing is active. -->
+      <slot name="filters" />
+
       <div v-if="books.length === 0" class="panel empty-state">
         {{ emptyMessage }}
       </div>

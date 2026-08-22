@@ -37,9 +37,9 @@ import {
 } from './codec';
 
 /**
- * Where a filter's control lives. `inline` conditions sit in the toolbar (or are
- * driven by navigation, as the layer is); `panel` conditions belong to the
- * filter panel added in a later change. The current three are all `inline`.
+ * Where a filter's control lives. `inline` conditions sit in the toolbar (search)
+ * or are driven by navigation (the layer, from the breadcrumb); `panel`
+ * conditions live in the filter panel and show as removable chips above the list.
  */
 export type FilterChrome = 'inline' | 'panel';
 
@@ -66,6 +66,20 @@ export interface FilterDependency {
   unknownCount(books: readonly Book[], value: unknown): number;
 }
 
+/**
+ * The shape of a panel filter's control, and thus of its chip. Keying the panel
+ * UI and the chip label on this — not on the filter's identity — is what keeps
+ * "add a condition" to one registry entry: a new `facetSingle` field needs no
+ * new component and no new chip branch.
+ *
+ * - `range`     — two numeric bounds (charCount).
+ * - `triState`  — has / none / all, where `all` is the inactive value (cover).
+ * - `facetSingle` — one value chosen from the shelf's own values, plus the
+ *   "(unset)" sentinel (author, language).
+ * - `facetMulti`  — any number of values chosen the same way (tags).
+ */
+export type PanelControlKind = 'range' | 'triState' | 'facetSingle' | 'facetMulti';
+
 export interface BookFilterDef<T> {
   /** Stable identity of the condition, independent of its query keys. */
   readonly key: string;
@@ -84,6 +98,21 @@ export interface BookFilterDef<T> {
   supported?(): boolean;
   /** Builds this condition's lazy data dependency; call from a component setup. */
   createDependency?(): FilterDependency;
+  /** How a `chrome: 'panel'` condition is rendered in the filter panel. */
+  readonly panelControl?: PanelControlKind;
+  /**
+   * The value that makes `isActive` false — what a "remove chip" or "clear all"
+   * assigns. Every panel condition carries its own so nothing has to special-case
+   * "how do I turn this one off".
+   */
+  readonly clearedValue?: T;
+  /**
+   * A book's own non-blank values for this field, used to build the panel's facet
+   * list. Present on the field conditions (author/tags/cover/language); the same
+   * function `predicate` decides "none/has/eq" against, so the facet and the
+   * predicate can never disagree about what counts as a value.
+   */
+  facetValues?(book: Book): string[];
 }
 
 /** A filter whose value type has been erased for iteration over the registry. */
@@ -147,7 +176,9 @@ export const layersFilter = defineBookFilter<string | undefined>({
 export const charCountFilter = defineBookFilter<CharCountRange>({
   key: 'charCount',
   queryKeys: ['minChars', 'maxChars'],
-  chrome: 'inline',
+  chrome: 'panel',
+  panelControl: 'range',
+  clearedValue: {},
   parse: (query) =>
     parseCharCountRange(toSingleQueryValue(query.minChars), toSingleQueryValue(query.maxChars)),
   serialize: (value) => {
@@ -258,12 +289,16 @@ function matchesFieldValue(values: readonly string[], value: FilterFieldValue): 
  */
 function fieldFilter(
   key: string,
-  values: (book: Book) => string[]
+  values: (book: Book) => string[],
+  panelControl: PanelControlKind
 ): BookFilterDef<FilterFieldValue | undefined> {
   return defineBookFilter<FilterFieldValue | undefined>({
     key,
     queryKeys: [key],
     chrome: 'panel',
+    panelControl,
+    clearedValue: undefined,
+    facetValues: values,
     parse: (query) => parseFilterField(toSingleQueryValue(query[key])),
     serialize: (value) => (value ? { [key]: serializeFilterField(value) } : {}),
     isActive: (value) => value !== undefined,
@@ -273,10 +308,11 @@ function fieldFilter(
 
 // `author` is a single token = one author selectable at a time, even though the
 // datum is an array; if multi-select AND is ever wanted, give it a `<field>Op`
-// like `tags` below rather than changing the key.
-export const authorFilter = fieldFilter('author', authorValues);
-export const coverFilter = fieldFilter('cover', coverValues);
-export const languageFilter = fieldFilter('language', languageValues);
+// like `tags` below rather than changing the key. cover is presence-only, so it
+// is a has/none/all tri-state rather than a facet of filenames.
+export const authorFilter = fieldFilter('author', authorValues, 'facetSingle');
+export const coverFilter = fieldFilter('cover', coverValues, 'triState');
+export const languageFilter = fieldFilter('language', languageValues, 'facetSingle');
 
 /** A repeatable field with a sibling `<field>Op` operator. */
 export interface MultiFieldValue {
@@ -288,6 +324,9 @@ export const tagsFilter = defineBookFilter<MultiFieldValue>({
   key: 'tags',
   queryKeys: ['tags', filterFieldOpKey('tags')],
   chrome: 'panel',
+  panelControl: 'facetMulti',
+  clearedValue: { values: [], op: 'all' },
+  facetValues: tagValues,
   parse: (query) => {
     const raw = query.tags;
     const tokens = Array.isArray(raw) ? raw : raw == null ? [] : [raw];
@@ -330,14 +369,28 @@ export const BOOK_FILTERS: readonly AnyBookFilterDef[] = [
 
 /**
  * The subset the library page applies itself as plain client-side predicates
- * over the listing. search/layer/charCount are filtered by LibraryPage's own
- * computeds (charCount needs its lazy index, and the empty state distinguishes
- * their causes); these read data already on every book, so the page loops them
- * generically. Ordering is irrelevant — they are ANDed together.
+ * over the listing. These read data already on every book, so the page loops
+ * them generically. Ordering is irrelevant — they are ANDed together.
  */
 export const METADATA_BOOK_FILTERS: readonly AnyBookFilterDef[] = [
   authorFilter,
   tagsFilter,
   coverFilter,
   languageFilter
+] as unknown as readonly AnyBookFilterDef[];
+
+/**
+ * The conditions the filter panel owns, in the order they are shown. Every one
+ * has `chrome: 'panel'`, a `panelControl`, and a `clearedValue`; the panel, the
+ * chip row, and the "active count" badge are all derived from this list, so a
+ * new panel condition appears in all three by being added here (and to
+ * `BOOK_FILTERS`). Display order is independent of `BOOK_FILTERS`, which orders
+ * how the empty-state cause is attributed.
+ */
+export const PANEL_BOOK_FILTERS: readonly AnyBookFilterDef[] = [
+  authorFilter,
+  tagsFilter,
+  languageFilter,
+  coverFilter,
+  charCountFilter
 ] as unknown as readonly AnyBookFilterDef[];
