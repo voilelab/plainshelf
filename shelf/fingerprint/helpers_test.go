@@ -85,9 +85,9 @@ func (ts *testShelf) liveBooks() (map[string]struct{}, bool) {
 //
 // The backdating is not cosmetic: a source written moments ago is deliberately
 // left out of the index, because a coarse filesystem clock cannot tell a second
-// write inside the same tick from no write at all (see racyWindow). A book being
-// fingerprinted in the real world is older than that; a book created by a test is
-// not. Pass age 0 to leave a source racily fresh on purpose.
+// write inside the same tick from no write at all (see fsutil.RacyWindow). A
+// book being fingerprinted in the real world is older than that; a book created
+// by a test is not. Pass age 0 to leave a source racily fresh on purpose.
 func (ts *testShelf) addBook(dir, id, title, content string, age time.Duration) *bookpkg.Book {
 	t := ts.t
 	t.Helper()

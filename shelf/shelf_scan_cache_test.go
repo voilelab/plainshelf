@@ -15,7 +15,7 @@ import (
 // ageShelfDirs pushes every directory under books/ back in time.
 //
 // The walk deliberately refuses to remember a directory that was modified
-// within scanCacheRacyWindow, so a shelf that was just built by the test is
+// within fsutil.RacyWindow, so a shelf that was just built by the test is
 // entirely unrememberable. Ageing it is how a test reaches the steady state a
 // real shelf is in almost all the time, without sleeping for it.
 func ageShelfDirs(t *testing.T, libRoot string, age time.Duration) {
