@@ -1,6 +1,7 @@
 package shelf
 
 import (
+	"github.com/voilelab/plainshelf/internal/appcache"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf/fingerprint"
 )
@@ -34,7 +35,7 @@ var ErrIncompleteFingerprintAlgo = fingerprint.ErrIncompleteAlgo
 // the run about to happen rebuilds, never an error.
 func (s *Shelf) OpenFingerprintCache(algo FingerprintAlgo) (*FingerprintCache, error) {
 	cache, err := fingerprint.Open(fingerprint.Config{
-		Store:      fingerprint.NewFSStore(s.dbRoot, appFolder),
+		Store:      appcache.NewFSStore(s.dbRoot, appFolder),
 		Algo:       algo,
 		Logger:     s.Logger,
 		LiveBooks:  s.liveBookIDs,

@@ -1,4 +1,13 @@
-package fingerprint
+// Package appcache is the filesystem contract shared by the rebuildable caches
+// that live under a shelf's app/ directory. It gives a cache "read a file,
+// confirm it can be written, replace it atomically" without the cache having to
+// know anything about the shelf that owns the directory - not its read handle,
+// not its write handle, not its readiness.
+//
+// It depends only on internal/fsutil and internal/util, so a cache under app/
+// can reuse it without reaching back into a sibling package for file access or
+// re-deriving the read-only check.
+package appcache
 
 import (
 	"io"
@@ -8,7 +17,7 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// Store is the cache's whole contact with a filesystem: it reads and writes the
+// Store is a cache's whole contact with a filesystem: it reads and writes the
 // cache's file under the shelf's app/ directory and nothing else. Given one of
 // these, the cache needs no *Shelf - not its read handle, not its write handle,
 // not its readiness.

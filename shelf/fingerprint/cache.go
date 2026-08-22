@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/voilelab/plainshelf/internal/appcache"
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/hashutil"
 	"github.com/voilelab/plainshelf/internal/logutil"
@@ -98,7 +99,7 @@ type RepairHashFunc func(source *bookpkg.Source, contentMD5 string) (bool, error
 // read-only or standalone reader wants.
 type Config struct {
 	// Store reads and writes the cache's file under app/.
-	Store Store
+	Store appcache.Store
 
 	// Algo names the rules the fingerprints were produced by. An incomplete one
 	// is refused by Open.
@@ -127,7 +128,7 @@ type Config struct {
 // to Resolve from several goroutines at once, which is how a task that walks a
 // whole shelf will want to use it.
 type Cache struct {
-	store      Store
+	store      appcache.Store
 	algo       Algo
 	logger     logutil.Logger
 	liveBooks  func() (map[string]struct{}, bool)

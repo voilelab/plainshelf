@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/voilelab/plainshelf/internal/appcache"
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/hashutil"
 	"github.com/voilelab/plainshelf/internal/logutil"
@@ -186,7 +187,7 @@ func openCache(t *testing.T, ts *testShelf, root fsutil.ReadFS, algo Algo) *Cach
 	t.Helper()
 
 	cache, err := Open(Config{
-		Store:      NewFSStore(root, appDir),
+		Store:      appcache.NewFSStore(root, appDir),
 		Algo:       algo,
 		Logger:     newLoggerForTest(),
 		LiveBooks:  ts.liveBooks,
