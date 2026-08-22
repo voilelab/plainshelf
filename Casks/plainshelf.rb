@@ -9,6 +9,11 @@ cask "plainshelf" do
 
   depends_on arch: :arm64
   depends_on macos: :sonoma
+  # Bring in the standalone reader as a cask dependency. The desktop app's
+  # "read" action shells out to it (open -n -a PlainShelfReader), so installing
+  # plainshelf must also install bookpkg-reader. The reader is deliberately not
+  # bundled inside PlainShelf.app; it ships as its own cask.
+  depends_on cask: "voilelab/plainshelf/bookpkg-reader"
 
   app "PlainShelf.app"
 

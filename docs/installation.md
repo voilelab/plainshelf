@@ -37,6 +37,15 @@ brew install --cask plainshelf
 Upgrade with `brew upgrade --cask plainshelf`, uninstall with
 `brew uninstall --cask plainshelf`.
 
+The desktop cask **depends on** the standalone reader cask
+(`bookpkg-reader`), so `brew install`/`brew upgrade` of `plainshelf` also
+installs the reader. That is what lets the desktop app's "read" action open a
+book: it shells out to the installed `PlainShelfReader` app. The reader is
+**not** bundled inside `PlainShelf.app` — it is installed as its own cask
+alongside the desktop app. See
+[the reader section below](#experimental-standalone-book-package-reader) for
+what the reader installs and how to remove it.
+
 The bundled `.app` is unsigned and unnotarized; the cask's `postflight`
 clears Gatekeeper's quarantine attribute so the app opens normally on
 first launch.
@@ -46,19 +55,22 @@ For other platforms, build the desktop client from source — see
 
 ### Experimental — standalone book-package reader
 
-!!! warning "Experimental — not installable yet"
-    `bookpkg-reader` is an **experimental** cask for the standalone reader
-    that opens a single `.bookpkg` package. It is separate from the
-    `plainshelf` desktop app and installs alongside it.
+`bookpkg-reader` is an **experimental** cask for the standalone reader that
+opens a single `.bookpkg` package. The `plainshelf` desktop cask declares it as
+a dependency (`depends_on cask: "voilelab/plainshelf/bookpkg-reader"`), so you
+normally do not install it directly — installing the desktop app pulls it in.
 
+!!! warning "Requires the first reader release"
     `Casks/bookpkg-reader.rb` is committed as a placeholder: its `version` and
-    `sha256` are pinned only when the first release ships the reader artifact.
-    Until that release lands the cask is present in the tap but **cannot be
-    installed** — `brew install` would try to fetch a release that does not
-    exist yet.
+    `sha256` are pinned only when the first release ships the reader artifact
+    (`bookpkg-reader_v<version>_darwin_arm64.zip`). Until that release lands the
+    reader cask **cannot be installed** — `brew install` would try to fetch a
+    release that does not exist yet. Because the desktop cask now depends on the
+    reader, `brew install --cask plainshelf` also needs that reader release to
+    be published before it can resolve.
 
-Once that first release is published, install it the same way as the desktop
-app — macOS on Apple Silicon (`darwin`/`arm64`):
+You can also install the reader on its own — macOS on Apple Silicon
+(`darwin`/`arm64`):
 
 ```bash
 brew install --cask voilelab/plainshelf/bookpkg-reader
