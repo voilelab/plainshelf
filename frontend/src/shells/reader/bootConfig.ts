@@ -7,7 +7,12 @@
  * paint already be the reader instead of an empty library.
  */
 export interface ReaderBootConfig {
-  /** The synthetic shelf the reader app reports; see readerapi.ShelfID. */
+  /**
+   * The shelf the reader app reports as active. It is the book's real desktop
+   * shelf id when the desktop app launched the reader (so the reader addresses
+   * the book, and reads its progress, under the desktop library's own shelf),
+   * and the synthetic readerapi.ShelfID otherwise.
+   */
   shelf_id: string;
   /** The open book, or "" while the user has not picked a folder yet. */
   book_id: string;

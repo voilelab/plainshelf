@@ -675,7 +675,7 @@ func (a *DesktopApp) OpenReader(shelfID, bookID string) error {
 		return util.NewError("opening the standalone reader is only supported on macOS")
 	}
 
-	name, args := readerLaunchCommand(targetDir)
+	name, args := readerLaunchCommand(targetDir, shelfID)
 	if err := exec.Command(name, args...).Run(); err != nil {
 		return util.Errorf("launching PlainShelfReader: %w", err)
 	}
@@ -687,16 +687,26 @@ func (a *DesktopApp) OpenReader(shelfID, bookID string) error {
 // PlainShelfReader.app and gives it its own window; PLAINSHELF_READER_APP
 // overrides the app (a path or name) for development against a local build.
 //
-// -n forces a new instance: the reader takes -book only from its startup
+// -shelf passes the book's real shelf id so the reader reports it as the active
+// shelf and reads/writes progress under shelves.<shelfID>.<bookID> — the same key
+// the desktop library uses — instead of the reader's synthetic shelf. It is
+// omitted when shelfID is empty so a launch with no real shelf still falls back
+// to the synthetic one.
+//
+// -n forces a new instance: the reader takes its book only from its startup
 // arguments and shows a single book, so without it a second launch while a
 // reader is already open would merely reactivate the first window (still showing
 // the first book) and report success, so the frontend would not fall back.
-func readerLaunchCommand(bookPath string) (string, []string) {
+func readerLaunchCommand(bookPath, shelfID string) (string, []string) {
 	app := strings.TrimSpace(os.Getenv("PLAINSHELF_READER_APP"))
 	if app == "" {
 		app = "PlainShelfReader"
 	}
-	return "open", []string{"-n", "-a", app, "--args", "-book", bookPath}
+	readerArgs := []string{"-book", bookPath}
+	if shelfID = strings.TrimSpace(shelfID); shelfID != "" {
+		readerArgs = append(readerArgs, "-shelf", shelfID)
+	}
+	return "open", append([]string{"-n", "-a", app, "--args"}, readerArgs...)
 }
 
 func (a *DesktopApp) AddShelf(name, libRoot, scanInterval string) error {

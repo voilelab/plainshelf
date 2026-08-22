@@ -3,13 +3,15 @@
 // back into the desktop library.
 //
 // Two independent processes share one reading_progress.json: the desktop app
-// (which keys progress by a book's real shelf id) and the standalone reader
-// (which has no real shelf and keys everything under the synthetic shelf id
-// "book"). This package owns the document shape both sides agree on, the pure
-// projection that maps the reader's "book" entries onto real shelves by stable
-// book id, and the namespace-scoped merges that keep one process from
-// clobbering the other's entries. The file-backed, cross-process-locked store
-// lives in store.go.
+// (which keys progress by a book's real shelf id) and the standalone reader. A
+// reader launched from the desktop is handed the book's real shelf id and keys
+// progress directly under it, so its writes need no projection. A reader run on
+// its own has no real shelf and keys everything under the synthetic shelf id
+// "book"; those entries are what the projection folds onto real shelves. This
+// package owns the document shape both sides agree on, the pure projection that
+// maps the reader's "book" entries onto real shelves by stable book id, and the
+// namespace-scoped merges that keep one process from clobbering the other's
+// entries. The file-backed, cross-process-locked store lives in store.go.
 //
 // The document shape mirrors frontend/src/storage/readingProgress/document.ts,
 // which owns the single client-side implementation. This package only reads and

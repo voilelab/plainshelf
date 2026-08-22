@@ -94,43 +94,53 @@ the read-history and reading-stats stores.
 
 ### Reader progress reaches the desktop library
 
-The standalone reader is a separate process with its own window. It has no real
-shelf, so it keys every book's progress under one synthetic shelf id, `book`.
-To make that progress show up in the desktop library, the reader writes into the
-**same** `reading_progress.json` the desktop app keeps, rather than its own
-WebView storage.
+The standalone reader is a separate process with its own window. How it keys a
+book's progress depends on how it was launched:
 
-On the desktop app (macOS), reading a book launches this standalone reader in
-its own window rather than the in-app reader: the read action shells out to the
-installed `PlainShelfReader` with the book's `.bookpkg` path. Only the desktop
-does this — web and mobile keep the in-app reader, which is the same shared code
-and stays the desktop's fallback if the reader will not launch. A specific
-chapter jump also stays in the in-app reader, which can target a section the
-standalone reader cannot yet.
+- **Launched from the desktop app** (macOS), reading a book shells out to the
+  installed `PlainShelfReader` with the book's `.bookpkg` path (`-book`) and its
+  real shelf id (`-shelf <realShelfID>`). The reader reports that real shelf as
+  its active shelf, so it opens at — and writes back to — the same
+  `shelves.<realShelfID>.<bookID>` position the desktop library already holds,
+  whichever source last recorded it (the reader, the in-app reader, or an import).
+  Both sides read and write the same key, so no projection is involved.
+- **Run standalone** (opened directly, no `-shelf`), the reader has no real shelf,
+  so it keys every book's progress under one synthetic shelf id, `book`, which the
+  desktop app projects onto the real shelves later (below).
 
-One file now has two writers, so:
+Either way the reader writes into the **same** `reading_progress.json` the desktop
+app keeps, rather than its own WebView storage — that is what lets its progress
+reach the desktop library.
 
-- The desktop app **projects** the reader's `book` entries onto the real shelves
-  that hold those books. Each entry is matched by its stable book ID — the ID
-  survives moves and renames, and identifies exactly one book in the library —
-  and copied to that book's real shelf, keeping whichever offset is larger. This
-  is one-way (reader → desktop) and monotonic: a book's saved position never
-  moves backwards, which is the safe rule to pick when the document carries no
-  timestamps to arbitrate by. The projection runs whenever the desktop reads
-  progress, so a book read in the reader shows its new position the next time the
-  library or that book is opened.
+Only the desktop shells out to the standalone reader — web and mobile keep the
+in-app reader, which is the same shared code and stays the desktop's fallback if
+the reader will not launch. A specific chapter jump also stays in the in-app
+reader, which can target a section the standalone reader cannot yet.
+
+One file has more than one writer, so:
+
+- The desktop app **projects** a **standalone** reader's `book` entries onto the
+  real shelves that hold those books. Each entry is matched by its stable book ID
+  — the ID survives moves and renames, and identifies exactly one book in the
+  library — and copied to that book's real shelf, keeping whichever offset is
+  larger. This is one-way (reader → desktop) and monotonic: a book's saved
+  position never moves backwards, which is the safe rule to pick when the document
+  carries no timestamps to arbitrate by. The projection runs whenever the desktop
+  reads progress, so a book read in the reader shows its new position the next time
+  the library or that book is opened.
 - An entry the desktop cannot place — a book that has been removed, or a loose
   book opened in the reader from outside every shelf — is left under `book`
   untouched, never guessed onto the wrong shelf, and folded in later if that book
   is imported.
-- Each process only rewrites its own part of the file (the reader its `book`
-  entries, the desktop the real-shelf entries), and the two coordinate through a
-  lock on the file, so neither loses the other's writes.
+- Each process only rewrites the one book (or namespace) it owns, and the writers
+  coordinate through a lock on the file, so none loses another's writes.
 
-This is not two-way sync: progress recorded in the desktop app does not appear
-in the standalone reader, which still reads only its own `book` entries. Nothing
-here is written into the shelf; reading progress stays device-local convenience
-state.
+A book opened **through the desktop app** is therefore two-way: the reader starts
+at the desktop library's stored position and writes back to the same real-shelf
+key. Only the standalone `book` namespace is one-way, folded in by projection —
+progress recorded in the desktop app still does not appear in a reader opened
+directly. Nothing here is written into the shelf; reading progress stays
+device-local convenience state.
 
 Two more details the diagram cannot show:
 
