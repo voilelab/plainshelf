@@ -34,13 +34,21 @@ want to set the floor by hand.
 Below the levels is a separate checkbox, **Only trimmed copies (one edited down
 from the other)**. This is not a fourth level — it is a different question.
 
-A book edited down from another — an abridgement, a sample chapter, a draft with
-a section cut — can score low overall similarity just because it is so much
-shorter, so it would hide under the wider levels even though one copy sits almost
-entirely inside the other. The checkbox looks for exactly that shape: pairs where
-nearly all of the shorter text is contained in the longer one. When it is on, the
-levels are ignored and only trimmed copies are shown, with the fuller copy listed
-first and a note of how much content the shorter one is missing.
+A book edited down from another — an abridgement, or a draft with a chapter or
+two cut — can score low overall similarity just because it is so much shorter, so
+it would hide under the wider levels even though one copy sits almost entirely
+inside the other. The checkbox looks for exactly that shape: pairs where nearly
+all of the shorter text is contained in the longer one. When it is on, your level
+selection is ignored and only trimmed copies are shown, with the fuller copy
+listed first and a note of how much content the shorter one is missing.
+
+One limit is worth knowing: the page only ever compares pairs that clear the
+widest level's floor (15% similar), and the checkbox narrows that same set rather
+than widening it. For a straight excerpt that means the shorter copy has to be at
+least roughly a sixth of the fuller text's length to be compared at all — so a
+brief sample, such as a single chapter lifted from a long book, can be too short
+to surface even with the checkbox on. Trimmed copies that kept most of the book
+are what this filter reliably finds.
 
 ---
 
@@ -110,14 +118,17 @@ size and the modification time exactly as they were slips through unnoticed. Thi
 essentially only happens when an external tool restores a file's timestamp after
 rewriting it; a normal edit updates the modification time and is caught.
 
-If you suspect a book is being compared against its old text, there is no
-in-app "force rebuild" button today. Because the cache is disposable, force a
-recompute one of two ways:
+If you suspect a book is being compared against its old text, there is no in-app
+"force rebuild" button today, and re-saving the source alone will not give you
+one: the missing-fingerprint count that shows the **Build fingerprints** bar is a
+cheap in-memory check that does not re-read the file, so on a shelf that was
+already fully fingerprinted the bar stays hidden and there is nothing to press.
 
-- **One book:** re-save its `source.txt` (or otherwise change its size or
-  modification time). The next build then sees it as changed and recomputes it.
-- **The whole shelf:** delete `app/fingerprint-cache.json` and press **Build
-  fingerprints** again. Everything is read and fingerprinted from scratch.
+Because the cache is disposable, the reliable way to force a recompute is to
+delete `app/fingerprint-cache.json`. Every book then counts as unfingerprinted,
+the **Build fingerprints** bar comes back, and pressing it reads and fingerprints
+the whole shelf again from scratch — picking up your edited book along with the
+rest.
 
 ### Several machines, one shelf
 
