@@ -25,6 +25,7 @@ A typical shelf looks like this:
    ├─ library.lock
    ├─ book-cache-{writer-id}.json
    ├─ scan-cache.json
+   ├─ fingerprint-cache.json
    └─ tmp/
 ```
 
@@ -109,6 +110,8 @@ Runtime state used by the server: file lock, temporary files, and an exported bo
 `book-cache-{writer-id}.json` is a copy of the shelf's book listing, kept so that a client reading the shelf over a slow or request-metered connection — the Android app opening a shelf from pCloud — does not have to walk it book by book. Each installation writes its own file, named after an ID generated on first start, so several machines sharing a shelf do not overwrite each other; a file no installation has refreshed for 30 days is removed. Deleting them is safe: they are rebuilt, and a client that finds none simply scans instead. See [Shelf cache and disk I/O](shelf-cache-and-io.md#the-exported-book-cache).
 
 `scan-cache.json` records the modification time of each directory under `books/` alongside the entries found there, so a scan can skip listing the folders that have not changed since the last one. It is validated against the real modification times every time it is used, so a stale or foreign copy costs a slower scan and nothing else. Deleting it is safe; the next scan writes a new one.
+
+`fingerprint-cache.json` stores the content fingerprints behind the [Similar Books](../finding-similar-books.md) page, so that page does not have to re-read every book each time you open it. Unlike the exported book cache there is one shared file, not one per installation — a fingerprint is a pure function of a source's content, so every machine computes the same value and they merge into the one file. It is the largest thing under `app/`, growing with your library at roughly 1.5 KB per source, so on a big shelf it reaches a few megabytes and you will notice it in a backup. Deleting it is safe: the next time you build fingerprints, the ones that are gone are simply read and computed again. It is also discarded and rebuilt whenever the similarity algorithm changes — see [Data Format Versioning](data-format-versioning.md#fingerprint-cache).
 
 Older shelves may still contain `app/stats/reading/{YYYY-MM}.json`. That is reading-time history from before it moved onto each device; nothing reads it any more and it can be deleted.
 
