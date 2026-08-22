@@ -24,7 +24,7 @@ interface DesktopAppBinding {
   OpenShelfDirectory?: () => Promise<string>;
   OpenLayerDirectory?: (shelfID: string, layerParts: string[]) => Promise<void>;
   OpenBookDirectory?: (shelfID: string, bookID: string) => Promise<void>;
-  OpenReader?: (shelfID: string, bookID: string) => Promise<void>;
+  OpenReader?: (shelfID: string, bookID: string, section: number) => Promise<void>;
   AddShelf?: (name: string, libRoot: string, scanInterval: string) => Promise<void>;
   RemoveShelf?: (shelfID: string) => Promise<void>;
   GetShelfDetails?: (shelfID: string) => Promise<DesktopShelfDetails>;
@@ -112,13 +112,19 @@ export async function openDesktopBookFolder(bookID: string): Promise<void> {
 // Opens a book in the standalone reader's own window. Unlike the folder/finder
 // helpers this rejects when the binding is missing, so the caller can fall back
 // to the in-app reader rather than silently doing nothing.
-export async function openDesktopReader(bookID: string): Promise<void> {
+//
+// section is the reader section index to open at (a chapter "read" action); an
+// undefined or non-finite section becomes -1, which the reader treats as "open at
+// the restored progress" — the default read.
+export async function openDesktopReader(bookID: string, section?: number): Promise<void> {
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
   if (!desktopApp?.OpenReader) {
     throw new Error('OpenReader binding not available');
   }
 
-  await desktopApp.OpenReader(getActiveShelfID(), bookID);
+  const sectionArg =
+    typeof section === 'number' && Number.isFinite(section) ? Math.trunc(section) : -1;
+  await desktopApp.OpenReader(getActiveShelfID(), bookID, sectionArg);
 }
 
 export async function openDesktopLayerFolder(layerPath: string): Promise<void> {

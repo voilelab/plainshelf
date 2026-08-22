@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
   isWebRuntime: vi.fn(() => false),
   // undefined models a provider without the desktop reader (web/mobile); a
   // spy models the desktop provider.
-  openDesktopReader: undefined as undefined | ((bookId: string) => Promise<void>),
+  openDesktopReader: undefined as undefined | ((bookId: string, section?: number) => Promise<void>),
   layers: ['', 'fiction', 'notes']
 }));
 
@@ -120,7 +120,8 @@ describe('useBookActions goRead', () => {
 
     actions.goRead('book-1');
 
-    expect(openReader).toHaveBeenCalledWith('book-1');
+    // No section requested: the reader opens at the restored progress.
+    expect(openReader).toHaveBeenCalledWith('book-1', undefined);
     expect(mocks.push).not.toHaveBeenCalled();
     expect(openSpy).not.toHaveBeenCalled();
   });
@@ -133,18 +134,33 @@ describe('useBookActions goRead', () => {
     actions.goRead('book-1');
 
     await vi.waitFor(() => expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1' }));
-    expect(openReader).toHaveBeenCalledWith('book-1');
+    expect(openReader).toHaveBeenCalledWith('book-1', undefined);
   });
 
-  it('keeps a specific chapter jump in the in-app reader on the desktop app', () => {
+  it('opens the standalone reader at the chapter on a desktop chapter jump', () => {
     const openReader = vi.fn().mockResolvedValue(undefined);
     mocks.openDesktopReader = openReader;
     const actions = useBookActions();
 
     actions.goRead('book-1', 3);
 
-    expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1', query: { section: '3' } });
-    expect(openReader).not.toHaveBeenCalled();
+    // A chapter jump now shells out to the standalone reader too, passing the
+    // section so it opens on that chapter rather than being kept in-app.
+    expect(openReader).toHaveBeenCalledWith('book-1', 3);
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the in-app reader at the chapter when a chapter jump will not launch', async () => {
+    const openReader = vi.fn().mockRejectedValue(new Error('not installed'));
+    mocks.openDesktopReader = openReader;
+    const actions = useBookActions();
+
+    actions.goRead('book-1', 3);
+
+    await vi.waitFor(() =>
+      expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1', query: { section: '3' } })
+    );
+    expect(openReader).toHaveBeenCalledWith('book-1', 3);
   });
 
   // noopener/noreferrer make window.open return null even on success, so the web

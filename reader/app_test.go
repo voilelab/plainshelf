@@ -182,11 +182,31 @@ func TestReaderProgressDefaultsToSyntheticShelf(t *testing.T) {
 // -shelf, so a stray flag can never make the reader report an empty active shelf.
 func TestNewReaderAppShelfIDFallback(t *testing.T) {
 	for _, shelfID := range []string{"", "   "} {
-		if got := NewReaderApp(nil, shelfID).shelfID; got != readerapi.ShelfID {
+		if got := NewReaderApp(nil, shelfID, noLaunchSection).shelfID; got != readerapi.ShelfID {
 			t.Errorf("NewReaderApp shelfID for %q = %q, want %q", shelfID, got, readerapi.ShelfID)
 		}
 	}
-	if got := NewReaderApp(nil, "shelf-real").shelfID; got != "shelf-real" {
+	if got := NewReaderApp(nil, "shelf-real", noLaunchSection).shelfID; got != "shelf-real" {
 		t.Errorf("NewReaderApp shelfID = %q, want shelf-real", got)
+	}
+}
+
+// BootConfig carries the launch chapter only when one was requested: a requested
+// section (including 0, the first chapter) reaches the frontend as the `?section=`
+// deep link, and a negative sentinel leaves Section nil so the reader opens at the
+// restored progress instead.
+func TestBootConfigSection(t *testing.T) {
+	if boot := NewReaderApp(nil, "shelf-real", noLaunchSection).BootConfig(); boot.Section != nil {
+		t.Errorf("BootConfig().Section for no launch section = %v, want nil", *boot.Section)
+	}
+
+	for _, want := range []int{0, 3} {
+		boot := NewReaderApp(nil, "shelf-real", want).BootConfig()
+		if boot.Section == nil {
+			t.Fatalf("BootConfig().Section for launch section %d = nil, want %d", want, want)
+		}
+		if *boot.Section != want {
+			t.Errorf("BootConfig().Section = %d, want %d", *boot.Section, want)
+		}
 	}
 }

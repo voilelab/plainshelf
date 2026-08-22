@@ -19,6 +19,12 @@ import (
 type BootConfig struct {
 	ShelfID string `json:"shelf_id"`
 	BookID  string `json:"book_id"`
+	// Section is the reader's own section index to open at, matching the
+	// frontend's `?section=` deep link. It is set only when the reader was
+	// launched for a specific chapter (desktop -section); nil — and omitted from
+	// the injected JSON — means "open at the restored progress", the standalone
+	// default. A pointer so section 0 (the first chapter) is still carried.
+	Section *int `json:"section,omitempty"`
 }
 
 // bootScript is the injected global. The marker is what the frontend's

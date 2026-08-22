@@ -35,8 +35,10 @@ func main() {
 	// -shelf carries the real desktop shelf id when the desktop app shells out to
 	// the reader, so the reader opens at (and writes back to) the book's existing
 	// position in the desktop library. Empty (standalone launch) falls back to the
-	// synthetic reader shelf.
-	app := NewReaderApp(logger, shelfIDFromArgs(os.Args[1:]))
+	// synthetic reader shelf. -section carries the chapter to open at (negative
+	// when absent), so a desktop chapter jump lands on that chapter rather than the
+	// restored progress.
+	app := NewReaderApp(logger, shelfIDFromArgs(os.Args[1:]), sectionFromArgs(os.Args[1:]))
 
 	// -book opens that package instead of prompting for one:
 	// `just run-reader path/to/book.bookpkg`, and `open -a PlainShelfReader
@@ -84,12 +86,12 @@ func main() {
 	}
 }
 
-// bookPathFromArgs reads -book from the arguments the app was launched with, and
-// shelfIDFromArgs reads -shelf. Both delegate to parseLaunchArgs so the two flags
-// are defined on one FlagSet: flag.Parse stops at the first argument it does not
-// recognize, so a set that knew only -book would drop a following -shelf (and one
-// that knew only -shelf would stop at a leading -book). The desktop app passes
-// both together.
+// bookPathFromArgs reads -book from the arguments the app was launched with,
+// shelfIDFromArgs reads -shelf, and sectionFromArgs reads -section. All delegate
+// to parseLaunchArgs so the flags are defined on one FlagSet: flag.Parse stops at
+// the first argument it does not recognize, so a set that knew only -book would
+// drop a following -shelf (and one that knew only -shelf would stop at a leading
+// -book). The desktop app passes them together.
 func bookPathFromArgs(args []string) string {
 	return parseLaunchArgs(args).bookPath
 }
@@ -98,14 +100,26 @@ func shelfIDFromArgs(args []string) string {
 	return parseLaunchArgs(args).shelfID
 }
 
+func sectionFromArgs(args []string) int {
+	return parseLaunchArgs(args).section
+}
+
+// noLaunchSection is the -section value that means "no chapter was requested";
+// any negative value works, but the flag defaults to this one.
+const noLaunchSection = -1
+
 // launchArgs holds the reader-specific flags parsed from the launch arguments.
 type launchArgs struct {
 	bookPath string
 	shelfID  string
+	// section is the reader section index to open at, or noLaunchSection when
+	// -section was not passed. Section 0 is a real chapter, so the "absent" case
+	// is a negative sentinel rather than the zero value.
+	section int
 }
 
-// parseLaunchArgs reads -book and -shelf from the arguments the app was launched
-// with.
+// parseLaunchArgs reads -book, -shelf, and -section from the arguments the app
+// was launched with.
 //
 // Its own FlagSet rather than the package-level one: wails parses os.Args itself
 // in dev mode, and this has to be callable from a test. Errors are discarded the
@@ -117,9 +131,10 @@ func parseLaunchArgs(args []string) launchArgs {
 	flags.SetOutput(io.Discard)
 	book := flags.String("book", "", "path to the .bookpkg folder to open")
 	shelf := flags.String("shelf", "", "real shelf id the book belongs to; empty uses the synthetic reader shelf")
+	section := flags.Int("section", noLaunchSection, "reader section index to open at; negative opens at the restored progress")
 
 	_ = flags.Parse(args)
-	return launchArgs{bookPath: *book, shelfID: *shelf}
+	return launchArgs{bookPath: *book, shelfID: *shelf, section: *section}
 }
 
 // newApplicationMenu keeps the reader's menu to what a reader can do: open

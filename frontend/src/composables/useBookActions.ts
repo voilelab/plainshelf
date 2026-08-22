@@ -138,15 +138,16 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
       return;
     }
 
-    // On the desktop app the default read opens the standalone reader in its own
-    // window; its progress flows back into this library (reading_progress.json).
-    // Only the desktop provider defines openDesktopReader, so web/mobile fall
-    // through. A specific chapter jump keeps the in-app reader, which can target
-    // a section the standalone reader cannot yet, and the in-app /reader/:id
-    // route stays the fallback if the reader will not launch (e.g. not installed).
+    // On the desktop app reading opens the standalone reader in its own window;
+    // its progress flows back into this library (reading_progress.json). Only the
+    // desktop provider defines openDesktopReader, so web/mobile fall through. A
+    // chapter jump passes its section so the reader opens on that chapter — the
+    // same window as the default read, not the in-app one — and the in-app
+    // /reader/:id route stays the fallback if the reader will not launch (e.g. not
+    // installed).
     const provider = getBookshelfProvider();
-    if (!hasSection && provider.openDesktopReader) {
-      provider.openDesktopReader(id).catch(() => {
+    if (provider.openDesktopReader) {
+      provider.openDesktopReader(id, hasSection ? Math.trunc(sectionIndex) : undefined).catch(() => {
         void router.push(to);
       });
       return;

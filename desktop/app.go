@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
@@ -666,7 +667,11 @@ func (a *DesktopApp) OpenBookDirectory(shelfID, bookID string) error {
 // persists progress into the shared reading_progress.json this app also uses, so
 // the position shows up in this library. macOS-only for now — there is no reader
 // binary on other platforms.
-func (a *DesktopApp) OpenReader(shelfID, bookID string) error {
+//
+// section is the reader section index to open at, or negative to open at the
+// book's restored progress. The frontend passes the chapter it was launched from
+// (a chapter "read" action) so the standalone reader lands on that chapter.
+func (a *DesktopApp) OpenReader(shelfID, bookID string, section int) error {
 	targetDir, err := a.resolveBookPackagePath(shelfID, bookID)
 	if err != nil {
 		return err
@@ -676,7 +681,7 @@ func (a *DesktopApp) OpenReader(shelfID, bookID string) error {
 		return util.NewError("opening the standalone reader is only supported on macOS")
 	}
 
-	name, args := readerLaunchCommand(targetDir, shelfID)
+	name, args := readerLaunchCommand(targetDir, shelfID, section)
 	if err := exec.Command(name, args...).Run(); err != nil {
 		return util.Errorf("launching PlainShelfReader: %w", err)
 	}
@@ -694,11 +699,16 @@ func (a *DesktopApp) OpenReader(shelfID, bookID string) error {
 // omitted when shelfID is empty so a launch with no real shelf still falls back
 // to the synthetic one.
 //
+// -section passes the reader section index to open at, so a chapter "read" action
+// lands the standalone reader on that chapter rather than the restored progress.
+// It is omitted when section is negative (no chapter requested), which opens the
+// book at its restored progress like a default read.
+//
 // -n forces a new instance: the reader takes its book only from its startup
 // arguments and shows a single book, so without it a second launch while a
 // reader is already open would merely reactivate the first window (still showing
 // the first book) and report success, so the frontend would not fall back.
-func readerLaunchCommand(bookPath, shelfID string) (string, []string) {
+func readerLaunchCommand(bookPath, shelfID string, section int) (string, []string) {
 	app := strings.TrimSpace(os.Getenv("PLAINSHELF_READER_APP"))
 	if app == "" {
 		app = "PlainShelfReader"
@@ -706,6 +716,9 @@ func readerLaunchCommand(bookPath, shelfID string) (string, []string) {
 	readerArgs := []string{"-book", bookPath}
 	if shelfID = strings.TrimSpace(shelfID); shelfID != "" {
 		readerArgs = append(readerArgs, "-shelf", shelfID)
+	}
+	if section >= 0 {
+		readerArgs = append(readerArgs, "-section", strconv.Itoa(section))
 	}
 	return "open", append([]string{"-n", "-a", app, "--args"}, readerArgs...)
 }

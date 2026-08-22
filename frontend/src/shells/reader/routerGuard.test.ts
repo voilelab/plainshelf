@@ -8,14 +8,15 @@ import { installReaderRouterGuards, READER_EMPTY_ROUTE } from './routerGuard';
 
 const BOOK_ID = 'dune1234';
 
-function stubBootConfig(bookID: string | null): void {
+function stubBootConfig(bookID: string | null, section?: number): void {
   if (bookID === null) {
     delete (window as { __PLAINSHELF_READER__?: unknown }).__PLAINSHELF_READER__;
     return;
   }
   (window as { __PLAINSHELF_READER__?: unknown }).__PLAINSHELF_READER__ = {
     shelf_id: 'book',
-    book_id: bookID
+    book_id: bookID,
+    ...(section === undefined ? {} : { section })
   };
 }
 
@@ -70,6 +71,31 @@ describe('reader router guards', () => {
 
     await router.push('/reader/someoneelse');
     expect(router.currentRoute.value.params.id).toBe(BOOK_ID);
+  });
+
+  // A reader launched for a chapter carries the section as the `?section=` deep
+  // link, so the standalone window opens on that chapter rather than the restored
+  // progress. Section 0 (the first chapter) is a real request and must be carried.
+  it('carries the launch section into the reader route', async () => {
+    for (const section of [3, 0]) {
+      stubBootConfig(BOOK_ID, section);
+      const router = newRouter();
+
+      await router.push('/books');
+      expect(router.currentRoute.value.name).toBe('reader');
+      expect(router.currentRoute.value.params.id).toBe(BOOK_ID);
+      expect(router.currentRoute.value.query.section).toBe(String(section));
+    }
+  });
+
+  // Without a launch section the redirect stays query-free, so the reader opens
+  // at the restored progress just as a default read does.
+  it('omits the section when none was requested', async () => {
+    const router = newRouter();
+
+    await router.push('/books');
+    expect(router.currentRoute.value.name).toBe('reader');
+    expect(router.currentRoute.value.query.section).toBeUndefined();
   });
 
   it('holds on an empty route until a book is opened', async () => {

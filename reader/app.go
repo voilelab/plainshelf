@@ -31,6 +31,13 @@ type ReaderApp struct {
 	// shelves; see internal/readingprogress.
 	shelfID string
 
+	// launchSection is the reader section index the reader was launched to open
+	// (desktop -section), or noLaunchSection when none was requested. It is carried
+	// into the frontend through BootConfig as the `?section=` deep link, and only
+	// applies to the launch book: OpenBookPackage clears it, so a manually opened
+	// book is not dragged to the original launch chapter.
+	launchSection int
+
 	// progressStore is the shared reading-progress document, the same file the
 	// desktop app keeps. It is nil only when the user config directory could not
 	// be resolved, in which case progress simply is not persisted.
@@ -44,13 +51,15 @@ type ReaderApp struct {
 // NewReaderApp builds the reader window's app. shelfID is the active shelf id
 // the reader reports and stores progress under; an empty value falls back to the
 // synthetic readerapi.ShelfID, which is the standalone (no -shelf) case.
-func NewReaderApp(logger *logutil.Logger, shelfID string) *ReaderApp {
+// launchSection is the reader section index to open at, or negative when no
+// chapter was requested (the standalone default of opening at restored progress).
+func NewReaderApp(logger *logutil.Logger, shelfID string, launchSection int) *ReaderApp {
 	shelfID = strings.TrimSpace(shelfID)
 	if shelfID == "" {
 		shelfID = readerapi.ShelfID
 	}
 
-	app := &ReaderApp{library: readerapi.NewLibrary(logger), shelfID: shelfID}
+	app := &ReaderApp{library: readerapi.NewLibrary(logger), shelfID: shelfID, launchSection: launchSection}
 
 	// Persist progress to the desktop app's reading_progress.json so a book read
 	// in the standalone reader shows the same position in the desktop library.
@@ -126,7 +135,11 @@ func (a *ReaderApp) OpenBookPackage() (string, error) {
 	// back to the synthetic reader shelf and let the desktop projection re-home its
 	// progress, rather than keep booting and persisting it under the original
 	// launch shelf, where it could neither resume nor land in the right namespace.
+	// The launch chapter is dropped for the same reason: it named a section of the
+	// book the desktop launched us for, not of this one, so this book opens at its
+	// own restored progress.
 	a.shelfID = readerapi.ShelfID
+	a.launchSection = noLaunchSection
 
 	wailsruntime.WindowReloadApp(a.ctx)
 	return bookID, nil
@@ -137,7 +150,14 @@ func (a *ReaderApp) OpenBookPackage() (string, error) {
 // is what makes a desktop-launched reader address the book — and read its stored
 // progress — under the desktop library's own shelf.
 func (a *ReaderApp) BootConfig() readerapi.BootConfig {
-	return readerapi.BootConfig{ShelfID: a.shelfID, BookID: a.library.BookID()}
+	boot := readerapi.BootConfig{ShelfID: a.shelfID, BookID: a.library.BookID()}
+	// Carry the launch chapter only when one was requested; a negative sentinel
+	// leaves Section nil so the frontend opens at the restored progress.
+	if a.launchSection >= 0 {
+		section := a.launchSection
+		boot.Section = &section
+	}
+	return boot
 }
 
 func (a *ReaderApp) Library() *readerapi.Library {

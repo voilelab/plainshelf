@@ -16,6 +16,14 @@ export interface ReaderBootConfig {
   shelf_id: string;
   /** The open book, or "" while the user has not picked a folder yet. */
   book_id: string;
+  /**
+   * The reader section index to open at — the same value the `?section=` deep
+   * link carries — when the reader was launched for a specific chapter (desktop
+   * -section). null means no chapter was requested, so the reader opens at the
+   * restored progress. The app injects it only when set, so an absent value
+   * reads back as null.
+   */
+  section: number | null;
 }
 
 interface ReaderWindow extends Window {
@@ -41,6 +49,12 @@ export function readerBootConfig(): ReaderBootConfig | null {
 
   return {
     shelf_id: typeof injected.shelf_id === 'string' ? injected.shelf_id : '',
-    book_id: typeof injected.book_id === 'string' ? injected.book_id : ''
+    book_id: typeof injected.book_id === 'string' ? injected.book_id : '',
+    // Only a whole number is a section; anything else (absent, null, a stray
+    // non-integer) means no deep link, matching parseSectionQuery's own rule.
+    section:
+      typeof injected.section === 'number' && Number.isInteger(injected.section)
+        ? injected.section
+        : null
   };
 }

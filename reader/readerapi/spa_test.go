@@ -3,6 +3,7 @@ package readerapi_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -52,6 +53,31 @@ func TestSPAInjectsTheOpenBook(t *testing.T) {
 	// Ahead of the app's own scripts, which read the flag as they start.
 	if strings.Index(body, "window.__PLAINSHELF_READER__") > strings.Index(body, "</head>") {
 		t.Error("expected the boot config before </head>")
+	}
+}
+
+// A reader launched for a specific chapter carries that section into index.html
+// as the `?section=` deep link, and section 0 (the first chapter) is a real
+// request that must survive the injection rather than being dropped as a zero
+// value.
+func TestSPAInjectsTheLaunchSection(t *testing.T) {
+	for _, section := range []int{0, 5} {
+		boot := readerapi.BootConfig{ShelfID: readerapi.ShelfID, BookID: testBookID, Section: &section}
+
+		body := serveSPA(t, boot, "/").Body.String()
+		if want := `"section":` + strconv.Itoa(section); !strings.Contains(body, want) {
+			t.Errorf("expected %q in the boot config, got:\n%s", want, body)
+		}
+	}
+}
+
+// With no launch chapter the section is omitted entirely, so the frontend sees no
+// deep link and opens the book at its restored progress.
+func TestSPAOmitsAnAbsentSection(t *testing.T) {
+	boot := readerapi.BootConfig{ShelfID: readerapi.ShelfID, BookID: testBookID}
+
+	if body := serveSPA(t, boot, "/").Body.String(); strings.Contains(body, `"section"`) {
+		t.Errorf("expected no section in the boot config, got:\n%s", body)
 	}
 }
 
