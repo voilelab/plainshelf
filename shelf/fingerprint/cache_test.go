@@ -454,6 +454,30 @@ func TestFingerprintCacheWillNotIndexAFreshlyWrittenSource(t *testing.T) {
 	}
 }
 
+// A caller that supplies only the required Config fields - Store and Algo, no
+// Logger, LiveBooks or RepairHash - gets a working cache, not a panic on the
+// first log line. This is the standalone / read-only reader's contract.
+func TestOpenDefaultsAMissingLogger(t *testing.T) {
+	ts := newTestShelf(t)
+	book := ts.addBook("dune.bookpkg", "book-dune", "Dune", "the spice must flow", -time.Hour)
+
+	// Open logs on the missing-cache-file path; reaching past it already proves
+	// the zero-value logger did not panic.
+	cache, err := Open(Config{Store: NewFSStore(ts.base, appDir), Algo: testAlgo})
+	if err != nil {
+		t.Fatalf("Open with no logger: %v", err)
+	}
+
+	builder := &fakeFingerprint{label: "v1"}
+	target, source := reopen(t, ts.base, book.FolderPath())
+	if _, err := cache.Resolve(target, source, builder.build); err != nil {
+		t.Fatalf("Resolve with no logger: %v", err)
+	}
+	if err := cache.Save(); err != nil {
+		t.Fatalf("Save with no logger: %v", err)
+	}
+}
+
 func TestOpenRefusesAnIncompleteAlgorithm(t *testing.T) {
 	ts := newTestShelf(t)
 

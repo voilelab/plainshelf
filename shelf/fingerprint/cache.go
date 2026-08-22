@@ -3,6 +3,7 @@ package fingerprint
 import (
 	"bytes"
 	"encoding/json"
+	"log/slog"
 	"maps"
 	"strings"
 	"sync"
@@ -115,9 +116,10 @@ type Config struct {
 	// is refused by Open.
 	Algo Algo
 
-	// Logger receives the cache's diagnostics; pass the shelf's. It must be a
-	// real logger - the zero value has no slog.Logger behind it and would panic
-	// on first use.
+	// Logger receives the cache's diagnostics; pass the shelf's. Optional: the
+	// zero value has no slog.Logger behind it and is defaulted by Open to one
+	// that discards everything, so a caller that supplies only Store and Algo
+	// still gets a working cache rather than a panic on the first log line.
 	Logger logutil.Logger
 
 	// LiveBooks reports the book IDs the shelf still holds, so Save can drop
@@ -166,10 +168,18 @@ func Open(cfg Config) (*Cache, error) {
 		return nil, util.Errorf("%w", ErrIncompleteAlgo)
 	}
 
+	// Logger is optional (see Config): a caller that supplies only Store and Algo
+	// gets a discarding logger rather than a nil slog.Logger that would panic on
+	// the first Debug below.
+	logger := cfg.Logger
+	if logger.Logger == nil {
+		logger = logutil.Logger{Logger: slog.New(slog.DiscardHandler)}
+	}
+
 	cache := &Cache{
 		store:      cfg.Store,
 		algo:       cfg.Algo,
-		logger:     cfg.Logger,
+		logger:     logger,
 		liveBooks:  cfg.LiveBooks,
 		repairHash: cfg.RepairHash,
 		index:      map[string]indexEntry{},
