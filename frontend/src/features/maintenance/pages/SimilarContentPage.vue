@@ -1,5 +1,14 @@
 <template>
   <section class="similar-page">
+    <ConfirmModal
+      :open="confirmForceOpen"
+      :title="t('maintenance.similar.fingerprint.forceConfirmTitle')"
+      :message="t('maintenance.similar.fingerprint.forceConfirmBody')"
+      :confirm-text="t('maintenance.similar.fingerprint.forceConfirmAction')"
+      @cancel="confirmForceOpen = false"
+      @confirm="onConfirmForceRebuild"
+    />
+
     <header class="similar-page-header">
       <h2 class="similar-page-title">{{ t('maintenance.similarContent') }}</h2>
       <p class="similar-page-subtitle">{{ t('maintenance.similar.description') }}</p>
@@ -31,7 +40,7 @@
           type="button"
           class="toolbar-control toolbar-button toolbar-small similar-fingerprint-force"
           :disabled="sweepBusy"
-          @click="onForceRebuild"
+          @click="confirmForceOpen = true"
         >
           {{ forceLabel }}
         </button>
@@ -104,6 +113,7 @@ import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useI18n } from '@/i18n';
 import SimilarityFilterBar from '@/features/maintenance/components/SimilarityFilterBar.vue';
 import SimilarPairCard from '@/features/maintenance/components/SimilarPairCard.vue';
+import ConfirmModal from '@/components/ConfirmModal.vue';
 import {
   DEFAULT_SIMILARITY_TIER,
   filterSimilarPairs,
@@ -261,6 +271,11 @@ const runningAction = ref<'build' | 'force' | null>(null);
 const forceStarting = ref(false);
 const forceNote = ref('');
 
+// Force rebuilds fingerprints the shelf worked to build and takes real time, so
+// a stray click on it must not start the sweep. The button opens this
+// confirmation instead, and only the modal's confirm runs the rebuild.
+const confirmForceOpen = ref(false);
+
 const {
   percentage: buildPercentage,
   error: buildError,
@@ -298,6 +313,13 @@ async function onBuildFingerprints(): Promise<void> {
   forceNote.value = '';
   runningAction.value = 'build';
   await startBuild(() => bookshelfWriter().startFingerprintSources());
+}
+
+// Confirmed from the modal: close it, then run the sweep the button only asked
+// to confirm.
+async function onConfirmForceRebuild(): Promise<void> {
+  confirmForceOpen.value = false;
+  await onForceRebuild();
 }
 
 async function onForceRebuild(): Promise<void> {

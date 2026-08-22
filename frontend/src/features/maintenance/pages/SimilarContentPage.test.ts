@@ -94,6 +94,14 @@ function buttonByText(host: HTMLElement, text: string): HTMLButtonElement {
   return button as HTMLButtonElement;
 }
 
+// The confirmation dialog is portalled to document.body (reka DialogPortal), so
+// its buttons live outside the page host.
+function dialogButtonByText(text: string): HTMLButtonElement {
+  const button = [...document.body.querySelectorAll('button')].find((el) => el.textContent?.trim() === text);
+  if (!button) throw new Error(`no dialog button with text "${text}"`);
+  return button as HTMLButtonElement;
+}
+
 beforeEach(() => {
   setLocale('en');
   mocks.getSimilarBookPairs.mockReset().mockResolvedValue(allPairs);
@@ -193,23 +201,45 @@ describe('SimilarContentPage', () => {
     expect(buttonByText(host, 'Force rebuild')).toBeTruthy();
   });
 
-  it('force rebuild schedules a forced sweep, ignoring the cache', async () => {
+  it('force rebuild asks for confirmation before it runs anything', async () => {
     const host = mount();
     await flush();
 
     buttonByText(host, 'Force rebuild').click();
+    await flush();
+
+    // The click only opened the dialog; the destructive-feeling sweep has not
+    // started, so a stray click costs nothing.
+    expect(document.body.textContent).toContain('Rebuild every fingerprint?');
+    expect(mocks.startFingerprintSources).not.toHaveBeenCalled();
+
+    // Cancelling dismisses it and still runs nothing.
+    dialogButtonByText('Cancel').click();
+    await flush();
+    expect(mocks.startFingerprintSources).not.toHaveBeenCalled();
+  });
+
+  it('confirming the dialog schedules a forced sweep, ignoring the cache', async () => {
+    const host = mount();
+    await flush();
+
+    buttonByText(host, 'Force rebuild').click();
+    await flush();
+    dialogButtonByText('Rebuild all').click();
     await flush();
 
     expect(mocks.startFingerprintSources).toHaveBeenCalledTimes(1);
     expect(mocks.startFingerprintSources).toHaveBeenCalledWith(true);
   });
 
-  it('force rebuild shows a retryable notice, not "rebuilding", when a sweep already runs', async () => {
+  it('a busy sweep after confirming shows a retryable notice, not "rebuilding"', async () => {
     mocks.startFingerprintSources.mockReset().mockRejectedValueOnce(new FingerprintSweepBusyError());
     const host = mount();
     await flush();
 
     buttonByText(host, 'Force rebuild').click();
+    await flush();
+    dialogButtonByText('Rebuild all').click();
     await flush();
 
     expect(mocks.startFingerprintSources).toHaveBeenCalledWith(true);

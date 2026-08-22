@@ -345,6 +345,10 @@ const en = {
         building: 'Building… {percent}%',
         forceRebuild: 'Force rebuild',
         forceRebuilding: 'Rebuilding… {percent}%',
+        forceConfirmTitle: 'Rebuild every fingerprint?',
+        forceConfirmBody:
+          'This ignores the cache and recomputes the fingerprint of every source from scratch, which can take a while on a large shelf. Existing fingerprints are not lost — they are just rebuilt. Only do this if similarity results look wrong.',
+        forceConfirmAction: 'Rebuild all',
         busy: 'A fingerprint sweep is already running — try again once it finishes.',
         failed: 'Could not build fingerprints.',
         readOnly: 'A read-only shelf cannot build fingerprints.'

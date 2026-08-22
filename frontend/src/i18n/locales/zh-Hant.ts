@@ -343,6 +343,10 @@ const zhHant = {
         building: '建立中… {percent}%',
         forceRebuild: '強制重建',
         forceRebuilding: '重建中… {percent}%',
+        forceConfirmTitle: '重建所有指紋?',
+        forceConfirmBody:
+          '這會忽略快取,把每一個來源的指紋從頭重算一次,在大型書架上可能需要一些時間。既有指紋不會遺失,只是全部重建。除非相似結果看起來有誤,否則不需要這麼做。',
+        forceConfirmAction: '全部重建',
         busy: '已有指紋 sweep 正在進行,請等它完成再試。',
         failed: '無法建立指紋。',
         readOnly: '唯讀書架無法建立指紋。'
