@@ -6,6 +6,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/dgraph-io/badger/v4 v4.9.1
 	github.com/gofrs/flock v0.13.0
+	github.com/google/uuid v1.6.0
 	github.com/wlynxg/chardet v1.0.5
 	go.rtnl.ai/x v1.15.0
 	golang.org/x/image v0.43.0

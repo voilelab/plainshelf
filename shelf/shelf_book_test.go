@@ -248,11 +248,19 @@ func TestShelfNewBookIDsAreRandomNotDerived(t *testing.T) {
 		if err := validateBookID(id); err != nil {
 			t.Errorf("generated ID %q is not usable as one: %v", id, err)
 		}
-		if want := bookIDEncoding.EncodedLen(bookIDEntropyBytes); len(id) != want {
-			t.Errorf("generated ID %q has length %d, want %d", id, len(id), want)
+		// This build writes a canonical, lowercase v4 UUID: 36 characters in the
+		// 8-4-4-4-12 hex layout, version nibble 4, variant 10xx (8, 9, a, or b).
+		if len(id) != 36 {
+			t.Errorf("generated ID %q has length %d, want 36", id, len(id))
 		}
-		if strings.Trim(id, "abcdefghijklmnopqrstuvwxyz234567") != "" {
-			t.Errorf("generated ID %q contains characters outside the ID alphabet", id)
+		if strings.Trim(id, "0123456789abcdef-") != "" {
+			t.Errorf("generated ID %q contains characters outside the UUID alphabet", id)
+		}
+		if id[14] != '4' {
+			t.Errorf("generated ID %q is not a version 4 UUID (version nibble %q)", id, id[14])
+		}
+		if !strings.ContainsRune("89ab", rune(id[19])) {
+			t.Errorf("generated ID %q has a non-RFC-4122 variant (variant nibble %q)", id, id[19])
 		}
 	}
 }

@@ -28,7 +28,7 @@ schema v1, the first key in that file records the format version:
 ```json
 {
   "schema_version": 1,
-  "id": "q7f2mzk4x6rt3vbd",
+  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
   "title": "The Tale of Genji",
   "format": "txt",
   "tags": [
@@ -54,7 +54,7 @@ schema v1, the first key in that file records the format version:
 | Field | Description |
 |---|---|
 | `schema_version` | On-disk format version of this file. Managed by PlainShelf. |
-| `id` | Stable book ID: a random 16-character word, generated once when the book is created and never recomputed. Shelves from earlier versions carry 8-character hex IDs, which are kept unchanged. See [Book IDs](data-model.md#book-ids) |
+| `id` | Stable book ID: a version 4 UUID, generated once when the book is created and never recomputed. Shelves from earlier versions carry 8-character hex IDs or 16-character base32 words, which are kept unchanged. See [Book IDs](data-model.md#book-ids) |
 | `title` | Display title |
 | `format` | Compatibility mirror of the current source format (`txt` or `md`) |
 | `tags` | Free-form tags |
