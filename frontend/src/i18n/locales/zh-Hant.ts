@@ -338,8 +338,11 @@ const zhHant = {
       pairSimilarity: '相似度 {percent}%',
       fingerprint: {
         missingNote: '{total} 本書中有 {missing} 本尚未建立指紋',
+        allBuilt: '{total} 本書都已建立指紋',
         build: '建立指紋',
         building: '建立中… {percent}%',
+        forceRebuild: '強制重建',
+        forceRebuilding: '重建中… {percent}%',
         failed: '無法建立指紋。',
         readOnly: '唯讀書架無法建立指紋。'
       },

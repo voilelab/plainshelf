@@ -5,12 +5,13 @@
       <p class="similar-page-subtitle">{{ t('maintenance.similar.description') }}</p>
     </header>
 
-    <!-- Fingerprint status bar: only shown when some books still lack a
-         fingerprint, mirroring CharCountFilterBar's gap-and-build shape. -->
+    <!-- Fingerprint status bar: shown whenever the shelf holds books, so it can
+         host the force-rebuild control even once every book is fingerprinted.
+         The primary "build" button appears only while some book still lacks one;
+         "force rebuild" is always offered on a writable shelf, because a stat
+         comparison can miss a content change that leaves nothing "missing". -->
     <div v-if="showFingerprintBar" class="toolbar-bar similar-fingerprint-bar">
-      <span class="toolbar-label">
-        {{ t('maintenance.similar.fingerprint.missingNote', { missing: missingCount, total: totalBooks }) }}
-      </span>
+      <span class="toolbar-label">{{ fingerprintNote }}</span>
       <template v-if="readOnly">
         <span class="toolbar-label similar-fingerprint-readonly">
           {{ t('maintenance.similar.fingerprint.readOnly') }}
@@ -18,12 +19,21 @@
       </template>
       <template v-else>
         <button
+          v-if="missingCount > 0"
           type="button"
           class="toolbar-control toolbar-button toolbar-regular"
           :disabled="buildRunning"
           @click="onBuildFingerprints"
         >
           {{ buildLabel }}
+        </button>
+        <button
+          type="button"
+          class="toolbar-control toolbar-button toolbar-small similar-fingerprint-force"
+          :disabled="buildRunning"
+          @click="onForceRebuild"
+        >
+          {{ forceLabel }}
         </button>
         <span v-if="buildError" class="toolbar-label similar-fingerprint-error" role="alert">
           {{ buildError }}
@@ -133,7 +143,17 @@ const visiblePairs = computed(() =>
 
 const totalBooks = computed(() => fingerprint.value?.total ?? 0);
 const missingCount = computed(() => fingerprint.value?.missing ?? 0);
-const showFingerprintBar = computed(() => missingCount.value > 0);
+// Shown once the shelf has books and its coverage is known, not only while some
+// book is missing: the bar also carries "force rebuild", which is exactly the
+// control a reader reaches for when nothing is missing yet the fingerprints
+// look wrong.
+const showFingerprintBar = computed(() => totalBooks.value > 0);
+
+const fingerprintNote = computed(() =>
+  missingCount.value > 0
+    ? t('maintenance.similar.fingerprint.missingNote', { missing: missingCount.value, total: totalBooks.value })
+    : t('maintenance.similar.fingerprint.allBuilt', { total: totalBooks.value })
+);
 
 // Fetch each still-unknown book's source count once. Driven by the pairs the
 // filter actually shows, so only visible books are looked up, and the inflight
@@ -220,28 +240,51 @@ function onDeleted(bookId: string): void {
   }
 }
 
+// Which button owns the shared progress. Build and force run the same backend
+// chain, so only one can be in flight; tracking the action lets the percentage
+// show on the button that was actually pressed.
+const runningAction = ref<'build' | 'force' | null>(null);
+
 const {
   percentage: buildPercentage,
   error: buildError,
   running: buildRunning,
   start: startBuild
 } = useTaskChainProgress({
-  onSettled: () => load(),
+  onSettled: () => {
+    runningAction.value = null;
+    return load();
+  },
   startFailedMessage: () => t('maintenance.similar.fingerprint.failed'),
   pollFailedMessage: () => t('maintenance.similar.fingerprint.failed')
 });
 
 const buildLabel = computed(() =>
-  buildRunning.value
+  buildRunning.value && runningAction.value === 'build'
     ? t('maintenance.similar.fingerprint.building', { percent: Math.round(buildPercentage.value) })
     : t('maintenance.similar.fingerprint.build')
+);
+
+const forceLabel = computed(() =>
+  buildRunning.value && runningAction.value === 'force'
+    ? t('maintenance.similar.fingerprint.forceRebuilding', { percent: Math.round(buildPercentage.value) })
+    : t('maintenance.similar.fingerprint.forceRebuild')
 );
 
 async function onBuildFingerprints(): Promise<void> {
   if (readOnly.value) {
     return;
   }
+  runningAction.value = 'build';
   await startBuild(() => bookshelfWriter().startFingerprintSources());
+}
+
+async function onForceRebuild(): Promise<void> {
+  if (readOnly.value) {
+    return;
+  }
+  runningAction.value = 'force';
+  await startBuild(() => bookshelfWriter().startFingerprintSources(true));
 }
 
 onMounted(() => {
@@ -283,6 +326,15 @@ onMounted(() => {
 
 .similar-fingerprint-readonly {
   color: var(--muted, #888);
+}
+
+/* Secondary next to the primary build button: a quieter, advanced action. */
+.similar-fingerprint-force {
+  color: var(--muted, #666);
+}
+
+.similar-fingerprint-force:not(:disabled):hover {
+  color: inherit;
 }
 
 .similar-fingerprint-error {

@@ -245,8 +245,11 @@ export interface BookshelfWriter {
   startBookBatch(request: BookBatchRequest): Promise<string>;
   /** Recomputes content statistics for every book with an unknown char_count. */
   refreshContentStats(): Promise<string>;
-  /** Builds a similarity fingerprint for every source that lacks one. */
-  startFingerprintSources(): Promise<string>;
+  /**
+   * Builds a similarity fingerprint for every source that lacks one, or — when
+   * `force` is set — rebuilds every source's fingerprint, ignoring the cache.
+   */
+  startFingerprintSources(force?: boolean): Promise<string>;
   /** A GET, but a chain id can only come from a write that schedules a chain. */
   getTaskChain(taskChainId: string): Promise<TaskChain>;
 

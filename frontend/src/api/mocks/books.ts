@@ -428,8 +428,12 @@ export function mockRefreshContentStats(): string {
  * fingerprint sweep. Mock mode reports full fingerprint coverage
  * (getFingerprintStatus → missing: 0), so this is here for completeness rather
  * than to change any mock state.
+ *
+ * The `force` flag makes no difference here: with no real cache to bypass, an
+ * incremental sweep and a forced one both walk every book once. It is accepted
+ * only so the mock matches the real signature.
  */
-export function mockStartFingerprintSources(): string {
+export function mockStartFingerprintSources(_force = false): string {
   return registerMockTaskChain({
     name: 'fingerprint_sources',
     title: 'Build fingerprints',

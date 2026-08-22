@@ -204,8 +204,8 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return refreshContentStats();
   }
 
-  startFingerprintSources(): Promise<string> {
-    return startFingerprintSources();
+  startFingerprintSources(force?: boolean): Promise<string> {
+    return startFingerprintSources(force);
   }
 
   listLayers(): Promise<string[]> {

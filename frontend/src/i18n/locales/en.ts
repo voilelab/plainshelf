@@ -340,8 +340,11 @@ const en = {
       pairSimilarity: '{percent}% similar',
       fingerprint: {
         missingNote: '{missing} of {total} books have no fingerprint yet',
+        allBuilt: 'All {total} books are fingerprinted',
         build: 'Build fingerprints',
         building: 'Building… {percent}%',
+        forceRebuild: 'Force rebuild',
+        forceRebuilding: 'Rebuilding… {percent}%',
         failed: 'Could not build fingerprints.',
         readOnly: 'A read-only shelf cannot build fingerprints.'
       },

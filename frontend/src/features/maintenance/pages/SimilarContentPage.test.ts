@@ -159,13 +159,29 @@ describe('SimilarContentPage', () => {
     expect(mocks.getSimilarBookPairs).toHaveBeenCalledTimes(1);
   });
 
-  it('hides the fingerprint bar when nothing is missing', async () => {
+  it('keeps the bar with only a force button when nothing is missing', async () => {
+    const host = mount();
+    await flush();
+
+    const bar = host.querySelector('.similar-fingerprint-bar');
+    expect(bar).not.toBeNull();
+    expect(bar!.textContent).toContain('All 10 books are fingerprinted');
+    // The incremental build button is gone once nothing is missing, but force
+    // stays: a stat comparison can miss a change that leaves nothing "missing".
+    expect(
+      [...host.querySelectorAll('button')].some((b) => b.textContent?.trim() === 'Build fingerprints')
+    ).toBe(false);
+    expect(buttonByText(host, 'Force rebuild')).toBeTruthy();
+  });
+
+  it('hides the whole bar when the shelf has no books', async () => {
+    mocks.getFingerprintStatus.mockResolvedValue({ ...NO_MISSING, total: 0, fingerprinted: 0 });
     const host = mount();
     await flush();
     expect(host.querySelector('.similar-fingerprint-bar')).toBeNull();
   });
 
-  it('offers a build button when fingerprints are missing on a writable shelf', async () => {
+  it('offers both a build and a force button when fingerprints are missing on a writable shelf', async () => {
     mocks.getFingerprintStatus.mockResolvedValue({ ...NO_MISSING, missing: 3 });
     const host = mount();
     await flush();
@@ -174,9 +190,21 @@ describe('SimilarContentPage', () => {
     expect(bar).not.toBeNull();
     expect(bar!.textContent).toContain('3 of 10 books have no fingerprint yet');
     expect(buttonByText(host, 'Build fingerprints')).toBeTruthy();
+    expect(buttonByText(host, 'Force rebuild')).toBeTruthy();
   });
 
-  it('a read-only shelf explains it cannot build and hides the button', async () => {
+  it('force rebuild schedules a forced sweep, ignoring the cache', async () => {
+    const host = mount();
+    await flush();
+
+    buttonByText(host, 'Force rebuild').click();
+    await flush();
+
+    expect(mocks.startFingerprintSources).toHaveBeenCalledTimes(1);
+    expect(mocks.startFingerprintSources).toHaveBeenCalledWith(true);
+  });
+
+  it('a read-only shelf explains it cannot build and hides both buttons', async () => {
     mocks.getFingerprintStatus.mockResolvedValue({ ...NO_MISSING, missing: 3 });
     mocks.readOnly.value = true;
     const host = mount();
@@ -185,9 +213,9 @@ describe('SimilarContentPage', () => {
     expect(host.querySelector('.similar-fingerprint-readonly')?.textContent).toContain(
       'read-only shelf cannot build fingerprints'
     );
-    expect(
-      [...host.querySelectorAll('button')].some((b) => b.textContent?.trim() === 'Build fingerprints')
-    ).toBe(false);
+    const labels = [...host.querySelectorAll('button')].map((b) => b.textContent?.trim());
+    expect(labels).not.toContain('Build fingerprints');
+    expect(labels).not.toContain('Force rebuild');
     expect(mocks.startFingerprintSources).not.toHaveBeenCalled();
   });
 

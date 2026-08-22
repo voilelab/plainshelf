@@ -604,18 +604,24 @@ export async function refreshContentStats(): Promise<string> {
  * returning the ID of the task chain to poll for progress. This is what the
  * similar-content page's "build fingerprints" button triggers.
  *
+ * Passing `force` adds the `force` query flag, which makes the sweep ignore the
+ * fingerprint cache and rebuild every source's fingerprint — for a reader who
+ * suspects a stat comparison has missed a content change. Without it the sweep
+ * stays incremental and skips whatever the cache can already answer.
+ *
  * A sweep already in flight answers 409 with that chain's ID, accepted here so
  * the caller attaches to the existing progress instead of failing. A read-only
  * shelf also refuses with 409 (from `rejectReadOnlyShelf`, without an ID), but
- * the page hides the build button in that mode, so this is not reached then.
+ * the page hides the build and force buttons in that mode, so this is not
+ * reached then.
  */
-export async function startFingerprintSources(): Promise<string> {
+export async function startFingerprintSources(force = false): Promise<string> {
   if (isMockApiMode()) {
-    return mockStartFingerprintSources();
+    return mockStartFingerprintSources(force);
   }
 
   const res = await fetchJson<BackendTaskChainSubmitResponse>(
-    buildShelfApiPath('/source-fingerprints'),
+    buildShelfApiPath('/source-fingerprints') + (force ? '?force=true' : ''),
     { method: 'POST' },
     { acceptStatuses: [409] }
   );
