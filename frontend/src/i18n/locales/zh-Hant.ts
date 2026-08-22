@@ -342,6 +342,24 @@ const zhHant = {
         building: '建立中… {percent}%',
         failed: '無法建立指紋。',
         readOnly: '唯讀書架無法建立指紋。'
+      },
+      card: {
+        moreComplete: '較完整',
+        charsLabel: '字數',
+        formatLabel: '格式',
+        sourcesLabel: '來源',
+        folderLabel: '檔位',
+        addedLabel: '加入',
+        fewerChars: '少 {count} 字',
+        relationDesc: {
+          identical_after_normalize: '內容逐字相同，只差在換行與標點。',
+          near_identical: '每 100 字約 {count} 字不同。',
+          subset: '下面這本的內容幾乎全部包含在上面那本裡，少約 {percent}%。',
+          same_source: '每 100 字約 {count} 字不同，可能是同一來源的不同轉錄。'
+        },
+        deleteKeepNote: '另一本「{otherTitle}」會保留在書架上。',
+        deleteCompare: '這一本有 {thisChars} 字，另一本有 {otherChars} 字。',
+        deleteMoreCompleteWarning: '這是比較完整的一本 —— 刪掉它會失去另一本沒有的內容。'
       }
     },
     missingAuthor: {

@@ -4,10 +4,14 @@ import type { SimilarBookPair, SimilarRelation } from '@/api/books';
 import {
   approxDiffPer100Chars,
   DEFAULT_SIMILARITY_TIER,
+  estimatedDiffPer100,
+  estimatedDiffRate,
   filterSimilarPairs,
   SIMILARITY_FLOOR,
+  SIMILARITY_SHINGLE_K,
   SIMILARITY_SLIDER_MIN,
   SIMILARITY_TIERS,
+  subsetShortfallPercent,
   tierThreshold
 } from '@/utils/similarity';
 
@@ -102,5 +106,50 @@ describe('approxDiffPer100Chars', () => {
   it('clamps out-of-range input rather than returning nonsense', () => {
     expect(approxDiffPer100Chars(2)).toBe(0);
     expect(approxDiffPer100Chars(-1)).toBe(100);
+  });
+});
+
+describe('estimatedDiffRate', () => {
+  // The conversion table the pair-card ticket is specified against, at n = 5.
+  const table: [number, number][] = [
+    [0.999, 0],
+    [0.9, 1.1],
+    [0.85, 1.7],
+    [0.75, 3.0],
+    [0.5, 7.8],
+    [0.29, 14.8],
+    [0.15, 23.6]
+  ];
+
+  it('reproduces the published conversion table to one decimal (k = 5)', () => {
+    expect(SIMILARITY_SHINGLE_K).toBe(5);
+    for (const [jaccard, percent] of table) {
+      expect(estimatedDiffRate(jaccard) * 100).toBeCloseTo(percent, 1);
+    }
+  });
+
+  it('divides shingle disagreement down: it reads far below the raw ratio', () => {
+    // A single edit disturbs up to k shingles, so the Mash estimate must sit
+    // well under approxDiffPer100Chars for the same Jaccard.
+    expect(estimatedDiffPer100(0.85)).toBeLessThan(approxDiffPer100Chars(0.85));
+    expect(estimatedDiffPer100(0.85)).toBe(2);
+  });
+
+  it('clamps out-of-range input to the closed [0, 1] rate', () => {
+    expect(estimatedDiffRate(2)).toBe(0);
+    expect(estimatedDiffRate(-1)).toBe(1);
+  });
+});
+
+describe('subsetShortfallPercent', () => {
+  it('is the fraction the shorter side is missing, order-independent', () => {
+    // A copy trimmed to 75% of the fuller one is missing about 25%.
+    expect(subsetShortfallPercent(750, 1000)).toBe(25);
+    expect(subsetShortfallPercent(1000, 750)).toBe(25);
+  });
+
+  it('is 0 for equal lengths and for a missing (zero) fuller side', () => {
+    expect(subsetShortfallPercent(1000, 1000)).toBe(0);
+    expect(subsetShortfallPercent(0, 0)).toBe(0);
   });
 });
