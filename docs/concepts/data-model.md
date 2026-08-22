@@ -270,13 +270,16 @@ afterwards. This means you can rename a book's title, or move the book to a
 different layer, without breaking reading progress, bookmarks, or any external
 references.
 
-The ID is a random 16-character word drawn from `a`–`z` and `2`–`7`, such as
-`q7f2mzk4x6rt3vbd`. It carries no information about the book: 80 bits of
-randomness is what keeps two books apart, so a book you add on one machine
-cannot collide with one another machine added to the same shared shelf, or one
-you copied in with a file manager, even though neither side can see the other's
-book yet. PlainShelf still checks the shelf and its trash for the drawn ID
-before using it, but that check is insurance, not the guarantee.
+The ID is a version 4 UUID, such as
+`9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d`. It carries no information about the book:
+122 bits of randomness is what keeps two books apart, so a book you add on one
+machine cannot collide with one another machine added to the same shared shelf,
+or one you copied in with a file manager, even though neither side can see the
+other's book yet. PlainShelf still checks the shelf and its trash for the drawn
+ID before using it, but that check is insurance, not the guarantee. Shelves
+written by earlier versions carry other forms — an 8-character hex ID, or a
+16-character word of `a`–`z` and `2`–`7` — and those keep working unchanged,
+side by side with the UUIDs; nothing is migrated.
 
 Copying or moving a book to a **different shelf** applies the same principle from
 two directions. A **move** keeps the ID: it is the same book, now living on

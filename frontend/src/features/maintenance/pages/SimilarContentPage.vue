@@ -1,16 +1,26 @@
 <template>
   <section class="similar-page">
+    <ConfirmModal
+      :open="confirmForceOpen"
+      :title="t('maintenance.similar.fingerprint.forceConfirmTitle')"
+      :message="t('maintenance.similar.fingerprint.forceConfirmBody')"
+      :confirm-text="t('maintenance.similar.fingerprint.forceConfirmAction')"
+      @cancel="confirmForceOpen = false"
+      @confirm="onConfirmForceRebuild"
+    />
+
     <header class="similar-page-header">
       <h2 class="similar-page-title">{{ t('maintenance.similarContent') }}</h2>
       <p class="similar-page-subtitle">{{ t('maintenance.similar.description') }}</p>
     </header>
 
-    <!-- Fingerprint status bar: only shown when some books still lack a
-         fingerprint, mirroring CharCountFilterBar's gap-and-build shape. -->
+    <!-- Fingerprint status bar: shown whenever the shelf holds books, so it can
+         host the force-rebuild control even once every book is fingerprinted.
+         The primary "build" button appears only while some book still lacks one;
+         "force rebuild" is always offered on a writable shelf, because a stat
+         comparison can miss a content change that leaves nothing "missing". -->
     <div v-if="showFingerprintBar" class="toolbar-bar similar-fingerprint-bar">
-      <span class="toolbar-label">
-        {{ t('maintenance.similar.fingerprint.missingNote', { missing: missingCount, total: totalBooks }) }}
-      </span>
+      <span class="toolbar-label">{{ fingerprintNote }}</span>
       <template v-if="readOnly">
         <span class="toolbar-label similar-fingerprint-readonly">
           {{ t('maintenance.similar.fingerprint.readOnly') }}
@@ -18,15 +28,27 @@
       </template>
       <template v-else>
         <button
+          v-if="missingCount > 0"
           type="button"
           class="toolbar-control toolbar-button toolbar-regular"
-          :disabled="buildRunning"
+          :disabled="sweepBusy"
           @click="onBuildFingerprints"
         >
           {{ buildLabel }}
         </button>
+        <button
+          type="button"
+          class="toolbar-control toolbar-button toolbar-small similar-fingerprint-force"
+          :disabled="sweepBusy"
+          @click="confirmForceOpen = true"
+        >
+          {{ forceLabel }}
+        </button>
         <span v-if="buildError" class="toolbar-label similar-fingerprint-error" role="alert">
           {{ buildError }}
+        </span>
+        <span v-else-if="forceNote" class="toolbar-label similar-fingerprint-note" role="status">
+          {{ forceNote }}
         </span>
       </template>
     </div>
@@ -78,7 +100,12 @@
 import { computed, onMounted, ref, watch } from 'vue';
 
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
-import { SimilarTooLargeError, type FingerprintStatus, type SimilarBookPair } from '@/api/books';
+import {
+  FingerprintSweepBusyError,
+  SimilarTooLargeError,
+  type FingerprintStatus,
+  type SimilarBookPair
+} from '@/api/books';
 import type { Book } from '@/types/book';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
 import { useServerMode } from '@/composables/useServerMode';
@@ -86,6 +113,7 @@ import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useI18n } from '@/i18n';
 import SimilarityFilterBar from '@/features/maintenance/components/SimilarityFilterBar.vue';
 import SimilarPairCard from '@/features/maintenance/components/SimilarPairCard.vue';
+import ConfirmModal from '@/components/ConfirmModal.vue';
 import {
   DEFAULT_SIMILARITY_TIER,
   filterSimilarPairs,
@@ -133,7 +161,17 @@ const visiblePairs = computed(() =>
 
 const totalBooks = computed(() => fingerprint.value?.total ?? 0);
 const missingCount = computed(() => fingerprint.value?.missing ?? 0);
-const showFingerprintBar = computed(() => missingCount.value > 0);
+// Shown once the shelf has books and its coverage is known, not only while some
+// book is missing: the bar also carries "force rebuild", which is exactly the
+// control a reader reaches for when nothing is missing yet the fingerprints
+// look wrong.
+const showFingerprintBar = computed(() => totalBooks.value > 0);
+
+const fingerprintNote = computed(() =>
+  missingCount.value > 0
+    ? t('maintenance.similar.fingerprint.missingNote', { missing: missingCount.value, total: totalBooks.value })
+    : t('maintenance.similar.fingerprint.allBuilt', { total: totalBooks.value })
+);
 
 // Fetch each still-unknown book's source count once. Driven by the pairs the
 // filter actually shows, so only visible books are looked up, and the inflight
@@ -220,28 +258,96 @@ function onDeleted(bookId: string): void {
   }
 }
 
+// Which button owns the shared progress. Build and force run the same backend
+// chain, so only one can be in flight; tracking the action lets the percentage
+// show on the button that was actually pressed.
+const runningAction = ref<'build' | 'force' | null>(null);
+
+// forceStarting covers the POST that force makes before it has a chain to poll,
+// and forceNote carries its outcome when there is no chain to track: a benign
+// "already running" notice on 409, or a generic failure. It is deliberately
+// separate from the tracker's error, which belongs to a chain that is actually
+// being polled.
+const forceStarting = ref(false);
+const forceNote = ref('');
+
+// Force rebuilds fingerprints the shelf worked to build and takes real time, so
+// a stray click on it must not start the sweep. The button opens this
+// confirmation instead, and only the modal's confirm runs the rebuild.
+const confirmForceOpen = ref(false);
+
 const {
   percentage: buildPercentage,
   error: buildError,
   running: buildRunning,
   start: startBuild
 } = useTaskChainProgress({
-  onSettled: () => load(),
+  onSettled: () => {
+    runningAction.value = null;
+    return load();
+  },
   startFailedMessage: () => t('maintenance.similar.fingerprint.failed'),
   pollFailedMessage: () => t('maintenance.similar.fingerprint.failed')
 });
 
+// A submit is in flight while either button is polling a chain or force is still
+// posting; both buttons are disabled throughout so only one sweep is asked for.
+const sweepBusy = computed(() => buildRunning.value || forceStarting.value);
+
 const buildLabel = computed(() =>
-  buildRunning.value
+  buildRunning.value && runningAction.value === 'build'
     ? t('maintenance.similar.fingerprint.building', { percent: Math.round(buildPercentage.value) })
     : t('maintenance.similar.fingerprint.build')
 );
 
+const forceLabel = computed(() =>
+  buildRunning.value && runningAction.value === 'force'
+    ? t('maintenance.similar.fingerprint.forceRebuilding', { percent: Math.round(buildPercentage.value) })
+    : t('maintenance.similar.fingerprint.forceRebuild')
+);
+
 async function onBuildFingerprints(): Promise<void> {
-  if (readOnly.value) {
+  if (readOnly.value || sweepBusy.value) {
     return;
   }
+  forceNote.value = '';
+  runningAction.value = 'build';
   await startBuild(() => bookshelfWriter().startFingerprintSources());
+}
+
+// Confirmed from the modal: close it, then run the sweep the button only asked
+// to confirm.
+async function onConfirmForceRebuild(): Promise<void> {
+  confirmForceOpen.value = false;
+  await onForceRebuild();
+}
+
+async function onForceRebuild(): Promise<void> {
+  if (readOnly.value || sweepBusy.value) {
+    return;
+  }
+  forceNote.value = '';
+  runningAction.value = 'force';
+  forceStarting.value = true;
+
+  let chainId: string;
+  try {
+    chainId = await bookshelfWriter().startFingerprintSources(true);
+  } catch (err) {
+    // No chain to track: a 409 means another sweep already holds the shelf, so
+    // report it as a retryable notice rather than a rebuild that did not happen.
+    runningAction.value = null;
+    forceNote.value =
+      err instanceof FingerprintSweepBusyError
+        ? t('maintenance.similar.fingerprint.busy')
+        : t('maintenance.similar.fingerprint.failed');
+    return;
+  } finally {
+    forceStarting.value = false;
+  }
+
+  // A real acceptance: hand the forced chain to the tracker to poll and report.
+  await startBuild(() => Promise.resolve(chainId));
 }
 
 onMounted(() => {
@@ -285,8 +391,23 @@ onMounted(() => {
   color: var(--muted, #888);
 }
 
+/* Secondary next to the primary build button: a quieter, advanced action. */
+.similar-fingerprint-force {
+  color: var(--muted, #666);
+}
+
+.similar-fingerprint-force:not(:disabled):hover {
+  color: inherit;
+}
+
 .similar-fingerprint-error {
   color: var(--danger, #c0392b);
+}
+
+/* Informational, not an error: a forced rebuild that found a sweep already
+   running. */
+.similar-fingerprint-note {
+  color: var(--muted, #666);
 }
 
 .similar-error {
