@@ -110,6 +110,21 @@ func TestWriteReadingProgress_PreservesReaderNamespace(t *testing.T) {
 	}
 }
 
+// A shelf whose name slugifies to the reader's namespace must not be handed that
+// id, or its progress would share (and break) the reader's "book" namespace.
+func TestGenerateDesktopShelfIDReservesReaderNamespace(t *testing.T) {
+	if id := generateDesktopShelfID("book", map[string]bool{}); id == readingprogress.ReaderShelfID {
+		t.Fatalf("shelf id %q collides with the reader namespace", id)
+	}
+	if id := generateDesktopShelfID("Book", map[string]bool{}); id == readingprogress.ReaderShelfID {
+		t.Fatalf("shelf id %q collides with the reader namespace", id)
+	}
+	// An unrelated name is unaffected.
+	if id := generateDesktopShelfID("Comics", map[string]bool{}); id != "comics" {
+		t.Fatalf("unexpected shelf id for Comics: %q", id)
+	}
+}
+
 // A corrupt write is rejected rather than lenient-parsed into an empty document
 // (which would wipe stored progress).
 func TestWriteReadingProgress_RejectsCorruptJSON(t *testing.T) {

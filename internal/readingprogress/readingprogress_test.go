@@ -143,25 +143,58 @@ func TestProjectDoesNotMutateInput(t *testing.T) {
 	}
 }
 
-func TestMergeReaderWriteKeepsDesktopNamespaces(t *testing.T) {
+func TestMergeReaderBookWriteSetsOpenBookAndKeepsOthers(t *testing.T) {
 	disk := New()
 	disk.Shelves["shelf-real"] = map[string]int64{"book-a": 500}
-	disk.Shelves[ReaderShelfID] = map[string]int64{"book-a": 100}
+	disk.Shelves[ReaderShelfID] = map[string]int64{"book-a": 100, "book-b": 200}
 
-	// A reader write that only advanced its own "book" namespace.
+	// A reader process with book-a open. Its in-memory copy carries a stale
+	// book-b (a second reader process is the one advancing that) and a stale
+	// real-shelf entry — neither must win.
 	write := New()
-	write.Shelves[ReaderShelfID] = map[string]int64{"book-a": 150}
-	// A stale real-shelf entry the reader frontend may have carried in memory;
-	// it must be ignored.
+	write.Shelves[ReaderShelfID] = map[string]int64{"book-a": 150, "book-b": 1}
 	write.Shelves["shelf-real"] = map[string]int64{"book-a": 1}
 
-	got := MergeReaderWrite(disk, write, ReaderShelfID)
+	got := MergeReaderBookWrite(disk, write, ReaderShelfID, "book-a")
 
 	if v := offset(got, ReaderShelfID, "book-a"); v != 150 {
-		t.Fatalf("reader namespace offset = %d, want 150", v)
+		t.Fatalf("open book offset = %d, want 150", v)
+	}
+	if v := offset(got, ReaderShelfID, "book-b"); v != 200 {
+		t.Fatalf("other reader book = %d, want 200 (concurrent write must survive)", v)
 	}
 	if v := offset(got, "shelf-real", "book-a"); v != 500 {
 		t.Fatalf("desktop namespace offset = %d, want 500 (reader must not clobber it)", v)
+	}
+}
+
+func TestMergeReaderBookWriteResetRemovesOpenBook(t *testing.T) {
+	disk := New()
+	disk.Shelves[ReaderShelfID] = map[string]int64{"book-a": 100, "book-b": 200}
+
+	// A reset clears the open book, so the write no longer carries book-a.
+	write := New()
+	write.Shelves[ReaderShelfID] = map[string]int64{"book-b": 200}
+
+	got := MergeReaderBookWrite(disk, write, ReaderShelfID, "book-a")
+
+	if _, ok := got.Shelves[ReaderShelfID]["book-a"]; ok {
+		t.Fatalf("reset must remove the open book entry")
+	}
+	if v := offset(got, ReaderShelfID, "book-b"); v != 200 {
+		t.Fatalf("other reader book = %d, want 200", v)
+	}
+}
+
+func TestMergeReaderBookWriteEmptyBookIDIsNoOp(t *testing.T) {
+	disk := New()
+	disk.Shelves[ReaderShelfID] = map[string]int64{"book-a": 100}
+	write := New()
+	write.Shelves[ReaderShelfID] = map[string]int64{"book-a": 150}
+
+	got := MergeReaderBookWrite(disk, write, ReaderShelfID, "")
+	if v := offset(got, ReaderShelfID, "book-a"); v != 100 {
+		t.Fatalf("no open book must leave the document unchanged, got %d", v)
 	}
 }
 

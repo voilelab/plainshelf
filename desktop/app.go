@@ -198,7 +198,7 @@ func (a *DesktopApp) WriteReadHistory(doc string) error {
 // which is what a returning-from-the-reader user causes — and is cheap when
 // there is no reader progress to fold (the common case): no lock, no write.
 func (a *DesktopApp) ReadReadingProgress() (string, error) {
-	if a.readingProgressSync == nil {
+	if a.readingProgressSync == nil || a.readerNamespaceIsRealShelf() {
 		return readDeviceDocument(a.readingProgressPath)
 	}
 	return projectStoredReaderProgress(a.readingProgressSync, a.resolveBookShelf)
@@ -251,7 +251,7 @@ func projectStoredReaderProgress(store *readingprogress.Store, resolve readingpr
 // preserved, so a desktop write never clobbers reader progress it has not yet
 // projected.
 func (a *DesktopApp) WriteReadingProgress(doc string) error {
-	if a.readingProgressSync == nil {
+	if a.readingProgressSync == nil || a.readerNamespaceIsRealShelf() {
 		return writeDeviceDocument(a.readingProgressPath, "reading progress", doc)
 	}
 
@@ -267,10 +267,13 @@ func (a *DesktopApp) WriteReadingProgress(doc string) error {
 
 // resolveBookShelf reports which real shelf holds the given stable book id.
 //
-// Book ids are per-shelf, so it asks each shelf in turn and returns the first
-// that holds the book. A shelf that is still initializing (or otherwise errors)
-// is treated as "not here": the book stays under the reader's namespace and a
-// later read re-attempts the projection once the shelf is ready.
+// Book ids are only unique within a shelf, so a copied or legacy package can
+// carry the same id in more than one shelf. It therefore scans every shelf and
+// resolves the book only when exactly one holds it — an ambiguous id is left
+// unresolved rather than projected onto whichever shelf happened to come first
+// in the map-ordered scan. A shelf that is still initializing (or otherwise
+// errors) is treated as "not here": the book stays under the reader's namespace
+// and a later read re-attempts the projection once the shelf is ready.
 func (a *DesktopApp) resolveBookShelf(bookID string) (string, bool) {
 	if a.app == nil {
 		return "", false
@@ -279,12 +282,41 @@ func (a *DesktopApp) resolveBookShelf(bookID string) (string, bool) {
 	if manager == nil {
 		return "", false
 	}
+	match := ""
 	for _, shelfData := range manager.GetAllShelves() {
 		if _, err := shelfData.GetBook(bookID); err == nil {
-			return shelfData.ID, true
+			if match != "" {
+				return "", false // ambiguous: more than one shelf holds this id
+			}
+			match = shelfData.ID
 		}
 	}
-	return "", false
+	if match == "" {
+		return "", false
+	}
+	return match, true
+}
+
+// readerNamespaceIsRealShelf reports whether a real shelf uses the same id the
+// standalone reader stores progress under. In that degenerate configuration the
+// "book" namespace belongs to a real shelf, so reader projection is disabled and
+// the desktop treats the document as entirely its own — the real shelf must not
+// be blocked from saving its own progress. New shelves cannot take this id (see
+// generateDesktopShelfID); this guards a config that predates that rule.
+func (a *DesktopApp) readerNamespaceIsRealShelf() bool {
+	if a.app == nil {
+		return false
+	}
+	manager := a.app.ShelfManager()
+	if manager == nil {
+		return false
+	}
+	for _, shelfData := range manager.GetAllShelves() {
+		if shelfData.ID == readingprogress.ReaderShelfID {
+			return true
+		}
+	}
+	return false
 }
 
 // ReadReadingStats returns the stored reading-stats document, or an empty

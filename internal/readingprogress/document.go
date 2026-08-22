@@ -178,13 +178,37 @@ func Project(doc Document, readerShelfID string, resolve ResolveShelf) Document 
 	return out
 }
 
-// MergeReaderWrite folds a reader-side write into the on-disk document. Only the
-// reader's own namespace is taken from the write; every other shelf key is kept
-// from disk. This is how the reader process mutates the shared file without ever
-// clobbering the desktop's real-shelf (including projected) progress.
-func MergeReaderWrite(disk, write Document, readerShelfID string) Document {
+// MergeReaderBookWrite folds a single reader-updated book into the on-disk
+// document under the reader's namespace. Only the one book the reader has open
+// (bookID) is taken from the write; every other entry is preserved from disk —
+// the desktop's real shelves, and any other reader book, including one a second
+// reader process wrote concurrently. The book is set to the incoming offset, or
+// removed when the write cleared it (a progress reset). Merging at book
+// granularity is what keeps two reader processes from clobbering each other
+// within the shared "book" namespace even though each rewrites the whole file.
+func MergeReaderBookWrite(disk, write Document, readerShelfID, bookID string) Document {
 	out := disk.Clone()
-	setShelf(out, readerShelfID, write.Shelves[strings.TrimSpace(readerShelfID)])
+	readerShelfID = strings.TrimSpace(readerShelfID)
+	bookID = strings.TrimSpace(bookID)
+	if readerShelfID == "" || bookID == "" {
+		return out
+	}
+
+	books := out.Shelves[readerShelfID]
+	if books == nil {
+		books = map[string]int64{}
+	}
+	if offset, ok := write.Shelves[readerShelfID][bookID]; ok {
+		books[bookID] = offset
+	} else {
+		delete(books, bookID)
+	}
+
+	if len(books) == 0 {
+		delete(out.Shelves, readerShelfID)
+	} else {
+		out.Shelves[readerShelfID] = books
+	}
 	return out
 }
 

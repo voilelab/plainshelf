@@ -153,8 +153,12 @@ func (a *ReaderApp) WriteReadingProgress(doc string) error {
 	if err != nil {
 		return err
 	}
+	// The reader shows exactly one book, so only that book's entry is this
+	// process's to write; merging at book granularity keeps a second reader
+	// process's concurrent write to another book from being lost.
+	bookID := a.library.BookID()
 	_, err = a.progressStore.Mutate(func(disk readingprogress.Document) readingprogress.Document {
-		return readingprogress.MergeReaderWrite(disk, incoming, readerapi.ShelfID)
+		return readingprogress.MergeReaderBookWrite(disk, incoming, readerapi.ShelfID, bookID)
 	})
 	return err
 }
