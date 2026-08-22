@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/internal/readingprogress"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/reader/readerapi"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -20,13 +21,29 @@ type ReaderApp struct {
 	ctx     context.Context
 	library *readerapi.Library
 
+	// progressStore is the shared reading-progress document, the same file the
+	// desktop app keeps. It is nil only when the user config directory could not
+	// be resolved, in which case progress simply is not persisted.
+	progressStore *readingprogress.Store
+
 	// promptedForBook records that the startup prompt already ran, so a reload
 	// after opening a book does not reopen the dialog.
 	promptedForBook bool
 }
 
 func NewReaderApp(logger *logutil.Logger) *ReaderApp {
-	return &ReaderApp{library: readerapi.NewLibrary(logger)}
+	app := &ReaderApp{library: readerapi.NewLibrary(logger)}
+
+	// Persist progress to the desktop app's reading_progress.json so a book read
+	// in the standalone reader shows the same position in the desktop library.
+	// Both processes coordinate through the store's cross-process lock.
+	if path, err := readingprogress.DefaultProgressPath(); err != nil {
+		log.Println("reading progress will not be persisted:", err)
+	} else {
+		app.progressStore = readingprogress.NewStore(path)
+	}
+
+	return app
 }
 
 func (a *ReaderApp) Startup(ctx context.Context) {
@@ -97,4 +114,51 @@ func (a *ReaderApp) BootConfig() readerapi.BootConfig {
 
 func (a *ReaderApp) Library() *readerapi.Library {
 	return a.library
+}
+
+// ReadReadingProgress returns the reader's own progress from the shared
+// document, or an empty string when it has stored none. Only the reader's shelf
+// namespace is returned: the desktop app's real-shelf entries live in the same
+// file but are not the reader's to display or rewrite.
+//
+// The frontend detects this binding (frontend/src/api/desktop.ts) and stores
+// progress through the shared file rather than WebView localStorage.
+func (a *ReaderApp) ReadReadingProgress() (string, error) {
+	if a.progressStore == nil {
+		return "", nil
+	}
+	doc, _, err := a.progressStore.Read()
+	if err != nil {
+		return "", err
+	}
+	books := doc.Shelves[readerapi.ShelfID]
+	if len(books) == 0 {
+		return "", nil
+	}
+	filtered := readingprogress.New()
+	filtered.Shelves[readerapi.ShelfID] = books
+	return readingprogress.Serialize(filtered)
+}
+
+// WriteReadingProgress records the reader's progress into the shared document.
+// It only ever touches the reader's own shelf namespace: the desktop app's
+// real-shelf entries in the same file are re-read under the store's lock and
+// preserved, so the reader can never clobber (or its stale in-memory copy roll
+// back) progress the desktop side has projected.
+func (a *ReaderApp) WriteReadingProgress(doc string) error {
+	if a.progressStore == nil {
+		return util.NewError("reading progress storage is not ready")
+	}
+	incoming, err := readingprogress.ParseStrict(doc)
+	if err != nil {
+		return err
+	}
+	// The reader shows exactly one book, so only that book's entry is this
+	// process's to write; merging at book granularity keeps a second reader
+	// process's concurrent write to another book from being lost.
+	bookID := a.library.BookID()
+	_, err = a.progressStore.Mutate(func(disk readingprogress.Document) readingprogress.Document {
+		return readingprogress.MergeReaderBookWrite(disk, incoming, readerapi.ShelfID, bookID)
+	})
+	return err
 }

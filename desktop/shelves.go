@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/voilelab/plainshelf/internal/readingprogress"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -128,13 +129,18 @@ func slugifyShelfID(name string) string {
 }
 
 func generateDesktopShelfID(name string, existingIDs map[string]bool) string {
+	// The standalone reader stores progress under this id as a synthetic shelf
+	// key; a real shelf that took it would share (and break) that namespace, so
+	// it is never handed out here.
+	reserved := func(id string) bool { return existingIDs[id] || id == readingprogress.ReaderShelfID }
+
 	base := slugifyShelfID(name)
-	if !existingIDs[base] {
+	if !reserved(base) {
 		return base
 	}
 	for i := 2; ; i++ {
 		candidate := fmt.Sprintf("%s-%d", base, i)
-		if !existingIDs[candidate] {
+		if !reserved(candidate) {
 			return candidate
 		}
 	}

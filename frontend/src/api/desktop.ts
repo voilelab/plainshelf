@@ -38,10 +38,16 @@ interface DesktopAppBinding {
   WriteReadingStats?: (doc: string) => Promise<void>;
 }
 
+// The standalone reader binds a ReaderApp struct (window.go.main.ReaderApp)
+// exposing only the reading-progress methods, so it can persist progress into
+// the same file the desktop app uses instead of WebView localStorage.
+type ReaderAppBinding = Pick<DesktopAppBinding, 'ReadReadingProgress' | 'WriteReadingProgress'>;
+
 interface DesktopWindow extends Window {
   go?: {
     main?: {
       DesktopApp?: DesktopAppBinding;
+      ReaderApp?: ReaderAppBinding;
     };
   };
 }
@@ -214,27 +220,44 @@ export async function writeDesktopReadHistory(doc: string): Promise<void> {
   await desktopApp.WriteReadHistory(doc);
 }
 
+// The desktop client and the standalone reader both persist reading progress
+// through native bindings into the same reading_progress.json, but under
+// different struct names (window.go.main.DesktopApp vs .ReaderApp). Resolve
+// whichever one exposes the progress methods so the reader also stores progress
+// in the shared file rather than falling back to WebView localStorage.
+function getReadingProgressBinding(): ReaderAppBinding | undefined {
+  const main = (window as DesktopWindow).go?.main;
+  const desktopApp = main?.DesktopApp;
+  if (desktopApp?.ReadReadingProgress && desktopApp?.WriteReadingProgress) {
+    return desktopApp;
+  }
+  const readerApp = main?.ReaderApp;
+  if (readerApp?.ReadReadingProgress && readerApp?.WriteReadingProgress) {
+    return readerApp;
+  }
+  return undefined;
+}
+
 export function hasDesktopReadingProgressBinding(): boolean {
-  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
-  return Boolean(desktopApp?.ReadReadingProgress && desktopApp?.WriteReadingProgress);
+  return getReadingProgressBinding() !== undefined;
 }
 
 export async function readDesktopReadingProgress(): Promise<string> {
-  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
-  if (!desktopApp?.ReadReadingProgress) {
+  const binding = getReadingProgressBinding();
+  if (!binding?.ReadReadingProgress) {
     throw new Error('ReadReadingProgress binding not available');
   }
 
-  return (await desktopApp.ReadReadingProgress()) ?? '';
+  return (await binding.ReadReadingProgress()) ?? '';
 }
 
 export async function writeDesktopReadingProgress(doc: string): Promise<void> {
-  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
-  if (!desktopApp?.WriteReadingProgress) {
+  const binding = getReadingProgressBinding();
+  if (!binding?.WriteReadingProgress) {
     throw new Error('WriteReadingProgress binding not available');
   }
 
-  await desktopApp.WriteReadingProgress(doc);
+  await binding.WriteReadingProgress(doc);
 }
 
 export function hasDesktopReadingStatsBinding(): boolean {
