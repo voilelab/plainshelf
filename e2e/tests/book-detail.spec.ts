@@ -87,7 +87,10 @@ test('derives reading progress using the same UTF-16 units as the reader', async
       ({ id }) => {
         localStorage.setItem(
           'plainshelf.readingProgress',
-          JSON.stringify({ version: 1, shelves: { default_shelf: { [id]: 2 } } })
+          JSON.stringify({
+            version: 2,
+            shelves: { default_shelf: { [id]: { offset: 2, at: Date.now() } } }
+          })
         );
       },
       { id: bookID }
@@ -119,7 +122,10 @@ test('resets a completed bookmark before reading again', async ({ page }) => {
       ({ id }) => {
         localStorage.setItem(
           'plainshelf.readingProgress',
-          JSON.stringify({ version: 1, shelves: { default_shelf: { [id]: 74 } } })
+          JSON.stringify({
+            version: 2,
+            shelves: { default_shelf: { [id]: { offset: 74, at: Date.now() } } }
+          })
         );
       },
       { id: bookID }
@@ -139,7 +145,9 @@ test('resets a completed bookmark before reading again', async ({ page }) => {
     await expect.poll(() => page.evaluate(
       ({ id }) => {
         const stored = JSON.parse(localStorage.getItem('plainshelf.readingProgress') ?? '{}');
-        return stored.shelves?.default_shelf?.[id] ?? 0;
+        // A reset now leaves a timestamped tombstone (offset 0) rather than
+        // deleting the entry, so read the offset rather than the whole entry.
+        return stored.shelves?.default_shelf?.[id]?.offset ?? 0;
       },
       { id: bookID }
     )).toBe(0);
