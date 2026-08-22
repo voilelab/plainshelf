@@ -1,5 +1,5 @@
 import type { DesktopShelfDetails } from '@/api/desktop';
-import type { ListBooksOptions } from '@/api/books';
+import type { FingerprintStatus, ListBooksOptions, SimilarBookPair } from '@/api/books';
 import type {
   BookmarkPayload,
   Book,
@@ -104,6 +104,15 @@ export interface BookshelfReader {
 
   /** A read-only backend may answer these with an empty result rather than refuse. */
   getDuplicateBookGroups(): Promise<string[][]>;
+  /**
+   * Similar-but-not-identical book pairs, scored by the server in one pass.
+   * `floor` is the lowest Jaccard returned; the similar-content page fetches
+   * once at the widest floor and narrows in memory. A read-only backend with no
+   * fingerprint cache may answer empty.
+   */
+  getSimilarBookPairs(floor?: number): Promise<SimilarBookPair[]>;
+  /** Coverage of the fingerprint cache, for the "build what's missing" bar. */
+  getFingerprintStatus(): Promise<FingerprintStatus>;
   listTrashedBooks(): Promise<TrashedBook[]>;
 
   /** Layer paths in the shape `api/layers.ts` returns: '/' for the top level. */
@@ -217,6 +226,8 @@ export interface BookshelfWriter {
   startBookBatch(request: BookBatchRequest): Promise<string>;
   /** Recomputes content statistics for every book with an unknown char_count. */
   refreshContentStats(): Promise<string>;
+  /** Builds a similarity fingerprint for every source that lacks one. */
+  startFingerprintSources(): Promise<string>;
   /** A GET, but a chain id can only come from a write that schedules a chain. */
   getTaskChain(taskChainId: string): Promise<TaskChain>;
 

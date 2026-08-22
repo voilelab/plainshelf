@@ -38,6 +38,7 @@ import type {
   TrashedBook
 } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
+import type { FingerprintStatus, SimilarBookPair } from '@/api/books';
 import type { BookshelfReader, ListBooksOptions } from './bookshelfProvider';
 
 const READ_ONLY_MESSAGE = 'A pCloud shelf is read-only.';
@@ -765,6 +766,17 @@ export class PCloudBookshelfProvider implements BookshelfReader {
    */
   async getDuplicateBookGroups(): Promise<string[][]> {
     return [];
+  }
+
+  // Similarity fingerprints live in the shelf's server-side cache under `app/`,
+  // which a pCloud shelf has no server to compute; both reads answer empty
+  // rather than reach for data that is not there.
+  async getSimilarBookPairs(): Promise<SimilarBookPair[]> {
+    return [];
+  }
+
+  async getFingerprintStatus(): Promise<FingerprintStatus> {
+    return { total: 0, fingerprinted: 0, missing: 0, algo: { normalize: '', shingle: '', hash: '', k: 0 } };
   }
 
   async listTrashedBooks(): Promise<TrashedBook[]> {

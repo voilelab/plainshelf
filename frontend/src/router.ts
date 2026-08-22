@@ -8,6 +8,7 @@ const LibraryPage = () => import('@/features/library/pages/LibraryPage.vue');
 const BookDetailPage = () => import('@/features/library/pages/BookDetailPage.vue');
 const EditBookPage = () => import('@/features/library/pages/EditBookPage.vue');
 const DuplicateContentPage = () => import('@/features/maintenance/pages/DuplicateContentPage.vue');
+const SimilarContentPage = () => import('@/features/maintenance/pages/SimilarContentPage.vue');
 const MissingAuthorPage = () => import('@/features/maintenance/pages/MissingAuthorPage.vue');
 const MissingCoverPage = () => import('@/features/maintenance/pages/MissingCoverPage.vue');
 const MissingLanguagePage = () => import('@/features/maintenance/pages/MissingLanguagePage.vue');
@@ -33,6 +34,7 @@ const ROUTES_WITH_OWN_TITLE = new Set([
   'downloads',
   'admin-logs',
   'settings',
+  'similar-content',
   'maintenance-missing-author',
   'maintenance-missing-cover',
   'maintenance-missing-language',
@@ -107,6 +109,11 @@ const router = createRouter({
           path: 'duplicates',
           name: 'duplicate-content',
           component: DuplicateContentPage
+        },
+        {
+          path: 'similar',
+          name: 'similar-content',
+          component: SimilarContentPage
         },
         {
           path: 'read-history',

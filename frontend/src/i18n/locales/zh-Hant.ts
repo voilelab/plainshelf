@@ -310,6 +310,40 @@ const zhHant = {
       untitledBook: '這本書',
       deleteFailed: '刪除書籍失敗'
     },
+    similarContent: '相似內容',
+    similar: {
+      description: '內容相似但非完全相同的書：不同版本、被刪節過的版本，或同一段錄音的兩份稿。',
+      scanning: '比對書籍中…',
+      empty: '此檔位下沒有相似的書。',
+      emptyHint: '放寬檔位，或關掉「只顯示節本」，就能擴大範圍。',
+      loadFailed: '比對書籍失敗',
+      tooLarge: '這個書架有 {total} 本書，超過一次可比對的上限 {limit} 本。請先縮小書架範圍再試。',
+      resultCount: '{count} 組',
+      tiersLabel: '相似程度',
+      tiers: {
+        nearIdentical: '幾乎一模一樣',
+        sameBook: '同書不同版',
+        sameSource: '疑似同源'
+      },
+      advanced: '進階',
+      thresholdLabel: '最低相似度',
+      diffReadout: '每 100 字約 {count} 字不同',
+      subsetToggle: '只顯示節本（其中一本被刪過）',
+      relations: {
+        identical_after_normalize: '正規化後相同',
+        subset: '節本',
+        near_identical: '幾乎一模一樣',
+        same_source: '同源'
+      },
+      pairSimilarity: '相似度 {percent}%',
+      fingerprint: {
+        missingNote: '{total} 本書中有 {missing} 本尚未建立指紋',
+        build: '建立指紋',
+        building: '建立中… {percent}%',
+        failed: '無法建立指紋。',
+        readOnly: '唯讀書架無法建立指紋。'
+      }
+    },
     missingAuthor: {
       title: '缺少作者',
       empty: '沒有缺少作者的書籍'

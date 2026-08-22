@@ -8,6 +8,7 @@ import type {
   TrashedBook
 } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
+import type { FingerprintStatus, SimilarBookPair } from '@/api/books';
 import { ApiError, getActiveShelfID } from '@/api/client';
 import {
   addReadHistory as addLocalReadHistory,
@@ -255,6 +256,14 @@ export class MobileBookshelfProvider implements BookshelfReader {
 
   getDuplicateBookGroups(): Promise<string[][]> {
     return this.remote.getDuplicateBookGroups();
+  }
+
+  getSimilarBookPairs(floor?: number): Promise<SimilarBookPair[]> {
+    return this.remote.getSimilarBookPairs(floor);
+  }
+
+  getFingerprintStatus(): Promise<FingerprintStatus> {
+    return this.remote.getFingerprintStatus();
   }
 
   listTrashedBooks(): Promise<TrashedBook[]> {

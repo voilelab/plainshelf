@@ -20,9 +20,12 @@ function resolve(messages: unknown, key: string): string | undefined {
 }
 
 describe('maintenance registration', () => {
+  // duplicate-content and similar-content are dedicated pages, not book-list
+  // filters, so they carry no MAINTENANCE_BOOK_FILTERS entry.
+  const dedicatedPages = new Set(['duplicate-content', 'similar-content']);
   const bookFilterKeys = MAINTENANCE_NAV_ITEMS
     .map((item) => item.key)
-    .filter((key): key is MaintenanceBookFilter => key !== 'duplicate-content');
+    .filter((key): key is MaintenanceBookFilter => !dedicatedPages.has(key));
 
   it('gives every book-list nav item a filter config', () => {
     for (const key of bookFilterKeys) {
