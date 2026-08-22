@@ -5,7 +5,9 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
+	"path"
 	"regexp"
 	"strings"
 	"time"
@@ -34,6 +36,73 @@ func createTempDir(root fsutil.FS, prefix string) (string, error) {
 	}
 
 	return "", util.NewError("failed to create temp directory after multiple attempts")
+}
+
+// copyTreeAcross recursively copies the tree rooted at src in srcRoot onto dst in
+// dstRoot, reproducing every file and subdirectory. dst is created if it does not
+// exist. The two roots may be the same filesystem (a same-shelf copy) or two
+// different ones: a book copied whole stays self-contained, so the relative asset
+// paths a source records need no rewriting, which is what lets a book move between
+// two shelves - including across a filesystem boundary that os.Rename cannot
+// cross.
+//
+// Whether a child is a directory is decided by Stat, not by the directory
+// entry's own type, so that a symlinked directory is descended into and copied
+// as a real one - the same way the shelf scanner (childIsDir) treats it. A
+// listing reports a symlink as a non-directory, but opening it as a file fails,
+// so keying the copy on the entry type would break a package that holds one.
+func copyTreeAcross(srcRoot fsutil.ReadFS, src string, dstRoot fsutil.FS, dst string) error {
+	info, err := srcRoot.Stat(src)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	if !info.IsDir() {
+		return copyFileAcross(srcRoot, src, dstRoot, dst)
+	}
+
+	if err := dstRoot.MkdirAll(dst); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	entries, err := srcRoot.ReadDir(src)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	for _, entry := range entries {
+		if err := copyTreeAcross(srcRoot, path.Join(src, entry.Name()), dstRoot, path.Join(dst, entry.Name())); err != nil {
+			return util.Errorf("%w", err)
+		}
+	}
+
+	return nil
+}
+
+// copyFileAcross copies a single regular file from src in srcRoot to dst in
+// dstRoot, creating or truncating dst.
+func copyFileAcross(srcRoot fsutil.ReadFS, src string, dstRoot fsutil.FS, dst string) error {
+	in, err := srcRoot.Open(src)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	defer in.Close()
+
+	out, err := dstRoot.OpenWriter(dst)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return util.Errorf("%w", err)
+	}
+
+	if err := out.Close(); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
 }
 
 func randomString(n int) string {

@@ -310,6 +310,58 @@ const zhHant = {
       untitledBook: '這本書',
       deleteFailed: '刪除書籍失敗'
     },
+    similarContent: '相似內容',
+    similar: {
+      description: '內容相似但非完全相同的書：不同版本、被刪節過的版本，或同一段錄音的兩份稿。',
+      scanning: '比對書籍中…',
+      empty: '此檔位下沒有相似的書。',
+      emptyHint: '放寬檔位，或關掉「只顯示節本」，就能擴大範圍。',
+      loadFailed: '比對書籍失敗',
+      tooLarge: '這個書架有 {total} 本書，超過一次可比對的上限 {limit} 本。請先縮小書架範圍再試。',
+      resultCount: '{count} 組',
+      tiersLabel: '相似程度',
+      tiers: {
+        nearIdentical: '幾乎一模一樣',
+        sameBook: '同書不同版',
+        sameSource: '疑似同源'
+      },
+      advanced: '進階',
+      thresholdLabel: '最低相似度',
+      diffReadout: '每 100 字約 {count} 字不同',
+      subsetToggle: '只顯示節本（其中一本被刪過）',
+      relations: {
+        identical_after_normalize: '正規化後相同',
+        subset: '節本',
+        near_identical: '幾乎一模一樣',
+        same_source: '同源'
+      },
+      pairSimilarity: '相似度 {percent}%',
+      fingerprint: {
+        missingNote: '{total} 本書中有 {missing} 本尚未建立指紋',
+        build: '建立指紋',
+        building: '建立中… {percent}%',
+        failed: '無法建立指紋。',
+        readOnly: '唯讀書架無法建立指紋。'
+      },
+      card: {
+        moreComplete: '較完整',
+        charsLabel: '字數',
+        formatLabel: '格式',
+        sourcesLabel: '來源',
+        folderLabel: '檔位',
+        addedLabel: '加入',
+        fewerChars: '少 {count} 字',
+        relationDesc: {
+          identical_after_normalize: '內容逐字相同，只差在換行與標點。',
+          near_identical: '每 100 字約 {count} 字不同。',
+          subset: '下面這本的內容幾乎全部包含在上面那本裡，少約 {percent}%。',
+          same_source: '每 100 字約 {count} 字不同，可能是同一來源的不同轉錄。'
+        },
+        deleteKeepNote: '另一本「{otherTitle}」會保留在書架上。',
+        deleteCompare: '這一本有 {thisChars} 字，另一本有 {otherChars} 字。',
+        deleteMoreCompleteWarning: '這是比較完整的一本 —— 刪掉它會失去另一本沒有的內容。'
+      }
+    },
     missingAuthor: {
       title: '缺少作者',
       empty: '沒有缺少作者的書籍'
@@ -423,6 +475,7 @@ const zhHant = {
       updateStats: '更新內容統計',
       updatingStats: '更新統計中...',
       openFolder: '開啟資料夾',
+      copyTo: '複製到…',
       moveTo: '移動到…',
       moveToTrash: '移至垃圾桶',
       movingToTrash: '移動中...',
@@ -430,7 +483,8 @@ const zhHant = {
     },
     messages: {
       imported: '書籍匯入成功。',
-      saved: '書籍資料已儲存。'
+      saved: '書籍資料已儲存。',
+      copied: '書籍已複製。'
     },
     errors: {
       restartReading: '無法重新開始閱讀。',
@@ -439,10 +493,16 @@ const zhHant = {
       deleteFailed: '刪除書籍失敗',
       downloadFailed: '下載書籍失敗',
       openFolderFailed: '開啟書籍資料夾失敗',
-      moveFailed: '移動書籍失敗'
+      moveFailed: '移動書籍失敗',
+      copyFailed: '複製書籍失敗'
     },
     move: {
       title: '移動書籍'
+    },
+    copy: {
+      title: '複製書籍',
+      confirm: '複製',
+      copying: '複製中...'
     },
     delete: {
       description: '書籍將移至垃圾桶，之後仍可復原。'

@@ -111,35 +111,9 @@ func (s *Shelf) NewBookWith(layers Layers, title string, init func(*Book) error)
 	}
 	defer root.RemoveAll(bookPath)
 
-	// The ID is drawn at random, not derived from the layers and title: what
-	// keeps two books apart is the entropy behind it, not the probe below. The
-	// probe only sees books this process already knows about - the cache does not
-	// notice a book another machine added to a shared shelf, or one copied in
-	// with a file manager, until it rescans - so it is insurance against an ID
-	// this shelf demonstrably holds, and is expected never to fire.
-	bookID := ""
-	for range MaxBookIDCreationAttempts {
-		candidate, idErr := newBookID()
-		if idErr != nil {
-			return nil, util.Errorf("%w", idErr)
-		}
-
-		_, err := s.getUpdatedBookFromBookID(candidate)
-		if errors.Is(err, ErrBookNotFound) {
-			inTrash, trashErr := s.isBookIDInTrash(candidate)
-			if trashErr != nil {
-				return nil, util.Errorf("%w", trashErr)
-			}
-			if !inTrash {
-				bookID = candidate
-				break
-			}
-		} else if err != nil {
-			return nil, util.Errorf("%w", err)
-		}
-	}
-	if bookID == "" {
-		return nil, util.NewError("failed to draw an unused book ID after multiple attempts")
+	bookID, err := s.drawUnusedBookID()
+	if err != nil {
+		return nil, util.Errorf("%w", err)
 	}
 
 	stagedBook, err := createBook(root, s.Logger, bookPath, bookID, title)
@@ -195,6 +169,39 @@ func (s *Shelf) NewBookWith(layers Layers, title string, init func(*Book) error)
 	s.updateBookCacheEntry(layers, finalBookPath, newBook)
 
 	return newBook, nil
+}
+
+// drawUnusedBookID returns a random book ID that this shelf does not already
+// hold, in its books or its trash. The exclusive shelf lock must be held.
+//
+// The ID is drawn at random, not derived from the layers and title: what keeps
+// two books apart is the entropy behind it, not the probe here. The probe only
+// sees books this process already knows about - the cache does not notice a book
+// another machine added to a shared shelf, or one copied in with a file manager,
+// until it rescans - so it is insurance against an ID this shelf demonstrably
+// holds, and is expected never to fire.
+func (s *Shelf) drawUnusedBookID() (string, error) {
+	for range MaxBookIDCreationAttempts {
+		candidate, idErr := newBookID()
+		if idErr != nil {
+			return "", util.Errorf("%w", idErr)
+		}
+
+		_, err := s.getUpdatedBookFromBookID(candidate)
+		if errors.Is(err, ErrBookNotFound) {
+			inTrash, trashErr := s.isBookIDInTrash(candidate)
+			if trashErr != nil {
+				return "", util.Errorf("%w", trashErr)
+			}
+			if !inTrash {
+				return candidate, nil
+			}
+		} else if err != nil {
+			return "", util.Errorf("%w", err)
+		}
+	}
+
+	return "", util.NewError("failed to draw an unused book ID after multiple attempts")
 }
 
 // DeleteBook moves a book into trash by its ID.
@@ -274,6 +281,58 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 	s.updateBookCacheEntry(newLayers, newBookPath, movedBook)
 
 	return movedBook, nil
+}
+
+// CopyBook copies an existing book into targetLayer and returns the copy, which
+// carries a fresh book ID so that the original and the copy can coexist in the
+// same shelf.
+//
+// A book cannot be copied by hand with a file manager: the book cache keys on
+// book.json's id, and two books that share an ID silently collapse to one in
+// every listing. So the copy is staged in the app temp folder, given a new ID
+// there, and only then published under books/ - the same transactional shape as
+// NewBookWith, so a failure partway through leaves nothing behind but temp data
+// that the next startup wipes. The whole package is reproduced verbatim, so the
+// copy is self-contained: its sources, assets, cover and current-source pointer
+// all come along, and the relative asset paths inside a source resolve without
+// rewriting.
+func (s *Shelf) CopyBook(bookID string, targetLayer Layers) (*Book, error) {
+	if err := validateLayers(targetLayer); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	// Refuse a read-only shelf before taking the lock; publishBookCopy asks again
+	// once staging begins, so this only moves the refusal earlier.
+	if _, err := s.writeRoot(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	if err := s.shelfLock.Lock(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+	defer s.shelfLock.Unlock()
+
+	sourceBook, err := s.getUpdatedBookFromBookID(bookID)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	// Refuse to copy a book this build cannot rewrite before touching the disk:
+	// giving the copy a new ID rewrites book.json, and a book.json this build
+	// does not understand would be downgraded in the process.
+	if err := sourceBook.EnsureWritable(); err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	// Same shelf, so the staging root and the source root are one and the same;
+	// the cross-shelf transfer in shelf_cross_book.go is the general case of this
+	// same publish core.
+	newBook, err := s.publishBookCopy(s.dbRoot, sourceBook, targetLayer, false)
+	if err != nil {
+		return nil, util.Errorf("%w", err)
+	}
+
+	return newBook, nil
 }
 
 // iterateShelfTree walks the books folder once, reporting every layer

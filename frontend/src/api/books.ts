@@ -22,11 +22,13 @@ import {
   mockEmptyTrash,
   mockGetBook,
   mockGetBookContent,
+  mockCopyBook,
   mockGetBookCover,
   mockImportBook,
   mockListBooks,
   mockListTrashedBooks,
   mockRefreshContentStats,
+  mockStartFingerprintSources,
   mockRestoreTrashedBook,
   mockUpdateBook,
   mockUpdateBookLayer
@@ -230,6 +232,22 @@ interface SimilarTooLarge {
 }
 
 /**
+ * Thrown by {@link getSimilarBookPairs} when the shelf is past the server's
+ * synchronous limit and it answers {@link SimilarTooLarge} rather than the pair
+ * array. A distinct type — not a bare Error — so the page can show a "narrow the
+ * shelf down" state instead of treating it as a failure to load.
+ */
+export class SimilarTooLargeError extends Error {
+  constructor(
+    readonly total: number,
+    readonly limit: number
+  ) {
+    super(`similarity comparison is unavailable: ${total} books exceed the limit of ${limit}`);
+    this.name = 'SimilarTooLargeError';
+  }
+}
+
+/**
  * Similar book pairs scored by the server in a single pass. `floor` is the
  * lowest Jaccard the server returns; the page filters upward from there in
  * memory rather than re-requesting, so this is called once per visit with the
@@ -249,9 +267,7 @@ export async function getSimilarBookPairs(floor?: number): Promise<SimilarBookPa
     buildShelfApiPath(`/books/similar${query}`)
   );
   if (!Array.isArray(result)) {
-    throw new Error(
-      `similarity comparison is unavailable: ${result.total} books exceed the limit of ${result.limit}`
-    );
+    throw new SimilarTooLargeError(result.total, result.limit);
   }
   return result;
 }
@@ -304,6 +320,35 @@ export async function updateBookLayer(bookId: string, layer: string): Promise<vo
       layer: normalized
     })
   });
+}
+
+/**
+ * Duplicates a book into `layer` and returns the copy, which the server gives a
+ * fresh id so it coexists with the original. Copying into the book's own layer
+ * is allowed - it is how "duplicate here" works - so unlike updateBookLayer this
+ * never treats the current layer as a no-op. An empty `layer` lands the copy at
+ * the shelf root.
+ */
+export async function copyBook(bookId: string, layer: string): Promise<Book> {
+  const normalized = layer
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+
+  if (isMockApiMode()) {
+    return delay(mockCopyBook(bookId, layer));
+  }
+
+  const b = await fetchJson<BackendBook>(buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/copies`), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      layer: normalized
+    })
+  });
+  return transformBook(b);
 }
 
 export async function getBookContent(id: string): Promise<BookContent> {
@@ -473,6 +518,30 @@ export async function refreshContentStats(): Promise<string> {
 
   const res = await fetchJson<BackendTaskChainSubmitResponse>(
     buildShelfApiPath('/content-stat-refreshes'),
+    { method: 'POST' },
+    { acceptStatuses: [409] }
+  );
+  return res.taskchain_id;
+}
+
+/**
+ * startFingerprintSources schedules the background sweep that builds a
+ * similarity fingerprint for every source that lacks an up-to-date one,
+ * returning the ID of the task chain to poll for progress. This is what the
+ * similar-content page's "build fingerprints" button triggers.
+ *
+ * A sweep already in flight answers 409 with that chain's ID, accepted here so
+ * the caller attaches to the existing progress instead of failing. A read-only
+ * shelf also refuses with 409 (from `rejectReadOnlyShelf`, without an ID), but
+ * the page hides the build button in that mode, so this is not reached then.
+ */
+export async function startFingerprintSources(): Promise<string> {
+  if (isMockApiMode()) {
+    return mockStartFingerprintSources();
+  }
+
+  const res = await fetchJson<BackendTaskChainSubmitResponse>(
+    buildShelfApiPath('/source-fingerprints'),
     { method: 'POST' },
     { acceptStatuses: [409] }
   );

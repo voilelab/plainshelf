@@ -145,7 +145,7 @@ func TestFindSimilarBooksOverLimitReturns202(t *testing.T) {
 	if !ok {
 		t.Fatal("default shelf not found")
 	}
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		if _, err := shelfData.NewBookWith(nil, "Book "+strconv.Itoa(i), func(b *shelf.Book) error {
 			source, err := b.NewSource(strings.NewReader("content number " + strconv.Itoa(i)))
 			if err != nil {

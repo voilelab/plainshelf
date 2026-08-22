@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -139,11 +138,11 @@ type ShelfConf struct {
 	// every directory that has not changed. The snapshot is kept under app/.
 	// See shelf_scan_cache.go and docs/concepts/shelf-cache-and-io.md.
 	//
-	// "" or "on" (default): enabled. "off": every walk lists every directory.
+	// nil (the default) is enabled; a non-nil pointer takes its bool value.
 	// Turn it off on a mount whose directory mtimes cannot be trusted - some
 	// cloud storage gateways do not update them when a child is added, which
 	// would keep new books from ever being discovered.
-	ScanCache string `yaml:"scan_cache" json:"scan_cache"`
+	ScanCache *bool `yaml:"scan_cache" json:"scan_cache"`
 
 	// BookCacheWriterID identifies this installation in the name of the exported
 	// book cache it owns, app/book-cache-{id}.json. Several machines can share
@@ -205,16 +204,10 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		}
 	}
 
-	// Folded rather than matched exactly: YAML hands "off", "Off" and "OFF"
-	// through as three different strings, and a server that refuses to start
-	// over the capitalization of a tuning switch is a poor trade.
+	// nil keeps the default (enabled); a non-nil pointer takes its value.
 	scanCacheEnabled := true
-	switch strings.ToLower(strings.TrimSpace(conf.ScanCache)) {
-	case "", "on":
-	case "off":
-		scanCacheEnabled = false
-	default:
-		return nil, util.Errorf("unknown scan_cache %q: must be \"on\" or \"off\"", conf.ScanCache)
+	if conf.ScanCache != nil {
+		scanCacheEnabled = *conf.ScanCache
 	}
 
 	// The ID becomes a file name, so anything that could escape app/ or produce
@@ -505,11 +498,7 @@ func (s *Shelf) goBackground(fn func()) bool {
 		return false
 	}
 
-	s.background.Add(1)
-	go func() {
-		defer s.background.Done()
-		fn()
-	}()
+	s.background.Go(fn)
 	return true
 }
 

@@ -15,6 +15,7 @@ export const MOBILE_BLOCKED_ROUTES = new Set([
   'admin-logs',
   'trash',
   'duplicate-content',
+  'similar-content',
   'maintenance-missing-author',
   'maintenance-missing-cover',
   'maintenance-missing-language'

@@ -312,6 +312,58 @@ const en = {
       untitledBook: 'book',
       deleteFailed: 'Failed to delete book'
     },
+    similarContent: 'Similar Content',
+    similar: {
+      description: 'Books that are similar but not byte-for-byte identical: other editions, trimmed copies, or two transcripts of one recording.',
+      scanning: 'Comparing books…',
+      empty: 'No similar books at this level.',
+      emptyHint: 'Loosen the level, or turn off the trimmed-copies filter, to widen the search.',
+      loadFailed: 'Failed to compare books',
+      tooLarge: 'This shelf has {total} books, past the {limit} the comparison can handle at once. Narrow the shelf down and try again.',
+      resultCount: '{count} pairs',
+      tiersLabel: 'Similarity',
+      tiers: {
+        nearIdentical: 'Nearly identical',
+        sameBook: 'Same book, other edition',
+        sameSource: 'Possibly same source'
+      },
+      advanced: 'Advanced',
+      thresholdLabel: 'Minimum similarity',
+      diffReadout: '≈ {count} in 100 characters differ',
+      subsetToggle: 'Only trimmed copies (one edited down from the other)',
+      relations: {
+        identical_after_normalize: 'Identical after normalizing',
+        subset: 'Trimmed copy',
+        near_identical: 'Nearly identical',
+        same_source: 'Same source'
+      },
+      pairSimilarity: '{percent}% similar',
+      fingerprint: {
+        missingNote: '{missing} of {total} books have no fingerprint yet',
+        build: 'Build fingerprints',
+        building: 'Building… {percent}%',
+        failed: 'Could not build fingerprints.',
+        readOnly: 'A read-only shelf cannot build fingerprints.'
+      },
+      card: {
+        moreComplete: 'More complete',
+        charsLabel: 'Characters',
+        formatLabel: 'Format',
+        sourcesLabel: 'Sources',
+        folderLabel: 'Folder',
+        addedLabel: 'Added',
+        fewerChars: '{count} fewer',
+        relationDesc: {
+          identical_after_normalize: 'Character-for-character identical; only line breaks and punctuation differ.',
+          near_identical: 'About {count} in every 100 characters differ.',
+          subset: 'Almost all of the lower copy sits inside the upper one — about {percent}% less content.',
+          same_source: 'About {count} in every 100 characters differ; likely two transcripts of one source.'
+        },
+        deleteKeepNote: 'The other copy “{otherTitle}” stays on the shelf.',
+        deleteCompare: 'This copy has {thisChars} characters; the other has {otherChars}.',
+        deleteMoreCompleteWarning: 'This is the more complete copy — deleting it drops content the other one is missing.'
+      }
+    },
     missingAuthor: {
       title: 'Missing Author',
       empty: 'No books missing author'
@@ -425,6 +477,7 @@ const en = {
       updateStats: 'Update content stats',
       updatingStats: 'Updating stats...',
       openFolder: 'Open folder',
+      copyTo: 'Copy to…',
       moveTo: 'Move to…',
       moveToTrash: 'Move to Trash',
       movingToTrash: 'Moving...',
@@ -432,7 +485,8 @@ const en = {
     },
     messages: {
       imported: 'Book imported successfully.',
-      saved: 'Book details saved.'
+      saved: 'Book details saved.',
+      copied: 'Book copied.'
     },
     errors: {
       restartReading: 'Failed to restart the book.',
@@ -441,10 +495,16 @@ const en = {
       deleteFailed: 'Failed to delete book',
       downloadFailed: 'Failed to download book',
       openFolderFailed: 'Failed to open book folder',
-      moveFailed: 'Failed to move book'
+      moveFailed: 'Failed to move book',
+      copyFailed: 'Failed to copy book'
     },
     move: {
       title: 'Move book'
+    },
+    copy: {
+      title: 'Copy book',
+      confirm: 'Copy',
+      copying: 'Copying...'
     },
     delete: {
       description: 'The book will be moved to Trash. You can restore it later.'

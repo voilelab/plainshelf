@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -229,9 +230,7 @@ func bumpBookSchemaVersion(t *testing.T, env *apiTestEnv, bookID string, extra m
 		t.Fatalf("unmarshal book.json: %v", err)
 	}
 	meta["schema_version"] = shelf.BookMetaSchemaVersion + 1
-	for key, value := range extra {
-		meta[key] = value
-	}
+	maps.Copy(meta, extra)
 
 	bumped, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {

@@ -252,6 +252,29 @@ export function mockUpdateBookLayer(id: string, layerPath: string): Book {
   return { ...book };
 }
 
+export function mockCopyBook(id: string, layerPath: string): Book {
+  const source = findBookOrThrow(id);
+  const normalized = layerPath
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+  const now = new Date().toISOString();
+  const copy: Book = {
+    ...source,
+    id: `mock-${Date.now()}`,
+    layers: normalized,
+    created_at: now,
+    updated_at: now
+  };
+  mockBooks.unshift(copy);
+  // The server duplicates the whole package, so the copy reads the same body.
+  // Carry the content entry across too, otherwise the mock copy would open empty.
+  if (mockContent[id] !== undefined) {
+    mockContent[copy.id] = mockContent[id];
+  }
+  return { ...copy };
+}
+
 export function mockGetBookContent(id: string): BookContent {
   const content = mockContent[id] ?? 'No content yet.';
   return { content };
@@ -396,6 +419,21 @@ export function mockRefreshContentStats(): string {
       ...result,
       failures: result.failures.map((failure) => ({ ...failure }))
     })
+  });
+}
+
+/**
+ * mockStartFingerprintSources schedules a task chain that walks every mock book
+ * once, so mock mode exercises the same progress reporting as the real
+ * fingerprint sweep. Mock mode reports full fingerprint coverage
+ * (getFingerprintStatus → missing: 0), so this is here for completeness rather
+ * than to change any mock state.
+ */
+export function mockStartFingerprintSources(): string {
+  return registerMockTaskChain({
+    name: 'fingerprint_sources',
+    title: 'Build fingerprints',
+    total: mockBooks.length
   });
 }
 

@@ -12,6 +12,7 @@ describe('MOBILE_BLOCKED_ROUTES', () => {
     'admin-logs',
     'trash',
     'duplicate-content',
+    'similar-content',
     'maintenance-missing-author',
     'maintenance-missing-cover',
     'maintenance-missing-language'

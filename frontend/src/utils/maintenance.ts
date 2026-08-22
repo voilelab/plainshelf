@@ -3,6 +3,7 @@ import type { SidebarNavIconName } from '@/types/sidebarNavIcon';
 
 export type MaintenanceNavKey =
   | 'duplicate-content'
+  | 'similar-content'
   | 'missing-author'
   | 'missing-cover'
   | 'missing-language';
@@ -24,6 +25,12 @@ export const MAINTENANCE_NAV_ITEMS: MaintenanceNavItem[] = [
     icon: 'duplicate-content'
   },
   {
+    key: 'similar-content',
+    labelKey: 'maintenance.similarContent',
+    to: '/similar',
+    icon: 'similar-content'
+  },
+  {
     key: 'missing-author',
     labelKey: 'maintenance.missingAuthor.title',
     to: '/books/maintenance/missing-author',
@@ -43,7 +50,12 @@ export const MAINTENANCE_NAV_ITEMS: MaintenanceNavItem[] = [
   }
 ];
 
-export type MaintenanceBookFilter = Exclude<MaintenanceNavKey, 'duplicate-content'>;
+// duplicate-content and similar-content are their own dedicated pages, not
+// filters over the book list, so they are excluded from the book-filter map.
+export type MaintenanceBookFilter = Exclude<
+  MaintenanceNavKey,
+  'duplicate-content' | 'similar-content'
+>;
 
 export interface MaintenanceBookFilterConfig {
   titleKey: string;

@@ -219,7 +219,7 @@ func openShelf(shelfPath string) (*shelf.Shelf, error) {
 
 func splitBookIDs(value string) []string {
 	var ids []string
-	for _, id := range strings.Split(value, ",") {
+	for id := range strings.SplitSeq(value, ",") {
 		if trimmed := strings.TrimSpace(id); trimmed != "" {
 			ids = append(ids, trimmed)
 		}

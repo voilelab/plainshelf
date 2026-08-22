@@ -12,6 +12,19 @@
         @cancel="cancelMove"
         @submit="submitMove"
       />
+      <MoveBooksModal
+        v-if="!readOnly"
+        :open="!!copyTarget"
+        :count="1"
+        :title="t('bookDetail.copy.title')"
+        :options="copyLayerOptions"
+        :busy="copying"
+        :busy-label="t('bookDetail.copy.copying')"
+        :confirm-label="t('bookDetail.copy.confirm')"
+        :error="actionError"
+        @cancel="cancelCopy"
+        @submit="submitCopy"
+      />
       <DeleteModal
         :open="!!deleteTarget"
         :item-name="deleteTarget?.title || id"
@@ -26,6 +39,9 @@
       </div>
       <div v-if="showSavedMessage" class="loading detail-notice" role="status">
         {{ t('bookDetail.messages.saved') }}
+      </div>
+      <div v-if="showCopiedMessage" class="loading detail-notice" role="status">
+        {{ t('bookDetail.messages.copied') }}
       </div>
       <div v-if="actionError" class="error detail-error" role="alert">
         <p>{{ actionError }}</p>
@@ -134,6 +150,13 @@
                       <DropdownMenuItem
                         v-if="!readOnly"
                         class="reka-menu-item"
+                        @select="onRequestCopy"
+                      >
+                        {{ t('bookDetail.actions.copyTo') }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-if="!readOnly"
+                        class="reka-menu-item"
                         @select="onRequestMove"
                       >
                         {{ t('bookDetail.actions.moveTo') }}
@@ -194,6 +217,7 @@ const router = useRouter();
 const id = computed(() => String(route.params.id));
 const showImportedMessage = computed(() => route.query.imported === '1');
 const showSavedMessage = computed(() => route.query.saved === '1');
+const showCopiedMessage = computed(() => route.query.copied === '1');
 const { writesEnabled } = useWriteAccess();
 const readOnly = computed(() => !writesEnabled.value);
 const { t } = useI18n();
@@ -217,6 +241,9 @@ const {
   moveTarget,
   moving,
   moveLayerOptions,
+  copyTarget,
+  copying,
+  copyLayerOptions,
   canOpenBookFolder,
   goRead,
   goEdit,
@@ -225,6 +252,9 @@ const {
   requestMove,
   cancelMove,
   submitMove,
+  requestCopy,
+  cancelCopy,
+  submitCopy,
   requestDelete,
   cancelDelete,
   confirmDelete,
@@ -237,6 +267,11 @@ const {
   // detail payload (breadcrumb included) has to be re-read.
   onMoved: () => {
     void fetchDetail();
+  },
+  // The copy is a distinct book with its own id, so open its detail page. The
+  // `copied` flag drives the same one-off notice imported/saved use.
+  onCopied: (copy) => {
+    void router.push({ path: `/books/${copy.id}`, query: { copied: '1' } });
   }
 });
 
@@ -347,6 +382,13 @@ function onRequestMove(): void {
     return;
   }
   requestMove(book.value);
+}
+
+function onRequestCopy(): void {
+  if (readOnly.value || !book.value) {
+    return;
+  }
+  requestCopy(book.value);
 }
 
 function onRequestDelete(): void {

@@ -154,6 +154,62 @@ func (h *bookHandlers) createBook(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// CopyBookRequest carries the optional destination for a copy. When neither
+// field is set - including an empty request body - the copy lands in the source
+// book's own layer. "layer" is the current field name; "layers" is accepted for
+// the same reason updateBook accepts it, so older clients keep working.
+type CopyBookRequest struct {
+	Layer  *shelf.Layers `json:"layer"`
+	Layers *shelf.Layers `json:"layers"`
+}
+
+func (req *CopyBookRequest) targetLayers() *shelf.Layers {
+	if req.Layer != nil {
+		return req.Layer
+	}
+	return req.Layers
+}
+
+// POST /api/shelves/{shelf_id}/books/{book_id}/copies
+func (h *bookHandlers) copyBook(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
+	if !ok {
+		return
+	}
+
+	bookID, ok := resolveBookID(w, r)
+	if !ok {
+		return
+	}
+
+	var req CopyBookRequest
+	if !decodeOptionalStrictJSON(w, r, &req) {
+		return
+	}
+
+	book, ok := h.lookupBook(w, shelfData, bookID)
+	if !ok {
+		return
+	}
+
+	// Default to the source book's own layer so a plain "duplicate" needs no body.
+	target := append(shelf.Layers(nil), book.Layers()...)
+	if override := req.targetLayers(); override != nil {
+		target = append(shelf.Layers(nil), (*override)...)
+	}
+
+	copied, err := shelfData.CopyBook(bookID, target)
+	if err != nil {
+		h.writeErr(w, err, "failed to copy book")
+		return
+	}
+
+	h.writeJSON(w, http.StatusCreated, Book{
+		Meta:  copied.GetMeta(),
+		Layer: copied.Layers(),
+	})
+}
+
 // GET /api/shelves/{shelf_id}/books/{book_id}
 func (h *bookHandlers) getBook(w http.ResponseWriter, r *http.Request) {
 	_, book, ok := h.loadBook(w, r)

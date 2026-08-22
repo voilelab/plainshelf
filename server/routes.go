@@ -18,19 +18,20 @@ type apiHandlers struct {
 	settings *settings
 	tasks    *taskSubmitter
 
-	books   *bookHandlers
-	sources *sourceHandlers
-	imports *importHandlers
-	layers  *layerHandlers
-	trash   *trashHandlers
-	batches *batchHandlers
-	fps     *fingerprintHandlers
-	taskAPI *taskHandlers
-	setting *settingHandlers
-	logs    *logHandlers
-	shelves *shelfHandlers
-	meta    *metaHandlers
-	spa     *spaHandlers
+	books     *bookHandlers
+	sources   *sourceHandlers
+	imports   *importHandlers
+	layers    *layerHandlers
+	trash     *trashHandlers
+	batches   *batchHandlers
+	transfers *bookTransferHandlers
+	fps       *fingerprintHandlers
+	taskAPI   *taskHandlers
+	setting   *settingHandlers
+	logs      *logHandlers
+	shelves   *shelfHandlers
+	meta      *metaHandlers
+	spa       *spaHandlers
 }
 
 func newAPIHandlers(
@@ -51,19 +52,20 @@ func newAPIHandlers(
 		settings: settingsSvc,
 		tasks:    tasks,
 
-		books:   &bookHandlers{apiCore: core, settings: settingsSvc},
-		sources: &sourceHandlers{apiCore: core},
-		imports: &importHandlers{apiCore: core, settings: settingsSvc},
-		layers:  &layerHandlers{apiCore: core},
-		trash:   &trashHandlers{taskSubmitter: tasks},
-		batches: &batchHandlers{taskSubmitter: tasks},
-		fps:     &fingerprintHandlers{apiCore: core},
-		taskAPI: &taskHandlers{taskSubmitter: tasks},
-		setting: &settingHandlers{apiCore: core, settings: settingsSvc},
-		logs:    &logHandlers{apiCore: core, conf: conf},
-		shelves: &shelfHandlers{apiCore: core},
-		meta:    &metaHandlers{apiCore: core, conf: conf},
-		spa:     &spaHandlers{fs: spaFS, files: http.FileServerFS(spaFS), security: security},
+		books:     &bookHandlers{apiCore: core, settings: settingsSvc},
+		sources:   &sourceHandlers{apiCore: core},
+		imports:   &importHandlers{apiCore: core, settings: settingsSvc},
+		layers:    &layerHandlers{apiCore: core},
+		trash:     &trashHandlers{taskSubmitter: tasks},
+		batches:   &batchHandlers{taskSubmitter: tasks},
+		transfers: &bookTransferHandlers{taskSubmitter: tasks},
+		fps:       &fingerprintHandlers{apiCore: core},
+		taskAPI:   &taskHandlers{taskSubmitter: tasks},
+		setting:   &settingHandlers{apiCore: core, settings: settingsSvc},
+		logs:      &logHandlers{apiCore: core, conf: conf},
+		shelves:   &shelfHandlers{apiCore: core},
+		meta:      &metaHandlers{apiCore: core, conf: conf},
+		spa:       &spaHandlers{fs: spaFS, files: http.FileServerFS(spaFS), security: security},
 	}
 }
 
@@ -97,6 +99,8 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}", h.books.getBook)
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}", h.books.updateBook)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/copies", h.books.copyBook)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/transfers", h.transfers.transferBook)
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}", h.trash.trashBook)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/trash", h.trash.trashBook)
 

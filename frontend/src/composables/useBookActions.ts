@@ -2,7 +2,7 @@ import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useBookStore } from '@/composables/useBookStore';
 import { useLayerStore } from '@/composables/useLayerStore';
-import { bookshelfWriter, getBookshelfProvider } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider, isWebRuntime } from '@/providers';
 import type { Book } from '@/types/book';
 import { getLayerPath, layerPathEquals } from '@/utils/layers';
 import { t } from '@/i18n';
@@ -10,6 +10,7 @@ import { t } from '@/i18n';
 export interface UseBookActionsOptions {
   onDeleted?: (book: Book) => void;
   onMoved?: (book: Book, targetLayer: string) => void;
+  onCopied?: (copy: Book, targetLayer: string) => void;
 }
 
 /** Shown by every DeleteModal that moves a book to Trash. */
@@ -41,6 +42,8 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
   const deleting = ref(false);
   const moveTarget = ref<Book | null>(null);
   const moving = ref(false);
+  const copyTarget = ref<Book | null>(null);
+  const copying = ref(false);
 
   /**
    * Destinations offered for `moveTarget`, flat and sorted like the batch move
@@ -55,6 +58,15 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
       .sort();
   });
 
+  /**
+   * Destinations offered for `copyTarget`. Unlike moveLayerOptions this keeps the
+   * book's own layer: copying a book into the layer it already sits in is a valid
+   * "duplicate here", not a no-op. The root is offered by the modal itself.
+   */
+  const copyLayerOptions = computed(() =>
+    [...new Set(layers.value.filter((layer) => layer && layer !== '/'))].sort()
+  );
+
   const canOpenBookFolder = computed(() => Boolean(getBookshelfProvider().openDesktopBookFolder));
 
   /**
@@ -62,12 +74,28 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
    * The index is the reader's own section index, so it survives a title change.
    */
   function goRead(id: string, sectionIndex?: number): void {
-    if (typeof sectionIndex === 'number' && Number.isFinite(sectionIndex)) {
-      void router.push({ path: `/reader/${id}`, query: { section: String(Math.trunc(sectionIndex)) } });
+    const to =
+      typeof sectionIndex === 'number' && Number.isFinite(sectionIndex)
+        ? { path: `/reader/${id}`, query: { section: String(Math.trunc(sectionIndex)) } }
+        : { path: `/reader/${id}` };
+
+    // On a plain web-server build the reader opens in a new tab so the library
+    // or book page it was launched from is not replaced wholesale — closing the
+    // tab returns the reader there. The desktop, mobile and reader shells keep
+    // the in-place SPA navigation. Matches externalLinks.ts's window.open idiom.
+    //
+    // No router.push fallback here: with noopener/noreferrer window.open returns
+    // null even on success (per the HTML spec), so its result cannot tell a
+    // blocked pop-up from an opened one. Pushing "on failure" would therefore
+    // fire on every success too and navigate the original tab as well, which is
+    // exactly the wholesale replacement this feature avoids. A user-gesture open
+    // is not pop-up-blocked in practice.
+    if (isWebRuntime()) {
+      window.open(router.resolve(to).href, '_blank', 'noopener,noreferrer');
       return;
     }
 
-    void router.push(`/reader/${id}`);
+    void router.push(to);
   }
 
   function openDetail(id: string): void {
@@ -176,6 +204,46 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     }
   }
 
+  function requestCopy(book: Book): void {
+    copyTarget.value = book;
+    // The copy dialog shows actionError itself, so it must not open carrying a
+    // message some earlier action left behind.
+    actionError.value = '';
+    if (!layersLoaded.value) {
+      void fetchLayers();
+    }
+  }
+
+  function cancelCopy(): void {
+    if (!copying.value) {
+      copyTarget.value = null;
+    }
+  }
+
+  async function submitCopy(targetLayer: string): Promise<void> {
+    const target = copyTarget.value;
+    if (!target || copying.value) {
+      return;
+    }
+
+    copying.value = true;
+    actionError.value = '';
+
+    try {
+      const copy = await bookshelfWriter().copyBook(target.id, targetLayer);
+      copyTarget.value = null;
+      // Keep the sidebar's per-layer counts in step with the new book, the same
+      // refresh submitMove performs.
+      void fetchBooks();
+      options.onCopied?.(copy, targetLayer);
+    } catch (err) {
+      // Leaves the modal open so the destination stays picked for a retry.
+      actionError.value = err instanceof Error ? err.message : t('bookDetail.errors.copyFailed');
+    } finally {
+      copying.value = false;
+    }
+  }
+
   function requestDelete(book: Book): void {
     deleteTarget.value = book;
   }
@@ -216,6 +284,9 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     moveTarget,
     moving,
     moveLayerOptions,
+    copyTarget,
+    copying,
+    copyLayerOptions,
     canOpenBookFolder,
     goRead,
     openDetail,
@@ -225,6 +296,9 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     requestMove,
     cancelMove,
     submitMove,
+    requestCopy,
+    cancelCopy,
+    submitCopy,
     requestDelete,
     cancelDelete,
     confirmDelete,

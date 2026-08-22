@@ -20,11 +20,13 @@ import IconPhotoOff from '~icons/tabler/photo-off';
 import IconSettings from '~icons/tabler/settings';
 import IconTrash from '~icons/tabler/trash';
 import IconUserQuestion from '~icons/tabler/user-question';
+import IconVersions from '~icons/tabler/versions';
 
 export const ICONS = {
   dashboard: IconLayoutDashboard,
   'recently-read': IconHistory,
   'duplicate-content': IconCopy,
+  'similar-content': IconVersions,
   'missing-author': IconUserQuestion,
   'missing-cover': IconPhotoOff,
   'missing-language': IconLanguageOff,
