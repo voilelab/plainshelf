@@ -1,4 +1,4 @@
-package shelf
+package bookpkg
 
 import (
 	"errors"
@@ -27,28 +27,24 @@ func writeAsset(t *testing.T, libRoot string, source *Source, name string, data 
 	return assetPath
 }
 
-// newBookWithSource returns a book carrying one source, plus that source.
-func newBookWithSource(t *testing.T, s *Shelf, layers Layers, title, content string) (*Book, *Source) {
+// newBookWithSource returns a book carrying one source, that source, and the
+// on-disk library path the book lives under, which the asset assertions stat
+// directly.
+func newBookWithSource(t *testing.T, title, content string) (*Book, *Source, string) {
 	t.Helper()
 
-	book, err := s.NewBook(layers, title)
-	if err != nil {
-		t.Fatalf("NewBook: %v", err)
-	}
+	book, _, libRoot := newTestBook(t, "asset-book", title)
 
 	source, err := book.NewSource(strings.NewReader(content))
 	if err != nil {
 		t.Fatalf("NewSource: %v", err)
 	}
 
-	return book, source
+	return book, source, libRoot
 }
 
 func TestSourceOpenAsset(t *testing.T) {
-	libRoot := path.Join(t.TempDir(), "shelf_test")
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
-
-	_, source := newBookWithSource(t, s, nil, "Illustrated", "body")
+	_, source, libRoot := newBookWithSource(t, "Illustrated", "body")
 
 	want := []byte("fake png bytes")
 	writeAsset(t, libRoot, source, "img-0001.png", want)
@@ -75,10 +71,7 @@ func TestSourceOpenAsset(t *testing.T) {
 }
 
 func TestSourceWriteAsset(t *testing.T) {
-	libRoot := path.Join(t.TempDir(), "shelf_test")
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
-
-	_, source := newBookWithSource(t, s, nil, "Written Art", "body")
+	_, source, _ := newBookWithSource(t, "Written Art", "body")
 
 	// The assets directory does not exist yet; writing has to create it.
 	want := []byte("fake png bytes")
@@ -121,10 +114,7 @@ func TestSourceWriteAsset(t *testing.T) {
 // A name the read path would refuse must never reach the filesystem: writing it
 // would create a file the server can never serve.
 func TestSourceWriteAssetRejectsUnsafeNames(t *testing.T) {
-	libRoot := path.Join(t.TempDir(), "shelf_test")
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
-
-	_, source := newBookWithSource(t, s, nil, "Unsafe Writes", "body")
+	_, source, libRoot := newBookWithSource(t, "Unsafe Writes", "body")
 
 	for _, name := range []string{"", "..", "../escaped.png", "sub/img.png", ".hidden.png", "notes.txt"} {
 		if err := source.WriteAsset(name, []byte("x")); !errors.Is(err, ErrInvalidAssetName) {
@@ -142,10 +132,7 @@ func TestSourceWriteAssetRejectsUnsafeNames(t *testing.T) {
 }
 
 func TestSourceDeleteAsset(t *testing.T) {
-	libRoot := path.Join(t.TempDir(), "shelf_test")
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
-
-	_, source := newBookWithSource(t, s, nil, "Deletable Art", "body")
+	_, source, libRoot := newBookWithSource(t, "Deletable Art", "body")
 	if err := source.WriteAsset("img-0001.png", []byte("x")); err != nil {
 		t.Fatalf("WriteAsset: %v", err)
 	}
@@ -181,10 +168,7 @@ func TestSourceDeleteAsset(t *testing.T) {
 }
 
 func TestSourceOpenAssetMissing(t *testing.T) {
-	libRoot := path.Join(t.TempDir(), "shelf_test")
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
-
-	_, source := newBookWithSource(t, s, nil, "No Pictures", "body")
+	_, source, libRoot := newBookWithSource(t, "No Pictures", "body")
 
 	// Neither an absent assets/ directory nor an absent file inside one is a
 	// server fault; both must be reported as a missing asset.
@@ -202,10 +186,7 @@ func TestSourceOpenAssetMissing(t *testing.T) {
 // A name that resolves to a directory must read as a missing asset rather than
 // surfacing the read failure as a server error.
 func TestSourceOpenAssetRejectsDirectory(t *testing.T) {
-	libRoot := path.Join(t.TempDir(), "shelf_test")
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
-
-	_, source := newBookWithSource(t, s, nil, "Directory Trap", "body")
+	_, source, libRoot := newBookWithSource(t, "Directory Trap", "body")
 
 	dirPath := path.Join(libRoot, source.FolderPath(), SourceAssetsFolder, "img-0001.png")
 	if err := os.MkdirAll(dirPath, 0755); err != nil {
@@ -218,10 +199,7 @@ func TestSourceOpenAssetRejectsDirectory(t *testing.T) {
 }
 
 func TestSourceOpenAssetRejectsUnsafeNames(t *testing.T) {
-	libRoot := path.Join(t.TempDir(), "shelf_test")
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
-
-	_, source := newBookWithSource(t, s, nil, "Unsafe Names", "body")
+	_, source, libRoot := newBookWithSource(t, "Unsafe Names", "body")
 
 	// A real asset exists, so a rejected name cannot be mistaken for an empty
 	// assets/ directory happening to answer the same way.
@@ -257,10 +235,7 @@ func TestSourceOpenAssetRejectsUnsafeNames(t *testing.T) {
 }
 
 func TestSourceAssetExtensionsAreCaseInsensitive(t *testing.T) {
-	libRoot := path.Join(t.TempDir(), "shelf_test")
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
-
-	_, source := newBookWithSource(t, s, nil, "Shouty Extension", "body")
+	_, source, libRoot := newBookWithSource(t, "Shouty Extension", "body")
 	writeAsset(t, libRoot, source, "img-0001.JPG", []byte("x"))
 
 	asset, err := source.OpenAsset("img-0001.JPG")
@@ -271,10 +246,7 @@ func TestSourceAssetExtensionsAreCaseInsensitive(t *testing.T) {
 }
 
 func TestSourceAssetETagTracksContent(t *testing.T) {
-	libRoot := path.Join(t.TempDir(), "shelf_test")
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
-
-	_, source := newBookWithSource(t, s, nil, "Changing Art", "body")
+	_, source, libRoot := newBookWithSource(t, "Changing Art", "body")
 
 	if etag := source.AssetETag("img-0001.png"); etag != "" {
 		t.Fatalf("AssetETag for a missing asset = %q, want empty", etag)
@@ -289,6 +261,18 @@ func TestSourceAssetETagTracksContent(t *testing.T) {
 	writeAsset(t, libRoot, source, "img-0001.png", []byte("second is longer"))
 	if second := source.AssetETag("img-0001.png"); second == first {
 		t.Fatalf("AssetETag unchanged after rewriting the asset: %q", second)
+	}
+}
+
+// validateAssetName shares the ignored-name rule with layer and source-id
+// validation through shelfutil, but must wrap it in the asset sentinel: an
+// ignored directory name used as an asset reads as ErrInvalidAssetName. The
+// package split makes the domain separation structural — bookpkg cannot even
+// name the shelf's layer sentinels — but the positive case still needs pinning.
+func TestIgnoredAssetNamesStayAssetErrors(t *testing.T) {
+	err := validateAssetName("@eaDir")
+	if !errors.Is(err, ErrInvalidAssetName) {
+		t.Fatalf("validateAssetName(@eaDir) = %v, want ErrInvalidAssetName", err)
 	}
 }
 
@@ -308,65 +292,10 @@ func TestIsSupportedImageExt(t *testing.T) {
 	}
 }
 
-// Assets live inside the book package, so every operation that relocates the
-// package must carry them along without the book's identity changing.
-func TestSourceAssetsSurviveMoveAndTrashRestore(t *testing.T) {
-	libRoot := path.Join(t.TempDir(), "shelf_test")
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
-
-	book, source := newBookWithSource(t, s, Layers{"before"}, "Travelling Art", "body")
-	bookID := book.ID()
-	sourceID := source.ID()
-	want := []byte("fake png bytes")
-	writeAsset(t, libRoot, source, "img-0001.png", want)
-
-	assertAssetReadable := func(t *testing.T, stage string) {
-		t.Helper()
-
-		moved, err := s.GetBook(bookID)
-		if err != nil {
-			t.Fatalf("GetBook after %s: %v", stage, err)
-		}
-		movedSource, err := moved.GetSource(sourceID)
-		if err != nil {
-			t.Fatalf("GetSource after %s: %v", stage, err)
-		}
-		asset, err := movedSource.OpenAsset("img-0001.png")
-		if err != nil {
-			t.Fatalf("OpenAsset after %s: %v", stage, err)
-		}
-		defer asset.File.Close()
-
-		got, err := io.ReadAll(asset.File)
-		if err != nil {
-			t.Fatalf("read asset after %s: %v", stage, err)
-		}
-		if string(got) != string(want) {
-			t.Fatalf("asset bytes after %s = %q, want %q", stage, got, want)
-		}
-	}
-
-	if _, err := s.MoveBook(bookID, Layers{"after", "nested"}); err != nil {
-		t.Fatalf("MoveBook: %v", err)
-	}
-	assertAssetReadable(t, "move")
-
-	if err := s.MoveBookToTrash(bookID); err != nil {
-		t.Fatalf("MoveBookToTrash: %v", err)
-	}
-	if err := s.RestoreTrashedBook(bookID); err != nil {
-		t.Fatalf("RestoreTrashedBook: %v", err)
-	}
-	assertAssetReadable(t, "trash and restore")
-}
-
 // Deleting a source takes its assets with it. This is the property that makes
 // a separate orphan-collection pass unnecessary.
 func TestDeleteSourceRemovesItsAssets(t *testing.T) {
-	libRoot := path.Join(t.TempDir(), "shelf_test")
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
-
-	book, source := newBookWithSource(t, s, nil, "Doomed Art", "body")
+	book, source, libRoot := newBookWithSource(t, "Doomed Art", "body")
 	assetPath := writeAsset(t, libRoot, source, "img-0001.png", []byte("x"))
 
 	if err := book.DeleteSource(source.ID()); err != nil {
@@ -378,13 +307,10 @@ func TestDeleteSourceRemovesItsAssets(t *testing.T) {
 	}
 }
 
-// An assets/ directory must be inert to the code that walks the shelf: it is
-// not a source, and it must not stop the book from being found.
+// An assets/ directory must be inert to the code that walks a book's sources: it
+// is not a source, and it must not stop the book from listing the real one.
 func TestAssetsDirIsNotMistakenForASource(t *testing.T) {
-	libRoot := path.Join(t.TempDir(), "shelf_test")
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
-
-	book, source := newBookWithSource(t, s, nil, "One Source Only", "body")
+	book, source, libRoot := newBookWithSource(t, "One Source Only", "body")
 	writeAsset(t, libRoot, source, "img-0001.png", []byte("x"))
 
 	sources, err := book.ListSource()

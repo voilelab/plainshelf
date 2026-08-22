@@ -1,4 +1,4 @@
-package shelf
+package bookpkg
 
 import (
 	"encoding/json"
@@ -15,6 +15,7 @@ import (
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 )
 
 /*
@@ -80,10 +81,12 @@ var ErrInvalidLanguageTag = util.NewError("language must be a BCP 47 tag")
 
 // BookFormatText and BookFormatMarkdown are the values BookMeta.Format accepts.
 // They decide how the reader renders the book's text; the bytes on disk are the
-// same either way, so switching between them rewrites nothing but book.json.
+// same either way, so switching between them rewrites nothing but book.json. The
+// canonical values live in shelfutil, which owns ValidateBookFormat; these
+// re-exports keep them reachable as bookpkg.BookFormatText.
 const (
-	BookFormatText     = "txt"
-	BookFormatMarkdown = "md"
+	BookFormatText     = shelfutil.BookFormatText
+	BookFormatMarkdown = shelfutil.BookFormatMarkdown
 )
 
 // ErrInvalidBookFormat is returned when BookMeta.Format is neither empty nor a
@@ -96,35 +99,6 @@ var ErrInvalidBookFormat = util.NewError(`format must be "txt" or "md"`)
 // carry their own sentinels (ErrUnsupportedSourceSchemaVersion and
 // ErrUnsupportedTrashSchemaVersion) so errors.Is can tell which file is too new.
 var ErrUnsupportedBookSchemaVersion = util.NewError("book.json schema version is newer than this build supports")
-
-type Layers []string
-
-func (l Layers) String() string {
-	return strings.Join(l, "/")
-}
-
-func (l Layers) Equal(other Layers) bool {
-	if len(l) != len(other) {
-		return false
-	}
-	for i := range l {
-		if l[i] != other[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func NewLayersFromString(s string) Layers {
-	if s == "" {
-		return nil
-	}
-	parts := strings.Split(s, "/")
-	for i := range parts {
-		parts[i] = strings.TrimSpace(parts[i])
-	}
-	return parts
-}
 
 type Book struct {
 	logger logutil.Logger
@@ -205,7 +179,7 @@ func (b *Book) CoverETag() string {
 	if b.meta.Cover == "" {
 		return ""
 	}
-	return fileETag(b.root, path.Join(b.folderPath, b.meta.Cover))
+	return shelfutil.FileETag(b.root, path.Join(b.folderPath, b.meta.Cover))
 }
 
 func (b *Book) OpenCover() ([]byte, string, error) {
@@ -453,7 +427,7 @@ func (b *Book) setMeta(meta *BookMeta) error {
 		return util.Errorf("%w", err)
 	}
 
-	if !validateBCP47(meta.Language) {
+	if !shelfutil.ValidateBCP47(meta.Language) {
 		return util.Errorf("%w: got %q", ErrInvalidLanguageTag, meta.Language)
 	}
 
@@ -461,7 +435,7 @@ func (b *Book) setMeta(meta *BookMeta) error {
 		return util.Errorf("%w: got %d", ErrInvalidStar, meta.Star)
 	}
 
-	if !validateBookFormat(meta.Format) {
+	if !shelfutil.ValidateBookFormat(meta.Format) {
 		return util.Errorf("%w: got %q", ErrInvalidBookFormat, meta.Format)
 	}
 
@@ -533,7 +507,7 @@ func (b *Book) NewSourceWithOptions(source io.Reader, options NewSourceOptions) 
 	if options.Format == "" {
 		options.Format = BookFormatText
 	}
-	if !validateBookFormat(options.Format) {
+	if !shelfutil.ValidateBookFormat(options.Format) {
 		return nil, util.Errorf("%w: got %q", ErrInvalidBookFormat, options.Format)
 	}
 
@@ -555,7 +529,7 @@ func (b *Book) NewSourceWithOptions(source io.Reader, options NewSourceOptions) 
 		sourceID = fmt.Sprintf("%s-%d", baseSourceID, i)
 	}
 
-	tempSourcePath := path.Join(b.folderPath, SourcesFolder, "."+sourceID+"-"+randomString(6)+".tmp")
+	tempSourcePath := path.Join(b.folderPath, SourcesFolder, "."+sourceID+"-"+shelfutil.RandomString(6)+".tmp")
 	defer root.RemoveAll(tempSourcePath) //nolint:errcheck // best-effort cleanup of unpublished data
 
 	src, err := createSource(root, b.logger, tempSourcePath, sourceID, source, options.Format, options.Comment)
@@ -572,7 +546,7 @@ func (b *Book) NewSourceWithOptions(source io.Reader, options NewSourceOptions) 
 }
 
 func (b *Book) GetSource(sourceID string) (*Source, error) {
-	if err := validateSourceID(sourceID); err != nil {
+	if err := shelfutil.ValidateSourceID(sourceID); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -599,10 +573,10 @@ func (b *Book) GetSource(sourceID string) (*Source, error) {
 // The source's meta.json is opened directly instead of through GetSource,
 // which stats the source folder first: the open below already reports a
 // missing source, and on a network mount that stat is another round trip for
-// every book in the shelf. See bookIDCacheEntry.charCount for who reads this.
-func (b *Book) currentSourceCharCount() int {
+// every book in the shelf. The shelf's book cache reads this for its listings.
+func (b *Book) CurrentSourceCharCount() int {
 	sourceID := b.CurrentSource()
-	if err := validateSourceID(sourceID); err != nil {
+	if err := shelfutil.ValidateSourceID(sourceID); err != nil {
 		return 0
 	}
 
@@ -680,7 +654,7 @@ func (b *Book) latestSourceExcluding(excludeID string) (*Source, error) {
 }
 
 func (b *Book) DeleteSource(sourceID string) error {
-	if err := validateSourceID(sourceID); err != nil {
+	if err := shelfutil.ValidateSourceID(sourceID); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -809,7 +783,7 @@ func (b *Book) ListSource() ([]*Source, error) {
 	return sources, nil
 }
 
-func openBook(rt fsutil.ReadFS, logger logutil.Logger, bookPath string) (*Book, error) {
+func Open(rt fsutil.ReadFS, logger logutil.Logger, bookPath string) (*Book, error) {
 	bookFolder, err := rt.Stat(bookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -876,7 +850,7 @@ func readBookMeta(rt fsutil.ReadFS, bookPath string) (*BookMeta, error) {
 	return &meta, nil
 }
 
-func createBook(rt fsutil.FS, logger logutil.Logger, bookPath, bookID, title string) (*Book, error) {
+func Create(rt fsutil.FS, logger logutil.Logger, bookPath, bookID, title string) (*Book, error) {
 	err := rt.MkdirAll(bookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)

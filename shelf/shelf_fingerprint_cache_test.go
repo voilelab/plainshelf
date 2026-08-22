@@ -13,6 +13,7 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/hashutil"
+	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
 // testAlgo is what a fingerprint task would pass in. The values are opaque to
@@ -131,9 +132,9 @@ func sourceFilePath(t *testing.T, libRoot string, book *Book) string {
 func reopen(t *testing.T, root fsutil.ReadFS, bookPath string) (*Book, *Source) {
 	t.Helper()
 
-	book, err := openBook(root, newLoggerForTest(), bookPath)
+	book, err := bookpkg.Open(root, newLoggerForTest(), bookPath)
 	if err != nil {
-		t.Fatalf("openBook(%q): %v", bookPath, err)
+		t.Fatalf("bookpkg.Open(%q): %v", bookPath, err)
 	}
 
 	sources, err := book.ListSource()
@@ -481,7 +482,7 @@ func TestFingerprintCacheMergesAnotherWritersEntries(t *testing.T) {
 	// What the other machine wrote in the meantime: its own book, plus a later
 	// look at the book this one already knows.
 	_, theirSource := reopen(t, counting, theirs.FolderPath())
-	theirStat, err := theirSource.contentStat()
+	theirStat, err := theirSource.ContentStat()
 	if err != nil {
 		t.Fatalf("contentStat: %v", err)
 	}

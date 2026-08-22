@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
 func TestShelfRejectsUnsafeLayerSegments(t *testing.T) {
@@ -68,7 +69,7 @@ func TestBookRejectsUnsafeSourceID(t *testing.T) {
 	}
 	defer testdataRoot.Close()
 
-	book, err := openBook(fsutil.NewRootFS(testdataRoot), newLoggerForTest(), "book-a82m")
+	book, err := bookpkg.Open(fsutil.NewRootFS(testdataRoot), newLoggerForTest(), "book-a82m")
 	if err != nil {
 		t.Fatalf("Failed to open book: %v", err)
 	}

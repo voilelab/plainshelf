@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
 type bookIDCacheEntry struct {
@@ -59,7 +60,7 @@ func newBookIDCacheEntry(layers Layers, path string, book *Book) *bookIDCacheEnt
 // whose write it followed.
 func readCharCount(book *Book) (int, time.Time) {
 	readAt := time.Now()
-	return book.currentSourceCharCount(), readAt
+	return book.CurrentSourceCharCount(), readAt
 }
 
 // keepNewerCharCount returns entry with the character count of the entry it
@@ -225,7 +226,7 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 			continue
 		}
 
-		book, err := openBook(s.dbRoot, s.Logger, cacheEntry.path)
+		book, err := bookpkg.Open(s.dbRoot, s.Logger, cacheEntry.path)
 		if err != nil {
 			s.Warn("Failed to refresh book cache entry, skipping", "bookID", cacheEntry.book.ID(), "error", err)
 			updated[bookID] = nil
@@ -422,7 +423,7 @@ func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, Layers, error) {
 		// If the cache entry is stale or doesn't exist, we need to refresh it.
 		delete(s.bookCache.cache, bookID)
 
-		book, err := openBook(s.dbRoot, s.Logger, cacheEntry.path)
+		book, err := bookpkg.Open(s.dbRoot, s.Logger, cacheEntry.path)
 		if err == nil {
 			s.bookCache.cache[bookID] = keepNewerCharCount(
 				newBookIDCacheEntry(cacheEntry.layers, cacheEntry.path, book),

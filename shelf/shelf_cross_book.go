@@ -8,6 +8,7 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
 // ErrBookIDConflict is returned when a cross-shelf move would land a book on a
@@ -59,7 +60,7 @@ func (target *Shelf) publishBookCopy(sourceRoot fsutil.ReadFS, sourceBook *Book,
 		return nil, util.Errorf("%w", err)
 	}
 
-	stagedBook, err := openBook(root, target.Logger, bookPath)
+	stagedBook, err := bookpkg.Open(root, target.Logger, bookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -71,7 +72,7 @@ func (target *Shelf) publishBookCopy(sourceRoot fsutil.ReadFS, sourceBook *Book,
 			return nil, util.Errorf("%w", err)
 		}
 		stagedMeta.ID = newID
-		if err := stagedBook.setMeta(stagedMeta); err != nil {
+		if err := stagedBook.SetMeta(stagedMeta); err != nil {
 			return nil, util.Errorf("%w", err)
 		}
 	}
@@ -100,7 +101,7 @@ func (target *Shelf) publishBookCopy(sourceRoot fsutil.ReadFS, sourceBook *Book,
 		return nil, util.Errorf("%w", err)
 	}
 
-	newBook, err := openBook(target.dbRoot, target.Logger, finalBookPath)
+	newBook, err := bookpkg.Open(target.dbRoot, target.Logger, finalBookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

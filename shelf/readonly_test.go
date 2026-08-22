@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
 // readOnlyFS exposes only the read half of a filesystem, standing in for a
@@ -31,9 +32,9 @@ type readOnlyFS struct {
 func TestBookOnReadOnlyFSRefusesWrites(t *testing.T) {
 	root := readOnlyFS{testdataFS(t)}
 
-	book, err := openBook(root, newLoggerForTest(), "book-a82m")
+	book, err := bookpkg.Open(root, newLoggerForTest(), "book-a82m")
 	if err != nil {
-		t.Fatalf("openBook: %v", err)
+		t.Fatalf("Open: %v", err)
 	}
 	if book.Title() == "" {
 		t.Fatal("expected a read-only book to still read its metadata")
@@ -78,9 +79,9 @@ func TestBookOnReadOnlyFSRefusesWrites(t *testing.T) {
 func TestRefusedSourceWriteLeavesMetaUntouched(t *testing.T) {
 	root := readOnlyFS{testdataFS(t)}
 
-	book, err := openBook(root, newLoggerForTest(), "book-a82m")
+	book, err := bookpkg.Open(root, newLoggerForTest(), "book-a82m")
 	if err != nil {
-		t.Fatalf("openBook: %v", err)
+		t.Fatalf("Open: %v", err)
 	}
 	source, err := book.GetSource("20260315-a1")
 	if err != nil {

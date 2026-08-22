@@ -1,4 +1,4 @@
-package shelf
+package bookpkg
 
 import (
 	"bytes"
@@ -8,34 +8,36 @@ import (
 	"os"
 	"path"
 	"testing"
+
+	"github.com/voilelab/plainshelf/internal/fsutil"
 )
 
 // downgradeToLegacy rewrites a source's meta.json as one an older build wrote:
 // no schema_version, no format, chapters carried by split_config. It returns a
 // freshly opened handle, because the caller's handle still holds the old meta.
-func downgradeToLegacy(t *testing.T, testShelf *Shelf, source *Source, split string) *Source {
+func downgradeToLegacy(t *testing.T, root fsutil.FS, source *Source, split string) *Source {
 	t.Helper()
 
 	metaPath := path.Join(source.FolderPath(), SourceMetaFile)
 	legacy := `{"id":"` + source.ID() + `","created_at":"2026-01-01T00:00:00Z",` +
 		`"comment":"legacy","split_config":` + split + `}`
-	if err := writeRootForTest(t, testShelf).WriteFile(metaPath, []byte(legacy)); err != nil {
+	if err := root.WriteFile(metaPath, []byte(legacy)); err != nil {
 		t.Fatalf("write legacy meta: %v", err)
 	}
 
-	legacySource, err := openSource(testShelf.dbRoot, source.FolderPath())
+	legacySource, err := openSource(root, source.FolderPath())
 	if err != nil {
 		t.Fatalf("open legacy source: %v", err)
 	}
 	return legacySource
 }
 
-// readPersistedJSON decodes a shelf-relative JSON file as a bare map, so a test
+// readPersistedJSON decodes a book-relative JSON file as a bare map, so a test
 // can assert on the keys actually on disk rather than on a struct's zero values.
-func readPersistedJSON(t *testing.T, testShelf *Shelf, filePath string) map[string]any {
+func readPersistedJSON(t *testing.T, root fsutil.FS, filePath string) map[string]any {
 	t.Helper()
 
-	file, err := testShelf.dbRoot.Open(filePath)
+	file, err := root.Open(filePath)
 	if err != nil {
 		t.Fatalf("open %s: %v", filePath, err)
 	}
@@ -52,28 +54,22 @@ func readPersistedJSON(t *testing.T, testShelf *Shelf, filePath string) map[stri
 	return persisted
 }
 
-// newLegacyTestBook returns the shelf, an empty book, and the shelf's on-disk
-// root, which the assertions need to stat files the shelf FS only exposes
-// relatively.
-func newLegacyTestBook(t *testing.T, title string) (*Shelf, *Book, string) {
+// newLegacyTestBook returns an empty book, the writable filesystem it lives on
+// (for planting a legacy meta.json), and its on-disk library path, which the
+// assertions need to stat files the FS only exposes relatively.
+func newLegacyTestBook(t *testing.T, title string) (*Book, fsutil.FS, string) {
 	t.Helper()
 
-	libRoot := t.TempDir()
-	testShelf := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
-	book, err := testShelf.NewBook(nil, title)
-	if err != nil {
-		t.Fatalf("NewBook: %v", err)
-	}
-	return testShelf, book, libRoot
+	return newTestBook(t, "legacy-book", title)
 }
 
 func TestUpgradeLegacyToSchemaV1RewritesContentAndStampsMeta(t *testing.T) {
-	testShelf, book, libRoot := newLegacyTestBook(t, "Rewrite")
+	book, rootFS, libRoot := newLegacyTestBook(t, "Rewrite")
 	source, err := book.NewSource(bytes.NewBufferString("a\nb\nc\nd"))
 	if err != nil {
 		t.Fatalf("NewSource: %v", err)
 	}
-	legacy := downgradeToLegacy(t, testShelf, source, `{"type":"line_count","line_count":2}`)
+	legacy := downgradeToLegacy(t, rootFS, source, `{"type":"line_count","line_count":2}`)
 
 	upgraded := "## Part 1\n\na\nb\n## Part 2\n\nc\nd"
 	if err := legacy.UpgradeLegacyToSchemaV1(BookFormatMarkdown, bytes.NewBufferString(upgraded)); err != nil {
@@ -88,7 +84,7 @@ func TestUpgradeLegacyToSchemaV1RewritesContentAndStampsMeta(t *testing.T) {
 		t.Errorf("source.txt = %q, want %q", content, upgraded)
 	}
 
-	persisted := readPersistedJSON(t, testShelf, path.Join(source.FolderPath(), SourceMetaFile))
+	persisted := readPersistedJSON(t, rootFS, path.Join(source.FolderPath(), SourceMetaFile))
 	if persisted["schema_version"] != float64(SourceMetaSchemaVersion) {
 		t.Errorf("schema_version = %v, want %d", persisted["schema_version"], SourceMetaSchemaVersion)
 	}
@@ -114,12 +110,12 @@ func TestUpgradeLegacyToSchemaV1RewritesContentAndStampsMeta(t *testing.T) {
 }
 
 func TestUpgradeLegacyToSchemaV1WithoutContentLeavesTheTextAlone(t *testing.T) {
-	testShelf, book, libRoot := newLegacyTestBook(t, "Stamp only")
+	book, rootFS, libRoot := newLegacyTestBook(t, "Stamp only")
 	source, err := book.NewSource(bytes.NewBufferString("untouched\ntext"))
 	if err != nil {
 		t.Fatalf("NewSource: %v", err)
 	}
-	legacy := downgradeToLegacy(t, testShelf, source, `{"type":""}`)
+	legacy := downgradeToLegacy(t, rootFS, source, `{"type":""}`)
 
 	sourcePath := path.Join(libRoot, source.FolderPath(), SourceFile)
 	before, err := os.Stat(sourcePath)
@@ -146,7 +142,7 @@ func TestUpgradeLegacyToSchemaV1WithoutContentLeavesTheTextAlone(t *testing.T) {
 		t.Errorf("source.txt was rewritten: mtime %v became %v", before.ModTime(), after.ModTime())
 	}
 
-	persisted := readPersistedJSON(t, testShelf, path.Join(source.FolderPath(), SourceMetaFile))
+	persisted := readPersistedJSON(t, rootFS, path.Join(source.FolderPath(), SourceMetaFile))
 	if persisted["format"] != BookFormatText {
 		t.Errorf("format = %v, want %q", persisted["format"], BookFormatText)
 	}
@@ -154,7 +150,7 @@ func TestUpgradeLegacyToSchemaV1WithoutContentLeavesTheTextAlone(t *testing.T) {
 
 func TestUpgradeLegacyToSchemaV1Refusals(t *testing.T) {
 	t.Run("a source that already owns its format", func(t *testing.T) {
-		_, book, _ := newLegacyTestBook(t, "Already v1")
+		book, _, _ := newLegacyTestBook(t, "Already v1")
 		source, err := book.NewSource(bytes.NewBufferString("text"))
 		if err != nil {
 			t.Fatalf("NewSource: %v", err)
@@ -166,12 +162,12 @@ func TestUpgradeLegacyToSchemaV1Refusals(t *testing.T) {
 	})
 
 	t.Run("an unknown format", func(t *testing.T) {
-		testShelf, book, _ := newLegacyTestBook(t, "Bad format")
+		book, rootFS, _ := newLegacyTestBook(t, "Bad format")
 		source, err := book.NewSource(bytes.NewBufferString("text"))
 		if err != nil {
 			t.Fatalf("NewSource: %v", err)
 		}
-		legacy := downgradeToLegacy(t, testShelf, source, `{"type":""}`)
+		legacy := downgradeToLegacy(t, rootFS, source, `{"type":""}`)
 
 		for _, format := range []string{"", "epub", "TXT"} {
 			if err := legacy.UpgradeLegacyToSchemaV1(format, nil); !errors.Is(err, ErrInvalidBookFormat) {
@@ -181,7 +177,7 @@ func TestUpgradeLegacyToSchemaV1Refusals(t *testing.T) {
 	})
 
 	t.Run("a newer source schema, before the text is touched", func(t *testing.T) {
-		testShelf, book, libRoot := newLegacyTestBook(t, "Future source")
+		book, rootFS, libRoot := newLegacyTestBook(t, "Future source")
 		source, err := book.NewSource(bytes.NewBufferString("original"))
 		if err != nil {
 			t.Fatalf("NewSource: %v", err)
@@ -189,10 +185,10 @@ func TestUpgradeLegacyToSchemaV1Refusals(t *testing.T) {
 		metaPath := path.Join(source.FolderPath(), SourceMetaFile)
 		future := `{"schema_version":99,"id":"` + source.ID() +
 			`","created_at":"2026-01-01T00:00:00Z","comment":"","split_config":{"type":""}}`
-		if err := writeRootForTest(t, testShelf).WriteFile(metaPath, []byte(future)); err != nil {
+		if err := rootFS.WriteFile(metaPath, []byte(future)); err != nil {
 			t.Fatalf("write future meta: %v", err)
 		}
-		futureSource, err := openSource(testShelf.dbRoot, source.FolderPath())
+		futureSource, err := openSource(rootFS, source.FolderPath())
 		if err != nil {
 			t.Fatalf("open future source: %v", err)
 		}

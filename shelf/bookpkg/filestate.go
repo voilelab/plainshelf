@@ -1,4 +1,4 @@
-package shelf
+package bookpkg
 
 import (
 	"time"

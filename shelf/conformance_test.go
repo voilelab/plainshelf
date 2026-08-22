@@ -207,6 +207,27 @@ func readConformanceCase(t *testing.T, shelfDir string) conformanceReading {
 	}
 }
 
+// readOnDiskSchemaVersion reads book.json's raw schema_version. The normalized
+// BookMeta.SchemaVersion cannot report it: a pre-v1 book and a v1 book both read
+// as 1 in memory, and that difference is exactly what the dataset records.
+func readOnDiskSchemaVersion(t *testing.T, s *Shelf, bookPath string) int {
+	t.Helper()
+
+	file, err := s.dbRoot.Open(path.Join(bookPath, BookMetaFile))
+	if err != nil {
+		t.Fatalf("open book.json (%s): %v", bookPath, err)
+	}
+	defer file.Close() //nolint:errcheck // read-only probe
+
+	var meta struct {
+		SchemaVersion int `json:"schema_version"`
+	}
+	if err := json.NewDecoder(file).Decode(&meta); err != nil {
+		t.Fatalf("decode book.json (%s): %v", bookPath, err)
+	}
+	return meta.SchemaVersion
+}
+
 func readConformanceBooks(t *testing.T, s *Shelf) []conformanceBook {
 	t.Helper()
 
@@ -222,10 +243,7 @@ func readConformanceBooks(t *testing.T, s *Shelf) []conformanceBook {
 
 		// The normalized SchemaVersion in meta cannot tell a pre-v1 book from a
 		// v1 one, and that difference is exactly what the dataset records.
-		onDisk, err := readBookMeta(s.dbRoot, book.FolderPath())
-		if err != nil {
-			t.Fatalf("readBookMeta(%s): %v", book.FolderPath(), err)
-		}
+		onDiskSchema := readOnDiskSchemaVersion(t, s, book.FolderPath())
 
 		coverPresent := false
 		if meta.Cover != "" {
@@ -253,7 +271,7 @@ func readConformanceBooks(t *testing.T, s *Shelf) []conformanceBook {
 			Star:                meta.Star,
 			Cover:               meta.Cover,
 			CoverPresent:        coverPresent,
-			SchemaVersionOnDisk: onDisk.SchemaVersion,
+			SchemaVersionOnDisk: onDiskSchema,
 			ReadOnly:            errors.Is(book.EnsureWritable(), ErrUnsupportedBookSchemaVersion),
 			CurrentSourceField:  book.CurrentSource(),
 			CurrentSource:       currentSource,

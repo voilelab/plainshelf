@@ -1,4 +1,4 @@
-package shelf
+package bookpkg
 
 import (
 	"errors"
@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
-
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 )
 
 /*
@@ -59,13 +59,13 @@ func IsSupportedImageExt(ext string) bool {
 func validateAssetName(name string) error {
 	// A leading dot would let a request name a hidden file. The shelf never
 	// writes one under assets/, so nothing legitimate is refused here. Checked
-	// before validatePathSegment, which rejects dot-prefixed segments too but
+	// before shelfutil.ValidatePathSegment, which rejects dot-prefixed segments too but
 	// reports them in terms of the directory names the shelf scanner skips —
 	// wrong vocabulary for an asset request.
 	if strings.HasPrefix(name, ".") {
 		return util.Errorf("%w %q: must not start with a dot", ErrInvalidAssetName, name)
 	}
-	if err := validatePathSegment(name); err != nil {
+	if err := shelfutil.ValidatePathSegment(name); err != nil {
 		return util.Errorf("%w %q: %w", ErrInvalidAssetName, name, err)
 	}
 	if !IsSupportedImageExt(path.Ext(name)) {
@@ -150,7 +150,7 @@ func (r *Source) AssetETag(name string) string {
 	if err != nil {
 		return ""
 	}
-	return fileETag(r.root, assetPath)
+	return shelfutil.FileETag(r.root, assetPath)
 }
 
 // Asset is an open handle to one of a source's illustrations. The caller owns

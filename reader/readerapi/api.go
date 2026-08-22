@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"path"
 
-	"github.com/voilelab/plainshelf/shelf"
+	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
 // NewHandler serves the reads the reader UI performs, and nothing else.
@@ -53,8 +53,8 @@ type handlers struct {
 // read runs while the package is held open, so a book opened in another window
 // — or from the File menu — cannot close the directory handle midway through
 // this response.
-func (h *handlers) withBook(w http.ResponseWriter, r *http.Request, read func(*shelf.Book)) {
-	held := h.lib.withBook(func(book *shelf.Book) {
+func (h *handlers) withBook(w http.ResponseWriter, r *http.Request, read func(*bookpkg.Book)) {
+	held := h.lib.withBook(func(book *bookpkg.Book) {
 		if requested := r.PathValue("book_id"); requested != book.ID() {
 			http.Error(w, "book not found", http.StatusNotFound)
 			return
@@ -69,7 +69,7 @@ func (h *handlers) withBook(w http.ResponseWriter, r *http.Request, read func(*s
 
 // source resolves the source named in the path, or the current one when the
 // route carries no source id.
-func (h *handlers) source(w http.ResponseWriter, r *http.Request, book *shelf.Book) (*shelf.Source, bool) {
+func (h *handlers) source(w http.ResponseWriter, r *http.Request, book *bookpkg.Book) (*bookpkg.Source, bool) {
 	sourceID := r.PathValue("source_id")
 	if sourceID == "" {
 		source, err := book.ResolveCurrentSource()
@@ -116,17 +116,17 @@ func (h *handlers) getVersion(w http.ResponseWriter, _ *http.Request) {
 // A package has no layers — it is not inside a shelf — so the list is empty
 // rather than absent, which is what the frontend's transform expects.
 func (h *handlers) getBook(w http.ResponseWriter, r *http.Request) {
-	h.withBook(w, r, func(book *shelf.Book) {
+	h.withBook(w, r, func(book *bookpkg.Book) {
 		writeJSON(w, struct {
-			Meta  *shelf.BookMeta `json:"meta"`
-			Layer []string        `json:"layer"`
+			Meta  *bookpkg.BookMeta `json:"meta"`
+			Layer []string          `json:"layer"`
 		}{Meta: book.GetMeta(), Layer: []string{}})
 	})
 }
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/content
 func (h *handlers) getBookContent(w http.ResponseWriter, r *http.Request) {
-	h.withBook(w, r, func(book *shelf.Book) {
+	h.withBook(w, r, func(book *bookpkg.Book) {
 		source, ok := h.source(w, r, book)
 		if !ok {
 			return
@@ -137,19 +137,19 @@ func (h *handlers) getBookContent(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/sources
 func (h *handlers) listSources(w http.ResponseWriter, r *http.Request) {
-	h.withBook(w, r, func(book *shelf.Book) {
+	h.withBook(w, r, func(book *bookpkg.Book) {
 		h.writeSourceList(w, book)
 	})
 }
 
-func (h *handlers) writeSourceList(w http.ResponseWriter, book *shelf.Book) {
+func (h *handlers) writeSourceList(w http.ResponseWriter, book *bookpkg.Book) {
 	sources, err := book.ListSource()
 	if err != nil {
 		http.Error(w, "failed to list the book's sources", http.StatusInternalServerError)
 		return
 	}
 
-	metas := make([]*shelf.SourceMeta, 0, len(sources))
+	metas := make([]*bookpkg.SourceMeta, 0, len(sources))
 	for _, source := range sources {
 		metas = append(metas, source.GetMeta())
 	}
@@ -158,7 +158,7 @@ func (h *handlers) writeSourceList(w http.ResponseWriter, book *shelf.Book) {
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}
 func (h *handlers) getSource(w http.ResponseWriter, r *http.Request) {
-	h.withBook(w, r, func(book *shelf.Book) {
+	h.withBook(w, r, func(book *bookpkg.Book) {
 		source, ok := h.source(w, r, book)
 		if !ok {
 			return
@@ -169,7 +169,7 @@ func (h *handlers) getSource(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content
 func (h *handlers) getSourceContent(w http.ResponseWriter, r *http.Request) {
-	h.withBook(w, r, func(book *shelf.Book) {
+	h.withBook(w, r, func(book *bookpkg.Book) {
 		source, ok := h.source(w, r, book)
 		if !ok {
 			return
@@ -178,7 +178,7 @@ func (h *handlers) getSourceContent(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *handlers) streamSource(w http.ResponseWriter, source *shelf.Source) {
+func (h *handlers) streamSource(w http.ResponseWriter, source *bookpkg.Source) {
 	content, err := source.Open()
 	if err != nil {
 		http.Error(w, "failed to open the source", http.StatusInternalServerError)
@@ -196,12 +196,12 @@ func (h *handlers) streamSource(w http.ResponseWriter, source *shelf.Source) {
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/cover
 func (h *handlers) getCover(w http.ResponseWriter, r *http.Request) {
-	h.withBook(w, r, func(book *shelf.Book) {
+	h.withBook(w, r, func(book *bookpkg.Book) {
 		h.writeCover(w, book)
 	})
 }
 
-func (h *handlers) writeCover(w http.ResponseWriter, book *shelf.Book) {
+func (h *handlers) writeCover(w http.ResponseWriter, book *bookpkg.Book) {
 	cover, ext, err := book.OpenCover()
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -222,7 +222,7 @@ func (h *handlers) writeCover(w http.ResponseWriter, book *shelf.Book) {
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}
 func (h *handlers) getAsset(w http.ResponseWriter, r *http.Request) {
-	h.withBook(w, r, func(book *shelf.Book) {
+	h.withBook(w, r, func(book *bookpkg.Book) {
 		source, ok := h.source(w, r, book)
 		if !ok {
 			return
@@ -231,7 +231,7 @@ func (h *handlers) getAsset(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *handlers) writeAsset(w http.ResponseWriter, source *shelf.Source, name string) {
+func (h *handlers) writeAsset(w http.ResponseWriter, source *bookpkg.Source, name string) {
 	// Whatever the name is, it is resolved by the shelf's own asset rules
 	// (assets/ only, no traversal, supported extensions) rather than by string
 	// handling here.
