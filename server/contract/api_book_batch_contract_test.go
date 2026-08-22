@@ -53,12 +53,12 @@ func TestAPIBookBatchMoveContract(t *testing.T) {
 		if !exists {
 			t.Fatal("default shelf disappeared")
 		}
-		book, err := shelfData.GetBook(id)
+		listing, err := shelfData.GetBookListing(id)
 		if err != nil {
-			t.Fatalf("GetBook(%s): %v", id, err)
+			t.Fatalf("GetBookListing(%s): %v", id, err)
 		}
-		if !book.Layers().Equal([]string{"target"}) {
-			t.Errorf("book %s layers = %v, want target", id, book.Layers())
+		if !listing.Layers.Equal([]string{"target"}) {
+			t.Errorf("book %s layers = %v, want target", id, listing.Layers)
 		}
 	}
 }

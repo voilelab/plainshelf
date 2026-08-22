@@ -105,8 +105,6 @@ func (target *Shelf) publishBookCopy(sourceRoot fsutil.ReadFS, sourceBook *Book,
 		return nil, util.Errorf("%w", err)
 	}
 
-	newBook.setLayers(targetLayer)
-
 	target.updateBookCacheEntry(targetLayer, finalBookPath, newBook)
 
 	return newBook, nil

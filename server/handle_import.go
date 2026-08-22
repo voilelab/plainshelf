@@ -258,7 +258,7 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		h.writeImportedBook(w, newBook)
+		h.writeImportedBook(w, newBook, layerParts)
 		return
 	}
 
@@ -277,7 +277,7 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.writeImportedBook(w, newBook)
+	h.writeImportedBook(w, newBook, layerParts)
 }
 
 // writeEPUBImportError reports a bad archive with its detail, because the
@@ -292,10 +292,13 @@ func (h *importHandlers) writeEPUBImportError(w http.ResponseWriter, err error) 
 	h.writeErr(w, err, "failed to import epub")
 }
 
-func (h *importHandlers) writeImportedBook(w http.ResponseWriter, newBook *shelf.Book) {
+// writeImportedBook responds with the freshly imported book. The book was
+// created under layerParts, which is where it now sits; the book itself does
+// not carry its layer back.
+func (h *importHandlers) writeImportedBook(w http.ResponseWriter, newBook *shelf.Book, layerParts shelf.Layers) {
 	h.writeJSON(w, http.StatusCreated, Book{
 		Meta:  newBook.GetMeta(),
-		Layer: newBook.Layers(),
+		Layer: layerParts,
 	})
 }
 

@@ -204,7 +204,7 @@ func TestRefreshBookCharCountAppliesToAReplacedEntry(t *testing.T) {
 	book := newBookWithContent(t, s, "Replaced", "abcde")
 
 	// What a walk that read this book before the rewrite below would publish.
-	stale := newBookIDCacheEntry(book.Layers(), book.FolderPath(), book)
+	stale := newBookIDCacheEntry(bookFolderLayers(book.FolderPath()), book.FolderPath(), book)
 
 	source, err := book.GetSource(book.CurrentSource())
 	if err != nil {

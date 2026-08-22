@@ -178,7 +178,7 @@ func (s *Shelf) scanToBookCache() error {
 		layers = append(layers, ls)
 		return true
 	}, func(b *Book) bool {
-		cache[b.ID()] = newBookIDCacheEntry(b.Layers(), b.FolderPath(), b)
+		cache[b.ID()] = newBookIDCacheEntry(bookFolderLayers(b.FolderPath()), b.FolderPath(), b)
 		return true
 	})
 	if err != nil {
@@ -238,7 +238,6 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 			continue
 		}
 
-		book.setLayers(cacheEntry.layers)
 		updated[bookID] = newBookIDCacheEntry(cacheEntry.layers, cacheEntry.path, book)
 	}
 
@@ -341,6 +340,7 @@ func (s *Shelf) listBookListingsFromCache() []BookListing {
 	for _, cacheEntry := range s.bookCache.cache {
 		listings = append(listings, BookListing{
 			Book:      cacheEntry.book,
+			Layers:    slices.Clone(cacheEntry.layers),
 			CharCount: cacheEntry.charCount,
 		})
 	}
@@ -419,7 +419,6 @@ func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, error) {
 
 		book, err := openBook(s.dbRoot, s.Logger, cacheEntry.path)
 		if err == nil {
-			book.setLayers(cacheEntry.layers)
 			s.bookCache.cache[bookID] = keepNewerCharCount(
 				newBookIDCacheEntry(cacheEntry.layers, cacheEntry.path, book),
 				s.bookCache.cache[bookID],
@@ -500,6 +499,21 @@ func (s *Shelf) RefreshBookCharCount(bookID string) {
 	refreshed.charCount = charCount
 	refreshed.charCountAt = charCountAt
 	s.bookCache.cache[bookID] = &refreshed
+}
+
+// bookLayers returns a copy of the layer recorded for a cached book, or nil
+// when the book is not in the cache. The cache entry is the single owner of a
+// book's layer, so this is how the shelf answers "where does this book sit"
+// away from a full listing.
+func (s *Shelf) bookLayers(bookID string) Layers {
+	s.bookCache.RLock()
+	defer s.bookCache.RUnlock()
+
+	entry := s.bookCache.cache[bookID]
+	if entry == nil {
+		return nil
+	}
+	return slices.Clone(entry.layers)
 }
 
 func (s *Shelf) deleteBookCacheEntry(bookID string) {

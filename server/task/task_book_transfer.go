@@ -142,8 +142,9 @@ func (t *bookTransferTask) Run(ctx context.Context) error {
 	if err != nil {
 		t.result.FailureCode = failureCode(t.operation, err)
 	} else {
+		// The book landed under targetLayer; the book itself does not carry it.
 		t.result.BookID = book.ID()
-		t.result.Layer = book.Layers()
+		t.result.Layer = append(shelf.Layers(nil), t.targetLayer...)
 	}
 	t.mu.Unlock()
 

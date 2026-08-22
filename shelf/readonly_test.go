@@ -256,15 +256,16 @@ func TestReadOnlyShelfReadsWithoutWriting(t *testing.T) {
 		t.Fatalf("ListBooks returned %d books, want the seeded %q", len(books), bookID)
 	}
 
-	book, err := s.GetBook(bookID)
+	listing, err := s.GetBookListing(bookID)
 	if err != nil {
-		t.Fatalf("GetBook: %v", err)
+		t.Fatalf("GetBookListing: %v", err)
 	}
+	book := listing.Book
 	if book.Title() != "Read Only Book" {
 		t.Errorf("Title() = %q, want %q", book.Title(), "Read Only Book")
 	}
-	if !book.Layers().Equal(Layers{"fiction"}) {
-		t.Errorf("Layers() = %v, want [fiction]", book.Layers())
+	if !listing.Layers.Equal(Layers{"fiction"}) {
+		t.Errorf("Layers = %v, want [fiction]", listing.Layers)
 	}
 
 	cover, ext, err := book.OpenCover()

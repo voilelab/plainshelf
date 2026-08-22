@@ -97,7 +97,7 @@ func (h *bookHandlers) getBooks(w http.ResponseWriter, r *http.Request) {
 	for i, b := range books {
 		jsonBooks[i] = Book{
 			Meta:  b.Book.GetMeta(),
-			Layer: b.Book.Layers(),
+			Layer: b.Layers,
 		}
 		if includeCharCount {
 			// A book with a broken or missing source reports 0, which omitempty
@@ -148,9 +148,11 @@ func (h *bookHandlers) createBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The book was created under req.Layer, so that is where it now sits; the
+	// book itself does not carry its layer back.
 	h.writeJSON(w, http.StatusCreated, Book{
 		Meta:  newBook.GetMeta(),
-		Layer: newBook.Layers(),
+		Layer: req.Layer,
 	})
 }
 
@@ -187,13 +189,13 @@ func (h *bookHandlers) copyBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	book, ok := h.lookupBook(w, shelfData, bookID)
+	listing, ok := h.lookupBookListing(w, shelfData, bookID)
 	if !ok {
 		return
 	}
 
 	// Default to the source book's own layer so a plain "duplicate" needs no body.
-	target := append(shelf.Layers(nil), book.Layers()...)
+	target := append(shelf.Layers(nil), listing.Layers...)
 	if override := req.targetLayers(); override != nil {
 		target = append(shelf.Layers(nil), (*override)...)
 	}
@@ -204,22 +206,23 @@ func (h *bookHandlers) copyBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The copy landed under target, so that is its layer.
 	h.writeJSON(w, http.StatusCreated, Book{
 		Meta:  copied.GetMeta(),
-		Layer: copied.Layers(),
+		Layer: target,
 	})
 }
 
 // GET /api/shelves/{shelf_id}/books/{book_id}
 func (h *bookHandlers) getBook(w http.ResponseWriter, r *http.Request) {
-	_, book, ok := h.loadBook(w, r)
+	_, listing, ok := h.loadBookListing(w, r)
 	if !ok {
 		return
 	}
 
 	h.writeJSON(w, http.StatusOK, Book{
-		Meta:  book.GetMeta(),
-		Layer: book.Layers(),
+		Meta:  listing.Book.GetMeta(),
+		Layer: listing.Layers,
 	})
 }
 
@@ -242,10 +245,12 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	book, ok := h.lookupBook(w, shelfData, bookID)
+	listing, ok := h.lookupBookListing(w, shelfData, bookID)
 	if !ok {
 		return
 	}
+	book := listing.Book
+	layer := listing.Layers
 
 	// Refuse a book this build must not modify before doing anything, otherwise
 	// a layer move would be applied to disk and then reported as a failure.
@@ -255,12 +260,15 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if target := req.targetLayers(); target != nil {
-		movedBook, err := shelfData.MoveBook(bookID, append(shelf.Layers(nil), (*target)...))
+		moveTo := append(shelf.Layers(nil), (*target)...)
+		movedBook, err := shelfData.MoveBook(bookID, moveTo)
 		if err != nil {
 			h.writeErr(w, err, "failed to move book layer")
 			return
 		}
+		// The book now sits where it was moved to.
 		book = movedBook
+		layer = moveTo
 	}
 
 	meta := *book.GetMeta()
@@ -271,7 +279,7 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.writeJSON(w, http.StatusOK, Book{Meta: &meta, Layer: book.Layers()})
+	h.writeJSON(w, http.StatusOK, Book{Meta: &meta, Layer: layer})
 }
 
 // "layer" is the current field name; "layers" is still accepted because older

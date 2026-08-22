@@ -45,7 +45,7 @@ observations both can make, in the shape both can produce:
 |---|---|---|
 | `layers` | `collectExportLayers` | `collectLayers` |
 | `books[].path` | `Book.FolderPath` | `bookPackagePath` |
-| `books[].layers` | `Book.Layers` | `BookPackageRef.layers` |
+| `books[].layers` | `BookListing.Layers` | `BookPackageRef.layers` |
 | `books[].id`, `title`, `format`, `authors`, `tags`, `star`, `cover` | `Book.GetMeta` | `parseBookJson` |
 | `books[].cover_present` | `Book.OpenCover` | `findCoverFile` |
 | `books[].schema_version_on_disk` | `readBookMeta` | `BookJson.schema_version` |
