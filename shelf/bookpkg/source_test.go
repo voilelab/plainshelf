@@ -205,6 +205,13 @@ func TestCreateRootSource(t *testing.T) {
 	if meta.CharCount != len(sourceContent) {
 		t.Errorf("Expected character count %d, got %d", len(sourceContent), meta.CharCount)
 	}
+
+	// A fresh source has no chapter config, so meta.json must not carry an empty
+	// split_config that no schema-versioned reader consults.
+	persisted := readPersistedJSON(t, rootFS, path.Join(source.FolderPath(), SourceMetaFile))
+	if _, ok := persisted["split_config"]; ok {
+		t.Errorf("new source wrote split_config: %v", persisted["split_config"])
+	}
 }
 
 func TestLegacySourceSaveDoesNotUpgradeFormatOwnership(t *testing.T) {
@@ -244,6 +251,13 @@ func TestLegacySourceSaveDoesNotUpgradeFormatOwnership(t *testing.T) {
 	}
 	if _, ok := persisted["schema_version"]; ok {
 		t.Fatalf("ordinary save added schema_version to legacy source: %s", raw)
+	}
+	split, ok := persisted["split_config"].(map[string]any)
+	if !ok {
+		t.Fatalf("ordinary save dropped the legacy split_config: %s", raw)
+	}
+	if split["type"] != "line_count" || split["line_count"] != float64(20) {
+		t.Fatalf("ordinary save mangled the legacy split_config: %v", split)
 	}
 }
 

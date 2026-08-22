@@ -210,7 +210,7 @@ func assertSourceFormat(t *testing.T, sourceMeta map[string]any, wantFormat stri
 	if version, _ := sourceMeta["schema_version"].(float64); version != 1 {
 		t.Fatalf("source schema_version = %v, want 1", sourceMeta["schema_version"])
 	}
-	if split, _ := sourceMeta["split_config"].(map[string]any); split["type"] != "" {
-		t.Fatalf("source split config = %#v, want none", split)
+	if _, ok := sourceMeta["split_config"]; ok {
+		t.Fatalf("imported source wrote split_config = %#v, want it absent", sourceMeta["split_config"])
 	}
 }

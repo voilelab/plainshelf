@@ -91,12 +91,8 @@ func TestUpgradeLegacyToSchemaV1RewritesContentAndStampsMeta(t *testing.T) {
 	if persisted["format"] != BookFormatMarkdown {
 		t.Errorf("format = %v, want %q", persisted["format"], BookFormatMarkdown)
 	}
-	split, _ := persisted["split_config"].(map[string]any)
-	if split["type"] != "" {
-		t.Errorf("split_config.type = %v, want the ignored empty type", split["type"])
-	}
-	if _, ok := split["line_count"]; ok {
-		t.Errorf("split_config kept its legacy line_count: %v", split)
+	if _, ok := persisted["split_config"]; ok {
+		t.Errorf("upgrade left split_config on disk: %v", persisted["split_config"])
 	}
 
 	// The content metrics must describe the new bytes, not the old ones.
@@ -106,6 +102,41 @@ func TestUpgradeLegacyToSchemaV1RewritesContentAndStampsMeta(t *testing.T) {
 	}
 	if ok, err := legacy.VerifyContent(); err != nil || !ok {
 		t.Errorf("VerifyContent() = %v, %v; want the hash to match the new content", ok, err)
+	}
+}
+
+// TestLegacySplitConfigSurvivesOrdinaryRewrite guards the reverse of the
+// omitzero change: a legacy source whose chapters live in split_config must keep
+// that config verbatim through any meta.json rewrite that is not an upgrade.
+// omitzero only drops the zero value, so a populated legacy config stays.
+func TestLegacySplitConfigSurvivesOrdinaryRewrite(t *testing.T) {
+	book, rootFS, _ := newLegacyTestBook(t, "Preserve")
+	source, err := book.NewSource(bytes.NewBufferString("a\nb\nc"))
+	if err != nil {
+		t.Fatalf("NewSource: %v", err)
+	}
+	legacy := downgradeToLegacy(t, rootFS, source,
+		`{"type":"regex","regex":"^Chapter","boundaries":[10,20]}`)
+
+	// An ordinary edit that rewrites meta.json without upgrading the schema.
+	if err := legacy.UpdateComment("edited"); err != nil {
+		t.Fatalf("UpdateComment: %v", err)
+	}
+
+	persisted := readPersistedJSON(t, rootFS, path.Join(source.FolderPath(), SourceMetaFile))
+	split, ok := persisted["split_config"].(map[string]any)
+	if !ok {
+		t.Fatalf("split_config missing or not an object after rewrite: %v", persisted["split_config"])
+	}
+	if split["type"] != "regex" {
+		t.Errorf("split_config.type = %v, want %q", split["type"], "regex")
+	}
+	if split["regex"] != "^Chapter" {
+		t.Errorf("split_config.regex = %v, want %q", split["regex"], "^Chapter")
+	}
+	boundaries, ok := split["boundaries"].([]any)
+	if !ok || len(boundaries) != 2 || boundaries[0] != float64(10) || boundaries[1] != float64(20) {
+		t.Errorf("split_config.boundaries = %v, want [10 20]", split["boundaries"])
 	}
 }
 

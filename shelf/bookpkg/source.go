@@ -53,8 +53,10 @@ type SourceMeta struct {
 	LineCount int    `json:"line_count,omitempty"`
 	CharCount int    `json:"char_count,omitempty"`
 
-	// split config: how the novel should be split into parts
-	SplitConfig SplitConfig `json:"split_config"`
+	// split config: how the novel should be split into parts. Legacy-only;
+	// omitzero keeps a fresh source from writing an empty split_config that no
+	// schema-versioned reader consults.
+	SplitConfig SplitConfig `json:"split_config,omitzero"`
 }
 
 func (r *Source) FolderPath() string {
@@ -369,7 +371,6 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 		ID:            id,
 		CreatedAt:     util.JSONTime(time.Now()),
 		Format:        format,
-		SplitConfig:   SplitConfig{Type: SplitTypeNone},
 
 		MD5Hash:   md5Hash,
 		LineCount: lineCount,
