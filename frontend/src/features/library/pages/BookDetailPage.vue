@@ -25,6 +25,19 @@
         @cancel="cancelCopy"
         @submit="submitCopy"
       />
+      <TransferBookModal
+        v-if="!readOnly"
+        :open="!!transferTarget"
+        :book-title="transferTarget?.title || id"
+        :busy="transferring"
+        :started="transferStarted"
+        :finished="transferFinished"
+        :status="transferStatus"
+        :percentage="transferPercentage"
+        :error="transferError"
+        @close="onTransferClose"
+        @submit="submitTransfer"
+      />
       <DeleteModal
         :open="!!deleteTarget"
         :item-name="deleteTarget?.title || id"
@@ -161,6 +174,13 @@
                       >
                         {{ t('bookDetail.actions.moveTo') }}
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-if="!readOnly && hasTransferDestinations"
+                        class="reka-menu-item"
+                        @select="onRequestTransfer"
+                      >
+                        {{ t('bookDetail.actions.transferTo') }}
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator v-if="!readOnly" class="detail-menu-separator" />
                       <DropdownMenuItem
                         v-if="!readOnly"
@@ -201,8 +221,10 @@ import BookCover from '@/features/library/components/BookCover.vue';
 import BookDetail from '@/features/library/components/BookDetail.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
 import MoveBooksModal from '@/features/library/components/MoveBooksModal.vue';
+import TransferBookModal from '@/features/library/components/TransferBookModal.vue';
 import ProgressBar from '@/components/ProgressBar.vue';
 import { useBookActions } from '@/composables/useBookActions';
+import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useBookDetail } from '@/features/library/composables/useBookDetail';
 import { getReadingAction, resolveReadingPercent } from '@/features/library/utils/bookDetail';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
@@ -244,6 +266,17 @@ const {
   copyTarget,
   copying,
   copyLayerOptions,
+  transferTarget,
+  transferMode,
+  transferStatus,
+  transferPercentage,
+  transferError,
+  transferStarted,
+  transferring,
+  transferFinished,
+  requestTransfer,
+  cancelTransfer,
+  submitTransfer,
   canOpenBookFolder,
   goRead,
   goEdit,
@@ -274,6 +307,13 @@ const {
     void router.push({ path: `/books/${copy.id}`, query: { copied: '1' } });
   }
 });
+
+// The transfer picker needs at least one shelf other than the active one, so the
+// menu entry stays hidden until the shelf list proves a destination exists.
+const { shelves, selectedShelfID, ensureShelvesLoaded } = useShelvesStore();
+const hasTransferDestinations = computed(() =>
+  shelves.value.some((shelf) => shelf.id !== selectedShelfID.value)
+);
 
 const readingPercent = computed(() => resolveReadingPercent(
   progress.value,
@@ -391,6 +431,27 @@ function onRequestCopy(): void {
   requestCopy(book.value);
 }
 
+function onRequestTransfer(): void {
+  if (readOnly.value || !book.value) {
+    return;
+  }
+  requestTransfer(book.value);
+}
+
+function onTransferClose(): void {
+  // Read the outcome before cancelTransfer clears it: a completed move leaves
+  // the book on another shelf, so this shelf's detail page for it is now stale
+  // and the user is returned to the folder it came from. A copy left the source
+  // in place, so the page stays as it is.
+  const movedAway =
+    transferMode.value === 'move' && transferFinished.value && transferStatus.value !== 'failed';
+  const from = transferTarget.value;
+  cancelTransfer();
+  if (movedAway && from) {
+    void router.push(booksRouteForLayerPath(getLayerPath(from)));
+  }
+}
+
 function onRequestDelete(): void {
   if (readOnly.value || !book.value) {
     return;
@@ -405,6 +466,12 @@ watch(id, () => {
     void refreshOfflineDownload();
   }
 }, { immediate: true });
+
+// Loaded once so the transfer menu entry can tell whether any destination shelf
+// exists; idempotent, so re-running when a book id changes is a no-op.
+if (!readOnly.value) {
+  void ensureShelvesLoaded();
+}
 </script>
 
 <style scoped>

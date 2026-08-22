@@ -479,6 +479,7 @@ const en = {
       openFolder: 'Open folder',
       copyTo: 'Copy to…',
       moveTo: 'Move to…',
+      transferTo: 'Transfer to another shelf…',
       moveToTrash: 'Move to Trash',
       movingToTrash: 'Moving...',
       dismiss: 'Dismiss'
@@ -496,7 +497,9 @@ const en = {
       downloadFailed: 'Failed to download book',
       openFolderFailed: 'Failed to open book folder',
       moveFailed: 'Failed to move book',
-      copyFailed: 'Failed to copy book'
+      copyFailed: 'Failed to copy book',
+      transferFailed: 'Failed to start the transfer',
+      transferPollFailed: 'Lost track of the transfer progress.'
     },
     move: {
       title: 'Move book'
@@ -505,6 +508,31 @@ const en = {
       title: 'Copy book',
       confirm: 'Copy',
       copying: 'Copying...'
+    },
+    transfer: {
+      title: 'Transfer to another shelf',
+      description: 'Copy or move “{title}” to a different shelf.',
+      shelfLabel: 'Destination shelf',
+      chooseShelf: 'Choose a shelf',
+      noShelves: 'No other shelf is available to transfer to.',
+      layerLabel: 'Destination folder',
+      rootLayer: 'All books (top level)',
+      loadingLayers: 'Loading folders…',
+      layersFailed: 'Failed to load the destination folders.',
+      modeLabel: 'Action',
+      modeCopy: 'Copy',
+      modeCopyHint: 'Creates a new book on the destination shelf. Reading progress is not carried over.',
+      modeMove: 'Move',
+      modeMoveHint: 'Keeps the same book and its reading progress, and removes it from this shelf.',
+      confirm: 'Transfer',
+      close: 'Close',
+      progressLabel: 'Transfer progress',
+      pending: 'Preparing…',
+      running: 'Transferring…',
+      completedCopy: 'Book copied to the destination shelf.',
+      completedMove: 'Book moved to the destination shelf.',
+      partial: 'The transfer finished with problems.',
+      failed: 'The transfer failed.'
     },
     delete: {
       description: 'The book will be moved to Trash. You can restore it later.'
