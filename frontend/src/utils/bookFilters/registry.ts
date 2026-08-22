@@ -45,6 +45,14 @@ export interface FilterDependency {
   load(): void | Promise<void>;
   /** Whether the extra data has arrived and the filter may be applied. */
   ready(): boolean;
+  /**
+   * Fills in the datum the listing omits from the loaded data, returning a book
+   * the predicate can decide correctly. This is the bridge that keeps
+   * `predicate` transport-independent: a consumer evaluates
+   * `predicate(dependency.augment(book), value)` so the lazily fetched value is
+   * applied without the predicate ever knowing where the value came from.
+   */
+  augment(book: Book): Book;
   /** How many of `books` the filter cannot decide because their datum is unknown. */
   unknownCount(books: readonly Book[], value: unknown): number;
 }
@@ -144,9 +152,10 @@ export const charCountFilter = defineBookFilter<CharCountRange>({
     return query;
   },
   isActive: (value) => isCharCountRangeActive(value),
-  // Transport-independent: reads only the listing's own count. The lazily loaded
-  // index that fills in books whose count is not in the listing is the
-  // dependency's job, not the predicate's.
+  // Transport-independent: reads only the book's own count. A consumer that has
+  // loaded the dependency first passes `createDependency().augment(book)` here so
+  // a count that lives only in the lazy index is applied; the predicate itself
+  // never learns where the count came from.
   predicate: (book, value) => isCharCountInRange(book.char_count, value),
   // Hidden on a backend that cannot afford the counts (pCloud would read every
   // book's source over the network to answer includeCharCount).
@@ -156,6 +165,13 @@ export const charCountFilter = defineBookFilter<CharCountRange>({
     return {
       load: () => index.load(),
       ready: () => index.ready.value,
+      // The listing omits char_count; a count fetched into the index is the one
+      // the predicate must see. book.char_count already present (mock data, or a
+      // listing that did include it) is left untouched.
+      augment: (book) =>
+        book.char_count !== undefined
+          ? book
+          : { ...book, char_count: index.counts.value.get(book.id) },
       unknownCount: (books, value) => {
         const range = value as CharCountRange;
         if (!isCharCountRangeActive(range) || !index.ready.value) {
