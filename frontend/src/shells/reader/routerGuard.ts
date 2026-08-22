@@ -28,7 +28,8 @@ export function installReaderRouterGuards(router: Router): void {
   });
 
   router.beforeEach((to) => {
-    const bookID = readerBootConfig()?.book_id ?? '';
+    const boot = readerBootConfig();
+    const bookID = boot?.book_id ?? '';
 
     if (!bookID) {
       return to.name === READER_EMPTY_ROUTE ? true : { name: READER_EMPTY_ROUTE };
@@ -36,11 +37,19 @@ export function installReaderRouterGuards(router: Router): void {
 
     // Already reading the book this app was opened with. Compared rather than
     // trusted: the reader serves exactly one book, and a link to any other id
-    // would 404 against its own API.
+    // would 404 against its own API. The launch redirect below sets the section
+    // once; leaving an in-place navigation untouched here is what stops a later
+    // chapter change from being dragged back to the launch chapter.
     if (to.name === 'reader' && to.params.id === bookID) {
       return true;
     }
 
-    return { name: 'reader', params: { id: bookID } };
+    // A reader launched for a specific chapter (desktop -section) carries it as
+    // the `?section=` deep link ReaderView honours on load, so the standalone
+    // window opens on that chapter rather than the restored progress.
+    const section = boot?.section ?? null;
+    return section === null
+      ? { name: 'reader', params: { id: bookID } }
+      : { name: 'reader', params: { id: bookID }, query: { section: String(section) } };
   });
 }

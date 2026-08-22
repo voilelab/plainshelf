@@ -36,8 +36,8 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
     return openDesktopBookFolder(bookId);
   }
 
-  openDesktopReader(bookId: string): Promise<void> {
-    return openDesktopReader(bookId);
+  openDesktopReader(bookId: string, section?: number): Promise<void> {
+    return openDesktopReader(bookId, section);
   }
 
   openDesktopShelfDirectory(): Promise<string | null> {

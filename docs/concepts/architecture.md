@@ -103,7 +103,10 @@ book's progress depends on how it was launched:
   its active shelf, so it opens at — and writes back to — the same
   `shelves.<realShelfID>.<bookID>` position the desktop library already holds,
   whichever source last recorded it (the reader, the in-app reader, or an import).
-  Both sides read and write the same key, so no projection is involved.
+  Both sides read and write the same key, so no projection is involved. A chapter
+  "read" action adds `-section <index>` (the reader's own section index, matching
+  the `?section=` deep link), so the reader opens on that chapter instead of the
+  restored progress; a default read omits it.
 - **Run standalone** (opened directly, no `-shelf`), the reader has no real shelf,
   so it keys every book's progress under one synthetic shelf id, `book`, which the
   desktop app projects onto the real shelves later (below).
@@ -114,8 +117,9 @@ reach the desktop library.
 
 Only the desktop shells out to the standalone reader — web and mobile keep the
 in-app reader, which is the same shared code and stays the desktop's fallback if
-the reader will not launch. A specific chapter jump also stays in the in-app
-reader, which can target a section the standalone reader cannot yet.
+the reader will not launch. A chapter jump shells out the same way, passing its
+section so the standalone window opens on that chapter; the in-app reader at that
+section remains the fallback when the reader will not launch.
 
 One file has more than one writer, so every entry carries the wall-clock time it
 was written and all reconciliation is **newest-wins per book**:

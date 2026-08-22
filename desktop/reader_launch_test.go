@@ -8,7 +8,7 @@ import (
 func TestReaderLaunchCommandDefault(t *testing.T) {
 	t.Setenv("PLAINSHELF_READER_APP", "")
 
-	name, args := readerLaunchCommand("/books/alpha.bookpkg", "shelf-real")
+	name, args := readerLaunchCommand("/books/alpha.bookpkg", "shelf-real", -1)
 	if name != "open" {
 		t.Fatalf("launcher = %q, want open", name)
 	}
@@ -21,7 +21,7 @@ func TestReaderLaunchCommandDefault(t *testing.T) {
 func TestReaderLaunchCommandEnvOverride(t *testing.T) {
 	t.Setenv("PLAINSHELF_READER_APP", "/tmp/build/PlainShelfReader.app")
 
-	_, args := readerLaunchCommand("/books/beta.bookpkg", "shelf-real")
+	_, args := readerLaunchCommand("/books/beta.bookpkg", "shelf-real", -1)
 	want := []string{"-n", "-a", "/tmp/build/PlainShelfReader.app", "--args", "-book", "/books/beta.bookpkg", "-shelf", "shelf-real"}
 	if !reflect.DeepEqual(args, want) {
 		t.Fatalf("args = %v, want %v", args, want)
@@ -34,8 +34,32 @@ func TestReaderLaunchCommandEnvOverride(t *testing.T) {
 func TestReaderLaunchCommandNoShelf(t *testing.T) {
 	t.Setenv("PLAINSHELF_READER_APP", "")
 
-	_, args := readerLaunchCommand("/books/alpha.bookpkg", "")
+	_, args := readerLaunchCommand("/books/alpha.bookpkg", "", -1)
 	want := []string{"-n", "-a", "PlainShelfReader", "--args", "-book", "/books/alpha.bookpkg"}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("args = %v, want %v", args, want)
+	}
+}
+
+// A chapter "read" action passes the reader section index, which the launcher
+// forwards as -section so the standalone reader opens at that chapter.
+func TestReaderLaunchCommandWithSection(t *testing.T) {
+	t.Setenv("PLAINSHELF_READER_APP", "")
+
+	_, args := readerLaunchCommand("/books/alpha.bookpkg", "shelf-real", 3)
+	want := []string{"-n", "-a", "PlainShelfReader", "--args", "-book", "/books/alpha.bookpkg", "-shelf", "shelf-real", "-section", "3"}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("args = %v, want %v", args, want)
+	}
+}
+
+// Section 0 is the first chapter, a real request, so it must still be forwarded —
+// only a negative section (no chapter requested) is omitted.
+func TestReaderLaunchCommandSectionZero(t *testing.T) {
+	t.Setenv("PLAINSHELF_READER_APP", "")
+
+	_, args := readerLaunchCommand("/books/alpha.bookpkg", "", 0)
+	want := []string{"-n", "-a", "PlainShelfReader", "--args", "-book", "/books/alpha.bookpkg", "-section", "0"}
 	if !reflect.DeepEqual(args, want) {
 		t.Fatalf("args = %v, want %v", args, want)
 	}

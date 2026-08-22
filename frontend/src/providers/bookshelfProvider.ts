@@ -182,9 +182,10 @@ export interface BookshelfReader {
   /**
    * Opens a book in the standalone reader's own window (desktop only). Present
    * only on the desktop provider; its absence is what keeps web and mobile on
-   * the in-app reader.
+   * the in-app reader. `section` is the reader section index to open at for a
+   * chapter "read" action; omit it to open at the book's restored progress.
    */
-  openDesktopReader?(bookId: string): Promise<void>;
+  openDesktopReader?(bookId: string, section?: number): Promise<void>;
 
   openDesktopShelfDirectory?(): Promise<string | null>;
   addDesktopShelf?(name: string, libRoot: string, scanInterval: string): Promise<void>;
