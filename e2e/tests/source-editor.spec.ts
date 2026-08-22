@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { startServer } from './support/server';
 import { importHelloBook } from './support/books';
+import { openReaderTab } from './support/reader';
 import {
   dimmedRanges,
   hasMarkdownStyling,
@@ -118,14 +119,15 @@ test('should edit source content and see the change reflected in the reader', as
     // After save the topbar shows "Source saved."
     await expect(page.getByText('Source saved.')).toBeVisible();
 
-    // Go back to the detail page, then open the reader
+    // Go back to the detail page, then open the reader (a new tab on the web build)
     await page.getByRole('button', { name: 'Back' }).click();
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await page.getByRole('button', { name: /reading/i }).click();
-    await expect(page).toHaveURL(/\/reader\/[^/]+$/);
+    const reader = await openReaderTab(page, () =>
+      page.getByRole('button', { name: /reading/i }).click()
+    );
 
     // Reader should display the appended line
-    await expect(page.getByText('Edited by E2E source editor.')).toBeVisible();
+    await expect(reader.getByText('Edited by E2E source editor.')).toBeVisible();
   } finally {
     await server.dispose();
   }
@@ -218,13 +220,14 @@ test('should create a new source, set it as current, and see its content in the 
       await expect(page.getByText('Current source updated.')).toBeVisible();
     }
 
-    // Open the reader and verify the new source is rendered
+    // Open the reader and verify the new source is rendered (new tab on web)
     await page.getByRole('button', { name: 'Back' }).click();
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await page.getByRole('button', { name: 'Start reading' }).click();
-    await expect(page).toHaveURL(/\/reader\/[^/]+$/);
+    const reader = await openReaderTab(page, () =>
+      page.getByRole('button', { name: 'Start reading' }).click()
+    );
 
-    await expect(page.getByText('This is the second source.')).toBeVisible();
+    await expect(reader.getByText('This is the second source.')).toBeVisible();
   } finally {
     await server.dispose();
   }
@@ -268,9 +271,10 @@ test('should keep the book readable after deleting its current source', async ({
     await page.getByRole('button', { name: 'Back' }).click();
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
     await expect(page.getByRole('heading', { name: 'hello' })).toBeVisible();
-    await page.getByRole('button', { name: 'Start reading' }).click();
-    await expect(page).toHaveURL(/\/reader\/[^/]+$/);
-    await expect(page.getByText('Hello from PlainShelf E2E.')).toBeVisible();
+    const reader = await openReaderTab(page, () =>
+      page.getByRole('button', { name: 'Start reading' }).click()
+    );
+    await expect(reader.getByText('Hello from PlainShelf E2E.')).toBeVisible();
   } finally {
     await server.dispose();
   }
@@ -298,13 +302,17 @@ test('should derive chapterized Markdown from TXT and keep the original source',
     await expect(page.getByText('Source saved.')).toBeVisible();
 
     await page.getByRole('button', { name: 'Back' }).click();
-    await page.getByRole('button', { name: 'Start reading' }).click();
-    await expect(page.getByText('1 / 2')).toBeVisible();
-    await page.getByRole('button', { name: 'Next' }).click();
-    await expect(page.getByRole('heading', { name: 'Untitled chapter' })).toBeVisible();
-    await expect(page.getByText('This text came from a real uploaded TXT file.')).toBeVisible();
+    // The reader opens in a new tab; the original tab stays on the detail page.
+    const derivedReader = await openReaderTab(page, () =>
+      page.getByRole('button', { name: 'Start reading' }).click()
+    );
+    await expect(derivedReader.getByText('1 / 2')).toBeVisible();
+    await derivedReader.getByRole('button', { name: 'Next' }).click();
+    await expect(derivedReader.getByRole('heading', { name: 'Untitled chapter' })).toBeVisible();
+    await expect(derivedReader.getByText('This text came from a real uploaded TXT file.')).toBeVisible();
+    await derivedReader.close();
 
-    await page.getByRole('link', { name: 'Back to detail' }).click();
+    // Continue on the original detail tab instead of the reader's own back link.
     await page.getByRole('button', { name: 'More' }).click();
     await page.getByRole('menuitem', { name: 'Manage sources' }).click();
     const originalSource = page.locator('.source-item').filter({ hasNotText: 'Current' });
@@ -313,10 +321,12 @@ test('should derive chapterized Markdown from TXT and keep the original source',
     await expect(page.getByText('Current source updated.')).toBeVisible();
 
     await page.getByRole('button', { name: 'Back' }).click();
-    await page.getByRole('button', { name: /reading/i }).click();
-    await expect(page.getByText('1 / 1')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Untitled chapter' })).toHaveCount(0);
-    await expect(page.getByText('This text came from a real uploaded TXT file.')).toBeVisible();
+    const originalReader = await openReaderTab(page, () =>
+      page.getByRole('button', { name: /reading/i }).click()
+    );
+    await expect(originalReader.getByText('1 / 1')).toBeVisible();
+    await expect(originalReader.getByRole('heading', { name: 'Untitled chapter' })).toHaveCount(0);
+    await expect(originalReader.getByText('This text came from a real uploaded TXT file.')).toBeVisible();
   } finally {
     await server.dispose();
   }

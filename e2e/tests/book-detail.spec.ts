@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { startServer } from './support/server';
 import { chaptersMarkdownFixturePath, importBookFromPath, importHelloBook } from './support/books';
 import { addLayer, layersQueryRegex, selectAllBooks } from './support/layers';
+import { openReaderTab } from './support/reader';
 
 async function openHelloDetail(page: import('@playwright/test').Page, baseUrl: string): Promise<void> {
   await page.goto(`${baseUrl}/books`);
@@ -105,7 +106,9 @@ test('derives reading progress using the same UTF-16 units as the reader', async
 test('resets a completed bookmark before reading again', async ({ page }) => {
   const server = await startServer();
   const markRequests: string[] = [];
-  page.on('request', (request) => {
+  // The reader opens in its own tab on the web build, so watch the whole
+  // context to catch any server mark write from either tab.
+  page.context().on('request', (request) => {
     if (request.url().includes('/marks/')) markRequests.push(request.url());
   });
 
@@ -124,9 +127,15 @@ test('resets a completed bookmark before reading again', async ({ page }) => {
     await page.reload();
     await expect(page.getByRole('button', { name: 'Read again' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Read again' }).click();
+    // "Read again" resets the client-side progress and then opens the reader in
+    // a new tab; the reset happens on this tab before the tab opens, and the
+    // progress store is shared across tabs of the same origin.
+    const reader = await openReaderTab(
+      page,
+      () => page.getByRole('button', { name: 'Read again' }).click(),
+      /\/reader\/[^/?]+$/
+    );
 
-    await expect(page).toHaveURL(/\/reader\/[^/?]+$/);
     await expect.poll(() => page.evaluate(
       ({ id }) => {
         const stored = JSON.parse(localStorage.getItem('plainshelf.readingProgress') ?? '{}');
@@ -134,8 +143,10 @@ test('resets a completed bookmark before reading again', async ({ page }) => {
       },
       { id: bookID }
     )).toBe(0);
-    await expect(page.getByText('Progress: 0%', { exact: true })).toBeVisible();
+    // "Progress: 0%" is reader UI, now shown in the reader's own tab.
+    await expect(reader.getByText('Progress: 0%', { exact: true })).toBeVisible();
     expect(markRequests).toEqual([]);
+    await reader.close();
   } finally {
     await server.dispose();
   }
@@ -212,12 +223,15 @@ test('opens the reader at a chapter picked from the detail page', async ({ page 
       'Third Rail'
     ]);
 
-    await chapterCard.getByRole('button', { name: 'Second Wind' }).click();
-    await expect(page).toHaveURL(/\/reader\/[^/?]+\?section=2$/);
-    await expect(page.locator('.reader-text')).toContainText('Text of the second chapter.');
+    const reader = await openReaderTab(
+      page,
+      () => chapterCard.getByRole('button', { name: 'Second Wind' }).click(),
+      /\/reader\/[^/?]+\?section=2$/
+    );
+    await expect(reader.locator('.reader-text')).toContainText('Text of the second chapter.');
 
-    await page.getByRole('button', { name: 'Show chapters' }).click();
-    await expect(page.locator('.chapter-modal-item.active')).toContainText('Second Wind');
+    await reader.getByRole('button', { name: 'Show chapters' }).click();
+    await expect(reader.locator('.chapter-modal-item.active')).toContainText('Second Wind');
   } finally {
     await server.dispose();
   }
