@@ -2,7 +2,13 @@ import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { LocationQueryValue, NavigationFailure } from 'vue-router';
 import { toPage, toSingleQueryValue } from '@/composables/useBookPagination';
-import { parseCharCountRange, type CharCountRange } from '@/utils/charCountFilter';
+import type { CharCountRange } from '@/utils/charCountFilter';
+import {
+  BOOK_FILTERS,
+  charCountFilter,
+  layersFilter,
+  searchFilter
+} from '@/utils/bookFilters/registry';
 import {
   ORDER_OPTIONS,
   SORT_OPTIONS,
@@ -96,17 +102,14 @@ export function useBooksRouteQuery() {
   const route = useRoute();
   const router = useRouter();
 
-  const selectedLayer = computed(() => toLayerPath(route.query.layers) ?? toLayerPath(route.query.layer));
+  // The reactive reads share the registry's parsers, so a filter's URL shape is
+  // defined once and both the query builder and these computeds see it.
+  const selectedLayer = computed(() => layersFilter.parse(route.query));
   const page = computed(() => toPage(route.query.page));
   const sortBy = computed<BookSortKey>(() => toBookSort(route.query.sort));
   const sortOrder = computed<SortOrder>(() => toSortOrder(route.query.order));
-  const searchQuery = computed(() => (toSingleQueryValue(route.query.search) ?? '').trim());
-  const charCountRange = computed<CharCountRange>(() =>
-    parseCharCountRange(
-      toSingleQueryValue(route.query.minChars),
-      toSingleQueryValue(route.query.maxChars)
-    )
-  );
+  const searchQuery = computed(() => searchFilter.parse(route.query));
+  const charCountRange = computed<CharCountRange>(() => charCountFilter.parse(route.query));
   const isImportModalOpen = computed(() => toSingleQueryValue(route.query.import) === '1');
 
   function buildBooksQuery(input: BooksQueryInput = {}) {
@@ -114,40 +117,34 @@ export function useBooksRouteQuery() {
       ...route.query
     } as Record<string, LocationQueryValue | LocationQueryValue[]>;
 
-    delete nextQuery.layer;
-    delete nextQuery.layers;
-    delete nextQuery.page;
-    delete nextQuery.search;
-    delete nextQuery.sort;
-    delete nextQuery.order;
-    delete nextQuery.minChars;
-    delete nextQuery.maxChars;
-
-    const layerValue = input.layer !== undefined ? input.layer : selectedLayer.value;
-    const normalizedLayer = layerValue?.trim();
-    if (normalizedLayer) {
-      nextQuery.layers = normalizedLayer;
+    // Clear every filter-owned key up front so a condition that is now inactive
+    // leaves nothing behind, then let each filter write itself back below.
+    for (const filter of BOOK_FILTERS) {
+      for (const key of filter.queryKeys) {
+        delete nextQuery[key];
+      }
     }
 
+    // page/sort/order are pagination and ordering, not filters: always present.
     const pageValue = input.page !== undefined ? input.page : page.value;
     const normalizedPage = Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 1;
     nextQuery.page = String(normalizedPage);
-
-    const searchValue = input.search !== undefined ? input.search : searchQuery.value;
-    const normalizedSearch = searchValue.trim();
-    if (normalizedSearch) {
-      nextQuery.search = normalizedSearch;
-    }
-
     nextQuery.sort = input.sort ?? sortBy.value;
     nextQuery.order = input.order ?? sortOrder.value;
 
-    const charCountValue = input.charCount ?? charCountRange.value;
-    if (charCountValue.min !== undefined) {
-      nextQuery.minChars = String(charCountValue.min);
-    }
-    if (charCountValue.max !== undefined) {
-      nextQuery.maxChars = String(charCountValue.max);
+    // Each filter re-serializes either its explicit input override or what the
+    // current query already carries. The override keys mirror BooksQueryInput.
+    const overrides: Record<string, unknown> = {
+      [searchFilter.key]: input.search,
+      [layersFilter.key]: input.layer,
+      [charCountFilter.key]: input.charCount
+    };
+    for (const filter of BOOK_FILTERS) {
+      const override = overrides[filter.key];
+      const value = override !== undefined ? override : filter.parse(route.query);
+      if (filter.isActive(value)) {
+        Object.assign(nextQuery, filter.serialize(value));
+      }
     }
 
     return nextQuery;
