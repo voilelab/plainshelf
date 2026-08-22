@@ -2,8 +2,11 @@ import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useBookStore } from '@/composables/useBookStore';
 import { useLayerStore } from '@/composables/useLayerStore';
+import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
 import { bookshelfWriter, getBookshelfProvider, isWebRuntime } from '@/providers';
+import type { BookTransferMode } from '@/api/books';
 import type { Book } from '@/types/book';
+import type { TaskStatus } from '@/types/task';
 import { getLayerPath, layerPathEquals } from '@/utils/layers';
 import { t } from '@/i18n';
 
@@ -11,6 +14,13 @@ export interface UseBookActionsOptions {
   onDeleted?: (book: Book) => void;
   onMoved?: (book: Book, targetLayer: string) => void;
   onCopied?: (copy: Book, targetLayer: string) => void;
+  /**
+   * Fired once a cross-shelf transfer settles without failing. `status` is the
+   * chain's terminal status so a caller can distinguish a full completion from a
+   * partial one; the modal still shows the outcome, so this is for side effects
+   * like navigating away after a move.
+   */
+  onTransferred?: (book: Book, mode: BookTransferMode, status: TaskStatus) => void;
 }
 
 /** Shown by every DeleteModal that moves a book to Trash. */
@@ -44,6 +54,39 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
   const moving = ref(false);
   const copyTarget = ref<Book | null>(null);
   const copying = ref(false);
+  const transferTarget = ref<Book | null>(null);
+  // The mode of the transfer currently in flight, read when it settles so the
+  // caller learns whether the source was moved away or merely copied.
+  const transferMode = ref<BookTransferMode>('copy');
+
+  const {
+    status: transferStatus,
+    percentage: transferPercentage,
+    error: transferError,
+    started: transferStarted,
+    running: transferring,
+    finished: transferFinished,
+    start: beginTransfer,
+    reset: resetTransfer
+  } = useTaskChainProgress({
+    onSettled: (status) => {
+      // A failed transfer changed nothing on the active shelf and must not
+      // trigger the post-success side effects (a navigation away, say).
+      if (status === 'failed') {
+        return;
+      }
+      const target = transferTarget.value;
+      // A move drops the source from the active shelf and a copy leaves it, but
+      // either way the sidebar's per-layer counts have shifted, so refresh the
+      // book store — the same refresh submitMove/submitCopy perform.
+      void fetchBooks();
+      if (target) {
+        options.onTransferred?.(target, transferMode.value, status);
+      }
+    },
+    startFailedMessage: () => t('bookDetail.errors.transferFailed'),
+    pollFailedMessage: () => t('bookDetail.errors.transferPollFailed')
+  });
 
   /**
    * Destinations offered for `moveTarget`, flat and sorted like the batch move
@@ -244,6 +287,43 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     }
   }
 
+  function requestTransfer(book: Book): void {
+    transferTarget.value = book;
+    // The transfer dialog surfaces its own progress and errors, so it must not
+    // open carrying a message some earlier action left behind.
+    actionError.value = '';
+    resetTransfer();
+  }
+
+  function cancelTransfer(): void {
+    // Closing mid-transfer would drop the only view of progress the user has,
+    // while the task keeps running on the server regardless; mirror the
+    // empty-trash modal and refuse to close until it settles.
+    if (transferring.value) {
+      return;
+    }
+    transferTarget.value = null;
+    resetTransfer();
+  }
+
+  async function submitTransfer(payload: {
+    targetShelfId: string;
+    targetLayer: string;
+    mode: BookTransferMode;
+  }): Promise<void> {
+    const target = transferTarget.value;
+    if (!target || transferStarted.value) {
+      return;
+    }
+
+    transferMode.value = payload.mode;
+    // A transfer already in flight for this book answers with its own chain id,
+    // so this attaches to the existing progress instead of scheduling a second.
+    await beginTransfer(() =>
+      bookshelfWriter().transferBook(target.id, payload.targetShelfId, payload.targetLayer, payload.mode)
+    );
+  }
+
   function requestDelete(book: Book): void {
     deleteTarget.value = book;
   }
@@ -287,6 +367,17 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     copyTarget,
     copying,
     copyLayerOptions,
+    transferTarget,
+    transferMode,
+    transferStatus,
+    transferPercentage,
+    transferError,
+    transferStarted,
+    transferring,
+    transferFinished,
+    requestTransfer,
+    cancelTransfer,
+    submitTransfer,
     canOpenBookFolder,
     goRead,
     openDetail,

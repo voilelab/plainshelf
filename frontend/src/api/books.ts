@@ -8,6 +8,7 @@ import type {
   TrashedBook,
 } from '@/types/book';
 import {
+  ApiError,
   buildShelfApiPath,
   buildApiUrl,
   fetchBlob,
@@ -30,6 +31,7 @@ import {
   mockRefreshContentStats,
   mockStartFingerprintSources,
   mockRestoreTrashedBook,
+  mockTransferBook,
   mockUpdateBook,
   mockUpdateBookLayer
 } from './mocks/books';
@@ -349,6 +351,78 @@ export async function copyBook(bookId: string, layer: string): Promise<Book> {
     })
   });
   return transformBook(b);
+}
+
+/** Which side of a cross-shelf transfer the caller wants: `copy` leaves the
+ *  source in place and gives the new book a fresh id; `move` keeps the id (and
+ *  therefore the reader's saved progress and any external references) and drops
+ *  the source once the copy is published on the target. */
+export type BookTransferMode = 'copy' | 'move';
+
+/**
+ * Reads the running chain's id out of the JSON body the server answers 409 with
+ * when the same transfer is already in flight. Every other 409 (target already
+ * holds this id, target/source read-only) is a plain-text error, so a parse
+ * failure means "not the already-running case" rather than a malformed reply.
+ */
+function runningTaskChainID(body: string): string | null {
+  try {
+    const parsed = JSON.parse(body) as { taskchain_id?: unknown };
+    const id = typeof parsed?.taskchain_id === 'string' ? parsed.taskchain_id.trim() : '';
+    return id || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Copies or moves a book from the active shelf to `targetShelfId`, returning the
+ * id of the background task chain to poll. The work is asynchronous because the
+ * copy can be large and either shelf may be a network mount, so the request must
+ * not block on it.
+ *
+ * `targetLayer` is a '/'-joined path; '' lands the book at the target shelf
+ * root. When the same transfer is already running the server answers 409 with
+ * that chain's id, which is returned here so the caller attaches to the in-flight
+ * work instead of failing. Any other 409 — the target already holds this id, or
+ * the target/source is read-only — propagates with the server's message.
+ */
+export async function transferBook(
+  bookId: string,
+  targetShelfId: string,
+  targetLayer: string,
+  mode: BookTransferMode
+): Promise<string> {
+  if (isMockApiMode()) {
+    return mockTransferBook(bookId, targetShelfId, targetLayer, mode);
+  }
+
+  const layer = targetLayer
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+
+  try {
+    const res = await fetchJson<BackendTaskChainSubmitResponse>(
+      buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/transfers`),
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ mode, target_shelf: targetShelfId, target_layer: layer })
+      }
+    );
+    return res.taskchain_id;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 409) {
+      const running = runningTaskChainID(err.message);
+      if (running) {
+        return running;
+      }
+    }
+    throw err;
+  }
 }
 
 export async function getBookContent(id: string): Promise<BookContent> {

@@ -2,11 +2,14 @@
  * @vitest-environment jsdom
  */
 import { ref } from 'vue';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Book } from '@/types/book';
+import type { TaskChain, TaskStatus } from '@/types/task';
 
 const mocks = vi.hoisted(() => ({
   copyBook: vi.fn(),
+  transferBook: vi.fn(),
+  getTaskChain: vi.fn(),
   push: vi.fn(),
   resolve: vi.fn((to: unknown) => ({
     href:
@@ -163,5 +166,75 @@ describe('useBookActions copy', () => {
     expect(actions.copyTarget.value).not.toBeNull();
     expect(actions.actionError.value).toBe('disk full');
     expect(actions.copying.value).toBe(false);
+  });
+});
+
+function chain(status: TaskStatus, percentage: number): TaskChain {
+  return { id: 'chain-1', name: 'book_transfer', title: 'Transfer', status, percentage, tasks: [] };
+}
+
+const flush = (): Promise<void> => Promise.resolve().then(() => undefined);
+
+describe('useBookActions transfer', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('forwards the chosen destination and reports completion once the chain settles', async () => {
+    mocks.transferBook.mockResolvedValue('chain-1');
+    mocks.getTaskChain.mockResolvedValue(chain('completed', 100));
+    const onTransferred = vi.fn();
+
+    const actions = useBookActions({ onTransferred });
+    actions.requestTransfer(book());
+    await actions.submitTransfer({ targetShelfId: 'shelf-b', targetLayer: 'notes', mode: 'move' });
+
+    expect(mocks.transferBook).toHaveBeenCalledWith('book-1', 'shelf-b', 'notes', 'move');
+
+    await vi.advanceTimersByTimeAsync(600);
+    await flush();
+
+    expect(actions.transferFinished.value).toBe(true);
+    expect(actions.transferStatus.value).toBe('completed');
+    expect(mocks.fetchBooks).toHaveBeenCalled();
+    expect(onTransferred).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'book-1' }),
+      'move',
+      'completed'
+    );
+  });
+
+  it('refuses to close while the transfer is still running', async () => {
+    mocks.transferBook.mockResolvedValue('chain-1');
+    mocks.getTaskChain.mockResolvedValue(chain('running', 40));
+
+    const actions = useBookActions();
+    actions.requestTransfer(book());
+    await actions.submitTransfer({ targetShelfId: 'shelf-b', targetLayer: '', mode: 'copy' });
+
+    expect(actions.transferring.value).toBe(true);
+    actions.cancelTransfer();
+    expect(actions.transferTarget.value).not.toBeNull();
+  });
+
+  it('does not run the post-transfer side effects when the chain fails', async () => {
+    mocks.transferBook.mockResolvedValue('chain-1');
+    mocks.getTaskChain.mockResolvedValue(chain('failed', 20));
+    const onTransferred = vi.fn();
+
+    const actions = useBookActions({ onTransferred });
+    actions.requestTransfer(book());
+    await actions.submitTransfer({ targetShelfId: 'shelf-b', targetLayer: '', mode: 'move' });
+
+    await vi.advanceTimersByTimeAsync(600);
+    await flush();
+
+    expect(actions.transferStatus.value).toBe('failed');
+    expect(onTransferred).not.toHaveBeenCalled();
   });
 });

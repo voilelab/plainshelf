@@ -437,6 +437,34 @@ export function mockStartFingerprintSources(): string {
   });
 }
 
+/**
+ * mockTransferBook schedules a single-item task chain that mirrors the real
+ * cross-shelf transfer's progress reporting. Mock mode models only one shelf, so
+ * the target is a phantom the fixture set does not track: a `move` drops the
+ * source book, and a `copy` leaves the source list unchanged.
+ */
+export function mockTransferBook(
+  bookId: string,
+  _targetShelfId: string,
+  _targetLayer: string,
+  mode: 'copy' | 'move'
+): string {
+  return registerMockTaskChain({
+    name: 'book_transfer',
+    title: mode === 'move' ? 'Move book to another shelf' : 'Copy book to another shelf',
+    total: 1,
+    onItem: () => {
+      if (mode !== 'move') {
+        return;
+      }
+      const idx = mockBooks.findIndex((book) => book.id === bookId);
+      if (idx >= 0) {
+        mockBooks.splice(idx, 1);
+      }
+    }
+  });
+}
+
 export function mockStartBookBatch(request: BookBatchRequest): string {
   const ids = [...new Set(request.book_ids)];
   const result: BookBatchResult = {

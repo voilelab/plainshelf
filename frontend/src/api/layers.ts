@@ -47,12 +47,17 @@ function encodeLayerPath(path: string): string {
     .join('/');
 }
 
-export async function getLayers(): Promise<string[]> {
+/**
+ * Lists the layers of a shelf. Defaults to the active shelf; pass `shelfID` to
+ * read another shelf's layers, which is what the cross-shelf transfer picker
+ * needs — its destination layers belong to the target shelf, not the active one.
+ */
+export async function getLayers(shelfID?: string): Promise<string[]> {
   if (isMockApiMode()) {
     return delay(getMockLayers());
   }
 
-  const data: unknown = await fetchJson<unknown>(buildShelfApiPath('/layers'), {
+  const data: unknown = await fetchJson<unknown>(buildShelfApiPath('/layers', shelfID), {
     method: 'GET'
   });
   if (!Array.isArray(data)) {

@@ -477,6 +477,7 @@ const zhHant = {
       openFolder: '開啟資料夾',
       copyTo: '複製到…',
       moveTo: '移動到…',
+      transferTo: '轉移到其他書庫…',
       moveToTrash: '移至垃圾桶',
       movingToTrash: '移動中...',
       dismiss: '關閉'
@@ -494,7 +495,9 @@ const zhHant = {
       downloadFailed: '下載書籍失敗',
       openFolderFailed: '開啟書籍資料夾失敗',
       moveFailed: '移動書籍失敗',
-      copyFailed: '複製書籍失敗'
+      copyFailed: '複製書籍失敗',
+      transferFailed: '無法開始轉移',
+      transferPollFailed: '無法追蹤轉移進度。'
     },
     move: {
       title: '移動書籍'
@@ -503,6 +506,31 @@ const zhHant = {
       title: '複製書籍',
       confirm: '複製',
       copying: '複製中...'
+    },
+    transfer: {
+      title: '轉移到其他書庫',
+      description: '將「{title}」複製或搬移到另一個書庫。',
+      shelfLabel: '目標書庫',
+      chooseShelf: '請選擇書庫',
+      noShelves: '沒有其他可轉移的書庫。',
+      layerLabel: '目標資料夾',
+      rootLayer: '所有書籍（最上層）',
+      loadingLayers: '載入資料夾中…',
+      layersFailed: '載入目標資料夾失敗。',
+      modeLabel: '動作',
+      modeCopy: '複製',
+      modeCopyHint: '在目標書庫產生一本新書，不會帶走閱讀進度。',
+      modeMove: '搬移',
+      modeMoveHint: '保留同一本書與其閱讀進度，並從目前書庫移除。',
+      confirm: '轉移',
+      close: '關閉',
+      progressLabel: '轉移進度',
+      pending: '準備中…',
+      running: '轉移中…',
+      completedCopy: '書籍已複製到目標書庫。',
+      completedMove: '書籍已搬移到目標書庫。',
+      partial: '轉移完成，但過程中發生問題。',
+      failed: '轉移失敗。'
     },
     delete: {
       description: '書籍將移至垃圾桶，之後仍可復原。'

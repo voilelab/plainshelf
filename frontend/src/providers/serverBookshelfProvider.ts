@@ -18,6 +18,7 @@ import {
   refreshContentStats,
   startFingerprintSources,
   restoreTrashedBook,
+  transferBook,
   updateBook,
   updateBookLayer,
   uploadBookCover,
@@ -57,7 +58,7 @@ import type {
   ReadingProgress,
   TrashedBook
 } from '@/types/book';
-import type { FingerprintStatus, SimilarBookPair } from '@/api/books';
+import type { BookTransferMode, FingerprintStatus, SimilarBookPair } from '@/api/books';
 import type { CreateSourceOptions, SourceMeta } from '@/types/source';
 import type { BookBatchRequest, TaskChain } from '@/types/task';
 import type {
@@ -90,6 +91,19 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
 
   copyBook(bookId: string, layer: string): Promise<Book> {
     return copyBook(bookId, layer);
+  }
+
+  listShelfLayers(shelfID: string): Promise<string[]> {
+    return getLayers(shelfID);
+  }
+
+  transferBook(
+    bookId: string,
+    targetShelfID: string,
+    targetLayer: string,
+    mode: BookTransferMode
+  ): Promise<string> {
+    return transferBook(bookId, targetShelfID, targetLayer, mode);
   }
 
   deleteBook(bookId: string): Promise<void> {

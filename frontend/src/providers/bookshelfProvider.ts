@@ -1,5 +1,5 @@
 import type { DesktopShelfDetails } from '@/api/desktop';
-import type { FingerprintStatus, ListBooksOptions, SimilarBookPair } from '@/api/books';
+import type { BookTransferMode, FingerprintStatus, ListBooksOptions, SimilarBookPair } from '@/api/books';
 import type {
   BookmarkPayload,
   Book,
@@ -212,6 +212,25 @@ export interface BookshelfWriter {
   /** Duplicates a book into `layer`, returning the copy with its fresh id. */
   copyBook(bookId: string, layer: string): Promise<Book>;
   deleteBook(bookId: string): Promise<void>;
+
+  /**
+   * Layers of another shelf, for the cross-shelf transfer destination picker.
+   * A read, but it lives on the writer because only a writable multi-shelf
+   * backend (the server and desktop) can reach a shelf other than the active
+   * one, which is exactly where the transfer flow that needs it runs.
+   */
+  listShelfLayers(shelfID: string): Promise<string[]>;
+  /**
+   * Copies or moves a book from the active shelf to `targetShelfID`, returning
+   * the id of the background task chain to poll. `targetLayer` is a '/'-joined
+   * path; '' lands the book at the target shelf root.
+   */
+  transferBook(
+    bookId: string,
+    targetShelfID: string,
+    targetLayer: string,
+    mode: BookTransferMode
+  ): Promise<string>;
   /** @deprecated Legacy sources only. */
 
   importBook(payload: BookCreateRequest): Promise<Book>;
