@@ -6,15 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"path"
-	"regexp"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 	"go.rtnl.ai/x/slugify"
 )
 
@@ -28,7 +26,7 @@ const MaxBookIDCreationAttempts = 10
 
 func createTempDir(root fsutil.FS, prefix string) (string, error) {
 	for range MaxTempDirCreationAttempts {
-		tmpDirName := fmt.Sprintf("%s-%s-%s", prefix, time.Now().Format("20060102-150405"), randomString(6))
+		tmpDirName := fmt.Sprintf("%s-%s-%s", prefix, time.Now().Format("20060102-150405"), shelfutil.RandomString(6))
 		err := root.Mkdir(tmpDirName)
 		if err == nil {
 			return tmpDirName, nil
@@ -105,52 +103,6 @@ func copyFileAcross(srcRoot fsutil.ReadFS, src string, dstRoot fsutil.FS, dst st
 	return nil
 }
 
-func randomString(n int) string {
-	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	result := make([]byte, n)
-	for i := range result {
-		result[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(result)
-}
-
-// fileETag returns a weak ETag derived from a file's mtime and size, or an
-// empty string when the file cannot be stat'd. Every stored file the read path
-// serves with caching headers derives its validator here, so covers and source
-// assets cannot drift apart on what counts as "changed".
-func fileETag(root fsutil.ReadFS, filePath string) string {
-	info, err := root.Stat(filePath)
-	if err != nil {
-		return ""
-	}
-	return fmt.Sprintf(`W/"%d-%d"`, info.ModTime().UnixNano(), info.Size())
-}
-
-// ignoredDirNames are directory names that filesystems, NAS firmware and sync
-// clients create inside a shelf. They are never layers the user made, so both
-// scanners skip them: on Synology every directory carries its own "@eaDir",
-// which would otherwise double the layer tree and travel into the exported book
-// cache. Keys are lower case; isIgnoredDir folds the name before looking it up,
-// because a share exported over SMB may spell "$RECYCLE.BIN" either way.
-var ignoredDirNames = map[string]bool{
-	"@eadir":       true, // Synology index and thumbnail sidecar
-	"#recycle":     true, // Synology network recycle bin
-	"$recycle.bin": true, // Windows recycle bin, visible over SMB
-	"lost+found":   true, // ext filesystem recovery directory
-}
-
-// isIgnoredDir reports whether a directory name under books/ must be skipped by
-// the shelf scanners. The leading-dot rule covers the open-ended set of hidden
-// helper directories (.git, .stfolder, .dropbox.cache, .Spotlight-V100,
-// .fseventsd, .TemporaryItems) in one condition; ignoredDirNames lists the known
-// system directories that carry no leading dot.
-func isIgnoredDir(name string) bool {
-	if strings.HasPrefix(name, ".") {
-		return true
-	}
-	return ignoredDirNames[strings.ToLower(name)]
-}
-
 // ErrInvalidLayer is returned when a layer name is not a usable path segment.
 // Every operation that accepts caller-supplied layers checks them before
 // touching the filesystem, so callers can treat it as a request error.
@@ -163,40 +115,10 @@ var ErrInvalidLayer = util.NewError("invalid layer name")
 // PlainShelf is not making a typo, they are hitting a deliberate rule.
 var ErrIgnoredLayerName = util.Errorf("%w: hidden or system directory name", ErrInvalidLayer)
 
-// errIgnoredPathSegment marks the isIgnoredDir rejection inside
-// validatePathSegment. The segment validator serves layers, source IDs, book
-// IDs and asset names, so it stays sentinel-neutral and each caller wraps the
-// result in the sentinel of its own domain.
-var errIgnoredPathSegment = util.NewError("path segment cannot be a hidden or system directory name (leading dot, @eaDir, #recycle, $RECYCLE.BIN, lost+found)")
-
-var bcp47Regex = regexp.MustCompile(`^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$`)
-
-func validateBCP47(lang string) bool {
-	lang = strings.TrimSpace(lang)
-	if lang == "" {
-		return true
-	}
-
-	return bcp47Regex.MatchString(lang)
-}
-
-// validateBookFormat reports whether a BookMeta.Format value is one this build
-// writes. Empty stays valid: books created through the API rather than an
-// import carry no format at all, and the reader already treats that as plain
-// text.
-func validateBookFormat(format string) bool {
-	switch format {
-	case "", BookFormatText, BookFormatMarkdown:
-		return true
-	default:
-		return false
-	}
-}
-
 func validateLayers(layers Layers) error {
 	for _, layer := range layers {
-		if err := validatePathSegment(layer); err != nil {
-			if errors.Is(err, errIgnoredPathSegment) {
+		if err := shelfutil.ValidatePathSegment(layer); err != nil {
+			if errors.Is(err, shelfutil.ErrIgnoredPathSegment) {
 				return util.Errorf("%w %q: %w", ErrIgnoredLayerName, layer, err)
 			}
 			return util.Errorf("%w %q: %w", ErrInvalidLayer, layer, err)
@@ -213,37 +135,6 @@ func validateLayers(layers Layers) error {
 // requests fail synchronously rather than becoming failed worker tasks.
 func ValidateLayers(layers Layers) error {
 	return validateLayers(layers)
-}
-
-func validateSourceID(sourceID string) error {
-	if err := validatePathSegment(sourceID); err != nil {
-		return util.Errorf("invalid source id %q: %w", sourceID, err)
-	}
-	return nil
-}
-
-func validatePathSegment(segment string) error {
-	if segment == "" {
-		return util.NewError("path segment cannot be empty")
-	}
-	if segment == "." || segment == ".." {
-		return util.NewError("path segment cannot be . or ..")
-	}
-	if isIgnoredDir(segment) {
-		// Creating one would succeed on disk and then vanish: the scanners skip
-		// exactly these names, so the layer would never be listed again.
-		return errIgnoredPathSegment
-	}
-	if strings.ContainsAny(segment, `/\`) {
-		return util.NewError("path segment cannot contain path separators")
-	}
-	if !utf8.ValidString(segment) {
-		return util.NewError("path segment must be valid UTF-8")
-	}
-	if len(segment) > maxPathSegmentLength {
-		return util.Errorf("path segment exceeds %d bytes", maxPathSegmentLength)
-	}
-	return nil
 }
 
 // bookIDEntropyBytes is how much randomness stands behind a new book ID. Ten
@@ -282,7 +173,7 @@ func newBookID() (string, error) {
 // de-duplication suffix, and those stay valid forever alongside the random ones
 // this build writes; a shelf holds both at once and neither is migrated.
 func validateBookID(bookID string) error {
-	if err := validatePathSegment(bookID); err != nil {
+	if err := shelfutil.ValidatePathSegment(bookID); err != nil {
 		return util.Errorf("invalid book id %q: %w", bookID, err)
 	}
 	return nil

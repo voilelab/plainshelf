@@ -1,0 +1,23 @@
+{
+  "id": "schema-v0-full-a1",
+  "title": "Full Legacy Book",
+  "format": "txt",
+  "tags": [
+    "legacy",
+    "fixture"
+  ],
+  "identifiers": {
+    "isbn": "978-0-13-468599-1"
+  },
+  "cover": "cover.png",
+  "authors": [
+    "A. Legacy"
+  ],
+  "language": "en",
+  "comments": "written by PlainShelf v0.8",
+  "star": 4,
+  "created_at": "2026-03-15T08:30:00Z",
+  "updated_at": "2026-05-01T12:00:00Z",
+  "published_at": "2026-03-15",
+  "current_source": "20260315-a1"
+}

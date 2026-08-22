@@ -400,7 +400,7 @@ func (c *FingerprintCache) resolve(book *Book, source *Source, build Fingerprint
 	// Still statted under force, because record needs the stat to refresh the
 	// index; only the hit it would produce is ignored, and lookupByStat is not
 	// consulted at all so its counter is not touched.
-	stat, statErr := source.contentStat()
+	stat, statErr := source.ContentStat()
 	if statErr != nil {
 		// Not fatal on its own: the read below reports a source that is really
 		// gone, with an error that says what was being read.
@@ -412,7 +412,7 @@ func (c *FingerprintCache) resolve(book *Book, source *Source, build Fingerprint
 	}
 
 	readAt := time.Now()
-	content, err := source.readContent()
+	content, err := source.ReadContent()
 	if err != nil {
 		return FingerprintEntry{}, util.Errorf("%w", err)
 	}
@@ -550,7 +550,7 @@ func (c *FingerprintCache) record(key string, stat *FileStat, readAt time.Time, 
 // a source whose schema is newer than this build refuses the write, and neither
 // is a reason to fail a fingerprint run that has the answer it came for.
 func (c *FingerprintCache) repairSourceHash(source *Source, md5Hash string) {
-	repaired, err := source.repairContentHash(md5Hash)
+	repaired, err := source.RepairContentHash(md5Hash)
 	switch {
 	case err != nil:
 		c.shelf.Debug("could not repair a stale md5_hash", "source", source.FolderPath(), "error", err)

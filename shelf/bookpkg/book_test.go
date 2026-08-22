@@ -1,4 +1,4 @@
-package shelf
+package bookpkg
 
 import (
 	"bytes"
@@ -39,7 +39,7 @@ func TestOpenBookReadsTheFixture(t *testing.T) {
 	const sourceID = "20260315-a1"
 
 	rootFS := testdataFS(t)
-	book, err := openBook(rootFS, newLoggerForTest(), "book-a82m")
+	book, err := Open(rootFS, newLoggerForTest(), "book-a82m")
 	if err != nil {
 		t.Fatalf("Failed to open book: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestOpenBookReadsTheFixture(t *testing.T) {
 	})
 
 	t.Run("a missing book is an error", func(t *testing.T) {
-		if _, err := openBook(rootFS, newLoggerForTest(), "nonexistent-book"); err == nil {
+		if _, err := Open(rootFS, newLoggerForTest(), "nonexistent-book"); err == nil {
 			t.Fatalf("Expected error when getting nonexistent book, but got none")
 		}
 	})
@@ -117,7 +117,7 @@ func newTestBook(t *testing.T, bookID, title string) (*Book, fsutil.FS, string) 
 	t.Cleanup(func() { tmpRoot.Close() })
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, title)
+	book, err := Create(rootFS, newLoggerForTest(), bookID, bookID, title)
 	if err != nil {
 		t.Fatalf("Failed to create new book: %v", err)
 	}
@@ -295,9 +295,9 @@ func TestSetCoverKeepsReplacedCoverReclaimedByAnotherWriter(t *testing.T) {
 	}
 
 	// A second handle on the same book, standing in for a concurrent request.
-	other, err := openBook(book.root, newLoggerForTest(), book.folderPath)
+	other, err := Open(book.root, newLoggerForTest(), book.folderPath)
 	if err != nil {
-		t.Fatalf("openBook: %v", err)
+		t.Fatalf("Open: %v", err)
 	}
 
 	const reclaimed = "reclaimed png"
@@ -392,22 +392,6 @@ func TestDeleteCoverAndETag(t *testing.T) {
 	}
 	if err := book.DeleteCover(); err != nil {
 		t.Fatalf("second DeleteCover: %v", err)
-	}
-}
-
-func TestNewLayersFromString(t *testing.T) {
-	tests := []struct {
-		input string
-		want  Layers
-	}{
-		{input: "", want: nil},
-		{input: "fiction", want: Layers{"fiction"}},
-		{input: " fiction / classics ", want: Layers{"fiction", "classics"}},
-	}
-	for _, tt := range tests {
-		if got := NewLayersFromString(tt.input); !got.Equal(tt.want) {
-			t.Errorf("NewLayersFromString(%q) = %#v, want %#v", tt.input, got, tt.want)
-		}
 	}
 }
 
@@ -710,11 +694,11 @@ func TestSetMetaMarksOtherInstanceStale(t *testing.T) {
 	// which leaves the write below unambiguously newer than what they cached.
 	shiftModTime(t, path.Join(tmpLib, bookID, BookMetaFile), -2*time.Second)
 
-	book1, err := openBook(rootFS, newLoggerForTest(), bookID)
+	book1, err := Open(rootFS, newLoggerForTest(), bookID)
 	if err != nil {
 		t.Fatalf("Failed to open first book instance: %v", err)
 	}
-	book2, err := openBook(rootFS, newLoggerForTest(), bookID)
+	book2, err := Open(rootFS, newLoggerForTest(), bookID)
 	if err != nil {
 		t.Fatalf("Failed to open second book instance: %v", err)
 	}
@@ -776,7 +760,7 @@ func TestSetMetaMigratesLegacyPublishedAt(t *testing.T) {
 	defer tmpRoot.Close()
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := openBook(rootFS, newLoggerForTest(), bookID)
+	book, err := Open(rootFS, newLoggerForTest(), bookID)
 	if err != nil {
 		t.Fatalf("Failed to open legacy book: %v", err)
 	}
@@ -826,7 +810,7 @@ func TestIdentifiersRoundTrip(t *testing.T) {
 	}
 
 	// Reopen the book from disk and confirm the identifiers persisted.
-	reopened, err := openBook(rootFS, newLoggerForTest(), bookID)
+	reopened, err := Open(rootFS, newLoggerForTest(), bookID)
 	if err != nil {
 		t.Fatalf("Failed to reopen book: %v", err)
 	}
@@ -869,7 +853,7 @@ func TestIdentifiersLegacyCompat(t *testing.T) {
 	defer tmpRoot.Close()
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := openBook(rootFS, newLoggerForTest(), bookID)
+	book, err := Open(rootFS, newLoggerForTest(), bookID)
 	if err != nil {
 		t.Fatalf("Failed to open legacy book: %v", err)
 	}
@@ -952,7 +936,7 @@ func TestOpenBookNormalizesMissingSchemaVersion(t *testing.T) {
 		t.Fatalf("Failed to read fixture: %v", err)
 	}
 
-	book, err := openBook(testdataFS(t), newLoggerForTest(), path.Join("schema", "v0-full"))
+	book, err := Open(testdataFS(t), newLoggerForTest(), path.Join("schema", "v0-full"))
 	if err != nil {
 		t.Fatalf("Failed to open legacy book: %v", err)
 	}
@@ -976,7 +960,7 @@ func TestOpenBookNormalizesMissingSchemaVersion(t *testing.T) {
 // TestOpenBookSparseLegacyBookHasSchemaVersion verifies the normalization also
 // applies to the minimal legacy book.json shape that omits most fields.
 func TestOpenBookSparseLegacyBookHasSchemaVersion(t *testing.T) {
-	book, err := openBook(testdataFS(t), newLoggerForTest(), "book-a82m")
+	book, err := Open(testdataFS(t), newLoggerForTest(), "book-a82m")
 	if err != nil {
 		t.Fatalf("Failed to open book: %v", err)
 	}
@@ -999,7 +983,7 @@ func TestOpenBookSparseLegacyBookHasSchemaVersion(t *testing.T) {
 func TestSetMetaStampsSchemaVersionOnLegacyBook(t *testing.T) {
 	rootFS, bookFolder, metaPath := newBookFromFixture(t, path.Join("schema", "v0-full"))
 
-	book, err := openBook(rootFS, newLoggerForTest(), bookFolder)
+	book, err := Open(rootFS, newLoggerForTest(), bookFolder)
 	if err != nil {
 		t.Fatalf("Failed to open legacy book: %v", err)
 	}
@@ -1050,7 +1034,7 @@ func TestCreateBookWritesSchemaVersion(t *testing.T) {
 
 	bookID := "fresh-book-a38j"
 	rootFS := fsutil.NewRootFS(tmpRoot)
-	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, "Fresh Book")
+	book, err := Create(rootFS, newLoggerForTest(), bookID, bookID, "Fresh Book")
 	if err != nil {
 		t.Fatalf("Failed to create new book: %v", err)
 	}
@@ -1072,7 +1056,7 @@ func TestCreateBookWritesSchemaVersion(t *testing.T) {
 // newer than this build is still readable. Failing the open would make the book
 // vanish from listings and, worse, become impossible to restore from trash.
 func TestOpenBookAcceptsFutureSchemaVersionAsReadOnly(t *testing.T) {
-	book, err := openBook(testdataFS(t), newLoggerForTest(), path.Join("schema", "v2-future"))
+	book, err := Open(testdataFS(t), newLoggerForTest(), path.Join("schema", "v2-future"))
 	if err != nil {
 		t.Fatalf("Expected a future-version book to open, got error: %v", err)
 	}
@@ -1266,7 +1250,7 @@ func TestWritePathsRejectFutureSchemaVersion(t *testing.T) {
 				t.Fatalf("Failed to read copied book.json: %v", err)
 			}
 
-			book, err := openBook(rootFS, newLoggerForTest(), bookFolder)
+			book, err := Open(rootFS, newLoggerForTest(), bookFolder)
 			if err != nil {
 				t.Fatalf("Failed to open future book: %v", err)
 			}
@@ -1305,7 +1289,7 @@ func TestSetMetaRejectsStarOutOfRange(t *testing.T) {
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
 	bookID := "test-book-star"
-	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, "Test Book")
+	book, err := Create(rootFS, newLoggerForTest(), bookID, bookID, "Test Book")
 	if err != nil {
 		t.Fatalf("Failed to create new book: %v", err)
 	}
@@ -1350,7 +1334,7 @@ func TestSetMetaRejectsInvalidLanguageTag(t *testing.T) {
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
 	bookID := "test-book-lang"
-	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, "Test Book")
+	book, err := Create(rootFS, newLoggerForTest(), bookID, bookID, "Test Book")
 	if err != nil {
 		t.Fatalf("Failed to create new book: %v", err)
 	}
@@ -1391,7 +1375,7 @@ func TestSetMetaFormat(t *testing.T) {
 
 	rootFS := fsutil.NewRootFS(tmpRoot)
 	bookID := "test-book-format"
-	book, err := createBook(rootFS, newLoggerForTest(), bookID, bookID, "Test Book")
+	book, err := Create(rootFS, newLoggerForTest(), bookID, bookID, "Test Book")
 	if err != nil {
 		t.Fatalf("Failed to create new book: %v", err)
 	}

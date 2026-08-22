@@ -1,4 +1,4 @@
-package shelf
+package bookpkg
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"github.com/voilelab/plainshelf/internal/hashutil"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 )
 
 const SourceMetaFile = "meta.json"
@@ -97,11 +98,11 @@ func (r *Source) Open() (fs.File, error) {
 	return fp, nil
 }
 
-// contentStat is the size and modification time of source.txt, which is what a
+// ContentStat is the size and modification time of source.txt, which is what a
 // cache keyed on "has this file changed" compares. Reported as an error rather
 // than a zero value so a caller cannot mistake a missing source for an
 // unchanged one.
-func (r *Source) contentStat() (*FileStat, error) {
+func (r *Source) ContentStat() (*FileStat, error) {
 	stat, err := getFileStat(r.root, path.Join(r.folderPath, SourceFile))
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -109,10 +110,10 @@ func (r *Source) contentStat() (*FileStat, error) {
 	return stat, nil
 }
 
-// readContent reads the whole source file. Every caller here needs more than
+// ReadContent reads the whole source file. Every caller here needs more than
 // one metric out of the same bytes, and reading once keeps that at a single
 // round trip on a network-mounted shelf.
-func (r *Source) readContent() ([]byte, error) {
+func (r *Source) ReadContent() ([]byte, error) {
 	f, err := r.Open()
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -206,7 +207,7 @@ func (r *Source) refreshContentMetadata() error {
 	}
 	// Read the file once; compute all three metrics from the buffer to avoid
 	// 3 separate SMB round-trips on network-mounted shelves.
-	data, err := r.readContent()
+	data, err := r.ReadContent()
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -229,7 +230,7 @@ func (r *Source) refreshContentMetadata() error {
 	return r.writebackMeta(root)
 }
 
-// repairContentHash rewrites meta.json's md5_hash when it disagrees with the
+// RepairContentHash rewrites meta.json's md5_hash when it disagrees with the
 // content hash, reporting whether it wrote anything. A source edited outside
 // PlainShelf carries a confidently wrong hash (nothing revalidates it after
 // import); only a caller that just read the whole file knows the true value.
@@ -239,7 +240,7 @@ func (r *Source) refreshContentMetadata() error {
 // effect; and a source with no md5_hash (a legacy import) is left alone, since
 // filling it in would trigger the whole-library rewrite
 // docs/concepts/data-format-versioning.md exists to avoid.
-func (r *Source) repairContentHash(md5Hash string) (bool, error) {
+func (r *Source) RepairContentHash(md5Hash string) (bool, error) {
 	if md5Hash == "" || r.meta.MD5Hash == "" || r.meta.MD5Hash == md5Hash {
 		return false, nil
 	}
@@ -319,7 +320,7 @@ func openSource(rt fsutil.ReadFS, sourcePath string) (*Source, error) {
 }
 
 func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, source io.Reader, format, comment string) (*Source, error) {
-	if !validateBookFormat(format) || format == "" {
+	if !shelfutil.ValidateBookFormat(format) || format == "" {
 		return nil, util.Errorf("%w: got %q", ErrInvalidBookFormat, format)
 	}
 	err := rt.MkdirAll(sourcePath)

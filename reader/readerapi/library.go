@@ -11,7 +11,7 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
-	"github.com/voilelab/plainshelf/shelf"
+	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
 // ShelfID is the shelf the reader reports itself as holding.
@@ -30,7 +30,7 @@ const ShelfID = "book"
 type Library struct {
 	mu     sync.RWMutex
 	logger *logutil.Logger
-	pkg    *shelf.BookPackage
+	pkg    *bookpkg.BookPackage
 }
 
 func NewLibrary(logger *logutil.Logger) *Library {
@@ -49,7 +49,7 @@ func NewLibrary(logger *logutil.Logger) *Library {
 // but not yet opened its source, which surfaces as a truncated response rather
 // than as anything the user could act on.
 func (l *Library) Open(dir string) (string, error) {
-	pkg, err := shelf.OpenBookPackage(dir, l.logger)
+	pkg, err := bookpkg.OpenBookPackage(dir, l.logger)
 	if err != nil {
 		return "", util.Errorf("%w", err)
 	}
@@ -95,7 +95,7 @@ func (l *Library) closeLocked() error {
 // BookID is the open book's ID, or "" when no book is open.
 func (l *Library) BookID() string {
 	bookID := ""
-	l.withBook(func(book *shelf.Book) { bookID = book.ID() })
+	l.withBook(func(book *bookpkg.Book) { bookID = book.ID() })
 	return bookID
 }
 
@@ -107,7 +107,7 @@ func (l *Library) BookID() string {
 // same directory handle, and those are separate reads. Holding a package that
 // is already open costs a reader lock on a single-window app; not holding it
 // costs a request that fails halfway through its body.
-func (l *Library) withBook(read func(*shelf.Book)) bool {
+func (l *Library) withBook(read func(*bookpkg.Book)) bool {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 

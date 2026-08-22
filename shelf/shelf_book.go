@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/shelf/bookpkg"
+	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 )
 
 // BookListing is one book of a listing together with the values the book cache
@@ -122,7 +124,7 @@ func (s *Shelf) NewBookWith(layers Layers, title string, init func(*Book) error)
 		return nil, util.Errorf("%w", err)
 	}
 
-	stagedBook, err := createBook(root, s.Logger, bookPath, bookID, title)
+	stagedBook, err := bookpkg.Create(root, s.Logger, bookPath, bookID, title)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -165,7 +167,7 @@ func (s *Shelf) NewBookWith(layers Layers, title string, init func(*Book) error)
 		return nil, util.Errorf("%w", err)
 	}
 
-	newBook, err := openBook(s.dbRoot, s.Logger, finalBookPath)
+	newBook, err := bookpkg.Open(s.dbRoot, s.Logger, finalBookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -298,7 +300,7 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	movedBook, err := openBook(s.dbRoot, s.Logger, newBookPath)
+	movedBook, err := bookpkg.Open(s.dbRoot, s.Logger, newBookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -409,7 +411,7 @@ func (s *Shelf) iterateShelfTree(onLayer func(Layers) bool, onBook func(*Book) b
 		}
 
 		folderName := path.Base(pth)
-		if isIgnoredDir(folderName) {
+		if shelfutil.IsIgnoredDir(folderName) {
 			return
 		}
 
@@ -421,7 +423,7 @@ func (s *Shelf) iterateShelfTree(onLayer func(Layers) bool, onBook func(*Book) b
 				return
 			}
 
-			book, err := openBook(s.dbRoot, s.Logger, pth)
+			book, err := bookpkg.Open(s.dbRoot, s.Logger, pth)
 			if err != nil {
 				s.Error("Error opening book", "path", pth, "error", err)
 				return

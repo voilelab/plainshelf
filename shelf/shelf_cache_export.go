@@ -326,7 +326,7 @@ func (s *Shelf) collectExportBooks() map[string]BookCacheEntry {
 	for bookID, entry := range s.bookCache.cache {
 		books[bookID] = BookCacheEntry{
 			Path: entry.path,
-			Meta: entry.book.meta,
+			Meta: entry.book.GetMeta(),
 		}
 	}
 	return books

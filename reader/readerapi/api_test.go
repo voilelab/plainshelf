@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/voilelab/plainshelf/reader/readerapi"
-	"github.com/voilelab/plainshelf/shelf"
+	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
 const (
@@ -26,13 +26,13 @@ func writeBookPackage(t *testing.T, title string, bookID string) string {
 	t.Helper()
 
 	dir := filepath.Join(t.TempDir(), title+".bookpkg")
-	sourceDir := filepath.Join(dir, shelf.SourcesFolder, testSourceID)
+	sourceDir := filepath.Join(dir, bookpkg.SourcesFolder, testSourceID)
 	if err := os.MkdirAll(filepath.Join(sourceDir, "assets"), 0o755); err != nil {
 		t.Fatalf("creating package: %v", err)
 	}
 
-	writeJSONFile(t, filepath.Join(dir, shelf.BookMetaFile), shelf.BookMeta{
-		SchemaVersion: shelf.BookMetaSchemaVersion,
+	writeJSONFile(t, filepath.Join(dir, bookpkg.BookMetaFile), bookpkg.BookMeta{
+		SchemaVersion: bookpkg.BookMetaSchemaVersion,
 		ID:            bookID,
 		Title:         title,
 		Authors:       []string{"Frank Herbert"},
@@ -40,13 +40,13 @@ func writeBookPackage(t *testing.T, title string, bookID string) string {
 		Cover:         "cover.png",
 		CurrentSource: testSourceID,
 	})
-	writeJSONFile(t, filepath.Join(sourceDir, shelf.SourceMetaFile), shelf.SourceMeta{
-		SchemaVersion: shelf.SourceMetaSchemaVersion,
+	writeJSONFile(t, filepath.Join(sourceDir, bookpkg.SourceMetaFile), bookpkg.SourceMeta{
+		SchemaVersion: bookpkg.SourceMetaSchemaVersion,
 		ID:            testSourceID,
 		Format:        "md",
 	})
 
-	writeFile(t, filepath.Join(sourceDir, shelf.SourceFile), []byte(testContent))
+	writeFile(t, filepath.Join(sourceDir, bookpkg.SourceFile), []byte(testContent))
 	writeFile(t, filepath.Join(sourceDir, "assets", "figure.png"), []byte("figure bytes"))
 	writeFile(t, filepath.Join(dir, "cover.png"), []byte("cover bytes"))
 
@@ -106,8 +106,8 @@ func TestHandlerServesTheOpenBook(t *testing.T) {
 	}
 
 	var payload struct {
-		Meta  shelf.BookMeta `json:"meta"`
-		Layer []string       `json:"layer"`
+		Meta  bookpkg.BookMeta `json:"meta"`
+		Layer []string         `json:"layer"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("decoding book: %v", err)
@@ -151,7 +151,7 @@ func TestHandlerServesContentAndSources(t *testing.T) {
 		t.Fatalf("listing sources: status = %d", response.Code)
 	}
 
-	var sources []shelf.SourceMeta
+	var sources []bookpkg.SourceMeta
 	if err := json.Unmarshal(response.Body.Bytes(), &sources); err != nil {
 		t.Fatalf("decoding sources: %v", err)
 	}

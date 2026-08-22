@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 )
 
 // ignoredDirFixtures is one directory of every ignored kind: the hidden
@@ -167,7 +169,7 @@ func TestBookCacheExportOmitsIgnoredDirectories(t *testing.T) {
 
 	for _, layer := range cache.Layers {
 		for segment := range strings.SplitSeq(layer, "/") {
-			if segment != "" && isIgnoredDir(segment) {
+			if segment != "" && shelfutil.IsIgnoredDir(segment) {
 				t.Errorf("Exported cache layer %q contains ignored directory %q", layer, segment)
 			}
 		}
@@ -204,8 +206,8 @@ func TestIsIgnoredDir(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		if got := isIgnoredDir(tt.name); got != tt.ignored {
-			t.Errorf("isIgnoredDir(%q) = %v, want %v", tt.name, got, tt.ignored)
+		if got := shelfutil.IsIgnoredDir(tt.name); got != tt.ignored {
+			t.Errorf("shelfutil.IsIgnoredDir(%q) = %v, want %v", tt.name, got, tt.ignored)
 		}
 	}
 }
@@ -248,19 +250,6 @@ func TestValidateLayersReportsIgnoredNamesAsTheirOwnSentinel(t *testing.T) {
 		if errors.Is(err, ErrIgnoredLayerName) {
 			t.Errorf("validateLayers(%q) matched ErrIgnoredLayerName, want the general sentinel only", name)
 		}
-	}
-}
-
-// validatePathSegment serves asset names too, and the API classifies those
-// under ErrInvalidAssetName. The shared ignore rule must not pull them into the
-// layer sentinels.
-func TestIgnoredAssetNamesStayAssetErrors(t *testing.T) {
-	err := validateAssetName("@eaDir")
-	if !errors.Is(err, ErrInvalidAssetName) {
-		t.Fatalf("validateAssetName(@eaDir) = %v, want ErrInvalidAssetName", err)
-	}
-	if errors.Is(err, ErrInvalidLayer) || errors.Is(err, ErrIgnoredLayerName) {
-		t.Errorf("validateAssetName(@eaDir) = %v, want no layer sentinel", err)
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
 const trashMetaFile = "trash.json"
@@ -134,7 +135,7 @@ func (s *Shelf) ListTrashedBooks() ([]*TrashedBook, error) {
 		}
 
 		bookPath := path.Join(trashBooksFolder, entry.Name())
-		book, err := openBook(s.dbRoot, s.Logger, bookPath)
+		book, err := bookpkg.Open(s.dbRoot, s.Logger, bookPath)
 		if err != nil {
 			s.Warn("failed to open trashed book, skipping", "path", bookPath, "error", err)
 			continue
@@ -251,7 +252,7 @@ func (s *Shelf) RestoreTrashedBook(bookID string) error {
 	}
 	_ = root.Remove(path.Join(targetPath, trashMetaFile))
 
-	restoredBook, err := openBook(s.dbRoot, s.Logger, targetPath)
+	restoredBook, err := bookpkg.Open(s.dbRoot, s.Logger, targetPath)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -318,7 +319,7 @@ func (s *Shelf) findTrashedBook(bookID string) (string, *Book, *trashMeta, error
 	}
 
 	trashPath := path.Join(trashBooksFolder, bookID+bookExtension)
-	book, err := openBook(s.dbRoot, s.Logger, trashPath)
+	book, err := bookpkg.Open(s.dbRoot, s.Logger, trashPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return "", nil, nil, util.Errorf("%w", ErrTrashedBookNotFound)

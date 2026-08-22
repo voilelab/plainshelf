@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
 var errInitFailed = errors.New("init failed")
@@ -151,8 +153,8 @@ func TestShelfNewBookWithBookNotVisibleDuringInit(t *testing.T) {
 		if found := bookPkgEntries(t, path.Join(tmpLib, booksFolder, "hidden")); len(found) != 0 {
 			t.Errorf("book is already visible under the layer during init: %v", found)
 		}
-		if !strings.HasPrefix(book.folderPath, path.Join(appFolder, appTmpFolder)) {
-			t.Errorf("staged book folder = %q, want it under the app temp folder", book.folderPath)
+		if !strings.HasPrefix(book.FolderPath(), path.Join(appFolder, appTmpFolder)) {
+			t.Errorf("staged book folder = %q, want it under the app temp folder", book.FolderPath())
 		}
 		return nil
 	})
@@ -180,15 +182,15 @@ func TestBookSetMetaConcurrentWritersDoNotCollide(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
-	bookPath := created.folderPath
+	bookPath := created.FolderPath()
 
 	const writers = 12
 
 	books := make([]*Book, writers)
 	for i := range books {
-		book, err := openBook(shelf.dbRoot, newLoggerForTest(), bookPath)
+		book, err := bookpkg.Open(shelf.dbRoot, newLoggerForTest(), bookPath)
 		if err != nil {
-			t.Fatalf("openBook %d: %v", i, err)
+			t.Fatalf("Open %d: %v", i, err)
 		}
 		books[i] = book
 	}
@@ -212,9 +214,9 @@ func TestBookSetMetaConcurrentWritersDoNotCollide(t *testing.T) {
 	}
 
 	// The surviving book.json must be one complete write, not a mix of several.
-	reopened, err := openBook(shelf.dbRoot, newLoggerForTest(), bookPath)
+	reopened, err := bookpkg.Open(shelf.dbRoot, newLoggerForTest(), bookPath)
 	if err != nil {
-		t.Fatalf("openBook after writes: %v", err)
+		t.Fatalf("Open after writes: %v", err)
 	}
 	if got := reopened.GetMeta().Comments; len(got) < 1 || len(got) > writers || strings.Trim(got, "x") != "" {
 		t.Errorf("comments = %q, want a whole run of 1..%d 'x' characters", got, writers)

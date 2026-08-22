@@ -1,4 +1,4 @@
-package shelf
+package bookpkg
 
 import (
 	"errors"
@@ -62,7 +62,7 @@ func OpenBookPackage(dir string, logger *logutil.Logger) (*BookPackage, error) {
 
 	// The package is its own root, so the book sits at "." and nothing outside
 	// the folder the user chose is reachable through this handle.
-	book, err := openBook(fsutil.ReadOnly(fsutil.NewRootFS(root)), *logger, ".")
+	book, err := Open(fsutil.ReadOnly(fsutil.NewRootFS(root)), *logger, ".")
 	if err != nil {
 		root.Close() //nolint:errcheck // best-effort cleanup; the open error is what matters
 		if errors.Is(err, fs.ErrNotExist) {

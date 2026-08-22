@@ -45,7 +45,6 @@ const bookExtension = ".bookpkg"
 const appFolder = "app"
 const appTmpFolder = "tmp"
 const libraryLockFile = "library.lock"
-const maxPathSegmentLength = 255
 
 var ErrBookNotFound = util.NewError("book not found")
 var ErrShelfInitializing = util.NewError("shelf is initializing, please retry shortly")

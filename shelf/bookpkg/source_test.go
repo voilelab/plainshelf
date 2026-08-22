@@ -1,4 +1,4 @@
-package shelf
+package bookpkg
 
 import (
 	"bytes"
@@ -62,7 +62,9 @@ func TestOpenFileOfSource(t *testing.T) {
 
 func TestUpdateSource(t *testing.T) {
 	tmpDir := path.Join(t.TempDir(), "shelf_test")
-	_ = newTestShelf(t, &ShelfConf{LibRoot: tmpDir})
+	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
 
 	tmpRoot, err := os.OpenRoot(tmpDir)
 	if err != nil {
@@ -158,7 +160,9 @@ func TestOpenSourceInvalid(t *testing.T) {
 
 func TestCreateRootSource(t *testing.T) {
 	tmpDir := path.Join(t.TempDir(), "shelf_test")
-	_ = newTestShelf(t, &ShelfConf{LibRoot: tmpDir})
+	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
 
 	tmpRoot, err := os.OpenRoot(tmpDir)
 	if err != nil {
@@ -204,29 +208,25 @@ func TestCreateRootSource(t *testing.T) {
 }
 
 func TestLegacySourceSaveDoesNotUpgradeFormatOwnership(t *testing.T) {
-	testShelf := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
-	book, err := testShelf.NewBook(nil, "Legacy")
-	if err != nil {
-		t.Fatalf("NewBook: %v", err)
-	}
+	book, rootFS, _ := newTestBook(t, "legacy-book", "Legacy")
 	source, err := book.NewSource(bytes.NewBufferString("before"))
 	if err != nil {
 		t.Fatalf("NewSource: %v", err)
 	}
 	metaPath := path.Join(source.FolderPath(), SourceMetaFile)
 	legacy := `{"id":"` + source.ID() + `","created_at":"2026-01-01T00:00:00Z","comment":"legacy","split_config":{"type":"line_count","line_count":20}}`
-	if err := writeRootForTest(t, testShelf).WriteFile(metaPath, []byte(legacy)); err != nil {
+	if err := rootFS.WriteFile(metaPath, []byte(legacy)); err != nil {
 		t.Fatalf("write legacy meta: %v", err)
 	}
 
-	legacySource, err := openSource(testShelf.dbRoot, source.FolderPath())
+	legacySource, err := openSource(rootFS, source.FolderPath())
 	if err != nil {
 		t.Fatalf("open legacy source: %v", err)
 	}
 	if err := legacySource.UpdateContent(bytes.NewBufferString("after")); err != nil {
 		t.Fatalf("UpdateContent: %v", err)
 	}
-	metaFile, err := testShelf.dbRoot.Open(metaPath)
+	metaFile, err := rootFS.Open(metaPath)
 	if err != nil {
 		t.Fatalf("open legacy meta: %v", err)
 	}
@@ -248,28 +248,24 @@ func TestLegacySourceSaveDoesNotUpgradeFormatOwnership(t *testing.T) {
 }
 
 func TestNewerSourceSchemaIsReadableButNotWritable(t *testing.T) {
-	testShelf := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
-	book, err := testShelf.NewBook(nil, "Future source")
-	if err != nil {
-		t.Fatalf("NewBook: %v", err)
-	}
+	book, rootFS, _ := newTestBook(t, "future-book", "Future source")
 	source, err := book.NewSource(bytes.NewBufferString("original"))
 	if err != nil {
 		t.Fatalf("NewSource: %v", err)
 	}
 	metaPath := path.Join(source.FolderPath(), SourceMetaFile)
 	future := `{"schema_version":99,"id":"` + source.ID() + `","created_at":"2026-01-01T00:00:00Z","comment":"future","format":"md","future_key":true,"split_config":{"type":"none"}}`
-	if err := writeRootForTest(t, testShelf).WriteFile(metaPath, []byte(future)); err != nil {
+	if err := rootFS.WriteFile(metaPath, []byte(future)); err != nil {
 		t.Fatalf("write future meta: %v", err)
 	}
-	futureSource, err := openSource(testShelf.dbRoot, source.FolderPath())
+	futureSource, err := openSource(rootFS, source.FolderPath())
 	if err != nil {
 		t.Fatalf("future source should remain readable: %v", err)
 	}
 	if err := futureSource.UpdateContent(bytes.NewBufferString("clobbered")); !errors.Is(err, ErrUnsupportedSourceSchemaVersion) {
 		t.Fatalf("UpdateContent error = %v, want ErrUnsupportedSourceSchemaVersion", err)
 	}
-	sourceFile, err := testShelf.dbRoot.Open(path.Join(source.FolderPath(), SourceFile))
+	sourceFile, err := rootFS.Open(path.Join(source.FolderPath(), SourceFile))
 	if err != nil {
 		t.Fatalf("open source: %v", err)
 	}
@@ -284,11 +280,7 @@ func TestNewerSourceSchemaIsReadableButNotWritable(t *testing.T) {
 }
 
 func TestSourceHashPersists(t *testing.T) {
-	shelf := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
-	book, err := shelf.NewBook(Layers{"tests"}, "Source Metadata")
-	if err != nil {
-		t.Fatalf("NewBook: %v", err)
-	}
+	book, rootFS, _ := newTestBook(t, "hash-book", "Source Metadata")
 	source, err := book.NewSource(bytes.NewBufferString("original\n"))
 	if err != nil {
 		t.Fatalf("NewSource: %v", err)
@@ -297,7 +289,7 @@ func TestSourceHashPersists(t *testing.T) {
 		t.Fatal("FolderPath returned an empty path")
 	}
 
-	if err := writeRootForTest(t, shelf).WriteFile(path.Join(source.FolderPath(), SourceFile), []byte("changed\n")); err != nil {
+	if err := rootFS.WriteFile(path.Join(source.FolderPath(), SourceFile), []byte("changed\n")); err != nil {
 		t.Fatalf("replace source content: %v", err)
 	}
 	verified, err := source.VerifyContent()
