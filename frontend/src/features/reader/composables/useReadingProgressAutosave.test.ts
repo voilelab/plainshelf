@@ -106,6 +106,40 @@ describe('useReadingProgressAutosave', () => {
     ]);
   });
 
+  it('re-saves a position that returned to a saved offset with a newer timestamp', async () => {
+    let resolveFirst!: () => void;
+    const firstWrite = new Promise<void>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const save = vi.fn().mockReturnValueOnce(firstWrite).mockResolvedValue(undefined);
+    const autosave = useReadingProgressAutosave(save);
+    autosave.setBaseline('book-a', 0);
+    autosave.update(10); // changed at t=0, snapshotted by the first flush
+
+    const firstFlush = autosave.flush();
+    await Promise.resolve();
+
+    // While that save is in flight, move away and back to the same offset. The
+    // final position is offset 10 again but with a newer change time.
+    vi.setSystemTime(5);
+    autosave.update(20);
+    vi.setSystemTime(9);
+    autosave.update(10);
+
+    resolveFirst();
+    await firstFlush;
+
+    // The in-flight save persisted {10, 0}. The state is still dirty because the
+    // current offset carries a newer time, so the next flush re-saves it — without
+    // this a concurrent write from t=5..9 would wrongly win the merge.
+    await autosave.flush();
+
+    expect(save.mock.calls).toEqual([
+      ['book-a', 10, 0],
+      ['book-a', 10, 9]
+    ]);
+  });
+
   it('retains a failed snapshot for retry and clears the warning after success', async () => {
     const save = vi
       .fn()
