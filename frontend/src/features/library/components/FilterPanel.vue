@@ -16,7 +16,11 @@
           :read-only="readOnly"
           :char-count-supported="charCountSupported"
           :char-count-unknown-count="charCountUnknownCount"
-          @stats-refreshed="emit('stats-refreshed')"
+          :char-count-refresh-running="charCountRefreshRunning"
+          :char-count-refresh-label="charCountRefreshLabel"
+          :char-count-refresh-outcome="charCountRefreshOutcome"
+          :char-count-refresh-error="charCountRefreshError"
+          @refresh-stats="emit('refresh-stats')"
         />
       </PopoverContent>
     </PopoverPortal>
@@ -42,7 +46,11 @@
               :read-only="readOnly"
               :char-count-supported="charCountSupported"
               :char-count-unknown-count="charCountUnknownCount"
-              @stats-refreshed="emit('stats-refreshed')"
+              :char-count-refresh-running="charCountRefreshRunning"
+              :char-count-refresh-label="charCountRefreshLabel"
+              :char-count-refresh-outcome="charCountRefreshOutcome"
+              :char-count-refresh-error="charCountRefreshError"
+              @refresh-stats="emit('refresh-stats')"
             />
           </div>
         </DialogContent>
@@ -77,10 +85,14 @@ defineProps<{
   readOnly: boolean;
   charCountSupported: boolean;
   charCountUnknownCount: number;
+  charCountRefreshRunning: boolean;
+  charCountRefreshLabel: string;
+  charCountRefreshOutcome: string;
+  charCountRefreshError: string;
 }>();
 
 const emit = defineEmits<{
-  (event: 'stats-refreshed'): void;
+  (event: 'refresh-stats'): void;
 }>();
 
 const { t } = useI18n();

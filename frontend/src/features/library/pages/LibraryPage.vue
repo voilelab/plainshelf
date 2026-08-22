@@ -144,7 +144,11 @@
           :read-only="readOnly"
           :char-count-supported="charCountFilterSupported"
           :char-count-unknown-count="unknownCharCountCount"
-          @stats-refreshed="onCharCountStatsRefreshed"
+          :char-count-refresh-running="contentStatsRunning"
+          :char-count-refresh-label="contentStatsLabel"
+          :char-count-refresh-outcome="contentStatsOutcome"
+          :char-count-refresh-error="contentStatsError"
+          @refresh-stats="startContentStatsRefresh"
         />
         <div class="toolbar-bar search-bar">
           <input
@@ -248,6 +252,7 @@ import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useBooksRouteQuery } from '@/features/library/composables/useBooksRouteQuery';
 import { useBooksSearch } from '@/features/library/composables/useBooksSearch';
 import { useBooksSort, type BookSortKey, type SortOrder } from '@/features/library/composables/useBooksSort';
+import { useContentStatsRefresh } from '@/features/library/composables/useContentStatsRefresh';
 import { handleLibraryMobileBack } from '@/features/library/utils/mobileBack';
 import {
   BOOK_FILTERS,
@@ -637,14 +642,34 @@ const unknownCharCountCount = computed(() => {
   return filteredBooks.value.filter((book) => charCountOf(book) === undefined).length;
 });
 
-// The counts are a second request, so the first one keeps the page reporting
-// itself as loading rather than briefly showing an unfiltered list. A later
-// refresh keeps the previous counts on screen instead, which is what stops the
-// toolbar - and any refresh progress it is showing - from being torn down.
-const collectionLoading = computed(
-  () => loading.value
-    || (charCountFilterActive.value && charCountIndex.loading.value && !charCountIndex.ready.value)
-);
+// The recompute sweep is tracked here, on the always-mounted page, so closing
+// the filter panel mid-sweep does not abandon the poll or the index refresh it
+// triggers when the sweep settles.
+const {
+  running: contentStatsRunning,
+  label: contentStatsLabel,
+  outcome: contentStatsOutcome,
+  error: contentStatsError,
+  start: startContentStats
+} = useContentStatsRefresh(unknownCharCountCount, () => {
+  void charCountIndex.refresh();
+});
+
+function startContentStatsRefresh(): void {
+  if (readOnly.value) {
+    return;
+  }
+  void startContentStats();
+}
+
+// Only the book-list load drives the full loading state. The character counts
+// are a second request, but making them tear the content down would unmount the
+// filter panel the user is setting the range in (BookCollectionPage swaps the
+// whole header/toolbar/list for a loading placeholder). While the counts are in
+// flight the character range simply isn't applied yet (see activeFilters), so
+// the list shows the other conditions' result until the counts arrive — the
+// panel, its chips, and any refresh progress stay mounted throughout.
+const collectionLoading = computed(() => loading.value);
 
 // Reported next to the shelf-refresh error rather than through
 // BookCollectionPage, which would replace the list with the message: the books
@@ -786,14 +811,6 @@ function onOrderChange(nextOrder: SortOrder): void {
 
 function toggleOrder(): void {
   onOrderChange(sortOrder.value === 'asc' ? 'desc' : 'asc');
-}
-
-// The sweep rewrites char_count in each source's meta.json, so the cached
-// counts - not the book listing - are what went stale. The character-range
-// control now lives in the filter panel, which writes the range to the URL
-// itself; only the index refresh still belongs to the page that owns the index.
-function onCharCountStatsRefreshed(): void {
-  void charCountIndex.refresh();
 }
 
 async function openImportFromFiles(): Promise<void> {

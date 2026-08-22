@@ -20,8 +20,12 @@
         :unknown-count="charCountUnknownCount"
         :read-only="readOnly"
         hide-label
+        :refresh-running="charCountRefreshRunning"
+        :refresh-label="charCountRefreshLabel"
+        :refresh-outcome="charCountRefreshOutcome"
+        :refresh-error="charCountRefreshError"
         @update:range="onRangeChange"
-        @stats-refreshed="emit('stats-refreshed')"
+        @refresh-stats="emit('refresh-stats')"
       />
 
       <!-- Tri-state (cover): presence is all there is, so all / has / none. -->
@@ -152,10 +156,14 @@ const props = defineProps<{
   readOnly: boolean;
   charCountSupported: boolean;
   charCountUnknownCount: number;
+  charCountRefreshRunning: boolean;
+  charCountRefreshLabel: string;
+  charCountRefreshOutcome: string;
+  charCountRefreshError: string;
 }>();
 
 const emit = defineEmits<{
-  (event: 'stats-refreshed'): void;
+  (event: 'refresh-stats'): void;
 }>();
 
 const { t } = useI18n();
