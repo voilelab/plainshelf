@@ -301,8 +301,9 @@ func (s *Shelf) CopyBook(bookID string, targetLayer Layers) (*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	root, err := s.writeRoot()
-	if err != nil {
+	// Refuse a read-only shelf before taking the lock; publishBookCopy asks again
+	// once staging begins, so this only moves the refusal earlier.
+	if _, err := s.writeRoot(); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -323,63 +324,13 @@ func (s *Shelf) CopyBook(bookID string, targetLayer Layers) (*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	bookPath, err := createTempDir(root, path.Join(appFolder, appTmpFolder, "book"))
+	// Same shelf, so the staging root and the source root are one and the same;
+	// the cross-shelf transfer in shelf_cross_book.go is the general case of this
+	// same publish core.
+	newBook, err := s.publishBookCopy(s.dbRoot, sourceBook, targetLayer, false)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
-	defer root.RemoveAll(bookPath)
-
-	if err := copyTree(root, sourceBook.FolderPath(), bookPath); err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	newID, err := s.drawUnusedBookID()
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	stagedBook, err := openBook(root, s.Logger, bookPath)
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-	stagedMeta := stagedBook.GetMeta()
-	stagedMeta.ID = newID
-	if err := stagedBook.setMeta(stagedMeta); err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	layerPath := path.Join(booksFolder, path.Join(targetLayer...))
-	if err := root.MkdirAll(layerPath); err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	s.addLayersToBookCache(targetLayer)
-
-	folderName := titleToFolderName(stagedMeta.Title)
-	for i := 1; ; i++ {
-		finalBookPath := path.Join(layerPath, folderName)
-		if _, err := s.dbRoot.Stat(finalBookPath); err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				break
-			}
-			return nil, util.Errorf("%w", err)
-		}
-		folderName = titleToFolderName(fmt.Sprintf("%s-%d", stagedMeta.Title, i))
-	}
-
-	finalBookPath := path.Join(layerPath, folderName)
-	if err := root.Rename(bookPath, finalBookPath); err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	newBook, err := openBook(s.dbRoot, s.Logger, finalBookPath)
-	if err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	newBook.setLayers(targetLayer)
-
-	s.updateBookCacheEntry(targetLayer, finalBookPath, newBook)
 
 	return newBook, nil
 }

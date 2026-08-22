@@ -61,6 +61,10 @@ var apiErrorTable = []struct {
 		status:  http.StatusNotFound,
 		message: "book not found",
 	}},
+	{shelf.ErrBookIDConflict, apiError{
+		status:  http.StatusConflict,
+		message: "the target shelf already holds a book with this ID; the move would overwrite it",
+	}},
 	{shelf.ErrTrashedBookNotFound, apiError{
 		status:  http.StatusNotFound,
 		message: "trashed book not found",
