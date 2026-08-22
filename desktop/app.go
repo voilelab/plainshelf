@@ -686,12 +686,17 @@ func (a *DesktopApp) OpenReader(shelfID, bookID string) error {
 // at bookPath. It launches the app by name so LaunchServices finds the installed
 // PlainShelfReader.app and gives it its own window; PLAINSHELF_READER_APP
 // overrides the app (a path or name) for development against a local build.
+//
+// -n forces a new instance: the reader takes -book only from its startup
+// arguments and shows a single book, so without it a second launch while a
+// reader is already open would merely reactivate the first window (still showing
+// the first book) and report success, so the frontend would not fall back.
 func readerLaunchCommand(bookPath string) (string, []string) {
 	app := strings.TrimSpace(os.Getenv("PLAINSHELF_READER_APP"))
 	if app == "" {
 		app = "PlainShelfReader"
 	}
-	return "open", []string{"-a", app, "--args", "-book", bookPath}
+	return "open", []string{"-n", "-a", app, "--args", "-book", bookPath}
 }
 
 func (a *DesktopApp) AddShelf(name, libRoot, scanInterval string) error {
