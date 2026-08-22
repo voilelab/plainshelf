@@ -163,6 +163,66 @@ func TestShelfMoveLayerFromNestedPreservesIDs(t *testing.T) {
 	assertStagingClean(t, targetLib)
 }
 
+// plantBrokenPackageOnDisk writes a .bookpkg directory whose book.json is
+// unparseable, so bookpkg.Open fails on it and the scan skips it - the shape of
+// a corrupt package a move must not silently destroy. It returns the package's
+// on-disk path.
+func plantBrokenPackageOnDisk(t *testing.T, lib string, layer Layers, folderName string) string {
+	t.Helper()
+	dir := filepath.Join(append([]string{lib, booksFolder}, layer...)...)
+	dir = filepath.Join(dir, folderName+bookExtension)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("MkdirAll broken package: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, BookMetaFile), []byte("{ not valid json"), 0o644); err != nil {
+		t.Fatalf("write broken book.json: %v", err)
+	}
+	return dir
+}
+
+// A move clears the emptied source folders but must not delete a package the
+// scan could not read: it was never in the transfer plan, so blowing away the
+// subtree would destroy it permanently, bypassing the trash a delete routes
+// through. The unreadable package - and the folder holding it - survive.
+func TestShelfMoveLayerFromPreservesUnreadablePackage(t *testing.T) {
+	source, target, sourceLib, targetLib := twoShelvesWithLibs(t)
+
+	good := seedBook(t, source, Layers{"fiction"}, "Readable")
+	goodID := good.ID()
+	// An empty sub-folder that should be pruned, and a corrupt package that must not.
+	if err := source.NewLayer(Layers{"fiction", "empty"}); err != nil {
+		t.Fatalf("NewLayer: %v", err)
+	}
+	brokenPath := plantBrokenPackageOnDisk(t, sourceLib, Layers{"fiction"}, "corrupt")
+
+	moved, err := target.MoveLayerFrom(source, Layers{"fiction"}, Layers{"archive"})
+	if err != nil {
+		t.Fatalf("MoveLayerFrom: %v", err)
+	}
+	if len(moved) != 1 || moved[0].ID() != goodID {
+		t.Fatalf("moved = %v, want just the readable book %s", moved, goodID)
+	}
+
+	// The corrupt package is still on disk, untouched.
+	if _, err := os.Stat(brokenPath); err != nil {
+		t.Errorf("move destroyed the unreadable package: %v", err)
+	}
+	// Its containing folder is kept because it is not empty...
+	if !layerDirExists(t, sourceLib, Layers{"fiction"}) {
+		t.Errorf("move removed a source folder that still held a package")
+	}
+	// ...while the genuinely empty sub-folder beside it is pruned.
+	if layerDirExists(t, sourceLib, Layers{"fiction", "empty"}) {
+		t.Errorf("move left an empty source sub-folder behind")
+	}
+
+	// The readable book still moved across and is recoverable on the source.
+	if _, err := target.GetBook(goodID); err != nil {
+		t.Errorf("target missing the moved book: %v", err)
+	}
+	assertStagingClean(t, targetLib)
+}
+
 // A move whose books partly collide with the target's is refused, and the whole
 // colliding set is reported at once - not just the first ID. Neither shelf is
 // modified: the source keeps every book and the target gains no subtree.

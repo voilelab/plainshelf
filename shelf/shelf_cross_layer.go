@@ -7,6 +7,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
@@ -79,10 +80,14 @@ type plannedBook struct {
 // copy draws fresh IDs, so it never checks for a book-ID conflict. When
 // pre-flight refuses the transfer, neither shelf has been modified.
 //
-// There is deliberately no rollback once execution begins. Pre-flight has
-// already ruled out every foreseeable conflict, so a failure mid-transfer is a
-// rare I/O or space error; the copies published so far are returned and the
-// caller can re-run to finish the rest.
+// There is deliberately no rollback once execution begins, and a transaction
+// layer is out of scope. Pre-flight has already ruled out every foreseeable
+// conflict, so a failure mid-transfer is a rare I/O or space error. The copies
+// published so far are returned; the rest stay on the source. Because the first
+// published book creates the destination layer, calling this again then hits
+// ErrTargetLayerExists, so finishing a partial copy is not an automatic re-run:
+// resolve it by copying the remaining source books individually, or by removing
+// the partial destination and starting over.
 func (target *Shelf) CopyLayerFrom(source *Shelf, sourceLayer, targetLayer Layers) ([]*Book, error) {
 	return target.transferLayerFrom(source, sourceLayer, targetLayer, false)
 }
@@ -106,11 +111,15 @@ func (target *Shelf) CopyLayerFrom(source *Shelf, sourceLayer, targetLayer Layer
 // once through *LayerBookIDConflictError rather than stopping at the first. When
 // pre-flight refuses the transfer, neither shelf has been modified.
 //
-// There is deliberately no rollback once execution begins. Pre-flight has
-// already ruled out every foreseeable conflict, so a failure mid-transfer is a
-// rare I/O or space error; the books moved so far are returned and, because a
-// moved book is no longer on the source, the caller can simply re-run to finish
-// the rest.
+// There is deliberately no rollback once execution begins, and a transaction
+// layer is out of scope. Pre-flight has already ruled out every foreseeable
+// conflict, so a failure mid-transfer is a rare I/O or space error. The books
+// moved so far are returned and, because a moved book is no longer on the
+// source, the source keeps only what still has to move. Completing it is not an
+// automatic re-run of this call, though: the first moved book creates the
+// destination layer, so a second call hits ErrTargetLayerExists. Move the
+// remaining source books into the now-existing destination layer individually,
+// or remove the partial destination and start over.
 func (target *Shelf) MoveLayerFrom(source *Shelf, sourceLayer, targetLayer Layers) ([]*Book, error) {
 	return target.transferLayerFrom(source, sourceLayer, targetLayer, true)
 }
@@ -291,9 +300,16 @@ func (s *Shelf) bookIDPresent(bookID string) (bool, error) {
 	return inTrash, nil
 }
 
-// removeEmptyLayerTree drops a layer subtree that a move has already emptied of
-// books and marks the cache tree dirty. It takes the exclusive lock itself, so
+// removeEmptyLayerTree drops the folders a move has emptied out of a layer
+// subtree and marks the cache tree dirty. It takes the exclusive lock itself, so
 // the caller must not already hold it.
+//
+// It prunes only empty directories, never a book package or a file: a move
+// carries only the books pre-flight could resolve, and an unreadable package -
+// one bookpkg.Open failed on during the scan, so it was never in the plan - is
+// still physically present. A blanket RemoveAll would delete it permanently,
+// bypassing the trash a delete routes through, so such a package (and the
+// folders above it) is deliberately left in place.
 func (s *Shelf) removeEmptyLayerTree(layer Layers) error {
 	root, err := s.writeRoot()
 	if err != nil {
@@ -306,12 +322,48 @@ func (s *Shelf) removeEmptyLayerTree(layer Layers) error {
 	defer s.shelfLock.Unlock()
 
 	layerPath := path.Join(booksFolder, path.Join(layer...))
-	if err := root.RemoveAll(layerPath); err != nil {
+	if _, err := pruneEmptyDirs(root, layerPath); err != nil {
 		return util.Errorf("%w", err)
 	}
 
 	s.markBookCacheTreeDirty()
 	return nil
+}
+
+// pruneEmptyDirs removes dirPath and every descendant directory that is empty,
+// bottom-up, and reports whether dirPath itself was removed. It neither descends
+// into nor deletes a book package (a .bookpkg directory) or a file, so anything
+// a move left behind - most importantly a package that was unreadable at scan
+// time and so never transferred - survives, along with the folders above it.
+func pruneEmptyDirs(root fsutil.FS, dirPath string) (bool, error) {
+	entries, err := root.ReadDir(dirPath)
+	if err != nil {
+		return false, util.Errorf("%w", err)
+	}
+
+	remaining := 0
+	for _, entry := range entries {
+		if entry.IsDir() && !strings.HasSuffix(entry.Name(), bookExtension) {
+			childRemoved, err := pruneEmptyDirs(root, path.Join(dirPath, entry.Name()))
+			if err != nil {
+				return false, util.Errorf("%w", err)
+			}
+			if !childRemoved {
+				remaining++
+			}
+		} else {
+			remaining++
+		}
+	}
+
+	if remaining > 0 {
+		return false, nil
+	}
+
+	if err := root.Remove(dirPath); err != nil {
+		return false, util.Errorf("%w", err)
+	}
+	return true, nil
 }
 
 // layerHasPrefix reports whether layer is prefix itself or sits beneath it.
