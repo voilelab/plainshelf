@@ -155,7 +155,73 @@ function renderHtmlBlock(
 ): ReaderMarkdownHtmlBlock | null {
   if (!source.trim()) return null;
   const html = markdown.render(source, env);
-  return html.trim() ? { type: 'html', html, images: env.images } : null;
+  if (!html.trim()) return null;
+  // Split rendering emits one block per chunk, so a block must carry only the
+  // illustrations whose slot it actually rendered — not the whole document's
+  // asset list — or every block would re-scan every book image.
+  const images = env.images.filter((image) => html.includes(`title="${image.token}"`));
+  return { type: 'html', html, images };
+}
+
+/** Character budget after which a section is cut at the next block boundary. */
+export const READER_BLOCK_CHAR_BUDGET = 2000;
+/** Line budget after which a section is cut at the next block boundary. */
+export const READER_BLOCK_LINE_BUDGET = 80;
+
+/**
+ * Cuts an oversized section into render chunks at top-level Markdown block
+ * boundaries. Each markdown-it block token carries its own `[startLine,
+ * endLine)` span, so a fenced code block, list, blockquote or table is always
+ * kept whole: a cut never lands inside a multi-line construct, and an ordered
+ * list is never split into separately renumbered halves. A single block larger
+ * than the budget becomes its own chunk instead of being cut mid-line.
+ *
+ * The chunk boundaries are a render concern only. They carry no offset meaning,
+ * so the reader's char-offset progress bridge is unaffected by how a section is
+ * divided here (see `.claude/rules/50-lessons.md` on `markdownChapters.ts`).
+ */
+function splitSourceIntoRenderChunks(
+  source: string,
+  env: ReaderMarkdownEnvironment
+): string[] {
+  const lines = source.split('\n');
+  const blocks: Array<{ start: number; end: number }> = [];
+  for (const token of markdown.parse(source, env)) {
+    // A level-0 opening or self-closing token spans one whole top-level block;
+    // its close token (nesting -1) repeats the range, so it is skipped.
+    if (token.level === 0 && token.map && token.nesting !== -1) {
+      blocks.push({ start: token.map[0], end: token.map[1] });
+    }
+  }
+  if (blocks.length <= 1) {
+    return [source];
+  }
+
+  const chunks: string[] = [];
+  let start = -1;
+  let end = 0;
+  let chars = 0;
+  let lineCount = 0;
+
+  const flush = (): void => {
+    if (start < 0) return;
+    chunks.push(lines.slice(start, end).join('\n'));
+    start = -1;
+    chars = 0;
+    lineCount = 0;
+  };
+
+  for (const block of blocks) {
+    if (start < 0) start = block.start;
+    end = block.end;
+    chars += lines.slice(block.start, block.end).join('\n').length;
+    lineCount += block.end - block.start;
+    if (chars >= READER_BLOCK_CHAR_BUDGET || lineCount >= READER_BLOCK_LINE_BUDGET) {
+      flush();
+    }
+  }
+  flush();
+  return chunks;
 }
 
 let assetDocumentSerial = 0;
@@ -193,6 +259,15 @@ export function renderMarkdownBlocks(source: string): ReaderMarkdownBlock[] {
     token: `${assetTokenPrefix}${index}`
   }));
   const env: ReaderMarkdownEnvironment = { assetTokenPrefix, images };
-  const block = renderHtmlBlock(removePlotMarkers(rewritten.text), env);
-  return block ? [block] : [];
+  const prepared = removePlotMarkers(rewritten.text);
+
+  const blocks: ReaderMarkdownBlock[] = [];
+  for (const chunk of splitSourceIntoRenderChunks(prepared, env)) {
+    // A fresh env per chunk keeps markdown-it's per-document state (e.g. link
+    // reference definitions) from bleeding between chunks; the shared `images`
+    // array is read-only during rendering, so reusing it is safe.
+    const block = renderHtmlBlock(chunk, { assetTokenPrefix, images });
+    if (block) blocks.push(block);
+  }
+  return blocks;
 }

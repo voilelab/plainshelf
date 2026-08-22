@@ -108,7 +108,18 @@
   white-space: pre-wrap;
 }
 
-.reader-text-block:last-child {
+/* Blocks are wrapped per item for virtualization, so each block is the last
+   child of its own wrapper. Trim the trailing margin only on the real last
+   block — the last wrapper's block, or the un-windowed fallback block — not on
+   every block, which would collapse the gap between paragraphs and chunks. */
+.reader-text > .reader-text-block:last-child,
+.reader-text :deep(.reader-block-window-item:last-child > .reader-text-block:last-child) {
+  margin-bottom: 0;
+}
+
+/* A block split off a larger one only for virtualization must not add a gap:
+   the wall of text reads as the single block it was written as. */
+.reader-text-block--joined {
   margin-bottom: 0;
 }
 
@@ -136,8 +147,8 @@
   margin: 0 0 calc(var(--reader-font-size, 20px) * 0.92);
 }
 
-.reader-safe-html :deep(.reader-text-block:last-child),
-.reader-safe-html :deep(p:last-child) {
+.reader-text :deep(.reader-block-window-item:last-child .reader-safe-html .reader-text-block:last-child),
+.reader-text :deep(.reader-block-window-item:last-child .reader-safe-html p:last-child) {
   margin-bottom: 0;
 }
 
@@ -168,12 +179,14 @@
   white-space: normal;
 }
 
-.reader-safe-html :deep(.reader-md-h1:first-child),
-.reader-safe-html :deep(.reader-md-h2:first-child),
-.reader-safe-html :deep(.reader-md-h3:first-child),
-.reader-safe-html :deep(h1:first-child),
-.reader-safe-html :deep(h2:first-child),
-.reader-safe-html :deep(h3:first-child) {
+/* Only the document's first heading loses its top margin. With per-item
+   wrappers that is the first wrapper's first heading, not every chunk's. */
+.reader-text :deep(.reader-block-window-item:first-child .reader-safe-html .reader-md-h1:first-child),
+.reader-text :deep(.reader-block-window-item:first-child .reader-safe-html .reader-md-h2:first-child),
+.reader-text :deep(.reader-block-window-item:first-child .reader-safe-html .reader-md-h3:first-child),
+.reader-text :deep(.reader-block-window-item:first-child .reader-safe-html h1:first-child),
+.reader-text :deep(.reader-block-window-item:first-child .reader-safe-html h2:first-child),
+.reader-text :deep(.reader-block-window-item:first-child .reader-safe-html h3:first-child) {
   margin-top: 0;
 }
 
