@@ -206,6 +206,55 @@
 
         <template v-if="hasActiveShelf">
           <div class="sidebar-nav-divider" role="presentation"></div>
+
+          <section class="sidebar-section" :aria-label="t('layout.sections.reading')">
+            <button
+              type="button"
+              class="sidebar-section-toggle"
+              :aria-label="t('layout.sectionToggleLabels.reading')"
+              :aria-expanded="!collapsedSidebarSections.reading"
+              aria-controls="sidebar-section-reading"
+              @click="toggleSidebarSection('reading')"
+            >
+              <span class="sidebar-section-title" aria-hidden="true">{{ t('layout.sections.reading') }}</span>
+              <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.reading ? '▸' : '▾' }}</span>
+            </button>
+            <nav
+              v-show="!collapsedSidebarSections.reading"
+              id="sidebar-section-reading"
+              class="sidebar-nav-list sidebar-foldable-content"
+              :aria-label="t('layout.sections.reading')"
+            >
+              <RouterLink
+                to="/dashboard"
+                class="sidebar-nav-item"
+                exact-active-class="active"
+              >
+                <SidebarNavIcon name="dashboard" />
+                <span>{{ t('layout.dashboard') }}</span>
+              </RouterLink>
+              <RouterLink
+                to="/read-history"
+                class="sidebar-nav-item"
+                exact-active-class="active"
+              >
+                <SidebarNavIcon name="recently-read" />
+                <span>{{ t('layout.recentlyRead') }}</span>
+              </RouterLink>
+              <RouterLink
+                v-if="libraryEditingAvailable"
+                to="/trash"
+                class="sidebar-nav-item"
+                exact-active-class="active"
+              >
+                <SidebarNavIcon name="trash" />
+                <span>{{ t('layout.trash') }}</span>
+              </RouterLink>
+            </nav>
+          </section>
+
+          <div class="sidebar-nav-divider" role="presentation"></div>
+
           <section class="sidebar-section" :aria-label="t('layout.sections.layers')">
             <div class="sidebar-header-row sidebar-foldable-header">
               <button
@@ -261,54 +310,6 @@
                 {{ layerOperationError }}
               </p>
             </div>
-          </section>
-
-          <div class="sidebar-nav-divider" role="presentation"></div>
-
-          <section class="sidebar-section" :aria-label="t('layout.sections.reading')">
-            <button
-              type="button"
-              class="sidebar-section-toggle"
-              :aria-label="t('layout.sectionToggleLabels.reading')"
-              :aria-expanded="!collapsedSidebarSections.reading"
-              aria-controls="sidebar-section-reading"
-              @click="toggleSidebarSection('reading')"
-            >
-              <span class="sidebar-section-title" aria-hidden="true">{{ t('layout.sections.reading') }}</span>
-              <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.reading ? '▸' : '▾' }}</span>
-            </button>
-            <nav
-              v-show="!collapsedSidebarSections.reading"
-              id="sidebar-section-reading"
-              class="sidebar-nav-list sidebar-foldable-content"
-              :aria-label="t('layout.sections.reading')"
-            >
-              <RouterLink
-                to="/dashboard"
-                class="sidebar-nav-item"
-                exact-active-class="active"
-              >
-                <SidebarNavIcon name="dashboard" />
-                <span>{{ t('layout.dashboard') }}</span>
-              </RouterLink>
-              <RouterLink
-                to="/read-history"
-                class="sidebar-nav-item"
-                exact-active-class="active"
-              >
-                <SidebarNavIcon name="recently-read" />
-                <span>{{ t('layout.recentlyRead') }}</span>
-              </RouterLink>
-              <RouterLink
-                v-if="libraryEditingAvailable"
-                to="/trash"
-                class="sidebar-nav-item"
-                exact-active-class="active"
-              >
-                <SidebarNavIcon name="trash" />
-                <span>{{ t('layout.trash') }}</span>
-              </RouterLink>
-            </nav>
           </section>
 
           <div v-if="libraryEditingAvailable" class="sidebar-nav-divider" role="presentation"></div>
