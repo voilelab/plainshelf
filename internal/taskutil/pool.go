@@ -32,10 +32,32 @@ type Pool interface {
 	// List returns the retained chains, most recently submitted first.
 	List() []*TaskChain
 
+	// Cancel signals the chain with the given ID to stop. Cancelling a chain that
+	// is still running or queued triggers its context so its tasks stop at the
+	// next task boundary. A chain that does not exist, or one that has already
+	// reached a terminal status, is left untouched. The returned result says which
+	// case applied, and the chain (nil only when it was not found) lets a caller
+	// report its current state.
+	Cancel(id string) (*TaskChain, CancelResult)
+
 	Start()
 
 	Close() error
 }
+
+// CancelResult reports what Cancel did, so a caller can answer a cancel request
+// precisely rather than guessing from the chain's status alone.
+type CancelResult int
+
+const (
+	// CancelSignalled means a non-terminal chain was signalled to stop.
+	CancelSignalled CancelResult = iota
+	// CancelNotFound means no chain with the given ID is retained.
+	CancelNotFound
+	// CancelAlreadyTerminal means the chain exists but had already settled, so the
+	// cancel was a no-op.
+	CancelAlreadyTerminal
+)
 
 type pool struct {
 	worker  Worker
@@ -126,6 +148,23 @@ func (p *pool) List() []*TaskChain {
 		}
 	}
 	return chains
+}
+
+func (p *pool) Cancel(id string) (*TaskChain, CancelResult) {
+	p.mu.RLock()
+	chain, ok := p.byID[id]
+	p.mu.RUnlock()
+
+	if !ok {
+		return nil, CancelNotFound
+	}
+	// A terminal chain has nothing left to stop. Reporting it separately keeps the
+	// endpoint honest that the cancel changed nothing rather than implying it did.
+	if chain.Status().IsTerminal() {
+		return chain, CancelAlreadyTerminal
+	}
+	chain.Cancel()
+	return chain, CancelSignalled
 }
 
 // findActiveLocked returns the retained chain with the given key that has not

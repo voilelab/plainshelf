@@ -138,6 +138,40 @@ func TestWorkerCancelsRunningTaskOnClose(t *testing.T) {
 	}
 }
 
+func TestWorkerCancelStopsOnlyThatChain(t *testing.T) {
+	w := newTestWorker(t, 2)
+	w.Start()
+
+	started := make(chan struct{})
+	observed := make(chan error, 1)
+	cancelled := &TaskChain{Tasks: []Task{&blockingTask{started: started, observed: observed}}}
+
+	if err := w.Run(cancelled); err != nil {
+		t.Fatalf("Run returned an error: %v", err)
+	}
+
+	<-started
+	// Cancelling one chain must stop its task without taking the worker down.
+	cancelled.Cancel()
+	if err := <-observed; !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled task observed %v, want context.Canceled", err)
+	}
+
+	// The worker is still alive: a chain submitted after the cancel runs to the end.
+	ran := []string{}
+	next := &TaskChain{Tasks: []Task{&fakeTask{name: "after", record: &ran}}}
+	if err := w.Run(next); err != nil {
+		t.Fatalf("Run after cancel returned an error: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close returned an error: %v", err)
+	}
+
+	if !slices.Equal(ran, []string{"after"}) {
+		t.Errorf("worker stopped after a per-chain cancel, ran %v", ran)
+	}
+}
+
 func TestWorkerRunAfterCloseReturnsError(t *testing.T) {
 	w := newTestWorker(t, 1)
 	w.Start()

@@ -230,6 +230,61 @@ func TestPoolSubmitRejectionDoesNotEvictRetainedChains(t *testing.T) {
 	}
 }
 
+func TestPoolCancelSignalsRunningChain(t *testing.T) {
+	w := newTestWorker(t, 2)
+	p := NewPool(w, 0)
+	t.Cleanup(func() { _ = p.Close() })
+	w.Start()
+
+	started := make(chan struct{})
+	observed := make(chan error, 1)
+	chain, err := p.Submit(&TaskChain{Tasks: []Task{&blockingTask{started: started, observed: observed}}})
+	if err != nil {
+		t.Fatalf("Submit returned an error: %v", err)
+	}
+
+	<-started
+	got, result := p.Cancel(chain.ID)
+	if result != CancelSignalled {
+		t.Fatalf("Cancel result = %v, want CancelSignalled", result)
+	}
+	if got != chain {
+		t.Errorf("Cancel returned a different chain than the one cancelled")
+	}
+	if err := <-observed; !errors.Is(err, context.Canceled) {
+		t.Errorf("cancelled task observed %v, want context.Canceled", err)
+	}
+}
+
+func TestPoolCancelUnknownIDReportsNotFound(t *testing.T) {
+	p := newTestPool(t, 4, 0)
+
+	chain, result := p.Cancel("does-not-exist")
+	if result != CancelNotFound {
+		t.Errorf("Cancel result = %v, want CancelNotFound", result)
+	}
+	if chain != nil {
+		t.Errorf("Cancel returned a chain for an unknown ID: %+v", chain)
+	}
+}
+
+func TestPoolCancelTerminalChainIsNoOp(t *testing.T) {
+	p := newTestPool(t, 4, 0)
+
+	done, err := p.Submit(chainWithStatus(StatusCompleted))
+	if err != nil {
+		t.Fatalf("Submit returned an error: %v", err)
+	}
+
+	chain, result := p.Cancel(done.ID)
+	if result != CancelAlreadyTerminal {
+		t.Errorf("Cancel result = %v, want CancelAlreadyTerminal", result)
+	}
+	if chain != done {
+		t.Errorf("Cancel returned a different chain than the terminal one it was asked about")
+	}
+}
+
 func TestPoolListReturnsNewestFirst(t *testing.T) {
 	p := newTestPool(t, 4, 0)
 

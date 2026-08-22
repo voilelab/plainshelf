@@ -139,6 +139,7 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	// Task API
 
 	mux.HandleFunc("GET /api/taskchains/{taskchain_id}", h.taskAPI.getTaskChain)
+	mux.HandleFunc("POST /api/taskchains/{taskchain_id}/cancel", h.taskAPI.cancelTaskChain)
 
 	// Log API
 
