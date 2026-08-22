@@ -216,8 +216,8 @@ func TestMigrateShelfRewritesLegacySplits(t *testing.T) {
 			if meta["format"] != shelf.BookFormatMarkdown {
 				t.Errorf("format = %v, want md", meta["format"])
 			}
-			if split, _ := meta["split_config"].(map[string]any); split["type"] != "" {
-				t.Errorf("split_config = %v, want the ignored empty type", split)
+			if _, ok := meta["split_config"]; ok {
+				t.Errorf("split_config = %v, want it dropped from meta.json", meta["split_config"])
 			}
 		})
 	}

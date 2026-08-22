@@ -24,8 +24,9 @@ func (r *Source) IsLegacy() bool {
 }
 
 // UpgradeLegacyToSchemaV1 takes a legacy source into source metadata schema v1:
-// it stamps the schema version and the now-authoritative format, and resets the
-// split config the new schema ignores.
+// it stamps the schema version and the now-authoritative format, and clears the
+// split config the new schema ignores. Clearing it to the zero value drops the
+// split_config key from meta.json entirely, thanks to its omitzero tag.
 //
 // Pass a nil content to stamp metadata only, leaving source.txt untouched.
 // Otherwise content replaces the text — that is how a legacy split configuration

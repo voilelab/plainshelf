@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
   getBookContent: vi.fn(),
   getSource: vi.fn(),
   getSourceContent: vi.fn(),
-  getBookSplitConfig: vi.fn(),
   getReadProgress: vi.fn(),
   addReadHistory: vi.fn(),
   saveReadProgress: vi.fn()
@@ -14,10 +13,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/providers', () => ({
   getBookshelfProvider: () => mocks,
   bookshelfWriter: vi.fn()
-}));
-
-vi.mock('@/api/settings', () => ({
-  getDefaultSplitConfigSetting: vi.fn().mockResolvedValue({ type: 'none' })
 }));
 
 vi.mock('@/composables/useWriteAccess', () => ({
@@ -33,7 +28,6 @@ describe('useReader source consistency', () => {
     mocks.getBookContent.mockResolvedValue({ content: 'content from a different current source' });
     mocks.getSource.mockResolvedValue({ id: 'source-1', schema_version: 1, format: 'md' });
     mocks.getSourceContent.mockResolvedValue('## Source one\nBody');
-    mocks.getBookSplitConfig.mockResolvedValue({ type: 'none' });
     mocks.getReadProgress.mockResolvedValue({ char_offset: 0, percent: 0 });
     mocks.addReadHistory.mockResolvedValue(undefined);
     mocks.saveReadProgress.mockResolvedValue(undefined);
