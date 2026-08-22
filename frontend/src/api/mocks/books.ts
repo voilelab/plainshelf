@@ -27,6 +27,7 @@ export const mockBooks: Book[] = [
     created_at: '2026-01-07T10:00:00Z',
     updated_at: '2026-04-18T08:30:00Z',
     published_at: '2026-03-15',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf1/120/180',
     star: 4,
     identifiers: { isbn: '9787020002207' },
@@ -41,6 +42,7 @@ export const mockBooks: Book[] = [
     format: 'txt',
     tags: ['programming', 'go'],
     created_at: '2026-02-10T12:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf2/120/180',
     star: 2,
     identifiers: { isbn: '9787115428028', asin: 'B01N5AX61W' },
@@ -55,6 +57,7 @@ export const mockBooks: Book[] = [
     format: 'txt',
     tags: ['travel'],
     created_at: '2026-03-01T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf3/120/180',
     star: 5,
     char_count: 41_200
@@ -68,6 +71,7 @@ export const mockBooks: Book[] = [
     format: 'txt',
     tags: ['design', 'notes'],
     created_at: '2026-07-02T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf4/120/180',
     star: 3,
     char_count: 98_500
@@ -81,6 +85,7 @@ export const mockBooks: Book[] = [
     format: 'txt',
     tags: ['fiction'],
     created_at: '2026-05-20T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf5/120/180',
     star: 4,
     char_count: 235_900
@@ -94,6 +99,7 @@ export const mockBooks: Book[] = [
     format: 'txt',
     tags: ['linux', 'ops'],
     created_at: '2026-07-08T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf6/120/180',
     char_count: 152_300
   },
@@ -106,6 +112,7 @@ export const mockBooks: Book[] = [
     format: 'txt',
     tags: ['poetry'],
     created_at: '2025-11-11T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf7/120/180',
     star: 5,
     char_count: 18_600
@@ -119,6 +126,7 @@ export const mockBooks: Book[] = [
     format: 'txt',
     tags: ['product'],
     created_at: '2026-06-30T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf8/120/180',
     star: 2,
     char_count: 76_400
@@ -132,6 +140,7 @@ export const mockBooks: Book[] = [
     format: 'txt',
     tags: ['essay'],
     created_at: '2026-07-13T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf9/120/180',
     star: 3,
     char_count: 112_700
@@ -145,6 +154,7 @@ export const mockBooks: Book[] = [
     format: 'txt',
     tags: ['tech', 'history'],
     created_at: '2025-08-01T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf10/120/180',
     star: 4,
     char_count: 340_100
@@ -158,9 +168,10 @@ export const mockBooks: Book[] = [
     format: 'md',
     tags: ['notes', 'markdown'],
     created_at: '2026-07-05T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf11/120/180'
     // char_count is deliberately absent: this is the "unknown character count"
-    // case the maintenance page reports and the content-stats sweep repairs.
+    // case the character-count filter reports and the content-stats sweep repairs.
   }
 ];
 

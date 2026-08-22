@@ -606,6 +606,16 @@ const activeMetadataFilters = computed(() =>
     .map((filter) => ({ filter, value: filter.parse(route.query) }))
     .filter(({ filter, value }) => filter.isActive(value))
 );
+// A stable string that only changes when an active metadata filter does, so the
+// selection-clearing watcher below can depend on it the way it depends on
+// charCountKey. Without this, following the "needs tidying" link (or any change
+// to these filters) reuses LibraryPage and leaves now-hidden books selected —
+// and a batch move/trash would then act on books the user can no longer see.
+const metadataFilterKey = computed(() =>
+  activeMetadataFilters.value
+    .map(({ filter, value }) => `${filter.key}=${JSON.stringify(filter.serialize(value))}`)
+    .join('&')
+);
 const metadataFilteredBooks = computed(() => {
   const active = activeMetadataFilters.value;
   if (active.length === 0) {
@@ -676,6 +686,18 @@ const emptyMessage = computed(() => {
     && !collectionLoading.value
   ) {
     return t('library.empty.noBooksInCharCountRange');
+  }
+  // A metadata filter (author/tags/cover/language/incomplete) emptied a shelf
+  // that has books — e.g. a fully tidy shelf opened through "needs tidying".
+  // Without this it would fall through to "no books yet" and read as an empty
+  // shelf. Checked after search/layer/charCount so a more specific cause wins.
+  if (
+    activeMetadataFilters.value.length > 0
+    && books.value.length > 0
+    && filteredBooks.value.length === 0
+    && !collectionLoading.value
+  ) {
+    return t('library.empty.noBooksMatchFilters');
   }
   return t('library.empty.noBooksYet');
 });
@@ -912,7 +934,7 @@ watch(selectedLayer, async () => {
 });
 
 watch(
-  [selectedLayer, page, pageSize, sortBy, sortOrder, committedSearch, charCountKey, selectedShelfID],
+  [selectedLayer, page, pageSize, sortBy, sortOrder, committedSearch, charCountKey, metadataFilterKey, selectedShelfID],
   () => selection.clear()
 );
 

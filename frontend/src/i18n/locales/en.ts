@@ -412,7 +412,8 @@ const en = {
       noBooksFound: 'No books found for "{query}"{layerSuffix}.',
       noBooksInLayer: 'No books in {layer}.',
       noBooksYet: 'No books yet.',
-      noBooksInCharCountRange: 'No books in this character range.'
+      noBooksInCharCountRange: 'No books in this character range.',
+      noBooksMatchFilters: 'No books match the current filters.'
     },
     titleSearch: 'Search',
     titleLayer: 'Layer',

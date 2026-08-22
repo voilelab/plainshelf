@@ -410,7 +410,8 @@ const zhHant = {
       noBooksFound: '找不到「{query}」相關書籍{layerSuffix}。',
       noBooksInLayer: '{layer} 目前沒有書籍。',
       noBooksYet: '目前尚無書籍。',
-      noBooksInCharCountRange: '沒有落在此字數範圍的書籍。'
+      noBooksInCharCountRange: '沒有落在此字數範圍的書籍。',
+      noBooksMatchFilters: '沒有符合目前篩選條件的書籍。'
     },
     titleSearch: '搜尋',
     titleLayer: '資料夾',
