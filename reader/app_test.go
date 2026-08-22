@@ -80,10 +80,10 @@ func newReaderAppWithBook(t *testing.T, shelfID string) *ReaderApp {
 	}
 }
 
-func progressDoc(t *testing.T, shelfID, bookID string, offset int64) string {
+func progressDoc(t *testing.T, shelfID, bookID string, offset, at int64) string {
 	t.Helper()
 	doc := readingprogress.New()
-	doc.Shelves[shelfID] = map[string]int64{bookID: offset}
+	doc.Shelves[shelfID] = map[string]readingprogress.Entry{bookID: {Offset: offset, At: at}}
 	text, err := readingprogress.Serialize(doc)
 	if err != nil {
 		t.Fatalf("Serialize: %v", err)
@@ -109,13 +109,13 @@ func TestReaderProgressUsesRealShelfID(t *testing.T) {
 	const realShelf = "shelf-real"
 	app := newReaderAppWithBook(t, realShelf)
 
-	if err := app.WriteReadingProgress(progressDoc(t, realShelf, testBookID, 512)); err != nil {
+	if err := app.WriteReadingProgress(progressDoc(t, realShelf, testBookID, 512, 1000)); err != nil {
 		t.Fatalf("WriteReadingProgress: %v", err)
 	}
 
 	disk := diskDoc(t, app)
-	if got := disk.Shelves[realShelf][testBookID]; got != 512 {
-		t.Errorf("shelves[%q][%q] = %d, want 512", realShelf, testBookID, got)
+	if got := disk.Shelves[realShelf][testBookID]; got != (readingprogress.Entry{Offset: 512, At: 1000}) {
+		t.Errorf("shelves[%q][%q] = %+v, want {512 1000}", realShelf, testBookID, got)
 	}
 	if _, ok := disk.Shelves[readerapi.ShelfID]; ok {
 		t.Errorf("progress must not land under the synthetic shelf %q: %v", readerapi.ShelfID, disk.Shelves)
@@ -125,7 +125,7 @@ func TestReaderProgressUsesRealShelfID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadReadingProgress: %v", err)
 	}
-	if want := progressDoc(t, realShelf, testBookID, 512); got != want {
+	if want := progressDoc(t, realShelf, testBookID, 512, 1000); got != want {
 		t.Errorf("ReadReadingProgress = %q, want %q", got, want)
 	}
 }
@@ -138,24 +138,24 @@ func TestReaderRealShelfWritePreservesOtherNamespaces(t *testing.T) {
 	app := newReaderAppWithBook(t, realShelf)
 
 	seed := readingprogress.New()
-	seed.Shelves["shelf-other"] = map[string]int64{"other-book": 30}
-	seed.Shelves[readerapi.ShelfID] = map[string]int64{"loose-book": 40}
+	seed.Shelves["shelf-other"] = map[string]readingprogress.Entry{"other-book": {Offset: 30, At: 500}}
+	seed.Shelves[readerapi.ShelfID] = map[string]readingprogress.Entry{"loose-book": {Offset: 40, At: 500}}
 	if _, err := app.progressStore.Mutate(func(readingprogress.Document) readingprogress.Document { return seed }); err != nil {
 		t.Fatalf("seeding store: %v", err)
 	}
 
-	if err := app.WriteReadingProgress(progressDoc(t, realShelf, testBookID, 99)); err != nil {
+	if err := app.WriteReadingProgress(progressDoc(t, realShelf, testBookID, 99, 1000)); err != nil {
 		t.Fatalf("WriteReadingProgress: %v", err)
 	}
 
 	disk := diskDoc(t, app)
-	if got := disk.Shelves[realShelf][testBookID]; got != 99 {
+	if got := disk.Shelves[realShelf][testBookID].Offset; got != 99 {
 		t.Errorf("shelves[%q][%q] = %d, want 99", realShelf, testBookID, got)
 	}
-	if got := disk.Shelves["shelf-other"]["other-book"]; got != 30 {
+	if got := disk.Shelves["shelf-other"]["other-book"].Offset; got != 30 {
 		t.Errorf("desktop entry clobbered: shelves[shelf-other][other-book] = %d, want 30", got)
 	}
-	if got := disk.Shelves[readerapi.ShelfID]["loose-book"]; got != 40 {
+	if got := disk.Shelves[readerapi.ShelfID]["loose-book"].Offset; got != 40 {
 		t.Errorf("synthetic-shelf entry clobbered: shelves[%q][loose-book] = %d, want 40", readerapi.ShelfID, got)
 	}
 }
@@ -168,12 +168,12 @@ func TestReaderProgressDefaultsToSyntheticShelf(t *testing.T) {
 		t.Fatalf("default shelfID = %q, want %q", app.shelfID, readerapi.ShelfID)
 	}
 
-	if err := app.WriteReadingProgress(progressDoc(t, readerapi.ShelfID, testBookID, 256)); err != nil {
+	if err := app.WriteReadingProgress(progressDoc(t, readerapi.ShelfID, testBookID, 256, 1000)); err != nil {
 		t.Fatalf("WriteReadingProgress: %v", err)
 	}
 
 	disk := diskDoc(t, app)
-	if got := disk.Shelves[readerapi.ShelfID][testBookID]; got != 256 {
+	if got := disk.Shelves[readerapi.ShelfID][testBookID].Offset; got != 256 {
 		t.Errorf("shelves[%q][%q] = %d, want 256", readerapi.ShelfID, testBookID, got)
 	}
 }

@@ -247,13 +247,14 @@ func projectStoredReaderProgress(store *readingprogress.Store, resolve readingpr
 	return finalText, nil
 }
 
-// WriteReadingProgress replaces the desktop's reading-progress entries. It only
-// mutates the real-shelf namespaces the desktop owns: the standalone reader's
-// "book" entries in the same file are re-read under the store's lock and
-// preserved, so a desktop write never clobbers reader progress it has not yet
-// projected.
+// WriteReadingProgress records the desktop's reading-progress entries. The
+// incoming write is merged newest-wins per book against the on-disk document
+// re-read under the store's lock, so a standalone reader's "book" entries and a
+// desktop-launched reader's real-shelf entries are both preserved unless the
+// desktop's write is more recent — a desktop write never clobbers reader progress
+// by recency, and its own resets (timestamped tombstones) still win.
 func (a *DesktopApp) WriteReadingProgress(doc string) error {
-	if a.readingProgressSync == nil || a.readerNamespaceIsRealShelf() {
+	if a.readingProgressSync == nil {
 		return writeDeviceDocument(a.readingProgressPath, "reading progress", doc)
 	}
 
@@ -262,7 +263,7 @@ func (a *DesktopApp) WriteReadingProgress(doc string) error {
 		return err
 	}
 	_, err = a.readingProgressSync.Mutate(func(disk readingprogress.Document) readingprogress.Document {
-		return readingprogress.MergeDesktopWrite(disk, incoming, readingprogress.ReaderShelfID)
+		return readingprogress.MergeNewest(disk, incoming)
 	})
 	return err
 }

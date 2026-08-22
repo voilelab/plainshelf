@@ -117,30 +117,35 @@ in-app reader, which is the same shared code and stays the desktop's fallback if
 the reader will not launch. A specific chapter jump also stays in the in-app
 reader, which can target a section the standalone reader cannot yet.
 
-One file has more than one writer, so:
+One file has more than one writer, so every entry carries the wall-clock time it
+was written and all reconciliation is **newest-wins per book**:
 
-- The desktop app **projects** a **standalone** reader's `book` entries onto the
-  real shelves that hold those books. Each entry is matched by its stable book ID
-  — the ID survives moves and renames, and identifies exactly one book in the
-  library — and copied to that book's real shelf, keeping whichever offset is
-  larger. This is one-way (reader → desktop) and monotonic: a book's saved
-  position never moves backwards, which is the safe rule to pick when the document
-  carries no timestamps to arbitrate by. The projection runs whenever the desktop
-  reads progress, so a book read in the reader shows its new position the next time
-  the library or that book is opened.
+- When the desktop and a desktop-launched reader both write the same real shelf,
+  the more recent write wins for each book. Neither process owns the namespace, so
+  neither can clobber the other by holding a stale in-memory copy — the loser is
+  simply the older timestamp. A **reset** is a timestamped tombstone (offset 0)
+  rather than a deletion, so it too competes by recency instead of being
+  resurrected by an older advance.
+- A **standalone** reader still has no real shelf, so it keys progress under
+  `book`, and the desktop app **projects** those entries onto the real shelves
+  that hold them — matched by stable book ID (which survives moves and renames and
+  identifies exactly one book), taking the newer entry. The projection runs
+  whenever the desktop reads progress, so a book read in the reader shows its new
+  position the next time the library or that book is opened.
 - An entry the desktop cannot place — a book that has been removed, or a loose
   book opened in the reader from outside every shelf — is left under `book`
   untouched, never guessed onto the wrong shelf, and folded in later if that book
   is imported.
-- Each process only rewrites the one book (or namespace) it owns, and the writers
-  coordinate through a lock on the file, so none loses another's writes.
+- Writers coordinate through a lock on the file, and each read-modify-write
+  re-reads under it, so a write only ever replaces entries older than itself.
 
-A book opened **through the desktop app** is therefore two-way: the reader starts
-at the desktop library's stored position and writes back to the same real-shelf
-key. Only the standalone `book` namespace is one-way, folded in by projection —
-progress recorded in the desktop app still does not appear in a reader opened
-directly. Nothing here is written into the shelf; reading progress stays
-device-local convenience state.
+A book opened **through the desktop app** is therefore fully two-way: the reader
+starts at the desktop library's stored position and writes back to the same
+real-shelf key, and a later position from either side — forward or a reset — wins
+by recency. Only a reader opened **directly** stays one-way, its `book` namespace
+folded in by projection; progress recorded in the desktop app does not appear
+there because it never carried that book's real shelf id. Nothing here is written
+into the shelf; reading progress stays device-local convenience state.
 
 Two more details the diagram cannot show:
 

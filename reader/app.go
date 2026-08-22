@@ -121,6 +121,13 @@ func (a *ReaderApp) OpenBookPackage() (string, error) {
 		return "", util.Errorf("%w", err)
 	}
 
+	// A manually opened book is not the one the desktop launched us for: it may be
+	// a loose book or one from another shelf, so its real shelf id is unknown. Fall
+	// back to the synthetic reader shelf and let the desktop projection re-home its
+	// progress, rather than keep booting and persisting it under the original
+	// launch shelf, where it could neither resume nor land in the right namespace.
+	a.shelfID = readerapi.ShelfID
+
 	wailsruntime.WindowReloadApp(a.ctx)
 	return bookID, nil
 }
@@ -164,12 +171,14 @@ func (a *ReaderApp) ReadReadingProgress() (string, error) {
 }
 
 // WriteReadingProgress records the reader's progress into the shared document.
-// It only ever touches the one book it has open, under its active shelf
-// namespace: every other entry in the same file — other shelves, and any other
-// book — is re-read under the store's lock and preserved, so the reader can never
-// clobber (or its stale in-memory copy roll back) progress another process owns.
-// When launched from desktop the active shelf is the real shelf, so the write
-// lands straight at shelves.<realShelfID>.<bookID> with no projection needed.
+// The incoming write is merged newest-wins per book against the on-disk document
+// re-read under the store's lock, so every other entry — other shelves, and any
+// other book, including one another process wrote concurrently — is preserved
+// unless the reader's write is more recent. When launched from desktop the active
+// shelf is the real shelf, so the write lands straight at
+// shelves.<realShelfID>.<bookID>; recency arbitration is what keeps a concurrent
+// desktop write from clobbering it (or being clobbered by the reader's stale
+// copy of another book).
 func (a *ReaderApp) WriteReadingProgress(doc string) error {
 	if a.progressStore == nil {
 		return util.NewError("reading progress storage is not ready")
@@ -178,12 +187,8 @@ func (a *ReaderApp) WriteReadingProgress(doc string) error {
 	if err != nil {
 		return err
 	}
-	// The reader shows exactly one book, so only that book's entry is this
-	// process's to write; merging at book granularity keeps a second reader
-	// process's concurrent write to another book from being lost.
-	bookID := a.library.BookID()
 	_, err = a.progressStore.Mutate(func(disk readingprogress.Document) readingprogress.Document {
-		return readingprogress.MergeReaderBookWrite(disk, incoming, a.shelfID, bookID)
+		return readingprogress.MergeNewest(disk, incoming)
 	})
 	return err
 }
