@@ -26,6 +26,9 @@ describe('useReadingProgressAutosave', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    // Pin the clock so change-time timestamps are deterministic. Updates in these
+    // tests happen at t=0, so every save carries at=0 even when it flushes later.
+    vi.setSystemTime(0);
     documentTarget = { ...eventTargetStub(), hidden: false };
     windowTarget = eventTargetStub();
     vi.stubGlobal('document', documentTarget);
@@ -62,7 +65,21 @@ describe('useReadingProgressAutosave', () => {
     await vi.advanceTimersByTimeAsync(READING_PROGRESS_AUTOSAVE_INTERVAL_MS);
 
     expect(save).toHaveBeenCalledTimes(1);
-    expect(save).toHaveBeenCalledWith('book-a', 20);
+    expect(save).toHaveBeenCalledWith('book-a', 20, 0);
+    await autosave.stop();
+  });
+
+  it('timestamps a position at change time, not flush time', async () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const autosave = useReadingProgressAutosave(save);
+    autosave.setBaseline('book-a', 0);
+    autosave.start();
+    autosave.update(10); // changed at t=0
+
+    // Flushes a full interval later; the timestamp must still be the change time,
+    // not the flush time, or a buffered move could out-rank a newer one.
+    await vi.advanceTimersByTimeAsync(READING_PROGRESS_AUTOSAVE_INTERVAL_MS);
+    expect(save).toHaveBeenCalledWith('book-a', 10, 0);
     await autosave.stop();
   });
 
@@ -84,8 +101,8 @@ describe('useReadingProgressAutosave', () => {
     await Promise.all([firstFlush, finalFlush]);
 
     expect(save.mock.calls).toEqual([
-      ['book-a', 10],
-      ['book-a', 20]
+      ['book-a', 10, 0],
+      ['book-a', 20, 0]
     ]);
   });
 
@@ -104,6 +121,12 @@ describe('useReadingProgressAutosave', () => {
 
     await vi.advanceTimersByTimeAsync(READING_PROGRESS_AUTOSAVE_INTERVAL_MS);
     expect(save).toHaveBeenCalledTimes(2);
+    // The retry re-sends the original change time (0), not the later flush time,
+    // so a transient failure cannot bump the position's timestamp forward.
+    expect(save.mock.calls).toEqual([
+      ['book-a', 10, 0],
+      ['book-a', 10, 0]
+    ]);
     expect(autosave.saveError.value).toBe('');
     await autosave.stop();
   });
@@ -125,9 +148,9 @@ describe('useReadingProgressAutosave', () => {
     await autosave.flush();
 
     expect(save.mock.calls).toEqual([
-      ['book-a', 10],
-      ['book-a', 10],
-      ['book-b', 20]
+      ['book-a', 10, 0],
+      ['book-a', 10, 0],
+      ['book-b', 20, 0]
     ]);
     expect(autosave.saveError.value).toBe('');
   });
@@ -154,8 +177,8 @@ describe('useReadingProgressAutosave', () => {
     await autosave.flush();
 
     expect(save.mock.calls).toEqual([
-      ['book-a', 10],
-      ['book-b', 15]
+      ['book-a', 10, 0],
+      ['book-b', 15, 0]
     ]);
   });
 
@@ -180,9 +203,9 @@ describe('useReadingProgressAutosave', () => {
     await vi.advanceTimersByTimeAsync(READING_PROGRESS_AUTOSAVE_INTERVAL_MS * 2);
 
     expect(save.mock.calls).toEqual([
-      ['book-a', 10],
-      ['book-a', 20],
-      ['book-a', 30]
+      ['book-a', 10, 0],
+      ['book-a', 20, 0],
+      ['book-a', 30, 0]
     ]);
     expect(documentTarget.removeEventListener).toHaveBeenCalledWith(
       'visibilitychange',

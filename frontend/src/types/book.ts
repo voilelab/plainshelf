@@ -72,6 +72,13 @@ export interface ReaderSection {
 
 export interface BookmarkPayload {
   char_offset: number;
+  /**
+   * Epoch ms the position changed (not when it was flushed). Used to arbitrate
+   * concurrent cross-process writes newest-wins; optional, defaulting to now when
+   * a caller does not supply it. Ignored by backends that do not share the
+   * reading-progress document (mobile keeps its own per-book files).
+   */
+  at?: number;
 }
 
 export interface BookUpdateRequest {

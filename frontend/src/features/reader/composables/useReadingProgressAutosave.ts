@@ -2,11 +2,17 @@ import { ref } from 'vue';
 
 export const READING_PROGRESS_AUTOSAVE_INTERVAL_MS = 10_000;
 
-type SaveProgress = (bookID: string, offset: number) => Promise<void>;
+type SaveProgress = (bookID: string, offset: number, at: number) => Promise<void>;
 
 interface BookProgressState {
   currentOffset: number;
   savedOffset: number;
+  // The time currentOffset was set, captured when the position changes rather
+  // than when the buffered save flushes. A save (and any retry of it) carries
+  // this so a movement buffered for up to the autosave interval cannot flush
+  // with a newer timestamp than a later movement from another process and roll
+  // it back under the newest-wins merge.
+  changedAt: number;
 }
 
 /**
@@ -38,7 +44,7 @@ export function useReadingProgressAutosave(saveProgress: SaveProgress) {
       return existing.currentOffset;
     }
 
-    progressByBook.set(bookID, { currentOffset: offset, savedOffset: offset });
+    progressByBook.set(bookID, { currentOffset: offset, savedOffset: offset, changedAt: Date.now() });
     errorsByBook.delete(bookID);
     refreshSaveError();
     return offset;
@@ -50,6 +56,7 @@ export function useReadingProgressAutosave(saveProgress: SaveProgress) {
       return;
     }
     progress.currentOffset = offset;
+    progress.changedAt = Date.now();
   }
 
   async function saveDirtySnapshots(): Promise<void> {
@@ -59,8 +66,9 @@ export function useReadingProgressAutosave(saveProgress: SaveProgress) {
       }
 
       const offset = progress.currentOffset;
+      const at = progress.changedAt;
       try {
-        await saveProgress(bookID, offset);
+        await saveProgress(bookID, offset, at);
         progress.savedOffset = offset;
         errorsByBook.delete(bookID);
       } catch (error) {

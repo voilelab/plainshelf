@@ -32,7 +32,9 @@ export class ReadingProgressStore extends DeviceDocumentStore<ReadingProgressDoc
 
   async save(shelfKey: string, bookID: string, progress: BookmarkPayload): Promise<void> {
     await this.mutate((doc) =>
-      withBookReadingOffset(doc, shelfKey, bookID, progress.char_offset)
+      // progress.at is the time the position changed; withBookReadingOffset
+      // falls back to now when it is absent.
+      withBookReadingOffset(doc, shelfKey, bookID, progress.char_offset, progress.at)
     );
   }
 }

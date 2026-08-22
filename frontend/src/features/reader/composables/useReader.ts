@@ -69,8 +69,8 @@ export function useReader(bookID: () => string) {
     flush: flushReadingProgress,
     start: startProgressAutosave,
     stop: stopProgressAutosave
-  } = useReadingProgressAutosave(async (savedBookID, offset) => {
-    await getBookshelfProvider().saveReadProgress(savedBookID, { char_offset: offset });
+  } = useReadingProgressAutosave(async (savedBookID, offset, at) => {
+    await getBookshelfProvider().saveReadProgress(savedBookID, { char_offset: offset, at });
   });
 
   function normalizeProgress(next: ReadingProgress): ReadingProgress {
