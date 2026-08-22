@@ -250,6 +250,20 @@ export class SimilarTooLargeError extends Error {
 }
 
 /**
+ * Thrown by {@link startFingerprintSources} when a forced rebuild is refused
+ * with 409 because a fingerprint sweep already holds the shelf's single
+ * fingerprint chain. The forced request cannot adopt that chain — it may be an
+ * incremental sweep that never bypasses the cache — so the caller surfaces this
+ * and lets the user retry once the running sweep finishes.
+ */
+export class FingerprintSweepBusyError extends Error {
+  constructor() {
+    super('a fingerprint sweep is already running');
+    this.name = 'FingerprintSweepBusyError';
+  }
+}
+
+/**
  * Similar book pairs scored by the server in a single pass. `floor` is the
  * lowest Jaccard the server returns; the page filters upward from there in
  * memory rather than re-requesting, so this is called once per visit with the
@@ -609,23 +623,42 @@ export async function refreshContentStats(): Promise<string> {
  * suspects a stat comparison has missed a content change. Without it the sweep
  * stays incremental and skips whatever the cache can already answer.
  *
- * A sweep already in flight answers 409 with that chain's ID, accepted here so
- * the caller attaches to the existing progress instead of failing. A read-only
- * shelf also refuses with 409 (from `rejectReadOnlyShelf`, without an ID), but
- * the page hides the build and force buttons in that mode, so this is not
- * reached then.
+ * An incremental sweep already in flight answers 409 with that chain's ID,
+ * accepted here so the caller attaches to the existing progress instead of
+ * failing. A forced request does NOT adopt a 409: the shelf runs a single
+ * fingerprint chain (`NewFingerprintSourcesChain` shares its key across modes),
+ * so a 409 on force may name an *incremental* sweep, and attaching to it would
+ * report a rebuild that never bypassed the cache. It is surfaced as a
+ * `FingerprintSweepBusyError` for the caller to show and let the user retry.
+ * A read-only shelf also refuses with 409 (from `rejectReadOnlyShelf`, without
+ * an ID), but the page hides both buttons in that mode, so this is not reached
+ * then.
  */
 export async function startFingerprintSources(force = false): Promise<string> {
   if (isMockApiMode()) {
     return mockStartFingerprintSources(force);
   }
 
-  const res = await fetchJson<BackendTaskChainSubmitResponse>(
-    buildShelfApiPath('/source-fingerprints') + (force ? '?force=true' : ''),
-    { method: 'POST' },
-    { acceptStatuses: [409] }
-  );
-  return res.taskchain_id;
+  const path = buildShelfApiPath('/source-fingerprints') + (force ? '?force=true' : '');
+
+  if (!force) {
+    const res = await fetchJson<BackendTaskChainSubmitResponse>(
+      path,
+      { method: 'POST' },
+      { acceptStatuses: [409] }
+    );
+    return res.taskchain_id;
+  }
+
+  try {
+    const res = await fetchJson<BackendTaskChainSubmitResponse>(path, { method: 'POST' });
+    return res.taskchain_id;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 409) {
+      throw new FingerprintSweepBusyError();
+    }
+    throw err;
+  }
 }
 
 export function getBookCoverUrl(id: string, cacheKey?: number): string {

@@ -41,7 +41,7 @@ vi.mock('@/composables/useServerMode', () => {
 
 import SimilarContentPage from './SimilarContentPage.vue';
 import { setLocale } from '@/i18n';
-import { SimilarTooLargeError } from '@/api/books';
+import { FingerprintSweepBusyError, SimilarTooLargeError } from '@/api/books';
 
 function pair(jaccard: number, relation: SimilarRelation = 'near_identical'): SimilarBookPair {
   return {
@@ -202,6 +202,22 @@ describe('SimilarContentPage', () => {
 
     expect(mocks.startFingerprintSources).toHaveBeenCalledTimes(1);
     expect(mocks.startFingerprintSources).toHaveBeenCalledWith(true);
+  });
+
+  it('force rebuild shows a retryable notice, not "rebuilding", when a sweep already runs', async () => {
+    mocks.startFingerprintSources.mockReset().mockRejectedValueOnce(new FingerprintSweepBusyError());
+    const host = mount();
+    await flush();
+
+    buttonByText(host, 'Force rebuild').click();
+    await flush();
+
+    expect(mocks.startFingerprintSources).toHaveBeenCalledWith(true);
+    // A benign notice, and crucially no chain is polled and no "Rebuilding…"
+    // label — the forced rebuild did not happen and must not claim it did.
+    expect(host.querySelector('.similar-fingerprint-note')?.textContent).toContain('already running');
+    expect(mocks.getTaskChain).not.toHaveBeenCalled();
+    expect([...host.querySelectorAll('button')].some((b) => b.textContent?.includes('Rebuilding'))).toBe(false);
   });
 
   it('a read-only shelf explains it cannot build and hides both buttons', async () => {

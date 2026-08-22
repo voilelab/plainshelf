@@ -22,7 +22,7 @@
           v-if="missingCount > 0"
           type="button"
           class="toolbar-control toolbar-button toolbar-regular"
-          :disabled="buildRunning"
+          :disabled="sweepBusy"
           @click="onBuildFingerprints"
         >
           {{ buildLabel }}
@@ -30,13 +30,16 @@
         <button
           type="button"
           class="toolbar-control toolbar-button toolbar-small similar-fingerprint-force"
-          :disabled="buildRunning"
+          :disabled="sweepBusy"
           @click="onForceRebuild"
         >
           {{ forceLabel }}
         </button>
         <span v-if="buildError" class="toolbar-label similar-fingerprint-error" role="alert">
           {{ buildError }}
+        </span>
+        <span v-else-if="forceNote" class="toolbar-label similar-fingerprint-note" role="status">
+          {{ forceNote }}
         </span>
       </template>
     </div>
@@ -88,7 +91,12 @@
 import { computed, onMounted, ref, watch } from 'vue';
 
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
-import { SimilarTooLargeError, type FingerprintStatus, type SimilarBookPair } from '@/api/books';
+import {
+  FingerprintSweepBusyError,
+  SimilarTooLargeError,
+  type FingerprintStatus,
+  type SimilarBookPair
+} from '@/api/books';
 import type { Book } from '@/types/book';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
 import { useServerMode } from '@/composables/useServerMode';
@@ -245,6 +253,14 @@ function onDeleted(bookId: string): void {
 // show on the button that was actually pressed.
 const runningAction = ref<'build' | 'force' | null>(null);
 
+// forceStarting covers the POST that force makes before it has a chain to poll,
+// and forceNote carries its outcome when there is no chain to track: a benign
+// "already running" notice on 409, or a generic failure. It is deliberately
+// separate from the tracker's error, which belongs to a chain that is actually
+// being polled.
+const forceStarting = ref(false);
+const forceNote = ref('');
+
 const {
   percentage: buildPercentage,
   error: buildError,
@@ -259,6 +275,10 @@ const {
   pollFailedMessage: () => t('maintenance.similar.fingerprint.failed')
 });
 
+// A submit is in flight while either button is polling a chain or force is still
+// posting; both buttons are disabled throughout so only one sweep is asked for.
+const sweepBusy = computed(() => buildRunning.value || forceStarting.value);
+
 const buildLabel = computed(() =>
   buildRunning.value && runningAction.value === 'build'
     ? t('maintenance.similar.fingerprint.building', { percent: Math.round(buildPercentage.value) })
@@ -272,19 +292,40 @@ const forceLabel = computed(() =>
 );
 
 async function onBuildFingerprints(): Promise<void> {
-  if (readOnly.value) {
+  if (readOnly.value || sweepBusy.value) {
     return;
   }
+  forceNote.value = '';
   runningAction.value = 'build';
   await startBuild(() => bookshelfWriter().startFingerprintSources());
 }
 
 async function onForceRebuild(): Promise<void> {
-  if (readOnly.value) {
+  if (readOnly.value || sweepBusy.value) {
     return;
   }
+  forceNote.value = '';
   runningAction.value = 'force';
-  await startBuild(() => bookshelfWriter().startFingerprintSources(true));
+  forceStarting.value = true;
+
+  let chainId: string;
+  try {
+    chainId = await bookshelfWriter().startFingerprintSources(true);
+  } catch (err) {
+    // No chain to track: a 409 means another sweep already holds the shelf, so
+    // report it as a retryable notice rather than a rebuild that did not happen.
+    runningAction.value = null;
+    forceNote.value =
+      err instanceof FingerprintSweepBusyError
+        ? t('maintenance.similar.fingerprint.busy')
+        : t('maintenance.similar.fingerprint.failed');
+    return;
+  } finally {
+    forceStarting.value = false;
+  }
+
+  // A real acceptance: hand the forced chain to the tracker to poll and report.
+  await startBuild(() => Promise.resolve(chainId));
 }
 
 onMounted(() => {
@@ -339,6 +380,12 @@ onMounted(() => {
 
 .similar-fingerprint-error {
   color: var(--danger, #c0392b);
+}
+
+/* Informational, not an error: a forced rebuild that found a sweep already
+   running. */
+.similar-fingerprint-note {
+  color: var(--muted, #666);
 }
 
 .similar-error {

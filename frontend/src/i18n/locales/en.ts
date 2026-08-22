@@ -345,6 +345,7 @@ const en = {
         building: 'Building… {percent}%',
         forceRebuild: 'Force rebuild',
         forceRebuilding: 'Rebuilding… {percent}%',
+        busy: 'A fingerprint sweep is already running — try again once it finishes.',
         failed: 'Could not build fingerprints.',
         readOnly: 'A read-only shelf cannot build fingerprints.'
       },

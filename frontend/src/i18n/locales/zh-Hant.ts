@@ -343,6 +343,7 @@ const zhHant = {
         building: '建立中… {percent}%',
         forceRebuild: '強制重建',
         forceRebuilding: '重建中… {percent}%',
+        busy: '已有指紋 sweep 正在進行,請等它完成再試。',
         failed: '無法建立指紋。',
         readOnly: '唯讀書架無法建立指紋。'
       },
