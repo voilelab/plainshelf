@@ -100,3 +100,60 @@ export function approxDiffPer100Chars(jaccard: number): number {
   const clamped = Math.min(1, Math.max(0, jaccard));
   return Math.round((100 * (1 - clamped)) / (1 + clamped));
 }
+
+/**
+ * The shingle size (k) the server fingerprints with. {@link estimatedDiffRate}
+ * inverts the shingling under this k, so the number it produces is only right
+ * while it matches the server's ruleset (the `k` in FingerprintStatus.algo, from
+ * handle_fingerprints.go). Kept as a constant rather than read per shelf because
+ * the pair card shows one settled figure per pair, not a live reading of each
+ * shelf's algorithm; revisit if the server's k ever stops being 5.
+ */
+export const SIMILARITY_SHINGLE_K = 5;
+
+/**
+ * Estimated fraction of characters that differ between two texts, given the
+ * Jaccard of their k-shingle sets: the Mash distance r = 1 - (2J/(1+J))^(1/k).
+ *
+ * More faithful to the eye than {@link approxDiffPer100Chars}, which reports raw
+ * shingle disagreement: a single character edit disturbs up to k shingles, so
+ * the shingle-level difference overstates the character-level one by roughly a
+ * factor of k, and dividing it out is what the k-th root does.
+ *
+ * Valid only when the differences are spread evenly through the text — speech
+ * transcripts, OCR, scattered typos. For a book that is one contiguous slice of
+ * another (the `subset` case) this number is meaningless; use
+ * {@link subsetShortfallPercent}, which measures the missing span directly.
+ */
+export function estimatedDiffRate(jaccard: number, k: number = SIMILARITY_SHINGLE_K): number {
+  const j = Math.min(1, Math.max(0, jaccard));
+  if (j <= 0) {
+    return 1;
+  }
+  if (j >= 1) {
+    return 0;
+  }
+  return 1 - Math.pow((2 * j) / (1 + j), 1 / k);
+}
+
+/** {@link estimatedDiffRate} rendered as a rounded "about N per 100 characters". */
+export function estimatedDiffPer100(jaccard: number, k: number = SIMILARITY_SHINGLE_K): number {
+  return Math.round(estimatedDiffRate(jaccard, k) * 100);
+}
+
+/**
+ * How much shorter the trimmed side of a `subset` pair is, as a percentage of
+ * the fuller side's length: 1 - min/max over the two normalized character
+ * counts. Unlike the per-100 diff rate this stays meaningful when one book is a
+ * single contiguous cut of the other, which is exactly the subset case. Returns
+ * 0 when the fuller side has no counted characters, so a missing count never
+ * renders as a nonsense percentage.
+ */
+export function subsetShortfallPercent(normCharsA: number, normCharsB: number): number {
+  const longer = Math.max(normCharsA, normCharsB);
+  const shorter = Math.min(normCharsA, normCharsB);
+  if (longer <= 0) {
+    return 0;
+  }
+  return Math.round((1 - shorter / longer) * 100);
+}

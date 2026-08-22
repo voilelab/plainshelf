@@ -57,16 +57,16 @@
 
     <div v-else class="similar-results">
       <p class="similar-result-count">{{ t('maintenance.similar.resultCount', { count: visiblePairs.length }) }}</p>
-      <!-- Skeleton rows: the pair card's own content is a separate ticket. -->
-      <ul class="similar-pair-list">
-        <li v-for="pair in visiblePairs" :key="`${pair.a}:${pair.b}`" class="similar-pair-row">
-          <span class="similar-pair-relation">{{ relationLabel(pair.relation) }}</span>
-          <span class="similar-pair-score">
-            {{ t('maintenance.similar.pairSimilarity', { percent: Math.round(pair.jaccard * 100) }) }}
-          </span>
-          <code class="similar-pair-ids">{{ pair.a }} · {{ pair.b }}</code>
-        </li>
-      </ul>
+      <div class="similar-pair-list">
+        <SimilarPairCard
+          v-for="pair in visiblePairs"
+          :key="`${pair.a}:${pair.b}`"
+          :pair="pair"
+          :book-a="booksById.get(pair.a)"
+          :book-b="booksById.get(pair.b)"
+          @deleted="onDeleted"
+        />
+      </div>
     </div>
   </section>
 </template>
@@ -75,12 +75,14 @@
 import { computed, onMounted, ref } from 'vue';
 
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
-import { SimilarTooLargeError, type FingerprintStatus, type SimilarBookPair, type SimilarRelation } from '@/api/books';
+import { SimilarTooLargeError, type FingerprintStatus, type SimilarBookPair } from '@/api/books';
+import type { Book } from '@/types/book';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
 import { useServerMode } from '@/composables/useServerMode';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useI18n } from '@/i18n';
 import SimilarityFilterBar from '@/features/maintenance/components/SimilarityFilterBar.vue';
+import SimilarPairCard from '@/features/maintenance/components/SimilarPairCard.vue';
 import {
   DEFAULT_SIMILARITY_TIER,
   filterSimilarPairs,
@@ -101,6 +103,10 @@ const error = ref('');
 const tooLarge = ref<{ total: number; limit: number } | null>(null);
 const pairs = ref<SimilarBookPair[]>([]);
 const fingerprint = ref<FingerprintStatus | null>(null);
+// Title, cover, format, layer and char_count for every book, so a card can show
+// enough for the user to decide which copy to delete. Best-effort: a card falls
+// back to an id-only stand-in for any book missing here.
+const booksById = ref<Map<string, Book>>(new Map());
 
 // Filter state. The tier drives the threshold until the advanced slider is
 // opened, which then owns it; the subset toggle is orthogonal to both.
@@ -120,23 +126,30 @@ const totalBooks = computed(() => fingerprint.value?.total ?? 0);
 const missingCount = computed(() => fingerprint.value?.missing ?? 0);
 const showFingerprintBar = computed(() => missingCount.value > 0);
 
-function relationLabel(relation: SimilarRelation): string {
-  return t(`maintenance.similar.relations.${relation}`);
-}
-
 async function load(): Promise<void> {
   loading.value = true;
   error.value = '';
   tooLarge.value = null;
 
   const provider = getBookshelfProvider();
-  const [statusResult, pairsResult] = await Promise.allSettled([
+  // Skip the char_count join on backends that would answer it one network
+  // meta.json read per book (pCloud); there the count simply shows as unknown.
+  const wantCharCount = provider.supportsCharCountListing?.() ?? true;
+  const [statusResult, pairsResult, booksResult] = await Promise.allSettled([
     provider.getFingerprintStatus(),
-    provider.getSimilarBookPairs(SIMILARITY_FLOOR)
+    provider.getSimilarBookPairs(SIMILARITY_FLOOR),
+    provider.listBooks(1, Number.MAX_SAFE_INTEGER, wantCharCount ? { includeCharCount: true } : undefined)
   ]);
 
   // Coverage is best-effort: its failure must not hide an otherwise good list.
   fingerprint.value = statusResult.status === 'fulfilled' ? statusResult.value : null;
+
+  // The book join is best-effort too: a card degrades to id-only stand-ins
+  // rather than the whole list failing when the listing cannot be fetched.
+  booksById.value =
+    booksResult.status === 'fulfilled'
+      ? new Map(booksResult.value.items.map((book) => [book.id, book]))
+      : new Map();
 
   if (pairsResult.status === 'fulfilled') {
     pairs.value = pairsResult.value;
@@ -150,6 +163,18 @@ async function load(): Promise<void> {
   }
 
   loading.value = false;
+}
+
+// Deleting one book resolves every pair it was part of, not just the card acted
+// on, so drop them all — a lingering pair would render a card with a now-missing
+// copy. No refetch: the in-memory prune keeps the surviving cards steady.
+function onDeleted(bookId: string): void {
+  pairs.value = pairs.value.filter((pair) => pair.a !== bookId && pair.b !== bookId);
+  if (booksById.value.has(bookId)) {
+    const next = new Map(booksById.value);
+    next.delete(bookId);
+    booksById.value = next;
+  }
 }
 
 const {
@@ -253,40 +278,7 @@ onMounted(() => {
 .similar-pair-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.similar-pair-row {
-  align-items: center;
-  border: 1px solid #e6ecf3;
-  border-radius: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 10px 12px;
-}
-
-.similar-pair-relation {
-  background: var(--accent-soft, #e6f0ff);
-  border-radius: 999px;
-  color: var(--accent, #2563eb);
-  font-size: 12px;
-  font-weight: 600;
-  padding: 2px 10px;
-}
-
-.similar-pair-score {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-}
-
-.similar-pair-ids {
-  color: var(--muted, #888);
-  font-size: 12px;
-  overflow-wrap: anywhere;
+  gap: 12px;
 }
 
 .similar-empty {

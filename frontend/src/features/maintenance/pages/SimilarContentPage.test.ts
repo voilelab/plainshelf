@@ -11,7 +11,10 @@ import { ref } from 'vue';
 const mocks = vi.hoisted(() => ({
   getSimilarBookPairs: vi.fn(),
   getFingerprintStatus: vi.fn(),
+  listBooks: vi.fn(),
+  listSources: vi.fn(),
   startFingerprintSources: vi.fn(),
+  deleteBook: vi.fn(),
   getTaskChain: vi.fn(),
   readOnly: { value: false }
 }));
@@ -19,10 +22,13 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/providers', () => ({
   getBookshelfProvider: () => ({
     getSimilarBookPairs: mocks.getSimilarBookPairs,
-    getFingerprintStatus: mocks.getFingerprintStatus
+    getFingerprintStatus: mocks.getFingerprintStatus,
+    listBooks: mocks.listBooks,
+    listSources: mocks.listSources
   }),
   bookshelfWriter: () => ({
     startFingerprintSources: mocks.startFingerprintSources,
+    deleteBook: mocks.deleteBook,
     getTaskChain: mocks.getTaskChain
   })
 }));
@@ -79,7 +85,7 @@ async function flush(): Promise<void> {
 }
 
 function rows(host: HTMLElement): HTMLElement[] {
-  return [...host.querySelectorAll<HTMLElement>('.similar-pair-row')];
+  return [...host.querySelectorAll<HTMLElement>('.similar-pair-card')];
 }
 
 function buttonByText(host: HTMLElement, text: string): HTMLButtonElement {
@@ -92,7 +98,12 @@ beforeEach(() => {
   setLocale('en');
   mocks.getSimilarBookPairs.mockReset().mockResolvedValue(allPairs);
   mocks.getFingerprintStatus.mockReset().mockResolvedValue(NO_MISSING);
+  // The card join and per-card source lookups are best-effort; empty results
+  // keep these page-level tests focused on filtering, not card content.
+  mocks.listBooks.mockReset().mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 0 });
+  mocks.listSources.mockReset().mockResolvedValue([]);
   mocks.startFingerprintSources.mockReset().mockResolvedValue('chain-1');
+  mocks.deleteBook.mockReset().mockResolvedValue(undefined);
   mocks.getTaskChain.mockReset();
   mocks.readOnly.value = false;
 });

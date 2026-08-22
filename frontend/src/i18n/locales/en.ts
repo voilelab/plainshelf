@@ -344,6 +344,24 @@ const en = {
         building: 'Building… {percent}%',
         failed: 'Could not build fingerprints.',
         readOnly: 'A read-only shelf cannot build fingerprints.'
+      },
+      card: {
+        moreComplete: 'More complete',
+        charsLabel: 'Characters',
+        formatLabel: 'Format',
+        sourcesLabel: 'Sources',
+        folderLabel: 'Folder',
+        addedLabel: 'Added',
+        fewerChars: '{count} fewer',
+        relationDesc: {
+          identical_after_normalize: 'Character-for-character identical; only line breaks and punctuation differ.',
+          near_identical: 'About {count} in every 100 characters differ.',
+          subset: 'Almost all of the lower copy sits inside the upper one — about {percent}% less content.',
+          same_source: 'About {count} in every 100 characters differ; likely two transcripts of one source.'
+        },
+        deleteKeepNote: 'The other copy “{otherTitle}” stays on the shelf.',
+        deleteCompare: 'This copy has {thisChars} characters; the other has {otherChars}.',
+        deleteMoreCompleteWarning: 'This is the more complete copy — deleting it drops content the other one is missing.'
       }
     },
     missingAuthor: {
