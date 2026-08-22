@@ -24,6 +24,9 @@ const mocks = vi.hoisted(() => ({
   fetchBooks: vi.fn(),
   fetchLayers: vi.fn(),
   isWebRuntime: vi.fn(() => false),
+  // undefined models a provider without the desktop reader (web/mobile); a
+  // spy models the desktop provider.
+  openDesktopReader: undefined as undefined | ((bookId: string) => Promise<void>),
   layers: ['', 'fiction', 'notes']
 }));
 
@@ -33,7 +36,8 @@ vi.mock('vue-router', () => ({
 
 vi.mock('@/providers', () => ({
   bookshelfWriter: () => mocks,
-  getBookshelfProvider: () => ({}),
+  getBookshelfProvider: () =>
+    mocks.openDesktopReader ? { openDesktopReader: mocks.openDesktopReader } : {},
   isWebRuntime: mocks.isWebRuntime
 }));
 
@@ -73,6 +77,7 @@ describe('useBookActions goRead', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.isWebRuntime.mockReturnValue(false);
+    mocks.openDesktopReader = undefined;
     // window.open is unimplemented in jsdom; a spy both silences it and lets us
     // assert the new-tab call. Default to a truthy handle (pop-up allowed).
     openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window);
@@ -106,6 +111,40 @@ describe('useBookActions goRead', () => {
 
     expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1', query: { section: '3' } });
     expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it('opens the standalone reader on the desktop app instead of navigating in place', () => {
+    const openReader = vi.fn().mockResolvedValue(undefined);
+    mocks.openDesktopReader = openReader;
+    const actions = useBookActions();
+
+    actions.goRead('book-1');
+
+    expect(openReader).toHaveBeenCalledWith('book-1');
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the in-app reader when the standalone reader will not launch', async () => {
+    const openReader = vi.fn().mockRejectedValue(new Error('not installed'));
+    mocks.openDesktopReader = openReader;
+    const actions = useBookActions();
+
+    actions.goRead('book-1');
+
+    await vi.waitFor(() => expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1' }));
+    expect(openReader).toHaveBeenCalledWith('book-1');
+  });
+
+  it('keeps a specific chapter jump in the in-app reader on the desktop app', () => {
+    const openReader = vi.fn().mockResolvedValue(undefined);
+    mocks.openDesktopReader = openReader;
+    const actions = useBookActions();
+
+    actions.goRead('book-1', 3);
+
+    expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1', query: { section: '3' } });
+    expect(openReader).not.toHaveBeenCalled();
   });
 
   // noopener/noreferrer make window.open return null even on success, so the web

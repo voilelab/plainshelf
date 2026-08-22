@@ -10,7 +10,9 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
@@ -582,19 +584,22 @@ func (a *DesktopApp) OpenLayerDirectory(shelfID string, layerParts []string) err
 	return nil
 }
 
-func (a *DesktopApp) OpenBookDirectory(shelfID, bookID string) error {
+// resolveBookPackagePath returns the absolute path of a book's .bookpkg
+// directory, verified to exist and stay within its shelf. It is shared by
+// "reveal in Finder" and "open in the standalone reader".
+func (a *DesktopApp) resolveBookPackagePath(shelfID, bookID string) (string, error) {
 	if a.app == nil {
-		return util.NewError("desktop backend app instance is nil")
+		return "", util.NewError("desktop backend app instance is nil")
 	}
 
 	shelfID = strings.TrimSpace(shelfID)
 	if shelfID == "" {
-		return util.Errorf("shelf ID cannot be empty")
+		return "", util.Errorf("shelf ID cannot be empty")
 	}
 
 	conf, err := loadDesktopShelves(a.shelvesConfigPath)
 	if err != nil {
-		return util.Errorf("loading shelf config: %w", err)
+		return "", util.Errorf("loading shelf config: %w", err)
 	}
 
 	var libRoot string
@@ -605,34 +610,43 @@ func (a *DesktopApp) OpenBookDirectory(shelfID, bookID string) error {
 		}
 	}
 	if libRoot == "" {
-		return util.Errorf("shelf with ID %q not found", shelfID)
+		return "", util.Errorf("shelf with ID %q not found", shelfID)
 	}
 
 	relativeBookPath, err := a.app.GetBookFolderPath(shelfID, bookID)
 	if err != nil {
-		return util.Errorf("resolving book directory: %w", err)
+		return "", util.Errorf("resolving book directory: %w", err)
 	}
 
 	normalizedRoot, err := normalizeDesktopShelfDirectory(libRoot)
 	if err != nil {
-		return util.Errorf("%w", err)
+		return "", util.Errorf("%w", err)
 	}
 	targetDir := filepath.Clean(filepath.Join(normalizedRoot, filepath.FromSlash(relativeBookPath)))
 
 	relPath, err := filepath.Rel(normalizedRoot, targetDir)
 	if err != nil {
-		return util.Errorf("resolving book directory: %w", err)
+		return "", util.Errorf("resolving book directory: %w", err)
 	}
 	if relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
-		return util.Errorf("invalid book path")
+		return "", util.Errorf("invalid book path")
 	}
 
 	info, err := os.Stat(targetDir)
 	if err != nil {
-		return util.Errorf("book directory unavailable: %w", err)
+		return "", util.Errorf("book directory unavailable: %w", err)
 	}
 	if !info.IsDir() {
-		return util.Errorf("book path is not a directory")
+		return "", util.Errorf("book path is not a directory")
+	}
+
+	return targetDir, nil
+}
+
+func (a *DesktopApp) OpenBookDirectory(shelfID, bookID string) error {
+	targetDir, err := a.resolveBookPackagePath(shelfID, bookID)
+	if err != nil {
+		return err
 	}
 
 	if err := openFinder(targetDir); err != nil {
@@ -640,6 +654,49 @@ func (a *DesktopApp) OpenBookDirectory(shelfID, bookID string) error {
 	}
 
 	return nil
+}
+
+// OpenReader launches the standalone PlainShelfReader in its own window, showing
+// the given book. It is the desktop's reading path: the frontend routes the read
+// action here on desktop instead of opening the in-app reader.
+//
+// The reader is a separate macOS app (installed via the Homebrew cask, bundle id
+// com.voilelab.plainshelf-reader); it reads the .bookpkg directory directly and
+// persists progress into the shared reading_progress.json this app also uses, so
+// the position shows up in this library. macOS-only for now — there is no reader
+// binary on other platforms.
+func (a *DesktopApp) OpenReader(shelfID, bookID string) error {
+	targetDir, err := a.resolveBookPackagePath(shelfID, bookID)
+	if err != nil {
+		return err
+	}
+
+	if runtime.GOOS != "darwin" {
+		return util.NewError("opening the standalone reader is only supported on macOS")
+	}
+
+	name, args := readerLaunchCommand(targetDir)
+	if err := exec.Command(name, args...).Run(); err != nil {
+		return util.Errorf("launching PlainShelfReader: %w", err)
+	}
+	return nil
+}
+
+// readerLaunchCommand builds the macOS command that opens the standalone reader
+// at bookPath. It launches the app by name so LaunchServices finds the installed
+// PlainShelfReader.app and gives it its own window; PLAINSHELF_READER_APP
+// overrides the app (a path or name) for development against a local build.
+//
+// -n forces a new instance: the reader takes -book only from its startup
+// arguments and shows a single book, so without it a second launch while a
+// reader is already open would merely reactivate the first window (still showing
+// the first book) and report success, so the frontend would not fall back.
+func readerLaunchCommand(bookPath string) (string, []string) {
+	app := strings.TrimSpace(os.Getenv("PLAINSHELF_READER_APP"))
+	if app == "" {
+		app = "PlainShelfReader"
+	}
+	return "open", []string{"-n", "-a", app, "--args", "-book", bookPath}
 }
 
 func (a *DesktopApp) AddShelf(name, libRoot, scanInterval string) error {
