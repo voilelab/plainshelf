@@ -48,10 +48,24 @@ func fingerprintSources(t *testing.T, env *apiTestEnv, wantStatus int) taskChain
 	return submitTaskChain(t, env, sourceFingerprintsURL(), nil, wantStatus)
 }
 
+func forceFingerprintSources(t *testing.T, env *apiTestEnv, wantStatus int) taskChainSubmitResponse {
+	t.Helper()
+	return submitTaskChain(t, env, sourceFingerprintsURL()+"?force=true", nil, wantStatus)
+}
+
 func runFingerprintSources(t *testing.T, env *apiTestEnv) task.FingerprintSourcesResult {
 	t.Helper()
+	return awaitFingerprintSources(t, env, fingerprintSources(t, env, http.StatusAccepted))
+}
 
-	accepted := fingerprintSources(t, env, http.StatusAccepted)
+func runForceFingerprintSources(t *testing.T, env *apiTestEnv) task.FingerprintSourcesResult {
+	t.Helper()
+	return awaitFingerprintSources(t, env, forceFingerprintSources(t, env, http.StatusAccepted))
+}
+
+func awaitFingerprintSources(t *testing.T, env *apiTestEnv, accepted taskChainSubmitResponse) task.FingerprintSourcesResult {
+	t.Helper()
+
 	chain := waitForTaskChain(t, env, accepted.TaskChainID)
 
 	if chain.Status != "completed" {
@@ -97,6 +111,42 @@ func TestAPIFingerprintSourcesContract(t *testing.T) {
 	if third.Books != 3 || third.Built != 1 || third.StatHits != 2 {
 		t.Errorf("third run = %+v, want only the new book fingerprinted", third)
 	}
+}
+
+// force rebuilds every source even when the cache could answer from its index,
+// so a reader who suspects a stat comparison missed a content change can rebuild
+// the fingerprints without touching the files. Without force the same second run
+// reads nothing.
+func TestAPIFingerprintSourcesForceRebuildsContract(t *testing.T) {
+	env := newAPITestEnv(t)
+
+	dune := importTextBook(t, env, "Dune", "", "dune.txt", "the spice must flow")
+	solaris := importTextBook(t, env, "Solaris", "", "solaris.txt", "the ocean thinks in shapes")
+	backdateSources(t, env, dune.Meta.ID)
+	backdateSources(t, env, solaris.Meta.ID)
+
+	if first := runFingerprintSources(t, env); first.Built != 2 {
+		t.Fatalf("first run = %+v, want two builds", first)
+	}
+
+	// Baseline: a plain second run opens nothing.
+	if second := runFingerprintSources(t, env); second.StatHits != 2 || second.Built != 0 {
+		t.Fatalf("second run = %+v, want two stat hits and no builds", second)
+	}
+
+	forced := runForceFingerprintSources(t, env)
+	if forced.Built != 2 || forced.StatHits != 0 || forced.ContentHits != 0 {
+		t.Errorf("force run = %+v, want both sources rebuilt with no cache hits", forced)
+	}
+}
+
+// A force value that is not a boolean is a bad request, not a silent incremental
+// run: the caller asked for a rebuild and has to be told the flag was not read.
+func TestAPIFingerprintSourcesRejectsBadForceContract(t *testing.T) {
+	env := newAPITestEnv(t)
+
+	rec := env.post(sourceFingerprintsURL()+"?force=maybe", nil)
+	assertStatus(t, rec, http.StatusBadRequest)
 }
 
 // An empty shelf still completes, so the UI can report "up to date" instead of

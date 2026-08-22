@@ -133,7 +133,17 @@ func TestFingerprintSourcesTaskCoversEverySourceOfABook(t *testing.T) {
 func runFingerprintSources(t *testing.T, testShelf *shelf.Shelf) (*fingerprintSourcesTask, error) {
 	t.Helper()
 
-	task := newFingerprintSourcesTask("default_shelf", testShelf, newTaskTestLogger(t))
+	task := newFingerprintSourcesTask("default_shelf", testShelf, false, newTaskTestLogger(t))
+	return task, task.Run(context.Background())
+}
+
+// runForceFingerprintSources runs the sweep with force set, the way the "force
+// rebuild" button would: every source is read and fingerprinted again whatever
+// the cache holds.
+func runForceFingerprintSources(t *testing.T, testShelf *shelf.Shelf) (*fingerprintSourcesTask, error) {
+	t.Helper()
+
+	task := newFingerprintSourcesTask("default_shelf", testShelf, true, newTaskTestLogger(t))
 	return task, task.Run(context.Background())
 }
 
@@ -195,6 +205,46 @@ func TestFingerprintSourcesTaskOnlyPaysForWhatChanged(t *testing.T) {
 	got = fingerprintResult(t, third)
 	if got.Books != 3 || got.Built != 1 || got.StatHits != 2 {
 		t.Errorf("third run result = %+v, want only the new book fingerprinted", got)
+	}
+}
+
+// Force rebuilds a source the cache would otherwise answer from its index. This
+// is the entry point for a reader who suspects a stat comparison has missed a
+// content change: without force the second run reads nothing, and with it every
+// source is fingerprinted again even though nothing changed.
+func TestFingerprintSourcesTaskForceRebuildsCachedSources(t *testing.T) {
+	libRoot := t.TempDir()
+	testShelf := newFingerprintTestShelf(t, libRoot, false)
+
+	addFingerprintBook(t, testShelf, libRoot, "Dune", "the spice must flow")
+	addFingerprintBook(t, testShelf, libRoot, "Solaris", "the ocean thinks in shapes")
+
+	if _, err := runFingerprintSources(t, testShelf); err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+
+	// The incremental run is the baseline: both sources are answered from the
+	// index without being opened, which is exactly what force has to override.
+	second, err := runFingerprintSources(t, testShelf)
+	if err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+	if got := fingerprintResult(t, second); got.StatHits != 2 || got.Built != 0 || got.ContentHits != 0 {
+		t.Fatalf("second run = %+v, want two stat hits and no reads", got)
+	}
+
+	forced, err := runForceFingerprintSources(t, testShelf)
+	if err != nil {
+		t.Fatalf("force run: %v", err)
+	}
+	if forced.Status() != taskutil.StatusCompleted || forced.Percentage() != 100 {
+		t.Fatalf("force run: status %v at %v%%, want completed at 100%%", forced.Status(), forced.Percentage())
+	}
+
+	// Every source read and fingerprinted afresh: no cache level answered, so a
+	// content change a stat would have hidden is picked up regardless.
+	if got := fingerprintResult(t, forced); got.Fingerprinted != 2 || got.Built != 2 || got.StatHits != 0 || got.ContentHits != 0 {
+		t.Errorf("force run = %+v, want both sources rebuilt with no cache hits", got)
 	}
 }
 

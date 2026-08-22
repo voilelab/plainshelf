@@ -92,7 +92,8 @@ type FingerprintSourcesResult struct {
 }
 
 // fingerprintSourcesTask fingerprints every source of every book, skipping the
-// ones the fingerprint cache can already answer for.
+// ones the fingerprint cache can already answer for - or, when force is set,
+// rebuilding all of them regardless of what the cache holds.
 //
 // It walks all sources rather than only each book's current source: a reader
 // who keeps an earlier import around wants it compared too, and the cache is
@@ -110,6 +111,11 @@ type fingerprintSourcesTask struct {
 	shelf   *shelf.Shelf
 	logger  *logutil.Logger
 
+	// force ignores the cache and rebuilds every source's fingerprint, for a
+	// caller that suspects a stat comparison has missed a content change. When
+	// false the sweep stays incremental and skips what the cache can answer.
+	force bool
+
 	progress taskutil.Progress
 
 	mu            sync.Mutex
@@ -119,11 +125,12 @@ type fingerprintSourcesTask struct {
 	failures      []fingerprintSourcesFailure
 }
 
-func newFingerprintSourcesTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *fingerprintSourcesTask {
+func newFingerprintSourcesTask(shelfID string, s *shelf.Shelf, force bool, logger *logutil.Logger) *fingerprintSourcesTask {
 	return &fingerprintSourcesTask{
 		shelfID:  shelfID,
 		shelf:    s,
 		logger:   logger,
+		force:    force,
 		failures: []fingerprintSourcesFailure{},
 	}
 }
@@ -245,6 +252,13 @@ func (t *fingerprintSourcesTask) fingerprintBook(cache *shelf.FingerprintCache, 
 	t.sources += len(sourceIDs)
 	t.mu.Unlock()
 
+	// Rebuild ignores the cache; Resolve skips what it can answer. Both have the
+	// same signature, so the choice is made once per book here.
+	resolve := cache.Resolve
+	if t.force {
+		resolve = cache.Rebuild
+	}
+
 	for _, sourceID := range sourceIDs {
 		source, err := book.GetSource(sourceID)
 		if err != nil {
@@ -252,7 +266,7 @@ func (t *fingerprintSourcesTask) fingerprintBook(cache *shelf.FingerprintCache, 
 			continue
 		}
 
-		if _, err := cache.Resolve(book, source, BuildFingerprint); err != nil {
+		if _, err := resolve(book, source, BuildFingerprint); err != nil {
 			t.recordFailure(bookID, sourceID, err)
 			continue
 		}
@@ -356,12 +370,20 @@ func (t *fingerprintSourcesTask) Run(ctx context.Context) error {
 	return nil
 }
 
-func NewFingerprintSourcesChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger) *taskutil.TaskChain {
+func NewFingerprintSourcesChain(shelfID string, s *shelf.Shelf, force bool, logger *logutil.Logger) *taskutil.TaskChain {
+	// The key does not vary with force: an incremental sweep and a forced one
+	// both walk the whole shelf and write the same cache, so only one may run at
+	// a time, and a second request is pointed at the running chain either way.
+	description := "Fingerprint every source that has changed since the last run"
+	if force {
+		description = "Rebuild every source's fingerprint, ignoring the cache"
+	}
+
 	return &taskutil.TaskChain{
 		Key:         FingerprintSourcesTaskName + ":" + shelfID,
 		Name:        FingerprintSourcesTaskName,
 		Title:       "Build source fingerprints",
-		Description: "Fingerprint every source that has changed since the last run",
-		Tasks:       []taskutil.Task{newFingerprintSourcesTask(shelfID, s, logger)},
+		Description: description,
+		Tasks:       []taskutil.Task{newFingerprintSourcesTask(shelfID, s, force, logger)},
 	}
 }

@@ -362,6 +362,29 @@ func (c *FingerprintCache) Stats() FingerprintCacheStats {
 // by hand carries a confidently wrong hash until something reads the content
 // again. This is that something.
 func (c *FingerprintCache) Resolve(book *Book, source *Source, build FingerprintBuilder) (FingerprintEntry, error) {
+	return c.resolve(book, source, build, false)
+}
+
+// Rebuild is Resolve with every cache hit ignored: the source is always read
+// and always fingerprinted afresh, and both levels of the cache are overwritten
+// with the result.
+//
+// Its reason to exist is that path 1 cannot be trusted to notice every change.
+// The index answers from a stat, and a stat is coarse - a source rewritten
+// inside fingerprintCacheRacyWindow, or under a filesystem whose clock ticks in
+// whole seconds, can keep the size and mtime the index already recorded. When
+// that happens the incremental Resolve serves the previous content's
+// fingerprint, and the only way back is to read the file regardless of what the
+// stat claims. That is the one path this skips.
+//
+// A needless Rebuild is not a wrong answer, only a wasted one: the entry it
+// stores is byte-identical whenever the content really was unchanged, so the
+// cost is a read and a fingerprint, never a corrupted cache.
+func (c *FingerprintCache) Rebuild(book *Book, source *Source, build FingerprintBuilder) (FingerprintEntry, error) {
+	return c.resolve(book, source, build, true)
+}
+
+func (c *FingerprintCache) resolve(book *Book, source *Source, build FingerprintBuilder, force bool) (FingerprintEntry, error) {
 	if book == nil || source == nil || build == nil {
 		return FingerprintEntry{}, util.NewError("resolving a fingerprint needs a book, a source and a builder")
 	}
@@ -373,13 +396,19 @@ func (c *FingerprintCache) Resolve(book *Book, source *Source, build Fingerprint
 	// the older content, and every later run would trust it. This order can
 	// only pair older stat values with newer content, which merely costs the
 	// next run a re-read.
+	//
+	// Still statted under force, because record needs the stat to refresh the
+	// index; only the hit it would produce is ignored, and lookupByStat is not
+	// consulted at all so its counter is not touched.
 	stat, statErr := source.contentStat()
 	if statErr != nil {
 		// Not fatal on its own: the read below reports a source that is really
 		// gone, with an error that says what was being read.
 		c.shelf.Debug("could not stat a source before fingerprinting it", "book_id", book.ID(), "source_id", source.ID(), "error", statErr)
-	} else if entry, ok := c.lookupByStat(key, stat); ok {
-		return entry, nil
+	} else if !force {
+		if entry, ok := c.lookupByStat(key, stat); ok {
+			return entry, nil
+		}
 	}
 
 	readAt := time.Now()
@@ -395,7 +424,15 @@ func (c *FingerprintCache) Resolve(book *Book, source *Source, build Fingerprint
 
 	c.repairSourceHash(source, md5Hash)
 
-	entry, known := c.lookupByContent(md5Hash)
+	// Under force the content level is skipped too, so a source whose bytes are
+	// unchanged is still fingerprinted rather than recognized: record then
+	// counts it as Built and overwrites the entry, which is what makes "force
+	// recomputed everything" observable.
+	var entry FingerprintEntry
+	known := false
+	if !force {
+		entry, known = c.lookupByContent(md5Hash)
+	}
 	if !known {
 		entry, err = build(content)
 		if err != nil {
