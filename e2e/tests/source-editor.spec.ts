@@ -124,8 +124,15 @@ test('should edit source content and see the change reflected in the reader', as
     await page.getByRole('button', { name: /reading/i }).click();
     await expect(page).toHaveURL(/\/reader\/[^/]+$/);
 
-    // Reader should display the appended line
-    await expect(page.getByText('Edited by E2E source editor.')).toBeVisible();
+    // Reader should display the appended line. It sits at the very bottom of a
+    // long section, which the reader now virtualizes, so the block only mounts
+    // once it is scrolled near the viewport. Scroll to the end, then assert.
+    const readerContent = page.locator('.reader-content');
+    await expect(readerContent).toBeVisible();
+    await expect(async () => {
+      await readerContent.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+      await expect(page.getByText('Edited by E2E source editor.')).toBeVisible({ timeout: 1000 });
+    }).toPass();
   } finally {
     await server.dispose();
   }
