@@ -27,6 +27,19 @@
       @cancel="closeCreateLayerModal"
       @submit="onSubmitCreateLayer"
     />
+    <TransferLayerModal
+      :open="transferLayerTarget.length > 0"
+      :folder-name="transferLayerFolderName"
+      :busy="transferLayerRunning"
+      :started="transferLayerStarted"
+      :finished="transferLayerFinished"
+      :status="transferLayerStatus"
+      :percentage="transferLayerPercentage"
+      :chain="transferLayerChain"
+      :error="transferLayerError"
+      @close="cancelTransferLayer"
+      @submit="submitTransferLayer"
+    />
     <BookBatchProgressModal />
 
     <div
@@ -293,11 +306,13 @@
                 :deleting-map="deletingLayerMap"
                 :read-only="readOnly"
                 :can-open-layer-folder="canOpenLayerFolder"
+                :can-transfer-layer="canTransferLayer"
                 @select="onSelectLayer"
                 @move-book="onMoveBook"
                 @delete-layer="requestDeleteLayer"
                 @rename-layer="requestRenameLayer"
                 @open-layer-folder="onOpenLayerFolder"
+                @transfer-layer="requestTransferLayer"
                 @move-layer="onMoveLayer"
               />
               <p v-if="moveBookError" class="sidebar-error" role="alert">
@@ -495,6 +510,7 @@ import DeleteModal from '@/components/DeleteModal.vue';
 import Icon from '@/components/Icon.vue';
 import LayerTree from '@/components/LayerTree.vue';
 import RenameLayerModal from '@/components/RenameLayerModal.vue';
+import TransferLayerModal from '@/components/TransferLayerModal.vue';
 import SidebarNavIcon from '@/components/SidebarNavIcon.vue';
 import { getBookshelfProvider } from '@/providers';
 import { useBookStore } from '@/composables/useBookStore';
@@ -564,6 +580,19 @@ const {
   requestRenameLayer,
   cancelPendingRenameLayer,
   confirmRenameLayer,
+  canTransferLayer,
+  transferLayerTarget,
+  transferLayerFolderName,
+  transferLayerChain,
+  transferLayerStatus,
+  transferLayerPercentage,
+  transferLayerError,
+  transferLayerStarted,
+  transferLayerRunning,
+  transferLayerFinished,
+  requestTransferLayer,
+  cancelTransferLayer,
+  submitTransferLayer,
   onMoveLayer,
   onOpenLayerFolder,
   requestDeleteLayer,

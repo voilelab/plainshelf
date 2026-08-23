@@ -1,3 +1,4 @@
+import type { BookTransferMode } from './books';
 import { ApiError, buildShelfApiPath, fetchJson, isMockApiMode } from './client';
 import { LayerHttpError } from './layerErrors';
 import { delay } from './mocks/latency';
@@ -8,6 +9,7 @@ import {
   moveMockLayer,
   renameMockLayer
 } from './mocks/layers';
+import { mockTransferLayer } from './mocks/books';
 import { normalizeLayerPath } from '@/utils/layers';
 
 function normalizeLayerValue(value: unknown): string | null {
@@ -73,6 +75,105 @@ export async function getLayers(shelfID?: string): Promise<string[]> {
   }
 
   return Array.from(unique).sort((a, b) => a.localeCompare(b));
+}
+
+/** Which cross-shelf conflict a layer transfer was refused for. */
+export type LayerTransferConflictKind = 'target_layer_conflict' | 'book_id_conflict';
+
+/**
+ * Thrown by {@link transferLayer} when the server refuses the transfer up front
+ * with a 409 conflict body — either the target shelf already holds a folder with
+ * this name, or (for a move) it already holds books with these IDs. A distinct
+ * type, not a bare Error, so the modal can name which conflict it is and list the
+ * colliding book IDs rather than showing one opaque message. The server's own
+ * message is kept as `message` so the UI can fall back to it.
+ */
+export class LayerTransferConflictError extends Error {
+  constructor(
+    readonly kind: LayerTransferConflictKind,
+    message: string,
+    readonly conflictingBookIDs: string[] = []
+  ) {
+    super(message);
+    this.name = 'LayerTransferConflictError';
+  }
+}
+
+interface LayerTransferConflictBody {
+  error?: string;
+  message?: string;
+  conflicting_book_ids?: string[];
+  taskchain_id?: string;
+}
+
+/**
+ * Copies or moves a whole layer (folder) — every book and sub-folder beneath it —
+ * from the active shelf to `targetShelfID`, returning the id of the background
+ * task chain to poll. The work is asynchronous because a folder can hold hundreds
+ * of megabytes and either shelf may be a network mount, so the request must not
+ * block on it.
+ *
+ * `sourceLayer` and `targetLayer` are '/'-joined paths. `targetLayer` is the full
+ * destination path the folder lands at on the target shelf (it keeps its own name
+ * when the caller nests it under a chosen parent); the server refuses a root
+ * target. When the same transfer is already running the server answers 409 with
+ * that chain's id, returned here so the caller attaches to the in-flight work.
+ * The two pre-flight conflicts (target folder exists, or a move would overwrite
+ * book IDs) are surfaced as {@link LayerTransferConflictError}; any other refusal
+ * (a read-only target, an invalid path) propagates with the server's message.
+ */
+export async function transferLayer(
+  sourceLayer: string,
+  targetShelfID: string,
+  targetLayer: string,
+  mode: BookTransferMode
+): Promise<string> {
+  if (isMockApiMode()) {
+    return mockTransferLayer(sourceLayer, targetShelfID, targetLayer, mode);
+  }
+
+  const source = layersFromPath(sourceLayer);
+  const target = layersFromPath(targetLayer);
+
+  try {
+    const res = await fetchJson<{ taskchain_id: string }>(
+      buildShelfApiPath('/layer-transfers'),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, source_layer: source, target_shelf: targetShelfID, target_layer: target })
+      }
+    );
+    return res.taskchain_id;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 409) {
+      const conflict = parseLayerTransferConflict(err.message);
+      // The already-running case answers 409 with the chain id, not a conflict
+      // body; attach to it rather than failing.
+      if (conflict?.taskchain_id) {
+        return conflict.taskchain_id;
+      }
+      if (conflict?.error === 'target_layer_conflict' || conflict?.error === 'book_id_conflict') {
+        throw new LayerTransferConflictError(
+          conflict.error,
+          conflict.message || err.message,
+          conflict.conflicting_book_ids ?? []
+        );
+      }
+    }
+    throw err;
+  }
+}
+
+function parseLayerTransferConflict(body: string): LayerTransferConflictBody | null {
+  try {
+    const parsed = JSON.parse(body) as LayerTransferConflictBody;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    // A plain-text 409 (a read-only shelf) is not a conflict body; let the caller
+    // propagate the original ApiError so its message reaches the user.
+    return null;
+  }
 }
 
 export async function createLayer(layerPath: string): Promise<void> {

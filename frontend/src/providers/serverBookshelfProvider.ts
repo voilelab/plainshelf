@@ -35,7 +35,7 @@ import {
   setCurrentSource,
   updateSourceContent
 } from '@/api/sources';
-import { getLayers } from '@/api/layers';
+import { getLayers, transferLayer } from '@/api/layers';
 import { rescanShelf } from '@/api/shelves';
 import { getTaskChain } from '@/api/taskchains';
 import { startBookBatch } from '@/api/bookBatches';
@@ -104,6 +104,15 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     mode: BookTransferMode
   ): Promise<string> {
     return transferBook(bookId, targetShelfID, targetLayer, mode);
+  }
+
+  transferLayer(
+    sourceLayer: string,
+    targetShelfID: string,
+    targetLayer: string,
+    mode: BookTransferMode
+  ): Promise<string> {
+    return transferLayer(sourceLayer, targetShelfID, targetLayer, mode);
   }
 
   deleteBook(bookId: string): Promise<void> {

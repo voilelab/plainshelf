@@ -72,6 +72,11 @@
               @select="emit('open-layer-folder', item.value.path)"
             >{{ t('layout.openLayerFolder.shortAction') }}</ContextMenuItem>
             <ContextMenuItem
+              v-if="props.canTransferLayer && canManageLayer(item.value)"
+              class="reka-menu-item"
+              @select="emit('transfer-layer', item.value.path)"
+            >{{ t('layout.transferLayer.shortAction') }}</ContextMenuItem>
+            <ContextMenuItem
               class="reka-menu-item"
               @select="emit('rename-layer', item.value.path)"
             >{{ t('layout.renameLayer.shortAction') }}</ContextMenuItem>
@@ -124,6 +129,7 @@ const props = defineProps<{
   deletingMap?: Record<string, boolean>;
   readOnly?: boolean;
   canOpenLayerFolder?: boolean;
+  canTransferLayer?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -132,6 +138,7 @@ const emit = defineEmits<{
   'delete-layer': [path: string];
   'rename-layer': [path: string];
   'open-layer-folder': [path: string];
+  'transfer-layer': [path: string];
   'move-layer': [payload: { layerPath: string; targetLayer: string }];
 }>();
 
