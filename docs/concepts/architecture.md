@@ -169,7 +169,7 @@ Two more details the diagram cannot show:
 
 | Path | Responsibility |
 |---|---|
-| `shelf/` | Filesystem-backed library core: books, layers, trash, locking, cache |
+| `shelf/` | Filesystem-backed library core: books, folders, trash, locking, cache |
 | `server/` | HTTP API, routing, security, settings store, worker pool |
 | `frontend/` | Vue UI, device-local storage, Capacitor Android project |
 | `desktop/` | Wails desktop client |
