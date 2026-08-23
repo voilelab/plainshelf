@@ -371,9 +371,13 @@ export function useLayerManagement() {
       // way the sidebar's layer tree and per-layer counts have shifted, so pull
       // both stores fresh.
       void Promise.all([fetchLayers(), fetchBooks()]);
-      // A move removes the folder the user may be standing in, so send them back
-      // to the top when the layer they are viewing has just left the shelf.
+      // Only a fully completed move prunes the now-empty source folder, so only
+      // then send a user standing in it back to the top. A partial move leaves
+      // the books that failed to move — and therefore their source folders — in
+      // place, so the current layer is still valid and is where those failures
+      // are inspected or retried; keep the user there.
       if (
+        status === 'completed' &&
         transferLayerMode.value === 'move' &&
         source &&
         (currentLayer.value === source || currentLayer.value?.startsWith(`${source}/`))
