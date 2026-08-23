@@ -1,9 +1,13 @@
 package server
 
 import (
+	"archive/zip"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
+
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 // maxAssetBodySize caps an uploaded illustration. A file placed on the shelf by
@@ -56,6 +60,108 @@ func (h *sourceHandlers) getAsset(w http.ResponseWriter, r *http.Request) {
 	if _, err := io.Copy(w, asset.File); err != nil {
 		h.Error("failed to write source asset", "error", err, "asset", assetName)
 	}
+}
+
+// GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets.zip
+//
+// Packs the source's illustrations into one zip so a download fetches them in a
+// single request instead of one per file — the round trips, not the bytes, are
+// what a high-latency mobile connection pays for. The path is assets.zip, not a
+// child of assets/, so it cannot collide with the assets/{asset_name} route.
+//
+// A plain GET, so it inherits getAsset's security exactly: gated only under
+// protect_read. The repeated `name` query parameter picks which files to pack
+// (none = the whole assets/ directory); each is validated like getAsset's path
+// segment, so an unsafe name is a 400 before any byte is written, while an
+// absent one is skipped rather than failing the request.
+func (h *sourceHandlers) getAssetsBundle(w http.ResponseWriter, r *http.Request) {
+	_, _, source, ok := h.loadBookSource(w, r)
+	if !ok {
+		return
+	}
+
+	names, ok := h.resolveBundleAssetNames(w, source, r)
+	if !ok {
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.WriteHeader(http.StatusOK)
+
+	// A GET pattern also matches HEAD, and net/http discards the body for it, so
+	// building the archive would read every asset off the shelf to write it
+	// nowhere.
+	if r.Method == http.MethodHead {
+		return
+	}
+
+	zw := zip.NewWriter(w)
+	for _, name := range names {
+		if err := h.writeAssetToZip(zw, source, name); err != nil {
+			// The 200 and the archive so far are already on the wire, so the
+			// status cannot change now. Stop and log: the client receives a
+			// truncated zip, which its unzip rejects, and falls back to
+			// per-file fetches.
+			h.Error("failed to add source asset to bundle", "error", err, "asset", name)
+			return
+		}
+	}
+	if err := zw.Close(); err != nil {
+		h.Error("failed to finalize source asset bundle", "error", err)
+	}
+}
+
+// resolveBundleAssetNames returns the names to pack: the whole assets/ directory
+// when none were requested, otherwise the requested names validated up front —
+// before the archive's first byte — so an unsafe name is a 400, not a truncated
+// 200. A valid-but-absent name stays in the list and is skipped while packing.
+func (h *sourceHandlers) resolveBundleAssetNames(w http.ResponseWriter, source *shelf.Source, r *http.Request) ([]string, bool) {
+	requested := r.URL.Query()["name"]
+	if len(requested) == 0 {
+		names, err := source.ListAssets()
+		if err != nil {
+			h.writeErr(w, err, "failed to list source assets")
+			return nil, false
+		}
+		return names, true
+	}
+
+	for _, name := range requested {
+		if _, err := source.AssetPath(name); err != nil {
+			h.writeErr(w, err, "failed to bundle source assets")
+			return nil, false
+		}
+	}
+	return requested, true
+}
+
+// writeAssetToZip adds one illustration to the archive under its flat name. A
+// named file that is not on the shelf is skipped, not fatal: the text may
+// reference an image never uploaded, and the reader falls back to alt text.
+func (h *sourceHandlers) writeAssetToZip(zw *zip.Writer, source *shelf.Source, name string) error {
+	asset, err := source.OpenAsset(name)
+	if err != nil {
+		if errors.Is(err, shelf.ErrAssetNotFound) {
+			return nil
+		}
+		return err
+	}
+	defer asset.File.Close()
+
+	// Store, not Deflate: jpeg/png/webp are already compressed, so the endpoint's
+	// gain is the request count, not bytes saved.
+	entry, err := zw.CreateHeader(&zip.FileHeader{
+		Name:     name,
+		Method:   zip.Store,
+		Modified: asset.Info.ModTime(),
+	})
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(entry, asset.File); err != nil {
+		return err
+	}
+	return nil
 }
 
 // PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}

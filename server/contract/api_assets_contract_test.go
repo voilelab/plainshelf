@@ -1,9 +1,13 @@
 package contract_test
 
 import (
+	"archive/zip"
 	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	neturl "net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -268,6 +272,174 @@ func TestAPISourceAssetRejectsUnsafeNames(t *testing.T) {
 			assertStatus(t, rec, http.StatusBadRequest)
 			if strings.Contains(rec.Body.String(), "secret body") {
 				t.Fatalf("response leaked file contents: %s", rec.Body.String())
+			}
+		})
+	}
+}
+
+// assetsBundleURL addresses a source's batch assets.zip endpoint, naming the
+// files to pack with repeated `name` query parameters. With no names it packs
+// the whole assets/ directory.
+func assetsBundleURL(bookID, sourceID string, names ...string) string {
+	base := sourceURL(bookID, sourceID, "assets.zip")
+	if len(names) == 0 {
+		return base
+	}
+	query := neturl.Values{}
+	for _, name := range names {
+		query.Add("name", name)
+	}
+	return base + "?" + query.Encode()
+}
+
+// readZipBundle decodes a returned assets.zip into a name→bytes map, failing the
+// test if the archive is malformed or carries a duplicate entry.
+func readZipBundle(t *testing.T, body []byte) map[string][]byte {
+	t.Helper()
+
+	reader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		t.Fatalf("open zip bundle: %v", err)
+	}
+
+	entries := make(map[string][]byte, len(reader.File))
+	for _, file := range reader.File {
+		rc, err := file.Open()
+		if err != nil {
+			t.Fatalf("open zip entry %q: %v", file.Name, err)
+		}
+		data, err := io.ReadAll(rc)
+		rc.Close() //nolint:errcheck // read already succeeded; nothing to salvage
+		if err != nil {
+			t.Fatalf("read zip entry %q: %v", file.Name, err)
+		}
+		if _, dup := entries[file.Name]; dup {
+			t.Fatalf("zip bundle has a duplicate entry %q", file.Name)
+		}
+		entries[file.Name] = data
+	}
+	return entries
+}
+
+func bundleEntryNames(entries map[string][]byte) []string {
+	names := make([]string, 0, len(entries))
+	for name := range entries {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// The batch endpoint packs a source's illustrations into one zip so a download
+// client pays a single round trip instead of one per figure.
+func TestAPISourceAssetsBundleContract(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Bundled Art", "", "art.md", "body")
+	sourceID := env.currentSourceID(t, created.Meta.ID)
+
+	png := []byte("fake png bytes")
+	webp := []byte("fake webp bytes")
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "img-0001.png", png)
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "img-0002.webp", webp)
+
+	// A named subset is packed; a name with no file behind it is skipped rather
+	// than failing the request; and the entry names are flat - no assets/ prefix
+	// and no separator - so the client writes each straight back under its name.
+	rec := env.get(assetsBundleURL(created.Meta.ID, sourceID, "img-0001.png", "img-0002.webp", "missing.png"))
+	assertStatus(t, rec, http.StatusOK)
+	assertContentType(t, rec, "application/zip")
+
+	entries := readZipBundle(t, rec.Body.Bytes())
+	if got := bundleEntryNames(entries); len(got) != 2 {
+		t.Fatalf("bundle entries = %v, want img-0001.png and img-0002.webp", got)
+	}
+	if !bytes.Equal(entries["img-0001.png"], png) {
+		t.Fatalf("bundle img-0001.png = %q, want %q", entries["img-0001.png"], png)
+	}
+	if !bytes.Equal(entries["img-0002.webp"], webp) {
+		t.Fatalf("bundle img-0002.webp = %q, want %q", entries["img-0002.webp"], webp)
+	}
+
+	// With no names given the whole assets/ directory is packed, so a client that
+	// wants everything need not enumerate it first.
+	rec = env.get(assetsBundleURL(created.Meta.ID, sourceID))
+	assertStatus(t, rec, http.StatusOK)
+	entries = readZipBundle(t, rec.Body.Bytes())
+	if got := bundleEntryNames(entries); len(got) != 2 || entries["img-0001.png"] == nil || entries["img-0002.webp"] == nil {
+		t.Fatalf("whole-directory bundle = %v, want both assets", got)
+	}
+
+	// Only GET (and the HEAD it implies) has meaning here; the archive is a read.
+	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {
+		rec = env.request(method, assetsBundleURL(created.Meta.ID, sourceID), nil)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("%s assets.zip status = %d, want %d", method, rec.Code, http.StatusMethodNotAllowed)
+		}
+	}
+
+	// A missing book or source is a 404, not a 500 or an empty archive.
+	rec = env.get(assetsBundleURL("no-such-book", sourceID, "img-0001.png"))
+	assertStatus(t, rec, http.StatusNotFound)
+	rec = env.get(assetsBundleURL(created.Meta.ID, "no-such-source", "img-0001.png"))
+	assertStatus(t, rec, http.StatusNotFound)
+}
+
+// The batch read shares getAsset's security boundary: under protect_read it is
+// refused without the token and served with it.
+func TestAPISourceAssetsBundleFollowsTheTokenGate(t *testing.T) {
+	security := localTokenSecurity()
+	security.ProtectRead = true
+	env := newAPITestEnv(t, withSecurity(security))
+	created := importTextBook(t, env, "Protected Bundle", "", "art.md", "body")
+	// Under protect_read even reading the source list needs the token, so take
+	// the source id from the import result rather than a tokenless GET.
+	sourceID := created.Meta.CurrentSource
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "img-0001.png", []byte("bytes"))
+	url := assetsBundleURL(created.Meta.ID, sourceID, "img-0001.png")
+
+	rec := env.doRaw(httptest.NewRequest(http.MethodGet, url, nil))
+	assertStatus(t, rec, http.StatusUnauthorized)
+
+	req := httptest.NewRequest(http.MethodGet, url, nil)
+	req.Header.Set("Authorization", "Bearer "+env.app.SecurityToken())
+	rec = env.doRaw(req)
+	assertStatus(t, rec, http.StatusOK)
+	if _, ok := readZipBundle(t, rec.Body.Bytes())["img-0001.png"]; !ok {
+		t.Fatal("authorized bundle is missing its asset")
+	}
+}
+
+// Each requested name is validated up front, the way getAsset validates its
+// path segment, so one unsafe name is a 400 for the whole request rather than a
+// truncated archive - and nothing on the shelf leaks on the way to that 400.
+func TestAPISourceAssetsBundleRejectsUnsafeNames(t *testing.T) {
+	env := newAPITestEnv(t)
+	created := importTextBook(t, env, "Unsafe Bundle", "", "art.md", "secret body")
+	sourceID := env.currentSourceID(t, created.Meta.ID)
+	env.writeSourceAsset(t, created.Meta.ID, sourceID, "img-0001.png", []byte("fake png bytes"))
+
+	// source.txt, book.json and friends really do sit above assets/, so a 400
+	// proves the name was refused rather than merely missing its target. The
+	// valid img-0001.png alongside each unsafe name must not smuggle a 200 or a
+	// partial archive carrying its bytes.
+	for _, name := range []string{
+		"../source.txt",
+		"../../book.json",
+		"sub/img-0001.png",
+		`..\source.txt`,
+		"/etc/hostname",
+		".hidden.png",
+		"source.txt",
+		"img-0001",
+	} {
+		t.Run(name, func(t *testing.T) {
+			rec := env.get(assetsBundleURL(created.Meta.ID, sourceID, "img-0001.png", name))
+			assertStatus(t, rec, http.StatusBadRequest)
+			if strings.Contains(rec.Body.String(), "secret body") {
+				t.Fatalf("response leaked file contents: %s", rec.Body.String())
+			}
+			if strings.Contains(rec.Body.String(), "fake png bytes") {
+				t.Fatalf("response leaked a partial archive: %s", rec.Body.String())
 			}
 		})
 	}

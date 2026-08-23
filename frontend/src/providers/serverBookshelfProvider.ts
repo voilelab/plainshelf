@@ -29,6 +29,7 @@ import {
   deleteSource,
   getSource,
   getSourceAsset,
+  getSourceAssetsBundle,
   getSourceContent,
   listSource,
   refreshSourceMeta,
@@ -235,6 +236,10 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
 
   getSourceAsset(bookId: string, sourceId: string, name: string): Promise<Blob> {
     return getSourceAsset(bookId, sourceId, name);
+  }
+
+  getSourceAssetsBundle(bookId: string, sourceId: string, names: string[]): Promise<Blob> {
+    return getSourceAssetsBundle(bookId, sourceId, names);
   }
 
   createSource(bookId: string, options?: CreateSourceOptions): Promise<SourceMeta> {

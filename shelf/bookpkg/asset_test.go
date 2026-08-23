@@ -292,6 +292,48 @@ func TestIsSupportedImageExt(t *testing.T) {
 	}
 }
 
+func TestSourceListAssets(t *testing.T) {
+	_, source, libRoot := newBookWithSource(t, "Listable Art", "body")
+
+	// No assets/ directory yet: an empty result, not an error.
+	names, err := source.ListAssets()
+	if err != nil {
+		t.Fatalf("ListAssets with no assets dir: %v", err)
+	}
+	if len(names) != 0 {
+		t.Fatalf("ListAssets with no assets dir = %v, want empty", names)
+	}
+
+	writeAsset(t, libRoot, source, "img-0002.png", []byte("two"))
+	writeAsset(t, libRoot, source, "img-0001.webp", []byte("one"))
+
+	// A file the read path could not serve is excluded, so the list is exactly
+	// what a per-name request could open: a non-image extension, a hidden file,
+	// and a sub-directory are all skipped.
+	writeAsset(t, libRoot, source, "notes.txt", []byte("prose"))
+	writeAsset(t, libRoot, source, ".hidden.png", []byte("dot"))
+	subDir := path.Join(libRoot, source.FolderPath(), SourceAssetsFolder, "nested")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("MkdirAll(%q): %v", subDir, err)
+	}
+
+	names, err = source.ListAssets()
+	if err != nil {
+		t.Fatalf("ListAssets: %v", err)
+	}
+
+	// Sorted, and only the two servable images.
+	want := []string{"img-0001.webp", "img-0002.png"}
+	if len(names) != len(want) {
+		t.Fatalf("ListAssets = %v, want %v", names, want)
+	}
+	for i, name := range want {
+		if names[i] != name {
+			t.Fatalf("ListAssets = %v, want %v", names, want)
+		}
+	}
+}
+
 // Deleting a source takes its assets with it. This is the property that makes
 // a separate orphan-collection pass unnecessary.
 func TestDeleteSourceRemovesItsAssets(t *testing.T) {

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { strToU8, zipSync } from 'fflate';
 
 const { addReadHistoryMock, clearReadHistoryMock, getReadHistoryIDsMock } = vi.hoisted(() => ({
   addReadHistoryMock: vi.fn(),
@@ -560,6 +561,168 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
 
     expect((await cache.listDownloadedManifests()).map((m) => m.book.id)).toEqual(['book-1']);
     expect(await cache.getCachedBookContent('book-1')).toEqual({ content: 'text' });
+  });
+});
+
+describe('MobileBookshelfProvider — asset bundle download', () => {
+  let cache: InMemoryMobileBookCache;
+
+  beforeEach(() => {
+    cache = new InMemoryMobileBookCache();
+    connectTo(SERVER_A, SHELF_A);
+  });
+
+  function makeProvider(remote: Partial<BookshelfReader>): MobileBookshelfProvider {
+    return new MobileBookshelfProvider(remote as BookshelfReader, cache, () => true);
+  }
+
+  // The whole point of the ticket: one request for the source's figures instead
+  // of one per image. The per-image path must not be touched when the bundle is
+  // available.
+  it('takes the whole-bundle path when the backend offers it, storing each figure', async () => {
+    const zip = zipSync({
+      'img-0001.png': strToU8('bytes of img-0001.png'),
+      'img-0002.png': strToU8('bytes of img-0002.png')
+      // img-0003.png is referenced by the text but absent from the archive — a
+      // file the text names that was never uploaded.
+    });
+    const getSourceAssetsBundle = vi
+      .fn()
+      .mockResolvedValue(new Blob([zip], { type: 'application/zip' }));
+    const getSourceAsset = vi.fn();
+    const provider = makeProvider({
+      getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'md' })),
+      listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
+      getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
+      getSourceContent: vi
+        .fn()
+        .mockResolvedValue(
+          '![a](assets/img-0001.png)\n\n![b](assets/img-0002.png)\n\n![c](assets/img-0003.png)'
+        ),
+      getSourceAssetsBundle,
+      getSourceAsset
+    });
+
+    await provider.downloadBook('book-1');
+
+    // One request, carrying exactly the referenced names, and never the
+    // per-image path.
+    expect(getSourceAssetsBundle).toHaveBeenCalledWith('book-1', 'src-1', [
+      'img-0001.png',
+      'img-0002.png',
+      'img-0003.png'
+    ]);
+    expect(getSourceAsset).not.toHaveBeenCalled();
+
+    // Each figure the archive carried is stored, with the MIME its name implies;
+    // the referenced-but-absent one is simply not.
+    const first = await cache.getCachedAsset('book-1', 'src-1', 'img-0001.png');
+    expect(await first!.text()).toBe('bytes of img-0001.png');
+    expect(first!.type).toBe('image/png');
+    expect(await (await cache.getCachedAsset('book-1', 'src-1', 'img-0002.png'))!.text()).toBe(
+      'bytes of img-0002.png'
+    );
+    expect(await cache.getCachedAsset('book-1', 'src-1', 'img-0003.png')).toBeNull();
+
+    const [manifest] = await cache.listDownloadedManifests();
+    expect(manifest.size_breakdown?.assets).toBeGreaterThan(0);
+  });
+
+  // The bundle is held whole in memory, so a book with many figures is fetched
+  // in bounded chunks rather than one giant archive — the request-count win is
+  // kept while the Android memory bound survives.
+  it('splits a large source into bounded bundle requests', async () => {
+    const getSourceAssetsBundle = vi
+      .fn()
+      .mockImplementation(async (_book: string, _source: string, names: string[]) => {
+        const files: Record<string, Uint8Array> = {};
+        for (const name of names) {
+          files[name] = strToU8(`bytes of ${name}`);
+        }
+        return new Blob([zipSync(files)], { type: 'application/zip' });
+      });
+    const getSourceAsset = vi.fn();
+    const links = Array.from({ length: 20 }, (_, i) => `![](assets/img-${i}.png)`).join('\n\n');
+    const provider = makeProvider({
+      getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'md' })),
+      listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
+      getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
+      getSourceContent: vi.fn().mockResolvedValue(links),
+      getSourceAssetsBundle,
+      getSourceAsset
+    });
+
+    await provider.downloadBook('book-1');
+
+    // 20 figures at a chunk size of 16 is two requests, neither over the bound,
+    // and never the per-image path.
+    const requested = getSourceAssetsBundle.mock.calls.map((call) => call[2] as string[]);
+    expect(requested).toHaveLength(2);
+    expect(Math.max(...requested.map((names) => names.length))).toBeLessThanOrEqual(16);
+    expect(getSourceAsset).not.toHaveBeenCalled();
+
+    // Every figure across both chunks was stored, once.
+    const allRequested = requested.flat();
+    expect(new Set(allRequested).size).toBe(20);
+    for (let i = 0; i < 20; i += 1) {
+      expect(await cache.getCachedAsset('book-1', 'src-1', `img-${i}.png`)).not.toBeNull();
+    }
+  });
+
+  // A bundle request that fails (here a transport error) must not cost the book
+  // its illustrations: the download drops to the per-file path unchanged.
+  it('falls back to per-file fetches when the bundle request fails', async () => {
+    const getSourceAssetsBundle = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    const getSourceAsset = vi
+      .fn()
+      .mockImplementation(async (_book: string, _source: string, name: string) =>
+        new Blob([`bytes of ${name}`], { type: 'image/png' })
+      );
+    const provider = makeProvider({
+      getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'md' })),
+      listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
+      getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
+      getSourceContent: vi
+        .fn()
+        .mockResolvedValue('![a](assets/img-0001.png)\n\n![b](assets/img-0002.png)'),
+      getSourceAssetsBundle,
+      getSourceAsset
+    });
+
+    await provider.downloadBook('book-1');
+
+    expect(getSourceAssetsBundle).toHaveBeenCalledTimes(1);
+    // Every referenced figure was fetched one at a time and stored.
+    expect(getSourceAsset.mock.calls.map((call) => call[2]).sort()).toEqual([
+      'img-0001.png',
+      'img-0002.png'
+    ]);
+    expect(await (await cache.getCachedAsset('book-1', 'src-1', 'img-0001.png'))!.text()).toBe(
+      'bytes of img-0001.png'
+    );
+    expect((await cache.listDownloadedManifests()).map((m) => m.book.id)).toEqual(['book-1']);
+  });
+
+  // A well-formed response that is not a valid archive is a bundle failure like
+  // any other, and drops to the per-file path rather than losing the figures.
+  it('falls back to per-file fetches when the bundle is a malformed archive', async () => {
+    const getSourceAssetsBundle = vi
+      .fn()
+      .mockResolvedValue(new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'application/zip' }));
+    const getSourceAsset = vi.fn().mockResolvedValue(new Blob(['fallback'], { type: 'image/png' }));
+    const provider = makeProvider({
+      getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'md' })),
+      listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
+      getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
+      getSourceContent: vi.fn().mockResolvedValue('![a](assets/img-0001.png)'),
+      getSourceAssetsBundle,
+      getSourceAsset
+    });
+
+    await provider.downloadBook('book-1');
+
+    expect(getSourceAsset).toHaveBeenCalledWith('book-1', 'src-1', 'img-0001.png');
+    expect(await cache.getCachedAsset('book-1', 'src-1', 'img-0001.png')).not.toBeNull();
   });
 });
 
