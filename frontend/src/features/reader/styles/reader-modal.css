@@ -215,8 +215,9 @@
   }
 
   .font-selection-modal {
-    /* Keep a definite width on small screens for the same reason as above. */
-    width: min(calc(96vw / var(--app-zoom, 1)), 620px);
+    /* Width is inherited from the default rule, whose definite
+       min(100vw - 32px, 620px) already fills the small-screen wrapper without
+       exceeding BaseDialog's calc(100vw - 32px) cap; only trim the padding. */
     padding: 12px;
   }
 
