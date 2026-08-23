@@ -21,7 +21,7 @@ const (
 type bookBatchRequest struct {
 	Operation   string       `json:"operation"`
 	BookIDs     []string     `json:"book_ids"`
-	TargetLayer shelf.Layers `json:"target_layer"`
+	TargetLayer shelf.FolderPath `json:"target_layer"`
 }
 
 func normalizeBookBatchIDs(ids []string) ([]string, error) {
@@ -77,7 +77,7 @@ func (h *batchHandlers) bookBatch(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "target_layer is required for move", http.StatusBadRequest)
 			return
 		}
-		if err := shelf.ValidateLayers(request.TargetLayer); err != nil {
+		if err := shelf.ValidateFolderPath(request.TargetLayer); err != nil {
 			http.Error(w, "invalid target_layer", http.StatusBadRequest)
 			return
 		}

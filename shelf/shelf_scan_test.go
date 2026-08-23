@@ -22,7 +22,7 @@ func requireSymlinks(t *testing.T) {
 // The shelf walk decides what to descend into from the ReadDir entry instead of
 // stat'ing every path, which halves the syscalls of a full scan. A symlink is
 // the case that cannot be answered that way: its readdir type byte describes
-// the link, not the directory behind it, so a symlinked layer and a symlinked
+// the link, not the directory behind it, so a symlinked folder and a symlinked
 // book package must still be walked rather than silently skipped.
 func TestIterateShelfTreeFollowsSymlinks(t *testing.T) {
 	requireSymlinks(t)
@@ -30,20 +30,20 @@ func TestIterateShelfTreeFollowsSymlinks(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	book, err := shelf.NewBook(Layers{"real"}, "Alpha")
+	book, err := shelf.NewBook(FolderPath{"real"}, "Alpha")
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
-	pkgName := path.Base(book.FolderPath())
+	pkgName := path.Base(book.PackagePath())
 
 	booksDir := path.Join(tmpLib, booksFolder)
 
-	// A layer that is a symlink to another layer.
+	// A folder that is a symlink to another folder.
 	if err := os.Symlink("real", path.Join(booksDir, "linked-layer")); err != nil {
 		t.Fatalf("symlink layer: %v", err)
 	}
 
-	// A book package that is a symlink to a book package in another layer.
+	// A book package that is a symlink to a book package in another folder.
 	if err := os.Mkdir(path.Join(booksDir, "aliases"), 0755); err != nil {
 		t.Fatalf("mkdir aliases: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestIterateShelfTreeFollowsSymlinks(t *testing.T) {
 
 	var visited []string
 	if _, err := shelf.iterateShelfTree(nil, func(b *Book) bool {
-		visited = append(visited, b.FolderPath())
+		visited = append(visited, b.PackagePath())
 		return true
 	}); err != nil {
 		t.Fatalf("iterateShelfTree: %v", err)
@@ -70,13 +70,13 @@ func TestIterateShelfTreeFollowsSymlinks(t *testing.T) {
 	}
 }
 
-func TestIterateShelfTreeFollowsSymlinkedLayer(t *testing.T) {
+func TestIterateShelfTreeFollowsSymlinkedFolder(t *testing.T) {
 	requireSymlinks(t)
 
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	if _, err := shelf.NewBook(Layers{"real", "nested"}, "Alpha"); err != nil {
+	if _, err := shelf.NewBook(FolderPath{"real", "nested"}, "Alpha"); err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
 
@@ -86,7 +86,7 @@ func TestIterateShelfTreeFollowsSymlinkedLayer(t *testing.T) {
 	}
 
 	var visited []string
-	if _, err := shelf.iterateShelfTree(func(ls Layers) bool {
+	if _, err := shelf.iterateShelfTree(func(ls FolderPath) bool {
 		visited = append(visited, strings.Join(ls, "/"))
 		return true
 	}, nil); err != nil {
@@ -106,7 +106,7 @@ func TestIterateShelfTreeIgnoresFiles(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	if _, err := shelf.NewBook(Layers{"real"}, "Alpha"); err != nil {
+	if _, err := shelf.NewBook(FolderPath{"real"}, "Alpha"); err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
 

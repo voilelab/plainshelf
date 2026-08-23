@@ -59,12 +59,12 @@ func (h *shelfHandlers) rescanShelf(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		h.writeErr(w, err, "failed to rescan shelf")
 	default:
-		h.Info("rescanned shelf", "shelf_id", shelfData.ID, "scan_id", result.ID, "books", result.BookCount, "layers", result.LayerCount)
+		h.Info("rescanned shelf", "shelf_id", shelfData.ID, "scan_id", result.ID, "books", result.BookCount, "layers", result.FolderCount)
 		h.writeJSON(w, http.StatusOK, ScanResponse{
 			ScanID:     result.ID,
 			ScannedAt:  result.StartedAt.Unix(),
 			BookCount:  result.BookCount,
-			LayerCount: result.LayerCount,
+			LayerCount: result.FolderCount,
 		})
 	}
 }

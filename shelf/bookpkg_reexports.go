@@ -52,7 +52,7 @@ const (
 	SplitTypeBoundary  = bookpkg.SplitTypeBoundary
 )
 
-// Sentinel errors raised by the book package layer.
+// Sentinel errors raised by the book package folder.
 var (
 	ErrSourceNotFound                 = bookpkg.ErrSourceNotFound
 	ErrInvalidIdentifierKey           = bookpkg.ErrInvalidIdentifierKey

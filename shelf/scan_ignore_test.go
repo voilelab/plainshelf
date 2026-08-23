@@ -27,17 +27,17 @@ var ignoredDirFixtures = []string{
 	".TemporaryItems",
 }
 
-// userLayerDirs is the layer tree the user actually built, relative to books/.
-var userLayerDirs = []string{
+// userFolderDirs is the folder tree the user actually built, relative to books/.
+var userFolderDirs = []string{
 	"Fiction",
 	"Fiction/Classics",
 	"Empty",
 }
 
-func makeUserLayerTree(t *testing.T, libRoot string) {
+func makeUserFolderTree(t *testing.T, libRoot string) {
 	t.Helper()
 
-	for _, dir := range userLayerDirs {
+	for _, dir := range userFolderDirs {
 		if err := os.MkdirAll(path.Join(libRoot, booksFolder, dir), 0755); err != nil {
 			t.Fatalf("Failed to create layer %s: %v", dir, err)
 		}
@@ -45,13 +45,13 @@ func makeUserLayerTree(t *testing.T, libRoot string) {
 }
 
 // plantIgnoredDirs drops one of every ignored directory under books/ and under
-// every user layer, each holding a plain subdirectory. This is the Synology
+// every user folder, each holding a plain subdirectory. This is the Synology
 // shape: "@eaDir" exists at every level, so a scanner that descends into it
-// reports roughly twice the layers the user made.
+// reports roughly twice the folders the user made.
 func plantIgnoredDirs(t *testing.T, libRoot string) {
 	t.Helper()
 
-	parents := append([]string{"."}, userLayerDirs...)
+	parents := append([]string{"."}, userFolderDirs...)
 	for _, parent := range parents {
 		for _, name := range ignoredDirFixtures {
 			noisePath := path.Join(libRoot, booksFolder, parent, name, "nested")
@@ -64,10 +64,10 @@ func plantIgnoredDirs(t *testing.T, libRoot string) {
 
 // writeFixtureBook creates a book package directly on disk, bypassing NewBook
 // so that it can be planted inside a directory the API refuses to name.
-func writeFixtureBook(t *testing.T, libRoot, layerDir, bookID string) {
+func writeFixtureBook(t *testing.T, libRoot, folderDir, bookID string) {
 	t.Helper()
 
-	bookPath := path.Join(libRoot, booksFolder, layerDir, bookID+bookExtension)
+	bookPath := path.Join(libRoot, booksFolder, folderDir, bookID+bookExtension)
 	if err := os.MkdirAll(bookPath, 0755); err != nil {
 		t.Fatalf("Failed to create book dir %s: %v", bookPath, err)
 	}
@@ -77,41 +77,41 @@ func writeFixtureBook(t *testing.T, libRoot, layerDir, bookID string) {
 	}
 }
 
-func layerStrings(layers []Layers) []string {
-	out := make([]string, 0, len(layers))
-	for _, layer := range layers {
-		out = append(out, layer.String())
+func folderStrings(folders []FolderPath) []string {
+	out := make([]string, 0, len(folders))
+	for _, folder := range folders {
+		out = append(out, folder.String())
 	}
 	return out
 }
 
-func TestGetAllLayersIgnoresSystemDirectories(t *testing.T) {
+func TestGetAllFoldersIgnoresSystemDirectories(t *testing.T) {
 	cleanRoot := t.TempDir()
 	noisyRoot := t.TempDir()
 
-	makeUserLayerTree(t, cleanRoot)
-	makeUserLayerTree(t, noisyRoot)
+	makeUserFolderTree(t, cleanRoot)
+	makeUserFolderTree(t, noisyRoot)
 	plantIgnoredDirs(t, noisyRoot)
 
 	cleanShelf := newTestShelf(t, &ShelfConf{LibRoot: cleanRoot, LockMode: "none"})
 	noisyShelf := newTestShelf(t, &ShelfConf{LibRoot: noisyRoot, LockMode: "none"})
 
-	cleanLayers, err := cleanShelf.GetAllLayers()
+	cleanFolders, err := cleanShelf.GetAllFolders()
 	if err != nil {
-		t.Fatalf("GetAllLayers on clean shelf: %v", err)
+		t.Fatalf("GetAllFolders on clean shelf: %v", err)
 	}
-	noisyLayers, err := noisyShelf.GetAllLayers()
+	noisyFolders, err := noisyShelf.GetAllFolders()
 	if err != nil {
-		t.Fatalf("GetAllLayers on noisy shelf: %v", err)
+		t.Fatalf("GetAllFolders on noisy shelf: %v", err)
 	}
 
-	clean := layerStrings(cleanLayers)
-	noisy := layerStrings(noisyLayers)
+	clean := folderStrings(cleanFolders)
+	noisy := folderStrings(noisyFolders)
 
 	// Guard against the comparison passing because both sides are empty.
 	found := false
-	for _, layer := range clean {
-		if layer == "Fiction/Classics" {
+	for _, folder := range clean {
+		if folder == "Fiction/Classics" {
 			found = true
 		}
 	}
@@ -126,7 +126,7 @@ func TestGetAllLayersIgnoresSystemDirectories(t *testing.T) {
 
 func TestIterateBooksSkipsIgnoredDirectories(t *testing.T) {
 	libRoot := t.TempDir()
-	makeUserLayerTree(t, libRoot)
+	makeUserFolderTree(t, libRoot)
 
 	writeFixtureBook(t, libRoot, "Fiction/Classics", "keep-0001")
 	// A deleted book still sitting in the NAS recycle bin must not come back.
@@ -152,7 +152,7 @@ func TestIterateBooksSkipsIgnoredDirectories(t *testing.T) {
 
 func TestBookCacheExportOmitsIgnoredDirectories(t *testing.T) {
 	libRoot := t.TempDir()
-	makeUserLayerTree(t, libRoot)
+	makeUserFolderTree(t, libRoot)
 	plantIgnoredDirs(t, libRoot)
 
 	shelf := newTestShelf(t, &ShelfConf{
@@ -167,17 +167,17 @@ func TestBookCacheExportOmitsIgnoredDirectories(t *testing.T) {
 
 	cache := waitForBookCacheExport(t, libRoot, testWriterID)
 
-	for _, layer := range cache.Layers {
-		for segment := range strings.SplitSeq(layer, "/") {
+	for _, folder := range cache.Folders {
+		for segment := range strings.SplitSeq(folder, "/") {
 			if segment != "" && shelfutil.IsIgnoredDir(segment) {
-				t.Errorf("Exported cache layer %q contains ignored directory %q", layer, segment)
+				t.Errorf("Exported cache layer %q contains ignored directory %q", folder, segment)
 			}
 		}
 	}
 
 	expected := []string{"/", "Empty", "Fiction", "Fiction/Classics"}
-	if strings.Join(cache.Layers, "|") != strings.Join(expected, "|") {
-		t.Errorf("Expected exported layers %v, got %v", expected, cache.Layers)
+	if strings.Join(cache.Folders, "|") != strings.Join(expected, "|") {
+		t.Errorf("Expected exported layers %v, got %v", expected, cache.Folders)
 	}
 }
 
@@ -212,53 +212,53 @@ func TestIsIgnoredDir(t *testing.T) {
 	}
 }
 
-func TestValidateLayersRejectsIgnoredNames(t *testing.T) {
+func TestValidateFolderPathRejectsIgnoredNames(t *testing.T) {
 	for _, name := range ignoredDirFixtures {
-		if err := validateLayers(Layers{name}); err == nil {
-			t.Errorf("Expected validateLayers to reject %q, got nil", name)
+		if err := validateFolderPath(FolderPath{name}); err == nil {
+			t.Errorf("Expected validateFolderPath to reject %q, got nil", name)
 		}
-		if err := validateLayers(Layers{"Fiction", name}); err == nil {
-			t.Errorf("Expected validateLayers to reject nested %q, got nil", name)
+		if err := validateFolderPath(FolderPath{"Fiction", name}); err == nil {
+			t.Errorf("Expected validateFolderPath to reject nested %q, got nil", name)
 		}
 	}
 
-	if err := validateLayers(Layers{"Fiction", "Classics"}); err != nil {
+	if err := validateFolderPath(FolderPath{"Fiction", "Classics"}); err != nil {
 		t.Errorf("Expected an ordinary layer to stay valid, got %v", err)
 	}
 }
 
 // The API answers a name from the ignore list with its own explanation, so the
-// rejection has to be distinguishable from every other invalid layer while
+// rejection has to be distinguishable from every other invalid folder while
 // still classifying as one.
-func TestValidateLayersReportsIgnoredNamesAsTheirOwnSentinel(t *testing.T) {
+func TestValidateFolderPathReportsIgnoredNamesAsTheirOwnSentinel(t *testing.T) {
 	for _, name := range ignoredDirFixtures {
-		err := validateLayers(Layers{name})
-		if !errors.Is(err, ErrIgnoredLayerName) {
-			t.Errorf("validateLayers(%q) = %v, want ErrIgnoredLayerName", name, err)
+		err := validateFolderPath(FolderPath{name})
+		if !errors.Is(err, ErrIgnoredFolderName) {
+			t.Errorf("validateFolderPath(%q) = %v, want ErrIgnoredFolderName", name, err)
 		}
-		if !errors.Is(err, ErrInvalidLayer) {
-			t.Errorf("validateLayers(%q) = %v, want ErrInvalidLayer too", name, err)
+		if !errors.Is(err, ErrInvalidFolder) {
+			t.Errorf("validateFolderPath(%q) = %v, want ErrInvalidFolder too", name, err)
 		}
 	}
 
 	// Any other rejection keeps the general sentinel alone.
 	for _, name := range []string{"", "..", "with/separator", "Book.bookpkg"} {
-		err := validateLayers(Layers{name})
-		if !errors.Is(err, ErrInvalidLayer) {
-			t.Errorf("validateLayers(%q) = %v, want ErrInvalidLayer", name, err)
+		err := validateFolderPath(FolderPath{name})
+		if !errors.Is(err, ErrInvalidFolder) {
+			t.Errorf("validateFolderPath(%q) = %v, want ErrInvalidFolder", name, err)
 		}
-		if errors.Is(err, ErrIgnoredLayerName) {
-			t.Errorf("validateLayers(%q) matched ErrIgnoredLayerName, want the general sentinel only", name)
+		if errors.Is(err, ErrIgnoredFolderName) {
+			t.Errorf("validateFolderPath(%q) matched ErrIgnoredFolderName, want the general sentinel only", name)
 		}
 	}
 }
 
-func TestNewLayerRejectsIgnoredNames(t *testing.T) {
+func TestNewFolderRejectsIgnoredNames(t *testing.T) {
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
-	err := shelf.NewLayer(Layers{"@eaDir"})
+	err := shelf.NewFolder(FolderPath{}, "@eaDir")
 	if err == nil {
-		t.Fatal("Expected NewLayer to reject @eaDir, got nil")
+		t.Fatal("Expected NewFolder to reject @eaDir, got nil")
 	}
 	// The message has to say why, since the directory would be creatable but
 	// then invisible to every later scan.

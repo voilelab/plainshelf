@@ -64,15 +64,15 @@ func TestBookCacheExportAfterInitialScan(t *testing.T) {
 		BookCacheWriterID: testWriterID,
 	})
 
-	if err := shelf.NewLayer(Layers{"Fiction", "Classics"}); err != nil {
-		t.Fatalf("NewLayer: %v", err)
+	if err := shelf.NewFolder(FolderPath{"Fiction"}, "Classics"); err != nil {
+		t.Fatalf("NewFolder: %v", err)
 	}
-	// An empty layer is the case a per-book listing cannot reconstruct, which is
-	// why the file records layers separately.
-	if err := shelf.NewLayer(Layers{"Empty"}); err != nil {
-		t.Fatalf("NewLayer: %v", err)
+	// An empty folder is the case a per-book listing cannot reconstruct, which is
+	// why the file records folders separately.
+	if err := shelf.NewFolder(FolderPath{}, "Empty"); err != nil {
+		t.Fatalf("NewFolder: %v", err)
 	}
-	book, err := shelf.NewBook(Layers{"Fiction", "Classics"}, "Dune")
+	book, err := shelf.NewBook(FolderPath{"Fiction", "Classics"}, "Dune")
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
@@ -99,8 +99,8 @@ func TestBookCacheExportAfterInitialScan(t *testing.T) {
 	if !ok {
 		t.Fatalf("book %q missing from the exported cache: %v", book.ID(), cache.Books)
 	}
-	if entry.Path != book.FolderPath() {
-		t.Errorf("path = %q, want %q", entry.Path, book.FolderPath())
+	if entry.Path != book.PackagePath() {
+		t.Errorf("path = %q, want %q", entry.Path, book.PackagePath())
 	}
 	if entry.Meta == nil || entry.Meta.Title != "Dune" {
 		t.Errorf("exported meta = %+v, want the book.json of Dune", entry.Meta)
@@ -109,16 +109,16 @@ func TestBookCacheExportAfterInitialScan(t *testing.T) {
 	// "/" for the top level matches what the API and the pCloud client use.
 	want := map[string]bool{"/": true, "Fiction": true, "Fiction/Classics": true, "Empty": true}
 	got := map[string]bool{}
-	for _, layer := range cache.Layers {
-		got[layer] = true
+	for _, folder := range cache.Folders {
+		got[folder] = true
 	}
-	for layer := range want {
-		if !got[layer] {
-			t.Errorf("layer %q missing from %v", layer, cache.Layers)
+	for folder := range want {
+		if !got[folder] {
+			t.Errorf("layer %q missing from %v", folder, cache.Folders)
 		}
 	}
-	if len(cache.Layers) != len(want) {
-		t.Errorf("layers = %v, want exactly %d entries", cache.Layers, len(want))
+	if len(cache.Folders) != len(want) {
+		t.Errorf("layers = %v, want exactly %d entries", cache.Folders, len(want))
 	}
 }
 

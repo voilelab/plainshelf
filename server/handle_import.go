@@ -181,7 +181,7 @@ func validateLocalImportPath(localPath string) (string, error) {
 func newPlainTextBook(
 	shelfData *shelf.ShelfData,
 	utf8Reader io.Reader,
-	layerParts shelf.Layers,
+	layerParts shelf.FolderPath,
 	title string,
 	filename string,
 ) (*shelf.Book, error) {
@@ -295,7 +295,7 @@ func (h *importHandlers) writeEPUBImportError(w http.ResponseWriter, err error) 
 // writeImportedBook responds with the freshly imported book. The book was
 // created under layerParts, which is where it now sits; the book itself does
 // not carry its layer back.
-func (h *importHandlers) writeImportedBook(w http.ResponseWriter, newBook *shelf.Book, layerParts shelf.Layers) {
+func (h *importHandlers) writeImportedBook(w http.ResponseWriter, newBook *shelf.Book, layerParts shelf.FolderPath) {
 	h.writeJSON(w, http.StatusCreated, Book{
 		Meta:  newBook.GetMeta(),
 		Layer: layerParts,
@@ -305,7 +305,7 @@ func (h *importHandlers) writeImportedBook(w http.ResponseWriter, newBook *shelf
 // fromLocalPath imports a book from a local file path on the server.
 // This is intended for desktop application use, where the client can specify a
 // local file path and the server can access it directly.
-func (h *importHandlers) fromLocalPath(shelfID string, localPath string, layerParts shelf.Layers) (*shelf.Book, error) {
+func (h *importHandlers) fromLocalPath(shelfID string, localPath string, layerParts shelf.FolderPath) (*shelf.Book, error) {
 	cleanPath, err := validateLocalImportPath(localPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)

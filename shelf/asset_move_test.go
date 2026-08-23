@@ -31,7 +31,7 @@ func TestSourceAssetsSurviveMoveAndTrashRestore(t *testing.T) {
 	libRoot := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
 
-	book, err := s.NewBook(Layers{"before"}, "Travelling Art")
+	book, err := s.NewBook(FolderPath{"before"}, "Travelling Art")
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestSourceAssetsSurviveMoveAndTrashRestore(t *testing.T) {
 		}
 	}
 
-	if _, err := s.MoveBook(bookID, Layers{"after", "nested"}); err != nil {
+	if _, err := s.MoveBook(bookID, FolderPath{"after", "nested"}); err != nil {
 		t.Fatalf("MoveBook: %v", err)
 	}
 	assertAssetReadable(t, "move")

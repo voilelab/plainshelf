@@ -12,7 +12,7 @@ import (
 )
 
 // twoShelvesWithLibs is twoShelves but also hands back the source library path,
-// which the layer tests need to assert the source subtree is gone after a move.
+// which the folder tests need to assert the source subtree is gone after a move.
 func twoShelvesWithLibs(t *testing.T) (source, target *Shelf, sourceLib, targetLib string) {
 	t.Helper()
 	sourceLib = path.Join(t.TempDir(), "source")
@@ -22,9 +22,9 @@ func twoShelvesWithLibs(t *testing.T) (source, target *Shelf, sourceLib, targetL
 	return source, target, sourceLib, targetLib
 }
 
-func layerDirExists(t *testing.T, lib string, layer Layers) bool {
+func folderDirExists(t *testing.T, lib string, folder FolderPath) bool {
 	t.Helper()
-	segs := append([]string{lib, booksFolder}, layer...)
+	segs := append([]string{lib, booksFolder}, folder...)
 	_, err := os.Stat(filepath.Join(segs...))
 	if err == nil {
 		return true
@@ -32,17 +32,17 @@ func layerDirExists(t *testing.T, lib string, layer Layers) bool {
 	if errors.Is(err, os.ErrNotExist) {
 		return false
 	}
-	t.Fatalf("stat layer dir %v: %v", layer, err)
+	t.Fatalf("stat layer dir %v: %v", folder, err)
 	return false
 }
 
-// bookIDsByLayer returns the IDs of the books the target lists directly under
-// layer, sorted, so a test can assert the exact set landed there.
-func bookIDsByLayer(t *testing.T, s *Shelf, layer Layers) []string {
+// bookIDsByFolder returns the IDs of the books the target lists directly under
+// folder, sorted, so a test can assert the exact set landed there.
+func bookIDsByFolder(t *testing.T, s *Shelf, folder FolderPath) []string {
 	t.Helper()
-	books, err := s.GetBooksByLayer(layer)
+	books, err := s.GetBooksByFolder(folder)
 	if err != nil {
-		t.Fatalf("GetBooksByLayer %v: %v", layer, err)
+		t.Fatalf("GetBooksByFolder %v: %v", folder, err)
 	}
 	ids := make([]string, 0, len(books))
 	for _, b := range books {
@@ -52,53 +52,53 @@ func bookIDsByLayer(t *testing.T, s *Shelf, layer Layers) []string {
 	return ids
 }
 
-// A cross-shelf layer copy reproduces the whole subtree - nested layers, an
+// A cross-shelf folder copy reproduces the whole subtree - nested folders, an
 // empty sub-folder, and every book - on the target, gives each book a fresh ID,
 // and leaves the source completely intact.
-func TestShelfCopyLayerFromNestedGivesNewIDs(t *testing.T) {
+func TestShelfCopyFolderFromNestedGivesNewIDs(t *testing.T) {
 	source, target, _, targetLib := twoShelvesWithLibs(t)
 
-	top := seedBook(t, source, Layers{"fiction"}, "Top")
-	mid := seedBook(t, source, Layers{"fiction", "sci-fi"}, "Mid")
-	deep := seedBook(t, source, Layers{"fiction", "sci-fi", "hard"}, "Deep")
-	// A sub-layer that holds no book, to prove the structure carries across even
+	top := seedBook(t, source, FolderPath{"fiction"}, "Top")
+	mid := seedBook(t, source, FolderPath{"fiction", "sci-fi"}, "Mid")
+	deep := seedBook(t, source, FolderPath{"fiction", "sci-fi", "hard"}, "Deep")
+	// A sub-folder that holds no book, to prove the structure carries across even
 	// where there is nothing to publish.
-	if err := source.NewLayer(Layers{"fiction", "empty"}); err != nil {
-		t.Fatalf("NewLayer: %v", err)
+	if err := source.NewFolder(FolderPath{"fiction"}, "empty"); err != nil {
+		t.Fatalf("NewFolder: %v", err)
 	}
 
-	copied, err := target.CopyLayerFrom(source, Layers{"fiction"}, Layers{"imported"})
+	copied, err := target.CopyFolderFrom(source, FolderPath{"fiction"}, FolderPath{"imported"})
 	if err != nil {
-		t.Fatalf("CopyLayerFrom: %v", err)
+		t.Fatalf("CopyFolderFrom: %v", err)
 	}
 	if len(copied) != 3 {
-		t.Fatalf("CopyLayerFrom copied %d books, want 3", len(copied))
+		t.Fatalf("CopyFolderFrom copied %d books, want 3", len(copied))
 	}
 
-	// Every original book lands under its remapped layer, each with a new ID.
+	// Every original book lands under its remapped folder, each with a new ID.
 	for _, tc := range []struct {
 		original *Book
-		layer    Layers
+		folder    FolderPath
 	}{
-		{top, Layers{"imported"}},
-		{mid, Layers{"imported", "sci-fi"}},
-		{deep, Layers{"imported", "sci-fi", "hard"}},
+		{top, FolderPath{"imported"}},
+		{mid, FolderPath{"imported", "sci-fi"}},
+		{deep, FolderPath{"imported", "sci-fi", "hard"}},
 	} {
-		ids := bookIDsByLayer(t, target, tc.layer)
+		ids := bookIDsByFolder(t, target, tc.folder)
 		if len(ids) != 1 {
-			t.Fatalf("target layer %v holds %v, want one book", tc.layer, ids)
+			t.Fatalf("target layer %v holds %v, want one book", tc.folder, ids)
 		}
 		if ids[0] == tc.original.ID() {
-			t.Errorf("copy under %v reused the original ID %q", tc.layer, tc.original.ID())
+			t.Errorf("copy under %v reused the original ID %q", tc.folder, tc.original.ID())
 		}
 	}
 
 	// The empty sub-folder is reproduced on the target.
-	if !layerDirExists(t, targetLib, Layers{"imported", "empty"}) {
+	if !folderDirExists(t, targetLib, FolderPath{"imported", "empty"}) {
 		t.Errorf("empty sub-layer was not reproduced on the target")
 	}
 
-	// The source keeps all three books under their original IDs and layers.
+	// The source keeps all three books under their original IDs and folders.
 	for _, b := range []*Book{top, mid, deep} {
 		if _, err := source.GetBook(b.ID()); err != nil {
 			t.Errorf("source lost %q after a copy: %v", b.ID(), err)
@@ -115,29 +115,29 @@ func TestShelfCopyLayerFromNestedGivesNewIDs(t *testing.T) {
 	assertStagingClean(t, targetLib)
 }
 
-// A cross-shelf layer move keeps every book's ID, publishes the subtree on the
-// target, empties the source layer into its trash, and removes the now-empty
+// A cross-shelf folder move keeps every book's ID, publishes the subtree on the
+// target, empties the source folder into its trash, and removes the now-empty
 // source subtree.
-func TestShelfMoveLayerFromNestedPreservesIDs(t *testing.T) {
+func TestShelfMoveFolderFromNestedPreservesIDs(t *testing.T) {
 	source, target, sourceLib, targetLib := twoShelvesWithLibs(t)
 
-	top := seedBook(t, source, Layers{"fiction"}, "Top")
-	mid := seedBook(t, source, Layers{"fiction", "sci-fi"}, "Mid")
+	top := seedBook(t, source, FolderPath{"fiction"}, "Top")
+	mid := seedBook(t, source, FolderPath{"fiction", "sci-fi"}, "Mid")
 	topID, midID := top.ID(), mid.ID()
 
-	moved, err := target.MoveLayerFrom(source, Layers{"fiction"}, Layers{"archive"})
+	moved, err := target.MoveFolderFrom(source, FolderPath{"fiction"}, FolderPath{"archive"})
 	if err != nil {
-		t.Fatalf("MoveLayerFrom: %v", err)
+		t.Fatalf("MoveFolderFrom: %v", err)
 	}
 	if len(moved) != 2 {
-		t.Fatalf("MoveLayerFrom moved %d books, want 2", len(moved))
+		t.Fatalf("MoveFolderFrom moved %d books, want 2", len(moved))
 	}
 
-	// The target lists both books, under their original IDs, at the remapped layers.
-	if got := bookIDsByLayer(t, target, Layers{"archive"}); len(got) != 1 || got[0] != topID {
+	// The target lists both books, under their original IDs, at the remapped folders.
+	if got := bookIDsByFolder(t, target, FolderPath{"archive"}); len(got) != 1 || got[0] != topID {
 		t.Errorf("target [archive] = %v, want [%s]", got, topID)
 	}
-	if got := bookIDsByLayer(t, target, Layers{"archive", "sci-fi"}); len(got) != 1 || got[0] != midID {
+	if got := bookIDsByFolder(t, target, FolderPath{"archive", "sci-fi"}); len(got) != 1 || got[0] != midID {
 		t.Errorf("target [archive sci-fi] = %v, want [%s]", got, midID)
 	}
 
@@ -156,7 +156,7 @@ func TestShelfMoveLayerFromNestedPreservesIDs(t *testing.T) {
 	}
 
 	// The emptied source subtree is gone.
-	if layerDirExists(t, sourceLib, Layers{"fiction"}) {
+	if folderDirExists(t, sourceLib, FolderPath{"fiction"}) {
 		t.Errorf("source layer subtree survived the move")
 	}
 
@@ -167,9 +167,9 @@ func TestShelfMoveLayerFromNestedPreservesIDs(t *testing.T) {
 // unparseable, so bookpkg.Open fails on it and the scan skips it - the shape of
 // a corrupt package a move must not silently destroy. It returns the package's
 // on-disk path.
-func plantBrokenPackageOnDisk(t *testing.T, lib string, layer Layers, folderName string) string {
+func plantBrokenPackageOnDisk(t *testing.T, lib string, folder FolderPath, folderName string) string {
 	t.Helper()
-	dir := filepath.Join(append([]string{lib, booksFolder}, layer...)...)
+	dir := filepath.Join(append([]string{lib, booksFolder}, folder...)...)
 	dir = filepath.Join(dir, folderName+bookExtension)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("MkdirAll broken package: %v", err)
@@ -184,20 +184,20 @@ func plantBrokenPackageOnDisk(t *testing.T, lib string, layer Layers, folderName
 // scan could not read: it was never in the transfer plan, so blowing away the
 // subtree would destroy it permanently, bypassing the trash a delete routes
 // through. The unreadable package - and the folder holding it - survive.
-func TestShelfMoveLayerFromPreservesUnreadablePackage(t *testing.T) {
+func TestShelfMoveFolderFromPreservesUnreadablePackage(t *testing.T) {
 	source, target, sourceLib, targetLib := twoShelvesWithLibs(t)
 
-	good := seedBook(t, source, Layers{"fiction"}, "Readable")
+	good := seedBook(t, source, FolderPath{"fiction"}, "Readable")
 	goodID := good.ID()
 	// An empty sub-folder that should be pruned, and a corrupt package that must not.
-	if err := source.NewLayer(Layers{"fiction", "empty"}); err != nil {
-		t.Fatalf("NewLayer: %v", err)
+	if err := source.NewFolder(FolderPath{"fiction"}, "empty"); err != nil {
+		t.Fatalf("NewFolder: %v", err)
 	}
-	brokenPath := plantBrokenPackageOnDisk(t, sourceLib, Layers{"fiction"}, "corrupt")
+	brokenPath := plantBrokenPackageOnDisk(t, sourceLib, FolderPath{"fiction"}, "corrupt")
 
-	moved, err := target.MoveLayerFrom(source, Layers{"fiction"}, Layers{"archive"})
+	moved, err := target.MoveFolderFrom(source, FolderPath{"fiction"}, FolderPath{"archive"})
 	if err != nil {
-		t.Fatalf("MoveLayerFrom: %v", err)
+		t.Fatalf("MoveFolderFrom: %v", err)
 	}
 	if len(moved) != 1 || moved[0].ID() != goodID {
 		t.Fatalf("moved = %v, want just the readable book %s", moved, goodID)
@@ -208,11 +208,11 @@ func TestShelfMoveLayerFromPreservesUnreadablePackage(t *testing.T) {
 		t.Errorf("move destroyed the unreadable package: %v", err)
 	}
 	// Its containing folder is kept because it is not empty...
-	if !layerDirExists(t, sourceLib, Layers{"fiction"}) {
+	if !folderDirExists(t, sourceLib, FolderPath{"fiction"}) {
 		t.Errorf("move removed a source folder that still held a package")
 	}
 	// ...while the genuinely empty sub-folder beside it is pruned.
-	if layerDirExists(t, sourceLib, Layers{"fiction", "empty"}) {
+	if folderDirExists(t, sourceLib, FolderPath{"fiction", "empty"}) {
 		t.Errorf("move left an empty source sub-folder behind")
 	}
 
@@ -226,25 +226,25 @@ func TestShelfMoveLayerFromPreservesUnreadablePackage(t *testing.T) {
 // A move whose books partly collide with the target's is refused, and the whole
 // colliding set is reported at once - not just the first ID. Neither shelf is
 // modified: the source keeps every book and the target gains no subtree.
-func TestShelfMoveLayerFromReportsAllIDConflicts(t *testing.T) {
+func TestShelfMoveFolderFromReportsAllIDConflicts(t *testing.T) {
 	source, target, sourceLib, targetLib := twoShelvesWithLibs(t)
 
-	a := seedBook(t, source, Layers{"fiction"}, "Alpha")
-	b := seedBook(t, source, Layers{"fiction", "sci-fi"}, "Bravo")
-	c := seedBook(t, source, Layers{"fiction", "sci-fi"}, "Charlie")
+	a := seedBook(t, source, FolderPath{"fiction"}, "Alpha")
+	b := seedBook(t, source, FolderPath{"fiction", "sci-fi"}, "Bravo")
+	c := seedBook(t, source, FolderPath{"fiction", "sci-fi"}, "Charlie")
 
 	// Two of the three IDs already sit on the target's disk, added the way another
 	// instance would - so pre-flight must rescan to see them and must report both.
-	plantBookOnDisk(t, targetLib, Layers{"existing-a"}, a.ID(), "Planted A")
-	plantBookOnDisk(t, targetLib, Layers{"existing-c"}, c.ID(), "Planted C")
+	plantBookOnDisk(t, targetLib, FolderPath{"existing-a"}, a.ID(), "Planted A")
+	plantBookOnDisk(t, targetLib, FolderPath{"existing-c"}, c.ID(), "Planted C")
 
-	_, err := target.MoveLayerFrom(source, Layers{"fiction"}, Layers{"archive"})
+	_, err := target.MoveFolderFrom(source, FolderPath{"fiction"}, FolderPath{"archive"})
 	if !errors.Is(err, ErrBookIDConflict) {
-		t.Fatalf("MoveLayerFrom into a conflict = %v, want ErrBookIDConflict", err)
+		t.Fatalf("MoveFolderFrom into a conflict = %v, want ErrBookIDConflict", err)
 	}
-	var conflict *LayerBookIDConflictError
+	var conflict *FolderBookIDConflictError
 	if !errors.As(err, &conflict) {
-		t.Fatalf("error %v is not a *LayerBookIDConflictError", err)
+		t.Fatalf("error %v is not a *FolderBookIDConflictError", err)
 	}
 	got := append([]string(nil), conflict.BookIDs...)
 	sort.Strings(got)
@@ -267,26 +267,26 @@ func TestShelfMoveLayerFromReportsAllIDConflicts(t *testing.T) {
 			t.Errorf("a refused move trashed source book %q", bk.ID())
 		}
 	}
-	if layerDirExists(t, sourceLib, Layers{"fiction"}) == false {
+	if folderDirExists(t, sourceLib, FolderPath{"fiction"}) == false {
 		t.Errorf("refused move removed the source layer")
 	}
 
 	// The target gained no destination subtree - pre-flight failed before any file
 	// was touched.
-	if layerDirExists(t, targetLib, Layers{"archive"}) {
+	if folderDirExists(t, targetLib, FolderPath{"archive"}) {
 		t.Errorf("refused move left a destination layer on the target")
 	}
 
 	assertStagingClean(t, targetLib)
 }
 
-// A read-only target refuses a layer transfer before it stages or creates
+// A read-only target refuses a folder transfer before it stages or creates
 // anything: the source is untouched and no destination subtree appears.
-func TestShelfCopyLayerFromRefusesReadOnlyTarget(t *testing.T) {
+func TestShelfCopyFolderFromRefusesReadOnlyTarget(t *testing.T) {
 	sourceLib := path.Join(t.TempDir(), "source")
 	targetLib := path.Join(t.TempDir(), "target")
 	source := newTestShelf(t, &ShelfConf{LibRoot: sourceLib})
-	original := seedBook(t, source, Layers{"fiction"}, "Locked Out")
+	original := seedBook(t, source, FolderPath{"fiction"}, "Locked Out")
 
 	// Lay the target's structure down writable, then reopen it read-only.
 	seed, err := NewShelf(&ShelfConf{LibRoot: targetLib})
@@ -301,24 +301,24 @@ func TestShelfCopyLayerFromRefusesReadOnlyTarget(t *testing.T) {
 	}
 	target := newTestShelf(t, &ShelfConf{LibRoot: targetLib, ReadOnly: true})
 
-	if _, err := target.CopyLayerFrom(source, Layers{"fiction"}, Layers{"imported"}); !errors.Is(err, fsutil.ErrReadOnly) {
-		t.Fatalf("CopyLayerFrom into a read-only target = %v, want fsutil.ErrReadOnly", err)
+	if _, err := target.CopyFolderFrom(source, FolderPath{"fiction"}, FolderPath{"imported"}); !errors.Is(err, fsutil.ErrReadOnly) {
+		t.Fatalf("CopyFolderFrom into a read-only target = %v, want fsutil.ErrReadOnly", err)
 	}
-	if _, err := target.MoveLayerFrom(source, Layers{"fiction"}, Layers{"imported"}); !errors.Is(err, fsutil.ErrReadOnly) {
-		t.Fatalf("MoveLayerFrom into a read-only target = %v, want fsutil.ErrReadOnly", err)
+	if _, err := target.MoveFolderFrom(source, FolderPath{"fiction"}, FolderPath{"imported"}); !errors.Is(err, fsutil.ErrReadOnly) {
+		t.Fatalf("MoveFolderFrom into a read-only target = %v, want fsutil.ErrReadOnly", err)
 	}
 
 	if _, err := source.GetBook(original.ID()); err != nil {
 		t.Errorf("source modified by a refused read-only transfer: %v", err)
 	}
-	if layerDirExists(t, targetLib, Layers{"imported"}) {
+	if folderDirExists(t, targetLib, FolderPath{"imported"}) {
 		t.Errorf("refused read-only transfer created a destination layer")
 	}
 }
 
 // A move from a read-only source is refused before anything is copied: the
-// target gains nothing and the source keeps its layer.
-func TestShelfMoveLayerFromRefusesReadOnlySource(t *testing.T) {
+// target gains nothing and the source keeps its folder.
+func TestShelfMoveFolderFromRefusesReadOnlySource(t *testing.T) {
 	sourceLib := path.Join(t.TempDir(), "source")
 
 	seed, err := NewShelf(&ShelfConf{LibRoot: sourceLib})
@@ -328,7 +328,7 @@ func TestShelfMoveLayerFromRefusesReadOnlySource(t *testing.T) {
 	if err := seed.WaitReady(t.Context()); err != nil {
 		t.Fatalf("WaitReady seed: %v", err)
 	}
-	original := seedBook(t, seed, Layers{"fiction"}, "Frozen")
+	original := seedBook(t, seed, FolderPath{"fiction"}, "Frozen")
 	id := original.ID()
 	if err := seed.Close(); err != nil {
 		t.Fatalf("close seed: %v", err)
@@ -337,8 +337,8 @@ func TestShelfMoveLayerFromRefusesReadOnlySource(t *testing.T) {
 	source := newTestShelf(t, &ShelfConf{LibRoot: sourceLib, ReadOnly: true})
 	target := newTestShelf(t, &ShelfConf{LibRoot: path.Join(t.TempDir(), "target")})
 
-	if _, err := target.MoveLayerFrom(source, Layers{"fiction"}, Layers{"archive"}); !errors.Is(err, fsutil.ErrReadOnly) {
-		t.Fatalf("MoveLayerFrom from a read-only source = %v, want fsutil.ErrReadOnly", err)
+	if _, err := target.MoveFolderFrom(source, FolderPath{"fiction"}, FolderPath{"archive"}); !errors.Is(err, fsutil.ErrReadOnly) {
+		t.Fatalf("MoveFolderFrom from a read-only source = %v, want fsutil.ErrReadOnly", err)
 	}
 
 	targetBooks, err := target.ListBooks()
@@ -353,18 +353,18 @@ func TestShelfMoveLayerFromRefusesReadOnlySource(t *testing.T) {
 	}
 }
 
-// A transfer onto a layer the target already holds is refused, and nothing is
+// A transfer onto a folder the target already holds is refused, and nothing is
 // staged or moved.
-func TestShelfCopyLayerFromRefusesExistingTargetLayer(t *testing.T) {
+func TestShelfCopyFolderFromRefusesExistingTargetFolder(t *testing.T) {
 	source, target, _, targetLib := twoShelvesWithLibs(t)
-	seedBook(t, source, Layers{"fiction"}, "Original")
+	seedBook(t, source, FolderPath{"fiction"}, "Original")
 
-	if err := target.NewLayer(Layers{"imported"}); err != nil {
-		t.Fatalf("NewLayer: %v", err)
+	if err := target.NewFolder(FolderPath{}, "imported"); err != nil {
+		t.Fatalf("NewFolder: %v", err)
 	}
 
-	if _, err := target.CopyLayerFrom(source, Layers{"fiction"}, Layers{"imported"}); !errors.Is(err, ErrTargetLayerExists) {
-		t.Fatalf("CopyLayerFrom onto an existing layer = %v, want ErrTargetLayerExists", err)
+	if _, err := target.CopyFolderFrom(source, FolderPath{"fiction"}, FolderPath{"imported"}); !errors.Is(err, ErrTargetFolderExists) {
+		t.Fatalf("CopyFolderFrom onto an existing layer = %v, want ErrTargetFolderExists", err)
 	}
 
 	targetBooks, err := target.ListBooks()
@@ -377,22 +377,22 @@ func TestShelfCopyLayerFromRefusesExistingTargetLayer(t *testing.T) {
 	assertStagingClean(t, targetLib)
 }
 
-// A missing source layer is refused before any work, for both copy and move.
-func TestShelfCopyLayerFromMissingSourceLayer(t *testing.T) {
+// A missing source folder is refused before any work, for both copy and move.
+func TestShelfCopyFolderFromMissingSourceFolder(t *testing.T) {
 	source, target, _, _ := twoShelvesWithLibs(t)
-	seedBook(t, source, Layers{"fiction"}, "Elsewhere")
+	seedBook(t, source, FolderPath{"fiction"}, "Elsewhere")
 
-	if _, err := target.CopyLayerFrom(source, Layers{"nope"}, Layers{"imported"}); !errors.Is(err, ErrSourceLayerNotFound) {
-		t.Fatalf("CopyLayerFrom of a missing layer = %v, want ErrSourceLayerNotFound", err)
+	if _, err := target.CopyFolderFrom(source, FolderPath{"nope"}, FolderPath{"imported"}); !errors.Is(err, ErrSourceFolderNotFound) {
+		t.Fatalf("CopyFolderFrom of a missing layer = %v, want ErrSourceFolderNotFound", err)
 	}
 }
 
 // Naming one shelf as both source and target is refused rather than deadlocking.
-func TestShelfLayerTransferSameShelfRefused(t *testing.T) {
+func TestShelfFolderTransferSameShelfRefused(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: path.Join(t.TempDir(), "shelf")})
-	seedBook(t, s, Layers{"fiction"}, "Here")
+	seedBook(t, s, FolderPath{"fiction"}, "Here")
 
-	if _, err := s.CopyLayerFrom(s, Layers{"fiction"}, Layers{"elsewhere"}); !errors.Is(err, ErrSameShelfTransfer) {
-		t.Fatalf("CopyLayerFrom onto the same shelf = %v, want ErrSameShelfTransfer", err)
+	if _, err := s.CopyFolderFrom(s, FolderPath{"fiction"}, FolderPath{"elsewhere"}); !errors.Is(err, ErrSameShelfTransfer) {
+		t.Fatalf("CopyFolderFrom onto the same shelf = %v, want ErrSameShelfTransfer", err)
 	}
 }

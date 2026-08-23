@@ -428,7 +428,7 @@ func TestNewSource(t *testing.T) {
 	if book.CurrentSource() != "" {
 		t.Fatalf("creating a non-current source changed current source to %q", book.CurrentSource())
 	}
-	if _, err := rootFS.Stat(path.Join(book.FolderPath(), CurrentSourceHintFile)); !errors.Is(err, fs.ErrNotExist) {
+	if _, err := rootFS.Stat(path.Join(book.PackagePath(), CurrentSourceHintFile)); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("creating a non-current source wrote current pointer: %v", err)
 	}
 }
@@ -610,7 +610,7 @@ func TestCurrentSourceHintFile(t *testing.T) {
 	}
 
 	// Pretend an older build already wrote its hint under the previous name.
-	legacyPath := path.Join(book.FolderPath(), LegacyCurrentSourceHintFile)
+	legacyPath := path.Join(book.PackagePath(), LegacyCurrentSourceHintFile)
 	if err := rootFS.WriteFile(legacyPath, []byte("stale pointer")); err != nil {
 		t.Fatalf("Failed to seed the legacy hint file: %v", err)
 	}
@@ -619,7 +619,7 @@ func TestCurrentSourceHintFile(t *testing.T) {
 		t.Fatalf("SetCurrentSource: %v", err)
 	}
 
-	hint, err := fs.ReadFile(rootFS, path.Join(book.FolderPath(), CurrentSourceHintFile))
+	hint, err := fs.ReadFile(rootFS, path.Join(book.PackagePath(), CurrentSourceHintFile))
 	if err != nil {
 		t.Fatalf("Failed to read %s: %v", CurrentSourceHintFile, err)
 	}
@@ -1412,7 +1412,7 @@ func breakCurrentSource(t *testing.T, book *Book, rootFS fsutil.FS) string {
 	if danglingID == "" {
 		t.Fatal("breakCurrentSource needs a book with a current source")
 	}
-	if err := rootFS.RemoveAll(path.Join(book.FolderPath(), SourcesFolder, danglingID)); err != nil {
+	if err := rootFS.RemoveAll(path.Join(book.PackagePath(), SourcesFolder, danglingID)); err != nil {
 		t.Fatalf("Failed to remove current source folder: %v", err)
 	}
 	if book.CurrentSource() != danglingID {
@@ -1519,7 +1519,7 @@ func TestDeleteNonCurrentSourceLeavesBookMetaUntouched(t *testing.T) {
 		t.Fatalf("SetCurrentSource: %v", err)
 	}
 
-	metaPath := path.Join(tmpLib, book.FolderPath(), BookMetaFile)
+	metaPath := path.Join(tmpLib, book.PackagePath(), BookMetaFile)
 	before, err := os.ReadFile(metaPath)
 	if err != nil {
 		t.Fatalf("Read book.json: %v", err)
@@ -1576,7 +1576,7 @@ func TestResolveCurrentSourceFallsBackToLatest(t *testing.T) {
 		t.Fatalf("SetCurrentSource: %v", err)
 	}
 
-	metaPath := path.Join(tmpLib, book.FolderPath(), BookMetaFile)
+	metaPath := path.Join(tmpLib, book.PackagePath(), BookMetaFile)
 	before, err := os.ReadFile(metaPath)
 	if err != nil {
 		t.Fatalf("Read book.json: %v", err)

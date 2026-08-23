@@ -27,7 +27,7 @@ type layerTransferConflictBody struct {
 
 // booksUnderLayer returns the IDs of the shelf's books that sit exactly under
 // layer, so a test can assert the set that landed there.
-func booksUnderLayer(books []server.Book, layer shelf.Layers) []string {
+func booksUnderLayer(books []server.Book, layer shelf.FolderPath) []string {
 	var ids []string
 	for _, book := range books {
 		if book.Layer.Equal(layer) {
@@ -68,8 +68,8 @@ func TestAPILayerTransferCopyContract(t *testing.T) {
 
 	// The target holds fresh-ID copies under the remapped layers.
 	targetBooks := getJSON[[]server.Book](t, env, secondShelfBooksURL())
-	topCopies := booksUnderLayer(targetBooks, shelf.Layers{"imported"})
-	deepCopies := booksUnderLayer(targetBooks, shelf.Layers{"imported", "sci-fi"})
+	topCopies := booksUnderLayer(targetBooks, shelf.FolderPath{"imported"})
+	deepCopies := booksUnderLayer(targetBooks, shelf.FolderPath{"imported", "sci-fi"})
 	if len(topCopies) != 1 || topCopies[0] == top.Meta.ID {
 		t.Errorf("target [imported] = %v, want one fresh-ID copy of %q", topCopies, top.Meta.ID)
 	}
@@ -105,10 +105,10 @@ func TestAPILayerTransferMoveContract(t *testing.T) {
 	// The target lists both under their original IDs, defaulting to the source
 	// layer name.
 	targetBooks := getJSON[[]server.Book](t, env, secondShelfBooksURL())
-	if got := booksUnderLayer(targetBooks, shelf.Layers{"fiction"}); len(got) != 1 || got[0] != top.Meta.ID {
+	if got := booksUnderLayer(targetBooks, shelf.FolderPath{"fiction"}); len(got) != 1 || got[0] != top.Meta.ID {
 		t.Errorf("target [fiction] = %v, want [%s]", got, top.Meta.ID)
 	}
-	if got := booksUnderLayer(targetBooks, shelf.Layers{"fiction", "sci-fi"}); len(got) != 1 || got[0] != deep.Meta.ID {
+	if got := booksUnderLayer(targetBooks, shelf.FolderPath{"fiction", "sci-fi"}); len(got) != 1 || got[0] != deep.Meta.ID {
 		t.Errorf("target [fiction sci-fi] = %v, want [%s]", got, deep.Meta.ID)
 	}
 }

@@ -13,7 +13,7 @@ func TestFingerprintCacheLookup(t *testing.T) {
 
 	builder := &fakeFingerprint{label: "v1"}
 	cache := openCache(t, ts, ts.base, testAlgo)
-	want := resolveFingerprint(t, cache, ts.base, book.FolderPath(), builder)
+	want := resolveFingerprint(t, cache, ts.base, book.PackagePath(), builder)
 
 	got, ok := cache.Lookup(book.ID(), book.CurrentSource())
 	if !ok {
@@ -42,7 +42,7 @@ func TestCoverageForReadsNoSources(t *testing.T) {
 	// Fingerprint one of the two books so the count has both a hit and a miss.
 	builder := &fakeFingerprint{label: "v1"}
 	cache := openCache(t, ts, ts.base, testAlgo)
-	resolveFingerprint(t, cache, ts.base, dune.FolderPath(), builder)
+	resolveFingerprint(t, cache, ts.base, dune.PackagePath(), builder)
 	saveCache(t, cache)
 
 	// From here on, any source.txt open is one this coverage read caused.
@@ -73,7 +73,7 @@ func TestCoverageForUnderDifferentRulesCountsNothing(t *testing.T) {
 
 	builder := &fakeFingerprint{label: "v1"}
 	cache := openCache(t, ts, ts.base, testAlgo)
-	resolveFingerprint(t, cache, ts.base, dune.FolderPath(), builder)
+	resolveFingerprint(t, cache, ts.base, dune.PackagePath(), builder)
 	saveCache(t, cache)
 
 	other := Algo{Normalize: "other-v9", Shingle: "char-7gram", Hash: "xxhash64", K: 64}

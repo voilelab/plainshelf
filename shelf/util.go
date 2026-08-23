@@ -103,47 +103,47 @@ func copyFileAcross(srcRoot fsutil.ReadFS, src string, dstRoot fsutil.FS, dst st
 	return nil
 }
 
-// ErrInvalidLayer is returned when a layer name is not a usable path segment.
-// Every operation that accepts caller-supplied layers checks them before
+// ErrInvalidFolder is returned when a folder name is not a usable path segment.
+// Every operation that accepts caller-supplied folders checks them before
 // touching the filesystem, so callers can treat it as a request error.
-var ErrInvalidLayer = util.NewError("invalid layer name")
+var ErrInvalidFolder = util.NewError("invalid layer name")
 
-// ErrIgnoredLayerName is the ErrInvalidLayer case where the name is well formed
-// but names a directory the scanners skip. It wraps ErrInvalidLayer, so callers
-// that only classify layer errors keep matching it, while the API can tell this
+// ErrIgnoredFolderName is the ErrInvalidFolder case where the name is well formed
+// but names a directory the scanners skip. It wraps ErrInvalidFolder, so callers
+// that only classify folder errors keep matching it, while the API can tell this
 // reason apart and explain it: a user filing an existing "@eaDir" under
 // PlainShelf is not making a typo, they are hitting a deliberate rule.
-var ErrIgnoredLayerName = util.Errorf("%w: hidden or system directory name", ErrInvalidLayer)
+var ErrIgnoredFolderName = util.Errorf("%w: hidden or system directory name", ErrInvalidFolder)
 
-func validateLayers(layers Layers) error {
-	for _, layer := range layers {
-		if err := shelfutil.ValidatePathSegment(layer); err != nil {
+func validateFolderPath(folders FolderPath) error {
+	for _, folder := range folders {
+		if err := shelfutil.ValidatePathSegment(folder); err != nil {
 			if errors.Is(err, shelfutil.ErrIgnoredPathSegment) {
-				return util.Errorf("%w %q: %w", ErrIgnoredLayerName, layer, err)
+				return util.Errorf("%w %q: %w", ErrIgnoredFolderName, folder, err)
 			}
-			return util.Errorf("%w %q: %w", ErrInvalidLayer, layer, err)
+			return util.Errorf("%w %q: %w", ErrInvalidFolder, folder, err)
 		}
-		if strings.Contains(layer, bookExtension) {
-			return util.Errorf("%w %q: must not contain %q", ErrInvalidLayer, layer, bookExtension)
+		if strings.Contains(folder, bookExtension) {
+			return util.Errorf("%w %q: must not contain %q", ErrInvalidFolder, folder, bookExtension)
 		}
 	}
 	return nil
 }
 
-// ValidateLayers reports whether every layer path segment is safe to use.
+// ValidateFolderPath reports whether every folder path segment is safe to use.
 // API handlers use this before scheduling background work so malformed batch
 // requests fail synchronously rather than becoming failed worker tasks.
-func ValidateLayers(layers Layers) error {
-	return validateLayers(layers)
+func ValidateFolderPath(folders FolderPath) error {
+	return validateFolderPath(folders)
 }
 
 // newBookID draws a random book ID as a version 4 UUID.
 //
 // The ID is opaque: generated once at creation, persisted in book.json, and
 // never recomputed, so renaming the title, moving the book, or restoring it
-// from trash all leave it alone. Older builds derived it from layers and title,
+// from trash all leave it alone. Older builds derived it from folders and title,
 // which read as if it could be recomputed and gave two books the same ID
-// whenever they shared a layer path and title — routine on a shared shelf.
+// whenever they shared a folder path and title — routine on a shared shelf.
 //
 // A v4 UUID's 122 random bits make the ID unique on its own rather than by
 // agreement: the creation-time collision probe cannot see a book another

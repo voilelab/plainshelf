@@ -21,7 +21,7 @@ type bookHandlers struct {
 
 type Book struct {
 	Meta  *shelf.BookMeta `json:"meta"`
-	Layer shelf.Layers    `json:"layer"`
+	Layer shelf.FolderPath    `json:"layer"`
 
 	// CharCount is only populated when the request includes
 	// include=char_count; it is omitted otherwise, so the default response
@@ -39,8 +39,8 @@ type UpdateBookRequest struct {
 	Star        *int               `json:"star"`
 	Format      *string            `json:"format"`
 	PublishedAt *util.JSONDate     `json:"published_at"`
-	Layer       *shelf.Layers      `json:"layer"`
-	Layers      *shelf.Layers      `json:"layers"`
+	Layer       *shelf.FolderPath      `json:"layer"`
+	Layers      *shelf.FolderPath      `json:"layers"`
 }
 
 // folderPath locates a book on disk for the desktop client's "show in file
@@ -66,7 +66,7 @@ func (h *bookHandlers) folderPath(shelfID, bookID string) (string, error) {
 		return "", util.Errorf("%w", err)
 	}
 
-	return book.FolderPath(), nil
+	return book.PackagePath(), nil
 }
 
 // GET /api/shelves/{shelf_id}/books
@@ -97,7 +97,7 @@ func (h *bookHandlers) getBooks(w http.ResponseWriter, r *http.Request) {
 	for i, b := range books {
 		jsonBooks[i] = Book{
 			Meta:  b.Book.GetMeta(),
-			Layer: b.Layers,
+			Layer: b.Folders,
 		}
 		if includeCharCount {
 			// A book with a broken or missing source reports 0, which omitempty
@@ -118,7 +118,7 @@ func (h *bookHandlers) createBook(w http.ResponseWriter, r *http.Request) {
 
 	var req struct {
 		Title string       `json:"title"`
-		Layer shelf.Layers `json:"layer"`
+		Layer shelf.FolderPath `json:"layer"`
 	}
 
 	bs, err := io.ReadAll(r.Body)
@@ -161,11 +161,11 @@ func (h *bookHandlers) createBook(w http.ResponseWriter, r *http.Request) {
 // book's own layer. "layer" is the current field name; "layers" is accepted for
 // the same reason updateBook accepts it, so older clients keep working.
 type CopyBookRequest struct {
-	Layer  *shelf.Layers `json:"layer"`
-	Layers *shelf.Layers `json:"layers"`
+	Layer  *shelf.FolderPath `json:"layer"`
+	Layers *shelf.FolderPath `json:"layers"`
 }
 
-func (req *CopyBookRequest) targetLayers() *shelf.Layers {
+func (req *CopyBookRequest) targetLayers() *shelf.FolderPath {
 	if req.Layer != nil {
 		return req.Layer
 	}
@@ -195,9 +195,9 @@ func (h *bookHandlers) copyBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Default to the source book's own layer so a plain "duplicate" needs no body.
-	target := append(shelf.Layers(nil), listing.Layers...)
+	target := append(shelf.FolderPath(nil), listing.Folders...)
 	if override := req.targetLayers(); override != nil {
-		target = append(shelf.Layers(nil), (*override)...)
+		target = append(shelf.FolderPath(nil), (*override)...)
 	}
 
 	copied, err := shelfData.CopyBook(bookID, target)
@@ -222,7 +222,7 @@ func (h *bookHandlers) getBook(w http.ResponseWriter, r *http.Request) {
 
 	h.writeJSON(w, http.StatusOK, Book{
 		Meta:  listing.Book.GetMeta(),
-		Layer: listing.Layers,
+		Layer: listing.Folders,
 	})
 }
 
@@ -250,7 +250,7 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	book := listing.Book
-	layer := listing.Layers
+	layer := listing.Folders
 
 	// Refuse a book this build must not modify before doing anything, otherwise
 	// a layer move would be applied to disk and then reported as a failure.
@@ -260,7 +260,7 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if target := req.targetLayers(); target != nil {
-		moveTo := append(shelf.Layers(nil), (*target)...)
+		moveTo := append(shelf.FolderPath(nil), (*target)...)
 		movedBook, err := shelfData.MoveBook(bookID, moveTo)
 		if err != nil {
 			h.writeErr(w, err, "failed to move book layer")
@@ -284,7 +284,7 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 
 // "layer" is the current field name; "layers" is still accepted because older
 // clients send that one.
-func (req *UpdateBookRequest) targetLayers() *shelf.Layers {
+func (req *UpdateBookRequest) targetLayers() *shelf.FolderPath {
 	if req.Layer != nil {
 		return req.Layer
 	}

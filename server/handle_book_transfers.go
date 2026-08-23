@@ -22,7 +22,7 @@ type bookTransferHandlers struct {
 type bookTransferRequest struct {
 	Mode        string        `json:"mode"`
 	TargetShelf string        `json:"target_shelf"`
-	TargetLayer *shelf.Layers `json:"target_layer"`
+	TargetLayer *shelf.FolderPath `json:"target_layer"`
 }
 
 // POST /api/shelves/{shelf_id}/books/{book_id}/transfers
@@ -76,11 +76,11 @@ func (h *bookTransferHandlers) transferBook(w http.ResponseWriter, r *http.Reque
 
 	// Default to the source book's own layer so a plain "move it to that shelf"
 	// needs no layer in the body, mirroring the copy endpoint.
-	targetLayer := append(shelf.Layers(nil), listing.Layers...)
+	targetLayer := append(shelf.FolderPath(nil), listing.Folders...)
 	if request.TargetLayer != nil {
-		targetLayer = append(shelf.Layers(nil), (*request.TargetLayer)...)
+		targetLayer = append(shelf.FolderPath(nil), (*request.TargetLayer)...)
 	}
-	if err := shelf.ValidateLayers(targetLayer); err != nil {
+	if err := shelf.ValidateFolderPath(targetLayer); err != nil {
 		h.writeErrStatus(w, err, "invalid target_layer", http.StatusBadRequest)
 		return
 	}

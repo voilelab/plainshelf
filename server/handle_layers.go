@@ -20,7 +20,7 @@ func (h *layerHandlers) getLayers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	layers, err := shelfData.GetAllLayers()
+	layers, err := shelfData.GetAllFolders()
 	if err != nil {
 		h.writeErr(w, err, "failed to get layers")
 		return
@@ -42,7 +42,9 @@ func (h *layerHandlers) createLayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := shelfData.NewLayer(layerParts); err != nil {
+	parent := append(shelf.FolderPath(nil), layerParts[:len(layerParts)-1]...)
+	name := layerParts[len(layerParts)-1]
+	if err := shelfData.NewFolder(parent, name); err != nil {
 		h.writeErr(w, err, "failed to create layer")
 		return
 	}
@@ -79,9 +81,7 @@ func (h *layerHandlers) renameLayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newLayer := append(shelf.Layers(nil), layerParts[:len(layerParts)-1]...)
-	newLayer = append(newLayer, newName)
-	if err := shelfData.RenameLayer(layerParts, newLayer); err != nil {
+	if err := shelfData.RenameFolder(layerParts, newName); err != nil {
 		h.writeErrStatus(w, err, "failed to rename layer", http.StatusConflict)
 		return
 	}
@@ -90,8 +90,8 @@ func (h *layerHandlers) renameLayer(w http.ResponseWriter, r *http.Request) {
 }
 
 type moveLayerRequest struct {
-	Layer       shelf.Layers `json:"layer"`
-	TargetLayer shelf.Layers `json:"target_layer"`
+	Layer       shelf.FolderPath `json:"layer"`
+	TargetLayer shelf.FolderPath `json:"target_layer"`
 }
 
 // POST /api/shelves/{shelf_id}/layer-moves
@@ -111,7 +111,7 @@ func (h *layerHandlers) moveLayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := shelfData.MoveLayer(req.Layer, req.TargetLayer); err != nil {
+	if err := shelfData.MoveFolder(req.Layer, req.TargetLayer); err != nil {
 		h.writeErrStatus(w, err, "failed to move layer", http.StatusConflict)
 		return
 	}
@@ -132,7 +132,7 @@ func (h *layerHandlers) deleteLayer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := shelfData.DeleteLayer(layerParts); err != nil {
+	if err := shelfData.DeleteFolder(layerParts); err != nil {
 		h.writeErr(w, err, "failed to delete layer")
 		return
 	}

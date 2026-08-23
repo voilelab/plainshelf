@@ -61,10 +61,10 @@ func mustScan(t *testing.T, s *Shelf) scanStats {
 	return s.lastScanStats()
 }
 
-// cachedLayerNames reads the layer list the last scan left in the cache,
-// without the refresh that GetAllLayers would schedule.
-func cachedLayerNames(s *Shelf) []string {
-	return layerNames(s.listLayersFromCache())
+// cachedFolderNames reads the folder list the last scan left in the cache,
+// without the refresh that GetAllFolders would schedule.
+func cachedFolderNames(s *Shelf) []string {
+	return folderNames(s.listFoldersFromCache())
 }
 
 // The point of the whole feature: a second walk of an unchanged tree lists no
@@ -73,9 +73,9 @@ func TestScanCacheReusesUnchangedDirectories(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	for _, layer := range []Layers{{"Fiction"}, {"Fiction", "Classics"}, {"Tech"}} {
-		if _, err := s.NewBook(layer, "Book in "+layer.String()); err != nil {
-			t.Fatalf("NewBook %v: %v", layer, err)
+	for _, folder := range []FolderPath{{"Fiction"}, {"Fiction", "Classics"}, {"Tech"}} {
+		if _, err := s.NewBook(folder, "Book in "+folder.String()); err != nil {
+			t.Fatalf("NewBook %v: %v", folder, err)
 		}
 	}
 	ageShelfDirs(t, tmpLib, time.Minute)
@@ -100,19 +100,19 @@ func TestScanCacheReusesUnchangedDirectories(t *testing.T) {
 		t.Errorf("warm scan found %d books, want %d", got, want)
 	}
 	for _, want := range []string{"", "Fiction", "Fiction/Classics", "Tech"} {
-		if !slices.Contains(cachedLayerNames(s), want) {
-			t.Errorf("warm scan lost layer %q, got %v", want, cachedLayerNames(s))
+		if !slices.Contains(cachedFolderNames(s), want) {
+			t.Errorf("warm scan lost layer %q, got %v", want, cachedFolderNames(s))
 		}
 	}
 }
 
-// A new layer directory created outside PlainShelf is what the full scan exists
+// A new folder directory created outside PlainShelf is what the full scan exists
 // for; the cache must not swallow it.
-func TestScanCacheFindsLayerAddedAfterWarmScan(t *testing.T) {
+func TestScanCacheFindsFolderAddedAfterWarmScan(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	if _, err := s.NewBook(Layers{"Fiction"}, "Alpha"); err != nil {
+	if _, err := s.NewBook(FolderPath{"Fiction"}, "Alpha"); err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
 	ageShelfDirs(t, tmpLib, time.Minute)
@@ -124,8 +124,8 @@ func TestScanCacheFindsLayerAddedAfterWarmScan(t *testing.T) {
 	}
 
 	mustScan(t, s)
-	if !slices.Contains(cachedLayerNames(s), "Fiction/Poetry") {
-		t.Errorf("scan did not find the externally created layer, got %v", cachedLayerNames(s))
+	if !slices.Contains(cachedFolderNames(s), "Fiction/Poetry") {
+		t.Errorf("scan did not find the externally created layer, got %v", cachedFolderNames(s))
 	}
 }
 
@@ -136,7 +136,7 @@ func TestScanCacheSurvivesReopen(t *testing.T) {
 	conf := &ShelfConf{LibRoot: tmpLib}
 
 	first := openShelf(t, conf)
-	if _, err := first.NewBook(Layers{"Fiction", "Classics"}, "Alpha"); err != nil {
+	if _, err := first.NewBook(FolderPath{"Fiction", "Classics"}, "Alpha"); err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
 	ageShelfDirs(t, tmpLib, time.Minute)
@@ -167,7 +167,7 @@ func TestScanCacheIgnoresUnreadableSnapshot(t *testing.T) {
 	conf := &ShelfConf{LibRoot: tmpLib}
 
 	first := openShelf(t, conf)
-	if _, err := first.NewBook(Layers{"Fiction"}, "Alpha"); err != nil {
+	if _, err := first.NewBook(FolderPath{"Fiction"}, "Alpha"); err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
 	if err := first.Close(); err != nil {
@@ -195,7 +195,7 @@ func TestScanCacheOffListsEveryDirectory(t *testing.T) {
 	conf := &ShelfConf{LibRoot: tmpLib, ScanCache: &scanCacheOff}
 
 	s := openShelf(t, conf)
-	if _, err := s.NewBook(Layers{"Fiction"}, "Alpha"); err != nil {
+	if _, err := s.NewBook(FolderPath{"Fiction"}, "Alpha"); err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
 	ageShelfDirs(t, tmpLib, time.Minute)
@@ -225,13 +225,13 @@ func TestScanCacheLargeTreeMeasurement(t *testing.T) {
 		t.Skip("builds a few thousand directories")
 	}
 
-	const layers = 60
-	const perLayer = 50
+	const folders = 60
+	const perFolder = 50
 
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	booksDir := path.Join(tmpLib, booksFolder)
-	for i := range layers {
-		for j := range perLayer {
+	for i := range folders {
+		for j := range perFolder {
 			dir := path.Join(booksDir, "layer-"+strconv.Itoa(i), "sub-"+strconv.Itoa(j))
 			if err := os.MkdirAll(dir, 0755); err != nil {
 				t.Fatalf("mkdir: %v", err)
@@ -263,7 +263,7 @@ func TestScanCacheUnchangedShelfIsNotRewritten(t *testing.T) {
 	conf := &ShelfConf{LibRoot: tmpLib}
 
 	first := openShelf(t, conf)
-	if _, err := first.NewBook(Layers{"Fiction", "Classics"}, "Alpha"); err != nil {
+	if _, err := first.NewBook(FolderPath{"Fiction", "Classics"}, "Alpha"); err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
 	ageShelfDirs(t, tmpLib, time.Minute)

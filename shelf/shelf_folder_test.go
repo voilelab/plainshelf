@@ -12,7 +12,7 @@ import (
 )
 
 // countingDirFS counts directory reads under books/, which is what a full tree
-// walk costs and what listing layers used to pay on every request.
+// walk costs and what listing folders used to pay on every request.
 type countingDirFS struct {
 	fsutil.FS
 	reads atomic.Int64
@@ -44,42 +44,42 @@ func countBookTreeReads(t *testing.T, s *Shelf) *countingDirFS {
 	return counting
 }
 
-func layerNames(layers []Layers) []string {
-	names := make([]string, 0, len(layers))
-	for _, layer := range layers {
-		names = append(names, layer.String())
+func folderNames(folders []FolderPath) []string {
+	names := make([]string, 0, len(folders))
+	for _, folder := range folders {
+		names = append(names, folder.String())
 	}
 	return names
 }
 
-func getLayerNames(t *testing.T, s *Shelf) []string {
+func getFolderNames(t *testing.T, s *Shelf) []string {
 	t.Helper()
 
-	layers, err := s.GetAllLayers()
+	folders, err := s.GetAllFolders()
 	if err != nil {
-		t.Fatalf("GetAllLayers: %v", err)
+		t.Fatalf("GetAllFolders: %v", err)
 	}
-	return layerNames(layers)
+	return folderNames(folders)
 }
 
-// GET /layers used to walk the whole tree on every call, which is the one read
+// GET /folders used to walk the whole tree on every call, which is the one read
 // path scan_interval did not cover.
-func TestGetAllLayersSkipsTreeWalkWithinScanInterval(t *testing.T) {
+func TestGetAllFoldersSkipsTreeWalkWithinScanInterval(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, LockMode: "none", ScanInterval: "10m", BookCheckInterval: "10m"})
 
-	if _, err := shelf.NewBook(Layers{"Fiction", "Classics"}, "Dune"); err != nil {
+	if _, err := shelf.NewBook(FolderPath{"Fiction", "Classics"}, "Dune"); err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
-	if err := shelf.NewLayer(Layers{"Empty"}); err != nil {
-		t.Fatalf("NewLayer(Empty): %v", err)
+	if err := shelf.NewFolder(FolderPath{}, "Empty"); err != nil {
+		t.Fatalf("NewFolder(Empty): %v", err)
 	}
 
 	counting := countBookTreeReads(t, shelf)
 
 	want := []string{"", "Empty", "Fiction", "Fiction/Classics"}
 	for i := range 5 {
-		if got := getLayerNames(t, shelf); !slices.Equal(got, want) {
+		if got := getFolderNames(t, shelf); !slices.Equal(got, want) {
 			t.Fatalf("call %d: layers = %v, want %v", i, got, want)
 		}
 	}
@@ -90,7 +90,7 @@ func TestGetAllLayersSkipsTreeWalkWithinScanInterval(t *testing.T) {
 
 	// The counter is only meaningful if it does move when a walk is due.
 	shelf.markBookCacheTreeDirty()
-	if got := getLayerNames(t, shelf); !slices.Equal(got, want) {
+	if got := getFolderNames(t, shelf); !slices.Equal(got, want) {
 		t.Fatalf("layers after a full scan = %v, want %v", got, want)
 	}
 	if reads := counting.reads.Load(); reads == 0 {
@@ -98,19 +98,19 @@ func TestGetAllLayersSkipsTreeWalkWithinScanInterval(t *testing.T) {
 	}
 }
 
-// A layer the user just created must not wait for the next scan window.
-func TestNewLayerIsListedImmediatelyWithinScanInterval(t *testing.T) {
+// A folder the user just created must not wait for the next scan window.
+func TestNewFolderIsListedImmediatelyWithinScanInterval(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, LockMode: "none", ScanInterval: "10m", BookCheckInterval: "10m"})
 
 	counting := countBookTreeReads(t, shelf)
 
-	if err := shelf.NewLayer(Layers{"Fiction", "Classics"}); err != nil {
-		t.Fatalf("NewLayer: %v", err)
+	if err := shelf.NewFolder(FolderPath{"Fiction"}, "Classics"); err != nil {
+		t.Fatalf("NewFolder: %v", err)
 	}
 
 	want := []string{"", "Fiction", "Fiction/Classics"}
-	if got := getLayerNames(t, shelf); !slices.Equal(got, want) {
+	if got := getFolderNames(t, shelf); !slices.Equal(got, want) {
 		t.Fatalf("layers = %v, want %v", got, want)
 	}
 
@@ -118,102 +118,102 @@ func TestNewLayerIsListedImmediatelyWithinScanInterval(t *testing.T) {
 		t.Errorf("creating and listing a layer read %d directories under %s, want 0", reads, booksFolder)
 	}
 
-	// Creating a book creates its layers on the way, with the same requirement.
-	if _, err := shelf.NewBook(Layers{"Poetry"}, "Odes"); err != nil {
+	// Creating a book creates its folders on the way, with the same requirement.
+	if _, err := shelf.NewBook(FolderPath{"Poetry"}, "Odes"); err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
-	if got := getLayerNames(t, shelf); !slices.Contains(got, "Poetry") {
+	if got := getFolderNames(t, shelf); !slices.Contains(got, "Poetry") {
 		t.Errorf("layers = %v, want the layer created by NewBook", got)
 	}
 }
 
-func TestDeleteLayerIsRemovedFromListingImmediately(t *testing.T) {
+func TestDeleteFolderIsRemovedFromListingImmediately(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, LockMode: "none", ScanInterval: "10m", BookCheckInterval: "10m"})
 
-	if err := shelf.NewLayer(Layers{"Temporary"}); err != nil {
-		t.Fatalf("NewLayer: %v", err)
+	if err := shelf.NewFolder(FolderPath{}, "Temporary"); err != nil {
+		t.Fatalf("NewFolder: %v", err)
 	}
-	if err := shelf.DeleteLayer(Layers{"Temporary"}); err != nil {
-		t.Fatalf("DeleteLayer: %v", err)
+	if err := shelf.DeleteFolder(FolderPath{"Temporary"}); err != nil {
+		t.Fatalf("DeleteFolder: %v", err)
 	}
 
-	if got := getLayerNames(t, shelf); slices.Contains(got, "Temporary") {
+	if got := getFolderNames(t, shelf); slices.Contains(got, "Temporary") {
 		t.Errorf("layers = %v, want the deleted layer gone", got)
 	}
 }
 
-// An empty layer holds no book, so a listing rebuilt from cached books would
-// lose it. The scan has to record layers in their own right.
-func TestGetAllLayersKeepsEmptyLayerAcrossFullScan(t *testing.T) {
+// An empty folder holds no book, so a listing rebuilt from cached books would
+// lose it. The scan has to record folders in their own right.
+func TestGetAllFoldersKeepsEmptyFolderAcrossFullScan(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, LockMode: "none", ScanInterval: "10m", BookCheckInterval: "10m"})
 
-	if err := shelf.NewLayer(Layers{"Empty", "Nested"}); err != nil {
-		t.Fatalf("NewLayer: %v", err)
+	if err := shelf.NewFolder(FolderPath{"Empty"}, "Nested"); err != nil {
+		t.Fatalf("NewFolder: %v", err)
 	}
 
 	// Force the next listing through a full scan rather than the incremental
-	// record NewLayer left behind.
+	// record NewFolder left behind.
 	shelf.markBookCacheTreeDirty()
 
 	want := []string{"", "Empty", "Empty/Nested"}
-	if got := getLayerNames(t, shelf); !slices.Equal(got, want) {
+	if got := getFolderNames(t, shelf); !slices.Equal(got, want) {
 		t.Fatalf("layers after a full scan = %v, want %v", got, want)
 	}
 }
 
-func TestGetAllLayersAfterRenameAndMove(t *testing.T) {
+func TestGetAllFoldersAfterRenameAndMove(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, LockMode: "none", ScanInterval: "10m", BookCheckInterval: "10m"})
 
-	if _, err := shelf.NewBook(Layers{"alpha", "beta"}, "Move Me"); err != nil {
+	if _, err := shelf.NewBook(FolderPath{"alpha", "beta"}, "Move Me"); err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
-	if err := shelf.NewLayer(Layers{"gamma"}); err != nil {
-		t.Fatalf("NewLayer(gamma): %v", err)
+	if err := shelf.NewFolder(FolderPath{}, "gamma"); err != nil {
+		t.Fatalf("NewFolder(gamma): %v", err)
 	}
 
-	if err := shelf.RenameLayer(Layers{"alpha", "beta"}, Layers{"alpha", "delta"}); err != nil {
-		t.Fatalf("RenameLayer: %v", err)
+	if err := shelf.RenameFolder(FolderPath{"alpha", "beta"}, "delta"); err != nil {
+		t.Fatalf("RenameFolder: %v", err)
 	}
 	want := []string{"", "alpha", "alpha/delta", "gamma"}
-	if got := getLayerNames(t, shelf); !slices.Equal(got, want) {
+	if got := getFolderNames(t, shelf); !slices.Equal(got, want) {
 		t.Fatalf("layers after rename = %v, want %v", got, want)
 	}
 
-	if err := shelf.MoveLayer(Layers{"alpha", "delta"}, Layers{"gamma"}); err != nil {
-		t.Fatalf("MoveLayer: %v", err)
+	if err := shelf.MoveFolder(FolderPath{"alpha", "delta"}, FolderPath{"gamma"}); err != nil {
+		t.Fatalf("MoveFolder: %v", err)
 	}
 	want = []string{"", "alpha", "gamma", "gamma/delta"}
-	if got := getLayerNames(t, shelf); !slices.Equal(got, want) {
+	if got := getFolderNames(t, shelf); !slices.Equal(got, want) {
 		t.Fatalf("layers after move = %v, want %v", got, want)
 	}
 }
 
-// A book restored from trash may need a layer that was deleted meanwhile.
-func TestRestoredBookLayerIsListedImmediately(t *testing.T) {
+// A book restored from trash may need a folder that was deleted meanwhile.
+func TestRestoredBookFolderIsListedImmediately(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, LockMode: "none", ScanInterval: "10m", BookCheckInterval: "10m"})
 
-	book, err := shelf.NewBook(Layers{"Archive"}, "Recoverable")
+	book, err := shelf.NewBook(FolderPath{"Archive"}, "Recoverable")
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
 	if err := shelf.MoveBookToTrash(book.ID()); err != nil {
 		t.Fatalf("MoveBookToTrash: %v", err)
 	}
-	if err := shelf.DeleteLayer(Layers{"Archive"}); err != nil {
-		t.Fatalf("DeleteLayer: %v", err)
+	if err := shelf.DeleteFolder(FolderPath{"Archive"}); err != nil {
+		t.Fatalf("DeleteFolder: %v", err)
 	}
-	if got := getLayerNames(t, shelf); slices.Contains(got, "Archive") {
+	if got := getFolderNames(t, shelf); slices.Contains(got, "Archive") {
 		t.Fatalf("layers = %v, want the deleted layer gone", got)
 	}
 
 	if err := shelf.RestoreTrashedBook(book.ID()); err != nil {
 		t.Fatalf("RestoreTrashedBook: %v", err)
 	}
-	if got := getLayerNames(t, shelf); !slices.Contains(got, "Archive") {
+	if got := getFolderNames(t, shelf); !slices.Contains(got, "Archive") {
 		t.Errorf("layers = %v, want the restored book's layer back", got)
 	}
 }

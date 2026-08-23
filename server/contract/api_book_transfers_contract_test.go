@@ -87,7 +87,7 @@ func TestAPIBookTransferCopyContract(t *testing.T) {
 	if len(targetBooks) != 1 || targetBooks[0].Meta.ID != newID {
 		t.Fatalf("target books = %#v, want the copy %q", targetBooks, newID)
 	}
-	if !targetBooks[0].Layer.Equal(shelf.Layers{"imported"}) {
+	if !targetBooks[0].Layer.Equal(shelf.FolderPath{"imported"}) {
 		t.Errorf("copy layer = %v, want [imported]", targetBooks[0].Layer)
 	}
 	if targetBooks[0].Meta.Title != "Cross Copy" {

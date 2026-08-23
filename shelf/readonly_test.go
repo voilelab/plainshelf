@@ -126,7 +126,7 @@ func seedReadOnlyShelf(t *testing.T, libRoot string) string {
 
 	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
 
-	book, err := s.NewBook(Layers{"fiction"}, "Read Only Book")
+	book, err := s.NewBook(FolderPath{"fiction"}, "Read Only Book")
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
@@ -265,8 +265,8 @@ func TestReadOnlyShelfReadsWithoutWriting(t *testing.T) {
 	if book.Title() != "Read Only Book" {
 		t.Errorf("Title() = %q, want %q", book.Title(), "Read Only Book")
 	}
-	if !listing.Layers.Equal(Layers{"fiction"}) {
-		t.Errorf("Layers = %v, want [fiction]", listing.Layers)
+	if !listing.Folders.Equal(FolderPath{"fiction"}) {
+		t.Errorf("Layers = %v, want [fiction]", listing.Folders)
 	}
 
 	cover, ext, err := book.OpenCover()
@@ -307,8 +307,8 @@ func TestReadOnlyShelfReadsWithoutWriting(t *testing.T) {
 		t.Errorf("asset = %q, want %q", assetBytes, "asset bytes")
 	}
 
-	if _, err := s.GetAllLayers(); err != nil {
-		t.Errorf("GetAllLayers: %v", err)
+	if _, err := s.GetAllFolders(); err != nil {
+		t.Errorf("GetAllFolders: %v", err)
 	}
 	if _, err := s.ListTrashedBooks(); err != nil {
 		t.Errorf("ListTrashedBooks: %v", err)
@@ -369,14 +369,14 @@ func TestReadOnlyShelfRefusesMutations(t *testing.T) {
 	}
 
 	mutations := map[string]func() error{
-		"NewBook":            func() error { _, err := s.NewBook(Layers{"fiction"}, "New"); return err },
-		"MoveBook":           func() error { _, err := s.MoveBook(bookID, Layers{"moved"}); return err },
-		"CopyBook":           func() error { _, err := s.CopyBook(bookID, Layers{"copied"}); return err },
+		"NewBook":            func() error { _, err := s.NewBook(FolderPath{"fiction"}, "New"); return err },
+		"MoveBook":           func() error { _, err := s.MoveBook(bookID, FolderPath{"moved"}); return err },
+		"CopyBook":           func() error { _, err := s.CopyBook(bookID, FolderPath{"copied"}); return err },
 		"DeleteBook":         func() error { return s.DeleteBook(bookID) },
-		"NewLayer":           func() error { return s.NewLayer(Layers{"added"}) },
-		"DeleteLayer":        func() error { return s.DeleteLayer(Layers{"fiction"}) },
-		"RenameLayer":        func() error { return s.RenameLayer(Layers{"fiction"}, Layers{"renamed"}) },
-		"MoveLayer":          func() error { return s.MoveLayer(Layers{"fiction"}, Layers{}) },
+		"NewFolder":           func() error { return s.NewFolder(FolderPath{}, "added") },
+		"DeleteFolder":        func() error { return s.DeleteFolder(FolderPath{"fiction"}) },
+		"RenameFolder":        func() error { return s.RenameFolder(FolderPath{"fiction"}, "renamed") },
+		"MoveFolder":          func() error { return s.MoveFolder(FolderPath{"fiction"}, FolderPath{}) },
 		"RestoreTrashedBook": func() error { return s.RestoreTrashedBook(bookID) },
 		"DeleteTrashedBook":  func() error { return s.DeleteTrashedBook(bookID) },
 		"Book.SetMeta":       func() error { return book.SetMeta(book.GetMeta()) },

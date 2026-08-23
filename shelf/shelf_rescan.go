@@ -31,7 +31,7 @@ type RescanResult struct {
 	StartedAt time.Time
 
 	BookCount  int
-	LayerCount int
+	FolderCount int
 }
 
 // Rescan walks the shelf now and rebuilds the book cache from what it finds.
@@ -66,8 +66,8 @@ func (s *Shelf) Rescan() (RescanResult, error) {
 	}
 
 	// Both counts come from the cache the walk just filled, which is also why
-	// the layer count includes a folder holding no books: the walk reports every
-	// layer directory it enters, and a layer the user made but has not filed
+	// the folder count includes a folder holding no books: the walk reports every
+	// folder directory it enters, and a folder the user made but has not filed
 	// anything into is still part of the shelf this number describes.
 	s.bookCache.RLock()
 	defer s.bookCache.RUnlock()
@@ -76,7 +76,7 @@ func (s *Shelf) Rescan() (RescanResult, error) {
 		ID:         scanID,
 		StartedAt:  s.bookCache.lastScanStart,
 		BookCount:  len(s.bookCache.cache),
-		LayerCount: len(s.bookCache.layers),
+		FolderCount: len(s.bookCache.folders),
 	}, nil
 }
 

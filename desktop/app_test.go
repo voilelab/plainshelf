@@ -34,8 +34,8 @@ func TestNormalizeSelectedLocalPaths(t *testing.T) {
 	}
 }
 
-func TestNormalizeLayerParts(t *testing.T) {
-	parts := normalizeLayerParts([]string{"", "  ", " fiction ", " sci-fi "})
+func TestNormalizeFolderParts(t *testing.T) {
+	parts := normalizeFolderParts([]string{"", "  ", " fiction ", " sci-fi "})
 	if len(parts) != 2 {
 		t.Fatalf("expected two valid layer parts, got %d", len(parts))
 	}
@@ -220,19 +220,19 @@ func TestLoadOrMigrateDesktopShelvesSeedsLegacyDefaultShelf(t *testing.T) {
 	}
 }
 
-func TestResolveDesktopLayerDirectory(t *testing.T) {
+func TestResolveDesktopFolderPath(t *testing.T) {
 	libRoot := filepath.Join(t.TempDir(), "shelf")
 
-	path, err := resolveDesktopLayerDirectory(libRoot, []string{"fiction", "sci-fi"})
+	path, err := resolveDesktopFolderPath(libRoot, []string{"fiction", "sci-fi"})
 	if err != nil {
-		t.Fatalf("resolveDesktopLayerDirectory returned error: %v", err)
+		t.Fatalf("resolveDesktopFolderPath returned error: %v", err)
 	}
 	wantPath := filepath.Join(libRoot, "books", "fiction", "sci-fi")
 	if path != wantPath {
 		t.Fatalf("resolved path = %q, want %q", path, wantPath)
 	}
 
-	rootPath, err := resolveDesktopLayerDirectory(libRoot, nil)
+	rootPath, err := resolveDesktopFolderPath(libRoot, nil)
 	if err != nil {
 		t.Fatalf("resolve root layer directory returned error: %v", err)
 	}
@@ -242,10 +242,10 @@ func TestResolveDesktopLayerDirectory(t *testing.T) {
 	}
 }
 
-func TestResolveDesktopLayerDirectoryRejectsTraversal(t *testing.T) {
+func TestResolveDesktopFolderPathRejectsTraversal(t *testing.T) {
 	libRoot := filepath.Join(t.TempDir(), "shelf")
 
-	if _, err := resolveDesktopLayerDirectory(libRoot, []string{"..", "outside"}); err == nil {
+	if _, err := resolveDesktopFolderPath(libRoot, []string{"..", "outside"}); err == nil {
 		t.Fatal("expected traversal layer path to fail, got nil")
 	}
 }
@@ -253,8 +253,8 @@ func TestResolveDesktopLayerDirectoryRejectsTraversal(t *testing.T) {
 func TestOpenLayerDirectoryOpensFinderForLayerPath(t *testing.T) {
 	tempDir := t.TempDir()
 	libRoot := filepath.Join(tempDir, "library")
-	layerDir := filepath.Join(libRoot, "books", "fiction", "sci-fi")
-	if err := os.MkdirAll(layerDir, 0o755); err != nil {
+	folderDir := filepath.Join(libRoot, "books", "fiction", "sci-fi")
+	if err := os.MkdirAll(folderDir, 0o755); err != nil {
 		t.Fatalf("create layer dir: %v", err)
 	}
 
@@ -282,8 +282,8 @@ func TestOpenLayerDirectoryOpensFinderForLayerPath(t *testing.T) {
 	if err := app.OpenLayerDirectory(" shelf-1 ", []string{" fiction ", "sci-fi "}); err != nil {
 		t.Fatalf("OpenLayerDirectory returned error: %v", err)
 	}
-	if openedPath != layerDir {
-		t.Fatalf("openFinder path = %q, want %q", openedPath, layerDir)
+	if openedPath != folderDir {
+		t.Fatalf("openFinder path = %q, want %q", openedPath, folderDir)
 	}
 }
 

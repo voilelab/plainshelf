@@ -169,7 +169,7 @@ func (b *Book) Title() string {
 	return b.meta.Title
 }
 
-func (b *Book) FolderPath() string {
+func (b *Book) PackagePath() string {
 	return b.folderPath
 }
 

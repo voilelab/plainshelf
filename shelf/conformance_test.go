@@ -42,14 +42,14 @@ type conformanceManifest struct {
 
 // conformanceReading is what both implementations must report for one case.
 type conformanceReading struct {
-	Layers     []string               `json:"layers"`
+	Folders     []string               `json:"layers"`
 	Books      []conformanceBook      `json:"books"`
 	BookCaches []conformanceBookCache `json:"book_caches"`
 }
 
 type conformanceBook struct {
 	Path                string              `json:"path"`
-	Layers              []string            `json:"layers"`
+	Folders              []string            `json:"layers"`
 	ID                  string              `json:"id"`
 	Title               string              `json:"title"`
 	Format              string              `json:"format"`
@@ -201,7 +201,7 @@ func readConformanceCase(t *testing.T, shelfDir string) conformanceReading {
 	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot})
 
 	return conformanceReading{
-		Layers:     s.collectExportLayers(),
+		Folders:     s.collectExportFolders(),
 		Books:      readConformanceBooks(t, s),
 		BookCaches: readConformanceBookCaches(t, s),
 	}
@@ -243,7 +243,7 @@ func readConformanceBooks(t *testing.T, s *Shelf) []conformanceBook {
 
 		// The normalized SchemaVersion in meta cannot tell a pre-v1 book from a
 		// v1 one, and that difference is exactly what the dataset records.
-		onDiskSchema := readOnDiskSchemaVersion(t, s, book.FolderPath())
+		onDiskSchema := readOnDiskSchemaVersion(t, s, book.PackagePath())
 
 		coverPresent := false
 		if meta.Cover != "" {
@@ -257,12 +257,12 @@ func readConformanceBooks(t *testing.T, s *Shelf) []conformanceBook {
 			id := source.ID()
 			currentSource = &id
 		} else if !errors.Is(err, ErrSourceNotFound) {
-			t.Fatalf("ResolveCurrentSource(%s): %v", book.FolderPath(), err)
+			t.Fatalf("ResolveCurrentSource(%s): %v", book.PackagePath(), err)
 		}
 
 		observed = append(observed, conformanceBook{
-			Path:                book.FolderPath(),
-			Layers:              orEmpty(listing.Layers),
+			Path:                book.PackagePath(),
+			Folders:              orEmpty(listing.Folders),
 			ID:                  book.ID(),
 			Title:               book.Title(),
 			Format:              meta.Format,
@@ -292,7 +292,7 @@ func readConformanceSources(t *testing.T, s *Shelf, book *Book) []conformanceSou
 		if errors.Is(err, os.ErrNotExist) {
 			return []conformanceSource{}
 		}
-		t.Fatalf("ListSource(%s): %v", book.FolderPath(), err)
+		t.Fatalf("ListSource(%s): %v", book.PackagePath(), err)
 	}
 
 	observed := make([]conformanceSource, 0, len(sources))
