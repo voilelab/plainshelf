@@ -56,6 +56,9 @@
       <div v-if="showCopiedMessage" class="loading detail-notice" role="status">
         {{ t('bookDetail.messages.copied') }}
       </div>
+      <div v-if="showDownloadRequiredMessage" class="detail-notice download-required-notice" role="status">
+        {{ t('bookDetail.messages.downloadRequired') }}
+      </div>
       <div v-if="actionError" class="error detail-error" role="alert">
         <p>{{ actionError }}</p>
         <button class="button" type="button" @click="dismissActionError">
@@ -387,6 +390,20 @@ function onOfflineDownloadClick(): void {
   void startOfflineDownload();
 }
 
+// The mobile shell's router guard redirects a "read" of a not-yet-downloaded
+// book back here with `?downloadRequired=1`. Show the prompt only while the
+// book genuinely still needs downloading, so it clears itself once the offline
+// download this page offers completes. The query flag is an inline literal for
+// the same reason `imported`/`saved`/`copied` above are: this shared page must
+// not import the mobile-only module that sets it.
+const showDownloadRequiredMessage = computed(
+  () =>
+    route.query.downloadRequired === '1' &&
+    offlineDownloadSupported.value &&
+    offlineDownloadState.value !== 'downloaded' &&
+    offlineDownloadState.value !== 'update_available'
+);
+
 const refreshingStats = ref(false);
 
 async function onRefreshStats(): Promise<void> {
@@ -526,6 +543,16 @@ if (!readOnly.value) {
 
 .detail-notice {
   margin-bottom: 18px;
+}
+
+.download-required-notice {
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid #e1ddd4;
+  border-left: 3px solid #b8842f;
+  border-radius: 12px;
+  color: #5a4a30;
+  font-size: 14px;
+  padding: 12px 14px;
 }
 
 .reading-card {
