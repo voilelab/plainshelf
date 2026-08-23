@@ -38,7 +38,7 @@ nav:
       - Data Model: concepts/data-model.md
       - Data Format Versioning: concepts/data-format-versioning.md
       - Shelf Cache and Disk I/O: concepts/shelf-cache-and-io.md
-      - Layers: concepts/layers.md
+      - Folders: concepts/folders.md
   - Development:
       - Local Setup: development/setup.md
       - Android: development/android.md

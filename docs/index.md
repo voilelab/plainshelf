@@ -28,7 +28,7 @@ adds a web interface, desktop integration, and an experimental Android client.
 - [Data Format Versioning](concepts/data-format-versioning.md) explains the
   on-disk schema version, the compatibility policy, and how to back up and
   restore a shelf.
-- [Layers](concepts/layers.md) explains the nested folder hierarchy.
+- [Folders](concepts/folders.md) explains the nested folder hierarchy.
 - [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md) explains scanning,
   cache freshness, and network-filesystem tuning.
 

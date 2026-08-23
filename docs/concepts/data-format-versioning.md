@@ -181,18 +181,18 @@ real rehearsal. Read it before applying. Two things in it deserve attention:
 
 ---
 
-## Trash metadata schema v1
+## Trash metadata schema v2
 
 Every book you delete moves into `trash/books/{id}.bookpkg` with a `trash.json`
-beside its `book.json`. As of schema v1 that file, too, records its format
-version in the first key:
+beside its `book.json`. That file, too, records its format version in the first
+key:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "deleted_at": "2026-08-12T09:41:00Z",
   "original_path": "books/fiction/genji.bookpkg",
-  "original_layer": [
+  "original_folder": [
     "fiction"
   ],
   "delete_reason": "user"
@@ -201,9 +201,16 @@ version in the first key:
 
 `trash.json` is the only record of where a book came from, so it is versioned
 for the same reason `book.json` is: a build that rewrote it with fields it did
-not understand would restore the book to the wrong place. A `trash.json` from
-an older shelf has no `schema_version` and is read as schema v1; the version is written
+not understand would restore the book to the wrong place. The version is written
 only when a book is moved to the trash, never by listing it.
+
+Schema v2 renamed the origin key from `original_layer` to `original_folder`, part
+of the same folder rename that runs through the rest of PlainShelf. It is a hard
+cut with no dual read: a v1 record's `original_layer` is not looked at, so a book
+trashed by a pre-v2 build is still listed and still restorable, but it returns to
+the top level of `books/` rather than the folder it came from. The version bump
+makes that visible instead of silent — a pre-v2 build that meets a v2 record
+refuses to modify it rather than rewriting it and dropping the restore path.
 
 A trashed book whose `trash.json` is newer than the running build stays in the
 trash list and keeps showing where it came from, but this build will not modify
@@ -346,7 +353,7 @@ editing:
 - importing a file into the book, or converting a source between TXT and
   Markdown;
 - switching the current source, or deleting the source that is currently active;
-- moving the book to another layer.
+- moving the book to another folder.
 
 Treat that list as illustrative rather than complete: assume every change you
 make to a book rewrites its `book.json`. Rating one book does not touch any
@@ -367,7 +374,7 @@ None of this is a reason to leave the file alone. These edits are safe:
   read time and makes the book unopenable, exactly like malformed JSON.
   `schema_version` is its own exception: it is managed by PlainShelf, and
   raising it locks you out of the book.
-- **Renaming the `.bookpkg` directory, or moving it into another layer with a
+- **Renaming the `.bookpkg` directory, or moving it into another folder with a
   file manager.** Identity lives in the `id` field, not in the path — see
   [Book IDs](data-model.md#book-ids).
 - **Deleting `CURRENT_SOURCE.txt`.** It is a hint that is never read back; see
@@ -410,7 +417,7 @@ rsync -a /path/to/shelf/ /path/to/backup/shelf-2026-07-28/
 ```
 
 Those two are equivalent for this purpose. Committing the shelf to Git is not —
-see [Git does not back up empty layers](#git-does-not-back-up-empty-layers)
+see [Git does not back up empty folders](#git-does-not-back-up-empty-folders)
 below.
 
 Three things people miss:
@@ -433,30 +440,30 @@ Stop the server or desktop app before copying if you want a guaranteed-consisten
 snapshot. The shelf lock coordinates PlainShelf's own writes; it does not stop
 your backup tool from reading a file mid-write.
 
-### Git does not back up empty layers
+### Git does not back up empty folders
 
-Git tracks files, not directories, so a [layer](layers.md) that holds no book —
+Git tracks files, not directories, so a [folder](folders.md) that holds no book —
 one you created ahead of time, or one whose books you have since moved out — is
 not in the commit and is not there after a checkout. Books themselves are
 directories full of files and come back intact; what a Git backup loses is the
 shape of the shelf around them.
 
-PlainShelf hits the same property internally, which is why it records the layer
-list in its own right instead of deriving it from the books: an empty layer
+PlainShelf hits the same property internally, which is why it records the folder
+list in its own right instead of deriving it from the books: an empty folder
 holds no book, so nothing can rebuild it from the library.
 
 Two ways to live with that:
 
-- **Accept it,** and re-create the empty layers by hand after a restore. They
-  are only directories, so `mkdir` under `books/` or the app's own layer
+- **Accept it,** and re-create the empty folders by hand after a restore. They
+  are only directories, so `mkdir` under `books/` or the app's own folder
   creation is enough. [Restoring from a backup](#restoring-from-a-backup) below
   says how to spot which ones are gone.
-- **Put a `.gitkeep` (or any placeholder file) in each layer you want
+- **Put a `.gitkeep` (or any placeholder file) in each folder you want
   preserved.** Git then has a file to track and keeps the directory.
   PlainShelf's scanners look only at directories under `books/`, so such a file
-  never shows up as a layer or a book — but it is still a file you did not put
+  never shows up as a folder or a book — but it is still a file you did not put
   in your library, and while it is there PlainShelf refuses to delete that
-  layer, reporting `cannot delete non-empty layer`; remove the file first.
+  folder, reporting `cannot delete non-empty folder`; remove the file first.
   PlainShelf neither creates nor removes these files, and does not plan to:
   `books/` holds your files, not the app's.
 
@@ -488,12 +495,12 @@ restoring; they are recreated on the next startup. Restore `books/` and `trash/`
 in full: both hold books, and a restored `.trash/` from an older backup is
 renamed to `trash/` on the next start.
 
-If you restored from a Git checkout rather than a file copy, check the layer
-tree before you start filing books again: every layer that was empty at commit
+If you restored from a Git checkout rather than a file copy, check the folder
+tree before you start filing books again: every folder that was empty at commit
 time is missing, and no error says so — the library simply comes back one or
-more folders shallower. Compare the layer list in the app (or `find books/ -type d`)
+more folders shallower. Compare the folder list in the app (or `find books/ -type d`)
 with what you expect, and re-create the ones that are gone. No book can go
-missing this way: a layer that still holds a book holds files, so Git kept it.
+missing this way: a folder that still holds a book holds files, so Git kept it.
 
 ---
 
@@ -578,9 +585,9 @@ Book, source, and trash metadata carry independent schema versions.
 |---|---|
 | `books/**/book.json` | Yes — `schema_version`, described on this page |
 | `books/**/sources/{id}/meta.json` | Yes — `schema_version`; schema v1 owns source `format` |
-| `trash/**/trash.json` | Yes — `schema_version`; schema v1 owns the book's restore path |
+| `trash/**/trash.json` | Yes — `schema_version`; schema v2 owns the book's restore path |
 | `app/fingerprint-cache.json` | Yes — `schema_version` and an `algo` block, but discarded and rebuilt on any mismatch, never migrated (it is a cache) |
-| `books/` directory layout | No — the layer/folder tree and the `.bookpkg` folder naming carry no version marker. An older layout is handled by detecting the old path at startup and moving it (`shelf/trash.go`'s `migrateLegacyTrash`, `.trash/` → `trash/`), not by a layout schema version |
+| `books/` directory layout | No — the folder tree and the `.bookpkg` folder naming carry no version marker. An older layout is handled by detecting the old path at startup and moving it (`shelf/trash.go`'s `migrateLegacyTrash`, `.trash/` → `trash/`), not by a layout schema version |
 | Application store | No |
 
 The practical rule remains: **run one PlainShelf version against a shelf at a

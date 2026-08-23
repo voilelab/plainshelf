@@ -13,7 +13,7 @@ When a shelf is opened, PlainShelf initializes the book cache in the background.
 During that first scan, PlainShelf:
 
 1. walks directories under `books/`;
-2. records every layer directory it passes, including empty ones;
+2. records every folder it passes, including empty ones;
 3. detects book package folders ending in `.bookpkg`;
 4. opens each book's `book.json` metadata file;
 5. decodes the metadata into memory;
@@ -47,7 +47,7 @@ PlainShelf still needs to keep the cache reasonably fresh. It does this with two
 
 1. **Full scan**
    - Walks the `books/` tree again.
-   - Discovers new, moved, or removed book folders and layer directories.
+   - Discovers new, moved, or removed book packages and folders.
    - Reopens book metadata for discovered books.
    - Controlled mainly by `scan_interval`.
 
@@ -59,7 +59,7 @@ PlainShelf still needs to keep the cache reasonably fresh. It does this with two
 
 Within the configured intervals, repeated browsing can be served from memory with little or no filesystem I/O. That includes the character counts the home page shows: they are cached beside each book, so asking for them adds no disk operation to a listing.
 
-![Flowchart of a book or layer listing: a book listing issued while the shelf is
+![Flowchart of a book or folder listing: a book listing issued while the shelf is
 still building its first cache is refused with 503 and Retry-After 3; a dirty
 tree or an elapsed scan interval triggers a full synchronous walk that blocks the
 caller; otherwise an elapsed book-check interval spawns a background per-book
@@ -74,7 +74,7 @@ it.
 
 !!! note "The first gate is a book-listing gate"
     Only book listings are refused while the initial cache is still being built.
-    A layer listing takes the shared lock without that check, so a request that
+    A folder listing takes the shared lock without that check, so a request that
     arrives during initial construction performs its own full scan and answers
     `200` — slowly — rather than `503`. Everything after that first gate is
     identical for both.
@@ -87,11 +87,11 @@ PlainShelf closes that gap at the point of writing: every request that rewrites 
 
 A source edited outside PlainShelf is the exception, and behaves like every other external change: the new count appears after the next full scan, or immediately after **Update book list**.
 
-### Layer listing
+### Folder listing
 
-The layer tree comes from the same cache, filled by the same walk, so listing layers is not a separate traversal of `books/` and is throttled by `scan_interval` like any book listing.
+The folder tree comes from the same cache, filled by the same walk, so listing folders is not a separate traversal of `books/` and is throttled by `scan_interval` like any book listing.
 
-Layers created, renamed, moved, or deleted through PlainShelf update the cache as they happen, so they appear in the very next listing regardless of the interval. Only a layer directory created or removed outside PlainShelf waits for the next full scan.
+Folders created, renamed, moved, or deleted through PlainShelf update the cache as they happen, so they appear in the very next listing regardless of the interval. Only a folder created or removed outside PlainShelf waits for the next full scan.
 
 ### Skipping folders that did not change
 
@@ -134,7 +134,7 @@ Its endpoint is `POST /api/shelves/{shelf_id}/scans`.
 
 `scan_interval` controls how often PlainShelf performs a full on-disk scan of the shelf book tree.
 
-A shorter interval discovers externally added, moved, or deleted books and layers sooner, but performs more directory traversal and metadata reads. A longer interval reduces filesystem and network I/O, but external changes may appear later — and when they do, the rescan above is what you press instead of shortening the interval for the one time a year you need it.
+A shorter interval discovers externally added, moved, or deleted books and folders sooner, but performs more directory traversal and metadata reads. A longer interval reduces filesystem and network I/O, but external changes may appear later — and when they do, the rescan above is what you press instead of shortening the interval for the one time a year you need it.
 
 Example:
 
@@ -236,7 +236,7 @@ Everything above is in-memory state, rebuilt from the shelf whenever PlainShelf 
 
 The Android app opening a shelf from pCloud is that client. It has no server to ask, so it walks the shelf itself, and each book costs two HTTP requests — one to get a download link for `book.json`, one to fetch it. On a shelf of any size that is slow, and it can hit pCloud's request limit.
 
-So the server and the desktop app write the listing down. Each one exports `app/book-cache-{writer-id}.json`, containing every book's `book.json`, each book's package path, and the shelf's layers. A client downloads that one file instead of walking the shelf, and the cost of opening a library stops growing with the number of books in it.
+So the server and the desktop app write the listing down. Each one exports `app/book-cache-{writer-id}.json`, containing every book's `book.json`, each book's package path, and the shelf's folders. A client downloads that one file instead of walking the shelf, and the cost of opening a library stops growing with the number of books in it.
 
 ### When it is written
 

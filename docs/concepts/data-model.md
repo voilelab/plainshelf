@@ -12,10 +12,10 @@ A typical shelf looks like this:
 {shelf}/
 ├─ books/
 │  ├─ {book1-folder}.bookpkg/
-│  ├─ {layer1}/
+│  ├─ {folder1}/
 │  │  └─ {book2-folder}.bookpkg/
-│  └─ {layer2}/
-│     └─ {layer3}/
+│  └─ {folder2}/
+│     └─ {folder3}/
 │        └─ {book3-folder}.bookpkg/
 ├─ trash/
 │  └─ books/
@@ -39,7 +39,7 @@ The three top-level directories are not the same kind of thing:
 
 ### `books/`
 
-Source of truth. This directory contains all user-owned data: book metadata, text files, cover images, and other long-lived files. Books can be nested under [layers](layers.md) by placing them inside sub-directories.
+Source of truth. This directory contains all user-owned data: book metadata, text files, cover images, and other long-lived files. Books can be nested under [folders](folders.md) by placing them inside sub-directories.
 
 ### `trash/`
 
@@ -63,10 +63,10 @@ was deleted and where it came from:
 
 | Field | Description |
 |---|---|
-| `schema_version` | On-disk format version of this file. Managed by PlainShelf; see [Data Format Versioning](data-format-versioning.md#trash-metadata-schema-v1) |
+| `schema_version` | On-disk format version of this file. Managed by PlainShelf; see [Data Format Versioning](data-format-versioning.md#trash-metadata-schema-v2) |
 | `deleted_at` | When the book was moved to the trash |
 | `original_path` | The path it was moved from, used to restore its folder name |
-| `original_layer` | The [layer](layers.md) it lived in, recreated on restore |
+| `original_folder` | The [folder](folders.md) it lived in, recreated on restore |
 | `delete_reason` | Why it was deleted; `user` for a deletion you asked for |
 
 If the file is missing or unreadable the book still appears in the trash and can
@@ -76,7 +76,7 @@ it has in the trash.
 A `trash.json` written by a *newer* PlainShelf is the opposite case: the book is
 still listed with everything the file says, but this build will not rewrite that
 record, so restoring or permanently deleting it is refused. See
-[Data Format Versioning](data-format-versioning.md#trash-metadata-schema-v1).
+[Data Format Versioning](data-format-versioning.md#trash-metadata-schema-v2).
 
 Restoring never overwrites: if something already occupies the original path, the
 restored folder gets a `-1`, `-2`, … suffix. The book ID inside `book.json` is
@@ -274,7 +274,7 @@ The app has no screen for this yet; the routes are there for a client to use.
 The book ID is generated once when the book is created and then persisted in
 `book.json`; it is **not** recomputed from the folder name or the display title
 afterwards. This means you can rename a book's title, or move the book to a
-different layer, without breaking reading progress, bookmarks, or any external
+different folder, without breaking reading progress, bookmarks, or any external
 references.
 
 The ID is a version 4 UUID, such as
@@ -301,7 +301,7 @@ from the destination shelf and the original and the copy coexist — the same
 reason a copy made within one shelf gets a new ID.
 
 Shelves created by earlier versions hold 8-character hexadecimal IDs, some with
-a `-1`-style suffix, which were derived from the layer path and title at
+a `-1`-style suffix, which were derived from the folder path and title at
 creation time. Those are kept exactly as they are — nothing is renumbered, and
 old and new IDs work side by side in the same shelf. An ID that looks derived
 never was reproducible in practice, because it was only ever computed once; the
@@ -312,5 +312,5 @@ random form makes that plain.
 ## Design principles
 
 - **Human-readable** — the shelf directory can be opened and inspected with any file manager or text editor.
-- **Backup-friendly** — because everything is plain files, the shelf is trivially backed up with `cp -a` or `rsync`. Committing it to Git is *not* an equivalent option: Git does not track empty directories, so a layer holding no book is not in the commit and is not there after a checkout. See [Git does not back up empty layers](data-format-versioning.md#git-does-not-back-up-empty-layers).
+- **Backup-friendly** — because everything is plain files, the shelf is trivially backed up with `cp -a` or `rsync`. Committing it to Git is *not* an equivalent option: Git does not track empty directories, so a folder holding no book is not in the commit and is not there after a checkout. See [Git does not back up empty folders](data-format-versioning.md#git-does-not-back-up-empty-folders).
 - **Rebuildable runtime state** — everything under `app/` can be deleted and the server will recreate it on the next startup. `books/` and `trash/` are not: both hold your books. See [Back up before upgrading](data-format-versioning.md#back-up-before-upgrading) for what a complete backup covers.
