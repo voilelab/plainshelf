@@ -47,7 +47,7 @@ schema v1, the first key in that file records the format version:
   "created_at": "2026-03-15T08:30:00Z",
   "updated_at": "2026-05-01T12:00:00Z",
   "published_at": "2026-03-15",
-  "current_source": "20260315-a1"
+  "current_source": "20260315-083000"
 }
 ```
 
@@ -67,7 +67,7 @@ schema v1, the first key in that file records the format version:
 | `created_at` | Creation timestamp (RFC 3339) |
 | `updated_at` | Last modification timestamp (RFC 3339) |
 | `published_at` | Publication date (`YYYY-MM-DD`) |
-| `current_source` | Authoritative pointer to the active source; see [Adding and removing sources](data-model.md#adding-and-removing-sources) for how it moves when a source is deleted |
+| `current_source` | Authoritative pointer to the active source. A source ID is the second-granularity timestamp of when the source was created (`YYYYMMDD-HHMMSS`), with a `-1`, `-2`, … suffix only when two are created in the same second. See [Adding and removing sources](data-model.md#adding-and-removing-sources) for how the pointer moves when a source is deleted |
 
 !!! warning "`schema_version` is managed by PlainShelf"
     Editing it by hand is unsupported. Raising it is a reliable way to lock
@@ -81,10 +81,20 @@ schema v1, the first key in that file records the format version:
 Files written before schema versioning existed have no `schema_version` key.
 PlainShelf reads them as schema v1.
 
-**Opening your library never rewrites it.** Nothing is migrated at startup, and
-no file is touched just because you looked at it. The version is written to a
-book only the next time you actually change that book — editing its metadata,
-changing its cover, or switching its current source.
+**Opening your library never rewrites a book.** No `book.json` is upgraded at
+startup, and no book file is touched just because you looked at it. The version
+is written to a book only the next time you actually change that book — editing
+its metadata, changing its cover, or switching its current source.
+
+One shelf-level migration does run at startup, and it is not a book rewrite: a
+shelf whose trash still lives in the old hidden `.trash/` directory has it
+renamed to `trash/` the first time a newer build opens it (`data-model.md`'s
+[`trash/` was `.trash/` before](data-model.md#trash-was-trash-before) describes
+what the rename does). That rename carries no `schema_version` of its own, so it
+sits outside the per-file versioning on this page — and it does not reverse.
+Open the same shelf again with a build old enough to still expect `.trash/` and
+the trashed books, now under `trash/`, drop out of that build's trash view until
+they are moved back by hand.
 
 This has two consequences worth knowing:
 
@@ -212,30 +222,68 @@ before the book is moved.
 
 ## Compatibility policy
 
-**These commitments take effect with PlainShelf 1.0.0.** PlainShelf has not
-released 1.0.0 yet, so during the v0.x series the on-disk format may still
-change in breaking ways. Such changes are announced in the changelog with a
-`Breaking (pre-1.0)` marker — v0.8's reading data (below) is one of them. Do not
-read the promises here as protection a v0.x shelf already has.
+PlainShelf has not released 1.0.0 yet, so what the on-disk format guarantees
+today is not what it will guarantee once 1.0 ships. The two are described
+separately below: what a shelf on the current 0.x series can rely on now, and
+the longer commitments that begin at 1.0. Read the 1.0 commitments as a
+statement of intent, not as protection a 0.x shelf already has.
 
-From PlainShelf 1.0.0 on, for any shelf whose books are at `book.json` schema
-v1, PlainShelf makes the following commitments. They cover the **on-disk format
-only** — the HTTP API and the user interface are still pre-alpha and may change.
+### Now — the 0.x series
 
-Releases before PlainShelf 1.0 are not covered by this compatibility promise. In
-particular, v0.8's server-side reading history and reading time are treated as a
-documented breaking change, not as data that PlainShelf 1.0 guarantees to
-migrate.
+During the v0.x series the on-disk format may still change in breaking ways
+between releases. Such changes are announced in the changelog with a
+`Breaking (pre-1.0)` marker — v0.8's reading data
+([below](#v08-reading-data-breaking-change)) is one of them. Concretely, for a
+shelf you are running on a 0.x build today:
 
-### What we promise
+- **Reading is not promised to survive a minor upgrade.** Moving from, say, 0.9
+  to 0.10 may change how the format is read. Nothing here commits a later 0.x
+  build to reading an earlier one's shelf unchanged.
+- **No data migration is promised.** PlainShelf does not undertake to carry 0.x
+  data forward across a breaking change. Where it drops data it says so in the
+  changelog, as it did for v0.8's server-side reading history and reading time.
+- **The refusal to write a newer format already protects you.** This is the one
+  guarantee that holds today rather than at 1.0: PlainShelf will not write a
+  `book.json`, source `meta.json`, or `trash.json` whose on-disk
+  `schema_version` is higher than the running build understands (`book.go:229`,
+  `source.go:87`, `trash.go:387`). Such an object stays readable on a
+  best-effort basis, and every attempt to modify it fails with an explicit error
+  instead of overwriting the file. So an older build cannot silently rewrite an
+  object whose `schema_version` a newer build actually raised — its guard refuses
+  it (see [When PlainShelf refuses to write](#when-plainshelf-refuses-to-write)).
+  It does **not** cover a field a newer build added *without* raising the version:
+  that object still reads as a version the older build accepts, so the guard does
+  not fire and the field is dropped on the older build's next write — see
+  [What we do not promise](#what-we-do-not-promise).
+
+Beyond that write refusal, treat the 0.x on-disk format as unstable: keep a
+backup before each upgrade, and do not rely on the 1.0 commitments below.
+
+### From PlainShelf 1.0 on
+
+**These commitments take effect with PlainShelf 1.0.0, which has not shipped
+yet — until it does, they are not in force.** From 1.0.0 on, for any shelf whose
+books are at `book.json` schema v1, PlainShelf makes the following commitments.
+They cover the **on-disk format only** — the HTTP API and the user interface are
+still pre-alpha and may change. Releases before 1.0 are not covered: v0.8's
+server-side reading history and reading time, in particular, are a documented
+breaking change, not data that 1.0 guarantees to migrate.
+
+#### What we promise
 
 - A shelf whose books are at schema v1 stays readable by every later PlainShelf
   release in the 1.x line. We will not remove schema v1 read support within 1.x.
 - The schema version is raised **only** when a change cannot be read correctly
   by an older build: a field changing meaning or type, a field being removed, or
   a new field becoming required. Cosmetic and additive changes do not raise it.
-- Upgrades are lazy and per-book. Opening a library never rewrites it. A book is
-  written in the new format only when you next change something about that book.
+- Upgrades are lazy and per-book. Opening a library never rewrites a book; a book
+  is written in the new format only when you next change something about that
+  book. Source `meta.json` is the one exception to the *upgrade* half: it is
+  never raised as a side effect of an ordinary write. A legacy source keeps its
+  unversioned metadata even when something else about it is written — the write
+  preserves the version it found rather than stamping the current one — so the
+  only way to upgrade legacy sources is the explicit
+  [`cmd/migrate-legacy-sources`](#migrating-legacy-sources-in-place) pass.
 - PlainShelf will never write a `book.json`, source `meta.json`, or `trash.json`
   whose on-disk `schema_version` is higher than the running build understands.
   Such data stays visible and readable on a best-effort basis, and every attempt
@@ -248,7 +296,7 @@ migrate.
   the write half: it cannot raise a version, cannot drop a field, and cannot
   rewrite a book it does not fully understand, because it does not write at all.
 
-### What we do not promise
+#### What we do not promise
 
 - **Top-level keys PlainShelf does not recognize are removed the next time it
   writes that book.** PlainShelf reads `book.json` into the fixed set of fields
@@ -508,6 +556,19 @@ recomputation — the next similarity build reads the sources again — and neve
 loses anything, which is exactly what the migration promises above exist to avoid
 for `books/` and `trash/`. See
 [the `app/` directory](data-model.md#app) for what the file holds.
+
+!!! note "Building fingerprints can write one source file"
+    The Similar Books page reads like pure analysis, but building fingerprints
+    has one write side effect on `books/`. When it reads a source whose stored
+    `md5_hash` no longer matches the source's actual bytes — content changed
+    outside PlainShelf, or an older import that recorded a different hash — it
+    corrects that source's `meta.json` in place (`fingerprint_facade.go:42` →
+    `source.go:245`, `RepairContentHash`). It deliberately leaves the UI-visible
+    line and character counts at their stale values rather than recomputing them,
+    but the write still rebuilds the whole file from the fields PlainShelf knows —
+    so, like any `meta.json` write, it drops top-level keys outside that set. It
+    goes through the same write refusal as any other write, so it never touches a
+    read-only shelf or a source whose schema version is newer than this build.
 
 ## What is versioned today
 
