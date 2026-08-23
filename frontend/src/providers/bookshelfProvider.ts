@@ -192,7 +192,15 @@ export interface BookshelfReader {
   removeDesktopShelf?(shelfID: string): Promise<void>;
   getDesktopShelfDetails?(shelfID: string): Promise<DesktopShelfDetails>;
   modifyDesktopShelf?(shelfID: string, name: string, scanInterval: string): Promise<void>;
-  saveBookContentToFile?(bookId: string, suggestedName: string): Promise<void>;
+  /**
+   * Writes a book's content out as a file the user keeps, outside the app's
+   * private storage. The desktop client opens a native save dialog and resolves
+   * to `void` — the dialog is its own confirmation. The mobile client writes to
+   * a shared, user-visible folder with no dialog of its own, so it resolves to a
+   * human-readable location string the caller surfaces as a toast; a browser
+   * build defines the method not at all and falls back to a blob download.
+   */
+  saveBookContentToFile?(bookId: string, suggestedName: string): Promise<string | void>;
 }
 
 /**

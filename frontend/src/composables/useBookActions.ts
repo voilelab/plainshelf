@@ -3,6 +3,7 @@ import { useRouter } from 'vue-router';
 import { useBookStore } from '@/composables/useBookStore';
 import { useLayerStore } from '@/composables/useLayerStore';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
+import { useToasts } from '@/composables/useToasts';
 import { bookshelfWriter, getBookshelfProvider, isWebRuntime } from '@/providers';
 import type { BookTransferMode } from '@/api/books';
 import type { Book } from '@/types/book';
@@ -45,6 +46,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
   const router = useRouter();
   const { layers, loaded: layersLoaded, fetchLayers } = useLayerStore();
   const { fetchBooks } = useBookStore();
+  const { showToast } = useToasts();
 
   const downloading = ref(false);
   const actionError = ref('');
@@ -193,7 +195,16 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
         : undefined;
 
       if (provider.saveBookContentToFile) {
-        await provider.saveBookContentToFile(book.id, formatDownloadFilename(book, sourceFormat));
+        // A returned location string means the file was written somewhere with
+        // no save dialog of its own (the mobile Documents export), so confirm it
+        // with a toast; the desktop dialog resolves to void and needs none.
+        const location = await provider.saveBookContentToFile(
+          book.id,
+          formatDownloadFilename(book, sourceFormat)
+        );
+        if (typeof location === 'string' && location) {
+          showToast(t('bookDetail.messages.exported', { location }));
+        }
       } else {
         const blob = await provider.downloadBookContent(book.id);
         const url = URL.createObjectURL(blob);

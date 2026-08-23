@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import type {
   BookmarkPayload,
   Book,
@@ -43,6 +45,11 @@ export const DOWNLOAD_SHELF_CHANGED_ERROR =
 // not a latency-sensitive operation.
 const ASSET_DOWNLOAD_CONCURRENCY = 3;
 
+// Sub-folder of the shared Documents directory that exported books land in, so
+// they are grouped and never collide with an unrelated file already named the
+// same at the Documents root. Shown to the user as part of the saved location.
+const EXPORT_SUBDIR = 'PlainShelf';
+
 const defaultIsOnline = (): boolean =>
   typeof navigator === 'undefined' ? true : navigator.onLine;
 
@@ -68,12 +75,53 @@ export class MobileBookshelfProvider implements BookshelfReader {
   // scoped filesystem lookup that would otherwise have corrected it.
   private readonly coverUrlCache = new Map<string, string>();
 
+  // Present only in a native shell. A browser preview (mobile-shell-preview, the
+  // e2e provider) leaves it undefined so useBookActions.downloadBook falls back
+  // to its blob `<a download>` path, which works in a real browser but is
+  // silently ignored by the Android WebView — the reason "匯出檔案" did nothing
+  // in the app. Gated at construction because native-ness is fixed for the page
+  // lifetime; see runtime.ts.
+  saveBookContentToFile?: (bookId: string, suggestedName: string) => Promise<string>;
+
   constructor(
     private readonly remote: BookshelfReader = new ServerBookshelfProvider(),
     private readonly cache: MobileBookCache = new InMemoryMobileBookCache(),
     private readonly isOnline: () => boolean = defaultIsOnline,
     private readonly coverCache: MobileCoverCache = new InMemoryMobileCoverCache()
-  ) {}
+  ) {
+    if (Capacitor.isNativePlatform()) {
+      this.saveBookContentToFile = (bookId, suggestedName) =>
+        this.exportBookContentToDocuments(bookId, suggestedName);
+    }
+  }
+
+  /**
+   * Writes a book's content into the shared Documents folder so the user can
+   * reach it from the Files app or hand it to another app, and returns the
+   * saved location for a confirmation toast.
+   *
+   * `suggestedName` is already filesystem-safe (useBookActions sanitizes it),
+   * and Documents needs no runtime permission for a file the app itself creates
+   * on modern Android. Text is written as UTF-8 directly rather than base64,
+   * since an exported source is plain text/Markdown. An existing file of the
+   * same name is overwritten, matching a browser download into a folder that
+   * already holds one.
+   */
+  private async exportBookContentToDocuments(
+    bookId: string,
+    suggestedName: string
+  ): Promise<string> {
+    const blob = await this.downloadBookContent(bookId);
+    const relativePath = `${EXPORT_SUBDIR}/${suggestedName}`;
+    await Filesystem.writeFile({
+      path: relativePath,
+      data: await blob.text(),
+      directory: Directory.Documents,
+      encoding: Encoding.UTF8,
+      recursive: true
+    });
+    return `Documents/${relativePath}`;
+  }
 
   // `options` only affects the remote call; the offline cache stores whatever
   // the plain /books response carried, so opt-in fields such as char_count are

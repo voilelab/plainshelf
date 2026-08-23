@@ -564,7 +564,8 @@ const en = {
     messages: {
       imported: 'Book imported successfully.',
       saved: 'Book details saved.',
-      copied: 'Book copied.'
+      copied: 'Book copied.',
+      exported: 'Exported to {location}'
     },
     errors: {
       restartReading: 'Failed to restart the book.',
