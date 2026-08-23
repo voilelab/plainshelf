@@ -492,12 +492,14 @@ onBeforeUnmount(() => {
 }
 
 .mobile-reader-tool {
+  display: flex;
   flex: 1 1 0;
   min-width: 0;
   height: 44px;
   min-height: 44px;
   padding: 0;
   border-radius: 10px;
+  align-items: center;
   justify-content: center;
   color: #4b3f2f;
 }
