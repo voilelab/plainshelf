@@ -8,9 +8,10 @@ private storage
 (`Directory.Data`, no runtime permission required) and never leave the device.
 The one exception is **Export file** on a book's page: it writes a copy of the
 book's text into the shared `Documents/PlainShelf/` folder so it can be opened
-from the Files app or handed to another app. On Android 10+ the Filesystem
-plugin routes that through scoped storage with no permission; on Android 9 and
-below it requests `WRITE_EXTERNAL_STORAGE` (declared with `maxSdkVersion="29"`).
+from the Files app or handed to another app. On Android 11+ the Filesystem
+plugin reaches its own files in Documents with no permission; on Android 10 and
+below it needs both `READ_EXTERNAL_STORAGE` and `WRITE_EXTERNAL_STORAGE`
+(declared with `maxSdkVersion="29"`).
 
 The app is **read-only**: it browses, reads, and downloads books for offline
 use, but it never modifies the library and issues no write requests at all.

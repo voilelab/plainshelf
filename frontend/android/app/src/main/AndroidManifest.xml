@@ -35,11 +35,16 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!--
-      Exporting a book writes it to the shared Documents folder. On Android 10+
-      the Filesystem plugin routes that through scoped storage and needs no
-      permission, but on Android 9 and below writing to public storage still
-      requires WRITE_EXTERNAL_STORAGE, so it is requested only up to that point.
+      Exporting a book writes it to the shared Documents folder. On Android 11+
+      the Filesystem plugin reaches its own app-created files there with no
+      permission, but on Android 10 and older it gates Documents on its
+      `publicStorage` alias, which is granted only when BOTH read and write
+      external-storage permissions are. Both are therefore declared, capped at
+      the last version (API 29 / Android 10) that needs them.
     -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
