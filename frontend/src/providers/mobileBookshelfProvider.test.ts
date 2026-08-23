@@ -6,6 +6,28 @@ const { addReadHistoryMock, clearReadHistoryMock, getReadHistoryIDsMock } = vi.h
   getReadHistoryIDsMock: vi.fn()
 }));
 
+// isNativePlatform gates whether the provider exposes saveBookContentToFile; it
+// defaults to false so every existing test constructs the browser-shaped
+// provider (method absent), and the export suite below flips it to true.
+const { isNativePlatformMock, writeFileMock } = vi.hoisted(() => ({
+  isNativePlatformMock: vi.fn(() => false),
+  writeFileMock: vi.fn()
+}));
+
+vi.mock('@capacitor/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@capacitor/core')>();
+  return {
+    ...actual,
+    Capacitor: { ...actual.Capacitor, isNativePlatform: isNativePlatformMock }
+  };
+});
+
+vi.mock('@capacitor/filesystem', () => ({
+  Directory: { Documents: 'DOCUMENTS', Data: 'DATA' },
+  Encoding: { UTF8: 'utf8' },
+  Filesystem: { writeFile: writeFileMock }
+}));
+
 // Reading history is device-local; the provider must never route it through
 // the remote. Stubbing the store keeps these tests off real device storage.
 vi.mock('@/storage/readHistory', () => ({
@@ -514,6 +536,52 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
 
     expect((await cache.listDownloadedManifests()).map((m) => m.book.id)).toEqual(['book-1']);
     expect(await cache.getCachedBookContent('book-1')).toEqual({ content: 'text' });
+  });
+});
+
+describe('MobileBookshelfProvider — export to Documents', () => {
+  beforeEach(() => {
+    isNativePlatformMock.mockReturnValue(false);
+    writeFileMock.mockReset();
+    writeFileMock.mockResolvedValue({ uri: 'file:///documents/PlainShelf/book.txt' });
+  });
+
+  // The browser preview must keep falling through to useBookActions' blob
+  // download; only the native shell can write to Documents.
+  it('does not expose saveBookContentToFile off a native platform', () => {
+    isNativePlatformMock.mockReturnValue(false);
+    const provider = new MobileBookshelfProvider(
+      {} as unknown as BookshelfReader,
+      new InMemoryMobileBookCache(),
+      () => true
+    );
+
+    expect(provider.saveBookContentToFile).toBeUndefined();
+  });
+
+  it('writes book content to the shared Documents folder and returns its location', async () => {
+    isNativePlatformMock.mockReturnValue(true);
+    const remote = {
+      downloadBookContent: vi
+        .fn()
+        .mockResolvedValue(new Blob(['book body'], { type: 'text/plain;charset=utf-8' }))
+    };
+    const provider = new MobileBookshelfProvider(
+      remote as unknown as BookshelfReader,
+      new InMemoryMobileBookCache(),
+      () => true
+    );
+
+    const location = await provider.saveBookContentToFile!('book-1', 'My Book.txt');
+
+    expect(location).toBe('Documents/PlainShelf/My Book.txt');
+    expect(writeFileMock).toHaveBeenCalledWith({
+      path: 'PlainShelf/My Book.txt',
+      data: 'book body',
+      directory: 'DOCUMENTS',
+      encoding: 'utf8',
+      recursive: true
+    });
   });
 });
 
