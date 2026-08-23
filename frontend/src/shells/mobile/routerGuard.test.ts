@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { NavigationGuardWithThis, Router } from 'vue-router';
+import type {
+  NavigationGuardNext,
+  RouteLocationNormalized,
+  Router
+} from 'vue-router';
 import type { DownloadState } from '@/types/book';
 
 const { loadShelfEntriesMock, isShelfEntryUsableMock, getDownloadStateMock, providerMock } =
@@ -21,12 +25,18 @@ vi.mock('@/providers', () => ({
 
 const { installMobileRouterGuards } = await import('./routerGuard');
 
+type Guard = (
+  to: RouteLocationNormalized,
+  from: RouteLocationNormalized,
+  next: NavigationGuardNext
+) => unknown;
+
 // Captures the guard `installMobileRouterGuards` registers so it can be invoked
 // with a synthetic destination, without standing up a real router.
-function captureGuard(): NavigationGuardWithThis<undefined> {
-  let guard: NavigationGuardWithThis<undefined> | null = null;
+function captureGuard(): Guard {
+  let guard: Guard | null = null;
   const router = {
-    beforeEach: (fn: NavigationGuardWithThis<undefined>) => {
+    beforeEach: (fn: Guard) => {
       guard = fn;
     }
   } as unknown as Router;
@@ -37,8 +47,18 @@ function captureGuard(): NavigationGuardWithThis<undefined> {
   return guard;
 }
 
-function reader(id: string, query: Record<string, string> = {}) {
-  return { name: 'reader', params: { id }, query, path: `/reader/${id}`, hash: '' };
+// The guard returns its verdict (a redirect location or `true`) rather than
+// calling `next`, so a no-op stands in for the unused navigation callback.
+function runGuard(guard: Guard, id: string, query: Record<string, string> = {}) {
+  const to = {
+    name: 'reader',
+    params: { id },
+    query,
+    path: `/reader/${id}`,
+    hash: ''
+  } as unknown as RouteLocationNormalized;
+  const noop = (() => {}) as unknown as NavigationGuardNext;
+  return guard(to, {} as RouteLocationNormalized, noop);
 }
 
 beforeEach(() => {
@@ -56,7 +76,7 @@ describe('mobile reader download gate', () => {
     getDownloadStateMock.mockResolvedValue('not_downloaded' satisfies DownloadState);
     const guard = captureGuard();
 
-    const result = await guard.call(undefined, reader('book-1', { mobile: '1' }) as never, {} as never);
+    const result = await runGuard(guard, 'book-1', { mobile: '1' });
 
     expect(result).toEqual({
       name: 'book-detail',
@@ -70,7 +90,7 @@ describe('mobile reader download gate', () => {
     getDownloadStateMock.mockResolvedValue('downloaded' satisfies DownloadState);
     const guard = captureGuard();
 
-    const result = await guard.call(undefined, reader('book-1') as never, {} as never);
+    const result = await runGuard(guard, 'book-1');
 
     expect(result).toBe(true);
   });
@@ -79,7 +99,7 @@ describe('mobile reader download gate', () => {
     getDownloadStateMock.mockRejectedValue(new Error('cache miss'));
     const guard = captureGuard();
 
-    const result = await guard.call(undefined, reader('book-1') as never, {} as never);
+    const result = await runGuard(guard, 'book-1');
 
     expect(result).toMatchObject({ name: 'book-detail', params: { id: 'book-1' } });
   });
@@ -88,7 +108,7 @@ describe('mobile reader download gate', () => {
     providerMock.getDownloadState = undefined;
     const guard = captureGuard();
 
-    const result = await guard.call(undefined, reader('book-1') as never, {} as never);
+    const result = await runGuard(guard, 'book-1');
 
     expect(result).toBe(true);
   });
