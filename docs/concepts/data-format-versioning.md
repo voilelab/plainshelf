@@ -76,10 +76,10 @@ schema v1, the first key in that file records the format version:
 
 ---
 
-## Reading a shelf created before v1
+## Reading a shelf created before schema v1
 
 Files written before schema versioning existed have no `schema_version` key.
-PlainShelf reads them as v1.
+PlainShelf reads them as schema v1.
 
 **Opening your library never rewrites it.** Nothing is migrated at startup, and
 no file is touched just because you looked at it. The version is written to a
@@ -192,7 +192,7 @@ version in the first key:
 `trash.json` is the only record of where a book came from, so it is versioned
 for the same reason `book.json` is: a build that rewrote it with fields it did
 not understand would restore the book to the wrong place. A `trash.json` from
-an older shelf has no `schema_version` and is read as v1; the version is written
+an older shelf has no `schema_version` and is read as schema v1; the version is written
 only when a book is moved to the trash, never by listing it.
 
 A trashed book whose `trash.json` is newer than the running build stays in the
@@ -212,18 +212,25 @@ before the book is moved.
 
 ## Compatibility policy
 
-Starting with `book.json` schema v1, PlainShelf makes the following
-commitments. They cover the **on-disk format only** — the HTTP API and the user
-interface are still pre-alpha and may change.
+**These commitments take effect with PlainShelf 1.0.0.** PlainShelf has not
+released 1.0.0 yet, so during the v0.x series the on-disk format may still
+change in breaking ways. Such changes are announced in the changelog with a
+`Breaking (pre-1.0)` marker — v0.8's reading data (below) is one of them. Do not
+read the promises here as protection a v0.x shelf already has.
 
-Releases before v1 are not covered by this compatibility promise. In
+From PlainShelf 1.0.0 on, for any shelf whose books are at `book.json` schema
+v1, PlainShelf makes the following commitments. They cover the **on-disk format
+only** — the HTTP API and the user interface are still pre-alpha and may change.
+
+Releases before PlainShelf 1.0 are not covered by this compatibility promise. In
 particular, v0.8's server-side reading history and reading time are treated as a
-documented breaking change, not as data that v1 guarantees to migrate.
+documented breaking change, not as data that PlainShelf 1.0 guarantees to
+migrate.
 
 ### What we promise
 
 - A shelf whose books are at schema v1 stays readable by every later PlainShelf
-  release in the 1.x line. We will not remove v1 read support within 1.x.
+  release in the 1.x line. We will not remove schema v1 read support within 1.x.
 - The schema version is raised **only** when a change cannot be read correctly
   by an older build: a field changing meaning or type, a field being removed, or
   a new field becoming required. Cosmetic and additive changes do not raise it.
@@ -259,7 +266,8 @@ documented breaking change, not as data that v1 guarantees to migrate.
   best-effort. Fields may be missing or misinterpreted, and the displayed
   metadata may be wrong. It is shown so you can see the book exists, not so you
   can rely on it.
-- There is no downgrade path. PlainShelf will not rewrite a v2 book back to v1.
+- There is no downgrade path. PlainShelf will not rewrite a schema v2 book back
+  to schema v1.
   To go back to an older release, restore from a backup taken before the
   upgrade.
 - Files other than `book.json`, source `meta.json`, and `trash.json` are not
@@ -408,13 +416,14 @@ Use `cp -a` or `rsync` when you want a backup with none of these caveats.
 
 ## v0.8 reading-data breaking change
 
-!!! warning "v0.8 reading data does not carry into v1"
-    v1 starts a new, empty reading history and reading-time record on each
-    device. Web and desktop reading progress also starts at zero instead of
-    importing v0.8's server-side bookmarks. Existing Android progress was
-    already on-device and remains available. The old server-side history,
-    dashboard activity, and bookmarks are not migrated or read by v1. This is
-    an intentional pre-1.0 breaking change.
+!!! warning "v0.8 reading data does not carry into v0.9.0 or later"
+    Starting with v0.9.0, PlainShelf keeps a new, empty reading history and
+    reading-time record on each device. Web and desktop reading progress also
+    starts at zero instead of importing v0.8's server-side bookmarks. Existing
+    Android progress was already on-device and remains available. The old
+    server-side history, dashboard activity, and bookmarks are not migrated or
+    read by v0.9.0 or any later release. This is an intentional pre-1.0 breaking
+    change.
 
 PlainShelf provides no export, import, or recovery path for these values.
 Upgrade from v0.8 only if you accept that they will no longer be accessible.
@@ -507,9 +516,10 @@ Book, source, and trash metadata carry independent schema versions.
 | Path | Versioned? |
 |---|---|
 | `books/**/book.json` | Yes — `schema_version`, described on this page |
-| `books/**/sources/{id}/meta.json` | Yes — `schema_version`; v1 owns source `format` |
-| `trash/**/trash.json` | Yes — `schema_version`; v1 owns the book's restore path |
+| `books/**/sources/{id}/meta.json` | Yes — `schema_version`; schema v1 owns source `format` |
+| `trash/**/trash.json` | Yes — `schema_version`; schema v1 owns the book's restore path |
 | `app/fingerprint-cache.json` | Yes — `schema_version` and an `algo` block, but discarded and rebuilt on any mismatch, never migrated (it is a cache) |
+| `books/` directory layout | No — the layer/folder tree and the `.bookpkg` folder naming carry no version marker. An older layout is handled by detecting the old path at startup and moving it (`shelf/trash.go`'s `migrateLegacyTrash`, `.trash/` → `trash/`), not by a layout schema version |
 | Application store | No |
 
 The practical rule remains: **run one PlainShelf version against a shelf at a

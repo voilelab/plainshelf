@@ -186,10 +186,10 @@ For custom configuration and the bundled defaults, see the
 
 ## Upgrading
 
-!!! warning "v0.8 reading history and reading time do not carry into v1"
-    v1 deliberately starts new per-device records. v0.8's server-side values
-    are not migrated and no longer appear after upgrading. PlainShelf provides
-    no export, import, or recovery path for them. See
+!!! warning "v0.8 reading history and reading time do not carry into v0.9.0 or later"
+    Starting with v0.9.0, PlainShelf keeps these records per-device. v0.8's
+    server-side values are not migrated and no longer appear after upgrading.
+    PlainShelf provides no export, import, or recovery path for them. See
     [v0.8 reading-data breaking change](concepts/data-format-versioning.md#v08-reading-data-breaking-change)
     for details.
 
