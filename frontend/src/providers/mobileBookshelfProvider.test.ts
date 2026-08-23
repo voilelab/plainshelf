@@ -21,7 +21,12 @@ import type { BookshelfReader } from './bookshelfProvider';
 import { InMemoryMobileBookCache } from './mobileBookCache';
 import { InMemoryMobileCoverCache } from './mobileCoverCache';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
-import { DOWNLOAD_SHELF_CHANGED_ERROR, MobileBookshelfProvider } from './mobileBookshelfProvider';
+import {
+  DOWNLOAD_SHELF_CHANGED_ERROR,
+  MobileBookshelfProvider,
+  OFFLINE_BOOK_CACHE_MISS_ERROR,
+  OFFLINE_SOURCE_CACHE_MISS_ERROR
+} from './mobileBookshelfProvider';
 
 const SERVER_A = 'http://10.0.2.2:20000';
 const SERVER_B = 'http://192.168.1.50:20000';
@@ -194,6 +199,163 @@ describe('MobileBookshelfProvider — server-unreachable-while-online fallback',
     });
   });
 
+});
+
+// navigator.onLine reports offline spuriously on the Android WebView, which
+// used to make every per-book read dead-end into the "not downloaded and
+// offline" error — the app appeared to force a download before a book could be
+// read. These tests pin the fix: with isOnline() === false the read path still
+// tries the remote, so a reachable book opens, and only a genuinely
+// unreachable server produces the offline error.
+describe('MobileBookshelfProvider — false-offline read path', () => {
+  let cache: InMemoryMobileBookCache;
+
+  beforeEach(() => {
+    cache = new InMemoryMobileBookCache();
+  });
+
+  // Every provider here reports offline, standing in for the WebView's wrong flag.
+  function offlineProvider(remote: Partial<BookshelfReader>): MobileBookshelfProvider {
+    return new MobileBookshelfProvider(remote as BookshelfReader, cache, () => false);
+  }
+
+  describe('getBook', () => {
+    it('reaches the remote for a never-downloaded book despite the offline flag', async () => {
+      const getBook = vi.fn().mockResolvedValue(makeBook('book-1'));
+      const provider = offlineProvider({ getBook });
+
+      const result = await provider.getBook('book-1');
+
+      expect(result.id).toBe('book-1');
+      expect(result.download_state).toBe('not_downloaded');
+      expect(getBook).toHaveBeenCalledTimes(1);
+    });
+
+    it('still answers a downloaded book from the cache without a remote call', async () => {
+      await seedDownloadedBook(cache, 'book-1');
+      const getBook = vi.fn();
+      const provider = offlineProvider({ getBook });
+
+      const result = await provider.getBook('book-1');
+
+      expect(result.id).toBe('book-1');
+      expect(getBook).not.toHaveBeenCalled();
+    });
+
+    it('reports the offline error only once the remote is confirmed unreachable', async () => {
+      const getBook = vi.fn().mockRejectedValue(unreachableError());
+      const provider = offlineProvider({ getBook });
+
+      await expect(provider.getBook('book-1')).rejects.toThrow(OFFLINE_BOOK_CACHE_MISS_ERROR);
+    });
+  });
+
+  describe('getSourceContent', () => {
+    it('reaches the remote despite the offline flag', async () => {
+      const getSourceContent = vi.fn().mockResolvedValue('chapter one');
+      const provider = offlineProvider({ getSourceContent });
+
+      await expect(provider.getSourceContent('book-1', 'src-1')).resolves.toBe('chapter one');
+      expect(getSourceContent).toHaveBeenCalledWith('book-1', 'src-1');
+    });
+
+    it('reports the offline error when the remote is unreachable', async () => {
+      const getSourceContent = vi.fn().mockRejectedValue(unreachableError());
+      const provider = offlineProvider({ getSourceContent });
+
+      await expect(provider.getSourceContent('book-1', 'src-1')).rejects.toThrow(
+        OFFLINE_SOURCE_CACHE_MISS_ERROR
+      );
+    });
+
+    it('surfaces a real HTTP error rather than masking it as offline', async () => {
+      const getSourceContent = vi.fn().mockRejectedValue(statusError(500));
+      const provider = offlineProvider({ getSourceContent });
+
+      await expect(provider.getSourceContent('book-1', 'src-1')).rejects.toMatchObject({
+        status: 500
+      });
+    });
+  });
+
+  describe('getBookContent', () => {
+    it('reaches the remote despite the offline flag', async () => {
+      const getBookContent = vi.fn().mockResolvedValue({ content: 'whole book' });
+      const provider = offlineProvider({ getBookContent });
+
+      await expect(provider.getBookContent('book-1')).resolves.toEqual({ content: 'whole book' });
+    });
+
+    it('reports the offline error when the remote is unreachable', async () => {
+      const getBookContent = vi.fn().mockRejectedValue(unreachableError());
+      const provider = offlineProvider({ getBookContent });
+
+      await expect(provider.getBookContent('book-1')).rejects.toThrow(OFFLINE_BOOK_CACHE_MISS_ERROR);
+    });
+  });
+
+  describe('getSource', () => {
+    it('reaches the remote for source metadata despite the offline flag', async () => {
+      const getSource = vi.fn().mockResolvedValue(makeSource('src-1'));
+      const provider = offlineProvider({ getSource });
+
+      const result = await provider.getSource('book-1', 'src-1');
+
+      expect(result.id).toBe('src-1');
+    });
+  });
+
+  describe('getSourceAsset', () => {
+    it('reaches the remote for an illustration despite the offline flag', async () => {
+      const getSourceAsset = vi
+        .fn()
+        .mockResolvedValue(new Blob(['bytes'], { type: 'image/png' }));
+      const provider = offlineProvider({ getSourceAsset });
+
+      const blob = await provider.getSourceAsset('book-1', 'src-1', 'img.png');
+
+      expect(await blob.text()).toBe('bytes');
+      expect(getSourceAsset).toHaveBeenCalledWith('book-1', 'src-1', 'img.png');
+    });
+  });
+
+  describe('listSources', () => {
+    it('reaches the remote when no sources are cached, despite the offline flag', async () => {
+      const listSources = vi.fn().mockResolvedValue([makeSource('src-1')]);
+      const provider = offlineProvider({ listSources });
+
+      const result = await provider.listSources('book-1');
+
+      expect(result.map((source) => source.id)).toEqual(['src-1']);
+    });
+
+    it('returns cached sources for a downloaded book without a remote call', async () => {
+      await seedDownloadedBook(cache, 'book-1', 'src-1');
+      const listSources = vi.fn();
+      const provider = offlineProvider({ listSources });
+
+      const result = await provider.listSources('book-1');
+
+      expect(result.map((source) => source.id)).toEqual(['src-1']);
+      expect(listSources).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getReadProgress', () => {
+    it('restores saved progress from the remote despite the offline flag', async () => {
+      const getReadProgress = vi.fn().mockResolvedValue({ char_offset: 42 });
+      const provider = offlineProvider({ getReadProgress });
+
+      await expect(provider.getReadProgress('book-1')).resolves.toEqual({ char_offset: 42 });
+    });
+
+    it('falls back to the start when the remote is unreachable', async () => {
+      const getReadProgress = vi.fn().mockRejectedValue(unreachableError());
+      const provider = offlineProvider({ getReadProgress });
+
+      await expect(provider.getReadProgress('book-1')).resolves.toEqual({ char_offset: 0 });
+    });
+  });
 });
 
 describe('MobileBookshelfProvider — device-local reading history', () => {

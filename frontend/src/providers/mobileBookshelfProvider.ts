@@ -55,6 +55,30 @@ function isServerUnreachableError(err: unknown): boolean {
   return err instanceof ApiError ? err.isTimeout : true;
 }
 
+// Runs a remote read whose only tolerated failure is the server being
+// unreachable, which it reports as the given offline message so a caller shows
+// a clear reason rather than a raw transport error. A real HTTP error (a reply
+// with a status) surfaces unchanged.
+//
+// Used on the read paths that no longer gate on navigator.onLine: that flag
+// reports offline spuriously on the Android WebView, so a book the device could
+// actually reach must not be refused just because the flag says offline. The
+// friendly offline error is still raised, but only once the request itself
+// confirms the server cannot be reached.
+async function remoteOrOfflineError<T>(
+  read: () => Promise<T>,
+  offlineMessage: string
+): Promise<T> {
+  try {
+    return await read();
+  } catch (err) {
+    if (isServerUnreachableError(err)) {
+      throw new Error(offlineMessage);
+    }
+    throw err;
+  }
+}
+
 export class MobileBookshelfProvider implements BookshelfReader {
   // Memoized object URLs for cached cover blobs, keyed by (server, shelf) and
   // book id. Created lazily in applyCachedCover and revoked in removeDownload;
@@ -133,7 +157,12 @@ export class MobileBookshelfProvider implements BookshelfReader {
       return this.applyCachedCover(cached);
     }
 
-    throw new Error(OFFLINE_BOOK_CACHE_MISS_ERROR);
+    // A cache miss while navigator.onLine says offline is not proof the device
+    // is offline (that flag is unreliable on the Android WebView). Try the
+    // remote before refusing, so a reachable, never-downloaded book still opens.
+    return this.annotateDownloadState(
+      await remoteOrOfflineError(() => this.remote.getBook(bookId), OFFLINE_BOOK_CACHE_MISS_ERROR)
+    );
   }
 
 
@@ -143,11 +172,10 @@ export class MobileBookshelfProvider implements BookshelfReader {
       return cached;
     }
 
-    if (this.isOnline()) {
-      return this.remote.getBookContent(bookId);
-    }
-
-    throw new Error(OFFLINE_BOOK_CACHE_MISS_ERROR);
+    return remoteOrOfflineError(
+      () => this.remote.getBookContent(bookId),
+      OFFLINE_BOOK_CACHE_MISS_ERROR
+    );
   }
 
   async downloadBookContent(bookId: string): Promise<Blob> {
@@ -156,11 +184,10 @@ export class MobileBookshelfProvider implements BookshelfReader {
       return new Blob([cached.content], { type: 'text/plain;charset=utf-8' });
     }
 
-    if (this.isOnline()) {
-      return this.remote.downloadBookContent(bookId);
-    }
-
-    throw new Error(OFFLINE_BOOK_CACHE_MISS_ERROR);
+    return remoteOrOfflineError(
+      () => this.remote.downloadBookContent(bookId),
+      OFFLINE_BOOK_CACHE_MISS_ERROR
+    );
   }
 
   // Delegated without an offline branch: the layer store surfaces a failure in
@@ -176,18 +203,17 @@ export class MobileBookshelfProvider implements BookshelfReader {
       return cached;
     }
 
-    if (this.isOnline()) {
-      try {
-        return await this.remote.getReadProgress(bookId);
-      } catch (err) {
-        if (!isServerUnreachableError(err)) {
-          throw err;
-        }
-        return { char_offset: 0 };
+    // No local progress yet: try the remote regardless of navigator.onLine, so
+    // a device the flag wrongly calls offline still restores its saved place.
+    // A genuinely unreachable server falls back to the start of the book.
+    try {
+      return await this.remote.getReadProgress(bookId);
+    } catch (err) {
+      if (!isServerUnreachableError(err)) {
+        throw err;
       }
+      return { char_offset: 0 };
     }
-
-    return { char_offset: 0 };
   }
 
   saveReadProgress(bookId: string, progress: BookmarkPayload): Promise<void> {
@@ -302,7 +328,21 @@ export class MobileBookshelfProvider implements BookshelfReader {
       }
     }
 
-    return this.cache.listCachedSources(bookId);
+    const cached = await this.cache.listCachedSources(bookId);
+    if (cached.length > 0) {
+      return cached;
+    }
+
+    // A never-downloaded book has no cached sources; navigator.onLine may be
+    // wrong, so try the remote before settling for the empty list.
+    try {
+      return await this.remote.listSources(bookId);
+    } catch (err) {
+      if (isServerUnreachableError(err)) {
+        return cached;
+      }
+      throw err;
+    }
   }
 
   async getSource(bookId: string, sourceId: string): Promise<SourceMeta> {
@@ -326,7 +366,10 @@ export class MobileBookshelfProvider implements BookshelfReader {
       return cached;
     }
 
-    throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
+    return remoteOrOfflineError(
+      () => this.remote.getSource(bookId, sourceId),
+      OFFLINE_SOURCE_CACHE_MISS_ERROR
+    );
   }
 
   async getSourceContent(bookId: string, sourceId: string): Promise<string> {
@@ -335,11 +378,10 @@ export class MobileBookshelfProvider implements BookshelfReader {
       return cached;
     }
 
-    if (this.isOnline()) {
-      return this.remote.getSourceContent(bookId, sourceId);
-    }
-
-    throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
+    return remoteOrOfflineError(
+      () => this.remote.getSourceContent(bookId, sourceId),
+      OFFLINE_SOURCE_CACHE_MISS_ERROR
+    );
   }
 
   /**
@@ -347,8 +389,10 @@ export class MobileBookshelfProvider implements BookshelfReader {
    * without a request even when the server is reachable.
    *
    * An asset the download did not store — a book downloaded before assets were
-   * cached, or one whose text changed since — still resolves online. Offline it
-   * fails, and the reader shows the alt text rather than losing the chapter.
+   * cached, or one whose text changed since — still resolves whenever the
+   * server can be reached, without gating on navigator.onLine. Only once the
+   * request confirms the server is unreachable does it fail, and the reader
+   * then shows the alt text rather than losing the chapter.
    */
   async getSourceAsset(bookId: string, sourceId: string, name: string): Promise<Blob> {
     const cached = await this.cache.getCachedAsset(bookId, sourceId, name);
@@ -356,11 +400,15 @@ export class MobileBookshelfProvider implements BookshelfReader {
       return cached;
     }
 
-    if (this.isOnline() && this.remote.getSourceAsset) {
-      return this.remote.getSourceAsset(bookId, sourceId, name);
+    const fetchAsset = this.remote.getSourceAsset;
+    if (!fetchAsset) {
+      throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
     }
 
-    throw new Error(OFFLINE_SOURCE_CACHE_MISS_ERROR);
+    return remoteOrOfflineError(
+      () => fetchAsset.call(this.remote, bookId, sourceId, name),
+      OFFLINE_SOURCE_CACHE_MISS_ERROR
+    );
   }
 
 
