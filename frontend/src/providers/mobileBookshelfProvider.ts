@@ -502,6 +502,24 @@ export class MobileBookshelfProvider implements BookshelfReader {
     );
     const coverSize = coverBlob ? coverBlob.size : 0;
 
+    // The manifest is the download's commit point, so it is written *last* —
+    // after the content, source files and cover it accounts for are all on
+    // disk. getDownloadState reports "downloaded" from the manifest alone, and
+    // the mobile shell now gates reading on that, so "manifest present" must
+    // mean "content present": a book that streams on-demand when online would
+    // otherwise pass the gate mid-write and then fail once offline. A failure
+    // before this last write leaves manifest-less files the cache already
+    // ignores as an orphan (same as the asset phase above), not a book listed
+    // as downloaded without its text.
+    await this.cache.saveCachedBookContent(bookId, bookContent);
+    await Promise.all(
+      sourceContents.map(({ sourceId, content }) =>
+        this.cache.saveCachedSourceContent(bookId, sourceId, content)
+      )
+    );
+    if (coverBlob) {
+      await this.cache.saveCachedCover(bookId, coverBlob);
+    }
     await this.cache.saveDownloadedBook({
       book,
       sources,
@@ -516,15 +534,6 @@ export class MobileBookshelfProvider implements BookshelfReader {
         assets: assetsSize
       }
     });
-    await this.cache.saveCachedBookContent(bookId, bookContent);
-    await Promise.all(
-      sourceContents.map(({ sourceId, content }) =>
-        this.cache.saveCachedSourceContent(bookId, sourceId, content)
-      )
-    );
-    if (coverBlob) {
-      await this.cache.saveCachedCover(bookId, coverBlob);
-    }
   }
 
   /**

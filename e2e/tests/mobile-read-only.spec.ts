@@ -1,7 +1,13 @@
 import { expect, test } from '@playwright/test';
 import { startServer } from './support/server';
 import { importHelloBook } from './support/books';
-import { connectMobile, reopenMobileAt, getBookIdByTitle, showMobileReaderControls } from './support/mobile';
+import {
+  connectMobile,
+  reopenMobileAt,
+  getBookIdByTitle,
+  downloadBookViaHook,
+  showMobileReaderControls
+} from './support/mobile';
 
 // The Android app is a read-only reading client. These tests run the desktop
 // Chromium build with `?mobile-shell-preview=1`, which makes isMobileRuntime()
@@ -209,6 +215,11 @@ test('rejects a write from the mobile client but still records reading on the de
       }
     });
     expect(writeResult).toContain('read-only');
+
+    // The mobile client requires a book to be downloaded before it can be read,
+    // so download it first — otherwise the reader route redirects to the book's
+    // detail page and the reading assertions below never run.
+    await downloadBookViaHook(page, bookId);
 
     // Opening the reader records read history and reading time on the device
     // (no request at all — both are stored in app-private storage). Reading

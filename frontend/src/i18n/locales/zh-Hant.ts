@@ -561,7 +561,8 @@ const zhHant = {
       imported: '書籍匯入成功。',
       saved: '書籍資料已儲存。',
       copied: '書籍已複製。',
-      exported: '已匯出至 {location}'
+      exported: '已匯出至 {location}',
+      downloadRequired: '請先將這本書下載到裝置，才能開始閱讀。'
     },
     errors: {
       restartReading: '無法重新開始閱讀。',

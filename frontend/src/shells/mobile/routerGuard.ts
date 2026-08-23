@@ -1,10 +1,16 @@
-import type { Router } from 'vue-router';
+import type { RouteLocationNormalized, RouteLocationRaw, Router } from 'vue-router';
 
 import {
   MOBILE_BLOCKED_ROUTES,
   stripMobileBlockedQuery
 } from '@/features/mobile/utils/blockedRoutes';
+import {
+  DOWNLOAD_REQUIRED_QUERY_KEY,
+  isReadableWhenDownloadRequired
+} from '@/features/mobile/utils/readerDownloadGate';
+import { getBookshelfProvider } from '@/providers';
 import { isShelfEntryUsable, loadShelfEntries } from '@/providers/mobileConfig';
+import type { DownloadState } from '@/types/book';
 
 // The shelf-list routes: reachable even with nothing configured, because they
 // are where the user configures it.
@@ -44,6 +50,13 @@ export function installMobileRouterGuards(router: Router): void {
       return { name: 'library' };
     }
 
+    if (to.name === 'reader') {
+      const readerRedirect = await readerDownloadRedirect(to);
+      if (readerRedirect) {
+        return readerRedirect;
+      }
+    }
+
     // Route names cannot express every write surface: `/import` redirects to
     // `/books?import=1`, and the modal opens off that query alone. Strip it here
     // so the whole mobile route policy lives in this guard. LibraryPage keeps its
@@ -55,4 +68,47 @@ export function installMobileRouterGuards(router: Router): void {
 
     return true;
   });
+}
+
+/**
+ * Enforces "download before read" for the reader route: resolves the target
+ * book's on-device download state and, unless a readable copy exists, redirects
+ * to the book's detail page with a flag that page shows a download prompt for.
+ *
+ * Returns null to let the navigation proceed — when there is no book id, when
+ * the active provider has no download concept (so the gate cannot apply), or
+ * when the book is already downloaded. A failure reading the state is treated
+ * as "not downloaded" so the requirement holds rather than leaking through on a
+ * transient cache error; the detail page it lands on can retry the download.
+ */
+async function readerDownloadRedirect(
+  to: RouteLocationNormalized
+): Promise<RouteLocationRaw | null> {
+  const rawID = to.params.id;
+  const bookID = Array.isArray(rawID) ? rawID[0] : rawID;
+  if (!bookID) {
+    return null;
+  }
+
+  const provider = getBookshelfProvider();
+  if (!provider.getDownloadState) {
+    return null;
+  }
+
+  let state: DownloadState;
+  try {
+    state = await provider.getDownloadState(bookID);
+  } catch {
+    state = 'not_downloaded';
+  }
+
+  if (isReadableWhenDownloadRequired(state)) {
+    return null;
+  }
+
+  return {
+    name: 'book-detail',
+    params: { id: bookID },
+    query: { ...to.query, [DOWNLOAD_REQUIRED_QUERY_KEY]: '1' }
+  };
 }

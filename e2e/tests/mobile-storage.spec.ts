@@ -213,7 +213,7 @@ test('accesses downloaded books when the device has network but cannot reach the
   }
 });
 
-test('shows a clear error when opening a non-downloaded book while offline', async ({ page }) => {
+test('redirects a non-downloaded book to its detail page instead of opening the reader', async ({ page }) => {
   const server = await startServer();
 
   try {
@@ -234,8 +234,13 @@ test('shows a clear error when opening a non-downloaded book while offline', asy
       page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true })
     ).not.toBeVisible();
 
+    // The mobile client requires a download before reading. Opening the reader
+    // route for a not-downloaded book redirects to the book's detail page, which
+    // prompts the user to download it first — the reader content never loads.
     await reopenMobileAt(page, server.baseUrl, `/reader/${helloId}`);
-    await expect(page.getByRole('alert')).toContainText('not downloaded');
+    await expect(page).not.toHaveURL(/\/reader\//);
+    await expect(page.locator('.download-required-notice')).toBeVisible();
+    await expect(page.getByText('Hello from PlainShelf E2E.')).toHaveCount(0);
   } finally {
     await server.dispose();
   }

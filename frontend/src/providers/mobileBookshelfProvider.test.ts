@@ -524,6 +524,30 @@ describe('MobileBookshelfProvider — (server, shelf) scoping', () => {
     expect((await failingCache.listDownloadedManifests())[0].size_breakdown?.assets).toBe(0);
   });
 
+  // The manifest is the download's commit point: getDownloadState reads it alone
+  // and the mobile shell gates reading on it, so it must never appear before the
+  // content it accounts for. If the content write fails, the book must be left
+  // not-downloaded rather than readable-but-empty.
+  it('does not mark a book downloaded when its content fails to persist', async () => {
+    const failingCache = new InMemoryMobileBookCache();
+    failingCache.saveCachedBookContent = vi.fn().mockRejectedValue(new Error('disk full'));
+
+    const provider = new MobileBookshelfProvider(
+      {
+        getBook: vi.fn().mockResolvedValue(makeBook('book-1')),
+        listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
+        getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
+        getSourceContent: vi.fn().mockResolvedValue('source text')
+      } as unknown as BookshelfReader,
+      failingCache,
+      () => true
+    );
+
+    await expect(provider.downloadBook('book-1')).rejects.toThrow('disk full');
+    expect(await failingCache.listDownloadedManifests()).toEqual([]);
+    expect(await failingCache.getDownloadState('book-1')).toBe('not_downloaded');
+  });
+
   it('completes a download when the shelf is unchanged', async () => {
     const provider = makeProvider({
       getBook: vi.fn().mockResolvedValue(makeBook('book-1')),

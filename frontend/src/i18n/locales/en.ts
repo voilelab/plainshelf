@@ -565,7 +565,8 @@ const en = {
       imported: 'Book imported successfully.',
       saved: 'Book details saved.',
       copied: 'Book copied.',
-      exported: 'Exported to {location}'
+      exported: 'Exported to {location}',
+      downloadRequired: 'Download this book to your device before you can read it.'
     },
     errors: {
       restartReading: 'Failed to restart the book.',
