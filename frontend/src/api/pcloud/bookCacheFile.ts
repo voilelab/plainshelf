@@ -19,7 +19,7 @@ import type { PCloudItem } from './types';
  */
 
 /** The exported format this reader understands (BookCacheSchemaVersion in Go). */
-export const BOOK_CACHE_SCHEMA_VERSION = 1;
+export const BOOK_CACHE_SCHEMA_VERSION = 2;
 
 export const APP_FOLDER = 'app';
 export const BOOK_CACHE_FILE_PREFIX = 'book-cache-';
@@ -41,7 +41,7 @@ export interface BookCacheFile {
    */
   timestamp: number;
   generator?: string;
-  layers: string[];
+  folders: string[];
   books: Record<string, BookCacheEntry>;
 }
 
@@ -123,7 +123,7 @@ export function parseBookCacheFile(value: unknown): BookCacheFile | null {
   if (typeof cache.timestamp !== 'number' || !Number.isFinite(cache.timestamp) || cache.timestamp <= 0) {
     return null;
   }
-  if (!Array.isArray(cache.layers) || !cache.layers.every((layer) => typeof layer === 'string')) {
+  if (!Array.isArray(cache.folders) || !cache.folders.every((folder) => typeof folder === 'string')) {
     return null;
   }
   if (typeof cache.books !== 'object' || cache.books === null || Array.isArray(cache.books)) {
@@ -156,7 +156,7 @@ function isBookCacheEntry(value: unknown): value is BookCacheEntry {
  * book.json, which is precisely what the cache is here to avoid.
  */
 export function bookPackagePath(pkg: BookPackageRef): string {
-  return [BOOKS_FOLDER, ...pkg.layers, pkg.folderName].join('/');
+  return [BOOKS_FOLDER, ...pkg.folders, pkg.folderName].join('/');
 }
 
 /** Indexes a cache by package path for lookup during a listing walk. */

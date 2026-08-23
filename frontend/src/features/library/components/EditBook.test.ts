@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // BookDetail is mounted here only to compare its rendered description against
 // the preview; its breadcrumb needs a router that neither component is about.
-vi.mock('./LayerBreadcrumb.vue', () => ({
+vi.mock('./FolderBreadcrumb.vue', () => ({
   default: { setup: () => () => h('nav') }
 }));
 
@@ -13,7 +13,7 @@ import EditBook from './EditBook.vue';
 import type { Book, BookUpdateRequest } from '@/types/book';
 
 function book(comment: string): Book {
-  return { id: 'book-1', title: '書名', authors: [], tags: [], layers: [], comment };
+  return { id: 'book-1', title: '書名', authors: [], tags: [], folders: [], comment };
 }
 
 interface Mounted {

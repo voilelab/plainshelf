@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BOOK_META_SCHEMA_VERSION,
   collectBookPackages,
-  collectLayers,
+  collectFolders,
   findBooksFolder,
   findCoverFile,
   findCurrentSource,
@@ -56,7 +56,7 @@ describe('findBooksFolder', () => {
 });
 
 describe('collectBookPackages', () => {
-  it('records layers from the directory path and stops at .bookpkg', () => {
+  it('records folders from the directory path and stops at .bookpkg', () => {
     const books = folder('books', [
       bookPackage('root-book.bookpkg'),
       folder('Fiction', [
@@ -69,9 +69,9 @@ describe('collectBookPackages', () => {
     const byName = new Map(packages.map((pkg) => [pkg.folderName, pkg]));
 
     expect(packages).toHaveLength(3);
-    expect(byName.get('root-book.bookpkg')?.layers).toEqual([]);
-    expect(byName.get('a.bookpkg')?.layers).toEqual(['Fiction']);
-    expect(byName.get('b.bookpkg')?.layers).toEqual(['Fiction', 'Classics']);
+    expect(byName.get('root-book.bookpkg')?.folders).toEqual([]);
+    expect(byName.get('a.bookpkg')?.folders).toEqual(['Fiction']);
+    expect(byName.get('b.bookpkg')?.folders).toEqual(['Fiction', 'Classics']);
   });
 
   it('does not read a package out of a system directory', () => {
@@ -152,34 +152,34 @@ describe('collectBookPackages', () => {
   });
 });
 
-describe('collectLayers', () => {
-  it('lists nested layers plus the top level', () => {
+describe('collectFolders', () => {
+  it('lists nested folders plus the top level', () => {
     const books = folder('books', [
       bookPackage('root.bookpkg'),
       folder('Fiction', [bookPackage('a.bookpkg'), folder('Classics', [bookPackage('b.bookpkg')])]),
       folder('Non-Fiction', [bookPackage('c.bookpkg')])
     ]);
 
-    expect(collectLayers(books)).toEqual(['/', 'Fiction', 'Fiction/Classics', 'Non-Fiction']);
+    expect(collectFolders(books)).toEqual(['/', 'Fiction', 'Fiction/Classics', 'Non-Fiction']);
   });
 
   // Derived from directories, not from the books inside them: the Go side walks
-  // real directories, so a layer created but not yet filled still exists.
-  it('includes a layer that holds no books', () => {
+  // real directories, so a folder created but not yet filled still exists.
+  it('includes a folder that holds no books', () => {
     const books = folder('books', [folder('Empty', []), folder('Outer', [folder('Inner', [])])]);
 
-    expect(collectLayers(books)).toEqual(['/', 'Empty', 'Outer', 'Outer/Inner']);
+    expect(collectFolders(books)).toEqual(['/', 'Empty', 'Outer', 'Outer/Inner']);
   });
 
   it('does not descend into a book package', () => {
     const books = folder('books', [bookPackage('a.bookpkg')]);
 
-    // `sources` lives inside the package and is not a layer.
-    expect(collectLayers(books)).toEqual(['/']);
+    // `sources` lives inside the package and is not a folder.
+    expect(collectFolders(books)).toEqual(['/']);
   });
 
   it('returns just the top level for an empty shelf', () => {
-    expect(collectLayers(folder('books', []))).toEqual(['/']);
+    expect(collectFolders(folder('books', []))).toEqual(['/']);
   });
 
   // The dataset in shelf/testdata/conformance covers the directory names a real
@@ -194,7 +194,7 @@ describe('collectLayers', () => {
       folder('Poetry', [folder('@EAdir', [])])
     ]);
 
-    expect(collectLayers(books)).toEqual(['/', 'Poetry']);
+    expect(collectFolders(books)).toEqual(['/', 'Poetry']);
   });
 });
 
@@ -258,7 +258,7 @@ describe('toBook', () => {
       language: 'zh',
       comment: 'a note',
       cover: 'cover.jpg',
-      layers: ['Fiction'],
+      folders: ['Fiction'],
       star: 3,
       format: 'txt',
       current_source: '20240101-120000'

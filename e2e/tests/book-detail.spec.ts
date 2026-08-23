@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { startServer } from './support/server';
 import { chaptersMarkdownFixturePath, importBookFromPath, importHelloBook } from './support/books';
-import { addLayer, layersQueryRegex, selectAllBooks } from './support/layers';
+import { addFolder, foldersQueryRegex, selectAllBooks } from './support/folders';
 import { openReaderTab } from './support/reader';
 
 async function openHelloDetail(page: import('@playwright/test').Page, baseUrl: string): Promise<void> {
@@ -166,7 +166,7 @@ test('moves the book to another folder from the More menu', async ({ page }) => 
   try {
     await page.goto(`${server.baseUrl}/books`);
     await importHelloBook(page);
-    await addLayer(page, 'moved-here');
+    await addFolder(page, 'moved-here');
     await selectAllBooks(page);
     await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
     await expect(page).toHaveURL(/\/books\/[^/?]+$/);
@@ -198,7 +198,7 @@ test('moves the book to another folder from the More menu', async ({ page }) => 
     await expect(breadcrumb.getByRole('link', { name: 'moved-here', exact: true })).toBeVisible();
 
     await breadcrumb.getByRole('link', { name: 'moved-here', exact: true }).click();
-    await expect(page).toHaveURL(layersQueryRegex('moved-here'));
+    await expect(page).toHaveURL(foldersQueryRegex('moved-here'));
     await expect(
       page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true })
     ).toBeVisible();

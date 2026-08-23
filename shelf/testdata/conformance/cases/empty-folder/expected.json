@@ -1,5 +1,5 @@
 {
-  "layers": [
+  "folders": [
     "/",
     "Fiction",
     "Fiction/Classics",
@@ -9,7 +9,7 @@
   "books": [
     {
       "path": "books/Reference/manuals/handbook.bookpkg",
-      "layers": [
+      "folders": [
         "Reference",
         "manuals"
       ],

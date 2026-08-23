@@ -1,12 +1,12 @@
 {
-  "layers": [
+  "folders": [
     "/",
     "Fiction"
   ],
   "books": [
     {
       "path": "books/Fiction/dune.bookpkg",
-      "layers": [
+      "folders": [
         "Fiction"
       ],
       "id": "k3xq7pm2vh4td6bz",
@@ -36,7 +36,7 @@
     },
     {
       "path": "books/notebook.bookpkg",
-      "layers": [],
+      "folders": [],
       "id": "q7w4nd5r2kx3ma6t",
       "title": "Notebook",
       "format": "",

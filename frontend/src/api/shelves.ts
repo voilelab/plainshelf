@@ -1,6 +1,6 @@
 import { buildShelfApiPath, fetchJson, getActiveShelfID, isMockApiMode, setActiveShelfID } from './client';
 import { mockListBooks } from './mocks/books';
-import { getMockLayers } from './mocks/layers';
+import { getMockFolders } from './mocks/folders';
 import { getShell } from '@/providers/shell';
 
 export interface ShelfInfo {
@@ -70,7 +70,7 @@ const SCAN_TIMEOUT_MS = 300_000;
  */
 export interface ShelfScanResult {
   bookCount: number;
-  layerCount: number;
+  folderCount: number;
 }
 
 /**
@@ -103,10 +103,10 @@ export async function rescanShelf(shelfID?: string): Promise<ShelfScanResult> {
   if (isMockApiMode()) {
     // Reports the fixture set, so the button says the same thing the grid
     // beside it shows rather than "found nothing".
-    return { bookCount: mockListBooks(1, Number.MAX_SAFE_INTEGER).total, layerCount: getMockLayers().length };
+    return { bookCount: mockListBooks(1, Number.MAX_SAFE_INTEGER).total, folderCount: getMockFolders().length };
   }
 
-  const res = await fetchJson<{ scan_id?: string; book_count?: number; layer_count?: number }>(
+  const res = await fetchJson<{ scan_id?: string; book_count?: number; folder_count?: number }>(
     buildShelfApiPath('/scans', shelfID),
     { method: 'POST' },
     { readOnlySafe: true, acceptStatuses: [409], timeoutMs: SCAN_TIMEOUT_MS }
@@ -120,7 +120,7 @@ export async function rescanShelf(shelfID?: string): Promise<ShelfScanResult> {
 
   return {
     bookCount: res.book_count,
-    layerCount: typeof res.layer_count === 'number' ? res.layer_count : 0
+    folderCount: typeof res.folder_count === 'number' ? res.folder_count : 0
   };
 }
 

@@ -532,16 +532,16 @@ func resolveDesktopFolderPath(libRoot string, folderParts []string) (string, err
 
 	relPath, err := filepath.Rel(booksRoot, targetDir)
 	if err != nil {
-		return "", util.Errorf("resolving layer directory: %w", err)
+		return "", util.Errorf("resolving folder directory: %w", err)
 	}
 	if relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
-		return "", util.Errorf("invalid layer path")
+		return "", util.Errorf("invalid folder path")
 	}
 
 	return targetDir, nil
 }
 
-func (a *DesktopApp) OpenLayerDirectory(shelfID string, folderParts []string) error {
+func (a *DesktopApp) OpenFolderDirectory(shelfID string, folderParts []string) error {
 	shelfID = strings.TrimSpace(shelfID)
 	if shelfID == "" {
 		return util.Errorf("shelf ID cannot be empty")
@@ -573,10 +573,10 @@ func (a *DesktopApp) OpenLayerDirectory(shelfID string, folderParts []string) er
 
 	info, err := os.Stat(targetDir)
 	if err != nil {
-		return util.Errorf("layer directory unavailable: %w", err)
+		return util.Errorf("folder directory unavailable: %w", err)
 	}
 	if !info.IsDir() {
-		return util.Errorf("layer path is not a directory")
+		return util.Errorf("folder path is not a directory")
 	}
 
 	if err := openFinder(targetDir); err != nil {

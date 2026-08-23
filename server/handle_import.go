@@ -31,8 +31,8 @@ type importHandlers struct {
 	settings *settings
 }
 
-func parseImportLayerParts(rawLayer string) []string {
-	trimmed := strings.TrimSpace(rawLayer)
+func parseImportFolderParts(rawFolder string) []string {
+	trimmed := strings.TrimSpace(rawFolder)
 	if trimmed == "" || trimmed == "/" {
 		return nil
 	}
@@ -181,11 +181,11 @@ func validateLocalImportPath(localPath string) (string, error) {
 func newPlainTextBook(
 	shelfData *shelf.ShelfData,
 	utf8Reader io.Reader,
-	layerParts shelf.FolderPath,
+	folderParts shelf.FolderPath,
 	title string,
 	filename string,
 ) (*shelf.Book, error) {
-	return shelfData.NewBookWith(layerParts, title, func(book *shelf.Book) error {
+	return shelfData.NewBookWith(folderParts, title, func(book *shelf.Book) error {
 		format := bookFormatFromFilename(filename)
 		source, err := book.NewSourceWithOptions(utf8Reader, shelf.NewSourceOptions{Format: format})
 		if err != nil {
@@ -240,7 +240,7 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 	if title == "" {
 		title = header.Filename
 	}
-	layerParts := parseImportLayerParts(r.FormValue("layer"))
+	folderParts := parseImportFolderParts(r.FormValue("folder"))
 
 	if isEPUBExt(strings.ToLower(filepath.Ext(header.Filename))) {
 		strategy, message, err := parseImportStrategy(r.FormValue("strategy"), h.settings.epubImportStrategy())
@@ -252,13 +252,13 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 
 		// multipart.File is an io.ReaderAt, so the archive is read randomly
 		// rather than buffered whole.
-		newBook, err := h.importEPUB(shelfData, f, header.Size, header.Filename, r.FormValue("title"), layerParts, strategy)
+		newBook, err := h.importEPUB(shelfData, f, header.Size, header.Filename, r.FormValue("title"), folderParts, strategy)
 		if err != nil {
 			h.writeEPUBImportError(w, err)
 			return
 		}
 
-		h.writeImportedBook(w, newBook, layerParts)
+		h.writeImportedBook(w, newBook, folderParts)
 		return
 	}
 
@@ -271,13 +271,13 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newBook, err := newPlainTextBook(shelfData, utf8File, layerParts, title, header.Filename)
+	newBook, err := newPlainTextBook(shelfData, utf8File, folderParts, title, header.Filename)
 	if err != nil {
 		h.writeErr(w, err, "failed to import book")
 		return
 	}
 
-	h.writeImportedBook(w, newBook, layerParts)
+	h.writeImportedBook(w, newBook, folderParts)
 }
 
 // writeEPUBImportError reports a bad archive with its detail, because the
@@ -293,19 +293,19 @@ func (h *importHandlers) writeEPUBImportError(w http.ResponseWriter, err error) 
 }
 
 // writeImportedBook responds with the freshly imported book. The book was
-// created under layerParts, which is where it now sits; the book itself does
-// not carry its layer back.
-func (h *importHandlers) writeImportedBook(w http.ResponseWriter, newBook *shelf.Book, layerParts shelf.FolderPath) {
+// created under folderParts, which is where it now sits; the book itself does
+// not carry its folder back.
+func (h *importHandlers) writeImportedBook(w http.ResponseWriter, newBook *shelf.Book, folderParts shelf.FolderPath) {
 	h.writeJSON(w, http.StatusCreated, Book{
 		Meta:  newBook.GetMeta(),
-		Layer: layerParts,
+		Folder: folderParts,
 	})
 }
 
 // fromLocalPath imports a book from a local file path on the server.
 // This is intended for desktop application use, where the client can specify a
 // local file path and the server can access it directly.
-func (h *importHandlers) fromLocalPath(shelfID string, localPath string, layerParts shelf.FolderPath) (*shelf.Book, error) {
+func (h *importHandlers) fromLocalPath(shelfID string, localPath string, folderParts shelf.FolderPath) (*shelf.Book, error) {
 	cleanPath, err := validateLocalImportPath(localPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -334,7 +334,7 @@ func (h *importHandlers) fromLocalPath(shelfID string, localPath string, layerPa
 		}
 		// The desktop client has no per-import options, so the configured
 		// default strategy is the whole story here.
-		return h.importEPUB(shelfData, fp, info.Size(), filepath.Base(cleanPath), "", layerParts, h.settings.epubImportStrategy())
+		return h.importEPUB(shelfData, fp, info.Size(), filepath.Base(cleanPath), "", folderParts, h.settings.epubImportStrategy())
 	}
 
 	// Re-encode before creating the book: this reads the file, and the book
@@ -344,7 +344,7 @@ func (h *importHandlers) fromLocalPath(shelfID string, localPath string, layerPa
 		return nil, util.Errorf("%w", err)
 	}
 
-	newBook, err := newPlainTextBook(shelfData, utf8Reader, layerParts, filepath.Base(cleanPath), cleanPath)
+	newBook, err := newPlainTextBook(shelfData, utf8Reader, folderParts, filepath.Base(cleanPath), cleanPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

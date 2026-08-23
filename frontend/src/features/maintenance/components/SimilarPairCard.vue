@@ -122,7 +122,7 @@ interface RowEntry {
 // A book that could not be matched in the listing still deserves a row so its
 // copy is deletable; fall back to a title-only stand-in keyed by the pair id.
 function bookFor(id: string, book: Book | undefined): Book {
-  return book ?? { id, title: id, authors: [], tags: [], layers: [] };
+  return book ?? { id, title: id, authors: [], tags: [], folders: [] };
 }
 
 function charCountOf(book: Book | undefined): number | null {

@@ -2,7 +2,7 @@ import { t } from '@/i18n';
 import { ref } from 'vue';
 import { bookshelfWriter } from '@/providers';
 import { deriveTitleFromFilename, hasSupportedExtension } from '@/utils/file';
-import { normalizeLayerPath } from '@/utils/layers';
+import { normalizeFolderPath } from '@/utils/folders';
 import { DEFAULT_EPUB_IMPORT_STRATEGY, type EpubImportStrategy } from '@/types/book';
 
 const bookExtPattern = /\.(txt|md|epub)$/i;
@@ -77,12 +77,12 @@ export function useImportBook() {
     return 'Import failed';
   }
 
-  function normalizeImportLayerPath(currentLayerPath?: string): string {
-    const normalized = normalizeLayerPath(currentLayerPath ?? '');
+  function normalizeImportFolderPath(currentFolderPath?: string): string {
+    const normalized = normalizeFolderPath(currentFolderPath ?? '');
     return normalized.length > 0 ? normalized : '/';
   }
 
-  async function submit(currentLayerPath?: string): Promise<ImportSubmitResult | null> {
+  async function submit(currentFolderPath?: string): Promise<ImportSubmitResult | null> {
     if (submitting.value) {
       return null;
     }
@@ -128,7 +128,7 @@ export function useImportBook() {
             // An EPUB knows its own title; sending the one derived from the
             // filename would only override it with something worse.
             title: isEpub ? '' : current.title,
-            layer: normalizeImportLayerPath(currentLayerPath),
+            folder: normalizeImportFolderPath(currentFolderPath),
             file: current.file,
             strategy: isEpub ? epubStrategy.value : undefined
           });

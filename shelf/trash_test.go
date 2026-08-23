@@ -328,9 +328,9 @@ func TestTrashMetaWithoutSchemaVersionIsReadAsV1AndNotRewritten(t *testing.T) {
 	metaPath := trashMetaPath(tmpLib, bookID)
 
 	legacy := rewriteTrashMeta(t, metaPath, map[string]any{
-		"original_path":  path.Join(booksFolder, "origin", bookID+bookExtension),
-		"original_layer": []string{"origin"},
-		"delete_reason":  "user",
+		"original_path":   path.Join(booksFolder, "origin", bookID+bookExtension),
+		"original_folder": []string{"origin"},
+		"delete_reason":   "user",
 	})
 
 	items, err := s.ListTrashedBooks()

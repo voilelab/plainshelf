@@ -12,7 +12,7 @@ func TestAPIUnknownShelfIsRejectedConsistentlyContract(t *testing.T) {
 	paths := []string{
 		shelfIDURL("missing_shelf", "books"),
 		shelfIDURL("missing_shelf", "status"),
-		shelfIDURL("missing_shelf", "layers"),
+		shelfIDURL("missing_shelf", "folders"),
 		shelfIDURL("missing_shelf", "trash", "books"),
 		shelfIDURL("missing_shelf", "books", "duplicate"),
 	}

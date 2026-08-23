@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // The breadcrumb renders RouterLink and so needs a router; the notes card is
 // what this file is about.
-vi.mock('./LayerBreadcrumb.vue', () => ({
+vi.mock('./FolderBreadcrumb.vue', () => ({
   default: { setup: () => () => h('nav') }
 }));
 
@@ -13,7 +13,7 @@ import type { Book } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 
 function book(comment: string): Book {
-  return { id: 'book-1', title: '書名', authors: [], tags: [], layers: [], comment };
+  return { id: 'book-1', title: '書名', authors: [], tags: [], folders: [], comment };
 }
 
 function source(comment: string): SourceMeta {

@@ -3,7 +3,7 @@
     <MoveBooksModal
       :open="moveBooksModalOpen"
       :count="selection.count.value"
-      :options="layerOptions"
+      :options="folderOptions"
       :busy="batchOperations.running.value"
       @cancel="moveBooksModalOpen = false"
       @submit="submitBatchMove"
@@ -54,7 +54,7 @@
     <p v-if="shelfRefresh.error.value" class="error" role="alert">{{ shelfRefresh.error.value }}</p>
     <p v-if="charCountError" class="error" role="alert">{{ charCountError }}</p>
     <BookCollectionPage
-      :title="selectedLayerTitle"
+      :title="selectedFolderTitle"
       :books="visibleBooks"
       :loading="collectionLoading"
       :shelf-initializing="shelfInitializing"
@@ -90,13 +90,13 @@
       @update:page-size="onPageSizeChange"
     >
       <template #title-meta>
-        <template v-if="isRootLayerSelected">
-          {{ ROOT_LAYER_LABEL }}
+        <template v-if="isRootFolderSelected">
+          {{ ROOT_FOLDER_LABEL }}
         </template>
-        <template v-else-if="selectedLayerSegments.length > 0">
+        <template v-else-if="selectedFolderSegments.length > 0">
           <button type="button" class="breadcrumb-link" @click="onSelectAllBooks">{{ t('library.allBooks') }}</button>
           <span class="breadcrumb-separator" aria-hidden="true">/</span>
-          <template v-for="(segment, index) in selectedLayerSegments" :key="`${segment}-${index}`">
+          <template v-for="(segment, index) in selectedFolderSegments" :key="`${segment}-${index}`">
             <button
               type="button"
               class="breadcrumb-link"
@@ -105,7 +105,7 @@
               {{ segment }}
             </button>
             <span
-              v-if="index < selectedLayerSegments.length - 1"
+              v-if="index < selectedFolderSegments.length - 1"
               class="breadcrumb-separator"
               aria-hidden="true"
             >
@@ -202,14 +202,14 @@
 
     <ImportBookModal
       :open="importModalOpen"
-      :current-layer-path="selectedLayer"
+      :current-folder-path="selectedFolder"
       :dropped-files="droppedFiles"
       @close="closeImportModal"
       @imported="onImported"
     />
     <NewEmptyBookModal
       :open="isNewEmptyBookModalOpen"
-      :current-layer-path="selectedLayer"
+      :current-folder-path="selectedFolder"
       @close="closeNewEmptyBookModal"
       @imported="onImported"
     />
@@ -246,7 +246,7 @@ import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useBookPagination } from '@/composables/useBookPagination';
 import { useBookSelection } from '@/composables/useBookSelection';
 import { useBookBatchOperations } from '@/composables/useBookBatchOperations';
-import { useLayerStore } from '@/composables/useLayerStore';
+import { useFolderStore } from '@/composables/useFolderStore';
 import { useShelfRefresh } from '@/composables/useShelfRefresh';
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useBooksRouteQuery } from '@/features/library/composables/useBooksRouteQuery';
@@ -258,7 +258,7 @@ import {
   BOOK_FILTERS,
   PANEL_BOOK_FILTERS,
   charCountFilter,
-  layersFilter,
+  foldersFilter,
   searchFilter
 } from '@/utils/bookFilters/registry';
 import {
@@ -269,23 +269,23 @@ import {
 import { filterValueLabel } from '@/features/library/utils/filterLabels';
 import { isCharCountRangeActive } from '@/utils/charCountFilter';
 import { hasFileTransfer, readDroppedFiles } from '@/utils/file';
-import { normalizeLayerPath } from '@/utils/layers';
+import { normalizeFolderPath } from '@/utils/folders';
 import { useI18n } from '@/i18n';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { isMobileRuntime } from '@/providers/runtime';
 import type { BookActivation } from '@/types/bookSelection';
 import '@/styles/toolbar-controls.css';
 
-const ROOT_LAYER_LABEL = '/';
+const ROOT_FOLDER_LABEL = '/';
 const { t } = useI18n();
 const route = useRoute();
 
 const { books, loading, error, shelfInitializing, shelfUnreachable, fetchBooks } = useBookStore();
-const { layers } = useLayerStore();
+const { folders } = useFolderStore();
 const { selectedShelfID } = useShelvesStore();
 const { pageSize, setPageSize, PAGE_SIZE_OPTIONS } = useBookPagination();
 const {
-  selectedLayer,
+  selectedFolder,
   page,
   sortBy,
   sortOrder,
@@ -323,7 +323,7 @@ const downloadBatchSucceeded = ref(0);
 const downloadBatchTotal = ref(0);
 const downloadBatchFailures = ref<Array<{ id: string; title: string; message: string }>>([]);
 const selectionEnabled = computed(() => isMobileEnv.value || !readOnly.value);
-const layerOptions = computed(() => [...new Set(layers.value.filter((layer) => layer && layer !== '/'))].sort());
+const folderOptions = computed(() => [...new Set(folders.value.filter((folder) => folder && folder !== '/'))].sort());
 const visibleBookIds = computed(() => visibleBooks.value.map((book) => book.id));
 const downloadBatchStatusText = computed(() => {
   if (downloadBatchRunning.value) return t('bookCollection.selection.processing');
@@ -354,8 +354,8 @@ async function reloadBooks(): Promise<void> {
   booksLoaded.value = false;
   await fetchBooks();
   booksLoaded.value = true;
-  // A no-op once the counts are cached, so navigating between layers does not
-  // pay for them again: they are keyed by book ID and do not depend on a layer.
+  // A no-op once the counts are cached, so navigating between folders does not
+  // pay for them again: they are keyed by book ID and do not depend on a folder.
   await loadCharCountsIfNeeded();
 }
 
@@ -463,10 +463,10 @@ function openBatchTrash(): void {
   if (!isMobileEnv.value && selection.active.value && !readOnly.value) trashBooksModalOpen.value = true;
 }
 
-function submitBatchMove(targetLayer: string): void {
+function submitBatchMove(targetFolder: string): void {
   moveBooksModalOpen.value = false;
   const ids = [...selection.selectedIds.value];
-  void batchOperations.startMove(ids, targetLayer.split('/').filter(Boolean), selectedTitles());
+  void batchOperations.startMove(ids, targetFolder.split('/').filter(Boolean), selectedTitles());
 }
 
 function submitBatchTrash(): void {
@@ -543,20 +543,20 @@ async function installMobileBackHandler(): Promise<void> {
   });
 }
 
-const isRootLayerSelected = computed(() => selectedLayer.value === ROOT_LAYER_LABEL);
+const isRootFolderSelected = computed(() => selectedFolder.value === ROOT_FOLDER_LABEL);
 
-const selectedLayerTitle = computed(() => {
-  if (!selectedLayer.value) {
+const selectedFolderTitle = computed(() => {
+  if (!selectedFolder.value) {
     return t('library.allBooks');
   }
-  return selectedLayer.value;
+  return selectedFolder.value;
 });
 
-const selectedLayerSegments = computed(() => {
-  if (!selectedLayer.value) {
+const selectedFolderSegments = computed(() => {
+  if (!selectedFolder.value) {
     return [] as string[];
   }
-  return selectedLayer.value.split('/').filter((segment) => segment.length > 0);
+  return selectedFolder.value.split('/').filter((segment) => segment.length > 0);
 });
 
 const pageTitleSegments = computed(() => {
@@ -565,9 +565,9 @@ const pageTitleSegments = computed(() => {
     return [t('library.titleSearch'), query, t('app.name')] as const;
   }
 
-  const layerName = selectedLayer.value?.trim();
-  if (layerName && layerName !== ROOT_LAYER_LABEL) {
-    return [t('library.titleLayer'), layerName, t('app.name')] as const;
+  const folderName = selectedFolder.value?.trim();
+  if (folderName && folderName !== ROOT_FOLDER_LABEL) {
+    return [t('library.titleFolder'), folderName, t('app.name')] as const;
   }
 
   return [t('app.name')] as const;
@@ -702,18 +702,18 @@ const emptyMessage = computed(() => {
     return t('library.empty.noBooksYet');
   }
   // Blame is generic; only the wording per cause is hand-written, because
-  // search, layer, and the character range each read better than a generic line.
+  // search, folder, and the character range each read better than a generic line.
   const blamed = blamedFilter.value;
   if (blamed) {
     switch (blamed.filter.key) {
       case searchFilter.key: {
-        const layerSuffix = selectedLayer.value
-          ? t('common.inLayer', { layer: selectedLayerTitle.value })
+        const folderSuffix = selectedFolder.value
+          ? t('common.inFolder', { folder: selectedFolderTitle.value })
           : '';
-        return t('library.empty.noBooksFound', { query: String(blamed.value), layerSuffix });
+        return t('library.empty.noBooksFound', { query: String(blamed.value), folderSuffix });
       }
-      case layersFilter.key:
-        return t('library.empty.noBooksInLayer', { layer: selectedLayerTitle.value });
+      case foldersFilter.key:
+        return t('library.empty.noBooksInFolder', { folder: selectedFolderTitle.value });
       case charCountFilter.key:
         return t('library.empty.noBooksInCharCountRange');
       default:
@@ -731,42 +731,42 @@ const emptyMessage = computed(() => {
 });
 
 function onSelectAllBooks(): void {
-  if (!selectedLayer.value && page.value === 1) {
+  if (!selectedFolder.value && page.value === 1) {
     return;
   }
-  void pushBooksQuery({ layer: undefined, page: 1 });
+  void pushBooksQuery({ folder: undefined, page: 1 });
 }
 
-function onSelectLayer(layer: string): void {
-  const trimmed = layer.trim();
+function onSelectFolder(folder: string): void {
+  const trimmed = folder.trim();
   if (trimmed === '') {
     onSelectAllBooks();
     return;
   }
 
-  const normalized = trimmed === ROOT_LAYER_LABEL ? ROOT_LAYER_LABEL : normalizeLayerPath(trimmed);
+  const normalized = trimmed === ROOT_FOLDER_LABEL ? ROOT_FOLDER_LABEL : normalizeFolderPath(trimmed);
 
-  if (selectedLayer.value === normalized && page.value === 1) {
+  if (selectedFolder.value === normalized && page.value === 1) {
     return;
   }
-  void pushBooksQuery({ layer: normalized, page: 1 });
+  void pushBooksQuery({ folder: normalized, page: 1 });
 }
 
 function onSelectBreadcrumb(index: number): void {
-  const path = selectedLayerSegments.value.slice(0, index + 1).join('/');
-  onSelectLayer(path);
+  const path = selectedFolderSegments.value.slice(0, index + 1).join('/');
+  onSelectFolder(path);
 }
 
 function onPageChange(nextPage: number): void {
   if (nextPage === page.value) {
     return;
   }
-  void pushBooksQuery({ layer: selectedLayer.value, page: nextPage });
+  void pushBooksQuery({ folder: selectedFolder.value, page: nextPage });
 }
 
 function onPageSizeChange(newSize: number): void {
   setPageSize(newSize);
-  void pushBooksQuery({ layer: selectedLayer.value, page: 1 });
+  void pushBooksQuery({ folder: selectedFolder.value, page: 1 });
 }
 
 function onSortChange(nextSort: BookSortKey): void {
@@ -775,7 +775,7 @@ function onSortChange(nextSort: BookSortKey): void {
   }
 
   void pushBooksQuery({
-    layer: selectedLayer.value,
+    folder: selectedFolder.value,
     page: 1,
     sort: nextSort,
     order: sortOrder.value
@@ -802,7 +802,7 @@ function onOrderChange(nextOrder: SortOrder): void {
   }
 
   void pushBooksQuery({
-    layer: selectedLayer.value,
+    folder: selectedFolder.value,
     page: 1,
     sort: sortBy.value,
     order: nextOrder
@@ -835,7 +835,7 @@ async function openImportFromFiles(): Promise<void> {
       // A write like any other import: it creates books in the active shelf,
       // it just takes host paths from the desktop picker instead of an upload.
       // openLocalBookFiles above only opens a dialog, so it stays a read.
-      const importResult = await bookshelfWriter().importBooksFromLocalPaths?.(desktopFiles, selectedLayer.value ?? '') ?? null;
+      const importResult = await bookshelfWriter().importBooksFromLocalPaths?.(desktopFiles, selectedFolder.value ?? '') ?? null;
       if (importResult) {
         const hasImportedBook = importResult.some((item) => item.id !== undefined && item.id !== '');
         const hasFailedBook = importResult.some((item) => Boolean(item.error));
@@ -936,12 +936,12 @@ onBeforeUnmount(() => {
   void mobileBackHandle?.remove();
 });
 
-watch(selectedLayer, async () => {
+watch(selectedFolder, async () => {
   await reloadBooks();
 });
 
 watch(
-  [selectedLayer, page, pageSize, sortBy, sortOrder, committedSearch, panelFiltersKey, selectedShelfID],
+  [selectedFolder, page, pageSize, sortBy, sortOrder, committedSearch, panelFiltersKey, selectedShelfID],
   () => selection.clear()
 );
 
@@ -972,7 +972,7 @@ watch(
   committedSearch,
   (newSearch) => {
     void replaceBooksQuery({
-      layer: selectedLayer.value,
+      folder: selectedFolder.value,
       page: 1,
       search: newSearch,
       sort: sortBy.value,
@@ -982,8 +982,8 @@ watch(
 );
 
 watch(
-  [selectedLayer, page, totalPages, booksLoaded],
-  ([layer, currentPage, maxPage, hasLoaded]) => {
+  [selectedFolder, page, totalPages, booksLoaded],
+  ([folder, currentPage, maxPage, hasLoaded]) => {
     const normalizedPage = hasLoaded ? Math.min(currentPage, maxPage) : currentPage;
     const currentSearch = committedSearch.value.trim();
 
@@ -995,7 +995,7 @@ watch(
     }
 
     if (isBooksQueryNormalized({
-      layer,
+      folder,
       page: normalizedPage,
       search: currentSearch,
       sort: sortBy.value,
@@ -1005,7 +1005,7 @@ watch(
     }
 
     void replaceBooksQuery({
-      layer,
+      folder,
       page: normalizedPage,
       search: currentSearch,
       sort: sortBy.value,

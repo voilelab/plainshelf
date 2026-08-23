@@ -1,12 +1,12 @@
 {
-  "layers": [
+  "folders": [
     "/",
     "Fiction"
   ],
   "books": [
     {
       "path": "books/Fiction/solaris.bookpkg",
-      "layers": [
+      "folders": [
         "Fiction"
       ],
       "id": "s9k4mt2xq7vz3ndp",
@@ -34,7 +34,7 @@
     },
     {
       "path": "books/almanac.bookpkg",
-      "layers": [],
+      "folders": [],
       "id": "a3d7pq9km2xv5nrt",
       "title": "Almanac",
       "format": "txt",

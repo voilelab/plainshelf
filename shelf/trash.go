@@ -24,12 +24,21 @@ var ErrTrashedBookNotFound = util.NewError("trashed book not found")
 //
 // trash.json is not a cache: it records where each book came from, so losing or
 // rewriting it restores the book to the wrong place. It follows the same rules
-// as book.json. No schema_version predates versioning ("v0"): read as v1,
-// normalized in memory, persisted only on the next write (lazy upgrade); opening
-// a shelf never rewrites it. A HIGHER schema_version is still listed and
-// readable, but any operation that would modify the trashed book is refused
-// before touching the filesystem, so an older build cannot clobber a newer one.
-const TrashMetaSchemaVersion = 1
+// as book.json. No schema_version predates versioning ("v0"): read as the
+// current version, normalized in memory, persisted only on the next write (lazy
+// upgrade); opening a shelf never rewrites it. A HIGHER schema_version is still
+// listed and readable, but any operation that would modify the trashed book is
+// refused before touching the filesystem, so an older build cannot clobber a
+// newer one.
+//
+// v2 renamed the recorded origin folder key from "original_layer" to
+// "original_folder" (the layer→folder surface rename). It is a hard cut with no
+// dual read: a v1 record's "original_layer" is simply not seen, so a book trashed
+// by a pre-v2 build restores to the top level of books/ rather than its old
+// folder. The bump makes that visible instead of silent — a pre-v2 build reading
+// a v2 record refuses to modify it (ErrUnsupportedTrashSchemaVersion) rather than
+// rewriting it and dropping the restore path.
+const TrashMetaSchemaVersion = 2
 
 // ErrUnsupportedTrashSchemaVersion is returned when an operation would modify a
 // trashed book whose on-disk trash.json is newer than this build supports. It is
@@ -38,12 +47,12 @@ const TrashMetaSchemaVersion = 1
 var ErrUnsupportedTrashSchemaVersion = util.NewError("trash.json schema version is newer than this build supports")
 
 type TrashedBook struct {
-	ID            string        `json:"id"`
-	Title         string        `json:"title"`
-	Authors       []string      `json:"authors"`
-	OriginalPath  string        `json:"original_path,omitempty"`
-	OriginalFolder FolderPath        `json:"original_layer,omitempty"`
-	DeletedAt     util.JSONTime `json:"deleted_at,omitzero"`
+	ID             string        `json:"id"`
+	Title          string        `json:"title"`
+	Authors        []string      `json:"authors"`
+	OriginalPath   string        `json:"original_path,omitempty"`
+	OriginalFolder FolderPath    `json:"original_folder,omitempty"`
+	DeletedAt      util.JSONTime `json:"deleted_at,omitzero"`
 }
 
 type trashMeta struct {
@@ -51,11 +60,11 @@ type trashMeta struct {
 	// shelf-managed: writeTrashMeta stamps it, and any value a caller supplies
 	// is ignored. Declared first so it marshals as the first key, matching
 	// book.json.
-	SchemaVersion int           `json:"schema_version"`
-	DeletedAt     util.JSONTime `json:"deleted_at,omitzero"`
-	OriginalPath  string        `json:"original_path,omitempty"`
-	OriginalFolder FolderPath        `json:"original_layer,omitempty"`
-	DeleteReason  string        `json:"delete_reason,omitempty"`
+	SchemaVersion  int           `json:"schema_version"`
+	DeletedAt      util.JSONTime `json:"deleted_at,omitzero"`
+	OriginalPath   string        `json:"original_path,omitempty"`
+	OriginalFolder FolderPath    `json:"original_folder,omitempty"`
+	DeleteReason   string        `json:"delete_reason,omitempty"`
 }
 
 func (s *Shelf) MoveBookToTrash(bookID string) error {
@@ -100,10 +109,10 @@ func (s *Shelf) MoveBookToTrash(bookID string) error {
 	}
 
 	meta := trashMeta{
-		DeletedAt:     util.JSONTime(time.Now()),
-		OriginalPath:  activePath,
+		DeletedAt:      util.JSONTime(time.Now()),
+		OriginalPath:   activePath,
 		OriginalFolder: append(FolderPath(nil), originalFolder...),
-		DeleteReason:  "user",
+		DeleteReason:   "user",
 	}
 	if err := s.writeTrashMeta(root, trashPath, &meta); err != nil {
 		_ = root.Rename(trashPath, activePath)

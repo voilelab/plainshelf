@@ -34,7 +34,7 @@ const IGNORED_DIR_NAMES = new Set([
  * shelf, and one that was synced from a NAS carries the same debris.
  *
  * Skipping matters more here than the names suggest: on Synology every
- * directory carries its own "@eaDir", which would otherwise double the layer
+ * directory carries its own "@eaDir", which would otherwise double the folder
  * tree, and a book in "#recycle" is one the user deleted. The leading-dot rule
  * covers the open-ended set of hidden helper directories (.git, .stfolder,
  * .dropbox.cache, .Spotlight-V100) in one condition.
@@ -88,7 +88,7 @@ export interface BookPackageRef {
   folderName: string;
   folderid: number;
   /** Directory names between `books/` and this package, outermost first. */
-  layers: string[];
+  folders: string[];
   /** Absent when the package has no book.json and cannot be read. */
   meta?: PCloudFileRef;
   /** Files directly inside the package, keyed by name (cover, pointer file, …). */
@@ -145,7 +145,7 @@ export function findBooksFolder(shelfRoot: PCloudItem): PCloudItem | undefined {
 /**
  * Walks a listed `books/` tree and returns every book package it contains.
  *
- * Directories are layers until one ends in `.bookpkg`; that one is a book and is
+ * Directories are folders until one ends in `.bookpkg`; that one is a book and is
  * not descended into further, matching how the Go shelf scans the tree
  * (shelf/shelf_book.go). System directories are skipped before that test, so a
  * package inside one is not a book either.
@@ -153,18 +153,18 @@ export function findBooksFolder(shelfRoot: PCloudItem): PCloudItem | undefined {
 export function collectBookPackages(booksFolder: PCloudItem): BookPackageRef[] {
   const packages: BookPackageRef[] = [];
 
-  const walk = (folder: PCloudItem, layers: string[]): void => {
+  const walk = (folder: PCloudItem, folders: string[]): void => {
     for (const item of folder.contents ?? []) {
       if (!item.isfolder || item.folderid === undefined || isIgnoredDirName(item.name)) {
         continue;
       }
 
       if (item.name.endsWith(BOOK_EXTENSION)) {
-        packages.push(readBookPackage(item, layers));
+        packages.push(readBookPackage(item, folders));
         continue;
       }
 
-      walk(item, [...layers, item.name]);
+      walk(item, [...folders, item.name]);
     }
   };
 
@@ -173,16 +173,16 @@ export function collectBookPackages(booksFolder: PCloudItem): BookPackageRef[] {
 }
 
 /**
- * Lists every layer under a listed `books/` tree, in the shape `getLayers()`
+ * Lists every folder under a listed `books/` tree, in the shape `getFolders()`
  * returns (`'/'` for the top level, `Fiction/Classics` for a nested one).
  *
  * Derived from the directories themselves, not from the books found in them, so
- * a layer holding no books is still listed — the Go side walks real directories
- * too (`iterateLayers` in shelf/shelf_layer.go) and `books/` itself counts as
- * the "no layer" group. System directories are not layers, for the same reason
- * the Go scan refuses to make one (`ErrIgnoredLayerName`).
+ * a folder holding no books is still listed — the Go side walks real directories
+ * too (`iterateFolders` in shelf/shelf_folder.go) and `books/` itself counts as
+ * the "no folder" group. System directories are not folders, for the same reason
+ * the Go scan refuses to make one (`ErrIgnoredFolderName`).
  */
-export function collectLayers(booksFolder: PCloudItem): string[] {
+export function collectFolders(booksFolder: PCloudItem): string[] {
   const paths = new Set<string>(['/']);
 
   const walk = (folder: PCloudItem, segments: string[]): void => {
@@ -205,7 +205,7 @@ export function collectLayers(booksFolder: PCloudItem): string[] {
   return Array.from(paths).sort((a, b) => a.localeCompare(b));
 }
 
-function readBookPackage(pkg: PCloudItem, layers: string[]): BookPackageRef {
+function readBookPackage(pkg: PCloudItem, folders: string[]): BookPackageRef {
   const files: Record<string, PCloudFileRef> = {};
   let sources: BookSourceRef[] = [];
 
@@ -226,7 +226,7 @@ function readBookPackage(pkg: PCloudItem, layers: string[]): BookPackageRef {
   return {
     folderName: pkg.name,
     folderid: pkg.folderid as number,
-    layers,
+    folders,
     meta: files[BOOK_META_FILE],
     files,
     sources
@@ -350,7 +350,7 @@ export function isSchemaNewerThanSupported(meta: BookJson): boolean {
  * blob — which is what the mobile runtime requires anyway
  * (frontend/src/composables/useCoverSrc.ts).
  */
-export function toBook(meta: BookJson, layers: string[]): Book {
+export function toBook(meta: BookJson, folders: string[]): Book {
   return {
     id: meta.id,
     title: meta.title,
@@ -361,7 +361,7 @@ export function toBook(meta: BookJson, layers: string[]): Book {
     // book.json spells this "comments"; the UI type uses the singular.
     comment: meta.comments,
     cover: meta.cover?.trim() ?? '',
-    layers,
+    folders,
     created_at: meta.created_at,
     updated_at: meta.updated_at,
     published_at: meta.published_at,

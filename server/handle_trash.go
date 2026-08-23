@@ -15,12 +15,12 @@ type trashHandlers struct {
 }
 
 type TrashedBook struct {
-	ID            string        `json:"id"`
-	Title         string        `json:"title"`
-	Authors       []string      `json:"authors,omitempty"`
-	OriginalPath  string        `json:"original_path,omitempty"`
-	OriginalLayer shelf.FolderPath  `json:"original_layer,omitempty"`
-	DeletedAt     util.JSONTime `json:"deleted_at,omitzero"`
+	ID             string           `json:"id"`
+	Title          string           `json:"title"`
+	Authors        []string         `json:"authors,omitempty"`
+	OriginalPath   string           `json:"original_path,omitempty"`
+	OriginalFolder shelf.FolderPath `json:"original_folder,omitempty"`
+	DeletedAt      util.JSONTime    `json:"deleted_at,omitzero"`
 }
 
 // Serves both DELETE /api/shelves/{shelf_id}/books/{book_id} and
@@ -61,12 +61,12 @@ func (h *trashHandlers) getTrashedBooks(w http.ResponseWriter, r *http.Request) 
 	resp := make([]TrashedBook, 0, len(books))
 	for _, b := range books {
 		resp = append(resp, TrashedBook{
-			ID:            b.ID,
-			Title:         b.Title,
-			Authors:       append([]string(nil), b.Authors...),
-			OriginalPath:  b.OriginalPath,
-			OriginalLayer: append(shelf.FolderPath(nil), b.OriginalFolder...),
-			DeletedAt:     b.DeletedAt,
+			ID:             b.ID,
+			Title:          b.Title,
+			Authors:        append([]string(nil), b.Authors...),
+			OriginalPath:   b.OriginalPath,
+			OriginalFolder: append(shelf.FolderPath(nil), b.OriginalFolder...),
+			DeletedAt:      b.DeletedAt,
 		})
 	}
 

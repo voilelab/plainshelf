@@ -1,9 +1,9 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "writer_id": "desktop-9f2a",
   "timestamp": 1772000000,
   "generator": "plainshelf/0.0.0-fixture",
-  "layers": [
+  "folders": [
     "/",
     "Fiction"
   ],

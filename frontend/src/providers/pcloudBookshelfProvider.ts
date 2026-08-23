@@ -1,6 +1,6 @@
 import {
   collectBookPackages,
-  collectLayers,
+  collectFolders,
   findBooksFolder,
   findCoverFile,
   findCurrentSource,
@@ -76,8 +76,8 @@ interface ShelfSnapshot {
   fetchedAt: number;
   books: LoadedBook[];
   byID: Map<string, LoadedBook>;
-  /** Every layer directory, including ones holding no books. */
-  layers: string[];
+  /** Every folder directory, including ones holding no books. */
+  folders: string[];
 }
 
 /**
@@ -120,7 +120,7 @@ export interface PCloudBookshelfProviderOptions {
  * that was deleted — down the offline-cache path, quietly showing stale content
  * instead of reporting the problem.
  *
- * So the transient/permanent distinction the pCloud layer already draws is
+ * So the transient/permanent distinction the pCloud folder already draws is
  * carried across the boundary: retryable failures become "unreachable", and
  * everything else is surfaced. Translating here rather than teaching the
  * wrapper about pCloud keeps that wrapper backend-agnostic.
@@ -184,7 +184,7 @@ async function mapWithConcurrency<T, R>(
  * where there is no snapshot yet and an empty library would be worse than a
  * single scan.
  *
- * Intended to be wrapped by MobileBookshelfProvider, which layers the offline
+ * Intended to be wrapped by MobileBookshelfProvider, which folders the offline
  * cache and device-local progress on top.
  */
 export class PCloudBookshelfProvider implements BookshelfReader {
@@ -242,7 +242,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       return current;
     }
 
-    // Collapse concurrent callers onto one load: the library grid, the layer
+    // Collapse concurrent callers onto one load: the library grid, the folder
     // tree and the dashboard all list on mount, and three simultaneous
     // recursive listings would triple the cost of opening the app.
     if (this.pending) {
@@ -307,7 +307,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       fetchedAt: persisted.fetched_at,
       books,
       byID: new Map(books.map((entry) => [entry.meta.id, entry])),
-      layers: persisted.layers
+      folders: persisted.folders
     };
   }
 
@@ -316,7 +316,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       version: SHELF_SNAPSHOT_VERSION,
       shelf_root: this.shelfRoot,
       fetched_at: snapshot.fetchedAt,
-      layers: snapshot.layers,
+      folders: snapshot.folders,
       books: snapshot.books.map(({ pkg, meta }) => ({ pkg, meta }))
     } satisfies PersistedShelfSnapshot);
   }
@@ -354,10 +354,10 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     }
 
     const packages = collectBookPackages(booksFolder);
-    // Layers stay derived from the listing rather than read from the cache. The
+    // Folders stay derived from the listing rather than read from the cache. The
     // directories are in the response already, so they cost nothing here and
     // cannot be out of date, which the cache's copy can be.
-    const layers = collectLayers(booksFolder);
+    const folders = collectFolders(booksFolder);
     this.pruneJsonCache(packages);
 
     // Only worth two requests when something actually has to be read. A refresh
@@ -423,7 +423,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       fetchedAt: this.now(),
       books,
       byID: new Map(books.map((entry) => [entry.meta.id, entry])),
-      layers
+      folders
     };
 
     this.snapshot = snapshot;
@@ -517,7 +517,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
   }
 
   private buildBook(meta: BookJson, pkg: BookPackageRef): Book {
-    const book = toBook(meta, pkg.layers);
+    const book = toBook(meta, pkg.folders);
     return findCoverFile(pkg, meta) ? { ...book, cover_url: pcloudCoverUrl(meta.id) } : book;
   }
 
@@ -666,10 +666,10 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     return false;
   }
 
-  // --- layers --------------------------------------------------------------
+  // --- folders --------------------------------------------------------------
 
-  listLayers(): Promise<string[]> {
-    return this.guarded(async () => (await this.ensureSnapshot()).layers);
+  listFolders(): Promise<string[]> {
+    return this.guarded(async () => (await this.ensureSnapshot()).folders);
   }
 
   // --- sources -------------------------------------------------------------

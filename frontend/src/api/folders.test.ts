@@ -15,22 +15,22 @@ vi.mock('./client', async () => {
 });
 
 const { ApiError } = await import('./client');
-const { createLayer, transferLayer } = await import('./layers');
+const { createFolder, transferFolder } = await import('./folders');
 
-describe('transferLayer', () => {
-  it('posts the source and target layers as segment arrays and returns the chain id', async () => {
+describe('transferFolder', () => {
+  it('posts the source and target folders as segment arrays and returns the chain id', async () => {
     fetchJsonMock.mockResolvedValueOnce({ taskchain_id: 'chain-1' });
 
-    const id = await transferLayer('Fiction/SciFi', 'shelf-b', 'Archive/SciFi', 'move');
+    const id = await transferFolder('Fiction/SciFi', 'shelf-b', 'Archive/SciFi', 'move');
 
     expect(id).toBe('chain-1');
     const [path, init] = fetchJsonMock.mock.calls[0];
-    expect(path).toBe('/layer-transfers');
+    expect(path).toBe('/folder-transfers');
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({
       mode: 'move',
-      source_layer: ['Fiction', 'SciFi'],
+      source_folder: ['Fiction', 'SciFi'],
       target_shelf: 'shelf-b',
-      target_layer: ['Archive', 'SciFi']
+      target_folder: ['Archive', 'SciFi']
     });
   });
 
@@ -39,20 +39,20 @@ describe('transferLayer', () => {
       new ApiError(JSON.stringify({ taskchain_id: 'chain-running' }), { status: 409 })
     );
 
-    await expect(transferLayer('Fiction', 'shelf-b', 'Fiction', 'copy')).resolves.toBe('chain-running');
+    await expect(transferFolder('Fiction', 'shelf-b', 'Fiction', 'copy')).resolves.toBe('chain-running');
   });
 
   it('raises a typed conflict when the target already holds a folder with this name', async () => {
     fetchJsonMock.mockRejectedValueOnce(
       new ApiError(
-        JSON.stringify({ error: 'target_layer_conflict', message: 'already holds a layer' }),
+        JSON.stringify({ error: 'target_folder_conflict', message: 'already holds a folder' }),
         { status: 409 }
       )
     );
 
-    await expect(transferLayer('Fiction', 'shelf-b', 'Fiction', 'copy')).rejects.toMatchObject({
-      name: 'LayerTransferConflictError',
-      kind: 'target_layer_conflict'
+    await expect(transferFolder('Fiction', 'shelf-b', 'Fiction', 'copy')).rejects.toMatchObject({
+      name: 'FolderTransferConflictError',
+      kind: 'target_folder_conflict'
     });
   });
 
@@ -68,8 +68,8 @@ describe('transferLayer', () => {
       )
     );
 
-    await expect(transferLayer('Fiction', 'shelf-b', 'Fiction', 'move')).rejects.toMatchObject({
-      name: 'LayerTransferConflictError',
+    await expect(transferFolder('Fiction', 'shelf-b', 'Fiction', 'move')).rejects.toMatchObject({
+      name: 'FolderTransferConflictError',
       kind: 'book_id_conflict',
       conflictingBookIDs: ['book-1', 'book-2']
     });
@@ -80,28 +80,28 @@ describe('transferLayer', () => {
       new ApiError('shelf is opened read-only; this PlainShelf instance cannot modify it', { status: 409 })
     );
 
-    await expect(transferLayer('Fiction', 'shelf-b', 'Fiction', 'move')).rejects.toThrow(
+    await expect(transferFolder('Fiction', 'shelf-b', 'Fiction', 'move')).rejects.toThrow(
       'shelf is opened read-only'
     );
   });
 });
 
-describe('createLayer', () => {
+describe('createFolder', () => {
   // The server refuses a name the shelf scanner would skip with an explanation
   // the user needs; replacing every 400 with one fixed sentence hid it.
   it('surfaces the reason the server gave for a rejected name', async () => {
     fetchJsonMock.mockRejectedValueOnce(
-      new ApiError('invalid layer name: hidden and system directory names are skipped', { status: 400 })
+      new ApiError('invalid folder name: hidden and system directory names are skipped', { status: 400 })
     );
 
-    await expect(createLayer('@eaDir')).rejects.toThrow(
-      'invalid layer name: hidden and system directory names are skipped'
+    await expect(createFolder('@eaDir')).rejects.toThrow(
+      'invalid folder name: hidden and system directory names are skipped'
     );
   });
 
   it('still reports a generic failure for a server error', async () => {
     fetchJsonMock.mockRejectedValueOnce(new ApiError('boom', { status: 500 }));
 
-    await expect(createLayer('Fiction')).rejects.toThrow('Failed to create layer');
+    await expect(createFolder('Fiction')).rejects.toThrow('Failed to create folder');
   });
 });

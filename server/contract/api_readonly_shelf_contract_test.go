@@ -12,7 +12,7 @@ func TestAPIReadOnlyShelfServesReadsContract(t *testing.T) {
 	env := newAPITestEnv(t, withReadOnlyShelf())
 
 	assertStatus(t, env.get(booksURL()), http.StatusOK)
-	assertStatus(t, env.get(shelfURL("layers")), http.StatusOK)
+	assertStatus(t, env.get(shelfURL("folders")), http.StatusOK)
 	assertStatus(t, env.get(shelfURL("trash", "books")), http.StatusOK)
 
 	// A rescan walks the shelf and rebuilds the in-memory cache without writing

@@ -106,7 +106,7 @@ func copyFileAcross(srcRoot fsutil.ReadFS, src string, dstRoot fsutil.FS, dst st
 // ErrInvalidFolder is returned when a folder name is not a usable path segment.
 // Every operation that accepts caller-supplied folders checks them before
 // touching the filesystem, so callers can treat it as a request error.
-var ErrInvalidFolder = util.NewError("invalid layer name")
+var ErrInvalidFolder = util.NewError("invalid folder name")
 
 // ErrIgnoredFolderName is the ErrInvalidFolder case where the name is well formed
 // but names a directory the scanners skip. It wraps ErrInvalidFolder, so callers

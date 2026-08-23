@@ -16,8 +16,8 @@ func TestAPIImportBookContract(t *testing.T) {
 	if created.Meta == nil || created.Meta.ID == "" || created.Meta.Title != "Imported Book" {
 		t.Fatalf("unexpected imported book meta: %#v", created.Meta)
 	}
-	if strings.Join(created.Layer, "/") != "inbox/txt" {
-		t.Fatalf("layer = %#v, want inbox/txt", created.Layer)
+	if strings.Join(created.Folder, "/") != "inbox/txt" {
+		t.Fatalf("folder = %#v, want inbox/txt", created.Folder)
 	}
 	if created.Meta.CurrentSource == "" {
 		t.Fatal("import response missing current_source")

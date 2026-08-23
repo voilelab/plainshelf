@@ -34,16 +34,16 @@ func TestAPIErrorForKnownSentinels(t *testing.T) {
 			wantMessage: "language must be a BCP 47 tag",
 		},
 		{
-			name:        "invalid layer",
+			name:        "invalid folder",
 			err:         shelf.ErrInvalidFolder,
 			wantStatus:  http.StatusBadRequest,
-			wantMessage: "invalid layer name",
+			wantMessage: "invalid folder name",
 		},
 		{
-			name:        "ignored layer name",
+			name:        "ignored folder name",
 			err:         shelf.ErrIgnoredFolderName,
 			wantStatus:  http.StatusBadRequest,
-			wantMessage: "invalid layer name: hidden and system directory names (a leading dot, @eaDir, #recycle, $RECYCLE.BIN, lost+found) are skipped by the shelf scanner, so a layer named this way would not stay visible",
+			wantMessage: "invalid folder name: hidden and system directory names (a leading dot, @eaDir, #recycle, $RECYCLE.BIN, lost+found) are skipped by the shelf scanner, so a folder named this way would not stay visible",
 		},
 		{
 			name:           "shelf initializing",
@@ -171,18 +171,18 @@ func TestAPIErrorForExcludesTaskChainRunning(t *testing.T) {
 	}
 }
 
-// ErrIgnoredLayerName also matches ErrInvalidLayer, so the table's ordering
+// ErrIgnoredFolderName also matches ErrInvalidFolder, so the table's ordering
 // rule is what makes the specific message reachable at all.
-func TestAPIErrorForPrefersIgnoredLayerNameOverInvalidLayer(t *testing.T) {
+func TestAPIErrorForPrefersIgnoredFolderNameOverInvalidFolder(t *testing.T) {
 	if !errors.Is(shelf.ErrIgnoredFolderName, shelf.ErrInvalidFolder) {
-		t.Fatal("ErrIgnoredLayerName must stay an ErrInvalidLayer for callers that only classify layer errors")
+		t.Fatal("ErrIgnoredFolderName must stay an ErrInvalidFolder for callers that only classify folder errors")
 	}
 
 	resp, ok := apiErrorFor(util.Errorf("%w", shelf.ErrIgnoredFolderName))
 	if !ok {
-		t.Fatal("apiErrorFor(ErrIgnoredLayerName) not found in table")
+		t.Fatal("apiErrorFor(ErrIgnoredFolderName) not found in table")
 	}
-	if resp.message == "invalid layer name" {
-		t.Fatalf("message = %q, want the ignored-name explanation; the entry must precede ErrInvalidLayer", resp.message)
+	if resp.message == "invalid folder name" {
+		t.Fatalf("message = %q, want the ignored-name explanation; the entry must precede ErrInvalidFolder", resp.message)
 	}
 }

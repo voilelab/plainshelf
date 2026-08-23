@@ -1,9 +1,9 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "writer_id": "future-7b13",
   "timestamp": 1773000000,
   "generator": "plainshelf/99.0.0-fixture",
-  "layers": [
+  "folders": [
     "/"
   ],
   "books": {}

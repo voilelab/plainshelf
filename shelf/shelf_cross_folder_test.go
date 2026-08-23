@@ -32,7 +32,7 @@ func folderDirExists(t *testing.T, lib string, folder FolderPath) bool {
 	if errors.Is(err, os.ErrNotExist) {
 		return false
 	}
-	t.Fatalf("stat layer dir %v: %v", folder, err)
+	t.Fatalf("stat folder dir %v: %v", folder, err)
 	return false
 }
 
@@ -86,7 +86,7 @@ func TestShelfCopyFolderFromNestedGivesNewIDs(t *testing.T) {
 	} {
 		ids := bookIDsByFolder(t, target, tc.folder)
 		if len(ids) != 1 {
-			t.Fatalf("target layer %v holds %v, want one book", tc.folder, ids)
+			t.Fatalf("target folder %v holds %v, want one book", tc.folder, ids)
 		}
 		if ids[0] == tc.original.ID() {
 			t.Errorf("copy under %v reused the original ID %q", tc.folder, tc.original.ID())
@@ -95,7 +95,7 @@ func TestShelfCopyFolderFromNestedGivesNewIDs(t *testing.T) {
 
 	// The empty sub-folder is reproduced on the target.
 	if !folderDirExists(t, targetLib, FolderPath{"imported", "empty"}) {
-		t.Errorf("empty sub-layer was not reproduced on the target")
+		t.Errorf("empty sub-folder was not reproduced on the target")
 	}
 
 	// The source keeps all three books under their original IDs and folders.
@@ -157,7 +157,7 @@ func TestShelfMoveFolderFromNestedPreservesIDs(t *testing.T) {
 
 	// The emptied source subtree is gone.
 	if folderDirExists(t, sourceLib, FolderPath{"fiction"}) {
-		t.Errorf("source layer subtree survived the move")
+		t.Errorf("source folder subtree survived the move")
 	}
 
 	assertStagingClean(t, targetLib)
@@ -268,13 +268,13 @@ func TestShelfMoveFolderFromReportsAllIDConflicts(t *testing.T) {
 		}
 	}
 	if folderDirExists(t, sourceLib, FolderPath{"fiction"}) == false {
-		t.Errorf("refused move removed the source layer")
+		t.Errorf("refused move removed the source folder")
 	}
 
 	// The target gained no destination subtree - pre-flight failed before any file
 	// was touched.
 	if folderDirExists(t, targetLib, FolderPath{"archive"}) {
-		t.Errorf("refused move left a destination layer on the target")
+		t.Errorf("refused move left a destination folder on the target")
 	}
 
 	assertStagingClean(t, targetLib)
@@ -312,7 +312,7 @@ func TestShelfCopyFolderFromRefusesReadOnlyTarget(t *testing.T) {
 		t.Errorf("source modified by a refused read-only transfer: %v", err)
 	}
 	if folderDirExists(t, targetLib, FolderPath{"imported"}) {
-		t.Errorf("refused read-only transfer created a destination layer")
+		t.Errorf("refused read-only transfer created a destination folder")
 	}
 }
 
@@ -364,7 +364,7 @@ func TestShelfCopyFolderFromRefusesExistingTargetFolder(t *testing.T) {
 	}
 
 	if _, err := target.CopyFolderFrom(source, FolderPath{"fiction"}, FolderPath{"imported"}); !errors.Is(err, ErrTargetFolderExists) {
-		t.Fatalf("CopyFolderFrom onto an existing layer = %v, want ErrTargetFolderExists", err)
+		t.Fatalf("CopyFolderFrom onto an existing folder = %v, want ErrTargetFolderExists", err)
 	}
 
 	targetBooks, err := target.ListBooks()
@@ -383,7 +383,7 @@ func TestShelfCopyFolderFromMissingSourceFolder(t *testing.T) {
 	seedBook(t, source, FolderPath{"fiction"}, "Elsewhere")
 
 	if _, err := target.CopyFolderFrom(source, FolderPath{"nope"}, FolderPath{"imported"}); !errors.Is(err, ErrSourceFolderNotFound) {
-		t.Fatalf("CopyFolderFrom of a missing layer = %v, want ErrSourceFolderNotFound", err)
+		t.Fatalf("CopyFolderFrom of a missing folder = %v, want ErrSourceFolderNotFound", err)
 	}
 }
 

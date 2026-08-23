@@ -15,7 +15,7 @@ import (
 // NewHandler serves the reads the reader UI performs, and nothing else.
 //
 // The paths mirror the server's so the frontend's own provider works unchanged;
-// what is missing is the point: no listing, no layers, no trash, no writes. A
+// what is missing is the point: no listing, no folders, no trash, no writes. A
 // path outside this set is a 404 rather than a stub, so a UI that wandered
 // somewhere it cannot go here fails loudly during development.
 func NewHandler(lib *Library, version string) http.Handler {
@@ -112,15 +112,15 @@ func (h *handlers) getVersion(w http.ResponseWriter, _ *http.Request) {
 
 // GET /api/shelves/{shelf_id}/books/{book_id}
 //
-// The response mirrors the server's: metadata under "meta", layers beside it.
-// A package has no layers — it is not inside a shelf — so the list is empty
+// The response mirrors the server's: metadata under "meta", folder beside it.
+// A package has no folder — it is not inside a shelf — so the value is empty
 // rather than absent, which is what the frontend's transform expects.
 func (h *handlers) getBook(w http.ResponseWriter, r *http.Request) {
 	h.withBook(w, r, func(book *bookpkg.Book) {
 		writeJSON(w, struct {
-			Meta  *bookpkg.BookMeta `json:"meta"`
-			Layer []string          `json:"layer"`
-		}{Meta: book.GetMeta(), Layer: []string{}})
+			Meta   *bookpkg.BookMeta `json:"meta"`
+			Folder []string          `json:"folder"`
+		}{Meta: book.GetMeta(), Folder: []string{}})
 	})
 }
 

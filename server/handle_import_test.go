@@ -145,10 +145,10 @@ func TestWriteEPUBImportErrorClassifiesFailures(t *testing.T) {
 		{
 			// An import creates a book, so it fails for the same reasons any
 			// other write does and must get the same status for them.
-			name:       "a refused layer is a client error",
+			name:       "a refused folder is a client error",
 			err:        util.Errorf("%w", shelf.ErrInvalidFolder),
 			wantStatus: http.StatusBadRequest,
-			wantBody:   "invalid layer name",
+			wantBody:   "invalid folder name",
 		},
 	}
 

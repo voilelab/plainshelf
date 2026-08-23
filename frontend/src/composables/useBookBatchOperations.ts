@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue';
 import { bookshelfWriter } from '@/providers';
 import { useBookStore } from '@/composables/useBookStore';
-import { useLayerStore } from '@/composables/useLayerStore';
+import { useFolderStore } from '@/composables/useFolderStore';
 import { isBookBatchResult, isTerminalTaskStatus, type BookBatchOperation, type BookBatchResult, type TaskChain, type TaskStatus } from '@/types/task';
 import { t } from '@/i18n';
 
@@ -35,8 +35,8 @@ async function settle(): Promise<void> {
   lastResult.value = result.value;
   completionVersion.value += 1;
   const { fetchBooks } = useBookStore();
-  const { fetchLayers } = useLayerStore();
-  await Promise.all([fetchBooks(), fetchLayers()]);
+  const { fetchFolders } = useFolderStore();
+  await Promise.all([fetchBooks(), fetchFolders()]);
 }
 
 async function poll(id: string): Promise<void> {
@@ -57,7 +57,7 @@ async function poll(id: string): Promise<void> {
   }
 }
 
-async function start(operation: BookBatchOperation, bookIds: string[], titles: Record<string, string>, targetLayer?: string[]): Promise<void> {
+async function start(operation: BookBatchOperation, bookIds: string[], titles: Record<string, string>, targetFolder?: string[]): Promise<void> {
   if (running.value || bookIds.length === 0) return;
   stopTimer();
   open.value = true;
@@ -73,7 +73,7 @@ async function start(operation: BookBatchOperation, bookIds: string[], titles: R
     const id = await bookshelfWriter().startBookBatch({
       operation,
       book_ids: [...new Set(bookIds)],
-      ...(operation === 'move' ? { target_layer: targetLayer ?? [] } : {})
+      ...(operation === 'move' ? { target_folder: targetFolder ?? [] } : {})
     });
     chain.value = { id, name: 'book_batch', title: '', status: 'pending', percentage: 0, tasks: [] };
     timer = setTimeout(() => void poll(id), POLL_INTERVAL_MS);
@@ -105,7 +105,7 @@ export function useBookBatchOperations() {
     result,
     lastResult,
     completionVersion,
-    startMove: (bookIds: string[], targetLayer: string[], titles: Record<string, string>) => start('move', bookIds, titles, targetLayer),
+    startMove: (bookIds: string[], targetFolder: string[], titles: Record<string, string>) => start('move', bookIds, titles, targetFolder),
     startTrash: (bookIds: string[], titles: Record<string, string>) => start('trash', bookIds, titles),
     close
   };

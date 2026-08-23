@@ -23,7 +23,7 @@
         </div>
         <div class="similar-stat">
           <dt>{{ t('maintenance.similar.card.folderLabel') }}</dt>
-          <dd>{{ layerLabel }}</dd>
+          <dd>{{ folderLabel }}</dd>
         </div>
         <div v-if="addedLabel" class="similar-stat">
           <dt>{{ t('maintenance.similar.card.addedLabel') }}</dt>
@@ -59,7 +59,7 @@ import bookcover from '@/assets/bookcover.svg';
 import { useI18n } from '@/i18n';
 import type { Book } from '@/types/book';
 import { formatDateLabel } from '@/utils/date';
-import { getLayerPath, layerPathLabel } from '@/utils/layers';
+import { getFolderPath, folderPathLabel } from '@/utils/folders';
 
 const UNKNOWN = '—';
 
@@ -116,7 +116,7 @@ const sourceCountLabel = computed(() =>
 
 const formatLabel = computed(() => (props.book.format || 'txt').toUpperCase());
 
-const layerLabel = computed(() => layerPathLabel(getLayerPath(props.book)));
+const folderLabel = computed(() => folderPathLabel(getFolderPath(props.book)));
 
 const addedLabel = computed(() => formatDateLabel(props.book.created_at));
 

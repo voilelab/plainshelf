@@ -1,44 +1,44 @@
 <template>
   <div class="layout-root">
     <DeleteModal
-      :open="pendingDeleteLayerPath.length > 0"
-      :title="t('layout.deleteLayer.title')"
-      :item-name="pendingDeleteLayerPath"
-      :description="t('layout.deleteLayer.description')"
-      :busy="isDeletingPendingLayer"
-      :error="deleteLayerError"
-      @cancel="cancelPendingDeleteLayer"
-      @confirm="confirmDeleteLayer"
+      :open="pendingDeleteFolderPath.length > 0"
+      :title="t('layout.deleteFolder.title')"
+      :item-name="pendingDeleteFolderPath"
+      :description="t('layout.deleteFolder.description')"
+      :busy="isDeletingPendingFolder"
+      :error="deleteFolderError"
+      @cancel="cancelPendingDeleteFolder"
+      @confirm="confirmDeleteFolder"
     />
-    <RenameLayerModal
-      :open="pendingRenameLayerPath.length > 0"
-      :current-name="pendingRenameLayerName"
-      :busy="isRenamingPendingLayer"
-      :error="renameLayerError"
-      @cancel="cancelPendingRenameLayer"
-      @submit="confirmRenameLayer"
+    <RenameFolderModal
+      :open="pendingRenameFolderPath.length > 0"
+      :current-name="pendingRenameFolderName"
+      :busy="isRenamingPendingFolder"
+      :error="renameFolderError"
+      @cancel="cancelPendingRenameFolder"
+      @submit="confirmRenameFolder"
     />
-    <CreateLayerModal
-      :open="showCreateLayerModal"
-      :parent-options="createLayerParentOptions"
-      :default-parent="createLayerDefaultParent"
-      :busy="creatingLayer"
-      :error="createLayerError"
-      @cancel="closeCreateLayerModal"
-      @submit="onSubmitCreateLayer"
+    <CreateFolderModal
+      :open="showCreateFolderModal"
+      :parent-options="createFolderParentOptions"
+      :default-parent="createFolderDefaultParent"
+      :busy="creatingFolder"
+      :error="createFolderError"
+      @cancel="closeCreateFolderModal"
+      @submit="onSubmitCreateFolder"
     />
-    <TransferLayerModal
-      :open="transferLayerTarget.length > 0"
-      :folder-name="transferLayerFolderName"
-      :busy="transferLayerRunning"
-      :started="transferLayerStarted"
-      :finished="transferLayerFinished"
-      :status="transferLayerStatus"
-      :percentage="transferLayerPercentage"
-      :chain="transferLayerChain"
-      :error="transferLayerError"
-      @close="cancelTransferLayer"
-      @submit="submitTransferLayer"
+    <TransferFolderModal
+      :open="transferFolderTarget.length > 0"
+      :folder-name="transferFolderName"
+      :busy="transferFolderRunning"
+      :started="transferFolderStarted"
+      :finished="transferFolderFinished"
+      :status="transferFolderStatus"
+      :percentage="transferFolderPercentage"
+      :chain="transferFolderChain"
+      :error="transferFolderError"
+      @close="cancelTransferFolder"
+      @submit="submitTransferFolder"
     />
     <BookBatchProgressModal />
 
@@ -268,61 +268,61 @@
 
           <div class="sidebar-nav-divider" role="presentation"></div>
 
-          <section class="sidebar-section" :aria-label="t('layout.sections.layers')">
+          <section class="sidebar-section" :aria-label="t('layout.sections.folders')">
             <div class="sidebar-header-row sidebar-foldable-header">
               <button
                 type="button"
                 class="sidebar-section-toggle"
-                :aria-label="t('layout.sectionToggleLabels.layers')"
-                :aria-expanded="!collapsedSidebarSections.layers"
-                aria-controls="sidebar-section-layers"
-                @click="toggleSidebarSection('layers')"
+                :aria-label="t('layout.sectionToggleLabels.folders')"
+                :aria-expanded="!collapsedSidebarSections.folders"
+                aria-controls="sidebar-section-folders"
+                @click="toggleSidebarSection('folders')"
               >
-                <span class="sidebar-section-title" aria-hidden="true">{{ t('layout.sections.layers') }}</span>
-                <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.layers ? '▸' : '▾' }}</span>
+                <span class="sidebar-section-title" aria-hidden="true">{{ t('layout.sections.folders') }}</span>
+                <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.folders ? '▸' : '▾' }}</span>
               </button>
               <button
                 v-if="libraryEditingAvailable"
                 type="button"
-                class="create-layer-toggle"
+                class="create-folder-toggle"
                 aria-haspopup="dialog"
-                :disabled="readOnly || creatingLayer || layersLoading || layersError.length > 0"
-                @click="openCreateLayerModal"
+                :disabled="readOnly || creatingFolder || foldersLoading || foldersError.length > 0"
+                @click="openCreateFolderModal"
               >
-                {{ t('layout.createLayer.add') }}
+                {{ t('layout.createFolder.add') }}
               </button>
             </div>
 
-            <div v-show="!collapsedSidebarSections.layers" id="sidebar-section-layers" class="sidebar-foldable-content">
-              <div v-if="layersLoading" class="sidebar-status">{{ t('layout.createLayer.loadingLayers') }}</div>
-              <div v-else-if="layersError" class="sidebar-status sidebar-error sidebar-layer-error" role="alert">
-                <p>{{ layersError }}</p>
-                <button type="button" class="button" @click="fetchLayers">{{ t('common.retry') }}</button>
+            <div v-show="!collapsedSidebarSections.folders" id="sidebar-section-folders" class="sidebar-foldable-content">
+              <div v-if="foldersLoading" class="sidebar-status">{{ t('layout.createFolder.loadingFolders') }}</div>
+              <div v-else-if="foldersError" class="sidebar-status sidebar-error sidebar-folder-error" role="alert">
+                <p>{{ foldersError }}</p>
+                <button type="button" class="button" @click="fetchFolders">{{ t('common.retry') }}</button>
               </div>
-              <LayerTree
+              <FolderTree
                 v-else
-                :nodes="layerTree"
-                :selected="currentLayer"
-                :deleting-map="deletingLayerMap"
+                :nodes="folderTree"
+                :selected="currentFolder"
+                :deleting-map="deletingFolderMap"
                 :read-only="readOnly"
-                :can-open-layer-folder="canOpenLayerFolder"
-                :can-transfer-layer="canTransferLayer"
-                @select="onSelectLayer"
+                :can-open-folder="canOpenFolder"
+                :can-transfer-folder="canTransferFolder"
+                @select="onSelectFolder"
                 @move-book="onMoveBook"
-                @delete-layer="requestDeleteLayer"
-                @rename-layer="requestRenameLayer"
-                @open-layer-folder="onOpenLayerFolder"
-                @transfer-layer="requestTransferLayer"
-                @move-layer="onMoveLayer"
+                @delete-folder="requestDeleteFolder"
+                @rename-folder="requestRenameFolder"
+                @open-folder="onOpenFolder"
+                @transfer-folder="requestTransferFolder"
+                @move-folder="onMoveFolder"
               />
               <p v-if="moveBookError" class="sidebar-error" role="alert">
                 {{ moveBookError }}
               </p>
-              <p v-if="deleteLayerError && !pendingDeleteLayerPath" class="sidebar-error sidebar-error-pre" role="alert">
-                {{ deleteLayerError }}
+              <p v-if="deleteFolderError && !pendingDeleteFolderPath" class="sidebar-error sidebar-error-pre" role="alert">
+                {{ deleteFolderError }}
               </p>
-              <p v-if="layerOperationError" class="sidebar-error sidebar-error-pre" role="alert">
-                {{ layerOperationError }}
+              <p v-if="folderOperationError" class="sidebar-error sidebar-error-pre" role="alert">
+                {{ folderOperationError }}
               </p>
             </div>
           </section>
@@ -504,18 +504,18 @@ import {
   TooltipTrigger,
   type AcceptableValue
 } from 'reka-ui';
-import CreateLayerModal from '@/components/CreateLayerModal.vue';
+import CreateFolderModal from '@/components/CreateFolderModal.vue';
 import BookBatchProgressModal from '@/components/BookBatchProgressModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
 import Icon from '@/components/Icon.vue';
-import LayerTree from '@/components/LayerTree.vue';
-import RenameLayerModal from '@/components/RenameLayerModal.vue';
-import TransferLayerModal from '@/components/TransferLayerModal.vue';
+import FolderTree from '@/components/FolderTree.vue';
+import RenameFolderModal from '@/components/RenameFolderModal.vue';
+import TransferFolderModal from '@/components/TransferFolderModal.vue';
 import SidebarNavIcon from '@/components/SidebarNavIcon.vue';
 import { getBookshelfProvider } from '@/providers';
 import { useBookStore } from '@/composables/useBookStore';
-import { useLayerManagement } from '@/composables/useLayerManagement';
-import { useLayerStore } from '@/composables/useLayerStore';
+import { useFolderManagement } from '@/composables/useFolderManagement';
+import { useFolderStore } from '@/composables/useFolderStore';
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useShelfPicker } from '@/composables/useShelfPicker';
 import { useServerMode } from '@/composables/useServerMode';
@@ -551,54 +551,54 @@ const hasDownloadsStore = computed(() =>
   Boolean(getBookshelfProvider().listDownloadedBookEntries)
 );
 const { books, loading, fetchBooks } = useBookStore();
-const { loading: layersLoading, error: layersError, loaded: layersLoaded, fetchLayers } = useLayerStore();
+const { loading: foldersLoading, error: foldersError, loaded: foldersLoaded, fetchFolders } = useFolderStore();
 const {
   moveBookError,
-  showCreateLayerModal,
-  creatingLayer,
-  createLayerError,
-  deleteLayerError,
-  layerOperationError,
-  pendingRenameLayerPath,
-  renameLayerError,
-  deletingLayerMap,
-  pendingDeleteLayerPath,
-  currentLayer,
-  layerTree,
-  canOpenLayerFolder,
-  createLayerParentOptions,
-  createLayerDefaultParent,
-  isDeletingPendingLayer,
-  pendingRenameLayerName,
-  isRenamingPendingLayer,
-  clearLayerErrors,
-  onSelectLayer,
-  openCreateLayerModal,
-  closeCreateLayerModal,
-  onSubmitCreateLayer,
+  showCreateFolderModal,
+  creatingFolder,
+  createFolderError,
+  deleteFolderError,
+  folderOperationError,
+  pendingRenameFolderPath,
+  renameFolderError,
+  deletingFolderMap,
+  pendingDeleteFolderPath,
+  currentFolder,
+  folderTree,
+  canOpenFolder,
+  createFolderParentOptions,
+  createFolderDefaultParent,
+  isDeletingPendingFolder,
+  pendingRenameFolderName,
+  isRenamingPendingFolder,
+  clearFolderErrors,
+  onSelectFolder,
+  openCreateFolderModal,
+  closeCreateFolderModal,
+  onSubmitCreateFolder,
   onMoveBook,
-  requestRenameLayer,
-  cancelPendingRenameLayer,
-  confirmRenameLayer,
-  canTransferLayer,
-  transferLayerTarget,
-  transferLayerFolderName,
-  transferLayerChain,
-  transferLayerStatus,
-  transferLayerPercentage,
-  transferLayerError,
-  transferLayerStarted,
-  transferLayerRunning,
-  transferLayerFinished,
-  requestTransferLayer,
-  cancelTransferLayer,
-  submitTransferLayer,
-  onMoveLayer,
-  onOpenLayerFolder,
-  requestDeleteLayer,
-  cancelPendingDeleteLayer,
-  confirmDeleteLayer
-} = useLayerManagement();
+  requestRenameFolder,
+  cancelPendingRenameFolder,
+  confirmRenameFolder,
+  canTransferFolder,
+  transferFolderTarget,
+  transferFolderName,
+  transferFolderChain,
+  transferFolderStatus,
+  transferFolderPercentage,
+  transferFolderError,
+  transferFolderStarted,
+  transferFolderRunning,
+  transferFolderFinished,
+  requestTransferFolder,
+  cancelTransferFolder,
+  submitTransferFolder,
+  onMoveFolder,
+  onOpenFolder,
+  requestDeleteFolder,
+  cancelPendingDeleteFolder,
+  confirmDeleteFolder
+} = useFolderManagement();
 const { locale, setLocale, supportedLocales, t } = useI18n();
 // The dropdown itself goes through useShelfPicker; what is left here is the
 // resolved-shelf gate the rest of the layout hangs off, which is the same on
@@ -626,8 +626,8 @@ const shelfUnavailableMessage = computed(() =>
 // web and desktop, the device's own shelf list on the mobile shell.
 const shelfPicker = useShelfPicker({
   onServerShelfSelected: async () => {
-    clearLayerErrors();
-    await Promise.all([fetchLayers(), fetchBooks()]);
+    clearFolderErrors();
+    await Promise.all([fetchFolders(), fetchBooks()]);
     await router.push({ path: '/books', query: { page: '1' } });
   }
 });
@@ -663,8 +663,8 @@ onMounted(async () => {
     return;
   }
 
-  if (!layersLoaded.value && !layersLoading.value) {
-    await fetchLayers();
+  if (!foldersLoaded.value && !foldersLoading.value) {
+    await fetchFolders();
   }
 
   if (books.value.length === 0 && !loading.value) {
@@ -805,7 +805,7 @@ onMounted(async () => {
   gap: 6px;
 }
 
-.create-layer-toggle {
+.create-folder-toggle {
   background: #f1f5f9;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -816,22 +816,22 @@ onMounted(async () => {
   padding: 4px 8px;
 }
 
-.create-layer-toggle:disabled {
+.create-folder-toggle:disabled {
   cursor: not-allowed;
   opacity: 0.6;
 }
 
-.sidebar-layer-error {
+.sidebar-folder-error {
   display: grid;
   gap: 8px;
   margin: 4px 8px;
 }
 
-.sidebar-layer-error p {
+.sidebar-folder-error p {
   margin: 0;
 }
 
-.sidebar-layer-error .button {
+.sidebar-folder-error .button {
   justify-self: start;
 }
 

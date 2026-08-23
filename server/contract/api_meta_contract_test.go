@@ -30,9 +30,9 @@ func TestAPIReadOnlyModeContract(t *testing.T) {
 	}
 
 	// Read-only mode refuses writes while leaving reads alone.
-	rec := env.post(shelfURL("layers", "blocked"), nil)
+	rec := env.post(shelfURL("folders", "blocked"), nil)
 	assertStatus(t, rec, http.StatusForbidden)
 
-	rec = env.get(shelfURL("layers"))
+	rec = env.get(shelfURL("folders"))
 	assertStatus(t, rec, http.StatusOK)
 }

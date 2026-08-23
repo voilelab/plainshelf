@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { layerTransferCounts, type TaskChain } from './task';
+import { folderTransferCounts, type TaskChain } from './task';
 
 function chainWithResult(result: unknown): TaskChain {
   return {
     id: 'chain-1',
-    name: 'layer_transfer',
+    name: 'folder_transfer',
     title: 'Move a folder to another shelf',
     status: 'running',
     percentage: 50,
     tasks: [
       {
-        name: 'layer_transfer',
+        name: 'folder_transfer',
         title: 'Move a folder to another shelf',
         status: 'running',
         percentage: 50,
@@ -20,24 +20,24 @@ function chainWithResult(result: unknown): TaskChain {
   };
 }
 
-describe('layerTransferCounts', () => {
-  it('returns null for a chain with no layer-transfer result yet', () => {
-    expect(layerTransferCounts(null)).toBeNull();
-    expect(layerTransferCounts(chainWithResult(undefined))).toBeNull();
+describe('folderTransferCounts', () => {
+  it('returns null for a chain with no folder-transfer result yet', () => {
+    expect(folderTransferCounts(null)).toBeNull();
+    expect(folderTransferCounts(chainWithResult(undefined))).toBeNull();
   });
 
   it('counts processed books as succeeded plus failed', () => {
-    const counts = layerTransferCounts(
+    const counts = folderTransferCounts(
       chainWithResult({
         operation: 'move',
         source_shelf: 'a',
         target_shelf: 'b',
-        source_layer: ['Fiction'],
-        target_layer: ['Fiction'],
+        source_folder: ['Fiction'],
+        target_folder: ['Fiction'],
         total: 5,
         succeeded_ids: ['book-1', 'book-2', 'book-3'],
         failures: [{ book_id: 'book-4', code: 'move_failed' }],
-        layer_failures: 0
+        folder_failures: 0
       })
     );
 

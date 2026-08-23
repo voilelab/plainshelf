@@ -28,7 +28,7 @@ func TestAPIBookBatchMoveContract(t *testing.T) {
 	accepted := submitBookBatch(t, env, map[string]any{
 		"operation":    "move",
 		"book_ids":     []string{first.Meta.ID, second.Meta.ID, first.Meta.ID},
-		"target_layer": []string{"target"},
+		"target_folder": []string{"target"},
 	}, http.StatusAccepted)
 	chain := waitForTaskChain(t, env, accepted.TaskChainID)
 	if chain.Status != "completed" || chain.Percentage != 100 {
@@ -58,7 +58,7 @@ func TestAPIBookBatchMoveContract(t *testing.T) {
 			t.Fatalf("GetBookListing(%s): %v", id, err)
 		}
 		if !listing.Folders.Equal([]string{"target"}) {
-			t.Errorf("book %s layers = %v, want target", id, listing.Folders)
+			t.Errorf("book %s folders = %v, want target", id, listing.Folders)
 		}
 	}
 }
@@ -105,8 +105,8 @@ func TestAPIBookBatchValidationContract(t *testing.T) {
 		{"empty", map[string]any{"operation": "trash", "book_ids": []string{}}},
 		{"unknown operation", map[string]any{"operation": "archive", "book_ids": []string{"book"}}},
 		{"move without target", map[string]any{"operation": "move", "book_ids": []string{"book"}}},
-		{"trash with target", map[string]any{"operation": "trash", "book_ids": []string{"book"}, "target_layer": []string{}}},
-		{"invalid target", map[string]any{"operation": "move", "book_ids": []string{"book"}, "target_layer": []string{".."}}},
+		{"trash with target", map[string]any{"operation": "trash", "book_ids": []string{"book"}, "target_folder": []string{}}},
+		{"invalid target", map[string]any{"operation": "move", "book_ids": []string{"book"}, "target_folder": []string{".."}}},
 		{"too many", map[string]any{"operation": "trash", "book_ids": tooMany}},
 	}
 

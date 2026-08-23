@@ -43,7 +43,7 @@ const zhHant = {
     prev: '上一頁',
     next: '下一頁',
     page: '第 {page} / {total} 頁',
-    inLayer: '（在 {layer}）',
+    inFolder: '（在 {folder}）',
     taskStartFailed: '啟動工作失敗',
     taskPollFailed: '讀取工作進度失敗'
   },
@@ -51,22 +51,22 @@ const zhHant = {
     expandSidebar: '展開側欄',
     collapseSidebar: '收合側欄',
     railNavLabel: '側邊欄導覽',
-    layersNavLabel: '資料夾',
+    foldersNavLabel: '資料夾',
     openMenu: '開啟選單',
     closeMenu: '關閉選單',
     sections: {
-      layers: '資料夾',
+      folders: '資料夾',
       reading: '閱讀',
       maintenance: '維護',
       admin: '管理'
     },
     sectionToggleLabels: {
-      layers: '切換側欄資料夾區塊',
+      folders: '切換側欄資料夾區塊',
       reading: '切換側欄閱讀紀錄區塊',
       maintenance: '切換側欄維護區塊',
       admin: '切換側欄管理區塊'
     },
-    createLayer: {
+    createFolder: {
       add: '新增資料夾',
       title: '新增資料夾',
       nameLabel: '資料夾名稱',
@@ -77,35 +77,35 @@ const zhHant = {
       invalidName: '資料夾名稱不得為空，也不能包含 /。',
       creating: '建立中...',
       create: '建立',
-      loadingLayers: '載入資料夾中...'
+      loadingFolders: '載入資料夾中...'
     },
-    deleteLayer: {
+    deleteFolder: {
       title: '刪除資料夾',
       shortAction: '刪除',
       description: '若資料夾內仍有書籍或子資料夾，刪除會失敗。',
       failed: '刪除資料夾失敗',
       notEmpty: '此資料夾尚未清空，無法刪除。\n請先移出書籍並刪除子資料夾。'
     },
-    renameLayer: {
+    renameFolder: {
       shortAction: '改名',
       title: '重新命名資料夾',
       nameLabel: '資料夾名稱',
       placeholder: '資料夾名稱',
-      help: '目前名稱：{layerName}',
+      help: '目前名稱：{folderName}',
       confirm: '重新命名',
       renaming: '重新命名中...',
       closeLabel: '關閉重新命名資料夾對話框',
       invalid: '資料夾名稱不得為空，也不能包含 /。',
       failed: '重新命名資料夾失敗'
     },
-    moveLayer: {
+    moveFolder: {
       failed: '移動資料夾失敗。請將資料夾拖曳到既有的目標資料夾上。'
     },
-    openLayerFolder: {
+    openFolder: {
       shortAction: '開啟資料夾',
       failed: '開啟資料夾失敗。'
     },
-    transferLayer: {
+    transferFolder: {
       shortAction: '轉移到其他書庫…',
       title: '將資料夾轉移到其他書庫',
       description: '將「{folder}」資料夾（含其中所有內容）複製或搬移到另一個書庫。',
@@ -114,9 +114,9 @@ const zhHant = {
       noShelves: '沒有其他可轉移的書庫。',
       parentLabel: '目標位置',
       parentHint: '資料夾會保留原名，放在此位置：{destination}',
-      rootLayer: '所有書籍（最上層）',
-      loadingLayers: '載入資料夾中…',
-      layersFailed: '載入目標資料夾失敗。',
+      rootFolder: '所有書籍（最上層）',
+      loadingFolders: '載入資料夾中…',
+      foldersFailed: '載入目標資料夾失敗。',
       modeLabel: '動作',
       modeCopy: '複製',
       modeCopyHint: '在目標書庫產生新書，不會帶走閱讀進度。',
@@ -134,12 +134,12 @@ const zhHant = {
       partial: '轉移完成，但過程中發生問題。',
       failed: '轉移失敗。',
       errors: {
-        conflictLayer: '目標書庫已有同名資料夾。請改選其他位置，或先為那邊的資料夾改名。',
+        conflictFolder: '目標書庫已有同名資料夾。請改選其他位置，或先為那邊的資料夾改名。',
         conflictBookId: '目標書庫已經有這些書，搬移會覆蓋它們：{ids}。請改用複製，或先在那邊移除這些書。',
         failed: '無法啟動轉移。'
       }
     },
-    layerErrors: {
+    folderErrors: {
       emptyPath: '資料夾路徑不得為空',
       createFailed: '建立資料夾失敗',
       loadFailed: '載入資料夾失敗',
@@ -440,8 +440,8 @@ const zhHant = {
     importFromFiles: '從檔案匯入',
     newEmptyBook: '建立空白書籍',
     empty: {
-      noBooksFound: '找不到「{query}」相關書籍{layerSuffix}。',
-      noBooksInLayer: '{layer} 目前沒有書籍。',
+      noBooksFound: '找不到「{query}」相關書籍{folderSuffix}。',
+      noBooksInFolder: '{folder} 目前沒有書籍。',
       noBooksYet: '目前尚無書籍。',
       noBooksInCharCountRange: '沒有落在此字數範圍的書籍。',
       noBooksMatchFilters: '沒有符合目前篩選條件的書籍。',
@@ -491,12 +491,12 @@ const zhHant = {
       }
     },
     titleSearch: '搜尋',
-    titleLayer: '資料夾',
+    titleFolder: '資料夾',
     refreshShelf: '更新書單',
     refreshingShelf: '更新中…',
     lastSynced: '上次更新 {time}',
     neverSynced: '尚未更新',
-    scanFound: '找到 {books} 本書、{layers} 個資料夾',
+    scanFound: '找到 {books} 本書、{folders} 個資料夾',
     scanInProgress: '這個書架正在掃描中，請等這次掃描結束後再試。',
     loadFailed: '載入書籍失敗',
     refreshFailed: '更新書單失敗',
@@ -507,7 +507,7 @@ const zhHant = {
     documentTitle: '書籍',
     loading: '載入書籍詳情中...',
     root: '所有書籍',
-    layerPath: '書籍所在資料夾',
+    folderPath: '書籍所在資料夾',
     ratingLabel: '評分 {rating} 顆星',
     emptyDetails: '這本書目前沒有其他詳細資料。',
     sections: {
@@ -589,10 +589,10 @@ const zhHant = {
       shelfLabel: '目標書庫',
       chooseShelf: '請選擇書庫',
       noShelves: '沒有其他可轉移的書庫。',
-      layerLabel: '目標資料夾',
-      rootLayer: '所有書籍（最上層）',
-      loadingLayers: '載入資料夾中…',
-      layersFailed: '載入目標資料夾失敗。',
+      folderLabel: '目標資料夾',
+      rootFolder: '所有書籍（最上層）',
+      loadingFolders: '載入資料夾中…',
+      foldersFailed: '載入目標資料夾失敗。',
       modeLabel: '動作',
       modeCopy: '複製',
       modeCopyHint: '在目標書庫產生一本新書，不會帶走閱讀進度。',
@@ -661,7 +661,7 @@ const zhHant = {
     }
   },
   bookCollection: {
-    noLayer: '未分類',
+    noFolder: '未分類',
     noSummary: '沒有簡介',
     loadingBooks: '載入書籍中...',
     shelfInitializing: '書架載入中，請稍候...',
@@ -692,8 +692,8 @@ const zhHant = {
       downloading: '下載中…',
       moveTitle: '移動已選書籍',
       moveTarget: '目的地',
-      rootLayer: '所有書籍（最上層）',
-      chooseLayer: '選擇目的地',
+      rootFolder: '所有書籍（最上層）',
+      chooseFolder: '選擇目的地',
       confirmMove: '移動 {count} 本',
       confirmMoveOne: '移動 1 本',
       moving: '移動中…',
@@ -753,7 +753,7 @@ const zhHant = {
     columns: {
       title: '標題',
       authors: '作者',
-      originalLayer: '原始資料夾',
+      originalFolder: '原始資料夾',
       originalPath: '原始路徑',
       deletedAt: '刪除時間',
       bookId: '書籍 ID',

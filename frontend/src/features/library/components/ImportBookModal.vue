@@ -127,7 +127,7 @@ import {
 import BaseDialog from '@/components/BaseDialog.vue';
 import { useImportBook } from '@/features/library/composables/useImportBook';
 import { useBookStore } from '@/composables/useBookStore';
-import { useLayerStore } from '@/composables/useLayerStore';
+import { useFolderStore } from '@/composables/useFolderStore';
 import { hasFileTransfer, readDroppedFiles, readSelectedFiles } from '@/utils/file';
 import { getEpubImportStrategySetting } from '@/api/settings';
 import type { EpubImportPreset } from '@/types/book';
@@ -151,7 +151,7 @@ function statusLabel(status: string): string {
 
 const props = defineProps<{
   open: boolean;
-  currentLayerPath?: string;
+  currentFolderPath?: string;
   droppedFiles?: File[];
 }>();
 
@@ -178,7 +178,7 @@ const {
   reset
 } = useImportBook();
 const { fetchBooks } = useBookStore();
-const { fetchLayers } = useLayerStore();
+const { fetchFolders } = useFolderStore();
 
 const bookInput = ref<HTMLInputElement | null>(null);
 const isDropTarget = ref(false);
@@ -274,13 +274,13 @@ function onDrop(event: DragEvent): void {
 }
 
 async function onSubmit(): Promise<void> {
-  const result = await submit(props.currentLayerPath);
+  const result = await submit(props.currentFolderPath);
   if (!result) {
     return;
   }
 
   if (result.successCount > 0) {
-    await Promise.all([fetchBooks(), fetchLayers()]);
+    await Promise.all([fetchBooks(), fetchFolders()]);
   }
 
   emit('imported', result);

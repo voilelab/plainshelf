@@ -104,7 +104,7 @@ func (up formUpload) request(t *testing.T, method, url string) *http.Request {
 }
 
 // setFields drops the fields whose value is empty, so a caller can leave "title",
-// "layer" or "strategy" out of the form by passing "".
+// "folder" or "strategy" out of the form by passing "".
 func setFields(fields ...[2]string) [][2]string {
 	set := make([][2]string, 0, len(fields))
 	for _, field := range fields {
@@ -145,12 +145,12 @@ func importBook(t *testing.T, env *apiTestEnv, up formUpload) server.Book {
 
 // importTextBook imports a plain-text book. The uploaded bytes carry a BOM and a
 // non-ASCII tail, so every caller also exercises the decoding path. An empty
-// title or layer is left out of the form rather than sent empty.
-func importTextBook(t *testing.T, env *apiTestEnv, title, layer, filename, body string) server.Book {
+// title or folder is left out of the form rather than sent empty.
+func importTextBook(t *testing.T, env *apiTestEnv, title, folder, filename, body string) server.Book {
 	t.Helper()
 
 	return importBook(t, env, bookUpload(filename, plainTextContentType, "\ufeff"+body+"\n世界",
-		[2]string{"title", title}, [2]string{"layer", layer}))
+		[2]string{"title", title}, [2]string{"folder", folder}))
 }
 
 // importFileBook uploads a book file with an explicit filename and content type.

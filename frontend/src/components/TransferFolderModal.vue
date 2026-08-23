@@ -1,27 +1,27 @@
 <template>
   <BaseDialog
     :open="open"
-    :title="t('layout.transferLayer.title')"
+    :title="t('layout.transferFolder.title')"
     :busy="busy"
     @close="emit('close')"
   >
     <section class="panel transfer-modal">
-      <h2>{{ t('layout.transferLayer.title') }}</h2>
+      <h2>{{ t('layout.transferFolder.title') }}</h2>
 
       <!-- Once the chain is scheduled the form is replaced by its progress, the
            same shape the single-book transfer uses. -->
       <template v-if="!started">
-        <p class="transfer-intro">{{ t('layout.transferLayer.description', { folder: folderName }) }}</p>
+        <p class="transfer-intro">{{ t('layout.transferFolder.description', { folder: folderName }) }}</p>
 
         <p v-if="destinationShelves.length === 0" class="transfer-empty">
-          {{ shelvesError || t('layout.transferLayer.noShelves') }}
+          {{ shelvesError || t('layout.transferFolder.noShelves') }}
         </p>
 
         <template v-else>
           <label class="transfer-field">
-            <span>{{ t('layout.transferLayer.shelfLabel') }}</span>
+            <span>{{ t('layout.transferFolder.shelfLabel') }}</span>
             <select v-model="targetShelfId" class="input">
-              <option value="" disabled>{{ t('layout.transferLayer.chooseShelf') }}</option>
+              <option value="" disabled>{{ t('layout.transferFolder.chooseShelf') }}</option>
               <option v-for="shelf in destinationShelves" :key="shelf.id" :value="shelf.id">
                 {{ shelf.name }}
               </option>
@@ -29,32 +29,32 @@
           </label>
 
           <label class="transfer-field">
-            <span>{{ t('layout.transferLayer.parentLabel') }}</span>
-            <select v-model="targetParentLayer" class="input" :disabled="!targetShelfId || loadingLayers">
-              <option value="/">{{ t('layout.transferLayer.rootLayer') }}</option>
-              <option v-for="layer in shelfLayers" :key="layer" :value="layer">{{ layer }}</option>
+            <span>{{ t('layout.transferFolder.parentLabel') }}</span>
+            <select v-model="targetParentFolder" class="input" :disabled="!targetShelfId || loadingFolders">
+              <option value="/">{{ t('layout.transferFolder.rootFolder') }}</option>
+              <option v-for="folder in shelfFolders" :key="folder" :value="folder">{{ folder }}</option>
             </select>
-            <span v-if="loadingLayers" class="transfer-hint">{{ t('layout.transferLayer.loadingLayers') }}</span>
-            <span v-else-if="layerError" class="transfer-error" role="alert">{{ layerError }}</span>
+            <span v-if="loadingFolders" class="transfer-hint">{{ t('layout.transferFolder.loadingFolders') }}</span>
+            <span v-else-if="folderError" class="transfer-error" role="alert">{{ folderError }}</span>
             <span v-else class="transfer-hint">
-              {{ t('layout.transferLayer.parentHint', { destination: destinationPreview }) }}
+              {{ t('layout.transferFolder.parentHint', { destination: destinationPreview }) }}
             </span>
           </label>
 
           <fieldset class="transfer-field transfer-modes">
-            <legend>{{ t('layout.transferLayer.modeLabel') }}</legend>
+            <legend>{{ t('layout.transferFolder.modeLabel') }}</legend>
             <label class="transfer-mode">
               <input v-model="mode" type="radio" value="copy" />
               <span class="transfer-mode-text">
-                <span class="transfer-mode-name">{{ t('layout.transferLayer.modeCopy') }}</span>
-                <span class="transfer-mode-hint">{{ t('layout.transferLayer.modeCopyHint') }}</span>
+                <span class="transfer-mode-name">{{ t('layout.transferFolder.modeCopy') }}</span>
+                <span class="transfer-mode-hint">{{ t('layout.transferFolder.modeCopyHint') }}</span>
               </span>
             </label>
             <label class="transfer-mode">
               <input v-model="mode" type="radio" value="move" />
               <span class="transfer-mode-text">
-                <span class="transfer-mode-name">{{ t('layout.transferLayer.modeMove') }}</span>
-                <span class="transfer-mode-hint">{{ t('layout.transferLayer.modeMoveHint') }}</span>
+                <span class="transfer-mode-name">{{ t('layout.transferFolder.modeMove') }}</span>
+                <span class="transfer-mode-hint">{{ t('layout.transferFolder.modeMoveHint') }}</span>
               </span>
             </label>
           </fieldset>
@@ -72,20 +72,20 @@
             :disabled="busy || !canSubmit"
             @click="submit"
           >
-            {{ t('layout.transferLayer.confirm') }}
+            {{ t('layout.transferFolder.confirm') }}
           </button>
         </footer>
       </template>
 
       <template v-else>
         <p class="transfer-status">{{ statusText }}</p>
-        <ProgressBar :value="percentage" :label="t('layout.transferLayer.progressLabel')" />
+        <ProgressBar :value="percentage" :label="t('layout.transferFolder.progressLabel')" />
         <p class="transfer-progress-value">
           <span>{{ Math.round(percentage) }}%</span>
           <span v-if="counts" class="transfer-progress-count">
-            {{ t('layout.transferLayer.progressCount', { done: counts.processed, total: counts.total }) }}
+            {{ t('layout.transferFolder.progressCount', { done: counts.processed, total: counts.total }) }}
             <template v-if="counts.failed > 0">
-              · {{ t('layout.transferLayer.failedCount', { failed: counts.failed }) }}
+              · {{ t('layout.transferFolder.failedCount', { failed: counts.failed }) }}
             </template>
           </span>
         </p>
@@ -94,7 +94,7 @@
           <!-- The chain keeps running on the server regardless, so the only close
                is offered once it settles — mirroring the single-book transfer. -->
           <button type="button" class="button primary" :disabled="!finished" @click="emit('close')">
-            {{ t('layout.transferLayer.close') }}
+            {{ t('layout.transferFolder.close') }}
           </button>
         </footer>
       </template>
@@ -109,11 +109,11 @@ import ProgressBar from '@/components/ProgressBar.vue';
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import { bookshelfWriter } from '@/providers';
 import type { BookTransferMode } from '@/api/books';
-import { layerTransferCounts, type TaskChain, type TaskStatus } from '@/types/task';
+import { folderTransferCounts, type TaskChain, type TaskStatus } from '@/types/task';
 import { useI18n } from '@/i18n';
 
 // The progress-related props are driven by the useTaskChainProgress instance the
-// parent owns (through useLayerManagement): the modal renders the chain, it does
+// parent owns (through useFolderManagement): the modal renders the chain, it does
 // not poll it. `started` splits the form from the progress view; `busy` is the
 // running flag that keeps the dialog from being dismissed mid-transfer. `chain`
 // is passed so the per-book "N of M" count can be read from its task result,
@@ -132,7 +132,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
-  submit: [payload: { targetShelfId: string; targetParentLayer: string; mode: BookTransferMode }];
+  submit: [payload: { targetShelfId: string; targetParentFolder: string; mode: BookTransferMode }];
 }>();
 
 const { t } = useI18n();
@@ -140,14 +140,14 @@ const { shelves, selectedShelfID, error: shelvesError, ensureShelvesLoaded } = u
 
 const targetShelfId = ref('');
 // '/' is the labelled root option; it maps to '' (the shelf root) on submit.
-const targetParentLayer = ref('/');
+const targetParentFolder = ref('/');
 const mode = ref<BookTransferMode>('copy');
-const shelfLayers = ref<string[]>([]);
-const loadingLayers = ref(false);
-const layerError = ref('');
-// Bumped on every shelf change so a slow layer fetch for a shelf the user has
-// since switched away from cannot overwrite the current one's layers.
-let layerRequest = 0;
+const shelfFolders = ref<string[]>([]);
+const loadingFolders = ref(false);
+const folderError = ref('');
+// Bumped on every shelf change so a slow folder fetch for a shelf the user has
+// since switched away from cannot overwrite the current one's folders.
+let folderRequest = 0;
 
 // The source shelf is the active one, and naming it twice is rejected by the
 // server, so it is dropped from the destinations.
@@ -155,54 +155,54 @@ const destinationShelves = computed(() =>
   shelves.value.filter((shelf) => shelf.id !== selectedShelfID.value)
 );
 
-const canSubmit = computed(() => targetShelfId.value !== '' && !loadingLayers.value);
+const canSubmit = computed(() => targetShelfId.value !== '' && !loadingFolders.value);
 
 // The folder keeps its own name and nests under the chosen parent, so preview the
 // path it will land at on the target shelf.
 const destinationPreview = computed(() =>
-  targetParentLayer.value === '/' ? props.folderName : `${targetParentLayer.value}/${props.folderName}`
+  targetParentFolder.value === '/' ? props.folderName : `${targetParentFolder.value}/${props.folderName}`
 );
 
-const counts = computed(() => layerTransferCounts(props.chain));
+const counts = computed(() => folderTransferCounts(props.chain));
 
 const statusText = computed(() => {
   switch (props.status) {
     case 'completed':
       return mode.value === 'move'
-        ? t('layout.transferLayer.completedMove')
-        : t('layout.transferLayer.completedCopy');
+        ? t('layout.transferFolder.completedMove')
+        : t('layout.transferFolder.completedCopy');
     case 'partially_completed':
-      return t('layout.transferLayer.partial');
+      return t('layout.transferFolder.partial');
     case 'failed':
-      return t('layout.transferLayer.failed');
+      return t('layout.transferFolder.failed');
     case 'running':
-      return t('layout.transferLayer.running');
+      return t('layout.transferFolder.running');
     default:
-      return t('layout.transferLayer.pending');
+      return t('layout.transferFolder.pending');
   }
 });
 
-async function loadLayers(shelfID: string): Promise<void> {
-  const request = (layerRequest += 1);
-  loadingLayers.value = true;
-  layerError.value = '';
-  shelfLayers.value = [];
+async function loadFolders(shelfID: string): Promise<void> {
+  const request = (folderRequest += 1);
+  loadingFolders.value = true;
+  folderError.value = '';
+  shelfFolders.value = [];
   try {
-    const layers = await bookshelfWriter().listShelfLayers(shelfID);
+    const folders = await bookshelfWriter().listShelfFolders(shelfID);
     // A newer selection (or a close) landed while this was in flight.
-    if (request !== layerRequest) {
+    if (request !== folderRequest) {
       return;
     }
     // The root is offered as its own option, so drop it from the list.
-    shelfLayers.value = layers.filter((layer) => layer && layer !== '/');
+    shelfFolders.value = folders.filter((folder) => folder && folder !== '/');
   } catch (err) {
-    if (request !== layerRequest) {
+    if (request !== folderRequest) {
       return;
     }
-    layerError.value = err instanceof Error ? err.message : t('layout.transferLayer.layersFailed');
+    folderError.value = err instanceof Error ? err.message : t('layout.transferFolder.foldersFailed');
   } finally {
-    if (request === layerRequest) {
-      loadingLayers.value = false;
+    if (request === folderRequest) {
+      loadingFolders.value = false;
     }
   }
 }
@@ -216,23 +216,23 @@ watch(
     // Reset the form each time it opens so a previous attempt's picks do not
     // carry over.
     targetShelfId.value = '';
-    targetParentLayer.value = '/';
+    targetParentFolder.value = '/';
     mode.value = 'copy';
-    shelfLayers.value = [];
-    layerError.value = '';
-    layerRequest += 1;
+    shelfFolders.value = [];
+    folderError.value = '';
+    folderRequest += 1;
     void ensureShelvesLoaded();
   }
 );
 
 watch(targetShelfId, (shelfID) => {
-  targetParentLayer.value = '/';
-  shelfLayers.value = [];
-  layerError.value = '';
+  targetParentFolder.value = '/';
+  shelfFolders.value = [];
+  folderError.value = '';
   if (shelfID) {
-    void loadLayers(shelfID);
+    void loadFolders(shelfID);
   } else {
-    layerRequest += 1;
+    folderRequest += 1;
   }
 });
 
@@ -242,7 +242,7 @@ function submit(): void {
   }
   emit('submit', {
     targetShelfId: targetShelfId.value,
-    targetParentLayer: targetParentLayer.value === '/' ? '' : targetParentLayer.value,
+    targetParentFolder: targetParentFolder.value === '/' ? '' : targetParentFolder.value,
     mode: mode.value
   });
 }

@@ -73,8 +73,8 @@ func TestAPIGetBooksContract(t *testing.T) {
 	if len(got.Meta.Tags) != 2 || got.Meta.Tags[0] != "contract" || got.Meta.Tags[1] != "api" {
 		t.Fatalf("tags = %#v, want contract/api", got.Meta.Tags)
 	}
-	if strings.Join(got.Layer, "/") != "fiction/adventure" {
-		t.Fatalf("layer = %#v, want fiction/adventure", got.Layer)
+	if strings.Join(got.Folder, "/") != "fiction/adventure" {
+		t.Fatalf("folder = %#v, want fiction/adventure", got.Folder)
 	}
 }
 
@@ -183,10 +183,10 @@ func TestAPIBookCommentIsStoredVerbatimContract(t *testing.T) {
 
 func TestAPIUpdateBookContract(t *testing.T) {
 	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Patch Me", "old/layer", "patch.txt", "body")
+	created := importTextBook(t, env, "Patch Me", "old/folder", "patch.txt", "body")
 
 	rec := patchBook(t, env, created.Meta.ID,
-		`{"title":"Patched","authors":["Author A","Author B"],"tags":["tag1"],"language":"zh-Hant","comment":"updated comment","star":5,"layer":["new","layer"]}`,
+		`{"title":"Patched","authors":["Author A","Author B"],"tags":["tag1"],"language":"zh-Hant","comment":"updated comment","star":5,"folder":["new","folder"]}`,
 		http.StatusOK)
 	assertJSONContentType(t, rec)
 	updated := decodeJSON[server.Book](t, rec)
@@ -196,8 +196,8 @@ func TestAPIUpdateBookContract(t *testing.T) {
 	if len(updated.Meta.Authors) != 2 || updated.Meta.Authors[1] != "Author B" {
 		t.Fatalf("authors = %#v", updated.Meta.Authors)
 	}
-	if strings.Join(updated.Layer, "/") != "new/layer" {
-		t.Fatalf("layer = %#v, want new/layer", updated.Layer)
+	if strings.Join(updated.Folder, "/") != "new/folder" {
+		t.Fatalf("folder = %#v, want new/folder", updated.Folder)
 	}
 
 	// An unknown field, an out-of-range star and a malformed language tag are all
@@ -258,7 +258,7 @@ func TestAPIUpdateBookFormatContract(t *testing.T) {
 
 func TestAPIUpdateBookIdentifiersContract(t *testing.T) {
 	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Identifiers Book", "identifiers/layer", "identifiers.txt", "body")
+	created := importTextBook(t, env, "Identifiers Book", "identifiers/folder", "identifiers.txt", "body")
 	bookID := created.Meta.ID
 
 	// Setting identifiers is reflected in the PATCH response and a subsequent GET.

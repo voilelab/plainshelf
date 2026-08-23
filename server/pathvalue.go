@@ -110,10 +110,10 @@ func readTaskChainID(r *http.Request) (string, error) {
 	return decoded, nil
 }
 
-func readLayerParts(r *http.Request) ([]string, error) {
-	rawLayer := strings.TrimSpace(r.PathValue("layer_path"))
+func readFolderParts(r *http.Request) ([]string, error) {
+	rawFolder := strings.TrimSpace(r.PathValue("folder_path"))
 
-	decoded, err := url.PathUnescape(rawLayer)
+	decoded, err := url.PathUnescape(rawFolder)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

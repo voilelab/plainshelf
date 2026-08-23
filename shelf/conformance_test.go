@@ -42,14 +42,14 @@ type conformanceManifest struct {
 
 // conformanceReading is what both implementations must report for one case.
 type conformanceReading struct {
-	Folders     []string               `json:"layers"`
+	Folders     []string               `json:"folders"`
 	Books      []conformanceBook      `json:"books"`
 	BookCaches []conformanceBookCache `json:"book_caches"`
 }
 
 type conformanceBook struct {
 	Path                string              `json:"path"`
-	Folders              []string            `json:"layers"`
+	Folders              []string            `json:"folders"`
 	ID                  string              `json:"id"`
 	Title               string              `json:"title"`
 	Format              string              `json:"format"`

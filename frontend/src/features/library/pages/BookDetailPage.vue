@@ -6,7 +6,7 @@
         :open="!!moveTarget"
         :count="1"
         :title="t('bookDetail.move.title')"
-        :options="moveLayerOptions"
+        :options="moveFolderOptions"
         :busy="moving"
         :error="actionError"
         @cancel="cancelMove"
@@ -17,7 +17,7 @@
         :open="!!copyTarget"
         :count="1"
         :title="t('bookDetail.copy.title')"
-        :options="copyLayerOptions"
+        :options="copyFolderOptions"
         :busy="copying"
         :busy-label="t('bookDetail.copy.copying')"
         :confirm-label="t('bookDetail.copy.confirm')"
@@ -231,7 +231,7 @@ import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useOfflineDownload } from '@/composables/useOfflineDownload';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
-import { booksRouteForLayerPath, getLayerPath } from '@/utils/layers';
+import { booksRouteForFolderPath, getFolderPath } from '@/utils/folders';
 import { useI18n } from '@/i18n';
 
 const route = useRoute();
@@ -262,10 +262,10 @@ const {
   deleting,
   moveTarget,
   moving,
-  moveLayerOptions,
+  moveFolderOptions,
   copyTarget,
   copying,
-  copyLayerOptions,
+  copyFolderOptions,
   transferTarget,
   transferMode,
   transferStatus,
@@ -294,7 +294,7 @@ const {
   dismissActionError
 } = useBookActions({
   onDeleted: (deleted) => {
-    void router.push(booksRouteForLayerPath(getLayerPath(deleted)));
+    void router.push(booksRouteForFolderPath(getFolderPath(deleted)));
   },
   // The book keeps its id across a move, so the route stays valid and only the
   // detail payload (breadcrumb included) has to be re-read.
@@ -448,7 +448,7 @@ function onTransferClose(): void {
   const from = transferTarget.value;
   cancelTransfer();
   if (movedAway && from) {
-    void router.push(booksRouteForLayerPath(getLayerPath(from)));
+    void router.push(booksRouteForFolderPath(getFolderPath(from)));
   }
 }
 

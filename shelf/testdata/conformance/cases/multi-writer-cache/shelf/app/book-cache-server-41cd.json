@@ -1,9 +1,9 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "writer_id": "server-41cd",
   "timestamp": 1771000000,
   "generator": "plainshelf/0.0.0-fixture",
-  "layers": [
+  "folders": [
     "/"
   ],
   "books": {

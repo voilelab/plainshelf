@@ -27,7 +27,7 @@ export interface PersistedShelfSnapshot {
   /** When pCloud was last actually walked (epoch ms). Surfaced to the user as
    * "last updated", and the reason the field is stored rather than derived. */
   fetched_at: number;
-  layers: string[];
+  folders: string[];
   books: PersistedShelfBook[];
 }
 
@@ -56,7 +56,7 @@ export function parseShelfSnapshot(value: unknown): PersistedShelfSnapshot | nul
   if (typeof snapshot.shelf_root !== 'string' || typeof snapshot.fetched_at !== 'number') {
     return null;
   }
-  if (!Array.isArray(snapshot.layers) || !Array.isArray(snapshot.books)) {
+  if (!Array.isArray(snapshot.folders) || !Array.isArray(snapshot.books)) {
     return null;
   }
   if (!snapshot.books.every((book) => isPersistedShelfBook(book))) {

@@ -9,51 +9,51 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// layerTransferHandlers serves the endpoint that copies or moves a whole layer -
+// folderTransferHandlers serves the endpoint that copies or moves a whole folder -
 // the folder and every book and sub-folder beneath it - from one shelf to
 // another. Like the single-book transfer it starts a background chain, because a
-// layer can hold hundreds of megabytes and one end may be a network mount, so the
+// folder can hold hundreds of megabytes and one end may be a network mount, so the
 // request must not block on the copy.
-type layerTransferHandlers struct {
+type folderTransferHandlers struct {
 	*taskSubmitter
 }
 
-// layerTransferRequest names the source layer and the destination of a
-// cross-shelf layer transfer. It mirrors the single-book transfer body, with the
-// source layer moved into the body because a layer path holds slashes and does
-// not sit cleanly in a path segment - the same reason the same-shelf layer move
-// carries its layer in the body. TargetLayer is a pointer so an omitted layer
-// (transfer keeping the same layer name) is distinct from an empty one.
-type layerTransferRequest struct {
-	Mode        string        `json:"mode"`
-	SourceLayer shelf.FolderPath  `json:"source_layer"`
-	TargetShelf string        `json:"target_shelf"`
-	TargetLayer *shelf.FolderPath `json:"target_layer"`
+// folderTransferRequest names the source folder and the destination of a
+// cross-shelf folder transfer. It mirrors the single-book transfer body, with the
+// source folder moved into the body because a folder path holds slashes and does
+// not sit cleanly in a path segment - the same reason the same-shelf folder move
+// carries its folder in the body. TargetFolder is a pointer so an omitted folder
+// (transfer keeping the same folder name) is distinct from an empty one.
+type folderTransferRequest struct {
+	Mode         string            `json:"mode"`
+	SourceFolder shelf.FolderPath  `json:"source_folder"`
+	TargetShelf  string            `json:"target_shelf"`
+	TargetFolder *shelf.FolderPath `json:"target_folder"`
 }
 
-// layerTransferConflict is the 409 body a pre-flight refusal answers with. Error
+// folderTransferConflict is the 409 body a pre-flight refusal answers with. Error
 // names which conflict it is so the frontend can tell the two apart, and a book-ID
 // conflict lists every colliding ID at once so the user sees the whole set rather
 // than one failed transfer at a time.
-type layerTransferConflict struct {
+type folderTransferConflict struct {
 	Error              string   `json:"error"`
 	Message            string   `json:"message"`
 	ConflictingBookIDs []string `json:"conflicting_book_ids,omitempty"`
 }
 
 const (
-	layerTransferConflictLayer  = "target_layer_conflict"
-	layerTransferConflictBookID = "book_id_conflict"
+	folderTransferConflictFolder = "target_folder_conflict"
+	folderTransferConflictBookID = "book_id_conflict"
 )
 
-// POST /api/shelves/{shelf_id}/layer-transfers
-func (h *layerTransferHandlers) transferLayer(w http.ResponseWriter, r *http.Request) {
+// POST /api/shelves/{shelf_id}/folder-transfers
+func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.Request) {
 	sourceShelf, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
 
-	var request layerTransferRequest
+	var request folderTransferRequest
 	if !decodeStrictJSON(w, r, &request) {
 		return
 	}
@@ -64,13 +64,13 @@ func (h *layerTransferHandlers) transferLayer(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	sourceLayer := append(shelf.FolderPath(nil), request.SourceLayer...)
-	if len(sourceLayer) == 0 {
-		http.Error(w, "source_layer is required", http.StatusBadRequest)
+	sourceFolder := append(shelf.FolderPath(nil), request.SourceFolder...)
+	if len(sourceFolder) == 0 {
+		http.Error(w, "source_folder is required", http.StatusBadRequest)
 		return
 	}
-	if err := shelf.ValidateFolderPath(sourceLayer); err != nil {
-		h.writeErrStatus(w, err, "invalid source_layer", http.StatusBadRequest)
+	if err := shelf.ValidateFolderPath(sourceFolder); err != nil {
+		h.writeErrStatus(w, err, "invalid source_folder", http.StatusBadRequest)
 		return
 	}
 
@@ -80,10 +80,10 @@ func (h *layerTransferHandlers) transferLayer(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// A source that is also the target belongs to the same-shelf layer endpoints,
+	// A source that is also the target belongs to the same-shelf folder endpoints,
 	// and naming one shelf twice would deadlock the transfer on its own lock.
 	if targetShelfID == sourceShelf.ID {
-		http.Error(w, "source and target are the same shelf; move a layer within a shelf with POST .../layer-moves", http.StatusBadRequest)
+		http.Error(w, "source and target are the same shelf; move a folder within a shelf with POST .../folder-moves", http.StatusBadRequest)
 		return
 	}
 
@@ -93,19 +93,19 @@ func (h *layerTransferHandlers) transferLayer(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Default to the source layer's own name so a plain "move that folder to the
-	// other shelf" needs no target layer in the body, mirroring the single-book
-	// endpoint's default to the source book's layer.
-	targetLayer := append(shelf.FolderPath(nil), sourceLayer...)
-	if request.TargetLayer != nil {
-		targetLayer = append(shelf.FolderPath(nil), (*request.TargetLayer)...)
+	// Default to the source folder's own name so a plain "move that folder to the
+	// other shelf" needs no target folder in the body, mirroring the single-book
+	// endpoint's default to the source book's folder.
+	targetFolder := append(shelf.FolderPath(nil), sourceFolder...)
+	if request.TargetFolder != nil {
+		targetFolder = append(shelf.FolderPath(nil), (*request.TargetFolder)...)
 	}
-	if len(targetLayer) == 0 {
-		http.Error(w, "target_layer cannot be the root layer", http.StatusBadRequest)
+	if len(targetFolder) == 0 {
+		http.Error(w, "target_folder cannot be the root folder", http.StatusBadRequest)
 		return
 	}
-	if err := shelf.ValidateFolderPath(targetLayer); err != nil {
-		h.writeErrStatus(w, err, "invalid target_layer", http.StatusBadRequest)
+	if err := shelf.ValidateFolderPath(targetFolder); err != nil {
+		h.writeErrStatus(w, err, "invalid target_folder", http.StatusBadRequest)
 		return
 	}
 
@@ -122,58 +122,58 @@ func (h *layerTransferHandlers) transferLayer(w http.ResponseWriter, r *http.Req
 	}
 
 	// Force a fresh scan of both shelves before resolving anything. A plain listing
-	// only schedules a refresh and answers from the cache, so a book or layer added
+	// only schedules a refresh and answers from the cache, so a book or folder added
 	// to a shared or network shelf since its last scan would be missed - the plan
 	// would skip those books and the conflict checks would not see an externally
-	// created layer. This mirrors the shelf-level layer-transfer preflight, which
+	// created folder. This mirrors the shelf-level folder-transfer preflight, which
 	// forces the same scan. ErrRescanInProgress means another scan is already
 	// refreshing the cache, so the following reads are as fresh as one here.
 	rescanForTransfer(sourceShelf)
 	rescanForTransfer(targetShelf)
 
-	// Resolve the transfer plan from a single snapshot of the source: the layers
+	// Resolve the transfer plan from a single snapshot of the source: the folders
 	// to reproduce and the books to carry. The same snapshot screens for conflicts
 	// below, so the 409 check and the scheduled work see the same set.
-	sourceLayers, err := sourceShelf.GetAllFolders()
+	sourceFolders, err := sourceShelf.GetAllFolders()
 	if err != nil {
 		h.writeErr(w, err, "failed to read the source shelf")
 		return
 	}
-	subLayers := layersUnder(sourceLayers, sourceLayer)
+	subFolders := foldersUnder(sourceFolders, sourceFolder)
 
 	listings, err := sourceShelf.ListBooksWithCharCount()
 	if err != nil {
 		h.writeErr(w, err, "failed to read the source shelf")
 		return
 	}
-	var books []task.LayerTransferBook
+	var books []task.FolderTransferBook
 	for _, listing := range listings {
-		if layerHasPrefix(listing.Folders, sourceLayer) {
-			books = append(books, task.LayerTransferBook{
-				ID:          listing.Book.ID(),
-				SourceLayer: append(shelf.FolderPath(nil), listing.Folders...),
+		if folderHasPrefix(listing.Folders, sourceFolder) {
+			books = append(books, task.FolderTransferBook{
+				ID:           listing.Book.ID(),
+				SourceFolder: append(shelf.FolderPath(nil), listing.Folders...),
 			})
 		}
 	}
 
-	// A transfer of a layer that holds no folder and no book is a 404 now, not a
+	// A transfer of a folder that holds no folder and no book is a 404 now, not a
 	// task that copies nothing later - the same way a missing book is a 404.
-	if len(subLayers) == 0 && len(books) == 0 {
-		http.Error(w, "source layer not found", http.StatusNotFound)
+	if len(subFolders) == 0 && len(books) == 0 {
+		http.Error(w, "source folder not found", http.StatusNotFound)
 		return
 	}
 
-	// A layer transfer builds the destination subtree fresh, so it refuses to land
-	// on a layer the target already holds rather than merging into it.
-	targetLayers, err := targetShelf.GetAllFolders()
+	// A folder transfer builds the destination subtree fresh, so it refuses to land
+	// on a folder the target already holds rather than merging into it.
+	targetFolders, err := targetShelf.GetAllFolders()
 	if err != nil {
 		h.writeErr(w, err, "failed to read the target shelf")
 		return
 	}
-	if len(layersUnder(targetLayers, targetLayer)) > 0 {
-		h.writeJSON(w, http.StatusConflict, layerTransferConflict{
-			Error:   layerTransferConflictLayer,
-			Message: "the target shelf already holds a layer with this name",
+	if len(foldersUnder(targetFolders, targetFolder)) > 0 {
+		h.writeJSON(w, http.StatusConflict, folderTransferConflict{
+			Error:   folderTransferConflictFolder,
+			Message: "the target shelf already holds a folder with this name",
 		})
 		return
 	}
@@ -195,8 +195,8 @@ func (h *layerTransferHandlers) transferLayer(w http.ResponseWriter, r *http.Req
 		}
 		if len(conflicts) > 0 {
 			sort.Strings(conflicts)
-			h.writeJSON(w, http.StatusConflict, layerTransferConflict{
-				Error:              layerTransferConflictBookID,
+			h.writeJSON(w, http.StatusConflict, folderTransferConflict{
+				Error:              folderTransferConflictBookID,
 				Message:            "the target shelf already holds books with these IDs; the move would overwrite them",
 				ConflictingBookIDs: conflicts,
 			})
@@ -205,29 +205,29 @@ func (h *layerTransferHandlers) transferLayer(w http.ResponseWriter, r *http.Req
 	}
 
 	h.submitTaskChain(w,
-		task.NewLayerTransferChain(sourceShelf.ID, sourceShelf.Shelf, targetShelf.ID, targetShelf.Shelf, h.Logger, operation, sourceLayer, targetLayer, books, subLayers),
-		"failed to schedule layer transfer task")
+		task.NewFolderTransferChain(sourceShelf.ID, sourceShelf.Shelf, targetShelf.ID, targetShelf.Shelf, h.Logger, operation, sourceFolder, targetFolder, books, subFolders),
+		"failed to schedule folder transfer task")
 }
 
-// layersUnder returns every layer in all that is root itself or sits beneath it.
+// foldersUnder returns every folder in all that is root itself or sits beneath it.
 // An empty result means the target holds nothing under that path.
-func layersUnder(all []shelf.FolderPath, root shelf.FolderPath) []shelf.FolderPath {
+func foldersUnder(all []shelf.FolderPath, root shelf.FolderPath) []shelf.FolderPath {
 	var under []shelf.FolderPath
 	for _, l := range all {
-		if layerHasPrefix(l, root) {
+		if folderHasPrefix(l, root) {
 			under = append(under, append(shelf.FolderPath(nil), l...))
 		}
 	}
 	return under
 }
 
-// layerHasPrefix reports whether layer is prefix itself or sits beneath it.
-func layerHasPrefix(layer, prefix shelf.FolderPath) bool {
-	if len(layer) < len(prefix) {
+// folderHasPrefix reports whether folder is prefix itself or sits beneath it.
+func folderHasPrefix(folder, prefix shelf.FolderPath) bool {
+	if len(folder) < len(prefix) {
 		return false
 	}
 	for i := range prefix {
-		if layer[i] != prefix[i] {
+		if folder[i] != prefix[i] {
 			return false
 		}
 	}

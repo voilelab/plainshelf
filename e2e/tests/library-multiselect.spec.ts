@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { startServer } from './support/server';
 import { anotherFixturePath, helloFixturePath, importBookFromPath } from './support/books';
-import { addLayer, emptyDataTransfer, layerRow, selectAllBooks, selectLayer } from './support/layers';
+import { addFolder, emptyDataTransfer, folderRow, selectAllBooks, selectFolder } from './support/folders';
 
 test('selects the current page and moves the selected books through a task chain', async ({ page }) => {
   const server = await startServer();
@@ -10,7 +10,7 @@ test('selects the current page and moves the selected books through a task chain
     await page.goto(`${server.baseUrl}/books`);
     await importBookFromPath(page, helloFixturePath);
     await importBookFromPath(page, anotherFixturePath);
-    await addLayer(page, 'selected-target');
+    await addFolder(page, 'selected-target');
     await selectAllBooks(page);
 
     await page.getByLabel('Select hello', { exact: true }).check({ force: true });
@@ -28,7 +28,7 @@ test('selects the current page and moves the selected books through a task chain
     await progressDialog.getByRole('button', { name: 'Close', exact: true }).click();
     await expect(selectionToolbar).not.toBeVisible();
 
-    await selectLayer(page, 'selected-target');
+    await selectFolder(page, 'selected-target');
     await expect(page.getByRole('heading', { name: 'hello', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'another', exact: true })).toBeVisible();
   } finally {
@@ -90,12 +90,12 @@ test('drags an unselected book alone and a selected group through the batch work
     await page.goto(`${server.baseUrl}/books`);
     await importBookFromPath(page, helloFixturePath);
     await importBookFromPath(page, anotherFixturePath);
-    await addLayer(page, 'drag-target');
+    await addFolder(page, 'drag-target');
     await selectAllBooks(page);
 
     await page.getByLabel('Select hello', { exact: true }).check({ force: true });
     const selectionToolbar = page.getByRole('toolbar', { name: 'Selected books actions' });
-    const targetRow = layerRow(page, 'drag-target');
+    const targetRow = folderRow(page, 'drag-target');
     const anotherRow = page.locator('.book-list-row', { hasText: 'another' });
 
     const singleTransfer = await emptyDataTransfer(page);

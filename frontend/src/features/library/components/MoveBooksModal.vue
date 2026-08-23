@@ -5,8 +5,8 @@
       <label>
         <span>{{ t('bookCollection.selection.moveTarget') }}</span>
         <select v-model="target" class="input">
-          <option value="" disabled>{{ t('bookCollection.selection.chooseLayer') }}</option>
-          <option value="/">{{ t('bookCollection.selection.rootLayer') }}</option>
+          <option value="" disabled>{{ t('bookCollection.selection.chooseFolder') }}</option>
+          <option value="/">{{ t('bookCollection.selection.rootFolder') }}</option>
           <option v-for="option in options" :key="option" :value="option">{{ option }}</option>
         </select>
       </label>
@@ -42,7 +42,7 @@ const props = defineProps<{
   busyLabel?: string;
   confirmLabel?: string;
 }>();
-const emit = defineEmits<{ cancel: []; submit: [targetLayer: string] }>();
+const emit = defineEmits<{ cancel: []; submit: [targetFolder: string] }>();
 const { t } = useI18n();
 const target = ref('');
 const heading = computed(() => props.title ?? t('bookCollection.selection.moveTitle'));

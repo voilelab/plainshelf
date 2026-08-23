@@ -146,7 +146,7 @@ export class PCloudClient {
 
         // Every pCloud reply carries `result`. Treating its absence as success
         // would let a reply from somewhere else — a proxy, an interception
-        // layer, an error page that happens to be JSON — flow on as an empty
+        // folder, an error page that happens to be JSON — flow on as an empty
         // listing, and surface much later as a confusing "folder not found".
         if (typeof payload?.result !== 'number') {
           throw new PCloudError(
@@ -314,7 +314,7 @@ export class PCloudClient {
    *
    * One request normally covers the whole tree once the folder id is known.
    * If an API variant refuses recursion, the same tree is expanded manually so
-   * the parsing layer remains unaware of which path was taken.
+   * the parsing folder remains unaware of which path was taken.
    */
   async listFolderRecursive(
     target: { path: string } | { folderid: number },

@@ -6,7 +6,7 @@ import type { CharCountRange } from '@/utils/charCountFilter';
 import {
   BOOK_FILTERS,
   charCountFilter,
-  layersFilter,
+  foldersFilter,
   searchFilter
 } from '@/utils/bookFilters/registry';
 import {
@@ -17,7 +17,7 @@ import {
 } from './useBooksSort';
 
 export type BooksQueryInput = {
-  layer?: string;
+  folder?: string;
   page?: number;
   search?: string;
   sort?: BookSortKey;
@@ -40,7 +40,7 @@ function isSortOrder(value: string): value is SortOrder {
   return (ORDER_OPTIONS as readonly string[]).includes(value);
 }
 
-export function toLayerPath(value: LocationQueryValue | LocationQueryValue[] | undefined): string | undefined {
+export function toFolderPath(value: LocationQueryValue | LocationQueryValue[] | undefined): string | undefined {
   const raw = toSingleQueryValue(value);
   if (!raw) {
     return undefined;
@@ -104,7 +104,7 @@ export function useBooksRouteQuery() {
 
   // The reactive reads share the registry's parsers, so a filter's URL shape is
   // defined once and both the query builder and these computeds see it.
-  const selectedLayer = computed(() => layersFilter.parse(route.query));
+  const selectedFolder = computed(() => foldersFilter.parse(route.query));
   const page = computed(() => toPage(route.query.page));
   const sortBy = computed<BookSortKey>(() => toBookSort(route.query.sort));
   const sortOrder = computed<SortOrder>(() => toSortOrder(route.query.order));
@@ -142,7 +142,7 @@ export function useBooksRouteQuery() {
     // so removing a chip is `{ author: undefined }` rather than a sentinel.
     const overrides: Record<string, unknown> = {
       [searchFilter.key]: input.search,
-      [layersFilter.key]: input.layer,
+      [foldersFilter.key]: input.folder,
       [charCountFilter.key]: input.charCount
     };
     for (const filter of BOOK_FILTERS) {
@@ -179,7 +179,7 @@ export function useBooksRouteQuery() {
    * Sets or clears any panel condition by key (the generic path for the filter
    * panel, its chips, and "clear all"). Each override value is a filter's own
    * value type — an inactive value (e.g. `undefined`, `{}`) clears it. Always
-   * resets to page 1, since the visible set changes, and leaves search, layer,
+   * resets to page 1, since the visible set changes, and leaves search, folder,
    * sort, and order untouched.
    */
   function applyPanelFilters(overrides: Record<string, unknown>): RouterNavigationResult {
@@ -190,7 +190,7 @@ export function useBooksRouteQuery() {
   }
 
   function isBooksQueryNormalized(input: BooksQueryInput = {}): boolean {
-    if (toSingleQueryValue(route.query.layer) !== undefined) {
+    if (toSingleQueryValue(route.query.folder) !== undefined) {
       return false;
     }
 
@@ -228,14 +228,14 @@ export function useBooksRouteQuery() {
   }
 
   return {
-    selectedLayer,
+    selectedFolder,
     page,
     sortBy,
     sortOrder,
     searchQuery,
     charCountRange,
     isImportModalOpen,
-    toLayerPath,
+    toFolderPath,
     toBookSort,
     toSortOrder,
     pushBooksQuery,

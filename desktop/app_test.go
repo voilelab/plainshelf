@@ -37,7 +37,7 @@ func TestNormalizeSelectedLocalPaths(t *testing.T) {
 func TestNormalizeFolderParts(t *testing.T) {
 	parts := normalizeFolderParts([]string{"", "  ", " fiction ", " sci-fi "})
 	if len(parts) != 2 {
-		t.Fatalf("expected two valid layer parts, got %d", len(parts))
+		t.Fatalf("expected two valid folder parts, got %d", len(parts))
 	}
 	if parts[0] != "fiction" {
 		t.Fatalf("unexpected first part: %q", parts[0])
@@ -234,7 +234,7 @@ func TestResolveDesktopFolderPath(t *testing.T) {
 
 	rootPath, err := resolveDesktopFolderPath(libRoot, nil)
 	if err != nil {
-		t.Fatalf("resolve root layer directory returned error: %v", err)
+		t.Fatalf("resolve root folder directory returned error: %v", err)
 	}
 	wantRootPath := filepath.Join(libRoot, "books")
 	if rootPath != wantRootPath {
@@ -246,16 +246,16 @@ func TestResolveDesktopFolderPathRejectsTraversal(t *testing.T) {
 	libRoot := filepath.Join(t.TempDir(), "shelf")
 
 	if _, err := resolveDesktopFolderPath(libRoot, []string{"..", "outside"}); err == nil {
-		t.Fatal("expected traversal layer path to fail, got nil")
+		t.Fatal("expected traversal folder path to fail, got nil")
 	}
 }
 
-func TestOpenLayerDirectoryOpensFinderForLayerPath(t *testing.T) {
+func TestOpenFolderDirectoryOpensFinderForFolderPath(t *testing.T) {
 	tempDir := t.TempDir()
 	libRoot := filepath.Join(tempDir, "library")
 	folderDir := filepath.Join(libRoot, "books", "fiction", "sci-fi")
 	if err := os.MkdirAll(folderDir, 0o755); err != nil {
-		t.Fatalf("create layer dir: %v", err)
+		t.Fatalf("create folder dir: %v", err)
 	}
 
 	configPath := filepath.Join(tempDir, "shelves.json")
@@ -279,8 +279,8 @@ func TestOpenLayerDirectoryOpensFinderForLayerPath(t *testing.T) {
 		openFinder = originalOpenFinder
 	})
 
-	if err := app.OpenLayerDirectory(" shelf-1 ", []string{" fiction ", "sci-fi "}); err != nil {
-		t.Fatalf("OpenLayerDirectory returned error: %v", err)
+	if err := app.OpenFolderDirectory(" shelf-1 ", []string{" fiction ", "sci-fi "}); err != nil {
+		t.Fatalf("OpenFolderDirectory returned error: %v", err)
 	}
 	if openedPath != folderDir {
 		t.Fatalf("openFinder path = %q, want %q", openedPath, folderDir)

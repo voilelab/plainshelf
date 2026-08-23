@@ -21,12 +21,12 @@ import {
 export const SIDEBAR_RESIZE_HIT_AREA_MARGINS = { coarse: 12, fine: 6 };
 export const RAIL_SIDEBAR_WIDTH = 48;
 const DEFAULT_EXPANDED_SIDEBAR_WIDTH = 240;
-const SIDEBAR_SECTION_KEYS = ['layers', 'reading', 'maintenance', 'admin'] as const;
+const SIDEBAR_SECTION_KEYS = ['folders', 'reading', 'maintenance', 'admin'] as const;
 export type SidebarSectionKey = (typeof SIDEBAR_SECTION_KEYS)[number];
 
 /**
  * Sidebar chrome for MainLayout: rail/expanded mode with its persisted width, the
- * narrow-viewport drawer, and per-section collapse. Owns no data — layers, books
+ * narrow-viewport drawer, and per-section collapse. Owns no data — folders, books
  * and shelves stay with their own stores.
  */
 export function useSidebarLayout() {
@@ -40,7 +40,7 @@ export function useSidebarLayout() {
   // survive a reload while railed.
   const lastExpandedSidebarWidth = ref<number | null>(getStoredSidebarExpandedWidth());
   const collapsedSidebarSections = reactive<Record<SidebarSectionKey, boolean>>({
-    layers: false,
+    folders: false,
     reading: false,
     maintenance: false,
     admin: false
@@ -48,7 +48,7 @@ export function useSidebarLayout() {
 
   // Narrow-viewport (mobile) drawer state. Every sidebar action ends in a
   // router.push, so watching fullPath closes the drawer after nav links and
-  // layer selection alike.
+  // folder selection alike.
   const isNarrowViewport = useIsNarrowViewport();
   const showRailNav = computed(() => isRailSidebar.value && !isNarrowViewport.value);
   const drawerOpen = ref(false);

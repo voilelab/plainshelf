@@ -85,7 +85,7 @@ export function downloadedBookFromManifest(manifest: CachedBookManifest): Book {
  * size breakdown cannot reach the cache's copy, and vice versa.
  *
  * **One level deep, no further.** Values nested inside those objects stay
- * shared by reference — `book.authors`, `book.tags`, `book.layers`,
+ * shared by reference — `book.authors`, `book.tags`, `book.folders`,
  * `book.identifiers` — so this does not protect against a caller mutating one
  * of those in place.
  *

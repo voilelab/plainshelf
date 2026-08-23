@@ -16,11 +16,11 @@ import (
 // whole subtree fresh on the target, so it refuses to land on an existing folder
 // rather than merging into it - the same rule RenameFolder enforces for a
 // same-shelf rename.
-var ErrTargetFolderExists = util.NewError("target shelf already holds a layer with this name")
+var ErrTargetFolderExists = util.NewError("target shelf already holds a folder with this name")
 
 // ErrSourceFolderNotFound is returned when a cross-shelf folder transfer names a
 // source folder that does not exist on the source shelf.
-var ErrSourceFolderNotFound = util.NewError("source shelf has no such layer")
+var ErrSourceFolderNotFound = util.NewError("source shelf has no such folder")
 
 // FolderBookIDConflictError reports that a cross-shelf folder move would land on
 // book IDs the target shelf already holds. Pre-flight collects every colliding
@@ -130,16 +130,16 @@ func (target *Shelf) MoveFolderFrom(source *Shelf, sourceFolder, targetFolder Fo
 // copy does none of those.
 func (target *Shelf) transferFolderFrom(source *Shelf, sourceFolder, targetFolder FolderPath, isMove bool) ([]*Book, error) {
 	if err := validateFolderPath(sourceFolder); err != nil {
-		return nil, util.Errorf("invalid source layer: %w", err)
+		return nil, util.Errorf("invalid source folder: %w", err)
 	}
 	if err := validateFolderPath(targetFolder); err != nil {
-		return nil, util.Errorf("invalid target layer: %w", err)
+		return nil, util.Errorf("invalid target folder: %w", err)
 	}
 	if len(sourceFolder) == 0 {
-		return nil, util.Errorf("cannot transfer the root layer")
+		return nil, util.Errorf("cannot transfer the root folder")
 	}
 	if len(targetFolder) == 0 {
-		return nil, util.Errorf("cannot transfer onto the root layer")
+		return nil, util.Errorf("cannot transfer onto the root folder")
 	}
 	if source == target {
 		return nil, util.Errorf("%w", ErrSameShelfTransfer)
@@ -187,7 +187,7 @@ func (target *Shelf) transferFolderFrom(source *Shelf, sourceFolder, targetFolde
 		// on the source. The trash lives outside booksFolder, so this does not touch
 		// the recoverable copies.
 		if err := source.removeEmptyFolderTree(sourceFolder); err != nil {
-			return transferred, util.Errorf("book move finished but clearing the source layer failed: %w", err)
+			return transferred, util.Errorf("book move finished but clearing the source folder failed: %w", err)
 		}
 	}
 

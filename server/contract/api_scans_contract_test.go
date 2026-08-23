@@ -62,8 +62,8 @@ func TestAPIRescanShelfContract(t *testing.T) {
 		t.Errorf("book_count = %d, want 2", scan.BookCount)
 	}
 	// "/" and "Fiction".
-	if scan.LayerCount != 2 {
-		t.Errorf("layer_count = %d, want 2", scan.LayerCount)
+	if scan.FolderCount != 2 {
+		t.Errorf("folder_count = %d, want 2", scan.FolderCount)
 	}
 
 	// The counts are only worth reporting if the listing agrees with them.

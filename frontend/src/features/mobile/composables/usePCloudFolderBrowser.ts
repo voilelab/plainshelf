@@ -100,7 +100,7 @@ export function usePCloudFolderBrowser(createClient: () => PCloudFolderClient): 
           item.isfolder &&
           item.folderid !== undefined &&
           // A book package is a directory too, but it can never be a shelf root
-          // and listing them would bury the layer folders under them.
+          // and listing them would bury the folders under them.
           !item.name.endsWith(BOOK_EXTENSION)
       )
       .map((item) => ({ name: item.name, folderid: item.folderid as number }))

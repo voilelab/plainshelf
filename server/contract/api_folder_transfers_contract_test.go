@@ -9,28 +9,28 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-// layerTransfersURL is the cross-shelf layer transfer endpoint on the default
+// folderTransfersURL is the cross-shelf folder transfer endpoint on the default
 // (source) shelf. secondShelfID and its helpers come from the book-transfer
 // contract test in this same package.
-func layerTransfersURL() string {
-	return shelfURL("layer-transfers")
+func folderTransfersURL() string {
+	return shelfURL("folder-transfers")
 }
 
-// layerTransferConflictBody mirrors the 409 body a pre-flight refusal answers
+// folderTransferConflictBody mirrors the 409 body a pre-flight refusal answers
 // with, so a test can tell the two conflict kinds apart and read the colliding
 // IDs. Restating it here pins the wire shape the frontend relies on.
-type layerTransferConflictBody struct {
+type folderTransferConflictBody struct {
 	Error              string   `json:"error"`
 	Message            string   `json:"message"`
 	ConflictingBookIDs []string `json:"conflicting_book_ids"`
 }
 
-// booksUnderLayer returns the IDs of the shelf's books that sit exactly under
-// layer, so a test can assert the set that landed there.
-func booksUnderLayer(books []server.Book, layer shelf.FolderPath) []string {
+// booksUnderFolder returns the IDs of the shelf's books that sit exactly under
+// folder, so a test can assert the set that landed there.
+func booksUnderFolder(books []server.Book, folder shelf.FolderPath) []string {
 	var ids []string
 	for _, book := range books {
-		if book.Layer.Equal(layer) {
+		if book.Folder.Equal(folder) {
 			ids = append(ids, book.Meta.ID)
 		}
 	}
@@ -39,16 +39,16 @@ func booksUnderLayer(books []server.Book, layer shelf.FolderPath) []string {
 
 // A copy transfer reproduces the source subtree on the target with fresh IDs and
 // leaves the source shelf untouched.
-func TestAPILayerTransferCopyContract(t *testing.T) {
+func TestAPIFolderTransferCopyContract(t *testing.T) {
 	env := newAPITestEnv(t, withSecondShelf(t.TempDir()))
 	top := importTextBook(t, env, "Top", "fiction", "top.txt", "a")
 	deep := importTextBook(t, env, "Deep", "fiction/sci-fi", "deep.txt", "b")
 
-	accepted := submitTaskChain(t, env, layerTransfersURL(), []byte(`{
+	accepted := submitTaskChain(t, env, folderTransfersURL(), []byte(`{
 		"mode": "copy",
-		"source_layer": ["fiction"],
+		"source_folder": ["fiction"],
 		"target_shelf": "`+secondShelfID+`",
-		"target_layer": ["imported"]
+		"target_folder": ["imported"]
 	}`), http.StatusAccepted)
 	chain := waitForTaskChain(t, env, accepted.TaskChainID)
 	if chain.Status != "completed" || chain.Percentage != 100 {
@@ -66,10 +66,10 @@ func TestAPILayerTransferCopyContract(t *testing.T) {
 		t.Errorf("source books = %#v, want the two originals", sourceBooks)
 	}
 
-	// The target holds fresh-ID copies under the remapped layers.
+	// The target holds fresh-ID copies under the remapped folders.
 	targetBooks := getJSON[[]server.Book](t, env, secondShelfBooksURL())
-	topCopies := booksUnderLayer(targetBooks, shelf.FolderPath{"imported"})
-	deepCopies := booksUnderLayer(targetBooks, shelf.FolderPath{"imported", "sci-fi"})
+	topCopies := booksUnderFolder(targetBooks, shelf.FolderPath{"imported"})
+	deepCopies := booksUnderFolder(targetBooks, shelf.FolderPath{"imported", "sci-fi"})
 	if len(topCopies) != 1 || topCopies[0] == top.Meta.ID {
 		t.Errorf("target [imported] = %v, want one fresh-ID copy of %q", topCopies, top.Meta.ID)
 	}
@@ -79,16 +79,16 @@ func TestAPILayerTransferCopyContract(t *testing.T) {
 }
 
 // A move transfer keeps every book's ID, publishes the subtree on the target, and
-// clears the source layer. With no target_layer it lands under the source layer's
+// clears the source folder. With no target_folder it lands under the source folder's
 // own name.
-func TestAPILayerTransferMoveContract(t *testing.T) {
+func TestAPIFolderTransferMoveContract(t *testing.T) {
 	env := newAPITestEnv(t, withSecondShelf(t.TempDir()))
 	top := importTextBook(t, env, "Top", "fiction", "top.txt", "a")
 	deep := importTextBook(t, env, "Deep", "fiction/sci-fi", "deep.txt", "b")
 
-	accepted := submitTaskChain(t, env, layerTransfersURL(), []byte(`{
+	accepted := submitTaskChain(t, env, folderTransfersURL(), []byte(`{
 		"mode": "move",
-		"source_layer": ["fiction"],
+		"source_folder": ["fiction"],
 		"target_shelf": "`+secondShelfID+`"
 	}`), http.StatusAccepted)
 	chain := waitForTaskChain(t, env, accepted.TaskChainID)
@@ -103,44 +103,44 @@ func TestAPILayerTransferMoveContract(t *testing.T) {
 	}
 
 	// The target lists both under their original IDs, defaulting to the source
-	// layer name.
+	// folder name.
 	targetBooks := getJSON[[]server.Book](t, env, secondShelfBooksURL())
-	if got := booksUnderLayer(targetBooks, shelf.FolderPath{"fiction"}); len(got) != 1 || got[0] != top.Meta.ID {
+	if got := booksUnderFolder(targetBooks, shelf.FolderPath{"fiction"}); len(got) != 1 || got[0] != top.Meta.ID {
 		t.Errorf("target [fiction] = %v, want [%s]", got, top.Meta.ID)
 	}
-	if got := booksUnderLayer(targetBooks, shelf.FolderPath{"fiction", "sci-fi"}); len(got) != 1 || got[0] != deep.Meta.ID {
+	if got := booksUnderFolder(targetBooks, shelf.FolderPath{"fiction", "sci-fi"}); len(got) != 1 || got[0] != deep.Meta.ID {
 		t.Errorf("target [fiction sci-fi] = %v, want [%s]", got, deep.Meta.ID)
 	}
 }
 
-// A transfer onto a layer the target shelf already holds is refused with a 409
+// A transfer onto a folder the target shelf already holds is refused with a 409
 // that names the conflict, before any work is scheduled.
-func TestAPILayerTransferLayerConflictContract(t *testing.T) {
+func TestAPIFolderTransferFolderConflictContract(t *testing.T) {
 	env := newAPITestEnv(t, withSecondShelf(t.TempDir()))
 	importTextBook(t, env, "Source", "fiction", "src.txt", "a")
-	// The target already holds the destination layer, so the transfer must refuse
+	// The target already holds the destination folder, so the transfer must refuse
 	// to land on it rather than merge into it.
-	assertStatus(t, env.post(shelfIDURL(secondShelfID, "layers", "taken"), nil), http.StatusNoContent)
+	assertStatus(t, env.post(shelfIDURL(secondShelfID, "folders", "taken"), nil), http.StatusNoContent)
 
-	rec := env.post(layerTransfersURL(), strings.NewReader(`{
+	rec := env.post(folderTransfersURL(), strings.NewReader(`{
 		"mode": "copy",
-		"source_layer": ["fiction"],
+		"source_folder": ["fiction"],
 		"target_shelf": "`+secondShelfID+`",
-		"target_layer": ["taken"]
+		"target_folder": ["taken"]
 	}`))
 	assertStatus(t, rec, http.StatusConflict)
 	if strings.Contains(rec.Body.String(), "taskchain_id") {
 		t.Errorf("body = %s, want a refusal rather than a queued chain", rec.Body.String())
 	}
-	body := decodeJSON[layerTransferConflictBody](t, rec)
-	if body.Error != "target_layer_conflict" {
-		t.Errorf("error = %q, want target_layer_conflict", body.Error)
+	body := decodeJSON[folderTransferConflictBody](t, rec)
+	if body.Error != "target_folder_conflict" {
+		t.Errorf("error = %q, want target_folder_conflict", body.Error)
 	}
 }
 
 // A move whose books collide with IDs the target already holds is refused with a
 // 409 that lists every colliding ID, before any work is scheduled.
-func TestAPILayerTransferBookIDConflictContract(t *testing.T) {
+func TestAPIFolderTransferBookIDConflictContract(t *testing.T) {
 	env := newAPITestEnv(t, withSecondShelf(t.TempDir()))
 	original := importTextBook(t, env, "Twice", "fiction", "twice.txt", "body")
 	id := original.Meta.ID
@@ -156,17 +156,17 @@ func TestAPILayerTransferBookIDConflictContract(t *testing.T) {
 	}
 	assertStatus(t, env.post(shelfURL("trash", "books", id, "restore"), nil), http.StatusNoContent)
 
-	rec := env.post(layerTransfersURL(), strings.NewReader(`{
+	rec := env.post(folderTransfersURL(), strings.NewReader(`{
 		"mode": "move",
-		"source_layer": ["fiction"],
+		"source_folder": ["fiction"],
 		"target_shelf": "`+secondShelfID+`",
-		"target_layer": ["elsewhere"]
+		"target_folder": ["elsewhere"]
 	}`))
 	assertStatus(t, rec, http.StatusConflict)
 	if strings.Contains(rec.Body.String(), "taskchain_id") {
 		t.Errorf("body = %s, want a refusal rather than a queued chain", rec.Body.String())
 	}
-	body := decodeJSON[layerTransferConflictBody](t, rec)
+	body := decodeJSON[folderTransferConflictBody](t, rec)
 	if body.Error != "book_id_conflict" {
 		t.Errorf("error = %q, want book_id_conflict", body.Error)
 	}
@@ -177,19 +177,19 @@ func TestAPILayerTransferBookIDConflictContract(t *testing.T) {
 
 // Re-submitting a transfer already in flight is a 409 that points at the running
 // chain, so the client can attach to it instead of starting a second.
-func TestAPILayerTransferDuplicateRunningChainContract(t *testing.T) {
+func TestAPIFolderTransferDuplicateRunningChainContract(t *testing.T) {
 	env := newAPITestEnv(t, withSecondShelf(t.TempDir()))
 	importTextBook(t, env, "Queued", "fiction", "queued.txt", "body")
 	release := blockWorker(t, env)
 
 	body := []byte(`{
 		"mode": "copy",
-		"source_layer": ["fiction"],
+		"source_folder": ["fiction"],
 		"target_shelf": "` + secondShelfID + `",
-		"target_layer": ["imported"]
+		"target_folder": ["imported"]
 	}`)
-	first := submitTaskChain(t, env, layerTransfersURL(), body, http.StatusAccepted)
-	duplicate := submitTaskChain(t, env, layerTransfersURL(), body, http.StatusConflict)
+	first := submitTaskChain(t, env, folderTransfersURL(), body, http.StatusAccepted)
+	duplicate := submitTaskChain(t, env, folderTransfersURL(), body, http.StatusConflict)
 	if duplicate.TaskChainID != first.TaskChainID {
 		t.Errorf("duplicate id = %q, want %q", duplicate.TaskChainID, first.TaskChainID)
 	}
@@ -199,15 +199,15 @@ func TestAPILayerTransferDuplicateRunningChainContract(t *testing.T) {
 
 // A transfer into a read-only target shelf is refused with 409, the status every
 // write to a read-only shelf gets, and nothing is scheduled.
-func TestAPILayerTransferReadOnlyTargetContract(t *testing.T) {
+func TestAPIFolderTransferReadOnlyTargetContract(t *testing.T) {
 	env := newAPITestEnv(t, withReadOnlySecondShelf(t.TempDir()))
 	importTextBook(t, env, "No Room", "fiction", "noroom.txt", "body")
 
-	rec := env.post(layerTransfersURL(), strings.NewReader(`{
+	rec := env.post(folderTransfersURL(), strings.NewReader(`{
 		"mode": "copy",
-		"source_layer": ["fiction"],
+		"source_folder": ["fiction"],
 		"target_shelf": "`+secondShelfID+`",
-		"target_layer": ["imported"]
+		"target_folder": ["imported"]
 	}`))
 	assertStatus(t, rec, http.StatusConflict)
 	if strings.Contains(rec.Body.String(), "taskchain_id") {
@@ -216,7 +216,7 @@ func TestAPILayerTransferReadOnlyTargetContract(t *testing.T) {
 }
 
 // The endpoint rejects malformed requests before scheduling anything.
-func TestAPILayerTransferBadRequestContract(t *testing.T) {
+func TestAPIFolderTransferBadRequestContract(t *testing.T) {
 	env := newAPITestEnv(t, withSecondShelf(t.TempDir()))
 	importTextBook(t, env, "Present", "fiction", "present.txt", "body")
 
@@ -225,25 +225,25 @@ func TestAPILayerTransferBadRequestContract(t *testing.T) {
 		body string
 		want int
 	}{
-		{"missing target shelf", `{"mode":"copy","source_layer":["fiction"],"target_shelf":"nope"}`, http.StatusNotFound},
-		{"bad mode", `{"mode":"duplicate","source_layer":["fiction"],"target_shelf":"` + secondShelfID + `"}`, http.StatusBadRequest},
-		{"missing source layer", `{"mode":"copy","target_shelf":"` + secondShelfID + `"}`, http.StatusBadRequest},
-		{"same shelf", `{"mode":"copy","source_layer":["fiction"],"target_shelf":"` + defaultShelfID + `"}`, http.StatusBadRequest},
-		{"missing source layer on shelf", `{"mode":"copy","source_layer":["ghost"],"target_shelf":"` + secondShelfID + `"}`, http.StatusNotFound},
+		{"missing target shelf", `{"mode":"copy","source_folder":["fiction"],"target_shelf":"nope"}`, http.StatusNotFound},
+		{"bad mode", `{"mode":"duplicate","source_folder":["fiction"],"target_shelf":"` + secondShelfID + `"}`, http.StatusBadRequest},
+		{"missing source folder", `{"mode":"copy","target_shelf":"` + secondShelfID + `"}`, http.StatusBadRequest},
+		{"same shelf", `{"mode":"copy","source_folder":["fiction"],"target_shelf":"` + defaultShelfID + `"}`, http.StatusBadRequest},
+		{"missing source folder on shelf", `{"mode":"copy","source_folder":["ghost"],"target_shelf":"` + secondShelfID + `"}`, http.StatusNotFound},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assertStatus(t, env.post(layerTransfersURL(), strings.NewReader(tc.body)), tc.want)
+			assertStatus(t, env.post(folderTransfersURL(), strings.NewReader(tc.body)), tc.want)
 		})
 	}
 }
 
 // The transfer endpoint stays behind both write gates: the token requirement and
 // the read-only refusal.
-func TestAPILayerTransferIsGatedContract(t *testing.T) {
+func TestAPIFolderTransferIsGatedContract(t *testing.T) {
 	env := newAPITestEnv(t, withSecondShelf(t.TempDir()))
 	importTextBook(t, env, "Gated", "fiction", "gated.txt", "body")
 
-	assertMutationGated(t, env, http.MethodPost, layerTransfersURL(),
-		[]byte(`{"mode":"copy","source_layer":["fiction"],"target_shelf":"`+secondShelfID+`","target_layer":["imported"]}`))
+	assertMutationGated(t, env, http.MethodPost, folderTransfersURL(),
+		[]byte(`{"mode":"copy","source_folder":["fiction"],"target_shelf":"`+secondShelfID+`","target_folder":["imported"]}`))
 }

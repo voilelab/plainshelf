@@ -1,11 +1,11 @@
 {
-  "layers": [
+  "folders": [
     "/"
   ],
   "books": [
     {
       "path": "books/atlas.bookpkg",
-      "layers": [],
+      "folders": [],
       "id": "z2p8mk4c7vqx3nrs",
       "title": "Atlas",
       "format": "txt",

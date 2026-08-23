@@ -59,7 +59,7 @@ func decodeStrictJSON(w http.ResponseWriter, r *http.Request, v any) bool {
 
 // decodeOptionalStrictJSON is decodeStrictJSON that treats an empty body as "no
 // fields set", leaving v at its zero value. It suits a request whose every field
-// is optional - copying a book carries only an optional destination layer, so an
+// is optional - copying a book carries only an optional destination folder, so an
 // empty body is a valid "copy in place" rather than a malformed request.
 //
 // It streams through json.Decoder rather than buffering the body, so an

@@ -20,7 +20,7 @@ import {
   restoreTrashedBook,
   transferBook,
   updateBook,
-  updateBookLayer,
+  updateBookFolder,
   uploadBookCover,
   uploadBookCoverBlob
 } from '@/api/books';
@@ -35,7 +35,7 @@ import {
   setCurrentSource,
   updateSourceContent
 } from '@/api/sources';
-import { getLayers, transferLayer } from '@/api/layers';
+import { getFolders, transferFolder } from '@/api/folders';
 import { rescanShelf } from '@/api/shelves';
 import { getTaskChain } from '@/api/taskchains';
 import { startBookBatch } from '@/api/bookBatches';
@@ -85,34 +85,34 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return updateBook(bookId, payload);
   }
 
-  updateBookLayer(bookId: string, layer: string): Promise<void> {
-    return updateBookLayer(bookId, layer);
+  updateBookFolder(bookId: string, folder: string): Promise<void> {
+    return updateBookFolder(bookId, folder);
   }
 
-  copyBook(bookId: string, layer: string): Promise<Book> {
-    return copyBook(bookId, layer);
+  copyBook(bookId: string, folder: string): Promise<Book> {
+    return copyBook(bookId, folder);
   }
 
-  listShelfLayers(shelfID: string): Promise<string[]> {
-    return getLayers(shelfID);
+  listShelfFolders(shelfID: string): Promise<string[]> {
+    return getFolders(shelfID);
   }
 
   transferBook(
     bookId: string,
     targetShelfID: string,
-    targetLayer: string,
+    targetFolder: string,
     mode: BookTransferMode
   ): Promise<string> {
-    return transferBook(bookId, targetShelfID, targetLayer, mode);
+    return transferBook(bookId, targetShelfID, targetFolder, mode);
   }
 
-  transferLayer(
-    sourceLayer: string,
+  transferFolder(
+    sourceFolder: string,
     targetShelfID: string,
-    targetLayer: string,
+    targetFolder: string,
     mode: BookTransferMode
   ): Promise<string> {
-    return transferLayer(sourceLayer, targetShelfID, targetLayer, mode);
+    return transferFolder(sourceFolder, targetShelfID, targetFolder, mode);
   }
 
   deleteBook(bookId: string): Promise<void> {
@@ -217,8 +217,8 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return startFingerprintSources(force);
   }
 
-  listLayers(): Promise<string[]> {
-    return getLayers();
+  listFolders(): Promise<string[]> {
+    return getFolders();
   }
 
   listSources(bookId: string): Promise<SourceMeta[]> {

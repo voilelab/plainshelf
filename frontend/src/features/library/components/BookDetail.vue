@@ -1,7 +1,7 @@
 <template>
   <div class="detail-main">
     <header class="detail-heading">
-      <LayerBreadcrumb :layers="book.layers" />
+      <FolderBreadcrumb :folders="book.folders" />
       <h2 class="detail-title">{{ book.title }}</h2>
       <p v-if="book.authors.length > 0" class="detail-authors">{{ formatList(book.authors) }}</p>
 
@@ -93,7 +93,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import LayerBreadcrumb from './LayerBreadcrumb.vue';
+import FolderBreadcrumb from './FolderBreadcrumb.vue';
 import SafeHtml from '@/components/SafeHtml.vue';
 import type { Book, ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
@@ -535,7 +535,7 @@ const hasDetailSections = computed(() =>
     text-align: center;
   }
 
-  .detail-heading :deep(.layer-breadcrumb),
+  .detail-heading :deep(.folder-breadcrumb),
   .summary-signals,
   .quick-facts {
     justify-content: center;

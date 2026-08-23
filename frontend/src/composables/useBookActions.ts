@@ -1,20 +1,20 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useBookStore } from '@/composables/useBookStore';
-import { useLayerStore } from '@/composables/useLayerStore';
+import { useFolderStore } from '@/composables/useFolderStore';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
 import { useToasts } from '@/composables/useToasts';
 import { bookshelfWriter, getBookshelfProvider, isWebRuntime } from '@/providers';
 import type { BookTransferMode } from '@/api/books';
 import type { Book } from '@/types/book';
 import type { TaskStatus } from '@/types/task';
-import { getLayerPath, layerPathEquals } from '@/utils/layers';
+import { getFolderPath, folderPathEquals } from '@/utils/folders';
 import { t } from '@/i18n';
 
 export interface UseBookActionsOptions {
   onDeleted?: (book: Book) => void;
-  onMoved?: (book: Book, targetLayer: string) => void;
-  onCopied?: (copy: Book, targetLayer: string) => void;
+  onMoved?: (book: Book, targetFolder: string) => void;
+  onCopied?: (copy: Book, targetFolder: string) => void;
   /**
    * Fired once a cross-shelf transfer settles without failing. `status` is the
    * chain's terminal status so a caller can distinguish a full completion from a
@@ -37,14 +37,14 @@ function sanitizeDownloadName(name: string): string {
 
 /**
  * Shared book-level actions (read / open detail / edit / open book folder /
- * download / move to another layer / delete) used by both BookDetailPage and
+ * download / move to another folder / delete) used by both BookDetailPage and
  * the card view's context menu. Each call site gets its own instance — the
  * delete/download busy state below is intentionally per-instance, not a module
  * singleton.
  */
 export function useBookActions(options: UseBookActionsOptions = {}) {
   const router = useRouter();
-  const { layers, loaded: layersLoaded, fetchLayers } = useLayerStore();
+  const { folders, loaded: foldersLoaded, fetchFolders } = useFolderStore();
   const { fetchBooks } = useBookStore();
   const { showToast } = useToasts();
 
@@ -79,7 +79,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
       }
       const target = transferTarget.value;
       // A move drops the source from the active shelf and a copy leaves it, but
-      // either way the sidebar's per-layer counts have shifted, so refresh the
+      // either way the sidebar's per-folder counts have shifted, so refresh the
       // book store — the same refresh submitMove/submitCopy perform.
       void fetchBooks();
       if (target) {
@@ -92,24 +92,24 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
 
   /**
    * Destinations offered for `moveTarget`, flat and sorted like the batch move
-   * modal's list. The book's own layer is dropped because moving there is a
+   * modal's list. The book's own folder is dropped because moving there is a
    * no-op; the root entry is not in here at all — MoveBooksModal renders its
    * own labelled root option.
    */
-  const moveLayerOptions = computed(() => {
-    const currentLayer = moveTarget.value ? getLayerPath(moveTarget.value) : '';
-    return [...new Set(layers.value.filter((layer) => layer && layer !== '/'))]
-      .filter((layer) => !layerPathEquals(layer, currentLayer))
+  const moveFolderOptions = computed(() => {
+    const currentFolder = moveTarget.value ? getFolderPath(moveTarget.value) : '';
+    return [...new Set(folders.value.filter((folder) => folder && folder !== '/'))]
+      .filter((folder) => !folderPathEquals(folder, currentFolder))
       .sort();
   });
 
   /**
-   * Destinations offered for `copyTarget`. Unlike moveLayerOptions this keeps the
-   * book's own layer: copying a book into the layer it already sits in is a valid
+   * Destinations offered for `copyTarget`. Unlike moveFolderOptions this keeps the
+   * book's own folder: copying a book into the folder it already sits in is a valid
    * "duplicate here", not a no-op. The root is offered by the modal itself.
    */
-  const copyLayerOptions = computed(() =>
-    [...new Set(layers.value.filter((layer) => layer && layer !== '/'))].sort()
+  const copyFolderOptions = computed(() =>
+    [...new Set(folders.value.filter((folder) => folder && folder !== '/'))].sort()
   );
 
   const canOpenBookFolder = computed(() => Boolean(getBookshelfProvider().openDesktopBookFolder));
@@ -229,10 +229,10 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     // The move dialog shows actionError itself, so it must not open carrying
     // the message some earlier action left behind.
     actionError.value = '';
-    // The sidebar normally fills the layer store on load, but the detail page
+    // The sidebar normally fills the folder store on load, but the detail page
     // can be opened directly by URL, and mobile has no sidebar at all.
-    if (!layersLoaded.value) {
-      void fetchLayers();
+    if (!foldersLoaded.value) {
+      void fetchFolders();
     }
   }
 
@@ -242,15 +242,15 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     }
   }
 
-  async function submitMove(targetLayer: string): Promise<void> {
+  async function submitMove(targetFolder: string): Promise<void> {
     const target = moveTarget.value;
     if (!target || moving.value) {
       return;
     }
 
-    // moveLayerOptions already drops the book's own layer, but the modal always
+    // moveFolderOptions already drops the book's own folder, but the modal always
     // offers the root entry, so a book at the root can still land here.
-    if (layerPathEquals(getLayerPath(target), targetLayer)) {
+    if (folderPathEquals(getFolderPath(target), targetFolder)) {
       moveTarget.value = null;
       return;
     }
@@ -259,12 +259,12 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     actionError.value = '';
 
     try {
-      await bookshelfWriter().updateBookLayer(target.id, targetLayer);
+      await bookshelfWriter().updateBookFolder(target.id, targetFolder);
       moveTarget.value = null;
-      // The sidebar derives its per-layer counts from the book store, the same
-      // refresh the drag-to-layer path performs after a move.
+      // The sidebar derives its per-folder counts from the book store, the same
+      // refresh the drag-to-folder path performs after a move.
       void fetchBooks();
-      options.onMoved?.(target, targetLayer);
+      options.onMoved?.(target, targetFolder);
     } catch (err) {
       // Leaves the modal open so the destination stays picked for a retry.
       actionError.value = err instanceof Error ? err.message : t('bookDetail.errors.moveFailed');
@@ -278,8 +278,8 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     // The copy dialog shows actionError itself, so it must not open carrying a
     // message some earlier action left behind.
     actionError.value = '';
-    if (!layersLoaded.value) {
-      void fetchLayers();
+    if (!foldersLoaded.value) {
+      void fetchFolders();
     }
   }
 
@@ -289,7 +289,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     }
   }
 
-  async function submitCopy(targetLayer: string): Promise<void> {
+  async function submitCopy(targetFolder: string): Promise<void> {
     const target = copyTarget.value;
     if (!target || copying.value) {
       return;
@@ -299,12 +299,12 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     actionError.value = '';
 
     try {
-      const copy = await bookshelfWriter().copyBook(target.id, targetLayer);
+      const copy = await bookshelfWriter().copyBook(target.id, targetFolder);
       copyTarget.value = null;
-      // Keep the sidebar's per-layer counts in step with the new book, the same
+      // Keep the sidebar's per-folder counts in step with the new book, the same
       // refresh submitMove performs.
       void fetchBooks();
-      options.onCopied?.(copy, targetLayer);
+      options.onCopied?.(copy, targetFolder);
     } catch (err) {
       // Leaves the modal open so the destination stays picked for a retry.
       actionError.value = err instanceof Error ? err.message : t('bookDetail.errors.copyFailed');
@@ -334,7 +334,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
 
   async function submitTransfer(payload: {
     targetShelfId: string;
-    targetLayer: string;
+    targetFolder: string;
     mode: BookTransferMode;
   }): Promise<void> {
     const target = transferTarget.value;
@@ -346,7 +346,7 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     // A transfer already in flight for this book answers with its own chain id,
     // so this attaches to the existing progress instead of scheduling a second.
     await beginTransfer(() =>
-      bookshelfWriter().transferBook(target.id, payload.targetShelfId, payload.targetLayer, payload.mode)
+      bookshelfWriter().transferBook(target.id, payload.targetShelfId, payload.targetFolder, payload.mode)
     );
   }
 
@@ -389,10 +389,10 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     deleting,
     moveTarget,
     moving,
-    moveLayerOptions,
+    moveFolderOptions,
     copyTarget,
     copying,
-    copyLayerOptions,
+    copyFolderOptions,
     transferTarget,
     transferMode,
     transferStatus,

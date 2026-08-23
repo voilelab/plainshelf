@@ -85,22 +85,22 @@ func TestAPIUnsupportedSchemaVersionReturns409(t *testing.T) {
 	}
 }
 
-// TestAPIUnsupportedSchemaVersionDoesNotMoveLayer verifies the schema guard runs
-// before the layer move. HandleAPIUpdateBook moves the book first, so a guard
+// TestAPIUnsupportedSchemaVersionDoesNotMoveFolder verifies the schema guard runs
+// before the folder move. HandleAPIUpdateBook moves the book first, so a guard
 // that only ran at SetMeta would rename the folder on disk and then report 409,
 // leaving the client with a failed response for an applied mutation.
-func TestAPIUnsupportedSchemaVersionDoesNotMoveLayer(t *testing.T) {
+func TestAPIUnsupportedSchemaVersionDoesNotMoveFolder(t *testing.T) {
 	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Layer Guard", "origin/layer", "layer.txt", "body")
+	created := importTextBook(t, env, "Folder Guard", "origin/folder", "folder.txt", "body")
 
 	metaPath, _ := bumpBookSchemaVersion(t, env, created.Meta.ID, nil)
 
-	patchBook(t, env, created.Meta.ID, `{"layer":["moved","elsewhere"]}`, http.StatusConflict)
+	patchBook(t, env, created.Meta.ID, `{"folder":["moved","elsewhere"]}`, http.StatusConflict)
 
-	// The book must still be in its original layer, and still on disk there.
+	// The book must still be in its original folder, and still on disk there.
 	book := getJSON[server.Book](t, env, bookURL(created.Meta.ID))
-	if got := strings.Join(book.Layer, "/"); got != "origin/layer" {
-		t.Fatalf("layer = %q, want origin/layer — the refused request moved the book", got)
+	if got := strings.Join(book.Folder, "/"); got != "origin/folder" {
+		t.Fatalf("folder = %q, want origin/folder — the refused request moved the book", got)
 	}
 	if _, err := os.Stat(metaPath); err != nil {
 		t.Fatalf("book.json is no longer at its original path: %v", err)
@@ -170,7 +170,7 @@ func TestAPITrashSchemaVersionContract(t *testing.T) {
 // permanently deleting it fails with 409 and leaves the files alone.
 func TestAPIUnsupportedTrashSchemaVersionReturns409(t *testing.T) {
 	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Future Trash", "origin/layer", "future.txt", "body")
+	created := importTextBook(t, env, "Future Trash", "origin/folder", "future.txt", "body")
 
 	assertStatus(t, env.post(bookURL(created.Meta.ID, "trash"), nil), http.StatusNoContent)
 	metaPath, bumped := bumpTrashSchemaVersion(t, env, created.Meta.ID)

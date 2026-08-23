@@ -16,13 +16,13 @@ type bookTransferHandlers struct {
 	*taskSubmitter
 }
 
-// bookTransferRequest names the destination of a cross-shelf transfer. TargetLayer
-// is a pointer so an omitted layer ("transfer in place") is distinct from an empty
-// one (the target shelf's root), matching how the copy endpoint reads its layer.
+// bookTransferRequest names the destination of a cross-shelf transfer. TargetFolder
+// is a pointer so an omitted folder ("transfer in place") is distinct from an empty
+// one (the target shelf's root), matching how the copy endpoint reads its folder.
 type bookTransferRequest struct {
-	Mode        string        `json:"mode"`
-	TargetShelf string        `json:"target_shelf"`
-	TargetLayer *shelf.FolderPath `json:"target_layer"`
+	Mode         string            `json:"mode"`
+	TargetShelf  string            `json:"target_shelf"`
+	TargetFolder *shelf.FolderPath `json:"target_folder"`
 }
 
 // POST /api/shelves/{shelf_id}/books/{book_id}/transfers
@@ -57,7 +57,7 @@ func (h *bookTransferHandlers) transferBook(w http.ResponseWriter, r *http.Reque
 	// A source that is also the target belongs to the same-shelf endpoints, and
 	// naming one shelf twice would deadlock the transfer on its own lock.
 	if targetShelfID == sourceShelf.ID {
-		http.Error(w, "source and target are the same shelf; copy within a shelf with .../copies and move between layers with PATCH .../books/{book_id}", http.StatusBadRequest)
+		http.Error(w, "source and target are the same shelf; copy within a shelf with .../copies and move between folders with PATCH .../books/{book_id}", http.StatusBadRequest)
 		return
 	}
 
@@ -74,14 +74,14 @@ func (h *bookTransferHandlers) transferBook(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Default to the source book's own layer so a plain "move it to that shelf"
-	// needs no layer in the body, mirroring the copy endpoint.
-	targetLayer := append(shelf.FolderPath(nil), listing.Folders...)
-	if request.TargetLayer != nil {
-		targetLayer = append(shelf.FolderPath(nil), (*request.TargetLayer)...)
+	// Default to the source book's own folder so a plain "move it to that shelf"
+	// needs no folder in the body, mirroring the copy endpoint.
+	targetFolder := append(shelf.FolderPath(nil), listing.Folders...)
+	if request.TargetFolder != nil {
+		targetFolder = append(shelf.FolderPath(nil), (*request.TargetFolder)...)
 	}
-	if err := shelf.ValidateFolderPath(targetLayer); err != nil {
-		h.writeErrStatus(w, err, "invalid target_layer", http.StatusBadRequest)
+	if err := shelf.ValidateFolderPath(targetFolder); err != nil {
+		h.writeErrStatus(w, err, "invalid target_folder", http.StatusBadRequest)
 		return
 	}
 
@@ -113,6 +113,6 @@ func (h *bookTransferHandlers) transferBook(w http.ResponseWriter, r *http.Reque
 	}
 
 	h.submitTaskChain(w,
-		task.NewBookTransferChain(sourceShelf.ID, sourceShelf.Shelf, targetShelf.ID, targetShelf.Shelf, h.Logger, operation, bookID, targetLayer),
+		task.NewBookTransferChain(sourceShelf.ID, sourceShelf.Shelf, targetShelf.ID, targetShelf.Shelf, h.Logger, operation, bookID, targetFolder),
 		"failed to schedule book transfer task")
 }
