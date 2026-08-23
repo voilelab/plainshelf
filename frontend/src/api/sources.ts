@@ -156,6 +156,37 @@ export async function getSourceAsset(bookId: string, sourceId: string, name: str
   );
 }
 
+/**
+ * Fetches a source's illustrations as one zip, so a download client pays a
+ * single request instead of one per figure — on a high-latency or metered
+ * connection the per-image round trips, not the bytes, are the cost.
+ *
+ * `names` lists exactly which files to pack, as repeated `name` query
+ * parameters, so the download takes only what the text references; an empty
+ * list packs the whole `assets/` directory. A referenced-but-absent name is
+ * packed as no entry, not an error.
+ *
+ * Like getSourceAsset this goes through `fetchBlob` so the request carries the
+ * API token; a plain browser request would omit it and fail under
+ * `protect_read`. The raw archive is returned rather than decoded blobs so the
+ * caller can unzip one entry at a time.
+ */
+export async function getSourceAssetsBundle(
+  bookId: string,
+  sourceId: string,
+  names: string[]
+): Promise<Blob> {
+  if (isMockApiMode()) {
+    throw new Error('Source assets are not served in mock API mode');
+  }
+
+  const path = buildShelfApiPath(
+    `/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/assets.zip`
+  );
+  const query = names.map((name) => `name=${encodeURIComponent(name)}`).join('&');
+  return await fetchBlob(query ? `${path}?${query}` : path);
+}
+
 export async function createSource(bookId: string, options?: CreateSourceOptions): Promise<SourceMeta> {
   if (isMockApiMode()) {
     const sources = ensureMockSource(bookId);

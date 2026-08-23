@@ -258,9 +258,20 @@ percent-encoded; all three name the same file:
 
 Downloading a book for offline reading on Android brings its illustrations
 along: the download reads the text it just fetched and stores exactly the
-images that text renders. A book downloaded before this existed keeps working
-and shows alt text where its pictures would be; downloading it again stores
-them.
+images that text renders. It asks for them as one zip — a single request for
+the whole source's figures rather than one per image, which is what a
+high-latency or metered mobile connection actually pays for — unpacking and
+storing each figure as it goes so an image-heavy book never holds them all in
+memory at once. When the server is too old to offer that bundle, or the bundled
+request fails, the download falls back to fetching each image on its own. A book
+downloaded before this existed keeps working and shows alt text where its
+pictures would be; downloading it again stores them.
+
+The bundle is a read-only endpoint beside the per-image one — a source's
+`assets.zip`, taking an optional list of file names so the client packs only
+what its text references. Like every asset read it is a plain `GET`, gated only
+when the server sets `protect_read`; online reading still fetches each
+illustration lazily and is unchanged by it.
 
 Uploading and deleting an illustration are ordinary writes: they need the same
 access a metadata edit does, and a read-only server refuses them. Deleting one

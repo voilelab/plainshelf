@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
+import { unzipSync } from 'fflate';
 import type {
   BookmarkPayload,
   Book,
@@ -52,6 +53,28 @@ const EXPORT_SUBDIR = 'PlainShelf';
 
 const defaultIsOnline = (): boolean =>
   typeof navigator === 'undefined' ? true : navigator.onLine;
+
+// The per-file path carries the server's Content-Type on each fetched blob; the
+// bundle arrives as one application/zip, so an unpacked entry's type is derived
+// from its name the same way the server's single-asset route derives it. That
+// keeps a cached figure's MIME identical whichever path stored it — the
+// filesystem cache persists blob.type and hands it back on read.
+function imageMimeType(name: string): string {
+  const dot = name.lastIndexOf('.');
+  switch (dot === -1 ? '' : name.slice(dot).toLowerCase()) {
+    case '.png':
+      return 'image/png';
+    case '.webp':
+      return 'image/webp';
+    case '.gif':
+      return 'image/gif';
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg';
+    default:
+      return '';
+  }
+}
 
 // True when a remote call never received an HTTP response at all — a
 // transport-level failure (device is online per navigator.onLine, but the
@@ -540,10 +563,16 @@ export class MobileBookshelfProvider implements BookshelfReader {
    * Fetches the illustrations the downloaded text references and stores each
    * one as it arrives.
    *
-   * Bounded rather than all at once, and each blob dropped as soon as it is
-   * saved: an asset has no size bound, so holding every one until the end and
-   * then base64-encoding them together is how an image-heavy book would
-   * exhaust an Android process.
+   * When the backend can hand back a whole source's figures as one zip, that
+   * path is taken so the download pays a single request rather than one per
+   * image — the round trips, not the bytes, are what a high-latency mobile
+   * connection pays for. When the backend has no such endpoint, or a bundle
+   * request fails, it falls back to the per-file concurrent path unchanged.
+   *
+   * Either way each figure is stored as it arrives and its bytes dropped: an
+   * asset has no size bound, so holding every one until the end and then
+   * base64-encoding them together is how an image-heavy book would exhaust an
+   * Android process.
    *
    * Every file is best-effort, like the cover. One picture that will not
    * download or will not store is a figure the reader replaces with its alt
@@ -555,11 +584,39 @@ export class MobileBookshelfProvider implements BookshelfReader {
     bookId: string,
     sourceContents: { sourceId: string; content: string }[]
   ): Promise<number> {
+    const fetchBundle = this.remote.getSourceAssetsBundle?.bind(this.remote);
+    if (fetchBundle) {
+      try {
+        return await this.storeSourceAssetsViaBundle(bookId, sourceContents, fetchBundle);
+      } catch (err) {
+        // A bundle request that failed (network, HTTP error, or a malformed
+        // archive) drops to the per-file path below. Anything the bundle
+        // already stored is simply overwritten there, which recomputes the
+        // total from scratch, so no figure is double-counted.
+        console.warn(
+          `Asset bundle download failed for book ${bookId}; falling back to per-file fetches.`,
+          err
+        );
+      }
+    }
+
     const fetchAsset = this.remote.getSourceAsset?.bind(this.remote);
     if (!fetchAsset) {
       return 0;
     }
+    return this.storeSourceAssetsPerFile(bookId, sourceContents, fetchAsset);
+  }
 
+  /**
+   * Stores each referenced figure by fetching it on its own, a bounded number
+   * at a time. The original download path, kept as the fallback for a backend
+   * with no bundle endpoint.
+   */
+  private async storeSourceAssetsPerFile(
+    bookId: string,
+    sourceContents: { sourceId: string; content: string }[],
+    fetchAsset: (bookId: string, sourceId: string, name: string) => Promise<Blob>
+  ): Promise<number> {
     const pending = sourceContents.flatMap(({ sourceId, content }) =>
       referencedAssetNames(content).map((name) => ({ sourceId, name }))
     );
@@ -584,6 +641,57 @@ export class MobileBookshelfProvider implements BookshelfReader {
     await Promise.all(
       Array.from({ length: Math.min(ASSET_DOWNLOAD_CONCURRENCY, pending.length) }, worker)
     );
+
+    return stored;
+  }
+
+  /**
+   * Stores each referenced figure out of a per-source zip.
+   *
+   * One request fetches a whole source's figures; the archive is then unpacked
+   * one entry at a time, and each figure is decoded only as it is about to be
+   * written, so the decoded bytes of at most one image are resident at once —
+   * the same Android memory bound the per-file path keeps, honoured after the
+   * archive rather than before it.
+   *
+   * A failure fetching or reading the archive throws, so storeSourceAssets
+   * falls back to the per-file path. A single figure that is absent from the
+   * archive (the text referenced a file never uploaded) or that will not store
+   * is skipped, best-effort, exactly as one failed per-file fetch is.
+   */
+  private async storeSourceAssetsViaBundle(
+    bookId: string,
+    sourceContents: { sourceId: string; content: string }[],
+    fetchBundle: (bookId: string, sourceId: string, names: string[]) => Promise<Blob>
+  ): Promise<number> {
+    let stored = 0;
+
+    for (const { sourceId, content } of sourceContents) {
+      const names = referencedAssetNames(content);
+      if (names.length === 0) {
+        continue;
+      }
+
+      const zipBlob = await fetchBundle(bookId, sourceId, names);
+      const archive = new Uint8Array(await zipBlob.arrayBuffer());
+
+      for (const name of names) {
+        // A malformed archive throws here and propagates to the per-file
+        // fallback; a filter that simply matches nothing yields undefined,
+        // which is a referenced-but-absent figure the reader shows as alt text.
+        const bytes = unzipSync(archive, { filter: (file) => file.name === name })[name];
+        if (!bytes) {
+          continue;
+        }
+        try {
+          const blob = new Blob([bytes], { type: imageMimeType(name) });
+          await this.cache.saveCachedAsset(bookId, sourceId, name, blob);
+          stored += blob.size;
+        } catch (err) {
+          console.warn(`Failed to store illustration ${name} for book ${bookId}.`, err);
+        }
+      }
+    }
 
     return stored;
   }
