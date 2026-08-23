@@ -86,6 +86,49 @@ type TaskChain struct {
 	CreatedAt time.Time
 
 	Tasks []Task
+
+	// mu guards the per-chain cancellation state below. It is independent of the
+	// aggregate status reads, which take no lock.
+	mu     sync.Mutex
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+// attachContext derives the chain's own cancellable context from parent and
+// stores its cancel so Cancel can stop just this chain. The worker calls it
+// before the chain is queued, so a cancel that arrives once the chain is
+// addressable always finds a cancel to trigger.
+func (c *TaskChain) attachContext(parent context.Context) context.Context {
+	ctx, cancel := context.WithCancel(parent)
+	c.mu.Lock()
+	c.ctx = ctx
+	c.cancel = cancel
+	c.mu.Unlock()
+	return ctx
+}
+
+// runContext returns the context the chain's tasks run under, falling back to
+// the background context for a chain that was never attached (only the tests
+// that run a chain without a worker hit that path).
+func (c *TaskChain) runContext() context.Context {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.ctx == nil {
+		return context.Background()
+	}
+	return c.ctx
+}
+
+// Cancel triggers the chain's own context cancellation. It is safe to call more
+// than once and is a no-op for a chain whose context was never attached; the
+// chain's tasks observe it through ctx.Err() and stop between task boundaries.
+func (c *TaskChain) Cancel() {
+	c.mu.Lock()
+	cancel := c.cancel
+	c.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 }
 
 // Status aggregates the status of every task in the chain.
@@ -212,15 +255,19 @@ func (w *worker) work() {
 	w.logger.Info("Worker started working")
 	for chain := range w.chains {
 		w.logger.Info("Worker received a task chain")
+		ctx := chain.runContext()
 		for _, task := range chain.Tasks {
 			w.logger.Info("Worker running task", "task", task.Name())
-			err := task.Run(w.ctx)
+			err := task.Run(ctx)
 			w.logger.Info("Worker finished task", "task", task.Name())
 			if err != nil {
 				w.logger.Error("task failed", "task", task.Name(), "error", err)
 				break
 			}
 		}
+		// Release the chain's context once its tasks have settled so the child it
+		// registered on the worker's shutdown context does not linger.
+		chain.Cancel()
 		w.logger.Info("Worker finished task chain")
 	}
 }
@@ -235,11 +282,21 @@ func (w *worker) Run(chain *TaskChain) error {
 		return util.Errorf("%w", ErrWorkerClosed)
 	}
 
+	// Give the chain its own cancellable context, derived from the worker's
+	// shutdown context, before it is queued. Deriving it here rather than when the
+	// worker dequeues the chain closes the window where the chain is already
+	// registered with the pool - and so cancellable - but has no cancel to trigger.
+	// Closing the worker still cancels every chain, because each derives from w.ctx.
+	chain.attachContext(w.ctx)
+
 	select {
 	case w.chains <- chain:
 		return nil
 
 	default:
+		// The chain never made it onto the queue, so release the context we just
+		// derived instead of leaking the child it registered on w.ctx.
+		chain.Cancel()
 		w.logger.Error("Worker is busy, cannot accept new task chain")
 		return util.Errorf("%w", ErrWorkerBusy)
 	}

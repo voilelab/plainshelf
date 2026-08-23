@@ -71,6 +71,10 @@ func taskChainURL(taskChainID string) string {
 	return "/api/taskchains/" + taskChainID
 }
 
+func taskChainCancelURL(taskChainID string) string {
+	return "/api/taskchains/" + taskChainID + "/cancel"
+}
+
 // taskResult decodes the single task's result through JSON, which is the shape a
 // client sees. Decoding into map[string]any therefore pins the wire field names,
 // while decoding into the task's own result type reads them back conveniently.

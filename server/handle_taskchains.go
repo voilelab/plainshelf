@@ -77,3 +77,30 @@ func (h *taskHandlers) getTaskChain(w http.ResponseWriter, r *http.Request) {
 
 	h.writeJSON(w, http.StatusOK, newTaskChainResponse(chain))
 }
+
+// POST /api/taskchains/{taskchain_id}/cancel
+//
+// Cancel is a mutating method, so it stays behind the local_token boundary and
+// is refused by read-only mode - which is the intended behaviour: a read-only
+// server refuses the transfer that would start a chain, so there is never an
+// in-progress chain to cancel there.
+//
+// The response is the chain's current state, exactly like getTaskChain. A cancel
+// stops the work between task boundaries rather than instantly, so the caller
+// polls the same GET endpoint to watch it settle; cancelling a chain that has
+// already finished is a no-op that still reports the settled state.
+func (h *taskHandlers) cancelTaskChain(w http.ResponseWriter, r *http.Request) {
+	taskChainID, err := readTaskChainID(r)
+	if err != nil {
+		http.Error(w, "invalid taskchain_id", http.StatusBadRequest)
+		return
+	}
+
+	chain, result := h.pool.Cancel(taskChainID)
+	if result == taskutil.CancelNotFound {
+		http.Error(w, "task chain not found", http.StatusNotFound)
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, newTaskChainResponse(chain))
+}
