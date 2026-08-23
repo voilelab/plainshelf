@@ -230,12 +230,12 @@ func TestOpenShelfKeepsUnknownLegacyTrashContentOnMerge(t *testing.T) {
 
 // A trash.json edited by hand into something unparseable must not hide the book
 // from the trash, nor block restoring it. Without the metadata the book cannot
-// go back to its original layer, so it lands at the top level of books/.
+// go back to its original folder, so it lands at the top level of books/.
 func TestTrashToleratesUnreadableTrashMeta(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	book, err := s.NewBook(Layers{"layer"}, "Corrupted")
+	book, err := s.NewBook(FolderPath{"layer"}, "Corrupted")
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
@@ -350,7 +350,7 @@ func TestTrashMetaWithoutSchemaVersionIsReadAsV1AndNotRewritten(t *testing.T) {
 	}
 
 	// The unversioned record is still honored, so the book goes back to the
-	// layer it came from rather than to the top level.
+	// folder it came from rather than to the top level.
 	if err := s.RestoreTrashedBook(bookID); err != nil {
 		t.Fatalf("RestoreTrashedBook: %v", err)
 	}
@@ -409,13 +409,13 @@ func TestMoveBookToTrashRefusesNewerTrashMetaOnActiveBook(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	book, err := s.NewBook(Layers{"layer"}, "Carried Back")
+	book, err := s.NewBook(FolderPath{"layer"}, "Carried Back")
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
 	bookID := book.ID()
 
-	activePath := path.Join(tmpLib, book.FolderPath())
+	activePath := path.Join(tmpLib, book.PackagePath())
 	rewriteTrashMeta(t, path.Join(activePath, trashMetaFile), map[string]any{
 		"schema_version": TrashMetaSchemaVersion + 1,
 	})

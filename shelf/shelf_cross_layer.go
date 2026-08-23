@@ -11,165 +11,169 @@ import (
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
-// ErrTargetLayerExists is returned by a cross-shelf layer transfer when the
-// target shelf already holds the destination layer. A layer transfer builds the
-// whole subtree fresh on the target, so it refuses to land on an existing layer
-// rather than merging into it - the same rule RenameLayer enforces for a
+// ErrTargetFolderExists is returned by a cross-shelf folder transfer when the
+// target shelf already holds the destination folder. A folder transfer builds the
+// whole subtree fresh on the target, so it refuses to land on an existing folder
+// rather than merging into it - the same rule RenameFolder enforces for a
 // same-shelf rename.
-var ErrTargetLayerExists = util.NewError("target shelf already holds a layer with this name")
+var ErrTargetFolderExists = util.NewError("target shelf already holds a layer with this name")
 
-// ErrSourceLayerNotFound is returned when a cross-shelf layer transfer names a
-// source layer that does not exist on the source shelf.
-var ErrSourceLayerNotFound = util.NewError("source shelf has no such layer")
+// ErrSourceFolderNotFound is returned when a cross-shelf folder transfer names a
+// source folder that does not exist on the source shelf.
+var ErrSourceFolderNotFound = util.NewError("source shelf has no such layer")
 
-// LayerBookIDConflictError reports that a cross-shelf layer move would land on
+// FolderBookIDConflictError reports that a cross-shelf folder move would land on
 // book IDs the target shelf already holds. Pre-flight collects every colliding
 // ID before touching a single file, so the whole set is reported at once rather
 // than surfacing them one failed move at a time.
 //
 // It satisfies errors.Is(err, ErrBookIDConflict) so a caller that only cares
 // that a move collided can test for the same sentinel the single-book move
-// returns, while one that wants the full list type-asserts to *LayerBookIDConflictError.
-type LayerBookIDConflictError struct {
+// returns, while one that wants the full list type-asserts to *FolderBookIDConflictError.
+type FolderBookIDConflictError struct {
 	BookIDs []string
 }
 
-func (e *LayerBookIDConflictError) Error() string {
+func (e *FolderBookIDConflictError) Error() string {
 	return fmt.Sprintf("target shelf already holds books with these IDs: %s", strings.Join(e.BookIDs, ", "))
 }
 
 // Is lets errors.Is match the shared ErrBookIDConflict sentinel, so callers do
-// not have to special-case the layer-level aggregate.
-func (e *LayerBookIDConflictError) Is(target error) bool {
+// not have to special-case the folder-level aggregate.
+func (e *FolderBookIDConflictError) Is(target error) bool {
 	return target == ErrBookIDConflict
 }
 
-// layerTransferPlan is what pre-flight resolves before any file is touched: the
-// books a transfer will carry and the layer directories it will reproduce. Both
+// folderTransferPlan is what pre-flight resolves before any file is touched: the
+// books a transfer will carry and the folder directories it will reproduce. Both
 // are gathered from a single fresh scan of the source so the plan reflects books
 // and folders another instance or a file manager added since the last scan.
-type layerTransferPlan struct {
-	// books is every book under sourceLayer (the layer itself and all
-	// descendants) paired with the source layer it sits in, sorted by ID for a
-	// deterministic transfer order. Pairing the layer here fixes each book's
+type folderTransferPlan struct {
+	// books is every book under sourceFolder (the folder itself and all
+	// descendants) paired with the source folder it sits in, sorted by ID for a
+	// deterministic transfer order. Pairing the folder here fixes each book's
 	// destination from the pre-flight snapshot rather than re-reading it per book.
 	books []plannedBook
-	// sourceLayers is sourceLayer and every descendant layer, so empty folders
+	// sourceFolders is sourceFolder and every descendant folder, so empty folders
 	// are reproduced on the target too, not only the ones that hold a book.
-	sourceLayers []Layers
+	sourceFolders []FolderPath
 }
 
 type plannedBook struct {
 	id    string
-	layer Layers
+	folder FolderPath
 }
 
-// CopyLayerFrom copies the whole layer sourceLayer - the folder and every book
+// CopyFolderFrom copies the whole folder sourceFolder - the folder and every book
 // and sub-folder beneath it - out of source and into this (the target) shelf
-// under targetLayer, returning the books it copied. Each book is copied through
+// under targetFolder, returning the books it copied. Each book is copied through
 // CopyBookFrom, so every copy is minted a fresh ID drawn from the target and
-// carries no reading progress, exactly like a new import: the original layer on
+// carries no reading progress, exactly like a new import: the original folder on
 // the source is left completely intact.
 //
-// A book at source layer sourceLayer/x/y lands on the target at
-// targetLayer/x/y, so the subtree's shape is preserved under its new root.
+// A book at source folder sourceFolder/x/y lands on the target at
+// targetFolder/x/y, so the subtree's shape is preserved under its new root.
 //
 // Pre-flight runs to completion before any file is touched: the transfer is
 // refused if the two shelves are the same, if the target is read-only, if
-// sourceLayer does not exist, or if targetLayer already exists on the target. A
+// sourceFolder does not exist, or if targetFolder already exists on the target. A
 // copy draws fresh IDs, so it never checks for a book-ID conflict. When
 // pre-flight refuses the transfer, neither shelf has been modified.
 //
 // There is deliberately no rollback once execution begins, and a transaction
-// layer is out of scope. Pre-flight has already ruled out every foreseeable
+// folder is out of scope. Pre-flight has already ruled out every foreseeable
 // conflict, so a failure mid-transfer is a rare I/O or space error. The copies
 // published so far are returned; the rest stay on the source. Because the first
-// published book creates the destination layer, calling this again then hits
-// ErrTargetLayerExists, so finishing a partial copy is not an automatic re-run:
+// published book creates the destination folder, calling this again then hits
+// ErrTargetFolderExists, so finishing a partial copy is not an automatic re-run:
 // resolve it by copying the remaining source books individually, or by removing
 // the partial destination and starting over.
-func (target *Shelf) CopyLayerFrom(source *Shelf, sourceLayer, targetLayer Layers) ([]*Book, error) {
-	return target.transferLayerFrom(source, sourceLayer, targetLayer, false)
+func (target *Shelf) CopyFolderFrom(source *Shelf, sourceFolder, targetFolder FolderPath) ([]*Book, error) {
+	return target.transferFolderFrom(source, sourceFolder, targetFolder, false)
 }
 
-// MoveLayerFrom moves the whole layer sourceLayer out of source and into this
-// (the target) shelf under targetLayer, returning the books it moved. Each book
+// MoveFolderFrom moves the whole folder sourceFolder out of source and into this
+// (the target) shelf under targetFolder, returning the books it moved. Each book
 // is moved through MoveBookFrom, so every book keeps its ID and reading progress
 // and is published on the target before it is removed from the source; the
 // removed source books route through the source's trash, so a move stays
 // recoverable on the source side until that trash is emptied. Once every book has
-// moved, the now-empty source layer subtree is removed.
+// moved, the now-empty source folder subtree is removed.
 //
-// A book at source layer sourceLayer/x/y lands on the target at
-// targetLayer/x/y, so the subtree's shape is preserved under its new root.
+// A book at source folder sourceFolder/x/y lands on the target at
+// targetFolder/x/y, so the subtree's shape is preserved under its new root.
 //
 // Pre-flight runs to completion before any file is touched: the transfer is
 // refused if the two shelves are the same, if either shelf is read-only, if
-// sourceLayer does not exist, or if targetLayer already exists on the target. A
+// sourceFolder does not exist, or if targetFolder already exists on the target. A
 // move keeps each book's ID, so pre-flight also refuses the transfer when the
 // target already holds any of those IDs, reporting the whole colliding set at
-// once through *LayerBookIDConflictError rather than stopping at the first. When
+// once through *FolderBookIDConflictError rather than stopping at the first. When
 // pre-flight refuses the transfer, neither shelf has been modified.
 //
 // There is deliberately no rollback once execution begins, and a transaction
-// layer is out of scope. Pre-flight has already ruled out every foreseeable
+// folder is out of scope. Pre-flight has already ruled out every foreseeable
 // conflict, so a failure mid-transfer is a rare I/O or space error. The books
 // moved so far are returned and, because a moved book is no longer on the
 // source, the source keeps only what still has to move. Completing it is not an
 // automatic re-run of this call, though: the first moved book creates the
-// destination layer, so a second call hits ErrTargetLayerExists. Move the
-// remaining source books into the now-existing destination layer individually,
+// destination folder, so a second call hits ErrTargetFolderExists. Move the
+// remaining source books into the now-existing destination folder individually,
 // or remove the partial destination and start over.
-func (target *Shelf) MoveLayerFrom(source *Shelf, sourceLayer, targetLayer Layers) ([]*Book, error) {
-	return target.transferLayerFrom(source, sourceLayer, targetLayer, true)
+func (target *Shelf) MoveFolderFrom(source *Shelf, sourceFolder, targetFolder FolderPath) ([]*Book, error) {
+	return target.transferFolderFrom(source, sourceFolder, targetFolder, true)
 }
 
-// transferLayerFrom is the shared body of CopyLayerFrom and MoveLayerFrom. isMove
+// transferFolderFrom is the shared body of CopyFolderFrom and MoveFolderFrom. isMove
 // selects between the two: a move preserves book IDs, checks for ID conflicts,
 // requires a writable source, and clears the source subtree at the end, while a
 // copy does none of those.
-func (target *Shelf) transferLayerFrom(source *Shelf, sourceLayer, targetLayer Layers, isMove bool) ([]*Book, error) {
-	if err := validateLayers(sourceLayer); err != nil {
+func (target *Shelf) transferFolderFrom(source *Shelf, sourceFolder, targetFolder FolderPath, isMove bool) ([]*Book, error) {
+	if err := validateFolderPath(sourceFolder); err != nil {
 		return nil, util.Errorf("invalid source layer: %w", err)
 	}
-	if err := validateLayers(targetLayer); err != nil {
+	if err := validateFolderPath(targetFolder); err != nil {
 		return nil, util.Errorf("invalid target layer: %w", err)
 	}
-	if len(sourceLayer) == 0 {
+	if len(sourceFolder) == 0 {
 		return nil, util.Errorf("cannot transfer the root layer")
 	}
-	if len(targetLayer) == 0 {
+	if len(targetFolder) == 0 {
 		return nil, util.Errorf("cannot transfer onto the root layer")
 	}
 	if source == target {
 		return nil, util.Errorf("%w", ErrSameShelfTransfer)
 	}
 
-	plan, err := target.preflightLayerTransfer(source, sourceLayer, targetLayer, isMove)
+	plan, err := target.preflightFolderTransfer(source, sourceFolder, targetFolder, isMove)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	// Reproduce the folder structure first - including layers that hold no book -
-	// so an empty sub-folder survives the transfer. Layers that do hold a book are
+	// Reproduce the folder structure first - including folders that hold no book -
+	// so an empty sub-folder survives the transfer. Folders that do hold a book are
 	// re-created here too, harmlessly, since publishing a book MkdirAll's its own
-	// layer as well.
-	for _, sl := range plan.sourceLayers {
-		if err := target.NewLayer(mapLayerPath(sl, sourceLayer, targetLayer)); err != nil {
+	// folder as well.
+	for _, sl := range plan.sourceFolders {
+		mapped := mapFolderPath(sl, sourceFolder, targetFolder)
+		if len(mapped) == 0 {
+			continue
+		}
+		if err := target.NewFolder(mapped[:len(mapped)-1], mapped[len(mapped)-1]); err != nil {
 			return nil, util.Errorf("%w", err)
 		}
 	}
 
 	transferred := make([]*Book, 0, len(plan.books))
 	for _, planned := range plan.books {
-		dstLayer := mapLayerPath(planned.layer, sourceLayer, targetLayer)
+		dstFolder := mapFolderPath(planned.folder, sourceFolder, targetFolder)
 
 		var book *Book
 		var err error
 		if isMove {
-			book, err = target.MoveBookFrom(source, planned.id, dstLayer)
+			book, err = target.MoveBookFrom(source, planned.id, dstFolder)
 		} else {
-			book, err = target.CopyBookFrom(source, planned.id, dstLayer, false)
+			book, err = target.CopyBookFrom(source, planned.id, dstFolder, false)
 		}
 		if err != nil {
 			return transferred, util.Errorf("%w", err)
@@ -179,10 +183,10 @@ func (target *Shelf) transferLayerFrom(source *Shelf, sourceLayer, targetLayer L
 
 	if isMove {
 		// Every book has moved out into the source's trash, so the source subtree
-		// now holds only empty folders; drop it so the moved layer no longer shows
+		// now holds only empty folders; drop it so the moved folder no longer shows
 		// on the source. The trash lives outside booksFolder, so this does not touch
 		// the recoverable copies.
-		if err := source.removeEmptyLayerTree(sourceLayer); err != nil {
+		if err := source.removeEmptyFolderTree(sourceFolder); err != nil {
 			return transferred, util.Errorf("book move finished but clearing the source layer failed: %w", err)
 		}
 	}
@@ -190,13 +194,13 @@ func (target *Shelf) transferLayerFrom(source *Shelf, sourceLayer, targetLayer L
 	return transferred, nil
 }
 
-// preflightLayerTransfer resolves the transfer plan and refuses the transfer for
+// preflightFolderTransfer resolves the transfer plan and refuses the transfer for
 // every condition that can be known up front, all before a single file is
 // touched. It reads both shelves under their locks - a read lock on the source
 // and the exclusive lock on the target, the same order CopyBookFrom takes - and
 // releases them before returning, so the per-book delegation that follows can
 // take them again without deadlocking.
-func (target *Shelf) preflightLayerTransfer(source *Shelf, sourceLayer, targetLayer Layers, isMove bool) (*layerTransferPlan, error) {
+func (target *Shelf) preflightFolderTransfer(source *Shelf, sourceFolder, targetFolder FolderPath, isMove bool) (*folderTransferPlan, error) {
 	// Refuse a read-only target before any lock, and a read-only source too for a
 	// move, which ends by deleting from the source. publishBookCopy and DeleteBook
 	// ask again once they run; this only moves the refusal ahead of any work.
@@ -226,32 +230,32 @@ func (target *Shelf) preflightLayerTransfer(source *Shelf, sourceLayer, targetLa
 		return nil, util.Errorf("%w", err)
 	}
 
-	sourceLayerPath := path.Join(booksFolder, path.Join(sourceLayer...))
-	if _, err := source.dbRoot.Stat(sourceLayerPath); err != nil {
+	sourceFolderPath := path.Join(booksFolder, path.Join(sourceFolder...))
+	if _, err := source.dbRoot.Stat(sourceFolderPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, util.Errorf("%w: %q", ErrSourceLayerNotFound, sourceLayer.String())
+			return nil, util.Errorf("%w: %q", ErrSourceFolderNotFound, sourceFolder.String())
 		}
 		return nil, util.Errorf("%w", err)
 	}
 
-	// The target builds the subtree fresh, so its destination layer must not
-	// already exist - checked on disk, the authority RenameLayer trusts too.
-	targetLayerPath := path.Join(booksFolder, path.Join(targetLayer...))
-	if _, err := target.dbRoot.Stat(targetLayerPath); err == nil {
-		return nil, util.Errorf("%w: %q", ErrTargetLayerExists, targetLayer.String())
+	// The target builds the subtree fresh, so its destination folder must not
+	// already exist - checked on disk, the authority RenameFolder trusts too.
+	targetFolderPath := path.Join(booksFolder, path.Join(targetFolder...))
+	if _, err := target.dbRoot.Stat(targetFolderPath); err == nil {
+		return nil, util.Errorf("%w: %q", ErrTargetFolderExists, targetFolder.String())
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	plan := &layerTransferPlan{}
-	for _, layer := range source.listLayersFromCache() {
-		if layerHasPrefix(layer, sourceLayer) {
-			plan.sourceLayers = append(plan.sourceLayers, layer)
+	plan := &folderTransferPlan{}
+	for _, folder := range source.listFoldersFromCache() {
+		if folderHasPrefix(folder, sourceFolder) {
+			plan.sourceFolders = append(plan.sourceFolders, folder)
 		}
 	}
 	for _, listing := range source.listBookListingsFromCache() {
-		if layerHasPrefix(listing.Layers, sourceLayer) {
-			plan.books = append(plan.books, plannedBook{id: listing.Book.ID(), layer: listing.Layers})
+		if folderHasPrefix(listing.Folders, sourceFolder) {
+			plan.books = append(plan.books, plannedBook{id: listing.Book.ID(), folder: listing.Folders})
 		}
 	}
 
@@ -275,7 +279,7 @@ func (target *Shelf) preflightLayerTransfer(source *Shelf, sourceLayer, targetLa
 			}
 		}
 		if len(conflicts) > 0 {
-			return nil, &LayerBookIDConflictError{BookIDs: conflicts}
+			return nil, &FolderBookIDConflictError{BookIDs: conflicts}
 		}
 	}
 
@@ -300,7 +304,7 @@ func (s *Shelf) bookIDPresent(bookID string) (bool, error) {
 	return inTrash, nil
 }
 
-// removeEmptyLayerTree drops the folders a move has emptied out of a layer
+// removeEmptyFolderTree drops the folders a move has emptied out of a folder
 // subtree and marks the cache tree dirty. It takes the exclusive lock itself, so
 // the caller must not already hold it.
 //
@@ -310,7 +314,7 @@ func (s *Shelf) bookIDPresent(bookID string) (bool, error) {
 // still physically present. A blanket RemoveAll would delete it permanently,
 // bypassing the trash a delete routes through, so such a package (and the
 // folders above it) is deliberately left in place.
-func (s *Shelf) removeEmptyLayerTree(layer Layers) error {
+func (s *Shelf) removeEmptyFolderTree(folder FolderPath) error {
 	root, err := s.writeRoot()
 	if err != nil {
 		return util.Errorf("%w", err)
@@ -321,8 +325,8 @@ func (s *Shelf) removeEmptyLayerTree(layer Layers) error {
 	}
 	defer s.shelfLock.Unlock()
 
-	layerPath := path.Join(booksFolder, path.Join(layer...))
-	if _, err := pruneEmptyDirs(root, layerPath); err != nil {
+	folderPath := path.Join(booksFolder, path.Join(folder...))
+	if _, err := pruneEmptyDirs(root, folderPath); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -366,25 +370,25 @@ func pruneEmptyDirs(root fsutil.FS, dirPath string) (bool, error) {
 	return true, nil
 }
 
-// layerHasPrefix reports whether layer is prefix itself or sits beneath it.
-func layerHasPrefix(layer, prefix Layers) bool {
-	if len(layer) < len(prefix) {
+// folderHasPrefix reports whether folder is prefix itself or sits beneath it.
+func folderHasPrefix(folder, prefix FolderPath) bool {
+	if len(folder) < len(prefix) {
 		return false
 	}
 	for i := range prefix {
-		if layer[i] != prefix[i] {
+		if folder[i] != prefix[i] {
 			return false
 		}
 	}
 	return true
 }
 
-// mapLayerPath rewrites a source layer that sits under sourceLayer into its
-// place under targetLayer, preserving the tail below sourceLayer. sourceLayer
-// must be a prefix of srcLayer, which layerHasPrefix has already guaranteed for
-// every layer the plan carries.
-func mapLayerPath(srcLayer, sourceLayer, targetLayer Layers) Layers {
-	tail := srcLayer[len(sourceLayer):]
-	mapped := append(append(Layers(nil), targetLayer...), tail...)
+// mapFolderPath rewrites a source folder that sits under sourceFolder into its
+// place under targetFolder, preserving the tail below sourceFolder. sourceFolder
+// must be a prefix of srcFolder, which folderHasPrefix has already guaranteed for
+// every folder the plan carries.
+func mapFolderPath(srcFolder, sourceFolder, targetFolder FolderPath) FolderPath {
+	tail := srcFolder[len(sourceFolder):]
+	mapped := append(append(FolderPath(nil), targetFolder...), tail...)
 	return mapped
 }

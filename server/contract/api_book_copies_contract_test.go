@@ -69,7 +69,7 @@ func TestAPIBookCopyToLayerContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusCreated)
 	copied := decodeJSON[server.Book](t, rec)
 
-	if !copied.Layer.Equal(shelf.Layers{"archive", "2026"}) {
+	if !copied.Layer.Equal(shelf.FolderPath{"archive", "2026"}) {
 		t.Errorf("copy layer = %v, want [archive 2026]", copied.Layer)
 	}
 	if copied.Meta.ID == original.Meta.ID {

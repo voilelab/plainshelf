@@ -100,13 +100,13 @@ func TestApplyBookPatchDoesNotValidate(t *testing.T) {
 
 // "layers" predates "layer"; both are still accepted, with "layer" winning.
 func TestUpdateBookRequestTargetLayers(t *testing.T) {
-	layer := shelf.Layers{"from-layer"}
-	legacy := shelf.Layers{"from-layers"}
+	layer := shelf.FolderPath{"from-layer"}
+	legacy := shelf.FolderPath{"from-layers"}
 
 	tests := []struct {
 		name string
 		req  UpdateBookRequest
-		want *shelf.Layers
+		want *shelf.FolderPath
 	}{
 		{"neither set", UpdateBookRequest{}, nil},
 		{"layer only", UpdateBookRequest{Layer: &layer}, &layer},

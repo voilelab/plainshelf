@@ -28,7 +28,7 @@ type BookTransferResult struct {
 	TargetShelf  string       `json:"target_shelf"`
 	SourceBookID string       `json:"source_book_id"`
 	BookID       string       `json:"book_id,omitempty"`
-	Layer        shelf.Layers `json:"layer,omitempty"`
+	Layer        shelf.FolderPath `json:"layer,omitempty"`
 	FailureCode  string       `json:"failure_code,omitempty"`
 }
 
@@ -38,21 +38,21 @@ type bookTransferTask struct {
 	logger      *logutil.Logger
 	operation   string
 	bookID      string
-	targetLayer shelf.Layers
+	targetLayer shelf.FolderPath
 
 	progress taskutil.Progress
 	mu       sync.Mutex
 	result   BookTransferResult
 }
 
-func newBookTransferTask(sourceShelfID string, source *shelf.Shelf, targetShelfID string, target *shelf.Shelf, logger *logutil.Logger, operation, bookID string, targetLayer shelf.Layers) *bookTransferTask {
+func newBookTransferTask(sourceShelfID string, source *shelf.Shelf, targetShelfID string, target *shelf.Shelf, logger *logutil.Logger, operation, bookID string, targetLayer shelf.FolderPath) *bookTransferTask {
 	return &bookTransferTask{
 		source:      source,
 		target:      target,
 		logger:      logger,
 		operation:   operation,
 		bookID:      bookID,
-		targetLayer: append(shelf.Layers(nil), targetLayer...),
+		targetLayer: append(shelf.FolderPath(nil), targetLayer...),
 		result: BookTransferResult{
 			Operation:    operation,
 			SourceShelf:  sourceShelfID,
@@ -97,7 +97,7 @@ func (t *bookTransferTask) Result() any {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	result := t.result
-	result.Layer = append(shelf.Layers(nil), t.result.Layer...)
+	result.Layer = append(shelf.FolderPath(nil), t.result.Layer...)
 	return result
 }
 
@@ -144,7 +144,7 @@ func (t *bookTransferTask) Run(ctx context.Context) error {
 	} else {
 		// The book landed under targetLayer; the book itself does not carry it.
 		t.result.BookID = book.ID()
-		t.result.Layer = append(shelf.Layers(nil), t.targetLayer...)
+		t.result.Layer = append(shelf.FolderPath(nil), t.targetLayer...)
 	}
 	t.mu.Unlock()
 
@@ -169,7 +169,7 @@ func (t *bookTransferTask) Run(ctx context.Context) error {
 // book from one shelf to another. The dedupe key folds in both shelves, the
 // operation, the book and the destination layer so that re-submitting the same
 // transfer attaches to the one already running instead of starting a second.
-func NewBookTransferChain(sourceShelfID string, source *shelf.Shelf, targetShelfID string, target *shelf.Shelf, logger *logutil.Logger, operation, bookID string, targetLayer shelf.Layers) *taskutil.TaskChain {
+func NewBookTransferChain(sourceShelfID string, source *shelf.Shelf, targetShelfID string, target *shelf.Shelf, logger *logutil.Logger, operation, bookID string, targetLayer shelf.FolderPath) *taskutil.TaskChain {
 	key := strings.Join([]string{
 		BookTransferTaskName, sourceShelfID, targetShelfID, operation, bookID, targetLayer.String(),
 	}, ":")

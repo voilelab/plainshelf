@@ -18,7 +18,7 @@ func TestShelfCopyBookGivesNewIDAndCoexists(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	original, err := s.NewBook(Layers{"fiction"}, "Copy Me")
+	original, err := s.NewBook(FolderPath{"fiction"}, "Copy Me")
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
@@ -36,7 +36,7 @@ func TestShelfCopyBookGivesNewIDAndCoexists(t *testing.T) {
 		t.Fatalf("SetCurrentSource: %v", err)
 	}
 
-	copied, err := s.CopyBook(original.ID(), Layers{"fiction"})
+	copied, err := s.CopyBook(original.ID(), FolderPath{"fiction"})
 	if err != nil {
 		t.Fatalf("CopyBook: %v", err)
 	}
@@ -48,10 +48,10 @@ func TestShelfCopyBookGivesNewIDAndCoexists(t *testing.T) {
 		t.Errorf("copy ID %q is not usable as one: %v", copied.ID(), err)
 	}
 
-	// A copy into the source's own layer under the same title must not overwrite
+	// A copy into the source's own folder under the same title must not overwrite
 	// it: the folder name gets a suffix, exactly as a second new book would.
-	if path.Base(copied.FolderPath()) == path.Base(original.FolderPath()) {
-		t.Errorf("copy folder %q collides with the original", copied.FolderPath())
+	if path.Base(copied.PackagePath()) == path.Base(original.PackagePath()) {
+		t.Errorf("copy folder %q collides with the original", copied.PackagePath())
 	}
 
 	books, err := s.ListBooks()
@@ -77,8 +77,8 @@ func TestShelfCopyBookGivesNewIDAndCoexists(t *testing.T) {
 	if reopened.Title() != "Copy Me" {
 		t.Errorf("copy title = %q, want %q", reopened.Title(), "Copy Me")
 	}
-	if !reopenedListing.Layers.Equal(Layers{"fiction"}) {
-		t.Errorf("copy layers = %v, want [fiction]", reopenedListing.Layers)
+	if !reopenedListing.Folders.Equal(FolderPath{"fiction"}) {
+		t.Errorf("copy layers = %v, want [fiction]", reopenedListing.Folders)
 	}
 
 	copiedSource, err := reopened.ResolveCurrentSource()
@@ -146,18 +146,18 @@ func TestShelfCopyBookGivesNewIDAndCoexists(t *testing.T) {
 	}
 }
 
-// A copy can land in a different layer than the source, and the destination
-// layer becomes visible without waiting for the next scan.
-func TestShelfCopyBookIntoAnotherLayer(t *testing.T) {
+// A copy can land in a different folder than the source, and the destination
+// folder becomes visible without waiting for the next scan.
+func TestShelfCopyBookIntoAnotherFolder(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	original, err := s.NewBook(Layers{"origin"}, "Move And Copy")
+	original, err := s.NewBook(FolderPath{"origin"}, "Move And Copy")
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
 
-	copied, err := s.CopyBook(original.ID(), Layers{"elsewhere", "deep"})
+	copied, err := s.CopyBook(original.ID(), FolderPath{"elsewhere", "deep"})
 	if err != nil {
 		t.Fatalf("CopyBook: %v", err)
 	}
@@ -165,16 +165,16 @@ func TestShelfCopyBookIntoAnotherLayer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetBookListing: %v", err)
 	}
-	if !copiedListing.Layers.Equal(Layers{"elsewhere", "deep"}) {
-		t.Fatalf("copy layers = %v, want [elsewhere deep]", copiedListing.Layers)
+	if !copiedListing.Folders.Equal(FolderPath{"elsewhere", "deep"}) {
+		t.Fatalf("copy layers = %v, want [elsewhere deep]", copiedListing.Folders)
 	}
 
-	books, err := s.GetBooksByLayer(Layers{"elsewhere", "deep"})
+	books, err := s.GetBooksByFolder(FolderPath{"elsewhere", "deep"})
 	if err != nil {
-		t.Fatalf("GetBooksByLayer: %v", err)
+		t.Fatalf("GetBooksByFolder: %v", err)
 	}
 	if len(books) != 1 || books[0].ID() != copied.ID() {
-		t.Fatalf("GetBooksByLayer returned %d books, want just the copy %q", len(books), copied.ID())
+		t.Fatalf("GetBooksByFolder returned %d books, want just the copy %q", len(books), copied.ID())
 	}
 }
 
@@ -186,12 +186,12 @@ func TestShelfCopyBookFollowsSymlinkedDir(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	original, err := s.NewBook(Layers{"fiction"}, "Linked")
+	original, err := s.NewBook(FolderPath{"fiction"}, "Linked")
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
 
-	bookAbs := filepath.Join(tmpLib, original.FolderPath())
+	bookAbs := filepath.Join(tmpLib, original.PackagePath())
 	if err := os.MkdirAll(filepath.Join(bookAbs, "extra"), 0o755); err != nil {
 		t.Fatalf("MkdirAll extra: %v", err)
 	}
@@ -204,12 +204,12 @@ func TestShelfCopyBookFollowsSymlinkedDir(t *testing.T) {
 		t.Skipf("symlinks unavailable on this platform: %v", err)
 	}
 
-	copied, err := s.CopyBook(original.ID(), Layers{"fiction"})
+	copied, err := s.CopyBook(original.ID(), FolderPath{"fiction"})
 	if err != nil {
 		t.Fatalf("CopyBook: %v", err)
 	}
 
-	copyAbs := filepath.Join(tmpLib, copied.FolderPath())
+	copyAbs := filepath.Join(tmpLib, copied.PackagePath())
 	got, err := os.ReadFile(filepath.Join(copyAbs, "linked", "note.txt"))
 	if err != nil {
 		t.Fatalf("read copied linked file: %v", err)
@@ -224,7 +224,7 @@ func TestShelfCopyBookNotFound(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	if _, err := s.CopyBook("does-not-exist", Layers{"fiction"}); !errors.Is(err, ErrBookNotFound) {
+	if _, err := s.CopyBook("does-not-exist", FolderPath{"fiction"}); !errors.Is(err, ErrBookNotFound) {
 		t.Fatalf("CopyBook of a missing book error = %v, want ErrBookNotFound", err)
 	}
 

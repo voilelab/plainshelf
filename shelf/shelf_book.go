@@ -18,11 +18,11 @@ import (
 type BookListing struct {
 	Book *Book
 
-	// Layers is where the book sits in the shelf tree, taken from its book cache
-	// entry. The Book itself does not carry its layer — a layer is a position in
+	// Folders is where the book sits in the shelf tree, taken from its book cache
+	// entry. The Book itself does not carry its folder — a folder is a position in
 	// the tree, not part of the book's identity — so the listing is how a caller
 	// learns it. Empty for a book at the top level of books/.
-	Layers Layers
+	Folders FolderPath
 
 	// CharCount is the character count of the book's current source as of the
 	// last time its cache entry was built, and 0 when the book has no readable
@@ -85,8 +85,8 @@ func (s *Shelf) GetBook(bookID string) (*Book, error) {
 
 // NewBook creates a new book with the given ID and title, and returns the created Book instance.
 // It is an atomic operation that ensures the book is fully created before it becomes visible in the library.
-func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
-	return s.NewBookWith(layers, title, nil)
+func (s *Shelf) NewBook(folders FolderPath, title string) (*Book, error) {
+	return s.NewBookWith(folders, title, nil)
 }
 
 // NewBookWith creates a new book and, if init is non-nil, runs it against the
@@ -99,8 +99,8 @@ func (s *Shelf) NewBook(layers Layers, title string) (*Book, error) {
 //
 // init runs while the exclusive shelf lock is held, so it should not do
 // long-running work beyond writing the book's own initial content.
-func (s *Shelf) NewBookWith(layers Layers, title string, init func(*Book) error) (*Book, error) {
-	if err := validateLayers(layers); err != nil {
+func (s *Shelf) NewBookWith(folders FolderPath, title string, init func(*Book) error) (*Book, error) {
+	if err := validateFolderPath(folders); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -138,20 +138,20 @@ func (s *Shelf) NewBookWith(layers Layers, title string, init func(*Book) error)
 		}
 	}
 
-	layerPath := path.Join(booksFolder, path.Join(layers...))
+	folderPath := path.Join(booksFolder, path.Join(folders...))
 
-	err = root.MkdirAll(layerPath)
+	err = root.MkdirAll(folderPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	// Creating a book can create layers on the way, and the layer listing is
+	// Creating a book can create folders on the way, and the folder listing is
 	// served from the cache; record them now rather than at the next scan.
-	s.addLayersToBookCache(layers)
+	s.addFolderToBookCache(folders)
 
 	folderName := titleToFolderName(title)
 	for i := 1; ; i++ {
-		finalBookPath := path.Join(layerPath, folderName)
+		finalBookPath := path.Join(folderPath, folderName)
 		if _, err := s.dbRoot.Stat(finalBookPath); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				break
@@ -162,7 +162,7 @@ func (s *Shelf) NewBookWith(layers Layers, title string, init func(*Book) error)
 		}
 	}
 
-	finalBookPath := path.Join(layerPath, folderName)
+	finalBookPath := path.Join(folderPath, folderName)
 	err = root.Rename(bookPath, finalBookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -173,15 +173,15 @@ func (s *Shelf) NewBookWith(layers Layers, title string, init func(*Book) error)
 		return nil, util.Errorf("%w", err)
 	}
 
-	s.updateBookCacheEntry(layers, finalBookPath, newBook)
+	s.updateBookCacheEntry(folders, finalBookPath, newBook)
 
 	return newBook, nil
 }
 
-// GetBookListing returns a book together with the layer it sits in.
+// GetBookListing returns a book together with the folder it sits in.
 //
 // GetBook answers with the book alone; this is for a caller that also needs the
-// book's position, which the book itself does not carry. The layer comes from
+// book's position, which the book itself does not carry. The folder comes from
 // the book cache entry, the single owner of that fact.
 func (s *Shelf) GetBookListing(bookID string) (BookListing, error) {
 	if !s.IsReady() {
@@ -193,18 +193,18 @@ func (s *Shelf) GetBookListing(bookID string) (BookListing, error) {
 	}
 	defer s.shelfLock.Unlock()
 
-	book, layers, err := s.getUpdatedBookFromBookID(bookID)
+	book, folders, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
 		return BookListing{}, util.Errorf("%w", err)
 	}
 
-	return BookListing{Book: book, Layers: layers}, nil
+	return BookListing{Book: book, Folders: folders}, nil
 }
 
 // drawUnusedBookID returns a random book ID that this shelf does not already
 // hold, in its books or its trash. The exclusive shelf lock must be held.
 //
-// The ID is drawn at random, not derived from the layers and title: what keeps
+// The ID is drawn at random, not derived from the folders and title: what keeps
 // two books apart is the entropy behind it, not the probe here. The probe only
 // sees books this process already knows about - the cache does not notice a book
 // another machine added to a shared shelf, or one copied in with a file manager,
@@ -239,8 +239,8 @@ func (s *Shelf) DeleteBook(bookID string) error {
 	return s.MoveBookToTrash(bookID)
 }
 
-func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
-	if err := validateLayers(layers); err != nil {
+func (s *Shelf) GetBooksByFolder(folders FolderPath) ([]*Book, error) {
+	if err := validateFolderPath(folders); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -258,7 +258,7 @@ func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
 	var books []*Book
 
 	for _, listing := range s.listBookListingsFromCache() {
-		if listing.Layers.Equal(layers) {
+		if listing.Folders.Equal(folders) {
 			books = append(books, listing.Book)
 		}
 	}
@@ -266,9 +266,9 @@ func (s *Shelf) GetBooksByLayer(layers Layers) ([]*Book, error) {
 	return books, nil
 }
 
-// MoveBook moves a book to new layers and returns the updated Book instance.
-func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
-	if err := validateLayers(newLayers); err != nil {
+// MoveBook moves a book to new folders and returns the updated Book instance.
+func (s *Shelf) MoveBook(bookID string, newFolders FolderPath) (*Book, error) {
+	if err := validateFolderPath(newFolders); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -287,16 +287,16 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	newLayerPath := path.Join(booksFolder, path.Join(newLayers...))
-	err = root.MkdirAll(newLayerPath)
+	newFolderPath := path.Join(booksFolder, path.Join(newFolders...))
+	err = root.MkdirAll(newFolderPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	s.addLayersToBookCache(newLayers)
+	s.addFolderToBookCache(newFolders)
 
-	newBookPath := path.Join(newLayerPath, path.Base(book.FolderPath()))
-	err = root.Rename(book.FolderPath(), newBookPath)
+	newBookPath := path.Join(newFolderPath, path.Base(book.PackagePath()))
+	err = root.Rename(book.PackagePath(), newBookPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -306,12 +306,12 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	s.updateBookCacheEntry(newLayers, newBookPath, movedBook)
+	s.updateBookCacheEntry(newFolders, newBookPath, movedBook)
 
 	return movedBook, nil
 }
 
-// CopyBook copies an existing book into targetLayer and returns the copy, which
+// CopyBook copies an existing book into targetFolder and returns the copy, which
 // carries a fresh book ID so that the original and the copy can coexist in the
 // same shelf.
 //
@@ -324,8 +324,8 @@ func (s *Shelf) MoveBook(bookID string, newLayers Layers) (*Book, error) {
 // copy is self-contained: its sources, assets, cover and current-source pointer
 // all come along, and the relative asset paths inside a source resolve without
 // rewriting.
-func (s *Shelf) CopyBook(bookID string, targetLayer Layers) (*Book, error) {
-	if err := validateLayers(targetLayer); err != nil {
+func (s *Shelf) CopyBook(bookID string, targetFolder FolderPath) (*Book, error) {
+	if err := validateFolderPath(targetFolder); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -355,7 +355,7 @@ func (s *Shelf) CopyBook(bookID string, targetLayer Layers) (*Book, error) {
 	// Same shelf, so the staging root and the source root are one and the same;
 	// the cross-shelf transfer in shelf_cross_book.go is the general case of this
 	// same publish core.
-	newBook, err := s.publishBookCopy(s.dbRoot, sourceBook, targetLayer, false)
+	newBook, err := s.publishBookCopy(s.dbRoot, sourceBook, targetFolder, false)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -363,28 +363,28 @@ func (s *Shelf) CopyBook(bookID string, targetLayer Layers) (*Book, error) {
 	return newBook, nil
 }
 
-// bookFolderLayers derives a book's layer from where its package folder sits
+// bookFolderPath derives a book's folder from where its package folder sits
 // under booksFolder. The tree is the source of truth for a book's position, so
-// this is what a scan uses to fill each cache entry's layers; every other read
-// then takes the layer from that entry rather than recomputing it here.
+// this is what a scan uses to fill each cache entry's folders; every other read
+// then takes the folder from that entry rather than recomputing it here.
 //
 // folderPath is always built with path.Join, which uses "/" on every platform,
 // so it is split on "/" rather than os.PathSeparator. A book directly under
-// booksFolder yields an empty (non-nil) Layers.
-func bookFolderLayers(folderPath string) Layers {
+// booksFolder yields an empty (non-nil) Folders.
+func bookFolderPath(folderPath string) FolderPath {
 	return strings.Split(path.Dir(folderPath), "/")[1:]
 }
 
-// iterateShelfTree walks the books folder once, reporting every layer
-// directory to onLayer and every book package to onBook. Either callback may be
+// iterateShelfTree walks the books folder once, reporting every folder
+// directory to onFolder and every book package to onBook. Either callback may be
 // nil. Returning false from a callback stops the whole walk. It returns what
 // the walk cost, which is what makes the effect of the scan cache visible.
 //
-// Books and layers share one walk because they are answers to the same
-// question: a listing and a layer tree both describe the shape of books/, and
+// Books and folders share one walk because they are answers to the same
+// question: a listing and a folder tree both describe the shape of books/, and
 // walking it twice is the cost this shelf can least afford on a network mount.
 // scanToBookCache is the only production caller for that reason.
-func (s *Shelf) iterateShelfTree(onLayer func(Layers) bool, onBook func(*Book) bool) (scanStats, error) {
+func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onBook func(*Book) bool) (scanStats, error) {
 	skipAll := false
 
 	// The walk reads each directory through the scan cache, which turns a
@@ -418,7 +418,7 @@ func (s *Shelf) iterateShelfTree(onLayer func(Layers) bool, onBook func(*Book) b
 
 		// Paths are always built with path.Join, which uses "/" on every
 		// platform, so split on "/" rather than os.PathSeparator (which would
-		// be "\" on Windows and break layer parsing).
+		// be "\" on Windows and break folder parsing).
 		if strings.HasSuffix(folderName, bookExtension) {
 			if onBook == nil {
 				return
@@ -436,7 +436,7 @@ func (s *Shelf) iterateShelfTree(onLayer func(Layers) bool, onBook func(*Book) b
 			return
 		}
 
-		if onLayer != nil && !onLayer(strings.Split(pth, "/")[1:]) {
+		if onFolder != nil && !onFolder(strings.Split(pth, "/")[1:]) {
 			skipAll = true
 			return
 		}

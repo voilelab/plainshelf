@@ -26,9 +26,9 @@ type layerTransferHandlers struct {
 // (transfer keeping the same layer name) is distinct from an empty one.
 type layerTransferRequest struct {
 	Mode        string        `json:"mode"`
-	SourceLayer shelf.Layers  `json:"source_layer"`
+	SourceLayer shelf.FolderPath  `json:"source_layer"`
 	TargetShelf string        `json:"target_shelf"`
-	TargetLayer *shelf.Layers `json:"target_layer"`
+	TargetLayer *shelf.FolderPath `json:"target_layer"`
 }
 
 // layerTransferConflict is the 409 body a pre-flight refusal answers with. Error
@@ -64,12 +64,12 @@ func (h *layerTransferHandlers) transferLayer(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	sourceLayer := append(shelf.Layers(nil), request.SourceLayer...)
+	sourceLayer := append(shelf.FolderPath(nil), request.SourceLayer...)
 	if len(sourceLayer) == 0 {
 		http.Error(w, "source_layer is required", http.StatusBadRequest)
 		return
 	}
-	if err := shelf.ValidateLayers(sourceLayer); err != nil {
+	if err := shelf.ValidateFolderPath(sourceLayer); err != nil {
 		h.writeErrStatus(w, err, "invalid source_layer", http.StatusBadRequest)
 		return
 	}
@@ -96,15 +96,15 @@ func (h *layerTransferHandlers) transferLayer(w http.ResponseWriter, r *http.Req
 	// Default to the source layer's own name so a plain "move that folder to the
 	// other shelf" needs no target layer in the body, mirroring the single-book
 	// endpoint's default to the source book's layer.
-	targetLayer := append(shelf.Layers(nil), sourceLayer...)
+	targetLayer := append(shelf.FolderPath(nil), sourceLayer...)
 	if request.TargetLayer != nil {
-		targetLayer = append(shelf.Layers(nil), (*request.TargetLayer)...)
+		targetLayer = append(shelf.FolderPath(nil), (*request.TargetLayer)...)
 	}
 	if len(targetLayer) == 0 {
 		http.Error(w, "target_layer cannot be the root layer", http.StatusBadRequest)
 		return
 	}
-	if err := shelf.ValidateLayers(targetLayer); err != nil {
+	if err := shelf.ValidateFolderPath(targetLayer); err != nil {
 		h.writeErrStatus(w, err, "invalid target_layer", http.StatusBadRequest)
 		return
 	}
@@ -134,7 +134,7 @@ func (h *layerTransferHandlers) transferLayer(w http.ResponseWriter, r *http.Req
 	// Resolve the transfer plan from a single snapshot of the source: the layers
 	// to reproduce and the books to carry. The same snapshot screens for conflicts
 	// below, so the 409 check and the scheduled work see the same set.
-	sourceLayers, err := sourceShelf.GetAllLayers()
+	sourceLayers, err := sourceShelf.GetAllFolders()
 	if err != nil {
 		h.writeErr(w, err, "failed to read the source shelf")
 		return
@@ -148,10 +148,10 @@ func (h *layerTransferHandlers) transferLayer(w http.ResponseWriter, r *http.Req
 	}
 	var books []task.LayerTransferBook
 	for _, listing := range listings {
-		if layerHasPrefix(listing.Layers, sourceLayer) {
+		if layerHasPrefix(listing.Folders, sourceLayer) {
 			books = append(books, task.LayerTransferBook{
 				ID:          listing.Book.ID(),
-				SourceLayer: append(shelf.Layers(nil), listing.Layers...),
+				SourceLayer: append(shelf.FolderPath(nil), listing.Folders...),
 			})
 		}
 	}
@@ -165,7 +165,7 @@ func (h *layerTransferHandlers) transferLayer(w http.ResponseWriter, r *http.Req
 
 	// A layer transfer builds the destination subtree fresh, so it refuses to land
 	// on a layer the target already holds rather than merging into it.
-	targetLayers, err := targetShelf.GetAllLayers()
+	targetLayers, err := targetShelf.GetAllFolders()
 	if err != nil {
 		h.writeErr(w, err, "failed to read the target shelf")
 		return
@@ -211,18 +211,18 @@ func (h *layerTransferHandlers) transferLayer(w http.ResponseWriter, r *http.Req
 
 // layersUnder returns every layer in all that is root itself or sits beneath it.
 // An empty result means the target holds nothing under that path.
-func layersUnder(all []shelf.Layers, root shelf.Layers) []shelf.Layers {
-	var under []shelf.Layers
+func layersUnder(all []shelf.FolderPath, root shelf.FolderPath) []shelf.FolderPath {
+	var under []shelf.FolderPath
 	for _, l := range all {
 		if layerHasPrefix(l, root) {
-			under = append(under, append(shelf.Layers(nil), l...))
+			under = append(under, append(shelf.FolderPath(nil), l...))
 		}
 	}
 	return under
 }
 
 // layerHasPrefix reports whether layer is prefix itself or sits beneath it.
-func layerHasPrefix(layer, prefix shelf.Layers) bool {
+func layerHasPrefix(layer, prefix shelf.FolderPath) bool {
 	if len(layer) < len(prefix) {
 		return false
 	}

@@ -29,10 +29,10 @@ func twoShelves(t *testing.T) (source, target *Shelf, targetLib string) {
 // seedBook writes a self-contained book - cover, a source with an inline asset,
 // and a current-source pointer - so a transfer can be checked for carrying the
 // whole package across.
-func seedBook(t *testing.T, s *Shelf, layer Layers, title string) *Book {
+func seedBook(t *testing.T, s *Shelf, folder FolderPath, title string) *Book {
 	t.Helper()
 
-	book, err := s.NewBook(layer, title)
+	book, err := s.NewBook(folder, title)
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
@@ -64,10 +64,10 @@ func assertStagingClean(t *testing.T, lib string) {
 // source untouched, and reproduces the whole package on the far shelf.
 func TestShelfCopyBookFromGivesNewIDAndKeepsSource(t *testing.T) {
 	source, target, targetLib := twoShelves(t)
-	original := seedBook(t, source, Layers{"fiction"}, "Cross Copy")
+	original := seedBook(t, source, FolderPath{"fiction"}, "Cross Copy")
 	originalSourceID := original.CurrentSource()
 
-	copied, err := target.CopyBookFrom(source, original.ID(), Layers{"imported"}, false)
+	copied, err := target.CopyBookFrom(source, original.ID(), FolderPath{"imported"}, false)
 	if err != nil {
 		t.Fatalf("CopyBookFrom: %v", err)
 	}
@@ -79,8 +79,8 @@ func TestShelfCopyBookFromGivesNewIDAndKeepsSource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetBookListing: %v", err)
 	}
-	if !copiedListing.Layers.Equal(Layers{"imported"}) {
-		t.Errorf("copy layers = %v, want [imported]", copiedListing.Layers)
+	if !copiedListing.Folders.Equal(FolderPath{"imported"}) {
+		t.Errorf("copy layers = %v, want [imported]", copiedListing.Folders)
 	}
 
 	// The source shelf still holds the original, alone.
@@ -150,10 +150,10 @@ func TestShelfCopyBookFromGivesNewIDAndKeepsSource(t *testing.T) {
 // only afterwards - the source keeps it recoverable in its own trash.
 func TestShelfMoveBookFromPreservesIDAndRemovesSource(t *testing.T) {
 	source, target, targetLib := twoShelves(t)
-	original := seedBook(t, source, Layers{"fiction"}, "Cross Move")
+	original := seedBook(t, source, FolderPath{"fiction"}, "Cross Move")
 	originalID := original.ID()
 
-	moved, err := target.MoveBookFrom(source, originalID, Layers{"archive"})
+	moved, err := target.MoveBookFrom(source, originalID, FolderPath{"archive"})
 	if err != nil {
 		t.Fatalf("MoveBookFrom: %v", err)
 	}
@@ -165,8 +165,8 @@ func TestShelfMoveBookFromPreservesIDAndRemovesSource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetBookListing: %v", err)
 	}
-	if !movedListing.Layers.Equal(Layers{"archive"}) {
-		t.Errorf("moved layers = %v, want [archive]", movedListing.Layers)
+	if !movedListing.Folders.Equal(FolderPath{"archive"}) {
+		t.Errorf("moved layers = %v, want [archive]", movedListing.Folders)
 	}
 
 	// The target now lists the book under its original ID.
@@ -194,11 +194,11 @@ func TestShelfMoveBookFromPreservesIDAndRemovesSource(t *testing.T) {
 // source is left exactly as it was.
 func TestShelfMoveBookFromRefusesIDConflict(t *testing.T) {
 	source, target, targetLib := twoShelves(t)
-	original := seedBook(t, source, Layers{"fiction"}, "Conflicting")
+	original := seedBook(t, source, FolderPath{"fiction"}, "Conflicting")
 	id := original.ID()
 
 	// Move it across so the target holds this ID under a genuine cache entry...
-	if _, err := target.MoveBookFrom(source, id, Layers{"archive"}); err != nil {
+	if _, err := target.MoveBookFrom(source, id, FolderPath{"archive"}); err != nil {
 		t.Fatalf("initial MoveBookFrom: %v", err)
 	}
 	// ...then bring the source's copy back out of its trash, so both shelves hold
@@ -207,7 +207,7 @@ func TestShelfMoveBookFromRefusesIDConflict(t *testing.T) {
 		t.Fatalf("RestoreTrashedBook: %v", err)
 	}
 
-	_, err := target.MoveBookFrom(source, id, Layers{"again"})
+	_, err := target.MoveBookFrom(source, id, FolderPath{"again"})
 	if !errors.Is(err, ErrBookIDConflict) {
 		t.Fatalf("MoveBookFrom into a conflict = %v, want ErrBookIDConflict", err)
 	}
@@ -233,7 +233,7 @@ func TestShelfCopyBookFromRefusesReadOnlyTarget(t *testing.T) {
 	sourceLib := path.Join(t.TempDir(), "source")
 	targetLib := path.Join(t.TempDir(), "target")
 	source := newTestShelf(t, &ShelfConf{LibRoot: sourceLib})
-	original := seedBook(t, source, Layers{"fiction"}, "No Room")
+	original := seedBook(t, source, FolderPath{"fiction"}, "No Room")
 
 	// A read-only shelf is taken as found, so lay down its directory structure
 	// with a writable open first, then reopen the same path read-only.
@@ -249,7 +249,7 @@ func TestShelfCopyBookFromRefusesReadOnlyTarget(t *testing.T) {
 	}
 	target := newTestShelf(t, &ShelfConf{LibRoot: targetLib, ReadOnly: true})
 
-	if _, err := target.MoveBookFrom(source, original.ID(), Layers{"archive"}); !errors.Is(err, fsutil.ErrReadOnly) {
+	if _, err := target.MoveBookFrom(source, original.ID(), FolderPath{"archive"}); !errors.Is(err, fsutil.ErrReadOnly) {
 		t.Fatalf("MoveBookFrom into a read-only target = %v, want fsutil.ErrReadOnly", err)
 	}
 
@@ -269,9 +269,9 @@ func TestShelfCopyBookFromRefusesReadOnlyTarget(t *testing.T) {
 // on its own lock.
 func TestShelfTransferSameShelfRefused(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: path.Join(t.TempDir(), "shelf")})
-	book := seedBook(t, s, Layers{"fiction"}, "Here")
+	book := seedBook(t, s, FolderPath{"fiction"}, "Here")
 
-	if _, err := s.CopyBookFrom(s, book.ID(), Layers{"elsewhere"}, false); !errors.Is(err, ErrSameShelfTransfer) {
+	if _, err := s.CopyBookFrom(s, book.ID(), FolderPath{"elsewhere"}, false); !errors.Is(err, ErrSameShelfTransfer) {
 		t.Fatalf("CopyBookFrom onto the same shelf = %v, want ErrSameShelfTransfer", err)
 	}
 }
@@ -279,10 +279,10 @@ func TestShelfTransferSameShelfRefused(t *testing.T) {
 // plantBookOnDisk writes a minimal book package straight onto a shelf's disk,
 // bypassing its book cache, the way another instance or a file manager would add
 // one between scans.
-func plantBookOnDisk(t *testing.T, lib string, layer Layers, bookID, title string) {
+func plantBookOnDisk(t *testing.T, lib string, folder FolderPath, bookID, title string) {
 	t.Helper()
 
-	dir := filepath.Join(append([]string{lib, booksFolder}, layer...)...)
+	dir := filepath.Join(append([]string{lib, booksFolder}, folder...)...)
 	dir = filepath.Join(dir, "planted"+bookExtension)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("MkdirAll planted book: %v", err)
@@ -307,7 +307,7 @@ func TestShelfMoveBookFromRefusesReadOnlySource(t *testing.T) {
 	if err := seed.WaitReady(t.Context()); err != nil {
 		t.Fatalf("WaitReady seed: %v", err)
 	}
-	original := seedBook(t, seed, Layers{"fiction"}, "Locked")
+	original := seedBook(t, seed, FolderPath{"fiction"}, "Locked")
 	id := original.ID()
 	if err := seed.Close(); err != nil {
 		t.Fatalf("close seed: %v", err)
@@ -316,7 +316,7 @@ func TestShelfMoveBookFromRefusesReadOnlySource(t *testing.T) {
 	source := newTestShelf(t, &ShelfConf{LibRoot: sourceLib, ReadOnly: true})
 	target := newTestShelf(t, &ShelfConf{LibRoot: path.Join(t.TempDir(), "target")})
 
-	if _, err := target.MoveBookFrom(source, id, Layers{"archive"}); !errors.Is(err, fsutil.ErrReadOnly) {
+	if _, err := target.MoveBookFrom(source, id, FolderPath{"archive"}); !errors.Is(err, fsutil.ErrReadOnly) {
 		t.Fatalf("MoveBookFrom from a read-only source = %v, want fsutil.ErrReadOnly", err)
 	}
 
@@ -336,12 +336,12 @@ func TestShelfMoveBookFromRefusesReadOnlySource(t *testing.T) {
 // the target's disk since the last scan - not just one already in the cache.
 func TestShelfMoveBookFromDetectsUnscannedTargetConflict(t *testing.T) {
 	source, target, targetLib := twoShelves(t)
-	original := seedBook(t, source, Layers{"fiction"}, "Racer")
+	original := seedBook(t, source, FolderPath{"fiction"}, "Racer")
 	id := original.ID()
 
-	plantBookOnDisk(t, targetLib, Layers{"existing"}, id, "Planted")
+	plantBookOnDisk(t, targetLib, FolderPath{"existing"}, id, "Planted")
 
-	if _, err := target.MoveBookFrom(source, id, Layers{"archive"}); !errors.Is(err, ErrBookIDConflict) {
+	if _, err := target.MoveBookFrom(source, id, FolderPath{"archive"}); !errors.Is(err, ErrBookIDConflict) {
 		t.Fatalf("MoveBookFrom into an unscanned conflict = %v, want ErrBookIDConflict", err)
 	}
 
@@ -362,7 +362,7 @@ func TestShelfMoveBookFromDetectsUnscannedTargetConflict(t *testing.T) {
 func TestShelfCopyBookFromNotFound(t *testing.T) {
 	source, target, targetLib := twoShelves(t)
 
-	if _, err := target.CopyBookFrom(source, "does-not-exist", Layers{"imported"}, false); !errors.Is(err, ErrBookNotFound) {
+	if _, err := target.CopyBookFrom(source, "does-not-exist", FolderPath{"imported"}, false); !errors.Is(err, ErrBookNotFound) {
 		t.Fatalf("CopyBookFrom of a missing book = %v, want ErrBookNotFound", err)
 	}
 	assertStagingClean(t, targetLib)

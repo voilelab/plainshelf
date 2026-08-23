@@ -124,7 +124,7 @@ func newLegacyShelf(t *testing.T, content, splitJSON string) (string, legacySour
 		prepared = legacySource{
 			bookID:    book.ID(),
 			sourceID:  source.ID(),
-			bookDir:   filepath.Join(libRoot, filepath.FromSlash(book.FolderPath())),
+			bookDir:   filepath.Join(libRoot, filepath.FromSlash(book.PackagePath())),
 			sourceDir: filepath.Join(libRoot, filepath.FromSlash(source.FolderPath())),
 		}
 	})
@@ -563,7 +563,7 @@ func TestMigrateShelfBookScoping(t *testing.T) {
 		second = legacySource{
 			bookID:    book.ID(),
 			sourceID:  source.ID(),
-			bookDir:   filepath.Join(libRoot, filepath.FromSlash(book.FolderPath())),
+			bookDir:   filepath.Join(libRoot, filepath.FromSlash(book.PackagePath())),
 			sourceDir: filepath.Join(libRoot, filepath.FromSlash(source.FolderPath())),
 		}
 	})

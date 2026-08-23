@@ -21,7 +21,7 @@ const LayerTransferTaskName = "layer_transfer"
 // layer onto the destination, so the task itself works from fixed destinations.
 type LayerTransferBook struct {
 	ID          string
-	SourceLayer shelf.Layers
+	SourceLayer shelf.FolderPath
 }
 
 type layerTransferFailure struct {
@@ -37,8 +37,8 @@ type LayerTransferResult struct {
 	Operation    string                 `json:"operation"`
 	SourceShelf  string                 `json:"source_shelf"`
 	TargetShelf  string                 `json:"target_shelf"`
-	SourceLayer  shelf.Layers           `json:"source_layer"`
-	TargetLayer  shelf.Layers           `json:"target_layer"`
+	SourceLayer  shelf.FolderPath           `json:"source_layer"`
+	TargetLayer  shelf.FolderPath           `json:"target_layer"`
 	Total        int                    `json:"total"`
 	SucceededIDs []string               `json:"succeeded_ids"`
 	Failures     []layerTransferFailure `json:"failures"`
@@ -55,7 +55,7 @@ type LayerTransferResult struct {
 // already remapped from its source layer onto the target root.
 type plannedTransfer struct {
 	id          string
-	targetLayer shelf.Layers
+	targetLayer shelf.FolderPath
 }
 
 type layerTransferTask struct {
@@ -66,10 +66,10 @@ type layerTransferTask struct {
 
 	// sourceLayer is the layer being transferred, kept so a completed move can
 	// prune the folders it emptied on the source.
-	sourceLayer shelf.Layers
+	sourceLayer shelf.FolderPath
 	// createLayers are the destination layers to reproduce before any book is
 	// published, so an empty sub-folder carries across too.
-	createLayers []shelf.Layers
+	createLayers []shelf.FolderPath
 	// books are the per-book transfers, each with its remapped destination layer,
 	// sorted by ID for a deterministic transfer order.
 	books []plannedTransfer
@@ -79,11 +79,11 @@ type layerTransferTask struct {
 	result   LayerTransferResult
 }
 
-func newLayerTransferTask(sourceShelfID string, source *shelf.Shelf, targetShelfID string, target *shelf.Shelf, logger *logutil.Logger, operation string, sourceLayer, targetLayer shelf.Layers, books []LayerTransferBook, sourceSublayers []shelf.Layers) *layerTransferTask {
-	sourceLayer = append(shelf.Layers(nil), sourceLayer...)
-	targetLayer = append(shelf.Layers(nil), targetLayer...)
+func newLayerTransferTask(sourceShelfID string, source *shelf.Shelf, targetShelfID string, target *shelf.Shelf, logger *logutil.Logger, operation string, sourceLayer, targetLayer shelf.FolderPath, books []LayerTransferBook, sourceSublayers []shelf.FolderPath) *layerTransferTask {
+	sourceLayer = append(shelf.FolderPath(nil), sourceLayer...)
+	targetLayer = append(shelf.FolderPath(nil), targetLayer...)
 
-	createLayers := make([]shelf.Layers, 0, len(sourceSublayers))
+	createLayers := make([]shelf.FolderPath, 0, len(sourceSublayers))
 	for _, sl := range sourceSublayers {
 		createLayers = append(createLayers, remapLayer(sl, sourceLayer, targetLayer))
 	}
@@ -155,8 +155,8 @@ func (t *layerTransferTask) Result() any {
 		Operation:    t.result.Operation,
 		SourceShelf:  t.result.SourceShelf,
 		TargetShelf:  t.result.TargetShelf,
-		SourceLayer:  append(shelf.Layers(nil), t.result.SourceLayer...),
-		TargetLayer:  append(shelf.Layers(nil), t.result.TargetLayer...),
+		SourceLayer:  append(shelf.FolderPath(nil), t.result.SourceLayer...),
+		TargetLayer:  append(shelf.FolderPath(nil), t.result.TargetLayer...),
 		Total:         t.result.Total,
 		SucceededIDs:  append(make([]string, 0, len(t.result.SucceededIDs)), t.result.SucceededIDs...),
 		Failures:      append(make([]layerTransferFailure, 0, len(t.result.Failures)), t.result.Failures...),
@@ -237,7 +237,8 @@ func (t *layerTransferTask) Run(ctx context.Context) error {
 	// task settles short of a clean completion rather than claiming it copied a
 	// structure it did not.
 	for _, layer := range t.createLayers {
-		if err := t.target.NewLayer(layer); err != nil {
+		parent := append(shelf.FolderPath(nil), layer[:len(layer)-1]...)
+		if err := t.target.NewFolder(parent, layer[len(layer)-1]); err != nil {
 			t.mu.Lock()
 			t.result.LayerFailures++
 			t.mu.Unlock()
@@ -287,14 +288,14 @@ func (t *layerTransferTask) Run(ctx context.Context) error {
 // read keeps its folder - the move never deletes anything it did not carry.
 // Deepest folders first, so a parent is empty by the time it is reached.
 func (t *layerTransferTask) pruneSourceLayer() {
-	layers, err := t.source.GetAllLayers()
+	layers, err := t.source.GetAllFolders()
 	if err != nil {
 		t.logger.Error("layer transfer could not list source layers to prune",
 			"source_shelf", t.result.SourceShelf, "layer", t.sourceLayer.String(), "error", err)
 		return
 	}
 
-	under := make([]shelf.Layers, 0, len(layers))
+	under := make([]shelf.FolderPath, 0, len(layers))
 	for _, l := range layers {
 		if layerHasPrefix(l, t.sourceLayer) {
 			under = append(under, l)
@@ -305,7 +306,7 @@ func (t *layerTransferTask) pruneSourceLayer() {
 	for _, l := range under {
 		// A non-empty layer (a failed book or an unreadable package) is left in
 		// place, exactly as the shelf's own layer move does.
-		_ = t.source.DeleteLayer(l)
+		_ = t.source.DeleteFolder(l)
 	}
 }
 
@@ -313,7 +314,7 @@ func (t *layerTransferTask) pruneSourceLayer() {
 // layer from one shelf to another. The dedupe key folds in both shelves, the
 // operation and both layers, so re-submitting the same transfer attaches to the
 // one already running instead of starting a second.
-func NewLayerTransferChain(sourceShelfID string, source *shelf.Shelf, targetShelfID string, target *shelf.Shelf, logger *logutil.Logger, operation string, sourceLayer, targetLayer shelf.Layers, books []LayerTransferBook, sourceSublayers []shelf.Layers) *taskutil.TaskChain {
+func NewLayerTransferChain(sourceShelfID string, source *shelf.Shelf, targetShelfID string, target *shelf.Shelf, logger *logutil.Logger, operation string, sourceLayer, targetLayer shelf.FolderPath, books []LayerTransferBook, sourceSublayers []shelf.FolderPath) *taskutil.TaskChain {
 	key := strings.Join([]string{
 		LayerTransferTaskName, sourceShelfID, targetShelfID, operation, sourceLayer.String(), targetLayer.String(),
 	}, ":")
@@ -328,7 +329,7 @@ func NewLayerTransferChain(sourceShelfID string, source *shelf.Shelf, targetShel
 }
 
 // layerHasPrefix reports whether layer is prefix itself or sits beneath it.
-func layerHasPrefix(layer, prefix shelf.Layers) bool {
+func layerHasPrefix(layer, prefix shelf.FolderPath) bool {
 	if len(layer) < len(prefix) {
 		return false
 	}
@@ -343,8 +344,8 @@ func layerHasPrefix(layer, prefix shelf.Layers) bool {
 // remapLayer rewrites a source layer sitting under sourceLayer into its place
 // under targetLayer, preserving the tail below sourceLayer. sourceLayer must be a
 // prefix of layer, which the caller has already ensured for every layer it maps.
-func remapLayer(layer, sourceLayer, targetLayer shelf.Layers) shelf.Layers {
+func remapLayer(layer, sourceLayer, targetLayer shelf.FolderPath) shelf.FolderPath {
 	tail := layer[len(sourceLayer):]
-	mapped := append(append(shelf.Layers(nil), targetLayer...), tail...)
+	mapped := append(append(shelf.FolderPath(nil), targetLayer...), tail...)
 	return mapped
 }

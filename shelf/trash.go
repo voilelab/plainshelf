@@ -42,7 +42,7 @@ type TrashedBook struct {
 	Title         string        `json:"title"`
 	Authors       []string      `json:"authors"`
 	OriginalPath  string        `json:"original_path,omitempty"`
-	OriginalLayer Layers        `json:"original_layer,omitempty"`
+	OriginalFolder FolderPath        `json:"original_layer,omitempty"`
 	DeletedAt     util.JSONTime `json:"deleted_at,omitzero"`
 }
 
@@ -54,7 +54,7 @@ type trashMeta struct {
 	SchemaVersion int           `json:"schema_version"`
 	DeletedAt     util.JSONTime `json:"deleted_at,omitzero"`
 	OriginalPath  string        `json:"original_path,omitempty"`
-	OriginalLayer Layers        `json:"original_layer,omitempty"`
+	OriginalFolder FolderPath        `json:"original_layer,omitempty"`
 	DeleteReason  string        `json:"delete_reason,omitempty"`
 }
 
@@ -69,15 +69,15 @@ func (s *Shelf) MoveBookToTrash(bookID string) error {
 	}
 	defer s.shelfLock.Unlock()
 
-	// The layer is the book's position in the tree, owned by its cache entry
+	// The folder is the book's position in the tree, owned by its cache entry
 	// rather than the book itself; getUpdatedBookFromBookID hands both back from
 	// one cache snapshot so the trash record remembers where the book came from.
-	book, originalLayer, err := s.getUpdatedBookFromBookID(bookID)
+	book, originalFolder, err := s.getUpdatedBookFromBookID(bookID)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	activePath := book.FolderPath()
+	activePath := book.PackagePath()
 	trashPath := path.Join(trashBooksFolder, bookID+bookExtension)
 
 	// A book carried out of the trash by hand keeps its old trash.json, so an
@@ -102,7 +102,7 @@ func (s *Shelf) MoveBookToTrash(bookID string) error {
 	meta := trashMeta{
 		DeletedAt:     util.JSONTime(time.Now()),
 		OriginalPath:  activePath,
-		OriginalLayer: append(Layers(nil), originalLayer...),
+		OriginalFolder: append(FolderPath(nil), originalFolder...),
 		DeleteReason:  "user",
 	}
 	if err := s.writeTrashMeta(root, trashPath, &meta); err != nil {
@@ -151,7 +151,7 @@ func (s *Shelf) ListTrashedBooks() ([]*TrashedBook, error) {
 		if meta != nil {
 			item.DeletedAt = meta.DeletedAt
 			item.OriginalPath = meta.OriginalPath
-			item.OriginalLayer = append(Layers(nil), meta.OriginalLayer...)
+			item.OriginalFolder = append(FolderPath(nil), meta.OriginalFolder...)
 		}
 		items = append(items, item)
 	}
@@ -221,28 +221,28 @@ func (s *Shelf) RestoreTrashedBook(bookID string) error {
 		return util.Errorf("%w", err)
 	}
 
-	targetLayers := Layers(nil)
+	targetFolders := FolderPath(nil)
 	targetFolder := path.Base(trashPath)
 	if meta != nil {
-		targetLayers = append(Layers(nil), meta.OriginalLayer...)
+		targetFolders = append(FolderPath(nil), meta.OriginalFolder...)
 		if base := path.Base(meta.OriginalPath); strings.HasSuffix(base, bookExtension) {
 			targetFolder = base
 		}
 	}
 
-	if err := validateLayers(targetLayers); err != nil {
-		targetLayers = nil
+	if err := validateFolderPath(targetFolders); err != nil {
+		targetFolders = nil
 	}
 
-	targetLayerPath := path.Join(booksFolder, path.Join(targetLayers...))
-	if err := root.MkdirAll(targetLayerPath); err != nil {
+	targetFolderPath := path.Join(booksFolder, path.Join(targetFolders...))
+	if err := root.MkdirAll(targetFolderPath); err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	// The original layer may have been deleted while the book sat in trash.
-	s.addLayersToBookCache(targetLayers)
+	// The original folder may have been deleted while the book sat in trash.
+	s.addFolderToBookCache(targetFolders)
 
-	targetPath, err := s.resolveBookPathCollision(targetLayerPath, targetFolder)
+	targetPath, err := s.resolveBookPathCollision(targetFolderPath, targetFolder)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -256,7 +256,7 @@ func (s *Shelf) RestoreTrashedBook(bookID string) error {
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
-	s.updateBookCacheEntry(targetLayers, targetPath, restoredBook)
+	s.updateBookCacheEntry(targetFolders, targetPath, restoredBook)
 
 	if restoredBook.ID() != book.ID() {
 		return util.Errorf("restored book id mismatch")
@@ -412,20 +412,20 @@ func (s *Shelf) readTrashMeta(bookPath string) (*trashMeta, error) {
 	return &meta, nil
 }
 
-func (s *Shelf) resolveBookPathCollision(layerPath, folderName string) (string, error) {
+func (s *Shelf) resolveBookPathCollision(folderPath, folderName string) (string, error) {
 	baseName := strings.TrimSuffix(folderName, bookExtension)
 	if baseName == "" {
 		baseName = folderName
 	}
 
-	// maxBookPathCollisionAttempts is a practical upper bound for collision resolution in a single layer.
+	// maxBookPathCollisionAttempts is a practical upper bound for collision resolution in a single folder.
 	// If the bound is reached, return an error instead of looping indefinitely.
 	for i := range maxBookPathCollisionAttempts {
 		candidateFolder := folderName
 		if i > 0 {
 			candidateFolder = baseName + "-" + strconv.Itoa(i) + bookExtension
 		}
-		candidatePath := path.Join(layerPath, candidateFolder)
+		candidatePath := path.Join(folderPath, candidateFolder)
 		_, err := s.dbRoot.Stat(candidatePath)
 		if errors.Is(err, os.ErrNotExist) {
 			return candidatePath, nil

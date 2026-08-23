@@ -2,17 +2,17 @@ package shelf
 
 import "strings"
 
-// Layers is a book's position in the shelf's folder tree: the ordered path
+// FolderPath is a book's position in the shelf's folder tree: the ordered path
 // segments from books/ down to the book's own directory. It is a shelf concept,
 // not part of a book package — a book opened on its own through bookpkg has no
-// layers — so it lives with the shelf, not with the book read/write layer.
-type Layers []string
+// folder path — so it lives with the shelf, not with the book read/write layer.
+type FolderPath []string
 
-func (l Layers) String() string {
+func (l FolderPath) String() string {
 	return strings.Join(l, "/")
 }
 
-func (l Layers) Equal(other Layers) bool {
+func (l FolderPath) Equal(other FolderPath) bool {
 	if len(l) != len(other) {
 		return false
 	}
@@ -24,7 +24,7 @@ func (l Layers) Equal(other Layers) bool {
 	return true
 }
 
-func NewLayersFromString(s string) Layers {
+func NewFolderPathFromString(s string) FolderPath {
 	if s == "" {
 		return nil
 	}

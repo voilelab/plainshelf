@@ -43,7 +43,7 @@ func TestShelfNewBookWithRollsBackOnInitFailure(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	_, err := shelf.NewBookWith(Layers{"rollback"}, "Doomed Book", func(book *Book) error {
+	_, err := shelf.NewBookWith(FolderPath{"rollback"}, "Doomed Book", func(book *Book) error {
 		if _, err := book.NewSource(nil); err != nil {
 			t.Fatalf("NewSource on staged book: %v", err)
 		}
@@ -87,7 +87,7 @@ func TestShelfNewBookWithPersistsInitWrites(t *testing.T) {
 
 	const content = "staged content\n"
 
-	book, err := shelf.NewBookWith(Layers{"staged"}, "Staged Book", func(book *Book) error {
+	book, err := shelf.NewBookWith(FolderPath{"staged"}, "Staged Book", func(book *Book) error {
 		source, err := book.NewSource(strings.NewReader(content))
 		if err != nil {
 			return err
@@ -149,12 +149,12 @@ func TestShelfNewBookWithBookNotVisibleDuringInit(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	_, err := shelf.NewBookWith(Layers{"hidden"}, "Hidden Book", func(book *Book) error {
+	_, err := shelf.NewBookWith(FolderPath{"hidden"}, "Hidden Book", func(book *Book) error {
 		if found := bookPkgEntries(t, path.Join(tmpLib, booksFolder, "hidden")); len(found) != 0 {
 			t.Errorf("book is already visible under the layer during init: %v", found)
 		}
-		if !strings.HasPrefix(book.FolderPath(), path.Join(appFolder, appTmpFolder)) {
-			t.Errorf("staged book folder = %q, want it under the app temp folder", book.FolderPath())
+		if !strings.HasPrefix(book.PackagePath(), path.Join(appFolder, appTmpFolder)) {
+			t.Errorf("staged book folder = %q, want it under the app temp folder", book.PackagePath())
 		}
 		return nil
 	})
@@ -178,11 +178,11 @@ func TestBookSetMetaConcurrentWritersDoNotCollide(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	created, err := shelf.NewBook(Layers{"concurrent"}, "Concurrent Book")
+	created, err := shelf.NewBook(FolderPath{"concurrent"}, "Concurrent Book")
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
-	bookPath := created.FolderPath()
+	bookPath := created.PackagePath()
 
 	const writers = 12
 
@@ -226,18 +226,18 @@ func TestBookSetMetaConcurrentWritersDoNotCollide(t *testing.T) {
 }
 
 // Two books that agree on everything the old MD5 seed derived an ID from - the
-// layers and the title - must still get different IDs. The collision probe that
+// folders and the title - must still get different IDs. The collision probe that
 // used to make that true only sees what this process already has in its cache,
 // so a shared shelf or a book copied in with a file manager slipped past it.
 func TestShelfNewBookIDsAreRandomNotDerived(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	first, err := shelf.NewBook(Layers{"same"}, "Same Title")
+	first, err := shelf.NewBook(FolderPath{"same"}, "Same Title")
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
-	second, err := shelf.NewBook(Layers{"same"}, "Same Title")
+	second, err := shelf.NewBook(FolderPath{"same"}, "Same Title")
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
@@ -270,11 +270,11 @@ func TestShelfNewBookIDsAreRandomNotDerived(t *testing.T) {
 // The ID is opaque: nothing it was once derived from may move it. Reading
 // progress, bookmarks, and every device-local document are keyed on it, so a
 // recomputation would silently orphan all of them.
-func TestShelfBookIDSurvivesTitleLayerAndTrashRoundTrip(t *testing.T) {
+func TestShelfBookIDSurvivesTitleFolderAndTrashRoundTrip(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	book, err := shelf.NewBook(Layers{"origin"}, "Original Title")
+	book, err := shelf.NewBook(FolderPath{"origin"}, "Original Title")
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
@@ -289,7 +289,7 @@ func TestShelfBookIDSurvivesTitleLayerAndTrashRoundTrip(t *testing.T) {
 		t.Fatalf("renaming the title changed the ID: %q -> %q", bookID, book.ID())
 	}
 
-	moved, err := shelf.MoveBook(bookID, Layers{"elsewhere"})
+	moved, err := shelf.MoveBook(bookID, FolderPath{"elsewhere"})
 	if err != nil {
 		t.Fatalf("MoveBook: %v", err)
 	}
@@ -339,7 +339,7 @@ func TestShelfLegacyAndRandomBookIDsCoexist(t *testing.T) {
 		t.Fatalf("legacy ID was rewritten: %q -> %q", legacyID, legacy.ID())
 	}
 
-	fresh, err := shelf.NewBook(Layers{"legacy"}, "Legacy Book")
+	fresh, err := shelf.NewBook(FolderPath{"legacy"}, "Legacy Book")
 	if err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}

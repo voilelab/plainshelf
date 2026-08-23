@@ -9,11 +9,11 @@ import (
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
-func TestShelfRejectsUnsafeLayerSegments(t *testing.T) {
+func TestShelfRejectsUnsafeFolderSegments(t *testing.T) {
 	tmpLib := filepath.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	unsafeLayers := []Layers{
+	unsafeFolders := []FolderPath{
 		{"..", "app", "evil"},
 		{"."},
 		{"safe/unsafe"},
@@ -22,15 +22,15 @@ func TestShelfRejectsUnsafeLayerSegments(t *testing.T) {
 		{""},
 	}
 
-	for _, layers := range unsafeLayers {
-		if err := shelf.NewLayer(layers); err == nil {
-			t.Fatalf("Expected NewLayer(%v) to reject unsafe layer", layers)
+	for _, folders := range unsafeFolders {
+		if err := shelf.NewFolder(folders[:len(folders)-1], folders[len(folders)-1]); err == nil {
+			t.Fatalf("Expected NewFolder(%v) to reject unsafe folder", folders)
 		}
-		if _, err := shelf.NewBook(layers, "Unsafe Book"); err == nil {
-			t.Fatalf("Expected NewBook(%v) to reject unsafe layer", layers)
+		if _, err := shelf.NewBook(folders, "Unsafe Book"); err == nil {
+			t.Fatalf("Expected NewBook(%v) to reject unsafe layer", folders)
 		}
-		if _, err := shelf.GetBooksByLayer(layers); err == nil {
-			t.Fatalf("Expected GetBooksByLayer(%v) to reject unsafe layer", layers)
+		if _, err := shelf.GetBooksByFolder(folders); err == nil {
+			t.Fatalf("Expected GetBooksByFolder(%v) to reject unsafe layer", folders)
 		}
 	}
 
@@ -39,26 +39,26 @@ func TestShelfRejectsUnsafeLayerSegments(t *testing.T) {
 	}
 }
 
-func TestMoveAndDeleteLayerRejectUnsafeSegments(t *testing.T) {
+func TestMoveAndDeleteFolderRejectUnsafeSegments(t *testing.T) {
 	tmpLib := filepath.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	book, err := shelf.NewBook(Layers{"safe"}, "Safe Book")
+	book, err := shelf.NewBook(FolderPath{"safe"}, "Safe Book")
 	if err != nil {
 		t.Fatalf("Failed to create book: %v", err)
 	}
 
-	if _, err := shelf.MoveBook(book.ID(), Layers{"..", "app", "evil"}); err == nil {
+	if _, err := shelf.MoveBook(book.ID(), FolderPath{"..", "app", "evil"}); err == nil {
 		t.Fatal("Expected MoveBook to reject unsafe target layer")
 	}
-	if err := shelf.DeleteLayer(Layers{"..", "app"}); err == nil {
-		t.Fatal("Expected DeleteLayer to reject unsafe layer")
+	if err := shelf.DeleteFolder(FolderPath{"..", "app"}); err == nil {
+		t.Fatal("Expected DeleteFolder to reject unsafe layer")
 	}
-	if err := shelf.RenameLayer(Layers{"safe"}, Layers{"..", "app"}); err == nil {
-		t.Fatal("Expected RenameLayer to reject unsafe target layer")
+	if err := shelf.RenameFolder(FolderPath{"safe"}, ".."); err == nil {
+		t.Fatal("Expected RenameFolder to reject unsafe target name")
 	}
-	if err := shelf.MoveLayer(Layers{"safe"}, Layers{"..", "app"}); err == nil {
-		t.Fatal("Expected MoveLayer to reject unsafe target layer")
+	if err := shelf.MoveFolder(FolderPath{"safe"}, FolderPath{"..", "app"}); err == nil {
+		t.Fatal("Expected MoveFolder to reject unsafe target layer")
 	}
 }
 

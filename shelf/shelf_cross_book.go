@@ -18,13 +18,13 @@ import (
 var ErrBookIDConflict = util.NewError("target shelf already holds a book with this ID")
 
 // ErrSameShelfTransfer is returned when a cross-shelf transfer names one shelf as
-// both source and target. The same-shelf copy (CopyBook) and layer move
+// both source and target. The same-shelf copy (CopyBook) and folder move
 // (MoveBook) are the operations for that, and taking one shelf's lock twice here
 // would deadlock.
 var ErrSameShelfTransfer = util.NewError("source and target are the same shelf")
 
 // publishBookCopy stages sourceBook's package into this (the target) shelf under
-// targetLayer and publishes it, returning the published book.
+// targetFolder and publishes it, returning the published book.
 //
 // It is the shared core behind both the same-shelf copy (CopyBook) and the
 // cross-shelf transfer: sourceRoot is the filesystem sourceBook lives on, which
@@ -44,7 +44,7 @@ var ErrSameShelfTransfer = util.NewError("source and target are the same shelf")
 //
 // The caller must hold this shelf's exclusive lock (and, for a cross-shelf
 // transfer, a read lock on the source shelf), exactly as CopyBook does.
-func (target *Shelf) publishBookCopy(sourceRoot fsutil.ReadFS, sourceBook *Book, targetLayer Layers, preserveID bool) (*Book, error) {
+func (target *Shelf) publishBookCopy(sourceRoot fsutil.ReadFS, sourceBook *Book, targetFolder FolderPath, preserveID bool) (*Book, error) {
 	root, err := target.writeRoot()
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -56,7 +56,7 @@ func (target *Shelf) publishBookCopy(sourceRoot fsutil.ReadFS, sourceBook *Book,
 	}
 	defer root.RemoveAll(bookPath)
 
-	if err := copyTreeAcross(sourceRoot, sourceBook.FolderPath(), root, bookPath); err != nil {
+	if err := copyTreeAcross(sourceRoot, sourceBook.PackagePath(), root, bookPath); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -77,16 +77,16 @@ func (target *Shelf) publishBookCopy(sourceRoot fsutil.ReadFS, sourceBook *Book,
 		}
 	}
 
-	layerPath := path.Join(booksFolder, path.Join(targetLayer...))
-	if err := root.MkdirAll(layerPath); err != nil {
+	folderPath := path.Join(booksFolder, path.Join(targetFolder...))
+	if err := root.MkdirAll(folderPath); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
-	target.addLayersToBookCache(targetLayer)
+	target.addFolderToBookCache(targetFolder)
 
 	folderName := titleToFolderName(stagedMeta.Title)
 	for i := 1; ; i++ {
-		finalBookPath := path.Join(layerPath, folderName)
+		finalBookPath := path.Join(folderPath, folderName)
 		if _, err := target.dbRoot.Stat(finalBookPath); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				break
@@ -96,7 +96,7 @@ func (target *Shelf) publishBookCopy(sourceRoot fsutil.ReadFS, sourceBook *Book,
 		folderName = titleToFolderName(fmt.Sprintf("%s-%d", stagedMeta.Title, i))
 	}
 
-	finalBookPath := path.Join(layerPath, folderName)
+	finalBookPath := path.Join(folderPath, folderName)
 	if err := root.Rename(bookPath, finalBookPath); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -106,13 +106,13 @@ func (target *Shelf) publishBookCopy(sourceRoot fsutil.ReadFS, sourceBook *Book,
 		return nil, util.Errorf("%w", err)
 	}
 
-	target.updateBookCacheEntry(targetLayer, finalBookPath, newBook)
+	target.updateBookCacheEntry(targetFolder, finalBookPath, newBook)
 
 	return newBook, nil
 }
 
 // CopyBookFrom copies the book identified by bookID in source into this (the
-// target) shelf under targetLayer, returning the copy. It never modifies source:
+// target) shelf under targetFolder, returning the copy. It never modifies source:
 // the copy is fully staged and published on the target before this returns, so an
 // interruption leaves the source completely intact and the target holding nothing
 // but temp data.
@@ -126,8 +126,8 @@ func (target *Shelf) publishBookCopy(sourceRoot fsutil.ReadFS, sourceBook *Book,
 //
 // The two shelves must be distinct: a transfer within one shelf is CopyBook or
 // MoveBook, and locking the same shelf as both source and target would deadlock.
-func (target *Shelf) CopyBookFrom(source *Shelf, bookID string, targetLayer Layers, preserveID bool) (*Book, error) {
-	if err := validateLayers(targetLayer); err != nil {
+func (target *Shelf) CopyBookFrom(source *Shelf, bookID string, targetFolder FolderPath, preserveID bool) (*Book, error) {
+	if err := validateFolderPath(targetFolder); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -175,7 +175,7 @@ func (target *Shelf) CopyBookFrom(source *Shelf, bookID string, targetLayer Laye
 		}
 	}
 
-	newBook, err := target.publishBookCopy(source.dbRoot, sourceBook, targetLayer, preserveID)
+	newBook, err := target.publishBookCopy(source.dbRoot, sourceBook, targetFolder, preserveID)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
@@ -184,7 +184,7 @@ func (target *Shelf) CopyBookFrom(source *Shelf, bookID string, targetLayer Laye
 }
 
 // MoveBookFrom moves the book identified by bookID out of source and into this
-// (the target) shelf under targetLayer, preserving its ID so that reading
+// (the target) shelf under targetFolder, preserving its ID so that reading
 // progress and external references carry over, and returns the moved book.
 //
 // The book is fully published on the target before it is removed from the source,
@@ -193,7 +193,7 @@ func (target *Shelf) CopyBookFrom(source *Shelf, bookID string, targetLayer Laye
 // both. Removal routes the source book through its own trash, like any other
 // delete, so a move is still recoverable on the source side until that trash is
 // emptied.
-func (target *Shelf) MoveBookFrom(source *Shelf, bookID string, targetLayer Layers) (*Book, error) {
+func (target *Shelf) MoveBookFrom(source *Shelf, bookID string, targetFolder FolderPath) (*Book, error) {
 	// A move ends by deleting the source, so refuse a read-only source before
 	// copying anything. Otherwise the copy is published on the target and only
 	// the trailing delete fails, stranding the book on both shelves.
@@ -201,7 +201,7 @@ func (target *Shelf) MoveBookFrom(source *Shelf, bookID string, targetLayer Laye
 		return nil, util.Errorf("%w", err)
 	}
 
-	moved, err := target.CopyBookFrom(source, bookID, targetLayer, true)
+	moved, err := target.CopyBookFrom(source, bookID, targetFolder, true)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

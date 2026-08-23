@@ -228,7 +228,7 @@ func (h *importHandlers) importEPUB(
 	size int64,
 	filename string,
 	suppliedTitle string,
-	layerParts shelf.Layers,
+	layerParts shelf.FolderPath,
 	strategy epub.Strategy,
 ) (*shelf.Book, error) {
 	// Parse and render before creating the book: the initializer below runs

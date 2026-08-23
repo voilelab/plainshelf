@@ -19,7 +19,7 @@ type TrashedBook struct {
 	Title         string        `json:"title"`
 	Authors       []string      `json:"authors,omitempty"`
 	OriginalPath  string        `json:"original_path,omitempty"`
-	OriginalLayer shelf.Layers  `json:"original_layer,omitempty"`
+	OriginalLayer shelf.FolderPath  `json:"original_layer,omitempty"`
 	DeletedAt     util.JSONTime `json:"deleted_at,omitzero"`
 }
 
@@ -65,7 +65,7 @@ func (h *trashHandlers) getTrashedBooks(w http.ResponseWriter, r *http.Request) 
 			Title:         b.Title,
 			Authors:       append([]string(nil), b.Authors...),
 			OriginalPath:  b.OriginalPath,
-			OriginalLayer: append(shelf.Layers(nil), b.OriginalLayer...),
+			OriginalLayer: append(shelf.FolderPath(nil), b.OriginalFolder...),
 			DeletedAt:     b.DeletedAt,
 		})
 	}

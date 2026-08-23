@@ -77,11 +77,11 @@ type BookCacheFile struct {
 	// Generator records the build that wrote the file, for diagnostics only.
 	Generator string `json:"generator"`
 
-	// Layers lists every layer directory in the shelf, in the same shape the
+	// Folders lists every folder directory in the shelf, in the same shape the
 	// API returns: "/" for the top level, "Fiction/Classics" for a nested one.
-	// Recorded explicitly because an empty layer holds no book and could not be
+	// Recorded explicitly because an empty folder holds no book and could not be
 	// reconstructed from Books.
-	Layers []string `json:"layers"`
+	Folders []string `json:"layers"`
 
 	// Books maps book ID to its location and metadata.
 	Books map[string]BookCacheEntry `json:"books"`
@@ -237,14 +237,14 @@ func (s *Shelf) exportBookCache(force bool) error {
 	s.exportMu.Lock()
 	defer s.exportMu.Unlock()
 
-	layers := s.collectExportLayers()
+	folders := s.collectExportFolders()
 	books := s.collectExportBooks()
 
 	// Hash only the content, never the timestamp, so an unchanged shelf does
 	// not rewrite the file every interval. That matters most on the transports
 	// this file exists for: on pCloud or SMB an identical rewrite is a pointless
 	// upload, and on a sync client it is a pointless conflict opportunity.
-	digest, err := bookCacheDigest(layers, books)
+	digest, err := bookCacheDigest(folders, books)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -267,7 +267,7 @@ func (s *Shelf) exportBookCache(force bool) error {
 		WriterID:      s.bookCacheWriterID,
 		Timestamp:     scannedAt.Unix(),
 		Generator:     "plainshelf/" + version.Version,
-		Layers:        layers,
+		Folders:        folders,
 		Books:         books,
 	}
 
@@ -289,31 +289,31 @@ func (s *Shelf) exportBookCache(force bool) error {
 	s.bookCache.lastExportDigest = digest
 	s.bookCache.Unlock()
 
-	s.Debug("exported book cache", "path", target, "books", len(books), "layers", len(layers))
+	s.Debug("exported book cache", "path", target, "books", len(books), "layers", len(folders))
 
 	s.pruneStaleBookCaches(root)
 	return nil
 }
 
-// collectExportLayers lists every layer directory, in the shape the API and the
+// collectExportFolders lists every folder directory, in the shape the API and the
 // pCloud client both use ("/" for the top level).
 //
 // Snapshots the in-memory cache, like collectExportBooks: both halves of the
 // file then describe the same walk, and an export costs no filesystem access of
 // its own. The scan behind that cache is what ExportBookCache forces before
 // writing.
-func (s *Shelf) collectExportLayers() []string {
-	var layers []string
-	for _, layer := range s.listLayersFromCache() {
-		name := layer.String()
+func (s *Shelf) collectExportFolders() []string {
+	var folders []string
+	for _, folder := range s.listFoldersFromCache() {
+		name := folder.String()
 		if name == "" {
 			name = "/"
 		}
-		layers = append(layers, name)
+		folders = append(folders, name)
 	}
 
-	sort.Strings(layers)
-	return layers
+	sort.Strings(folders)
+	return folders
 }
 
 // collectExportBooks snapshots the in-memory cache. No filesystem access: the
@@ -334,12 +334,12 @@ func (s *Shelf) collectExportBooks() map[string]BookCacheEntry {
 
 // bookCacheDigest fingerprints the exportable content of the shelf. Marshalling
 // is enough to make it order-independent: encoding/json sorts map keys, and the
-// layer slice is already sorted.
-func bookCacheDigest(layers []string, books map[string]BookCacheEntry) (string, error) {
+// folder slice is already sorted.
+func bookCacheDigest(folders []string, books map[string]BookCacheEntry) (string, error) {
 	data, err := json.Marshal(struct {
-		Layers []string                  `json:"layers"`
+		Folders []string                  `json:"layers"`
 		Books  map[string]BookCacheEntry `json:"books"`
-	}{Layers: layers, Books: books})
+	}{Folders: folders, Books: books})
 	if err != nil {
 		return "", util.Errorf("%w", err)
 	}

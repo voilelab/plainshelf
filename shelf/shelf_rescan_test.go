@@ -73,18 +73,18 @@ func TestRescanFindsBooksAddedOnDiskWithinTheScanInterval(t *testing.T) {
 	}
 }
 
-// The layer count describes the shelf, not the books, so a folder nobody has
+// The folder count describes the shelf, not the books, so a folder nobody has
 // filed a book into still counts.
-func TestRescanCountsLayersIncludingEmptyOnes(t *testing.T) {
+func TestRescanCountsFoldersIncludingEmptyOnes(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
-	if err := s.NewLayer(Layers{"Fiction", "Classics"}); err != nil {
-		t.Fatalf("NewLayer: %v", err)
+	if err := s.NewFolder(FolderPath{"Fiction"}, "Classics"); err != nil {
+		t.Fatalf("NewFolder: %v", err)
 	}
-	if err := s.NewLayer(Layers{"Empty"}); err != nil {
-		t.Fatalf("NewLayer: %v", err)
+	if err := s.NewFolder(FolderPath{}, "Empty"); err != nil {
+		t.Fatalf("NewFolder: %v", err)
 	}
-	if _, err := s.NewBook(Layers{"Fiction", "Classics"}, "Dune"); err != nil {
+	if _, err := s.NewBook(FolderPath{"Fiction", "Classics"}, "Dune"); err != nil {
 		t.Fatalf("NewBook: %v", err)
 	}
 
@@ -96,8 +96,8 @@ func TestRescanCountsLayersIncludingEmptyOnes(t *testing.T) {
 		t.Errorf("BookCount = %d, want 1", result.BookCount)
 	}
 	// "/", "Empty", "Fiction", "Fiction/Classics".
-	if result.LayerCount != 4 {
-		t.Errorf("LayerCount = %d, want 4", result.LayerCount)
+	if result.FolderCount != 4 {
+		t.Errorf("LayerCount = %d, want 4", result.FolderCount)
 	}
 }
 
@@ -161,7 +161,7 @@ func TestRescanRefusesASecondWalkAndNamesTheRunningOne(t *testing.T) {
 	if result.ID != runningID {
 		t.Errorf("refused result ID = %q, want the running scan's ID %q", result.ID, runningID)
 	}
-	if result.BookCount != 0 || result.LayerCount != 0 {
+	if result.BookCount != 0 || result.FolderCount != 0 {
 		t.Error("a refused rescan reported counts it never walked for")
 	}
 

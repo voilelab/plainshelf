@@ -12,7 +12,7 @@ import (
 )
 
 type bookIDCacheEntry struct {
-	layers Layers
+	folders FolderPath
 	path   string
 	book   *Book
 
@@ -42,11 +42,11 @@ type bookIDCacheEntry struct {
 // newBookIDCacheEntry builds the cache entry for one book. It reads the book's
 // current source meta.json, so call it before taking the cache lock wherever
 // that is possible.
-func newBookIDCacheEntry(layers Layers, path string, book *Book) *bookIDCacheEntry {
+func newBookIDCacheEntry(folders FolderPath, path string, book *Book) *bookIDCacheEntry {
 	charCount, charCountAt := readCharCount(book)
 
 	return &bookIDCacheEntry{
-		layers:      layers,
+		folders:      folders,
 		path:        path,
 		book:        book,
 		charCount:   charCount,
@@ -85,12 +85,12 @@ type bookCache struct {
 	sync.RWMutex
 	cache map[string]*bookIDCacheEntry
 
-	// layers is every layer directory the shelf holds, sorted, with the root as
-	// an empty Layers. Kept beside the book cache because both come out of the
-	// same walk, and kept as its own list because an empty layer holds no book
+	// folders is every folder directory the shelf holds, sorted, with the root as
+	// an empty Folders. Kept beside the book cache because both come out of the
+	// same walk, and kept as its own list because an empty folder holds no book
 	// and could not be rebuilt from cache above — the same reason
-	// BookCacheFile.Layers exists.
-	layers []Layers
+	// BookCacheFile.Folders exists.
+	folders []FolderPath
 
 	treeDirty    bool
 	lastFullScan time.Time
@@ -163,23 +163,23 @@ func (s *Shelf) scanToBookCache() error {
 	// its Timestamp and readers use it to decide what they must re-read.
 	scanStart := time.Now()
 
-	var layers []Layers
+	var folders []FolderPath
 
-	stats, err := s.iterateShelfTree(func(ls Layers) bool {
-		layers = append(layers, ls)
+	stats, err := s.iterateShelfTree(func(ls FolderPath) bool {
+		folders = append(folders, ls)
 		return true
 	}, func(b *Book) bool {
-		cache[b.ID()] = newBookIDCacheEntry(bookFolderLayers(b.FolderPath()), b.FolderPath(), b)
+		cache[b.ID()] = newBookIDCacheEntry(bookFolderPath(b.PackagePath()), b.PackagePath(), b)
 		return true
 	})
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	sortLayers(layers)
+	sortFolders(folders)
 
 	s.Debug("completed a full shelf scan",
-		"books", len(cache), "layers", len(layers),
+		"books", len(cache), "layers", len(folders),
 		"dirs", stats.Dirs, "listed_dirs", stats.ReadDirs, "reused_dirs", stats.ReusedDirs,
 		"duration", stats.Duration)
 
@@ -188,7 +188,7 @@ func (s *Shelf) scanToBookCache() error {
 		cache[bookID] = keepNewerCharCount(entry, s.bookCache.cache[bookID])
 	}
 	s.bookCache.cache = cache
-	s.bookCache.layers = layers
+	s.bookCache.folders = folders
 	s.bookCache.treeDirty = false
 	s.bookCache.lastFullScan = time.Now()
 	s.bookCache.lastScanStart = scanStart
@@ -229,7 +229,7 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 			continue
 		}
 
-		updated[bookID] = newBookIDCacheEntry(cacheEntry.layers, cacheEntry.path, book)
+		updated[bookID] = newBookIDCacheEntry(cacheEntry.folders, cacheEntry.path, book)
 	}
 
 	// Apply only the changed entries under a brief write lock.
@@ -248,7 +248,7 @@ func (s *Shelf) onlyRefreshBooksInCache() {
 // scheduleBookCacheRefreshIfNeeded triggers a refresh based on the current cache state.
 //
 // Full scans (tree dirty or scan interval elapsed) run synchronously so callers
-// immediately see structural changes such as moved or renamed layers.
+// immediately see structural changes such as moved or renamed folders.
 //
 // Per-book staleness checks (within the scan interval) run in a background
 // goroutine so list operations are never blocked by N filesystem stat calls —
@@ -331,7 +331,7 @@ func (s *Shelf) listBookListingsFromCache() []BookListing {
 	for _, cacheEntry := range s.bookCache.cache {
 		listings = append(listings, BookListing{
 			Book:      cacheEntry.book,
-			Layers:    slices.Clone(cacheEntry.layers),
+			Folders:    slices.Clone(cacheEntry.folders),
 			CharCount: cacheEntry.charCount,
 		})
 	}
@@ -343,71 +343,71 @@ func (s *Shelf) listBookListingsFromCache() []BookListing {
 	return listings
 }
 
-// listLayersFromCache returns the cached layer list. The copy is deliberate:
+// listFoldersFromCache returns the cached folder list. The copy is deliberate:
 // the caller marshals it into a response while the next scan may already be
 // replacing the cached slice.
-func (s *Shelf) listLayersFromCache() []Layers {
+func (s *Shelf) listFoldersFromCache() []FolderPath {
 	s.bookCache.RLock()
 	defer s.bookCache.RUnlock()
 
-	layers := make([]Layers, len(s.bookCache.layers))
-	for i, layer := range s.bookCache.layers {
-		layers[i] = slices.Clone(layer)
+	folders := make([]FolderPath, len(s.bookCache.folders))
+	for i, folder := range s.bookCache.folders {
+		folders[i] = slices.Clone(folder)
 	}
-	return layers
+	return folders
 }
 
-// addLayersToBookCache records a layer and every ancestor it needed, so that a
+// addFolderToBookCache records a folder and every ancestor it needed, so that a
 // directory this process just created shows up in the next listing instead of
-// waiting for the scan interval. Every place that MkdirAll's a layer path calls
-// it; a layer created outside PlainShelf is still found by the next scan.
-func (s *Shelf) addLayersToBookCache(layer Layers) {
+// waiting for the scan interval. Every place that MkdirAll's a folder path calls
+// it; a folder created outside PlainShelf is still found by the next scan.
+func (s *Shelf) addFolderToBookCache(folder FolderPath) {
 	s.bookCache.Lock()
 	defer s.bookCache.Unlock()
 
 	added := false
-	for i := 0; i <= len(layer); i++ {
-		prefix := layer[:i]
-		if slices.ContainsFunc(s.bookCache.layers, prefix.Equal) {
+	for i := 0; i <= len(folder); i++ {
+		prefix := folder[:i]
+		if slices.ContainsFunc(s.bookCache.folders, prefix.Equal) {
 			continue
 		}
-		s.bookCache.layers = append(s.bookCache.layers, slices.Clone(prefix))
+		s.bookCache.folders = append(s.bookCache.folders, slices.Clone(prefix))
 		added = true
 	}
 
 	if added {
-		sortLayers(s.bookCache.layers)
+		sortFolders(s.bookCache.folders)
 	}
 }
 
-// removeLayerFromBookCache drops one layer entry. Only for a layer known to
+// removeFolderFromBookCache drops one folder entry. Only for a folder known to
 // have no children; a subtree change marks the tree dirty instead.
-func (s *Shelf) removeLayerFromBookCache(layer Layers) {
+func (s *Shelf) removeFolderFromBookCache(folder FolderPath) {
 	s.bookCache.Lock()
 	defer s.bookCache.Unlock()
 
-	s.bookCache.layers = slices.DeleteFunc(s.bookCache.layers, layer.Equal)
+	s.bookCache.folders = slices.DeleteFunc(s.bookCache.folders, folder.Equal)
 }
 
-func sortLayers(layers []Layers) {
-	sort.Slice(layers, func(i, j int) bool {
-		return layers[i].String() < layers[j].String()
+func sortFolders(folders []FolderPath) {
+	sort.Slice(folders, func(i, j int) bool {
+		return folders[i].String() < folders[j].String()
 	})
 }
 
-// getUpdatedBookFromBookID resolves a book and the layer it sits in from the
-// cache, refreshing a stale entry first. The book and the layer come from the
+// getUpdatedBookFromBookID resolves a book and the folder it sits in from the
+// cache, refreshing a stale entry first. The book and the folder come from the
 // same cache entry read under one lock, so a concurrent refresh cannot pair a
-// book with a different entry's layer, or report a nested book as having none.
-func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, Layers, error) {
+// book with a different entry's folder, or report a nested book as having none.
+func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, FolderPath, error) {
 	s.bookCache.Lock()
 
 	cacheEntry := s.bookCache.cache[bookID]
 	if cacheEntry != nil {
 		if !cacheEntry.book.IsStale() {
-			book, layers := cacheEntry.book, slices.Clone(cacheEntry.layers)
+			book, folders := cacheEntry.book, slices.Clone(cacheEntry.folders)
 			s.bookCache.Unlock()
-			return book, layers, nil
+			return book, folders, nil
 		}
 
 		// If the cache entry is stale or doesn't exist, we need to refresh it.
@@ -416,12 +416,12 @@ func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, Layers, error) {
 		book, err := bookpkg.Open(s.dbRoot, s.Logger, cacheEntry.path)
 		if err == nil {
 			s.bookCache.cache[bookID] = keepNewerCharCount(
-				newBookIDCacheEntry(cacheEntry.layers, cacheEntry.path, book),
+				newBookIDCacheEntry(cacheEntry.folders, cacheEntry.path, book),
 				s.bookCache.cache[bookID],
 			)
-			layers := slices.Clone(cacheEntry.layers)
+			folders := slices.Clone(cacheEntry.folders)
 			s.bookCache.Unlock()
-			return book, layers, nil
+			return book, folders, nil
 		} else {
 			s.Warn("Failed to refresh book cache entry, will attempt to refresh entire book cache", "bookID", bookID, "error", err)
 		}
@@ -440,16 +440,16 @@ func (s *Shelf) getUpdatedBookFromBookID(bookID string) (*Book, Layers, error) {
 	defer s.bookCache.RUnlock()
 	bookCacheEntry := s.bookCache.cache[bookID]
 	if bookCacheEntry != nil {
-		return bookCacheEntry.book, slices.Clone(bookCacheEntry.layers), nil
+		return bookCacheEntry.book, slices.Clone(bookCacheEntry.folders), nil
 	}
 
 	return nil, nil, util.Errorf("%w", ErrBookNotFound)
 }
 
-func (s *Shelf) updateBookCacheEntry(layers Layers, path string, book *Book) {
+func (s *Shelf) updateBookCacheEntry(folders FolderPath, path string, book *Book) {
 	// Built before the lock: the entry reads the book's current source from
 	// disk, and no listing should wait on that.
-	entry := newBookIDCacheEntry(layers, path, book)
+	entry := newBookIDCacheEntry(folders, path, book)
 
 	s.bookCache.Lock()
 	defer s.bookCache.Unlock()

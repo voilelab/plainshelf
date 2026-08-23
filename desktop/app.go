@@ -443,9 +443,9 @@ func normalizeSelectedLocalPaths(paths []string) []string {
 	return localPaths
 }
 
-func normalizeLayerParts(layerParts []string) shelf.Layers {
-	normalizedParts := make(shelf.Layers, 0, len(layerParts))
-	for _, part := range layerParts {
+func normalizeFolderParts(folderParts []string) shelf.FolderPath {
+	normalizedParts := make(shelf.FolderPath, 0, len(folderParts))
+	for _, part := range folderParts {
 		trimmed := strings.TrimSpace(part)
 		if trimmed == "" {
 			continue
@@ -455,7 +455,7 @@ func normalizeLayerParts(layerParts []string) shelf.Layers {
 	return normalizedParts
 }
 
-func (a *DesktopApp) ImportBooksFromLocalPaths(shelfID string, localPaths []string, layerParts []string) ([]DesktopImportBookResult, error) {
+func (a *DesktopApp) ImportBooksFromLocalPaths(shelfID string, localPaths []string, folderParts []string) ([]DesktopImportBookResult, error) {
 	if a.app == nil {
 		return nil, util.NewError("desktop backend app instance is nil")
 	}
@@ -465,10 +465,10 @@ func (a *DesktopApp) ImportBooksFromLocalPaths(shelfID string, localPaths []stri
 		return []DesktopImportBookResult{}, nil
 	}
 
-	normalizedLayerParts := normalizeLayerParts(layerParts)
+	normalizedFolderParts := normalizeFolderParts(folderParts)
 	results := make([]DesktopImportBookResult, 0, len(normalizedPaths))
 	for _, localPath := range normalizedPaths {
-		book, err := a.app.ImportFromLocalPath(shelfID, localPath, normalizedLayerParts)
+		book, err := a.app.ImportFromLocalPath(shelfID, localPath, normalizedFolderParts)
 		result := DesktopImportBookResult{Path: localPath}
 		if err != nil {
 			result.Error = err.Error()
@@ -520,14 +520,14 @@ func (a *DesktopApp) OpenShelfDirectory() (string, error) {
 	return dir, nil
 }
 
-func resolveDesktopLayerDirectory(libRoot string, layerParts []string) (string, error) {
+func resolveDesktopFolderPath(libRoot string, folderParts []string) (string, error) {
 	normalizedRoot, err := normalizeDesktopShelfDirectory(libRoot)
 	if err != nil {
 		return "", util.Errorf("%w", err)
 	}
 
 	booksRoot := filepath.Clean(filepath.Join(normalizedRoot, "books"))
-	targetPathParts := append([]string{booksRoot}, layerParts...)
+	targetPathParts := append([]string{booksRoot}, folderParts...)
 	targetDir := filepath.Clean(filepath.Join(targetPathParts...))
 
 	relPath, err := filepath.Rel(booksRoot, targetDir)
@@ -541,7 +541,7 @@ func resolveDesktopLayerDirectory(libRoot string, layerParts []string) (string, 
 	return targetDir, nil
 }
 
-func (a *DesktopApp) OpenLayerDirectory(shelfID string, layerParts []string) error {
+func (a *DesktopApp) OpenLayerDirectory(shelfID string, folderParts []string) error {
 	shelfID = strings.TrimSpace(shelfID)
 	if shelfID == "" {
 		return util.Errorf("shelf ID cannot be empty")
@@ -563,10 +563,10 @@ func (a *DesktopApp) OpenLayerDirectory(shelfID string, layerParts []string) err
 		return util.Errorf("shelf with ID %q not found", shelfID)
 	}
 
-	// normalizeLayerParts trims user-provided segments and drops empty entries;
-	// resolveDesktopLayerDirectory then enforces that the final path stays under
+	// normalizeFolderParts trims user-provided segments and drops empty entries;
+	// resolveDesktopFolderPath then enforces that the final path stays under
 	// <shelf>/books.
-	targetDir, err := resolveDesktopLayerDirectory(libRoot, normalizeLayerParts(layerParts))
+	targetDir, err := resolveDesktopFolderPath(libRoot, normalizeFolderParts(folderParts))
 	if err != nil {
 		return util.Errorf("%w", err)
 	}

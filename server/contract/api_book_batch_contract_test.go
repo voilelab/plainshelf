@@ -57,8 +57,8 @@ func TestAPIBookBatchMoveContract(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetBookListing(%s): %v", id, err)
 		}
-		if !listing.Layers.Equal([]string{"target"}) {
-			t.Errorf("book %s layers = %v, want target", id, listing.Layers)
+		if !listing.Folders.Equal([]string{"target"}) {
+			t.Errorf("book %s layers = %v, want target", id, listing.Folders)
 		}
 	}
 }

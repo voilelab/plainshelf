@@ -19,9 +19,9 @@ import (
 Layout:
 {library}/books/
   {book1-folder}.bookpkg/
-  {layer1}/
+  {folder1}/
 	{book2-folder}.bookpkg/
-	{layer2}/
+	{folder2}/
 	  {book2-folder}.bookpkg/
 {library}/trash/
   books/
