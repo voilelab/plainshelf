@@ -368,15 +368,12 @@ export class PCloudClient {
   }
 
   /**
-   * Resolves a link to a pCloud-built zip of the given files. Mirrors
-   * `getFileLink`: the link expires, so it is fetched per download.
+   * Resolves a per-download link to a pCloud-built zip of the given files.
    *
-   * `getziplink` — not `savezip` — is used deliberately: it builds the archive
-   * on pCloud's servers and serves it, writing no file or folder into the
-   * account, which is what keeps this client read-only. Passing `fileids`
-   * (rather than a folder or tree) packs exactly the requested files under their
-   * flat names, matching how the PlainShelf server's assets.zip names entries so
-   * one unzip path works for both backends.
+   * `getziplink`, not `savezip`: it builds and serves the archive without
+   * writing into the account, which keeps this client read-only. `fileids` packs
+   * the files under their flat names, matching the server's assets.zip so one
+   * unzip path serves both backends.
    */
   async getZipLink(fileids: number[], signal?: AbortSignal): Promise<string> {
     const res = await this.call<PCloudGetZipLinkResult>(
@@ -394,13 +391,9 @@ export class PCloudClient {
   }
 
   /**
-   * Downloads a set of files as one zip archive.
-   *
-   * Same two-step shape as `download`: the link call runs through `call`, so it
-   * gets the metadata timeout, the retry policy and the result-code handling;
-   * the archive transfer runs through `withRequest` on the longer download
-   * budget and stays cancellable through the caller's signal for its whole
-   * length. The caller is responsible for passing at least one fileid.
+   * Downloads a set of files as one zip. Same two-step shape as `download`: the
+   * link call goes through `call` (timeout, retry, result codes), the transfer
+   * through `withRequest` (download budget, cancellable). Needs at least one id.
    */
   async downloadZip(fileids: number[], signal?: AbortSignal): Promise<Blob> {
     const url = await this.getZipLink(fileids, signal);

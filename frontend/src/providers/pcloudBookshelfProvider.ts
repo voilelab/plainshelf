@@ -45,11 +45,9 @@ import type { BookshelfReader, ListBooksOptions } from './bookshelfProvider';
 const READ_ONLY_MESSAGE = 'A pCloud shelf is read-only.';
 
 /**
- * A valid, empty zip archive. Returned by `getSourceAssetsBundle` when none of
- * the requested illustrations are in the listing, so the caller's unzip finds
- * nothing to store rather than the whole request failing — the same
- * absent-name-is-skipped contract `getSourceAsset` follows. Built once; the
- * bytes never change, and calling `getziplink` with no fileids is avoided.
+ * A valid, empty zip. Returned when no requested asset is in the listing, so the
+ * caller's unzip finds nothing to store instead of the request failing — and
+ * `getziplink` is never asked to zip nothing. Built once; the bytes never change.
  */
 const EMPTY_ZIP = zipSync({});
 
@@ -728,20 +726,15 @@ export class PCloudBookshelfProvider implements BookshelfReader {
   }
 
   /**
-   * Fetches a source's illustrations as one pCloud-built zip, so a download pays
-   * a single request per chunk instead of one `getfilelink`-plus-download per
-   * figure — the same win the server's assets.zip gives, on the pCloud path.
+   * Fetches a source's illustrations as one pCloud-built zip, so a chunk costs a
+   * single request instead of one `getfilelink`-plus-download per figure — the
+   * server's assets.zip win, on the pCloud path.
    *
-   * The fileids come straight from the recursive listing the shelf is read
-   * through (`BookSourceRef.assets`), so no extra listing is made. A requested
-   * name the listing does not carry is dropped rather than requested — matching
-   * `getSourceAsset`, the reader shows its alt text — and if every name is
-   * absent an empty archive is returned instead of asking pCloud to zip nothing.
-   *
-   * `MobileBookshelfProvider` already caps each call at a bounded number of
-   * names and unzips one entry at a time, so at most one chunk's archive is
-   * resident here; pCloud only reaches zip64 past 65535 entries or 4 GB, well
-   * beyond a chunk, so no further batching is needed.
+   * fileids come from the listing the shelf was read through
+   * (`BookSourceRef.assets`), so no extra listing is made; a name the listing
+   * lacks is dropped (reader shows alt text, as `getSourceAsset` does), and all
+   * absent yields an empty archive. The caller bounds and unzips each chunk, so
+   * no batching is needed here.
    */
   getSourceAssetsBundle(bookId: string, sourceId: string, names: string[]): Promise<Blob> {
     return this.guarded(async () => {

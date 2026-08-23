@@ -69,13 +69,9 @@ export interface PCloudGetFileLinkResult extends PCloudResponse {
 }
 
 /**
- * `getziplink` returns the same host/path shape as `getfilelink` — the archive
- * is served from a content host and the link expires the same way — so the
- * download URL is `https://{hosts[0]}{path}`.
- *
- * Only `savezip` writes a zip into the account; `getziplink` (like `getzip`)
- * builds the archive on pCloud's servers and serves it without leaving a file
- * or folder behind, which is what keeps this client's shelf read-only.
+ * `getziplink` returns the same host/path/expiry shape as `getfilelink`, so the
+ * download URL is `https://{hosts[0]}{path}`. Unlike `savezip` it leaves no file
+ * behind in the account, which keeps this client's shelf read-only.
  */
 export interface PCloudGetZipLinkResult extends PCloudResponse {
   hosts?: string[];

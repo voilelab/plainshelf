@@ -487,9 +487,8 @@ describe('PCloudClient downloads', () => {
 });
 
 describe('PCloudClient.downloadZip', () => {
-  // getziplink is addressed by a comma-joined fileids list, and the archive is
-  // then pulled from the content host it names — the same two-step shape as a
-  // single-file download.
+  // getziplink takes a comma-joined fileids list; the archive is then pulled
+  // from the host it names — the same two-step shape as a single-file download.
   it('requests the given fileids and downloads from the returned host', async () => {
     const fetchImpl = vi.fn().mockImplementation((input: RequestInfo | URL) => {
       if (String(input).includes('getziplink')) {

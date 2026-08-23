@@ -175,8 +175,7 @@ function makeFetch(
       if (override) {
         return override;
       }
-      // Pack each present file under its flat name, exactly as pCloud's getzip
-      // does for a set of fileids and as the server's assets.zip does.
+      // Flat names, as pCloud's getzip and the server's assets.zip both do.
       const entries: Record<string, Uint8Array> = {};
       for (const id of fileids) {
         const name = fileNames.get(id);
@@ -601,9 +600,8 @@ describe('reading a book', () => {
     });
   });
 
-  // The bundle path is what makes a pCloud download as cheap as one to a
-  // PlainShelf server: one getziplink request for a set of figures, whose
-  // fileids the recursive listing already carries, instead of one per file.
+  // One getziplink request for a set of figures, fileids from the listing,
+  // instead of one getfilelink-plus-download per file.
   it('bundles a source assets into one zip, resolving fileids from the listing', async () => {
     const { provider, calls } = makeProvider(
       shelfTree([
@@ -616,8 +614,8 @@ describe('reading a book', () => {
       ])
     );
 
-    // Warm the shelf first — its book.json read uses getfilelink — then baseline
-    // it, so what the bundle adds is measured on its own: no per-file round trip.
+    // Warm the shelf first (its book.json read uses getfilelink), so the bundle's
+    // own getfilelink count is measured from a clean baseline.
     await provider.getBook('a');
     const getfilelinkBefore = calls.getfilelink;
 
@@ -635,8 +633,7 @@ describe('reading a book', () => {
     expect(calls.getfilelink).toBe(getfilelinkBefore);
   });
 
-  // A name the listing does not carry is dropped from the request, not failed:
-  // the reader shows its alt text, exactly as getSourceAsset behaves.
+  // A name the listing lacks is dropped, not failed (reader shows alt text).
   it('skips names the listing does not carry and bundles the rest', async () => {
     const { provider, calls } = makeProvider(
       shelfTree([
@@ -659,9 +656,8 @@ describe('reading a book', () => {
     expect(calls.getziplink).toBe(1);
   });
 
-  // Every requested name absent is not a failure either: an empty archive is
-  // returned without asking pCloud to zip nothing, so the caller stores nothing
-  // and never drops to its slower per-file path over a whole-miss chunk.
+  // All names absent: an empty archive, with no request, so a whole-miss chunk
+  // stores nothing rather than dropping to the slower per-file path.
   it('returns an empty zip without a request when no name is in the listing', async () => {
     const { provider, calls } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
 
@@ -672,8 +668,8 @@ describe('reading a book', () => {
     expect(calls.getziplink).toBe(0);
   });
 
-  // A failed bundle download surfaces as a reachability error, which is what
-  // tells MobileBookshelfProvider to fall back to per-file fetches.
+  // A failed bundle surfaces as a reachability error — the signal that tells
+  // MobileBookshelfProvider to fall back to per-file fetches.
   it('surfaces a failed bundle download so the caller can fall back', async () => {
     const { provider } = makeProvider(
       shelfTree([
