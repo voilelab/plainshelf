@@ -18,6 +18,7 @@ import {
   pickNewestBookCache
 } from '@/api/pcloud/bookCacheFile';
 import type { BookCacheFile } from '@/api/pcloud/bookCacheFile';
+import { zipSync } from 'fflate';
 import { PCloudClient } from '@/api/pcloud/client';
 import type { PCloudItem } from '@/api/pcloud/types';
 import { PCloudDataError, PCloudError, isRetryablePCloudError } from '@/api/pcloud/errors';
@@ -42,6 +43,15 @@ import type { FingerprintStatus, SimilarBookPair } from '@/api/books';
 import type { BookshelfReader, ListBooksOptions } from './bookshelfProvider';
 
 const READ_ONLY_MESSAGE = 'A pCloud shelf is read-only.';
+
+/**
+ * A valid, empty zip archive. Returned by `getSourceAssetsBundle` when none of
+ * the requested illustrations are in the listing, so the caller's unzip finds
+ * nothing to store rather than the whole request failing — the same
+ * absent-name-is-skipped contract `getSourceAsset` follows. Built once; the
+ * bytes never change, and calling `getziplink` with no fileids is avoided.
+ */
+const EMPTY_ZIP = zipSync({});
 
 /**
  * Parallel metadata reads. Each book.json costs two requests (getfilelink plus
@@ -714,6 +724,42 @@ export class PCloudBookshelfProvider implements BookshelfReader {
         throw new PCloudError(`Illustration ${name} was not found for source ${sourceId} of book ${bookId}.`);
       }
       return await this.client.downloadBlob(ref.fileid);
+    });
+  }
+
+  /**
+   * Fetches a source's illustrations as one pCloud-built zip, so a download pays
+   * a single request per chunk instead of one `getfilelink`-plus-download per
+   * figure — the same win the server's assets.zip gives, on the pCloud path.
+   *
+   * The fileids come straight from the recursive listing the shelf is read
+   * through (`BookSourceRef.assets`), so no extra listing is made. A requested
+   * name the listing does not carry is dropped rather than requested — matching
+   * `getSourceAsset`, the reader shows its alt text — and if every name is
+   * absent an empty archive is returned instead of asking pCloud to zip nothing.
+   *
+   * `MobileBookshelfProvider` already caps each call at a bounded number of
+   * names and unzips one entry at a time, so at most one chunk's archive is
+   * resident here; pCloud only reaches zip64 past 65535 entries or 4 GB, well
+   * beyond a chunk, so no further batching is needed.
+   */
+  getSourceAssetsBundle(bookId: string, sourceId: string, names: string[]): Promise<Blob> {
+    return this.guarded(async () => {
+      const source = await this.findSource(bookId, sourceId);
+
+      const fileids: number[] = [];
+      for (const name of names) {
+        const ref = source.assets[name];
+        if (ref) {
+          fileids.push(ref.fileid);
+        }
+      }
+
+      if (fileids.length === 0) {
+        return new Blob([EMPTY_ZIP], { type: 'application/zip' });
+      }
+
+      return await this.client.downloadZip(fileids);
     });
   }
 

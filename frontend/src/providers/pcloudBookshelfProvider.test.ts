@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { strToU8, unzipSync, zipSync } from 'fflate';
 
 import { ApiError } from '@/api/client';
 import { PCloudClient } from '@/api/pcloud/client';
@@ -29,10 +30,13 @@ interface FileSpec {
 
 /** Files keyed by the id the fake pCloud hands out, so downloads can resolve. */
 let fileBodies: Map<number, string>;
+/** File names keyed by id, so a getziplink download can name zip entries. */
+let fileNames: Map<number, string>;
 
 function file(spec: FileSpec): PCloudItem {
   const fileid = nextFileID++;
   fileBodies.set(fileid, spec.body);
+  fileNames.set(fileid, spec.name);
   return {
     name: spec.name,
     isfolder: false,
@@ -115,8 +119,12 @@ function indexFolders(item: PCloudItem, into: Map<number, PCloudItem>): void {
  * The fixture is mounted under SHELF_ROOT so path resolution has real folders
  * to walk segment by segment, which is how the client addresses folders.
  */
-function makeFetch(tree: PCloudItem, onDownload?: (fileid: number) => Promise<Response> | null) {
-  const calls = { listfolder: 0, recursiveListfolder: 0, getfilelink: 0, download: 0 };
+function makeFetch(
+  tree: PCloudItem,
+  onDownload?: (fileid: number) => Promise<Response> | null,
+  onZip?: (fileids: number[]) => Promise<Response> | null
+) {
+  const calls = { listfolder: 0, recursiveListfolder: 0, getfilelink: 0, getziplink: 0, download: 0 };
 
   const segments = SHELF_ROOT.split('/').filter((segment) => segment.length > 0);
   let mounted: PCloudItem = { ...tree, name: segments[segments.length - 1] };
@@ -149,7 +157,37 @@ function makeFetch(tree: PCloudItem, onDownload?: (fileid: number) => Promise<Re
       return Promise.resolve(jsonResponse({ result: 0, hosts: ['c1.pcloud.com'], path: `/dl/${fileid}` }));
     }
 
+    if (url.pathname === '/getziplink') {
+      calls.getziplink += 1;
+      const fileids = url.searchParams.get('fileids') ?? '';
+      return Promise.resolve(jsonResponse({ result: 0, hosts: ['c1.pcloud.com'], path: `/zip/${fileids}` }));
+    }
+
     calls.download += 1;
+
+    if (url.pathname.startsWith('/zip/')) {
+      const fileids = url.pathname
+        .replace('/zip/', '')
+        .split(',')
+        .filter((id) => id.length > 0)
+        .map(Number);
+      const override = onZip?.(fileids);
+      if (override) {
+        return override;
+      }
+      // Pack each present file under its flat name, exactly as pCloud's getzip
+      // does for a set of fileids and as the server's assets.zip does.
+      const entries: Record<string, Uint8Array> = {};
+      for (const id of fileids) {
+        const name = fileNames.get(id);
+        const body = fileBodies.get(id);
+        if (name !== undefined && body !== undefined) {
+          entries[name] = strToU8(body);
+        }
+      }
+      return Promise.resolve(new Response(zipSync(entries)));
+    }
+
     const fileid = Number(url.pathname.replace('/dl/', ''));
     const override = onDownload?.(fileid);
     if (override) {
@@ -178,10 +216,11 @@ function makeProvider(
     nowImpl?: () => number;
     snapshotStore?: ShelfSnapshotStore;
     onDownload?: (fileid: number) => Promise<Response> | null;
+    onZip?: (fileids: number[]) => Promise<Response> | null;
   } = {}
 ) {
-  const { onDownload, ...providerOptions } = overrides;
-  const { fetchImpl, calls } = makeFetch(tree, onDownload);
+  const { onDownload, onZip, ...providerOptions } = overrides;
+  const { fetchImpl, calls } = makeFetch(tree, onDownload, onZip);
   const client = new PCloudClient({
     host: 'api.pcloud.com',
     accessToken: 'token',
@@ -199,6 +238,7 @@ function shelfTree(books: PCloudItem[], extra: PCloudItem[] = []): PCloudItem {
 
 beforeEach(() => {
   fileBodies = new Map();
+  fileNames = new Map();
   nextFolderID = 100;
   nextFileID = 1000;
 });
@@ -559,6 +599,97 @@ describe('reading a book', () => {
       name: 'ApiError',
       isTimeout: false
     });
+  });
+
+  // The bundle path is what makes a pCloud download as cheap as one to a
+  // PlainShelf server: one getziplink request for a set of figures, whose
+  // fileids the recursive listing already carries, instead of one per file.
+  it('bundles a source assets into one zip, resolving fileids from the listing', async () => {
+    const { provider, calls } = makeProvider(
+      shelfTree([
+        bookPackage({
+          id: 'a',
+          title: 'A',
+          content: '![one](assets/img-0001.png) ![two](assets/img-0002.png)',
+          assets: { 'img-0001.png': 'one-bytes', 'img-0002.png': 'two-bytes' }
+        })
+      ])
+    );
+
+    // Warm the shelf first — its book.json read uses getfilelink — then baseline
+    // it, so what the bundle adds is measured on its own: no per-file round trip.
+    await provider.getBook('a');
+    const getfilelinkBefore = calls.getfilelink;
+
+    const zip = await provider.getSourceAssetsBundle('a', '20240101-120000', [
+      'img-0001.png',
+      'img-0002.png'
+    ]);
+    const entries = unzipSync(new Uint8Array(await zip.arrayBuffer()));
+
+    expect(Object.keys(entries).sort()).toEqual(['img-0001.png', 'img-0002.png']);
+    expect(new TextDecoder().decode(entries['img-0001.png'])).toBe('one-bytes');
+    expect(new TextDecoder().decode(entries['img-0002.png'])).toBe('two-bytes');
+    // One request for the pair, and no per-file getfilelink round trips.
+    expect(calls.getziplink).toBe(1);
+    expect(calls.getfilelink).toBe(getfilelinkBefore);
+  });
+
+  // A name the listing does not carry is dropped from the request, not failed:
+  // the reader shows its alt text, exactly as getSourceAsset behaves.
+  it('skips names the listing does not carry and bundles the rest', async () => {
+    const { provider, calls } = makeProvider(
+      shelfTree([
+        bookPackage({
+          id: 'a',
+          title: 'A',
+          content: '![one](assets/img-0001.png)',
+          assets: { 'img-0001.png': 'one-bytes' }
+        })
+      ])
+    );
+
+    const zip = await provider.getSourceAssetsBundle('a', '20240101-120000', [
+      'img-0001.png',
+      'missing.png'
+    ]);
+    const entries = unzipSync(new Uint8Array(await zip.arrayBuffer()));
+
+    expect(Object.keys(entries)).toEqual(['img-0001.png']);
+    expect(calls.getziplink).toBe(1);
+  });
+
+  // Every requested name absent is not a failure either: an empty archive is
+  // returned without asking pCloud to zip nothing, so the caller stores nothing
+  // and never drops to its slower per-file path over a whole-miss chunk.
+  it('returns an empty zip without a request when no name is in the listing', async () => {
+    const { provider, calls } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
+
+    const zip = await provider.getSourceAssetsBundle('a', '20240101-120000', ['gone.png']);
+    const entries = unzipSync(new Uint8Array(await zip.arrayBuffer()));
+
+    expect(entries).toEqual({});
+    expect(calls.getziplink).toBe(0);
+  });
+
+  // A failed bundle download surfaces as a reachability error, which is what
+  // tells MobileBookshelfProvider to fall back to per-file fetches.
+  it('surfaces a failed bundle download so the caller can fall back', async () => {
+    const { provider } = makeProvider(
+      shelfTree([
+        bookPackage({
+          id: 'a',
+          title: 'A',
+          content: '![one](assets/img-0001.png)',
+          assets: { 'img-0001.png': 'one-bytes' }
+        })
+      ]),
+      { onZip: () => Promise.resolve(new Response('boom', { status: 500, statusText: 'Server Error' })) }
+    );
+
+    await expect(
+      provider.getSourceAssetsBundle('a', '20240101-120000', ['img-0001.png'])
+    ).rejects.toMatchObject({ name: 'ApiError' });
   });
 
   it('reports an unknown book and an unknown source', async () => {

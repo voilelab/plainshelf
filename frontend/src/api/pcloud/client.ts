@@ -6,6 +6,7 @@ import {
 import type {
   PCloudApiHost,
   PCloudGetFileLinkResult,
+  PCloudGetZipLinkResult,
   PCloudItem,
   PCloudListFolderResult,
   PCloudUserInfoResult
@@ -364,6 +365,56 @@ export class PCloudClient {
     }
 
     return `https://${host}${res.path}`;
+  }
+
+  /**
+   * Resolves a link to a pCloud-built zip of the given files. Mirrors
+   * `getFileLink`: the link expires, so it is fetched per download.
+   *
+   * `getziplink` — not `savezip` — is used deliberately: it builds the archive
+   * on pCloud's servers and serves it, writing no file or folder into the
+   * account, which is what keeps this client read-only. Passing `fileids`
+   * (rather than a folder or tree) packs exactly the requested files under their
+   * flat names, matching how the PlainShelf server's assets.zip names entries so
+   * one unzip path works for both backends.
+   */
+  async getZipLink(fileids: number[], signal?: AbortSignal): Promise<string> {
+    const res = await this.call<PCloudGetZipLinkResult>(
+      'getziplink',
+      { fileids: fileids.join(',') },
+      signal
+    );
+    const host = res.hosts?.[0];
+
+    if (!host || !res.path) {
+      throw new PCloudError('pCloud getziplink returned no usable download host.');
+    }
+
+    return `https://${host}${res.path}`;
+  }
+
+  /**
+   * Downloads a set of files as one zip archive.
+   *
+   * Same two-step shape as `download`: the link call runs through `call`, so it
+   * gets the metadata timeout, the retry policy and the result-code handling;
+   * the archive transfer runs through `withRequest` on the longer download
+   * budget and stays cancellable through the caller's signal for its whole
+   * length. The caller is responsible for passing at least one fileid.
+   */
+  async downloadZip(fileids: number[], signal?: AbortSignal): Promise<Blob> {
+    const url = await this.getZipLink(fileids, signal);
+
+    // No Authorization header, as in `download`: the content host honours the
+    // link's own credentials and the API token has no business there.
+    return await this.withRequest(url, {}, DOWNLOAD_TIMEOUT_MS, signal, 'zip download', async (res) => {
+      if (!res.ok) {
+        throw new PCloudError(`pCloud zip download failed: HTTP ${res.status} ${res.statusText}`, {
+          status: res.status
+        });
+      }
+      return await res.blob();
+    });
   }
 
   async downloadBlob(fileid: number, signal?: AbortSignal): Promise<Blob> {
