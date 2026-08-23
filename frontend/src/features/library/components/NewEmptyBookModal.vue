@@ -55,7 +55,7 @@ const { t } = useI18n();
 
 const props = defineProps<{
   open: boolean;
-  currentLayerPath?: string;
+  currentFolderPath?: string;
 }>();
 
 const emit = defineEmits<{
@@ -94,7 +94,7 @@ async function onSubmit(): Promise<void> {
     const emptyFile = new File([''], 'empty.txt', { type: 'text/plain' });
     await bookshelfWriter().importBook({
       title: trimmedTitle,
-      layer: props.currentLayerPath,
+      folder: props.currentFolderPath,
       file: emptyFile
     });
     emit('imported', { successCount: 1 });

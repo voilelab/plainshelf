@@ -39,7 +39,7 @@ export interface StorageEstimateResult {
 /** What a manual shelf update found, when the backend can report it. */
 export interface ShelfRefreshResult {
   bookCount: number;
-  layerCount: number;
+  folderCount: number;
 }
 
 /**
@@ -115,8 +115,8 @@ export interface BookshelfReader {
   getFingerprintStatus(): Promise<FingerprintStatus>;
   listTrashedBooks(): Promise<TrashedBook[]>;
 
-  /** Layer paths in the shape `api/layers.ts` returns: '/' for the top level. */
-  listLayers(): Promise<string[]>;
+  /** Folder paths in the shape `api/folders.ts` returns: '/' for the top level. */
+  listFolders(): Promise<string[]>;
 
   listSources(bookId: string): Promise<SourceMeta[]>;
   getSource(bookId: string, sourceId: string): Promise<SourceMeta>;
@@ -176,7 +176,7 @@ export interface BookshelfReader {
 
   /** Opens the host file picker. Changes nothing; the import itself is a write. */
   openLocalBookFiles?(): Promise<string[] | null>;
-  openDesktopLayerFolder?(layerPath: string): Promise<void>;
+  openDesktopFolder?(folderPath: string): Promise<void>;
   openDesktopBookFolder?(bookId: string): Promise<void>;
 
   /**
@@ -216,40 +216,40 @@ export interface BookshelfWriter {
   readonly writable: true;
 
   updateBook(bookId: string, payload: BookUpdateRequest): Promise<Book>;
-  updateBookLayer(bookId: string, layer: string): Promise<void>;
-  /** Duplicates a book into `layer`, returning the copy with its fresh id. */
-  copyBook(bookId: string, layer: string): Promise<Book>;
+  updateBookFolder(bookId: string, folder: string): Promise<void>;
+  /** Duplicates a book into `folder`, returning the copy with its fresh id. */
+  copyBook(bookId: string, folder: string): Promise<Book>;
   deleteBook(bookId: string): Promise<void>;
 
   /**
-   * Layers of another shelf, for the cross-shelf transfer destination picker.
+   * Folders of another shelf, for the cross-shelf transfer destination picker.
    * A read, but it lives on the writer because only a writable multi-shelf
    * backend (the server and desktop) can reach a shelf other than the active
    * one, which is exactly where the transfer flow that needs it runs.
    */
-  listShelfLayers(shelfID: string): Promise<string[]>;
+  listShelfFolders(shelfID: string): Promise<string[]>;
   /**
    * Copies or moves a book from the active shelf to `targetShelfID`, returning
-   * the id of the background task chain to poll. `targetLayer` is a '/'-joined
+   * the id of the background task chain to poll. `targetFolder` is a '/'-joined
    * path; '' lands the book at the target shelf root.
    */
   transferBook(
     bookId: string,
     targetShelfID: string,
-    targetLayer: string,
+    targetFolder: string,
     mode: BookTransferMode
   ): Promise<string>;
   /**
-   * Copies or moves a whole layer (folder) — every book and sub-folder beneath
+   * Copies or moves a whole folder — every book and sub-folder beneath
    * it — from the active shelf to `targetShelfID`, returning the id of the
-   * background task chain to poll. `sourceLayer` and `targetLayer` are '/'-joined
-   * paths; `targetLayer` is the folder's full destination path on the target
+   * background task chain to poll. `sourceFolder` and `targetFolder` are '/'-joined
+   * paths; `targetFolder` is the folder's full destination path on the target
    * shelf.
    */
-  transferLayer(
-    sourceLayer: string,
+  transferFolder(
+    sourceFolder: string,
     targetShelfID: string,
-    targetLayer: string,
+    targetFolder: string,
     mode: BookTransferMode
   ): Promise<string>;
   /** @deprecated Legacy sources only. */
@@ -279,7 +279,7 @@ export interface BookshelfWriter {
    * either way: it creates books in the active shelf exactly as importBook
    * does, from a picker result rather than an upload.
    */
-  importBooksFromLocalPaths?(localPaths: string[], layerPath: string): Promise<DesktopImportBookResult[] | null>;
+  importBooksFromLocalPaths?(localPaths: string[], folderPath: string): Promise<DesktopImportBookResult[] | null>;
 
   createSource(bookId: string, options?: CreateSourceOptions): Promise<SourceMeta>;
   deleteSource(bookId: string, sourceId: string): Promise<void>;

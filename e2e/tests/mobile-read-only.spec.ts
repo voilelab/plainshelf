@@ -80,7 +80,7 @@ test('hides write affordances in the library and on book detail', async ({ page 
     // Shelf editing and server log controls are unavailable on mobile.
     await expect(page.getByRole('link', { name: 'Trash' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /^Import/ })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Add layer' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Add folder' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Logs' })).toHaveCount(0);
     // Downloads is a local-device action and must survive.
     await expect(page.getByRole('link', { name: 'Downloads' })).toHaveCount(1);
@@ -111,7 +111,7 @@ test('stays read-only after an in-app navigation drops the preview query', async
 
     await expect(page.getByRole('button', { name: /^Import/ })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Trash' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Add layer' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Add folder' })).toHaveCount(0);
   } finally {
     await server.dispose();
   }

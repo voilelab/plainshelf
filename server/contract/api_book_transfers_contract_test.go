@@ -60,7 +60,7 @@ func TestAPIBookTransferCopyContract(t *testing.T) {
 	accepted := submitTaskChain(t, env, bookTransfersURL(original.Meta.ID), []byte(`{
 		"mode": "copy",
 		"target_shelf": "`+secondShelfID+`",
-		"target_layer": ["imported"]
+		"target_folder": ["imported"]
 	}`), http.StatusAccepted)
 	chain := waitForTaskChain(t, env, accepted.TaskChainID)
 	if chain.Status != "completed" || chain.Percentage != 100 {
@@ -82,13 +82,13 @@ func TestAPIBookTransferCopyContract(t *testing.T) {
 		t.Errorf("source books = %#v, want just the original", sourceBooks)
 	}
 
-	// The copy is on the target shelf, in the requested layer.
+	// The copy is on the target shelf, in the requested folder.
 	targetBooks := getJSON[[]server.Book](t, env, secondShelfBooksURL())
 	if len(targetBooks) != 1 || targetBooks[0].Meta.ID != newID {
 		t.Fatalf("target books = %#v, want the copy %q", targetBooks, newID)
 	}
-	if !targetBooks[0].Layer.Equal(shelf.FolderPath{"imported"}) {
-		t.Errorf("copy layer = %v, want [imported]", targetBooks[0].Layer)
+	if !targetBooks[0].Folder.Equal(shelf.FolderPath{"imported"}) {
+		t.Errorf("copy folder = %v, want [imported]", targetBooks[0].Folder)
 	}
 	if targetBooks[0].Meta.Title != "Cross Copy" {
 		t.Errorf("copy title = %q, want %q", targetBooks[0].Meta.Title, "Cross Copy")
@@ -121,14 +121,14 @@ func TestAPIBookTransferMoveContract(t *testing.T) {
 		t.Errorf("source books = %#v, want none after a move", sourceBooks)
 	}
 
-	// The target shelf lists it under the original ID, in the source book's layer
-	// (no target_layer was given).
+	// The target shelf lists it under the original ID, in the source book's folder
+	// (no target_folder was given).
 	targetBooks := getJSON[[]server.Book](t, env, secondShelfBooksURL())
 	if len(targetBooks) != 1 || targetBooks[0].Meta.ID != original.Meta.ID {
 		t.Fatalf("target books = %#v, want the moved book %q", targetBooks, original.Meta.ID)
 	}
-	if !targetBooks[0].Layer.Equal(original.Layer) {
-		t.Errorf("moved layer = %v, want the source layer %v", targetBooks[0].Layer, original.Layer)
+	if !targetBooks[0].Folder.Equal(original.Folder) {
+		t.Errorf("moved folder = %v, want the source folder %v", targetBooks[0].Folder, original.Folder)
 	}
 }
 

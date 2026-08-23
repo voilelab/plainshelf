@@ -23,11 +23,11 @@ test('the shared chrome renders from the zh-Hant catalog', async ({ page }) => {
 
     await expect(page.locator('html')).toHaveAttribute('lang', 'zh-Hant');
 
-    // LayerTree: the nav's accessible name and the root button both used to be
+    // FolderTree: the nav's accessible name and the root button both used to be
     // welded in as English.
-    const layersNav = page.getByRole('navigation', { name: '資料夾', exact: true });
-    await expect(layersNav).toBeVisible();
-    await expect(layersNav.getByRole('button', { name: '所有書籍', exact: true })).toBeVisible();
+    const foldersNav = page.getByRole('navigation', { name: '資料夾', exact: true });
+    await expect(foldersNav).toBeVisible();
+    await expect(foldersNav.getByRole('button', { name: '所有書籍', exact: true })).toBeVisible();
 
     // Pagination's edge buttons are icon-only, so their names are the only
     // thing a screen reader gets.
@@ -218,7 +218,7 @@ test('the missing-key pattern matches keys and not ordinary content', () => {
   for (const key of [
     'pagination.firstPage',
     'common.confirm',
-    'layout.layersNavLabel',
+    'layout.foldersNavLabel',
     'settings.shelves.idColumn',
     'notFound.title'
   ]) {

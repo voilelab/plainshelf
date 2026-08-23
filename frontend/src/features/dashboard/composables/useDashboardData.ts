@@ -168,7 +168,7 @@ export function useDashboardData() {
         return;
       }
       // A shelf still running its initial scan answers 503 for every read. The
-      // book listing and the layer tree retry through that, so the dashboard
+      // book listing and the folder tree retry through that, so the dashboard
       // has to as well: otherwise a cold start puts an error in the middle of
       // the home page while the sidebar beside it is quietly recovering.
       if (err instanceof ApiError && err.status === 503) {

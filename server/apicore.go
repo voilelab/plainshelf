@@ -69,7 +69,7 @@ func (c *apiCore) lookupBook(w http.ResponseWriter, shelfData *shelf.ShelfData, 
 }
 
 // lookupBookListing is lookupBook for a handler that also needs the book's
-// layer, which the book itself no longer carries. It writes the same error
+// folder, which the book itself no longer carries. It writes the same error
 // response on failure.
 func (c *apiCore) lookupBookListing(w http.ResponseWriter, shelfData *shelf.ShelfData, bookID string) (shelf.BookListing, bool) {
 	listing, err := shelfData.GetBookListing(bookID)
@@ -110,7 +110,7 @@ func (c *apiCore) loadBook(w http.ResponseWriter, r *http.Request) (*shelf.Shelf
 	return shelfData, book, true
 }
 
-// loadBookListing is loadBook for a handler that also needs the book's layer.
+// loadBookListing is loadBook for a handler that also needs the book's folder.
 func (c *apiCore) loadBookListing(w http.ResponseWriter, r *http.Request) (*shelf.ShelfData, shelf.BookListing, bool) {
 	shelfData, ok := c.resolveShelf(w, r)
 	if !ok {

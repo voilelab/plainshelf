@@ -1,5 +1,5 @@
 <template>
-  <nav class="sidebar-nav-list" :aria-label="t('layout.layersNavLabel')">
+  <nav class="sidebar-nav-list" :aria-label="t('layout.foldersNavLabel')">
     <div
       class="sidebar-nav-item"
       :class="{ active: !selected, 'drop-target': isRootDropTarget }"
@@ -17,23 +17,23 @@
 
     <TreeRoot
       v-slot="{ flattenItems }"
-      class="layer-tree-root"
+      class="folder-tree-root"
       :items="nodes"
-      :get-key="(node: LayerNode) => node.path"
+      :get-key="(node: FolderNode) => node.path"
       :get-children="getChildren"
       :model-value="selectedTreeNode"
       v-model:expanded="expanded"
     >
       <ContextMenuRoot v-for="item in flattenItems" :key="item._id">
-        <ContextMenuTrigger as-child :disabled="readOnly || !canManageLayer(item.value)">
+        <ContextMenuTrigger as-child :disabled="readOnly || !canManageFolder(item.value)">
           <TreeItem
             v-slot="{ isExpanded, handleToggle }"
             v-bind="item.bind"
             as="div"
-            class="sidebar-nav-item layer-node"
+            class="sidebar-nav-item folder-node"
             :class="{ active: isSelected(item.value), 'drop-target': dropTargetPath === item.value.path }"
             :style="{ paddingLeft: `calc(8px + ${(item.level - 1) * 14}px)` }"
-            :draggable="canDragLayer(item.value)"
+            :draggable="canDragFolder(item.value)"
             @dragstart="(event: DragEvent) => onDragStart(event, item.value)"
             @drag="onDrag"
             @dragend="() => onDragEnd(item.value)"
@@ -47,7 +47,7 @@
               v-if="hasChildren(item.value)"
               type="button"
               class="tree-toggle"
-              :aria-label="isExpanded ? 'Collapse layer' : 'Expand layer'"
+              :aria-label="isExpanded ? 'Collapse folder' : 'Expand folder'"
               @click.stop="handleToggle"
             >
               {{ isExpanded ? '▼' : '▶' }}
@@ -61,43 +61,43 @@
             >
               {{ item.value.name }}
             </button>
-            <span class="sidebar-nav-count">{{ layerBookCount(item.value) }}</span>
+            <span class="sidebar-nav-count">{{ folderBookCount(item.value) }}</span>
           </TreeItem>
         </ContextMenuTrigger>
         <ContextMenuPortal>
           <ContextMenuContent class="reka-menu">
             <ContextMenuItem
-              v-if="props.canOpenLayerFolder && canManageLayer(item.value)"
+              v-if="props.canOpenFolder && canManageFolder(item.value)"
               class="reka-menu-item"
-              @select="emit('open-layer-folder', item.value.path)"
-            >{{ t('layout.openLayerFolder.shortAction') }}</ContextMenuItem>
+              @select="emit('open-folder', item.value.path)"
+            >{{ t('layout.openFolder.shortAction') }}</ContextMenuItem>
             <ContextMenuItem
-              v-if="props.canTransferLayer && canManageLayer(item.value)"
+              v-if="props.canTransferFolder && canManageFolder(item.value)"
               class="reka-menu-item"
-              @select="emit('transfer-layer', item.value.path)"
-            >{{ t('layout.transferLayer.shortAction') }}</ContextMenuItem>
+              @select="emit('transfer-folder', item.value.path)"
+            >{{ t('layout.transferFolder.shortAction') }}</ContextMenuItem>
             <ContextMenuItem
               class="reka-menu-item"
-              @select="emit('rename-layer', item.value.path)"
-            >{{ t('layout.renameLayer.shortAction') }}</ContextMenuItem>
+              @select="emit('rename-folder', item.value.path)"
+            >{{ t('layout.renameFolder.shortAction') }}</ContextMenuItem>
             <ContextMenuItem
               v-if="showDeleteButton(item.value)"
               class="reka-menu-item danger"
               :disabled="isDeleting(item.value)"
-              @select="onDeleteLayer(item.value)"
-            >{{ t('layout.deleteLayer.shortAction') }}</ContextMenuItem>
+              @select="onDeleteFolder(item.value)"
+            >{{ t('layout.deleteFolder.shortAction') }}</ContextMenuItem>
           </ContextMenuContent>
         </ContextMenuPortal>
       </ContextMenuRoot>
     </TreeRoot>
 
     <div
-      v-if="dragLayer"
-      class="layer-drag-preview"
-      :style="{ transform: `translate3d(${dragLayer.x + 12}px, ${dragLayer.y + 12}px, 0)` }"
+      v-if="dragFolder"
+      class="folder-drag-preview"
+      :style="{ transform: `translate3d(${dragFolder.x + 12}px, ${dragFolder.y + 12}px, 0)` }"
       aria-hidden="true"
     >
-      {{ dragLayer.layerName }}
+      {{ dragFolder.folderName }}
     </div>
   </nav>
 </template>
@@ -115,31 +115,31 @@ import {
 } from 'reka-ui';
 import { useBookStore } from '@/composables/useBookStore';
 import { useI18n } from '@/i18n';
-import { getLayerPath } from '@/utils/layers';
+import { getFolderPath } from '@/utils/folders';
 
-type LayerNode = {
+type FolderNode = {
   name: string;
   path: string;
-  children: LayerNode[];
+  children: FolderNode[];
 };
 
 const props = defineProps<{
-  nodes: LayerNode[];
+  nodes: FolderNode[];
   selected: string | undefined;
   deletingMap?: Record<string, boolean>;
   readOnly?: boolean;
-  canOpenLayerFolder?: boolean;
-  canTransferLayer?: boolean;
+  canOpenFolder?: boolean;
+  canTransferFolder?: boolean;
 }>();
 
 const emit = defineEmits<{
   select: [path: string];
-  'move-book': [payload: { bookIds: string[]; targetLayer: string; batch: boolean }];
-  'delete-layer': [path: string];
-  'rename-layer': [path: string];
-  'open-layer-folder': [path: string];
-  'transfer-layer': [path: string];
-  'move-layer': [payload: { layerPath: string; targetLayer: string }];
+  'move-book': [payload: { bookIds: string[]; targetFolder: string; batch: boolean }];
+  'delete-folder': [path: string];
+  'rename-folder': [path: string];
+  'open-folder': [path: string];
+  'transfer-folder': [path: string];
+  'move-folder': [payload: { folderPath: string; targetFolder: string }];
 }>();
 
 const { t } = useI18n();
@@ -147,11 +147,11 @@ const { books } = useBookStore();
 
 const totalBookCount = computed(() => books.value.length);
 
-const bookCountByLayer = computed(() => {
+const bookCountByFolder = computed(() => {
   const counts = new Map<string, number>();
   for (const book of books.value) {
-    const layer = getLayerPath(book);
-    counts.set(layer, (counts.get(layer) ?? 0) + 1);
+    const folder = getFolderPath(book);
+    counts.set(folder, (counts.get(folder) ?? 0) + 1);
   }
   return counts;
 });
@@ -162,19 +162,19 @@ const bookCountByLayer = computed(() => {
  * `aria-expanded` purposes. Returning `undefined` for empty arrays keeps
  * leaf nodes free of `aria-expanded`, matching the original markup.
  */
-function getChildren(node: LayerNode): LayerNode[] | undefined {
+function getChildren(node: FolderNode): FolderNode[] | undefined {
   return node.children.length > 0 ? node.children : undefined;
 }
 
-function hasChildren(node: LayerNode): boolean {
+function hasChildren(node: FolderNode): boolean {
   return node.children.length > 0;
 }
 
-function isSelected(node: LayerNode): boolean {
+function isSelected(node: FolderNode): boolean {
   return node.path === props.selected;
 }
 
-function findNodeByPath(nodes: LayerNode[], path: string): LayerNode | undefined {
+function findNodeByPath(nodes: FolderNode[], path: string): FolderNode | undefined {
   for (const node of nodes) {
     if (node.path === path) {
       return node;
@@ -188,7 +188,7 @@ function findNodeByPath(nodes: LayerNode[], path: string): LayerNode | undefined
 }
 
 /**
- * Drive Reka's selection model from the app's selected layer so
+ * Drive Reka's selection model from the app's selected folder so
  * aria-selected always matches the actual navigation state. Label clicks
  * bypass TreeItem's built-in select (@click.stop), and keyboard selection
  * would otherwise leave Reka's uncontrolled model stale.
@@ -197,53 +197,53 @@ const selectedTreeNode = computed(() =>
   props.selected ? findNodeByPath(props.nodes, props.selected) : undefined
 );
 
-function layerBookCount(node: LayerNode): number {
-  return bookCountByLayer.value.get(node.path) ?? 0;
+function folderBookCount(node: FolderNode): number {
+  return bookCountByFolder.value.get(node.path) ?? 0;
 }
 
-function canManageLayer(node: LayerNode): boolean {
+function canManageFolder(node: FolderNode): boolean {
   return node.path !== '/';
 }
 
-function showDeleteButton(node: LayerNode): boolean {
-  return canManageLayer(node) && !props.readOnly && layerBookCount(node) === 0;
+function showDeleteButton(node: FolderNode): boolean {
+  return canManageFolder(node) && !props.readOnly && folderBookCount(node) === 0;
 }
 
-function canDragLayer(node: LayerNode): boolean {
-  return canManageLayer(node) && !props.readOnly;
+function canDragFolder(node: FolderNode): boolean {
+  return canManageFolder(node) && !props.readOnly;
 }
 
-function isDeleting(node: LayerNode): boolean {
+function isDeleting(node: FolderNode): boolean {
   return props.deletingMap?.[node.path] ?? false;
 }
 
-function onDeleteLayer(node: LayerNode): void {
+function onDeleteFolder(node: FolderNode): void {
   if (isDeleting(node)) {
     return;
   }
 
-  emit('delete-layer', node.path);
+  emit('delete-folder', node.path);
 }
 
 const expanded = ref<string[]>([]);
 const isRootDropTarget = ref(false);
 const dropTargetPath = ref<string | null>(null);
-const dragLayer = ref<{ layerPath: string; layerName: string; x: number; y: number } | null>(null);
+const dragFolder = ref<{ folderPath: string; folderName: string; x: number; y: number } | null>(null);
 
-function startDragLayer(payload: { layerPath: string; layerName: string; x: number; y: number }): void {
-  dragLayer.value = payload;
+function startDragFolder(payload: { folderPath: string; folderName: string; x: number; y: number }): void {
+  dragFolder.value = payload;
 }
 
-function moveDragLayer(payload: { x: number; y: number }): void {
-  if (!dragLayer.value) {
+function moveDragFolder(payload: { x: number; y: number }): void {
+  if (!dragFolder.value) {
     return;
   }
 
-  dragLayer.value = { ...dragLayer.value, ...payload };
+  dragFolder.value = { ...dragFolder.value, ...payload };
 }
 
-function endDragLayer(): void {
-  dragLayer.value = null;
+function endDragFolder(): void {
+  dragFolder.value = null;
   isRootDropTarget.value = false;
 }
 
@@ -251,38 +251,38 @@ function emitPointerPosition(event: DragEvent): void {
   if (event.clientX === 0 && event.clientY === 0) {
     return;
   }
-  moveDragLayer({ x: event.clientX, y: event.clientY });
+  moveDragFolder({ x: event.clientX, y: event.clientY });
 }
 
 function onDrag(event: DragEvent): void {
   emitPointerPosition(event);
 }
 
-function onDragStart(event: DragEvent, node: LayerNode): void {
-  if (!canDragLayer(node)) {
+function onDragStart(event: DragEvent, node: FolderNode): void {
+  if (!canDragFolder(node)) {
     event.preventDefault();
     return;
   }
 
-  event.dataTransfer?.setData('application/x-plainshelf-layer-path', node.path);
+  event.dataTransfer?.setData('application/x-plainshelf-folder-path', node.path);
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move';
   }
-  startDragLayer({ layerPath: node.path, layerName: node.name, x: event.clientX, y: event.clientY });
+  startDragFolder({ folderPath: node.path, folderName: node.name, x: event.clientX, y: event.clientY });
 }
 
-function onDragEnd(node: LayerNode): void {
+function onDragEnd(node: FolderNode): void {
   if (dropTargetPath.value === node.path) {
     dropTargetPath.value = null;
   }
-  endDragLayer();
+  endDragFolder();
 }
 
-function onDragEnter(node: LayerNode): void {
+function onDragEnter(node: FolderNode): void {
   dropTargetPath.value = node.path;
 }
 
-function onDragLeave(event: DragEvent, node: LayerNode): void {
+function onDragLeave(event: DragEvent, node: FolderNode): void {
   const currentTarget = event.currentTarget;
   const relatedTarget = event.relatedTarget;
   if (!(currentTarget instanceof Node) || (relatedTarget instanceof Node && currentTarget.contains(relatedTarget))) {
@@ -293,11 +293,11 @@ function onDragLeave(event: DragEvent, node: LayerNode): void {
   }
 }
 
-function onDrop(event: DragEvent, node: LayerNode): void {
+function onDrop(event: DragEvent, node: FolderNode): void {
   if (dropTargetPath.value === node.path) {
     dropTargetPath.value = null;
   }
-  endDragLayer();
+  endDragFolder();
 
   if (props.readOnly) {
     return;
@@ -305,20 +305,20 @@ function onDrop(event: DragEvent, node: LayerNode): void {
 
   const draggedBooks = readDraggedBookIDs(event.dataTransfer);
   if (draggedBooks.ids.length > 0) {
-    emit('move-book', { bookIds: draggedBooks.ids, targetLayer: node.path, batch: draggedBooks.batch });
+    emit('move-book', { bookIds: draggedBooks.ids, targetFolder: node.path, batch: draggedBooks.batch });
     return;
   }
 
-  const layerPath = event.dataTransfer?.getData('application/x-plainshelf-layer-path');
-  if (!layerPath || layerPath === node.path || node.path.startsWith(`${layerPath}/`)) {
+  const folderPath = event.dataTransfer?.getData('application/x-plainshelf-folder-path');
+  if (!folderPath || folderPath === node.path || node.path.startsWith(`${folderPath}/`)) {
     return;
   }
-  emit('move-layer', { layerPath, targetLayer: node.path });
+  emit('move-folder', { folderPath, targetFolder: node.path });
 }
 
 function onRootDragOver(event: DragEvent): void {
   if (event.clientX !== 0 || event.clientY !== 0) {
-    moveDragLayer({ x: event.clientX, y: event.clientY });
+    moveDragFolder({ x: event.clientX, y: event.clientY });
   }
 }
 
@@ -340,16 +340,16 @@ function onRootDrop(event: DragEvent): void {
 
   const draggedBooks = readDraggedBookIDs(event.dataTransfer);
   if (draggedBooks.ids.length > 0) {
-    emit('move-book', { bookIds: draggedBooks.ids, targetLayer: '/', batch: draggedBooks.batch });
-    endDragLayer();
+    emit('move-book', { bookIds: draggedBooks.ids, targetFolder: '/', batch: draggedBooks.batch });
+    endDragFolder();
     return;
   }
 
-  const layerPath = event.dataTransfer?.getData('application/x-plainshelf-layer-path');
-  if (layerPath) {
-    emit('move-layer', { layerPath, targetLayer: '/' });
+  const folderPath = event.dataTransfer?.getData('application/x-plainshelf-folder-path');
+  if (folderPath) {
+    emit('move-folder', { folderPath, targetFolder: '/' });
   }
-  endDragLayer();
+  endDragFolder();
 }
 
 function readDraggedBookIDs(dataTransfer: DataTransfer | null): { ids: string[]; batch: boolean } {
@@ -403,7 +403,7 @@ watch(
 </script>
 
 <style scoped>
-.layer-tree-root {
+.folder-tree-root {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -422,12 +422,12 @@ watch(
   outline: 1px solid #93c5fd;
 }
 
-.layer-node {
+.folder-node {
   gap: 4px;
   padding-right: 4px;
 }
 
-.layer-node :deep(.sidebar-nav-item-label) {
+.folder-node :deep(.sidebar-nav-item-label) {
   flex: 1;
   min-width: 0;
   width: auto;
@@ -456,7 +456,7 @@ watch(
   background: #e6edf8;
 }
 
-.layer-drag-preview {
+.folder-drag-preview {
   background: rgba(15, 23, 42, 0.92);
   border-radius: 8px;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);

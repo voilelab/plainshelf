@@ -17,8 +17,8 @@ type ScanResponse struct {
 	// exported book cache gives its own timestamp.
 	ScannedAt int64 `json:"scanned_at"`
 
-	BookCount  int `json:"book_count"`
-	LayerCount int `json:"layer_count"`
+	BookCount   int `json:"book_count"`
+	FolderCount int `json:"folder_count"`
 }
 
 // ScanConflictResponse names the rescan already walking the shelf, so a client
@@ -59,12 +59,12 @@ func (h *shelfHandlers) rescanShelf(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		h.writeErr(w, err, "failed to rescan shelf")
 	default:
-		h.Info("rescanned shelf", "shelf_id", shelfData.ID, "scan_id", result.ID, "books", result.BookCount, "layers", result.FolderCount)
+		h.Info("rescanned shelf", "shelf_id", shelfData.ID, "scan_id", result.ID, "books", result.BookCount, "folders", result.FolderCount)
 		h.writeJSON(w, http.StatusOK, ScanResponse{
-			ScanID:     result.ID,
-			ScannedAt:  result.StartedAt.Unix(),
-			BookCount:  result.BookCount,
-			LayerCount: result.FolderCount,
+			ScanID:      result.ID,
+			ScannedAt:   result.StartedAt.Unix(),
+			BookCount:   result.BookCount,
+			FolderCount: result.FolderCount,
 		})
 	}
 }

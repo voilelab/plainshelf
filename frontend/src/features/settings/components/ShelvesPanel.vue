@@ -484,7 +484,7 @@ onMounted(() => {
   justify-content: flex-end;
 }
 
-.create-layer-submit {
+.create-folder-submit {
   background: #2563eb;
   border: 1px solid #1d4ed8;
   border-radius: 6px;
@@ -495,7 +495,7 @@ onMounted(() => {
   padding: 6px 14px;
 }
 
-.create-layer-submit:disabled {
+.create-folder-submit:disabled {
   cursor: not-allowed;
   opacity: 0.6;
 }

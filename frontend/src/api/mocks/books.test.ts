@@ -18,11 +18,11 @@ describe('mock book listing shape', () => {
 });
 
 describe('mockCopyBook', () => {
-  it('gives the copy a fresh id in the target layer', () => {
+  it('gives the copy a fresh id in the target folder', () => {
     const copy = mockCopyBook('book-1', 'fiction/copies');
 
     expect(copy.id).not.toBe('book-1');
-    expect(copy.layers).toEqual(['fiction', 'copies']);
+    expect(copy.folders).toEqual(['fiction', 'copies']);
     // The copy is discoverable as its own book.
     expect(mockGetBook(copy.id).id).toBe(copy.id);
   });

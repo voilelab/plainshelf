@@ -3,11 +3,11 @@
   "cases": [
     {
       "name": "plain-book",
-      "covers": "A complete book in a layer, plus a book that has no sources folder at all."
+      "covers": "A complete book in a folder, plus a book that has no sources folder at all."
     },
     {
-      "name": "empty-layer",
-      "covers": "Layer directories holding no book, including a nested one, are still layers."
+      "name": "empty-folder",
+      "covers": "Folder directories holding no book, including a nested one, are still folders."
     },
     {
       "name": "dangling-current-source",
@@ -23,7 +23,7 @@
     },
     {
       "name": "ignored-dirs",
-      "covers": "System directories (@eaDir, .stfolder, #recycle, $RECYCLE.BIN, lost+found) are neither layers nor book containers."
+      "covers": "System directories (@eaDir, .stfolder, #recycle, $RECYCLE.BIN, lost+found) are neither folders nor book containers."
     },
     {
       "name": "multi-writer-cache",

@@ -163,10 +163,10 @@ export class MobileBookshelfProvider implements BookshelfReader {
     throw new Error(OFFLINE_BOOK_CACHE_MISS_ERROR);
   }
 
-  // Delegated without an offline branch: the layer store surfaces a failure in
+  // Delegated without an offline branch: the folder store surfaces a failure in
   // the sidebar, which is what the server path already does when unreachable.
-  listLayers(): Promise<string[]> {
-    return this.remote.listLayers();
+  listFolders(): Promise<string[]> {
+    return this.remote.listFolders();
   }
 
 

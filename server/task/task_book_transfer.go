@@ -19,40 +19,40 @@ const (
 )
 
 // BookTransferResult is what a client reads back from the chain once a
-// cross-shelf transfer settles. On success BookID and Layer name where the book
+// cross-shelf transfer settles. On success BookID and Folder name where the book
 // landed on the target; on failure FailureCode classifies why, the same way the
 // batch task's failure codes do.
 type BookTransferResult struct {
-	Operation    string       `json:"operation"`
-	SourceShelf  string       `json:"source_shelf"`
-	TargetShelf  string       `json:"target_shelf"`
-	SourceBookID string       `json:"source_book_id"`
-	BookID       string       `json:"book_id,omitempty"`
-	Layer        shelf.FolderPath `json:"layer,omitempty"`
-	FailureCode  string       `json:"failure_code,omitempty"`
+	Operation    string           `json:"operation"`
+	SourceShelf  string           `json:"source_shelf"`
+	TargetShelf  string           `json:"target_shelf"`
+	SourceBookID string           `json:"source_book_id"`
+	BookID       string           `json:"book_id,omitempty"`
+	Folder       shelf.FolderPath `json:"folder,omitempty"`
+	FailureCode  string           `json:"failure_code,omitempty"`
 }
 
 type bookTransferTask struct {
-	source      *shelf.Shelf
-	target      *shelf.Shelf
-	logger      *logutil.Logger
-	operation   string
-	bookID      string
-	targetLayer shelf.FolderPath
+	source       *shelf.Shelf
+	target       *shelf.Shelf
+	logger       *logutil.Logger
+	operation    string
+	bookID       string
+	targetFolder shelf.FolderPath
 
 	progress taskutil.Progress
 	mu       sync.Mutex
 	result   BookTransferResult
 }
 
-func newBookTransferTask(sourceShelfID string, source *shelf.Shelf, targetShelfID string, target *shelf.Shelf, logger *logutil.Logger, operation, bookID string, targetLayer shelf.FolderPath) *bookTransferTask {
+func newBookTransferTask(sourceShelfID string, source *shelf.Shelf, targetShelfID string, target *shelf.Shelf, logger *logutil.Logger, operation, bookID string, targetFolder shelf.FolderPath) *bookTransferTask {
 	return &bookTransferTask{
-		source:      source,
-		target:      target,
-		logger:      logger,
-		operation:   operation,
-		bookID:      bookID,
-		targetLayer: append(shelf.FolderPath(nil), targetLayer...),
+		source:       source,
+		target:       target,
+		logger:       logger,
+		operation:    operation,
+		bookID:       bookID,
+		targetFolder: append(shelf.FolderPath(nil), targetFolder...),
 		result: BookTransferResult{
 			Operation:    operation,
 			SourceShelf:  sourceShelfID,
@@ -97,7 +97,7 @@ func (t *bookTransferTask) Result() any {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	result := t.result
-	result.Layer = append(shelf.FolderPath(nil), t.result.Layer...)
+	result.Folder = append(shelf.FolderPath(nil), t.result.Folder...)
 	return result
 }
 
@@ -133,18 +133,18 @@ func (t *bookTransferTask) Run(ctx context.Context) error {
 		err  error
 	)
 	if t.operation == BookTransferOperationMove {
-		book, err = t.target.MoveBookFrom(t.source, t.bookID, t.targetLayer)
+		book, err = t.target.MoveBookFrom(t.source, t.bookID, t.targetFolder)
 	} else {
-		book, err = t.target.CopyBookFrom(t.source, t.bookID, t.targetLayer, false)
+		book, err = t.target.CopyBookFrom(t.source, t.bookID, t.targetFolder, false)
 	}
 
 	t.mu.Lock()
 	if err != nil {
 		t.result.FailureCode = failureCode(t.operation, err)
 	} else {
-		// The book landed under targetLayer; the book itself does not carry it.
+		// The book landed under targetFolder; the book itself does not carry it.
 		t.result.BookID = book.ID()
-		t.result.Layer = append(shelf.FolderPath(nil), t.targetLayer...)
+		t.result.Folder = append(shelf.FolderPath(nil), t.targetFolder...)
 	}
 	t.mu.Unlock()
 
@@ -167,13 +167,13 @@ func (t *bookTransferTask) Run(ctx context.Context) error {
 
 // NewBookTransferChain builds the one-task chain that copies or moves a single
 // book from one shelf to another. The dedupe key folds in both shelves, the
-// operation, the book and the destination layer so that re-submitting the same
+// operation, the book and the destination folder so that re-submitting the same
 // transfer attaches to the one already running instead of starting a second.
-func NewBookTransferChain(sourceShelfID string, source *shelf.Shelf, targetShelfID string, target *shelf.Shelf, logger *logutil.Logger, operation, bookID string, targetLayer shelf.FolderPath) *taskutil.TaskChain {
+func NewBookTransferChain(sourceShelfID string, source *shelf.Shelf, targetShelfID string, target *shelf.Shelf, logger *logutil.Logger, operation, bookID string, targetFolder shelf.FolderPath) *taskutil.TaskChain {
 	key := strings.Join([]string{
-		BookTransferTaskName, sourceShelfID, targetShelfID, operation, bookID, targetLayer.String(),
+		BookTransferTaskName, sourceShelfID, targetShelfID, operation, bookID, targetFolder.String(),
 	}, ":")
-	task := newBookTransferTask(sourceShelfID, source, targetShelfID, target, logger, operation, bookID, targetLayer)
+	task := newBookTransferTask(sourceShelfID, source, targetShelfID, target, logger, operation, bookID, targetFolder)
 	return &taskutil.TaskChain{
 		Key:         key,
 		Name:        BookTransferTaskName,

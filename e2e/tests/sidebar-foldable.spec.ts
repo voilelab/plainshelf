@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
 import { startServer } from './support/server';
-import { addLayer, layersNav, layersSectionToggle } from './support/layers';
+import { addFolder, foldersNav, foldersSectionToggle } from './support/folders';
 
 const foldableSections = [
-  { name: 'Toggle sidebar folders', controlledId: 'sidebar-section-layers' },
+  { name: 'Toggle sidebar folders', controlledId: 'sidebar-section-folders' },
   { name: 'Toggle sidebar history', controlledId: 'sidebar-section-reading' },
   { name: 'Toggle sidebar maintenance', controlledId: 'sidebar-section-maintenance' },
   { name: 'Toggle sidebar administration', controlledId: 'sidebar-section-admin' }
@@ -37,18 +37,18 @@ test('sidebar sections collapse and expand their contents', async ({ page }) => 
   }
 });
 
-test('layer helpers still work after the foldable Layers section is toggled', async ({ page }) => {
+test('folder helpers still work after the foldable Folders section is toggled', async ({ page }) => {
   const server = await startServer();
 
   try {
     await page.goto(`${server.baseUrl}/books`);
     await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
 
-    await layersSectionToggle(page).click();
-    await expect(layersNav(page)).toBeHidden();
+    await foldersSectionToggle(page).click();
+    await expect(foldersNav(page)).toBeHidden();
 
-    await addLayer(page, 'foldable');
-    await expect(layersNav(page).getByRole('button', { name: 'foldable', exact: true })).toBeVisible();
+    await addFolder(page, 'foldable');
+    await expect(foldersNav(page).getByRole('button', { name: 'foldable', exact: true })).toBeVisible();
   } finally {
     await server.dispose();
   }

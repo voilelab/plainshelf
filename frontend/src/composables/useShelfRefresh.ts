@@ -2,7 +2,7 @@ import { ref } from 'vue';
 import { ShelfScanInProgressError } from '@/api/shelves';
 import { getBookshelfProvider } from '@/providers';
 import { useBookStore } from './useBookStore';
-import { useLayerStore } from './useLayerStore';
+import { useFolderStore } from './useFolderStore';
 import { useToasts } from './useToasts';
 import { t } from '@/i18n';
 
@@ -53,11 +53,11 @@ export function useShelfRefresh() {
       // Only after the shelf itself succeeded: on failure the previous listing
       // is still the current one, and re-fetching would just redraw it.
       const { fetchBooks } = useBookStore();
-      const { fetchLayers } = useLayerStore();
-      await Promise.all([fetchBooks(), fetchLayers()]);
+      const { fetchFolders } = useFolderStore();
+      await Promise.all([fetchBooks(), fetchFolders()]);
       await loadLastSyncedAt();
       if (result) {
-        showToast(t('library.scanFound', { books: result.bookCount, layers: result.layerCount }));
+        showToast(t('library.scanFound', { books: result.bookCount, folders: result.folderCount }));
       }
     } catch (err) {
       // The one refusal that is not a failure: another client is already
@@ -65,7 +65,7 @@ export function useShelfRefresh() {
       // retry, and the previous listing is still correct in the meantime. That
       // makes it a remark about this press, not a state the page has to keep
       // showing, so it goes to a toast while real failures stay on the page.
-      // Translated here because the api and provider layers hold no strings.
+      // Translated here because the api and provider folders hold no strings.
       if (err instanceof ShelfScanInProgressError) {
         showToast(t('library.scanInProgress'));
       } else {

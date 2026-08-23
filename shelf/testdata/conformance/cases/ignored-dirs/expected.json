@@ -1,12 +1,12 @@
 {
-  "layers": [
+  "folders": [
     "/",
     "Poetry"
   ],
   "books": [
     {
       "path": "books/Poetry/haiku.bookpkg",
-      "layers": [
+      "folders": [
         "Poetry"
       ],
       "id": "h8n3rq6vz2ktm4xd",

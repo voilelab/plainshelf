@@ -13,7 +13,7 @@ import { bookPackagePath, findBookCacheFiles, parseBookCacheFile } from './bookC
 import type { BookJson, PCloudFileRef } from './bookpkg';
 import {
   collectBookPackages,
-  collectLayers,
+  collectFolders,
   findBooksFolder,
   findCoverFile,
   findCurrentSource,
@@ -58,7 +58,7 @@ interface ExpectedSource {
 
 interface ExpectedBook {
   path: string;
-  layers: string[];
+  folders: string[];
   id: string;
   title: string;
   format: string;
@@ -81,7 +81,7 @@ interface ExpectedBookCache {
 }
 
 interface ExpectedReading {
-  layers: string[];
+  folders: string[];
   books: ExpectedBook[];
   book_caches: ExpectedBookCache[];
 }
@@ -156,7 +156,7 @@ function readCase(shelfDir: string): ExpectedReading {
 
     books.push({
       path: bookPackagePath(pkg),
-      layers: pkg.layers,
+      folders: pkg.folders,
       id: meta.id,
       title: meta.title,
       format: meta.format ?? '',
@@ -191,7 +191,7 @@ function readCase(shelfDir: string): ExpectedReading {
   });
   bookCaches.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
-  return { layers: collectLayers(booksFolder), books, book_caches: bookCaches };
+  return { folders: collectFolders(booksFolder), books, book_caches: bookCaches };
 }
 
 const manifest = readJsonFile<Manifest>(join(DATASET_ROOT, 'manifest.json'));

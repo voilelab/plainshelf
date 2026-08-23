@@ -39,7 +39,7 @@ import type { BookActivation } from '@/types/bookSelection';
 import { useI18n } from '@/i18n';
 import BookSelectionCheckbox from './BookSelectionCheckbox.vue';
 import { useBookItemInteractions } from '@/composables/useBookItemInteractions';
-import { getLayerPath, layerPathLabel } from '@/utils/layers';
+import { getFolderPath, folderPathLabel } from '@/utils/folders';
 
 const props = withDefaults(defineProps<{
   books: Book[];
@@ -76,10 +76,10 @@ function compactMeta(book: Book): string {
     metaParts.push(book.language.toUpperCase());
   }
 
-  const path = getLayerPath(book);
-  const layer = path === '' ? '/' : layerPathLabel(path);
-  if (layer) {
-    metaParts.push(layer);
+  const path = getFolderPath(book);
+  const folder = path === '' ? '/' : folderPathLabel(path);
+  if (folder) {
+    metaParts.push(folder);
   }
 
   return metaParts.join(' · ') || 'No metadata';

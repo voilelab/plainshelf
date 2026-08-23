@@ -87,7 +87,7 @@ func (s *Shelf) DeleteFolder(folder FolderPath) error {
 	}
 
 	if len(entries) > 0 {
-		return util.Errorf("cannot delete non-empty layer")
+		return util.Errorf("cannot delete non-empty folder")
 	}
 
 	err = root.RemoveAll(folderPath)
@@ -107,16 +107,16 @@ func (s *Shelf) DeleteFolder(folder FolderPath) error {
 // old one's parent, so a rename can never move the folder to a different parent.
 func (s *Shelf) RenameFolder(folder FolderPath, newName string) error {
 	if len(folder) == 0 {
-		return util.Errorf("cannot rename root layer")
+		return util.Errorf("cannot rename root folder")
 	}
 
 	newFolder := append(append(FolderPath(nil), folder[:len(folder)-1]...), newName)
 
 	if err := validateFolderPath(folder); err != nil {
-		return util.Errorf("invalid old layer: %w", err)
+		return util.Errorf("invalid old folder: %w", err)
 	}
 	if err := validateFolderPath(newFolder); err != nil {
-		return util.Errorf("invalid new layer: %w", err)
+		return util.Errorf("invalid new folder: %w", err)
 	}
 
 	root, err := s.writeRoot()
@@ -134,13 +134,13 @@ func (s *Shelf) RenameFolder(folder FolderPath, newName string) error {
 
 	if _, err := s.dbRoot.Stat(oldFolderPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return util.Errorf("old layer does not exist")
+			return util.Errorf("old folder does not exist")
 		}
 		return util.Errorf("%w", err)
 	}
 
 	if _, err := s.dbRoot.Stat(newFolderPath); err == nil {
-		return util.Errorf("new layer already exists")
+		return util.Errorf("new folder already exists")
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return util.Errorf("%w", err)
 	}
@@ -163,13 +163,13 @@ func (s *Shelf) RenameFolder(folder FolderPath, newName string) error {
 // MoveFolder moves an existing folder under an existing target parent folder without renaming it.
 func (s *Shelf) MoveFolder(folder FolderPath, targetParent FolderPath) error {
 	if err := validateFolderPath(folder); err != nil {
-		return util.Errorf("invalid layer: %w", err)
+		return util.Errorf("invalid folder: %w", err)
 	}
 	if err := validateFolderPath(targetParent); err != nil {
-		return util.Errorf("invalid target layer: %w", err)
+		return util.Errorf("invalid target folder: %w", err)
 	}
 	if len(folder) == 0 {
-		return util.Errorf("cannot move root layer")
+		return util.Errorf("cannot move root folder")
 	}
 
 	root, err := s.writeRoot()
@@ -187,28 +187,28 @@ func (s *Shelf) MoveFolder(folder FolderPath, targetParent FolderPath) error {
 
 	if _, err := s.dbRoot.Stat(oldFolderPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return util.Errorf("layer does not exist")
+			return util.Errorf("folder does not exist")
 		}
 		return util.Errorf("%w", err)
 	}
 
 	if _, err := s.dbRoot.Stat(targetParentPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return util.Errorf("target layer does not exist")
+			return util.Errorf("target folder does not exist")
 		}
 		return util.Errorf("%w", err)
 	}
 
 	for i := range folder {
 		if targetParent.Equal(folder[:i+1]) {
-			return util.Errorf("cannot move layer under itself")
+			return util.Errorf("cannot move folder under itself")
 		}
 	}
 
 	newFolder := append(append(FolderPath(nil), targetParent...), folder[len(folder)-1])
 	newFolderPath := path.Join(booksFolder, path.Join(newFolder...))
 	if _, err := s.dbRoot.Stat(newFolderPath); err == nil {
-		return util.Errorf("target child layer already exists")
+		return util.Errorf("target child folder already exists")
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return util.Errorf("%w", err)
 	}

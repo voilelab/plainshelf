@@ -1,11 +1,11 @@
 {
-  "layers": [
+  "folders": [
     "/"
   ],
   "books": [
     {
       "path": "books/old-tales.bookpkg",
-      "layers": [],
+      "folders": [],
       "id": "3f9a2c71",
       "title": "Old Tales",
       "format": "",

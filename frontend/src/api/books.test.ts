@@ -37,17 +37,17 @@ describe('transferBook', () => {
     expect(JSON.parse((init as { body: string }).body)).toEqual({
       mode: 'move',
       target_shelf: 'shelf-b',
-      target_layer: ['fiction', 'scifi']
+      target_folder: ['fiction', 'scifi']
     });
   });
 
-  it('sends an empty layer array for a root destination', async () => {
+  it('sends an empty folder array for a root destination', async () => {
     fetchJsonMock.mockResolvedValueOnce({ taskchain_id: 'chain-2' });
 
     await transferBook('book-1', 'shelf-b', '', 'copy');
 
     const [, init] = fetchJsonMock.mock.calls[0];
-    expect(JSON.parse((init as { body: string }).body).target_layer).toEqual([]);
+    expect(JSON.parse((init as { body: string }).body).target_folder).toEqual([]);
   });
 
   // A transfer already in flight answers 409 with the running chain's id as JSON,

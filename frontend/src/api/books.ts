@@ -33,7 +33,7 @@ import {
   mockRestoreTrashedBook,
   mockTransferBook,
   mockUpdateBook,
-  mockUpdateBookLayer
+  mockUpdateBookFolder
 } from './mocks/books';
 
 interface BackendBookMeta {
@@ -59,8 +59,7 @@ interface BackendBookMeta {
 
 interface BackendBook {
   meta: BackendBookMeta;
-  layer?: string[];
-  layers?: string[];
+  folder?: string[];
   // Sibling of `meta`, not nested inside it — matches server/handle_books.go's
   // `Book` struct, which only populates this when the request was made with
   // `include=char_count` (see ListBooksOptions.includeCharCount below).
@@ -72,7 +71,7 @@ interface BackendTrashedBook {
   title: string;
   authors?: string[];
   original_path?: string;
-  original_layer?: string[];
+  original_folder?: string[];
   deleted_at?: string;
 }
 
@@ -127,7 +126,7 @@ async function deleteBookCoverInternal(bookID: string): Promise<void> {
 }
 
 function transformBook(b: BackendBook): Book {
-  const layers = b.layers ?? b.layer ?? [];
+  const folders = b.folder ?? [];
   const cover = b.meta.cover?.trim() ?? '';
 
   return {
@@ -140,7 +139,7 @@ function transformBook(b: BackendBook): Book {
     comment: b.meta.comment ?? b.meta.comments,
     cover,
     cover_url: cover ? buildApiUrl(buildShelfApiPath(`/books/${encodeURIComponent(b.meta.id)}/cover`)) : undefined,
-    layers,
+    folders,
     created_at: b.meta.created_at,
     updated_at: b.meta.updated_at,
     published_at: b.meta.published_at,
@@ -156,7 +155,7 @@ const PAGE_SIZE_DEFAULT = 8;
 export interface ListBooksOptions {
   /** Ask the backend to also compute/return each book's char_count. Opt-in
    *  because the backend may need to do extra work to produce it; omit for
-   *  call sites (library grid, layer tree, etc.) that don't display it. */
+   *  call sites (library grid, folder tree, etc.) that don't display it. */
   includeCharCount?: boolean;
 }
 
@@ -316,14 +315,14 @@ export async function updateBook(id: string, payload: BookUpdateRequest): Promis
   return transformBook(b);
 }
 
-export async function updateBookLayer(bookId: string, layer: string): Promise<void> {
-  const normalized = layer
+export async function updateBookFolder(bookId: string, folder: string): Promise<void> {
+  const normalized = folder
     .split('/')
     .map((segment) => segment.trim())
     .filter((segment) => segment.length > 0);
 
   if (isMockApiMode()) {
-    await delay(mockUpdateBookLayer(bookId, layer));
+    await delay(mockUpdateBookFolder(bookId, folder));
     return;
   }
 
@@ -333,26 +332,26 @@ export async function updateBookLayer(bookId: string, layer: string): Promise<vo
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      layer: normalized
+      folder: normalized
     })
   });
 }
 
 /**
- * Duplicates a book into `layer` and returns the copy, which the server gives a
- * fresh id so it coexists with the original. Copying into the book's own layer
- * is allowed - it is how "duplicate here" works - so unlike updateBookLayer this
- * never treats the current layer as a no-op. An empty `layer` lands the copy at
+ * Duplicates a book into `folder` and returns the copy, which the server gives a
+ * fresh id so it coexists with the original. Copying into the book's own folder
+ * is allowed - it is how "duplicate here" works - so unlike updateBookFolder this
+ * never treats the current folder as a no-op. An empty `folder` lands the copy at
  * the shelf root.
  */
-export async function copyBook(bookId: string, layer: string): Promise<Book> {
-  const normalized = layer
+export async function copyBook(bookId: string, folder: string): Promise<Book> {
+  const normalized = folder
     .split('/')
     .map((segment) => segment.trim())
     .filter((segment) => segment.length > 0);
 
   if (isMockApiMode()) {
-    return delay(mockCopyBook(bookId, layer));
+    return delay(mockCopyBook(bookId, folder));
   }
 
   const b = await fetchJson<BackendBook>(buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/copies`), {
@@ -361,7 +360,7 @@ export async function copyBook(bookId: string, layer: string): Promise<Book> {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      layer: normalized
+      folder: normalized
     })
   });
   return transformBook(b);
@@ -395,7 +394,7 @@ function runningTaskChainID(body: string): string | null {
  * copy can be large and either shelf may be a network mount, so the request must
  * not block on it.
  *
- * `targetLayer` is a '/'-joined path; '' lands the book at the target shelf
+ * `targetFolder` is a '/'-joined path; '' lands the book at the target shelf
  * root. When the same transfer is already running the server answers 409 with
  * that chain's id, which is returned here so the caller attaches to the in-flight
  * work instead of failing. Any other 409 — the target already holds this id, or
@@ -404,14 +403,14 @@ function runningTaskChainID(body: string): string | null {
 export async function transferBook(
   bookId: string,
   targetShelfId: string,
-  targetLayer: string,
+  targetFolder: string,
   mode: BookTransferMode
 ): Promise<string> {
   if (isMockApiMode()) {
-    return mockTransferBook(bookId, targetShelfId, targetLayer, mode);
+    return mockTransferBook(bookId, targetShelfId, targetFolder, mode);
   }
 
-  const layer = targetLayer
+  const folder = targetFolder
     .split('/')
     .map((segment) => segment.trim())
     .filter((segment) => segment.length > 0);
@@ -424,7 +423,7 @@ export async function transferBook(
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ mode, target_shelf: targetShelfId, target_layer: layer })
+        body: JSON.stringify({ mode, target_shelf: targetShelfId, target_folder: folder })
       }
     );
     return res.taskchain_id;
@@ -470,9 +469,9 @@ export async function importBook(payload: BookCreateRequest): Promise<Book> {
     form.append('title', trimmedTitle);
   }
 
-  const trimmedLayer = payload.layer?.trim() ?? '';
-  if (trimmedLayer.length > 0) {
-    form.append('layer', trimmedLayer);
+  const trimmedFolder = payload.folder?.trim() ?? '';
+  if (trimmedFolder.length > 0) {
+    form.append('folder', trimmedFolder);
   }
 
   if (payload.strategy) {
@@ -537,7 +536,7 @@ export async function listTrashedBooks(): Promise<TrashedBook[]> {
     id: book.id,
     title: book.title,
     authors: book.authors ?? [],
-    original_layer: book.original_layer ?? [],
+    original_folder: book.original_folder ?? [],
     original_path: book.original_path,
     deleted_at: book.deleted_at
   }));

@@ -25,7 +25,7 @@ var nonMutatingMethods = []string{
 
 // The read-only gate runs before routing, so the path only has to be under
 // /api/ for the token gate to also apply to it.
-var methodGateTestPath = shelfURL("layers", "blocked")
+var methodGateTestPath = shelfURL("folders", "blocked")
 
 func TestAPIReadOnlyModeRejectsExactlyTheMutatingMethodsContract(t *testing.T) {
 	env := newAPITestEnv(t)

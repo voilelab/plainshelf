@@ -221,8 +221,8 @@ func (app *App) Handler() http.Handler {
 
 // ImportFromLocalPath imports a book the desktop client picked from disk,
 // without going through an upload.
-func (app *App) ImportFromLocalPath(shelfID string, localPath string, layerParts shelf.FolderPath) (*shelf.Book, error) {
-	return app.handlers.imports.fromLocalPath(shelfID, localPath, layerParts)
+func (app *App) ImportFromLocalPath(shelfID string, localPath string, folderParts shelf.FolderPath) (*shelf.Book, error) {
+	return app.handlers.imports.fromLocalPath(shelfID, localPath, folderParts)
 }
 
 // GetBookFolderPath locates a book on disk for the desktop client's "show in

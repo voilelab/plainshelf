@@ -179,7 +179,7 @@ func (s *Shelf) scanToBookCache() error {
 	sortFolders(folders)
 
 	s.Debug("completed a full shelf scan",
-		"books", len(cache), "layers", len(folders),
+		"books", len(cache), "folders", len(folders),
 		"dirs", stats.Dirs, "listed_dirs", stats.ReadDirs, "reused_dirs", stats.ReusedDirs,
 		"duration", stats.Duration)
 

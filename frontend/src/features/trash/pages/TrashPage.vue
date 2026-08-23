@@ -70,7 +70,7 @@
           <tr>
             <th>{{ t('trash.columns.title') }}</th>
             <th>{{ t('trash.columns.authors') }}</th>
-            <th>{{ t('trash.columns.originalLayer') }}</th>
+            <th>{{ t('trash.columns.originalFolder') }}</th>
             <th>{{ t('trash.columns.originalPath') }}</th>
             <th>{{ t('trash.columns.deletedAt') }}</th>
             <th>{{ t('trash.columns.bookId') }}</th>
@@ -81,7 +81,7 @@
           <tr v-for="book in visibleItems" :key="book.id">
             <td>{{ book.title }}</td>
             <td>{{ formatAuthors(book.authors) }}</td>
-            <td>{{ formatLayer(book.original_layer) }}</td>
+            <td>{{ formatFolder(book.original_folder) }}</td>
             <td>{{ book.original_path ?? '-' }}</td>
             <td>{{ formatDeletedAt(book.deleted_at) }}</td>
             <td class="book-id">{{ book.id }}</td>
@@ -131,7 +131,7 @@ import ProgressBar from '@/components/ProgressBar.vue';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { useBookCollectionRoute } from '@/composables/useBookCollectionRoute';
 import { useBookStore } from '@/composables/useBookStore';
-import { useLayerStore } from '@/composables/useLayerStore';
+import { useFolderStore } from '@/composables/useFolderStore';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
 import { useWriteAccess } from '@/composables/useWriteAccess';
@@ -143,7 +143,7 @@ const { t } = useI18n();
 const { writesEnabled } = useWriteAccess();
 const readOnly = computed(() => !writesEnabled.value);
 const { fetchBooks } = useBookStore();
-const { fetchLayers } = useLayerStore();
+const { fetchFolders } = useFolderStore();
 const items = ref<TrashedBook[]>([]);
 const loading = ref(false);
 const loaded = ref(false);
@@ -226,11 +226,11 @@ function formatAuthors(authors: string[] | undefined): string {
   return authors.join(', ');
 }
 
-function formatLayer(layer: string[] | undefined): string {
-  if (!layer || layer.length === 0) {
+function formatFolder(folder: string[] | undefined): string {
+  if (!folder || folder.length === 0) {
     return '/';
   }
-  return layer.join('/');
+  return folder.join('/');
 }
 
 function formatDeletedAt(value: string | undefined): string {
@@ -268,7 +268,7 @@ async function restore(id: string): Promise<void> {
   busyMap.value = { ...busyMap.value, [id]: true };
   try {
     await bookshelfWriter().restoreTrashedBook(id);
-    await Promise.all([loadTrash(), fetchBooks(), fetchLayers()]);
+    await Promise.all([loadTrash(), fetchBooks(), fetchFolders()]);
   } catch (err) {
     actionError.value = err instanceof Error ? err.message : t('trash.restoreFailed');
   } finally {

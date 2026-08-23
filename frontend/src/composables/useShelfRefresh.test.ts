@@ -6,7 +6,7 @@ const supportsShelfRefresh = vi.fn();
 const refreshShelf = vi.fn();
 const getShelfFetchedAt = vi.fn();
 const listBooks = vi.fn();
-const listLayers = vi.fn();
+const listFolders = vi.fn();
 
 // Whether the backend dates its stored listing at all. Absence of the method is
 // the signal, not a null return, so it has to be togglable per test.
@@ -20,7 +20,7 @@ vi.mock('@/providers', () => ({
     refreshShelf,
     ...(datesItsListing ? { getShelfFetchedAt } : {}),
     listBooks,
-    listLayers
+    listFolders
   })
 }));
 
@@ -53,7 +53,7 @@ beforeEach(() => {
   refreshShelf.mockReset().mockResolvedValue(undefined);
   getShelfFetchedAt.mockReset().mockResolvedValue(null);
   listBooks.mockReset().mockResolvedValue(page(['a']));
-  listLayers.mockReset().mockResolvedValue(['/']);
+  listFolders.mockReset().mockResolvedValue(['/']);
 
   const shelf = useShelfRefresh();
   shelf.error.value = '';
@@ -73,7 +73,7 @@ describe('useShelfRefresh', () => {
     expect(refreshShelf).not.toHaveBeenCalled();
   });
 
-  it('updates the shelf, then reloads books, layers and the sync time', async () => {
+  it('updates the shelf, then reloads books, folders and the sync time', async () => {
     getShelfFetchedAt.mockResolvedValue(1_700_000_000_000);
     const shelf = useShelfRefresh();
 
@@ -81,7 +81,7 @@ describe('useShelfRefresh', () => {
 
     expect(refreshShelf).toHaveBeenCalledTimes(1);
     expect(listBooks).toHaveBeenCalled();
-    expect(listLayers).toHaveBeenCalled();
+    expect(listFolders).toHaveBeenCalled();
     expect(shelf.lastSyncedAt.value).toBe(1_700_000_000_000);
     expect(shelf.refreshing.value).toBe(false);
     expect(shelf.error.value).toBe('');
@@ -131,12 +131,12 @@ describe('useShelfRefresh', () => {
   // A count of five digits beside the button would push the toolbar around
   // every time the shelf grows, so what the walk found is announced and goes.
   it('announces what the update found in a toast', async () => {
-    refreshShelf.mockResolvedValue({ bookCount: 12, layerCount: 3 });
+    refreshShelf.mockResolvedValue({ bookCount: 12, folderCount: 3 });
     const shelf = useShelfRefresh();
 
     await shelf.refresh();
 
-    expect(toastMessages()).toEqual([t('library.scanFound', { books: 12, layers: 3 })]);
+    expect(toastMessages()).toEqual([t('library.scanFound', { books: 12, folders: 3 })]);
     // Nothing durable is claimed from it: a backend that reports counts has no
     // sync time, and the toolbar must not invent one.
     expect(shelf.lastSyncedAt.value).toBeNull();

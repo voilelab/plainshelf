@@ -17,7 +17,7 @@ export interface Book {
   comment?: string;
   cover?: string;
   cover_url?: string;
-  layers: string[];
+  folders: string[];
   created_at?: BookTimestamp;
   updated_at?: BookTimestamp;
   /** Date-only ("YYYY-MM-DD"); the backend normalizes any legacy full timestamp before it reaches the API. */
@@ -44,7 +44,7 @@ export interface TrashedBook {
   title: string;
   authors: string[];
   original_path?: string;
-  original_layer?: string[];
+  original_folder?: string[];
   deleted_at?: BookTimestamp;
 }
 
@@ -125,7 +125,7 @@ export const DEFAULT_EPUB_IMPORT_STRATEGY: EpubImportStrategy = {
 
 export interface BookCreateRequest {
   title: string;
-  layer?: string;
+  folder?: string;
   file: File;
   /** Only meaningful for .epub uploads; ignored by the server for other formats. */
   strategy?: EpubImportStrategy;

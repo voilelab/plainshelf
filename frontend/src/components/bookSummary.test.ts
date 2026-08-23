@@ -14,7 +14,7 @@ import type { Book } from '@/types/book';
  * possible without a component-test harness the repository does not have.
  */
 function book(overrides: Partial<Book>): Book {
-  return { id: 'b1', title: '書名', authors: [], tags: [], layers: [], ...overrides };
+  return { id: 'b1', title: '書名', authors: [], tags: [], folders: [], ...overrides };
 }
 
 async function render(component: typeof BookCardView | typeof BookListView, value: Book): Promise<Document> {

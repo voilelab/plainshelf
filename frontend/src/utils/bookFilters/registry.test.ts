@@ -21,11 +21,11 @@ const {
 } = await import('./registry');
 
 function book(id: string, charCount?: number): Book {
-  return { id, title: id, authors: [], tags: [], layers: [], char_count: charCount };
+  return { id, title: id, authors: [], tags: [], folders: [], char_count: charCount };
 }
 
 function metaBook(overrides: Partial<Book> = {}): Book {
-  return { id: 'b', title: 'b', authors: [], tags: [], layers: [], ...overrides };
+  return { id: 'b', title: 'b', authors: [], tags: [], folders: [], ...overrides };
 }
 
 describe('charCountFilter dependency', () => {

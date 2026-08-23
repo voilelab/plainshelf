@@ -48,7 +48,7 @@ function makeBook(id: string, overrides: Partial<Book> = {}): Book {
     title: `Title of ${id}`,
     authors: ['Author A'],
     tags: [],
-    layers: ['shelf-1'],
+    folders: ['shelf-1'],
     ...overrides
   };
 }
@@ -551,10 +551,10 @@ describe('MobileBookshelfProvider — manual shelf refresh', () => {
   it('passes through what the backend found', async () => {
     const provider = makeProvider({
       supportsShelfRefresh: () => true,
-      refreshShelf: async () => ({ bookCount: 12, layerCount: 3 })
+      refreshShelf: async () => ({ bookCount: 12, folderCount: 3 })
     });
 
-    await expect(provider.refreshShelf()).resolves.toEqual({ bookCount: 12, layerCount: 3 });
+    await expect(provider.refreshShelf()).resolves.toEqual({ bookCount: 12, folderCount: 3 });
   });
 
   it('surfaces a failed update instead of reporting success', async () => {

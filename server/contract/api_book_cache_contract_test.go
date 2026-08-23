@@ -91,13 +91,13 @@ func TestAPIExportBookCacheContract(t *testing.T) {
 	}
 
 	var hasFiction bool
-	for _, layer := range cache.Folders {
-		if layer == "Fiction" {
+	for _, folder := range cache.Folders {
+		if folder == "Fiction" {
 			hasFiction = true
 		}
 	}
 	if !hasFiction {
-		t.Errorf("layers = %v, want the Fiction layer", cache.Folders)
+		t.Errorf("folders = %v, want the Fiction folder", cache.Folders)
 	}
 }
 

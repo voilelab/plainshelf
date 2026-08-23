@@ -228,7 +228,7 @@ func (h *importHandlers) importEPUB(
 	size int64,
 	filename string,
 	suppliedTitle string,
-	layerParts shelf.FolderPath,
+	folderParts shelf.FolderPath,
 	strategy epub.Strategy,
 ) (*shelf.Book, error) {
 	// Parse and render before creating the book: the initializer below runs
@@ -241,7 +241,7 @@ func (h *importHandlers) importEPUB(
 	rendered := epub.Render(parsed, strategy)
 	title := epubBookTitle(suppliedTitle, filename, parsed)
 
-	book, err := shelfData.NewBookWith(layerParts, title, h.initEPUBBook(parsed, rendered))
+	book, err := shelfData.NewBookWith(folderParts, title, h.initEPUBBook(parsed, rendered))
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

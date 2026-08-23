@@ -46,7 +46,7 @@ function onUpdateOpen(value: boolean): void {
 }
 
 function onEscapeKeyDown(event: Event): void {
-  // Always consume the key event so the native desktop layer (e.g. macOS
+  // Always consume the key event so the native desktop folder (e.g. macOS
   // fullscreen) does not also react to ESC. Because Reka UI checks
   // defaultPrevented to decide whether to dismiss, we close manually.
   event.preventDefault();

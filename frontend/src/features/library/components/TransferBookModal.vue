@@ -24,13 +24,13 @@
           </label>
 
           <label class="transfer-field">
-            <span>{{ t('bookDetail.transfer.layerLabel') }}</span>
-            <select v-model="targetLayer" class="input" :disabled="!targetShelfId || loadingLayers">
-              <option value="/">{{ t('bookDetail.transfer.rootLayer') }}</option>
-              <option v-for="layer in shelfLayers" :key="layer" :value="layer">{{ layer }}</option>
+            <span>{{ t('bookDetail.transfer.folderLabel') }}</span>
+            <select v-model="targetFolder" class="input" :disabled="!targetShelfId || loadingFolders">
+              <option value="/">{{ t('bookDetail.transfer.rootFolder') }}</option>
+              <option v-for="folder in shelfFolders" :key="folder" :value="folder">{{ folder }}</option>
             </select>
-            <span v-if="loadingLayers" class="transfer-hint">{{ t('bookDetail.transfer.loadingLayers') }}</span>
-            <span v-else-if="layerError" class="transfer-error" role="alert">{{ layerError }}</span>
+            <span v-if="loadingFolders" class="transfer-hint">{{ t('bookDetail.transfer.loadingFolders') }}</span>
+            <span v-else-if="folderError" class="transfer-error" role="alert">{{ folderError }}</span>
           </label>
 
           <fieldset class="transfer-field transfer-modes">
@@ -111,7 +111,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
-  submit: [payload: { targetShelfId: string; targetLayer: string; mode: BookTransferMode }];
+  submit: [payload: { targetShelfId: string; targetFolder: string; mode: BookTransferMode }];
 }>();
 
 const { t } = useI18n();
@@ -119,14 +119,14 @@ const { shelves, selectedShelfID, error: shelvesError, ensureShelvesLoaded } = u
 
 const targetShelfId = ref('');
 // '/' is the labelled root option; it maps to '' (the shelf root) on submit.
-const targetLayer = ref('/');
+const targetFolder = ref('/');
 const mode = ref<BookTransferMode>('copy');
-const shelfLayers = ref<string[]>([]);
-const loadingLayers = ref(false);
-const layerError = ref('');
-// Bumped on every shelf change so a slow layer fetch for a shelf the user has
-// since switched away from cannot overwrite the current one's layers.
-let layerRequest = 0;
+const shelfFolders = ref<string[]>([]);
+const loadingFolders = ref(false);
+const folderError = ref('');
+// Bumped on every shelf change so a slow folder fetch for a shelf the user has
+// since switched away from cannot overwrite the current one's folders.
+let folderRequest = 0;
 
 // The source shelf is the active one, and naming it twice is rejected by the
 // server, so it is dropped from the destinations.
@@ -134,7 +134,7 @@ const destinationShelves = computed(() =>
   shelves.value.filter((shelf) => shelf.id !== selectedShelfID.value)
 );
 
-const canSubmit = computed(() => targetShelfId.value !== '' && !loadingLayers.value);
+const canSubmit = computed(() => targetShelfId.value !== '' && !loadingFolders.value);
 
 const statusText = computed(() => {
   switch (props.status) {
@@ -153,27 +153,27 @@ const statusText = computed(() => {
   }
 });
 
-async function loadLayers(shelfID: string): Promise<void> {
-  const request = (layerRequest += 1);
-  loadingLayers.value = true;
-  layerError.value = '';
-  shelfLayers.value = [];
+async function loadFolders(shelfID: string): Promise<void> {
+  const request = (folderRequest += 1);
+  loadingFolders.value = true;
+  folderError.value = '';
+  shelfFolders.value = [];
   try {
-    const layers = await bookshelfWriter().listShelfLayers(shelfID);
+    const folders = await bookshelfWriter().listShelfFolders(shelfID);
     // A newer selection (or a close) landed while this was in flight.
-    if (request !== layerRequest) {
+    if (request !== folderRequest) {
       return;
     }
     // The root is offered as its own option, so drop it from the list.
-    shelfLayers.value = layers.filter((layer) => layer && layer !== '/');
+    shelfFolders.value = folders.filter((folder) => folder && folder !== '/');
   } catch (err) {
-    if (request !== layerRequest) {
+    if (request !== folderRequest) {
       return;
     }
-    layerError.value = err instanceof Error ? err.message : t('bookDetail.transfer.layersFailed');
+    folderError.value = err instanceof Error ? err.message : t('bookDetail.transfer.foldersFailed');
   } finally {
-    if (request === layerRequest) {
-      loadingLayers.value = false;
+    if (request === folderRequest) {
+      loadingFolders.value = false;
     }
   }
 }
@@ -188,23 +188,23 @@ watch(
     // carry over, and make sure the shelf list is available offline of the
     // sidebar (the detail page can be reached directly by URL).
     targetShelfId.value = '';
-    targetLayer.value = '/';
+    targetFolder.value = '/';
     mode.value = 'copy';
-    shelfLayers.value = [];
-    layerError.value = '';
-    layerRequest += 1;
+    shelfFolders.value = [];
+    folderError.value = '';
+    folderRequest += 1;
     void ensureShelvesLoaded();
   }
 );
 
 watch(targetShelfId, (shelfID) => {
-  targetLayer.value = '/';
-  shelfLayers.value = [];
-  layerError.value = '';
+  targetFolder.value = '/';
+  shelfFolders.value = [];
+  folderError.value = '';
   if (shelfID) {
-    void loadLayers(shelfID);
+    void loadFolders(shelfID);
   } else {
-    layerRequest += 1;
+    folderRequest += 1;
   }
 });
 
@@ -214,7 +214,7 @@ function submit(): void {
   }
   emit('submit', {
     targetShelfId: targetShelfId.value,
-    targetLayer: targetLayer.value === '/' ? '' : targetLayer.value,
+    targetFolder: targetFolder.value === '/' ? '' : targetFolder.value,
     mode: mode.value
   });
 }

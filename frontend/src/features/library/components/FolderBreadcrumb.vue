@@ -1,5 +1,5 @@
 <template>
-  <nav class="layer-breadcrumb" :aria-label="t('bookDetail.layerPath')">
+  <nav class="folder-breadcrumb" :aria-label="t('bookDetail.folderPath')">
     <template v-for="(item, index) in breadcrumbItems" :key="`${item.path}-${index}`">
       <RouterLink class="breadcrumb-item" :to="item.to">{{ item.label }}</RouterLink>
       <span v-if="index < breadcrumbItems.length - 1" class="breadcrumb-separator" aria-hidden="true">
@@ -12,13 +12,13 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { RouterLink, type RouteLocationRaw } from 'vue-router';
-import { booksRouteForLayerPath, normalizeLayerInput } from '@/utils/layers';
+import { booksRouteForFolderPath, normalizeFolderInput } from '@/utils/folders';
 import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
 
 const props = defineProps<{
-  layers?: string | string[] | null;
+  folders?: string | string[] | null;
 }>();
 
 interface BreadcrumbItem {
@@ -28,21 +28,21 @@ interface BreadcrumbItem {
 }
 
 const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
-  const segments = normalizeLayerInput(props.layers);
+  const segments = normalizeFolderInput(props.folders);
   const items: BreadcrumbItem[] = [
     {
       label: t('bookDetail.root'),
       path: '',
-      to: booksRouteForLayerPath('')
+      to: booksRouteForFolderPath('')
     }
   ];
 
   for (let i = 0; i < segments.length; i += 1) {
-    const layerPath = segments.slice(0, i + 1).join('/');
+    const folderPath = segments.slice(0, i + 1).join('/');
     items.push({
       label: segments[i],
-      path: layerPath,
-      to: booksRouteForLayerPath(layerPath)
+      path: folderPath,
+      to: booksRouteForFolderPath(folderPath)
     });
   }
 
@@ -51,7 +51,7 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
 </script>
 
 <style scoped>
-.layer-breadcrumb {
+.folder-breadcrumb {
   display: flex;
   flex-wrap: wrap;
   align-items: center;

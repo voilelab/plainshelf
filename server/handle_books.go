@@ -20,8 +20,8 @@ type bookHandlers struct {
 }
 
 type Book struct {
-	Meta  *shelf.BookMeta `json:"meta"`
-	Layer shelf.FolderPath    `json:"layer"`
+	Meta   *shelf.BookMeta  `json:"meta"`
+	Folder shelf.FolderPath `json:"folder"`
 
 	// CharCount is only populated when the request includes
 	// include=char_count; it is omitted otherwise, so the default response
@@ -39,8 +39,7 @@ type UpdateBookRequest struct {
 	Star        *int               `json:"star"`
 	Format      *string            `json:"format"`
 	PublishedAt *util.JSONDate     `json:"published_at"`
-	Layer       *shelf.FolderPath      `json:"layer"`
-	Layers      *shelf.FolderPath      `json:"layers"`
+	Folder      *shelf.FolderPath  `json:"folder"`
 }
 
 // folderPath locates a book on disk for the desktop client's "show in file
@@ -96,8 +95,8 @@ func (h *bookHandlers) getBooks(w http.ResponseWriter, r *http.Request) {
 	jsonBooks := make([]Book, len(books))
 	for i, b := range books {
 		jsonBooks[i] = Book{
-			Meta:  b.Book.GetMeta(),
-			Layer: b.Folders,
+			Meta:   b.Book.GetMeta(),
+			Folder: b.Folders,
 		}
 		if includeCharCount {
 			// A book with a broken or missing source reports 0, which omitempty
@@ -117,8 +116,8 @@ func (h *bookHandlers) createBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Title string       `json:"title"`
-		Layer shelf.FolderPath `json:"layer"`
+		Title  string           `json:"title"`
+		Folder shelf.FolderPath `json:"folder"`
 	}
 
 	bs, err := io.ReadAll(r.Body)
@@ -136,7 +135,7 @@ func (h *bookHandlers) createBook(w http.ResponseWriter, r *http.Request) {
 
 	// The empty source and the current-source pointer are written while the book
 	// is still staged, so a failure here leaves no half-built book on disk.
-	newBook, err := shelfData.NewBookWith(req.Layer, req.Title, func(book *shelf.Book) error {
+	newBook, err := shelfData.NewBookWith(req.Folder, req.Title, func(book *shelf.Book) error {
 		source, err := book.NewSource(nil)
 		if err != nil {
 			return err
@@ -148,28 +147,19 @@ func (h *bookHandlers) createBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The book was created under req.Layer, so that is where it now sits; the
-	// book itself does not carry its layer back.
+	// The book was created under req.Folder, so that is where it now sits; the
+	// book itself does not carry its folder back.
 	h.writeJSON(w, http.StatusCreated, Book{
-		Meta:  newBook.GetMeta(),
-		Layer: req.Layer,
+		Meta:   newBook.GetMeta(),
+		Folder: req.Folder,
 	})
 }
 
-// CopyBookRequest carries the optional destination for a copy. When neither
-// field is set - including an empty request body - the copy lands in the source
-// book's own layer. "layer" is the current field name; "layers" is accepted for
-// the same reason updateBook accepts it, so older clients keep working.
+// CopyBookRequest carries the optional destination for a copy. When the field is
+// unset - including an empty request body - the copy lands in the source book's
+// own folder.
 type CopyBookRequest struct {
-	Layer  *shelf.FolderPath `json:"layer"`
-	Layers *shelf.FolderPath `json:"layers"`
-}
-
-func (req *CopyBookRequest) targetLayers() *shelf.FolderPath {
-	if req.Layer != nil {
-		return req.Layer
-	}
-	return req.Layers
+	Folder *shelf.FolderPath `json:"folder"`
 }
 
 // POST /api/shelves/{shelf_id}/books/{book_id}/copies
@@ -194,9 +184,9 @@ func (h *bookHandlers) copyBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Default to the source book's own layer so a plain "duplicate" needs no body.
+	// Default to the source book's own folder so a plain "duplicate" needs no body.
 	target := append(shelf.FolderPath(nil), listing.Folders...)
-	if override := req.targetLayers(); override != nil {
+	if override := req.Folder; override != nil {
 		target = append(shelf.FolderPath(nil), (*override)...)
 	}
 
@@ -206,10 +196,10 @@ func (h *bookHandlers) copyBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The copy landed under target, so that is its layer.
+	// The copy landed under target, so that is its folder.
 	h.writeJSON(w, http.StatusCreated, Book{
-		Meta:  copied.GetMeta(),
-		Layer: target,
+		Meta:   copied.GetMeta(),
+		Folder: target,
 	})
 }
 
@@ -221,8 +211,8 @@ func (h *bookHandlers) getBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.writeJSON(w, http.StatusOK, Book{
-		Meta:  listing.Book.GetMeta(),
-		Layer: listing.Folders,
+		Meta:   listing.Book.GetMeta(),
+		Folder: listing.Folders,
 	})
 }
 
@@ -250,25 +240,25 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	book := listing.Book
-	layer := listing.Folders
+	folder := listing.Folders
 
 	// Refuse a book this build must not modify before doing anything, otherwise
-	// a layer move would be applied to disk and then reported as a failure.
+	// a folder move would be applied to disk and then reported as a failure.
 	if err := book.EnsureWritable(); err != nil {
 		h.writeErr(w, err, "failed to update book metadata")
 		return
 	}
 
-	if target := req.targetLayers(); target != nil {
-		moveTo := append(shelf.FolderPath(nil), (*target)...)
+	if req.Folder != nil {
+		moveTo := append(shelf.FolderPath(nil), (*req.Folder)...)
 		movedBook, err := shelfData.MoveBook(bookID, moveTo)
 		if err != nil {
-			h.writeErr(w, err, "failed to move book layer")
+			h.writeErr(w, err, "failed to move book folder")
 			return
 		}
 		// The book now sits where it was moved to.
 		book = movedBook
-		layer = moveTo
+		folder = moveTo
 	}
 
 	meta := *book.GetMeta()
@@ -279,16 +269,7 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.writeJSON(w, http.StatusOK, Book{Meta: &meta, Layer: layer})
-}
-
-// "layer" is the current field name; "layers" is still accepted because older
-// clients send that one.
-func (req *UpdateBookRequest) targetLayers() *shelf.FolderPath {
-	if req.Layer != nil {
-		return req.Layer
-	}
-	return req.Layers
+	h.writeJSON(w, http.StatusOK, Book{Meta: &meta, Folder: folder})
 }
 
 // applyBookPatch validates nothing: the field rules belong to shelf, which

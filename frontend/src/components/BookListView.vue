@@ -27,7 +27,7 @@
         <div class="book-list-head">
           <h3 class="book-list-title">{{ book.title }}</h3>
           <div class="book-list-head-actions">
-            <p class="book-list-layer">{{ layerLabel(book) }}</p>
+            <p class="book-list-folder">{{ folderLabel(book) }}</p>
             <button
               v-if="showEditAction"
               type="button"
@@ -58,7 +58,7 @@ import { useBookItemInteractions } from '@/composables/useBookItemInteractions';
 import { useBookSummaries } from '@/composables/useBookSummaries';
 import type { Book } from '@/types/book';
 import type { BookActivation } from '@/types/bookSelection';
-import { getLayerPath, layerPathLabel } from '@/utils/layers';
+import { getFolderPath, folderPathLabel } from '@/utils/folders';
 import { formatDateLabel } from '@/utils/date';
 import { useI18n } from '@/i18n';
 
@@ -93,9 +93,9 @@ const interactions = useBookItemInteractions({
 
 const summaries = useBookSummaries(() => props.books);
 
-function layerLabel(book: Book): string {
-  const path = getLayerPath(book);
-  return path === '' ? '/' : layerPathLabel(path);
+function folderLabel(book: Book): string {
+  const path = getFolderPath(book);
+  return path === '' ? '/' : folderPathLabel(path);
 }
 
 function primaryDateLabel(book: Book): string {
@@ -168,7 +168,7 @@ function primaryDateLabel(book: Book): string {
   line-height: 1.35;
 }
 
-.book-list-layer {
+.book-list-folder {
   color: var(--muted);
   flex: 0 0 auto;
   font-size: 12px;
@@ -235,7 +235,7 @@ function primaryDateLabel(book: Book): string {
     justify-content: space-between;
   }
 
-  .book-list-layer {
+  .book-list-folder {
     text-align: left;
   }
 }

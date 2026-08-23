@@ -8,7 +8,7 @@ import type {
 } from '@/types/book';
 import { registerMockTaskChain } from './taskchains';
 import type { BookBatchRequest, BookBatchResult, RefreshContentStatsResult } from '@/types/task';
-import { normalizeLayerPath } from '@/utils/layers';
+import { normalizeFolderPath } from '@/utils/folders';
 
 // In-memory backend for VITE_USE_MOCK_API. The gate that reaches for it lives in
 // api/client.ts (isMockApiMode); nothing here is reachable in a real build.
@@ -20,7 +20,7 @@ export const mockBooks: Book[] = [
     id: 'book-1',
     title: 'The Quiet River',
     authors: ['A. Lin'],
-    layers: ['fiction', 'quiet'],
+    folders: ['fiction', 'quiet'],
     language: 'en',
     format: 'txt',
     tags: ['fiction', 'calm'],
@@ -38,7 +38,7 @@ export const mockBooks: Book[] = [
     id: 'book-2',
     title: 'Go Patterns Notes',
     authors: ['P. Chen'],
-    layers: ['programming', 'go'],
+    folders: ['programming', 'go'],
     language: 'zh-TW',
     format: 'txt',
     tags: ['programming', 'go'],
@@ -53,7 +53,7 @@ export const mockBooks: Book[] = [
     id: 'book-3',
     title: 'Mountain Diary',
     authors: ['Y. Wang'],
-    layers: ['travel'],
+    folders: ['travel'],
     language: 'zh-TW',
     format: 'txt',
     tags: ['travel'],
@@ -67,7 +67,7 @@ export const mockBooks: Book[] = [
     id: 'book-4',
     title: 'Designing Small Tools',
     authors: ['N. Hsu'],
-    layers: ['design'],
+    folders: ['design'],
     language: 'en',
     format: 'txt',
     tags: ['design', 'notes'],
@@ -81,7 +81,7 @@ export const mockBooks: Book[] = [
     id: 'book-5',
     title: 'Tea House Stories',
     authors: ['K. Lee'],
-    layers: ['fiction'],
+    folders: ['fiction'],
     language: 'zh-TW',
     format: 'txt',
     tags: ['fiction'],
@@ -95,7 +95,7 @@ export const mockBooks: Book[] = [
     id: 'book-6',
     title: 'Minimal Linux Book',
     authors: ['R. Cho'],
-    layers: ['ops'],
+    folders: ['ops'],
     language: 'en',
     format: 'txt',
     tags: ['linux', 'ops'],
@@ -108,7 +108,7 @@ export const mockBooks: Book[] = [
     id: 'book-7',
     title: 'Autumn Poems',
     authors: ['S. Yu'],
-    layers: ['poetry'],
+    folders: ['poetry'],
     language: 'zh-TW',
     format: 'txt',
     tags: ['poetry'],
@@ -122,7 +122,7 @@ export const mockBooks: Book[] = [
     id: 'book-8',
     title: 'Product Journal 2025',
     authors: ['M. Kao'],
-    layers: ['product'],
+    folders: ['product'],
     language: 'en',
     format: 'txt',
     tags: ['product'],
@@ -136,7 +136,7 @@ export const mockBooks: Book[] = [
     id: 'book-9',
     title: 'Kitchen and Code',
     authors: ['L. Ho'],
-    layers: ['essay'],
+    folders: ['essay'],
     language: 'en',
     format: 'txt',
     tags: ['essay'],
@@ -150,7 +150,7 @@ export const mockBooks: Book[] = [
     id: 'book-10',
     title: 'Reading Machines',
     authors: ['D. Ko'],
-    layers: ['tech'],
+    folders: ['tech'],
     language: 'en',
     format: 'txt',
     tags: ['tech', 'history'],
@@ -164,7 +164,7 @@ export const mockBooks: Book[] = [
     id: 'book-11',
     title: 'Markdown Field Notes',
     authors: ['T. Fang'],
-    layers: ['notes'],
+    folders: ['notes'],
     language: 'en',
     format: 'md',
     tags: ['notes', 'markdown'],
@@ -253,20 +253,20 @@ export function mockUpdateBook(id: string, payload: BookUpdateRequest): Book {
   return { ...book };
 }
 
-export function mockUpdateBookLayer(id: string, layerPath: string): Book {
+export function mockUpdateBookFolder(id: string, folderPath: string): Book {
   const book = findBookOrThrow(id);
-  const normalized = layerPath
+  const normalized = folderPath
     .split('/')
     .map((segment) => segment.trim())
     .filter((segment) => segment.length > 0);
-  book.layers = normalized;
+  book.folders = normalized;
   book.updated_at = new Date().toISOString();
   return { ...book };
 }
 
-export function mockCopyBook(id: string, layerPath: string): Book {
+export function mockCopyBook(id: string, folderPath: string): Book {
   const source = findBookOrThrow(id);
-  const normalized = layerPath
+  const normalized = folderPath
     .split('/')
     .map((segment) => segment.trim())
     .filter((segment) => segment.length > 0);
@@ -274,7 +274,7 @@ export function mockCopyBook(id: string, layerPath: string): Book {
   const copy: Book = {
     ...source,
     id: `mock-${Date.now()}`,
-    layers: normalized,
+    folders: normalized,
     created_at: now,
     updated_at: now
   };
@@ -295,7 +295,7 @@ export function mockGetBookContent(id: string): BookContent {
 export function mockImportBook(payload: BookCreateRequest): Book {
   const now = new Date().toISOString();
   const id = `mock-${Date.now()}`;
-  const normalizedLayer = payload.layer
+  const normalizedFolder = payload.folder
     ?.split('/')
     .map((segment) => segment.trim())
     .filter((segment) => segment.length > 0) ?? [];
@@ -307,7 +307,7 @@ export function mockImportBook(payload: BookCreateRequest): Book {
     id,
     title: payload.title.trim() || payload.file.name,
     authors: [],
-    layers: normalizedLayer,
+    folders: normalizedFolder,
     language: 'unknown',
     // An EPUB import stores whatever the conversion strategy produces, not the
     // uploaded file's own format.
@@ -344,8 +344,8 @@ export function mockDeleteBook(id: string): void {
     id: book.id,
     title: book.title,
     authors: [...book.authors],
-    original_layer: [...book.layers],
-    original_path: `/books/${book.layers.join('/')}/${book.id}.bookpkg`,
+    original_folder: [...book.folders],
+    original_path: `/books/${book.folders.join('/')}/${book.id}.bookpkg`,
     deleted_at: new Date().toISOString()
   });
 }
@@ -368,7 +368,7 @@ export function mockRestoreTrashedBook(id: string): void {
     tags: [],
     language: 'unknown',
     format: 'txt',
-    layers: [...(book.original_layer ?? [])]
+    folders: [...(book.original_folder ?? [])]
   });
 }
 
@@ -462,7 +462,7 @@ export function mockStartFingerprintSources(_force = false): string {
 export function mockTransferBook(
   bookId: string,
   _targetShelfId: string,
-  _targetLayer: string,
+  _targetFolder: string,
   mode: 'copy' | 'move'
 ): string {
   return registerMockTaskChain({
@@ -482,28 +482,28 @@ export function mockTransferBook(
 }
 
 /**
- * mockTransferLayer schedules a task chain that mirrors the real cross-shelf
- * layer transfer's progress and its LayerTransferResult, one mock book per poll.
+ * mockTransferFolder schedules a task chain that mirrors the real cross-shelf
+ * folder transfer's progress and its FolderTransferResult, one mock book per poll.
  * Mock mode models only one shelf, so the target is a phantom: a `move` drops the
  * carried books from the source list, a `copy` leaves them. The result it reports
  * is what drives the modal's "N of M books" count.
  */
-export function mockTransferLayer(
-  sourceLayer: string,
+export function mockTransferFolder(
+  sourceFolder: string,
   targetShelfId: string,
-  targetLayer: string,
+  targetFolder: string,
   mode: 'copy' | 'move'
 ): string {
-  const sourcePath = normalizeLayerPath(sourceLayer);
+  const sourcePath = normalizeFolderPath(sourceFolder);
   const carried = mockBooks.filter((book) => {
-    const path = book.layers && book.layers.length > 0 ? book.layers.join('/') : '/';
+    const path = book.folders && book.folders.length > 0 ? book.folders.join('/') : '/';
     return path === sourcePath || path.startsWith(`${sourcePath}/`);
   });
   const ids = carried.map((book) => book.id);
   const succeeded: string[] = [];
 
   return registerMockTaskChain({
-    name: 'layer_transfer',
+    name: 'folder_transfer',
     title: mode === 'move' ? 'Move a folder to another shelf' : 'Copy a folder to another shelf',
     total: ids.length,
     onItem: (index) => {
@@ -521,12 +521,12 @@ export function mockTransferLayer(
       operation: mode,
       source_shelf: 'mock',
       target_shelf: targetShelfId,
-      source_layer: sourcePath === '/' ? [] : sourcePath.split('/'),
-      target_layer: normalizeLayerPath(targetLayer).split('/').filter((segment) => segment.length > 0),
+      source_folder: sourcePath === '/' ? [] : sourcePath.split('/'),
+      target_folder: normalizeFolderPath(targetFolder).split('/').filter((segment) => segment.length > 0),
       total: ids.length,
       succeeded_ids: [...succeeded],
       failures: [],
-      layer_failures: 0
+      folder_failures: 0
     })
   });
 }
@@ -552,7 +552,7 @@ export function mockStartBookBatch(request: BookBatchRequest): string {
         return;
       }
       if (request.operation === 'move') {
-        book.layers = [...(request.target_layer ?? [])];
+        book.folders = [...(request.target_folder ?? [])];
         book.updated_at = new Date().toISOString();
       } else {
         mockDeleteBook(id);

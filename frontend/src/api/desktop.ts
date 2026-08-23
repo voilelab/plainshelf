@@ -19,10 +19,10 @@ interface DesktopAppBinding {
   ImportBooksFromLocalPaths?: (
     shelfID: string,
     localPaths: string[],
-    layerParts: string[]
+    folderParts: string[]
   ) => Promise<DesktopImportBookResult[]>;
   OpenShelfDirectory?: () => Promise<string>;
-  OpenLayerDirectory?: (shelfID: string, layerParts: string[]) => Promise<void>;
+  OpenFolderDirectory?: (shelfID: string, folderParts: string[]) => Promise<void>;
   OpenBookDirectory?: (shelfID: string, bookID: string) => Promise<void>;
   OpenReader?: (shelfID: string, bookID: string, section: number) => Promise<void>;
   AddShelf?: (name: string, libRoot: string, scanInterval: string) => Promise<void>;
@@ -70,8 +70,8 @@ export async function openDesktopBookFiles(): Promise<string[] | null> {
   return desktopApp.OpenBookFiles();
 }
 
-function normalizeLayerParts(layerPath: string): string[] {
-  const trimmed = layerPath.trim();
+function normalizeFolderParts(folderPath: string): string[] {
+  const trimmed = folderPath.trim();
   if (!trimmed || trimmed === '/') {
     return [];
   }
@@ -127,19 +127,19 @@ export async function openDesktopReader(bookID: string, section?: number): Promi
   await desktopApp.OpenReader(getActiveShelfID(), bookID, sectionArg);
 }
 
-export async function openDesktopLayerFolder(layerPath: string): Promise<void> {
+export async function openDesktopFolder(folderPath: string): Promise<void> {
   if (!isDesktopRuntime()) {
     return;
   }
 
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
-  if (!desktopApp?.OpenLayerDirectory) {
+  if (!desktopApp?.OpenFolderDirectory) {
     return;
   }
 
-  // normalizeLayerParts splits by '/', trims each segment, and drops empties
-  // before passing the layer path into the desktop binding.
-  await desktopApp.OpenLayerDirectory(getActiveShelfID(), normalizeLayerParts(layerPath));
+  // normalizeFolderParts splits by '/', trims each segment, and drops empties
+  // before passing the folder path into the desktop binding.
+  await desktopApp.OpenFolderDirectory(getActiveShelfID(), normalizeFolderParts(folderPath));
 }
 
 export async function addDesktopShelf(name: string, libRoot: string, scanInterval: string): Promise<void> {
@@ -180,7 +180,7 @@ export async function modifyDesktopShelf(shelfID: string, name: string, scanInte
 
 export async function importDesktopBooksFromLocalPaths(
   localPaths: string[],
-  layerPath: string
+  folderPath: string
 ): Promise<DesktopImportBookResult[] | null> {
   if (!isDesktopRuntime()) {
     return null;
@@ -194,7 +194,7 @@ export async function importDesktopBooksFromLocalPaths(
   return desktopApp.ImportBooksFromLocalPaths(
     getActiveShelfID(),
     localPaths,
-    normalizeLayerParts(layerPath)
+    normalizeFolderParts(folderPath)
   );
 }
 

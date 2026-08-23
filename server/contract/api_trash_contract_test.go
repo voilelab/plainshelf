@@ -23,7 +23,7 @@ func emptyTrash(t *testing.T, env *apiTestEnv, wantStatus int) taskChainSubmitRe
 
 func TestAPITrashLifecycleContract(t *testing.T) {
 	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Trash API", "origin/layer", "trash.txt", "body")
+	created := importTextBook(t, env, "Trash API", "origin/folder", "trash.txt", "body")
 
 	rec := env.post(bookURL(created.Meta.ID, "trash"), nil)
 	assertStatus(t, rec, http.StatusNoContent)

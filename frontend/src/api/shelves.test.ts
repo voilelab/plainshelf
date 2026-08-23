@@ -88,15 +88,15 @@ describe('listServerShelves', () => {
 
 describe('rescanShelf', () => {
   it('reports what the walk found', async () => {
-    fetchJsonMock.mockResolvedValue({ scan_id: 'abc', scanned_at: 1_700_000_000, book_count: 12, layer_count: 3 });
+    fetchJsonMock.mockResolvedValue({ scan_id: 'abc', scanned_at: 1_700_000_000, book_count: 12, folder_count: 3 });
 
-    await expect(rescanShelf()).resolves.toEqual({ bookCount: 12, layerCount: 3 });
+    await expect(rescanShelf()).resolves.toEqual({ bookCount: 12, folderCount: 3 });
   });
 
   // The gate that would otherwise reject this POST is the one that exists to
   // stop writes, and a rescan is not one; the server draws the same exception.
   it('marks the request as writing nothing, and takes the 409 body as a result', async () => {
-    fetchJsonMock.mockResolvedValue({ scan_id: 'abc', book_count: 0, layer_count: 0 });
+    fetchJsonMock.mockResolvedValue({ scan_id: 'abc', book_count: 0, folder_count: 0 });
 
     await rescanShelf();
 
@@ -116,8 +116,8 @@ describe('rescanShelf', () => {
   });
 
   it('does not mistake an empty shelf for a refusal', async () => {
-    fetchJsonMock.mockResolvedValue({ scan_id: 'abc', scanned_at: 1, book_count: 0, layer_count: 1 });
+    fetchJsonMock.mockResolvedValue({ scan_id: 'abc', scanned_at: 1, book_count: 0, folder_count: 1 });
 
-    await expect(rescanShelf()).resolves.toEqual({ bookCount: 0, layerCount: 1 });
+    await expect(rescanShelf()).resolves.toEqual({ bookCount: 0, folderCount: 1 });
   });
 });

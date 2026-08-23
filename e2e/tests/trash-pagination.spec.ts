@@ -11,7 +11,7 @@ function trashedBooks(count: number) {
       id: `trashed-${label}`,
       title: `Trashed ${label}`,
       authors: ['E2E'],
-      original_layer: [],
+      original_folder: [],
       original_path: `books/trashed-${label}`,
       deleted_at: '2026-01-01T00:00:00Z'
     };

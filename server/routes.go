@@ -18,21 +18,21 @@ type apiHandlers struct {
 	settings *settings
 	tasks    *taskSubmitter
 
-	books     *bookHandlers
-	sources   *sourceHandlers
-	imports   *importHandlers
-	layers    *layerHandlers
-	trash     *trashHandlers
-	batches   *batchHandlers
-	transfers *bookTransferHandlers
-	layerXfer *layerTransferHandlers
-	fps       *fingerprintHandlers
-	taskAPI   *taskHandlers
-	setting   *settingHandlers
-	logs      *logHandlers
-	shelves   *shelfHandlers
-	meta      *metaHandlers
-	spa       *spaHandlers
+	books      *bookHandlers
+	sources    *sourceHandlers
+	imports    *importHandlers
+	folders    *folderHandlers
+	trash      *trashHandlers
+	batches    *batchHandlers
+	transfers  *bookTransferHandlers
+	folderXfer *folderTransferHandlers
+	fps        *fingerprintHandlers
+	taskAPI    *taskHandlers
+	setting    *settingHandlers
+	logs       *logHandlers
+	shelves    *shelfHandlers
+	meta       *metaHandlers
+	spa        *spaHandlers
 }
 
 func newAPIHandlers(
@@ -53,21 +53,21 @@ func newAPIHandlers(
 		settings: settingsSvc,
 		tasks:    tasks,
 
-		books:     &bookHandlers{apiCore: core, settings: settingsSvc},
-		sources:   &sourceHandlers{apiCore: core},
-		imports:   &importHandlers{apiCore: core, settings: settingsSvc},
-		layers:    &layerHandlers{apiCore: core},
-		trash:     &trashHandlers{taskSubmitter: tasks},
-		batches:   &batchHandlers{taskSubmitter: tasks},
-		transfers: &bookTransferHandlers{taskSubmitter: tasks},
-		layerXfer: &layerTransferHandlers{taskSubmitter: tasks},
-		fps:       &fingerprintHandlers{apiCore: core},
-		taskAPI:   &taskHandlers{taskSubmitter: tasks},
-		setting:   &settingHandlers{apiCore: core, settings: settingsSvc},
-		logs:      &logHandlers{apiCore: core, conf: conf},
-		shelves:   &shelfHandlers{apiCore: core},
-		meta:      &metaHandlers{apiCore: core, conf: conf},
-		spa:       &spaHandlers{fs: spaFS, files: http.FileServerFS(spaFS), security: security},
+		books:      &bookHandlers{apiCore: core, settings: settingsSvc},
+		sources:    &sourceHandlers{apiCore: core},
+		imports:    &importHandlers{apiCore: core, settings: settingsSvc},
+		folders:    &folderHandlers{apiCore: core},
+		trash:      &trashHandlers{taskSubmitter: tasks},
+		batches:    &batchHandlers{taskSubmitter: tasks},
+		transfers:  &bookTransferHandlers{taskSubmitter: tasks},
+		folderXfer: &folderTransferHandlers{taskSubmitter: tasks},
+		fps:        &fingerprintHandlers{apiCore: core},
+		taskAPI:    &taskHandlers{taskSubmitter: tasks},
+		setting:    &settingHandlers{apiCore: core, settings: settingsSvc},
+		logs:       &logHandlers{apiCore: core, conf: conf},
+		shelves:    &shelfHandlers{apiCore: core},
+		meta:       &metaHandlers{apiCore: core, conf: conf},
+		spa:        &spaHandlers{fs: spaFS, files: http.FileServerFS(spaFS), security: security},
 	}
 }
 
@@ -129,12 +129,12 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/trash/books/{book_id}/restore", h.trash.restoreTrashedBook)
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/trash/books/{book_id}", h.trash.deleteTrashedBook)
 
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/layers", h.layers.getLayers)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/layer-moves", h.layers.moveLayer)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/layer-transfers", h.layerXfer.transferLayer)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/layers/{layer_path...}", h.layers.createLayer)
-	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/layers/{layer_path...}", h.layers.renameLayer)
-	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/layers/{layer_path...}", h.layers.deleteLayer)
+	mux.HandleFunc("GET /api/shelves/{shelf_id}/folders", h.folders.getFolders)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/folder-moves", h.folders.moveFolder)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/folder-transfers", h.folderXfer.transferFolder)
+	mux.HandleFunc("POST /api/shelves/{shelf_id}/folders/{folder_path...}", h.folders.createFolder)
+	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/folders/{folder_path...}", h.folders.renameFolder)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/folders/{folder_path...}", h.folders.deleteFolder)
 
 	// Task API
 

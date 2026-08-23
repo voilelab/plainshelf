@@ -1,30 +1,30 @@
 <template>
   <ConfirmModal
     :open="open"
-    :title="t('layout.renameLayer.title')"
-    :confirm-text="t('layout.renameLayer.confirm')"
+    :title="t('layout.renameFolder.title')"
+    :confirm-text="t('layout.renameFolder.confirm')"
     :cancel-text="t('common.cancel')"
-    :busy-text="t('layout.renameLayer.renaming')"
+    :busy-text="t('layout.renameFolder.renaming')"
     :busy="busy"
-    :close-label="t('layout.renameLayer.closeLabel')"
+    :close-label="t('layout.renameFolder.closeLabel')"
     @cancel="emit('cancel')"
     @confirm="submitRename"
   >
-    <form class="rename-layer-form" @submit.prevent="submitRename">
-      <label class="rename-layer-field">
-        <span class="rename-layer-label">{{ t('layout.renameLayer.nameLabel') }}</span>
+    <form class="rename-folder-form" @submit.prevent="submitRename">
+      <label class="rename-folder-field">
+        <span class="rename-folder-label">{{ t('layout.renameFolder.nameLabel') }}</span>
         <input
           ref="nameInput"
           v-model="draftName"
-          class="rename-layer-input"
+          class="rename-folder-input"
           type="text"
-          :placeholder="t('layout.renameLayer.placeholder')"
+          :placeholder="t('layout.renameFolder.placeholder')"
           :disabled="busy"
           autocomplete="off"
         >
       </label>
-      <p class="rename-layer-help">{{ t('layout.renameLayer.help', { layerName: currentName }) }}</p>
-      <p v-if="error" class="rename-layer-error" role="alert">{{ error }}</p>
+      <p class="rename-folder-help">{{ t('layout.renameFolder.help', { folderName: currentName }) }}</p>
+      <p v-if="error" class="rename-folder-error" role="alert">{{ error }}</p>
     </form>
   </ConfirmModal>
 </template>
@@ -96,24 +96,24 @@ watch(
 </script>
 
 <style scoped>
-.rename-layer-form {
+.rename-folder-form {
   display: grid;
   gap: 10px;
 }
 
-.rename-layer-field {
+.rename-folder-field {
   display: grid;
   gap: 6px;
 }
 
-.rename-layer-label {
+.rename-folder-label {
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
 }
 
-.rename-layer-input {
+.rename-folder-input {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -122,18 +122,18 @@ watch(
   padding: 10px 12px;
 }
 
-.rename-layer-input:focus {
+.rename-folder-input:focus {
   border-color: var(--accent);
   outline: 2px solid rgba(37, 99, 235, 0.18);
 }
 
-.rename-layer-help {
+.rename-folder-help {
   color: var(--muted);
   font-size: 13px;
   margin: 0;
 }
 
-.rename-layer-error {
+.rename-folder-error {
   background: #fef2f2;
   border: 1px solid #fecaca;
   border-radius: 8px;

@@ -6,7 +6,7 @@ import { t } from '@/i18n';
 const SHELF_INIT_RETRY_DELAY_MS = 3000;
 const SHELF_INIT_MAX_AUTO_RETRIES = 10; // ~30s of auto-retry before showing an error
 
-const layers = ref<string[]>([]);
+const folders = ref<string[]>([]);
 const loading = ref(false);
 const error = ref('');
 const loaded = ref(false);
@@ -30,12 +30,12 @@ async function run(isAutoRetry: boolean): Promise<void> {
   error.value = '';
 
   try {
-    layers.value = await getBookshelfProvider().listLayers();
+    folders.value = await getBookshelfProvider().listFolders();
     loaded.value = true;
     initRetryCount = 0;
   } catch (err) {
     // A shelf still running its initial scan answers 503 for every read. The
-    // book listing retries through that, so the layer tree has to as well:
+    // book listing retries through that, so the folder tree has to as well:
     // otherwise the sidebar strands on an error the shelf resolves on its own
     // while the book list recovers on the next tick.
     if (err instanceof ApiError && err.status === 503) {
@@ -44,9 +44,9 @@ async function run(isAutoRetry: boolean): Promise<void> {
         retryTimer = setTimeout(() => void run(true), SHELF_INIT_RETRY_DELAY_MS);
         return;
       }
-      error.value = t('layout.layerErrors.shelfNotReady');
+      error.value = t('layout.folderErrors.shelfNotReady');
     } else {
-      error.value = err instanceof Error ? err.message : t('layout.layerErrors.loadFailed');
+      error.value = err instanceof Error ? err.message : t('layout.folderErrors.loadFailed');
     }
   } finally {
     // A pending retry keeps the sidebar in its loading state rather than
@@ -59,16 +59,16 @@ async function run(isAutoRetry: boolean): Promise<void> {
 
 // Takes no arguments on purpose: it is bound straight to a template click
 // handler, which would otherwise pass the event in as the retry flag.
-async function fetchLayers(): Promise<void> {
+async function fetchFolders(): Promise<void> {
   await run(false);
 }
 
-export function useLayerStore() {
+export function useFolderStore() {
   return {
-    layers,
+    folders,
     loading,
     error,
     loaded,
-    fetchLayers
+    fetchFolders
   };
 }

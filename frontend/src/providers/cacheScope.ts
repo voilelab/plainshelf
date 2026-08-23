@@ -7,7 +7,7 @@ import { shelfEntryTarget, type ShelfEntry } from '@/providers/mobileConfig';
  *
  * A book id is only guaranteed unique *within one shelf*: the server hands it
  * out per shelf and checks for collisions inside that shelf alone. Shelves
- * written by older servers carry ids derived from md5(layers + "-" + title), so
+ * written by older servers carry ids derived from md5(folders + "-" + title), so
  * two shelves — or two servers that both call a shelf `default_shelf` — really
  * do hand out the same id for different books. Anything the mobile shell keys by
  * book id alone will therefore mix them up, whether it is stored on the

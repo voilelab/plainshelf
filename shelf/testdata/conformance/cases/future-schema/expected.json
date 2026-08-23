@@ -1,11 +1,11 @@
 {
-  "layers": [
+  "folders": [
     "/"
   ],
   "books": [
     {
       "path": "books/tomorrow.bookpkg",
-      "layers": [],
+      "folders": [],
       "id": "t4v9dq2mx7kz5nhb",
       "title": "Written By A Newer Build",
       "format": "txt",

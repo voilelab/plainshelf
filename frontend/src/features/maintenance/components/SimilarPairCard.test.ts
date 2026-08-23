@@ -53,7 +53,7 @@ function book(id: string, overrides: Partial<Book> = {}): Book {
     title: id,
     authors: [],
     tags: [],
-    layers: [],
+    folders: [],
     format: 'txt',
     ...overrides
   };

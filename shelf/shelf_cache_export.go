@@ -35,7 +35,12 @@ back to walking the shelf.
 // Unlike book.json there is no migration path and none is needed: the file can
 // always be regenerated from the shelf, so a reader that sees a version it does
 // not know discards the file rather than trying to interpret it.
-const BookCacheSchemaVersion = 1
+//
+// v2 renamed the folder-list key from "layers" to "folders" (the layer→folder
+// surface rename). Because a version mismatch is already a plain cache miss, an
+// existing v1 export is simply discarded and rebuilt on the next export; no error
+// reaches the caller.
+const BookCacheSchemaVersion = 2
 
 const bookCacheFilePrefix = "book-cache-"
 const bookCacheFileSuffix = ".json"
@@ -81,7 +86,7 @@ type BookCacheFile struct {
 	// API returns: "/" for the top level, "Fiction/Classics" for a nested one.
 	// Recorded explicitly because an empty folder holds no book and could not be
 	// reconstructed from Books.
-	Folders []string `json:"layers"`
+	Folders []string `json:"folders"`
 
 	// Books maps book ID to its location and metadata.
 	Books map[string]BookCacheEntry `json:"books"`
@@ -267,7 +272,7 @@ func (s *Shelf) exportBookCache(force bool) error {
 		WriterID:      s.bookCacheWriterID,
 		Timestamp:     scannedAt.Unix(),
 		Generator:     "plainshelf/" + version.Version,
-		Folders:        folders,
+		Folders:       folders,
 		Books:         books,
 	}
 
@@ -289,7 +294,7 @@ func (s *Shelf) exportBookCache(force bool) error {
 	s.bookCache.lastExportDigest = digest
 	s.bookCache.Unlock()
 
-	s.Debug("exported book cache", "path", target, "books", len(books), "layers", len(folders))
+	s.Debug("exported book cache", "path", target, "books", len(books), "folders", len(folders))
 
 	s.pruneStaleBookCaches(root)
 	return nil
@@ -337,8 +342,8 @@ func (s *Shelf) collectExportBooks() map[string]BookCacheEntry {
 // folder slice is already sorted.
 func bookCacheDigest(folders []string, books map[string]BookCacheEntry) (string, error) {
 	data, err := json.Marshal(struct {
-		Folders []string                  `json:"layers"`
-		Books  map[string]BookCacheEntry `json:"books"`
+		Folders []string                  `json:"folders"`
+		Books   map[string]BookCacheEntry `json:"books"`
 	}{Folders: folders, Books: books})
 	if err != nil {
 		return "", util.Errorf("%w", err)

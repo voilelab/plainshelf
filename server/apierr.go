@@ -41,11 +41,11 @@ var apiErrorTable = []struct {
 	}},
 	{shelf.ErrIgnoredFolderName, apiError{
 		status:  http.StatusBadRequest,
-		message: "invalid layer name: hidden and system directory names (a leading dot, @eaDir, #recycle, $RECYCLE.BIN, lost+found) are skipped by the shelf scanner, so a layer named this way would not stay visible",
+		message: "invalid folder name: hidden and system directory names (a leading dot, @eaDir, #recycle, $RECYCLE.BIN, lost+found) are skipped by the shelf scanner, so a folder named this way would not stay visible",
 	}},
 	{shelf.ErrInvalidFolder, apiError{
 		status:  http.StatusBadRequest,
-		message: "invalid layer name",
+		message: "invalid folder name",
 	}},
 	{shelf.ErrShelfInitializing, apiError{
 		status:     http.StatusServiceUnavailable,
@@ -124,7 +124,7 @@ func (c *apiCore) writeErr(w http.ResponseWriter, err error, fallback string) {
 }
 
 // writeErrStatus is writeErr with a caller-chosen status for unknown errors.
-// The layer routes answer a family of outcomes the table cannot yet name with
+// The folder routes answer a family of outcomes the table cannot yet name with
 // a single status, and 500 would be wrong for those.
 func (c *apiCore) writeErrStatus(w http.ResponseWriter, err error, fallback string, fallbackStatus int) {
 	if resp, ok := apiErrorFor(err); ok {

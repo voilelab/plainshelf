@@ -4,7 +4,7 @@ import { applyBookFilters, soleBlockingFilter, type ActiveBookFilter } from './a
 import { authorFilter, coverFilter, tagsFilter } from './registry';
 
 function book(overrides: Partial<Book> = {}): Book {
-  return { id: 'b', title: 'b', authors: [], tags: [], layers: [], ...overrides };
+  return { id: 'b', title: 'b', authors: [], tags: [], folders: [], ...overrides };
 }
 
 // A shelf with three distinct books so a condition can empty the list on its own

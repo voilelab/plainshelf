@@ -22,12 +22,12 @@ const mocks = vi.hoisted(() => ({
           }`
   })),
   fetchBooks: vi.fn(),
-  fetchLayers: vi.fn(),
+  fetchFolders: vi.fn(),
   isWebRuntime: vi.fn(() => false),
   // undefined models a provider without the desktop reader (web/mobile); a
   // spy models the desktop provider.
   openDesktopReader: undefined as undefined | ((bookId: string, section?: number) => Promise<void>),
-  layers: ['', 'fiction', 'notes']
+  folders: ['', 'fiction', 'notes']
 }));
 
 vi.mock('vue-router', () => ({
@@ -41,11 +41,11 @@ vi.mock('@/providers', () => ({
   isWebRuntime: mocks.isWebRuntime
 }));
 
-vi.mock('@/composables/useLayerStore', () => ({
-  useLayerStore: () => ({
-    layers: ref(mocks.layers),
+vi.mock('@/composables/useFolderStore', () => ({
+  useFolderStore: () => ({
+    folders: ref(mocks.folders),
     loaded: ref(true),
-    fetchLayers: mocks.fetchLayers
+    fetchFolders: mocks.fetchFolders
   })
 }));
 
@@ -62,7 +62,7 @@ function book(overrides: Partial<Book> = {}): Book {
     id: 'book-1',
     title: 'Original',
     authors: ['Ada'],
-    layers: ['fiction'],
+    folders: ['fiction'],
     language: 'en',
     format: 'txt',
     tags: [],
@@ -185,7 +185,7 @@ describe('useBookActions copy', () => {
   });
 
   it('copies the book and hands the fresh copy to onCopied', async () => {
-    const copy = book({ id: 'book-2', layers: ['notes'] });
+    const copy = book({ id: 'book-2', folders: ['notes'] });
     mocks.copyBook.mockResolvedValue(copy);
     const onCopied = vi.fn();
 
@@ -200,13 +200,13 @@ describe('useBookActions copy', () => {
     expect(actions.actionError.value).toBe('');
   });
 
-  // Copying into the book's own layer is a real "duplicate here", not a no-op,
-  // so the current layer must stay in the offered destinations.
-  it('keeps the book\'s own layer among the copy destinations', () => {
+  // Copying into the book's own folder is a real "duplicate here", not a no-op,
+  // so the current folder must stay in the offered destinations.
+  it('keeps the book\'s own folder among the copy destinations', () => {
     const actions = useBookActions();
-    actions.requestCopy(book({ layers: ['fiction'] }));
+    actions.requestCopy(book({ folders: ['fiction'] }));
 
-    expect(actions.copyLayerOptions.value).toContain('fiction');
+    expect(actions.copyFolderOptions.value).toContain('fiction');
   });
 
   it('keeps the dialog open with an error when the copy fails', async () => {
@@ -247,7 +247,7 @@ describe('useBookActions transfer', () => {
 
     const actions = useBookActions({ onTransferred });
     actions.requestTransfer(book());
-    await actions.submitTransfer({ targetShelfId: 'shelf-b', targetLayer: 'notes', mode: 'move' });
+    await actions.submitTransfer({ targetShelfId: 'shelf-b', targetFolder: 'notes', mode: 'move' });
 
     expect(mocks.transferBook).toHaveBeenCalledWith('book-1', 'shelf-b', 'notes', 'move');
 
@@ -270,7 +270,7 @@ describe('useBookActions transfer', () => {
 
     const actions = useBookActions();
     actions.requestTransfer(book());
-    await actions.submitTransfer({ targetShelfId: 'shelf-b', targetLayer: '', mode: 'copy' });
+    await actions.submitTransfer({ targetShelfId: 'shelf-b', targetFolder: '', mode: 'copy' });
 
     expect(actions.transferring.value).toBe(true);
     actions.cancelTransfer();
@@ -284,7 +284,7 @@ describe('useBookActions transfer', () => {
 
     const actions = useBookActions({ onTransferred });
     actions.requestTransfer(book());
-    await actions.submitTransfer({ targetShelfId: 'shelf-b', targetLayer: '', mode: 'move' });
+    await actions.submitTransfer({ targetShelfId: 'shelf-b', targetFolder: '', mode: 'move' });
 
     await vi.advanceTimersByTimeAsync(600);
     await flush();

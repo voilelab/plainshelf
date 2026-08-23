@@ -24,9 +24,9 @@ func newTransferTestShelf(t *testing.T, name string) *shelf.Shelf {
 	return s
 }
 
-func seedTransferBook(t *testing.T, s *shelf.Shelf, layer shelf.FolderPath, title string) string {
+func seedTransferBook(t *testing.T, s *shelf.Shelf, folder shelf.FolderPath, title string) string {
 	t.Helper()
-	book, err := s.NewBook(layer, title)
+	book, err := s.NewBook(folder, title)
 	if err != nil {
 		t.Fatalf("NewBook %q: %v", title, err)
 	}
@@ -42,20 +42,20 @@ func newTestLogger(t *testing.T) *logutil.Logger {
 	return logger
 }
 
-// layerTransferPlan mirrors what the endpoint resolves before scheduling: the
-// layers under sourceLayer and the books beneath it. Building it from the same
+// folderTransferPlan mirrors what the endpoint resolves before scheduling: the
+// folders under sourceFolder and the books beneath it. Building it from the same
 // exported reads the handler uses keeps the task tests honest about its input.
-func layerTransferPlan(t *testing.T, source *shelf.Shelf, sourceLayer shelf.FolderPath) ([]LayerTransferBook, []shelf.FolderPath) {
+func folderTransferPlan(t *testing.T, source *shelf.Shelf, sourceFolder shelf.FolderPath) ([]FolderTransferBook, []shelf.FolderPath) {
 	t.Helper()
 
-	allLayers, err := source.GetAllFolders()
+	allFolders, err := source.GetAllFolders()
 	if err != nil {
-		t.Fatalf("GetAllLayers: %v", err)
+		t.Fatalf("GetAllFolders: %v", err)
 	}
-	var sublayers []shelf.FolderPath
-	for _, l := range allLayers {
-		if layerHasPrefix(l, sourceLayer) {
-			sublayers = append(sublayers, l)
+	var subfolders []shelf.FolderPath
+	for _, l := range allFolders {
+		if folderHasPrefix(l, sourceFolder) {
+			subfolders = append(subfolders, l)
 		}
 	}
 
@@ -63,20 +63,20 @@ func layerTransferPlan(t *testing.T, source *shelf.Shelf, sourceLayer shelf.Fold
 	if err != nil {
 		t.Fatalf("ListBooksWithCharCount: %v", err)
 	}
-	var books []LayerTransferBook
+	var books []FolderTransferBook
 	for _, listing := range listings {
-		if layerHasPrefix(listing.Folders, sourceLayer) {
-			books = append(books, LayerTransferBook{ID: listing.Book.ID(), SourceLayer: listing.Folders})
+		if folderHasPrefix(listing.Folders, sourceFolder) {
+			books = append(books, FolderTransferBook{ID: listing.Book.ID(), SourceFolder: listing.Folders})
 		}
 	}
-	return books, sublayers
+	return books, subfolders
 }
 
-func bookIDsUnderLayer(t *testing.T, s *shelf.Shelf, layer shelf.FolderPath) []string {
+func bookIDsUnderFolder(t *testing.T, s *shelf.Shelf, folder shelf.FolderPath) []string {
 	t.Helper()
-	books, err := s.GetBooksByFolder(layer)
+	books, err := s.GetBooksByFolder(folder)
 	if err != nil {
-		t.Fatalf("GetBooksByLayer %v: %v", layer, err)
+		t.Fatalf("GetBooksByFolder %v: %v", folder, err)
 	}
 	ids := make([]string, 0, len(books))
 	for _, b := range books {
@@ -85,9 +85,9 @@ func bookIDsUnderLayer(t *testing.T, s *shelf.Shelf, layer shelf.FolderPath) []s
 	return ids
 }
 
-// A copy transfer reproduces the whole subtree - nested layers and an empty
+// A copy transfer reproduces the whole subtree - nested folders and an empty
 // sub-folder - on the target with fresh IDs and leaves the source untouched.
-func TestLayerTransferTaskCopyNested(t *testing.T) {
+func TestFolderTransferTaskCopyNested(t *testing.T) {
 	source := newTransferTestShelf(t, "source")
 	target := newTransferTestShelf(t, "target")
 
@@ -97,9 +97,9 @@ func TestLayerTransferTaskCopyNested(t *testing.T) {
 		t.Fatalf("NewFolder: %v", err)
 	}
 
-	books, sublayers := layerTransferPlan(t, source, shelf.FolderPath{"fiction"})
-	task := newLayerTransferTask("source", source, "target", target, newTestLogger(t),
-		BookTransferOperationCopy, shelf.FolderPath{"fiction"}, shelf.FolderPath{"imported"}, books, sublayers)
+	books, subfolders := folderTransferPlan(t, source, shelf.FolderPath{"fiction"})
+	task := newFolderTransferTask("source", source, "target", target, newTestLogger(t),
+		BookTransferOperationCopy, shelf.FolderPath{"fiction"}, shelf.FolderPath{"imported"}, books, subfolders)
 
 	if err := task.Run(context.Background()); err != nil {
 		t.Fatalf("Run: %v", err)
@@ -108,35 +108,35 @@ func TestLayerTransferTaskCopyNested(t *testing.T) {
 		t.Fatalf("status = %v at %v%%, want completed at 100%%", task.Status(), task.Percentage())
 	}
 
-	result := task.Result().(LayerTransferResult)
+	result := task.Result().(FolderTransferResult)
 	if result.Total != 2 || len(result.SucceededIDs) != 2 || len(result.Failures) != 0 {
 		t.Fatalf("result = %+v, want two copied and no failures", result)
 	}
 
-	// Every book lands under its remapped layer with a fresh ID.
+	// Every book lands under its remapped folder with a fresh ID.
 	for _, tc := range []struct {
 		original string
-		layer    shelf.FolderPath
+		folder    shelf.FolderPath
 	}{
 		{topID, shelf.FolderPath{"imported"}},
 		{deepID, shelf.FolderPath{"imported", "sci-fi"}},
 	} {
-		ids := bookIDsUnderLayer(t, target, tc.layer)
+		ids := bookIDsUnderFolder(t, target, tc.folder)
 		if len(ids) != 1 {
-			t.Fatalf("target layer %v holds %v, want one book", tc.layer, ids)
+			t.Fatalf("target folder %v holds %v, want one book", tc.folder, ids)
 		}
 		if ids[0] == tc.original {
-			t.Errorf("copy under %v reused the original ID %q", tc.layer, tc.original)
+			t.Errorf("copy under %v reused the original ID %q", tc.folder, tc.original)
 		}
 	}
 
 	// The empty sub-folder is reproduced on the target.
-	targetLayers, err := target.GetAllFolders()
+	targetFolders, err := target.GetAllFolders()
 	if err != nil {
-		t.Fatalf("target GetAllLayers: %v", err)
+		t.Fatalf("target GetAllFolders: %v", err)
 	}
-	if !hasLayer(targetLayers, shelf.FolderPath{"imported", "empty"}) {
-		t.Errorf("empty sub-layer was not reproduced on the target: %v", targetLayers)
+	if !hasFolder(targetFolders, shelf.FolderPath{"imported", "empty"}) {
+		t.Errorf("empty sub-folder was not reproduced on the target: %v", targetFolders)
 	}
 
 	// The source keeps both books under their original IDs.
@@ -148,17 +148,17 @@ func TestLayerTransferTaskCopyNested(t *testing.T) {
 }
 
 // A move transfer keeps every book's ID, publishes the subtree on the target, and
-// removes the emptied source layer once every book has moved.
-func TestLayerTransferTaskMoveNested(t *testing.T) {
+// removes the emptied source folder once every book has moved.
+func TestFolderTransferTaskMoveNested(t *testing.T) {
 	source := newTransferTestShelf(t, "source")
 	target := newTransferTestShelf(t, "target")
 
 	topID := seedTransferBook(t, source, shelf.FolderPath{"fiction"}, "Top")
 	deepID := seedTransferBook(t, source, shelf.FolderPath{"fiction", "sci-fi"}, "Deep")
 
-	books, sublayers := layerTransferPlan(t, source, shelf.FolderPath{"fiction"})
-	task := newLayerTransferTask("source", source, "target", target, newTestLogger(t),
-		BookTransferOperationMove, shelf.FolderPath{"fiction"}, shelf.FolderPath{"archive"}, books, sublayers)
+	books, subfolders := folderTransferPlan(t, source, shelf.FolderPath{"fiction"})
+	task := newFolderTransferTask("source", source, "target", target, newTestLogger(t),
+		BookTransferOperationMove, shelf.FolderPath{"fiction"}, shelf.FolderPath{"archive"}, books, subfolders)
 
 	if err := task.Run(context.Background()); err != nil {
 		t.Fatalf("Run: %v", err)
@@ -167,11 +167,11 @@ func TestLayerTransferTaskMoveNested(t *testing.T) {
 		t.Fatalf("status = %v at %v%%, want completed at 100%%", task.Status(), task.Percentage())
 	}
 
-	// The target lists both books under their original IDs at the remapped layers.
-	if got := bookIDsUnderLayer(t, target, shelf.FolderPath{"archive"}); len(got) != 1 || got[0] != topID {
+	// The target lists both books under their original IDs at the remapped folders.
+	if got := bookIDsUnderFolder(t, target, shelf.FolderPath{"archive"}); len(got) != 1 || got[0] != topID {
 		t.Errorf("target [archive] = %v, want [%s]", got, topID)
 	}
-	if got := bookIDsUnderLayer(t, target, shelf.FolderPath{"archive", "sci-fi"}); len(got) != 1 || got[0] != deepID {
+	if got := bookIDsUnderFolder(t, target, shelf.FolderPath{"archive", "sci-fi"}); len(got) != 1 || got[0] != deepID {
 		t.Errorf("target [archive sci-fi] = %v, want [%s]", got, deepID)
 	}
 
@@ -181,26 +181,26 @@ func TestLayerTransferTaskMoveNested(t *testing.T) {
 			t.Errorf("source still lists moved book %q, err = %v", id, err)
 		}
 	}
-	sourceLayers, err := source.GetAllFolders()
+	sourceFolders, err := source.GetAllFolders()
 	if err != nil {
-		t.Fatalf("source GetAllLayers: %v", err)
+		t.Fatalf("source GetAllFolders: %v", err)
 	}
-	if hasLayer(sourceLayers, shelf.FolderPath{"fiction"}) || hasLayer(sourceLayers, shelf.FolderPath{"fiction", "sci-fi"}) {
-		t.Errorf("source layer subtree survived the move: %v", sourceLayers)
+	if hasFolder(sourceFolders, shelf.FolderPath{"fiction"}) || hasFolder(sourceFolders, shelf.FolderPath{"fiction", "sci-fi"}) {
+		t.Errorf("source folder subtree survived the move: %v", sourceFolders)
 	}
 }
 
 // A cancel arriving before the first book leaves both shelves untouched and the
 // task fails at 0%, recording no per-book results.
-func TestLayerTransferTaskCancelledBeforeStart(t *testing.T) {
+func TestFolderTransferTaskCancelledBeforeStart(t *testing.T) {
 	source := newTransferTestShelf(t, "source")
 	target := newTransferTestShelf(t, "target")
 
 	seedTransferBook(t, source, shelf.FolderPath{"fiction"}, "Only")
 
-	books, sublayers := layerTransferPlan(t, source, shelf.FolderPath{"fiction"})
-	task := newLayerTransferTask("source", source, "target", target, newTestLogger(t),
-		BookTransferOperationMove, shelf.FolderPath{"fiction"}, shelf.FolderPath{"archive"}, books, sublayers)
+	books, subfolders := folderTransferPlan(t, source, shelf.FolderPath{"fiction"})
+	task := newFolderTransferTask("source", source, "target", target, newTestLogger(t),
+		BookTransferOperationMove, shelf.FolderPath{"fiction"}, shelf.FolderPath{"archive"}, books, subfolders)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -211,18 +211,18 @@ func TestLayerTransferTaskCancelledBeforeStart(t *testing.T) {
 	if task.Status() != taskutil.StatusFailed || task.Percentage() != 0 {
 		t.Fatalf("status = %v at %v%%, want failed at 0%%", task.Status(), task.Percentage())
 	}
-	result := task.Result().(LayerTransferResult)
+	result := task.Result().(FolderTransferResult)
 	if len(result.SucceededIDs) != 0 || len(result.Failures) != 0 {
 		t.Fatalf("cancelled task recorded item results: %+v", result)
 	}
 
-	// Nothing landed on the target - not even the destination layer.
-	targetLayers, err := target.GetAllFolders()
+	// Nothing landed on the target - not even the destination folder.
+	targetFolders, err := target.GetAllFolders()
 	if err != nil {
-		t.Fatalf("target GetAllLayers: %v", err)
+		t.Fatalf("target GetAllFolders: %v", err)
 	}
-	if hasLayer(targetLayers, shelf.FolderPath{"archive"}) {
-		t.Errorf("cancelled-before-start transfer created a destination layer: %v", targetLayers)
+	if hasFolder(targetFolders, shelf.FolderPath{"archive"}) {
+		t.Errorf("cancelled-before-start transfer created a destination folder: %v", targetFolders)
 	}
 }
 
@@ -232,7 +232,7 @@ func TestLayerTransferTaskCancelledBeforeStart(t *testing.T) {
 // task's own progress rather than a timer, so there is no timing race.
 type cancelWhenDone struct {
 	context.Context
-	task  *layerTransferTask
+	task  *folderTransferTask
 	after int
 }
 
@@ -246,11 +246,11 @@ func (c *cancelWhenDone) Err() error {
 // A cancel partway through a move stops before the next book, keeps the books
 // already moved on the target, leaves the rest on the source, and rolls nothing
 // back. The status is partially completed, never a clean completion.
-func TestLayerTransferTaskCancelledMidMove(t *testing.T) {
+func TestFolderTransferTaskCancelledMidMove(t *testing.T) {
 	source := newTransferTestShelf(t, "source")
 	target := newTransferTestShelf(t, "target")
 
-	// Two books at the top of the layer; the transfer visits them sorted by ID.
+	// Two books at the top of the folder; the transfer visits them sorted by ID.
 	idA := seedTransferBook(t, source, shelf.FolderPath{"fiction"}, "Alpha")
 	idB := seedTransferBook(t, source, shelf.FolderPath{"fiction"}, "Bravo")
 	first, second := idA, idB
@@ -258,9 +258,9 @@ func TestLayerTransferTaskCancelledMidMove(t *testing.T) {
 		first, second = second, first
 	}
 
-	books, sublayers := layerTransferPlan(t, source, shelf.FolderPath{"fiction"})
-	task := newLayerTransferTask("source", source, "target", target, newTestLogger(t),
-		BookTransferOperationMove, shelf.FolderPath{"fiction"}, shelf.FolderPath{"archive"}, books, sublayers)
+	books, subfolders := folderTransferPlan(t, source, shelf.FolderPath{"fiction"})
+	task := newFolderTransferTask("source", source, "target", target, newTestLogger(t),
+		BookTransferOperationMove, shelf.FolderPath{"fiction"}, shelf.FolderPath{"archive"}, books, subfolders)
 
 	ctx := &cancelWhenDone{Context: context.Background(), task: task, after: 1}
 	if err := task.Run(ctx); !errors.Is(err, context.Canceled) {
@@ -270,7 +270,7 @@ func TestLayerTransferTaskCancelledMidMove(t *testing.T) {
 		t.Fatalf("status = %v, want partially_completed", task.Status())
 	}
 
-	result := task.Result().(LayerTransferResult)
+	result := task.Result().(FolderTransferResult)
 	if len(result.SucceededIDs) != 1 || result.SucceededIDs[0] != first {
 		t.Fatalf("succeeded = %v, want just the first book %q", result.SucceededIDs, first)
 	}
@@ -292,15 +292,15 @@ func TestLayerTransferTaskCancelledMidMove(t *testing.T) {
 }
 
 // A destination folder that cannot be created must not read as a clean success:
-// an empty-layer transfer onto a read-only target creates nothing, so the task
-// settles failed and records the layer failure rather than reporting completed.
-func TestLayerTransferTaskLayerCreateFailureSettlesFailed(t *testing.T) {
+// an empty-folder transfer onto a read-only target creates nothing, so the task
+// settles failed and records the folder failure rather than reporting completed.
+func TestFolderTransferTaskFolderCreateFailureSettlesFailed(t *testing.T) {
 	source := newTransferTestShelf(t, "source")
 	if err := source.NewFolder(shelf.FolderPath{}, "fiction"); err != nil {
 		t.Fatalf("NewFolder: %v", err)
 	}
 
-	// Lay the target down writable, then reopen it read-only so NewLayer fails.
+	// Lay the target down writable, then reopen it read-only so NewFolder fails.
 	targetDir := path.Join(t.TempDir(), "target")
 	seed, err := shelf.NewShelf(&shelf.ShelfConf{LibRoot: targetDir})
 	if err != nil {
@@ -321,23 +321,23 @@ func TestLayerTransferTaskLayerCreateFailureSettlesFailed(t *testing.T) {
 		t.Fatalf("WaitReady target: %v", err)
 	}
 
-	books, sublayers := layerTransferPlan(t, source, shelf.FolderPath{"fiction"})
-	task := newLayerTransferTask("source", source, "target", target, newTestLogger(t),
-		BookTransferOperationCopy, shelf.FolderPath{"fiction"}, shelf.FolderPath{"imported"}, books, sublayers)
+	books, subfolders := folderTransferPlan(t, source, shelf.FolderPath{"fiction"})
+	task := newFolderTransferTask("source", source, "target", target, newTestLogger(t),
+		BookTransferOperationCopy, shelf.FolderPath{"fiction"}, shelf.FolderPath{"imported"}, books, subfolders)
 
 	if err := task.Run(context.Background()); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if task.Status() != taskutil.StatusFailed {
-		t.Fatalf("status = %v, want failed when the destination layer cannot be created", task.Status())
+		t.Fatalf("status = %v, want failed when the destination folder cannot be created", task.Status())
 	}
-	if result := task.Result().(LayerTransferResult); result.LayerFailures == 0 {
-		t.Fatalf("result = %+v, want a recorded layer failure", result)
+	if result := task.Result().(FolderTransferResult); result.FolderFailures == 0 {
+		t.Fatalf("result = %+v, want a recorded folder failure", result)
 	}
 }
 
-func hasLayer(layers []shelf.FolderPath, want shelf.FolderPath) bool {
-	for _, l := range layers {
+func hasFolder(folders []shelf.FolderPath, want shelf.FolderPath) bool {
+	for _, l := range folders {
 		if l.Equal(want) {
 			return true
 		}

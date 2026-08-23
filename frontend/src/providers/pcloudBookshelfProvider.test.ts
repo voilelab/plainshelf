@@ -208,7 +208,7 @@ afterEach(() => {
 });
 
 describe('shelf loading', () => {
-  it('lists books with their layers', async () => {
+  it('lists books with their folders', async () => {
     const tree = folder('default-shelf', [
       folder('books', [
         bookPackage({ id: 'root1', title: 'Root Book' }),
@@ -221,7 +221,7 @@ describe('shelf loading', () => {
 
     expect(page.total).toBe(2);
     expect(page.items.map((book) => book.id).sort()).toEqual(['fic1', 'root1']);
-    expect(page.items.find((book) => book.id === 'fic1')?.layers).toEqual(['Fiction']);
+    expect(page.items.find((book) => book.id === 'fic1')?.folders).toEqual(['Fiction']);
   });
 
   it('walks the tree once and reuses the result for every later read', async () => {
@@ -252,7 +252,7 @@ describe('shelf loading', () => {
 
     clock = 30 * 24 * 60 * 60 * 1_000;
     await provider.listBooks(1, 10);
-    await provider.listLayers();
+    await provider.listFolders();
     await provider.getBook('a');
 
     expect(calls.recursiveListfolder).toBe(1);
@@ -349,7 +349,7 @@ describe('shelf loading', () => {
     // A second provider over the same store stands in for the next app launch.
     const { provider, calls } = makeProvider(tree, { snapshotStore: store });
     const page = await provider.listBooks(1, 10);
-    await provider.listLayers();
+    await provider.listFolders();
     await provider.getBook('b');
 
     expect(page.items.map((book) => book.id)).toEqual(['a', 'b']);
@@ -377,7 +377,7 @@ describe('shelf loading', () => {
       version: SHELF_SNAPSHOT_VERSION,
       shelf_root: '/PlainShelf/some-other-shelf',
       fetched_at: 1,
-      layers: ['/'],
+      folders: ['/'],
       books: []
     });
 
@@ -480,8 +480,8 @@ describe('shelf loading', () => {
   });
 });
 
-describe('layers', () => {
-  it('lists every layer directory, including one holding no books', async () => {
+describe('folders', () => {
+  it('lists every folder directory, including one holding no books', async () => {
     const tree = folder('default-shelf', [
       folder('books', [
         bookPackage({ id: 'a', title: 'A' }),
@@ -491,24 +491,24 @@ describe('layers', () => {
     ]);
     const { provider } = makeProvider(tree);
 
-    await expect(provider.listLayers()).resolves.toEqual(['/', 'Empty', 'Fiction']);
+    await expect(provider.listFolders()).resolves.toEqual(['/', 'Empty', 'Fiction']);
   });
 
-  it('serves layers from the same walk as the book list', async () => {
+  it('serves folders from the same walk as the book list', async () => {
     const { provider, calls } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
 
     await provider.listBooks(1, 10);
-    await provider.listLayers();
+    await provider.listFolders();
 
     expect(calls.recursiveListfolder).toBe(1);
   });
 
-  it('reports a failed walk rather than an empty layer tree', async () => {
+  it('reports a failed walk rather than an empty folder tree', async () => {
     const { provider } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]), {
       onDownload: () => Promise.reject(new TypeError('Failed to fetch'))
     });
 
-    await expect(provider.listLayers()).rejects.toBeInstanceOf(ApiError);
+    await expect(provider.listFolders()).rejects.toBeInstanceOf(ApiError);
   });
 });
 
@@ -693,15 +693,15 @@ describe('exported book cache', () => {
     timestamp?: number;
     writerID?: string;
     schemaVersion?: number;
-    layers?: string[];
+    folders?: string[];
     books?: Record<string, { path: string; meta: Record<string, unknown> }>;
     /** Replaces the whole body, for malformed-file cases. */
     rawBody?: string;
   }
 
-  function cachedBook(id: string, title: string, folderName: string, layers: string[] = []) {
+  function cachedBook(id: string, title: string, folderName: string, folders: string[] = []) {
     return {
-      path: ['books', ...layers, folderName].join('/'),
+      path: ['books', ...folders, folderName].join('/'),
       meta: {
         schema_version: 1,
         id,
@@ -717,11 +717,11 @@ describe('exported book cache', () => {
     const body =
       spec.rawBody ??
       JSON.stringify({
-        schema_version: spec.schemaVersion ?? 1,
+        schema_version: spec.schemaVersion ?? 2,
         writer_id: spec.writerID ?? 'writer01',
         timestamp: spec.timestamp ?? CACHE_TIMESTAMP,
         generator: 'plainshelf/test',
-        layers: spec.layers ?? ['/'],
+        folders: spec.folders ?? ['/'],
         books: spec.books ?? {}
       });
 
@@ -814,7 +814,7 @@ describe('exported book cache', () => {
   it.each([
     ['a corrupt file', { rawBody: '{not json' }],
     ['an unknown schema version', { schemaVersion: 99 }],
-    ['a payload missing required fields', { rawBody: JSON.stringify({ schema_version: 1, books: {} }) }]
+    ['a payload missing required fields', { rawBody: JSON.stringify({ schema_version: 2, books: {} }) }]
   ])('falls back to a full scan on %s', async (_label, spec) => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -853,16 +853,16 @@ describe('exported book cache', () => {
     expect(calls.download).toBe(1);
   });
 
-  it('matches cache entries by layer path, not by folder name alone', async () => {
+  it('matches cache entries by folder path, not by folder name alone', async () => {
     const tree = shelfWithCache(
       [folder('Fiction', [bookPackage({ id: 'a', title: 'Alpha' })])],
       [
         bookCacheItem({
-          layers: ['/', 'Fiction'],
+          folders: ['/', 'Fiction'],
           books: {
             // Recorded at the top level; the book actually lives under Fiction,
             // so this entry must not be applied to it.
-            a: cachedBook('a', 'Wrong Layer', 'Alpha.bookpkg')
+            a: cachedBook('a', 'Wrong Folder', 'Alpha.bookpkg')
           }
         })
       ]
@@ -872,7 +872,7 @@ describe('exported book cache', () => {
     const page = await provider.listBooks(1, 10);
 
     expect(page.items.map((book) => book.title)).toEqual(['Alpha']);
-    expect(page.items[0]?.layers).toEqual(['Fiction']);
+    expect(page.items[0]?.folders).toEqual(['Fiction']);
     expect(calls.download).toBe(2);
   });
 

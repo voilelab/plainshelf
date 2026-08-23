@@ -43,7 +43,7 @@ const en = {
     prev: 'Prev',
     next: 'Next',
     page: 'Page {page} / {total}',
-    inLayer: ' in {layer}',
+    inFolder: ' in {folder}',
     taskStartFailed: 'Failed to start the task',
     taskPollFailed: 'Failed to read task progress'
   },
@@ -51,62 +51,62 @@ const en = {
     expandSidebar: 'Expand sidebar',
     collapseSidebar: 'Collapse sidebar',
     railNavLabel: 'Sidebar navigation',
-    layersNavLabel: 'Layers',
+    foldersNavLabel: 'Folders',
     openMenu: 'Open menu',
     closeMenu: 'Close menu',
     sections: {
-      layers: 'LAYERS',
+      folders: 'FOLDERS',
       reading: 'READING',
       maintenance: 'MAINTENANCE',
       admin: 'ADMIN'
     },
     sectionToggleLabels: {
-      layers: 'Toggle sidebar folders',
+      folders: 'Toggle sidebar folders',
       reading: 'Toggle sidebar history',
       maintenance: 'Toggle sidebar maintenance',
       admin: 'Toggle sidebar administration'
     },
-    createLayer: {
-      add: 'Add layer',
-      title: 'New layer',
-      nameLabel: 'Layer name',
-      namePlaceholder: 'Layer name',
+    createFolder: {
+      add: 'Add folder',
+      title: 'New folder',
+      nameLabel: 'Folder name',
+      namePlaceholder: 'Folder name',
       parentLabel: 'Where',
       rootOption: 'All books (top level)',
-      closeLabel: 'Close new layer dialog',
-      invalidName: 'Layer name cannot be empty or contain /.',
+      closeLabel: 'Close new folder dialog',
+      invalidName: 'Folder name cannot be empty or contain /.',
       creating: 'Creating...',
       create: 'Create',
-      loadingLayers: 'Loading layers...'
+      loadingFolders: 'Loading folders...'
     },
-    deleteLayer: {
-      title: 'Delete layer',
+    deleteFolder: {
+      title: 'Delete folder',
       shortAction: 'Delete',
-      description: 'This will fail if the layer contains books or child layers.',
-      failed: 'Failed to delete layer',
+      description: 'This will fail if the folder contains books or child folders.',
+      failed: 'Failed to delete folder',
       notEmpty:
-        'Cannot delete this layer because it is not empty.\nMove books out and delete child layers first.'
+        'Cannot delete this folder because it is not empty.\nMove books out and delete child folders first.'
     },
-    renameLayer: {
+    renameFolder: {
       shortAction: 'Rename',
-      title: 'Rename layer',
-      nameLabel: 'Layer name',
-      placeholder: 'Layer name',
-      help: 'Current name: {layerName}',
+      title: 'Rename folder',
+      nameLabel: 'Folder name',
+      placeholder: 'Folder name',
+      help: 'Current name: {folderName}',
       confirm: 'Rename',
       renaming: 'Renaming...',
-      closeLabel: 'Close rename layer dialog',
-      invalid: 'Layer name cannot be empty or contain /.',
-      failed: 'Failed to rename layer'
+      closeLabel: 'Close rename folder dialog',
+      invalid: 'Folder name cannot be empty or contain /.',
+      failed: 'Failed to rename folder'
     },
-    moveLayer: {
-      failed: 'Failed to move layer. Drag a layer onto an existing target layer.'
+    moveFolder: {
+      failed: 'Failed to move folder. Drag a folder onto an existing target folder.'
     },
-    openLayerFolder: {
+    openFolder: {
       shortAction: 'Open folder',
-      failed: 'Failed to open layer folder.'
+      failed: 'Failed to open folder.'
     },
-    transferLayer: {
+    transferFolder: {
       shortAction: 'Transfer to another shelf…',
       title: 'Transfer folder to another shelf',
       description: 'Copy or move the “{folder}” folder — and everything inside it — to a different shelf.',
@@ -115,9 +115,9 @@ const en = {
       noShelves: 'No other shelf is available to transfer to.',
       parentLabel: 'Destination location',
       parentHint: 'The folder keeps its name and is placed here: {destination}',
-      rootLayer: 'All books (top level)',
-      loadingLayers: 'Loading folders…',
-      layersFailed: 'Failed to load the destination folders.',
+      rootFolder: 'All books (top level)',
+      loadingFolders: 'Loading folders…',
+      foldersFailed: 'Failed to load the destination folders.',
       modeLabel: 'Action',
       modeCopy: 'Copy',
       modeCopyHint: 'Creates new books on the destination shelf. Reading progress is not carried over.',
@@ -135,17 +135,17 @@ const en = {
       partial: 'The transfer finished with problems.',
       failed: 'The transfer failed.',
       errors: {
-        conflictLayer:
+        conflictFolder:
           'The destination shelf already has a folder with this name. Pick another location, or rename the folder there first.',
         conflictBookId:
           'The destination shelf already holds these books, so a move would overwrite them: {ids}. Copy instead, or remove them there first.',
         failed: 'The transfer could not be started.'
       }
     },
-    layerErrors: {
-      emptyPath: 'Layer path cannot be empty',
-      createFailed: 'Failed to create layer',
-      loadFailed: 'Failed to load layers',
+    folderErrors: {
+      emptyPath: 'Folder path cannot be empty',
+      createFailed: 'Failed to create folder',
+      loadFailed: 'Failed to load folders',
       shelfNotReady: 'The shelf is still starting up and did not become ready.'
     },
     moveBookErrors: {
@@ -444,8 +444,8 @@ const en = {
     importFromFiles: 'Import from files',
     newEmptyBook: 'New empty book',
     empty: {
-      noBooksFound: 'No books found for "{query}"{layerSuffix}.',
-      noBooksInLayer: 'No books in {layer}.',
+      noBooksFound: 'No books found for "{query}"{folderSuffix}.',
+      noBooksInFolder: 'No books in {folder}.',
       noBooksYet: 'No books yet.',
       noBooksInCharCountRange: 'No books in this character range.',
       noBooksMatchFilters: 'No books match the current filters.',
@@ -495,12 +495,12 @@ const en = {
       }
     },
     titleSearch: 'Search',
-    titleLayer: 'Layer',
+    titleFolder: 'Folder',
     refreshShelf: 'Update book list',
     refreshingShelf: 'Updating…',
     lastSynced: 'Updated {time}',
     neverSynced: 'Never updated',
-    scanFound: 'Found {books} books in {layers} folders',
+    scanFound: 'Found {books} books in {folders} folders',
     scanInProgress: 'This shelf is already being scanned. Try again once it finishes.',
     loadFailed: 'Failed to load books',
     refreshFailed: 'Failed to update the book list',
@@ -511,7 +511,7 @@ const en = {
     documentTitle: 'Book',
     loading: 'Loading book details...',
     root: 'All books',
-    layerPath: 'Book folder path',
+    folderPath: 'Book folder path',
     ratingLabel: 'Rated {rating} stars',
     emptyDetails: 'No additional details are available for this book.',
     sections: {
@@ -592,10 +592,10 @@ const en = {
       shelfLabel: 'Destination shelf',
       chooseShelf: 'Choose a shelf',
       noShelves: 'No other shelf is available to transfer to.',
-      layerLabel: 'Destination folder',
-      rootLayer: 'All books (top level)',
-      loadingLayers: 'Loading folders…',
-      layersFailed: 'Failed to load the destination folders.',
+      folderLabel: 'Destination folder',
+      rootFolder: 'All books (top level)',
+      loadingFolders: 'Loading folders…',
+      foldersFailed: 'Failed to load the destination folders.',
       modeLabel: 'Action',
       modeCopy: 'Copy',
       modeCopyHint: 'Creates a new book on the destination shelf. Reading progress is not carried over.',
@@ -664,7 +664,7 @@ const en = {
     }
   },
   bookCollection: {
-    noLayer: 'No layer',
+    noFolder: 'No folder',
     noSummary: 'No summary',
     loadingBooks: 'Loading books...',
     shelfInitializing: 'Shelf is loading, please wait...',
@@ -695,8 +695,8 @@ const en = {
       downloading: 'Downloading...',
       moveTitle: 'Move selected books',
       moveTarget: 'Destination',
-      rootLayer: 'All books (top level)',
-      chooseLayer: 'Choose a destination',
+      rootFolder: 'All books (top level)',
+      chooseFolder: 'Choose a destination',
       confirmMove: 'Move {count} books',
       confirmMoveOne: 'Move 1 book',
       moving: 'Moving...',
@@ -756,7 +756,7 @@ const en = {
     columns: {
       title: 'Title',
       authors: 'Authors',
-      originalLayer: 'Original layer',
+      originalFolder: 'Original folder',
       originalPath: 'Original path',
       deletedAt: 'Deleted at',
       bookId: 'Book ID',

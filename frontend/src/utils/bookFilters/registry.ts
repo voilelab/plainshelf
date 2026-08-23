@@ -18,7 +18,7 @@ import type { Book } from '@/types/book';
 import { toSingleQueryValue } from '@/composables/useBookPagination';
 import { useCharCountIndex } from '@/composables/useCharCountIndex';
 import { getBookshelfProvider } from '@/providers';
-import { getLayerPath, layerPathEquals } from '@/utils/layers';
+import { getFolderPath, folderPathEquals } from '@/utils/folders';
 import { bookMatchesSearch } from '@/utils/bookSearch';
 import {
   isCharCountInRange,
@@ -38,7 +38,7 @@ import {
 
 /**
  * Where a filter's control lives. `inline` conditions sit in the toolbar (search)
- * or are driven by navigation (the layer, from the breadcrumb); `panel`
+ * or are driven by navigation (the folder, from the breadcrumb); `panel`
  * conditions live in the filter panel and show as removable chips above the list.
  */
 export type FilterChrome = 'inline' | 'panel';
@@ -123,8 +123,8 @@ function defineBookFilter<T>(def: BookFilterDef<T>): BookFilterDef<T> {
   return def;
 }
 
-/** Mirrors `toLayerPath`: a blank layer value is "no layer", not an empty path. */
-function normalizeLayerValue(raw: string | undefined): string | undefined {
+/** Mirrors `toFolderPath`: a blank folder value is "no folder", not an empty path. */
+function normalizeFolderValue(raw: string | undefined): string | undefined {
   if (raw === undefined) {
     return undefined;
   }
@@ -149,27 +149,27 @@ export const searchFilter = defineBookFilter<string>({
   predicate: (book, value) => bookMatchesSearch(book, value)
 });
 
-export const layersFilter = defineBookFilter<string | undefined>({
-  key: 'layers',
-  // `layer` (singular) is the legacy key: read for back-compat, always rewritten
-  // as `layers`, and stripped either way.
-  queryKeys: ['layers', 'layer'],
+export const foldersFilter = defineBookFilter<string | undefined>({
+  key: 'folders',
+  // `folder` (singular) is the legacy key: read for back-compat, always rewritten
+  // as `folders`, and stripped either way.
+  queryKeys: ['folders', 'folder'],
   chrome: 'inline',
   parse: (query) =>
-    normalizeLayerValue(toSingleQueryValue(query.layers))
-    ?? normalizeLayerValue(toSingleQueryValue(query.layer)),
+    normalizeFolderValue(toSingleQueryValue(query.folders))
+    ?? normalizeFolderValue(toSingleQueryValue(query.folder)),
   serialize: (value) => {
-    const normalized = normalizeLayerValue(value);
+    const normalized = normalizeFolderValue(value);
     const query: Record<string, string> = {};
     if (normalized) {
-      query.layers = normalized;
+      query.folders = normalized;
     }
     return query;
   },
-  isActive: (value) => normalizeLayerValue(value) !== undefined,
+  isActive: (value) => normalizeFolderValue(value) !== undefined,
   predicate: (book, value) => {
-    const normalized = normalizeLayerValue(value);
-    return normalized === undefined || layerPathEquals(getLayerPath(book), normalized);
+    const normalized = normalizeFolderValue(value);
+    return normalized === undefined || folderPathEquals(getFolderPath(book), normalized);
   }
 });
 
@@ -359,7 +359,7 @@ export const tagsFilter = defineBookFilter<MultiFieldValue>({
  */
 export const BOOK_FILTERS: readonly AnyBookFilterDef[] = [
   searchFilter,
-  layersFilter,
+  foldersFilter,
   charCountFilter,
   authorFilter,
   tagsFilter,

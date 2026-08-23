@@ -34,26 +34,26 @@ type BookBatchResult struct {
 }
 
 type bookBatchTask struct {
-	shelfID     string
-	shelf       *shelf.Shelf
-	logger      *logutil.Logger
-	operation   string
-	bookIDs     []string
-	targetLayer shelf.FolderPath
+	shelfID      string
+	shelf        *shelf.Shelf
+	logger       *logutil.Logger
+	operation    string
+	bookIDs      []string
+	targetFolder shelf.FolderPath
 
 	progress taskutil.Progress
 	mu       sync.Mutex
 	result   BookBatchResult
 }
 
-func newBookBatchTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetLayer shelf.FolderPath) *bookBatchTask {
+func newBookBatchTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetFolder shelf.FolderPath) *bookBatchTask {
 	return &bookBatchTask{
-		shelfID:     shelfID,
-		shelf:       s,
-		logger:      logger,
-		operation:   operation,
-		bookIDs:     append([]string(nil), bookIDs...),
-		targetLayer: append(shelf.FolderPath(nil), targetLayer...),
+		shelfID:      shelfID,
+		shelf:        s,
+		logger:       logger,
+		operation:    operation,
+		bookIDs:      append([]string(nil), bookIDs...),
+		targetFolder: append(shelf.FolderPath(nil), targetFolder...),
 		result: BookBatchResult{
 			Operation:    operation,
 			Total:        len(bookIDs),
@@ -170,13 +170,13 @@ func (t *bookBatchTask) Run(ctx context.Context) error {
 		case BookBatchOperationMove:
 			var listing shelf.BookListing
 			listing, err = t.shelf.GetBookListing(bookID)
-			if err == nil && listing.Folders.Equal(t.targetLayer) {
+			if err == nil && listing.Folders.Equal(t.targetFolder) {
 				t.recordSuccess(bookID)
 				t.progress.Advance()
 				continue
 			}
 			if err == nil {
-				_, err = t.shelf.MoveBook(bookID, t.targetLayer)
+				_, err = t.shelf.MoveBook(bookID, t.targetFolder)
 			}
 		case BookBatchOperationTrash:
 			err = t.shelf.DeleteBook(bookID)
@@ -194,11 +194,11 @@ func (t *bookBatchTask) Run(ctx context.Context) error {
 	return nil
 }
 
-func NewBookBatchChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetLayer shelf.FolderPath) *taskutil.TaskChain {
+func NewBookBatchChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetFolder shelf.FolderPath) *taskutil.TaskChain {
 	keyIDs := append([]string(nil), bookIDs...)
 	slices.Sort(keyIDs)
-	key := strings.Join([]string{BookBatchTaskName, shelfID, operation, targetLayer.String(), strings.Join(keyIDs, ",")}, ":")
-	task := newBookBatchTask(shelfID, s, logger, operation, bookIDs, targetLayer)
+	key := strings.Join([]string{BookBatchTaskName, shelfID, operation, targetFolder.String(), strings.Join(keyIDs, ",")}, ":")
+	task := newBookBatchTask(shelfID, s, logger, operation, bookIDs, targetFolder)
 	return &taskutil.TaskChain{
 		Key:         key,
 		Name:        BookBatchTaskName,

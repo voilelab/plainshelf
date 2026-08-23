@@ -1,8 +1,8 @@
 /**
  * Generic evaluation of the declarative book filters over an already-loaded book
- * list. The library page used to hand-write one computed per layer
- * (`searchedBooks` → `layerFilteredBooks` → `filteredBooks`) purely so the empty
- * state could name which layer emptied the list. That does not scale past a few
+ * list. The library page used to hand-write one computed per folder
+ * (`searchedBooks` → `folderFilteredBooks` → `filteredBooks`) purely so the empty
+ * state could name which folder emptied the list. That does not scale past a few
  * conditions, and it re-encodes ordering the registry already knows. These
  * helpers loop the registry instead: `applyBookFilters` ANDs every active
  * condition, and `soleBlockingFilter` derives the empty-state cause with no

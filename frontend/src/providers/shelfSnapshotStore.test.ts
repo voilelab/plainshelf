@@ -77,13 +77,13 @@ function makeSnapshot(overrides: Partial<PersistedShelfSnapshot> = {}): Persiste
     version: SHELF_SNAPSHOT_VERSION,
     shelf_root: SHELF_A,
     fetched_at: 1_700_000_000_000,
-    layers: ['/', 'Fiction'],
+    folders: ['/', 'Fiction'],
     books: [
       {
         pkg: {
           folderName: 'a.bookpkg',
           folderid: 10,
-          layers: ['Fiction'],
+          folders: ['Fiction'],
           meta: { fileid: 11, name: 'book.json', size: 42, modified: 'Sun, 16 Mar 2014 17:26:04 +0000' },
           files: {},
           sources: []
@@ -108,7 +108,7 @@ describe('parseShelfSnapshot', () => {
   it.each([
     ['a different version', { version: SHELF_SNAPSHOT_VERSION + 1 }],
     ['a missing timestamp', { fetched_at: undefined as unknown as number }],
-    ['layers of the wrong type', { layers: 'Fiction' as unknown as string[] }]
+    ['folders of the wrong type', { folders: 'Fiction' as unknown as string[] }]
   ])('rejects %s', (_label, overrides) => {
     expect(parseShelfSnapshot(makeSnapshot(overrides))).toBeNull();
   });

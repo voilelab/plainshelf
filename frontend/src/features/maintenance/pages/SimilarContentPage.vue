@@ -134,7 +134,7 @@ const error = ref('');
 const tooLarge = ref<{ total: number; limit: number } | null>(null);
 const pairs = ref<SimilarBookPair[]>([]);
 const fingerprint = ref<FingerprintStatus | null>(null);
-// Title, cover, format, layer and char_count for every book, so a card can show
+// Title, cover, format, folder and char_count for every book, so a card can show
 // enough for the user to decide which copy to delete. Best-effort: a card falls
 // back to an id-only stand-in for any book missing here.
 const booksById = ref<Map<string, Book>>(new Map());

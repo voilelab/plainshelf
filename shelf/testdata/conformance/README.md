@@ -43,9 +43,9 @@ observations both can make, in the shape both can produce:
 
 | Field | Go | TypeScript |
 |---|---|---|
-| `layers` | `collectExportLayers` | `collectLayers` |
+| `folders` | `collectExportFolders` | `collectFolders` |
 | `books[].path` | `Book.FolderPath` | `bookPackagePath` |
-| `books[].layers` | `BookListing.Layers` | `BookPackageRef.layers` |
+| `books[].folders` | `BookListing.Folders` | `BookPackageRef.folders` |
 | `books[].id`, `title`, `format`, `authors`, `tags`, `star`, `cover` | `Book.GetMeta` | `parseBookJson` |
 | `books[].cover_present` | `Book.OpenCover` | `findCoverFile` |
 | `books[].schema_version_on_disk` | `readBookMeta` | `BookJson.schema_version` |
@@ -58,7 +58,7 @@ observations both can make, in the shape both can produce:
 
 Conventions that keep the two comparable:
 
-- `books` and `book_caches` are ordered by `path` and by `name`; `layers`,
+- `books` and `book_caches` are ordered by `path` and by `name`; `folders`,
   `sources` and `assets` are sorted the way each implementation sorts them.
 - `schema_version_on_disk` is `0` when `book.json` carries no `schema_version`
   field, which is how a pre-v1 book is distinguished from a v1 one. Neither

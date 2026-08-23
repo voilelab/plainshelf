@@ -96,7 +96,7 @@ func bookPath(bookID string) string {
 }
 
 // The response shape is the frontend's contract: it reads metadata from "meta"
-// and layers from beside it, and a package has none.
+// and the folder from beside it, and a package has none.
 func TestHandlerServesTheOpenBook(t *testing.T) {
 	handler := readerapi.NewHandler(newOpenLibrary(t), "test")
 
@@ -106,8 +106,8 @@ func TestHandlerServesTheOpenBook(t *testing.T) {
 	}
 
 	var payload struct {
-		Meta  bookpkg.BookMeta `json:"meta"`
-		Layer []string         `json:"layer"`
+		Meta   bookpkg.BookMeta `json:"meta"`
+		Folder []string         `json:"folder"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("decoding book: %v", err)
@@ -118,11 +118,11 @@ func TestHandlerServesTheOpenBook(t *testing.T) {
 	if payload.Meta.Title != "Dune" {
 		t.Errorf("title = %q, want %q", payload.Meta.Title, "Dune")
 	}
-	if payload.Layer == nil {
-		t.Error("expected an empty layer list rather than null")
+	if payload.Folder == nil {
+		t.Error("expected an empty folder list rather than null")
 	}
-	if len(payload.Layer) != 0 {
-		t.Errorf("layers = %v, want none", payload.Layer)
+	if len(payload.Folder) != 0 {
+		t.Errorf("folder = %v, want none", payload.Folder)
 	}
 }
 
@@ -210,7 +210,7 @@ func TestHandlerReportsWhatItDoesNotHave(t *testing.T) {
 
 		for _, path := range []string{
 			"/api/shelves/" + readerapi.ShelfID + "/books",
-			"/api/shelves/" + readerapi.ShelfID + "/layers",
+			"/api/shelves/" + readerapi.ShelfID + "/folders",
 			"/api/shelves/" + readerapi.ShelfID + "/trash/books",
 			"/api/logs",
 		} {

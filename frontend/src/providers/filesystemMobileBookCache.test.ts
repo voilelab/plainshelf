@@ -235,7 +235,7 @@ function makeBook(id: string): Book {
     title: `Title of ${id}`,
     authors: ['Author A', 'Author B'],
     tags: ['fiction'],
-    layers: ['shelf-1']
+    folders: ['shelf-1']
   };
 }
 
