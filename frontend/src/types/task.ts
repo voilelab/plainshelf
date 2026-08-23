@@ -80,6 +80,39 @@ export function isRefreshContentStatsResult(value: unknown): value is RefreshCon
   );
 }
 
+export interface LayerTransferFailure {
+  book_id: string;
+  code: string;
+}
+
+/**
+ * Result of a cross-shelf layer (folder) transfer, mirroring the server's
+ * LayerTransferResult. The single task carries this from its first poll, so the
+ * modal can report an "N of M books" count the chain's bare percentage does not
+ * expose on its own.
+ */
+export interface LayerTransferResult {
+  operation: 'copy' | 'move';
+  source_shelf: string;
+  target_shelf: string;
+  source_layer: string[];
+  target_layer: string[];
+  total: number;
+  succeeded_ids: string[];
+  failures: LayerTransferFailure[];
+  layer_failures: number;
+}
+
+export function isLayerTransferResult(value: unknown): value is LayerTransferResult {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<LayerTransferResult>;
+  return (
+    typeof candidate.total === 'number' &&
+    Array.isArray(candidate.succeeded_ids) &&
+    Array.isArray(candidate.failures)
+  );
+}
+
 export interface TaskChain {
   id: string;
   name: string;
@@ -89,4 +122,26 @@ export interface TaskChain {
   percentage: number;
   created_at?: string;
   tasks: Task[];
+}
+
+/**
+ * Per-book progress of a layer transfer, read out of the chain's single task
+ * result. `processed` counts books the transfer has finished with (succeeded or
+ * failed) so the modal can show "N of M books" beside the percentage bar.
+ * Returns null until a task carries a LayerTransferResult.
+ */
+export function layerTransferCounts(
+  chain: TaskChain | null
+): { processed: number; total: number; succeeded: number; failed: number } | null {
+  if (!chain) {
+    return null;
+  }
+  for (const task of chain.tasks) {
+    if (isLayerTransferResult(task.result)) {
+      const succeeded = task.result.succeeded_ids.length;
+      const failed = task.result.failures.length;
+      return { processed: succeeded + failed, total: task.result.total, succeeded, failed };
+    }
+  }
+  return null;
 }

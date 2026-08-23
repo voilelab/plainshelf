@@ -1,11 +1,13 @@
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { CreateLayerParentOption } from '@/components/CreateLayerModal.vue';
-import { createLayer, deleteLayer, moveLayer, renameLayer } from '@/api/layers';
+import { createLayer, deleteLayer, LayerTransferConflictError, moveLayer, renameLayer } from '@/api/layers';
 import { useBookStore } from '@/composables/useBookStore';
 import { useLayerStore } from '@/composables/useLayerStore';
+import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
 import { useWriteAccess } from '@/composables/useWriteAccess';
-import { bookshelfWriter, getBookshelfProvider } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider, isWritableProvider } from '@/providers';
+import type { BookTransferMode } from '@/api/books';
 import {
   booksRouteForLayerPath,
   buildLayerTreeNodes,
@@ -336,6 +338,121 @@ export function useLayerManagement() {
     }
   }
 
+  // Cross-shelf layer transfer: copy or move a whole folder (and everything in
+  // it) to another shelf. Like the single-book transfer it reports progress
+  // through a task chain and, mirroring that flow, refuses to close mid-transfer
+  // rather than pretending a cancel it cannot deliver — the shared composable's
+  // stop() only halts client polling; the chain keeps running on the server.
+  const transferLayerTarget = ref('');
+  const transferLayerMode = ref<BookTransferMode>('copy');
+
+  // The entry is offered only where a folder can actually be transferred: a
+  // writable multi-shelf backend (server/desktop) that is not read-only. A
+  // reader provider (mobile/pCloud) is not writable, so it never shows.
+  const canTransferLayer = computed(() => !readOnly.value && isWritableProvider(getBookshelfProvider()));
+
+  const {
+    chain: transferLayerChain,
+    status: transferLayerStatus,
+    percentage: transferLayerPercentage,
+    error: transferLayerError,
+    started: transferLayerStarted,
+    running: transferLayerRunning,
+    finished: transferLayerFinished,
+    start: beginTransferLayer,
+    reset: resetTransferLayer
+  } = useTaskChainProgress({
+    onSettled: (status) => {
+      if (status === 'failed') {
+        return;
+      }
+      const source = transferLayerTarget.value;
+      // A move drops the folder from the source shelf; a copy leaves it. Either
+      // way the sidebar's layer tree and per-layer counts have shifted, so pull
+      // both stores fresh.
+      void Promise.all([fetchLayers(), fetchBooks()]);
+      // A move removes the folder the user may be standing in, so send them back
+      // to the top when the layer they are viewing has just left the shelf.
+      if (
+        transferLayerMode.value === 'move' &&
+        source &&
+        (currentLayer.value === source || currentLayer.value?.startsWith(`${source}/`))
+      ) {
+        goToLayer(undefined);
+      }
+    },
+    startFailedMessage: () => t('layout.transferLayer.errors.failed'),
+    pollFailedMessage: () => t('layout.transferLayer.errors.failed')
+  });
+
+  const transferLayerFolderName = computed(() => {
+    const segments = transferLayerTarget.value.split('/').filter((segment) => segment.length > 0);
+    return segments[segments.length - 1] ?? '';
+  });
+
+  function requestTransferLayer(path: string): void {
+    if (!canTransferLayer.value) {
+      return;
+    }
+    layerOperationError.value = '';
+    transferLayerTarget.value = path;
+    resetTransferLayer();
+  }
+
+  function cancelTransferLayer(): void {
+    // The chain keeps running on the server, so closing mid-transfer would only
+    // drop the progress view; refuse it until the transfer settles.
+    if (transferLayerRunning.value) {
+      return;
+    }
+    transferLayerTarget.value = '';
+    resetTransferLayer();
+  }
+
+  // Turns a server refusal into a message the modal can show: the two conflicts
+  // become their own readable strings (a book-ID clash lists every colliding ID),
+  // and anything else keeps the server's own message.
+  function describeTransferLayerError(err: unknown): Error {
+    if (err instanceof LayerTransferConflictError) {
+      if (err.kind === 'book_id_conflict') {
+        return new Error(
+          t('layout.transferLayer.errors.conflictBookId', { ids: err.conflictingBookIDs.join(', ') })
+        );
+      }
+      return new Error(t('layout.transferLayer.errors.conflictLayer'));
+    }
+    return err instanceof Error ? err : new Error(t('layout.transferLayer.errors.failed'));
+  }
+
+  async function submitTransferLayer(payload: {
+    targetShelfId: string;
+    targetParentLayer: string;
+    mode: BookTransferMode;
+  }): Promise<void> {
+    const source = transferLayerTarget.value;
+    if (!source || transferLayerStarted.value) {
+      return;
+    }
+
+    // The folder keeps its own name and nests under the chosen parent, so the full
+    // destination path is the parent joined with the folder name (a root parent
+    // lands the folder at the target shelf's top level).
+    const folderName = transferLayerFolderName.value;
+    const parent = payload.targetParentLayer.trim();
+    const targetPath = parent ? `${parent}/${folderName}` : folderName;
+
+    transferLayerMode.value = payload.mode;
+    // A transfer already in flight for this folder answers with its own chain id,
+    // so this attaches to the existing progress instead of scheduling a second.
+    await beginTransferLayer(async () => {
+      try {
+        return await bookshelfWriter().transferLayer(source, payload.targetShelfId, targetPath, payload.mode);
+      } catch (err) {
+        throw describeTransferLayerError(err);
+      }
+    });
+  }
+
   function requestDeleteLayer(path: string): void {
     if (readOnly.value) {
       deleteLayerError.value = t('layout.readOnly.writeDisabled');
@@ -424,6 +541,19 @@ export function useLayerManagement() {
     confirmRenameLayer,
     onMoveLayer,
     onOpenLayerFolder,
+    canTransferLayer,
+    transferLayerTarget,
+    transferLayerFolderName,
+    transferLayerChain,
+    transferLayerStatus,
+    transferLayerPercentage,
+    transferLayerError,
+    transferLayerStarted,
+    transferLayerRunning,
+    transferLayerFinished,
+    requestTransferLayer,
+    cancelTransferLayer,
+    submitTransferLayer,
     requestDeleteLayer,
     cancelPendingDeleteLayer,
     confirmDeleteLayer

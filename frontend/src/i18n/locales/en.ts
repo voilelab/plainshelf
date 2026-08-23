@@ -106,6 +106,42 @@ const en = {
       shortAction: 'Open folder',
       failed: 'Failed to open layer folder.'
     },
+    transferLayer: {
+      shortAction: 'Transfer to another shelf…',
+      title: 'Transfer folder to another shelf',
+      description: 'Copy or move the “{folder}” folder — and everything inside it — to a different shelf.',
+      shelfLabel: 'Destination shelf',
+      chooseShelf: 'Choose a shelf',
+      noShelves: 'No other shelf is available to transfer to.',
+      parentLabel: 'Destination location',
+      parentHint: 'The folder keeps its name and is placed here: {destination}',
+      rootLayer: 'All books (top level)',
+      loadingLayers: 'Loading folders…',
+      layersFailed: 'Failed to load the destination folders.',
+      modeLabel: 'Action',
+      modeCopy: 'Copy',
+      modeCopyHint: 'Creates new books on the destination shelf. Reading progress is not carried over.',
+      modeMove: 'Move',
+      modeMoveHint: 'Keeps the same books and their reading progress, and removes the folder from this shelf.',
+      confirm: 'Transfer',
+      close: 'Close',
+      progressLabel: 'Transfer progress',
+      progressCount: '{done} of {total} book(s)',
+      failedCount: '{failed} failed',
+      pending: 'Preparing…',
+      running: 'Transferring…',
+      completedCopy: 'Folder copied to the destination shelf.',
+      completedMove: 'Folder moved to the destination shelf.',
+      partial: 'The transfer finished with problems.',
+      failed: 'The transfer failed.',
+      errors: {
+        conflictLayer:
+          'The destination shelf already has a folder with this name. Pick another location, or rename the folder there first.',
+        conflictBookId:
+          'The destination shelf already holds these books, so a move would overwrite them: {ids}. Copy instead, or remove them there first.',
+        failed: 'The transfer could not be started.'
+      }
+    },
     layerErrors: {
       emptyPath: 'Layer path cannot be empty',
       createFailed: 'Failed to create layer',

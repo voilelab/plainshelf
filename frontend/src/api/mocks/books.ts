@@ -8,6 +8,7 @@ import type {
 } from '@/types/book';
 import { registerMockTaskChain } from './taskchains';
 import type { BookBatchRequest, BookBatchResult, RefreshContentStatsResult } from '@/types/task';
+import { normalizeLayerPath } from '@/utils/layers';
 
 // In-memory backend for VITE_USE_MOCK_API. The gate that reaches for it lives in
 // api/client.ts (isMockApiMode); nothing here is reachable in a real build.
@@ -477,6 +478,56 @@ export function mockTransferBook(
         mockBooks.splice(idx, 1);
       }
     }
+  });
+}
+
+/**
+ * mockTransferLayer schedules a task chain that mirrors the real cross-shelf
+ * layer transfer's progress and its LayerTransferResult, one mock book per poll.
+ * Mock mode models only one shelf, so the target is a phantom: a `move` drops the
+ * carried books from the source list, a `copy` leaves them. The result it reports
+ * is what drives the modal's "N of M books" count.
+ */
+export function mockTransferLayer(
+  sourceLayer: string,
+  targetShelfId: string,
+  targetLayer: string,
+  mode: 'copy' | 'move'
+): string {
+  const sourcePath = normalizeLayerPath(sourceLayer);
+  const carried = mockBooks.filter((book) => {
+    const path = book.layers && book.layers.length > 0 ? book.layers.join('/') : '/';
+    return path === sourcePath || path.startsWith(`${sourcePath}/`);
+  });
+  const ids = carried.map((book) => book.id);
+  const succeeded: string[] = [];
+
+  return registerMockTaskChain({
+    name: 'layer_transfer',
+    title: mode === 'move' ? 'Move a folder to another shelf' : 'Copy a folder to another shelf',
+    total: ids.length,
+    onItem: (index) => {
+      const id = ids[index];
+      succeeded.push(id);
+      if (mode !== 'move') {
+        return;
+      }
+      const idx = mockBooks.findIndex((book) => book.id === id);
+      if (idx >= 0) {
+        mockBooks.splice(idx, 1);
+      }
+    },
+    getResult: () => ({
+      operation: mode,
+      source_shelf: 'mock',
+      target_shelf: targetShelfId,
+      source_layer: sourcePath === '/' ? [] : sourcePath.split('/'),
+      target_layer: normalizeLayerPath(targetLayer).split('/').filter((segment) => segment.length > 0),
+      total: ids.length,
+      succeeded_ids: [...succeeded],
+      failures: [],
+      layer_failures: 0
+    })
   });
 }
 

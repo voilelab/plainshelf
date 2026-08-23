@@ -239,6 +239,19 @@ export interface BookshelfWriter {
     targetLayer: string,
     mode: BookTransferMode
   ): Promise<string>;
+  /**
+   * Copies or moves a whole layer (folder) — every book and sub-folder beneath
+   * it — from the active shelf to `targetShelfID`, returning the id of the
+   * background task chain to poll. `sourceLayer` and `targetLayer` are '/'-joined
+   * paths; `targetLayer` is the folder's full destination path on the target
+   * shelf.
+   */
+  transferLayer(
+    sourceLayer: string,
+    targetShelfID: string,
+    targetLayer: string,
+    mode: BookTransferMode
+  ): Promise<string>;
   /** @deprecated Legacy sources only. */
 
   importBook(payload: BookCreateRequest): Promise<Book>;
