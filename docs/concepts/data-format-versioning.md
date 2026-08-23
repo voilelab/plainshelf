@@ -248,9 +248,13 @@ shelf you are running on a 0.x build today:
   `schema_version` is higher than the running build understands (`book.go:229`,
   `source.go:87`, `trash.go:387`). Such an object stays readable on a
   best-effort basis, and every attempt to modify it fails with an explicit error
-  instead of overwriting the file. So running a newer build and then an older one
-  against the same shelf cannot silently strip fields the older build does not
-  know — see [When PlainShelf refuses to write](#when-plainshelf-refuses-to-write).
+  instead of overwriting the file. So an older build cannot silently rewrite an
+  object whose `schema_version` a newer build actually raised — its guard refuses
+  it (see [When PlainShelf refuses to write](#when-plainshelf-refuses-to-write)).
+  It does **not** cover a field a newer build added *without* raising the version:
+  that object still reads as a version the older build accepts, so the guard does
+  not fire and the field is dropped on the older build's next write — see
+  [What we do not promise](#what-we-do-not-promise).
 
 Beyond that write refusal, treat the 0.x on-disk format as unstable: keep a
 backup before each upgrade, and do not rely on the 1.0 commitments below.
@@ -559,10 +563,12 @@ for `books/` and `trash/`. See
     `md5_hash` no longer matches the source's actual bytes — content changed
     outside PlainShelf, or an older import that recorded a different hash — it
     corrects that source's `meta.json` in place (`fingerprint_facade.go:42` →
-    `source.go:245`, `RepairContentHash`). Only the hash is rewritten; the
-    UI-visible line and character counts are left alone. It goes through the same
-    write refusal as any other write, so it never touches a read-only shelf or a
-    source whose schema version is newer than this build.
+    `source.go:245`, `RepairContentHash`). It deliberately leaves the UI-visible
+    line and character counts at their stale values rather than recomputing them,
+    but the write still rebuilds the whole file from the fields PlainShelf knows —
+    so, like any `meta.json` write, it drops top-level keys outside that set. It
+    goes through the same write refusal as any other write, so it never touches a
+    read-only shelf or a source whose schema version is newer than this build.
 
 ## What is versioned today
 
