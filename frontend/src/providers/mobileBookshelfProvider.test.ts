@@ -628,6 +628,47 @@ describe('MobileBookshelfProvider — asset bundle download', () => {
     expect(manifest.size_breakdown?.assets).toBeGreaterThan(0);
   });
 
+  // The bundle is held whole in memory, so a book with many figures is fetched
+  // in bounded chunks rather than one giant archive — the request-count win is
+  // kept while the Android memory bound survives.
+  it('splits a large source into bounded bundle requests', async () => {
+    const getSourceAssetsBundle = vi
+      .fn()
+      .mockImplementation(async (_book: string, _source: string, names: string[]) => {
+        const files: Record<string, Uint8Array> = {};
+        for (const name of names) {
+          files[name] = strToU8(`bytes of ${name}`);
+        }
+        return new Blob([zipSync(files)], { type: 'application/zip' });
+      });
+    const getSourceAsset = vi.fn();
+    const links = Array.from({ length: 20 }, (_, i) => `![](assets/img-${i}.png)`).join('\n\n');
+    const provider = makeProvider({
+      getBook: vi.fn().mockResolvedValue(makeBook('book-1', { format: 'md' })),
+      listSources: vi.fn().mockResolvedValue([makeSource('src-1')]),
+      getBookContent: vi.fn().mockResolvedValue({ content: 'text' }),
+      getSourceContent: vi.fn().mockResolvedValue(links),
+      getSourceAssetsBundle,
+      getSourceAsset
+    });
+
+    await provider.downloadBook('book-1');
+
+    // 20 figures at a chunk size of 16 is two requests, neither over the bound,
+    // and never the per-image path.
+    const requested = getSourceAssetsBundle.mock.calls.map((call) => call[2] as string[]);
+    expect(requested).toHaveLength(2);
+    expect(Math.max(...requested.map((names) => names.length))).toBeLessThanOrEqual(16);
+    expect(getSourceAsset).not.toHaveBeenCalled();
+
+    // Every figure across both chunks was stored, once.
+    const allRequested = requested.flat();
+    expect(new Set(allRequested).size).toBe(20);
+    for (let i = 0; i < 20; i += 1) {
+      expect(await cache.getCachedAsset('book-1', 'src-1', `img-${i}.png`)).not.toBeNull();
+    }
+  });
+
   // A bundle request that fails (here a transport error) must not cost the book
   // its illustrations: the download drops to the per-file path unchanged.
   it('falls back to per-file fetches when the bundle request fails', async () => {

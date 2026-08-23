@@ -46,6 +46,16 @@ export const DOWNLOAD_SHELF_CHANGED_ERROR =
 // not a latency-sensitive operation.
 const ASSET_DOWNLOAD_CONCURRENCY = 3;
 
+// How many illustrations one bundle request fetches. The bundle collapses the
+// per-image round trips this download used to pay, but its response is one
+// archive held whole in memory (the images are stored uncompressed, so it is
+// about their combined size), and the per-file path's memory bound must
+// survive that. Requesting the figures in chunks keeps at most this many
+// resident at once while still turning a book's dozens of image requests into a
+// handful: a book with no more figures than this stays a single request, and a
+// larger one splits rather than buffering every picture at once.
+const ASSET_BUNDLE_CHUNK_SIZE = 16;
+
 // Sub-folder of the shared Documents directory that exported books land in, so
 // they are grouped and never collide with an unrelated file already named the
 // same at the Documents root. Shown to the user as part of the saved location.
@@ -646,15 +656,16 @@ export class MobileBookshelfProvider implements BookshelfReader {
   }
 
   /**
-   * Stores each referenced figure out of a per-source zip.
+   * Stores each referenced figure out of per-source zips.
    *
-   * One request fetches a whole source's figures; the archive is then unpacked
-   * one entry at a time, and each figure is decoded only as it is about to be
-   * written, so the decoded bytes of at most one image are resident at once —
-   * the same Android memory bound the per-file path keeps, honoured after the
-   * archive rather than before it.
+   * The figures are requested in chunks of ASSET_BUNDLE_CHUNK_SIZE, so at most
+   * one chunk's archive is held in memory at a time rather than the whole
+   * source's — and within a chunk each figure is decoded only as it is about to
+   * be written, so the decoded bytes of at most one image are resident. That
+   * keeps the per-file path's Android memory bound while still collapsing a
+   * book's per-image round trips into a handful of requests.
    *
-   * A failure fetching or reading the archive throws, so storeSourceAssets
+   * A failure fetching or reading a chunk's archive throws, so storeSourceAssets
    * falls back to the per-file path. A single figure that is absent from the
    * archive (the text referenced a file never uploaded) or that will not store
    * is skipped, best-effort, exactly as one failed per-file fetch is.
@@ -668,28 +679,43 @@ export class MobileBookshelfProvider implements BookshelfReader {
 
     for (const { sourceId, content } of sourceContents) {
       const names = referencedAssetNames(content);
-      if (names.length === 0) {
+      for (let offset = 0; offset < names.length; offset += ASSET_BUNDLE_CHUNK_SIZE) {
+        const chunk = names.slice(offset, offset + ASSET_BUNDLE_CHUNK_SIZE);
+        stored += await this.storeAssetChunkViaBundle(bookId, sourceId, chunk, fetchBundle);
+      }
+    }
+
+    return stored;
+  }
+
+  /**
+   * Fetches one chunk of a source's figures as a single archive and stores each,
+   * decoding one entry at a time. Returns the bytes stored from this chunk.
+   */
+  private async storeAssetChunkViaBundle(
+    bookId: string,
+    sourceId: string,
+    names: string[],
+    fetchBundle: (bookId: string, sourceId: string, names: string[]) => Promise<Blob>
+  ): Promise<number> {
+    const zipBlob = await fetchBundle(bookId, sourceId, names);
+    const archive = new Uint8Array(await zipBlob.arrayBuffer());
+
+    let stored = 0;
+    for (const name of names) {
+      // A malformed archive throws here and propagates to the per-file
+      // fallback; a filter that simply matches nothing yields undefined, which
+      // is a referenced-but-absent figure the reader shows as alt text.
+      const bytes = unzipSync(archive, { filter: (file) => file.name === name })[name];
+      if (!bytes) {
         continue;
       }
-
-      const zipBlob = await fetchBundle(bookId, sourceId, names);
-      const archive = new Uint8Array(await zipBlob.arrayBuffer());
-
-      for (const name of names) {
-        // A malformed archive throws here and propagates to the per-file
-        // fallback; a filter that simply matches nothing yields undefined,
-        // which is a referenced-but-absent figure the reader shows as alt text.
-        const bytes = unzipSync(archive, { filter: (file) => file.name === name })[name];
-        if (!bytes) {
-          continue;
-        }
-        try {
-          const blob = new Blob([bytes], { type: imageMimeType(name) });
-          await this.cache.saveCachedAsset(bookId, sourceId, name, blob);
-          stored += blob.size;
-        } catch (err) {
-          console.warn(`Failed to store illustration ${name} for book ${bookId}.`, err);
-        }
+      try {
+        const blob = new Blob([bytes], { type: imageMimeType(name) });
+        await this.cache.saveCachedAsset(bookId, sourceId, name, blob);
+        stored += blob.size;
+      } catch (err) {
+        console.warn(`Failed to store illustration ${name} for book ${bookId}.`, err);
       }
     }
 
