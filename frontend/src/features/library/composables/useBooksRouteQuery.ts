@@ -112,7 +112,10 @@ export function useBooksRouteQuery() {
   const charCountRange = computed<CharCountRange>(() => charCountFilter.parse(route.query));
   const isImportModalOpen = computed(() => toSingleQueryValue(route.query.import) === '1');
 
-  function buildBooksQuery(input: BooksQueryInput = {}) {
+  function buildBooksQuery(
+    input: BooksQueryInput = {},
+    panelOverrides?: Record<string, unknown>
+  ) {
     const nextQuery = {
       ...route.query
     } as Record<string, LocationQueryValue | LocationQueryValue[]>;
@@ -133,15 +136,23 @@ export function useBooksRouteQuery() {
     nextQuery.order = input.order ?? sortOrder.value;
 
     // Each filter re-serializes either its explicit input override or what the
-    // current query already carries. The override keys mirror BooksQueryInput.
+    // current query already carries. The typed override keys mirror
+    // BooksQueryInput; `panelOverrides` is the generic path any panel condition
+    // uses, where a key being *present* — even with a cleared value — overrides,
+    // so removing a chip is `{ author: undefined }` rather than a sentinel.
     const overrides: Record<string, unknown> = {
       [searchFilter.key]: input.search,
       [layersFilter.key]: input.layer,
       [charCountFilter.key]: input.charCount
     };
     for (const filter of BOOK_FILTERS) {
-      const override = overrides[filter.key];
-      const value = override !== undefined ? override : filter.parse(route.query);
+      let value: unknown;
+      if (panelOverrides && filter.key in panelOverrides) {
+        value = panelOverrides[filter.key];
+      } else {
+        const override = overrides[filter.key];
+        value = override !== undefined ? override : filter.parse(route.query);
+      }
       if (filter.isActive(value)) {
         Object.assign(nextQuery, filter.serialize(value));
       }
@@ -161,6 +172,20 @@ export function useBooksRouteQuery() {
     return router.replace({
       path: '/books',
       query: buildBooksQuery(input)
+    });
+  }
+
+  /**
+   * Sets or clears any panel condition by key (the generic path for the filter
+   * panel, its chips, and "clear all"). Each override value is a filter's own
+   * value type — an inactive value (e.g. `undefined`, `{}`) clears it. Always
+   * resets to page 1, since the visible set changes, and leaves search, layer,
+   * sort, and order untouched.
+   */
+  function applyPanelFilters(overrides: Record<string, unknown>): RouterNavigationResult {
+    return router.replace({
+      path: '/books',
+      query: buildBooksQuery({ page: 1 }, overrides)
     });
   }
 
@@ -215,6 +240,7 @@ export function useBooksRouteQuery() {
     toSortOrder,
     pushBooksQuery,
     replaceBooksQuery,
+    applyPanelFilters,
     isBooksQueryNormalized,
     openImportModalQuery,
     closeImportModalQuery

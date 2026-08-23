@@ -412,7 +412,51 @@ const en = {
       noBooksInLayer: 'No books in {layer}.',
       noBooksYet: 'No books yet.',
       noBooksInCharCountRange: 'No books in this character range.',
-      noBooksMatchFilters: 'No books match the current filters.'
+      noBooksMatchFilters: 'No books match the current filters.',
+      noBooksForCondition: 'No books match {condition}.'
+    },
+    filters: {
+      button: 'Filter',
+      buttonActive: 'Filter, {count} active',
+      title: 'Filters',
+      close: 'Close filters',
+      clearAll: 'Clear all',
+      chipsLabel: 'Active filters',
+      removeChip: 'Remove {filter}',
+      facetSearchPlaceholder: 'Search…',
+      facetSearchLabel: 'Search {field}',
+      facetEmpty: 'No values',
+      value: {
+        any: 'Any',
+        has: 'Present',
+        unset: 'Unset'
+      },
+      chip: {
+        pair: '{field}: {value}',
+        separator: ', '
+      },
+      fields: {
+        author: {
+          label: 'Author',
+          emptyNote: 'A book with no author, or only blank authors, counts as unset.'
+        },
+        tags: {
+          label: 'Tags',
+          emptyNote: 'A book with no tags, or only blank tags, counts as untagged.'
+        },
+        language: {
+          label: 'Language',
+          emptyNote: 'A book with no language set counts as unset.'
+        },
+        cover: {
+          label: 'Cover',
+          emptyNote: 'A book counts as having a cover only when a cover image file is stored.'
+        },
+        charCount: {
+          label: 'Characters',
+          emptyNote: 'A book whose character count has not been computed shows as unknown below.'
+        }
+      }
     },
     titleSearch: 'Search',
     titleLayer: 'Layer',

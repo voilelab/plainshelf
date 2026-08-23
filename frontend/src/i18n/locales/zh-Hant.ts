@@ -410,7 +410,51 @@ const zhHant = {
       noBooksInLayer: '{layer} 目前沒有書籍。',
       noBooksYet: '目前尚無書籍。',
       noBooksInCharCountRange: '沒有落在此字數範圍的書籍。',
-      noBooksMatchFilters: '沒有符合目前篩選條件的書籍。'
+      noBooksMatchFilters: '沒有符合目前篩選條件的書籍。',
+      noBooksForCondition: '沒有符合{condition}的書籍。'
+    },
+    filters: {
+      button: '篩選',
+      buttonActive: '篩選，{count} 個條件',
+      title: '篩選條件',
+      close: '關閉篩選',
+      clearAll: '清除全部',
+      chipsLabel: '已套用的條件',
+      removeChip: '移除{filter}',
+      facetSearchPlaceholder: '搜尋…',
+      facetSearchLabel: '搜尋{field}',
+      facetEmpty: '沒有可選值',
+      value: {
+        any: '全部',
+        has: '有',
+        unset: '未設定'
+      },
+      chip: {
+        pair: '{field}：{value}',
+        separator: '、'
+      },
+      fields: {
+        author: {
+          label: '作者',
+          emptyNote: '沒有作者、或作者只有空字串的書籍算作未設定。'
+        },
+        tags: {
+          label: '標籤',
+          emptyNote: '沒有標籤、或標籤只有空字串的書籍算作未標記。'
+        },
+        language: {
+          label: '語言',
+          emptyNote: '沒有設定語言的書籍算作未設定。'
+        },
+        cover: {
+          label: '封面',
+          emptyNote: '只有實際存有封面圖檔的書籍才算有封面。'
+        },
+        charCount: {
+          label: '字數',
+          emptyNote: '尚未計算字數的書籍會在下方顯示為未知。'
+        }
+      }
     },
     titleSearch: '搜尋',
     titleLayer: '資料夾',

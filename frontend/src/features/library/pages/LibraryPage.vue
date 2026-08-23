@@ -119,6 +119,37 @@
       </template>
 
       <template #toolbar>
+        <div class="toolbar-bar sort-bar">
+          <label class="toolbar-label sort-label" for="books-sort">{{ t('library.sort') }}</label>
+          <select
+            id="books-sort"
+            class="toolbar-control toolbar-select sort-select"
+            :value="sortBy"
+            @change="onSortSelectChange"
+          >
+            <option value="updated_at">{{ t('library.sortBy.updated') }}</option>
+            <option value="created_at">{{ t('library.sortBy.created') }}</option>
+            <option value="title">{{ t('library.sortBy.title') }}</option>
+          </select>
+          <button
+            type="button"
+            class="button toolbar-control toolbar-button toolbar-regular sort-order-btn"
+            @click="toggleOrder"
+          >
+            {{ sortOrder === 'asc' ? t('library.order.asc') : t('library.order.desc') }}
+          </button>
+        </div>
+        <FilterPanel
+          :books="books"
+          :read-only="readOnly"
+          :char-count-supported="charCountFilterSupported"
+          :char-count-unknown-count="unknownCharCountCount"
+          :char-count-refresh-running="contentStatsRunning"
+          :char-count-refresh-label="contentStatsLabel"
+          :char-count-refresh-outcome="contentStatsOutcome"
+          :char-count-refresh-error="contentStatsError"
+          @refresh-stats="startContentStatsRefresh"
+        />
         <div class="toolbar-bar search-bar">
           <input
             v-model="searchInputValue"
@@ -140,54 +171,32 @@
             @click="commitSearch"
           >{{ t('library.search') }}</button>
         </div>
-        <div class="toolbar-bar sort-bar">
-          <label class="toolbar-label sort-label" for="books-sort">{{ t('library.sort') }}</label>
-          <select
-            id="books-sort"
-            class="toolbar-control toolbar-select sort-select"
-            :value="sortBy"
-            @change="onSortSelectChange"
-          >
-            <option value="updated_at">{{ t('library.sortBy.updated') }}</option>
-            <option value="created_at">{{ t('library.sortBy.created') }}</option>
-            <option value="title">{{ t('library.sortBy.title') }}</option>
-          </select>
-          <button
-            type="button"
-            class="button toolbar-control toolbar-button toolbar-regular sort-order-btn"
-            @click="toggleOrder"
-          >
-            {{ sortOrder === 'asc' ? t('library.order.asc') : t('library.order.desc') }}
-          </button>
+        <div class="toolbar-actions-group">
+          <div v-if="shelfRefresh.supported" class="toolbar-bar shelf-refresh-bar">
+            <button
+              type="button"
+              class="button toolbar-control toolbar-button toolbar-regular shelf-refresh-button"
+              :disabled="shelfRefresh.refreshing.value"
+              @click="shelfRefresh.refresh"
+            >
+              {{ shelfRefresh.refreshing.value ? t('library.refreshingShelf') : t('library.refreshShelf') }}
+            </button>
+            <span v-if="lastSyncedLabel" class="toolbar-label shelf-refresh-status">{{ lastSyncedLabel }}</span>
+          </div>
+          <DropdownMenuRoot v-if="!readOnly">
+            <DropdownMenuTrigger class="button">{{ t('library.import') }}</DropdownMenuTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuContent class="reka-menu" align="end" :side-offset="6">
+                <DropdownMenuItem class="reka-menu-item" @select="openImportFromFiles">{{ t('library.importFromFiles') }}</DropdownMenuItem>
+                <DropdownMenuItem class="reka-menu-item" @select="openNewEmptyBookModal">{{ t('library.newEmptyBook') }}</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenuPortal>
+          </DropdownMenuRoot>
         </div>
-        <CharCountFilterBar
-          v-if="charCountFilterSupported"
-          :range="charCountRange"
-          :unknown-count="unknownCharCountCount"
-          :read-only="readOnly"
-          @update:range="onCharCountRangeChange"
-          @stats-refreshed="onCharCountStatsRefreshed"
-        />
-        <div v-if="shelfRefresh.supported" class="toolbar-bar shelf-refresh-bar">
-          <button
-            type="button"
-            class="button toolbar-control toolbar-button toolbar-regular shelf-refresh-button"
-            :disabled="shelfRefresh.refreshing.value"
-            @click="shelfRefresh.refresh"
-          >
-            {{ shelfRefresh.refreshing.value ? t('library.refreshingShelf') : t('library.refreshShelf') }}
-          </button>
-          <span v-if="lastSyncedLabel" class="toolbar-label shelf-refresh-status">{{ lastSyncedLabel }}</span>
-        </div>
-        <DropdownMenuRoot v-if="!readOnly">
-          <DropdownMenuTrigger class="button">{{ t('library.import') }}</DropdownMenuTrigger>
-          <DropdownMenuPortal>
-            <DropdownMenuContent class="reka-menu" align="end" :side-offset="6">
-              <DropdownMenuItem class="reka-menu-item" @select="openImportFromFiles">{{ t('library.importFromFiles') }}</DropdownMenuItem>
-              <DropdownMenuItem class="reka-menu-item" @select="openNewEmptyBookModal">{{ t('library.newEmptyBook') }}</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenuPortal>
-        </DropdownMenuRoot>
+      </template>
+
+      <template #filters>
+        <ActiveFilterChips />
       </template>
     </BookCollectionPage>
 
@@ -226,7 +235,8 @@ import ProgressBar from '@/components/ProgressBar.vue';
 import ImportBookModal from '@/features/library/components/ImportBookModal.vue';
 import NewEmptyBookModal from '@/features/library/components/NewEmptyBookModal.vue';
 import MoveBooksModal from '@/features/library/components/MoveBooksModal.vue';
-import CharCountFilterBar from '@/features/library/components/CharCountFilterBar.vue';
+import FilterPanel from '@/features/library/components/FilterPanel.vue';
+import ActiveFilterChips from '@/features/library/components/ActiveFilterChips.vue';
 import { DELETE_BOOK_DESCRIPTION } from '@/composables/useBookActions';
 import { useBookCollectionActions } from '@/composables/useBookCollectionActions';
 import { countPages, pageSlice } from '@/composables/useBookCollectionRoute';
@@ -242,16 +252,24 @@ import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useBooksRouteQuery } from '@/features/library/composables/useBooksRouteQuery';
 import { useBooksSearch } from '@/features/library/composables/useBooksSearch';
 import { useBooksSort, type BookSortKey, type SortOrder } from '@/features/library/composables/useBooksSort';
+import { useContentStatsRefresh } from '@/features/library/composables/useContentStatsRefresh';
 import { handleLibraryMobileBack } from '@/features/library/utils/mobileBack';
-import { filterBooksBySearch } from '@/utils/bookSearch';
-import { METADATA_BOOK_FILTERS } from '@/utils/bookFilters/registry';
 import {
-  isCharCountInRange,
-  isCharCountRangeActive,
-  type CharCountRange
-} from '@/utils/charCountFilter';
+  BOOK_FILTERS,
+  PANEL_BOOK_FILTERS,
+  charCountFilter,
+  layersFilter,
+  searchFilter
+} from '@/utils/bookFilters/registry';
+import {
+  applyBookFilters,
+  soleBlockingFilter,
+  type ActiveBookFilter
+} from '@/utils/bookFilters/apply';
+import { filterValueLabel } from '@/features/library/utils/filterLabels';
+import { isCharCountRangeActive } from '@/utils/charCountFilter';
 import { hasFileTransfer, readDroppedFiles } from '@/utils/file';
-import { getLayerPath, layerPathEquals, normalizeLayerPath } from '@/utils/layers';
+import { normalizeLayerPath } from '@/utils/layers';
 import { useI18n } from '@/i18n';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { isMobileRuntime } from '@/providers/runtime';
@@ -557,74 +575,61 @@ const pageTitleSegments = computed(() => {
 
 useDocumentTitle(pageTitleSegments);
 
-function matchesLayer(book: Book): boolean {
-  if (!selectedLayer.value) {
-    return true;
-  }
-  return layerPathEquals(getLayerPath(book), selectedLayer.value);
-}
-
 const charCountFilterActive = computed(
   () => charCountFilterSupported.value && isCharCountRangeActive(charCountRange.value)
 );
 
-// charCountRange is a fresh object on every recompute, so watching it directly
-// would fire on any unrelated query change. This collapses it to a value that
-// only changes when a bound does.
-const charCountKey = computed(
-  () => `${charCountRange.value.min ?? ''}:${charCountRange.value.max ?? ''}`
-);
+// The character count lives only in the lazy index, so a book carries it into a
+// predicate through this: `char_count` already present (mock data, or a listing
+// that included it) is left as-is; otherwise the index supplies it. Other
+// filters ignore the extra field.
+function augmentBook(book: Book): Book {
+  return book.char_count !== undefined
+    ? book
+    : { ...book, char_count: charCountIndex.counts.value.get(book.id) };
+}
 
 function charCountOf(book: Book): number | undefined {
   return book.char_count ?? charCountIndex.counts.value.get(book.id);
 }
 
-// Only applied once the counts have arrived: filtering against an empty index
-// would read every book as zero characters and briefly show the wrong set.
-function matchesCharCount(book: Book): boolean {
-  if (!charCountFilterActive.value || !charCountIndex.ready.value) {
-    return true;
+// Every condition the page actually applies, parsed once from the registry.
+// Search uses the *committed* text (not the transient input box), a condition an
+// unsupported backend cannot answer is dropped, and the character range only
+// joins once its lazy index is ready to decide books — until then the page is in
+// its loading state rather than briefly showing an unfiltered list.
+const activeFilters = computed<ActiveBookFilter[]>(() => {
+  const result: ActiveBookFilter[] = [];
+  for (const filter of BOOK_FILTERS) {
+    if (filter.supported?.() === false) {
+      continue;
+    }
+    const value = filter.key === searchFilter.key ? committedSearch.value : filter.parse(route.query);
+    if (!filter.isActive(value)) {
+      continue;
+    }
+    if (filter.key === charCountFilter.key && !charCountIndex.ready.value) {
+      continue;
+    }
+    result.push({ filter, value });
   }
-  return isCharCountInRange(charCountOf(book), charCountRange.value);
-}
+  return result;
+});
 
-const searchedBooks = computed(() => filterBooksBySearch(books.value, committedSearch.value));
-
-// The set the search and layer alone produce. Kept separate from filteredBooks
-// so the empty state can tell "this layer/search has nothing" apart from "the
-// character range excluded everything it found".
-const layerFilteredBooks = computed(() => searchedBooks.value.filter((book) => matchesLayer(book)));
-
-// author/tags/cover/language are free client-side predicates over data already
-// on every book, so the page applies the registry's metadata filters
-// generically: each parses its own value from the URL and, when active, narrows
-// the list. Their panel UI is a later change — for now they arrive only through
-// the URL. The registry ANDs them, so an inactive filter is simply skipped.
-const activeMetadataFilters = computed(() =>
-  METADATA_BOOK_FILTERS
-    .map((filter) => ({ filter, value: filter.parse(route.query) }))
-    .filter(({ filter, value }) => filter.isActive(value))
-);
-// A stable string that only changes when an active metadata filter does, so the
-// selection-clearing watcher below can depend on it the way it depends on
-// charCountKey. Without this, changing any of these filters reuses LibraryPage
-// and leaves now-hidden books selected — and a batch move/trash would then act
-// on books the user can no longer see.
-const metadataFilterKey = computed(() =>
-  activeMetadataFilters.value
-    .map(({ filter, value }) => `${filter.key}=${JSON.stringify(filter.serialize(value))}`)
+// A stable string that changes only when an active panel condition changes, so
+// the selection-clearing watcher fires when the visible set does. Without it,
+// changing a panel filter reuses LibraryPage and leaves now-hidden books
+// selected — and a batch move/trash would then act on books the user cannot see.
+const panelFiltersKey = computed(() =>
+  PANEL_BOOK_FILTERS.map((filter) => {
+    const value = filter.parse(route.query);
+    return filter.isActive(value) ? `${filter.key}=${JSON.stringify(filter.serialize(value))}` : '';
+  })
+    .filter(Boolean)
     .join('&')
 );
-const metadataFilteredBooks = computed(() => {
-  const active = activeMetadataFilters.value;
-  if (active.length === 0) {
-    return layerFilteredBooks.value;
-  }
-  return layerFilteredBooks.value.filter((book) =>
-    active.every(({ filter, value }) => filter.predicate(book, value))
-  );
-});
-const filteredBooks = computed(() => metadataFilteredBooks.value.filter((book) => matchesCharCount(book)));
+
+const filteredBooks = computed(() => applyBookFilters(books.value, activeFilters.value, augmentBook));
 const {
   SORT_OPTIONS,
   sortedBooks
@@ -637,14 +642,34 @@ const unknownCharCountCount = computed(() => {
   return filteredBooks.value.filter((book) => charCountOf(book) === undefined).length;
 });
 
-// The counts are a second request, so the first one keeps the page reporting
-// itself as loading rather than briefly showing an unfiltered list. A later
-// refresh keeps the previous counts on screen instead, which is what stops the
-// toolbar - and any refresh progress it is showing - from being torn down.
-const collectionLoading = computed(
-  () => loading.value
-    || (charCountFilterActive.value && charCountIndex.loading.value && !charCountIndex.ready.value)
-);
+// The recompute sweep is tracked here, on the always-mounted page, so closing
+// the filter panel mid-sweep does not abandon the poll or the index refresh it
+// triggers when the sweep settles.
+const {
+  running: contentStatsRunning,
+  label: contentStatsLabel,
+  outcome: contentStatsOutcome,
+  error: contentStatsError,
+  start: startContentStats
+} = useContentStatsRefresh(unknownCharCountCount, () => {
+  void charCountIndex.refresh();
+});
+
+function startContentStatsRefresh(): void {
+  if (readOnly.value) {
+    return;
+  }
+  void startContentStats();
+}
+
+// Only the book-list load drives the full loading state. The character counts
+// are a second request, but making them tear the content down would unmount the
+// filter panel the user is setting the range in (BookCollectionPage swaps the
+// whole header/toolbar/list for a loading placeholder). While the counts are in
+// flight the character range simply isn't applied yet (see activeFilters), so
+// the list shows the other conditions' result until the counts arrive — the
+// panel, its chips, and any refresh progress stay mounted throughout.
+const collectionLoading = computed(() => loading.value);
 
 // Reported next to the shelf-refresh error rather than through
 // BookCollectionPage, which would replace the list with the message: the books
@@ -660,42 +685,46 @@ const totalPages = computed(() => countPages(total.value, pageSize.value));
 // same set, so both lengths agree.
 const visibleBooks = computed(() => pageSlice(sortedBooks.value, page.value, pageSize.value));
 
-const showLayerEmptyState = computed(() => {
-  return books.value.length > 0 && !!selectedLayer.value && layerFilteredBooks.value.length === 0;
+// The single condition to blame for an empty list, derived generically from the
+// predicates (see soleBlockingFilter) rather than a hand-written cascade: it is
+// the one condition whose removal alone would bring books back. `null` when the
+// shelf itself is empty, when the list is non-empty, or when no single condition
+// is solely responsible.
+const blamedFilter = computed(() => {
+  if (collectionLoading.value || books.value.length === 0 || filteredBooks.value.length > 0) {
+    return null;
+  }
+  return soleBlockingFilter(books.value, activeFilters.value, augmentBook);
 });
 
-// Ordered narrowest cause first: the search and the layer are checked against
-// the set that precedes the character range, so the range is only blamed when
-// it is what emptied a set the search and layer had already filled.
 const emptyMessage = computed(() => {
-  const q = committedSearch.value.trim();
-  if (q && layerFilteredBooks.value.length === 0 && !loading.value) {
-    const layerSuffix = selectedLayer.value
-      ? t('common.inLayer', { layer: selectedLayerTitle.value })
-      : '';
-    return t('library.empty.noBooksFound', { query: q, layerSuffix });
+  if (books.value.length === 0) {
+    return t('library.empty.noBooksYet');
   }
-  if (showLayerEmptyState.value) {
-    return t('library.empty.noBooksInLayer', { layer: selectedLayerTitle.value });
+  // Blame is generic; only the wording per cause is hand-written, because
+  // search, layer, and the character range each read better than a generic line.
+  const blamed = blamedFilter.value;
+  if (blamed) {
+    switch (blamed.filter.key) {
+      case searchFilter.key: {
+        const layerSuffix = selectedLayer.value
+          ? t('common.inLayer', { layer: selectedLayerTitle.value })
+          : '';
+        return t('library.empty.noBooksFound', { query: String(blamed.value), layerSuffix });
+      }
+      case layersFilter.key:
+        return t('library.empty.noBooksInLayer', { layer: selectedLayerTitle.value });
+      case charCountFilter.key:
+        return t('library.empty.noBooksInCharCountRange');
+      default:
+        return t('library.empty.noBooksForCondition', {
+          condition: filterValueLabel(blamed.filter, blamed.value, t)
+        });
+    }
   }
-  if (
-    charCountFilterActive.value
-    && charCountIndex.ready.value
-    && filteredBooks.value.length === 0
-    && !collectionLoading.value
-  ) {
-    return t('library.empty.noBooksInCharCountRange');
-  }
-  // A metadata filter (author/tags/cover/language) emptied a shelf that has
-  // books — e.g. ?author=none on a shelf where every book already has an author.
-  // Without this it would fall through to "no books yet" and read as an empty
-  // shelf. Checked after search/layer/charCount so a more specific cause wins.
-  if (
-    activeMetadataFilters.value.length > 0
-    && books.value.length > 0
-    && filteredBooks.value.length === 0
-    && !collectionLoading.value
-  ) {
+  // Books exist but several conditions together emptied the list, so no single
+  // one can be singled out.
+  if (activeFilters.value.length > 0 && filteredBooks.value.length === 0 && !collectionLoading.value) {
     return t('library.empty.noBooksMatchFilters');
   }
   return t('library.empty.noBooksYet');
@@ -782,27 +811,6 @@ function onOrderChange(nextOrder: SortOrder): void {
 
 function toggleOrder(): void {
   onOrderChange(sortOrder.value === 'asc' ? 'desc' : 'asc');
-}
-
-function onCharCountRangeChange(nextRange: CharCountRange): void {
-  if (nextRange.min === charCountRange.value.min && nextRange.max === charCountRange.value.max) {
-    return;
-  }
-
-  void replaceBooksQuery({
-    layer: selectedLayer.value,
-    page: 1,
-    search: committedSearch.value,
-    sort: sortBy.value,
-    order: sortOrder.value,
-    charCount: nextRange
-  });
-}
-
-// The sweep rewrites char_count in each source's meta.json, so the cached
-// counts - not the book listing - are what went stale.
-function onCharCountStatsRefreshed(): void {
-  void charCountIndex.refresh();
 }
 
 async function openImportFromFiles(): Promise<void> {
@@ -933,7 +941,7 @@ watch(selectedLayer, async () => {
 });
 
 watch(
-  [selectedLayer, page, pageSize, sortBy, sortOrder, committedSearch, charCountKey, metadataFilterKey, selectedShelfID],
+  [selectedLayer, page, pageSize, sortBy, sortOrder, committedSearch, panelFiltersKey, selectedShelfID],
   () => selection.clear()
 );
 
@@ -1074,6 +1082,15 @@ watch(
 
 .sort-order-btn {
   min-width: 64px;
+}
+
+/* Import and rescan travel together as one cluster at the end of the row, so a
+   wrap breaks between groups rather than splitting these two apart. */
+.toolbar-actions-group {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
 }
 
 .shelf-refresh-bar {

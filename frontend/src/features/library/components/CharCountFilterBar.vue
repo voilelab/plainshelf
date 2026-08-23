@@ -1,6 +1,6 @@
 <template>
   <div class="toolbar-bar char-count-bar">
-    <label class="toolbar-label" :for="MIN_INPUT_ID">{{ t('library.charCount.label') }}</label>
+    <label v-if="!hideLabel" class="toolbar-label" :for="MIN_INPUT_ID">{{ t('library.charCount.label') }}</label>
     <input
       :id="MIN_INPUT_ID"
       class="toolbar-control toolbar-input char-count-input"
@@ -38,26 +38,27 @@
       <span v-if="unknownCount > 0" class="toolbar-label char-count-unknown">
         {{ t('library.charCount.unknownNote', { count: unknownCount }) }}
       </span>
+      <!-- The sweep it kicks off is tracked on the always-mounted library page
+           (useContentStatsRefresh), so this control only starts it and renders
+           the progress the page hands back; closing the panel does not abandon
+           an in-flight sweep. -->
       <button
         v-if="!readOnly && unknownCount > 0"
         type="button"
         class="toolbar-control toolbar-button toolbar-regular char-count-refresh"
-        :disabled="refreshStatsRunning"
-        @click="onRefreshStats"
+        :disabled="refreshRunning"
+        @click="emit('refresh-stats')"
       >
-        {{ refreshStatsLabel }}
+        {{ refreshLabel }}
       </button>
-      <span v-if="refreshStatsOutcome" class="toolbar-label" role="status">{{ refreshStatsOutcome }}</span>
-      <span v-if="refreshStatsError" class="toolbar-label char-count-error" role="alert">{{ refreshStatsError }}</span>
+      <span v-if="refreshOutcome" class="toolbar-label" role="status">{{ refreshOutcome }}</span>
+      <span v-if="refreshError" class="toolbar-label char-count-error" role="alert">{{ refreshError }}</span>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { bookshelfWriter } from '@/providers';
-import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
-import { isRefreshContentStatsResult } from '@/types/task';
 import {
   CHAR_COUNT_STEP,
   isCharCountRangeActive,
@@ -75,11 +76,21 @@ const props = defineProps<{
   /** Books in the current result set whose character count could not be read. */
   unknownCount: number;
   readOnly: boolean;
+  /** Hide the built-in "Characters" label when a surrounding heading supplies it. */
+  hideLabel?: boolean;
+  /** Whether a recompute sweep is currently in flight (tracked by the page). */
+  refreshRunning: boolean;
+  /** The recompute button's current label ("Update statistics…" / "Updating…"). */
+  refreshLabel: string;
+  /** The settled outcome message, empty while running or before a first run. */
+  refreshOutcome: string;
+  /** A start/poll error from the sweep, empty when there is none. */
+  refreshError: string;
 }>();
 
 const emit = defineEmits<{
   (event: 'update:range', range: CharCountRange): void;
-  (event: 'stats-refreshed'): void;
+  (event: 'refresh-stats'): void;
 }>();
 
 const { t } = useI18n();
@@ -105,69 +116,6 @@ function onMaxChange(event: Event): void {
 
 function onClear(): void {
   emit('update:range', {});
-}
-
-// Recomputing statistics is a shelf-wide background sweep, so the bar tracks
-// the task chain the server hands back rather than calling per book.
-const {
-  percentage: refreshStatsPercentage,
-  error: refreshStatsError,
-  running: refreshStatsRunning,
-  finished: refreshStatsFinished,
-  chain: refreshStatsChain,
-  status: refreshStatsStatus,
-  start: startRefreshStats
-} = useTaskChainProgress({
-  onSettled: () => emit('stats-refreshed'),
-  startFailedMessage: () => t('library.charCount.refreshStats.failed'),
-  pollFailedMessage: () => t('library.charCount.refreshStats.failed')
-});
-
-const refreshStatsLabel = computed(() => {
-  if (refreshStatsRunning.value) {
-    return t('library.charCount.refreshStats.busy', {
-      percent: Math.round(refreshStatsPercentage.value)
-    });
-  }
-
-  return t('library.charCount.refreshStats.action', { count: props.unknownCount });
-});
-
-const refreshStatsResult = computed(() => {
-  for (const task of refreshStatsChain.value?.tasks ?? []) {
-    if (isRefreshContentStatsResult(task.result)) {
-      return task.result;
-    }
-  }
-  return null;
-});
-
-const refreshStatsOutcome = computed(() => {
-  if (!refreshStatsFinished.value || refreshStatsError.value) {
-    return '';
-  }
-
-  const result = refreshStatsResult.value;
-  if (!result || refreshStatsStatus.value === 'failed') {
-    return t('library.charCount.refreshStats.failed');
-  }
-  if (result.failures.length === 0) {
-    return t('library.charCount.refreshStats.done', { count: result.refreshed });
-  }
-  return t('library.charCount.refreshStats.partial', {
-    succeeded: result.refreshed,
-    failed: result.failures.length
-  });
-});
-
-async function onRefreshStats(): Promise<void> {
-  if (props.readOnly) {
-    return;
-  }
-
-  // A sweep already in flight returns its own ID, so this attaches to the
-  // existing progress instead of scheduling a second one.
-  await startRefreshStats(() => bookshelfWriter().refreshContentStats());
 }
 </script>
 
