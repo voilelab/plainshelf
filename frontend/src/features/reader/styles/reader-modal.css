@@ -18,7 +18,11 @@
 }
 
 .font-selection-modal {
-  width: min(100%, 620px);
+  /* The dialog wrapper is shrink-to-fit, so a percentage width resolves
+     against an indefinite parent and lets the grid collapse toward its
+     min-content width (the Latin "Noto …" labels), cramping the CJK text.
+     A viewport-based width keeps it definite. */
+  width: min(calc(100vw / var(--app-zoom, 1) - 32px), 620px);
   overflow: auto;
 }
 
@@ -205,9 +209,14 @@
 
 @media (max-width: 720px) {
   .chapter-modal,
-  .split-modal,
-  .font-selection-modal {
+  .split-modal {
     width: min(100%, calc(96vw / var(--app-zoom, 1)));
+    padding: 12px;
+  }
+
+  .font-selection-modal {
+    /* Keep a definite width on small screens for the same reason as above. */
+    width: min(calc(96vw / var(--app-zoom, 1)), 620px);
     padding: 12px;
   }
 
