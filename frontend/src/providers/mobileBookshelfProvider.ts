@@ -46,14 +46,11 @@ export const DOWNLOAD_SHELF_CHANGED_ERROR =
 // not a latency-sensitive operation.
 const ASSET_DOWNLOAD_CONCURRENCY = 3;
 
-// How many illustrations one bundle request fetches. The bundle collapses the
-// per-image round trips this download used to pay, but its response is one
-// archive held whole in memory (the images are stored uncompressed, so it is
-// about their combined size), and the per-file path's memory bound must
-// survive that. Requesting the figures in chunks keeps at most this many
-// resident at once while still turning a book's dozens of image requests into a
-// handful: a book with no more figures than this stays a single request, and a
-// larger one splits rather than buffering every picture at once.
+// How many illustrations one bundle request fetches. The archive is held whole
+// in memory and the images are uncompressed, so an unbounded bundle would hold
+// the whole book's figures at once; chunking keeps at most this many resident
+// while still collapsing dozens of per-image requests into a handful. A book
+// with no more figures than this stays a single request.
 const ASSET_BUNDLE_CHUNK_SIZE = 16;
 
 // Sub-folder of the shared Documents directory that exported books land in, so
@@ -64,11 +61,10 @@ const EXPORT_SUBDIR = 'PlainShelf';
 const defaultIsOnline = (): boolean =>
   typeof navigator === 'undefined' ? true : navigator.onLine;
 
-// The per-file path carries the server's Content-Type on each fetched blob; the
-// bundle arrives as one application/zip, so an unpacked entry's type is derived
-// from its name the same way the server's single-asset route derives it. That
-// keeps a cached figure's MIME identical whichever path stored it — the
-// filesystem cache persists blob.type and hands it back on read.
+// The bundle arrives as one application/zip, so an unpacked figure's MIME is
+// derived from its name the way the server's single-asset route derives it. The
+// filesystem cache persists blob.type, so this keeps a cached figure's type
+// identical whether the per-file or the bundle path stored it.
 function imageMimeType(name: string): string {
   const dot = name.lastIndexOf('.');
   switch (dot === -1 ? '' : name.slice(dot).toLowerCase()) {
@@ -570,23 +566,13 @@ export class MobileBookshelfProvider implements BookshelfReader {
   }
 
   /**
-   * Fetches the illustrations the downloaded text references and stores each
-   * one as it arrives.
+   * Fetches the illustrations the downloaded text references and stores each.
    *
-   * When the backend can hand back a whole source's figures as one zip, that
-   * path is taken so the download pays a single request rather than one per
-   * image — the round trips, not the bytes, are what a high-latency mobile
-   * connection pays for. When the backend has no such endpoint, or a bundle
-   * request fails, it falls back to the per-file concurrent path unchanged.
-   *
-   * Either way each figure is stored as it arrives and its bytes dropped: an
-   * asset has no size bound, so holding every one until the end and then
-   * base64-encoding them together is how an image-heavy book would exhaust an
-   * Android process.
-   *
-   * Every file is best-effort, like the cover. One picture that will not
-   * download or will not store is a figure the reader replaces with its alt
-   * text, which is a far better outcome than failing the whole download.
+   * Prefers the bundle path (one request per source) when the backend offers
+   * it, falling back to the per-file concurrent path when it does not or a
+   * bundle request fails. Either way each figure is best-effort — one that will
+   * not download or store is left for the reader's alt text — and the whole
+   * download never fails over a picture.
    *
    * Returns the bytes actually stored, for the manifest's size breakdown.
    */
@@ -656,19 +642,10 @@ export class MobileBookshelfProvider implements BookshelfReader {
   }
 
   /**
-   * Stores each referenced figure out of per-source zips.
-   *
-   * The figures are requested in chunks of ASSET_BUNDLE_CHUNK_SIZE, so at most
-   * one chunk's archive is held in memory at a time rather than the whole
-   * source's — and within a chunk each figure is decoded only as it is about to
-   * be written, so the decoded bytes of at most one image are resident. That
-   * keeps the per-file path's Android memory bound while still collapsing a
-   * book's per-image round trips into a handful of requests.
-   *
-   * A failure fetching or reading a chunk's archive throws, so storeSourceAssets
-   * falls back to the per-file path. A single figure that is absent from the
-   * archive (the text referenced a file never uploaded) or that will not store
-   * is skipped, best-effort, exactly as one failed per-file fetch is.
+   * Stores each referenced figure out of per-source zips, requested in chunks of
+   * ASSET_BUNDLE_CHUNK_SIZE so at most one chunk's archive is resident at a time.
+   * A chunk fetch/parse failure throws, dropping storeSourceAssets to the
+   * per-file fallback; an absent or unstorable figure is skipped, best-effort.
    */
   private async storeSourceAssetsViaBundle(
     bookId: string,
@@ -703,9 +680,9 @@ export class MobileBookshelfProvider implements BookshelfReader {
 
     let stored = 0;
     for (const name of names) {
-      // A malformed archive throws here and propagates to the per-file
-      // fallback; a filter that simply matches nothing yields undefined, which
-      // is a referenced-but-absent figure the reader shows as alt text.
+      // A malformed archive throws here (→ per-file fallback); a filter matching
+      // nothing yields undefined — a referenced-but-absent figure, shown as alt
+      // text.
       const bytes = unzipSync(archive, { filter: (file) => file.name === name })[name];
       if (!bytes) {
         continue;

@@ -133,18 +133,14 @@ export interface BookshelfReader {
   getSourceAsset?(bookId: string, sourceId: string, name: string): Promise<Blob>;
 
   /**
-   * Fetches the named illustrations as one zip, for a download client that
-   * would otherwise pay a request per figure.
+   * Fetches the named illustrations as one zip, for a download that would
+   * otherwise pay a request per figure. Optional: only the mobile download path
+   * uses it, and only when the backend offers it, falling back to per-file
+   * fetches otherwise. Online reading stays per-image and lazy.
    *
-   * Optional and deliberately separate from getSourceAsset: online reading
-   * stays per-image and lazy, and only the mobile download path uses this — and
-   * only when the backend offers it, falling back to per-file fetches when it
-   * does not or when the bundle request fails.
-   *
-   * Returns the raw archive rather than decoded blobs so the caller can unzip
-   * one entry at a time: an image-heavy book must not hold every decoded figure
-   * in memory at once. A referenced-but-absent name is packed as no entry, so
-   * the archive may hold fewer files than were asked for.
+   * Returns the raw archive, not decoded blobs, so the caller can unzip one
+   * entry at a time rather than hold every figure in memory. An absent name is
+   * packed as no entry.
    */
   getSourceAssetsBundle?(bookId: string, sourceId: string, names: string[]): Promise<Blob>;
 

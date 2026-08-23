@@ -64,24 +64,16 @@ func (h *sourceHandlers) getAsset(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets.zip
 //
-// Streams the source's illustrations as one zip, so a download client fetches a
-// whole book's figures in a single request instead of one per file. On a
-// high-latency or metered mobile connection the per-image TLS handshakes and
-// round trips dominate, not the bytes, and this collapses them to one exchange.
-// The path is assets.zip rather than a child of assets/ so it cannot collide
-// with the assets/{asset_name} route above.
+// Packs the source's illustrations into one zip so a download fetches them in a
+// single request instead of one per file — the round trips, not the bytes, are
+// what a high-latency mobile connection pays for. The path is assets.zip, not a
+// child of assets/, so it cannot collide with the assets/{asset_name} route.
 //
-// A read like getAsset: neither the token gate nor read-only mode stands
-// between a reader and it unless protect_read is set, and the two share a
-// method so the batch endpoint can never be reached under a laxer rule than the
-// single-file one.
-//
-// The optional repeated `name` query parameter names exactly which files to
-// pack, so the client takes only what its text references; with none given the
-// whole assets/ directory is packed. Each name is validated the way getAsset
-// validates its path segment — an unsafe name is a 400 before a byte is
-// written — while a named file that is simply absent is skipped rather than
-// failing the request, keeping the download best-effort per figure.
+// A plain GET, so it inherits getAsset's security exactly: gated only under
+// protect_read. The repeated `name` query parameter picks which files to pack
+// (none = the whole assets/ directory); each is validated like getAsset's path
+// segment, so an unsafe name is a 400 before any byte is written, while an
+// absent one is skipped rather than failing the request.
 func (h *sourceHandlers) getAssetsBundle(w http.ResponseWriter, r *http.Request) {
 	_, _, source, ok := h.loadBookSource(w, r)
 	if !ok {
@@ -119,13 +111,10 @@ func (h *sourceHandlers) getAssetsBundle(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// resolveBundleAssetNames returns the asset names getAssetsBundle should pack.
-//
-// With no `name` parameter it lists the whole assets/ directory. With names
-// given it validates every one up front — before the archive's first byte — so
-// an unsafe name is answered 400 exactly as getAsset answers one, never a
-// truncated 200. A valid-but-absent name is left in the list and skipped when
-// the archive is built.
+// resolveBundleAssetNames returns the names to pack: the whole assets/ directory
+// when none were requested, otherwise the requested names validated up front —
+// before the archive's first byte — so an unsafe name is a 400, not a truncated
+// 200. A valid-but-absent name stays in the list and is skipped while packing.
 func (h *sourceHandlers) resolveBundleAssetNames(w http.ResponseWriter, source *shelf.Source, r *http.Request) ([]string, bool) {
 	requested := r.URL.Query()["name"]
 	if len(requested) == 0 {
@@ -159,9 +148,8 @@ func (h *sourceHandlers) writeAssetToZip(zw *zip.Writer, source *shelf.Source, n
 	}
 	defer asset.File.Close()
 
-	// Store, not Deflate: jpeg/png/webp are already compressed, so deflating
-	// them spends CPU for essentially no size win. The endpoint's gain is the
-	// request count, not the bytes, so the cheaper method is the right trade.
+	// Store, not Deflate: jpeg/png/webp are already compressed, so the endpoint's
+	// gain is the request count, not bytes saved.
 	entry, err := zw.CreateHeader(&zip.FileHeader{
 		Name:     name,
 		Method:   zip.Store,

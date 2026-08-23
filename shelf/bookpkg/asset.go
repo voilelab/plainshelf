@@ -206,14 +206,10 @@ func (r *Source) OpenAsset(name string) (*Asset, error) {
 }
 
 // ListAssets returns the names of every servable illustration in the source's
-// assets/ directory, sorted. A name the read path could not serve — a
-// sub-directory, a hidden file, or a non-image extension — is skipped, so the
-// result is exactly the set a per-name request could open.
-//
-// A missing assets/ directory is not an error but an empty result: a source may
-// reference no illustrations, and the directory is created only on first write.
-// Nothing is recorded on disk about the directory's contents; the filesystem is
-// the list, read here the same way it is served.
+// assets/ directory, sorted. Anything the read path could not serve — a
+// sub-directory, a hidden file, a non-image extension — is skipped, so the
+// result is exactly the set a per-name request could open. A missing assets/
+// directory is an empty result, not an error.
 func (r *Source) ListAssets() ([]string, error) {
 	entries, err := r.root.ReadDir(path.Join(r.folderPath, SourceAssetsFolder))
 	if err != nil {
