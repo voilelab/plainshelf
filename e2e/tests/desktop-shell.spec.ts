@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { startServer } from './support/server';
 import {
-  desktopHistoryControls,
+  desktopShellInstalled,
   expectDesktopShellEngaged,
   openDesktopAt
 } from './support/desktop';
@@ -48,7 +48,7 @@ test('web mode shows no desktop chrome', async ({ page }) => {
     await page.goto(`${server.baseUrl}/books`);
     await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
 
-    await expect(desktopHistoryControls(page)).toHaveCount(0);
+    expect(await desktopShellInstalled(page)).toBe(false);
     await page.getByRole('link', { name: 'Settings' }).click();
     await page.getByRole('tab', { name: 'Shelves' }).click();
     await expect(
