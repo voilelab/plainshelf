@@ -615,17 +615,22 @@ with a `layout_version`, and no equivalent elsewhere. A layout change is detecte
 by looking at what is on disk, and its cross-version consequences are
 communicated in the changelog, not enforced by a version guard.
 
-The one layout change so far, the `.trash/` → `trash/` rename, is the model:
+PlainShelf has made two layout changes so far, and neither used a manifest. The
+earlier one — book folders changing extension from `.novl` to `.bookpkg` — was a
+hard cut: no code detects `.novl` today, so an existing shelf was expected to be
+renamed out-of-band rather than migrated at runtime. The later one, the
+`.trash/` → `trash/` rename, is the model this policy follows:
 `migrateLegacyTrash` (`shelf/trash.go`) decides entirely by whether `.trash/`
-exists, consulting no marker and writing none. [What is versioned
-today](#what-is-versioned-today) records the same fact in its table.
+exists, consulting no marker and writing none, and it moves nothing
+destructively. [What is versioned today](#what-is-versioned-today) records the
+same fact in its table.
 
 A manifest was rejected deliberately. It would be the first file under `app/`
 that could not be thrown away and rebuilt, breaking the rule that [everything
 under `app/` is disposable](data-model.md#app) — so it would have to live outside
 `app/`, or carve out a documented exception with its own rebuild story, to hold a
-single integer that changes roughly once a year. At that frequency the manifest
-costs more than it saves.
+single integer that changes very seldom. At that frequency the manifest costs
+more than it saves.
 
 ### What this costs
 
@@ -646,12 +651,15 @@ plainly here so the next layout change is made with eyes open:
   *communicated* — through a `Breaking (pre-1.0)` changelog entry — never
   *enforced*.
 
-What makes the trade acceptable today: layout changes are rare (the tally is one,
-`.trash/`), each is a one-way startup migration that must be idempotent and
-destroy nothing, and each is announced in the changelog. If that frequency ever
-rises enough that the bespoke conditions become a burden, revisit this decision —
-an `app/`-external manifest is the escape hatch — but that is a future call made
-on evidence, and taking it would not retrofit any existing shelf.
+What makes the trade acceptable today: layout changes are rare — two in the
+project's history (`.novl` → `.bookpkg`, then `.trash/` → `trash/`) — and each is
+a one-way startup migration that must be idempotent and destroy nothing. Going
+forward this policy requires every layout change to carry a `Breaking (pre-1.0)`
+changelog entry describing its cross-version effect, as the `.trash/` → `trash/`
+rename does. If that frequency ever rises enough that the bespoke conditions
+become a burden, revisit this decision — an `app/`-external manifest is the escape
+hatch — but that is a future call made on evidence, and taking it would not
+retrofit any existing shelf.
 
 ### This changes no existing behavior
 
