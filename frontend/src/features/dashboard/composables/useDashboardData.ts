@@ -8,7 +8,8 @@ import { getBookshelfProvider } from '@/providers';
 import { ApiError } from '@/api/client';
 import { getReadingActivityRange } from '@/storage/readingStats';
 import { getReadHistoryIDs } from '@/storage/readHistory';
-import { getLocalReadingEntry } from '@/storage/readingProgress';
+import { getLocalReadingEntries, getLocalReadingEntry } from '@/storage/readingProgress';
+import type { ProgressEntry } from '@/storage/readingProgress';
 import type { Book } from '@/types/book';
 import { t } from '@/i18n';
 
@@ -60,17 +61,6 @@ function emptyStarDistribution(): StarDistribution {
   return { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
 }
 
-function isSameMonth(iso: string | undefined, reference: Date): boolean {
-  if (!iso) {
-    return false;
-  }
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
-    return false;
-  }
-  return date.getFullYear() === reference.getFullYear() && date.getMonth() === reference.getMonth();
-}
-
 function toIsoDate(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -83,6 +73,7 @@ export function useDashboardData() {
   const loading = ref(false);
   const error = ref('');
   const readingActivity = ref<Record<string, number>>({});
+  const readingProgress = ref<Record<string, ProgressEntry>>({});
   const recentReading = ref<RecentReadingItem[]>([]);
   const shelfInitializing = ref(false);
 
@@ -99,9 +90,33 @@ export function useDashboardData() {
 
   const totalBooks = computed(() => books.value.length);
 
-  const addedThisMonth = computed(() => {
-    const now = new Date();
-    return books.value.filter((book) => isSameMonth(book.created_at, now)).length;
+  // Books that have been opened (a progress entry with a positive offset) but are
+  // not finished yet. Reuses the same device-local reading-progress store the
+  // recent-reading list reads from. A zero-offset entry is a reset tombstone, not
+  // progress. Completion is tested unrounded — the saved offset reaching the
+  // book's length — rather than through computeReadingPercent, whose rounding
+  // would report 199/200 as 100% and drop a book that is still short of the end.
+  // A positive offset with an unknown or invalid char_count has demonstrable
+  // progress but no provable end, so it stays counted.
+  const inProgress = computed<number>(() => {
+    let count = 0;
+    for (const book of books.value) {
+      const entry = readingProgress.value[book.id];
+      if (!entry || entry.offset <= 0) {
+        continue;
+      }
+      const charCount = book.char_count;
+      const finished =
+        typeof charCount === 'number' &&
+        Number.isFinite(charCount) &&
+        charCount > 0 &&
+        entry.offset >= charCount;
+      if (finished) {
+        continue;
+      }
+      count += 1;
+    }
+    return count;
   });
 
   const starDistribution = computed<StarDistribution>(() => {
@@ -222,12 +237,18 @@ export function useDashboardData() {
       ]);
       books.value = data.items;
       readingActivity.value = activity;
-      // Recent-reading is convenience state read from device-local history and
-      // progress; a failure there must not blank the dashboard that just loaded.
+      // Recent-reading and the in-progress count are convenience state read from
+      // device-local history and progress; a failure in either must not blank the
+      // dashboard that just loaded, and one failing must not discard the other.
       try {
         recentReading.value = await loadRecentReading(data.items);
       } catch {
         recentReading.value = [];
+      }
+      try {
+        readingProgress.value = await getLocalReadingEntries();
+      } catch {
+        readingProgress.value = {};
       }
       shelfInitializing.value = false;
       initRetryCount = 0;
@@ -287,7 +308,7 @@ export function useDashboardData() {
     recentReading,
     shelfInitializing,
     totalBooks,
-    addedThisMonth,
+    inProgress,
     starAvg,
     starDistribution,
     totalChars,

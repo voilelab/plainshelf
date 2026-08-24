@@ -10,6 +10,7 @@ const listBooks = vi.fn();
 const getReadingActivityRange = vi.fn();
 const getReadHistoryIDs = vi.fn();
 const getLocalReadingEntry = vi.fn();
+const getLocalReadingEntries = vi.fn();
 
 vi.mock('@/providers', () => ({
   getBookshelfProvider: () => ({ listBooks })
@@ -24,7 +25,8 @@ vi.mock('@/storage/readHistory', () => ({
 }));
 
 vi.mock('@/storage/readingProgress', () => ({
-  getLocalReadingEntry: (bookID: string) => getLocalReadingEntry(bookID)
+  getLocalReadingEntry: (bookID: string) => getLocalReadingEntry(bookID),
+  getLocalReadingEntries: () => getLocalReadingEntries()
 }));
 
 const { useDashboardData } = await import('./useDashboardData');
@@ -54,6 +56,8 @@ beforeEach(() => {
   getReadHistoryIDs.mockResolvedValue([]);
   getLocalReadingEntry.mockReset();
   getLocalReadingEntry.mockResolvedValue(null);
+  getLocalReadingEntries.mockReset();
+  getLocalReadingEntries.mockResolvedValue({});
   vi.useFakeTimers();
 });
 
@@ -250,6 +254,99 @@ describe('useDashboardData', () => {
       expect(store.error.value).toBe('');
       expect(store.books.value).toHaveLength(1);
       expect(store.recentReading.value).toEqual([]);
+    });
+  });
+
+  describe('in progress', () => {
+    it('counts books with a positive offset that are not finished', async () => {
+      listBooks.mockResolvedValue(
+        page([
+          makeBook({ id: 'started', char_count: 100 }),
+          makeBook({ id: 'finished', char_count: 100 }),
+          makeBook({ id: 'untouched', char_count: 100 })
+        ])
+      );
+      getLocalReadingEntries.mockResolvedValue({
+        started: { offset: 40, at: 10 },
+        finished: { offset: 100, at: 20 }
+        // "untouched" has no entry at all.
+      });
+
+      const store = useDashboardData();
+      await store.fetchDashboardData();
+
+      expect(store.inProgress.value).toBe(1);
+    });
+
+    it('is zero when no book has any progress', async () => {
+      listBooks.mockResolvedValue(
+        page([makeBook({ id: 'b1', char_count: 100 }), makeBook({ id: 'b2', char_count: 200 })])
+      );
+      getLocalReadingEntries.mockResolvedValue({});
+
+      const store = useDashboardData();
+      await store.fetchDashboardData();
+
+      expect(store.inProgress.value).toBe(0);
+    });
+
+    it('is zero when every book with progress has been read to the end', async () => {
+      listBooks.mockResolvedValue(
+        page([makeBook({ id: 'b1', char_count: 100 }), makeBook({ id: 'b2', char_count: 200 })])
+      );
+      getLocalReadingEntries.mockResolvedValue({
+        b1: { offset: 100, at: 10 },
+        b2: { offset: 250, at: 20 } // past the end still clamps to 100%.
+      });
+
+      const store = useDashboardData();
+      await store.fetchDashboardData();
+
+      expect(store.inProgress.value).toBe(0);
+    });
+
+    it('ignores reset tombstones but counts progress with an unknown length', async () => {
+      listBooks.mockResolvedValue(
+        page([
+          makeBook({ id: 'reset', char_count: 100 }),
+          makeBook({ id: 'nolen' }) // char_count missing -> percent is unknown.
+        ])
+      );
+      getLocalReadingEntries.mockResolvedValue({
+        reset: { offset: 0, at: 30 }, // tombstone: opened, then reset to the start.
+        nolen: { offset: 5, at: 40 }
+      });
+
+      const store = useDashboardData();
+      await store.fetchDashboardData();
+
+      // The reset book is not in progress; the unknown-length book has real
+      // progress and no way to prove it is finished, so it stays counted.
+      expect(store.inProgress.value).toBe(1);
+    });
+
+    it('still counts a book that is a few characters short of the end', async () => {
+      // 199/200 rounds to 100% for display, but the book is not finished; the
+      // count must compare the offset to the length unrounded.
+      listBooks.mockResolvedValue(page([makeBook({ id: 'almost', char_count: 200 })]));
+      getLocalReadingEntries.mockResolvedValue({ almost: { offset: 199, at: 10 } });
+
+      const store = useDashboardData();
+      await store.fetchDashboardData();
+
+      expect(store.inProgress.value).toBe(1);
+    });
+
+    it('degrades to zero when the progress store cannot be read', async () => {
+      listBooks.mockResolvedValue(page([makeBook({ id: 'b1', char_count: 100 })]));
+      getLocalReadingEntries.mockRejectedValue(new Error('storage exploded'));
+
+      const store = useDashboardData();
+      await store.fetchDashboardData();
+
+      expect(store.error.value).toBe('');
+      expect(store.books.value).toHaveLength(1);
+      expect(store.inProgress.value).toBe(0);
     });
   });
 

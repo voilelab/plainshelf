@@ -7,6 +7,7 @@ import {
   createReadingProgressDocument,
   getBookReadingEntry,
   getBookReadingOffset,
+  getShelfReadingEntries,
   parseReadingProgressDocument,
   serializeReadingProgressDocument,
   withBookReadingOffset,
@@ -34,6 +35,10 @@ export class ReadingProgressStore extends DeviceDocumentStore<ReadingProgressDoc
 
   async getEntry(shelfKey: string, bookID: string): Promise<ProgressEntry | null> {
     return getBookReadingEntry(await this.read(), shelfKey, bookID);
+  }
+
+  async getEntries(shelfKey: string): Promise<Record<string, ProgressEntry>> {
+    return getShelfReadingEntries(await this.read(), shelfKey);
   }
 
   async save(shelfKey: string, bookID: string, progress: BookmarkPayload): Promise<void> {
@@ -113,6 +118,17 @@ export function getLocalReadingProgress(bookID: string): Promise<ReadingProgress
  */
 export function getLocalReadingEntry(bookID: string): Promise<ProgressEntry | null> {
   return getReadingProgressStore().getEntry(requireProgressKey(), bookID);
+}
+
+/**
+ * Every stored progress entry for the active shelf, keyed by book id. Read-only,
+ * for callers that need to survey progress across the whole shelf (the dashboard
+ * "in progress" count) rather than one book at a time. On the mobile shell, whose
+ * progress lives elsewhere, this reads the empty web/desktop store and returns an
+ * empty map — the same degradation getLocalReadingEntry makes.
+ */
+export function getLocalReadingEntries(): Promise<Record<string, ProgressEntry>> {
+  return getReadingProgressStore().getEntries(requireProgressKey());
 }
 
 export function saveLocalReadingProgress(
