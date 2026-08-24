@@ -577,6 +577,99 @@ for `books/` and `trash/`. See
     goes through the same write refusal as any other write, so it never touches a
     read-only shelf or a source whose schema version is newer than this build.
 
+---
+
+## Shelf layout changes are not versioned
+
+Every marker above versions the *contents of a file*. None of them versions the
+*shape of the shelf around those files* — the names and nesting of the top-level
+directories, the `.bookpkg` naming convention, or which directory a given file
+lives in. That layer carries no version marker, and this section records the
+decision not to give it one, along with the test for recognizing when a change
+falls on this side of the line.
+
+### Layout change vs file-format change
+
+The two are worth separating because only one of them is versioned.
+
+- A **file-format change** alters the bytes inside a versioned file —
+  `book.json`, a source's `meta.json`, or `trash.json`. Adding, removing,
+  renaming, or changing the meaning of a key is a file-format change. It shows up
+  in a diff of that one file, and it is what `schema_version` exists to mark: an
+  older build meets a version it does not understand and refuses to overwrite it.
+- A **layout change** alters the shelf around those files without changing any
+  file's contents: renaming a top-level directory (`.trash/` → `trash/`),
+  introducing or removing one, or changing how book folders are named or nested.
+  Read every versioned file in such a shelf and you cannot tell the change
+  happened; only the directory tree did.
+
+The test is: **would a diff of one versioned file reveal the change?** If yes, it
+is a file-format change and the per-file `schema_version` covers it. If the
+change is visible only in directory names, nesting, or whether a directory is
+present, it is a layout change — nothing versions it, and it is handled as below.
+
+### The decision: no shelf-level manifest
+
+**PlainShelf does not introduce a shelf-level manifest** — no `app/shelf.json`
+with a `layout_version`, and no equivalent elsewhere. A layout change is detected
+by looking at what is on disk, and its cross-version consequences are
+communicated in the changelog, not enforced by a version guard.
+
+PlainShelf has made two layout changes so far, and neither used a manifest. The
+earlier one — book folders changing extension from `.novl` to `.bookpkg` — was a
+hard cut: no code detects `.novl` today, so an existing shelf was expected to be
+renamed out-of-band rather than migrated at runtime. The later one, the
+`.trash/` → `trash/` rename, is the model this policy follows:
+`migrateLegacyTrash` (`shelf/trash.go`) decides entirely by whether `.trash/`
+exists, consulting no marker and writing none, and it moves nothing
+destructively. [What is versioned today](#what-is-versioned-today) records the
+same fact in its table.
+
+A manifest was rejected deliberately. It would be the first file under `app/`
+that could not be thrown away and rebuilt, breaking the rule that [everything
+under `app/` is disposable](data-model.md#app) — so it would have to live outside
+`app/`, or carve out a documented exception with its own rebuild story, to hold a
+single integer that changes very seldom. At that frequency the manifest costs
+more than it saves.
+
+### What this costs
+
+Presence detection instead of a manifest is not free, and the cost is stated
+plainly here so the next layout change is made with eyes open:
+
+- **A shelf's layout generation is not readable from its data.** You cannot open
+  a shelf and learn which layout it is on; you infer it from which directories
+  are present. There is no layout equivalent of the `schema_version` you can read
+  off a file.
+- **Each layout change grows its own bespoke detection.** Like `.trash/`, every
+  future one adds a one-off condition keyed on some directory existing, and none
+  is self-describing. That tax rises with the number of such changes.
+- **There is no write-refusal guard for the layout.** The per-file guard that
+  stops an older build from clobbering a newer `book.json` has no layout
+  analogue: an older build meeting a newer directory shape has no version to
+  refuse on. Downgrade and cross-version behavior can therefore only be
+  *communicated* — through a `Breaking (pre-1.0)` changelog entry — never
+  *enforced*.
+
+What makes the trade acceptable today: layout changes are rare — two in the
+project's history (`.novl` → `.bookpkg`, then `.trash/` → `trash/`) — and each is
+a one-way startup migration that must be idempotent and destroy nothing. Going
+forward this policy requires every layout change to carry a `Breaking (pre-1.0)`
+changelog entry describing its cross-version effect, as the `.trash/` → `trash/`
+rename does. If that frequency ever rises enough that the bespoke conditions
+become a burden, revisit this decision — an `app/`-external manifest is the escape
+hatch — but that is a future call made on evidence, and taking it would not
+retrofit any existing shelf.
+
+### This changes no existing behavior
+
+This is a written policy, not a code change. The `.trash/` → `trash/` presence
+detection keeps working exactly as it does now; no existing shelf's migration
+path moves, and no shelf gains or needs a layout marker. A shelf with no such
+marker is not a shelf waiting to be upgraded — it is the only kind there is.
+
+---
+
 ## What is versioned today
 
 Book, source, and trash metadata carry independent schema versions.
@@ -587,7 +680,7 @@ Book, source, and trash metadata carry independent schema versions.
 | `books/**/sources/{id}/meta.json` | Yes — `schema_version`; schema v1 owns source `format` |
 | `trash/**/trash.json` | Yes — `schema_version`; schema v2 owns the book's restore path |
 | `app/fingerprint-cache.json` | Yes — `schema_version` and an `algo` block, but discarded and rebuilt on any mismatch, never migrated (it is a cache) |
-| `books/` directory layout | No — the folder tree and the `.bookpkg` folder naming carry no version marker. An older layout is handled by detecting the old path at startup and moving it (`shelf/trash.go`'s `migrateLegacyTrash`, `.trash/` → `trash/`), not by a layout schema version |
+| `books/` directory layout | No — the folder tree and the `.bookpkg` folder naming carry no version marker. An older layout is handled by detecting the old path at startup and moving it (`shelf/trash.go`'s `migrateLegacyTrash`, `.trash/` → `trash/`), not by a layout schema version. This is a decision, not an oversight — see [Shelf layout changes are not versioned](#shelf-layout-changes-are-not-versioned) |
 | Application store | No |
 
 The practical rule remains: **run one PlainShelf version against a shelf at a

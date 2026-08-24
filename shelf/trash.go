@@ -452,7 +452,11 @@ func (s *Shelf) resolveBookPathCollision(folderPath, folderName string) (string,
 //
 // The presence of ".trash/" is the whole detection mechanism: no shelf-level
 // manifest is introduced, so the layout gains no file that would have to be
-// preserved on backup alongside the disposable contents of app/.
+// preserved on backup alongside the disposable contents of app/. That is the
+// project-wide policy for shelf-layout changes, not a one-off; the reasoning and
+// the test for what counts as a layout change live in
+// docs/concepts/data-format-versioning.md, "Shelf layout changes are not
+// versioned".
 //
 // Like the rest of makeStructure this runs without the shelf lock, on the same
 // assumption the format documentation states: one PlainShelf version opens a
