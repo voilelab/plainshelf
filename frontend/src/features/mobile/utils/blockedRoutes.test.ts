@@ -18,7 +18,7 @@ describe('MOBILE_BLOCKED_ROUTES', () => {
   });
 
   it.each([
-    'dashboard',
+    'home',
     'library',
     'book-detail',
     'reader',

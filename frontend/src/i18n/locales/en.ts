@@ -160,7 +160,7 @@ const en = {
       unavailableDescription: 'Configure at least one shelf to browse and read books.',
       manage: 'Manage shelves'
     },
-    dashboard: 'Dashboard',
+    dashboard: 'Home',
     recentlyRead: 'Recently Read',
     trash: 'Trash',
     downloads: 'Downloads',
@@ -172,12 +172,20 @@ const en = {
     }
   },
   dashboard: {
-    title: 'Dashboard',
-    refresh: 'Refresh',
+    title: 'Home',
     loading: 'Loading dashboard...',
     loadFailed: 'Failed to load dashboard data',
     shelfInitializing: 'Shelf is loading, please wait...',
     shelfNotReady: 'The shelf is still starting up and did not become ready.',
+    empty: {
+      title: 'Your shelf is empty',
+      description:
+        'PlainShelf reads books straight from your shelf folder. Add files to that folder, or import them here, to get started.',
+      readOnlyDescription:
+        'This shelf has no books yet. Anything added to the shelf folder will show up here.',
+      import: 'Import books',
+      docs: 'Read the getting started guide'
+    },
     stats: {
       totalBooks: 'Total Books',
       inProgress: 'In Progress',

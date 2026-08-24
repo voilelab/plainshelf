@@ -81,7 +81,7 @@
             <TooltipRoot>
               <TooltipTrigger as-child>
                 <RouterLink
-                  to="/dashboard"
+                  to="/home"
                   class="sidebar-nav-item sidebar-rail-item"
                   exact-active-class="active"
                   :aria-label="t('layout.dashboard')"
@@ -239,7 +239,7 @@
               :aria-label="t('layout.sections.reading')"
             >
               <RouterLink
-                to="/dashboard"
+                to="/home"
                 class="sidebar-nav-item"
                 exact-active-class="active"
               >

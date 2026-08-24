@@ -20,8 +20,8 @@ test('desktop shell stays engaged across in-app navigation', async ({ page }) =>
 
     // A RouterLink click is a router.push: the URL loses the preview query
     // without a page load, which is exactly the case that used to disengage.
-    await page.getByRole('link', { name: 'Dashboard' }).click();
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await page.getByRole('link', { name: 'Home' }).click();
+    await expect(page).toHaveURL(/\/home$/);
     await expectDesktopShellEngaged(page);
 
     await page.getByRole('link', { name: 'Settings' }).click();
