@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   })),
   fetchBooks: vi.fn(),
   fetchFolders: vi.fn(),
+  showToast: vi.fn(),
   isWebRuntime: vi.fn(() => false),
   // The device-local reader-launch preference goRead reads at click time.
   // Defaults to 'new-reader' so the pre-existing cases assert that behaviour.
@@ -58,6 +59,10 @@ vi.mock('@/composables/useBookStore', () => ({
 
 vi.mock('@/composables/useReaderLaunchPreference', () => ({
   getReaderLaunchMode: mocks.getReaderLaunchMode
+}));
+
+vi.mock('@/composables/useToasts', () => ({
+  useToasts: () => ({ showToast: mocks.showToast })
 }));
 
 vi.mock('@/i18n', () => ({ t: (key: string) => key }));
@@ -132,6 +137,8 @@ describe('useBookActions goRead', () => {
     expect(openReader).toHaveBeenCalledWith('book-1', undefined);
     expect(mocks.push).not.toHaveBeenCalled();
     expect(openSpy).not.toHaveBeenCalled();
+    // A successful launch stays quiet — the toast is only for the fallback.
+    expect(mocks.showToast).not.toHaveBeenCalled();
   });
 
   it('falls back to the in-app reader when the standalone reader will not launch', async () => {
@@ -143,6 +150,47 @@ describe('useBookActions goRead', () => {
 
     await vi.waitFor(() => expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1' }));
     expect(openReader).toHaveBeenCalledWith('book-1', undefined);
+    // The user picked "open a new reader", so the fallback is no longer silent:
+    // an error without the unsupported-platform code reads as a macOS launch
+    // failure (reader not installed / launch errored).
+    expect(mocks.showToast).toHaveBeenCalledWith('bookDetail.messages.readerLaunchFailed');
+  });
+
+  it('explains the platform when the standalone reader is unsupported here', async () => {
+    // The desktop backend embeds this code in its non-macOS OpenReader error;
+    // the real matcher in @/api/desktop keys the message off it.
+    const openReader = vi
+      .fn()
+      .mockRejectedValue(
+        new Error(
+          'main.(*DesktopApp).OpenReader: reader_unsupported_platform: opening the standalone reader is only supported on macOS'
+        )
+      );
+    mocks.openDesktopReader = openReader;
+    const actions = useBookActions();
+
+    actions.goRead('book-1');
+
+    await vi.waitFor(() => expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1' }));
+    expect(mocks.showToast).toHaveBeenCalledWith('bookDetail.messages.readerUnsupportedPlatform');
+  });
+
+  it('explains the platform when Wails rejects with a bare error string', async () => {
+    // Wails rejects a bound-method promise with the Go error's message string,
+    // not an Error, so the real desktop path never carries an Error instance;
+    // the classifier must still recognise the unsupported-platform code.
+    const openReader = vi
+      .fn()
+      .mockRejectedValue(
+        'main.(*DesktopApp).OpenReader: reader_unsupported_platform: opening the standalone reader is only supported on macOS'
+      );
+    mocks.openDesktopReader = openReader;
+    const actions = useBookActions();
+
+    actions.goRead('book-1');
+
+    await vi.waitFor(() => expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1' }));
+    expect(mocks.showToast).toHaveBeenCalledWith('bookDetail.messages.readerUnsupportedPlatform');
   });
 
   it('opens the standalone reader at the chapter on a desktop chapter jump', () => {
@@ -169,6 +217,7 @@ describe('useBookActions goRead', () => {
       expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1', query: { section: '3' } })
     );
     expect(openReader).toHaveBeenCalledWith('book-1', 3);
+    expect(mocks.showToast).toHaveBeenCalledWith('bookDetail.messages.readerLaunchFailed');
   });
 
   // noopener/noreferrer make window.open return null even on success, so the web
@@ -212,6 +261,8 @@ describe('useBookActions goRead', () => {
     expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1' });
     expect(openReader).not.toHaveBeenCalled();
     expect(openSpy).not.toHaveBeenCalled();
+    // Reverse condition: skipping the shell-out must not raise a fallback toast.
+    expect(mocks.showToast).not.toHaveBeenCalled();
   });
 });
 

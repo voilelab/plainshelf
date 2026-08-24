@@ -586,7 +586,9 @@ const zhHant = {
       saved: '書籍資料已儲存。',
       copied: '書籍已複製。',
       exported: '已匯出至 {location}',
-      downloadRequired: '請先將這本書下載到裝置，才能開始閱讀。'
+      downloadRequired: '請先將這本書下載到裝置，才能開始閱讀。',
+      readerUnsupportedPlatform: '這台裝置沒有獨立 reader，已改在目前視窗開啟這本書。',
+      readerLaunchFailed: '獨立 reader 沒有開啟，已改在目前視窗開啟這本書。請確認已安裝 PlainShelf Reader。'
     },
     errors: {
       restartReading: '無法重新開始閱讀。',
