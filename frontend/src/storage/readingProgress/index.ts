@@ -5,10 +5,12 @@ import type { BookmarkPayload, ReadingProgress } from '@/types/book';
 import { buildDeviceDocumentKey, DeviceDocumentStore } from '@/storage/deviceDocument';
 import {
   createReadingProgressDocument,
+  getBookReadingEntry,
   getBookReadingOffset,
   parseReadingProgressDocument,
   serializeReadingProgressDocument,
   withBookReadingOffset,
+  type ProgressEntry,
   type ReadingProgressDocument
 } from './document';
 import {
@@ -18,7 +20,7 @@ import {
   type ReadingProgressStorage
 } from './storage';
 
-export type { ReadingProgressDocument } from './document';
+export type { ProgressEntry, ReadingProgressDocument } from './document';
 export type { ReadingProgressStorage } from './storage';
 
 export class ReadingProgressStore extends DeviceDocumentStore<ReadingProgressDocument> {
@@ -28,6 +30,10 @@ export class ReadingProgressStore extends DeviceDocumentStore<ReadingProgressDoc
 
   async get(shelfKey: string, bookID: string): Promise<ReadingProgress> {
     return { char_offset: getBookReadingOffset(await this.read(), shelfKey, bookID) };
+  }
+
+  async getEntry(shelfKey: string, bookID: string): Promise<ProgressEntry | null> {
+    return getBookReadingEntry(await this.read(), shelfKey, bookID);
   }
 
   async save(shelfKey: string, bookID: string, progress: BookmarkPayload): Promise<void> {
@@ -96,6 +102,17 @@ function requireProgressKey(): string {
 
 export function getLocalReadingProgress(bookID: string): Promise<ReadingProgress> {
   return getReadingProgressStore().get(requireProgressKey(), bookID);
+}
+
+/**
+ * The book's stored progress entry (offset plus last-write time), or null when it
+ * has none. Read-only: it surfaces `ProgressEntry.at` for callers that show when a
+ * book was last read, without changing the document schema. The mobile shell keeps
+ * progress in its own per-book files, so there this reads the empty web/desktop
+ * store and returns null — callers degrade to showing no progress.
+ */
+export function getLocalReadingEntry(bookID: string): Promise<ProgressEntry | null> {
+  return getReadingProgressStore().getEntry(requireProgressKey(), bookID);
 }
 
 export function saveLocalReadingProgress(

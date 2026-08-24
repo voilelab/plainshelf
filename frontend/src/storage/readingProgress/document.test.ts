@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   READING_PROGRESS_DOCUMENT_VERSION,
   createReadingProgressDocument,
+  getBookReadingEntry,
   getBookReadingOffset,
   parseReadingProgressDocument,
   serializeReadingProgressDocument,
@@ -109,5 +110,20 @@ describe('withBookReadingOffset', () => {
     let doc = withBookReadingOffset(empty, 'main', 'book-1', 10, 1000);
     doc = withBookReadingOffset(doc, 'main', 'book-1', Number.NaN, 2000);
     expect(getBookReadingOffset(doc, 'main', 'book-1')).toBe(0);
+  });
+});
+
+describe('getBookReadingEntry', () => {
+  it('returns the full entry, exposing the timestamp, or null when absent', () => {
+    const doc = withBookReadingOffset(createReadingProgressDocument(), 'main', 'book-1', 42, 1000);
+    expect(getBookReadingEntry(doc, 'main', 'book-1')).toEqual({ offset: 42, at: 1000 });
+    expect(getBookReadingEntry(doc, 'main', 'missing')).toBeNull();
+    expect(getBookReadingEntry(doc, 'other-shelf', 'book-1')).toBeNull();
+  });
+
+  it('returns a reset tombstone (offset 0 with its time) rather than null', () => {
+    let doc = withBookReadingOffset(createReadingProgressDocument(), 'main', 'book-1', 42, 1000);
+    doc = withBookReadingOffset(doc, 'main', 'book-1', 0, 3000);
+    expect(getBookReadingEntry(doc, 'main', 'book-1')).toEqual({ offset: 0, at: 3000 });
   });
 });

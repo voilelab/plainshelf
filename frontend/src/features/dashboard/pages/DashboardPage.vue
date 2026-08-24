@@ -13,6 +13,7 @@
     </p>
 
     <div v-else class="dashboard-grid">
+      <RecentReading class="dashboard-cell dashboard-cell-recent" :items="recentReading" />
       <ReadingHeatmap class="dashboard-cell dashboard-cell-heatmap" :data="heatmapData" />
       <StatsCards
         class="dashboard-cell dashboard-cell-stats"
@@ -34,6 +35,7 @@ import { onMounted } from 'vue';
 import StatsCards from '@/features/dashboard/components/StatsCards.vue';
 import TagCloud from '@/features/dashboard/components/TagCloud.vue';
 import RandomBook from '@/features/dashboard/components/RandomBook.vue';
+import RecentReading from '@/features/dashboard/components/RecentReading.vue';
 import ReadingHeatmap from '@/features/dashboard/components/ReadingHeatmap.vue';
 import { useDashboardData } from '@/features/dashboard/composables/useDashboardData';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
@@ -45,6 +47,7 @@ const {
   books,
   loading,
   error,
+  recentReading,
   shelfInitializing,
   totalBooks,
   addedThisMonth,
@@ -84,6 +87,7 @@ onMounted(() => {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.dashboard-cell-recent,
 .dashboard-cell-stats,
 .dashboard-cell-heatmap {
   grid-column: 1 / -1;
@@ -99,6 +103,7 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
+  .dashboard-cell-recent,
   .dashboard-cell-stats,
   .dashboard-cell-tags,
   .dashboard-cell-random,
