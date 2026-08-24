@@ -1,15 +1,15 @@
 <template>
   <div class="dashboard-stats">
     <div class="stat-strip panel">
-      <div class="stat-item">
+      <RouterLink class="stat-item stat-item-link" to="/books">
         <span class="stat-label">{{ t('dashboard.stats.totalBooks') }}</span>
         <span class="stat-value">{{ totalBooks }}</span>
-      </div>
+      </RouterLink>
 
-      <div class="stat-item">
+      <RouterLink class="stat-item stat-item-link" to="/read-history">
         <span class="stat-label">{{ t('dashboard.stats.inProgress') }}</span>
         <span class="stat-value">{{ inProgress }}</span>
-      </div>
+      </RouterLink>
 
       <div class="stat-item">
         <span class="stat-label">{{ t('dashboard.stats.avgStar') }}</span>
@@ -120,6 +120,24 @@ const starDistributionAriaLabel = computed(() =>
   flex-direction: column;
   gap: 4px;
   min-width: 96px;
+}
+
+/* The first two stats are now navigation into the list they summarize; keep the
+   plain-number look and only reveal the affordance on interaction. */
+.stat-item-link {
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.stat-item-link:hover .stat-value,
+.stat-item-link:focus-visible .stat-value {
+  color: var(--accent);
+}
+
+.stat-item-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .stat-label {
