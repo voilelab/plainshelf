@@ -325,10 +325,13 @@ breaking change, not data that 1.0 guarantees to migrate.
   to schema v1.
   To go back to an older release, restore from a backup taken before the
   upgrade.
-- Files other than `book.json`, source `meta.json`, and `trash.json` are not
-  versioned yet — see
-  [What is versioned today](#what-is-versioned-today). They get the same
-  treatment as they are covered, not retroactively.
+- These promises cover `book.json`, source `meta.json`, and `trash.json` — the
+  user-data files. The caches under `app/` carry a `schema_version` of their own,
+  but the opposite kind: no migration, discarded and rebuilt on any mismatch, so
+  they are not what this section commits to — see
+  [What is versioned today](#what-is-versioned-today). A file that gains
+  user-data versioning later gets these promises from then on, not
+  retroactively.
 - Hand-edited `book.json` files are read on a best-effort basis. Malformed JSON
   makes that book unopenable; the error is logged with the file path.
 
@@ -579,6 +582,78 @@ for `books/` and `trash/`. See
 
 ---
 
+## The exported book cache
+
+`app/book-cache-{writer-id}.json` carries a `schema_version` too
+(`shelf_cache_export.go:43`, `BookCacheSchemaVersion`), and like the fingerprint
+cache it is versioned the throw-away way: there is no migration path, and a
+reader that meets a version it does not recognize discards the whole file and
+falls back to walking the shelf. What sets it apart from every cache above is
+*which implementation* reads it. The scan and fingerprint caches are read only by
+the same Go shelf that writes them — which is not the same as being private to one
+machine: several installations sharing a shelf all run that one implementation, so
+`scan-cache.json` is a single shared file and `fingerprint-cache.json` merges
+every machine's entries, yet no reader outside the Go shelf ever parses either.
+This file is different. It is read by a **separately written program** — the
+TypeScript client on the phone — so its `schema_version` is a contract between two
+codebases, and because that second reader runs on another device, a cross-device
+one, rather than local scratch state a single implementation keeps to itself.
+
+The server and desktop app export the file so that a client reading the shelf
+*directly*, without a server in between, does not have to walk it book by book.
+The Android app opening a shelf from pCloud is the client it exists for.
+[Shelf cache and disk I/O](shelf-cache-and-io.md#the-exported-book-cache)
+describes what the file holds and when it is written; this section adds only
+what happens when its version does not match.
+
+### A second reader, kept in step by a shared fixture
+
+The phone shares no code with the server. The Android pCloud client
+re-implements the shelf reader in TypeScript under `frontend/src/api/pcloud/` —
+the `.bookpkg` layout, `book.json` parsing, and the exported-cache format are
+all written a second time — because it reads the on-disk format directly and
+cannot import the Go packages. So the schema versions it enforces are
+hand-maintained constants standing beside their Go originals:
+`BOOK_CACHE_SCHEMA_VERSION` (`bookCacheFile.ts:22`) mirrors
+`BookCacheSchemaVersion`, and `BOOK_META_SCHEMA_VERSION` (`bookpkg.ts:55`)
+mirrors `book.json`'s own version.
+
+Two hand-written copies of a format drift apart unless something forces them
+together. That something is a cross-language conformance suite:
+`frontend/src/api/pcloud/conformance.test.ts` and its Go twin
+`shelf/conformance_test.go` read the *same* dataset from
+`shelf/testdata/conformance/`, so a format change only one side follows fails
+the other side's test. The duplicated constants are not kept honest by review
+alone — the fixture is what notices when the two readers stop agreeing.
+
+### What a version mismatch costs the phone
+
+`parseBookCacheFile` (`bookCacheFile.ts:117`) rejects any file whose
+`schema_version` is not exactly the one it was built against. It does not read a
+newer or older cache best-effort: a half-understood payload would surface as a
+silently truncated library rather than the cache miss it really is, so the
+reader treats any mismatch as no cache at all.
+
+That refusal is safe but not free. When the phone cannot use the exported file
+it falls back to walking the shelf, which over pCloud costs **two HTTP requests
+per book** — one to get a download link for each `book.json`, one to fetch it —
+in place of the single download the cache would have been. Nothing is wrong and
+nothing is lost: every book still lists, and its metadata is still read straight
+from `book.json`. But on a metered or high-latency connection the gap between
+one download and two-requests-per-book is a real performance cliff, not a
+rounding error — and it is the everyday shape of "the server upgraded, the phone
+did not": a build that raises `BookCacheSchemaVersion` starts exporting a file
+the older phone reader declines, until that phone is updated too.
+
+This is the one sense in which "deleting the book cache is safe" needs a
+qualifier. From the server's side it is exactly as safe as the caches above: the
+next export rebuilds it, and [Data Model](data-model.md#app) says as much. From
+the phone's side, deleting or invalidating it is the difference between one
+download and a full per-book walk — still safe, still never an error, but no
+longer free.
+
+---
+
 ## Shelf layout changes are not versioned
 
 Every marker above versions the *contents of a file*. None of them versions the
@@ -672,16 +747,37 @@ marker is not a shelf waiting to be upgraded — it is the only kind there is.
 
 ## What is versioned today
 
-Book, source, and trash metadata carry independent schema versions.
+Book, source, and trash metadata carry independent schema versions, and so do
+the caches under `app/`. What differs is what a version is *for*, which sorts the
+versioned files into three kinds:
 
-| Path | Versioned? |
-|---|---|
-| `books/**/book.json` | Yes — `schema_version`, described on this page |
-| `books/**/sources/{id}/meta.json` | Yes — `schema_version`; schema v1 owns source `format` |
-| `trash/**/trash.json` | Yes — `schema_version`; schema v2 owns the book's restore path |
-| `app/fingerprint-cache.json` | Yes — `schema_version` and an `algo` block, but discarded and rebuilt on any mismatch, never migrated (it is a cache) |
-| `books/` directory layout | No — the folder tree and the `.bookpkg` folder naming carry no version marker. An older layout is handled by detecting the old path at startup and moving it (`shelf/trash.go`'s `migrateLegacyTrash`, `.trash/` → `trash/`), not by a layout schema version. This is a decision, not an oversight — see [Shelf layout changes are not versioned](#shelf-layout-changes-are-not-versioned) |
-| Application store | No |
+- **User data** — `book.json`, source `meta.json`, `trash.json`. Losing them
+  loses your library, so the version is a guard: a build that meets a newer
+  version refuses to overwrite it, and upgrades are lazy and per-book. This is
+  the versioning the rest of this page describes.
+- **Local disposable cache** — `app/scan-cache.json` and
+  `app/fingerprint-cache.json`. Rebuildable from the shelf and read only by the
+  same Go implementation that writes them — shared across the installations that
+  mount one shelf (`scan-cache.json` is one file; `fingerprint-cache.json` merges
+  every machine's entries), but never parsed by any reader outside that
+  implementation — so their version carries no migration: any mismatch throws the
+  whole file away and it is recomputed.
+- **Cross-device contract** — `app/book-cache-{writer-id}.json`. Thrown away on
+  a mismatch like the caches above, but read by a *different* program on another
+  device — the Android pCloud client — so its version is a handshake between two
+  codebases, and a mismatch has a real cost on the phone even though it is never
+  an error. See [The exported book cache](#the-exported-book-cache).
+
+| Path | Versioned? | Kind |
+|---|---|---|
+| `books/**/book.json` | Yes — `schema_version`, described on this page | User data |
+| `books/**/sources/{id}/meta.json` | Yes — `schema_version`; schema v1 owns source `format` | User data |
+| `trash/**/trash.json` | Yes — `schema_version`; schema v2 owns the book's restore path | User data |
+| `app/scan-cache.json` | Yes — `schema_version` (`scancache/scancache.go:53`); no migration, discarded and rebuilt on any mismatch, unlike `books/` and `trash/` which are upgraded in place | Local cache |
+| `app/fingerprint-cache.json` | Yes — `schema_version` and an `algo` block, but discarded and rebuilt on any mismatch, never migrated (it is a cache) | Local cache |
+| `app/book-cache-{writer-id}.json` | Yes — `schema_version` (`shelf_cache_export.go:43`); no migration, discarded and rebuilt on any mismatch, but read across devices — see [The exported book cache](#the-exported-book-cache) | Cross-device contract |
+| `books/` directory layout | No — the folder tree and the `.bookpkg` folder naming carry no version marker. An older layout is handled by detecting the old path at startup and moving it (`shelf/trash.go`'s `migrateLegacyTrash`, `.trash/` → `trash/`), not by a layout schema version. This is a decision, not an oversight — see [Shelf layout changes are not versioned](#shelf-layout-changes-are-not-versioned) | — |
+| Application store | No | — |
 
 The practical rule remains: **run one PlainShelf version against a shelf at a
 time.** Unversioned files and optional fields still cannot make mixed-version
