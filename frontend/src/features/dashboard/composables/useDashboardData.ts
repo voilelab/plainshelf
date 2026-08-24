@@ -30,6 +30,15 @@ export interface RecentReadingItem {
  * approximation that avoids reloading each book's content the way the reader does.
  * It is null — so the card renders without a progress bar — whenever char_count is
  * missing or non-positive, so a missing count never shows as NaN or a false 0%.
+ *
+ * The two values use different units: `offset` is a UTF-16 index (what the reader
+ * advances), while the server's `char_count` is a rune count (len([]rune)). They
+ * agree for BMP text, including most CJK, but a supplementary-plane character — an
+ * emoji, a CJK Extension B glyph — adds two to `offset` and one to `char_count`, so
+ * an emoji-heavy book overshoots. The clamp to [0, 100] keeps the worst case an
+ * early 100% rather than NaN or an out-of-range bar. A unit-exact figure would need
+ * each book's loaded content, which this list avoids by design; the reader itself
+ * still shows the precise percentage.
  */
 export function computeReadingPercent(offset: number, charCount: number | undefined): number | null {
   if (typeof charCount !== 'number' || !Number.isFinite(charCount) || charCount <= 0) {
