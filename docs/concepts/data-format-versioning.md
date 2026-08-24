@@ -589,10 +589,15 @@ for `books/` and `trash/`. See
 cache it is versioned the throw-away way: there is no migration path, and a
 reader that meets a version it does not recognize discards the whole file and
 falls back to walking the shelf. What sets it apart from every cache above is
-who reads it. The scan and fingerprint caches are read only by the build that
-wrote them; this one is written by the server and read by a **different program
-on a different device**, which makes its `schema_version` a cross-device format
-contract rather than local scratch state.
+*which implementation* reads it. The scan and fingerprint caches are read only by
+the same Go shelf that writes them — which is not the same as being private to one
+machine: several installations sharing a shelf all run that one implementation, so
+`scan-cache.json` is a single shared file and `fingerprint-cache.json` merges
+every machine's entries, yet no reader outside the Go shelf ever parses either.
+This file is different. It is read by a **separately written program** — the
+TypeScript client on the phone — so its `schema_version` is a contract between two
+codebases, and because that second reader runs on another device, a cross-device
+one, rather than local scratch state a single implementation keeps to itself.
 
 The server and desktop app export the file so that a client reading the shelf
 *directly*, without a server in between, does not have to walk it book by book.
@@ -752,8 +757,11 @@ versioned files into three kinds:
   the versioning the rest of this page describes.
 - **Local disposable cache** — `app/scan-cache.json` and
   `app/fingerprint-cache.json`. Rebuildable from the shelf and read only by the
-  build that wrote them, so their version carries no migration: any mismatch
-  throws the whole file away and it is recomputed.
+  same Go implementation that writes them — shared across the installations that
+  mount one shelf (`scan-cache.json` is one file; `fingerprint-cache.json` merges
+  every machine's entries), but never parsed by any reader outside that
+  implementation — so their version carries no migration: any mismatch throws the
+  whole file away and it is recomputed.
 - **Cross-device contract** — `app/book-cache-{writer-id}.json`. Thrown away on
   a mismatch like the caches above, but read by a *different* program on another
   device — the Android pCloud client — so its version is a handshake between two
