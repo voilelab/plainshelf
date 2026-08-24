@@ -170,12 +170,14 @@ const zhHant = {
   },
   dashboard: {
     title: '首頁',
+    loading: '載入儀表板中...',
     loadFailed: '載入儀表板資料失敗',
     shelfInitializing: '書架載入中，請稍候...',
     shelfNotReady: '書架仍在啟動中，尚未就緒。',
     empty: {
       title: '書架還是空的',
       description: 'PlainShelf 會直接從你的書架資料夾讀取書籍。把檔案放進那個資料夾，或直接在這裡匯入，就能開始使用。',
+      readOnlyDescription: '這個書架還沒有書。之後放進書架資料夾的書都會出現在這裡。',
       import: '匯入書籍',
       docs: '閱讀新手指南'
     },

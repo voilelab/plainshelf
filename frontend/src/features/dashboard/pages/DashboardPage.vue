@@ -6,10 +6,13 @@
 
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <template v-else-if="loading">
-      <!-- A cold start keeps loading true while it retries the 503; surface that
-           status so the wait reads as "still starting" rather than a blank load. -->
-      <p v-if="shelfInitializing" class="loading-status" role="status">
-        {{ t('dashboard.shelfInitializing') }}
+      <!-- The skeleton is decorative (aria-hidden), so this status is the only
+           thing assistive tech hears while loading. It is visible during a cold
+           start — a 503 retry keeps loading true, and that wait reads as "still
+           starting" rather than a blank load — and visually hidden on an
+           ordinary fetch, where the skeleton carries the visual cue. -->
+      <p class="loading-status" :class="{ 'sr-only': !shelfInitializing }" role="status">
+        {{ shelfInitializing ? t('dashboard.shelfInitializing') : t('dashboard.loading') }}
       </p>
       <DashboardSkeleton />
     </template>
@@ -109,6 +112,18 @@ onBeforeUnmount(() => {
   color: var(--muted);
   font-size: 13px;
   margin: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .dashboard-grid {

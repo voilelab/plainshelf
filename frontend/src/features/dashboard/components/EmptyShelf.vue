@@ -1,9 +1,20 @@
 <template>
   <div class="empty-shelf panel">
     <h3 class="empty-shelf-title">{{ t('dashboard.empty.title') }}</h3>
-    <p class="empty-shelf-description">{{ t('dashboard.empty.description') }}</p>
+    <p class="empty-shelf-description">
+      {{ writesEnabled ? t('dashboard.empty.description') : t('dashboard.empty.readOnlyDescription') }}
+    </p>
     <div class="empty-shelf-actions">
-      <RouterLink class="button primary empty-shelf-import" :to="{ path: '/books', query: { import: '1' } }">
+      <!-- The import flow only exists where the client can write the shelf. A
+           read-only mobile/pCloud client strips the import query and a
+           read-only server suppresses the modal, so on those surfaces the
+           button would navigate to an inert library; hide it and describe the
+           shelf as read-only instead. -->
+      <RouterLink
+        v-if="writesEnabled"
+        class="button primary empty-shelf-import"
+        :to="{ path: '/books', query: { import: '1' } }"
+      >
         {{ t('dashboard.empty.import') }}
       </RouterLink>
       <a class="empty-shelf-docs" :href="GETTING_STARTED_URL" target="_blank" rel="noreferrer noopener">
@@ -15,8 +26,10 @@
 
 <script setup lang="ts">
 import { useI18n } from '@/i18n';
+import { useWriteAccess } from '@/composables/useWriteAccess';
 
 const { t } = useI18n();
+const { writesEnabled } = useWriteAccess();
 
 // PlainShelf has no hosted documentation site; the guides live in the repo.
 // `HEAD` resolves to the default branch so the link never pins to a stale one.

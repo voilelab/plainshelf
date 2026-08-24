@@ -173,6 +173,7 @@ const en = {
   },
   dashboard: {
     title: 'Home',
+    loading: 'Loading dashboard...',
     loadFailed: 'Failed to load dashboard data',
     shelfInitializing: 'Shelf is loading, please wait...',
     shelfNotReady: 'The shelf is still starting up and did not become ready.',
@@ -180,6 +181,8 @@ const en = {
       title: 'Your shelf is empty',
       description:
         'PlainShelf reads books straight from your shelf folder. Add files to that folder, or import them here, to get started.',
+      readOnlyDescription:
+        'This shelf has no books yet. Anything added to the shelf folder will show up here.',
       import: 'Import books',
       docs: 'Read the getting started guide'
     },
