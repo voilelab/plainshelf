@@ -51,7 +51,10 @@ test('keeps reading routes reachable', async ({ page }) => {
     await connectMobile(page, server.baseUrl);
 
     for (const [route, pattern] of [
-      ['/dashboard', /\/dashboard/],
+      ['/home', /\/home/],
+      // The old /dashboard path still resolves via a redirect, so an existing
+      // bookmark or link keeps working and lands on the renamed home route.
+      ['/dashboard', /\/home/],
       ['/books', /\/books/],
       ['/read-history', /\/read-history/],
       ['/downloads', /\/downloads/],

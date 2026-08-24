@@ -21,7 +21,7 @@ const EditBookSourcesPage = () => import('@/features/sources/pages/EditBookSourc
 const NotFoundPage = () => import('@/pages/NotFoundPage.vue');
 
 const ROUTES_WITH_OWN_TITLE = new Set([
-  'dashboard',
+  'home',
   'library',
   'book-detail',
   'book-sources-edit',
@@ -45,7 +45,7 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/dashboard'
+      redirect: '/home'
     },
     {
       path: '/connect',
@@ -67,9 +67,18 @@ const router = createRouter({
       component: MainLayout,
       children: [
         {
-          path: 'dashboard',
-          name: 'dashboard',
+          path: 'home',
+          name: 'home',
           component: DashboardPage
+        },
+        {
+          // The home page was called "dashboard" before it was reframed as the
+          // library's landing page. Old bookmarks and in-app links keep working
+          // by redirecting here; the incoming query is preserved (like the
+          // /import redirect below) so a carried flag such as
+          // ?mobile-shell-preview=1 survives.
+          path: 'dashboard',
+          redirect: (to) => ({ path: '/home', query: { ...to.query } })
         },
         {
           path: 'books',

@@ -244,7 +244,7 @@ test('no missing-key paths leak into the rendered page', async ({ page }) => {
 
     await useLocale(page, 'zh-Hant');
 
-    for (const route of ['/books', '/dashboard', '/read-history', '/settings', '/trash']) {
+    for (const route of ['/books', '/home', '/read-history', '/settings', '/trash']) {
       await page.goto(`${server.baseUrl}${route}`);
       const text = await page.locator('main, .page-area').first().innerText();
       expect(text, `missing i18n key rendered on ${route}`).not.toMatch(MISSING_KEY_PATTERN);

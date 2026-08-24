@@ -157,7 +157,7 @@ const zhHant = {
       unavailableDescription: '請先設定至少一個書架，才能瀏覽與閱讀書籍。',
       manage: '管理書架'
     },
-    dashboard: '儀表板',
+    dashboard: '首頁',
     recentlyRead: '最近閱讀',
     trash: '垃圾桶',
     downloads: '已下載',
@@ -169,12 +169,16 @@ const zhHant = {
     }
   },
   dashboard: {
-    title: '儀表板',
-    refresh: '重新整理',
-    loading: '載入儀表板中...',
+    title: '首頁',
     loadFailed: '載入儀表板資料失敗',
     shelfInitializing: '書架載入中，請稍候...',
     shelfNotReady: '書架仍在啟動中，尚未就緒。',
+    empty: {
+      title: '書架還是空的',
+      description: 'PlainShelf 會直接從你的書架資料夾讀取書籍。把檔案放進那個資料夾，或直接在這裡匯入，就能開始使用。',
+      import: '匯入書籍',
+      docs: '閱讀新手指南'
+    },
     stats: {
       totalBooks: '藏書總數',
       inProgress: '進行中',

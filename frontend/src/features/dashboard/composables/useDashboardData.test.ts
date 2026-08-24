@@ -79,6 +79,22 @@ describe('useDashboardData', () => {
     expect(error.value).toBe('');
   });
 
+  it('loads a genuinely empty shelf without flagging it as initializing', async () => {
+    listBooks.mockResolvedValue(page([]));
+
+    const store = useDashboardData();
+    await store.fetchDashboardData();
+
+    // An empty shelf is a clean, finished load: the page shows its guided empty
+    // state. It must be told apart from a shelf still initializing (503, tested
+    // next), where books is likewise empty but loading and shelfInitializing
+    // stay true — so a cold start never renders the empty-shelf guidance.
+    expect(store.books.value).toHaveLength(0);
+    expect(store.loading.value).toBe(false);
+    expect(store.shelfInitializing.value).toBe(false);
+    expect(store.error.value).toBe('');
+  });
+
   it('keeps loading and retries while the shelf is still initializing', async () => {
     listBooks
       .mockRejectedValueOnce(shelfInitializing())
