@@ -37,6 +37,12 @@ The three top-level directories are not the same kind of thing:
 | `trash/` | Books you deleted, kept until you empty the trash. Your data too. | No — deleting it discards those books for good |
 | `app/` | Runtime state the server rebuilds. | Yes |
 
+Before changing this layout — renaming, adding, or removing a top-level
+directory, or how book folders are named or nested — read [Shelf layout changes
+are not versioned](data-format-versioning.md#shelf-layout-changes-are-not-versioned):
+the shelf carries no top-level version marker, and that page gives the test for
+what counts as a layout change and how one is expected to be detected.
+
 ### `books/`
 
 Source of truth. This directory contains all user-owned data: book metadata, text files, cover images, and other long-lived files. Books can be nested under [folders](folders.md) by placing them inside sub-directories.
