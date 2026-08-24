@@ -14,11 +14,10 @@
 
     <div v-else class="dashboard-grid">
       <RecentReading class="dashboard-cell dashboard-cell-recent" :items="recentReading" />
-      <ReadingHeatmap class="dashboard-cell dashboard-cell-heatmap" :data="heatmapData" />
       <StatsCards
         class="dashboard-cell dashboard-cell-stats"
         :total-books="totalBooks"
-        :added-this-month="addedThisMonth"
+        :in-progress="inProgress"
         :star-avg="starAvg"
         :star-distribution="starDistribution"
         :total-chars="totalChars"
@@ -26,6 +25,7 @@
       />
       <TagCloud class="dashboard-cell dashboard-cell-tags" :tag-counts="tagCounts" />
       <RandomBook class="dashboard-cell dashboard-cell-random" :books="books" />
+      <ReadingHeatmap class="dashboard-cell dashboard-cell-heatmap" :data="heatmapData" />
     </div>
   </section>
 </template>
@@ -50,7 +50,7 @@ const {
   recentReading,
   shelfInitializing,
   totalBooks,
-  addedThisMonth,
+  inProgress,
   starAvg,
   starDistribution,
   totalChars,

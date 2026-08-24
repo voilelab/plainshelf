@@ -180,9 +180,10 @@ const en = {
     shelfNotReady: 'The shelf is still starting up and did not become ready.',
     stats: {
       totalBooks: 'Total Books',
-      addedThisMonth: 'Added This Month',
+      inProgress: 'In Progress',
       avgStar: 'Average Rating',
       totalChars: 'Total Characters',
+      ratingDistribution: 'Rating Distribution',
       starBar: '{star} star: {count} book(s)',
       currentStreak: 'Current Streak',
       currentStreakValue: '{days} day(s)'

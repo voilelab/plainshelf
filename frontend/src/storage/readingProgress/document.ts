@@ -147,6 +147,18 @@ export function getBookReadingEntry(
   return doc.shelves[shelfKey]?.[bookID] ?? null;
 }
 
+/**
+ * Every stored entry for a shelf, keyed by book id. Returns a fresh object (an
+ * empty one when the shelf has nothing stored) so callers can read it without
+ * touching the document's internals. Read-only, like getBookReadingEntry.
+ */
+export function getShelfReadingEntries(
+  doc: ReadingProgressDocument,
+  shelfKey: string
+): Record<string, ProgressEntry> {
+  return { ...(doc.shelves[shelfKey] ?? {}) };
+}
+
 function setBookEntry(
   doc: ReadingProgressDocument,
   shelfKey: string,

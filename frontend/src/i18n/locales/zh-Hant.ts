@@ -177,9 +177,10 @@ const zhHant = {
     shelfNotReady: '書架仍在啟動中，尚未就緒。',
     stats: {
       totalBooks: '藏書總數',
-      addedThisMonth: '本月新增',
+      inProgress: '進行中',
       avgStar: '平均星等',
       totalChars: '總字數',
+      ratingDistribution: '星等分佈',
       starBar: '{star} 星：{count} 本',
       currentStreak: '目前連續閱讀',
       currentStreakValue: '{days} 天'
