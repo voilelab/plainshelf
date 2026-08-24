@@ -133,6 +133,20 @@ export function getBookReadingOffset(
   return doc.shelves[shelfKey]?.[bookID]?.offset ?? 0;
 }
 
+/**
+ * The full stored entry (offset plus the epoch ms it was written) for a book, or
+ * null when the book has no entry. Unlike getBookReadingOffset this also exposes
+ * the timestamp, which a "last read" label needs; writers still go through the
+ * offset helpers so the timestamp stays internal to writes.
+ */
+export function getBookReadingEntry(
+  doc: ReadingProgressDocument,
+  shelfKey: string,
+  bookID: string
+): ProgressEntry | null {
+  return doc.shelves[shelfKey]?.[bookID] ?? null;
+}
+
 function setBookEntry(
   doc: ReadingProgressDocument,
   shelfKey: string,

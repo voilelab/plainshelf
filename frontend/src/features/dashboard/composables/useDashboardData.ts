@@ -7,12 +7,46 @@ import { computed, getCurrentInstance, onUnmounted, ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
 import { ApiError } from '@/api/client';
 import { getReadingActivityRange } from '@/storage/readingStats';
+import { getReadHistoryIDs } from '@/storage/readHistory';
+import { getLocalReadingEntry } from '@/storage/readingProgress';
 import type { Book } from '@/types/book';
 import { t } from '@/i18n';
 
 const READING_ACTIVITY_RANGE_DAYS = 365;
 const SHELF_INIT_RETRY_DELAY_MS = 3000;
 const SHELF_INIT_MAX_AUTO_RETRIES = 10; // ~30s of auto-retry before showing an error
+const RECENT_READING_LIMIT = 6;
+
+export interface RecentReadingItem {
+  book: Book;
+  /** 0–100, or null when there is no progress entry or no known char_count. */
+  percent: number | null;
+  /** Epoch ms of the last read, or null when unknown (e.g. the mobile shell). */
+  lastReadAt: number | null;
+}
+
+/**
+ * The home-page progress percentage is `offset / char_count`, a lightweight
+ * approximation that avoids reloading each book's content the way the reader does.
+ * It is null — so the card renders without a progress bar — whenever char_count is
+ * missing or non-positive, so a missing count never shows as NaN or a false 0%.
+ *
+ * The two values use different units: `offset` is a UTF-16 index (what the reader
+ * advances), while the server's `char_count` is a rune count (len([]rune)). They
+ * agree for BMP text, including most CJK, but a supplementary-plane character — an
+ * emoji, a CJK Extension B glyph — adds two to `offset` and one to `char_count`, so
+ * an emoji-heavy book overshoots. The clamp to [0, 100] keeps the worst case an
+ * early 100% rather than NaN or an out-of-range bar. A unit-exact figure would need
+ * each book's loaded content, which this list avoids by design; the reader itself
+ * still shows the precise percentage.
+ */
+export function computeReadingPercent(offset: number, charCount: number | undefined): number | null {
+  if (typeof charCount !== 'number' || !Number.isFinite(charCount) || charCount <= 0) {
+    return null;
+  }
+  const ratio = (offset / charCount) * 100;
+  return Math.min(100, Math.max(0, Math.round(ratio)));
+}
 
 export interface StarDistribution {
   1: number;
@@ -49,6 +83,7 @@ export function useDashboardData() {
   const loading = ref(false);
   const error = ref('');
   const readingActivity = ref<Record<string, number>>({});
+  const recentReading = ref<RecentReadingItem[]>([]);
   const shelfInitializing = ref(false);
 
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -138,6 +173,36 @@ export function useDashboardData() {
     return streak;
   });
 
+  // The recent-reading list reuses the books already loaded above (which carry
+  // char_count), ordered by the device's read history and capped to the newest
+  // few, so it needs no second listing. Progress and last-read time come from the
+  // local reading-progress store per book; the mobile shell keeps progress
+  // elsewhere, so there getLocalReadingEntry returns null and the card shows
+  // without a progress bar.
+  async function loadRecentReading(all: Book[]): Promise<RecentReadingItem[]> {
+    const historyIDs = await getReadHistoryIDs();
+    if (historyIDs.length === 0) {
+      return [];
+    }
+    const byID = new Map(all.map((book) => [book.id, book]));
+    const recentBooks = historyIDs
+      .flatMap((id) => {
+        const book = byID.get(id);
+        return book ? [book] : [];
+      })
+      .slice(0, RECENT_READING_LIMIT);
+    return Promise.all(
+      recentBooks.map(async (book) => {
+        const entry = await getLocalReadingEntry(book.id);
+        return {
+          book,
+          percent: entry ? computeReadingPercent(entry.offset, book.char_count) : null,
+          lastReadAt: entry?.at ?? null
+        };
+      })
+    );
+  }
+
   async function run(isAutoRetry: boolean): Promise<void> {
     clearRetry();
     if (!isAutoRetry) {
@@ -157,6 +222,13 @@ export function useDashboardData() {
       ]);
       books.value = data.items;
       readingActivity.value = activity;
+      // Recent-reading is convenience state read from device-local history and
+      // progress; a failure there must not blank the dashboard that just loaded.
+      try {
+        recentReading.value = await loadRecentReading(data.items);
+      } catch {
+        recentReading.value = [];
+      }
       shelfInitializing.value = false;
       initRetryCount = 0;
     } catch (err) {
@@ -212,6 +284,7 @@ export function useDashboardData() {
     books,
     loading,
     error,
+    recentReading,
     shelfInitializing,
     totalBooks,
     addedThisMonth,

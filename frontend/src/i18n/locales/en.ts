@@ -198,6 +198,11 @@ const en = {
       viewDetail: 'View Details',
       readNow: 'Read Now'
     },
+    recentReading: {
+      title: 'Recently Reading',
+      viewAll: 'View all',
+      browse: 'Browse library'
+    },
     heatmap: {
       title: 'Reading Heatmap',
       empty: 'Start reading to see activity build up here.',

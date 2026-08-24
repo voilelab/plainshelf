@@ -195,6 +195,11 @@ const zhHant = {
       viewDetail: '查看詳情',
       readNow: '開始閱讀'
     },
+    recentReading: {
+      title: '最近閱讀',
+      viewAll: '查看全部',
+      browse: '前往書庫'
+    },
     heatmap: {
       title: '閱讀熱力圖',
       empty: '開始閱讀後，這裡會累積你的閱讀足跡。',
