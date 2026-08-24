@@ -1,8 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { nextTick } from 'vue';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_READER_LAUNCH_MODE,
   getReaderLaunchMode,
@@ -27,30 +26,31 @@ describe('parseReaderLaunchMode', () => {
   });
 });
 
-// The module is a shared singleton whose watcher persists only on an actual
-// change, so each case transitions from a distinct baseline rather than sharing
-// a reset — setting the same value twice would not write anything.
-describe('setReaderLaunchMode', () => {
-  it('persists the chosen mode to localStorage and reads it back', async () => {
-    setReaderLaunchMode('new-reader');
-    await nextTick();
+describe('setReaderLaunchMode / getReaderLaunchMode', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
 
+  it('persists the chosen mode to localStorage and reads it back', () => {
     setReaderLaunchMode('in-window');
 
-    // The ref updates synchronously; localStorage is written by the watcher.
     expect(getReaderLaunchMode()).toBe('in-window');
-    await nextTick();
     expect(window.localStorage.getItem('reader-launch-mode')).toBe('in-window');
   });
 
-  it('coerces an unexpected value back to the default before storing', async () => {
-    setReaderLaunchMode('in-window');
-    await nextTick();
-
+  it('coerces an unexpected value back to the default before storing', () => {
     setReaderLaunchMode('nonsense' as 'in-window');
 
     expect(getReaderLaunchMode()).toBe('new-reader');
-    await nextTick();
     expect(window.localStorage.getItem('reader-launch-mode')).toBe('new-reader');
+  });
+
+  // The getter reads straight from storage, so a value written by another tab
+  // (here, a direct localStorage write) is picked up rather than a stale cached
+  // ref — the cross-tab case the Codex review flagged.
+  it('reflects a value written directly to storage by another tab', () => {
+    window.localStorage.setItem('reader-launch-mode', 'in-window');
+
+    expect(getReaderLaunchMode()).toBe('in-window');
   });
 });

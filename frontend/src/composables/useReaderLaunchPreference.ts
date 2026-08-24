@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 
 const STORAGE_KEY = 'reader-launch-mode';
 
@@ -29,37 +29,49 @@ export function parseReaderLaunchMode(rawValue: string | null): ReaderLaunchMode
   return DEFAULT_READER_LAUNCH_MODE;
 }
 
-// Module-level state, mirroring useAppZoom.ts: a single shared preference for
-// the whole app rather than per-component state, so the settings panel and the
-// goRead action below always agree without threading a ref between them.
+// Module-level reactive state, mirroring useAppZoom.ts: a single shared
+// preference for the whole app rather than per-component state, so the settings
+// panel stays in sync with the goRead action below.
 const launchMode = ref<ReaderLaunchMode>(DEFAULT_READER_LAUNCH_MODE);
 
 if (typeof window !== 'undefined') {
   launchMode.value = parseReaderLaunchMode(window.localStorage.getItem(STORAGE_KEY));
+  // A `storage` event fires in *other* same-origin tabs when this preference is
+  // written, so a change made in one tab reaches every open tab's shared ref —
+  // and thus its reactive settings panel — instead of being stuck at the value
+  // read once at load. The writing tab updates its own ref in setReaderLaunchMode.
+  window.addEventListener('storage', (event) => {
+    if (event.key === STORAGE_KEY) {
+      launchMode.value = parseReaderLaunchMode(event.newValue);
+    }
+  });
 }
 
-watch(
-  launchMode,
-  (value) => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    window.localStorage.setItem(STORAGE_KEY, parseReaderLaunchMode(value));
-  },
-  { immediate: false }
-);
-
 /**
- * The current preference, read fresh from the shared state. `goRead` calls this
- * at click time so it always honours the latest choice — including one made in
- * the settings tab during the same session.
+ * The current preference. `goRead` calls this at click time, so it reads the
+ * persisted value straight from localStorage rather than the once-seeded ref:
+ * that way a change made in another tab is honoured immediately, before that
+ * tab's `storage` event has necessarily been processed here. The shared ref is
+ * kept in step so the settings panel reflects the same value.
  */
 export function getReaderLaunchMode(): ReaderLaunchMode {
-  return launchMode.value;
+  if (typeof window === 'undefined') {
+    return launchMode.value;
+  }
+  const stored = parseReaderLaunchMode(window.localStorage.getItem(STORAGE_KEY));
+  launchMode.value = stored;
+  return stored;
 }
 
 export function setReaderLaunchMode(mode: ReaderLaunchMode): void {
-  launchMode.value = parseReaderLaunchMode(mode);
+  // Persist synchronously (like useReaderSettings' persistFontSize) so a
+  // getReaderLaunchMode() call right after a change reads the new value, with no
+  // watcher flush in between.
+  const next = parseReaderLaunchMode(mode);
+  launchMode.value = next;
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(STORAGE_KEY, next);
+  }
 }
 
 /**
