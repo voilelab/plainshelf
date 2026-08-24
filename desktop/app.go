@@ -658,6 +658,15 @@ func (a *DesktopApp) OpenBookDirectory(shelfID, bookID string) error {
 	return nil
 }
 
+// readerUnsupportedPlatformCode is a stable token embedded in the OpenReader
+// error returned on non-macOS platforms, where no standalone reader binary
+// exists at all. The frontend matches this token to tell that case apart from a
+// genuine macOS launch failure (reader not installed, or the launch itself
+// failed) and word its in-app fallback notice accordingly. It survives the
+// util.NewError function-name prefix, so a substring match stays reliable. Keep
+// in sync with READER_UNSUPPORTED_PLATFORM_CODE in frontend/src/api/desktop.ts.
+const readerUnsupportedPlatformCode = "reader_unsupported_platform"
+
 // OpenReader launches the standalone PlainShelfReader in its own window, showing
 // the given book. It is the desktop's reading path: the frontend routes the read
 // action here on desktop instead of opening the in-app reader.
@@ -678,7 +687,7 @@ func (a *DesktopApp) OpenReader(shelfID, bookID string, section int) error {
 	}
 
 	if runtime.GOOS != "darwin" {
-		return util.NewError("opening the standalone reader is only supported on macOS")
+		return util.NewError(readerUnsupportedPlatformCode + ": opening the standalone reader is only supported on macOS")
 	}
 
 	name, args := readerLaunchCommand(targetDir, shelfID, section)

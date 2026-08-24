@@ -109,6 +109,22 @@ export async function openDesktopBookFolder(bookID: string): Promise<void> {
   await desktopApp.OpenBookDirectory(getActiveShelfID(), bookID);
 }
 
+// Stable token the desktop backend embeds in the OpenReader rejection on
+// non-macOS platforms, where no standalone reader exists. Kept in sync with
+// readerUnsupportedPlatformCode in desktop/app.go so the caller can tell "this
+// platform has no standalone reader" apart from a macOS launch failure and word
+// its in-app fallback notice accordingly.
+export const READER_UNSUPPORTED_PLATFORM_CODE = 'reader_unsupported_platform';
+
+// True when a rejected openDesktopReader call is the non-macOS "unsupported
+// platform" case rather than a macOS launch failure (reader not installed, or
+// the launch itself failed). Matches the backend error by its stable code token,
+// which survives the util.NewError function-name prefix, so the substring check
+// stays reliable.
+export function isReaderUnsupportedPlatform(error: unknown): boolean {
+  return error instanceof Error && error.message.includes(READER_UNSUPPORTED_PLATFORM_CODE);
+}
+
 // Opens a book in the standalone reader's own window. Unlike the folder/finder
 // helpers this rejects when the binding is missing, so the caller can fall back
 // to the in-app reader rather than silently doing nothing.

@@ -5,6 +5,7 @@ import { useFolderStore } from '@/composables/useFolderStore';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
 import { useToasts } from '@/composables/useToasts';
 import { getReaderLaunchMode } from '@/composables/useReaderLaunchPreference';
+import { isReaderUnsupportedPlatform } from '@/api/desktop';
 import { bookshelfWriter, getBookshelfProvider, isWebRuntime } from '@/providers';
 import type { BookTransferMode } from '@/api/books';
 import type { Book } from '@/types/book';
@@ -165,8 +166,19 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     // entirely and navigate in place.
     const provider = getBookshelfProvider();
     if (provider.openDesktopReader && openInNewReader) {
-      provider.openDesktopReader(id, hasSection ? Math.trunc(sectionIndex) : undefined).catch(() => {
+      provider.openDesktopReader(id, hasSection ? Math.trunc(sectionIndex) : undefined).catch((err) => {
+        // The standalone reader did not launch, so fall back to the in-app
+        // reader as before. But the user explicitly picked "open a new reader",
+        // so a silent fallback reads as "my setting is broken" — explain instead
+        // why the book opened here. Two shapes: this platform has no standalone
+        // reader at all (non-macOS), or the macOS reader failed to launch (not
+        // installed, or the launch itself errored).
         void router.push(to);
+        showToast(
+          isReaderUnsupportedPlatform(err)
+            ? t('bookDetail.messages.readerUnsupportedPlatform')
+            : t('bookDetail.messages.readerLaunchFailed')
+        );
       });
       return;
     }

@@ -592,7 +592,11 @@ const en = {
       saved: 'Book details saved.',
       copied: 'Book copied.',
       exported: 'Exported to {location}',
-      downloadRequired: 'Download this book to your device before you can read it.'
+      downloadRequired: 'Download this book to your device before you can read it.',
+      readerUnsupportedPlatform:
+        'This device has no standalone reader, so the book opened in this window instead.',
+      readerLaunchFailed:
+        'The standalone reader did not open, so the book opened in this window instead. Check that PlainShelf Reader is installed.'
     },
     errors: {
       restartReading: 'Failed to restart the book.',
