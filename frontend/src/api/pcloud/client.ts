@@ -6,6 +6,7 @@ import {
 import type {
   PCloudApiHost,
   PCloudGetFileLinkResult,
+  PCloudGetZipLinkResult,
   PCloudItem,
   PCloudListFolderResult,
   PCloudUserInfoResult
@@ -364,6 +365,49 @@ export class PCloudClient {
     }
 
     return `https://${host}${res.path}`;
+  }
+
+  /**
+   * Resolves a per-download link to a pCloud-built zip of the given files.
+   *
+   * `getziplink`, not `savezip`: it builds and serves the archive without
+   * writing into the account, which keeps this client read-only. `fileids` packs
+   * the files under their flat names, matching the server's assets.zip so one
+   * unzip path serves both backends.
+   */
+  async getZipLink(fileids: number[], signal?: AbortSignal): Promise<string> {
+    const res = await this.call<PCloudGetZipLinkResult>(
+      'getziplink',
+      { fileids: fileids.join(',') },
+      signal
+    );
+    const host = res.hosts?.[0];
+
+    if (!host || !res.path) {
+      throw new PCloudError('pCloud getziplink returned no usable download host.');
+    }
+
+    return `https://${host}${res.path}`;
+  }
+
+  /**
+   * Downloads a set of files as one zip. Same two-step shape as `download`: the
+   * link call goes through `call` (timeout, retry, result codes), the transfer
+   * through `withRequest` (download budget, cancellable). Needs at least one id.
+   */
+  async downloadZip(fileids: number[], signal?: AbortSignal): Promise<Blob> {
+    const url = await this.getZipLink(fileids, signal);
+
+    // No Authorization header, as in `download`: the content host honours the
+    // link's own credentials and the API token has no business there.
+    return await this.withRequest(url, {}, DOWNLOAD_TIMEOUT_MS, signal, 'zip download', async (res) => {
+      if (!res.ok) {
+        throw new PCloudError(`pCloud zip download failed: HTTP ${res.status} ${res.statusText}`, {
+          status: res.status
+        });
+      }
+      return await res.blob();
+    });
   }
 
   async downloadBlob(fileid: number, signal?: AbortSignal): Promise<Blob> {

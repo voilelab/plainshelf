@@ -18,6 +18,7 @@ import {
   pickNewestBookCache
 } from '@/api/pcloud/bookCacheFile';
 import type { BookCacheFile } from '@/api/pcloud/bookCacheFile';
+import { zipSync } from 'fflate';
 import { PCloudClient } from '@/api/pcloud/client';
 import type { PCloudItem } from '@/api/pcloud/types';
 import { PCloudDataError, PCloudError, isRetryablePCloudError } from '@/api/pcloud/errors';
@@ -42,6 +43,13 @@ import type { FingerprintStatus, SimilarBookPair } from '@/api/books';
 import type { BookshelfReader, ListBooksOptions } from './bookshelfProvider';
 
 const READ_ONLY_MESSAGE = 'A pCloud shelf is read-only.';
+
+/**
+ * A valid, empty zip. Returned when no requested asset is in the listing, so the
+ * caller's unzip finds nothing to store instead of the request failing — and
+ * `getziplink` is never asked to zip nothing. Built once; the bytes never change.
+ */
+const EMPTY_ZIP = zipSync({});
 
 /**
  * Parallel metadata reads. Each book.json costs two requests (getfilelink plus
@@ -714,6 +722,37 @@ export class PCloudBookshelfProvider implements BookshelfReader {
         throw new PCloudError(`Illustration ${name} was not found for source ${sourceId} of book ${bookId}.`);
       }
       return await this.client.downloadBlob(ref.fileid);
+    });
+  }
+
+  /**
+   * Fetches a source's illustrations as one pCloud-built zip, so a chunk costs a
+   * single request instead of one `getfilelink`-plus-download per figure — the
+   * server's assets.zip win, on the pCloud path.
+   *
+   * fileids come from the listing the shelf was read through
+   * (`BookSourceRef.assets`), so no extra listing is made; a name the listing
+   * lacks is dropped (reader shows alt text, as `getSourceAsset` does), and all
+   * absent yields an empty archive. The caller bounds and unzips each chunk, so
+   * no batching is needed here.
+   */
+  getSourceAssetsBundle(bookId: string, sourceId: string, names: string[]): Promise<Blob> {
+    return this.guarded(async () => {
+      const source = await this.findSource(bookId, sourceId);
+
+      const fileids: number[] = [];
+      for (const name of names) {
+        const ref = source.assets[name];
+        if (ref) {
+          fileids.push(ref.fileid);
+        }
+      }
+
+      if (fileids.length === 0) {
+        return new Blob([EMPTY_ZIP], { type: 'application/zip' });
+      }
+
+      return await this.client.downloadZip(fileids);
     });
   }
 

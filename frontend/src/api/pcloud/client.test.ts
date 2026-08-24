@@ -485,3 +485,85 @@ describe('PCloudClient downloads', () => {
     });
   });
 });
+
+describe('PCloudClient.downloadZip', () => {
+  // getziplink takes a comma-joined fileids list; the archive is then pulled
+  // from the host it names — the same two-step shape as a single-file download.
+  it('requests the given fileids and downloads from the returned host', async () => {
+    const fetchImpl = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      if (String(input).includes('getziplink')) {
+        return Promise.resolve(jsonResponse({ result: 0, hosts: ['c1.pcloud.com'], path: '/zip/abc' }));
+      }
+      return Promise.resolve(new Response('zip-bytes'));
+    });
+
+    const blob = await makeClient(fetchImpl as unknown as typeof fetch).downloadZip([10, 20, 30]);
+
+    expect(await blob.text()).toBe('zip-bytes');
+    const linkUrl = new URL(String(fetchImpl.mock.calls[0][0]));
+    expect(linkUrl.pathname).toBe('/getziplink');
+    expect(linkUrl.searchParams.get('fileids')).toBe('10,20,30');
+    expect(String(fetchImpl.mock.calls[1][0])).toBe('https://c1.pcloud.com/zip/abc');
+  });
+
+  it('does not send the API token to the download host', async () => {
+    const fetchImpl = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      if (String(input).includes('getziplink')) {
+        return Promise.resolve(jsonResponse({ result: 0, hosts: ['c1.pcloud.com'], path: '/zip/abc' }));
+      }
+      return Promise.resolve(new Response('zip-bytes'));
+    });
+
+    await makeClient(fetchImpl as unknown as typeof fetch).downloadZip([10]);
+
+    const downloadInit = fetchImpl.mock.calls[1][1] as RequestInit | undefined;
+    expect(downloadInit?.headers).toBeUndefined();
+  });
+
+  it('reuses the retry policy for the getziplink call', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ result: 4000, error: 'Too many requests.' }))
+      .mockResolvedValueOnce(jsonResponse({ result: 0, hosts: ['c1.pcloud.com'], path: '/zip/abc' }))
+      .mockResolvedValueOnce(new Response('zip-bytes'));
+
+    const blob = await makeClient(fetchImpl as unknown as typeof fetch).downloadZip([10]);
+
+    expect(await blob.text()).toBe('zip-bytes');
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it('fails clearly when getziplink returns no host', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ result: 0, hosts: [], path: '/zip/abc' }));
+
+    await expect(
+      makeClient(fetchImpl as unknown as typeof fetch).downloadZip([10])
+    ).rejects.toBeInstanceOf(PCloudError);
+  });
+
+  it('surfaces a failed archive download with its status', async () => {
+    const fetchImpl = vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      if (String(input).includes('getziplink')) {
+        return Promise.resolve(jsonResponse({ result: 0, hosts: ['c1.pcloud.com'], path: '/zip/abc' }));
+      }
+      return Promise.resolve(new Response('gone', { status: 500, statusText: 'Server Error' }));
+    });
+
+    await expect(
+      makeClient(fetchImpl as unknown as typeof fetch).downloadZip([10])
+    ).rejects.toMatchObject({ name: 'PCloudError', status: 500 });
+  });
+
+  it('surfaces the caller cancellation rather than retrying', async () => {
+    const controller = new AbortController();
+    const fetchImpl = vi.fn().mockImplementation(() => {
+      controller.abort();
+      return Promise.reject(new DOMException('Aborted', 'AbortError'));
+    });
+
+    await expect(
+      makeClient(fetchImpl as unknown as typeof fetch).downloadZip([10], controller.signal)
+    ).rejects.toBeTruthy();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
