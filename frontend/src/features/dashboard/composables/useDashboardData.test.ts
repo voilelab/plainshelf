@@ -366,6 +366,75 @@ describe('useDashboardData', () => {
     });
   });
 
+  describe('recently added', () => {
+    it('orders by created_at descending and caps the list at six', async () => {
+      const books = [
+        makeBook({ id: 'oldest', created_at: '2026-01-01T00:00:00Z' }),
+        makeBook({ id: 'newest', created_at: '2026-08-01T00:00:00Z' }),
+        makeBook({ id: 'middle', created_at: '2026-04-01T00:00:00Z' }),
+        makeBook({ id: 'e', created_at: '2026-03-01T00:00:00Z' }),
+        makeBook({ id: 'f', created_at: '2026-02-15T00:00:00Z' }),
+        makeBook({ id: 'g', created_at: '2026-02-10T00:00:00Z' }),
+        makeBook({ id: 'h', created_at: '2026-02-05T00:00:00Z' })
+      ];
+      listBooks.mockResolvedValue(page(books));
+
+      const store = useDashboardData();
+      await store.fetchDashboardData();
+
+      // Newest first, and the seventh-oldest ("oldest") is dropped by the cap.
+      expect(store.recentlyAdded.value.map((book) => book.id)).toEqual([
+        'newest',
+        'middle',
+        'e',
+        'f',
+        'g',
+        'h'
+      ]);
+    });
+
+    it('treats a missing or unparseable created_at as oldest without reordering ties', async () => {
+      const books = [
+        makeBook({ id: 'no-date' }),
+        makeBook({ id: 'bad-date', created_at: 'not-a-date' }),
+        makeBook({ id: 'dated', created_at: '2026-05-01T00:00:00Z' })
+      ];
+      listBooks.mockResolvedValue(page(books));
+
+      const store = useDashboardData();
+      await store.fetchDashboardData();
+
+      // The only dated book leads; the two undated books keep the listing order.
+      expect(store.recentlyAdded.value.map((book) => book.id)).toEqual([
+        'dated',
+        'no-date',
+        'bad-date'
+      ]);
+    });
+  });
+
+  describe('started book ids', () => {
+    it('collects ids with a positive offset and ignores reset tombstones', async () => {
+      listBooks.mockResolvedValue(
+        page([
+          makeBook({ id: 'started' }),
+          makeBook({ id: 'reset' }),
+          makeBook({ id: 'untouched' })
+        ])
+      );
+      getLocalReadingEntries.mockResolvedValue({
+        started: { offset: 40, at: 10 },
+        reset: { offset: 0, at: 20 }
+        // "untouched" has no entry.
+      });
+
+      const store = useDashboardData();
+      await store.fetchDashboardData();
+
+      expect([...store.startedBookIds.value].sort()).toEqual(['started']);
+    });
+  });
+
   it('cancels a pending retry when a manual refresh starts', async () => {
     listBooks
       .mockRejectedValueOnce(shelfInitializing())

@@ -207,6 +207,10 @@ const zhHant = {
       viewAll: '查看全部',
       browse: '前往書庫'
     },
+    recentlyAdded: {
+      title: '最近加入',
+      viewAll: '查看全部'
+    },
     heatmap: {
       title: '閱讀熱力圖',
       empty: '開始閱讀後，這裡會累積你的閱讀足跡。',

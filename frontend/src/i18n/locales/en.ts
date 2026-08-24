@@ -212,6 +212,10 @@ const en = {
       viewAll: 'View all',
       browse: 'Browse library'
     },
+    recentlyAdded: {
+      title: 'Recently Added',
+      viewAll: 'View all'
+    },
     heatmap: {
       title: 'Reading Heatmap',
       empty: 'Start reading to see activity build up here.',

@@ -17,6 +17,15 @@ const READING_ACTIVITY_RANGE_DAYS = 365;
 const SHELF_INIT_RETRY_DELAY_MS = 3000;
 const SHELF_INIT_MAX_AUTO_RETRIES = 10; // ~30s of auto-retry before showing an error
 const RECENT_READING_LIMIT = 6;
+const RECENTLY_ADDED_LIMIT = 6;
+
+// created_at is an ISO timestamp string, but optional and occasionally legacy;
+// a missing or unparseable value sorts as 0 (oldest) rather than throwing, the
+// same forgiving contract the library's sort uses.
+function createdAtValue(book: Book): number {
+  const parsed = book.created_at ? Date.parse(book.created_at) : NaN;
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
 
 export interface RecentReadingItem {
   book: Book;
@@ -163,6 +172,31 @@ export function useDashboardData() {
   });
 
   const heatmapData = computed<Record<string, number>>(() => readingActivity.value);
+
+  // The six most recently added books, newest first, drawn from the already
+  // loaded listing so the home page's "recently added" row costs no extra
+  // request. sort() is stable, so books that share (or lack) a created_at keep
+  // the listing's own order.
+  const recentlyAdded = computed<Book[]>(() =>
+    [...books.value]
+      .sort((a, b) => createdAtValue(b) - createdAtValue(a))
+      .slice(0, RECENTLY_ADDED_LIMIT)
+  );
+
+  // Ids of books the reader has actually opened (a progress entry past the
+  // start). The random pick prefers books absent from this set so it surfaces
+  // something unread; a reset tombstone (offset 0) is not "started". Empty on
+  // the mobile shell, whose progress lives outside getLocalReadingEntries, so
+  // there the pick simply draws from everything.
+  const startedBookIds = computed<Set<string>>(() => {
+    const ids = new Set<string>();
+    for (const [id, entry] of Object.entries(readingProgress.value)) {
+      if (entry && entry.offset > 0) {
+        ids.add(id);
+      }
+    }
+    return ids;
+  });
 
   // Consecutive days (ending today) with total_seconds > 0. If today has no
   // recorded reading yet (the common case — the day isn't over), the streak
@@ -315,6 +349,8 @@ export function useDashboardData() {
     tagCounts,
     heatmapData,
     currentStreak,
+    recentlyAdded,
+    startedBookIds,
     fetchDashboardData
   };
 }

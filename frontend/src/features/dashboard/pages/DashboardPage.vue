@@ -32,8 +32,13 @@
         :total-chars="totalChars"
         :current-streak="currentStreak"
       />
+      <RecentlyAdded class="dashboard-cell dashboard-cell-recently-added" :books="recentlyAdded" />
       <TagCloud class="dashboard-cell dashboard-cell-tags" :tag-counts="tagCounts" />
-      <RandomBook class="dashboard-cell dashboard-cell-random" :books="books" />
+      <RandomBook
+        class="dashboard-cell dashboard-cell-random"
+        :books="books"
+        :started-ids="startedBookIds"
+      />
       <ReadingHeatmap class="dashboard-cell dashboard-cell-heatmap" :data="heatmapData" />
     </div>
   </section>
@@ -45,6 +50,7 @@ import StatsCards from '@/features/dashboard/components/StatsCards.vue';
 import TagCloud from '@/features/dashboard/components/TagCloud.vue';
 import RandomBook from '@/features/dashboard/components/RandomBook.vue';
 import RecentReading from '@/features/dashboard/components/RecentReading.vue';
+import RecentlyAdded from '@/features/dashboard/components/RecentlyAdded.vue';
 import ReadingHeatmap from '@/features/dashboard/components/ReadingHeatmap.vue';
 import DashboardSkeleton from '@/features/dashboard/components/DashboardSkeleton.vue';
 import EmptyShelf from '@/features/dashboard/components/EmptyShelf.vue';
@@ -68,6 +74,8 @@ const {
   tagCounts,
   heatmapData,
   currentStreak,
+  recentlyAdded,
+  startedBookIds,
   fetchDashboardData
 } = useDashboardData();
 
@@ -134,6 +142,7 @@ onBeforeUnmount(() => {
 
 .dashboard-cell-recent,
 .dashboard-cell-stats,
+.dashboard-cell-recently-added,
 .dashboard-cell-heatmap {
   grid-column: 1 / -1;
 }
@@ -150,6 +159,7 @@ onBeforeUnmount(() => {
 
   .dashboard-cell-recent,
   .dashboard-cell-stats,
+  .dashboard-cell-recently-added,
   .dashboard-cell-tags,
   .dashboard-cell-random,
   .dashboard-cell-heatmap {
