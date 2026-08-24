@@ -65,14 +65,21 @@ function candidatePool(): Book[] {
 }
 
 function pickRandomId(exclude?: string): string | null {
-  const pool = candidatePool();
-  if (pool.length === 0) {
+  if (props.books.length === 0) {
     return null;
   }
-  const candidates = pool.length > 1 && exclude
-    ? pool.filter((book) => book.id !== exclude)
-    : pool;
-  const from = candidates.length > 0 ? candidates : pool;
+  const preferred = candidatePool();
+  // Prefer an unstarted book other than the current one. When the current book
+  // is the *only* unstarted one, fall back to the rest of the shelf so Shuffle
+  // still advances — the button is enabled on total book count alone, so it must
+  // never hand back the same book. The final tier keeps the pool non-empty when
+  // the current book is the entire shelf.
+  const tiers = [
+    exclude ? preferred.filter((book) => book.id !== exclude) : preferred,
+    exclude ? props.books.filter((book) => book.id !== exclude) : props.books,
+    preferred
+  ];
+  const from = tiers.find((tier) => tier.length > 0) ?? props.books;
   const index = Math.floor(Math.random() * from.length);
   return from[index].id;
 }

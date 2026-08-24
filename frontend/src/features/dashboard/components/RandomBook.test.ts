@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createApp, defineComponent, h } from 'vue';
+import { createApp, defineComponent, h, nextTick } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Book } from '@/types/book';
@@ -71,6 +71,28 @@ describe('RandomBook', () => {
     // empty state — index 0 of the full list.
     expect(host.querySelector('.random-book-empty')).toBeNull();
     expect(host.querySelector('.random-book-book-title')?.textContent).toBe('Alpha');
+
+    app.unmount();
+  });
+
+  it('advances on Shuffle even when the current book is the only unstarted one', async () => {
+    // The button is enabled on total book count, so a shelf with several books
+    // but a single unstarted one (which becomes the initial pick) must still move
+    // off it — otherwise Shuffle looks broken.
+    const books = [
+      makeBook({ id: 's1', title: 'StartedOne' }),
+      makeBook({ id: 's2', title: 'StartedTwo' }),
+      makeBook({ id: 'fresh', title: 'Fresh' })
+    ];
+    const { host, app } = mount({ books, startedIds: new Set(['s1', 's2']) });
+
+    // Initial pick prefers the sole unstarted book.
+    expect(host.querySelector('.random-book-book-title')?.textContent).toBe('Fresh');
+
+    // Shuffle falls back to the started books (index 0 of the current-excluded list).
+    host.querySelector('button')?.click();
+    await nextTick();
+    expect(host.querySelector('.random-book-book-title')?.textContent).toBe('StartedOne');
 
     app.unmount();
   });
