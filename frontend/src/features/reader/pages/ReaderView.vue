@@ -170,12 +170,16 @@ function onDocumentKeydown(event: KeyboardEvent): void {
     return;
   }
 
+  // Only text-entry elements should swallow the arrow keys, so their caret can
+  // move. A focused button must not: the desktop chapter/side-action controls
+  // and the just-closed modals all leave focus on a <button>, and excluding it
+  // here silently killed keyboard chapter navigation until the reader clicked
+  // back into the body.
   const activeElement = document.activeElement;
   if (
     activeElement instanceof HTMLInputElement ||
     activeElement instanceof HTMLTextAreaElement ||
     activeElement instanceof HTMLSelectElement ||
-    activeElement instanceof HTMLButtonElement ||
     activeElement?.getAttribute?.('contenteditable') === 'true'
   ) {
     return;
