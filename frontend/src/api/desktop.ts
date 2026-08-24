@@ -121,8 +121,14 @@ export const READER_UNSUPPORTED_PLATFORM_CODE = 'reader_unsupported_platform';
 // the launch itself failed). Matches the backend error by its stable code token,
 // which survives the util.NewError function-name prefix, so the substring check
 // stays reliable.
+//
+// Wails rejects a bound-method promise with the Go error's message *string*, not
+// an Error, so the real desktop path never produces an Error here; the in-app
+// fallback wraps it in one. Normalize both shapes before matching.
 export function isReaderUnsupportedPlatform(error: unknown): boolean {
-  return error instanceof Error && error.message.includes(READER_UNSUPPORTED_PLATFORM_CODE);
+  const message =
+    error instanceof Error ? error.message : typeof error === 'string' ? error : String(error);
+  return message.includes(READER_UNSUPPORTED_PLATFORM_CODE);
 }
 
 // Opens a book in the standalone reader's own window. Unlike the folder/finder

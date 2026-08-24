@@ -175,6 +175,24 @@ describe('useBookActions goRead', () => {
     expect(mocks.showToast).toHaveBeenCalledWith('bookDetail.messages.readerUnsupportedPlatform');
   });
 
+  it('explains the platform when Wails rejects with a bare error string', async () => {
+    // Wails rejects a bound-method promise with the Go error's message string,
+    // not an Error, so the real desktop path never carries an Error instance;
+    // the classifier must still recognise the unsupported-platform code.
+    const openReader = vi
+      .fn()
+      .mockRejectedValue(
+        'main.(*DesktopApp).OpenReader: reader_unsupported_platform: opening the standalone reader is only supported on macOS'
+      );
+    mocks.openDesktopReader = openReader;
+    const actions = useBookActions();
+
+    actions.goRead('book-1');
+
+    await vi.waitFor(() => expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1' }));
+    expect(mocks.showToast).toHaveBeenCalledWith('bookDetail.messages.readerUnsupportedPlatform');
+  });
+
   it('opens the standalone reader at the chapter on a desktop chapter jump', () => {
     const openReader = vi.fn().mockResolvedValue(undefined);
     mocks.openDesktopReader = openReader;
