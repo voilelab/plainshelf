@@ -274,6 +274,7 @@ An installation removes another's file only after 30 days without an update — 
 ### Notes
 
 - The file is disposable. Delete it and it comes back; a client that finds none, or one it cannot read, falls back to scanning the shelf.
+- Its `schema_version` is a cross-device contract: the phone reader rejects a file whose version it does not match exactly and walks the shelf book by book instead — safe, but a per-book request cliff over pCloud, not free. [Data Format Versioning](data-format-versioning.md#the-exported-book-cache) covers what a mismatch costs and why the version is duplicated on the TypeScript side.
 - It contains exactly what `book.json` already contains. If your shelf is private, it is no more revealing than the shelf itself — but it does put every book's metadata in one file, which matters if you share `app/` more widely than `books/`.
 - `book_cache_writer_id` can be pinned per shelf in the config file if you want a predictable name; leave it unset and PlainShelf supplies one.
 
