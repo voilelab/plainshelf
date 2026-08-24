@@ -38,7 +38,16 @@ import { useI18n } from './i18n';
 const { t } = useI18n();
 const route = useRoute();
 const showMockModeBadge = computed(() => isMockApiMode());
-const showDesktopHistoryControls = computed(() => isWailsRuntime());
+// Hidden only on the reader route: there the keyboard's ← / → drive chapter
+// navigation (ReaderView), so a second on-screen ← / → that walks browser
+// history would give the same keys two meanings on one screen. Every other
+// route keeps the controls. route.name is reactive, so navigating in or out of
+// the reader flips this without any extra wiring. Match by route name, not a
+// '/reader/' path prefix, so future reader-adjacent routes don't silently
+// re-trigger the hide.
+const showDesktopHistoryControls = computed(
+  () => isWailsRuntime() && route.name !== 'reader'
+);
 
 // An uncaught render error unmounts the subtree and leaves a blank page with no
 // way back. Capturing it here swaps in a recoverable panel instead. The hook
