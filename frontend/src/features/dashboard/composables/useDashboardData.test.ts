@@ -325,6 +325,18 @@ describe('useDashboardData', () => {
       expect(store.inProgress.value).toBe(1);
     });
 
+    it('still counts a book that is a few characters short of the end', async () => {
+      // 199/200 rounds to 100% for display, but the book is not finished; the
+      // count must compare the offset to the length unrounded.
+      listBooks.mockResolvedValue(page([makeBook({ id: 'almost', char_count: 200 })]));
+      getLocalReadingEntries.mockResolvedValue({ almost: { offset: 199, at: 10 } });
+
+      const store = useDashboardData();
+      await store.fetchDashboardData();
+
+      expect(store.inProgress.value).toBe(1);
+    });
+
     it('degrades to zero when the progress store cannot be read', async () => {
       listBooks.mockResolvedValue(page([makeBook({ id: 'b1', char_count: 100 })]));
       getLocalReadingEntries.mockRejectedValue(new Error('storage exploded'));

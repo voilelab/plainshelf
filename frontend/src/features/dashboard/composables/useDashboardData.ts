@@ -93,9 +93,11 @@ export function useDashboardData() {
   // Books that have been opened (a progress entry with a positive offset) but are
   // not finished yet. Reuses the same device-local reading-progress store the
   // recent-reading list reads from. A zero-offset entry is a reset tombstone, not
-  // progress; a book whose approximate percentage has reached 100 counts as read,
-  // not in progress. A positive offset with an unknown char_count (percent null)
-  // has demonstrable progress but no way to prove completion, so it stays counted.
+  // progress. Completion is tested unrounded — the saved offset reaching the
+  // book's length — rather than through computeReadingPercent, whose rounding
+  // would report 199/200 as 100% and drop a book that is still short of the end.
+  // A positive offset with an unknown or invalid char_count has demonstrable
+  // progress but no provable end, so it stays counted.
   const inProgress = computed<number>(() => {
     let count = 0;
     for (const book of books.value) {
@@ -103,7 +105,13 @@ export function useDashboardData() {
       if (!entry || entry.offset <= 0) {
         continue;
       }
-      if (computeReadingPercent(entry.offset, book.char_count) === 100) {
+      const charCount = book.char_count;
+      const finished =
+        typeof charCount === 'number' &&
+        Number.isFinite(charCount) &&
+        charCount > 0 &&
+        entry.offset >= charCount;
+      if (finished) {
         continue;
       }
       count += 1;
