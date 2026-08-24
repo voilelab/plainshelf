@@ -240,6 +240,14 @@ const en = {
     readHistory: {
       title: 'Reading history'
     },
+    readerLaunch: {
+      title: 'Reading',
+      label: 'How to open the reader',
+      description:
+        'What pressing Read does. "Open a new reader" launches a new tab on the web, or the standalone reader app on desktop. "Open in this window" navigates in place instead. This preference is stored only on this device.',
+      newReader: 'Open a new reader',
+      inWindow: 'Open in this window'
+    },
     import: {
       title: 'Import'
     },

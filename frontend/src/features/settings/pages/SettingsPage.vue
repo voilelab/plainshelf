@@ -23,10 +23,14 @@
         <TabsTrigger v-if="serverSettingsEditable" value="cover" class="settings-tab-trigger">{{
           t('settings.cover.title')
         }}</TabsTrigger>
-        <!-- Reading history is device-local, so its retention limit is
-             editable on every client, including the read-only mobile shell. -->
+        <!-- Reading history and the reader-launch preference are device-local,
+             so they are editable on every client, including the read-only
+             mobile shell. -->
         <TabsTrigger value="read-history" class="settings-tab-trigger">{{
           t('settings.readHistory.title')
+        }}</TabsTrigger>
+        <TabsTrigger value="reader-launch" class="settings-tab-trigger">{{
+          t('settings.readerLaunch.title')
         }}</TabsTrigger>
         <TabsTrigger v-if="serverSettingsEditable" value="import" class="settings-tab-trigger">{{
           t('settings.import.title')
@@ -44,6 +48,14 @@
           :value="readHistoryLimit"
           :disabled="loading || saving"
           @change="onReadHistoryLimitChange"
+        />
+      </TabsContent>
+
+      <TabsContent value="reader-launch" class="settings-tab-content">
+        <ReaderLaunchPanel
+          :value="readerLaunchMode"
+          :disabled="loading || saving"
+          @change="onReaderLaunchModeChange"
         />
       </TabsContent>
 
@@ -78,6 +90,7 @@ import AboutPanel from '@/features/settings/components/AboutPanel.vue';
 import CoverPanel from '@/features/settings/components/CoverPanel.vue';
 import EpubImportPanel from '@/features/settings/components/EpubImportPanel.vue';
 import ReadHistoryPanel from '@/features/settings/components/ReadHistoryPanel.vue';
+import ReaderLaunchPanel from '@/features/settings/components/ReaderLaunchPanel.vue';
 import ShelvesPanel from '@/features/settings/components/ShelvesPanel.vue';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useWriteAccess } from '@/composables/useWriteAccess';
@@ -96,12 +109,14 @@ const {
   error,
   coverToJpg,
   readHistoryLimit,
+  readerLaunchMode,
   epubPreset,
   epubIncludeDescription,
   epubImportError,
   loadSettings,
   onCoverToJpgChange,
   onReadHistoryLimitChange,
+  onReaderLaunchModeChange,
   onEpubPresetChange,
   onSaveEpubImportStrategy
 } = useServerSettingsForm({ serverSettingsEditable });

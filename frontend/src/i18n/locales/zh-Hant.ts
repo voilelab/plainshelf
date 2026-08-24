@@ -235,6 +235,14 @@ const zhHant = {
     readHistory: {
       title: '閱讀紀錄'
     },
+    readerLaunch: {
+      title: '閱讀開啟方式',
+      label: '按下「閱讀」時',
+      description:
+        '決定按下「閱讀」時如何開啟。「開新 reader」在網頁版會開新分頁，在桌面版會啟動獨立的 reader 應用程式；「在目前視窗開」則直接在目前視窗切換。此偏好只保存在這台裝置。',
+      newReader: '開新 reader',
+      inWindow: '在目前視窗開'
+    },
     import: {
       title: '匯入'
     },

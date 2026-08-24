@@ -24,6 +24,9 @@ const mocks = vi.hoisted(() => ({
   fetchBooks: vi.fn(),
   fetchFolders: vi.fn(),
   isWebRuntime: vi.fn(() => false),
+  // The device-local reader-launch preference goRead reads at click time.
+  // Defaults to 'new-reader' so the pre-existing cases assert that behaviour.
+  getReaderLaunchMode: vi.fn(() => 'new-reader' as 'new-reader' | 'in-window'),
   // undefined models a provider without the desktop reader (web/mobile); a
   // spy models the desktop provider.
   openDesktopReader: undefined as undefined | ((bookId: string, section?: number) => Promise<void>),
@@ -53,6 +56,10 @@ vi.mock('@/composables/useBookStore', () => ({
   useBookStore: () => ({ fetchBooks: mocks.fetchBooks })
 }));
 
+vi.mock('@/composables/useReaderLaunchPreference', () => ({
+  getReaderLaunchMode: mocks.getReaderLaunchMode
+}));
+
 vi.mock('@/i18n', () => ({ t: (key: string) => key }));
 
 import { useBookActions } from './useBookActions';
@@ -77,6 +84,7 @@ describe('useBookActions goRead', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.isWebRuntime.mockReturnValue(false);
+    mocks.getReaderLaunchMode.mockReturnValue('new-reader');
     mocks.openDesktopReader = undefined;
     // window.open is unimplemented in jsdom; a spy both silences it and lets us
     // assert the new-tab call. Default to a truthy handle (pop-up allowed).
@@ -176,6 +184,34 @@ describe('useBookActions goRead', () => {
 
     expect(openSpy).toHaveBeenCalledWith('/reader/book-1', '_blank', 'noopener,noreferrer');
     expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  // With the 'in-window' preference the web build navigates in place instead of
+  // opening a new tab, and must not touch window.open at all.
+  it('navigates in place on a web build when the preference is in-window', () => {
+    mocks.isWebRuntime.mockReturnValue(true);
+    mocks.getReaderLaunchMode.mockReturnValue('in-window');
+    const actions = useBookActions();
+
+    actions.goRead('book-1', 3);
+
+    expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1', query: { section: '3' } });
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  // With the 'in-window' preference the desktop build navigates in place instead
+  // of shelling out, and must not call openDesktopReader at all.
+  it('navigates in place on the desktop app when the preference is in-window', () => {
+    const openReader = vi.fn().mockResolvedValue(undefined);
+    mocks.openDesktopReader = openReader;
+    mocks.getReaderLaunchMode.mockReturnValue('in-window');
+    const actions = useBookActions();
+
+    actions.goRead('book-1');
+
+    expect(mocks.push).toHaveBeenCalledWith({ path: '/reader/book-1' });
+    expect(openReader).not.toHaveBeenCalled();
+    expect(openSpy).not.toHaveBeenCalled();
   });
 });
 

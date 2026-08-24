@@ -7,6 +7,12 @@ import {
 } from '@/api/settings';
 // Reading history and its retention limit are per-device state, not server settings.
 import { getReadHistoryLimit, setReadHistoryLimit } from '@/storage/readHistory';
+// The reader-launch preference is likewise per-device, not a server setting.
+import {
+  getReaderLaunchMode,
+  setReaderLaunchMode,
+  type ReaderLaunchMode
+} from '@/composables/useReaderLaunchPreference';
 import {
   DEFAULT_EPUB_IMPORT_STRATEGY,
   type EpubImportPreset,
@@ -24,12 +30,14 @@ export interface ServerSettingsForm {
   error: Ref<string>;
   coverToJpg: Ref<boolean>;
   readHistoryLimit: Ref<number>;
+  readerLaunchMode: Ref<ReaderLaunchMode>;
   epubPreset: Ref<EpubImportPreset>;
   epubIncludeDescription: Ref<boolean>;
   epubImportError: Ref<string>;
   loadSettings: () => Promise<void>;
   onCoverToJpgChange: (event: Event) => Promise<void>;
   onReadHistoryLimitChange: (event: Event) => Promise<void>;
+  onReaderLaunchModeChange: (event: Event) => void;
   onEpubPresetChange: (event: Event) => void;
   onSaveEpubImportStrategy: () => Promise<void>;
 }
@@ -53,6 +61,7 @@ export function useServerSettingsForm(options: {
   const error = ref('');
   const coverToJpg = ref(false);
   const readHistoryLimit = ref(0);
+  const readerLaunchMode = ref<ReaderLaunchMode>(getReaderLaunchMode());
   const epubPreset = ref<EpubImportPreset>(DEFAULT_EPUB_IMPORT_STRATEGY.preset);
   const epubIncludeDescription = ref(DEFAULT_EPUB_IMPORT_STRATEGY.include_description);
   // Held only so saving another EPUB setting does not erase it. There is no
@@ -68,6 +77,9 @@ export function useServerSettingsForm(options: {
       // The retention limit is device-local, so it loads even where the
       // server-only settings are not shown (the mobile shell).
       readHistoryLimit.value = await getReadHistoryLimit();
+      // The reader-launch preference is device-local too and available on every
+      // client, so re-read it here in case it changed in another tab.
+      readerLaunchMode.value = getReaderLaunchMode();
       if (!serverSettingsEditable.value) {
         return;
       }
@@ -169,18 +181,35 @@ export function useServerSettingsForm(options: {
     }
   }
 
+  function onReaderLaunchModeChange(event: Event): void {
+    const target = event.target;
+    if (!(target instanceof HTMLSelectElement)) {
+      return;
+    }
+
+    // Device-local and synchronous: setReaderLaunchMode persists to localStorage
+    // (mirroring useAppZoom) with no server round-trip that could fail. The
+    // setter coerces any unexpected option back to the default, so mirror the
+    // stored result onto the local ref rather than the raw value.
+    setReaderLaunchMode(target.value as ReaderLaunchMode);
+    readerLaunchMode.value = getReaderLaunchMode();
+    error.value = '';
+  }
+
   return {
     loading,
     saving,
     error,
     coverToJpg,
     readHistoryLimit,
+    readerLaunchMode,
     epubPreset,
     epubIncludeDescription,
     epubImportError,
     loadSettings,
     onCoverToJpgChange,
     onReadHistoryLimitChange,
+    onReaderLaunchModeChange,
     onEpubPresetChange,
     onSaveEpubImportStrategy
   };

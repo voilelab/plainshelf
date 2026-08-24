@@ -4,6 +4,7 @@ import { useBookStore } from '@/composables/useBookStore';
 import { useFolderStore } from '@/composables/useFolderStore';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
 import { useToasts } from '@/composables/useToasts';
+import { getReaderLaunchMode } from '@/composables/useReaderLaunchPreference';
 import { bookshelfWriter, getBookshelfProvider, isWebRuntime } from '@/providers';
 import type { BookTransferMode } from '@/api/books';
 import type { Book } from '@/types/book';
@@ -124,31 +125,46 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
       ? { path: `/reader/${id}`, query: { section: String(Math.trunc(sectionIndex)) } }
       : { path: `/reader/${id}` };
 
-    // On a plain web-server build the reader opens in a new tab so the library
-    // or book page it was launched from is not replaced wholesale — closing the
-    // tab returns the reader there. The desktop, mobile and reader shells keep
-    // the in-place SPA navigation. Matches externalLinks.ts's window.open idiom.
+    // Device-local preference: 'new-reader' (default) opens a fresh reader,
+    // 'in-window' navigates the current window in place. Only the web and
+    // desktop shells have a fresh-reader path to gate; the mobile and standalone
+    // reader shells always navigate in place regardless — isWebRuntime() is
+    // false for them and they define no openDesktopReader, so they fall straight
+    // through to the router.push at the end, unaffected by the preference.
+    const openInNewReader = getReaderLaunchMode() === 'new-reader';
+
+    // On a plain web-server build, opening a new reader means a new tab so the
+    // library or book page it was launched from is not replaced wholesale —
+    // closing the tab returns the reader there. Matches externalLinks.ts's
+    // window.open idiom.
     //
-    // No router.push fallback here: with noopener/noreferrer window.open returns
-    // null even on success (per the HTML spec), so its result cannot tell a
-    // blocked pop-up from an opened one. Pushing "on failure" would therefore
-    // fire on every success too and navigate the original tab as well, which is
-    // exactly the wholesale replacement this feature avoids. A user-gesture open
-    // is not pop-up-blocked in practice.
+    // No router.push fallback on the window.open itself: with noopener/noreferrer
+    // window.open returns null even on success (per the HTML spec), so its result
+    // cannot tell a blocked pop-up from an opened one. Pushing "on failure" would
+    // therefore fire on every success too and navigate the original tab as well,
+    // which is exactly the wholesale replacement this feature avoids. A
+    // user-gesture open is not pop-up-blocked in practice. When the preference is
+    // 'in-window', we deliberately router.push instead — that is the requested
+    // in-place navigation, not a fallback.
     if (isWebRuntime()) {
-      window.open(router.resolve(to).href, '_blank', 'noopener,noreferrer');
+      if (openInNewReader) {
+        window.open(router.resolve(to).href, '_blank', 'noopener,noreferrer');
+        return;
+      }
+      void router.push(to);
       return;
     }
 
-    // On the desktop app reading opens the standalone reader in its own window;
-    // its progress flows back into this library (reading_progress.json). Only the
-    // desktop provider defines openDesktopReader, so web/mobile fall through. A
-    // chapter jump passes its section so the reader opens on that chapter — the
-    // same window as the default read, not the in-app one — and the in-app
-    // /reader/:id route stays the fallback if the reader will not launch (e.g. not
-    // installed).
+    // On the desktop app, opening a new reader means the standalone reader in its
+    // own window; its progress flows back into this library (reading_progress.json).
+    // Only the desktop provider defines openDesktopReader, so web/mobile fall
+    // through. A chapter jump passes its section so the reader opens on that
+    // chapter — the same window as the default read, not the in-app one — and the
+    // in-app /reader/:id route stays the fallback if the reader will not launch
+    // (e.g. not installed). When the preference is 'in-window', skip the shell-out
+    // entirely and navigate in place.
     const provider = getBookshelfProvider();
-    if (provider.openDesktopReader) {
+    if (provider.openDesktopReader && openInNewReader) {
       provider.openDesktopReader(id, hasSection ? Math.trunc(sectionIndex) : undefined).catch(() => {
         void router.push(to);
       });
