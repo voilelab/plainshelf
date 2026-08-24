@@ -55,3 +55,37 @@ test('should record a book in read history after visiting the reader and clear i
     await server.dispose();
   }
 });
+
+test('dashboard "recent reading" cards keep a bounded width with a single book', async ({
+  page
+}) => {
+  const server = await startServer();
+
+  try {
+    await page.goto(`${server.baseUrl}/books`);
+    await importHelloBook(page);
+
+    // Read the single book so it lands in the browser's read history, which the
+    // dashboard's "recent reading" section reflects.
+    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
+    await expect(page).toHaveURL(/\/books\/[^/]+$/);
+    const reader = await openReaderTab(page, () =>
+      page.getByRole('button', { name: 'Start reading' }).click()
+    );
+    await expect(reader.getByText('Hello from PlainShelf E2E.')).toBeVisible();
+    await reader.close();
+
+    // Open the home page (redirects to the dashboard) with only one recent book.
+    await page.goto(`${server.baseUrl}/`);
+    const cover = page.locator('.recent-reading-cover').first();
+    await expect(cover).toBeVisible();
+
+    // With a single book the card must not stretch to fill the row: its width is
+    // capped, so the 2:3 cover cannot balloon to thousands of px tall.
+    const box = await cover.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeLessThanOrEqual(200);
+  } finally {
+    await server.dispose();
+  }
+});
