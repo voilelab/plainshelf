@@ -2,9 +2,6 @@ const zhHant = {
   app: {
     name: 'PlainShelf',
     mockModeBadge: '模擬 API 模式',
-    desktopHistoryNavigation: '桌面版歷史導覽',
-    previousPage: '上一頁',
-    nextPage: '下一頁',
     renderError: {
       title: '這個頁面停止回應',
       description: '繪製這個頁面時發生錯誤。重新載入通常就能恢復。',

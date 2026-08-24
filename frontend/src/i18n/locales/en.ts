@@ -2,9 +2,6 @@ const en = {
   app: {
     name: 'PlainShelf',
     mockModeBadge: 'MOCK API MODE',
-    desktopHistoryNavigation: 'Desktop history navigation',
-    previousPage: 'Previous page',
-    nextPage: 'Next page',
     renderError: {
       title: 'This page stopped responding',
       description: 'Something went wrong while drawing this page. Reloading usually clears it.',
