@@ -65,4 +65,53 @@ describe('reading-progress binding resolution', () => {
     expect(desktopWrite).toHaveBeenCalledOnce();
     expect(readerWrite).not.toHaveBeenCalled();
   });
+
+  // The whole point of routing the reader to the shared file before its binding is
+  // bound: read/write must wait for a late-injected binding instead of throwing,
+  // which the reader's fetchReaderData would turn into a failed book load.
+  describe('late-injected binding', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('reads once the binding is injected rather than throwing', async () => {
+      vi.useFakeTimers();
+      // Reader window is up, but window.go is not there yet.
+      vi.stubGlobal('window', {});
+
+      const read = vi.fn(async () => '{"version":2,"shelves":{"book":{"b":5}}}');
+      const pending = readDesktopReadingProgress();
+      const settled = vi.fn();
+      void pending.then(settled);
+
+      // Still nothing bound: the call is waiting, not rejected.
+      await vi.advanceTimersByTimeAsync(120);
+      expect(settled).not.toHaveBeenCalled();
+      expect(read).not.toHaveBeenCalled();
+
+      // Wails injects the reader binding; the next poll picks it up.
+      stubMain({ ReaderApp: { ReadReadingProgress: read, WriteReadingProgress: async () => undefined } });
+      await vi.advanceTimersByTimeAsync(60);
+
+      await expect(pending).resolves.toContain('"book"');
+      expect(read).toHaveBeenCalledOnce();
+    });
+
+    it('writes once the binding is injected rather than dropping the write', async () => {
+      vi.useFakeTimers();
+      vi.stubGlobal('window', {});
+
+      const write = vi.fn(async () => undefined);
+      const pending = writeDesktopReadingProgress('{"version":2,"shelves":{}}');
+
+      await vi.advanceTimersByTimeAsync(120);
+      expect(write).not.toHaveBeenCalled();
+
+      stubMain({ ReaderApp: { ReadReadingProgress: async () => '', WriteReadingProgress: write } });
+      await vi.advanceTimersByTimeAsync(60);
+
+      await expect(pending).resolves.toBeUndefined();
+      expect(write).toHaveBeenCalledOnce();
+    });
+  });
 });

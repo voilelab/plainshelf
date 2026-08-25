@@ -283,8 +283,44 @@ export function hasDesktopReadingProgressBinding(): boolean {
   return getReadingProgressBinding() !== undefined;
 }
 
+// Wails injects the window.go bindings into the page, and that injection can land
+// *after* the app's first scripts run. Reading progress is read and written through
+// those bindings, so a caller that reaches them in that startup gap would throw
+// "binding not available". Restoring progress on book open is exactly such a caller,
+// and the reader treats a rejected progress read as a failed book load (useReader's
+// fetchReaderData has no fallback for it, unlike source content) — so the reader
+// would break under the very timing this is meant to survive. Wait briefly for the
+// binding instead: this resolves the moment it appears (immediately in the common
+// case, where it is already bound), and only a binding that never appears — which a
+// real desktop/reader app never hits — waits out the timeout and lets the caller
+// surface the missing-binding error.
+const READING_PROGRESS_BINDING_TIMEOUT_MS = 5000;
+const READING_PROGRESS_BINDING_POLL_MS = 50;
+
+function waitForReadingProgressBinding(
+  timeoutMs: number = READING_PROGRESS_BINDING_TIMEOUT_MS
+): Promise<ReaderAppBinding | undefined> {
+  const ready = getReadingProgressBinding();
+  if (ready) {
+    return Promise.resolve(ready);
+  }
+
+  return new Promise((resolve) => {
+    const startedAt = Date.now();
+    const poll = (): void => {
+      const binding = getReadingProgressBinding();
+      if (binding || Date.now() - startedAt >= timeoutMs) {
+        resolve(binding);
+        return;
+      }
+      setTimeout(poll, READING_PROGRESS_BINDING_POLL_MS);
+    };
+    setTimeout(poll, READING_PROGRESS_BINDING_POLL_MS);
+  });
+}
+
 export async function readDesktopReadingProgress(): Promise<string> {
-  const binding = getReadingProgressBinding();
+  const binding = await waitForReadingProgressBinding();
   if (!binding?.ReadReadingProgress) {
     throw new Error('ReadReadingProgress binding not available');
   }
@@ -293,7 +329,7 @@ export async function readDesktopReadingProgress(): Promise<string> {
 }
 
 export async function writeDesktopReadingProgress(doc: string): Promise<void> {
-  const binding = getReadingProgressBinding();
+  const binding = await waitForReadingProgressBinding();
   if (!binding?.WriteReadingProgress) {
     throw new Error('WriteReadingProgress binding not available');
   }
