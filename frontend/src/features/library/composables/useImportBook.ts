@@ -1,7 +1,7 @@
 import { t } from '@/i18n';
 import { computed, ref } from 'vue';
 import { bookshelfWriter } from '@/providers';
-import { deriveTitleFromFilename, hasSupportedExtension } from '@/utils/file';
+import { basenameFromPath, deriveTitleFromFilename, hasSupportedExtension } from '@/utils/file';
 import { normalizeFolderPath } from '@/utils/folders';
 import { DEFAULT_EPUB_IMPORT_STRATEGY, type EpubImportStrategy } from '@/types/book';
 
@@ -31,6 +31,12 @@ export interface ImportUnit {
 
 interface FileImportUnit extends ImportUnit {
   file: File;
+}
+
+// The desktop equivalent of FileImportUnit: the bytes stay on disk and are
+// named by a host path the Wails binding imports, rather than an in-memory File.
+interface LocalPathImportUnit extends ImportUnit {
+  localPath: string;
 }
 
 // Turns one unit into a created book id, or throws to fail that unit. Abort is
@@ -167,6 +173,39 @@ export function useImportBook() {
     };
   }
 
+  // Desktop host paths become units the same way files do. The blank-path filter
+  // that normalizeSelectedLocalPaths applies on the Go picker side is kept here
+  // too, so an empty or whitespace path never reaches the per-file binding.
+  function buildLocalPathUnits(localPaths: string[]): LocalPathImportUnit[] {
+    return localPaths
+      .map((localPath) => localPath.trim())
+      .filter((localPath) => localPath.length > 0)
+      .map((localPath) => {
+        const filename = basenameFromPath(localPath);
+        return { localPath, filename, title: deriveTitleFromFilename(filename) };
+      });
+  }
+
+  // The desktop executor: one Wails call per file. Unlike the upload path it
+  // sends no per-batch EPUB strategy — the desktop import keeps the configured
+  // default the server applies. The single call cannot be interrupted mid-flight,
+  // so it ignores the signal; abort is enforced by the shared loop at the next
+  // file boundary. A per-file failure surfaces as the result's Error field, which
+  // becomes a thrown rejection here so the shared loop marks that unit failed.
+  function createLocalPathExecutor(currentFolderPath?: string): ImportExecutor<LocalPathImportUnit> {
+    const folder = normalizeImportFolderPath(currentFolderPath);
+    return async (unit) => {
+      const result = (await bookshelfWriter().importBookFromLocalPath?.(unit.localPath, folder)) ?? null;
+      if (result?.error) {
+        throw new Error(result.error);
+      }
+      if (!result?.id) {
+        throw new Error('Import failed');
+      }
+      return result.id;
+    };
+  }
+
   function applyResultMessages(result: ImportSubmitResult): void {
     const { total, successCount, failedCount, cancelled } = result;
 
@@ -297,6 +336,16 @@ export function useImportBook() {
     return submit(buildFileUnits(bookFiles.value), createFileExecutor(currentFolderPath));
   }
 
+  // The desktop host-path entry point. Like submitFiles it is one executor over
+  // the shared core, so the desktop import shows the same N/M progress and abort
+  // as the upload path rather than a second implementation.
+  async function submitLocalPaths(
+    localPaths: string[],
+    currentFolderPath?: string
+  ): Promise<ImportSubmitResult | null> {
+    return submit(buildLocalPathUnits(localPaths), createLocalPathExecutor(currentFolderPath));
+  }
+
   // Cooperative abort: the in-flight file finishes, then the loop stops at the
   // next boundary.
   function abort(): void {
@@ -321,6 +370,7 @@ export function useImportBook() {
     setBookFiles,
     submit,
     submitFiles,
+    submitLocalPaths,
     abort,
     reset
   };

@@ -296,10 +296,12 @@ export interface BookshelfWriter {
 
   /**
    * Optional because only the desktop shell can reach host paths, but a write
-   * either way: it creates books in the active shelf exactly as importBook
-   * does, from a picker result rather than an upload.
+   * either way: it creates one book in the active shelf exactly as importBook
+   * does, from a picker result rather than an upload. The caller invokes it once
+   * per selected file so the shared import executor drives the same N/M progress
+   * and file-boundary abort as the upload path.
    */
-  importBooksFromLocalPaths?(localPaths: string[], folderPath: string): Promise<DesktopImportBookResult[] | null>;
+  importBookFromLocalPath?(localPath: string, folderPath: string): Promise<DesktopImportBookResult | null>;
 
   createSource(bookId: string, options?: CreateSourceOptions): Promise<SourceMeta>;
   deleteSource(bookId: string, sourceId: string): Promise<void>;

@@ -204,6 +204,7 @@
       :open="importModalOpen"
       :current-folder-path="selectedFolder"
       :dropped-files="droppedFiles"
+      :local-paths="desktopImportPaths"
       @close="closeImportModal"
       @imported="onImported"
     />
@@ -271,7 +272,7 @@ import { isCharCountRangeActive } from '@/utils/charCountFilter';
 import { hasFileTransfer, readDroppedFiles } from '@/utils/file';
 import { normalizeFolderPath } from '@/utils/folders';
 import { useI18n } from '@/i18n';
-import { bookshelfWriter, getBookshelfProvider } from '@/providers';
+import { getBookshelfProvider } from '@/providers';
 import { isMobileRuntime } from '@/providers/runtime';
 import type { BookActivation } from '@/types/bookSelection';
 import '@/styles/toolbar-controls.css';
@@ -308,6 +309,9 @@ const {
 const booksLoaded = ref<boolean>(false);
 const isNewEmptyBookModalOpen = ref(false);
 const droppedFiles = ref<File[]>([]);
+// Host paths from the desktop native picker, handed to the import modal to
+// auto-start a per-file import. Empty on the web, where there is no picker.
+const desktopImportPaths = ref<string[]>([]);
 // Matches the isMobileEnv pattern in MainLayout.vue and SettingsPage.vue: the
 // runtime does not change during a session, but a computed keeps it consistent
 // with the other environment checks used in the template.
@@ -818,6 +822,7 @@ async function openImportFromFiles(): Promise<void> {
     return;
   }
   droppedFiles.value = [];
+  desktopImportPaths.value = [];
 
   let desktopFiles: string[] | null = null;
   try {
@@ -826,29 +831,16 @@ async function openImportFromFiles(): Promise<void> {
     desktopFiles = null;
   }
 
+  // On the desktop the native picker returns the chosen host paths — an empty
+  // array when the user cancelled. Hand them to the import modal, which
+  // auto-starts a per-file import showing the same N/M progress and abort as the
+  // browser upload. Off the desktop openLocalBookFiles is absent, so desktopFiles
+  // is null and the ordinary browser file-input modal opens instead.
   if (desktopFiles) {
     if (desktopFiles.length === 0) {
       return;
     }
-
-    try {
-      // A write like any other import: it creates books in the active shelf,
-      // it just takes host paths from the desktop picker instead of an upload.
-      // openLocalBookFiles above only opens a dialog, so it stays a read.
-      const importResult = await bookshelfWriter().importBooksFromLocalPaths?.(desktopFiles, selectedFolder.value ?? '') ?? null;
-      if (importResult) {
-        const hasImportedBook = importResult.some((item) => item.id !== undefined && item.id !== '');
-        const hasFailedBook = importResult.some((item) => Boolean(item.error));
-        if (hasImportedBook) {
-          await reloadBooksAfterImport();
-        } else if (hasFailedBook && !isImportModalOpen.value) {
-          void openImportModalQuery();
-        }
-        return;
-      }
-    } catch {
-      // Fall through to browser file-input import modal.
-    }
+    desktopImportPaths.value = desktopFiles;
   }
 
   if (isImportModalOpen.value) {
@@ -897,6 +889,10 @@ function onDocumentDrop(event: DragEvent): void {
     return;
   }
 
+  // A drop is always a browser-File import, even on the desktop: clear any host
+  // paths so the modal seeds from the dropped files rather than auto-starting a
+  // stale picker selection.
+  desktopImportPaths.value = [];
   droppedFiles.value = nextDroppedFiles;
   if (!isImportModalOpen.value) {
     void openImportModalQuery();
@@ -909,6 +905,7 @@ function closeImportModal(): void {
   }
 
   droppedFiles.value = [];
+  desktopImportPaths.value = [];
   void closeImportModalQuery();
 }
 

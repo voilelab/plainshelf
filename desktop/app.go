@@ -455,30 +455,25 @@ func normalizeFolderParts(folderParts []string) shelf.FolderPath {
 	return normalizedParts
 }
 
-func (a *DesktopApp) ImportBooksFromLocalPaths(shelfID string, localPaths []string, folderParts []string) ([]DesktopImportBookResult, error) {
+// ImportBookFromLocalPath imports one book the desktop client picked from disk
+// and reports the outcome as a single result. The frontend calls it once per
+// selected file so it can drive the same N/M progress and file-boundary abort
+// the web upload path uses; a per-file import failure is reported through the
+// result's Error field, not a Go error, so one bad file does not abort the batch
+// the frontend is stepping through.
+func (a *DesktopApp) ImportBookFromLocalPath(shelfID string, localPath string, folderParts []string) (DesktopImportBookResult, error) {
 	if a.app == nil {
-		return nil, util.NewError("desktop backend app instance is nil")
+		return DesktopImportBookResult{}, util.NewError("desktop backend app instance is nil")
 	}
 
-	normalizedPaths := normalizeSelectedLocalPaths(localPaths)
-	if len(normalizedPaths) == 0 {
-		return []DesktopImportBookResult{}, nil
+	result := DesktopImportBookResult{Path: localPath}
+	book, err := a.app.ImportFromLocalPath(shelfID, localPath, normalizeFolderParts(folderParts))
+	if err != nil {
+		result.Error = err.Error()
+		return result, nil
 	}
-
-	normalizedFolderParts := normalizeFolderParts(folderParts)
-	results := make([]DesktopImportBookResult, 0, len(normalizedPaths))
-	for _, localPath := range normalizedPaths {
-		book, err := a.app.ImportFromLocalPath(shelfID, localPath, normalizedFolderParts)
-		result := DesktopImportBookResult{Path: localPath}
-		if err != nil {
-			result.Error = err.Error()
-		} else {
-			result.ID = book.ID()
-		}
-		results = append(results, result)
-	}
-
-	return results, nil
+	result.ID = book.ID()
+	return result, nil
 }
 
 func (a *DesktopApp) navigateHistory(step int) {

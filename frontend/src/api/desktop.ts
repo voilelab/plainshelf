@@ -16,11 +16,11 @@ export interface DesktopShelfDetails {
 
 interface DesktopAppBinding {
   OpenBookFiles?: () => Promise<string[]>;
-  ImportBooksFromLocalPaths?: (
+  ImportBookFromLocalPath?: (
     shelfID: string,
-    localPaths: string[],
+    localPath: string,
     folderParts: string[]
-  ) => Promise<DesktopImportBookResult[]>;
+  ) => Promise<DesktopImportBookResult>;
   OpenShelfDirectory?: () => Promise<string>;
   OpenFolderDirectory?: (shelfID: string, folderParts: string[]) => Promise<void>;
   OpenBookDirectory?: (shelfID: string, bookID: string) => Promise<void>;
@@ -200,22 +200,27 @@ export async function modifyDesktopShelf(shelfID: string, name: string, scanInte
   await desktopApp.ModifyShelf(shelfID, name, scanInterval);
 }
 
-export async function importDesktopBooksFromLocalPaths(
-  localPaths: string[],
+// Imports a single host-path book. The frontend calls it once per selected file
+// so the shared import executor can step through the batch, reporting the same
+// N/M progress and file-boundary abort as the browser upload path. Returns null
+// off the desktop or when the binding is missing, so the caller can fall back to
+// the browser file-input modal.
+export async function importDesktopBookFromLocalPath(
+  localPath: string,
   folderPath: string
-): Promise<DesktopImportBookResult[] | null> {
+): Promise<DesktopImportBookResult | null> {
   if (!isDesktopRuntime()) {
     return null;
   }
 
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
-  if (!desktopApp?.ImportBooksFromLocalPaths) {
+  if (!desktopApp?.ImportBookFromLocalPath) {
     return null;
   }
 
-  return desktopApp.ImportBooksFromLocalPaths(
+  return desktopApp.ImportBookFromLocalPath(
     getActiveShelfID(),
-    localPaths,
+    localPath,
     normalizeFolderParts(folderPath)
   );
 }

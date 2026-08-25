@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/voilelab/plainshelf/server"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 func TestBookOpenDialogOptions(t *testing.T) {
@@ -44,6 +45,91 @@ func TestNormalizeFolderParts(t *testing.T) {
 	}
 	if parts[1] != "sci-fi" {
 		t.Fatalf("unexpected second part: %q", parts[1])
+	}
+}
+
+// startedDesktopAppWithShelf builds a started DesktopApp backed by a real server
+// app with one ready shelf, for the tests that exercise ImportBookFromLocalPath
+// end to end.
+func startedDesktopAppWithShelf(t *testing.T, shelfID string) *DesktopApp {
+	t.Helper()
+
+	serverApp, err := server.NewApp(&server.AppConf{
+		Shelves: []*shelf.ShelfConfWithID{
+			{
+				ID: shelfID,
+				ShelfConf: shelf.ShelfConf{
+					LibRoot: t.TempDir(),
+				},
+			},
+		},
+		StorePath: t.TempDir(),
+		Security:  &server.SecurityConf{Mode: server.SecurityModeNone},
+	})
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := serverApp.Close(); err != nil {
+			t.Fatalf("Close app: %v", err)
+		}
+	})
+
+	if err := serverApp.Start(); err != nil {
+		t.Fatalf("Start app: %v", err)
+	}
+	for _, shelfData := range serverApp.ShelfManager().GetAllShelves() {
+		if err := shelfData.WaitReady(t.Context()); err != nil {
+			t.Fatalf("WaitReady for shelf %s: %v", shelfData.ID, err)
+		}
+	}
+
+	return &DesktopApp{app: serverApp}
+}
+
+func TestImportBookFromLocalPathReturnsBookIDOnSuccess(t *testing.T) {
+	const shelfID = "default_shelf"
+	desktopApp := startedDesktopAppWithShelf(t, shelfID)
+
+	srcPath := filepath.Join(t.TempDir(), "example-book.txt")
+	if err := os.WriteFile(srcPath, []byte("Chapter one\n\nHello world.\n"), 0o600); err != nil {
+		t.Fatalf("write source book: %v", err)
+	}
+
+	result, err := desktopApp.ImportBookFromLocalPath(shelfID, srcPath, nil)
+	if err != nil {
+		t.Fatalf("ImportBookFromLocalPath returned error: %v", err)
+	}
+	if result.Path != srcPath {
+		t.Fatalf("result path = %q, want %q", result.Path, srcPath)
+	}
+	if result.ID == "" {
+		t.Fatalf("expected a book ID on success, got empty (error=%q)", result.Error)
+	}
+	if result.Error != "" {
+		t.Fatalf("expected no error on success, got %q", result.Error)
+	}
+}
+
+func TestImportBookFromLocalPathReportsFailureInResult(t *testing.T) {
+	const shelfID = "default_shelf"
+	desktopApp := startedDesktopAppWithShelf(t, shelfID)
+
+	// A missing source path must fail through the result's Error field, not a Go
+	// error, so the frontend's per-file loop keeps stepping through the batch.
+	missingPath := filepath.Join(t.TempDir(), "does-not-exist.txt")
+	result, err := desktopApp.ImportBookFromLocalPath(shelfID, missingPath, nil)
+	if err != nil {
+		t.Fatalf("ImportBookFromLocalPath returned a Go error for a bad path: %v", err)
+	}
+	if result.Path != missingPath {
+		t.Fatalf("result path = %q, want %q", result.Path, missingPath)
+	}
+	if result.ID != "" {
+		t.Fatalf("expected no book ID on failure, got %q", result.ID)
+	}
+	if result.Error == "" {
+		t.Fatal("expected an error message on failure, got empty")
 	}
 }
 
