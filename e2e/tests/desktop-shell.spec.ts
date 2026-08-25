@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { useServer } from './support/server';
+import { helloFixturePath, importBookAs } from './support/books';
+import { sourceEditor } from './support/sourceEditor';
 import {
   desktopHistoryControls,
   expectDesktopShellEngaged,
@@ -37,6 +39,39 @@ test('desktop shell stays engaged across in-app navigation', async ({ page }) =>
   await expect(
     page.getByText('Shelves are managed by the server configuration.')
   ).toHaveCount(0);
+});
+
+// The history pills belong to shells you can navigate a hierarchy in, so they
+// live in MainLayout's topbar and must not appear on the immersive ReaderLayout
+// routes (`/reader/:id`, `/books/:bookId/sources`), where keyboard ←/→ already
+// mean previous/next chapter. Desktop mode stays engaged on all three routes;
+// only the layout differs.
+test('history controls render under MainLayout but not ReaderLayout', async ({ page }) => {
+  const { baseUrl } = getServer();
+
+  await openDesktopAt(page, baseUrl, '/books');
+  await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
+  // Assert present first: if the controls break entirely, this line goes red
+  // rather than the run passing on a control that never rendered anywhere.
+  await expectDesktopShellEngaged(page);
+
+  const title = 'reader-layout-history-probe';
+  await importBookAs(page, helloFixturePath, title);
+  await page.locator('.book-list-row').getByRole('heading', { name: title, exact: true }).click();
+  await expect(page).toHaveURL(/\/books\/[^/]+$/);
+  const bookId = new URL(page.url()).pathname.split('/')[2];
+
+  // /books/:bookId/sources — a ReaderLayout route. Still desktop mode, no pills.
+  await openDesktopAt(page, baseUrl, `/books/${bookId}/sources`);
+  await expect(page).toHaveURL(/\/sources(\?|$)/);
+  await expect(sourceEditor(page)).toBeVisible();
+  await expect(desktopHistoryControls(page)).toHaveCount(0);
+
+  // /reader/:id — a ReaderLayout route. Still desktop mode, no pills.
+  await openDesktopAt(page, baseUrl, `/reader/${bookId}`);
+  await expect(page).toHaveURL(/\/reader\/[^/?]+(\?|$)/);
+  await expect(page.getByRole('heading', { name: title })).toBeVisible();
+  await expect(desktopHistoryControls(page)).toHaveCount(0);
 });
 
 test('web mode shows no desktop chrome', async ({ page }) => {

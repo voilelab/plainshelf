@@ -446,6 +446,18 @@
             <img class="brand-icon" :src="appIcon" alt="" aria-hidden="true">
             <span>{{ t('app.name') }}</span>
           </h1>
+          <nav
+            v-if="showHistoryControls"
+            class="history-controls"
+            :aria-label="t('layout.desktopHistoryNavigation')"
+          >
+            <button type="button" class="history-btn" :aria-label="t('layout.previousPage')" @click="goToPreviousPage">
+              ←
+            </button>
+            <button type="button" class="history-btn" :aria-label="t('layout.nextPage')" @click="goToNextPage">
+              →
+            </button>
+          </nav>
         </div>
         <div class="topbar-controls">
           <label class="language-select">
@@ -512,7 +524,7 @@ import FolderTree from '@/components/FolderTree.vue';
 import RenameFolderModal from '@/components/RenameFolderModal.vue';
 import TransferFolderModal from '@/components/TransferFolderModal.vue';
 import SidebarNavIcon from '@/components/SidebarNavIcon.vue';
-import { getBookshelfProvider } from '@/providers';
+import { getBookshelfProvider, isWailsRuntime } from '@/providers';
 import { useBookStore } from '@/composables/useBookStore';
 import { useFolderManagement } from '@/composables/useFolderManagement';
 import { useFolderStore } from '@/composables/useFolderStore';
@@ -550,6 +562,20 @@ const router = useRouter();
 const hasDownloadsStore = computed(() =>
   Boolean(getBookshelfProvider().listDownloadedBookEntries)
 );
+
+// The Wails desktop shell has a browser-history stack worth navigating; the web
+// and mobile clients don't surface these pills. Scoping this to MainLayout keeps
+// them off the immersive ReaderLayout routes, where the keyboard ←/→ already
+// mean previous/next chapter.
+const showHistoryControls = computed(() => isWailsRuntime());
+
+function goToPreviousPage(): void {
+  window.history.back();
+}
+
+function goToNextPage(): void {
+  window.history.forward();
+}
 const { books, loading, fetchBooks } = useBookStore();
 const { loading: foldersLoading, error: foldersError, loaded: foldersLoaded, fetchFolders } = useFolderStore();
 const {
@@ -917,6 +943,31 @@ onMounted(async () => {
 .menu-btn svg {
   height: 18px;
   width: 18px;
+}
+
+.history-controls {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.history-btn {
+  align-items: center;
+  background: #f6f9fc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: #3e4e66;
+  cursor: pointer;
+  display: flex;
+  font-size: 16px;
+  height: 34px;
+  justify-content: center;
+  line-height: 1;
+  width: 38px;
+}
+
+.history-btn:hover {
+  background: #ecf2f9;
 }
 
 .topbar-controls {
