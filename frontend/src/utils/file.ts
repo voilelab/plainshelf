@@ -2,11 +2,6 @@ export function hasSupportedExtension(filename: string, pattern: RegExp): boolea
   return pattern.test(filename);
 }
 
-export function readSelectedFile(event: Event): File | null {
-  const target = event.target as HTMLInputElement;
-  return target.files?.[0] ?? null;
-}
-
 export function readSelectedFiles(event: Event): File[] {
   const target = event.target as HTMLInputElement;
   return Array.from(target.files ?? []);

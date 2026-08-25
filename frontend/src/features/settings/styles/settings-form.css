@@ -84,27 +84,6 @@
   cursor: not-allowed;
 }
 
-.setting-textarea {
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font: inherit;
-  font-family: monospace;
-  font-size: 13px;
-  padding: 8px 10px;
-  resize: vertical;
-  width: 100%;
-}
-
-.setting-textarea:disabled {
-  cursor: not-allowed;
-}
-
-.setting-item-stacked {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
 .split-config-actions {
   display: flex;
   gap: 8px;

@@ -101,11 +101,7 @@ export function isMockApiMode(): boolean {
   return API_MODE === 'mock';
 }
 
-export function getApiModeLabel(): string {
-  return API_MODE;
-}
-
-export function assertApiMode(): void {
+function assertApiMode(): void {
   if (API_MODE === 'mock' && !IS_DEV) {
     throw new Error('Mock API mode is only allowed in development.');
   }

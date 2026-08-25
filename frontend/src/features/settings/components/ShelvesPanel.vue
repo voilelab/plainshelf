@@ -428,12 +428,6 @@ onMounted(() => {
   gap: 8px;
 }
 
-.shelf-add-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
 .shelf-add-input {
   border: 1px solid #cbd5e1;
   border-radius: 6px;
@@ -479,24 +473,4 @@ onMounted(() => {
   opacity: 0.6;
 }
 
-.shelf-add-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.create-folder-submit {
-  background: #2563eb;
-  border: 1px solid #1d4ed8;
-  border-radius: 6px;
-  color: #ffffff;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 6px 14px;
-}
-
-.create-folder-submit:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
 </style>

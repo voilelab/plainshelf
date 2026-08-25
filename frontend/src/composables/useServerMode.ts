@@ -14,16 +14,6 @@ watch(readOnly, (value) => {
   }
 }, { immediate: true });
 
-export function isReadOnlyModeEnabled(): boolean {
-  return readOnly.value;
-}
-
-export function assertWritableMode(): void {
-  if (readOnly.value) {
-    throw new Error('Server is in read-only mode. Write operations are disabled.');
-  }
-}
-
 export function useServerMode() {
   async function fetchServerMode(): Promise<void> {
     // A backend with no PlainShelf server behind it has no mode to report.

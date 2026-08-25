@@ -368,18 +368,6 @@ export const BOOK_FILTERS: readonly AnyBookFilterDef[] = [
 ] as unknown as readonly AnyBookFilterDef[];
 
 /**
- * The subset the library page applies itself as plain client-side predicates
- * over the listing. These read data already on every book, so the page loops
- * them generically. Ordering is irrelevant — they are ANDed together.
- */
-export const METADATA_BOOK_FILTERS: readonly AnyBookFilterDef[] = [
-  authorFilter,
-  tagsFilter,
-  coverFilter,
-  languageFilter
-] as unknown as readonly AnyBookFilterDef[];
-
-/**
  * The conditions the filter panel owns, in the order they are shown. Every one
  * has `chrome: 'panel'`, a `panelControl`, and a `clearedValue`; the panel, the
  * chip row, and the "active count" badge are all derived from this list, so a

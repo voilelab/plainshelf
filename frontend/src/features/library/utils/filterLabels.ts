@@ -12,7 +12,7 @@ import type { Book } from '@/types/book';
 import type { t } from '@/i18n';
 import type { AnyBookFilterDef, MultiFieldValue } from '@/utils/bookFilters/registry';
 import type { FilterFieldValue } from '@/utils/bookFilters/codec';
-import { isCharCountRangeActive, type CharCountRange } from '@/utils/charCountFilter';
+import type { CharCountRange } from '@/utils/charCountFilter';
 
 /** The translate function returned by `useI18n()`. */
 type Translator = typeof t;
@@ -107,9 +107,4 @@ export function filterValueLabel(
     default:
       return field;
   }
-}
-
-/** Whether a parsed range is one the panel/chip should treat as active. */
-export function isRangeActive(range: CharCountRange): boolean {
-  return isCharCountRangeActive(range);
 }

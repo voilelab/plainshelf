@@ -84,14 +84,6 @@
   border-radius: 8px;
 }
 
-.reader-chapter-title {
-  margin: 0 0 1rem;
-  color: #3f3529;
-  font-family: var(--reader-font-family, Georgia, 'Times New Roman', 'Noto Serif TC', 'Songti TC', serif);
-  font-size: calc(var(--reader-font-size, 20px) * 1.1);
-  line-height: 1.4;
-}
-
 .reader-text {
   word-break: break-word;
   margin: 0;
@@ -329,9 +321,5 @@
     flex: 1;
     min-height: 0;
     padding: 12px 8px 16px;
-  }
-
-  .reader-chapter-title {
-    display: none;
   }
 }
