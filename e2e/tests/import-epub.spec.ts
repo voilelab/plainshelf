@@ -63,6 +63,10 @@ async function openImportedBookInReader(page: Page): Promise<Page> {
 }
 
 test('should import an EPUB and name its sections after the table of contents', async ({ page }) => {
+  // per-test server: the imported book's title comes from the fixture's fixed
+  // dc:title ("Hello EPUB"), which cannot be made unique per test without
+  // editing the shared EPUB fixture. The "1 books" count and the by-title reader
+  // lookup below both require a pristine shelf, so this test keeps its own server.
   const server = await startServer();
 
   try {
@@ -107,6 +111,9 @@ test('should import an EPUB and name its sections after the table of contents', 
 });
 
 test('should honour the plain text conversion option', async ({ page }) => {
+  // per-test server: same fixed dc:title ("Hello EPUB") as above — a shared
+  // shelf would collide with the other EPUB test's identically titled book, so
+  // this test keeps its own pristine server.
   const server = await startServer();
 
   try {

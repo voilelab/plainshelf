@@ -1,8 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { startServer } from './support/server';
-import { importHelloBook } from './support/books';
+import { startServer, useServer } from './support/server';
+import { importBookAs, helloFixturePath, importHelloBook } from './support/books';
+
+const getServer = useServer();
 
 /**
  * Drops char_count from every source meta.json under the shelf, reproducing a
@@ -48,113 +50,108 @@ async function openFilterPanel(page: Page): Promise<void> {
 }
 
 // hello.txt is 74 characters, so it sits inside a 0-5000 range, above a
-// maximum of 1, and below a minimum of 100.
+// maximum of 1, and below a minimum of 100. This is the first test in the file,
+// so the shared shelf holds only this book when its whole-library "No books in
+// this character range." states are asserted.
 test('library filters books by a character-count range', async ({ page }) => {
-  const server = await startServer();
+  const { baseUrl } = getServer();
 
-  try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
+  await page.goto(`${baseUrl}/books`);
+  await importBookAs(page, helloFixturePath, 'charfilter-range');
 
-    const bookRow = page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true });
-    await expect(bookRow).toBeVisible();
+  const bookRow = page.locator('.book-list-row').getByRole('heading', { name: 'charfilter-range', exact: true });
+  await expect(bookRow).toBeVisible();
 
-    await openFilterPanel(page);
-    const minInput = page.getByLabel('Minimum characters');
-    const maxInput = page.getByLabel('Maximum characters');
+  await openFilterPanel(page);
+  const minInput = page.getByLabel('Minimum characters');
+  const maxInput = page.getByLabel('Maximum characters');
 
-    // Both bounds start empty, which is the unlimited state.
-    await expect(minInput).toHaveValue('');
-    await expect(maxInput).toHaveValue('');
+  // Both bounds start empty, which is the unlimited state.
+  await expect(minInput).toHaveValue('');
+  await expect(maxInput).toHaveValue('');
 
-    await maxInput.fill('1');
-    await maxInput.press('Enter');
+  await maxInput.fill('1');
+  await maxInput.press('Enter');
 
-    await expect(page).toHaveURL(/maxChars=1(&|$)/);
-    await expect(page.getByText('No books in this character range.')).toBeVisible();
+  await expect(page).toHaveURL(/maxChars=1(&|$)/);
+  await expect(page.getByText('No books in this character range.')).toBeVisible();
 
-    await maxInput.fill('5000');
-    await maxInput.press('Enter');
+  await maxInput.fill('5000');
+  await maxInput.press('Enter');
 
-    await expect(page).toHaveURL(/maxChars=5000(&|$)/);
-    await expect(bookRow).toBeVisible();
+  await expect(page).toHaveURL(/maxChars=5000(&|$)/);
+  await expect(bookRow).toBeVisible();
 
-    // A lower bound above the book's length excludes it from the same range.
-    await minInput.fill('100');
-    await minInput.press('Enter');
+  // A lower bound above the book's length excludes it from the same range.
+  await minInput.fill('100');
+  await minInput.press('Enter');
 
-    await expect(page).toHaveURL(/minChars=100(&|$)/);
-    await expect(page.getByText('No books in this character range.')).toBeVisible();
+  await expect(page).toHaveURL(/minChars=100(&|$)/);
+  await expect(page.getByText('No books in this character range.')).toBeVisible();
 
-    await minInput.fill('10');
-    await minInput.press('Enter');
-    await expect(bookRow).toBeVisible();
+  await minInput.fill('10');
+  await minInput.press('Enter');
+  await expect(bookRow).toBeVisible();
 
-    // Clearing removes the clear button (and may dismiss the panel as focus
-    // leaves it), so the cleared state is asserted from the URL and the result.
-    await page.getByRole('button', { name: 'Clear character range' }).click();
-    await expect(page).not.toHaveURL(/[?&](min|max)Chars=/);
-    await expect(bookRow).toBeVisible();
-  } finally {
-    await server.dispose();
-  }
+  // Clearing removes the clear button (and may dismiss the panel as focus
+  // leaves it), so the cleared state is asserted from the URL and the result.
+  await page.getByRole('button', { name: 'Clear character range' }).click();
+  await expect(page).not.toHaveURL(/[?&](min|max)Chars=/);
+  await expect(bookRow).toBeVisible();
 });
 
 // An active range must not take the blame for a set the search had already
 // emptied: the message has to name the cause the user can act on.
 test('an active range does not mask the search empty state', async ({ page }) => {
-  const server = await startServer();
+  const { baseUrl } = getServer();
 
-  try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
+  await page.goto(`${baseUrl}/books`);
+  await importBookAs(page, helloFixturePath, 'charfilter-search');
 
-    await openFilterPanel(page);
-    const maxInput = page.getByLabel('Maximum characters');
-    await maxInput.fill('5000');
-    await maxInput.press('Enter');
-    await expect(
-      page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true })
-    ).toBeVisible();
+  await openFilterPanel(page);
+  const maxInput = page.getByLabel('Maximum characters');
+  await maxInput.fill('5000');
+  await maxInput.press('Enter');
+  await expect(
+    page.locator('.book-list-row').getByRole('heading', { name: 'charfilter-search', exact: true })
+  ).toBeVisible();
 
-    await page.locator('input[type="search"]').fill('nothingmatchesthis');
-    await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await page.locator('input[type="search"]').fill('nothingmatchesthis');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
 
-    await expect(page.getByText('No books found for "nothingmatchesthis"')).toBeVisible();
-    await expect(page.getByText('No books in this character range.')).toBeHidden();
-  } finally {
-    await server.dispose();
-  }
+  await expect(page.getByText('No books found for "nothingmatchesthis"')).toBeVisible();
+  await expect(page.getByText('No books in this character range.')).toBeHidden();
 });
 
 test('reversed bounds are applied as a single ordered range', async ({ page }) => {
-  const server = await startServer();
+  const { baseUrl } = getServer();
 
-  try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
+  await page.goto(`${baseUrl}/books`);
+  await importBookAs(page, helloFixturePath, 'charfilter-reversed');
 
-    await openFilterPanel(page);
-    const minInput = page.getByLabel('Minimum characters');
-    const maxInput = page.getByLabel('Maximum characters');
+  await openFilterPanel(page);
+  const minInput = page.getByLabel('Minimum characters');
+  const maxInput = page.getByLabel('Maximum characters');
 
-    await minInput.fill('5000');
-    await minInput.press('Enter');
-    await maxInput.fill('10');
-    await maxInput.press('Enter');
+  await minInput.fill('5000');
+  await minInput.press('Enter');
+  await maxInput.fill('10');
+  await maxInput.press('Enter');
 
-    // Committed reversed, stored in order.
-    await expect(minInput).toHaveValue('10');
-    await expect(maxInput).toHaveValue('5000');
-    await expect(
-      page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true })
-    ).toBeVisible();
-  } finally {
-    await server.dispose();
-  }
+  // Committed reversed, stored in order.
+  await expect(minInput).toHaveValue('10');
+  await expect(maxInput).toHaveValue('5000');
+  await expect(
+    page.locator('.book-list-row').getByRole('heading', { name: 'charfilter-reversed', exact: true })
+  ).toBeVisible();
 });
 
 test('updates the content statistics of books with an unknown character count', async ({ page }) => {
+  // per-test server: this test rescans and counts the WHOLE library. The toast
+  // "Found 1 books", the "1 with an unknown character count" status, and the
+  // "Update statistics for 1 books" button all assert whole-library totals, and
+  // clearStoredCharCounts rewrites every book's meta.json on disk. Those totals
+  // only equal one on a pristine shelf, so this test keeps its own server.
   const server = await startServer();
 
   try {

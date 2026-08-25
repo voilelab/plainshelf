@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { startServer } from './support/server';
+import { useServer } from './support/server';
 import { openReaderTab } from './support/reader';
 import {
   epubFixtureChapters,
@@ -10,6 +10,8 @@ import {
   epubFixtureTitle,
   writeEpubFixture
 } from './support/epub';
+
+const getServer = useServer();
 
 let fixtureDir = '';
 let epubFixturePath = '';
@@ -78,132 +80,128 @@ async function dispatchTouch(
 }
 
 test('provides an immersive mobile reader without changing the desktop reader', async ({ page }) => {
-  const server = await startServer();
+  const { baseUrl } = getServer();
 
-  try {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`${server.baseUrl}/books`);
-    await importEpub(page);
-    const reader = await openReader(page);
-    // The reader opened in its own tab; give it the mobile viewport this test
-    // exercises (the popup inherited the context's desktop default).
-    await reader.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${baseUrl}/books`);
+  await importEpub(page);
+  const reader = await openReader(page);
+  // The reader opened in its own tab; give it the mobile viewport this test
+  // exercises (the popup inherited the context's desktop default).
+  await reader.setViewportSize({ width: 390, height: 844 });
 
-    const mobileReader = reader.locator('[data-reader-variant="mobile"]');
-    const readerText = mobileReader.locator('.reader-text');
-    await expect(mobileReader).toBeVisible();
-    await expect(readerText).toHaveCSS('font-size', '22px');
-    await expect(reader.getByText('Tap the center for controls · Swipe left or right to change chapters')).toBeVisible();
-    await expect.poll(() => reader.evaluate(() => localStorage.getItem('reader-mobile-gesture-hint-seen'))).toBe('1');
-    await expect(mobileReader.getByRole('button', { name: 'Next' })).toHaveCount(0);
-    await expect(mobileReader.locator('.mobile-reader-toolbar')).toHaveCount(0);
+  const mobileReader = reader.locator('[data-reader-variant="mobile"]');
+  const readerText = mobileReader.locator('.reader-text');
+  await expect(mobileReader).toBeVisible();
+  await expect(readerText).toHaveCSS('font-size', '22px');
+  await expect(reader.getByText('Tap the center for controls · Swipe left or right to change chapters')).toBeVisible();
+  await expect.poll(() => reader.evaluate(() => localStorage.getItem('reader-mobile-gesture-hint-seen'))).toBe('1');
+  await expect(mobileReader.getByRole('button', { name: 'Next' })).toHaveCount(0);
+  await expect(mobileReader.locator('.mobile-reader-toolbar')).toHaveCount(0);
 
-    const box = await mobileReader.boundingBox();
-    expect(box).not.toBeNull();
-    const center = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 };
-    await dispatchTouch(mobileReader, [center, center]);
-    await expect(mobileReader.locator('.mobile-reader-toolbar')).toBeVisible();
-    await expect(mobileReader.getByText('1 / 3')).toBeVisible();
-    await reader.waitForTimeout(4_100);
-    await expect(mobileReader.locator('.mobile-reader-toolbar')).toBeVisible();
+  const box = await mobileReader.boundingBox();
+  expect(box).not.toBeNull();
+  const center = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 };
+  await dispatchTouch(mobileReader, [center, center]);
+  await expect(mobileReader.locator('.mobile-reader-toolbar')).toBeVisible();
+  await expect(mobileReader.getByText('1 / 3')).toBeVisible();
+  await reader.waitForTimeout(4_100);
+  await expect(mobileReader.locator('.mobile-reader-toolbar')).toBeVisible();
 
-    await reader.keyboard.press('ArrowRight');
-    await expect(mobileReader.getByText('2 / 3')).toBeVisible();
-    await reader.keyboard.press('ArrowLeft');
-    await expect(mobileReader.getByText('1 / 3')).toBeVisible();
+  await reader.keyboard.press('ArrowRight');
+  await expect(mobileReader.getByText('2 / 3')).toBeVisible();
+  await reader.keyboard.press('ArrowLeft');
+  await expect(mobileReader.getByText('1 / 3')).toBeVisible();
 
-    const keyboardInput = mobileReader.locator('input[data-keyboard-guard]');
-    await mobileReader.evaluate((element) => {
-      const input = document.createElement('input');
-      input.dataset.keyboardGuard = 'true';
-      element.append(input);
-      input.focus();
-    });
-    await reader.keyboard.press('ArrowRight');
-    await expect(mobileReader.getByText('1 / 3')).toBeVisible();
-    await keyboardInput.evaluate((element) => element.remove());
+  const keyboardInput = mobileReader.locator('input[data-keyboard-guard]');
+  await mobileReader.evaluate((element) => {
+    const input = document.createElement('input');
+    input.dataset.keyboardGuard = 'true';
+    element.append(input);
+    input.focus();
+  });
+  await reader.keyboard.press('ArrowRight');
+  await expect(mobileReader.getByText('1 / 3')).toBeVisible();
+  await keyboardInput.evaluate((element) => element.remove());
 
-    await mobileReader.getByRole('button', { name: 'Choose reading font' }).click();
-    const fontDialog = reader.getByRole('dialog', { name: 'Reading font' });
-    await expect(fontDialog).toBeVisible();
-    await reader.keyboard.press('ArrowRight');
-    await expect(mobileReader.getByText('1 / 3')).toBeVisible();
-    await fontDialog.getByRole('button', { name: 'Done' }).click();
-    await expect(mobileReader.locator('.mobile-reader-toolbar')).toBeVisible();
-    await dispatchTouch(mobileReader, [center, center], 6);
-    await expect(mobileReader.locator('.mobile-reader-toolbar')).toHaveCount(0);
-    await dispatchTouch(mobileReader, [center, center], 7);
-    await expect(mobileReader.locator('.mobile-reader-toolbar')).toBeVisible();
+  await mobileReader.getByRole('button', { name: 'Choose reading font' }).click();
+  const fontDialog = reader.getByRole('dialog', { name: 'Reading font' });
+  await expect(fontDialog).toBeVisible();
+  await reader.keyboard.press('ArrowRight');
+  await expect(mobileReader.getByText('1 / 3')).toBeVisible();
+  await fontDialog.getByRole('button', { name: 'Done' }).click();
+  await expect(mobileReader.locator('.mobile-reader-toolbar')).toBeVisible();
+  await dispatchTouch(mobileReader, [center, center], 6);
+  await expect(mobileReader.locator('.mobile-reader-toolbar')).toHaveCount(0);
+  await dispatchTouch(mobileReader, [center, center], 7);
+  await expect(mobileReader.locator('.mobile-reader-toolbar')).toBeVisible();
 
-    await dispatchTouch(mobileReader, [
-      { x: box!.x + box!.width * 0.8, y: center.y },
-      { x: box!.x + box!.width * 0.5, y: center.y + 4 },
-      { x: box!.x + box!.width * 0.2, y: center.y + 6 }
-    ], 2);
-    await expect(mobileReader.getByText('2 / 3')).toBeVisible();
-    await expect(mobileReader.getByRole('heading', { name: epubFixtureChapters[0] })).toBeVisible();
+  await dispatchTouch(mobileReader, [
+    { x: box!.x + box!.width * 0.8, y: center.y },
+    { x: box!.x + box!.width * 0.5, y: center.y + 4 },
+    { x: box!.x + box!.width * 0.2, y: center.y + 6 }
+  ], 2);
+  await expect(mobileReader.getByText('2 / 3')).toBeVisible();
+  await expect(mobileReader.getByRole('heading', { name: epubFixtureChapters[0] })).toBeVisible();
 
-    const codeBlock = mobileReader.locator('.reader-md-code');
-    await expect(codeBlock).toBeVisible();
-    await expect(codeBlock).toHaveCSS('touch-action', /^(?:manipulation|pan-x pan-y pinch-zoom)$/);
-    await expect.poll(() => codeBlock.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
-    const codeBox = await codeBlock.boundingBox();
-    expect(codeBox).not.toBeNull();
-    await dispatchTouch(codeBlock, [
-      { x: codeBox!.x + codeBox!.width * 0.8, y: codeBox!.y + codeBox!.height / 2 },
-      { x: codeBox!.x + codeBox!.width * 0.2, y: codeBox!.y + codeBox!.height / 2 }
-    ], 11);
-    await expect(mobileReader.getByText('2 / 3')).toBeVisible();
-    await codeBlock.evaluate((element) => {
-      element.scrollLeft = element.scrollWidth;
-    });
-    await expect.poll(() => codeBlock.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  const codeBlock = mobileReader.locator('.reader-md-code');
+  await expect(codeBlock).toBeVisible();
+  await expect(codeBlock).toHaveCSS('touch-action', /^(?:manipulation|pan-x pan-y pinch-zoom)$/);
+  await expect.poll(() => codeBlock.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+  const codeBox = await codeBlock.boundingBox();
+  expect(codeBox).not.toBeNull();
+  await dispatchTouch(codeBlock, [
+    { x: codeBox!.x + codeBox!.width * 0.8, y: codeBox!.y + codeBox!.height / 2 },
+    { x: codeBox!.x + codeBox!.width * 0.2, y: codeBox!.y + codeBox!.height / 2 }
+  ], 11);
+  await expect(mobileReader.getByText('2 / 3')).toBeVisible();
+  await codeBlock.evaluate((element) => {
+    element.scrollLeft = element.scrollWidth;
+  });
+  await expect.poll(() => codeBlock.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
 
-    await dispatchTouch(mobileReader, [
-      { x: center.x, y: box!.y + box!.height * 0.75 },
-      { x: center.x + 4, y: box!.y + box!.height * 0.45 },
-      { x: center.x + 6, y: box!.y + box!.height * 0.25 }
-    ], 3);
-    await expect(mobileReader.getByText('2 / 3')).toBeVisible();
+  await dispatchTouch(mobileReader, [
+    { x: center.x, y: box!.y + box!.height * 0.75 },
+    { x: center.x + 4, y: box!.y + box!.height * 0.45 },
+    { x: center.x + 6, y: box!.y + box!.height * 0.25 }
+  ], 3);
+  await expect(mobileReader.getByText('2 / 3')).toBeVisible();
 
-    await dispatchTouch(mobileReader, [
-      { x: box!.x + box!.width * 0.2, y: center.y },
-      { x: box!.x + box!.width * 0.5, y: center.y },
-      { x: box!.x + box!.width * 0.8, y: center.y }
-    ], 4);
-    await expect(mobileReader.getByText('1 / 3')).toBeVisible();
-    await expect(mobileReader.getByText(epubFixtureDescription)).toBeVisible();
+  await dispatchTouch(mobileReader, [
+    { x: box!.x + box!.width * 0.2, y: center.y },
+    { x: box!.x + box!.width * 0.5, y: center.y },
+    { x: box!.x + box!.width * 0.8, y: center.y }
+  ], 4);
+  await expect(mobileReader.getByText('1 / 3')).toBeVisible();
+  await expect(mobileReader.getByText(epubFixtureDescription)).toBeVisible();
 
-    await dispatchTouch(mobileReader, [
-      { x: box!.x + box!.width * 0.2, y: center.y },
-      { x: box!.x + box!.width * 0.8, y: center.y }
-    ], 5);
-    await expect(reader.getByText('You are at the first chapter').last()).toBeVisible();
+  await dispatchTouch(mobileReader, [
+    { x: box!.x + box!.width * 0.2, y: center.y },
+    { x: box!.x + box!.width * 0.8, y: center.y }
+  ], 5);
+  await expect(reader.getByText('You are at the first chapter').last()).toBeVisible();
 
-    for (const [index, pointerId] of [8, 9].entries()) {
-      await dispatchTouch(mobileReader, [
-        { x: box!.x + box!.width * 0.8, y: center.y },
-        { x: box!.x + box!.width * 0.2, y: center.y }
-      ], pointerId);
-      await expect(mobileReader.getByText(`${index + 2} / 3`)).toBeVisible();
-    }
+  for (const [index, pointerId] of [8, 9].entries()) {
     await dispatchTouch(mobileReader, [
       { x: box!.x + box!.width * 0.8, y: center.y },
       { x: box!.x + box!.width * 0.2, y: center.y }
-    ], 10);
-    await expect(reader.getByText('You are at the last chapter').last()).toBeVisible();
-
-    await reader.reload();
-    await expect(reader.locator('[data-reader-variant="mobile"]')).toBeVisible();
-    await expect(reader.getByText('Tap the center for controls · Swipe left or right to change chapters')).toHaveCount(0);
-
-    await reader.setViewportSize({ width: 1280, height: 720 });
-    const desktopReader = reader.locator('[data-reader-variant="desktop"]');
-    await expect(desktopReader).toBeVisible();
-    await expect(desktopReader.getByRole('button', { name: 'Prev' })).toBeVisible();
-    await expect(desktopReader.getByRole('button', { name: 'Next' })).toBeVisible();
-    await expect(desktopReader.locator('.reader-text')).toHaveCSS('font-size', '20px');
-  } finally {
-    await server.dispose();
+    ], pointerId);
+    await expect(mobileReader.getByText(`${index + 2} / 3`)).toBeVisible();
   }
+  await dispatchTouch(mobileReader, [
+    { x: box!.x + box!.width * 0.8, y: center.y },
+    { x: box!.x + box!.width * 0.2, y: center.y }
+  ], 10);
+  await expect(reader.getByText('You are at the last chapter').last()).toBeVisible();
+
+  await reader.reload();
+  await expect(reader.locator('[data-reader-variant="mobile"]')).toBeVisible();
+  await expect(reader.getByText('Tap the center for controls · Swipe left or right to change chapters')).toHaveCount(0);
+
+  await reader.setViewportSize({ width: 1280, height: 720 });
+  const desktopReader = reader.locator('[data-reader-variant="desktop"]');
+  await expect(desktopReader).toBeVisible();
+  await expect(desktopReader.getByRole('button', { name: 'Prev' })).toBeVisible();
+  await expect(desktopReader.getByRole('button', { name: 'Next' })).toBeVisible();
+  await expect(desktopReader.locator('.reader-text')).toHaveCSS('font-size', '20px');
 });

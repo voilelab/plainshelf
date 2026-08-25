@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { startServer } from './support/server';
-import { importHelloBook } from './support/books';
+import { useServer } from './support/server';
+import { importBookAs, helloFixturePath } from './support/books';
 import {
   connectMobile,
   reopenMobileAt,
@@ -16,239 +16,219 @@ import {
 // exercised without an emulator.
 //
 // Books are imported in the ordinary desktop flow first: importing is a write,
-// which the mobile client no longer performs.
+// which the mobile client no longer performs. The server (and its shelf) is
+// shared across this file's tests, so each test imports its own uniquely-named
+// book.
+
+const getServer = useServer();
 
 test('redirects unavailable mobile routes to the library', async ({ page }) => {
-  const server = await startServer();
+  const { baseUrl } = getServer();
 
-  try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
-    await connectMobile(page, server.baseUrl);
-    const bookId = await getBookIdByTitle(page, 'hello');
+  await page.goto(`${baseUrl}/books`);
+  await importBookAs(page, helloFixturePath, 'readonly-redirect');
+  await connectMobile(page, baseUrl);
+  const bookId = await getBookIdByTitle(page, 'readonly-redirect');
 
-    for (const route of [
-      `/books/${bookId}/edit`,
-      `/books/${bookId}/sources`,
-      '/admin/logs',
-      '/trash',
-      '/duplicates'
-    ]) {
-      await reopenMobileAt(page, server.baseUrl, route);
-      await expect(page, `${route} should redirect to the library`).toHaveURL(/\/books(\?|$)/);
-    }
-  } finally {
-    await server.dispose();
+  for (const route of [
+    `/books/${bookId}/edit`,
+    `/books/${bookId}/sources`,
+    '/admin/logs',
+    '/trash',
+    '/duplicates'
+  ]) {
+    await reopenMobileAt(page, baseUrl, route);
+    await expect(page, `${route} should redirect to the library`).toHaveURL(/\/books(\?|$)/);
   }
 });
 
 test('keeps reading routes reachable', async ({ page }) => {
-  const server = await startServer();
+  const { baseUrl } = getServer();
 
-  try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
-    await connectMobile(page, server.baseUrl);
+  await page.goto(`${baseUrl}/books`);
+  await importBookAs(page, helloFixturePath, 'readonly-routes');
+  await connectMobile(page, baseUrl);
 
-    for (const [route, pattern] of [
-      ['/home', /\/home/],
-      // The old /dashboard path still resolves via a redirect, so an existing
-      // bookmark or link keeps working and lands on the renamed home route.
-      ['/dashboard', /\/home/],
-      ['/books', /\/books/],
-      ['/read-history', /\/read-history/],
-      ['/downloads', /\/downloads/],
-      ['/settings', /\/settings/],
-      // The former "missing X" maintenance routes are now read-only book-list
-      // filters. They redirect through `library`, which the mobile shell keeps
-      // reachable, so these conditions are available on mobile by design. The
-      // filter param can sit anywhere in the query once LibraryPage normalizes
-      // page/sort/order in, so match it position-independently.
-      ['/books/maintenance/missing-author', /\/books\?[^#]*author=none/],
-      ['/books/maintenance/missing-cover', /\/books\?[^#]*cover=none/],
-      ['/books/maintenance/missing-language', /\/books\?[^#]*language=none/]
-    ] as const) {
-      await reopenMobileAt(page, server.baseUrl, route);
-      await expect(page, `${route} should stay reachable`).toHaveURL(pattern);
-    }
-  } finally {
-    await server.dispose();
+  for (const [route, pattern] of [
+    ['/home', /\/home/],
+    // The old /dashboard path still resolves via a redirect, so an existing
+    // bookmark or link keeps working and lands on the renamed home route.
+    ['/dashboard', /\/home/],
+    ['/books', /\/books/],
+    ['/read-history', /\/read-history/],
+    ['/downloads', /\/downloads/],
+    ['/settings', /\/settings/],
+    // The former "missing X" maintenance routes are now read-only book-list
+    // filters. They redirect through `library`, which the mobile shell keeps
+    // reachable, so these conditions are available on mobile by design. The
+    // filter param can sit anywhere in the query once LibraryPage normalizes
+    // page/sort/order in, so match it position-independently.
+    ['/books/maintenance/missing-author', /\/books\?[^#]*author=none/],
+    ['/books/maintenance/missing-cover', /\/books\?[^#]*cover=none/],
+    ['/books/maintenance/missing-language', /\/books\?[^#]*language=none/]
+  ] as const) {
+    await reopenMobileAt(page, baseUrl, route);
+    await expect(page, `${route} should stay reachable`).toHaveURL(pattern);
   }
 });
 
 test('hides write affordances in the library and on book detail', async ({ page }) => {
-  const server = await startServer();
+  const { baseUrl } = getServer();
 
-  try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
-    await connectMobile(page, server.baseUrl);
-    const bookId = await getBookIdByTitle(page, 'hello');
+  await page.goto(`${baseUrl}/books`);
+  await importBookAs(page, helloFixturePath, 'readonly-affordances');
+  await connectMobile(page, baseUrl);
+  const bookId = await getBookIdByTitle(page, 'readonly-affordances');
 
-    await reopenMobileAt(page, server.baseUrl, '/books');
-    // Shelf editing and server log controls are unavailable on mobile.
-    await expect(page.getByRole('link', { name: 'Trash' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /^Import/ })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Add folder' })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Logs' })).toHaveCount(0);
-    // Downloads is a local-device action and must survive.
-    await expect(page.getByRole('link', { name: 'Downloads' })).toHaveCount(1);
-    // The banner is for a read-only *server*, not for this platform.
-    await expect(page.locator('.read-only-banner')).toHaveCount(0);
+  await reopenMobileAt(page, baseUrl, '/books');
+  // Shelf editing and server log controls are unavailable on mobile.
+  await expect(page.getByRole('link', { name: 'Trash' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Import/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add folder' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Logs' })).toHaveCount(0);
+  // Downloads is a local-device action and must survive.
+  await expect(page.getByRole('link', { name: 'Downloads' })).toHaveCount(1);
+  // The banner is for a read-only *server*, not for this platform.
+  await expect(page.locator('.read-only-banner')).toHaveCount(0);
 
-    await reopenMobileAt(page, server.baseUrl, `/books/${bookId}`);
-    await expect(page.getByRole('button', { name: 'More' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Cover options' })).toHaveCount(0);
-  } finally {
-    await server.dispose();
-  }
+  await reopenMobileAt(page, baseUrl, `/books/${bookId}`);
+  await expect(page.getByRole('button', { name: 'More' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Cover options' })).toHaveCount(0);
 });
 
 test('stays read-only after an in-app navigation drops the preview query', async ({ page }) => {
-  const server = await startServer();
+  const { baseUrl } = getServer();
 
-  try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
+  await page.goto(`${baseUrl}/books`);
+  await importBookAs(page, helloFixturePath, 'readonly-latch');
 
-    // Assert here deliberately WITHOUT reopenMobileAt: before the runtime was
-    // latched, any in-app navigation that dropped ?mobile-shell-preview=1 sent
-    // isMobileRuntime() false and disengaged every guard for the rest of the
-    // session.
-    await connectMobile(page, server.baseUrl);
-    await expect(page).toHaveURL(/\/books(\?|$)/);
+  // Assert here deliberately WITHOUT reopenMobileAt: before the runtime was
+  // latched, any in-app navigation that dropped ?mobile-shell-preview=1 sent
+  // isMobileRuntime() false and disengaged every guard for the rest of the
+  // session.
+  await connectMobile(page, baseUrl);
+  await expect(page).toHaveURL(/\/books(\?|$)/);
 
-    await expect(page.getByRole('button', { name: /^Import/ })).toHaveCount(0);
-    await expect(page.getByRole('link', { name: 'Trash' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Add folder' })).toHaveCount(0);
-  } finally {
-    await server.dispose();
-  }
+  await expect(page.getByRole('button', { name: /^Import/ })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Trash' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add folder' })).toHaveCount(0);
 });
 
 test('offers clear-history but ignores the import query on mobile', async ({ page }) => {
-  const server = await startServer();
+  const { baseUrl } = getServer();
 
-  try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
-    await connectMobile(page, server.baseUrl);
+  await page.goto(`${baseUrl}/books`);
+  await importBookAs(page, helloFixturePath, 'readonly-history');
+  await connectMobile(page, baseUrl);
 
-    // Clearing history only touches this device's own storage — no request
-    // reaches the server — so the read-only shell still offers it.
-    await reopenMobileAt(page, server.baseUrl, '/read-history');
-    await expect(page.getByRole('heading', { name: 'Recently Read' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Clear history' })).toBeVisible();
+  // Clearing history only touches this device's own storage — no request
+  // reaches the server — so the read-only shell still offers it.
+  await reopenMobileAt(page, baseUrl, '/read-history');
+  await expect(page.getByRole('heading', { name: 'Recently Read' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Clear history' })).toBeVisible();
 
-    // The retention limit is device-local too, so its settings tab is reachable
-    // on mobile even though the server-only tabs are not.
-    await reopenMobileAt(page, server.baseUrl, '/settings');
-    await page.getByRole('tab', { name: 'Reading history' }).click();
-    await expect(page.getByText('Reading history limit')).toBeVisible();
-    await expect(page.getByRole('tab', { name: 'Cover' })).toHaveCount(0);
+  // The retention limit is device-local too, so its settings tab is reachable
+  // on mobile even though the server-only tabs are not.
+  await reopenMobileAt(page, baseUrl, '/settings');
+  await page.getByRole('tab', { name: 'Reading history' }).click();
+  await expect(page.getByText('Reading history limit')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Cover' })).toHaveCount(0);
 
-    // /import redirects to /books?import=1, and the modal opens purely off that
-    // query — a redirect the router guard cannot intercept by route name. The
-    // guard strips the query instead, so assert on the URL as well: without it
-    // this test passes on LibraryPage's own check alone and would not notice
-    // the guard regressing.
-    await reopenMobileAt(page, server.baseUrl, '/books?import=1');
-    await expect(page).toHaveURL(/\/books/);
-    await expect(page).not.toHaveURL(/[?&]import=/);
-    await expect(page.getByRole('dialog', { name: 'Import Book' })).toHaveCount(0);
+  // /import redirects to /books?import=1, and the modal opens purely off that
+  // query — a redirect the router guard cannot intercept by route name. The
+  // guard strips the query instead, so assert on the URL as well: without it
+  // this test passes on LibraryPage's own check alone and would not notice
+  // the guard regressing.
+  await reopenMobileAt(page, baseUrl, '/books?import=1');
+  await expect(page).toHaveURL(/\/books/);
+  await expect(page).not.toHaveURL(/[?&]import=/);
+  await expect(page.getByRole('dialog', { name: 'Import Book' })).toHaveCount(0);
 
-    await reopenMobileAt(page, server.baseUrl, '/import');
-    await expect(page).not.toHaveURL(/[?&]import=/);
-    await expect(page.getByRole('dialog', { name: 'Import Book' })).toHaveCount(0);
-  } finally {
-    await server.dispose();
-  }
+  await reopenMobileAt(page, baseUrl, '/import');
+  await expect(page).not.toHaveURL(/[?&]import=/);
+  await expect(page.getByRole('dialog', { name: 'Import Book' })).toHaveCount(0);
 });
 
 test('rejects a write from the mobile client but still records reading on the device', async ({ page }) => {
-  const server = await startServer();
+  const { baseUrl } = getServer();
 
-  try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
+  await page.goto(`${baseUrl}/books`);
+  await importBookAs(page, helloFixturePath, 'readonly-write');
 
-    // Take the token the way a user would (the server prints it at startup) and
-    // enter it in the connect form, so it comes from Capacitor Preferences —
-    // the only source a real APK has. Relying on the server-injected
-    // window.__PLAINSHELF_SECURITY__ would pass even with the mobile token
-    // wiring removed entirely.
-    const serverToken = await page.evaluate(
-      () =>
-        (window as unknown as { __PLAINSHELF_SECURITY__?: { token?: string } })
-          .__PLAINSHELF_SECURITY__?.token ?? ''
-    );
-    expect(serverToken).not.toBe('');
+  // Take the token the way a user would (the server prints it at startup) and
+  // enter it in the connect form, so it comes from Capacitor Preferences —
+  // the only source a real APK has. Relying on the server-injected
+  // window.__PLAINSHELF_SECURITY__ would pass even with the mobile token
+  // wiring removed entirely.
+  const serverToken = await page.evaluate(
+    () =>
+      (window as unknown as { __PLAINSHELF_SECURITY__?: { token?: string } })
+        .__PLAINSHELF_SECURITY__?.token ?? ''
+  );
+  expect(serverToken).not.toBe('');
 
-    await connectMobile(page, server.baseUrl, { token: serverToken });
-    const bookId = await getBookIdByTitle(page, 'hello');
-    await reopenMobileAt(page, server.baseUrl, '/books');
+  await connectMobile(page, baseUrl, { token: serverToken });
+  const bookId = await getBookIdByTitle(page, 'readonly-write');
+  await reopenMobileAt(page, baseUrl, '/books');
 
-    // main.ts installs the hook only after awaiting initMobileConfig(), so it
-    // is not present the instant `load` fires. Without this wait the evaluate
-    // below can read an undefined hook and pass vacuously.
-    await page.waitForFunction(() => Boolean(window.__plainshelfTestHooks));
+  // main.ts installs the hook only after awaiting initMobileConfig(), so it
+  // is not present the instant `load` fires. Without this wait the evaluate
+  // below can read an undefined hook and pass vacuously.
+  await page.waitForFunction(() => Boolean(window.__plainshelfTestHooks));
 
-    // The shelf write surface is absent on this provider, not merely refused:
-    // asserting on a thrown message alone would now pass on a TypeError from
-    // calling a method that does not exist, which proves nothing.
-    const updateBookType = await page.evaluate(
-      () =>
-        typeof (window.__plainshelfTestHooks?.provider as unknown as { updateBook?: unknown })
-          ?.updateBook
-    );
-    expect(updateBookType).toBe('undefined');
+  // The shelf write surface is absent on this provider, not merely refused:
+  // asserting on a thrown message alone would now pass on a TypeError from
+  // calling a method that does not exist, which proves nothing.
+  const updateBookType = await page.evaluate(
+    () =>
+      typeof (window.__plainshelfTestHooks?.provider as unknown as { updateBook?: unknown })
+        ?.updateBook
+  );
+  expect(updateBookType).toBe('undefined');
 
-    // And asking for a writer is refused rather than handed one out. api/client.ts
-    // still rejects any mutating request that reaches it; this is the layer above.
-    const writeResult = await page.evaluate(() => {
-      const hooks = window.__plainshelfTestHooks;
-      if (!hooks) {
-        return 'no-hook';
-      }
-      try {
-        hooks.bookshelfWriter();
-        return 'resolved';
-      } catch (err) {
-        return err instanceof Error ? err.message : String(err);
-      }
-    });
-    expect(writeResult).toContain('read-only');
+  // And asking for a writer is refused rather than handed one out. api/client.ts
+  // still rejects any mutating request that reaches it; this is the layer above.
+  const writeResult = await page.evaluate(() => {
+    const hooks = window.__plainshelfTestHooks;
+    if (!hooks) {
+      return 'no-hook';
+    }
+    try {
+      hooks.bookshelfWriter();
+      return 'resolved';
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+  });
+  expect(writeResult).toContain('read-only');
 
-    // The mobile client requires a book to be downloaded before it can be read,
-    // so download it first — otherwise the reader route redirects to the book's
-    // detail page and the reading assertions below never run.
-    await downloadBookViaHook(page, bookId);
+  // The mobile client requires a book to be downloaded before it can be read,
+  // so download it first — otherwise the reader route redirects to the book's
+  // detail page and the reading assertions below never run.
+  await downloadBookViaHook(page, bookId);
 
-    // Opening the reader records read history and reading time on the device
-    // (no request at all — both are stored in app-private storage). Reading
-    // progress is automatic, so no manual bookmark action remains.
-    const deviceStateRequests: string[] = [];
-    page.on('request', (request) => {
-      const url = request.url();
-      if (url.includes('/read_history') || url.includes('/reading_activity')) {
-        deviceStateRequests.push(`${request.method()} ${url}`);
-      }
-    });
-    await reopenMobileAt(page, server.baseUrl, `/reader/${bookId}`);
-    await showMobileReaderControls(page);
-    await expect(page.getByRole('button', { name: /bookmark/i })).toHaveCount(0);
-    // The history entry is written while the reader is still loading, and the
-    // device store is asynchronous (app-private files), so wait for the load to
-    // finish before navigating away — otherwise the assertion below races the
-    // in-flight write.
-    await expect(page.getByText('Loading content...')).toHaveCount(0);
-    expect(deviceStateRequests).toEqual([]);
+  // Opening the reader records read history and reading time on the device
+  // (no request at all — both are stored in app-private storage). Reading
+  // progress is automatic, so no manual bookmark action remains.
+  const deviceStateRequests: string[] = [];
+  page.on('request', (request) => {
+    const url = request.url();
+    if (url.includes('/read_history') || url.includes('/reading_activity')) {
+      deviceStateRequests.push(`${request.method()} ${url}`);
+    }
+  });
+  await reopenMobileAt(page, baseUrl, `/reader/${bookId}`);
+  await showMobileReaderControls(page);
+  await expect(page.getByRole('button', { name: /bookmark/i })).toHaveCount(0);
+  // The history entry is written while the reader is still loading, and the
+  // device store is asynchronous (app-private files), so wait for the load to
+  // finish before navigating away — otherwise the assertion below races the
+  // in-flight write.
+  await expect(page.getByText('Loading content...')).toHaveCount(0);
+  expect(deviceStateRequests).toEqual([]);
 
-    // Read history survives the reload reopenMobileAt performs, proving it was
-    // persisted rather than held in memory.
-    await reopenMobileAt(page, server.baseUrl, '/read-history');
-    await expect(page.getByRole('heading', { name: 'hello', exact: true }).first()).toBeVisible();
-  } finally {
-    await server.dispose();
-  }
+  // Read history survives the reload reopenMobileAt performs, proving it was
+  // persisted rather than held in memory.
+  await reopenMobileAt(page, baseUrl, '/read-history');
+  await expect(page.getByRole('heading', { name: 'readonly-write', exact: true }).first()).toBeVisible();
 });

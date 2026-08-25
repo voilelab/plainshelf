@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startServer } from './support/server';
+import { useServer } from './support/server';
+
+const getServer = useServer();
 
 const tabNames = ['Cover', 'Reading history', 'Import', 'About', 'Shelves'];
 
@@ -20,23 +22,19 @@ async function panelOffset(page: Page): Promise<number> {
 }
 
 test('every settings tab starts at the same offset below the tab list', async ({ page }) => {
-  const server = await startServer();
+  const { baseUrl } = getServer();
 
-  try {
-    await page.goto(`${server.baseUrl}/settings`);
-    await expect(page.getByRole('heading', { name: 'Settings', level: 2 })).toBeVisible();
+  await page.goto(`${baseUrl}/settings`);
+  await expect(page.getByRole('heading', { name: 'Settings', level: 2 })).toBeVisible();
 
-    const offsets: number[] = [];
-    for (const name of tabNames) {
-      await page.getByRole('tab', { name, exact: true }).click();
-      await expect(page.locator('.settings-tab-content[data-state="active"] .panel').first()).toBeVisible();
-      offsets.push(await panelOffset(page));
-    }
-
-    expect(offsets).toEqual(tabNames.map(() => offsets[0]));
-  } finally {
-    await server.dispose();
+  const offsets: number[] = [];
+  for (const name of tabNames) {
+    await page.getByRole('tab', { name, exact: true }).click();
+    await expect(page.locator('.settings-tab-content[data-state="active"] .panel').first()).toBeVisible();
+    offsets.push(await panelOffset(page));
   }
+
+  expect(offsets).toEqual(tabNames.map(() => offsets[0]));
 });
 
 /**
@@ -47,35 +45,31 @@ test('every settings tab starts at the same offset below the tab list', async ({
  * visit, so the panels have to stay mounted behind the tab list.
  */
 test('tab panels stay mounted and do not refetch when the tab changes', async ({ page }) => {
-  const server = await startServer();
+  const { baseUrl } = getServer();
 
-  try {
-    const requestCounts = new Map<string, number>();
-    page.on('request', (request) => {
-      const path = new URL(request.url()).pathname;
-      if (path === '/api/version' || path === '/api/shelves') {
-        requestCounts.set(path, (requestCounts.get(path) ?? 0) + 1);
-      }
-    });
-
-    await page.goto(`${server.baseUrl}/settings`);
-    await expect(page.getByRole('heading', { name: 'Settings', level: 2 })).toBeVisible();
-    await expect(page.locator('.settings-tab-content[data-state="active"] .panel').first()).toBeVisible();
-
-    // An inactive panel keeps its content; it is only hidden. Counted rather
-    // than checked for visibility, since the panels collapse to display: none.
-    const inactivePanels = page.locator('.settings-tab-content[data-state="inactive"] .panel');
-    expect(await inactivePanels.count()).toBeGreaterThan(0);
-
-    for (const name of ['About', 'Shelves', 'About', 'Shelves']) {
-      await page.getByRole('tab', { name, exact: true }).click();
-      await expect(page.locator('.settings-tab-content[data-state="active"] .panel').first()).toBeVisible();
+  const requestCounts = new Map<string, number>();
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/version' || path === '/api/shelves') {
+      requestCounts.set(path, (requestCounts.get(path) ?? 0) + 1);
     }
+  });
 
-    // Both loads belong to the page, not to a tab visit.
-    expect(requestCounts.get('/api/version')).toBe(1);
-    expect(requestCounts.get('/api/shelves')).toBe(1);
-  } finally {
-    await server.dispose();
+  await page.goto(`${baseUrl}/settings`);
+  await expect(page.getByRole('heading', { name: 'Settings', level: 2 })).toBeVisible();
+  await expect(page.locator('.settings-tab-content[data-state="active"] .panel').first()).toBeVisible();
+
+  // An inactive panel keeps its content; it is only hidden. Counted rather
+  // than checked for visibility, since the panels collapse to display: none.
+  const inactivePanels = page.locator('.settings-tab-content[data-state="inactive"] .panel');
+  expect(await inactivePanels.count()).toBeGreaterThan(0);
+
+  for (const name of ['About', 'Shelves', 'About', 'Shelves']) {
+    await page.getByRole('tab', { name, exact: true }).click();
+    await expect(page.locator('.settings-tab-content[data-state="active"] .panel').first()).toBeVisible();
   }
+
+  // Both loads belong to the page, not to a tab visit.
+  expect(requestCounts.get('/api/version')).toBe(1);
+  expect(requestCounts.get('/api/shelves')).toBe(1);
 });
