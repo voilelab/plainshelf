@@ -39,15 +39,24 @@ sed_inplace() {
 tmp=$(mktemp)
 trap 'rm -f "$tmp"' EXIT
 
+# Download and hash every artifact first, so a failed download (e.g. a
+# transient network error) never leaves one cask rewritten and the other at
+# its old version -- the mismatched pair this script exists to prevent. Only
+# once all hashes are in hand do we rewrite any cask file.
+shas=()
 for entry in "${CASKS[@]}"; do
-  cask_file="${entry%%:*}"
   asset="${entry#*:}"
   url="${BASE_URL}/${asset}"
 
   echo "Downloading $url"
   curl -fSL -o "$tmp" "$url"
+  shas+=("$(sha256_of "$tmp")")
+done
 
-  sha=$(sha256_of "$tmp")
+for i in "${!CASKS[@]}"; do
+  cask_file="${CASKS[$i]%%:*}"
+  sha="${shas[$i]}"
+
   sed_inplace "s/^  version \".*\"/  version \"${VERSION_NUM}\"/" "$cask_file"
   sed_inplace "s/^  sha256 \".*\"/  sha256 \"${sha}\"/" "$cask_file"
 
