@@ -4,6 +4,8 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
+import { test } from '@playwright/test';
+import { serverBinaryEnvVar } from './globalSetup';
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const serverStartupTimeoutMs = 30_000;
@@ -156,7 +158,15 @@ export async function startServer(): Promise<ServerEnv> {
   const baseUrl = `http://127.0.0.1:${port}`;
   await fs.writeFile(configPath, buildConfigYAML(port, shelfDir, storeDir), 'utf8');
 
-  const server = spawn('go', ['run', './cmd/plainshelf-srv/main.go', '-conf', configPath], {
+  // globalSetup compiles the server once and publishes its path here, so a
+  // server start is just a process spawn. Without it (e.g. a spec run that
+  // bypasses globalSetup), fall back to `go run` so the helper stays usable.
+  const serverBinary = process.env[serverBinaryEnvVar];
+  const [command, args] = serverBinary
+    ? [serverBinary, ['-conf', configPath]]
+    : ['go', ['run', './cmd/plainshelf-srv/main.go', '-conf', configPath]];
+
+  const server = spawn(command, args, {
     cwd: repoRoot,
     env: process.env,
     detached: true,
@@ -186,5 +196,44 @@ export async function startServer(): Promise<ServerEnv> {
       await stopServer(server);
       await fs.rm(tempRoot, { recursive: true, force: true });
     }
+  };
+}
+
+/**
+ * Registers one server for the whole spec file: `beforeAll` starts it and
+ * `afterAll` disposes of it, so every test in the file shares the same
+ * pre-built server (and its temp shelf/store) instead of paying for a fresh
+ * boot each time. Call it once at the top level of a spec file and read the
+ * environment inside each test through the returned accessor:
+ *
+ * ```ts
+ * const getServer = useServer();
+ * test('...', async ({ page }) => {
+ *   const { baseUrl } = getServer();
+ * });
+ * ```
+ *
+ * The shared shelf persists across the file's tests, so each test must use its
+ * own book and folder names rather than assuming an empty shelf. A spec that
+ * genuinely needs a pristine server per test should keep calling
+ * {@link startServer} directly and say why in a comment.
+ */
+export function useServer(): () => ServerEnv {
+  let env: ServerEnv | undefined;
+
+  test.beforeAll(async () => {
+    env = await startServer();
+  });
+
+  test.afterAll(async () => {
+    await env?.dispose();
+    env = undefined;
+  });
+
+  return () => {
+    if (!env) {
+      throw new Error('useServer() accessor read before beforeAll ran; call it at the spec top level.');
+    }
+    return env;
   };
 }
