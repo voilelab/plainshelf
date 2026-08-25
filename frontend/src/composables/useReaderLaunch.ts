@@ -6,6 +6,19 @@ import { getBookshelfProvider, isWebRuntime } from '@/providers';
 import { t } from '@/i18n';
 
 /**
+ * The in-app reader route for a book. This is the single place the `/reader/:id`
+ * path is spelled outside the router: every reading entry that needs a real
+ * `href` — the home cards render a RouterLink `custom` slot so a middle-click or
+ * "open in new tab" still works — builds its target from here rather than
+ * writing the path itself. That is what lets `check-module-boundaries`'s
+ * reader-entrypoint rule hold the launch policy to one entrance; a card that
+ * spells `/reader/…` on its own would silently bypass the preference again.
+ */
+export function readerRoutePath(id: string): string {
+  return `/reader/${id}`;
+}
+
+/**
  * Opening a book in the reader, honouring the device-local "reader launch
  * preference". This is the single launch path shared by every reading entry —
  * the library, book detail and reading history through `useBookActions.goRead`,
@@ -26,8 +39,8 @@ export function useReaderLaunch() {
   function launchReader(id: string, sectionIndex?: number): void {
     const hasSection = typeof sectionIndex === 'number' && Number.isFinite(sectionIndex);
     const to = hasSection
-      ? { path: `/reader/${id}`, query: { section: String(Math.trunc(sectionIndex)) } }
-      : { path: `/reader/${id}` };
+      ? { path: readerRoutePath(id), query: { section: String(Math.trunc(sectionIndex)) } }
+      : { path: readerRoutePath(id) };
 
     // Device-local preference: 'new-reader' (default) opens a fresh reader,
     // 'in-window' navigates the current window in place. Only the web and
