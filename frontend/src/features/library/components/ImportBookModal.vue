@@ -85,6 +85,11 @@
           </label>
         </section>
 
+        <section v-if="showProgress" class="import-progress" aria-live="polite">
+          <ProgressBar :value="progress.percentage" :label="progressText" />
+          <p class="import-progress-text">{{ progressText }}</p>
+        </section>
+
         <section v-if="files.length > 0" class="selected-files" aria-live="polite">
           <h3 class="selected-files-title">{{ t('libraryForms.importBook.selectedFiles') }}</h3>
           <ul class="file-list">
@@ -101,6 +106,15 @@
         </section>
 
         <div class="actions">
+          <button
+            v-if="showProgress"
+            class="button"
+            type="button"
+            :disabled="cancelRequested"
+            @click="abort"
+          >
+            {{ cancelRequested ? t('libraryForms.importBook.aborting') : t('libraryForms.importBook.abort') }}
+          </button>
           <button class="button" type="button" :disabled="submitting" @click="onClose">{{ t('common.cancel') }}</button>
           <button class="button primary" type="submit" :disabled="submitting || files.length === 0">
             {{ submitting ? t('libraryForms.importBook.submitting') : t('libraryForms.importBook.submit') }}
@@ -125,6 +139,7 @@ import {
   type AcceptableValue
 } from 'reka-ui';
 import BaseDialog from '@/components/BaseDialog.vue';
+import ProgressBar from '@/components/ProgressBar.vue';
 import { useImportBook } from '@/features/library/composables/useImportBook';
 import { useBookStore } from '@/composables/useBookStore';
 import { useFolderStore } from '@/composables/useFolderStore';
@@ -161,6 +176,8 @@ const emit = defineEmits<{
     total: number;
     successCount: number;
     failedCount: number;
+    cancelledCount: number;
+    cancelled: boolean;
     firstImportedId?: string;
   }];
 }>();
@@ -168,13 +185,16 @@ const emit = defineEmits<{
 const {
   files,
   submitting,
+  cancelRequested,
   success,
   error,
   epubStrategy,
+  progress,
   setEpubStrategy,
   hasEpubFile,
   setBookFiles,
-  submit,
+  submitFiles,
+  abort,
   reset
 } = useImportBook();
 const { fetchBooks } = useBookStore();
@@ -187,6 +207,18 @@ const selectedFiles = ref<File[]>([]);
 // The conversion options only mean anything for EPUB, so they stay hidden until
 // the selection actually contains one.
 const showEpubOptions = computed(() => selectedFiles.value.length > 0 && hasEpubFile());
+
+// A single-file import stays exactly as it was: no summary bar, no abort. The
+// N / M progress only earns its space once a batch is being imported.
+const showProgress = computed(() => submitting.value && progress.value.total > 1);
+
+const progressText = computed(() =>
+  t('libraryForms.importBook.progress', {
+    current: progress.value.current,
+    total: progress.value.total,
+    filename: progress.value.filename
+  })
+);
 
 function onBookFileChange(event: Event): void {
   const nextFiles = readSelectedFiles(event);
@@ -274,7 +306,7 @@ function onDrop(event: DragEvent): void {
 }
 
 async function onSubmit(): Promise<void> {
-  const result = await submit(props.currentFolderPath);
+  const result = await submitFiles(props.currentFolderPath);
   if (!result) {
     return;
   }
@@ -423,6 +455,20 @@ watch(
   margin-top: 4px;
 }
 
+.import-progress {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.import-progress-text {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
 .selected-files {
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -482,6 +528,10 @@ watch(
 
 .status-failed {
   color: #b91c1c;
+}
+
+.status-cancelled {
+  color: #92400e;
 }
 
 .file-error {

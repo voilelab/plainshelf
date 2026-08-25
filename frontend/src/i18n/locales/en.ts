@@ -1054,17 +1054,22 @@ const en = {
       fileStatus: 'Status:',
       submit: 'Import',
       submitting: 'Importing...',
+      progress: 'Importing {current} of {total}: {filename}',
+      abort: 'Abort',
+      aborting: 'Aborting...',
       statuses: {
         pending: 'Pending',
         importing: 'Importing',
         success: 'Imported',
-        failed: 'Failed'
+        failed: 'Failed',
+        cancelled: 'Cancelled'
       },
       errors: {
         noFiles: 'Please choose at least one TXT, Markdown or EPUB file.',
         unsupportedExtension: 'Book file must be .txt, .md or .epub.',
         allFailed: 'Import failed.',
-        someFailed: '{count} file(s) failed.'
+        someFailed: '{count} file(s) failed.',
+        cancelled: 'Import cancelled.'
       },
       results: {
         one: 'Import successful.',
