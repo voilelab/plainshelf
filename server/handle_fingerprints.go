@@ -137,7 +137,7 @@ func buildSimilarPairs(prints []bookSketch, floor float64) []similarPair {
 				continue
 			}
 
-			containmentA, containmentB := sketch.Containment(a.sketch, b.sketch)
+			containmentA, containmentB := sketch.ContainmentFrom(a.sketch, b.sketch, jaccard)
 			pairs = append(pairs, similarPair{
 				A:            a.bookID,
 				B:            b.bookID,
