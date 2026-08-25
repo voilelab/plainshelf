@@ -27,7 +27,7 @@
           <RouterLink class="button" :to="`/books/${currentBook.id}`">
             {{ t('dashboard.randomBook.viewDetail') }}
           </RouterLink>
-          <RouterLink v-slot="{ href }" custom :to="`/reader/${currentBook.id}`">
+          <RouterLink v-slot="{ href }" custom :to="readerRoutePath(currentBook.id)">
             <a class="button primary" :href="href" @click="onReaderLinkClick($event, currentBook.id)">
               {{ t('dashboard.randomBook.readNow') }}
             </a>
@@ -42,7 +42,7 @@
 import { computed, ref, watch } from 'vue';
 import BookCoverImg from '@/components/BookCoverImg.vue';
 import { useI18n } from '@/i18n';
-import { useReaderLaunch } from '@/composables/useReaderLaunch';
+import { readerRoutePath, useReaderLaunch } from '@/composables/useReaderLaunch';
 import type { Book } from '@/types/book';
 
 const props = withDefaults(

@@ -145,7 +145,7 @@ func buildSimilarPairs(prints []bookSketch, floor float64) []similarPair {
 			// which would merge the pair a second time: the work budget below
 			// counts one merge per pair, so a second here would let a dense shelf
 			// spend up to twice the budgeted work.
-			containmentA, containmentB := sketch.ContainmentFromJaccard(jaccard, a.sketch.Distinct, b.sketch.Distinct)
+			containmentA, containmentB := sketch.ContainmentFrom(a.sketch, b.sketch, jaccard)
 			pairs = append(pairs, similarPair{
 				A:            a.bookID,
 				B:            b.bookID,

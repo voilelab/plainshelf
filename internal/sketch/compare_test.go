@@ -150,32 +150,47 @@ func TestContainmentEdgeCases(t *testing.T) {
 	}
 }
 
-// ContainmentFromJaccard must return exactly what Containment does, since
-// Containment is defined as that helper over Jaccard(a, b). A caller that has
-// already merged the pair uses the helper to skip the second merge, so the two
-// have to agree on every input, degenerate ones included.
-func TestContainmentFromJaccardMatchesContainment(t *testing.T) {
-	rng := newRNG(2027)
-	whole := strings.Join(randomWords(rng, 800), " ")
+// TestContainmentFromMatchesContainment pins ContainmentFrom to Containment:
+// feeding it the Jaccard that Containment would have computed itself must return
+// exactly the same pair of values, including the Distinct <= 0 and jaccard <= 0
+// early-exit branches. This is what lets buildSimilarPairs pass its already
+// computed Jaccard in and skip the second merge without moving any number.
+func TestContainmentFromMatchesContainment(t *testing.T) {
+	whole := strings.Join(randomWords(newRNG(2027), 800), " ")
 	part := whole[:len(whole)*3/4]
 
-	cases := []struct {
+	testCases := []struct {
 		name string
-		a, b Sketch
+		a    Sketch
+		b    Sketch
 	}{
-		{"whole vs truncation", exactSketch(whole), exactSketch(part)},
-		{"empty right sketch", BuildDefault(whole), BuildDefault("")},
-		{"empty left sketch", BuildDefault(""), BuildDefault(whole)},
+		{name: "overlapping", a: exactSketch(whole), b: exactSketch(part)},
+		{name: "identical", a: exactSketch(whole), b: exactSketch(whole)},
+		{
+			name: "unrelated",
+			a:    exactSketch(strings.Join(randomWords(newRNG(6), 1000), " ")),
+			b:    exactSketch(strings.Join(randomWords(newRNG(7), 1000), " ")),
+		},
+		// Distinct <= 0: an empty sketch never reaches the algebra.
+		{name: "empty right", a: exactSketch(whole), b: BuildDefault("")},
+		{name: "empty left", a: BuildDefault(""), b: exactSketch(whole)},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			wantA, wantB := Containment(tc.a, tc.b)
-			gotA, gotB := ContainmentFromJaccard(Jaccard(tc.a, tc.b), tc.a.Distinct, tc.b.Distinct)
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			wantA, wantB := Containment(testCase.a, testCase.b)
+			gotA, gotB := ContainmentFrom(testCase.a, testCase.b, Jaccard(testCase.a, testCase.b))
 			if gotA != wantA || gotB != wantB {
-				t.Errorf("ContainmentFromJaccard = (%v, %v), want Containment's (%v, %v)", gotA, gotB, wantA, wantB)
+				t.Errorf("ContainmentFrom = (%v, %v), Containment = (%v, %v)", gotA, gotB, wantA, wantB)
 			}
 		})
+	}
+
+	// jaccard <= 0: the shared early-exit branch must hold for a caller that
+	// passes a non-positive similarity even when both sketches are non-empty.
+	a, b := exactSketch(whole), exactSketch(part)
+	if gotA, gotB := ContainmentFrom(a, b, 0); gotA != 0 || gotB != 0 {
+		t.Errorf("ContainmentFrom with jaccard 0 = (%v, %v), want (0, 0)", gotA, gotB)
 	}
 }
 

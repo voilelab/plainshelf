@@ -60,27 +60,25 @@ func Jaccard(a, b Sketch) float64 {
 // J = inter / (na + nb - inter), so this adds no estimation of its own beyond
 // the error already in J.
 func Containment(a, b Sketch) (float64, float64) {
+	return ContainmentFrom(a, b, Jaccard(a, b))
+}
+
+// ContainmentFrom is Containment for a caller that has already computed the
+// Jaccard similarity of the same pair, so the sorted-array merge is not
+// repeated. The algebra depends only on the similarity and the two Distinct
+// counts, so passing similarity in changes nothing but the cost.
+func ContainmentFrom(a, b Sketch, jaccard float64) (float64, float64) {
 	if a.Distinct <= 0 || b.Distinct <= 0 {
 		return 0, 0
 	}
-	return ContainmentFromJaccard(Jaccard(a, b), a.Distinct, b.Distinct)
-}
-
-// ContainmentFromJaccard is Containment given an already-computed Jaccard
-// similarity, so a caller that has just merged the two sketches to get J - as
-// the similarity sweep does - derives containment from that J rather than
-// merging them a second time inside Containment. aDistinct and bDistinct are the
-// two sketches' exact distinct shingle counts. Containment is this with J and
-// the counts read off the sketches for you.
-func ContainmentFromJaccard(jaccard float64, aDistinct, bDistinct int) (float64, float64) {
-	if aDistinct <= 0 || bDistinct <= 0 || jaccard <= 0 {
+	if jaccard <= 0 {
 		return 0, 0
 	}
 
-	intersection := jaccard * float64(aDistinct+bDistinct) / (1 + jaccard)
+	intersection := jaccard * float64(a.Distinct+b.Distinct) / (1 + jaccard)
 
-	return clamp01(intersection / float64(aDistinct)),
-		clamp01(intersection / float64(bDistinct))
+	return clamp01(intersection / float64(a.Distinct)),
+		clamp01(intersection / float64(b.Distinct))
 }
 
 // MaxJaccard is the largest Jaccard similarity two documents holding na and nb

@@ -16,7 +16,7 @@
 
     <ul v-else class="recent-reading-list">
       <li v-for="item in items" :key="item.book.id" class="recent-reading-item">
-        <RouterLink v-slot="{ href }" custom :to="`/reader/${item.book.id}`">
+        <RouterLink v-slot="{ href }" custom :to="readerRoutePath(item.book.id)">
           <a class="recent-reading-card" :href="href" @click="onReaderLinkClick($event, item.book.id)">
             <BookCoverImg
               :book-id="item.book.id"
@@ -54,7 +54,7 @@
 import BookCoverImg from '@/components/BookCoverImg.vue';
 import { formatRelativeTime } from '@/utils/date';
 import { useI18n } from '@/i18n';
-import { useReaderLaunch } from '@/composables/useReaderLaunch';
+import { readerRoutePath, useReaderLaunch } from '@/composables/useReaderLaunch';
 import type { RecentReadingItem } from '@/features/dashboard/composables/useDashboardData';
 
 defineProps<{
