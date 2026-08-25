@@ -224,26 +224,29 @@ export interface FingerprintStatus {
   };
 }
 
-/** The 202 body a shelf too large for the synchronous comparison answers with,
- *  instead of the pair array. */
+/** The body a shelf too costly for the synchronous comparison answers with,
+ *  instead of the pair array. `work` is the estimated merge steps the sweep
+ *  would spend and `budget` the cap it exceeded — both step counts, not books,
+ *  because the cost is the summed sketch length, not the book count. */
 interface SimilarTooLarge {
   status: 'too_large';
-  total: number;
-  limit: number;
+  work: number;
+  budget: number;
 }
 
 /**
- * Thrown by {@link getSimilarBookPairs} when the shelf is past the server's
- * synchronous limit and it answers {@link SimilarTooLarge} rather than the pair
- * array. A distinct type — not a bare Error — so the page can show a "narrow the
- * shelf down" state instead of treating it as a failure to load.
+ * Thrown by {@link getSimilarBookPairs} when the shelf's fingerprints would cost
+ * more than the server's work budget and it answers {@link SimilarTooLarge}
+ * rather than the pair array. A distinct type — not a bare Error — so the page
+ * can explain that the shelf is past the single-pass budget instead of treating
+ * it as a failure to load.
  */
 export class SimilarTooLargeError extends Error {
   constructor(
-    readonly total: number,
-    readonly limit: number
+    readonly work: number,
+    readonly budget: number
   ) {
-    super(`similarity comparison is unavailable: ${total} books exceed the limit of ${limit}`);
+    super(`similarity comparison is unavailable: ${work} merge steps exceed the budget of ${budget}`);
     this.name = 'SimilarTooLargeError';
   }
 }
@@ -268,7 +271,7 @@ export class FingerprintSweepBusyError extends Error {
  * memory rather than re-requesting, so this is called once per visit with the
  * widest floor the UI offers.
  *
- * A shelf past the server's synchronous limit answers 202 with a
+ * A shelf whose fingerprints exceed the server's work budget answers 200 with a
  * {@link SimilarTooLarge} body rather than a pair array; that is surfaced as a
  * thrown error so a caller never iterates a non-array as if it were the list.
  */
@@ -282,7 +285,7 @@ export async function getSimilarBookPairs(floor?: number): Promise<SimilarBookPa
     buildShelfApiPath(`/books/similar${query}`)
   );
   if (!Array.isArray(result)) {
-    throw new SimilarTooLargeError(result.total, result.limit);
+    throw new SimilarTooLargeError(result.work, result.budget);
   }
   return result;
 }

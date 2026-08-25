@@ -4,11 +4,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/sketch"
+	"github.com/voilelab/plainshelf/server/task"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
@@ -136,44 +140,230 @@ func TestParseSimilarFloor(t *testing.T) {
 	}
 }
 
-// A shelf past the limit is answered 202 with the counts, not run through the
-// O(n^2) sweep to a timeout.
-func TestFindSimilarBooksOverLimitReturns202(t *testing.T) {
-	app := newTestApp(t)
+// fingerprintTestApp builds a started app on a caller-known LibRoot. The other
+// server tests let newTestApp pick a temp dir, but these need the path so they
+// can backdate source files: the fingerprint cache refuses to index a file
+// written moments ago, and findSimilarBooks reads only indexed fingerprints.
+func fingerprintTestApp(t *testing.T, libRoot string) *App {
+	t.Helper()
+
+	app, err := NewApp(&AppConf{
+		Shelves: []*shelf.ShelfConfWithID{
+			{ID: "default_shelf", ShelfConf: shelf.ShelfConf{LibRoot: libRoot}},
+		},
+		StorePath:  t.TempDir(),
+		CoverToJPG: false,
+	})
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := app.Close(); err != nil {
+			t.Fatalf("Close app: %v", err)
+		}
+	})
+	if err := app.Start(); err != nil {
+		t.Fatalf("Start app: %v", err)
+	}
+	waitForShelves(t, app)
+
+	return app
+}
+
+// makeBook creates a book with one source and backdates that source, so the
+// fingerprint cache will index it. An un-backdated source still fingerprints but
+// never lands in the index findSimilarBooks reads from (see server/task's
+// addFingerprintBook for the same dance).
+func makeBook(t *testing.T, shelfData *shelf.ShelfData, libRoot, title, content string) *shelf.Book {
+	t.Helper()
+
+	book, err := shelfData.NewBookWith(nil, title, func(b *shelf.Book) error {
+		source, err := b.NewSource(strings.NewReader(content))
+		if err != nil {
+			return err
+		}
+		return b.SetCurrentSource(source.ID())
+	})
+	if err != nil {
+		t.Fatalf("NewBookWith(%q): %v", title, err)
+	}
+
+	source, err := book.GetSource(book.CurrentSource())
+	if err != nil {
+		t.Fatalf("GetSource: %v", err)
+	}
+	old := time.Now().Add(-time.Hour)
+	sourcePath := path.Join(libRoot, source.FolderPath(), shelf.SourceFile)
+	if err := os.Chtimes(sourcePath, old, old); err != nil {
+		t.Fatalf("backdating %s: %v", sourcePath, err)
+	}
+	return book
+}
+
+// fingerprintBooks resolves and persists each book's current-source fingerprint,
+// so findSimilarBooks' own cache Open finds them on record. Books passed to
+// makeBook but not here stay unfingerprinted and are skipped by the sweep.
+func fingerprintBooks(t *testing.T, shelfData *shelf.ShelfData, books ...*shelf.Book) {
+	t.Helper()
+
+	cache, err := shelfData.OpenFingerprintCache(task.FingerprintAlgo())
+	if err != nil {
+		t.Fatalf("OpenFingerprintCache: %v", err)
+	}
+	for _, book := range books {
+		source, err := book.GetSource(book.CurrentSource())
+		if err != nil {
+			t.Fatalf("GetSource: %v", err)
+		}
+		if _, err := cache.Resolve(book, source, task.BuildFingerprint); err != nil {
+			t.Fatalf("Resolve fingerprint: %v", err)
+		}
+	}
+	if err := cache.Save(); err != nil {
+		t.Fatalf("Save fingerprint cache: %v", err)
+	}
+}
+
+// variedText builds a string of distinct tokens, so its sketch keeps roughly one
+// shingle per token rather than collapsing to the few a repeated phrase yields.
+// Under sketch.ExactShingleLimit runes the sketch retains every shingle, which is
+// what makes a "short" shelf cost more per pair than a book count would suggest.
+func variedText(tokens int) string {
+	var b strings.Builder
+	for i := range tokens {
+		b.WriteString("term")
+		b.WriteString(strconv.Itoa(i))
+		b.WriteByte(' ')
+	}
+	return b.String()
+}
+
+func decodeTooLarge(t *testing.T, rec *httptest.ResponseRecorder) similarTooLarge {
+	t.Helper()
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body %s", rec.Code, rec.Body.String())
+	}
+	var body similarTooLarge
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decoding rejection body %q: %v", rec.Body.String(), err)
+	}
+	return body
+}
+
+func getSimilar(t *testing.T, app *App) *httptest.ResponseRecorder {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/similar", nil)
+	rec := httptest.NewRecorder()
+	app.Handler().ServeHTTP(rec, req)
+	return rec
+}
+
+// A shelf whose fingerprints cost more than the budget is declined with 200 and
+// the too_large body, not run through the sweep to a timeout. This is the old
+// over-limit test, now measuring the work budget instead of a book count.
+func TestFindSimilarBooksOverBudgetReturns200(t *testing.T) {
+	libRoot := t.TempDir()
+	app := fingerprintTestApp(t, libRoot)
 
 	shelfData, ok := app.ShelfManager().GetShelf("default_shelf")
 	if !ok {
 		t.Fatal("default shelf not found")
 	}
-	for i := range 2 {
-		if _, err := shelfData.NewBookWith(nil, "Book "+strconv.Itoa(i), func(b *shelf.Book) error {
-			source, err := b.NewSource(strings.NewReader("content number " + strconv.Itoa(i)))
-			if err != nil {
-				return err
-			}
-			return b.SetCurrentSource(source.ID())
-		}); err != nil {
-			t.Fatalf("NewBookWith: %v", err)
+	books := []*shelf.Book{
+		makeBook(t, shelfData, libRoot, "Book 0", "content number zero"),
+		makeBook(t, shelfData, libRoot, "Book 1", "content number one"),
+	}
+	fingerprintBooks(t, shelfData, books...)
+
+	restore := similarWorkBudget
+	similarWorkBudget = 1
+	defer func() { similarWorkBudget = restore }()
+
+	body := decodeTooLarge(t, getSimilar(t, app))
+	if body.Status != "too_large" || body.Budget != 1 || body.Work <= body.Budget {
+		t.Errorf("body = %+v, want too_large with budget 1 and work over budget", body)
+	}
+}
+
+// The gate measures sketch length, not book count: under one budget a shelf of
+// two short works is compared while a shelf of two longer works - identical in
+// number - is declined, because its sketches keep far more shingles.
+func TestFindSimilarBooksBudgetTracksSketchLengthNotBookCount(t *testing.T) {
+	restore := similarWorkBudget
+	similarWorkBudget = 1500
+	defer func() { similarWorkBudget = restore }()
+
+	shelfWithTexts := func(texts ...string) *httptest.ResponseRecorder {
+		t.Helper()
+		libRoot := t.TempDir()
+		app := fingerprintTestApp(t, libRoot)
+		shelfData, ok := app.ShelfManager().GetShelf("default_shelf")
+		if !ok {
+			t.Fatal("default shelf not found")
 		}
+		books := make([]*shelf.Book, 0, len(texts))
+		for i, text := range texts {
+			books = append(books, makeBook(t, shelfData, libRoot, "Book "+strconv.Itoa(i), text))
+		}
+		fingerprintBooks(t, shelfData, books...)
+		return getSimilar(t, app)
 	}
 
-	restore := similarBookLimit
-	similarBookLimit = 1
-	defer func() { similarBookLimit = restore }()
-
-	req := httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/similar", nil)
-	rec := httptest.NewRecorder()
-	app.Handler().ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusAccepted {
-		t.Fatalf("status = %d, want 202; body %s", rec.Code, rec.Body.String())
+	// Two short books: well under the budget, so the pairs array comes back.
+	shortRec := shelfWithTexts("tiny zero text", "tiny one text")
+	if shortRec.Code != http.StatusOK {
+		t.Fatalf("short shelf status = %d, want 200; body %s", shortRec.Code, shortRec.Body.String())
+	}
+	if strings.Contains(shortRec.Body.String(), "too_large") {
+		t.Errorf("short shelf was declined, want a pairs array; body %s", shortRec.Body.String())
 	}
 
-	var body similarTooLarge
-	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
-		t.Fatalf("decoding 202 body %q: %v", rec.Body.String(), err)
+	// Two books of the same count but long, distinct text: their summed sketch
+	// length pushes the merge steps past the budget, so this shelf is declined.
+	longRec := shelfWithTexts("first "+variedText(400), "second "+variedText(400))
+	body := decodeTooLarge(t, longRec)
+	if body.Status != "too_large" || body.Work <= body.Budget {
+		t.Errorf("long shelf body = %+v, want too_large with work over budget %d", body, similarWorkBudget)
 	}
-	if body.Status != "too_large" || body.Total != 2 || body.Limit != 1 {
-		t.Errorf("body = %+v, want too_large with total 2 and limit 1", body)
+}
+
+// Books without a fingerprint are skipped, so a shelf of many books but few
+// fingerprints is compared - and returned 200 with pairs - rather than declined
+// on its raw count.
+func TestFindSimilarBooksSkipsUnfingerprintedBooks(t *testing.T) {
+	libRoot := t.TempDir()
+	app := fingerprintTestApp(t, libRoot)
+
+	shelfData, ok := app.ShelfManager().GetShelf("default_shelf")
+	if !ok {
+		t.Fatal("default shelf not found")
+	}
+
+	// Two books share one text so they form exactly one pair; four more books
+	// exist but are never fingerprinted.
+	shared := "the spice must flow across the dune sea"
+	a := makeBook(t, shelfData, libRoot, "A", shared)
+	b := makeBook(t, shelfData, libRoot, "B", shared)
+	for i := range 4 {
+		makeBook(t, shelfData, libRoot, "Unfingerprinted "+strconv.Itoa(i), "unique text "+strconv.Itoa(i))
+	}
+	fingerprintBooks(t, shelfData, a, b)
+
+	rec := getSimilar(t, app)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body %s", rec.Code, rec.Body.String())
+	}
+
+	var pairs []similarPair
+	if err := json.Unmarshal(rec.Body.Bytes(), &pairs); err != nil {
+		t.Fatalf("decoding pairs %q: %v", rec.Body.String(), err)
+	}
+	if len(pairs) != 1 {
+		t.Fatalf("got %d pairs, want the single fingerprinted pair: %+v", len(pairs), pairs)
+	}
+	if pairs[0].Relation != relationIdentical {
+		t.Errorf("relation = %q, want %q for two books of identical text", pairs[0].Relation, relationIdentical)
 	}
 }

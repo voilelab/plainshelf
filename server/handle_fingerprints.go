@@ -27,12 +27,12 @@ type fingerprintHandlers struct {
 // does not.
 const defaultSimilarFloor = 0.15
 
-// similarBookLimit caps how many books the synchronous comparison will scan.
-// The comparison is O(n^2) in the book count; at a few thousand books that is
-// still well under a second, but past this a request could outlast its
-// deadline, so the endpoint answers 202 instead of timing out. It is a var, not
-// a const, so a test can lower it without standing up thousands of books.
-var similarBookLimit = 3200
+// similarWorkBudget caps the merge steps the synchronous sweep will spend.
+// Cost is the sum of sketch lengths, not the book count: a short work keeps
+// every shingle, so a shelf of novellas costs far more per pair than one of
+// novels. Past the budget the endpoint declines rather than outrun the
+// client's 30s fetch timeout. A var so a test can lower it.
+var similarWorkBudget = 1 << 30
 
 // The relation names describe how two sources are alike. The server decides
 // this rather than the frontend so the classification lives in one place, and a
@@ -79,13 +79,17 @@ type similarPair struct {
 	Relation string `json:"relation"`
 }
 
-// similarTooLarge is the 202 body for a shelf past similarBookLimit: the
-// synchronous comparison was declined rather than run past the request's
-// deadline. It reports the counts so the caller can explain the refusal.
+// similarTooLarge is the body for a shelf whose fingerprinted content would
+// cost more than similarWorkBudget to compare in one pass: the synchronous
+// sweep was declined rather than run past the request's deadline. It reports
+// the estimated merge steps and the budget so the caller can explain the
+// refusal. It travels on a plain 200, not a 202: nothing was accepted for later
+// processing - there is no similarity task - so 202 would promise a result that
+// never arrives.
 type similarTooLarge struct {
 	Status string `json:"status"`
-	Total  int    `json:"total"`
-	Limit  int    `json:"limit"`
+	Work   int    `json:"work"`
+	Budget int    `json:"budget"`
 }
 
 // bookSketch is a book paired with the decoded fingerprint of its current
@@ -191,14 +195,6 @@ func (h *fingerprintHandlers) findSimilarBooks(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// A library past the limit would spend too long in the O(n^2) sweep to
-	// answer within the request's deadline, so it is told to come back for an
-	// asynchronous result rather than left to time out.
-	if len(books) > similarBookLimit {
-		h.writeJSON(w, http.StatusAccepted, similarTooLarge{Status: "too_large", Total: len(books), Limit: similarBookLimit})
-		return
-	}
-
 	cache, err := shelfData.OpenFingerprintCache(task.FingerprintAlgo())
 	if err != nil {
 		h.writeErr(w, err, "failed to open the fingerprint cache")
@@ -206,12 +202,14 @@ func (h *fingerprintHandlers) findSimilarBooks(w http.ResponseWriter, r *http.Re
 	}
 
 	prints := make([]bookSketch, 0, len(books))
+	sumValues := 0
 	for _, book := range books {
 		entry, ok := cache.Lookup(book.ID(), book.CurrentSource())
 		if !ok {
 			// A book without a fingerprint yet is skipped, not failed: the sweep
 			// still compares every book that does have one, which is what lets the
-			// page show results while some books remain unfingerprinted.
+			// page show results while some books remain unfingerprinted. It also
+			// keeps the budget below honest - a book with no sketch adds no cost.
 			continue
 		}
 
@@ -224,12 +222,24 @@ func (h *fingerprintHandlers) findSimilarBooks(w http.ResponseWriter, r *http.Re
 			continue
 		}
 
+		sumValues += len(decoded.Values)
 		prints = append(prints, bookSketch{
 			bookID:    book.ID(),
 			normMD5:   entry.NormMD5,
 			normChars: entry.NormChars,
 			sketch:    decoded,
 		})
+	}
+
+	// The sweep merges every pair of sketches once, so its cost is bounded by
+	// (len(prints)-1) * Σ len(sketch.Values) - the merge steps across all pairs,
+	// gated here on the fingerprints that will really be compared rather than the
+	// raw book count, which is unrelated to the work: a shelf of short works
+	// keeps every shingle and costs far more per pair than one of novels. Past
+	// the budget the endpoint declines rather than outrun the request's deadline.
+	if work := (len(prints) - 1) * sumValues; work > similarWorkBudget {
+		h.writeJSON(w, http.StatusOK, similarTooLarge{Status: "too_large", Work: work, Budget: similarWorkBudget})
+		return
 	}
 
 	h.writeJSON(w, http.StatusOK, buildSimilarPairs(prints, floor))
