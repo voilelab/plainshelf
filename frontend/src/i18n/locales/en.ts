@@ -381,7 +381,7 @@ const en = {
       empty: 'No similar books at this level.',
       emptyHint: 'Loosen the level, or turn off the trimmed-copies filter, to widen the search.',
       loadFailed: 'Failed to compare books',
-      tooLarge: 'This shelf has {total} books, past the {limit} the comparison can handle at once. Narrow the shelf down and try again.',
+      tooLarge: "This shelf's fingerprinted content is larger than a single synchronous comparison can handle within its budget, so this comparison was skipped.",
       resultCount: '{count} pairs',
       tiersLabel: 'Similarity',
       tiers: {

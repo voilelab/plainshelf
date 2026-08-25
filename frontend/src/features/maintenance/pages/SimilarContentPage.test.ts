@@ -273,16 +273,15 @@ describe('SimilarContentPage', () => {
     expect(rows(host)).toHaveLength(0);
   });
 
-  it('shows a narrow-down notice, not an error, when the shelf is too large', async () => {
-    mocks.getSimilarBookPairs.mockRejectedValue(new SimilarTooLargeError(5000, 2000));
+  it('shows an over-budget notice, not an error, when the shelf is too costly', async () => {
+    mocks.getSimilarBookPairs.mockRejectedValue(new SimilarTooLargeError(2_000_000_000, 1_073_741_824));
     const host = mount();
     await flush();
 
     expect(host.querySelector('.similar-error')).toBeNull();
     const notice = host.querySelector('.similar-notice');
     expect(notice).not.toBeNull();
-    expect(notice!.textContent).toContain('5000');
-    expect(notice!.textContent).toContain('2000');
+    expect(notice!.textContent).toContain('budget');
   });
 
   it('shows an error with retry when the comparison fails', async () => {

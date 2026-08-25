@@ -63,7 +63,7 @@
     <div v-if="loading" class="loading">{{ t('maintenance.similar.scanning') }}</div>
 
     <div v-else-if="tooLarge" class="similar-notice" role="status">
-      <p>{{ t('maintenance.similar.tooLarge', { total: tooLarge.total, limit: tooLarge.limit }) }}</p>
+      <p>{{ t('maintenance.similar.tooLarge') }}</p>
     </div>
 
     <div v-else-if="error" class="error similar-error" role="alert">
@@ -131,7 +131,7 @@ const { readOnly } = useServerMode();
 
 const loading = ref(false);
 const error = ref('');
-const tooLarge = ref<{ total: number; limit: number } | null>(null);
+const tooLarge = ref(false);
 const pairs = ref<SimilarBookPair[]>([]);
 const fingerprint = ref<FingerprintStatus | null>(null);
 // Title, cover, format, folder and char_count for every book, so a card can show
@@ -207,7 +207,7 @@ watch(
 async function load(): Promise<void> {
   loading.value = true;
   error.value = '';
-  tooLarge.value = null;
+  tooLarge.value = false;
   // A reload is fresh data; drop cached counts so the watch re-resolves them.
   sourceCounts.value = {};
   sourceCountsInflight.clear();
@@ -235,7 +235,7 @@ async function load(): Promise<void> {
   if (pairsResult.status === 'fulfilled') {
     pairs.value = pairsResult.value;
   } else if (pairsResult.reason instanceof SimilarTooLargeError) {
-    tooLarge.value = { total: pairsResult.reason.total, limit: pairsResult.reason.limit };
+    tooLarge.value = true;
     pairs.value = [];
   } else {
     error.value =
