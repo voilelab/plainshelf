@@ -150,6 +150,50 @@ func TestContainmentEdgeCases(t *testing.T) {
 	}
 }
 
+// TestContainmentFromMatchesContainment pins ContainmentFrom to Containment:
+// feeding it the Jaccard that Containment would have computed itself must return
+// exactly the same pair of values, including the Distinct <= 0 and jaccard <= 0
+// early-exit branches. This is what lets buildSimilarPairs pass its already
+// computed Jaccard in and skip the second merge without moving any number.
+func TestContainmentFromMatchesContainment(t *testing.T) {
+	whole := strings.Join(randomWords(newRNG(2027), 800), " ")
+	part := whole[:len(whole)*3/4]
+
+	testCases := []struct {
+		name string
+		a    Sketch
+		b    Sketch
+	}{
+		{name: "overlapping", a: exactSketch(whole), b: exactSketch(part)},
+		{name: "identical", a: exactSketch(whole), b: exactSketch(whole)},
+		{
+			name: "unrelated",
+			a:    exactSketch(strings.Join(randomWords(newRNG(6), 1000), " ")),
+			b:    exactSketch(strings.Join(randomWords(newRNG(7), 1000), " ")),
+		},
+		// Distinct <= 0: an empty sketch never reaches the algebra.
+		{name: "empty right", a: exactSketch(whole), b: BuildDefault("")},
+		{name: "empty left", a: BuildDefault(""), b: exactSketch(whole)},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			wantA, wantB := Containment(testCase.a, testCase.b)
+			gotA, gotB := ContainmentFrom(testCase.a, testCase.b, Jaccard(testCase.a, testCase.b))
+			if gotA != wantA || gotB != wantB {
+				t.Errorf("ContainmentFrom = (%v, %v), Containment = (%v, %v)", gotA, gotB, wantA, wantB)
+			}
+		})
+	}
+
+	// jaccard <= 0: the shared early-exit branch must hold for a caller that
+	// passes a non-positive similarity even when both sketches are non-empty.
+	a, b := exactSketch(whole), exactSketch(part)
+	if gotA, gotB := ContainmentFrom(a, b, 0); gotA != 0 || gotB != 0 {
+		t.Errorf("ContainmentFrom with jaccard 0 = (%v, %v), want (0, 0)", gotA, gotB)
+	}
+}
+
 func TestMaxJaccardBoundsTheTrueJaccard(t *testing.T) {
 	rng := newRNG(4242)
 	base := randomWords(rng, 2000)

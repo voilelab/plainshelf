@@ -60,16 +60,22 @@ func Jaccard(a, b Sketch) float64 {
 // J = inter / (na + nb - inter), so this adds no estimation of its own beyond
 // the error already in J.
 func Containment(a, b Sketch) (float64, float64) {
+	return ContainmentFrom(a, b, Jaccard(a, b))
+}
+
+// ContainmentFrom is Containment for a caller that has already computed the
+// Jaccard similarity of the same pair, so the sorted-array merge is not
+// repeated. The algebra depends only on the similarity and the two Distinct
+// counts, so passing similarity in changes nothing but the cost.
+func ContainmentFrom(a, b Sketch, jaccard float64) (float64, float64) {
 	if a.Distinct <= 0 || b.Distinct <= 0 {
 		return 0, 0
 	}
-
-	similarity := Jaccard(a, b)
-	if similarity <= 0 {
+	if jaccard <= 0 {
 		return 0, 0
 	}
 
-	intersection := similarity * float64(a.Distinct+b.Distinct) / (1 + similarity)
+	intersection := jaccard * float64(a.Distinct+b.Distinct) / (1 + jaccard)
 
 	return clamp01(intersection / float64(a.Distinct)),
 		clamp01(intersection / float64(b.Distinct))
