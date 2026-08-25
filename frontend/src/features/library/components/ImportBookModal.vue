@@ -140,7 +140,7 @@ import {
 } from 'reka-ui';
 import BaseDialog from '@/components/BaseDialog.vue';
 import ProgressBar from '@/components/ProgressBar.vue';
-import { useImportBook } from '@/features/library/composables/useImportBook';
+import { useImportBook, type ImportSubmitResult } from '@/features/library/composables/useImportBook';
 import { useBookStore } from '@/composables/useBookStore';
 import { useFolderStore } from '@/composables/useFolderStore';
 import { hasFileTransfer, readDroppedFiles, readSelectedFiles } from '@/utils/file';
@@ -168,6 +168,10 @@ const props = defineProps<{
   open: boolean;
   currentFolderPath?: string;
   droppedFiles?: File[];
+  // Desktop host paths from the native picker. When the modal opens with these
+  // set, the import auto-starts through the shared executor — no file input and
+  // no extra confirmation, matching the desktop's select-and-go flow.
+  localPaths?: string[];
 }>();
 
 const emit = defineEmits<{
@@ -194,6 +198,7 @@ const {
   hasEpubFile,
   setBookFiles,
   submitFiles,
+  submitLocalPaths,
   abort,
   reset
 } = useImportBook();
@@ -305,8 +310,14 @@ function onDrop(event: DragEvent): void {
   applyDroppedFiles(readDroppedFiles(event));
 }
 
-async function onSubmit(): Promise<void> {
-  const result = await submitFiles(props.currentFolderPath);
+// Shared post-import handling for both the upload and desktop host-path flows:
+// reload on any success, notify the page, then reset only on a fully clean run.
+// A cancelled batch or one with any failure keeps its result message and
+// per-file statuses on screen — the modal stays open (the page only reloads
+// books), so resetting here would discard the very "N imported, rest cancelled"
+// or "which files failed" summary the user needs. Only when every file imported
+// is there nothing left to read, so the form clears for the next import.
+async function finishImport(result: ImportSubmitResult | null): Promise<void> {
   if (!result) {
     return;
   }
@@ -317,17 +328,29 @@ async function onSubmit(): Promise<void> {
 
   emit('imported', result);
 
-  // A cancelled batch keeps its result message and per-file statuses on screen:
-  // the modal stays open (the page only reloads books), so resetting here would
-  // discard the very "N imported, rest cancelled" summary the user aborted to
-  // see, and the list of files that were left unimported.
-  if (result.cancelled) {
+  if (result.cancelled || result.failedCount > 0) {
     return;
   }
 
   clearFileInputs();
   selectedFiles.value = [];
   reset();
+}
+
+async function onSubmit(): Promise<void> {
+  await finishImport(await submitFiles(props.currentFolderPath));
+}
+
+// The desktop select-and-go path: the native picker already chose the files, so
+// the modal opens straight into the shared progress/abort UI without a second
+// confirmation. Guarded against re-entry so a re-render while importing cannot
+// start a duplicate run.
+async function runLocalPathsImport(): Promise<void> {
+  const paths = props.localPaths ?? [];
+  if (paths.length === 0 || submitting.value) {
+    return;
+  }
+  await finishImport(await submitLocalPaths(paths, props.currentFolderPath));
 }
 
 watch(
@@ -375,6 +398,12 @@ watch(
       return;
     }
 
+    // A desktop host-path import takes over the modal on open; the browser
+    // drag-drop seeding only applies when there are no host paths.
+    if ((props.localPaths ?? []).length > 0) {
+      return;
+    }
+
     applyDroppedFiles(props.droppedFiles ?? []);
   }
 );
@@ -387,6 +416,30 @@ watch(
     }
 
     applyDroppedFiles(nextFiles ?? []);
+  }
+);
+
+// Desktop select-and-go: auto-start the import when the modal opens with host
+// paths, and when a fresh selection arrives while it is already open.
+watch(
+  () => props.open,
+  (open) => {
+    if (!open) {
+      return;
+    }
+
+    void runLocalPathsImport();
+  }
+);
+
+watch(
+  () => props.localPaths,
+  () => {
+    if (!props.open) {
+      return;
+    }
+
+    void runLocalPathsImport();
   }
 );
 </script>

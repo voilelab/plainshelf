@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  importBook: vi.fn()
+  importBook: vi.fn(),
+  importBookFromLocalPath: vi.fn()
 }));
 
 vi.mock('@/providers', () => ({
@@ -171,6 +172,71 @@ describe('useImportBook', () => {
     expect(book.files.value[1].status).toBe('cancelled');
     expect(book.success.value).toBe('libraryForms.importBook.results.partial');
     expect(book.error.value).toBe('');
+  });
+
+  // Desktop host-path import reuses the same N / M loop as the upload path: one
+  // Wails call per file, progress advancing as each finishes, and the display
+  // name is the basename of the host path rather than the whole path.
+  it('advances the N / M progress for desktop host paths', async () => {
+    const resolvers: Array<(value: { id: string; path: string }) => void> = [];
+    mocks.importBookFromLocalPath.mockImplementation(
+      () => new Promise((resolve) => { resolvers.push(resolve); })
+    );
+
+    const book = useImportBook();
+    const done = book.submitLocalPaths(
+      ['/books/a.txt', '/books/b.txt', '/books/c.txt'],
+      '/'
+    );
+
+    // Only the first path is in flight, named by its basename.
+    expect(book.progress.value.total).toBe(3);
+    expect(book.progress.value.current).toBe(1);
+    expect(book.progress.value.filename).toBe('a.txt');
+    expect(mocks.importBookFromLocalPath).toHaveBeenCalledTimes(1);
+    expect(mocks.importBookFromLocalPath).toHaveBeenLastCalledWith('/books/a.txt', '/');
+    // The upload executor is never touched by the desktop path.
+    expect(mocks.importBook).not.toHaveBeenCalled();
+
+    resolvers[0]({ id: 'id-a', path: '/books/a.txt' });
+    await flush();
+    expect(book.progress.value.completed).toBe(1);
+    expect(book.progress.value.current).toBe(2);
+    expect(book.progress.value.filename).toBe('b.txt');
+
+    resolvers[1]({ id: 'id-b', path: '/books/b.txt' });
+    await flush();
+    expect(book.progress.value.current).toBe(3);
+
+    resolvers[2]({ id: 'id-c', path: '/books/c.txt' });
+    const result = await done;
+
+    expect(result?.successCount).toBe(3);
+    expect(result?.firstImportedId).toBe('id-a');
+    expect(book.files.value.map((item) => item.status)).toEqual(['success', 'success', 'success']);
+    expect(book.progress.value.percentage).toBe(100);
+  });
+
+  // A per-file desktop import failure comes back as the result's Error field, not
+  // a rejected call, and must land as a failed unit among the successes.
+  it('reports a per-file desktop import error as a failed unit', async () => {
+    mocks.importBookFromLocalPath
+      .mockResolvedValueOnce({ id: 'id-a', path: '/books/a.txt' })
+      .mockResolvedValueOnce({ path: '/books/b.txt', error: 'unsupported file' });
+
+    const book = useImportBook();
+    const result = await book.submitLocalPaths(['/books/a.txt', '  ', '/books/b.txt'], '/sci-fi');
+
+    // The blank path is filtered before any call, mirroring the Go picker's
+    // normalizeSelectedLocalPaths, so only the two real paths import.
+    expect(mocks.importBookFromLocalPath).toHaveBeenCalledTimes(2);
+    expect(result?.total).toBe(2);
+    expect(result?.successCount).toBe(1);
+    expect(result?.failedCount).toBe(1);
+    expect(book.files.value[1].status).toBe('failed');
+    expect(book.files.value[1].error).toBe('unsupported file');
+    expect(book.success.value).toBe('libraryForms.importBook.results.partial');
+    expect(book.error.value).toBe('libraryForms.importBook.errors.someFailed');
   });
 
   // The import unit is no longer bound to File: submit drives any executor, and
