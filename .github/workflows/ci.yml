@@ -47,7 +47,7 @@ jobs:
         run: npm run check-licenses
 
       - name: Upload frontend dist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
           path: frontend/dist
@@ -206,7 +206,7 @@ jobs:
         run: ./gradlew assembleDebug
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: plainshelf-debug-apk
           path: frontend/android/app/build/outputs/apk/debug/*.apk
