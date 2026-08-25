@@ -162,9 +162,10 @@ export async function startServer(): Promise<ServerEnv> {
   // server start is just a process spawn. Without it (e.g. a spec run that
   // bypasses globalSetup), fall back to `go run` so the helper stays usable.
   const serverBinary = process.env[serverBinaryEnvVar];
-  const [command, args] = serverBinary
-    ? [serverBinary, ['-conf', configPath]]
-    : ['go', ['run', './cmd/plainshelf-srv/main.go', '-conf', configPath]];
+  const command = serverBinary ?? 'go';
+  const args = serverBinary
+    ? ['-conf', configPath]
+    : ['run', './cmd/plainshelf-srv/main.go', '-conf', configPath];
 
   const server = spawn(command, args, {
     cwd: repoRoot,
