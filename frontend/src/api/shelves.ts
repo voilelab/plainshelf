@@ -124,13 +124,6 @@ export async function rescanShelf(shelfID?: string): Promise<ShelfScanResult> {
   };
 }
 
-export async function getShelfStatus(shelfID?: string): Promise<{ ready: boolean }> {
-  if (isMockApiMode()) {
-    return { ready: true };
-  }
-  return fetchJson<{ ready: boolean }>(buildShelfApiPath('/status', shelfID));
-}
-
 /**
  * Rewrites the shelf's exported book cache now, and reports when the shelf was
  * walked (epoch seconds).

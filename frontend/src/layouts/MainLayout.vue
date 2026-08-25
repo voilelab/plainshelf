@@ -960,17 +960,6 @@ onMounted(async () => {
   display: block;
 }
 
-.top-nav {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.top-link {
-  color: var(--accent);
-  font-weight: 600;
-}
-
 /* The scrolling content reaches the bottom and side edges of the window, so it
    needs those insets to keep the last row — pagination, the mobile action bar's
    neighbours — clear of the gesture bar and of a landscape cutout. No top

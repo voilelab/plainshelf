@@ -34,10 +34,6 @@ a {
   text-decoration: none;
 }
 
-.app-shell {
-  min-height: calc(100vh / var(--app-zoom, 1));
-}
-
 /* Popper layers are teleported to <body> and positioned by floating-ui using
    getBoundingClientRect coordinates, which already include the html zoom
    factor. Cancel the inherited zoom on the positioning wrapper so its
@@ -60,32 +56,10 @@ a {
   backdrop-filter: blur(8px);
 }
 
-.topbar-inner {
-  padding: 14px 20px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
 .brand {
   margin: 0;
   font-size: 20px;
   letter-spacing: 0.3px;
-}
-
-.top-link {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.top-nav {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.page-container {
-  padding: 24px 20px 40px;
 }
 
 .panel {
@@ -241,13 +215,6 @@ a {
   line-height: 1;
 }
 
-@media (max-width: 720px) {
-  .page-container {
-    padding-left: 14px;
-    padding-right: 14px;
-  }
-}
-
 /* Shared reka-ui popper menu styles (DropdownMenu/Select content + items).
    reka-ui portals popper content outside the consumer's DOM subtree and
    wraps it in a positioner element, so a consumer's `scoped` attribute never
@@ -368,6 +335,8 @@ a {
   opacity: 0;
 }
 
+/* Applied via ToastHost's `reka-toast-${toast.variant}` binding when a toast is
+   raised with { variant: 'danger' }; keep it in sync with ToastVariant. */
 .reka-toast-danger {
   border-color: var(--danger);
   color: var(--danger);
