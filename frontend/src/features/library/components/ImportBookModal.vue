@@ -311,11 +311,12 @@ function onDrop(event: DragEvent): void {
 }
 
 // Shared post-import handling for both the upload and desktop host-path flows:
-// reload on any success, notify the page, and reset unless the batch was
-// cancelled — a cancelled batch keeps its result message and per-file statuses
-// on screen (the modal stays open, the page only reloads books), so resetting
-// here would discard the very "N imported, rest cancelled" summary the user
-// aborted to see, and the list of files that were left unimported.
+// reload on any success, notify the page, then reset only on a fully clean run.
+// A cancelled batch or one with any failure keeps its result message and
+// per-file statuses on screen — the modal stays open (the page only reloads
+// books), so resetting here would discard the very "N imported, rest cancelled"
+// or "which files failed" summary the user needs. Only when every file imported
+// is there nothing left to read, so the form clears for the next import.
 async function finishImport(result: ImportSubmitResult | null): Promise<void> {
   if (!result) {
     return;
@@ -327,7 +328,7 @@ async function finishImport(result: ImportSubmitResult | null): Promise<void> {
 
   emit('imported', result);
 
-  if (result.cancelled) {
+  if (result.cancelled || result.failedCount > 0) {
     return;
   }
 
