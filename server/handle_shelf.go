@@ -5,14 +5,19 @@ import (
 	"sort"
 )
 
+// shelfHandlers serves what a client needs to know about a shelf itself.
+type shelfHandlers struct {
+	*apiCore
+}
+
 type ShelfInfo struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
 // GET /api/shelves
-func (app *App) HandleGetShelves(w http.ResponseWriter, _ *http.Request) {
-	shelves := app.shelfManager.GetAllShelves()
+func (h *shelfHandlers) getShelves(w http.ResponseWriter, _ *http.Request) {
+	shelves := h.shelves.GetAllShelves()
 	shelfInfos := make([]ShelfInfo, 0, len(shelves))
 	for _, shelf := range shelves {
 		shelfInfos = append(shelfInfos, ShelfInfo{
@@ -24,7 +29,7 @@ func (app *App) HandleGetShelves(w http.ResponseWriter, _ *http.Request) {
 		return shelfInfos[i].ID < shelfInfos[j].ID
 	})
 
-	app.writeJSON(w, http.StatusOK, shelfInfos)
+	h.writeJSON(w, http.StatusOK, shelfInfos)
 }
 
 type ShelfStatusResponse struct {
@@ -33,8 +38,8 @@ type ShelfStatusResponse struct {
 }
 
 // GET /api/shelves/{shelf_id}/status
-func (app *App) HandleAPIGetShelfStatus(w http.ResponseWriter, r *http.Request) {
-	shelfData, ok := app.resolveShelf(w, r)
+func (h *shelfHandlers) getShelfStatus(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
@@ -44,5 +49,5 @@ func (app *App) HandleAPIGetShelfStatus(w http.ResponseWriter, r *http.Request) 
 		resp.Error = initErr.Error()
 	}
 
-	app.writeJSON(w, http.StatusOK, resp)
+	h.writeJSON(w, http.StatusOK, resp)
 }

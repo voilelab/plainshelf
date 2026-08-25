@@ -16,14 +16,15 @@ export interface DesktopShelfDetails {
 
 interface DesktopAppBinding {
   OpenBookFiles?: () => Promise<string[]>;
-  ImportBooksFromLocalPaths?: (
+  ImportBookFromLocalPath?: (
     shelfID: string,
-    localPaths: string[],
-    layerParts: string[]
-  ) => Promise<DesktopImportBookResult[]>;
+    localPath: string,
+    folderParts: string[]
+  ) => Promise<DesktopImportBookResult>;
   OpenShelfDirectory?: () => Promise<string>;
-  OpenLayerDirectory?: (shelfID: string, layerParts: string[]) => Promise<void>;
+  OpenFolderDirectory?: (shelfID: string, folderParts: string[]) => Promise<void>;
   OpenBookDirectory?: (shelfID: string, bookID: string) => Promise<void>;
+  OpenReader?: (shelfID: string, bookID: string, section: number) => Promise<void>;
   AddShelf?: (name: string, libRoot: string, scanInterval: string) => Promise<void>;
   RemoveShelf?: (shelfID: string) => Promise<void>;
   GetShelfDetails?: (shelfID: string) => Promise<DesktopShelfDetails>;
@@ -38,10 +39,16 @@ interface DesktopAppBinding {
   WriteReadingStats?: (doc: string) => Promise<void>;
 }
 
+// The standalone reader binds a ReaderApp struct (window.go.main.ReaderApp)
+// exposing only the reading-progress methods, so it can persist progress into
+// the same file the desktop app uses instead of WebView localStorage.
+type ReaderAppBinding = Pick<DesktopAppBinding, 'ReadReadingProgress' | 'WriteReadingProgress'>;
+
 interface DesktopWindow extends Window {
   go?: {
     main?: {
       DesktopApp?: DesktopAppBinding;
+      ReaderApp?: ReaderAppBinding;
     };
   };
 }
@@ -63,8 +70,8 @@ export async function openDesktopBookFiles(): Promise<string[] | null> {
   return desktopApp.OpenBookFiles();
 }
 
-function normalizeLayerParts(layerPath: string): string[] {
-  const trimmed = layerPath.trim();
+function normalizeFolderParts(folderPath: string): string[] {
+  const trimmed = folderPath.trim();
   if (!trimmed || trimmed === '/') {
     return [];
   }
@@ -102,19 +109,59 @@ export async function openDesktopBookFolder(bookID: string): Promise<void> {
   await desktopApp.OpenBookDirectory(getActiveShelfID(), bookID);
 }
 
-export async function openDesktopLayerFolder(layerPath: string): Promise<void> {
+// Stable token the desktop backend embeds in the OpenReader rejection on
+// non-macOS platforms, where no standalone reader exists. Kept in sync with
+// readerUnsupportedPlatformCode in desktop/app.go so the caller can tell "this
+// platform has no standalone reader" apart from a macOS launch failure and word
+// its in-app fallback notice accordingly.
+export const READER_UNSUPPORTED_PLATFORM_CODE = 'reader_unsupported_platform';
+
+// True when a rejected openDesktopReader call is the non-macOS "unsupported
+// platform" case rather than a macOS launch failure (reader not installed, or
+// the launch itself failed). Matches the backend error by its stable code token,
+// which survives the util.NewError function-name prefix, so the substring check
+// stays reliable.
+//
+// Wails rejects a bound-method promise with the Go error's message *string*, not
+// an Error, so the real desktop path never produces an Error here; the in-app
+// fallback wraps it in one. Normalize both shapes before matching.
+export function isReaderUnsupportedPlatform(error: unknown): boolean {
+  const message =
+    error instanceof Error ? error.message : typeof error === 'string' ? error : String(error);
+  return message.includes(READER_UNSUPPORTED_PLATFORM_CODE);
+}
+
+// Opens a book in the standalone reader's own window. Unlike the folder/finder
+// helpers this rejects when the binding is missing, so the caller can fall back
+// to the in-app reader rather than silently doing nothing.
+//
+// section is the reader section index to open at (a chapter "read" action); an
+// undefined or non-finite section becomes -1, which the reader treats as "open at
+// the restored progress" — the default read.
+export async function openDesktopReader(bookID: string, section?: number): Promise<void> {
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.OpenReader) {
+    throw new Error('OpenReader binding not available');
+  }
+
+  const sectionArg =
+    typeof section === 'number' && Number.isFinite(section) ? Math.trunc(section) : -1;
+  await desktopApp.OpenReader(getActiveShelfID(), bookID, sectionArg);
+}
+
+export async function openDesktopFolder(folderPath: string): Promise<void> {
   if (!isDesktopRuntime()) {
     return;
   }
 
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
-  if (!desktopApp?.OpenLayerDirectory) {
+  if (!desktopApp?.OpenFolderDirectory) {
     return;
   }
 
-  // normalizeLayerParts splits by '/', trims each segment, and drops empties
-  // before passing the layer path into the desktop binding.
-  await desktopApp.OpenLayerDirectory(getActiveShelfID(), normalizeLayerParts(layerPath));
+  // normalizeFolderParts splits by '/', trims each segment, and drops empties
+  // before passing the folder path into the desktop binding.
+  await desktopApp.OpenFolderDirectory(getActiveShelfID(), normalizeFolderParts(folderPath));
 }
 
 export async function addDesktopShelf(name: string, libRoot: string, scanInterval: string): Promise<void> {
@@ -153,23 +200,28 @@ export async function modifyDesktopShelf(shelfID: string, name: string, scanInte
   await desktopApp.ModifyShelf(shelfID, name, scanInterval);
 }
 
-export async function importDesktopBooksFromLocalPaths(
-  localPaths: string[],
-  layerPath: string
-): Promise<DesktopImportBookResult[] | null> {
+// Imports a single host-path book. The frontend calls it once per selected file
+// so the shared import executor can step through the batch, reporting the same
+// N/M progress and file-boundary abort as the browser upload path. Returns null
+// off the desktop or when the binding is missing, so the caller can fall back to
+// the browser file-input modal.
+export async function importDesktopBookFromLocalPath(
+  localPath: string,
+  folderPath: string
+): Promise<DesktopImportBookResult | null> {
   if (!isDesktopRuntime()) {
     return null;
   }
 
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
-  if (!desktopApp?.ImportBooksFromLocalPaths) {
+  if (!desktopApp?.ImportBookFromLocalPath) {
     return null;
   }
 
-  return desktopApp.ImportBooksFromLocalPaths(
+  return desktopApp.ImportBookFromLocalPath(
     getActiveShelfID(),
-    localPaths,
-    normalizeLayerParts(layerPath)
+    localPath,
+    normalizeFolderParts(folderPath)
   );
 }
 
@@ -214,27 +266,44 @@ export async function writeDesktopReadHistory(doc: string): Promise<void> {
   await desktopApp.WriteReadHistory(doc);
 }
 
+// The desktop client and the standalone reader both persist reading progress
+// through native bindings into the same reading_progress.json, but under
+// different struct names (window.go.main.DesktopApp vs .ReaderApp). Resolve
+// whichever one exposes the progress methods so the reader also stores progress
+// in the shared file rather than falling back to WebView localStorage.
+function getReadingProgressBinding(): ReaderAppBinding | undefined {
+  const main = (window as DesktopWindow).go?.main;
+  const desktopApp = main?.DesktopApp;
+  if (desktopApp?.ReadReadingProgress && desktopApp?.WriteReadingProgress) {
+    return desktopApp;
+  }
+  const readerApp = main?.ReaderApp;
+  if (readerApp?.ReadReadingProgress && readerApp?.WriteReadingProgress) {
+    return readerApp;
+  }
+  return undefined;
+}
+
 export function hasDesktopReadingProgressBinding(): boolean {
-  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
-  return Boolean(desktopApp?.ReadReadingProgress && desktopApp?.WriteReadingProgress);
+  return getReadingProgressBinding() !== undefined;
 }
 
 export async function readDesktopReadingProgress(): Promise<string> {
-  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
-  if (!desktopApp?.ReadReadingProgress) {
+  const binding = getReadingProgressBinding();
+  if (!binding?.ReadReadingProgress) {
     throw new Error('ReadReadingProgress binding not available');
   }
 
-  return (await desktopApp.ReadReadingProgress()) ?? '';
+  return (await binding.ReadReadingProgress()) ?? '';
 }
 
 export async function writeDesktopReadingProgress(doc: string): Promise<void> {
-  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
-  if (!desktopApp?.WriteReadingProgress) {
+  const binding = getReadingProgressBinding();
+  if (!binding?.WriteReadingProgress) {
     throw new Error('WriteReadingProgress binding not available');
   }
 
-  await desktopApp.WriteReadingProgress(doc);
+  await binding.WriteReadingProgress(doc);
 }
 
 export function hasDesktopReadingStatsBinding(): boolean {

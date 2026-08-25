@@ -11,46 +11,55 @@ import (
 	"github.com/voilelab/plainshelf/internal/logutil"
 )
 
+// logHandlers lists and serves the log files the configured loggers write.
+// It walks AppConf itself, so it holds the config rather than a copy of the
+// paths, which would go stale.
+type logHandlers struct {
+	*apiCore
+
+	conf *AppConf
+}
+
 type LogFileEntry = logutil.Entry
 
 // GET /api/logs
-func (app *App) HandleAPIGetLogs(w http.ResponseWriter, r *http.Request) {
-	logs, err := logutil.ListLogFilesForSources(app.logSources())
+func (h *logHandlers) getLogs(w http.ResponseWriter, r *http.Request) {
+	logs, err := logutil.ListLogFilesForSources(h.logSources())
 	if err != nil {
-		app.Error("failed to list log files", "error", err)
+		h.Error("failed to list log files", "error", err)
 		http.Error(w, "failed to list log files", http.StatusInternalServerError)
 		return
 	}
 
-	app.writeJSON(w, http.StatusOK, logs)
+	h.writeJSON(w, http.StatusOK, logs)
 }
 
 // GET /api/logs/{log_id}/content
-func (app *App) HandleAPIGetLogContent(w http.ResponseWriter, r *http.Request) {
+func (h *logHandlers) getLogContent(w http.ResponseWriter, r *http.Request) {
 	logID, err := readLogID(r)
 	if err != nil {
 		http.Error(w, "invalid log_id", http.StatusBadRequest)
 		return
 	}
 
-	entry, fp, err := logutil.OpenLogFileByID(app.logSources(), logID)
+	entry, fp, err := logutil.OpenLogFileByID(h.logSources(), logID)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			http.Error(w, "log file not found", http.StatusNotFound)
 			return
 		}
-		app.Error("failed to open log file", "error", err, "log_id", logID)
+		h.Error("failed to open log file", "error", err, "log_id", logID)
 		http.Error(w, "failed to open log file", http.StatusInternalServerError)
 		return
 	}
 	defer fp.Close()
 
-	app.streamTextFile(w, fp, "failed to write log file content", "log_id", logID, "filename", entry.Filename)
+	h.streamTextFile(w, fp, "failed to write log file content", "log_id", logID, "filename", entry.Filename)
 }
 
-func (app *App) logSources() []logutil.SourceConf {
+func (h *logHandlers) logSources() []logutil.SourceConf {
 	sources := make([]logutil.SourceConf, 0)
-	collectLogSources(reflect.ValueOf(app.conf), "", &sources)
+	collectLogSources(reflect.ValueOf(h.conf), "", &sources)
 	return sources
 }
 

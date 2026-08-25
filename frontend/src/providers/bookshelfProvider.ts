@@ -1,5 +1,5 @@
 import type { DesktopShelfDetails } from '@/api/desktop';
-import type { ListBooksOptions } from '@/api/books';
+import type { BookTransferMode, FingerprintStatus, ListBooksOptions, SimilarBookPair } from '@/api/books';
 import type {
   BookmarkPayload,
   Book,
@@ -9,7 +9,6 @@ import type {
   DownloadState,
   PaginatedBooks,
   ReadingProgress,
-  SplitConfig,
   TrashedBook
 } from '@/types/book';
 import type { CreateSourceOptions, SourceMeta } from '@/types/source';
@@ -37,6 +36,12 @@ export interface StorageEstimateResult {
   quota?: number;
 }
 
+/** What a manual shelf update found, when the backend can report it. */
+export interface ShelfRefreshResult {
+  bookCount: number;
+  folderCount: number;
+}
+
 /**
  * Everything a reading client needs. Every provider implements all of it.
  *
@@ -51,7 +56,6 @@ export interface BookshelfReader {
   getBookContent(bookId: string): Promise<BookContent>;
   downloadBookContent(bookId: string): Promise<Blob>;
   /** @deprecated Legacy sources only. New Markdown sources derive chapters from H2. */
-  getBookSplitConfig(bookId: string): Promise<SplitConfig>;
 
   getReadProgress(bookId: string): Promise<ReadingProgress>;
   saveReadProgress(bookId: string, progress: BookmarkPayload): Promise<void>;
@@ -62,12 +66,57 @@ export interface BookshelfReader {
   getBookCover(bookId: string): Promise<Blob>;
   getBookCoverUrl(bookId: string, cacheKey?: number): string;
 
+  /**
+   * Whether getBookCoverUrl() produces something an `<img src>` cannot load on
+   * its own, so the cover has to be fetched through getBookCover() and handed
+   * to the element as a `blob:` URL instead.
+   *
+   * True for a backend whose cover URL is not a plain fetchable address — the
+   * pCloud provider returns an internal `pcloud:` reference — and for the
+   * mobile shell, where a direct `<img src="http://...">` is issued by the
+   * WebView itself, bypassing CapacitorHttp and tripping mixed-content
+   * blocking against the `https://localhost` origin.
+   */
+  coversMustBeFetchedAsBlob?(): boolean;
+
+  /**
+   * Whether there is a PlainShelf server behind this backend to report its
+   * `read_only` mode.
+   *
+   * Absent means yes — a server, desktop or mock client all have one, and that
+   * is the ordinary case. pCloud answers false: it is storage, not a server, so
+   * asking would be a request nothing can answer. Writes stay refused either
+   * way, by the provider's own missing write surface.
+   */
+  supportsServerMode?(): boolean;
+
+  /**
+   * Whether asking for character counts alongside a book listing is affordable
+   * on this backend.
+   *
+   * Absent means yes — a PlainShelf server computes them from its own shelf
+   * cache. pCloud answers false: it has no server to aggregate, so it would
+   * have to fetch every book's source meta.json over the network to answer one
+   * listing. That is a property of the backend, not of the device asking, so a
+   * phone pointed at a self-hosted server can offer the filter.
+   */
+  supportsCharCountListing?(): boolean;
+
   /** A read-only backend may answer these with an empty result rather than refuse. */
   getDuplicateBookGroups(): Promise<string[][]>;
+  /**
+   * Similar-but-not-identical book pairs, scored by the server in one pass.
+   * `floor` is the lowest Jaccard returned; the similar-content page fetches
+   * once at the widest floor and narrows in memory. A read-only backend with no
+   * fingerprint cache may answer empty.
+   */
+  getSimilarBookPairs(floor?: number): Promise<SimilarBookPair[]>;
+  /** Coverage of the fingerprint cache, for the "build what's missing" bar. */
+  getFingerprintStatus(): Promise<FingerprintStatus>;
   listTrashedBooks(): Promise<TrashedBook[]>;
 
-  /** Layer paths in the shape `api/layers.ts` returns: '/' for the top level. */
-  listLayers(): Promise<string[]>;
+  /** Folder paths in the shape `api/folders.ts` returns: '/' for the top level. */
+  listFolders(): Promise<string[]>;
 
   listSources(bookId: string): Promise<SourceMeta[]>;
   getSource(bookId: string, sourceId: string): Promise<SourceMeta>;
@@ -77,23 +126,59 @@ export interface BookshelfReader {
    * Reads one illustration from a source's `assets/` directory.
    *
    * Optional because a backend can serve a book's text without being able to
-   * reach its images: the pCloud provider does not enumerate `assets/` yet, and
-   * an offline mobile cache only holds what it downloaded. The reader falls
-   * back to the image's alt text when this is absent or rejects, so a missing
-   * illustration never costs the reader the chapter.
+   * reach its images: an offline mobile cache only holds what it downloaded.
+   * The reader falls back to the image's alt text when this is absent or
+   * rejects, so a missing illustration never costs the reader the chapter.
    */
   getSourceAsset?(bookId: string, sourceId: string, name: string): Promise<Blob>;
 
   /**
-   * Manual shelf update, for backends whose listing is too expensive to refresh
-   * on its own. A server keeps its own shelf cache warm (`scan_interval`), so
-   * only the pCloud provider implements these; `supportsShelfRefresh` is what
-   * the UI asks, because a wrapper always has the methods even when the backend
-   * it wraps does not.
+   * Fetches the named illustrations as one zip, for a download that would
+   * otherwise pay a request per figure. Optional: only the mobile download path
+   * uses it, and only when the backend offers it, falling back to per-file
+   * fetches otherwise. Online reading stays per-image and lazy.
+   *
+   * Returns the raw archive, not decoded blobs, so the caller can unzip one
+   * entry at a time rather than hold every figure in memory. An absent name is
+   * packed as no entry.
+   */
+  getSourceAssetsBundle?(bookId: string, sourceId: string, names: string[]): Promise<Blob>;
+
+  /**
+   * Manual shelf update, for a listing that does not necessarily reflect the
+   * shelf right now.
+   *
+   * Two backends have that problem for different reasons. The pCloud provider
+   * scans once and then reads a stored copy, because walking the shelf costs a
+   * request per book. A server keeps its own cache warm, but only every
+   * `scan_interval`, and no filesystem change notification reaches it from an
+   * SMB or cloud mount — so a book added from outside PlainShelf waits out the
+   * interval unless the user asks for the walk.
+   *
+   * `supportsShelfRefresh` is what the UI asks, because a wrapper always has
+   * the methods even when the backend it wraps does not.
+   *
+   * `refreshShelf` returns what the update found when the backend can say;
+   * `getShelfFetchedAt` is for a backend that instead dates its stored listing.
+   * No backend does both, and neither is required.
    */
   supportsShelfRefresh?(): boolean;
-  refreshShelf?(): Promise<void>;
+  refreshShelf?(): Promise<ShelfRefreshResult | void>;
   getShelfFetchedAt?(): Promise<number | null>;
+
+  /**
+   * The shelf this client already knows it is pointed at, for use when listing
+   * shelves fails.
+   *
+   * Present only on a backend whose shelf choice is device-local and outlives a
+   * failed request — the mobile shell persists it during connection setup — so
+   * offline-cached books stay reachable when the network does not. A server or
+   * desktop client has no such fallback: its shelf list *is* the source of
+   * truth, and a failure there means there is nothing to fall back to.
+   *
+   * Returns '' when nothing has been chosen yet.
+   */
+  getPersistedShelfID?(): string;
 
   downloadBook?(bookId: string): Promise<void>;
   removeDownload?(bookId: string): Promise<void>;
@@ -103,15 +188,31 @@ export interface BookshelfReader {
 
   /** Opens the host file picker. Changes nothing; the import itself is a write. */
   openLocalBookFiles?(): Promise<string[] | null>;
-  openDesktopLayerFolder?(layerPath: string): Promise<void>;
+  openDesktopFolder?(folderPath: string): Promise<void>;
   openDesktopBookFolder?(bookId: string): Promise<void>;
+
+  /**
+   * Opens a book in the standalone reader's own window (desktop only). Present
+   * only on the desktop provider; its absence is what keeps web and mobile on
+   * the in-app reader. `section` is the reader section index to open at for a
+   * chapter "read" action; omit it to open at the book's restored progress.
+   */
+  openDesktopReader?(bookId: string, section?: number): Promise<void>;
 
   openDesktopShelfDirectory?(): Promise<string | null>;
   addDesktopShelf?(name: string, libRoot: string, scanInterval: string): Promise<void>;
   removeDesktopShelf?(shelfID: string): Promise<void>;
   getDesktopShelfDetails?(shelfID: string): Promise<DesktopShelfDetails>;
   modifyDesktopShelf?(shelfID: string, name: string, scanInterval: string): Promise<void>;
-  saveBookContentToFile?(bookId: string, suggestedName: string): Promise<void>;
+  /**
+   * Writes a book's content out as a file the user keeps, outside the app's
+   * private storage. The desktop client opens a native save dialog and resolves
+   * to `void` — the dialog is its own confirmation. The mobile client writes to
+   * a shared, user-visible folder with no dialog of its own, so it resolves to a
+   * human-readable location string the caller surfaces as a toast; a browser
+   * build defines the method not at all and falls back to a blob download.
+   */
+  saveBookContentToFile?(bookId: string, suggestedName: string): Promise<string | void>;
 }
 
 /**
@@ -135,10 +236,43 @@ export interface BookshelfWriter {
   readonly writable: true;
 
   updateBook(bookId: string, payload: BookUpdateRequest): Promise<Book>;
-  updateBookLayer(bookId: string, layer: string): Promise<void>;
+  updateBookFolder(bookId: string, folder: string): Promise<void>;
+  /** Duplicates a book into `folder`, returning the copy with its fresh id. */
+  copyBook(bookId: string, folder: string): Promise<Book>;
   deleteBook(bookId: string): Promise<void>;
+
+  /**
+   * Folders of another shelf, for the cross-shelf transfer destination picker.
+   * A read, but it lives on the writer because only a writable multi-shelf
+   * backend (the server and desktop) can reach a shelf other than the active
+   * one, which is exactly where the transfer flow that needs it runs.
+   */
+  listShelfFolders(shelfID: string): Promise<string[]>;
+  /**
+   * Copies or moves a book from the active shelf to `targetShelfID`, returning
+   * the id of the background task chain to poll. `targetFolder` is a '/'-joined
+   * path; '' lands the book at the target shelf root.
+   */
+  transferBook(
+    bookId: string,
+    targetShelfID: string,
+    targetFolder: string,
+    mode: BookTransferMode
+  ): Promise<string>;
+  /**
+   * Copies or moves a whole folder — every book and sub-folder beneath
+   * it — from the active shelf to `targetShelfID`, returning the id of the
+   * background task chain to poll. `sourceFolder` and `targetFolder` are '/'-joined
+   * paths; `targetFolder` is the folder's full destination path on the target
+   * shelf.
+   */
+  transferFolder(
+    sourceFolder: string,
+    targetShelfID: string,
+    targetFolder: string,
+    mode: BookTransferMode
+  ): Promise<string>;
   /** @deprecated Legacy sources only. */
-  updateBookSplitConfig(bookId: string, config: SplitConfig): Promise<SplitConfig>;
 
   importBook(payload: BookCreateRequest): Promise<Book>;
   uploadBookCover(bookId: string, file: File): Promise<void>;
@@ -152,15 +286,22 @@ export interface BookshelfWriter {
   startBookBatch(request: BookBatchRequest): Promise<string>;
   /** Recomputes content statistics for every book with an unknown char_count. */
   refreshContentStats(): Promise<string>;
+  /**
+   * Builds a similarity fingerprint for every source that lacks one, or — when
+   * `force` is set — rebuilds every source's fingerprint, ignoring the cache.
+   */
+  startFingerprintSources(force?: boolean): Promise<string>;
   /** A GET, but a chain id can only come from a write that schedules a chain. */
   getTaskChain(taskChainId: string): Promise<TaskChain>;
 
   /**
    * Optional because only the desktop shell can reach host paths, but a write
-   * either way: it creates books in the active shelf exactly as importBook
-   * does, from a picker result rather than an upload.
+   * either way: it creates one book in the active shelf exactly as importBook
+   * does, from a picker result rather than an upload. The caller invokes it once
+   * per selected file so the shared import executor drives the same N/M progress
+   * and file-boundary abort as the upload path.
    */
-  importBooksFromLocalPaths?(localPaths: string[], layerPath: string): Promise<DesktopImportBookResult[] | null>;
+  importBookFromLocalPath?(localPath: string, folderPath: string): Promise<DesktopImportBookResult | null>;
 
   createSource(bookId: string, options?: CreateSourceOptions): Promise<SourceMeta>;
   deleteSource(bookId: string, sourceId: string): Promise<void>;

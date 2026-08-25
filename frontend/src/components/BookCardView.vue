@@ -24,7 +24,7 @@
           <BookCoverImg :book-id="book.id" :cover-url="book.cover_url" :alt="book.title" class="book-card-cover" />
 
           <div class="book-card-body">
-            <p class="book-card-layer">{{ layerLabel(book) }}</p>
+            <p class="book-card-folder">{{ folderLabel(book) }}</p>
             <h3 class="book-card-title">{{ book.title }}</h3>
             <p class="book-card-summary">{{ summaryText(book) }}</p>
             <p class="book-card-meta">
@@ -94,9 +94,10 @@ import {
 import BookCoverImg from './BookCoverImg.vue';
 import BookSelectionCheckbox from './BookSelectionCheckbox.vue';
 import { useBookItemInteractions } from '@/composables/useBookItemInteractions';
+import { useBookSummaries } from '@/composables/useBookSummaries';
 import type { Book } from '@/types/book';
 import type { BookActivation } from '@/types/bookSelection';
-import { getLayerPath, layerPathLabel } from '@/utils/layers';
+import { getFolderPath, folderPathLabel } from '@/utils/folders';
 import { formatDateLabel } from '@/utils/date';
 import { useI18n } from '@/i18n';
 
@@ -136,19 +137,25 @@ const interactions = useBookItemInteractions({
   onLongPress: (id) => emit('long-press', id)
 });
 
-function layerLabel(book: Book): string {
-  const path = getLayerPath(book);
-  return path === '' ? '/' : layerPathLabel(path);
+function folderLabel(book: Book): string {
+  const path = getFolderPath(book);
+  return path === '' ? '/' : folderPathLabel(path);
 }
 
+const summaries = useBookSummaries(() => props.books);
+
 function summaryText(book: Book): string {
-  if (book.comment?.trim()) {
-    return book.comment;
+  // A description of nothing but markup - `<br>`, an empty tag - reads as a
+  // summary until it is stripped, which is why the fallback asks the plain
+  // text rather than `comment` itself.
+  const summary = summaries.value.get(book.id);
+  if (summary) {
+    return summary;
   }
   if (book.authors?.length) {
     return book.authors.join(', ');
   }
-  return 'No summary';
+  return t('bookCollection.noSummary');
 }
 
 function primaryDateLabel(book: Book): string {
@@ -207,7 +214,7 @@ function primaryDateLabel(book: Book): string {
   padding: 12px;
 }
 
-.book-card-layer {
+.book-card-folder {
   color: var(--accent);
   font-size: 11px;
   font-weight: 700;

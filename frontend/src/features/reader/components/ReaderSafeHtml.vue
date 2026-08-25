@@ -1,8 +1,7 @@
 <template>
   <!-- Keep one component root so parent reader scoped styles are inherited. -->
   <div class="reader-safe-html">
-    <!-- eslint-disable-next-line vue/no-v-html -->
-    <div ref="htmlRoot" class="reader-safe-html-content" v-html="sanitizedHtml" />
+    <SafeHtml ref="safeHtml" class="reader-safe-html-content" :html="html" profile="reader" />
     <Teleport v-for="slot in imageSlots" :key="slot.image.token" :to="slot.target">
       <ReaderAssetImage
         :book-id="bookId"
@@ -15,10 +14,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, shallowRef, watch } from 'vue';
+import { nextTick, onMounted, ref, shallowRef, watch } from 'vue';
+import SafeHtml from '@/components/SafeHtml.vue';
 import ReaderAssetImage from '@/features/reader/components/ReaderAssetImage.vue';
-import { sanitizeReaderHtml } from '@/features/reader/utils/sanitizeReaderHtml';
-import type { ReaderMarkdownAsset } from '@/features/reader/utils/renderMarkdownBlocks';
+import type { ReaderMarkdownAsset } from '@/utils/renderMarkdownBlocks';
 
 const props = defineProps<{
   html: string;
@@ -27,13 +26,14 @@ const props = defineProps<{
   sourceId: string;
 }>();
 
-const sanitizedHtml = computed(() => sanitizeReaderHtml(props.html));
-const htmlRoot = ref<HTMLDivElement | null>(null);
+// Local illustrations stay reader-owned: the shared sink renders inert slots,
+// and only this wrapper knows they stand for a book's asset directory.
+const safeHtml = ref<InstanceType<typeof SafeHtml> | null>(null);
 const imageSlots = shallowRef<Array<{ image: ReaderMarkdownAsset; target: HTMLSpanElement }>>([]);
 
 async function refreshImageSlots(): Promise<void> {
   await nextTick();
-  const root = htmlRoot.value;
+  const root = safeHtml.value?.root;
   if (!root) {
     imageSlots.value = [];
     return;
@@ -51,5 +51,5 @@ async function refreshImageSlots(): Promise<void> {
 }
 
 onMounted(() => void refreshImageSlots());
-watch([sanitizedHtml, () => props.images], () => void refreshImageSlots(), { flush: 'post' });
+watch([() => props.html, () => props.images], () => void refreshImageSlots(), { flush: 'post' });
 </script>

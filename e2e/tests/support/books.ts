@@ -1,9 +1,18 @@
 import { expect, type Page } from '@playwright/test';
+import { promises as fs } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 export const helloFixturePath = path.resolve(__dirname, '..', '..', 'fixtures', 'hello.txt');
 export const anotherFixturePath = path.resolve(__dirname, '..', '..', 'fixtures', 'another.txt');
 export const helloMarkdownFixturePath = path.resolve(__dirname, '..', '..', 'fixtures', 'hello.md');
+export const chaptersMarkdownFixturePath = path.resolve(
+  __dirname,
+  '..',
+  '..',
+  'fixtures',
+  'chapters.md'
+);
 export const safeHtmlMarkdownFixturePath = path.resolve(
   __dirname,
   '..',
@@ -52,6 +61,36 @@ export async function importHelloBook(page: Page): Promise<void> {
   await expect(
     page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true })
   ).toBeVisible();
+}
+
+/**
+ * Imports a fixture under a caller-chosen book title, then waits for that row
+ * to appear. The book title is derived from the uploaded filename, so this
+ * uploads a temp copy renamed to `${title}${ext}`. Use it in a shared-server
+ * spec where every test must pick a unique name instead of colliding on a fixed
+ * one like "hello", and where the shelf is not empty so a "1 books" count
+ * assertion would be meaningless. Returns the title for convenience.
+ */
+export async function importBookAs(
+  page: Page,
+  fixturePath: string,
+  title: string
+): Promise<string> {
+  const ext = path.extname(fixturePath);
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'plainshelf-e2e-import-'));
+  const tempPath = path.join(tempDir, `${title}${ext}`);
+  await fs.copyFile(fixturePath, tempPath);
+
+  try {
+    await importBookFromPath(page, tempPath);
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  }
+
+  await expect(
+    page.locator('.book-list-row').getByRole('heading', { name: title, exact: true })
+  ).toBeVisible();
+  return title;
 }
 
 export async function createCoverDataTransfer(page: Page) {

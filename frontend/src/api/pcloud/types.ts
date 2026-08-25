@@ -68,6 +68,17 @@ export interface PCloudGetFileLinkResult extends PCloudResponse {
   size?: number;
 }
 
+/**
+ * `getziplink` returns the same host/path/expiry shape as `getfilelink`, so the
+ * download URL is `https://{hosts[0]}{path}`. Unlike `savezip` it leaves no file
+ * behind in the account, which keeps this client's shelf read-only.
+ */
+export interface PCloudGetZipLinkResult extends PCloudResponse {
+  hosts?: string[];
+  path?: string;
+  expires?: string;
+}
+
 /** Identity returned by `userinfo` for the account behind a bearer token. */
 export interface PCloudUserInfoResult extends PCloudResponse {
   userid?: number;

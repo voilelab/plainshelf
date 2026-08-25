@@ -1,13 +1,12 @@
 import {
   collectBookPackages,
-  collectLayers,
+  collectFolders,
   findBooksFolder,
   findCoverFile,
   findCurrentSource,
   parseBookJson,
   toBook,
   toSourceMeta,
-  toSplitConfig
 } from '@/api/pcloud/bookpkg';
 import type { BookJson, BookPackageRef, BookSourceRef, PCloudFileRef } from '@/api/pcloud/bookpkg';
 import {
@@ -19,6 +18,7 @@ import {
   pickNewestBookCache
 } from '@/api/pcloud/bookCacheFile';
 import type { BookCacheFile } from '@/api/pcloud/bookCacheFile';
+import { zipSync } from 'fflate';
 import { PCloudClient } from '@/api/pcloud/client';
 import type { PCloudItem } from '@/api/pcloud/types';
 import { PCloudDataError, PCloudError, isRetryablePCloudError } from '@/api/pcloud/errors';
@@ -36,13 +36,20 @@ import type {
   BookContent,
   PaginatedBooks,
   ReadingProgress,
-  SplitConfig,
   TrashedBook
 } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
+import type { FingerprintStatus, SimilarBookPair } from '@/api/books';
 import type { BookshelfReader, ListBooksOptions } from './bookshelfProvider';
 
 const READ_ONLY_MESSAGE = 'A pCloud shelf is read-only.';
+
+/**
+ * A valid, empty zip. Returned when no requested asset is in the listing, so the
+ * caller's unzip finds nothing to store instead of the request failing — and
+ * `getziplink` is never asked to zip nothing. Built once; the bytes never change.
+ */
+const EMPTY_ZIP = zipSync({});
 
 /**
  * Parallel metadata reads. Each book.json costs two requests (getfilelink plus
@@ -77,8 +84,8 @@ interface ShelfSnapshot {
   fetchedAt: number;
   books: LoadedBook[];
   byID: Map<string, LoadedBook>;
-  /** Every layer directory, including ones holding no books. */
-  layers: string[];
+  /** Every folder directory, including ones holding no books. */
+  folders: string[];
 }
 
 /**
@@ -121,7 +128,7 @@ export interface PCloudBookshelfProviderOptions {
  * that was deleted — down the offline-cache path, quietly showing stale content
  * instead of reporting the problem.
  *
- * So the transient/permanent distinction the pCloud layer already draws is
+ * So the transient/permanent distinction the pCloud folder already draws is
  * carried across the boundary: retryable failures become "unreachable", and
  * everything else is surfaced. Translating here rather than teaching the
  * wrapper about pCloud keeps that wrapper backend-agnostic.
@@ -185,7 +192,7 @@ async function mapWithConcurrency<T, R>(
  * where there is no snapshot yet and an empty library would be worse than a
  * single scan.
  *
- * Intended to be wrapped by MobileBookshelfProvider, which layers the offline
+ * Intended to be wrapped by MobileBookshelfProvider, which folders the offline
  * cache and device-local progress on top.
  */
 export class PCloudBookshelfProvider implements BookshelfReader {
@@ -243,7 +250,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       return current;
     }
 
-    // Collapse concurrent callers onto one load: the library grid, the layer
+    // Collapse concurrent callers onto one load: the library grid, the folder
     // tree and the dashboard all list on mount, and three simultaneous
     // recursive listings would triple the cost of opening the app.
     if (this.pending) {
@@ -308,7 +315,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       fetchedAt: persisted.fetched_at,
       books,
       byID: new Map(books.map((entry) => [entry.meta.id, entry])),
-      layers: persisted.layers
+      folders: persisted.folders
     };
   }
 
@@ -317,7 +324,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       version: SHELF_SNAPSHOT_VERSION,
       shelf_root: this.shelfRoot,
       fetched_at: snapshot.fetchedAt,
-      layers: snapshot.layers,
+      folders: snapshot.folders,
       books: snapshot.books.map(({ pkg, meta }) => ({ pkg, meta }))
     } satisfies PersistedShelfSnapshot);
   }
@@ -355,10 +362,10 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     }
 
     const packages = collectBookPackages(booksFolder);
-    // Layers stay derived from the listing rather than read from the cache. The
+    // Folders stay derived from the listing rather than read from the cache. The
     // directories are in the response already, so they cost nothing here and
     // cannot be out of date, which the cache's copy can be.
-    const layers = collectLayers(booksFolder);
+    const folders = collectFolders(booksFolder);
     this.pruneJsonCache(packages);
 
     // Only worth two requests when something actually has to be read. A refresh
@@ -424,7 +431,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       fetchedAt: this.now(),
       books,
       byID: new Map(books.map((entry) => [entry.meta.id, entry])),
-      layers
+      folders
     };
 
     this.snapshot = snapshot;
@@ -518,7 +525,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
   }
 
   private buildBook(meta: BookJson, pkg: BookPackageRef): Book {
-    const book = toBook(meta, pkg.layers);
+    const book = toBook(meta, pkg.folders);
     return findCoverFile(pkg, meta) ? { ...book, cover_url: pcloudCoverUrl(meta.id) } : book;
   }
 
@@ -629,17 +636,6 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     });
   }
 
-  getBookSplitConfig(bookId: string): Promise<SplitConfig> {
-    return this.guarded(async () => {
-      const entry = await this.findBook(bookId);
-      const source = await this.currentSourceOf(entry);
-      if (!source.meta) {
-        return { type: 'none' };
-      }
-      return toSplitConfig(await this.readJson(source.meta));
-    });
-  }
-
   getBookCover(bookId: string): Promise<Blob> {
     return this.guarded(async () => {
       const { pkg, meta } = await this.findBook(bookId);
@@ -655,10 +651,33 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     return pcloudCoverUrl(bookId);
   }
 
-  // --- layers --------------------------------------------------------------
+  /**
+   * pcloudCoverUrl() is an internal reference this provider resolves itself,
+   * not an address the browser can fetch. Reaching this backend goes through
+   * the mobile shell today, which would ask for a blob anyway; declaring it
+   * here keeps the reason attached to the backend that has it.
+   */
+  coversMustBeFetchedAsBlob(): boolean {
+    return true;
+  }
 
-  listLayers(): Promise<string[]> {
-    return this.guarded(async () => (await this.ensureSnapshot()).layers);
+  /** Cloud storage, not a PlainShelf server: there is no mode to fetch. */
+  supportsServerMode(): boolean {
+    return false;
+  }
+
+  /**
+   * Answering would cost one meta.json download per book, on a metered
+   * transport, for a filter the user may not use.
+   */
+  supportsCharCountListing(): boolean {
+    return false;
+  }
+
+  // --- folders --------------------------------------------------------------
+
+  listFolders(): Promise<string[]> {
+    return this.guarded(async () => (await this.ensureSnapshot()).folders);
   }
 
   // --- sources -------------------------------------------------------------
@@ -703,6 +722,37 @@ export class PCloudBookshelfProvider implements BookshelfReader {
         throw new PCloudError(`Illustration ${name} was not found for source ${sourceId} of book ${bookId}.`);
       }
       return await this.client.downloadBlob(ref.fileid);
+    });
+  }
+
+  /**
+   * Fetches a source's illustrations as one pCloud-built zip, so a chunk costs a
+   * single request instead of one `getfilelink`-plus-download per figure — the
+   * server's assets.zip win, on the pCloud path.
+   *
+   * fileids come from the listing the shelf was read through
+   * (`BookSourceRef.assets`), so no extra listing is made; a name the listing
+   * lacks is dropped (reader shows alt text, as `getSourceAsset` does), and all
+   * absent yields an empty archive. The caller bounds and unzips each chunk, so
+   * no batching is needed here.
+   */
+  getSourceAssetsBundle(bookId: string, sourceId: string, names: string[]): Promise<Blob> {
+    return this.guarded(async () => {
+      const source = await this.findSource(bookId, sourceId);
+
+      const fileids: number[] = [];
+      for (const name of names) {
+        const ref = source.assets[name];
+        if (ref) {
+          fileids.push(ref.fileid);
+        }
+      }
+
+      if (fileids.length === 0) {
+        return new Blob([EMPTY_ZIP], { type: 'application/zip' });
+      }
+
+      return await this.client.downloadZip(fileids);
     });
   }
 
@@ -755,6 +805,17 @@ export class PCloudBookshelfProvider implements BookshelfReader {
    */
   async getDuplicateBookGroups(): Promise<string[][]> {
     return [];
+  }
+
+  // Similarity fingerprints live in the shelf's server-side cache under `app/`,
+  // which a pCloud shelf has no server to compute; both reads answer empty
+  // rather than reach for data that is not there.
+  async getSimilarBookPairs(): Promise<SimilarBookPair[]> {
+    return [];
+  }
+
+  async getFingerprintStatus(): Promise<FingerprintStatus> {
+    return { total: 0, fingerprinted: 0, missing: 0, algo: { normalize: '', shingle: '', hash: '', k: 0 } };
   }
 
   async listTrashedBooks(): Promise<TrashedBook[]> {

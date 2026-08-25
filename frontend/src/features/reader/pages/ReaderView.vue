@@ -6,18 +6,16 @@
     :title="title"
     :book-format="bookFormat"
     :source-id="currentSourceId"
-    :is-legacy-source="isLegacySource"
     :sections="sections"
     :current-section-index="currentSectionIndex"
     :current-section="currentSection"
     :progress-percent="progress?.percent ?? 0"
-    :split-warning="splitWarning"
     :loading="loading"
     :error="error"
     :save-error="saveError"
     :is-at-min-font-size="isAtMinFontSize"
     :is-at-max-font-size="isAtMaxFontSize"
-    @retry="fetchReaderData"
+    @retry="loadReader"
     @scroll="onScroll"
     @reader-ready="handleReaderReady"
     @previous-section="goPrevSection"
@@ -26,7 +24,6 @@
     @increase-font-size="increaseFontSize"
     @open-font-modal="openFontModal"
     @open-chapter-modal="openChapterModal"
-    @open-split-modal="openSplitModal"
   />
 
   <MobileReaderView
@@ -36,18 +33,16 @@
     :title="title"
     :book-format="bookFormat"
     :source-id="currentSourceId"
-    :is-legacy-source="isLegacySource"
     :sections="sections"
     :current-section-index="currentSectionIndex"
     :current-section="currentSection"
     :progress-percent="progress?.percent ?? 0"
-    :split-warning="splitWarning"
     :loading="loading"
     :error="error"
     :save-error="saveError"
     :is-at-min-font-size="isAtMinFontSize"
     :is-at-max-font-size="isAtMaxFontSize"
-    @retry="fetchReaderData"
+    @retry="loadReader"
     @scroll="onScroll"
     @reader-ready="handleReaderReady"
     @previous-section="goPrevSection"
@@ -56,15 +51,6 @@
     @increase-font-size="increaseFontSize"
     @open-font-modal="openFontModal"
     @open-chapter-modal="openChapterModal"
-    @open-split-modal="openSplitModal"
-  />
-
-  <SplitConfigModal
-    v-if="isLegacySource"
-    :open="isSplitModalOpen"
-    :split-config="splitConfig"
-    @close="closeSplitModal"
-    @saved="handleSplitConfigSaved"
   />
 
   <ChapterModal
@@ -90,7 +76,6 @@ import ChapterModal from '@/features/reader/components/ChapterModal.vue';
 import DesktopReaderView from '@/features/reader/components/DesktopReaderView.vue';
 import FontSelectionModal from '@/features/reader/components/FontSelectionModal.vue';
 import MobileReaderView from '@/features/reader/components/MobileReaderView.vue';
-import SplitConfigModal from '@/features/reader/components/SplitConfigModal.vue';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useReader } from '@/features/reader/composables/useReader';
 import { useMobileReaderPresentation } from '@/features/reader/composables/useReaderPresentation';
@@ -101,7 +86,7 @@ import {
   useReaderSettings
 } from '@/features/reader/composables/useReaderSettings';
 import { useReadingHeartbeat } from '@/features/reader/composables/useReadingHeartbeat';
-import type { SplitConfig } from '@/types/book';
+import { parseSectionQuery } from '@/features/reader/utils/sectionDeepLink';
 import { useI18n } from '@/i18n';
 
 const route = useRoute();
@@ -111,11 +96,9 @@ const {
   title,
   bookFormat,
   currentSourceId,
-  isLegacySource,
   sections,
   currentSectionIndex,
   currentSection,
-  splitWarning,
   progress,
   loading,
   error,
@@ -127,14 +110,11 @@ const {
   goNextSection,
   goToSection,
   syncCurrentScroll,
-  splitConfig,
-  applySplitConfig,
   flushReadingProgress,
   startProgressAutosave,
   stopProgressAutosave
 } = useReader(() => id.value);
 
-const isSplitModalOpen = ref(false);
 const isChapterModalOpen = ref(false);
 const isFontModalOpen = ref(false);
 const defaultFontSize = computed(() =>
@@ -166,19 +146,6 @@ function handleReaderReady(element: HTMLDivElement | null): void {
   }
 }
 
-function openSplitModal(): void {
-  if (!isLegacySource.value) return;
-  isSplitModalOpen.value = true;
-}
-
-watch(isLegacySource, (legacy) => {
-  if (!legacy) isSplitModalOpen.value = false;
-});
-
-function closeSplitModal(): void {
-  isSplitModalOpen.value = false;
-}
-
 function openFontModal(): void {
   isFontModalOpen.value = true;
 }
@@ -196,19 +163,23 @@ function closeChapterModal(): void {
 }
 
 function onDocumentKeydown(event: KeyboardEvent): void {
-  if (isSplitModalOpen.value || isChapterModalOpen.value || isFontModalOpen.value) {
+  if (isChapterModalOpen.value || isFontModalOpen.value) {
     return;
   }
   if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
     return;
   }
 
+  // Only text-entry elements should swallow the arrow keys, so their caret can
+  // move. A focused button must not: the desktop chapter/side-action controls
+  // and the just-closed modals all leave focus on a <button>, and excluding it
+  // here silently killed keyboard chapter navigation until the reader clicked
+  // back into the body.
   const activeElement = document.activeElement;
   if (
     activeElement instanceof HTMLInputElement ||
     activeElement instanceof HTMLTextAreaElement ||
     activeElement instanceof HTMLSelectElement ||
-    activeElement instanceof HTMLButtonElement ||
     activeElement?.getAttribute?.('contenteditable') === 'true'
   ) {
     return;
@@ -221,13 +192,23 @@ function onDocumentKeydown(event: KeyboardEvent): void {
   }
 }
 
-async function handleSplitConfigSaved(config: SplitConfig): Promise<void> {
-  try {
-    await applySplitConfig(config);
-    closeSplitModal();
-  } catch (err) {
-    console.error('Failed to update split config', err);
+/**
+ * Loads the book, then honours a `?section=` link by opening that chapter
+ * instead of the restored progress. Jumping writes progress, which is the
+ * point: the reader asked for this chapter. The book ID is re-checked because
+ * a navigation during the load leaves the newer book owning the reader.
+ */
+async function loadReader(): Promise<void> {
+  const requestedBookID = id.value;
+  const requestedSection = parseSectionQuery(route.query.section);
+  await fetchReaderData();
+
+  if (requestedSection === null || id.value !== requestedBookID) {
+    return;
   }
+
+  // goToSection clamps, so an out-of-range link opens the nearest chapter.
+  await goToSection(requestedSection);
 }
 
 async function selectSectionFromChapterModal(index: number): Promise<void> {
@@ -246,11 +227,11 @@ onBeforeRouteLeave(async () => {
 });
 
 watch(id, () => {
-  void fetchReaderData();
+  void loadReader();
 }, { immediate: true });
 
-watch([isSplitModalOpen, isChapterModalOpen, isFontModalOpen], ([splitOpen, chapterOpen, fontOpen]) => {
-  document.body.style.overflow = splitOpen || chapterOpen || fontOpen ? 'hidden' : '';
+watch([isChapterModalOpen, isFontModalOpen], ([chapterOpen, fontOpen]) => {
+  document.body.style.overflow = chapterOpen || fontOpen ? 'hidden' : '';
 });
 
 onBeforeUnmount(() => {

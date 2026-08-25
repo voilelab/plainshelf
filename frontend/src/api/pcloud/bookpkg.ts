@@ -1,6 +1,5 @@
-import type { Book, BookFormat, SplitConfig } from '@/types/book';
+import type { Book, BookFormat } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
-import { normalizeSplitConfig } from '@/utils/splitConfig';
 import { PCloudDataError } from './errors';
 import type { PCloudItem } from './types';
 
@@ -15,6 +14,34 @@ export const SOURCES_FOLDER = 'sources';
 export const SOURCE_META_FILE = 'meta.json';
 export const SOURCE_FILE = 'source.txt';
 export const SOURCE_ASSETS_FOLDER = 'assets';
+
+/**
+ * Directory names filesystems, NAS firmware and sync clients create inside a
+ * shelf, mirroring `ignoredDirNames` in shelf/util.go. Keys are lower case;
+ * `isIgnoredDirName` folds the name before looking it up, because a share
+ * exported over SMB may spell "$RECYCLE.BIN" either way.
+ */
+const IGNORED_DIR_NAMES = new Set([
+  '@eadir', // Synology index and thumbnail sidecar
+  '#recycle', // Synology network recycle bin
+  '$recycle.bin', // Windows recycle bin, visible over SMB
+  'lost+found' // ext filesystem recovery directory
+]);
+
+/**
+ * Reports whether a directory under `books/` must be skipped, matching
+ * `isIgnoredDir` in shelf/util.go — a shelf reached over pCloud is the same
+ * shelf, and one that was synced from a NAS carries the same debris.
+ *
+ * Skipping matters more here than the names suggest: on Synology every
+ * directory carries its own "@eaDir", which would otherwise double the folder
+ * tree, and a book in "#recycle" is one the user deleted. The leading-dot rule
+ * covers the open-ended set of hidden helper directories (.git, .stfolder,
+ * .dropbox.cache, .Spotlight-V100) in one condition.
+ */
+export function isIgnoredDirName(name: string): boolean {
+  return name.startsWith('.') || IGNORED_DIR_NAMES.has(name.toLowerCase());
+}
 
 /**
  * The book.json schema version this reader understands, matching
@@ -61,7 +88,7 @@ export interface BookPackageRef {
   folderName: string;
   folderid: number;
   /** Directory names between `books/` and this package, outermost first. */
-  layers: string[];
+  folders: string[];
   /** Absent when the package has no book.json and cannot be read. */
   meta?: PCloudFileRef;
   /** Files directly inside the package, keyed by name (cover, pointer file, …). */
@@ -118,25 +145,26 @@ export function findBooksFolder(shelfRoot: PCloudItem): PCloudItem | undefined {
 /**
  * Walks a listed `books/` tree and returns every book package it contains.
  *
- * Directories are layers until one ends in `.bookpkg`; that one is a book and is
+ * Directories are folders until one ends in `.bookpkg`; that one is a book and is
  * not descended into further, matching how the Go shelf scans the tree
- * (shelf/shelf_book.go).
+ * (shelf/shelf_book.go). System directories are skipped before that test, so a
+ * package inside one is not a book either.
  */
 export function collectBookPackages(booksFolder: PCloudItem): BookPackageRef[] {
   const packages: BookPackageRef[] = [];
 
-  const walk = (folder: PCloudItem, layers: string[]): void => {
+  const walk = (folder: PCloudItem, folders: string[]): void => {
     for (const item of folder.contents ?? []) {
-      if (!item.isfolder || item.folderid === undefined) {
+      if (!item.isfolder || item.folderid === undefined || isIgnoredDirName(item.name)) {
         continue;
       }
 
       if (item.name.endsWith(BOOK_EXTENSION)) {
-        packages.push(readBookPackage(item, layers));
+        packages.push(readBookPackage(item, folders));
         continue;
       }
 
-      walk(item, [...layers, item.name]);
+      walk(item, [...folders, item.name]);
     }
   };
 
@@ -145,20 +173,26 @@ export function collectBookPackages(booksFolder: PCloudItem): BookPackageRef[] {
 }
 
 /**
- * Lists every layer under a listed `books/` tree, in the shape `getLayers()`
+ * Lists every folder under a listed `books/` tree, in the shape `getFolders()`
  * returns (`'/'` for the top level, `Fiction/Classics` for a nested one).
  *
  * Derived from the directories themselves, not from the books found in them, so
- * a layer holding no books is still listed — the Go side walks real directories
- * too (`iterateLayers` in shelf/shelf_layer.go) and `books/` itself counts as
- * the "no layer" group.
+ * a folder holding no books is still listed — the Go side walks real directories
+ * too (`iterateFolders` in shelf/shelf_folder.go) and `books/` itself counts as
+ * the "no folder" group. System directories are not folders, for the same reason
+ * the Go scan refuses to make one (`ErrIgnoredFolderName`).
  */
-export function collectLayers(booksFolder: PCloudItem): string[] {
+export function collectFolders(booksFolder: PCloudItem): string[] {
   const paths = new Set<string>(['/']);
 
   const walk = (folder: PCloudItem, segments: string[]): void => {
     for (const item of folder.contents ?? []) {
-      if (!item.isfolder || item.folderid === undefined || item.name.endsWith(BOOK_EXTENSION)) {
+      if (
+        !item.isfolder ||
+        item.folderid === undefined ||
+        item.name.endsWith(BOOK_EXTENSION) ||
+        isIgnoredDirName(item.name)
+      ) {
         continue;
       }
       const next = [...segments, item.name];
@@ -171,7 +205,7 @@ export function collectLayers(booksFolder: PCloudItem): string[] {
   return Array.from(paths).sort((a, b) => a.localeCompare(b));
 }
 
-function readBookPackage(pkg: PCloudItem, layers: string[]): BookPackageRef {
+function readBookPackage(pkg: PCloudItem, folders: string[]): BookPackageRef {
   const files: Record<string, PCloudFileRef> = {};
   let sources: BookSourceRef[] = [];
 
@@ -192,7 +226,7 @@ function readBookPackage(pkg: PCloudItem, layers: string[]): BookPackageRef {
   return {
     folderName: pkg.name,
     folderid: pkg.folderid as number,
-    layers,
+    folders,
     meta: files[BOOK_META_FILE],
     files,
     sources
@@ -316,7 +350,7 @@ export function isSchemaNewerThanSupported(meta: BookJson): boolean {
  * blob — which is what the mobile runtime requires anyway
  * (frontend/src/composables/useCoverSrc.ts).
  */
-export function toBook(meta: BookJson, layers: string[]): Book {
+export function toBook(meta: BookJson, folders: string[]): Book {
   return {
     id: meta.id,
     title: meta.title,
@@ -327,7 +361,7 @@ export function toBook(meta: BookJson, layers: string[]): Book {
     // book.json spells this "comments"; the UI type uses the singular.
     comment: meta.comments,
     cover: meta.cover?.trim() ?? '',
-    layers,
+    folders,
     created_at: meta.created_at,
     updated_at: meta.updated_at,
     published_at: meta.published_at,
@@ -340,8 +374,6 @@ export function toBook(meta: BookJson, layers: string[]): Book {
 /** Maps a source's meta.json onto the UI's SourceMeta type. */
 export function toSourceMeta(raw: unknown, fallbackID: string): SourceMeta {
   const data = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  const splitConfig = normalizeSplitConfig(data.split_config);
-
   return {
     schema_version: typeof data.schema_version === 'number' ? Math.trunc(data.schema_version) : undefined,
     id: typeof data.id === 'string' && data.id.trim() ? data.id : fallbackID,
@@ -350,13 +382,6 @@ export function toSourceMeta(raw: unknown, fallbackID: string): SourceMeta {
     md5_hash: typeof data.md5_hash === 'string' ? data.md5_hash : '',
     format: data.format === 'txt' || data.format === 'md' ? data.format : undefined,
     line_count: typeof data.line_count === 'number' ? data.line_count : undefined,
-    char_count: typeof data.char_count === 'number' ? data.char_count : undefined,
-    split_config: splitConfig
+    char_count: typeof data.char_count === 'number' ? data.char_count : undefined
   };
-}
-
-/** Extracts the reader's split configuration from a source's meta.json. */
-export function toSplitConfig(raw: unknown): SplitConfig {
-  const data = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  return normalizeSplitConfig(data.split_config);
 }

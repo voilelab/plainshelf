@@ -2,6 +2,13 @@ import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { LocationQueryValue, NavigationFailure } from 'vue-router';
 import { toPage, toSingleQueryValue } from '@/composables/useBookPagination';
+import type { CharCountRange } from '@/utils/charCountFilter';
+import {
+  BOOK_FILTERS,
+  charCountFilter,
+  foldersFilter,
+  searchFilter
+} from '@/utils/bookFilters/registry';
 import {
   ORDER_OPTIONS,
   SORT_OPTIONS,
@@ -10,11 +17,17 @@ import {
 } from './useBooksSort';
 
 export type BooksQueryInput = {
-  layer?: string;
+  folder?: string;
   page?: number;
   search?: string;
   sort?: BookSortKey;
   order?: SortOrder;
+  /**
+   * Character-count bounds. Omitting the key carries the current bounds
+   * through; passing a range replaces both, so `{ charCount: {} }` clears the
+   * filter rather than leaving it untouched.
+   */
+  charCount?: CharCountRange;
 };
 
 type RouterNavigationResult = Promise<void | NavigationFailure | undefined>;
@@ -27,7 +40,7 @@ function isSortOrder(value: string): value is SortOrder {
   return (ORDER_OPTIONS as readonly string[]).includes(value);
 }
 
-export function toLayerPath(value: LocationQueryValue | LocationQueryValue[] | undefined): string | undefined {
+export function toFolderPath(value: LocationQueryValue | LocationQueryValue[] | undefined): string | undefined {
   const raw = toSingleQueryValue(value);
   if (!raw) {
     return undefined;
@@ -89,43 +102,61 @@ export function useBooksRouteQuery() {
   const route = useRoute();
   const router = useRouter();
 
-  const selectedLayer = computed(() => toLayerPath(route.query.layers) ?? toLayerPath(route.query.layer));
+  // The reactive reads share the registry's parsers, so a filter's URL shape is
+  // defined once and both the query builder and these computeds see it.
+  const selectedFolder = computed(() => foldersFilter.parse(route.query));
   const page = computed(() => toPage(route.query.page));
   const sortBy = computed<BookSortKey>(() => toBookSort(route.query.sort));
   const sortOrder = computed<SortOrder>(() => toSortOrder(route.query.order));
-  const searchQuery = computed(() => (toSingleQueryValue(route.query.search) ?? '').trim());
+  const searchQuery = computed(() => searchFilter.parse(route.query));
+  const charCountRange = computed<CharCountRange>(() => charCountFilter.parse(route.query));
   const isImportModalOpen = computed(() => toSingleQueryValue(route.query.import) === '1');
 
-  function buildBooksQuery(input: BooksQueryInput = {}) {
+  function buildBooksQuery(
+    input: BooksQueryInput = {},
+    panelOverrides?: Record<string, unknown>
+  ) {
     const nextQuery = {
       ...route.query
     } as Record<string, LocationQueryValue | LocationQueryValue[]>;
 
-    delete nextQuery.layer;
-    delete nextQuery.layers;
-    delete nextQuery.page;
-    delete nextQuery.search;
-    delete nextQuery.sort;
-    delete nextQuery.order;
-
-    const layerValue = input.layer !== undefined ? input.layer : selectedLayer.value;
-    const normalizedLayer = layerValue?.trim();
-    if (normalizedLayer) {
-      nextQuery.layers = normalizedLayer;
+    // Clear every filter-owned key up front so a condition that is now inactive
+    // leaves nothing behind, then let each filter write itself back below.
+    for (const filter of BOOK_FILTERS) {
+      for (const key of filter.queryKeys) {
+        delete nextQuery[key];
+      }
     }
 
+    // page/sort/order are pagination and ordering, not filters: always present.
     const pageValue = input.page !== undefined ? input.page : page.value;
     const normalizedPage = Number.isInteger(pageValue) && pageValue > 0 ? pageValue : 1;
     nextQuery.page = String(normalizedPage);
-
-    const searchValue = input.search !== undefined ? input.search : searchQuery.value;
-    const normalizedSearch = searchValue.trim();
-    if (normalizedSearch) {
-      nextQuery.search = normalizedSearch;
-    }
-
     nextQuery.sort = input.sort ?? sortBy.value;
     nextQuery.order = input.order ?? sortOrder.value;
+
+    // Each filter re-serializes either its explicit input override or what the
+    // current query already carries. The typed override keys mirror
+    // BooksQueryInput; `panelOverrides` is the generic path any panel condition
+    // uses, where a key being *present* — even with a cleared value — overrides,
+    // so removing a chip is `{ author: undefined }` rather than a sentinel.
+    const overrides: Record<string, unknown> = {
+      [searchFilter.key]: input.search,
+      [foldersFilter.key]: input.folder,
+      [charCountFilter.key]: input.charCount
+    };
+    for (const filter of BOOK_FILTERS) {
+      let value: unknown;
+      if (panelOverrides && filter.key in panelOverrides) {
+        value = panelOverrides[filter.key];
+      } else {
+        const override = overrides[filter.key];
+        value = override !== undefined ? override : filter.parse(route.query);
+      }
+      if (filter.isActive(value)) {
+        Object.assign(nextQuery, filter.serialize(value));
+      }
+    }
 
     return nextQuery;
   }
@@ -144,8 +175,22 @@ export function useBooksRouteQuery() {
     });
   }
 
+  /**
+   * Sets or clears any panel condition by key (the generic path for the filter
+   * panel, its chips, and "clear all"). Each override value is a filter's own
+   * value type — an inactive value (e.g. `undefined`, `{}`) clears it. Always
+   * resets to page 1, since the visible set changes, and leaves search, folder,
+   * sort, and order untouched.
+   */
+  function applyPanelFilters(overrides: Record<string, unknown>): RouterNavigationResult {
+    return router.replace({
+      path: '/books',
+      query: buildBooksQuery({ page: 1 }, overrides)
+    });
+  }
+
   function isBooksQueryNormalized(input: BooksQueryInput = {}): boolean {
-    if (toSingleQueryValue(route.query.layer) !== undefined) {
+    if (toSingleQueryValue(route.query.folder) !== undefined) {
       return false;
     }
 
@@ -183,17 +228,19 @@ export function useBooksRouteQuery() {
   }
 
   return {
-    selectedLayer,
+    selectedFolder,
     page,
     sortBy,
     sortOrder,
     searchQuery,
+    charCountRange,
     isImportModalOpen,
-    toLayerPath,
+    toFolderPath,
     toBookSort,
     toSortOrder,
     pushBooksQuery,
     replaceBooksQuery,
+    applyPanelFilters,
     isBooksQueryNormalized,
     openImportModalQuery,
     closeImportModalQuery

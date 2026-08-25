@@ -6,6 +6,8 @@ This document summarizes known limitations of the current shelf cache behavior, 
 
 For the operational model, initial metadata scan, and tuning guidance, see [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md).
 
+**If a change you made outside PlainShelf has not appeared, press Update book list on the library toolbar.** It walks the shelf immediately instead of waiting for the next interval, and it is the same action in every setup below — local disk, SMB or NAS, a sync folder, a cloud mount, and the Android client's pCloud shelf. Every "may appear with delay" item on this page is bounded by it. See [Rescanning on demand](concepts/shelf-cache-and-io.md#rescanning-on-demand).
+
 ---
 
 ### 1) Desktop (single-machine usage)
@@ -13,6 +15,7 @@ For the operational model, initial metadata scan, and tuning guidance, see [Shel
 1. **New books may appear with delay (up to `scan_interval`)**
    - Within `scan_interval`, refresh may only reopen books already in cache, instead of doing a full library scan.
    - Newly added books from external file operations may not show up immediately.
+   - **Update book list** walks the shelf right away rather than waiting out the interval.
 
 2. **Staleness detection is based only on `book.json` file stat (`mtime` + `size`)**
    - Content changes can be missed if they happen to preserve tracked stat values.
@@ -31,6 +34,7 @@ For the operational model, initial metadata scan, and tuning guidance, see [Shel
 
 2. **Still has external file change visibility delay**
    - If the library folder is modified outside shelf (sync tool/manual operation), discovery is still bounded by refresh/full-scan behavior.
+   - **Update book list** discovers it immediately, from any client connected to that server.
 
 3. **Staleness precision limitation still applies**
    - `book.json` stat-based validation can still miss certain edits.
@@ -47,6 +51,7 @@ For the operational model, initial metadata scan, and tuning guidance, see [Shel
 
 3. **New/deleted books may not be reflected immediately**
    - During scan throttling windows, refresh focuses on existing cache entries.
+   - **Update book list** forces the walk once the sync has settled.
 
 ### 4) pCloud shelf on the Android client
 
@@ -91,7 +96,7 @@ the file left on disk is always one complete write. What is not guaranteed is
 that it contains both edits.
 
 Affected operations: metadata updates, cover uploads/deletes, source content
-updates, split-config changes, and current-source selection.
+updates, and current-source selection.
 
 ### Practical impact
 

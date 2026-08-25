@@ -8,7 +8,7 @@ function makeBook(overrides: Partial<Book> = {}): Book {
     title: 'Untitled',
     authors: [],
     tags: [],
-    layers: [],
+    folders: [],
     ...overrides
   };
 }

@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue';
+import { t } from '@/i18n';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
-import type { Book, SplitConfig } from '@/types/book';
+import type { Book } from '@/types/book';
 import type { CreateSourceOptions, SourceMeta } from '@/types/source';
 
 export interface DerivedSourceInput {
@@ -30,7 +31,12 @@ export function useSourceEditorSession(
 
   const loadError = ref('');
   const editorError = ref('');
-  const saveSuccess = ref('');
+  // A key, not the rendered sentence: the success line is entirely ours, so it
+  // can follow a locale switch. The error refs below cannot — errorMessage()
+  // passes the server's own message through when there is one — so they keep
+  // holding text.
+  const saveSuccessKey = ref('');
+  const saveSuccess = computed(() => (saveSuccessKey.value ? t(saveSuccessKey.value) : ''));
   const deleteError = ref('');
   const conversionError = ref('');
 
@@ -41,7 +47,6 @@ export function useSourceEditorSession(
   const activeSourceMeta = computed(() =>
     sources.value.find((source) => source.id === activeSourceId.value)
   );
-  const isLegacySource = computed(() => !activeSourceMeta.value?.format);
   const activeFormat = computed<'txt' | 'md'>(() =>
     activeSourceMeta.value?.format === 'md' ? 'md' : 'txt'
   );
@@ -82,7 +87,7 @@ export function useSourceEditorSession(
     settingCurrent.value = false;
     loadError.value = '';
     editorError.value = '';
-    saveSuccess.value = '';
+    saveSuccessKey.value = '';
     deleteError.value = '';
     conversionError.value = '';
     return generation;
@@ -114,7 +119,7 @@ export function useSourceEditorSession(
       }
     } catch (error) {
       if (isCurrentSession(generation, requestedBookId)) {
-        loadError.value = errorMessage(error, 'Failed to load sources');
+        loadError.value = errorMessage(error, t('sources.page.errors.loadSources'));
       }
     } finally {
       if (isCurrentSession(generation, requestedBookId)) {
@@ -148,6 +153,25 @@ export function useSourceEditorSession(
     }
   }
 
+  // reloadBookMeta refreshes only book.json-level state, which listSources does
+  // not carry. Deleting the current source moves current_source server-side, so
+  // the cached copy would otherwise keep naming a source that is gone. A failure
+  // here leaves the stale copy in place rather than failing the caller's action.
+  async function reloadBookMeta(
+    expectedSession = sessionGeneration,
+    requestedBookId = bookId()
+  ): Promise<void> {
+    if (!isCurrentSession(expectedSession, requestedBookId)) return;
+    try {
+      const bookData = await getBookshelfProvider().getBook(requestedBookId);
+      if (isCurrentSession(expectedSession, requestedBookId)) {
+        book.value = bookData;
+      }
+    } catch {
+      // Keep the previous metadata; the caller's own result still stands.
+    }
+  }
+
   async function loadSource(sourceId: string): Promise<void> {
     await loadSourceForSession(sourceId, sessionGeneration, bookId());
   }
@@ -161,7 +185,7 @@ export function useSourceEditorSession(
     const request = ++contentGeneration;
     contentLoading.value = true;
     editorError.value = '';
-    saveSuccess.value = '';
+    saveSuccessKey.value = '';
 
     try {
       const text = await getBookshelfProvider().getSourceContent(requestedBookId, sourceId);
@@ -178,7 +202,7 @@ export function useSourceEditorSession(
         isCurrentSession(expectedSession, requestedBookId) &&
         request === contentGeneration
       ) {
-        editorError.value = errorMessage(error, 'Failed to load source content');
+        editorError.value = errorMessage(error, t('sources.page.errors.loadContent'));
       }
     } finally {
       if (
@@ -198,7 +222,7 @@ export function useSourceEditorSession(
     const snapshot = content.value;
     saving.value = true;
     editorError.value = '';
-    saveSuccess.value = '';
+    saveSuccessKey.value = '';
 
     try {
       await bookshelfWriter().updateSourceContent(requestedBookId, sourceId, snapshot);
@@ -206,11 +230,11 @@ export function useSourceEditorSession(
       initialContent.value = snapshot;
       await reloadSourceMeta(generation, requestedBookId);
       if (isActiveSource(generation, requestedBookId, sourceId)) {
-        saveSuccess.value = 'Source saved.';
+        saveSuccessKey.value = 'sources.page.messages.sourceSaved';
       }
     } catch (error) {
       if (isActiveSource(generation, requestedBookId, sourceId)) {
-        editorError.value = errorMessage(error, 'Failed to save source');
+        editorError.value = errorMessage(error, t('sources.page.errors.save'));
       }
     } finally {
       if (isCurrentSession(generation, requestedBookId)) saving.value = false;
@@ -224,18 +248,18 @@ export function useSourceEditorSession(
     const requestedBookId = bookId();
     settingCurrent.value = true;
     editorError.value = '';
-    saveSuccess.value = '';
+    saveSuccessKey.value = '';
 
     try {
       await bookshelfWriter().setCurrentSource(requestedBookId, sourceId);
       if (!isCurrentSession(generation, requestedBookId)) return;
       if (book.value) book.value.current_source = sourceId;
       if (activeSourceId.value === sourceId) {
-        saveSuccess.value = 'Current source updated.';
+        saveSuccessKey.value = 'sources.page.messages.currentUpdated';
       }
     } catch (error) {
       if (isActiveSource(generation, requestedBookId, sourceId)) {
-        editorError.value = errorMessage(error, 'Failed to set current source');
+        editorError.value = errorMessage(error, t('sources.page.errors.setCurrent'));
       }
     } finally {
       if (isCurrentSession(generation, requestedBookId)) settingCurrent.value = false;
@@ -244,7 +268,7 @@ export function useSourceEditorSession(
 
   async function createSource(): Promise<boolean> {
     if (!writesEnabled() || creating.value) return false;
-    return createSourceWithOptions(undefined, 'Failed to create source');
+    return createSourceWithOptions(undefined, t('sources.page.errors.create'));
   }
 
   async function createDerivedSource(input: DerivedSourceInput): Promise<boolean> {
@@ -257,7 +281,7 @@ export function useSourceEditorSession(
         comment: input.comment,
         setCurrent: input.setCurrent
       },
-      'Failed to create derived source',
+      t('sources.page.errors.createDerived'),
       input
     );
   }
@@ -272,7 +296,7 @@ export function useSourceEditorSession(
     const startingContentGeneration = contentGeneration;
     creating.value = true;
     editorError.value = '';
-    saveSuccess.value = '';
+    saveSuccessKey.value = '';
 
     try {
       const writer = bookshelfWriter();
@@ -290,7 +314,7 @@ export function useSourceEditorSession(
         await loadSourceForSession(next.id, generation, requestedBookId);
       }
       if (!isCurrentSession(generation, requestedBookId)) return false;
-      if (derived) saveSuccess.value = 'Derived source created.';
+      if (derived) saveSuccessKey.value = 'sources.page.messages.derivedCreated';
       return true;
     } catch (error) {
       if (isCurrentSession(generation, requestedBookId)) {
@@ -315,7 +339,12 @@ export function useSourceEditorSession(
     try {
       await bookshelfWriter().deleteSource(requestedBookId, sourceId);
       if (!isCurrentSession(generation, requestedBookId)) return false;
-      await reloadSourceMeta(generation, requestedBookId);
+      // The server hands current_source over to another source when the deleted
+      // one was current, so refresh both halves before choosing what to show.
+      await Promise.all([
+        reloadSourceMeta(generation, requestedBookId),
+        reloadBookMeta(generation, requestedBookId)
+      ]);
       if (!isCurrentSession(generation, requestedBookId)) return false;
 
       if (
@@ -335,7 +364,7 @@ export function useSourceEditorSession(
       return isCurrentSession(generation, requestedBookId);
     } catch (error) {
       if (isCurrentSession(generation, requestedBookId)) {
-        deleteError.value = errorMessage(error, 'Failed to delete source');
+        deleteError.value = errorMessage(error, t('sources.page.errors.delete'));
       }
       return false;
     } finally {
@@ -369,7 +398,6 @@ export function useSourceEditorSession(
     deleteError,
     conversionError,
     activeSourceMeta,
-    isLegacySource,
     activeFormat,
     isDirty,
     disableSave,

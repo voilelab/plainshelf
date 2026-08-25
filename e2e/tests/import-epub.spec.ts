@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { startServer } from './support/server';
+import { openReaderTab } from './support/reader';
 import {
   epubFixtureChapters,
   epubFixtureDescription,
@@ -49,7 +50,7 @@ async function runImport(dialog: Locator): Promise<void> {
   await expect(dialog).not.toBeVisible();
 }
 
-async function openImportedBookInReader(page: Page): Promise<void> {
+async function openImportedBookInReader(page: Page): Promise<Page> {
   const bookTitle = page
     .locator('.book-list-row')
     .getByRole('heading', { name: epubFixtureTitle, exact: true });
@@ -57,11 +58,15 @@ async function openImportedBookInReader(page: Page): Promise<void> {
   await bookTitle.click();
 
   await expect(page).toHaveURL(/\/books\/[^/]+$/);
-  await page.getByRole('button', { name: 'Start reading' }).click();
-  await expect(page).toHaveURL(/\/reader\/[^/]+$/);
+  // The web build opens the reader in a new tab.
+  return openReaderTab(page, () => page.getByRole('button', { name: 'Start reading' }).click());
 }
 
 test('should import an EPUB and name its sections after the table of contents', async ({ page }) => {
+  // per-test server: the imported book's title comes from the fixture's fixed
+  // dc:title ("Hello EPUB"), which cannot be made unique per test without
+  // editing the shared EPUB fixture. The "1 books" count and the by-title reader
+  // lookup below both require a pristine shelf, so this test keeps its own server.
   const server = await startServer();
 
   try {
@@ -78,9 +83,9 @@ test('should import an EPUB and name its sections after the table of contents', 
 
     await expect(page.getByText('1 books')).toBeVisible();
     // The book's own dc:title wins over the filename.
-    await openImportedBookInReader(page);
+    const readerPage = await openImportedBookInReader(page);
 
-    const reader = page.getByRole('article');
+    const reader = readerPage.getByRole('article');
 
     // A header section plus one section per chapter.
     await expect(reader.getByText('1 / 3')).toBeVisible();
@@ -106,6 +111,9 @@ test('should import an EPUB and name its sections after the table of contents', 
 });
 
 test('should honour the plain text conversion option', async ({ page }) => {
+  // per-test server: same fixed dc:title ("Hello EPUB") as above — a shared
+  // shelf would collide with the other EPUB test's identically titled book, so
+  // this test keeps its own pristine server.
   const server = await startServer();
 
   try {
@@ -121,9 +129,9 @@ test('should honour the plain text conversion option', async ({ page }) => {
     await runImport(dialog);
 
     await expect(page.getByText('1 books')).toBeVisible();
-    await openImportedBookInReader(page);
+    const readerPage = await openImportedBookInReader(page);
 
-    const reader = page.getByRole('article');
+    const reader = readerPage.getByRole('article');
 
     // include_description was turned off, so the description stays in the book
     // metadata and out of the text.

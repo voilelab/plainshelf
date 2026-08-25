@@ -1,21 +1,21 @@
 <template>
   <section class="duplicate-page">
     <header class="duplicate-page-header">
-      <h2 class="duplicate-page-title">Duplicate Content</h2>
-      <p class="duplicate-page-subtitle">Maintenance view for books with identical content.</p>
+      <h2 class="duplicate-page-title">{{ t('maintenance.duplicateContent') }}</h2>
+      <p class="duplicate-page-subtitle">{{ t('maintenance.duplicates.description') }}</p>
     </header>
 
-    <div v-if="loading" class="loading">Scanning duplicate content groups...</div>
+    <div v-if="loading" class="loading">{{ t('maintenance.duplicates.scanning') }}</div>
 
     <div v-else-if="error" class="error duplicate-error" role="alert">
       <p>{{ error }}</p>
-      <button type="button" class="button" @click="loadDuplicates">Retry</button>
+      <button type="button" class="button" @click="loadDuplicates">{{ t('common.retry') }}</button>
     </div>
 
     <div v-else-if="groups.length === 0" class="duplicate-empty">
       <div class="duplicate-empty-icon" aria-hidden="true">✨</div>
-      <p class="duplicate-empty-title">No duplicate content found.</p>
-      <p class="duplicate-empty-subtitle">Your library looks clean.</p>
+      <p class="duplicate-empty-title">{{ t('maintenance.duplicates.empty') }}</p>
+      <p class="duplicate-empty-subtitle">{{ t('maintenance.duplicates.emptyHint') }}</p>
     </div>
 
     <div v-else class="duplicate-groups">
@@ -35,6 +35,13 @@ import { onMounted, ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
 import DuplicateGroupCard from '@/features/maintenance/components/DuplicateGroupCard.vue';
 import type { Book } from '@/types/book';
+import { useI18n } from '@/i18n';
+import { useDocumentTitle } from '@/composables/useDocumentTitle';
+
+const { t } = useI18n();
+
+// The other maintenance pages all set one; this was the odd one out.
+useDocumentTitle(() => [t('maintenance.duplicateContent')]);
 
 type DuplicateGroupView = {
   groupIndex: number;
@@ -66,7 +73,7 @@ async function loadDuplicates(): Promise<void> {
 
     groups.value = resolvedGroups;
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load duplicate content';
+    error.value = err instanceof Error ? err.message : t('maintenance.duplicates.loadFailed');
     groups.value = [];
   } finally {
     loading.value = false;

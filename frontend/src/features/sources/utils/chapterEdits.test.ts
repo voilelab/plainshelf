@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scanMarkdownH2Headings } from '@/features/reader/utils/markdownChapters';
+import { scanMarkdownH2Headings } from '@/utils/markdownChapters';
 import { insertChapterEdit, mergeChapterEdit, renameChapterEdit } from './chapterEdits';
 
 describe('source chapter edits', () => {

@@ -145,19 +145,19 @@ func TestWriteEPUBImportErrorClassifiesFailures(t *testing.T) {
 		{
 			// An import creates a book, so it fails for the same reasons any
 			// other write does and must get the same status for them.
-			name:       "a refused layer is a client error",
-			err:        util.Errorf("%w", shelf.ErrInvalidLayer),
+			name:       "a refused folder is a client error",
+			err:        util.Errorf("%w", shelf.ErrInvalidFolder),
 			wantStatus: http.StatusBadRequest,
-			wantBody:   "invalid layer name",
+			wantBody:   "invalid folder name",
 		},
 	}
 
-	env := newAPITestEnv(t)
+	app := newTestApp(t)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			env.app.writeEPUBImportError(rec, tt.err)
+			app.handlers.imports.writeEPUBImportError(rec, tt.err)
 
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d; body = %q", rec.Code, tt.wantStatus, rec.Body.String())

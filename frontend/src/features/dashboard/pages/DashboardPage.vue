@@ -2,37 +2,58 @@
   <section class="dashboard-page">
     <header class="dashboard-header">
       <h2>{{ t('dashboard.title') }}</h2>
-      <button type="button" class="button" :disabled="loading" @click="fetchDashboardData">
-        {{ t('dashboard.refresh') }}
-      </button>
     </header>
 
     <p v-if="error" class="error" role="alert">{{ error }}</p>
-    <p v-else-if="loading" class="loading">{{ t('dashboard.loading') }}</p>
+    <template v-else-if="loading">
+      <!-- The skeleton is decorative (aria-hidden), so this status is the only
+           thing assistive tech hears while loading. It is visible during a cold
+           start — a 503 retry keeps loading true, and that wait reads as "still
+           starting" rather than a blank load — and visually hidden on an
+           ordinary fetch, where the skeleton carries the visual cue. -->
+      <p class="loading-status" :class="{ 'sr-only': !shelfInitializing }" role="status">
+        {{ shelfInitializing ? t('dashboard.shelfInitializing') : t('dashboard.loading') }}
+      </p>
+      <DashboardSkeleton />
+    </template>
+
+    <!-- Only reached once loading is false with no error: a genuine empty shelf,
+         never a shelf that is still initializing (that path keeps loading true). -->
+    <EmptyShelf v-else-if="books.length === 0" />
 
     <div v-else class="dashboard-grid">
-      <ReadingHeatmap class="dashboard-cell dashboard-cell-heatmap" :data="heatmapData" />
+      <RecentReading class="dashboard-cell dashboard-cell-recent" :items="recentReading" />
       <StatsCards
         class="dashboard-cell dashboard-cell-stats"
         :total-books="totalBooks"
-        :added-this-month="addedThisMonth"
+        :in-progress="inProgress"
         :star-avg="starAvg"
         :star-distribution="starDistribution"
         :total-chars="totalChars"
         :current-streak="currentStreak"
       />
+      <RecentlyAdded class="dashboard-cell dashboard-cell-recently-added" :books="recentlyAdded" />
       <TagCloud class="dashboard-cell dashboard-cell-tags" :tag-counts="tagCounts" />
-      <RandomBook class="dashboard-cell dashboard-cell-random" :books="books" />
+      <RandomBook
+        class="dashboard-cell dashboard-cell-random"
+        :books="books"
+        :started-ids="startedBookIds"
+      />
+      <ReadingHeatmap class="dashboard-cell dashboard-cell-heatmap" :data="heatmapData" />
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onBeforeUnmount, onMounted } from 'vue';
 import StatsCards from '@/features/dashboard/components/StatsCards.vue';
 import TagCloud from '@/features/dashboard/components/TagCloud.vue';
 import RandomBook from '@/features/dashboard/components/RandomBook.vue';
+import RecentReading from '@/features/dashboard/components/RecentReading.vue';
+import RecentlyAdded from '@/features/dashboard/components/RecentlyAdded.vue';
 import ReadingHeatmap from '@/features/dashboard/components/ReadingHeatmap.vue';
+import DashboardSkeleton from '@/features/dashboard/components/DashboardSkeleton.vue';
+import EmptyShelf from '@/features/dashboard/components/EmptyShelf.vue';
 import { useDashboardData } from '@/features/dashboard/composables/useDashboardData';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useI18n } from '@/i18n';
@@ -43,21 +64,42 @@ const {
   books,
   loading,
   error,
+  recentReading,
+  shelfInitializing,
   totalBooks,
-  addedThisMonth,
+  inProgress,
   starAvg,
   starDistribution,
   totalChars,
   tagCounts,
   heatmapData,
   currentStreak,
+  recentlyAdded,
+  startedBookIds,
   fetchDashboardData
 } = useDashboardData();
 
 useDocumentTitle(() => [t('dashboard.title'), 'PlainShelf']);
 
+// Refetch when the window regains focus so a book imported or read in another
+// window shows up on return. The Refresh button is gone; entering the route
+// (a fresh mount) and this focus handler are what keep the page current. Skip
+// while a load or a 503 retry is already in flight so focus does not stack
+// requests onto the cold-start retry loop.
+function refetchOnFocus(): void {
+  if (loading.value) {
+    return;
+  }
+  void fetchDashboardData();
+}
+
 onMounted(() => {
   void fetchDashboardData();
+  window.addEventListener('focus', refetchOnFocus);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('focus', refetchOnFocus);
 });
 </script>
 
@@ -72,7 +114,24 @@ onMounted(() => {
   align-items: center;
   display: flex;
   gap: 12px;
-  justify-content: space-between;
+}
+
+.loading-status {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .dashboard-grid {
@@ -81,7 +140,9 @@ onMounted(() => {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.dashboard-cell-recent,
 .dashboard-cell-stats,
+.dashboard-cell-recently-added,
 .dashboard-cell-heatmap {
   grid-column: 1 / -1;
 }
@@ -96,7 +157,9 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
+  .dashboard-cell-recent,
   .dashboard-cell-stats,
+  .dashboard-cell-recently-added,
   .dashboard-cell-tags,
   .dashboard-cell-random,
   .dashboard-cell-heatmap {

@@ -1,0 +1,41 @@
+{
+  "folders": [
+    "/",
+    "Fiction",
+    "Fiction/Classics",
+    "Reference",
+    "Reference/manuals"
+  ],
+  "books": [
+    {
+      "path": "books/Reference/manuals/handbook.bookpkg",
+      "folders": [
+        "Reference",
+        "manuals"
+      ],
+      "id": "b6h2sv9tqz4mn7cx",
+      "title": "Field Handbook",
+      "format": "md",
+      "authors": [
+        "M. Curator"
+      ],
+      "tags": [],
+      "star": 0,
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "current_source_field": "20260410-080000",
+      "current_source": "20260410-080000",
+      "sources": [
+        {
+          "id": "20260410-080000",
+          "has_content": true,
+          "char_count": 29,
+          "assets": []
+        }
+      ]
+    }
+  ],
+  "book_caches": []
+}

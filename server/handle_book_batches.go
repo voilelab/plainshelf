@@ -9,14 +9,19 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
+// batchHandlers serves the endpoints that start a sweep over many books.
+type batchHandlers struct {
+	*taskSubmitter
+}
+
 const (
 	maxBookBatchSize = 200
 )
 
 type bookBatchRequest struct {
-	Operation   string       `json:"operation"`
-	BookIDs     []string     `json:"book_ids"`
-	TargetLayer shelf.Layers `json:"target_layer"`
+	Operation    string           `json:"operation"`
+	BookIDs      []string         `json:"book_ids"`
+	TargetFolder shelf.FolderPath `json:"target_folder"`
 }
 
 func normalizeBookBatchIDs(ids []string) ([]string, error) {
@@ -43,9 +48,12 @@ func normalizeBookBatchIDs(ids []string) ([]string, error) {
 }
 
 // POST /api/shelves/{shelf_id}/book-batches
-func (app *App) HandleAPIBookBatch(w http.ResponseWriter, r *http.Request) {
-	shelfData, ok := app.resolveShelf(w, r)
+func (h *batchHandlers) bookBatch(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
+		return
+	}
+	if h.rejectReadOnlyShelf(w, shelfData) {
 		return
 	}
 
@@ -65,20 +73,20 @@ func (app *App) HandleAPIBookBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if request.Operation == task.BookBatchOperationMove {
-		if request.TargetLayer == nil {
-			http.Error(w, "target_layer is required for move", http.StatusBadRequest)
+		if request.TargetFolder == nil {
+			http.Error(w, "target_folder is required for move", http.StatusBadRequest)
 			return
 		}
-		if err := shelf.ValidateLayers(request.TargetLayer); err != nil {
-			http.Error(w, "invalid target_layer", http.StatusBadRequest)
+		if err := shelf.ValidateFolderPath(request.TargetFolder); err != nil {
+			http.Error(w, "invalid target_folder", http.StatusBadRequest)
 			return
 		}
-	} else if request.TargetLayer != nil {
-		http.Error(w, "target_layer is only valid for move", http.StatusBadRequest)
+	} else if request.TargetFolder != nil {
+		http.Error(w, "target_folder is only valid for move", http.StatusBadRequest)
 		return
 	}
 
-	app.submitTaskChain(w,
-		task.NewBookBatchChain(shelfData.ID, shelfData.Shelf, &app.Logger, request.Operation, ids, request.TargetLayer),
+	h.submitTaskChain(w,
+		task.NewBookBatchChain(shelfData.ID, shelfData.Shelf, h.Logger, request.Operation, ids, request.TargetFolder),
 		"failed to schedule book batch task")
 }

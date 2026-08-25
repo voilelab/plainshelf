@@ -22,11 +22,13 @@ adds a web interface, desktop integration, and an experimental Android client.
 
 ### Understand the storage model
 
+- [Architecture](concepts/architecture.md) shows how the clients, the server
+  and the shelf fit together, and what reading state is kept off the shelf.
 - [Data Model](concepts/data-model.md) explains what is stored under a shelf.
 - [Data Format Versioning](concepts/data-format-versioning.md) explains the
   on-disk schema version, the compatibility policy, and how to back up and
   restore a shelf.
-- [Layers](concepts/layers.md) explains the nested folder hierarchy.
+- [Folders](concepts/folders.md) explains the nested folder hierarchy.
 - [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md) explains scanning,
   cache freshness, and network-filesystem tuning.
 

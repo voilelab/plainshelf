@@ -1,24 +1,31 @@
 package shelf
 
 import (
-	"crypto/md5"
+	"errors"
 	"fmt"
-	"math/rand"
-	"regexp"
+	"io"
+	"path"
 	"strings"
 	"time"
-	"unicode/utf8"
 
+	"github.com/google/uuid"
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 	"go.rtnl.ai/x/slugify"
 )
 
 const MaxTempDirCreationAttempts = 10
 
+// MaxBookIDCreationAttempts bounds the retry loop that draws a fresh random
+// book ID when the drawn one is already taken. A v4 UUID's 122 random bits make
+// a single retry already unreachable in practice; the bound only keeps a
+// filesystem that answers every probe with "taken" from spinning forever.
+const MaxBookIDCreationAttempts = 10
+
 func createTempDir(root fsutil.FS, prefix string) (string, error) {
 	for range MaxTempDirCreationAttempts {
-		tmpDirName := fmt.Sprintf("%s-%s-%s", prefix, time.Now().Format("20060102-150405"), randomString(6))
+		tmpDirName := fmt.Sprintf("%s-%s-%s", prefix, time.Now().Format("20060102-150405"), shelfutil.RandomString(6))
 		err := root.Mkdir(tmpDirName)
 		if err == nil {
 			return tmpDirName, nil
@@ -28,114 +35,145 @@ func createTempDir(root fsutil.FS, prefix string) (string, error) {
 	return "", util.NewError("failed to create temp directory after multiple attempts")
 }
 
-func randomString(n int) string {
-	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	result := make([]byte, n)
-	for i := range result {
-		result[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(result)
-}
-
-// fileETag returns a weak ETag derived from a file's mtime and size, or an
-// empty string when the file cannot be stat'd. Every stored file the read path
-// serves with caching headers derives its validator here, so covers and source
-// assets cannot drift apart on what counts as "changed".
-func fileETag(root fsutil.FS, filePath string) string {
-	info, err := root.Stat(filePath)
+// copyTreeAcross recursively copies the tree rooted at src in srcRoot onto dst in
+// dstRoot, reproducing every file and subdirectory. dst is created if it does not
+// exist. The two roots may be the same filesystem (a same-shelf copy) or two
+// different ones: a book copied whole stays self-contained, so the relative asset
+// paths a source records need no rewriting, which is what lets a book move between
+// two shelves - including across a filesystem boundary that os.Rename cannot
+// cross.
+//
+// Whether a child is a directory is decided by Stat, not by the directory
+// entry's own type, so that a symlinked directory is descended into and copied
+// as a real one - the same way the shelf scanner (scancache.ChildIsDir) treats
+// it. A
+// listing reports a symlink as a non-directory, but opening it as a file fails,
+// so keying the copy on the entry type would break a package that holds one.
+func copyTreeAcross(srcRoot fsutil.ReadFS, src string, dstRoot fsutil.FS, dst string) error {
+	info, err := srcRoot.Stat(src)
 	if err != nil {
-		return ""
-	}
-	return fmt.Sprintf(`W/"%d-%d"`, info.ModTime().UnixNano(), info.Size())
-}
-
-// ErrInvalidLayer is returned when a layer name is not a usable path segment.
-// Every operation that accepts caller-supplied layers checks them before
-// touching the filesystem, so callers can treat it as a request error.
-var ErrInvalidLayer = util.NewError("invalid layer name")
-
-var bcp47Regex = regexp.MustCompile(`^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$`)
-
-func validateBCP47(lang string) bool {
-	lang = strings.TrimSpace(lang)
-	if lang == "" {
-		return true
+		return util.Errorf("%w", err)
 	}
 
-	return bcp47Regex.MatchString(lang)
-}
-
-// validateBookFormat reports whether a BookMeta.Format value is one this build
-// writes. Empty stays valid: books created through the API rather than an
-// import carry no format at all, and the reader already treats that as plain
-// text.
-func validateBookFormat(format string) bool {
-	switch format {
-	case "", BookFormatText, BookFormatMarkdown:
-		return true
-	default:
-		return false
+	if !info.IsDir() {
+		return copyFileAcross(srcRoot, src, dstRoot, dst)
 	}
-}
 
-func validateLayers(layers Layers) error {
-	for _, layer := range layers {
-		if err := validatePathSegment(layer); err != nil {
-			return util.Errorf("%w %q: %w", ErrInvalidLayer, layer, err)
+	if err := dstRoot.MkdirAll(dst); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	entries, err := srcRoot.ReadDir(src)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	for _, entry := range entries {
+		if err := copyTreeAcross(srcRoot, path.Join(src, entry.Name()), dstRoot, path.Join(dst, entry.Name())); err != nil {
+			return util.Errorf("%w", err)
 		}
-		if strings.Contains(layer, bookExtension) {
-			return util.Errorf("%w %q: must not contain %q", ErrInvalidLayer, layer, bookExtension)
+	}
+
+	return nil
+}
+
+// copyFileAcross copies a single regular file from src in srcRoot to dst in
+// dstRoot, creating or truncating dst.
+func copyFileAcross(srcRoot fsutil.ReadFS, src string, dstRoot fsutil.FS, dst string) error {
+	in, err := srcRoot.Open(src)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+	defer in.Close()
+
+	out, err := dstRoot.OpenWriter(dst)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return util.Errorf("%w", err)
+	}
+
+	if err := out.Close(); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
+}
+
+// ErrInvalidFolder is returned when a folder name is not a usable path segment.
+// Every operation that accepts caller-supplied folders checks them before
+// touching the filesystem, so callers can treat it as a request error.
+var ErrInvalidFolder = util.NewError("invalid folder name")
+
+// ErrIgnoredFolderName is the ErrInvalidFolder case where the name is well formed
+// but names a directory the scanners skip. It wraps ErrInvalidFolder, so callers
+// that only classify folder errors keep matching it, while the API can tell this
+// reason apart and explain it: a user filing an existing "@eaDir" under
+// PlainShelf is not making a typo, they are hitting a deliberate rule.
+var ErrIgnoredFolderName = util.Errorf("%w: hidden or system directory name", ErrInvalidFolder)
+
+func validateFolderPath(folders FolderPath) error {
+	for _, folder := range folders {
+		if err := shelfutil.ValidatePathSegment(folder); err != nil {
+			if errors.Is(err, shelfutil.ErrIgnoredPathSegment) {
+				return util.Errorf("%w %q: %w", ErrIgnoredFolderName, folder, err)
+			}
+			return util.Errorf("%w %q: %w", ErrInvalidFolder, folder, err)
+		}
+		if strings.Contains(folder, bookExtension) {
+			return util.Errorf("%w %q: must not contain %q", ErrInvalidFolder, folder, bookExtension)
 		}
 	}
 	return nil
 }
 
-// ValidateLayers reports whether every layer path segment is safe to use.
+// ValidateFolderPath reports whether every folder path segment is safe to use.
 // API handlers use this before scheduling background work so malformed batch
 // requests fail synchronously rather than becoming failed worker tasks.
-func ValidateLayers(layers Layers) error {
-	return validateLayers(layers)
+func ValidateFolderPath(folders FolderPath) error {
+	return validateFolderPath(folders)
 }
 
-func validateSourceID(sourceID string) error {
-	if err := validatePathSegment(sourceID); err != nil {
-		return util.Errorf("invalid source id %q: %w", sourceID, err)
+// newBookID draws a random book ID as a version 4 UUID.
+//
+// The ID is opaque: generated once at creation, persisted in book.json, and
+// never recomputed, so renaming the title, moving the book, or restoring it
+// from trash all leave it alone. Older builds derived it from folders and title,
+// which read as if it could be recomputed and gave two books the same ID
+// whenever they shared a folder path and title — routine on a shared shelf.
+//
+// A v4 UUID's 122 random bits make the ID unique on its own rather than by
+// agreement: the creation-time collision probe cannot see a book another
+// machine just wrote into a shared shelf, or one copied in with a file manager,
+// so the ID has to stand alone. Its canonical form is lowercase hex with
+// hyphens, which survives a case-insensitive filesystem (the trash names a
+// folder after the book ID) and sits in a URL path without escaping.
+func newBookID() (string, error) {
+	id, err := uuid.NewRandom()
+	if err != nil {
+		return "", util.Errorf("%w", err)
+	}
+	return id.String(), nil
+}
+
+// validateBookID reports whether a caller-supplied ID is usable as one.
+//
+// It deliberately says nothing about the shape of the ID beyond path safety.
+// This build writes v4 UUIDs, but shelves written by older builds carry
+// 8-character hex IDs (some with a "-1" de-duplication suffix) and 16-character
+// base32 IDs, and those stay valid forever alongside the UUIDs; a shelf holds
+// them all at once and none is migrated.
+func validateBookID(bookID string) error {
+	if err := shelfutil.ValidatePathSegment(bookID); err != nil {
+		return util.Errorf("invalid book id %q: %w", bookID, err)
 	}
 	return nil
-}
-
-func validatePathSegment(segment string) error {
-	if segment == "" {
-		return util.NewError("path segment cannot be empty")
-	}
-	if segment == "." || segment == ".." {
-		return util.NewError("path segment cannot be . or ..")
-	}
-	if strings.ContainsAny(segment, `/\`) {
-		return util.NewError("path segment cannot contain path separators")
-	}
-	if !utf8.ValidString(segment) {
-		return util.NewError("path segment must be valid UTF-8")
-	}
-	if len(segment) > maxPathSegmentLength {
-		return util.Errorf("path segment exceeds %d bytes", maxPathSegmentLength)
-	}
-	return nil
-}
-
-// seedBookID derives an initial book ID from the layers and title. This is only
-// a seed for the first ID candidate: once a book is created the ID is persisted
-// in book.json and never recomputed, so renaming the title or moving the book to
-// another layer does NOT change its ID (callers still de-duplicate on collision).
-func seedBookID(layers Layers, title string) string {
-	cont := strings.Join(layers, "-") + "-" + title
-	md5Hash := md5.Sum([]byte(cont))
-	hash := fmt.Sprintf("%x", md5Hash)
-	return hash[:8] // Use the first 8 characters of the hash as the book ID
 }
 
 func titleToFolderName(title string) string {
-	// Replace spaces with dashes and remove special characters for folder naming
 	folderName := strings.ReplaceAll(title, " ", "-")
 	return slugify.Slugify(folderName) + bookExtension
 }

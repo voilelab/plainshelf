@@ -5,6 +5,16 @@ format**: the text is extracted and stored as an ordinary book, exactly like a
 `.txt` or `.md` import. Nothing on the shelf becomes a binary blob, and every
 imported book stays readable in a text editor.
 
+![Swimlane diagram of the EPUB import pipeline: a client uploads an archive, the
+server reads the import strategy, internal/epub parses and renders it to Markdown
+or plain text, and only the final write step runs under the exclusive shelf lock,
+producing a book package. The original archive is never
+stored.](assets/plainshelf-epub-import.svg)
+
+Parsing and rendering happen **before** the shelf lock is taken. The exclusive
+lock is held only for the write step, so converting a large EPUB does not block
+readers for the length of the conversion.
+
 ## What is kept
 
 | From the EPUB | Where it lands |

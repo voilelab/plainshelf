@@ -7,7 +7,7 @@
  * This deliberately does not extend ApiError from '@/api/client'. That module
  * reads import.meta.env and window.localStorage at import time and models the
  * PlainShelf server's base URL and token scheme, none of which applies to a
- * direct pCloud session. The provider layer translates at its own boundary.
+ * direct pCloud session. The provider folder translates at its own boundary.
  */
 export class PCloudError extends Error {
   /** pCloud result code, or 0 when the failure was at the HTTP/transport layer. */

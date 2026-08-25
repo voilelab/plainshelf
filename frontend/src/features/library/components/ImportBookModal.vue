@@ -1,5 +1,5 @@
 <template>
-  <BaseDialog :open="open" title="Import Book" :busy="submitting" @close="onClose">
+  <BaseDialog :open="open" :title="t('libraryForms.importBook.title')" :busy="submitting" @close="onClose">
     <section
       class="panel import-modal"
       :class="{ 'is-drop-target': isDropTarget }"
@@ -8,11 +8,11 @@
       @drop="onDrop"
     >
       <header class="import-header">
-        <h2>Import Book</h2>
+        <h2>{{ t('libraryForms.importBook.title') }}</h2>
         <button
           class="icon-close"
           type="button"
-          aria-label="Close import dialog"
+          :aria-label="t('libraryForms.importBook.closeLabel')"
           :disabled="submitting"
           @click="onClose"
         >
@@ -20,14 +20,14 @@
         </button>
       </header>
 
-      <p class="meta">Upload a TXT, Markdown or EPUB file to create a new book entry, or drag-and-drop files here.</p>
+      <p class="meta">{{ t('libraryForms.importBook.description') }}</p>
 
       <div v-if="success" class="success">{{ success }}</div>
       <div v-if="error" class="error">{{ error }}</div>
 
       <form class="import-form" @submit.prevent="onSubmit">
         <label class="field">
-          <span class="label">Book File (.txt, .md, .epub)</span>
+          <span class="label">{{ t('libraryForms.importBook.fileLabel') }}</span>
           <input
             ref="bookInput"
             class="input file-input"
@@ -40,14 +40,11 @@
         </label>
 
         <section v-if="showEpubOptions" class="epub-options">
-          <h3 class="epub-options-title">EPUB Conversion</h3>
-          <p class="meta">
-            EPUB files are converted into a source. The original file is not kept;
-            supported illustrations are retained by the Markdown preset.
-          </p>
+          <h3 class="epub-options-title">{{ t('libraryForms.importBook.epubTitle') }}</h3>
+          <p class="meta">{{ t('libraryForms.importBook.epubDescription') }}</p>
 
           <label class="field">
-            <span class="label">Convert to</span>
+            <span class="label">{{ t('libraryForms.importBook.convertTo') }}</span>
             <SelectRoot
               :model-value="epubStrategy.preset"
               :disabled="submitting"
@@ -60,7 +57,7 @@
                 <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
                   <SelectViewport>
                     <SelectItem
-                      v-for="opt in EPUB_PRESET_OPTIONS"
+                      v-for="opt in epubPresetOptions"
                       :key="opt.value"
                       class="reka-menu-item"
                       :value="opt.value"
@@ -74,8 +71,7 @@
           </label>
 
           <p v-if="epubStrategy.preset === 'plain'" class="meta epub-hint">
-            Plain text has no chapter navigation or Markdown illustrations. You can create
-            a chapterized Markdown source afterwards without changing this TXT source.
+            {{ t('libraryForms.importBook.plainHint') }}
           </p>
 
           <label class="epub-checkbox">
@@ -85,19 +81,24 @@
               :disabled="submitting"
               @change="onIncludeDescriptionChange"
             />
-            <span>Put the book description at the start of the text</span>
+            <span>{{ t('libraryForms.importBook.includeDescription') }}</span>
           </label>
         </section>
 
+        <section v-if="showProgress" class="import-progress" aria-live="polite">
+          <ProgressBar :value="progress.percentage" :label="progressText" />
+          <p class="import-progress-text">{{ progressText }}</p>
+        </section>
+
         <section v-if="files.length > 0" class="selected-files" aria-live="polite">
-          <h3 class="selected-files-title">Selected Files</h3>
+          <h3 class="selected-files-title">{{ t('libraryForms.importBook.selectedFiles') }}</h3>
           <ul class="file-list">
             <li v-for="(item, index) in files" :key="`${item.filename}-${index}`" class="file-item">
               <p class="file-name">{{ item.filename }}</p>
-              <p class="file-meta">Title: {{ item.title }}</p>
+              <p class="file-meta">{{ t('libraryForms.importBook.fileTitle', { title: item.title }) }}</p>
               <p class="file-meta">
-                Status:
-                <span class="file-status" :class="`status-${item.status}`">{{ item.status }}</span>
+                {{ t('libraryForms.importBook.fileStatus') }}
+                <span class="file-status" :class="`status-${item.status}`">{{ statusLabel(item.status) }}</span>
               </p>
               <p v-if="item.status === 'failed' && item.error" class="file-error">{{ item.error }}</p>
             </li>
@@ -105,9 +106,18 @@
         </section>
 
         <div class="actions">
-          <button class="button" type="button" :disabled="submitting" @click="onClose">Cancel</button>
+          <button
+            v-if="showProgress"
+            class="button"
+            type="button"
+            :disabled="cancelRequested"
+            @click="abort"
+          >
+            {{ cancelRequested ? t('libraryForms.importBook.aborting') : t('libraryForms.importBook.abort') }}
+          </button>
+          <button class="button" type="button" :disabled="submitting" @click="onClose">{{ t('common.cancel') }}</button>
           <button class="button primary" type="submit" :disabled="submitting || files.length === 0">
-            {{ submitting ? 'Importing...' : 'Import' }}
+            {{ submitting ? t('libraryForms.importBook.submitting') : t('libraryForms.importBook.submit') }}
           </button>
         </div>
       </form>
@@ -129,22 +139,39 @@ import {
   type AcceptableValue
 } from 'reka-ui';
 import BaseDialog from '@/components/BaseDialog.vue';
-import { useImportBook } from '@/features/library/composables/useImportBook';
+import ProgressBar from '@/components/ProgressBar.vue';
+import { useImportBook, type ImportSubmitResult } from '@/features/library/composables/useImportBook';
 import { useBookStore } from '@/composables/useBookStore';
-import { useLayerStore } from '@/composables/useLayerStore';
+import { useFolderStore } from '@/composables/useFolderStore';
 import { hasFileTransfer, readDroppedFiles, readSelectedFiles } from '@/utils/file';
 import { getEpubImportStrategySetting } from '@/api/settings';
 import type { EpubImportPreset } from '@/types/book';
 
-const EPUB_PRESET_OPTIONS: { value: EpubImportPreset; label: string }[] = [
-  { value: 'markdown', label: 'Markdown (chapter headings)' },
-  { value: 'plain', label: 'Plain text' }
-];
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n();
+
+// A function, not a const array: the labels have to follow a locale change, and
+// a module-level array resolves them once at import.
+const epubPresetOptions = computed<{ value: EpubImportPreset; label: string }[]>(() => [
+  { value: 'markdown', label: t('libraryForms.importBook.presetMarkdown') },
+  { value: 'plain', label: t('libraryForms.importBook.presetPlain') }
+]);
+
+// The status is an enum token the UI used to render raw, so users saw
+// "importing" rather than a sentence in their language.
+function statusLabel(status: string): string {
+  return t(`libraryForms.importBook.statuses.${status}`);
+}
 
 const props = defineProps<{
   open: boolean;
-  currentLayerPath?: string;
+  currentFolderPath?: string;
   droppedFiles?: File[];
+  // Desktop host paths from the native picker. When the modal opens with these
+  // set, the import auto-starts through the shared executor — no file input and
+  // no extra confirmation, matching the desktop's select-and-go flow.
+  localPaths?: string[];
 }>();
 
 const emit = defineEmits<{
@@ -153,6 +180,8 @@ const emit = defineEmits<{
     total: number;
     successCount: number;
     failedCount: number;
+    cancelledCount: number;
+    cancelled: boolean;
     firstImportedId?: string;
   }];
 }>();
@@ -160,17 +189,21 @@ const emit = defineEmits<{
 const {
   files,
   submitting,
+  cancelRequested,
   success,
   error,
   epubStrategy,
+  progress,
   setEpubStrategy,
   hasEpubFile,
   setBookFiles,
-  submit,
+  submitFiles,
+  submitLocalPaths,
+  abort,
   reset
 } = useImportBook();
 const { fetchBooks } = useBookStore();
-const { fetchLayers } = useLayerStore();
+const { fetchFolders } = useFolderStore();
 
 const bookInput = ref<HTMLInputElement | null>(null);
 const isDropTarget = ref(false);
@@ -179,6 +212,18 @@ const selectedFiles = ref<File[]>([]);
 // The conversion options only mean anything for EPUB, so they stay hidden until
 // the selection actually contains one.
 const showEpubOptions = computed(() => selectedFiles.value.length > 0 && hasEpubFile());
+
+// A single-file import stays exactly as it was: no summary bar, no abort. The
+// N / M progress only earns its space once a batch is being imported.
+const showProgress = computed(() => submitting.value && progress.value.total > 1);
+
+const progressText = computed(() =>
+  t('libraryForms.importBook.progress', {
+    current: progress.value.current,
+    total: progress.value.total,
+    filename: progress.value.filename
+  })
+);
 
 function onBookFileChange(event: Event): void {
   const nextFiles = readSelectedFiles(event);
@@ -265,21 +310,47 @@ function onDrop(event: DragEvent): void {
   applyDroppedFiles(readDroppedFiles(event));
 }
 
-async function onSubmit(): Promise<void> {
-  const result = await submit(props.currentLayerPath);
+// Shared post-import handling for both the upload and desktop host-path flows:
+// reload on any success, notify the page, then reset only on a fully clean run.
+// A cancelled batch or one with any failure keeps its result message and
+// per-file statuses on screen — the modal stays open (the page only reloads
+// books), so resetting here would discard the very "N imported, rest cancelled"
+// or "which files failed" summary the user needs. Only when every file imported
+// is there nothing left to read, so the form clears for the next import.
+async function finishImport(result: ImportSubmitResult | null): Promise<void> {
   if (!result) {
     return;
   }
 
   if (result.successCount > 0) {
-    await Promise.all([fetchBooks(), fetchLayers()]);
+    await Promise.all([fetchBooks(), fetchFolders()]);
   }
 
   emit('imported', result);
 
+  if (result.cancelled || result.failedCount > 0) {
+    return;
+  }
+
   clearFileInputs();
   selectedFiles.value = [];
   reset();
+}
+
+async function onSubmit(): Promise<void> {
+  await finishImport(await submitFiles(props.currentFolderPath));
+}
+
+// The desktop select-and-go path: the native picker already chose the files, so
+// the modal opens straight into the shared progress/abort UI without a second
+// confirmation. Guarded against re-entry so a re-render while importing cannot
+// start a duplicate run.
+async function runLocalPathsImport(): Promise<void> {
+  const paths = props.localPaths ?? [];
+  if (paths.length === 0 || submitting.value) {
+    return;
+  }
+  await finishImport(await submitLocalPaths(paths, props.currentFolderPath));
 }
 
 watch(
@@ -327,6 +398,12 @@ watch(
       return;
     }
 
+    // A desktop host-path import takes over the modal on open; the browser
+    // drag-drop seeding only applies when there are no host paths.
+    if ((props.localPaths ?? []).length > 0) {
+      return;
+    }
+
     applyDroppedFiles(props.droppedFiles ?? []);
   }
 );
@@ -339,6 +416,30 @@ watch(
     }
 
     applyDroppedFiles(nextFiles ?? []);
+  }
+);
+
+// Desktop select-and-go: auto-start the import when the modal opens with host
+// paths, and when a fresh selection arrives while it is already open.
+watch(
+  () => props.open,
+  (open) => {
+    if (!open) {
+      return;
+    }
+
+    void runLocalPathsImport();
+  }
+);
+
+watch(
+  () => props.localPaths,
+  () => {
+    if (!props.open) {
+      return;
+    }
+
+    void runLocalPathsImport();
   }
 );
 </script>
@@ -415,6 +516,20 @@ watch(
   margin-top: 4px;
 }
 
+.import-progress {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.import-progress-text {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
 .selected-files {
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -474,6 +589,10 @@ watch(
 
 .status-failed {
   color: #b91c1c;
+}
+
+.status-cancelled {
+  color: #92400e;
 }
 
 .file-error {

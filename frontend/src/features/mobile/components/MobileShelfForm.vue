@@ -155,6 +155,10 @@
           <span class="mobile-connect-hint">{{ t('mobileConnect.pcloud.shelfRootHint') }}</span>
         </label>
 
+        <button type="button" class="button" :disabled="!isAuthorized" @click="pickerOpen = true">
+          {{ t('mobileConnect.pcloud.picker.browse') }}
+        </button>
+
         <button
           type="button"
           class="button"
@@ -167,6 +171,15 @@
         <p v-if="pcloudBookCount !== null" class="mobile-connect-hint" role="status">
           {{ t('mobileConnect.pcloud.shelfFound', { count: String(pcloudBookCount) }) }}
         </p>
+
+        <PCloudFolderPicker
+          :open="pickerOpen"
+          :host="pcloudHost"
+          :access-token="pcloudAccessToken"
+          :initial-path="pcloudShelfRoot"
+          @select="onPickShelfRoot"
+          @close="pickerOpen = false"
+        />
       </template>
 
       <p v-if="entry" class="mobile-connect-hint">{{ t('mobileConnect.retargetHint') }}</p>
@@ -213,6 +226,7 @@ import {
   type ShelfSourceType
 } from '@/providers/mobileConfig';
 import { reloadIntoApp } from '@/features/mobile/utils/reloadIntoApp';
+import PCloudFolderPicker from '@/features/mobile/components/PCloudFolderPicker.vue';
 
 const props = defineProps<{
   /** The entry being edited, or null when adding one. */
@@ -249,6 +263,7 @@ const pcloudUserId = ref('');
 const pcloudAccountIdentity = ref('');
 /** Set by a successful shelf check; null means "not verified yet". */
 const pcloudBookCount = ref<number | null>(null);
+const pickerOpen = ref(false);
 
 const saving = ref(false);
 const authorizing = ref(false);
@@ -470,6 +485,20 @@ async function onVerifyPCloudShelf(): Promise<void> {
   } finally {
     verifying.value = false;
   }
+}
+
+/**
+ * Takes the folder the picker settled on and checks it straight away.
+ *
+ * The picker only offers a folder that holds `books/`, but saving still
+ * requires a book count, and asking for one more tap to confirm what the picker
+ * just showed would be busywork. Typed paths keep their own Check shelf button.
+ */
+async function onPickShelfRoot(path: string): Promise<void> {
+  pickerOpen.value = false;
+  pcloudShelfRoot.value = path;
+  pcloudBookCount.value = null;
+  await onVerifyPCloudShelf();
 }
 
 function draftEntry(): { entry: ShelfEntry; secret: string } {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/voilelab/plainshelf/server"
+	"github.com/voilelab/plainshelf/shelf"
 )
 
 func TestBookOpenDialogOptions(t *testing.T) {
@@ -34,16 +35,101 @@ func TestNormalizeSelectedLocalPaths(t *testing.T) {
 	}
 }
 
-func TestNormalizeLayerParts(t *testing.T) {
-	parts := normalizeLayerParts([]string{"", "  ", " fiction ", " sci-fi "})
+func TestNormalizeFolderParts(t *testing.T) {
+	parts := normalizeFolderParts([]string{"", "  ", " fiction ", " sci-fi "})
 	if len(parts) != 2 {
-		t.Fatalf("expected two valid layer parts, got %d", len(parts))
+		t.Fatalf("expected two valid folder parts, got %d", len(parts))
 	}
 	if parts[0] != "fiction" {
 		t.Fatalf("unexpected first part: %q", parts[0])
 	}
 	if parts[1] != "sci-fi" {
 		t.Fatalf("unexpected second part: %q", parts[1])
+	}
+}
+
+// startedDesktopAppWithShelf builds a started DesktopApp backed by a real server
+// app with one ready shelf, for the tests that exercise ImportBookFromLocalPath
+// end to end.
+func startedDesktopAppWithShelf(t *testing.T, shelfID string) *DesktopApp {
+	t.Helper()
+
+	serverApp, err := server.NewApp(&server.AppConf{
+		Shelves: []*shelf.ShelfConfWithID{
+			{
+				ID: shelfID,
+				ShelfConf: shelf.ShelfConf{
+					LibRoot: t.TempDir(),
+				},
+			},
+		},
+		StorePath: t.TempDir(),
+		Security:  &server.SecurityConf{Mode: server.SecurityModeNone},
+	})
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := serverApp.Close(); err != nil {
+			t.Fatalf("Close app: %v", err)
+		}
+	})
+
+	if err := serverApp.Start(); err != nil {
+		t.Fatalf("Start app: %v", err)
+	}
+	for _, shelfData := range serverApp.ShelfManager().GetAllShelves() {
+		if err := shelfData.WaitReady(t.Context()); err != nil {
+			t.Fatalf("WaitReady for shelf %s: %v", shelfData.ID, err)
+		}
+	}
+
+	return &DesktopApp{app: serverApp}
+}
+
+func TestImportBookFromLocalPathReturnsBookIDOnSuccess(t *testing.T) {
+	const shelfID = "default_shelf"
+	desktopApp := startedDesktopAppWithShelf(t, shelfID)
+
+	srcPath := filepath.Join(t.TempDir(), "example-book.txt")
+	if err := os.WriteFile(srcPath, []byte("Chapter one\n\nHello world.\n"), 0o600); err != nil {
+		t.Fatalf("write source book: %v", err)
+	}
+
+	result, err := desktopApp.ImportBookFromLocalPath(shelfID, srcPath, nil)
+	if err != nil {
+		t.Fatalf("ImportBookFromLocalPath returned error: %v", err)
+	}
+	if result.Path != srcPath {
+		t.Fatalf("result path = %q, want %q", result.Path, srcPath)
+	}
+	if result.ID == "" {
+		t.Fatalf("expected a book ID on success, got empty (error=%q)", result.Error)
+	}
+	if result.Error != "" {
+		t.Fatalf("expected no error on success, got %q", result.Error)
+	}
+}
+
+func TestImportBookFromLocalPathReportsFailureInResult(t *testing.T) {
+	const shelfID = "default_shelf"
+	desktopApp := startedDesktopAppWithShelf(t, shelfID)
+
+	// A missing source path must fail through the result's Error field, not a Go
+	// error, so the frontend's per-file loop keeps stepping through the batch.
+	missingPath := filepath.Join(t.TempDir(), "does-not-exist.txt")
+	result, err := desktopApp.ImportBookFromLocalPath(shelfID, missingPath, nil)
+	if err != nil {
+		t.Fatalf("ImportBookFromLocalPath returned a Go error for a bad path: %v", err)
+	}
+	if result.Path != missingPath {
+		t.Fatalf("result path = %q, want %q", result.Path, missingPath)
+	}
+	if result.ID != "" {
+		t.Fatalf("expected no book ID on failure, got %q", result.ID)
+	}
+	if result.Error == "" {
+		t.Fatal("expected an error message on failure, got empty")
 	}
 }
 
@@ -220,21 +306,21 @@ func TestLoadOrMigrateDesktopShelvesSeedsLegacyDefaultShelf(t *testing.T) {
 	}
 }
 
-func TestResolveDesktopLayerDirectory(t *testing.T) {
+func TestResolveDesktopFolderPath(t *testing.T) {
 	libRoot := filepath.Join(t.TempDir(), "shelf")
 
-	path, err := resolveDesktopLayerDirectory(libRoot, []string{"fiction", "sci-fi"})
+	path, err := resolveDesktopFolderPath(libRoot, []string{"fiction", "sci-fi"})
 	if err != nil {
-		t.Fatalf("resolveDesktopLayerDirectory returned error: %v", err)
+		t.Fatalf("resolveDesktopFolderPath returned error: %v", err)
 	}
 	wantPath := filepath.Join(libRoot, "books", "fiction", "sci-fi")
 	if path != wantPath {
 		t.Fatalf("resolved path = %q, want %q", path, wantPath)
 	}
 
-	rootPath, err := resolveDesktopLayerDirectory(libRoot, nil)
+	rootPath, err := resolveDesktopFolderPath(libRoot, nil)
 	if err != nil {
-		t.Fatalf("resolve root layer directory returned error: %v", err)
+		t.Fatalf("resolve root folder directory returned error: %v", err)
 	}
 	wantRootPath := filepath.Join(libRoot, "books")
 	if rootPath != wantRootPath {
@@ -242,20 +328,20 @@ func TestResolveDesktopLayerDirectory(t *testing.T) {
 	}
 }
 
-func TestResolveDesktopLayerDirectoryRejectsTraversal(t *testing.T) {
+func TestResolveDesktopFolderPathRejectsTraversal(t *testing.T) {
 	libRoot := filepath.Join(t.TempDir(), "shelf")
 
-	if _, err := resolveDesktopLayerDirectory(libRoot, []string{"..", "outside"}); err == nil {
-		t.Fatal("expected traversal layer path to fail, got nil")
+	if _, err := resolveDesktopFolderPath(libRoot, []string{"..", "outside"}); err == nil {
+		t.Fatal("expected traversal folder path to fail, got nil")
 	}
 }
 
-func TestOpenLayerDirectoryOpensFinderForLayerPath(t *testing.T) {
+func TestOpenFolderDirectoryOpensFinderForFolderPath(t *testing.T) {
 	tempDir := t.TempDir()
 	libRoot := filepath.Join(tempDir, "library")
-	layerDir := filepath.Join(libRoot, "books", "fiction", "sci-fi")
-	if err := os.MkdirAll(layerDir, 0o755); err != nil {
-		t.Fatalf("create layer dir: %v", err)
+	folderDir := filepath.Join(libRoot, "books", "fiction", "sci-fi")
+	if err := os.MkdirAll(folderDir, 0o755); err != nil {
+		t.Fatalf("create folder dir: %v", err)
 	}
 
 	configPath := filepath.Join(tempDir, "shelves.json")
@@ -279,11 +365,11 @@ func TestOpenLayerDirectoryOpensFinderForLayerPath(t *testing.T) {
 		openFinder = originalOpenFinder
 	})
 
-	if err := app.OpenLayerDirectory(" shelf-1 ", []string{" fiction ", "sci-fi "}); err != nil {
-		t.Fatalf("OpenLayerDirectory returned error: %v", err)
+	if err := app.OpenFolderDirectory(" shelf-1 ", []string{" fiction ", "sci-fi "}); err != nil {
+		t.Fatalf("OpenFolderDirectory returned error: %v", err)
 	}
-	if openedPath != layerDir {
-		t.Fatalf("openFinder path = %q, want %q", openedPath, layerDir)
+	if openedPath != folderDir {
+		t.Fatalf("openFinder path = %q, want %q", openedPath, folderDir)
 	}
 }
 

@@ -1,0 +1,32 @@
+{
+  "folders": [
+    "/"
+  ],
+  "books": [
+    {
+      "path": "books/old-tales.bookpkg",
+      "folders": [],
+      "id": "3f9a2c71",
+      "title": "Old Tales",
+      "format": "",
+      "authors": [],
+      "tags": [],
+      "star": 0,
+      "cover": "cover.png",
+      "cover_present": true,
+      "schema_version_on_disk": 0,
+      "read_only": false,
+      "current_source_field": "20250102-030405",
+      "current_source": "20250102-030405",
+      "sources": [
+        {
+          "id": "20250102-030405",
+          "has_content": true,
+          "char_count": 0,
+          "assets": []
+        }
+      ]
+    }
+  ],
+  "book_caches": []
+}

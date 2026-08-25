@@ -1,31 +1,44 @@
 <template>
   <div class="layout-root">
     <DeleteModal
-      :open="pendingDeleteLayerPath.length > 0"
-      :title="t('layout.deleteLayer.title')"
-      :item-name="pendingDeleteLayerPath"
-      :description="t('layout.deleteLayer.description')"
-      :busy="isDeletingPendingLayer"
-      :error="deleteLayerError"
-      @cancel="cancelPendingDeleteLayer"
-      @confirm="confirmDeleteLayer"
+      :open="pendingDeleteFolderPath.length > 0"
+      :title="t('layout.deleteFolder.title')"
+      :item-name="pendingDeleteFolderPath"
+      :description="t('layout.deleteFolder.description')"
+      :busy="isDeletingPendingFolder"
+      :error="deleteFolderError"
+      @cancel="cancelPendingDeleteFolder"
+      @confirm="confirmDeleteFolder"
     />
-    <RenameLayerModal
-      :open="pendingRenameLayerPath.length > 0"
-      :current-name="pendingRenameLayerName"
-      :busy="isRenamingPendingLayer"
-      :error="renameLayerError"
-      @cancel="cancelPendingRenameLayer"
-      @submit="confirmRenameLayer"
+    <RenameFolderModal
+      :open="pendingRenameFolderPath.length > 0"
+      :current-name="pendingRenameFolderName"
+      :busy="isRenamingPendingFolder"
+      :error="renameFolderError"
+      @cancel="cancelPendingRenameFolder"
+      @submit="confirmRenameFolder"
     />
-    <CreateLayerModal
-      :open="showCreateLayerModal"
-      :parent-options="createLayerParentOptions"
-      :default-parent="createLayerDefaultParent"
-      :busy="creatingLayer"
-      :error="createLayerError"
-      @cancel="closeCreateLayerModal"
-      @submit="onSubmitCreateLayer"
+    <CreateFolderModal
+      :open="showCreateFolderModal"
+      :parent-options="createFolderParentOptions"
+      :default-parent="createFolderDefaultParent"
+      :busy="creatingFolder"
+      :error="createFolderError"
+      @cancel="closeCreateFolderModal"
+      @submit="onSubmitCreateFolder"
+    />
+    <TransferFolderModal
+      :open="transferFolderTarget.length > 0"
+      :folder-name="transferFolderName"
+      :busy="transferFolderRunning"
+      :started="transferFolderStarted"
+      :finished="transferFolderFinished"
+      :status="transferFolderStatus"
+      :percentage="transferFolderPercentage"
+      :chain="transferFolderChain"
+      :error="transferFolderError"
+      @close="cancelTransferFolder"
+      @submit="submitTransferFolder"
     />
     <BookBatchProgressModal />
 
@@ -68,7 +81,7 @@
             <TooltipRoot>
               <TooltipTrigger as-child>
                 <RouterLink
-                  to="/dashboard"
+                  to="/home"
                   class="sidebar-nav-item sidebar-rail-item"
                   exact-active-class="active"
                   :aria-label="t('layout.dashboard')"
@@ -117,7 +130,7 @@
               </TooltipPortal>
             </TooltipRoot>
           </template>
-          <TooltipRoot v-if="isMobileEnv">
+          <TooltipRoot v-if="hasDownloadsStore">
             <TooltipTrigger as-child>
               <RouterLink
                 to="/downloads"
@@ -206,64 +219,6 @@
 
         <template v-if="hasActiveShelf">
           <div class="sidebar-nav-divider" role="presentation"></div>
-          <section class="sidebar-section" :aria-label="t('layout.sections.layers')">
-            <div class="sidebar-header-row sidebar-foldable-header">
-              <button
-                type="button"
-                class="sidebar-section-toggle"
-                :aria-label="t('layout.sectionToggleLabels.layers')"
-                :aria-expanded="!collapsedSidebarSections.layers"
-                aria-controls="sidebar-section-layers"
-                @click="toggleSidebarSection('layers')"
-              >
-                <span class="sidebar-section-title" aria-hidden="true">{{ t('layout.sections.layers') }}</span>
-                <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.layers ? '▸' : '▾' }}</span>
-              </button>
-              <button
-                v-if="libraryEditingAvailable"
-                type="button"
-                class="create-layer-toggle"
-                aria-haspopup="dialog"
-                :disabled="readOnly || creatingLayer || layersLoading || layersError.length > 0"
-                @click="openCreateLayerModal"
-              >
-                {{ t('layout.createLayer.add') }}
-              </button>
-            </div>
-
-            <div v-show="!collapsedSidebarSections.layers" id="sidebar-section-layers" class="sidebar-foldable-content">
-              <div v-if="layersLoading" class="sidebar-status">{{ t('layout.createLayer.loadingLayers') }}</div>
-              <div v-else-if="layersError" class="sidebar-status sidebar-error sidebar-layer-error" role="alert">
-                <p>{{ layersError }}</p>
-                <button type="button" class="button" @click="fetchLayers">{{ t('common.retry') }}</button>
-              </div>
-              <LayerTree
-                v-else
-                :nodes="layerTree"
-                :selected="currentLayer"
-                :deleting-map="deletingLayerMap"
-                :read-only="readOnly"
-                :can-open-layer-folder="canOpenLayerFolder"
-                @select="onSelectLayer"
-                @move-book="onMoveBook"
-                @delete-layer="requestDeleteLayer"
-                @rename-layer="requestRenameLayer"
-                @open-layer-folder="onOpenLayerFolder"
-                @move-layer="onMoveLayer"
-              />
-              <p v-if="moveBookError" class="sidebar-error" role="alert">
-                {{ moveBookError }}
-              </p>
-              <p v-if="deleteLayerError && !pendingDeleteLayerPath" class="sidebar-error sidebar-error-pre" role="alert">
-                {{ deleteLayerError }}
-              </p>
-              <p v-if="layerOperationError" class="sidebar-error sidebar-error-pre" role="alert">
-                {{ layerOperationError }}
-              </p>
-            </div>
-          </section>
-
-          <div class="sidebar-nav-divider" role="presentation"></div>
 
           <section class="sidebar-section" :aria-label="t('layout.sections.reading')">
             <button
@@ -284,7 +239,7 @@
               :aria-label="t('layout.sections.reading')"
             >
               <RouterLink
-                to="/dashboard"
+                to="/home"
                 class="sidebar-nav-item"
                 exact-active-class="active"
               >
@@ -309,6 +264,67 @@
                 <span>{{ t('layout.trash') }}</span>
               </RouterLink>
             </nav>
+          </section>
+
+          <div class="sidebar-nav-divider" role="presentation"></div>
+
+          <section class="sidebar-section" :aria-label="t('layout.sections.folders')">
+            <div class="sidebar-header-row sidebar-foldable-header">
+              <button
+                type="button"
+                class="sidebar-section-toggle"
+                :aria-label="t('layout.sectionToggleLabels.folders')"
+                :aria-expanded="!collapsedSidebarSections.folders"
+                aria-controls="sidebar-section-folders"
+                @click="toggleSidebarSection('folders')"
+              >
+                <span class="sidebar-section-title" aria-hidden="true">{{ t('layout.sections.folders') }}</span>
+                <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.folders ? '▸' : '▾' }}</span>
+              </button>
+              <button
+                v-if="libraryEditingAvailable"
+                type="button"
+                class="create-folder-toggle"
+                aria-haspopup="dialog"
+                :disabled="readOnly || creatingFolder || foldersLoading || foldersError.length > 0"
+                @click="openCreateFolderModal"
+              >
+                {{ t('layout.createFolder.add') }}
+              </button>
+            </div>
+
+            <div v-show="!collapsedSidebarSections.folders" id="sidebar-section-folders" class="sidebar-foldable-content">
+              <div v-if="foldersLoading" class="sidebar-status">{{ t('layout.createFolder.loadingFolders') }}</div>
+              <div v-else-if="foldersError" class="sidebar-status sidebar-error sidebar-folder-error" role="alert">
+                <p>{{ foldersError }}</p>
+                <button type="button" class="button" @click="fetchFolders">{{ t('common.retry') }}</button>
+              </div>
+              <FolderTree
+                v-else
+                :nodes="folderTree"
+                :selected="currentFolder"
+                :deleting-map="deletingFolderMap"
+                :read-only="readOnly"
+                :can-open-folder="canOpenFolder"
+                :can-transfer-folder="canTransferFolder"
+                @select="onSelectFolder"
+                @move-book="onMoveBook"
+                @delete-folder="requestDeleteFolder"
+                @rename-folder="requestRenameFolder"
+                @open-folder="onOpenFolder"
+                @transfer-folder="requestTransferFolder"
+                @move-folder="onMoveFolder"
+              />
+              <p v-if="moveBookError" class="sidebar-error" role="alert">
+                {{ moveBookError }}
+              </p>
+              <p v-if="deleteFolderError && !pendingDeleteFolderPath" class="sidebar-error sidebar-error-pre" role="alert">
+                {{ deleteFolderError }}
+              </p>
+              <p v-if="folderOperationError" class="sidebar-error sidebar-error-pre" role="alert">
+                {{ folderOperationError }}
+              </p>
+            </div>
           </section>
 
           <div v-if="libraryEditingAvailable" class="sidebar-nav-divider" role="presentation"></div>
@@ -349,7 +365,7 @@
           </section>
         </template>
 
-        <template v-if="isMobileEnv">
+        <template v-if="hasDownloadsStore">
           <div class="sidebar-nav-divider" role="presentation"></div>
           <section class="sidebar-section" :aria-label="t('layout.downloads')">
             <nav class="sidebar-nav-list" :aria-label="t('layout.downloads')">
@@ -424,12 +440,24 @@
             :aria-expanded="drawerOpen"
             @click="drawerOpen = !drawerOpen"
           >
-            ☰
+            <Icon name="menu" />
           </button>
           <h1 class="brand">
             <img class="brand-icon" :src="appIcon" alt="" aria-hidden="true">
             <span>{{ t('app.name') }}</span>
           </h1>
+          <nav
+            v-if="showHistoryControls"
+            class="history-controls"
+            :aria-label="t('layout.desktopHistoryNavigation')"
+          >
+            <button type="button" class="history-btn" :aria-label="t('layout.previousPage')" @click="goToPreviousPage">
+              ←
+            </button>
+            <button type="button" class="history-btn" :aria-label="t('layout.nextPage')" @click="goToNextPage">
+              →
+            </button>
+          </nav>
         </div>
         <div class="topbar-controls">
           <label class="language-select">
@@ -488,16 +516,18 @@ import {
   TooltipTrigger,
   type AcceptableValue
 } from 'reka-ui';
-import CreateLayerModal from '@/components/CreateLayerModal.vue';
+import CreateFolderModal from '@/components/CreateFolderModal.vue';
 import BookBatchProgressModal from '@/components/BookBatchProgressModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
-import LayerTree from '@/components/LayerTree.vue';
-import RenameLayerModal from '@/components/RenameLayerModal.vue';
+import Icon from '@/components/Icon.vue';
+import FolderTree from '@/components/FolderTree.vue';
+import RenameFolderModal from '@/components/RenameFolderModal.vue';
+import TransferFolderModal from '@/components/TransferFolderModal.vue';
 import SidebarNavIcon from '@/components/SidebarNavIcon.vue';
-import { isMobileRuntime } from '@/providers';
+import { getBookshelfProvider, isWailsRuntime } from '@/providers';
 import { useBookStore } from '@/composables/useBookStore';
-import { useLayerManagement } from '@/composables/useLayerManagement';
-import { useLayerStore } from '@/composables/useLayerStore';
+import { useFolderManagement } from '@/composables/useFolderManagement';
+import { useFolderStore } from '@/composables/useFolderStore';
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useShelfPicker } from '@/composables/useShelfPicker';
 import { useServerMode } from '@/composables/useServerMode';
@@ -525,51 +555,81 @@ const {
 const route = useRoute();
 const router = useRouter();
 
-// Matches the isMobileEnv pattern in SettingsPage.vue; runtime does not
-// change during a session, but a computed keeps it consistent with the
-// other environment checks used in the template.
-const isMobileEnv = computed(() => isMobileRuntime());
+// Both uses of this are the Downloads nav entry, so ask what that entry
+// actually needs — a provider that keeps downloads — rather than which
+// runtime we are on. Only MobileBookshelfProvider implements it, so this is
+// the same answer by a name that says why.
+const hasDownloadsStore = computed(() =>
+  Boolean(getBookshelfProvider().listDownloadedBookEntries)
+);
+
+// The Wails desktop shell has a browser-history stack worth navigating; the web
+// and mobile clients don't surface these pills. Scoping this to MainLayout keeps
+// them off the immersive ReaderLayout routes, where the keyboard ←/→ already
+// mean previous/next chapter.
+const showHistoryControls = computed(() => isWailsRuntime());
+
+function goToPreviousPage(): void {
+  window.history.back();
+}
+
+function goToNextPage(): void {
+  window.history.forward();
+}
 const { books, loading, fetchBooks } = useBookStore();
-const { loading: layersLoading, error: layersError, loaded: layersLoaded, fetchLayers } = useLayerStore();
+const { loading: foldersLoading, error: foldersError, loaded: foldersLoaded, fetchFolders } = useFolderStore();
 const {
   moveBookError,
-  showCreateLayerModal,
-  creatingLayer,
-  createLayerError,
-  deleteLayerError,
-  layerOperationError,
-  pendingRenameLayerPath,
-  renameLayerError,
-  deletingLayerMap,
-  pendingDeleteLayerPath,
-  currentLayer,
-  layerTree,
-  canOpenLayerFolder,
-  createLayerParentOptions,
-  createLayerDefaultParent,
-  isDeletingPendingLayer,
-  pendingRenameLayerName,
-  isRenamingPendingLayer,
-  clearLayerErrors,
-  onSelectLayer,
-  openCreateLayerModal,
-  closeCreateLayerModal,
-  onSubmitCreateLayer,
+  showCreateFolderModal,
+  creatingFolder,
+  createFolderError,
+  deleteFolderError,
+  folderOperationError,
+  pendingRenameFolderPath,
+  renameFolderError,
+  deletingFolderMap,
+  pendingDeleteFolderPath,
+  currentFolder,
+  folderTree,
+  canOpenFolder,
+  createFolderParentOptions,
+  createFolderDefaultParent,
+  isDeletingPendingFolder,
+  pendingRenameFolderName,
+  isRenamingPendingFolder,
+  clearFolderErrors,
+  onSelectFolder,
+  openCreateFolderModal,
+  closeCreateFolderModal,
+  onSubmitCreateFolder,
   onMoveBook,
-  requestRenameLayer,
-  cancelPendingRenameLayer,
-  confirmRenameLayer,
-  onMoveLayer,
-  onOpenLayerFolder,
-  requestDeleteLayer,
-  cancelPendingDeleteLayer,
-  confirmDeleteLayer
-} = useLayerManagement();
+  requestRenameFolder,
+  cancelPendingRenameFolder,
+  confirmRenameFolder,
+  canTransferFolder,
+  transferFolderTarget,
+  transferFolderName,
+  transferFolderChain,
+  transferFolderStatus,
+  transferFolderPercentage,
+  transferFolderError,
+  transferFolderStarted,
+  transferFolderRunning,
+  transferFolderFinished,
+  requestTransferFolder,
+  cancelTransferFolder,
+  submitTransferFolder,
+  onMoveFolder,
+  onOpenFolder,
+  requestDeleteFolder,
+  cancelPendingDeleteFolder,
+  confirmDeleteFolder
+} = useFolderManagement();
 const { locale, setLocale, supportedLocales, t } = useI18n();
 // The dropdown itself goes through useShelfPicker; what is left here is the
 // resolved-shelf gate the rest of the layout hangs off, which is the same on
 // every client.
-const { loading: shelvesLoading, loaded: shelvesLoaded, selectedShelfID, fetchShelves } = useShelvesStore();
+const { loading: shelvesLoading, loaded: shelvesLoaded, selectedShelfID, ensureShelvesLoaded } = useShelvesStore();
 const { fetchServerMode } = useServerMode();
 const { writesEnabled, writeDisabledReason, libraryEditingAvailable, serverAdminAvailable } =
   useWriteAccess();
@@ -592,8 +652,8 @@ const shelfUnavailableMessage = computed(() =>
 // web and desktop, the device's own shelf list on the mobile shell.
 const shelfPicker = useShelfPicker({
   onServerShelfSelected: async () => {
-    clearLayerErrors();
-    await Promise.all([fetchLayers(), fetchBooks()]);
+    clearFolderErrors();
+    await Promise.all([fetchFolders(), fetchBooks()]);
     await router.push({ path: '/books', query: { page: '1' } });
   }
 });
@@ -623,16 +683,14 @@ async function onShelfSelect(value: AcceptableValue): Promise<void> {
 
 onMounted(async () => {
   await fetchServerMode();
-  if (!shelvesLoaded.value) {
-    await fetchShelves();
-  }
+  await ensureShelvesLoaded();
 
   if (!hasActiveShelf.value) {
     return;
   }
 
-  if (!layersLoaded.value && !layersLoading.value) {
-    await fetchLayers();
+  if (!foldersLoaded.value && !foldersLoading.value) {
+    await fetchFolders();
   }
 
   if (books.value.length === 0 && !loading.value) {
@@ -773,7 +831,7 @@ onMounted(async () => {
   gap: 6px;
 }
 
-.create-layer-toggle {
+.create-folder-toggle {
   background: #f1f5f9;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -784,22 +842,22 @@ onMounted(async () => {
   padding: 4px 8px;
 }
 
-.create-layer-toggle:disabled {
+.create-folder-toggle:disabled {
   cursor: not-allowed;
   opacity: 0.6;
 }
 
-.sidebar-layer-error {
+.sidebar-folder-error {
   display: grid;
   gap: 8px;
   margin: 4px 8px;
 }
 
-.sidebar-layer-error p {
+.sidebar-folder-error p {
   margin: 0;
 }
 
-.sidebar-layer-error .button {
+.sidebar-folder-error .button {
   justify-self: start;
 }
 
@@ -843,6 +901,10 @@ onMounted(async () => {
   padding: 8px 24px;
 }
 
+/* Sticks to the top of the viewport, so on the Android shell — which targets
+   SDK 36, past the SDK 35 cutoff where edge-to-edge became mandatory — it sits
+   under the status bar unless it carries the top inset itself. Insets are 0
+   everywhere else, leaving the padding unchanged. */
 .topbar {
   position: sticky;
   top: 0;
@@ -853,7 +915,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 24px;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) calc(24px + env(safe-area-inset-right, 0px))
+    14px calc(24px + env(safe-area-inset-left, 0px));
 }
 
 .topbar-left {
@@ -875,6 +938,36 @@ onMounted(async () => {
   height: 34px;
   justify-content: center;
   width: 38px;
+}
+
+.menu-btn svg {
+  height: 18px;
+  width: 18px;
+}
+
+.history-controls {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.history-btn {
+  align-items: center;
+  background: #f6f9fc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: #3e4e66;
+  cursor: pointer;
+  display: flex;
+  font-size: 16px;
+  height: 34px;
+  justify-content: center;
+  line-height: 1;
+  width: 38px;
+}
+
+.history-btn:hover {
+  background: #ecf2f9;
 }
 
 .topbar-controls {
@@ -918,19 +1011,14 @@ onMounted(async () => {
   display: block;
 }
 
-.top-nav {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.top-link {
-  color: var(--accent);
-  font-weight: 600;
-}
-
+/* The scrolling content reaches the bottom and side edges of the window, so it
+   needs those insets to keep the last row — pagination, the mobile action bar's
+   neighbours — clear of the gesture bar and of a landscape cutout. No top
+   inset: .topbar sits above it inside the same scroller and already consumes
+   that one, and adding it here would count it twice. */
 .page-area {
-  padding: 16px 24px;
+  padding: 16px calc(24px + env(safe-area-inset-right, 0px))
+    calc(16px + env(safe-area-inset-bottom, 0px)) calc(24px + env(safe-area-inset-left, 0px));
 }
 
 .no-shelf-panel {
@@ -1005,6 +1093,11 @@ onMounted(async () => {
     bottom: 0;
     box-shadow: 4px 0 24px rgba(15, 23, 42, 0.25);
     left: 0;
+    /* Off-canvas and full-height, so it spans the status and gesture bars on
+       the edge-to-edge Android shell. box-sizing is border-box globally, so
+       this insets the content without widening the drawer. */
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px)
+      env(safe-area-inset-left, 0px);
     position: fixed;
     top: 0;
     transform: translateX(-105%);
@@ -1023,7 +1116,8 @@ onMounted(async () => {
   }
 
   .topbar {
-    padding: 10px 12px;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px))
+      10px calc(12px + env(safe-area-inset-left, 0px));
   }
 
   .language-select > span {

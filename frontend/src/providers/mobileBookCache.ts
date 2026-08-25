@@ -1,6 +1,5 @@
-import type { Book, BookContent, DownloadState, ReadingProgress, SplitConfig } from '@/types/book';
+import type { Book, BookContent, DownloadState, ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
-import { normalizeSplitConfig } from '@/utils/splitConfig';
 
 export interface CachedBookSizeBreakdown {
   content: number;
@@ -16,7 +15,6 @@ export interface CachedBookManifest {
   sources: SourceMeta[];
   // Compatibility field for a legacy source. Schema-versioned sources carry
   // their format in SourceMeta and never need book-level split state.
-  split_config?: SplitConfig;
   downloaded_at: string;
   local_version?: string;
   remote_version?: string;
@@ -36,7 +34,6 @@ export interface MobileBookCache {
 
   listCachedSources(bookId: string): Promise<SourceMeta[]>;
   getCachedSource(bookId: string, sourceId: string): Promise<SourceMeta | null>;
-  getCachedBookSplitConfig(bookId: string): Promise<SplitConfig | null>;
 
   getCachedBookContent(bookId: string): Promise<BookContent | null>;
   saveCachedBookContent(bookId: string, content: BookContent): Promise<void>;
@@ -88,11 +85,9 @@ export function downloadedBookFromManifest(manifest: CachedBookManifest): Book {
  * size breakdown cannot reach the cache's copy, and vice versa.
  *
  * **One level deep, no further.** Values nested inside those objects stay
- * shared by reference — `book.authors`, `book.tags`, `book.layers`,
- * `book.identifiers`, a source's `split_config` — so this does not protect
- * against a caller mutating one of those in place. `split_config` on the
- * manifest itself is the exception, because copySplitConfig also copies its
- * `boundaries` array.
+ * shared by reference — `book.authors`, `book.tags`, `book.folders`,
+ * `book.identifiers` — so this does not protect against a caller mutating one
+ * of those in place.
  *
  * That depth is what every cache implementation applied before this was
  * shared, and it is enough for how manifests are actually used: the only one
@@ -105,11 +100,7 @@ export function downloadedBookFromManifest(manifest: CachedBookManifest): Book {
 export function cloneManifest(manifest: CachedBookManifest): CachedBookManifest {
   return {
     book: { ...manifest.book },
-    sources: manifest.sources.map((source) => ({
-      ...source,
-      split_config: copySplitConfig(source.split_config)
-    })),
-    split_config: copySplitConfig(manifest.split_config),
+    sources: manifest.sources.map((source) => ({ ...source })),
     downloaded_at: manifest.downloaded_at,
     local_version: manifest.local_version,
     remote_version: manifest.remote_version,
@@ -164,20 +155,13 @@ export class InMemoryMobileBookCache implements MobileBookCache {
 
   async listCachedSources(bookId: string): Promise<SourceMeta[]> {
     const manifest = this.manifests.get(bookId);
-    return manifest ? manifest.sources.map((source) => ({
-      ...source,
-      split_config: copySplitConfig(source.split_config)
-    })) : [];
+    return manifest ? manifest.sources.map((source) => ({ ...source })) : [];
   }
 
   async getCachedSource(bookId: string, sourceId: string): Promise<SourceMeta | null> {
     const manifest = this.manifests.get(bookId);
     const source = manifest?.sources.find((item) => item.id === sourceId);
-    return source ? { ...source, split_config: copySplitConfig(source.split_config) } : null;
-  }
-
-  async getCachedBookSplitConfig(bookId: string): Promise<SplitConfig | null> {
-    return copySplitConfig(this.manifests.get(bookId)?.split_config) ?? null;
+    return source ? { ...source } : null;
   }
 
   async getCachedBookContent(bookId: string): Promise<BookContent | null> {
@@ -237,14 +221,4 @@ export class InMemoryMobileBookCache implements MobileBookCache {
   private assetKey(bookId: string, sourceId: string, name: string): string {
     return `${bookId}:${sourceId}:${name}`;
   }
-}
-
-export function copySplitConfig(config: unknown): SplitConfig | undefined {
-  if (config === undefined || config === null) {
-    return undefined;
-  }
-  const normalized = normalizeSplitConfig(config);
-  return normalized.boundaries
-    ? { ...normalized, boundaries: [...normalized.boundaries] }
-    : { ...normalized };
 }

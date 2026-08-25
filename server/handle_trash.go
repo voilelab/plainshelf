@@ -8,20 +8,26 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
+// trashHandlers serves the trash routes. Emptying the trash is background
+// work, so the group carries the submitter rather than plain apiCore.
+type trashHandlers struct {
+	*taskSubmitter
+}
+
 type TrashedBook struct {
-	ID            string        `json:"id"`
-	Title         string        `json:"title"`
-	Authors       []string      `json:"authors,omitempty"`
-	OriginalPath  string        `json:"original_path,omitempty"`
-	OriginalLayer shelf.Layers  `json:"original_layer,omitempty"`
-	DeletedAt     util.JSONTime `json:"deleted_at,omitzero"`
+	ID             string           `json:"id"`
+	Title          string           `json:"title"`
+	Authors        []string         `json:"authors,omitempty"`
+	OriginalPath   string           `json:"original_path,omitempty"`
+	OriginalFolder shelf.FolderPath `json:"original_folder,omitempty"`
+	DeletedAt      util.JSONTime    `json:"deleted_at,omitzero"`
 }
 
 // Serves both DELETE /api/shelves/{shelf_id}/books/{book_id} and
 // POST /api/shelves/{shelf_id}/books/{book_id}/trash. Deleting a book is
 // trashing it -- neither route erases anything, so they are one handler.
-func (app *App) HandleAPITrashBook(w http.ResponseWriter, r *http.Request) {
-	shelfData, ok := app.resolveShelf(w, r)
+func (h *trashHandlers) trashBook(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
@@ -32,7 +38,7 @@ func (app *App) HandleAPITrashBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := shelfData.MoveBookToTrash(bookID); err != nil {
-		app.writeErr(w, err, "failed to trash book")
+		h.writeErr(w, err, "failed to trash book")
 		return
 	}
 
@@ -40,48 +46,51 @@ func (app *App) HandleAPITrashBook(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /api/shelves/{shelf_id}/trash/books
-func (app *App) HandleAPIGetTrashedBooks(w http.ResponseWriter, r *http.Request) {
-	shelfData, ok := app.resolveShelf(w, r)
+func (h *trashHandlers) getTrashedBooks(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
 
 	books, err := shelfData.ListTrashedBooks()
 	if err != nil {
-		app.writeErr(w, err, "failed to list trashed books")
+		h.writeErr(w, err, "failed to list trashed books")
 		return
 	}
 
 	resp := make([]TrashedBook, 0, len(books))
 	for _, b := range books {
 		resp = append(resp, TrashedBook{
-			ID:            b.ID,
-			Title:         b.Title,
-			Authors:       append([]string(nil), b.Authors...),
-			OriginalPath:  b.OriginalPath,
-			OriginalLayer: append(shelf.Layers(nil), b.OriginalLayer...),
-			DeletedAt:     b.DeletedAt,
+			ID:             b.ID,
+			Title:          b.Title,
+			Authors:        append([]string(nil), b.Authors...),
+			OriginalPath:   b.OriginalPath,
+			OriginalFolder: append(shelf.FolderPath(nil), b.OriginalFolder...),
+			DeletedAt:      b.DeletedAt,
 		})
 	}
 
-	app.writeJSON(w, http.StatusOK, resp)
+	h.writeJSON(w, http.StatusOK, resp)
 }
 
 // POST /api/shelves/{shelf_id}/trash/empty
-func (app *App) HandleAPIEmptyTrash(w http.ResponseWriter, r *http.Request) {
-	shelfData, ok := app.resolveShelf(w, r)
+func (h *trashHandlers) emptyTrash(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
+	if h.rejectReadOnlyShelf(w, shelfData) {
+		return
+	}
 
-	app.submitTaskChain(w,
-		task.NewEmptyTrashChain(shelfData.ID, shelfData.Shelf, &app.Logger),
+	h.submitTaskChain(w,
+		task.NewEmptyTrashChain(shelfData.ID, shelfData.Shelf, h.Logger),
 		"failed to schedule empty trash task")
 }
 
 // POST /api/shelves/{shelf_id}/trash/books/{book_id}/restore
-func (app *App) HandleAPIRestoreTrashedBook(w http.ResponseWriter, r *http.Request) {
-	shelfData, ok := app.resolveShelf(w, r)
+func (h *trashHandlers) restoreTrashedBook(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
@@ -92,7 +101,7 @@ func (app *App) HandleAPIRestoreTrashedBook(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := shelfData.RestoreTrashedBook(bookID); err != nil {
-		app.writeErr(w, err, "failed to restore trashed book")
+		h.writeErr(w, err, "failed to restore trashed book")
 		return
 	}
 
@@ -100,8 +109,8 @@ func (app *App) HandleAPIRestoreTrashedBook(w http.ResponseWriter, r *http.Reque
 }
 
 // DELETE /api/shelves/{shelf_id}/trash/books/{book_id}
-func (app *App) HandleAPIDeleteTrashedBook(w http.ResponseWriter, r *http.Request) {
-	shelfData, ok := app.resolveShelf(w, r)
+func (h *trashHandlers) deleteTrashedBook(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
@@ -112,7 +121,7 @@ func (app *App) HandleAPIDeleteTrashedBook(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := shelfData.DeleteTrashedBook(bookID); err != nil {
-		app.writeErr(w, err, "failed to permanently delete trashed book")
+		h.writeErr(w, err, "failed to permanently delete trashed book")
 		return
 	}
 

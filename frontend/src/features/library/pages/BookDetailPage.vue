@@ -1,6 +1,43 @@
 <template>
   <section class="detail-shell">
     <div class="detail-container">
+      <MoveBooksModal
+        v-if="!readOnly"
+        :open="!!moveTarget"
+        :count="1"
+        :title="t('bookDetail.move.title')"
+        :options="moveFolderOptions"
+        :busy="moving"
+        :error="actionError"
+        @cancel="cancelMove"
+        @submit="submitMove"
+      />
+      <MoveBooksModal
+        v-if="!readOnly"
+        :open="!!copyTarget"
+        :count="1"
+        :title="t('bookDetail.copy.title')"
+        :options="copyFolderOptions"
+        :busy="copying"
+        :busy-label="t('bookDetail.copy.copying')"
+        :confirm-label="t('bookDetail.copy.confirm')"
+        :error="actionError"
+        @cancel="cancelCopy"
+        @submit="submitCopy"
+      />
+      <TransferBookModal
+        v-if="!readOnly"
+        :open="!!transferTarget"
+        :book-title="transferTarget?.title || id"
+        :busy="transferring"
+        :started="transferStarted"
+        :finished="transferFinished"
+        :status="transferStatus"
+        :percentage="transferPercentage"
+        :error="transferError"
+        @close="onTransferClose"
+        @submit="submitTransfer"
+      />
       <DeleteModal
         :open="!!deleteTarget"
         :item-name="deleteTarget?.title || id"
@@ -15,6 +52,12 @@
       </div>
       <div v-if="showSavedMessage" class="loading detail-notice" role="status">
         {{ t('bookDetail.messages.saved') }}
+      </div>
+      <div v-if="showCopiedMessage" class="loading detail-notice" role="status">
+        {{ t('bookDetail.messages.copied') }}
+      </div>
+      <div v-if="showDownloadRequiredMessage" class="detail-notice download-required-notice" role="status">
+        {{ t('bookDetail.messages.downloadRequired') }}
       </div>
       <div v-if="actionError" class="error detail-error" role="alert">
         <p>{{ actionError }}</p>
@@ -41,7 +84,13 @@
           />
         </div>
 
-        <BookDetail :book="book" :progress="progress" :current-source="currentSource">
+        <BookDetail
+          :book="book"
+          :progress="progress"
+          :current-source="currentSource"
+          :chapters="chapters"
+          @select-chapter="goRead(id, $event)"
+        >
           <template #reading>
             <section class="reading-card" :aria-label="t('bookDetail.progress.sectionLabel')">
               <div class="progress-copy">
@@ -114,6 +163,27 @@
                       >
                         {{ t('bookDetail.actions.openFolder') }}
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-if="!readOnly"
+                        class="reka-menu-item"
+                        @select="onRequestCopy"
+                      >
+                        {{ t('bookDetail.actions.copyTo') }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-if="!readOnly"
+                        class="reka-menu-item"
+                        @select="onRequestMove"
+                      >
+                        {{ t('bookDetail.actions.moveTo') }}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-if="!readOnly && hasTransferDestinations"
+                        class="reka-menu-item"
+                        @select="onRequestTransfer"
+                      >
+                        {{ t('bookDetail.actions.transferTo') }}
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator v-if="!readOnly" class="detail-menu-separator" />
                       <DropdownMenuItem
                         v-if="!readOnly"
@@ -153,15 +223,18 @@ import {
 import BookCover from '@/features/library/components/BookCover.vue';
 import BookDetail from '@/features/library/components/BookDetail.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
+import MoveBooksModal from '@/features/library/components/MoveBooksModal.vue';
+import TransferBookModal from '@/features/library/components/TransferBookModal.vue';
 import ProgressBar from '@/components/ProgressBar.vue';
 import { useBookActions } from '@/composables/useBookActions';
+import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useBookDetail } from '@/features/library/composables/useBookDetail';
 import { getReadingAction, resolveReadingPercent } from '@/features/library/utils/bookDetail';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useOfflineDownload } from '@/composables/useOfflineDownload';
 import { useWriteAccess } from '@/composables/useWriteAccess';
-import { bookshelfWriter, getBookshelfProvider, isMobileRuntime } from '@/providers';
-import { booksRouteForLayerPath, getLayerPath } from '@/utils/layers';
+import { bookshelfWriter, getBookshelfProvider } from '@/providers';
+import { booksRouteForFolderPath, getFolderPath } from '@/utils/folders';
 import { useI18n } from '@/i18n';
 
 const route = useRoute();
@@ -169,6 +242,7 @@ const router = useRouter();
 const id = computed(() => String(route.params.id));
 const showImportedMessage = computed(() => route.query.imported === '1');
 const showSavedMessage = computed(() => route.query.saved === '1');
+const showCopiedMessage = computed(() => route.query.copied === '1');
 const { writesEnabled } = useWriteAccess();
 const readOnly = computed(() => !writesEnabled.value);
 const { t } = useI18n();
@@ -178,6 +252,7 @@ const {
   progress,
   progressContentLength,
   currentSource,
+  chapters,
   loading,
   error,
   fetchDetail
@@ -188,20 +263,60 @@ const {
   actionError,
   deleteTarget,
   deleting,
+  moveTarget,
+  moving,
+  moveFolderOptions,
+  copyTarget,
+  copying,
+  copyFolderOptions,
+  transferTarget,
+  transferMode,
+  transferStatus,
+  transferPercentage,
+  transferError,
+  transferStarted,
+  transferring,
+  transferFinished,
+  requestTransfer,
+  cancelTransfer,
+  submitTransfer,
   canOpenBookFolder,
   goRead,
   goEdit,
   openBookFolder,
   downloadBook,
+  requestMove,
+  cancelMove,
+  submitMove,
+  requestCopy,
+  cancelCopy,
+  submitCopy,
   requestDelete,
   cancelDelete,
   confirmDelete,
   dismissActionError
 } = useBookActions({
   onDeleted: (deleted) => {
-    void router.push(booksRouteForLayerPath(getLayerPath(deleted)));
+    void router.push(booksRouteForFolderPath(getFolderPath(deleted)));
+  },
+  // The book keeps its id across a move, so the route stays valid and only the
+  // detail payload (breadcrumb included) has to be re-read.
+  onMoved: () => {
+    void fetchDetail();
+  },
+  // The copy is a distinct book with its own id, so open its detail page. The
+  // `copied` flag drives the same one-off notice imported/saved use.
+  onCopied: (copy) => {
+    void router.push({ path: `/books/${copy.id}`, query: { copied: '1' } });
   }
 });
+
+// The transfer picker needs at least one shelf other than the active one, so the
+// menu entry stays hidden until the shelf list proves a destination exists.
+const { shelves, selectedShelfID, ensureShelvesLoaded } = useShelvesStore();
+const hasTransferDestinations = computed(() =>
+  shelves.value.some((shelf) => shelf.id !== selectedShelfID.value)
+);
 
 const readingPercent = computed(() => resolveReadingPercent(
   progress.value,
@@ -251,7 +366,7 @@ const {
   remove: removeOfflineDownload
 } = useOfflineDownload(() => id.value);
 
-const showOfflineDownloadButton = computed(() => isMobileRuntime() && offlineDownloadSupported.value);
+const showOfflineDownloadButton = offlineDownloadSupported;
 const offlineDownloadDisabled = computed(() => offlineDownloadState.value === 'downloading');
 const offlineDownloadButtonLabel = computed(() => {
   switch (offlineDownloadState.value) {
@@ -274,6 +389,20 @@ function onOfflineDownloadClick(): void {
   }
   void startOfflineDownload();
 }
+
+// The mobile shell's router guard redirects a "read" of a not-yet-downloaded
+// book back here with `?downloadRequired=1`. Show the prompt only while the
+// book genuinely still needs downloading, so it clears itself once the offline
+// download this page offers completes. The query flag is an inline literal for
+// the same reason `imported`/`saved`/`copied` above are: this shared page must
+// not import the mobile-only module that sets it.
+const showDownloadRequiredMessage = computed(
+  () =>
+    route.query.downloadRequired === '1' &&
+    offlineDownloadSupported.value &&
+    offlineDownloadState.value !== 'downloaded' &&
+    offlineDownloadState.value !== 'update_available'
+);
 
 const refreshingStats = ref(false);
 
@@ -305,6 +434,41 @@ function onCoverChanged(): void {
   void fetchDetail();
 }
 
+function onRequestMove(): void {
+  if (readOnly.value || !book.value) {
+    return;
+  }
+  requestMove(book.value);
+}
+
+function onRequestCopy(): void {
+  if (readOnly.value || !book.value) {
+    return;
+  }
+  requestCopy(book.value);
+}
+
+function onRequestTransfer(): void {
+  if (readOnly.value || !book.value) {
+    return;
+  }
+  requestTransfer(book.value);
+}
+
+function onTransferClose(): void {
+  // Read the outcome before cancelTransfer clears it: a completed move leaves
+  // the book on another shelf, so this shelf's detail page for it is now stale
+  // and the user is returned to the folder it came from. A copy left the source
+  // in place, so the page stays as it is.
+  const movedAway =
+    transferMode.value === 'move' && transferFinished.value && transferStatus.value !== 'failed';
+  const from = transferTarget.value;
+  cancelTransfer();
+  if (movedAway && from) {
+    void router.push(booksRouteForFolderPath(getFolderPath(from)));
+  }
+}
+
 function onRequestDelete(): void {
   if (readOnly.value || !book.value) {
     return;
@@ -315,18 +479,31 @@ function onRequestDelete(): void {
 watch(id, () => {
   dismissActionError();
   void fetchDetail();
-  if (isMobileRuntime()) {
+  if (offlineDownloadSupported.value) {
     void refreshOfflineDownload();
   }
 }, { immediate: true });
+
+// Loaded once so the transfer menu entry can tell whether any destination shelf
+// exists; idempotent, so re-running when a book id changes is a no-op.
+if (!readOnly.value) {
+  void ensureShelvesLoaded();
+}
 </script>
 
 <style scoped>
+/* The parent `.page-area` (MainLayout.vue) already reserves 16px top/bottom
+   and 24px + safe-area left/right around routed pages. Negative margins here
+   cancel that reserved space so the shell's background reaches every edge of
+   the scroll area, while the padding below re-adds the same amount on top of
+   the shell's own spacing so the visible content offset is unchanged. */
 .detail-shell {
   background: linear-gradient(145deg, #fbfaf7 0%, #f6f3ed 100%);
-  min-height: calc(100vh - 60px);
-  padding: 32px 28px 48px;
-  width: 100%;
+  min-height: calc(100vh - 60px + 16px + env(safe-area-inset-bottom, 0px));
+  margin: -16px calc(-24px - env(safe-area-inset-right, 0px)) calc(-16px - env(safe-area-inset-bottom, 0px))
+    calc(-24px - env(safe-area-inset-left, 0px));
+  padding: 48px calc(52px + env(safe-area-inset-right, 0px)) calc(64px + env(safe-area-inset-bottom, 0px))
+    calc(52px + env(safe-area-inset-left, 0px));
   font-family: 'Noto Sans TC Variable', 'Noto Sans TC', 'Avenir Next', sans-serif;
 }
 
@@ -366,6 +543,16 @@ watch(id, () => {
 
 .detail-notice {
   margin-bottom: 18px;
+}
+
+.download-required-notice {
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid #e1ddd4;
+  border-left: 3px solid #b8842f;
+  border-radius: 12px;
+  color: #5a4a30;
+  font-size: 14px;
+  padding: 12px 14px;
 }
 
 .reading-card {
@@ -466,8 +653,9 @@ watch(id, () => {
 
 @media (max-width: 768px) {
   .detail-shell {
-    min-height: calc(100vh - 54px);
-    padding: 22px 16px 36px;
+    min-height: calc(100vh - 54px + 16px + env(safe-area-inset-bottom, 0px));
+    padding: 38px calc(40px + env(safe-area-inset-right, 0px)) calc(52px + env(safe-area-inset-bottom, 0px))
+      calc(40px + env(safe-area-inset-left, 0px));
   }
 
   .detail-panel {

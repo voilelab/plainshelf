@@ -1,7 +1,7 @@
 import { ref } from 'vue';
 import { ensureActiveShelf, listShelves, type ShelfInfo } from '@/api/shelves';
-import { ApiError, getActiveShelfID, setActiveShelfID } from '@/api/client';
-import { isMobileRuntime } from '@/providers/runtime';
+import { ApiError, setActiveShelfID } from '@/api/client';
+import { getBookshelfProvider } from '@/providers';
 import { t } from '@/i18n';
 
 const shelves = ref<ShelfInfo[]>([]);
@@ -38,13 +38,16 @@ async function fetchShelves(options?: { allowPersistedFallback?: boolean }): Pro
     selectedShelfID.value = ensureActiveShelf(nextShelves);
     loaded.value = true;
   } catch (err) {
-    // On the mobile shell, listing shelves needs the network, but a shelf was
-    // already chosen during connection setup (persisted by mobileConfig and
-    // applied at bootstrap). Fall back to it so offline-cached books stay
-    // reachable; the error is still surfaced in the sidebar. The connect page
-    // opts out: while validating a newly typed server, a failed fetch must not
-    // resurrect a shelf that belongs to the previous server.
-    const persistedShelfID = allowPersistedFallback && isMobileRuntime() ? getActiveShelfID() : '';
+    // Listing shelves needs the network, but a backend whose shelf choice is
+    // device-local already knows which one it is pointed at. Fall back to it so
+    // offline-cached books stay reachable; the error is still surfaced in the
+    // sidebar. The connect page opts out: while validating a newly typed
+    // server, a failed fetch must not resurrect a shelf that belongs to the
+    // previous server — so the provider is asked for only when the fallback is
+    // wanted, since reaching for it is what creates it on first use.
+    const persistedShelfID = allowPersistedFallback
+      ? (getBookshelfProvider().getPersistedShelfID?.() ?? '')
+      : '';
     if (persistedShelfID) {
       selectedShelfID.value = persistedShelfID;
       loaded.value = true;
@@ -55,6 +58,30 @@ async function fetchShelves(options?: { allowPersistedFallback?: boolean }): Pro
   } finally {
     loading.value = false;
   }
+}
+
+let pendingLoad: Promise<void> | null = null;
+
+/**
+ * Loads the shelf list once for the page.
+ *
+ * Two independent places want the list on a settings page load — the layout and
+ * the Shelves panel — and a child's onMounted runs before its parent's, so
+ * whether the second one saw `loaded` already set came down to which network
+ * round-trip finished first. Sharing the in-flight promise settles it: the list
+ * is fetched once, whoever asks first.
+ *
+ * fetchShelves stays the explicit refresh, for when a shelf was just added or
+ * removed and the caller needs the new list rather than the one already loading.
+ */
+async function ensureShelvesLoaded(): Promise<void> {
+  if (loaded.value) {
+    return;
+  }
+  pendingLoad ??= fetchShelves().finally(() => {
+    pendingLoad = null;
+  });
+  return pendingLoad;
 }
 
 function selectShelf(id: string): void {
@@ -70,6 +97,7 @@ export function useShelvesStore() {
     error,
     selectedShelfID,
     fetchShelves,
+    ensureShelvesLoaded,
     selectShelf
   };
 }

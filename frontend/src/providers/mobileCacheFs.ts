@@ -1,4 +1,4 @@
-import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
+import { Directory, Encoding, Filesystem, type WriteFileOptions } from '@capacitor/filesystem';
 
 // Shared layout and file access for everything the mobile shell keeps on the
 // device. Directory.Data is app-private, requires no runtime permission, and —
@@ -117,8 +117,38 @@ export async function readJsonFile<T>(path: string): Promise<T | null> {
   }
 }
 
+/**
+ * Writes through the plugin, retrying once when another write has already
+ * created the directory this one was about to create.
+ *
+ * `writeFile({ recursive: true })` makes a missing parent by checking whether
+ * it exists and then creating it. In the web fallback those are separate
+ * IndexedDB round trips, so two writes into the same not-yet-created directory
+ * both see it missing, both create it, and the loser fails with "Current
+ * directory does already exist." Downloading a book is exactly that shape: it
+ * writes a manifest, content and a cover into a fresh book directory while the
+ * shelf snapshot may still be landing in the scope directory above it.
+ *
+ * Repeating the write settles it, and costs nothing beyond the failed attempt:
+ * the directory exists by then, so the retry does no mkdir at all. A second
+ * collision cannot happen for the same reason. Only the web fallback needs
+ * this - the native plugin creates parents in one `mkdirs` call.
+ */
+async function writeFileCreatingParents(options: WriteFileOptions): Promise<void> {
+  try {
+    await Filesystem.writeFile(options);
+    return;
+  } catch (error) {
+    if (!isDirectoryExistsError(error)) {
+      throw error;
+    }
+  }
+
+  await Filesystem.writeFile(options);
+}
+
 export async function writeTextFile(path: string, data: string): Promise<void> {
-  await Filesystem.writeFile({
+  await writeFileCreatingParents({
     path,
     data,
     directory: CACHE_DIRECTORY,
@@ -129,6 +159,37 @@ export async function writeTextFile(path: string, data: string): Promise<void> {
 
 export async function writeJsonFile(path: string, value: unknown): Promise<void> {
   await writeTextFile(path, JSON.stringify(value));
+}
+
+/**
+ * Reads a file written by {@link writeBinaryFile}, as base64.
+ *
+ * Omitting `encoding` is what makes the plugin treat the file as bytes; it
+ * hands them back base64-encoded, which is the shape base64ToBlob wants.
+ * A miss degrades to null for the same reason readTextFile's does.
+ */
+export async function readBinaryFile(path: string): Promise<string | null> {
+  try {
+    const result = await Filesystem.readFile({ path, directory: CACHE_DIRECTORY });
+    return typeof result.data === 'string' ? result.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Writes a base64 payload as raw bytes.
+ *
+ * Without `encoding` the plugin decodes the base64 before writing, so what
+ * lands on disk is the image itself rather than its ~33% larger text form.
+ */
+export async function writeBinaryFile(path: string, base64: string): Promise<void> {
+  await writeFileCreatingParents({
+    path,
+    data: base64,
+    directory: CACHE_DIRECTORY,
+    recursive: true
+  });
 }
 
 export async function deleteFileIgnoringMissing(path: string): Promise<void> {
@@ -161,4 +222,32 @@ export async function rmdirIgnoringMissing(path: string): Promise<void> {
 export function isMissingError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /not exist|does not exist|enoent|no such file|not found/i.test(message);
+}
+
+/**
+ * Whether a Capacitor Filesystem failure means "that directory is already
+ * there". Reported by message rather than by a code, the same way a missing
+ * file is; see {@link writeFileCreatingParents} for when it happens.
+ */
+function isDirectoryExistsError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /already exist/i.test(message);
+}
+
+export async function blobToBase64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+export function base64ToBlob(base64: string, mime: string): Blob {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new Blob([bytes], mime ? { type: mime } : undefined);
 }

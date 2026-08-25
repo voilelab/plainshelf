@@ -62,6 +62,11 @@ Open the library, choose **Import**, and select a `.txt`, `.md` or `.epub` file.
 You can then edit its metadata, add a cover, place it in a folder, and open the
 reader.
 
+A Markdown book's detail page also lists the chapters its source splits into,
+the same H2 headings the reader navigates by. Selecting one opens the reader at
+that chapter instead of your last position. Plain text has no chapters, so the
+list is absent there.
+
 On the Android app and narrow browser screens, the reader uses an immersive
 layout: tap the center of the page to show or hide its controls, swipe left for
 the next chapter, and swipe right for the previous chapter. Vertical swipes
@@ -77,9 +82,13 @@ ID. See [Data Model](concepts/data-model.md) for the on-disk layout.
 
 ## 4. Back up before experimenting
 
-PlainShelf is pre-alpha. Back up both the configured shelf and application store
-before upgrades or manual filesystem edits. Stop write activity first so the
-backup captures a consistent state.
+PlainShelf is pre-alpha. Until it reaches 1.0.0, the on-disk format itself can
+still change between releases, so upgrading a v0.x shelf may require a fresh
+start for some data; see
+[Compatibility policy](concepts/data-format-versioning.md#compatibility-policy).
+Back up both the configured shelf and application store before upgrades or
+manual filesystem edits. Stop write activity first so the backup captures a
+consistent state.
 
 ## Next steps
 

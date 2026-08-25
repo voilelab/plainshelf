@@ -1,12 +1,12 @@
 <template>
   <section class="editor-panel">
     <div class="source-editor-status" role="status">
-      <p v-if="loading" class="meta">Loading source...</p>
-      <p v-else-if="!sourceId" class="meta">Select a source to start editing.</p>
-      <p v-else-if="dirty" class="meta dirty">Unsaved changes</p>
-      <p v-else class="meta">No pending changes</p>
+      <p v-if="loading" class="meta">{{ t('sources.editor.loading') }}</p>
+      <p v-else-if="!sourceId" class="meta">{{ t('sources.editor.noSelection') }}</p>
+      <p v-else-if="dirty" class="meta dirty">{{ t('sources.editor.dirty') }}</p>
+      <p v-else class="meta">{{ t('sources.editor.clean') }}</p>
       <span v-if="sourceId && !loading" class="status-spacer"></span>
-      <span v-if="sourceId && !loading && isCurrent" class="current-badge">Current</span>
+      <span v-if="sourceId && !loading && isCurrent" class="current-badge">{{ t('sources.list.current') }}</span>
       <button
         v-if="sourceId && !loading && !isCurrent"
         class="button set-current-btn"
@@ -14,81 +14,90 @@
         :disabled="settingCurrent"
         @click="$emit('setCurrent')"
       >
-        {{ settingCurrent ? 'Setting...' : 'Set as current' }}
+        {{ settingCurrent ? t('sources.editor.settingCurrent') : t('sources.editor.setCurrent') }}
       </button>
     </div>
 
-    <div class="editor-find-replace" role="group" aria-label="Find and replace">
+    <div class="editor-find-replace" role="group" :aria-label="t('sources.editor.find.groupLabel')">
       <label class="control-field">
-        <span class="field-label">Find</span>
+        <span class="field-label">{{ t('sources.editor.find.findLabel') }}</span>
         <input
           v-model="findQuery"
           class="control-input"
           type="text"
-          placeholder="Search text"
+          :placeholder="t('sources.editor.find.findPlaceholder')"
           :disabled="isEditorDisabled"
           @keydown.enter.prevent="findNext"
         />
       </label>
 
       <label class="control-field">
-        <span class="field-label">Replace</span>
+        <span class="field-label">{{ t('sources.editor.find.replaceLabel') }}</span>
         <input
           v-model="replaceQuery"
           class="control-input"
           type="text"
-          placeholder="Replace with"
+          :placeholder="t('sources.editor.find.replacePlaceholder')"
           :disabled="isEditorDisabled"
           @keydown="onReplaceInputKeydown"
         />
       </label>
 
       <label v-if="focused" class="control-field scope-field">
-        <span class="field-label">Scope</span>
+        <span class="field-label">{{ t('sources.editor.find.scopeLabel') }}</span>
         <select v-model="findScope" class="control-input" :disabled="isEditorDisabled">
-          <option value="section">Current chapter</option>
-          <option value="source">Whole source</option>
+          <option value="section">{{ t('sources.editor.find.scopeSection') }}</option>
+          <option value="source">{{ t('sources.editor.find.scopeSource') }}</option>
         </select>
       </label>
 
       <div class="find-actions">
-        <button class="button" type="button" :disabled="disableFind" @click="findPrevious">Prev</button>
-        <button class="button" type="button" :disabled="disableFind" @click="findNext">Next</button>
+        <button class="button" type="button" :disabled="disableFind" @click="findPrevious">{{ t('sources.editor.find.previous') }}</button>
+        <button class="button" type="button" :disabled="disableFind" @click="findNext">{{ t('sources.editor.find.next') }}</button>
         <button class="button" type="button" :disabled="disableFind" @click="replaceNext">
-          Replace
+          {{ t('sources.editor.find.replace') }}
         </button>
         <button class="button" type="button" :disabled="disableFind" @click="replaceAll">
-          Replace all
+          {{ t('sources.editor.find.replaceAll') }}
         </button>
       </div>
+
+      <div class="find-options">
+        <label class="find-option">
+          <input v-model="caseSensitive" type="checkbox" :disabled="isEditorDisabled" />
+          <span>{{ t('sources.editor.find.caseSensitive') }}</span>
+        </label>
+        <label class="find-option">
+          <input v-model="wholeWord" type="checkbox" :disabled="isEditorDisabled" />
+          <span>{{ t('sources.editor.find.wholeWord') }}</span>
+        </label>
+        <label class="find-option">
+          <input v-model="useRegexp" type="checkbox" :disabled="isEditorDisabled" />
+          <span>{{ t('sources.editor.find.regexp') }}</span>
+        </label>
+      </div>
+
       <p class="find-status" role="status" aria-live="polite">{{ findStatus }}</p>
     </div>
 
     <div v-if="error" class="error editor-error" role="alert">{{ error }}</div>
 
-    <textarea
-      :key="viewRange?.key ?? 0"
-      ref="textareaRef"
-      class="source-content-textarea"
-      :value="visibleContent"
-      :disabled="!sourceId || loading || saving"
-      spellcheck="false"
-      @compositionstart="onCompositionStart"
-      @compositionend="onCompositionEnd"
-      @input="onInput"
-    ></textarea>
+    <div ref="hostRef" class="source-content-editor"></div>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { useSourceTextEditor } from '@/features/sources/composables/useSourceTextEditor';
+import { useSourceCodeMirror } from '@/features/sources/composables/useSourceCodeMirror';
 import type {
   SourceDocumentEdit,
-  SourceEditorAdapter,
+  SourceEditorHandle,
   SourceEditorViewRange,
   SourceFindScope
 } from '@/features/sources/types/editorAdapter';
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   modelValue: string;
@@ -101,11 +110,11 @@ const props = defineProps<{
   settingCurrent?: boolean;
   viewRange?: SourceEditorViewRange | null;
   focused?: boolean;
+  format?: 'txt' | 'md';
 }>();
 
 const emit = defineEmits<{
   documentEdit: [edit: SourceDocumentEdit];
-  requestViewOffset: [offset: number, affinity: 'forward' | 'backward'];
   setCurrent: [];
 }>();
 
@@ -121,39 +130,43 @@ watch(
 );
 
 const {
-  textareaRef,
-  visibleContent,
+  hostRef,
   findQuery,
   replaceQuery,
+  caseSensitive,
+  useRegexp,
+  wholeWord,
   findStatus,
   disableFind,
-  onInput,
-  onCompositionStart,
-  onCompositionEnd,
   findNext,
   findPrevious,
   replaceNext,
   onReplaceInputKeydown,
   replaceAll,
+  flushDocument,
   getCurrentParagraphStart,
   replaceRange,
+  replaceRangeQuietly,
   jumpToOffset,
   focusAndSelect
-} = useSourceTextEditor({
+} = useSourceCodeMirror({
   content: () => props.modelValue,
   sourceId: () => props.sourceId,
   disabled: () => isEditorDisabled.value,
   viewRange: () => props.viewRange ?? null,
   findScope: () => findScope.value,
-  updateDocument: (edit) => emit('documentEdit', edit),
-  requestViewOffset: (offset, affinity) => emit('requestViewOffset', offset, affinity)
+  format: () => props.format ?? 'txt',
+  contentLabel: () => t('sources.editor.contentLabel'),
+  updateDocument: (edit) => emit('documentEdit', edit)
 });
 
-defineExpose<SourceEditorAdapter>({
+defineExpose<SourceEditorHandle>({
   getCurrentParagraphStart,
   replaceRange,
+  replaceRangeQuietly,
   jumpToOffset,
-  focusAndSelect
+  focusAndSelect,
+  flushDocument
 });
 </script>
 
@@ -205,29 +218,19 @@ defineExpose<SourceEditorAdapter>({
   padding: 3px 10px;
 }
 
-.source-content-textarea {
+/*
+ * The host box only owns the layout; everything inside it is CodeMirror's own
+ * DOM and is styled through EditorView.theme, which reaches past this scoped
+ * stylesheet's attribute selector.
+ */
+.source-content-editor {
   flex: 1 1 0;
   min-width: 0;
   min-height: 0;
   width: 100%;
   box-sizing: border-box;
-  border: none;
-  outline: none;
+  overflow: hidden;
   background: #fff;
-  color: var(--text);
-  padding: 24px 32px;
-  font-size: 16px;
-  line-height: 1.7;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
-  resize: none;
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.source-content-textarea:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent) 32%, transparent);
-  outline-offset: -2px;
 }
 
 .editor-find-replace {
@@ -267,6 +270,22 @@ defineExpose<SourceEditorAdapter>({
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.find-options {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+}
+
+.find-option {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .find-status {

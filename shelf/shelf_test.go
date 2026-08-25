@@ -95,36 +95,46 @@ func TestShelfWaitReadyCancellationAndInitializingReads(t *testing.T) {
 	if _, err := shelf.GetBook("book"); !errors.Is(err, ErrShelfInitializing) {
 		t.Fatalf("GetBook error = %v, want ErrShelfInitializing", err)
 	}
-	if _, err := shelf.GetBooksByLayer(nil); !errors.Is(err, ErrShelfInitializing) {
-		t.Fatalf("GetBooksByLayer error = %v, want ErrShelfInitializing", err)
+	if _, err := shelf.GetBooksByFolder(nil); !errors.Is(err, ErrShelfInitializing) {
+		t.Fatalf("GetBooksByFolder error = %v, want ErrShelfInitializing", err)
+	}
+	// The folder tree comes from the same cache, so an empty list before the
+	// first scan would read as "no folders" instead of "not scanned yet".
+	if _, err := shelf.GetAllFolders(); !errors.Is(err, ErrShelfInitializing) {
+		t.Fatalf("GetAllFolders error = %v, want ErrShelfInitializing", err)
+	}
+	// A rescan is refused for the same reason: the initial scan is the very walk
+	// it would duplicate.
+	if _, err := shelf.Rescan(); !errors.Is(err, ErrShelfInitializing) {
+		t.Fatalf("Rescan error = %v, want ErrShelfInitializing", err)
 	}
 }
 
-func TestShelfDeleteLayer(t *testing.T) {
+func TestShelfDeleteFolder(t *testing.T) {
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
-	if err := shelf.NewLayer(Layers{"empty"}); err != nil {
-		t.Fatalf("NewLayer(empty): %v", err)
+	if err := shelf.NewFolder(FolderPath{}, "empty"); err != nil {
+		t.Fatalf("NewFolder(empty): %v", err)
 	}
-	if err := shelf.DeleteLayer(Layers{"empty"}); err != nil {
-		t.Fatalf("DeleteLayer(empty): %v", err)
+	if err := shelf.DeleteFolder(FolderPath{"empty"}); err != nil {
+		t.Fatalf("DeleteFolder(empty): %v", err)
 	}
 	if _, err := shelf.dbRoot.Stat(path.Join(booksFolder, "empty")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("deleted layer stat error = %v, want os.ErrNotExist", err)
 	}
 
-	if _, err := shelf.NewBook(Layers{"occupied"}, "Resident"); err != nil {
+	if _, err := shelf.NewBook(FolderPath{"occupied"}, "Resident"); err != nil {
 		t.Fatalf("NewBook(occupied): %v", err)
 	}
-	if err := shelf.DeleteLayer(Layers{"occupied"}); err == nil {
-		t.Fatal("DeleteLayer removed a non-empty layer")
+	if err := shelf.DeleteFolder(FolderPath{"occupied"}); err == nil {
+		t.Fatal("DeleteFolder removed a non-empty layer")
 	}
 	if _, err := shelf.dbRoot.Stat(path.Join(booksFolder, "occupied")); err != nil {
 		t.Fatalf("non-empty layer disappeared: %v", err)
 	}
 
-	if err := shelf.DeleteLayer(Layers{"missing"}); err == nil {
-		t.Fatal("DeleteLayer accepted a missing layer")
+	if err := shelf.DeleteFolder(FolderPath{"missing"}); err == nil {
+		t.Fatal("DeleteFolder accepted a missing layer")
 	}
 }
 
@@ -169,32 +179,32 @@ func TestShelfGetBookNotFound(t *testing.T) {
 	}
 }
 
-func TestShelfGetAllLayers(t *testing.T) {
+func TestShelfGetAllFolders(t *testing.T) {
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: path.Join("testdata", "lib")})
 
-	layers, err := shelf.GetAllLayers()
+	folders, err := shelf.GetAllFolders()
 	if err != nil {
 		t.Fatalf("Failed to get all layers: %v", err)
 	}
 
-	expectedLayers := []Layers{{""}, {"default"}, {"default", "test"}, {"empty"}}
-	log.Println("Expected layers:", expectedLayers)
-	log.Println("Actual layers:", layers)
-	if len(layers) != len(expectedLayers) {
-		t.Fatalf("Expected %d layers, got %d", len(expectedLayers), len(layers))
+	expectedFolders := []FolderPath{{""}, {"default"}, {"default", "test"}, {"empty"}}
+	log.Println("Expected layers:", expectedFolders)
+	log.Println("Actual layers:", folders)
+	if len(folders) != len(expectedFolders) {
+		t.Fatalf("Expected %d layers, got %d", len(expectedFolders), len(folders))
 	}
 
-	for i, layer := range expectedLayers {
-		if layers[i].String() != layer.String() {
-			t.Errorf("Expected layer '%s', got '%s'", layer.String(), layers[i].String())
+	for i, folder := range expectedFolders {
+		if folders[i].String() != folder.String() {
+			t.Errorf("Expected layer '%s', got '%s'", folder.String(), folders[i].String())
 		}
 	}
 }
 
-func TestShelfGetBookByLayer(t *testing.T) {
+func TestShelfGetBookByFolder(t *testing.T) {
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: path.Join("testdata", "lib")})
 
-	books, err := shelf.GetBooksByLayer([]string{"default", "test"})
+	books, err := shelf.GetBooksByFolder([]string{"default", "test"})
 	if err != nil {
 		t.Fatalf("Failed to get book by layer: %v", err)
 	}
@@ -274,7 +284,7 @@ func TestShelfTrashLifecycle(t *testing.T) {
 	if trashed[0].ID != book.ID() {
 		t.Fatalf("Trashed book ID = %s, want %s", trashed[0].ID, book.ID())
 	}
-	if got := trashed[0].OriginalLayer.String(); got != "new/layer" {
+	if got := trashed[0].OriginalFolder.String(); got != "new/layer" {
 		t.Fatalf("Trashed original layer = %s, want new/layer", got)
 	}
 
@@ -282,11 +292,11 @@ func TestShelfTrashLifecycle(t *testing.T) {
 		t.Fatalf("Failed to restore trashed book: %v", err)
 	}
 
-	restored, err := shelf.GetBook(book.ID())
+	restored, err := shelf.GetBookListing(book.ID())
 	if err != nil {
 		t.Fatalf("Failed to get restored book: %v", err)
 	}
-	if got := restored.Layers().String(); got != "new/layer" {
+	if got := restored.Folders.String(); got != "new/layer" {
 		t.Fatalf("Restored layer = %s, want new/layer", got)
 	}
 
@@ -304,34 +314,34 @@ func TestShelfTrashLifecycle(t *testing.T) {
 func TestShelfRestoreTrashResolvesFolderCollision(t *testing.T) {
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
-	original, err := shelf.NewBook(Layers{"fiction"}, "Same Title")
+	original, err := shelf.NewBook(FolderPath{"fiction"}, "Same Title")
 	if err != nil {
 		t.Fatalf("NewBook(original): %v", err)
 	}
-	originalPath := original.FolderPath()
+	originalPath := original.PackagePath()
 	if err := shelf.DeleteBook(original.ID()); err != nil {
 		t.Fatalf("DeleteBook(original): %v", err)
 	}
 
-	replacement, err := shelf.NewBook(Layers{"fiction"}, "Same Title")
+	replacement, err := shelf.NewBook(FolderPath{"fiction"}, "Same Title")
 	if err != nil {
 		t.Fatalf("NewBook(replacement): %v", err)
 	}
-	if replacement.FolderPath() != originalPath {
-		t.Fatalf("replacement path = %q, want original path %q", replacement.FolderPath(), originalPath)
+	if replacement.PackagePath() != originalPath {
+		t.Fatalf("replacement path = %q, want original path %q", replacement.PackagePath(), originalPath)
 	}
 
 	if err := shelf.RestoreTrashedBook(original.ID()); err != nil {
 		t.Fatalf("RestoreTrashedBook: %v", err)
 	}
-	restored, err := shelf.GetBook(original.ID())
+	restored, err := shelf.GetBookListing(original.ID())
 	if err != nil {
-		t.Fatalf("GetBook(restored): %v", err)
+		t.Fatalf("GetBookListing(restored): %v", err)
 	}
-	if restored.FolderPath() == replacement.FolderPath() {
-		t.Fatalf("restored book reused occupied path %q", restored.FolderPath())
+	if restored.Book.PackagePath() == replacement.PackagePath() {
+		t.Fatalf("restored book reused occupied path %q", restored.Book.PackagePath())
 	}
-	if got := restored.Layers().String(); got != "fiction" {
+	if got := restored.Folders.String(); got != "fiction" {
 		t.Fatalf("restored layer = %q, want fiction", got)
 	}
 }
@@ -354,27 +364,27 @@ func TestShelfMoveBook(t *testing.T) {
 		t.Errorf("Expected book title 'Book to Move', got '%s'", movedBook.Title())
 	}
 
-	booksInLayer1, err := shelf.GetBooksByLayer([]string{"layer1"})
+	booksInFolder1, err := shelf.GetBooksByFolder([]string{"layer1"})
 	if err != nil {
 		t.Fatalf("Failed to get books in layer1: %v", err)
 	}
-	if len(booksInLayer1) != 0 {
-		t.Errorf("Expected 0 books in layer1 after move, got %d", len(booksInLayer1))
+	if len(booksInFolder1) != 0 {
+		t.Errorf("Expected 0 books in layer1 after move, got %d", len(booksInFolder1))
 	}
 
-	booksInLayer2, err := shelf.GetBooksByLayer([]string{"layer2"})
+	booksInFolder2, err := shelf.GetBooksByFolder([]string{"layer2"})
 	if err != nil {
 		t.Fatalf("Failed to get books in layer2: %v", err)
 	}
-	if len(booksInLayer2) != 1 {
-		t.Errorf("Expected 1 book in layer2 after move, got %d", len(booksInLayer2))
+	if len(booksInFolder2) != 1 {
+		t.Errorf("Expected 1 book in layer2 after move, got %d", len(booksInFolder2))
 	}
-	if booksInLayer2[0].ID() != book.ID() {
-		t.Errorf("Expected moved book ID '%s', got '%s'", book.ID(), booksInLayer2[0].ID())
+	if booksInFolder2[0].ID() != book.ID() {
+		t.Errorf("Expected moved book ID '%s', got '%s'", book.ID(), booksInFolder2[0].ID())
 	}
 }
 
-func TestShelfRenameLayer(t *testing.T) {
+func TestShelfRenameFolder(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, ScanInterval: "0s"})
 
@@ -383,21 +393,21 @@ func TestShelfRenameLayer(t *testing.T) {
 		t.Fatalf("Failed to create book: %v", err)
 	}
 
-	if err := shelf.RenameLayer([]string{"oldlayer"}, []string{"newlayer"}); err != nil {
-		t.Fatalf("RenameLayer failed: %v", err)
+	if err := shelf.RenameFolder([]string{"oldlayer"}, "newlayer"); err != nil {
+		t.Fatalf("RenameFolder failed: %v", err)
 	}
 
-	booksInOld, err := shelf.GetBooksByLayer([]string{"oldlayer"})
+	booksInOld, err := shelf.GetBooksByFolder([]string{"oldlayer"})
 	if err != nil {
-		t.Fatalf("GetBooksByLayer(oldlayer) failed: %v", err)
+		t.Fatalf("GetBooksByFolder(oldlayer) failed: %v", err)
 	}
 	if len(booksInOld) != 0 {
 		t.Errorf("Expected 0 books in oldlayer after rename, got %d", len(booksInOld))
 	}
 
-	booksInNew, err := shelf.GetBooksByLayer([]string{"newlayer"})
+	booksInNew, err := shelf.GetBooksByFolder([]string{"newlayer"})
 	if err != nil {
-		t.Fatalf("GetBooksByLayer(newlayer) failed: %v", err)
+		t.Fatalf("GetBooksByFolder(newlayer) failed: %v", err)
 	}
 	if len(booksInNew) != 1 {
 		t.Fatalf("Expected 1 book in newlayer after rename, got %d", len(booksInNew))
@@ -407,7 +417,7 @@ func TestShelfRenameLayer(t *testing.T) {
 	}
 }
 
-func TestShelfRenameLayerNested(t *testing.T) {
+func TestShelfRenameFolderNested(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, ScanInterval: "0s"})
 
@@ -416,13 +426,13 @@ func TestShelfRenameLayerNested(t *testing.T) {
 		t.Fatalf("Failed to create book: %v", err)
 	}
 
-	if err := shelf.RenameLayer([]string{"parent", "child"}, []string{"parent", "renamed"}); err != nil {
-		t.Fatalf("RenameLayer failed: %v", err)
+	if err := shelf.RenameFolder([]string{"parent", "child"}, "renamed"); err != nil {
+		t.Fatalf("RenameFolder failed: %v", err)
 	}
 
-	booksInNew, err := shelf.GetBooksByLayer([]string{"parent", "renamed"})
+	booksInNew, err := shelf.GetBooksByFolder([]string{"parent", "renamed"})
 	if err != nil {
-		t.Fatalf("GetBooksByLayer failed: %v", err)
+		t.Fatalf("GetBooksByFolder failed: %v", err)
 	}
 	if len(booksInNew) != 1 {
 		t.Fatalf("Expected 1 book in parent/renamed, got %d", len(booksInNew))
@@ -432,7 +442,7 @@ func TestShelfRenameLayerNested(t *testing.T) {
 	}
 }
 
-func TestShelfRenameLayerAcrossParentsRejected(t *testing.T) {
+func TestShelfRenameFolderStaysUnderSameParent(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, ScanInterval: "0s"})
 
@@ -441,20 +451,31 @@ func TestShelfRenameLayerAcrossParentsRejected(t *testing.T) {
 		t.Fatalf("Failed to create book: %v", err)
 	}
 
-	if err := shelf.RenameLayer([]string{"alpha", "beta"}, []string{"gamma", "delta"}); err == nil {
-		t.Fatal("Expected RenameLayer to reject moving across parents")
+	// RenameFolder only ever renames the last segment, so a rename can never move
+	// the folder to a different parent: alpha/beta becomes alpha/delta, not
+	// gamma/delta.
+	if err := shelf.RenameFolder([]string{"alpha", "beta"}, "delta"); err != nil {
+		t.Fatalf("RenameFolder failed: %v", err)
 	}
 
-	booksInOld, err := shelf.GetBooksByLayer([]string{"alpha", "beta"})
+	booksInNew, err := shelf.GetBooksByFolder([]string{"alpha", "delta"})
 	if err != nil {
-		t.Fatalf("GetBooksByLayer failed: %v", err)
+		t.Fatalf("GetBooksByFolder failed: %v", err)
 	}
-	if len(booksInOld) != 1 || booksInOld[0].ID() != book.ID() {
-		t.Fatalf("Expected book to remain in alpha/beta, got %#v", booksInOld)
+	if len(booksInNew) != 1 || booksInNew[0].ID() != book.ID() {
+		t.Fatalf("Expected book in alpha/delta, got %#v", booksInNew)
+	}
+
+	booksElsewhere, err := shelf.GetBooksByFolder([]string{"gamma", "delta"})
+	if err != nil {
+		t.Fatalf("GetBooksByFolder failed: %v", err)
+	}
+	if len(booksElsewhere) != 0 {
+		t.Fatalf("book unexpectedly landed under a different parent: %#v", booksElsewhere)
 	}
 }
 
-func TestShelfMoveLayerUnderExistingLayer(t *testing.T) {
+func TestShelfMoveFolderUnderExistingFolder(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, ScanInterval: "0s"})
 
@@ -462,59 +483,60 @@ func TestShelfMoveLayerUnderExistingLayer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create book: %v", err)
 	}
-	if err := shelf.NewLayer([]string{"gamma"}); err != nil {
+	if err := shelf.NewFolder([]string{}, "gamma"); err != nil {
 		t.Fatalf("Failed to create target layer: %v", err)
 	}
 
-	if err := shelf.MoveLayer([]string{"alpha", "beta"}, []string{"gamma"}); err != nil {
-		t.Fatalf("MoveLayer failed: %v", err)
+	if err := shelf.MoveFolder([]string{"alpha", "beta"}, []string{"gamma"}); err != nil {
+		t.Fatalf("MoveFolder failed: %v", err)
 	}
 
-	booksInNew, err := shelf.GetBooksByLayer([]string{"gamma", "beta"})
+	booksInNew, err := shelf.GetBooksByFolder([]string{"gamma", "beta"})
 	if err != nil {
-		t.Fatalf("GetBooksByLayer failed: %v", err)
+		t.Fatalf("GetBooksByFolder failed: %v", err)
 	}
 	if len(booksInNew) != 1 || booksInNew[0].ID() != book.ID() {
 		t.Fatalf("Expected book in gamma/beta, got %#v", booksInNew)
 	}
 }
 
-func TestShelfMoveLayerRequiresExistingTarget(t *testing.T) {
+func TestShelfMoveFolderRequiresExistingTarget(t *testing.T) {
 	tmpLib := path.Join(t.TempDir(), "shelf_test")
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-	if err := shelf.NewLayer([]string{"alpha"}); err != nil {
+	if err := shelf.NewFolder([]string{}, "alpha"); err != nil {
 		t.Fatalf("Failed to create layer: %v", err)
 	}
 
-	if err := shelf.MoveLayer([]string{"alpha"}, []string{"missing"}); err == nil {
-		t.Fatal("Expected MoveLayer to reject missing target layer")
+	if err := shelf.MoveFolder([]string{"alpha"}, []string{"missing"}); err == nil {
+		t.Fatal("Expected MoveFolder to reject missing target layer")
 	}
 }
 
-func TestShelfRenameLayerRejectsBadArguments(t *testing.T) {
+func TestShelfRenameFolderRejectsBadArguments(t *testing.T) {
 	tests := []struct {
 		name     string
 		existing [][]string
-		from, to []string
+		from     []string
+		to       string
 	}{
 		{
 			name: "old layer does not exist",
-			from: []string{"nonexistent"}, to: []string{"anything"},
+			from: []string{"nonexistent"}, to: "anything",
 		},
 		{
 			name:     "new name is already taken",
 			existing: [][]string{{"layerA"}, {"layerB"}},
-			from:     []string{"layerA"}, to: []string{"layerB"},
+			from:     []string{"layerA"}, to: "layerB",
 		},
 		{
 			name: "old name is unsafe",
-			from: []string{"bad/name"}, to: []string{"newname"},
+			from: []string{"bad/name"}, to: "newname",
 		},
 		{
 			name:     "new name is unsafe",
 			existing: [][]string{{"validlayer"}},
-			from:     []string{"validlayer"}, to: []string{"bad/name"},
+			from:     []string{"validlayer"}, to: "bad/name",
 		},
 	}
 
@@ -523,14 +545,14 @@ func TestShelfRenameLayerRejectsBadArguments(t *testing.T) {
 			tmpLib := path.Join(t.TempDir(), "shelf_test")
 			shelf := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
 
-			for _, layer := range tt.existing {
-				if err := shelf.NewLayer(layer); err != nil {
-					t.Fatalf("Failed to create layer %v: %v", layer, err)
+			for _, folder := range tt.existing {
+				if err := shelf.NewFolder(folder[:len(folder)-1], folder[len(folder)-1]); err != nil {
+					t.Fatalf("Failed to create folder %v: %v", folder, err)
 				}
 			}
 
-			if err := shelf.RenameLayer(tt.from, tt.to); err == nil {
-				t.Fatalf("Expected RenameLayer(%v, %v) to fail, got nil", tt.from, tt.to)
+			if err := shelf.RenameFolder(tt.from, tt.to); err == nil {
+				t.Fatalf("Expected RenameFolder(%v, %v) to fail, got nil", tt.from, tt.to)
 			}
 		})
 	}

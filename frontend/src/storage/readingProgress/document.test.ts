@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   READING_PROGRESS_DOCUMENT_VERSION,
   createReadingProgressDocument,
+  getBookReadingEntry,
   getBookReadingOffset,
   parseReadingProgressDocument,
   serializeReadingProgressDocument,
@@ -17,36 +18,45 @@ describe('parseReadingProgressDocument', () => {
     expect(parseReadingProgressDocument('[1,2,3]')).toEqual(empty);
   });
 
-  it('returns an empty document for a future version', () => {
-    const text = JSON.stringify({
-      version: READING_PROGRESS_DOCUMENT_VERSION + 1,
-      shelves: { main: { 'book-1': 42 } }
-    });
-    expect(parseReadingProgressDocument(text)).toEqual(createReadingProgressDocument());
+  it('returns an empty document for any other version, new or old', () => {
+    const empty = createReadingProgressDocument();
+    for (const version of [READING_PROGRESS_DOCUMENT_VERSION + 1, 1]) {
+      const text = JSON.stringify({
+        version,
+        shelves: { main: { 'book-1': { offset: 42, at: 10 } } }
+      });
+      expect(parseReadingProgressDocument(text)).toEqual(empty);
+    }
   });
 
-  it('drops invalid shelf keys, book ids, and offsets', () => {
+  it('drops invalid entries but keeps valid offsets and reset tombstones', () => {
     const text = JSON.stringify({
       version: READING_PROGRESS_DOCUMENT_VERSION,
       shelves: {
         main: {
-          'book-1': 42,
-          'book-zero': 0,
-          'book-negative': -2,
-          'book-float': 1.5,
-          'book-text': '9',
-          ' ': 10
+          'book-1': { offset: 42, at: 10 },
+          'book-tombstone': { offset: 0, at: 20 },
+          'book-bare-zero': { offset: 0, at: 0 },
+          'book-negative': { offset: -2, at: 10 },
+          'book-float': { offset: 1.5, at: 10 },
+          'book-bare-number': 9,
+          ' ': { offset: 10, at: 10 }
         },
-        ' ': { 'book-2': 20 },
+        ' ': { 'book-2': { offset: 20, at: 10 } },
         broken: []
       }
     });
 
-    expect(parseReadingProgressDocument(text).shelves).toEqual({ main: { 'book-1': 42 } });
+    expect(parseReadingProgressDocument(text).shelves).toEqual({
+      main: {
+        'book-1': { offset: 42, at: 10 },
+        'book-tombstone': { offset: 0, at: 20 }
+      }
+    });
   });
 
   it('round-trips a document it wrote', () => {
-    const doc = withBookReadingOffset(createReadingProgressDocument(), 'main', 'book-1', 42);
+    const doc = withBookReadingOffset(createReadingProgressDocument(), 'main', 'book-1', 42, 1700);
     expect(parseReadingProgressDocument(serializeReadingProgressDocument(doc))).toEqual(doc);
   });
 });
@@ -64,14 +74,32 @@ describe('withBookReadingOffset', () => {
     expect(getBookReadingOffset(doc, 'shelf-2', 'missing')).toBe(0);
   });
 
-  it('overwrites an offset and removes it when reset to zero', () => {
-    let doc = withBookReadingOffset(createReadingProgressDocument(), 'main', 'book-1', 42);
-    doc = withBookReadingOffset(doc, 'main', 'book-1', 99);
+  it('stamps each write with the provided timestamp', () => {
+    const doc = withBookReadingOffset(createReadingProgressDocument(), 'main', 'book-1', 42, 1700);
+    expect(doc.shelves.main['book-1']).toEqual({ offset: 42, at: 1700 });
+  });
+
+  it('overwrites an offset and leaves a timestamped tombstone when reset to zero', () => {
+    let doc = withBookReadingOffset(createReadingProgressDocument(), 'main', 'book-1', 42, 1000);
+    doc = withBookReadingOffset(doc, 'main', 'book-1', 99, 2000);
     expect(getBookReadingOffset(doc, 'main', 'book-1')).toBe(99);
 
-    doc = withBookReadingOffset(doc, 'main', 'book-1', 0);
+    doc = withBookReadingOffset(doc, 'main', 'book-1', 0, 3000);
     expect(getBookReadingOffset(doc, 'main', 'book-1')).toBe(0);
-    expect(doc.shelves).toEqual({});
+    // A tombstone, not a deletion: it carries the reset time so the reset can
+    // win a cross-process merge against an older advance.
+    expect(doc.shelves.main['book-1']).toEqual({ offset: 0, at: 3000 });
+  });
+
+  it('is a no-op when resetting a book that has no entry', () => {
+    const empty = createReadingProgressDocument();
+    expect(withBookReadingOffset(empty, 'main', 'book-1', 0)).toBe(empty);
+    expect(withBookReadingOffset(empty, 'main', 'book-1', Number.NaN)).toBe(empty);
+  });
+
+  it('is a no-op when the offset is unchanged', () => {
+    const doc = withBookReadingOffset(createReadingProgressDocument(), 'main', 'book-1', 42, 1000);
+    expect(withBookReadingOffset(doc, 'main', 'book-1', 42, 5000)).toBe(doc);
   });
 
   it('ignores blank keys and treats invalid offsets as reset', () => {
@@ -79,8 +107,23 @@ describe('withBookReadingOffset', () => {
     expect(withBookReadingOffset(empty, '', 'book-1', 10)).toBe(empty);
     expect(withBookReadingOffset(empty, 'main', '', 10)).toBe(empty);
 
-    let doc = withBookReadingOffset(empty, 'main', 'book-1', 10);
-    doc = withBookReadingOffset(doc, 'main', 'book-1', Number.NaN);
-    expect(doc.shelves).toEqual({});
+    let doc = withBookReadingOffset(empty, 'main', 'book-1', 10, 1000);
+    doc = withBookReadingOffset(doc, 'main', 'book-1', Number.NaN, 2000);
+    expect(getBookReadingOffset(doc, 'main', 'book-1')).toBe(0);
+  });
+});
+
+describe('getBookReadingEntry', () => {
+  it('returns the full entry, exposing the timestamp, or null when absent', () => {
+    const doc = withBookReadingOffset(createReadingProgressDocument(), 'main', 'book-1', 42, 1000);
+    expect(getBookReadingEntry(doc, 'main', 'book-1')).toEqual({ offset: 42, at: 1000 });
+    expect(getBookReadingEntry(doc, 'main', 'missing')).toBeNull();
+    expect(getBookReadingEntry(doc, 'other-shelf', 'book-1')).toBeNull();
+  });
+
+  it('returns a reset tombstone (offset 0 with its time) rather than null', () => {
+    let doc = withBookReadingOffset(createReadingProgressDocument(), 'main', 'book-1', 42, 1000);
+    doc = withBookReadingOffset(doc, 'main', 'book-1', 0, 3000);
+    expect(getBookReadingEntry(doc, 'main', 'book-1')).toEqual({ offset: 0, at: 3000 });
   });
 });

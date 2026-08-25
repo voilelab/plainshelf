@@ -13,19 +13,19 @@
 
     <div class="duplicate-meta">
       <h4 class="duplicate-title">{{ book.title }}</h4>
-      <p class="duplicate-layer">{{ layerLabel }}</p>
+      <p class="duplicate-folder">{{ folderLabel }}</p>
     </div>
 
     <div class="duplicate-actions">
-      <button type="button" class="button duplicate-open" :disabled="deleting" @click="openBook">Open</button>
+      <button type="button" class="button duplicate-open" :disabled="deleting" @click="openBook">{{ t('maintenance.duplicates.open') }}</button>
       <button
         type="button"
         class="button danger duplicate-delete"
         :disabled="deleting"
-        :aria-label="`Delete ${book.title || 'book'}`"
+        :aria-label="t('maintenance.duplicates.deleteLabel', { title: book.title || t('maintenance.duplicates.untitledBook') })"
         @click="showDeleteModal = true"
       >
-        {{ deleting ? 'Deleting...' : 'Delete' }}
+        {{ deleting ? t('maintenance.duplicates.deleting') : t('maintenance.duplicates.delete') }}
       </button>
     </div>
   </article>
@@ -36,9 +36,12 @@ import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { bookshelfWriter } from '@/providers';
 import type { Book } from '@/types/book';
-import { getLayerPath, layerPathLabel } from '@/utils/layers';
+import { getFolderPath, folderPathLabel } from '@/utils/folders';
 import bookcover from '@/assets/bookcover.svg';
 import DeleteModal from '@/components/DeleteModal.vue';
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   book: Book;
@@ -61,7 +64,7 @@ const coverSrc = computed(() => {
   return props.book.cover_url || bookcover;
 });
 
-const layerLabel = computed(() => layerPathLabel(getLayerPath(props.book)));
+const folderLabel = computed(() => folderPathLabel(getFolderPath(props.book)));
 
 watch(
   () => props.book.cover_url,
@@ -95,7 +98,7 @@ async function confirmDelete(): Promise<void> {
     showDeleteModal.value = false;
     emit('deleted', props.book.id);
   } catch (err) {
-    deleteError.value = err instanceof Error ? err.message : 'Failed to delete book';
+    deleteError.value = err instanceof Error ? err.message : t('maintenance.duplicates.deleteFailed');
   } finally {
     deleting.value = false;
   }
@@ -133,7 +136,7 @@ async function confirmDelete(): Promise<void> {
   line-height: 1.3;
 }
 
-.duplicate-layer {
+.duplicate-folder {
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 12px;

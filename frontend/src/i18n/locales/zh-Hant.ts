@@ -2,22 +2,45 @@ const zhHant = {
   app: {
     name: 'PlainShelf',
     mockModeBadge: '模擬 API 模式',
-    desktopHistoryNavigation: '桌面版歷史導覽',
-    previousPage: '上一頁',
-    nextPage: '下一頁'
+    renderError: {
+      title: '這個頁面停止回應',
+      description: '繪製這個頁面時發生錯誤。重新載入通常就能恢復。',
+      reload: '重新載入'
+    }
+  },
+  toast: {
+    label: '通知',
+    dismiss: '關閉通知'
   },
   language: {
     label: '語言',
     en: 'English',
-    zhHant: '繁體中文'
+    zhHant: '繁體中文',
+    // 書籍本身的語言，與上面兩個 key 不同：那兩個指的是介面語言，
+    // 且無論介面切到哪一種都維持各自的母語寫法。
+    book: {
+      unspecified: '未指定',
+      zhHant: '中文（繁體）',
+      zhHans: '中文（簡體）',
+      ja: '日文',
+      ko: '韓文',
+      en: '英文',
+      custom: '自訂...',
+      customPlaceholder: '例如 zh-TW, zh-HK, fr, de',
+      help: '建議使用 en、ja、ko、zh-Hant、zh-Hans；也可填 zh-TW 這類 BCP 47 language tag。',
+      invalidTag: '語言格式不正確，請使用 en、ja、zh-Hant、zh-TW 這類格式。'
+    }
   },
   common: {
     retry: '重試',
     cancel: '取消',
+    confirm: '確認',
+    working: '處理中…',
+    closeDialog: '關閉確認對話框',
     prev: '上一頁',
     next: '下一頁',
     page: '第 {page} / {total} 頁',
-    inLayer: '（在 {layer}）',
+    inFolder: '（在 {folder}）',
     taskStartFailed: '啟動工作失敗',
     taskPollFailed: '讀取工作進度失敗'
   },
@@ -25,21 +48,25 @@ const zhHant = {
     expandSidebar: '展開側欄',
     collapseSidebar: '收合側欄',
     railNavLabel: '側邊欄導覽',
+    foldersNavLabel: '資料夾',
     openMenu: '開啟選單',
     closeMenu: '關閉選單',
+    desktopHistoryNavigation: '桌面版歷史導覽',
+    previousPage: '上一頁',
+    nextPage: '下一頁',
     sections: {
-      layers: '資料夾',
+      folders: '資料夾',
       reading: '閱讀',
       maintenance: '維護',
       admin: '管理'
     },
     sectionToggleLabels: {
-      layers: '切換側欄資料夾區塊',
+      folders: '切換側欄資料夾區塊',
       reading: '切換側欄閱讀紀錄區塊',
       maintenance: '切換側欄維護區塊',
       admin: '切換側欄管理區塊'
     },
-    createLayer: {
+    createFolder: {
       add: '新增資料夾',
       title: '新增資料夾',
       nameLabel: '資料夾名稱',
@@ -50,38 +77,73 @@ const zhHant = {
       invalidName: '資料夾名稱不得為空，也不能包含 /。',
       creating: '建立中...',
       create: '建立',
-      loadingLayers: '載入資料夾中...'
+      loadingFolders: '載入資料夾中...'
     },
-    deleteLayer: {
+    deleteFolder: {
       title: '刪除資料夾',
       shortAction: '刪除',
       description: '若資料夾內仍有書籍或子資料夾，刪除會失敗。',
       failed: '刪除資料夾失敗',
       notEmpty: '此資料夾尚未清空，無法刪除。\n請先移出書籍並刪除子資料夾。'
     },
-    renameLayer: {
+    renameFolder: {
       shortAction: '改名',
       title: '重新命名資料夾',
       nameLabel: '資料夾名稱',
       placeholder: '資料夾名稱',
-      help: '目前名稱：{layerName}',
+      help: '目前名稱：{folderName}',
       confirm: '重新命名',
       renaming: '重新命名中...',
       closeLabel: '關閉重新命名資料夾對話框',
       invalid: '資料夾名稱不得為空，也不能包含 /。',
       failed: '重新命名資料夾失敗'
     },
-    moveLayer: {
+    moveFolder: {
       failed: '移動資料夾失敗。請將資料夾拖曳到既有的目標資料夾上。'
     },
-    openLayerFolder: {
+    openFolder: {
       shortAction: '開啟資料夾',
       failed: '開啟資料夾失敗。'
     },
-    layerErrors: {
+    transferFolder: {
+      shortAction: '轉移到其他書庫…',
+      title: '將資料夾轉移到其他書庫',
+      description: '將「{folder}」資料夾（含其中所有內容）複製或搬移到另一個書庫。',
+      shelfLabel: '目標書庫',
+      chooseShelf: '請選擇書庫',
+      noShelves: '沒有其他可轉移的書庫。',
+      parentLabel: '目標位置',
+      parentHint: '資料夾會保留原名，放在此位置：{destination}',
+      rootFolder: '所有書籍（最上層）',
+      loadingFolders: '載入資料夾中…',
+      foldersFailed: '載入目標資料夾失敗。',
+      modeLabel: '動作',
+      modeCopy: '複製',
+      modeCopyHint: '在目標書庫產生新書，不會帶走閱讀進度。',
+      modeMove: '搬移',
+      modeMoveHint: '保留同一批書與其閱讀進度，並從目前書庫移除整個資料夾。',
+      confirm: '轉移',
+      close: '關閉',
+      progressLabel: '轉移進度',
+      progressCount: '{done}／{total} 本',
+      failedCount: '{failed} 本失敗',
+      pending: '準備中…',
+      running: '轉移中…',
+      completedCopy: '資料夾已複製到目標書庫。',
+      completedMove: '資料夾已搬移到目標書庫。',
+      partial: '轉移完成，但過程中發生問題。',
+      failed: '轉移失敗。',
+      errors: {
+        conflictFolder: '目標書庫已有同名資料夾。請改選其他位置，或先為那邊的資料夾改名。',
+        conflictBookId: '目標書庫已經有這些書，搬移會覆蓋它們：{ids}。請改用複製，或先在那邊移除這些書。',
+        failed: '無法啟動轉移。'
+      }
+    },
+    folderErrors: {
       emptyPath: '資料夾路徑不得為空',
       createFailed: '建立資料夾失敗',
-      loadFailed: '載入資料夾失敗'
+      loadFailed: '載入資料夾失敗',
+      shelfNotReady: '書架仍在啟動中，尚未就緒。'
     },
     moveBookErrors: {
       notFound: '找不到書籍。',
@@ -95,7 +157,7 @@ const zhHant = {
       unavailableDescription: '請先設定至少一個書架，才能瀏覽與閱讀書籍。',
       manage: '管理書架'
     },
-    dashboard: '儀表板',
+    dashboard: '首頁',
     recentlyRead: '最近閱讀',
     trash: '垃圾桶',
     downloads: '已下載',
@@ -107,15 +169,24 @@ const zhHant = {
     }
   },
   dashboard: {
-    title: '儀表板',
-    refresh: '重新整理',
+    title: '首頁',
     loading: '載入儀表板中...',
     loadFailed: '載入儀表板資料失敗',
+    shelfInitializing: '書架載入中，請稍候...',
+    shelfNotReady: '書架仍在啟動中，尚未就緒。',
+    empty: {
+      title: '書架還是空的',
+      description: 'PlainShelf 會直接從你的書架資料夾讀取書籍。把檔案放進那個資料夾，或直接在這裡匯入，就能開始使用。',
+      readOnlyDescription: '這個書架還沒有書。之後放進書架資料夾的書都會出現在這裡。',
+      import: '匯入書籍',
+      docs: '閱讀新手指南'
+    },
     stats: {
       totalBooks: '藏書總數',
-      addedThisMonth: '本月新增',
+      inProgress: '進行中',
       avgStar: '平均星等',
       totalChars: '總字數',
+      ratingDistribution: '星等分佈',
       starBar: '{star} 星：{count} 本',
       currentStreak: '目前連續閱讀',
       currentStreakValue: '{days} 天'
@@ -130,6 +201,15 @@ const zhHant = {
       shuffle: '換一本',
       viewDetail: '查看詳情',
       readNow: '開始閱讀'
+    },
+    recentReading: {
+      title: '最近閱讀',
+      viewAll: '查看全部',
+      browse: '前往書庫'
+    },
+    recentlyAdded: {
+      title: '最近加入',
+      viewAll: '查看全部'
     },
     heatmap: {
       title: '閱讀熱力圖',
@@ -155,8 +235,13 @@ const zhHant = {
     readHistory: {
       title: '閱讀紀錄'
     },
-    reader: {
-      title: '閱讀器'
+    readerLaunch: {
+      title: '閱讀開啟方式',
+      label: '按下「閱讀」時',
+      description:
+        '決定按下「閱讀」時如何開啟。「開新 reader」在網頁版會開新分頁，在桌面版會啟動獨立的 reader 應用程式；「在目前視窗開」則直接在目前視窗切換。此偏好只保存在這台裝置。',
+      newReader: '開新 reader',
+      inWindow: '在目前視窗開'
     },
     import: {
       title: '匯入'
@@ -172,23 +257,6 @@ const zhHant = {
       presetPlain: '純文字',
       includeDescriptionLabel: '正文開頭放入簡介',
       includeDescriptionHelp: '把書籍簡介也寫在正文開頭。無論是否勾選，簡介都會存進書籍中繼資料。',
-      save: '儲存',
-      saving: '儲存中...'
-    },
-    defaultSplitConfig: {
-      label: '舊格式預設章節分割規則',
-      description: '只套用於沒有 source format 的舊來源；新的 Markdown 來源固定使用 H2 作為章節。',
-      typeLabel: '分割類型',
-      typeNone: '無',
-      typeLineCount: '固定行數',
-      typeRegex: '正規表示式',
-      lineCountLabel: '每節行數',
-      lineCountPlaceholder: '例如 100',
-      regexLabel: '正規表示式模式',
-      regexPlaceholder: '例如 ^第[一二三四五六七八九十百]+章',
-      regexHelp: '符合此模式的行會開始新的章節。',
-      invalidRegex: '無效的正規表示式。',
-      invalidLineCount: '行數必須是正整數。',
       save: '儲存',
       saving: '儲存中...'
     },
@@ -237,6 +305,7 @@ const zhHant = {
       empty: '尚未設定書架。',
       serverManaged: '書架由伺服器設定管理。',
       name: '名稱',
+      idColumn: 'ID',
       remove: '刪除',
       removing: '移除中...',
       removeFailed: '移除書架失敗',
@@ -284,30 +353,79 @@ const zhHant = {
   },
   maintenance: {
     duplicateContent: '重複內容',
-    missingAuthor: {
-      title: '缺少作者',
-      empty: '沒有缺少作者的書籍'
+    duplicates: {
+      description: '用來檢視內容完全相同的書籍。',
+      scanning: '掃描重複內容群組中...',
+      empty: '沒有發現重複內容。',
+      emptyHint: '你的書庫很乾淨。',
+      loadFailed: '載入重複內容失敗',
+      groupTitle: '重複群組 #{index}',
+      groupSummary: '{count} 本書的內容完全相同',
+      open: '開啟',
+      delete: '刪除',
+      deleting: '刪除中...',
+      deleteLabel: '刪除「{title}」',
+      untitledBook: '這本書',
+      deleteFailed: '刪除書籍失敗'
     },
-    missingCover: {
-      title: '缺少封面',
-      empty: '沒有缺少封面的書籍'
-    },
-    missingLanguage: {
-      title: '缺少語言',
-      empty: '沒有缺少語言的書籍。'
-    },
-    lowCharCount: {
-      title: '字數較少',
-      empty: '沒有低於此字數的書籍。',
-      thresholdLabel: '字數上限',
-      filterDescription: '字數在 {threshold} 字以下的書籍',
-      unknownNote: '其中 {count} 本字數未知',
-      refreshStats: {
-        action: '更新 {count} 本的內容統計',
-        busy: '更新中… {percent}%',
-        done: '已更新 {count} 本',
-        partial: '已更新 {succeeded} 本，{failed} 本失敗',
-        failed: '無法更新內容統計。'
+    similarContent: '相似內容',
+    similar: {
+      description: '內容相似但非完全相同的書：不同版本、被刪節過的版本，或同一段錄音的兩份稿。',
+      scanning: '比對書籍中…',
+      empty: '此檔位下沒有相似的書。',
+      emptyHint: '放寬檔位，或關掉「只顯示節本」，就能擴大範圍。',
+      loadFailed: '比對書籍失敗',
+      tooLarge: '這個書架已建立指紋的內容超出單次同步比對的預算，因此略過了這次比對。',
+      resultCount: '{count} 組',
+      tiersLabel: '相似程度',
+      tiers: {
+        nearIdentical: '幾乎一模一樣',
+        sameBook: '同書不同版',
+        sameSource: '疑似同源'
+      },
+      advanced: '進階',
+      thresholdLabel: '最低相似度',
+      diffReadout: '每 100 字約 {count} 字不同',
+      subsetToggle: '只顯示節本（其中一本被刪過）',
+      relations: {
+        identical_after_normalize: '正規化後相同',
+        subset: '節本',
+        near_identical: '幾乎一模一樣',
+        same_source: '同源'
+      },
+      pairSimilarity: '相似度 {percent}%',
+      fingerprint: {
+        missingNote: '{total} 本書中有 {missing} 本尚未建立指紋',
+        allBuilt: '{total} 本書都已建立指紋',
+        build: '建立指紋',
+        building: '建立中… {percent}%',
+        forceRebuild: '強制重建',
+        forceRebuilding: '重建中… {percent}%',
+        forceConfirmTitle: '重建所有指紋?',
+        forceConfirmBody:
+          '這會忽略快取,把每一個來源的指紋從頭重算一次,在大型書架上可能需要一些時間。既有指紋不會遺失,只是全部重建。除非相似結果看起來有誤,否則不需要這麼做。',
+        forceConfirmAction: '全部重建',
+        busy: '已有指紋 sweep 正在進行,請等它完成再試。',
+        failed: '無法建立指紋。',
+        readOnly: '唯讀書架無法建立指紋。'
+      },
+      card: {
+        moreComplete: '較完整',
+        charsLabel: '字數',
+        formatLabel: '格式',
+        sourcesLabel: '來源',
+        folderLabel: '檔位',
+        addedLabel: '加入',
+        fewerChars: '少 {count} 字',
+        relationDesc: {
+          identical_after_normalize: '內容逐字相同，只差在換行與標點。',
+          near_identical: '每 100 字約 {count} 字不同。',
+          subset: '下面這本的內容幾乎全部包含在上面那本裡，少約 {percent}%。',
+          same_source: '每 100 字約 {count} 字不同，可能是同一來源的不同轉錄。'
+        },
+        deleteKeepNote: '另一本「{otherTitle}」會保留在書架上。',
+        deleteCompare: '這一本有 {thisChars} 字，另一本有 {otherChars} 字。',
+        deleteMoreCompleteWarning: '這是比較完整的一本 —— 刪掉它會失去另一本沒有的內容。'
       }
     }
   },
@@ -326,20 +444,84 @@ const zhHant = {
       asc: '升冪',
       desc: '降冪'
     },
+    charCount: {
+      label: '字數',
+      minLabel: '字數下限',
+      maxLabel: '字數上限',
+      minPlaceholder: '下限',
+      maxPlaceholder: '上限',
+      clear: '清除字數範圍',
+      unknownNote: '其中 {count} 本字數未知',
+      refreshStats: {
+        action: '更新 {count} 本的內容統計',
+        busy: '更新中… {percent}%',
+        done: '已更新 {count} 本',
+        partial: '已更新 {succeeded} 本，{failed} 本失敗',
+        failed: '無法更新內容統計。'
+      }
+    },
     import: '匯入 ▾',
     importFromFiles: '從檔案匯入',
     newEmptyBook: '建立空白書籍',
     empty: {
-      noBooksFound: '找不到「{query}」相關書籍{layerSuffix}。',
-      noBooksInLayer: '{layer} 目前沒有書籍。',
-      noBooksYet: '目前尚無書籍。'
+      noBooksFound: '找不到「{query}」相關書籍{folderSuffix}。',
+      noBooksInFolder: '{folder} 目前沒有書籍。',
+      noBooksYet: '目前尚無書籍。',
+      noBooksInCharCountRange: '沒有落在此字數範圍的書籍。',
+      noBooksMatchFilters: '沒有符合目前篩選條件的書籍。',
+      noBooksForCondition: '沒有符合{condition}的書籍。'
+    },
+    filters: {
+      button: '篩選',
+      buttonActive: '篩選，{count} 個條件',
+      title: '篩選條件',
+      close: '關閉篩選',
+      clearAll: '清除全部',
+      chipsLabel: '已套用的條件',
+      removeChip: '移除{filter}',
+      facetSearchPlaceholder: '搜尋…',
+      facetSearchLabel: '搜尋{field}',
+      facetEmpty: '沒有可選值',
+      value: {
+        any: '全部',
+        has: '有',
+        unset: '未設定'
+      },
+      chip: {
+        pair: '{field}：{value}',
+        separator: '、'
+      },
+      fields: {
+        author: {
+          label: '作者',
+          emptyNote: '沒有作者、或作者只有空字串的書籍算作未設定。'
+        },
+        tags: {
+          label: '標籤',
+          emptyNote: '沒有標籤、或標籤只有空字串的書籍算作未標記。'
+        },
+        language: {
+          label: '語言',
+          emptyNote: '沒有設定語言的書籍算作未設定。'
+        },
+        cover: {
+          label: '封面',
+          emptyNote: '只有實際存有封面圖檔的書籍才算有封面。'
+        },
+        charCount: {
+          label: '字數',
+          emptyNote: '尚未計算字數的書籍會在下方顯示為未知。'
+        }
+      }
     },
     titleSearch: '搜尋',
-    titleLayer: '資料夾',
+    titleFolder: '資料夾',
     refreshShelf: '更新書單',
     refreshingShelf: '更新中…',
     lastSynced: '上次更新 {time}',
     neverSynced: '尚未更新',
+    scanFound: '找到 {books} 本書、{folders} 個資料夾',
+    scanInProgress: '這個書架正在掃描中，請等這次掃描結束後再試。',
     loadFailed: '載入書籍失敗',
     refreshFailed: '更新書單失敗',
     requestTimeout: '請求逾時——書架可能較慢或無法連線。',
@@ -349,13 +531,18 @@ const zhHant = {
     documentTitle: '書籍',
     loading: '載入書籍詳情中...',
     root: '所有書籍',
-    layerPath: '書籍所在資料夾',
+    folderPath: '書籍所在資料夾',
     ratingLabel: '評分 {rating} 顆星',
     emptyDetails: '這本書目前沒有其他詳細資料。',
     sections: {
       publication: '出版資訊',
       content: '內容資訊',
-      notes: '備註'
+      notes: '備註',
+      chapters: '章節'
+    },
+    chapters: {
+      showAll: '顯示全部 {count} 章',
+      showLess: '收合章節'
     },
     fields: {
       format: '格式',
@@ -387,13 +574,21 @@ const zhHant = {
       updateStats: '更新內容統計',
       updatingStats: '更新統計中...',
       openFolder: '開啟資料夾',
+      copyTo: '複製到…',
+      moveTo: '移動到…',
+      transferTo: '轉移到其他書庫…',
       moveToTrash: '移至垃圾桶',
       movingToTrash: '移動中...',
       dismiss: '關閉'
     },
     messages: {
       imported: '書籍匯入成功。',
-      saved: '書籍資料已儲存。'
+      saved: '書籍資料已儲存。',
+      copied: '書籍已複製。',
+      exported: '已匯出至 {location}',
+      downloadRequired: '請先將這本書下載到裝置，才能開始閱讀。',
+      readerUnsupportedPlatform: '這台裝置沒有獨立 reader，已改在目前視窗開啟這本書。',
+      readerLaunchFailed: '獨立 reader 沒有開啟，已改在目前視窗開啟這本書。請確認已安裝 PlainShelf Reader。'
     },
     errors: {
       restartReading: '無法重新開始閱讀。',
@@ -401,7 +596,44 @@ const zhHant = {
       loadFailed: '載入詳情失敗',
       deleteFailed: '刪除書籍失敗',
       downloadFailed: '下載書籍失敗',
-      openFolderFailed: '開啟書籍資料夾失敗'
+      openFolderFailed: '開啟書籍資料夾失敗',
+      moveFailed: '移動書籍失敗',
+      copyFailed: '複製書籍失敗',
+      transferFailed: '無法開始轉移',
+      transferPollFailed: '無法追蹤轉移進度。'
+    },
+    move: {
+      title: '移動書籍'
+    },
+    copy: {
+      title: '複製書籍',
+      confirm: '複製',
+      copying: '複製中...'
+    },
+    transfer: {
+      title: '轉移到其他書庫',
+      description: '將「{title}」複製或搬移到另一個書庫。',
+      shelfLabel: '目標書庫',
+      chooseShelf: '請選擇書庫',
+      noShelves: '沒有其他可轉移的書庫。',
+      folderLabel: '目標資料夾',
+      rootFolder: '所有書籍（最上層）',
+      loadingFolders: '載入資料夾中…',
+      foldersFailed: '載入目標資料夾失敗。',
+      modeLabel: '動作',
+      modeCopy: '複製',
+      modeCopyHint: '在目標書庫產生一本新書，不會帶走閱讀進度。',
+      modeMove: '搬移',
+      modeMoveHint: '保留同一本書與其閱讀進度，並從目前書庫移除。',
+      confirm: '轉移',
+      close: '關閉',
+      progressLabel: '轉移進度',
+      pending: '準備中…',
+      running: '轉移中…',
+      completedCopy: '書籍已複製到目標書庫。',
+      completedMove: '書籍已搬移到目標書庫。',
+      partial: '轉移完成，但過程中發生問題。',
+      failed: '轉移失敗。'
     },
     delete: {
       description: '書籍將移至垃圾桶，之後仍可復原。'
@@ -456,6 +688,8 @@ const zhHant = {
     }
   },
   bookCollection: {
+    noFolder: '未分類',
+    noSummary: '沒有簡介',
     loadingBooks: '載入書籍中...',
     shelfInitializing: '書架載入中，請稍候...',
     shelfUnreachable: '書架回應逾時，可能無法連線（例如 SMB 掛載已中斷）。',
@@ -475,6 +709,7 @@ const zhHant = {
     },
     selection: {
       toolbarLabel: '已選書籍操作',
+      mobileToolbarLabel: '已選書籍下載列',
       selectedCount: '已選 {count} 本',
       selectBook: '選取「{title}」',
       selectAll: '選取本頁',
@@ -484,9 +719,10 @@ const zhHant = {
       downloading: '下載中…',
       moveTitle: '移動已選書籍',
       moveTarget: '目的地',
-      rootLayer: '所有書籍（最上層）',
-      chooseLayer: '選擇目的地',
+      rootFolder: '所有書籍（最上層）',
+      chooseFolder: '選擇目的地',
       confirmMove: '移動 {count} 本',
+      confirmMoveOne: '移動 1 本',
       moving: '移動中…',
       trashTitle: '將已選書籍移到垃圾桶',
       trashQuestion: '確定將已選的 {count} 本書移到垃圾桶嗎？',
@@ -513,7 +749,9 @@ const zhHant = {
   },
   pagination: {
     perPage: '每頁',
-    booksSuffix: ' 本'
+    booksSuffix: ' 本',
+    firstPage: '第一頁',
+    lastPage: '最後一頁'
   },
   deleteModal: {
     closeLabel: '關閉刪除確認視窗',
@@ -542,7 +780,7 @@ const zhHant = {
     columns: {
       title: '標題',
       authors: '作者',
-      originalLayer: '原始資料夾',
+      originalFolder: '原始資料夾',
       originalPath: '原始路徑',
       deletedAt: '刪除時間',
       bookId: '書籍 ID',
@@ -611,6 +849,11 @@ const zhHant = {
       failed: '移除下載失敗'
     }
   },
+  readerApp: {
+    noBook: '目前沒有開啟任何書籍。',
+    openBook: '開啟書籍…',
+    openFailed: '無法以書籍格式開啟這個資料夾。'
+  },
   reader: {
     backToDetail: '返回詳情',
     title: '閱讀器',
@@ -618,8 +861,7 @@ const zhHant = {
     loadingContent: '內容載入中...',
     errors: {
       loadFailed: '載入閱讀器資料失敗',
-      unknown: '未知錯誤',
-      splitConfigFallback: '載入分章設定失敗，改以單一章節顯示。{reason}'
+      unknown: '未知錯誤'
     },
     actionsLabel: '閱讀器操作',
     decreaseFontSize: '縮小字體',
@@ -648,7 +890,10 @@ const zhHant = {
       }
     },
     showChapters: '顯示章節',
-    splitSettings: '切分設定',
+    chapterDialog: {
+      title: '章節',
+      closeLabel: '關閉章節對話框'
+    },
     imageUnavailable: '插圖無法載入',
     autosaveFailed: '閱讀進度無法儲存，PlainShelf 將自動重試。',
     mobile: {
@@ -677,6 +922,21 @@ const zhHant = {
       shelfRootPlaceholder: '/PlainShelf/default-shelf',
       shelfRootHint: 'pCloud 上存放書架的資料夾，也就是含有 books/ 的那一層。',
       shelfRootRequired: '請先輸入書架資料夾。',
+      picker: {
+        browse: '瀏覽 pCloud…',
+        title: '選擇書架資料夾',
+        breadcrumbLabel: '資料夾路徑',
+        rootLabel: 'pCloud',
+        up: '↰ 上一層',
+        loading: '載入中…',
+        empty: '這個資料夾沒有子資料夾。',
+        retry: '重試',
+        currentPath: '已選擇：{path}',
+        isShelf: '這個資料夾是書架：含有 books/。',
+        notShelf: '這個資料夾沒有 books/，無法選取。請打開含有它的那一層。',
+        confirm: '選擇這個資料夾',
+        cancel: '取消'
+      },
       verify: '檢查書架',
       verifying: '檢查中…',
       shelfFound: '找到 {count} 本書。',
@@ -715,6 +975,266 @@ const zhHant = {
     removeDescription: '從這個書架下載的書會從裝置上刪除。閱讀進度與紀錄會保留，日後重新加入時可以接續。',
     removeConfirm: '移除',
     removeCancel: '先留著'
+  },
+  libraryForms: {
+    editBook: {
+      title: '編輯中繼資料',
+      description: '可更新目前 API 支援的欄位。',
+      basicInfo: '基本資訊',
+      titleLabel: '書名',
+      titlePlaceholder: '書名',
+      authorsLabel: '作者（以逗號分隔）',
+      authorsPlaceholder: '作者 A, 作者 B',
+      organization: '整理',
+      publishedAt: '出版日期',
+      languageLabel: '語言',
+      starRating: '星等',
+      starValueOne: '1 星',
+      starValueMany: '{count} 星',
+      clearRating: '清除',
+      tags: '標籤',
+      tagsPlaceholder: '輸入標籤後按 Enter',
+      tagsHelp: '按 Enter 或逗號新增標籤，點 × 可移除。',
+      removeTag: '移除標籤「{tag}」',
+      comment: '備註',
+      commentPlaceholder: '關於這本書的筆記',
+      commentHelp: '詳情頁會渲染 Markdown 與基本 HTML；儲存的是你輸入的原文。',
+      commentPreviewShow: '顯示預覽',
+      commentPreviewHide: '隱藏預覽',
+      commentPreviewLabel: '備註預覽',
+      commentPreviewEmpty: '目前沒有可預覽的內容。',
+      identifiers: '識別碼',
+      identifierKeyPlaceholder: 'isbn',
+      identifierValuePlaceholder: '9787020002207',
+      identifierKeyLabel: '第 {index} 個識別碼名稱',
+      identifierValueLabel: '第 {index} 個識別碼內容',
+      removeIdentifier: '移除識別碼「{name}」',
+      addIdentifier: '新增識別碼',
+      save: '儲存中繼資料',
+      saving: '儲存中...',
+      loading: '載入書籍中繼資料中...',
+      loadFailed: '載入中繼資料失敗',
+      saveFailed: '儲存中繼資料失敗'
+    },
+    newBook: {
+      title: '新增空白書籍',
+      closeLabel: '關閉新增空白書籍對話框',
+      description: '只用書名建立一本空白的 TXT 書籍。',
+      titleLabel: '書名',
+      titlePlaceholder: '請輸入書名',
+      create: '建立',
+      creating: '建立中...',
+      createFailed: '建立空白書籍失敗。'
+    },
+    importBook: {
+      title: '匯入書籍',
+      closeLabel: '關閉匯入對話框',
+      description: '上傳 TXT、Markdown 或 EPUB 檔案來建立新書，也可以把檔案拖曳到這裡。',
+      fileLabel: '書籍檔案（.txt、.md、.epub）',
+      epubTitle: 'EPUB 轉換',
+      epubDescription:
+        'EPUB 匯入時會轉換成 source，不保留原始檔案；Markdown 預設可保留支援的圖片。',
+      convertTo: '轉換成',
+      presetMarkdown: 'Markdown（章節標題）',
+      presetPlain: '純文字',
+      plainHint:
+        '純文字沒有章節導覽，也不支援 Markdown 圖片。日後仍可另外建立分章的 Markdown 來源，不會動到這份 TXT。',
+      includeDescription: '正文開頭放入書籍簡介',
+      selectedFiles: '已選檔案',
+      fileTitle: '書名：{title}',
+      fileStatus: '狀態：',
+      submit: '匯入',
+      submitting: '匯入中...',
+      progress: '第 {current} / {total} 本：{filename}',
+      abort: '中止',
+      aborting: '中止中...',
+      statuses: {
+        pending: '等待中',
+        importing: '匯入中',
+        success: '已匯入',
+        failed: '失敗',
+        cancelled: '已取消'
+      },
+      errors: {
+        noFiles: '請至少選擇一個 TXT、Markdown 或 EPUB 檔案。',
+        unsupportedExtension: '書籍檔案必須是 .txt、.md 或 .epub。',
+        allFailed: '匯入失敗。',
+        someFailed: '有 {count} 個檔案失敗。',
+        cancelled: '匯入已取消。'
+      },
+      results: {
+        one: '匯入成功。',
+        many: '已匯入 {count} 個檔案。',
+        partial: '已匯入 {count} 個檔案，共 {total} 個。'
+      }
+    }
+  },
+  sources: {
+    list: {
+      title: '來源',
+      total: '共 {count} 個',
+      create: '新增',
+      creating: '建立中...',
+      loading: '載入來源中...',
+      empty: '尚無來源。',
+      listLabel: '書籍來源',
+      current: '使用中',
+      delete: '刪除',
+      deleteLabel: '刪除來源 {id}'
+    },
+    // 沒有記錄格式的來源屬於 source format 出現之前的舊資料。
+    // 其他情況徽章直接顯示大寫的格式名，不需要字典條目。
+    format: {
+      legacy: '舊格式'
+    },
+    formatActions: {
+      manualMarkdown: '手動 TXT → MD',
+      regexMarkdown: '正規表示式 → MD',
+      lineCountMarkdown: '固定行數 → MD',
+      plainText: '建立純文字來源',
+      plainTextHelp: '標題階層與章節導覽會遺失。'
+    },
+    editor: {
+      loading: '載入來源中...',
+      noSelection: '請先選擇一個來源再開始編輯。',
+      dirty: '有未儲存的變更',
+      clean: '沒有待儲存的變更',
+      setCurrent: '設為使用中',
+      settingCurrent: '設定中...',
+      contentLabel: '來源內容',
+      find: {
+        groupLabel: '尋找與取代',
+        findLabel: '尋找',
+        findPlaceholder: '搜尋文字',
+        replaceLabel: '取代',
+        replacePlaceholder: '取代為',
+        scopeLabel: '範圍',
+        scopeSection: '目前章節',
+        scopeSource: '整份來源',
+        caseSensitive: '大小寫相符',
+        wholeWord: '全字比對',
+        regexp: '正規表示式',
+        previous: '上一個',
+        next: '下一個',
+        replace: '取代',
+        replaceAll: '全部取代',
+        noMatches: '沒有符合的結果。',
+        matchOrdinal: '第 {ordinal} 個，共 {total} 個。',
+        matchCount: '共 {total} 個符合。',
+        // 中文沒有單複數變化，兩個形式的譯文相同；分成兩個 key 是為了英文。
+        replacedOne: '已取代 1 處。',
+        replacedMany: '已取代 {count} 處。',
+        replacedOneNoneRemain: '已取代 1 處，沒有其他符合的結果。',
+        replacedOneThenMatch: '已取代 1 處。第 {ordinal} 個，共 {total} 個。',
+        replacedOneThenCount: '已取代 1 處。共 {total} 個符合。',
+        invalidRegexp: '這個正規表示式不合法。',
+        // 由編輯器自己的 live region 唸出，與上方看得見的狀態列各自獨立。
+        announce: {
+          currentMatch: '目前的符合項目',
+          onLine: '位於行號',
+          replacedOnLine: '已取代第 $ 行的符合項目',
+          replacedMatches: '已取代 $ 處'
+        }
+      }
+    },
+    conversion: {
+      confirm: '建立來源',
+      busy: '建立中...',
+      titles: {
+        manualMd: '建立分章的 Markdown 來源',
+        regexMd: '把標題行轉成章節',
+        lineCountMd: '依固定長度分割章節',
+        plainText: '建立純文字來源'
+      },
+      descriptions: {
+        manualMd: '把目前的 TXT 來源複製成 Markdown 草稿。建立之後可以在來源編輯器裡自行加上 H2 章節。',
+        regexMd: '符合的標題行會改寫成 Markdown 的 H2 標題。',
+        lineCountMd: '每個預覽到的分界處都會插入一個 H2「Part N」標題。',
+        plainText: 'Markdown 標記會被移除，標題階層與章節導覽會遺失。'
+      },
+      patternLabel: '章節標題的正規表示式',
+      patternHelp: '第 1 個擷取群組會成為 H2 標題；沒有擷取群組時，會使用整個符合的內容。',
+      lineCountLabel: '每章行數',
+      previewTitle: '預覽',
+      emptySource: '（來源是空的）',
+      setCurrent: '把新來源設為使用中',
+      summaries: {
+        manualMdOne: 'Markdown 草稿一開始會有 1 個 H2 章節。',
+        manualMdMany: 'Markdown 草稿一開始會有 {count} 個 H2 章節。',
+        regexMd: '會建立 {count} 個 H2 章節標題。',
+        lineCountMd: '會插入 {count} 個 H2 章節標題。',
+        plainText: '會建立一個沒有章節結構的 TXT 段落。'
+      },
+      errors: {
+        emptyPattern: '請輸入正規表示式。',
+        patternMatchedNothing: '這個正規表示式沒有比對到任何章節標題行。',
+        invalidLineCount: '每章行數必須是正整數。',
+        previewFailed: '無法預覽這個轉換。'
+      }
+    },
+    page: {
+      title: '編輯來源',
+      back: '返回',
+      save: '儲存',
+      saveDirty: '儲存*',
+      saving: '儲存中...',
+      loading: '載入來源中...',
+      panelsLabel: '來源編輯器面板',
+      paneSources: '來源',
+      paneEditor: '編輯器',
+      paneChapters: '章節',
+      discard: {
+        title: '要捨棄未儲存的變更嗎？',
+        message: '你有尚未儲存的變更，要捨棄嗎？',
+        confirm: '捨棄',
+        cancel: '繼續編輯'
+      },
+      deleteSource: {
+        title: '要刪除來源嗎？',
+        confirm: '刪除',
+        question: '確定要刪除來源「{id}」嗎？這個動作無法復原。',
+        dirtyWarning: '你有尚未儲存的變更，將會遺失。'
+      },
+      renameChapter: {
+        title: '重新命名章節',
+        confirm: '重新命名',
+        titleLabel: '章節標題'
+      },
+      mergeChapter: {
+        title: '要合併章節嗎？',
+        confirm: '合併',
+        question: '移除 H2 標題「{title}」，並把它的內文與相鄰段落合併？'
+      },
+      messages: {
+        sourceSaved: '來源已儲存。',
+        currentUpdated: '已更新使用中的來源。',
+        derivedCreated: '已建立衍生來源。'
+      },
+      errors: {
+        loadSources: '載入來源失敗',
+        loadContent: '載入來源內容失敗',
+        save: '儲存來源失敗',
+        setCurrent: '設定使用中來源失敗',
+        create: '建立來源失敗',
+        createDerived: '建立衍生來源失敗',
+        delete: '刪除來源失敗'
+      }
+    },
+    chapters: {
+      title: '章節',
+      headingCount: '{count} 個 H2 標題',
+      add: '新增',
+      allMarker: '全部',
+      wholeSource: '整份來源',
+      rename: '重新命名',
+      merge: '合併',
+      empty: '尚無 H2 章節。'
+    }
+  },
+  notFound: {
+    title: '找不到頁面',
+    description: '這個網址沒有對應的內容。可能已經改名，或是連結過期了。',
+    backToLibrary: '回到書庫'
   }
 } as const;
 

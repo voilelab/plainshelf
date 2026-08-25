@@ -3,61 +3,25 @@ import type {
   BookshelfProvider,
   WritableBookshelfProvider
 } from './bookshelfProvider';
-import { isMobileRuntime, isWailsRuntime } from './runtime';
-import {
-  getActiveShelfEntry,
-  getActiveShelfEntryToken,
-  isShelfEntryConfigured
-} from './mobileConfig';
-import type { ShelfEntry } from './mobileConfig';
-import { MobileBookshelfProvider } from './mobileBookshelfProvider';
-import { FilesystemMobileBookCache } from './filesystemMobileBookCache';
-import { PCloudBookshelfProvider } from './pcloudBookshelfProvider';
-import { PCloudClient } from '@/api/pcloud/client';
+import { isWailsRuntime } from './runtime';
+import { getShell } from './shell';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
-import { FilesystemShelfSnapshotStore } from './shelfSnapshotStore';
 import { WailsBookshelfProvider } from './wailsBookshelfProvider';
 
 let provider: BookshelfProvider | null = null;
 
-/**
- * Picks what the mobile shell reads from, for the shelf the device has active.
- *
- * A pCloud entry is only selected once it is complete. The provider is built
- * during bootstrap, before the router has had a chance to send an unconfigured
- * install to the shelf list, and PCloudClient refuses to construct without a
- * token — so an incomplete entry, or none at all, would throw here and take the
- * whole app down instead of showing the setup form.
- */
-function createMobileSource(entry: ShelfEntry | null): BookshelfProvider {
-  const accessToken = getActiveShelfEntryToken();
-  if (entry?.type !== 'pcloud' || !isShelfEntryConfigured(entry) || !accessToken) {
-    return new ServerBookshelfProvider();
+export function createBookshelfProvider(): BookshelfProvider {
+  // A registered shell decides first: it is the thing that knows what this
+  // host reads from, and asking it here is what keeps the mobile and pCloud
+  // stack out of this module's import graph — and therefore out of the web
+  // bundle that frontend/web.go embeds.
+  const shell = getShell();
+  if (shell) {
+    return shell.createProvider();
   }
 
-  return new PCloudBookshelfProvider({
-    client: new PCloudClient({ host: entry.pcloudHost, accessToken }),
-    shelfRoot: entry.pcloudShelfRoot,
-    // Persisted for the same reason downloads are (see below): without it the
-    // shelf would be walked once per app launch, which is what manual updating
-    // exists to avoid.
-    snapshotStore: new FilesystemShelfSnapshotStore()
-  });
-}
-
-export function createBookshelfProvider(): BookshelfProvider {
   if (isWailsRuntime()) {
     return new WailsBookshelfProvider();
-  }
-
-  if (isMobileRuntime()) {
-    // Persist downloads and reading progress across app restarts, in
-    // Directory.Data: app-private files are exempt from the WebView's
-    // best-effort storage eviction, which the browser storage APIs are not.
-    return new MobileBookshelfProvider(
-      createMobileSource(getActiveShelfEntry()),
-      new FilesystemMobileBookCache()
-    );
   }
 
   return new ServerBookshelfProvider();
@@ -118,7 +82,6 @@ export type {
   BookshelfWriter,
   WritableBookshelfProvider
 } from './bookshelfProvider';
-export { isMobileRuntime, isWailsRuntime } from './runtime';
-export type { CachedBookManifest, MobileBookCache } from './mobileBookCache';
-export { InMemoryMobileBookCache } from './mobileBookCache';
-export { FilesystemMobileBookCache } from './filesystemMobileBookCache';
+export { isMobileRuntime, isMobileShellPreview, isReaderRuntime, isWailsRuntime, isWebRuntime } from './runtime';
+export type { RuntimeShell } from './shell';
+export { getShell, registerShell } from './shell';

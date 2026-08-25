@@ -1,4 +1,4 @@
-import type { MarkdownChapterHeading } from '@/features/reader/utils/markdownChapters';
+import type { MarkdownChapterHeading } from '@/utils/markdownChapters';
 
 export interface SourceTextEdit {
   start: number;

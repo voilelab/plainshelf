@@ -2,7 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover is what makes env(safe-area-inset-*) resolve to
+         anything other than 0 in a WebView. The Android shell targets SDK 36,
+         where edge-to-edge is enforced and the WebView always draws under the
+         status and gesture bars, so every inset-aware rule in the app depends
+         on this. Desktop browsers report zero insets and are unaffected. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>PlainShelf</title>
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

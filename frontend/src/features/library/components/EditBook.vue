@@ -1,36 +1,36 @@
 <template>
   <article class="panel edit-panel">
     <header class="edit-header">
-      <h2>Edit metadata</h2>
-      <p class="meta">Update fields supported by the current API.</p>
+      <h2>{{ t('libraryForms.editBook.title') }}</h2>
+      <p class="meta">{{ t('libraryForms.editBook.description') }}</p>
     </header>
 
     <form class="edit-form" @submit.prevent="onSubmit">
       <section class="section-block">
-        <h3>Basic info</h3>
+        <h3>{{ t('libraryForms.editBook.basicInfo') }}</h3>
         <label class="field">
-          <span class="label">Title</span>
-          <input v-model="title" class="input" type="text" placeholder="Book title" />
+          <span class="label">{{ t('libraryForms.editBook.titleLabel') }}</span>
+          <input v-model="title" class="input" type="text" :placeholder="t('libraryForms.editBook.titlePlaceholder')" />
         </label>
 
         <label class="field">
-          <span class="label">Authors (comma separated)</span>
-          <input v-model="authorsInput" class="input" type="text" placeholder="Author A, Author B" />
+          <span class="label">{{ t('libraryForms.editBook.authorsLabel') }}</span>
+          <input v-model="authorsInput" class="input" type="text" :placeholder="t('libraryForms.editBook.authorsPlaceholder')" />
         </label>
 
       </section>
 
       <section class="section-block">
-        <h3>Organization</h3>
+        <h3>{{ t('libraryForms.editBook.organization') }}</h3>
         <label class="field">
-          <span class="label">Published At</span>
+          <span class="label">{{ t('libraryForms.editBook.publishedAt') }}</span>
           <input v-model="publishedAtInput" class="input" type="date" />
         </label>
 
         <fieldset class="field rating-field">
-          <legend class="label">Star rating</legend>
+          <legend class="label">{{ t('libraryForms.editBook.starRating') }}</legend>
           <div class="star-rating">
-            <RatingRoot v-model="star" as="div" class="star-rating-root" :length="5" clearable aria-label="Star rating">
+            <RatingRoot v-model="star" as="div" class="star-rating-root" :length="5" clearable :aria-label="t('libraryForms.editBook.starRating')">
               <RatingItem
                 v-for="value in STAR_VALUES"
                 :key="value"
@@ -44,18 +44,18 @@
                   :key="step"
                   :step="step"
                   class="star-indicator"
-                  :aria-label="`${value} star${value === 1 ? '' : 's'}`"
+                  :aria-label="starLabel(value)"
                 >
                   ★
                 </RatingItemIndicator>
               </RatingItem>
             </RatingRoot>
-            <button class="clear-rating" type="button" :disabled="star === 0" @click="star = 0">Clear</button>
+            <button class="clear-rating" type="button" :disabled="star === 0" @click="star = 0">{{ t('libraryForms.editBook.clearRating') }}</button>
           </div>
         </fieldset>
 
         <label class="field">
-          <span class="label">Language</span>
+          <span class="label">{{ t('libraryForms.editBook.languageLabel') }}</span>
           <SelectRoot :model-value="languageSelectValue" @update:model-value="onLanguageSelect">
             <SelectTrigger class="input select select-trigger">
               <SelectValue />
@@ -64,7 +64,7 @@
               <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
                 <SelectViewport>
                   <SelectItem
-                    v-for="option in languageSelectOptions"
+                    v-for="option in languageSelectItems"
                     :key="option.value"
                     class="reka-menu-item"
                     :value="option.value"
@@ -80,14 +80,14 @@
             v-model="customLanguage"
             class="input"
             type="text"
-            placeholder="例如 zh-TW, zh-HK, fr, de"
+            :placeholder="t('language.book.customPlaceholder')"
           />
-          <p class="field-help">建議使用 en、ja、ko、zh-Hant、zh-Hans；也可填 zh-TW 這類 BCP 47 language tag。</p>
+          <p class="field-help">{{ t('language.book.help') }}</p>
           <p v-if="languageError" class="error field-error">{{ languageError }}</p>
         </label>
 
         <label class="field">
-          <span class="label">Tags</span>
+          <span class="label">{{ t('libraryForms.editBook.tags') }}</span>
           <TagsInputRoot
             v-model="tags"
             class="tag-input-shell"
@@ -98,52 +98,84 @@
           >
             <TagsInputItem v-for="tag in tags" :key="tag" :value="tag" class="tag-chip">
               <TagsInputItemText />
-              <TagsInputItemDelete class="tag-remove" :aria-label="`Remove tag ${tag}`">×</TagsInputItemDelete>
+              <TagsInputItemDelete class="tag-remove" :aria-label="t('libraryForms.editBook.removeTag', { tag })">×</TagsInputItemDelete>
             </TagsInputItem>
-            <TagsInputInput ref="tagsInputRef" class="tag-input" placeholder="Type a tag and press Enter" />
+            <TagsInputInput ref="tagsInputRef" class="tag-input" :placeholder="t('libraryForms.editBook.tagsPlaceholder')" />
           </TagsInputRoot>
-          <p class="field-help">Press Enter or comma to add tags. Click × to remove.</p>
-        </label>
-
-        <label class="field">
-          <span class="label">Comment</span>
-          <textarea
-            v-model="comment"
-            class="input textarea"
-            rows="5"
-            placeholder="Notes about this book"
-          ></textarea>
+          <p class="field-help">{{ t('libraryForms.editBook.tagsHelp') }}</p>
         </label>
 
         <div class="field">
-          <span class="label">Identifiers</span>
+          <label class="label" :for="commentFieldId">{{ t('libraryForms.editBook.comment') }}</label>
+          <textarea
+            :id="commentFieldId"
+            v-model="comment"
+            class="input textarea"
+            rows="5"
+            :placeholder="t('libraryForms.editBook.commentPlaceholder')"
+          ></textarea>
+          <p class="field-help">{{ t('libraryForms.editBook.commentHelp') }}</p>
+          <button
+            class="comment-preview-toggle"
+            type="button"
+            :aria-expanded="showCommentPreview"
+            :aria-controls="commentPreviewId"
+            @click="showCommentPreview = !showCommentPreview"
+          >
+            {{
+              showCommentPreview
+                ? t('libraryForms.editBook.commentPreviewHide')
+                : t('libraryForms.editBook.commentPreviewShow')
+            }}
+          </button>
+          <div
+            v-if="showCommentPreview"
+            :id="commentPreviewId"
+            class="comment-preview"
+            role="region"
+            :aria-label="t('libraryForms.editBook.commentPreviewLabel')"
+          >
+            <SafeHtml
+              v-if="commentPreviewHtml"
+              class="description-body"
+              :html="commentPreviewHtml"
+              profile="summary"
+            />
+            <p v-else class="comment-preview-empty">
+              {{ t('libraryForms.editBook.commentPreviewEmpty') }}
+            </p>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="label">{{ t('libraryForms.editBook.identifiers') }}</span>
           <div class="identifier-rows">
             <div v-for="(row, index) in identifierRows" :key="index" class="identifier-row">
               <input
                 v-model="row.key"
                 class="input identifier-key"
                 type="text"
-                placeholder="isbn"
-                :aria-label="`Identifier key ${index + 1}`"
+                :placeholder="t('libraryForms.editBook.identifierKeyPlaceholder')"
+                :aria-label="t('libraryForms.editBook.identifierKeyLabel', { index: index + 1 })"
               />
               <input
                 v-model="row.value"
                 class="input identifier-value"
                 type="text"
-                placeholder="9787020002207"
-                :aria-label="`Identifier value ${index + 1}`"
+                :placeholder="t('libraryForms.editBook.identifierValuePlaceholder')"
+                :aria-label="t('libraryForms.editBook.identifierValueLabel', { index: index + 1 })"
               />
               <button
                 class="identifier-remove"
                 type="button"
-                :aria-label="`Remove identifier ${row.key || index + 1}`"
+                :aria-label="t('libraryForms.editBook.removeIdentifier', { name: row.key || index + 1 })"
                 @click="removeIdentifierRow(index)"
               >
                 ×
               </button>
             </div>
           </div>
-          <button class="button" type="button" @click="addIdentifierRow">Add identifier</button>
+          <button class="button" type="button" @click="addIdentifierRow">{{ t('libraryForms.editBook.addIdentifier') }}</button>
         </div>
       </section>
 
@@ -151,16 +183,16 @@
 
       <div class="form-actions">
         <button class="button primary" type="submit" :disabled="saving">
-          {{ saving ? 'Saving...' : 'Save metadata' }}
+          {{ saving ? t('libraryForms.editBook.saving') : t('libraryForms.editBook.save') }}
         </button>
-        <button class="button" type="button" :disabled="saving" @click="emit('cancel')">Cancel</button>
+        <button class="button" type="button" :disabled="saving" @click="emit('cancel')">{{ t('common.cancel') }}</button>
       </div>
     </form>
   </article>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, useId, watch } from 'vue';
 import {
   RatingItem,
   RatingItemIndicator,
@@ -180,22 +212,38 @@ import {
   TagsInputRoot,
   type AcceptableValue
 } from 'reka-ui';
+import SafeHtml from '@/components/SafeHtml.vue';
 import type { Book, BookUpdateRequest } from '@/types/book';
 import {
   CUSTOM_LANGUAGE_VALUE,
-  LANGUAGE_OPTIONS,
-  LANGUAGE_SELECT_OPTIONS,
-  normalizeLanguage,
-  validateLanguageTag
+  LANGUAGE_VALUES,
+  isValidLanguageTag,
+  languageSelectOptions,
+  normalizeLanguage
 } from '@/utils/language';
 import { commaStringToList, listToCommaString } from '@/utils/metadata';
+import { renderDescriptionHtml } from '@/utils/safeHtml';
+import { useI18n } from '@/i18n';
 
+const { t } = useI18n();
+
+// English says "1 star" but "2 stars"; the catalog has no plural rules, so the
+// two forms are separate keys.
+function starLabel(value: number): string {
+  return value === 1
+    ? t('libraryForms.editBook.starValueOne')
+    : t('libraryForms.editBook.starValueMany', { count: value });
+}
+
+// The custom sentinel is not one of these — it only ever exists as a Select
+// choice — so the preset list needs no guard against it beyond dropping the
+// empty "unspecified" entry.
 const COMMON_LANGUAGE_VALUES: Set<string> = new Set(
-  LANGUAGE_OPTIONS.map((option) => option.value).filter((value) => value && value !== CUSTOM_LANGUAGE_VALUE)
+  LANGUAGE_VALUES.filter((value) => value)
 );
 const STAR_VALUES = [1, 2, 3, 4, 5] as const;
 // reka-ui SelectItem forbids an empty-string value (it's reserved to mean
-// "clear selection / show placeholder"), but LANGUAGE_SELECT_OPTIONS uses ''
+// "clear selection / show placeholder"), but languageSelectOptions() uses ''
 // for "unspecified". Map it to this sentinel for the Select only; the
 // underlying languagePreset ref keeps using '' so the custom-language v-if
 // and watchers below are untouched.
@@ -224,13 +272,27 @@ const tags = computed<string[]>({
 const tagsInputRef = ref<InstanceType<typeof TagsInputInput> | null>(null);
 const languagePreset = ref('');
 const customLanguage = ref('');
-const languageError = ref('');
+// A flag, not the message. Holding translated text here would leave a shown
+// error stranded in the locale it was produced in while the placeholder, help
+// text and options around it follow a switch.
+const languageTagInvalid = ref(false);
+const languageError = computed(() => (languageTagInvalid.value ? t('language.book.invalidTag') : ''));
 const comment = ref('');
+const commentFieldId = useId();
+const commentPreviewId = useId();
+const showCommentPreview = ref(false);
+// The same render the detail page runs, so what is previewed here and what is
+// shown there are one output of one function; `SafeHtml` sanitizes it under the
+// same `summary` profile. The textarea keeps the source text either way - a
+// preview never changes what is submitted.
+const commentPreviewHtml = computed(() => renderDescriptionHtml(comment.value));
 const publishedAtInput = ref('');
 const star = ref(0);
 const identifierRows = ref<{ key: string; value: string }[]>([]);
-const languageSelectOptions = computed(() =>
-  LANGUAGE_SELECT_OPTIONS.map((option) => ({
+// languageSelectOptions() resolves its labels through t(), so reading it inside
+// a computed is what keeps them following a locale change.
+const languageSelectItems = computed(() =>
+  languageSelectOptions().map((option) => ({
     value: option.value === '' ? EMPTY_LANGUAGE_SELECT_VALUE : option.value,
     label: option.label
   }))
@@ -259,7 +321,7 @@ watch(
       languagePreset.value = CUSTOM_LANGUAGE_VALUE;
       customLanguage.value = initialLanguage;
     }
-    languageError.value = '';
+    languageTagInvalid.value = false;
     comment.value = book.comment ?? '';
     publishedAtInput.value = toFormDateValue(book.published_at);
     star.value = normalizeStar(book.star);
@@ -270,13 +332,13 @@ watch(
 
 watch(languagePreset, (nextPreset) => {
   if (nextPreset !== CUSTOM_LANGUAGE_VALUE) {
-    languageError.value = '';
+    languageTagInvalid.value = false;
   }
 });
 
 watch(customLanguage, () => {
-  if (languageError.value) {
-    languageError.value = '';
+  if (languageTagInvalid.value) {
+    languageTagInvalid.value = false;
   }
 });
 
@@ -314,12 +376,9 @@ function buildIdentifiersPayload(): Record<string, string> {
 
 function onSubmit(): void {
   const rawLanguage = languagePreset.value === CUSTOM_LANGUAGE_VALUE ? customLanguage.value : languagePreset.value;
-  if (languagePreset.value === CUSTOM_LANGUAGE_VALUE) {
-    const errorMessage = validateLanguageTag(rawLanguage);
-    if (errorMessage) {
-      languageError.value = errorMessage;
-      return;
-    }
+  if (languagePreset.value === CUSTOM_LANGUAGE_VALUE && !isValidLanguageTag(rawLanguage)) {
+    languageTagInvalid.value = true;
+    return;
   }
 
   const normalizedLanguage = normalizeLanguage(rawLanguage);
@@ -572,6 +631,45 @@ function toFormDateValue(rawValue?: string): string {
   min-height: 120px;
 }
 
+.comment-preview-toggle {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.comment-preview-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* A window of its own, not a box the content sizes. The height is fixed rather
+   than bounded: any range between a min and a max is still a box that grows a
+   line at a time, and everything below it - the identifiers, the save button -
+   moves down as the description is typed. An empty preview showing empty space
+   is the price of the field under it staying where it was. */
+.comment-preview {
+  height: 180px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.comment-preview-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .submit-error {
   margin: 0;
 }
@@ -591,3 +689,5 @@ function toFormDateValue(rawValue?: string): string {
   }
 }
 </style>
+
+<style scoped src="@/styles/description.css"></style>

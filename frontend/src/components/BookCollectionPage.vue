@@ -15,9 +15,7 @@
         <div>
           <h2 class="bookshelf-title">{{ title }}</h2>
           <p v-if="hasMetaLine" class="bookshelf-meta">
-            <slot name="title-meta">
-              {{ filterDescription }}
-            </slot>
+            <slot name="title-meta" />
           </p>
         </div>
 
@@ -27,15 +25,7 @@
           <DropdownMenuRoot>
             <DropdownMenuTrigger class="button view-mode-trigger" type="button">
               <span class="view-mode-trigger-icon" aria-hidden="true">
-                <svg v-if="viewMode === 'list'" viewBox="0 0 16 16" class="view-mode-svg">
-                  <path d="M2 3.5h2v2H2zM5.5 4h8v1h-8zM2 7h2v2H2zM5.5 7.5h8v1h-8zM2 10.5h2v2H2zM5.5 11h8v1h-8z" fill="currentColor" />
-                </svg>
-                <svg v-else-if="viewMode === 'card'" viewBox="0 0 16 16" class="view-mode-svg">
-                  <path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z" fill="currentColor" />
-                </svg>
-                <svg v-else viewBox="0 0 16 16" class="view-mode-svg">
-                  <path d="M2 4h12v1H2zM2 7.5h12v1H2zM2 11h12v1H2z" fill="currentColor" />
-                </svg>
+                <Icon :name="VIEW_MODE_ICONS[viewMode]" class="view-mode-svg" />
               </span>
               <span>{{ currentViewModeLabel }}</span>
             </DropdownMenuTrigger>
@@ -50,15 +40,7 @@
                     :value="option.value"
                   >
                     <span class="view-mode-option-icon" aria-hidden="true">
-                      <svg v-if="option.value === 'list'" viewBox="0 0 16 16" class="view-mode-svg">
-                        <path d="M2 3.5h2v2H2zM5.5 4h8v1h-8zM2 7h2v2H2zM5.5 7.5h8v1h-8zM2 10.5h2v2H2zM5.5 11h8v1h-8z" fill="currentColor" />
-                      </svg>
-                      <svg v-else-if="option.value === 'card'" viewBox="0 0 16 16" class="view-mode-svg">
-                        <path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z" fill="currentColor" />
-                      </svg>
-                      <svg v-else viewBox="0 0 16 16" class="view-mode-svg">
-                        <path d="M2 4h12v1H2zM2 7.5h12v1H2zM2 11h12v1H2z" fill="currentColor" />
-                      </svg>
+                      <Icon :name="VIEW_MODE_ICONS[option.value]" class="view-mode-svg" />
                     </span>
                     <span>{{ option.label }}</span>
                   </DropdownMenuRadioItem>
@@ -86,6 +68,11 @@
         </div>
       </header>
 
+      <!-- Active-condition chips sit above the list, between the header and the
+           results, so what is narrowing the list is visible without opening the
+           panel. Empty when nothing is active. -->
+      <slot name="filters" />
+
       <div v-if="books.length === 0" class="panel empty-state">
         {{ emptyMessage }}
       </div>
@@ -93,14 +80,12 @@
       <BookListView
         v-else-if="viewMode === 'list'"
         :books="books"
-        :show-edit-action="showEditAction"
         :selectable="selectionEnabled"
         :mobile-selection="mobileSelection"
         :selected-ids="selectedIds"
         @activate="emit('activate', $event)"
         @toggle-selection="emit('toggle-selection', $event)"
         @long-press="emit('long-press', $event)"
-        @edit="emit('edit', $event)"
       />
 
       <BookCardView
@@ -134,13 +119,22 @@
         @long-press="emit('long-press', $event)"
       />
 
-      <div v-if="selectionActive && mobileSelection" class="mobile-selection-actions" role="toolbar">
+      <div
+        v-if="selectionActive && mobileSelection"
+        class="mobile-selection-actions"
+        role="toolbar"
+        :aria-label="t('bookCollection.selection.mobileToolbarLabel')"
+      >
         <button type="button" class="button primary" :disabled="selectionBusy" @click="emit('batch-download')">
           {{ selectionBusy ? t('bookCollection.selection.downloading') : t('bookCollection.selection.download') }}
         </button>
       </div>
 
+      <!-- `total` is the post-filter count, so 0 means there is nothing to page
+           through: without this the empty state is followed by a "Page 1 / 0"
+           control row. -->
       <Pagination
+        v-if="total > 0"
         :page="page"
         :page-size="pageSize"
         :total="total"
@@ -166,9 +160,11 @@ import {
 import BookCardView from './BookCardView.vue';
 import BookListView from './BookListView.vue';
 import BookTitleView from './BookTitleView.vue';
+import Icon from './Icon.vue';
 import Pagination from './Pagination.vue';
 import type { Book } from '@/types/book';
 import type { BookActivation } from '@/types/bookSelection';
+import type { IconName } from '@/components/icons/registry';
 import {
   getStoredBooksViewMode,
   isBooksViewMode,
@@ -188,10 +184,7 @@ const props = withDefaults(defineProps<{
   pageSize: number;
   total: number;
   emptyMessage: string;
-  totalLabel?: string;
   count?: number;
-  filterDescription?: string;
-  showEditAction?: boolean;
   canOpenBookFolder?: boolean;
   readOnly?: boolean;
   viewModeStorageKey?: string;
@@ -205,10 +198,7 @@ const props = withDefaults(defineProps<{
   shelfInitializing: false,
   shelfUnreachable: false,
   error: '',
-  totalLabel: '',
   count: undefined,
-  filterDescription: '',
-  showEditAction: false,
   canOpenBookFolder: false,
   readOnly: false,
   viewModeStorageKey: undefined,
@@ -245,15 +235,18 @@ const viewModeOptions = computed<Array<{ value: BooksViewMode; label: string }>>
   { value: 'title', label: t('bookCollection.viewMode.title') }
 ]);
 
+const VIEW_MODE_ICONS: Record<BooksViewMode, IconName> = {
+  list: 'view-list',
+  card: 'view-card',
+  title: 'view-title'
+};
+
 const viewMode = ref<BooksViewMode>('list');
 const slots = useSlots();
 
-const hasMetaLine = computed(() => !!props.filterDescription || !!slots['title-meta']);
+const hasMetaLine = computed(() => !!slots['title-meta']);
 
 const resolvedTotalLabel = computed(() => {
-  if (props.totalLabel) {
-    return props.totalLabel;
-  }
   if (typeof props.count === 'number') {
     return t('bookCollection.booksCount', { count: props.count });
   }
@@ -301,24 +294,31 @@ onMounted(() => {
 
 .selection-close { font-size: 18px; line-height: 1; }
 
-.mobile-selection-actions { display: none; }
+/* The `v-if` already limits this bar to the mobile runtime, where Download is
+   the only batch action left (Move and Trash are write surfaces). Gating it on
+   viewport width as well used to hide it on tablets, leaving multi-select with
+   no action to perform at all. Width now only tunes the layout. */
+.mobile-selection-actions {
+  background: color-mix(in srgb, #fff 94%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+  display: flex;
+  left: max(12px, env(safe-area-inset-left, 0px));
+  margin-inline: auto;
+  max-width: 420px;
+  padding: 10px;
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  z-index: var(--z-overlay, 20);
+}
+
+.mobile-selection-actions .button { width: 100%; }
 
 @media (max-width: 760px) {
   .selection-toolbar { justify-content: flex-start; width: 100%; }
-  .mobile-selection-actions {
-    background: color-mix(in srgb, #fff 94%, transparent);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
-    display: flex;
-    left: 12px;
-    padding: 10px;
-    position: fixed;
-    right: 12px;
-    z-index: var(--z-overlay, 20);
-  }
-  .mobile-selection-actions .button { width: 100%; }
+  .mobile-selection-actions { max-width: none; }
 }
 
 .collection-error {
@@ -347,8 +347,16 @@ onMounted(() => {
 .bookshelf-toolbar {
   align-items: center;
   display: flex;
-  flex: 0 0 auto;
+  /* Wraps at every width, not only on a narrow viewport. The row is a set of
+     independent controls that pages add to over time, and `flex: 0 0 auto`
+     means one control more than fits is not squeezed but pushed past the
+     header and clipped — the last one then cannot be reached at all. Wrapping
+     costs a second line only in the case that is already broken. The narrow
+     rules below still apply on top of this. */
+  flex-wrap: wrap;
+  flex: 0 1 auto;
   gap: 10px;
+  justify-content: flex-end;
 }
 
 .bookshelf-title {
@@ -399,12 +407,9 @@ onMounted(() => {
   }
 
   .bookshelf-toolbar {
-    /* Wrapping, not scrolling: the toolbar is a row of independent controls
-       and the search bar already asks for a line of its own (flex-basis 100%
-       in LibraryPage). Without this, one control more than fits pushes the
-       whole page into horizontal overflow and the last control can only be
-       reached by scrolling sideways. */
-    flex-wrap: wrap;
+    /* The wrap itself is unconditional now (see .bookshelf-toolbar above).
+       What is specific to a narrow viewport is spreading the controls across
+       the full width, since the header stacks and the toolbar owns its line. */
     justify-content: space-between;
     width: 100%;
   }
@@ -419,9 +424,11 @@ onMounted(() => {
      component's DOM subtree, so this component's scope attribute never
      lands on them. Style portalled popper content with plain CSS. -->
 <style>
+/* 16px, matching the sidebar: these are now the same 24-grid stroke icons, and
+   the old 14px was sized for the denser 16-grid solid glyphs they replaced. */
 .view-mode-svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
 .view-mode-menu {

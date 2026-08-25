@@ -1,17 +1,18 @@
 import { Filesystem } from '@capacitor/filesystem';
 
-import type { Book, BookContent, DownloadState, ReadingProgress, SplitConfig } from '@/types/book';
+import type { Book, BookContent, DownloadState, ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
 import { currentCacheScopeKey } from './cacheScope';
 import {
   cloneManifest,
-  copySplitConfig,
   downloadedBookFromManifest,
   type CachedBookManifest,
   type MobileBookCache
 } from './mobileBookCache';
 import {
   BASE_DIR,
+  base64ToBlob,
+  blobToBase64,
   CACHE_DIRECTORY,
   deleteFileIgnoringMissing,
   encode,
@@ -40,17 +41,18 @@ import {
 // this keeps the read path independent of the encoding scheme and of any
 // platform-specific filename quirks.
 //
-// Commit-point semantics: `saveDownloadedBook` writes manifest.json, but the
-// caller (see mobileBookshelfProvider.ts's downloadBook) writes manifest.json
-// *before* content.txt and the source files, not after — and there is no
-// transaction spanning the whole set, so "manifest present" cannot mean "fully
-// downloaded". Rather than fight that call order, this implementation treats
-// presence of manifest.json as the sole signal for "this book is in the
-// downloaded list" (matching listDownloadedBooks/getCachedBook/
-// getDownloadState), and treats a missing content/source file as a plain cache
-// miss (returns null) instead of throwing. A directory with no manifest.json is
-// an orphan and is ignored by listDownloadedBooks. A manifest.json that fails
-// to parse is treated the same as a missing manifest (ignored, not thrown).
+// Commit-point semantics: `saveDownloadedBook` writes manifest.json, and its
+// caller (see mobileBookshelfProvider.ts's downloadBook) writes it *last* —
+// after content.txt, the source files and the cover — so it is the download's
+// commit point. Presence of manifest.json is therefore the sole signal that
+// "this book is downloaded" (matching listDownloadedBooks/getCachedBook/
+// getDownloadState), and it implies the accounted-for content is already on
+// disk. A directory with no manifest.json is an orphan left by an interrupted
+// download and is ignored by listDownloadedBooks. A manifest.json that fails to
+// parse is treated the same as a missing manifest (ignored, not thrown). A
+// missing content/source file under a committed manifest is still handled as a
+// plain cache miss (returns null) rather than throwing, so a later partial
+// eviction degrades gracefully.
 
 // Pre-scope layout. Everything under it belongs to whichever connection was
 // configured when it was written, which — until the mobile shell can hold more
@@ -115,24 +117,6 @@ interface StoredCover {
   data: string; // base64 (no data: prefix)
 }
 
-async function blobToBase64(blob: Blob): Promise<string> {
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += 1) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-function base64ToBlob(base64: string, mime: string): Blob {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return new Blob([bytes], mime ? { type: mime } : undefined);
-}
-
 /**
  * Filesystem-backed {@link MobileBookCache}, using @capacitor/filesystem's
  * app-private `Directory.Data`. See the module-level comment above for the
@@ -181,11 +165,6 @@ export class FilesystemMobileBookCache implements MobileBookCache {
     const manifest = await this.readManifest(bookId);
     const source = manifest?.sources.find((item) => item.id === sourceId);
     return source ? { ...source } : null;
-  }
-
-  async getCachedBookSplitConfig(bookId: string): Promise<SplitConfig | null> {
-    const manifest = await this.readManifest(bookId);
-    return copySplitConfig(manifest?.split_config) ?? null;
   }
 
   async getCachedBookContent(bookId: string): Promise<BookContent | null> {

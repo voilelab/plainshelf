@@ -27,19 +27,11 @@
         <div class="book-list-head">
           <h3 class="book-list-title">{{ book.title }}</h3>
           <div class="book-list-head-actions">
-            <p class="book-list-layer">{{ layerLabel(book) }}</p>
-            <button
-              v-if="showEditAction"
-              type="button"
-              class="book-list-edit"
-              @click.stop="emit('edit', book.id)"
-            >
-              Edit
-            </button>
+            <p class="book-list-folder">{{ folderLabel(book) }}</p>
           </div>
         </div>
 
-        <p v-if="book.comment?.trim()" class="book-list-comment">{{ book.comment }}</p>
+        <p v-if="summaries.get(book.id)" class="book-list-comment">{{ summaries.get(book.id) }}</p>
 
         <p class="book-list-meta">
           <span v-if="book.authors?.length">{{ book.authors.join(', ') }}</span>
@@ -55,20 +47,19 @@
 import BookCoverImg from './BookCoverImg.vue';
 import BookSelectionCheckbox from './BookSelectionCheckbox.vue';
 import { useBookItemInteractions } from '@/composables/useBookItemInteractions';
+import { useBookSummaries } from '@/composables/useBookSummaries';
 import type { Book } from '@/types/book';
 import type { BookActivation } from '@/types/bookSelection';
-import { getLayerPath, layerPathLabel } from '@/utils/layers';
+import { getFolderPath, folderPathLabel } from '@/utils/folders';
 import { formatDateLabel } from '@/utils/date';
 import { useI18n } from '@/i18n';
 
 const props = withDefaults(defineProps<{
   books: Book[];
-  showEditAction?: boolean;
   selectable?: boolean;
   mobileSelection?: boolean;
   selectedIds?: ReadonlySet<string>;
 }>(), {
-  showEditAction: false,
   selectable: false,
   mobileSelection: false,
   selectedIds: () => new Set<string>()
@@ -78,7 +69,6 @@ const emit = defineEmits<{
   (event: 'activate', payload: BookActivation): void;
   (event: 'toggle-selection', id: string): void;
   (event: 'long-press', id: string): void;
-  (event: 'edit', id: string): void;
 }>();
 
 const { t } = useI18n();
@@ -90,9 +80,11 @@ const interactions = useBookItemInteractions({
   onLongPress: (id) => emit('long-press', id)
 });
 
-function layerLabel(book: Book): string {
-  const path = getLayerPath(book);
-  return path === '' ? '/' : layerPathLabel(path);
+const summaries = useBookSummaries(() => props.books);
+
+function folderLabel(book: Book): string {
+  const path = getFolderPath(book);
+  return path === '' ? '/' : folderPathLabel(path);
 }
 
 function primaryDateLabel(book: Book): string {
@@ -165,26 +157,12 @@ function primaryDateLabel(book: Book): string {
   line-height: 1.35;
 }
 
-.book-list-layer {
+.book-list-folder {
   color: var(--muted);
   flex: 0 0 auto;
   font-size: 12px;
   margin: 1px 0 0;
   text-align: right;
-}
-
-.book-list-edit {
-  background: #f4f7fb;
-  border: 1px solid #d5dfeb;
-  border-radius: 8px;
-  color: inherit;
-  cursor: pointer;
-  font-size: 12px;
-  padding: 2px 8px;
-}
-
-.book-list-edit:hover {
-  background: #e9f1fb;
 }
 
 .book-list-comment {
@@ -232,7 +210,7 @@ function primaryDateLabel(book: Book): string {
     justify-content: space-between;
   }
 
-  .book-list-layer {
+  .book-list-folder {
     text-align: left;
   }
 }

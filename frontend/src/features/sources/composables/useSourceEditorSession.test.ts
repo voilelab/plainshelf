@@ -174,15 +174,53 @@ describe('useSourceEditorSession', () => {
     expect(session.saveSuccess.value).toBe('Derived source created.');
   });
 
-  it('deletes the active source and selects the remaining current source', async () => {
+  it('deletes the active source and follows the current source the server picked', async () => {
     const session = useSourceEditorSession(() => currentBookId, () => true);
     await session.fetchInitial();
+    // Deleting the current source moves current_source server-side, so the
+    // cached book must be refreshed or it keeps naming the deleted source.
     mocks.listSources.mockResolvedValue([source('source-1')]);
+    mocks.getBook.mockResolvedValue({
+      id: 'book-1',
+      title: 'Book',
+      format: 'txt',
+      current_source: 'source-1'
+    });
 
     expect(await session.deleteSource('source-2')).toBe(true);
     expect(mocks.deleteSource).toHaveBeenCalledWith('book-1', 'source-2');
+    expect(session.book.value?.current_source).toBe('source-1');
     expect(session.activeSourceId.value).toBe('source-1');
     expect(session.content.value).toBe('content:source-1');
+  });
+
+  it('still reports a successful delete when the book refetch fails', async () => {
+    const session = useSourceEditorSession(() => currentBookId, () => true);
+    await session.fetchInitial();
+    mocks.listSources.mockResolvedValue([source('source-1')]);
+    mocks.getBook.mockRejectedValue(new Error('offline'));
+
+    expect(await session.deleteSource('source-2')).toBe(true);
+    expect(session.deleteError.value).toBe('');
+    // The stale pointer no longer matches any source, so the list decides.
+    expect(session.activeSourceId.value).toBe('source-1');
+  });
+
+  it('selects the empty source the server leaves behind when the last one is deleted', async () => {
+    const session = useSourceEditorSession(() => currentBookId, () => true);
+    await session.fetchInitial();
+    mocks.listSources.mockResolvedValue([source('source-3')]);
+    mocks.getBook.mockResolvedValue({
+      id: 'book-1',
+      title: 'Book',
+      format: 'txt',
+      current_source: 'source-3'
+    });
+    mocks.getSourceContent.mockResolvedValue('');
+
+    expect(await session.deleteSource('source-2')).toBe(true);
+    expect(session.activeSourceId.value).toBe('source-3');
+    expect(session.content.value).toBe('');
   });
 
   it('updates current-source metadata without messaging a newer active source', async () => {

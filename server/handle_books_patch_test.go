@@ -97,28 +97,3 @@ func TestApplyBookPatchDoesNotValidate(t *testing.T) {
 		t.Fatalf("star = %d, want the value copied through unchecked", meta.Star)
 	}
 }
-
-// "layers" predates "layer"; both are still accepted, with "layer" winning.
-func TestUpdateBookRequestTargetLayers(t *testing.T) {
-	layer := shelf.Layers{"from-layer"}
-	legacy := shelf.Layers{"from-layers"}
-
-	tests := []struct {
-		name string
-		req  UpdateBookRequest
-		want *shelf.Layers
-	}{
-		{"neither set", UpdateBookRequest{}, nil},
-		{"layer only", UpdateBookRequest{Layer: &layer}, &layer},
-		{"layers only", UpdateBookRequest{Layers: &legacy}, &legacy},
-		{"layer wins over layers", UpdateBookRequest{Layer: &layer, Layers: &legacy}, &layer},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.req.targetLayers(); got != tt.want {
-				t.Fatalf("targetLayers() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}

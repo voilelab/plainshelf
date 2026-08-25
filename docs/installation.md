@@ -37,12 +37,52 @@ brew install --cask plainshelf
 Upgrade with `brew upgrade --cask plainshelf`, uninstall with
 `brew uninstall --cask plainshelf`.
 
+The desktop cask **depends on** the standalone reader cask
+(`bookpkg-reader`), so `brew install`/`brew upgrade` of `plainshelf` also
+installs the reader. That is what lets the desktop app's "read" action open a
+book: it shells out to the installed `PlainShelfReader` app. The reader is
+**not** bundled inside `PlainShelf.app` — it is installed as its own cask
+alongside the desktop app. See
+[the reader section below](#experimental-standalone-book-package-reader) for
+what the reader installs and how to remove it.
+
 The bundled `.app` is unsigned and unnotarized; the cask's `postflight`
 clears Gatekeeper's quarantine attribute so the app opens normally on
 first launch.
 
 For other platforms, build the desktop client from source — see
 [Local Setup](development/setup.md).
+
+### Experimental — standalone book-package reader
+
+`bookpkg-reader` is an **experimental** cask for the standalone reader that
+opens a single `.bookpkg` package. The `plainshelf` desktop cask declares it as
+a dependency (`depends_on cask: "voilelab/plainshelf/bookpkg-reader"`), so you
+normally do not install it directly — installing the desktop app pulls it in.
+
+!!! warning "Requires the first reader release"
+    `Casks/bookpkg-reader.rb` is committed as a placeholder: its `version` and
+    `sha256` are pinned only when the first release ships the reader artifact
+    (`bookpkg-reader_v<version>_darwin_arm64.zip`). Until that release lands the
+    reader cask **cannot be installed** — `brew install` would try to fetch a
+    release that does not exist yet. Because the desktop cask now depends on the
+    reader, `brew install --cask plainshelf` also needs that reader release to
+    be published before it can resolve.
+
+You can also install the reader on its own — macOS on Apple Silicon
+(`darwin`/`arm64`):
+
+```bash
+brew install --cask voilelab/plainshelf/bookpkg-reader
+```
+
+The reader `.app` is also unsigned and unnotarized; its `postflight` clears
+the quarantine attribute the same way. Uninstall with
+`brew uninstall --cask bookpkg-reader`.
+
+`brew zap --cask bookpkg-reader` removes only the reader's own data (keyed to
+its `com.voilelab.plainshelf-reader` bundle identifier). It does **not** touch
+the `plainshelf` desktop app's library.
 
 ---
 
@@ -146,10 +186,10 @@ For custom configuration and the bundled defaults, see the
 
 ## Upgrading
 
-!!! warning "v0.8 reading history and reading time do not carry into v1"
-    v1 deliberately starts new per-device records. v0.8's server-side values
-    are not migrated and no longer appear after upgrading. PlainShelf provides
-    no export, import, or recovery path for them. See
+!!! warning "v0.8 reading history and reading time do not carry into v0.9.0 or later"
+    Starting with v0.9.0, PlainShelf keeps these records per-device. v0.8's
+    server-side values are not migrated and no longer appear after upgrading.
+    PlainShelf provides no export, import, or recovery path for them. See
     [v0.8 reading-data breaking change](concepts/data-format-versioning.md#v08-reading-data-breaking-change)
     for details.
 

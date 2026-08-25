@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -38,9 +39,13 @@ var apiErrorTable = []struct {
 		status:  http.StatusBadRequest,
 		message: `format must be "txt" or "md"`,
 	}},
-	{shelf.ErrInvalidLayer, apiError{
+	{shelf.ErrIgnoredFolderName, apiError{
 		status:  http.StatusBadRequest,
-		message: "invalid layer name",
+		message: "invalid folder name: hidden and system directory names (a leading dot, @eaDir, #recycle, $RECYCLE.BIN, lost+found) are skipped by the shelf scanner, so a folder named this way would not stay visible",
+	}},
+	{shelf.ErrInvalidFolder, apiError{
+		status:  http.StatusBadRequest,
+		message: "invalid folder name",
 	}},
 	{shelf.ErrShelfInitializing, apiError{
 		status:     http.StatusServiceUnavailable,
@@ -55,6 +60,10 @@ var apiErrorTable = []struct {
 	{shelf.ErrBookNotFound, apiError{
 		status:  http.StatusNotFound,
 		message: "book not found",
+	}},
+	{shelf.ErrBookIDConflict, apiError{
+		status:  http.StatusConflict,
+		message: "the target shelf already holds a book with this ID; the move would overwrite it",
 	}},
 	{shelf.ErrTrashedBookNotFound, apiError{
 		status:  http.StatusNotFound,
@@ -72,6 +81,10 @@ var apiErrorTable = []struct {
 		status:  http.StatusNotFound,
 		message: "asset not found",
 	}},
+	{fsutil.ErrReadOnly, apiError{
+		status:  http.StatusConflict,
+		message: "shelf is opened read-only; this PlainShelf instance cannot modify it",
+	}},
 	{shelf.ErrUnsupportedBookSchemaVersion, apiError{
 		status:  http.StatusConflict,
 		message: "book uses a newer on-disk format than this PlainShelf build supports; upgrade PlainShelf to modify it",
@@ -79,6 +92,10 @@ var apiErrorTable = []struct {
 	{shelf.ErrUnsupportedSourceSchemaVersion, apiError{
 		status:  http.StatusConflict,
 		message: "source uses a newer on-disk format than this PlainShelf build supports; upgrade PlainShelf to modify it",
+	}},
+	{shelf.ErrUnsupportedTrashSchemaVersion, apiError{
+		status:  http.StatusConflict,
+		message: "trashed book uses a newer on-disk format than this PlainShelf build supports; upgrade PlainShelf to modify it",
 	}},
 	{taskutil.ErrWorkerBusy, apiError{
 		status:     http.StatusServiceUnavailable,
@@ -102,14 +119,14 @@ func apiErrorFor(err error) (apiError, bool) {
 
 // writeErr answers a known error from the table, and anything else with 500
 // and fallback, so an unexpected failure never leaks its detail to the client.
-func (app *App) writeErr(w http.ResponseWriter, err error, fallback string) {
-	app.writeErrStatus(w, err, fallback, http.StatusInternalServerError)
+func (c *apiCore) writeErr(w http.ResponseWriter, err error, fallback string) {
+	c.writeErrStatus(w, err, fallback, http.StatusInternalServerError)
 }
 
 // writeErrStatus is writeErr with a caller-chosen status for unknown errors.
-// The layer routes answer a family of outcomes the table cannot yet name with
+// The folder routes answer a family of outcomes the table cannot yet name with
 // a single status, and 500 would be wrong for those.
-func (app *App) writeErrStatus(w http.ResponseWriter, err error, fallback string, fallbackStatus int) {
+func (c *apiCore) writeErrStatus(w http.ResponseWriter, err error, fallback string, fallbackStatus int) {
 	if resp, ok := apiErrorFor(err); ok {
 		if resp.retryAfter != "" {
 			w.Header().Set("Retry-After", resp.retryAfter)
@@ -118,6 +135,6 @@ func (app *App) writeErrStatus(w http.ResponseWriter, err error, fallback string
 		return
 	}
 
-	app.Error(fallback, "error", err)
+	c.Error(fallback, "error", err)
 	http.Error(w, fallback, fallbackStatus)
 }

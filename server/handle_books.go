@@ -2,32 +2,26 @@ package server
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/voilelab/plainshelf/internal/imgutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
 )
 
-const maxCoverBodySize = 20 << 20 // 20 MB
+// bookHandlers serves the book routes. It reads settings because the cover
+// upload path has to know whether this installation stores covers as JPEG.
+type bookHandlers struct {
+	*apiCore
 
-// maxAssetBodySize caps an uploaded illustration. A file placed on the shelf by
-// hand has no bound - which is why the read path streams rather than buffers -
-// but an upload is read into memory to be written, so it needs one.
-const maxAssetBodySize = 20 << 20 // 20 MB
-
-func isRequestBodyTooLarge(err error) bool {
-	var maxBytesErr *http.MaxBytesError
-	return errors.As(err, &maxBytesErr)
+	settings *settings
 }
 
 type Book struct {
-	Meta  *shelf.BookMeta `json:"meta"`
-	Layer shelf.Layers    `json:"layer"`
+	Meta   *shelf.BookMeta  `json:"meta"`
+	Folder shelf.FolderPath `json:"folder"`
 
 	// CharCount is only populated when the request includes
 	// include=char_count; it is omitted otherwise, so the default response
@@ -45,11 +39,12 @@ type UpdateBookRequest struct {
 	Star        *int               `json:"star"`
 	Format      *string            `json:"format"`
 	PublishedAt *util.JSONDate     `json:"published_at"`
-	Layer       *shelf.Layers      `json:"layer"`
-	Layers      *shelf.Layers      `json:"layers"`
+	Folder      *shelf.FolderPath  `json:"folder"`
 }
 
-func (app *App) GetBookFolderPath(shelfID, bookID string) (string, error) {
+// folderPath locates a book on disk for the desktop client's "show in file
+// manager" action. It is not an HTTP route.
+func (h *bookHandlers) folderPath(shelfID, bookID string) (string, error) {
 	shelfID = strings.TrimSpace(shelfID)
 	if shelfID == "" {
 		return "", util.Errorf("shelf ID cannot be empty")
@@ -60,7 +55,7 @@ func (app *App) GetBookFolderPath(shelfID, bookID string) (string, error) {
 		return "", util.Errorf("book ID cannot be empty")
 	}
 
-	shelfData, ok := app.shelfManager.GetShelf(shelfID)
+	shelfData, ok := h.shelves.GetShelf(shelfID)
 	if !ok {
 		return "", util.Errorf("shelf with ID %q not found", shelfID)
 	}
@@ -70,19 +65,22 @@ func (app *App) GetBookFolderPath(shelfID, bookID string) (string, error) {
 		return "", util.Errorf("%w", err)
 	}
 
-	return book.FolderPath(), nil
+	return book.PackagePath(), nil
 }
 
 // GET /api/shelves/{shelf_id}/books
-func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
-	shelfData, ok := app.resolveShelf(w, r)
+func (h *bookHandlers) getBooks(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
 
-	books, err := shelfData.ListBooks()
+	// The listing carries the character counts whether or not this request
+	// asked for them: they come out of the book cache, so fetching them costs
+	// nothing beyond the listing itself.
+	books, err := shelfData.ListBooksWithCharCount()
 	if err != nil {
-		app.writeErr(w, err, "failed to list books")
+		h.writeErr(w, err, "failed to list books")
 		return
 	}
 
@@ -97,36 +95,34 @@ func (app *App) HandleAPIGetBooks(w http.ResponseWriter, r *http.Request) {
 	jsonBooks := make([]Book, len(books))
 	for i, b := range books {
 		jsonBooks[i] = Book{
-			Meta:  b.GetMeta(),
-			Layer: b.Layers(),
+			Meta:   b.Book.GetMeta(),
+			Folder: b.Folders,
 		}
 		if includeCharCount {
-			// A single book with a broken/missing source shouldn't fail the
-			// whole list - just skip char_count for that book.
-			if source, srcErr := b.GetSource(b.CurrentSource()); srcErr == nil {
-				jsonBooks[i].CharCount = source.GetMeta().CharCount
-			}
+			// A book with a broken or missing source reports 0, which omitempty
+			// drops: one damaged book must not fail the whole listing.
+			jsonBooks[i].CharCount = b.CharCount
 		}
 	}
 
-	app.writeJSON(w, http.StatusOK, jsonBooks)
+	h.writeJSON(w, http.StatusOK, jsonBooks)
 }
 
 // POST /api/shelves/{shelf_id}/books
-func (app *App) HandleAPICreateBook(w http.ResponseWriter, r *http.Request) {
-	shelfData, ok := app.resolveShelf(w, r)
+func (h *bookHandlers) createBook(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
 
 	var req struct {
-		Title string       `json:"title"`
-		Layer shelf.Layers `json:"layer"`
+		Title  string           `json:"title"`
+		Folder shelf.FolderPath `json:"folder"`
 	}
 
 	bs, err := io.ReadAll(r.Body)
 	if err != nil {
-		app.Error("failed to read request body", "error", err)
+		h.Error("failed to read request body", "error", err)
 		http.Error(w, "failed to read request body", http.StatusInternalServerError)
 		return
 	}
@@ -139,7 +135,7 @@ func (app *App) HandleAPICreateBook(w http.ResponseWriter, r *http.Request) {
 
 	// The empty source and the current-source pointer are written while the book
 	// is still staged, so a failure here leaves no half-built book on disk.
-	newBook, err := shelfData.NewBookWith(req.Layer, req.Title, func(book *shelf.Book) error {
+	newBook, err := shelfData.NewBookWith(req.Folder, req.Title, func(book *shelf.Book) error {
 		source, err := book.NewSource(nil)
 		if err != nil {
 			return err
@@ -147,32 +143,82 @@ func (app *App) HandleAPICreateBook(w http.ResponseWriter, r *http.Request) {
 		return book.SetCurrentSource(source.ID())
 	})
 	if err != nil {
-		app.writeErr(w, err, "failed to create new book")
+		h.writeErr(w, err, "failed to create new book")
 		return
 	}
 
-	app.writeJSON(w, http.StatusCreated, Book{
-		Meta:  newBook.GetMeta(),
-		Layer: newBook.Layers(),
+	// The book was created under req.Folder, so that is where it now sits; the
+	// book itself does not carry its folder back.
+	h.writeJSON(w, http.StatusCreated, Book{
+		Meta:   newBook.GetMeta(),
+		Folder: req.Folder,
 	})
 }
 
-// GET /api/shelves/{shelf_id}/books/{book_id}
-func (app *App) HandleAPIGetBook(w http.ResponseWriter, r *http.Request) {
-	_, book, ok := app.loadBook(w, r)
+// CopyBookRequest carries the optional destination for a copy. When the field is
+// unset - including an empty request body - the copy lands in the source book's
+// own folder.
+type CopyBookRequest struct {
+	Folder *shelf.FolderPath `json:"folder"`
+}
+
+// POST /api/shelves/{shelf_id}/books/{book_id}/copies
+func (h *bookHandlers) copyBook(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
 
-	app.writeJSON(w, http.StatusOK, Book{
-		Meta:  book.GetMeta(),
-		Layer: book.Layers(),
+	bookID, ok := resolveBookID(w, r)
+	if !ok {
+		return
+	}
+
+	var req CopyBookRequest
+	if !decodeOptionalStrictJSON(w, r, &req) {
+		return
+	}
+
+	listing, ok := h.lookupBookListing(w, shelfData, bookID)
+	if !ok {
+		return
+	}
+
+	// Default to the source book's own folder so a plain "duplicate" needs no body.
+	target := append(shelf.FolderPath(nil), listing.Folders...)
+	if override := req.Folder; override != nil {
+		target = append(shelf.FolderPath(nil), (*override)...)
+	}
+
+	copied, err := shelfData.CopyBook(bookID, target)
+	if err != nil {
+		h.writeErr(w, err, "failed to copy book")
+		return
+	}
+
+	// The copy landed under target, so that is its folder.
+	h.writeJSON(w, http.StatusCreated, Book{
+		Meta:   copied.GetMeta(),
+		Folder: target,
+	})
+}
+
+// GET /api/shelves/{shelf_id}/books/{book_id}
+func (h *bookHandlers) getBook(w http.ResponseWriter, r *http.Request) {
+	_, listing, ok := h.loadBookListing(w, r)
+	if !ok {
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, Book{
+		Meta:   listing.Book.GetMeta(),
+		Folder: listing.Folders,
 	})
 }
 
 // PATCH /api/shelves/{shelf_id}/books/{book_id}
-func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
-	shelfData, ok := app.resolveShelf(w, r)
+func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
@@ -189,45 +235,41 @@ func (app *App) HandleAPIUpdateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	book, ok := app.getBook(w, shelfData, bookID)
+	listing, ok := h.lookupBookListing(w, shelfData, bookID)
 	if !ok {
 		return
 	}
+	book := listing.Book
+	folder := listing.Folders
 
 	// Refuse a book this build must not modify before doing anything, otherwise
-	// a layer move would be applied to disk and then reported as a failure.
+	// a folder move would be applied to disk and then reported as a failure.
 	if err := book.EnsureWritable(); err != nil {
-		app.writeErr(w, err, "failed to update book metadata")
+		h.writeErr(w, err, "failed to update book metadata")
 		return
 	}
 
-	if target := req.targetLayers(); target != nil {
-		movedBook, err := shelfData.MoveBook(bookID, append(shelf.Layers(nil), (*target)...))
+	if req.Folder != nil {
+		moveTo := append(shelf.FolderPath(nil), (*req.Folder)...)
+		movedBook, err := shelfData.MoveBook(bookID, moveTo)
 		if err != nil {
-			app.writeErr(w, err, "failed to move book layer")
+			h.writeErr(w, err, "failed to move book folder")
 			return
 		}
+		// The book now sits where it was moved to.
 		book = movedBook
+		folder = moveTo
 	}
 
 	meta := *book.GetMeta()
 	applyBookPatch(&meta, &req)
 
 	if err := book.SetMeta(&meta); err != nil {
-		app.writeErr(w, err, "failed to update book metadata")
+		h.writeErr(w, err, "failed to update book metadata")
 		return
 	}
 
-	app.writeJSON(w, http.StatusOK, Book{Meta: &meta, Layer: book.Layers()})
-}
-
-// "layer" is the current field name; "layers" is still accepted because older
-// clients send that one.
-func (req *UpdateBookRequest) targetLayers() *shelf.Layers {
-	if req.Layer != nil {
-		return req.Layer
-	}
-	return req.Layers
+	h.writeJSON(w, http.StatusOK, Book{Meta: &meta, Folder: folder})
 }
 
 // applyBookPatch validates nothing: the field rules belong to shelf, which
@@ -264,301 +306,33 @@ func applyBookPatch(meta *shelf.BookMeta, req *UpdateBookRequest) {
 	meta.UpdatedAt = util.JSONTime(time.Now())
 }
 
-// imageContentTypeForExt maps a stored image's file extension to the content
-// type the read path serves it with. An unrecognized extension falls back to
-// JPEG, which is what the cover path has always answered; source assets never
-// reach the fallback because their names are validated first.
-func imageContentTypeForExt(ext string) string {
-	switch strings.ToLower(ext) {
-	case ".png":
-		return "image/png"
-	case ".webp":
-		return "image/webp"
-	case ".gif":
-		return "image/gif"
-	default:
-		return "image/jpeg"
-	}
-}
-
-// cacheVisibility returns the Cache-Control visibility for a stored file's
-// response.
-//
-// It is derived from the token gate itself rather than read from the config
-// separately, so the two cannot drift apart. A response the gate protected must
-// not be stored by a shared cache: the token travels in a header the cache does
-// not key on, so a stored copy could answer a later request that never reached
-// the gate.
-func (app *App) cacheVisibility(r *http.Request) string {
-	if app.security.requiresToken(r) {
-		return "private"
-	}
-	return "public"
-}
-
-// imageCacheFreshness is how long a client may reuse a stored image before it
-// has to ask about it again.
-type imageCacheFreshness string
-
-const (
-	// cacheUntilChanged suits a file whose URL changes when the file does. A
-	// cover upload appends a cache-busting key (see getBookCoverUrl), so a
-	// stale copy cannot outlive the change that made it stale.
-	cacheUntilChanged imageCacheFreshness = "max-age=86400"
-
-	// cacheRevalidateAlways suits a file the API can replace or remove while
-	// its URL stays the same, which is every source asset: the reader derives
-	// the URL from the file name in the text, and nothing records a version to
-	// bust a cache with - deliberately, since the filesystem is the only list.
-	//
-	// Without this a client would keep showing a replaced illustration, or one
-	// already deleted, for up to a day. Revalidation is cheap here because the
-	// response carries an ETag and answers 304 from a single stat.
-	cacheRevalidateAlways imageCacheFreshness = "no-cache"
-)
-
-// serveImageValidator writes the caching headers for a stored image and reports
-// whether it already answered the request with 304.
-//
-// An empty etag means the file could not be stat'd; the response then carries
-// no validator and the caller goes on to serve the bytes.
-func (app *App) serveImageValidator(
-	w http.ResponseWriter,
-	r *http.Request,
-	etag string,
-	freshness imageCacheFreshness,
-) bool {
-	if etag == "" {
-		return false
-	}
-
-	w.Header().Set("ETag", etag)
-	w.Header().Set("Cache-Control", app.cacheVisibility(r)+", "+string(freshness))
-	if etagMatchesIfNoneMatch(r.Header.Get("If-None-Match"), etag) {
-		w.WriteHeader(http.StatusNotModified)
-		return true
-	}
-
-	return false
-}
-
-// etagMatchesIfNoneMatch reports whether an If-None-Match header value matches
-// the stored file's ETag.
-//
-// RFC 9110 allows a list of validators or "*", and requires the weak
-// comparison for GET and HEAD, where only the opaque tag matters. Plain string
-// equality answers a browser echoing one tag back, but misses a client sending
-// several - and the cost of a miss is a full body, which for an asset has no
-// size bound.
-//
-// Splitting on commas is safe for the tags this server issues: they are
-// mtime-size pairs and never contain one. A tag from elsewhere that did would
-// simply fail to match, which errs towards sending the body.
-func etagMatchesIfNoneMatch(header, etag string) bool {
-	header = strings.TrimSpace(header)
-	if header == "" || etag == "" {
-		return false
-	}
-	if header == "*" {
-		return true
-	}
-
-	want := opaqueETag(etag)
-	for _, candidate := range strings.Split(header, ",") {
-		if opaqueETag(candidate) == want {
-			return true
-		}
-	}
-
-	return false
-}
-
-// opaqueETag drops the weak-validator prefix and surrounding space, which is
-// what the weak comparison ignores.
-func opaqueETag(tag string) string {
-	return strings.TrimPrefix(strings.TrimSpace(tag), "W/")
-}
-
-// GET /api/shelves/{shelf_id}/books/{book_id}/cover
-func (app *App) HandleAPIGetBookCover(w http.ResponseWriter, r *http.Request) {
-	_, book, ok := app.loadBook(w, r)
-	if !ok {
-		return
-	}
-
-	if app.serveImageValidator(w, r, book.CoverETag(), cacheUntilChanged) {
-		return
-	}
-
-	coverData, ext, err := book.OpenCover()
-	if err != nil {
-		app.Error("failed to open book cover", "error", err)
-		http.Error(w, "failed to get book cover", http.StatusInternalServerError)
-		return
-	}
-
-	if coverData == nil {
-		http.Error(w, "cover not found", http.StatusNotFound)
-		return
-	}
-
-	w.Header().Set("Content-Type", imageContentTypeForExt(ext))
-	w.Write(coverData)
-}
-
-// PUT /api/shelves/{shelf_id}/books/{book_id}/cover
-func (app *App) HandleAPIUpdateBookCover(w http.ResponseWriter, r *http.Request) {
-	_, book, ok := app.loadBook(w, r)
-	if !ok {
-		return
-	}
-
-	contentType := r.Header.Get("Content-Type")
-	coverToJPG := app.coverToJPG()
-	var ext string
-	switch contentType {
-	case "image/png":
-		ext = ".png"
-	case "image/jpeg":
-		ext = ".jpg"
-	case "image/webp":
-		ext = ".webp"
-	case "image/gif":
-		ext = ".gif"
-	default:
-		if !coverToJPG {
-			http.Error(w, "unsupported content type", http.StatusBadRequest)
-			return
-		}
-	}
-
-	r.Body = http.MaxBytesReader(w, r.Body, maxCoverBodySize)
-	data, err := io.ReadAll(r.Body)
-	if err != nil {
-		if isRequestBodyTooLarge(err) {
-			http.Error(w, "request body too large (max 20 MB)", http.StatusRequestEntityTooLarge)
-			return
-		}
-		app.Error("failed to read request body", "error", err)
-		http.Error(w, "failed to read request body", http.StatusInternalServerError)
-		return
-	}
-
-	if coverToJPG {
-		data, err = imgutil.AnyToJPG(data)
-		if err != nil {
-			app.Error("failed to convert image to JPEG", "error", err)
-			http.Error(w, "failed to convert image to JPEG", http.StatusInternalServerError)
-			return
-		}
-		ext = ".jpg"
-	}
-
-	err = book.SetCover(data, ext)
-	if err != nil {
-		app.writeErr(w, err, "failed to update book cover")
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// DELETE /api/shelves/{shelf_id}/books/{book_id}/cover
-func (app *App) HandleAPIDeleteBookCover(w http.ResponseWriter, r *http.Request) {
-	_, book, ok := app.loadBook(w, r)
-	if !ok {
-		return
-	}
-
-	if err := book.DeleteCover(); err != nil {
-		app.writeErr(w, err, "failed to delete book cover")
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
 // GET /api/shelves/{shelf_id}/books/{book_id}/content
-func (app *App) HandleAPIGetBookContent(w http.ResponseWriter, r *http.Request) {
-	_, book, ok := app.loadBook(w, r)
+func (h *bookHandlers) getBookContent(w http.ResponseWriter, r *http.Request) {
+	_, book, ok := h.loadBook(w, r)
 	if !ok {
 		return
 	}
 
-	source, err := book.GetSource(book.CurrentSource())
+	source, err := book.ResolveCurrentSource()
 	if err != nil {
-		http.Error(w, "failed to get book source", http.StatusInternalServerError)
+		h.writeErr(w, err, "failed to get book source")
 		return
 	}
 
 	src, err := source.Open()
 	if err != nil {
-		app.Error("failed to open book source", "error", err)
+		h.Error("failed to open book source", "error", err)
 		http.Error(w, "failed to open book source", http.StatusInternalServerError)
 		return
 	}
 	defer src.Close()
 
-	app.streamTextFile(w, src, "failed to write book content")
-}
-
-// GET /api/shelves/{shelf_id}/books/{book_id}/split_config
-// HandleAPIGetBookSplitConfig serves legacy sources and older clients.
-// Deprecated: schema-versioned Markdown sources derive chapters from H2.
-func (app *App) HandleAPIGetBookSplitConfig(w http.ResponseWriter, r *http.Request) {
-	_, book, ok := app.loadBook(w, r)
-	if !ok {
-		return
-	}
-
-	source, err := book.GetSource(book.CurrentSource())
-	if err != nil {
-		app.Error("failed to get book source", "error", err)
-		http.Error(w, "failed to get book source", http.StatusInternalServerError)
-		return
-	}
-
-	app.writeJSON(w, http.StatusOK, source.GetMeta().SplitConfig)
-}
-
-// PATCH /api/shelves/{shelf_id}/books/{book_id}/split_config
-// HandleAPIUpdateBookSplitConfig is retained for legacy sources and clients.
-// New editor and import flows never call it.
-// Deprecated: upgrade the source to H2 Markdown instead.
-func (app *App) HandleAPIUpdateBookSplitConfig(w http.ResponseWriter, r *http.Request) {
-	_, book, ok := app.loadBook(w, r)
-	if !ok {
-		return
-	}
-
-	var splitConfig shelf.SplitConfig
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&splitConfig); err != nil {
-		http.Error(w, "invalid JSON", http.StatusBadRequest)
-		return
-	}
-
-	source, err := book.GetSource(book.CurrentSource())
-	if err != nil {
-		app.Error("failed to get book source", "error", err)
-		http.Error(w, "failed to get book source", http.StatusInternalServerError)
-		return
-	}
-
-	err = source.UpdateSplitConfig(splitConfig)
-	if err != nil {
-		app.Error("failed to update book split config", "error", err)
-		http.Error(w, "failed to update split config", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
+	h.streamTextFile(w, src, "failed to write book content")
 }
 
 // GET /api/shelves/{shelf_id}/books/duplicate
-func (app *App) HandleAPIFindDuplicateBooks(w http.ResponseWriter, r *http.Request) {
-	shelfData, ok := app.resolveShelf(w, r)
+func (h *bookHandlers) findDuplicateBooks(w http.ResponseWriter, r *http.Request) {
+	shelfData, ok := h.resolveShelf(w, r)
 	if !ok {
 		return
 	}
@@ -566,14 +340,14 @@ func (app *App) HandleAPIFindDuplicateBooks(w http.ResponseWriter, r *http.Reque
 	md5Groups := map[string][]string{}
 	books, err := shelfData.ListBooks()
 	if err != nil {
-		app.writeErr(w, err, "failed to list books")
+		h.writeErr(w, err, "failed to list books")
 		return
 	}
 
 	for _, b := range books {
 		source, err := b.GetSource(b.CurrentSource())
 		if err != nil {
-			app.Warn("failed to get source for book", "book_id", b.ID(), "error", err)
+			h.Warn("failed to get source for book", "book_id", b.ID(), "error", err)
 			continue
 		}
 		meta := source.GetMeta()
@@ -587,5 +361,5 @@ func (app *App) HandleAPIFindDuplicateBooks(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	app.writeJSON(w, http.StatusOK, groups)
+	h.writeJSON(w, http.StatusOK, groups)
 }

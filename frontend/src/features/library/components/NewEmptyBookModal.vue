@@ -1,12 +1,12 @@
 <template>
-  <BaseDialog :open="open" title="New empty book" :busy="submitting" @close="onClose">
+  <BaseDialog :open="open" :title="t('libraryForms.newBook.title')" :busy="submitting" @close="onClose">
     <section class="panel empty-book-modal">
       <header class="modal-header">
-        <h2>New empty book</h2>
+        <h2>{{ t('libraryForms.newBook.title') }}</h2>
         <button
           class="icon-close"
           type="button"
-          aria-label="Close new empty book dialog"
+          :aria-label="t('libraryForms.newBook.closeLabel')"
           :disabled="submitting"
           @click="onClose"
         >
@@ -14,13 +14,13 @@
         </button>
       </header>
 
-      <p class="meta">Create a new empty TXT book with title only.</p>
+      <p class="meta">{{ t('libraryForms.newBook.description') }}</p>
 
       <div v-if="error" class="error">{{ error }}</div>
 
       <form class="form" @submit.prevent="onSubmit">
         <label class="field" for="empty-book-title">
-          <span class="label">Book Title</span>
+          <span class="label">{{ t('libraryForms.newBook.titleLabel') }}</span>
           <input
             id="empty-book-title"
             ref="titleInput"
@@ -30,14 +30,14 @@
             :disabled="submitting"
             required
             maxlength="200"
-            placeholder="Enter book title"
+            :placeholder="t('libraryForms.newBook.titlePlaceholder')"
           />
         </label>
 
         <div class="actions">
-          <button class="button" type="button" :disabled="submitting" @click="onClose">Cancel</button>
+          <button class="button" type="button" :disabled="submitting" @click="onClose">{{ t('common.cancel') }}</button>
           <button class="button primary" type="submit" :disabled="submitting || !title.trim()">
-            {{ submitting ? 'Creating...' : 'Create' }}
+            {{ submitting ? t('libraryForms.newBook.creating') : t('libraryForms.newBook.create') }}
           </button>
         </div>
       </form>
@@ -49,10 +49,13 @@
 import { nextTick, ref, watch } from 'vue';
 import BaseDialog from '@/components/BaseDialog.vue';
 import { bookshelfWriter } from '@/providers';
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   open: boolean;
-  currentLayerPath?: string;
+  currentFolderPath?: string;
 }>();
 
 const emit = defineEmits<{
@@ -91,13 +94,13 @@ async function onSubmit(): Promise<void> {
     const emptyFile = new File([''], 'empty.txt', { type: 'text/plain' });
     await bookshelfWriter().importBook({
       title: trimmedTitle,
-      layer: props.currentLayerPath,
+      folder: props.currentFolderPath,
       file: emptyFile
     });
     emit('imported', { successCount: 1 });
     emit('close');
   } catch (err) {
-    error.value = err instanceof Error && err.message ? err.message : 'Failed to create empty book.';
+    error.value = err instanceof Error && err.message ? err.message : t('libraryForms.newBook.createFailed');
   } finally {
     submitting.value = false;
   }

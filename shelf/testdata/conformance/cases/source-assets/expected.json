@@ -1,0 +1,42 @@
+{
+  "folders": [
+    "/",
+    "Illustrated"
+  ],
+  "books": [
+    {
+      "path": "books/Illustrated/atlas-of-clouds.bookpkg",
+      "folders": [
+        "Illustrated"
+      ],
+      "id": "c5m2xr8kq3vz7ndt",
+      "title": "Atlas of Clouds",
+      "format": "md",
+      "authors": [
+        "L. Howard"
+      ],
+      "tags": [
+        "reference"
+      ],
+      "star": 0,
+      "cover": "cover.png",
+      "cover_present": true,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "current_source_field": "20260320-140000",
+      "current_source": "20260320-140000",
+      "sources": [
+        {
+          "id": "20260320-140000",
+          "has_content": true,
+          "char_count": 140,
+          "assets": [
+            "fig-cumulus.png",
+            "fig-stratus.png"
+          ]
+        }
+      ]
+    }
+  ],
+  "book_caches": []
+}

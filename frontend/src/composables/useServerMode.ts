@@ -1,6 +1,6 @@
 import { ref, watch } from 'vue';
 import { getReadOnlyMode } from '@/api/mode';
-import { getActiveShelfEntry } from '@/providers/mobileConfig';
+import { getBookshelfProvider } from '@/providers';
 import { t } from '@/i18n';
 
 const readOnly = ref(false);
@@ -14,23 +14,13 @@ watch(readOnly, (value) => {
   }
 }, { immediate: true });
 
-export function isReadOnlyModeEnabled(): boolean {
-  return readOnly.value;
-}
-
-export function assertWritableMode(): void {
-  if (readOnly.value) {
-    throw new Error('Server is in read-only mode. Write operations are disabled.');
-  }
-}
-
 export function useServerMode() {
   async function fetchServerMode(): Promise<void> {
-    // A pCloud shelf has no server to report a mode. Skipping keeps a doomed
-    // request — awaited before the layout renders anything — out of startup.
-    // Read-only is still enforced, by the mobile guard in api/client.ts and by
-    // the pCloud provider itself.
-    if (getActiveShelfEntry()?.type === 'pcloud') {
+    // A backend with no PlainShelf server behind it has no mode to report.
+    // Skipping keeps a doomed request — awaited before the layout renders
+    // anything — out of startup. Read-only is still enforced, by the guard in
+    // api/client.ts and by the provider's own missing write surface.
+    if (getBookshelfProvider().supportsServerMode?.() === false) {
       loaded.value = true;
       return;
     }

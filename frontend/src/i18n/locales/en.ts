@@ -2,22 +2,45 @@ const en = {
   app: {
     name: 'PlainShelf',
     mockModeBadge: 'MOCK API MODE',
-    desktopHistoryNavigation: 'Desktop history navigation',
-    previousPage: 'Previous page',
-    nextPage: 'Next page'
+    renderError: {
+      title: 'This page stopped responding',
+      description: 'Something went wrong while drawing this page. Reloading usually clears it.',
+      reload: 'Reload'
+    }
+  },
+  toast: {
+    label: 'Notifications',
+    dismiss: 'Dismiss notification'
   },
   language: {
     label: 'Language',
     en: 'English',
-    zhHant: '繁體中文'
+    zhHant: '繁體中文',
+    // The language a book is written in, distinct from the two keys above,
+    // which name the UI locale and stay in their own endonym either way.
+    book: {
+      unspecified: 'Unspecified',
+      zhHant: 'Chinese (Traditional)',
+      zhHans: 'Chinese (Simplified)',
+      ja: 'Japanese',
+      ko: 'Korean',
+      en: 'English',
+      custom: 'Custom...',
+      customPlaceholder: 'e.g. zh-TW, zh-HK, fr, de',
+      help: 'Use en, ja, ko, zh-Hant or zh-Hans; any BCP 47 language tag such as zh-TW also works.',
+      invalidTag: 'That is not a valid language tag. Use a form like en, ja, zh-Hant or zh-TW.'
+    }
   },
   common: {
     retry: 'Retry',
     cancel: 'Cancel',
+    confirm: 'Confirm',
+    working: 'Working...',
+    closeDialog: 'Close confirmation dialog',
     prev: 'Prev',
     next: 'Next',
     page: 'Page {page} / {total}',
-    inLayer: ' in {layer}',
+    inFolder: ' in {folder}',
     taskStartFailed: 'Failed to start the task',
     taskPollFailed: 'Failed to read task progress'
   },
@@ -25,64 +48,105 @@ const en = {
     expandSidebar: 'Expand sidebar',
     collapseSidebar: 'Collapse sidebar',
     railNavLabel: 'Sidebar navigation',
+    foldersNavLabel: 'Folders',
     openMenu: 'Open menu',
     closeMenu: 'Close menu',
+    desktopHistoryNavigation: 'Desktop history navigation',
+    previousPage: 'Previous page',
+    nextPage: 'Next page',
     sections: {
-      layers: 'LAYERS',
+      folders: 'FOLDERS',
       reading: 'READING',
       maintenance: 'MAINTENANCE',
       admin: 'ADMIN'
     },
     sectionToggleLabels: {
-      layers: 'Toggle sidebar folders',
+      folders: 'Toggle sidebar folders',
       reading: 'Toggle sidebar history',
       maintenance: 'Toggle sidebar maintenance',
       admin: 'Toggle sidebar administration'
     },
-    createLayer: {
-      add: 'Add layer',
-      title: 'New layer',
-      nameLabel: 'Layer name',
-      namePlaceholder: 'Layer name',
+    createFolder: {
+      add: 'Add folder',
+      title: 'New folder',
+      nameLabel: 'Folder name',
+      namePlaceholder: 'Folder name',
       parentLabel: 'Where',
       rootOption: 'All books (top level)',
-      closeLabel: 'Close new layer dialog',
-      invalidName: 'Layer name cannot be empty or contain /.',
+      closeLabel: 'Close new folder dialog',
+      invalidName: 'Folder name cannot be empty or contain /.',
       creating: 'Creating...',
       create: 'Create',
-      loadingLayers: 'Loading layers...'
+      loadingFolders: 'Loading folders...'
     },
-    deleteLayer: {
-      title: 'Delete layer',
+    deleteFolder: {
+      title: 'Delete folder',
       shortAction: 'Delete',
-      description: 'This will fail if the layer contains books or child layers.',
-      failed: 'Failed to delete layer',
+      description: 'This will fail if the folder contains books or child folders.',
+      failed: 'Failed to delete folder',
       notEmpty:
-        'Cannot delete this layer because it is not empty.\nMove books out and delete child layers first.'
+        'Cannot delete this folder because it is not empty.\nMove books out and delete child folders first.'
     },
-    renameLayer: {
+    renameFolder: {
       shortAction: 'Rename',
-      title: 'Rename layer',
-      nameLabel: 'Layer name',
-      placeholder: 'Layer name',
-      help: 'Current name: {layerName}',
+      title: 'Rename folder',
+      nameLabel: 'Folder name',
+      placeholder: 'Folder name',
+      help: 'Current name: {folderName}',
       confirm: 'Rename',
       renaming: 'Renaming...',
-      closeLabel: 'Close rename layer dialog',
-      invalid: 'Layer name cannot be empty or contain /.',
-      failed: 'Failed to rename layer'
+      closeLabel: 'Close rename folder dialog',
+      invalid: 'Folder name cannot be empty or contain /.',
+      failed: 'Failed to rename folder'
     },
-    moveLayer: {
-      failed: 'Failed to move layer. Drag a layer onto an existing target layer.'
+    moveFolder: {
+      failed: 'Failed to move folder. Drag a folder onto an existing target folder.'
     },
-    openLayerFolder: {
+    openFolder: {
       shortAction: 'Open folder',
-      failed: 'Failed to open layer folder.'
+      failed: 'Failed to open folder.'
     },
-    layerErrors: {
-      emptyPath: 'Layer path cannot be empty',
-      createFailed: 'Failed to create layer',
-      loadFailed: 'Failed to load layers'
+    transferFolder: {
+      shortAction: 'Transfer to another shelf…',
+      title: 'Transfer folder to another shelf',
+      description: 'Copy or move the “{folder}” folder — and everything inside it — to a different shelf.',
+      shelfLabel: 'Destination shelf',
+      chooseShelf: 'Choose a shelf',
+      noShelves: 'No other shelf is available to transfer to.',
+      parentLabel: 'Destination location',
+      parentHint: 'The folder keeps its name and is placed here: {destination}',
+      rootFolder: 'All books (top level)',
+      loadingFolders: 'Loading folders…',
+      foldersFailed: 'Failed to load the destination folders.',
+      modeLabel: 'Action',
+      modeCopy: 'Copy',
+      modeCopyHint: 'Creates new books on the destination shelf. Reading progress is not carried over.',
+      modeMove: 'Move',
+      modeMoveHint: 'Keeps the same books and their reading progress, and removes the folder from this shelf.',
+      confirm: 'Transfer',
+      close: 'Close',
+      progressLabel: 'Transfer progress',
+      progressCount: '{done} of {total} book(s)',
+      failedCount: '{failed} failed',
+      pending: 'Preparing…',
+      running: 'Transferring…',
+      completedCopy: 'Folder copied to the destination shelf.',
+      completedMove: 'Folder moved to the destination shelf.',
+      partial: 'The transfer finished with problems.',
+      failed: 'The transfer failed.',
+      errors: {
+        conflictFolder:
+          'The destination shelf already has a folder with this name. Pick another location, or rename the folder there first.',
+        conflictBookId:
+          'The destination shelf already holds these books, so a move would overwrite them: {ids}. Copy instead, or remove them there first.',
+        failed: 'The transfer could not be started.'
+      }
+    },
+    folderErrors: {
+      emptyPath: 'Folder path cannot be empty',
+      createFailed: 'Failed to create folder',
+      loadFailed: 'Failed to load folders',
+      shelfNotReady: 'The shelf is still starting up and did not become ready.'
     },
     moveBookErrors: {
       notFound: 'Book not found.',
@@ -96,7 +160,7 @@ const en = {
       unavailableDescription: 'Configure at least one shelf to browse and read books.',
       manage: 'Manage shelves'
     },
-    dashboard: 'Dashboard',
+    dashboard: 'Home',
     recentlyRead: 'Recently Read',
     trash: 'Trash',
     downloads: 'Downloads',
@@ -108,15 +172,26 @@ const en = {
     }
   },
   dashboard: {
-    title: 'Dashboard',
-    refresh: 'Refresh',
+    title: 'Home',
     loading: 'Loading dashboard...',
     loadFailed: 'Failed to load dashboard data',
+    shelfInitializing: 'Shelf is loading, please wait...',
+    shelfNotReady: 'The shelf is still starting up and did not become ready.',
+    empty: {
+      title: 'Your shelf is empty',
+      description:
+        'PlainShelf reads books straight from your shelf folder. Add files to that folder, or import them here, to get started.',
+      readOnlyDescription:
+        'This shelf has no books yet. Anything added to the shelf folder will show up here.',
+      import: 'Import books',
+      docs: 'Read the getting started guide'
+    },
     stats: {
       totalBooks: 'Total Books',
-      addedThisMonth: 'Added This Month',
+      inProgress: 'In Progress',
       avgStar: 'Average Rating',
       totalChars: 'Total Characters',
+      ratingDistribution: 'Rating Distribution',
       starBar: '{star} star: {count} book(s)',
       currentStreak: 'Current Streak',
       currentStreakValue: '{days} day(s)'
@@ -131,6 +206,15 @@ const en = {
       shuffle: 'Shuffle',
       viewDetail: 'View Details',
       readNow: 'Read Now'
+    },
+    recentReading: {
+      title: 'Recently Reading',
+      viewAll: 'View all',
+      browse: 'Browse library'
+    },
+    recentlyAdded: {
+      title: 'Recently Added',
+      viewAll: 'View all'
     },
     heatmap: {
       title: 'Reading Heatmap',
@@ -156,8 +240,13 @@ const en = {
     readHistory: {
       title: 'Reading history'
     },
-    reader: {
-      title: 'Reader'
+    readerLaunch: {
+      title: 'Reading',
+      label: 'How to open the reader',
+      description:
+        'What pressing Read does. "Open a new reader" launches a new tab on the web, or the standalone reader app on desktop. "Open in this window" navigates in place instead. This preference is stored only on this device.',
+      newReader: 'Open a new reader',
+      inWindow: 'Open in this window'
     },
     import: {
       title: 'Import'
@@ -174,23 +263,6 @@ const en = {
       includeDescriptionLabel: 'Description in the text',
       includeDescriptionHelp:
         'Put the book description at the start of the text as well. It is always saved to the book metadata either way.',
-      save: 'Save',
-      saving: 'Saving...'
-    },
-    defaultSplitConfig: {
-      label: 'Legacy default section split rule',
-      description: 'Only applies to legacy sources without source-level format metadata. New Markdown sources use H2 headings.',
-      typeLabel: 'Split type',
-      typeNone: 'None',
-      typeLineCount: 'Line count',
-      typeRegex: 'Regex',
-      lineCountLabel: 'Lines per section',
-      lineCountPlaceholder: 'e.g. 100',
-      regexLabel: 'Regex pattern',
-      regexPlaceholder: 'e.g. ^Chapter\\s+\\d+',
-      regexHelp: 'Lines matching this pattern start a new section.',
-      invalidRegex: 'Invalid regular expression.',
-      invalidLineCount: 'Line count must be a positive integer.',
       save: 'Save',
       saving: 'Saving...'
     },
@@ -239,6 +311,7 @@ const en = {
       empty: 'No shelves configured.',
       serverManaged: 'Shelves are managed by the server configuration.',
       name: 'Name',
+      idColumn: 'ID',
       remove: 'Delete',
       removing: 'Removing...',
       removeFailed: 'Failed to remove shelf',
@@ -286,32 +359,81 @@ const en = {
   },
   maintenance: {
     duplicateContent: 'Duplicate Content',
-    missingAuthor: {
-      title: 'Missing Author',
-      empty: 'No books missing author'
+    duplicates: {
+      description: 'Maintenance view for books with identical content.',
+      scanning: 'Scanning duplicate content groups...',
+      empty: 'No duplicate content found.',
+      emptyHint: 'Your library looks clean.',
+      loadFailed: 'Failed to load duplicate content',
+      groupTitle: 'Duplicate Group #{index}',
+      groupSummary: '{count} books share identical content',
+      open: 'Open',
+      delete: 'Delete',
+      deleting: 'Deleting...',
+      deleteLabel: 'Delete {title}',
+      untitledBook: 'book',
+      deleteFailed: 'Failed to delete book'
     },
-    missingCover: {
-      title: 'Missing Cover',
-      empty: 'No books missing cover'
-    },
-    missingLanguage: {
-      title: 'Missing Language',
-      empty: 'No books with missing language.'
-    },
-    lowCharCount: {
-      title: 'Low Character Count',
-      empty: 'No books under this character count.',
-      thresholdLabel: 'Max characters',
-      filterDescription: 'Books with {threshold} characters or fewer',
-      unknownNote: '{count} with an unknown character count',
-      refreshStats: {
-        action: 'Update statistics for {count} books',
-        busy: 'Updating… {percent}%',
-        done: 'Updated {count} books',
-        partial: 'Updated {succeeded} books, {failed} failed',
-        failed: 'Could not update content statistics.'
+    similarContent: 'Similar Content',
+    similar: {
+      description: 'Books that are similar but not byte-for-byte identical: other editions, trimmed copies, or two transcripts of one recording.',
+      scanning: 'Comparing books…',
+      empty: 'No similar books at this level.',
+      emptyHint: 'Loosen the level, or turn off the trimmed-copies filter, to widen the search.',
+      loadFailed: 'Failed to compare books',
+      tooLarge: "This shelf's fingerprinted content is larger than a single synchronous comparison can handle within its budget, so this comparison was skipped.",
+      resultCount: '{count} pairs',
+      tiersLabel: 'Similarity',
+      tiers: {
+        nearIdentical: 'Nearly identical',
+        sameBook: 'Same book, other edition',
+        sameSource: 'Possibly same source'
+      },
+      advanced: 'Advanced',
+      thresholdLabel: 'Minimum similarity',
+      diffReadout: '≈ {count} in 100 characters differ',
+      subsetToggle: 'Only trimmed copies (one edited down from the other)',
+      relations: {
+        identical_after_normalize: 'Identical after normalizing',
+        subset: 'Trimmed copy',
+        near_identical: 'Nearly identical',
+        same_source: 'Same source'
+      },
+      pairSimilarity: '{percent}% similar',
+      fingerprint: {
+        missingNote: '{missing} of {total} books have no fingerprint yet',
+        allBuilt: 'All {total} books are fingerprinted',
+        build: 'Build fingerprints',
+        building: 'Building… {percent}%',
+        forceRebuild: 'Force rebuild',
+        forceRebuilding: 'Rebuilding… {percent}%',
+        forceConfirmTitle: 'Rebuild every fingerprint?',
+        forceConfirmBody:
+          'This ignores the cache and recomputes the fingerprint of every source from scratch, which can take a while on a large shelf. Existing fingerprints are not lost — they are just rebuilt. Only do this if similarity results look wrong.',
+        forceConfirmAction: 'Rebuild all',
+        busy: 'A fingerprint sweep is already running — try again once it finishes.',
+        failed: 'Could not build fingerprints.',
+        readOnly: 'A read-only shelf cannot build fingerprints.'
+      },
+      card: {
+        moreComplete: 'More complete',
+        charsLabel: 'Characters',
+        formatLabel: 'Format',
+        sourcesLabel: 'Sources',
+        folderLabel: 'Folder',
+        addedLabel: 'Added',
+        fewerChars: '{count} fewer',
+        relationDesc: {
+          identical_after_normalize: 'Character-for-character identical; only line breaks and punctuation differ.',
+          near_identical: 'About {count} in every 100 characters differ.',
+          subset: 'Almost all of the lower copy sits inside the upper one — about {percent}% less content.',
+          same_source: 'About {count} in every 100 characters differ; likely two transcripts of one source.'
+        },
+        deleteKeepNote: 'The other copy “{otherTitle}” stays on the shelf.',
+        deleteCompare: 'This copy has {thisChars} characters; the other has {otherChars}.',
+        deleteMoreCompleteWarning: 'This is the more complete copy — deleting it drops content the other one is missing.'
       }
-    }
+    },
   },
   library: {
     allBooks: 'All books',
@@ -328,20 +450,84 @@ const en = {
       asc: 'Asc',
       desc: 'Desc'
     },
+    charCount: {
+      label: 'Characters',
+      minLabel: 'Minimum characters',
+      maxLabel: 'Maximum characters',
+      minPlaceholder: 'Min',
+      maxPlaceholder: 'Max',
+      clear: 'Clear character range',
+      unknownNote: '{count} with an unknown character count',
+      refreshStats: {
+        action: 'Update statistics for {count} books',
+        busy: 'Updating… {percent}%',
+        done: 'Updated {count} books',
+        partial: 'Updated {succeeded} books, {failed} failed',
+        failed: 'Could not update content statistics.'
+      }
+    },
     import: 'Import ▾',
     importFromFiles: 'Import from files',
     newEmptyBook: 'New empty book',
     empty: {
-      noBooksFound: 'No books found for "{query}"{layerSuffix}.',
-      noBooksInLayer: 'No books in {layer}.',
-      noBooksYet: 'No books yet.'
+      noBooksFound: 'No books found for "{query}"{folderSuffix}.',
+      noBooksInFolder: 'No books in {folder}.',
+      noBooksYet: 'No books yet.',
+      noBooksInCharCountRange: 'No books in this character range.',
+      noBooksMatchFilters: 'No books match the current filters.',
+      noBooksForCondition: 'No books match {condition}.'
+    },
+    filters: {
+      button: 'Filter',
+      buttonActive: 'Filter, {count} active',
+      title: 'Filters',
+      close: 'Close filters',
+      clearAll: 'Clear all',
+      chipsLabel: 'Active filters',
+      removeChip: 'Remove {filter}',
+      facetSearchPlaceholder: 'Search…',
+      facetSearchLabel: 'Search {field}',
+      facetEmpty: 'No values',
+      value: {
+        any: 'Any',
+        has: 'Present',
+        unset: 'Unset'
+      },
+      chip: {
+        pair: '{field}: {value}',
+        separator: ', '
+      },
+      fields: {
+        author: {
+          label: 'Author',
+          emptyNote: 'A book with no author, or only blank authors, counts as unset.'
+        },
+        tags: {
+          label: 'Tags',
+          emptyNote: 'A book with no tags, or only blank tags, counts as untagged.'
+        },
+        language: {
+          label: 'Language',
+          emptyNote: 'A book with no language set counts as unset.'
+        },
+        cover: {
+          label: 'Cover',
+          emptyNote: 'A book counts as having a cover only when a cover image file is stored.'
+        },
+        charCount: {
+          label: 'Characters',
+          emptyNote: 'A book whose character count has not been computed shows as unknown below.'
+        }
+      }
     },
     titleSearch: 'Search',
-    titleLayer: 'Layer',
+    titleFolder: 'Folder',
     refreshShelf: 'Update book list',
     refreshingShelf: 'Updating…',
     lastSynced: 'Updated {time}',
     neverSynced: 'Never updated',
+    scanFound: 'Found {books} books in {folders} folders',
+    scanInProgress: 'This shelf is already being scanned. Try again once it finishes.',
     loadFailed: 'Failed to load books',
     refreshFailed: 'Failed to update the book list',
     requestTimeout: 'Request timed out — the shelf may be slow or unavailable.',
@@ -351,13 +537,18 @@ const en = {
     documentTitle: 'Book',
     loading: 'Loading book details...',
     root: 'All books',
-    layerPath: 'Book folder path',
+    folderPath: 'Book folder path',
     ratingLabel: 'Rated {rating} stars',
     emptyDetails: 'No additional details are available for this book.',
     sections: {
       publication: 'Publication',
       content: 'Content',
-      notes: 'Notes'
+      notes: 'Notes',
+      chapters: 'Chapters'
+    },
+    chapters: {
+      showAll: 'Show all {count} chapters',
+      showLess: 'Show fewer chapters'
     },
     fields: {
       format: 'Format',
@@ -389,13 +580,23 @@ const en = {
       updateStats: 'Update content stats',
       updatingStats: 'Updating stats...',
       openFolder: 'Open folder',
+      copyTo: 'Copy to…',
+      moveTo: 'Move to…',
+      transferTo: 'Transfer to another shelf…',
       moveToTrash: 'Move to Trash',
       movingToTrash: 'Moving...',
       dismiss: 'Dismiss'
     },
     messages: {
       imported: 'Book imported successfully.',
-      saved: 'Book details saved.'
+      saved: 'Book details saved.',
+      copied: 'Book copied.',
+      exported: 'Exported to {location}',
+      downloadRequired: 'Download this book to your device before you can read it.',
+      readerUnsupportedPlatform:
+        'This device has no standalone reader, so the book opened in this window instead.',
+      readerLaunchFailed:
+        'The standalone reader did not open, so the book opened in this window instead. Check that PlainShelf Reader is installed.'
     },
     errors: {
       restartReading: 'Failed to restart the book.',
@@ -403,7 +604,44 @@ const en = {
       loadFailed: 'Failed to load detail',
       deleteFailed: 'Failed to delete book',
       downloadFailed: 'Failed to download book',
-      openFolderFailed: 'Failed to open book folder'
+      openFolderFailed: 'Failed to open book folder',
+      moveFailed: 'Failed to move book',
+      copyFailed: 'Failed to copy book',
+      transferFailed: 'Failed to start the transfer',
+      transferPollFailed: 'Lost track of the transfer progress.'
+    },
+    move: {
+      title: 'Move book'
+    },
+    copy: {
+      title: 'Copy book',
+      confirm: 'Copy',
+      copying: 'Copying...'
+    },
+    transfer: {
+      title: 'Transfer to another shelf',
+      description: 'Copy or move “{title}” to a different shelf.',
+      shelfLabel: 'Destination shelf',
+      chooseShelf: 'Choose a shelf',
+      noShelves: 'No other shelf is available to transfer to.',
+      folderLabel: 'Destination folder',
+      rootFolder: 'All books (top level)',
+      loadingFolders: 'Loading folders…',
+      foldersFailed: 'Failed to load the destination folders.',
+      modeLabel: 'Action',
+      modeCopy: 'Copy',
+      modeCopyHint: 'Creates a new book on the destination shelf. Reading progress is not carried over.',
+      modeMove: 'Move',
+      modeMoveHint: 'Keeps the same book and its reading progress, and removes it from this shelf.',
+      confirm: 'Transfer',
+      close: 'Close',
+      progressLabel: 'Transfer progress',
+      pending: 'Preparing…',
+      running: 'Transferring…',
+      completedCopy: 'Book copied to the destination shelf.',
+      completedMove: 'Book moved to the destination shelf.',
+      partial: 'The transfer finished with problems.',
+      failed: 'The transfer failed.'
     },
     delete: {
       description: 'The book will be moved to Trash. You can restore it later.'
@@ -458,6 +696,8 @@ const en = {
     }
   },
   bookCollection: {
+    noFolder: 'No folder',
+    noSummary: 'No summary',
     loadingBooks: 'Loading books...',
     shelfInitializing: 'Shelf is loading, please wait...',
     shelfUnreachable: 'The shelf is taking too long to respond. It may be unavailable (e.g. SMB mount disconnected).',
@@ -477,6 +717,7 @@ const en = {
     },
     selection: {
       toolbarLabel: 'Selected books actions',
+      mobileToolbarLabel: 'Selected books download bar',
       selectedCount: '{count} selected',
       selectBook: 'Select {title}',
       selectAll: 'Select page',
@@ -486,9 +727,10 @@ const en = {
       downloading: 'Downloading...',
       moveTitle: 'Move selected books',
       moveTarget: 'Destination',
-      rootLayer: 'All books (top level)',
-      chooseLayer: 'Choose a destination',
+      rootFolder: 'All books (top level)',
+      chooseFolder: 'Choose a destination',
       confirmMove: 'Move {count} books',
+      confirmMoveOne: 'Move 1 book',
       moving: 'Moving...',
       trashTitle: 'Move selected books to trash',
       trashQuestion: 'Move {count} selected books to the trash?',
@@ -515,7 +757,9 @@ const en = {
   },
   pagination: {
     perPage: 'Per page',
-    booksSuffix: ' books'
+    booksSuffix: ' books',
+    firstPage: 'First page',
+    lastPage: 'Last page'
   },
   deleteModal: {
     closeLabel: 'Close delete confirmation dialog',
@@ -544,7 +788,7 @@ const en = {
     columns: {
       title: 'Title',
       authors: 'Authors',
-      originalLayer: 'Original layer',
+      originalFolder: 'Original folder',
       originalPath: 'Original path',
       deletedAt: 'Deleted at',
       bookId: 'Book ID',
@@ -613,6 +857,11 @@ const en = {
       failed: 'Failed to remove download'
     }
   },
+  readerApp: {
+    noBook: 'No book is open.',
+    openBook: 'Open a book…',
+    openFailed: 'That folder could not be opened as a book.'
+  },
   reader: {
     backToDetail: 'Back to detail',
     title: 'Reader',
@@ -620,8 +869,7 @@ const en = {
     loadingContent: 'Loading content...',
     errors: {
       loadFailed: 'Failed to load reader data',
-      unknown: 'Unknown error',
-      splitConfigFallback: 'Failed to load split config, fallback to single section. {reason}'
+      unknown: 'Unknown error'
     },
     actionsLabel: 'Reader actions',
     decreaseFontSize: 'Decrease font size',
@@ -650,7 +898,10 @@ const en = {
       }
     },
     showChapters: 'Show chapters',
-    splitSettings: 'Split settings',
+    chapterDialog: {
+      title: 'Chapters',
+      closeLabel: 'Close chapter dialog'
+    },
     imageUnavailable: 'Illustration unavailable',
     autosaveFailed: 'Reading progress could not be saved. PlainShelf will retry automatically.',
     mobile: {
@@ -679,6 +930,21 @@ const en = {
       shelfRootPlaceholder: '/PlainShelf/default-shelf',
       shelfRootHint: 'The folder on pCloud that holds your shelf, the one containing books/.',
       shelfRootRequired: 'Enter the shelf folder first.',
+      picker: {
+        browse: 'Browse pCloud…',
+        title: 'Choose the shelf folder',
+        breadcrumbLabel: 'Folder path',
+        rootLabel: 'pCloud',
+        up: '↰ Up one level',
+        loading: 'Loading…',
+        empty: 'This folder has no sub-folders.',
+        retry: 'Try again',
+        currentPath: 'Selected: {path}',
+        isShelf: 'This folder is a shelf: it contains books/.',
+        notShelf: 'This folder has no books/, so it cannot be picked. Open the folder that contains it.',
+        confirm: 'Use this folder',
+        cancel: 'Cancel'
+      },
       verify: 'Check shelf',
       verifying: 'Checking…',
       shelfFound: 'Found {count} books.',
@@ -717,6 +983,273 @@ const en = {
     removeDescription: 'Books downloaded from this shelf are deleted from the device. Reading progress and history are kept, so adding it back later picks up where you left off.',
     removeConfirm: 'Remove',
     removeCancel: 'Keep it'
+  },
+  libraryForms: {
+    editBook: {
+      title: 'Edit metadata',
+      description: 'Update fields supported by the current API.',
+      basicInfo: 'Basic info',
+      titleLabel: 'Title',
+      titlePlaceholder: 'Book title',
+      authorsLabel: 'Authors (comma separated)',
+      authorsPlaceholder: 'Author A, Author B',
+      organization: 'Organization',
+      publishedAt: 'Published At',
+      languageLabel: 'Language',
+      starRating: 'Star rating',
+      starValueOne: '1 star',
+      starValueMany: '{count} stars',
+      clearRating: 'Clear',
+      tags: 'Tags',
+      tagsPlaceholder: 'Type a tag and press Enter',
+      tagsHelp: 'Press Enter or comma to add tags. Click × to remove.',
+      removeTag: 'Remove tag {tag}',
+      comment: 'Comment',
+      commentPlaceholder: 'Notes about this book',
+      commentHelp: 'Markdown and basic HTML are rendered on the detail page. What is saved is the text you typed.',
+      commentPreviewShow: 'Show preview',
+      commentPreviewHide: 'Hide preview',
+      commentPreviewLabel: 'Comment preview',
+      commentPreviewEmpty: 'Nothing to preview yet.',
+      identifiers: 'Identifiers',
+      identifierKeyPlaceholder: 'isbn',
+      identifierValuePlaceholder: '9787020002207',
+      identifierKeyLabel: 'Identifier key {index}',
+      identifierValueLabel: 'Identifier value {index}',
+      removeIdentifier: 'Remove identifier {name}',
+      addIdentifier: 'Add identifier',
+      save: 'Save metadata',
+      saving: 'Saving...',
+      loading: 'Loading book metadata...',
+      loadFailed: 'Failed to load metadata',
+      saveFailed: 'Failed to save metadata'
+    },
+    newBook: {
+      title: 'New empty book',
+      closeLabel: 'Close new empty book dialog',
+      description: 'Create a new empty TXT book with title only.',
+      titleLabel: 'Book Title',
+      titlePlaceholder: 'Enter book title',
+      create: 'Create',
+      creating: 'Creating...',
+      createFailed: 'Failed to create empty book.'
+    },
+    importBook: {
+      title: 'Import Book',
+      closeLabel: 'Close import dialog',
+      description:
+        'Upload a TXT, Markdown or EPUB file to create a new book entry, or drag-and-drop files here.',
+      fileLabel: 'Book File (.txt, .md, .epub)',
+      epubTitle: 'EPUB Conversion',
+      epubDescription:
+        'EPUB files are converted into a source. The original file is not kept; supported illustrations are retained by the Markdown preset.',
+      convertTo: 'Convert to',
+      presetMarkdown: 'Markdown (chapter headings)',
+      presetPlain: 'Plain text',
+      plainHint:
+        'Plain text has no chapter navigation or Markdown illustrations. You can create a chapterized Markdown source afterwards without changing this TXT source.',
+      includeDescription: 'Put the book description at the start of the text',
+      selectedFiles: 'Selected Files',
+      fileTitle: 'Title: {title}',
+      fileStatus: 'Status:',
+      submit: 'Import',
+      submitting: 'Importing...',
+      progress: 'Importing {current} of {total}: {filename}',
+      abort: 'Abort',
+      aborting: 'Aborting...',
+      statuses: {
+        pending: 'Pending',
+        importing: 'Importing',
+        success: 'Imported',
+        failed: 'Failed',
+        cancelled: 'Cancelled'
+      },
+      errors: {
+        noFiles: 'Please choose at least one TXT, Markdown or EPUB file.',
+        unsupportedExtension: 'Book file must be .txt, .md or .epub.',
+        allFailed: 'Import failed.',
+        someFailed: '{count} file(s) failed.',
+        cancelled: 'Import cancelled.'
+      },
+      results: {
+        one: 'Import successful.',
+        many: 'Imported {count} files.',
+        partial: 'Imported {count} of {total} files.'
+      }
+    }
+  },
+  sources: {
+    list: {
+      title: 'Sources',
+      total: '{count} total',
+      create: 'New',
+      creating: 'Creating...',
+      loading: 'Loading sources...',
+      empty: 'No sources yet.',
+      listLabel: 'Book sources',
+      current: 'Current',
+      delete: 'Delete',
+      deleteLabel: 'Delete source {id}'
+    },
+    // A source without a stored format predates source-level format metadata.
+    // The badge shows the format otherwise, uppercased, which needs no catalog
+    // entry.
+    format: {
+      legacy: 'Legacy'
+    },
+    formatActions: {
+      manualMarkdown: 'Manual TXT → MD',
+      regexMarkdown: 'Regex → MD',
+      lineCountMarkdown: 'Fixed lines → MD',
+      plainText: 'Create plain-text source',
+      plainTextHelp: 'Heading hierarchy and chapter navigation will be lost.'
+    },
+    editor: {
+      loading: 'Loading source...',
+      noSelection: 'Select a source to start editing.',
+      dirty: 'Unsaved changes',
+      clean: 'No pending changes',
+      setCurrent: 'Set as current',
+      settingCurrent: 'Setting...',
+      contentLabel: 'Source content',
+      find: {
+        groupLabel: 'Find and replace',
+        findLabel: 'Find',
+        findPlaceholder: 'Search text',
+        replaceLabel: 'Replace',
+        replacePlaceholder: 'Replace with',
+        scopeLabel: 'Scope',
+        scopeSection: 'Current chapter',
+        scopeSource: 'Whole source',
+        caseSensitive: 'Match case',
+        wholeWord: 'Whole word',
+        regexp: 'Regular expression',
+        previous: 'Prev',
+        next: 'Next',
+        replace: 'Replace',
+        replaceAll: 'Replace all',
+        // The catalog has no pluralization, so counted nouns that can be one
+        // or many get a key per form. Replacing that with a "(s)" suffix would
+        // have made the English worse than it was before it was translated.
+        noMatches: 'No matches.',
+        matchOrdinal: 'Match {ordinal} of {total}.',
+        matchCount: '{total} matches.',
+        replacedOne: 'Replaced 1 occurrence.',
+        replacedMany: 'Replaced {count} occurrences.',
+        replacedOneNoneRemain: 'Replaced 1 occurrence. No matches remain.',
+        replacedOneThenMatch: 'Replaced 1 occurrence. Match {ordinal} of {total}.',
+        replacedOneThenCount: 'Replaced 1 occurrence. {total} matches.',
+        invalidRegexp: 'That regular expression is not valid.',
+        // Spoken by the editor's own live region when a command moves or
+        // replaces a match; the visible status line above stays separate.
+        announce: {
+          currentMatch: 'Current match',
+          onLine: 'on line',
+          replacedOnLine: 'replaced match on line $',
+          replacedMatches: 'replaced $ matches'
+        }
+      }
+    },
+    conversion: {
+      confirm: 'Create source',
+      busy: 'Creating...',
+      titles: {
+        manualMd: 'Create chapterized Markdown source',
+        regexMd: 'Convert title lines to chapters',
+        lineCountMd: 'Split into fixed-size chapters',
+        plainText: 'Create plain-text source'
+      },
+      descriptions: {
+        manualMd:
+          'Copy the current TXT source into a Markdown draft. You can add H2 chapters in the source editor after creation.',
+        regexMd: 'Matching title lines will be rewritten as Markdown H2 headings.',
+        lineCountMd: 'An H2 “Part N” heading will be inserted at every previewed boundary.',
+        plainText:
+          'Markdown markers will be removed. Heading hierarchy and chapter navigation will be lost.'
+      },
+      patternLabel: 'Chapter title regular expression',
+      patternHelp: 'Capture group 1 becomes the H2 title. Without a capture group, the full match is used.',
+      lineCountLabel: 'Lines per chapter',
+      previewTitle: 'Preview',
+      emptySource: '(empty source)',
+      setCurrent: 'Set the new source as current',
+      summaries: {
+        manualMdOne: 'The Markdown draft contains 1 H2 chapter initially.',
+        manualMdMany: 'The Markdown draft contains {count} H2 chapters initially.',
+        regexMd: '{count} H2 chapter headings will be created.',
+        lineCountMd: '{count} H2 chapter headings will be inserted.',
+        plainText: 'A single unstructured TXT section will be created.'
+      },
+      errors: {
+        emptyPattern: 'Enter a regular expression.',
+        patternMatchedNothing: 'The regular expression matched no chapter title lines.',
+        invalidLineCount: 'Lines per chapter must be a positive number.',
+        previewFailed: 'Unable to preview this conversion.'
+      }
+    },
+    page: {
+      title: 'Edit Sources',
+      back: 'Back',
+      save: 'Save',
+      saveDirty: 'Save*',
+      saving: 'Saving...',
+      loading: 'Loading sources...',
+      panelsLabel: 'Source editor panels',
+      paneSources: 'Sources',
+      paneEditor: 'Editor',
+      paneChapters: 'Chapters',
+      discard: {
+        title: 'Discard unsaved changes?',
+        message: 'You have unsaved changes. Discard them?',
+        confirm: 'Discard',
+        cancel: 'Keep editing'
+      },
+      deleteSource: {
+        title: 'Delete source?',
+        confirm: 'Delete',
+        question: 'Are you sure you want to delete source {id}? This action cannot be undone.',
+        dirtyWarning: 'You have unsaved changes that will be lost.'
+      },
+      renameChapter: {
+        title: 'Rename chapter',
+        confirm: 'Rename',
+        titleLabel: 'Chapter title'
+      },
+      mergeChapter: {
+        title: 'Merge chapter?',
+        confirm: 'Merge',
+        question: 'Remove the H2 heading “{title}” and merge its text with the adjacent section?'
+      },
+      messages: {
+        sourceSaved: 'Source saved.',
+        currentUpdated: 'Current source updated.',
+        derivedCreated: 'Derived source created.'
+      },
+      errors: {
+        loadSources: 'Failed to load sources',
+        loadContent: 'Failed to load source content',
+        save: 'Failed to save source',
+        setCurrent: 'Failed to set current source',
+        create: 'Failed to create source',
+        createDerived: 'Failed to create derived source',
+        delete: 'Failed to delete source'
+      }
+    },
+    chapters: {
+      title: 'Chapters',
+      headingCount: '{count} H2 headings',
+      add: 'Add',
+      allMarker: 'All',
+      wholeSource: 'Whole source',
+      rename: 'Rename',
+      merge: 'Merge',
+      empty: 'No H2 chapters yet.'
+    }
+  },
+  notFound: {
+    title: 'Page not found',
+    description: 'There is nothing at this address. It may have been renamed, or the link may be out of date.',
+    backToLibrary: 'Back to the library'
   }
 } as const;
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
@@ -33,10 +34,16 @@ func TestAPIErrorForKnownSentinels(t *testing.T) {
 			wantMessage: "language must be a BCP 47 tag",
 		},
 		{
-			name:        "invalid layer",
-			err:         shelf.ErrInvalidLayer,
+			name:        "invalid folder",
+			err:         shelf.ErrInvalidFolder,
 			wantStatus:  http.StatusBadRequest,
-			wantMessage: "invalid layer name",
+			wantMessage: "invalid folder name",
+		},
+		{
+			name:        "ignored folder name",
+			err:         shelf.ErrIgnoredFolderName,
+			wantStatus:  http.StatusBadRequest,
+			wantMessage: "invalid folder name: hidden and system directory names (a leading dot, @eaDir, #recycle, $RECYCLE.BIN, lost+found) are skipped by the shelf scanner, so a folder named this way would not stay visible",
 		},
 		{
 			name:           "shelf initializing",
@@ -71,10 +78,22 @@ func TestAPIErrorForKnownSentinels(t *testing.T) {
 			wantMessage: "source not found",
 		},
 		{
+			name:        "read-only shelf",
+			err:         fsutil.ErrReadOnly,
+			wantStatus:  http.StatusConflict,
+			wantMessage: "shelf is opened read-only; this PlainShelf instance cannot modify it",
+		},
+		{
 			name:        "unsupported book schema version",
 			err:         shelf.ErrUnsupportedBookSchemaVersion,
 			wantStatus:  http.StatusConflict,
 			wantMessage: "book uses a newer on-disk format than this PlainShelf build supports; upgrade PlainShelf to modify it",
+		},
+		{
+			name:        "unsupported trash schema version",
+			err:         shelf.ErrUnsupportedTrashSchemaVersion,
+			wantStatus:  http.StatusConflict,
+			wantMessage: "trashed book uses a newer on-disk format than this PlainShelf build supports; upgrade PlainShelf to modify it",
 		},
 		{
 			name:           "worker busy",
@@ -108,10 +127,10 @@ func TestAPIErrorForKnownSentinels(t *testing.T) {
 }
 
 func TestWriteErrSendsRetryAfterHeader(t *testing.T) {
-	env := newAPITestEnv(t)
+	app := newTestApp(t)
 
 	rec := httptest.NewRecorder()
-	env.app.writeErr(rec, util.Errorf("%w", shelf.ErrShelfLockTimeout), "failed to restore trashed book")
+	app.handlers.core.writeErr(rec, util.Errorf("%w", shelf.ErrShelfLockTimeout), "failed to restore trashed book")
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
@@ -127,10 +146,10 @@ func TestWriteErrSendsRetryAfterHeader(t *testing.T) {
 // An error the table does not know must not reach the client verbatim: the
 // caller's fallback is sent instead, so internal detail stays in the log.
 func TestWriteErrHidesUnknownErrorBehindFallback(t *testing.T) {
-	env := newAPITestEnv(t)
+	app := newTestApp(t)
 
 	rec := httptest.NewRecorder()
-	env.app.writeErr(rec, errors.New("disk offline at /srv/secret-mount"), "failed to restore trashed book")
+	app.handlers.core.writeErr(rec, errors.New("disk offline at /srv/secret-mount"), "failed to restore trashed book")
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
@@ -149,5 +168,21 @@ func TestWriteErrHidesUnknownErrorBehindFallback(t *testing.T) {
 func TestAPIErrorForExcludesTaskChainRunning(t *testing.T) {
 	if _, ok := apiErrorFor(util.Errorf("%w", taskutil.ErrTaskChainRunning)); ok {
 		t.Fatal("ErrTaskChainRunning must not be in the table; the task handlers answer it with a JSON body")
+	}
+}
+
+// ErrIgnoredFolderName also matches ErrInvalidFolder, so the table's ordering
+// rule is what makes the specific message reachable at all.
+func TestAPIErrorForPrefersIgnoredFolderNameOverInvalidFolder(t *testing.T) {
+	if !errors.Is(shelf.ErrIgnoredFolderName, shelf.ErrInvalidFolder) {
+		t.Fatal("ErrIgnoredFolderName must stay an ErrInvalidFolder for callers that only classify folder errors")
+	}
+
+	resp, ok := apiErrorFor(util.Errorf("%w", shelf.ErrIgnoredFolderName))
+	if !ok {
+		t.Fatal("apiErrorFor(ErrIgnoredFolderName) not found in table")
+	}
+	if resp.message == "invalid folder name" {
+		t.Fatalf("message = %q, want the ignored-name explanation; the entry must precede ErrInvalidFolder", resp.message)
 	}
 }

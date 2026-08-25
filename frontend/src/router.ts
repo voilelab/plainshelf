@@ -2,22 +2,13 @@ import { createRouter, createWebHistory } from 'vue-router';
 import MainLayout from '@/layouts/MainLayout.vue';
 import ReaderLayout from '@/layouts/ReaderLayout.vue';
 import { APP_TITLE } from '@/composables/useDocumentTitle';
-import { isMobileRuntime } from '@/providers/runtime';
-import { isShelfEntryUsable, loadShelfEntries } from '@/providers/mobileConfig';
-import {
-  MOBILE_BLOCKED_ROUTES,
-  stripMobileBlockedQuery
-} from '@/features/mobile/utils/blockedRoutes';
 
 const DashboardPage = () => import('@/features/dashboard/pages/DashboardPage.vue');
 const LibraryPage = () => import('@/features/library/pages/LibraryPage.vue');
 const BookDetailPage = () => import('@/features/library/pages/BookDetailPage.vue');
 const EditBookPage = () => import('@/features/library/pages/EditBookPage.vue');
 const DuplicateContentPage = () => import('@/features/maintenance/pages/DuplicateContentPage.vue');
-const MissingAuthorPage = () => import('@/features/maintenance/pages/MissingAuthorPage.vue');
-const MissingCoverPage = () => import('@/features/maintenance/pages/MissingCoverPage.vue');
-const MissingLanguagePage = () => import('@/features/maintenance/pages/MissingLanguagePage.vue');
-const LowCharCountPage = () => import('@/features/maintenance/pages/LowCharCountPage.vue');
+const SimilarContentPage = () => import('@/features/maintenance/pages/SimilarContentPage.vue');
 const ReadHistoryPage = () => import('@/pages/ReadHistoryPage.vue');
 const TrashPage = () => import('@/features/trash/pages/TrashPage.vue');
 const DownloadsPage = () => import('@/features/mobile/pages/DownloadsPage.vue');
@@ -27,9 +18,10 @@ const MobileShelvesPage = () => import('@/features/mobile/pages/MobileShelvesPag
 const MobileConnectPage = () => import('@/features/mobile/pages/MobileConnectPage.vue');
 const ReaderPage = () => import('@/features/reader/pages/ReaderView.vue');
 const EditBookSourcesPage = () => import('@/features/sources/pages/EditBookSourcesPage.vue');
+const NotFoundPage = () => import('@/pages/NotFoundPage.vue');
 
 const ROUTES_WITH_OWN_TITLE = new Set([
-  'dashboard',
+  'home',
   'library',
   'book-detail',
   'book-sources-edit',
@@ -39,22 +31,21 @@ const ROUTES_WITH_OWN_TITLE = new Set([
   'downloads',
   'admin-logs',
   'settings',
-  'maintenance-missing-author',
-  'maintenance-missing-cover',
-  'maintenance-missing-language',
-  'maintenance-low-char-count'
+  'similar-content',
+  'not-found'
 ]);
 
 // A route that edits the shelf, administers the server, or opens a write
 // surface from a query parameter also belongs in
 // features/mobile/utils/blockedRoutes.ts — the mobile shell is a read-only
-// reading client and the guard below is what keeps it that way.
+// reading client, and the guard that shell installs (shells/mobile/routerGuard)
+// is what keeps it that way.
 const router = createRouter({
   history: createWebHistory(),
   routes: [
     {
       path: '/',
-      redirect: '/dashboard'
+      redirect: '/home'
     },
     {
       path: '/connect',
@@ -76,9 +67,18 @@ const router = createRouter({
       component: MainLayout,
       children: [
         {
-          path: 'dashboard',
-          name: 'dashboard',
+          path: 'home',
+          name: 'home',
           component: DashboardPage
+        },
+        {
+          // The home page was called "dashboard" before it was reframed as the
+          // library's landing page. Old bookmarks and in-app links keep working
+          // by redirecting here; the incoming query is preserved (like the
+          // /import redirect below) so a carried flag such as
+          // ?mobile-shell-preview=1 survives.
+          path: 'dashboard',
+          redirect: (to) => ({ path: '/home', query: { ...to.query } })
         },
         {
           path: 'books',
@@ -114,6 +114,11 @@ const router = createRouter({
           component: DuplicateContentPage
         },
         {
+          path: 'similar',
+          name: 'similar-content',
+          component: SimilarContentPage
+        },
+        {
           path: 'read-history',
           name: 'read-history',
           component: ReadHistoryPage
@@ -128,25 +133,22 @@ const router = createRouter({
           name: 'downloads',
           component: DownloadsPage
         },
+        // The dedicated "missing X" pages are gone: each condition is now a
+        // book-list filter, so these paths redirect to the library query that
+        // expresses them. Old links and bookmarks keep working. The incoming
+        // query is preserved (like the /import redirect above) so a carried flag
+        // such as ?mobile-shell-preview=1 survives the redirect.
         {
           path: 'books/maintenance/missing-author',
-          name: 'maintenance-missing-author',
-          component: MissingAuthorPage
+          redirect: (to) => ({ path: '/books', query: { ...to.query, author: 'none' } })
         },
         {
           path: 'books/maintenance/missing-cover',
-          name: 'maintenance-missing-cover',
-          component: MissingCoverPage
+          redirect: (to) => ({ path: '/books', query: { ...to.query, cover: 'none' } })
         },
         {
           path: 'books/maintenance/missing-language',
-          name: 'maintenance-missing-language',
-          component: MissingLanguagePage
-        },
-        {
-          path: 'books/maintenance/low-char-count',
-          name: 'maintenance-low-char-count',
-          component: LowCharCountPage
+          redirect: (to) => ({ path: '/books', query: { ...to.query, language: 'none' } })
         },
         {
           path: 'admin/logs',
@@ -157,6 +159,17 @@ const router = createRouter({
           path: 'settings',
           name: 'settings',
           component: SettingsPage
+        },
+        {
+          // Lowest-ranked pattern in the table, so it only matches what nothing
+          // else did. Without it an unknown URL renders the shell around an
+          // empty <RouterView>, which reads as a broken app rather than a bad
+          // address. It lives under MainLayout so the sidebar stays usable, and
+          // the mobile shell's shelf gate still applies to it: an unconfigured
+          // mobile shell is sent to /connect instead.
+          path: ':pathMatch(.*)*',
+          name: 'not-found',
+          component: NotFoundPage
         }
       ]
     },
@@ -185,45 +198,6 @@ const router = createRouter({
       ]
     },
   ]
-});
-
-// The shelf-list routes: reachable even with nothing configured, because they
-// are where the user configures it.
-const MOBILE_SETUP_ROUTES = new Set(['mobile-shelves', 'mobile-shelf-add', 'mobile-shelf-edit']);
-
-// On the native mobile shell there is no backend to inject a server address or
-// selected shelf, so gate every route behind a usable shelf entry.
-router.beforeEach(async (to) => {
-  if (!isMobileRuntime()) {
-    return true;
-  }
-  if (typeof to.name === 'string' && MOBILE_SETUP_ROUTES.has(to.name)) {
-    return true;
-  }
-
-  const { entries, activeEntryID } = await loadShelfEntries();
-  const activeEntry = entries.find((entry) => entry.id === activeEntryID) ?? null;
-  if (!(await isShelfEntryUsable(activeEntry))) {
-    // Carries the query so a redirect cannot drop `?mobile-shell-preview=1`,
-    // which is what keeps the browser preview in mobile mode across the
-    // reload that saving a shelf performs.
-    return { name: 'mobile-shelves', query: to.query };
-  }
-
-  if (typeof to.name === 'string' && MOBILE_BLOCKED_ROUTES.has(to.name)) {
-    return { name: 'library' };
-  }
-
-  // Route names cannot express every write surface: `/import` redirects to
-  // `/books?import=1`, and the modal opens off that query alone. Strip it here
-  // so the whole mobile route policy lives in this guard. LibraryPage keeps its
-  // own check as well — that is deliberate depth, not duplication.
-  const sanitizedQuery = stripMobileBlockedQuery(to.query);
-  if (sanitizedQuery) {
-    return { path: to.path, query: sanitizedQuery, hash: to.hash, replace: true };
-  }
-
-  return true;
 });
 
 router.afterEach((to) => {

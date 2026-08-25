@@ -1,12 +1,16 @@
 package server
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/internal/util"
 )
+
+// taskHandlers reports on the chains the other groups submit.
+type taskHandlers struct {
+	*taskSubmitter
+}
 
 type Task struct {
 	Name        string  `json:"name"`
@@ -57,37 +61,46 @@ func newTaskChainResponse(chain *taskutil.TaskChain) TaskChain {
 	}
 }
 
-type taskChainSubmitResponse struct {
-	TaskChainID string `json:"taskchain_id"`
-}
-
-// submitTaskChain answers 202 with the new chain's ID, or 409 with the ID of
-// the chain already in flight so the client can attach to it instead.
-func (app *App) submitTaskChain(w http.ResponseWriter, chain *taskutil.TaskChain, fallback string) {
-	submitted, err := app.taskChains.Submit(chain)
-	switch {
-	case errors.Is(err, taskutil.ErrTaskChainRunning):
-		app.writeJSON(w, http.StatusConflict, taskChainSubmitResponse{TaskChainID: submitted.ID})
-	case err != nil:
-		app.writeErr(w, err, fallback)
-	default:
-		app.writeJSON(w, http.StatusAccepted, taskChainSubmitResponse{TaskChainID: submitted.ID})
-	}
-}
-
 // GET /api/taskchains/{taskchain_id}
-func (app *App) HandleAPIGetTaskChain(w http.ResponseWriter, r *http.Request) {
+func (h *taskHandlers) getTaskChain(w http.ResponseWriter, r *http.Request) {
 	taskChainID, err := readTaskChainID(r)
 	if err != nil {
 		http.Error(w, "invalid taskchain_id", http.StatusBadRequest)
 		return
 	}
 
-	chain, exists := app.taskChains.Get(taskChainID)
+	chain, exists := h.pool.Get(taskChainID)
 	if !exists {
 		http.Error(w, "task chain not found", http.StatusNotFound)
 		return
 	}
 
-	app.writeJSON(w, http.StatusOK, newTaskChainResponse(chain))
+	h.writeJSON(w, http.StatusOK, newTaskChainResponse(chain))
+}
+
+// POST /api/taskchains/{taskchain_id}/cancel
+//
+// Cancel is a mutating method, so it stays behind the local_token boundary and
+// is refused by read-only mode - which is the intended behaviour: a read-only
+// server refuses the transfer that would start a chain, so there is never an
+// in-progress chain to cancel there.
+//
+// The response is the chain's current state, exactly like getTaskChain. A cancel
+// stops the work between task boundaries rather than instantly, so the caller
+// polls the same GET endpoint to watch it settle; cancelling a chain that has
+// already finished is a no-op that still reports the settled state.
+func (h *taskHandlers) cancelTaskChain(w http.ResponseWriter, r *http.Request) {
+	taskChainID, err := readTaskChainID(r)
+	if err != nil {
+		http.Error(w, "invalid taskchain_id", http.StatusBadRequest)
+		return
+	}
+
+	chain, result := h.pool.Cancel(taskChainID)
+	if result == taskutil.CancelNotFound {
+		http.Error(w, "task chain not found", http.StatusNotFound)
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, newTaskChainResponse(chain))
 }

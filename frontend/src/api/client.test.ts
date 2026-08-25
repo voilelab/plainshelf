@@ -65,8 +65,8 @@ describe('assertWritableRequest', () => {
       ['cover removal', `/api/shelves/${SHELF}/books/abc/cover`, 'DELETE'],
       ['move to trash', `/api/shelves/${SHELF}/books/abc/trash`, 'POST'],
       ['import', `/api/shelves/${SHELF}/books/import`, 'POST'],
-      ['create layer', `/api/shelves/${SHELF}/layers/fiction`, 'POST'],
-      ['delete layer', `/api/shelves/${SHELF}/layers/fiction`, 'DELETE'],
+      ['create folder', `/api/shelves/${SHELF}/folders/fiction`, 'POST'],
+      ['delete folder', `/api/shelves/${SHELF}/folders/fiction`, 'DELETE'],
       ['empty trash', `/api/shelves/${SHELF}/trash/empty`, 'POST'],
       ['batch operation', `/api/shelves/${SHELF}/book-batches`, 'POST'],
       ['server setting', '/api/setting/cover_to_jpg', 'POST'],
@@ -90,6 +90,36 @@ describe('assertWritableRequest', () => {
 
       await expect(
         fetchJson(`/api/shelves/${SHELF}/books/abc`, { method: 'PATCH' })
+      ).rejects.toThrow(ApiError);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  // Both gates exist to stop writes, and a rescan is not one: it walks the
+  // shelf and changes nothing on it. The server draws the same exception for
+  // the same route (isReadOnlySafeRequest in server/app.go).
+  describe('a POST that writes nothing', () => {
+    it('is allowed against a read-only server', async () => {
+      (window as unknown as { __PLAINSHELF_READ_ONLY__?: boolean }).__PLAINSHELF_READ_ONLY__ = true;
+
+      await fetchJson(`/api/shelves/${SHELF}/scans`, { method: 'POST' }, { readOnlySafe: true });
+      expect(fetchMock).toHaveBeenCalledOnce();
+    });
+
+    it('is allowed from the mobile shell', async () => {
+      isMobileRuntimeMock.mockReturnValue(true);
+
+      await fetchJson(`/api/shelves/${SHELF}/scans`, { method: 'POST' }, { readOnlySafe: true });
+      expect(fetchMock).toHaveBeenCalledOnce();
+    });
+
+    // The exemption is opt-in per request, so it cannot leak to the write next
+    // to it on the same route prefix.
+    it('does not exempt a request that omits the flag', async () => {
+      (window as unknown as { __PLAINSHELF_READ_ONLY__?: boolean }).__PLAINSHELF_READ_ONLY__ = true;
+
+      await expect(
+        fetchJson(`/api/shelves/${SHELF}/scans`, { method: 'POST' })
       ).rejects.toThrow(ApiError);
       expect(fetchMock).not.toHaveBeenCalled();
     });

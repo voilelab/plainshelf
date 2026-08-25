@@ -34,7 +34,7 @@
     </SelectRoot>
 
     <PaginationList v-slot="{ items }" class="pagination-list">
-      <PaginationFirst class="button page-button page-edge-button" aria-label="First page">
+      <PaginationFirst class="button page-button page-edge-button" :aria-label="t('pagination.firstPage')">
         «
       </PaginationFirst>
       <PaginationPrev class="button page-button page-edge-button">{{ t('common.prev') }}</PaginationPrev>
@@ -51,7 +51,7 @@
       </template>
 
       <PaginationNext class="button page-button page-edge-button">{{ t('common.next') }}</PaginationNext>
-      <PaginationLast class="button page-button page-edge-button" aria-label="Last page">
+      <PaginationLast class="button page-button page-edge-button" :aria-label="t('pagination.lastPage')">
         »
       </PaginationLast>
     </PaginationList>

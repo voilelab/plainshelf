@@ -1,4 +1,4 @@
-import type { BookFormat, SplitConfig } from '@/types/book';
+import type { BookFormat } from '@/types/book';
 
 export interface SourceMeta {
   schema_version?: number;
@@ -6,12 +6,10 @@ export interface SourceMeta {
   created_at: string;
   comment: string;
   md5_hash: string;
-  /** Authoritative for schema-versioned sources. Missing means legacy. */
+  /** Authoritative for every source this build writes. */
   format?: BookFormat;
   line_count?: number;
   char_count?: number;
-  /** Kept intact while legacy sources remain readable. Ignored when format exists. */
-  split_config?: SplitConfig;
 }
 
 export interface CreateSourceOptions {

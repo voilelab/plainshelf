@@ -227,6 +227,70 @@ jobs:
           path: out/*
           if-no-files-found: error
 
+  reader-mac:
+    name: Build reader darwin/arm64
+    needs: [prepare, frontend, test]
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: reader/go.mod
+          cache: true
+          cache-dependency-path: reader/go.sum
+
+      - name: Build Wails .app
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          NATIVE_VERSION: ${{ needs.prepare.outputs.native_version }}
+        working-directory: reader
+        run: |
+          set -euo pipefail
+          go mod tidy
+          go tool wails build \
+            -platform darwin/arm64 \
+            -trimpath \
+            -ldflags "-s -w -X ${VERSION_PKG}.Version=${VERSION}"
+
+          plist="build/bin/PlainShelfReader.app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${NATIVE_VERSION}" "$plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${NATIVE_VERSION}" "$plist"
+          plutil -lint "$plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")" = "$NATIVE_VERSION"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")" = "$NATIVE_VERSION"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = "com.voilelab.plainshelf-reader"
+
+      - name: Package .app as zip
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          name="bookpkg-reader_${VERSION}_darwin_arm64"
+          mkdir -p out
+          ditto -c -k --sequesterRsrc --keepParent \
+            reader/build/bin/PlainShelfReader.app "out/${name}.zip"
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: plainshelf-bookpkg-reader-darwin-arm64
+          path: out/*
+          if-no-files-found: error
+
   docker:
     name: Build and push Docker image
     needs: [prepare, test]
@@ -274,7 +338,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    needs: [prepare, binaries, desktop-mac, docker]
+    needs: [prepare, binaries, desktop-mac, reader-mac, docker]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:

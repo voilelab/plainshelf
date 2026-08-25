@@ -2,17 +2,15 @@
   <div class="reading-heatmap panel">
     <h3 class="reading-heatmap-title">{{ t('dashboard.heatmap.title') }}</h3>
 
-    <div class="reading-heatmap-grid-wrap">
-      <div class="reading-heatmap-grid" :style="gridStyle">
-        <span
-          v-for="cell in cells"
-          :key="cell.date"
-          class="heatmap-cell"
-          :class="`level-${cell.level}`"
-          :title="cellLabel(cell)"
-          :aria-label="cellLabel(cell)"
-        ></span>
-      </div>
+    <div class="reading-heatmap-grid">
+      <span
+        v-for="cell in cells"
+        :key="cell.date"
+        class="heatmap-cell"
+        :class="`level-${cell.level}`"
+        :title="cellLabel(cell)"
+        :aria-label="cellLabel(cell)"
+      ></span>
     </div>
 
     <div class="reading-heatmap-legend">
@@ -36,6 +34,10 @@ const props = defineProps<{
 
 const { t } = useI18n();
 
+// An upper bound on how many days the strip covers. The cells now flow to fill
+// the container width (a wide band that grows shorter as it widens) rather than
+// forming fixed Sun-Sat week columns, so this only caps the total, and the CSS
+// grid decides how many fit per row at the current width.
 const WEEKS_TO_SHOW = 20;
 
 interface HeatmapCell {
@@ -65,8 +67,6 @@ const cells = computed<HeatmapCell[]>(() => {
 
   const start = new Date(today);
   start.setDate(start.getDate() - (WEEKS_TO_SHOW * 7 - 1));
-  // Align the grid so each column is a Sun-Sat week (matches the 7-row layout).
-  start.setDate(start.getDate() - start.getDay());
 
   const list: HeatmapCell[] = [];
   const cursor = new Date(start);
@@ -78,13 +78,6 @@ const cells = computed<HeatmapCell[]>(() => {
   }
   return list;
 });
-
-const weekCount = computed(() => Math.ceil(cells.value.length / 7));
-
-const gridStyle = computed(() => ({
-  gridTemplateRows: 'repeat(7, 1fr)',
-  gridTemplateColumns: `repeat(${weekCount.value}, 1fr)`
-}));
 
 const isEmpty = computed(() => Object.keys(props.data).length === 0);
 
@@ -111,21 +104,27 @@ function cellLabel(cell: HeatmapCell): string {
   margin: 0;
 }
 
-.reading-heatmap-grid-wrap {
-  overflow-x: auto;
-}
-
 .reading-heatmap-grid {
   display: grid;
   gap: 3px;
-  grid-auto-flow: column;
-  width: max-content;
+  /* Cells stretch to fill the container width: as many ~11px columns as fit,
+     each growing to an equal share of the row. A wide viewport gets a short,
+     full-width band instead of leaving two-thirds of the row empty. */
+  grid-template-columns: repeat(auto-fill, minmax(11px, 1fr));
+  width: 100%;
 }
 
 .heatmap-cell {
+  aspect-ratio: 1 / 1;
   border-radius: 2px;
-  display: inline-block;
+  min-height: 11px;
+  width: 100%;
+}
+
+.reading-heatmap-legend .heatmap-cell {
+  aspect-ratio: auto;
   height: 11px;
+  min-height: 0;
   width: 11px;
 }
 

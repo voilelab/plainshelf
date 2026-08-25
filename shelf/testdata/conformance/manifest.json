@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "name": "plain-book",
+      "covers": "A complete book in a folder, plus a book that has no sources folder at all."
+    },
+    {
+      "name": "empty-folder",
+      "covers": "Folder directories holding no book, including a nested one, are still folders."
+    },
+    {
+      "name": "dangling-current-source",
+      "covers": "current_source and cover both name files that are gone; the reader falls back to the newest source."
+    },
+    {
+      "name": "legacy-schema",
+      "covers": "A book.json and a source meta.json written before schema versioning."
+    },
+    {
+      "name": "future-schema",
+      "covers": "A book.json written by a newer build: readable, carries an unknown field, refuses writes."
+    },
+    {
+      "name": "ignored-dirs",
+      "covers": "System directories (@eaDir, .stfolder, #recycle, $RECYCLE.BIN, lost+found) are neither folders nor book containers."
+    },
+    {
+      "name": "multi-writer-cache",
+      "covers": "Several app/book-cache-*.json files, two of which this build cannot use."
+    },
+    {
+      "name": "source-assets",
+      "covers": "A source whose illustrations live in assets/ and are referenced by relative path."
+    }
+  ]
+}

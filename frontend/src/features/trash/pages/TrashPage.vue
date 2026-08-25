@@ -64,77 +64,117 @@
     <p v-else-if="loading" class="loading">{{ t('trash.loading') }}</p>
     <p v-else-if="items.length === 0" class="loading">{{ t('trash.empty') }}</p>
 
-    <table v-else class="trash-table">
-      <thead>
-        <tr>
-          <th>{{ t('trash.columns.title') }}</th>
-          <th>{{ t('trash.columns.authors') }}</th>
-          <th>{{ t('trash.columns.originalLayer') }}</th>
-          <th>{{ t('trash.columns.originalPath') }}</th>
-          <th>{{ t('trash.columns.deletedAt') }}</th>
-          <th>{{ t('trash.columns.bookId') }}</th>
-          <th>{{ t('trash.columns.actions') }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="book in items" :key="book.id">
-          <td>{{ book.title }}</td>
-          <td>{{ formatAuthors(book.authors) }}</td>
-          <td>{{ formatLayer(book.original_layer) }}</td>
-          <td>{{ book.original_path ?? '-' }}</td>
-          <td>{{ formatDeletedAt(book.deleted_at) }}</td>
-          <td class="book-id">{{ book.id }}</td>
-          <td class="actions">
-            <template v-if="!readOnly">
-              <button
-                type="button"
-                class="button"
-                :disabled="Boolean(busyMap[book.id])"
-                @click="restore(book.id)"
-              >
-                {{ t('trash.actions.restore') }}
-              </button>
-              <button
-                type="button"
-                class="button danger"
-                :disabled="Boolean(busyMap[book.id])"
-                @click="requestPermanentDelete(book)"
-              >
-                {{ t('trash.actions.permanentDelete') }}
-              </button>
-            </template>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <template v-else>
+      <table class="trash-table">
+        <thead>
+          <tr>
+            <th>{{ t('trash.columns.title') }}</th>
+            <th>{{ t('trash.columns.authors') }}</th>
+            <th>{{ t('trash.columns.originalFolder') }}</th>
+            <th>{{ t('trash.columns.originalPath') }}</th>
+            <th>{{ t('trash.columns.deletedAt') }}</th>
+            <th>{{ t('trash.columns.bookId') }}</th>
+            <th>{{ t('trash.columns.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="book in visibleItems" :key="book.id">
+            <td>{{ book.title }}</td>
+            <td>{{ formatAuthors(book.authors) }}</td>
+            <td>{{ formatFolder(book.original_folder) }}</td>
+            <td>{{ book.original_path ?? '-' }}</td>
+            <td>{{ formatDeletedAt(book.deleted_at) }}</td>
+            <td class="book-id">{{ book.id }}</td>
+            <td class="actions">
+              <template v-if="!readOnly">
+                <button
+                  type="button"
+                  class="button"
+                  :disabled="Boolean(busyMap[book.id])"
+                  @click="restore(book.id)"
+                >
+                  {{ t('trash.actions.restore') }}
+                </button>
+                <button
+                  type="button"
+                  class="button danger"
+                  :disabled="Boolean(busyMap[book.id])"
+                  @click="requestPermanentDelete(book)"
+                >
+                  {{ t('trash.actions.permanentDelete') }}
+                </button>
+              </template>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <Pagination
+        :page="page"
+        :total="items.length"
+        :page-size="pageSize"
+        :page-size-options="PAGE_SIZE_OPTIONS"
+        @update:page="onPageChange"
+        @update:page-size="onPageSizeChange"
+      />
+    </template>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
+import Pagination from '@/components/Pagination.vue';
 import ProgressBar from '@/components/ProgressBar.vue';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
+import { useBookCollectionRoute } from '@/composables/useBookCollectionRoute';
 import { useBookStore } from '@/composables/useBookStore';
-import { useLayerStore } from '@/composables/useLayerStore';
+import { useFolderStore } from '@/composables/useFolderStore';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import { useI18n } from '@/i18n';
 import type { TrashedBook } from '@/types/book';
 
+const route = useRoute();
 const { t } = useI18n();
 const { writesEnabled } = useWriteAccess();
 const readOnly = computed(() => !writesEnabled.value);
 const { fetchBooks } = useBookStore();
-const { fetchLayers } = useLayerStore();
+const { fetchFolders } = useFolderStore();
 const items = ref<TrashedBook[]>([]);
 const loading = ref(false);
+const loaded = ref(false);
 const error = ref('');
 const actionError = ref('');
 const pendingDeleteBook = ref<TrashedBook | null>(null);
 const busyMap = ref<Record<string, boolean>>({});
+
+function buildPageQuery(nextPage: number): Record<string, string> {
+  return {
+    ...route.query,
+    page: String(nextPage)
+  } as Record<string, string>;
+}
+
+// `items` stays the full trash listing: the empty state, the sweep confirmation
+// count, and the total below all describe the whole trash, not the visible page.
+const {
+  page,
+  pageSize,
+  visibleBooks: visibleItems,
+  onPageChange,
+  onPageSizeChange,
+  PAGE_SIZE_OPTIONS
+} = useBookCollectionRoute<TrashedBook>({
+  items,
+  buildQuery: buildPageQuery,
+  // The listing is fetched on mount, so clamping before it lands would drop a
+  // deep-linked or reloaded `?page=N` back to page 1.
+  clampEnabled: loaded
+});
 
 const emptyModalOpen = ref(false);
 
@@ -186,11 +226,11 @@ function formatAuthors(authors: string[] | undefined): string {
   return authors.join(', ');
 }
 
-function formatLayer(layer: string[] | undefined): string {
-  if (!layer || layer.length === 0) {
+function formatFolder(folder: string[] | undefined): string {
+  if (!folder || folder.length === 0) {
     return '/';
   }
-  return layer.join('/');
+  return folder.join('/');
 }
 
 function formatDeletedAt(value: string | undefined): string {
@@ -211,6 +251,7 @@ async function loadTrash(): Promise<void> {
   actionError.value = '';
   try {
     items.value = await getBookshelfProvider().listTrashedBooks();
+    loaded.value = true;
   } catch (err) {
     error.value = err instanceof Error ? err.message : t('trash.loadFailed');
   } finally {
@@ -227,7 +268,7 @@ async function restore(id: string): Promise<void> {
   busyMap.value = { ...busyMap.value, [id]: true };
   try {
     await bookshelfWriter().restoreTrashedBook(id);
-    await Promise.all([loadTrash(), fetchBooks(), fetchLayers()]);
+    await Promise.all([loadTrash(), fetchBooks(), fetchFolders()]);
   } catch (err) {
     actionError.value = err instanceof Error ? err.message : t('trash.restoreFailed');
   } finally {

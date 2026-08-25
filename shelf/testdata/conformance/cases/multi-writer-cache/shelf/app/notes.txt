@@ -1,0 +1,3 @@
+app/ is shared with whatever else a user or a future build puts there. Only
+book-cache-*.json files are book caches; this file must be ignored by both
+readers rather than rejected.

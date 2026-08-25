@@ -1,0 +1,12 @@
+{
+  "name": "PlainShelfReader",
+  "outputfilename": "PlainShelfReader",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dev:watcher": "",
+  "info": {
+    "companyName": "VoileLab",
+    "productName": "PlainShelf Reader",
+    "productVersion": "0.0.0"
+  }
+}

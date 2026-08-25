@@ -1,0 +1,37 @@
+{
+  "folders": [
+    "/",
+    "Poetry"
+  ],
+  "books": [
+    {
+      "path": "books/Poetry/haiku.bookpkg",
+      "folders": [
+        "Poetry"
+      ],
+      "id": "h8n3rq6vz2ktm4xd",
+      "title": "Haiku",
+      "format": "txt",
+      "authors": [
+        "Bashō"
+      ],
+      "tags": [],
+      "star": 3,
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "current_source_field": "20260620-070000",
+      "current_source": "20260620-070000",
+      "sources": [
+        {
+          "id": "20260620-070000",
+          "has_content": true,
+          "char_count": 14,
+          "assets": []
+        }
+      ]
+    }
+  ],
+  "book_caches": []
+}

@@ -6,6 +6,12 @@ or a shelf folder held on pCloud. Downloaded books, covers, illustrations,
 reading progress, read history, and reading time are stored locally in the app's
 private storage
 (`Directory.Data`, no runtime permission required) and never leave the device.
+The one exception is **Export file** on a book's page: it writes a copy of the
+book's text into the shared `Documents/PlainShelf/` folder so it can be opened
+from the Files app or handed to another app. On Android 11+ the Filesystem
+plugin reaches its own files in Documents with no permission; on Android 10 and
+below it needs both `READ_EXTERNAL_STORAGE` and `WRITE_EXTERNAL_STORAGE`
+(declared with `maxSdkVersion="29"`).
 
 The app is **read-only**: it browses, reads, and downloads books for offline
 use, but it never modifies the library and issues no write requests at all.
@@ -176,10 +182,17 @@ configured. Nothing needs to be chosen for a US or EU account.
 
 ### 3. Point it at the shelf
 
-Give the folder path of the shelf inside your pCloud account, such as
-`/PlainShelf/default-shelf`, then tap **Check shelf**. That reads the folder and
-reports how many books it found; it has to contain `books/` or it is not a
-shelf. Save once the check passes.
+Tap **Browse pCloud…** and walk to the shelf folder. The picker lists one level
+at a time — a tap opens a folder, the breadcrumb at the top jumps back to any
+level above — and reads only the level on screen, so browsing costs one folder
+listing per tap. **Use this folder** is offered on the folder that holds
+`books/`, which is the shelf directory itself, not `books/` and not the folder
+above it. Picking one fills the path in and runs the shelf check for you.
+
+The path field stays editable if you would rather type or paste one, such as
+`/PlainShelf/default-shelf`; tap **Check shelf** afterwards. Either way the
+check reads the folder and reports how many books it found, and it has to
+contain `books/` or it is not a shelf. Save once the check passes.
 
 ### The book list is updated by hand
 

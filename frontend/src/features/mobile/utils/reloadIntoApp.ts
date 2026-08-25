@@ -4,7 +4,7 @@
  *
  * Every shelf switch needs this, not just the ones involving pCloud.
  * PCloudBookshelfProvider captures its client and shelf path at construction
- * and the provider is a singleton built once at bootstrap; the shelf, layer and
+ * and the provider is a singleton built once at bootstrap; the shelf, folder and
  * server-mode stores are module-level too. A plain `router.push` would leave
  * all of it pointing at the shelf the user just left.
  *

@@ -1,4 +1,5 @@
 import {
+  copyBook,
   deleteBook,
   deleteBookCover,
   deleteTrashedBook,
@@ -8,16 +9,18 @@ import {
   getBookContent,
   getBookCover,
   getBookCoverUrl,
-  getBookSplitConfig,
   getDuplicateBookGroups,
+  getFingerprintStatus,
+  getSimilarBookPairs,
   importBook,
   listBooks,
   listTrashedBooks,
   refreshContentStats,
+  startFingerprintSources,
   restoreTrashedBook,
+  transferBook,
   updateBook,
-  updateBookLayer,
-  updateBookSplitConfig,
+  updateBookFolder,
   uploadBookCover,
   uploadBookCoverBlob
 } from '@/api/books';
@@ -26,13 +29,15 @@ import {
   deleteSource,
   getSource,
   getSourceAsset,
+  getSourceAssetsBundle,
   getSourceContent,
   listSource,
   refreshSourceMeta,
   setCurrentSource,
   updateSourceContent
 } from '@/api/sources';
-import { getLayers } from '@/api/layers';
+import { getFolders, transferFolder } from '@/api/folders';
+import { rescanShelf } from '@/api/shelves';
 import { getTaskChain } from '@/api/taskchains';
 import { startBookBatch } from '@/api/bookBatches';
 import {
@@ -52,12 +57,17 @@ import type {
   BookUpdateRequest,
   PaginatedBooks,
   ReadingProgress,
-  SplitConfig,
   TrashedBook
 } from '@/types/book';
+import type { BookTransferMode, FingerprintStatus, SimilarBookPair } from '@/api/books';
 import type { CreateSourceOptions, SourceMeta } from '@/types/source';
 import type { BookBatchRequest, TaskChain } from '@/types/task';
-import type { BookshelfReader, BookshelfWriter, ListBooksOptions } from './bookshelfProvider';
+import type {
+  BookshelfReader,
+  BookshelfWriter,
+  ListBooksOptions,
+  ShelfRefreshResult
+} from './bookshelfProvider';
 
 // Declares both halves rather than the loose BookshelfProvider alias, so
 // dropping or mistyping any write method fails to compile here.
@@ -76,8 +86,34 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return updateBook(bookId, payload);
   }
 
-  updateBookLayer(bookId: string, layer: string): Promise<void> {
-    return updateBookLayer(bookId, layer);
+  updateBookFolder(bookId: string, folder: string): Promise<void> {
+    return updateBookFolder(bookId, folder);
+  }
+
+  copyBook(bookId: string, folder: string): Promise<Book> {
+    return copyBook(bookId, folder);
+  }
+
+  listShelfFolders(shelfID: string): Promise<string[]> {
+    return getFolders(shelfID);
+  }
+
+  transferBook(
+    bookId: string,
+    targetShelfID: string,
+    targetFolder: string,
+    mode: BookTransferMode
+  ): Promise<string> {
+    return transferBook(bookId, targetShelfID, targetFolder, mode);
+  }
+
+  transferFolder(
+    sourceFolder: string,
+    targetShelfID: string,
+    targetFolder: string,
+    mode: BookTransferMode
+  ): Promise<string> {
+    return transferFolder(sourceFolder, targetShelfID, targetFolder, mode);
   }
 
   deleteBook(bookId: string): Promise<void> {
@@ -90,14 +126,6 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
 
   downloadBookContent(bookId: string): Promise<Blob> {
     return downloadBookContent(bookId);
-  }
-
-  getBookSplitConfig(bookId: string): Promise<SplitConfig> {
-    return getBookSplitConfig(bookId);
-  }
-
-  updateBookSplitConfig(bookId: string, config: SplitConfig): Promise<SplitConfig> {
-    return updateBookSplitConfig(bookId, config);
   }
 
   getReadProgress(bookId: string): Promise<ReadingProgress> {
@@ -150,6 +178,14 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return getDuplicateBookGroups();
   }
 
+  getSimilarBookPairs(floor?: number): Promise<SimilarBookPair[]> {
+    return getSimilarBookPairs(floor);
+  }
+
+  getFingerprintStatus(): Promise<FingerprintStatus> {
+    return getFingerprintStatus();
+  }
+
   listTrashedBooks(): Promise<TrashedBook[]> {
     return listTrashedBooks();
   }
@@ -178,8 +214,12 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return refreshContentStats();
   }
 
-  listLayers(): Promise<string[]> {
-    return getLayers();
+  startFingerprintSources(force?: boolean): Promise<string> {
+    return startFingerprintSources(force);
+  }
+
+  listFolders(): Promise<string[]> {
+    return getFolders();
   }
 
   listSources(bookId: string): Promise<SourceMeta[]> {
@@ -196,6 +236,10 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
 
   getSourceAsset(bookId: string, sourceId: string, name: string): Promise<Blob> {
     return getSourceAsset(bookId, sourceId, name);
+  }
+
+  getSourceAssetsBundle(bookId: string, sourceId: string, names: string[]): Promise<Blob> {
+    return getSourceAssetsBundle(bookId, sourceId, names);
   }
 
   createSource(bookId: string, options?: CreateSourceOptions): Promise<SourceMeta> {
@@ -216,5 +260,17 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
 
   refreshSourceMeta(bookId: string, sourceId: string): Promise<SourceMeta> {
     return refreshSourceMeta(bookId, sourceId);
+  }
+
+  // A server discovers external changes only every `scan_interval`, and on an
+  // SMB or cloud-mounted shelf nothing notifies it sooner, so the user needs a
+  // way to say "look now". There is no stored listing to date, hence no
+  // getShelfFetchedAt: the counts refreshShelf reports are what the UI shows.
+  supportsShelfRefresh(): boolean {
+    return true;
+  }
+
+  refreshShelf(): Promise<ShelfRefreshResult> {
+    return rescanShelf();
   }
 }

@@ -2,11 +2,6 @@ export function hasSupportedExtension(filename: string, pattern: RegExp): boolea
   return pattern.test(filename);
 }
 
-export function readSelectedFile(event: Event): File | null {
-  const target = event.target as HTMLInputElement;
-  return target.files?.[0] ?? null;
-}
-
 export function readSelectedFiles(event: Event): File[] {
   const target = event.target as HTMLInputElement;
   return Array.from(target.files ?? []);
@@ -18,6 +13,15 @@ export function hasFileTransfer(dataTransfer: DataTransfer | null | undefined): 
 
 export function readDroppedFiles(event: DragEvent): File[] {
   return Array.from(event.dataTransfer?.files ?? []);
+}
+
+// Extracts the final segment of a host file path, handling both POSIX ('/') and
+// Windows ('\') separators, so a desktop local path shows its filename rather
+// than the whole path in the import list. A path with no separator is returned
+// unchanged.
+export function basenameFromPath(path: string): string {
+  const segments = path.split(/[/\\]/);
+  return segments[segments.length - 1] || path;
 }
 
 export function deriveTitleFromFilename(filename: string): string {

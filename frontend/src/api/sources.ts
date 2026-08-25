@@ -1,6 +1,5 @@
 import { buildShelfApiPath, fetchBlob, fetchJson, fetchText, isMockApiMode } from './client';
 import type { CreateSourceOptions, SourceMeta } from '@/types/source';
-import { normalizeSplitConfig } from '@/utils/splitConfig';
 
 interface SourceStoreItem {
   meta: SourceMeta;
@@ -8,7 +7,6 @@ interface SourceStoreItem {
 }
 
 const mockSource: Record<string, SourceStoreItem[]> = {};
-const MULTIPART_TEXT_CONTENT_LIMIT = 8 << 20;
 const SOURCE_UPLOAD_TIMEOUT_MS = 300_000;
 
 function countLines(value: string): number {
@@ -51,10 +49,6 @@ function normalizeSourceMeta(raw: unknown): SourceMeta {
 
   if (typeof record.char_count === 'number' && Number.isFinite(record.char_count)) {
     meta.char_count = Math.trunc(record.char_count);
-  }
-
-  if (record.split_config && typeof record.split_config === 'object') {
-    meta.split_config = normalizeSplitConfig(record.split_config);
   }
 
   return meta;
@@ -162,6 +156,31 @@ export async function getSourceAsset(bookId: string, sourceId: string, name: str
   );
 }
 
+/**
+ * Fetches a source's illustrations as one zip, so a download pays a single
+ * request instead of one per figure. `names` picks which files to pack (empty =
+ * the whole `assets/` directory); an absent name is packed as no entry.
+ *
+ * Goes through `fetchBlob`, like getSourceAsset, so the request carries the API
+ * token a plain browser request would omit under `protect_read`. Returns the
+ * raw archive so the caller can unzip one entry at a time.
+ */
+export async function getSourceAssetsBundle(
+  bookId: string,
+  sourceId: string,
+  names: string[]
+): Promise<Blob> {
+  if (isMockApiMode()) {
+    throw new Error('Source assets are not served in mock API mode');
+  }
+
+  const path = buildShelfApiPath(
+    `/books/${encodeURIComponent(bookId)}/sources/${encodeURIComponent(sourceId)}/assets.zip`
+  );
+  const query = names.map((name) => `name=${encodeURIComponent(name)}`).join('&');
+  return await fetchBlob(query ? `${path}?${query}` : path);
+}
+
 export async function createSource(bookId: string, options?: CreateSourceOptions): Promise<SourceMeta> {
   if (isMockApiMode()) {
     const sources = ensureMockSource(bookId);
@@ -180,32 +199,21 @@ export async function createSource(bookId: string, options?: CreateSourceOptions
     return { ...newItem.meta };
   }
 
-  const body = options
-    ? (() => {
-        const form = new FormData();
-        const sourceContent = options.content ?? '';
-        // WKWebView can stall while streaming a programmatically-created Blob
-        // in FormData. The client then aborts at its timeout and Go observes a
-        // truncated multipart boundary (`NextPart: EOF`). Keep ordinary book
-        // text as a multipart value; use a real File only when the value is
-        // large enough that ParseMultipartForm should spill it to disk.
-        if (new Blob([sourceContent]).size <= MULTIPART_TEXT_CONTENT_LIMIT) {
-          form.append('content', sourceContent);
-        } else {
-          form.append('content', new File([sourceContent], 'source.txt', { type: 'text/plain;charset=utf-8' }));
-        }
-        form.append('format', options.format ?? 'txt');
-        if (options.comment) {
-          form.append('comment', options.comment);
-        }
-        if (options.setCurrent) {
-          form.append('set_current', 'true');
-        }
-        return form;
-      })()
-    : undefined;
+  // Wails routes fetches through the WebView's custom scheme handler. WebKit
+  // can truncate a generated multipart body there, especially once a derived
+  // source crosses the old in-memory form-field threshold; Go then reports
+  // `multipart: NextPart: EOF`. JSON is serialized as one ordinary request
+  // body and avoids that streaming path. The server still accepts multipart
+  // for older clients.
+  const body = options ? JSON.stringify({
+    content: options.content ?? '',
+    format: options.format ?? 'txt',
+    comment: options.comment ?? '',
+    set_current: options.setCurrent ?? false
+  }) : undefined;
   const data = await fetchJson<unknown>(buildShelfApiPath(`/books/${encodeURIComponent(bookId)}/sources`), {
     method: 'POST',
+    ...(options ? { headers: { 'Content-Type': 'application/json' } } : {}),
     body
   }, {
     timeoutMs: SOURCE_UPLOAD_TIMEOUT_MS
@@ -254,8 +262,7 @@ export async function refreshSourceMeta(bookId: string, sourceId: string): Promi
     }
     item.meta = {
       ...buildSourceMeta(item.meta.id, item.meta.created_at, item.content, item.meta.format === 'md' ? 'md' : 'txt'),
-      comment: item.meta.comment,
-      split_config: item.meta.split_config
+      comment: item.meta.comment
     };
     return { ...item.meta };
   }
@@ -277,8 +284,7 @@ export async function updateSourceContent(bookId: string, sourceId: string, cont
     item.content = content;
     item.meta = {
       ...buildSourceMeta(item.meta.id, item.meta.created_at, content, item.meta.format === 'md' ? 'md' : 'txt'),
-      comment: item.meta.comment,
-      split_config: item.meta.split_config
+      comment: item.meta.comment
     };
     return;
   }

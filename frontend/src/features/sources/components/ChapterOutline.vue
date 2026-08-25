@@ -2,17 +2,17 @@
   <aside class="chapter-outline">
     <header>
       <div>
-        <h3>Chapters</h3>
-        <p class="meta">{{ chapterSections.length }} H2 headings</p>
+        <h3>{{ t('sources.chapters.title') }}</h3>
+        <p class="meta">{{ t('sources.chapters.headingCount', { count: chapterSections.length }) }}</p>
       </div>
-      <button class="button" type="button" :disabled="disabled" @click="emit('insert')">Add</button>
+      <button class="button" type="button" :disabled="disabled" @click="emit('insert')">{{ t('sources.chapters.add') }}</button>
     </header>
 
     <ol class="chapter-list">
       <li :class="{ selected: !focused }">
         <button class="chapter-jump" type="button" @click="emit('showAll')">
-          <span>All</span>
-          Whole source
+          <span>{{ t('sources.chapters.allMarker') }}</span>
+          {{ t('sources.chapters.wholeSource') }}
         </button>
       </li>
 
@@ -41,23 +41,26 @@
             type="button"
             :disabled="disabled"
             @click="emit('rename', section.headingIndex ?? index)"
-          >Rename</button>
+          >{{ t('sources.chapters.rename') }}</button>
           <button
             class="text-action danger"
             type="button"
             :disabled="disabled"
             @click="emit('remove', section.headingIndex ?? index)"
-          >Merge</button>
+          >{{ t('sources.chapters.merge') }}</button>
         </div>
       </li>
     </ol>
-    <p v-if="chapterSections.length === 0" class="meta empty">No H2 chapters yet.</p>
+    <p v-if="chapterSections.length === 0" class="meta empty">{{ t('sources.chapters.empty') }}</p>
   </aside>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { MarkdownEditorSection } from '@/features/reader/utils/markdownChapters';
+import type { MarkdownEditorSection } from '@/utils/markdownChapters';
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   sections: MarkdownEditorSection[];

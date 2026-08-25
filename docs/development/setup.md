@@ -8,10 +8,14 @@ installation, see [Installation](../installation.md).
 | Tool | Minimum version | Purpose |
 |---|---:|---|
 | Go | 1.26.6 | server, core library, desktop backend |
-| Node.js | 22 | frontend and end-to-end tests |
+| Node.js | 22.18 | frontend and end-to-end tests |
 | npm | bundled with Node.js | JavaScript dependencies |
 | just | recent | repository task runner |
 | zsh | recent | shell used by the `justfile` |
+
+The frontend itself runs on any Node.js 22. The 22.18 floor comes from Babel 8,
+which the mutation-testing dev dependency pulls in; below it `npm ci` warns and
+fails outright where npm engine enforcement is on.
 
 Desktop development also needs the
 [Wails platform dependencies](https://wails.io/docs/gettingstarted/installation).
@@ -65,6 +69,16 @@ token injected into the served frontend.
 Run the narrowest relevant check while iterating, then run the full check for
 every area changed before opening a pull request.
 
+The book package format has two independent readers — the Go shelf and the
+pCloud client the Android app reads a shelf with — so both run the shared
+fixtures in `shelf/testdata/conformance/`. A change to how a shelf is read
+belongs in that dataset, and the frontend unit tests are where the pCloud side
+of it fails. The dataset's own README explains the contract.
+
+[Mutation testing](mutation-testing.md) is available for the reader's helpers and
+the shared Markdown modules as an on-demand check of how much the unit tests
+actually verify. It is not part of the checks above.
+
 ## Versioning
 
 Git release tags are the source of truth for the PlainShelf product version.
@@ -87,6 +101,16 @@ release artifact exists by running `scripts/update-cask.sh <tag>`.
 ```bash
 just run-desktop
 ```
+
+On macOS the desktop app's **read** action opens the standalone reader in its own
+window (it shells out to it). To test against the reader you are developing rather
+than the brew-installed one, build it first with `just build-reader`; `just
+run-desktop` then auto-detects `reader/build/bin/PlainShelfReader.app` and opens
+reads with it. Override the target explicitly with `just run-desktop
+/path/to/PlainShelfReader.app`, or by exporting `PLAINSHELF_READER_APP` (a `.app`
+path/name is launched via `open -a`); an already-set `PLAINSHELF_READER_APP` takes
+precedence. Because the dev and brew readers share a bundle id, keep only the one
+you want registered with LaunchServices if `open -a` activates the wrong copy.
 
 Create a release-style desktop build with `just build-desktop`.
 

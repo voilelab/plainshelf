@@ -17,7 +17,7 @@ export interface Book {
   comment?: string;
   cover?: string;
   cover_url?: string;
-  layers: string[];
+  folders: string[];
   created_at?: BookTimestamp;
   updated_at?: BookTimestamp;
   /** Date-only ("YYYY-MM-DD"); the backend normalizes any legacy full timestamp before it reaches the API. */
@@ -44,7 +44,7 @@ export interface TrashedBook {
   title: string;
   authors: string[];
   original_path?: string;
-  original_layer?: string[];
+  original_folder?: string[];
   deleted_at?: BookTimestamp;
 }
 
@@ -62,15 +62,6 @@ export interface BookContent {
   content: string;
 }
 
-export type SplitType = 'none' | 'line_count' | 'regex' | 'boundary';
-
-export interface SplitConfig {
-  type: SplitType;
-  line_count?: number;
-  regex?: string;
-  boundaries?: number[];
-}
-
 export interface ReaderSection {
   index: number;
   startOffset: number;
@@ -81,6 +72,13 @@ export interface ReaderSection {
 
 export interface BookmarkPayload {
   char_offset: number;
+  /**
+   * Epoch ms the position changed (not when it was flushed). Used to arbitrate
+   * concurrent cross-process writes newest-wins; optional, defaulting to now when
+   * a caller does not supply it. Ignored by backends that do not share the
+   * reading-progress document (mobile keeps its own per-book files).
+   */
+  at?: number;
 }
 
 export interface BookUpdateRequest {
@@ -127,7 +125,7 @@ export const DEFAULT_EPUB_IMPORT_STRATEGY: EpubImportStrategy = {
 
 export interface BookCreateRequest {
   title: string;
-  layer?: string;
+  folder?: string;
   file: File;
   /** Only meaningful for .epub uploads; ignored by the server for other formats. */
   strategy?: EpubImportStrategy;

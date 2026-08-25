@@ -1,18 +1,34 @@
 <template>
-  <div class="stats-cards">
-    <div class="stat-card panel">
-      <span class="stat-label">{{ t('dashboard.stats.totalBooks') }}</span>
-      <span class="stat-value">{{ totalBooks }}</span>
+  <div class="dashboard-stats">
+    <div class="stat-strip panel">
+      <RouterLink class="stat-item stat-item-link" to="/books">
+        <span class="stat-label">{{ t('dashboard.stats.totalBooks') }}</span>
+        <span class="stat-value">{{ totalBooks }}</span>
+      </RouterLink>
+
+      <RouterLink class="stat-item stat-item-link" to="/read-history">
+        <span class="stat-label">{{ t('dashboard.stats.inProgress') }}</span>
+        <span class="stat-value">{{ inProgress }}</span>
+      </RouterLink>
+
+      <div class="stat-item">
+        <span class="stat-label">{{ t('dashboard.stats.avgStar') }}</span>
+        <span class="stat-value">{{ starAvgDisplay }}</span>
+      </div>
+
+      <div class="stat-item">
+        <span class="stat-label">{{ t('dashboard.stats.totalChars') }}</span>
+        <span class="stat-value">{{ totalCharsDisplay }}</span>
+      </div>
+
+      <div class="stat-item">
+        <span class="stat-label">{{ t('dashboard.stats.currentStreak') }}</span>
+        <span class="stat-value">{{ t('dashboard.stats.currentStreakValue', { days: currentStreak }) }}</span>
+      </div>
     </div>
 
-    <div class="stat-card panel">
-      <span class="stat-label">{{ t('dashboard.stats.addedThisMonth') }}</span>
-      <span class="stat-value">{{ addedThisMonth }}</span>
-    </div>
-
-    <div class="stat-card panel">
-      <span class="stat-label">{{ t('dashboard.stats.avgStar') }}</span>
-      <span class="stat-value">{{ starAvgDisplay }}</span>
+    <div class="rating-distribution panel">
+      <span class="stat-label">{{ t('dashboard.stats.ratingDistribution') }}</span>
       <div class="star-distribution" role="img" :aria-label="starDistributionAriaLabel">
         <div v-for="star in [5, 4, 3, 2, 1]" :key="star" class="star-bar-row">
           <span class="star-bar-label">{{ star }}★</span>
@@ -26,16 +42,6 @@
         </div>
       </div>
     </div>
-
-    <div class="stat-card panel">
-      <span class="stat-label">{{ t('dashboard.stats.totalChars') }}</span>
-      <span class="stat-value">{{ totalCharsDisplay }}</span>
-    </div>
-
-    <div class="stat-card panel">
-      <span class="stat-label">{{ t('dashboard.stats.currentStreak') }}</span>
-      <span class="stat-value">{{ t('dashboard.stats.currentStreakValue', { days: currentStreak }) }}</span>
-    </div>
   </div>
 </template>
 
@@ -46,7 +52,7 @@ import type { StarDistribution } from '@/features/dashboard/composables/useDashb
 
 const props = defineProps<{
   totalBooks: number;
-  addedThisMonth: number;
+  inProgress: number;
   starAvg: number | null;
   starDistribution: StarDistribution;
   totalChars: number | null;
@@ -90,17 +96,48 @@ const starDistributionAriaLabel = computed(() =>
 </script>
 
 <style scoped>
-.stats-cards {
-  display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+.dashboard-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
-.stat-card {
+/* The five headline numbers sit on one line; each item grows to share the row
+   but never shrinks below a legible width, wrapping only when the row cannot
+   hold them. */
+.stat-strip {
+  align-items: stretch;
   display: flex;
+  flex: 1 1 360px;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  padding: 14px 18px;
+}
+
+.stat-item {
+  display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: 6px;
-  padding: 16px 18px;
+  gap: 4px;
+  min-width: 96px;
+}
+
+/* The first two stats are now navigation into the list they summarize; keep the
+   plain-number look and only reveal the affordance on interaction. */
+.stat-item-link {
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.stat-item-link:hover .stat-value,
+.stat-item-link:focus-visible .stat-value {
+  color: var(--accent);
+}
+
+.stat-item-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .stat-label {
@@ -113,16 +150,24 @@ const starDistributionAriaLabel = computed(() =>
 
 .stat-value {
   color: var(--text);
-  font-size: 28px;
+  font-size: 20px;
   font-weight: 700;
   line-height: 1.2;
+}
+
+/* Rating distribution is its own block now, no longer nested in a stat. */
+.rating-distribution {
+  display: flex;
+  flex: 0 1 260px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 18px;
 }
 
 .star-distribution {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  margin-top: 4px;
 }
 
 .star-bar-row {

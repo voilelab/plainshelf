@@ -18,7 +18,7 @@ function validCache(overrides: Record<string, unknown> = {}): unknown {
     writer_id: 'writer01',
     timestamp: 1_700_000_000,
     generator: 'plainshelf/test',
-    layers: ['/', 'Fiction'],
+    folders: ['/', 'Fiction'],
     books: {
       a: { path: 'books/Fiction/alpha.bookpkg', meta: { id: 'a', title: 'Alpha' } }
     },
@@ -52,8 +52,8 @@ describe('parseBookCacheFile', () => {
     ['a missing timestamp', validCache({ timestamp: undefined })],
     ['a zero timestamp', validCache({ timestamp: 0 })],
     ['a non-numeric timestamp', validCache({ timestamp: '1700000000' })],
-    ['layers that are not an array', validCache({ layers: 'Fiction' })],
-    ['a non-string layer', validCache({ layers: ['/', 3] })],
+    ['folders that are not an array', validCache({ folders: 'Fiction' })],
+    ['a non-string folder', validCache({ folders: ['/', 3] })],
     ['books as an array', validCache({ books: [] })],
     ['an entry without a path', validCache({ books: { a: { meta: { id: 'a' } } } })],
     ['an entry with an empty path', validCache({ books: { a: { path: '', meta: { id: 'a' } } } })],
@@ -132,10 +132,10 @@ describe('pickNewestBookCache', () => {
 });
 
 describe('bookPackagePath', () => {
-  const pkg = (folderName: string, layers: string[]): BookPackageRef => ({
+  const pkg = (folderName: string, folders: string[]): BookPackageRef => ({
     folderName,
     folderid: 1,
-    layers,
+    folders,
     files: {},
     sources: []
   });

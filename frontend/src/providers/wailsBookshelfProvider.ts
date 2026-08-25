@@ -1,11 +1,12 @@
 import {
   addDesktopShelf,
   getDesktopShelfDetails,
-  importDesktopBooksFromLocalPaths,
+  importDesktopBookFromLocalPath,
   modifyDesktopShelf,
   openDesktopBookFiles,
   openDesktopBookFolder,
-  openDesktopLayerFolder,
+  openDesktopFolder,
+  openDesktopReader,
   openDesktopShelfDirectory,
   removeDesktopShelf,
   saveDesktopBookContent
@@ -20,19 +21,23 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
     return openDesktopBookFiles();
   }
 
-  importBooksFromLocalPaths(
-    localPaths: string[],
-    layerPath: string
-  ): Promise<DesktopImportBookResult[] | null> {
-    return importDesktopBooksFromLocalPaths(localPaths, layerPath);
+  importBookFromLocalPath(
+    localPath: string,
+    folderPath: string
+  ): Promise<DesktopImportBookResult | null> {
+    return importDesktopBookFromLocalPath(localPath, folderPath);
   }
 
-  openDesktopLayerFolder(layerPath: string): Promise<void> {
-    return openDesktopLayerFolder(layerPath);
+  openDesktopFolder(folderPath: string): Promise<void> {
+    return openDesktopFolder(folderPath);
   }
 
   openDesktopBookFolder(bookId: string): Promise<void> {
     return openDesktopBookFolder(bookId);
+  }
+
+  openDesktopReader(bookId: string, section?: number): Promise<void> {
+    return openDesktopReader(bookId, section);
   }
 
   openDesktopShelfDirectory(): Promise<string | null> {

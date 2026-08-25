@@ -3,6 +3,7 @@ package shelf
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,6 +24,19 @@ func newTestShelf(t *testing.T, conf *ShelfConf) *Shelf {
 		t.Fatalf("WaitReady: %v", err)
 	}
 	return s
+}
+
+// writeRootForTest narrows a test shelf's read handle back to a writable one,
+// for tests that plant files in the shelf directly. Every writable test shelf
+// returns one, so a failure here is a broken fixture rather than a result.
+func writeRootForTest(t *testing.T, s *Shelf) fsutil.FS {
+	t.Helper()
+
+	root, err := s.writeRoot()
+	if err != nil {
+		t.Fatalf("writeRoot: %v", err)
+	}
+	return root
 }
 
 // shiftModTime moves a file's modification time by offset from now. Staleness
@@ -71,25 +85,33 @@ func TestCreateTempDir(t *testing.T) {
 	}
 }
 
-func TestValidateBCP47(t *testing.T) {
-	tests := []struct {
-		lang     string
-		expected bool
-	}{
-		{"en", true},
-		{"zh-Hant", true},
-		{"fr-CA", true},
-		{"es-419", true},
-		{"invalid-lang", false},
-		{"123", false},
-	}
+// assertNoTempFiles fails the test if any *.tmp file survived in dir.
+func assertNoTempFiles(t *testing.T, dir string) {
+	t.Helper()
 
-	for _, test := range tests {
-		result := validateBCP47(test.lang)
-		if result != test.expected {
-			t.Errorf("validateBCP47(%q) = %v; expected %v", test.lang, result, test.expected)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir(%q): %v", dir, err)
+	}
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".tmp") {
+			t.Errorf("temp file left behind in %s: %s", dir, entry.Name())
 		}
 	}
+}
+
+// testdataFS opens the committed testdata tree read-only, for the shelf tests
+// that open a fixture book package directly.
+func testdataFS(t *testing.T) fsutil.FS {
+	t.Helper()
+
+	testdataRoot, err := os.OpenRoot("testdata")
+	if err != nil {
+		t.Fatalf("Failed to open testdata root: %v", err)
+	}
+	t.Cleanup(func() { testdataRoot.Close() })
+
+	return fsutil.NewRootFS(testdataRoot)
 }
 
 func newLoggerForTest() logutil.Logger {

@@ -1,7 +1,7 @@
 <template>
   <div class="detail-main">
     <header class="detail-heading">
-      <LayerBreadcrumb :layers="book.layers" />
+      <FolderBreadcrumb :folders="book.folders" />
       <h2 class="detail-title">{{ book.title }}</h2>
       <p v-if="book.authors.length > 0" class="detail-authors">{{ formatList(book.authors) }}</p>
 
@@ -56,9 +56,34 @@
         <dl class="detail-definition-list">
           <div v-for="row in noteRows" :key="row.label" class="detail-definition-row note-row">
             <dt>{{ row.label }}</dt>
-            <dd>{{ row.value }}</dd>
+            <dd v-if="row.render === 'html'">
+              <SafeHtml class="description-body" :html="row.html" profile="summary" />
+            </dd>
+            <dd v-else>{{ row.value }}</dd>
           </div>
         </dl>
+      </section>
+
+      <section v-if="chapters.length > 0" class="detail-card detail-card-chapters">
+        <h3>{{ t('bookDetail.sections.chapters') }}</h3>
+        <ul class="chapter-list">
+          <li v-for="chapter in visibleChapters" :key="chapter.index">
+            <button class="chapter-item" type="button" @click="emit('selectChapter', chapter.index)">
+              <span class="chapter-item-index">{{ chapter.index + 1 }}</span>
+              <span class="chapter-item-title">{{ chapter.title }}</span>
+            </button>
+          </li>
+        </ul>
+        <button
+          v-if="chapters.length > CHAPTER_PREVIEW_LIMIT"
+          class="chapter-toggle"
+          type="button"
+          @click="showAllChapters = !showAllChapters"
+        >
+          {{ showAllChapters
+            ? t('bookDetail.chapters.showLess')
+            : t('bookDetail.chapters.showAll', { count: chapters.length }) }}
+        </button>
       </section>
 
       <p v-if="!hasDetailSections" class="detail-empty">{{ t('bookDetail.emptyDetails') }}</p>
@@ -67,27 +92,60 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import LayerBreadcrumb from './LayerBreadcrumb.vue';
+import { computed, ref, watch } from 'vue';
+import FolderBreadcrumb from './FolderBreadcrumb.vue';
+import SafeHtml from '@/components/SafeHtml.vue';
 import type { Book, ReadingProgress } from '@/types/book';
 import type { SourceMeta } from '@/types/source';
+import type { MarkdownChapterListItem } from '@/utils/markdownChapters';
 import { formatLanguage } from '@/utils/language';
 import { formatDateLabel } from '@/utils/date';
+import { renderDescription } from '@/utils/safeHtml';
 import { useI18n } from '@/i18n';
 
-const props = defineProps<{
-  book: Book;
-  progress?: ReadingProgress | null;
-  currentSource?: SourceMeta | null;
+const props = withDefaults(
+  defineProps<{
+    book: Book;
+    progress?: ReadingProgress | null;
+    currentSource?: SourceMeta | null;
+    chapters?: MarkdownChapterListItem[];
+  }>(),
+  { progress: null, currentSource: null, chapters: () => [] }
+);
+
+const emit = defineEmits<{
+  selectChapter: [index: number];
 }>();
 
 const { t } = useI18n();
+
+/** A book with hundreds of chapters must not push the rest of the page away. */
+const CHAPTER_PREVIEW_LIMIT = 12;
+const showAllChapters = ref(false);
+const chapters = computed(() => props.chapters);
+const visibleChapters = computed(() =>
+  showAllChapters.value ? chapters.value : chapters.value.slice(0, CHAPTER_PREVIEW_LIMIT)
+);
+
+watch(() => props.book.id, () => {
+  showAllChapters.value = false;
+});
 
 interface DetailRow {
   label: string;
   value: string;
   className?: string;
 }
+
+/**
+ * The two notes rows differ in kind, not in label. A description is written by
+ * a person in Markdown, or arrives from an EPUB import as the HTML the OPF
+ * carried, and is rendered; an import note is prose this app generated to say
+ * what the conversion could not keep, and stays the literal text it is.
+ */
+type NoteRow =
+  | { label: string; render: 'text'; value: string }
+  | { label: string; render: 'html'; html: string };
 
 function formatList(values: string[]): string {
   return values.join(', ');
@@ -140,22 +198,32 @@ const contentRows = computed<DetailRow[]>(() => {
   return rows;
 });
 
-const noteRows = computed<DetailRow[]>(() => {
-  const rows: DetailRow[] = [];
-  const comment = props.book.comment?.trim();
+const noteRows = computed<NoteRow[]>(() => {
+  const rows: NoteRow[] = [];
+  const description = renderDescription(props.book.comment);
   const importNotes = props.currentSource?.comment?.trim();
 
-  if (comment) {
-    rows.push({ label: t('bookDetail.fields.comment'), value: comment });
+  // A description earns a row when it amounts to words. Markup with no text in
+  // it - `<br>`, an empty `<p>`, an image on its own - survives sanitizing as
+  // an empty block, which is a labelled row with nothing under it.
+  if (description.text) {
+    rows.push({
+      label: t('bookDetail.fields.comment'),
+      render: 'html',
+      html: description.html
+    });
   }
   if (importNotes) {
-    rows.push({ label: t('bookDetail.fields.importNotes'), value: importNotes });
+    rows.push({ label: t('bookDetail.fields.importNotes'), render: 'text', value: importNotes });
   }
   return rows;
 });
 
 const hasDetailSections = computed(() =>
-  publicationRows.value.length > 0 || contentRows.value.length > 0 || noteRows.value.length > 0
+  chapters.value.length > 0 ||
+  publicationRows.value.length > 0 ||
+  contentRows.value.length > 0 ||
+  noteRows.value.length > 0
 );
 </script>
 
@@ -281,8 +349,72 @@ const hasDetailSections = computed(() =>
   margin: 0 0 12px;
 }
 
-.detail-card-notes {
+.detail-card-notes,
+.detail-card-chapters {
   grid-column: 1 / -1;
+}
+
+.chapter-list {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.chapter-item {
+  align-items: baseline;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  color: #334152;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  gap: 9px;
+  padding: 7px 8px;
+  text-align: left;
+  width: 100%;
+}
+
+.chapter-item:hover,
+.chapter-item:focus-visible {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.chapter-item-index {
+  color: #788391;
+  flex: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  min-width: 2ch;
+  text-align: right;
+}
+
+.chapter-item-title {
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.chapter-toggle {
+  background: none;
+  border: 0;
+  color: #556273;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  justify-self: start;
+  margin-top: 10px;
+  padding: 6px 8px;
+}
+
+.chapter-toggle:hover,
+.chapter-toggle:focus-visible {
+  color: #283544;
 }
 
 .detail-definition-list {
@@ -392,7 +524,8 @@ const hasDetailSections = computed(() =>
     grid-template-columns: 1fr;
   }
 
-  .detail-card-notes {
+  .detail-card-notes,
+  .detail-card-chapters {
     grid-column: auto;
   }
 }
@@ -402,10 +535,12 @@ const hasDetailSections = computed(() =>
     text-align: center;
   }
 
-  .detail-heading :deep(.layer-breadcrumb),
+  .detail-heading :deep(.folder-breadcrumb),
   .summary-signals,
   .quick-facts {
     justify-content: center;
   }
 }
 </style>
+
+<style scoped src="@/styles/description.css"></style>

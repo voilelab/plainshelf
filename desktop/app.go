@@ -10,10 +10,14 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/internal/readingprogress"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/internal/version"
 	"github.com/voilelab/plainshelf/server"
@@ -29,6 +33,7 @@ type DesktopApp struct {
 	readHistoryPath     string
 	readingProgressPath string
 	readingStatsPath    string
+	readingProgressSync *readingprogress.Store
 	startupErr          error
 }
 
@@ -187,13 +192,135 @@ func (a *DesktopApp) WriteReadHistory(doc string) error {
 
 // ReadReadingProgress returns the stored reading-progress document, or an empty
 // string when this device has not stored one yet.
+//
+// The standalone reader writes progress into the same file under its own
+// synthetic shelf id ("book"). Before handing the document to the desktop
+// frontend, any such reader progress is projected onto the real shelves it
+// belongs to (by stable book id, taking the max) so the library reflects it.
+// This is the projection trigger: it runs whenever the desktop reads progress —
+// which is what a returning-from-the-reader user causes — and is cheap when
+// there is no reader progress to fold (the common case): no lock, no write.
 func (a *DesktopApp) ReadReadingProgress() (string, error) {
-	return readDeviceDocument(a.readingProgressPath)
+	if a.readingProgressSync == nil || a.readerNamespaceIsRealShelf() {
+		return readDeviceDocument(a.readingProgressPath)
+	}
+	return projectStoredReaderProgress(a.readingProgressSync, a.resolveBookShelf)
 }
 
-// WriteReadingProgress replaces the stored reading-progress document.
+// projectStoredReaderProgress folds any standalone-reader progress in store onto
+// the real shelves resolve reports, and returns the document text to hand the
+// frontend. It is cheap when there is no reader progress to fold — the common
+// case — taking no lock and writing nothing; only genuinely new reader progress
+// triggers a locked read-modify-write.
+func projectStoredReaderProgress(store *readingprogress.Store, resolve readingprogress.ResolveShelf) (string, error) {
+	doc, raw, err := store.Read()
+	if err != nil {
+		return "", err
+	}
+	if len(doc.Shelves[readingprogress.ReaderShelfID]) == 0 {
+		return raw, nil
+	}
+
+	projected := readingprogress.Project(doc, readingprogress.ReaderShelfID, resolve)
+	projectedText, err := readingprogress.Serialize(projected)
+	if err != nil {
+		return raw, nil //nolint:nilerr // convenience state: fall back to the stored view
+	}
+	currentText, err := readingprogress.Serialize(doc)
+	if err != nil || projectedText == currentText {
+		return raw, nil //nolint:nilerr // nothing new to fold in
+	}
+
+	// There is new reader progress to persist. Fold it in under the store's lock
+	// (re-reading fresh, so a concurrent reader write is not lost). Best-effort:
+	// still return the projected view if the write fails.
+	final, err := store.Mutate(func(disk readingprogress.Document) readingprogress.Document {
+		return readingprogress.Project(disk, readingprogress.ReaderShelfID, resolve)
+	})
+	if err != nil {
+		log.Println("failed to persist projected reading progress:", err)
+		return projectedText, nil
+	}
+	finalText, err := readingprogress.Serialize(final)
+	if err != nil {
+		return projectedText, nil //nolint:nilerr // convenience state: return the projected view
+	}
+	return finalText, nil
+}
+
+// WriteReadingProgress records the desktop's reading-progress entries. The
+// incoming write is merged newest-wins per book against the on-disk document
+// re-read under the store's lock, so a standalone reader's "book" entries and a
+// desktop-launched reader's real-shelf entries are both preserved unless the
+// desktop's write is more recent — a desktop write never clobbers reader progress
+// by recency, and its own resets (timestamped tombstones) still win.
 func (a *DesktopApp) WriteReadingProgress(doc string) error {
-	return writeDeviceDocument(a.readingProgressPath, "reading progress", doc)
+	if a.readingProgressSync == nil {
+		return writeDeviceDocument(a.readingProgressPath, "reading progress", doc)
+	}
+
+	incoming, err := readingprogress.ParseStrict(doc)
+	if err != nil {
+		return err
+	}
+	_, err = a.readingProgressSync.Mutate(func(disk readingprogress.Document) readingprogress.Document {
+		return readingprogress.MergeNewest(disk, incoming)
+	})
+	return err
+}
+
+// resolveBookShelf reports which real shelf holds the given stable book id.
+//
+// Book ids are only unique within a shelf, so a copied or legacy package can
+// carry the same id in more than one shelf. It therefore scans every shelf and
+// resolves the book only when exactly one holds it — an ambiguous id is left
+// unresolved rather than projected onto whichever shelf happened to come first
+// in the map-ordered scan. A shelf that is still initializing (or otherwise
+// errors) is treated as "not here": the book stays under the reader's namespace
+// and a later read re-attempts the projection once the shelf is ready.
+func (a *DesktopApp) resolveBookShelf(bookID string) (string, bool) {
+	if a.app == nil {
+		return "", false
+	}
+	manager := a.app.ShelfManager()
+	if manager == nil {
+		return "", false
+	}
+	match := ""
+	for _, shelfData := range manager.GetAllShelves() {
+		if _, err := shelfData.GetBook(bookID); err == nil {
+			if match != "" {
+				return "", false // ambiguous: more than one shelf holds this id
+			}
+			match = shelfData.ID
+		}
+	}
+	if match == "" {
+		return "", false
+	}
+	return match, true
+}
+
+// readerNamespaceIsRealShelf reports whether a real shelf uses the same id the
+// standalone reader stores progress under. In that degenerate configuration the
+// "book" namespace belongs to a real shelf, so reader projection is disabled and
+// the desktop treats the document as entirely its own — the real shelf must not
+// be blocked from saving its own progress. New shelves cannot take this id (see
+// generateDesktopShelfID); this guards a config that predates that rule.
+func (a *DesktopApp) readerNamespaceIsRealShelf() bool {
+	if a.app == nil {
+		return false
+	}
+	manager := a.app.ShelfManager()
+	if manager == nil {
+		return false
+	}
+	for _, shelfData := range manager.GetAllShelves() {
+		if shelfData.ID == readingprogress.ReaderShelfID {
+			return true
+		}
+	}
+	return false
 }
 
 // ReadReadingStats returns the stored reading-stats document, or an empty
@@ -316,9 +443,9 @@ func normalizeSelectedLocalPaths(paths []string) []string {
 	return localPaths
 }
 
-func normalizeLayerParts(layerParts []string) shelf.Layers {
-	normalizedParts := make(shelf.Layers, 0, len(layerParts))
-	for _, part := range layerParts {
+func normalizeFolderParts(folderParts []string) shelf.FolderPath {
+	normalizedParts := make(shelf.FolderPath, 0, len(folderParts))
+	for _, part := range folderParts {
 		trimmed := strings.TrimSpace(part)
 		if trimmed == "" {
 			continue
@@ -328,30 +455,25 @@ func normalizeLayerParts(layerParts []string) shelf.Layers {
 	return normalizedParts
 }
 
-func (a *DesktopApp) ImportBooksFromLocalPaths(shelfID string, localPaths []string, layerParts []string) ([]DesktopImportBookResult, error) {
+// ImportBookFromLocalPath imports one book the desktop client picked from disk
+// and reports the outcome as a single result. The frontend calls it once per
+// selected file so it can drive the same N/M progress and file-boundary abort
+// the web upload path uses; a per-file import failure is reported through the
+// result's Error field, not a Go error, so one bad file does not abort the batch
+// the frontend is stepping through.
+func (a *DesktopApp) ImportBookFromLocalPath(shelfID string, localPath string, folderParts []string) (DesktopImportBookResult, error) {
 	if a.app == nil {
-		return nil, util.NewError("desktop backend app instance is nil")
+		return DesktopImportBookResult{}, util.NewError("desktop backend app instance is nil")
 	}
 
-	normalizedPaths := normalizeSelectedLocalPaths(localPaths)
-	if len(normalizedPaths) == 0 {
-		return []DesktopImportBookResult{}, nil
+	result := DesktopImportBookResult{Path: localPath}
+	book, err := a.app.ImportFromLocalPath(shelfID, localPath, normalizeFolderParts(folderParts))
+	if err != nil {
+		result.Error = err.Error()
+		return result, nil
 	}
-
-	normalizedLayerParts := normalizeLayerParts(layerParts)
-	results := make([]DesktopImportBookResult, 0, len(normalizedPaths))
-	for _, localPath := range normalizedPaths {
-		book, err := a.app.ImportFromLocalPath(shelfID, localPath, normalizedLayerParts)
-		result := DesktopImportBookResult{Path: localPath}
-		if err != nil {
-			result.Error = err.Error()
-		} else {
-			result.ID = book.ID()
-		}
-		results = append(results, result)
-	}
-
-	return results, nil
+	result.ID = book.ID()
+	return result, nil
 }
 
 func (a *DesktopApp) navigateHistory(step int) {
@@ -393,28 +515,28 @@ func (a *DesktopApp) OpenShelfDirectory() (string, error) {
 	return dir, nil
 }
 
-func resolveDesktopLayerDirectory(libRoot string, layerParts []string) (string, error) {
+func resolveDesktopFolderPath(libRoot string, folderParts []string) (string, error) {
 	normalizedRoot, err := normalizeDesktopShelfDirectory(libRoot)
 	if err != nil {
 		return "", util.Errorf("%w", err)
 	}
 
 	booksRoot := filepath.Clean(filepath.Join(normalizedRoot, "books"))
-	targetPathParts := append([]string{booksRoot}, layerParts...)
+	targetPathParts := append([]string{booksRoot}, folderParts...)
 	targetDir := filepath.Clean(filepath.Join(targetPathParts...))
 
 	relPath, err := filepath.Rel(booksRoot, targetDir)
 	if err != nil {
-		return "", util.Errorf("resolving layer directory: %w", err)
+		return "", util.Errorf("resolving folder directory: %w", err)
 	}
 	if relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
-		return "", util.Errorf("invalid layer path")
+		return "", util.Errorf("invalid folder path")
 	}
 
 	return targetDir, nil
 }
 
-func (a *DesktopApp) OpenLayerDirectory(shelfID string, layerParts []string) error {
+func (a *DesktopApp) OpenFolderDirectory(shelfID string, folderParts []string) error {
 	shelfID = strings.TrimSpace(shelfID)
 	if shelfID == "" {
 		return util.Errorf("shelf ID cannot be empty")
@@ -436,20 +558,20 @@ func (a *DesktopApp) OpenLayerDirectory(shelfID string, layerParts []string) err
 		return util.Errorf("shelf with ID %q not found", shelfID)
 	}
 
-	// normalizeLayerParts trims user-provided segments and drops empty entries;
-	// resolveDesktopLayerDirectory then enforces that the final path stays under
+	// normalizeFolderParts trims user-provided segments and drops empty entries;
+	// resolveDesktopFolderPath then enforces that the final path stays under
 	// <shelf>/books.
-	targetDir, err := resolveDesktopLayerDirectory(libRoot, normalizeLayerParts(layerParts))
+	targetDir, err := resolveDesktopFolderPath(libRoot, normalizeFolderParts(folderParts))
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
 	info, err := os.Stat(targetDir)
 	if err != nil {
-		return util.Errorf("layer directory unavailable: %w", err)
+		return util.Errorf("folder directory unavailable: %w", err)
 	}
 	if !info.IsDir() {
-		return util.Errorf("layer path is not a directory")
+		return util.Errorf("folder path is not a directory")
 	}
 
 	if err := openFinder(targetDir); err != nil {
@@ -459,19 +581,22 @@ func (a *DesktopApp) OpenLayerDirectory(shelfID string, layerParts []string) err
 	return nil
 }
 
-func (a *DesktopApp) OpenBookDirectory(shelfID, bookID string) error {
+// resolveBookPackagePath returns the absolute path of a book's .bookpkg
+// directory, verified to exist and stay within its shelf. It is shared by
+// "reveal in Finder" and "open in the standalone reader".
+func (a *DesktopApp) resolveBookPackagePath(shelfID, bookID string) (string, error) {
 	if a.app == nil {
-		return util.NewError("desktop backend app instance is nil")
+		return "", util.NewError("desktop backend app instance is nil")
 	}
 
 	shelfID = strings.TrimSpace(shelfID)
 	if shelfID == "" {
-		return util.Errorf("shelf ID cannot be empty")
+		return "", util.Errorf("shelf ID cannot be empty")
 	}
 
 	conf, err := loadDesktopShelves(a.shelvesConfigPath)
 	if err != nil {
-		return util.Errorf("loading shelf config: %w", err)
+		return "", util.Errorf("loading shelf config: %w", err)
 	}
 
 	var libRoot string
@@ -482,34 +607,43 @@ func (a *DesktopApp) OpenBookDirectory(shelfID, bookID string) error {
 		}
 	}
 	if libRoot == "" {
-		return util.Errorf("shelf with ID %q not found", shelfID)
+		return "", util.Errorf("shelf with ID %q not found", shelfID)
 	}
 
 	relativeBookPath, err := a.app.GetBookFolderPath(shelfID, bookID)
 	if err != nil {
-		return util.Errorf("resolving book directory: %w", err)
+		return "", util.Errorf("resolving book directory: %w", err)
 	}
 
 	normalizedRoot, err := normalizeDesktopShelfDirectory(libRoot)
 	if err != nil {
-		return util.Errorf("%w", err)
+		return "", util.Errorf("%w", err)
 	}
 	targetDir := filepath.Clean(filepath.Join(normalizedRoot, filepath.FromSlash(relativeBookPath)))
 
 	relPath, err := filepath.Rel(normalizedRoot, targetDir)
 	if err != nil {
-		return util.Errorf("resolving book directory: %w", err)
+		return "", util.Errorf("resolving book directory: %w", err)
 	}
 	if relPath == ".." || strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
-		return util.Errorf("invalid book path")
+		return "", util.Errorf("invalid book path")
 	}
 
 	info, err := os.Stat(targetDir)
 	if err != nil {
-		return util.Errorf("book directory unavailable: %w", err)
+		return "", util.Errorf("book directory unavailable: %w", err)
 	}
 	if !info.IsDir() {
-		return util.Errorf("book path is not a directory")
+		return "", util.Errorf("book path is not a directory")
+	}
+
+	return targetDir, nil
+}
+
+func (a *DesktopApp) OpenBookDirectory(shelfID, bookID string) error {
+	targetDir, err := a.resolveBookPackagePath(shelfID, bookID)
+	if err != nil {
+		return err
 	}
 
 	if err := openFinder(targetDir); err != nil {
@@ -517,6 +651,80 @@ func (a *DesktopApp) OpenBookDirectory(shelfID, bookID string) error {
 	}
 
 	return nil
+}
+
+// readerUnsupportedPlatformCode is a stable token embedded in the OpenReader
+// error returned on non-macOS platforms, where no standalone reader binary
+// exists at all. The frontend matches this token to tell that case apart from a
+// genuine macOS launch failure (reader not installed, or the launch itself
+// failed) and word its in-app fallback notice accordingly. It survives the
+// util.NewError function-name prefix, so a substring match stays reliable. Keep
+// in sync with READER_UNSUPPORTED_PLATFORM_CODE in frontend/src/api/desktop.ts.
+const readerUnsupportedPlatformCode = "reader_unsupported_platform"
+
+// OpenReader launches the standalone PlainShelfReader in its own window, showing
+// the given book. It is the desktop's reading path: the frontend routes the read
+// action here on desktop instead of opening the in-app reader.
+//
+// The reader is a separate macOS app (installed via the Homebrew cask, bundle id
+// com.voilelab.plainshelf-reader); it reads the .bookpkg directory directly and
+// persists progress into the shared reading_progress.json this app also uses, so
+// the position shows up in this library. macOS-only for now — there is no reader
+// binary on other platforms.
+//
+// section is the reader section index to open at, or negative to open at the
+// book's restored progress. The frontend passes the chapter it was launched from
+// (a chapter "read" action) so the standalone reader lands on that chapter.
+func (a *DesktopApp) OpenReader(shelfID, bookID string, section int) error {
+	targetDir, err := a.resolveBookPackagePath(shelfID, bookID)
+	if err != nil {
+		return err
+	}
+
+	if runtime.GOOS != "darwin" {
+		return util.NewError(readerUnsupportedPlatformCode + ": opening the standalone reader is only supported on macOS")
+	}
+
+	name, args := readerLaunchCommand(targetDir, shelfID, section)
+	if err := exec.Command(name, args...).Run(); err != nil {
+		return util.Errorf("launching PlainShelfReader: %w", err)
+	}
+	return nil
+}
+
+// readerLaunchCommand builds the macOS command that opens the standalone reader
+// at bookPath. It launches the app by name so LaunchServices finds the installed
+// PlainShelfReader.app and gives it its own window; PLAINSHELF_READER_APP
+// overrides the app (a path or name) for development against a local build.
+//
+// -shelf passes the book's real shelf id so the reader reports it as the active
+// shelf and reads/writes progress under shelves.<shelfID>.<bookID> — the same key
+// the desktop library uses — instead of the reader's synthetic shelf. It is
+// omitted when shelfID is empty so a launch with no real shelf still falls back
+// to the synthetic one.
+//
+// -section passes the reader section index to open at, so a chapter "read" action
+// lands the standalone reader on that chapter rather than the restored progress.
+// It is omitted when section is negative (no chapter requested), which opens the
+// book at its restored progress like a default read.
+//
+// -n forces a new instance: the reader takes its book only from its startup
+// arguments and shows a single book, so without it a second launch while a
+// reader is already open would merely reactivate the first window (still showing
+// the first book) and report success, so the frontend would not fall back.
+func readerLaunchCommand(bookPath, shelfID string, section int) (string, []string) {
+	app := strings.TrimSpace(os.Getenv("PLAINSHELF_READER_APP"))
+	if app == "" {
+		app = "PlainShelfReader"
+	}
+	readerArgs := []string{"-book", bookPath}
+	if shelfID = strings.TrimSpace(shelfID); shelfID != "" {
+		readerArgs = append(readerArgs, "-shelf", shelfID)
+	}
+	if section >= 0 {
+		readerArgs = append(readerArgs, "-section", strconv.Itoa(section))
+	}
+	return "open", append([]string{"-n", "-a", app, "--args"}, readerArgs...)
 }
 
 func (a *DesktopApp) AddShelf(name, libRoot, scanInterval string) error {
@@ -751,6 +959,7 @@ func (a *DesktopApp) startServer() error {
 	a.readHistoryPath = filepath.Join(dataRoot, "read_history.json")
 	a.readingProgressPath = filepath.Join(dataRoot, "reading_progress.json")
 	a.readingStatsPath = filepath.Join(dataRoot, "reading_stats.json")
+	a.readingProgressSync = readingprogress.NewStore(a.readingProgressPath)
 	a.app = app
 	return nil
 }

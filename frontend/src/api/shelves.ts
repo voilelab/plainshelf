@@ -1,40 +1,11 @@
 import { buildShelfApiPath, fetchJson, getActiveShelfID, isMockApiMode, setActiveShelfID } from './client';
-import {
-  getActiveShelfEntry,
-  shelfEntryDisplayName,
-  shelfEntryTarget
-} from '@/providers/mobileConfig';
+import { mockListBooks } from './mocks/books';
+import { getMockFolders } from './mocks/folders';
+import { getShell } from '@/providers/shell';
 
 export interface ShelfInfo {
   id: string;
   name: string;
-}
-
-/**
- * The one shelf the mobile shell is pointed at, or null off the mobile shell.
- *
- * The device keeps its own list of shelves — several servers and pCloud folders
- * side by side — and exactly one of them is active. There is nothing here for a
- * server to enumerate: the other entries are not shelves *of this shelf's*
- * server, and a pCloud entry is a folder the user named. So the app-wide shelf
- * list collapses to the active entry, synthesized from it.
- *
- * Keeping the `{id, name}` shape means the sidebar picker, the active-shelf
- * gate in the layouts and the library's shelf watcher all work unchanged. The
- * id is whatever mobileConfig set as the active shelf id — the server's shelf
- * id, or the pCloud folder path — so the device-local cache scope agrees.
- */
-export function activeMobileShelfInfo(): ShelfInfo | null {
-  const entry = getActiveShelfEntry();
-  if (!entry) {
-    return null;
-  }
-
-  const { shelfID } = shelfEntryTarget(entry);
-  if (!shelfID) {
-    return null;
-  }
-  return { id: shelfID, name: shelfEntryDisplayName(entry) };
 }
 
 const mockShelves: ShelfInfo[] = [
@@ -81,19 +52,76 @@ export async function listShelves(): Promise<ShelfInfo[]> {
   // Short-circuited here rather than at each call site so every consumer — the
   // shelves store, the reader layout, the sidebar — gets it for free and none
   // of them issues a request that has no server to answer it.
-  const mobileShelf = activeMobileShelfInfo();
-  if (mobileShelf) {
-    return [mobileShelf];
+  const shellShelf = getShell()?.activeShelfInfo?.();
+  if (shellShelf) {
+    return [shellShelf];
   }
 
   return listServerShelves();
 }
 
-export async function getShelfStatus(shelfID?: string): Promise<{ ready: boolean }> {
-  if (isMockApiMode()) {
-    return { ready: true };
+// A full walk of a shelf can take minutes on an SMB or cloud mount, which is
+// exactly where this button is most needed, so it gets the streaming timeout
+// rather than the metadata one.
+const SCAN_TIMEOUT_MS = 300_000;
+
+/**
+ * What one shelf rescan found.
+ */
+export interface ShelfScanResult {
+  bookCount: number;
+  folderCount: number;
+}
+
+/**
+ * Thrown when the shelf is already being rescanned, so this request was refused
+ * rather than started alongside it. `scanID` names the walk already running.
+ */
+export class ShelfScanInProgressError extends Error {
+  readonly scanID: string;
+
+  constructor(scanID: string) {
+    super('A rescan of this shelf is already running.');
+    this.name = 'ShelfScanInProgressError';
+    this.scanID = scanID;
   }
-  return fetchJson<{ ready: boolean }>(buildShelfApiPath('/status', shelfID));
+}
+
+/**
+ * Walks the shelf now and rebuilds the server's book cache, reporting what it
+ * found.
+ *
+ * This is the answer to "I put a book in the folder and it is not there": the
+ * server discovers external changes on its own only every `scan_interval`, and
+ * on an SMB or cloud-mounted shelf there is no change notification that could
+ * make it sooner.
+ *
+ * A POST that writes nothing, which is why it is marked `readOnlySafe` — a
+ * read-only server accepts it, and so does the mobile shell.
+ */
+export async function rescanShelf(shelfID?: string): Promise<ShelfScanResult> {
+  if (isMockApiMode()) {
+    // Reports the fixture set, so the button says the same thing the grid
+    // beside it shows rather than "found nothing".
+    return { bookCount: mockListBooks(1, Number.MAX_SAFE_INTEGER).total, folderCount: getMockFolders().length };
+  }
+
+  const res = await fetchJson<{ scan_id?: string; book_count?: number; folder_count?: number }>(
+    buildShelfApiPath('/scans', shelfID),
+    { method: 'POST' },
+    { readOnlySafe: true, acceptStatuses: [409], timeoutMs: SCAN_TIMEOUT_MS }
+  );
+
+  // The 409 body carries only the running walk's ID; the counts are absent
+  // because they belong to a walk this request did not perform.
+  if (res?.book_count === undefined) {
+    throw new ShelfScanInProgressError(res?.scan_id ?? '');
+  }
+
+  return {
+    bookCount: res.book_count,
+    folderCount: typeof res.folder_count === 'number' ? res.folder_count : 0
+  };
 }
 
 /**

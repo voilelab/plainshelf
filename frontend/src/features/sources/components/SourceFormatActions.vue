@@ -1,28 +1,26 @@
 <template>
   <div class="source-format-actions">
-    <span class="format-badge" :class="{ legacy }">{{ legacy ? 'Legacy' : format.toUpperCase() }}</span>
-    <template v-if="legacy">
-      <button class="button" type="button" :disabled="disabled" @click="emit('convert', 'legacy-upgrade')">Upgrade chapter format</button>
-      <span class="meta">Creates a new Markdown source from the current legacy split result.</span>
-    </template>
-    <template v-else-if="format === 'txt'">
-      <button class="button" type="button" :disabled="disabled" @click="emit('convert', 'manual-md')">Manual TXT → MD</button>
-      <button class="button" type="button" :disabled="disabled" @click="emit('convert', 'regex-md')">Regex → MD</button>
-      <button class="button" type="button" :disabled="disabled" @click="emit('convert', 'line-count-md')">Fixed lines → MD</button>
+    <span class="format-badge">{{ format.toUpperCase() }}</span>
+    <template v-if="format === 'txt'">
+      <button class="button" type="button" :disabled="disabled" @click="emit('convert', 'manual-md')">{{ t('sources.formatActions.manualMarkdown') }}</button>
+      <button class="button" type="button" :disabled="disabled" @click="emit('convert', 'regex-md')">{{ t('sources.formatActions.regexMarkdown') }}</button>
+      <button class="button" type="button" :disabled="disabled" @click="emit('convert', 'line-count-md')">{{ t('sources.formatActions.lineCountMarkdown') }}</button>
     </template>
     <template v-else>
-      <button class="button" type="button" :disabled="disabled" @click="emit('convert', 'plain-text')">Create plain-text source</button>
-      <span class="meta">Heading hierarchy and chapter navigation will be lost.</span>
+      <button class="button" type="button" :disabled="disabled" @click="emit('convert', 'plain-text')">{{ t('sources.formatActions.plainText') }}</button>
+      <span class="meta">{{ t('sources.formatActions.plainTextHelp') }}</span>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { SourceConversionKind } from '@/features/sources/components/SourceConversionModal.vue';
+import { useI18n } from '@/i18n';
+
+const { t } = useI18n();
 
 defineProps<{
   format: 'txt' | 'md';
-  legacy: boolean;
   disabled: boolean;
 }>();
 
@@ -52,8 +50,4 @@ const emit = defineEmits<{
   color: #075985;
 }
 
-.format-badge.legacy {
-  background: #fef3c7;
-  color: #92400e;
-}
 </style>

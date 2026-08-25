@@ -1,15 +1,11 @@
 package server
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
-	"io/fs"
 	"net/http"
 	"strings"
 
 	"github.com/voilelab/plainshelf/frontend"
-	"github.com/voilelab/plainshelf/internal/epub"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/internal/util"
@@ -17,14 +13,17 @@ import (
 	"github.com/voilelab/plainshelf/shelf"
 )
 
+// App owns the server's resources - the shelves, the store, the worker pool -
+// and starts and stops them. Answering requests belongs to handlers, which
+// App assembles once and then only routes through.
 type App struct {
 	logutil.Logger
+
+	handlers *apiHandlers
 
 	shelfManager *shelf.ShelfManager
 	taskChains   taskutil.Pool
 	storeDB      *store.DB
-	spaFS        fs.FS
-	spaHandler   http.Handler
 
 	// bookCacheWriterID names this installation in the book cache every shelf
 	// exports; see book_cache_writer.go. Held so shelves opened after startup
@@ -33,27 +32,6 @@ type App struct {
 
 	conf     *AppConf
 	security *Security
-}
-
-type WorkerConf struct {
-	Logger logutil.LogConf `yaml:"logger"`
-	MaxLen int             `yaml:"max_len"`
-
-	// MaxKeep bounds how many finished task chains stay queryable through the
-	// task chain API. Zero selects the package default.
-	MaxKeep int `yaml:"max_keep"`
-}
-
-type AppConf struct {
-	Logger             logutil.LogConf          `yaml:"logger"`
-	Shelves            []*shelf.ShelfConfWithID `yaml:"shelves"`
-	Worker             *WorkerConf              `yaml:"worker"`
-	StorePath          string                   `yaml:"store_path"`
-	CoverToJPG         bool                     `yaml:"cover_to_jpg"`
-	DefaultSplitConfig *shelf.SplitConfig       `yaml:"default_split_config"`
-	EPUBImportStrategy *epub.Strategy           `yaml:"epub_import_strategy"`
-	ReadOnly           bool                     `yaml:"read_only"`
-	Security           *SecurityConf            `yaml:"security"`
 }
 
 func NewApp(conf *AppConf) (*App, error) {
@@ -106,11 +84,11 @@ func NewApp(conf *AppConf) (*App, error) {
 		}
 	}()
 
-	for _, conf := range conf.Shelves {
-		shelfConf := *conf
+	for _, shelfEntry := range conf.Shelves {
+		shelfConf := applyAppReadOnly(*shelfEntry, conf.ReadOnly)
 		// An operator who pins the ID in the config keeps it; everyone else gets
 		// this installation's generated one.
-		if shelfConf.BookCacheWriterID == "" {
+		if shelfConf.BookCacheWriterID == "" && !shelfConf.ReadOnly {
 			shelfConf.BookCacheWriterID = writerID
 		}
 		if err := shelfManager.AddShelf(shelfConf); err != nil {
@@ -137,18 +115,22 @@ func NewApp(conf *AppConf) (*App, error) {
 	taskChains := taskutil.NewPool(taskutil.NewWorker(workerConf.MaxLen, workLogger), workerConf.MaxKeep)
 
 	failure = false
-	return &App{
+	app := &App{
 		Logger:       *logger,
 		shelfManager: shelfManager,
 		taskChains:   taskChains,
 		storeDB:      storeDB,
-		spaFS:        frontend.WebFS,
-		spaHandler:   http.FileServerFS(frontend.WebFS),
 		conf:         conf,
 		security:     security,
 
 		bookCacheWriterID: writerID,
-	}, nil
+	}
+
+	// Assembled after App so the handlers share its logger rather than opening
+	// one of their own.
+	app.handlers = newAPIHandlers(&app.Logger, shelfManager, security, storeDB, taskChains, frontend.WebFS, conf)
+
+	return app, nil
 }
 
 func (app *App) Start() error {
@@ -156,16 +138,49 @@ func (app *App) Start() error {
 	return nil
 }
 
+func (app *App) Conf() *AppConf {
+	return app.conf
+}
+
+func (app *App) ShelfManager() *shelf.ShelfManager {
+	return app.shelfManager
+}
+
+func (app *App) TaskChains() taskutil.Pool {
+	return app.taskChains
+}
+
 // AddShelf opens a shelf after startup — the desktop app's "add shelf" flow.
 //
 // The writer ID has to be applied here as well as in NewApp: a shelf added this
 // way otherwise exports nothing until the app is restarted, and its manual
-// export fails.
+// export fails. Read-only mode has to be applied here for the same reason, and
+// it is what withholds the writer ID rather than granting it.
 func (app *App) AddShelf(conf shelf.ShelfConfWithID) error {
-	if conf.BookCacheWriterID == "" {
-		conf.BookCacheWriterID = app.bookCacheWriterID
+	shelfConf := applyAppReadOnly(conf, app.conf.ReadOnly)
+	if shelfConf.BookCacheWriterID == "" && !shelfConf.ReadOnly {
+		shelfConf.BookCacheWriterID = app.bookCacheWriterID
 	}
-	return app.shelfManager.AddShelf(conf)
+	return app.shelfManager.AddShelf(shelfConf)
+}
+
+// applyAppReadOnly carries AppConf.ReadOnly down into the shelf configuration.
+//
+// rejectReadOnlyWrite only turns away requests that ask for a write, which is
+// not the same thing as not writing: a shelf writes on its own account too -
+// it creates its folders, clears app/tmp/, takes the lock file and exports the
+// book cache on a timer, none of which has a request behind it. A server
+// declared read-only that still did all that would be read-only in name only,
+// and its exported cache would additionally prune the files other installations
+// wrote into a shelf they share.
+//
+// The app-wide setting can only add the restriction; a shelf already configured
+// read_only stays read-only on a writable server.
+func applyAppReadOnly(conf shelf.ShelfConfWithID, appReadOnly bool) shelf.ShelfConfWithID {
+	if appReadOnly {
+		conf.ReadOnly = true
+	}
+	return conf
 }
 
 func (app *App) UpdateShelf(id, name, scanInterval string) error {
@@ -189,33 +204,9 @@ func (app *App) Close() error {
 	return nil
 }
 
-func (app *App) Health(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("1"))
-}
-
-// Handle SPA fallback for all non-API GET requests
-func (app *App) HandleSPAFallback(w http.ResponseWriter, r *http.Request) {
-	cleanPath := strings.TrimPrefix(r.URL.Path, "/")
-	if cleanPath == "" || !hasFileExtension(cleanPath) {
-		// SPA fallback: serve index.html for root and all non-file paths
-		data, err := fs.ReadFile(app.spaFS, "index.html")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write(app.injectSecurityBootstrap(data))
-		return
-	}
-
-	app.spaHandler.ServeHTTP(w, r)
-}
-
 func (app *App) Handler() http.Handler {
 	mux := http.NewServeMux()
-	app.Serve(mux)
+	app.handlers.serve(mux)
 
 	loggerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		app.Info("app handler", "method", r.Method, "path", r.URL.Path, "remote_addr", r.RemoteAddr)
@@ -228,6 +219,18 @@ func (app *App) Handler() http.Handler {
 	return app.security.Middleware(loggerHandler)
 }
 
+// ImportFromLocalPath imports a book the desktop client picked from disk,
+// without going through an upload.
+func (app *App) ImportFromLocalPath(shelfID string, localPath string, folderParts shelf.FolderPath) (*shelf.Book, error) {
+	return app.handlers.imports.fromLocalPath(shelfID, localPath, folderParts)
+}
+
+// GetBookFolderPath locates a book on disk for the desktop client's "show in
+// file manager" action.
+func (app *App) GetBookFolderPath(shelfID, bookID string) (string, error) {
+	return app.handlers.books.folderPath(shelfID, bookID)
+}
+
 func (app *App) SecurityToken() string {
 	return app.security.Token()
 }
@@ -236,135 +239,48 @@ func (app *App) SecurityTokenHeader() string {
 	return app.security.TokenHeader()
 }
 
-func (app *App) injectSecurityBootstrap(data []byte) []byte {
-	if app.security == nil || !app.security.IsEnabled() || app.security.Token() == "" {
-		return data
-	}
-	token, err := json.Marshal(app.security.Token())
-	if err != nil {
-		return data
-	}
-	header, err := json.Marshal(app.security.TokenHeader())
-	if err != nil {
-		return data
-	}
-	bootstrap := []byte(`<script>window.__PLAINSHELF_SECURITY__={token:` + string(token) + `,tokenHeader:` + string(header) + `};</script>`)
-	marker := []byte("</head>")
-	if idx := bytes.Index(data, marker); idx >= 0 {
-		out := make([]byte, 0, len(data)+len(bootstrap))
-		out = append(out, data[:idx]...)
-		out = append(out, bootstrap...)
-		out = append(out, data[idx:]...)
-		return out
-	}
-	return append(bootstrap, data...)
-}
-
-func (app *App) Serve(mux *http.ServeMux) {
-	mux.HandleFunc("GET /health", app.Health)
-
-	// Shelf API
-
-	mux.HandleFunc("GET /api/mode", app.HandleGetMode)
-	mux.HandleFunc("GET /api/version", app.HandleGetVersion)
-	mux.HandleFunc("GET /api/shelves", app.HandleGetShelves)
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/status", app.HandleAPIGetShelfStatus)
-
-	// Book API
-
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books", app.HandleAPIGetBooks)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/books", app.HandleAPICreateBook)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/book-batches", app.HandleAPIBookBatch)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/content-stat-refreshes", app.HandleAPIRefreshContentStats)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/book-cache-exports", app.HandleAPIExportBookCache)
-
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/import", app.HandleAPIImportBook)
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/duplicate", app.HandleAPIFindDuplicateBooks)
-
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPIGetBook)
-	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPIUpdateBook)
-	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}", app.HandleAPITrashBook)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/trash", app.HandleAPITrashBook)
-
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources", app.HandleAPIGetBookSources)
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}", app.HandleAPIGetBookSource)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/sources", app.HandleAPICreateBookSource)
-	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}", app.HandleAPIDeleteBookSource)
-	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/current", app.HandleAPISetCurrentBookSource)
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", app.HandleAPIGetBookSourceContent)
-	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", app.HandleAPIUpdateBookSourceContent)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/refresh", app.HandleAPIRefreshBookSourceMeta)
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}", app.HandleAPIGetBookSourceAsset)
-	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}", app.HandleAPIUpdateBookSourceAsset)
-	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/assets/{asset_name}", app.HandleAPIDeleteBookSourceAsset)
-
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/cover", app.HandleAPIGetBookCover)
-	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/cover", app.HandleAPIUpdateBookCover)
-	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/cover", app.HandleAPIDeleteBookCover)
-
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/content", app.HandleAPIGetBookContent)
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/split_config", app.HandleAPIGetBookSplitConfig)
-	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}/split_config", app.HandleAPIUpdateBookSplitConfig)
-
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/trash/books", app.HandleAPIGetTrashedBooks)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/trash/empty", app.HandleAPIEmptyTrash)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/trash/books/{book_id}/restore", app.HandleAPIRestoreTrashedBook)
-	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/trash/books/{book_id}", app.HandleAPIDeleteTrashedBook)
-
-	mux.HandleFunc("GET /api/shelves/{shelf_id}/layers", app.HandleAPIGetLayers)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/layer-moves", app.HandleAPIMoveLayer)
-	mux.HandleFunc("POST /api/shelves/{shelf_id}/layers/{layer_path...}", app.HandleAPICreateLayer)
-	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/layers/{layer_path...}", app.HandleAPIRenameLayer)
-	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/layers/{layer_path...}", app.HandleAPIDeleteLayer)
-
-	// Task API
-
-	mux.HandleFunc("GET /api/taskchains/{taskchain_id}", app.HandleAPIGetTaskChain)
-
-	// Log API
-
-	mux.HandleFunc("GET /api/logs", app.HandleAPIGetLogs)
-	mux.HandleFunc("GET /api/logs/{log_id}/content", app.HandleAPIGetLogContent)
-
-	// Setting API
-
-	mux.HandleFunc("GET /api/setting/cover_to_jpg", app.HandleGetSettingCoverToJPG)
-	mux.HandleFunc("POST /api/setting/cover_to_jpg", app.HandleSetSettingCoverToJPG)
-	mux.HandleFunc("DELETE /api/setting/cover_to_jpg", app.HandleDeleteSettingCoverToJPG)
-	mux.HandleFunc("GET /api/setting/default_split_config", app.HandleGetSettingDefaultSplitConfig)
-	mux.HandleFunc("POST /api/setting/default_split_config", app.HandleSetSettingDefaultSplitConfig)
-	mux.HandleFunc("DELETE /api/setting/default_split_config", app.HandleDeleteSettingDefaultSplitConfig)
-	mux.HandleFunc("GET /api/setting/epub_import_strategy", app.HandleGetSettingEPUBImportStrategy)
-	mux.HandleFunc("POST /api/setting/epub_import_strategy", app.HandleSetSettingEPUBImportStrategy)
-	mux.HandleFunc("DELETE /api/setting/epub_import_strategy", app.HandleDeleteSettingEPUBImportStrategy)
-
-	// Unknown API paths must not fall through to the SPA index.
-	mux.HandleFunc("GET /api/{path...}", http.NotFound)
-
-	mux.HandleFunc("GET /{path...}", app.HandleSPAFallback)
-}
-
-func hasFileExtension(path string) bool {
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '/' {
-			return false
-		}
-		if path[i] == '.' {
-			return true
-		}
-	}
-	return false
-}
-
 func (app *App) rejectReadOnlyWrite(w http.ResponseWriter, r *http.Request) bool {
 	if app == nil || app.conf == nil || !app.conf.ReadOnly {
 		return false
 	}
 
-	if !isMutatingMethod(r.Method) {
+	if !IsMutatingMethod(r.Method) {
+		return false
+	}
+
+	if isReadOnlySafeRequest(r) {
 		return false
 	}
 
 	http.Error(w, "server is in read-only mode", http.StatusForbidden)
 	return true
+}
+
+// isReadOnlySafeRequest reports a POST that writes nothing to the shelf, so
+// read-only mode has no reason to refuse it.
+//
+// The rescan endpoint is the only one: it walks the shelf and rebuilds the
+// in-memory cache, which is what a read does. Keeping it to a named exception
+// rather than a general "reads may POST" rule is deliberate — the gate stays a
+// method test that one route opts out of, so adding a second one has to be
+// written down here.
+//
+// The token gate is not affected. This runs after it, and a rescan still costs
+// the server real work, so it stays behind the same local_token boundary as
+// every other POST.
+func isReadOnlySafeRequest(r *http.Request) bool {
+	return r.Method == http.MethodPost && isShelfScanPath(r.URL.Path)
+}
+
+// isShelfScanPath matches /api/shelves/{shelf_id}/scans. The gate runs before
+// routing, so the pattern the mux will apply is not available here and the path
+// is taken apart by hand.
+func isShelfScanPath(urlPath string) bool {
+	rest, ok := strings.CutPrefix(urlPath, "/api/shelves/")
+	if !ok {
+		return false
+	}
+
+	shelfID, tail, ok := strings.Cut(rest, "/")
+	return ok && shelfID != "" && tail == "scans"
 }

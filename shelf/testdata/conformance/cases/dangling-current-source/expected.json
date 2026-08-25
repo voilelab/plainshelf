@@ -1,0 +1,38 @@
+{
+  "folders": [
+    "/"
+  ],
+  "books": [
+    {
+      "path": "books/atlas.bookpkg",
+      "folders": [],
+      "id": "z2p8mk4c7vqx3nrs",
+      "title": "Atlas",
+      "format": "txt",
+      "authors": [],
+      "tags": [],
+      "star": 0,
+      "cover": "cover.png",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "current_source_field": "20260101-000000",
+      "current_source": "20260316-090000",
+      "sources": [
+        {
+          "id": "20260315-101500",
+          "has_content": true,
+          "char_count": 15,
+          "assets": []
+        },
+        {
+          "id": "20260316-090000",
+          "has_content": true,
+          "char_count": 16,
+          "assets": []
+        }
+      ]
+    }
+  ],
+  "book_caches": []
+}

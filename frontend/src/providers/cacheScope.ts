@@ -5,12 +5,13 @@ import { shelfEntryTarget, type ShelfEntry } from '@/providers/mobileConfig';
 /**
  * Identifies the (server, shelf) pair that device-local book data belongs to.
  *
- * A book id is only unique *within one shelf*: the server seeds it from
- * md5(layers + "-" + title) and only probes for collisions inside that shelf, so
- * two shelves — or two servers that both call a shelf `default_shelf` — hand out
- * the same id for different books. Anything the mobile shell keys by book id
- * alone will therefore mix them up, whether it is stored on the filesystem or
- * memoized in RAM.
+ * A book id is only guaranteed unique *within one shelf*: the server hands it
+ * out per shelf and checks for collisions inside that shelf alone. Shelves
+ * written by older servers carry ids derived from md5(folders + "-" + title), so
+ * two shelves — or two servers that both call a shelf `default_shelf` — really
+ * do hand out the same id for different books. Anything the mobile shell keys by
+ * book id alone will therefore mix them up, whether it is stored on the
+ * filesystem or memoized in RAM.
  *
  * Shared by FilesystemMobileBookCache (its on-disk scope directory) and
  * MobileBookshelfProvider (its cover object-URL memo) so both agree on what

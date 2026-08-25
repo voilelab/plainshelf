@@ -15,10 +15,6 @@ vi.mock('@/providers', () => ({
   bookshelfWriter: vi.fn()
 }));
 
-vi.mock('@/api/settings', () => ({
-  getDefaultSplitConfigSetting: vi.fn().mockResolvedValue({ type: 'none' })
-}));
-
 vi.mock('@/composables/useWriteAccess', () => ({
   isLibraryEditingSupported: () => false
 }));
@@ -46,5 +42,55 @@ describe('useReader source consistency', () => {
     expect(reader.currentSourceId.value).toBe('source-1');
     expect(reader.content.value).toBe('## Source one\nBody');
     expect(reader.sections.value.map((section) => section.title)).toEqual(['Source one']);
+  });
+
+  // A shelf edited by hand or by a sync tool can leave current_source naming a
+  // source that is gone. The book-scoped route answers from the newest source
+  // the book still has, so the reader must fall back to it rather than fail.
+  it('falls back to the book content when the current source is gone', async () => {
+    mocks.getSourceContent.mockRejectedValue(new Error('source not found'));
+    mocks.getSource.mockRejectedValue(new Error('source not found'));
+
+    const reader = useReader(() => 'book-1');
+    await reader.fetchReaderData();
+
+    expect(mocks.getBookContent).toHaveBeenCalledWith('book-1');
+    expect(reader.content.value).toBe('content from a different current source');
+    expect(reader.error.value).toBe('');
+  });
+});
+
+describe('useReader section navigation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getBook.mockResolvedValue({ id: 'book-1', title: 'Book', format: 'md', current_source: 'source-1' });
+    mocks.getSource.mockResolvedValue({ id: 'source-1', format: 'md' });
+    mocks.getSourceContent.mockResolvedValue('## One\nBody\n## Two\nMore');
+    mocks.getReadProgress.mockResolvedValue({ char_offset: 0, percent: 0 });
+    mocks.addReadHistory.mockResolvedValue(undefined);
+    mocks.saveReadProgress.mockResolvedValue(undefined);
+  });
+
+  it('opens the requested chapter and its offset', async () => {
+    const reader = useReader(() => 'book-1');
+    await reader.fetchReaderData();
+    await reader.goToSection(1);
+
+    expect(reader.currentSectionIndex.value).toBe(1);
+    expect(reader.progress.value?.char_offset).toBe('## One\nBody\n'.length);
+  });
+
+  // A `?section=` deep link is a URL: it can name a chapter this book does not
+  // have, and the nearest chapter is a better answer than an error page.
+  it('clamps an out-of-range index to the nearest chapter', async () => {
+    const reader = useReader(() => 'book-1');
+    await reader.fetchReaderData();
+
+    await reader.goToSection(99);
+    expect(reader.currentSectionIndex.value).toBe(1);
+
+    await reader.goToSection(-4);
+    expect(reader.currentSectionIndex.value).toBe(0);
+    expect(reader.progress.value?.char_offset).toBe(0);
   });
 });

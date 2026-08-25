@@ -106,7 +106,6 @@ const CANVAS_W = 400;
 const CANVAS_H = 600;
 const JPEG_EXPORT_QUALITY = 0.92;
 
-// Layout spacing constants
 const LAYOUT_PADDING = 36;
 const AUTHOR_LINE_HEIGHT = 28;
 
@@ -158,8 +157,6 @@ const bgStyle = ref<BgStyle>('plain-light');
 const layout = ref<Layout>('centered');
 const saving = ref(false);
 const saveError = ref('');
-
-// ─── Background painters ────────────────────────────────────────────────────
 
 interface BgConfig {
   textColor: string;
@@ -237,8 +234,6 @@ function getBgConfig(ctx: CanvasRenderingContext2D, style: BgStyle): BgConfig {
   }
 }
 
-// ─── Text helpers ────────────────────────────────────────────────────────────
-
 function wrapText(
   ctx: CanvasRenderingContext2D,
   text: string,
@@ -297,8 +292,6 @@ function drawTextBlock(
   }
 }
 
-// ─── Main render ─────────────────────────────────────────────────────────────
-
 function renderCover(): void {
   const canvas = canvasRef.value;
   if (!canvas) return;
@@ -311,7 +304,6 @@ function renderCover(): void {
   const author = authorText.value.trim();
   const cfg = getBgConfig(ctx, bgStyle.value);
 
-  // Paint background
   cfg.paint(ctx);
 
   ctx.textAlign = 'center';
@@ -356,7 +348,6 @@ function renderCover(): void {
     }
 
     case 'large-title': {
-      // Large title centered, author small below
       ctx.font = `bold 44px 'Segoe UI', 'Avenir Next', sans-serif`;
       ctx.fillStyle = cfg.textColor;
       const titleLines = wrapText(ctx, title, maxW);
@@ -385,7 +376,6 @@ function renderCover(): void {
     }
 
     case 'minimal': {
-      // Bottom-left aligned, small text
       ctx.textAlign = 'left';
       const leftPad = 40;
       const botPad = 60;
@@ -418,7 +408,6 @@ function renderCover(): void {
 
     case 'centered':
     default: {
-      // Centered title, author below
       ctx.font = `bold 34px 'Segoe UI', 'Avenir Next', sans-serif`;
       ctx.fillStyle = cfg.textColor;
       const titleLines = wrapText(ctx, title, maxW);
@@ -451,8 +440,6 @@ function renderCover(): void {
   }
 }
 
-// ─── Watchers ────────────────────────────────────────────────────────────────
-
 watch([titleText, authorText, bgStyle, layout], () => {
   void nextTick(renderCover);
 });
@@ -471,8 +458,6 @@ watch(
     renderCover();
   }
 );
-
-// ─── Actions ─────────────────────────────────────────────────────────────────
 
 function onBgStyleSelect(value: AcceptableValue): void {
   if (typeof value === 'string' && bgStyleOptions.value.some((option) => option.value === value)) {

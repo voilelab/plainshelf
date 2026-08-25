@@ -17,12 +17,10 @@
           :is-at-min-font-size="isAtMinFontSize"
           :is-at-max-font-size="isAtMaxFontSize"
           :has-sections="sections.length > 0"
-          :show-split-settings="isLegacySource"
           @decrease-font-size="emit('decreaseFontSize')"
           @increase-font-size="emit('increaseFontSize')"
           @open-font-modal="emit('openFontModal')"
           @open-chapter-modal="emit('openChapterModal')"
-          @open-split-modal="emit('openSplitModal')"
         />
 
         <main class="reader-main">
@@ -56,7 +54,6 @@
               </button>
             </div>
 
-            <p v-if="splitWarning" class="reader-split-warning" role="status">{{ splitWarning }}</p>
             <p v-if="saveError" class="reader-split-warning" role="status">
               {{ t('reader.autosaveFailed') }}
             </p>
@@ -66,7 +63,6 @@
               :source-id="sourceId"
               :book-format="bookFormat"
               :section="currentSection"
-              :show-chapter-title="isLegacySource"
               @scroll="emit('scroll')"
               @ready="emit('readerReady', $event)"
             />
@@ -88,12 +84,10 @@ defineProps<{
   title: string;
   bookFormat: string;
   sourceId: string;
-  isLegacySource: boolean;
   sections: ReaderSection[];
   currentSectionIndex: number;
   currentSection: ReaderSection | null;
   progressPercent: number;
-  splitWarning: string;
   loading: boolean;
   error: string;
   saveError: string;
@@ -111,7 +105,6 @@ const emit = defineEmits<{
   increaseFontSize: [];
   openFontModal: [];
   openChapterModal: [];
-  openSplitModal: [];
 }>();
 
 const { t } = useI18n();

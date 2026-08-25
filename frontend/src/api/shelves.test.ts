@@ -1,8 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { fetchJsonMock, getActiveShelfEntryMock } = vi.hoisted(() => ({
-  fetchJsonMock: vi.fn(),
-  getActiveShelfEntryMock: vi.fn()
+const { fetchJsonMock } = vi.hoisted(() => ({
+  fetchJsonMock: vi.fn()
 }));
 
 vi.mock('./client', async () => {
@@ -13,91 +12,33 @@ vi.mock('./client', async () => {
     getActiveShelfID: () => '',
     setActiveShelfID: vi.fn(),
     isMockApiMode: () => false,
-    // Reached through mobileConfig's shelfEntryTarget, which normalizes the
-    // base the same way the real client does.
     normalizeApiBase: actual.normalizeApiBase
   };
 });
 
-vi.mock('@/providers/mobileConfig', async () => {
-  const actual = await vi.importActual<typeof import('@/providers/mobileConfig')>(
-    '@/providers/mobileConfig'
-  );
-  return {
-    ...actual,
-    getActiveShelfEntry: getActiveShelfEntryMock
-  };
-});
+const { ShelfScanInProgressError, listServerShelves, listShelves, rescanShelf } = await import('./shelves');
+const { registerShell } = await import('@/providers/shell');
 
-const { activeMobileShelfInfo, listServerShelves, listShelves } = await import('./shelves');
-type ShelfEntry = import('@/providers/mobileConfig').ShelfEntry;
-
-function serverEntry(overrides: Record<string, unknown> = {}): ShelfEntry {
-  return {
-    id: 'entry-1',
-    type: 'server',
-    name: '',
-    serverUrl: 'http://host',
-    shelfId: 'main',
-    ...overrides
-  } as ShelfEntry;
+/** Stands in for a shell whose shelf list is device-local. */
+function installShelfProvidingShell(shelf: { id: string; name: string } | null): void {
+  registerShell({
+    createProvider: () => {
+      throw new Error('not used by these tests');
+    },
+    activeShelfInfo: () => shelf
+  });
 }
 
-function pcloudEntry(overrides: Record<string, unknown> = {}): ShelfEntry {
-  return {
-    id: 'entry-2',
-    type: 'pcloud',
-    name: '',
-    pcloudClientId: '',
-    pcloudHost: 'api.pcloud.com',
-    pcloudShelfRoot: '/PlainShelf/default-shelf',
-    ...overrides
-  } as ShelfEntry;
-}
-
-beforeEach(() => {
-  fetchJsonMock.mockReset();
-  getActiveShelfEntryMock.mockReset().mockReturnValue(null);
-});
-
-describe('activeMobileShelfInfo', () => {
-  it('names a pCloud shelf after the last segment of the folder path', () => {
-    getActiveShelfEntryMock.mockReturnValue(pcloudEntry());
-
-    // The id is the full path, matching the active shelf id mobileConfig sets,
-    // so the device-local cache scope agrees with the picker.
-    expect(activeMobileShelfInfo()).toEqual({
-      id: '/PlainShelf/default-shelf',
-      name: 'default-shelf'
-    });
-  });
-
-  it('tolerates a trailing slash', () => {
-    getActiveShelfEntryMock.mockReturnValue(pcloudEntry({ pcloudShelfRoot: '/shelf/' }));
-
-    expect(activeMobileShelfInfo()?.name).toBe('shelf');
-  });
-
-  it('uses the entry name when the user gave it one', () => {
-    getActiveShelfEntryMock.mockReturnValue(serverEntry({ name: 'Living room' }));
-
-    expect(activeMobileShelfInfo()).toEqual({ id: 'main', name: 'Living room' });
-  });
-
-  it('returns null off the mobile shell and for an entry with no shelf yet', () => {
-    expect(activeMobileShelfInfo()).toBeNull();
-
-    getActiveShelfEntryMock.mockReturnValue(serverEntry({ shelfId: '' }));
-    expect(activeMobileShelfInfo()).toBeNull();
-  });
+afterEach(() => {
+  registerShell(null);
 });
 
 describe('listShelves', () => {
   // On the mobile shell the app-wide shelf list is the one entry the device is
   // pointed at: the other entries belong to other servers and other pCloud
   // folders, so no server can enumerate them.
-  it('answers from the active entry without a request on the mobile shell', async () => {
-    getActiveShelfEntryMock.mockReturnValue(pcloudEntry());
+  it('answers from the shell without a request when one supplies a shelf', async () => {
+    installShelfProvidingShell({ id: '/PlainShelf/default-shelf', name: 'default-shelf' });
 
     await expect(listShelves()).resolves.toEqual([
       { id: '/PlainShelf/default-shelf', name: 'default-shelf' }
@@ -107,8 +48,8 @@ describe('listShelves', () => {
     expect(fetchJsonMock).not.toHaveBeenCalled();
   });
 
-  it('does the same for a server entry', async () => {
-    getActiveShelfEntryMock.mockReturnValue(serverEntry());
+  it('does the same for a server-backed shell entry', async () => {
+    installShelfProvidingShell({ id: 'main', name: 'main' });
 
     await expect(listShelves()).resolves.toEqual([{ id: 'main', name: 'main' }]);
     expect(fetchJsonMock).not.toHaveBeenCalled();
@@ -125,8 +66,8 @@ describe('listShelves', () => {
 describe('listServerShelves', () => {
   // The shelf-entry form has to ask a server the user is still typing in what
   // shelves it offers, so this one must never collapse to the active entry.
-  it('asks the server even while a shelf entry is active', async () => {
-    getActiveShelfEntryMock.mockReturnValue(serverEntry());
+  it('asks the server even while a shell supplies an active shelf', async () => {
+    installShelfProvidingShell({ id: 'main', name: 'main' });
     fetchJsonMock.mockResolvedValue([
       { id: 'main', name: 'Main' },
       { id: 'other', name: 'Other' }
@@ -142,5 +83,41 @@ describe('listServerShelves', () => {
     fetchJsonMock.mockResolvedValue([{ id: 'main', name: 'Main' }, { id: '' }, null, 'nope']);
 
     await expect(listServerShelves()).resolves.toEqual([{ id: 'main', name: 'Main' }]);
+  });
+});
+
+describe('rescanShelf', () => {
+  it('reports what the walk found', async () => {
+    fetchJsonMock.mockResolvedValue({ scan_id: 'abc', scanned_at: 1_700_000_000, book_count: 12, folder_count: 3 });
+
+    await expect(rescanShelf()).resolves.toEqual({ bookCount: 12, folderCount: 3 });
+  });
+
+  // The gate that would otherwise reject this POST is the one that exists to
+  // stop writes, and a rescan is not one; the server draws the same exception.
+  it('marks the request as writing nothing, and takes the 409 body as a result', async () => {
+    fetchJsonMock.mockResolvedValue({ scan_id: 'abc', book_count: 0, folder_count: 0 });
+
+    await rescanShelf();
+
+    expect(fetchJsonMock).toHaveBeenCalledWith(
+      '/scans',
+      { method: 'POST' },
+      expect.objectContaining({ readOnlySafe: true, acceptStatuses: [409] })
+    );
+  });
+
+  // A 409 body carries no counts, which is how it is told apart from a walk
+  // that ran and genuinely found an empty shelf.
+  it('rejects with the running scan when the shelf is already being walked', async () => {
+    fetchJsonMock.mockResolvedValue({ scan_id: 'running-one' });
+
+    await expect(rescanShelf()).rejects.toBeInstanceOf(ShelfScanInProgressError);
+  });
+
+  it('does not mistake an empty shelf for a refusal', async () => {
+    fetchJsonMock.mockResolvedValue({ scan_id: 'abc', scanned_at: 1, book_count: 0, folder_count: 1 });
+
+    await expect(rescanShelf()).resolves.toEqual({ bookCount: 0, folderCount: 1 });
   });
 });

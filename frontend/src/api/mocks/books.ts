@@ -4,12 +4,11 @@ import type {
   BookContent,
   BookUpdateRequest,
   PaginatedBooks,
-  SplitConfig,
   TrashedBook
 } from '@/types/book';
-import { normalizeSplitConfig } from '@/utils/splitConfig';
 import { registerMockTaskChain } from './taskchains';
 import type { BookBatchRequest, BookBatchResult, RefreshContentStatsResult } from '@/types/task';
+import { normalizeFolderPath } from '@/utils/folders';
 
 // In-memory backend for VITE_USE_MOCK_API. The gate that reaches for it lives in
 // api/client.ts (isMockApiMode); nothing here is reachable in a real build.
@@ -21,7 +20,7 @@ export const mockBooks: Book[] = [
     id: 'book-1',
     title: 'The Quiet River',
     authors: ['A. Lin'],
-    layers: ['fiction', 'quiet'],
+    folders: ['fiction', 'quiet'],
     language: 'en',
     format: 'txt',
     tags: ['fiction', 'calm'],
@@ -29,6 +28,7 @@ export const mockBooks: Book[] = [
     created_at: '2026-01-07T10:00:00Z',
     updated_at: '2026-04-18T08:30:00Z',
     published_at: '2026-03-15',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf1/120/180',
     star: 4,
     identifiers: { isbn: '9787020002207' },
@@ -38,11 +38,12 @@ export const mockBooks: Book[] = [
     id: 'book-2',
     title: 'Go Patterns Notes',
     authors: ['P. Chen'],
-    layers: ['programming', 'go'],
+    folders: ['programming', 'go'],
     language: 'zh-TW',
     format: 'txt',
     tags: ['programming', 'go'],
     created_at: '2026-02-10T12:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf2/120/180',
     star: 2,
     identifiers: { isbn: '9787115428028', asin: 'B01N5AX61W' },
@@ -52,11 +53,12 @@ export const mockBooks: Book[] = [
     id: 'book-3',
     title: 'Mountain Diary',
     authors: ['Y. Wang'],
-    layers: ['travel'],
+    folders: ['travel'],
     language: 'zh-TW',
     format: 'txt',
     tags: ['travel'],
     created_at: '2026-03-01T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf3/120/180',
     star: 5,
     char_count: 41_200
@@ -65,11 +67,12 @@ export const mockBooks: Book[] = [
     id: 'book-4',
     title: 'Designing Small Tools',
     authors: ['N. Hsu'],
-    layers: ['design'],
+    folders: ['design'],
     language: 'en',
     format: 'txt',
     tags: ['design', 'notes'],
     created_at: '2026-07-02T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf4/120/180',
     star: 3,
     char_count: 98_500
@@ -78,11 +81,12 @@ export const mockBooks: Book[] = [
     id: 'book-5',
     title: 'Tea House Stories',
     authors: ['K. Lee'],
-    layers: ['fiction'],
+    folders: ['fiction'],
     language: 'zh-TW',
     format: 'txt',
     tags: ['fiction'],
     created_at: '2026-05-20T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf5/120/180',
     star: 4,
     char_count: 235_900
@@ -91,11 +95,12 @@ export const mockBooks: Book[] = [
     id: 'book-6',
     title: 'Minimal Linux Book',
     authors: ['R. Cho'],
-    layers: ['ops'],
+    folders: ['ops'],
     language: 'en',
     format: 'txt',
     tags: ['linux', 'ops'],
     created_at: '2026-07-08T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf6/120/180',
     char_count: 152_300
   },
@@ -103,11 +108,12 @@ export const mockBooks: Book[] = [
     id: 'book-7',
     title: 'Autumn Poems',
     authors: ['S. Yu'],
-    layers: ['poetry'],
+    folders: ['poetry'],
     language: 'zh-TW',
     format: 'txt',
     tags: ['poetry'],
     created_at: '2025-11-11T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf7/120/180',
     star: 5,
     char_count: 18_600
@@ -116,11 +122,12 @@ export const mockBooks: Book[] = [
     id: 'book-8',
     title: 'Product Journal 2025',
     authors: ['M. Kao'],
-    layers: ['product'],
+    folders: ['product'],
     language: 'en',
     format: 'txt',
     tags: ['product'],
     created_at: '2026-06-30T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf8/120/180',
     star: 2,
     char_count: 76_400
@@ -129,11 +136,12 @@ export const mockBooks: Book[] = [
     id: 'book-9',
     title: 'Kitchen and Code',
     authors: ['L. Ho'],
-    layers: ['essay'],
+    folders: ['essay'],
     language: 'en',
     format: 'txt',
     tags: ['essay'],
     created_at: '2026-07-13T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf9/120/180',
     star: 3,
     char_count: 112_700
@@ -142,11 +150,12 @@ export const mockBooks: Book[] = [
     id: 'book-10',
     title: 'Reading Machines',
     authors: ['D. Ko'],
-    layers: ['tech'],
+    folders: ['tech'],
     language: 'en',
     format: 'txt',
     tags: ['tech', 'history'],
     created_at: '2025-08-01T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf10/120/180',
     star: 4,
     char_count: 340_100
@@ -155,14 +164,15 @@ export const mockBooks: Book[] = [
     id: 'book-11',
     title: 'Markdown Field Notes',
     authors: ['T. Fang'],
-    layers: ['notes'],
+    folders: ['notes'],
     language: 'en',
     format: 'md',
     tags: ['notes', 'markdown'],
     created_at: '2026-07-05T09:00:00Z',
+    cover: 'cover.jpg',
     cover_url: 'https://picsum.photos/seed/shelf11/120/180'
     // char_count is deliberately absent: this is the "unknown character count"
-    // case the maintenance page reports and the content-stats sweep repairs.
+    // case the character-count filter reports and the content-stats sweep repairs.
   }
 ];
 
@@ -203,7 +213,6 @@ const mockContent: Record<string, string> = {
   ].join('\n')
 };
 
-const mockSplitConfigs: Record<string, SplitConfig> = {};
 const mockTrashedBooks: TrashedBook[] = [];
 
 export function findBookOrThrow(id: string): Book {
@@ -244,15 +253,38 @@ export function mockUpdateBook(id: string, payload: BookUpdateRequest): Book {
   return { ...book };
 }
 
-export function mockUpdateBookLayer(id: string, layerPath: string): Book {
+export function mockUpdateBookFolder(id: string, folderPath: string): Book {
   const book = findBookOrThrow(id);
-  const normalized = layerPath
+  const normalized = folderPath
     .split('/')
     .map((segment) => segment.trim())
     .filter((segment) => segment.length > 0);
-  book.layers = normalized;
+  book.folders = normalized;
   book.updated_at = new Date().toISOString();
   return { ...book };
+}
+
+export function mockCopyBook(id: string, folderPath: string): Book {
+  const source = findBookOrThrow(id);
+  const normalized = folderPath
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+  const now = new Date().toISOString();
+  const copy: Book = {
+    ...source,
+    id: `mock-${Date.now()}`,
+    folders: normalized,
+    created_at: now,
+    updated_at: now
+  };
+  mockBooks.unshift(copy);
+  // The server duplicates the whole package, so the copy reads the same body.
+  // Carry the content entry across too, otherwise the mock copy would open empty.
+  if (mockContent[id] !== undefined) {
+    mockContent[copy.id] = mockContent[id];
+  }
+  return { ...copy };
 }
 
 export function mockGetBookContent(id: string): BookContent {
@@ -263,7 +295,7 @@ export function mockGetBookContent(id: string): BookContent {
 export function mockImportBook(payload: BookCreateRequest): Book {
   const now = new Date().toISOString();
   const id = `mock-${Date.now()}`;
-  const normalizedLayer = payload.layer
+  const normalizedFolder = payload.folder
     ?.split('/')
     .map((segment) => segment.trim())
     .filter((segment) => segment.length > 0) ?? [];
@@ -275,7 +307,7 @@ export function mockImportBook(payload: BookCreateRequest): Book {
     id,
     title: payload.title.trim() || payload.file.name,
     authors: [],
-    layers: normalizedLayer,
+    folders: normalizedFolder,
     language: 'unknown',
     // An EPUB import stores whatever the conversion strategy produces, not the
     // uploaded file's own format.
@@ -287,15 +319,6 @@ export function mockImportBook(payload: BookCreateRequest): Book {
 
   mockBooks.unshift(created);
   return created;
-}
-
-export function mockGetSplitConfig(id: string): SplitConfig {
-  return normalizeSplitConfig(mockSplitConfigs[id] ?? { type: 'none' });
-}
-
-export function mockSetSplitConfig(id: string, payload: unknown): SplitConfig {
-  mockSplitConfigs[id] = normalizeSplitConfig(payload);
-  return mockSplitConfigs[id];
 }
 
 export async function mockGetBookCover(id: string): Promise<Blob> {
@@ -321,8 +344,8 @@ export function mockDeleteBook(id: string): void {
     id: book.id,
     title: book.title,
     authors: [...book.authors],
-    original_layer: [...book.layers],
-    original_path: `/books/${book.layers.join('/')}/${book.id}.bookpkg`,
+    original_folder: [...book.folders],
+    original_path: `/books/${book.folders.join('/')}/${book.id}.bookpkg`,
     deleted_at: new Date().toISOString()
   });
 }
@@ -345,7 +368,7 @@ export function mockRestoreTrashedBook(id: string): void {
     tags: [],
     language: 'unknown',
     format: 'txt',
-    layers: [...(book.original_layer ?? [])]
+    folders: [...(book.original_folder ?? [])]
   });
 }
 
@@ -411,6 +434,103 @@ export function mockRefreshContentStats(): string {
   });
 }
 
+/**
+ * mockStartFingerprintSources schedules a task chain that walks every mock book
+ * once, so mock mode exercises the same progress reporting as the real
+ * fingerprint sweep. Mock mode reports full fingerprint coverage
+ * (getFingerprintStatus → missing: 0), so this is here for completeness rather
+ * than to change any mock state.
+ *
+ * The `force` flag makes no difference here: with no real cache to bypass, an
+ * incremental sweep and a forced one both walk every book once. It is accepted
+ * only so the mock matches the real signature.
+ */
+export function mockStartFingerprintSources(_force = false): string {
+  return registerMockTaskChain({
+    name: 'fingerprint_sources',
+    title: 'Build fingerprints',
+    total: mockBooks.length
+  });
+}
+
+/**
+ * mockTransferBook schedules a single-item task chain that mirrors the real
+ * cross-shelf transfer's progress reporting. Mock mode models only one shelf, so
+ * the target is a phantom the fixture set does not track: a `move` drops the
+ * source book, and a `copy` leaves the source list unchanged.
+ */
+export function mockTransferBook(
+  bookId: string,
+  _targetShelfId: string,
+  _targetFolder: string,
+  mode: 'copy' | 'move'
+): string {
+  return registerMockTaskChain({
+    name: 'book_transfer',
+    title: mode === 'move' ? 'Move book to another shelf' : 'Copy book to another shelf',
+    total: 1,
+    onItem: () => {
+      if (mode !== 'move') {
+        return;
+      }
+      const idx = mockBooks.findIndex((book) => book.id === bookId);
+      if (idx >= 0) {
+        mockBooks.splice(idx, 1);
+      }
+    }
+  });
+}
+
+/**
+ * mockTransferFolder schedules a task chain that mirrors the real cross-shelf
+ * folder transfer's progress and its FolderTransferResult, one mock book per poll.
+ * Mock mode models only one shelf, so the target is a phantom: a `move` drops the
+ * carried books from the source list, a `copy` leaves them. The result it reports
+ * is what drives the modal's "N of M books" count.
+ */
+export function mockTransferFolder(
+  sourceFolder: string,
+  targetShelfId: string,
+  targetFolder: string,
+  mode: 'copy' | 'move'
+): string {
+  const sourcePath = normalizeFolderPath(sourceFolder);
+  const carried = mockBooks.filter((book) => {
+    const path = book.folders && book.folders.length > 0 ? book.folders.join('/') : '/';
+    return path === sourcePath || path.startsWith(`${sourcePath}/`);
+  });
+  const ids = carried.map((book) => book.id);
+  const succeeded: string[] = [];
+
+  return registerMockTaskChain({
+    name: 'folder_transfer',
+    title: mode === 'move' ? 'Move a folder to another shelf' : 'Copy a folder to another shelf',
+    total: ids.length,
+    onItem: (index) => {
+      const id = ids[index];
+      succeeded.push(id);
+      if (mode !== 'move') {
+        return;
+      }
+      const idx = mockBooks.findIndex((book) => book.id === id);
+      if (idx >= 0) {
+        mockBooks.splice(idx, 1);
+      }
+    },
+    getResult: () => ({
+      operation: mode,
+      source_shelf: 'mock',
+      target_shelf: targetShelfId,
+      source_folder: sourcePath === '/' ? [] : sourcePath.split('/'),
+      target_folder: normalizeFolderPath(targetFolder).split('/').filter((segment) => segment.length > 0),
+      total: ids.length,
+      succeeded_ids: [...succeeded],
+      failures: [],
+      folder_failures: 0
+    })
+  });
+}
+
 export function mockStartBookBatch(request: BookBatchRequest): string {
   const ids = [...new Set(request.book_ids)];
   const result: BookBatchResult = {
@@ -432,7 +552,7 @@ export function mockStartBookBatch(request: BookBatchRequest): string {
         return;
       }
       if (request.operation === 'move') {
-        book.layers = [...(request.target_layer ?? [])];
+        book.folders = [...(request.target_folder ?? [])];
         book.updated_at = new Date().toISOString();
       } else {
         mockDeleteBook(id);

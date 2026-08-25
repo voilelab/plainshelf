@@ -24,7 +24,13 @@
      with no way to scroll back up to it. */
   align-items: flex-start;
   justify-content: center;
-  padding: 32px 16px;
+  /* These routes are the whole viewport with no chrome above them, so unlike
+     the MainLayout pages they have to absorb all four insets themselves. On an
+     unconfigured device /connect is the first screen the user ever sees, and
+     the edge-to-edge Android shell would otherwise put this form under the
+     status bar. */
+  padding: calc(32px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
+    calc(32px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
   overflow-y: auto;
   background:
     radial-gradient(circle at top, rgba(255, 250, 240, 0.92), rgba(245, 241, 232, 0.96) 42%),
