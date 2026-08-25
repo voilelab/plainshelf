@@ -28,14 +28,6 @@
           <h3 class="book-list-title">{{ book.title }}</h3>
           <div class="book-list-head-actions">
             <p class="book-list-folder">{{ folderLabel(book) }}</p>
-            <button
-              v-if="showEditAction"
-              type="button"
-              class="book-list-edit"
-              @click.stop="emit('edit', book.id)"
-            >
-              {{ t('bookCollection.contextMenu.edit') }}
-            </button>
           </div>
         </div>
 
@@ -64,12 +56,10 @@ import { useI18n } from '@/i18n';
 
 const props = withDefaults(defineProps<{
   books: Book[];
-  showEditAction?: boolean;
   selectable?: boolean;
   mobileSelection?: boolean;
   selectedIds?: ReadonlySet<string>;
 }>(), {
-  showEditAction: false,
   selectable: false,
   mobileSelection: false,
   selectedIds: () => new Set<string>()
@@ -79,7 +69,6 @@ const emit = defineEmits<{
   (event: 'activate', payload: BookActivation): void;
   (event: 'toggle-selection', id: string): void;
   (event: 'long-press', id: string): void;
-  (event: 'edit', id: string): void;
 }>();
 
 const { t } = useI18n();
@@ -174,20 +163,6 @@ function primaryDateLabel(book: Book): string {
   font-size: 12px;
   margin: 1px 0 0;
   text-align: right;
-}
-
-.book-list-edit {
-  background: #f4f7fb;
-  border: 1px solid #d5dfeb;
-  border-radius: 8px;
-  color: inherit;
-  cursor: pointer;
-  font-size: 12px;
-  padding: 2px 8px;
-}
-
-.book-list-edit:hover {
-  background: #e9f1fb;
 }
 
 .book-list-comment {
