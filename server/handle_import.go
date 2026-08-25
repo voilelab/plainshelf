@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -68,6 +69,30 @@ func isSupportedImportExt(ext string) bool {
 // path rather than being stored as-is.
 func isEPUBExt(ext string) bool {
 	return ext == ".epub"
+}
+
+// deriveTitleFromFilename strips a single trailing extension from a filename to
+// use it as a book title, mirroring the frontend's deriveTitleFromFilename
+// (frontend/src/utils/file.ts) so the web-upload and desktop local-path imports
+// agree. A leading-dot name (".bashrc") and an empty stem both fall back to the
+// full filename rather than producing an empty title.
+func deriveTitleFromFilename(filename string) string {
+	trimmed := strings.TrimSpace(filename)
+	if trimmed == "" {
+		return filename
+	}
+
+	dotIndex := strings.LastIndex(trimmed, ".")
+	withoutExt := trimmed
+	if dotIndex > 0 {
+		withoutExt = trimmed[:dotIndex]
+	}
+
+	title := strings.TrimSpace(withoutExt)
+	if title == "" {
+		return trimmed
+	}
+	return title
 }
 
 // bookFormatFromFilename derives the BookMeta.Format value ("txt" or "md") from a
@@ -266,6 +291,14 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 	// initializer runs while the exclusive shelf lock is held.
 	utf8File, _, err := util.ReEncodeToUTF8(f)
 	if err != nil {
+		var unsupported *util.UnsupportedEncodingError
+		if errors.As(err, &unsupported) {
+			// The file's encoding is the problem, not the server: report it as a
+			// client error and name the detected encoding so the user knows why.
+			h.Warn("rejected import upload: unsupported encoding", "error", err)
+			http.Error(w, "unsupported text encoding: "+unsupported.Encoding, http.StatusBadRequest)
+			return
+		}
 		h.Error("failed to re-encode uploaded file to UTF-8", "error", err)
 		http.Error(w, "failed to re-encode uploaded file to UTF-8", http.StatusInternalServerError)
 		return
@@ -344,7 +377,12 @@ func (h *importHandlers) fromLocalPath(shelfID string, localPath string, folderP
 		return nil, util.Errorf("%w", err)
 	}
 
-	newBook, err := newPlainTextBook(shelfData, utf8Reader, folderParts, filepath.Base(cleanPath), cleanPath)
+	// Strip the extension so the desktop local-path import yields "遮天" rather
+	// than "遮天.txt", matching the web-upload path (the frontend already sends a
+	// de-extensioned title).
+	title := deriveTitleFromFilename(filepath.Base(cleanPath))
+
+	newBook, err := newPlainTextBook(shelfData, utf8Reader, folderParts, title, cleanPath)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
