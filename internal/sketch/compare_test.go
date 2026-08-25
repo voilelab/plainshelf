@@ -150,6 +150,35 @@ func TestContainmentEdgeCases(t *testing.T) {
 	}
 }
 
+// ContainmentFromJaccard must return exactly what Containment does, since
+// Containment is defined as that helper over Jaccard(a, b). A caller that has
+// already merged the pair uses the helper to skip the second merge, so the two
+// have to agree on every input, degenerate ones included.
+func TestContainmentFromJaccardMatchesContainment(t *testing.T) {
+	rng := newRNG(2027)
+	whole := strings.Join(randomWords(rng, 800), " ")
+	part := whole[:len(whole)*3/4]
+
+	cases := []struct {
+		name string
+		a, b Sketch
+	}{
+		{"whole vs truncation", exactSketch(whole), exactSketch(part)},
+		{"empty right sketch", BuildDefault(whole), BuildDefault("")},
+		{"empty left sketch", BuildDefault(""), BuildDefault(whole)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			wantA, wantB := Containment(tc.a, tc.b)
+			gotA, gotB := ContainmentFromJaccard(Jaccard(tc.a, tc.b), tc.a.Distinct, tc.b.Distinct)
+			if gotA != wantA || gotB != wantB {
+				t.Errorf("ContainmentFromJaccard = (%v, %v), want Containment's (%v, %v)", gotA, gotB, wantA, wantB)
+			}
+		})
+	}
+}
+
 func TestMaxJaccardBoundsTheTrueJaccard(t *testing.T) {
 	rng := newRNG(4242)
 	base := randomWords(rng, 2000)

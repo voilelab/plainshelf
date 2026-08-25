@@ -63,16 +63,24 @@ func Containment(a, b Sketch) (float64, float64) {
 	if a.Distinct <= 0 || b.Distinct <= 0 {
 		return 0, 0
 	}
+	return ContainmentFromJaccard(Jaccard(a, b), a.Distinct, b.Distinct)
+}
 
-	similarity := Jaccard(a, b)
-	if similarity <= 0 {
+// ContainmentFromJaccard is Containment given an already-computed Jaccard
+// similarity, so a caller that has just merged the two sketches to get J - as
+// the similarity sweep does - derives containment from that J rather than
+// merging them a second time inside Containment. aDistinct and bDistinct are the
+// two sketches' exact distinct shingle counts. Containment is this with J and
+// the counts read off the sketches for you.
+func ContainmentFromJaccard(jaccard float64, aDistinct, bDistinct int) (float64, float64) {
+	if aDistinct <= 0 || bDistinct <= 0 || jaccard <= 0 {
 		return 0, 0
 	}
 
-	intersection := similarity * float64(a.Distinct+b.Distinct) / (1 + similarity)
+	intersection := jaccard * float64(aDistinct+bDistinct) / (1 + jaccard)
 
-	return clamp01(intersection / float64(a.Distinct)),
-		clamp01(intersection / float64(b.Distinct))
+	return clamp01(intersection / float64(aDistinct)),
+		clamp01(intersection / float64(bDistinct))
 }
 
 // MaxJaccard is the largest Jaccard similarity two documents holding na and nb
