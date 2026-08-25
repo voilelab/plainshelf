@@ -18,9 +18,13 @@ export async function openDesktopAt(page: Page, baseUrl: string, route: string):
 }
 
 /**
- * The desktop history pills rendered by App.vue. Present only while the app
- * considers itself to be running in the Wails shell, which makes this the
- * cheapest probe for "is desktop mode still engaged".
+ * The desktop history pills rendered by MainLayout's topbar. Present only while
+ * the app considers itself to be running in the Wails shell AND the current
+ * route sits under MainLayout — the immersive ReaderLayout routes (`/reader/:id`,
+ * `/books/:bookId/sources`) deliberately omit them. So this probes "desktop mode
+ * still engaged AND in MainLayout"; to assert desktop mode on a ReaderLayout
+ * route, use the Settings shelf-management branch instead (see the assertions in
+ * desktop-shell.spec.ts).
  */
 export function desktopHistoryControls(page: Page) {
   return page.getByRole('navigation', { name: 'Desktop history navigation' });

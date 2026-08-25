@@ -1,12 +1,4 @@
 <template>
-  <nav v-if="showDesktopHistoryControls" class="desktop-history-controls" :aria-label="t('app.desktopHistoryNavigation')">
-    <button type="button" class="desktop-history-button" :aria-label="t('app.previousPage')" @click="goToPreviousPage">
-      ←
-    </button>
-    <button type="button" class="desktop-history-button" :aria-label="t('app.nextPage')" @click="goToNextPage">
-      →
-    </button>
-  </nav>
   <section v-if="renderError" class="app-render-error panel" role="alert">
     <h2>{{ t('app.renderError.title') }}</h2>
     <p>{{ t('app.renderError.description') }}</p>
@@ -32,13 +24,11 @@ import { computed, onErrorCaptured, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { isMockApiMode } from '@/api/client';
 import ToastHost from '@/components/ToastHost.vue';
-import { isWailsRuntime } from './providers';
 import { useI18n } from './i18n';
 
 const { t } = useI18n();
 const route = useRoute();
 const showMockModeBadge = computed(() => isMockApiMode());
-const showDesktopHistoryControls = computed(() => isWailsRuntime());
 
 // An uncaught render error unmounts the subtree and leaves a blank page with no
 // way back. Capturing it here swaps in a recoverable panel instead. The hook
@@ -62,48 +52,9 @@ watch(
 function reload(): void {
   window.location.reload();
 }
-
-function goToPreviousPage(): void {
-  window.history.back();
-}
-
-function goToNextPage(): void {
-  window.history.forward();
-}
 </script>
 
 <style scoped>
-.desktop-history-controls {
-  position: fixed;
-  top: 4px;
-  left: 400px;
-  z-index: 1000;
-  display: inline-flex;
-  gap: 8px;
-  padding: 6px;
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
-}
-
-.desktop-history-button {
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: #fff;
-  color: var(--text);
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-}
-
-.desktop-history-button:hover {
-  background: #f8fafc;
-}
-
 .app-render-error {
   display: grid;
   gap: 10px;
