@@ -257,12 +257,20 @@ export function useImportBook() {
             firstImportedId = id;
           }
         } catch (err) {
-          files.value[index] = {
-            ...files.value[index],
-            status: 'failed',
-            error: getSafeErrorMessage(err)
-          };
-          failedCount += 1;
+          if (signal.aborted) {
+            // The executor honoured the abort signal and bailed out of its
+            // in-flight work. That is this unit being cancelled, not a real
+            // import failure, so it must not count toward "someFailed".
+            files.value[index] = { ...files.value[index], status: 'cancelled', error: '' };
+            cancelledCount += 1;
+          } else {
+            files.value[index] = {
+              ...files.value[index],
+              status: 'failed',
+              error: getSafeErrorMessage(err)
+            };
+            failedCount += 1;
+          }
         }
       }
 

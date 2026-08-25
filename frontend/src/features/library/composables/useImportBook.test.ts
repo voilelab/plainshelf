@@ -142,6 +142,37 @@ describe('useImportBook', () => {
     expect(book.progress.value.total).toBe(1);
   });
 
+  // A signal-honouring executor that bails out on abort is a cancellation of the
+  // in-flight unit, not a failure — it must not report someFailed.
+  it('classifies an abort-driven executor rejection as cancelled', async () => {
+    const executor = vi.fn((unit: ImportUnit, signal: AbortSignal) =>
+      unit.filename === 'a'
+        ? Promise.resolve('id-a')
+        : new Promise<string>((_, reject) => {
+            signal.addEventListener('abort', () => reject(new Error('aborted')));
+          })
+    );
+
+    const book = useImportBook();
+    const done = book.submit(
+      [{ filename: 'a', title: 'A' }, { filename: 'b', title: 'B' }],
+      executor
+    );
+
+    // Let 'a' resolve and 'b' start before aborting mid-flight.
+    await flush();
+    book.abort();
+    const result = await done;
+
+    expect(result?.successCount).toBe(1);
+    expect(result?.failedCount).toBe(0);
+    expect(result?.cancelledCount).toBe(1);
+    expect(result?.cancelled).toBe(true);
+    expect(book.files.value[1].status).toBe('cancelled');
+    expect(book.success.value).toBe('libraryForms.importBook.results.partial');
+    expect(book.error.value).toBe('');
+  });
+
   // The import unit is no longer bound to File: submit drives any executor, and
   // the upload path is only one of them.
   it('drives an arbitrary executor without touching File uploads', async () => {

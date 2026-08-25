@@ -317,6 +317,14 @@ async function onSubmit(): Promise<void> {
 
   emit('imported', result);
 
+  // A cancelled batch keeps its result message and per-file statuses on screen:
+  // the modal stays open (the page only reloads books), so resetting here would
+  // discard the very "N imported, rest cancelled" summary the user aborted to
+  // see, and the list of files that were left unimported.
+  if (result.cancelled) {
+    return;
+  }
+
   clearFileInputs();
   selectedFiles.value = [];
   reset();
