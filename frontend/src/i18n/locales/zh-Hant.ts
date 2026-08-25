@@ -1045,17 +1045,22 @@ const zhHant = {
       fileStatus: '狀態：',
       submit: '匯入',
       submitting: '匯入中...',
+      progress: '第 {current} / {total} 本：{filename}',
+      abort: '中止',
+      aborting: '中止中...',
       statuses: {
         pending: '等待中',
         importing: '匯入中',
         success: '已匯入',
-        failed: '失敗'
+        failed: '失敗',
+        cancelled: '已取消'
       },
       errors: {
         noFiles: '請至少選擇一個 TXT、Markdown 或 EPUB 檔案。',
         unsupportedExtension: '書籍檔案必須是 .txt、.md 或 .epub。',
         allFailed: '匯入失敗。',
-        someFailed: '有 {count} 個檔案失敗。'
+        someFailed: '有 {count} 個檔案失敗。',
+        cancelled: '匯入已取消。'
       },
       results: {
         one: '匯入成功。',
