@@ -1,6 +1,6 @@
 import { getActiveShelfID, getApiBase, isMockApiMode } from '@/api/client';
 import { hasDesktopReadingProgressBinding } from '@/api/desktop';
-import { isWailsRuntime } from '@/providers/runtime';
+import { isReaderRuntime, isWailsRuntime } from '@/providers/runtime';
 import type { BookmarkPayload, ReadingProgress } from '@/types/book';
 import { buildDeviceDocumentKey, DeviceDocumentStore } from '@/storage/deviceDocument';
 import {
@@ -78,8 +78,27 @@ export function createReadingProgressStorage(): ReadingProgressStorage {
     return createMockReadingProgressStorage();
   }
 
-  // A desktop-shell preview in an ordinary browser has no Wails bindings.
-  if (isWailsRuntime() && hasDesktopReadingProgressBinding()) {
+  // The store is a latched singleton (getReadingProgressStore), so this backend
+  // choice is made once and never revisited. That makes binding timing decisive:
+  // the standalone reader and the desktop client both persist progress into the
+  // shared reading_progress.json through Wails bindings that can be injected
+  // *after* this module first runs. Gating solely on hasDesktopReadingProgressBinding()
+  // would latch onto WebView localStorage whenever the first progress access beats
+  // the binding — the reader's writes would then never reach the file, so the
+  // desktop library never sees them.
+  //
+  // isReaderRuntime() is written into index.html before any script runs (see
+  // providers/runtime), so it answers reliably from the first call and, unlike the
+  // desktop/mobile shells, has no browser-preview mode without bindings: a reader
+  // is always the real Wails app, whose ReaderApp binding is present by the time an
+  // actual load/save runs. Select the shared file for it even before the binding is
+  // bound. The desktop client keeps the binding-present check: it has no equally
+  // early signal, and its own progress reaching the file already proves the binding
+  // is up.
+  //
+  // A desktop-shell preview in an ordinary browser has no Wails bindings and falls
+  // through to localStorage.
+  if (isReaderRuntime() || (isWailsRuntime() && hasDesktopReadingProgressBinding())) {
     return createDesktopReadingProgressStorage();
   }
 
