@@ -4,9 +4,8 @@ import { useBookStore } from '@/composables/useBookStore';
 import { useFolderStore } from '@/composables/useFolderStore';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
 import { useToasts } from '@/composables/useToasts';
-import { getReaderLaunchMode } from '@/composables/useReaderLaunchPreference';
-import { isReaderUnsupportedPlatform } from '@/api/desktop';
-import { bookshelfWriter, getBookshelfProvider, isWebRuntime } from '@/providers';
+import { useReaderLaunch } from '@/composables/useReaderLaunch';
+import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import type { BookTransferMode } from '@/api/books';
 import type { Book } from '@/types/book';
 import type { TaskStatus } from '@/types/task';
@@ -49,6 +48,10 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
   const { folders, loaded: foldersLoaded, fetchFolders } = useFolderStore();
   const { fetchBooks } = useBookStore();
   const { showToast } = useToasts();
+  // The reader-launch path lives in its own composable so the home dashboard's
+  // reading entries share it without pulling in the stores above. goRead below
+  // is a thin delegate kept for the existing library / book-detail call sites.
+  const { launchReader } = useReaderLaunch();
 
   const downloading = ref(false);
   const actionError = ref('');
@@ -119,71 +122,12 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
   /**
    * Opens the reader, optionally at one chapter instead of the saved progress.
    * The index is the reader's own section index, so it survives a title change.
+   * The launch logic (new tab / standalone reader / in-place navigation, gated
+   * by the device-local preference) lives in `useReaderLaunch`; this only
+   * forwards to it so existing call sites keep their `goRead` name.
    */
   function goRead(id: string, sectionIndex?: number): void {
-    const hasSection = typeof sectionIndex === 'number' && Number.isFinite(sectionIndex);
-    const to = hasSection
-      ? { path: `/reader/${id}`, query: { section: String(Math.trunc(sectionIndex)) } }
-      : { path: `/reader/${id}` };
-
-    // Device-local preference: 'new-reader' (default) opens a fresh reader,
-    // 'in-window' navigates the current window in place. Only the web and
-    // desktop shells have a fresh-reader path to gate; the mobile and standalone
-    // reader shells always navigate in place regardless — isWebRuntime() is
-    // false for them and they define no openDesktopReader, so they fall straight
-    // through to the router.push at the end, unaffected by the preference.
-    const openInNewReader = getReaderLaunchMode() === 'new-reader';
-
-    // On a plain web-server build, opening a new reader means a new tab so the
-    // library or book page it was launched from is not replaced wholesale —
-    // closing the tab returns the reader there. Matches externalLinks.ts's
-    // window.open idiom.
-    //
-    // No router.push fallback on the window.open itself: with noopener/noreferrer
-    // window.open returns null even on success (per the HTML spec), so its result
-    // cannot tell a blocked pop-up from an opened one. Pushing "on failure" would
-    // therefore fire on every success too and navigate the original tab as well,
-    // which is exactly the wholesale replacement this feature avoids. A
-    // user-gesture open is not pop-up-blocked in practice. When the preference is
-    // 'in-window', we deliberately router.push instead — that is the requested
-    // in-place navigation, not a fallback.
-    if (isWebRuntime()) {
-      if (openInNewReader) {
-        window.open(router.resolve(to).href, '_blank', 'noopener,noreferrer');
-        return;
-      }
-      void router.push(to);
-      return;
-    }
-
-    // On the desktop app, opening a new reader means the standalone reader in its
-    // own window; its progress flows back into this library (reading_progress.json).
-    // Only the desktop provider defines openDesktopReader, so web/mobile fall
-    // through. A chapter jump passes its section so the reader opens on that
-    // chapter — the same window as the default read, not the in-app one — and the
-    // in-app /reader/:id route stays the fallback if the reader will not launch
-    // (e.g. not installed). When the preference is 'in-window', skip the shell-out
-    // entirely and navigate in place.
-    const provider = getBookshelfProvider();
-    if (provider.openDesktopReader && openInNewReader) {
-      provider.openDesktopReader(id, hasSection ? Math.trunc(sectionIndex) : undefined).catch((err) => {
-        // The standalone reader did not launch, so fall back to the in-app
-        // reader as before. But the user explicitly picked "open a new reader",
-        // so a silent fallback reads as "my setting is broken" — explain instead
-        // why the book opened here. Two shapes: this platform has no standalone
-        // reader at all (non-macOS), or the macOS reader failed to launch (not
-        // installed, or the launch itself errored).
-        void router.push(to);
-        showToast(
-          isReaderUnsupportedPlatform(err)
-            ? t('bookDetail.messages.readerUnsupportedPlatform')
-            : t('bookDetail.messages.readerLaunchFailed')
-        );
-      });
-      return;
-    }
-
-    void router.push(to);
+    launchReader(id, sectionIndex);
   }
 
   function openDetail(id: string): void {

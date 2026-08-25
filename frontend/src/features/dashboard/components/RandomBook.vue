@@ -27,8 +27,10 @@
           <RouterLink class="button" :to="`/books/${currentBook.id}`">
             {{ t('dashboard.randomBook.viewDetail') }}
           </RouterLink>
-          <RouterLink class="button primary" :to="`/reader/${currentBook.id}`">
-            {{ t('dashboard.randomBook.readNow') }}
+          <RouterLink v-slot="{ href }" custom :to="`/reader/${currentBook.id}`">
+            <a class="button primary" :href="href" @click="onReaderLinkClick($event, currentBook.id)">
+              {{ t('dashboard.randomBook.readNow') }}
+            </a>
           </RouterLink>
         </div>
       </div>
@@ -40,6 +42,7 @@
 import { computed, ref, watch } from 'vue';
 import BookCoverImg from '@/components/BookCoverImg.vue';
 import { useI18n } from '@/i18n';
+import { useReaderLaunch } from '@/composables/useReaderLaunch';
 import type { Book } from '@/types/book';
 
 const props = withDefaults(
@@ -52,6 +55,12 @@ const props = withDefaults(
 );
 
 const { t } = useI18n();
+
+// "Read now" follows the device-local "reader launch preference" — a new tab /
+// standalone reader on 'new-reader', in-place navigation on 'in-window' —
+// instead of the plain in-window RouterLink it used to be, so it matches the
+// library and book-detail read actions.
+const { onReaderLinkClick } = useReaderLaunch();
 
 const currentId = ref<string | null>(null);
 

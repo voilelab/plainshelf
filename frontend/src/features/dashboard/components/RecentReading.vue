@@ -16,32 +16,34 @@
 
     <ul v-else class="recent-reading-list">
       <li v-for="item in items" :key="item.book.id" class="recent-reading-item">
-        <RouterLink class="recent-reading-card" :to="`/reader/${item.book.id}`">
-          <BookCoverImg
-            :book-id="item.book.id"
-            :cover-url="item.book.cover_url"
-            :alt="item.book.title"
-            class="recent-reading-cover"
-          />
-          <p class="recent-reading-book-title" :title="item.book.title">{{ item.book.title }}</p>
+        <RouterLink v-slot="{ href }" custom :to="`/reader/${item.book.id}`">
+          <a class="recent-reading-card" :href="href" @click="onReaderLinkClick($event, item.book.id)">
+            <BookCoverImg
+              :book-id="item.book.id"
+              :cover-url="item.book.cover_url"
+              :alt="item.book.title"
+              class="recent-reading-cover"
+            />
+            <p class="recent-reading-book-title" :title="item.book.title">{{ item.book.title }}</p>
 
-          <div
-            v-if="item.percent !== null"
-            class="recent-reading-progress"
-            role="progressbar"
-            :aria-valuenow="item.percent"
-            aria-valuemin="0"
-            aria-valuemax="100"
-          >
-            <div class="recent-reading-progress-track">
-              <div class="recent-reading-progress-fill" :style="{ width: `${item.percent}%` }" />
+            <div
+              v-if="item.percent !== null"
+              class="recent-reading-progress"
+              role="progressbar"
+              :aria-valuenow="item.percent"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            >
+              <div class="recent-reading-progress-track">
+                <div class="recent-reading-progress-fill" :style="{ width: `${item.percent}%` }" />
+              </div>
+              <span class="recent-reading-progress-value">{{ item.percent }}%</span>
             </div>
-            <span class="recent-reading-progress-value">{{ item.percent }}%</span>
-          </div>
 
-          <p v-if="item.lastReadAt !== null" class="recent-reading-time">
-            {{ formatRelativeTime(item.lastReadAt, locale, now) }}
-          </p>
+            <p v-if="item.lastReadAt !== null" class="recent-reading-time">
+              {{ formatRelativeTime(item.lastReadAt, locale, now) }}
+            </p>
+          </a>
         </RouterLink>
       </li>
     </ul>
@@ -52,6 +54,7 @@
 import BookCoverImg from '@/components/BookCoverImg.vue';
 import { formatRelativeTime } from '@/utils/date';
 import { useI18n } from '@/i18n';
+import { useReaderLaunch } from '@/composables/useReaderLaunch';
 import type { RecentReadingItem } from '@/features/dashboard/composables/useDashboardData';
 
 defineProps<{
@@ -59,6 +62,12 @@ defineProps<{
 }>();
 
 const { t, locale } = useI18n();
+
+// The reader entry follows the device-local "reader launch preference" — a new
+// tab / standalone reader on 'new-reader', in-place navigation on 'in-window' —
+// instead of the plain in-window RouterLink it used to be, so the home cards
+// match the library and book-detail read actions.
+const { onReaderLinkClick } = useReaderLaunch();
 
 // Captured once when the section mounts: the relative labels are a snapshot of
 // the moment the dashboard was opened, not a ticking clock.
