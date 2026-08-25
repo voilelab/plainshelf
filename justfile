@@ -24,10 +24,13 @@ test-go: build-server-frontend
 	cd reader && go test ./...
 
 # Run e2e tests: build frontend and run e2e tests.
+# The server is compiled once here and reused by every spec (via
+# PLAINSHELF_E2E_SERVER_BIN) instead of a `go run` cold start per test.
 test-e2e: build-server-frontend
 	npm --prefix {{e2e_test_dir}} ci
 	npx --prefix {{e2e_test_dir}} playwright install --with-deps chromium
-	npm --prefix {{e2e_test_dir}} test
+	go build -o {{justfile_directory()}}/{{e2e_test_dir}}/.server-bin/plainshelf-srv ./cmd/plainshelf-srv/main.go
+	PLAINSHELF_E2E_SERVER_BIN={{justfile_directory()}}/{{e2e_test_dir}}/.server-bin/plainshelf-srv npm --prefix {{e2e_test_dir}} test
 
 # Build server: build Go server binary.
 build-server-backend: build-server-frontend

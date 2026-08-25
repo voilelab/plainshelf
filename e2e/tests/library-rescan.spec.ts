@@ -23,6 +23,10 @@ async function writeBookIntoShelf(
   );
 }
 
+// per-test server: this file's assertions are whole-shelf counts — "1 books",
+// "2 books", and the rescan toast "Found 2 books in 1 folders" — which only
+// hold on a shelf that starts empty. Sharing a shelf across the file would make
+// those totals depend on test order, so each test keeps its own fresh server.
 test('Update book list shows a book copied into the shelf from outside', async ({ page }) => {
   const server = await startServer();
 

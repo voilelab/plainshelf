@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { startServer } from './support/server';
-import { importHelloBook, createCoverDataTransfer } from './support/books';
+import { useServer } from './support/server';
+import { importBookAs, helloFixturePath, createCoverDataTransfer } from './support/books';
 import {
   connectMobile,
   reopenMobileAt,
@@ -22,6 +22,12 @@ import {
 // (getDownloadState / listDownloadedBookEntries) and the rendered UI, not the
 // cache's internal storage — which is filesystem-backed
 // (FilesystemMobileBookCache), under the app-private Directory.Data.
+//
+// The server (and its shelf) is shared across this file's tests, so each test
+// imports its own uniquely-named book; the downloads live in per-test browser
+// storage, so the /downloads counts are still deterministic per test.
+
+const getServer = useServer();
 
 /**
  * Uploads a cover for the book currently open on the (desktop-mode) detail
@@ -51,120 +57,115 @@ async function uploadCoverOnDetailPage(page: Page): Promise<void> {
 }
 
 test('downloads a book to the device from the detail page button', async ({ page }) => {
-  const server = await startServer();
+  const { baseUrl } = getServer();
 
-  try {
-    // Import and set a cover in the ordinary desktop flow first (the mobile
-    // client is read-only — see mobile-read-only.spec.ts).
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
-    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
-    await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await uploadCoverOnDetailPage(page);
+  // Import and set a cover in the ordinary desktop flow first (the mobile
+  // client is read-only — see mobile-read-only.spec.ts).
+  await page.goto(`${baseUrl}/books`);
+  await importBookAs(page, helloFixturePath, 'downloads-detail-button');
+  await page
+    .locator('.book-list-row')
+    .getByRole('heading', { name: 'downloads-detail-button', exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/books\/[^/]+$/);
+  await uploadCoverOnDetailPage(page);
 
-    await connectMobile(page, server.baseUrl);
-    const helloId = await getBookIdByTitle(page, 'hello');
+  await connectMobile(page, baseUrl);
+  const helloId = await getBookIdByTitle(page, 'downloads-detail-button');
 
-    // Open the detail page via a top-level navigation: an in-app click would
-    // drop the ?mobile-shell-preview=1 param, and BookDetailPage gates the
-    // offline-download button on a live isMobileRuntime() check.
-    await reopenMobileAt(page, server.baseUrl, `/books/${helloId}`);
+  // Open the detail page via a top-level navigation: an in-app click would
+  // drop the ?mobile-shell-preview=1 param, and BookDetailPage gates the
+  // offline-download button on a live isMobileRuntime() check.
+  await reopenMobileAt(page, baseUrl, `/books/${helloId}`);
 
-    const downloadButton = page.getByRole('button', { name: 'Download to device' });
-    await expect(downloadButton).toBeVisible();
-    await downloadButton.click();
+  const downloadButton = page.getByRole('button', { name: 'Download to device' });
+  await expect(downloadButton).toBeVisible();
+  await downloadButton.click();
 
-    // The same button flips to the remove affordance once the download lands.
-    await expect(page.getByRole('button', { name: 'Remove download' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Download to device' })).not.toBeVisible();
+  // The same button flips to the remove affordance once the download lands.
+  await expect(page.getByRole('button', { name: 'Remove download' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Download to device' })).not.toBeVisible();
 
-    // Authoritative check via the provider API, not just the button label:
-    // the book is downloaded and the manifest carries non-zero size accounting.
-    // (The cover blob's round-trip is proven by the offline-cover test below.)
-    expect(await getDownloadStateViaHook(page, helloId)).toBe('downloaded');
-    const entry = await getDownloadedEntryViaHook(page, helloId);
-    expect(entry).not.toBeNull();
-    expect(entry?.sizeBytes).toBeGreaterThan(0);
-  } finally {
-    await server.dispose();
-  }
+  // Authoritative check via the provider API, not just the button label:
+  // the book is downloaded and the manifest carries non-zero size accounting.
+  // (The cover blob's round-trip is proven by the offline-cover test below.)
+  expect(await getDownloadStateViaHook(page, helloId)).toBe('downloaded');
+  const entry = await getDownloadedEntryViaHook(page, helloId);
+  expect(entry).not.toBeNull();
+  expect(entry?.sizeBytes).toBeGreaterThan(0);
 });
 
 test('lists, sizes, and removes downloads on the /downloads page', async ({ page }) => {
-  const server = await startServer();
+  const { baseUrl } = getServer();
 
-  try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
+  await page.goto(`${baseUrl}/books`);
+  await importBookAs(page, helloFixturePath, 'downloads-page-book');
 
-    await connectMobile(page, server.baseUrl);
-    const helloId = await getBookIdByTitle(page, 'hello');
-    await downloadBookViaHook(page, helloId);
+  await connectMobile(page, baseUrl);
+  const helloId = await getBookIdByTitle(page, 'downloads-page-book');
+  await downloadBookViaHook(page, helloId);
 
-    await reopenMobileAt(page, server.baseUrl, '/downloads');
-    await expect(page.getByRole('heading', { name: 'Downloaded Books' })).toBeVisible();
+  await reopenMobileAt(page, baseUrl, '/downloads');
+  await expect(page.getByRole('heading', { name: 'Downloaded Books' })).toBeVisible();
 
-    // Overview panel: one book downloaded, non-zero total size.
-    const overview = page.locator('.downloads-overview');
-    await expect(overview.getByText('1 downloaded')).toBeVisible();
-    const totalSizeValue = overview
-      .locator('.downloads-overview-row', { hasText: 'Total size' })
-      .locator('.downloads-overview-value');
-    await expect(totalSizeValue).not.toHaveText('0 B');
+  // Overview panel: one book downloaded, non-zero total size. The download
+  // count is device-local (per-test browser storage), so it is deterministic.
+  const overview = page.locator('.downloads-overview');
+  await expect(overview.getByText('1 downloaded')).toBeVisible();
+  const totalSizeValue = overview
+    .locator('.downloads-overview-row', { hasText: 'Total size' })
+    .locator('.downloads-overview-value');
+  await expect(totalSizeValue).not.toHaveText('0 B');
 
-    // List row: the book with a non-zero per-book size and a remove button.
-    const row = page.locator('.downloads-list .book-list-row', { hasText: 'hello' });
-    await expect(row.getByRole('heading', { name: 'hello', exact: true })).toBeVisible();
-    await expect(row.locator('.downloads-size')).not.toHaveText('0 B');
+  // List row: the book with a non-zero per-book size and a remove button.
+  const row = page.locator('.downloads-list .book-list-row', { hasText: 'downloads-page-book' });
+  await expect(row.getByRole('heading', { name: 'downloads-page-book', exact: true })).toBeVisible();
+  await expect(row.locator('.downloads-size')).not.toHaveText('0 B');
 
-    // Removal goes through the DeleteModal confirmation.
-    await row.getByRole('button', { name: 'Remove download' }).click();
-    const removeDialog = page.getByRole('dialog', { name: 'Remove download' });
-    await expect(removeDialog).toBeVisible();
-    await expect(removeDialog.getByText('Delete hello?')).toBeVisible();
-    await removeDialog.getByRole('button', { name: 'Remove download' }).click();
-    await expect(removeDialog).not.toBeVisible();
+  // Removal goes through the DeleteModal confirmation.
+  await row.getByRole('button', { name: 'Remove download' }).click();
+  const removeDialog = page.getByRole('dialog', { name: 'Remove download' });
+  await expect(removeDialog).toBeVisible();
+  await expect(removeDialog.getByText('Delete downloads-page-book?')).toBeVisible();
+  await removeDialog.getByRole('button', { name: 'Remove download' }).click();
+  await expect(removeDialog).not.toBeVisible();
 
-    // Row disappears and the overview zeroes out.
-    await expect(page.getByText('No books downloaded yet.')).toBeVisible();
-    await expect(page.locator('.downloads-list .book-list-row')).toHaveCount(0);
-    await expect(overview.getByText('0 downloaded')).toBeVisible();
-    await expect(totalSizeValue).toHaveText('0 B');
+  // Row disappears and the overview zeroes out.
+  await expect(page.getByText('No books downloaded yet.')).toBeVisible();
+  await expect(page.locator('.downloads-list .book-list-row')).toHaveCount(0);
+  await expect(overview.getByText('0 downloaded')).toBeVisible();
+  await expect(totalSizeValue).toHaveText('0 B');
 
-    // The cache is actually empty, not just hidden from the UI.
-    expect(await getDownloadStateViaHook(page, helloId)).toBe('not_downloaded');
-    expect(await getDownloadedEntryViaHook(page, helloId)).toBeNull();
-  } finally {
-    await server.dispose();
-  }
+  // The cache is actually empty, not just hidden from the UI.
+  expect(await getDownloadStateViaHook(page, helloId)).toBe('not_downloaded');
+  expect(await getDownloadedEntryViaHook(page, helloId)).toBeNull();
 });
 
 test('shows the cached cover from a blob: URL in the library while offline', async ({ page }) => {
-  const server = await startServer();
+  const { baseUrl } = getServer();
 
-  try {
-    await page.goto(`${server.baseUrl}/books`);
-    await importHelloBook(page);
-    await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
-    await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await uploadCoverOnDetailPage(page);
+  await page.goto(`${baseUrl}/books`);
+  await importBookAs(page, helloFixturePath, 'downloads-cover-book');
+  await page
+    .locator('.book-list-row')
+    .getByRole('heading', { name: 'downloads-cover-book', exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/books\/[^/]+$/);
+  await uploadCoverOnDetailPage(page);
 
-    await connectMobile(page, server.baseUrl);
-    const helloId = await getBookIdByTitle(page, 'hello');
-    await downloadBookViaHook(page, helloId);
-    expect(await getDownloadStateViaHook(page, helloId)).toBe('downloaded');
+  await connectMobile(page, baseUrl);
+  const helloId = await getBookIdByTitle(page, 'downloads-cover-book');
+  await downloadBookViaHook(page, helloId);
+  expect(await getDownloadStateViaHook(page, helloId)).toBe('downloaded');
 
-    await goOffline(page);
-    await reopenMobileAt(page, server.baseUrl, '/books');
+  await goOffline(page);
+  await reopenMobileAt(page, baseUrl, '/books');
 
-    // The provider rewrites cover_url to an object URL for the cached blob
-    // while offline, so the library's <img> must resolve locally instead of
-    // pointing at the unreachable server. A blob: src here proves the cover
-    // was cached during download and read back by the offline path.
-    const row = page.locator('.book-list-row', { hasText: 'hello' });
-    await expect(row.getByRole('heading', { name: 'hello', exact: true })).toBeVisible();
-    await expect(row.locator('.book-list-cover')).toHaveAttribute('src', /^blob:/);
-  } finally {
-    await server.dispose();
-  }
+  // The provider rewrites cover_url to an object URL for the cached blob
+  // while offline, so the library's <img> must resolve locally instead of
+  // pointing at the unreachable server. A blob: src here proves the cover
+  // was cached during download and read back by the offline path.
+  const row = page.locator('.book-list-row', { hasText: 'downloads-cover-book' });
+  await expect(row.getByRole('heading', { name: 'downloads-cover-book', exact: true })).toBeVisible();
+  await expect(row.locator('.book-list-cover')).toHaveAttribute('src', /^blob:/);
 });

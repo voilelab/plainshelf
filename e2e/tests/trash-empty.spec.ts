@@ -2,6 +2,11 @@ import { expect, test } from '@playwright/test';
 import { startServer } from './support/server';
 import { importHelloBook } from './support/books';
 
+// per-test server: this test's whole point is the empty-trash flow — it asserts
+// the exact whole-trash count ("Permanently delete all 1 books in the trash?")
+// and the terminal "The trash is now empty." state, both of which require a
+// pristine shelf with nothing else in the trash. A shared shelf would let other
+// books accumulate and break those counts, so it keeps its own per-test server.
 test('should empty the trash through a background task and report its progress', async ({ page }) => {
   const server = await startServer();
 
