@@ -80,14 +80,12 @@
       <BookListView
         v-else-if="viewMode === 'list'"
         :books="books"
-        :show-edit-action="showEditAction"
         :selectable="selectionEnabled"
         :mobile-selection="mobileSelection"
         :selected-ids="selectedIds"
         @activate="emit('activate', $event)"
         @toggle-selection="emit('toggle-selection', $event)"
         @long-press="emit('long-press', $event)"
-        @edit="emit('edit', $event)"
       />
 
       <BookCardView
@@ -186,9 +184,7 @@ const props = withDefaults(defineProps<{
   pageSize: number;
   total: number;
   emptyMessage: string;
-  totalLabel?: string;
   count?: number;
-  showEditAction?: boolean;
   canOpenBookFolder?: boolean;
   readOnly?: boolean;
   viewModeStorageKey?: string;
@@ -202,9 +198,7 @@ const props = withDefaults(defineProps<{
   shelfInitializing: false,
   shelfUnreachable: false,
   error: '',
-  totalLabel: '',
   count: undefined,
-  showEditAction: false,
   canOpenBookFolder: false,
   readOnly: false,
   viewModeStorageKey: undefined,
@@ -253,9 +247,6 @@ const slots = useSlots();
 const hasMetaLine = computed(() => !!slots['title-meta']);
 
 const resolvedTotalLabel = computed(() => {
-  if (props.totalLabel) {
-    return props.totalLabel;
-  }
   if (typeof props.count === 'number') {
     return t('bookCollection.booksCount', { count: props.count });
   }

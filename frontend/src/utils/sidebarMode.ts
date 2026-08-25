@@ -12,41 +12,33 @@ export function isSidebarMode(value: string | null | undefined): value is Sideba
   return value !== null && value !== undefined && SIDEBAR_MODES.includes(value as SidebarMode);
 }
 
-function resolveStorageKey(key?: string): string {
-  return key && key.trim().length > 0 ? key : SIDEBAR_MODE_STORAGE_KEY;
-}
-
-export function getStoredSidebarMode(storageKey?: string): SidebarMode {
+export function getStoredSidebarMode(): SidebarMode {
   if (typeof window === 'undefined') {
     return 'expanded';
   }
 
-  const value = window.localStorage.getItem(resolveStorageKey(storageKey));
+  const value = window.localStorage.getItem(SIDEBAR_MODE_STORAGE_KEY);
   return isSidebarMode(value) ? value : 'expanded';
 }
 
-export function setStoredSidebarMode(mode: SidebarMode, storageKey?: string): void {
+export function setStoredSidebarMode(mode: SidebarMode): void {
   if (typeof window === 'undefined') {
     return;
   }
 
-  window.localStorage.setItem(resolveStorageKey(storageKey), mode);
-}
-
-function resolveWidthStorageKey(key?: string): string {
-  return key && key.trim().length > 0 ? key : SIDEBAR_EXPANDED_WIDTH_STORAGE_KEY;
+  window.localStorage.setItem(SIDEBAR_MODE_STORAGE_KEY, mode);
 }
 
 function isExpandedSidebarWidth(value: number): boolean {
   return Number.isFinite(value) && value >= MIN_EXPANDED_SIDEBAR_WIDTH && value <= MAX_EXPANDED_SIDEBAR_WIDTH;
 }
 
-export function getStoredSidebarExpandedWidth(storageKey?: string): number | null {
+export function getStoredSidebarExpandedWidth(): number | null {
   if (typeof window === 'undefined') {
     return null;
   }
 
-  const raw = window.localStorage.getItem(resolveWidthStorageKey(storageKey));
+  const raw = window.localStorage.getItem(SIDEBAR_EXPANDED_WIDTH_STORAGE_KEY);
   if (raw === null) {
     return null;
   }
@@ -55,10 +47,10 @@ export function getStoredSidebarExpandedWidth(storageKey?: string): number | nul
   return isExpandedSidebarWidth(value) ? value : null;
 }
 
-export function setStoredSidebarExpandedWidth(width: number, storageKey?: string): void {
+export function setStoredSidebarExpandedWidth(width: number): void {
   if (typeof window === 'undefined' || !isExpandedSidebarWidth(width)) {
     return;
   }
 
-  window.localStorage.setItem(resolveWidthStorageKey(storageKey), String(width));
+  window.localStorage.setItem(SIDEBAR_EXPANDED_WIDTH_STORAGE_KEY, String(width));
 }
