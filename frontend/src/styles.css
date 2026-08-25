@@ -335,6 +335,13 @@ a {
   opacity: 0;
 }
 
+/* Applied via ToastHost's `reka-toast-${toast.variant}` binding when a toast is
+   raised with { variant: 'danger' }; keep it in sync with ToastVariant. */
+.reka-toast-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 .reka-toast-message {
   flex: 1;
   margin: 0;
