@@ -93,8 +93,10 @@ so a `v0.8.0-beta.1` build reports `0.8.0` in its bundle metadata while retainin
 the full prerelease version in the app. The private frontend and end-to-end npm
 packages stay at `0.0.0`; their package metadata is not a product version.
 
-The Homebrew cask records the latest stable release and is updated after a
-release artifact exists by running `scripts/update-cask.sh <tag>`.
+The Homebrew casks record the latest stable release and are updated after the
+release artifacts exist by running `scripts/update-cask.sh <tag>`. That single
+step pins both `plainshelf.rb` and `bookpkg-reader.rb` from the same tag, so the
+desktop cask and the reader cask it depends on stay in sync.
 
 ## Desktop app
 
