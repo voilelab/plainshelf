@@ -22,10 +22,30 @@ Update `CHANGELOG.md` to reflect recent changes on the current branch.
    - **Fixed** — bug fixes
    - **Removed** — features or files intentionally deleted
    - **Security** — security hardening, vulnerability fixes, policy changes
-5. Write concise bullet points in past tense, third-person, no subject pronoun ("Added X", "Fixed Y", not "I added X"). Match the style and level of detail already in the file.
+5. Write **one line per change** — a single bullet, one sentence, no trailing detail
+   sentences. Past tense, third-person, no subject pronoun ("Added X", "Fixed Y",
+   not "I added X"). Lead with the verb and name the user-visible effect; fold
+   endpoints, keys, or settings into that one line in parentheses or a short clause
+   rather than a follow-up sentence. Keep the `**Breaking (pre-1.0):**` prefix on any
+   entry that breaks compatibility, and keep the one essential migration/compat fact
+   (e.g. "opens with no migration", "refused with `409`") in the same line; drop the
+   rationale, worked examples, and byte counts. If a change genuinely needs more than
+   one line, it is usually two changes — split it into two bullets.
 6. Insert the bullets into the appropriate section under `## [Unreleased]`. Do **not** create a new version section — that is done at release time.
 7. Leave sections empty (just the heading) if there is nothing to add under them.
 8. Do **not** touch the link block at the bottom of the file unless a new release is being cut.
+
+## Style
+
+Entries are terse, one-line bullets. Prefer the tighter form:
+
+```text
+- Changed new book IDs from an 8-hex title/path hash to a random v4 UUID; existing IDs are kept with no migration.
+```
+
+not a multi-sentence explanation of why the hash was too narrow and how the two
+forms coexist. The reader wants what changed and, if it breaks anything, the one
+fact they must act on — nothing more.
 
 ## Notes
 
