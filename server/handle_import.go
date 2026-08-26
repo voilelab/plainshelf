@@ -74,23 +74,15 @@ func isEPUBExt(ext string) bool {
 // deriveTitleFromFilename strips a single trailing extension from a filename to
 // use it as a book title, mirroring the frontend's deriveTitleFromFilename
 // (frontend/src/utils/file.ts) so the web-upload and desktop local-path imports
-// agree. A leading-dot name (".bashrc") and an empty stem both fall back to the
-// full filename rather than producing an empty title.
+// agree. A name that is all extension (".txt") or a dotfile (".bashrc") has no
+// stem, so it falls back to the full base name rather than an empty title —
+// filepath.Ext treats the leading dot as the whole extension, which matches the
+// frontend's guard against an empty result.
 func deriveTitleFromFilename(filename string) string {
-	trimmed := strings.TrimSpace(filename)
-	if trimmed == "" {
-		return filename
-	}
-
-	dotIndex := strings.LastIndex(trimmed, ".")
-	withoutExt := trimmed
-	if dotIndex > 0 {
-		withoutExt = trimmed[:dotIndex]
-	}
-
-	title := strings.TrimSpace(withoutExt)
+	base := filepath.Base(filename)
+	title := strings.TrimSuffix(base, filepath.Ext(base))
 	if title == "" {
-		return trimmed
+		return base
 	}
 	return title
 }
@@ -380,7 +372,7 @@ func (h *importHandlers) fromLocalPath(shelfID string, localPath string, folderP
 	// Strip the extension so the desktop local-path import yields "遮天" rather
 	// than "遮天.txt", matching the web-upload path (the frontend already sends a
 	// de-extensioned title).
-	title := deriveTitleFromFilename(filepath.Base(cleanPath))
+	title := deriveTitleFromFilename(cleanPath)
 
 	newBook, err := newPlainTextBook(shelfData, utf8Reader, folderParts, title, cleanPath)
 	if err != nil {
