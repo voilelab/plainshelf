@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/internal/quitgate"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/reader/readerapi"
@@ -47,9 +48,9 @@ type ReaderApp struct {
 	// after opening a book does not reopen the dialog.
 	promptedForBook bool
 
-	// quitGate holds the first window close until the frontend has flushed the
-	// reading position; see quitGate.
-	quitGate *quitGate
+	// quitGate holds the window close until the frontend has flushed the reading
+	// position; see quitgate.Gate.
+	quitGate *quitgate.Gate
 }
 
 // NewReaderApp builds the reader window's app. shelfID is the active shelf id
@@ -82,8 +83,8 @@ func (a *ReaderApp) Startup(ctx context.Context) {
 
 	// Built here — not at construction — because emit and quit need the runtime
 	// context Startup receives.
-	a.quitGate = newQuitGate(quitGateTimeout, func() {
-		wailsruntime.EventsEmit(a.ctx, beforeCloseEvent)
+	a.quitGate = quitgate.New(quitgate.DefaultTimeout, func() {
+		wailsruntime.EventsEmit(a.ctx, quitgate.BeforeCloseEvent)
 	}, func() {
 		wailsruntime.Quit(a.ctx)
 	})
@@ -96,7 +97,7 @@ func (a *ReaderApp) beforeClose(context.Context) (prevent bool) {
 	if a.quitGate == nil {
 		return false
 	}
-	return a.quitGate.requestClose()
+	return a.quitGate.RequestClose()
 }
 
 // AckBeforeClose is bound to the frontend, which calls it after flushing the
@@ -104,7 +105,7 @@ func (a *ReaderApp) beforeClose(context.Context) (prevent bool) {
 // close the gate is holding.
 func (a *ReaderApp) AckBeforeClose() {
 	if a.quitGate != nil {
-		a.quitGate.flushed()
+		a.quitGate.Flushed()
 	}
 }
 

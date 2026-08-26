@@ -1,4 +1,4 @@
-package main
+package quitgate
 
 import (
 	"sync/atomic"
@@ -6,17 +6,14 @@ import (
 	"time"
 )
 
-// The reader's quit gate is a copy of the desktop's; these mirror
-// desktop/reading_progress_test.go so a drift in the copy is caught here.
-
 // The first close request is held (prevent) and the frontend is notified to
 // flush; the app does not quit yet.
-func TestQuitGate_FirstRequestPreventsAndNotifies(t *testing.T) {
+func TestGate_FirstRequestPreventsAndNotifies(t *testing.T) {
 	var emits int32
 	quit := make(chan struct{}, 1)
-	gate := newQuitGate(time.Second, func() { atomic.AddInt32(&emits, 1) }, func() { quit <- struct{}{} })
+	gate := New(time.Second, func() { atomic.AddInt32(&emits, 1) }, func() { quit <- struct{}{} })
 
-	if prevent := gate.requestClose(); !prevent {
+	if prevent := gate.RequestClose(); !prevent {
 		t.Fatal("first close request must be prevented")
 	}
 	if got := atomic.LoadInt32(&emits); got != 1 {
@@ -30,12 +27,12 @@ func TestQuitGate_FirstRequestPreventsAndNotifies(t *testing.T) {
 }
 
 // Once the frontend acks the flush, the gate quits.
-func TestQuitGate_QuitsAfterAck(t *testing.T) {
+func TestGate_QuitsAfterAck(t *testing.T) {
 	quit := make(chan struct{}, 1)
-	gate := newQuitGate(time.Second, func() {}, func() { quit <- struct{}{} })
+	gate := New(time.Second, func() {}, func() { quit <- struct{}{} })
 
-	gate.requestClose()
-	gate.flushed()
+	gate.RequestClose()
+	gate.Flushed()
 
 	select {
 	case <-quit:
@@ -44,12 +41,13 @@ func TestQuitGate_QuitsAfterAck(t *testing.T) {
 	}
 }
 
-// With no ack, the gate quits once the timeout elapses.
-func TestQuitGate_QuitsAfterTimeout(t *testing.T) {
+// With no ack, the gate quits once the timeout elapses, so an unresponsive
+// frontend (or a .lock held by another process) cannot keep the window open.
+func TestGate_QuitsAfterTimeout(t *testing.T) {
 	quit := make(chan struct{}, 1)
-	gate := newQuitGate(20*time.Millisecond, func() {}, func() { quit <- struct{}{} })
+	gate := New(20*time.Millisecond, func() {}, func() { quit <- struct{}{} })
 
-	gate.requestClose()
+	gate.RequestClose()
 
 	select {
 	case <-quit:
@@ -60,15 +58,16 @@ func TestQuitGate_QuitsAfterTimeout(t *testing.T) {
 
 // A second user close during the flush is still held — closing then would cut
 // the save short — and does not notify the frontend again.
-func TestQuitGate_SubsequentUserCloseStaysHeld(t *testing.T) {
+func TestGate_SubsequentUserCloseStaysHeld(t *testing.T) {
 	var emits int32
 	quit := make(chan struct{}, 1)
-	gate := newQuitGate(time.Second, func() { atomic.AddInt32(&emits, 1) }, func() { quit <- struct{}{} })
+	// Long timeout so the gate does not release on its own during the test.
+	gate := New(time.Second, func() { atomic.AddInt32(&emits, 1) }, func() { quit <- struct{}{} })
 
-	if prevent := gate.requestClose(); !prevent {
+	if prevent := gate.RequestClose(); !prevent {
 		t.Fatal("first close request must be prevented")
 	}
-	if prevent := gate.requestClose(); !prevent {
+	if prevent := gate.RequestClose(); !prevent {
 		t.Fatal("a close during the flush must still be prevented")
 	}
 	if got := atomic.LoadInt32(&emits); got != 1 {
@@ -81,19 +80,20 @@ func TestQuitGate_SubsequentUserCloseStaysHeld(t *testing.T) {
 	}
 }
 
-// Only the gate's own runtime.Quit — which re-enters requestClose after the ack
+// Only the gate's own runtime.Quit — which re-enters RequestClose after the ack
 // — is let through, so the app closes exactly once without looping on itself.
-func TestQuitGate_OwnQuitReentryIsAllowed(t *testing.T) {
-	var gate *quitGate
+func TestGate_OwnQuitReentryIsAllowed(t *testing.T) {
+	var gate *Gate
 	done := make(chan struct{})
 	var reentryPrevent bool
-	gate = newQuitGate(time.Second, func() {}, func() {
-		reentryPrevent = gate.requestClose()
+	gate = New(time.Second, func() {}, func() {
+		// Emulate runtime.Quit re-triggering OnBeforeClose.
+		reentryPrevent = gate.RequestClose()
 		close(done)
 	})
 
-	gate.requestClose()
-	gate.flushed()
+	gate.RequestClose()
+	gate.Flushed()
 
 	select {
 	case <-done:
@@ -106,15 +106,15 @@ func TestQuitGate_OwnQuitReentryIsAllowed(t *testing.T) {
 }
 
 // A stray ack — before any close request, or a second one — is a harmless
-// no-op and must not panic.
-func TestQuitGate_StrayAckIsNoop(t *testing.T) {
+// no-op and must not panic (closing an already-closed channel would).
+func TestGate_StrayAckIsNoop(t *testing.T) {
 	quit := make(chan struct{}, 1)
-	gate := newQuitGate(time.Second, func() {}, func() { quit <- struct{}{} })
+	gate := New(time.Second, func() {}, func() { quit <- struct{}{} })
 
-	gate.flushed()
-	gate.requestClose()
-	gate.flushed()
-	gate.flushed()
+	gate.Flushed() // before any request: nothing to release
+	gate.RequestClose()
+	gate.Flushed()
+	gate.Flushed() // second ack: already released
 
 	select {
 	case <-quit:

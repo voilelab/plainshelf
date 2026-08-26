@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/internal/quitgate"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/internal/version"
@@ -35,7 +36,7 @@ type DesktopApp struct {
 	readingStatsPath    string
 	readingProgressSync *readingprogress.Store
 	startupErr          error
-	quitGate            *quitGate
+	quitGate            *quitgate.Gate
 }
 
 type DesktopImportBookResult struct {
@@ -65,8 +66,8 @@ func (a *DesktopApp) Startup(ctx context.Context) {
 	// construction — because emit and quit need the runtime context Startup
 	// receives. It is set before startServer so a startup failure still closes
 	// through the same gate.
-	a.quitGate = newQuitGate(quitGateTimeout, func() {
-		wailsruntime.EventsEmit(a.ctx, beforeCloseEvent)
+	a.quitGate = quitgate.New(quitgate.DefaultTimeout, func() {
+		wailsruntime.EventsEmit(a.ctx, quitgate.BeforeCloseEvent)
 	}, func() {
 		wailsruntime.Quit(a.ctx)
 	})
@@ -120,7 +121,7 @@ func (a *DesktopApp) beforeClose(context.Context) (prevent bool) {
 	if a.quitGate == nil {
 		return false
 	}
-	return a.quitGate.requestClose()
+	return a.quitGate.RequestClose()
 }
 
 // AckBeforeClose is bound to the frontend, which calls it after flushing the
@@ -128,7 +129,7 @@ func (a *DesktopApp) beforeClose(context.Context) (prevent bool) {
 // close the gate is holding.
 func (a *DesktopApp) AckBeforeClose() {
 	if a.quitGate != nil {
-		a.quitGate.flushed()
+		a.quitGate.Flushed()
 	}
 }
 
