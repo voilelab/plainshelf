@@ -243,6 +243,11 @@ export function useReader(bookID: () => string) {
     currentSectionIndex.value = clampedIndex;
     const section = sections.value[clampedIndex];
     updateProgressByOffset(section.startOffset);
+    // A chapter boundary is a semantically valuable checkpoint, so persist it
+    // now instead of waiting up to a full autosave interval. Not awaited: the
+    // jump's UI response must not wait on a disk write, and a queued flush that
+    // finds the snapshot already clean is a no-op.
+    void flushReadingProgress();
     await syncScrollToOffset(section.startOffset);
     readerRef.value?.focus();
   }
