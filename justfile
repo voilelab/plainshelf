@@ -47,11 +47,14 @@ build-desktop: build-server-frontend
 
 # Run desktop app. On macOS the in-app "read" action shells out to the standalone
 # reader; in dev this points it at your locally built reader
-# (reader/build/bin/PlainShelfReader.app, from `just build-reader`) instead of the
-# brew-installed one, so reads open the dev-line reader. Override with a path or app
-# name — `just run-desktop /path/to/PlainShelfReader.app` — and an already-set
-# PLAINSHELF_READER_APP in the environment wins over both.
-run-desktop reader="": build-server-frontend
+# (reader/build/bin/PlainShelfReader.app), so reads open the dev-line reader
+# instead of the brew-installed one. build-reader runs first so that reader is
+# rebuilt from the current source every time — a stale dev reader would open with
+# yesterday's code. Override the reader with a path or app name —
+# `just run-desktop /path/to/PlainShelfReader.app` — and an already-set
+# PLAINSHELF_READER_APP in the environment wins over both (the rebuilt dev reader
+# is then simply not used).
+run-desktop reader="": build-reader
 	#!/usr/bin/env zsh
 	set -eu
 	dev_reader="{{justfile_directory()}}/reader/build/bin/PlainShelfReader.app"

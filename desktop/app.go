@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
+	"github.com/voilelab/plainshelf/internal/readingclose"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/internal/version"
@@ -35,6 +36,7 @@ type DesktopApp struct {
 	readingStatsPath    string
 	readingProgressSync *readingprogress.Store
 	startupErr          error
+	progressStager      *readingclose.Stager
 }
 
 type DesktopImportBookResult struct {
@@ -98,6 +100,22 @@ func (a *DesktopApp) Shutdown() {
 			log.Println("Failed to close app:", err)
 		}
 	}
+}
+
+// beforeClose is the OnBeforeClose hook. It writes the reading position the
+// frontend last staged to disk before allowing the window to close; see
+// readingclose.Stager. It is unexported so Wails does not bind it as a frontend
+// method.
+func (a *DesktopApp) beforeClose(context.Context) (prevent bool) {
+	a.progressStager.PersistOnClose()
+	return false
+}
+
+// StageReadingProgress is bound to the frontend, which calls it on every reading
+// position change so the desktop shell holds the latest position in memory and
+// can write it on close. It only stages; the disk write happens in beforeClose.
+func (a *DesktopApp) StageReadingProgress(shelfID, bookID string, offset, at int64) {
+	a.progressStager.Stage(shelfID, bookID, offset, at)
 }
 
 func (a *DesktopApp) GetAPIHandler() http.Handler {
@@ -1036,6 +1054,7 @@ func (a *DesktopApp) startServer() error {
 	a.readingProgressPath = filepath.Join(dataRoot, "reading_progress.json")
 	a.readingStatsPath = filepath.Join(dataRoot, "reading_stats.json")
 	a.readingProgressSync = readingprogress.NewStore(a.readingProgressPath)
+	a.progressStager = readingclose.NewStager(a.readingProgressSync, readingclose.DefaultTimeout)
 	a.app = app
 	return nil
 }

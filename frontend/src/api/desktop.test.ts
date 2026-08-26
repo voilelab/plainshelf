@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   hasDesktopReadingProgressBinding,
   readDesktopReadingProgress,
+  stageDesktopReadingProgress,
   writeDesktopReadingProgress
 } from './desktop';
 
@@ -64,5 +65,24 @@ describe('reading-progress binding resolution', () => {
     await writeDesktopReadingProgress('{"version":1,"shelves":{}}');
     expect(desktopWrite).toHaveBeenCalledOnce();
     expect(readerWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe('stageDesktopReadingProgress', () => {
+  it('forwards the position to the reader binding', () => {
+    const stage = vi.fn(async () => undefined);
+    stubMain({
+      ReaderApp: {
+        ReadReadingProgress: async () => '',
+        WriteReadingProgress: async () => undefined,
+        StageReadingProgress: stage
+      }
+    });
+
+    stageDesktopReadingProgress('book-a', 120, 2000);
+
+    expect(stage).toHaveBeenCalledOnce();
+    // shelfID (from the active client shelf), bookID, offset, at.
+    expect(stage).toHaveBeenCalledWith(expect.any(String), 'book-a', 120, 2000);
   });
 });

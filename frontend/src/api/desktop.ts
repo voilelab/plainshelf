@@ -39,12 +39,21 @@ interface DesktopAppBinding {
   WriteReadingProgress?: (doc: string) => Promise<void>;
   ReadReadingStats?: () => Promise<string>;
   WriteReadingStats?: (doc: string) => Promise<void>;
+  StageReadingProgress?: (
+    shelfID: string,
+    bookID: string,
+    offset: number,
+    at: number
+  ) => Promise<void>;
 }
 
 // The standalone reader binds a ReaderApp struct (window.go.main.ReaderApp)
 // exposing only the reading-progress methods, so it can persist progress into
 // the same file the desktop app uses instead of WebView localStorage.
-type ReaderAppBinding = Pick<DesktopAppBinding, 'ReadReadingProgress' | 'WriteReadingProgress'>;
+type ReaderAppBinding = Pick<
+  DesktopAppBinding,
+  'ReadReadingProgress' | 'WriteReadingProgress' | 'StageReadingProgress'
+>;
 
 interface DesktopWindow extends Window {
   go?: {
@@ -362,6 +371,26 @@ export async function writeDesktopReadingStats(doc: string): Promise<void> {
   }
 
   await desktopApp.WriteReadingStats(doc);
+}
+
+// Stages the reader's latest position with the native shell so it can be written
+// to the shared file when the window closes — covering the seconds since the
+// last autosave that a close would otherwise drop. The desktop app and the
+// standalone reader both expose it (getReadingProgressBinding resolves whichever
+// is present); it is a no-op off them.
+//
+// Fire-and-forget by design: it is called on every position change, so it must
+// not block scrolling, and a dropped stage is covered by the next one or by the
+// interval autosave. Errors are swallowed for the same reason.
+export function stageDesktopReadingProgress(bookID: string, offset: number, at: number): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  const binding = getReadingProgressBinding();
+  if (!binding?.StageReadingProgress) {
+    return;
+  }
+  void binding.StageReadingProgress(getActiveShelfID(), bookID, offset, at).catch(() => undefined);
 }
 
 export async function openDesktopExternalURL(url: string): Promise<void> {

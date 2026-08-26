@@ -70,11 +70,12 @@ func main() {
 				spa.ServeHTTP(w, r)
 			}),
 		},
-		Menu:       newApplicationMenu(app),
-		OnStartup:  app.Startup,
-		OnDomReady: app.DomReady,
-		OnShutdown: app.Shutdown,
-		Bind:       []any{app},
+		Menu:          newApplicationMenu(app),
+		OnStartup:     app.Startup,
+		OnDomReady:    app.DomReady,
+		OnBeforeClose: app.beforeClose,
+		OnShutdown:    app.Shutdown,
+		Bind:          []any{app},
 		Mac: &mac.Options{
 			Preferences: &mac.Preferences{
 				FullscreenEnabled: mac.Enabled,

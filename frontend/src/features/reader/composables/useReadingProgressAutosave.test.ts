@@ -238,6 +238,27 @@ describe('useReadingProgressAutosave', () => {
     ]);
   });
 
+  it('stages each real position change immediately, but not an unchanged one', () => {
+    const save = vi.fn().mockResolvedValue(undefined);
+    const stage = vi.fn();
+    const autosave = useReadingProgressAutosave(save, stage);
+    autosave.setBaseline('book-a', 0);
+
+    // Setting the baseline is not a movement and must not stage.
+    expect(stage).not.toHaveBeenCalled();
+
+    autosave.update(10);
+    expect(stage).toHaveBeenCalledOnce();
+    expect(stage).toHaveBeenCalledWith('book-a', 10, 0);
+
+    // Re-setting the same offset is a no-op and must not stage again.
+    autosave.update(10);
+    expect(stage).toHaveBeenCalledOnce();
+
+    autosave.update(25);
+    expect(stage).toHaveBeenLastCalledWith('book-a', 25, 0);
+  });
+
   it('flushes when hidden or page-hidden and removes lifecycle listeners on stop', async () => {
     const save = vi.fn().mockResolvedValue(undefined);
     const autosave = useReadingProgressAutosave(save);
