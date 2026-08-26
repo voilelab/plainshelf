@@ -38,8 +38,19 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
     return openDesktopBookFolder(bookId);
   }
 
-  openDesktopReader(bookId: string, section?: number): Promise<void> {
-    return openDesktopReader(bookId, section);
+  async openDesktopReader(bookId: string, section?: number): Promise<void> {
+    await openDesktopReader(bookId, section);
+    // The standalone reader records its own read history in its WebView storage,
+    // which this desktop app cannot read, so its "recent reading" would stay
+    // empty on the default shell-out path. Write the entry from the launching
+    // side once the reader has actually started.
+    //
+    // Swallow the write error: the launch already succeeded, and letting it
+    // reject would make useReaderLaunch treat this as a launch failure — it
+    // would then pop a toast and open a second, in-app reader.
+    await this.addReadHistory(bookId).catch((err) => {
+      console.warn('Failed to update read history', err);
+    });
   }
 
   openDesktopShelfDirectory(): Promise<string | null> {
