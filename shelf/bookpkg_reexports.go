@@ -21,8 +21,6 @@ type (
 	Asset            = bookpkg.Asset
 	BookPackage      = bookpkg.BookPackage
 	FileStat         = bookpkg.FileStat
-	SplitConfig      = bookpkg.SplitConfig
-	SplitType        = bookpkg.SplitType
 )
 
 // Book package filenames, folder names and schema versions.
@@ -45,11 +43,6 @@ const (
 	MaxStar            = bookpkg.MaxStar
 	BookFormatText     = bookpkg.BookFormatText
 	BookFormatMarkdown = bookpkg.BookFormatMarkdown
-
-	SplitTypeNone      = bookpkg.SplitTypeNone
-	SplitTypeLineCount = bookpkg.SplitTypeLineCount
-	SplitTypeRegex     = bookpkg.SplitTypeRegex
-	SplitTypeBoundary  = bookpkg.SplitTypeBoundary
 )
 
 // Sentinel errors raised by the book package folder.

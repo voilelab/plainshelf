@@ -205,13 +205,6 @@ func TestCreateRootSource(t *testing.T) {
 	if meta.CharCount != len(sourceContent) {
 		t.Errorf("Expected character count %d, got %d", len(sourceContent), meta.CharCount)
 	}
-
-	// A fresh source has no chapter config, so meta.json must not carry an empty
-	// split_config that no schema-versioned reader consults.
-	persisted := readPersistedJSON(t, rootFS, path.Join(source.FolderPath(), SourceMetaFile))
-	if _, ok := persisted["split_config"]; ok {
-		t.Errorf("new source wrote split_config: %v", persisted["split_config"])
-	}
 }
 
 func TestLegacySourceSaveDoesNotUpgradeFormatOwnership(t *testing.T) {
@@ -221,7 +214,11 @@ func TestLegacySourceSaveDoesNotUpgradeFormatOwnership(t *testing.T) {
 		t.Fatalf("NewSource: %v", err)
 	}
 	metaPath := path.Join(source.FolderPath(), SourceMetaFile)
-	legacy := `{"id":"` + source.ID() + `","created_at":"2026-01-01T00:00:00Z","comment":"legacy","split_config":{"type":"line_count","line_count":20}}`
+	// A pre-schema-version source carries whatever keys an older build wrote,
+	// including fields this build no longer models. Opening it decodes only the
+	// known fields, so a rewrite persists those and does not resurrect the
+	// unknown ones, nor upgrade the source by adding format/schema_version.
+	legacy := `{"id":"` + source.ID() + `","created_at":"2026-01-01T00:00:00Z","comment":"legacy","legacy_extra":"ignored"}`
 	if err := rootFS.WriteFile(metaPath, []byte(legacy)); err != nil {
 		t.Fatalf("write legacy meta: %v", err)
 	}
@@ -252,12 +249,11 @@ func TestLegacySourceSaveDoesNotUpgradeFormatOwnership(t *testing.T) {
 	if _, ok := persisted["schema_version"]; ok {
 		t.Fatalf("ordinary save added schema_version to legacy source: %s", raw)
 	}
-	split, ok := persisted["split_config"].(map[string]any)
-	if !ok {
-		t.Fatalf("ordinary save dropped the legacy split_config: %s", raw)
+	if _, ok := persisted["legacy_extra"]; ok {
+		t.Fatalf("ordinary save preserved an unknown legacy field: %s", raw)
 	}
-	if split["type"] != "line_count" || split["line_count"] != float64(20) {
-		t.Fatalf("ordinary save mangled the legacy split_config: %v", split)
+	if persisted["comment"] != "legacy" {
+		t.Fatalf("ordinary save changed a known field: %s", raw)
 	}
 }
 
@@ -268,7 +264,7 @@ func TestNewerSourceSchemaIsReadableButNotWritable(t *testing.T) {
 		t.Fatalf("NewSource: %v", err)
 	}
 	metaPath := path.Join(source.FolderPath(), SourceMetaFile)
-	future := `{"schema_version":99,"id":"` + source.ID() + `","created_at":"2026-01-01T00:00:00Z","comment":"future","format":"md","future_key":true,"split_config":{"type":"none"}}`
+	future := `{"schema_version":99,"id":"` + source.ID() + `","created_at":"2026-01-01T00:00:00Z","comment":"future","format":"md","future_key":true}`
 	if err := rootFS.WriteFile(metaPath, []byte(future)); err != nil {
 		t.Fatalf("write future meta: %v", err)
 	}
@@ -325,24 +321,3 @@ func TestSourceHashPersists(t *testing.T) {
 	}
 }
 
-// readPersistedJSON decodes a book-relative JSON file as a bare map, so a test
-// can assert on the keys actually on disk rather than on a struct's zero values.
-func readPersistedJSON(t *testing.T, root fsutil.FS, filePath string) map[string]any {
-	t.Helper()
-
-	file, err := root.Open(filePath)
-	if err != nil {
-		t.Fatalf("open %s: %v", filePath, err)
-	}
-	raw, err := io.ReadAll(file)
-	file.Close()
-	if err != nil {
-		t.Fatalf("read %s: %v", filePath, err)
-	}
-
-	var persisted map[string]any
-	if err := json.Unmarshal(raw, &persisted); err != nil {
-		t.Fatalf("decode %s: %v", filePath, err)
-	}
-	return persisted
-}
