@@ -4,9 +4,11 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/voilelab/plainshelf/internal/testutil"
 	"github.com/voilelab/plainshelf/server"
+	"golang.org/x/text/encoding/japanese"
 )
 
 func TestAPIImportBookContract(t *testing.T) {
@@ -33,6 +35,67 @@ func TestAPIImportBookContract(t *testing.T) {
 
 	rec = postBookImport(t, env, bookUpload("book.cbz", "text/plain", "not a supported upload"))
 	assertStatus(t, rec, http.StatusBadRequest)
+}
+
+// TestAPIImportUnsupportedEncodingContract pins that a .txt whose bytes decode to
+// an encoding the server has no decoder for is a client error (400), not a server
+// error (500), and that the detected encoding name reaches the client so the user
+// can tell why their file was refused.
+func TestAPIImportUnsupportedEncodingContract(t *testing.T) {
+	env := newAPITestEnv(t)
+
+	shiftJIS, err := japanese.ShiftJIS.NewEncoder().String(
+		"これは日本語のテキストです。文字化けのテスト。")
+	if err != nil {
+		t.Fatalf("failed to encode Shift-JIS fixture: %v", err)
+	}
+
+	rec := postBookImport(t, env, bookUpload("novel.txt", plainTextContentType, shiftJIS))
+	assertStatus(t, rec, http.StatusBadRequest)
+	if body := rec.Body.String(); !strings.Contains(body, "SHIFT_JIS") {
+		t.Fatalf("400 body = %q, want it to name the detected encoding SHIFT_JIS", body)
+	}
+}
+
+// TestAPIImportStripsBOMContract pins the UTF-8-SIG behavior end to end: a leading
+// BOM must not survive into the stored source content, and it must not be counted
+// in char_count. importTextBook prepends a BOM to every upload, so this exercises
+// the common path.
+func TestAPIImportStripsBOMContract(t *testing.T) {
+	env := newAPITestEnv(t)
+
+	// importTextBook uploads "\ufeff" + body + "\n世界"; after BOM stripping the
+	// stored content is exactly that without the leading BOM.
+	book := importTextBook(t, env, "BOM Book", "", "bom.txt", "hello world")
+	const wantContent = "hello world\n世界"
+
+	rec := env.get(bookURL(book.Meta.ID, "content"))
+	assertStatus(t, rec, http.StatusOK)
+	content := rec.Body.String()
+	if strings.HasPrefix(content, "\ufeff") {
+		t.Fatalf("stored content still starts with a BOM: %q", content)
+	}
+	if content != wantContent {
+		t.Fatalf("content = %q, want %q", content, wantContent)
+	}
+
+	// char_count is derived from the stored content, so it must not count the BOM.
+	books := getJSON[[]server.Book](t, env, booksURL()+"?include=char_count")
+	var charCount int
+	var found bool
+	for _, b := range books {
+		if b.Meta != nil && b.Meta.ID == book.Meta.ID {
+			charCount = b.CharCount
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("imported book %s missing from listing", book.Meta.ID)
+	}
+	if want := utf8.RuneCountInString(wantContent); charCount != want {
+		t.Fatalf("char_count = %d, want %d (BOM must not be counted)", charCount, want)
+	}
 }
 
 func TestAPIImportMarkdownBookContract(t *testing.T) {

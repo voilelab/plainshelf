@@ -202,6 +202,27 @@ func TestMultipartDefaultFileContentTypeIsRejected(t *testing.T) {
 	}
 }
 
+// TestImportFromLocalPathStripsExtensionFromTitle pins that the desktop local-path
+// import derives the book title from the filename with its extension removed, so
+// "遮天.txt" becomes "遮天" rather than "遮天.txt" — matching the web-upload path,
+// whose frontend already sends a de-extensioned title.
+func TestImportFromLocalPathStripsExtensionFromTitle(t *testing.T) {
+	app := newTestApp(t)
+
+	srcPath := filepath.Join(t.TempDir(), "遮天.txt")
+	if err := os.WriteFile(srcPath, []byte("第一章\n\n內文。\n"), 0o600); err != nil {
+		t.Fatalf("write source book: %v", err)
+	}
+
+	book, err := app.ImportFromLocalPath("default_shelf", srcPath, nil)
+	if err != nil {
+		t.Fatalf("ImportFromLocalPath returned error: %v", err)
+	}
+	if got := book.GetMeta().Title; got != "遮天" {
+		t.Fatalf("title = %q, want 遮天", got)
+	}
+}
+
 func TestValidateLocalImportPath(t *testing.T) {
 	tmpDir := t.TempDir()
 	validPath := filepath.Join(tmpDir, "book.txt")
