@@ -45,8 +45,12 @@ func ReEncodeToUTF8(src io.Reader) (io.Reader, string, error) {
 		return traditionalchinese.Big5.NewDecoder().Reader(bytes.NewReader(bs)), res.Encoding, nil
 	case "UTF-16", "UTF-16LE":
 		// UseBOM consumes a leading BOM and lets it override the endianness, so a
-		// BOM'd file decodes cleanly without a stray U+FEFF; the little-endian
-		// default covers the BOM-less case (Windows Notepad "Unicode" is LE).
+		// BOM'd file — what Windows Notepad's "Unicode" writes, the case this
+		// targets — decodes cleanly without a stray U+FEFF. LittleEndian is only
+		// the fallback endianness for when chardet routes here without a BOM.
+		// BOM-less UTF-16 is out of scope: chardet's probe needs alternating NUL
+		// bytes to recognize it, which CJK text lacks, so such a file is detected
+		// as "" and handled as UTF-8 rather than reaching this branch.
 		dec := unicode.UTF16(unicode.LittleEndian, unicode.UseBOM)
 		return dec.NewDecoder().Reader(bytes.NewReader(bs)), res.Encoding, nil
 	case "UTF-16BE":
