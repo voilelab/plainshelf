@@ -84,8 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { onMounted } from 'vue';
 import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 import AboutPanel from '@/features/settings/components/AboutPanel.vue';
 import CoverPanel from '@/features/settings/components/CoverPanel.vue';
@@ -97,47 +96,15 @@ import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import { useI18n } from '@/i18n';
 import { useServerSettingsForm } from '@/features/settings/composables/useServerSettingsForm';
+import { useSettingsTabs } from '@/features/settings/composables/useSettingsTabs';
 
 const { t } = useI18n();
-const route = useRoute();
 // Shelves is the useful landing tab when the server settings tabs are gone:
 // it holds the connection and downloads panels.
 const { serverSettingsEditable } = useWriteAccess();
-const defaultSettingsTab = computed(() => (serverSettingsEditable.value ? 'cover' : 'shelves'));
-
-// The cover and import tabs render only when the server settings are editable;
-// everything else is always present. Used to reject a ?tab= value that names a
-// tab this shell does not show.
-const availableTabs = computed(() => {
-  const tabs = ['read-history', 'reader-launch', 'about', 'shelves'];
-  if (serverSettingsEditable.value) {
-    tabs.push('cover', 'import');
-  }
-  return tabs;
-});
-
-function requestedTab(): string | null {
-  const requested = route.query.tab;
-  if (typeof requested === 'string' && availableTabs.value.includes(requested)) {
-    return requested;
-  }
-  return null;
-}
-
-// Controlled so the sidebar's "manage shelves" deep link (?tab=shelves) can
-// select a tab even when the settings page is already mounted — default-value
-// is read only once, so a query change would otherwise be ignored.
-const activeSettingsTab = ref(requestedTab() ?? defaultSettingsTab.value);
-
-watch(
-  () => route.query.tab,
-  () => {
-    const tab = requestedTab();
-    if (tab) {
-      activeSettingsTab.value = tab;
-    }
-  }
-);
+// The active tab is backed by the ?tab= query so the sidebar's "manage
+// shelves" deep link lands here even on repeat clicks — see useSettingsTabs.
+const { activeSettingsTab } = useSettingsTabs(serverSettingsEditable);
 
 const {
   loading,
