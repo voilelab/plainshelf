@@ -94,6 +94,10 @@ export function useImportBook() {
   const chapterConversionError = ref('');
 
   let controller: AbortController | null = null;
+  // Bumped whenever the suggestion is cleared (a new import, a reset, or a modal
+  // close), so an in-flight chapter probe knows it has been superseded and must
+  // not repopulate the prompt for a book the user has moved on from.
+  let detectionGeneration = 0;
 
   const progress = computed<ImportProgress>(() => {
     const total = files.value.length;
@@ -136,13 +140,21 @@ export function useImportBook() {
   function reset(): void {
     controller?.abort();
     controller = null;
+    clearImportSelection();
+    success.value = '';
+    error.value = '';
+    clearChapterSuggestion();
+  }
+
+  // Clears the retained import payload — the chosen files and their per-file
+  // states — without touching the result message. Accepting a detected-chapter
+  // prompt uses this so the now-empty file chooser cannot silently reimport the
+  // previous File while the success line stays visible.
+  function clearImportSelection(): void {
     bookFiles.value = [];
     files.value = [];
     submitting.value = false;
     cancelRequested.value = false;
-    success.value = '';
-    error.value = '';
-    clearChapterSuggestion();
   }
 
   function setBookFiles(nextFiles: File[]): void {
@@ -154,6 +166,8 @@ export function useImportBook() {
   }
 
   function clearChapterSuggestion(): void {
+    // Invalidate any detection probe still awaiting content for a prior import.
+    detectionGeneration += 1;
     chapterSuggestion.value = null;
     convertingChapters.value = false;
     chapterConversionError.value = '';
@@ -165,6 +179,9 @@ export function useImportBook() {
   // suggestion, so the import flow the user sees is unchanged.
   async function detectChapterConversion(result: ImportSubmitResult | null): Promise<void> {
     clearChapterSuggestion();
+    // Captured after the clear above bumped it, so any later clear (a reset, a
+    // modal close, a fresh import) makes this probe's own result stale.
+    const generation = detectionGeneration;
     if (!result || result.total !== 1 || result.successCount !== 1 || !result.firstImportedId) {
       return;
     }
@@ -175,6 +192,11 @@ export function useImportBook() {
 
     try {
       const { content } = await getBookshelfProvider().getBookContent(result.firstImportedId);
+      if (generation !== detectionGeneration) {
+        // The modal was reset/closed (or another import started) while the
+        // content was in flight; do not resurrect a prompt for this book.
+        return;
+      }
       const chapters = countTextChapters(content);
       if (chapters > 0) {
         chapterSuggestion.value = { bookId: result.firstImportedId, chapters, content };
@@ -468,6 +490,7 @@ export function useImportBook() {
     detectChapterConversion,
     applyChapterConversion,
     dismissChapterSuggestion,
+    clearImportSelection,
     abort,
     reset
   };

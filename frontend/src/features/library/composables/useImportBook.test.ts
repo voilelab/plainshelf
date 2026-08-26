@@ -365,4 +365,42 @@ describe('useImportBook', () => {
     book.dismissChapterSuggestion();
     expect(book.chapterSuggestion.value).toBeNull();
   });
+
+  // Race guard: a reset (modal close, new import) while the content probe is in
+  // flight must invalidate the probe so it cannot resurrect a stale prompt.
+  it('discards a detection result when reset mid-probe', async () => {
+    mocks.importBook.mockResolvedValue({ id: 'id-novel' });
+    let resolveContent: (value: { content: string }) => void = () => {};
+    mocks.getBookContent.mockImplementation(
+      () => new Promise((resolve) => { resolveContent = resolve; })
+    );
+
+    const book = useImportBook();
+    book.setBookFiles([bookFile('novel.txt')]);
+    const result = await book.submitFiles('/');
+    const detecting = book.detectChapterConversion(result);
+
+    // The modal closes before the probe resolves; its late result must not land.
+    book.reset();
+    resolveContent({ content: '第一章 起\n第二章 承' });
+    await detecting;
+
+    expect(book.chapterSuggestion.value).toBeNull();
+  });
+
+  // Accepting the prompt drops the retained payload (so Import cannot re-fire on
+  // the same File) while leaving the result message in place.
+  it('clears the retained selection without wiping the result message', async () => {
+    mocks.importBook.mockResolvedValue({ id: 'id-a' });
+
+    const book = useImportBook();
+    book.setBookFiles([bookFile('a.txt')]);
+    await book.submitFiles('/');
+    expect(book.files.value.length).toBe(1);
+    expect(book.success.value).toBe('libraryForms.importBook.results.one');
+
+    book.clearImportSelection();
+    expect(book.files.value.length).toBe(0);
+    expect(book.success.value).toBe('libraryForms.importBook.results.one');
+  });
 });

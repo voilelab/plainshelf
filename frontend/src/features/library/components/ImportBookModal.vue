@@ -44,7 +44,7 @@
             class="button"
             type="button"
             :disabled="convertingChapters"
-            @click="dismissChapterSuggestion"
+            @click="onDismissChapters"
           >
             {{ t('libraryForms.importBook.chapterSuggestion.dismiss') }}
           </button>
@@ -231,7 +231,7 @@ const {
   submitLocalPaths,
   detectChapterConversion,
   applyChapterConversion,
-  dismissChapterSuggestion,
+  clearImportSelection,
   abort,
   reset
 } = useImportBook();
@@ -367,9 +367,6 @@ async function finishImport(result: ImportSubmitResult | null): Promise<void> {
     return;
   }
 
-  clearFileInputs();
-  selectedFiles.value = [];
-
   // A detected chapter prompt lives in this results area; resetting now would
   // wipe the success line and the prompt before the user can act on it. The
   // form clears when they accept, dismiss, or close the modal instead.
@@ -377,15 +374,32 @@ async function finishImport(result: ImportSubmitResult | null): Promise<void> {
     return;
   }
 
+  resetImportForm();
+}
+
+function resetImportForm(): void {
+  clearFileInputs();
+  selectedFiles.value = [];
   reset();
 }
 
 async function onConvertChapters(): Promise<void> {
-  // The conversion changes the book's current source and format, so refresh the
-  // listing behind the modal to keep any format-dependent card in sync.
-  if (await applyChapterConversion()) {
-    await fetchBooks();
+  if (!(await applyChapterConversion())) {
+    return;
   }
+  // Drop the retained payload so the now-empty file chooser cannot reimport the
+  // same File, while applyChapterConversion's success line stays on screen.
+  clearFileInputs();
+  selectedFiles.value = [];
+  clearImportSelection();
+  // The conversion changed the book's current source and format, so refresh the
+  // listing behind the modal to keep any format-dependent card in sync.
+  await fetchBooks();
+}
+
+function onDismissChapters(): void {
+  // Declining returns the modal to the same empty state a clean import ends in.
+  resetImportForm();
 }
 
 async function onSubmit(): Promise<void> {
