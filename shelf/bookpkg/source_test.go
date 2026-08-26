@@ -324,3 +324,25 @@ func TestSourceHashPersists(t *testing.T) {
 		t.Fatal("VerifyContent rejected content after UpdateHash")
 	}
 }
+
+// readPersistedJSON decodes a book-relative JSON file as a bare map, so a test
+// can assert on the keys actually on disk rather than on a struct's zero values.
+func readPersistedJSON(t *testing.T, root fsutil.FS, filePath string) map[string]any {
+	t.Helper()
+
+	file, err := root.Open(filePath)
+	if err != nil {
+		t.Fatalf("open %s: %v", filePath, err)
+	}
+	raw, err := io.ReadAll(file)
+	file.Close()
+	if err != nil {
+		t.Fatalf("read %s: %v", filePath, err)
+	}
+
+	var persisted map[string]any
+	if err := json.Unmarshal(raw, &persisted); err != nil {
+		t.Fatalf("decode %s: %v", filePath, err)
+	}
+	return persisted
+}

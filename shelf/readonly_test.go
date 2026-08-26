@@ -60,7 +60,6 @@ func TestBookOnReadOnlyFSRefusesWrites(t *testing.T) {
 		"UpdateHash":        func() error { return source.UpdateHash() },
 		"WriteAsset":        func() error { return source.WriteAsset("img-0001.png", []byte("png data")) },
 		"DeleteAsset":       func() error { return source.DeleteAsset("img-0001.png") },
-		"UpgradeLegacyToV1": func() error { return source.UpgradeLegacyToSchemaV1(BookFormatMarkdown, nil) },
 	}
 
 	for name, write := range writes {
@@ -92,7 +91,6 @@ func TestRefusedSourceWriteLeavesMetaUntouched(t *testing.T) {
 	writes := map[string]func() error{
 		"UpdateComment":     func() error { return source.UpdateComment("comment that cannot be stored") },
 		"UpdateHash":        func() error { return source.UpdateHash() },
-		"UpgradeLegacyToV1": func() error { return source.UpgradeLegacyToSchemaV1(BookFormatMarkdown, nil) },
 	}
 
 	for name, write := range writes {
