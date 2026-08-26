@@ -7,6 +7,10 @@ and UI behavior may still change between releases.
 
 ## [Unreleased]
 
+### Removed
+
+- Removed the one-off `cmd/migrate-legacy-sources` tool and its `internal/legacyupgrade` support code, along with the now-dead `SplitConfig`/`SplitType` types and the `split_config` field on source metadata, so `split_config` exists only as an ignored unknown key in old `meta.json` files. A legacy source — one whose `meta.json` predates source-level format versioning — still lists and reads exactly as before, rendering as its `book.json` format says (one plain-text section unless the book is Markdown); nothing about how it is read has changed. To give such a source chapters again, use the source editor's TXT → Markdown conversion (by regex or fixed line count), which writes a new schema v1 source and leaves the legacy original intact.
+
 ## [v0.10.0] - 2026-08-26
 
 ### Added

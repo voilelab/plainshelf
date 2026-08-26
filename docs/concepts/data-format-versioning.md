@@ -112,8 +112,8 @@ New `sources/{id}/meta.json` files also carry `schema_version: 1` and an
 authoritative `format` (`txt` or `md`). A source without those fields is a
 legacy source. It is still listed and still readable, but nothing interprets its
 `split_config` any more: it renders as `book.json`'s `format` says, which means
-one plain-text section unless the book is Markdown. Run the migration tool below
-to give it chapters again.
+one plain-text section unless the book is Markdown. To give it chapters again,
+convert it in the source editor (see below).
 
 Source schema v1 is written only when creating a new source, including imports
 and explicit TXT/Markdown conversions. A source whose schema version is newer
@@ -126,58 +126,37 @@ as well as to the source, so it is refused for a book whose own schema version i
 newer than this build understands. Deleting any other source only touches that
 source and does not write `book.json` at all.
 
-### Migrating legacy sources in place
+### Giving a legacy source chapters again
 
-Because legacy sources are never upgraded on their own, a shelf can carry them
-indefinitely. `cmd/migrate-legacy-sources` upgrades them all in one pass. It is
-opt-in, one-off, and not part of the server or any release build:
+A legacy source is never upgraded on its own, so a shelf can carry one
+indefinitely, and opening the shelf changes nothing about it. It stays listed
+and stays readable, rendering as its `book.json` `format` says — one plain-text
+section, unless the book is Markdown, in which case the `## ` headings already in
+its text still divide it into chapters. What no build does any more is read a
+source's chapter structure out of its own metadata.
 
-```sh
-go run ./cmd/migrate-legacy-sources -shelf ./shelf              # dry run
-go run ./cmd/migrate-legacy-sources -shelf ./shelf -dry-run=false
-```
+To give a plain-text legacy source chapters, open it in the source editor and run
+a **TXT → Markdown** conversion, either by a regular expression or by a fixed line
+count. The conversion writes the chapter boundaries into the text as `## `
+headings and saves them as a **new** schema v1 source, leaving your legacy source
+untouched, so nothing about the original is lost. Making that new source the
+book's current source also switches `book.json`'s compatibility `format` to `md`;
+pointing the book back at the legacy source restores its text but not that format
+mirror, so correct the book's `format` back to `txt` as well if you want it read
+as plain text again. This per-source conversion is the only supported way to
+re-chapter a legacy source — there is no batch or in-place upgrade, and a one-off
+migration tool that once did this shelf-wide has been removed.
 
-It takes the shelf directory itself, not a server config, so it works on a
-detached copy of a shelf as readily as on the live one. Older PlainShelf
-releases had a shelf-wide `default_split_config` setting that legacy sources fell
-back on; if a shelf relied on one, repeat it here with
-`-default-split-config '{"type":"line_count","line_count":500}'`, or those
-sources migrate as the single-chapter text they would be without it.
+Two fields survive in older `meta.json` files and no longer do anything:
 
-For each legacy source it stamps `schema_version` and the format the source
-renders as today, and resets the split config the new schema ignores. Where that
-split actually produced chapters, it first bakes them into the text as `## `
-headings, rewriting the source in place. A source whose split produces nothing
-keeps its bytes untouched.
-
-Before running it with `-dry-run=false`:
-
-- **Stop the server and the desktop app.** The tool takes the shelf lock, which
-  stops two migrations racing each other, but a running PlainShelf holds that
-  lock only for the length of one operation — so it cannot tell you one is
-  running. A concurrent run is actively harmful; closing PlainShelf first is
-  your job.
-- **Back up the shelf directory.** The rewrite is in place and there is no undo.
-
-`-dry-run` is the default and performs the full computation, so its report is a
-real rehearsal. Read it before applying. Two things in it deserve attention:
-
-- Sources reported as `needs-attention` are left legacy and untouched. That
-  happens when a split regex uses JavaScript-only syntax Go's engine cannot run,
-  or when the split type is not one this build knows. The tool cannot reproduce
-  those chapters, and guessing at them is not something an unundoable in-place
-  rewrite should do. Such a source reads as one section; add `## ` headings to
-  its text in the source editor to give it chapters.
-- A split that names no boundary at all — a line count of zero, a blank pattern,
-  or a regex that matches nothing — is not an error. It is what "no chapters"
-  looks like, so the source is stamped with the format it already rendered as
-  and its bytes are left alone.
-- The per-source chapter count is there to be compared against what the reader
-  has been showing. The tool translates the two known dialect differences that
-  would otherwise lose chapters silently (JavaScript treats a carriage return as
-  a line terminator for `^`/`$`; its `\s` covers the ideographic space and other
-  Unicode spaces), but it cannot guarantee every pattern means the same thing in
-  both engines.
+- **`split_config`** was a per-source chapter model. It is now just an ignored
+  unknown key: it decodes into nothing, cannot be set, and is dropped the next
+  time anything rewrites that source's `meta.json`, the same as any other
+  unrecognized key. The chapters it once produced are not reconstructed on read;
+  the source-editor conversion above is how you get them back.
+- **`default_split_config`** was a shelf-wide fallback split that earlier
+  PlainShelf releases applied to a source carrying no `split_config` of its own.
+  The setting no longer exists and nothing consults it.
 
 ---
 
@@ -288,9 +267,10 @@ breaking change, not data that 1.0 guarantees to migrate.
   book. Source `meta.json` is the one exception to the *upgrade* half: it is
   never raised as a side effect of an ordinary write. A legacy source keeps its
   unversioned metadata even when something else about it is written — the write
-  preserves the version it found rather than stamping the current one — so the
-  only way to upgrade legacy sources is the explicit
-  [`cmd/migrate-legacy-sources`](#migrating-legacy-sources-in-place) pass.
+  preserves the version it found rather than stamping the current one. A legacy
+  source is therefore never upgraded in place; to get a schema v1 source with
+  chapters, convert it in the source editor — see
+  [Giving a legacy source chapters again](#giving-a-legacy-source-chapters-again).
 - PlainShelf will never write a `book.json`, source `meta.json`, or `trash.json`
   whose on-disk `schema_version` is higher than the running build understands.
   Such data stays visible and readable on a best-effort basis, and every attempt
