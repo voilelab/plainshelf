@@ -130,18 +130,22 @@ source and does not write `book.json` at all.
 
 A legacy source is never upgraded on its own, so a shelf can carry one
 indefinitely, and opening the shelf changes nothing about it. It stays listed
-and stays readable; it simply renders as the single plain-text section its
-`book.json` `format` describes, because no build reads a source's chapter
-structure out of its metadata any more.
+and stays readable, rendering as its `book.json` `format` says — one plain-text
+section, unless the book is Markdown, in which case the `## ` headings already in
+its text still divide it into chapters. What no build does any more is read a
+source's chapter structure out of its own metadata.
 
-To give it chapters again, open it in the source editor and run a **TXT →
-Markdown** conversion, either by a regular expression or by a fixed line count.
-The conversion writes the chapter boundaries into the text as `## ` headings and
-saves them as a **new** schema v1 source; the legacy source is left byte-for-byte
-as it was, so the change is undone by pointing the book's current source back at
-it. This per-source conversion is the only supported way to re-chapter a legacy
-source — there is no batch or in-place upgrade, and a one-off migration tool that
-once did this shelf-wide has been removed.
+To give a plain-text legacy source chapters, open it in the source editor and run
+a **TXT → Markdown** conversion, either by a regular expression or by a fixed line
+count. The conversion writes the chapter boundaries into the text as `## `
+headings and saves them as a **new** schema v1 source, leaving your legacy source
+untouched, so nothing about the original is lost. Making that new source the
+book's current source also switches `book.json`'s compatibility `format` to `md`;
+pointing the book back at the legacy source restores its text but not that format
+mirror, so correct the book's `format` back to `txt` as well if you want it read
+as plain text again. This per-source conversion is the only supported way to
+re-chapter a legacy source — there is no batch or in-place upgrade, and a one-off
+migration tool that once did this shelf-wide has been removed.
 
 Two fields survive in older `meta.json` files and no longer do anything:
 
