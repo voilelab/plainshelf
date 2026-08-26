@@ -373,6 +373,85 @@ func TestOpenFolderDirectoryOpensFinderForFolderPath(t *testing.T) {
 	}
 }
 
+func TestOpenShelfInFinderOpensLibRoot(t *testing.T) {
+	tempDir := t.TempDir()
+	libRoot := filepath.Join(tempDir, "library")
+	if err := os.MkdirAll(libRoot, 0o755); err != nil {
+		t.Fatalf("create lib root: %v", err)
+	}
+
+	configPath := filepath.Join(tempDir, "shelves.json")
+	conf := &desktopShelvesConfig{
+		Shelves: []desktopShelfEntry{{ID: "shelf-1", Name: "Shelf", LibRoot: libRoot}},
+	}
+	if err := saveDesktopShelves(configPath, conf); err != nil {
+		t.Fatalf("saveDesktopShelves: %v", err)
+	}
+
+	app := &DesktopApp{shelvesConfigPath: configPath}
+	var openedPath string
+	originalOpenFinder := openFinder
+	openFinder = func(path string) error {
+		openedPath = path
+		return nil
+	}
+	t.Cleanup(func() {
+		openFinder = originalOpenFinder
+	})
+
+	if err := app.OpenShelfInFinder(" shelf-1 "); err != nil {
+		t.Fatalf("OpenShelfInFinder returned error: %v", err)
+	}
+	if openedPath != libRoot {
+		t.Fatalf("openFinder path = %q, want %q", openedPath, libRoot)
+	}
+}
+
+func TestOpenShelfInFinderRejectsUnknownShelf(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "shelves.json")
+	if err := saveDesktopShelves(configPath, &desktopShelvesConfig{}); err != nil {
+		t.Fatalf("saveDesktopShelves: %v", err)
+	}
+
+	app := &DesktopApp{shelvesConfigPath: configPath}
+	if err := app.OpenShelfInFinder("missing"); err == nil {
+		t.Fatal("OpenShelfInFinder for unknown shelf: want error, got nil")
+	}
+}
+
+func TestPreviewShelfID(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "shelves.json")
+	conf := &desktopShelvesConfig{
+		Shelves: []desktopShelfEntry{{ID: "shelf", Name: "小說", LibRoot: filepath.Join(t.TempDir(), "novels")}},
+	}
+	if err := saveDesktopShelves(configPath, conf); err != nil {
+		t.Fatalf("saveDesktopShelves: %v", err)
+	}
+
+	app := &DesktopApp{shelvesConfigPath: configPath}
+	cases := []struct {
+		name string
+		want string
+	}{
+		{name: "", want: ""},
+		{name: "   ", want: ""},
+		{name: "My Books", want: "my-books"},
+		// A purely non-ASCII name slugifies to nothing and falls back to
+		// "shelf"; the seeded config already holds "shelf", so the next free id
+		// is "shelf-2" — exactly what the user would silently receive.
+		{name: "漫畫", want: "shelf-2"},
+	}
+	for _, tc := range cases {
+		got, err := app.PreviewShelfID(tc.name)
+		if err != nil {
+			t.Fatalf("PreviewShelfID(%q) returned error: %v", tc.name, err)
+		}
+		if got != tc.want {
+			t.Errorf("PreviewShelfID(%q) = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
 // Reading history, progress, and stats are device documents over one
 // pair of helpers (readDeviceDocument/writeDeviceDocument), so they are held to
 // one set of expectations instead of two copies of the same test.

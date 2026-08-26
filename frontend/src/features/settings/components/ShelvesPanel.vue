@@ -77,6 +77,10 @@
         :disabled="addingShelf"
         autofocus
       />
+      <p v-if="newShelfIDPreview" class="shelf-add-help shelf-id-preview">
+        {{ t('settings.shelves.addShelfIDPreview') }}
+        <span class="shelf-id-cell">{{ newShelfIDPreview }}</span>
+      </p>
       <div class="shelf-add-dir-row">
         <input
           v-model="newShelfDirectory"
@@ -153,6 +157,14 @@
             <td>{{ shelf.name }}</td>
             <td class="shelf-id-cell">{{ shelf.id }}</td>
             <td v-if="isDesktopEnv" class="shelf-action-cell">
+              <button
+                type="button"
+                class="shelf-modify-btn"
+                :disabled="removingShelfIDs.has(shelf.id)"
+                @click="openShelfFolder(shelf.id)"
+              >
+                {{ t('settings.shelves.openFolder') }}
+              </button>
               <button
                 type="button"
                 class="shelf-modify-btn"
@@ -252,6 +264,7 @@ const {
   newShelfName,
   newShelfDirectory,
   newShelfScanInterval,
+  newShelfIDPreview,
   addingShelf,
   addShelfError,
   canSubmitAddShelf,
@@ -259,6 +272,7 @@ const {
   closeAddShelfModal,
   onBrowseShelfDirectory,
   onSubmitAddShelf,
+  openShelfFolder,
   pendingModifyShelf,
   showModifyShelfModal,
   modifyShelfName,

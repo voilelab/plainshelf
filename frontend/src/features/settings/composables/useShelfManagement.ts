@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import { getBookshelfProvider } from '@/providers';
 import { useI18n } from '@/i18n';
@@ -37,6 +37,38 @@ export function useShelfManagement() {
   const canSubmitAddShelf = computed(
     () => newShelfName.value.trim().length > 0 && newShelfDirectory.value.trim().length > 0
   );
+
+  // The shelf id the backend would assign to the typed name, shown live so a
+  // name that slugifies to nothing (e.g. a purely non-ASCII "小說") visibly
+  // becomes "shelf" before the id is created and frozen as the reading-progress
+  // key. Empty when there is no preview: off the desktop, or for an empty name.
+  const newShelfIDPreview = ref('');
+  // Latest-wins guard: the async preview lags keystrokes, so a slow earlier
+  // response must not overwrite a newer one (or a reset).
+  let shelfIDPreviewToken = 0;
+
+  async function refreshShelfIDPreview(name: string): Promise<void> {
+    const token = ++shelfIDPreviewToken;
+    const provider = getBookshelfProvider();
+    if (!provider.previewDesktopShelfID || name.trim().length === 0) {
+      newShelfIDPreview.value = '';
+      return;
+    }
+    try {
+      const preview = await provider.previewDesktopShelfID(name.trim());
+      if (token === shelfIDPreviewToken) {
+        newShelfIDPreview.value = preview;
+      }
+    } catch {
+      if (token === shelfIDPreviewToken) {
+        newShelfIDPreview.value = '';
+      }
+    }
+  }
+
+  watch(newShelfName, (name) => {
+    void refreshShelfIDPreview(name);
+  });
 
   const pendingModifyShelf = ref<ShelfRef | null>(null);
   const showModifyShelfModal = ref(false);
@@ -99,6 +131,26 @@ export function useShelfManagement() {
     newShelfDirectory.value = '';
     newShelfScanInterval.value = '';
     addShelfError.value = '';
+    // Invalidate any in-flight preview so its late response cannot repopulate
+    // the field after the form is cleared.
+    shelfIDPreviewToken++;
+    newShelfIDPreview.value = '';
+  }
+
+  // Reveals a shelf's lib_root in the host file explorer (desktop only); a
+  // no-op elsewhere. Errors surface on the panel like the other shelf ops.
+  async function openShelfFolder(shelfID: string): Promise<void> {
+    const provider = getBookshelfProvider();
+    if (!provider.openDesktopShelfFolder) {
+      return;
+    }
+    shelfOpError.value = '';
+    try {
+      await provider.openDesktopShelfFolder(shelfID);
+    } catch (err) {
+      shelfOpError.value =
+        err instanceof Error ? err.message : t('settings.shelves.openFolderFailed');
+    }
   }
 
   function openAddShelfModal(): void {
@@ -241,6 +293,7 @@ export function useShelfManagement() {
     newShelfName,
     newShelfDirectory,
     newShelfScanInterval,
+    newShelfIDPreview,
     addingShelf,
     addShelfError,
     canSubmitAddShelf,
@@ -248,6 +301,7 @@ export function useShelfManagement() {
     closeAddShelfModal,
     onBrowseShelfDirectory,
     onSubmitAddShelf,
+    openShelfFolder,
     pendingModifyShelf,
     showModifyShelfModal,
     modifyShelfName,

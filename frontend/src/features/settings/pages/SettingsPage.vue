@@ -18,7 +18,7 @@
          state that has to outlive a tab switch — a book-cache export in flight,
          the fetched shelf list, the font-license cache — so they stay mounted,
          the way they did when every tab body lived in this component. -->
-    <TabsRoot :default-value="defaultSettingsTab" class="settings-tabs" :unmount-on-hide="false">
+    <TabsRoot v-model="activeSettingsTab" class="settings-tabs" :unmount-on-hide="false">
       <TabsList class="settings-tabs-list" :aria-label="t('settings.title')">
         <TabsTrigger v-if="serverSettingsEditable" value="cover" class="settings-tab-trigger">{{
           t('settings.cover.title')
@@ -84,7 +84,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 import AboutPanel from '@/features/settings/components/AboutPanel.vue';
 import CoverPanel from '@/features/settings/components/CoverPanel.vue';
@@ -98,10 +99,45 @@ import { useI18n } from '@/i18n';
 import { useServerSettingsForm } from '@/features/settings/composables/useServerSettingsForm';
 
 const { t } = useI18n();
+const route = useRoute();
 // Shelves is the useful landing tab when the server settings tabs are gone:
 // it holds the connection and downloads panels.
 const { serverSettingsEditable } = useWriteAccess();
 const defaultSettingsTab = computed(() => (serverSettingsEditable.value ? 'cover' : 'shelves'));
+
+// The cover and import tabs render only when the server settings are editable;
+// everything else is always present. Used to reject a ?tab= value that names a
+// tab this shell does not show.
+const availableTabs = computed(() => {
+  const tabs = ['read-history', 'reader-launch', 'about', 'shelves'];
+  if (serverSettingsEditable.value) {
+    tabs.push('cover', 'import');
+  }
+  return tabs;
+});
+
+function requestedTab(): string | null {
+  const requested = route.query.tab;
+  if (typeof requested === 'string' && availableTabs.value.includes(requested)) {
+    return requested;
+  }
+  return null;
+}
+
+// Controlled so the sidebar's "manage shelves" deep link (?tab=shelves) can
+// select a tab even when the settings page is already mounted — default-value
+// is read only once, so a query change would otherwise be ignored.
+const activeSettingsTab = ref(requestedTab() ?? defaultSettingsTab.value);
+
+watch(
+  () => route.query.tab,
+  () => {
+    const tab = requestedTab();
+    if (tab) {
+      activeSettingsTab.value = tab;
+    }
+  }
+);
 
 const {
   loading,
