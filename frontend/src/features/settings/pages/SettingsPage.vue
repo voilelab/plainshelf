@@ -18,7 +18,7 @@
          state that has to outlive a tab switch — a book-cache export in flight,
          the fetched shelf list, the font-license cache — so they stay mounted,
          the way they did when every tab body lived in this component. -->
-    <TabsRoot :default-value="defaultSettingsTab" class="settings-tabs" :unmount-on-hide="false">
+    <TabsRoot v-model="activeSettingsTab" class="settings-tabs" :unmount-on-hide="false">
       <TabsList class="settings-tabs-list" :aria-label="t('settings.title')">
         <TabsTrigger v-if="serverSettingsEditable" value="cover" class="settings-tab-trigger">{{
           t('settings.cover.title')
@@ -84,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { onMounted } from 'vue';
 import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 import AboutPanel from '@/features/settings/components/AboutPanel.vue';
 import CoverPanel from '@/features/settings/components/CoverPanel.vue';
@@ -96,12 +96,15 @@ import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import { useI18n } from '@/i18n';
 import { useServerSettingsForm } from '@/features/settings/composables/useServerSettingsForm';
+import { useSettingsTabs } from '@/features/settings/composables/useSettingsTabs';
 
 const { t } = useI18n();
 // Shelves is the useful landing tab when the server settings tabs are gone:
 // it holds the connection and downloads panels.
 const { serverSettingsEditable } = useWriteAccess();
-const defaultSettingsTab = computed(() => (serverSettingsEditable.value ? 'cover' : 'shelves'));
+// The active tab is backed by the ?tab= query so the sidebar's "manage
+// shelves" deep link lands here even on repeat clicks — see useSettingsTabs.
+const { activeSettingsTab } = useSettingsTabs(serverSettingsEditable);
 
 const {
   loading,

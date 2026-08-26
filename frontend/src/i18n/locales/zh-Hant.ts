@@ -179,7 +179,9 @@ const zhHant = {
       description: 'PlainShelf 會直接從你的書架資料夾讀取書籍。把檔案放進那個資料夾，或直接在這裡匯入，就能開始使用。',
       readOnlyDescription: '這個書架還沒有書。之後放進書架資料夾的書都會出現在這裡。',
       import: '匯入書籍',
-      docs: '閱讀新手指南'
+      docs: '閱讀新手指南',
+      pathLabel: '書架資料夾：',
+      openFolderLabel: '開啟書架資料夾'
     },
     stats: {
       totalBooks: '藏書總數',
@@ -322,7 +324,10 @@ const zhHant = {
       addShelfSubmit: '新增書架',
       addShelfAdding: '新增中...',
       addShelfFailed: '新增書架失敗',
+      addShelfIDPreview: '書架 ID：',
       removeConfirmYes: '刪除書架',
+      openFolder: '開啟資料夾',
+      openFolderFailed: '無法開啟書架資料夾',
       modify: '修改',
       modifyShelfTitle: '修改書架',
       modifyShelfCloseLabel: '關閉修改書架對話框',

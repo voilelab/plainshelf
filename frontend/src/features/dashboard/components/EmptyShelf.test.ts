@@ -5,13 +5,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // The gate under test is `writesEnabled`. Hold the ref in a hoisted box so each
 // case can flip it before mounting; the real composable asks the active
 // provider and server mode, which this component does not need to exercise.
-const state = vi.hoisted(() => ({ writesEnabled: null as { value: boolean } | null }));
+const state = vi.hoisted(() => ({
+  writesEnabled: null as { value: boolean } | null,
+  selectedShelfID: null as { value: string } | null,
+  provider: {} as Record<string, unknown>
+}));
 
 vi.mock('@/composables/useWriteAccess', async () => {
   const { ref } = await import('vue');
   state.writesEnabled = ref(true);
   return { useWriteAccess: () => ({ writesEnabled: state.writesEnabled }) };
 });
+
+vi.mock('@/composables/useShelvesStore', async () => {
+  const { ref } = await import('vue');
+  state.selectedShelfID = ref('');
+  return { useShelvesStore: () => ({ selectedShelfID: state.selectedShelfID }) };
+});
+
+vi.mock('@/providers', () => ({ getBookshelfProvider: () => state.provider }));
 
 import EmptyShelf from './EmptyShelf.vue';
 import { setLocale } from '@/i18n';
@@ -37,6 +49,8 @@ function mount() {
 beforeEach(() => {
   setLocale('en');
   state.writesEnabled!.value = true;
+  state.selectedShelfID!.value = '';
+  state.provider = {};
 });
 
 afterEach(() => {
@@ -70,6 +84,41 @@ describe('EmptyShelf', () => {
     expect(host.querySelector('.empty-shelf-description')?.textContent).toContain(
       'no books yet'
     );
+
+    app.unmount();
+  });
+
+  it('shows the active shelf folder path on the desktop and reveals it on click', async () => {
+    const openDesktopShelfFolder = vi.fn(() => Promise.resolve());
+    state.selectedShelfID!.value = 'my-books';
+    state.provider = {
+      getDesktopShelfDetails: vi.fn(() =>
+        Promise.resolve({ id: 'my-books', name: 'My Books', path: '/home/reader/shelf', scan_interval: '' })
+      ),
+      openDesktopShelfFolder
+    };
+    const { host, app } = mount();
+
+    await vi.waitFor(() =>
+      expect(host.querySelector('.empty-shelf-path-value')?.textContent).toContain('/home/reader/shelf')
+    );
+    expect(host.querySelector('.empty-shelf-path-label')?.textContent).toContain('Shelf folder');
+
+    host.querySelector<HTMLButtonElement>('.empty-shelf-path-value')?.click();
+    expect(openDesktopShelfFolder).toHaveBeenCalledWith('my-books');
+
+    app.unmount();
+  });
+
+  it('omits the folder path off the desktop', async () => {
+    // The web/server provider exposes no getDesktopShelfDetails, so there is no
+    // local path to show.
+    state.selectedShelfID!.value = 'my-books';
+    state.provider = {};
+    const { host, app } = mount();
+
+    await Promise.resolve();
+    expect(host.querySelector('.empty-shelf-path')).toBeNull();
 
     app.unmount();
   });

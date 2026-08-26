@@ -211,7 +211,7 @@
               </SelectPortal>
             </SelectRoot>
           </label>
-          <RouterLink v-if="shelfPicker.managed" :to="{ path: '/connect', query: route.query }" class="sidebar-shelf-manage">
+          <RouterLink v-if="shelfManageTo" :to="shelfManageTo" class="sidebar-shelf-manage">
             {{ t('layout.shelf.manage') }}
           </RouterLink>
           <p v-if="shelfPicker.error.value" class="sidebar-error" role="alert">{{ shelfPicker.error.value }}</p>
@@ -496,7 +496,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router';
 import {
   SelectContent,
   SelectItem,
@@ -656,6 +656,17 @@ const shelfPicker = useShelfPicker({
     await Promise.all([fetchFolders(), fetchBooks()]);
     await router.push({ path: '/books', query: { page: '1' } });
   }
+});
+
+// The picker names where "manage shelves" points (or null for none); merge the
+// current route query in so the mobile shell-preview flag survives the jump,
+// while the picker's own query (the desktop settings tab) still wins.
+const shelfManageTo = computed<RouteLocationRaw | null>(() => {
+  const to = shelfPicker.manageTo;
+  if (!to || typeof to === 'string') {
+    return to;
+  }
+  return { ...to, query: { ...route.query, ...(to.query ?? {}) } };
 });
 
 function onLocaleSelect(value: AcceptableValue): void {

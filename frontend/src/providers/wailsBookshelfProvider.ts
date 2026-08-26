@@ -8,6 +8,8 @@ import {
   openDesktopFolder,
   openDesktopReader,
   openDesktopShelfDirectory,
+  openDesktopShelfFolder,
+  previewDesktopShelfID,
   removeDesktopShelf,
   saveDesktopBookContent
 } from '@/api/desktop';
@@ -42,6 +44,14 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
 
   openDesktopShelfDirectory(): Promise<string | null> {
     return openDesktopShelfDirectory();
+  }
+
+  openDesktopShelfFolder(shelfID: string): Promise<void> {
+    return openDesktopShelfFolder(shelfID);
+  }
+
+  previewDesktopShelfID(name: string): Promise<string> {
+    return previewDesktopShelfID(name);
   }
 
   addDesktopShelf(name: string, libRoot: string, scanInterval: string): Promise<void> {

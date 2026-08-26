@@ -22,6 +22,8 @@ interface DesktopAppBinding {
     folderParts: string[]
   ) => Promise<DesktopImportBookResult>;
   OpenShelfDirectory?: () => Promise<string>;
+  OpenShelfInFinder?: (shelfID: string) => Promise<void>;
+  PreviewShelfID?: (name: string) => Promise<string>;
   OpenFolderDirectory?: (shelfID: string, folderParts: string[]) => Promise<void>;
   OpenBookDirectory?: (shelfID: string, bookID: string) => Promise<void>;
   OpenReader?: (shelfID: string, bookID: string, section: number) => Promise<void>;
@@ -94,6 +96,39 @@ export async function openDesktopShelfDirectory(): Promise<string | null> {
 
   const dir = await desktopApp.OpenShelfDirectory();
   return dir || null;
+}
+
+// Reveals a shelf's lib_root in the host file explorer so a first-time user can
+// find where their books live. No-op off the desktop or when the binding is
+// missing, matching the other open-folder helpers.
+export async function openDesktopShelfFolder(shelfID: string): Promise<void> {
+  if (!isDesktopRuntime()) {
+    return;
+  }
+
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.OpenShelfInFinder) {
+    return;
+  }
+
+  await desktopApp.OpenShelfInFinder(shelfID);
+}
+
+// Returns the shelf id AddShelf would assign to a shelf named `name` right now,
+// including any uniqueness suffix, so the add-shelf form can show it live.
+// Resolves to '' off the desktop, when the binding is missing, or for an empty
+// name — the callers treat '' as "no preview".
+export async function previewDesktopShelfID(name: string): Promise<string> {
+  if (!isDesktopRuntime()) {
+    return '';
+  }
+
+  const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
+  if (!desktopApp?.PreviewShelfID) {
+    return '';
+  }
+
+  return (await desktopApp.PreviewShelfID(name)) ?? '';
 }
 
 export async function openDesktopBookFolder(bookID: string): Promise<void> {

@@ -515,6 +515,82 @@ func (a *DesktopApp) OpenShelfDirectory() (string, error) {
 	return dir, nil
 }
 
+// shelfLibRoot returns the configured lib_root of the shelf with the given id,
+// or an error when the id is empty or unknown.
+func (a *DesktopApp) shelfLibRoot(shelfID string) (string, error) {
+	shelfID = strings.TrimSpace(shelfID)
+	if shelfID == "" {
+		return "", util.Errorf("shelf ID cannot be empty")
+	}
+
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		return "", util.Errorf("loading shelf config: %w", err)
+	}
+
+	for _, entry := range conf.Shelves {
+		if entry.ID == shelfID {
+			return entry.LibRoot, nil
+		}
+	}
+	return "", util.Errorf("shelf with ID %q not found", shelfID)
+}
+
+// OpenShelfInFinder reveals a shelf's lib_root in the host file explorer. It is
+// the shelf-level counterpart to OpenFolderDirectory/OpenBookDirectory, so a
+// first-time user can find where their books actually live on disk without
+// guessing at the config directory. OpenShelfDirectory (no arguments) is the
+// unrelated directory *picker* used when adding a shelf.
+func (a *DesktopApp) OpenShelfInFinder(shelfID string) error {
+	libRoot, err := a.shelfLibRoot(shelfID)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	normalizedRoot, err := normalizeDesktopShelfDirectory(libRoot)
+	if err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	info, err := os.Stat(normalizedRoot)
+	if err != nil {
+		return util.Errorf("shelf directory unavailable: %w", err)
+	}
+	if !info.IsDir() {
+		return util.Errorf("shelf path is not a directory")
+	}
+
+	if err := openFinder(normalizedRoot); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	return nil
+}
+
+// PreviewShelfID reports the shelf id AddShelf would assign to a shelf created
+// with the given name right now, including the uniqueness suffix. The frontend
+// shows it live as the user types so a name that slugifies to nothing — a
+// purely non-ASCII name such as "小說" — visibly becomes "shelf" before the
+// shelf is created and its id frozen as the reading-progress key. An empty or
+// whitespace-only name has no preview and returns "".
+func (a *DesktopApp) PreviewShelfID(name string) (string, error) {
+	if strings.TrimSpace(name) == "" {
+		return "", nil
+	}
+
+	conf, err := loadDesktopShelves(a.shelvesConfigPath)
+	if err != nil {
+		return "", util.Errorf("loading shelf config: %w", err)
+	}
+
+	existingIDs := map[string]bool{}
+	for _, entry := range conf.Shelves {
+		existingIDs[entry.ID] = true
+	}
+
+	return generateDesktopShelfID(name, existingIDs), nil
+}
+
 func resolveDesktopFolderPath(libRoot string, folderParts []string) (string, error) {
 	normalizedRoot, err := normalizeDesktopShelfDirectory(libRoot)
 	if err != nil {

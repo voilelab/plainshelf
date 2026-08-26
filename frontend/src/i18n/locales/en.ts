@@ -184,7 +184,9 @@ const en = {
       readOnlyDescription:
         'This shelf has no books yet. Anything added to the shelf folder will show up here.',
       import: 'Import books',
-      docs: 'Read the getting started guide'
+      docs: 'Read the getting started guide',
+      pathLabel: 'Shelf folder:',
+      openFolderLabel: 'Open shelf folder'
     },
     stats: {
       totalBooks: 'Total Books',
@@ -328,7 +330,10 @@ const en = {
       addShelfSubmit: 'Add shelf',
       addShelfAdding: 'Adding...',
       addShelfFailed: 'Failed to add shelf',
+      addShelfIDPreview: 'Shelf ID:',
       removeConfirmYes: 'Delete shelf',
+      openFolder: 'Open folder',
+      openFolderFailed: 'Failed to open shelf folder',
       modify: 'Modify',
       modifyShelfTitle: 'Modify shelf',
       modifyShelfCloseLabel: 'Close modify shelf dialog',

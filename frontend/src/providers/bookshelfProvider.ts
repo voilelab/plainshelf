@@ -200,6 +200,14 @@ export interface BookshelfReader {
   openDesktopReader?(bookId: string, section?: number): Promise<void>;
 
   openDesktopShelfDirectory?(): Promise<string | null>;
+  /** Reveals a shelf's lib_root in the host file explorer (desktop only). */
+  openDesktopShelfFolder?(shelfID: string): Promise<void>;
+  /**
+   * Returns the shelf id AddShelf would assign to a shelf named `name` right
+   * now (desktop only), so the add-shelf form can preview it as the user types.
+   * Resolves to '' for an empty name or when preview is unavailable.
+   */
+  previewDesktopShelfID?(name: string): Promise<string>;
   addDesktopShelf?(name: string, libRoot: string, scanInterval: string): Promise<void>;
   removeDesktopShelf?(shelfID: string): Promise<void>;
   getDesktopShelfDetails?(shelfID: string): Promise<DesktopShelfDetails>;
