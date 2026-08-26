@@ -4,6 +4,11 @@ export const READING_PROGRESS_AUTOSAVE_INTERVAL_MS = 10_000;
 
 type SaveProgress = (bookID: string, offset: number, at: number) => Promise<void>;
 
+// Reports the latest position as it changes, without waiting for the interval
+// save. On the desktop and reader apps this hands the position to the native
+// shell so it can be written when the window closes; elsewhere it is omitted.
+type StageProgress = (bookID: string, offset: number, at: number) => void;
+
 interface BookProgressState {
   currentOffset: number;
   // The time currentOffset was set, captured when the position changes rather
@@ -26,7 +31,7 @@ interface BookProgressState {
  * snapshots. Calls to flush are queued so a slow storage backend cannot let an
  * older write race a newer position.
  */
-export function useReadingProgressAutosave(saveProgress: SaveProgress) {
+export function useReadingProgressAutosave(saveProgress: SaveProgress, stageProgress?: StageProgress) {
   const saveError = ref('');
   const progressByBook = new Map<string, BookProgressState>();
   const errorsByBook = new Map<string, string>();
@@ -76,6 +81,11 @@ export function useReadingProgressAutosave(saveProgress: SaveProgress) {
     }
     progress.currentOffset = offset;
     progress.changedAt = Date.now();
+    // Push the new position out immediately (in addition to the buffered
+    // interval save), so a close before the next interval still has it. Carries
+    // the same changedAt the buffered save would, keeping newest-wins arbitration
+    // consistent.
+    stageProgress?.(currentBookID, offset, progress.changedAt);
   }
 
   async function saveDirtySnapshots(): Promise<void> {

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
-	"github.com/voilelab/plainshelf/internal/quitgate"
+	"github.com/voilelab/plainshelf/internal/readingclose"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/reader/readerapi"
@@ -48,9 +48,9 @@ type ReaderApp struct {
 	// after opening a book does not reopen the dialog.
 	promptedForBook bool
 
-	// quitGate holds the window close until the frontend has flushed the reading
-	// position; see quitgate.Gate.
-	quitGate *quitgate.Gate
+	// progressStager buffers the latest reading position the frontend reports and
+	// writes it on window close; see readingclose.Stager.
+	progressStager *readingclose.Stager
 }
 
 // NewReaderApp builds the reader window's app. shelfID is the active shelf id
@@ -74,39 +74,31 @@ func NewReaderApp(logger *logutil.Logger, shelfID string, launchSection int) *Re
 	} else {
 		app.progressStore = readingprogress.NewStore(path)
 	}
+	// A nil store (path unresolved above) makes the stager a no-op, matching the
+	// "progress will not be persisted" case.
+	app.progressStager = readingclose.NewStager(app.progressStore, readingclose.DefaultTimeout)
 
 	return app
 }
 
 func (a *ReaderApp) Startup(ctx context.Context) {
 	a.ctx = ctx
-
-	// Built here — not at construction — because emit and quit need the runtime
-	// context Startup receives.
-	a.quitGate = quitgate.New(quitgate.DefaultTimeout, func() {
-		wailsruntime.EventsEmit(a.ctx, quitgate.BeforeCloseEvent)
-	}, func() {
-		wailsruntime.Quit(a.ctx)
-	})
 }
 
-// beforeClose is the OnBeforeClose hook. It holds close requests while the
-// frontend flushes reading progress, releasing only for the gate's own quit;
-// see quitGate. It is unexported so Wails does not bind it as a frontend method.
+// beforeClose is the OnBeforeClose hook. It writes the reading position the
+// frontend last staged to disk before allowing the window to close; see
+// readingclose.Stager. It is unexported so Wails does not bind it as a frontend
+// method.
 func (a *ReaderApp) beforeClose(context.Context) (prevent bool) {
-	if a.quitGate == nil {
-		return false
-	}
-	return a.quitGate.RequestClose()
+	a.progressStager.PersistOnClose()
+	return false
 }
 
-// AckBeforeClose is bound to the frontend, which calls it after flushing the
-// reading position in response to the app:before-close event. It releases the
-// close the gate is holding.
-func (a *ReaderApp) AckBeforeClose() {
-	if a.quitGate != nil {
-		a.quitGate.Flushed()
-	}
+// StageReadingProgress is bound to the frontend, which calls it on every reading
+// position change so the reader holds the latest position in memory and can
+// write it on close. It only stages; the disk write happens in beforeClose.
+func (a *ReaderApp) StageReadingProgress(shelfID, bookID string, offset, at int64) {
+	a.progressStager.Stage(shelfID, bookID, offset, at)
 }
 
 // DomReady asks for a book the first time the window has nothing to show.

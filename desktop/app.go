@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
-	"github.com/voilelab/plainshelf/internal/quitgate"
+	"github.com/voilelab/plainshelf/internal/readingclose"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/internal/version"
@@ -36,7 +36,7 @@ type DesktopApp struct {
 	readingStatsPath    string
 	readingProgressSync *readingprogress.Store
 	startupErr          error
-	quitGate            *quitgate.Gate
+	progressStager      *readingclose.Stager
 }
 
 type DesktopImportBookResult struct {
@@ -60,18 +60,6 @@ func NewDesktopApp() *DesktopApp {
 
 func (a *DesktopApp) Startup(ctx context.Context) {
 	a.ctx = ctx
-
-	// The quit gate holds the first window close until the frontend has flushed
-	// the reading position (or a timeout elapses). Built here — not at
-	// construction — because emit and quit need the runtime context Startup
-	// receives. It is set before startServer so a startup failure still closes
-	// through the same gate.
-	a.quitGate = quitgate.New(quitgate.DefaultTimeout, func() {
-		wailsruntime.EventsEmit(a.ctx, quitgate.BeforeCloseEvent)
-	}, func() {
-		wailsruntime.Quit(a.ctx)
-	})
-
 	err := a.startServer()
 	if err != nil {
 		// Don't call runtime methods (e.g. MessageDialog) here: from
@@ -114,23 +102,20 @@ func (a *DesktopApp) Shutdown() {
 	}
 }
 
-// beforeClose is the OnBeforeClose hook. It holds close requests while the
-// frontend flushes reading progress, releasing only for the gate's own quit;
-// see quitGate. It is unexported so Wails does not bind it as a frontend method.
+// beforeClose is the OnBeforeClose hook. It writes the reading position the
+// frontend last staged to disk before allowing the window to close; see
+// readingclose.Stager. It is unexported so Wails does not bind it as a frontend
+// method.
 func (a *DesktopApp) beforeClose(context.Context) (prevent bool) {
-	if a.quitGate == nil {
-		return false
-	}
-	return a.quitGate.RequestClose()
+	a.progressStager.PersistOnClose()
+	return false
 }
 
-// AckBeforeClose is bound to the frontend, which calls it after flushing the
-// reading position in response to the app:before-close event. It releases the
-// close the gate is holding.
-func (a *DesktopApp) AckBeforeClose() {
-	if a.quitGate != nil {
-		a.quitGate.Flushed()
-	}
+// StageReadingProgress is bound to the frontend, which calls it on every reading
+// position change so the desktop shell holds the latest position in memory and
+// can write it on close. It only stages; the disk write happens in beforeClose.
+func (a *DesktopApp) StageReadingProgress(shelfID, bookID string, offset, at int64) {
+	a.progressStager.Stage(shelfID, bookID, offset, at)
 }
 
 func (a *DesktopApp) GetAPIHandler() http.Handler {
@@ -1069,6 +1054,7 @@ func (a *DesktopApp) startServer() error {
 	a.readingProgressPath = filepath.Join(dataRoot, "reading_progress.json")
 	a.readingStatsPath = filepath.Join(dataRoot, "reading_stats.json")
 	a.readingProgressSync = readingprogress.NewStore(a.readingProgressPath)
+	a.progressStager = readingclose.NewStager(a.readingProgressSync, readingclose.DefaultTimeout)
 	a.app = app
 	return nil
 }

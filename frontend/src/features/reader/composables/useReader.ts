@@ -1,4 +1,5 @@
 import { computed, nextTick, ref } from 'vue';
+import { stageDesktopReadingProgress } from '@/api/desktop';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { isLibraryEditingSupported } from '@/composables/useWriteAccess';
 import { useReadingProgressAutosave } from '@/features/reader/composables/useReadingProgressAutosave';
@@ -69,9 +70,15 @@ export function useReader(bookID: () => string) {
     flush: flushReadingProgress,
     start: startProgressAutosave,
     stop: stopProgressAutosave
-  } = useReadingProgressAutosave(async (savedBookID, offset, at) => {
-    await getBookshelfProvider().saveReadProgress(savedBookID, { char_offset: offset, at });
-  });
+  } = useReadingProgressAutosave(
+    async (savedBookID, offset, at) => {
+      await getBookshelfProvider().saveReadProgress(savedBookID, { char_offset: offset, at });
+    },
+    // On the desktop and reader apps, hand each position change to the native
+    // shell so a window close before the next interval save still records it.
+    // A no-op elsewhere.
+    (stagedBookID, offset, at) => stageDesktopReadingProgress(stagedBookID, offset, at)
+  );
 
   function normalizeProgress(next: ReadingProgress): ReadingProgress {
     const total = content.value.length;

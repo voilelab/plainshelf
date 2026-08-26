@@ -72,7 +72,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { onBeforeRouteLeave, useRoute } from 'vue-router';
-import { registerBeforeCloseFlush } from '@/api/desktopQuitGate';
 import ChapterModal from '@/features/reader/components/ChapterModal.vue';
 import DesktopReaderView from '@/features/reader/components/DesktopReaderView.vue';
 import FontSelectionModal from '@/features/reader/components/FontSelectionModal.vue';
@@ -217,18 +216,10 @@ async function selectSectionFromChapterModal(index: number): Promise<void> {
   isChapterModalOpen.value = false;
 }
 
-// On the desktop and reader apps, closing the window emits app:before-close and
-// waits for the frontend to flush. Registering here means that flush covers the
-// reader's live position; the registration is removed on unmount so a close away
-// from the reader is not gated on it. A no-op in the browser, where the native
-// close event never fires.
-let unregisterBeforeCloseFlush: (() => void) | null = null;
-
 onMounted(() => {
   document.addEventListener('keydown', onDocumentKeydown);
   readingHeartbeat.start();
   startProgressAutosave();
-  unregisterBeforeCloseFlush = registerBeforeCloseFlush(() => flushReadingProgress());
 });
 
 onBeforeRouteLeave(async () => {
@@ -248,7 +239,5 @@ onBeforeUnmount(() => {
   document.body.style.overflow = '';
   readingHeartbeat.stop();
   void stopProgressAutosave();
-  unregisterBeforeCloseFlush?.();
-  unregisterBeforeCloseFlush = null;
 });
 </script>

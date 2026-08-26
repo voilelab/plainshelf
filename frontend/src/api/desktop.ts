@@ -39,7 +39,12 @@ interface DesktopAppBinding {
   WriteReadingProgress?: (doc: string) => Promise<void>;
   ReadReadingStats?: () => Promise<string>;
   WriteReadingStats?: (doc: string) => Promise<void>;
-  AckBeforeClose?: () => Promise<void>;
+  StageReadingProgress?: (
+    shelfID: string,
+    bookID: string,
+    offset: number,
+    at: number
+  ) => Promise<void>;
 }
 
 // The standalone reader binds a ReaderApp struct (window.go.main.ReaderApp)
@@ -47,7 +52,7 @@ interface DesktopAppBinding {
 // the same file the desktop app uses instead of WebView localStorage.
 type ReaderAppBinding = Pick<
   DesktopAppBinding,
-  'ReadReadingProgress' | 'WriteReadingProgress' | 'AckBeforeClose'
+  'ReadReadingProgress' | 'WriteReadingProgress' | 'StageReadingProgress'
 >;
 
 interface DesktopWindow extends Window {
@@ -368,19 +373,24 @@ export async function writeDesktopReadingStats(doc: string): Promise<void> {
   await desktopApp.WriteReadingStats(doc);
 }
 
-// Reports to the native shell that the frontend has finished flushing the
-// reading position, releasing the window close its OnBeforeClose gate is
-// holding. Both the desktop app and the standalone reader expose it (under
-// window.go.main.DesktopApp vs .ReaderApp), so resolve whichever is present.
-// No-op when neither is — a plain web build has no window to gate.
-export async function ackDesktopBeforeClose(): Promise<void> {
-  const main = (window as DesktopWindow).go?.main;
-  const binding = main?.DesktopApp?.AckBeforeClose
-    ? main.DesktopApp
-    : main?.ReaderApp?.AckBeforeClose
-      ? main.ReaderApp
-      : undefined;
-  await binding?.AckBeforeClose?.();
+// Stages the reader's latest position with the native shell so it can be written
+// to the shared file when the window closes — covering the seconds since the
+// last autosave that a close would otherwise drop. The desktop app and the
+// standalone reader both expose it (getReadingProgressBinding resolves whichever
+// is present); it is a no-op off them.
+//
+// Fire-and-forget by design: it is called on every position change, so it must
+// not block scrolling, and a dropped stage is covered by the next one or by the
+// interval autosave. Errors are swallowed for the same reason.
+export function stageDesktopReadingProgress(bookID: string, offset: number, at: number): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  const binding = getReadingProgressBinding();
+  if (!binding?.StageReadingProgress) {
+    return;
+  }
+  void binding.StageReadingProgress(getActiveShelfID(), bookID, offset, at).catch(() => undefined);
 }
 
 export async function openDesktopExternalURL(url: string): Promise<void> {
