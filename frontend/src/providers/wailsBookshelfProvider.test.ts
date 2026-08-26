@@ -54,7 +54,7 @@ describe('WailsBookshelfProvider — read history on shell-out', () => {
     expect(addReadHistory).not.toHaveBeenCalled();
   });
 
-  it('still resolves when the read-history write throws', async () => {
+  it('still resolves when the read-history write rejects', async () => {
     openDesktopReaderMock.mockResolvedValue(undefined);
     const { provider, addReadHistory } = makeProvider();
     addReadHistory.mockRejectedValue(new Error('storage unavailable'));
@@ -64,6 +64,23 @@ describe('WailsBookshelfProvider — read history on shell-out', () => {
     // as failed, pop a toast and open a second in-app reader.
     await expect(provider.openDesktopReader('book-1')).resolves.toBeUndefined();
     expect(addReadHistory).toHaveBeenCalledWith('book-1');
+    expect(warnSpy).toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
+
+  it('still resolves when the read-history write throws synchronously', async () => {
+    openDesktopReaderMock.mockResolvedValue(undefined);
+    const { provider, addReadHistory } = makeProvider();
+    // The real addReadHistory throws synchronously when no shelf is selected —
+    // requireHistoryKey() runs before the promise is created — so a `.catch()`
+    // on the call would never fire and the launch would wrongly reject.
+    addReadHistory.mockImplementation(() => {
+      throw new Error('No shelf selected.');
+    });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(provider.openDesktopReader('book-1')).resolves.toBeUndefined();
     expect(warnSpy).toHaveBeenCalled();
 
     warnSpy.mockRestore();

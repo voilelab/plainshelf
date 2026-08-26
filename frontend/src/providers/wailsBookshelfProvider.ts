@@ -45,12 +45,17 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
     // empty on the default shell-out path. Write the entry from the launching
     // side once the reader has actually started.
     //
-    // Swallow the write error: the launch already succeeded, and letting it
-    // reject would make useReaderLaunch treat this as a launch failure — it
-    // would then pop a toast and open a second, in-app reader.
-    await this.addReadHistory(bookId).catch((err) => {
+    // Swallow every failure: the launch already succeeded, and letting it reach
+    // useReaderLaunch would be read as a launch failure — it would then pop a
+    // toast and open a second, in-app reader. A try/catch, not `.catch()`,
+    // because addReadHistory throws synchronously when no shelf is selected
+    // (requireHistoryKey() runs before the promise is returned), which a
+    // trailing `.catch()` would miss.
+    try {
+      await this.addReadHistory(bookId);
+    } catch (err) {
       console.warn('Failed to update read history', err);
-    });
+    }
   }
 
   openDesktopShelfDirectory(): Promise<string | null> {
