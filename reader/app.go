@@ -46,6 +46,10 @@ type ReaderApp struct {
 	// promptedForBook records that the startup prompt already ran, so a reload
 	// after opening a book does not reopen the dialog.
 	promptedForBook bool
+
+	// quitGate holds the first window close until the frontend has flushed the
+	// reading position; see quitGate.
+	quitGate *quitGate
 }
 
 // NewReaderApp builds the reader window's app. shelfID is the active shelf id
@@ -75,6 +79,33 @@ func NewReaderApp(logger *logutil.Logger, shelfID string, launchSection int) *Re
 
 func (a *ReaderApp) Startup(ctx context.Context) {
 	a.ctx = ctx
+
+	// Built here — not at construction — because emit and quit need the runtime
+	// context Startup receives.
+	a.quitGate = newQuitGate(quitGateTimeout, func() {
+		wailsruntime.EventsEmit(a.ctx, beforeCloseEvent)
+	}, func() {
+		wailsruntime.Quit(a.ctx)
+	})
+}
+
+// beforeClose is the OnBeforeClose hook. It holds the first close request while
+// the frontend flushes reading progress and lets every later one through; see
+// quitGate. It is unexported so Wails does not bind it as a frontend method.
+func (a *ReaderApp) beforeClose(context.Context) (prevent bool) {
+	if a.quitGate == nil {
+		return false
+	}
+	return a.quitGate.requestClose()
+}
+
+// AckBeforeClose is bound to the frontend, which calls it after flushing the
+// reading position in response to the app:before-close event. It releases the
+// close the gate is holding.
+func (a *ReaderApp) AckBeforeClose() {
+	if a.quitGate != nil {
+		a.quitGate.flushed()
+	}
 }
 
 // DomReady asks for a book the first time the window has nothing to show.

@@ -39,12 +39,16 @@ interface DesktopAppBinding {
   WriteReadingProgress?: (doc: string) => Promise<void>;
   ReadReadingStats?: () => Promise<string>;
   WriteReadingStats?: (doc: string) => Promise<void>;
+  AckBeforeClose?: () => Promise<void>;
 }
 
 // The standalone reader binds a ReaderApp struct (window.go.main.ReaderApp)
 // exposing only the reading-progress methods, so it can persist progress into
 // the same file the desktop app uses instead of WebView localStorage.
-type ReaderAppBinding = Pick<DesktopAppBinding, 'ReadReadingProgress' | 'WriteReadingProgress'>;
+type ReaderAppBinding = Pick<
+  DesktopAppBinding,
+  'ReadReadingProgress' | 'WriteReadingProgress' | 'AckBeforeClose'
+>;
 
 interface DesktopWindow extends Window {
   go?: {
@@ -362,6 +366,21 @@ export async function writeDesktopReadingStats(doc: string): Promise<void> {
   }
 
   await desktopApp.WriteReadingStats(doc);
+}
+
+// Reports to the native shell that the frontend has finished flushing the
+// reading position, releasing the window close its OnBeforeClose gate is
+// holding. Both the desktop app and the standalone reader expose it (under
+// window.go.main.DesktopApp vs .ReaderApp), so resolve whichever is present.
+// No-op when neither is — a plain web build has no window to gate.
+export async function ackDesktopBeforeClose(): Promise<void> {
+  const main = (window as DesktopWindow).go?.main;
+  const binding = main?.DesktopApp?.AckBeforeClose
+    ? main.DesktopApp
+    : main?.ReaderApp?.AckBeforeClose
+      ? main.ReaderApp
+      : undefined;
+  await binding?.AckBeforeClose?.();
 }
 
 export async function openDesktopExternalURL(url: string): Promise<void> {

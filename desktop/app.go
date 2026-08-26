@@ -35,6 +35,7 @@ type DesktopApp struct {
 	readingStatsPath    string
 	readingProgressSync *readingprogress.Store
 	startupErr          error
+	quitGate            *quitGate
 }
 
 type DesktopImportBookResult struct {
@@ -58,6 +59,18 @@ func NewDesktopApp() *DesktopApp {
 
 func (a *DesktopApp) Startup(ctx context.Context) {
 	a.ctx = ctx
+
+	// The quit gate holds the first window close until the frontend has flushed
+	// the reading position (or a timeout elapses). Built here — not at
+	// construction — because emit and quit need the runtime context Startup
+	// receives. It is set before startServer so a startup failure still closes
+	// through the same gate.
+	a.quitGate = newQuitGate(quitGateTimeout, func() {
+		wailsruntime.EventsEmit(a.ctx, beforeCloseEvent)
+	}, func() {
+		wailsruntime.Quit(a.ctx)
+	})
+
 	err := a.startServer()
 	if err != nil {
 		// Don't call runtime methods (e.g. MessageDialog) here: from
@@ -97,6 +110,25 @@ func (a *DesktopApp) Shutdown() {
 		if err != nil {
 			log.Println("Failed to close app:", err)
 		}
+	}
+}
+
+// beforeClose is the OnBeforeClose hook. It holds the first close request while
+// the frontend flushes reading progress and lets every later one through; see
+// quitGate. It is unexported so Wails does not bind it as a frontend method.
+func (a *DesktopApp) beforeClose(context.Context) (prevent bool) {
+	if a.quitGate == nil {
+		return false
+	}
+	return a.quitGate.requestClose()
+}
+
+// AckBeforeClose is bound to the frontend, which calls it after flushing the
+// reading position in response to the app:before-close event. It releases the
+// close the gate is holding.
+func (a *DesktopApp) AckBeforeClose() {
+	if a.quitGate != nil {
+		a.quitGate.flushed()
 	}
 }
 

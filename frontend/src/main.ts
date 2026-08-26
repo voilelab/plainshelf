@@ -1,6 +1,7 @@
 import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
+import { installDesktopQuitGate } from '@/api/desktopQuitGate';
 import { initAppZoom } from '@/composables/useAppZoom';
 import {
   bookshelfWriter,
@@ -9,6 +10,7 @@ import {
   isMobileRuntime,
   isMobileShellPreview,
   isReaderRuntime,
+  isWailsRuntime,
   type BookshelfProvider,
   type WritableBookshelfProvider
 } from './providers';
@@ -64,6 +66,14 @@ async function bootstrap(): Promise<void> {
     if (isMobileShellPreview()) {
       window.__plainshelfTestHooks = { provider: getBookshelfProvider(), bookshelfWriter };
     }
+  }
+
+  // The desktop app and the standalone reader hold their window close until the
+  // frontend flushes the reading position; install the one listener that acks
+  // that gate. A no-op in the browser and mobile shells, which have no such
+  // window to close.
+  if (isWailsRuntime()) {
+    installDesktopQuitGate();
   }
 
   // Before createApp: app.use(router) triggers the first navigation, and a
