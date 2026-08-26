@@ -69,6 +69,28 @@ describe('useReadingProgressAutosave', () => {
     await autosave.stop();
   });
 
+  it('writes once across repeated flushes of an unchanged position', async () => {
+    // A section jump flushes immediately (goToSection), and the running interval
+    // keeps ticking. Once the first flush persists the position, every later
+    // flush finds isDirty() false and skips, so N jumps without a move in between
+    // still produce a single write — no debounce needed.
+    const save = vi.fn().mockResolvedValue(undefined);
+    const autosave = useReadingProgressAutosave(save);
+    autosave.setBaseline('book-a', 0);
+    autosave.start();
+    autosave.update(30);
+
+    await autosave.flush();
+    await autosave.flush();
+    await autosave.flush();
+    // A later interval tick after the jump, with no scroll in between.
+    await vi.advanceTimersByTimeAsync(READING_PROGRESS_AUTOSAVE_INTERVAL_MS * 2);
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledWith('book-a', 30, 0);
+    await autosave.stop();
+  });
+
   it('timestamps a position at change time, not flush time', async () => {
     const save = vi.fn().mockResolvedValue(undefined);
     const autosave = useReadingProgressAutosave(save);
