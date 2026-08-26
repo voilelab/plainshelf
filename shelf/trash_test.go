@@ -319,6 +319,56 @@ func TestReadOnlyShelfListsMigratedTrash(t *testing.T) {
 	}
 }
 
+// An older build reopening an already-migrated shelf leaves both trash
+// directories in place (see TestOpenShelfMergesLegacyTrashIntoRenamedTrash). A
+// writable open merges them; a read-only open cannot, so it must still SEE both
+// by reading across the two roots, instead of silently hiding whichever books
+// sit under the path it did not pick.
+func TestReadOnlyShelfListsTrashAcrossBothLayouts(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+
+	// A writable shelf plants the current trash/ layout with one book.
+	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
+	current := trashBook(t, s, "Current")
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	// A legacy .trash/ appears beside it, as an older build would leave it.
+	// Deliberately not reopened writable — that would merge the two away.
+	seedLegacyTrashedBook(t, tmpLib, "legacy-book", "Legacy")
+
+	before := treeSnapshot(t, tmpLib)
+	denyWrites(t, tmpLib)
+
+	ro := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, ReadOnly: true})
+
+	ids, err := ro.ListTrashedBookIDs()
+	if err != nil {
+		t.Fatalf("ListTrashedBookIDs: %v", err)
+	}
+	want := []string{current, "legacy-book"}
+	slices.Sort(want)
+	if !slices.Equal(ids, want) {
+		t.Errorf("ListTrashedBookIDs() = %v, want %v (both layouts)", ids, want)
+	}
+
+	books, err := ro.ListTrashedBooks()
+	if err != nil {
+		t.Fatalf("ListTrashedBooks: %v", err)
+	}
+	if len(books) != 2 {
+		t.Errorf("ListTrashedBooks returned %d books, want 2 across both layouts", len(books))
+	}
+
+	if diff := snapshotDiff(before, treeSnapshot(t, tmpLib)); diff != "" {
+		t.Errorf("read-only open across both layouts wrote to it:\n%s", diff)
+	}
+	if _, err := os.Stat(path.Join(tmpLib, legacyTrashFolder)); err != nil {
+		t.Errorf("legacy trash directory should be untouched: %v", err)
+	}
+}
+
 // A trash.json edited by hand into something unparseable must not hide the book
 // from the trash, nor block restoring it. Without the metadata the book cannot
 // go back to its original folder, so it lands at the top level of books/.

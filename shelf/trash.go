@@ -87,7 +87,7 @@ func (s *Shelf) MoveBookToTrash(bookID string) error {
 	}
 
 	activePath := book.PackagePath()
-	trashPath := path.Join(s.trashBooksRoot, bookID+bookExtension)
+	trashPath := path.Join(s.trashBooksRoots[0], bookID+bookExtension)
 
 	// A book carried out of the trash by hand keeps its old trash.json, so an
 	// active book can still hold one written by a newer build. Refuse before the
@@ -129,40 +129,51 @@ func (s *Shelf) ListTrashedBooks() ([]*TrashedBook, error) {
 	}
 	defer s.shelfLock.Unlock()
 
-	entries, err := s.dbRoot.ReadDir(s.trashBooksRoot)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
-		}
-		return nil, util.Errorf("%w", err)
-	}
-
-	items := make([]*TrashedBook, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.IsDir() || !strings.HasSuffix(entry.Name(), bookExtension) {
-			continue
-		}
-
-		bookPath := path.Join(s.trashBooksRoot, entry.Name())
-		book, err := bookpkg.Open(s.dbRoot, s.Logger, bookPath)
+	// Read across every trash root (a read-only shelf may have more than one; see
+	// resolveTrashBooksRoots). Roots come current path first, and a book folder
+	// seen under an earlier root wins, so a name present under both is listed
+	// once from the current path rather than twice.
+	items := make([]*TrashedBook, 0)
+	seen := map[string]struct{}{}
+	for _, root := range s.trashBooksRoots {
+		entries, err := s.dbRoot.ReadDir(root)
 		if err != nil {
-			s.Warn("failed to open trashed book, skipping", "path", bookPath, "error", err)
-			continue
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return nil, util.Errorf("%w", err)
 		}
 
-		meta := s.readTrashMetaTolerant(bookPath)
+		for _, entry := range entries {
+			if !entry.IsDir() || !strings.HasSuffix(entry.Name(), bookExtension) {
+				continue
+			}
+			if _, dup := seen[entry.Name()]; dup {
+				continue
+			}
+			seen[entry.Name()] = struct{}{}
 
-		item := &TrashedBook{
-			ID:      book.ID(),
-			Title:   book.Title(),
-			Authors: append([]string(nil), book.GetMeta().Authors...),
+			bookPath := path.Join(root, entry.Name())
+			book, err := bookpkg.Open(s.dbRoot, s.Logger, bookPath)
+			if err != nil {
+				s.Warn("failed to open trashed book, skipping", "path", bookPath, "error", err)
+				continue
+			}
+
+			meta := s.readTrashMetaTolerant(bookPath)
+
+			item := &TrashedBook{
+				ID:      book.ID(),
+				Title:   book.Title(),
+				Authors: append([]string(nil), book.GetMeta().Authors...),
+			}
+			if meta != nil {
+				item.DeletedAt = meta.DeletedAt
+				item.OriginalPath = meta.OriginalPath
+				item.OriginalFolder = append(FolderPath(nil), meta.OriginalFolder...)
+			}
+			items = append(items, item)
 		}
-		if meta != nil {
-			item.DeletedAt = meta.DeletedAt
-			item.OriginalPath = meta.OriginalPath
-			item.OriginalFolder = append(FolderPath(nil), meta.OriginalFolder...)
-		}
-		items = append(items, item)
 	}
 
 	sort.Slice(items, func(i, j int) bool {
@@ -187,20 +198,30 @@ func (s *Shelf) ListTrashedBookIDs() ([]string, error) {
 	}
 	defer s.shelfLock.Unlock()
 
-	entries, err := s.dbRoot.ReadDir(s.trashBooksRoot)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
+	// Across every trash root, current path first, deduped so a book present
+	// under both a current and a legacy root is emptied once. See
+	// resolveTrashBooksRoots and ListTrashedBooks.
+	ids := make([]string, 0)
+	seen := map[string]struct{}{}
+	for _, root := range s.trashBooksRoots {
+		entries, err := s.dbRoot.ReadDir(root)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return nil, util.Errorf("%w", err)
 		}
-		return nil, util.Errorf("%w", err)
-	}
-
-	ids := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.IsDir() || !strings.HasSuffix(entry.Name(), bookExtension) {
-			continue
+		for _, entry := range entries {
+			if !entry.IsDir() || !strings.HasSuffix(entry.Name(), bookExtension) {
+				continue
+			}
+			id := strings.TrimSuffix(entry.Name(), bookExtension)
+			if _, dup := seen[id]; dup {
+				continue
+			}
+			seen[id] = struct{}{}
+			ids = append(ids, id)
 		}
-		ids = append(ids, strings.TrimSuffix(entry.Name(), bookExtension))
 	}
 
 	sort.Strings(ids)
@@ -289,7 +310,7 @@ func (s *Shelf) DeleteTrashedBook(bookID string) error {
 	}
 	defer s.shelfLock.Unlock()
 
-	trashPath := path.Join(s.trashBooksRoot, bookID+bookExtension)
+	trashPath := path.Join(s.trashBooksRoots[0], bookID+bookExtension)
 	if _, err := s.dbRoot.Stat(trashPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return util.Errorf("%w", ErrTrashedBookNotFound)
@@ -311,7 +332,7 @@ func (s *Shelf) DeleteTrashedBook(bookID string) error {
 }
 
 func (s *Shelf) isBookIDInTrash(bookID string) (bool, error) {
-	trashPath := path.Join(s.trashBooksRoot, bookID+bookExtension)
+	trashPath := path.Join(s.trashBooksRoots[0], bookID+bookExtension)
 	_, err := s.dbRoot.Stat(trashPath)
 	if err == nil {
 		return true, nil
@@ -327,7 +348,7 @@ func (s *Shelf) findTrashedBook(bookID string) (string, *Book, *trashMeta, error
 		return "", nil, nil, util.Errorf("%w", err)
 	}
 
-	trashPath := path.Join(s.trashBooksRoot, bookID+bookExtension)
+	trashPath := path.Join(s.trashBooksRoots[0], bookID+bookExtension)
 	book, err := bookpkg.Open(s.dbRoot, s.Logger, trashPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -447,34 +468,45 @@ func (s *Shelf) resolveBookPathCollision(folderPath, folderName string) (string,
 	return "", util.Errorf("failed to resolve unique book path for %q", folderName)
 }
 
-// resolveTrashBooksRoot decides, once at open time, which directory holds this
-// shelf's trashed book packages.
+// resolveTrashBooksRoots decides, once at open time, which directories hold
+// this shelf's trashed book packages, returned current path first so a reader
+// that walks several lets the current path win on a collision.
 //
 // A writable shelf has already run migrateLegacyTrash and created
-// trashBooksFolder by the time this is called, so its trash always lives at the
-// current path and no filesystem lookup is needed. A read-only shelf cannot
-// migrate, so a shelf written by a pre-rename build still keeps its trash under
-// the hidden legacyTrashFolder; without this fallback the trash listing would
-// read the missing trash/books/ and report an empty trash, silently, on exactly
-// the read-only path this project is expanding.
+// trashBooksFolder by the time this is called, so its trash is exactly that one
+// current directory and no filesystem lookup is needed.
+//
+// A read-only shelf cannot migrate, so its trash may sit under the current
+// path, under the hidden legacyTrashFolder a pre-rename build left, or split
+// across BOTH — which is what an older build produces when it reopens an
+// already-migrated shelf (see migrateLegacyTrash's merge path). Reading only
+// one of them would silently drop every book under the other, the very
+// "read-only hides recoverable books" divergence this resolves; so a read-only
+// shelf reads across whichever of the two exist.
 //
 // Directory existence is the whole detection mechanism, the same as
-// migrateLegacyTrash: no shelf-level manifest is consulted. The current name
-// wins, so an already-migrated shelf stats trash/ once and never looks at
-// .trash/. Only a shelf with no trash/ at all falls back, and a shelf with
-// neither keeps the current path (the listing then tolerates it missing).
-func (s *Shelf) resolveTrashBooksRoot() string {
+// migrateLegacyTrash; no shelf-level manifest is consulted. This stats
+// legacyTrashFolder once even for an already-migrated shelf, because the
+// both-exist case can only be seen by looking — the accepted single open-time
+// stat, not a guess repeated on every listing.
+func (s *Shelf) resolveTrashBooksRoots() []string {
 	if !s.readOnly {
-		return trashBooksFolder
+		return []string{trashBooksFolder}
 	}
 
+	var roots []string
 	if info, err := s.dbRoot.Stat(trashFolder); err == nil && info.IsDir() {
-		return trashBooksFolder
+		roots = append(roots, trashBooksFolder)
 	}
 	if info, err := s.dbRoot.Stat(legacyTrashFolder); err == nil && info.IsDir() {
-		return legacyTrashBooksFolder
+		roots = append(roots, legacyTrashBooksFolder)
 	}
-	return trashBooksFolder
+	if len(roots) == 0 {
+		// Neither layout is present; keep the current path so the listing simply
+		// finds it missing and reports an empty trash.
+		roots = []string{trashBooksFolder}
+	}
+	return roots
 }
 
 // migrateLegacyTrash moves a shelf written by an older build, which kept the

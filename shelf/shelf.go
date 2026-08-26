@@ -64,12 +64,16 @@ type Shelf struct {
 	dbRoot   fsutil.ReadFS
 	readOnly bool
 
-	// trashBooksRoot is the directory that holds this shelf's trashed book
-	// packages, decided once when the shelf is opened. A writable shelf always
-	// migrates a legacy .trash/ onto trash/ in makeStructure, so it is always
-	// trashBooksFolder; a read-only shelf cannot migrate, so a pre-rename shelf
-	// keeps trashBooksRoot on the legacy path. See resolveTrashBooksRoot.
-	trashBooksRoot string
+	// trashBooksRoots holds the directories with this shelf's trashed book
+	// packages, decided once when the shelf is opened, current path first.
+	//
+	// A writable shelf always migrates a legacy .trash/ onto trash/ in
+	// makeStructure, so it is exactly [trashBooksFolder] and roots[0] is the one
+	// directory any mutation targets. A read-only shelf cannot migrate, so it may
+	// read a pre-rename .trash/, the current trash/, or both when an older build
+	// reopened an already-migrated shelf; the listing reads across all of them.
+	// See resolveTrashBooksRoots.
+	trashBooksRoots []string
 
 	close     func() error
 	shelfLock ShelfLock
@@ -312,8 +316,8 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 	// After makeStructure: a writable shelf has migrated any legacy trash and
 	// created trash/books/, so this resolves to trashBooksFolder without a stat;
 	// a read-only shelf could not migrate, so this is the one place that looks
-	// for a legacy .trash/ to fall back to.
-	s.trashBooksRoot = s.resolveTrashBooksRoot()
+	// for a legacy .trash/ to read alongside or instead of the current one.
+	s.trashBooksRoots = s.resolveTrashBooksRoots()
 
 	s.Debug("initializing shelf cache in background", "lib_root", conf.LibRoot, "read_only", conf.ReadOnly, "scan_interval", scanInterval, "book_check_interval", bookCheckInterval, "lock_timeout", lockTimeout)
 	// Tracked like every other background write: initCache goes on writing the
