@@ -196,9 +196,9 @@ source because heading hierarchy and chapter navigation are lost.
 Sources made before source-level format metadata remain legacy sources. Their
 stored `split_config` is no longer interpreted: such a source reads as
 `book.json.format` says, which is one plain-text section unless the book is
-Markdown. The one-off `cmd/migrate-legacy-sources` tool upgrades them in place,
-keeping each source's id — see
-[Data format versioning](data-format-versioning.md#migrating-legacy-sources-in-place).
+Markdown. To give one chapters again, convert it in the source editor, which
+writes a new schema v1 source and leaves the legacy original intact — see
+[Data format versioning](data-format-versioning.md#giving-a-legacy-source-chapters-again).
 
 ### Adding and removing sources
 
