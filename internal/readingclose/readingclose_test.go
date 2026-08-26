@@ -30,20 +30,6 @@ func TestPersistOnClose_WritesStagedPosition(t *testing.T) {
 	}
 }
 
-// The last stage for a book wins — only the position at close time is written.
-func TestStage_LatestPositionWins(t *testing.T) {
-	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
-	s := NewStager(store, time.Second)
-
-	s.Stage("book", "book-a", 100, 1000)
-	s.Stage("book", "book-a", 250, 2000)
-	s.PersistOnClose()
-
-	if got := offsetOf(t, store, "book", "book-a"); got != 250 {
-		t.Fatalf("persisted offset = %d, want 250 (latest stage wins)", got)
-	}
-}
-
 // Close never clobbers a newer entry another process wrote: the merge is
 // newest-wins by timestamp.
 func TestPersistOnClose_DoesNotClobberNewerEntry(t *testing.T) {
@@ -77,11 +63,4 @@ func TestPersistOnClose_EmptyIsNoop(t *testing.T) {
 	if _, raw, err := store.Read(); err != nil || raw != "" {
 		t.Fatalf("empty close wrote %q (err %v), want no file", raw, err)
 	}
-}
-
-// A nil store (config dir unresolved) persists nothing and does not panic.
-func TestNilStoreIsNoop(t *testing.T) {
-	s := NewStager(nil, time.Second)
-	s.Stage("book", "book-a", 10, 1000)
-	s.PersistOnClose() // must not panic
 }

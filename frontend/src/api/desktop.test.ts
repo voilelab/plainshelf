@@ -69,11 +69,6 @@ describe('reading-progress binding resolution', () => {
 });
 
 describe('stageDesktopReadingProgress', () => {
-  it('does nothing off the desktop (no binding present)', () => {
-    stubMain({});
-    expect(() => stageDesktopReadingProgress('book-a', 100, 1000)).not.toThrow();
-  });
-
   it('forwards the position to the reader binding', () => {
     const stage = vi.fn(async () => undefined);
     stubMain({

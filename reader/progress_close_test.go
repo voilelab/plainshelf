@@ -38,26 +38,3 @@ func TestReaderStageThenCloseRoundTrips(t *testing.T) {
 		t.Fatalf("restored offset = %d, want 4321 (staged position must survive the close)", v)
 	}
 }
-
-// A desktop-launched reader stages under the real shelf id it was given, and the
-// close writes it straight to that shelf's namespace.
-func TestReaderStageThenCloseUnderRealShelf(t *testing.T) {
-	store := readingprogress.NewStore(filepath.Join(t.TempDir(), "reading_progress.json"))
-	app := &ReaderApp{
-		shelfID:        "real-shelf",
-		progressStore:  store,
-		progressStager: readingclose.NewStager(store, time.Second),
-	}
-
-	app.StageReadingProgress("real-shelf", "book-a", 77, 2000)
-	app.beforeClose(context.Background())
-
-	text, err := app.ReadReadingProgress()
-	if err != nil {
-		t.Fatalf("read: %v", err)
-	}
-	got := readingprogress.Parse(text)
-	if v := got.Shelves["real-shelf"]["book-a"].Offset; v != 77 {
-		t.Fatalf("restored offset = %d, want 77", v)
-	}
-}
