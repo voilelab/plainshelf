@@ -113,9 +113,9 @@ func (a *DesktopApp) Shutdown() {
 	}
 }
 
-// beforeClose is the OnBeforeClose hook. It holds the first close request while
-// the frontend flushes reading progress and lets every later one through; see
-// quitGate. It is unexported so Wails does not bind it as a frontend method.
+// beforeClose is the OnBeforeClose hook. It holds close requests while the
+// frontend flushes reading progress, releasing only for the gate's own quit;
+// see quitGate. It is unexported so Wails does not bind it as a frontend method.
 func (a *DesktopApp) beforeClose(context.Context) (prevent bool) {
 	if a.quitGate == nil {
 		return false

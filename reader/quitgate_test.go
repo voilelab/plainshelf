@@ -58,20 +58,50 @@ func TestQuitGate_QuitsAfterTimeout(t *testing.T) {
 	}
 }
 
-// A second close request is let through immediately and does not notify the
-// frontend again, so close cannot loop on itself.
-func TestQuitGate_SecondRequestAllows(t *testing.T) {
+// A second user close during the flush is still held — closing then would cut
+// the save short — and does not notify the frontend again.
+func TestQuitGate_SubsequentUserCloseStaysHeld(t *testing.T) {
 	var emits int32
-	gate := newQuitGate(time.Second, func() { atomic.AddInt32(&emits, 1) }, func() {})
+	quit := make(chan struct{}, 1)
+	gate := newQuitGate(time.Second, func() { atomic.AddInt32(&emits, 1) }, func() { quit <- struct{}{} })
 
 	if prevent := gate.requestClose(); !prevent {
 		t.Fatal("first close request must be prevented")
 	}
-	if prevent := gate.requestClose(); prevent {
-		t.Fatal("second close request must be allowed")
+	if prevent := gate.requestClose(); !prevent {
+		t.Fatal("a close during the flush must still be prevented")
 	}
 	if got := atomic.LoadInt32(&emits); got != 1 {
-		t.Fatalf("emit called %d times across two requests, want 1", got)
+		t.Fatalf("emit called %d times, want 1 (no re-notify while flushing)", got)
+	}
+	select {
+	case <-quit:
+		t.Fatal("must not quit while the flush is still held")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+// Only the gate's own runtime.Quit — which re-enters requestClose after the ack
+// — is let through, so the app closes exactly once without looping on itself.
+func TestQuitGate_OwnQuitReentryIsAllowed(t *testing.T) {
+	var gate *quitGate
+	done := make(chan struct{})
+	var reentryPrevent bool
+	gate = newQuitGate(time.Second, func() {}, func() {
+		reentryPrevent = gate.requestClose()
+		close(done)
+	})
+
+	gate.requestClose()
+	gate.flushed()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("gate did not quit after ack")
+	}
+	if reentryPrevent {
+		t.Fatal("the gate's own quit re-entry must be allowed (prevent=false)")
 	}
 }
 
