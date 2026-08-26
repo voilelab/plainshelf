@@ -61,8 +61,16 @@ type Shelf struct {
 	// the shelf by accident, and so that a read-only shelf can be represented
 	// by a handle that has no write half at all; every mutation narrows it back
 	// with writeRoot. See ShelfConf.ReadOnly.
-	dbRoot    fsutil.ReadFS
-	readOnly  bool
+	dbRoot   fsutil.ReadFS
+	readOnly bool
+
+	// trashBooksRoot is the directory that holds this shelf's trashed book
+	// packages, decided once when the shelf is opened. A writable shelf always
+	// migrates a legacy .trash/ onto trash/ in makeStructure, so it is always
+	// trashBooksFolder; a read-only shelf cannot migrate, so a pre-rename shelf
+	// keeps trashBooksRoot on the legacy path. See resolveTrashBooksRoot.
+	trashBooksRoot string
+
 	close     func() error
 	shelfLock ShelfLock
 	bookCache *bookCache
@@ -300,6 +308,12 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		rt.Close()
 		return nil, util.Errorf("%w", err)
 	}
+
+	// After makeStructure: a writable shelf has migrated any legacy trash and
+	// created trash/books/, so this resolves to trashBooksFolder without a stat;
+	// a read-only shelf could not migrate, so this is the one place that looks
+	// for a legacy .trash/ to fall back to.
+	s.trashBooksRoot = s.resolveTrashBooksRoot()
 
 	s.Debug("initializing shelf cache in background", "lib_root", conf.LibRoot, "read_only", conf.ReadOnly, "scan_interval", scanInterval, "book_check_interval", bookCheckInterval, "lock_timeout", lockTimeout)
 	// Tracked like every other background write: initCache goes on writing the

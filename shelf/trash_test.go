@@ -228,6 +228,97 @@ func TestOpenShelfKeepsUnknownLegacyTrashContentOnMerge(t *testing.T) {
 	}
 }
 
+// A shelf written by a pre-rename build keeps its trash under the hidden
+// .trash/ path. Opened writable it is migrated onto trash/; opened read-only it
+// cannot be, so the reader must fall back to the legacy path instead of
+// silently reporting an empty trash. "Read-only" has to mean the trash cannot
+// be changed, not that it vanishes.
+func TestReadOnlyShelfListsLegacyTrash(t *testing.T) {
+	// The writable open of an identical fixture is the baseline: whatever it
+	// lists after migrating, the read-only open must list without migrating.
+	writableLib := path.Join(t.TempDir(), "writable")
+	seedLegacyTrashedBook(t, writableLib, "legacy-book", "Legacy")
+	writable := newTestShelf(t, &ShelfConf{LibRoot: writableLib})
+	wantIDs, err := writable.ListTrashedBookIDs()
+	if err != nil {
+		t.Fatalf("writable ListTrashedBookIDs: %v", err)
+	}
+	wantBooks, err := writable.ListTrashedBooks()
+	if err != nil {
+		t.Fatalf("writable ListTrashedBooks: %v", err)
+	}
+
+	readOnlyLib := path.Join(t.TempDir(), "readonly")
+	seedLegacyTrashedBook(t, readOnlyLib, "legacy-book", "Legacy")
+
+	before := treeSnapshot(t, readOnlyLib)
+	denyWrites(t, readOnlyLib)
+
+	s := newTestShelf(t, &ShelfConf{LibRoot: readOnlyLib, ReadOnly: true})
+
+	gotIDs, err := s.ListTrashedBookIDs()
+	if err != nil {
+		t.Fatalf("read-only ListTrashedBookIDs: %v", err)
+	}
+	if !slices.Equal(gotIDs, wantIDs) {
+		t.Errorf("read-only ListTrashedBookIDs() = %v, want %v (same as writable)", gotIDs, wantIDs)
+	}
+
+	gotBooks, err := s.ListTrashedBooks()
+	if err != nil {
+		t.Fatalf("read-only ListTrashedBooks: %v", err)
+	}
+	if len(gotBooks) != len(wantBooks) {
+		t.Fatalf("read-only ListTrashedBooks returned %d books, want %d", len(gotBooks), len(wantBooks))
+	}
+	for i := range gotBooks {
+		if gotBooks[i].ID != wantBooks[i].ID || gotBooks[i].Title != wantBooks[i].Title {
+			t.Errorf("book %d = {%q, %q}, want {%q, %q}", i, gotBooks[i].ID, gotBooks[i].Title, wantBooks[i].ID, wantBooks[i].Title)
+		}
+	}
+
+	// Nothing was written: no rename onto trash/, no MkdirAll, the legacy path
+	// is exactly where it was found.
+	if diff := snapshotDiff(before, treeSnapshot(t, readOnlyLib)); diff != "" {
+		t.Errorf("read-only open of a legacy-trash shelf wrote to it:\n%s", diff)
+	}
+	if _, err := os.Stat(path.Join(readOnlyLib, legacyTrashFolder)); err != nil {
+		t.Errorf("legacy trash directory should be untouched: %v", err)
+	}
+	if _, err := os.Stat(path.Join(readOnlyLib, trashFolder)); !os.IsNotExist(err) {
+		t.Errorf("read-only open created trash/: %v", err)
+	}
+}
+
+// The common read-only case is an already-migrated shelf: trash/ exists, so the
+// resolver settles on it and the fallback never disturbs it. Guards against a
+// fallback that would read the wrong path or write to a shelf it may not.
+func TestReadOnlyShelfListsMigratedTrash(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+
+	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
+	want := trashBook(t, s, "Trashed")
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	before := treeSnapshot(t, tmpLib)
+	denyWrites(t, tmpLib)
+
+	ro := newTestShelf(t, &ShelfConf{LibRoot: tmpLib, ReadOnly: true})
+	ids, err := ro.ListTrashedBookIDs()
+	if err != nil {
+		t.Fatalf("ListTrashedBookIDs: %v", err)
+	}
+	if !slices.Equal(ids, []string{want}) {
+		t.Errorf("ListTrashedBookIDs() = %v, want [%s]", ids, want)
+	}
+
+	if diff := snapshotDiff(before, treeSnapshot(t, tmpLib)); diff != "" {
+		t.Errorf("read-only open of a migrated shelf wrote to it:\n%s", diff)
+	}
+}
+
 // A trash.json edited by hand into something unparseable must not hide the book
 // from the trash, nor block restoring it. Without the metadata the book cannot
 // go back to its original folder, so it lands at the top level of books/.

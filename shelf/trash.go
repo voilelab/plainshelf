@@ -87,7 +87,7 @@ func (s *Shelf) MoveBookToTrash(bookID string) error {
 	}
 
 	activePath := book.PackagePath()
-	trashPath := path.Join(trashBooksFolder, bookID+bookExtension)
+	trashPath := path.Join(s.trashBooksRoot, bookID+bookExtension)
 
 	// A book carried out of the trash by hand keeps its old trash.json, so an
 	// active book can still hold one written by a newer build. Refuse before the
@@ -129,7 +129,7 @@ func (s *Shelf) ListTrashedBooks() ([]*TrashedBook, error) {
 	}
 	defer s.shelfLock.Unlock()
 
-	entries, err := s.dbRoot.ReadDir(trashBooksFolder)
+	entries, err := s.dbRoot.ReadDir(s.trashBooksRoot)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
@@ -143,7 +143,7 @@ func (s *Shelf) ListTrashedBooks() ([]*TrashedBook, error) {
 			continue
 		}
 
-		bookPath := path.Join(trashBooksFolder, entry.Name())
+		bookPath := path.Join(s.trashBooksRoot, entry.Name())
 		book, err := bookpkg.Open(s.dbRoot, s.Logger, bookPath)
 		if err != nil {
 			s.Warn("failed to open trashed book, skipping", "path", bookPath, "error", err)
@@ -187,7 +187,7 @@ func (s *Shelf) ListTrashedBookIDs() ([]string, error) {
 	}
 	defer s.shelfLock.Unlock()
 
-	entries, err := s.dbRoot.ReadDir(trashBooksFolder)
+	entries, err := s.dbRoot.ReadDir(s.trashBooksRoot)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
@@ -289,7 +289,7 @@ func (s *Shelf) DeleteTrashedBook(bookID string) error {
 	}
 	defer s.shelfLock.Unlock()
 
-	trashPath := path.Join(trashBooksFolder, bookID+bookExtension)
+	trashPath := path.Join(s.trashBooksRoot, bookID+bookExtension)
 	if _, err := s.dbRoot.Stat(trashPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return util.Errorf("%w", ErrTrashedBookNotFound)
@@ -311,7 +311,7 @@ func (s *Shelf) DeleteTrashedBook(bookID string) error {
 }
 
 func (s *Shelf) isBookIDInTrash(bookID string) (bool, error) {
-	trashPath := path.Join(trashBooksFolder, bookID+bookExtension)
+	trashPath := path.Join(s.trashBooksRoot, bookID+bookExtension)
 	_, err := s.dbRoot.Stat(trashPath)
 	if err == nil {
 		return true, nil
@@ -327,7 +327,7 @@ func (s *Shelf) findTrashedBook(bookID string) (string, *Book, *trashMeta, error
 		return "", nil, nil, util.Errorf("%w", err)
 	}
 
-	trashPath := path.Join(trashBooksFolder, bookID+bookExtension)
+	trashPath := path.Join(s.trashBooksRoot, bookID+bookExtension)
 	book, err := bookpkg.Open(s.dbRoot, s.Logger, trashPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -445,6 +445,36 @@ func (s *Shelf) resolveBookPathCollision(folderPath, folderName string) (string,
 	}
 
 	return "", util.Errorf("failed to resolve unique book path for %q", folderName)
+}
+
+// resolveTrashBooksRoot decides, once at open time, which directory holds this
+// shelf's trashed book packages.
+//
+// A writable shelf has already run migrateLegacyTrash and created
+// trashBooksFolder by the time this is called, so its trash always lives at the
+// current path and no filesystem lookup is needed. A read-only shelf cannot
+// migrate, so a shelf written by a pre-rename build still keeps its trash under
+// the hidden legacyTrashFolder; without this fallback the trash listing would
+// read the missing trash/books/ and report an empty trash, silently, on exactly
+// the read-only path this project is expanding.
+//
+// Directory existence is the whole detection mechanism, the same as
+// migrateLegacyTrash: no shelf-level manifest is consulted. The current name
+// wins, so an already-migrated shelf stats trash/ once and never looks at
+// .trash/. Only a shelf with no trash/ at all falls back, and a shelf with
+// neither keeps the current path (the listing then tolerates it missing).
+func (s *Shelf) resolveTrashBooksRoot() string {
+	if !s.readOnly {
+		return trashBooksFolder
+	}
+
+	if info, err := s.dbRoot.Stat(trashFolder); err == nil && info.IsDir() {
+		return trashBooksFolder
+	}
+	if info, err := s.dbRoot.Stat(legacyTrashFolder); err == nil && info.IsDir() {
+		return legacyTrashBooksFolder
+	}
+	return trashBooksFolder
 }
 
 // migrateLegacyTrash moves a shelf written by an older build, which kept the
