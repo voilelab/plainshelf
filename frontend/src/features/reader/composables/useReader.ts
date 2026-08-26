@@ -21,7 +21,7 @@ function buildSingleSection(content: string): ReaderSection[] {
       index: 0,
       startOffset: 0,
       endOffset: content.length,
-      title: 'Part 1',
+      title: t('reader.sections.singleSectionTitle'),
       text: content
     }
   ];

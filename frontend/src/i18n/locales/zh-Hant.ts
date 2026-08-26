@@ -899,6 +899,9 @@ const zhHant = {
       title: '章節',
       closeLabel: '關閉章節對話框'
     },
+    sections: {
+      singleSectionTitle: '全文'
+    },
     imageUnavailable: '插圖無法載入',
     autosaveFailed: '閱讀進度無法儲存，PlainShelf 將自動重試。',
     mobile: {
@@ -1071,6 +1074,14 @@ const zhHant = {
         one: '匯入成功。',
         many: '已匯入 {count} 個檔案。',
         partial: '已匯入 {count} 個檔案，共 {total} 個。'
+      },
+      chapterSuggestion: {
+        prompt: '在這份文字裡偵測到 {count} 章，要現在轉成有章節的版本嗎？',
+        convert: '轉成章節',
+        converting: '轉換中...',
+        dismiss: '先不要',
+        done: '已建立含 {count} 章的版本，並設為使用中來源。',
+        failed: '無法把這本書轉成章節。'
       }
     }
   },
@@ -1170,9 +1181,11 @@ const zhHant = {
         lineCountMd: '會插入 {count} 個 H2 章節標題。',
         plainText: '會建立一個沒有章節結構的 TXT 段落。'
       },
+      hints: {
+        enterPattern: '輸入正規表示式即可預覽會建立的章節。',
+        noMatches: '沒有比對到章節標題行，換一個 pattern 試試。'
+      },
       errors: {
-        emptyPattern: '請輸入正規表示式。',
-        patternMatchedNothing: '這個正規表示式沒有比對到任何章節標題行。',
         invalidLineCount: '每章行數必須是正整數。',
         previewFailed: '無法預覽這個轉換。'
       }

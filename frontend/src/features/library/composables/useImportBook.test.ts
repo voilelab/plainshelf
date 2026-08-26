@@ -2,11 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   importBook: vi.fn(),
-  importBookFromLocalPath: vi.fn()
+  importBookFromLocalPath: vi.fn(),
+  createSource: vi.fn(),
+  getBookContent: vi.fn()
 }));
 
 vi.mock('@/providers', () => ({
-  bookshelfWriter: () => mocks
+  bookshelfWriter: () => mocks,
+  getBookshelfProvider: () => mocks
 }));
 
 // Messages collapse to their keys so assertions can name the exact string the
@@ -256,5 +259,110 @@ describe('useImportBook', () => {
     expect(result?.successCount).toBe(2);
     expect(result?.firstImportedId).toBe('id-x');
     expect(book.files.value.map((item) => item.status)).toEqual(['success', 'success']);
+  });
+
+  // Post-import chapter detection: a single clean TXT whose text reads as
+  // chaptered stages a one-click conversion suggestion.
+  it('offers a chapter conversion when a single imported TXT reads as chaptered', async () => {
+    mocks.importBook.mockResolvedValue({ id: 'id-novel' });
+    mocks.getBookContent.mockResolvedValue({ content: '第一章 起\n正文\n第二章 承' });
+
+    const book = useImportBook();
+    book.setBookFiles([bookFile('novel.txt')]);
+    await book.detectChapterConversion(await book.submitFiles('/'));
+
+    expect(mocks.getBookContent).toHaveBeenCalledWith('id-novel');
+    expect(book.chapterSuggestion.value).toEqual({
+      bookId: 'id-novel',
+      chapters: 2,
+      content: '第一章 起\n正文\n第二章 承'
+    });
+  });
+
+  // Accepting the suggestion creates a new Markdown source, set as current, and
+  // clears the prompt. The original TXT source is untouched.
+  it('converts the detected book into a new current Markdown source', async () => {
+    mocks.importBook.mockResolvedValue({ id: 'id-novel' });
+    mocks.getBookContent.mockResolvedValue({ content: '第一章 起\n正文\n第二章 承' });
+    mocks.createSource.mockResolvedValue({ id: 'src-md' });
+
+    const book = useImportBook();
+    book.setBookFiles([bookFile('novel.txt')]);
+    await book.detectChapterConversion(await book.submitFiles('/'));
+
+    const converted = await book.applyChapterConversion();
+
+    expect(converted).toBe(true);
+    expect(mocks.createSource).toHaveBeenCalledTimes(1);
+    const [convertedBookId, options] = mocks.createSource.mock.calls[0];
+    expect(convertedBookId).toBe('id-novel');
+    expect(options.format).toBe('md');
+    expect(options.setCurrent).toBe(true);
+    expect(options.content).toContain('## 第一章 起');
+    expect(options.content).toContain('## 第二章 承');
+    expect(book.chapterSuggestion.value).toBeNull();
+  });
+
+  // Reverse branch: a TXT with no chapter lines leaves the import flow untouched.
+  it('offers no conversion when the imported TXT has no chapter lines', async () => {
+    mocks.importBook.mockResolvedValue({ id: 'id-plain' });
+    mocks.getBookContent.mockResolvedValue({ content: '只是一段散文。\nJust prose.' });
+
+    const book = useImportBook();
+    book.setBookFiles([bookFile('plain.txt')]);
+    await book.detectChapterConversion(await book.submitFiles('/'));
+
+    expect(mocks.getBookContent).toHaveBeenCalledWith('id-plain');
+    expect(book.chapterSuggestion.value).toBeNull();
+  });
+
+  // Detection is scoped to TXT: a Markdown import is not probed at all.
+  it('does not probe content for a non-TXT import', async () => {
+    mocks.importBook.mockResolvedValue({ id: 'id-md' });
+
+    const book = useImportBook();
+    book.setBookFiles([bookFile('doc.md')]);
+    await book.detectChapterConversion(await book.submitFiles('/'));
+
+    expect(mocks.getBookContent).not.toHaveBeenCalled();
+    expect(book.chapterSuggestion.value).toBeNull();
+  });
+
+  // A multi-file import never offers the single-book conversion prompt.
+  it('offers no conversion for a multi-file import', async () => {
+    mocks.importBook.mockResolvedValue({ id: 'id-x' });
+    mocks.getBookContent.mockResolvedValue({ content: '第一章 起' });
+
+    const book = useImportBook();
+    book.setBookFiles([bookFile('a.txt'), bookFile('b.txt')]);
+    await book.detectChapterConversion(await book.submitFiles('/'));
+
+    expect(mocks.getBookContent).not.toHaveBeenCalled();
+    expect(book.chapterSuggestion.value).toBeNull();
+  });
+
+  // Detection is best-effort: a failed content probe silently offers nothing.
+  it('stays silent when the content probe fails', async () => {
+    mocks.importBook.mockResolvedValue({ id: 'id-novel' });
+    mocks.getBookContent.mockRejectedValue(new Error('network'));
+
+    const book = useImportBook();
+    book.setBookFiles([bookFile('novel.txt')]);
+    await book.detectChapterConversion(await book.submitFiles('/'));
+
+    expect(book.chapterSuggestion.value).toBeNull();
+  });
+
+  it('clears the suggestion when dismissed', async () => {
+    mocks.importBook.mockResolvedValue({ id: 'id-novel' });
+    mocks.getBookContent.mockResolvedValue({ content: '第一章 起\n第二章 承' });
+
+    const book = useImportBook();
+    book.setBookFiles([bookFile('novel.txt')]);
+    await book.detectChapterConversion(await book.submitFiles('/'));
+    expect(book.chapterSuggestion.value).not.toBeNull();
+
+    book.dismissChapterSuggestion();
+    expect(book.chapterSuggestion.value).toBeNull();
   });
 });

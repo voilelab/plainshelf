@@ -41,6 +41,7 @@
       <div class="conversion-preview" aria-live="polite">
         <strong>{{ t('sources.conversion.previewTitle') }}</strong>
         <p v-if="preview.error" class="conversion-error" role="alert">{{ preview.error }}</p>
+        <p v-else-if="preview.hint" class="conversion-hint">{{ preview.hint }}</p>
         <template v-else>
           <p>{{ preview.summary }}</p>
           <pre>{{ preview.excerpt }}</pre>
@@ -62,6 +63,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { scanMarkdownH2Headings } from '@/utils/markdownChapters';
 import {
+  DEFAULT_CHAPTER_PATTERN,
   markdownToPlainText,
   textToMarkdownByLineCount,
   textToMarkdownByRegex
@@ -94,7 +96,7 @@ const emit = defineEmits<{
   create: [payload: { content: string; format: 'txt' | 'md'; comment: string; setCurrent: boolean }];
 }>();
 
-const pattern = ref('^(Chapter\\s+.+)$');
+const pattern = ref(DEFAULT_CHAPTER_PATTERN);
 const lineCount = ref('1000');
 const setCurrent = ref(true);
 const primaryInput = ref<HTMLInputElement | null>(null);
@@ -125,11 +127,18 @@ type ConversionPreview = {
   summary: string;
   excerpt: string;
   error: string;
+  // A neutral note (e.g. "no lines matched, try another pattern") shown instead
+  // of the red error when the conversion simply has nothing to preview yet.
+  hint: string;
 };
 
 function excerpt(value: string): string {
   const normalized = value.slice(0, 800).trim();
   return value.length > 800 ? `${normalized}\n…` : normalized || t('sources.conversion.emptySource');
+}
+
+function emptyPreview(format: 'txt' | 'md', hint: string): ConversionPreview {
+  return { canSubmit: false, content: '', format, comment: '', summary: '', excerpt: '', error: '', hint };
 }
 
 const preview = computed<ConversionPreview>(() => {
@@ -149,10 +158,14 @@ const preview = computed<ConversionPreview>(() => {
         break;
       }
       case 'regex-md': {
-        if (!pattern.value.trim()) throw new Error(t('sources.conversion.errors.emptyPattern'));
+        if (!pattern.value.trim()) {
+          return emptyPreview('md', t('sources.conversion.hints.enterPattern'));
+        }
         const converted = textToMarkdownByRegex(props.content, pattern.value);
         if (converted.chapters === 0) {
-          throw new Error(t('sources.conversion.errors.patternMatchedNothing'));
+          // Zero matches is an ordinary "keep tweaking the pattern" state, not a
+          // failure — a red alert here reads as if the user did something wrong.
+          return emptyPreview('md', t('sources.conversion.hints.noMatches'));
         }
         nextContent = converted.content;
         comment = `Regex chapter conversion of ${props.sourceId}: ${pattern.value}`;
@@ -186,7 +199,8 @@ const preview = computed<ConversionPreview>(() => {
       comment,
       summary,
       excerpt: excerpt(nextContent),
-      error: ''
+      error: '',
+      hint: ''
     };
   } catch (err) {
     return {
@@ -196,7 +210,8 @@ const preview = computed<ConversionPreview>(() => {
       comment: '',
       summary: '',
       excerpt: '',
-      error: err instanceof Error ? err.message : t('sources.conversion.errors.previewFailed')
+      error: err instanceof Error ? err.message : t('sources.conversion.errors.previewFailed'),
+      hint: ''
     };
   }
 });
@@ -213,7 +228,7 @@ function submit(): void {
 
 watch(() => props.open, async (open) => {
   if (!open) return;
-  pattern.value = '^(Chapter\\s+.+)$';
+  pattern.value = DEFAULT_CHAPTER_PATTERN;
   lineCount.value = '1000';
   setCurrent.value = true;
   await nextTick();
@@ -278,6 +293,11 @@ watch(() => props.open, async (open) => {
 
 .conversion-error {
   color: #b91c1c;
+  white-space: pre-line;
+}
+
+.conversion-hint {
+  color: var(--muted);
   white-space: pre-line;
 }
 </style>

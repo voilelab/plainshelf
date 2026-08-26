@@ -907,6 +907,9 @@ const en = {
       title: 'Chapters',
       closeLabel: 'Close chapter dialog'
     },
+    sections: {
+      singleSectionTitle: 'Part 1'
+    },
     imageUnavailable: 'Illustration unavailable',
     autosaveFailed: 'Reading progress could not be saved. PlainShelf will retry automatically.',
     mobile: {
@@ -1080,6 +1083,14 @@ const en = {
         one: 'Import successful.',
         many: 'Imported {count} files.',
         partial: 'Imported {count} of {total} files.'
+      },
+      chapterSuggestion: {
+        prompt: 'Detected {count} chapters in this text. Convert it into a chaptered version now?',
+        convert: 'Convert to chapters',
+        converting: 'Converting...',
+        dismiss: 'Not now',
+        done: 'Created a chaptered version with {count} chapters and set it as current.',
+        failed: 'Could not convert this book into chapters.'
       }
     }
   },
@@ -1185,9 +1196,11 @@ const en = {
         lineCountMd: '{count} H2 chapter headings will be inserted.',
         plainText: 'A single unstructured TXT section will be created.'
       },
+      hints: {
+        enterPattern: 'Enter a regular expression to preview the chapters it would create.',
+        noMatches: 'No chapter title lines matched. Try a different pattern.'
+      },
       errors: {
-        emptyPattern: 'Enter a regular expression.',
-        patternMatchedNothing: 'The regular expression matched no chapter title lines.',
         invalidLineCount: 'Lines per chapter must be a positive number.',
         previewFailed: 'Unable to preview this conversion.'
       }
