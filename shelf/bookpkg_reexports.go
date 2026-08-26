@@ -64,7 +64,6 @@ var (
 	ErrNotBookPackage                 = bookpkg.ErrNotBookPackage
 	ErrAssetNotFound                  = bookpkg.ErrAssetNotFound
 	ErrInvalidAssetName               = bookpkg.ErrInvalidAssetName
-	ErrSourceNotLegacy                = bookpkg.ErrSourceNotLegacy
 )
 
 // Book package entry points.
