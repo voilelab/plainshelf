@@ -86,8 +86,8 @@ and UI behavior may still change between releases.
 - **Breaking (pre-1.0):** changed dashboard reading time to per-device storage (`localStorage`, `reading_stats.json`, or Android app-private), per shelf and trimmed to 400 days; v0.8 reading time is not migrated.
 - **Breaking (pre-1.0):** changed saved reading progress to per-device storage (`localStorage`, desktop `reading_progress.json`, Android per-book `progress.json`); web/desktop progress starts at zero after upgrading and server-side bookmarks are not migrated.
 - Reading progress is now saved automatically instead of via a bookmark button, buffered and persisted at most once every 10 seconds with a final flush on leaving the reader.
-- **Breaking (pre-1.0):** changed Markdown chapter structure to live in the text — each ATX H2 line begins a chapter — while TXT reads as one section; sources written before this stay legacy and offer an explicit conversion.
-- Changed `format` to a source-level field: `sources/{id}/meta.json` carries the authoritative `format` and its own `schema_version`, and `book.json.format` mirrors the current source.
+- **Breaking (pre-1.0):** changed Markdown chapter structure to live in the text — each ATX H2 line outside a fenced code block begins a chapter — while TXT reads as one section; sources written before this stay legacy and offer an explicit conversion.
+- Changed `format` to a source-level field: new `sources/{id}/meta.json` files carry an authoritative `format` and their own `schema_version`, and `book.json.format` mirrors the current source.
 - **Breaking (pre-1.0):** changed the Android client into a read-only reading client — editing, upload, import, and management are gone, and mutating requests are rejected on-device, separate from the server's `read_only` config.
 - Changed the book detail page layout: the primary reading action stays in the first viewport, secondary actions moved behind "Cover options" and "More" menus, and metadata is grouped into sections.
 - Changed the dashboard to put the reading heatmap above the stats cards.
