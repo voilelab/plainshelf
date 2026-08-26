@@ -78,7 +78,11 @@ Mock API mode and unit tests use the in-memory backend for all three.
 The standalone reader binds only the reading-progress methods, so its read
 history and reading stats fall back to WebView localStorage; its reading
 progress goes to the same JSON file the desktop app uses, which is what lets it
-reach the desktop library (below).
+reach the desktop library (below). The reader's read history still lives in its
+own localStorage, but when the desktop shells out to it the launching side
+(`WailsBookshelfProvider.openDesktopReader`) writes the entry into the desktop's
+own `readHistory` after the launch succeeds, so the desktop app's "recent
+reading" sees a book read this way.
 
 `readingProgress` has no Android-specific path today: it stays on the WebView's
 localStorage there, while read history and reading stats do not. That matters,
