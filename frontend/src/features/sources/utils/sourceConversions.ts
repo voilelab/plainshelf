@@ -32,6 +32,33 @@ export function markdownToPlainText(content: string): string {
   }).join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+/**
+ * The default chapter-heading pattern, shared by the regex converter and the
+ * post-import chapter detector so both agree on what a chapter line is.
+ *
+ * It matches Chinese web-novel headings — `第…章/回/節/卷/部/篇` with Arabic,
+ * full-width, or Chinese numerals — and English `Chapter N` lines, so a Chinese
+ * or English TXT detects chapters out of the box rather than needing the reader
+ * to know the source-conversion feature exists.
+ */
+export const DEFAULT_CHAPTER_PATTERN =
+  '^\\s*(第[0-9０-９零一二三四五六七八九十百千兩]+[章回節卷部篇].*|Chapter\\s+.+)$';
+
+/** Counts the lines that read as chapter headings under `pattern`. */
+export function countTextChapters(
+  content: string,
+  pattern: string = DEFAULT_CHAPTER_PATTERN
+): number {
+  const regex = new RegExp(pattern);
+  let chapters = 0;
+  for (const line of content.split(/\r?\n/)) {
+    if (regex.test(line)) {
+      chapters += 1;
+    }
+  }
+  return chapters;
+}
+
 export function textToMarkdownByRegex(content: string, pattern: string): { content: string; chapters: number } {
   const regex = new RegExp(pattern);
   let chapters = 0;

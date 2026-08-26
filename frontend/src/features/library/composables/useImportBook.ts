@@ -1,12 +1,18 @@
 import { t } from '@/i18n';
 import { computed, ref } from 'vue';
-import { bookshelfWriter } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { basenameFromPath, deriveTitleFromFilename, hasSupportedExtension } from '@/utils/file';
 import { normalizeFolderPath } from '@/utils/folders';
+import {
+  DEFAULT_CHAPTER_PATTERN,
+  countTextChapters,
+  textToMarkdownByRegex
+} from '@/features/sources/utils/sourceConversions';
 import { DEFAULT_EPUB_IMPORT_STRATEGY, type EpubImportStrategy } from '@/types/book';
 
 const bookExtPattern = /\.(txt|md|epub)$/i;
 const epubExtPattern = /\.epub$/i;
+const txtExtPattern = /\.txt$/i;
 
 // 'cancelled' is deliberately distinct from 'failed': a book left untouched by an
 // abort must never read as an import error. It mirrors taskutil's
@@ -66,6 +72,15 @@ export interface ImportProgress {
   percentage: number;
 }
 
+// A just-imported TXT whose text reads as chaptered, offered to the user as a
+// one-click conversion. `content` is kept so accepting the offer does not fetch
+// the source a second time.
+export interface ChapterConversionSuggestion {
+  bookId: string;
+  chapters: number;
+  content: string;
+}
+
 export function useImportBook() {
   const bookFiles = ref<File[]>([]);
   const files = ref<ImportFileState[]>([]);
@@ -74,8 +89,15 @@ export function useImportBook() {
   const success = ref('');
   const error = ref('');
   const epubStrategy = ref<EpubImportStrategy>({ ...DEFAULT_EPUB_IMPORT_STRATEGY });
+  const chapterSuggestion = ref<ChapterConversionSuggestion | null>(null);
+  const convertingChapters = ref(false);
+  const chapterConversionError = ref('');
 
   let controller: AbortController | null = null;
+  // Bumped whenever the suggestion is cleared (a new import, a reset, or a modal
+  // close), so an in-flight chapter probe knows it has been superseded and must
+  // not repopulate the prompt for a book the user has moved on from.
+  let detectionGeneration = 0;
 
   const progress = computed<ImportProgress>(() => {
     const total = files.value.length;
@@ -118,12 +140,21 @@ export function useImportBook() {
   function reset(): void {
     controller?.abort();
     controller = null;
+    clearImportSelection();
+    success.value = '';
+    error.value = '';
+    clearChapterSuggestion();
+  }
+
+  // Clears the retained import payload — the chosen files and their per-file
+  // states — without touching the result message. Accepting a detected-chapter
+  // prompt uses this so the now-empty file chooser cannot silently reimport the
+  // previous File while the success line stays visible.
+  function clearImportSelection(): void {
     bookFiles.value = [];
     files.value = [];
     submitting.value = false;
     cancelRequested.value = false;
-    success.value = '';
-    error.value = '';
   }
 
   function setBookFiles(nextFiles: File[]): void {
@@ -131,6 +162,88 @@ export function useImportBook() {
     files.value = toImportFileStates(buildFileUnits(nextFiles));
     success.value = '';
     error.value = '';
+    clearChapterSuggestion();
+  }
+
+  function clearChapterSuggestion(): void {
+    // Invalidate any detection probe still awaiting content for a prior import.
+    detectionGeneration += 1;
+    chapterSuggestion.value = null;
+    convertingChapters.value = false;
+    chapterConversionError.value = '';
+  }
+
+  // Best-effort: after a single TXT imports cleanly, look at its text and, when
+  // it reads as chaptered, stage a one-click conversion. Anything else — a batch,
+  // a non-TXT file, a failed fetch, or text with no chapter lines — leaves no
+  // suggestion, so the import flow the user sees is unchanged.
+  async function detectChapterConversion(result: ImportSubmitResult | null): Promise<void> {
+    clearChapterSuggestion();
+    // Captured after the clear above bumped it, so any later clear (a reset, a
+    // modal close, a fresh import) makes this probe's own result stale.
+    const generation = detectionGeneration;
+    if (!result || result.total !== 1 || result.successCount !== 1 || !result.firstImportedId) {
+      return;
+    }
+    const imported = files.value.find((item) => item.createdId === result.firstImportedId);
+    if (!imported || !txtExtPattern.test(imported.filename)) {
+      return;
+    }
+
+    try {
+      const { content } = await getBookshelfProvider().getBookContent(result.firstImportedId);
+      if (generation !== detectionGeneration) {
+        // The modal was reset/closed (or another import started) while the
+        // content was in flight; do not resurrect a prompt for this book.
+        return;
+      }
+      const chapters = countTextChapters(content);
+      if (chapters > 0) {
+        chapterSuggestion.value = { bookId: result.firstImportedId, chapters, content };
+      }
+    } catch {
+      // Detection is best-effort; a content-fetch failure just means no prompt.
+    }
+  }
+
+  // Accepts the staged suggestion: convert the detected TXT to Markdown, create
+  // it as a new source, and set it current — the original TXT source is kept so
+  // the user can still switch back to it.
+  async function applyChapterConversion(): Promise<boolean> {
+    const suggestion = chapterSuggestion.value;
+    if (!suggestion || convertingChapters.value) {
+      return false;
+    }
+    convertingChapters.value = true;
+    chapterConversionError.value = '';
+
+    try {
+      const converted = textToMarkdownByRegex(suggestion.content, DEFAULT_CHAPTER_PATTERN);
+      if (converted.chapters === 0) {
+        chapterSuggestion.value = null;
+        return false;
+      }
+      await bookshelfWriter().createSource(suggestion.bookId, {
+        content: converted.content,
+        format: 'md',
+        comment: `Chapter conversion detected on import (${converted.chapters} chapters)`,
+        setCurrent: true
+      });
+      chapterSuggestion.value = null;
+      success.value = t('libraryForms.importBook.chapterSuggestion.done', { count: converted.chapters });
+      return true;
+    } catch (err) {
+      chapterConversionError.value = err instanceof Error && err.message.trim().length > 0
+        ? err.message
+        : t('libraryForms.importBook.chapterSuggestion.failed');
+      return false;
+    } finally {
+      convertingChapters.value = false;
+    }
+  }
+
+  function dismissChapterSuggestion(): void {
+    clearChapterSuggestion();
   }
 
   function getSafeErrorMessage(err: unknown): string {
@@ -365,12 +478,19 @@ export function useImportBook() {
     error,
     epubStrategy,
     progress,
+    chapterSuggestion,
+    convertingChapters,
+    chapterConversionError,
     setEpubStrategy,
     hasEpubFile,
     setBookFiles,
     submit,
     submitFiles,
     submitLocalPaths,
+    detectChapterConversion,
+    applyChapterConversion,
+    dismissChapterSuggestion,
+    clearImportSelection,
     abort,
     reset
   };
