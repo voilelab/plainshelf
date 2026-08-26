@@ -1,5 +1,9 @@
 {
   "id": "20250102-030405",
   "created_at": "2025-01-02T03:04:05Z",
-  "comment": ""
+  "comment": "",
+  "split_config": {
+    "type": "line_count",
+    "line_count": 500
+  }
 }

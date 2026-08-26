@@ -20,7 +20,7 @@ const SourceFile = "source.txt"
 
 // SourceMetaSchemaVersion is the source metadata format written for sources
 // that own their content format. A missing version is a legacy source: its
-// format and chapter behaviour are inherited from book.json and split_config.
+// format is inherited from book.json and it renders as a single section.
 const SourceMetaSchemaVersion = 1
 
 var ErrUnsupportedSourceSchemaVersion = util.NewError("source meta.json schema version is newer than this build supports")
@@ -52,11 +52,6 @@ type SourceMeta struct {
 	MD5Hash   string `json:"md5_hash,omitempty"`
 	LineCount int    `json:"line_count,omitempty"`
 	CharCount int    `json:"char_count,omitempty"`
-
-	// split config: how the novel should be split into parts. Legacy-only;
-	// omitzero keeps a fresh source from writing an empty split_config that no
-	// schema-versioned reader consults.
-	SplitConfig SplitConfig `json:"split_config,omitzero"`
 }
 
 func (r *Source) FolderPath() string {
@@ -69,7 +64,6 @@ func (r *Source) ID() string {
 
 func (r *Source) GetMeta() *SourceMeta {
 	meta := *r.meta
-	meta.SplitConfig.Boundaries = append([]int(nil), r.meta.SplitConfig.Boundaries...)
 	return &meta
 }
 
