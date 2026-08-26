@@ -7,6 +7,8 @@ and UI behavior may still change between releases.
 
 ## [Unreleased]
 
+## [v0.10.0] - 2026-08-26
+
 ### Added
 
 - Added a minimum/maximum character-count range filter to the library toolbar, held in the URL as `minChars` and `maxChars` so a filtered view can be bookmarked and combined with the folder, search, and sort controls. It is not offered on the Android client, whose pCloud mode would have to read every book over the network.
