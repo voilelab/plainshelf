@@ -71,13 +71,7 @@ func isEPUBExt(ext string) bool {
 	return ext == ".epub"
 }
 
-// deriveTitleFromFilename strips a single trailing extension from a filename to
-// use it as a book title, mirroring the frontend's deriveTitleFromFilename
-// (frontend/src/utils/file.ts) so the web-upload and desktop local-path imports
-// agree. A name that is all extension (".txt") or a dotfile (".bashrc") has no
-// stem, so it falls back to the full base name rather than an empty title —
-// filepath.Ext treats the leading dot as the whole extension, which matches the
-// frontend's guard against an empty result.
+// deriveTitleFromFilename strips a filename's extension to use it as a book title.
 func deriveTitleFromFilename(filename string) string {
 	base := filepath.Base(filename)
 	title := strings.TrimSuffix(base, filepath.Ext(base))
