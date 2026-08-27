@@ -1,10 +1,12 @@
 package server
 
 import (
+	"errors"
 	"math"
 	"net/http"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/sketch"
 	"github.com/voilelab/plainshelf/server/task"
@@ -39,6 +41,12 @@ var similarWorkBudget = 1 << 30
 // estimate: at this rate the default budget lands at roughly 32 seconds, the
 // point where the normal frontend request timeout would otherwise expire.
 const similarMergeStepsPerSecond = 1 << 25
+
+// confirmedSimilarTimeout matches the frontend's confirmed-request timeout.
+// The normal server WriteTimeout is only 60 seconds, so a confirmed comparison
+// must extend its own write deadline before it starts reading the cache and
+// performing the sweep.
+const confirmedSimilarTimeout = 5 * time.Minute
 
 // The relation names describe how two sources are alike. The server decides
 // this rather than the frontend so the classification lives in one place, and a
@@ -202,6 +210,16 @@ func (h *fingerprintHandlers) findSimilarBooks(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	confirmed := r.URL.Query().Get("confirm") == "1"
+	if confirmed {
+		// http.Server.WriteTimeout installs a connection deadline before this
+		// handler runs. Move it for this request only; extending the browser's
+		// timeout cannot keep a server-side 60-second deadline alive.
+		if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(confirmedSimilarTimeout)); err != nil && !errors.Is(err, http.ErrNotSupported) {
+			h.Warn("failed to extend the confirmed similarity response deadline", "error", err)
+		}
+	}
+
 	books, err := shelfData.ListBooks()
 	if err != nil {
 		h.writeErr(w, err, "failed to list books")
@@ -251,7 +269,7 @@ func (h *fingerprintHandlers) findSimilarBooks(w http.ResponseWriter, r *http.Re
 	// keeps every shingle and costs far more per pair than one of novels. Past
 	// the budget the endpoint estimates first rather than outrun the request's
 	// normal deadline without the user's confirmation.
-	if work := (len(prints) - 1) * sumValues; work > similarWorkBudget && r.URL.Query().Get("confirm") != "1" {
+	if work := (len(prints) - 1) * sumValues; work > similarWorkBudget && !confirmed {
 		h.writeJSON(w, http.StatusOK, similarTooLarge{
 			Status:        "too_large",
 			Total:         len(books),

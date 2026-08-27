@@ -266,6 +266,38 @@ func getSimilarWithQuery(t *testing.T, app *App, query string) *httptest.Respons
 	return rec
 }
 
+type deadlineRecorder struct {
+	*httptest.ResponseRecorder
+	writeDeadline time.Time
+}
+
+func (r *deadlineRecorder) SetWriteDeadline(deadline time.Time) error {
+	r.writeDeadline = deadline
+	return nil
+}
+
+// A confirmed scan can legitimately outlive the server's ordinary 60-second
+// WriteTimeout, so the handler must move the server-side deadline as well as the
+// frontend moving its fetch deadline.
+func TestFindSimilarBooksConfirmExtendsServerWriteDeadline(t *testing.T) {
+	libRoot := t.TempDir()
+	app := fingerprintTestApp(t, libRoot)
+
+	start := time.Now()
+	rec := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
+	req := httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/similar?confirm=1", nil)
+	app.Handler().ServeHTTP(rec, req)
+
+	if rec.writeDeadline.IsZero() {
+		t.Fatal("confirmed request did not set a server write deadline")
+	}
+	minimum := start.Add(confirmedSimilarTimeout - time.Second)
+	maximum := time.Now().Add(confirmedSimilarTimeout + time.Second)
+	if rec.writeDeadline.Before(minimum) || rec.writeDeadline.After(maximum) {
+		t.Errorf("write deadline = %v, want approximately now + %v", rec.writeDeadline, confirmedSimilarTimeout)
+	}
+}
+
 // A shelf whose fingerprints cost more than the budget is declined with 200 and
 // the too_large body, not run through the sweep to a timeout. This is the old
 // over-limit test, now measuring the work budget instead of a book count.
