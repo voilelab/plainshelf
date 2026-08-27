@@ -2,7 +2,13 @@
  * @vitest-environment jsdom
  */
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createRouter, createMemoryHistory, type Router } from 'vue-router';
+import {
+  createRouter,
+  createMemoryHistory,
+  isNavigationFailure,
+  NavigationFailureType,
+  type Router
+} from 'vue-router';
 
 import { installReaderRouterGuards, READER_EMPTY_ROUTE } from './routerGuard';
 
@@ -62,6 +68,16 @@ describe('reader router guards', () => {
     await router.push(`/reader/${BOOK_ID}`);
     expect(router.currentRoute.value.name).toBe('reader');
     expect(router.currentRoute.value.params.id).toBe(BOOK_ID);
+  });
+
+  it('cancels attempts to leave the open book instead of redirecting back into it', async () => {
+    const router = newRouter();
+    await router.push(`/reader/${BOOK_ID}?section=3`);
+
+    const result = await router.push('/books');
+
+    expect(isNavigationFailure(result, NavigationFailureType.aborted)).toBe(true);
+    expect(router.currentRoute.value.fullPath).toBe(`/reader/${BOOK_ID}?section=3`);
   });
 
   // The reader serves exactly one book, so a link to another id would 404

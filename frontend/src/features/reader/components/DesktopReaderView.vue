@@ -2,7 +2,15 @@
   <section class="reader-page" data-reader-variant="desktop">
     <div class="reader-shell">
       <header class="reader-toolbar">
-        <button class="reader-back" type="button" @click="emit('back')">{{ t('common.back') }}</button>
+        <button
+          v-if="showBackNavigation"
+          class="reader-back"
+          type="button"
+          @click="emit('back')"
+        >
+          {{ t('common.back') }}
+        </button>
+        <span v-else aria-hidden="true"></span>
         <div class="reader-title">
           <span class="reader-kicker">{{ t('reader.title') }}</span>
           <h2>{{ title || bookId }}</h2>
@@ -91,6 +99,7 @@ defineProps<{
   loading: boolean;
   error: string;
   saveError: string;
+  showBackNavigation: boolean;
   isAtMinFontSize: boolean;
   isAtMaxFontSize: boolean;
 }>();

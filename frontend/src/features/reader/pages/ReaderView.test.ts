@@ -14,6 +14,13 @@ const reader = vi.hoisted(() => {
   };
 });
 
+const runtime = vi.hoisted(() => ({ reader: false, mobilePresentation: false }));
+const router = vi.hoisted(() => ({
+  back: vi.fn(),
+  push: vi.fn(),
+  replace: vi.fn()
+}));
+
 vi.mock('@/features/reader/composables/useReader', async () => {
   const { ref: makeRef } = await vi.importActual<typeof import('vue')>('vue');
   reader.currentSectionIndex = makeRef(1);
@@ -45,7 +52,11 @@ vi.mock('@/features/reader/composables/useReader', async () => {
 });
 
 vi.mock('@/features/reader/composables/useReaderPresentation', () => ({
-  useMobileReaderPresentation: () => ref(false)
+  useMobileReaderPresentation: () => ref(runtime.mobilePresentation)
+}));
+
+vi.mock('@/providers/runtime', () => ({
+  isReaderRuntime: () => runtime.reader
 }));
 
 vi.mock('@/features/reader/composables/useReaderSettings', async () => {
@@ -75,8 +86,8 @@ vi.mock('@/composables/useDocumentTitle', () => ({
 }));
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: { id: 'book-1' }, query: {} }),
-  useRouter: () => ({}),
+  useRoute: () => ({ params: { id: 'book-1' }, query: {}, fullPath: '/reader/book-1' }),
+  useRouter: () => router,
   onBeforeRouteLeave: vi.fn()
 }));
 
@@ -97,6 +108,7 @@ const READER_PROPS = vi.hoisted(() => [
   'loading',
   'error',
   'saveError',
+  'showBackNavigation',
   'isAtMinFontSize',
   'isAtMaxFontSize'
 ]);
@@ -104,10 +116,13 @@ const READER_PROPS = vi.hoisted(() => [
 vi.mock('@/features/reader/components/DesktopReaderView.vue', () => ({
   default: defineComponent({
     props: READER_PROPS,
-    emits: ['open-chapter-modal', 'open-font-modal', 'previous-section', 'next-section'],
-    setup(_, { emit }) {
+    emits: ['back', 'open-chapter-modal', 'open-font-modal', 'previous-section', 'next-section'],
+    setup(props, { emit }) {
       return () =>
         h('div', { class: 'desktop-reader' }, [
+          Reflect.get(props, 'showBackNavigation')
+            ? h('button', { class: 'reader-back-stub', onClick: () => emit('back') }, 'back')
+            : null,
           h('button', { class: 'nav-prev', onClick: () => emit('previous-section') }, 'prev'),
           h('button', { class: 'nav-next', onClick: () => emit('next-section') }, 'next'),
           h('button', { class: 'open-chapter', onClick: () => emit('open-chapter-modal') }, 'chapters')
@@ -117,7 +132,18 @@ vi.mock('@/features/reader/components/DesktopReaderView.vue', () => ({
 }));
 
 vi.mock('@/features/reader/components/MobileReaderView.vue', () => ({
-  default: defineComponent({ props: READER_PROPS, setup: () => () => h('div') })
+  default: defineComponent({
+    props: READER_PROPS,
+    emits: ['back'],
+    setup(props, { emit }) {
+      return () =>
+        h('div', { class: 'mobile-reader' }, [
+          Reflect.get(props, 'showBackNavigation')
+            ? h('button', { class: 'reader-back-stub', onClick: () => emit('back') }, 'back')
+            : null
+        ]);
+    }
+  })
 }));
 
 vi.mock('@/features/reader/components/ChapterModal.vue', () => ({
@@ -159,6 +185,11 @@ function press(key: 'ArrowLeft' | 'ArrowRight'): void {
 }
 
 beforeEach(() => {
+  runtime.reader = false;
+  runtime.mobilePresentation = false;
+  router.back.mockReset();
+  router.push.mockReset();
+  router.replace.mockReset();
   reader.goPrevSection.mockReset();
   reader.goNextSection.mockReset();
   reader.currentSectionIndex.value = 1;
@@ -170,6 +201,45 @@ afterEach(() => {
   mounted?.host.remove();
   mounted = null;
   document.body.innerHTML = '';
+});
+
+describe('ReaderView navigation chrome', () => {
+  it.each([
+    ['desktop', false],
+    ['mobile', true]
+  ])('shows the generic back control in the non-standalone %s reader', async (_, mobile) => {
+    runtime.mobilePresentation = mobile;
+    const host = mount();
+    await flush();
+
+    expect(host.querySelector('.reader-back-stub')).not.toBeNull();
+  });
+
+  it.each([
+    ['desktop', false],
+    ['mobile', true]
+  ])('hides PlainShelf back navigation in the standalone %s reader', async (_, mobile) => {
+    runtime.reader = true;
+    runtime.mobilePresentation = mobile;
+    const host = mount();
+    await flush();
+
+    expect(host.querySelector('.reader-back-stub')).toBeNull();
+  });
+
+  it('changes chapters without navigating browser history', async () => {
+    const host = mount();
+    await flush();
+
+    host.querySelector<HTMLButtonElement>('.nav-next')!.click();
+    host.querySelector<HTMLButtonElement>('.nav-prev')!.click();
+
+    expect(reader.goNextSection).toHaveBeenCalledTimes(1);
+    expect(reader.goPrevSection).toHaveBeenCalledTimes(1);
+    expect(router.push).not.toHaveBeenCalled();
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(router.back).not.toHaveBeenCalled();
+  });
 });
 
 describe('ReaderView keyboard chapter navigation', () => {

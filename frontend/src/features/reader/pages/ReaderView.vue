@@ -13,6 +13,7 @@
     :loading="loading"
     :error="error"
     :save-error="saveError"
+    :show-back-navigation="showBackNavigation"
     :is-at-min-font-size="isAtMinFontSize"
     :is-at-max-font-size="isAtMaxFontSize"
     @retry="loadReader"
@@ -41,6 +42,7 @@
     :loading="loading"
     :error="error"
     :save-error="saveError"
+    :show-back-navigation="showBackNavigation"
     :is-at-min-font-size="isAtMinFontSize"
     :is-at-max-font-size="isAtMaxFontSize"
     @retry="loadReader"
@@ -91,10 +93,12 @@ import {
 import { useReadingHeartbeat } from '@/features/reader/composables/useReadingHeartbeat';
 import { parseSectionQuery } from '@/features/reader/utils/sectionDeepLink';
 import { useI18n } from '@/i18n';
+import { isReaderRuntime } from '@/providers/runtime';
 
 const route = useRoute();
 const id = computed(() => String(route.params.id));
 const { goBack } = useSafeBackNavigation(() => `/books/${id.value}`);
+const showBackNavigation = !isReaderRuntime();
 const isMobileReader = useMobileReaderPresentation();
 const {
   title,
