@@ -4,10 +4,11 @@ import { anotherFixturePath, helloFixturePath, importBookAs } from './support/bo
 import {
   addFolder,
   emptyDataTransfer,
-  expandFoldersSection,
   folderRow,
   foldersQueryRegex,
+  foldersNav,
   foldersSectionToggle,
+  openCreateFolderDialog,
   openFolderContextMenu,
   selectAllBooks,
   selectFolder,
@@ -108,10 +109,7 @@ test('the new folder dialog rejects a name containing a separator and cancels cl
   await page.goto(`${baseUrl}/books`);
   await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
 
-  await expandFoldersSection(page);
-  await page.getByRole('button', { name: 'Add folder', exact: true }).click();
-
-  const dialog = page.getByRole('dialog', { name: 'New folder' });
+  const dialog = await openCreateFolderDialog(page, '/');
   const nameInput = dialog.getByLabel('Folder name');
   const createButton = dialog.getByRole('button', { name: 'Create', exact: true });
   await expect(createButton).toBeDisabled();
@@ -265,50 +263,17 @@ test('moves a top-level folder under another folder via drag and drop', async ({
   await expect(page).toHaveURL(foldersQueryRegex('ftmoveA/ftmoveB'));
 });
 
-test('the new folder dialog scrolls its parent select instead of overflowing the page', async ({ page }) => {
+test('the new folder dialog asks only for a name', async ({ page }) => {
   const { baseUrl } = getServer();
 
   await page.goto(`${baseUrl}/books`);
   await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
 
-  // Enough top-level folders that the option list exceeds the 320px cap.
-  for (let i = 0; i < 10; i += 1) {
-    await addFolder(page, `ftscroll-${i}`);
-  }
-
-  await expandFoldersSection(page);
-  await page.getByRole('button', { name: 'Add folder', exact: true }).click();
-
-  const dialog = page.getByRole('dialog', { name: 'New folder' });
-  await dialog.getByRole('combobox').click();
-
-  const listbox = page.getByRole('listbox');
-  await expect(listbox).toBeVisible();
-
-  const box = await listbox.boundingBox();
-  if (!box) {
-    throw new Error('expected the parent select listbox to have a bounding box');
-  }
-
-  const viewportSize = page.viewportSize();
-  if (!viewportSize) {
-    throw new Error('expected a viewport size');
-  }
-
-  // The height cap holds, and the menu stays fully on screen.
-  expect(box.height).toBeLessThanOrEqual(320);
-  expect(box.y).toBeGreaterThanOrEqual(0);
-  expect(box.y + box.height).toBeLessThanOrEqual(viewportSize.height);
-
-  // The options really do overflow, so the list is genuinely scrollable.
-  const scrollable = await page
-    .locator('[data-reka-select-viewport]')
-    .evaluate((el) => el.scrollHeight > el.clientHeight);
-  expect(scrollable).toBe(true);
-
-  // The last option is still reachable and selectable.
-  await page.getByRole('option', { name: 'ftscroll-9', exact: true }).click();
-  await expect(dialog.getByRole('combobox')).toContainText('ftscroll-9');
+  const dialog = await openCreateFolderDialog(page, '/');
+  await expect(dialog.getByLabel('Folder name')).toBeVisible();
+  await expect(dialog.getByRole('combobox')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
 });
 
 test('disables folder creation while the folder list is unavailable', async ({ page }) => {
@@ -328,17 +293,15 @@ test('disables folder creation while the folder list is unavailable', async ({ p
     await sectionToggle.click();
   }
 
-  // The sidebar refuses to show the tree, so creation must be refused too --
-  // otherwise the dialog would offer parent options from a list the sidebar
-  // itself is declining to show (a previous shelf's, after a shelf switch).
+  // The sidebar refuses to show the tree, so there is no parent context menu
+  // from which creation can be started.
   await expect(page.getByRole('button', { name: 'Retry', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Add folder', exact: true })).toBeDisabled();
+  await expect(foldersNav(page)).toHaveCount(0);
+  await expect(page.getByRole('menuitem', { name: 'Add folder', exact: true })).toHaveCount(0);
 
   await page.unroute('**/api/shelves/*/folders');
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
 
-  const addFolderButton = page.getByRole('button', { name: 'Add folder', exact: true });
-  await expect(addFolderButton).toBeEnabled();
-  await addFolderButton.click();
-  await expect(page.getByRole('dialog', { name: 'New folder' })).toBeVisible();
+  const dialog = await openCreateFolderDialog(page, '/');
+  await expect(dialog).toBeVisible();
 });
