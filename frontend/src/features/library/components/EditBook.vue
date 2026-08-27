@@ -1,24 +1,25 @@
 <template>
-  <article class="panel edit-panel">
-    <header class="edit-header">
+  <article :class="['edit-panel', { panel: !embedded, 'edit-panel-embedded': embedded }]">
+    <header v-if="!embedded" class="edit-header">
       <h2>{{ t('libraryForms.editBook.title') }}</h2>
       <p class="meta">{{ t('libraryForms.editBook.description') }}</p>
     </header>
 
-    <form class="edit-form" @submit.prevent="onSubmit">
-      <section class="section-block">
-        <h3>{{ t('libraryForms.editBook.basicInfo') }}</h3>
-        <label class="field">
-          <span class="label">{{ t('libraryForms.editBook.titleLabel') }}</span>
-          <input v-model="title" class="input" type="text" :placeholder="t('libraryForms.editBook.titlePlaceholder')" />
-        </label>
+    <form class="edit-form" :aria-busy="saving" @submit.prevent="onSubmit">
+      <div class="edit-form-fields" :inert="saving ? true : undefined">
+        <section class="section-block">
+          <h3>{{ t('libraryForms.editBook.basicInfo') }}</h3>
+          <label class="field">
+            <span class="label">{{ t('libraryForms.editBook.titleLabel') }}</span>
+            <input v-model="title" class="input" type="text" :placeholder="t('libraryForms.editBook.titlePlaceholder')" />
+          </label>
 
-        <label class="field">
-          <span class="label">{{ t('libraryForms.editBook.authorsLabel') }}</span>
-          <input v-model="authorsInput" class="input" type="text" :placeholder="t('libraryForms.editBook.authorsPlaceholder')" />
-        </label>
+          <label class="field">
+            <span class="label">{{ t('libraryForms.editBook.authorsLabel') }}</span>
+            <input v-model="authorsInput" class="input" type="text" :placeholder="t('libraryForms.editBook.authorsPlaceholder')" />
+          </label>
 
-      </section>
+        </section>
 
       <section class="section-block">
         <h3>{{ t('libraryForms.editBook.organization') }}</h3>
@@ -177,7 +178,8 @@
           </div>
           <button class="button" type="button" @click="addIdentifierRow">{{ t('libraryForms.editBook.addIdentifier') }}</button>
         </div>
-      </section>
+        </section>
+      </div>
 
       <p v-if="error" class="error submit-error">{{ error }}</p>
 
@@ -253,6 +255,7 @@ const props = defineProps<{
   book: Book;
   saving: boolean;
   error?: string;
+  embedded?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -452,6 +455,21 @@ function toFormDateValue(rawValue?: string): string {
 .edit-form {
   display: grid;
   gap: 14px;
+}
+
+.edit-form-fields {
+  display: grid;
+  gap: 14px;
+}
+
+.edit-form-fields[inert] {
+  opacity: 0.72;
+}
+
+.edit-panel-embedded {
+  max-width: none;
+  margin: 0;
+  padding: 0;
 }
 
 .section-block {
@@ -700,6 +718,15 @@ function toFormDateValue(rawValue?: string): string {
   gap: 8px;
 }
 
+.edit-panel-embedded .form-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding: 12px 0 2px;
+  background: var(--surface);
+  box-shadow: 0 -10px 16px -16px rgba(15, 23, 42, 0.45);
+}
+
 @media (max-width: 720px) {
   .edit-panel {
     padding: 14px;
@@ -707,6 +734,27 @@ function toFormDateValue(rawValue?: string): string {
 
   .form-actions {
     flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 520px) {
+  .identifier-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .identifier-key,
+  .identifier-value {
+    grid-column: 1;
+  }
+
+  .identifier-remove {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+
+  .edit-panel-embedded .form-actions .button {
+    flex: 1 1 140px;
   }
 }
 </style>

@@ -25,7 +25,10 @@ interface Mounted {
 
 const mounted: Mounted[] = [];
 
-function mount(comment: string): Mounted {
+function mount(
+  comment: string,
+  options: { embedded?: boolean; saving?: boolean } = {}
+): Mounted {
   const host = document.createElement('div');
   document.body.append(host);
   const submitted: BookUpdateRequest[] = [];
@@ -35,7 +38,8 @@ function mount(comment: string): Mounted {
     setup: () => () =>
       h(EditBook, {
         book: book(comment),
-        saving: false,
+        saving: options.saving ?? false,
+        embedded: options.embedded,
         onSubmit: (payload: BookUpdateRequest) => submitted.push(payload),
         onDirtyChange: (dirty: boolean) => dirtyChanges.push(dirty)
       })
@@ -171,5 +175,19 @@ describe('EditBook dirty state', () => {
 
     await type(host, '原始內容');
     expect(dirtyChanges.at(-1)).toBe(false);
+  });
+});
+
+describe('EditBook embedded mode', () => {
+  it('leaves the modal to provide the heading and locks the draft while saving', () => {
+    const { host } = mount('', { embedded: true, saving: true });
+
+    expect(host.querySelector('.edit-header')).toBeNull();
+    expect(host.querySelector('.edit-panel-embedded')).not.toBeNull();
+    expect(host.querySelector('.edit-panel')?.classList.contains('panel')).toBe(false);
+    expect(host.querySelector('.edit-form')?.getAttribute('aria-busy')).toBe('true');
+    expect(host.querySelector('.edit-form-fields')?.hasAttribute('inert')).toBe(true);
+    expect(Array.from(host.querySelectorAll<HTMLButtonElement>('.form-actions .button'))
+      .every((button) => button.disabled)).toBe(true);
   });
 });

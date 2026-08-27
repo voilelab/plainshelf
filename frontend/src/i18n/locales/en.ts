@@ -998,6 +998,7 @@ const en = {
   libraryForms: {
     editBook: {
       title: 'Edit metadata',
+      closeLabel: 'Close metadata editor',
       description: 'Update fields supported by the current API.',
       basicInfo: 'Basic info',
       titleLabel: 'Title',
