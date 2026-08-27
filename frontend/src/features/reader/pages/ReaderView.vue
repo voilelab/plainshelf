@@ -18,6 +18,7 @@
     @retry="loadReader"
     @scroll="onScroll"
     @reader-ready="handleReaderReady"
+    @back="goBack"
     @previous-section="goPrevSection"
     @next-section="goNextSection"
     @decrease-font-size="decreaseFontSize"
@@ -45,6 +46,7 @@
     @retry="loadReader"
     @scroll="onScroll"
     @reader-ready="handleReaderReady"
+    @back="goBack"
     @previous-section="goPrevSection"
     @next-section="goNextSection"
     @decrease-font-size="decreaseFontSize"
@@ -77,6 +79,7 @@ import DesktopReaderView from '@/features/reader/components/DesktopReaderView.vu
 import FontSelectionModal from '@/features/reader/components/FontSelectionModal.vue';
 import MobileReaderView from '@/features/reader/components/MobileReaderView.vue';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useSafeBackNavigation } from '@/composables/useSafeBackNavigation';
 import { useReader } from '@/features/reader/composables/useReader';
 import { useMobileReaderPresentation } from '@/features/reader/composables/useReaderPresentation';
 import {
@@ -91,6 +94,7 @@ import { useI18n } from '@/i18n';
 
 const route = useRoute();
 const id = computed(() => String(route.params.id));
+const { goBack } = useSafeBackNavigation(() => `/books/${id.value}`);
 const isMobileReader = useMobileReaderPresentation();
 const {
   title,

@@ -179,10 +179,11 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useSafeBackNavigation } from '@/composables/useSafeBackNavigation';
 import { useWriteAccess } from '@/composables/useWriteAccess';
 import {
   buildMarkdownEditorSections,
@@ -223,8 +224,8 @@ const SOURCE_LIST_RESIZE_HIT_AREA_MARGINS = { coarse: 12, fine: 6 };
 
 const { writesEnabled } = useWriteAccess();
 const route = useRoute();
-const router = useRouter();
 const bookId = computed(() => String(route.params.bookId));
+const { goBack } = useSafeBackNavigation(() => `/books/${bookId.value}`);
 const session = useSourceEditorSession(() => bookId.value, () => writesEnabled.value);
 const {
   book,
@@ -506,10 +507,6 @@ async function confirmDelete(): Promise<void> {
   const sourceId = pendingDeleteSourceId.value;
   if (!sourceId) return;
   if (await deleteSource(sourceId)) cancelDelete();
-}
-
-function goBack(): void {
-  void router.push(`/books/${bookId.value}`);
 }
 
 watch(activeSourceId, (sourceId, previousSourceId) => {

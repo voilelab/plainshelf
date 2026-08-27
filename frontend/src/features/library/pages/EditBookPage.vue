@@ -16,6 +16,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import EditBook from '@/features/library/components/EditBook.vue';
 import { useWriteAccess } from '@/composables/useWriteAccess';
+import { useSafeBackNavigation } from '@/composables/useSafeBackNavigation';
 import type { Book, BookUpdateRequest } from '@/types/book';
 import { useI18n } from '@/i18n';
 
@@ -25,6 +26,7 @@ const { writesEnabled } = useWriteAccess();
 const route = useRoute();
 const router = useRouter();
 const id = computed(() => String(route.params.id));
+const { goBack } = useSafeBackNavigation(() => `/books/${id.value}`);
 
 const loading = ref(false);
 const saving = ref(false);
@@ -66,10 +68,6 @@ async function onSubmit(payload: BookUpdateRequest): Promise<void> {
   } finally {
     saving.value = false;
   }
-}
-
-function goBack(): void {
-  void router.push(`/books/${id.value}`);
 }
 
 onMounted(() => {

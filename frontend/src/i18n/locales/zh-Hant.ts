@@ -32,6 +32,7 @@ const zhHant = {
     }
   },
   common: {
+    back: '返回',
     retry: '重試',
     cancel: '取消',
     confirm: '確認',
@@ -860,7 +861,6 @@ const zhHant = {
     openFailed: '無法以書籍格式開啟這個資料夾。'
   },
   reader: {
-    backToDetail: '返回詳情',
     title: '閱讀器',
     progress: '進度：{percent}%',
     loadingContent: '內容載入中...',

@@ -76,6 +76,7 @@ vi.mock('@/composables/useDocumentTitle', () => ({
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { id: 'book-1' }, query: {} }),
+  useRouter: () => ({}),
   onBeforeRouteLeave: vi.fn()
 }));
 

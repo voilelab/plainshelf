@@ -32,6 +32,7 @@ const en = {
     }
   },
   common: {
+    back: 'Back',
     retry: 'Retry',
     cancel: 'Cancel',
     confirm: 'Confirm',
@@ -868,7 +869,6 @@ const en = {
     openFailed: 'That folder could not be opened as a book.'
   },
   reader: {
-    backToDetail: 'Back to detail',
     title: 'Reader',
     progress: 'Progress: {percent}%',
     loadingContent: 'Loading content...',
