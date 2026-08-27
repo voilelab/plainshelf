@@ -162,7 +162,7 @@ test('automatically persists reading progress across app restarts', async ({ pag
     Object.defineProperty(element, 'scrollTop', { configurable: true, value: 450, writable: true });
     element.dispatchEvent(new Event('scroll'));
   });
-  await page.getByRole('link', { name: 'Back to detail' }).click();
+  await page.getByRole('button', { name: 'Back' }).click();
   await expect(page).toHaveURL(new RegExp(`/books/${helloId}$`));
 
   const savedProgress = await getReadProgressViaHook(page, helloId);
