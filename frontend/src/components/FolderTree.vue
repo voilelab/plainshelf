@@ -36,7 +36,9 @@
       v-model:expanded="expanded"
     >
       <ContextMenuRoot v-for="item in flattenItems" :key="item._id">
-        <ContextMenuTrigger as-child :disabled="readOnly || !canManageFolder(item.value)">
+        <!-- The synthetic / node cannot be renamed, moved, or deleted, but it
+             still owns top-level folder creation. -->
+        <ContextMenuTrigger as-child :disabled="readOnly">
           <TreeItem
             v-slot="{ isExpanded, handleToggle }"
             v-bind="item.bind"
@@ -94,6 +96,7 @@
               @select="emit('transfer-folder', item.value.path)"
             >{{ t('layout.transferFolder.shortAction') }}</ContextMenuItem>
             <ContextMenuItem
+              v-if="canManageFolder(item.value)"
               class="reka-menu-item"
               @select="emit('rename-folder', item.value.path)"
             >{{ t('layout.renameFolder.shortAction') }}</ContextMenuItem>
