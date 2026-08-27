@@ -37,7 +37,15 @@
 
     <Transition name="reader-chrome">
       <header v-if="chromeVisible" class="mobile-reader-topbar">
-        <button class="mobile-reader-back" type="button" @click="emit('back')">{{ t('common.back') }}</button>
+        <button
+          v-if="showBackNavigation"
+          class="mobile-reader-back"
+          type="button"
+          @click="emit('back')"
+        >
+          {{ t('common.back') }}
+        </button>
+        <span v-else aria-hidden="true"></span>
         <div class="mobile-reader-chapter">
           <strong>{{ currentSection?.title || title || bookId }}</strong>
           <span>{{ currentSectionIndex + 1 }} / {{ sections.length }}</span>
@@ -130,6 +138,7 @@ const props = defineProps<{
   loading: boolean;
   error: string;
   saveError: string;
+  showBackNavigation: boolean;
   isAtMinFontSize: boolean;
   isAtMaxFontSize: boolean;
 }>();
