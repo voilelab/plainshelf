@@ -20,8 +20,6 @@
     />
     <CreateFolderModal
       :open="showCreateFolderModal"
-      :parent-options="createFolderParentOptions"
-      :default-parent="createFolderDefaultParent"
       :busy="creatingFolder"
       :error="createFolderError"
       @cancel="closeCreateFolderModal"
@@ -281,16 +279,6 @@
                 <span class="sidebar-section-title" aria-hidden="true">{{ t('layout.sections.folders') }}</span>
                 <span class="sidebar-section-toggle-icon" aria-hidden="true">{{ collapsedSidebarSections.folders ? '▸' : '▾' }}</span>
               </button>
-              <button
-                v-if="libraryEditingAvailable"
-                type="button"
-                class="create-folder-toggle"
-                aria-haspopup="dialog"
-                :disabled="readOnly || creatingFolder || foldersLoading || foldersError.length > 0"
-                @click="openCreateFolderModal"
-              >
-                {{ t('layout.createFolder.add') }}
-              </button>
             </div>
 
             <div v-show="!collapsedSidebarSections.folders" id="sidebar-section-folders" class="sidebar-foldable-content">
@@ -308,6 +296,7 @@
                 :can-open-folder="canOpenFolder"
                 :can-transfer-folder="canTransferFolder"
                 @select="onSelectFolder"
+                @create-folder="openCreateFolderModal"
                 @move-book="onMoveBook"
                 @delete-folder="requestDeleteFolder"
                 @rename-folder="requestRenameFolder"
@@ -592,8 +581,6 @@ const {
   currentFolder,
   folderTree,
   canOpenFolder,
-  createFolderParentOptions,
-  createFolderDefaultParent,
   isDeletingPendingFolder,
   pendingRenameFolderName,
   isRenamingPendingFolder,
@@ -840,22 +827,6 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.create-folder-toggle {
-  background: #f1f5f9;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: #334155;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 8px;
-}
-
-.create-folder-toggle:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
 }
 
 .sidebar-folder-error {

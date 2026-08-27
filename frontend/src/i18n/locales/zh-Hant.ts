@@ -72,8 +72,6 @@ const zhHant = {
       title: '新增資料夾',
       nameLabel: '資料夾名稱',
       namePlaceholder: '資料夾名稱',
-      parentLabel: '位置',
-      rootOption: '所有書籍（最上層）',
       closeLabel: '關閉新增資料夾對話框',
       invalidName: '資料夾名稱不得為空，也不能包含 /。',
       creating: '建立中...',

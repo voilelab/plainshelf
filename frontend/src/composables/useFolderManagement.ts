@@ -1,6 +1,5 @@
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import type { CreateFolderParentOption } from '@/components/CreateFolderModal.vue';
 import { createFolder, deleteFolder, FolderTransferConflictError, moveFolder, renameFolder } from '@/api/folders';
 import { useBookStore } from '@/composables/useBookStore';
 import { useFolderStore } from '@/composables/useFolderStore';
@@ -11,7 +10,6 @@ import type { BookTransferMode } from '@/api/books';
 import {
   booksRouteForFolderPath,
   buildFolderTreeNodes,
-  flattenFolderTreePaths,
   getFolderPath,
   normalizeFolderPath
 } from '@/utils/folders';
@@ -63,6 +61,11 @@ export function movedFolderDestination(
   return current === folderPath ? movedPath : `${movedPath}${current.slice(folderPath.length)}`;
 }
 
+/** Resolves a context-menu parent and a folder name to the path sent to the API. */
+export function createdFolderDestination(parentPath: string, name: string): string {
+  return normalizeFolderPath(`${parentPath}/${name}`);
+}
+
 /**
  * The sidebar's folder tree operations: create, rename, move, delete, open the
  * folder on desktop, and move a book between folders. Owns the busy/error state
@@ -81,6 +84,7 @@ export function useFolderManagement() {
 
   const moveBookError = ref('');
   const showCreateFolderModal = ref(false);
+  const pendingCreateFolderParentPath = ref('/');
   const creatingFolder = ref(false);
   const createFolderError = ref('');
   const deleteFolderError = ref('');
@@ -98,15 +102,6 @@ export function useFolderManagement() {
 
   const folderTree = computed(() => buildFolderTreeNodes(folders.value));
   const canOpenFolder = computed(() => Boolean(getBookshelfProvider().openDesktopFolder));
-  const createFolderParentOptions = computed<CreateFolderParentOption[]>(() => [
-    { value: '/', label: t('layout.createFolder.rootOption'), depth: 0 },
-    ...flattenFolderTreePaths(folderTree.value).map((option) => ({
-      value: option.path,
-      label: option.path,
-      depth: option.depth + 1
-    }))
-  ]);
-  const createFolderDefaultParent = computed(() => normalizeFolderPath(currentFolder.value ?? '') || '/');
   const isDeletingPendingFolder = computed(
     () => pendingDeleteFolderPath.value.length > 0 && (deletingFolderMap.value[pendingDeleteFolderPath.value] ?? false)
   );
@@ -147,11 +142,12 @@ export function useFolderManagement() {
     goToFolder(normalizeFolderSelectionPath(path));
   }
 
-  function openCreateFolderModal(): void {
+  function openCreateFolderModal(parentPath: string): void {
     if (readOnly.value) {
       return;
     }
 
+    pendingCreateFolderParentPath.value = normalizeFolderPath(parentPath) || '/';
     createFolderError.value = '';
     showCreateFolderModal.value = true;
   }
@@ -165,7 +161,7 @@ export function useFolderManagement() {
     createFolderError.value = '';
   }
 
-  async function onSubmitCreateFolder(payload: { parentPath: string; name: string }): Promise<void> {
+  async function onSubmitCreateFolder(payload: { name: string }): Promise<void> {
     if (readOnly.value) {
       createFolderError.value = t('layout.readOnly.writeDisabled');
       return;
@@ -177,8 +173,7 @@ export function useFolderManagement() {
       return;
     }
 
-    // normalizeFolderPath drops empty segments, so a '/' parent joins cleanly.
-    const normalized = normalizeFolderPath(`${payload.parentPath}/${name}`);
+    const normalized = createdFolderDestination(pendingCreateFolderParentPath.value, name);
     if (!normalized) {
       createFolderError.value = t('layout.folderErrors.emptyPath');
       return;
@@ -529,8 +524,6 @@ export function useFolderManagement() {
     currentFolder,
     folderTree,
     canOpenFolder,
-    createFolderParentOptions,
-    createFolderDefaultParent,
     isDeletingPendingFolder,
     pendingRenameFolderName,
     isRenamingPendingFolder,

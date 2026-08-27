@@ -1,6 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
-
 /** The sidebar folder tree (FolderTree.vue renders <nav aria-label="Folders">). */
 export function foldersNav(page: Page): Locator {
   return page.getByRole('navigation', { name: 'Folders', exact: true });
@@ -31,24 +30,24 @@ export function folderRow(page: Page, name: string): Locator {
     .filter({ has: page.getByRole('button', { name, exact: true }) });
 }
 
-/** Label of the top-level entry in the new-folder dialog's "Where" select. */
-const ROOT_PARENT_LABEL = 'All books (top level)';
-
 /**
- * Creates one folder through the "Add folder" dialog. The name field accepts a
- * single segment only, so the parent is chosen from the "Where" select. Reka
- * renders the select listbox in a portal outside the dialog, so options are
- * located from the page rather than from the dialog.
+ * Opens folder creation from the requested parent row's context menu. The
+ * shelf-root row is named "/"; nested callers pass the visible final segment.
  */
-async function createFolder(page: Page, name: string, parentLabel: string): Promise<void> {
+export async function openCreateFolderDialog(page: Page, parentName: string): Promise<Locator> {
   await expandFoldersSection(page);
-  await page.getByRole('button', { name: 'Add folder', exact: true }).click();
+  await openFolderContextMenu(page, parentName);
+  await page.getByRole('menuitem', { name: 'Add folder', exact: true }).click();
 
   const dialog = page.getByRole('dialog', { name: 'New folder' });
   await expect(dialog).toBeVisible();
+  return dialog;
+}
 
-  await dialog.getByRole('combobox').click();
-  await page.getByRole('option', { name: parentLabel, exact: true }).click();
+/** Creates a single child folder from its parent's context menu. */
+async function createFolder(page: Page, name: string, parentName: string): Promise<void> {
+  const dialog = await openCreateFolderDialog(page, parentName);
+
   await dialog.getByLabel('Folder name').fill(name);
   await dialog.getByRole('button', { name: 'Create', exact: true }).click();
 
@@ -56,17 +55,17 @@ async function createFolder(page: Page, name: string, parentLabel: string): Prom
 }
 
 /**
- * Creates the given path one level at a time, always pinning the parent
- * explicitly so the helper does not depend on which folder happens to be
- * selected when it runs. Each successful submission navigates into the folder it
- * created, which is what this waits on.
+ * Creates the given path one level at a time from the shelf root and then each
+ * newly created parent. Each successful submission navigates into the folder
+ * it created, which is what this waits on.
  */
 export async function addFolder(page: Page, path: string): Promise<void> {
   const segments = path.split('/').filter((segment) => segment.length > 0);
   let parent = '';
 
   for (const name of segments) {
-    await createFolder(page, name, parent === '' ? ROOT_PARENT_LABEL : parent);
+    const parentName = parent === '' ? '/' : parent.split('/').at(-1) ?? '/';
+    await createFolder(page, name, parentName);
     parent = parent === '' ? name : `${parent}/${name}`;
     await expect(page).toHaveURL(foldersQueryRegex(parent));
   }
