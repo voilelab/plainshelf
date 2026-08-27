@@ -62,8 +62,28 @@
 
     <div v-if="loading" class="loading">{{ t('maintenance.similar.scanning') }}</div>
 
-    <div v-else-if="tooLarge" class="similar-notice" role="status">
-      <p>{{ t('maintenance.similar.tooLarge') }}</p>
+    <div v-else-if="estimate" class="similar-notice" role="status">
+      <p class="similar-notice-title">{{ t('maintenance.similar.estimate.title') }}</p>
+      <p>
+        {{
+          t('maintenance.similar.estimate.counts', {
+            fingerprinted: estimate.fingerprinted.toLocaleString(),
+            total: estimate.total.toLocaleString(),
+            pairs: estimate.pairs.toLocaleString()
+          })
+        }}
+      </p>
+      <p>
+        {{
+          t('maintenance.similar.estimate.work', {
+            work: estimate.work.toLocaleString(),
+            seconds: estimate.seconds.toLocaleString()
+          })
+        }}
+      </p>
+      <button type="button" class="button" @click="onConfirmComparison">
+        {{ t('maintenance.similar.estimate.confirm') }}
+      </button>
     </div>
 
     <div v-else-if="error" class="error similar-error" role="alert">
@@ -131,7 +151,7 @@ const { readOnly } = useServerMode();
 
 const loading = ref(false);
 const error = ref('');
-const tooLarge = ref(false);
+const estimate = ref<SimilarTooLargeError | null>(null);
 const pairs = ref<SimilarBookPair[]>([]);
 const fingerprint = ref<FingerprintStatus | null>(null);
 // Title, cover, format, folder and char_count for every book, so a card can show
@@ -207,7 +227,7 @@ watch(
 async function load(): Promise<void> {
   loading.value = true;
   error.value = '';
-  tooLarge.value = false;
+  estimate.value = null;
   // A reload is fresh data; drop cached counts so the watch re-resolves them.
   sourceCounts.value = {};
   sourceCountsInflight.clear();
@@ -235,7 +255,7 @@ async function load(): Promise<void> {
   if (pairsResult.status === 'fulfilled') {
     pairs.value = pairsResult.value;
   } else if (pairsResult.reason instanceof SimilarTooLargeError) {
-    tooLarge.value = true;
+    estimate.value = pairsResult.reason;
     pairs.value = [];
   } else {
     error.value =
@@ -244,6 +264,27 @@ async function load(): Promise<void> {
   }
 
   loading.value = false;
+}
+
+// The estimate has already paid the cache-read cost and the page already has
+// its coverage and book metadata, so confirmation retries only the comparison.
+// Passing true adds confirm=1 and selects the long request timeout in books.ts.
+async function onConfirmComparison(): Promise<void> {
+  if (!estimate.value || loading.value) {
+    return;
+  }
+
+  loading.value = true;
+  error.value = '';
+  estimate.value = null;
+  try {
+    pairs.value = await getBookshelfProvider().getSimilarBookPairs(SIMILARITY_FLOOR, true);
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : t('maintenance.similar.loadFailed');
+    pairs.value = [];
+  } finally {
+    loading.value = false;
+  }
 }
 
 // Deleting one book resolves every pair it was part of, not just the card acted
@@ -426,7 +467,22 @@ onMounted(() => {
 
 .similar-notice {
   color: var(--muted);
+  display: grid;
+  gap: 8px;
   margin-top: 12px;
+}
+
+.similar-notice p {
+  margin: 0;
+}
+
+.similar-notice-title {
+  color: inherit;
+  font-weight: 700;
+}
+
+.similar-notice .button {
+  justify-self: start;
 }
 
 .similar-results {

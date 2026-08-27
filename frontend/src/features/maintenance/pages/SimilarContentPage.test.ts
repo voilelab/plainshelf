@@ -273,15 +273,27 @@ describe('SimilarContentPage', () => {
     expect(rows(host)).toHaveLength(0);
   });
 
-  it('shows an over-budget notice, not an error, when the shelf is too costly', async () => {
-    mocks.getSimilarBookPairs.mockRejectedValue(new SimilarTooLargeError(2_000_000_000, 1_073_741_824));
+  it('shows the over-budget estimate and runs a confirmed comparison on request', async () => {
+    mocks.getSimilarBookPairs
+      .mockRejectedValueOnce(new SimilarTooLargeError(2_000_000_000, 1_073_741_824, 12, 10, 45, 60))
+      .mockResolvedValueOnce(allPairs);
     const host = mount();
     await flush();
 
     expect(host.querySelector('.similar-error')).toBeNull();
     const notice = host.querySelector('.similar-notice');
     expect(notice).not.toBeNull();
-    expect(notice!.textContent).toContain('budget');
+    expect(notice!.textContent).toContain('10 of 12 books');
+    expect(notice!.textContent).toContain('45 comparisons');
+    expect(notice!.textContent).toContain('2,000,000,000 merge steps');
+    expect(notice!.textContent).toContain('60 seconds');
+
+    buttonByText(host, 'Compare anyway').click();
+    await flush();
+
+    expect(mocks.getSimilarBookPairs).toHaveBeenNthCalledWith(2, 0.15, true);
+    expect(host.querySelector('.similar-notice')).toBeNull();
+    expect(rows(host).length).toBeGreaterThan(0);
   });
 
   it('shows an error with retry when the comparison fails', async () => {

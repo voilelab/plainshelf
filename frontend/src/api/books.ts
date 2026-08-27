@@ -230,7 +230,11 @@ export interface FingerprintStatus {
  *  because the cost is the summed sketch length, not the book count. */
 interface SimilarTooLarge {
   status: 'too_large';
+  total: number;
+  fingerprinted: number;
+  pairs: number;
   work: number;
+  seconds: number;
   budget: number;
 }
 
@@ -244,9 +248,13 @@ interface SimilarTooLarge {
 export class SimilarTooLargeError extends Error {
   constructor(
     readonly work: number,
-    readonly budget: number
+    readonly budget: number,
+    readonly total = 0,
+    readonly fingerprinted = 0,
+    readonly pairs = 0,
+    readonly seconds = 0
   ) {
-    super(`similarity comparison is unavailable: ${work} merge steps exceed the budget of ${budget}`);
+    super(`similarity comparison needs confirmation: ${work} merge steps exceed the budget of ${budget}`);
     this.name = 'SimilarTooLargeError';
   }
 }
@@ -274,18 +282,38 @@ export class FingerprintSweepBusyError extends Error {
  * A shelf whose fingerprints exceed the server's work budget answers 200 with a
  * {@link SimilarTooLarge} body rather than a pair array; that is surfaced as a
  * thrown error so a caller never iterates a non-array as if it were the list.
+ * Passing `confirm` retries past that gate and gives the comparison a five-minute
+ * timeout instead of the normal metadata-request deadline.
  */
-export async function getSimilarBookPairs(floor?: number): Promise<SimilarBookPair[]> {
+const SIMILAR_COMPARISON_TIMEOUT_MS = 300_000;
+
+export async function getSimilarBookPairs(floor?: number, confirm = false): Promise<SimilarBookPair[]> {
   if (isMockApiMode()) {
     return delay([]);
   }
 
-  const query = floor === undefined ? '' : `?floor=${encodeURIComponent(floor)}`;
+  const params = new URLSearchParams();
+  if (floor !== undefined) {
+    params.set('floor', String(floor));
+  }
+  if (confirm) {
+    params.set('confirm', '1');
+  }
+  const query = params.size === 0 ? '' : `?${params.toString()}`;
   const result = await fetchJson<SimilarBookPair[] | SimilarTooLarge>(
-    buildShelfApiPath(`/books/similar${query}`)
+    buildShelfApiPath(`/books/similar${query}`),
+    undefined,
+    confirm ? { timeoutMs: SIMILAR_COMPARISON_TIMEOUT_MS } : undefined
   );
   if (!Array.isArray(result)) {
-    throw new SimilarTooLargeError(result.work, result.budget);
+    throw new SimilarTooLargeError(
+      result.work,
+      result.budget,
+      result.total,
+      result.fingerprinted,
+      result.pairs,
+      result.seconds
+    );
   }
   return result;
 }

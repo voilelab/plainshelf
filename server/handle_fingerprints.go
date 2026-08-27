@@ -1,10 +1,12 @@
 package server
 
 import (
+	"errors"
 	"math"
 	"net/http"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/voilelab/plainshelf/internal/sketch"
 	"github.com/voilelab/plainshelf/server/task"
@@ -33,6 +35,18 @@ const defaultSimilarFloor = 0.15
 // novels. Past the budget the endpoint declines rather than outrun the
 // client's 30s fetch timeout. A var so a test can lower it.
 var similarWorkBudget = 1 << 30
+
+// similarMergeStepsPerSecond converts the conservative merge-step upper bound
+// into a human-scale duration. It is intentionally only an order-of-magnitude
+// estimate: at this rate the default budget lands at roughly 32 seconds, the
+// point where the normal frontend request timeout would otherwise expire.
+const similarMergeStepsPerSecond = 1 << 25
+
+// confirmedSimilarTimeout matches the frontend's confirmed-request timeout.
+// The normal server WriteTimeout is only 60 seconds, so a confirmed comparison
+// must extend its own write deadline before it starts reading the cache and
+// performing the sweep.
+const confirmedSimilarTimeout = 5 * time.Minute
 
 // The relation names describe how two sources are alike. The server decides
 // this rather than the frontend so the classification lives in one place, and a
@@ -79,17 +93,20 @@ type similarPair struct {
 	Relation string `json:"relation"`
 }
 
-// similarTooLarge is the body for a shelf whose fingerprinted content would
-// cost more than similarWorkBudget to compare in one pass: the synchronous
-// sweep was declined rather than run past the request's deadline. It reports
-// the estimated merge steps and the budget so the caller can explain the
-// refusal. It travels on a plain 200, not a 202: nothing was accepted for later
-// processing - there is no similarity task - so 202 would promise a result that
-// never arrives.
+// similarTooLarge is the estimate returned before a shelf whose fingerprinted
+// content would cost more than similarWorkBudget is compared in one pass. It
+// gives the caller enough information to ask the user whether the synchronous
+// wait is worthwhile. It travels on a plain 200, not a 202: nothing was accepted
+// for later processing - there is no similarity task - so 202 would promise a
+// result that never arrives.
 type similarTooLarge struct {
-	Status string `json:"status"`
-	Work   int    `json:"work"`
-	Budget int    `json:"budget"`
+	Status        string `json:"status"`
+	Total         int    `json:"total"`
+	Fingerprinted int    `json:"fingerprinted"`
+	Pairs         int    `json:"pairs"`
+	Work          int    `json:"work"`
+	Seconds       int    `json:"seconds"`
+	Budget        int    `json:"budget"`
 }
 
 // bookSketch is a book paired with the decoded fingerprint of its current
@@ -193,6 +210,16 @@ func (h *fingerprintHandlers) findSimilarBooks(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	confirmed := r.URL.Query().Get("confirm") == "1"
+	if confirmed {
+		// http.Server.WriteTimeout installs a connection deadline before this
+		// handler runs. Move it for this request only; extending the browser's
+		// timeout cannot keep a server-side 60-second deadline alive.
+		if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(confirmedSimilarTimeout)); err != nil && !errors.Is(err, http.ErrNotSupported) {
+			h.Warn("failed to extend the confirmed similarity response deadline", "error", err)
+		}
+	}
+
 	books, err := shelfData.ListBooks()
 	if err != nil {
 		h.writeErr(w, err, "failed to list books")
@@ -240,9 +267,18 @@ func (h *fingerprintHandlers) findSimilarBooks(w http.ResponseWriter, r *http.Re
 	// gated here on the fingerprints that will really be compared rather than the
 	// raw book count, which is unrelated to the work: a shelf of short works
 	// keeps every shingle and costs far more per pair than one of novels. Past
-	// the budget the endpoint declines rather than outrun the request's deadline.
-	if work := (len(prints) - 1) * sumValues; work > similarWorkBudget {
-		h.writeJSON(w, http.StatusOK, similarTooLarge{Status: "too_large", Work: work, Budget: similarWorkBudget})
+	// the budget the endpoint estimates first rather than outrun the request's
+	// normal deadline without the user's confirmation.
+	if work := (len(prints) - 1) * sumValues; work > similarWorkBudget && !confirmed {
+		h.writeJSON(w, http.StatusOK, similarTooLarge{
+			Status:        "too_large",
+			Total:         len(books),
+			Fingerprinted: len(prints),
+			Pairs:         len(prints) * (len(prints) - 1) / 2,
+			Work:          work,
+			Seconds:       (work + similarMergeStepsPerSecond - 1) / similarMergeStepsPerSecond,
+			Budget:        similarWorkBudget,
+		})
 		return
 	}
 

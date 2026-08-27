@@ -379,7 +379,12 @@ const zhHant = {
       empty: '此檔位下沒有相似的書。',
       emptyHint: '放寬檔位，或關掉「只顯示節本」，就能擴大範圍。',
       loadFailed: '比對書籍失敗',
-      tooLarge: '這個書架已建立指紋的內容超出單次同步比對的預算，因此略過了這次比對。',
+      estimate: {
+        title: '這次比對超出自動執行的預算。',
+        counts: '共 {total} 本書，其中 {fingerprinted} 本已有指紋，會進行 {pairs} 組比對。',
+        work: '約需 {work} 個合併步驟（大約 {seconds} 秒）。',
+        confirm: '仍要比對'
+      },
       resultCount: '{count} 組',
       tiersLabel: '相似程度',
       tiers: {

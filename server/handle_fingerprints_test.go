@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -253,11 +254,48 @@ func decodeTooLarge(t *testing.T, rec *httptest.ResponseRecorder) similarTooLarg
 
 func getSimilar(t *testing.T, app *App) *httptest.ResponseRecorder {
 	t.Helper()
+	return getSimilarWithQuery(t, app, "")
+}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/similar", nil)
+func getSimilarWithQuery(t *testing.T, app *App, query string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/similar"+query, nil)
 	rec := httptest.NewRecorder()
 	app.Handler().ServeHTTP(rec, req)
 	return rec
+}
+
+type deadlineRecorder struct {
+	*httptest.ResponseRecorder
+	writeDeadline time.Time
+}
+
+func (r *deadlineRecorder) SetWriteDeadline(deadline time.Time) error {
+	r.writeDeadline = deadline
+	return nil
+}
+
+// A confirmed scan can legitimately outlive the server's ordinary 60-second
+// WriteTimeout, so the handler must move the server-side deadline as well as the
+// frontend moving its fetch deadline.
+func TestFindSimilarBooksConfirmExtendsServerWriteDeadline(t *testing.T) {
+	libRoot := t.TempDir()
+	app := fingerprintTestApp(t, libRoot)
+
+	start := time.Now()
+	rec := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
+	req := httptest.NewRequest(http.MethodGet, "/api/shelves/default_shelf/books/similar?confirm=1", nil)
+	app.Handler().ServeHTTP(rec, req)
+
+	if rec.writeDeadline.IsZero() {
+		t.Fatal("confirmed request did not set a server write deadline")
+	}
+	minimum := start.Add(confirmedSimilarTimeout - time.Second)
+	maximum := time.Now().Add(confirmedSimilarTimeout + time.Second)
+	if rec.writeDeadline.Before(minimum) || rec.writeDeadline.After(maximum) {
+		t.Errorf("write deadline = %v, want approximately now + %v", rec.writeDeadline, confirmedSimilarTimeout)
+	}
 }
 
 // A shelf whose fingerprints cost more than the budget is declined with 200 and
@@ -284,6 +322,54 @@ func TestFindSimilarBooksOverBudgetReturns200(t *testing.T) {
 	body := decodeTooLarge(t, getSimilar(t, app))
 	if body.Status != "too_large" || body.Budget != 1 || body.Work <= body.Budget {
 		t.Errorf("body = %+v, want too_large with budget 1 and work over budget", body)
+	}
+	if body.Total != 2 || body.Fingerprinted != 2 || body.Pairs != 1 || body.Seconds < 1 {
+		t.Errorf("estimate = %+v, want 2 total, 2 fingerprinted, 1 pair, and a positive duration", body)
+	}
+}
+
+// Confirmation only releases the budget gate: it must run the same sweep with
+// the same floor and return the same pair array that a higher budget would.
+func TestFindSimilarBooksConfirmBypassesBudgetWithoutChangingPairs(t *testing.T) {
+	libRoot := t.TempDir()
+	app := fingerprintTestApp(t, libRoot)
+
+	shelfData, ok := app.ShelfManager().GetShelf("default_shelf")
+	if !ok {
+		t.Fatal("default shelf not found")
+	}
+	content := variedText(200)
+	books := []*shelf.Book{
+		makeBook(t, shelfData, libRoot, "Book A", content),
+		makeBook(t, shelfData, libRoot, "Book B", content),
+	}
+	fingerprintBooks(t, shelfData, books...)
+
+	restore := similarWorkBudget
+	defer func() { similarWorkBudget = restore }()
+	similarWorkBudget = 1
+
+	if body := decodeTooLarge(t, getSimilarWithQuery(t, app, "?confirm=0")); body.Work <= body.Budget {
+		t.Fatalf("unconfirmed body = %+v, want an over-budget estimate", body)
+	}
+
+	decodePairs := func(rec *httptest.ResponseRecorder) []similarPair {
+		t.Helper()
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body %s", rec.Code, rec.Body.String())
+		}
+		var pairs []similarPair
+		if err := json.Unmarshal(rec.Body.Bytes(), &pairs); err != nil {
+			t.Fatalf("decoding pairs %q: %v", rec.Body.String(), err)
+		}
+		return pairs
+	}
+
+	confirmed := decodePairs(getSimilarWithQuery(t, app, "?confirm=1"))
+	similarWorkBudget = 1 << 30
+	unlimited := decodePairs(getSimilar(t, app))
+	if !reflect.DeepEqual(confirmed, unlimited) {
+		t.Errorf("confirmed pairs = %+v, higher-budget pairs = %+v", confirmed, unlimited)
 	}
 }
 
