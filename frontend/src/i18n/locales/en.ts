@@ -72,8 +72,6 @@ const en = {
       title: 'New folder',
       nameLabel: 'Folder name',
       namePlaceholder: 'Folder name',
-      parentLabel: 'Where',
-      rootOption: 'All books (top level)',
       closeLabel: 'Close new folder dialog',
       invalidName: 'Folder name cannot be empty or contain /.',
       creating: 'Creating...',

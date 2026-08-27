@@ -1,19 +1,30 @@
 <template>
   <nav class="sidebar-nav-list" :aria-label="t('layout.foldersNavLabel')">
-    <div
-      class="sidebar-nav-item"
-      :class="{ active: !selected, 'drop-target': isRootDropTarget }"
-      @dragover.prevent="onRootDragOver"
-      @dragenter.prevent="onRootDragEnter"
-      @dragleave="onRootDragLeave"
-      @drop="onRootDrop"
-    >
-      <span class="tree-toggle-placeholder" aria-hidden="true"></span>
-      <button type="button" class="sidebar-nav-item-label" @click="emit('select', '')">
-        {{ t('library.allBooks') }}
-      </button>
-      <span class="sidebar-nav-count">{{ totalBookCount }}</span>
-    </div>
+    <ContextMenuRoot>
+      <ContextMenuTrigger as-child :disabled="readOnly">
+        <div
+          class="sidebar-nav-item"
+          :class="{ active: !selected, 'drop-target': isRootDropTarget }"
+          @dragover.prevent="onRootDragOver"
+          @dragenter.prevent="onRootDragEnter"
+          @dragleave="onRootDragLeave"
+          @drop="onRootDrop"
+        >
+          <span class="tree-toggle-placeholder" aria-hidden="true"></span>
+          <button type="button" class="sidebar-nav-item-label" @click="emit('select', '')">
+            {{ t('library.allBooks') }}
+          </button>
+          <span class="sidebar-nav-count">{{ totalBookCount }}</span>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuPortal>
+        <ContextMenuContent class="reka-menu">
+          <ContextMenuItem class="reka-menu-item" @select="emit('create-folder', '/')">
+            {{ t('layout.createFolder.add') }}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenuPortal>
+    </ContextMenuRoot>
 
     <TreeRoot
       v-slot="{ flattenItems }"
@@ -66,6 +77,12 @@
         </ContextMenuTrigger>
         <ContextMenuPortal>
           <ContextMenuContent class="reka-menu">
+            <ContextMenuItem
+              class="reka-menu-item"
+              @select="emit('create-folder', item.value.path)"
+            >
+              {{ t('layout.createFolder.add') }}
+            </ContextMenuItem>
             <ContextMenuItem
               v-if="props.canOpenFolder && canManageFolder(item.value)"
               class="reka-menu-item"
@@ -134,6 +151,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   select: [path: string];
+  'create-folder': [parentPath: string];
   'move-book': [payload: { bookIds: string[]; targetFolder: string; batch: boolean }];
   'delete-folder': [path: string];
   'rename-folder': [path: string];
