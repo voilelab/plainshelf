@@ -335,8 +335,8 @@ export class MobileBookshelfProvider implements BookshelfReader {
     return this.remote.getDuplicateBookGroups();
   }
 
-  getSimilarBookPairs(floor?: number): Promise<SimilarBookPair[]> {
-    return this.remote.getSimilarBookPairs(floor);
+  getSimilarBookPairs(floor?: number, confirm?: boolean): Promise<SimilarBookPair[]> {
+    return this.remote.getSimilarBookPairs(floor, confirm);
   }
 
   getFingerprintStatus(): Promise<FingerprintStatus> {

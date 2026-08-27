@@ -108,9 +108,10 @@ export interface BookshelfReader {
    * Similar-but-not-identical book pairs, scored by the server in one pass.
    * `floor` is the lowest Jaccard returned; the similar-content page fetches
    * once at the widest floor and narrows in memory. A read-only backend with no
-   * fingerprint cache may answer empty.
+   * fingerprint cache may answer empty. `confirm` releases the server's work
+   * budget after the user has reviewed its estimate.
    */
-  getSimilarBookPairs(floor?: number): Promise<SimilarBookPair[]>;
+  getSimilarBookPairs(floor?: number, confirm?: boolean): Promise<SimilarBookPair[]>;
   /** Coverage of the fingerprint cache, for the "build what's missing" bar. */
   getFingerprintStatus(): Promise<FingerprintStatus>;
   listTrashedBooks(): Promise<TrashedBook[]>;

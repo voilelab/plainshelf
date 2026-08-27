@@ -178,8 +178,8 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
     return getDuplicateBookGroups();
   }
 
-  getSimilarBookPairs(floor?: number): Promise<SimilarBookPair[]> {
-    return getSimilarBookPairs(floor);
+  getSimilarBookPairs(floor?: number, confirm?: boolean): Promise<SimilarBookPair[]> {
+    return getSimilarBookPairs(floor, confirm);
   }
 
   getFingerprintStatus(): Promise<FingerprintStatus> {
