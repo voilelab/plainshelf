@@ -2,7 +2,7 @@
   <section class="reader-page" data-reader-variant="desktop">
     <div class="reader-shell">
       <header class="reader-toolbar">
-        <RouterLink :to="`/books/${bookId}`" class="reader-back">{{ t('reader.backToDetail') }}</RouterLink>
+        <button class="reader-back" type="button" @click="emit('back')">{{ t('common.back') }}</button>
         <div class="reader-title">
           <span class="reader-kicker">{{ t('reader.title') }}</span>
           <h2>{{ title || bookId }}</h2>
@@ -97,6 +97,7 @@ defineProps<{
 
 const emit = defineEmits<{
   retry: [];
+  back: [];
   scroll: [];
   readerReady: [element: HTMLDivElement | null];
   previousSection: [];

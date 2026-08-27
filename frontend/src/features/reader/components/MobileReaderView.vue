@@ -37,7 +37,7 @@
 
     <Transition name="reader-chrome">
       <header v-if="chromeVisible" class="mobile-reader-topbar">
-        <RouterLink :to="`/books/${bookId}`" class="mobile-reader-back">{{ t('reader.backToDetail') }}</RouterLink>
+        <button class="mobile-reader-back" type="button" @click="emit('back')">{{ t('common.back') }}</button>
         <div class="mobile-reader-chapter">
           <strong>{{ currentSection?.title || title || bookId }}</strong>
           <span>{{ currentSectionIndex + 1 }} / {{ sections.length }}</span>
@@ -136,6 +136,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   retry: [];
+  back: [];
   scroll: [];
   readerReady: [element: HTMLDivElement | null];
   previousSection: [];
@@ -447,7 +448,13 @@ onBeforeUnmount(() => {
 }
 
 .mobile-reader-back {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
   color: #5d513f;
+  cursor: pointer;
+  font: inherit;
   font-size: 0.86rem;
   text-decoration: none;
 }
