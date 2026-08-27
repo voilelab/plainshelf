@@ -258,6 +258,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: 'submit', payload: BookUpdateRequest): void;
   (event: 'cancel'): void;
+  (event: 'dirty-change', dirty: boolean): void;
 }>();
 
 const title = ref('');
@@ -289,6 +290,7 @@ const commentPreviewHtml = computed(() => renderDescriptionHtml(comment.value));
 const publishedAtInput = ref('');
 const star = ref(0);
 const identifierRows = ref<{ key: string; value: string }[]>([]);
+const initialDraft = ref('');
 // languageSelectOptions() resolves its labels through t(), so reading it inside
 // a computed is what keeps them following a locale change.
 const languageSelectItems = computed(() =>
@@ -326,9 +328,14 @@ watch(
     publishedAtInput.value = toFormDateValue(book.published_at);
     star.value = normalizeStar(book.star);
     identifierRows.value = Object.entries(book.identifiers ?? {}).map(([key, value]) => ({ key, value }));
+    initialDraft.value = serializeDraft();
   },
   { immediate: true }
 );
+
+const isDirty = computed(() => serializeDraft() !== initialDraft.value);
+
+watch(isDirty, (dirty) => emit('dirty-change', dirty), { immediate: true });
 
 watch(languagePreset, (nextPreset) => {
   if (nextPreset !== CUSTOM_LANGUAGE_VALUE) {
@@ -372,6 +379,20 @@ function buildIdentifiersPayload(): Record<string, string> {
     .map((row) => [row.key.trim(), row.value] as const)
     .filter(([key]) => key.length > 0);
   return Object.fromEntries(entries);
+}
+
+function serializeDraft(): string {
+  return JSON.stringify({
+    title: title.value,
+    authorsInput: authorsInput.value,
+    tags: tagsSource.value,
+    languagePreset: languagePreset.value,
+    customLanguage: customLanguage.value,
+    comment: comment.value,
+    publishedAtInput: publishedAtInput.value,
+    star: star.value,
+    identifierRows: identifierRows.value
+  });
 }
 
 function onSubmit(): void {
