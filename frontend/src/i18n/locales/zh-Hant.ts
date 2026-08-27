@@ -1018,6 +1018,12 @@ const zhHant = {
       addIdentifier: '新增識別碼',
       save: '儲存中繼資料',
       saving: '儲存中...',
+      discard: {
+        title: '要捨棄未儲存的變更嗎？',
+        message: '你有尚未儲存的變更，要捨棄嗎？',
+        confirm: '捨棄',
+        cancel: '繼續編輯'
+      },
       loading: '載入書籍中繼資料中...',
       loadFailed: '載入中繼資料失敗',
       saveFailed: '儲存中繼資料失敗'

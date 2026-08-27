@@ -1026,6 +1026,12 @@ const en = {
       addIdentifier: 'Add identifier',
       save: 'Save metadata',
       saving: 'Saving...',
+      discard: {
+        title: 'Discard unsaved changes?',
+        message: 'You have unsaved changes. Discard them?',
+        confirm: 'Discard',
+        cancel: 'Keep editing'
+      },
       loading: 'Loading book metadata...',
       loadFailed: 'Failed to load metadata',
       saveFailed: 'Failed to save metadata'

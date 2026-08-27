@@ -20,6 +20,7 @@ interface Mounted {
   app: App;
   host: HTMLElement;
   submitted: BookUpdateRequest[];
+  dirtyChanges: boolean[];
 }
 
 const mounted: Mounted[] = [];
@@ -28,18 +29,20 @@ function mount(comment: string): Mounted {
   const host = document.createElement('div');
   document.body.append(host);
   const submitted: BookUpdateRequest[] = [];
+  const dirtyChanges: boolean[] = [];
 
   const app = createApp({
     setup: () => () =>
       h(EditBook, {
         book: book(comment),
         saving: false,
-        onSubmit: (payload: BookUpdateRequest) => submitted.push(payload)
+        onSubmit: (payload: BookUpdateRequest) => submitted.push(payload),
+        onDirtyChange: (dirty: boolean) => dirtyChanges.push(dirty)
       })
   });
   app.mount(host);
 
-  const entry = { app, host, submitted };
+  const entry = { app, host, submitted, dirtyChanges };
   mounted.push(entry);
   return entry;
 }
@@ -50,7 +53,7 @@ function mountDetail(comment: string): HTMLElement {
 
   const app = createApp({ setup: () => () => h(BookDetail, { book: book(comment) }) });
   app.mount(host);
-  mounted.push({ app, host, submitted: [] });
+  mounted.push({ app, host, submitted: [], dirtyChanges: [] });
   return host;
 }
 
@@ -155,5 +158,18 @@ describe('EditBook comment preview', () => {
 
     expect(submitted).toHaveLength(1);
     expect(submitted[0]?.comment).toBe(source);
+  });
+});
+
+describe('EditBook dirty state', () => {
+  it('starts clean, becomes dirty with input, and returns clean when the draft is restored', async () => {
+    const { host, dirtyChanges } = mount('原始內容');
+    expect(dirtyChanges).toEqual([false]);
+
+    await type(host, '尚未儲存');
+    expect(dirtyChanges.at(-1)).toBe(true);
+
+    await type(host, '原始內容');
+    expect(dirtyChanges.at(-1)).toBe(false);
   });
 });
