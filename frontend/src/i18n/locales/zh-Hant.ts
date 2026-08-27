@@ -985,6 +985,7 @@ const zhHant = {
   libraryForms: {
     editBook: {
       title: '編輯中繼資料',
+      closeLabel: '關閉中繼資料編輯器',
       description: '可更新目前 API 支援的欄位。',
       basicInfo: '基本資訊',
       titleLabel: '書名',
