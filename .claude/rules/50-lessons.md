@@ -6,7 +6,9 @@ Read the relevant section before working in that area. Add entries according to
 ## Build and runtime
 
 - **Embedded frontend:** Go builds require `frontend/dist`; rebuild the frontend
-  before Go tests when it is missing or stale. (`frontend/web.go`)
+  before Go or end-to-end runs when it is missing or stale. A branch switch
+  leaves the previous branch's bundle in place, so the suite quietly tests the
+  wrong frontend against the new specs. (`frontend/web.go`)
 - **Hidden build assets:** keep `//go:embed all:dist`; plain `dist/*` silently
   omits underscore-prefixed Rolldown chunks and produces a white-screen SPA.
   (`frontend/web.go`)
@@ -132,6 +134,13 @@ Read the relevant section before working in that area. Add entries according to
   `inputValue` and `selectionStart` do not apply, and only the lines near the
   viewport exist in the DOM. Drive it through `e2e/tests/support/sourceEditor.ts`,
   which reaches CodeMirror's own view the way `EditorView.findFromDOM` does.
+- **Platform-dependent editor keys:** `Control+z` is not undo on macOS, and
+  `End` runs `cursorLineBoundaryForward`, which stops at the end of the *visual*
+  row — the editor pane is a few hundred pixels wide with wrapping on, so
+  whether a line fits in one row comes down to font metrics and differs from CI.
+  Both passed on Linux and failed on a Mac. Use `ControlOrMeta` for CodeMirror's
+  `Mod-` bindings, and place the caret with `setEditorCaret` rather than walking
+  it with arrow keys. (`e2e/tests/source-editor.spec.ts`)
 - **Teardown ENOTEMPTY:** whole-suite runs fail a handful of unrelated specs with
   `ENOTEMPTY … rmdir '<tmp>/shelf/app'` → the temp shelf is deleted while the
   just-signalled server still writes into it, so the failure is teardown-only and
