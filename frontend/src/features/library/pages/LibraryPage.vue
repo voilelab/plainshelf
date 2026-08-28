@@ -1,5 +1,11 @@
 <template>
   <div>
+    <MetaEditorModal
+      :open="metadataEditorOpen"
+      :book-id="selectedMetadataBookId"
+      @close="closeMetadataEditor"
+      @saved="onMetadataSaved"
+    />
     <MoveBooksModal
       :open="moveBooksModalOpen"
       :count="selection.count.value"
@@ -81,7 +87,7 @@
       @batch-move="openBatchMove"
       @batch-delete="openBatchTrash"
       @batch-download="startBatchDownload"
-      @edit="goEdit"
+      @edit="openMetadataEditor"
       @read="goRead"
       @open-book-folder="onOpenBookFolder"
       @download="onDownloadBook"
@@ -234,6 +240,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue';
 import BaseDialog from '@/components/BaseDialog.vue';
 import ProgressBar from '@/components/ProgressBar.vue';
 import ImportBookModal from '@/features/library/components/ImportBookModal.vue';
+import MetaEditorModal from '@/features/library/components/MetaEditorModal.vue';
 import NewEmptyBookModal from '@/features/library/components/NewEmptyBookModal.vue';
 import MoveBooksModal from '@/features/library/components/MoveBooksModal.vue';
 import FilterPanel from '@/features/library/components/FilterPanel.vue';
@@ -254,6 +261,7 @@ import { useBooksRouteQuery } from '@/features/library/composables/useBooksRoute
 import { useBooksSearch } from '@/features/library/composables/useBooksSearch';
 import { useBooksSort, type BookSortKey, type SortOrder } from '@/features/library/composables/useBooksSort';
 import { useContentStatsRefresh } from '@/features/library/composables/useContentStatsRefresh';
+import { useMetadataEditorModal } from '@/features/library/composables/useMetadataEditorModal';
 import { handleLibraryMobileBack } from '@/features/library/utils/mobileBack';
 import {
   BOOK_FILTERS,
@@ -403,7 +411,6 @@ const {
   readOnly,
   goRead,
   openDetail,
-  goEdit,
   cancelDelete,
   confirmDelete,
   onOpenBookFolder,
@@ -415,6 +422,14 @@ const {
     void reloadBooks();
   }
 });
+
+const {
+  selectedBookId: selectedMetadataBookId,
+  open: metadataEditorOpen,
+  openEditor: openMetadataEditor,
+  closeEditor: closeMetadataEditor,
+  onSaved: onMetadataSaved
+} = useMetadataEditorModal({ books, readOnly, refresh: reloadBooks });
 
 // isImportModalOpen comes straight off ?import=1 (useBooksRouteQuery.ts), which
 // the /import route redirects to. Every other way of opening an import flow is
