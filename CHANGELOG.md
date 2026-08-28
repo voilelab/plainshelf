@@ -7,6 +7,10 @@ and UI behavior may still change between releases.
 
 ## [Unreleased]
 
+### Changed
+
+- Changed the build to Go 1.27, whose reimplemented `encoding/json` decodes the shelf's JSON caches roughly 1.6-3x faster on the startup path.
+
 ### Removed
 
 - Removed the `cmd/migrate-legacy-sources` tool, `internal/legacyupgrade`, and the dead `SplitConfig`/`SplitType` types and `split_config` metadata field; legacy sources still read unchanged and gain chapters via the source editor's TXT → Markdown conversion.
