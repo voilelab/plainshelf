@@ -46,6 +46,23 @@
         @cancel="cancelDelete"
         @confirm="confirmDelete"
       />
+      <MetaEditorModal
+        v-if="!readOnly"
+        :open="metadataEditorOpen"
+        :book-id="id"
+        @close="closeMetadataEditor"
+        @dirty-change="metadataEditorDirty = $event"
+        @saved="onMetadataSaved"
+      />
+      <ConfirmModal
+        :open="showMetadataLeaveConfirmation"
+        :title="t('libraryForms.editBook.discard.title')"
+        :message="t('libraryForms.editBook.discard.message')"
+        :confirm-text="t('libraryForms.editBook.discard.confirm')"
+        :cancel-text="t('libraryForms.editBook.discard.cancel')"
+        @cancel="cancelMetadataLeave"
+        @confirm="confirmMetadataLeave"
+      />
 
       <div v-if="showImportedMessage" class="loading detail-notice" role="status">
         {{ t('bookDetail.messages.imported') }}
@@ -137,7 +154,7 @@
                       <DropdownMenuItem
                         v-if="!readOnly"
                         class="reka-menu-item"
-                        @select="goEdit(id)"
+                        @select="openMetadataEditor"
                       >
                         {{ t('bookDetail.actions.editMetadata') }}
                       </DropdownMenuItem>
@@ -222,7 +239,9 @@ import {
 } from 'reka-ui';
 import BookCover from '@/features/library/components/BookCover.vue';
 import BookDetail from '@/features/library/components/BookDetail.vue';
+import MetaEditorModal from '@/features/library/components/MetaEditorModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
+import ConfirmModal from '@/components/ConfirmModal.vue';
 import MoveBooksModal from '@/features/library/components/MoveBooksModal.vue';
 import TransferBookModal from '@/features/library/components/TransferBookModal.vue';
 import ProgressBar from '@/components/ProgressBar.vue';
@@ -233,15 +252,19 @@ import { getReadingAction, resolveReadingPercent } from '@/features/library/util
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useOfflineDownload } from '@/composables/useOfflineDownload';
 import { useWriteAccess } from '@/composables/useWriteAccess';
+import { useSafeBackNavigation } from '@/composables/useSafeBackNavigation';
+import { useUnsavedChangesGuard } from '@/composables/useUnsavedChangesGuard';
 import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import { booksRouteForFolderPath, getFolderPath } from '@/utils/folders';
 import { useI18n } from '@/i18n';
+import type { Book } from '@/types/book';
 
 const route = useRoute();
 const router = useRouter();
 const id = computed(() => String(route.params.id));
 const showImportedMessage = computed(() => route.query.imported === '1');
-const showSavedMessage = computed(() => route.query.saved === '1');
+const metadataSaved = ref(false);
+const showSavedMessage = computed(() => route.query.saved === '1' || metadataSaved.value);
 const showCopiedMessage = computed(() => route.query.copied === '1');
 const { writesEnabled } = useWriteAccess();
 const readOnly = computed(() => !writesEnabled.value);
@@ -282,7 +305,6 @@ const {
   submitTransfer,
   canOpenBookFolder,
   goRead,
-  goEdit,
   openBookFolder,
   downloadBook,
   requestMove,
@@ -405,6 +427,39 @@ const showDownloadRequiredMessage = computed(
 );
 
 const refreshingStats = ref(false);
+const metadataEditorOpen = ref(false);
+const metadataEditorDirty = ref(false);
+const { goBack: goBackFromDetail } = useSafeBackNavigation(() =>
+  book.value ? booksRouteForFolderPath(getFolderPath(book.value)) : '/books'
+);
+const {
+  showDiscardConfirmation: showMetadataLeaveConfirmation,
+  cancelLeave: cancelMetadataLeave,
+  confirmLeave: confirmMetadataLeave
+} = useUnsavedChangesGuard(metadataEditorDirty, { goBack: goBackFromDetail });
+
+function openMetadataEditor(): void {
+  if (readOnly.value) {
+    return;
+  }
+  metadataSaved.value = false;
+  metadataEditorDirty.value = false;
+  metadataEditorOpen.value = true;
+}
+
+function closeMetadataEditor(): void {
+  metadataEditorOpen.value = false;
+  metadataEditorDirty.value = false;
+}
+
+function onMetadataSaved(updatedBook: Book): void {
+  // The metadata endpoint returns the complete book. Applying it directly keeps
+  // the detail page, reading progress, chapter expansion, and other modal state
+  // intact while updating every metadata field in the same render cycle.
+  book.value = updatedBook;
+  metadataEditorDirty.value = false;
+  metadataSaved.value = true;
+}
 
 async function onRefreshStats(): Promise<void> {
   const src = currentSource.value;
@@ -477,6 +532,8 @@ function onRequestDelete(): void {
 }
 
 watch(id, () => {
+  closeMetadataEditor();
+  metadataSaved.value = false;
   dismissActionError();
   void fetchDetail();
   if (offlineDownloadSupported.value) {
