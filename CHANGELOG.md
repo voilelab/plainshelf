@@ -10,6 +10,7 @@ and UI behavior may still change between releases.
 ### Changed
 
 - Changed the build to Go 1.27, whose reimplemented `encoding/json` decodes the shelf's JSON caches roughly 1.6-3x faster on the startup path.
+- **Breaking (pre-1.0):** changed mutating API endpoints to read request bodies under `encoding/json/v2`'s rules, so a body that names the same member twice, carries invalid UTF-8, or spells a member name in the wrong case is now `400` instead of being silently resolved.
 
 ### Removed
 
