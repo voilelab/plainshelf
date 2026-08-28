@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
 	"io"
 	"mime/multipart"
@@ -122,23 +121,7 @@ func (h *sourceHandlers) createSource(w http.ResponseWriter, r *http.Request) {
 	} else if strings.HasPrefix(contentType, "application/json") {
 		r.Body = http.MaxBytesReader(w, r.Body, maxImportBodySize)
 		var request createSourceJSONRequest
-		decoder := json.NewDecoder(r.Body)
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&request); err != nil {
-			if isRequestBodyTooLarge(err) {
-				http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
-				return
-			}
-			http.Error(w, "invalid JSON", http.StatusBadRequest)
-			return
-		}
-		var extra any
-		if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
-			if isRequestBodyTooLarge(err) {
-				http.Error(w, "request body too large (max 100 MB)", http.StatusRequestEntityTooLarge)
-				return
-			}
-			http.Error(w, "invalid JSON", http.StatusBadRequest)
+		if !decodeStrictJSON(w, r, &request) {
 			return
 		}
 
