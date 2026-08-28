@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 
@@ -74,10 +73,8 @@ func setJSONSetting[T any](s *settings, w http.ResponseWriter, r *http.Request, 
 	defer r.Body.Close()
 
 	var value T
-	dec := json.NewDecoder(bytes.NewReader(bs))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&value); err != nil {
-		http.Error(w, fmt.Sprintf("invalid JSON: %v", err), http.StatusBadRequest)
+	if err := decodeRequestJSON(bytes.NewReader(bs), &value, false); err != nil {
+		http.Error(w, jsonDecodeMessage(err), http.StatusBadRequest)
 		return
 	}
 
