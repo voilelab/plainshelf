@@ -32,9 +32,24 @@ type TaskChain struct {
 	Tasks       []Task        `json:"tasks"`
 }
 
+// newTaskChainResponse snapshots a chain that is still being worked on, so the
+// order the fields are read in is part of the contract.
+//
+// Every status is read before the result it describes, never after. A task only
+// settles once its result is complete and never mutates it afterwards, so a
+// status read first can be stale relative to the result but never ahead of it:
+// the response may say "running" next to an already-final result, which costs a
+// client one more poll, but it can never report a terminal status next to a
+// result that is still filling in. Reading the result first allowed exactly
+// that — a chain reporting partially_completed with an empty failure list,
+// which a client polling for a terminal status would take as the final answer.
 func newTaskChainResponse(chain *taskutil.TaskChain) TaskChain {
+	chainStatus := chain.Status().String()
+
 	tasks := make([]Task, 0, len(chain.Tasks))
 	for _, task := range chain.Tasks {
+		status := task.Status().String()
+
 		var result any
 		if provider, ok := task.(taskutil.ResultProvider); ok {
 			result = provider.Result()
@@ -43,7 +58,7 @@ func newTaskChainResponse(chain *taskutil.TaskChain) TaskChain {
 			Name:        task.Name(),
 			Title:       task.Title(),
 			Description: task.Description(),
-			Status:      task.Status().String(),
+			Status:      status,
 			Percentage:  task.Percentage(),
 			Result:      result,
 		})
@@ -54,7 +69,7 @@ func newTaskChainResponse(chain *taskutil.TaskChain) TaskChain {
 		Name:        chain.Name,
 		Title:       chain.Title,
 		Description: chain.Description,
-		Status:      chain.Status().String(),
+		Status:      chainStatus,
 		Percentage:  chain.Percentage(),
 		CreatedAt:   util.JSONTime(chain.CreatedAt),
 		Tasks:       tasks,
