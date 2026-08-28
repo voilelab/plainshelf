@@ -91,22 +91,6 @@ const router = createRouter({
           props: true
         },
         {
-          path: 'books/:id/edit',
-          name: 'book-edit',
-          // Keep the old named route and URL resolvable for bookmarks and
-          // callers that have not migrated yet. A redirect is part of the
-          // navigation that reached this URL, so `replace` prevents the legacy
-          // editor entry from sitting behind the modal and reopening it on
-          // back. Incoming query/hash state is preserved.
-          redirect: (to) => ({
-            name: 'book-detail',
-            params: { id: to.params.id },
-            query: { ...to.query, edit: 'metadata' },
-            hash: to.hash,
-            replace: true
-          })
-        },
-        {
           path: 'import',
           name: 'import',
           redirect: (to) => ({

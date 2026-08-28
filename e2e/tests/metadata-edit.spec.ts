@@ -83,30 +83,3 @@ test('should edit book metadata and see the updated values on the detail page', 
   await expect(page.getByText('★★★★☆')).toBeVisible();
   await expect(page.getByText('This is an E2E comment.')).toBeVisible();
 });
-
-// A bookmark or an old link to the standalone editor still has to reach the
-// editor. `/books/:id/edit` redirects to the detail page with `?edit=metadata`,
-// which the page consumes with replace once the book has loaded: the address
-// bar settles on the plain detail URL, so a reload shows the book instead of
-// reopening a stale editor.
-test('a legacy /edit deep link opens the metadata modal and settles on the detail URL', async ({
-  page
-}) => {
-  const { baseUrl } = getServer();
-
-  await page.goto(`${baseUrl}/books`);
-  await importBookAs(page, helloFixturePath, 'metadata-deeplink-book');
-
-  await page.locator('.book-list-row').getByRole('heading', { name: 'metadata-deeplink-book', exact: true }).click();
-  await expect(page).toHaveURL(/\/books\/[^/]+$/);
-  const detailURL = page.url();
-
-  await page.goto(`${detailURL}/edit`);
-  await expect(page.getByRole('dialog', { name: 'Edit metadata' })).toBeVisible();
-  await expect(page).toHaveURL(detailURL);
-
-  await page.reload();
-  await expect(page.getByRole('heading', { name: 'metadata-deeplink-book' })).toBeVisible();
-  await expect(page).toHaveURL(detailURL);
-  await expect(page.getByRole('dialog', { name: 'Edit metadata' })).toHaveCount(0);
-});

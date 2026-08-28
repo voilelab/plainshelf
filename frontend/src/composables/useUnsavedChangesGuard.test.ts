@@ -88,16 +88,16 @@ afterEach(() => {
 
 describe('history traversal direction', () => {
   it('recognises browser and mouse back without treating a normal route push as history', () => {
-    expect(historyTraversalDirection('/books', '/books/1/edit', {
+    expect(historyTraversalDirection('/books', '/books/1/sources', {
       current: '/books',
-      forward: '/books/1/edit'
+      forward: '/books/1/sources'
     })).toBe('back');
-    expect(historyTraversalDirection('/books/1', '/books/1/edit', {
+    expect(historyTraversalDirection('/books/1', '/books/1/sources', {
       current: '/books/1',
-      back: '/books/1/edit'
+      back: '/books/1/sources'
     })).toBe('forward');
-    expect(historyTraversalDirection('/books', '/books/1/edit', {
-      current: '/books/1/edit',
+    expect(historyTraversalDirection('/books', '/books/1/sources', {
+      current: '/books/1/sources',
       back: '/books'
     })).toBeNull();
   });

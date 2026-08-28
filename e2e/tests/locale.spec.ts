@@ -84,10 +84,10 @@ test('book language labels follow the locale', async ({ page }) => {
 
   await page.locator('.book-list-row').getByRole('heading', { name: 'locale-lang', exact: true }).click();
   await expect(page).toHaveURL(/\/books\/[^/]+$/);
-  // Straight to the edit route rather than through the More menu: that menu
-  // belongs to a later pass, so driving it would couple this test to strings
-  // that have not moved yet.
-  await page.goto(`${page.url()}/edit`);
+  // The editor is a modal on this page, reached through the More menu — there
+  // is no editor route to navigate to.
+  await page.getByRole('button', { name: '更多', exact: true }).click();
+  await page.getByRole('menuitem', { name: '編輯書籍資料', exact: true }).click();
 
   // By role, not by label: the field's accessible name now comes from the
   // translated label, and getByLabel matches substrings — it was quietly
@@ -184,7 +184,8 @@ test('the library forms render from the zh-Hant catalog', async ({ page }) => {
 
     await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await page.goto(`${page.url()}/edit`);
+    await page.getByRole('button', { name: '更多', exact: true }).click();
+    await page.getByRole('menuitem', { name: '編輯書籍資料', exact: true }).click();
 
     await expect(page.getByRole('heading', { name: '編輯中繼資料' })).toBeVisible();
     await expect(page.getByRole('textbox', { name: '書名' }).first()).toBeVisible();

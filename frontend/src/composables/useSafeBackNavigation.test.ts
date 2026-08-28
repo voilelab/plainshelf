@@ -15,7 +15,6 @@ const routes: RouteRecordRaw[] = [
   { path: '/home', name: 'home', component: {} },
   { path: '/books', name: 'library', component: {} },
   { path: '/books/:id', name: 'book-detail', component: {} },
-  { path: '/books/:id/edit', name: 'book-edit', component: {} },
   { path: '/books/:bookId/sources', name: 'book-sources-edit', component: {} },
   { path: '/reader/:id', name: 'reader', component: {} },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: {} }
