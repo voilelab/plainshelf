@@ -42,21 +42,32 @@ describe('MOBILE_BLOCKED_ROUTES', () => {
 // by route name. `library` must stay reachable, so the guard cannot refuse the
 // navigation outright — it has to clean it.
 describe('stripMobileBlockedQuery', () => {
-  it('removes the import query', () => {
+  it('removes write-opening queries', () => {
     expect(stripMobileBlockedQuery({ import: '1' })).toEqual({});
+    expect(stripMobileBlockedQuery({ edit: 'metadata' })).toEqual({});
+    expect(stripMobileBlockedQuery({ edit: ['other', 'metadata'] })).toEqual({});
   });
 
   it('keeps unrelated parameters, including the mobile preview flag', () => {
     expect(
-      stripMobileBlockedQuery({ import: '1', 'mobile-shell-preview': '1', page: '2' })
+      stripMobileBlockedQuery({
+        import: '1',
+        edit: 'metadata',
+        'mobile-shell-preview': '1',
+        page: '2'
+      })
     ).toEqual({ 'mobile-shell-preview': '1', page: '2' });
+  });
+
+  it('does not strip an unrelated edit query', () => {
+    expect(stripMobileBlockedQuery({ edit: 'cover', page: '2' })).toBeNull();
   });
 
   // Null is what stops the guard redirecting to a location that still matches.
   it('reports nothing to strip so the guard does not loop', () => {
     expect(stripMobileBlockedQuery({})).toBeNull();
     expect(stripMobileBlockedQuery({ page: '2' })).toBeNull();
-    expect(stripMobileBlockedQuery(stripMobileBlockedQuery({ import: '1' })!)).toBeNull();
+    expect(stripMobileBlockedQuery(stripMobileBlockedQuery({ edit: 'metadata' })!)).toBeNull();
   });
 
   it('does not mutate the query it was given', () => {

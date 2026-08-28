@@ -57,10 +57,11 @@ export function installMobileRouterGuards(router: Router): void {
       }
     }
 
-    // Route names cannot express every write surface: `/import` redirects to
-    // `/books?import=1`, and the modal opens off that query alone. Strip it here
-    // so the whole mobile route policy lives in this guard. LibraryPage keeps its
-    // own check as well — that is deliberate depth, not duplication.
+    // Route names cannot express every write surface: `/import` and the legacy
+    // metadata editor route both redirect to readable pages whose modal opens
+    // from query alone. Strip those flags here so the whole mobile route policy
+    // lives in this guard. Host pages keep their own write-access checks as
+    // deliberate depth, not duplication.
     const sanitizedQuery = stripMobileBlockedQuery(to.query);
     if (sanitizedQuery) {
       return { path: to.path, query: sanitizedQuery, hash: to.hash, replace: true };

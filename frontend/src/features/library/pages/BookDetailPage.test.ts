@@ -4,8 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Book } from '@/types/book';
 
 const mocks = vi.hoisted(() => ({
-  route: { params: { id: 'book-1' }, query: {} as Record<string, string> },
+  route: {
+    params: { id: 'book-1' },
+    query: {} as Record<string, string>,
+    path: '/books/book-1',
+    hash: ''
+  },
   routerPush: vi.fn(),
+  routerReplace: vi.fn(),
   fetchDetail: vi.fn(),
   dismissActionError: vi.fn(),
   ensureShelvesLoaded: vi.fn(),
@@ -20,7 +26,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('vue-router', () => ({
   useRoute: () => mocks.route,
-  useRouter: () => ({ push: mocks.routerPush })
+  useRouter: () => ({ push: mocks.routerPush, replace: mocks.routerReplace })
 }));
 
 vi.mock('reka-ui', async () => {
@@ -311,7 +317,10 @@ beforeEach(() => {
   setLocale('en');
   mocks.route.params.id = 'book-1';
   mocks.route.query = {};
+  mocks.route.path = '/books/book-1';
+  mocks.route.hash = '';
   mocks.routerPush.mockReset();
+  mocks.routerReplace.mockReset();
   mocks.fetchDetail.mockReset().mockResolvedValue(undefined);
   mocks.dismissActionError.mockReset();
   mocks.ensureShelvesLoaded.mockReset();
@@ -342,6 +351,54 @@ describe('BookDetailPage metadata editor', () => {
     await flush();
     expect(host.querySelector('.metadata-modal-stub')).toBeNull();
     expect(mocks.routerPush).not.toHaveBeenCalled();
+    expect(mocks.routerReplace).not.toHaveBeenCalled();
+  });
+
+  it('opens a metadata deep link after the book loads and consumes its query with replace', async () => {
+    mocks.route.query = { edit: 'metadata', from: 'bookmark' };
+    mocks.route.hash = '#details';
+
+    const host = mountPage();
+    await flush();
+
+    expect(host.querySelector('.metadata-modal-stub')?.getAttribute('data-book-id')).toBe('book-1');
+    expect(mocks.routerReplace).toHaveBeenCalledWith({
+      path: '/books/book-1',
+      query: { from: 'bookmark' },
+      hash: '#details'
+    });
+    expect(mocks.routerPush).not.toHaveBeenCalled();
+  });
+
+  it('waits for the deep-linked book to load so the detail retry flow remains visible', async () => {
+    mocks.route.query = { edit: 'metadata' };
+    mocks.detailBook.value = null;
+
+    const host = mountPage();
+    await flush();
+
+    expect(host.querySelector('.metadata-modal-stub')).toBeNull();
+    expect(mocks.routerReplace).not.toHaveBeenCalled();
+
+    mocks.detailBook.value = originalBook();
+    await flush();
+    expect(host.querySelector('.metadata-modal-stub')).not.toBeNull();
+    expect(mocks.routerReplace).toHaveBeenCalledTimes(1);
+  });
+
+  it('cleans a forged metadata query without opening on a read-only provider', async () => {
+    mocks.route.query = { edit: 'metadata', page: '2' };
+    mocks.writesEnabled.value = false;
+
+    const host = mountPage();
+    await flush();
+
+    expect(host.querySelector('.metadata-modal-stub')).toBeNull();
+    expect(mocks.routerReplace).toHaveBeenCalledWith({
+      path: '/books/book-1',
+      query: { page: '2' },
+      hash: ''
+    });
   });
 
   it('applies every returned metadata field immediately while preserving detail state', async () => {

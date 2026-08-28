@@ -27,12 +27,17 @@ export const MOBILE_BLOCKED_ROUTES = new Set([
  * Query parameters that open a write surface on a route that is otherwise
  * readable, and so cannot be refused by route name.
  *
- * `/import` is a route-level redirect to `/books?import=1` (see router.ts), and
- * vue-router resolves a redirect before the guard runs — the guard only ever
- * sees `library`, which the mobile shell must keep reachable. The import modal
- * then opens purely off the query, from any link, deep link, or restored tab.
+ * `/import` redirects to `/books?import=1`, while the legacy metadata editor
+ * redirects to `/books/:id?edit=metadata` (see router.ts). Vue Router resolves
+ * both before the guard runs, so the guard only sees the readable `library` or
+ * `book-detail` route. Those routes must stay reachable; only their write-
+ * opening query is removed.
  */
-export const MOBILE_BLOCKED_QUERY_KEYS = ['import'];
+export const MOBILE_BLOCKED_QUERY_KEYS = ['import', 'edit'];
+
+function opensMetadataEditor(value: unknown): boolean {
+  return value === 'metadata' || (Array.isArray(value) && value.includes('metadata'));
+}
 
 /**
  * Strips the write-opening query parameters above, or returns null when there
@@ -46,7 +51,9 @@ export const MOBILE_BLOCKED_QUERY_KEYS = ['import'];
  * module stays importable without a router (see above).
  */
 export function stripMobileBlockedQuery<T extends Record<string, unknown>>(query: T): T | null {
-  const blocked = MOBILE_BLOCKED_QUERY_KEYS.filter((key) => key in query);
+  const blocked = MOBILE_BLOCKED_QUERY_KEYS.filter((key) =>
+    key === 'edit' ? opensMetadataEditor(query[key]) : key in query
+  );
   if (blocked.length === 0) {
     return null;
   }

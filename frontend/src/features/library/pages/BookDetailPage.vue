@@ -541,6 +541,39 @@ watch(id, () => {
   }
 }, { immediate: true });
 
+function clearMetadataEditorQuery(): void {
+  const { edit: _edit, ...query } = route.query;
+  void router.replace({ path: route.path, query, hash: route.hash });
+}
+
+// A legacy `/books/:id/edit` URL redirects here with `?edit=metadata`. Wait for
+// the detail request to prove the id exists before opening, then consume the
+// flag with replace so refresh/back cannot reopen the editor. This watcher is
+// registered after the id watcher above so a route change closes the previous
+// book's modal before the new, successfully loaded book can open one.
+//
+// The read-only check is intentionally duplicated with the mobile guard:
+// provider policy is the final authority even outside the native shell.
+watch(
+  () => [route.query.edit, book.value?.id, readOnly.value] as const,
+  ([edit, loadedBookID, isReadOnly]) => {
+    if (edit !== 'metadata') {
+      return;
+    }
+    if (isReadOnly) {
+      clearMetadataEditorQuery();
+      return;
+    }
+    if (loadedBookID !== id.value) {
+      return;
+    }
+
+    openMetadataEditor();
+    clearMetadataEditorQuery();
+  },
+  { immediate: true }
+);
+
 // Loaded once so the transfer menu entry can tell whether any destination shelf
 // exists; idempotent, so re-running when a book id changes is a no-op.
 if (!readOnly.value) {

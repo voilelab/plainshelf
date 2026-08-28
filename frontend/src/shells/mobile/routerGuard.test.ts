@@ -61,6 +61,18 @@ function runGuard(guard: Guard, id: string, query: Record<string, string> = {}) 
   return guard(to, {} as RouteLocationNormalized, noop);
 }
 
+function runDetailGuard(guard: Guard, id: string, query: Record<string, string> = {}) {
+  const to = {
+    name: 'book-detail',
+    params: { id },
+    query,
+    path: `/books/${id}`,
+    hash: '#details'
+  } as unknown as RouteLocationNormalized;
+  const noop = (() => {}) as unknown as NavigationGuardNext;
+  return guard(to, {} as RouteLocationNormalized, noop);
+}
+
 beforeEach(() => {
   loadShelfEntriesMock.mockReset().mockResolvedValue({
     entries: [{ id: 'e' }],
@@ -111,5 +123,29 @@ describe('mobile reader download gate', () => {
     const result = await runGuard(guard, 'book-1');
 
     expect(result).toBe(true);
+  });
+});
+
+describe('mobile metadata editor deep links', () => {
+  it('strips the metadata query with replace while preserving readable route state', async () => {
+    const guard = captureGuard();
+
+    const result = await runDetailGuard(guard, 'book-1', {
+      edit: 'metadata',
+      'mobile-shell-preview': '1'
+    });
+
+    expect(result).toEqual({
+      path: '/books/book-1',
+      query: { 'mobile-shell-preview': '1' },
+      hash: '#details',
+      replace: true
+    });
+  });
+
+  it('allows an already-clean detail route without redirecting in a loop', async () => {
+    const guard = captureGuard();
+
+    expect(await runDetailGuard(guard, 'book-1', { page: '2' })).toBe(true);
   });
 });
