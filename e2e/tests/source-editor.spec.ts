@@ -366,13 +366,24 @@ test('should focus one Markdown chapter without splitting the document', async (
 
   // Typing survives a chapter switch, and so does the undo history: neither
   // rebuilds the editor any more.
-  await page.keyboard.press('ArrowDown');
-  await page.keyboard.press('End');
+  //
+  // The caret is placed by document offset rather than walked there with
+  // ArrowDown/End. `End` runs CodeMirror's cursorLineBoundaryForward, which
+  // stops at the end of the *visual* row, and this editor pane is a few hundred
+  // pixels wide with line wrapping on — so whether the whole line fits in one
+  // row comes down to the platform's font metrics. It does on CI and does not
+  // on macOS, where the caret used to land mid-line and the assertion below
+  // measured nothing.
+  const firstChapterLine = 'First marker repeat.';
+  await setEditorCaret(page, original.indexOf(firstChapterLine) + firstChapterLine.length);
   await page.keyboard.type('X');
   await expect.poll(() => editorText(page)).toContain('First marker repeat.X');
   await page.locator('.chapter-jump').filter({ hasText: 'Two' }).click();
   await expect.poll(async () => (await dimmedRanges(page)).join('\n')).toContain('First marker repeat.X');
-  await page.keyboard.press('Control+z');
+  // ControlOrMeta, not Control: CodeMirror binds undo to Mod-z, which is Cmd on
+  // macOS. A bare Control+z reaches the editor and does nothing there, so this
+  // step passes on CI and fails for anyone running the suite on a Mac.
+  await page.keyboard.press('ControlOrMeta+z');
   await expect.poll(() => editorText(page)).toBe(original);
 
   // Chapter scope is a filter on matches, so the same query answers
