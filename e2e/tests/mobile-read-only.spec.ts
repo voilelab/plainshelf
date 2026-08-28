@@ -31,7 +31,6 @@ test('redirects unavailable mobile routes to the library', async ({ page }) => {
   const bookId = await getBookIdByTitle(page, 'readonly-redirect');
 
   for (const route of [
-    `/books/${bookId}/edit`,
     `/books/${bookId}/sources`,
     '/admin/logs',
     '/trash',

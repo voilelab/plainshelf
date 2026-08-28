@@ -37,7 +37,6 @@ function newRouter(): Router {
       { path: '/', redirect: '/books' },
       { path: '/books', name: 'library', component: blank },
       { path: '/books/:id', name: 'book-detail', component: blank },
-      { path: '/books/:id/edit', name: 'book-edit', component: blank },
       { path: '/settings', name: 'settings', component: blank },
       { path: '/reader/:id', name: 'reader', component: blank },
       { path: '/books/:bookId/sources', name: 'book-sources-edit', component: blank }

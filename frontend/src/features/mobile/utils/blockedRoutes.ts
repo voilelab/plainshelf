@@ -10,7 +10,6 @@
  * (createWebHistory needs a real `window`).
  */
 export const MOBILE_BLOCKED_ROUTES = new Set([
-  'book-edit',
   'book-sources-edit',
   'admin-logs',
   'trash',

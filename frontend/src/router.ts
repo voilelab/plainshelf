@@ -6,7 +6,6 @@ import { APP_TITLE } from '@/composables/useDocumentTitle';
 const DashboardPage = () => import('@/features/dashboard/pages/DashboardPage.vue');
 const LibraryPage = () => import('@/features/library/pages/LibraryPage.vue');
 const BookDetailPage = () => import('@/features/library/pages/BookDetailPage.vue');
-const EditBookPage = () => import('@/features/library/pages/EditBookPage.vue');
 const DuplicateContentPage = () => import('@/features/maintenance/pages/DuplicateContentPage.vue');
 const SimilarContentPage = () => import('@/features/maintenance/pages/SimilarContentPage.vue');
 const ReadHistoryPage = () => import('@/pages/ReadHistoryPage.vue');
@@ -89,12 +88,6 @@ const router = createRouter({
           path: 'books/:id',
           name: 'book-detail',
           component: BookDetailPage,
-          props: true
-        },
-        {
-          path: 'books/:id/edit',
-          name: 'book-edit',
-          component: EditBookPage,
           props: true
         },
         {

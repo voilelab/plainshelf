@@ -134,10 +134,6 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     void router.push(`/books/${id}`);
   }
 
-  function goEdit(id: string): void {
-    void router.push(`/books/${id}/edit`);
-  }
-
   async function openBookFolder(id: string): Promise<void> {
     try {
       await getBookshelfProvider().openDesktopBookFolder?.(id);
@@ -379,7 +375,6 @@ export function useBookActions(options: UseBookActionsOptions = {}) {
     canOpenBookFolder,
     goRead,
     openDetail,
-    goEdit,
     openBookFolder,
     downloadBook,
     requestMove,

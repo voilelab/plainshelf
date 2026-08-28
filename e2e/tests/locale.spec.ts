@@ -84,10 +84,10 @@ test('book language labels follow the locale', async ({ page }) => {
 
   await page.locator('.book-list-row').getByRole('heading', { name: 'locale-lang', exact: true }).click();
   await expect(page).toHaveURL(/\/books\/[^/]+$/);
-  // Straight to the edit route rather than through the More menu: that menu
-  // belongs to a later pass, so driving it would couple this test to strings
-  // that have not moved yet.
-  await page.goto(`${page.url()}/edit`);
+  // The editor is a modal on this page, reached through the More menu — there
+  // is no editor route to navigate to.
+  await page.getByRole('button', { name: '更多', exact: true }).click();
+  await page.getByRole('menuitem', { name: '編輯書籍資料', exact: true }).click();
 
   // By role, not by label: the field's accessible name now comes from the
   // translated label, and getByLabel matches substrings — it was quietly
@@ -98,37 +98,37 @@ test('book language labels follow the locale', async ({ page }) => {
   await expect(languageTrigger).toHaveText('英文');
 });
 
-// A validation message shown on screen has to follow a locale switch like
-// everything around it. This one is derived from a flag rather than stored as
-// text, and this drives the switcher in place — seeding storage would reload
-// and clear the error before it could be observed.
-test('a shown validation error follows an in-place locale switch', async ({ page }) => {
+// A message that is composed at runtime rather than stored as a sentence has
+// to follow a locale switch like everything around it. The library's empty
+// state names the single condition that emptied the list, built from the filter
+// definition and its value — and this drives the topbar switcher in place,
+// where seeding storage would reload and rebuild the message from scratch
+// instead of proving it re-renders.
+//
+// The metadata editor's language-tag error has the same shape and used to be
+// the subject here, but it now lives in a modal dialog, which Reka renders with
+// the rest of the page aria-hidden — the topbar switcher is unreachable for as
+// long as that error is visible. EditBook.test.ts covers it instead.
+test('a runtime-composed message follows an in-place locale switch', async ({ page }) => {
   const { baseUrl } = getServer();
 
   await page.goto(`${baseUrl}/books`);
   await importBookAs(page, helloFixturePath, 'locale-validation');
 
-  await page.locator('.book-list-row').getByRole('heading', { name: 'locale-validation', exact: true }).click();
-  await expect(page).toHaveURL(/\/books\/[^/]+$/);
-  await page.goto(`${page.url()}/edit`);
+  // No book in this file carries a cover, so requiring one empties the list and
+  // the cover condition is the one to blame. The query alone drives it; the
+  // filter panel is not involved.
+  await page.goto(`${baseUrl}/books?cover=has`);
+  const emptyEn = 'No books match Cover: Present.';
+  await expect(page.getByText(emptyEn)).toBeVisible();
 
-  const languageTrigger = page.locator('.edit-form').getByRole('combobox');
-  await languageTrigger.click();
-  await page.getByRole('option', { name: 'Custom...', exact: true }).click();
-  await page.getByPlaceholder('e.g. zh-TW, zh-HK, fr, de').fill('not a tag');
-  await page.getByRole('button', { name: 'Save metadata' }).click();
-
-  const invalidEn = 'That is not a valid language tag. Use a form like en, ja, zh-Hant or zh-TW.';
-  await expect(page.getByText(invalidEn)).toBeVisible();
-
-  // The UI-language switcher lives in the topbar; scope past the edit form's
-  // own Language combobox. The option label is an endonym, so it reads the
-  // same whichever locale you start from.
+  // The UI-language switcher lives in the topbar. The option label is an
+  // endonym, so it reads the same whichever locale you start from.
   await page.locator('.language-select').getByRole('combobox').click();
   await page.getByRole('option', { name: '繁體中文', exact: true }).click();
 
-  await expect(page.getByText('語言格式不正確，請使用 en、ja、zh-Hant、zh-TW 這類格式。')).toBeVisible();
-  await expect(page.getByText(invalidEn)).toHaveCount(0);
+  await expect(page.getByText('沒有符合封面：有的書籍。')).toBeVisible();
+  await expect(page.getByText(emptyEn)).toHaveCount(0);
 });
 
 // The whole source editor bypassed the catalog — the densest cluster of
@@ -184,7 +184,8 @@ test('the library forms render from the zh-Hant catalog', async ({ page }) => {
 
     await page.locator('.book-list-row').getByRole('heading', { name: 'hello', exact: true }).click();
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
-    await page.goto(`${page.url()}/edit`);
+    await page.getByRole('button', { name: '更多', exact: true }).click();
+    await page.getByRole('menuitem', { name: '編輯書籍資料', exact: true }).click();
 
     await expect(page.getByRole('heading', { name: '編輯中繼資料' })).toBeVisible();
     await expect(page.getByRole('textbox', { name: '書名' }).first()).toBeVisible();
