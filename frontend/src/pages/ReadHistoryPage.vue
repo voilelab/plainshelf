@@ -1,5 +1,11 @@
 <template>
   <div>
+    <MetaEditorModal
+      :open="metadataEditorOpen"
+      :book-id="selectedMetadataBookId"
+      @close="closeMetadataEditor"
+      @saved="onMetadataSaved"
+    />
     <DeleteModal
       :open="!!deleteTarget"
       :item-name="deleteTarget?.title || ''"
@@ -26,7 +32,7 @@
       view-mode-storage-key="read-history"
       @retry="loadReadHistory"
       @activate="openDetail($event.id)"
-      @edit="goEdit"
+      @edit="openMetadataEditor"
       @read="goRead"
       @open-book-folder="onOpenBookFolder"
       @download="onDownloadBook"
@@ -55,11 +61,13 @@ import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BookCollectionPage from '@/components/BookCollectionPage.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
+import MetaEditorModal from '@/features/library/components/MetaEditorModal.vue';
 import { getBookshelfProvider } from '@/providers';
 import { DELETE_BOOK_DESCRIPTION } from '@/composables/useBookActions';
 import { useBookCollectionActions } from '@/composables/useBookCollectionActions';
 import { useBookCollectionRoute } from '@/composables/useBookCollectionRoute';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
+import { useMetadataEditorModal } from '@/features/library/composables/useMetadataEditorModal';
 import type { Book } from '@/types/book';
 import { useI18n } from '@/i18n';
 
@@ -126,7 +134,6 @@ const {
   readOnly,
   goRead,
   openDetail,
-  goEdit,
   cancelDelete,
   confirmDelete,
   onOpenBookFolder,
@@ -138,6 +145,14 @@ const {
     void loadReadHistory();
   }
 });
+
+const {
+  selectedBookId: selectedMetadataBookId,
+  open: metadataEditorOpen,
+  openEditor: openMetadataEditor,
+  closeEditor: closeMetadataEditor,
+  onSaved: onMetadataSaved
+} = useMetadataEditorModal({ books, readOnly, refresh: loadReadHistory });
 
 onMounted(() => {
   void loadReadHistory();
