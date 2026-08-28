@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
+	"unicode"
 
 	"github.com/voilelab/plainshelf/internal/util"
 )
@@ -102,8 +105,55 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, v any, optional bool
 		http.Error(w, fmt.Sprintf("request body too large (max %d MB)", maxImportBodySize>>20), http.StatusRequestEntityTooLarge)
 		return false
 	}
-	http.Error(w, "invalid JSON", http.StatusBadRequest)
+	http.Error(w, jsonDecodeMessage(err), http.StatusBadRequest)
 	return false
+}
+
+// jsonDecodeMessage names the field the decoder stopped on, when it reports
+// one. The decoder's own text is not used: it names Go types, which the client
+// has no business seeing.
+func jsonDecodeMessage(err error) string {
+	const prefix = "invalid JSON"
+
+	var pointer jsontext.Pointer
+	if semantic, ok := errors.AsType[*jsonv2.SemanticError](err); ok {
+		pointer = semantic.JSONPointer
+	} else if syntactic, ok := errors.AsType[*jsontext.SyntacticError](err); ok {
+		pointer = syntactic.JSONPointer
+	}
+
+	field, ok := describableField(pointer)
+	if !ok {
+		return prefix
+	}
+	return prefix + " at " + strconv.Quote(field)
+}
+
+const maxDescribedFieldLength = 64
+
+// describableField renders a JSON pointer as a slash-separated field path, and
+// reports whether it is safe to show. A member name is the caller's own text
+// and the server sends no nosniff header, so anything that does not read as a
+// field name is withheld.
+func describableField(pointer jsontext.Pointer) (string, bool) {
+	var path strings.Builder
+	for token := range pointer.Tokens() {
+		if path.Len() > 0 {
+			path.WriteByte('/')
+		}
+		path.WriteString(token)
+	}
+
+	field := path.String()
+	if field == "" || len(field) > maxDescribedFieldLength {
+		return "", false
+	}
+	for _, r := range field {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && !strings.ContainsRune("_-./", r) {
+			return "", false
+		}
+	}
+	return field, true
 }
 
 func isRequestBodyTooLarge(err error) bool {

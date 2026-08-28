@@ -123,3 +123,63 @@ func TestDecodeJSONBodyReportsAnOversizedBody(t *testing.T) {
 		t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusRequestEntityTooLarge, rec.Body.String())
 	}
 }
+
+// The frontend shows a failed request's body verbatim, so these messages are
+// user-facing text and are pinned here.
+func TestJSONDecodeMessage(t *testing.T) {
+	type identifiers struct {
+		ISBN string `json:"isbn"`
+	}
+	type request struct {
+		Folder      string      `json:"folder"`
+		Star        int         `json:"star"`
+		Tags        []string    `json:"tags"`
+		Identifiers identifiers `json:"identifiers"`
+	}
+
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{"an unknown field", `{"nope":1}`, `invalid JSON at "nope"`},
+		{"a differently cased field", `{"Folder":"x"}`, `invalid JSON at "Folder"`},
+		{"an unknown nested field", `{"identifiers":{"nope":1}}`, `invalid JSON at "identifiers/nope"`},
+		{"a repeated field", `{"folder":"a","folder":"b"}`, `invalid JSON at "folder"`},
+
+		{"a mistyped field", `{"star":"five"}`, `invalid JSON at "star"`},
+		{"a mistyped array element", `{"tags":[1]}`, `invalid JSON at "tags/0"`},
+		{"a mistyped nested field", `{"identifiers":{"isbn":5}}`, `invalid JSON at "identifiers/isbn"`},
+
+		{"a truncated value", `{"folder":`, `invalid JSON at "folder"`},
+		{"invalid UTF-8", "{\"folder\":\"bad \xff\"}", `invalid JSON at "folder"`},
+
+		// Nothing here failed inside a member, so there is no field to name.
+		{"an empty body", ``, "invalid JSON"},
+		{"a body of the wrong shape", `[1,2]`, "invalid JSON"},
+		{"a second document", `{"folder":"a"}{"folder":"b"}`, "invalid JSON"},
+		{"not JSON at all", `@@@`, "invalid JSON"},
+
+		// A member name is quoted back only when it reads as a field name.
+		{"a field name carrying markup", `{"<script>alert(1)</script>":1}`, "invalid JSON"},
+		{"an overlong field name", `{"` + strings.Repeat("a", maxDescribedFieldLength+1) + `":1}`, "invalid JSON"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tc.body))
+
+			var got request
+			if decodeStrictJSON(rec, r, &got) {
+				t.Fatalf("decoded %q, want it refused", tc.body)
+			}
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+			}
+			if body := strings.TrimSpace(rec.Body.String()); body != tc.want {
+				t.Errorf("body = %q, want %q", body, tc.want)
+			}
+		})
+	}
+}
