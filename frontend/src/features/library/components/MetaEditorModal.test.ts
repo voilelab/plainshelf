@@ -106,6 +106,7 @@ interface MountedModal {
   closed: number[];
   submitted: BookUpdateRequest[];
   saved: Book[];
+  dirtyChanges: boolean[];
 }
 
 const mounted: MountedModal[] = [];
@@ -121,6 +122,7 @@ function mountModal(initial: Partial<ModalProps> = {}): MountedModal {
   const closed: number[] = [];
   const submitted: BookUpdateRequest[] = [];
   const saved: Book[] = [];
+  const dirtyChanges: boolean[] = [];
 
   const app = createApp(defineComponent({
     setup: () => () => h(MetaEditorModal, {
@@ -128,12 +130,13 @@ function mountModal(initial: Partial<ModalProps> = {}): MountedModal {
       bookId: props.bookId,
       onClose: () => closed.push(1),
       onSubmit: (payload: BookUpdateRequest) => submitted.push(payload),
-      onSaved: (value: Book) => saved.push(value)
+      onSaved: (value: Book) => saved.push(value),
+      onDirtyChange: (value: boolean) => dirtyChanges.push(value)
     })
   }));
   app.mount(host);
 
-  const entry = { app, host, props, closed, submitted, saved };
+  const entry = { app, host, props, closed, submitted, saved, dirtyChanges };
   mounted.push(entry);
   return entry;
 }
@@ -225,6 +228,20 @@ describe('MetaEditorModal loading lifecycle', () => {
 });
 
 describe('MetaEditorModal closing lifecycle', () => {
+  it('reports dirty state to the host page and clears it after discarding', async () => {
+    providerMocks.getBook.mockResolvedValue(book('book-1'));
+    const { host, dirtyChanges } = mountModal();
+    await flushAsync();
+
+    click(host, '.make-dirty');
+    expect(dirtyChanges.at(-1)).toBe(true);
+
+    click(host, '.metadata-editor-close');
+    await nextTick();
+    click(host, '.confirm-discard');
+    expect(dirtyChanges.at(-1)).toBe(false);
+  });
+
   it('closes immediately when clean from the close button', async () => {
     providerMocks.getBook.mockResolvedValue(book('book-1'));
     const { host, closed } = mountModal();

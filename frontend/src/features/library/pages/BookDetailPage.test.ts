@@ -9,8 +9,13 @@ const mocks = vi.hoisted(() => ({
   fetchDetail: vi.fn(),
   dismissActionError: vi.fn(),
   ensureShelvesLoaded: vi.fn(),
+  goBack: vi.fn(),
+  cancelMetadataLeave: vi.fn(),
+  confirmMetadataLeave: vi.fn(),
   writesEnabled: null as any,
-  detailBook: null as any
+  detailBook: null as any,
+  guardDirty: null as any,
+  guardConfirmation: null as any
 }));
 
 vi.mock('vue-router', () => ({
@@ -63,6 +68,25 @@ vi.mock('@/composables/useWriteAccess', async () => {
   const { ref } = await import('vue');
   mocks.writesEnabled = ref(true);
   return { useWriteAccess: () => ({ writesEnabled: mocks.writesEnabled }) };
+});
+
+vi.mock('@/composables/useSafeBackNavigation', () => ({
+  useSafeBackNavigation: () => ({ goBack: mocks.goBack })
+}));
+
+vi.mock('@/composables/useUnsavedChangesGuard', async () => {
+  const { ref } = await import('vue');
+  mocks.guardConfirmation = ref(false);
+  return {
+    useUnsavedChangesGuard: (dirty: unknown) => {
+      mocks.guardDirty = dirty;
+      return {
+        showDiscardConfirmation: mocks.guardConfirmation,
+        cancelLeave: mocks.cancelMetadataLeave,
+        confirmLeave: mocks.confirmMetadataLeave
+      };
+    }
+  };
 });
 
 vi.mock('@/composables/useBookActions', async () => {
@@ -146,7 +170,7 @@ vi.mock('@/features/library/components/MetaEditorModal.vue', async () => {
     default: defineComponent({
       name: 'MetaEditorModalStub',
       props: { open: Boolean, bookId: String },
-      emits: ['close', 'saved'],
+      emits: ['close', 'saved', 'dirty-change'],
       setup(props, { emit }) {
         const updated: Book = {
           id: 'book-1',
@@ -162,10 +186,21 @@ vi.mock('@/features/library/components/MetaEditorModal.vue', async () => {
         };
         return () => props.open
           ? h('div', { class: 'metadata-modal-stub', 'data-book-id': props.bookId }, [
-              h('button', { class: 'metadata-close', onClick: () => emit('close') }, 'close'),
+              h('button', {
+                class: 'metadata-close',
+                onClick: () => {
+                  emit('dirty-change', false);
+                  emit('close');
+                }
+              }, 'close'),
+              h('button', {
+                class: 'metadata-dirty',
+                onClick: () => emit('dirty-change', true)
+              }, 'dirty'),
               h('button', {
                 class: 'metadata-save',
                 onClick: () => {
+                  emit('dirty-change', false);
                   emit('saved', updated);
                   emit('close');
                 }
@@ -203,6 +238,23 @@ vi.mock('@/features/library/components/BookCover.vue', async () => {
 vi.mock('@/components/DeleteModal.vue', async () => {
   const { defineComponent, h } = await import('vue');
   return { default: defineComponent({ setup: () => () => h('div') }) };
+});
+vi.mock('@/components/ConfirmModal.vue', async () => {
+  const { defineComponent, h } = await import('vue');
+  return {
+    default: defineComponent({
+      props: { open: Boolean },
+      emits: ['cancel', 'confirm'],
+      setup(props, { emit }) {
+        return () => props.open
+          ? h('div', { class: 'route-discard-confirmation' }, [
+              h('button', { onClick: () => emit('cancel') }, 'cancel'),
+              h('button', { onClick: () => emit('confirm') }, 'confirm')
+            ])
+          : null;
+      }
+    })
+  };
 });
 vi.mock('@/features/library/components/MoveBooksModal.vue', async () => {
   const { defineComponent, h } = await import('vue');
@@ -263,6 +315,10 @@ beforeEach(() => {
   mocks.fetchDetail.mockReset().mockResolvedValue(undefined);
   mocks.dismissActionError.mockReset();
   mocks.ensureShelvesLoaded.mockReset();
+  mocks.goBack.mockReset();
+  mocks.cancelMetadataLeave.mockReset();
+  mocks.confirmMetadataLeave.mockReset();
+  mocks.guardConfirmation.value = false;
   mocks.writesEnabled.value = true;
   mocks.detailBook.value = originalBook();
 });
@@ -309,6 +365,19 @@ describe('BookDetailPage metadata editor', () => {
     expect(host.textContent).toContain('Book details saved.');
     expect(mocks.fetchDetail).toHaveBeenCalledTimes(1);
     expect(mocks.routerPush).not.toHaveBeenCalled();
+  });
+
+  it('propagates modal draft state to the route and unload guard', async () => {
+    const host = mountPage();
+    await flush();
+    editMetadataButton(host)?.click();
+    await flush();
+
+    host.querySelector<HTMLButtonElement>('.metadata-dirty')?.click();
+    expect(mocks.guardDirty.value).toBe(true);
+
+    host.querySelector<HTMLButtonElement>('.metadata-close')?.click();
+    expect(mocks.guardDirty.value).toBe(false);
   });
 
   it('does not render or open the editor on a read-only provider', async () => {

@@ -26,6 +26,14 @@ test('should edit book metadata and see the updated values on the detail page', 
   const titleInput = page.getByPlaceholder('Book title');
   await titleInput.fill('metadata-edit-updated');
 
+  // Browser/native navigation must not unmount a dirty modal. Cancelling the
+  // shared route guard keeps both the route and the in-progress draft intact.
+  await page.goBack();
+  await expect(page.getByRole('dialog', { name: 'Discard unsaved changes?' })).toBeVisible();
+  await page.getByRole('button', { name: 'Keep editing' }).click();
+  await expect(page).toHaveURL(detailURL);
+  await expect(titleInput).toHaveValue('metadata-edit-updated');
+
   const authorsInput = page.getByPlaceholder('Author A, Author B');
   await authorsInput.fill('Alice, Bob');
 

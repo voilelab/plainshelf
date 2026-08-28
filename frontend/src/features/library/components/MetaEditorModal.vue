@@ -41,7 +41,7 @@
           embedded
           @submit="saveBook"
           @cancel="requestClose"
-          @dirty-change="dirty = $event"
+          @dirty-change="setDirty"
         />
       </div>
     </section>
@@ -76,6 +76,7 @@ const emit = defineEmits<{
   close: [];
   submit: [payload: BookUpdateRequest];
   saved: [book: Book];
+  'dirty-change': [dirty: boolean];
 }>();
 
 const { t } = useI18n();
@@ -89,12 +90,20 @@ const dirty = ref(false);
 const showDiscardConfirmation = ref(false);
 let session = 0;
 
+// The modal owns close-button/backdrop protection, while its host page owns
+// route, unload, and native-back protection. Relay changes synchronously so a
+// browser/native back action cannot unmount the draft between watcher flushes.
+function setDirty(value: boolean): void {
+  dirty.value = value;
+  emit('dirty-change', value);
+}
+
 watch(
   () => [props.open, props.bookId] as const,
   ([open]) => {
     session += 1;
     showDiscardConfirmation.value = false;
-    dirty.value = false;
+    setDirty(false);
     saving.value = false;
     saveError.value = '';
 
@@ -119,7 +128,7 @@ async function loadCurrentBook(): Promise<void> {
   const bookId = props.bookId;
   const request = (session += 1);
   book.value = null;
-  dirty.value = false;
+  setDirty(false);
   loading.value = true;
   loadError.value = '';
   saveError.value = '';
@@ -163,7 +172,7 @@ function requestClose(): void {
 
 function discardAndClose(): void {
   showDiscardConfirmation.value = false;
-  dirty.value = false;
+  setDirty(false);
   emit('close');
 }
 
@@ -184,7 +193,7 @@ async function saveBook(payload: BookUpdateRequest): Promise<void> {
       return;
     }
     book.value = updatedBook;
-    dirty.value = false;
+    setDirty(false);
     emit('saved', updatedBook);
     emit('close');
   } catch (error) {
