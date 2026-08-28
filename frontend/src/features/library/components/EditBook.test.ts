@@ -10,10 +10,11 @@ vi.mock('./FolderBreadcrumb.vue', () => ({
 
 import BookDetail from './BookDetail.vue';
 import EditBook from './EditBook.vue';
+import { setLocale } from '@/i18n';
 import type { Book, BookUpdateRequest } from '@/types/book';
 
-function book(comment: string): Book {
-  return { id: 'book-1', title: '書名', authors: [], tags: [], folders: [], comment };
+function book(comment: string, language?: string): Book {
+  return { id: 'book-1', title: '書名', authors: [], tags: [], folders: [], comment, language };
 }
 
 interface Mounted {
@@ -27,7 +28,7 @@ const mounted: Mounted[] = [];
 
 function mount(
   comment: string,
-  options: { embedded?: boolean; saving?: boolean } = {}
+  options: { embedded?: boolean; saving?: boolean; language?: string } = {}
 ): Mounted {
   const host = document.createElement('div');
   document.body.append(host);
@@ -37,7 +38,7 @@ function mount(
   const app = createApp({
     setup: () => () =>
       h(EditBook, {
-        book: book(comment),
+        book: book(comment, options.language),
         saving: options.saving ?? false,
         embedded: options.embedded,
         onSubmit: (payload: BookUpdateRequest) => submitted.push(payload),
@@ -91,6 +92,7 @@ afterEach(() => {
     entry.app.unmount();
     entry.host.remove();
   }
+  setLocale('en');
 });
 
 describe('EditBook comment preview', () => {
@@ -189,5 +191,32 @@ describe('EditBook embedded mode', () => {
     expect(host.querySelector('.edit-form-fields')?.hasAttribute('inert')).toBe(true);
     expect(Array.from(host.querySelectorAll<HTMLButtonElement>('.form-actions .button'))
       .every((button) => button.disabled)).toBe(true);
+  });
+});
+
+describe('EditBook language validation', () => {
+  // The message is derived from a flag rather than stored as text, so a locale
+  // switch while it is on screen has to re-render it. The e2e suite cannot
+  // reach this: the editor is a modal dialog, which leaves the topbar language
+  // switcher aria-hidden for as long as the error is visible.
+  it('renders the invalid-tag error in the current locale and follows a switch', async () => {
+    const { host, submitted } = mount('', { language: 'not a tag' });
+
+    host.querySelector<HTMLFormElement>('.edit-form')?.dispatchEvent(
+      new Event('submit', { cancelable: true })
+    );
+    await nextTick();
+
+    expect(submitted).toHaveLength(0);
+    expect(host.querySelector('.field-error')?.textContent).toBe(
+      'That is not a valid language tag. Use a form like en, ja, zh-Hant or zh-TW.'
+    );
+
+    setLocale('zh-Hant');
+    await nextTick();
+
+    expect(host.querySelector('.field-error')?.textContent).toBe(
+      '語言格式不正確，請使用 en、ja、zh-Hant、zh-TW 這類格式。'
+    );
   });
 });

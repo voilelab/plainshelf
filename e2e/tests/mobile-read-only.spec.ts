@@ -31,7 +31,6 @@ test('redirects unavailable mobile routes to the library', async ({ page }) => {
   const bookId = await getBookIdByTitle(page, 'readonly-redirect');
 
   for (const route of [
-    `/books/${bookId}/edit`,
     `/books/${bookId}/sources`,
     '/admin/logs',
     '/trash',
@@ -40,6 +39,16 @@ test('redirects unavailable mobile routes to the library', async ({ page }) => {
     await reopenMobileAt(page, baseUrl, route);
     await expect(page, `${route} should redirect to the library`).toHaveURL(/\/books(\?|$)/);
   }
+
+  // The legacy metadata editor URL is no longer a route of its own: it
+  // redirects to the book's own detail page with `?edit=metadata`, which the
+  // guard strips the same way it strips `?import=1` off the library. The book
+  // stays readable, only its write surface is refused — so this one lands on
+  // the detail page rather than back at the library.
+  await reopenMobileAt(page, baseUrl, `/books/${bookId}/edit`);
+  await expect(page).toHaveURL(new RegExp(`/books/${bookId}(\\?|$)`));
+  await expect(page).not.toHaveURL(/edit=metadata/);
+  await expect(page.getByRole('dialog', { name: 'Edit metadata' })).toHaveCount(0);
 });
 
 test('keeps reading routes reachable', async ({ page }) => {

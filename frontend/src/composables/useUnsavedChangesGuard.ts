@@ -8,6 +8,7 @@ import {
 } from 'vue';
 import {
   onBeforeRouteLeave,
+  onBeforeRouteUpdate,
   useRouter,
   type RouteLocationNormalized
 } from 'vue-router';
@@ -94,7 +95,10 @@ export function useUnsavedChangesGuard(
     void action();
   }
 
-  onBeforeRouteLeave((to, from) => {
+  function guardRouteChange(
+    to: RouteLocationNormalized,
+    from: RouteLocationNormalized
+  ): boolean {
     if (allowNextRouteLeave) {
       allowNextRouteLeave = false;
       return true;
@@ -118,7 +122,16 @@ export function useUnsavedChangesGuard(
       pendingLeave.value = () => router.replace(routeLocationForRetry(to));
     }
     return false;
-  });
+  }
+
+  onBeforeRouteLeave(guardRouteChange);
+
+  // A parameter-only move between two entries of the same route — /books/A to
+  // /books/B, reached by a link or by browser history — reuses this component,
+  // so Vue Router runs the update guard and never the leave guard above. The
+  // page would then swap books underneath the open editor and discard the
+  // draft without asking. Both guards share one decision.
+  onBeforeRouteUpdate(guardRouteChange);
 
   function onBeforeUnload(event: BeforeUnloadEvent): void {
     if (!dirtyNow()) return;

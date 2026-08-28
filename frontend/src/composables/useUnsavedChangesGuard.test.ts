@@ -41,7 +41,8 @@ let mounted: { app: App; host: HTMLElement } | null = null;
 async function mountGuard(
   dirty: Ref<boolean>,
   goBack = vi.fn(),
-  beforeCheck?: () => void
+  beforeCheck?: () => void,
+  startPath = '/editor'
 ) {
   let controls: GuardControls | null = null;
   const Guarded = defineComponent({
@@ -55,10 +56,13 @@ async function mountGuard(
     history: createMemoryHistory(),
     routes: [
       { path: '/editor', component: Guarded },
+      // Same route record for every id, so moving between two books reuses the
+      // guarded component instead of remounting it.
+      { path: '/books/:id', component: Guarded },
       { path: '/other', component: Other }
     ]
   });
-  await router.push('/editor');
+  await router.push(startPath);
 
   const host = document.createElement('div');
   document.body.append(host);
@@ -172,6 +176,24 @@ describe('unsaved changes guard', () => {
 
     controls.confirmLeave();
     expect(goBack).toHaveBeenCalledOnce();
+  });
+
+  it('guards a parameter-only move between two entries of the same route', async () => {
+    // Vue Router reuses the component here, so this navigation reaches the
+    // update guard and never the leave guard — the case that used to swap the
+    // book underneath a dirty editor without asking.
+    const dirty = ref(true);
+    const { controls, router } = await mountGuard(dirty, vi.fn(), undefined, '/books/1');
+    const replace = vi.spyOn(router, 'replace');
+
+    await router.push('/books/2');
+    await nextTick();
+    expect(router.currentRoute.value.fullPath).toBe('/books/1');
+    expect(controls.showDiscardConfirmation.value).toBe(true);
+
+    controls.confirmLeave();
+    await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe('/books/2'));
+    expect(replace).toHaveBeenCalledWith({ path: '/books/2', query: {}, hash: '' });
   });
 
   it('requests the browser-native unload warning only while dirty', async () => {
