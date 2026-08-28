@@ -14,10 +14,13 @@ test('should edit book metadata and see the updated values on the detail page', 
 
   await page.locator('.book-list-row').getByRole('heading', { name: 'metadata-edit-book', exact: true }).click();
   await expect(page).toHaveURL(/\/books\/[^/]+$/);
+  const detailURL = page.url();
+  const historyLength = await page.evaluate(() => window.history.length);
 
   await page.getByRole('button', { name: 'More' }).click();
   await page.getByRole('menuitem', { name: 'Edit book details' }).click();
-  await expect(page).toHaveURL(/\/books\/[^/]+\/edit$/);
+  await expect(page).toHaveURL(detailURL);
+  await expect(page.getByRole('dialog', { name: 'Edit metadata' })).toBeVisible();
 
   // Fill metadata fields
   const titleInput = page.getByPlaceholder('Book title');
@@ -54,8 +57,11 @@ test('should edit book metadata and see the updated values on the detail page', 
 
   await page.getByRole('button', { name: 'Save metadata' }).click();
 
-  // Should redirect to detail page with saved=1
-  await expect(page).toHaveURL(/\/books\/[^/]+\?saved=1$/);
+  // Saving closes the modal in place: neither the route nor browser history
+  // changes, and the detail view receives the updated Book response directly.
+  await expect(page).toHaveURL(detailURL);
+  await expect(page.getByRole('dialog', { name: 'Edit metadata' })).toBeHidden();
+  expect(await page.evaluate(() => window.history.length)).toBe(historyLength);
   await expect(page.getByText('Book details saved.')).toBeVisible();
 
   // Verify updated values are visible on the detail page
