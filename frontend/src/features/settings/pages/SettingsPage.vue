@@ -35,6 +35,9 @@
         <TabsTrigger v-if="serverSettingsEditable" value="import" class="settings-tab-trigger">{{
           t('settings.import.title')
         }}</TabsTrigger>
+        <TabsTrigger v-if="serverSettingsEditable" value="logs" class="settings-tab-trigger">{{
+          t('settings.logs.title')
+        }}</TabsTrigger>
         <TabsTrigger value="about" class="settings-tab-trigger">{{ t('settings.about.title') }}</TabsTrigger>
         <TabsTrigger value="shelves" class="settings-tab-trigger">{{ t('settings.shelves.title') }}</TabsTrigger>
       </TabsList>
@@ -72,6 +75,14 @@
         />
       </TabsContent>
 
+      <TabsContent v-if="serverSettingsEditable" value="logs" class="settings-tab-content">
+        <LogRetentionPanel
+          :value="logRetentionDays"
+          :disabled="loading || saving"
+          @change="onLogRetentionDaysChange"
+        />
+      </TabsContent>
+
       <TabsContent value="about" class="settings-tab-content">
         <AboutPanel />
       </TabsContent>
@@ -89,6 +100,7 @@ import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 import AboutPanel from '@/features/settings/components/AboutPanel.vue';
 import CoverPanel from '@/features/settings/components/CoverPanel.vue';
 import EpubImportPanel from '@/features/settings/components/EpubImportPanel.vue';
+import LogRetentionPanel from '@/features/settings/components/LogRetentionPanel.vue';
 import ReadHistoryPanel from '@/features/settings/components/ReadHistoryPanel.vue';
 import ReaderLaunchPanel from '@/features/settings/components/ReaderLaunchPanel.vue';
 import ShelvesPanel from '@/features/settings/components/ShelvesPanel.vue';
@@ -111,6 +123,7 @@ const {
   saving,
   error,
   coverToJpg,
+  logRetentionDays,
   readHistoryLimit,
   readerLaunchMode,
   epubPreset,
@@ -118,6 +131,7 @@ const {
   epubImportError,
   loadSettings,
   onCoverToJpgChange,
+  onLogRetentionDaysChange,
   onReadHistoryLimitChange,
   onReaderLaunchModeChange,
   onEpubPresetChange,

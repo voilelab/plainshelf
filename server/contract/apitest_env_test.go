@@ -20,6 +20,11 @@ const defaultShelfID = "default_shelf"
 // what these tests pin, so a change to it has to be a change to both.
 const maxBinaryUploadSize = 20 << 20
 
+// maxLogRetentionDays is the ceiling the log_retention_days setting enforces,
+// restated for the same reason as maxBinaryUploadSize: the bound is part of
+// what these tests pin.
+const maxLogRetentionDays = 3650
+
 // appConfOption adjusts the configuration a contract-test app is built from.
 type appConfOption func(*server.AppConf)
 
@@ -63,6 +68,18 @@ func withAppLogDir(dir, prefix string) appConfOption {
 func withShelfLogDir(dir, prefix string) appConfOption {
 	return func(conf *server.AppConf) {
 		conf.Shelves[0].Logger = rotatingLogConf(dir, prefix)
+	}
+}
+
+// withLogRetention pins how long rotated log files are kept. The log tests seed
+// files dated well in the past, which the default retention window would expire
+// on the first rotation the app's own logging triggers.
+func withLogRetention(days int) appConfOption {
+	return func(conf *server.AppConf) {
+		conf.Logger.LogFile.RetentionDays = &days
+		for _, shelfConf := range conf.Shelves {
+			shelfConf.Logger.LogFile.RetentionDays = &days
+		}
 	}
 }
 

@@ -76,3 +76,31 @@ func (h *settingHandlers) setEPUBImportStrategy(w http.ResponseWriter, r *http.R
 func (h *settingHandlers) deleteEPUBImportStrategy(w http.ResponseWriter, r *http.Request) {
 	h.settings.deleteSetting(w, settingKeyEPUBImportStrategy)
 }
+
+// GET /api/setting/log_retention_days
+//
+// The window applies to every log file the server writes. It is a setting
+// rather than configuration alone because the desktop build has no config file
+// to edit, and deleting log files is not something a user should be unable to
+// turn off.
+func (h *settingHandlers) getLogRetentionDays(w http.ResponseWriter, r *http.Request) {
+	h.writeJSON(w, http.StatusOK, map[string]any{"value": h.settings.logRetentionDays()})
+}
+
+// POST /api/setting/log_retention_days
+//
+// The new window is pushed to the running writers, which read it on their next
+// rotation: a user who turns deletion off must not have to restart the server
+// before that takes effect.
+func (h *settingHandlers) setLogRetentionDays(w http.ResponseWriter, r *http.Request) {
+	if setJSONSetting(h.settings, w, r, settingKeyLogRetentionDays, validateLogRetentionDays) {
+		h.settings.applyLogRetention()
+	}
+}
+
+// DELETE /api/setting/log_retention_days
+func (h *settingHandlers) deleteLogRetentionDays(w http.ResponseWriter, r *http.Request) {
+	if h.settings.deleteSetting(w, settingKeyLogRetentionDays) {
+		h.settings.applyLogRetention()
+	}
+}

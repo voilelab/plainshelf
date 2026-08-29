@@ -6,7 +6,15 @@ interface SettingResponse {
   value?: unknown;
 }
 
+/**
+ * The window the server applies when nothing is stored or configured. Restated
+ * here only so mock mode has something to answer with; the live value always
+ * comes from the server.
+ */
+export const DEFAULT_LOG_RETENTION_DAYS = 30;
+
 let mockCoverToJpg = false;
+let mockLogRetentionDays = DEFAULT_LOG_RETENTION_DAYS;
 let mockEpubImportStrategy: EpubImportStrategy = { ...DEFAULT_EPUB_IMPORT_STRATEGY };
 
 function toBoolean(value: unknown): boolean {
@@ -60,5 +68,34 @@ export async function setEpubImportStrategySetting(strategy: EpubImportStrategy)
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(payload)
+  });
+}
+
+/**
+ * How many days of rotated log files the server keeps. Zero means it keeps
+ * every one, which is how log deletion is turned off.
+ */
+export async function getLogRetentionDaysSetting(): Promise<number> {
+  if (isMockApiMode()) {
+    return mockLogRetentionDays;
+  }
+
+  const res = await fetchJson<SettingResponse>('/api/setting/log_retention_days');
+  const value = Number(res?.value);
+  return Number.isInteger(value) && value >= 0 ? value : DEFAULT_LOG_RETENTION_DAYS;
+}
+
+export async function setLogRetentionDaysSetting(days: number): Promise<void> {
+  if (isMockApiMode()) {
+    mockLogRetentionDays = days;
+    return;
+  }
+
+  await fetchJson<void>('/api/setting/log_retention_days', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(days)
   });
 }

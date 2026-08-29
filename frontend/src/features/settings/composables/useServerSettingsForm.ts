@@ -1,9 +1,12 @@
 import { ref, type Ref } from 'vue';
 import {
+  DEFAULT_LOG_RETENTION_DAYS,
   getCoverToJpgSetting,
   getEpubImportStrategySetting,
+  getLogRetentionDaysSetting,
   setCoverToJpgSetting,
-  setEpubImportStrategySetting
+  setEpubImportStrategySetting,
+  setLogRetentionDaysSetting
 } from '@/api/settings';
 // Reading history and its retention limit are per-device state, not server settings.
 import { getReadHistoryLimit, setReadHistoryLimit } from '@/storage/readHistory';
@@ -21,6 +24,7 @@ import {
 import { useI18n } from '@/i18n';
 import { normalizeEpubImportPreset } from '@/utils/epubStrategy';
 import {
+  parseLogRetentionDays,
   parseReadHistoryLimit
 } from '@/features/settings/utils/settingsDraft';
 
@@ -29,6 +33,7 @@ export interface ServerSettingsForm {
   saving: Ref<boolean>;
   error: Ref<string>;
   coverToJpg: Ref<boolean>;
+  logRetentionDays: Ref<number>;
   readHistoryLimit: Ref<number>;
   readerLaunchMode: Ref<ReaderLaunchMode>;
   epubPreset: Ref<EpubImportPreset>;
@@ -36,6 +41,7 @@ export interface ServerSettingsForm {
   epubImportError: Ref<string>;
   loadSettings: () => Promise<void>;
   onCoverToJpgChange: (value: boolean) => Promise<void>;
+  onLogRetentionDaysChange: (event: Event) => Promise<void>;
   onReadHistoryLimitChange: (event: Event) => Promise<void>;
   onReaderLaunchModeChange: (event: Event) => void;
   onEpubPresetChange: (event: Event) => void;
@@ -61,6 +67,7 @@ export function useServerSettingsForm(options: {
   const saving = ref(false);
   const error = ref('');
   const coverToJpg = ref(false);
+  const logRetentionDays = ref(DEFAULT_LOG_RETENTION_DAYS);
   const readHistoryLimit = ref(0);
   const readerLaunchMode = ref<ReaderLaunchMode>(getReaderLaunchMode());
   const epubPreset = ref<EpubImportPreset>(DEFAULT_EPUB_IMPORT_STRATEGY.preset);
@@ -85,11 +92,13 @@ export function useServerSettingsForm(options: {
         return;
       }
 
-      const [nextCoverToJpg, nextEpubStrategy] = await Promise.all([
+      const [nextCoverToJpg, nextEpubStrategy, nextLogRetentionDays] = await Promise.all([
         getCoverToJpgSetting(),
-        getEpubImportStrategySetting()
+        getEpubImportStrategySetting(),
+        getLogRetentionDaysSetting()
       ]);
       coverToJpg.value = nextCoverToJpg;
+      logRetentionDays.value = nextLogRetentionDays;
       hydrateEpubImportDraft(nextEpubStrategy);
     } catch (err) {
       error.value = err instanceof Error ? err.message : t('settings.loadFailed');
@@ -149,6 +158,35 @@ export function useServerSettingsForm(options: {
     }
   }
 
+  async function onLogRetentionDaysChange(event: Event): Promise<void> {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) {
+      return;
+    }
+
+    const nextValue = parseLogRetentionDays(target.value);
+    const prevValue = logRetentionDays.value;
+    if (nextValue === null) {
+      target.value = String(prevValue);
+      error.value = t('settings.logRetention.invalid');
+      return;
+    }
+
+    logRetentionDays.value = nextValue;
+    saving.value = true;
+    error.value = '';
+
+    try {
+      await setLogRetentionDaysSetting(nextValue);
+    } catch (err) {
+      logRetentionDays.value = prevValue;
+      target.value = String(prevValue);
+      error.value = err instanceof Error ? err.message : t('settings.saveFailed');
+    } finally {
+      saving.value = false;
+    }
+  }
+
   async function onReadHistoryLimitChange(event: Event): Promise<void> {
     const target = event.target;
     if (!(target instanceof HTMLInputElement)) {
@@ -198,6 +236,7 @@ export function useServerSettingsForm(options: {
     saving,
     error,
     coverToJpg,
+    logRetentionDays,
     readHistoryLimit,
     readerLaunchMode,
     epubPreset,
@@ -205,6 +244,7 @@ export function useServerSettingsForm(options: {
     epubImportError,
     loadSettings,
     onCoverToJpgChange,
+    onLogRetentionDaysChange,
     onReadHistoryLimitChange,
     onReaderLaunchModeChange,
     onEpubPresetChange,

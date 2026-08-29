@@ -261,6 +261,17 @@ const zhHant = {
       save: '儲存',
       saving: '儲存中...'
     },
+    logs: {
+      title: '日誌'
+    },
+    logRetention: {
+      label: '日誌保留期限',
+      description:
+        '伺服器保留幾天份的日誌檔。更舊的檔案會在日誌旋轉時刪除，也就是跨日後伺服器第一次寫入日誌的時候。填 0 表示不刪除任何檔案。',
+      keepsEverything: '不會刪除任何日誌檔。',
+      deletesOlderThan: '超過 {days} 天的日誌檔會被刪除。',
+      invalid: '日誌保留期限必須是 0 到 3650 之間的整數天數。'
+    },
     readHistoryLimit: {
       label: '閱讀紀錄數量限制',
       description:
@@ -366,13 +377,16 @@ const zhHant = {
     date: '日期',
     source: '來源',
     filename: '檔名',
+    size: '大小',
     empty: '目前沒有可用的日誌檔。',
     emptyContent: '所選日誌檔沒有內容。',
     missingForDate: '{date} 沒有可用的日誌檔。',
     loadingList: '載入日誌檔中...',
     loadingContent: '載入日誌內容中...',
     loadFailed: '載入日誌檔失敗',
-    loadContentFailed: '載入日誌內容失敗'
+    loadContentFailed: '載入日誌內容失敗',
+    truncated: '僅顯示這個 {total} 檔案的最後 {shown}。',
+    loadMore: '載入更多'
   },
   maintenance: {
     duplicateContent: '重複內容',

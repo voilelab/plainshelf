@@ -267,6 +267,17 @@ const en = {
       save: 'Save',
       saving: 'Saving...'
     },
+    logs: {
+      title: 'Logs'
+    },
+    logRetention: {
+      label: 'Log retention',
+      description:
+        'How many days of log files the server keeps. Older files are deleted when the log rotates, which happens the first time the server writes a log line on a new day. Use 0 to keep every file.',
+      keepsEverything: 'No log file is deleted.',
+      deletesOlderThan: 'Log files older than {days} days are deleted.',
+      invalid: 'Log retention must be a whole number of days between 0 and 3650.'
+    },
     readHistoryLimit: {
       label: 'Reading history limit',
       description:
@@ -373,13 +384,16 @@ const en = {
     date: 'Date',
     source: 'Source',
     filename: 'Filename',
+    size: 'Size',
     empty: 'No log files are available.',
     emptyContent: 'The selected log file is empty.',
     missingForDate: 'No log file is available for {date}.',
     loadingList: 'Loading log files...',
     loadingContent: 'Loading log content...',
     loadFailed: 'Failed to load log files',
-    loadContentFailed: 'Failed to load log content'
+    loadContentFailed: 'Failed to load log content',
+    truncated: 'Showing the last {shown} of this {total} file.',
+    loadMore: 'Load more'
   },
   maintenance: {
     duplicateContent: 'Duplicate Content',
