@@ -67,6 +67,7 @@ const label = computed(() => (props.state ? t(LABEL_KEYS[props.state]) : ''));
 }
 
 .book-download-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }

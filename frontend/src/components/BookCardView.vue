@@ -212,6 +212,9 @@ function primaryDateLabel(book: Book): string {
 /* Over the cover, opposite the selection checkbox (top-left, styles.css), so
    neither the cover nor the body grid row has to give up space for it. */
 .book-card-download {
+  /* Anchored right, so its own max-width has to stop at the cover's left inset;
+     the card clips its overflow and would otherwise cut the label's start off. */
+  max-width: calc(100% - 16px);
   position: absolute;
   right: 8px;
   top: 8px;

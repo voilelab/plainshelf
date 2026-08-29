@@ -150,6 +150,9 @@ function primaryDateLabel(book: Book): string {
   align-items: center;
   display: inline-flex;
   gap: 8px;
+  /* Shrinkable, so the folder label below can give way instead of pushing the
+     row wider than the card. */
+  min-width: 0;
 }
 
 .book-list-title {
@@ -161,10 +164,17 @@ function primaryDateLabel(book: Book): string {
 
 .book-list-folder {
   color: var(--muted);
-  flex: 0 0 auto;
+  /* The download badge is the fixed part of this row and a deep folder path is
+     the elastic one: at the narrow breakpoint the two share one line, and an
+     unshrinkable path pushed the whole row past the card's right edge. */
+  flex: 0 1 auto;
   font-size: 12px;
   margin: 1px 0 0;
+  min-width: 0;
+  overflow: hidden;
   text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .book-list-comment {
