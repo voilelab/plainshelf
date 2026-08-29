@@ -20,13 +20,16 @@ vi.mock('@/composables/useWriteAccess', async () => {
 
 vi.mock('@/api/shelves', () => ({ exportShelfBookCache: vi.fn() }));
 
-// The two modals render their default slot so the add-shelf form (and its
-// shelf-ID preview) is inspectable without standing up the real dialogs. Each
-// factory is self-contained — it references only the hoisted `h` import — since
-// vi.mock runs above any top-level binding it would otherwise close over.
+// The two modals render their default slot while open, so the add- and
+// modify-shelf forms are inspectable without standing up the real dialogs, and
+// a closed one contributes nothing to the DOM the way the real dialog does.
+// Each factory is self-contained — it references only the hoisted `h` import —
+// since vi.mock runs above any top-level binding it would otherwise close over.
 vi.mock('@/components/ConfirmModal.vue', () => ({
   default: defineComponent({
-    setup: (_props, { slots }) => () => h('div', { class: 'modal-stub' }, slots.default?.())
+    props: { open: { type: Boolean, default: false } },
+    setup: (props, { slots }) => () =>
+      h('div', { class: 'modal-stub' }, props.open ? slots.default?.() : undefined)
   })
 }));
 vi.mock('@/components/DeleteModal.vue', () => ({
@@ -154,6 +157,49 @@ describe('ShelvesPanel', () => {
     const preview = host.querySelector('.shelf-id-preview');
     expect(preview).not.toBeNull();
     expect(preview?.textContent).toContain('shelf');
+
+    app.unmount();
+  });
+
+  it('edits the add-shelf scan interval as a mode and unit, not a duration string', async () => {
+    state.desktop = true;
+    const newShelfScanInterval = ref('');
+    mgmt.value = buildManagement({ showAddShelfModal: ref(true), newShelfScanInterval });
+    const { host, app } = mount();
+
+    const mode = host.querySelector<HTMLSelectElement>('[data-testid="scan-interval-mode"]');
+    expect(mode).not.toBeNull();
+    // There is no way to type a duration, so `invalid scan interval: time:
+    // missing unit in duration "10"` has no way to reach the user.
+    expect(host.querySelector('[type="text"][placeholder*="10m"]')).toBeNull();
+
+    // "Scan on every refresh" is 0s, which the free-text box never named.
+    mode!.value = 'always';
+    mode!.dispatchEvent(new Event('change'));
+    await Promise.resolve();
+    expect(newShelfScanInterval.value).toBe('0s');
+
+    app.unmount();
+  });
+
+  it('loads a stored interval into the modify-shelf controls', () => {
+    state.desktop = true;
+    mgmt.value = buildManagement({
+      showModifyShelfModal: ref(true),
+      pendingModifyShelf: ref({ id: 'my-books', name: 'My Books' }),
+      modifyShelfScanInterval: ref('1h30m')
+    });
+    const { host, app } = mount();
+
+    expect(host.querySelector<HTMLSelectElement>('[data-testid="scan-interval-mode"]')?.value).toBe(
+      'interval'
+    );
+    expect(host.querySelector<HTMLInputElement>('[data-testid="scan-interval-amount"]')?.value).toBe(
+      '90'
+    );
+    expect(host.querySelector<HTMLSelectElement>('[data-testid="scan-interval-unit"]')?.value).toBe(
+      'm'
+    );
 
     app.unmount();
   });
