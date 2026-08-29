@@ -43,8 +43,8 @@ export interface ServerSettingsForm {
   onCoverToJpgChange: (value: boolean) => Promise<void>;
   onLogRetentionDaysChange: (event: Event) => Promise<void>;
   onReadHistoryLimitChange: (event: Event) => Promise<void>;
-  onReaderLaunchModeChange: (event: Event) => void;
-  onEpubPresetChange: (event: Event) => void;
+  onReaderLaunchModeChange: (mode: ReaderLaunchMode) => void;
+  onEpubPresetChange: (preset: EpubImportPreset) => void;
   onSaveEpubImportStrategy: () => Promise<void>;
 }
 
@@ -113,12 +113,8 @@ export function useServerSettingsForm(options: {
     epubKeepImages.value = strategy.keep_images;
   }
 
-  function onEpubPresetChange(event: Event): void {
-    const target = event.target;
-    if (!(target instanceof HTMLSelectElement)) {
-      return;
-    }
-    epubPreset.value = normalizeEpubImportPreset(target.value);
+  function onEpubPresetChange(preset: EpubImportPreset): void {
+    epubPreset.value = normalizeEpubImportPreset(preset);
     epubImportError.value = '';
   }
 
@@ -216,17 +212,12 @@ export function useServerSettingsForm(options: {
     }
   }
 
-  function onReaderLaunchModeChange(event: Event): void {
-    const target = event.target;
-    if (!(target instanceof HTMLSelectElement)) {
-      return;
-    }
-
+  function onReaderLaunchModeChange(mode: ReaderLaunchMode): void {
     // Device-local and synchronous: setReaderLaunchMode persists to localStorage
     // (mirroring useAppZoom) with no server round-trip that could fail. The
     // setter coerces any unexpected option back to the default, so mirror the
     // stored result onto the local ref rather than the raw value.
-    setReaderLaunchMode(target.value as ReaderLaunchMode);
+    setReaderLaunchMode(mode);
     readerLaunchMode.value = getReaderLaunchMode();
     error.value = '';
   }

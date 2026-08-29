@@ -362,7 +362,7 @@ test('should focus one Markdown chapter without splitting the document', async (
   await expect.poll(async () => (await dimmedRanges(page)).join('\n')).toContain('Opening marker.');
   await expect.poll(async () => (await dimmedRanges(page)).join('\n')).toContain('Second marker repeat.');
   expect((await dimmedRanges(page)).join('\n')).not.toContain('First marker repeat.');
-  await expect(page.getByLabel('Scope')).toHaveValue('section');
+  await expect(page.getByLabel('Scope')).toHaveText('Current chapter');
 
   // Typing survives a chapter switch, and so does the undo history: neither
   // rebuilds the editor any more.
@@ -394,7 +394,11 @@ test('should focus one Markdown chapter without splitting the document', async (
   await findReplace.getByRole('button', { name: 'Next' }).click();
   await expect(findReplace.getByRole('status')).toHaveText('No matches.');
 
-  await page.getByLabel('Scope').selectOption('source');
+  // reka-ui's Select renders a button[role=combobox] trigger plus a portaled
+  // listbox, so open it and click the option instead of the native
+  // <select>-only selectOption() API.
+  await page.getByLabel('Scope').click();
+  await page.getByRole('option', { name: 'Whole source' }).click();
   await findReplace.getByRole('button', { name: 'Next' }).click();
   await expect(findReplace.getByRole('status')).toHaveText('Match 1 of 1.');
   await expect.poll(() => editorSelectionText(page)).toBe('Second marker');
@@ -403,7 +407,8 @@ test('should focus one Markdown chapter without splitting the document', async (
   // rewriting anything.
   await expect(page.locator('.chapter-list li.selected')).toHaveText(/Two/);
 
-  await page.getByLabel('Scope').selectOption('section');
+  await page.getByLabel('Scope').click();
+  await page.getByRole('option', { name: 'Current chapter' }).click();
   await findReplace.getByLabel('Find').fill('repeat');
   await findReplace.getByLabel('Replace').fill('done');
   await findReplace.getByRole('button', { name: 'Replace all' }).click();

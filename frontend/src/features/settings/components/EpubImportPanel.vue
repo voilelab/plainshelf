@@ -8,15 +8,23 @@
         <div class="setting-label">{{ t('settings.epubImport.presetLabel') }}</div>
         <p class="setting-description">{{ t('settings.epubImport.presetHelp') }}</p>
       </div>
-      <select
-        class="setting-select"
-        :value="preset"
-        :disabled="disabled"
-        @change="emit('update:preset', $event)"
-      >
-        <option value="markdown">{{ t('settings.epubImport.presetMarkdown') }}</option>
-        <option value="plain">{{ t('settings.epubImport.presetPlain') }}</option>
-      </select>
+      <SelectRoot :model-value="preset" :disabled="disabled" @update:model-value="onPresetSelect">
+        <SelectTrigger class="setting-select select-trigger">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectPortal>
+          <SelectContent class="reka-menu" position="popper" align="end" :side-offset="6">
+            <SelectViewport>
+              <SelectItem class="reka-menu-item" value="markdown">
+                <SelectItemText>{{ t('settings.epubImport.presetMarkdown') }}</SelectItemText>
+              </SelectItem>
+              <SelectItem class="reka-menu-item" value="plain">
+                <SelectItemText>{{ t('settings.epubImport.presetPlain') }}</SelectItemText>
+              </SelectItem>
+            </SelectViewport>
+          </SelectContent>
+        </SelectPortal>
+      </SelectRoot>
     </label>
 
     <!-- Row-wide click target, same as the preset row above; see CoverPanel
@@ -52,6 +60,17 @@
 
 <script setup lang="ts">
 import { useId } from 'vue';
+import {
+  SelectContent,
+  SelectItem,
+  SelectItemText,
+  SelectPortal,
+  SelectRoot,
+  SelectTrigger,
+  SelectValue,
+  SelectViewport,
+  type AcceptableValue
+} from 'reka-ui';
 import BaseSwitch from '@/components/BaseSwitch.vue';
 import type { EpubImportPreset } from '@/types/book';
 import { useI18n } from '@/i18n';
@@ -65,12 +84,18 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  'update:preset': [event: Event];
+  'update:preset': [preset: EpubImportPreset];
   'update:includeDescription': [value: boolean];
   save: [];
 }>();
 
 const { t } = useI18n();
+
+function onPresetSelect(value: AcceptableValue): void {
+  if (value === 'markdown' || value === 'plain') {
+    emit('update:preset', value);
+  }
+}
 
 const switchId = `epub-include-description-${useId()}`;
 const labelId = `epub-include-description-label-${useId()}`;

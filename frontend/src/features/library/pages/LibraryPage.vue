@@ -127,16 +127,26 @@
       <template #toolbar>
         <div class="toolbar-bar sort-bar">
           <label class="toolbar-label sort-label" for="books-sort">{{ t('library.sort') }}</label>
-          <select
-            id="books-sort"
-            class="toolbar-control toolbar-select sort-select"
-            :value="sortBy"
-            @change="onSortSelectChange"
-          >
-            <option value="updated_at">{{ t('library.sortBy.updated') }}</option>
-            <option value="created_at">{{ t('library.sortBy.created') }}</option>
-            <option value="title">{{ t('library.sortBy.title') }}</option>
-          </select>
+          <SelectRoot :model-value="sortBy" @update:model-value="onSortSelectChange">
+            <SelectTrigger id="books-sort" class="toolbar-control toolbar-select sort-select">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectPortal>
+              <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
+                <SelectViewport>
+                  <SelectItem class="reka-menu-item" value="updated_at">
+                    <SelectItemText>{{ t('library.sortBy.updated') }}</SelectItemText>
+                  </SelectItem>
+                  <SelectItem class="reka-menu-item" value="created_at">
+                    <SelectItemText>{{ t('library.sortBy.created') }}</SelectItemText>
+                  </SelectItem>
+                  <SelectItem class="reka-menu-item" value="title">
+                    <SelectItemText>{{ t('library.sortBy.title') }}</SelectItemText>
+                  </SelectItem>
+                </SelectViewport>
+              </SelectContent>
+            </SelectPortal>
+          </SelectRoot>
           <button
             type="button"
             class="button toolbar-control toolbar-button toolbar-regular sort-order-btn"
@@ -231,7 +241,16 @@ import {
   DropdownMenuItem,
   DropdownMenuPortal,
   DropdownMenuRoot,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
+  SelectContent,
+  SelectItem,
+  SelectItemText,
+  SelectPortal,
+  SelectRoot,
+  SelectTrigger,
+  SelectValue,
+  SelectViewport,
+  type AcceptableValue
 } from 'reka-ui';
 import type { Book } from '@/types/book';
 import BookCollectionPage from '@/components/BookCollectionPage.vue';
@@ -801,14 +820,8 @@ function onSortChange(nextSort: BookSortKey): void {
   });
 }
 
-function onSortSelectChange(event: Event): void {
-  const target = event.target;
-  if (!(target instanceof HTMLSelectElement)) {
-    return;
-  }
-
-  const value = target.value;
-  if (!SORT_OPTIONS.includes(value as BookSortKey)) {
+function onSortSelectChange(value: AcceptableValue): void {
+  if (typeof value !== 'string' || !SORT_OPTIONS.includes(value as BookSortKey)) {
     return;
   }
 
@@ -1088,8 +1101,15 @@ watch(
   gap: 6px;
 }
 
+/* The Reka SelectTrigger renders a <button>, so it needs the alignment and
+   font a native <select> got for free while keeping the toolbar-control sizing. */
 .sort-select {
+  align-items: center;
+  cursor: pointer;
+  display: inline-flex;
+  font-family: inherit;
   min-width: 100px;
+  text-align: left;
 }
 
 .sort-order-btn {

@@ -76,6 +76,18 @@
   cursor: not-allowed;
 }
 
+/* Reka's SelectTrigger renders a <button>, so it needs the white field surface
+   and left alignment a native <select> had while keeping .setting-select sizing. */
+.select-trigger {
+  align-items: center;
+  background: #fff;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 8px;
+  text-align: left;
+}
+
 .split-config-actions {
   display: flex;
   gap: 8px;
