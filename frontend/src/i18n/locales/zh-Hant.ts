@@ -360,13 +360,16 @@ const zhHant = {
     date: '日期',
     source: '來源',
     filename: '檔名',
+    size: '大小',
     empty: '目前沒有可用的日誌檔。',
     emptyContent: '所選日誌檔沒有內容。',
     missingForDate: '{date} 沒有可用的日誌檔。',
     loadingList: '載入日誌檔中...',
     loadingContent: '載入日誌內容中...',
     loadFailed: '載入日誌檔失敗',
-    loadContentFailed: '載入日誌內容失敗'
+    loadContentFailed: '載入日誌內容失敗',
+    truncated: '僅顯示這個 {total} 檔案的最後 {shown}。',
+    loadMore: '載入更多'
   },
   maintenance: {
     duplicateContent: '重複內容',

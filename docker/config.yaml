@@ -17,6 +17,9 @@ app_conf:
       type: filename_rotate # log file type: stdout, stderr, none, filename, filename_rotate
       dir: /data/logs
       prefix: root
+      # Rotated files older than this are deleted on the next rotation.
+      # Defaults to 30 days; set to 0 to keep every file.
+      # retention_days: 30
   shelves:
     - id: default_shelf
       name: Default Shelf
@@ -27,6 +30,9 @@ app_conf:
           type: filename_rotate # log file type: stdout, stderr, none, filename, filename_rotate
           dir: /data/logs
           prefix: shelf
+          # Rotated files older than this are deleted on the next rotation.
+          # Defaults to 30 days; set to 0 to keep every file.
+          # retention_days: 30
       lib_root: "/data/shelf"
   store_path: "/data/store"
   cover_to_jpg: true

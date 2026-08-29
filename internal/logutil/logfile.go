@@ -24,6 +24,14 @@ const (
 	LogFileTypeNameRotate LogFileType = "filename_rotate"
 )
 
+// logDateLayout is the date stamp a rotated file carries in its name.
+const logDateLayout = "2006-01-02"
+
+// DefaultRetentionDays is how long rotated log files are kept when the
+// configuration does not say. Logs are written on every request and nothing
+// else ever deletes them, so an unconfigured deployment needs a bound.
+const DefaultRetentionDays = 30
+
 type LogFileConf struct {
 	// Type specifies the type of log file.
 	// Valid values are "stderr", "stdout", "none", "filename", and "filename_rotate". Default is "stderr".
@@ -35,6 +43,20 @@ type LogFileConf struct {
 	// Dir and Prefix are used when Type is "filename_rotate".
 	Dir    string `yaml:"dir"`
 	Prefix string `yaml:"prefix"`
+
+	// RetentionDays is how many days of rotated files to keep, and is used
+	// when Type is "filename_rotate". Unset applies DefaultRetentionDays;
+	// 0 keeps every file forever. Expired files are removed when the writer
+	// rotates, so nothing is deleted while the server is idle.
+	RetentionDays *int `yaml:"retention_days"`
+}
+
+// retentionDays resolves the configured window, treating unset as the default.
+func (conf LogFileConf) retentionDays() int {
+	if conf.RetentionDays == nil {
+		return DefaultRetentionDays
+	}
+	return *conf.RetentionDays
 }
 
 type LogFile struct {
@@ -54,6 +76,11 @@ type Entry struct {
 	Filename string `json:"filename"`
 	Date     string `json:"date"`
 
+	// Size is the file size in bytes. The log viewer reads a bounded tail of
+	// the file, so it needs the full size to know that what it holds is only
+	// the end of a larger file.
+	Size int64 `json:"size"`
+
 	path string
 }
 
@@ -72,7 +99,10 @@ func NewLogFile(conf LogFileConf) (*LogFile, error) {
 		}
 		return &LogFile{conf: &conf, writer: fp, fp: fp}, nil
 	case LogFileTypeNameRotate:
-		writer := NewDailyFileWriter(conf.Dir, conf.Prefix)
+		if conf.RetentionDays != nil && *conf.RetentionDays < 0 {
+			return nil, util.Errorf("invalid log retention days: %d", *conf.RetentionDays)
+		}
+		writer := NewDailyFileWriter(conf.Dir, conf.Prefix, conf.retentionDays())
 		return &LogFile{conf: &conf, writer: writer}, nil
 	default:
 		return nil, util.Errorf("invalid log file type: %s", conf.Type)
@@ -181,11 +211,18 @@ func listRotatedLogFiles(source string, conf LogFileConf) ([]Entry, error) {
 		}
 
 		date := strings.TrimSuffix(strings.TrimPrefix(name, prefixPart), ".log")
-		if _, err := time.Parse("2006-01-02", date); err != nil {
+		if _, err := time.Parse(logDateLayout, date); err != nil {
 			continue
 		}
 
-		logs = append(logs, newEntry(source, name, date, filepath.Join(dir, name)))
+		info, err := entry.Info()
+		if err != nil {
+			// The file went away between the read and the stat, which a
+			// rotation cleanup can do; it is simply no longer listable.
+			continue
+		}
+
+		logs = append(logs, newEntry(source, name, date, filepath.Join(dir, name), info.Size()))
 	}
 
 	sortEntries(logs)
@@ -208,15 +245,16 @@ func listNamedLogFile(source string, conf LogFileConf) ([]Entry, error) {
 		return []Entry{}, nil
 	}
 
-	return []Entry{newEntry(source, filepath.Base(conf.Filename), info.ModTime().Format("2006-01-02"), conf.Filename)}, nil
+	return []Entry{newEntry(source, filepath.Base(conf.Filename), info.ModTime().Format(logDateLayout), conf.Filename, info.Size())}, nil
 }
 
-func newEntry(source, filename, date, path string) Entry {
+func newEntry(source, filename, date, path string, size int64) Entry {
 	return Entry{
 		ID:       makeEntryID(source, path),
 		Source:   source,
 		Filename: filename,
 		Date:     date,
+		Size:     size,
 		path:     cleanLogPath(path),
 	}
 }

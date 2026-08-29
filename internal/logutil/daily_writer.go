@@ -13,18 +13,26 @@ type DailyFileWriter struct {
 	dir    string
 	prefix string
 
+	// retentionDays is the age past which a rotated file is removed. Zero
+	// keeps every file.
+	retentionDays int
+
 	curDate string
 	file    *os.File
 }
 
-func NewDailyFileWriter(dir, prefix string) *DailyFileWriter {
+func NewDailyFileWriter(dir, prefix string, retentionDays int) *DailyFileWriter {
 	if prefix == "" {
 		prefix = "log"
 	}
+	if retentionDays < 0 {
+		retentionDays = 0
+	}
 
 	return &DailyFileWriter{
-		dir:    dir,
-		prefix: prefix,
+		dir:           dir,
+		prefix:        prefix,
+		retentionDays: retentionDays,
 	}
 }
 
@@ -63,7 +71,57 @@ func (w *DailyFileWriter) rotate(date string) error {
 		_ = oldFile.Close()
 	}
 
+	// Expiring on rotation rather than on a timer keeps disk activity at zero
+	// while nobody is using the server, and the first Write after a restart
+	// rotates, so a long-idle instance still cleans up when it wakes.
+	w.removeExpired(date)
+
 	return nil
+}
+
+// removeExpired deletes rotated files older than the retention window.
+//
+// It is best-effort and reports nothing: this writer is the sink the logger
+// itself writes to, so a failure here has nowhere to be logged. A file that
+// cannot be removed is simply retried on the next rotation.
+func (w *DailyFileWriter) removeExpired(date string) {
+	if w.retentionDays <= 0 {
+		return
+	}
+
+	today, err := time.Parse(logDateLayout, date)
+	if err != nil {
+		return
+	}
+	cutoff := today.AddDate(0, 0, -w.retentionDays)
+
+	// Listing through listRotatedLogFiles is deliberate: deletion has to agree
+	// with what the log API calls a log file, or a hand-rolled match here could
+	// delete something the server never listed.
+	entries, err := listRotatedLogFiles("", LogFileConf{
+		Type:   LogFileTypeNameRotate,
+		Dir:    w.dir,
+		Prefix: w.prefix,
+	})
+	if err != nil {
+		return
+	}
+
+	current := ""
+	if w.file != nil {
+		current = cleanLogPath(w.file.Name())
+	}
+
+	for _, entry := range entries {
+		if entry.path == current {
+			continue
+		}
+		entryDate, err := time.Parse(logDateLayout, entry.Date)
+		if err != nil || !entryDate.Before(cutoff) {
+			continue
+		}
+		_ = os.Remove(entry.path)
+	}
 }
 
 func (w *DailyFileWriter) Close() error {

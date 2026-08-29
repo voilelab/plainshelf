@@ -94,7 +94,7 @@ import DeleteModal from '@/components/DeleteModal.vue';
 import { getBookshelfProvider } from '@/providers';
 import type { DownloadedBookEntry, StorageEstimateResult } from '@/providers/bookshelfProvider';
 import type { Book } from '@/types/book';
-import { formatBytes } from '@/features/mobile/utils/bytes';
+import { formatBytes } from '@/utils/bytes';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useI18n } from '@/i18n';
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/server"
 )
 
@@ -42,8 +43,13 @@ func TestAPIGetLogsContract(t *testing.T) {
 	appLogFile := filepath.Join(t.TempDir(), "app.log")
 	shelfLogDir := t.TempDir()
 
-	// The app is left unstarted so the only log files are the seeded ones.
-	env := newUnstartedAPITestEnv(t, withAppLogFile(appLogFile), withShelfLogDir(shelfLogDir, "shelf"))
+	// The app is left unstarted, so the only file the shelf logger has is the
+	// seeded one. The app logger writes to its own file as requests are served.
+	env := newUnstartedAPITestEnv(t,
+		withAppLogFile(appLogFile),
+		withShelfLogDir(shelfLogDir, "shelf"),
+		withLogRetention(0),
+	)
 
 	writeLogFile(t, appLogFile, "app log")
 	appLogTime := time.Date(2024, 1, 3, 12, 0, 0, 0, time.UTC)
@@ -70,11 +76,27 @@ func TestAPIGetLogsContract(t *testing.T) {
 	if logs[1].ID == "" || logs[1].Source != "shelves[0].shelfconf.logger" || logs[1].Filename != "shelf-2024-01-02.log" || logs[1].Date != "2024-01-02" {
 		t.Fatalf("second log = %#v, want shelf logger entry", logs[1])
 	}
+
+	// The size is what tells a caller reading a bounded tail that it is holding
+	// only the end of the file. The app's own log grows as requests are served,
+	// so it is checked against the file rather than against what was seeded.
+	info, err := os.Stat(appLogFile)
+	if err != nil {
+		t.Fatalf("Stat app log: %v", err)
+	}
+	if logs[0].Size != info.Size() {
+		t.Fatalf("app log size = %d, want %d", logs[0].Size, info.Size())
+	}
+	if logs[1].Size != int64(len("shelf log")) {
+		t.Fatalf("shelf log size = %d, want %d", logs[1].Size, len("shelf log"))
+	}
 }
 
 func TestAPIGetLogContentContract(t *testing.T) {
 	logDir := t.TempDir()
-	env := newUnstartedAPITestEnv(t, withAppLogDir(logDir, "app"))
+	// Retention is off so the past-dated fixture survives the rotation the
+	// app's own logging performs into today's file.
+	env := newUnstartedAPITestEnv(t, withAppLogDir(logDir, "app"), withLogRetention(0))
 
 	writeLogFile(t, filepath.Join(logDir, "app-2024-01-02.log"), "line 1\nline 2\n")
 
@@ -89,4 +111,68 @@ func TestAPIGetLogContentContract(t *testing.T) {
 
 	rec = env.get(logURL("missing", "content"))
 	assertStatus(t, rec, http.StatusNotFound)
+}
+
+// TestAPIGetLogContentTailContract pins the bound on the content route: a log
+// file grows without limit, so the default response is its end rather than all
+// of it, and the cut lands on a line boundary.
+func TestAPIGetLogContentTailContract(t *testing.T) {
+	logDir := t.TempDir()
+	env := newUnstartedAPITestEnv(t, withAppLogDir(logDir, "app"), withLogRetention(0))
+
+	writeLogFile(t, filepath.Join(logDir, "app-2024-01-02.log"), "aaaa\nbbbb\ncccc\n")
+
+	target := logEntryByFilename(t, env, "app-2024-01-02.log")
+
+	// A tail that falls inside a line is moved forward to the next one.
+	rec := env.get(logURL(target.ID, "content") + "?tail_bytes=12")
+	assertStatus(t, rec, http.StatusOK)
+	assertContentType(t, rec, plainTextContentType)
+	if got := rec.Body.String(); got != "bbbb\ncccc\n" {
+		t.Fatalf("tail = %q, want whole trailing lines", got)
+	}
+
+	// An explicit zero is how a caller asks for the whole file.
+	rec = env.get(logURL(target.ID, "content") + "?tail_bytes=0")
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Body.String(); got != "aaaa\nbbbb\ncccc\n" {
+		t.Fatalf("untailed content = %q, want the whole file", got)
+	}
+
+	for _, raw := range []string{"-1", "abc", "1.5"} {
+		rec = env.get(logURL(target.ID, "content") + "?tail_bytes=" + raw)
+		assertStatus(t, rec, http.StatusBadRequest)
+	}
+}
+
+// TestAPIGetLogContentDefaultsToABoundedTail keeps the unparameterized route
+// bounded: an existing caller that asks for nothing must not be handed a file
+// of unlimited size.
+func TestAPIGetLogContentDefaultsToABoundedTail(t *testing.T) {
+	logDir := t.TempDir()
+	env := newUnstartedAPITestEnv(t, withAppLogDir(logDir, "app"), withLogRetention(0))
+
+	line := strings.Repeat("x", 1023) + "\n"
+	lines := int(logutil.DefaultTailBytes)/len(line) + 8
+	writeLogFile(t, filepath.Join(logDir, "app-2024-01-02.log"), strings.Repeat(line, lines))
+
+	target := logEntryByFilename(t, env, "app-2024-01-02.log")
+
+	rec := env.get(logURL(target.ID, "content"))
+	assertStatus(t, rec, http.StatusOK)
+
+	body := rec.Body.String()
+	if int64(len(body)) > logutil.DefaultTailBytes {
+		t.Fatalf("default response = %d bytes, want at most %d", len(body), logutil.DefaultTailBytes)
+	}
+	// Aligning to a line boundary drops at most one whole line off the front.
+	if int64(len(body)) < logutil.DefaultTailBytes-int64(len(line)) {
+		t.Fatalf("default response = %d bytes, want close to the %d-byte window", len(body), logutil.DefaultTailBytes)
+	}
+	if !strings.HasPrefix(body, line) || !strings.HasSuffix(body, line) {
+		t.Fatal("default response does not start and end on a line boundary")
+	}
+	if int64(target.Size) <= logutil.DefaultTailBytes {
+		t.Fatalf("fixture size = %d, want larger than the %d-byte window", target.Size, logutil.DefaultTailBytes)
+	}
 }

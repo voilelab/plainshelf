@@ -66,6 +66,18 @@ func withShelfLogDir(dir, prefix string) appConfOption {
 	}
 }
 
+// withLogRetention pins how long rotated log files are kept. The log tests seed
+// files dated well in the past, which the default retention window would expire
+// on the first rotation the app's own logging triggers.
+func withLogRetention(days int) appConfOption {
+	return func(conf *server.AppConf) {
+		conf.Logger.LogFile.RetentionDays = &days
+		for _, shelfConf := range conf.Shelves {
+			shelfConf.Logger.LogFile.RetentionDays = &days
+		}
+	}
+}
+
 // withReadOnlyShelf opens the shelf read-only, which is the per-shelf setting
 // rather than the app-wide read-only mode setReadOnly toggles.
 func withReadOnlyShelf() appConfOption {

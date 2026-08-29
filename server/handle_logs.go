@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/logutil"
@@ -34,11 +35,22 @@ func (h *logHandlers) getLogs(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, logs)
 }
 
-// GET /api/logs/{log_id}/content
+// GET /api/logs/{log_id}/content?tail_bytes=N
+//
+// The response is the end of the file rather than all of it: a log file that
+// has been written to for weeks does not fit in the page that displays it. The
+// caller pairs this with the size reported by GET /api/logs to tell whether it
+// holds the whole file.
 func (h *logHandlers) getLogContent(w http.ResponseWriter, r *http.Request) {
 	logID, err := readLogID(r)
 	if err != nil {
 		http.Error(w, "invalid log_id", http.StatusBadRequest)
+		return
+	}
+
+	tailBytes, ok := parseLogTailBytes(r)
+	if !ok {
+		http.Error(w, "invalid tail_bytes", http.StatusBadRequest)
 		return
 	}
 
@@ -54,7 +66,28 @@ func (h *logHandlers) getLogContent(w http.ResponseWriter, r *http.Request) {
 	}
 	defer fp.Close()
 
+	if _, err := logutil.SeekTail(fp, tailBytes); err != nil {
+		h.Error("failed to seek log file", "error", err, "log_id", logID)
+		http.Error(w, "failed to read log file", http.StatusInternalServerError)
+		return
+	}
+
 	h.streamTextFile(w, fp, "failed to write log file content", "log_id", logID, "filename", entry.Filename)
+}
+
+// parseLogTailBytes reads the tail_bytes query parameter: absent applies
+// logutil.DefaultTailBytes, and an explicit 0 asks for the whole file, which is
+// how a caller that means to download it says so.
+func parseLogTailBytes(r *http.Request) (int64, bool) {
+	raw := strings.TrimSpace(r.URL.Query().Get("tail_bytes"))
+	if raw == "" {
+		return logutil.DefaultTailBytes, true
+	}
+	tailBytes, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || tailBytes < 0 {
+		return 0, false
+	}
+	return tailBytes, true
 }
 
 func (h *logHandlers) logSources() []logutil.SourceConf {

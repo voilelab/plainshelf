@@ -69,13 +69,25 @@
           <dt>{{ t('adminLogs.source') }}</dt>
           <dd>{{ selectedLog.source || '—' }}</dd>
         </div>
+        <div>
+          <dt>{{ t('adminLogs.size') }}</dt>
+          <dd>{{ formatBytes(selectedLog.size) }}</dd>
+        </div>
       </dl>
 
       <template v-if="selectedLog">
         <p v-if="loadingContent" class="message">
           {{ t('adminLogs.loadingContent') }}
         </p>
-        <pre v-else class="log-content">{{ content || t('adminLogs.emptyContent') }}</pre>
+        <template v-else>
+          <div v-if="truncated" class="truncation" role="status">
+            <span>{{ t('adminLogs.truncated', { shown: formatBytes(tailBytes), total: formatBytes(selectedLog.size) }) }}</span>
+            <button class="button" type="button" @click="loadMore">
+              {{ t('adminLogs.loadMore') }}
+            </button>
+          </div>
+          <pre class="log-content">{{ content || t('adminLogs.emptyContent') }}</pre>
+        </template>
       </template>
     </template>
   </section>
@@ -94,9 +106,16 @@ import {
   SelectViewport,
   type AcceptableValue
 } from 'reka-ui';
-import { getLogContent, listLogs, type LogFileEntry } from '@/api/logs';
+import {
+  DEFAULT_LOG_TAIL_BYTES,
+  LOG_TAIL_STEP,
+  getLogContent,
+  listLogs,
+  type LogFileEntry
+} from '@/api/logs';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useI18n } from '@/i18n';
+import { formatBytes } from '@/utils/bytes';
 
 interface LogNameOption {
   value: string;
@@ -113,6 +132,11 @@ const content = ref('');
 const selectedName = ref('');
 const selectedDate = ref('');
 const activeLogRequest = ref(0);
+
+// How far back into the selected file the page is currently reading. A log file
+// has no useful size limit, so the page opens on its end and only reaches
+// further back when asked to.
+const tailBytes = ref(DEFAULT_LOG_TAIL_BYTES);
 
 useDocumentTitle(() => [t('adminLogs.title'), t('app.name')]);
 
@@ -180,6 +204,23 @@ const selectedDateWithoutLog = computed(
   () => Boolean(selectedDate.value) && !selectedLog.value
 );
 
+// The file size comes from the listing rather than from the body: what was
+// returned is cut back to a line boundary, so it is a little short of the
+// window even when there is more to read.
+const truncated = computed(() => {
+  const log = selectedLog.value;
+  return log !== undefined && log.size > tailBytes.value;
+});
+
+function loadMore(): void {
+  const log = selectedLog.value;
+  if (!log) {
+    return;
+  }
+  tailBytes.value *= LOG_TAIL_STEP;
+  void loadContent(log);
+}
+
 function syncSelection(): void {
   if (nameOptions.value.length === 0) {
     selectedName.value = '';
@@ -218,7 +259,7 @@ async function loadContent(log: LogFileEntry): Promise<void> {
   error.value = '';
 
   try {
-    const nextContent = await getLogContent(log.id);
+    const nextContent = await getLogContent(log.id, tailBytes.value);
     if (requestId !== activeLogRequest.value) {
       return;
     }
@@ -240,7 +281,13 @@ watch([nameOptions, dateOptions], syncSelection, { immediate: true });
 
 watch(
   selectedLog,
-  (log) => {
+  (log, previous) => {
+    // A different file is read from its end again; a reload of the same one
+    // keeps however far back the reader had already asked to go.
+    if (log?.id !== previous?.id) {
+      tailBytes.value = DEFAULT_LOG_TAIL_BYTES;
+    }
+
     if (!log) {
       activeLogRequest.value += 1;
       loadingContent.value = false;
@@ -339,6 +386,23 @@ onMounted(() => {
 .log-meta dd {
   margin: 6px 0 0;
   word-break: break-word;
+}
+
+.truncation {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.truncation span {
+  color: #475569;
+  font-size: 13px;
 }
 
 .log-content {
