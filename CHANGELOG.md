@@ -7,6 +7,10 @@ and UI behavior may still change between releases.
 
 ## [Unreleased]
 
+### Added
+
+- Added a **?** button to the mobile reader's controls that replays the gesture hint, which previously showed only once per device.
+
 ### Changed
 
 - Changed the build to Go 1.27, whose reimplemented `encoding/json` decodes the shelf's JSON caches roughly 1.6-3x faster on the startup path.

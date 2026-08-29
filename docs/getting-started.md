@@ -70,7 +70,9 @@ list is absent there.
 On the Android app and narrow browser screens, the reader uses an immersive
 layout: tap the center of the page to show or hide its controls, swipe left for
 the next chapter, and swipe right for the previous chapter. Vertical swipes
-continue to scroll within the current chapter.
+continue to scroll within the current chapter. These gestures are shown once the
+first time you open a book; the **?** button in the reader's controls brings the
+reminder back at any time.
 
 An EPUB is converted to text as it is imported; see
 [EPUB Import](epub-import.md) for what is kept, what is dropped, and how to
