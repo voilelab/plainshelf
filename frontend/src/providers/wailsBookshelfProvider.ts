@@ -70,8 +70,13 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
     return previewDesktopShelfID(name);
   }
 
-  addDesktopShelf(name: string, libRoot: string, scanInterval: string): Promise<void> {
-    return addDesktopShelf(name, libRoot, scanInterval);
+  addDesktopShelf(
+    name: string,
+    libRoot: string,
+    scanInterval: string,
+    readOnly: boolean
+  ): Promise<void> {
+    return addDesktopShelf(name, libRoot, scanInterval, readOnly);
   }
 
   removeDesktopShelf(shelfID: string): Promise<void> {
@@ -82,8 +87,13 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
     return getDesktopShelfDetails(shelfID);
   }
 
-  modifyDesktopShelf(shelfID: string, name: string, scanInterval: string): Promise<void> {
-    return modifyDesktopShelf(shelfID, name, scanInterval);
+  modifyDesktopShelf(
+    shelfID: string,
+    name: string,
+    scanInterval: string,
+    readOnly: boolean
+  ): Promise<void> {
+    return modifyDesktopShelf(shelfID, name, scanInterval, readOnly);
   }
 
   saveBookContentToFile(bookId: string, suggestedName: string): Promise<void> {

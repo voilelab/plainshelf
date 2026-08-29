@@ -209,10 +209,24 @@ export interface BookshelfReader {
    * Resolves to '' for an empty name or when preview is unavailable.
    */
   previewDesktopShelfID?(name: string): Promise<string>;
-  addDesktopShelf?(name: string, libRoot: string, scanInterval: string): Promise<void>;
+  /**
+   * Creates a desktop shelf. `readOnly` opens it without writing to it at all,
+   * so `libRoot` must already exist — a read-only shelf is never created.
+   */
+  addDesktopShelf?(
+    name: string,
+    libRoot: string,
+    scanInterval: string,
+    readOnly: boolean
+  ): Promise<void>;
   removeDesktopShelf?(shelfID: string): Promise<void>;
   getDesktopShelfDetails?(shelfID: string): Promise<DesktopShelfDetails>;
-  modifyDesktopShelf?(shelfID: string, name: string, scanInterval: string): Promise<void>;
+  modifyDesktopShelf?(
+    shelfID: string,
+    name: string,
+    scanInterval: string,
+    readOnly: boolean
+  ): Promise<void>;
   /**
    * Writes a book's content out as a file the user keeps, outside the app's
    * private storage. The desktop client opens a native save dialog and resolves

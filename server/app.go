@@ -157,11 +157,18 @@ func (app *App) TaskChains() taskutil.Pool {
 // export fails. Read-only mode has to be applied here for the same reason, and
 // it is what withholds the writer ID rather than granting it.
 func (app *App) AddShelf(conf shelf.ShelfConfWithID) error {
+	return app.shelfManager.AddShelf(app.resolveShelfConf(conf))
+}
+
+// resolveShelfConf finishes a shelf configuration the app was handed: it folds
+// in the app-wide read-only mode and, unless the shelf is read-only, this
+// installation's book cache writer ID.
+func (app *App) resolveShelfConf(conf shelf.ShelfConfWithID) shelf.ShelfConfWithID {
 	shelfConf := applyAppReadOnly(conf, app.conf.ReadOnly)
 	if shelfConf.BookCacheWriterID == "" && !shelfConf.ReadOnly {
 		shelfConf.BookCacheWriterID = app.bookCacheWriterID
 	}
-	return app.shelfManager.AddShelf(shelfConf)
+	return shelfConf
 }
 
 // applyAppReadOnly carries AppConf.ReadOnly down into the shelf configuration.
@@ -183,8 +190,13 @@ func applyAppReadOnly(conf shelf.ShelfConfWithID, appReadOnly bool) shelf.ShelfC
 	return conf
 }
 
-func (app *App) UpdateShelf(id, name, scanInterval string) error {
-	return app.shelfManager.UpdateShelf(id, name, scanInterval)
+// UpdateShelf reconfigures an open shelf. conf carries the shelf's whole
+// configuration, not only what changed, so it goes through the same resolution
+// as AddShelf - a shelf that stops being read-only has to be given the writer
+// ID that read-only mode withheld from it, and one that becomes read-only has
+// to give it up again.
+func (app *App) UpdateShelf(conf shelf.ShelfConfWithID) error {
+	return app.shelfManager.UpdateShelf(app.resolveShelfConf(conf))
 }
 
 func (app *App) RemoveShelf(id string) error {

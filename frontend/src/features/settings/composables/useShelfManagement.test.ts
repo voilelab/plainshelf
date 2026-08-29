@@ -85,3 +85,52 @@ describe('useShelfManagement openShelfFolder', () => {
     expect(shelfOpError.value).toBe('');
   });
 });
+
+describe('useShelfManagement read-only shelves', () => {
+  it('creates a shelf with the read-only toggle as it was left', async () => {
+    const addDesktopShelf = vi.fn(() => Promise.resolve());
+    provider.value = { addDesktopShelf };
+    const { newShelfName, newShelfDirectory, newShelfReadOnly, onSubmitAddShelf } =
+      useShelfManagement();
+
+    newShelfName.value = 'Archive';
+    newShelfDirectory.value = '/mnt/archive';
+    newShelfReadOnly.value = true;
+    await onSubmitAddShelf();
+
+    expect(addDesktopShelf).toHaveBeenCalledWith('Archive', '/mnt/archive', '', true);
+  });
+
+  it('clears the read-only toggle when the add-shelf form is reopened', async () => {
+    provider.value = { addDesktopShelf: vi.fn(() => Promise.resolve()) };
+    const { newShelfReadOnly, openAddShelfModal } = useShelfManagement();
+
+    newShelfReadOnly.value = true;
+    openAddShelfModal();
+
+    expect(newShelfReadOnly.value).toBe(false);
+  });
+
+  // Loading the stored value is what keeps read-only reversible from the UI: a
+  // form that always opened unchecked would silently turn the shelf writable on
+  // an unrelated save, and one that could not send `false` would be a one-way
+  // door. Both directions have to reach the backend.
+  it('loads a shelf read-only state into the modify form and sends the change back', async () => {
+    const modifyDesktopShelf = vi.fn(() => Promise.resolve());
+    provider.value = {
+      getDesktopShelfDetails: vi.fn(() =>
+        Promise.resolve({ id: 'archive', name: 'Archive', path: '/mnt/archive', scan_interval: '10m', read_only: true })
+      ),
+      modifyDesktopShelf
+    };
+    const { requestModifyShelf, modifyShelfReadOnly, onSubmitModifyShelf } = useShelfManagement();
+
+    await requestModifyShelf({ id: 'archive', name: 'Archive' });
+    expect(modifyShelfReadOnly.value).toBe(true);
+
+    modifyShelfReadOnly.value = false;
+    await onSubmitModifyShelf();
+
+    expect(modifyDesktopShelf).toHaveBeenCalledWith('archive', 'Archive', '10m', false);
+  });
+});
