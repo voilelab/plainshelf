@@ -58,14 +58,33 @@ Two consequences of a security or contract change that are easy to miss:
 
 ## 4. Check before pushing
 
-Run, in this order, and report anything that did not run or did not pass:
+Which checks apply is decided by the minimum-check table in
+`.claude/rules/20-judgment.md`, and the commands are the ones in `CLAUDE.md`.
+Two things that table cannot tell you, and that are easy to get wrong:
 
+```sh
+npm --prefix frontend run build            # Go builds embed frontend/dist
+npm --prefix frontend test                 # the unit suite is separate from the build
+npm --prefix frontend run check-boundaries # PR gate
+npm --prefix frontend run check-licenses   # PR gate
+go test ./... && golangci-lint run
+(cd desktop && go test ./... && golangci-lint run)
+(cd reader  && go test ./... && golangci-lint run)
 ```
-npm --prefix frontend run build     # Go builds embed frontend/dist
-go test ./...
-cd desktop && go test ./...
-golangci-lint run                   # in both modules
-```
+
+- **There are three Go modules**, not two: the root, `desktop`, and `reader`.
+  The root's `./...` reaches neither of the others, and a bare `golangci-lint
+  run` lints only the directory it is standing in — so an unparenthesised
+  `cd desktop && …` silently makes every later command a desktop command. CI
+  lints and tests all three (`.github/workflows/ci.yml`).
+- **`npm --prefix frontend run build` is `vue-tsc` plus Vite, not the tests.**
+  Type-checking clean says nothing about the unit suite, so a frontend ticket
+  whose acceptance test is never executed still looks green.
+
+A frontend suite that fails ten files at import with `Cannot read properties of
+undefined (reading 'getItem')` is the Node ceiling, not the diff — see
+`.claude/rules/50-lessons.md` and run it on a Node version
+`docs/development/setup.md` supports.
 
 Then the paperwork: `update-changelog` for `CHANGELOG.md` if the change is
 user-visible, `update-docs` for `docs/`. Read back `git diff` for edits you did
@@ -93,15 +112,23 @@ exits when none is pending.
 
 Then read the review. **Both of these are needed:**
 
-```
+```sh
 gh pr view <n> --json reviews,comments,reviewDecision,state
-gh api repos/voilelab/plainshelf/pulls/<n>/comments    # inline review comments
+gh api --paginate repos/voilelab/plainshelf/pulls/<n>/comments   # inline comments
 ```
 
 The first misses inline comments entirely: an automated reviewer's findings live
 only in the second, and its summary review body says nothing but "here are some
 suggestions". A ticket reported as reviewed on the strength of the first command
-alone has not been reviewed.
+alone has not been reviewed. `--paginate` matters for the same reason: without
+it a review long enough to spill to a second page is read as a short one.
+
+**An empty review is not the same as no findings.** The automated reviewer
+submits after CI, so reading immediately behind the checks can find nothing and
+be wrong minutes later. Wait for a submitted review to appear, and if you stop
+without one, report that the review had not landed rather than that it was
+clean. A review can also arrive after the PR is merged — read it anyway and
+carry anything real into a follow-up.
 
 Verify each finding against the code before accepting or dismissing it — a
 throwaway `_test.go` that probes the claim and is deleted afterwards settles it
