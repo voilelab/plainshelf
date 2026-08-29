@@ -27,6 +27,27 @@ test('should switch and persist the reading font without changing code text', as
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole('radio', { name: /System serif/ })).toBeChecked();
 
+  // Roving tabindex: the group is the single tab stop and hands focus to the
+  // checked option, after which the arrow keys move the selection.
+  await expect(dialog.getByRole('radiogroup')).toHaveAttribute('tabindex', '0');
+  for (const name of [/System serif/, /Noto Serif TC/, /Noto Sans TC/]) {
+    await expect(dialog.getByRole('radio', { name })).toHaveAttribute('tabindex', '-1');
+  }
+  await dialog.getByRole('button', { name: 'Close font selection' }).focus();
+  await reader.keyboard.press('Tab');
+  await expect(dialog.getByRole('radio', { name: /System serif/ })).toBeFocused();
+  await expect(dialog.getByRole('radio', { name: /Noto Serif TC/ })).toHaveAttribute('tabindex', '-1');
+  // Reka checks the newly focused radio from a `setTimeout(0)` that runs only
+  // while the arrow key is still down, so the press needs a human-length hold;
+  // a zero-delay press moves focus without moving the selection.
+  await reader.keyboard.press('ArrowDown', { delay: 50 });
+  await expect(dialog.getByRole('radio', { name: /Noto Serif TC/ })).toBeFocused();
+  await expect(dialog.getByRole('radio', { name: /Noto Serif TC/ })).toBeChecked();
+  await expect(readerText).toHaveCSS('font-family', /Noto Serif TC Variable/);
+  await reader.keyboard.press('ArrowUp', { delay: 50 });
+  await expect(dialog.getByRole('radio', { name: /System serif/ })).toBeChecked();
+  await expect(readerText).toHaveCSS('font-family', /Georgia/);
+
   await dialog.getByRole('radio', { name: /Noto Sans TC/ }).check();
   await expect(readerText).toHaveCSS('font-family', /Noto Sans TC Variable/);
   await expect(markdownHeading).toHaveCSS('font-family', /Noto Sans TC Variable/);
