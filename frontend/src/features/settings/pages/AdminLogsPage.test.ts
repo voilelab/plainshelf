@@ -110,6 +110,43 @@ describe('AdminLogsPage', () => {
     app.unmount();
   });
 
+  it('explains why the list is empty and how to fix it instead of a bare message', async () => {
+    api.listLogs.mockResolvedValue([]);
+    const { host, app } = mount();
+    await settle();
+
+    const emptyState = host.querySelector('.empty-state');
+    expect(emptyState).not.toBeNull();
+    const text = emptyState?.textContent ?? '';
+    // The reason (stderr loggers do not appear) and the next step (set a file
+    // type) both have to be on the page, not just "empty".
+    expect(text).toContain('stderr');
+    expect(text).toContain('log_file.type');
+
+    app.unmount();
+  });
+
+  it('distinguishes an empty list from a browsable source with no file for the date', async () => {
+    api.listLogs.mockResolvedValue([logEntry({ date: '2024-01-02' })]);
+    const { host, app } = mount();
+    await settle();
+
+    const dateInput = host.querySelector<HTMLInputElement>('input[type="date"]');
+    if (!dateInput) {
+      throw new Error('date input is missing');
+    }
+    // A date with no file must not collapse into the empty-list state; it keeps
+    // its own missingForDate message.
+    dateInput.value = '2024-01-05';
+    dateInput.dispatchEvent(new Event('input'));
+    await settle();
+
+    expect(host.querySelector('.empty-state')).toBeNull();
+    expect(host.querySelector('.message.warning')?.textContent).toContain('2024-01-05');
+
+    app.unmount();
+  });
+
   it('starts from the end again when a different file is selected', async () => {
     api.listLogs.mockResolvedValue([
       logEntry({ size: TAIL_BYTES * 10 }),

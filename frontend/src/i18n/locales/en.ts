@@ -385,7 +385,9 @@ const en = {
     source: 'Source',
     filename: 'Filename',
     size: 'Size',
-    empty: 'No log files are available.',
+    empty: 'No log files are available to browse.',
+    emptyHint:
+      'Only loggers with log_file.type set to filename_rotate or filename appear here; loggers writing to stderr or stdout (the default) do not. To browse logs, configure a file type — or, if one is already configured, wait for its first file to be written and reload.',
     emptyContent: 'The selected log file is empty.',
     missingForDate: 'No log file is available for {date}.',
     loadingList: 'Loading log files...',

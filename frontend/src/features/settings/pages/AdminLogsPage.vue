@@ -51,9 +51,10 @@
     <p v-else-if="loadingLogs" class="message">
       {{ t('adminLogs.loadingList') }}
     </p>
-    <p v-else-if="logs.length === 0" class="message">
-      {{ t('adminLogs.empty') }}
-    </p>
+    <div v-else-if="logs.length === 0" class="empty-state">
+      <p class="message">{{ t('adminLogs.empty') }}</p>
+      <p class="message empty-hint">{{ t('adminLogs.emptyHint') }}</p>
+    </div>
 
     <template v-else>
       <p v-if="selectedDateWithoutLog" class="message warning" role="status">
@@ -359,6 +360,17 @@ onMounted(() => {
 
 .message {
   margin: 0;
+}
+
+.empty-state {
+  display: grid;
+  gap: 6px;
+}
+
+.empty-hint {
+  color: #475569;
+  font-size: 13px;
+  max-width: 60ch;
 }
 
 .error {
