@@ -246,6 +246,11 @@ const zhHant = {
       newReader: '開新 reader',
       inWindow: '在目前視窗開'
     },
+    language: {
+      title: '語言',
+      label: '介面語言',
+      description: '介面顯示的語言。此偏好只保存在這台裝置。'
+    },
     import: {
       title: '匯入'
     },

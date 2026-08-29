@@ -32,6 +32,9 @@
         <TabsTrigger value="reader-launch" class="settings-tab-trigger">{{
           t('settings.readerLaunch.title')
         }}</TabsTrigger>
+        <TabsTrigger value="language" class="settings-tab-trigger">{{
+          t('settings.language.title')
+        }}</TabsTrigger>
         <TabsTrigger v-if="serverSettingsEditable" value="import" class="settings-tab-trigger">{{
           t('settings.import.title')
         }}</TabsTrigger>
@@ -60,6 +63,10 @@
           :disabled="loading || saving"
           @change="onReaderLaunchModeChange"
         />
+      </TabsContent>
+
+      <TabsContent value="language" class="settings-tab-content">
+        <LanguagePanel />
       </TabsContent>
 
       <TabsContent v-if="serverSettingsEditable" value="import" class="settings-tab-content">
@@ -100,6 +107,7 @@ import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 import AboutPanel from '@/features/settings/components/AboutPanel.vue';
 import CoverPanel from '@/features/settings/components/CoverPanel.vue';
 import EpubImportPanel from '@/features/settings/components/EpubImportPanel.vue';
+import LanguagePanel from '@/features/settings/components/LanguagePanel.vue';
 import LogRetentionPanel from '@/features/settings/components/LogRetentionPanel.vue';
 import ReadHistoryPanel from '@/features/settings/components/ReadHistoryPanel.vue';
 import ReaderLaunchPanel from '@/features/settings/components/ReaderLaunchPanel.vue';
