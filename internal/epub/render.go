@@ -24,18 +24,18 @@ const (
 // the layouts themselves are built in, so a stored strategy is an enum plus a
 // flag rather than a template that has to be validated and versioned.
 type Strategy struct {
-	Preset Preset `json:"preset"`
+	Preset Preset `json:"preset" yaml:"preset"`
 
 	// IncludeDescription puts the book description at the top of the text as
 	// well as in the book metadata, where it is always recorded.
-	IncludeDescription bool `json:"include_description"`
+	IncludeDescription bool `json:"include_description" yaml:"include_description"`
 
 	// KeepImages stores the EPUB's illustrations beside the text and links to
 	// them, for presets whose output is Markdown. Nil means "not specified",
 	// which Normalized reads as enabled: a pointer rather than a plain bool
 	// because a stored strategy written before this field existed must keep
 	// illustrations rather than inherit a false zero value.
-	KeepImages *bool `json:"keep_images,omitempty"`
+	KeepImages *bool `json:"keep_images,omitempty" yaml:"keep_images,omitempty"`
 }
 
 // DefaultStrategy is what an unconfigured import uses.
