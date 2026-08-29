@@ -42,14 +42,7 @@
         :disabled="modifyingShelf"
         autofocus
       />
-      <input
-        v-model="modifyShelfScanInterval"
-        class="shelf-add-input"
-        type="text"
-        :placeholder="t('settings.shelves.modifyShelfScanIntervalPlaceholder')"
-        :disabled="modifyingShelf"
-      />
-      <p class="shelf-add-help">{{ t('settings.shelves.modifyShelfScanIntervalHelp') }}</p>
+      <ScanIntervalField v-model="modifyShelfScanInterval" :disabled="modifyingShelf" />
       <p v-if="modifyShelfError" class="settings-message settings-message-error" role="alert">
         {{ modifyShelfError }}
       </p>
@@ -98,14 +91,7 @@
           {{ t('settings.shelves.addShelfBrowse') }}
         </button>
       </div>
-      <input
-        v-model="newShelfScanInterval"
-        class="shelf-add-input"
-        type="text"
-        :placeholder="t('settings.shelves.addShelfScanIntervalPlaceholder')"
-        :disabled="addingShelf"
-      />
-      <p class="shelf-add-help">{{ t('settings.shelves.addShelfScanIntervalHelp') }}</p>
+      <ScanIntervalField v-model="newShelfScanInterval" :disabled="addingShelf" />
       <p v-if="addShelfError" class="settings-message settings-message-error" role="alert">
         {{ addShelfError }}
       </p>
@@ -233,6 +219,7 @@
 import { computed, onMounted, ref } from 'vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
+import ScanIntervalField from '@/features/settings/components/ScanIntervalField.vue';
 import { exportShelfBookCache } from '@/api/shelves';
 import { useI18n } from '@/i18n';
 import { useWriteAccess } from '@/composables/useWriteAccess';

@@ -323,8 +323,6 @@ const en = {
       addShelfCloseLabel: 'Close create shelf dialog',
       addShelfNamePlaceholder: 'Shelf name',
       addShelfDirectoryPlaceholder: 'Directory path',
-      addShelfScanIntervalPlaceholder: 'Scan interval (optional, e.g. 10m)',
-      addShelfScanIntervalHelp: 'Leave blank to use the default 1 minute scan interval.',
       addShelfBrowse: 'Browse...',
       addShelfSubmit: 'Add shelf',
       addShelfAdding: 'Adding...',
@@ -342,8 +340,23 @@ const en = {
       modifyShelfIDLabel: 'ID',
       modifyShelfPathLabel: 'Path',
       modifyShelfNamePlaceholder: 'Shelf name',
-      modifyShelfScanIntervalPlaceholder: 'Scan interval (optional, e.g. 10m)',
-      modifyShelfScanIntervalHelp: 'Leave blank to use the default 1 minute scan interval.'
+      scanIntervalLabel: 'Scan interval',
+      scanIntervalModeDefault: 'Use the default (every minute)',
+      scanIntervalModeEvery: 'Scan at most every…',
+      scanIntervalModeAlways: 'Scan on every refresh',
+      scanIntervalAmountLabel: 'Scan interval amount',
+      scanIntervalUnitLabel: 'Scan interval unit',
+      scanIntervalUnitSeconds: 'seconds',
+      scanIntervalUnitMinutes: 'minutes',
+      scanIntervalUnitHours: 'hours',
+      scanIntervalHelpDefault:
+        'A full scan of the shelf runs at most once a minute; books added outside PlainShelf appear at the next one.',
+      scanIntervalHelpEvery:
+        'A longer interval means less disk and network work, and a longer wait before books added outside PlainShelf show up.',
+      scanIntervalHelpAlways:
+        'Every refresh walks the whole shelf. Fine on a local disk, expensive on a network shelf.',
+      scanIntervalAdjusted:
+        'The saved interval {value} cannot be shown exactly by these controls and has been replaced by the value above.'
     }
   },
   adminLogs: {

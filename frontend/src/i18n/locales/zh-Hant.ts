@@ -317,8 +317,6 @@ const zhHant = {
       addShelfCloseLabel: '關閉建立書架對話框',
       addShelfNamePlaceholder: '書架名稱',
       addShelfDirectoryPlaceholder: '目錄路徑',
-      addShelfScanIntervalPlaceholder: '掃描間隔（選填，例如 10m）',
-      addShelfScanIntervalHelp: '留空會使用預設的 1 分鐘掃描間隔。',
       addShelfBrowse: '瀏覽…',
       addShelfSubmit: '新增書架',
       addShelfAdding: '新增中...',
@@ -336,8 +334,23 @@ const zhHant = {
       modifyShelfIDLabel: 'ID',
       modifyShelfPathLabel: '路徑',
       modifyShelfNamePlaceholder: '書架名稱',
-      modifyShelfScanIntervalPlaceholder: '掃描間隔（選填，例如 10m）',
-      modifyShelfScanIntervalHelp: '留空會使用預設的 1 分鐘掃描間隔。'
+      scanIntervalLabel: '掃描間隔',
+      scanIntervalModeDefault: '使用預設值（每 1 分鐘）',
+      scanIntervalModeEvery: '最多每…掃描一次',
+      scanIntervalModeAlways: '每次重新整理都完整掃描',
+      scanIntervalAmountLabel: '掃描間隔數值',
+      scanIntervalUnitLabel: '掃描間隔單位',
+      scanIntervalUnitSeconds: '秒',
+      scanIntervalUnitMinutes: '分鐘',
+      scanIntervalUnitHours: '小時',
+      scanIntervalHelpDefault:
+        '最多每 1 分鐘完整掃描一次書庫；在 PlainShelf 之外新增的書最晚在下次掃描時出現。',
+      scanIntervalHelpEvery:
+        '間隔越長越省磁碟與網路 I/O，但在 PlainShelf 之外新增的書也要等更久才會出現。',
+      scanIntervalHelpAlways:
+        '每次重新整理都走一遍整個書庫。本機磁碟沒問題，網路書庫會很吃資源。',
+      scanIntervalAdjusted:
+        '已存的間隔 {value} 無法用這組控制項精確表示，已改為上面的值。'
     }
   },
   adminLogs: {
