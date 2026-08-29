@@ -17,6 +17,10 @@ and UI behavior may still change between releases.
 
 - Removed the `cmd/migrate-legacy-sources` tool, `internal/legacyupgrade`, and the dead `SplitConfig`/`SplitType` types and `split_config` metadata field; legacy sources still read unchanged and gain chapters via the source editor's TXT → Markdown conversion.
 
+### Security
+
+- **Breaking (pre-1.0):** changed `GET /api/logs` and `/api/logs/{id}/content` to always require the access token, whatever `protect_read` says, since logs carry request paths, access times, and remote addresses; a client reading them without a token now gets `401`, and security mode `none` is unaffected.
+
 ## [v0.10.0] - 2026-08-26
 
 ### Added

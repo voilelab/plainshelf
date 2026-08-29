@@ -68,3 +68,45 @@ func TestValidateSecurityForListenAddr(t *testing.T) {
 		t.Fatalf("explicit mode validation returned error: %v", err)
 	}
 }
+
+// The log API carries the shelf's structure, access times and remote addresses,
+// so it stays behind the token even where protect_read leaves the shelf itself
+// readable without one. Only mode "none" -- an explicit "do not authenticate" --
+// opens it.
+func TestLogAPIRequiresTokenRegardlessOfProtectRead(t *testing.T) {
+	localToken := func(protectRead bool) *SecurityConf {
+		return &SecurityConf{
+			Mode:                        SecurityModeLocalToken,
+			ProtectRead:                 protectRead,
+			AllowMissingOriginWithToken: new(true),
+		}
+	}
+
+	cases := []struct {
+		name string
+		conf *SecurityConf
+		path string
+		want bool
+	}{
+		{"log list without protect_read", localToken(false), "/api/logs", true},
+		{"log content without protect_read", localToken(false), "/api/logs/app-2024-01-02/content", true},
+		{"log list with protect_read", localToken(true), "/api/logs", true},
+		{"security disabled", &SecurityConf{Mode: SecurityModeNone}, "/api/logs", false},
+		// The exception is scoped to the log routes: an ordinary read is still
+		// governed by protect_read, and a path that merely starts with the same
+		// letters is not a log route.
+		{"book read without protect_read", localToken(false), "/api/shelves/default_shelf/books", false},
+		{"unrelated path sharing the prefix", localToken(false), "/api/logsomething", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := newTestAppWithSecurity(t, tc.conf)
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+
+			if got := app.security.requiresToken(req); got != tc.want {
+				t.Fatalf("requiresToken(%q) = %v, want %v", tc.path, got, tc.want)
+			}
+		})
+	}
+}

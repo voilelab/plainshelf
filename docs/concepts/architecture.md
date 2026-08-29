@@ -41,6 +41,15 @@ startup and carried in the `X-PlainShelf-Token` header; origin checking is
 applied alongside it. `protect_read` extends the same requirement to reads. The
 `password` and `external` modes are reserved names and are not implemented.
 
+The log API (`/api/logs`) is the one read that always needs the token, whatever
+`protect_read` says. Logs are server internals rather than shelf content: they
+record every request path, so reading them yields the shelf's structure along
+with access times and remote addresses. Turning `protect_read` off to let the
+household read books over the LAN is not a decision to publish that. The origin
+check rides along with the token as it does for a write, so a browser reading
+the logs must also come from an allowed origin. Security mode `none` still opens
+everything, because it is an explicit choice not to authenticate.
+
 ---
 
 ## Reading state is not part of the shelf
