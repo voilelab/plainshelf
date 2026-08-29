@@ -211,7 +211,7 @@ The disk-wear impact of these reads is usually negligible. SSD lifetime is prima
 
 ### Local HDD
 
-The main cost is seek latency from many small directory and metadata operations. That can make the first scan slow on a very large shelf; the interval-based scanning after it adds little on top.
+The main cost is seek latency from many small directory and metadata operations. That can make the first scan slow on a very large shelf, and every later full scan pays much of it again: the scan cache spares the directory listings, not the per-book opens. If browsing stays slow, a longer `scan_interval` is the lever.
 
 ### SMB/NAS or other network mounts
 

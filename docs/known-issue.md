@@ -6,7 +6,7 @@
 list on the library toolbar.** It walks the shelf immediately instead of waiting
 for the next interval, and it is the same action in every setup below — local
 disk, SMB or NAS, a sync folder, a cloud mount, and the Android client's pCloud
-shelf. Every delay described on this page is bounded by it. See
+shelf. Every delay below that comes from an interval is bounded by it. See
 [Rescanning on demand](concepts/shelf-cache-and-io.md#rescanning-on-demand).
 
 For the operational model, the initial metadata scan, and tuning guidance, see
@@ -22,10 +22,13 @@ than PlainShelf can take that long to appear. **Update book list** is what
 shortens the wait to now.
 
 **Staleness is judged from `book.json`'s size and modification time.** An edit
-that happens to leave both unchanged is not noticed. Nor does a change to a
-cover or a source file move `book.json` at all, so cached state derived from a
-book can stay stale even while the changed file itself is served correctly. The
-cover and source contents are not themselves cached.
+that happens to leave both unchanged is not noticed, and **Update book list**
+does not change that: the walk finds the file, sees the same size and time, and
+keeps what it already had. This is the one limit on this page the button cannot
+lift. Nor does a change to a cover or a source file move `book.json` at all, so
+cached state derived from a book can stay stale even while the changed file
+itself is served correctly. The cover and source contents are not themselves
+cached.
 
 On a single desktop machine those two limits are the whole story. The setups
 below each add something to them.
