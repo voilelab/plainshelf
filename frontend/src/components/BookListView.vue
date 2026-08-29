@@ -27,6 +27,7 @@
         <div class="book-list-head">
           <h3 class="book-list-title">{{ book.title }}</h3>
           <div class="book-list-head-actions">
+            <BookDownloadBadge :state="book.download_state" />
             <p class="book-list-folder">{{ folderLabel(book) }}</p>
           </div>
         </div>
@@ -45,6 +46,7 @@
 
 <script setup lang="ts">
 import BookCoverImg from './BookCoverImg.vue';
+import BookDownloadBadge from './BookDownloadBadge.vue';
 import BookSelectionCheckbox from './BookSelectionCheckbox.vue';
 import { useBookItemInteractions } from '@/composables/useBookItemInteractions';
 import { useBookSummaries } from '@/composables/useBookSummaries';

@@ -19,6 +19,11 @@ Editing pages (metadata, sources, trash, and the maintenance views) are not
 reachable on Android, and write requests are rejected on the device before they
 are sent.
 
+Reading a book on the device requires it to be downloaded first, so every book
+in the library list carries a marker saying whether it is *Not downloaded* or
+*Downloaded*. Long-pressing a book starts a selection, and the bar at the bottom
+downloads everything selected in one go; the markers update when it finishes.
+
 ## The shelf list
 
 The device keeps a list of shelves under **Settings → Shelves**, and each
