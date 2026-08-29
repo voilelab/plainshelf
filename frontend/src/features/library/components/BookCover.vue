@@ -51,12 +51,16 @@
         accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif"
         @change="onCoverFileChange"
       />
-      <CollapsibleRoot v-model:open="showCoverOptions" class="cover-options-collapsible">
+      <CollapsibleRoot
+        v-model:open="showCoverOptions"
+        class="cover-options-collapsible"
+        :unmount-on-hide="false"
+      >
         <CollapsibleTrigger class="button cover-options-toggle" :disabled="coverBusy">
           {{ t('bookDetail.cover.options') }}
           <span aria-hidden="true">{{ showCoverOptions ? '−' : '+' }}</span>
         </CollapsibleTrigger>
-        <CollapsibleContent class="cover-action-tray" :unmount-on-hide="false">
+        <CollapsibleContent class="cover-action-tray">
           <div class="cover-button-row">
             <button class="button cover-btn" type="button" :disabled="coverBusy" @click="openPicker">
               {{ coverBusy ? '…' : t('bookDetail.cover.upload') }}

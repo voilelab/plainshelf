@@ -126,6 +126,28 @@ describe('SimilarityFilterBar segmented tiers', () => {
       expect(button.getAttribute('data-state')).toBe('off');
     }
   });
+
+  // Guards the controlled-vs-uncontrolled trap: reka latches the group into
+  // uncontrolled mode when the *initial* model-value is undefined. Mounting
+  // with the advanced slider already open (no tier pressed) must not sever the
+  // parent's control, or a later re-click would leave every segment unpressed.
+  it('stays controlled when mounted with the advanced slider open', async () => {
+    const { host, events } = mount({ advancedOpen: true });
+    expect(pressed(host)).toHaveLength(0);
+
+    // Parent flow: picking a tier closes the slider and selects that tier.
+    segments(host)[0].click();
+    await nextTick();
+    expect(events.tier).toHaveLength(1);
+    expect(pressed(host)).toHaveLength(1);
+
+    // Re-clicking the now-active tier must keep it pressed, not deselect it.
+    const active = segments(host).find((button) => button.getAttribute('aria-pressed') === 'true');
+    active?.click();
+    await nextTick();
+    expect(events.tier).toHaveLength(1);
+    expect(pressed(host)).toHaveLength(1);
+  });
 });
 
 describe('SimilarityFilterBar advanced collapsible', () => {

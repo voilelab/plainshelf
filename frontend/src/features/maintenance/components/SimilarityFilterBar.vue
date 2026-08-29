@@ -11,7 +11,7 @@
         type="single"
         class="similarity-segmented"
         :aria-label="t('maintenance.similar.tiersLabel')"
-        :model-value="advancedOpen ? undefined : tier"
+        :model-value="advancedOpen ? SEGMENT_NONE : tier"
         @update:model-value="onSelectTierModel"
       >
         <ToggleGroupItem
@@ -83,6 +83,13 @@ import {
 import '@/styles/toolbar-controls.css';
 
 const SLIDER_ID = 'similarity-threshold-slider';
+// A non-matching sentinel for "no tier pressed" (while the advanced slider
+// owns the selection). It must not be `undefined`: reka latches the toggle
+// group into uncontrolled mode when the initial model-value is `undefined`
+// (passive === modelValue === undefined), after which the parent's `tier`
+// would stop driving it. `null` keeps the group controlled and matches no
+// tier, so every segment reads unpressed.
+const SEGMENT_NONE = null;
 
 const props = defineProps<{
   /** Selected tier, meaningful only while the advanced slider is closed. */
