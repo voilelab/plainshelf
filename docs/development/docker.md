@@ -1,20 +1,20 @@
 # Docker
 
-PlainShelf ships an Ubuntu 24.04-based container image that bundles the server and the embedded frontend.
+PlainShelf ships an Ubuntu 24.04-based container image that bundles the server
+and the embedded frontend.
 
 ## Build the image
 
-Run the following from the repository root:
+From the repository root:
 
 ```bash
 docker build -t plainshelf .
 ```
 
----
-
 ## Run the container
 
-Start the server on <http://localhost:20000> with persistent application data stored in a Docker volume:
+Start the server on <http://localhost:20000> with persistent application data
+stored in a Docker volume:
 
 ```bash
 docker run --rm \
@@ -25,9 +25,9 @@ docker run --rm \
 ```
 
 !!! tip "Keep it local"
-    The example above publishes the port on the loopback address (`127.0.0.1`) only. Do not expose `0.0.0.0:20000` to untrusted networks unless you add an authentication boundary in front of the container.
-
----
+    The example above publishes the port on the loopback address
+    (`127.0.0.1`) only. Do not expose `0.0.0.0:20000` to untrusted networks
+    unless you add an authentication boundary in front of the container.
 
 ## Default container config
 
@@ -35,9 +35,8 @@ The image uses `docker/config.yaml`, which:
 
 - Listens on `0.0.0.0:20000` inside the container
 - Stores data in `/data/shelf` and `/data/store`
-- Sets `app_conf.security.mode: "none"` for compatibility with local-only port publishing
-
----
+- Sets `app_conf.security.mode: "none"` for compatibility with local-only port
+  publishing
 
 ## Custom configuration
 
@@ -52,11 +51,10 @@ docker run --rm \
   plainshelf
 ```
 
----
-
 ## Health check
 
-The image exposes a `/health` endpoint. Docker will use it automatically once the container starts. You can also test it manually:
+The image exposes a `/health` endpoint. Docker uses it automatically once the
+container starts; to check it by hand:
 
 ```bash
 curl http://127.0.0.1:20000/health
