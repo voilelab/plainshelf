@@ -251,6 +251,12 @@ const en = {
       newReader: 'Open a new reader',
       inWindow: 'Open in this window'
     },
+    language: {
+      title: 'Language',
+      label: 'Display language',
+      description:
+        'The language of the interface. This preference is stored only on this device.'
+    },
     import: {
       title: 'Import'
     },

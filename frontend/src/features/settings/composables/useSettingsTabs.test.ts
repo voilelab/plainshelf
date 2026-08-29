@@ -54,6 +54,14 @@ describe('useSettingsTabs', () => {
     app.unmount();
   });
 
+  it('honours ?tab=language on a read-only server', async () => {
+    // Language moved out of the top bar into Settings; it must stay reachable
+    // on the read-only mobile shell, so it lives outside EDITABLE_TABS.
+    const { api, app } = await setup(false, '/settings?tab=language');
+    expect(api.activeSettingsTab.value).toBe('language');
+    app.unmount();
+  });
+
   it('ignores a tab the current shell does not show', async () => {
     // cover is editable-only; on a read-only server it falls back to default.
     const { api, app } = await setup(false, '/settings?tab=cover');
