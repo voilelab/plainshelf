@@ -9,9 +9,10 @@ import (
 	"github.com/voilelab/plainshelf/server"
 )
 
-// Representative mutation used throughout this file. Updating this setting
-// needs no imported book and answers 204 on success.
-const mutationPath = "/api/setting/cover_to_jpg"
+// Representative route used throughout this file. This setting needs no
+// imported book: reading it answers 200 and updating it 204, so one path
+// exercises both sides of the token gate.
+const settingPath = "/api/setting/cover_to_jpg"
 const mutationBody = `true`
 
 // localTokenSecurity is the configuration these tests share: the local-token
@@ -40,15 +41,15 @@ func TestAPISecurityLocalTokenProtectsMutatingAPIContract(t *testing.T) {
 	rec = env.doRaw(httptest.NewRequest(http.MethodGet, booksURL(), nil))
 	assertStatus(t, rec, http.StatusOK)
 
-	rec = env.doRaw(httptest.NewRequest(http.MethodPost, mutationPath, strings.NewReader(mutationBody)))
+	rec = env.doRaw(httptest.NewRequest(http.MethodPost, settingPath, strings.NewReader(mutationBody)))
 	assertStatus(t, rec, http.StatusUnauthorized)
 
-	req := httptest.NewRequest(http.MethodPost, mutationPath, strings.NewReader(mutationBody))
+	req := httptest.NewRequest(http.MethodPost, settingPath, strings.NewReader(mutationBody))
 	req.Header.Set(env.app.SecurityTokenHeader(), "wrong-token")
 	rec = env.doRaw(req)
 	assertStatus(t, rec, http.StatusUnauthorized)
 
-	req = httptest.NewRequest(http.MethodPost, mutationPath, strings.NewReader(mutationBody))
+	req = httptest.NewRequest(http.MethodPost, settingPath, strings.NewReader(mutationBody))
 	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
 	rec = env.doRaw(req)
 	assertStatus(t, rec, http.StatusNoContent)
@@ -57,7 +58,7 @@ func TestAPISecurityLocalTokenProtectsMutatingAPIContract(t *testing.T) {
 func TestAPISecurityOriginAndCORSContract(t *testing.T) {
 	env := newAPITestEnv(t, withSecurity(localTokenSecurity()))
 
-	req := httptest.NewRequest(http.MethodPost, mutationPath, strings.NewReader(mutationBody))
+	req := httptest.NewRequest(http.MethodPost, settingPath, strings.NewReader(mutationBody))
 	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
 	req.Header.Set("Origin", "http://evil.example")
 	rec := env.doRaw(req)
@@ -66,7 +67,7 @@ func TestAPISecurityOriginAndCORSContract(t *testing.T) {
 		t.Fatalf("disallowed CORS origin header = %q, want empty", got)
 	}
 
-	req = httptest.NewRequest(http.MethodPost, mutationPath, strings.NewReader(mutationBody))
+	req = httptest.NewRequest(http.MethodPost, settingPath, strings.NewReader(mutationBody))
 	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
 	req.Header.Set("Origin", "http://localhost:20000")
 	rec = env.doRaw(req)
@@ -75,13 +76,13 @@ func TestAPISecurityOriginAndCORSContract(t *testing.T) {
 		t.Fatalf("allowed CORS origin header = %q, want http://localhost:20000", got)
 	}
 
-	req = httptest.NewRequest(http.MethodPost, mutationPath, strings.NewReader(mutationBody))
+	req = httptest.NewRequest(http.MethodPost, settingPath, strings.NewReader(mutationBody))
 	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
 	req.Header.Set("Referer", "http://localhost:20000/books")
 	rec = env.doRaw(req)
 	assertStatus(t, rec, http.StatusNoContent)
 
-	req = httptest.NewRequest(http.MethodOptions, mutationPath, nil)
+	req = httptest.NewRequest(http.MethodOptions, settingPath, nil)
 	req.Header.Set("Origin", "http://localhost:20000")
 	req.Header.Set("Access-Control-Request-Method", "POST")
 	rec = env.doRaw(req)

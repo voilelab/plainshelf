@@ -176,10 +176,25 @@ func (sec *Security) requiresToken(r *http.Request) bool {
 	if !strings.HasPrefix(r.URL.Path, "/api/") {
 		return false
 	}
+	if IsLogAPIPath(r.URL.Path) {
+		return true
+	}
 	if sec.conf.ProtectRead {
 		return true
 	}
 	return IsMutatingMethod(r.Method)
+}
+
+// IsLogAPIPath reports whether a path serves the log API, which always needs a
+// token. protect_read answers "must a reader authenticate to see the shelf",
+// and the logs are not shelf content: they record every request path, and so
+// the shelf's structure, together with the access times and remote addresses
+// behind it. Someone who turns protect_read off to let the household read books
+// over the LAN has said nothing about publishing that. It is an exception in
+// the same place /health is one, deliberately not a setting: a safe default is
+// not a choice to offer.
+func IsLogAPIPath(path string) bool {
+	return path == "/api/logs" || strings.HasPrefix(path, "/api/logs/")
 }
 
 // IsMutatingMethod is the single definition of "this request writes". Both

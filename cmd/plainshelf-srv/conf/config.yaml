@@ -39,6 +39,9 @@ app_conf:
   read_only: false
   security:
     mode: "local_token"
+    # Reads of the shelf are open by default. The log API is not covered by this:
+    # it always requires the token, because logs carry request paths, access
+    # times and remote addresses rather than shelf content.
     protect_read: false
     token_header: "X-PlainShelf-Token"
     allow_missing_origin_with_token: true
