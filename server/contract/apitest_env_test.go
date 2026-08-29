@@ -20,6 +20,11 @@ const defaultShelfID = "default_shelf"
 // what these tests pin, so a change to it has to be a change to both.
 const maxBinaryUploadSize = 20 << 20
 
+// maxLogRetentionDays is the ceiling the log_retention_days setting enforces,
+// restated for the same reason as maxBinaryUploadSize: the bound is part of
+// what these tests pin.
+const maxLogRetentionDays = 3650
+
 // appConfOption adjusts the configuration a contract-test app is built from.
 type appConfOption func(*server.AppConf)
 

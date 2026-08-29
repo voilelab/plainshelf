@@ -1,10 +1,10 @@
 import { computed, type ComputedRef, type Ref, type WritableComputedRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-// Tabs that are always shown, plus the two that render only when the server
-// settings are editable (the cover and EPUB-import panels).
+// Tabs that are always shown, plus the ones that render only when the server
+// settings are editable (the cover, EPUB-import and log-retention panels).
 const ALWAYS_TABS = ['read-history', 'reader-launch', 'about', 'shelves'];
-const EDITABLE_TABS = ['cover', 'import'];
+const EDITABLE_TABS = ['cover', 'import', 'logs'];
 
 /**
  * The settings page's active tab, backed by the `?tab=` route query.

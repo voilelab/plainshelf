@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseReadHistoryLimit } from './settingsDraft';
+import { MAX_LOG_RETENTION_DAYS, parseLogRetentionDays, parseReadHistoryLimit } from './settingsDraft';
 
 describe('parseReadHistoryLimit', () => {
   it('accepts a whole, non-negative count', () => {
@@ -18,5 +18,24 @@ describe('parseReadHistoryLimit', () => {
   // an empty string easy to produce.
   it('treats an empty field as zero', () => {
     expect(parseReadHistoryLimit('')).toBe(0);
+  });
+});
+
+describe('parseLogRetentionDays', () => {
+  it('accepts a whole number of days the server would take', () => {
+    expect(parseLogRetentionDays('30')).toBe(30);
+    expect(parseLogRetentionDays(String(MAX_LOG_RETENTION_DAYS))).toBe(MAX_LOG_RETENTION_DAYS);
+  });
+
+  // Zero is the one value with a meaning of its own: it turns log deletion off.
+  it('accepts zero, which keeps every log file', () => {
+    expect(parseLogRetentionDays('0')).toBe(0);
+  });
+
+  it('rejects negative, fractional, oversized and non-numeric input', () => {
+    expect(parseLogRetentionDays('-1')).toBeNull();
+    expect(parseLogRetentionDays('1.5')).toBeNull();
+    expect(parseLogRetentionDays(String(MAX_LOG_RETENTION_DAYS + 1))).toBeNull();
+    expect(parseLogRetentionDays('abc')).toBeNull();
   });
 });

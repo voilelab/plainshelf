@@ -43,9 +43,11 @@ func newAPIHandlers(
 	pool taskutil.Pool,
 	spaFS fs.FS,
 	conf *AppConf,
+	// settingsSvc is built by NewApp, which needs it before the handlers exist
+	// to apply the stored log-retention window to the loggers already running.
+	settingsSvc *settings,
 ) *apiHandlers {
 	core := &apiCore{Logger: logger, shelves: shelfManager, security: security}
-	settingsSvc := &settings{Logger: logger, db: storeDB, conf: conf}
 	tasks := &taskSubmitter{apiCore: core, pool: pool}
 
 	return &apiHandlers{
@@ -155,6 +157,9 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/setting/epub_import_strategy", h.setting.getEPUBImportStrategy)
 	mux.HandleFunc("POST /api/setting/epub_import_strategy", h.setting.setEPUBImportStrategy)
 	mux.HandleFunc("DELETE /api/setting/epub_import_strategy", h.setting.deleteEPUBImportStrategy)
+	mux.HandleFunc("GET /api/setting/log_retention_days", h.setting.getLogRetentionDays)
+	mux.HandleFunc("POST /api/setting/log_retention_days", h.setting.setLogRetentionDays)
+	mux.HandleFunc("DELETE /api/setting/log_retention_days", h.setting.deleteLogRetentionDays)
 
 	// Unknown API paths must not fall through to the SPA index.
 	mux.HandleFunc("GET /api/{path...}", http.NotFound)

@@ -19,6 +19,8 @@ adds a web interface, desktop integration, and an experimental Android client.
 3. Configure a [local shelf](configuring-local-shelf.md), or review the
    experimental [SMB setup](configuring-smb-shelf.md).
 4. Review [EPUB Import](epub-import.md) for how EPUB files are converted.
+5. Review [Logs](logs.md) for reading the application log and for how long it
+   is kept.
 
 ### Understand the storage model
 

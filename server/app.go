@@ -48,6 +48,13 @@ func NewApp(conf *AppConf) (*App, error) {
 	// all previously initialized resources will be properly closed.
 	failure := true
 
+	// Every logger below shares one retention window so the setting route can
+	// change all of them at once. It is attached before the first logger is
+	// built; the stored value is pushed into it as soon as the store is open,
+	// which is before anything writes a log line and so before any rotation
+	// could act on the wrong window.
+	shareLogRetention(conf, logutil.NewRetention())
+
 	logger, err := logutil.NewLogger(&conf.Logger)
 	if err != nil {
 		return nil, util.Errorf("%w", err)
@@ -71,6 +78,9 @@ func NewApp(conf *AppConf) (*App, error) {
 			}
 		}
 	}()
+
+	settingsSvc := &settings{Logger: logger, db: storeDB, conf: conf}
+	settingsSvc.applyLogRetention()
 
 	writerID, err := resolveBookCacheWriterID(storeDB)
 	if err != nil {
@@ -128,7 +138,7 @@ func NewApp(conf *AppConf) (*App, error) {
 
 	// Assembled after App so the handlers share its logger rather than opening
 	// one of their own.
-	app.handlers = newAPIHandlers(&app.Logger, shelfManager, security, storeDB, taskChains, frontend.WebFS, conf)
+	app.handlers = newAPIHandlers(&app.Logger, shelfManager, security, storeDB, taskChains, frontend.WebFS, conf, settingsSvc)
 
 	return app, nil
 }
@@ -161,6 +171,9 @@ func (app *App) AddShelf(conf shelf.ShelfConfWithID) error {
 	if shelfConf.BookCacheWriterID == "" && !shelfConf.ReadOnly {
 		shelfConf.BookCacheWriterID = app.bookCacheWriterID
 	}
+	// A shelf opened after startup writes its own log file, so it joins the
+	// retention window the setting controls rather than keeping the default.
+	shelfConf.Logger.LogFile.Retention = app.conf.Logger.LogFile.Retention
 	return app.shelfManager.AddShelf(shelfConf)
 }
 

@@ -2,10 +2,13 @@ package contract_test
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/testutil"
 )
 
@@ -113,5 +116,64 @@ func TestAPISettingCoverToJPGContract(t *testing.T) {
 	deleteSetting(t, env, key)
 	if got := settingValue[bool](t, env, key); got {
 		t.Fatalf("cover_to_jpg after delete = %v, want false (AppConf default)", got)
+	}
+}
+
+// TestAPISettingLogRetentionDaysContract pins the control that makes log
+// deletion optional. It matters most on the desktop build, which has no config
+// file to edit: without this route a user has no way to turn deletion off.
+func TestAPISettingLogRetentionDaysContract(t *testing.T) {
+	logDir := t.TempDir()
+	env := newAPITestEnv(t, withAppLogDir(logDir, "app"))
+	const key = "log_retention_days"
+
+	// Nothing stored and nothing configured: the built-in window applies.
+	if got := settingValue[float64](t, env, key); int(got) != logutil.DefaultRetentionDays {
+		t.Fatalf("default log_retention_days = %v, want %d", got, logutil.DefaultRetentionDays)
+	}
+
+	// Zero is the meaningful end of the range: it is how deletion is turned off.
+	for _, want := range []int{0, 7, maxLogRetentionDays} {
+		setSetting(t, env, key, strconv.Itoa(want), http.StatusNoContent)
+		if got := settingValue[float64](t, env, key); int(got) != want {
+			t.Fatalf("log_retention_days after set = %v, want %d", got, want)
+		}
+	}
+
+	for _, body := range []string{"-1", strconv.Itoa(maxLogRetentionDays + 1), "1.5", `"30"`, "not json"} {
+		setSetting(t, env, key, body, http.StatusBadRequest)
+	}
+
+	// The rejected values left the last accepted one in place.
+	if got := settingValue[float64](t, env, key); int(got) != maxLogRetentionDays {
+		t.Fatalf("log_retention_days after rejected writes = %v, want %d", got, maxLogRetentionDays)
+	}
+
+	deleteSetting(t, env, key)
+	if got := settingValue[float64](t, env, key); int(got) != logutil.DefaultRetentionDays {
+		t.Fatalf("log_retention_days after delete = %v, want %d", got, logutil.DefaultRetentionDays)
+	}
+}
+
+// TestAPISettingLogRetentionAppliesWithoutRestart covers the reason this is a
+// setting rather than configuration: a user who turns deletion off must not
+// have to restart the server before the running writers stop deleting.
+func TestAPISettingLogRetentionAppliesWithoutRestart(t *testing.T) {
+	logDir := t.TempDir()
+	env := newAPITestEnv(t, withAppLogDir(logDir, "app"))
+
+	setSetting(t, env, "log_retention_days", "0", http.StatusNoContent)
+
+	// The app logger is the writer the running server actually holds.
+	writer := logutil.NewDailyFileWriter(env.app.Conf().Logger.LogFile)
+	t.Cleanup(func() { _ = writer.Close() })
+
+	writeLogFile(t, filepath.Join(logDir, "app-2000-01-01.log"), "ancient")
+	if _, err := writer.Write([]byte("{}\n")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(logDir, "app-2000-01-01.log")); err != nil {
+		t.Fatalf("Stat ancient log after a rotation with retention off: %v", err)
 	}
 }

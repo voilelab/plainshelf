@@ -49,10 +49,19 @@ type LogFileConf struct {
 	// 0 keeps every file forever. Expired files are removed when the writer
 	// rotates, so nothing is deleted while the server is idle.
 	RetentionDays *int `yaml:"retention_days"`
+
+	// Retention, when set, overrides RetentionDays while the server runs. It
+	// is how the log-retention setting reaches a writer that was built before
+	// the setting could be read, and is shared by every logger an app builds
+	// so one change reaches all of them. It is not configuration and is never
+	// read from YAML.
+	Retention *Retention `yaml:"-"`
 }
 
-// retentionDays resolves the configured window, treating unset as the default.
-func (conf LogFileConf) retentionDays() int {
+// ResolvedRetentionDays is the window this configuration alone names, treating
+// unset as the default. The runtime override in Retention, when present, wins
+// over it.
+func (conf LogFileConf) ResolvedRetentionDays() int {
 	if conf.RetentionDays == nil {
 		return DefaultRetentionDays
 	}
@@ -102,7 +111,7 @@ func NewLogFile(conf LogFileConf) (*LogFile, error) {
 		if conf.RetentionDays != nil && *conf.RetentionDays < 0 {
 			return nil, util.Errorf("invalid log retention days: %d", *conf.RetentionDays)
 		}
-		writer := NewDailyFileWriter(conf.Dir, conf.Prefix, conf.retentionDays())
+		writer := NewDailyFileWriter(conf)
 		return &LogFile{conf: &conf, writer: writer}, nil
 	default:
 		return nil, util.Errorf("invalid log file type: %s", conf.Type)

@@ -18,7 +18,8 @@ app_conf:
       dir: /data/logs
       prefix: root
       # Rotated files older than this are deleted on the next rotation.
-      # Defaults to 30 days; set to 0 to keep every file.
+      # Defaults to 30 days; set to 0 to keep every file. A value saved from
+      # Settings -> Logs takes precedence over this one.
       # retention_days: 30
   shelves:
     - id: default_shelf
@@ -31,7 +32,8 @@ app_conf:
           dir: /data/logs
           prefix: shelf
           # Rotated files older than this are deleted on the next rotation.
-          # Defaults to 30 days; set to 0 to keep every file.
+          # Defaults to 30 days; set to 0 to keep every file. A value saved from
+          # Settings -> Logs takes precedence over this one.
           # retention_days: 30
       lib_root: "/data/shelf"
   store_path: "/data/store"
