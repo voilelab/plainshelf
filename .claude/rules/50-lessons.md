@@ -27,6 +27,13 @@ Read the relevant section before working in that area. Add entries according to
   `curl -sSL https://github.com/golangci/golangci-lint/releases/download/v2.12.2/golangci-lint-2.12.2-linux-amd64.tar.gz | tar xz`.
   CI enables `unused`, so a helper left without callers fails the build even
   when `go vet` and `go test` pass. (`.golangci.yml`, `.github/workflows/ci.yml`)
+- **Frontend suite on a too-new Node:** ten unrelated suites fail at import with
+  `TypeError: Cannot read properties of undefined (reading 'getItem')` pointing
+  at `src/api/client.ts` → the jsdom environment leaves `window.localStorage`
+  undefined on Node 26 (which prints its own "localStorage is not available"
+  experimental warning); the same checkout passes 122/122 on Node 23, and CI
+  pins Node 22. Re-run under a CI-matching Node before charging it to the diff.
+  (`.github/workflows/ci.yml`)
 - **Server tests race the initial shelf scan:** a read issued before it finishes
   is answered 503 `ErrShelfInitializing`. Test envs must wait via
   `WaitReady`; do not rely on unrelated startup work to mask it.
