@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  maxScanIntervalAmount,
   parseGoDuration,
   scanIntervalFromSelection,
   scanIntervalToSelection
@@ -19,6 +20,9 @@ describe('parseGoDuration', () => {
 
   it('rejects what the shelf would reject, including the bare number users type', () => {
     expect(parseGoDuration('10')).toBeNull();
+    // Past int64 nanoseconds time.ParseDuration answers "invalid duration".
+    expect(parseGoDuration('2562048h')).toBeNull();
+    expect(parseGoDuration('2562047h')).not.toBeNull();
     expect(parseGoDuration('10 min')).toBeNull();
     expect(parseGoDuration('5分鐘')).toBeNull();
     expect(parseGoDuration('')).toBeNull();
@@ -82,6 +86,10 @@ describe('scanIntervalToSelection', () => {
     expect(scanIntervalToSelection('-5m')).toMatchObject({ mode: 'always', adjustedFrom: '-5m' });
     // Nothing time.ParseDuration accepts; fall back to the default and say so.
     expect(scanIntervalToSelection('10')).toMatchObject({ mode: 'default', adjustedFrom: '10' });
+    expect(scanIntervalToSelection('2562048h')).toMatchObject({
+      mode: 'default',
+      adjustedFrom: '2562048h'
+    });
   });
 });
 
@@ -97,6 +105,20 @@ describe('scanIntervalFromSelection', () => {
     expect(scanIntervalFromSelection({ mode: 'interval', amount: 0, unit: 'm' })).toBe('1m');
     expect(scanIntervalFromSelection({ mode: 'interval', amount: -3, unit: 's' })).toBe('1s');
     expect(scanIntervalFromSelection({ mode: 'interval', amount: 1.7, unit: 's' })).toBe('1s');
+  });
+
+  it('never writes a duration past what time.Duration can hold', () => {
+    // 2562048h is the first hour count Go cannot parse; the controls stop one
+    // short of it rather than emitting a string the backend would reject.
+    expect(maxScanIntervalAmount('h')).toBe(2_562_047);
+    expect(maxScanIntervalAmount('m')).toBe(153_722_867);
+    expect(maxScanIntervalAmount('s')).toBe(9_223_372_036);
+
+    for (const unit of ['s', 'm', 'h'] as const) {
+      const capped = scanIntervalFromSelection({ mode: 'interval', amount: 1e15, unit });
+      expect(capped).toBe(`${maxScanIntervalAmount(unit)}${unit}`);
+      expect(parseGoDuration(capped)).not.toBeNull();
+    }
   });
 
   it('round-trips every duration the controls can hold', () => {

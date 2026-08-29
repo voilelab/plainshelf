@@ -97,6 +97,25 @@ describe('ScanIntervalField', () => {
     app.unmount();
   });
 
+  it('caps an amount past what Go can parse', async () => {
+    const { host, value, app } = mount('10h');
+
+    const amount = select(host, 'scan-interval-amount');
+    expect(amount.getAttribute('max')).toBe('2562047');
+
+    setValue(amount, '2562048');
+    await Promise.resolve();
+    // The clamped value is one the backend accepts, so the raw
+    // `invalid duration` error still cannot reach the user.
+    expect(value.value).toBe('2562047h');
+
+    amount.dispatchEvent(new Event('blur'));
+    await Promise.resolve();
+    expect(amount.value).toBe('2562047');
+
+    app.unmount();
+  });
+
   it('switches between the three modes', async () => {
     const { host, value, app } = mount('');
 

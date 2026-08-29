@@ -46,6 +46,21 @@ const UNIT_MS: Record<string, number> = {
 
 const SECONDS_PER_UNIT: Record<ScanIntervalUnit, number> = { s: 1, m: 60, h: 3600 };
 
+/**
+ * The largest duration `time.Duration` can hold, which counts nanoseconds in an
+ * int64: 2^63-1 ns, in milliseconds. Past it `time.ParseDuration` answers
+ * `invalid duration` rather than a value, so an amount the number box would
+ * happily accept - `2562048h` - would put the raw Go error back in front of the
+ * user. Rounded down, because the exact figure is not representable as a
+ * double and only the direction of the error matters here.
+ */
+const MAX_DURATION_MS = 9_223_372_036_854.775;
+
+/** The largest whole `unit` amount that still fits `time.Duration`. */
+export function maxScanIntervalAmount(unit: ScanIntervalUnit): number {
+  return Math.floor(MAX_DURATION_MS / (SECONDS_PER_UNIT[unit] * 1000));
+}
+
 // Longest-first so `ms` is not read as `m` followed by a stray `s`.
 const TERM_PATTERN = /^(\d*\.?\d*)(ns|us|µs|μs|ms|s|m|h)/;
 
@@ -85,6 +100,11 @@ export function parseGoDuration(text: string): number | null {
     rest = rest.slice(matched.length);
   }
 
+  // Go rejects what int64 nanoseconds cannot hold, and so must we.
+  if (!Number.isFinite(total) || total > MAX_DURATION_MS) {
+    return null;
+  }
+
   return sign * total;
 }
 
@@ -97,7 +117,10 @@ export function scanIntervalFromSelection(selection: ScanIntervalSelection): str
     return '0s';
   }
 
-  const amount = Math.max(1, Math.floor(selection.amount));
+  const amount = Math.min(
+    maxScanIntervalAmount(selection.unit),
+    Math.max(1, Math.floor(selection.amount))
+  );
   return `${amount}${selection.unit}`;
 }
 

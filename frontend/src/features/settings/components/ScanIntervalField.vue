@@ -21,6 +21,7 @@
           class="setting-number scan-interval-amount"
           type="number"
           min="1"
+          :max="maxAmount"
           step="1"
           inputmode="numeric"
           :disabled="disabled"
@@ -52,6 +53,7 @@
 import { computed, ref, useId, watch } from 'vue';
 import { useI18n } from '@/i18n';
 import {
+  maxScanIntervalAmount,
   scanIntervalFromSelection,
   scanIntervalToSelection,
   type ScanIntervalMode,
@@ -73,9 +75,16 @@ const unit = ref<ScanIntervalUnit>('m');
 const amountText = ref('1');
 const adjustedFrom = ref('');
 
+// The largest amount that still fits Go's time.Duration in the chosen unit;
+// above it time.ParseDuration fails and the raw error would be back.
+const maxAmount = computed(() => maxScanIntervalAmount(unit.value));
+
 const amount = computed(() => {
   const parsed = Number.parseInt(amountText.value, 10);
-  return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1;
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return 1;
+  }
+  return Math.min(parsed, maxAmount.value);
 });
 
 const helpText = computed(() => {
