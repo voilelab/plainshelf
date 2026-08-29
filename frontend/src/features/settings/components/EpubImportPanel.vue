@@ -19,18 +19,27 @@
       </select>
     </label>
 
-    <label class="setting-item">
+    <!-- The switch renders a <button>, so this row is no longer one big
+         <label>: the control is bound by id and named from the label element,
+         which keeps clicking the text a toggle. -->
+    <div class="setting-item">
       <div>
-        <div class="setting-label">{{ t('settings.epubImport.includeDescriptionLabel') }}</div>
-        <p class="setting-description">{{ t('settings.epubImport.includeDescriptionHelp') }}</p>
+        <label :id="labelId" :for="switchId" class="setting-label">
+          {{ t('settings.epubImport.includeDescriptionLabel') }}
+        </label>
+        <p :id="descriptionId" class="setting-description">
+          {{ t('settings.epubImport.includeDescriptionHelp') }}
+        </p>
       </div>
-      <input
-        v-model="includeDescriptionModel"
-        class="setting-checkbox"
-        type="checkbox"
+      <BaseSwitch
+        :id="switchId"
+        :model-value="includeDescription"
         :disabled="disabled"
+        :aria-labelledby="labelId"
+        :aria-describedby="descriptionId"
+        @update:model-value="emit('update:includeDescription', $event)"
       />
-    </label>
+    </div>
 
     <p v-if="error" class="error">{{ error }}</p>
 
@@ -43,11 +52,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { useId } from 'vue';
+import BaseSwitch from '@/components/BaseSwitch.vue';
 import type { EpubImportPreset } from '@/types/book';
 import { useI18n } from '@/i18n';
 
-const props = defineProps<{
+defineProps<{
   preset: EpubImportPreset;
   includeDescription: boolean;
   error: string;
@@ -63,10 +73,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const includeDescriptionModel = computed({
-  get: () => props.includeDescription,
-  set: (value: boolean) => emit('update:includeDescription', value)
-});
+const switchId = `epub-include-description-${useId()}`;
+const labelId = `epub-include-description-label-${useId()}`;
+const descriptionId = `epub-include-description-help-${useId()}`;
 </script>
 
 <style scoped src="../styles/settings-form.css"></style>
