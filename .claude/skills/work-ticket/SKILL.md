@@ -58,9 +58,11 @@ Two consequences of a security or contract change that are easy to miss:
 
 ## 4. Check before pushing
 
-Which checks apply is decided by the minimum-check table in
-`.claude/rules/20-judgment.md`, and the commands are the ones in `CLAUDE.md`.
-Two things that table cannot tell you, and that are easy to get wrong:
+Run every check `.github/workflows/ci.yml` gates for the area you touched. The
+minimum-check table in `.claude/rules/20-judgment.md` is the floor and `CLAUDE.md`
+spells the commands; neither is a licence to stop before a required gate because
+the ticket looked small. Two things neither can tell you, and that are easy to
+get wrong:
 
 ```sh
 npm --prefix frontend run build            # Go builds embed frontend/dist
