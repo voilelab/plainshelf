@@ -101,14 +101,17 @@
             {{ t('libraryForms.importBook.plainHint') }}
           </p>
 
-          <label class="epub-checkbox">
-            <input
-              type="checkbox"
-              :checked="epubStrategy.include_description"
+          <label class="epub-checkbox" :for="includeDescriptionId">
+            <BaseCheckbox
+              :id="includeDescriptionId"
+              :model-value="epubStrategy.include_description"
               :disabled="submitting"
-              @change="onIncludeDescriptionChange"
+              :aria-labelledby="`${includeDescriptionId}-label`"
+              @update:model-value="onIncludeDescriptionChange"
             />
-            <span>{{ t('libraryForms.importBook.includeDescription') }}</span>
+            <span :id="`${includeDescriptionId}-label`">
+              {{ t('libraryForms.importBook.includeDescription') }}
+            </span>
           </label>
         </section>
 
@@ -153,7 +156,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref, useId, watch } from 'vue';
 import {
   SelectContent,
   SelectItem,
@@ -174,9 +177,12 @@ import { hasFileTransfer, readDroppedFiles, readSelectedFiles } from '@/utils/fi
 import { getEpubImportStrategySetting } from '@/api/settings';
 import type { EpubImportPreset } from '@/types/book';
 
+import BaseCheckbox from '@/components/BaseCheckbox.vue';
 import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
+
+const includeDescriptionId = `import-include-description-${useId()}`;
 
 // A function, not a const array: the labels have to follow a locale change, and
 // a module-level array resolves them once at import.
@@ -268,9 +274,8 @@ function onPresetSelect(value: AcceptableValue): void {
   setEpubStrategy({ ...epubStrategy.value, preset: value as EpubImportPreset });
 }
 
-function onIncludeDescriptionChange(event: Event): void {
-  const target = event.target as HTMLInputElement;
-  setEpubStrategy({ ...epubStrategy.value, include_description: target.checked });
+function onIncludeDescriptionChange(include: boolean): void {
+  setEpubStrategy({ ...epubStrategy.value, include_description: include });
 }
 
 // The configured default seeds the dialog; changing it here applies to this

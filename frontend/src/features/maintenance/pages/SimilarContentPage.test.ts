@@ -156,9 +156,10 @@ describe('SimilarContentPage', () => {
     await flush();
     expect(host.textContent).not.toContain(truncatedSubset.a);
 
-    const checkbox = host.querySelector<HTMLInputElement>('.similarity-subset input');
-    checkbox!.checked = true;
-    checkbox!.dispatchEvent(new Event('change'));
+    // The subset control is a Reka checkbox: a <button role="checkbox"> that a
+    // click toggles, not an input whose checked property is assigned.
+    const checkbox = host.querySelector<HTMLButtonElement>('.similarity-subset [role="checkbox"]');
+    checkbox!.click();
     await flush();
 
     const shown = rows(host);

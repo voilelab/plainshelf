@@ -45,21 +45,23 @@
     </div>
 
     <div class="toolbar-bar similarity-subset-bar">
-      <label class="similarity-subset">
-        <input
-          type="checkbox"
-          :checked="subsetOnly"
-          @change="emit('update:subsetOnly', ($event.target as HTMLInputElement).checked)"
+      <label class="similarity-subset" :for="subsetOnlyId">
+        <BaseCheckbox
+          :id="subsetOnlyId"
+          :model-value="subsetOnly"
+          :aria-labelledby="`${subsetOnlyId}-label`"
+          @update:model-value="emit('update:subsetOnly', $event)"
         />
-        <span>{{ t('maintenance.similar.subsetToggle') }}</span>
+        <span :id="`${subsetOnlyId}-label`">{{ t('maintenance.similar.subsetToggle') }}</span>
       </label>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, useId } from 'vue';
 
+import BaseCheckbox from '@/components/BaseCheckbox.vue';
 import { useI18n } from '@/i18n';
 import {
   approxDiffPer100Chars,
@@ -91,6 +93,8 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+const subsetOnlyId = `similarity-subset-only-${useId()}`;
 
 const tiers = SIMILARITY_TIERS;
 

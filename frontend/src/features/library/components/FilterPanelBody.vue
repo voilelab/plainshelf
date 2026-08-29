@@ -96,25 +96,34 @@
           </template>
 
           <template v-else>
-            <label class="filter-option">
-              <input
-                type="checkbox"
-                :checked="isMultiUnset(field.value)"
-                @change="toggleMultiUnset(field.filter, field.value)"
+            <label class="filter-option" :for="`${filterOptionId}-${field.filter}-unset`">
+              <BaseCheckbox
+                :id="`${filterOptionId}-${field.filter}-unset`"
+                :model-value="isMultiUnset(field.value)"
+                :aria-labelledby="`${filterOptionId}-${field.filter}-unset-label`"
+                @update:model-value="toggleMultiUnset(field.filter, field.value)"
               />
-              <span>{{ t('library.filters.value.unset') }}</span>
+              <span :id="`${filterOptionId}-${field.filter}-unset-label`">
+                {{ t('library.filters.value.unset') }}
+              </span>
             </label>
             <label
               v-for="entry in visibleFacet(field)"
               :key="entry.value"
               class="filter-option"
+              :for="`${filterOptionId}-${field.filter}-${entry.value}`"
             >
-              <input
-                type="checkbox"
-                :checked="isMultiChecked(field.value, entry.value)"
-                @change="toggleMultiValue(field.filter, field.value, entry.value)"
+              <BaseCheckbox
+                :id="`${filterOptionId}-${field.filter}-${entry.value}`"
+                :model-value="isMultiChecked(field.value, entry.value)"
+                :aria-labelledby="`${filterOptionId}-${field.filter}-${entry.value}-label`"
+                @update:model-value="toggleMultiValue(field.filter, field.value, entry.value)"
               />
-              <span class="filter-option-value">{{ entry.value }}</span>
+              <!-- The count is deliberately outside the name: a filter called
+                   "Tolkien 12" reads as a value nobody has. -->
+              <span :id="`${filterOptionId}-${field.filter}-${entry.value}-label`" class="filter-option-value">
+                {{ entry.value }}
+              </span>
               <span class="filter-option-count">{{ entry.count }}</span>
             </label>
           </template>
@@ -138,9 +147,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive } from 'vue';
+import { computed, reactive, useId } from 'vue';
 import { useRoute } from 'vue-router';
 import type { Book } from '@/types/book';
+import BaseCheckbox from '@/components/BaseCheckbox.vue';
 import CharCountFilterBar from './CharCountFilterBar.vue';
 import { PANEL_BOOK_FILTERS, type AnyBookFilterDef, type MultiFieldValue } from '@/utils/bookFilters/registry';
 import type { FilterFieldValue } from '@/utils/bookFilters/codec';
@@ -168,6 +178,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const route = useRoute();
+// One prefix per panel instance keeps each facet option's id unique across
+// filters and across a second panel on the page.
+const filterOptionId = `filter-option-${useId()}`;
 const { applyPanelFilters } = useBooksRouteQuery();
 const { hasActive, clearAll } = useBookFilters();
 

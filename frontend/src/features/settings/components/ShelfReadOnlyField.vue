@@ -1,8 +1,8 @@
 <template>
-  <label class="setting-item shelf-read-only">
+  <label class="setting-item shelf-read-only" :for="checkboxId">
     <div>
-      <div class="setting-label">{{ t('settings.shelves.readOnlyLabel') }}</div>
-      <p class="setting-description">{{ t('settings.shelves.readOnlyHelp') }}</p>
+      <span :id="labelId" class="setting-label">{{ t('settings.shelves.readOnlyLabel') }}</span>
+      <p :id="descriptionId" class="setting-description">{{ t('settings.shelves.readOnlyHelp') }}</p>
       <!-- None of these three follow from "read-only" on its own, and each one
            is visible to the user the moment it bites: the shelf stops being
            locked against a second instance, its exported book cache stops being
@@ -14,18 +14,20 @@
         <li>{{ t('settings.shelves.readOnlyEffectPath') }}</li>
       </ul>
     </div>
-    <input
+    <BaseCheckbox
+      :id="checkboxId"
       v-model="model"
-      class="setting-checkbox"
-      type="checkbox"
       :disabled="disabled"
+      :aria-labelledby="labelId"
+      :aria-describedby="descriptionId"
       data-testid="shelf-read-only"
     />
   </label>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, useId } from 'vue';
+import BaseCheckbox from '@/components/BaseCheckbox.vue';
 import { useI18n } from '@/i18n';
 
 const props = withDefaults(defineProps<{ modelValue: boolean; disabled?: boolean }>(), {
@@ -34,6 +36,10 @@ const props = withDefaults(defineProps<{ modelValue: boolean; disabled?: boolean
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>();
 
 const { t } = useI18n();
+
+const checkboxId = `shelf-read-only-${useId()}`;
+const labelId = `shelf-read-only-label-${useId()}`;
+const descriptionId = `shelf-read-only-description-${useId()}`;
 
 const model = computed({
   get: () => props.modelValue,

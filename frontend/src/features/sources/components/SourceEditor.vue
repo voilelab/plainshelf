@@ -63,17 +63,32 @@
       </div>
 
       <div class="find-options">
-        <label class="find-option">
-          <input v-model="caseSensitive" type="checkbox" :disabled="isEditorDisabled" />
-          <span>{{ t('sources.editor.find.caseSensitive') }}</span>
+        <label class="find-option" :for="caseSensitiveId">
+          <BaseCheckbox
+            :id="caseSensitiveId"
+            v-model="caseSensitive"
+            :disabled="isEditorDisabled"
+            :aria-labelledby="`${caseSensitiveId}-label`"
+          />
+          <span :id="`${caseSensitiveId}-label`">{{ t('sources.editor.find.caseSensitive') }}</span>
         </label>
-        <label class="find-option">
-          <input v-model="wholeWord" type="checkbox" :disabled="isEditorDisabled" />
-          <span>{{ t('sources.editor.find.wholeWord') }}</span>
+        <label class="find-option" :for="wholeWordId">
+          <BaseCheckbox
+            :id="wholeWordId"
+            v-model="wholeWord"
+            :disabled="isEditorDisabled"
+            :aria-labelledby="`${wholeWordId}-label`"
+          />
+          <span :id="`${wholeWordId}-label`">{{ t('sources.editor.find.wholeWord') }}</span>
         </label>
-        <label class="find-option">
-          <input v-model="useRegexp" type="checkbox" :disabled="isEditorDisabled" />
-          <span>{{ t('sources.editor.find.regexp') }}</span>
+        <label class="find-option" :for="useRegexpId">
+          <BaseCheckbox
+            :id="useRegexpId"
+            v-model="useRegexp"
+            :disabled="isEditorDisabled"
+            :aria-labelledby="`${useRegexpId}-label`"
+          />
+          <span :id="`${useRegexpId}-label`">{{ t('sources.editor.find.regexp') }}</span>
         </label>
       </div>
 
@@ -87,7 +102,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, useId, watch } from 'vue';
 import { useSourceCodeMirror } from '@/features/sources/composables/useSourceCodeMirror';
 import type {
   SourceDocumentEdit,
@@ -95,9 +110,14 @@ import type {
   SourceEditorViewRange,
   SourceFindScope
 } from '@/features/sources/types/editorAdapter';
+import BaseCheckbox from '@/components/BaseCheckbox.vue';
 import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
+
+const caseSensitiveId = `find-case-sensitive-${useId()}`;
+const wholeWordId = `find-whole-word-${useId()}`;
+const useRegexpId = `find-regexp-${useId()}`;
 
 const props = defineProps<{
   modelValue: string;

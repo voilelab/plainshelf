@@ -212,16 +212,18 @@ describe('ShelvesPanel', () => {
     mgmt.value = buildManagement({ showAddShelfModal: ref(true), newShelfReadOnly });
     const { host, app } = mount();
 
-    const toggle = host.querySelector<HTMLInputElement>('[data-testid="shelf-read-only"]');
+    // The control is a Reka checkbox, so it is a <button role="checkbox">
+    // rather than an input, and a click is what toggles it.
+    const toggle = host.querySelector<HTMLButtonElement>('[data-testid="shelf-read-only"]');
     expect(toggle).not.toBeNull();
+    expect(toggle!.getAttribute('role')).toBe('checkbox');
     // None of the three follows from the word "read-only"; a user cannot guess
     // any of them from the shelf's own behaviour before it is too late.
     expect(host.textContent).toContain('File locking is turned off');
     expect(host.textContent).toContain('exported book cache is not written');
     expect(host.textContent).toContain('The directory is never created');
 
-    toggle!.checked = true;
-    toggle!.dispatchEvent(new Event('change'));
+    toggle!.click();
     await Promise.resolve();
     expect(newShelfReadOnly.value).toBe(true);
 
@@ -242,13 +244,12 @@ describe('ShelvesPanel', () => {
     });
     const { host, app } = mount();
 
-    const toggle = host.querySelector<HTMLInputElement>('[data-testid="shelf-read-only"]');
+    const toggle = host.querySelector<HTMLButtonElement>('[data-testid="shelf-read-only"]');
     expect(toggle).not.toBeNull();
-    expect(toggle!.checked).toBe(true);
+    expect(toggle!.getAttribute('aria-checked')).toBe('true');
     expect(toggle!.disabled).toBe(false);
 
-    toggle!.checked = false;
-    toggle!.dispatchEvent(new Event('change'));
+    toggle!.click();
     await Promise.resolve();
     expect(modifyShelfReadOnly.value).toBe(false);
 

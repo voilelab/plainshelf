@@ -48,9 +48,14 @@
         </template>
       </div>
 
-      <label class="set-current-option">
-        <input v-model="setCurrent" type="checkbox" :disabled="busy">
-        {{ t('sources.conversion.setCurrent') }}
+      <label class="set-current-option" :for="setCurrentId">
+        <BaseCheckbox
+          :id="setCurrentId"
+          v-model="setCurrent"
+          :disabled="busy"
+          :aria-labelledby="`${setCurrentId}-label`"
+        />
+        <span :id="`${setCurrentId}-label`">{{ t('sources.conversion.setCurrent') }}</span>
       </label>
 
       <p v-if="error" class="conversion-error" role="alert">{{ error }}</p>
@@ -59,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref, useId, watch } from 'vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { scanMarkdownH2Headings } from '@/utils/markdownChapters';
 import {
@@ -68,9 +73,12 @@ import {
   textToMarkdownByLineCount,
   textToMarkdownByRegex
 } from '@/features/sources/utils/sourceConversions';
+import BaseCheckbox from '@/components/BaseCheckbox.vue';
 import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
+
+const setCurrentId = `conversion-set-current-${useId()}`;
 
 export type SourceConversionKind =
   | 'manual-md'
