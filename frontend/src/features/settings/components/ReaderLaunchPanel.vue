@@ -8,7 +8,7 @@
       </div>
       <SelectRoot :model-value="value" :disabled="disabled" @update:model-value="onSelect">
         <SelectTrigger class="setting-select select-trigger">
-          <SelectValue />
+          <SelectValue>{{ currentLabel }}</SelectValue>
         </SelectTrigger>
         <SelectPortal>
           <SelectContent class="reka-menu" position="popper" align="end" :side-offset="6">
@@ -28,6 +28,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import {
   SelectContent,
   SelectItem,
@@ -42,7 +43,7 @@ import {
 import type { ReaderLaunchMode } from '@/composables/useReaderLaunchPreference';
 import { useI18n } from '@/i18n';
 
-defineProps<{
+const props = defineProps<{
   value: ReaderLaunchMode;
   disabled: boolean;
 }>();
@@ -52,6 +53,15 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+// Rendered into the SelectValue slot so the closed trigger follows a locale
+// change: reka-ui snapshots each SelectItemText at mount and does not refresh
+// the trigger label on a runtime i18n switch.
+const currentLabel = computed(() =>
+  props.value === 'in-window'
+    ? t('settings.readerLaunch.inWindow')
+    : t('settings.readerLaunch.newReader')
+);
 
 // The setter in the parent coerces any unexpected option back to the default,
 // so the raw cast mirrors the previous native-select behavior; the Select only

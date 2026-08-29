@@ -10,7 +10,7 @@
       </div>
       <SelectRoot :model-value="preset" :disabled="disabled" @update:model-value="onPresetSelect">
         <SelectTrigger class="setting-select select-trigger">
-          <SelectValue />
+          <SelectValue>{{ currentPresetLabel }}</SelectValue>
         </SelectTrigger>
         <SelectPortal>
           <SelectContent class="reka-menu" position="popper" align="end" :side-offset="6">
@@ -59,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { useId } from 'vue';
+import { computed, useId } from 'vue';
 import {
   SelectContent,
   SelectItem,
@@ -75,7 +75,7 @@ import BaseSwitch from '@/components/BaseSwitch.vue';
 import type { EpubImportPreset } from '@/types/book';
 import { useI18n } from '@/i18n';
 
-defineProps<{
+const props = defineProps<{
   preset: EpubImportPreset;
   includeDescription: boolean;
   error: string;
@@ -90,6 +90,15 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+// Rendered into the SelectValue slot so the closed trigger follows a locale
+// change: reka-ui snapshots each SelectItemText at mount and does not refresh
+// the trigger label on a runtime i18n switch.
+const currentPresetLabel = computed(() =>
+  props.preset === 'plain'
+    ? t('settings.epubImport.presetPlain')
+    : t('settings.epubImport.presetMarkdown')
+);
 
 function onPresetSelect(value: AcceptableValue): void {
   if (value === 'markdown' || value === 'plain') {

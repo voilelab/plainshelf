@@ -47,7 +47,7 @@
         <span class="field-label">{{ t('sources.editor.find.scopeLabel') }}</span>
         <SelectRoot :model-value="findScope" :disabled="isEditorDisabled" @update:model-value="onFindScopeChange">
           <SelectTrigger class="control-input select-trigger">
-            <SelectValue />
+            <SelectValue>{{ scopeLabel }}</SelectValue>
           </SelectTrigger>
           <SelectPortal>
             <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
@@ -144,6 +144,15 @@ const emit = defineEmits<{
 
 const isEditorDisabled = computed(() => !props.sourceId || props.loading || props.saving);
 const findScope = ref<SourceFindScope>(props.focused ? 'section' : 'source');
+
+// Rendered into the SelectValue slot so the closed trigger follows a locale
+// change: reka-ui snapshots each SelectItemText at mount and does not refresh
+// the trigger label on a runtime i18n switch.
+const scopeLabel = computed(() =>
+  findScope.value === 'source'
+    ? t('sources.editor.find.scopeSource')
+    : t('sources.editor.find.scopeSection')
+);
 
 function onFindScopeChange(value: AcceptableValue): void {
   if (value === 'section' || value === 'source') {

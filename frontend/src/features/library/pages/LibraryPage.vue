@@ -129,7 +129,7 @@
           <label class="toolbar-label sort-label" for="books-sort">{{ t('library.sort') }}</label>
           <SelectRoot :model-value="sortBy" @update:model-value="onSortSelectChange">
             <SelectTrigger id="books-sort" class="toolbar-control toolbar-select sort-select">
-              <SelectValue />
+              <SelectValue>{{ sortLabel }}</SelectValue>
             </SelectTrigger>
             <SelectPortal>
               <SelectContent class="reka-menu" position="popper" align="start" :side-offset="6">
@@ -819,6 +819,21 @@ function onSortChange(nextSort: BookSortKey): void {
     order: sortOrder.value
   });
 }
+
+// Rendered into the SelectValue slot so the closed trigger follows a locale
+// change. reka-ui snapshots each SelectItemText's text into an option registry
+// at mount, and a runtime i18n switch does not refresh it — the popup options
+// retranslate but the trigger would stay stale until the list is reopened.
+const sortLabel = computed(() => {
+  switch (sortBy.value) {
+    case 'created_at':
+      return t('library.sortBy.created');
+    case 'title':
+      return t('library.sortBy.title');
+    default:
+      return t('library.sortBy.updated');
+  }
+});
 
 function onSortSelectChange(value: AcceptableValue): void {
   if (typeof value !== 'string' || !SORT_OPTIONS.includes(value as BookSortKey)) {
