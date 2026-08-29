@@ -32,6 +32,7 @@ export function useShelfManagement() {
   const newShelfName = ref('');
   const newShelfDirectory = ref('');
   const newShelfScanInterval = ref('');
+  const newShelfReadOnly = ref(false);
   const addingShelf = ref(false);
   const addShelfError = ref('');
   const canSubmitAddShelf = computed(
@@ -74,6 +75,7 @@ export function useShelfManagement() {
   const showModifyShelfModal = ref(false);
   const modifyShelfName = ref('');
   const modifyShelfScanInterval = ref('');
+  const modifyShelfReadOnly = ref(false);
   const modifyShelfPath = ref('');
   const modifyingShelf = ref(false);
   const modifyShelfError = ref('');
@@ -130,6 +132,7 @@ export function useShelfManagement() {
     newShelfName.value = '';
     newShelfDirectory.value = '';
     newShelfScanInterval.value = '';
+    newShelfReadOnly.value = false;
     addShelfError.value = '';
     // Invalidate any in-flight preview so its late response cannot repopulate
     // the field after the form is cleared.
@@ -191,7 +194,7 @@ export function useShelfManagement() {
 
     try {
       const provider = getBookshelfProvider();
-      await provider.addDesktopShelf!(name, dir, scanInterval);
+      await provider.addDesktopShelf!(name, dir, scanInterval, newShelfReadOnly.value);
       await fetchShelves();
       showAddShelfModal.value = false;
       resetAddShelfForm();
@@ -206,6 +209,7 @@ export function useShelfManagement() {
   function resetModifyShelfForm(): void {
     modifyShelfName.value = '';
     modifyShelfScanInterval.value = '';
+    modifyShelfReadOnly.value = false;
     modifyShelfPath.value = '';
     modifyShelfError.value = '';
   }
@@ -224,6 +228,7 @@ export function useShelfManagement() {
       pendingModifyShelf.value = shelf;
       modifyShelfName.value = details.name;
       modifyShelfScanInterval.value = details.scan_interval;
+      modifyShelfReadOnly.value = details.read_only;
       modifyShelfPath.value = details.path;
       showModifyShelfModal.value = true;
     } catch (err) {
@@ -263,7 +268,7 @@ export function useShelfManagement() {
     modifyShelfError.value = '';
 
     try {
-      await provider.modifyDesktopShelf(shelf.id, name, scanInterval);
+      await provider.modifyDesktopShelf(shelf.id, name, scanInterval, modifyShelfReadOnly.value);
       await fetchShelves();
       showModifyShelfModal.value = false;
       pendingModifyShelf.value = null;
@@ -293,6 +298,7 @@ export function useShelfManagement() {
     newShelfName,
     newShelfDirectory,
     newShelfScanInterval,
+    newShelfReadOnly,
     newShelfIDPreview,
     addingShelf,
     addShelfError,
@@ -306,6 +312,7 @@ export function useShelfManagement() {
     showModifyShelfModal,
     modifyShelfName,
     modifyShelfScanInterval,
+    modifyShelfReadOnly,
     modifyShelfPath,
     modifyingShelf,
     modifyShelfError,

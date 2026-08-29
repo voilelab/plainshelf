@@ -64,6 +64,7 @@ function buildManagement(overrides: Record<string, unknown> = {}): Record<string
     newShelfName: ref(''),
     newShelfDirectory: ref(''),
     newShelfScanInterval: ref(''),
+    newShelfReadOnly: ref(false),
     newShelfIDPreview: ref(''),
     addingShelf: ref(false),
     addShelfError: ref(''),
@@ -77,6 +78,7 @@ function buildManagement(overrides: Record<string, unknown> = {}): Record<string
     showModifyShelfModal: ref(false),
     modifyShelfName: ref(''),
     modifyShelfScanInterval: ref(''),
+    modifyShelfReadOnly: ref(false),
     modifyShelfPath: ref(''),
     modifyingShelf: ref(false),
     modifyShelfError: ref(''),
@@ -200,6 +202,55 @@ describe('ShelvesPanel', () => {
     expect(host.querySelector<HTMLSelectElement>('[data-testid="scan-interval-unit"]')?.value).toBe(
       'm'
     );
+
+    app.unmount();
+  });
+
+  it('offers the read-only toggle when creating a shelf, with its knock-on effects spelled out', async () => {
+    state.desktop = true;
+    const newShelfReadOnly = ref(false);
+    mgmt.value = buildManagement({ showAddShelfModal: ref(true), newShelfReadOnly });
+    const { host, app } = mount();
+
+    const toggle = host.querySelector<HTMLInputElement>('[data-testid="shelf-read-only"]');
+    expect(toggle).not.toBeNull();
+    // None of the three follows from the word "read-only"; a user cannot guess
+    // any of them from the shelf's own behaviour before it is too late.
+    expect(host.textContent).toContain('File locking is turned off');
+    expect(host.textContent).toContain('exported book cache is not written');
+    expect(host.textContent).toContain('The directory is never created');
+
+    toggle!.checked = true;
+    toggle!.dispatchEvent(new Event('change'));
+    await Promise.resolve();
+    expect(newShelfReadOnly.value).toBe(true);
+
+    app.unmount();
+  });
+
+  // The one-way-door guard: what makes a shelf read-only lives in shelves.json,
+  // outside every shelf, so a read-only shelf's own settings stay editable. If
+  // the toggle were ever rendered off or disabled for a shelf that is already
+  // read-only, turning it back off would need a hand-edited config file.
+  it('shows the read-only toggle as on and operable for an already read-only shelf', async () => {
+    state.desktop = true;
+    const modifyShelfReadOnly = ref(true);
+    mgmt.value = buildManagement({
+      showModifyShelfModal: ref(true),
+      pendingModifyShelf: ref({ id: 'archive', name: 'Archive' }),
+      modifyShelfReadOnly
+    });
+    const { host, app } = mount();
+
+    const toggle = host.querySelector<HTMLInputElement>('[data-testid="shelf-read-only"]');
+    expect(toggle).not.toBeNull();
+    expect(toggle!.checked).toBe(true);
+    expect(toggle!.disabled).toBe(false);
+
+    toggle!.checked = false;
+    toggle!.dispatchEvent(new Event('change'));
+    await Promise.resolve();
+    expect(modifyShelfReadOnly.value).toBe(false);
 
     app.unmount();
   });

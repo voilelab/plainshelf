@@ -122,6 +122,12 @@ app_conf:
 
 PlainShelf then answers every write request with HTTP 403 and opens each shelf — including one added after startup — as if it carried `read_only: true`. Rescanning a shelf is still allowed, because it only walks the shelf and rebuilds the in-memory cache.
 
+### From the desktop app
+
+The desktop app keeps its shelves in its own data directory rather than in a config file, so the same setting is a **Read-only shelf** toggle in **Settings → Shelves** — in the dialog that adds a shelf, and in **Modify** for a shelf that already exists. Switching it closes that shelf and opens it again in the new mode, without restarting the app.
+
+The toggle works in both directions, including on a shelf that is already read-only: what `read_only` stops is writing to the *shelf*, and the desktop shelf list lives outside every shelf.
+
 ## Troubleshooting
 
 ### PlainShelf cannot create or update books

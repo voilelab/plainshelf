@@ -191,6 +191,138 @@ func TestDesktopShelfEntryIncludesScanInterval(t *testing.T) {
 	}
 }
 
+func TestDesktopShelfEntryIncludesReadOnly(t *testing.T) {
+	entry := desktopShelfEntry{
+		ID:       "archive",
+		Name:     "Archive",
+		LibRoot:  "/mnt/archive",
+		ReadOnly: true,
+	}
+
+	conf := toShelfConfWithID(entry)
+	if !conf.ReadOnly {
+		t.Fatal("read_only was not carried into the shelf configuration")
+	}
+}
+
+// The shelf setting that opens a shelf without writing to it has to be
+// reachable from the desktop UI, and reversible from it: shelves.json lives in
+// the desktop data directory, outside every shelf, so a shelf's own read_only
+// never governs whether its settings can be edited. See DesktopApp.ModifyShelf.
+func TestModifyShelfTogglesReadOnlyBothWays(t *testing.T) {
+	const shelfID = "archive"
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "shelves.json")
+	libRoot := filepath.Join(tempDir, "archive-shelf")
+	if err := os.MkdirAll(libRoot, 0o755); err != nil {
+		t.Fatalf("MkdirAll(libRoot): %v", err)
+	}
+
+	serverApp, err := server.NewApp(&server.AppConf{
+		StorePath: filepath.Join(tempDir, "store"),
+		Security:  &server.SecurityConf{Mode: server.SecurityModeNone},
+	})
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+	t.Cleanup(func() { serverApp.Close() })
+
+	desktopApp := &DesktopApp{app: serverApp, shelvesConfigPath: configPath}
+	if err := desktopApp.AddShelf("Archive", libRoot, "", false); err != nil {
+		t.Fatalf("AddShelf: %v", err)
+	}
+
+	if err := desktopApp.ModifyShelf(shelfID, "Archive", "", true); err != nil {
+		t.Fatalf("ModifyShelf to read-only: %v", err)
+	}
+	assertShelfReadOnly(t, desktopApp, shelfID, true)
+
+	// The modify form reads its initial state from here, so a shelf that could
+	// be turned read-only but never showed the toggle as on would be a one-way
+	// door in the UI even though the backend can still be told otherwise.
+	details, err := desktopApp.GetShelfDetails(shelfID)
+	if err != nil {
+		t.Fatalf("GetShelfDetails: %v", err)
+	}
+	if !details.ReadOnly {
+		t.Fatal("GetShelfDetails reported read_only = false for a read-only shelf")
+	}
+
+	if err := desktopApp.ModifyShelf(shelfID, "Archive", "", false); err != nil {
+		t.Fatalf("ModifyShelf back to writable: %v", err)
+	}
+	assertShelfReadOnly(t, desktopApp, shelfID, false)
+
+	details, err = desktopApp.GetShelfDetails(shelfID)
+	if err != nil {
+		t.Fatalf("GetShelfDetails after turning read_only off: %v", err)
+	}
+	if details.ReadOnly {
+		t.Fatal("GetShelfDetails still reported read_only = true after it was turned off")
+	}
+}
+
+// A read-only shelf is taken exactly as it is found: opening one must leave no
+// app/ directory, no lock file and no exported book cache behind.
+func TestAddShelfReadOnlyWritesNothingToTheShelf(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "shelves.json")
+	libRoot := filepath.Join(tempDir, "archive-shelf")
+	if err := os.MkdirAll(libRoot, 0o755); err != nil {
+		t.Fatalf("MkdirAll(libRoot): %v", err)
+	}
+
+	serverApp, err := server.NewApp(&server.AppConf{
+		StorePath: filepath.Join(tempDir, "store"),
+		Security:  &server.SecurityConf{Mode: server.SecurityModeNone},
+	})
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+	t.Cleanup(func() { serverApp.Close() })
+
+	desktopApp := &DesktopApp{app: serverApp, shelvesConfigPath: configPath}
+	if err := desktopApp.AddShelf("Archive", libRoot, "", true); err != nil {
+		t.Fatalf("AddShelf read-only: %v", err)
+	}
+	assertShelfReadOnly(t, desktopApp, "archive", true)
+
+	entries, err := os.ReadDir(libRoot)
+	if err != nil {
+		t.Fatalf("ReadDir(libRoot): %v", err)
+	}
+	if len(entries) != 0 {
+		names := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			names = append(names, entry.Name())
+		}
+		t.Fatalf("a read-only shelf wrote into lib_root: %v", names)
+	}
+
+	conf, err := loadDesktopShelves(configPath)
+	if err != nil {
+		t.Fatalf("loadDesktopShelves: %v", err)
+	}
+	if len(conf.Shelves) != 1 || !conf.Shelves[0].ReadOnly {
+		t.Fatalf("read_only was not persisted: %+v", conf.Shelves)
+	}
+}
+
+func assertShelfReadOnly(t *testing.T, desktopApp *DesktopApp, shelfID string, want bool) {
+	t.Helper()
+
+	shelfData, ok := desktopApp.app.ShelfManager().GetShelf(shelfID)
+	if !ok {
+		t.Fatalf("GetShelf(%q) did not find the shelf", shelfID)
+	}
+	if err := shelfData.WaitReady(t.Context()); err != nil {
+		t.Fatalf("WaitReady(%q): %v", shelfID, err)
+	}
+	if got := shelfData.ReadOnly(); got != want {
+		t.Fatalf("shelf %q ReadOnly() = %v, want %v", shelfID, got, want)
+	}
+}
+
 func TestNormalizeDesktopShelfDirectory(t *testing.T) {
 	cases := []struct {
 		input   string
@@ -260,7 +392,7 @@ func TestAddShelfDoesNotPersistWhenRegistrationFails(t *testing.T) {
 	defer serverApp.Close()
 
 	desktopApp := &DesktopApp{app: serverApp, shelvesConfigPath: configPath}
-	if err := desktopApp.AddShelf("Broken Shelf", badShelfPath, "10m"); err == nil {
+	if err := desktopApp.AddShelf("Broken Shelf", badShelfPath, "10m", false); err == nil {
 		t.Fatal("AddShelf with regular file path: want error, got nil")
 	}
 

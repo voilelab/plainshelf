@@ -43,6 +43,7 @@
         autofocus
       />
       <ScanIntervalField v-model="modifyShelfScanInterval" :disabled="modifyingShelf" />
+      <ShelfReadOnlyField v-model="modifyShelfReadOnly" :disabled="modifyingShelf" />
       <p v-if="modifyShelfError" class="settings-message settings-message-error" role="alert">
         {{ modifyShelfError }}
       </p>
@@ -92,6 +93,7 @@
         </button>
       </div>
       <ScanIntervalField v-model="newShelfScanInterval" :disabled="addingShelf" />
+      <ShelfReadOnlyField v-model="newShelfReadOnly" :disabled="addingShelf" />
       <p v-if="addShelfError" class="settings-message settings-message-error" role="alert">
         {{ addShelfError }}
       </p>
@@ -220,6 +222,7 @@ import { computed, onMounted, ref } from 'vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
 import ScanIntervalField from '@/features/settings/components/ScanIntervalField.vue';
+import ShelfReadOnlyField from '@/features/settings/components/ShelfReadOnlyField.vue';
 import { exportShelfBookCache } from '@/api/shelves';
 import { useI18n } from '@/i18n';
 import { useWriteAccess } from '@/composables/useWriteAccess';
@@ -251,6 +254,7 @@ const {
   newShelfName,
   newShelfDirectory,
   newShelfScanInterval,
+  newShelfReadOnly,
   newShelfIDPreview,
   addingShelf,
   addShelfError,
@@ -264,6 +268,7 @@ const {
   showModifyShelfModal,
   modifyShelfName,
   modifyShelfScanInterval,
+  modifyShelfReadOnly,
   modifyShelfPath,
   modifyingShelf,
   modifyShelfError,
