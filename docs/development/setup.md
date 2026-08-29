@@ -5,17 +5,24 @@ installation, see [Installation](../installation.md).
 
 ## Prerequisites
 
-| Tool | Minimum version | Purpose |
+| Tool | Version | Purpose |
 |---|---:|---|
-| Go | 1.27.0 | server, core library, desktop backend |
-| Node.js | 22.18 | frontend and end-to-end tests |
+| Go | 1.27.0 or newer | server, core library, desktop backend |
+| Node.js | 22.18 to 23 | frontend and end-to-end tests |
 | npm | bundled with Node.js | JavaScript dependencies |
 | just | recent | repository task runner |
 | zsh | recent | shell used by the `justfile` |
 
-The frontend itself runs on any Node.js 22. The 22.18 floor comes from Babel 8,
-which the mutation-testing dev dependency pulls in; below it `npm ci` warns and
-fails outright where npm engine enforcement is on.
+The 22.18 floor comes from Babel 8, which the mutation-testing dev dependency
+pulls in; below it `npm ci` warns and fails outright where npm engine
+enforcement is on.
+
+Node.js has a ceiling as well as a floor. From Node.js 26 the runtime defines
+its own experimental `localStorage` global, which leaves `window.localStorage`
+undefined inside Vitest's jsdom environment; ten unit-test files then fail on
+import with `Cannot read properties of undefined (reading 'getItem')`. The unit
+suite passes on Node.js 22, which CI runs, and on 23; it fails on 26. Node.js 24
+and 25 have not been tried.
 
 Desktop development also needs the
 [Wails platform dependencies](https://wails.io/docs/gettingstarted/installation).
