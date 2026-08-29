@@ -85,8 +85,11 @@ test('hides write affordances in the library and on book detail', async ({ page 
   await expect(page.getByRole('button', { name: /^Import/ })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Add folder' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Logs' })).toHaveCount(0);
-  // Downloads is a local-device action and must survive.
+  // Downloads is a local-device action and must survive — now reached from the
+  // bottom tab bar, the mobile shell's primary nav, rather than the drawer.
+  await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(1);
   await expect(page.getByRole('link', { name: 'Downloads' })).toHaveCount(1);
+  await expect(page.getByRole('link', { name: 'Library' })).toHaveCount(1);
   // The banner is for a read-only *server*, not for this platform.
   await expect(page.locator('.read-only-banner')).toHaveCount(0);
 

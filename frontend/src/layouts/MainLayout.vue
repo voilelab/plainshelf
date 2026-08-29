@@ -245,6 +245,7 @@
                 <span>{{ t('layout.dashboard') }}</span>
               </RouterLink>
               <RouterLink
+                v-if="!isMobileShell"
                 to="/read-history"
                 class="sidebar-nav-item"
                 exact-active-class="active"
@@ -354,7 +355,10 @@
           </section>
         </template>
 
-        <template v-if="hasDownloadsStore">
+        <!-- Downloads and the admin section (Logs + Settings) are reached from
+             the bottom tab bar on the mobile shell, so the drawer drops them
+             there and keeps only shelf switching and the folder tree. -->
+        <template v-if="hasDownloadsStore && !isMobileShell">
           <div class="sidebar-nav-divider" role="presentation"></div>
           <section class="sidebar-section" :aria-label="t('layout.downloads')">
             <nav class="sidebar-nav-list" :aria-label="t('layout.downloads')">
@@ -366,9 +370,13 @@
           </section>
         </template>
 
-        <div class="sidebar-nav-divider" role="presentation"></div>
+        <div v-if="!isMobileShell" class="sidebar-nav-divider" role="presentation"></div>
 
-        <section class="sidebar-section" :aria-label="t('layout.sections.admin')">
+        <section
+          v-if="!isMobileShell"
+          class="sidebar-section"
+          :aria-label="t('layout.sections.admin')"
+        >
           <button
             type="button"
             class="sidebar-section-toggle"
@@ -469,7 +477,7 @@
         </div>
       </header>
 
-      <div class="page-area">
+      <div class="page-area" :class="{ 'page-area-tabbar': isMobileShell }">
         <RouterView v-if="canShowRouteContent" />
         <section v-else class="no-shelf-panel" role="status">
           <h2>{{ t('layout.shelf.unavailableTitle') }}</h2>
@@ -480,6 +488,8 @@
       </div>
     </SplitterPanel>
     </SplitterGroup>
+
+    <MobileTabBar v-if="isMobileShell" />
   </div>
 </template>
 
@@ -510,10 +520,11 @@ import BookBatchProgressModal from '@/components/BookBatchProgressModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
 import Icon from '@/components/Icon.vue';
 import FolderTree from '@/components/FolderTree.vue';
+import MobileTabBar from '@/components/MobileTabBar.vue';
 import RenameFolderModal from '@/components/RenameFolderModal.vue';
 import TransferFolderModal from '@/components/TransferFolderModal.vue';
 import SidebarNavIcon from '@/components/SidebarNavIcon.vue';
-import { getBookshelfProvider, isWailsRuntime } from '@/providers';
+import { getBookshelfProvider, isMobileRuntime, isWailsRuntime } from '@/providers';
 import { useBookStore } from '@/composables/useBookStore';
 import { useFolderManagement } from '@/composables/useFolderManagement';
 import { useFolderStore } from '@/composables/useFolderStore';
@@ -557,6 +568,13 @@ const hasDownloadsStore = computed(() =>
 // them off the immersive ReaderLayout routes, where the keyboard ←/→ already
 // mean previous/next chapter.
 const showHistoryControls = computed(() => isWailsRuntime());
+
+// The mobile shell gets a bottom tab bar for its frequent destinations. Gated
+// on the mobile *runtime* (not merely a narrow viewport) because the Downloads
+// tab only exists on the mobile provider, and because a narrow desktop browser
+// should keep the existing drawer. Latched like the runtime itself, so read it
+// once rather than reactively.
+const isMobileShell = isMobileRuntime();
 
 function goToPreviousPage(): void {
   window.history.back();
@@ -1001,6 +1019,13 @@ onMounted(async () => {
 .page-area {
   padding: 16px calc(24px + env(safe-area-inset-right, 0px))
     calc(16px + env(safe-area-inset-bottom, 0px)) calc(24px + env(safe-area-inset-left, 0px));
+}
+
+/* On the mobile shell a fixed bottom tab bar (MobileTabBar) overlays the
+   viewport, so the last row of scrolled content needs room to clear it: the
+   bar's own height plus the bottom inset it already carries. */
+.page-area-tabbar {
+  padding-bottom: calc(56px + 16px + env(safe-area-inset-bottom, 0px));
 }
 
 .no-shelf-panel {
