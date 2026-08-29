@@ -50,6 +50,7 @@ type DesktopShelfDetails struct {
 	Name         string `json:"name"`
 	Path         string `json:"path"`
 	ScanInterval string `json:"scan_interval"`
+	ReadOnly     bool   `json:"read_only"`
 }
 
 var openFinder = util.OpenFinder
@@ -821,7 +822,12 @@ func readerLaunchCommand(bookPath, shelfID string, section int) (string, []strin
 	return "open", append([]string{"-n", "-a", app, "--args"}, readerArgs...)
 }
 
-func (a *DesktopApp) AddShelf(name, libRoot, scanInterval string) error {
+// AddShelf registers a new shelf and persists it to shelves.json.
+//
+// readOnly opens the shelf without writing to it at all (shelf.ShelfConf):
+// lib_root must already exist, because a read-only shelf is never created, and
+// neither the lock file nor the exported book cache is written.
+func (a *DesktopApp) AddShelf(name, libRoot, scanInterval string, readOnly bool) error {
 	if a.app == nil {
 		return util.NewError("desktop backend app instance is nil")
 	}
@@ -855,6 +861,7 @@ func (a *DesktopApp) AddShelf(name, libRoot, scanInterval string) error {
 		Name:         name,
 		LibRoot:      normalizedLibRoot,
 		ScanInterval: scanInterval,
+		ReadOnly:     readOnly,
 	}
 
 	err = a.app.AddShelf(toShelfConfWithID(entry))
@@ -895,6 +902,7 @@ func (a *DesktopApp) GetShelfDetails(shelfID string) (*DesktopShelfDetails, erro
 				Name:         entry.Name,
 				Path:         entry.LibRoot,
 				ScanInterval: entry.ScanInterval,
+				ReadOnly:     entry.ReadOnly,
 			}, nil
 		}
 	}
@@ -902,7 +910,21 @@ func (a *DesktopApp) GetShelfDetails(shelfID string) (*DesktopShelfDetails, erro
 	return nil, util.Errorf("shelf with ID %q not found", shelfID)
 }
 
-func (a *DesktopApp) ModifyShelf(shelfID, name, scanInterval string) error {
+// ModifyShelf applies edited settings to an existing shelf.
+//
+// Turning readOnly on stops the shelf being written to; turning it off restores
+// writes. Neither direction may become one-way: what this method edits is
+// shelves.json in the desktop data directory, which is outside every shelf, so
+// a shelf's own read_only has no say over whether its settings can be changed.
+//
+// That is worth keeping deliberately, because it currently holds by accident:
+// the desktop reaches this method through a Wails binding rather than the HTTP
+// handler, so server.App.rejectReadOnlyWrite never sees the request. Were shelf
+// management ever moved onto the HTTP API, a server started with
+// app_conf.read_only would refuse the very request that turns read-only off,
+// and the only way back would be to edit a config file by hand. Whatever serves
+// this edit has to stay reachable while the shelf it edits is read-only.
+func (a *DesktopApp) ModifyShelf(shelfID, name, scanInterval string, readOnly bool) error {
 	if a.app == nil {
 		return util.NewError("desktop backend app instance is nil")
 	}
@@ -935,18 +957,21 @@ func (a *DesktopApp) ModifyShelf(shelfID, name, scanInterval string) error {
 		return util.Errorf("shelf with ID %q not found in config", shelfID)
 	}
 
-	oldName := found.Name
-	oldScanInterval := found.ScanInterval
+	previous := *found
 
-	if err := a.app.UpdateShelf(shelfID, name, scanInterval); err != nil {
+	updated := previous
+	updated.Name = name
+	updated.ScanInterval = scanInterval
+	updated.ReadOnly = readOnly
+
+	if err := a.app.UpdateShelf(toShelfConfWithID(updated)); err != nil {
 		return util.Errorf("updating shelf: %w", err)
 	}
 
-	found.Name = name
-	found.ScanInterval = scanInterval
+	*found = updated
 
 	if err := saveDesktopShelves(a.shelvesConfigPath, conf); err != nil {
-		if rollbackErr := a.app.UpdateShelf(shelfID, oldName, oldScanInterval); rollbackErr != nil {
+		if rollbackErr := a.app.UpdateShelf(toShelfConfWithID(previous)); rollbackErr != nil {
 			return util.Errorf("saving shelf config: %w; rolling back runtime shelf: %v", err, rollbackErr)
 		}
 		return util.Errorf("saving shelf config: %w", err)

@@ -10,6 +10,12 @@ import (
 type ShelfData struct {
 	ID   string
 	Name string
+
+	// conf is the configuration this shelf was opened with. UpdateShelf needs
+	// it to tell an in-place change from one that can only be applied by
+	// opening the shelf again, and to reopen the previous one when that fails.
+	conf ShelfConf
+
 	*Shelf
 }
 
@@ -61,6 +67,7 @@ func (sm *ShelfManager) AddShelf(conf ShelfConfWithID) error {
 		Shelf: s,
 		Name:  conf.Name,
 		ID:    conf.ID,
+		conf:  conf.ShelfConf,
 	}
 
 	return nil
@@ -104,20 +111,73 @@ func (sm *ShelfManager) GetAllShelves() []ShelfData {
 	return shelves
 }
 
-func (sm *ShelfManager) UpdateShelf(id, name, scanInterval string) error {
+// UpdateShelf applies a new configuration to a shelf that is already open.
+//
+// The name and the scan interval are changed on the live shelf. read_only
+// cannot be: it is read while the shelf is being opened - it picks the lock
+// mode, decides whether lib_root may be created, whether app/ is written and
+// whether the book cache is exported - so changing it closes the shelf and
+// opens it again from the new configuration.
+//
+// lib_root is not a setting this can change; a shelf that should live somewhere
+// else is removed and added again under the new path.
+func (sm *ShelfManager) UpdateShelf(conf ShelfConfWithID) error {
 	sm.lock.Lock()
 	defer sm.lock.Unlock()
 
-	s, exists := sm.shelves[id]
+	s, exists := sm.shelves[conf.ID]
 	if !exists {
-		return util.Errorf("shelf with ID %q does not exist", id)
+		return util.Errorf("shelf with ID %q does not exist", conf.ID)
 	}
 
-	if err := s.SetScanInterval(scanInterval); err != nil {
+	if conf.LibRoot != s.conf.LibRoot {
+		return util.Errorf("shelf %q lib_root cannot be changed from %q to %q", conf.ID, s.conf.LibRoot, conf.LibRoot)
+	}
+
+	if conf.ReadOnly != s.conf.ReadOnly {
+		return sm.reopenShelfLocked(s, conf)
+	}
+
+	if err := s.SetScanInterval(conf.ScanInterval); err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	s.Name = name
+	s.Name = conf.Name
+	s.conf = conf.ShelfConf
+	return nil
+}
+
+// reopenShelfLocked replaces an open shelf with one opened from conf.
+//
+// The old shelf is closed first: both configurations name the same lib_root,
+// and a writable shelf opened next to the one it is replacing would contend
+// with it for the lock file, the scan cache and the exported book cache.
+//
+// That leaves a window with nothing open, so a configuration that does not open
+// - read_only pointed at a lib_root that no longer exists - falls back to the
+// previous one instead of leaving the shelf unregistered. Only when that also
+// fails to open is the shelf dropped, and the error says so.
+func (sm *ShelfManager) reopenShelfLocked(s *ShelfData, conf ShelfConfWithID) error {
+	previous := s.conf
+
+	if err := s.Close(); err != nil {
+		return util.Errorf("closing shelf %q: %w", conf.ID, err)
+	}
+
+	next, err := NewShelf(&conf.ShelfConf)
+	if err != nil {
+		restored, restoreErr := NewShelf(&previous)
+		if restoreErr != nil {
+			delete(sm.shelves, conf.ID)
+			return util.Errorf("reopening shelf %q: %w; the previous configuration no longer opens either (%v), so the shelf is now closed", conf.ID, err, restoreErr)
+		}
+		s.Shelf = restored
+		return util.Errorf("reopening shelf %q: %w", conf.ID, err)
+	}
+
+	s.Shelf = next
+	s.Name = conf.Name
+	s.conf = conf.ShelfConf
 	return nil
 }
 

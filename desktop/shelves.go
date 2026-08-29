@@ -17,6 +17,13 @@ type desktopShelfEntry struct {
 	Name         string `json:"name"`
 	LibRoot      string `json:"lib_root"`
 	ScanInterval string `json:"scan_interval,omitempty"`
+
+	// ReadOnly opens the shelf without writing to it; see shelf.ShelfConf.
+	//
+	// This file is not inside any shelf, so a shelf being read-only never makes
+	// its own entry here unwritable: a shelf that was opened read-only can
+	// always be edited back. See DesktopApp.ModifyShelf.
+	ReadOnly bool `json:"read_only,omitempty"`
 }
 
 const (
@@ -94,6 +101,7 @@ func toShelfConfWithID(entry desktopShelfEntry) shelf.ShelfConfWithID {
 		ShelfConf: shelf.ShelfConf{
 			LibRoot:      entry.LibRoot,
 			ScanInterval: entry.ScanInterval,
+			ReadOnly:     entry.ReadOnly,
 		},
 	}
 }

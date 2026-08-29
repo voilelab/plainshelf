@@ -12,6 +12,7 @@ export interface DesktopShelfDetails {
   name: string;
   path: string;
   scan_interval: string;
+  read_only: boolean;
 }
 
 interface DesktopAppBinding {
@@ -27,10 +28,20 @@ interface DesktopAppBinding {
   OpenFolderDirectory?: (shelfID: string, folderParts: string[]) => Promise<void>;
   OpenBookDirectory?: (shelfID: string, bookID: string) => Promise<void>;
   OpenReader?: (shelfID: string, bookID: string, section: number) => Promise<void>;
-  AddShelf?: (name: string, libRoot: string, scanInterval: string) => Promise<void>;
+  AddShelf?: (
+    name: string,
+    libRoot: string,
+    scanInterval: string,
+    readOnly: boolean
+  ) => Promise<void>;
   RemoveShelf?: (shelfID: string) => Promise<void>;
   GetShelfDetails?: (shelfID: string) => Promise<DesktopShelfDetails>;
-  ModifyShelf?: (shelfID: string, name: string, scanInterval: string) => Promise<void>;
+  ModifyShelf?: (
+    shelfID: string,
+    name: string,
+    scanInterval: string,
+    readOnly: boolean
+  ) => Promise<void>;
   SaveBookContent?: (shelfID: string, bookID: string, suggestedName: string) => Promise<void>;
   OpenExternalURL?: (url: string) => Promise<void>;
   ReadReadHistory?: () => Promise<string>;
@@ -208,13 +219,18 @@ export async function openDesktopFolder(folderPath: string): Promise<void> {
   await desktopApp.OpenFolderDirectory(getActiveShelfID(), normalizeFolderParts(folderPath));
 }
 
-export async function addDesktopShelf(name: string, libRoot: string, scanInterval: string): Promise<void> {
+export async function addDesktopShelf(
+  name: string,
+  libRoot: string,
+  scanInterval: string,
+  readOnly: boolean
+): Promise<void> {
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
   if (!desktopApp?.AddShelf) {
     throw new Error('AddShelf binding not available');
   }
 
-  await desktopApp.AddShelf(name, libRoot, scanInterval);
+  await desktopApp.AddShelf(name, libRoot, scanInterval, readOnly);
 }
 
 export async function removeDesktopShelf(shelfID: string): Promise<void> {
@@ -235,13 +251,18 @@ export async function getDesktopShelfDetails(shelfID: string): Promise<DesktopSh
   return desktopApp.GetShelfDetails(shelfID);
 }
 
-export async function modifyDesktopShelf(shelfID: string, name: string, scanInterval: string): Promise<void> {
+export async function modifyDesktopShelf(
+  shelfID: string,
+  name: string,
+  scanInterval: string,
+  readOnly: boolean
+): Promise<void> {
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
   if (!desktopApp?.ModifyShelf) {
     throw new Error('ModifyShelf binding not available');
   }
 
-  await desktopApp.ModifyShelf(shelfID, name, scanInterval);
+  await desktopApp.ModifyShelf(shelfID, name, scanInterval, readOnly);
 }
 
 // Imports a single host-path book. The frontend calls it once per selected file

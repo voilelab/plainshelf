@@ -40,7 +40,7 @@ export interface ServerSettingsForm {
   epubIncludeDescription: Ref<boolean>;
   epubImportError: Ref<string>;
   loadSettings: () => Promise<void>;
-  onCoverToJpgChange: (event: Event) => Promise<void>;
+  onCoverToJpgChange: (value: boolean) => Promise<void>;
   onLogRetentionDaysChange: (event: Event) => Promise<void>;
   onReadHistoryLimitChange: (event: Event) => Promise<void>;
   onReaderLaunchModeChange: (event: Event) => void;
@@ -53,8 +53,9 @@ export interface ServerSettingsForm {
  * limit, which loads on every client) and the shared load/save state the
  * settings page uses to disable its controls while a request is in flight.
  *
- * The change handlers take the raw DOM event because several of them restore
+ * The select and number handlers take the raw DOM event because they restore
  * the control's own value when a save fails, which needs the element itself.
+ * The cover switch renders from its ref, so that one takes the value.
  */
 export function useServerSettingsForm(options: {
   serverSettingsEditable: Ref<boolean>;
@@ -138,13 +139,7 @@ export function useServerSettingsForm(options: {
     }
   }
 
-  async function onCoverToJpgChange(event: Event): Promise<void> {
-    const target = event.target;
-    if (!(target instanceof HTMLInputElement)) {
-      return;
-    }
-
-    const nextValue = target.checked;
+  async function onCoverToJpgChange(nextValue: boolean): Promise<void> {
     const prevValue = coverToJpg.value;
     coverToJpg.value = nextValue;
     saving.value = true;
@@ -153,8 +148,10 @@ export function useServerSettingsForm(options: {
     try {
       await setCoverToJpgSetting(nextValue);
     } catch (err) {
+      // The switch renders from this ref, so putting it back is the whole
+      // rollback — the native checkbox it replaced also needed its own DOM
+      // state restored, because the browser had already toggled it.
       coverToJpg.value = prevValue;
-      target.checked = prevValue;
       error.value = err instanceof Error ? err.message : t('settings.saveFailed');
     } finally {
       saving.value = false;

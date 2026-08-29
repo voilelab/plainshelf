@@ -351,6 +351,13 @@ const en = {
       modifyShelfIDLabel: 'ID',
       modifyShelfPathLabel: 'Path',
       modifyShelfNamePlaceholder: 'Shelf name',
+      readOnlyLabel: 'Read-only shelf',
+      readOnlyHelp:
+        'Open the shelf without writing anything to it — a restored backup, a read-only mount, an archived snapshot. Its books can be browsed and read; nothing can be added, edited or deleted.',
+      readOnlyEffectLock: 'File locking is turned off, because taking the lock is itself a write.',
+      readOnlyEffectBookCache: 'The exported book cache is not written for this shelf.',
+      readOnlyEffectPath:
+        'The directory is never created: the path has to exist already, or the shelf will not open.',
       scanIntervalLabel: 'Scan interval',
       scanIntervalModeDefault: 'Use the default (every minute)',
       scanIntervalModeEvery: 'Scan at most every…',

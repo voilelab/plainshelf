@@ -345,6 +345,12 @@ const zhHant = {
       modifyShelfIDLabel: 'ID',
       modifyShelfPathLabel: '路徑',
       modifyShelfNamePlaceholder: '書架名稱',
+      readOnlyLabel: '唯讀書架',
+      readOnlyHelp:
+        '開啟書架但完全不寫入 —— 還原的備份、唯讀掛載點、封存快照。書可以瀏覽與閱讀，但不能新增、修改或刪除。',
+      readOnlyEffectLock: '停用檔案鎖定，因為取得鎖本身就是一次寫入。',
+      readOnlyEffectBookCache: '不會為這個書架輸出書籍快取檔。',
+      readOnlyEffectPath: '不會建立目錄：路徑必須已經存在，否則書架無法開啟。',
       scanIntervalLabel: '掃描間隔',
       scanIntervalModeDefault: '使用預設值（每 1 分鐘）',
       scanIntervalModeEvery: '最多每…掃描一次',

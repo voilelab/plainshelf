@@ -19,16 +19,24 @@
       </select>
     </label>
 
-    <label class="setting-item">
+    <!-- Row-wide click target, same as the preset row above; see CoverPanel
+         for why a <label> can still wrap the switch button. -->
+    <label class="setting-item" :for="switchId">
       <div>
-        <div class="setting-label">{{ t('settings.epubImport.includeDescriptionLabel') }}</div>
-        <p class="setting-description">{{ t('settings.epubImport.includeDescriptionHelp') }}</p>
+        <span :id="labelId" class="setting-label">
+          {{ t('settings.epubImport.includeDescriptionLabel') }}
+        </span>
+        <p :id="descriptionId" class="setting-description">
+          {{ t('settings.epubImport.includeDescriptionHelp') }}
+        </p>
       </div>
-      <input
-        v-model="includeDescriptionModel"
-        class="setting-checkbox"
-        type="checkbox"
+      <BaseSwitch
+        :id="switchId"
+        :model-value="includeDescription"
         :disabled="disabled"
+        :aria-labelledby="labelId"
+        :aria-describedby="descriptionId"
+        @update:model-value="emit('update:includeDescription', $event)"
       />
     </label>
 
@@ -43,11 +51,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { useId } from 'vue';
+import BaseSwitch from '@/components/BaseSwitch.vue';
 import type { EpubImportPreset } from '@/types/book';
 import { useI18n } from '@/i18n';
 
-const props = defineProps<{
+defineProps<{
   preset: EpubImportPreset;
   includeDescription: boolean;
   error: string;
@@ -63,10 +72,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const includeDescriptionModel = computed({
-  get: () => props.includeDescription,
-  set: (value: boolean) => emit('update:includeDescription', value)
-});
+const switchId = `epub-include-description-${useId()}`;
+const labelId = `epub-include-description-label-${useId()}`;
+const descriptionId = `epub-include-description-help-${useId()}`;
 </script>
 
 <style scoped src="../styles/settings-form.css"></style>

@@ -333,7 +333,7 @@ Two consequences worth knowing:
 - **Every start pays for a full walk.** The scan cache is read but never written, so a read-only shelf cannot get cheaper across restarts the way a writable one does. On a large or high-latency shelf, that is the cost of the guarantee.
 - **The whole shelf is read-only, not just its files.** The write endpoints stay routed and answer 409; nothing in the UI is hidden yet.
 
-`read_only` is per shelf, so one server can serve a writable shelf and an archived one side by side.
+`read_only` is per shelf, so one server can serve a writable shelf and an archived one side by side. On the desktop app it is the **Read-only shelf** toggle in **Settings → Shelves**, which closes and reopens that one shelf so the change applies immediately.
 
 `app_conf.read_only` puts the whole server in that mode instead: every write request is refused, and every shelf — including one added after startup — is opened exactly as if it carried `read_only: true`, so nothing in the table above is written for any of them. Rescanning stays allowed, because a rescan only walks the shelf and rebuilds the in-memory cache.
 
