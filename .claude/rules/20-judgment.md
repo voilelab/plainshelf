@@ -49,12 +49,16 @@ Minimum checks by area:
 
 | Area | Minimum check |
 |---|---|
-| Go | build frontend if needed, then `go test ./...` |
-| Desktop Go | main Go check plus `cd desktop && go test ./...` |
-| Vue/TypeScript | `npm --prefix frontend test` and `npm --prefix frontend run build` |
+| Go | build frontend if needed, then `go test ./...` and `golangci-lint run` |
+| Desktop or reader Go | main Go check plus `go test ./...` and `golangci-lint run` inside `desktop` and `reader` |
+| Vue/TypeScript | `npm --prefix frontend test`, `npm --prefix frontend run build`, and the `check-boundaries` and `check-licenses` gates |
 | UI behavior | relevant Playwright test or an explicitly described manual/browser check |
 | Server API | Go tests plus review of `server/contract/api_*_contract_test.go` |
 | Documentation/rules | link/build validation and read-back of the diff |
+
+This table is a floor, not a ceiling: every check `.github/workflows/ci.yml`
+gates for the area you touched is mandatory before pushing, whether or not it is
+listed above. Lint is one of those gates.
 
 Use stronger independent review for security, data migration, deletion, or other
 high-impact changes.

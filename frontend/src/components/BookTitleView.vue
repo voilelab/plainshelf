@@ -27,7 +27,10 @@
         @dragend="interactions.onDragEnd"
       >
         <span class="book-title-text">{{ book.title }}</span>
-        <span class="book-title-meta">{{ compactMeta(book) }}</span>
+        <span class="book-title-aside">
+          <BookDownloadBadge :state="book.download_state" />
+          <span class="book-title-meta">{{ compactMeta(book) }}</span>
+        </span>
       </button>
     </div>
   </div>
@@ -37,6 +40,7 @@
 import type { Book } from '@/types/book';
 import type { BookActivation } from '@/types/bookSelection';
 import { useI18n } from '@/i18n';
+import BookDownloadBadge from './BookDownloadBadge.vue';
 import BookSelectionCheckbox from './BookSelectionCheckbox.vue';
 import { useBookItemInteractions } from '@/composables/useBookItemInteractions';
 import { getFolderPath, folderPathLabel } from '@/utils/folders';
@@ -139,6 +143,14 @@ function compactMeta(book: Book): string {
   min-width: 0;
 }
 
+.book-title-aside {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
 .book-title-meta {
   color: var(--muted);
   font-size: 12px;
@@ -150,6 +162,10 @@ function compactMeta(book: Book): string {
   .book-title-row {
     gap: 4px;
     grid-template-columns: 1fr;
+  }
+
+  .book-title-aside {
+    justify-content: flex-start;
   }
 
   .book-title-meta {

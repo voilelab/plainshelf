@@ -118,6 +118,40 @@ test('mobile long press selects, retries failed downloads, and skips downloaded 
   expect(page.url()).toBe(urlBeforeBack);
 });
 
+// Before the badge, the list gave no sign of which books were downloaded: the
+// only way to find out was to open one and be redirected back by the reader
+// gate. The state has to survive a batch download too, without a reload.
+test('mobile library marks download state on every row and refreshes it after a batch download', async ({ page }) => {
+  const { baseUrl } = getServer();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${baseUrl}/books`);
+  await importBookAs(page, helloFixturePath, 'download-state-hello');
+
+  // The server has no download concept, so its rows must not gain an empty marker.
+  const webRow = page.locator('.book-list-row', { hasText: 'download-state-hello' });
+  await expect(webRow).toBeVisible();
+  await expect(webRow.locator('.book-download-badge')).toHaveCount(0);
+
+  await connectMobile(page, baseUrl);
+  await reopenMobileAt(page, baseUrl, '/books');
+
+  const row = page.locator('.book-list-row', { hasText: 'download-state-hello' });
+  const badge = row.locator('.book-download-badge');
+  await expect(badge).toHaveText('Not downloaded');
+
+  await longPress(page, row);
+  await page
+    .locator('.mobile-selection-actions')
+    .getByRole('button', { name: 'Download to device' })
+    .click();
+  const downloadDialog = page.getByRole('dialog', { name: 'Download to device' });
+  await expect(downloadDialog.getByText('1 books downloaded.')).toBeVisible();
+  await downloadDialog.getByRole('button', { name: 'Close' }).click();
+
+  await expect(badge).toHaveText('Downloaded');
+});
+
 // The download bar used to be styled only inside a max-width:760px media query,
 // so on a tablet-sized mobile shell multi-select opened a toolbar whose every
 // action had been removed — Move and Trash are write surfaces the mobile client

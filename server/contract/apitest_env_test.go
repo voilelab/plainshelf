@@ -274,13 +274,22 @@ func (env *apiTestEnv) request(method, url string, body io.Reader) *httptest.Res
 	return env.do(httptest.NewRequest(method, url, body))
 }
 
-// do sends the request, filling in the local token for mutating methods so each
-// test does not have to. Use doRaw to exercise the token gate itself.
+// do sends the request, filling in the local token so each test does not have
+// to. Use doRaw to exercise the token gate itself.
 func (env *apiTestEnv) do(req *http.Request) *httptest.ResponseRecorder {
-	if server.IsMutatingMethod(req.Method) && req.Header.Get(env.app.SecurityTokenHeader()) == "" && req.Header.Get("Authorization") == "" {
+	return env.doRaw(env.withToken(req))
+}
+
+// withToken attaches the local token wherever the security gate asks for one:
+// every mutation, and the log API whatever the method. The rule is read from
+// the server rather than restated, so a route moving behind the token does not
+// need every test that reaches it to be found by hand.
+func (env *apiTestEnv) withToken(req *http.Request) *http.Request {
+	needsToken := server.IsMutatingMethod(req.Method) || server.IsLogAPIPath(req.URL.Path)
+	if needsToken && req.Header.Get(env.app.SecurityTokenHeader()) == "" && req.Header.Get("Authorization") == "" {
 		req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
 	}
-	return env.doRaw(req)
+	return req
 }
 
 func (env *apiTestEnv) doRaw(req *http.Request) *httptest.ResponseRecorder {
@@ -293,6 +302,6 @@ func (env *apiTestEnv) doRaw(req *http.Request) *httptest.ResponseRecorder {
 // server's: it reports no status until the handler writes one.
 func (env *apiTestEnv) getWailsLike(url string) *wailsLikeRecorder {
 	rec := newWailsLikeRecorder()
-	env.handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, url, nil))
+	env.handler.ServeHTTP(rec, env.withToken(httptest.NewRequest(http.MethodGet, url, nil)))
 	return rec
 }

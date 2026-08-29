@@ -750,6 +750,13 @@ const en = {
       card: 'Card',
       title: 'Title'
     },
+    downloadState: {
+      notDownloaded: 'Not downloaded',
+      downloaded: 'Downloaded',
+      updateAvailable: 'Update available',
+      downloading: 'Downloading...',
+      failed: 'Download failed'
+    },
     contextMenu: {
       read: 'Read',
       openDetail: 'Open Detail',

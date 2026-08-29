@@ -741,6 +741,13 @@ const zhHant = {
       card: '卡片',
       title: '標題'
     },
+    downloadState: {
+      notDownloaded: '未下載',
+      downloaded: '已下載',
+      updateAvailable: '有更新',
+      downloading: '下載中…',
+      failed: '下載失敗'
+    },
     contextMenu: {
       read: '閱讀',
       openDetail: '開啟詳情',

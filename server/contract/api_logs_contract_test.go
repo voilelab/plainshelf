@@ -2,6 +2,7 @@ package contract_test
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -175,4 +176,53 @@ func TestAPIGetLogContentDefaultsToABoundedTail(t *testing.T) {
 	if int64(target.Size) <= logutil.DefaultTailBytes {
 		t.Fatalf("fixture size = %d, want larger than the %d-byte window", target.Size, logutil.DefaultTailBytes)
 	}
+}
+
+// The log API stays behind the token whatever protect_read says: a log records
+// every request path, access time and remote address, which is the shelf's
+// structure and its usage rather than the books a reader came for.
+func TestAPILogsRequireTokenWithoutProtectReadContract(t *testing.T) {
+	logDir := t.TempDir()
+	security := localTokenSecurity()
+	security.ProtectRead = false
+	env := newUnstartedAPITestEnv(t, withAppLogDir(logDir, "app"), withSecurity(security), withLogRetention(0))
+
+	writeLogFile(t, filepath.Join(logDir, "app-2024-01-02.log"), "line 1\n")
+
+	rec := env.doRaw(httptest.NewRequest(http.MethodGet, logURL(), nil))
+	assertStatus(t, rec, http.StatusUnauthorized)
+
+	// An ordinary read is still open, so this is the log routes being excepted
+	// rather than protect_read having been ignored. A setting is read instead of
+	// the book list because this env is deliberately unstarted, and a shelf that
+	// has not finished its initial scan answers 503.
+	rec = env.doRaw(httptest.NewRequest(http.MethodGet, settingPath, nil))
+	assertStatus(t, rec, http.StatusOK)
+
+	// With the token the page works unchanged.
+	target := logEntryByFilename(t, env, "app-2024-01-02.log")
+
+	rec = env.doRaw(httptest.NewRequest(http.MethodGet, logURL(target.ID, "content"), nil))
+	assertStatus(t, rec, http.StatusUnauthorized)
+
+	rec = env.get(logURL(target.ID, "content"))
+	assertStatus(t, rec, http.StatusOK)
+	if got := rec.Body.String(); got != "line 1\n" {
+		t.Fatalf("content = %q, want seeded log content", got)
+	}
+}
+
+// Security mode "none" is an explicit "do not authenticate", so the exception
+// above does not reintroduce a gate the operator turned off.
+func TestAPILogsOpenUnderSecurityModeNoneContract(t *testing.T) {
+	logDir := t.TempDir()
+	env := newUnstartedAPITestEnv(t,
+		withAppLogDir(logDir, "app"),
+		withSecurity(&server.SecurityConf{Mode: server.SecurityModeNone}),
+		withLogRetention(0))
+
+	writeLogFile(t, filepath.Join(logDir, "app-2024-01-02.log"), "line 1\n")
+
+	rec := env.doRaw(httptest.NewRequest(http.MethodGet, logURL(), nil))
+	assertStatus(t, rec, http.StatusOK)
 }
