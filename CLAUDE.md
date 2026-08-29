@@ -28,6 +28,7 @@ Android clients.
 | `internal/` | shared Go internals: EPUB import, hashing, sketches, version |
 | `frontend/` | Vue UI and Capacitor Android project |
 | `desktop/` | Wails desktop client |
+| `reader/` | Wails standalone `.bookpkg` reader app |
 | `e2e/` | Playwright end-to-end tests |
 | `docs/` | user and contributor documentation |
 | `scripts/` | version and toolchain helpers called by `justfile` and CI |
@@ -46,8 +47,8 @@ tests when that directory is absent or stale.
 | Frontend dependency licenses | `npm --prefix frontend run check-licenses` |
 | Version resolver | `./scripts/test-resolve-version.sh` |
 | Main Go module | `go test ./...` |
-| Desktop Go module | `cd desktop && go test ./...` |
-| Go lint (both modules) | `golangci-lint run` and `cd desktop && golangci-lint run` |
+| Desktop and reader Go modules | `cd desktop && go test ./...`, `cd reader && go test ./...` |
+| Go lint (all three modules) | `golangci-lint run` in the root, `desktop`, and `reader` |
 | All Go tests with frontend build | `just test-go` |
 | End-to-end tests | `just test-e2e` |
 | Mock frontend | `VITE_USE_MOCK_API=true npm --prefix frontend run dev` |
