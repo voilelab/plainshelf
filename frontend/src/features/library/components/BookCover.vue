@@ -51,38 +51,34 @@
         accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif"
         @change="onCoverFileChange"
       />
-      <button
-        class="button cover-options-toggle"
-        type="button"
-        :aria-expanded="showCoverOptions"
-        aria-controls="book-cover-actions"
-        :disabled="coverBusy"
-        @click="showCoverOptions = !showCoverOptions"
-      >
-        {{ t('bookDetail.cover.options') }}
-        <span aria-hidden="true">{{ showCoverOptions ? '−' : '+' }}</span>
-      </button>
-      <div v-show="showCoverOptions" id="book-cover-actions" class="cover-action-tray">
-        <div class="cover-button-row">
-          <button class="button cover-btn" type="button" :disabled="coverBusy" @click="openPicker">
-            {{ coverBusy ? '…' : t('bookDetail.cover.upload') }}
-          </button>
-          <button class="button cover-btn" type="button" :disabled="coverBusy || !coverUrl" @click="removeCover">
-            {{ t('bookDetail.cover.remove') }}
-          </button>
-        </div>
-        <div class="cover-button-row">
-          <button class="button cover-btn" type="button" :disabled="coverBusy" @click="showGenerateModal = true">
-            {{ t('bookDetail.cover.generate') }}
-          </button>
-        </div>
-      </div>
+      <CollapsibleRoot v-model:open="showCoverOptions" class="cover-options-collapsible">
+        <CollapsibleTrigger class="button cover-options-toggle" :disabled="coverBusy">
+          {{ t('bookDetail.cover.options') }}
+          <span aria-hidden="true">{{ showCoverOptions ? '−' : '+' }}</span>
+        </CollapsibleTrigger>
+        <CollapsibleContent class="cover-action-tray" :unmount-on-hide="false">
+          <div class="cover-button-row">
+            <button class="button cover-btn" type="button" :disabled="coverBusy" @click="openPicker">
+              {{ coverBusy ? '…' : t('bookDetail.cover.upload') }}
+            </button>
+            <button class="button cover-btn" type="button" :disabled="coverBusy || !coverUrl" @click="removeCover">
+              {{ t('bookDetail.cover.remove') }}
+            </button>
+          </div>
+          <div class="cover-button-row">
+            <button class="button cover-btn" type="button" :disabled="coverBusy" @click="showGenerateModal = true">
+              {{ t('bookDetail.cover.generate') }}
+            </button>
+          </div>
+        </CollapsibleContent>
+      </CollapsibleRoot>
       <p v-if="coverStatus" class="cover-status" :class="{ error: coverError }">{{ coverStatus }}</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui';
 import { computed, ref } from 'vue';
 import { bookshelfWriter } from '@/providers';
 import BookCoverImg from '@/components/BookCoverImg.vue';
@@ -391,9 +387,22 @@ function onGeneratedCoverSaved(): void {
   width: 100%;
 }
 
+/* Groups the toggle and its tray for reka without becoming a grid item of the
+   cover-actions grid; the trigger and tray stay direct rows as before. */
+.cover-options-collapsible {
+  display: contents;
+}
+
 .cover-action-tray {
   display: grid;
   gap: 6px;
+}
+
+/* reka keeps the tray mounted (:unmount-on-hide="false") and marks it hidden
+   when closed; the author display:grid above would otherwise beat the
+   user-agent [hidden] rule and leave the tray visible. */
+.cover-action-tray[hidden] {
+  display: none;
 }
 
 .cover-button-row {

@@ -116,36 +116,30 @@
             :placeholder="t('libraryForms.editBook.commentPlaceholder')"
           ></textarea>
           <p class="field-help">{{ t('libraryForms.editBook.commentHelp') }}</p>
-          <button
-            class="comment-preview-toggle"
-            type="button"
-            :aria-expanded="showCommentPreview"
-            :aria-controls="commentPreviewId"
-            @click="showCommentPreview = !showCommentPreview"
-          >
-            {{
-              showCommentPreview
-                ? t('libraryForms.editBook.commentPreviewHide')
-                : t('libraryForms.editBook.commentPreviewShow')
-            }}
-          </button>
-          <div
-            v-if="showCommentPreview"
-            :id="commentPreviewId"
-            class="comment-preview"
-            role="region"
-            :aria-label="t('libraryForms.editBook.commentPreviewLabel')"
-          >
-            <SafeHtml
-              v-if="commentPreviewHtml"
-              class="description-body"
-              :html="commentPreviewHtml"
-              profile="summary"
-            />
-            <p v-else class="comment-preview-empty">
-              {{ t('libraryForms.editBook.commentPreviewEmpty') }}
-            </p>
-          </div>
+          <CollapsibleRoot v-model:open="showCommentPreview" class="comment-preview-collapsible">
+            <CollapsibleTrigger class="comment-preview-toggle">
+              {{
+                showCommentPreview
+                  ? t('libraryForms.editBook.commentPreviewHide')
+                  : t('libraryForms.editBook.commentPreviewShow')
+              }}
+            </CollapsibleTrigger>
+            <CollapsibleContent
+              class="comment-preview"
+              role="region"
+              :aria-label="t('libraryForms.editBook.commentPreviewLabel')"
+            >
+              <SafeHtml
+                v-if="commentPreviewHtml"
+                class="description-body"
+                :html="commentPreviewHtml"
+                profile="summary"
+              />
+              <p v-else class="comment-preview-empty">
+                {{ t('libraryForms.editBook.commentPreviewEmpty') }}
+              </p>
+            </CollapsibleContent>
+          </CollapsibleRoot>
         </div>
 
         <div class="field">
@@ -196,6 +190,9 @@
 <script setup lang="ts">
 import { computed, ref, useId, watch } from 'vue';
 import {
+  CollapsibleContent,
+  CollapsibleRoot,
+  CollapsibleTrigger,
   RatingItem,
   RatingItemIndicator,
   RatingRoot,
@@ -283,7 +280,6 @@ const languageTagInvalid = ref(false);
 const languageError = computed(() => (languageTagInvalid.value ? t('language.book.invalidTag') : ''));
 const comment = ref('');
 const commentFieldId = useId();
-const commentPreviewId = useId();
 const showCommentPreview = ref(false);
 // The same render the detail page runs, so what is previewed here and what is
 // shown there are one output of one function; `SafeHtml` sanitizes it under the
@@ -668,6 +664,13 @@ function toFormDateValue(rawValue?: string): string {
 .textarea {
   resize: vertical;
   min-height: 120px;
+}
+
+/* The collapsible only groups the trigger and its panel for reka; it must not
+   become a grid item of its own, or the toggle and preview would share one
+   cell instead of stacking as the surrounding fields do. */
+.comment-preview-collapsible {
+  display: contents;
 }
 
 .comment-preview-toggle {

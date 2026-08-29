@@ -74,6 +74,13 @@ function toggle(host: HTMLElement): HTMLButtonElement {
   return button;
 }
 
+// The panel wrapper is always mounted; it counts as shown only when the
+// Collapsible has revealed it (no `hidden` attribute) and its content exists.
+function previewOpen(host: HTMLElement): boolean {
+  const panel = host.querySelector<HTMLElement>('.comment-preview');
+  return Boolean(panel) && !panel!.hasAttribute('hidden') && panel!.children.length > 0;
+}
+
 /** Types into the comment field the way v-model reads it. */
 async function type(host: HTMLElement, value: string): Promise<void> {
   const textarea = commentField(host);
@@ -84,6 +91,10 @@ async function type(host: HTMLElement, value: string): Promise<void> {
 
 async function openPreview(host: HTMLElement): Promise<void> {
   toggle(host).click();
+  // reka's Collapsible mounts (and unmounts) its content one tick after the
+  // open state flips — Presence awaits a tick before dispatching MOUNT — so
+  // flush past that extra tick before reading the panel.
+  await nextTick();
   await nextTick();
 }
 
@@ -99,17 +110,20 @@ describe('EditBook comment preview', () => {
   it('stays closed until it is asked for, and closes again', async () => {
     const { host } = mount('簡介');
 
-    expect(host.querySelector('.comment-preview')).toBeNull();
+    // reka's Collapsible keeps the panel wrapper mounted and marks it hidden
+    // while closed, unmounting only its content — so "closed" is a hidden,
+    // empty panel rather than an absent element.
+    expect(previewOpen(host)).toBe(false);
     expect(toggle(host).getAttribute('aria-expanded')).toBe('false');
 
     await openPreview(host);
-    expect(host.querySelector('.comment-preview')).not.toBeNull();
+    expect(previewOpen(host)).toBe(true);
     expect(toggle(host).getAttribute('aria-expanded')).toBe('true');
     expect(toggle(host).getAttribute('aria-controls'))
       .toBe(host.querySelector('.comment-preview')?.id);
 
     await openPreview(host);
-    expect(host.querySelector('.comment-preview')).toBeNull();
+    expect(previewOpen(host)).toBe(false);
   });
 
   it('follows what is typed', async () => {
