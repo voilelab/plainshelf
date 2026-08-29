@@ -160,11 +160,13 @@ const en = {
       manage: 'Manage shelves'
     },
     dashboard: 'Home',
+    library: 'Library',
     recentlyRead: 'Recently Read',
     trash: 'Trash',
     downloads: 'Downloads',
     adminLogs: 'Logs',
     settings: 'Settings',
+    tabNavLabel: 'Primary',
     readOnly: {
       banner: 'Read-only mode is enabled. Browsing and reading are available, but write operations are disabled.',
       writeDisabled: 'Server is in read-only mode. Write operations are disabled.'
