@@ -380,7 +380,7 @@ const zhHant = {
     size: '大小',
     empty: '目前沒有可瀏覽的日誌檔。',
     emptyHint:
-      '只有設定為寫入檔案（log_file.type 為 filename_rotate 或 filename）的 logger 才會出現在這裡；寫到 stderr 或 stdout 的 logger 不會。請將型別設為檔案型別，待寫入一些日誌後再重新載入。',
+      '只有將 log_file.type 設為 filename_rotate 或 filename 的 logger 才會出現在這裡；寫到 stderr 或 stdout（預設）的 logger 不會。若要瀏覽日誌，請設定檔案型別；若已經設定，請待它寫入第一個檔案後再重新載入。',
     emptyContent: '所選日誌檔沒有內容。',
     missingForDate: '{date} 沒有可用的日誌檔。',
     loadingList: '載入日誌檔中...',
