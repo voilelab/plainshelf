@@ -1025,7 +1025,7 @@ onMounted(async () => {
    viewport, so the last row of scrolled content needs room to clear it: the
    bar's own height plus the bottom inset it already carries. */
 .page-area-tabbar {
-  padding-bottom: calc(56px + 16px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--mobile-tab-bar-height) + 16px + env(safe-area-inset-bottom, 0px));
 }
 
 .no-shelf-panel {
