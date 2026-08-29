@@ -1,44 +1,43 @@
 // @vitest-environment jsdom
 import { createApp, defineComponent, h, type App } from 'vue';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-// The bar renders RouterLinks; a real router is more than this contract needs,
-// so stub RouterLink to echo the props that define each tab — its target and
-// which active-class strategy it uses — onto data-attributes.
-vi.mock('vue-router', () => ({
-  RouterLink: defineComponent({
-    props: {
-      to: { type: [String, Object], default: '' },
-      activeClass: { type: String, default: undefined },
-      exactActiveClass: { type: String, default: undefined }
-    },
-    setup(props, { slots }) {
-      return () =>
-        h(
-          'a',
-          {
-            'data-to': typeof props.to === 'string' ? props.to : JSON.stringify(props.to),
-            'data-active-class': props.activeClass ?? '',
-            'data-exact-active-class': props.exactActiveClass ?? ''
-          },
-          slots.default?.()
-        );
-    }
-  })
-}));
+import { createRouter, createMemoryHistory, type Router } from 'vue-router';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import MobileTabBar from './MobileTabBar.vue';
 import { setLocale } from '@/i18n';
 
+// Mirror the sibling shape of the real router (router.ts): `library` and
+// `book-detail` are separate records, not nested, which is exactly why the
+// Library tab cannot rely on RouterLink's record-based active matching.
+const routes = [
+  { path: '/', redirect: '/books' },
+  { path: '/books', name: 'library', component: { template: '<div />' } },
+  { path: '/books/:id', name: 'book-detail', component: { template: '<div />' } },
+  { path: '/read-history', name: 'read-history', component: { template: '<div />' } },
+  { path: '/downloads', name: 'downloads', component: { template: '<div />' } },
+  { path: '/settings', name: 'settings', component: { template: '<div />' } }
+];
+
 const mounted: Array<{ app: App; host: HTMLElement }> = [];
 
-function mount(): HTMLElement {
+async function mountAt(path: string): Promise<HTMLElement> {
+  const router: Router = createRouter({ history: createMemoryHistory(), routes });
+  await router.push(path);
+  await router.isReady();
+
   const host = document.createElement('div');
   document.body.append(host);
-  const app = createApp(MobileTabBar);
+  const app = createApp(defineComponent({ setup: () => () => h(MobileTabBar) }));
+  app.use(router);
   app.mount(host);
   mounted.push({ app, host });
   return host;
+}
+
+function activeTargets(host: HTMLElement): string[] {
+  return [...host.querySelectorAll<HTMLElement>('.mobile-tab.active')].map(
+    (tab) => tab.getAttribute('href') ?? ''
+  );
 }
 
 beforeEach(() => {
@@ -53,10 +52,10 @@ afterEach(() => {
 });
 
 describe('MobileTabBar', () => {
-  it('renders the four mobile destinations in order', () => {
-    const tabs = [...mount().querySelectorAll<HTMLElement>('.mobile-tab')];
+  it('renders the four mobile destinations in order', async () => {
+    const tabs = [...(await mountAt('/books')).querySelectorAll<HTMLElement>('.mobile-tab')];
 
-    expect(tabs.map((tab) => tab.getAttribute('data-to'))).toEqual([
+    expect(tabs.map((tab) => tab.getAttribute('href'))).toEqual([
       '/books',
       '/read-history',
       '/downloads',
@@ -70,18 +69,19 @@ describe('MobileTabBar', () => {
     ]);
   });
 
-  it('lights the library tab on prefix match and the rest only on exact match', () => {
-    const tabs = [...mount().querySelectorAll<HTMLElement>('.mobile-tab')];
-    const byTarget = (to: string) => tabs.find((tab) => tab.getAttribute('data-to') === to)!;
+  it('keeps the Library tab active on the list, a book, and a filtered view', async () => {
+    expect(activeTargets(await mountAt('/books'))).toEqual(['/books']);
+    // The sibling book-detail record is the case the stubbed test missed and
+    // the Codex review caught: the Library tab must still light up here.
+    expect(activeTargets(await mountAt('/books/abc123'))).toEqual(['/books']);
+    expect(activeTargets(await mountAt('/books?author=none'))).toEqual(['/books']);
+  });
 
-    // Library covers /books and every book detail below it: prefix match.
-    expect(byTarget('/books').getAttribute('data-active-class')).toBe('active');
-    expect(byTarget('/books').getAttribute('data-exact-active-class')).toBe('');
-
-    // The leaf routes must not stay lit on descendants: exact match only.
-    for (const to of ['/read-history', '/downloads', '/settings']) {
-      expect(byTarget(to).getAttribute('data-active-class')).toBe('');
-      expect(byTarget(to).getAttribute('data-exact-active-class')).toBe('active');
-    }
+  it('activates a leaf tab only on its own route, never on a sibling', async () => {
+    expect(activeTargets(await mountAt('/read-history'))).toEqual(['/read-history']);
+    expect(activeTargets(await mountAt('/downloads'))).toEqual(['/downloads']);
+    expect(activeTargets(await mountAt('/settings'))).toEqual(['/settings']);
+    // A book route must not light Recently read / Downloads / Settings.
+    expect(activeTargets(await mountAt('/books/abc123'))).toEqual(['/books']);
   });
 });

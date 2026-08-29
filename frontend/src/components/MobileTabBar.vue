@@ -5,8 +5,7 @@
       :key="tab.to"
       :to="tab.to"
       class="mobile-tab"
-      :active-class="tab.exact ? undefined : 'active'"
-      :exact-active-class="tab.exact ? 'active' : undefined"
+      :class="{ active: isActive(tab) }"
     >
       <Icon :name="tab.icon" class="mobile-tab-icon" />
       <span class="mobile-tab-label">{{ t(tab.labelKey) }}</span>
@@ -15,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRoute } from 'vue-router';
 import Icon from '@/components/Icon.vue';
 import type { IconName } from '@/components/icons/registry';
 import { useI18n } from '@/i18n';
@@ -25,9 +24,12 @@ import { useI18n } from '@/i18n';
 // switching and the folder tree (MainLayout hides the redundant nav sections
 // on the mobile runtime).
 //
-// `library` matches `/books` and every book detail below it, so it is the one
-// tab keyed on active-class (prefix match) rather than exact-active-class; the
-// rest name a single leaf route and must not stay lit on their children.
+// Active state is computed from the current path rather than RouterLink's
+// built-in classes: `library` (/books) and `book-detail` (/books/:id) are
+// sibling route records, so RouterLink's record-based matching would light the
+// Library tab on neither the list nor a book. `exact` names a leaf route that
+// must match on its own path only; the Library tab instead owns the whole
+// /books subtree (list, a book, the maintenance filters that redirect into it).
 interface MobileTab {
   to: string;
   icon: IconName;
@@ -43,6 +45,14 @@ const tabs: readonly MobileTab[] = [
 ];
 
 const { t } = useI18n();
+const route = useRoute();
+
+function isActive(tab: MobileTab): boolean {
+  if (tab.exact) {
+    return route.path === tab.to;
+  }
+  return route.path === tab.to || route.path.startsWith(`${tab.to}/`);
+}
 </script>
 
 <style scoped>
