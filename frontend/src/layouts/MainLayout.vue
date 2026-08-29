@@ -684,10 +684,11 @@ const shelfManageTo = computed<RouteLocationRaw | null>(() => {
 
 // The narrow-viewport top bar shows where the user is instead of the language
 // picker. Most MainLayout routes map to their existing sidebar label; the
-// library route prefers the open folder's leaf name, and a book's detail page
-// prefers the book's title, so the two cases the ticket cares about — "which
-// folder", "which book" — read literally. Reader and source-edit live on
-// ReaderLayout, so they never reach this bar.
+// library route prefers the open folder's leaf name so "which folder" reads
+// literally. A book's detail page is deliberately left out: it already shows
+// its own live title on the page, and mirroring it here would have to read the
+// shared books list, which a rename in the metadata editor does not refresh.
+// Reader and source-edit live on ReaderLayout, so they never reach this bar.
 const ROUTE_LOCATION_LABEL_KEYS: Record<string, string> = {
   home: 'layout.dashboard',
   library: 'layout.library',
@@ -711,12 +712,6 @@ const currentLocationLabel = computed(() => {
 
   if (name === 'library' && currentFolderLeaf.value) {
     return currentFolderLeaf.value;
-  }
-
-  if (name === 'book-detail') {
-    const id = route.params.id;
-    const book = typeof id === 'string' ? books.value.find((entry) => entry.id === id) : undefined;
-    return book?.title ?? t('layout.library');
   }
 
   const key = ROUTE_LOCATION_LABEL_KEYS[name];
@@ -1189,9 +1184,19 @@ onMounted(async () => {
   /* Language is a set-once preference; on a narrow screen it moves into the
      Settings page (its own tab) and the top bar spends that space on the
      brand-icon-plus-location pairing instead. The brand text collapses to the
-     icon on a platform where the user already knows the app. */
+     icon on a platform where the user already knows the app — but stays in the
+     accessibility tree (visually hidden, not display:none) so the <h1> keeps a
+     non-empty accessible name for screen readers. */
   .brand-name {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
 
   .topbar-controls {
