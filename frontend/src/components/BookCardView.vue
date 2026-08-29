@@ -22,6 +22,7 @@
             @toggle="emit('toggle-selection', book.id)"
           />
           <BookCoverImg :book-id="book.id" :cover-url="book.cover_url" :alt="book.title" class="book-card-cover" />
+          <BookDownloadBadge :state="book.download_state" class="book-card-download" />
 
           <div class="book-card-body">
             <p class="book-card-folder">{{ folderLabel(book) }}</p>
@@ -92,6 +93,7 @@ import {
   ContextMenuTrigger
 } from 'reka-ui';
 import BookCoverImg from './BookCoverImg.vue';
+import BookDownloadBadge from './BookDownloadBadge.vue';
 import BookSelectionCheckbox from './BookSelectionCheckbox.vue';
 import { useBookItemInteractions } from '@/composables/useBookItemInteractions';
 import { useBookSummaries } from '@/composables/useBookSummaries';
@@ -205,6 +207,18 @@ function primaryDateLabel(book: Book): string {
   height: 220px;
   object-fit: cover;
   background: #eef3f8;
+}
+
+/* Over the cover, opposite the selection checkbox (top-left, styles.css), so
+   neither the cover nor the body grid row has to give up space for it. */
+.book-card-download {
+  /* Anchored right, so its own max-width has to stop at the cover's left inset;
+     the card clips its overflow and would otherwise cut the label's start off. */
+  max-width: calc(100% - 16px);
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 2;
 }
 
 .book-card-body {

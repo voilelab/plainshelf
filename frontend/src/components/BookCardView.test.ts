@@ -56,14 +56,14 @@ const sampleBook: Book = {
   folders: []
 };
 
-function mountCard(readOnly = false) {
+function mountCard(readOnly = false, books: Book[] = [sampleBook]) {
   const host = document.createElement('div');
   document.body.append(host);
   const edits: string[] = [];
   const activations: unknown[] = [];
   const app = createApp(defineComponent({
     setup: () => () => h(BookCardView, {
-      books: [sampleBook],
+      books,
       readOnly,
       onEdit: (id: string) => edits.push(id),
       onActivate: (payload: unknown) => activations.push(payload)
@@ -99,5 +99,24 @@ describe('BookCardView metadata edit action', () => {
   it('does not render the edit action in read-only mode', () => {
     const { host } = mountCard(true);
     expect(editButton(host)).toBeUndefined();
+  });
+});
+
+describe('BookCardView download state', () => {
+  it('marks each card with the state it carries', () => {
+    const { host } = mountCard(false, [
+      { ...sampleBook, id: 'a', download_state: 'not_downloaded' },
+      { ...sampleBook, id: 'b', download_state: 'downloaded' },
+      { ...sampleBook, id: 'c', download_state: 'update_available' }
+    ]);
+
+    const states = [...host.querySelectorAll('.book-download-badge')]
+      .map((badge) => badge.getAttribute('data-download-state'));
+    expect(states).toEqual(['not_downloaded', 'downloaded', 'update_available']);
+  });
+
+  it('leaves cards unmarked when the backend has no download concept', () => {
+    const { host } = mountCard();
+    expect(host.querySelector('.book-download-badge')).toBeNull();
   });
 });
