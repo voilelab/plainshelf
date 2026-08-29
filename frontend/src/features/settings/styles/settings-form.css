@@ -28,7 +28,7 @@
 }
 
 .setting-label {
-  /* A <label> is inline by default and some rows now use one here. */
+  /* Some rows render the title as a <span>, which is inline by default. */
   display: block;
   font-weight: 600;
 }

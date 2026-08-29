@@ -52,26 +52,47 @@ describe('CoverPanel', () => {
     expect(onChange).toHaveBeenCalledWith(true);
   });
 
-  it('names the switch from the row label, which is no longer wrapping it', () => {
+  it('names the switch from the title alone, not the whole row', () => {
+    const { host, app } = mount({ value: false, disabled: false });
+    mounted = app;
+
+    const control = host.querySelector('[role="switch"]');
+    const title = host.querySelector('.setting-label');
+    const description = host.querySelector('p.setting-description');
+
+    expect(host.querySelector('label.setting-item')?.getAttribute('for')).toBe(control?.id);
+    // Without these the accessible name would be the row's whole text, the
+    // description included.
+    expect(control?.getAttribute('aria-labelledby')).toBe(title?.id);
+    expect(control?.getAttribute('aria-describedby')).toBe(description?.id);
+  });
+
+  it('keeps the whole row a click target, description included', () => {
     const onChange = vi.fn();
     const { host, app } = mount({ value: false, disabled: false, onChange });
     mounted = app;
 
-    const control = host.querySelector('[role="switch"]');
-    const label = host.querySelector('label.setting-label');
-    const description = host.querySelector('p.setting-description');
-
-    // The switch is a <button>, so the row cannot be one big <label> any more.
-    // These three links are what keeps it labelled and clickable instead.
-    expect(label?.getAttribute('for')).toBe(control?.id);
-    expect(control?.getAttribute('aria-labelledby')).toBe(label?.id);
-    expect(control?.getAttribute('aria-describedby')).toBe(description?.id);
-    expect(label?.closest('[role="switch"]')).toBeNull();
-
-    // Clicking the text used to toggle the setting because the whole row was a
-    // <label>. It still does, now through the for/id pair.
-    (label as HTMLLabelElement | null)?.click();
+    // The row was one big <label> around the checkbox, so anywhere in it
+    // toggled the setting. A switch is a <button>, and pointing the same label
+    // at it by id is what preserves that.
+    host.querySelector<HTMLElement>('p.setting-description')?.click();
+    expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledWith(true);
+
+    host.querySelector<HTMLElement>('.setting-label')?.click();
+    expect(onChange).toHaveBeenCalledTimes(2);
+  });
+
+  it('fires once when the switch itself is clicked inside the row label', () => {
+    const onChange = vi.fn();
+    const { host, app } = mount({ value: false, disabled: false, onChange });
+    mounted = app;
+
+    // A label does nothing for clicks targeting interactive content inside it,
+    // so the switch does not also receive the label's synthetic click.
+    host.querySelector<HTMLElement>('[role="switch"]')?.click();
+
+    expect(onChange).toHaveBeenCalledTimes(1);
   });
 
   it('does not emit while the panel is saving', () => {

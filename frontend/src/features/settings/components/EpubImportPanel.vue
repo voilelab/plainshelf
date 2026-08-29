@@ -19,14 +19,13 @@
       </select>
     </label>
 
-    <!-- The switch renders a <button>, so this row is no longer one big
-         <label>: the control is bound by id and named from the label element,
-         which keeps clicking the text a toggle. -->
-    <div class="setting-item">
+    <!-- Row-wide click target, same as the preset row above; see CoverPanel
+         for why a <label> can still wrap the switch button. -->
+    <label class="setting-item" :for="switchId">
       <div>
-        <label :id="labelId" :for="switchId" class="setting-label">
+        <span :id="labelId" class="setting-label">
           {{ t('settings.epubImport.includeDescriptionLabel') }}
-        </label>
+        </span>
         <p :id="descriptionId" class="setting-description">
           {{ t('settings.epubImport.includeDescriptionHelp') }}
         </p>
@@ -39,7 +38,7 @@
         :aria-describedby="descriptionId"
         @update:model-value="emit('update:includeDescription', $event)"
       />
-    </div>
+    </label>
 
     <p v-if="error" class="error">{{ error }}</p>
 
