@@ -6,9 +6,9 @@ This page explains what PlainShelf reads during shelf startup and browsing, why 
 
 ---
 
-## Initial cache initialization
+## The first scan
 
-When a shelf is opened, PlainShelf initializes the book cache in the background. The initial cache build performs a full scan of the shelf's `books/` tree.
+When a shelf is opened, PlainShelf builds the book cache in the background. That first build is a full scan of the shelf's `books/` tree.
 
 During that first scan, PlainShelf:
 
@@ -20,7 +20,7 @@ During that first scan, PlainShelf:
 6. records the metadata file's modified time and size for later cache validation;
 7. opens the book's current source `meta.json` to record its character count.
 
-So yes: the first successful cache initialization reads every book metadata file once. It does **not** scan the whole operating system disk; it scans the configured shelf root, specifically the shelf book tree.
+So a successful first build reads every book's metadata file once, and reads nothing outside the configured shelf root.
 
 ---
 
@@ -39,9 +39,9 @@ For example, a shelf with 10,000 books may only read a modest amount of metadata
 
 ---
 
-## Subsequent book listing behavior
+## Keeping the cache fresh
 
-After the initial cache is ready, book list operations normally return from the in-memory cache.
+Once that first scan is done, book list operations normally return from the in-memory cache.
 
 PlainShelf still needs to keep the cache reasonably fresh. It does this with two levels of refresh:
 
@@ -101,7 +101,7 @@ A directory's modification time changes whenever one of its **direct** children 
 
 This is polling made cheaper, not polling removed, so it helps on an SMB, NAS, or cloud mount for the same reason it helps on a local disk: on those mounts a directory listing is several round trips and a stat is one.
 
-Three things it deliberately does not do:
+What it deliberately does not do:
 
 - **It does not decide whether a book changed.** A directory's modification time says nothing about what happened inside its subdirectories, so everything inside a `.bookpkg` folder — `book.json` above all — is still checked by the per-book stat described above. Editing a book is never hidden by this.
 - **It does not trust a folder inside one that changed.** A modification time identifies a folder's content, not the folder itself: move one away and rename another into its place and the path holds something else, possibly carrying the same time. What rules that out is the folder above — renaming a folder into place changes its parent's time — so a folder is only believed when its parent's listing is proven unchanged too. When a folder does change, everything below it is listed again on that one scan, and cheap again on the next.
@@ -129,6 +129,10 @@ Its endpoint is `POST /api/shelves/{shelf_id}/scans`.
 ---
 
 ## Tuning options
+
+The defaults suit small and medium local shelves. Reach for these when a large
+shelf makes startup or browsing cost noticeable disk activity, or when the shelf
+sits on a network mount.
 
 ### `scan_interval`
 
@@ -207,7 +211,7 @@ The disk-wear impact of these reads is usually negligible. SSD lifetime is prima
 
 ### Local HDD
 
-The main cost is seek latency from many small directory and metadata operations. This can make the first scan slower on very large shelves, but normal interval-based scanning should not be a major wear concern.
+The main cost is seek latency from many small directory and metadata operations. That can make the first scan slow on a very large shelf, and every later full scan pays much of it again: the scan cache spares the directory listings, not the per-book opens. If browsing stays slow, a longer `scan_interval` is the lever.
 
 ### SMB/NAS or other network mounts
 
@@ -336,12 +340,3 @@ Two consequences worth knowing:
 `read_only` is per shelf, so one server can serve a writable shelf and an archived one side by side. On the desktop app it is the **Read-only shelf** toggle in **Settings → Shelves**, which closes and reopens that one shelf so the change applies immediately.
 
 `app_conf.read_only` puts the whole server in that mode instead: every write request is refused, and every shelf — including one added after startup — is opened exactly as if it carried `read_only: true`, so nothing in the table above is written for any of them. Rescanning stays allowed, because a rescan only walks the shelf and rebuilds the in-memory cache.
-
----
-
-## Practical guidance
-
-- For small or medium local shelves, the defaults are usually fine.
-- For large local shelves, consider increasing `scan_interval` if startup or browsing causes noticeable disk activity.
-- For SMB/NAS shelves, start with `scan_interval: 10m` and `book_check_interval: 5m`, then tune upward if browsing is still slow.
-- If you edit shelf files outside PlainShelf, remember that longer intervals trade immediate visibility for lower I/O — and that **Update book list** overrides the trade whenever you need it to.
