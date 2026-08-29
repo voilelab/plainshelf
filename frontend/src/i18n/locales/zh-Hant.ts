@@ -935,6 +935,7 @@ const zhHant = {
     autosaveFailed: '閱讀進度無法儲存，PlainShelf 將自動重試。',
     mobile: {
       gestureHint: '點按中央顯示工具列 · 左右滑動切換章節',
+      showGestureHint: '顯示手勢說明',
       firstSection: '已是第一章',
       lastSection: '已是最後一章'
     }

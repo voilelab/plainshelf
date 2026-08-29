@@ -944,6 +944,7 @@ const en = {
     autosaveFailed: 'Reading progress could not be saved. PlainShelf will retry automatically.',
     mobile: {
       gestureHint: 'Tap the center for controls · Swipe left or right to change chapters',
+      showGestureHint: 'Show reading gestures',
       firstSection: 'You are at the first chapter',
       lastSection: 'You are at the last chapter'
     }

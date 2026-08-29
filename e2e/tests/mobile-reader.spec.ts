@@ -198,6 +198,34 @@ test('provides an immersive mobile reader without changing the desktop reader', 
   await expect(reader.locator('[data-reader-variant="mobile"]')).toBeVisible();
   await expect(reader.getByText('Tap the center for controls · Swipe left or right to change chapters')).toHaveCount(0);
 
+  // The gesture hint is only automatic once; the toolbar keeps it reachable
+  // afterwards, and the five buttons still have to fit a narrow phone.
+  await reader.setViewportSize({ width: 320, height: 844 });
+  const narrowReader = reader.locator('[data-reader-variant="mobile"]');
+  const narrowBox = await narrowReader.boundingBox();
+  expect(narrowBox).not.toBeNull();
+  await dispatchTouch(narrowReader, [
+    { x: narrowBox!.x + narrowBox!.width / 2, y: narrowBox!.y + narrowBox!.height / 2 }
+  ], 12);
+  const tools = narrowReader.locator('.mobile-reader-toolbar .mobile-reader-tool');
+  await expect(tools).toHaveCount(5);
+  for (const tool of await tools.all()) {
+    const toolBox = await tool.boundingBox();
+    expect(toolBox).not.toBeNull();
+    expect(toolBox!.width).toBeGreaterThanOrEqual(44);
+    expect(toolBox!.height).toBeGreaterThanOrEqual(44);
+  }
+  await narrowReader.getByRole('button', { name: 'Show reading gestures' }).click();
+  const recalledHint = reader.getByText('Tap the center for controls · Swipe left or right to change chapters');
+  await expect(recalledHint).toBeVisible();
+  const hintBox = await recalledHint.boundingBox();
+  const toolbarBox = await narrowReader.locator('.mobile-reader-toolbar').boundingBox();
+  expect(hintBox).not.toBeNull();
+  expect(toolbarBox).not.toBeNull();
+  expect(hintBox!.y + hintBox!.height).toBeLessThanOrEqual(toolbarBox!.y);
+  await reader.waitForTimeout(4_100);
+  await expect(recalledHint).toHaveCount(0);
+
   await reader.setViewportSize({ width: 1280, height: 720 });
   const desktopReader = reader.locator('[data-reader-variant="desktop"]');
   await expect(desktopReader).toBeVisible();
