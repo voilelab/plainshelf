@@ -94,4 +94,5 @@ Read only the rule needed for the task:
 - Historical context only: `.claude/rules/00-diagnosis.md` and
   `.claude/rules/90-letter.md`
 
-Project workflows live in `.claude/skills/` (`update-changelog`, `update-docs`).
+Project workflows live in `.claude/skills/` (`work-ticket`, `update-changelog`,
+`update-docs`).
