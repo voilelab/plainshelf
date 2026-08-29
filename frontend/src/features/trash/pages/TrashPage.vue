@@ -21,7 +21,6 @@
       :busy-text="t('trash.emptyAll.busy')"
       :busy="emptying"
       :confirm-disabled="emptyFinished"
-      :close-on-backdrop="!emptying"
       variant="danger"
       @cancel="closeEmptyModal"
       @confirm="confirmEmptyTrash"
