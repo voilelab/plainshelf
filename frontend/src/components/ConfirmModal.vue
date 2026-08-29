@@ -1,10 +1,7 @@
 <template>
-  <BaseDialog
-    :open="open"
-    :title="title"
-    :dismissible="closeOnBackdrop"
-    :busy="busy"
-    :described-by="descriptionId"
+  <component
+    :is="shell"
+    v-bind="shellProps"
     @close="emit('cancel')"
   >
     <section class="panel confirm-modal">
@@ -28,9 +25,22 @@
       </div>
 
       <footer class="confirm-modal-actions">
-        <button class="button" type="button" :disabled="busy" @click="emit('cancel')">
+        <!-- On the destructive path the cancel button must be the element
+             AlertDialogCancel registers, because AlertDialogContent focuses
+             exactly that element when the dialog opens. Closing then travels
+             the same route as ESC — AlertDialogRoot's update:open — so this
+             button deliberately has no click handler of its own. -->
+        <AlertDialogCancel v-if="destructive" as-child>
+          <button class="button" type="button" :disabled="busy">
+            {{ cancelText }}
+          </button>
+        </AlertDialogCancel>
+        <button v-else class="button" type="button" :disabled="busy" @click="emit('cancel')">
           {{ cancelText }}
         </button>
+        <!-- Not AlertDialogAction: that closes the dialog on click, and several
+             callers keep it open after confirming to show progress (see the
+             empty-trash flow in TrashPage.vue). The parent owns the close. -->
         <button
           ref="confirmButton"
           class="button"
@@ -43,11 +53,13 @@
         </button>
       </footer>
     </section>
-  </BaseDialog>
+  </component>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, ref, useId, watch } from 'vue';
+import { AlertDialogCancel } from 'reka-ui';
+import BaseAlertDialog from './BaseAlertDialog.vue';
 import BaseDialog from './BaseDialog.vue';
 import { useI18n } from '@/i18n';
 
@@ -97,10 +109,28 @@ const confirmVariant = computed(() => ({
   danger: props.variant === 'danger'
 }));
 
+// The danger variant is the irreversible one, so it gets alert-dialog
+// semantics: role="alertdialog", no backdrop dismissal, focus on cancel.
+// Everything else — editing, importing, choosing a font — stays an ordinary
+// dialog on BaseDialog.
+const destructive = computed(() => props.variant === 'danger');
+const shell = computed(() => (destructive.value ? BaseAlertDialog : BaseDialog));
+const shellProps = computed(() => ({
+  open: props.open,
+  title: props.title,
+  busy: props.busy,
+  describedBy: descriptionId,
+  // BaseAlertDialog has no such prop: an alert dialog is never dismissed by
+  // its backdrop, whatever the caller asks for.
+  ...(destructive.value ? {} : { dismissible: props.closeOnBackdrop })
+}));
+
 watch(
   () => props.open,
   async (open) => {
-    if (!open) {
+    // Destructive dialogs must open on cancel, and AlertDialogContent already
+    // puts focus there; stealing it back to confirm would defeat the point.
+    if (!open || destructive.value) {
       return;
     }
 

@@ -21,7 +21,7 @@ test('should move a book to trash and restore it back to the library', async ({ 
   // Click "Move to Trash" and confirm
   await page.getByRole('button', { name: 'More' }).click();
   await page.getByRole('menuitem', { name: 'Move to Trash' }).click();
-  const deleteDialog = page.getByRole('dialog', { name: 'Confirm delete' });
+  const deleteDialog = page.getByRole('alertdialog', { name: 'Confirm delete' });
   await expect(deleteDialog).toBeVisible();
   await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();
 

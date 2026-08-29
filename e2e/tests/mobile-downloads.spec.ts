@@ -124,7 +124,7 @@ test('lists, sizes, and removes downloads on the /downloads page', async ({ page
 
   // Removal goes through the DeleteModal confirmation.
   await row.getByRole('button', { name: 'Remove download' }).click();
-  const removeDialog = page.getByRole('dialog', { name: 'Remove download' });
+  const removeDialog = page.getByRole('alertdialog', { name: 'Remove download' });
   await expect(removeDialog).toBeVisible();
   await expect(removeDialog.getByText('Delete downloads-page-book?')).toBeVisible();
   await removeDialog.getByRole('button', { name: 'Remove download' }).click();

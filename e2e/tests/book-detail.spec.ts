@@ -46,7 +46,7 @@ test('keeps reading progress and the primary action in the desktop first viewpor
   await expect(page.getByRole('menuitem', { name: 'Manage sources' })).toBeVisible();
   await page.getByRole('menuitem', { name: 'Move to Trash' }).click();
 
-  const dialog = page.getByRole('dialog');
+  const dialog = page.getByRole('alertdialog');
   await expect(dialog).toContainText('The book will be moved to Trash. You can restore it later.');
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).not.toBeVisible();

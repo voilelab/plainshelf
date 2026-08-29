@@ -57,7 +57,7 @@ test('returns to the folder the book lived in after moving it to trash', async (
 
   await page.getByRole('button', { name: 'More' }).click();
   await page.getByRole('menuitem', { name: 'Move to Trash' }).click();
-  const deleteDialog = page.getByRole('dialog', { name: 'Confirm delete' });
+  const deleteDialog = page.getByRole('alertdialog', { name: 'Confirm delete' });
   await expect(deleteDialog).toBeVisible();
   await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();
 
@@ -184,7 +184,7 @@ test('only offers Delete for empty folders, and deleting removes it from the tre
   await openFolderContextMenu(page, 'ftremovable');
   await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
 
-  const deleteDialog = page.getByRole('dialog', { name: 'Delete folder' });
+  const deleteDialog = page.getByRole('alertdialog', { name: 'Delete folder' });
   await expect(deleteDialog).toBeVisible();
   await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();
 

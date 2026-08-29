@@ -19,7 +19,7 @@ test('should empty the trash through a background task and report its progress',
     await expect(page).toHaveURL(/\/books\/[^/]+$/);
     await page.getByRole('button', { name: 'More' }).click();
     await page.getByRole('menuitem', { name: 'Move to Trash' }).click();
-    const deleteDialog = page.getByRole('dialog', { name: 'Confirm delete' });
+    const deleteDialog = page.getByRole('alertdialog', { name: 'Confirm delete' });
     await expect(deleteDialog).toBeVisible();
     await deleteDialog.getByRole('button', { name: 'Delete', exact: true }).click();
 
@@ -30,7 +30,7 @@ test('should empty the trash through a background task and report its progress',
     await expect(emptyButton).toBeEnabled();
     await emptyButton.click();
 
-    const dialog = page.getByRole('dialog', { name: 'Empty trash' });
+    const dialog = page.getByRole('alertdialog', { name: 'Empty trash' });
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText('Permanently delete all 1 books in the trash?')).toBeVisible();
 

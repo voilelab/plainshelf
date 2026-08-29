@@ -65,7 +65,7 @@ test('ConfirmModal falls back to translated defaults', async ({ page }) => {
   const selectionToolbar = page.getByRole('toolbar', { name: '已選書籍操作' });
   await selectionToolbar.getByRole('button', { name: '移到垃圾桶', exact: true }).click();
 
-  const dialog = page.getByRole('dialog');
+  const dialog = page.getByRole('alertdialog');
   await expect(dialog.getByRole('button', { name: '取消', exact: true })).toBeVisible();
   await expect(dialog.getByRole('button', { name: '關閉確認對話框', exact: true })).toBeVisible();
 });
