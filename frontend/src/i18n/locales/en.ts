@@ -12,6 +12,16 @@ const en = {
     label: 'Notifications',
     dismiss: 'Dismiss notification'
   },
+  security: {
+    insecureWarning: {
+      title: 'API authentication is off',
+      body: 'Anyone who can reach this address can read, change, and delete your entire library.',
+      docsLink: 'How to secure this',
+      collapse: 'Minimize',
+      expand: 'Show security warning',
+      badge: 'No API auth'
+    }
+  },
   language: {
     label: 'Language',
     en: 'English',
