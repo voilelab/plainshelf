@@ -40,21 +40,25 @@ app_conf:
   cover_to_jpg: true
   read_only: false
   security:
-    # local_token makes the shipped image reject unauthenticated writes on its own:
-    # mutating /api requests (POST/PUT/PATCH/DELETE) require the token the server
-    # injects into the served index page, so a browser opened against the container
-    # needs no manual setup. Loopback port publishing (-p 127.0.0.1:20000:20000) is
-    # now a recommendation, not the only line of defence.
+    # local_token requires a token on mutating /api requests (POST/PUT/PATCH/DELETE).
+    # The server injects that token into the served index page, so a browser opened
+    # against the container needs no manual setup, and cross-origin (CSRF) writes are
+    # rejected. It is NOT an authentication boundary for an exposed port: any client
+    # that can reach the port may GET / and read the token straight out of the page.
+    # Keep binding the port to loopback (-p 127.0.0.1:20000:20000); for an exposed
+    # deployment put a real boundary (reverse proxy auth or a VPN edge) in front.
     mode: "local_token"
-    # Switch to "none" only when an authentication boundary already sits in front of
-    # PlainShelf -- reverse proxy auth or a VPN edge. It disables the API token gate
-    # entirely, so an exposed port becomes an anonymous read/write/delete shelf.
+    # Switch to "none" only when such a boundary already fronts PlainShelf. It
+    # disables the API token gate entirely, so an exposed port becomes an anonymous
+    # read/write/delete shelf.
     # mode: "none"
     #
-    # local_token allows only loopback browser origins by default
-    # (http://127.0.0.1:20000, http://localhost:20000). If you open the UI from a LAN
-    # IP (e.g. a NAS) or a custom domain, list those origins here or the Origin check
-    # will reject writes:
+    # local_token allows only loopback browser origins on port 20000 by default
+    # (http://127.0.0.1:20000, http://localhost:20000). If you open the UI from a
+    # different host port (e.g. -p 127.0.0.1:8080:20000), a LAN IP (e.g. a NAS), or a
+    # custom domain, list that exact origin here or the Origin check will reject
+    # writes:
     # allowed_origins:
+    #   - "http://127.0.0.1:8080"
     #   - "http://192.168.1.10:20000"
     #   - "https://plainshelf.example.com"

@@ -41,14 +41,16 @@ docker run --rm \
 Open <http://127.0.0.1:20000>. The named volume preserves the shelf and
 application store when the container is replaced.
 
-!!! tip "Keep the server private"
-    The default Docker configuration sets `security.mode: local_token`, so
-    mutating `/api` requests need a token that the server injects into the served
-    index page — opening <http://127.0.0.1:20000> in a browser needs no setup.
-    Binding the port to `127.0.0.1` is still recommended. If you open the UI from
-    a LAN IP or a custom domain, add that origin to
-    `app_conf.security.allowed_origins` or writes are rejected; see the
-    [Docker](development/docker.md) page.
+!!! warning "Keep the server private"
+    The default Docker configuration sets `security.mode: local_token`: the token
+    is injected into the served index page, so opening <http://127.0.0.1:20000> in
+    a browser needs no setup, and cross-origin (CSRF) writes are rejected. It is
+    **not** an authentication boundary for an exposed port — any client that can
+    reach the port may fetch the token from the page and write, so bind the port to
+    `127.0.0.1` and put a real boundary (reverse proxy auth or VPN) in front before
+    exposing it. If you open the UI from a different host port, a LAN IP, or a
+    custom domain, add that exact origin to `app_conf.security.allowed_origins` or
+    writes are rejected; see the [Docker](development/docker.md) page.
 
 ## 2. Configure storage
 
