@@ -25,6 +25,7 @@ and UI behavior may still change between releases.
 ### Security
 
 - **Breaking (pre-1.0):** changed `GET /api/logs` and `/api/logs/{id}/content` to always require the access token, whatever `protect_read` says, since logs carry request paths, access times, and remote addresses; a client reading them without a token now gets `401`, and security mode `none` is unaffected.
+- **Breaking (pre-1.0):** changed the Docker image default (`docker/config.yaml`) from `security.mode: "none"` to `local_token`, so an exposed container rejects unauthenticated writes (`401`) instead of serving an anonymous read/write/delete shelf; browsers on `127.0.0.1:20000` are unaffected (the token is injected into the served page), but opening the UI from a LAN IP or custom domain now needs that origin in `app_conf.security.allowed_origins`.
 
 ## [v0.10.0] - 2026-08-26
 

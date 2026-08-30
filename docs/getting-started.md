@@ -42,9 +42,13 @@ Open <http://127.0.0.1:20000>. The named volume preserves the shelf and
 application store when the container is replaced.
 
 !!! tip "Keep the server private"
-    Bind the port to `127.0.0.1` unless PlainShelf is behind a trusted VPN or
-    authentication boundary. The default Docker configuration does not enable
-    application-level authentication.
+    The default Docker configuration sets `security.mode: local_token`, so
+    mutating `/api` requests need a token that the server injects into the served
+    index page — opening <http://127.0.0.1:20000> in a browser needs no setup.
+    Binding the port to `127.0.0.1` is still recommended. If you open the UI from
+    a LAN IP or a custom domain, add that origin to
+    `app_conf.security.allowed_origins` or writes are rejected; see the
+    [Docker](development/docker.md) page.
 
 ## 2. Configure storage
 

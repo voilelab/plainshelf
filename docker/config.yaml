@@ -40,6 +40,21 @@ app_conf:
   cover_to_jpg: true
   read_only: false
   security:
-    # Explicitly unsafe for container deployments; put PlainShelf behind a trusted
-    # local-only port mapping, reverse proxy auth, VPN boundary, or future password mode.
-    mode: "none"
+    # local_token makes the shipped image reject unauthenticated writes on its own:
+    # mutating /api requests (POST/PUT/PATCH/DELETE) require the token the server
+    # injects into the served index page, so a browser opened against the container
+    # needs no manual setup. Loopback port publishing (-p 127.0.0.1:20000:20000) is
+    # now a recommendation, not the only line of defence.
+    mode: "local_token"
+    # Switch to "none" only when an authentication boundary already sits in front of
+    # PlainShelf -- reverse proxy auth or a VPN edge. It disables the API token gate
+    # entirely, so an exposed port becomes an anonymous read/write/delete shelf.
+    # mode: "none"
+    #
+    # local_token allows only loopback browser origins by default
+    # (http://127.0.0.1:20000, http://localhost:20000). If you open the UI from a LAN
+    # IP (e.g. a NAS) or a custom domain, list those origins here or the Origin check
+    # will reject writes:
+    # allowed_origins:
+    #   - "http://192.168.1.10:20000"
+    #   - "https://plainshelf.example.com"

@@ -3,10 +3,13 @@ package contract_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/voilelab/plainshelf/server"
+	"gopkg.in/yaml.v3"
 )
 
 // Representative route used throughout this file. This setting needs no
@@ -90,6 +93,50 @@ func TestAPISecurityOriginAndCORSContract(t *testing.T) {
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:20000" {
 		t.Fatalf("preflight origin header = %q, want http://localhost:20000", got)
 	}
+}
+
+// TestAPISecurityContainerDefaultConfigContract pins the shipped container
+// default. The image runs docker/config.yaml unmodified, so its parsed
+// security block is what a user who forgets a port mapping is protected by. A
+// regression to mode: "none" would silently answer anonymous writes on any
+// exposed port, which is exactly what this default exists to prevent.
+func TestAPISecurityContainerDefaultConfigContract(t *testing.T) {
+	confPath := filepath.Join("..", "..", "docker", "config.yaml")
+	bs, err := os.ReadFile(confPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", confPath, err)
+	}
+
+	var conf server.SrvConf
+	if err := yaml.Unmarshal(bs, &conf); err != nil {
+		t.Fatalf("parse %s: %v", confPath, err)
+	}
+	if conf.AppConf == nil || conf.AppConf.Security == nil {
+		t.Fatalf("container config has no app_conf.security block")
+	}
+	if got := conf.AppConf.Security.Mode; got != server.SecurityModeLocalToken {
+		t.Fatalf("container config security mode = %q, want %q", got, server.SecurityModeLocalToken)
+	}
+
+	// addr stays 0.0.0.0:20000 (required inside the container) and the listen-addr
+	// guard still passes because the mode is set explicitly.
+	if conf.ServerConf == nil {
+		t.Fatalf("container config has no server_conf block")
+	}
+	if err := server.ValidateSecurityForListenAddr(conf.AppConf.Security, conf.ServerConf.Addr); err != nil {
+		t.Fatalf("ValidateSecurityForListenAddr(%q) = %v, want nil", conf.ServerConf.Addr, err)
+	}
+
+	// The parsed default protects mutating requests: no token -> 401, token -> 204.
+	env := newAPITestEnv(t, withSecurity(conf.AppConf.Security))
+
+	rec := env.doRaw(httptest.NewRequest(http.MethodPost, settingPath, strings.NewReader(mutationBody)))
+	assertStatus(t, rec, http.StatusUnauthorized)
+
+	req := httptest.NewRequest(http.MethodPost, settingPath, strings.NewReader(mutationBody))
+	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())
+	rec = env.doRaw(req)
+	assertStatus(t, rec, http.StatusNoContent)
 }
 
 func TestAPISecurityProtectReadOptionContract(t *testing.T) {

@@ -175,9 +175,19 @@ docker run --rm \
 ```
 
 !!! tip "Keep it local"
-    The example publishes the port on the loopback address (`127.0.0.1`)
-    only. Do not expose `0.0.0.0:20000` to untrusted networks unless you add
-    an authentication boundary in front of the container.
+    The default container config sets `security.mode: local_token`, so mutating
+    `/api` requests are rejected without a token even if the port is reachable.
+    The token is injected into the served index page, so opening
+    <http://127.0.0.1:20000> in a browser needs no manual setup. Publishing the
+    port on the loopback address (`127.0.0.1`) is still recommended, but it is no
+    longer the only line of defence.
+
+!!! warning "Opening the UI from a LAN IP or custom domain"
+    `local_token` allows only loopback browser origins by default
+    (`http://127.0.0.1:20000`, `http://localhost:20000`). If you reach the UI
+    from a NAS LAN IP or a custom domain, add that origin to
+    `app_conf.security.allowed_origins` in a mounted config or writes are
+    rejected by the Origin check. See the [Docker](development/docker.md) page.
 
 For custom configuration and the bundled defaults, see the
 [Docker](development/docker.md) page.
