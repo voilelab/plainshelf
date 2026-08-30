@@ -22,9 +22,11 @@ Read the relevant section before working in that area. Add entries according to
   once before diagnosing a timeout as a test failure.
 - **Preinstalled golangci-lint is too old:** the container's binary refuses this
   repo with "Go language version used to build golangci-lint is lower than the
-  targeted Go version", and `go install` reproduces it. Download the release
-  build CI uses instead:
-  `curl -sSL https://github.com/golangci/golangci-lint/releases/download/v2.12.2/golangci-lint-2.12.2-linux-amd64.tar.gz | tar xz`.
+  targeted Go version", and `go install` reproduces it. Download a release build
+  whose own Go toolchain is at least `go.mod`'s target instead. As of Go 1.27.0
+  (2026-08) the working build is v2.13.1 (built with go1.27.0); v2.12.2 now fails
+  the same way the preinstalled one does. Match the version to `go.mod`:
+  `curl -sSL https://github.com/golangci/golangci-lint/releases/download/v2.13.1/golangci-lint-2.13.1-linux-amd64.tar.gz | tar xz`.
   CI enables `unused`, so a helper left without callers fails the build even
   when `go vet` and `go test` pass. (`.golangci.yml`, `.github/workflows/ci.yml`)
 - **Frontend suite needs a supported Node:** ten unrelated suites fail at import
