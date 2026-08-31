@@ -6,7 +6,11 @@
 
 PlainShelf is a local-first, single-user reading library for lightweight text
 content. It stores the library in human-readable files and provides web,
-desktop, and experimental Android clients.
+desktop, and experimental Android clients. Local-first is also a security
+stance: no platform — including this one — holds your library or your reading
+records, and PlainShelf keeps no third-party service credentials. See
+[Deployment and threat model](docs/deployment-and-threat-model.md) for what each
+deployment does and does not protect.
 
 > **Pre-alpha:** APIs, data layout, and UI behavior may change. Back up your
 > shelf before upgrading. See
@@ -65,6 +69,7 @@ in the [development guide](docs/development/setup.md).
 - [Getting Started](docs/getting-started.md)
 - [Local shelf configuration](docs/configuring-local-shelf.md)
 - [SMB shelf configuration](docs/configuring-smb-shelf.md)
+- [Deployment and threat model](docs/deployment-and-threat-model.md)
 - [Data model](docs/concepts/data-model.md)
 - [Known issues](docs/known-issue.md)
 

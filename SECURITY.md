@@ -58,13 +58,11 @@ Out of scope unless they demonstrate a concrete PlainShelf impact:
 
 ## Secure Usage Guidance
 
-PlainShelf now enables `local_token` protection in the default localhost config: mutating `/api` requests require an ephemeral startup token and allowed `Origin`/`Referer` values. This mitigates web-origin CSRF against localhost but is not a full multi-user authentication system.
+How to bind and configure PlainShelf for each deployment — loopback single user, home LAN / NAS, and why the public internet is not yet supported — is documented in one place so the guidance does not drift: [Deployment and threat model](docs/deployment-and-threat-model.md). That page also states two standing boundaries: `local_token` is a CSRF mitigation, not access control, and PlainShelf stores no third-party credentials.
 
-Until PlainShelf gains password/session auth for shared or internet-facing deployments:
+The essentials, at every tier:
 
-- Run the web server bound to `127.0.0.1` unless you have a trusted reverse proxy, VPN, and authentication boundary.
-- Do not expose PlainShelf directly to the public internet.
-- If binding to a non-loopback address, set `app_conf.security.mode` explicitly and avoid `mode: "none"` unless another trusted layer protects access.
+- Follow [Deployment and threat model](docs/deployment-and-threat-model.md) for the bind address, `app_conf.security.mode`, and origin allowlist your deployment needs. Do not expose PlainShelf directly to the public internet: it has no login yet.
 - Keep shelf and store directories backed up before testing new builds.
 - Treat imported books, metadata, and covers as untrusted input.
 - Review Docker volume mounts and custom configuration files before sharing them.
