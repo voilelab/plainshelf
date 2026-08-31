@@ -1,32 +1,34 @@
 <template>
-  <div class="similarity-filter">
+  <CollapsibleRoot
+    as="div"
+    class="similarity-filter"
+    :open="advancedOpen"
+    @update:open="emit('update:advancedOpen', $event)"
+  >
     <div class="toolbar-bar similarity-tier-bar">
       <span class="toolbar-label">{{ t('maintenance.similar.tiersLabel') }}</span>
-      <div class="similarity-segmented" role="group" :aria-label="t('maintenance.similar.tiersLabel')">
-        <button
+      <ToggleGroupRoot
+        type="single"
+        class="similarity-segmented"
+        :aria-label="t('maintenance.similar.tiersLabel')"
+        :model-value="advancedOpen ? SEGMENT_NONE : tier"
+        @update:model-value="onSelectTierModel"
+      >
+        <ToggleGroupItem
           v-for="tierOption in tiers"
           :key="tierOption.key"
-          type="button"
+          :value="tierOption.key"
           class="toolbar-control toolbar-button similarity-segment"
-          :class="{ 'is-active': !advancedOpen && tierOption.key === tier }"
-          :aria-pressed="!advancedOpen && tierOption.key === tier"
-          @click="onSelectTier(tierOption.key)"
         >
           {{ t(tierOption.labelKey) }}
-        </button>
-      </div>
-      <button
-        type="button"
-        class="toolbar-control toolbar-button toolbar-small similarity-advanced-toggle"
-        :class="{ 'is-active': advancedOpen }"
-        :aria-expanded="advancedOpen"
-        @click="emit('update:advancedOpen', !advancedOpen)"
-      >
+        </ToggleGroupItem>
+      </ToggleGroupRoot>
+      <CollapsibleTrigger class="toolbar-control toolbar-button toolbar-small similarity-advanced-toggle">
         {{ t('maintenance.similar.advanced') }}
-      </button>
+      </CollapsibleTrigger>
     </div>
 
-    <div v-if="advancedOpen" class="toolbar-bar similarity-advanced">
+    <CollapsibleContent class="toolbar-bar similarity-advanced">
       <label class="toolbar-label" :for="SLIDER_ID">{{ t('maintenance.similar.thresholdLabel') }}</label>
       <input
         :id="SLIDER_ID"
@@ -42,7 +44,7 @@
       <span class="toolbar-label similarity-diff-readout">
         {{ t('maintenance.similar.diffReadout', { count: diffPer100 }) }}
       </span>
-    </div>
+    </CollapsibleContent>
 
     <div class="toolbar-bar similarity-subset-bar">
       <label class="similarity-subset">
@@ -54,10 +56,18 @@
         <span>{{ t('maintenance.similar.subsetToggle') }}</span>
       </label>
     </div>
-  </div>
+  </CollapsibleRoot>
 </template>
 
 <script setup lang="ts">
+import {
+  CollapsibleContent,
+  CollapsibleRoot,
+  CollapsibleTrigger,
+  ToggleGroupItem,
+  ToggleGroupRoot,
+  type AcceptableValue
+} from 'reka-ui';
 import { computed } from 'vue';
 
 import { useI18n } from '@/i18n';
@@ -73,6 +83,13 @@ import {
 import '@/styles/toolbar-controls.css';
 
 const SLIDER_ID = 'similarity-threshold-slider';
+// A non-matching sentinel for "no tier pressed" (while the advanced slider
+// owns the selection). It must not be `undefined`: reka latches the toggle
+// group into uncontrolled mode when the initial model-value is `undefined`
+// (passive === modelValue === undefined), after which the parent's `tier`
+// would stop driving it. `null` keeps the group controlled and matches no
+// tier, so every segment reads unpressed.
+const SEGMENT_NONE = null;
 
 const props = defineProps<{
   /** Selected tier, meaningful only while the advanced slider is closed. */
@@ -96,6 +113,17 @@ const tiers = SIMILARITY_TIERS;
 
 const thresholdPercent = computed(() => Math.round(props.threshold * 100));
 const diffPer100 = computed(() => approxDiffPer100Chars(props.threshold));
+
+// The segmented control is a single-select ToggleGroup. reka emits `undefined`
+// when the active segment is re-clicked (its built-in deselect) or while the
+// advanced slider owns the selection and nothing is pressed; in both cases the
+// tier must stay put, so only a real pick reaches onSelectTier.
+function onSelectTierModel(value: AcceptableValue): void {
+  if (value == null) {
+    return;
+  }
+  onSelectTier(value as SimilarityTierKey);
+}
 
 // Picking a tier closes the advanced slider so the tier drives again, and
 // aligns the slider's stored value with that tier for when it is reopened.
@@ -125,6 +153,13 @@ function onSlider(event: Event): void {
   flex-wrap: wrap;
 }
 
+/* reka keeps the CollapsibleContent wrapper mounted and only marks it hidden
+   when closed; `.toolbar-bar` sets display:flex, which would beat the
+   user-agent [hidden] rule and leave an empty row taking column gap. */
+.similarity-advanced[hidden] {
+  display: none;
+}
+
 .similarity-segmented {
   display: inline-flex;
   gap: 0;
@@ -148,8 +183,8 @@ function onSlider(event: Event): void {
   margin-left: -1px;
 }
 
-.similarity-segment.is-active,
-.similarity-advanced-toggle.is-active {
+.similarity-segment[data-state='on'],
+.similarity-advanced-toggle[data-state='open'] {
   background: var(--accent-soft, #e6f0ff);
   border-color: var(--accent, #3b82f6);
   color: var(--accent, #2563eb);
