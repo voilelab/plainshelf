@@ -1,7 +1,6 @@
 package shelf
 
 import (
-	"context"
 	"io/fs"
 	"os"
 	"path"
@@ -46,7 +45,7 @@ func openShelf(t *testing.T, conf *ShelfConf) *Shelf {
 	if err != nil {
 		t.Fatalf("NewShelf: %v", err)
 	}
-	if err := s.WaitReady(context.Background()); err != nil {
+	if err := s.WaitReady(t.Context()); err != nil {
 		t.Fatalf("WaitReady: %v", err)
 	}
 	return s

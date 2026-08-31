@@ -83,7 +83,7 @@ func TestShelfRuntimeStateAndScanInterval(t *testing.T) {
 
 func TestShelfWaitReadyCancellationAndInitializingReads(t *testing.T) {
 	shelf := &Shelf{readyCh: make(chan struct{})}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	if err := shelf.WaitReady(ctx); !errors.Is(err, context.Canceled) {

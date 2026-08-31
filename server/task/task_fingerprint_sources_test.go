@@ -1,7 +1,6 @@
 package task
 
 import (
-	"context"
 	"os"
 	"path"
 	"strings"
@@ -134,7 +133,7 @@ func runFingerprintSources(t *testing.T, testShelf *shelf.Shelf) (*fingerprintSo
 	t.Helper()
 
 	task := newFingerprintSourcesTask("default_shelf", testShelf, false, newTaskTestLogger(t))
-	return task, task.Run(context.Background())
+	return task, task.Run(t.Context())
 }
 
 // runForceFingerprintSources runs the sweep with force set, the way the "force
@@ -144,7 +143,7 @@ func runForceFingerprintSources(t *testing.T, testShelf *shelf.Shelf) (*fingerpr
 	t.Helper()
 
 	task := newFingerprintSourcesTask("default_shelf", testShelf, true, newTaskTestLogger(t))
-	return task, task.Run(context.Background())
+	return task, task.Run(t.Context())
 }
 
 func fingerprintResult(t *testing.T, task *fingerprintSourcesTask) FingerprintSourcesResult {
