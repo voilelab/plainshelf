@@ -31,6 +31,7 @@ nav:
   - EPUB Import: epub-import.md
   - Finding Similar Books: finding-similar-books.md
   - Logs: logs.md
+  - Deployment & Threat Model: deployment-and-threat-model.md
   - Configuration:
       - Local Shelf File Source: configuring-local-shelf.md
       - SMB Shelf File Source: configuring-smb-shelf.md
