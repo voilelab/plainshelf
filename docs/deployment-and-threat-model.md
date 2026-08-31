@@ -7,8 +7,10 @@ configuration each one wants, and states plainly what protects access in each.
 
 It also records two standing non-goals that hold at every tier:
 
-- **PlainShelf holds no third-party credentials.** See
-  [PlainShelf holds no third-party credentials](#plainshelf-holds-no-third-party-credentials).
+- **No PlainShelf server holds your credentials, and none are baked into its
+  binaries.** The one credential it persists — a pCloud token you grant — stays
+  on your own device. See
+  [Where third-party credentials live](#where-third-party-credentials-live).
 - **`local_token` is a CSRF boundary, not access control.** See
   [What `local_token` actually protects](#what-local_token-actually-protects).
 
@@ -122,28 +124,39 @@ Read `mode: local_token` as "CSRF protection for a machine you already control,"
 never as "a login." When you need a login, that is Tier C, and it is not built
 yet.
 
-## PlainShelf holds no third-party credentials
+## Where third-party credentials live
 
-Whatever the tier, PlainShelf **does not store or forward any third-party service
-credential.** If PlainShelf itself were compromised, there is no saved cloud
-password, API key, or OAuth secret for an attacker to take from it. This has been
-true by construction, not by policy, and three facts keep it that way:
+PlainShelf runs no server of its own, so **no PlainShelf-operated service holds
+your accounts, your library, or your credentials**, and **nothing confidential is
+baked into its binaries** for an attacker to lift from the server or the APK.
+Three facts keep that true:
 
 - **The server has no config field for a secret.** `app_conf` carries shelf
   paths, a store path, import and logging settings, and the `security` block —
   and nothing that reads a password, token, or API key for any external service.
-  The one token PlainShelf does handle, the `local_token`, is generated fresh at
-  each startup and never persisted.
+  The one token PlainShelf handles on the server, the `local_token`, is generated
+  fresh at each startup and never persisted.
 - **SMB credentials are the operating system's, not PlainShelf's.** PlainShelf
   reads an SMB/NAS shelf only through a path the OS has already mounted; it does
   not accept `smb://` URLs and never sees the share's username or password. See
   [Configure an SMB shelf file source](configuring-smb-shelf.md).
-- **The Android app ships no pCloud secret.** pCloud access uses the
+- **No pCloud secret is baked into the Android app.** pCloud access uses the
   `poll_token` OAuth flow, which needs no app secret and no redirect URL, so
-  there is nothing confidential baked into the APK. The token a user grants
-  lives on their device; PlainShelf's servers never see it, because PlainShelf
-  runs no server in that path.
+  there is nothing confidential shipped inside the APK.
+
+There is one credential PlainShelf does persist, and it is worth stating plainly
+rather than rounding off to "none":
+
+- **A pCloud OAuth token you grant is stored on your own device.** If you connect
+  an Android pCloud shelf, the access token you approve is saved in the device's
+  Keystore-backed secure storage
+  (`frontend/src/providers/mobileConfig.ts`), encrypted at rest. It is scoped to
+  your own pCloud account, it is never sent to any PlainShelf server, and it is
+  the only third-party credential the app keeps. The boundary to be clear on: the
+  app can decrypt the token in order to use it, so an attacker who compromises
+  both the device and the app could read it. If a device is lost, revoke the
+  grant from your pCloud account settings.
 
 This is the local-first promise made concrete: no platform — including this one —
-holds your library or your reading records, and none holds the keys to anywhere
-else you store them.
+holds your library or your reading records; the one key you grant, for your own
+pCloud, stays on your own device.

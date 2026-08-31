@@ -58,7 +58,7 @@ Out of scope unless they demonstrate a concrete PlainShelf impact:
 
 ## Secure Usage Guidance
 
-How to bind and configure PlainShelf for each deployment — loopback single user, home LAN / NAS, and why the public internet is not yet supported — is documented in one place so the guidance does not drift: [Deployment and threat model](docs/deployment-and-threat-model.md). That page also states two standing boundaries: `local_token` is a CSRF mitigation, not access control, and PlainShelf stores no third-party credentials.
+How to bind and configure PlainShelf for each deployment — loopback single user, home LAN / NAS, and why the public internet is not yet supported — is documented in one place so the guidance does not drift: [Deployment and threat model](docs/deployment-and-threat-model.md). That page also states two standing boundaries: `local_token` is a CSRF mitigation, not access control, and no PlainShelf server holds your credentials (a pCloud token you grant stays on your own device).
 
 The essentials, at every tier:
 
