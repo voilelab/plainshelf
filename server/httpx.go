@@ -157,6 +157,6 @@ func describableField(pointer jsontext.Pointer) (string, bool) {
 }
 
 func isRequestBodyTooLarge(err error) bool {
-	var maxBytesErr *http.MaxBytesError
-	return errors.As(err, &maxBytesErr)
+	_, ok := errors.AsType[*http.MaxBytesError](err)
+	return ok
 }

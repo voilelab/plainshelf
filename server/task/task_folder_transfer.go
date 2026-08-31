@@ -1,8 +1,9 @@
 package task
 
 import (
+	"cmp"
 	"context"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -95,7 +96,7 @@ func newFolderTransferTask(sourceShelfID string, source *shelf.Shelf, targetShel
 			targetFolder: remapFolder(b.SourceFolder, sourceFolder, targetFolder),
 		})
 	}
-	sort.Slice(planned, func(i, j int) bool { return planned[i].id < planned[j].id })
+	slices.SortFunc(planned, func(a, b plannedTransfer) int { return cmp.Compare(a.id, b.id) })
 
 	return &folderTransferTask{
 		source:        source,
@@ -301,7 +302,12 @@ func (t *folderTransferTask) pruneSourceFolder() {
 			under = append(under, l)
 		}
 	}
-	sort.Slice(under, func(i, j int) bool { return len(under[i]) > len(under[j]) })
+	// Deepest-first so a child folder is cleaned up before its parent. Paths of
+	// equal depth never nest, so their relative order does not affect the
+	// deletion; sort them by path anyway to keep the order deterministic.
+	slices.SortFunc(under, func(a, b shelf.FolderPath) int {
+		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a.String(), b.String()))
+	})
 
 	for _, l := range under {
 		// A non-empty folder (a failed book or an unreadable package) is left in

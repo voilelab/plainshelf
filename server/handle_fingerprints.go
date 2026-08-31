@@ -1,10 +1,11 @@
 package server
 
 import (
+	"cmp"
 	"errors"
 	"math"
 	"net/http"
-	"sort"
+	"slices"
 	"strconv"
 	"time"
 
@@ -142,7 +143,7 @@ func classifyRelation(sameNormMD5 bool, jaccard, maxContainment float64) string 
 // with a single integer comparison before the sketch intersection is computed.
 func buildSimilarPairs(prints []bookSketch, floor float64) []similarPair {
 	sorted := append([]bookSketch(nil), prints...)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i].bookID < sorted[j].bookID })
+	slices.SortFunc(sorted, func(a, b bookSketch) int { return cmp.Compare(a.bookID, b.bookID) })
 
 	pairs := []similarPair{}
 	for i := range sorted {

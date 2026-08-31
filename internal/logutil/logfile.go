@@ -1,12 +1,13 @@
 package logutil
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -282,16 +283,12 @@ func cleanLogPath(path string) string {
 }
 
 func sortEntries(logs []Entry) {
-	sort.Slice(logs, func(i, j int) bool {
-		if logs[i].Date != logs[j].Date {
-			return logs[i].Date > logs[j].Date
-		}
-		if logs[i].Filename != logs[j].Filename {
-			return logs[i].Filename < logs[j].Filename
-		}
-		if logs[i].Source != logs[j].Source {
-			return logs[i].Source < logs[j].Source
-		}
-		return logs[i].ID < logs[j].ID
+	slices.SortFunc(logs, func(a, b Entry) int {
+		return cmp.Or(
+			cmp.Compare(b.Date, a.Date),
+			cmp.Compare(a.Filename, b.Filename),
+			cmp.Compare(a.Source, b.Source),
+			cmp.Compare(a.ID, b.ID),
+		)
 	})
 }
