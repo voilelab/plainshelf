@@ -120,7 +120,7 @@ func collectLogSources(v reflect.Value, prefix string, sources *[]logutil.Source
 		return
 	}
 	if v.Kind() == reflect.Slice || v.Kind() == reflect.Array {
-		for i := 0; i < v.Len(); i++ {
+		for i := range v.Len() {
 			collectLogSources(v.Index(i), indexedLogSource(prefix, i), sources)
 		}
 		return
@@ -130,7 +130,7 @@ func collectLogSources(v reflect.Value, prefix string, sources *[]logutil.Source
 	}
 
 	t := v.Type()
-	for i := 0; i < t.NumField(); i++ {
+	for i := range t.NumField() {
 		field := t.Field(i)
 		if !field.IsExported() {
 			continue
