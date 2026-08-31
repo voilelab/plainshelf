@@ -33,6 +33,14 @@ docker run --rm \
     `0.0.0.0:20000` to untrusted networks unless you put a real boundary
     (reverse proxy auth or a VPN edge) in front of the container.
 
+!!! warning "`mode: none` on a non-loopback address"
+    With `app_conf.security.mode: "none"`, the API answers every request —
+    reads, writes, and deletes — without authentication. When the server is
+    also bound to a non-loopback address, any device that can reach it has full
+    access to your library. The Web UI shows a persistent, collapsible warning
+    in this case so the exposure is not forgotten. It does not appear when the
+    server is bound to loopback, which is the ordinary local-only setup.
+
 ## Default container config
 
 The image uses `docker/config.yaml`, which:

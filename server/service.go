@@ -73,6 +73,10 @@ func MainService(confPath string) error {
 	defer app.Close()
 	rootLogger.Info("Create App...done")
 
+	// The listen address lives in ServerConf, which NewApp (given only AppConf)
+	// never sees; wire the warning here where both halves are known.
+	app.SetInsecureNetworkWarning(app.security.InsecureNetworkExposure(conf.ServerConf.Addr))
+
 	rootLogger.Info("Start App...")
 	err = app.Start()
 	if err != nil {

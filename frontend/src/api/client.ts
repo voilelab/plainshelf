@@ -36,6 +36,11 @@ declare global {
     __PLAINSHELF_SECURITY__?: {
       token?: string;
       tokenHeader?: string;
+      // Set by the Go server only when security mode is none and the listen
+      // address is not loopback: the API answers every request, including
+      // writes and deletes, without authentication. Drives the persistent
+      // Web UI warning; see SecurityWarningBanner.vue.
+      insecurePublicAccess?: boolean;
     };
     __PLAINSHELF_READ_ONLY__?: boolean;
     plainshelf?: {
@@ -99,6 +104,14 @@ if (typeof window !== 'undefined') {
 
 export function isMockApiMode(): boolean {
   return API_MODE === 'mock';
+}
+
+// isInsecurePublicAccess reports whether the server bootstrapped this page with
+// the "no API authentication, reachable off-machine" flag. The Go server sets it
+// only for security mode none bound to a non-loopback address; every other
+// posture (any local_token mode, or none on loopback) leaves it unset.
+export function isInsecurePublicAccess(): boolean {
+  return typeof window !== 'undefined' && window.__PLAINSHELF_SECURITY__?.insecurePublicAccess === true;
 }
 
 function assertApiMode(): void {
