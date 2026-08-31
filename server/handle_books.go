@@ -26,7 +26,7 @@ type Book struct {
 	// CharCount is only populated when the request includes
 	// include=char_count; it is omitted otherwise, so the default response
 	// shape is unchanged.
-	CharCount int `json:"char_count,omitempty"`
+	CharCount int `json:"char_count,omitzero"`
 }
 
 type UpdateBookRequest struct {
@@ -99,7 +99,7 @@ func (h *bookHandlers) getBooks(w http.ResponseWriter, r *http.Request) {
 			Folder: b.Folders,
 		}
 		if includeCharCount {
-			// A book with a broken or missing source reports 0, which omitempty
+			// A book with a broken or missing source reports 0, which omitzero
 			// drops: one damaged book must not fail the whole listing.
 			jsonBooks[i].CharCount = b.CharCount
 		}
