@@ -23,7 +23,7 @@ type desktopShelfEntry struct {
 	// This file is not inside any shelf, so a shelf being read-only never makes
 	// its own entry here unwritable: a shelf that was opened read-only can
 	// always be edited back. See DesktopApp.ModifyShelf.
-	ReadOnly bool `json:"read_only,omitempty"`
+	ReadOnly bool `json:"read_only,omitzero"`
 }
 
 const (

@@ -25,12 +25,13 @@ type spaHandlers struct {
 }
 
 // securityBootstrapPayload is the JSON shape written into
-// window.__PLAINSHELF_SECURITY__. Fields are omitempty so mode none injects only
-// the warning flag (it has no token) and a loopback none injects nothing at all.
+// window.__PLAINSHELF_SECURITY__. Fields are omitted when empty so mode none
+// injects only the warning flag (it has no token) and a loopback none injects
+// nothing at all.
 type securityBootstrapPayload struct {
 	Token                string `json:"token,omitempty"`
 	TokenHeader          string `json:"tokenHeader,omitempty"`
-	InsecurePublicAccess bool   `json:"insecurePublicAccess,omitempty"`
+	InsecurePublicAccess bool   `json:"insecurePublicAccess,omitzero"`
 }
 
 // fallback serves index.html for all non-API GET requests that do not name a
