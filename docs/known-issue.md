@@ -21,14 +21,17 @@ than walking the library, so a book added, moved, or deleted by anything other
 than PlainShelf can take that long to appear. **Update book list** is what
 shortens the wait to now.
 
-**Staleness is judged from `book.json`'s size and modification time.** An edit
-that happens to leave both unchanged is not noticed, and **Update book list**
-does not change that: the walk finds the file, sees the same size and time, and
-keeps what it already had. This is the one limit on this page the button cannot
-lift. Nor does a change to a cover or a source file move `book.json` at all, so
-cached state derived from a book can stay stale even while the changed file
-itself is served correctly. The cover and source contents are not themselves
-cached.
+**Between scans, staleness is judged from `book.json`'s size and modification
+time.** The per-book refresh that runs on `book_check_interval` stats
+`book.json` and reopens a book only when its size or modification time changed,
+so an edit that leaves both unchanged is not noticed by that check — and neither
+is a change to a cover or a source file, which does not move `book.json` at all.
+A full scan is different: it reopens every `book.json` outright rather than
+trusting its stat, so **Update book list**, which forces one, does pick these
+up. What the button cannot do is make the change appear before it is pressed —
+that is the timer limit above, so between scans cached state derived from a book
+can stay stale even while the changed file itself is served correctly. The cover
+and source contents are not themselves cached.
 
 On a single desktop machine those two limits are the whole story. The setups
 below each add something to them.
