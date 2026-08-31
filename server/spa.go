@@ -16,6 +16,21 @@ type spaHandlers struct {
 	fs       fs.FS
 	files    http.Handler
 	security *Security
+
+	// warnInsecurePublic makes the injected bootstrap carry an
+	// insecurePublicAccess flag so the Web UI shows a persistent "no API auth"
+	// warning. It is set only by the network server path when mode is none and
+	// the listen address is not loopback; see App.SetInsecureNetworkWarning.
+	warnInsecurePublic bool
+}
+
+// securityBootstrapPayload is the JSON shape written into
+// window.__PLAINSHELF_SECURITY__. Fields are omitempty so mode none injects only
+// the warning flag (it has no token) and a loopback none injects nothing at all.
+type securityBootstrapPayload struct {
+	Token                string `json:"token,omitempty"`
+	TokenHeader          string `json:"tokenHeader,omitempty"`
+	InsecurePublicAccess bool   `json:"insecurePublicAccess,omitempty"`
 }
 
 // fallback serves index.html for all non-API GET requests that do not name a
@@ -96,18 +111,20 @@ func contentSecurityPolicy(nonce string) string {
 }
 
 func (h *spaHandlers) injectSecurityBootstrap(data []byte, nonce string) []byte {
-	if h.security == nil || !h.security.IsEnabled() || h.security.Token() == "" {
+	payload := securityBootstrapPayload{}
+	if h.security != nil && h.security.IsEnabled() && h.security.Token() != "" {
+		payload.Token = h.security.Token()
+		payload.TokenHeader = h.security.TokenHeader()
+	}
+	payload.InsecurePublicAccess = h.warnInsecurePublic
+	if payload == (securityBootstrapPayload{}) {
 		return data
 	}
-	token, err := json.Marshal(h.security.Token())
+	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return data
 	}
-	header, err := json.Marshal(h.security.TokenHeader())
-	if err != nil {
-		return data
-	}
-	bootstrap := []byte(`<script nonce="` + nonce + `">window.__PLAINSHELF_SECURITY__={token:` + string(token) + `,tokenHeader:` + string(header) + `};</script>`)
+	bootstrap := []byte(`<script nonce="` + nonce + `">window.__PLAINSHELF_SECURITY__=` + string(encoded) + `;</script>`)
 	marker := []byte("</head>")
 	if idx := bytes.Index(data, marker); idx >= 0 {
 		out := make([]byte, 0, len(data)+len(bootstrap))

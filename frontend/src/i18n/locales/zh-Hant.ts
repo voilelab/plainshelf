@@ -12,6 +12,16 @@ const zhHant = {
     label: '通知',
     dismiss: '關閉通知'
   },
+  security: {
+    insecureWarning: {
+      title: 'API 未啟用驗證',
+      body: '任何能連到這個位址的裝置，都可以讀取、修改、刪除你的整個書庫。',
+      docsLink: '如何保護',
+      collapse: '收合',
+      expand: '顯示安全警示',
+      badge: 'API 無驗證'
+    }
+  },
   language: {
     label: '語言',
     en: 'English',

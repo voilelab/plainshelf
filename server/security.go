@@ -119,6 +119,16 @@ func ValidateSecurityForListenAddr(conf *SecurityConf, listenAddr string) error 
 	return util.Errorf("app_conf.security.mode must be set when server_conf.addr %q is not loopback", listenAddr)
 }
 
+// InsecureNetworkExposure reports whether the API answers every request without
+// authentication from beyond this machine: security mode none, bound to a
+// non-loopback listen address. It is what the Web UI's persistent "no API auth"
+// warning keys on. Mode local_token never qualifies, and a loopback bind is the
+// ordinary local-development case, not an exposure. In-process embedders
+// (desktop, reader) open no port and so are never asked.
+func (sec *Security) InsecureNetworkExposure(listenAddr string) bool {
+	return sec != nil && sec.conf.Mode == SecurityModeNone && !isLoopbackListenAddr(listenAddr)
+}
+
 func isLoopbackListenAddr(addr string) bool {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {

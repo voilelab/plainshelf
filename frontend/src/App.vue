@@ -11,6 +11,7 @@
   <div v-if="showMockModeBadge" class="mock-mode-badge" role="status" aria-live="polite">
     {{ t('app.mockModeBadge') }}
   </div>
+  <SecurityWarningBanner />
   <!--
     Outside RouterView so a toast raised by one page survives the navigation it
     may itself have caused, and so every route - library, reader, mobile shell -
@@ -23,6 +24,7 @@
 import { computed, onErrorCaptured, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { isMockApiMode } from '@/api/client';
+import SecurityWarningBanner from '@/components/SecurityWarningBanner.vue';
 import ToastHost from '@/components/ToastHost.vue';
 import { useI18n } from './i18n';
 

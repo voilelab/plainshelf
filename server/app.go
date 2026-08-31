@@ -152,6 +152,18 @@ func (app *App) Conf() *AppConf {
 	return app.conf
 }
 
+// SetInsecureNetworkWarning makes the SPA bootstrap surface a persistent
+// "API authentication is disabled" warning in the Web UI. Only the network
+// server path sets it, computed from the listen address (see
+// Security.InsecureNetworkExposure); in-process embedders such as the desktop
+// and reader apps open no port and never call it.
+func (app *App) SetInsecureNetworkWarning(v bool) {
+	if app == nil || app.handlers == nil || app.handlers.spa == nil {
+		return
+	}
+	app.handlers.spa.warnInsecurePublic = v
+}
+
 func (app *App) ShelfManager() *shelf.ShelfManager {
 	return app.shelfManager
 }
