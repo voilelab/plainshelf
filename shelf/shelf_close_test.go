@@ -1,7 +1,6 @@
 package shelf
 
 import (
-	"context"
 	"errors"
 	"io/fs"
 	"os"
@@ -49,7 +48,7 @@ func TestCloseWaitsForBackgroundWork(t *testing.T) {
 		if err != nil {
 			t.Fatalf("round %d: NewShelf: %v", round, err)
 		}
-		if err := s.WaitReady(context.Background()); err != nil {
+		if err := s.WaitReady(t.Context()); err != nil {
 			t.Fatalf("round %d: WaitReady: %v", round, err)
 		}
 

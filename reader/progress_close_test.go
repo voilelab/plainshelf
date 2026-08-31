@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"path/filepath"
 	"testing"
 	"time"
@@ -24,7 +23,7 @@ func TestReaderStageThenCloseRoundTrips(t *testing.T) {
 
 	// The frontend stages on every scroll; take the last one before closing.
 	app.StageReadingProgress(readerapi.ShelfID, "book-a", 4321, 1000)
-	if prevent := app.beforeClose(context.Background()); prevent {
+	if prevent := app.beforeClose(t.Context()); prevent {
 		t.Fatal("beforeClose must allow the close")
 	}
 

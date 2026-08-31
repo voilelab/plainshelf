@@ -20,6 +20,7 @@ package readingclose
 
 import (
 	"log"
+	"maps"
 	"sync"
 	"time"
 
@@ -117,11 +118,7 @@ func (s *Stager) snapshot() readingprogress.Document {
 		if len(books) == 0 {
 			continue
 		}
-		copied := make(map[string]readingprogress.Entry, len(books))
-		for bookID, entry := range books {
-			copied[bookID] = entry
-		}
-		doc.Shelves[shelfID] = copied
+		doc.Shelves[shelfID] = maps.Clone(books)
 	}
 	return doc
 }

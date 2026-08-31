@@ -78,7 +78,7 @@ func TestShelfCopyFolderFromNestedGivesNewIDs(t *testing.T) {
 	// Every original book lands under its remapped folder, each with a new ID.
 	for _, tc := range []struct {
 		original *Book
-		folder    FolderPath
+		folder   FolderPath
 	}{
 		{top, FolderPath{"imported"}},
 		{mid, FolderPath{"imported", "sci-fi"}},
@@ -246,7 +246,7 @@ func TestShelfMoveFolderFromReportsAllIDConflicts(t *testing.T) {
 	if !ok {
 		t.Fatalf("error %v is not a *FolderBookIDConflictError", err)
 	}
-	got := append([]string(nil), conflict.BookIDs...)
+	got := slices.Clone(conflict.BookIDs)
 	slices.Sort(got)
 	want := []string{a.ID(), c.ID()}
 	slices.Sort(want)

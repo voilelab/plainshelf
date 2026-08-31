@@ -1,7 +1,6 @@
 package shelf
 
 import (
-	"context"
 	"errors"
 	"os"
 	"strings"
@@ -43,7 +42,7 @@ func TestShelfManagerLifecycle(t *testing.T) {
 	if primary.Name != "primary" {
 		t.Fatalf("default shelf name = %q, want %q", primary.Name, "primary")
 	}
-	if err := primary.WaitReady(context.Background()); err != nil {
+	if err := primary.WaitReady(t.Context()); err != nil {
 		t.Fatalf("WaitReady(primary): %v", err)
 	}
 
@@ -68,7 +67,7 @@ func TestShelfManagerLifecycle(t *testing.T) {
 	if !ok {
 		t.Fatal("GetShelf(secondary) did not find the added shelf")
 	}
-	if err := secondary.WaitReady(context.Background()); err != nil {
+	if err := secondary.WaitReady(t.Context()); err != nil {
 		t.Fatalf("WaitReady(secondary): %v", err)
 	}
 
@@ -259,7 +258,7 @@ func waitShelfReady(t *testing.T, sm *ShelfManager, id string) *ShelfData {
 	if !ok {
 		t.Fatalf("GetShelf(%q) did not find the shelf", id)
 	}
-	if err := s.WaitReady(context.Background()); err != nil {
+	if err := s.WaitReady(t.Context()); err != nil {
 		t.Fatalf("WaitReady(%q): %v", id, err)
 	}
 	return s
