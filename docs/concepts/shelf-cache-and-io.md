@@ -134,6 +134,15 @@ The defaults suit small and medium local shelves. Reach for these when a large
 shelf makes startup or browsing cost noticeable disk activity, or when the shelf
 sits on a network mount.
 
+!!! note "Shorter intervals reduce latency, not a consistency guarantee"
+    Every interval here is a polling period, so shortening one only narrows how
+    long an external change can go unnoticed. It never makes an outside change
+    appear at once, and it provides no consistency guarantee across processes or
+    machines that share a shelf. **Update book list** is the only way to force a
+    change to be seen now, and one PlainShelf at a time is the only supported
+    writer. On an SMB or NAS shelf, prefer *longer* intervals to cut round trips
+    and reach for the button when you need a change immediately.
+
 ### `scan_interval`
 
 `scan_interval` controls how often PlainShelf performs a full on-disk scan of the shelf book tree.
