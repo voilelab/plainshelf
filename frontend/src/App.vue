@@ -11,11 +11,6 @@
   <div v-if="showMockModeBadge" class="mock-mode-badge" role="status" aria-live="polite">
     {{ t('app.mockModeBadge') }}
   </div>
-  <!--
-    Outside RouterView, like ToastHost below, so the "API auth is disabled"
-    warning rides above every route. The flag is injected only by the network
-    server path; the mobile and desktop shells never set it.
-  -->
   <SecurityWarningBanner />
   <!--
     Outside RouterView so a toast raised by one page survives the navigation it
