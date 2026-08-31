@@ -32,6 +32,7 @@ export function useShelfManagement() {
   const newShelfName = ref('');
   const newShelfDirectory = ref('');
   const newShelfScanInterval = ref('');
+  const newShelfBookCheckInterval = ref('');
   const newShelfReadOnly = ref(false);
   const addingShelf = ref(false);
   const addShelfError = ref('');
@@ -75,6 +76,7 @@ export function useShelfManagement() {
   const showModifyShelfModal = ref(false);
   const modifyShelfName = ref('');
   const modifyShelfScanInterval = ref('');
+  const modifyShelfBookCheckInterval = ref('');
   const modifyShelfReadOnly = ref(false);
   const modifyShelfPath = ref('');
   const modifyingShelf = ref(false);
@@ -132,6 +134,7 @@ export function useShelfManagement() {
     newShelfName.value = '';
     newShelfDirectory.value = '';
     newShelfScanInterval.value = '';
+    newShelfBookCheckInterval.value = '';
     newShelfReadOnly.value = false;
     addShelfError.value = '';
     // Invalidate any in-flight preview so its late response cannot repopulate
@@ -185,6 +188,7 @@ export function useShelfManagement() {
     const name = newShelfName.value.trim();
     const dir = newShelfDirectory.value.trim();
     const scanInterval = newShelfScanInterval.value.trim();
+    const bookCheckInterval = newShelfBookCheckInterval.value.trim();
     if (!name || !dir) {
       return;
     }
@@ -194,7 +198,13 @@ export function useShelfManagement() {
 
     try {
       const provider = getBookshelfProvider();
-      await provider.addDesktopShelf!(name, dir, scanInterval, newShelfReadOnly.value);
+      await provider.addDesktopShelf!({
+        name,
+        libRoot: dir,
+        scanInterval,
+        bookCheckInterval,
+        readOnly: newShelfReadOnly.value
+      });
       await fetchShelves();
       showAddShelfModal.value = false;
       resetAddShelfForm();
@@ -209,6 +219,7 @@ export function useShelfManagement() {
   function resetModifyShelfForm(): void {
     modifyShelfName.value = '';
     modifyShelfScanInterval.value = '';
+    modifyShelfBookCheckInterval.value = '';
     modifyShelfReadOnly.value = false;
     modifyShelfPath.value = '';
     modifyShelfError.value = '';
@@ -228,6 +239,7 @@ export function useShelfManagement() {
       pendingModifyShelf.value = shelf;
       modifyShelfName.value = details.name;
       modifyShelfScanInterval.value = details.scan_interval;
+      modifyShelfBookCheckInterval.value = details.book_check_interval;
       modifyShelfReadOnly.value = details.read_only;
       modifyShelfPath.value = details.path;
       showModifyShelfModal.value = true;
@@ -255,6 +267,7 @@ export function useShelfManagement() {
 
     const name = modifyShelfName.value.trim();
     const scanInterval = modifyShelfScanInterval.value.trim();
+    const bookCheckInterval = modifyShelfBookCheckInterval.value.trim();
     if (!name) {
       return;
     }
@@ -268,7 +281,13 @@ export function useShelfManagement() {
     modifyShelfError.value = '';
 
     try {
-      await provider.modifyDesktopShelf(shelf.id, name, scanInterval, modifyShelfReadOnly.value);
+      await provider.modifyDesktopShelf({
+        shelfID: shelf.id,
+        name,
+        scanInterval,
+        bookCheckInterval,
+        readOnly: modifyShelfReadOnly.value
+      });
       await fetchShelves();
       showModifyShelfModal.value = false;
       pendingModifyShelf.value = null;
@@ -298,6 +317,7 @@ export function useShelfManagement() {
     newShelfName,
     newShelfDirectory,
     newShelfScanInterval,
+    newShelfBookCheckInterval,
     newShelfReadOnly,
     newShelfIDPreview,
     addingShelf,
@@ -312,6 +332,7 @@ export function useShelfManagement() {
     showModifyShelfModal,
     modifyShelfName,
     modifyShelfScanInterval,
+    modifyShelfBookCheckInterval,
     modifyShelfReadOnly,
     modifyShelfPath,
     modifyingShelf,

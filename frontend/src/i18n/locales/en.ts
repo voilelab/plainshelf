@@ -392,7 +392,15 @@ const en = {
       scanIntervalHelpAlways:
         'Every refresh walks the whole shelf. Fine on a local disk, expensive on a network shelf.',
       scanIntervalAdjusted:
-        'The saved interval {value} cannot be shown exactly by these controls and has been replaced by the value above.'
+        'The saved interval {value} cannot be shown exactly by these controls and has been replaced by the value above.',
+      advancedSettings: 'Advanced settings',
+      bookCheckIntervalLabel: 'Per-book check interval',
+      bookCheckIntervalHelpDefault:
+        'Follows the scan interval. On a network shelf this is where most list-view I/O comes from, so set it higher than the scan interval if list views feel slow.',
+      bookCheckIntervalHelpEvery:
+        'Between checks, list views are served from memory with no filesystem access. A longer interval means fewer network round-trips and a longer wait before edits to a book made outside PlainShelf show up.',
+      bookCheckIntervalHelpAlways:
+        'Every list view re-checks each book on disk. Fine on a local disk, expensive on a network shelf.'
     }
   },
   adminLogs: {

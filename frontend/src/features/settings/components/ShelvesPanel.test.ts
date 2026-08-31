@@ -64,6 +64,7 @@ function buildManagement(overrides: Record<string, unknown> = {}): Record<string
     newShelfName: ref(''),
     newShelfDirectory: ref(''),
     newShelfScanInterval: ref(''),
+    newShelfBookCheckInterval: ref(''),
     newShelfReadOnly: ref(false),
     newShelfIDPreview: ref(''),
     addingShelf: ref(false),
@@ -78,6 +79,7 @@ function buildManagement(overrides: Record<string, unknown> = {}): Record<string
     showModifyShelfModal: ref(false),
     modifyShelfName: ref(''),
     modifyShelfScanInterval: ref(''),
+    modifyShelfBookCheckInterval: ref(''),
     modifyShelfReadOnly: ref(false),
     modifyShelfPath: ref(''),
     modifyingShelf: ref(false),
@@ -202,6 +204,30 @@ describe('ShelvesPanel', () => {
     expect(host.querySelector<HTMLSelectElement>('[data-testid="scan-interval-unit"]')?.value).toBe(
       'm'
     );
+
+    app.unmount();
+  });
+
+  it('edits book_check_interval inside a collapsed advanced section of the add-shelf form', async () => {
+    state.desktop = true;
+    const newShelfBookCheckInterval = ref('');
+    mgmt.value = buildManagement({ showAddShelfModal: ref(true), newShelfBookCheckInterval });
+    const { host, app } = mount();
+
+    // It is tucked behind the advanced-settings disclosure so it does not crowd
+    // the common fields, and it is the same mode/amount/unit control the scan
+    // interval uses, only under its own test-id prefix.
+    const advanced = host.querySelector('details.shelf-advanced');
+    expect(advanced).not.toBeNull();
+    const mode = advanced!.querySelector<HTMLSelectElement>(
+      '[data-testid="book-check-interval-mode"]'
+    );
+    expect(mode).not.toBeNull();
+
+    mode!.value = 'always';
+    mode!.dispatchEvent(new Event('change'));
+    await Promise.resolve();
+    expect(newShelfBookCheckInterval.value).toBe('0s');
 
     app.unmount();
   });
