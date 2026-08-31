@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"slices"
 
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server/task"
@@ -63,9 +64,9 @@ func (h *trashHandlers) getTrashedBooks(w http.ResponseWriter, r *http.Request) 
 		resp = append(resp, TrashedBook{
 			ID:             b.ID,
 			Title:          b.Title,
-			Authors:        append([]string(nil), b.Authors...),
+			Authors:        slices.Clone(b.Authors),
 			OriginalPath:   b.OriginalPath,
-			OriginalFolder: append(shelf.FolderPath(nil), b.OriginalFolder...),
+			OriginalFolder: slices.Clone(b.OriginalFolder),
 			DeletedAt:      b.DeletedAt,
 		})
 	}
