@@ -174,10 +174,22 @@ docker run --rm \
   ghcr.io/voilelab/plainshelf:latest
 ```
 
-!!! tip "Keep it local"
-    The example publishes the port on the loopback address (`127.0.0.1`)
-    only. Do not expose `0.0.0.0:20000` to untrusted networks unless you add
-    an authentication boundary in front of the container.
+!!! warning "Keep it local"
+    The default container config sets `security.mode: local_token`: the token is
+    injected into the served index page, so opening <http://127.0.0.1:20000> in a
+    browser needs no manual setup, and cross-origin (CSRF) writes are rejected.
+    This is **not** an authentication boundary for an exposed port — any client
+    that can reach the port may fetch the token from the page and write. Publish
+    the port on the loopback address (`127.0.0.1`) only, and do not expose
+    `0.0.0.0:20000` to untrusted networks unless you add a real boundary (reverse
+    proxy auth or a VPN edge) in front of the container.
+
+!!! warning "Opening the UI from a different port, LAN IP, or custom domain"
+    `local_token` allows only loopback browser origins on port 20000 by default
+    (`http://127.0.0.1:20000`, `http://localhost:20000`). If you reach the UI from
+    a different host port, a NAS LAN IP, or a custom domain, add that exact origin
+    to `app_conf.security.allowed_origins` in a mounted config or writes are
+    rejected by the Origin check. See the [Docker](development/docker.md) page.
 
 For custom configuration and the bundled defaults, see the
 [Docker](development/docker.md) page.
