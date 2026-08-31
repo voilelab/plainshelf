@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -334,12 +335,9 @@ func (a *DesktopApp) readerNamespaceIsRealShelf() bool {
 	if manager == nil {
 		return false
 	}
-	for _, shelfData := range manager.GetAllShelves() {
-		if shelfData.ID == readingprogress.ReaderShelfID {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(manager.GetAllShelves(), func(shelfData shelf.ShelfData) bool {
+		return shelfData.ID == readingprogress.ReaderShelfID
+	})
 }
 
 // ReadReadingStats returns the stored reading-stats document, or an empty
@@ -995,17 +993,14 @@ func (a *DesktopApp) RemoveShelf(shelfID string) error {
 		return util.Errorf("loading shelf config: %w", err)
 	}
 
-	newShelves := make([]desktopShelfEntry, 0, len(conf.Shelves))
-	found := false
-	for _, entry := range conf.Shelves {
-		if entry.ID == shelfID {
-			found = true
-			continue
-		}
-		newShelves = append(newShelves, entry)
-	}
-
-	if !found {
+	// DeleteFunc mutates its argument in place, so clone first: conf.Shelves is
+	// read again in the length check below. The check treats removing several
+	// duplicate IDs the same as removing one, exactly as the previous found-bool
+	// loop did.
+	newShelves := slices.DeleteFunc(slices.Clone(conf.Shelves), func(entry desktopShelfEntry) bool {
+		return entry.ID == shelfID
+	})
+	if len(newShelves) == len(conf.Shelves) {
 		return util.Errorf("shelf with ID %q not found in config", shelfID)
 	}
 

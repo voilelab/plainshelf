@@ -109,12 +109,7 @@ func TestGetAllFoldersIgnoresSystemDirectories(t *testing.T) {
 	noisy := folderStrings(noisyFolders)
 
 	// Guard against the comparison passing because both sides are empty.
-	found := false
-	for _, folder := range clean {
-		if folder == "Fiction/Classics" {
-			found = true
-		}
-	}
+	found := slices.Contains(clean, "Fiction/Classics")
 	if !found {
 		t.Fatalf("Expected the clean shelf to report Fiction/Classics, got %v", clean)
 	}
