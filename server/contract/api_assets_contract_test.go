@@ -4,10 +4,11 @@ import (
 	"archive/zip"
 	"bytes"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	neturl "net/url"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -322,12 +323,7 @@ func readZipBundle(t *testing.T, body []byte) map[string][]byte {
 }
 
 func bundleEntryNames(entries map[string][]byte) []string {
-	names := make([]string, 0, len(entries))
-	for name := range entries {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
+	return slices.Sorted(maps.Keys(entries))
 }
 
 // The batch endpoint packs a source's illustrations into one zip so a download

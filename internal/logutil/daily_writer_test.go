@@ -3,7 +3,7 @@ package logutil
 import (
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"testing"
 )
 
@@ -32,7 +32,7 @@ func remainingNames(t *testing.T, dir string) []string {
 	for _, entry := range entries {
 		names = append(names, entry.Name())
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names
 }
 

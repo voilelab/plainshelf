@@ -1,9 +1,9 @@
 package shelf
 
 import (
+	"cmp"
 	"maps"
 	"slices"
-	"sort"
 	"sync"
 	"time"
 
@@ -336,8 +336,8 @@ func (s *Shelf) listBookListingsFromCache() []BookListing {
 		})
 	}
 
-	sort.Slice(listings, func(i, j int) bool {
-		return listings[i].Book.ID() < listings[j].Book.ID()
+	slices.SortFunc(listings, func(a, b BookListing) int {
+		return cmp.Compare(a.Book.ID(), b.Book.ID())
 	})
 
 	return listings
@@ -390,8 +390,8 @@ func (s *Shelf) removeFolderFromBookCache(folder FolderPath) {
 }
 
 func sortFolders(folders []FolderPath) {
-	sort.Slice(folders, func(i, j int) bool {
-		return folders[i].String() < folders[j].String()
+	slices.SortFunc(folders, func(a, b FolderPath) int {
+		return cmp.Compare(a.String(), b.String())
 	})
 }
 

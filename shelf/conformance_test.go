@@ -1,13 +1,13 @@
 package shelf
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"os"
 	"path"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 )
@@ -279,7 +279,7 @@ func readConformanceBooks(t *testing.T, s *Shelf) []conformanceBook {
 		})
 	}
 
-	sort.Slice(observed, func(i, j int) bool { return observed[i].Path < observed[j].Path })
+	slices.SortFunc(observed, func(a, b conformanceBook) int { return cmp.Compare(a.Path, b.Path) })
 	return observed
 }
 
@@ -386,7 +386,7 @@ func readConformanceBookCaches(t *testing.T, s *Shelf) []conformanceBookCache {
 		observed = append(observed, record)
 	}
 
-	sort.Slice(observed, func(i, j int) bool { return observed[i].Name < observed[j].Name })
+	slices.SortFunc(observed, func(a, b conformanceBookCache) int { return cmp.Compare(a.Name, b.Name) })
 	return observed
 }
 

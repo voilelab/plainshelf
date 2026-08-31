@@ -4,7 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"path"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
@@ -229,6 +229,6 @@ func (r *Source) ListAssets() ([]string, error) {
 		}
 		names = append(names, entry.Name())
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names, nil
 }

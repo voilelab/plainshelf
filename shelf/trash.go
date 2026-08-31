@@ -1,11 +1,12 @@
 package shelf
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"os"
 	"path"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -165,11 +166,11 @@ func (s *Shelf) ListTrashedBooks() ([]*TrashedBook, error) {
 		items = append(items, item)
 	}
 
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].DeletedAt != items[j].DeletedAt {
-			return time.Time(items[i].DeletedAt).After(time.Time(items[j].DeletedAt))
-		}
-		return items[i].ID < items[j].ID
+	slices.SortFunc(items, func(a, b *TrashedBook) int {
+		return cmp.Or(
+			time.Time(b.DeletedAt).Compare(time.Time(a.DeletedAt)),
+			cmp.Compare(a.ID, b.ID),
+		)
 	})
 
 	return items, nil
@@ -203,7 +204,7 @@ func (s *Shelf) ListTrashedBookIDs() ([]string, error) {
 		ids = append(ids, strings.TrimSuffix(entry.Name(), bookExtension))
 	}
 
-	sort.Strings(ids)
+	slices.Sort(ids)
 	return ids, nil
 }
 

@@ -2,7 +2,7 @@ package server
 
 import (
 	"net/http"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/voilelab/plainshelf/server/task"
@@ -194,7 +194,7 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 			}
 		}
 		if len(conflicts) > 0 {
-			sort.Strings(conflicts)
+			slices.Sort(conflicts)
 			h.writeJSON(w, http.StatusConflict, folderTransferConflict{
 				Error:              folderTransferConflictBookID,
 				Message:            "the target shelf already holds books with these IDs; the move would overwrite them",

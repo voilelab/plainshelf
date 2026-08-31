@@ -5,7 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
+	"slices"
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
@@ -48,7 +48,7 @@ func bookIDsByFolder(t *testing.T, s *Shelf, folder FolderPath) []string {
 	for _, b := range books {
 		ids = append(ids, b.ID())
 	}
-	sort.Strings(ids)
+	slices.Sort(ids)
 	return ids
 }
 
@@ -242,14 +242,14 @@ func TestShelfMoveFolderFromReportsAllIDConflicts(t *testing.T) {
 	if !errors.Is(err, ErrBookIDConflict) {
 		t.Fatalf("MoveFolderFrom into a conflict = %v, want ErrBookIDConflict", err)
 	}
-	var conflict *FolderBookIDConflictError
-	if !errors.As(err, &conflict) {
+	conflict, ok := errors.AsType[*FolderBookIDConflictError](err)
+	if !ok {
 		t.Fatalf("error %v is not a *FolderBookIDConflictError", err)
 	}
 	got := append([]string(nil), conflict.BookIDs...)
-	sort.Strings(got)
+	slices.Sort(got)
 	want := []string{a.ID(), c.ID()}
-	sort.Strings(want)
+	slices.Sort(want)
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Errorf("reported conflicts = %v, want all of %v", got, want)
 	}

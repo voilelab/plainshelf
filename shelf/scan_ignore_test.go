@@ -4,7 +4,7 @@ import (
 	"errors"
 	"os"
 	"path"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -143,7 +143,7 @@ func TestIterateBooksSkipsIgnoredDirectories(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("iterateShelfTree: %v", err)
 	}
-	sort.Strings(found)
+	slices.Sort(found)
 
 	if len(found) != 1 || found[0] != "keep-0001" {
 		t.Errorf("Expected only keep-0001 to be scanned, got %v", found)

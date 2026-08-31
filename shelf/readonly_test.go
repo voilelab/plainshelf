@@ -8,7 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -345,7 +345,7 @@ func snapshotDiff(before, after map[string]string) string {
 			lines = append(lines, fmt.Sprintf("- %s", pth))
 		}
 	}
-	sort.Strings(lines)
+	slices.Sort(lines)
 	return strings.Join(lines, "\n")
 }
 

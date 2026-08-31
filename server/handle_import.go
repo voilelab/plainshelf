@@ -277,8 +277,7 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 	// initializer runs while the exclusive shelf lock is held.
 	utf8File, _, err := util.ReEncodeToUTF8(f)
 	if err != nil {
-		var unsupported *util.UnsupportedEncodingError
-		if errors.As(err, &unsupported) {
+		if unsupported, ok := errors.AsType[*util.UnsupportedEncodingError](err); ok {
 			// The file's encoding is the problem, not the server: report it as a
 			// client error and name the detected encoding so the user knows why.
 			h.Warn("rejected import upload: unsupported encoding", "error", err)
