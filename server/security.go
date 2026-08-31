@@ -142,8 +142,27 @@ func isLoopbackListenAddr(addr string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+// setStaticSecurityHeaders writes the browser-hardening headers PlainShelf
+// sends on every response, whatever the security mode. They are the layer that
+// stands in front of the sanitizer and the local token: nosniff stops a
+// response being reinterpreted as a different content type, DENY refuses to be
+// framed (so a clickjacking page cannot borrow the token-bearing UI), and
+// no-referrer keeps the address — which can carry a book or shelf identifier —
+// off any outbound request. None depend on the token gate, so they are set
+// before it, ahead of any mode branching or early return. The document-level
+// Content-Security-Policy is not here: it belongs on the HTML response that
+// carries the token, and is set in spaHandlers.fallback with its per-request
+// nonce.
+func setStaticSecurityHeaders(h http.Header) {
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("X-Frame-Options", "DENY")
+	h.Set("Referrer-Policy", "no-referrer")
+}
+
 func (sec *Security) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		setStaticSecurityHeaders(w.Header())
+
 		if sec == nil || sec.conf.Mode == SecurityModeNone {
 			next.ServeHTTP(w, r)
 			return

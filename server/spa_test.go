@@ -52,10 +52,14 @@ func TestInjectSecurityBootstrap(t *testing.T) {
 		},
 	}
 
+	// The CSP served with the same response admits this inline bootstrap only by
+	// nonce, so the injected <script> must carry it verbatim.
+	const nonce = "test-nonce-value"
+
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			h := &spaHandlers{security: tc.security, warnInsecurePublic: tc.warn}
-			out := string(h.injectSecurityBootstrap([]byte(page)))
+			out := string(h.injectSecurityBootstrap([]byte(page), nonce))
 
 			injected := strings.Contains(out, "window.__PLAINSHELF_SECURITY__")
 			if injected != tc.wantInjected {
@@ -70,6 +74,9 @@ func TestInjectSecurityBootstrap(t *testing.T) {
 			// Injected before </head> so it runs before the SPA bundle reads it.
 			if strings.Index(out, "window.__PLAINSHELF_SECURITY__") > strings.Index(out, "</head>") {
 				t.Fatalf("bootstrap injected after </head>: %q", out)
+			}
+			if !strings.Contains(out, `<script nonce="`+nonce+`">`) {
+				t.Fatalf("bootstrap script missing CSP nonce %q: %q", nonce, out)
 			}
 			if got := strings.Contains(out, `"token"`); got != tc.wantToken {
 				t.Fatalf("token present = %v, want %v (out=%q)", got, tc.wantToken, out)
