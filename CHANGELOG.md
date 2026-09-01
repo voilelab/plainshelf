@@ -46,6 +46,7 @@ and UI behavior may still change between releases.
 - Changed each book folder's hint file to `CURRENT_SOURCE.txt` (English; was `CURRENT_VERSION_LOCATION.txt`); nothing reads it back, so existing shelves need no migration.
 - Changed the source editor to CodeMirror 6, holding the whole source so find, chapter jumps, and the caret land where asked; Markdown is syntax-highlighted and CRLF endings are preserved.
 - Changed new book IDs from an 8-hex title/path hash to a random v4 UUID; existing IDs are kept with no migration and both forms coexist in one shelf.
+- **Breaking (pre-1.0):** changed the per-device reading-progress file to a timestamped format (document v2) so the desktop app and the standalone reader reconcile concurrent writes newest-wins; the older v1 document is not migrated, so web and desktop progress starts at zero once after upgrading (Android's per-book `progress.json` is unaffected).
 - Changed the Android client to require a book be downloaded before reading; the reader route redirects a not-yet-downloaded book to its detail page to prompt a download.
 - Changed source deletion so a book always keeps a usable current source; deleting the current source of a book written by a newer PlainShelf is refused with `409 Conflict`.
 - Reworked the dashboard into a **Home** page at `/home` (`/` and `/dashboard` redirect) that routes into the library, leading with "recently reading" and "recently added" and turning counts and tag chips into links.
