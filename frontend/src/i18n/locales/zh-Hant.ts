@@ -384,7 +384,15 @@ const zhHant = {
       scanIntervalHelpAlways:
         '每次重新整理都走一遍整個書庫。本機磁碟沒問題，網路書庫會很吃資源。',
       scanIntervalAdjusted:
-        '已存的間隔 {value} 無法用這組控制項精確表示，已改為上面的值。'
+        '已存的間隔 {value} 無法用這組控制項精確表示，已改為上面的值。',
+      advancedSettings: '進階設定',
+      bookCheckIntervalLabel: '單本過期檢查間隔',
+      bookCheckIntervalHelpDefault:
+        '跟隨掃描間隔。在網路書庫上，列表操作的 I/O 主要來自這裡；若列表變慢，可把它設得比掃描間隔更長。',
+      bookCheckIntervalHelpEvery:
+        '兩次檢查之間，列表直接由記憶體提供、不碰檔案系統。間隔越長，網路往返越少，但在 PlainShelf 之外改動的書也要等更久才會反映。',
+      bookCheckIntervalHelpAlways:
+        '每次列表都重新檢查每一本書。本機磁碟沒問題，網路書庫會很吃資源。'
     }
   },
   adminLogs: {

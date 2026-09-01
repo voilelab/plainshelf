@@ -18,6 +18,11 @@ type desktopShelfEntry struct {
 	LibRoot      string `json:"lib_root"`
 	ScanInterval string `json:"scan_interval,omitempty"`
 
+	// BookCheckInterval controls how often per-book staleness checks run; see
+	// shelf.ShelfConf. Empty means "same as scan_interval" (the default), so it is
+	// omitted from shelves.json until the user sets it.
+	BookCheckInterval string `json:"book_check_interval,omitempty"`
+
 	// ReadOnly opens the shelf without writing to it; see shelf.ShelfConf.
 	//
 	// This file is not inside any shelf, so a shelf being read-only never makes
@@ -99,9 +104,10 @@ func toShelfConfWithID(entry desktopShelfEntry) shelf.ShelfConfWithID {
 		ID:   entry.ID,
 		Name: entry.Name,
 		ShelfConf: shelf.ShelfConf{
-			LibRoot:      entry.LibRoot,
-			ScanInterval: entry.ScanInterval,
-			ReadOnly:     entry.ReadOnly,
+			LibRoot:           entry.LibRoot,
+			ScanInterval:      entry.ScanInterval,
+			BookCheckInterval: entry.BookCheckInterval,
+			ReadOnly:          entry.ReadOnly,
 		},
 	}
 }

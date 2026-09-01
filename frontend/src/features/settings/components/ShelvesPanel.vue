@@ -44,6 +44,17 @@
       />
       <ScanIntervalField v-model="modifyShelfScanInterval" :disabled="modifyingShelf" />
       <ShelfReadOnlyField v-model="modifyShelfReadOnly" :disabled="modifyingShelf" />
+      <details class="shelf-advanced">
+        <summary class="shelf-advanced-summary">
+          {{ t('settings.shelves.advancedSettings') }}
+        </summary>
+        <div class="shelf-advanced-body">
+          <BookCheckIntervalField
+            v-model="modifyShelfBookCheckInterval"
+            :disabled="modifyingShelf"
+          />
+        </div>
+      </details>
       <p v-if="modifyShelfError" class="settings-message settings-message-error" role="alert">
         {{ modifyShelfError }}
       </p>
@@ -94,6 +105,17 @@
       </div>
       <ScanIntervalField v-model="newShelfScanInterval" :disabled="addingShelf" />
       <ShelfReadOnlyField v-model="newShelfReadOnly" :disabled="addingShelf" />
+      <details class="shelf-advanced">
+        <summary class="shelf-advanced-summary">
+          {{ t('settings.shelves.advancedSettings') }}
+        </summary>
+        <div class="shelf-advanced-body">
+          <BookCheckIntervalField
+            v-model="newShelfBookCheckInterval"
+            :disabled="addingShelf"
+          />
+        </div>
+      </details>
       <p v-if="addShelfError" class="settings-message settings-message-error" role="alert">
         {{ addShelfError }}
       </p>
@@ -222,6 +244,7 @@ import { computed, onMounted, ref } from 'vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
 import ScanIntervalField from '@/features/settings/components/ScanIntervalField.vue';
+import BookCheckIntervalField from '@/features/settings/components/BookCheckIntervalField.vue';
 import ShelfReadOnlyField from '@/features/settings/components/ShelfReadOnlyField.vue';
 import { exportShelfBookCache } from '@/api/shelves';
 import { useI18n } from '@/i18n';
@@ -254,6 +277,7 @@ const {
   newShelfName,
   newShelfDirectory,
   newShelfScanInterval,
+  newShelfBookCheckInterval,
   newShelfReadOnly,
   newShelfIDPreview,
   addingShelf,
@@ -268,6 +292,7 @@ const {
   showModifyShelfModal,
   modifyShelfName,
   modifyShelfScanInterval,
+  modifyShelfBookCheckInterval,
   modifyShelfReadOnly,
   modifyShelfPath,
   modifyingShelf,
@@ -313,6 +338,28 @@ onMounted(() => {
 .mobile-connect-link {
   justify-self: start;
   text-decoration: none;
+}
+
+/* Collapsed by default so the two esoteric per-shelf knobs (only book_check_interval
+   for now) stay out of the way of the common name/directory/scan-interval fields, and
+   a first-time user does not trip over them. */
+.shelf-advanced {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 8px;
+}
+
+.shelf-advanced-summary {
+  color: #64748b;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  list-style: revert;
+  user-select: none;
+}
+
+.shelf-advanced-body {
+  padding-top: 10px;
 }
 
 .shelves-table {

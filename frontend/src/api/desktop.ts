@@ -12,7 +12,27 @@ export interface DesktopShelfDetails {
   name: string;
   path: string;
   scan_interval: string;
+  book_check_interval: string;
   read_only: boolean;
+}
+
+// Keys match the json tags on desktop.AddShelfParams / desktop.ModifyShelfParams,
+// which is how Wails unmarshals the object into the Go struct. Adding a per-shelf
+// setting means adding a field here, never another positional binding argument.
+export interface DesktopAddShelfParams {
+  name: string;
+  libRoot: string;
+  scanInterval: string;
+  bookCheckInterval: string;
+  readOnly: boolean;
+}
+
+export interface DesktopModifyShelfParams {
+  shelfID: string;
+  name: string;
+  scanInterval: string;
+  bookCheckInterval: string;
+  readOnly: boolean;
 }
 
 interface DesktopAppBinding {
@@ -28,20 +48,10 @@ interface DesktopAppBinding {
   OpenFolderDirectory?: (shelfID: string, folderParts: string[]) => Promise<void>;
   OpenBookDirectory?: (shelfID: string, bookID: string) => Promise<void>;
   OpenReader?: (shelfID: string, bookID: string, section: number) => Promise<void>;
-  AddShelf?: (
-    name: string,
-    libRoot: string,
-    scanInterval: string,
-    readOnly: boolean
-  ) => Promise<void>;
+  AddShelf?: (params: DesktopAddShelfParams) => Promise<void>;
   RemoveShelf?: (shelfID: string) => Promise<void>;
   GetShelfDetails?: (shelfID: string) => Promise<DesktopShelfDetails>;
-  ModifyShelf?: (
-    shelfID: string,
-    name: string,
-    scanInterval: string,
-    readOnly: boolean
-  ) => Promise<void>;
+  ModifyShelf?: (params: DesktopModifyShelfParams) => Promise<void>;
   SaveBookContent?: (shelfID: string, bookID: string, suggestedName: string) => Promise<void>;
   OpenExternalURL?: (url: string) => Promise<void>;
   ReadReadHistory?: () => Promise<string>;
@@ -219,18 +229,13 @@ export async function openDesktopFolder(folderPath: string): Promise<void> {
   await desktopApp.OpenFolderDirectory(getActiveShelfID(), normalizeFolderParts(folderPath));
 }
 
-export async function addDesktopShelf(
-  name: string,
-  libRoot: string,
-  scanInterval: string,
-  readOnly: boolean
-): Promise<void> {
+export async function addDesktopShelf(params: DesktopAddShelfParams): Promise<void> {
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
   if (!desktopApp?.AddShelf) {
     throw new Error('AddShelf binding not available');
   }
 
-  await desktopApp.AddShelf(name, libRoot, scanInterval, readOnly);
+  await desktopApp.AddShelf(params);
 }
 
 export async function removeDesktopShelf(shelfID: string): Promise<void> {
@@ -251,18 +256,13 @@ export async function getDesktopShelfDetails(shelfID: string): Promise<DesktopSh
   return desktopApp.GetShelfDetails(shelfID);
 }
 
-export async function modifyDesktopShelf(
-  shelfID: string,
-  name: string,
-  scanInterval: string,
-  readOnly: boolean
-): Promise<void> {
+export async function modifyDesktopShelf(params: DesktopModifyShelfParams): Promise<void> {
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
   if (!desktopApp?.ModifyShelf) {
     throw new Error('ModifyShelf binding not available');
   }
 
-  await desktopApp.ModifyShelf(shelfID, name, scanInterval, readOnly);
+  await desktopApp.ModifyShelf(params);
 }
 
 // Imports a single host-path book. The frontend calls it once per selected file
