@@ -236,6 +236,20 @@ func (w *Walk) ReadDir(root fsutil.ReadFS, pth string, trusted bool) ([]DirChild
 	// nothing else is invalidated - it is only this walk declining to write down
 	// something it can see is false.
 	w.stats.CheckedDirs++
+
+	// Stat again before believing the difference. A working filesystem may have
+	// changed this directory between the Stat above and the listing - a sync
+	// client finishing its copy while the user presses the button, which is
+	// exactly when it is most likely - and the listing would then disagree with a
+	// snapshot that was accurate when it was read. Blaming the mount for that
+	// would send a user to turn off a setting that is doing its job. A
+	// modification time that has moved is the mount reporting the change, so
+	// there is nothing to diagnose; one that has not moved is the fault itself.
+	// A directory that has gone is not evidence of anything either.
+	if after, err := root.Stat(pth); err != nil || !after.ModTime().Equal(modTime) {
+		return children, true, nil
+	}
+
 	if missing, stale := diffChildren(reusable.Children, children); len(missing) > 0 || len(stale) > 0 {
 		w.mismatches = append(w.mismatches, Mismatch{Dir: pth, Missing: missing, Stale: stale})
 	}

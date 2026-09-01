@@ -25,6 +25,11 @@ import (
 // fsutil.RacyWindow, or hand a replacement the mtime of what it replaced.
 type fakeFS struct {
 	mod map[string]time.Time
+
+	// beforeReadDir runs at the start of every ReadDir, so a test can change the
+	// tree in the window between the walk's Stat of a directory and its listing
+	// of it. Optional.
+	beforeReadDir func(name string)
 }
 
 func newFakeFS() *fakeFS {
@@ -62,6 +67,10 @@ func (f *fakeFS) Stat(name string) (fs.FileInfo, error) {
 }
 
 func (f *fakeFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	if f.beforeReadDir != nil {
+		f.beforeReadDir(name)
+	}
+
 	if _, ok := f.mod[name]; !ok {
 		return nil, util.Errorf("%w", fs.ErrNotExist)
 	}
@@ -439,5 +448,47 @@ func TestOrdinaryWalkStillReusesAndReportsNoMismatches(t *testing.T) {
 	}
 	if len(w.Mismatches()) != 0 {
 		t.Errorf("ordinary walk reported %v, want no mismatches", w.Mismatches())
+	}
+}
+
+// A working filesystem may change a directory between the walk's Stat and its
+// ReadDir - a sync client finishing its copy while the user presses the button,
+// which is exactly when it is most likely. The listing then disagrees with a
+// snapshot that was accurate when it was read, and reporting that would send the
+// user to turn off the setting that is doing its job.
+func TestVerifyingWalkDoesNotBlameAConcurrentChange(t *testing.T) {
+	aged := time.Now().Add(-time.Minute)
+
+	f := newFakeFS()
+	f.mkdir("books", aged)
+	f.mkdir("books/Fiction", aged)
+
+	cache := openCache(true)
+	walkTree(t, cache, f, "books")
+
+	// The child lands after the walk has stat'd Fiction and before it lists it,
+	// and this filesystem does report the change by moving Fiction's mtime.
+	f.beforeReadDir = func(name string) {
+		if name != "books/Fiction" {
+			return
+		}
+		f.beforeReadDir = nil
+		f.mkdir("books/Fiction/arrived-mid-walk.bookpkg", aged)
+		f.touch("books/Fiction", time.Now().Add(-30*time.Second))
+	}
+
+	mismatches, stats := verifyTree(t, cache, f, "books")
+
+	if len(mismatches) != 0 {
+		t.Errorf("mismatches = %+v, want none: the mount reported the change itself", mismatches)
+	}
+	if stats.CheckedDirs != 2 {
+		t.Errorf("checked %d directories, want both: the walk still paid for the listing", stats.CheckedDirs)
+	}
+
+	// And the next walk still finds the child, because the mtime that moved is
+	// not the one the snapshot now carries.
+	if found, _ := walkTree(t, cache, f, "books"); !found["books/Fiction/arrived-mid-walk.bookpkg"] {
+		t.Error("the walk after the concurrent change did not find the child")
 	}
 }
