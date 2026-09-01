@@ -272,6 +272,21 @@ rewrite `book.json` — the filesystem stays the source of truth, and only an
 explicit write may change it. A book with no source at all is reported as a
 missing source, not a server error.
 
+### Source notes
+
+`sources/{source-id}/meta.json` carries a `comment`: a short note written
+automatically at the moments that produce a source — an [EPUB
+import](../epub-import.md#what-is-recorded) that could not carry every
+illustration over, or a conversion in the source editor, which records what it
+converted from and how. Nothing else writes it, and it is stored as written
+rather than translated, so it reads in English whatever the interface language
+is.
+
+The book detail page shows the current source's note as **Import note**. It is a
+record of how the source came to be rather than a field to fill in, so the only
+edit offered is **Remove**, which clears the note and touches nothing else;
+removal cannot be undone. A source with no note has no row.
+
 ### Source assets
 
 Illustrations live in an `assets/` directory beside the text that references
