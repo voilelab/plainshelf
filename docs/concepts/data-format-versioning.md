@@ -687,6 +687,24 @@ under `app/` is disposable](data-model.md#app) — so it would have to live outs
 single integer that changes very seldom. At that frequency the manifest costs
 more than it saves.
 
+#### `shelf.json` is not that manifest
+
+A shelf may carry a [`shelf.json`](data-model.md#shelfjson) at its root, and it
+is worth being explicit that this does not reverse the decision above. It holds
+settings the user wrote — currently which directories the scanners skip — and
+nothing else reads it as a statement about the shelf's shape:
+
+- It is optional, and a shelf without one is not an older shelf. Absent means
+  "the defaults", not "an earlier layout".
+- No build writes it, so it can never disagree with what is on disk.
+- Its own `schema_version` versions *its own contents*, exactly like
+  `book.json`'s — it is a file-format marker for one file, not a layout marker
+  for the shelf. Renaming a top-level directory would still be detected by
+  looking for that directory, not by reading a number here.
+
+If a layout version is ever wanted, it still has to be argued for on the terms
+above; the presence of a settings file at the shelf root is not that argument.
+
 ### What this costs
 
 Presence detection instead of a manifest is not free, and the cost is stated
@@ -756,6 +774,7 @@ versioned files into three kinds:
 | `app/scan-cache.json` | Yes — `schema_version` (`scancache/scancache.go:53`); no migration, discarded and rebuilt on any mismatch, unlike `books/` and `trash/` which are upgraded in place | Local cache |
 | `app/fingerprint-cache.json` | Yes — `schema_version` and an `algo` block, but discarded and rebuilt on any mismatch, never migrated (it is a cache) | Local cache |
 | `app/book-cache-{writer-id}.json` | Yes — `schema_version` (`shelf_cache_export.go:43`); no migration, discarded and rebuilt on any mismatch, but read across devices — see [The exported book cache](#the-exported-book-cache) | Cross-device contract |
+| `shelf.json` | Yes — `schema_version` versions this file's own contents; optional, never written by PlainShelf, and a higher version is still read for the fields this build knows. It carries no statement about the shelf's layout — see [`shelf.json` is not that manifest](#shelfjson-is-not-that-manifest) | User settings |
 | `books/` directory layout | No — the folder tree and the `.bookpkg` folder naming carry no version marker. An older layout is handled by detecting the old path at startup and moving it (`shelf/trash.go`'s `migrateLegacyTrash`, `.trash/` → `trash/`), not by a layout schema version. This is a decision, not an oversight — see [Shelf layout changes are not versioned](#shelf-layout-changes-are-not-versioned) | — |
 | Application store | No | — |
 

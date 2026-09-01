@@ -77,7 +77,7 @@ func (h *batchHandlers) bookBatch(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "target_folder is required for move", http.StatusBadRequest)
 			return
 		}
-		if err := shelf.ValidateFolderPath(request.TargetFolder); err != nil {
+		if err := shelfData.ValidateFolderPath(request.TargetFolder); err != nil {
 			http.Error(w, "invalid target_folder", http.StatusBadRequest)
 			return
 		}

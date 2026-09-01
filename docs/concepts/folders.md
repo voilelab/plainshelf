@@ -35,24 +35,72 @@ appears after the next shelf scan. See
 
 ## Ignored directories
 
-Some directories inside `books/` are not created by you, and PlainShelf never
-treats them as folders. They are skipped when scanning for folders and for books,
+Some directories inside `books/` are not created by you, and PlainShelf does not
+treat them as folders. They are skipped when scanning for folders and for books,
 they never reach the exported book cache the Android client reads, and you
 cannot create a folder with one of these names.
 
 - Any directory whose name starts with a dot — for example `.git`, `.stfolder`
   (Syncthing), `.dropbox.cache`, `.Spotlight-V100`, `.fseventsd`, and
-  `.TemporaryItems`.
+  `.TemporaryItems`. This one is a fixed rule.
 - `@eaDir` (Synology index and thumbnails), `#recycle` (Synology network recycle
-  bin), `$RECYCLE.BIN` (Windows recycle bin over SMB), and `lost+found`.
+  bin), `$RECYCLE.BIN` (Windows recycle bin over SMB), and `lost+found`. These
+  four are the **defaults**, and a shelf can replace them — see below.
 
 A book package placed inside one of these directories is invisible to
 PlainShelf, so deleting a book on a NAS does not bring it back through the
-recycle bin. The list is fixed; custom ignore patterns are not configurable yet.
+recycle bin.
 
 Trying to create a folder with one of these names is refused with a message that
-says so, rather than the generic "invalid folder name" reported for a name that
-is malformed.
+says which name and why, rather than the generic "invalid folder name" reported
+for a name that is malformed.
+
+### Choosing the list for one shelf
+
+The four names above are defaults, not a fixed list. A shelf can name its own
+directories: create a [`shelf.json`](data-model.md#shelfjson) at the shelf root —
+beside `books/`, not inside it — and list what it should skip.
+
+```json
+{
+  "schema_version": 1,
+  "scan": {
+    "ignored_dirs": [
+      { "name": "@eaDir" },
+      { "name": "#recycle" },
+      { "name": "$RECYCLE.BIN" },
+      { "name": "lost+found" },
+      { "name": "@Snapshot", "reason": "Synology snapshot directory" }
+    ]
+  }
+}
+```
+
+This is for the directories your own storage creates that the defaults do not
+know about — a NAS snapshot directory, a photo-tool thumbnail cache, a backup
+tool's working directory sitting in the middle of your library. Every entry is an
+object with a `name`: one directory name, matched wherever it appears in the tree
+and without regard to case, never a path and never a pattern. The `reason` is
+optional and is what PlainShelf quotes back to you when it refuses a folder of
+that name.
+
+**The list replaces the defaults rather than adding to them.** That is why the
+example above repeats the four default names: keep the ones you want. A list that
+leaves out `@eaDir` means a Synology share's index directories become ordinary
+folders and your library grows a second copy of its own folder tree — PlainShelf
+warns in the log when your list drops a default, but it does not overrule you.
+An empty list, `"ignored_dirs": []`, means exactly what it says: nothing is
+skipped but hidden directories.
+
+A name you skip behaves like a default one: it is not a folder, the books inside
+it are not listed, and PlainShelf refuses to create a folder with that name. Take
+the name back out of the file and the directory returns after the next scan —
+nothing on disk was moved or deleted in the meantime.
+
+Because the setting lives in the shelf, every PlainShelf reading that shelf
+applies it, the Android client reading it from pCloud included. The file is read
+when the shelf is opened, so restart the server after editing it. There is no
+settings page for it yet; it is a file you write by hand.
 
 ## Example use cases
 

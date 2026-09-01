@@ -4,11 +4,15 @@ import {
   BOOK_META_SCHEMA_VERSION,
   collectBookPackages,
   collectFolders,
+  createIgnoreRules,
+  DEFAULT_IGNORE_RULES,
   findBooksFolder,
+  findShelfConfigFile,
   findCoverFile,
   findCurrentSource,
   isSchemaNewerThanSupported,
   parseBookJson,
+  parseShelfConfig,
   toBook,
   toSourceMeta
 } from './bookpkg';
@@ -333,4 +337,139 @@ describe('toSourceMeta', () => {
     expect(toSourceMeta({}, '20240101-120000').id).toBe('20240101-120000');
   });
 
+});
+
+describe('shelf.json', () => {
+  it('finds the settings file in a shelf root', () => {
+    const root = folder('default-shelf', [file('shelf.json'), folder('books'), folder('app')]);
+
+    expect(findShelfConfigFile(root)?.name).toBe('shelf.json');
+  });
+
+  it('reports no settings file when the shelf has none', () => {
+    expect(findShelfConfigFile(folder('default-shelf', [folder('books')]))).toBeUndefined();
+  });
+
+  // A directory named shelf.json is not the settings file, and reading it as one
+  // would fail on a shelf that is otherwise fine.
+  it('ignores a directory that carries the name', () => {
+    const root = folder('default-shelf', [folder('shelf.json'), folder('books')]);
+
+    expect(findShelfConfigFile(root)).toBeUndefined();
+  });
+
+  it('reads the directories the shelf skips, with and without a reason', () => {
+    const raw = {
+      schema_version: 1,
+      scan: { ignored_dirs: [{ name: '@Snapshot' }, { name: '@Backup', reason: 'the NAS backup job' }] }
+    };
+
+    expect(parseShelfConfig(raw)).toEqual({
+      ignoredDirs: [
+        { name: '@Snapshot', reason: '' },
+        { name: '@Backup', reason: 'the NAS backup job' }
+      ]
+    });
+  });
+
+  // An entry is always an object. A bare name would be a second shape for the
+  // same thing, and the Go side would have to sniff between two types to read
+  // one list.
+  it('drops a bare name', () => {
+    expect(parseShelfConfig({ scan: { ignored_dirs: ['@Snapshot'] } })).toEqual({ ignoredDirs: [] });
+  });
+
+  // An empty list is a shelf saying "skip nothing", which the caller must be
+  // able to tell from a shelf that said nothing at all and gets the defaults.
+  it('reads an empty list as a list, not as silence', () => {
+    expect(parseShelfConfig({ scan: { ignored_dirs: [] } })).toEqual({ ignoredDirs: [] });
+  });
+
+  // A file written by a newer build, or one whose shape is wrong, reads as a
+  // shelf that said nothing rather than making the shelf unreadable — what the
+  // Go side does with the same file.
+  it.each([
+    ['an empty object', {}],
+    ['a scan section of the wrong type', { scan: 'everything' }],
+    ['a list of the wrong type', { scan: { ignored_dirs: 'everything' } }],
+    ['null', null],
+    ['a string', 'not a settings file']
+  ])('reads no rules from %s', (_label, raw) => {
+    expect(parseShelfConfig(raw)).toEqual({});
+  });
+
+  // One unusable entry must not cost the rest of the file.
+  it('drops entries that could not name a directory', () => {
+    const raw = {
+      scan: {
+        ignored_dirs: [
+          { name: '' },
+          { name: '.' },
+          { name: '..' },
+          { name: 'with/separator' },
+          { name: 'with\\separator' },
+          17,
+          null,
+          '@Snapshot',
+          { reason: 'no name' },
+          { name: '@Snapshot' }
+        ]
+      }
+    };
+
+    expect(parseShelfConfig(raw)).toEqual({ ignoredDirs: [{ name: '@Snapshot', reason: '' }] });
+  });
+});
+
+describe('createIgnoreRules', () => {
+  const dirs = (...names: string[]) => names.map((name) => ({ name, reason: '' }));
+
+  it('skips the listed directories however they are spelled', () => {
+    const ignore = createIgnoreRules(dirs('@Snapshot', 'thumbs'));
+    const books = folder('books', [
+      folder('@Snapshot', [folder('Nested', [])]),
+      folder('@snapshot', []),
+      folder('Thumbs', []),
+      folder('Poetry', [folder('@SNAPSHOT', [])])
+    ]);
+
+    expect(collectFolders(books, ignore)).toEqual(['/', 'Poetry']);
+  });
+
+  it('keeps a book inside a skipped directory out of the listing', () => {
+    const ignore = createIgnoreRules(dirs('@Snapshot'));
+    const books = folder('books', [
+      folder('@Snapshot', [bookPackage('hidden.bookpkg')]),
+      bookPackage('kept.bookpkg')
+    ]);
+
+    expect(collectBookPackages(books, ignore).map((pkg) => pkg.folderName)).toEqual(['kept.bookpkg']);
+  });
+
+  // The list replaces the defaults rather than adding to them, so a shelf that
+  // names its own directories no longer skips the ones it left out. The Go side
+  // reads the same file the same way; the shared dataset pins it.
+  it('does not skip a default name the list leaves out', () => {
+    const ignore = createIgnoreRules(dirs('@Snapshot'));
+    const books = folder('books', [folder('@eaDir', []), folder('@Snapshot', []), folder('Poetry', [])]);
+
+    // localeCompare, which this reader sorts folders with, puts "@eaDir" before
+    // the root.
+    expect(collectFolders(books, ignore)).toEqual(['@eaDir', '/', 'Poetry']);
+  });
+
+  // Hidden directories are a rule, not a name on the list: an empty list still
+  // skips them.
+  it('skips hidden directories whatever the list says', () => {
+    const ignore = createIgnoreRules([]);
+    const books = folder('books', [folder('.git', []), folder('@eaDir', []), folder('Poetry', [])]);
+
+    expect(collectFolders(books, ignore)).toEqual(['@eaDir', '/', 'Poetry']);
+  });
+
+  it('skips the defaults for a shelf that said nothing', () => {
+    const books = folder('books', [folder('@eaDir', []), folder('lost+found', []), folder('Poetry', [])]);
+
+    expect(collectFolders(books, DEFAULT_IGNORE_RULES)).toEqual(['/', 'Poetry']);
+  });
 });

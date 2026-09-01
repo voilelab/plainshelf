@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
@@ -41,7 +42,7 @@ var apiErrorTable = []struct {
 	}},
 	{shelf.ErrIgnoredFolderName, apiError{
 		status:  http.StatusBadRequest,
-		message: "invalid folder name: hidden and system directory names (a leading dot, @eaDir, #recycle, $RECYCLE.BIN, lost+found) are skipped by the shelf scanner, so a folder named this way would not stay visible",
+		message: "invalid folder name: this name is skipped by the shelf scanner, so a folder named this way would not stay visible",
 	}},
 	{shelf.ErrInvalidFolder, apiError{
 		status:  http.StatusBadRequest,
@@ -108,6 +109,15 @@ var apiErrorTable = []struct {
 // answers with a JSON body carrying the running chain's ID, so the task
 // handlers match it themselves.
 func apiErrorFor(err error) (apiError, bool) {
+	// Which directory names a shelf skips is that shelf's own setting, so the
+	// table cannot hold the message: naming the built-in directories would send
+	// a user whose shelf.json lists its own looking for a rule that does not
+	// apply. The shelf carries the reason out with the rejection instead.
+	var ignored *shelf.IgnoredFolderNameError
+	if errors.As(err, &ignored) {
+		return apiError{status: http.StatusBadRequest, message: ignoredFolderMessage(ignored)}, true
+	}
+
 	for _, entry := range apiErrorTable {
 		if errors.Is(err, entry.sentinel) {
 			return entry.response, true
@@ -115,6 +125,15 @@ func apiErrorFor(err error) (apiError, bool) {
 	}
 
 	return apiError{}, false
+}
+
+// ignoredFolderMessage explains a refused folder name in the shelf's own terms.
+func ignoredFolderMessage(err *shelf.IgnoredFolderNameError) string {
+	const consequence = ", so a folder named this way would not stay visible"
+	if err.Reason == "" {
+		return fmt.Sprintf("invalid folder name: this shelf skips %q while scanning%s", err.Folder, consequence)
+	}
+	return fmt.Sprintf("invalid folder name: this shelf skips %q while scanning (%s)%s", err.Folder, err.Reason, consequence)
 }
 
 // writeErr answers a known error from the table, and anything else with 500

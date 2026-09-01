@@ -1,7 +1,6 @@
 package shelf
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"path"
@@ -109,18 +108,35 @@ func copyFileAcross(srcRoot fsutil.ReadFS, src string, dstRoot fsutil.FS, dst st
 var ErrInvalidFolder = util.NewError("invalid folder name")
 
 // ErrIgnoredFolderName is the ErrInvalidFolder case where the name is well formed
-// but names a directory the scanners skip. It wraps ErrInvalidFolder, so callers
-// that only classify folder errors keep matching it, while the API can tell this
-// reason apart and explain it: a user filing an existing "@eaDir" under
-// PlainShelf is not making a typo, they are hitting a deliberate rule.
-var ErrIgnoredFolderName = util.Errorf("%w: hidden or system directory name", ErrInvalidFolder)
+// but names a directory this shelf's scanners skip. It wraps ErrInvalidFolder, so
+// callers that only classify folder errors keep matching it, while the API can
+// tell this reason apart and explain it: a user filing an existing "@eaDir" under
+// PlainShelf is not making a typo, they are hitting a rule - one that this shelf
+// may have chosen for itself.
+var ErrIgnoredFolderName = util.Errorf("%w: directory name the shelf scanners skip", ErrInvalidFolder)
+
+// IgnoredFolderNameError is that rejection with the two things the user needs:
+// which segment was refused, and why that name is skipped. The reason comes from
+// the shelf's own rules, so it is carried out rather than restated by each layer
+// - the API turns this into its message instead of listing names that may not be
+// the ones this shelf uses.
+type IgnoredFolderNameError struct {
+	Folder string
+	Reason string
+}
+
+func (e *IgnoredFolderNameError) Error() string {
+	if e.Reason == "" {
+		return fmt.Sprintf("%s %q", ErrIgnoredFolderName, e.Folder)
+	}
+	return fmt.Sprintf("%s %q: %s", ErrIgnoredFolderName, e.Folder, e.Reason)
+}
+
+func (e *IgnoredFolderNameError) Unwrap() error { return ErrIgnoredFolderName }
 
 func validateFolderPath(folders FolderPath) error {
 	for _, folder := range folders {
-		if err := shelfutil.ValidatePathSegment(folder); err != nil {
-			if errors.Is(err, shelfutil.ErrIgnoredPathSegment) {
-				return util.Errorf("%w %q: %w", ErrIgnoredFolderName, folder, err)
-			}
+		if err := shelfutil.ValidateFolderSegment(folder); err != nil {
 			return util.Errorf("%w %q: %w", ErrInvalidFolder, folder, err)
 		}
 		if strings.Contains(folder, bookExtension) {
@@ -128,13 +144,6 @@ func validateFolderPath(folders FolderPath) error {
 		}
 	}
 	return nil
-}
-
-// ValidateFolderPath reports whether every folder path segment is safe to use.
-// API handlers use this before scheduling background work so malformed batch
-// requests fail synchronously rather than becoming failed worker tasks.
-func ValidateFolderPath(folders FolderPath) error {
-	return validateFolderPath(folders)
 }
 
 // newBookID draws a random book ID as a version 4 UUID.

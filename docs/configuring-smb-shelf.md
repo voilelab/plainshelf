@@ -133,6 +133,27 @@ Press **Update book list** first; within `scan_interval` PlainShelf has not look
 
 If they still do not appear, and appear only after restarting the server, the share may not be updating directory modification times — some gateways do not. Set `scan_cache: off` on the shelf and delete `app/scan-cache.json`. See [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md#scan_cache).
 
+### The book list shows directories the NAS created
+
+Directories such as `@eaDir`, `#recycle`, `$RECYCLE.BIN` and `lost+found` are skipped by default, together with anything whose name starts with a dot. If your share carries another one — a snapshot directory, a thumbnail cache — list it in `shelf.json` at the shelf root and restart. The list replaces the defaults, so keep the ones you still need:
+
+```json
+{
+  "schema_version": 1,
+  "scan": {
+    "ignored_dirs": [
+      { "name": "@eaDir" },
+      { "name": "#recycle" },
+      { "name": "$RECYCLE.BIN" },
+      { "name": "lost+found" },
+      { "name": "@Snapshot" }
+    ]
+  }
+}
+```
+
+See [Choosing the list for one shelf](concepts/folders.md#choosing-the-list-for-one-shelf).
+
 ### Requests time out while opening large books
 
 Increase `server_conf.write_timeout`, and verify the SMB mount is healthy from the host with normal file copy commands.
