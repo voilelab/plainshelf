@@ -239,8 +239,12 @@ func folderHasPrefix(folder, prefix shelf.FolderPath) bool {
 // It is best-effort: a rescan already in progress is refreshing the cache anyway,
 // and any other failure is left for the reads that follow to surface, since they
 // answer with a real error a caller can act on.
+//
+// Without CheckScanCache: this runs inside a transfer the user is waiting on,
+// twice, and the check costs a full directory listing per folder. The rescan
+// button is where that diagnosis is paid for.
 func rescanForTransfer(shelfData *shelf.ShelfData) {
-	_, _ = shelfData.Rescan()
+	_, _ = shelfData.Rescan(shelf.RescanOptions{})
 }
 
 // targetBookIDs is the set of book IDs the target shelf already holds, whether

@@ -155,6 +155,14 @@ func (s *Shelf) refreshBookCacheIfNeeded(force bool) error {
 }
 
 func (s *Shelf) scanToBookCache() error {
+	_, err := s.scanToBookCacheWith(scanOptions{})
+	return err
+}
+
+// scanToBookCacheWith is scanToBookCache with the walk's options spelled out.
+// It returns whatever the scan cache check found, empty unless opts asked for
+// it; see scanOptions.
+func (s *Shelf) scanToBookCacheWith(opts scanOptions) ([]ScanCacheMismatch, error) {
 	cache := make(map[string]*bookIDCacheEntry)
 
 	// Recorded before the walk, not after. A book read early in the walk can be
@@ -165,7 +173,7 @@ func (s *Shelf) scanToBookCache() error {
 
 	var folders []FolderPath
 
-	stats, err := s.iterateShelfTree(func(ls FolderPath) bool {
+	stats, mismatches, err := s.iterateShelfTree(opts, func(ls FolderPath) bool {
 		folders = append(folders, ls)
 		return true
 	}, func(b *Book) bool {
@@ -173,7 +181,7 @@ func (s *Shelf) scanToBookCache() error {
 		return true
 	})
 	if err != nil {
-		return util.Errorf("%w", err)
+		return nil, util.Errorf("%w", err)
 	}
 
 	sortFolders(folders)
@@ -181,7 +189,19 @@ func (s *Shelf) scanToBookCache() error {
 	s.Debug("completed a full shelf scan",
 		"books", len(cache), "folders", len(folders),
 		"dirs", stats.Dirs, "listed_dirs", stats.ReadDirs, "reused_dirs", stats.ReusedDirs,
+		"checked_dirs", stats.CheckedDirs,
 		"duration", stats.Duration)
+
+	// Warned rather than debugged, and one line per directory: this is the only
+	// place the shelf can tell a user why a book they can see in the folder is
+	// not in the library, and the path is what turns it into something they can
+	// act on. A consistent shelf produces none of these lines.
+	for _, mismatch := range mismatches {
+		s.Warn("the directory scan cache disagrees with the directory on disk; the mount is not updating directory modification times, so set scan_cache off for this shelf",
+			"path", mismatch.Dir,
+			"missing_from_cache", mismatch.Missing,
+			"stale_in_cache", mismatch.Stale)
+	}
 
 	s.bookCache.Lock()
 	for bookID, entry := range cache {
@@ -194,7 +214,7 @@ func (s *Shelf) scanToBookCache() error {
 	s.bookCache.lastScanStart = scanStart
 	s.bookCache.Unlock()
 
-	return nil
+	return mismatches, nil
 }
 
 func (s *Shelf) onlyRefreshBooksInCache() {

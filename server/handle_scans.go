@@ -52,7 +52,13 @@ func (h *shelfHandlers) rescanShelf(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := shelfData.Rescan()
+	// The one rescan a user asked for, so the one that can afford to check the
+	// scan cache against the directories themselves. A mount that does not update
+	// directory modification times makes a book copied in from outside invisible
+	// forever, and pressing this button is the only moment PlainShelf can notice
+	// and say so; the shelf logs what it found, which is where a user chasing
+	// "the book is in the folder but not in the library" is sent.
+	result, err := shelfData.Rescan(shelf.RescanOptions{CheckScanCache: true})
 	switch {
 	case errors.Is(err, shelf.ErrRescanInProgress):
 		h.writeJSON(w, http.StatusConflict, ScanConflictResponse{ScanID: result.ID})

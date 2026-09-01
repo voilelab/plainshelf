@@ -130,7 +130,7 @@ func TestShelfWaitReadyCancellationAndInitializingReads(t *testing.T) {
 	}
 	// A rescan is refused for the same reason: the initial scan is the very walk
 	// it would duplicate.
-	if _, err := shelf.Rescan(); !errors.Is(err, ErrShelfInitializing) {
+	if _, err := shelf.Rescan(RescanOptions{}); !errors.Is(err, ErrShelfInitializing) {
 		t.Fatalf("Rescan error = %v, want ErrShelfInitializing", err)
 	}
 }

@@ -15,6 +15,7 @@ package scancache
 
 import (
 	"io/fs"
+	"slices"
 	"time"
 )
 
@@ -63,7 +64,64 @@ type Stats struct {
 	ReadDirs   int
 	ReusedDirs int
 
+	// CheckedDirs counts the directories a verifying walk listed for real even
+	// though the snapshot said the listing could be reused. It is zero for every
+	// ordinary walk, which is what makes "the diagnosis ran" distinguishable
+	// from "the diagnosis found nothing".
+	CheckedDirs int
+
 	Duration time.Duration
+}
+
+// Mismatch reports one directory whose snapshot no longer describes what the
+// directory holds, even though its modification time says nothing has changed.
+//
+// That combination is not a stale cache the next walk will correct: the walk
+// decides whether to relist from the modification time alone, so a directory
+// that reports an unchanged time while its children change is one the cache can
+// never recover from on its own. It is the shape of the cloud storage gateways
+// that do not touch a directory's time when a child is added, and the reason a
+// book copied onto such a mount is never found.
+type Mismatch struct {
+	// Dir is the path relative to the shelf root, as the snapshot keys it.
+	Dir string
+
+	// Missing names the children the directory holds and the snapshot does not -
+	// the books and folders a scan reusing this snapshot would never see.
+	Missing []string
+
+	// Stale names the children the snapshot holds and the directory no longer
+	// does. Same cause, opposite symptom: a book deleted from outside that goes
+	// on being listed.
+	Stale []string
+}
+
+// diffChildren reports how snapshot differs from actual: what actual holds and
+// snapshot does not, and the reverse. Both are nil when the two agree, so a
+// consistent directory produces no finding at all.
+func diffChildren(snapshot, actual []DirChild) (missing, stale []string) {
+	inSnapshot := make(map[string]bool, len(snapshot))
+	for _, child := range snapshot {
+		inSnapshot[child.Name] = true
+	}
+
+	inActual := make(map[string]bool, len(actual))
+	for _, child := range actual {
+		inActual[child.Name] = true
+		if !inSnapshot[child.Name] {
+			missing = append(missing, child.Name)
+		}
+	}
+
+	for _, child := range snapshot {
+		if !inActual[child.Name] {
+			stale = append(stale, child.Name)
+		}
+	}
+
+	slices.Sort(missing)
+	slices.Sort(stale)
+	return missing, stale
 }
 
 // dirChildren keeps the entries a walk can descend into: directories, and

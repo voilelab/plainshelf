@@ -131,7 +131,7 @@ Increase `scan_interval` and `book_check_interval`. SMB round trips can make fre
 
 Press **Update book list** first; within `scan_interval` PlainShelf has not looked yet.
 
-If they still do not appear, and appear only after restarting the server, the share may not be updating directory modification times — some gateways do not. Set `scan_cache: off` on the shelf and delete `app/scan-cache.json`. See [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md#scan_cache).
+If they still do not appear, and appear only after restarting the server, the share may not be updating directory modification times — some gateways do not. Pressing **Update book list** checks for exactly that: the shelf's log then carries a line saying the directory scan cache disagrees with the directory on disk, naming the folder your book is in. Set `scan_cache: off` on the shelf and delete `app/scan-cache.json`. See [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md#scan_cache).
 
 ### The book list shows directories the NAS created
 

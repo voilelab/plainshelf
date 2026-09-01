@@ -249,3 +249,195 @@ func TestScanCacheDistrustsAReplacedDirectory(t *testing.T) {
 		t.Errorf("walk still reports the replaced directory's child")
 	}
 }
+
+// verifyTree runs one complete verifying walk of root the way a user-pressed
+// rescan does, and returns what the snapshot got wrong.
+func verifyTree(t *testing.T, cache *Cache, root fsutil.ReadFS, start string) ([]Mismatch, Stats) {
+	t.Helper()
+
+	w := cache.NewVerifyingWalk()
+
+	var dfs func(pth string, child *DirChild, trusted bool)
+	dfs = func(pth string, child *DirChild, trusted bool) {
+		isDir, err := ChildIsDir(root, pth, child)
+		if err != nil || !isDir {
+			return
+		}
+
+		children, childrenTrusted, err := w.ReadDir(root, pth, trusted)
+		if err != nil {
+			t.Fatalf("ReadDir(%q): %v", pth, err)
+		}
+		for i := range children {
+			dfs(path.Join(pth, children[i].Name), &children[i], childrenTrusted)
+		}
+	}
+
+	dfs(start, nil, true)
+	return w.Mismatches(), w.Install(true)
+}
+
+// The failure the diagnosis exists for: a gateway that does not touch a
+// directory's mtime when a child is added. The mtime says nothing changed, so
+// every ordinary walk reuses the snapshot and the new book is invisible - not
+// late, permanently. A verifying walk lists the directory anyway and names it.
+func TestVerifyingWalkReportsAChildAddedWithoutAnMtimeChange(t *testing.T) {
+	aged := time.Now().Add(-time.Minute)
+
+	f := newFakeFS()
+	f.mkdir("books", aged)
+	f.mkdir("books/Fiction", aged)
+
+	cache := openCache(true)
+	walkTree(t, cache, f, "books")
+
+	// Added without touching books/Fiction's mtime, which is the whole fault.
+	f.mkdir("books/Fiction/dropped-in.bookpkg", aged)
+
+	// An ordinary walk cannot see it, which is what makes the report the only
+	// way a user could learn about it.
+	if found, _ := walkTree(t, cache, f, "books"); found["books/Fiction/dropped-in.bookpkg"] {
+		t.Fatal("an ordinary walk found the child, so this filesystem does not reproduce the fault")
+	}
+
+	mismatches, stats := verifyTree(t, cache, f, "books")
+
+	if len(mismatches) != 1 {
+		t.Fatalf("mismatches = %v, want exactly books/Fiction", mismatches)
+	}
+	if mismatches[0].Dir != "books/Fiction" {
+		t.Errorf("mismatch dir = %q, want %q", mismatches[0].Dir, "books/Fiction")
+	}
+	if !slices.Equal(mismatches[0].Missing, []string{"dropped-in.bookpkg"}) {
+		t.Errorf("missing = %v, want the child the snapshot does not list", mismatches[0].Missing)
+	}
+	if len(mismatches[0].Stale) != 0 {
+		t.Errorf("stale = %v, want none: nothing was removed", mismatches[0].Stale)
+	}
+	if stats.ReusedDirs != 0 {
+		t.Errorf("reused %d directories, want 0: a verifying walk lists them all", stats.ReusedDirs)
+	}
+	if stats.CheckedDirs != 2 {
+		t.Errorf("checked %d directories, want both books and books/Fiction", stats.CheckedDirs)
+	}
+}
+
+// The opposite report from the same cause: a book deleted from outside that the
+// snapshot goes on listing.
+func TestVerifyingWalkReportsAChildRemovedWithoutAnMtimeChange(t *testing.T) {
+	aged := time.Now().Add(-time.Minute)
+
+	f := newFakeFS()
+	f.mkdir("books", aged)
+	f.mkdir("books/gone.bookpkg", aged)
+
+	cache := openCache(true)
+	walkTree(t, cache, f, "books")
+
+	booksModTime := f.mod["books"]
+	f.rmdir("books/gone.bookpkg")
+	f.touch("books", booksModTime)
+
+	mismatches, _ := verifyTree(t, cache, f, "books")
+
+	if len(mismatches) != 1 {
+		t.Fatalf("mismatches = %v, want exactly books", mismatches)
+	}
+	if !slices.Equal(mismatches[0].Stale, []string{"gone.bookpkg"}) {
+		t.Errorf("stale = %v, want the child the snapshot still lists", mismatches[0].Stale)
+	}
+}
+
+// The reverse condition: a shelf whose directory times are trustworthy must
+// produce nothing at all, whether or not it changed since the last walk. A
+// diagnosis that fires on a healthy shelf is worse than none.
+func TestVerifyingWalkIsSilentOnAConsistentShelf(t *testing.T) {
+	aged := time.Now().Add(-time.Minute)
+
+	f := newFakeFS()
+	f.mkdir("books", aged)
+	f.mkdir("books/Fiction", aged)
+
+	cache := openCache(true)
+	walkTree(t, cache, f, "books")
+
+	if mismatches, _ := verifyTree(t, cache, f, "books"); len(mismatches) != 0 {
+		t.Errorf("mismatches = %v on an unchanged shelf, want none", mismatches)
+	}
+
+	// A change the mount did report is the cache working, not failing: the
+	// parent is relisted, so there is no snapshot claim left to contradict.
+	f.mkdir("books/Fiction/Classics", aged)
+	f.touch("books/Fiction", time.Now().Add(-30*time.Second))
+
+	if mismatches, _ := verifyTree(t, cache, f, "books"); len(mismatches) != 0 {
+		t.Errorf("mismatches = %v after a change the mount reported, want none", mismatches)
+	}
+}
+
+// The other reverse condition: with scan_cache off there is no snapshot to
+// disagree with, so the check has nothing to say and must not invent a fault.
+func TestVerifyingWalkReportsNothingWithTheCacheOff(t *testing.T) {
+	aged := time.Now().Add(-time.Minute)
+
+	f := newFakeFS()
+	f.mkdir("books", aged)
+	f.mkdir("books/Fiction", aged)
+
+	cache := openCache(false)
+	walkTree(t, cache, f, "books")
+
+	f.mkdir("books/Fiction/dropped-in.bookpkg", aged)
+
+	mismatches, stats := verifyTree(t, cache, f, "books")
+	if len(mismatches) != 0 {
+		t.Errorf("mismatches = %v with scan_cache off, want none", mismatches)
+	}
+	if stats.CheckedDirs != 0 {
+		t.Errorf("checked %d directories with scan_cache off, want 0", stats.CheckedDirs)
+	}
+}
+
+// An ordinary walk must be exactly what it was: the fast path is the reason the
+// cache exists, and the diagnosis is not allowed to cost it anything.
+func TestOrdinaryWalkStillReusesAndReportsNoMismatches(t *testing.T) {
+	aged := time.Now().Add(-time.Minute)
+
+	f := newFakeFS()
+	f.mkdir("books", aged)
+	f.mkdir("books/Fiction", aged)
+	f.mkdir("books/Fiction/Classics", aged)
+
+	cache := openCache(true)
+	walkTree(t, cache, f, "books")
+
+	w := cache.NewWalk()
+	found := map[string]bool{}
+	var dfs func(pth string, child *DirChild, trusted bool)
+	dfs = func(pth string, child *DirChild, trusted bool) {
+		isDir, err := ChildIsDir(f, pth, child)
+		if err != nil || !isDir {
+			return
+		}
+		found[pth] = true
+		children, childrenTrusted, err := w.ReadDir(f, pth, trusted)
+		if err != nil {
+			t.Fatalf("ReadDir(%q): %v", pth, err)
+		}
+		for i := range children {
+			dfs(path.Join(pth, children[i].Name), &children[i], childrenTrusted)
+		}
+	}
+	dfs("books", nil, true)
+	stats := w.Install(true)
+
+	if stats.ReadDirs != 0 {
+		t.Errorf("ordinary warm walk listed %d directories, want 0", stats.ReadDirs)
+	}
+	if stats.ReusedDirs != stats.Dirs {
+		t.Errorf("ordinary warm walk reused %d of %d directories, want all", stats.ReusedDirs, stats.Dirs)
+	}
+	if len(w.Mismatches()) != 0 {
+		t.Errorf("ordinary walk reported %v, want no mismatches", w.Mismatches())
+	}
+}

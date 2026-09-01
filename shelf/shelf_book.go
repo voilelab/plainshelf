@@ -374,19 +374,23 @@ func bookFolderPath(folderPath string) FolderPath {
 // iterateShelfTree walks the books folder once, reporting every folder
 // directory to onFolder and every book package to onBook. Either callback may be
 // nil. Returning false from a callback stops the whole walk. It returns what
-// the walk cost, which is what makes the effect of the scan cache visible.
+// the walk cost, which is what makes the effect of the scan cache visible, and -
+// with opts.checkScanCache - the directories the scan cache describes wrongly.
 //
 // Books and folders share one walk because they are answers to the same
 // question: a listing and a folder tree both describe the shape of books/, and
 // walking it twice is the cost this shelf can least afford on a network mount.
 // scanToBookCache is the only production caller for that reason.
-func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onBook func(*Book) bool) (scanStats, error) {
+func (s *Shelf) iterateShelfTree(opts scanOptions, onFolder func(FolderPath) bool, onBook func(*Book) bool) (scanStats, []ScanCacheMismatch, error) {
 	skipAll := false
 
 	// The walk reads each directory through the scan cache, which turns a
 	// ReadDir into a Stat for every folder that has not changed since the last
 	// walk. See shelf/scancache.
 	walk := s.scanCache.NewWalk()
+	if opts.checkScanCache {
+		walk = s.scanCache.NewVerifyingWalk()
+	}
 
 	var dfsFunc func(string, *scancache.DirChild, bool)
 
@@ -452,5 +456,5 @@ func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onBook func(*Bo
 	}
 
 	dfsFunc(booksFolder, nil, true)
-	return walk.Install(!skipAll), nil
+	return walk.Install(!skipAll), walk.Mismatches(), nil
 }

@@ -186,6 +186,14 @@ If `book_check_interval` is omitted, it defaults to the same duration as `scan_i
 
 Turn it off only for a mount whose directory modification times cannot be trusted. Some cloud storage gateways do not update a directory's time when a child is added, and on such a mount a book copied in from outside would never be discovered. If new books appear only after you restart the server or delete `app/scan-cache.json`, this is the setting to try.
 
+You do not have to guess. **Update book list** lists every directory for real, including the ones the cache says it could skip, and compares each one against the snapshot. Where the two disagree it writes one warning per directory to the shelf's log, beginning:
+
+> the directory scan cache disagrees with the directory on disk; the mount is not updating directory modification times, so set `scan_cache` off for this shelf
+
+The line carries the directory's path relative to the shelf root (`path`), the entries the directory holds and the snapshot does not (`missing_from_cache`) and the entries the snapshot still lists and the directory no longer holds (`stale_in_cache`). Seeing it is the confirmation: the mount is not reporting its own changes, and `scan_cache: off` below is the fix.
+
+A shelf whose mount behaves produces no such line, and the check runs only on that button — every other scan takes the fast path described above, unchanged. PlainShelf does not turn `scan_cache` off for you; that stays your decision.
+
 ```yaml
 app_conf:
   shelves:

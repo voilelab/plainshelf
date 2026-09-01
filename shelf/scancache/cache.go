@@ -113,20 +113,40 @@ func (c *Cache) LastStats() Stats {
 type Walk struct {
 	cache     *Cache
 	enabled   bool
+	verify    bool
 	startedAt time.Time
 
 	prev map[string]dirSnapshot
 	next map[string]dirSnapshot
 
-	stats Stats
+	stats      Stats
+	mismatches []Mismatch
 }
 
 // NewWalk starts a traversal, reading the last complete walk's snapshot so this
 // one can reuse the directories that have not changed.
 func (c *Cache) NewWalk() *Walk {
+	return c.newWalk(false)
+}
+
+// NewVerifyingWalk starts a traversal that lists every directory for real, even
+// the ones the snapshot says it could skip, and records the ones the snapshot
+// describes wrongly. Read them back with Mismatches.
+//
+// It costs a full ReadDir per directory - the whole cost the cache exists to
+// avoid - so it belongs only on a walk a user asked for. Nothing else changes:
+// the trust chain is evaluated exactly as an ordinary walk evaluates it, and a
+// disabled cache has no snapshot to check, so the walk is then indistinguishable
+// from an ordinary one.
+func (c *Cache) NewVerifyingWalk() *Walk {
+	return c.newWalk(true)
+}
+
+func (c *Cache) newWalk(verify bool) *Walk {
 	w := &Walk{
 		cache:     c,
 		enabled:   c.enabled,
+		verify:    verify,
 		startedAt: time.Now(),
 	}
 
@@ -140,6 +160,13 @@ func (c *Cache) NewWalk() *Walk {
 
 	w.next = make(map[string]dirSnapshot, len(w.prev))
 	return w
+}
+
+// Mismatches reports the directories a verifying walk found the snapshot
+// describing wrongly, in the order the walk reached them. Always empty for an
+// ordinary walk and for a disabled cache.
+func (w *Walk) Mismatches() []Mismatch {
+	return w.mismatches
 }
 
 // ReadDir returns the children of pth the walk may descend into, listing pth
@@ -170,13 +197,17 @@ func (w *Walk) ReadDir(root fsutil.ReadFS, pth string, trusted bool) ([]DirChild
 	// newer mtime with older content and have the next walk trust it. This order
 	// only ever costs a needless re-read.
 	var modTime time.Time
+	var reusable *dirSnapshot
 	if info, err := root.Stat(pth); err == nil {
 		modTime = info.ModTime()
 
 		if prev, ok := w.prev[pth]; trusted && ok && prev.ModTime.Equal(modTime) {
-			w.next[pth] = prev
-			w.stats.ReusedDirs++
-			return prev.Children, true, nil
+			if !w.verify {
+				w.next[pth] = prev
+				w.stats.ReusedDirs++
+				return prev.Children, true, nil
+			}
+			reusable = &prev
 		}
 	}
 
@@ -192,7 +223,29 @@ func (w *Walk) ReadDir(root fsutil.ReadFS, pth string, trusted bool) ([]DirChild
 	if !modTime.IsZero() && modTime.Before(readAt.Add(-fsutil.RacyWindow)) {
 		w.next[pth] = dirSnapshot{ModTime: modTime, Children: children}
 	}
-	return children, false, nil
+
+	if reusable == nil {
+		return children, false, nil
+	}
+
+	// A verifying walk reached a directory an ordinary walk would have skipped.
+	// The listing it read replaces the snapshot's above rather than sitting
+	// beside it: this walk knows what the directory holds, and recording the
+	// listing it just proved wrong would be storing a known lie. That is not the
+	// automatic repair this diagnosis stays out of - scan_cache is untouched and
+	// nothing else is invalidated - it is only this walk declining to write down
+	// something it can see is false.
+	w.stats.CheckedDirs++
+	if missing, stale := diffChildren(reusable.Children, children); len(missing) > 0 || len(stale) > 0 {
+		w.mismatches = append(w.mismatches, Mismatch{Dir: pth, Missing: missing, Stale: stale})
+	}
+
+	// Trusted for the same reason the reuse above is: this directory's mtime is
+	// the one the snapshot recorded and its parent's listing was itself trusted,
+	// so the children below may still have their recorded mtimes believed - and
+	// checking only the top of the tree would miss the directory the new book
+	// was actually dropped into.
+	return children, true, nil
 }
 
 // Install publishes what the walk learned. A walk stopped early (complete=false)

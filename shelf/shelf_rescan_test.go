@@ -50,7 +50,7 @@ func TestRescanFindsBooksAddedOnDiskWithinTheScanInterval(t *testing.T) {
 		t.Fatalf("ListBooks found %d books before the rescan, want 0", len(books))
 	}
 
-	result, err := s.Rescan()
+	result, err := s.Rescan(RescanOptions{})
 	if err != nil {
 		t.Fatalf("Rescan: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestRescanCountsFoldersIncludingEmptyOnes(t *testing.T) {
 		t.Fatalf("NewBook: %v", err)
 	}
 
-	result, err := s.Rescan()
+	result, err := s.Rescan(RescanOptions{})
 	if err != nil {
 		t.Fatalf("Rescan: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestRescanWritesNothing(t *testing.T) {
 	before := readBookCacheFileOrFail(t, libRoot)
 
 	writeBookOnDisk(t, libRoot, "added-behind-our-back", "onda1skb", "On Disk")
-	if _, err := s.Rescan(); err != nil {
+	if _, err := s.Rescan(RescanOptions{}); err != nil {
 		t.Fatalf("Rescan: %v", err)
 	}
 
@@ -154,7 +154,7 @@ func TestRescanRefusesASecondWalkAndNamesTheRunningOne(t *testing.T) {
 		t.Fatal("beginRescan did not claim a free shelf")
 	}
 
-	result, err := s.Rescan()
+	result, err := s.Rescan(RescanOptions{})
 	if !errors.Is(err, ErrRescanInProgress) {
 		t.Fatalf("Rescan error = %v, want ErrRescanInProgress", err)
 	}
@@ -166,7 +166,7 @@ func TestRescanRefusesASecondWalkAndNamesTheRunningOne(t *testing.T) {
 	}
 
 	s.endRescan()
-	if _, err := s.Rescan(); err != nil {
+	if _, err := s.Rescan(RescanOptions{}); err != nil {
 		t.Fatalf("Rescan after the running one ended: %v", err)
 	}
 }

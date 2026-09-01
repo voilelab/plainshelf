@@ -19,6 +19,18 @@ import (
 // there" while a retry after it ends finds the book.
 var ErrRescanInProgress = util.NewError("a rescan is already in progress")
 
+// RescanOptions tunes one manual rescan.
+type RescanOptions struct {
+	// CheckScanCache asks the walk to list every directory the scan cache would
+	// have skipped and report the ones whose snapshot no longer describes the
+	// directory, in RescanResult.ScanCacheMismatches and in the shelf's log.
+	//
+	// For the rescan a user pressed, and only that one. It gives up the scan
+	// cache's whole saving for that walk, which is the cost the button's user has
+	// already accepted and an internal preflight has not.
+	CheckScanCache bool
+}
+
 // RescanResult reports what a manual rescan found.
 type RescanResult struct {
 	// ID names this rescan while it runs. It is also filled in on the
@@ -32,6 +44,13 @@ type RescanResult struct {
 
 	BookCount  int
 	FolderCount int
+
+	// ScanCacheMismatches names the directories whose scan cache snapshot no
+	// longer describes the directory on disk. Only filled in when the rescan was
+	// asked to check (RescanOptions.CheckScanCache), and empty on a shelf whose
+	// cache agrees with its filesystem - which is every shelf whose mount updates
+	// directory modification times.
+	ScanCacheMismatches []ScanCacheMismatch
 }
 
 // Rescan walks the shelf now and rebuilds the book cache from what it finds.
@@ -42,7 +61,7 @@ type RescanResult struct {
 // without a side effect — ExportBookCache also forces a walk but writes a file
 // afterwards, the wrong thing to reach for when all that is wanted is for a book
 // dropped into books/ to show up.
-func (s *Shelf) Rescan() (RescanResult, error) {
+func (s *Shelf) Rescan(opts RescanOptions) (RescanResult, error) {
 	if !s.IsReady() {
 		return RescanResult{}, util.Errorf("%w", ErrShelfInitializing)
 	}
@@ -61,7 +80,8 @@ func (s *Shelf) Rescan() (RescanResult, error) {
 	}
 	defer s.shelfLock.Unlock()
 
-	if err := s.scanToBookCache(); err != nil {
+	mismatches, err := s.scanToBookCacheWith(scanOptions{checkScanCache: opts.CheckScanCache})
+	if err != nil {
 		return RescanResult{}, util.Errorf("%w", err)
 	}
 
@@ -77,6 +97,8 @@ func (s *Shelf) Rescan() (RescanResult, error) {
 		StartedAt:  s.bookCache.lastScanStart,
 		BookCount:  len(s.bookCache.cache),
 		FolderCount: len(s.bookCache.folders),
+
+		ScanCacheMismatches: mismatches,
 	}, nil
 }
 

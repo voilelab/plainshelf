@@ -310,7 +310,7 @@ func TestReadOnlyShelfReadsWithoutWriting(t *testing.T) {
 	if _, err := s.ListTrashedBooks(); err != nil {
 		t.Errorf("ListTrashedBooks: %v", err)
 	}
-	if _, err := s.Rescan(); err != nil {
+	if _, err := s.Rescan(RescanOptions{}); err != nil {
 		t.Errorf("Rescan: %v", err)
 	}
 
