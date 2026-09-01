@@ -89,10 +89,11 @@ the import created, in `sources/{source-id}/meta.json`:
 The book detail view shows it as **Import note**. Books that lost nothing get
 no note at all, so the row only appears when there is something to report.
 
-The note is a record of the import, not a field to fill in, so the only thing
-you can do to it is remove it: **Remove** beside the label clears it from the
-source and the row disappears. The text itself is untouched, and the note cannot
-be brought back except by importing the file again.
+The note is generated automatically at the moments that produce a source — this
+import, or a later conversion of one — rather than being a field you fill in, so
+the only thing you can do to it is remove it: **Remove** beside the label clears
+it from the source and the row disappears. Removal cannot be undone, and the
+text itself is untouched.
 
 Neither the cover nor a stored illustration is counted: both are kept rather
 than lost. Images referenced more than once count once, so the number reflects
