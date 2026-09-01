@@ -32,6 +32,10 @@
     {
       "name": "source-assets",
       "covers": "A source whose illustrations live in assets/ and are referenced by relative path."
+    },
+    {
+      "name": "shelf-config-ignore",
+      "covers": "A shelf.json that adds directories to the scanner's ignore list: the extra names are skipped case-insensitively, an unusable entry is dropped, and the built-in names stay ignored."
     }
   ]
 }

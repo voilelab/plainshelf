@@ -48,11 +48,42 @@ cannot create a folder with one of these names.
 
 A book package placed inside one of these directories is invisible to
 PlainShelf, so deleting a book on a NAS does not bring it back through the
-recycle bin. The list is fixed; custom ignore patterns are not configurable yet.
+recycle bin.
 
 Trying to create a folder with one of these names is refused with a message that
 says so, rather than the generic "invalid folder name" reported for a name that
 is malformed.
+
+### Ignoring more directories on one shelf
+
+The list above is built in and cannot be shortened. A single shelf can lengthen
+it: create a [`shelf.json`](data-model.md#shelfjson) at the shelf root — beside
+`books/`, not inside it — and name the directories to skip.
+
+```json
+{
+  "schema_version": 1,
+  "scan": {
+    "extra_ignored_dirs": ["@Snapshot", "Thumbs"]
+  }
+}
+```
+
+This is for the directories your own storage creates that the built-in list does
+not know about — a NAS snapshot directory, a photo-tool thumbnail cache, a backup
+tool's working directory sitting in the middle of your library. Each entry is one
+directory name, matched wherever it appears in the tree and without regard to
+case; it is not a path and not a wildcard pattern.
+
+A name you ignore behaves exactly like a built-in one: it is not a folder, the
+books inside it are not listed, and PlainShelf refuses to create a folder with
+that name. Take the name back out of the file and the directory returns after
+the next scan — nothing on disk was moved or deleted in the meantime.
+
+Because the setting lives in the shelf, every PlainShelf reading that shelf
+applies it, the Android client reading it from pCloud included. The file is read
+when the shelf is opened, so restart the server after editing it. There is no
+settings page for it yet; it is a file you write by hand.
 
 ## Example use cases
 

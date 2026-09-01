@@ -2,6 +2,8 @@ package contract_test
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -177,4 +179,34 @@ func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
 			t.Fatalf("body = %q, want %q", got, "invalid folder name")
 		}
 	})
+}
+
+// A name the shelf's own settings file ignores is refused like a system name,
+// but for a reason the user can act on: they wrote the rule and can take it
+// back. The message therefore has to name the file and the setting rather than
+// list the built-in directories, which would send them looking for a rule that
+// does not apply.
+func TestAPIConfiguredIgnoredFolderNameNamesTheSettingContract(t *testing.T) {
+	libRoot := t.TempDir()
+	config := `{"schema_version":1,"scan":{"extra_ignored_dirs":["@Snapshot"]}}`
+	if err := os.WriteFile(filepath.Join(libRoot, "shelf.json"), []byte(config), 0644); err != nil {
+		t.Fatalf("write shelf.json: %v", err)
+	}
+
+	env := newAPITestEnv(t, withLibRoot(libRoot))
+
+	rec := env.post(shelfURL("folders", "%40Snapshot"), nil)
+
+	assertStatus(t, rec, http.StatusBadRequest)
+	got := strings.TrimSpace(rec.Body.String())
+	for _, want := range []string{"shelf.json", "scan.extra_ignored_dirs"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("body = %q, want it to contain %q", got, want)
+		}
+	}
+
+	// The directory must not have been created on the way to the rejection.
+	if _, err := os.Stat(filepath.Join(libRoot, "books", "@Snapshot")); !os.IsNotExist(err) {
+		t.Errorf("Stat books/@Snapshot = %v, want it never to have been created", err)
+	}
 }

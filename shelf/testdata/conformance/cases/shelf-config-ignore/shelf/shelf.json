@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "scan": {
+    "extra_ignored_dirs": [
+      "@Snapshot",
+      "thumbs",
+      "@eaDir",
+      "bad/name"
+    ]
+  }
+}

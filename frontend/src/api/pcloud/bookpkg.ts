@@ -16,6 +16,13 @@ export const SOURCE_FILE = 'source.txt';
 export const SOURCE_ASSETS_FOLDER = 'assets';
 
 /**
+ * The shelf's own settings file, at the shelf root beside `books/`. Optional:
+ * a shelf without one is read by the built-in rules alone. This client only ever
+ * reads it, like the Go shelf (`shelf/shelf_config.go`).
+ */
+export const SHELF_CONFIG_FILE = 'shelf.json';
+
+/**
  * Directory names filesystems, NAS firmware and sync clients create inside a
  * shelf, mirroring `ignoredDirNames` in shelf/util.go. Keys are lower case;
  * `isIgnoredDirName` folds the name before looking it up, because a share
@@ -41,6 +48,80 @@ const IGNORED_DIR_NAMES = new Set([
  */
 export function isIgnoredDirName(name: string): boolean {
   return name.startsWith('.') || IGNORED_DIR_NAMES.has(name.toLowerCase());
+}
+
+/**
+ * Which directory names one shelf skips: the built-in list above plus the names
+ * that shelf's own `shelf.json` adds. Mirrors `IgnoreRules` in
+ * shelf/internal/shelfutil.
+ */
+export type IgnoreRules = (name: string) => boolean;
+
+/** The rules for a shelf with no configuration: the built-in list alone. */
+export const BUILT_IN_IGNORE_RULES: IgnoreRules = isIgnoredDirName;
+
+/** What this client reads out of `shelf.json`. */
+export interface ShelfConfig {
+  /** Directory names under `books/` this shelf skips on top of the built-in list. */
+  extraIgnoredDirs: string[];
+}
+
+/** 255 bytes is the per-component limit the Go side validates against. */
+const MAX_PATH_SEGMENT_BYTES = 255;
+
+function isUsableExtraIgnoredDir(name: string): boolean {
+  if (name === '' || name === '.' || name === '..') {
+    return false;
+  }
+  if (name.includes('/') || name.includes('\\')) {
+    return false;
+  }
+  return new TextEncoder().encode(name).length <= MAX_PATH_SEGMENT_BYTES;
+}
+
+/**
+ * Reads a parsed `shelf.json`, keeping only what this client acts on.
+ *
+ * Never throws: a file written by a newer build, or one whose `scan` section is
+ * the wrong shape, leaves the built-in rules in place rather than making the
+ * shelf unreadable — exactly what the Go side does with the same file. Entries
+ * that could not name a directory are dropped one by one, so one bad line does
+ * not cost the rest of the file.
+ */
+export function parseShelfConfig(raw: unknown): ShelfConfig {
+  const scan = (raw as { scan?: unknown } | null)?.scan;
+  const listed = (scan as { extra_ignored_dirs?: unknown } | null | undefined)?.extra_ignored_dirs;
+  if (!Array.isArray(listed)) {
+    return { extraIgnoredDirs: [] };
+  }
+
+  return {
+    extraIgnoredDirs: listed.filter(
+      (name): name is string => typeof name === 'string' && isUsableExtraIgnoredDir(name)
+    )
+  };
+}
+
+/**
+ * Builds the ignore rules for a shelf that skips `extraIgnoredDirs` on top of
+ * the built-in list.
+ *
+ * The configuration can only add. The built-in names stay ignored whatever the
+ * file says, because a shelf that treats "@eaDir" as a folder is the duplicated
+ * folder tree the built-in list exists to prevent.
+ */
+export function createIgnoreRules(extraIgnoredDirs: string[]): IgnoreRules {
+  const extra = new Set(extraIgnoredDirs.map((name) => name.toLowerCase()));
+  if (extra.size === 0) {
+    return BUILT_IN_IGNORE_RULES;
+  }
+  return (name: string) => isIgnoredDirName(name) || extra.has(name.toLowerCase());
+}
+
+/** Locates `shelf.json` in a listed shelf root, if the shelf has one. */
+export function findShelfConfigFile(shelfRoot: PCloudItem): PCloudFileRef | undefined {
+  const item = shelfRoot.contents?.find((entry) => !entry.isfolder && entry.name === SHELF_CONFIG_FILE);
+  return item ? toFileRef(item) : undefined;
 }
 
 /**
@@ -150,12 +231,15 @@ export function findBooksFolder(shelfRoot: PCloudItem): PCloudItem | undefined {
  * (shelf/shelf_book.go). System directories are skipped before that test, so a
  * package inside one is not a book either.
  */
-export function collectBookPackages(booksFolder: PCloudItem): BookPackageRef[] {
+export function collectBookPackages(
+  booksFolder: PCloudItem,
+  isIgnored: IgnoreRules = BUILT_IN_IGNORE_RULES
+): BookPackageRef[] {
   const packages: BookPackageRef[] = [];
 
   const walk = (folder: PCloudItem, folders: string[]): void => {
     for (const item of folder.contents ?? []) {
-      if (!item.isfolder || item.folderid === undefined || isIgnoredDirName(item.name)) {
+      if (!item.isfolder || item.folderid === undefined || isIgnored(item.name)) {
         continue;
       }
 
@@ -182,7 +266,10 @@ export function collectBookPackages(booksFolder: PCloudItem): BookPackageRef[] {
  * the "no folder" group. System directories are not folders, for the same reason
  * the Go scan refuses to make one (`ErrIgnoredFolderName`).
  */
-export function collectFolders(booksFolder: PCloudItem): string[] {
+export function collectFolders(
+  booksFolder: PCloudItem,
+  isIgnored: IgnoreRules = BUILT_IN_IGNORE_RULES
+): string[] {
   const paths = new Set<string>(['/']);
 
   const walk = (folder: PCloudItem, segments: string[]): void => {
@@ -191,7 +278,7 @@ export function collectFolders(booksFolder: PCloudItem): string[] {
         !item.isfolder ||
         item.folderid === undefined ||
         item.name.endsWith(BOOK_EXTENSION) ||
-        isIgnoredDirName(item.name)
+        isIgnored(item.name)
       ) {
         continue;
       }

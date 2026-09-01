@@ -1,10 +1,13 @@
 import {
   collectBookPackages,
   collectFolders,
+  createIgnoreRules,
   findBooksFolder,
   findCoverFile,
   findCurrentSource,
+  findShelfConfigFile,
   parseBookJson,
+  parseShelfConfig,
   toBook,
   toSourceMeta,
 } from '@/api/pcloud/bookpkg';
@@ -354,6 +357,27 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     }
   }
 
+  /**
+   * Reads the shelf's `shelf.json`, if it has one, and returns the directory
+   * names it adds to the ignore list.
+   *
+   * Never throws: an unreadable or malformed settings file leaves the built-in
+   * rules in place, matching the Go shelf, because refusing to open a library
+   * over a typo in an optional file is the worse failure.
+   */
+  private async loadShelfConfig(ref: PCloudFileRef | undefined): Promise<string[]> {
+    if (!ref) {
+      return [];
+    }
+
+    try {
+      return parseShelfConfig(await this.readJson(ref)).extraIgnoredDirs;
+    } catch (err) {
+      console.warn(`Ignoring ${ref.name}: it could not be read.`, err);
+      return [];
+    }
+  }
+
   private async loadSnapshot(): Promise<ShelfSnapshot> {
     const root = await this.client.listFolderRecursive({ path: this.shelfRoot });
     const booksFolder = findBooksFolder(root);
@@ -361,12 +385,19 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       throw new PCloudError(`No books/ folder under ${this.shelfRoot}; this does not look like a PlainShelf shelf.`);
     }
 
-    const packages = collectBookPackages(booksFolder);
+    // The shelf's own settings decide which directories are skipped, so they are
+    // read before the walk. Only a shelf that carries the file pays for it, and
+    // readJson answers from the cache while its size and mtime are unchanged, so
+    // a refresh does not download it again.
+    const configRef = findShelfConfigFile(root);
+    const ignore = createIgnoreRules(await this.loadShelfConfig(configRef));
+
+    const packages = collectBookPackages(booksFolder, ignore);
     // Folders stay derived from the listing rather than read from the cache. The
     // directories are in the response already, so they cost nothing here and
     // cannot be out of date, which the cache's copy can be.
-    const folders = collectFolders(booksFolder);
-    this.pruneJsonCache(packages);
+    const folders = collectFolders(booksFolder, ignore);
+    this.pruneJsonCache(packages, configRef);
 
     // Only worth two requests when something actually has to be read. A refresh
     // where no book.json changed is already free from jsonCache, and fetching
@@ -478,8 +509,11 @@ export class PCloudBookshelfProvider implements BookshelfReader {
   }
 
   /** Drops cache entries for files that no longer exist in the shelf. */
-  private pruneJsonCache(packages: BookPackageRef[]): void {
+  private pruneJsonCache(packages: BookPackageRef[], configRef?: PCloudFileRef): void {
     const live = new Set<number>();
+    if (configRef) {
+      live.add(configRef.fileid);
+    }
     for (const pkg of packages) {
       if (pkg.meta) {
         live.add(pkg.meta.fileid);

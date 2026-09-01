@@ -240,7 +240,7 @@ func (s *Shelf) RestoreTrashedBook(bookID string) error {
 		}
 	}
 
-	if err := validateFolderPath(targetFolders); err != nil {
+	if err := s.ValidateFolderPath(targetFolders); err != nil {
 		targetFolders = nil
 	}
 

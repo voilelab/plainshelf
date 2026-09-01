@@ -46,6 +46,12 @@ func TestAPIErrorForKnownSentinels(t *testing.T) {
 			wantMessage: "invalid folder name: hidden and system directory names (a leading dot, @eaDir, #recycle, $RECYCLE.BIN, lost+found) are skipped by the shelf scanner, so a folder named this way would not stay visible",
 		},
 		{
+			name:        "configured ignored folder name",
+			err:         shelf.ErrConfiguredIgnoredFolderName,
+			wantStatus:  http.StatusBadRequest,
+			wantMessage: "invalid folder name: this shelf's shelf.json lists this name under scan.extra_ignored_dirs, so the shelf scanner skips it and a folder named this way would not stay visible",
+		},
+		{
 			name:           "shelf initializing",
 			err:            shelf.ErrShelfInitializing,
 			wantStatus:     http.StatusServiceUnavailable,

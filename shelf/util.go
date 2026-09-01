@@ -115,6 +115,13 @@ var ErrInvalidFolder = util.NewError("invalid folder name")
 // PlainShelf is not making a typo, they are hitting a deliberate rule.
 var ErrIgnoredFolderName = util.Errorf("%w: hidden or system directory name", ErrInvalidFolder)
 
+// ErrConfiguredIgnoredFolderName is the ErrIgnoredFolderName case where the name
+// is skipped because this shelf's own shelf.json lists it, not because it is one
+// of the built-in system names. It wraps ErrIgnoredFolderName, so a caller that
+// only classifies ignored names keeps matching it, while the API can point the
+// user at the file they wrote instead of at a rule they cannot change.
+var ErrConfiguredIgnoredFolderName = util.Errorf("%w: listed in this shelf's settings", ErrIgnoredFolderName)
+
 func validateFolderPath(folders FolderPath) error {
 	for _, folder := range folders {
 		if err := shelfutil.ValidatePathSegment(folder); err != nil {
@@ -128,13 +135,6 @@ func validateFolderPath(folders FolderPath) error {
 		}
 	}
 	return nil
-}
-
-// ValidateFolderPath reports whether every folder path segment is safe to use.
-// API handlers use this before scheduling background work so malformed batch
-// requests fail synchronously rather than becoming failed worker tasks.
-func ValidateFolderPath(folders FolderPath) error {
-	return validateFolderPath(folders)
 }
 
 // newBookID draws a random book ID as a version 4 UUID.

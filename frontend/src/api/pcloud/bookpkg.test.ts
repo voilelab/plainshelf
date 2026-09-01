@@ -4,11 +4,14 @@ import {
   BOOK_META_SCHEMA_VERSION,
   collectBookPackages,
   collectFolders,
+  createIgnoreRules,
   findBooksFolder,
+  findShelfConfigFile,
   findCoverFile,
   findCurrentSource,
   isSchemaNewerThanSupported,
   parseBookJson,
+  parseShelfConfig,
   toBook,
   toSourceMeta
 } from './bookpkg';
@@ -333,4 +336,93 @@ describe('toSourceMeta', () => {
     expect(toSourceMeta({}, '20240101-120000').id).toBe('20240101-120000');
   });
 
+});
+
+describe('shelf.json', () => {
+  it('finds the settings file in a shelf root', () => {
+    const root = folder('default-shelf', [file('shelf.json'), folder('books'), folder('app')]);
+
+    expect(findShelfConfigFile(root)?.name).toBe('shelf.json');
+  });
+
+  it('reports no settings file when the shelf has none', () => {
+    expect(findShelfConfigFile(folder('default-shelf', [folder('books')]))).toBeUndefined();
+  });
+
+  // A directory named shelf.json is not the settings file, and reading it as one
+  // would fail on a shelf that is otherwise fine.
+  it('ignores a directory that carries the name', () => {
+    const root = folder('default-shelf', [folder('shelf.json'), folder('books')]);
+
+    expect(findShelfConfigFile(root)).toBeUndefined();
+  });
+
+  it('reads the directories the shelf adds to the ignore list', () => {
+    expect(parseShelfConfig({ schema_version: 1, scan: { extra_ignored_dirs: ['@Snapshot'] } })).toEqual({
+      extraIgnoredDirs: ['@Snapshot']
+    });
+  });
+
+  // A file written by a newer build, or one whose shape is wrong, leaves the
+  // built-in rules in place rather than making the shelf unreadable — what the
+  // Go side does with the same file.
+  it.each([
+    ['an empty object', {}],
+    ['a scan section of the wrong type', { scan: 'everything' }],
+    ['a list of the wrong type', { scan: { extra_ignored_dirs: 'everything' } }],
+    ['null', null],
+    ['a string', 'not a settings file']
+  ])('reads no extra directories from %s', (_label, raw) => {
+    expect(parseShelfConfig(raw)).toEqual({ extraIgnoredDirs: [] });
+  });
+
+  // One unusable entry must not cost the rest of the file.
+  it('drops entries that could not name a directory', () => {
+    const raw = {
+      scan: { extra_ignored_dirs: ['', '.', '..', 'with/separator', 'with\\separator', 17, '@Snapshot'] }
+    };
+
+    expect(parseShelfConfig(raw)).toEqual({ extraIgnoredDirs: ['@Snapshot'] });
+  });
+});
+
+describe('createIgnoreRules', () => {
+  it('skips the configured directories however they are spelled', () => {
+    const ignore = createIgnoreRules(['@Snapshot', 'thumbs']);
+    const books = folder('books', [
+      folder('@Snapshot', [folder('Nested', [])]),
+      folder('@snapshot', []),
+      folder('Thumbs', []),
+      folder('Poetry', [folder('@SNAPSHOT', [])])
+    ]);
+
+    expect(collectFolders(books, ignore)).toEqual(['/', 'Poetry']);
+  });
+
+  it('keeps a book inside a configured directory out of the listing', () => {
+    const ignore = createIgnoreRules(['@Snapshot']);
+    const books = folder('books', [
+      folder('@Snapshot', [bookPackage('hidden.bookpkg')]),
+      bookPackage('kept.bookpkg')
+    ]);
+
+    expect(collectBookPackages(books, ignore).map((pkg) => pkg.folderName)).toEqual(['kept.bookpkg']);
+  });
+
+  // The setting can only add: nothing a shelf.json says brings "@eaDir" back as
+  // a folder, because that is the duplicated folder tree the built-in list
+  // exists to prevent.
+  it('cannot unignore a built-in name', () => {
+    const ignore = createIgnoreRules(['@eaDir', '.git']);
+    const books = folder('books', [folder('@eaDir', []), folder('.git', []), folder('Poetry', [])]);
+
+    expect(collectFolders(books, ignore)).toEqual(['/', 'Poetry']);
+  });
+
+  it('falls back to the built-in rules when nothing is configured', () => {
+    const ignore = createIgnoreRules([]);
+    const books = folder('books', [folder('@eaDir', []), folder('Poetry', [])]);
+
+    expect(collectFolders(books, ignore)).toEqual(['/', 'Poetry']);
+  });
 });

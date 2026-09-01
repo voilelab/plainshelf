@@ -1,0 +1,37 @@
+{
+  "folders": [
+    "/",
+    "Essays"
+  ],
+  "books": [
+    {
+      "path": "books/Essays/montaigne.bookpkg",
+      "folders": [
+        "Essays"
+      ],
+      "id": "m4pk2wnd7bqx9tzr",
+      "title": "Essais",
+      "format": "txt",
+      "authors": [
+        "Michel de Montaigne"
+      ],
+      "tags": [],
+      "star": 4,
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "current_source_field": "20260701-120000",
+      "current_source": "20260701-120000",
+      "sources": [
+        {
+          "id": "20260701-120000",
+          "has_content": true,
+          "char_count": 14,
+          "assets": []
+        }
+      ]
+    }
+  ],
+  "book_caches": []
+}

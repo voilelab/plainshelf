@@ -12,11 +12,13 @@ import (
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 	"github.com/voilelab/plainshelf/shelf/scancache"
 )
 
 /*
 Layout:
+{library}/shelf.json    (optional; this shelf's own settings, see shelf_config.go)
 {library}/books/
   {book1-folder}.bookpkg/
   {folder1}/
@@ -73,6 +75,13 @@ type Shelf struct {
 	// scanCache is the directory scan snapshot that makes a full walk cheap; see
 	// scancache_facade.go and shelf/scancache.
 	scanCache *scancache.Cache
+
+	// ignore is which directory names under books/ this shelf skips: the
+	// built-in system names plus whatever shelf.json adds. It is read once in
+	// Open and never written again, so every goroutine reading it - the scanner,
+	// folder validation - sees the same rules for the life of the shelf. See
+	// shelf_config.go.
+	ignore shelfutil.IgnoreRules
 
 	// Exported book cache; see shelf_cache_export.go. An empty writer ID
 	// disables the export entirely, which is what a bare ShelfConf gets.
@@ -287,6 +296,8 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		close:     rt.Close,
 		shelfLock: shelfLock,
 		readyCh:   make(chan struct{}),
+
+		ignore: loadIgnoreRules(dbRoot, *logger),
 
 		// cache
 		bookCache:         newBookCache(scanInterval, bookCheckInterval),

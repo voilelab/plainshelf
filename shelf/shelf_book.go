@@ -9,7 +9,6 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
-	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 	"github.com/voilelab/plainshelf/shelf/scancache"
 )
 
@@ -100,7 +99,7 @@ func (s *Shelf) NewBook(folders FolderPath, title string) (*Book, error) {
 // init runs while the exclusive shelf lock is held, so it should not do
 // long-running work beyond writing the book's own initial content.
 func (s *Shelf) NewBookWith(folders FolderPath, title string, init func(*Book) error) (*Book, error) {
-	if err := validateFolderPath(folders); err != nil {
+	if err := s.ValidateFolderPath(folders); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -240,7 +239,7 @@ func (s *Shelf) DeleteBook(bookID string) error {
 }
 
 func (s *Shelf) GetBooksByFolder(folders FolderPath) ([]*Book, error) {
-	if err := validateFolderPath(folders); err != nil {
+	if err := s.ValidateFolderPath(folders); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -268,7 +267,7 @@ func (s *Shelf) GetBooksByFolder(folders FolderPath) ([]*Book, error) {
 
 // MoveBook moves a book to new folders and returns the updated Book instance.
 func (s *Shelf) MoveBook(bookID string, newFolders FolderPath) (*Book, error) {
-	if err := validateFolderPath(newFolders); err != nil {
+	if err := s.ValidateFolderPath(newFolders); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -325,7 +324,7 @@ func (s *Shelf) MoveBook(bookID string, newFolders FolderPath) (*Book, error) {
 // all come along, and the relative asset paths inside a source resolve without
 // rewriting.
 func (s *Shelf) CopyBook(bookID string, targetFolder FolderPath) (*Book, error) {
-	if err := validateFolderPath(targetFolder); err != nil {
+	if err := s.ValidateFolderPath(targetFolder); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -412,7 +411,7 @@ func (s *Shelf) iterateShelfTree(onFolder func(FolderPath) bool, onBook func(*Bo
 		}
 
 		folderName := path.Base(pth)
-		if shelfutil.IsIgnoredDir(folderName) {
+		if s.ignore.IsIgnoredDir(folderName) {
 			return
 		}
 

@@ -10,6 +10,7 @@ A typical shelf looks like this:
 
 ```text
 {shelf}/
+├─ shelf.json          (optional; this shelf's own settings)
 ├─ books/
 │  ├─ {book1-folder}.bookpkg/
 │  ├─ {folder1}/
@@ -36,6 +37,11 @@ The three top-level directories are not the same kind of thing:
 | `books/` | Your library. The source of truth. | No |
 | `trash/` | Books you deleted, kept until you empty the trash. Your data too. | No — deleting it discards those books for good |
 | `app/` | Runtime state the server rebuilds. | Yes |
+
+`shelf.json` beside them is optional and holds settings that belong to this
+shelf rather than to the program reading it — see [`shelf.json`](#shelfjson)
+below. Deleting it is safe in the sense that nothing breaks: the shelf goes back
+to the built-in defaults.
 
 Before changing this layout — renaming, adding, or removing a top-level
 directory, or how book folders are named or nested — read [Shelf layout changes
@@ -120,6 +126,41 @@ Runtime state used by the server: file lock, temporary files, and an exported bo
 `fingerprint-cache.json` stores the content fingerprints behind the [Similar Books](../finding-similar-books.md) page, so that page does not have to re-read every book each time you open it. Unlike the exported book cache there is one shared file, not one per installation — a fingerprint is a pure function of a source's content, so every machine computes the same value and they merge into the one file. It is the largest thing under `app/`, growing with your library at roughly 1.5 KB per source, so on a big shelf it reaches a few megabytes and you will notice it in a backup. Deleting it is safe: the next time you build fingerprints, the ones that are gone are simply read and computed again. It is also discarded and rebuilt whenever the similarity algorithm changes — see [Data Format Versioning](data-format-versioning.md#fingerprint-cache).
 
 Older shelves may still contain `app/stats/reading/{YYYY-MM}.json`. That is reading-time history from before it moved onto each device; nothing reads it any more and it can be deleted.
+
+### `shelf.json`
+
+This shelf's own settings. Optional: a shelf without one is read exactly as
+PlainShelf has always read it, and no build creates the file for you.
+
+It sits at the shelf root rather than under `app/` because `app/` is disposable
+and a setting that vanishes with the cache would be worse than no setting. It
+travels with the shelf rather than with the server's configuration file so that
+every reader of the same shelf — this server, the desktop app, the Android
+client reading it from pCloud — applies the same rules.
+
+```json
+{
+  "schema_version": 1,
+  "scan": {
+    "extra_ignored_dirs": ["@Snapshot", "Thumbs"]
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `schema_version` | Format version of this file. `1` is the only one this build writes about; a file declaring a higher one is still read, and the fields this build understands still apply |
+| `scan.extra_ignored_dirs` | Directory names under `books/` this shelf skips **in addition to** the [built-in list](folders.md#ignored-directories). Matched without regard to case, one name per entry — not a path and not a pattern |
+
+PlainShelf only ever reads this file. Nothing rewrites it, so your formatting and
+key order survive, and the settings are read when the shelf is opened: edit the
+file and restart the server (or reopen the shelf in the desktop app) for the
+change to take effect.
+
+A setting that cannot be used is skipped rather than fatal — an entry containing
+a `/`, an unparsable file, a key this build does not know — and the shelf opens
+with the built-in rules. The server log says which entry was dropped and why.
+The list can only add: the built-in names stay ignored whatever the file says.
 
 ### Per-device reading data
 

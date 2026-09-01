@@ -129,10 +129,10 @@ func (target *Shelf) MoveFolderFrom(source *Shelf, sourceFolder, targetFolder Fo
 // requires a writable source, and clears the source subtree at the end, while a
 // copy does none of those.
 func (target *Shelf) transferFolderFrom(source *Shelf, sourceFolder, targetFolder FolderPath, isMove bool) ([]*Book, error) {
-	if err := validateFolderPath(sourceFolder); err != nil {
+	if err := source.ValidateFolderPath(sourceFolder); err != nil {
 		return nil, util.Errorf("invalid source folder: %w", err)
 	}
-	if err := validateFolderPath(targetFolder); err != nil {
+	if err := target.ValidateFolderPath(targetFolder); err != nil {
 		return nil, util.Errorf("invalid target folder: %w", err)
 	}
 	if len(sourceFolder) == 0 {
