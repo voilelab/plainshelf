@@ -2,13 +2,14 @@
   "schema_version": 1,
   "scan": {
     "ignored_dirs": [
-      "@Snapshot",
-      "thumbs",
+      { "name": "@Snapshot" },
+      { "name": "thumbs" },
       {
         "name": "@Backup",
         "reason": "the NAS backup job's working directory"
       },
-      "bad/name",
+      { "name": "bad/name" },
+      "@Snapshot",
       17
     ]
   }

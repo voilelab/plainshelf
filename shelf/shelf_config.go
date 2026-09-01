@@ -53,9 +53,12 @@ type shelfConfigJSON struct {
 		// shelf has said nothing and gets DefaultIgnoredDirs. One list with one
 		// meaning: there is no second field layering names on top of another.
 		//
-		// An entry is either a name ("@eaDir") or a name with the reason it is
-		// there ({"name": "@eaDir", "reason": "Synology thumbnails"}), so a
-		// shelf can say why it skips a directory this build has never heard of.
+		// An entry is always an object - {"name": "@eaDir"}, or
+		// {"name": "@eaDir", "reason": "Synology thumbnails"} to say why a
+		// directory this build has never heard of is skipped. One shape, so a
+		// file is read the same way wherever the reader looks and adding a
+		// field later does not turn some entries into a different kind of
+		// value.
 		IgnoredDirs []json.RawMessage `json:"ignored_dirs"`
 	} `json:"scan"`
 }
@@ -66,16 +69,13 @@ type ignoredDirJSON struct {
 	Reason string `json:"reason"`
 }
 
-// parseIgnoredDir reads one entry, in either form.
+// parseIgnoredDir reads one entry. A bare name is not accepted: "@eaDir" and
+// {"name": "@eaDir"} would mean the same thing and the file would have two
+// shapes for one entry, which every reader of it then has to handle.
 func parseIgnoredDir(raw json.RawMessage) (shelfutil.IgnoredDir, error) {
-	var name string
-	if err := json.Unmarshal(raw, &name); err == nil {
-		return shelfutil.IgnoredDir{Name: name}, nil
-	}
-
 	var object ignoredDirJSON
 	if err := json.Unmarshal(raw, &object); err != nil {
-		return shelfutil.IgnoredDir{}, util.Errorf("entry is neither a directory name nor a {name, reason} object: %w", err)
+		return shelfutil.IgnoredDir{}, util.Errorf("entry is not a {name, reason} object: %w", err)
 	}
 	return shelfutil.IgnoredDir{Name: object.Name, Reason: object.Reason}, nil
 }

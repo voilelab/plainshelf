@@ -141,7 +141,13 @@ Directories such as `@eaDir`, `#recycle`, `$RECYCLE.BIN` and `lost+found` are sk
 {
   "schema_version": 1,
   "scan": {
-    "ignored_dirs": ["@eaDir", "#recycle", "$RECYCLE.BIN", "lost+found", "@Snapshot"]
+    "ignored_dirs": [
+      { "name": "@eaDir" },
+      { "name": "#recycle" },
+      { "name": "$RECYCLE.BIN" },
+      { "name": "lost+found" },
+      { "name": "@Snapshot" }
+    ]
   }
 }
 ```

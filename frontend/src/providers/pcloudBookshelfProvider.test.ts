@@ -1046,7 +1046,7 @@ describe('PCloudBookshelfProvider listing cost', () => {
 });
 
 describe('shelf.json', () => {
-  const CONFIG = '{"schema_version":1,"scan":{"ignored_dirs":["@Snapshot"]}}';
+  const CONFIG = '{"schema_version":1,"scan":{"ignored_dirs":[{"name":"@Snapshot"}]}}';
 
   function shelfWithSnapshotDir(config?: PCloudItem): PCloudItem {
     return folder('default-shelf', [

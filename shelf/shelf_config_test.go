@@ -104,7 +104,7 @@ func assertFolders(t *testing.T, got, want []string) {
 func TestShelfConfigIgnoredDirsReplacesTheDefaults(t *testing.T) {
 	s := openConfiguredShelf(t, `{
   "schema_version": 1,
-  "scan": { "ignored_dirs": ["@Snapshot"] }
+  "scan": { "ignored_dirs": [{ "name": "@Snapshot" }] }
 }`)
 
 	folders := listedFolders(t, s)
@@ -173,7 +173,7 @@ func TestShelfConfigEmptyListSkipsOnlyHiddenDirectories(t *testing.T) {
 func TestShelfConfigIgnoredDirsAreCaseInsensitive(t *testing.T) {
 	// The shelf may be read over SMB, where a share can report either spelling,
 	// so a configured name folds case exactly like the defaults.
-	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": ["@snapshot"]}}`)
+	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": [{"name": "@snapshot"}]}}`)
 
 	for _, folder := range listedFolders(t, s) {
 		if strings.Contains(strings.ToLower(folder), strings.ToLower(snapshotDir)) {
@@ -207,7 +207,9 @@ func TestShelfConfigEntryCarriesItsReason(t *testing.T) {
 // entry of the wrong type counts as one of those - the pCloud reader drops just
 // that element, and the two must not read one file differently.
 func TestShelfConfigSkipsUnusableEntries(t *testing.T) {
-	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": ["", "with/separator", "..", 17, {"reason": "no name"}, "@Snapshot"]}}`)
+	// A bare name is one of the unusable shapes: an entry is always an object,
+	// so that one list is not read two ways.
+	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": [{"name": ""}, {"name": "with/separator"}, {"name": ".."}, 17, "@Snapshot", {"reason": "no name"}, {"name": "@Snapshot"}]}}`)
 
 	// "@Snapshot" survived the bad entries; "@eaDir" and the directory under it
 	// are ordinary folders, because this list replaced the defaults.
@@ -223,11 +225,11 @@ func TestShelfConfigMalformedFallsBackToDefaults(t *testing.T) {
 		"not json":            "this is not json",
 		"wrong field type":    `{"scan": "everything"}`,
 		"wrong list type":     `{"scan": {"ignored_dirs": "@Snapshot"}}`,
-		"truncated mid-value": `{"scan": {"ignored_dirs": ["@Snapshot"`,
+		"truncated mid-value": `{"scan": {"ignored_dirs": [{"name": "@Snapshot"}`,
 		// A Decoder stops at the end of the first value; the pCloud reader
 		// parses the whole file and rejects what follows, so this one does too.
-		"trailing object": `{"scan": {"ignored_dirs": ["@Snapshot"]}} {"scan": {}}`,
-		"trailing debris": `{"scan": {"ignored_dirs": ["@Snapshot"]}} half an edit`,
+		"trailing object": `{"scan": {"ignored_dirs": [{"name": "@Snapshot"}]}} {"scan": {}}`,
+		"trailing debris": `{"scan": {"ignored_dirs": [{"name": "@Snapshot"}]}} half an edit`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			folders := listedFolders(t, openConfiguredShelf(t, body))
@@ -245,7 +247,7 @@ func TestShelfConfigMalformedFallsBackToDefaults(t *testing.T) {
 func TestShelfConfigTooLargeIsSkipped(t *testing.T) {
 	// Valid JSON that would otherwise apply, padded past the limit.
 	padding := strings.Repeat(" ", maxShelfConfigBytes)
-	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": ["@Snapshot"]}}`+padding)
+	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": [{"name": "@Snapshot"}]}}`+padding)
 
 	folders := listedFolders(t, s)
 	if !slices.Contains(folders, snapshotDir) || slices.Contains(folders, "@eaDir") {
@@ -259,7 +261,7 @@ func TestShelfConfigTooLargeIsSkipped(t *testing.T) {
 func TestShelfConfigNewerSchemaVersionStillApplies(t *testing.T) {
 	s := openConfiguredShelf(t, `{
   "schema_version": 99,
-  "scan": { "ignored_dirs": ["@Snapshot"], "something_later": true },
+  "scan": { "ignored_dirs": [{"name": "@Snapshot"}], "something_later": true },
   "reader": { "theme": "dark" }
 }`)
 
@@ -272,7 +274,7 @@ func TestShelfConfigNewerSchemaVersionStillApplies(t *testing.T) {
 // kept the defaults: the directory would be created and then skipped by the very
 // next scan.
 func TestValidateFolderPathRejectsConfiguredNames(t *testing.T) {
-	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": ["@Snapshot"]}}`)
+	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": [{"name": "@Snapshot"}]}}`)
 
 	for _, folder := range []FolderPath{{snapshotDir}, {"Fiction", snapshotDir}, {"@snapshot"}} {
 		err := s.ValidateFolderPath(folder)

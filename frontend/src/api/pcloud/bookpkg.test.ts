@@ -358,10 +358,10 @@ describe('shelf.json', () => {
     expect(findShelfConfigFile(root)).toBeUndefined();
   });
 
-  it('reads the directories the shelf skips, in either entry form', () => {
+  it('reads the directories the shelf skips, with and without a reason', () => {
     const raw = {
       schema_version: 1,
-      scan: { ignored_dirs: ['@Snapshot', { name: '@Backup', reason: 'the NAS backup job' }] }
+      scan: { ignored_dirs: [{ name: '@Snapshot' }, { name: '@Backup', reason: 'the NAS backup job' }] }
     };
 
     expect(parseShelfConfig(raw)).toEqual({
@@ -370,6 +370,13 @@ describe('shelf.json', () => {
         { name: '@Backup', reason: 'the NAS backup job' }
       ]
     });
+  });
+
+  // An entry is always an object. A bare name would be a second shape for the
+  // same thing, and the Go side would have to sniff between two types to read
+  // one list.
+  it('drops a bare name', () => {
+    expect(parseShelfConfig({ scan: { ignored_dirs: ['@Snapshot'] } })).toEqual({ ignoredDirs: [] });
   });
 
   // An empty list is a shelf saying "skip nothing", which the caller must be
@@ -396,15 +403,16 @@ describe('shelf.json', () => {
     const raw = {
       scan: {
         ignored_dirs: [
-          '',
-          '.',
-          '..',
-          'with/separator',
-          'with\\separator',
+          { name: '' },
+          { name: '.' },
+          { name: '..' },
+          { name: 'with/separator' },
+          { name: 'with\\separator' },
           17,
           null,
+          '@Snapshot',
           { reason: 'no name' },
-          '@Snapshot'
+          { name: '@Snapshot' }
         ]
       }
     };

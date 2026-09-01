@@ -92,11 +92,13 @@ function isUsableDirName(name: string): boolean {
   return new TextEncoder().encode(name).length <= MAX_PATH_SEGMENT_BYTES;
 }
 
-/** Reads one entry, which is either a name or a {name, reason} object. */
+/**
+ * Reads one entry, which is always a {name, reason} object. A bare name is not
+ * accepted: "@eaDir" and {"name": "@eaDir"} would mean the same thing and the
+ * file would have two shapes for one entry, which every reader of it then has
+ * to handle.
+ */
 function parseIgnoredDir(entry: unknown): IgnoredDir | undefined {
-  if (typeof entry === 'string') {
-    return isUsableDirName(entry) ? { name: entry, reason: '' } : undefined;
-  }
   if (entry === null || typeof entry !== 'object') {
     return undefined;
   }

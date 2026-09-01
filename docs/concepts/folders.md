@@ -66,10 +66,10 @@ beside `books/`, not inside it — and list what it should skip.
   "schema_version": 1,
   "scan": {
     "ignored_dirs": [
-      "@eaDir",
-      "#recycle",
-      "$RECYCLE.BIN",
-      "lost+found",
+      { "name": "@eaDir" },
+      { "name": "#recycle" },
+      { "name": "$RECYCLE.BIN" },
+      { "name": "lost+found" },
       { "name": "@Snapshot", "reason": "Synology snapshot directory" }
     ]
   }
@@ -78,10 +78,11 @@ beside `books/`, not inside it — and list what it should skip.
 
 This is for the directories your own storage creates that the defaults do not
 know about — a NAS snapshot directory, a photo-tool thumbnail cache, a backup
-tool's working directory sitting in the middle of your library. Each entry is one
-directory name, matched wherever it appears in the tree and without regard to
-case; a `reason` is optional and is what PlainShelf quotes back to you when it
-refuses a folder of that name.
+tool's working directory sitting in the middle of your library. Every entry is an
+object with a `name`: one directory name, matched wherever it appears in the tree
+and without regard to case, never a path and never a pattern. The `reason` is
+optional and is what PlainShelf quotes back to you when it refuses a folder of
+that name.
 
 **The list replaces the defaults rather than adding to them.** That is why the
 example above repeats the four default names: keep the ones you want. A list that

@@ -143,7 +143,7 @@ client reading it from pCloud — applies the same rules.
   "schema_version": 1,
   "scan": {
     "ignored_dirs": [
-      "Thumbs",
+      { "name": "Thumbs" },
       { "name": "@Snapshot", "reason": "Synology snapshot directory" }
     ]
   }
@@ -153,7 +153,7 @@ client reading it from pCloud — applies the same rules.
 | Field | Meaning |
 |---|---|
 | `schema_version` | Format version of this file. `1` is the only one this build writes about; a file declaring a higher one is still read, and the fields this build understands still apply |
-| `scan.ignored_dirs` | The directory names under `books/` this shelf skips, **replacing** the [defaults](folders.md#ignored-directories). Each entry is one name — not a path and not a pattern — matched without regard to case, written either as a string or as `{"name": …, "reason": …}`. The reason is shown when a folder of that name is refused |
+| `scan.ignored_dirs` | The directories under `books/` this shelf skips, **replacing** the [defaults](folders.md#ignored-directories). Each entry is an object: `{"name": …}`, or `{"name": …, "reason": …}` to record why. A `name` is one directory name — not a path and not a pattern — matched without regard to case, and the reason is shown when a folder of that name is refused |
 
 Leaving `ignored_dirs` out is not the same as giving an empty list: without the
 field the shelf skips the defaults, and with `"ignored_dirs": []` it skips
