@@ -631,6 +631,16 @@ const en = {
       comment: 'Book note',
       importNotes: 'Import note'
     },
+    importNote: {
+      remove: 'Remove',
+      removeLabel: 'Remove import note',
+      removeFailed: 'Could not remove the import note.',
+      confirm: {
+        title: 'Remove import note?',
+        message: 'The note records how this text was imported or converted. Removing it cannot be undone, and the text itself is untouched.',
+        confirm: 'Remove note'
+      }
+    },
     progress: {
       sectionLabel: 'Reading progress and actions',
       eyebrow: 'Reading progress',

@@ -86,8 +86,12 @@ the import created, in `sources/{source-id}/meta.json`:
 }
 ```
 
-The book detail view shows it as **Import notes**. Books that lost nothing get
+The book detail view shows it as **Import note**. Books that lost nothing get
 no note at all, so the row only appears when there is something to report.
+
+The note is not exclusive to imports and is never typed by hand — see [Source
+notes](concepts/data-model.md#source-notes) for what else writes one and how to
+remove it.
 
 Neither the cover nor a stored illustration is counted: both are kept rather
 than lost. Images referenced more than once count once, so the number reflects

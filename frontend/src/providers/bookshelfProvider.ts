@@ -323,6 +323,8 @@ export interface BookshelfWriter {
 
   createSource(bookId: string, options?: CreateSourceOptions): Promise<SourceMeta>;
   deleteSource(bookId: string, sourceId: string): Promise<void>;
+  /** Removes a source's import note. There is no counterpart that rewrites it. */
+  deleteSourceComment(bookId: string, sourceId: string): Promise<void>;
   setCurrentSource(bookId: string, sourceId: string): Promise<void>;
   updateSourceContent(bookId: string, sourceId: string, content: string): Promise<void>;
   refreshSourceMeta(bookId: string, sourceId: string): Promise<SourceMeta>;

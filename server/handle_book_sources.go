@@ -188,6 +188,27 @@ func (h *sourceHandlers) deleteSource(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/comment
+//
+// Clears the source's comment. The note is written by an import or a conversion
+// to record where this text came from, never by the user, so the only thing a
+// client can do to it is remove one it no longer wants on the book page. There
+// is deliberately no way to rewrite it: an editable note would no longer be a
+// record of what actually happened.
+func (h *sourceHandlers) deleteSourceComment(w http.ResponseWriter, r *http.Request) {
+	_, _, source, ok := h.loadBookSource(w, r)
+	if !ok {
+		return
+	}
+
+	if err := source.UpdateComment(""); err != nil {
+		h.writeErr(w, err, "failed to delete book source comment")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/current
 func (h *sourceHandlers) setCurrentSource(w http.ResponseWriter, r *http.Request) {
 	shelfData, book, _, ok := h.loadBookSource(w, r)
