@@ -188,6 +188,12 @@ watch(
   color: var(--muted);
   font-size: 14px;
   line-height: 1.5;
+  /* Callers put unbroken strings here — a dropped file name, a shelf path. The
+     panel is a grid, so such a string widens the column track past the panel's
+     own 440px and pushes the header's close button outside the painted card.
+     `anywhere` rather than `break-word`: only the former shrinks the
+     min-content width the track is sized from. */
+  overflow-wrap: anywhere;
 }
 
 .confirm-modal-body :deep(p) {
