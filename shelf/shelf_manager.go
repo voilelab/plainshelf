@@ -113,8 +113,9 @@ func (sm *ShelfManager) GetAllShelves() []ShelfData {
 
 // UpdateShelf applies a new configuration to a shelf that is already open.
 //
-// The name and the scan interval are changed on the live shelf. read_only
-// cannot be: it is read while the shelf is being opened - it picks the lock
+// The name, the scan interval and the per-book check interval are changed on
+// the live shelf. read_only cannot be: it is read while the shelf is being
+// opened - it picks the lock
 // mode, decides whether lib_root may be created, whether app/ is written and
 // whether the book cache is exported - so changing it closes the shelf and
 // opens it again from the new configuration.
@@ -139,6 +140,12 @@ func (sm *ShelfManager) UpdateShelf(conf ShelfConfWithID) error {
 	}
 
 	if err := s.SetScanInterval(conf.ScanInterval); err != nil {
+		return util.Errorf("%w", err)
+	}
+
+	// After SetScanInterval, so an empty book_check_interval ("same as scan
+	// interval") follows the interval this same update just applied.
+	if err := s.SetBookCheckInterval(conf.BookCheckInterval); err != nil {
 		return util.Errorf("%w", err)
 	}
 

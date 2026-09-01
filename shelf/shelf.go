@@ -457,6 +457,30 @@ func (s *Shelf) SetScanInterval(scanInterval string) error {
 	return nil
 }
 
+// SetBookCheckInterval updates the per-book check interval on the live shelf
+// without restarting it. An empty string means "same as the scan interval" -
+// the default NewShelf applies - so it reads whichever scan interval is in
+// effect now; call it after SetScanInterval when both change together, so the
+// fallback follows the new scan interval rather than the old one.
+func (s *Shelf) SetBookCheckInterval(bookCheckInterval string) error {
+	var interval time.Duration
+	useScanInterval := bookCheckInterval == ""
+	if !useScanInterval {
+		var err error
+		interval, err = time.ParseDuration(bookCheckInterval)
+		if err != nil {
+			return util.Errorf("invalid book check interval: %w", err)
+		}
+	}
+	s.bookCache.Lock()
+	defer s.bookCache.Unlock()
+	if useScanInterval {
+		interval = s.bookCache.scanInterval
+	}
+	s.bookCache.bookCheckInterval = interval
+	return nil
+}
+
 // validateBookCacheWriterID rejects anything that would not be safe or legible
 // as part of a file name under app/.
 func validateBookCacheWriterID(writerID string) error {
