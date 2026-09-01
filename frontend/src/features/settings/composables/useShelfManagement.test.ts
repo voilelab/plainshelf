@@ -98,7 +98,13 @@ describe('useShelfManagement read-only shelves', () => {
     newShelfReadOnly.value = true;
     await onSubmitAddShelf();
 
-    expect(addDesktopShelf).toHaveBeenCalledWith('Archive', '/mnt/archive', '', true);
+    expect(addDesktopShelf).toHaveBeenCalledWith({
+      name: 'Archive',
+      libRoot: '/mnt/archive',
+      scanInterval: '',
+      bookCheckInterval: '',
+      readOnly: true
+    });
   });
 
   it('clears the read-only toggle when the add-shelf form is reopened', async () => {
@@ -119,18 +125,39 @@ describe('useShelfManagement read-only shelves', () => {
     const modifyDesktopShelf = vi.fn(() => Promise.resolve());
     provider.value = {
       getDesktopShelfDetails: vi.fn(() =>
-        Promise.resolve({ id: 'archive', name: 'Archive', path: '/mnt/archive', scan_interval: '10m', read_only: true })
+        Promise.resolve({
+          id: 'archive',
+          name: 'Archive',
+          path: '/mnt/archive',
+          scan_interval: '10m',
+          book_check_interval: '5m',
+          read_only: true
+        })
       ),
       modifyDesktopShelf
     };
-    const { requestModifyShelf, modifyShelfReadOnly, onSubmitModifyShelf } = useShelfManagement();
+    const {
+      requestModifyShelf,
+      modifyShelfReadOnly,
+      modifyShelfBookCheckInterval,
+      onSubmitModifyShelf
+    } = useShelfManagement();
 
     await requestModifyShelf({ id: 'archive', name: 'Archive' });
     expect(modifyShelfReadOnly.value).toBe(true);
+    // book_check_interval is loaded from the stored details so it round-trips
+    // rather than resetting to the default on an unrelated save.
+    expect(modifyShelfBookCheckInterval.value).toBe('5m');
 
     modifyShelfReadOnly.value = false;
     await onSubmitModifyShelf();
 
-    expect(modifyDesktopShelf).toHaveBeenCalledWith('archive', 'Archive', '10m', false);
+    expect(modifyDesktopShelf).toHaveBeenCalledWith({
+      shelfID: 'archive',
+      name: 'Archive',
+      scanInterval: '10m',
+      bookCheckInterval: '5m',
+      readOnly: false
+    });
   });
 });

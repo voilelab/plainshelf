@@ -228,11 +228,11 @@ func TestModifyShelfTogglesReadOnlyBothWays(t *testing.T) {
 	t.Cleanup(func() { serverApp.Close() })
 
 	desktopApp := &DesktopApp{app: serverApp, shelvesConfigPath: configPath}
-	if err := desktopApp.AddShelf("Archive", libRoot, "", false); err != nil {
+	if err := desktopApp.AddShelf(AddShelfParams{Name: "Archive", LibRoot: libRoot}); err != nil {
 		t.Fatalf("AddShelf: %v", err)
 	}
 
-	if err := desktopApp.ModifyShelf(shelfID, "Archive", "", true); err != nil {
+	if err := desktopApp.ModifyShelf(ModifyShelfParams{ShelfID: shelfID, Name: "Archive", ReadOnly: true}); err != nil {
 		t.Fatalf("ModifyShelf to read-only: %v", err)
 	}
 	assertShelfReadOnly(t, desktopApp, shelfID, true)
@@ -248,7 +248,7 @@ func TestModifyShelfTogglesReadOnlyBothWays(t *testing.T) {
 		t.Fatal("GetShelfDetails reported read_only = false for a read-only shelf")
 	}
 
-	if err := desktopApp.ModifyShelf(shelfID, "Archive", "", false); err != nil {
+	if err := desktopApp.ModifyShelf(ModifyShelfParams{ShelfID: shelfID, Name: "Archive"}); err != nil {
 		t.Fatalf("ModifyShelf back to writable: %v", err)
 	}
 	assertShelfReadOnly(t, desktopApp, shelfID, false)
@@ -282,7 +282,7 @@ func TestAddShelfReadOnlyWritesNothingToTheShelf(t *testing.T) {
 	t.Cleanup(func() { serverApp.Close() })
 
 	desktopApp := &DesktopApp{app: serverApp, shelvesConfigPath: configPath}
-	if err := desktopApp.AddShelf("Archive", libRoot, "", true); err != nil {
+	if err := desktopApp.AddShelf(AddShelfParams{Name: "Archive", LibRoot: libRoot, ReadOnly: true}); err != nil {
 		t.Fatalf("AddShelf read-only: %v", err)
 	}
 	assertShelfReadOnly(t, desktopApp, "archive", true)
@@ -305,6 +305,66 @@ func TestAddShelfReadOnlyWritesNothingToTheShelf(t *testing.T) {
 	}
 	if len(conf.Shelves) != 1 || !conf.Shelves[0].ReadOnly {
 		t.Fatalf("read_only was not persisted: %+v", conf.Shelves)
+	}
+}
+
+// book_check_interval is a per-shelf setting the UI now exposes, so it has to
+// survive the same round trip as scan_interval: submitted through AddShelf,
+// persisted in shelves.json, mapped into ShelfConf, and read back by the modify
+// form through GetShelfDetails. An empty value means "same as scan_interval".
+func TestAddAndModifyShelfBookCheckInterval(t *testing.T) {
+	const shelfID = "archive"
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "shelves.json")
+	libRoot := filepath.Join(tempDir, "archive-shelf")
+	if err := os.MkdirAll(libRoot, 0o755); err != nil {
+		t.Fatalf("MkdirAll(libRoot): %v", err)
+	}
+
+	serverApp, err := server.NewApp(&server.AppConf{
+		StorePath: filepath.Join(tempDir, "store"),
+		Security:  &server.SecurityConf{Mode: server.SecurityModeNone},
+	})
+	if err != nil {
+		t.Fatalf("NewApp: %v", err)
+	}
+	t.Cleanup(func() { serverApp.Close() })
+
+	desktopApp := &DesktopApp{app: serverApp, shelvesConfigPath: configPath}
+	if err := desktopApp.AddShelf(AddShelfParams{Name: "Archive", LibRoot: libRoot, ScanInterval: "10m", BookCheckInterval: "5m"}); err != nil {
+		t.Fatalf("AddShelf: %v", err)
+	}
+
+	details, err := desktopApp.GetShelfDetails(shelfID)
+	if err != nil {
+		t.Fatalf("GetShelfDetails: %v", err)
+	}
+	if details.BookCheckInterval != "5m" {
+		t.Fatalf("GetShelfDetails book_check_interval = %q, want %q", details.BookCheckInterval, "5m")
+	}
+
+	conf, err := loadDesktopShelves(configPath)
+	if err != nil {
+		t.Fatalf("loadDesktopShelves: %v", err)
+	}
+	if len(conf.Shelves) != 1 || conf.Shelves[0].BookCheckInterval != "5m" {
+		t.Fatalf("book_check_interval was not persisted: %+v", conf.Shelves)
+	}
+	if got := toShelfConfWithID(conf.Shelves[0]).BookCheckInterval; got != "5m" {
+		t.Fatalf("toShelfConfWithID book_check_interval = %q, want %q", got, "5m")
+	}
+
+	// Clearing it in the modify form falls back to "same as scan_interval", so the
+	// stored value goes back to empty rather than keeping the old override.
+	if err := desktopApp.ModifyShelf(ModifyShelfParams{ShelfID: shelfID, Name: "Archive", ScanInterval: "10m"}); err != nil {
+		t.Fatalf("ModifyShelf: %v", err)
+	}
+	details, err = desktopApp.GetShelfDetails(shelfID)
+	if err != nil {
+		t.Fatalf("GetShelfDetails after modify: %v", err)
+	}
+	if details.BookCheckInterval != "" {
+		t.Fatalf("book_check_interval = %q after clearing, want empty", details.BookCheckInterval)
 	}
 }
 
@@ -392,7 +452,7 @@ func TestAddShelfDoesNotPersistWhenRegistrationFails(t *testing.T) {
 	defer serverApp.Close()
 
 	desktopApp := &DesktopApp{app: serverApp, shelvesConfigPath: configPath}
-	if err := desktopApp.AddShelf("Broken Shelf", badShelfPath, "10m", false); err == nil {
+	if err := desktopApp.AddShelf(AddShelfParams{Name: "Broken Shelf", LibRoot: badShelfPath, ScanInterval: "10m"}); err == nil {
 		t.Fatal("AddShelf with regular file path: want error, got nil")
 	}
 

@@ -13,7 +13,11 @@ import {
   removeDesktopShelf,
   saveDesktopBookContent
 } from '@/api/desktop';
-import type { DesktopShelfDetails } from '@/api/desktop';
+import type {
+  DesktopAddShelfParams,
+  DesktopModifyShelfParams,
+  DesktopShelfDetails
+} from '@/api/desktop';
 import { getActiveShelfID } from '@/api/client';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
 import type { DesktopImportBookResult } from './bookshelfProvider';
@@ -70,13 +74,8 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
     return previewDesktopShelfID(name);
   }
 
-  addDesktopShelf(
-    name: string,
-    libRoot: string,
-    scanInterval: string,
-    readOnly: boolean
-  ): Promise<void> {
-    return addDesktopShelf(name, libRoot, scanInterval, readOnly);
+  addDesktopShelf(params: DesktopAddShelfParams): Promise<void> {
+    return addDesktopShelf(params);
   }
 
   removeDesktopShelf(shelfID: string): Promise<void> {
@@ -87,13 +86,8 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
     return getDesktopShelfDetails(shelfID);
   }
 
-  modifyDesktopShelf(
-    shelfID: string,
-    name: string,
-    scanInterval: string,
-    readOnly: boolean
-  ): Promise<void> {
-    return modifyDesktopShelf(shelfID, name, scanInterval, readOnly);
+  modifyDesktopShelf(params: DesktopModifyShelfParams): Promise<void> {
+    return modifyDesktopShelf(params);
   }
 
   saveBookContentToFile(bookId: string, suggestedName: string): Promise<void> {

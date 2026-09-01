@@ -1,4 +1,8 @@
-import type { DesktopShelfDetails } from '@/api/desktop';
+import type {
+  DesktopAddShelfParams,
+  DesktopModifyShelfParams,
+  DesktopShelfDetails
+} from '@/api/desktop';
 import type { BookTransferMode, FingerprintStatus, ListBooksOptions, SimilarBookPair } from '@/api/books';
 import type {
   BookmarkPayload,
@@ -210,23 +214,14 @@ export interface BookshelfReader {
    */
   previewDesktopShelfID?(name: string): Promise<string>;
   /**
-   * Creates a desktop shelf. `readOnly` opens it without writing to it at all,
-   * so `libRoot` must already exist — a read-only shelf is never created.
+   * Creates a desktop shelf. `params.readOnly` opens it without writing to it at
+   * all, so `params.libRoot` must already exist — a read-only shelf is never
+   * created.
    */
-  addDesktopShelf?(
-    name: string,
-    libRoot: string,
-    scanInterval: string,
-    readOnly: boolean
-  ): Promise<void>;
+  addDesktopShelf?(params: DesktopAddShelfParams): Promise<void>;
   removeDesktopShelf?(shelfID: string): Promise<void>;
   getDesktopShelfDetails?(shelfID: string): Promise<DesktopShelfDetails>;
-  modifyDesktopShelf?(
-    shelfID: string,
-    name: string,
-    scanInterval: string,
-    readOnly: boolean
-  ): Promise<void>;
+  modifyDesktopShelf?(params: DesktopModifyShelfParams): Promise<void>;
   /**
    * Writes a book's content out as a file the user keeps, outside the app's
    * private storage. The desktop client opens a native save dialog and resolves
