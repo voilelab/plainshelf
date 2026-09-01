@@ -7,8 +7,8 @@ import (
 	"path"
 	"strings"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
@@ -151,12 +151,8 @@ func ValidateFolderPath(folders FolderPath) error {
 // so the ID has to stand alone. Its canonical form is lowercase hex with
 // hyphens, which survives a case-insensitive filesystem (the trash names a
 // folder after the book ID) and sits in a URL path without escaping.
-func newBookID() (string, error) {
-	id, err := uuid.NewRandom()
-	if err != nil {
-		return "", util.Errorf("%w", err)
-	}
-	return id.String(), nil
+func newBookID() string {
+	return uuid.NewV4().String()
 }
 
 // validateBookID reports whether a caller-supplied ID is usable as one.
