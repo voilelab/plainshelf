@@ -12,16 +12,24 @@ const mocks = vi.hoisted(() => ({
   goBack: vi.fn(),
   cancelMetadataLeave: vi.fn(),
   confirmMetadataLeave: vi.fn(),
+  deleteSourceComment: vi.fn(),
   writesEnabled: null as any,
   detailBook: null as any,
+  currentSource: null as any,
   guardDirty: null as any,
   guardConfirmation: null as any
 }));
 
-vi.mock('vue-router', () => ({
-  useRoute: () => mocks.route,
-  useRouter: () => ({ push: mocks.routerPush })
-}));
+vi.mock('vue-router', async () => {
+  const { reactive } = await import('vue');
+  // The page derives its book id from the route, so navigating between books in
+  // a test only reaches the page's watchers through a reactive route.
+  mocks.route = reactive(mocks.route);
+  return {
+    useRoute: () => mocks.route,
+    useRouter: () => ({ push: mocks.routerPush })
+  };
+});
 
 vi.mock('reka-ui', async () => {
   const { defineComponent, h } = await import('vue');
@@ -50,12 +58,13 @@ vi.mock('reka-ui', async () => {
 vi.mock('@/features/library/composables/useBookDetail', async () => {
   const { ref } = await import('vue');
   mocks.detailBook = ref<Book | null>(null);
+  mocks.currentSource = ref(null);
   return {
     useBookDetail: () => ({
       book: mocks.detailBook,
       progress: ref({ char_offset: 25, percent: 25 }),
       progressContentLength: ref(null),
-      currentSource: ref(null),
+      currentSource: mocks.currentSource,
       chapters: ref([{ index: 0, title: 'One' }]),
       loading: ref(false),
       error: ref(''),
@@ -161,7 +170,10 @@ vi.mock('@/composables/useOfflineDownload', async () => {
 vi.mock('@/composables/useDocumentTitle', () => ({ useDocumentTitle: vi.fn() }));
 vi.mock('@/providers', () => ({
   getBookshelfProvider: () => ({ saveReadProgress: vi.fn() }),
-  bookshelfWriter: () => ({ refreshSourceMeta: vi.fn() })
+  bookshelfWriter: () => ({
+    refreshSourceMeta: vi.fn(),
+    deleteSourceComment: mocks.deleteSourceComment
+  })
 }));
 
 vi.mock('@/features/library/components/MetaEditorModal.vue', async () => {
@@ -218,11 +230,13 @@ vi.mock('@/features/library/components/BookDetail.vue', async () => {
     default: defineComponent({
       name: 'BookDetailStub',
       props: { book: { type: Object, required: true } },
-      setup(props, { slots }) {
+      emits: ['removeImportNote'],
+      setup(props, { slots, emit }) {
         const expanded = ref(false);
         return () => h('div', { class: 'book-detail-stub' }, [
           h('output', { class: 'book-json' }, JSON.stringify(props.book)),
           h('button', { class: 'expand-chapters', onClick: () => { expanded.value = true; } }, 'expand'),
+          h('button', { class: 'remove-import-note', onClick: () => emit('removeImportNote') }, 'remove note'),
           h('span', { class: 'chapter-state' }, expanded.value ? 'expanded' : 'collapsed'),
           slots.reading?.()
         ]);
@@ -243,11 +257,11 @@ vi.mock('@/components/ConfirmModal.vue', async () => {
   const { defineComponent, h } = await import('vue');
   return {
     default: defineComponent({
-      props: { open: Boolean },
+      props: { open: Boolean, title: String },
       emits: ['cancel', 'confirm'],
       setup(props, { emit }) {
         return () => props.open
-          ? h('div', { class: 'route-discard-confirmation' }, [
+          ? h('div', { class: 'route-discard-confirmation', 'data-modal-title': props.title }, [
               h('button', { onClick: () => emit('cancel') }, 'cancel'),
               h('button', { onClick: () => emit('confirm') }, 'confirm')
             ])
@@ -321,6 +335,8 @@ beforeEach(() => {
   mocks.guardConfirmation.value = false;
   mocks.writesEnabled.value = true;
   mocks.detailBook.value = originalBook();
+  mocks.currentSource.value = null;
+  mocks.deleteSourceComment.mockReset().mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -388,5 +404,60 @@ describe('BookDetailPage metadata editor', () => {
     expect(editMetadataButton(host)).toBeUndefined();
     expect(host.querySelector('.metadata-modal-stub')).toBeNull();
     expect(mocks.routerPush).not.toHaveBeenCalled();
+  });
+});
+
+describe('BookDetailPage import note removal', () => {
+  function noteDialog(host: HTMLElement): HTMLElement | null {
+    return host.querySelector<HTMLElement>('[data-modal-title="Remove import note?"]');
+  }
+
+  it('removes the note of the book the dialog was opened on', async () => {
+    mocks.currentSource.value = { id: 'source-1', created_at: '', comment: '轉換備註', md5_hash: '' };
+    const host = mountPage();
+    await flush();
+
+    host.querySelector<HTMLButtonElement>('.remove-import-note')?.click();
+    await flush();
+    expect(noteDialog(host)).not.toBeNull();
+
+    [...(noteDialog(host)?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((button) => button.textContent === 'confirm')?.click();
+    await flush();
+
+    expect(mocks.deleteSourceComment).toHaveBeenCalledWith('book-1', 'source-1');
+    expect(mocks.fetchDetail).toHaveBeenCalled();
+    expect(noteDialog(host)).toBeNull();
+  });
+
+  // The router reuses this page across /books/:id, so a dialog left open over a
+  // navigation would otherwise confirm against whichever book arrived next.
+  it('drops a pending removal when the route moves to another book', async () => {
+    mocks.currentSource.value = { id: 'source-1', created_at: '', comment: '轉換備註', md5_hash: '' };
+    const host = mountPage();
+    await flush();
+
+    host.querySelector<HTMLButtonElement>('.remove-import-note')?.click();
+    await flush();
+    expect(noteDialog(host)).not.toBeNull();
+
+    mocks.route.params.id = 'book-2';
+    mocks.currentSource.value = { id: 'source-2', created_at: '', comment: '別本的備註', md5_hash: '' };
+    await flush();
+
+    expect(noteDialog(host)).toBeNull();
+    expect(mocks.deleteSourceComment).not.toHaveBeenCalled();
+  });
+
+  it('leaves the removal request unarmed when there is no current source', async () => {
+    mocks.currentSource.value = null;
+    const host = mountPage();
+    await flush();
+
+    host.querySelector<HTMLButtonElement>('.remove-import-note')?.click();
+    await flush();
+
+    expect(noteDialog(host)).toBeNull();
+    expect(mocks.deleteSourceComment).not.toHaveBeenCalled();
   });
 });

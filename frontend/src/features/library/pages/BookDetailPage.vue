@@ -56,7 +56,7 @@
       />
       <ConfirmModal
         v-if="!readOnly"
-        :open="importNoteConfirmOpen"
+        :open="!!importNoteTarget"
         variant="danger"
         :title="t('bookDetail.importNote.confirm.title')"
         :confirm-text="t('bookDetail.importNote.confirm.confirm')"
@@ -297,32 +297,38 @@ const {
   fetchDetail
 } = useBookDetail(() => id.value);
 
-const importNoteConfirmOpen = ref(false);
+// The note the open dialog is about, captured when it opens. The router reuses
+// this page across /books/:id, so reading the live id on confirm would delete
+// whichever book the user has since navigated to.
+const importNoteTarget = ref<{ bookID: string; sourceID: string } | null>(null);
 const removingImportNote = ref(false);
 const importNoteError = ref('');
 
 function requestRemoveImportNote(): void {
+  const sourceID = currentSource.value?.id;
+  if (!sourceID) return;
+
   importNoteError.value = '';
-  importNoteConfirmOpen.value = true;
+  importNoteTarget.value = { bookID: id.value, sourceID };
 }
 
 function cancelRemoveImportNote(): void {
   if (removingImportNote.value) return;
-  importNoteConfirmOpen.value = false;
+  importNoteTarget.value = null;
 }
 
 // Removal is the only edit the note allows, so there is nothing to save back:
 // the source is re-read afterwards and the row simply stops being rendered.
 async function confirmRemoveImportNote(): Promise<void> {
-  const sourceID = currentSource.value?.id;
-  if (!sourceID || removingImportNote.value) return;
+  const target = importNoteTarget.value;
+  if (!target || removingImportNote.value) return;
 
   removingImportNote.value = true;
   importNoteError.value = '';
   try {
-    await bookshelfWriter().deleteSourceComment(id.value, sourceID);
+    await bookshelfWriter().deleteSourceComment(target.bookID, target.sourceID);
     await fetchDetail();
-    importNoteConfirmOpen.value = false;
+    importNoteTarget.value = null;
   } catch (err) {
     importNoteError.value = err instanceof Error && err.message.trim().length > 0
       ? err.message
@@ -584,6 +590,7 @@ function onRequestDelete(): void {
 
 watch(id, () => {
   closeMetadataEditor();
+  cancelRemoveImportNote();
   metadataSaved.value = false;
   dismissActionError();
   void fetchDetail();
