@@ -84,8 +84,12 @@
   color: inherit;
   cursor: pointer;
   display: inline-flex;
+  /* The row is a flex container, so the trigger would otherwise shrink and
+     wrap its label; CJK breaks between any two characters. */
+  flex: none;
   gap: 8px;
   text-align: left;
+  white-space: nowrap;
 }
 
 .split-config-actions {
