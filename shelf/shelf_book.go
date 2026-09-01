@@ -212,10 +212,7 @@ func (s *Shelf) GetBookListing(bookID string) (BookListing, error) {
 // holds, and is expected never to fire.
 func (s *Shelf) drawUnusedBookID() (string, error) {
 	for range MaxBookIDCreationAttempts {
-		candidate, idErr := newBookID()
-		if idErr != nil {
-			return "", util.Errorf("%w", idErr)
-		}
+		candidate := newBookID()
 
 		_, _, err := s.getUpdatedBookFromBookID(candidate)
 		if errors.Is(err, ErrBookNotFound) {
