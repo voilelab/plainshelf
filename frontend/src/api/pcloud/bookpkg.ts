@@ -23,6 +23,14 @@ export const SOURCE_ASSETS_FOLDER = 'assets';
 export const SHELF_CONFIG_FILE = 'shelf.json';
 
 /**
+ * How large a `shelf.json` this client reads, matching `maxShelfConfigBytes` in
+ * shelf/shelf_config.go. A settings file is a handful of lines; the limit is
+ * there so a mis-named large file in the shelf root is skipped rather than
+ * downloaded onto a phone.
+ */
+export const MAX_SHELF_CONFIG_BYTES = 1 << 20;
+
+/**
  * Directory names filesystems, NAS firmware and sync clients create inside a
  * shelf, mirroring `ignoredDirNames` in shelf/util.go. Keys are lower case;
  * `isIgnoredDirName` folds the name before looking it up, because a share

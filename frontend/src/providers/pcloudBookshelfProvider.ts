@@ -2,6 +2,7 @@ import {
   collectBookPackages,
   collectFolders,
   createIgnoreRules,
+  MAX_SHELF_CONFIG_BYTES,
   findBooksFolder,
   findCoverFile,
   findCurrentSource,
@@ -367,6 +368,14 @@ export class PCloudBookshelfProvider implements BookshelfReader {
    */
   private async loadShelfConfig(ref: PCloudFileRef | undefined): Promise<string[]> {
     if (!ref) {
+      return [];
+    }
+
+    // The listing already carries the size, so a file too large to be settings
+    // is skipped before it is downloaded — the Go side applies the same limit to
+    // the same file, and a phone must not spend the data to reach that answer.
+    if (ref.size > MAX_SHELF_CONFIG_BYTES) {
+      console.warn(`Ignoring ${ref.name}: ${ref.size} bytes is larger than a shelf configuration is read at.`);
       return [];
     }
 

@@ -157,10 +157,12 @@ key order survive, and the settings are read when the shelf is opened: edit the
 file and restart the server (or reopen the shelf in the desktop app) for the
 change to take effect.
 
-A setting that cannot be used is skipped rather than fatal — an entry containing
-a `/`, an unparsable file, a key this build does not know — and the shelf opens
-with the built-in rules. The server log says which entry was dropped and why.
-The list can only add: the built-in names stay ignored whatever the file says.
+An entry that cannot name a directory is skipped rather than fatal — one
+containing a `/`, or one that is not a name at all — and the rest of the file
+still applies. A file that cannot be read as a single JSON object at all, or one
+larger than 1 MiB, leaves the built-in rules in place; so does a key this build
+does not know. The server log says what was dropped and why. The list can only
+add: the built-in names stay ignored whatever the file says.
 
 ### Per-device reading data
 

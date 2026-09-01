@@ -157,12 +157,14 @@ func TestShelfConfigCannotUnignoreBuiltins(t *testing.T) {
 }
 
 // One unusable entry must not cost the rest of the file: the shelf opens, the
-// entries that are usable apply, and the bad ones are reported to the log.
+// entries that are usable apply, and the bad ones are reported to the log. An
+// entry of the wrong type counts as one of those - the pCloud reader drops just
+// that element, and the two must not read one file differently.
 func TestShelfConfigSkipsUnusableEntries(t *testing.T) {
 	libRoot := t.TempDir()
 	makeUserFolderTree(t, libRoot)
 	plantExtraDirs(t, libRoot)
-	writeShelfConfig(t, libRoot, `{"scan": {"extra_ignored_dirs": ["", "with/separator", "..", "@Snapshot"]}}`)
+	writeShelfConfig(t, libRoot, `{"scan": {"extra_ignored_dirs": ["", "with/separator", "..", 17, {"name": "@Snapshot"}, "@Snapshot"]}}`)
 
 	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
 
@@ -183,9 +185,13 @@ func TestShelfConfigSkipsUnusableEntries(t *testing.T) {
 func TestShelfConfigMalformedFallsBackToBuiltins(t *testing.T) {
 	for name, body := range map[string]string{
 		"not json":            "this is not json",
-		"wrong element type":  `{"scan": {"extra_ignored_dirs": [17]}}`,
 		"wrong field type":    `{"scan": "everything"}`,
+		"wrong list type":     `{"scan": {"extra_ignored_dirs": "@Snapshot"}}`,
 		"truncated mid-value": `{"scan": {"extra_ignored_dirs": ["@Snapshot"`,
+		// A Decoder stops at the end of the first value; the pCloud reader
+		// parses the whole file and rejects what follows, so this one does too.
+		"trailing object": `{"scan": {"extra_ignored_dirs": ["@Snapshot"]}} {"scan": {}}`,
+		"trailing debris": `{"scan": {"extra_ignored_dirs": ["@Snapshot"]}} half an edit`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			libRoot := t.TempDir()
@@ -203,6 +209,29 @@ func TestShelfConfigMalformedFallsBackToBuiltins(t *testing.T) {
 				t.Errorf("Expected an unreadable %s to leave the built-in rules in place, got %v", shelfConfigFile, folderStrings(folders))
 			}
 		})
+	}
+}
+
+// A file too large to be a settings file is skipped without being read, which is
+// also what the pCloud client does with the size in its listing - it must not
+// download megabytes onto a phone to discover the same thing.
+func TestShelfConfigTooLargeIsSkipped(t *testing.T) {
+	libRoot := t.TempDir()
+	makeUserFolderTree(t, libRoot)
+	plantExtraDirs(t, libRoot)
+
+	// Valid JSON that would otherwise apply, padded past the limit.
+	padding := strings.Repeat(" ", maxShelfConfigBytes)
+	writeShelfConfig(t, libRoot, `{"scan": {"extra_ignored_dirs": ["@Snapshot"]}}`+padding)
+
+	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+
+	folders, err := s.GetAllFolders()
+	if err != nil {
+		t.Fatalf("GetAllFolders: %v", err)
+	}
+	if !slices.Contains(folderStrings(folders), snapshotDir) {
+		t.Errorf("Expected an oversized %s to leave the built-in rules in place, got %v", shelfConfigFile, folderStrings(folders))
 	}
 }
 

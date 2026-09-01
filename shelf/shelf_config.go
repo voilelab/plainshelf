@@ -34,7 +34,10 @@ const shelfConfigFile = "shelf.json"
 // because reading is all that happens here.
 const shelfConfigSchemaVersion = 1
 
-// maxShelfConfigBytes bounds how much of shelf.json is read.
+// maxShelfConfigBytes bounds how large a shelf.json this build reads. A settings
+// file is a handful of lines; the limit is there so a mis-named large file in
+// the shelf root is skipped rather than read into memory. The pCloud client
+// applies the same limit to the same file, from the size in its listing.
 const maxShelfConfigBytes = 1 << 20
 
 // shelfConfigJSON mirrors shelf.json. Unknown fields are accepted on purpose, so
@@ -46,7 +49,13 @@ type shelfConfigJSON struct {
 		// top of the built-in list. The configuration can only add: the built-in
 		// names stay ignored whatever the file says, because unignoring "@eaDir"
 		// on a Synology share is how a library grows a duplicate folder tree.
-		ExtraIgnoredDirs []string `json:"extra_ignored_dirs"`
+		//
+		// The entries stay raw so that one of the wrong type is dropped on its
+		// own, the way an unusable name is. Decoding straight into []string
+		// would fail the whole file over a single stray value, and the pCloud
+		// reader drops just that element - the two must not read one file
+		// differently.
+		ExtraIgnoredDirs []json.RawMessage `json:"extra_ignored_dirs"`
 	} `json:"scan"`
 }
 
@@ -71,11 +80,25 @@ func loadIgnoreRules(root fsutil.ReadFS, logger logutil.Logger) shelfutil.Ignore
 	}
 	defer file.Close() //nolint:errcheck // read-only
 
+	if info, statErr := file.Stat(); statErr == nil && info.Size() > maxShelfConfigBytes {
+		logger.Warn("ignoring a shelf configuration larger than this build reads",
+			"file", shelfConfigFile, "size", info.Size(), "limit", maxShelfConfigBytes)
+		return shelfutil.IgnoreRules{}
+	}
+
 	var conf shelfConfigJSON
-	// A settings file is a handful of lines; the limit is only there so a
-	// mis-named multi-gigabyte file in the shelf root cannot be read into memory.
-	if err := json.NewDecoder(io.LimitReader(file, maxShelfConfigBytes)).Decode(&conf); err != nil {
+	// The limit is applied again here for a file that grew since the stat above.
+	decoder := json.NewDecoder(io.LimitReader(file, maxShelfConfigBytes))
+	if err := decoder.Decode(&conf); err != nil {
 		logger.Warn("ignoring a shelf configuration that could not be read as JSON", "file", shelfConfigFile, "error", err)
+		return shelfutil.IgnoreRules{}
+	}
+	// A Decoder stops at the end of the first value and would accept whatever
+	// follows it - a second object, or the debris of a half-finished edit. The
+	// pCloud reader parses the whole file at once and rejects that, so this one
+	// must too, or the same file is read two ways.
+	if err := decoder.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
+		logger.Warn("ignoring a shelf configuration with trailing data after the first JSON value", "file", shelfConfigFile)
 		return shelfutil.IgnoreRules{}
 	}
 
@@ -85,7 +108,12 @@ func loadIgnoreRules(root fsutil.ReadFS, logger logutil.Logger) shelfutil.Ignore
 	}
 
 	extra := make([]string, 0, len(conf.Scan.ExtraIgnoredDirs))
-	for _, name := range conf.Scan.ExtraIgnoredDirs {
+	for _, raw := range conf.Scan.ExtraIgnoredDirs {
+		var name string
+		if err := json.Unmarshal(raw, &name); err != nil {
+			logger.Warn("ignoring an entry in the shelf configuration that is not a directory name", "file", shelfConfigFile, "entry", string(raw), "error", err)
+			continue
+		}
 		if err := shelfutil.ValidatePathSegment(name); err != nil {
 			if errors.Is(err, shelfutil.ErrIgnoredPathSegment) {
 				// Already skipped by the built-in rules, so the entry is
