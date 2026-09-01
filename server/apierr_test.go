@@ -43,13 +43,21 @@ func TestAPIErrorForKnownSentinels(t *testing.T) {
 			name:        "ignored folder name",
 			err:         shelf.ErrIgnoredFolderName,
 			wantStatus:  http.StatusBadRequest,
-			wantMessage: "invalid folder name: hidden and system directory names (a leading dot, @eaDir, #recycle, $RECYCLE.BIN, lost+found) are skipped by the shelf scanner, so a folder named this way would not stay visible",
+			wantMessage: "invalid folder name: this name is skipped by the shelf scanner, so a folder named this way would not stay visible",
 		},
 		{
-			name:        "configured ignored folder name",
-			err:         shelf.ErrConfiguredIgnoredFolderName,
+			// The shelf decides which names it skips, so the rejection carries
+			// the name and the reason out and the API says both.
+			name:        "ignored folder name with a reason",
+			err:         &shelf.IgnoredFolderNameError{Folder: "@eaDir", Reason: "Synology index and thumbnail sidecar"},
 			wantStatus:  http.StatusBadRequest,
-			wantMessage: "invalid folder name: this shelf's shelf.json lists this name under scan.extra_ignored_dirs, so the shelf scanner skips it and a folder named this way would not stay visible",
+			wantMessage: `invalid folder name: this shelf skips "@eaDir" while scanning (Synology index and thumbnail sidecar), so a folder named this way would not stay visible`,
+		},
+		{
+			name:        "ignored folder name a shelf did not explain",
+			err:         &shelf.IgnoredFolderNameError{Folder: "Thumbs"},
+			wantStatus:  http.StatusBadRequest,
+			wantMessage: `invalid folder name: this shelf skips "Thumbs" while scanning, so a folder named this way would not stay visible`,
 		},
 		{
 			name:           "shelf initializing",

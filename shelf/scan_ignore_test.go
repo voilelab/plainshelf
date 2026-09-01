@@ -164,7 +164,7 @@ func TestBookCacheExportOmitsIgnoredDirectories(t *testing.T) {
 
 	for _, folder := range cache.Folders {
 		for segment := range strings.SplitSeq(folder, "/") {
-			if segment != "" && shelfutil.IsIgnoredDir(segment) {
+			if segment != "" && shelf.ignore.IsIgnoredDir(segment) {
 				t.Errorf("Exported cache layer %q contains ignored directory %q", folder, segment)
 			}
 		}
@@ -176,7 +176,11 @@ func TestBookCacheExportOmitsIgnoredDirectories(t *testing.T) {
 	}
 }
 
-func TestIsIgnoredDir(t *testing.T) {
+// A shelf that has said nothing skips the built-in defaults, and each of them
+// carries the reason the user is shown when one is refused as a folder name.
+func TestDefaultIgnoreRules(t *testing.T) {
+	rules := shelfutil.NewIgnoreRules(shelfutil.DefaultIgnoredDirs())
+
 	tests := []struct {
 		name    string
 		ignored bool
@@ -201,49 +205,78 @@ func TestIsIgnoredDir(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		if got := shelfutil.IsIgnoredDir(tt.name); got != tt.ignored {
-			t.Errorf("shelfutil.IsIgnoredDir(%q) = %v, want %v", tt.name, got, tt.ignored)
+		reason, ignored := rules.MatchIgnoredDir(tt.name)
+		if ignored != tt.ignored {
+			t.Errorf("MatchIgnoredDir(%q) ignored = %v, want %v", tt.name, ignored, tt.ignored)
+			continue
 		}
+		if ignored && reason == "" {
+			t.Errorf("MatchIgnoredDir(%q) reported no reason; every default has one", tt.name)
+		}
+	}
+
+	// Hidden directories are a rule rather than a listed name, so they are not
+	// among the names and answer with the rule's own reason.
+	if reason, _ := rules.MatchIgnoredDir(".git"); reason != shelfutil.DirIgnoreReasonHidden {
+		t.Errorf("MatchIgnoredDir(.git) reason = %q, want the hidden-directory rule", reason)
+	}
+	if got := rules.Names(); !slices.Equal(got, []string{"#recycle", "$RECYCLE.BIN", "@eaDir", "lost+found"}) {
+		t.Errorf("Names() = %v, want the four built-in names", got)
 	}
 }
 
+// Which names are refused is the shelf's own rule now, so the check belongs to a
+// shelf: a shelf with no configuration refuses exactly the defaults.
 func TestValidateFolderPathRejectsIgnoredNames(t *testing.T) {
+	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
+
 	for _, name := range ignoredDirFixtures {
-		if err := validateFolderPath(FolderPath{name}); err == nil {
-			t.Errorf("Expected validateFolderPath to reject %q, got nil", name)
+		if err := s.ValidateFolderPath(FolderPath{name}); err == nil {
+			t.Errorf("Expected ValidateFolderPath to reject %q, got nil", name)
 		}
-		if err := validateFolderPath(FolderPath{"Fiction", name}); err == nil {
-			t.Errorf("Expected validateFolderPath to reject nested %q, got nil", name)
+		if err := s.ValidateFolderPath(FolderPath{"Fiction", name}); err == nil {
+			t.Errorf("Expected ValidateFolderPath to reject nested %q, got nil", name)
 		}
 	}
 
-	if err := validateFolderPath(FolderPath{"Fiction", "Classics"}); err != nil {
+	if err := s.ValidateFolderPath(FolderPath{"Fiction", "Classics"}); err != nil {
 		t.Errorf("Expected an ordinary layer to stay valid, got %v", err)
 	}
 }
 
-// The API answers a name from the ignore list with its own explanation, so the
+// The API answers a name the scanners skip with its own explanation, so the
 // rejection has to be distinguishable from every other invalid folder while
-// still classifying as one.
+// still classifying as one, and it has to carry the reason out.
 func TestValidateFolderPathReportsIgnoredNamesAsTheirOwnSentinel(t *testing.T) {
+	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
+
 	for _, name := range ignoredDirFixtures {
-		err := validateFolderPath(FolderPath{name})
+		err := s.ValidateFolderPath(FolderPath{name})
 		if !errors.Is(err, ErrIgnoredFolderName) {
-			t.Errorf("validateFolderPath(%q) = %v, want ErrIgnoredFolderName", name, err)
+			t.Errorf("ValidateFolderPath(%q) = %v, want ErrIgnoredFolderName", name, err)
 		}
 		if !errors.Is(err, ErrInvalidFolder) {
-			t.Errorf("validateFolderPath(%q) = %v, want ErrInvalidFolder too", name, err)
+			t.Errorf("ValidateFolderPath(%q) = %v, want ErrInvalidFolder too", name, err)
+		}
+
+		var ignored *IgnoredFolderNameError
+		if !errors.As(err, &ignored) {
+			t.Errorf("ValidateFolderPath(%q) = %v, want an IgnoredFolderNameError", name, err)
+			continue
+		}
+		if ignored.Folder != name || ignored.Reason == "" {
+			t.Errorf("ValidateFolderPath(%q) reported %+v, want the name and a reason", name, ignored)
 		}
 	}
 
 	// Any other rejection keeps the general sentinel alone.
 	for _, name := range []string{"", "..", "with/separator", "Book.bookpkg"} {
-		err := validateFolderPath(FolderPath{name})
+		err := s.ValidateFolderPath(FolderPath{name})
 		if !errors.Is(err, ErrInvalidFolder) {
-			t.Errorf("validateFolderPath(%q) = %v, want ErrInvalidFolder", name, err)
+			t.Errorf("ValidateFolderPath(%q) = %v, want ErrInvalidFolder", name, err)
 		}
 		if errors.Is(err, ErrIgnoredFolderName) {
-			t.Errorf("validateFolderPath(%q) matched ErrIgnoredFolderName, want the general sentinel only", name)
+			t.Errorf("ValidateFolderPath(%q) matched ErrIgnoredFolderName, want the general sentinel only", name)
 		}
 	}
 }
@@ -257,7 +290,7 @@ func TestNewFolderRejectsIgnoredNames(t *testing.T) {
 	}
 	// The message has to say why, since the directory would be creatable but
 	// then invisible to every later scan.
-	if !strings.Contains(err.Error(), "hidden or system directory name") {
-		t.Errorf("Expected the error to explain the rule, got %v", err)
+	if !strings.Contains(err.Error(), "Synology index and thumbnail sidecar") {
+		t.Errorf("Expected the error to carry the reason the name is skipped, got %v", err)
 	}
 }

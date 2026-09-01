@@ -30,54 +30,59 @@ export const SHELF_CONFIG_FILE = 'shelf.json';
  */
 export const MAX_SHELF_CONFIG_BYTES = 1 << 20;
 
-/**
- * Directory names filesystems, NAS firmware and sync clients create inside a
- * shelf, mirroring `ignoredDirNames` in shelf/util.go. Keys are lower case;
- * `isIgnoredDirName` folds the name before looking it up, because a share
- * exported over SMB may spell "$RECYCLE.BIN" either way.
- */
-const IGNORED_DIR_NAMES = new Set([
-  '@eadir', // Synology index and thumbnail sidecar
-  '#recycle', // Synology network recycle bin
-  '$recycle.bin', // Windows recycle bin, visible over SMB
-  'lost+found' // ext filesystem recovery directory
-]);
-
-/**
- * Reports whether a directory under `books/` must be skipped, matching
- * `isIgnoredDir` in shelf/util.go — a shelf reached over pCloud is the same
- * shelf, and one that was synced from a NAS carries the same debris.
- *
- * Skipping matters more here than the names suggest: on Synology every
- * directory carries its own "@eaDir", which would otherwise double the folder
- * tree, and a book in "#recycle" is one the user deleted. The leading-dot rule
- * covers the open-ended set of hidden helper directories (.git, .stfolder,
- * .dropbox.cache, .Spotlight-V100) in one condition.
- */
-export function isIgnoredDirName(name: string): boolean {
-  return name.startsWith('.') || IGNORED_DIR_NAMES.has(name.toLowerCase());
+/** One directory name the scanners skip, and why. Mirrors `IgnoredDir` in
+ * shelf/internal/shelfutil. */
+export interface IgnoredDir {
+  /** As written; matching folds case, because a share exported over SMB may
+   * spell "$RECYCLE.BIN" either way. */
+  name: string;
+  /** A short phrase completing "skipped because …". May be empty. */
+  reason: string;
 }
 
 /**
- * Which directory names one shelf skips: the built-in list above plus the names
- * that shelf's own `shelf.json` adds. Mirrors `IgnoreRules` in
- * shelf/internal/shelfutil.
+ * What a shelf skips when it has said nothing, mirroring `DefaultIgnoredDirs`
+ * in shelf/internal/shelfutil: the directories filesystems, NAS firmware and
+ * sync clients create inside a shelf.
+ *
+ * They matter more here than the names suggest: on Synology every directory
+ * carries its own "@eaDir", which would otherwise double the folder tree, and a
+ * book in "#recycle" is one the user deleted. They are defaults, not a floor — a
+ * shelf.json that lists its own directories replaces them.
+ */
+export const DEFAULT_IGNORED_DIRS: readonly IgnoredDir[] = [
+  { name: '@eaDir', reason: 'Synology index and thumbnail sidecar' },
+  { name: '#recycle', reason: 'Synology network recycle bin' },
+  { name: '$RECYCLE.BIN', reason: 'Windows recycle bin, visible over SMB' },
+  { name: 'lost+found', reason: 'ext filesystem recovery directory' }
+];
+
+/**
+ * Which directory names one shelf skips. Mirrors `IgnoreRules` in
+ * shelf/internal/shelfutil: a name on the shelf's list, or any hidden
+ * directory — the leading-dot rule covers the open-ended set of hidden helpers
+ * (.git, .stfolder, .dropbox.cache, .Spotlight-V100) in one condition and is the
+ * one part of the rules a shelf cannot configure away.
  */
 export type IgnoreRules = (name: string) => boolean;
 
-/** The rules for a shelf with no configuration: the built-in list alone. */
-export const BUILT_IN_IGNORE_RULES: IgnoreRules = isIgnoredDirName;
+/** The rules for a shelf that has said nothing about scanning. */
+export const DEFAULT_IGNORE_RULES: IgnoreRules = createIgnoreRules(DEFAULT_IGNORED_DIRS);
 
 /** What this client reads out of `shelf.json`. */
 export interface ShelfConfig {
-  /** Directory names under `books/` this shelf skips on top of the built-in list. */
-  extraIgnoredDirs: string[];
+  /**
+   * The directories this shelf skips, replacing the defaults — including when
+   * empty, which means "skip nothing but hidden directories". Undefined when the
+   * shelf said nothing, which means the defaults.
+   */
+  ignoredDirs?: IgnoredDir[];
 }
 
 /** 255 bytes is the per-component limit the Go side validates against. */
 const MAX_PATH_SEGMENT_BYTES = 255;
 
-function isUsableExtraIgnoredDir(name: string): boolean {
+function isUsableDirName(name: string): boolean {
   if (name === '' || name === '.' || name === '..') {
     return false;
   }
@@ -87,43 +92,59 @@ function isUsableExtraIgnoredDir(name: string): boolean {
   return new TextEncoder().encode(name).length <= MAX_PATH_SEGMENT_BYTES;
 }
 
+/** Reads one entry, which is either a name or a {name, reason} object. */
+function parseIgnoredDir(entry: unknown): IgnoredDir | undefined {
+  if (typeof entry === 'string') {
+    return isUsableDirName(entry) ? { name: entry, reason: '' } : undefined;
+  }
+  if (entry === null || typeof entry !== 'object') {
+    return undefined;
+  }
+
+  const { name, reason } = entry as { name?: unknown; reason?: unknown };
+  if (typeof name !== 'string' || !isUsableDirName(name)) {
+    return undefined;
+  }
+  return { name, reason: typeof reason === 'string' ? reason : '' };
+}
+
 /**
  * Reads a parsed `shelf.json`, keeping only what this client acts on.
  *
  * Never throws: a file written by a newer build, or one whose `scan` section is
- * the wrong shape, leaves the built-in rules in place rather than making the
- * shelf unreadable — exactly what the Go side does with the same file. Entries
- * that could not name a directory are dropped one by one, so one bad line does
- * not cost the rest of the file.
+ * the wrong shape, leaves the defaults in place rather than making the shelf
+ * unreadable — exactly what the Go side does with the same file. Entries that
+ * could not name a directory are dropped one by one, so one bad line does not
+ * cost the rest of the file.
  */
 export function parseShelfConfig(raw: unknown): ShelfConfig {
   const scan = (raw as { scan?: unknown } | null)?.scan;
-  const listed = (scan as { extra_ignored_dirs?: unknown } | null | undefined)?.extra_ignored_dirs;
+  const listed = (scan as { ignored_dirs?: unknown } | null | undefined)?.ignored_dirs;
   if (!Array.isArray(listed)) {
-    return { extraIgnoredDirs: [] };
+    return {};
   }
 
-  return {
-    extraIgnoredDirs: listed.filter(
-      (name): name is string => typeof name === 'string' && isUsableExtraIgnoredDir(name)
-    )
-  };
+  const ignoredDirs: IgnoredDir[] = [];
+  for (const entry of listed) {
+    const dir = parseIgnoredDir(entry);
+    if (dir) {
+      ignoredDirs.push(dir);
+    }
+  }
+  return { ignoredDirs };
 }
 
 /**
- * Builds the ignore rules for a shelf that skips `extraIgnoredDirs` on top of
- * the built-in list.
+ * Builds the ignore rules for a shelf that skips these directories.
  *
- * The configuration can only add. The built-in names stay ignored whatever the
- * file says, because a shelf that treats "@eaDir" as a folder is the duplicated
- * folder tree the built-in list exists to prevent.
+ * The list is the rules, not an addition to them: a shelf that names its own
+ * directories skips those and only those, so passing an empty list skips nothing
+ * but hidden directories. Pass DEFAULT_IGNORED_DIRS for a shelf that said
+ * nothing.
  */
-export function createIgnoreRules(extraIgnoredDirs: string[]): IgnoreRules {
-  const extra = new Set(extraIgnoredDirs.map((name) => name.toLowerCase()));
-  if (extra.size === 0) {
-    return BUILT_IN_IGNORE_RULES;
-  }
-  return (name: string) => isIgnoredDirName(name) || extra.has(name.toLowerCase());
+export function createIgnoreRules(dirs: readonly IgnoredDir[]): IgnoreRules {
+  const names = new Set(dirs.filter((dir) => dir.name !== '').map((dir) => dir.name.toLowerCase()));
+  return (name: string) => name.startsWith('.') || names.has(name.toLowerCase());
 }
 
 /** Locates `shelf.json` in a listed shelf root, if the shelf has one. */
@@ -241,7 +262,7 @@ export function findBooksFolder(shelfRoot: PCloudItem): PCloudItem | undefined {
  */
 export function collectBookPackages(
   booksFolder: PCloudItem,
-  isIgnored: IgnoreRules = BUILT_IN_IGNORE_RULES
+  isIgnored: IgnoreRules = DEFAULT_IGNORE_RULES
 ): BookPackageRef[] {
   const packages: BookPackageRef[] = [];
 
@@ -276,7 +297,7 @@ export function collectBookPackages(
  */
 export function collectFolders(
   booksFolder: PCloudItem,
-  isIgnored: IgnoreRules = BUILT_IN_IGNORE_RULES
+  isIgnored: IgnoreRules = DEFAULT_IGNORE_RULES
 ): string[] {
   const paths = new Set<string>(['/']);
 

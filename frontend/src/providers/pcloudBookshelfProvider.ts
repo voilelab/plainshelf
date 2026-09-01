@@ -2,6 +2,7 @@ import {
   collectBookPackages,
   collectFolders,
   createIgnoreRules,
+  DEFAULT_IGNORED_DIRS,
   MAX_SHELF_CONFIG_BYTES,
   findBooksFolder,
   findCoverFile,
@@ -12,7 +13,7 @@ import {
   toBook,
   toSourceMeta,
 } from '@/api/pcloud/bookpkg';
-import type { BookJson, BookPackageRef, BookSourceRef, PCloudFileRef } from '@/api/pcloud/bookpkg';
+import type { BookJson, BookPackageRef, BookSourceRef, PCloudFileRef, ShelfConfig } from '@/api/pcloud/bookpkg';
 import {
   bookPackagePath,
   findBookCacheFiles,
@@ -359,16 +360,16 @@ export class PCloudBookshelfProvider implements BookshelfReader {
   }
 
   /**
-   * Reads the shelf's `shelf.json`, if it has one, and returns the directory
-   * names it adds to the ignore list.
+   * Reads the shelf's `shelf.json`, if it has one.
    *
-   * Never throws: an unreadable or malformed settings file leaves the built-in
-   * rules in place, matching the Go shelf, because refusing to open a library
-   * over a typo in an optional file is the worse failure.
+   * Never throws: an unreadable or malformed settings file reads as a shelf that
+   * said nothing, so the caller applies the defaults — matching the Go shelf,
+   * because refusing to open a library over a typo in an optional file is the
+   * worse failure.
    */
-  private async loadShelfConfig(ref: PCloudFileRef | undefined): Promise<string[]> {
+  private async loadShelfConfig(ref: PCloudFileRef | undefined): Promise<ShelfConfig> {
     if (!ref) {
-      return [];
+      return {};
     }
 
     // The listing already carries the size, so a file too large to be settings
@@ -376,14 +377,14 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     // the same file, and a phone must not spend the data to reach that answer.
     if (ref.size > MAX_SHELF_CONFIG_BYTES) {
       console.warn(`Ignoring ${ref.name}: ${ref.size} bytes is larger than a shelf configuration is read at.`);
-      return [];
+      return {};
     }
 
     try {
-      return parseShelfConfig(await this.readJson(ref)).extraIgnoredDirs;
+      return parseShelfConfig(await this.readJson(ref));
     } catch (err) {
       console.warn(`Ignoring ${ref.name}: it could not be read.`, err);
-      return [];
+      return {};
     }
   }
 
@@ -399,7 +400,7 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     // readJson answers from the cache while its size and mtime are unchanged, so
     // a refresh does not download it again.
     const configRef = findShelfConfigFile(root);
-    const ignore = createIgnoreRules(await this.loadShelfConfig(configRef));
+    const ignore = createIgnoreRules((await this.loadShelfConfig(configRef)).ignoredDirs ?? DEFAULT_IGNORED_DIRS);
 
     const packages = collectBookPackages(booksFolder, ignore);
     // Folders stay derived from the listing rather than read from the cache. The

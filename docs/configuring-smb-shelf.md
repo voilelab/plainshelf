@@ -135,18 +135,18 @@ If they still do not appear, and appear only after restarting the server, the sh
 
 ### The book list shows directories the NAS created
 
-Directories such as `@eaDir`, `#recycle`, `$RECYCLE.BIN` and `lost+found` are skipped already, together with anything whose name starts with a dot. If your share carries another one — a snapshot directory, a thumbnail cache — add its name to `shelf.json` at the shelf root and restart:
+Directories such as `@eaDir`, `#recycle`, `$RECYCLE.BIN` and `lost+found` are skipped by default, together with anything whose name starts with a dot. If your share carries another one — a snapshot directory, a thumbnail cache — list it in `shelf.json` at the shelf root and restart. The list replaces the defaults, so keep the ones you still need:
 
 ```json
 {
   "schema_version": 1,
   "scan": {
-    "extra_ignored_dirs": ["@Snapshot"]
+    "ignored_dirs": ["@eaDir", "#recycle", "$RECYCLE.BIN", "lost+found", "@Snapshot"]
   }
 }
 ```
 
-See [Ignoring more directories on one shelf](concepts/folders.md#ignoring-more-directories-on-one-shelf).
+See [Choosing the list for one shelf](concepts/folders.md#choosing-the-list-for-one-shelf).
 
 ### Requests time out while opening large books
 

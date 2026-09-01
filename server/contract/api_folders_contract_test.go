@@ -161,7 +161,7 @@ func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
 			if got == "invalid folder name" {
 				t.Fatalf("body = %q, want a message naming the ignore rule", got)
 			}
-			for _, want := range []string{"@eaDir", "skipped by the shelf scanner"} {
+			for _, want := range []string{"while scanning", "would not stay visible"} {
 				if !strings.Contains(got, want) {
 					t.Fatalf("body = %q, want it to contain %q", got, want)
 				}
@@ -181,14 +181,13 @@ func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
 	})
 }
 
-// A name the shelf's own settings file ignores is refused like a system name,
-// but for a reason the user can act on: they wrote the rule and can take it
-// back. The message therefore has to name the file and the setting rather than
-// list the built-in directories, which would send them looking for a rule that
-// does not apply.
-func TestAPIConfiguredIgnoredFolderNameNamesTheSettingContract(t *testing.T) {
+// A shelf that lists its own directories also says why it skips them, and that
+// reason is what the user needs: they wrote the rule and can take it back. The
+// message therefore carries the shelf's own words rather than the built-in
+// directory names, which on such a shelf are not the rule in force.
+func TestAPIConfiguredIgnoredFolderNameCarriesTheShelfsReasonContract(t *testing.T) {
 	libRoot := t.TempDir()
-	config := `{"schema_version":1,"scan":{"extra_ignored_dirs":["@Snapshot"]}}`
+	config := `{"schema_version":1,"scan":{"ignored_dirs":[{"name":"@Snapshot","reason":"Synology snapshot directory"}]}}`
 	if err := os.WriteFile(filepath.Join(libRoot, "shelf.json"), []byte(config), 0644); err != nil {
 		t.Fatalf("write shelf.json: %v", err)
 	}
@@ -199,7 +198,7 @@ func TestAPIConfiguredIgnoredFolderNameNamesTheSettingContract(t *testing.T) {
 
 	assertStatus(t, rec, http.StatusBadRequest)
 	got := strings.TrimSpace(rec.Body.String())
-	for _, want := range []string{"shelf.json", "scan.extra_ignored_dirs"} {
+	for _, want := range []string{"@Snapshot", "Synology snapshot directory"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("body = %q, want it to contain %q", got, want)
 		}

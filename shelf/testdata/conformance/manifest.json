@@ -35,7 +35,7 @@
     },
     {
       "name": "shelf-config-ignore",
-      "covers": "A shelf.json that adds directories to the scanner's ignore list: the extra names are skipped case-insensitively, entries that are unusable or of the wrong type are dropped one by one, and the built-in names stay ignored."
+      "covers": "A shelf.json that replaces the scanner's ignore list: the names it gives are skipped case-insensitively, an entry may carry the reason it is there, entries that are unusable or of the wrong type are dropped one by one, and a built-in name the list omits is listed as an ordinary folder."
     }
   ]
 }

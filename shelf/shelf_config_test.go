@@ -11,9 +11,9 @@ import (
 	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 )
 
-// snapshotDir is a directory name no built-in rule covers: it carries no leading
-// dot and is not on the system list, so a shelf only skips it because its own
-// shelf.json says so. Synology's own snapshot directories are named like this.
+// snapshotDir is a directory name no default covers: it carries no leading dot
+// and is not one of the built-in names, so a shelf only skips it because its own
+// shelf.json says so. Synology's snapshot directories are named like this.
 const snapshotDir = "@Snapshot"
 
 func writeShelfConfig(t *testing.T, libRoot, body string) {
@@ -55,104 +55,150 @@ func scannedBookIDs(t *testing.T, s *Shelf) []string {
 	return found
 }
 
-// The fixture is only meaningful if the same tree without the setting does show
-// the directory, so the two halves are checked against each other rather than
-// against a hard-coded list that could pass for the wrong reason.
-func TestShelfConfigExtraIgnoredDirsHidesFoldersAndBooks(t *testing.T) {
-	configured := t.TempDir()
-	bare := t.TempDir()
+// openConfiguredShelf builds a shelf holding the user's folder tree, a snapshot
+// directory at every level and one "@eaDir", with the given shelf.json - or none
+// when body is empty.
+func openConfiguredShelf(t *testing.T, body string) *Shelf {
+	t.Helper()
 
-	for _, libRoot := range []string{configured, bare} {
-		makeUserFolderTree(t, libRoot)
-		plantExtraDirs(t, libRoot)
-		writeFixtureBook(t, libRoot, "Fiction/Classics", "keep-0001")
-	}
-	writeShelfConfig(t, configured, `{
-  "schema_version": 1,
-  "scan": { "extra_ignored_dirs": ["@Snapshot"] }
-}`)
-
-	configuredShelf := newTestShelf(t, &ShelfConf{LibRoot: configured, LockMode: "none"})
-	bareShelf := newTestShelf(t, &ShelfConf{LibRoot: bare, LockMode: "none"})
-
-	bareFolders, err := bareShelf.GetAllFolders()
-	if err != nil {
-		t.Fatalf("GetAllFolders on the unconfigured shelf: %v", err)
-	}
-	if !slices.Contains(folderStrings(bareFolders), snapshotDir) {
-		t.Fatalf("Expected the unconfigured shelf to still report %q, got %v", snapshotDir, folderStrings(bareFolders))
-	}
-
-	folders, err := configuredShelf.GetAllFolders()
-	if err != nil {
-		t.Fatalf("GetAllFolders on the configured shelf: %v", err)
-	}
-	for _, folder := range folderStrings(folders) {
-		if strings.Contains(folder, snapshotDir) {
-			t.Errorf("Configured shelf reported %q, want every %q layer skipped (all: %v)", folder, snapshotDir, folderStrings(folders))
-		}
-	}
-
-	// The user's own folders are untouched, including the empty one, which has
-	// no book to rebuild it from.
-	// FolderPath.String() renders the root as "", which is how a listing reports
-	// a book that sits directly under books/.
-	expected := []string{"", "Empty", "Fiction", "Fiction/Classics"}
-	if got := folderStrings(folders); strings.Join(got, "|") != strings.Join(expected, "|") {
-		t.Errorf("Expected layers %v, got %v", expected, got)
-	}
-
-	if got := scannedBookIDs(t, configuredShelf); len(got) != 1 || got[0] != "keep-0001" {
-		t.Errorf("Expected only keep-0001 to be scanned, got %v", got)
-	}
-}
-
-func TestShelfConfigExtraIgnoredDirsAreCaseInsensitive(t *testing.T) {
 	libRoot := t.TempDir()
 	makeUserFolderTree(t, libRoot)
 	plantExtraDirs(t, libRoot)
-	// The shelf may be read over SMB, where a share can report either spelling,
-	// so the setting folds case exactly like the built-in list.
-	writeShelfConfig(t, libRoot, `{"scan": {"extra_ignored_dirs": ["@snapshot"]}}`)
+	if err := os.MkdirAll(path.Join(libRoot, booksFolder, "@eaDir", "nested"), 0755); err != nil {
+		t.Fatalf("Failed to create @eaDir: %v", err)
+	}
+	writeFixtureBook(t, libRoot, "Fiction/Classics", "keep-0001")
+	if body != "" {
+		writeShelfConfig(t, libRoot, body)
+	}
 
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+	return newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+}
+
+func listedFolders(t *testing.T, s *Shelf) []string {
+	t.Helper()
 
 	folders, err := s.GetAllFolders()
 	if err != nil {
 		t.Fatalf("GetAllFolders: %v", err)
 	}
-	for _, folder := range folderStrings(folders) {
+	return folderStrings(folders)
+}
+
+// FolderPath.String() renders the root as "", which is how a listing reports a
+// book sitting directly under books/.
+var userFolders = []string{"", "Empty", "Fiction", "Fiction/Classics"}
+
+func assertFolders(t *testing.T, got, want []string) {
+	t.Helper()
+
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("Expected layers %v, got %v", want, got)
+	}
+}
+
+// The list in shelf.json is the shelf's rules, not an addition to them: a shelf
+// that names its own directories skips those and only those. Naming "@Snapshot"
+// therefore also stops "@eaDir" from being skipped, which is the cost of a
+// single list and is pinned here rather than left to be discovered.
+func TestShelfConfigIgnoredDirsReplacesTheDefaults(t *testing.T) {
+	s := openConfiguredShelf(t, `{
+  "schema_version": 1,
+  "scan": { "ignored_dirs": ["@Snapshot"] }
+}`)
+
+	folders := listedFolders(t, s)
+	for _, folder := range folders {
+		if strings.Contains(folder, snapshotDir) {
+			t.Errorf("Listed %q, want every %q layer skipped (all: %v)", folder, snapshotDir, folders)
+		}
+	}
+	if !slices.Contains(folders, "@eaDir") {
+		t.Errorf("Expected @eaDir to be listed once the shelf replaced the defaults, got %v", folders)
+	}
+
+	if got := scannedBookIDs(t, s); !slices.Equal(got, []string{"keep-0001"}) {
+		t.Errorf("Expected only keep-0001 to be scanned, got %v", got)
+	}
+}
+
+// A shelf that says nothing about scanning is read exactly as PlainShelf has
+// always read it.
+func TestShelfConfigWithoutTheKeyKeepsTheDefaults(t *testing.T) {
+	for name, body := range map[string]string{
+		"no file":          "",
+		"no scan section":  `{"schema_version": 1}`,
+		"empty scan":       `{"schema_version": 1, "scan": {}}`,
+		"unrelated fields": `{"schema_version": 1, "reader": {"theme": "dark"}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			folders := listedFolders(t, openConfiguredShelf(t, body))
+
+			if slices.Contains(folders, "@eaDir") {
+				t.Errorf("Expected @eaDir to stay skipped, got %v", folders)
+			}
+			if !slices.Contains(folders, snapshotDir) {
+				t.Errorf("Expected %q to be listed without a rule for it, got %v", snapshotDir, folders)
+			}
+		})
+	}
+}
+
+// An empty list is a shelf saying "skip nothing", which is not the same as
+// saying nothing. Hidden directories are still skipped: that is a rule, not a
+// name on the list.
+func TestShelfConfigEmptyListSkipsOnlyHiddenDirectories(t *testing.T) {
+	libRoot := t.TempDir()
+	makeUserFolderTree(t, libRoot)
+	plantIgnoredDirs(t, libRoot)
+	writeShelfConfig(t, libRoot, `{"scan": {"ignored_dirs": []}}`)
+
+	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+
+	folders := listedFolders(t, s)
+	for _, name := range []string{"@eaDir", "#recycle", "lost+found"} {
+		if !slices.Contains(folders, name) {
+			t.Errorf("Expected %q to be listed on a shelf that skips nothing, got %v", name, folders)
+		}
+	}
+	for _, folder := range folders {
+		for segment := range strings.SplitSeq(folder, "/") {
+			if strings.HasPrefix(segment, ".") {
+				t.Errorf("Listed hidden directory %q; the leading-dot rule is not configurable", folder)
+			}
+		}
+	}
+}
+
+func TestShelfConfigIgnoredDirsAreCaseInsensitive(t *testing.T) {
+	// The shelf may be read over SMB, where a share can report either spelling,
+	// so a configured name folds case exactly like the defaults.
+	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": ["@snapshot"]}}`)
+
+	for _, folder := range listedFolders(t, s) {
 		if strings.Contains(strings.ToLower(folder), strings.ToLower(snapshotDir)) {
 			t.Errorf("Expected %q to be skipped whatever its case, got layer %q", snapshotDir, folder)
 		}
 	}
 }
 
-// The setting can only add. A shelf.json that names a built-in directory is
-// redundant rather than an unignore, and nothing it can say brings "@eaDir"
-// back as a folder.
-func TestShelfConfigCannotUnignoreBuiltins(t *testing.T) {
-	libRoot := t.TempDir()
-	makeUserFolderTree(t, libRoot)
-	plantIgnoredDirs(t, libRoot)
-	writeFixtureBook(t, libRoot, "@eaDir", "sidecar-0001")
-	writeFixtureBook(t, libRoot, "Fiction/Classics", "keep-0001")
-	writeShelfConfig(t, libRoot, `{"scan": {"extra_ignored_dirs": ["@eaDir", ".git"]}}`)
+// The object form is what lets a shelf say why it skips a directory this build
+// has never heard of, and that sentence is what the user is shown later.
+func TestShelfConfigEntryCarriesItsReason(t *testing.T) {
+	const reason = "Synology snapshot directory"
+	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": [{"name": "@Snapshot", "reason": "`+reason+`"}]}}`)
 
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+	if slices.Contains(listedFolders(t, s), snapshotDir) {
+		t.Fatalf("Expected %q to be skipped", snapshotDir)
+	}
 
-	folders, err := s.GetAllFolders()
-	if err != nil {
-		t.Fatalf("GetAllFolders: %v", err)
+	err := s.ValidateFolderPath(FolderPath{snapshotDir})
+	var ignored *IgnoredFolderNameError
+	if !errors.As(err, &ignored) {
+		t.Fatalf("ValidateFolderPath(%q) = %v, want an IgnoredFolderNameError", snapshotDir, err)
 	}
-	// FolderPath.String() renders the root as "", which is how a listing reports
-	// a book that sits directly under books/.
-	expected := []string{"", "Empty", "Fiction", "Fiction/Classics"}
-	if got := folderStrings(folders); strings.Join(got, "|") != strings.Join(expected, "|") {
-		t.Errorf("Expected layers %v, got %v", expected, got)
-	}
-	if got := scannedBookIDs(t, s); len(got) != 1 || got[0] != "keep-0001" {
-		t.Errorf("Expected only keep-0001 to be scanned, got %v", got)
+	if ignored.Reason != reason {
+		t.Errorf("Reason = %q, want the shelf's own words %q", ignored.Reason, reason)
 	}
 }
 
@@ -161,52 +207,33 @@ func TestShelfConfigCannotUnignoreBuiltins(t *testing.T) {
 // entry of the wrong type counts as one of those - the pCloud reader drops just
 // that element, and the two must not read one file differently.
 func TestShelfConfigSkipsUnusableEntries(t *testing.T) {
-	libRoot := t.TempDir()
-	makeUserFolderTree(t, libRoot)
-	plantExtraDirs(t, libRoot)
-	writeShelfConfig(t, libRoot, `{"scan": {"extra_ignored_dirs": ["", "with/separator", "..", 17, {"name": "@Snapshot"}, "@Snapshot"]}}`)
+	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": ["", "with/separator", "..", 17, {"reason": "no name"}, "@Snapshot"]}}`)
 
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
-
-	folders, err := s.GetAllFolders()
-	if err != nil {
-		t.Fatalf("GetAllFolders: %v", err)
-	}
-	// FolderPath.String() renders the root as "", which is how a listing reports
-	// a book that sits directly under books/.
-	expected := []string{"", "Empty", "Fiction", "Fiction/Classics"}
-	if got := folderStrings(folders); strings.Join(got, "|") != strings.Join(expected, "|") {
-		t.Errorf("Expected layers %v, got %v", expected, got)
-	}
+	// "@Snapshot" survived the bad entries; "@eaDir" and the directory under it
+	// are ordinary folders, because this list replaced the defaults.
+	want := append([]string{"", "@eaDir", "@eaDir/nested"}, userFolders[1:]...)
+	assertFolders(t, listedFolders(t, s), want)
 }
 
-// A shelf whose settings cannot be read still opens: locking a user out of their
-// library over a typo in an optional file is the worse failure.
-func TestShelfConfigMalformedFallsBackToBuiltins(t *testing.T) {
+// A shelf whose settings cannot be read still opens, on the defaults: locking a
+// user out of their library over a typo in an optional file is the worse
+// failure.
+func TestShelfConfigMalformedFallsBackToDefaults(t *testing.T) {
 	for name, body := range map[string]string{
 		"not json":            "this is not json",
 		"wrong field type":    `{"scan": "everything"}`,
-		"wrong list type":     `{"scan": {"extra_ignored_dirs": "@Snapshot"}}`,
-		"truncated mid-value": `{"scan": {"extra_ignored_dirs": ["@Snapshot"`,
+		"wrong list type":     `{"scan": {"ignored_dirs": "@Snapshot"}}`,
+		"truncated mid-value": `{"scan": {"ignored_dirs": ["@Snapshot"`,
 		// A Decoder stops at the end of the first value; the pCloud reader
 		// parses the whole file and rejects what follows, so this one does too.
-		"trailing object": `{"scan": {"extra_ignored_dirs": ["@Snapshot"]}} {"scan": {}}`,
-		"trailing debris": `{"scan": {"extra_ignored_dirs": ["@Snapshot"]}} half an edit`,
+		"trailing object": `{"scan": {"ignored_dirs": ["@Snapshot"]}} {"scan": {}}`,
+		"trailing debris": `{"scan": {"ignored_dirs": ["@Snapshot"]}} half an edit`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			libRoot := t.TempDir()
-			makeUserFolderTree(t, libRoot)
-			plantExtraDirs(t, libRoot)
-			writeShelfConfig(t, libRoot, body)
+			folders := listedFolders(t, openConfiguredShelf(t, body))
 
-			s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
-
-			folders, err := s.GetAllFolders()
-			if err != nil {
-				t.Fatalf("GetAllFolders: %v", err)
-			}
-			if !slices.Contains(folderStrings(folders), snapshotDir) {
-				t.Errorf("Expected an unreadable %s to leave the built-in rules in place, got %v", shelfConfigFile, folderStrings(folders))
+			if !slices.Contains(folders, snapshotDir) || slices.Contains(folders, "@eaDir") {
+				t.Errorf("Expected an unreadable %s to leave the defaults in place, got %v", shelfConfigFile, folders)
 			}
 		})
 	}
@@ -216,22 +243,13 @@ func TestShelfConfigMalformedFallsBackToBuiltins(t *testing.T) {
 // also what the pCloud client does with the size in its listing - it must not
 // download megabytes onto a phone to discover the same thing.
 func TestShelfConfigTooLargeIsSkipped(t *testing.T) {
-	libRoot := t.TempDir()
-	makeUserFolderTree(t, libRoot)
-	plantExtraDirs(t, libRoot)
-
 	// Valid JSON that would otherwise apply, padded past the limit.
 	padding := strings.Repeat(" ", maxShelfConfigBytes)
-	writeShelfConfig(t, libRoot, `{"scan": {"extra_ignored_dirs": ["@Snapshot"]}}`+padding)
+	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": ["@Snapshot"]}}`+padding)
 
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
-
-	folders, err := s.GetAllFolders()
-	if err != nil {
-		t.Fatalf("GetAllFolders: %v", err)
-	}
-	if !slices.Contains(folderStrings(folders), snapshotDir) {
-		t.Errorf("Expected an oversized %s to leave the built-in rules in place, got %v", shelfConfigFile, folderStrings(folders))
+	folders := listedFolders(t, s)
+	if !slices.Contains(folders, snapshotDir) || slices.Contains(folders, "@eaDir") {
+		t.Errorf("Expected an oversized %s to leave the defaults in place, got %v", shelfConfigFile, folders)
 	}
 }
 
@@ -239,41 +257,25 @@ func TestShelfConfigTooLargeIsSkipped(t *testing.T) {
 // understands. Reading is all that happens to it, so the fields this build knows
 // still apply rather than the whole file being discarded.
 func TestShelfConfigNewerSchemaVersionStillApplies(t *testing.T) {
-	libRoot := t.TempDir()
-	makeUserFolderTree(t, libRoot)
-	plantExtraDirs(t, libRoot)
-	writeShelfConfig(t, libRoot, `{
+	s := openConfiguredShelf(t, `{
   "schema_version": 99,
-  "scan": { "extra_ignored_dirs": ["@Snapshot"], "something_later": true },
+  "scan": { "ignored_dirs": ["@Snapshot"], "something_later": true },
   "reader": { "theme": "dark" }
 }`)
 
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
-
-	folders, err := s.GetAllFolders()
-	if err != nil {
-		t.Fatalf("GetAllFolders: %v", err)
-	}
-	if slices.Contains(folderStrings(folders), snapshotDir) {
-		t.Errorf("Expected %q to be skipped, got %v", snapshotDir, folderStrings(folders))
+	if slices.Contains(listedFolders(t, s), snapshotDir) {
+		t.Errorf("Expected %q to be skipped, got the layer listed", snapshotDir)
 	}
 }
 
-// A configured name is refused for the same reason "@eaDir" is: the directory
-// would be created and then skipped by the very next scan.
+// A configured name is refused for the same reason "@eaDir" is on a shelf that
+// kept the defaults: the directory would be created and then skipped by the very
+// next scan.
 func TestValidateFolderPathRejectsConfiguredNames(t *testing.T) {
-	libRoot := t.TempDir()
-	writeShelfConfig(t, libRoot, `{"scan": {"extra_ignored_dirs": ["@Snapshot"]}}`)
-	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
+	s := openConfiguredShelf(t, `{"scan": {"ignored_dirs": ["@Snapshot"]}}`)
 
 	for _, folder := range []FolderPath{{snapshotDir}, {"Fiction", snapshotDir}, {"@snapshot"}} {
 		err := s.ValidateFolderPath(folder)
-		// The API tells a name the user ignored themselves apart from a system
-		// name they cannot change, so the rejection carries its own sentinel as
-		// well as the general ones.
-		if !errors.Is(err, ErrConfiguredIgnoredFolderName) {
-			t.Errorf("ValidateFolderPath(%v) = %v, want ErrConfiguredIgnoredFolderName", folder, err)
-		}
 		if !errors.Is(err, ErrIgnoredFolderName) {
 			t.Errorf("ValidateFolderPath(%v) = %v, want ErrIgnoredFolderName", folder, err)
 		}
@@ -286,32 +288,26 @@ func TestValidateFolderPathRejectsConfiguredNames(t *testing.T) {
 		t.Errorf("Expected an ordinary layer to stay valid, got %v", err)
 	}
 
-	// A built-in name keeps the general sentinel alone: it is not something the
-	// user can take back by editing their settings.
-	if err := s.ValidateFolderPath(FolderPath{"@eaDir"}); errors.Is(err, ErrConfiguredIgnoredFolderName) {
-		t.Errorf("ValidateFolderPath(@eaDir) = %v, want the built-in rejection, not the configured one", err)
-	}
-
-	// The built-in floor is a property of the name alone, so it stays answerable
-	// without a shelf; only the configured names need one.
-	if err := validateFolderPath(FolderPath{snapshotDir}); err != nil {
-		t.Errorf("Expected the built-in rules to accept %q, got %v", snapshotDir, err)
+	// The shelf replaced the defaults, so a name it no longer skips is a name it
+	// can create - the setting decides, not the built-in list.
+	if err := s.ValidateFolderPath(FolderPath{"@eaDir"}); err != nil {
+		t.Errorf("Expected @eaDir to be creatable on a shelf that dropped it, got %v", err)
 	}
 }
 
 func TestNewFolderRejectsConfiguredNames(t *testing.T) {
 	libRoot := t.TempDir()
-	writeShelfConfig(t, libRoot, `{"scan": {"extra_ignored_dirs": ["@Snapshot"]}}`)
+	writeShelfConfig(t, libRoot, `{"scan": {"ignored_dirs": [{"name": "@Snapshot", "reason": "kept by the NAS"}]}}`)
 	s := newTestShelf(t, &ShelfConf{LibRoot: libRoot, LockMode: "none"})
 
 	err := s.NewFolder(FolderPath{}, snapshotDir)
 	if err == nil {
 		t.Fatal("Expected NewFolder to reject a configured name, got nil")
 	}
-	// The message names the file, because unlike "@eaDir" this is a rule the
-	// user wrote and can take back.
-	if !strings.Contains(err.Error(), shelfConfigFile) {
-		t.Errorf("Expected the error to name %s, got %v", shelfConfigFile, err)
+	// The message carries the shelf's own reason, since this is a rule the user
+	// wrote and can take back.
+	if !strings.Contains(err.Error(), "kept by the NAS") {
+		t.Errorf("Expected the error to carry the shelf's reason, got %v", err)
 	}
 
 	if _, statErr := os.Stat(path.Join(libRoot, booksFolder, snapshotDir)); !os.IsNotExist(statErr) {
@@ -319,37 +315,18 @@ func TestNewFolderRejectsConfiguredNames(t *testing.T) {
 	}
 }
 
-func TestIgnoreRules(t *testing.T) {
-	rules := shelfutil.NewIgnoreRules([]string{"@Snapshot", "Thumbs"})
+// The zero value is a shelf with no names at all, which is what an empty
+// configured list produces; the hidden-directory rule survives it.
+func TestIgnoreRulesZeroValue(t *testing.T) {
+	var rules shelfutil.IgnoreRules
 
-	tests := []struct {
-		name    string
-		ignored bool
-		extra   bool
-	}{
-		{"@Snapshot", true, true},
-		{"@snapshot", true, true},
-		{"THUMBS", true, true},
-		{"@eaDir", true, false},
-		{".git", true, false},
-		{"Fiction", false, false},
+	if rules.IsIgnoredDir("@eaDir") {
+		t.Error("Expected no names to be skipped by the zero rules")
 	}
-	for _, tt := range tests {
-		if got := rules.IsIgnoredDir(tt.name); got != tt.ignored {
-			t.Errorf("IsIgnoredDir(%q) = %v, want %v", tt.name, got, tt.ignored)
-		}
-		if got := rules.IsExtraIgnoredDir(tt.name); got != tt.extra {
-			t.Errorf("IsExtraIgnoredDir(%q) = %v, want %v", tt.name, got, tt.extra)
-		}
+	if !rules.IsIgnoredDir(".git") {
+		t.Error("Expected hidden directories to be skipped whatever the names are")
 	}
-
-	// The zero value is the built-in list alone, which is what a shelf with no
-	// configuration - and every test shelf that predates this file - holds.
-	var none shelfutil.IgnoreRules
-	if none.IsIgnoredDir("@Snapshot") {
-		t.Error("Expected the zero rules to skip nothing beyond the built-in list")
-	}
-	if !none.IsIgnoredDir("@eaDir") {
-		t.Error("Expected the zero rules to still skip @eaDir")
+	if got := rules.Names(); len(got) != 0 {
+		t.Errorf("Names() = %v, want none", got)
 	}
 }

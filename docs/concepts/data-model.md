@@ -142,7 +142,10 @@ client reading it from pCloud — applies the same rules.
 {
   "schema_version": 1,
   "scan": {
-    "extra_ignored_dirs": ["@Snapshot", "Thumbs"]
+    "ignored_dirs": [
+      "Thumbs",
+      { "name": "@Snapshot", "reason": "Synology snapshot directory" }
+    ]
   }
 }
 ```
@@ -150,7 +153,12 @@ client reading it from pCloud — applies the same rules.
 | Field | Meaning |
 |---|---|
 | `schema_version` | Format version of this file. `1` is the only one this build writes about; a file declaring a higher one is still read, and the fields this build understands still apply |
-| `scan.extra_ignored_dirs` | Directory names under `books/` this shelf skips **in addition to** the [built-in list](folders.md#ignored-directories). Matched without regard to case, one name per entry — not a path and not a pattern |
+| `scan.ignored_dirs` | The directory names under `books/` this shelf skips, **replacing** the [defaults](folders.md#ignored-directories). Each entry is one name — not a path and not a pattern — matched without regard to case, written either as a string or as `{"name": …, "reason": …}`. The reason is shown when a folder of that name is refused |
+
+Leaving `ignored_dirs` out is not the same as giving an empty list: without the
+field the shelf skips the defaults, and with `"ignored_dirs": []` it skips
+nothing but hidden directories, which are a rule rather than a name and are
+never listed here.
 
 PlainShelf only ever reads this file. Nothing rewrites it, so your formatting and
 key order survive, and the settings are read when the shelf is opened: edit the
@@ -160,9 +168,10 @@ change to take effect.
 An entry that cannot name a directory is skipped rather than fatal — one
 containing a `/`, or one that is not a name at all — and the rest of the file
 still applies. A file that cannot be read as a single JSON object at all, or one
-larger than 1 MiB, leaves the built-in rules in place; so does a key this build
-does not know. The server log says what was dropped and why. The list can only
-add: the built-in names stay ignored whatever the file says.
+larger than 1 MiB, leaves the defaults in place; so does a key this build does
+not know. The server log says what was dropped and why, and warns when your list
+leaves out a default such as `@eaDir`, because that is how a library grows a
+duplicate folder tree.
 
 ### Per-device reading data
 

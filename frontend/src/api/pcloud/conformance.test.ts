@@ -15,6 +15,7 @@ import {
   collectBookPackages,
   collectFolders,
   createIgnoreRules,
+  DEFAULT_IGNORED_DIRS,
   findBooksFolder,
   findCoverFile,
   findCurrentSource,
@@ -151,9 +152,8 @@ function readCase(shelfDir: string): ExpectedReading {
   // The shelf's own settings decide which directories are skipped, so they are
   // read before the walk, exactly as the provider does.
   const configRef = findShelfConfigFile(root);
-  const ignore = createIgnoreRules(
-    configRef ? parseShelfConfig(readListedJson(contents, configRef)).extraIgnoredDirs : []
-  );
+  const config = configRef ? parseShelfConfig(readListedJson(contents, configRef)) : {};
+  const ignore = createIgnoreRules(config.ignoredDirs ?? DEFAULT_IGNORED_DIRS);
 
   const books: ExpectedBook[] = [];
   for (const pkg of collectBookPackages(booksFolder, ignore)) {

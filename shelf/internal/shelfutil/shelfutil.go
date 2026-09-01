@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math/rand"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -58,91 +59,107 @@ func FileETag(root fsutil.ReadFS, filePath string) string {
 	return fmt.Sprintf(`W/"%d-%d"`, info.ModTime().UnixNano(), info.Size())
 }
 
-// ignoredDirNames are directory names that filesystems, NAS firmware and sync
-// clients create inside a shelf. They are never layers the user made, so both
-// scanners skip them: on Synology every directory carries its own "@eaDir",
-// which would otherwise double the layer tree and travel into the exported book
-// cache. Keys are lower case; IsIgnoredDir folds the name before looking it up,
-// because a share exported over SMB may spell "$RECYCLE.BIN" either way.
-var ignoredDirNames = map[string]bool{
-	"@eadir":       true, // Synology index and thumbnail sidecar
-	"#recycle":     true, // Synology network recycle bin
-	"$recycle.bin": true, // Windows recycle bin, visible over SMB
-	"lost+found":   true, // ext filesystem recovery directory
-}
+// DirIgnoreReasonHidden is the reason a hidden directory carries. The
+// leading-dot rule is not a name, so it is not part of any list: a directory
+// whose name starts with a dot is never a folder, on every shelf, and that is
+// the one part of the rules configuration does not reach.
+const DirIgnoreReasonHidden = "hidden directories are never folders"
 
-// IsIgnoredDir reports whether a directory name under books/ must be skipped by
-// the shelf scanners. The leading-dot rule covers the open-ended set of hidden
-// helper directories (.git, .stfolder, .dropbox.cache, .Spotlight-V100,
-// .fseventsd, .TemporaryItems) in one condition; ignoredDirNames lists the known
-// system directories that carry no leading dot.
+// IgnoredDir is one directory name the shelf scanners skip, and why.
 //
-// This is the built-in floor, and it is what the path-segment validators below
-// enforce. A shelf may widen it for its own scanners through IgnoreRules; it can
-// never narrow it, because the names here are the ones that would otherwise
-// double the folder tree or resurrect deleted books.
-func IsIgnoredDir(name string) bool {
-	if strings.HasPrefix(name, ".") {
-		return true
-	}
-	return ignoredDirNames[strings.ToLower(name)]
+// The reason is carried rather than left in a comment because it is what the
+// user is told: the log line when a shelf loads its rules, and the message
+// refusing to create a folder that would vanish from the next listing. A shelf
+// may name its own directories in shelf.json, and only it knows why one of
+// those is there.
+type IgnoredDir struct {
+	// Name is the directory name as it was written. Matching folds case,
+	// because a share exported over SMB may spell "$RECYCLE.BIN" either way.
+	Name string
+
+	// Reason is a short phrase completing "skipped because ...". It may be
+	// empty for a name a user listed without explaining.
+	Reason string
 }
 
-// IgnoreRules is one shelf's view of which directory names its scanners skip:
-// the built-in list above plus whatever that shelf's own configuration adds. The
-// zero value is the built-in list alone, so a shelf with no configuration - and
-// every caller that has no shelf at hand - behaves exactly as before.
+// DefaultIgnoredDirs are the directory names filesystems, NAS firmware and sync
+// clients create inside a shelf. They are never folders the user made, so a
+// shelf that says nothing skips exactly these: on Synology every directory
+// carries its own "@eaDir", which would otherwise double the folder tree and
+// travel into the exported book cache.
+//
+// They are defaults, not a floor. A shelf.json that lists its own directories
+// replaces this list, which is what lets a shelf on storage this list has never
+// heard of describe itself - and equally what lets one drop a name it needs.
+// See the load path in shelf/shelf_config.go, which says so in the log.
+func DefaultIgnoredDirs() []IgnoredDir {
+	return []IgnoredDir{
+		{Name: "@eaDir", Reason: "Synology index and thumbnail sidecar"},
+		{Name: "#recycle", Reason: "Synology network recycle bin"},
+		{Name: "$RECYCLE.BIN", Reason: "Windows recycle bin, visible over SMB"},
+		{Name: "lost+found", Reason: "ext filesystem recovery directory"},
+	}
+}
+
+// IgnoreRules is which directory names one shelf's scanners skip. The zero
+// value carries no names, so it skips hidden directories and nothing else; use
+// NewIgnoreRules(DefaultIgnoredDirs()) for a shelf that has said nothing.
 type IgnoreRules struct {
-	// extra holds the configured names, folded to lower case like
-	// ignoredDirNames. It is never written after NewIgnoreRules returns, so an
-	// IgnoreRules can be copied and read from several goroutines.
-	extra map[string]bool
+	// byName is keyed by the folded name. It is never written after
+	// NewIgnoreRules returns, so an IgnoreRules can be copied and read from
+	// several goroutines.
+	byName map[string]IgnoredDir
 }
 
-// NewIgnoreRules builds the rules for a shelf that ignores extra names on top of
-// the built-in list. Names are folded to lower case, and empty ones are dropped;
-// validating them as path segments is the caller's job, because only the caller
+// NewIgnoreRules builds the rules for a shelf that skips these directories.
+// Names are matched without regard to case, and an entry with an empty name is
+// dropped; validating the rest is the caller's job, because only the caller
 // knows where to report a bad entry.
-func NewIgnoreRules(extra []string) IgnoreRules {
-	if len(extra) == 0 {
-		return IgnoreRules{}
-	}
-
-	names := make(map[string]bool, len(extra))
-	for _, name := range extra {
-		if name == "" {
+func NewIgnoreRules(dirs []IgnoredDir) IgnoreRules {
+	byName := make(map[string]IgnoredDir, len(dirs))
+	for _, dir := range dirs {
+		if dir.Name == "" {
 			continue
 		}
-		names[strings.ToLower(name)] = true
+		byName[strings.ToLower(dir.Name)] = dir
 	}
-	if len(names) == 0 {
+	if len(byName) == 0 {
 		return IgnoreRules{}
 	}
-	return IgnoreRules{extra: names}
+	return IgnoreRules{byName: byName}
 }
 
-// IsIgnoredDir reports whether a directory name must be skipped on this shelf.
-func (r IgnoreRules) IsIgnoredDir(name string) bool {
-	if IsIgnoredDir(name) {
-		return true
+// MatchIgnoredDir reports whether a directory name is skipped, and why. The
+// reason is what a caller shows the user; an empty reason means the name is
+// skipped and nobody said why.
+func (r IgnoreRules) MatchIgnoredDir(name string) (reason string, ignored bool) {
+	if strings.HasPrefix(name, ".") {
+		return DirIgnoreReasonHidden, true
 	}
-	return r.extra[strings.ToLower(name)]
+	dir, ok := r.byName[strings.ToLower(name)]
+	if !ok {
+		return "", false
+	}
+	return dir.Reason, true
 }
 
-// IsExtraIgnoredDir reports whether the name is skipped only because this
-// shelf's configuration says so. Error messages use it to tell a user who named
-// a folder after a system directory apart from one who ignored the name
-// themselves: the first is a rule they cannot change, the second is their own
-// shelf.json.
-func (r IgnoreRules) IsExtraIgnoredDir(name string) bool {
-	return !IsIgnoredDir(name) && r.extra[strings.ToLower(name)]
+// IsIgnoredDir reports whether a directory name is skipped, for the scanners,
+// which have no use for the reason.
+func (r IgnoreRules) IsIgnoredDir(name string) bool {
+	_, ignored := r.MatchIgnoredDir(name)
+	return ignored
 }
 
-// ErrIgnoredPathSegment marks the IsIgnoredDir rejection inside
-// ValidatePathSegment. The segment validator serves layers, source IDs, book
-// IDs and asset names, so it stays sentinel-neutral and each caller wraps the
-// result in the sentinel of its own domain.
-var ErrIgnoredPathSegment = util.NewError("path segment cannot be a hidden or system directory name (leading dot, @eaDir, #recycle, $RECYCLE.BIN, lost+found)")
+// Names returns the configured names as written, sorted, for logging. Hidden
+// directories are not among them: they are a rule, not a list.
+func (r IgnoreRules) Names() []string {
+	names := make([]string, 0, len(r.byName))
+	for _, dir := range r.byName {
+		names = append(names, dir.Name)
+	}
+	slices.Sort(names)
+	return names
+}
 
 var bcp47Regex = regexp.MustCompile(`^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$`)
 
@@ -176,20 +193,35 @@ func ValidateSourceID(sourceID string) error {
 	return nil
 }
 
-// ValidatePathSegment reports whether segment is a single, safe path component:
-// non-empty, not "." or "..", not a scanner-ignored directory name, free of
-// path separators, valid UTF-8, and within the per-component length limit.
+// ValidatePathSegment reports whether segment is a single, safe path component
+// for something the shelf writes - a source ID, a book ID, an asset name:
+// structurally usable and not hidden.
 func ValidatePathSegment(segment string) error {
+	if err := ValidateFolderSegment(segment); err != nil {
+		return err
+	}
+	if strings.HasPrefix(segment, ".") {
+		// A hidden name would keep what the shelf wrote out of the user's own
+		// file manager, and out of any tool that walks the shelf.
+		return util.NewError("path segment cannot start with a dot")
+	}
+	return nil
+}
+
+// ValidateFolderSegment reports whether segment is structurally a single, safe
+// path component: non-empty, not "." or "..", free of path separators, valid
+// UTF-8, and within the per-component length limit.
+//
+// It stops short of the hidden-name rule above, which is why folders use it: a
+// hidden directory is not a folder either, but that is a scanner rule, and
+// whoever holds the shelf's IgnoreRules can say so with the reason attached
+// rather than reporting a malformed segment.
+func ValidateFolderSegment(segment string) error {
 	if segment == "" {
 		return util.NewError("path segment cannot be empty")
 	}
 	if segment == "." || segment == ".." {
 		return util.NewError("path segment cannot be . or ..")
-	}
-	if IsIgnoredDir(segment) {
-		// Creating one would succeed on disk and then vanish: the scanners skip
-		// exactly these names, so the layer would never be listed again.
-		return ErrIgnoredPathSegment
 	}
 	if strings.ContainsAny(segment, `/\`) {
 		return util.NewError("path segment cannot contain path separators")

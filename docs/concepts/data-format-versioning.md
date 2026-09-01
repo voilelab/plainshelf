@@ -691,8 +691,8 @@ more than it saves.
 
 A shelf may carry a [`shelf.json`](data-model.md#shelfjson) at its root, and it
 is worth being explicit that this does not reverse the decision above. It holds
-settings the user wrote — currently which extra directories the scanners
-skip — and nothing else reads it as a statement about the shelf's shape:
+settings the user wrote — currently which directories the scanners skip — and
+nothing else reads it as a statement about the shelf's shape:
 
 - It is optional, and a shelf without one is not an older shelf. Absent means
   "the defaults", not "an earlier layout".

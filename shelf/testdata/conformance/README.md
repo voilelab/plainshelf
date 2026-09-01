@@ -59,7 +59,9 @@ observations both can make, in the shape both can produce:
 
 A case's `shelf.json`, when it has one, is part of the input rather than a field
 of the reading: both harnesses read it before walking (`loadIgnoreRules`,
-`parseShelfConfig`), so its effect shows up in `folders` and `books`.
+`parseShelfConfig`), so its effect shows up in `folders` and `books`. A case
+whose `shelf.json` names its own directories no longer skips the defaults, so
+such a case is where a name like `lost+found` legitimately appears as a folder.
 
 Conventions that keep the two comparable:
 
