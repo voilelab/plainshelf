@@ -623,6 +623,16 @@ const zhHant = {
       comment: '書籍備註',
       importNotes: '匯入備註'
     },
+    importNote: {
+      remove: '刪除',
+      removeLabel: '刪除匯入備註',
+      removeFailed: '無法刪除匯入備註。',
+      confirm: {
+        title: '刪除匯入備註？',
+        message: '這則備註記錄了這份文字是怎麼匯入或轉換來的。刪除後無法復原，但不會動到文字本身。',
+        confirm: '刪除備註'
+      }
+    },
     progress: {
       sectionLabel: '閱讀進度與操作',
       eyebrow: '閱讀進度',

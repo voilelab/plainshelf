@@ -54,8 +54,20 @@
       <section v-if="noteRows.length > 0" class="detail-card detail-card-notes">
         <h3>{{ t('bookDetail.sections.notes') }}</h3>
         <dl class="detail-definition-list">
-          <div v-for="row in noteRows" :key="row.label" class="detail-definition-row note-row">
-            <dt>{{ row.label }}</dt>
+          <div v-for="row in noteRows" :key="row.kind" class="detail-definition-row note-row">
+            <dt class="note-label">
+              <span>{{ row.label }}</span>
+              <button
+                v-if="row.kind === 'importNote' && !readOnly"
+                class="note-remove"
+                type="button"
+                :aria-label="t('bookDetail.importNote.removeLabel')"
+                :disabled="removingImportNote"
+                @click="emit('removeImportNote')"
+              >
+                {{ t('bookDetail.importNote.remove') }}
+              </button>
+            </dt>
             <dd v-if="row.render === 'html'">
               <SafeHtml class="description-body" :html="row.html" profile="summary" />
             </dd>
@@ -109,12 +121,21 @@ const props = withDefaults(
     progress?: ReadingProgress | null;
     currentSource?: SourceMeta | null;
     chapters?: MarkdownChapterListItem[];
+    readOnly?: boolean;
+    removingImportNote?: boolean;
   }>(),
-  { progress: null, currentSource: null, chapters: () => [] }
+  {
+    progress: null,
+    currentSource: null,
+    chapters: () => [],
+    readOnly: false,
+    removingImportNote: false
+  }
 );
 
 const emit = defineEmits<{
   selectChapter: [index: number];
+  removeImportNote: [];
 }>();
 
 const { t } = useI18n();
@@ -144,8 +165,8 @@ interface DetailRow {
  * what the conversion could not keep, and stays the literal text it is.
  */
 type NoteRow =
-  | { label: string; render: 'text'; value: string }
-  | { label: string; render: 'html'; html: string };
+  | { kind: 'importNote'; label: string; render: 'text'; value: string }
+  | { kind: 'description'; label: string; render: 'html'; html: string };
 
 function formatList(values: string[]): string {
   return values.join(', ');
@@ -208,13 +229,19 @@ const noteRows = computed<NoteRow[]>(() => {
   // an empty block, which is a labelled row with nothing under it.
   if (description.text) {
     rows.push({
+      kind: 'description',
       label: t('bookDetail.fields.comment'),
       render: 'html',
       html: description.html
     });
   }
   if (importNotes) {
-    rows.push({ label: t('bookDetail.fields.importNotes'), render: 'text', value: importNotes });
+    rows.push({
+      kind: 'importNote',
+      label: t('bookDetail.fields.importNotes'),
+      render: 'text',
+      value: importNotes
+    });
   }
   return rows;
 });
@@ -458,6 +485,37 @@ const hasDetailSections = computed(() =>
 
 .note-row dd {
   white-space: pre-wrap;
+}
+
+/* The note is machine-written provenance, so removal is its only control. It
+   sits on the label, leaving the value as the note's own text. */
+.note-label {
+  align-items: baseline;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.note-remove {
+  background: none;
+  border: 0;
+  color: #556273;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.note-remove:hover:not(:disabled),
+.note-remove:focus-visible {
+  color: #283544;
+}
+
+.note-remove:disabled {
+  cursor: progress;
+  opacity: 0.6;
 }
 
 .detail-empty {

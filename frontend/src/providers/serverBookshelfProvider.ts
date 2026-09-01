@@ -27,6 +27,7 @@ import {
 import {
   createSource,
   deleteSource,
+  deleteSourceComment,
   getSource,
   getSourceAsset,
   getSourceAssetsBundle,
@@ -248,6 +249,10 @@ export class ServerBookshelfProvider implements BookshelfReader, BookshelfWriter
 
   deleteSource(bookId: string, sourceId: string): Promise<void> {
     return deleteSource(bookId, sourceId);
+  }
+
+  deleteSourceComment(bookId: string, sourceId: string): Promise<void> {
+    return deleteSourceComment(bookId, sourceId);
   }
 
   setCurrentSource(bookId: string, sourceId: string): Promise<void> {

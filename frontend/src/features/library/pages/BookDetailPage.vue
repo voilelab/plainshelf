@@ -55,6 +55,19 @@
         @saved="onMetadataSaved"
       />
       <ConfirmModal
+        v-if="!readOnly"
+        :open="importNoteConfirmOpen"
+        variant="danger"
+        :title="t('bookDetail.importNote.confirm.title')"
+        :confirm-text="t('bookDetail.importNote.confirm.confirm')"
+        :busy="removingImportNote"
+        @cancel="cancelRemoveImportNote"
+        @confirm="confirmRemoveImportNote"
+      >
+        <p>{{ t('bookDetail.importNote.confirm.message') }}</p>
+        <p v-if="importNoteError" class="import-note-error" role="alert">{{ importNoteError }}</p>
+      </ConfirmModal>
+      <ConfirmModal
         :open="showMetadataLeaveConfirmation"
         :title="t('libraryForms.editBook.discard.title')"
         :message="t('libraryForms.editBook.discard.message')"
@@ -106,7 +119,10 @@
           :progress="progress"
           :current-source="currentSource"
           :chapters="chapters"
+          :read-only="readOnly"
+          :removing-import-note="removingImportNote"
           @select-chapter="goRead(id, $event)"
+          @remove-import-note="requestRemoveImportNote"
         >
           <template #reading>
             <section class="reading-card" :aria-label="t('bookDetail.progress.sectionLabel')">
@@ -280,6 +296,41 @@ const {
   error,
   fetchDetail
 } = useBookDetail(() => id.value);
+
+const importNoteConfirmOpen = ref(false);
+const removingImportNote = ref(false);
+const importNoteError = ref('');
+
+function requestRemoveImportNote(): void {
+  importNoteError.value = '';
+  importNoteConfirmOpen.value = true;
+}
+
+function cancelRemoveImportNote(): void {
+  if (removingImportNote.value) return;
+  importNoteConfirmOpen.value = false;
+}
+
+// Removal is the only edit the note allows, so there is nothing to save back:
+// the source is re-read afterwards and the row simply stops being rendered.
+async function confirmRemoveImportNote(): Promise<void> {
+  const sourceID = currentSource.value?.id;
+  if (!sourceID || removingImportNote.value) return;
+
+  removingImportNote.value = true;
+  importNoteError.value = '';
+  try {
+    await bookshelfWriter().deleteSourceComment(id.value, sourceID);
+    await fetchDetail();
+    importNoteConfirmOpen.value = false;
+  } catch (err) {
+    importNoteError.value = err instanceof Error && err.message.trim().length > 0
+      ? err.message
+      : t('bookDetail.importNote.removeFailed');
+  } finally {
+    removingImportNote.value = false;
+  }
+}
 
 const {
   downloading,
@@ -600,6 +651,12 @@ if (!readOnly.value) {
 
 .detail-notice {
   margin-bottom: 18px;
+}
+
+.import-note-error {
+  color: #991b1b;
+  font-size: 13px;
+  margin: 8px 0 0;
 }
 
 .download-required-notice {

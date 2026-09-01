@@ -112,6 +112,7 @@ func (h *apiHandlers) serve(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}", h.sources.getSource)
 	mux.HandleFunc("POST /api/shelves/{shelf_id}/books/{book_id}/sources", h.sources.createSource)
 	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}", h.sources.deleteSource)
+	mux.HandleFunc("DELETE /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/comment", h.sources.deleteSourceComment)
 	mux.HandleFunc("PUT /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/current", h.sources.setCurrentSource)
 	mux.HandleFunc("GET /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", h.sources.getSourceContent)
 	mux.HandleFunc("PATCH /api/shelves/{shelf_id}/books/{book_id}/sources/{source_id}/content", h.sources.updateSourceContent)
