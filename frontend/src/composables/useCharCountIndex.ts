@@ -1,10 +1,8 @@
 import { getCurrentInstance, onUnmounted, ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
 import { ApiError } from '@/api/client';
+import { createShelfInitRetry, isShelfInitializing } from './shelfInitRetry';
 import { t } from '@/i18n';
-
-const SHELF_INIT_RETRY_DELAY_MS = 3000;
-const SHELF_INIT_MAX_AUTO_RETRIES = 10; // ~30s of auto-retry before giving up
 
 // A lazily loaded book ID -> char_count map for the pages that filter on it.
 //
@@ -22,23 +20,15 @@ export function useCharCountIndex() {
   const loading = ref(false);
   const error = ref('');
 
-  let retryTimer: ReturnType<typeof setTimeout> | null = null;
-  let initRetryCount = 0;
+  const initRetry = createShelfInitRetry();
   // Bumped by every load()/invalidate() so a response from a superseded
   // request cannot overwrite fresher counts.
   let generation = 0;
 
-  function clearRetry(): void {
-    if (retryTimer !== null) {
-      clearTimeout(retryTimer);
-      retryTimer = null;
-    }
-  }
-
   /** Drops the cached counts and cancels any in-flight load. */
   function invalidate(): void {
     generation++;
-    clearRetry();
+    initRetry.cancel();
     counts.value = new Map();
     ready.value = false;
     loading.value = false;
@@ -56,9 +46,10 @@ export function useCharCountIndex() {
   }
 
   async function run(token: number, isAutoRetry: boolean): Promise<void> {
-    clearRetry();
-    if (!isAutoRetry) {
-      initRetryCount = 0;
+    if (isAutoRetry) {
+      initRetry.cancel();
+    } else {
+      initRetry.reset();
     }
     loading.value = true;
     error.value = '';
@@ -71,18 +62,15 @@ export function useCharCountIndex() {
       }
       counts.value = new Map(data.items.map((book) => [book.id, book.char_count]));
       ready.value = true;
-      initRetryCount = 0;
+      initRetry.reset();
     } catch (err) {
       if (token !== generation) {
         return;
       }
-      // A shelf that is still initializing answers 503 for a while; retry
-      // rather than stranding the filter on an error the shelf resolves on
-      // its own.
-      if (err instanceof ApiError && err.status === 503) {
-        initRetryCount++;
-        if (initRetryCount < SHELF_INIT_MAX_AUTO_RETRIES) {
-          retryTimer = setTimeout(() => void run(token, true), SHELF_INIT_RETRY_DELAY_MS);
+      // Wait out the initial scan rather than stranding the filter on an error
+      // the shelf resolves on its own. See `shelfInitRetry`.
+      if (isShelfInitializing(err)) {
+        if (initRetry.schedule(() => void run(token, true))) {
           return;
         }
         error.value = t('library.shelfNotReady');
@@ -92,7 +80,7 @@ export function useCharCountIndex() {
           : err instanceof Error ? err.message : t('library.loadFailed');
       }
     } finally {
-      if (token === generation && retryTimer === null) {
+      if (token === generation && !initRetry.pending) {
         loading.value = false;
       }
     }
@@ -108,7 +96,7 @@ export function useCharCountIndex() {
 
   // These refs are page-scoped, so a pending retry must not outlive the page.
   if (getCurrentInstance()) {
-    onUnmounted(clearRetry);
+    onUnmounted(initRetry.cancel);
   }
 
   return {
