@@ -27,7 +27,10 @@ async function fetchBooks(_isAutoRetry = false): Promise<void> {
   try {
     const data = await getBookshelfProvider().listBooks(1, Number.MAX_SAFE_INTEGER);
     books.value = data.items;
+    // Also clears a retry an overlapping load armed: the shelf answered, so
+    // that retry has nothing left to wait for.
     initRetry.reset();
+    shelfInitializing.value = false;
     shelfUnreachable.value = false;
   } catch (err) {
     if (isShelfInitializing(err)) {
@@ -44,7 +47,11 @@ async function fetchBooks(_isAutoRetry = false): Promise<void> {
       : err instanceof Error ? err.message : t('library.loadFailed');
     error.value = msg;
   } finally {
-    if (!shelfInitializing.value) {
+    // A pending retry keeps the page in its loading state rather than flashing
+    // an error between attempts. Keyed on the retry itself, not on the
+    // initializing flag, which an overlapping load can leave set with no retry
+    // behind it.
+    if (!initRetry.pending) {
       loading.value = false;
     }
   }

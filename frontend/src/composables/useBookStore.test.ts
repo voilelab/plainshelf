@@ -72,6 +72,26 @@ describe('useBookStore', () => {
     expect(error.value).toBe('');
   });
 
+  it('does not strand the page in loading when a concurrent load succeeds', async () => {
+    // Several mutation and page flows call this module-level store on their
+    // own, so two loads can overlap. The first sees the 503 and arms a retry;
+    // the second then succeeds, which must both cancel that now-pointless
+    // retry and leave the page reporting loaded rather than initializing.
+    const { books, loading, error, shelfInitializing, fetchBooks, initializing } =
+      await freshStore();
+    listBooks.mockRejectedValueOnce(initializing()).mockResolvedValueOnce({ items: [{ id: 'a' }] });
+
+    await Promise.all([fetchBooks(), fetchBooks()]);
+
+    expect(books.value).toEqual([{ id: 'a' }]);
+    expect(shelfInitializing.value).toBe(false);
+    expect(loading.value).toBe(false);
+    expect(error.value).toBe('');
+
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(listBooks).toHaveBeenCalledTimes(2);
+  });
+
   it('reports any other failure without retrying', async () => {
     const { loading, error, shelfUnreachable, fetchBooks } = await freshStore();
     listBooks.mockRejectedValue(new Error('boom'));
