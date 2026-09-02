@@ -5,7 +5,7 @@ import { useBookStore } from '@/composables/useBookStore';
 import { useFolderStore } from '@/composables/useFolderStore';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
 import { useWriteAccess } from '@/composables/useWriteAccess';
-import { bookshelfWriter, getBookshelfProvider, isWritableProvider } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import type { BookTransferMode } from '@/api/books';
 import {
   booksRouteForFolderPath,
@@ -78,7 +78,7 @@ export function useFolderManagement() {
   const { t } = useI18n();
   const { books, fetchBooks } = useBookStore();
   const { folders, fetchFolders } = useFolderStore();
-  const { writesEnabled } = useWriteAccess();
+  const { writesEnabled, writeDisabledMessageKey, outgoingCopyEnabled } = useWriteAccess();
   const readOnly = computed(() => !writesEnabled.value);
   const batchOperations = useBookBatchOperations();
 
@@ -163,7 +163,7 @@ export function useFolderManagement() {
 
   async function onSubmitCreateFolder(payload: { name: string }): Promise<void> {
     if (readOnly.value) {
-      createFolderError.value = t('layout.readOnly.writeDisabled');
+      createFolderError.value = t(writeDisabledMessageKey.value);
       return;
     }
 
@@ -205,7 +205,7 @@ export function useFolderManagement() {
 
   async function onMoveBook(payload: { bookIds: string[]; targetFolder: string; batch: boolean }): Promise<void> {
     if (readOnly.value) {
-      moveBookError.value = t('layout.readOnly.writeDisabled');
+      moveBookError.value = t(writeDisabledMessageKey.value);
       return;
     }
     moveBookError.value = '';
@@ -242,7 +242,7 @@ export function useFolderManagement() {
 
   function requestRenameFolder(path: string): void {
     if (readOnly.value) {
-      folderOperationError.value = t('layout.readOnly.writeDisabled');
+      folderOperationError.value = t(writeDisabledMessageKey.value);
       return;
     }
 
@@ -299,7 +299,7 @@ export function useFolderManagement() {
 
   async function onMoveFolder(payload: { folderPath: string; targetFolder: string }): Promise<void> {
     if (readOnly.value) {
-      folderOperationError.value = t('layout.readOnly.writeDisabled');
+      folderOperationError.value = t(writeDisabledMessageKey.value);
       return;
     }
     folderOperationError.value = '';
@@ -342,9 +342,11 @@ export function useFolderManagement() {
   const transferFolderMode = ref<BookTransferMode>('copy');
 
   // The entry is offered only where a folder can actually be transferred: a
-  // writable multi-shelf backend (server/desktop) that is not read-only. A
-  // reader provider (mobile/pCloud) is not writable, so it never shows.
-  const canTransferFolder = computed(() => !readOnly.value && isWritableProvider(getBookshelfProvider()));
+  // writable multi-shelf backend (server/desktop) on a server that accepts
+  // writes. A reader provider (mobile/pCloud) is not writable, so it never
+  // shows. A read-only *shelf* keeps it: copying a folder out only reads this
+  // shelf, and the modal drops the move mode that would delete the original.
+  const canTransferFolder = outgoingCopyEnabled;
 
   const {
     chain: transferFolderChain,
@@ -454,7 +456,7 @@ export function useFolderManagement() {
 
   function requestDeleteFolder(path: string): void {
     if (readOnly.value) {
-      deleteFolderError.value = t('layout.readOnly.writeDisabled');
+      deleteFolderError.value = t(writeDisabledMessageKey.value);
       return;
     }
     if (deletingFolderMap.value[path]) {

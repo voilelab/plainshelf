@@ -51,6 +51,15 @@ updates:
         update-types:
           - version-update:semver-major
 
+      # `@types/node` majors track Node.js majors, and docs/development/setup.md
+      # caps the frontend at Node.js 23: from 26 the runtime's own experimental
+      # `localStorage` global breaks the Vitest suite. Typing the tooling against
+      # a Node.js the project cannot run on hides missing-API errors, so majors
+      # stay ignored until that supported range moves.
+      - dependency-name: "@types/node"
+        update-types:
+          - version-update:semver-major
+
   # Playwright only, and it never reaches the shipped bundle, so it moves on its
   # own slower clock than the frontend lockfile above.
   - package-ecosystem: npm

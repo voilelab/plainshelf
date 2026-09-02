@@ -6,6 +6,7 @@
     help-default-key="settings.shelves.bookCheckIntervalHelpDefault"
     help-every-key="settings.shelves.bookCheckIntervalHelpEvery"
     help-always-key="settings.shelves.bookCheckIntervalHelpAlways"
+    amount-label-key="settings.shelves.bookCheckIntervalAmountLabel"
     testid-prefix="book-check-interval"
     @update:model-value="emit('update:modelValue', $event)"
   />

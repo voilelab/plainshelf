@@ -16,19 +16,24 @@
         <option value="always">{{ t('settings.shelves.scanIntervalModeAlways') }}</option>
       </select>
       <template v-if="mode === 'interval'">
-        <input
-          v-model="amountText"
-          class="setting-number scan-interval-amount"
-          type="number"
-          min="1"
+        <NumberFieldRoot
+          class="number-field scan-interval-amount"
+          :min="1"
           :max="maxAmount"
-          step="1"
-          inputmode="numeric"
+          :step="1"
+          :format-options="INTEGER_FORMAT_OPTIONS"
+          :model-value="draft"
           :disabled="disabled"
-          :aria-label="t('settings.shelves.scanIntervalAmountLabel')"
-          :data-testid="`${testidPrefix}-amount`"
-          @blur="amountText = String(amount)"
-        />
+          @update:model-value="onAmountUpdate"
+        >
+          <NumberFieldDecrement class="number-field-step" :aria-label="decreaseLabel">−</NumberFieldDecrement>
+          <NumberFieldInput
+            class="number-field-input"
+            :aria-label="amountLabel"
+            :data-testid="`${testidPrefix}-amount`"
+          />
+          <NumberFieldIncrement class="number-field-step" :aria-label="increaseLabel">+</NumberFieldIncrement>
+        </NumberFieldRoot>
         <select
           v-model="unit"
           class="setting-select"
@@ -50,8 +55,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useId, watch } from 'vue';
+import {
+  NumberFieldDecrement,
+  NumberFieldIncrement,
+  NumberFieldInput,
+  NumberFieldRoot
+} from 'reka-ui';
+import { computed, nextTick, ref, useId, watch } from 'vue';
 import { useI18n } from '@/i18n';
+import { INTEGER_FORMAT_OPTIONS } from '@/utils/numberField';
 import {
   maxScanIntervalAmount,
   scanIntervalFromSelection,
@@ -59,6 +71,7 @@ import {
   type ScanIntervalMode,
   type ScanIntervalUnit
 } from '@/features/settings/utils/scanInterval';
+import '@/styles/numeric-controls.css';
 
 // The scan-interval and book-check-interval fields are the same control — a
 // mode/amount/unit selection over a Go duration string, defaulting off (empty)
@@ -73,6 +86,7 @@ const props = withDefaults(
     helpDefaultKey?: string;
     helpEveryKey?: string;
     helpAlwaysKey?: string;
+    amountLabelKey?: string;
     testidPrefix?: string;
   }>(),
   {
@@ -81,6 +95,7 @@ const props = withDefaults(
     helpDefaultKey: 'settings.shelves.scanIntervalHelpDefault',
     helpEveryKey: 'settings.shelves.scanIntervalHelpEvery',
     helpAlwaysKey: 'settings.shelves.scanIntervalHelpAlways',
+    amountLabelKey: 'settings.shelves.scanIntervalAmountLabel',
     testidPrefix: 'scan-interval'
   }
 );
@@ -89,23 +104,62 @@ const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
 const { t } = useI18n();
 const modeId = `scan-interval-mode-${useId()}`;
 
+// The box and its two steppers name whichever interval this instance edits, so
+// the per-book field does not announce itself as the shelf-wide scan setting.
+const amountLabel = computed(() => t(props.amountLabelKey));
+const decreaseLabel = computed(() => t('common.decrease', { label: amountLabel.value }));
+const increaseLabel = computed(() => t('common.increase', { label: amountLabel.value }));
+
 const mode = ref<ScanIntervalMode>('default');
 const unit = ref<ScanIntervalUnit>('m');
-// Held as text so the box may be empty mid-typing; `amount` is what the value
-// is actually built from, so no keystroke can produce an invalid duration.
-const amountText = ref('1');
+// The committed amount, always whole and in range, so nothing the box is in the
+// middle of can produce an invalid duration.
+const amount = ref(1);
+// What the box shows: the committed amount, except for the one tick that
+// redraws it after the user empties it.
+const draft = ref<number | null>(1);
 const adjustedFrom = ref('');
 
 // The largest amount that still fits Go's time.Duration in the chosen unit;
 // above it time.ParseDuration fails and the raw error would be back.
 const maxAmount = computed(() => maxScanIntervalAmount(unit.value));
 
-const amount = computed(() => {
-  const parsed = Number.parseInt(amountText.value, 10);
-  if (!Number.isFinite(parsed) || parsed < 1) {
+function clampAmount(value: number): number {
+  if (!Number.isFinite(value)) {
     return 1;
   }
-  return Math.min(parsed, maxAmount.value);
+  return Math.min(Math.max(1, Math.floor(value)), maxAmount.value);
+}
+
+function setAmount(value: number): void {
+  amount.value = value;
+  draft.value = value;
+}
+
+// reka commits on blur, Enter and the steppers rather than on every keystroke,
+// and reports `undefined` for an emptied box. There is nothing to build a
+// duration from then, so the committed amount stands and the box is redrawn
+// with it. The null tick is what makes that visible: reka refreshes the input
+// only when the formatted value changes, and it is already blank.
+async function onAmountUpdate(next: number | undefined): Promise<void> {
+  if (next === undefined) {
+    draft.value = null;
+    await nextTick();
+    draft.value = amount.value;
+    return;
+  }
+  setAmount(clampAmount(next));
+}
+
+// `maxScanIntervalAmount` falls as the unit grows, so an amount that fits in
+// seconds can be past what hours can hold. reka clamps against `:max` only when
+// it applies a value of its own, so the new ceiling has to be carried here;
+// otherwise the box keeps showing a number the field would never save.
+watch(unit, () => {
+  const capped = clampAmount(amount.value);
+  if (capped !== amount.value) {
+    setAmount(capped);
+  }
 });
 
 const helpText = computed(() => {
@@ -134,7 +188,7 @@ function load(stored: string): void {
   const selection = scanIntervalToSelection(stored);
   mode.value = selection.mode;
   unit.value = selection.unit;
-  amountText.value = String(selection.amount);
+  setAmount(selection.amount);
   adjustedFrom.value = selection.adjustedFrom;
 
   // The controls carry a single unit, so a stored `60s` or `1h30m` shows as one
@@ -199,9 +253,17 @@ watch(duration, (value) => {
   gap: 6px;
 }
 
+/* Reka's NumberField brings its own box (numeric-controls.css); this matches it
+   to the two selects beside it and keeps the three on one row inside the shelf
+   modal, which the settings page's wider 160px number field would not do. */
 .scan-interval-amount {
-  max-width: 90px;
-  padding: 7px 10px;
+  --number-field-height: 35px;
+  --number-field-padding: 8px;
+  --number-field-step-width: 24px;
+
+  flex: none;
+  font-size: 13px;
+  width: 120px;
 }
 
 .scan-interval-help {

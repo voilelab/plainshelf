@@ -11,9 +11,16 @@ type shelfHandlers struct {
 	*apiCore
 }
 
+// ShelfInfo is what a client is told about a shelf before it asks for its
+// contents. read_only is here so the UI can drop the write affordances a
+// read-only shelf has no use for, instead of offering them and answering 409
+// when one is pressed. It reports the shelf as opened, so a server-wide
+// read_only shows up on every shelf (applyAppReadOnly), not only on the ones
+// configured that way.
 type ShelfInfo struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	ReadOnly bool   `json:"read_only"`
 }
 
 // GET /api/shelves
@@ -22,8 +29,9 @@ func (h *shelfHandlers) getShelves(w http.ResponseWriter, _ *http.Request) {
 	shelfInfos := make([]ShelfInfo, 0, len(shelves))
 	for _, shelf := range shelves {
 		shelfInfos = append(shelfInfos, ShelfInfo{
-			ID:   shelf.ID,
-			Name: shelf.Name,
+			ID:       shelf.ID,
+			Name:     shelf.Name,
+			ReadOnly: shelf.ReadOnly(),
 		})
 	}
 	slices.SortFunc(shelfInfos, func(a, b ShelfInfo) int {

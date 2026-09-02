@@ -128,7 +128,7 @@ import {
 } from '@/api/books';
 import type { Book } from '@/types/book';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
-import { useServerMode } from '@/composables/useServerMode';
+import { useWriteAccess } from '@/composables/useWriteAccess';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useI18n } from '@/i18n';
 import SimilarityFilterBar from '@/features/maintenance/components/SimilarityFilterBar.vue';
@@ -147,7 +147,11 @@ const { t } = useI18n();
 
 useDocumentTitle(() => [t('maintenance.similarContent')]);
 
-const { readOnly } = useServerMode();
+// Asked of useWriteAccess rather than useServerMode so a shelf opened
+// read-only withdraws the fingerprint sweeps too: they write into the shelf,
+// and a server-wide read_only is only one of the ways this shelf can refuse.
+const { writesEnabled } = useWriteAccess();
+const readOnly = computed(() => !writesEnabled.value);
 
 const loading = ref(false);
 const error = ref('');

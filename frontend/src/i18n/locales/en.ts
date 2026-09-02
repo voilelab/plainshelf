@@ -134,6 +134,7 @@ const en = {
       modeLabel: 'Action',
       modeCopy: 'Copy',
       modeCopyHint: 'Creates new books on the destination shelf. Reading progress is not carried over.',
+      readOnlySource: 'This shelf is read-only, so the folder can only be copied out of it.',
       modeMove: 'Move',
       modeMoveHint: 'Keeps the same books and their reading progress, and removes the folder from this shelf.',
       confirm: 'Transfer',
@@ -183,7 +184,10 @@ const en = {
     tabNavLabel: 'Primary',
     readOnly: {
       banner: 'Read-only mode is enabled. Browsing and reading are available, but write operations are disabled.',
-      writeDisabled: 'Server is in read-only mode. Write operations are disabled.'
+      shelfBanner:
+        'This shelf is read-only. Browsing, reading and rescanning are available, but write operations are disabled.',
+      writeDisabled: 'Server is in read-only mode. Write operations are disabled.',
+      shelfWriteDisabled: 'This shelf is read-only. Write operations are disabled.'
     }
   },
   dashboard: {
@@ -410,6 +414,7 @@ const en = {
         'The saved interval {value} cannot be shown exactly by these controls and has been replaced by the value above.',
       advancedSettings: 'Advanced settings',
       bookCheckIntervalLabel: 'Per-book check interval',
+      bookCheckIntervalAmountLabel: 'Per-book check interval amount',
       bookCheckIntervalHelpDefault:
         'Follows the scan interval. On a network shelf this is where most list-view I/O comes from, so set it higher than the scan interval if list views feel slow.',
       bookCheckIntervalHelpEvery:
@@ -727,6 +732,7 @@ const en = {
       modeLabel: 'Action',
       modeCopy: 'Copy',
       modeCopyHint: 'Creates a new book on the destination shelf. Reading progress is not carried over.',
+      readOnlySource: 'This shelf is read-only, so the book can only be copied out of it.',
       modeMove: 'Move',
       modeMoveHint: 'Keeps the same book and its reading progress, and removes it from this shelf.',
       confirm: 'Transfer',

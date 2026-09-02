@@ -122,6 +122,8 @@ app_conf:
 
 PlainShelf then creates no folders, writes no lock or cache files under `app/`, and refuses every edit with an error instead of touching the shelf. `lib_root` must already exist. See [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md#opening-a-shelf-read-only) for exactly what is skipped.
 
+While you are browsing a read-only shelf, the app hides the controls that would write to it — importing, editing metadata, sources and covers, creating and moving folders, deleting, and restoring from the trash — and shows a banner saying the shelf is read-only. Browsing, reading, searching and rescanning stay available. Switching to a writable shelf brings those controls back without a reload; the shelves you can write to are unaffected by the ones you cannot.
+
 To do the same for every shelf at once, set `read_only` next to `shelves` instead:
 
 ```yaml
