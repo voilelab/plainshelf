@@ -50,7 +50,7 @@ export interface RecentReadingItem {
  * each book's loaded content, which this list avoids by design; the reader itself
  * still shows the precise percentage.
  */
-export function computeReadingPercent(offset: number, charCount: number | undefined): number | null {
+function computeReadingPercent(offset: number, charCount: number | undefined): number | null {
   if (typeof charCount !== 'number' || !Number.isFinite(charCount) || charCount <= 0) {
     return null;
   }

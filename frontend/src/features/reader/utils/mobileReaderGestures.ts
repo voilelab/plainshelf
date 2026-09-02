@@ -1,23 +1,23 @@
-export const MOBILE_READER_TAP_DISTANCE = 10;
-export const MOBILE_READER_TAP_DURATION_MS = 350;
-export const MOBILE_READER_SWIPE_DISTANCE = 60;
-export const MOBILE_READER_SWIPE_AXIS_RATIO = 1.5;
+const MOBILE_READER_TAP_DISTANCE = 10;
+const MOBILE_READER_TAP_DURATION_MS = 350;
+const MOBILE_READER_SWIPE_DISTANCE = 60;
+const MOBILE_READER_SWIPE_AXIS_RATIO = 1.5;
 
-export type ReaderGesture = 'tap' | 'previous' | 'next' | 'none';
+type ReaderGesture = 'tap' | 'previous' | 'next' | 'none';
 
-export interface ReaderGestureInput {
+interface ReaderGestureInput {
   deltaX: number;
   deltaY: number;
   maxMovement: number;
   durationMs: number;
 }
 
-export interface ReaderTapPoint {
+interface ReaderTapPoint {
   clientX: number;
   clientY: number;
 }
 
-export interface ReaderBounds {
+interface ReaderBounds {
   left: number;
   top: number;
   width: number;

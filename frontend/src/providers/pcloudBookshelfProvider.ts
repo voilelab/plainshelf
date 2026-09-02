@@ -108,7 +108,7 @@ interface CachedJson {
   value: unknown;
 }
 
-export interface PCloudBookshelfProviderOptions {
+interface PCloudBookshelfProviderOptions {
   client: PCloudClient;
   /** Path of the shelf directory on pCloud, e.g. `/PlainShelf/default-shelf`. */
   shelfRoot: string;

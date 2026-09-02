@@ -23,7 +23,7 @@ export interface ActiveBookFilter {
  * before every predicate; a filter that needs nothing extra is unaffected, since
  * the returned book still carries all its own fields.
  */
-export type BookAugment = (book: Book) => Book;
+type BookAugment = (book: Book) => Book;
 
 const identityAugment: BookAugment = (book) => book;
 

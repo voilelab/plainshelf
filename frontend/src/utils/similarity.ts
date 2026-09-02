@@ -11,7 +11,7 @@ import type { SimilarBookPair } from '@/api/books';
  */
 export type SimilarityTierKey = 'near-identical' | 'same-book' | 'same-source';
 
-export interface SimilarityTier {
+interface SimilarityTier {
   key: SimilarityTierKey;
   labelKey: string;
   /** Minimum Jaccard a pair needs to appear in this tier. */
@@ -57,7 +57,7 @@ export function tierThreshold(key: SimilarityTierKey): number {
   return SIMILARITY_TIERS.find((tier) => tier.key === key)?.threshold ?? SIMILARITY_FLOOR;
 }
 
-export interface SimilarityFilter {
+interface SimilarityFilter {
   /** Active Jaccard floor, from the selected tier or the advanced slider. */
   threshold: number;
   /**

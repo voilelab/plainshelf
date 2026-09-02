@@ -16,7 +16,7 @@ export interface PCloudFolderRef {
  */
 export type PCloudFolderClient = Pick<PCloudClient, 'listFolder' | 'resolveFolderTrail'>;
 
-export interface PCloudFolderBrowser {
+interface PCloudFolderBrowser {
   /** Levels below the account root, outermost first. */
   trail: Ref<PCloudFolderRef[]>;
   /** Sub-folders of the current level, sorted, book packages removed. */

@@ -28,7 +28,7 @@ import {
   parseReadHistoryLimit
 } from '@/features/settings/utils/settingsDraft';
 
-export interface ServerSettingsForm {
+interface ServerSettingsForm {
   loading: Ref<boolean>;
   saving: Ref<boolean>;
   error: Ref<string>;

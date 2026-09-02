@@ -42,7 +42,7 @@ export interface PCloudItem {
 }
 
 /** Envelope shared by every pCloud JSON response. `result` 0 means success. */
-export interface PCloudResponse {
+interface PCloudResponse {
   result: number;
   error?: string;
 }

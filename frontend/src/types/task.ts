@@ -1,6 +1,6 @@
 export type TaskStatus = 'pending' | 'running' | 'partially_completed' | 'completed' | 'failed';
 
-export const TERMINAL_TASK_STATUSES: readonly TaskStatus[] = [
+const TERMINAL_TASK_STATUSES: readonly TaskStatus[] = [
   'partially_completed',
   'completed',
   'failed'
@@ -27,7 +27,7 @@ export type BookBatchFailureCode =
   | 'move_failed'
   | 'trash_failed';
 
-export interface BookBatchFailure {
+interface BookBatchFailure {
   book_id: string;
   code: BookBatchFailureCode;
 }
@@ -56,9 +56,9 @@ export function isBookBatchResult(value: unknown): value is BookBatchResult {
   );
 }
 
-export type RefreshContentStatsFailureCode = 'not_found' | 'unsupported_schema' | 'refresh_failed';
+type RefreshContentStatsFailureCode = 'not_found' | 'unsupported_schema' | 'refresh_failed';
 
-export interface RefreshContentStatsFailure {
+interface RefreshContentStatsFailure {
   book_id: string;
   code: RefreshContentStatsFailureCode;
 }
@@ -80,7 +80,7 @@ export function isRefreshContentStatsResult(value: unknown): value is RefreshCon
   );
 }
 
-export interface FolderTransferFailure {
+interface FolderTransferFailure {
   book_id: string;
   code: string;
 }
@@ -103,7 +103,7 @@ export interface FolderTransferResult {
   folder_failures: number;
 }
 
-export function isFolderTransferResult(value: unknown): value is FolderTransferResult {
+function isFolderTransferResult(value: unknown): value is FolderTransferResult {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Partial<FolderTransferResult>;
   return (

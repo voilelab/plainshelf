@@ -157,7 +157,7 @@ export function renderDescriptionHtml(source: string | null | undefined): string
   return markdown.render(source);
 }
 
-export interface RenderedDescription {
+interface RenderedDescription {
   /** Renderer output, for `SafeHtml` to sanitize; never a `v-html` sink itself. */
   html: string;
   /** That same markup read back as words, empty when it amounts to none. */

@@ -35,9 +35,9 @@ import {
 import { InMemoryMobileCoverCache, type MobileCoverCache } from './mobileCoverCache';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
 
-export const OFFLINE_BOOK_CACHE_MISS_ERROR = 'Book is not downloaded and the app is offline';
-export const OFFLINE_SOURCE_CACHE_MISS_ERROR = 'Source is not downloaded and the app is offline';
-export const OFFLINE_DOWNLOAD_UNAVAILABLE_ERROR = 'Cannot download book while offline';
+const OFFLINE_BOOK_CACHE_MISS_ERROR = 'Book is not downloaded and the app is offline';
+const OFFLINE_SOURCE_CACHE_MISS_ERROR = 'Source is not downloaded and the app is offline';
+const OFFLINE_DOWNLOAD_UNAVAILABLE_ERROR = 'Cannot download book while offline';
 export const DOWNLOAD_SHELF_CHANGED_ERROR =
   'The shelf changed while the book was downloading; the download was discarded';
 

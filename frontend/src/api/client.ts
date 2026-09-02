@@ -68,7 +68,6 @@ if (IS_DEV && API_MODE === 'mock') {
 // Build-time default. On native (Capacitor) builds there is no server to inject
 // a base URL, so the mobile bootstrap can override this at runtime via
 // setApiBase() once the user has entered their server address.
-export const API_BASE = API_BASE_NORMALIZED;
 let apiBase = API_BASE_NORMALIZED;
 
 export function getApiBase(): string {
@@ -249,7 +248,7 @@ async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = FET
   }
 }
 
-export interface FetchJsonOptions {
+interface FetchJsonOptions {
   // acceptStatuses lists non-2xx statuses whose JSON body is a normal result
   // rather than an error, such as a 409 that reports the task already running.
   acceptStatuses?: number[];

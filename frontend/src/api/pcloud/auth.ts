@@ -17,17 +17,17 @@ const REQUEST_ID_LENGTH = 40;
 const REQUEST_ID_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
 /** How long to keep polling before giving up on the user completing the flow. */
-export const DEFAULT_AUTH_TIMEOUT_MS = 5 * 60_000;
+const DEFAULT_AUTH_TIMEOUT_MS = 5 * 60_000;
 const POLL_INTERVAL_MS = 2_000;
 const POLL_REQUEST_TIMEOUT_MS = 60_000;
 
 /** An authorized pCloud session: a token plus the region that issued it. */
-export interface PCloudSession {
+interface PCloudSession {
   accessToken: string;
   host: PCloudApiHost;
 }
 
-export interface PCloudAuthOptions {
+interface PCloudAuthOptions {
   clientId: string;
   requestId: string;
   signal?: AbortSignal;

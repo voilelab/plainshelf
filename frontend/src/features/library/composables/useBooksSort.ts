@@ -7,7 +7,7 @@ export const ORDER_OPTIONS = ['asc', 'desc'] as const;
 export type BookSortKey = (typeof SORT_OPTIONS)[number];
 export type SortOrder = (typeof ORDER_OPTIONS)[number];
 
-export function toTimestampValue(value: string | undefined): number {
+function toTimestampValue(value: string | undefined): number {
   if (!value) {
     return 0;
   }

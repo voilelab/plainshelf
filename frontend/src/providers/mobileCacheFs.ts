@@ -13,7 +13,7 @@ import { Directory, Encoding, Filesystem, type WriteFileOptions } from '@capacit
 // The scope segment keeps two shelves' data apart; see cacheScope.ts for why
 // book ids alone cannot.
 export const BASE_DIR = 'plainshelf-cache';
-export const SCOPES_DIR = `${BASE_DIR}/scopes`;
+const SCOPES_DIR = `${BASE_DIR}/scopes`;
 export const CACHE_DIRECTORY = Directory.Data;
 
 // Directory for a client that has no (server, shelf) identity yet. Unreachable

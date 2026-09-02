@@ -14,7 +14,7 @@ const SNAPSHOT_FILE = 'shelf-snapshot.json';
 /** One book as the shelf listing found it: where its files are, and what its
  * book.json says. `Book` itself is deliberately absent — it is derived from
  * these two, and storing it as well would create a second source of truth. */
-export interface PersistedShelfBook {
+interface PersistedShelfBook {
   pkg: BookPackageRef;
   meta: BookJson;
 }
@@ -75,23 +75,6 @@ function isPersistedShelfBook(value: unknown): value is PersistedShelfBook {
     return false;
   }
   return typeof book.pkg === 'object' && book.pkg !== null && Array.isArray(book.pkg.sources);
-}
-
-/** In-memory store, for tests and for any runtime with nowhere to persist. */
-export class InMemoryShelfSnapshotStore implements ShelfSnapshotStore {
-  private snapshot: PersistedShelfSnapshot | null = null;
-
-  async load(): Promise<PersistedShelfSnapshot | null> {
-    return this.snapshot ? structuredClone(this.snapshot) : null;
-  }
-
-  async save(snapshot: PersistedShelfSnapshot): Promise<void> {
-    this.snapshot = structuredClone(snapshot);
-  }
-
-  async clear(): Promise<void> {
-    this.snapshot = null;
-  }
 }
 
 /**

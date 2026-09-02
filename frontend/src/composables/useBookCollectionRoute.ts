@@ -14,7 +14,7 @@ export function pageSlice<T>(items: readonly T[], page: number, pageSize: number
   return items.slice(start, start + pageSize);
 }
 
-export interface UseBookCollectionRouteOptions<T> {
+interface UseBookCollectionRouteOptions<T> {
   /**
    * The complete list to paginate, with the caller's own filtering already
    * applied. The page-sized slice is cut here, not by the caller.

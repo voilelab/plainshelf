@@ -22,7 +22,7 @@ export const SIDEBAR_RESIZE_HIT_AREA_MARGINS = { coarse: 12, fine: 6 };
 export const RAIL_SIDEBAR_WIDTH = 48;
 const DEFAULT_EXPANDED_SIDEBAR_WIDTH = 240;
 const SIDEBAR_SECTION_KEYS = ['folders', 'reading', 'maintenance', 'admin'] as const;
-export type SidebarSectionKey = (typeof SIDEBAR_SECTION_KEYS)[number];
+type SidebarSectionKey = (typeof SIDEBAR_SECTION_KEYS)[number];
 
 /**
  * Sidebar chrome for MainLayout: rail/expanded mode with its persisted width, the

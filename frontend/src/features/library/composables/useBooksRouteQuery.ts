@@ -16,7 +16,7 @@ import {
   type SortOrder
 } from './useBooksSort';
 
-export type BooksQueryInput = {
+type BooksQueryInput = {
   folder?: string;
   page?: number;
   search?: string;
@@ -58,7 +58,7 @@ export function toBookSort(value: LocationQueryValue | LocationQueryValue[] | un
   return isBookSortKey(raw) ? raw : 'updated_at';
 }
 
-export function toSortOrder(value: LocationQueryValue | LocationQueryValue[] | undefined): SortOrder {
+function toSortOrder(value: LocationQueryValue | LocationQueryValue[] | undefined): SortOrder {
   const raw = toSingleQueryValue(value);
   if (!raw) {
     return 'desc';
