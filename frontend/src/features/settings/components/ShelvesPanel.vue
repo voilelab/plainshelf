@@ -275,7 +275,7 @@
       <button
         type="button"
         class="shelf-add-toggle"
-        :disabled="bookCacheExporting || shelves.length === 0"
+        :disabled="bookCacheExporting || exportableShelves.length === 0"
         @click="onExportBookCache"
       >
         {{ bookCacheExporting ? t('settings.bookCache.exporting') : t('settings.bookCache.export') }}
@@ -351,7 +351,16 @@ const {
 } = useShelfManagement();
 
 /**
- * Rewrites every listed shelf's exported book cache.
+ * The shelves this export can write to.
+ *
+ * A read-only shelf is skipped rather than attempted: the server never writes
+ * its cache file on its own account either, so the request is refused with 409
+ * and — the loop being sequential — would abandon the shelves after it.
+ */
+const exportableShelves = computed(() => shelves.value.filter((shelf) => !shelf.readOnly));
+
+/**
+ * Rewrites every writable shelf's exported book cache.
  *
  * Sequential rather than concurrent: each call makes the server walk a shelf,
  * and on a network shelf several walks at once is exactly the load this cache
@@ -363,7 +372,7 @@ async function onExportBookCache(): Promise<void> {
   bookCacheExporting.value = true;
 
   try {
-    for (const shelf of shelves.value) {
+    for (const shelf of exportableShelves.value) {
       await exportShelfBookCache(shelf.id);
     }
     bookCacheExported.value = true;

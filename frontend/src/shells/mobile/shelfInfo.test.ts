@@ -50,9 +50,12 @@ describe('activeMobileShelfInfo', () => {
 
     // The id is the full path, matching the active shelf id mobileConfig sets,
     // so the device-local cache scope agrees with the picker.
+    // pCloud is a storage backend this app only reads, so the shelf it
+    // synthesizes reports the same read-only flag a server-side one does.
     expect(activeMobileShelfInfo()).toEqual({
       id: '/PlainShelf/default-shelf',
-      name: 'default-shelf'
+      name: 'default-shelf',
+      readOnly: true
     });
   });
 
@@ -65,7 +68,14 @@ describe('activeMobileShelfInfo', () => {
   it('uses the entry name when the user gave it one', () => {
     getActiveShelfEntryMock.mockReturnValue(serverEntry({ name: 'Living room' }));
 
-    expect(activeMobileShelfInfo()).toEqual({ id: 'main', name: 'Living room' });
+    // A server entry is only as read-only as the server says its shelf is, and
+    // this shell has no list to read that off — so it reports writable and the
+    // provider's own missing write surface is what gates the UI.
+    expect(activeMobileShelfInfo()).toEqual({
+      id: 'main',
+      name: 'Living room',
+      readOnly: false
+    });
   });
 
   it('returns null off the mobile shell and for an entry with no shelf yet', () => {

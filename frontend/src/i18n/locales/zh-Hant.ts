@@ -176,7 +176,9 @@ const zhHant = {
     tabNavLabel: '主導覽',
     readOnly: {
       banner: '唯讀模式已啟用。仍可瀏覽與閱讀，但寫入操作已停用。',
-      writeDisabled: '伺服器目前為唯讀模式，寫入操作已停用。'
+      shelfBanner: '這個書架是唯讀的。仍可瀏覽與閱讀，但寫入操作已停用。',
+      writeDisabled: '伺服器目前為唯讀模式，寫入操作已停用。',
+      shelfWriteDisabled: '這個書架是唯讀的，寫入操作已停用。'
     }
   },
   dashboard: {

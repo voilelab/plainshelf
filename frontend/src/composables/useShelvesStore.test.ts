@@ -79,3 +79,46 @@ describe('useShelvesStore', () => {
     expect(store.loaded.value).toBe(true);
   });
 });
+
+// A read-only shelf and a writable one live in the same list, so the flag has
+// to follow the selection rather than the list as a whole. This is what every
+// write affordance in the app ends up asking, through useWriteAccess.
+describe('activeShelfReadOnly', () => {
+  it('follows the selected shelf when both kinds are listed', async () => {
+    listShelves.mockResolvedValue([
+      { id: 'shelf-1', name: 'Writable', readOnly: false },
+      { id: 'shelf-2', name: 'Archive', readOnly: true }
+    ]);
+    const store = await freshStore();
+
+    await store.ensureShelvesLoaded();
+    expect(store.selectedShelfID.value).toBe('shelf-1');
+    expect(store.activeShelfReadOnly.value).toBe(false);
+
+    store.selectShelf('shelf-2');
+    expect(store.activeShelfReadOnly.value).toBe(true);
+
+    store.selectShelf('shelf-1');
+    expect(store.activeShelfReadOnly.value).toBe(false);
+  });
+
+  // Before the list arrives there is nothing to read the flag off. Defaulting
+  // to writable keeps the buttons on screen for the shelf that accepts writes;
+  // the server still refuses the read-only one with 409.
+  it('reports writable before the list loads', async () => {
+    const store = await freshStore();
+
+    expect(store.activeShelfReadOnly.value).toBe(false);
+  });
+
+  // The offline fallback selects a persisted id the list does not contain.
+  it('reports writable for a shelf the list does not describe', async () => {
+    listShelves.mockResolvedValue([{ id: 'shelf-1', name: 'Writable', readOnly: false }]);
+    const store = await freshStore();
+
+    await store.ensureShelvesLoaded();
+    store.selectShelf('unknown-shelf');
+
+    expect(store.activeShelfReadOnly.value).toBe(false);
+  });
+});

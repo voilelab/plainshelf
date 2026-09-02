@@ -78,7 +78,7 @@ export function useFolderManagement() {
   const { t } = useI18n();
   const { books, fetchBooks } = useBookStore();
   const { folders, fetchFolders } = useFolderStore();
-  const { writesEnabled } = useWriteAccess();
+  const { writesEnabled, writeDisabledMessageKey } = useWriteAccess();
   const readOnly = computed(() => !writesEnabled.value);
   const batchOperations = useBookBatchOperations();
 
@@ -163,7 +163,7 @@ export function useFolderManagement() {
 
   async function onSubmitCreateFolder(payload: { name: string }): Promise<void> {
     if (readOnly.value) {
-      createFolderError.value = t('layout.readOnly.writeDisabled');
+      createFolderError.value = t(writeDisabledMessageKey.value);
       return;
     }
 
@@ -205,7 +205,7 @@ export function useFolderManagement() {
 
   async function onMoveBook(payload: { bookIds: string[]; targetFolder: string; batch: boolean }): Promise<void> {
     if (readOnly.value) {
-      moveBookError.value = t('layout.readOnly.writeDisabled');
+      moveBookError.value = t(writeDisabledMessageKey.value);
       return;
     }
     moveBookError.value = '';
@@ -242,7 +242,7 @@ export function useFolderManagement() {
 
   function requestRenameFolder(path: string): void {
     if (readOnly.value) {
-      folderOperationError.value = t('layout.readOnly.writeDisabled');
+      folderOperationError.value = t(writeDisabledMessageKey.value);
       return;
     }
 
@@ -299,7 +299,7 @@ export function useFolderManagement() {
 
   async function onMoveFolder(payload: { folderPath: string; targetFolder: string }): Promise<void> {
     if (readOnly.value) {
-      folderOperationError.value = t('layout.readOnly.writeDisabled');
+      folderOperationError.value = t(writeDisabledMessageKey.value);
       return;
     }
     folderOperationError.value = '';
@@ -454,7 +454,7 @@ export function useFolderManagement() {
 
   function requestDeleteFolder(path: string): void {
     if (readOnly.value) {
-      deleteFolderError.value = t('layout.readOnly.writeDisabled');
+      deleteFolderError.value = t(writeDisabledMessageKey.value);
       return;
     }
     if (deletingFolderMap.value[path]) {
