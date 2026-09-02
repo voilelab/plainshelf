@@ -214,3 +214,115 @@ jobs:
           name: plainshelf-debug-apk
           path: frontend/android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+  vulncheck:
+    name: Go vulnerability scan
+    runs-on: ubuntu-latest
+    needs: frontend
+    # A gate, deliberately: govulncheck reports a module's advisory only when a
+    # vulnerable symbol is reachable from this code, so red here is an exposure
+    # rather than noise. It gates merges once the check is added to the branch
+    # protection rule for `dev`; the workflow alone cannot do that.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # All three modules reach frontend/web.go and its embed, and govulncheck
+      # type-checks packages before scanning them.
+      - name: Download frontend dist
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      # go-version-file matters beyond convenience here: govulncheck has to be
+      # built by a Go at least as new as go.mod's, or it fails while loading
+      # packages ("requires newer Go version") instead of while scanning.
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      # Two scans per module, one per GOOS release.yml ships (linux for the
+      # server binaries and the Docker image, darwin/arm64 for those plus both
+      # Wails apps). Source mode resolves build tags for the target it runs as,
+      # so a linux-only scan cannot see a vulnerability reachable through a
+      # darwin-only file. GOARCH is not split: the released arm64 and amd64
+      # builds share their Go source. Every step runs even after one fails, so
+      # a round reports all six scans instead of stopping at the first.
+      - name: Scan main module (linux)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: govulncheck ./...
+
+      - name: Scan main module (darwin)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+        run: govulncheck ./...
+
+      - name: Scan desktop module (linux)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: cd desktop && govulncheck ./...
+
+      - name: Scan desktop module (darwin)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+        run: cd desktop && govulncheck ./...
+
+      - name: Scan reader module (linux)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: cd reader && govulncheck ./...
+
+      - name: Scan reader module (darwin)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+        run: cd reader && govulncheck ./...
+
+  audit:
+    name: npm audit (informational)
+    runs-on: ubuntu-latest
+    # Informational, deliberately: npm audit flags every advisory in the tree
+    # whether or not the code path is reachable, and most of this tree is
+    # build-time tooling that never ships. Both lockfiles are clean at
+    # --audit-level=high today, so start non-blocking and revisit gating once a
+    # few weeks of runs show what the real noise level is.
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      # npm audit resolves from the lockfile, so neither directory needs npm ci.
+      - name: Audit frontend dependencies
+        run: npm audit --audit-level=high
+        working-directory: frontend
+
+      # Job-level continue-on-error keeps a failure off the workflow result, but
+      # it does not un-skip later steps: without this the E2E lockfile stops
+      # being audited exactly when the frontend one turns up something.
+      - name: Audit E2E dependencies
+        if: ${{ !cancelled() }}
+        run: npm audit --audit-level=high
+        working-directory: e2e

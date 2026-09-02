@@ -1,0 +1,80 @@
+# Backs the "Dependency Updates" section of SECURITY.md: this file lands the
+# fix, while ci.yml's scan jobs report what is currently vulnerable.
+#
+# The repository default branch is `dev`, so these pull requests target `dev`
+# without a `target-branch` override — which also keeps Dependabot's own
+# security updates enabled, as those only ever open against the default branch.
+#
+# internal/repocheck/dependabot_test.go fails if a manifest here goes uncovered.
+version: 2
+
+updates:
+  # Three Go modules, the same split as ci.yml's lint, test and scan jobs.
+  - package-ecosystem: gomod
+    directories:
+      - "/"
+      - "/desktop"
+      - "/reader"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # One pull request per module per week, not one per dependency.
+      go-modules:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directories:
+      - "/frontend"
+      - "/e2e"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # Majors stay ungrouped: they need the changelog read before merging.
+      npm-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  # The `FROM` images only. The pinned NODE_VERSION and GO_VERSION build args in
+  # the Dockerfile are invisible to Dependabot and still move by hand.
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # requirements.txt is what docs.yml builds the published site from.
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      docs:
+        patterns:
+          - "*"
