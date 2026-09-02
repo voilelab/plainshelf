@@ -12,7 +12,7 @@
         :min="0"
         :step="1"
         :format-options="INTEGER_FORMAT_OPTIONS"
-        :model-value="value"
+        :model-value="draft"
         :disabled="disabled"
         @update:model-value="onUpdate"
       >
@@ -31,7 +31,7 @@ import {
   NumberFieldInput,
   NumberFieldRoot
 } from 'reka-ui';
-import { computed } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 
 import { useI18n } from '@/i18n';
 import { INTEGER_FORMAT_OPTIONS } from '@/utils/numberField';
@@ -39,7 +39,7 @@ import '@/styles/numeric-controls.css';
 
 const FIELD_ID = 'settings-read-history-limit';
 
-defineProps<{
+const props = defineProps<{
   value: number;
   disabled: boolean;
 }>();
@@ -57,12 +57,27 @@ const increaseLabel = computed(() =>
   t('common.increase', { label: t('settings.readHistoryLimit.label') })
 );
 
-// reka reports `undefined` for an emptied box: no limit to save, and the field
-// shows the stored value again once it loses focus.
-function onUpdate(next: number | undefined): void {
+// What the field shows, which is the stored value except while it is being
+// edited. Reka drives the input from this, so restoring it here is what redraws
+// the box.
+const draft = ref<number | null>(props.value);
+watch(() => props.value, (value) => {
+  draft.value = value;
+});
+
+// reka reports `undefined` for an emptied box: there is no limit to save, and
+// leaving it blank would sit over a still-active setting — and the steppers,
+// which read the box's text, would then start from the minimum instead of it.
+// The null tick is what makes the restore visible: reka refreshes the input
+// only when the formatted value changes, and it is already blank.
+async function onUpdate(next: number | undefined): Promise<void> {
   if (next === undefined) {
+    draft.value = null;
+    await nextTick();
+    draft.value = props.value;
     return;
   }
+  draft.value = next;
   emit('change', next);
 }
 </script>

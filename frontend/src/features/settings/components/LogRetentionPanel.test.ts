@@ -94,15 +94,27 @@ describe('LogRetentionPanel', () => {
     cappedApp.unmount();
   });
 
-  it('reports nothing for an emptied box instead of saving NaN', async () => {
+  it('restores the stored retention window when the box is emptied, saving nothing', async () => {
     const { host, app, changes } = mount(30);
+    await nextTick();
 
     const input = field(host);
     input.value = '';
+    input.dispatchEvent(new Event('input'));
     input.dispatchEvent(new Event('blur'));
     await nextTick();
+    await nextTick();
 
+    // Nothing to save, and the box must not sit blank over a setting that is
+    // still in force.
     expect(changes).toEqual([]);
+    expect(input.value).toBe('30');
+
+    // The steppers read the box's text, so a box left blank would step from the
+    // minimum instead of the stored value.
+    press(host, 'increase');
+    await nextTick();
+    expect(changes).toEqual([31]);
 
     app.unmount();
   });
