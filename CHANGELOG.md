@@ -10,7 +10,7 @@ and UI behavior may still change between releases.
 ### Added
 
 - Added a **?** button to the mobile reader's controls that replays the gesture hint, which previously showed only once per device.
-- Added a default shelf directory to the desktop **Add shelf** dialog, which now previews the path and the shelf ID for the typed name and creates the shelf under the app data directory's `shelves/<shelf id>` when no directory is picked.
+- Added a default shelf directory to the desktop **Create shelf** dialog, which now previews the path and the shelf ID for the typed name and creates the shelf under the app data directory's `shelves/<shelf id>` when no directory is picked.
 - Added each shelf's read-only state to `GET /api/shelves` (`read_only`), which the UI now uses to hide the write controls on a read-only shelf — importing, metadata/source/cover editing, folder creation and moves, deleting, trash restore — and show a banner saying so, while browsing, reading, searching and rescanning stay available.
 
 ### Changed
@@ -23,6 +23,13 @@ and UI behavior may still change between releases.
 - Changed the build to Go 1.27, whose reimplemented `encoding/json` decodes the shelf's JSON caches roughly 1.6-3x faster on the startup path.
 - **Breaking (pre-1.0):** changed mutating API endpoints to read request bodies under `encoding/json/v2`'s rules, so a body that names the same member twice, carries invalid UTF-8, or spells a member name in the wrong case is now `400` instead of being silently resolved.
 - Changed the `400` answer for a malformed request body to name the field the decoder stopped on (`invalid JSON at "folder"`), which the UI shows verbatim; setting writes no longer leak Go type names into the message.
+- Changed the desktop create- and modify-shelf forms to give every input a visible label, leaving the placeholders as example values.
+- Changed the create-shelf flow to say **Create shelf** everywhere (dialog title, submit button, and the button that opens it).
+- Changed the shelves settings section to offer **Create shelf** as its primary button while no shelf is configured.
+
+### Fixed
+
+- Fixed the desktop create- and modify-shelf dialogs opening with focus on nothing; the caret now starts in the shelf name field.
 
 ### Removed
 

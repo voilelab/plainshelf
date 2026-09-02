@@ -4,7 +4,7 @@
     v-bind="shellProps"
     @close="emit('cancel')"
   >
-    <section class="panel confirm-modal">
+    <section ref="panel" class="panel confirm-modal">
       <header class="confirm-modal-header">
         <h2>{{ title }}</h2>
         <button
@@ -78,13 +78,15 @@ const props = withDefaults(
     closeOnBackdrop?: boolean;
     closeLabel?: string;
     variant?: 'primary' | 'danger';
+    initialFocus?: string;
   }>(),
   {
     message: '',
     busy: false,
     confirmDisabled: false,
     closeOnBackdrop: true,
-    variant: 'primary'
+    variant: 'primary',
+    initialFocus: undefined
   }
 );
 
@@ -104,6 +106,7 @@ const emit = defineEmits<{
 
 const descriptionId = `confirm-modal-description-${useId()}`;
 const confirmButton = ref<HTMLButtonElement | null>(null);
+const panel = ref<HTMLElement | null>(null);
 const confirmVariant = computed(() => ({
   primary: props.variant === 'primary',
   danger: props.variant === 'danger'
@@ -130,11 +133,26 @@ watch(
   async (open) => {
     // Destructive dialogs must open on cancel, and AlertDialogContent already
     // puts focus there; stealing it back to confirm would defeat the point.
+    // That holds even for a caller that asked for initialFocus: the alert
+    // dialog's own focus contract is not opt-out.
     if (!open || destructive.value) {
       return;
     }
 
     await nextTick();
+
+    // Opt-in: a form dialog names the field it wants the caret in, because the
+    // confirm button below is disabled until that field is filled and focusing
+    // a disabled button leaves the focus nowhere. Callers that name nothing
+    // keep the original behaviour exactly.
+    if (props.initialFocus) {
+      const target = panel.value?.querySelector<HTMLElement>(props.initialFocus);
+      if (target) {
+        target.focus();
+        return;
+      }
+    }
+
     if (confirmButton.value && !confirmButton.value.disabled) {
       confirmButton.value.focus();
     }
