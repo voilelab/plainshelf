@@ -52,19 +52,30 @@ export function useShelfManagement() {
   // What the form will actually create. A directory the user typed or browsed
   // to wins over the suggestion, and it is this value the panel previews — so
   // what the dialog shows is what lands in shelves.json.
-  const newShelfEffectiveDirectory = computed(
-    () => newShelfDirectory.value.trim() || newShelfDefaultDirectory.value
-  );
+  const newShelfEffectiveDirectory = computed(() => {
+    const chosen = newShelfDirectory.value.trim();
+    if (chosen) {
+      return chosen;
+    }
+    // A read-only shelf is never created, so its lib_root must already exist
+    // (shelf.NewShelf). The default names a directory that by construction does
+    // not, so offering it here would advertise a name-only flow that always
+    // fails: read-only creation needs a directory the user points at.
+    return newShelfReadOnly.value ? '' : newShelfDefaultDirectory.value;
+  });
   const canSubmitAddShelf = computed(
     () => newShelfName.value.trim().length > 0 && newShelfEffectiveDirectory.value.length > 0
   );
 
   async function refreshShelfIDPreview(name: string): Promise<void> {
     const token = ++shelfIDPreviewToken;
+    // Drop the previous name's answer before asking for this one. Both fields
+    // are derived from the name, so keeping them across the await would show —
+    // and, for the directory, submit — the old name's shelf under the new name.
+    newShelfIDPreview.value = '';
+    newShelfDefaultDirectory.value = '';
     const provider = getBookshelfProvider();
     if (!provider.previewDesktopShelfID || name.trim().length === 0) {
-      newShelfIDPreview.value = '';
-      newShelfDefaultDirectory.value = '';
       return;
     }
     try {
@@ -74,10 +85,7 @@ export function useShelfManagement() {
         newShelfDefaultDirectory.value = preview.defaultPath;
       }
     } catch {
-      if (token === shelfIDPreviewToken) {
-        newShelfIDPreview.value = '';
-        newShelfDefaultDirectory.value = '';
-      }
+      // The fields were already cleared above; a failed preview leaves them so.
     }
   }
 

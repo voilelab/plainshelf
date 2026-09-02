@@ -104,7 +104,7 @@
       <!-- Previews what submitting would create: the directory that is actually
            sent as lib_root, and the id it would be frozen with. -->
       <p v-if="newShelfIDPreview" class="shelf-add-help shelf-id-preview">
-        <span class="shelf-preview-line">
+        <span v-if="newShelfEffectiveDirectory" class="shelf-preview-line">
           {{ t('settings.shelves.addShelfPathPreview') }}
           <span class="shelf-preview-path">{{ newShelfEffectiveDirectory }}</span>
         </span>
