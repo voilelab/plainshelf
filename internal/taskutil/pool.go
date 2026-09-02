@@ -14,37 +14,6 @@ const defaultMaxKeep = 100
 
 var ErrTaskChainRunning = util.NewError("task chain is already running")
 
-// Pool submits task chains to a worker and keeps them addressable by ID so that
-// callers can poll their status after submission.
-//
-// The pool owns the worker: Start and Close delegate to it.
-type Pool interface {
-	// Submit registers the chain, assigns it an ID, and enqueues it.
-	//
-	// When the chain carries a Key that matches an active chain, the existing
-	// chain is returned together with ErrTaskChainRunning so that the caller can
-	// point the client at the work already in flight. Otherwise the submitted
-	// chain is returned.
-	Submit(chain *TaskChain) (*TaskChain, error)
-
-	Get(id string) (*TaskChain, bool)
-
-	// List returns the retained chains, most recently submitted first.
-	List() []*TaskChain
-
-	// Cancel signals the chain with the given ID to stop. Cancelling a chain that
-	// is still running or queued triggers its context so its tasks stop at the
-	// next task boundary. A chain that does not exist, or one that has already
-	// reached a terminal status, is left untouched. The returned result says which
-	// case applied, and the chain (nil only when it was not found) lets a caller
-	// report its current state.
-	Cancel(id string) (*TaskChain, CancelResult)
-
-	Start()
-
-	Close() error
-}
-
 // CancelResult reports what Cancel did, so a caller can answer a cancel request
 // precisely rather than guessing from the chain's status alone.
 type CancelResult int
@@ -59,8 +28,12 @@ const (
 	CancelAlreadyTerminal
 )
 
-type pool struct {
-	worker  Worker
+// Pool submits task chains to a worker and keeps them addressable by ID so that
+// callers can poll their status after submission.
+//
+// The pool owns the worker: Start and Close delegate to it.
+type Pool struct {
+	worker  *Worker
 	maxKeep int
 
 	mu sync.RWMutex
@@ -70,23 +43,29 @@ type pool struct {
 }
 
 // NewPool returns a pool backed by w, retaining at most maxKeep chains.
-func NewPool(w Worker, maxKeep int) Pool {
+func NewPool(w *Worker, maxKeep int) *Pool {
 	if maxKeep <= 0 {
 		maxKeep = defaultMaxKeep
 	}
 
-	return &pool{
+	return &Pool{
 		worker:  w,
 		maxKeep: maxKeep,
 		byID:    map[string]*TaskChain{},
 	}
 }
 
-func (p *pool) Start() { p.worker.Start() }
+func (p *Pool) Start() { p.worker.Start() }
 
-func (p *pool) Close() error { return p.worker.Close() }
+func (p *Pool) Close() error { return p.worker.Close() }
 
-func (p *pool) Submit(chain *TaskChain) (*TaskChain, error) {
+// Submit registers the chain, assigns it an ID, and enqueues it.
+//
+// When the chain carries a Key that matches an active chain, the existing chain
+// is returned together with ErrTaskChainRunning so that the caller can point the
+// client at the work already in flight. Otherwise the submitted chain is
+// returned.
+func (p *Pool) Submit(chain *TaskChain) (*TaskChain, error) {
 	if chain == nil {
 		return nil, util.Errorf("task chain cannot be nil")
 	}
@@ -129,7 +108,7 @@ func (p *pool) Submit(chain *TaskChain) (*TaskChain, error) {
 	return chain, nil
 }
 
-func (p *pool) Get(id string) (*TaskChain, bool) {
+func (p *Pool) Get(id string) (*TaskChain, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -137,7 +116,8 @@ func (p *pool) Get(id string) (*TaskChain, bool) {
 	return chain, ok
 }
 
-func (p *pool) List() []*TaskChain {
+// List returns the retained chains, most recently submitted first.
+func (p *Pool) List() []*TaskChain {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -150,7 +130,13 @@ func (p *pool) List() []*TaskChain {
 	return chains
 }
 
-func (p *pool) Cancel(id string) (*TaskChain, CancelResult) {
+// Cancel signals the chain with the given ID to stop. Cancelling a chain that is
+// still running or queued triggers its context so its tasks stop at the next
+// task boundary. A chain that does not exist, or one that has already reached a
+// terminal status, is left untouched. The returned result says which case
+// applied, and the chain (nil only when it was not found) lets a caller report
+// its current state.
+func (p *Pool) Cancel(id string) (*TaskChain, CancelResult) {
 	p.mu.RLock()
 	chain, ok := p.byID[id]
 	p.mu.RUnlock()
@@ -169,7 +155,7 @@ func (p *pool) Cancel(id string) (*TaskChain, CancelResult) {
 
 // findActiveLocked returns the retained chain with the given key that has not
 // reached a terminal status yet, if any.
-func (p *pool) findActiveLocked(key string) *TaskChain {
+func (p *Pool) findActiveLocked(key string) *TaskChain {
 	for _, id := range p.order {
 		chain, ok := p.byID[id]
 		if !ok || chain.Key != key {
@@ -190,7 +176,7 @@ func (p *pool) findActiveLocked(key string) *TaskChain {
 // across submissions rather than an instantaneous cap: chains that settle after
 // the last submission stay retained until the next one arrives. Since only a
 // submission can add a chain, retention cannot grow without also being trimmed.
-func (p *pool) evictLocked() {
+func (p *Pool) evictLocked() {
 	for len(p.order) > p.maxKeep {
 		evicted := false
 		for _, id := range p.order {
@@ -208,7 +194,7 @@ func (p *pool) evictLocked() {
 	}
 }
 
-func (p *pool) removeLocked(id string) {
+func (p *Pool) removeLocked(id string) {
 	delete(p.byID, id)
 	if idx := slices.Index(p.order, id); idx >= 0 {
 		p.order = slices.Delete(p.order, idx, idx+1)
