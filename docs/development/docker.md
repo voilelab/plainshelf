@@ -47,10 +47,10 @@ The image uses `docker/config.yaml`, which:
 
 - Listens on `0.0.0.0:20000` inside the container
 - Stores data in `/data/shelf` and `/data/store`
-- Sets `app_conf.security.mode: "local_token"`, so mutating `/api` requests
-  (`POST`/`PUT`/`PATCH`/`DELETE`) require a token. The server injects that token
-  into the served index page, so a browser opened against the container needs no
-  manual setup.
+- Sets `app_conf.security.mode: "local_token"`, so `/api` requests that write
+  (`POST`/`PUT`/`PATCH`/`DELETE`, except the shelf rescan, which writes nothing)
+  require a token. The server injects that token into the served index page, so a
+  browser opened against the container needs no manual setup.
 
 `local_token` allows only loopback browser origins on port 20000 by default
 (`http://127.0.0.1:20000`, `http://localhost:20000`). If you open the UI from a

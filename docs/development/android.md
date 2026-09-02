@@ -134,11 +134,15 @@ of `127.0.0.1`. From the phone, verify that `http://<server-ip>:20000/health`
 returns `1`, then add a shelf with that server URL under
 **Settings → Shelves**.
 
-Browsing and reading require no access token. One is needed only when the server
-sets `protect_read: true`, which requires a token for reads as well. The token
-does not enable editing — the client rejects write requests regardless. The app
-uses Capacitor's native HTTP bridge, so plain-HTTP API requests do not require
-adding the app origin to `allowed_origins`.
+Browsing, reading, and refreshing the book list require no access token — the
+refresh walks the shelf and writes nothing, so the server treats it as a read.
+A token is needed only when the server sets `protect_read: true`, which requires
+one for reads as well. The token does not enable editing — the client rejects
+write requests regardless. The app uses Capacitor's native HTTP bridge, so
+plain-HTTP API requests do not require adding the app origin to
+`allowed_origins`. See
+[what `local_token` protects](../deployment-and-threat-model.md#exactly-which-requests-need-the-token)
+for the full list of what the token gates.
 
 ## Read a shelf from pCloud
 
