@@ -28,6 +28,7 @@ and UI behavior may still change between releases.
 
 ### Security
 
+- Updated `golang.org/x/image` to v0.45.0, closing a memory-exhaustion vector (GO-2026-6222) that an untrusted WebP cover could reach through the cover upload and EPUB import paths.
 - Changed the shelf rescan (`POST /api/shelves/{id}/scans`) to require the access token only under `protect_read`, since it walks the shelf without writing, so **refresh the book list** no longer answers `401` under the shipped defaults; it stays behind the origin check, so a cross-origin refresh is still rejected.
 - **Breaking (pre-1.0):** changed `GET /api/logs` and `/api/logs/{id}/content` to always require the access token, whatever `protect_read` says, since logs carry request paths, access times, and remote addresses; a client reading them without a token now gets `401`, and security mode `none` is unaffected.
 - **Breaking (pre-1.0):** changed the Docker image default (`docker/config.yaml`) from `security.mode: "none"` to `local_token`, so mutating `/api` requests require a token and cross-origin (CSRF) writes are rejected; browsers on `127.0.0.1:20000` are unaffected (the token is injected into the served page), but opening the UI from a different host port, LAN IP, or custom domain now needs that exact origin in `app_conf.security.allowed_origins`. This is not an authentication boundary for an exposed port (a client reaching the port can read the token from the page), so keep binding to loopback or front the container with a real boundary.
