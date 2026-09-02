@@ -122,6 +122,8 @@ app_conf:
 
 PlainShelf then creates no folders, writes no lock or cache files under `app/`, and refuses every edit with an error instead of touching the shelf. `lib_root` must already exist. See [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md#opening-a-shelf-read-only) for exactly what is skipped.
 
+While such a shelf is the active one, the web and desktop UI says so in a banner and leaves out the actions it would refuse — importing, editing metadata, sources and covers, creating and moving folders, deleting, and restoring from the trash. Browsing, reading, searching, and **Rescan shelf** stay available, and every other shelf on the same server keeps its own actions. The refusal itself is unchanged: a request sent anyway is still refused by the server.
+
 To do the same for every shelf at once, set `read_only` next to `shelves` instead:
 
 ```yaml

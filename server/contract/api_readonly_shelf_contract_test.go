@@ -63,3 +63,44 @@ func TestAPIReadOnlyShelfRefusesWritesContract(t *testing.T) {
 	rec := postBookImport(t, env, bookUpload("book.txt", plainTextContentType, "text"))
 	assertStatus(t, rec, http.StatusConflict)
 }
+
+// The shelf listing reports each shelf's own read_only, so a client can hide
+// that shelf's write entries instead of discovering the refusal from a 409.
+func TestAPIShelfListingReportsPerShelfReadOnlyContract(t *testing.T) {
+	env := newAPITestEnv(t, withReadOnlyShelf(), withWritableSecondShelf(t))
+
+	type shelfInfo struct {
+		ID       string `json:"id"`
+		Name     string `json:"name"`
+		ReadOnly bool   `json:"read_only"`
+	}
+
+	got := getJSON[[]shelfInfo](t, env, "/api/shelves")
+
+	readOnlyByID := make(map[string]bool, len(got))
+	for _, info := range got {
+		readOnlyByID[info.ID] = info.ReadOnly
+	}
+
+	want := map[string]bool{defaultShelfID: true, writableShelfID: false}
+	for id, wantReadOnly := range want {
+		gotReadOnly, ok := readOnlyByID[id]
+		if !ok {
+			t.Fatalf("shelf %q missing from %+v", id, got)
+		}
+		if gotReadOnly != wantReadOnly {
+			t.Errorf("shelf %q read_only = %v, want %v", id, gotReadOnly, wantReadOnly)
+		}
+	}
+}
+
+// A read-only shelf is a per-shelf setting: /api/mode still answers for the app
+// as a whole, and this shelf does not make the server read-only.
+func TestAPIReadOnlyShelfLeavesServerModeContract(t *testing.T) {
+	env := newAPITestEnv(t, withReadOnlyShelf())
+
+	mode := getJSON[map[string]any](t, env, "/api/mode")
+	if got, want := mode["read_only"], any(false); got != want {
+		t.Errorf("/api/mode read_only = %v, want %v", got, want)
+	}
+}

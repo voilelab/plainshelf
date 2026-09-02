@@ -6,12 +6,24 @@ import { getShell } from '@/providers/shell';
 export interface ShelfInfo {
   id: string;
   name: string;
+
+  /**
+   * This shelf's own `read_only` setting, as the server reports it.
+   *
+   * Separate from the app-wide read-only mode `/api/mode` answers: a writable
+   * server can serve a shelf mounted read-only, and only that shelf's write
+   * entries should disappear. Hiding them is a courtesy — the server refuses
+   * the write with 409 either way — so an older server that omits the field is
+   * read as writable rather than guessed at.
+   */
+  readOnly: boolean;
 }
 
 const mockShelves: ShelfInfo[] = [
   {
     id: 'default_shelf',
-    name: 'Default Shelf'
+    name: 'Default Shelf',
+    readOnly: false
   }
 ];
 
@@ -44,7 +56,7 @@ export async function listServerShelves(): Promise<ShelfInfo[]> {
         return [];
       }
 
-      return [{ id, name }];
+      return [{ id, name, readOnly: shelf.read_only === true }];
     });
 }
 

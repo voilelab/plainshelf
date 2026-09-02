@@ -1,14 +1,17 @@
 import { computed } from 'vue';
 
 import { useServerMode } from '@/composables/useServerMode';
+import { useShelvesStore } from '@/composables/useShelvesStore';
 import { getBookshelfProvider, isWritableProvider } from '@/providers';
+import { t } from '@/i18n';
 
 /**
- * Why write operations are unavailable, in precedence order. `platform` wins
- * over `server-read-only` so user-facing copy names the reason the user can
- * actually act on.
+ * Why write operations are unavailable, in precedence order: `platform`, then
+ * `server-read-only`, then `shelf-read-only`. The order runs from the widest
+ * cause to the narrowest, so user-facing copy names the one the user would have
+ * to lift first.
  */
-type WriteDisabledReason = 'platform' | 'server-read-only' | null;
+type WriteDisabledReason = 'platform' | 'server-read-only' | 'shelf-read-only' | null;
 
 /**
  * Whether this client can mutate the shelf at all.
@@ -21,8 +24,9 @@ type WriteDisabledReason = 'platform' | 'server-read-only' | null;
  * providers are writable.
  *
  * Deliberately separate from the server's `read_only` config (see
- * useServerMode). Both can be true at once, and the two carry different
- * user-facing meanings.
+ * useServerMode) and from the active shelf's own `read_only` (see
+ * useShelvesStore). Any of them can be true at once, and each carries a
+ * different user-facing meaning.
  */
 export function isLibraryEditingSupported(): boolean {
   return isWritableProvider(getBookshelfProvider());
@@ -40,11 +44,17 @@ export function isLibraryEditingSupported(): boolean {
  */
 export function useWriteAccess() {
   const { readOnly } = useServerMode();
+  // The active shelf's own read_only, which a writable server can still report
+  // for one of its shelves. Folded in here rather than checked per component so
+  // every write entry already gated on `writesEnabled` picks it up.
+  const { selectedShelfReadOnly } = useShelvesStore();
 
   // isLibraryEditingSupported() is called inside the computed rather than
   // hoisted: the provider is created lazily on first use, so reading it at
   // module scope could resolve before the shell has finished configuring it.
-  const writesEnabled = computed(() => !readOnly.value && isLibraryEditingSupported());
+  const writesEnabled = computed(
+    () => !readOnly.value && !selectedShelfReadOnly.value && isLibraryEditingSupported()
+  );
 
   const writeDisabledReason = computed<WriteDisabledReason>(() => {
     if (!isLibraryEditingSupported()) {
@@ -53,8 +63,20 @@ export function useWriteAccess() {
     if (readOnly.value) {
       return 'server-read-only';
     }
+    if (selectedShelfReadOnly.value) {
+      return 'shelf-read-only';
+    }
     return null;
   });
+
+  // Why a write just refused was refused, for the guards that report it inline
+  // rather than by hiding the entry. A function rather than a computed so the
+  // string is resolved at the moment it is shown, in the locale current then.
+  function writeDisabledMessage(): string {
+    return writeDisabledReason.value === 'shelf-read-only'
+      ? t('layout.readOnly.shelfWriteDisabled')
+      : t('layout.readOnly.writeDisabled');
+  }
 
   // Trash and the maintenance views exist only to fix up the library, so they
   // are hidden on the platform that cannot write. Kept separate from
@@ -80,6 +102,7 @@ export function useWriteAccess() {
   return {
     writesEnabled,
     writeDisabledReason,
+    writeDisabledMessage,
     libraryEditingAvailable,
     serverSettingsEditable,
     serverAdminAvailable

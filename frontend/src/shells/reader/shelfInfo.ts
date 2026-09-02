@@ -16,5 +16,7 @@ export function activeReaderShelfInfo(): ShelfInfo | null {
     return null;
   }
 
-  return { id: boot.shelf_id, name: 'Book' };
+  // Not read-only as a *shelf*: what the reader app can and cannot do is a
+  // property of the client, which useWriteAccess already answers separately.
+  return { id: boot.shelf_id, name: 'Book', readOnly: false };
 }

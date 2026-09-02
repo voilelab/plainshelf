@@ -424,8 +424,8 @@
       <!-- SplitterPanel forces inline overflow:hidden, so scrolling lives on
            this inner wrapper (same pattern as .sidebar-inner). -->
       <div class="main-scroll">
-      <div v-if="showReadOnlyBanner" class="read-only-banner" role="status">
-        {{ t('layout.readOnly.banner') }}
+      <div v-if="readOnlyBannerKey" class="read-only-banner" role="status">
+        {{ t(readOnlyBannerKey) }}
       </div>
       <header class="topbar">
         <div class="topbar-left">
@@ -648,8 +648,18 @@ const { writesEnabled, writeDisabledReason, libraryEditingAvailable, serverAdmin
   useWriteAccess();
 const readOnly = computed(() => !writesEnabled.value);
 // The Android client being read-only is its normal state, not a condition to
-// warn about, so the banner stays reserved for a server in read-only mode.
-const showReadOnlyBanner = computed(() => writeDisabledReason.value === 'server-read-only');
+// warn about, so the banner stays reserved for the two configured ones — the
+// whole server, or just this shelf — which say different things to the user.
+const readOnlyBannerKey = computed(() => {
+  switch (writeDisabledReason.value) {
+    case 'server-read-only':
+      return 'layout.readOnly.banner';
+    case 'shelf-read-only':
+      return 'layout.readOnly.shelfBanner';
+    default:
+      return '';
+  }
+});
 const localeLabelKeyMap: Record<(typeof supportedLocales)[number], 'language.en' | 'language.zhHant'> = {
   en: 'language.en',
   'zh-Hant': 'language.zhHant'

@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { ensureActiveShelf, listShelves, type ShelfInfo } from '@/api/shelves';
 import { ApiError, setActiveShelfID } from '@/api/client';
 import { getBookshelfProvider } from '@/providers';
@@ -88,6 +88,18 @@ async function ensureShelvesLoaded(): Promise<void> {
   return pendingLoad;
 }
 
+/**
+ * Whether the shelf now selected is one the server opened read-only.
+ *
+ * False while the list is still loading, and false for a shelf resolved from
+ * the device-local fallback in fetchShelves, which has no listing entry to read the flag
+ * from. Both err towards showing the write entries: the server still refuses
+ * the write with 409, so an over-eager UI is a worse answer than a stale one.
+ */
+const selectedShelfReadOnly = computed(
+  () => shelves.value.find((shelf) => shelf.id === selectedShelfID.value)?.readOnly === true
+);
+
 function selectShelf(id: string): void {
   setActiveShelfID(id);
   selectedShelfID.value = id;
@@ -100,6 +112,7 @@ export function useShelvesStore() {
     loaded,
     error,
     selectedShelfID,
+    selectedShelfReadOnly,
     fetchShelves,
     ensureShelvesLoaded,
     selectShelf

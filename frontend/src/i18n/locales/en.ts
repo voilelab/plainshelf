@@ -179,7 +179,10 @@ const en = {
     tabNavLabel: 'Primary',
     readOnly: {
       banner: 'Read-only mode is enabled. Browsing and reading are available, but write operations are disabled.',
-      writeDisabled: 'Server is in read-only mode. Write operations are disabled.'
+      writeDisabled: 'Server is in read-only mode. Write operations are disabled.',
+      shelfBanner:
+        'This shelf is read-only. Browsing, reading and rescanning are available, but write operations are disabled.',
+      shelfWriteDisabled: 'This shelf is read-only. Write operations are disabled.'
     }
   },
   dashboard: {

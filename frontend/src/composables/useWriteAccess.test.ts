@@ -17,11 +17,28 @@ const { WailsBookshelfProvider } = await import('@/providers/wailsBookshelfProvi
 const { MobileBookshelfProvider } = await import('@/providers/mobileBookshelfProvider');
 const { InMemoryMobileBookCache } = await import('@/providers/mobileBookCache');
 const { PCloudBookshelfProvider } = await import('@/providers/pcloudBookshelfProvider');
+const { useShelvesStore } = await import('./useShelvesStore');
 const { isLibraryEditingSupported, useWriteAccess } = await import('./useWriteAccess');
 
 // readOnly is a module-level ref shared by every useServerMode() caller, so the
 // test drives it directly instead of stubbing GET /api/mode.
 const { readOnly } = useServerMode();
+
+// The shelf list is module-level for the same reason, so the per-shelf flag is
+// driven by loading a list rather than by stubbing GET /api/shelves.
+const { shelves, selectedShelfID } = useShelvesStore();
+
+/**
+ * Loads one read-only shelf beside one writable shelf and selects the named
+ * one, which is the arrangement the per-shelf flag exists to tell apart.
+ */
+function selectShelfAmongMixedShelves(id: 'writable' | 'read-only'): void {
+  shelves.value = [
+    { id: 'writable', name: 'Writable', readOnly: false },
+    { id: 'read-only', name: 'Read-only', readOnly: true }
+  ];
+  selectedShelfID.value = id;
+}
 
 /** Points the composable at a real provider instance, not a stub shape. */
 function connectReadingClient(): void {
@@ -34,11 +51,17 @@ function connectWritableClient(): void {
   getBookshelfProviderMock.mockReturnValue(new ServerBookshelfProvider());
 }
 
+// Server mode and the shelf list are module-level singletons, so every case
+// starts from a writable server with no shelf list rather than from whatever
+// the previous one left behind.
+beforeEach(() => {
+  getBookshelfProviderMock.mockReset();
+  readOnly.value = false;
+  shelves.value = [];
+  selectedShelfID.value = '';
+});
+
 describe('useWriteAccess', () => {
-  beforeEach(() => {
-    getBookshelfProviderMock.mockReset();
-    readOnly.value = false;
-  });
 
   it('enables writes on a writable server with a writable client', () => {
     connectWritableClient();
@@ -74,6 +97,53 @@ describe('useWriteAccess', () => {
     expect(writeDisabledReason.value).toBe('platform');
   });
 
+  // The whole point of the flag: two shelves of one writable server, and only
+  // the read-only one loses its write entries.
+  it('disables writes only on the read-only shelf of a mixed pair', () => {
+    connectWritableClient();
+    const { writesEnabled, writeDisabledReason } = useWriteAccess();
+
+    selectShelfAmongMixedShelves('writable');
+    expect(writesEnabled.value).toBe(true);
+    expect(writeDisabledReason.value).toBeNull();
+
+    selectShelfAmongMixedShelves('read-only');
+    expect(writesEnabled.value).toBe(false);
+    expect(writeDisabledReason.value).toBe('shelf-read-only');
+  });
+
+  // A shelf resolved from the device-local fallback has no listing entry, and
+  // an unknown shelf is not one this client may call read-only on its own.
+  it('treats a shelf missing from the list as writable', () => {
+    connectWritableClient();
+    selectShelfAmongMixedShelves('read-only');
+    selectedShelfID.value = 'not-in-the-list';
+    const { writesEnabled, writeDisabledReason } = useWriteAccess();
+
+    expect(writesEnabled.value).toBe(true);
+    expect(writeDisabledReason.value).toBeNull();
+  });
+
+  it('reports the server reason first when the shelf is read-only too', () => {
+    connectWritableClient();
+    readOnly.value = true;
+    selectShelfAmongMixedShelves('read-only');
+    const { writeDisabledReason } = useWriteAccess();
+
+    expect(writeDisabledReason.value).toBe('server-read-only');
+  });
+
+  it('names the shelf in the message a refused write reports', () => {
+    connectWritableClient();
+    const { writeDisabledMessage } = useWriteAccess();
+
+    selectShelfAmongMixedShelves('read-only');
+    const shelfMessage = writeDisabledMessage();
+
+    readOnly.value = true;
+    expect(writeDisabledMessage()).not.toBe(shelfMessage);
+  });
+
   it('tracks server mode changes without re-creating the composable', () => {
     connectWritableClient();
     const { writesEnabled } = useWriteAccess();
@@ -107,6 +177,21 @@ describe('platform capabilities', () => {
     expect(libraryEditingAvailable.value).toBe(false);
     expect(serverSettingsEditable.value).toBe(false);
     expect(serverAdminAvailable.value).toBe(false);
+  });
+
+  // A read-only shelf is a narrower statement than a read-only client: Trash,
+  // the maintenance lists and the settings tabs stay reachable, they just have
+  // nothing to act on for this shelf.
+  it('keeps every capability on a read-only shelf', () => {
+    connectWritableClient();
+    selectShelfAmongMixedShelves('read-only');
+    const { writesEnabled, libraryEditingAvailable, serverSettingsEditable, serverAdminAvailable } =
+      useWriteAccess();
+
+    expect(writesEnabled.value).toBe(false);
+    expect(libraryEditingAvailable.value).toBe(true);
+    expect(serverSettingsEditable.value).toBe(true);
+    expect(serverAdminAvailable.value).toBe(true);
   });
 
   it('keeps every capability on a read-only server', () => {

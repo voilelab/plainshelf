@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ShelfInfo } from './shelves';
+
 const { fetchJsonMock } = vi.hoisted(() => ({
   fetchJsonMock: vi.fn()
 }));
@@ -20,7 +22,7 @@ const { ShelfScanInProgressError, listServerShelves, listShelves, rescanShelf } 
 const { registerShell } = await import('@/providers/shell');
 
 /** Stands in for a shell whose shelf list is device-local. */
-function installShelfProvidingShell(shelf: { id: string; name: string } | null): void {
+function installShelfProvidingShell(shelf: ShelfInfo | null): void {
   registerShell({
     createProvider: () => {
       throw new Error('not used by these tests');
@@ -38,10 +40,10 @@ describe('listShelves', () => {
   // pointed at: the other entries belong to other servers and other pCloud
   // folders, so no server can enumerate them.
   it('answers from the shell without a request when one supplies a shelf', async () => {
-    installShelfProvidingShell({ id: '/PlainShelf/default-shelf', name: 'default-shelf' });
+    installShelfProvidingShell({ id: '/PlainShelf/default-shelf', name: 'default-shelf', readOnly: false });
 
     await expect(listShelves()).resolves.toEqual([
-      { id: '/PlainShelf/default-shelf', name: 'default-shelf' }
+      { id: '/PlainShelf/default-shelf', name: 'default-shelf', readOnly: false }
     ]);
     // Issuing the request would fail and, worse, ensureActiveShelf would then
     // clear the id the cache scope is keyed on.
@@ -49,16 +51,16 @@ describe('listShelves', () => {
   });
 
   it('does the same for a server-backed shell entry', async () => {
-    installShelfProvidingShell({ id: 'main', name: 'main' });
+    installShelfProvidingShell({ id: 'main', name: 'main', readOnly: false });
 
-    await expect(listShelves()).resolves.toEqual([{ id: 'main', name: 'main' }]);
+    await expect(listShelves()).resolves.toEqual([{ id: 'main', name: 'main', readOnly: false }]);
     expect(fetchJsonMock).not.toHaveBeenCalled();
   });
 
   it('asks the server everywhere else', async () => {
     fetchJsonMock.mockResolvedValue([{ id: 'main', name: 'Main' }]);
 
-    await expect(listShelves()).resolves.toEqual([{ id: 'main', name: 'Main' }]);
+    await expect(listShelves()).resolves.toEqual([{ id: 'main', name: 'Main', readOnly: false }]);
     expect(fetchJsonMock).toHaveBeenCalledWith('/api/shelves');
   });
 });
@@ -67,22 +69,44 @@ describe('listServerShelves', () => {
   // The shelf-entry form has to ask a server the user is still typing in what
   // shelves it offers, so this one must never collapse to the active entry.
   it('asks the server even while a shell supplies an active shelf', async () => {
-    installShelfProvidingShell({ id: 'main', name: 'main' });
+    installShelfProvidingShell({ id: 'main', name: 'main', readOnly: false });
     fetchJsonMock.mockResolvedValue([
       { id: 'main', name: 'Main' },
       { id: 'other', name: 'Other' }
     ]);
 
     await expect(listServerShelves()).resolves.toEqual([
-      { id: 'main', name: 'Main' },
-      { id: 'other', name: 'Other' }
+      { id: 'main', name: 'Main', readOnly: false },
+      { id: 'other', name: 'Other', readOnly: false }
     ]);
+  });
+
+  // Per-shelf read_only is what lets the UI drop a read-only shelf's write
+  // entries instead of waiting for the 409 the server would answer with.
+  it('reports the read_only each shelf carries', async () => {
+    fetchJsonMock.mockResolvedValue([
+      { id: 'main', name: 'Main', read_only: false },
+      { id: 'archive', name: 'Archive', read_only: true }
+    ]);
+
+    await expect(listServerShelves()).resolves.toEqual([
+      { id: 'main', name: 'Main', readOnly: false },
+      { id: 'archive', name: 'Archive', readOnly: true }
+    ]);
+  });
+
+  // An older server has no such field, and a shelf it does not call read-only
+  // is not one this client may guess at.
+  it('treats a missing read_only as writable', async () => {
+    fetchJsonMock.mockResolvedValue([{ id: 'main', name: 'Main' }]);
+
+    await expect(listServerShelves()).resolves.toEqual([{ id: 'main', name: 'Main', readOnly: false }]);
   });
 
   it('drops malformed entries from a server response', async () => {
     fetchJsonMock.mockResolvedValue([{ id: 'main', name: 'Main' }, { id: '' }, null, 'nope']);
 
-    await expect(listServerShelves()).resolves.toEqual([{ id: 'main', name: 'Main' }]);
+    await expect(listServerShelves()).resolves.toEqual([{ id: 'main', name: 'Main', readOnly: false }]);
   });
 });
 

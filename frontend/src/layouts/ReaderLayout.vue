@@ -10,33 +10,30 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { ensureActiveShelf, listShelves } from '@/api/shelves';
-import { getBookshelfProvider } from '@/providers';
+import { computed, onMounted } from 'vue';
+import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
-const shelvesLoading = ref(true);
-const shelvesLoaded = ref(false);
-const activeShelfID = ref('');
+// The same store MainLayout loads, rather than a private copy of the same
+// resolution: it already retries a shelf that is still initializing and falls
+// back to a device-persisted shelf when the list cannot be fetched, and it is
+// what carries each shelf's read_only to the source editor, which a direct
+// link opens without MainLayout ever mounting.
+const {
+  loading: shelvesLoading,
+  loaded: shelvesLoaded,
+  selectedShelfID,
+  ensureShelvesLoaded
+} = useShelvesStore();
 
-const hasActiveShelf = computed(() => shelvesLoaded.value && activeShelfID.value.length > 0);
+const hasActiveShelf = computed(() => shelvesLoaded.value && selectedShelfID.value.length > 0);
 const shelfUnavailableMessage = computed(() =>
   shelvesLoading.value ? t('layout.shelf.loading') : t('layout.shelf.unavailableDescription')
 );
 
-onMounted(async () => {
-  shelvesLoading.value = true;
-  try {
-    activeShelfID.value = ensureActiveShelf(await listShelves());
-  } catch {
-    // A backend that persists its shelf on the device falls back to it, so
-    // downloaded books stay readable from the local cache while offline.
-    activeShelfID.value = getBookshelfProvider().getPersistedShelfID?.() ?? '';
-  } finally {
-    shelvesLoaded.value = true;
-    shelvesLoading.value = false;
-  }
+onMounted(() => {
+  void ensureShelvesLoaded();
 });
 </script>
 
