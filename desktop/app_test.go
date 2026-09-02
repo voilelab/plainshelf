@@ -620,18 +620,22 @@ func TestPreviewShelfID(t *testing.T) {
 		t.Fatalf("saveDesktopShelves: %v", err)
 	}
 
+	shelvesDir := filepath.Join(filepath.Dir(configPath), "shelves")
+
 	app := &DesktopApp{shelvesConfigPath: configPath}
 	cases := []struct {
 		name string
-		want string
+		want ShelfIDPreview
 	}{
-		{name: "", want: ""},
-		{name: "   ", want: ""},
-		{name: "My Books", want: "my-books"},
+		{name: "", want: ShelfIDPreview{}},
+		{name: "   ", want: ShelfIDPreview{}},
+		{name: "My Books", want: ShelfIDPreview{ID: "my-books", DefaultPath: filepath.Join(shelvesDir, "my-books")}},
 		// A purely non-ASCII name slugifies to nothing and falls back to
 		// "shelf"; the seeded config already holds "shelf", so the next free id
-		// is "shelf-2" — exactly what the user would silently receive.
-		{name: "漫畫", want: "shelf-2"},
+		// is "shelf-2" — exactly what the user would silently receive. The
+		// default path carries the same suffix, so it cannot land on the
+		// existing shelf's directory either.
+		{name: "漫畫", want: ShelfIDPreview{ID: "shelf-2", DefaultPath: filepath.Join(shelvesDir, "shelf-2")}},
 	}
 	for _, tc := range cases {
 		got, err := app.PreviewShelfID(tc.name)
@@ -639,8 +643,22 @@ func TestPreviewShelfID(t *testing.T) {
 			t.Fatalf("PreviewShelfID(%q) returned error: %v", tc.name, err)
 		}
 		if got != tc.want {
-			t.Errorf("PreviewShelfID(%q) = %q, want %q", tc.name, got, tc.want)
+			t.Errorf("PreviewShelfID(%q) = %+v, want %+v", tc.name, got, tc.want)
 		}
+	}
+}
+
+// The default directory sits under a "shelves" subdirectory rather than beside
+// shelves.json, because a name that slugifies to nothing becomes "shelf" — the
+// legacy default shelf's own directory name, which is not in the id namespace
+// generateDesktopShelfID guards.
+func TestDefaultDesktopShelfDirAvoidsLegacyShelfDir(t *testing.T) {
+	dataRoot := t.TempDir()
+	configPath := filepath.Join(dataRoot, "shelves.json")
+
+	legacy := filepath.Join(dataRoot, desktopLegacyShelfDirName)
+	if got := defaultDesktopShelfDir(configPath, "shelf"); got == legacy {
+		t.Errorf("defaultDesktopShelfDir(%q) = %q, which is the legacy default shelf directory", "shelf", got)
 	}
 }
 

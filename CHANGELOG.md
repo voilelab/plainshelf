@@ -10,6 +10,7 @@ and UI behavior may still change between releases.
 ### Added
 
 - Added a **?** button to the mobile reader's controls that replays the gesture hint, which previously showed only once per device.
+- Added a default shelf directory to the desktop **Add shelf** dialog, which now previews the path and the shelf ID for the typed name and creates the shelf under the app data directory's `shelves/<shelf id>` when no directory is picked.
 
 ### Changed
 

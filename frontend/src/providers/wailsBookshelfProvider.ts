@@ -16,7 +16,8 @@ import {
 import type {
   DesktopAddShelfParams,
   DesktopModifyShelfParams,
-  DesktopShelfDetails
+  DesktopShelfDetails,
+  DesktopShelfIDPreview
 } from '@/api/desktop';
 import { getActiveShelfID } from '@/api/client';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
@@ -70,7 +71,7 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
     return openDesktopShelfFolder(shelfID);
   }
 
-  previewDesktopShelfID(name: string): Promise<string> {
+  previewDesktopShelfID(name: string): Promise<DesktopShelfIDPreview> {
     return previewDesktopShelfID(name);
   }
 

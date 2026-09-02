@@ -1,7 +1,8 @@
 import type {
   DesktopAddShelfParams,
   DesktopModifyShelfParams,
-  DesktopShelfDetails
+  DesktopShelfDetails,
+  DesktopShelfIDPreview
 } from '@/api/desktop';
 import type { BookTransferMode, FingerprintStatus, ListBooksOptions, SimilarBookPair } from '@/api/books';
 import type {
@@ -209,10 +210,12 @@ export interface BookshelfReader {
   openDesktopShelfFolder?(shelfID: string): Promise<void>;
   /**
    * Returns the shelf id AddShelf would assign to a shelf named `name` right
-   * now (desktop only), so the add-shelf form can preview it as the user types.
-   * Resolves to '' for an empty name or when preview is unavailable.
+   * now, plus the directory such a shelf would be created in when the user
+   * picks none (desktop only), so the add-shelf form can preview both as the
+   * user types. Both fields are '' for an empty name or when preview is
+   * unavailable.
    */
-  previewDesktopShelfID?(name: string): Promise<string>;
+  previewDesktopShelfID?(name: string): Promise<DesktopShelfIDPreview>;
   /**
    * Creates a desktop shelf. `params.readOnly` opens it without writing to it at
    * all, so `params.libRoot` must already exist — a read-only shelf is never

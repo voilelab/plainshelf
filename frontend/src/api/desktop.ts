@@ -27,6 +27,15 @@ export interface DesktopAddShelfParams {
   readOnly: boolean;
 }
 
+/**
+ * What the add-shelf form previews for a typed name: the id the shelf would get
+ * and the directory it would be created in if the user picks none.
+ */
+export interface DesktopShelfIDPreview {
+  id: string;
+  defaultPath: string;
+}
+
 export interface DesktopModifyShelfParams {
   shelfID: string;
   name: string;
@@ -44,7 +53,7 @@ interface DesktopAppBinding {
   ) => Promise<DesktopImportBookResult>;
   OpenShelfDirectory?: () => Promise<string>;
   OpenShelfInFinder?: (shelfID: string) => Promise<void>;
-  PreviewShelfID?: (name: string) => Promise<string>;
+  PreviewShelfID?: (name: string) => Promise<DesktopShelfIDPreview>;
   OpenFolderDirectory?: (shelfID: string, folderParts: string[]) => Promise<void>;
   OpenBookDirectory?: (shelfID: string, bookID: string) => Promise<void>;
   OpenReader?: (shelfID: string, bookID: string, section: number) => Promise<void>;
@@ -145,20 +154,22 @@ export async function openDesktopShelfFolder(shelfID: string): Promise<void> {
 }
 
 // Returns the shelf id AddShelf would assign to a shelf named `name` right now,
-// including any uniqueness suffix, so the add-shelf form can show it live.
-// Resolves to '' off the desktop, when the binding is missing, or for an empty
-// name — the callers treat '' as "no preview".
-export async function previewDesktopShelfID(name: string): Promise<string> {
+// including any uniqueness suffix, plus the directory such a shelf would be
+// created in when the user picks none — so the add-shelf form can show both
+// live. Both fields are '' off the desktop, when the binding is missing, or for
+// an empty name; the callers treat '' as "no preview".
+export async function previewDesktopShelfID(name: string): Promise<DesktopShelfIDPreview> {
+  const empty: DesktopShelfIDPreview = { id: '', defaultPath: '' };
   if (!isDesktopRuntime()) {
-    return '';
+    return empty;
   }
 
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
   if (!desktopApp?.PreviewShelfID) {
-    return '';
+    return empty;
   }
 
-  return (await desktopApp.PreviewShelfID(name)) ?? '';
+  return (await desktopApp.PreviewShelfID(name)) ?? empty;
 }
 
 export async function openDesktopBookFolder(bookID: string): Promise<void> {

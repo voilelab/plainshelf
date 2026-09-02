@@ -35,6 +35,12 @@ const (
 	desktopLegacyDefaultShelfID   = "default_shelf"
 	desktopLegacyDefaultShelfName = "Default Shelf"
 	desktopLegacyShelfDirName     = "shelf"
+
+	// desktopShelvesDirName holds the shelves the user creates from the add-shelf
+	// form without choosing a directory. It is a level below the data root rather
+	// than beside it, so a shelf whose name slugifies to "shelf" cannot land on
+	// the legacy default shelf's own directory (desktopLegacyShelfDirName).
+	desktopShelvesDirName = "shelves"
 )
 
 type desktopShelvesConfig struct {
@@ -110,6 +116,14 @@ func toShelfConfWithID(entry desktopShelfEntry) shelf.ShelfConfWithID {
 			ReadOnly:          entry.ReadOnly,
 		},
 	}
+}
+
+// defaultDesktopShelfDir is where a shelf with the given id is created when the
+// user does not pick a directory. shelves.json sits directly in the desktop data
+// root (see startServer), which is what makes that root recoverable from the
+// config path alone instead of being threaded through as a second field.
+func defaultDesktopShelfDir(shelvesConfigPath, shelfID string) string {
+	return filepath.Join(filepath.Dir(shelvesConfigPath), desktopShelvesDirName, shelfID)
 }
 
 func normalizeDesktopShelfDirectory(dir string) (string, error) {
