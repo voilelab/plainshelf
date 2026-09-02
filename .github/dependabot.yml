@@ -43,6 +43,15 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # TypeScript 7 is the Go rewrite: its package `exports` drop the JS
+      # compiler API, so `vue-tsc` cannot resolve `typescript/lib/tsc` and
+      # `npm run build` dies before type-checking anything. Nothing in the
+      # frontend can move until vue-tsc ships a native-compiler backend, so
+      # majors stay ignored; minors and patches still come through.
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
 
   # The `FROM` images only. The pinned NODE_VERSION and GO_VERSION build args in
   # the Dockerfile are invisible to Dependabot and still move by hand.
