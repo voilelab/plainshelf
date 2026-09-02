@@ -76,6 +76,15 @@ token injected into the served frontend.
 Run the narrowest relevant check while iterating, then run the full check for
 every area changed before opening a pull request.
 
+Continuous integration adds three frontend gates to that list:
+`npm --prefix frontend run check-boundaries`,
+`npm --prefix frontend run check-exports`, and
+`npm --prefix frontend run check-licenses`. The export check fails on an `export`
+in `frontend/src` that no other non-test file reads, so a module's exports stay
+its interface rather than a list of internals. Drop the `export` when nothing
+needs it; when a unit test is the only reader and the seam is worth keeping,
+record it in the allowlist at the top of `frontend/scripts/check-exports.mjs`.
+
 The book package format has two independent readers — the Go shelf and the
 pCloud client the Android app reads a shelf with — so both run the shared
 fixtures in `shelf/testdata/conformance/`. A change to how a shelf is read
@@ -85,6 +94,15 @@ of it fails. The dataset's own README explains the contract.
 [Mutation testing](mutation-testing.md) is available for the reader's helpers and
 the shared Markdown modules as an on-demand check of how much the unit tests
 actually verify. It is not part of the checks above.
+
+Dependency vulnerability scanning is CI-only and not in the table either.
+`govulncheck ./...` runs in each of the three Go modules under both `GOOS=linux`
+and `GOOS=darwin`, and gates the merge;
+`npm audit --audit-level=high` runs against the `frontend` and `e2e` lockfiles
+for information only. To reproduce a `govulncheck` failure locally, install it
+with a Go at least as new as the one `go.mod` targets — built by an older Go it
+fails while loading packages, with `requires newer Go version`, before it scans
+anything. `SECURITY.md` explains why one gates and the other does not.
 
 ## Versioning
 
