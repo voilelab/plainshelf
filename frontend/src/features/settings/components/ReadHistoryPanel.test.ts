@@ -114,10 +114,15 @@ describe('ReadHistoryPanel', () => {
   it('disables the whole field while a save is in flight', () => {
     const { host, app } = mount(20, true);
 
-    expect(field(host).hasAttribute('disabled')).toBe(true);
-    for (const button of host.querySelectorAll('.number-field-step')) {
-      expect(button.hasAttribute('disabled')).toBe(true);
+    // Reka pairs the native attribute with `data-disabled` on the input, both
+    // steppers and the surrounding box; numeric-controls.css styles the
+    // disabled state off the data attribute, which is the only one the box
+    // itself can carry.
+    for (const element of [field(host), ...host.querySelectorAll('.number-field-step')]) {
+      expect(element.hasAttribute('disabled')).toBe(true);
+      expect(element.hasAttribute('data-disabled')).toBe(true);
     }
+    expect(host.querySelector('.number-field')?.hasAttribute('data-disabled')).toBe(true);
 
     app.unmount();
   });
