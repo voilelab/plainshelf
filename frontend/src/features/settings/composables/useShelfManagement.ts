@@ -10,7 +10,7 @@ interface ShelfRef {
 }
 
 /** Where a new shelf's folder comes from: created by PlainShelf, or adopted. */
-export type ShelfLocationMode = 'new' | 'existing';
+type ShelfLocationMode = 'new' | 'existing';
 
 /**
  * The settings page's shelf table: adding, modifying and removing a shelf, plus

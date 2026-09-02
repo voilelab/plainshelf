@@ -44,6 +44,7 @@ tests when that directory is absent or stale.
 | Frontend unit tests | `npm --prefix frontend test` |
 | Frontend type-check + build | `npm --prefix frontend run build` |
 | Frontend module boundaries | `npm --prefix frontend run check-boundaries` |
+| Frontend unused exports | `npm --prefix frontend run check-exports` |
 | Frontend dependency licenses | `npm --prefix frontend run check-licenses` |
 | Version resolver | `./scripts/test-resolve-version.sh` |
 | Main Go module | `go test ./...` |
@@ -53,8 +54,8 @@ tests when that directory is absent or stale.
 | End-to-end tests | `just test-e2e` |
 | Mock frontend | `VITE_USE_MOCK_API=true npm --prefix frontend run dev` |
 
-The boundary, license, and version-resolver checks are pull-request gates in
-`.github/workflows/ci.yml`; its Android build job is not a gate yet.
+The boundary, export, license, and version-resolver checks are pull-request
+gates in `.github/workflows/ci.yml`; its Android build job is not a gate yet.
 
 `just` uses `zsh`. If either is unavailable, run the underlying commands from
 the `justfile`. In restricted environments where `sharp` cannot download its

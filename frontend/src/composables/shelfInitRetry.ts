@@ -25,7 +25,7 @@ export function isShelfInitializing(err: unknown): boolean {
   return err instanceof ApiError && err.status === 503;
 }
 
-export interface ShelfInitRetry {
+interface ShelfInitRetry {
   /** True while a scheduled retry is waiting to fire. */
   readonly pending: boolean;
   /**
