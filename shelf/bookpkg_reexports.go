@@ -4,8 +4,7 @@ import "github.com/voilelab/plainshelf/shelf/bookpkg"
 
 // The .bookpkg read/write layer lives in shelf/bookpkg so a reader can open one
 // book package without compiling in the shelf's file lock, trash, caches and
-// scan tree. These aliases keep every symbol reachable as shelf.X, so server,
-// desktop, cmd and the shelf package's own code are unchanged by the split.
+// scan tree. These aliases keep the symbols call sites name reachable as shelf.X.
 //
 // bookpkg does not import shelf: the dependency runs one way only, through the
 // shared shelf/internal/shelfutil leaf.
@@ -18,29 +17,21 @@ type (
 	Source           = bookpkg.Source
 	SourceMeta       = bookpkg.SourceMeta
 	NewSourceOptions = bookpkg.NewSourceOptions
-	Asset            = bookpkg.Asset
-	BookPackage      = bookpkg.BookPackage
-	FileStat         = bookpkg.FileStat
 )
 
 // Book package filenames, folder names and schema versions.
 const (
-	SourcesFolder               = bookpkg.SourcesFolder
-	BookMetaFile                = bookpkg.BookMetaFile
-	CurrentSourceHintFile       = bookpkg.CurrentSourceHintFile
-	LegacyCurrentSourceHintFile = bookpkg.LegacyCurrentSourceHintFile
-	CurrentSourceHintTemplate   = bookpkg.CurrentSourceHintTemplate
-	BookMetaSchemaVersion       = bookpkg.BookMetaSchemaVersion
-	SourceMetaFile              = bookpkg.SourceMetaFile
-	SourceFile                  = bookpkg.SourceFile
-	SourceMetaSchemaVersion     = bookpkg.SourceMetaSchemaVersion
-	SourceAssetsFolder          = bookpkg.SourceAssetsFolder
+	SourcesFolder             = bookpkg.SourcesFolder
+	BookMetaFile              = bookpkg.BookMetaFile
+	CurrentSourceHintTemplate = bookpkg.CurrentSourceHintTemplate
+	BookMetaSchemaVersion     = bookpkg.BookMetaSchemaVersion
+	SourceMetaFile            = bookpkg.SourceMetaFile
+	SourceFile                = bookpkg.SourceFile
+	SourceAssetsFolder        = bookpkg.SourceAssetsFolder
 )
 
 // Metadata value vocabularies.
 const (
-	MinStar            = bookpkg.MinStar
-	MaxStar            = bookpkg.MaxStar
 	BookFormatText     = bookpkg.BookFormatText
 	BookFormatMarkdown = bookpkg.BookFormatMarkdown
 )
@@ -54,13 +45,10 @@ var (
 	ErrInvalidBookFormat              = bookpkg.ErrInvalidBookFormat
 	ErrUnsupportedBookSchemaVersion   = bookpkg.ErrUnsupportedBookSchemaVersion
 	ErrUnsupportedSourceSchemaVersion = bookpkg.ErrUnsupportedSourceSchemaVersion
-	ErrNotBookPackage                 = bookpkg.ErrNotBookPackage
 	ErrAssetNotFound                  = bookpkg.ErrAssetNotFound
 	ErrInvalidAssetName               = bookpkg.ErrInvalidAssetName
 )
 
-// Book package entry points.
-var (
-	OpenBookPackage     = bookpkg.OpenBookPackage
-	IsSupportedImageExt = bookpkg.IsSupportedImageExt
-)
+// IsSupportedImageExt reports whether an extension names an image a source can
+// keep as an asset.
+var IsSupportedImageExt = bookpkg.IsSupportedImageExt
