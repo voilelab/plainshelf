@@ -253,15 +253,17 @@ watch(duration, (value) => {
   gap: 6px;
 }
 
-/* Reka's NumberField brings its own box (numeric-controls.css); this holds it
-   to the row's height and to a width that still fits the largest amount the
-   second unit accepts, plus its two steppers. */
+/* Reka's NumberField brings its own box (numeric-controls.css); this matches it
+   to the two selects beside it and keeps the three on one row inside the shelf
+   modal, which the settings page's wider 160px number field would not do. */
 .scan-interval-amount {
-  --number-field-height: 34px;
+  --number-field-height: 35px;
+  --number-field-padding: 8px;
+  --number-field-step-width: 24px;
 
   flex: none;
   font-size: 13px;
-  width: 160px;
+  width: 120px;
 }
 
 .scan-interval-help {
