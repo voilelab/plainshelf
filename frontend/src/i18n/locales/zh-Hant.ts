@@ -349,7 +349,6 @@ const zhHant = {
       addShelfSubmit: '新增書架',
       addShelfAdding: '新增中...',
       addShelfFailed: '新增書架失敗',
-      addShelfPathPreview: '建立位置：',
       addShelfIDPreview: '書架 ID：',
       addShelfLocationLabel: '書架位置',
       addShelfLocationNew: '建立新資料夾',

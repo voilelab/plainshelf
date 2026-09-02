@@ -356,7 +356,6 @@ const en = {
       addShelfSubmit: 'Add shelf',
       addShelfAdding: 'Adding...',
       addShelfFailed: 'Failed to add shelf',
-      addShelfPathPreview: 'Location:',
       addShelfIDPreview: 'Shelf ID:',
       addShelfLocationLabel: 'Shelf location',
       addShelfLocationNew: 'Create a new folder',
