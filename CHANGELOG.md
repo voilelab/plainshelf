@@ -9,11 +9,13 @@ and UI behavior may still change between releases.
 
 ### Added
 
+- Added `read_only` to each entry of `GET /api/shelves`, reporting that shelf's own setting rather than the app-wide one `GET /api/mode` answers.
 - Added a **?** button to the mobile reader's controls that replays the gesture hint, which previously showed only once per device.
 - Added a default shelf directory to the desktop **Add shelf** dialog, which now previews the path and the shelf ID for the typed name and creates the shelf under the app data directory's `shelves/<shelf id>` when no directory is picked.
 
 ### Changed
 
+- Changed a shelf opened with `read_only` to say so in the UI and drop the actions it would refuse — import, metadata/source/cover editing, folder create and move, delete, trash restore — while browsing, reading, search, and **Rescan shelf** stay available; the server still answers `409` for a request sent anyway.
 - Changed the desktop **Create shelf** dialog to ask where the shelf goes as a two-way choice: **Create a new folder** (the default) needs only a name and shows the folder PlainShelf will create for it, while **Use a folder I already have** is the only branch offering the read-only toggle and a path to type or browse to.
 - Changed a relative path typed into the create-shelf dialog to be refused on the form instead of by the backend's `shelf directory must be an absolute path`.
 - Changed the create-shelf dialog to drop its scan-interval and book-check-interval controls; a new shelf takes the defaults and both stay adjustable in **Modify**.
