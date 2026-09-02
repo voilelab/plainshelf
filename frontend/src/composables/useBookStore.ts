@@ -1,10 +1,9 @@
 import { ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
 import { ApiError } from '@/api/client';
+import { createShelfInitRetry, isShelfInitializing } from './shelfInitRetry';
 import type { Book } from '@/types/book';
 import { t } from '@/i18n';
-
-const SHELF_INIT_MAX_AUTO_RETRIES = 10; // ~30s of auto-retry before showing "unreachable"
 
 // Module-level singleton: shared across all components that call useBookStore()
 const books = ref<Book[]>([]);
@@ -13,20 +12,13 @@ const error = ref('');
 const shelfInitializing = ref(false);
 const shelfUnreachable = ref(false);
 
-let retryTimer: ReturnType<typeof setTimeout> | null = null;
-let initRetryCount = 0;
-
-function clearRetry(): void {
-  if (retryTimer !== null) {
-    clearTimeout(retryTimer);
-    retryTimer = null;
-  }
-}
+const initRetry = createShelfInitRetry();
 
 async function fetchBooks(_isAutoRetry = false): Promise<void> {
-  clearRetry();
-  if (!_isAutoRetry) {
-    initRetryCount = 0;
+  if (_isAutoRetry) {
+    initRetry.cancel();
+  } else {
+    initRetry.reset();
     shelfUnreachable.value = false;
   }
   loading.value = true;
@@ -35,18 +27,16 @@ async function fetchBooks(_isAutoRetry = false): Promise<void> {
   try {
     const data = await getBookshelfProvider().listBooks(1, Number.MAX_SAFE_INTEGER);
     books.value = data.items;
-    initRetryCount = 0;
+    initRetry.reset();
     shelfUnreachable.value = false;
   } catch (err) {
-    if (err instanceof ApiError && err.status === 503) {
-      initRetryCount++;
-      if (initRetryCount >= SHELF_INIT_MAX_AUTO_RETRIES) {
-        shelfUnreachable.value = true;
-        loading.value = false;
+    if (isShelfInitializing(err)) {
+      if (initRetry.schedule(() => void fetchBooks(true))) {
+        shelfInitializing.value = true;
         return;
       }
-      shelfInitializing.value = true;
-      retryTimer = setTimeout(() => fetchBooks(true), 3000);
+      shelfUnreachable.value = true;
+      loading.value = false;
       return;
     }
     const msg = err instanceof ApiError && err.isTimeout
