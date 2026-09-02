@@ -3,7 +3,22 @@ import { createApp, h, nextTick, reactive, type App } from 'vue';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import SimilarityFilterBar from './SimilarityFilterBar.vue';
-import type { SimilarityTierKey } from '@/utils/similarity';
+import {
+  SIMILARITY_SLIDER_MAX,
+  SIMILARITY_SLIDER_MIN,
+  SIMILARITY_SLIDER_STEP,
+  type SimilarityTierKey
+} from '@/utils/similarity';
+
+// reka's SliderThumb measures itself with a ResizeObserver, which jsdom does
+// not implement. Nothing here depends on the measurement (it only offsets the
+// thumb inside the track), so an inert stub is enough to mount the slider.
+class NoopResizeObserver {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+globalThis.ResizeObserver ??= NoopResizeObserver as unknown as typeof ResizeObserver;
 
 interface Harness {
   app: App;
@@ -14,7 +29,7 @@ interface Harness {
     threshold: number;
     subsetOnly: boolean;
   };
-  events: { tier: SimilarityTierKey[]; advancedOpen: boolean[] };
+  events: { tier: SimilarityTierKey[]; advancedOpen: boolean[]; threshold: number[] };
 }
 
 const mounted: Harness[] = [];
@@ -30,7 +45,7 @@ function mount(overrides: Partial<Harness['state']> = {}): Harness {
     subsetOnly: false,
     ...overrides
   });
-  const events: Harness['events'] = { tier: [], advancedOpen: [] };
+  const events: Harness['events'] = { tier: [], advancedOpen: [], threshold: [] };
 
   // The bar is a controlled component: mirror each emit back into the props so
   // the DOM reflects what a real parent would render on the next tick.
@@ -50,6 +65,7 @@ function mount(overrides: Partial<Harness['state']> = {}): Harness {
           state.advancedOpen = value;
         },
         'onUpdate:threshold': (value: number) => {
+          events.threshold.push(value);
           state.threshold = value;
         }
       })
@@ -170,5 +186,57 @@ describe('SimilarityFilterBar advanced collapsible', () => {
     await nextTick();
 
     expect(events.advancedOpen).toEqual([true]);
+  });
+});
+
+function thumb(host: HTMLElement): HTMLElement {
+  const element = host.querySelector<HTMLElement>('#similarity-threshold-slider');
+  if (!element) throw new Error('the slider thumb is missing');
+  return element;
+}
+
+describe('SimilarityFilterBar threshold slider', () => {
+  it('exposes the threshold on a slider the label names', async () => {
+    const { host } = mount({ advancedOpen: true, threshold: 0.45 });
+    await nextTick();
+
+    const control = thumb(host);
+    expect(control.getAttribute('role')).toBe('slider');
+    expect(control.getAttribute('aria-valuenow')).toBe('0.45');
+    expect(control.getAttribute('aria-valuemin')).toBe(String(SIMILARITY_SLIDER_MIN));
+    expect(control.getAttribute('aria-valuemax')).toBe(String(SIMILARITY_SLIDER_MAX));
+
+    // The thumb is a span, which `<label for>` cannot name, so the accessible
+    // name comes from the label element beside it.
+    const labelId = control.getAttribute('aria-labelledby');
+    expect(labelId).toBeTruthy();
+    expect(host.querySelector(`#${labelId}`)?.textContent?.trim()).toBeTruthy();
+  });
+
+  it('steps the threshold by SIMILARITY_SLIDER_STEP with an arrow key', async () => {
+    const { host, events, state } = mount({ advancedOpen: true, threshold: 0.45 });
+    await nextTick();
+
+    thumb(host).dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await nextTick();
+
+    expect(events.threshold).toEqual([0.45 + SIMILARITY_SLIDER_STEP]);
+    expect(state.threshold).toBe(0.46);
+    expect(thumb(host).getAttribute('aria-valuenow')).toBe('0.46');
+
+    thumb(host).dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    await nextTick();
+
+    expect(state.threshold).toBe(0.45);
+  });
+
+  it('does not step past the ends of the range', async () => {
+    const { host, state } = mount({ advancedOpen: true, threshold: SIMILARITY_SLIDER_MAX });
+    await nextTick();
+
+    thumb(host).dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await nextTick();
+
+    expect(state.threshold).toBe(SIMILARITY_SLIDER_MAX);
   });
 });

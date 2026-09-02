@@ -14,6 +14,7 @@ and UI behavior may still change between releases.
 
 ### Changed
 
+- Changed the similarity threshold slider to reka-ui `SliderRoot` and the character-range, reading-history-limit, log-retention and line-count number boxes to reka-ui `NumberFieldRoot`, replacing native `range`/`number` inputs whose track, thumb and spinner rendered differently in every browser and were absent on touch.
 - Changed the desktop **Create shelf** dialog to ask where the shelf goes as a two-way choice: **Create a new folder** (the default) needs only a name and shows the folder PlainShelf will create for it, while **Use a folder I already have** is the only branch offering the read-only toggle and a path to type or browse to.
 - Changed a relative path typed into the create-shelf dialog to be refused on the form instead of by the backend's `shelf directory must be an absolute path`.
 - Changed the create-shelf dialog to drop its scan-interval and book-check-interval controls; a new shelf takes the defaults and both stay adjustable in **Modify**.

@@ -64,6 +64,13 @@
   cursor: not-allowed;
 }
 
+/* Reka's NumberField brings its own box (numeric-controls.css); this only
+   holds it to the width the native field had, plus its two steppers. */
+.setting-number-field {
+  flex: none;
+  width: 160px;
+}
+
 .setting-select {
   border: 1px solid #cbd5e1;
   border-radius: 8px;

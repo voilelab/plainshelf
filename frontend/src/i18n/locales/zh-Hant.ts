@@ -53,7 +53,9 @@ const zhHant = {
     page: '第 {page} / {total} 頁',
     inFolder: '（在 {folder}）',
     taskStartFailed: '啟動工作失敗',
-    taskPollFailed: '讀取工作進度失敗'
+    taskPollFailed: '讀取工作進度失敗',
+    decrease: '減少{label}',
+    increase: '增加{label}'
   },
   layout: {
     expandSidebar: '展開側欄',

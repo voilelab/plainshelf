@@ -53,7 +53,11 @@ const en = {
     page: 'Page {page} / {total}',
     inFolder: ' in {folder}',
     taskStartFailed: 'Failed to start the task',
-    taskPollFailed: 'Failed to read task progress'
+    taskPollFailed: 'Failed to read task progress',
+    // Names the stepper buttons of a number field; {label} is the field's own
+    // label, so two fields side by side do not read as the same button.
+    decrease: 'Decrease {label}',
+    increase: 'Increase {label}'
   },
   layout: {
     expandSidebar: 'Expand sidebar',

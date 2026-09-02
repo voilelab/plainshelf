@@ -41,9 +41,14 @@ async function clearStoredCharCounts(shelfDir: string): Promise<number> {
 
 // The character-range control lives inside the filter panel now. The panel is
 // opened once and kept open across edits: a bound is committed with Enter, which
-// fires the input's change while focus stays on the input, so the panel does not
-// close (Tab or blur would move focus out and dismiss it). The results behind
-// the panel are still visible, so they can be asserted with the panel open.
+// reka's NumberField applies while focus stays on the input, so the panel does
+// not close (Tab or blur would move focus out and dismiss it). The results
+// behind the panel are still visible, so they can be asserted with the panel
+// open.
+//
+// The bounds are located by their spinbutton role rather than by label: each
+// one also has a "Decrease/Increase <label>" stepper button, so a plain label
+// lookup matches three elements.
 async function openFilterPanel(page: Page): Promise<void> {
   await page.getByRole('button', { name: /^Filter/ }).click();
   await expect(page.getByRole('heading', { name: 'Filters' })).toBeVisible();
@@ -63,8 +68,8 @@ test('library filters books by a character-count range', async ({ page }) => {
   await expect(bookRow).toBeVisible();
 
   await openFilterPanel(page);
-  const minInput = page.getByLabel('Minimum characters');
-  const maxInput = page.getByLabel('Maximum characters');
+  const minInput = page.getByRole('spinbutton', { name: 'Minimum characters' });
+  const maxInput = page.getByRole('spinbutton', { name: 'Maximum characters' });
 
   // Both bounds start empty, which is the unlimited state.
   await expect(minInput).toHaveValue('');
@@ -109,7 +114,7 @@ test('an active range does not mask the search empty state', async ({ page }) =>
   await importBookAs(page, helloFixturePath, 'charfilter-search');
 
   await openFilterPanel(page);
-  const maxInput = page.getByLabel('Maximum characters');
+  const maxInput = page.getByRole('spinbutton', { name: 'Maximum characters' });
   await maxInput.fill('5000');
   await maxInput.press('Enter');
   await expect(
@@ -130,8 +135,8 @@ test('reversed bounds are applied as a single ordered range', async ({ page }) =
   await importBookAs(page, helloFixturePath, 'charfilter-reversed');
 
   await openFilterPanel(page);
-  const minInput = page.getByLabel('Minimum characters');
-  const maxInput = page.getByLabel('Maximum characters');
+  const minInput = page.getByRole('spinbutton', { name: 'Minimum characters' });
+  const maxInput = page.getByRole('spinbutton', { name: 'Maximum characters' });
 
   await minInput.fill('5000');
   await minInput.press('Enter');
