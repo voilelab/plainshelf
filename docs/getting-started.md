@@ -14,7 +14,9 @@ brew install --cask voilelab/plainshelf/plainshelf
 open -a PlainShelf
 ```
 
-Use the shelf controls in the app to add a local shelf directory.
+Use the shelf controls in the app to add a shelf. Creating one needs only a
+name — PlainShelf makes the folder in its own shelves directory — or you can
+choose an existing folder to open instead.
 
 ### Prebuilt server
 
