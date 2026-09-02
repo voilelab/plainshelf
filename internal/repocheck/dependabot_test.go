@@ -4,7 +4,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -54,8 +53,10 @@ type ciWorkflow struct {
 		Name            string `yaml:"name"`
 		ContinueOnError bool   `yaml:"continue-on-error"`
 		Steps           []struct {
-			Name string `yaml:"name"`
-			Run  string `yaml:"run"`
+			Name string            `yaml:"name"`
+			Run  string            `yaml:"run"`
+			If   string            `yaml:"if"`
+			Env  map[string]string `yaml:"env"`
 		} `yaml:"steps"`
 	} `yaml:"jobs"`
 }
@@ -116,12 +117,19 @@ func TestCIJobNamesAreStable(t *testing.T) {
 	}
 }
 
+// releasedGOOS are the operating systems .github/workflows/release.yml builds
+// for: linux for the server binaries and the Docker image, darwin for those
+// plus the two Wails apps. govulncheck resolves build tags for the GOOS it runs
+// as, so scanning only one of them leaves the other's shipped binaries unread.
+var releasedGOOS = []string{"linux", "darwin"}
+
 // TestVulnerabilityScanCoversEveryGoModule keeps the scan job in step with the
-// module layout, which the lint and test jobs already have to track by hand.
+// module layout, which the lint and test jobs already have to track by hand,
+// and with the platforms the release actually ships.
 func TestVulnerabilityScanCoversEveryGoModule(t *testing.T) {
 	root := repoRoot(t)
 
-	var scanned []string
+	scanned := map[string]bool{}
 	for _, step := range readCIWorkflow(t, root).Jobs["vulncheck"].Steps {
 		run := strings.TrimSpace(step.Run)
 		if !strings.Contains(run, "govulncheck ./...") {
@@ -131,16 +139,49 @@ func TestVulnerabilityScanCoversEveryGoModule(t *testing.T) {
 		if rest, ok := strings.CutPrefix(run, "cd "); ok {
 			dir = "/" + strings.TrimSpace(strings.SplitN(rest, "&&", 2)[0])
 		}
-		scanned = append(scanned, dir)
+		goos := step.Env["GOOS"]
+		if goos == "" {
+			t.Errorf("ci.yml step %q does not set GOOS, so it silently scans only the runner's platform", step.Name)
+		}
+		scanned[dir+" "+goos] = true
 	}
 
 	for _, want := range discoverManifests(t, root) {
 		if want.ecosystem != "gomod" {
 			continue
 		}
-		if !slices.Contains(scanned, want.directory) {
-			t.Errorf("ci.yml's vulncheck job does not run govulncheck in %q (from %s); scanned: %v",
-				want.directory, want.source, scanned)
+		for _, goos := range releasedGOOS {
+			if !scanned[want.directory+" "+goos] {
+				t.Errorf("ci.yml's vulncheck job does not scan %q (from %s) as GOOS=%s",
+					want.directory, want.source, goos)
+			}
+		}
+	}
+}
+
+// TestScanStepsSurviveAnEarlierFailure guards a trap both scan jobs sit in: a
+// failed step skips the rest of its job by default, so the first vulnerable
+// module or lockfile would mask every one scanned after it. Job-level
+// continue-on-error does not help — it keeps the failure off the workflow
+// result without un-skipping anything.
+func TestScanStepsSurviveAnEarlierFailure(t *testing.T) {
+	wf := readCIWorkflow(t, repoRoot(t))
+
+	for _, jobID := range []string{"vulncheck", "audit"} {
+		seenFallible := false
+		for _, step := range wf.Jobs[jobID].Steps {
+			run := step.Run
+			if !strings.Contains(run, "govulncheck") && !strings.Contains(run, "npm audit") {
+				continue
+			}
+			if seenFallible && !strings.Contains(step.If, "cancelled") {
+				t.Errorf("ci.yml step %q (job %q) has no `if` surviving an earlier failure, so a finding before it hides it",
+					step.Name, jobID)
+			}
+			seenFallible = true
+		}
+		if !seenFallible {
+			t.Errorf("ci.yml job %q runs no scan step at all", jobID)
 		}
 	}
 }

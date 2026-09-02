@@ -87,7 +87,8 @@ the shared Markdown modules as an on-demand check of how much the unit tests
 actually verify. It is not part of the checks above.
 
 Dependency vulnerability scanning is CI-only and not in the table either.
-`govulncheck ./...` runs in each of the three Go modules and gates the merge;
+`govulncheck ./...` runs in each of the three Go modules under both `GOOS=linux`
+and `GOOS=darwin`, and gates the merge;
 `npm audit --audit-level=high` runs against the `frontend` and `e2e` lockfiles
 for information only. To reproduce a `govulncheck` failure locally, install it
 with a Go at least as new as the one `go.mod` targets — built by an older Go it

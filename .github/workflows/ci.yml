@@ -244,13 +244,53 @@ jobs:
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
 
-      - name: Scan main module
+      # Two scans per module, one per GOOS release.yml ships (linux for the
+      # server binaries and the Docker image, darwin/arm64 for those plus both
+      # Wails apps). Source mode resolves build tags for the target it runs as,
+      # so a linux-only scan cannot see a vulnerability reachable through a
+      # darwin-only file. GOARCH is not split: the released arm64 and amd64
+      # builds share their Go source. Every step runs even after one fails, so
+      # a round reports all six scans instead of stopping at the first.
+      - name: Scan main module (linux)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: linux
+          GOARCH: amd64
         run: govulncheck ./...
 
-      - name: Scan desktop module
+      - name: Scan main module (darwin)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+        run: govulncheck ./...
+
+      - name: Scan desktop module (linux)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: linux
+          GOARCH: amd64
         run: cd desktop && govulncheck ./...
 
-      - name: Scan reader module
+      - name: Scan desktop module (darwin)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+        run: cd desktop && govulncheck ./...
+
+      - name: Scan reader module (linux)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: cd reader && govulncheck ./...
+
+      - name: Scan reader module (darwin)
+        if: ${{ !cancelled() }}
+        env:
+          GOOS: darwin
+          GOARCH: arm64
         run: cd reader && govulncheck ./...
 
   audit:
@@ -273,9 +313,13 @@ jobs:
 
       # npm audit resolves from the lockfile, so neither directory needs npm ci.
       - name: Audit frontend dependencies
+        run: npm audit --audit-level=high
         working-directory: frontend
-        run: npm audit --audit-level=high
 
+      # Job-level continue-on-error keeps a failure off the workflow result, but
+      # it does not un-skip later steps: without this the E2E lockfile stops
+      # being audited exactly when the frontend one turns up something.
       - name: Audit E2E dependencies
-        working-directory: e2e
+        if: ${{ !cancelled() }}
         run: npm audit --audit-level=high
+        working-directory: e2e
