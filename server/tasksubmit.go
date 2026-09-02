@@ -13,7 +13,7 @@ import (
 type taskSubmitter struct {
 	*apiCore
 
-	pool taskutil.Pool
+	pool *taskutil.Pool
 }
 
 type taskChainSubmitResponse struct {

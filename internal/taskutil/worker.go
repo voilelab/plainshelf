@@ -189,19 +189,13 @@ func (c *TaskChain) Percentage() float64 {
 	return total / float64(len(c.Tasks))
 }
 
-type Worker interface {
-	Run(chain *TaskChain) error
-
-	Start()
-
-	Close() error
-}
-
 var ErrWorkerBusy = util.NewError("worker is busy")
 
 var ErrWorkerClosed = util.NewError("worker is closed")
 
-type worker struct {
+// Worker runs submitted task chains one at a time on a single goroutine, in the
+// order they were queued.
+type Worker struct {
 	maxLen int
 	chains chan *TaskChain
 	logger *logutil.Logger
@@ -215,13 +209,14 @@ type worker struct {
 	wg sync.WaitGroup
 }
 
-func NewWorker(maxLen int, logger *logutil.Logger) Worker {
+// NewWorker returns a worker whose queue holds at most maxLen chains.
+func NewWorker(maxLen int, logger *logutil.Logger) *Worker {
 	if maxLen <= 0 {
 		maxLen = 100
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	return &worker{
+	return &Worker{
 		maxLen: maxLen,
 		chains: make(chan *TaskChain, maxLen),
 		logger: logger,
@@ -230,7 +225,7 @@ func NewWorker(maxLen int, logger *logutil.Logger) Worker {
 	}
 }
 
-func (w *worker) Close() error {
+func (w *Worker) Close() error {
 	w.mu.Lock()
 	if w.closed {
 		w.mu.Unlock()
@@ -247,11 +242,11 @@ func (w *worker) Close() error {
 	return nil
 }
 
-func (w *worker) Start() {
+func (w *Worker) Start() {
 	w.wg.Go(w.work)
 }
 
-func (w *worker) work() {
+func (w *Worker) work() {
 	w.logger.Info("Worker started working")
 	for chain := range w.chains {
 		w.logger.Info("Worker received a task chain")
@@ -272,7 +267,7 @@ func (w *worker) work() {
 	}
 }
 
-func (w *worker) Run(chain *TaskChain) error {
+func (w *Worker) Run(chain *TaskChain) error {
 	// Holding the lock keeps Close from closing the channel between the check
 	// and the send, which would otherwise panic.
 	w.mu.Lock()
