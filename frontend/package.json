@@ -52,7 +52,7 @@
     "unplugin-icons": "^23.0.1",
     "vite": "^8.2.2",
     "vitest": "^4.1.10",
-    "vue-tsc": "^2.1.6"
+    "vue-tsc": "^3.3.11"
   },
   "overrides": {
     "brace-expansion@1": "1.1.18",
