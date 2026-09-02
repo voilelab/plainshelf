@@ -35,7 +35,7 @@ test('desktop shell stays engaged across in-app navigation', async ({ page }) =>
   // branch proves the flag reached more than App.vue. The "server managed"
   // note is the non-desktop branch and must stay absent.
   await page.getByRole('tab', { name: 'Shelves' }).click();
-  await expect(page.getByRole('button', { name: 'Add shelf' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create shelf' })).toBeVisible();
   await expect(
     page.getByText('Shelves are managed by the server configuration.')
   ).toHaveCount(0);
@@ -86,5 +86,5 @@ test('web mode shows no desktop chrome', async ({ page }) => {
   await expect(
     page.getByText('Shelves are managed by the server configuration.')
   ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Add shelf' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Create shelf' })).toHaveCount(0);
 });

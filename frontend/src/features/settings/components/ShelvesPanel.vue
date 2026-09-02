@@ -22,6 +22,7 @@
     :busy="modifyingShelf"
     :confirm-disabled="!canSubmitModifyShelf"
     :close-label="t('settings.shelves.modifyShelfCloseLabel')"
+    :initial-focus="`#${modifyShelfNameId}`"
     @cancel="closeModifyShelfModal"
     @confirm="onSubmitModifyShelf"
   >
@@ -34,14 +35,19 @@
         <span class="shelf-modify-label">{{ t('settings.shelves.modifyShelfPathLabel') }}</span>
         <span class="shelf-modify-value">{{ modifyShelfPath }}</span>
       </div>
-      <input
-        v-model="modifyShelfName"
-        class="shelf-add-input"
-        type="text"
-        :placeholder="t('settings.shelves.modifyShelfNamePlaceholder')"
-        :disabled="modifyingShelf"
-        autofocus
-      />
+      <div class="shelf-field">
+        <label class="shelf-field-label" :for="modifyShelfNameId">
+          {{ t('settings.shelves.modifyShelfNameLabel') }}
+        </label>
+        <input
+          :id="modifyShelfNameId"
+          v-model="modifyShelfName"
+          class="shelf-add-input"
+          type="text"
+          :placeholder="t('settings.shelves.modifyShelfNamePlaceholder')"
+          :disabled="modifyingShelf"
+        />
+      </div>
       <ScanIntervalField v-model="modifyShelfScanInterval" :disabled="modifyingShelf" />
       <ShelfReadOnlyField v-model="modifyShelfReadOnly" :disabled="modifyingShelf" />
       <details class="shelf-advanced">
@@ -70,18 +76,25 @@
     :busy="addingShelf"
     :confirm-disabled="!canSubmitAddShelf"
     :close-label="t('settings.shelves.addShelfCloseLabel')"
+    :initial-focus="`#${addShelfNameId}`"
     @cancel="closeAddShelfModal"
     @confirm="onSubmitAddShelf"
   >
     <form class="shelf-add-form" @submit.prevent="onSubmitAddShelf">
-      <input
-        v-model="newShelfName"
-        class="shelf-add-input"
-        type="text"
-        :placeholder="t('settings.shelves.addShelfNamePlaceholder')"
-        :disabled="addingShelf"
-        autofocus
-      />
+      <div class="shelf-field">
+        <label class="shelf-field-label" :for="addShelfNameId">
+          {{ t('settings.shelves.addShelfNameLabel') }}
+        </label>
+        <input
+          :id="addShelfNameId"
+          v-model="newShelfName"
+          class="shelf-add-input"
+          type="text"
+          data-testid="shelf-name-input"
+          :placeholder="t('settings.shelves.addShelfNamePlaceholder')"
+          :disabled="addingShelf"
+        />
+      </div>
       <!-- The two ways to place a shelf answer the question the single path box
            left the user to guess: whether PlainShelf is about to create a folder
            on their disk or open one they already have. Only the second branch
@@ -115,23 +128,29 @@
       </RadioGroupRoot>
 
       <template v-if="newShelfLocationMode === 'existing'">
-        <div class="shelf-add-dir-row">
-          <input
-            v-model="newShelfDirectory"
-            class="shelf-add-input shelf-add-dir-input"
-            type="text"
-            :placeholder="t('settings.shelves.addShelfDirectoryPlaceholder')"
-            :disabled="addingShelf"
-            data-testid="shelf-directory-input"
-          />
-          <button
-            type="button"
-            class="shelf-browse-btn"
-            :disabled="addingShelf"
-            @click="onBrowseShelfDirectory"
-          >
-            {{ t('settings.shelves.addShelfBrowse') }}
-          </button>
+        <div class="shelf-field">
+          <label class="shelf-field-label" :for="addShelfDirectoryId">
+            {{ t('settings.shelves.addShelfDirectoryLabel') }}
+          </label>
+          <div class="shelf-add-dir-row">
+            <input
+              :id="addShelfDirectoryId"
+              v-model="newShelfDirectory"
+              class="shelf-add-input shelf-add-dir-input"
+              type="text"
+              :placeholder="t('settings.shelves.addShelfDirectoryPlaceholder')"
+              :disabled="addingShelf"
+              data-testid="shelf-directory-input"
+            />
+            <button
+              type="button"
+              class="shelf-browse-btn"
+              :disabled="addingShelf"
+              @click="onBrowseShelfDirectory"
+            >
+              {{ t('settings.shelves.addShelfBrowse') }}
+            </button>
+          </div>
         </div>
         <p
           v-if="newShelfDirectoryError"
@@ -196,9 +215,21 @@
 
     <div v-if="shelvesLoading" class="setting-description">{{ t('layout.shelf.loading') }}</div>
     <template v-else>
-      <p v-if="shelves.length === 0" class="setting-description">
-        {{ t('settings.shelves.empty') }}
-      </p>
+      <!-- With no shelf yet, creating one is the only thing this section can
+           do, so it is the section's primary button rather than a secondary
+           toggle under a table that is not there. -->
+      <div v-if="shelves.length === 0" class="shelf-empty">
+        <p class="setting-description">{{ t('settings.shelves.empty') }}</p>
+        <button
+          v-if="isDesktopEnv"
+          type="button"
+          class="button primary shelf-empty-add"
+          :disabled="addingShelf"
+          @click="openAddShelfModal"
+        >
+          {{ t('settings.shelves.addShelf') }}
+        </button>
+      </div>
       <table v-else class="shelves-table">
         <thead>
           <tr>
@@ -242,7 +273,7 @@
       </table>
     </template>
 
-    <div v-if="isDesktopEnv" class="shelf-add-row">
+    <div v-if="isDesktopEnv && shelves.length > 0" class="shelf-add-row">
       <button
         type="button"
         class="shelf-add-toggle"
@@ -285,7 +316,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, useId } from 'vue';
 import { RadioGroupIndicator, RadioGroupItem, RadioGroupRoot } from 'reka-ui';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
@@ -302,6 +333,12 @@ const { t } = useI18n();
 const { serverSettingsEditable } = useWriteAccess();
 const isDesktopEnv = computed(() => isWailsRuntime());
 const isMobileEnv = computed(() => isMobileRuntime());
+
+// ConfirmModal resolves `initial-focus` as a selector inside its own panel, so
+// the field ids serve both the <label for> and the caret placement.
+const addShelfNameId = `shelf-add-name-${useId()}`;
+const addShelfDirectoryId = `shelf-add-directory-${useId()}`;
+const modifyShelfNameId = `shelf-modify-name-${useId()}`;
 
 const bookCacheExporting = ref(false);
 const bookCacheExported = ref(false);
@@ -502,6 +539,18 @@ onMounted(() => {
   word-break: break-all;
 }
 
+.shelf-empty {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.shelf-empty-add {
+  flex: none;
+}
+
 .shelf-add-row {
   display: flex;
 }
@@ -526,6 +575,22 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.shelf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Same small-caps field label the interval controls and the modify dialog's
+   read-only rows already use. */
+.shelf-field-label {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .shelf-add-input {

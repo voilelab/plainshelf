@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createApp, h, ref, type App, type Ref } from 'vue';
+import { createApp, h, ref, type App, type Ref, type VNode } from 'vue';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import ConfirmModal from './ConfirmModal.vue';
@@ -15,7 +15,7 @@ interface Harness {
 // `open` starts false and is flipped after mount: ConfirmModal focuses through a
 // watcher on that transition, so a dialog mounted already-open never focuses
 // anything and the assertions below would be vacuous.
-function mount(props: Record<string, unknown> = {}): Harness {
+function mount(props: Record<string, unknown> = {}, body?: () => VNode): Harness {
   const host = document.createElement('div');
   document.body.appendChild(host);
   const open = ref(false);
@@ -32,7 +32,7 @@ function mount(props: Record<string, unknown> = {}): Harness {
           onConfirm: () => confirms.push(1),
           ...props
         },
-        { default: () => h('p', 'Delete this?') }
+        { default: body ?? (() => h('p', 'Delete this?')) }
       )
   });
   app.mount(host);
@@ -94,12 +94,20 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-async function openWith(props: Record<string, unknown> = {}): Promise<Harness> {
-  const harness = mount(props);
+async function openWith(
+  props: Record<string, unknown> = {},
+  body?: () => VNode
+): Promise<Harness> {
+  const harness = mount(props, body);
   mounted = harness.app;
   harness.open.value = true;
   await settle();
   return harness;
+}
+
+// A form dialog's slot: the field a caller would point `initialFocus` at.
+function nameField(): VNode {
+  return h('input', { id: 'shelf-name', type: 'text' });
 }
 
 describe('ConfirmModal danger variant', () => {
@@ -190,5 +198,41 @@ describe('ConfirmModal default variant', () => {
     await settle();
 
     expect(cancels).toHaveLength(0);
+  });
+});
+
+describe('ConfirmModal initial focus', () => {
+  it('puts the caret in the field the caller names', async () => {
+    await openWith({ initialFocus: '#shelf-name' }, nameField);
+
+    expect(document.activeElement).toBe(document.getElementById('shelf-name'));
+  });
+
+  // The reason the prop exists: a form dialog's confirm button is disabled
+  // until the form is valid, so the default path focuses nothing at all.
+  it('reaches the field even when the confirm button is disabled', async () => {
+    await openWith({ initialFocus: '#shelf-name', confirmDisabled: true }, nameField);
+
+    expect(document.activeElement).toBe(document.getElementById('shelf-name'));
+  });
+
+  it('falls back to confirm when the selector matches nothing', async () => {
+    await openWith({ initialFocus: '#not-here' }, nameField);
+
+    expect(document.activeElement).toBe(buttonByText('Confirm'));
+  });
+
+  // The opt-in must not reach dialogs that did not ask for it, and must not
+  // override the alert dialog's own focus contract.
+  it('leaves an unasked dialog focused on confirm', async () => {
+    await openWith({}, nameField);
+
+    expect(document.activeElement).toBe(buttonByText('Confirm'));
+  });
+
+  it('still opens the danger variant on cancel even when a field is named', async () => {
+    await openWith({ variant: 'danger', initialFocus: '#shelf-name' }, nameField);
+
+    expect(document.activeElement).toBe(buttonByText('Cancel'));
   });
 });
