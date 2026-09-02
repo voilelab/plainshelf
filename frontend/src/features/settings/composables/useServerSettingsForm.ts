@@ -41,8 +41,8 @@ interface ServerSettingsForm {
   epubImportError: Ref<string>;
   loadSettings: () => Promise<void>;
   onCoverToJpgChange: (value: boolean) => Promise<void>;
-  onLogRetentionDaysChange: (event: Event) => Promise<void>;
-  onReadHistoryLimitChange: (event: Event) => Promise<void>;
+  onLogRetentionDaysChange: (value: number) => Promise<void>;
+  onReadHistoryLimitChange: (value: number) => Promise<void>;
   onReaderLaunchModeChange: (mode: ReaderLaunchMode) => void;
   onEpubPresetChange: (preset: EpubImportPreset) => void;
   onSaveEpubImportStrategy: () => Promise<void>;
@@ -53,9 +53,10 @@ interface ServerSettingsForm {
  * limit, which loads on every client) and the shared load/save state the
  * settings page uses to disable its controls while a request is in flight.
  *
- * The select and number handlers take the raw DOM event because they restore
- * the control's own value when a save fails, which needs the element itself.
- * The cover switch renders from its ref, so that one takes the value.
+ * The select handler takes the raw DOM event because it restores the control's
+ * own value when a save fails, which needs the element itself. The number
+ * fields and the cover switch render from their refs, so a failed save restores
+ * them by putting the previous value back.
  */
 export function useServerSettingsForm(options: {
   serverSettingsEditable: Ref<boolean>;
@@ -154,16 +155,12 @@ export function useServerSettingsForm(options: {
     }
   }
 
-  async function onLogRetentionDaysChange(event: Event): Promise<void> {
-    const target = event.target;
-    if (!(target instanceof HTMLInputElement)) {
-      return;
-    }
-
-    const nextValue = parseLogRetentionDays(target.value);
+  async function onLogRetentionDaysChange(value: number): Promise<void> {
+    // The field clamps to the same bounds, so this only catches a value that
+    // reached the handler some other way; it never rejects what a user typed.
+    const nextValue = parseLogRetentionDays(String(value));
     const prevValue = logRetentionDays.value;
     if (nextValue === null) {
-      target.value = String(prevValue);
       error.value = t('settings.logRetention.invalid');
       return;
     }
@@ -176,23 +173,18 @@ export function useServerSettingsForm(options: {
       await setLogRetentionDaysSetting(nextValue);
     } catch (err) {
       logRetentionDays.value = prevValue;
-      target.value = String(prevValue);
       error.value = err instanceof Error ? err.message : t('settings.saveFailed');
     } finally {
       saving.value = false;
     }
   }
 
-  async function onReadHistoryLimitChange(event: Event): Promise<void> {
-    const target = event.target;
-    if (!(target instanceof HTMLInputElement)) {
-      return;
-    }
-
-    const nextValue = parseReadHistoryLimit(target.value);
+  async function onReadHistoryLimitChange(value: number): Promise<void> {
+    // As above: the field already refuses a negative or fractional limit, so
+    // this guard only covers a value that did not come from it.
+    const nextValue = parseReadHistoryLimit(String(value));
     const prevValue = readHistoryLimit.value;
     if (nextValue === null) {
-      target.value = String(prevValue);
       error.value = t('settings.readHistoryLimit.invalid');
       return;
     }
@@ -205,7 +197,6 @@ export function useServerSettingsForm(options: {
       await setReadHistoryLimit(nextValue);
     } catch (err) {
       readHistoryLimit.value = prevValue;
-      target.value = String(prevValue);
       error.value = err instanceof Error ? err.message : t('settings.saveFailed');
     } finally {
       saving.value = false;

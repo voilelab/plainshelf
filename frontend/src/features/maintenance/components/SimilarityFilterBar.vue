@@ -29,17 +29,27 @@
     </div>
 
     <CollapsibleContent class="toolbar-bar similarity-advanced">
-      <label class="toolbar-label" :for="SLIDER_ID">{{ t('maintenance.similar.thresholdLabel') }}</label>
-      <input
-        :id="SLIDER_ID"
-        class="similarity-slider"
-        type="range"
+      <span :id="SLIDER_LABEL_ID" class="toolbar-label">{{ t('maintenance.similar.thresholdLabel') }}</span>
+      <SliderRoot
+        class="slider-root similarity-slider"
+        :model-value="[threshold]"
         :min="SIMILARITY_SLIDER_MIN"
         :max="SIMILARITY_SLIDER_MAX"
         :step="SIMILARITY_SLIDER_STEP"
-        :value="threshold"
-        @input="onSlider"
-      />
+        @update:model-value="onSlider"
+      >
+        <SliderTrack class="slider-track">
+          <SliderRange class="slider-range" />
+        </SliderTrack>
+        <!-- The thumb is the focusable control, so it carries the id and is
+             named by the label beside it. A `<label for>` cannot reach it:
+             reka renders a `<span role="slider">`, which is not labelable. -->
+        <SliderThumb
+          :id="SLIDER_ID"
+          class="slider-thumb"
+          :aria-labelledby="SLIDER_LABEL_ID"
+        />
+      </SliderRoot>
       <span class="toolbar-label similarity-threshold-value">{{ thresholdPercent }}%</span>
       <span class="toolbar-label similarity-diff-readout">
         {{ t('maintenance.similar.diffReadout', { count: diffPer100 }) }}
@@ -64,6 +74,10 @@ import {
   CollapsibleContent,
   CollapsibleRoot,
   CollapsibleTrigger,
+  SliderRange,
+  SliderRoot,
+  SliderThumb,
+  SliderTrack,
   ToggleGroupItem,
   ToggleGroupRoot,
   type AcceptableValue
@@ -80,9 +94,11 @@ import {
   tierThreshold,
   type SimilarityTierKey
 } from '@/utils/similarity';
+import '@/styles/numeric-controls.css';
 import '@/styles/toolbar-controls.css';
 
 const SLIDER_ID = 'similarity-threshold-slider';
+const SLIDER_LABEL_ID = 'similarity-threshold-label';
 // A non-matching sentinel for "no tier pressed" (while the advanced slider
 // owns the selection). It must not be `undefined`: reka latches the toggle
 // group into uncontrolled mode when the initial model-value is `undefined`
@@ -135,8 +151,14 @@ function onSelectTier(key: SimilarityTierKey): void {
   emit('update:threshold', tierThreshold(key));
 }
 
-function onSlider(event: Event): void {
-  emit('update:threshold', Number((event.target as HTMLInputElement).value));
+// reka reports the whole thumb array; this slider has exactly one thumb, and
+// an empty array is not reachable because the model is always `[threshold]`.
+function onSlider(value: number[] | undefined): void {
+  const next = value?.[0];
+  if (next === undefined) {
+    return;
+  }
+  emit('update:threshold', next);
 }
 </script>
 

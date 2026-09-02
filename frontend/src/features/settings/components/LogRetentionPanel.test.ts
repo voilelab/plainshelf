@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createApp } from 'vue';
+import { createApp, nextTick } from 'vue';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import LogRetentionPanel from './LogRetentionPanel.vue';
@@ -7,9 +7,28 @@ import { setLocale } from '@/i18n';
 
 function mount(value: number) {
   const host = document.createElement('div');
-  const app = createApp(LogRetentionPanel, { value, disabled: false });
+  const changes: number[] = [];
+  const app = createApp(LogRetentionPanel, {
+    value,
+    disabled: false,
+    onChange: (next: number) => changes.push(next)
+  });
   app.mount(host);
-  return { host, app };
+  return { host, app, changes };
+}
+
+function field(host: HTMLElement): HTMLInputElement {
+  const input = host.querySelector<HTMLInputElement>('input[role="spinbutton"]');
+  if (!input) throw new Error('the retention field is missing');
+  return input;
+}
+
+// Reka's steppers act on pointerdown (so a press-and-hold repeats), not click.
+function press(host: HTMLElement, direction: 'increase' | 'decrease'): void {
+  const buttons = host.querySelectorAll<HTMLButtonElement>('.number-field-step');
+  const button = direction === 'decrease' ? buttons[0] : buttons[1];
+  button.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+  window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }));
 }
 
 beforeEach(() => {
@@ -45,9 +64,70 @@ describe('LogRetentionPanel', () => {
   it('bounds the field at what the server accepts', () => {
     const { host, app } = mount(30);
 
-    const input = host.querySelector<HTMLInputElement>('input[type="number"]');
-    expect(input?.min).toBe('0');
-    expect(input?.max).toBe('3650');
+    // Reka renders a text input with the spinbutton role, so the bounds live on
+    // the ARIA attributes rather than on `min`/`max`.
+    const input = field(host);
+    expect(input.getAttribute('aria-valuemin')).toBe('0');
+    expect(input.getAttribute('aria-valuemax')).toBe('3650');
+    expect(input.value).toBe('30');
+
+    app.unmount();
+  });
+
+  it('reports a stepped value and clamps it at the server maximum', async () => {
+    const { host, app, changes } = mount(3649);
+    await nextTick();
+
+    press(host, 'increase');
+    await nextTick();
+    expect(changes).toEqual([3650]);
+
+    // At the ceiling the stepper is disabled rather than reporting a value the
+    // server would reject.
+    const { host: cappedHost, app: cappedApp, changes: cappedChanges } = mount(3650);
+    await nextTick();
+    press(cappedHost, 'increase');
+    await nextTick();
+    expect(cappedChanges).toEqual([]);
+
+    app.unmount();
+    cappedApp.unmount();
+  });
+
+  it('restores the stored retention window when the box is emptied, saving nothing', async () => {
+    const { host, app, changes } = mount(30);
+    await nextTick();
+
+    const input = field(host);
+    input.value = '';
+    input.dispatchEvent(new Event('input'));
+    input.dispatchEvent(new Event('blur'));
+    await nextTick();
+    await nextTick();
+
+    // Nothing to save, and the box must not sit blank over a setting that is
+    // still in force.
+    expect(changes).toEqual([]);
+    expect(input.value).toBe('30');
+
+    // The steppers read the box's text, so a box left blank would step from the
+    // minimum instead of the stored value.
+    press(host, 'increase');
+    await nextTick();
+    expect(changes).toEqual([31]);
+
+    app.unmount();
+  });
+
+  it('reports a typed window when the box loses focus', async () => {
+    const { host, app, changes } = mount(30);
+
+    const input = field(host);
+    input.value = '90';
+    input.dispatchEvent(new Event('blur'));
+    await nextTick();
+
+    expect(changes).toEqual([90]);
 
     app.unmount();
   });

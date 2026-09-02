@@ -15,7 +15,7 @@
       <label v-if="kind === 'regex-md'" class="conversion-field">
         <span>{{ t('sources.conversion.patternLabel') }}</span>
         <input
-          ref="primaryInput"
+          ref="patternInput"
           v-model="pattern"
           class="input"
           type="text"
@@ -25,18 +25,22 @@
         <small>{{ t('sources.conversion.patternHelp') }}</small>
       </label>
 
-      <label v-else-if="kind === 'line-count-md'" class="conversion-field">
-        <span>{{ t('sources.conversion.lineCountLabel') }}</span>
-        <input
-          ref="primaryInput"
+      <div v-else-if="kind === 'line-count-md'" class="conversion-field">
+        <label :for="LINE_COUNT_ID">{{ t('sources.conversion.lineCountLabel') }}</label>
+        <NumberFieldRoot
+          :id="LINE_COUNT_ID"
           v-model="lineCount"
-          class="input"
-          type="number"
-          min="1"
-          step="1"
+          class="number-field"
+          :min="1"
+          :step="1"
+          :format-options="INTEGER_FORMAT_OPTIONS"
           :disabled="busy"
         >
-      </label>
+          <NumberFieldDecrement class="number-field-step" :aria-label="decreaseLineCountLabel">−</NumberFieldDecrement>
+          <NumberFieldInput ref="lineCountInput" class="number-field-input" />
+          <NumberFieldIncrement class="number-field-step" :aria-label="increaseLineCountLabel">+</NumberFieldIncrement>
+        </NumberFieldRoot>
+      </div>
 
       <div class="conversion-preview" aria-live="polite">
         <strong>{{ t('sources.conversion.previewTitle') }}</strong>
@@ -59,7 +63,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import {
+  NumberFieldDecrement,
+  NumberFieldIncrement,
+  NumberFieldInput,
+  NumberFieldRoot
+} from 'reka-ui';
+import { computed, nextTick, ref, watch, type ComponentPublicInstance } from 'vue';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import { scanMarkdownH2Headings } from '@/utils/markdownChapters';
 import {
@@ -69,8 +79,13 @@ import {
   textToMarkdownByRegex
 } from '@/features/sources/utils/sourceConversions';
 import { useI18n } from '@/i18n';
+import { INTEGER_FORMAT_OPTIONS } from '@/utils/numberField';
+import '@/styles/numeric-controls.css';
 
 const { t } = useI18n();
+
+const LINE_COUNT_ID = 'source-conversion-line-count';
+const DEFAULT_LINE_COUNT = 1000;
 
 export type SourceConversionKind =
   | 'manual-md'
@@ -97,9 +112,25 @@ const emit = defineEmits<{
 }>();
 
 const pattern = ref(DEFAULT_CHAPTER_PATTERN);
-const lineCount = ref('1000');
+// `undefined` once the box is emptied, which the preview reports as an invalid
+// line count rather than silently converting with a default.
+const lineCount = ref<number | undefined>(DEFAULT_LINE_COUNT);
 const setCurrent = ref(true);
-const primaryInput = ref<HTMLInputElement | null>(null);
+const patternInput = ref<HTMLInputElement | null>(null);
+const lineCountInput = ref<ComponentPublicInstance | null>(null);
+
+const decreaseLineCountLabel = computed(() =>
+  t('common.decrease', { label: t('sources.conversion.lineCountLabel') })
+);
+const increaseLineCountLabel = computed(() =>
+  t('common.increase', { label: t('sources.conversion.lineCountLabel') })
+);
+
+// Reka's NumberFieldInput is a component, so its element comes from `$el`
+// rather than the ref itself; the two branches are mutually exclusive.
+function primaryInputElement(): HTMLInputElement | null {
+  return patternInput.value ?? (lineCountInput.value?.$el as HTMLInputElement | undefined) ?? null;
+}
 
 const title = computed(() => {
   switch (props.kind) {
@@ -174,6 +205,7 @@ const preview = computed<ConversionPreview>(() => {
       }
       case 'line-count-md': {
         const size = Number(lineCount.value);
+        // `Number(undefined)` is NaN, so an emptied box lands here too.
         if (!Number.isFinite(size) || size < 1) {
           throw new Error(t('sources.conversion.errors.invalidLineCount'));
         }
@@ -229,12 +261,13 @@ function submit(): void {
 watch(() => props.open, async (open) => {
   if (!open) return;
   pattern.value = DEFAULT_CHAPTER_PATTERN;
-  lineCount.value = '1000';
+  lineCount.value = DEFAULT_LINE_COUNT;
   setCurrent.value = true;
   await nextTick();
   await nextTick();
-  primaryInput.value?.focus();
-  primaryInput.value?.select();
+  const element = primaryInputElement();
+  element?.focus();
+  element?.select();
 });
 </script>
 
@@ -251,10 +284,17 @@ watch(() => props.open, async (open) => {
   margin: 0;
 }
 
+.conversion-field > label,
 .conversion-field > span,
 .conversion-preview > strong {
   color: var(--text);
   font-weight: 700;
+}
+
+/* The grid row would otherwise stretch the field across the modal. */
+.conversion-field > .number-field {
+  justify-self: start;
+  width: 160px;
 }
 
 .conversion-field small {

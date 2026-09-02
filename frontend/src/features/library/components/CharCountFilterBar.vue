@@ -1,31 +1,43 @@
 <template>
   <div class="toolbar-bar char-count-bar">
     <label v-if="!hideLabel" class="toolbar-label" :for="MIN_INPUT_ID">{{ t('library.charCount.label') }}</label>
-    <input
+    <NumberFieldRoot
       :id="MIN_INPUT_ID"
-      class="toolbar-control toolbar-input char-count-input"
-      type="number"
-      inputmode="numeric"
-      min="0"
+      class="number-field number-field-sm char-count-field"
+      :min="0"
       :step="CHAR_COUNT_STEP"
-      :value="minValue"
-      :placeholder="t('library.charCount.minPlaceholder')"
-      :aria-label="t('library.charCount.minLabel')"
-      @change="onMinChange"
-    />
+      :step-snapping="false"
+      :format-options="INTEGER_FORMAT_OPTIONS"
+      :model-value="minValue"
+      @update:model-value="onMinChange"
+    >
+      <NumberFieldDecrement class="number-field-step" :aria-label="t('common.decrease', { label: t('library.charCount.minLabel') })">−</NumberFieldDecrement>
+      <NumberFieldInput
+        class="number-field-input char-count-input"
+        :placeholder="t('library.charCount.minPlaceholder')"
+        :aria-label="t('library.charCount.minLabel')"
+      />
+      <NumberFieldIncrement class="number-field-step" :aria-label="t('common.increase', { label: t('library.charCount.minLabel') })">+</NumberFieldIncrement>
+    </NumberFieldRoot>
     <span class="char-count-separator" aria-hidden="true">–</span>
-    <input
+    <NumberFieldRoot
       :id="MAX_INPUT_ID"
-      class="toolbar-control toolbar-input char-count-input"
-      type="number"
-      inputmode="numeric"
-      min="0"
+      class="number-field number-field-sm char-count-field"
+      :min="0"
       :step="CHAR_COUNT_STEP"
-      :value="maxValue"
-      :placeholder="t('library.charCount.maxPlaceholder')"
-      :aria-label="t('library.charCount.maxLabel')"
-      @change="onMaxChange"
-    />
+      :step-snapping="false"
+      :format-options="INTEGER_FORMAT_OPTIONS"
+      :model-value="maxValue"
+      @update:model-value="onMaxChange"
+    >
+      <NumberFieldDecrement class="number-field-step" :aria-label="t('common.decrease', { label: t('library.charCount.maxLabel') })">−</NumberFieldDecrement>
+      <NumberFieldInput
+        class="number-field-input char-count-input"
+        :placeholder="t('library.charCount.maxPlaceholder')"
+        :aria-label="t('library.charCount.maxLabel')"
+      />
+      <NumberFieldIncrement class="number-field-step" :aria-label="t('common.increase', { label: t('library.charCount.maxLabel') })">+</NumberFieldIncrement>
+    </NumberFieldRoot>
     <button
       v-if="active"
       type="button"
@@ -58,6 +70,12 @@
 </template>
 
 <script setup lang="ts">
+import {
+  NumberFieldDecrement,
+  NumberFieldIncrement,
+  NumberFieldInput,
+  NumberFieldRoot
+} from 'reka-ui';
 import { computed } from 'vue';
 import {
   CHAR_COUNT_STEP,
@@ -66,6 +84,8 @@ import {
   type CharCountRange
 } from '@/utils/charCountFilter';
 import { useI18n } from '@/i18n';
+import { INTEGER_FORMAT_OPTIONS } from '@/utils/numberField';
+import '@/styles/numeric-controls.css';
 import '@/styles/toolbar-controls.css';
 
 const MIN_INPUT_ID = 'books-char-count-min';
@@ -96,22 +116,32 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 const active = computed(() => isCharCountRangeActive(props.range));
-const minValue = computed(() => (props.range.min === undefined ? '' : String(props.range.min)));
-const maxValue = computed(() => (props.range.max === undefined ? '' : String(props.range.max)));
+// `null`, not `undefined`, for an unset bound: reka latches a NumberField into
+// uncontrolled mode when its *initial* model-value is `undefined`, after which
+// the parent's range would stop driving it.
+const minValue = computed(() => props.range.min ?? null);
+const maxValue = computed(() => props.range.max ?? null);
 
-// Committed on change (blur, Enter, spinner) rather than on every keystroke, so
+function asRaw(value: number | null): string {
+  return value === null ? '' : String(value);
+}
+
+// Committed on blur, Enter and the steppers rather than on every keystroke, so
 // a partially typed number never filters the list or fills up history. That is
-// also what makes parseCharCountRange's swap of reversed bounds safe.
+// also what makes parseCharCountRange's swap of reversed bounds safe. An
+// emptied box arrives as `undefined`, which it reads as "no bound".
+// `step-snapping` is off so only the steppers move in CHAR_COUNT_STEP: snapping
+// would round a search for 74 characters up to 100.
 function commit(minRaw: string, maxRaw: string): void {
   emit('update:range', parseCharCountRange(minRaw, maxRaw));
 }
 
-function onMinChange(event: Event): void {
-  commit((event.target as HTMLInputElement).value, maxValue.value);
+function onMinChange(value: number | undefined): void {
+  commit(value === undefined ? '' : String(value), asRaw(maxValue.value));
 }
 
-function onMaxChange(event: Event): void {
-  commit(minValue.value, (event.target as HTMLInputElement).value);
+function onMaxChange(value: number | undefined): void {
+  commit(asRaw(minValue.value), value === undefined ? '' : String(value));
 }
 
 function onClear(): void {
@@ -124,8 +154,13 @@ function onClear(): void {
   flex-wrap: wrap;
 }
 
+.char-count-field {
+  width: 128px;
+}
+
 .char-count-input {
-  width: 84px;
+  /* Centred so the two bounds read as a pair between their steppers. */
+  text-align: center;
 }
 
 .char-count-separator {
