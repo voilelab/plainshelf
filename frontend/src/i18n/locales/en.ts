@@ -362,7 +362,7 @@ const en = {
       addShelfLocationNewHelp: "PlainShelf creates the folder in its own shelves directory. Nothing else on your disk is touched.",
       addShelfLocationExisting: 'Use a folder I already have',
       addShelfLocationExistingHelp:
-        'Point PlainShelf at an existing folder. It is opened as it is; the folder must already exist.',
+        'Point PlainShelf at a folder you choose, anywhere on your disk. It is opened as it is.',
       addShelfDefaultPath: 'Folder to create:',
       addShelfDirectoryNotAbsolute: 'Enter a full path, starting from the root of the drive.',
       removeConfirmYes: 'Delete shelf',

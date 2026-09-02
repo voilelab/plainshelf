@@ -354,7 +354,7 @@ const zhHant = {
       addShelfLocationNew: '建立新資料夾',
       addShelfLocationNewHelp: 'PlainShelf 會在自己的書架目錄下建立資料夾，不會動到硬碟上的其他東西。',
       addShelfLocationExisting: '使用我已經有的資料夾',
-      addShelfLocationExistingHelp: '讓 PlainShelf 指向既有資料夾，直接照原樣開啟；該資料夾必須已經存在。',
+      addShelfLocationExistingHelp: '讓 PlainShelf 指向你自己選定的資料夾，硬碟上任何位置都可以，直接照原樣開啟。',
       addShelfDefaultPath: '將建立的資料夾：',
       addShelfDirectoryNotAbsolute: '請輸入從磁碟根目錄開始的完整路徑。',
       removeConfirmYes: '刪除書架',
