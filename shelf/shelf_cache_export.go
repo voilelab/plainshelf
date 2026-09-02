@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"path"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -317,7 +317,7 @@ func (s *Shelf) collectExportFolders() []string {
 		folders = append(folders, name)
 	}
 
-	sort.Strings(folders)
+	slices.Sort(folders)
 	return folders
 }
 

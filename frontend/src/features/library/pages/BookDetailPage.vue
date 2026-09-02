@@ -55,6 +55,19 @@
         @saved="onMetadataSaved"
       />
       <ConfirmModal
+        v-if="!readOnly"
+        :open="!!importNoteTarget"
+        variant="danger"
+        :title="t('bookDetail.importNote.confirm.title')"
+        :confirm-text="t('bookDetail.importNote.confirm.confirm')"
+        :busy="removingImportNote"
+        @cancel="cancelRemoveImportNote"
+        @confirm="confirmRemoveImportNote"
+      >
+        <p>{{ t('bookDetail.importNote.confirm.message') }}</p>
+        <p v-if="importNoteError" class="import-note-error" role="alert">{{ importNoteError }}</p>
+      </ConfirmModal>
+      <ConfirmModal
         :open="showMetadataLeaveConfirmation"
         :title="t('libraryForms.editBook.discard.title')"
         :message="t('libraryForms.editBook.discard.message')"
@@ -106,7 +119,10 @@
           :progress="progress"
           :current-source="currentSource"
           :chapters="chapters"
+          :read-only="readOnly"
+          :removing-import-note="removingImportNote"
           @select-chapter="goRead(id, $event)"
+          @remove-import-note="requestRemoveImportNote"
         >
           <template #reading>
             <section class="reading-card" :aria-label="t('bookDetail.progress.sectionLabel')">
@@ -280,6 +296,47 @@ const {
   error,
   fetchDetail
 } = useBookDetail(() => id.value);
+
+// The note the open dialog is about, captured when it opens. The router reuses
+// this page across /books/:id, so reading the live id on confirm would delete
+// whichever book the user has since navigated to.
+const importNoteTarget = ref<{ bookID: string; sourceID: string } | null>(null);
+const removingImportNote = ref(false);
+const importNoteError = ref('');
+
+function requestRemoveImportNote(): void {
+  const sourceID = currentSource.value?.id;
+  if (!sourceID) return;
+
+  importNoteError.value = '';
+  importNoteTarget.value = { bookID: id.value, sourceID };
+}
+
+function cancelRemoveImportNote(): void {
+  if (removingImportNote.value) return;
+  importNoteTarget.value = null;
+}
+
+// Removal is the only edit the note allows, so there is nothing to save back:
+// the source is re-read afterwards and the row simply stops being rendered.
+async function confirmRemoveImportNote(): Promise<void> {
+  const target = importNoteTarget.value;
+  if (!target || removingImportNote.value) return;
+
+  removingImportNote.value = true;
+  importNoteError.value = '';
+  try {
+    await bookshelfWriter().deleteSourceComment(target.bookID, target.sourceID);
+    await fetchDetail();
+    importNoteTarget.value = null;
+  } catch (err) {
+    importNoteError.value = err instanceof Error && err.message.trim().length > 0
+      ? err.message
+      : t('bookDetail.importNote.removeFailed');
+  } finally {
+    removingImportNote.value = false;
+  }
+}
 
 const {
   downloading,
@@ -533,6 +590,7 @@ function onRequestDelete(): void {
 
 watch(id, () => {
   closeMetadataEditor();
+  cancelRemoveImportNote();
   metadataSaved.value = false;
   dismissActionError();
   void fetchDetail();
@@ -600,6 +658,12 @@ if (!readOnly.value) {
 
 .detail-notice {
   margin-bottom: 18px;
+}
+
+.import-note-error {
+  color: #991b1b;
+  font-size: 13px;
+  margin: 8px 0 0;
 }
 
 .download-required-notice {

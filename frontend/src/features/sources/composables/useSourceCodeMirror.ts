@@ -50,7 +50,7 @@ import type {
  */
 const DOCUMENT_SYNC_INTERVAL_MS = 150;
 
-export interface SourceCodeMirrorOptions {
+interface SourceCodeMirrorOptions {
   content: () => string;
   sourceId: () => string;
   disabled: () => boolean;

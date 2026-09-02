@@ -132,9 +132,9 @@ func jsonDecodeMessage(err error) string {
 const maxDescribedFieldLength = 64
 
 // describableField renders a JSON pointer as a slash-separated field path, and
-// reports whether it is safe to show. A member name is the caller's own text
-// and the server sends no nosniff header, so anything that does not read as a
-// field name is withheld.
+// reports whether it is safe to show. A member name is the caller's own text,
+// so anything that does not read as a field name is withheld — belt-and-braces
+// alongside the nosniff header the server now sends, not a substitute for it.
 func describableField(pointer jsontext.Pointer) (string, bool) {
 	var path strings.Builder
 	for token := range pointer.Tokens() {
@@ -157,6 +157,6 @@ func describableField(pointer jsontext.Pointer) (string, bool) {
 }
 
 func isRequestBodyTooLarge(err error) bool {
-	var maxBytesErr *http.MaxBytesError
-	return errors.As(err, &maxBytesErr)
+	_, ok := errors.AsType[*http.MaxBytesError](err)
+	return ok
 }

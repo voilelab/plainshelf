@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -46,11 +47,37 @@ type DesktopImportBookResult struct {
 }
 
 type DesktopShelfDetails struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Path         string `json:"path"`
-	ScanInterval string `json:"scan_interval"`
-	ReadOnly     bool   `json:"read_only"`
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	Path              string `json:"path"`
+	ScanInterval      string `json:"scan_interval"`
+	BookCheckInterval string `json:"book_check_interval"`
+	ReadOnly          bool   `json:"read_only"`
+}
+
+// AddShelfParams carries the fields the add-shelf form submits.
+//
+// It is a struct rather than a positional argument list because Wails binds it
+// by field name and the list had already grown a ReadOnly bool onto the end;
+// every further per-shelf setting the UI exposes (BookCheckInterval is the
+// first) is a field here rather than one more anonymous positional argument.
+type AddShelfParams struct {
+	Name              string `json:"name"`
+	LibRoot           string `json:"libRoot"`
+	ScanInterval      string `json:"scanInterval"`
+	BookCheckInterval string `json:"bookCheckInterval"`
+	ReadOnly          bool   `json:"readOnly"`
+}
+
+// ModifyShelfParams carries the fields the modify-shelf form submits; see
+// AddShelfParams for why this is a struct. LibRoot is absent because a shelf's
+// directory is fixed once it is registered.
+type ModifyShelfParams struct {
+	ShelfID           string `json:"shelfID"`
+	Name              string `json:"name"`
+	ScanInterval      string `json:"scanInterval"`
+	BookCheckInterval string `json:"bookCheckInterval"`
+	ReadOnly          bool   `json:"readOnly"`
 }
 
 var openFinder = util.OpenFinder
@@ -334,12 +361,9 @@ func (a *DesktopApp) readerNamespaceIsRealShelf() bool {
 	if manager == nil {
 		return false
 	}
-	for _, shelfData := range manager.GetAllShelves() {
-		if shelfData.ID == readingprogress.ReaderShelfID {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(manager.GetAllShelves(), func(shelfData shelf.ShelfData) bool {
+		return shelfData.ID == readingprogress.ReaderShelfID
+	})
 }
 
 // ReadReadingStats returns the stored reading-stats document, or an empty
@@ -586,31 +610,37 @@ func (a *DesktopApp) OpenShelfInFinder(shelfID string) error {
 	return nil
 }
 
-// ShelfNamePreview is what creating a shelf under a given name would produce,
-// before anything is written.
-type ShelfNamePreview struct {
-	// ID is the shelf id AddShelf would assign, including any uniqueness suffix.
+// ShelfIDPreview is what the add-shelf form shows while the user types: the id
+// the shelf would be created with, and the directory it would be created in if
+// the user never picks one.
+type ShelfIDPreview struct {
 	ID string `json:"id"`
-	// DefaultPath is the directory the create form offers when the user is not
-	// bringing an existing folder; AddShelf creates it. Empty when there is no
-	// id to derive it from.
-	DefaultPath string `json:"default_path"`
+	// DefaultPath is the shelf directory the form submits as lib_root unless the
+	// user typed or browsed to one. It is only ever a suggestion: AddShelf writes
+	// whatever lib_root it is given, so what the form shows is what shelves.json
+	// records.
+	DefaultPath string `json:"defaultPath"`
 }
 
-// PreviewShelfID reports what AddShelf would do with the given name right now.
-// The frontend shows both fields live as the user types: the id so a name that
-// slugifies to nothing — a purely non-ASCII name such as "小說" — visibly
-// becomes "shelf" before the id is frozen as the reading-progress key, and the
-// default path so creating a shelf needs a name and nothing else. An empty or
-// whitespace-only name has no preview and returns the zero value.
-func (a *DesktopApp) PreviewShelfID(name string) (ShelfNamePreview, error) {
+// PreviewShelfID reports the shelf id AddShelf would assign to a shelf created
+// with the given name right now, including the uniqueness suffix, along with
+// the default directory such a shelf would live in. The frontend shows both
+// live as the user types so a name that slugifies to nothing — a purely
+// non-ASCII name such as "小說" — visibly becomes "shelf" before the shelf is
+// created and its id frozen as the reading-progress key. An empty or
+// whitespace-only name has no preview and returns zero values.
+//
+// The id and the path are derived together because the path is named after the
+// id: the uniqueness suffix that keeps two shelves' ids apart keeps their
+// default directories apart as well.
+func (a *DesktopApp) PreviewShelfID(name string) (ShelfIDPreview, error) {
 	if strings.TrimSpace(name) == "" {
-		return ShelfNamePreview{}, nil
+		return ShelfIDPreview{}, nil
 	}
 
 	conf, err := loadDesktopShelves(a.shelvesConfigPath)
 	if err != nil {
-		return ShelfNamePreview{}, util.Errorf("loading shelf config: %w", err)
+		return ShelfIDPreview{}, util.Errorf("loading shelf config: %w", err)
 	}
 
 	existingIDs := map[string]bool{}
@@ -619,9 +649,9 @@ func (a *DesktopApp) PreviewShelfID(name string) (ShelfNamePreview, error) {
 	}
 
 	id := generateDesktopShelfID(name, existingIDs)
-	return ShelfNamePreview{
+	return ShelfIDPreview{
 		ID:          id,
-		DefaultPath: defaultDesktopShelfPath(a.shelvesConfigPath, id),
+		DefaultPath: defaultDesktopShelfDir(a.shelvesConfigPath, id),
 	}, nil
 }
 
@@ -842,22 +872,23 @@ func readerLaunchCommand(bookPath, shelfID string, section int) (string, []strin
 // readOnly opens the shelf without writing to it at all (shelf.ShelfConf):
 // lib_root must already exist, because a read-only shelf is never created, and
 // neither the lock file nor the exported book cache is written.
-func (a *DesktopApp) AddShelf(name, libRoot, scanInterval string, readOnly bool) error {
+func (a *DesktopApp) AddShelf(params AddShelfParams) error {
 	if a.app == nil {
 		return util.NewError("desktop backend app instance is nil")
 	}
 
-	name = strings.TrimSpace(name)
+	name := strings.TrimSpace(params.Name)
 	if name == "" {
 		return util.Errorf("shelf name cannot be empty")
 	}
 
-	normalizedLibRoot, err := normalizeDesktopShelfDirectory(libRoot)
+	normalizedLibRoot, err := normalizeDesktopShelfDirectory(params.LibRoot)
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
 
-	scanInterval = strings.TrimSpace(scanInterval)
+	scanInterval := strings.TrimSpace(params.ScanInterval)
+	bookCheckInterval := strings.TrimSpace(params.BookCheckInterval)
 
 	conf, err := loadDesktopShelves(a.shelvesConfigPath)
 	if err != nil {
@@ -872,11 +903,12 @@ func (a *DesktopApp) AddShelf(name, libRoot, scanInterval string, readOnly bool)
 	id := generateDesktopShelfID(name, existingIDs)
 
 	entry := desktopShelfEntry{
-		ID:           id,
-		Name:         name,
-		LibRoot:      normalizedLibRoot,
-		ScanInterval: scanInterval,
-		ReadOnly:     readOnly,
+		ID:                id,
+		Name:              name,
+		LibRoot:           normalizedLibRoot,
+		ScanInterval:      scanInterval,
+		BookCheckInterval: bookCheckInterval,
+		ReadOnly:          params.ReadOnly,
 	}
 
 	err = a.app.AddShelf(toShelfConfWithID(entry))
@@ -913,11 +945,12 @@ func (a *DesktopApp) GetShelfDetails(shelfID string) (*DesktopShelfDetails, erro
 	for _, entry := range conf.Shelves {
 		if entry.ID == shelfID {
 			return &DesktopShelfDetails{
-				ID:           entry.ID,
-				Name:         entry.Name,
-				Path:         entry.LibRoot,
-				ScanInterval: entry.ScanInterval,
-				ReadOnly:     entry.ReadOnly,
+				ID:                entry.ID,
+				Name:              entry.Name,
+				Path:              entry.LibRoot,
+				ScanInterval:      entry.ScanInterval,
+				BookCheckInterval: entry.BookCheckInterval,
+				ReadOnly:          entry.ReadOnly,
 			}, nil
 		}
 	}
@@ -939,22 +972,23 @@ func (a *DesktopApp) GetShelfDetails(shelfID string) (*DesktopShelfDetails, erro
 // app_conf.read_only would refuse the very request that turns read-only off,
 // and the only way back would be to edit a config file by hand. Whatever serves
 // this edit has to stay reachable while the shelf it edits is read-only.
-func (a *DesktopApp) ModifyShelf(shelfID, name, scanInterval string, readOnly bool) error {
+func (a *DesktopApp) ModifyShelf(params ModifyShelfParams) error {
 	if a.app == nil {
 		return util.NewError("desktop backend app instance is nil")
 	}
 
-	shelfID = strings.TrimSpace(shelfID)
+	shelfID := strings.TrimSpace(params.ShelfID)
 	if shelfID == "" {
 		return util.Errorf("shelf ID cannot be empty")
 	}
 
-	name = strings.TrimSpace(name)
+	name := strings.TrimSpace(params.Name)
 	if name == "" {
 		return util.Errorf("shelf name cannot be empty")
 	}
 
-	scanInterval = strings.TrimSpace(scanInterval)
+	scanInterval := strings.TrimSpace(params.ScanInterval)
+	bookCheckInterval := strings.TrimSpace(params.BookCheckInterval)
 
 	conf, err := loadDesktopShelves(a.shelvesConfigPath)
 	if err != nil {
@@ -977,7 +1011,8 @@ func (a *DesktopApp) ModifyShelf(shelfID, name, scanInterval string, readOnly bo
 	updated := previous
 	updated.Name = name
 	updated.ScanInterval = scanInterval
-	updated.ReadOnly = readOnly
+	updated.BookCheckInterval = bookCheckInterval
+	updated.ReadOnly = params.ReadOnly
 
 	if err := a.app.UpdateShelf(toShelfConfWithID(updated)); err != nil {
 		return util.Errorf("updating shelf: %w", err)
@@ -1010,17 +1045,14 @@ func (a *DesktopApp) RemoveShelf(shelfID string) error {
 		return util.Errorf("loading shelf config: %w", err)
 	}
 
-	newShelves := make([]desktopShelfEntry, 0, len(conf.Shelves))
-	found := false
-	for _, entry := range conf.Shelves {
-		if entry.ID == shelfID {
-			found = true
-			continue
-		}
-		newShelves = append(newShelves, entry)
-	}
-
-	if !found {
+	// DeleteFunc mutates its argument in place, so clone first: conf.Shelves is
+	// read again in the length check below. The check treats removing several
+	// duplicate IDs the same as removing one, exactly as the previous found-bool
+	// loop did.
+	newShelves := slices.DeleteFunc(slices.Clone(conf.Shelves), func(entry desktopShelfEntry) bool {
+		return entry.ID == shelfID
+	})
+	if len(newShelves) == len(conf.Shelves) {
 		return util.Errorf("shelf with ID %q not found in config", shelfID)
 	}
 

@@ -44,6 +44,17 @@
       />
       <ScanIntervalField v-model="modifyShelfScanInterval" :disabled="modifyingShelf" />
       <ShelfReadOnlyField v-model="modifyShelfReadOnly" :disabled="modifyingShelf" />
+      <details class="shelf-advanced">
+        <summary class="shelf-advanced-summary">
+          {{ t('settings.shelves.advancedSettings') }}
+        </summary>
+        <div class="shelf-advanced-body">
+          <BookCheckIntervalField
+            v-model="modifyShelfBookCheckInterval"
+            :disabled="modifyingShelf"
+          />
+        </div>
+      </details>
       <p v-if="modifyShelfError" class="settings-message settings-message-error" role="alert">
         {{ modifyShelfError }}
       </p>
@@ -71,83 +82,50 @@
         :disabled="addingShelf"
         autofocus
       />
+      <div class="shelf-add-dir-row">
+        <input
+          v-model="newShelfDirectory"
+          class="shelf-add-input shelf-add-dir-input"
+          type="text"
+          :placeholder="
+            newShelfEffectiveDirectory || t('settings.shelves.addShelfDirectoryPlaceholder')
+          "
+          :disabled="addingShelf"
+        />
+        <button
+          type="button"
+          class="shelf-browse-btn"
+          :disabled="addingShelf"
+          @click="onBrowseShelfDirectory"
+        >
+          {{ t('settings.shelves.addShelfBrowse') }}
+        </button>
+      </div>
+      <!-- Previews what submitting would create: the directory that is actually
+           sent as lib_root, and the id it would be frozen with. -->
       <p v-if="newShelfIDPreview" class="shelf-add-help shelf-id-preview">
-        {{ t('settings.shelves.addShelfIDPreview') }}
-        <span class="shelf-id-cell">{{ newShelfIDPreview }}</span>
+        <span v-if="newShelfEffectiveDirectory" class="shelf-preview-line">
+          {{ t('settings.shelves.addShelfPathPreview') }}
+          <span class="shelf-preview-path">{{ newShelfEffectiveDirectory }}</span>
+        </span>
+        <span class="shelf-preview-line">
+          {{ t('settings.shelves.addShelfIDPreview') }}
+          <span class="shelf-id-cell">{{ newShelfIDPreview }}</span>
+        </span>
       </p>
-
-      <!-- The two ways to place a shelf answer the same question the old single
-           path box left the user to guess: whether PlainShelf is about to
-           create a folder on their disk or open one they already have. Only the
-           second branch can be read-only, so the toggle lives inside it. -->
-      <RadioGroupRoot
-        v-model="newShelfLocationMode"
-        class="shelf-location-modes"
-        :disabled="addingShelf"
-        :aria-label="t('settings.shelves.addShelfLocationLabel')"
-      >
-        <RadioGroupItem
-          class="shelf-location-mode"
-          value="new"
-          data-testid="shelf-location-new"
-        >
-          <RadioGroupIndicator class="shelf-location-check" aria-hidden="true">●</RadioGroupIndicator>
-          <span class="shelf-location-copy">
-            <strong>{{ t('settings.shelves.addShelfLocationNew') }}</strong>
-            <span class="shelf-add-help">{{ t('settings.shelves.addShelfLocationNewHelp') }}</span>
-          </span>
-        </RadioGroupItem>
-        <RadioGroupItem
-          class="shelf-location-mode"
-          value="existing"
-          data-testid="shelf-location-existing"
-        >
-          <RadioGroupIndicator class="shelf-location-check" aria-hidden="true">●</RadioGroupIndicator>
-          <span class="shelf-location-copy">
-            <strong>{{ t('settings.shelves.addShelfLocationExisting') }}</strong>
-            <span class="shelf-add-help">{{ t('settings.shelves.addShelfLocationExistingHelp') }}</span>
-          </span>
-        </RadioGroupItem>
-      </RadioGroupRoot>
-
-      <p
-        v-if="newShelfLocationMode === 'new' && newShelfDefaultPath"
-        class="shelf-add-help shelf-add-default-path"
-        data-testid="shelf-default-path"
-      >
-        {{ t('settings.shelves.addShelfDefaultPath') }}
-        <span class="shelf-id-cell">{{ newShelfDefaultPath }}</span>
-      </p>
-
-      <template v-if="newShelfLocationMode === 'existing'">
-        <div class="shelf-add-dir-row">
-          <input
-            v-model="newShelfDirectory"
-            class="shelf-add-input shelf-add-dir-input"
-            type="text"
-            :placeholder="t('settings.shelves.addShelfDirectoryPlaceholder')"
+      <ScanIntervalField v-model="newShelfScanInterval" :disabled="addingShelf" />
+      <ShelfReadOnlyField v-model="newShelfReadOnly" :disabled="addingShelf" />
+      <details class="shelf-advanced">
+        <summary class="shelf-advanced-summary">
+          {{ t('settings.shelves.advancedSettings') }}
+        </summary>
+        <div class="shelf-advanced-body">
+          <BookCheckIntervalField
+            v-model="newShelfBookCheckInterval"
             :disabled="addingShelf"
-            data-testid="shelf-directory-input"
           />
-          <button
-            type="button"
-            class="shelf-browse-btn"
-            :disabled="addingShelf"
-            @click="onBrowseShelfDirectory"
-          >
-            {{ t('settings.shelves.addShelfBrowse') }}
-          </button>
         </div>
-        <p
-          v-if="newShelfDirectoryError"
-          class="settings-message settings-message-error"
-          role="alert"
-          data-testid="shelf-directory-error"
-        >
-          {{ newShelfDirectoryError }}
-        </p>
-        <ShelfReadOnlyField v-model="newShelfReadOnly" :disabled="addingShelf" />
-      </template>
+      </details>
       <p v-if="addShelfError" class="settings-message settings-message-error" role="alert">
         {{ addShelfError }}
       </p>
@@ -273,10 +251,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { RadioGroupIndicator, RadioGroupItem, RadioGroupRoot } from 'reka-ui';
 import ConfirmModal from '@/components/ConfirmModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
 import ScanIntervalField from '@/features/settings/components/ScanIntervalField.vue';
+import BookCheckIntervalField from '@/features/settings/components/BookCheckIntervalField.vue';
 import ShelfReadOnlyField from '@/features/settings/components/ShelfReadOnlyField.vue';
 import { exportShelfBookCache } from '@/api/shelves';
 import { useI18n } from '@/i18n';
@@ -307,12 +285,12 @@ const {
   confirmRemoveShelf,
   showAddShelfModal,
   newShelfName,
-  newShelfLocationMode,
   newShelfDirectory,
-  newShelfDirectoryError,
+  newShelfScanInterval,
+  newShelfBookCheckInterval,
   newShelfReadOnly,
   newShelfIDPreview,
-  newShelfDefaultPath,
+  newShelfEffectiveDirectory,
   addingShelf,
   addShelfError,
   canSubmitAddShelf,
@@ -325,6 +303,7 @@ const {
   showModifyShelfModal,
   modifyShelfName,
   modifyShelfScanInterval,
+  modifyShelfBookCheckInterval,
   modifyShelfReadOnly,
   modifyShelfPath,
   modifyingShelf,
@@ -370,6 +349,28 @@ onMounted(() => {
 .mobile-connect-link {
   justify-self: start;
   text-decoration: none;
+}
+
+/* Collapsed by default so the two esoteric per-shelf knobs (only book_check_interval
+   for now) stay out of the way of the common name/directory/scan-interval fields, and
+   a first-time user does not trip over them. */
+.shelf-advanced {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 8px;
+}
+
+.shelf-advanced-summary {
+  color: #64748b;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  list-style: revert;
+  user-select: none;
+}
+
+.shelf-advanced-body {
+  padding-top: 10px;
 }
 
 .shelves-table {
@@ -509,50 +510,14 @@ onMounted(() => {
   margin: -2px 0 0;
 }
 
-.shelf-location-modes {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+/* The preview stacks two labelled lines; the path can be long, so it wraps
+   rather than widening the dialog. */
+.shelf-preview-line {
+  display: block;
 }
 
-.shelf-location-mode {
-  align-items: flex-start;
-  background: transparent;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  gap: 8px;
-  padding: 8px 10px;
-  text-align: left;
-  width: 100%;
-}
-
-.shelf-location-mode[data-state='checked'] {
-  border-color: #64748b;
-}
-
-.shelf-location-mode:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.shelf-location-check {
-  color: #334155;
-  font-size: 12px;
-  line-height: 18px;
-  min-width: 10px;
-}
-
-.shelf-location-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 13px;
-}
-
-.shelf-add-default-path {
-  word-break: break-all;
+.shelf-preview-path {
+  overflow-wrap: anywhere;
 }
 
 .shelf-add-dir-row {

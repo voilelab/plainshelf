@@ -12,6 +12,16 @@ const zhHant = {
     label: '通知',
     dismiss: '關閉通知'
   },
+  security: {
+    insecureWarning: {
+      title: 'API 未啟用驗證',
+      body: '任何能連到這個位址的裝置，都可以讀取、修改、刪除你的整個書庫。',
+      docsLink: '如何保護',
+      collapse: '收合',
+      expand: '顯示安全警示',
+      badge: 'API 無驗證'
+    }
+  },
   language: {
     label: '語言',
     en: 'English',
@@ -157,11 +167,13 @@ const zhHant = {
       manage: '管理書架'
     },
     dashboard: '首頁',
+    library: '書庫',
     recentlyRead: '最近閱讀',
     trash: '垃圾桶',
     downloads: '已下載',
     adminLogs: '日誌',
     settings: '設定',
+    tabNavLabel: '主導覽',
     readOnly: {
       banner: '唯讀模式已啟用。仍可瀏覽與閱讀，但寫入操作已停用。',
       writeDisabled: '伺服器目前為唯讀模式，寫入操作已停用。'
@@ -243,6 +255,11 @@ const zhHant = {
         '決定按下「閱讀」時如何開啟。「開新 reader」在網頁版會開新分頁，在桌面版會啟動獨立的 reader 應用程式；「在目前視窗開」則直接在目前視窗切換。此偏好只保存在這台裝置。',
       newReader: '開新 reader',
       inWindow: '在目前視窗開'
+    },
+    language: {
+      title: '語言',
+      label: '介面語言',
+      description: '介面顯示的語言。此偏好只保存在這台裝置。'
     },
     import: {
       title: '匯入'
@@ -332,6 +349,7 @@ const zhHant = {
       addShelfSubmit: '新增書架',
       addShelfAdding: '新增中...',
       addShelfFailed: '新增書架失敗',
+      addShelfPathPreview: '建立位置：',
       addShelfIDPreview: '書架 ID：',
       addShelfLocationLabel: '書架位置',
       addShelfLocationNew: '建立新資料夾',
@@ -374,7 +392,15 @@ const zhHant = {
       scanIntervalHelpAlways:
         '每次重新整理都走一遍整個書庫。本機磁碟沒問題，網路書庫會很吃資源。',
       scanIntervalAdjusted:
-        '已存的間隔 {value} 無法用這組控制項精確表示，已改為上面的值。'
+        '已存的間隔 {value} 無法用這組控制項精確表示，已改為上面的值。',
+      advancedSettings: '進階設定',
+      bookCheckIntervalLabel: '單本過期檢查間隔',
+      bookCheckIntervalHelpDefault:
+        '跟隨掃描間隔。在網路書庫上，列表操作的 I/O 主要來自這裡；若列表變慢，可把它設得比掃描間隔更長。',
+      bookCheckIntervalHelpEvery:
+        '兩次檢查之間，列表直接由記憶體提供、不碰檔案系統。間隔越長，網路往返越少，但在 PlainShelf 之外改動的書也要等更久才會反映。',
+      bookCheckIntervalHelpAlways:
+        '每次列表都重新檢查每一本書。本機磁碟沒問題，網路書庫會很吃資源。'
     }
   },
   adminLogs: {
@@ -385,7 +411,9 @@ const zhHant = {
     source: '來源',
     filename: '檔名',
     size: '大小',
-    empty: '目前沒有可用的日誌檔。',
+    empty: '目前沒有可瀏覽的日誌檔。',
+    emptyHint:
+      '只有將 log_file.type 設為 filename_rotate 或 filename 的 logger 才會出現在這裡；寫到 stderr 或 stdout（預設）的 logger 不會。若要瀏覽日誌，請設定檔案型別；若已經設定，請待它寫入第一個檔案後再重新載入。',
     emptyContent: '所選日誌檔沒有內容。',
     missingForDate: '{date} 沒有可用的日誌檔。',
     loadingList: '載入日誌檔中...',
@@ -602,6 +630,16 @@ const zhHant = {
       characters: '字數',
       comment: '書籍備註',
       importNotes: '匯入備註'
+    },
+    importNote: {
+      remove: '刪除',
+      removeLabel: '刪除匯入備註',
+      removeFailed: '無法刪除匯入備註。',
+      confirm: {
+        title: '刪除匯入備註？',
+        message: '這則備註記錄了這份文字是怎麼匯入或轉換來的。刪除後無法復原，但不會動到文字本身。',
+        confirm: '刪除備註'
+      }
     },
     progress: {
       sectionLabel: '閱讀進度與操作',

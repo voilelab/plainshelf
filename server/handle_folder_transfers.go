@@ -2,7 +2,7 @@ package server
 
 import (
 	"net/http"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/voilelab/plainshelf/server/task"
@@ -69,7 +69,7 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 		http.Error(w, "source_folder is required", http.StatusBadRequest)
 		return
 	}
-	if err := shelf.ValidateFolderPath(sourceFolder); err != nil {
+	if err := sourceShelf.ValidateFolderPath(sourceFolder); err != nil {
 		h.writeErrStatus(w, err, "invalid source_folder", http.StatusBadRequest)
 		return
 	}
@@ -104,7 +104,7 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 		http.Error(w, "target_folder cannot be the root folder", http.StatusBadRequest)
 		return
 	}
-	if err := shelf.ValidateFolderPath(targetFolder); err != nil {
+	if err := targetShelf.ValidateFolderPath(targetFolder); err != nil {
 		h.writeErrStatus(w, err, "invalid target_folder", http.StatusBadRequest)
 		return
 	}
@@ -194,7 +194,7 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 			}
 		}
 		if len(conflicts) > 0 {
-			sort.Strings(conflicts)
+			slices.Sort(conflicts)
 			h.writeJSON(w, http.StatusConflict, folderTransferConflict{
 				Error:              folderTransferConflictBookID,
 				Message:            "the target shelf already holds books with these IDs; the move would overwrite them",

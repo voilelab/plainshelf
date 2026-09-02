@@ -41,7 +41,7 @@ type Source struct {
 }
 
 type SourceMeta struct {
-	SchemaVersion int `json:"schema_version,omitempty"`
+	SchemaVersion int `json:"schema_version,omitzero"`
 
 	ID        string        `json:"id"`
 	CreatedAt util.JSONTime `json:"created_at"`
@@ -50,8 +50,8 @@ type SourceMeta struct {
 
 	// depending on the content
 	MD5Hash   string `json:"md5_hash,omitempty"`
-	LineCount int    `json:"line_count,omitempty"`
-	CharCount int    `json:"char_count,omitempty"`
+	LineCount int    `json:"line_count,omitzero"`
+	CharCount int    `json:"char_count,omitzero"`
 }
 
 func (r *Source) FolderPath() string {

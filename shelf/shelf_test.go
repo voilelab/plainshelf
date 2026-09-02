@@ -79,11 +79,36 @@ func TestShelfRuntimeStateAndScanInterval(t *testing.T) {
 	if bookCheckInterval != 3*time.Minute {
 		t.Fatalf("book check interval = %v, want %v", bookCheckInterval, 3*time.Minute)
 	}
+
+	if err := shelf.SetBookCheckInterval("invalid"); err == nil {
+		t.Fatal("SetBookCheckInterval accepted an invalid duration")
+	}
+	if err := shelf.SetBookCheckInterval("5m"); err != nil {
+		t.Fatalf("SetBookCheckInterval(5m): %v", err)
+	}
+	shelf.bookCache.RLock()
+	bookCheckInterval = shelf.bookCache.bookCheckInterval
+	shelf.bookCache.RUnlock()
+	if bookCheckInterval != 5*time.Minute {
+		t.Fatalf("book check interval = %v, want %v", bookCheckInterval, 5*time.Minute)
+	}
+
+	// An empty value falls back to whichever scan interval is in effect now
+	// (a minute, set above), not the 3m it was opened with.
+	if err := shelf.SetBookCheckInterval(""); err != nil {
+		t.Fatalf("SetBookCheckInterval(default): %v", err)
+	}
+	shelf.bookCache.RLock()
+	bookCheckInterval = shelf.bookCache.bookCheckInterval
+	shelf.bookCache.RUnlock()
+	if bookCheckInterval != time.Minute {
+		t.Fatalf("book check interval after default = %v, want %v", bookCheckInterval, time.Minute)
+	}
 }
 
 func TestShelfWaitReadyCancellationAndInitializingReads(t *testing.T) {
 	shelf := &Shelf{readyCh: make(chan struct{})}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	if err := shelf.WaitReady(ctx); !errors.Is(err, context.Canceled) {

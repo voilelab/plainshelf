@@ -2,6 +2,8 @@ package contract_test
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -159,7 +161,7 @@ func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
 			if got == "invalid folder name" {
 				t.Fatalf("body = %q, want a message naming the ignore rule", got)
 			}
-			for _, want := range []string{"@eaDir", "skipped by the shelf scanner"} {
+			for _, want := range []string{"while scanning", "would not stay visible"} {
 				if !strings.Contains(got, want) {
 					t.Fatalf("body = %q, want it to contain %q", got, want)
 				}
@@ -177,4 +179,33 @@ func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
 			t.Fatalf("body = %q, want %q", got, "invalid folder name")
 		}
 	})
+}
+
+// A shelf that lists its own directories also says why it skips them, and that
+// reason is what the user needs: they wrote the rule and can take it back. The
+// message therefore carries the shelf's own words rather than the built-in
+// directory names, which on such a shelf are not the rule in force.
+func TestAPIConfiguredIgnoredFolderNameCarriesTheShelfsReasonContract(t *testing.T) {
+	libRoot := t.TempDir()
+	config := `{"schema_version":1,"scan":{"ignored_dirs":[{"name":"@Snapshot","reason":"Synology snapshot directory"}]}}`
+	if err := os.WriteFile(filepath.Join(libRoot, "shelf.json"), []byte(config), 0644); err != nil {
+		t.Fatalf("write shelf.json: %v", err)
+	}
+
+	env := newAPITestEnv(t, withLibRoot(libRoot))
+
+	rec := env.post(shelfURL("folders", "%40Snapshot"), nil)
+
+	assertStatus(t, rec, http.StatusBadRequest)
+	got := strings.TrimSpace(rec.Body.String())
+	for _, want := range []string{"@Snapshot", "Synology snapshot directory"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("body = %q, want it to contain %q", got, want)
+		}
+	}
+
+	// The directory must not have been created on the way to the rejection.
+	if _, err := os.Stat(filepath.Join(libRoot, "books", "@Snapshot")); !os.IsNotExist(err) {
+		t.Errorf("Stat books/@Snapshot = %v, want it never to have been created", err)
+	}
 }

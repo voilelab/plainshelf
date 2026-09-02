@@ -1,7 +1,7 @@
 import { onBeforeUnmount, ref, type Ref } from 'vue';
 import { isMobileRuntime } from '@/providers/runtime';
 
-export const MOBILE_READER_QUERY = '(max-width: 720px)';
+const MOBILE_READER_QUERY = '(max-width: 720px)';
 
 export function shouldUseMobileReader(mobileRuntime: boolean, narrowViewport: boolean): boolean {
   return mobileRuntime || narrowViewport;

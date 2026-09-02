@@ -6,7 +6,7 @@
  * through a request the shell would have to await — is what lets the first
  * paint already be the reader instead of an empty library.
  */
-export interface ReaderBootConfig {
+interface ReaderBootConfig {
   /**
    * The shelf the reader app reports as active. It is the book's real desktop
    * shelf id when the desktop app launched the reader (so the reader addresses

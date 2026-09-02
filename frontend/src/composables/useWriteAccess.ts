@@ -8,7 +8,7 @@ import { getBookshelfProvider, isWritableProvider } from '@/providers';
  * over `server-read-only` so user-facing copy names the reason the user can
  * actually act on.
  */
-export type WriteDisabledReason = 'platform' | 'server-read-only' | null;
+type WriteDisabledReason = 'platform' | 'server-read-only' | null;
 
 /**
  * Whether this client can mutate the shelf at all.

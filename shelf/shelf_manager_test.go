@@ -1,7 +1,6 @@
 package shelf
 
 import (
-	"context"
 	"errors"
 	"os"
 	"strings"
@@ -43,7 +42,7 @@ func TestShelfManagerLifecycle(t *testing.T) {
 	if primary.Name != "primary" {
 		t.Fatalf("default shelf name = %q, want %q", primary.Name, "primary")
 	}
-	if err := primary.WaitReady(context.Background()); err != nil {
+	if err := primary.WaitReady(t.Context()); err != nil {
 		t.Fatalf("WaitReady(primary): %v", err)
 	}
 
@@ -68,7 +67,7 @@ func TestShelfManagerLifecycle(t *testing.T) {
 	if !ok {
 		t.Fatal("GetShelf(secondary) did not find the added shelf")
 	}
-	if err := secondary.WaitReady(context.Background()); err != nil {
+	if err := secondary.WaitReady(t.Context()); err != nil {
 		t.Fatalf("WaitReady(secondary): %v", err)
 	}
 
@@ -98,9 +97,14 @@ func TestShelfManagerLifecycle(t *testing.T) {
 	}
 
 	if err := sm.UpdateShelf(ShelfConfWithID{
-		ID:        "primary",
-		Name:      "Main Shelf",
-		ShelfConf: ShelfConf{LibRoot: firstRoot, LockMode: "none", ScanInterval: "2m"},
+		ID:   "primary",
+		Name: "Main Shelf",
+		ShelfConf: ShelfConf{
+			LibRoot:           firstRoot,
+			LockMode:          "none",
+			ScanInterval:      "2m",
+			BookCheckInterval: "5m",
+		},
 	}); err != nil {
 		t.Fatalf("UpdateShelf(primary): %v", err)
 	}
@@ -109,9 +113,31 @@ func TestShelfManagerLifecycle(t *testing.T) {
 	}
 	primary.bookCache.RLock()
 	interval := primary.bookCache.scanInterval
+	bookCheckInterval := primary.bookCache.bookCheckInterval
 	primary.bookCache.RUnlock()
 	if interval != 2*time.Minute {
 		t.Fatalf("updated scan interval = %v, want %v", interval, 2*time.Minute)
+	}
+	// The change reaches the live shelf, not just s.conf: before this it stayed
+	// on the value the shelf was opened with until a restart.
+	if bookCheckInterval != 5*time.Minute {
+		t.Fatalf("updated book check interval = %v, want %v", bookCheckInterval, 5*time.Minute)
+	}
+
+	// An invalid book_check_interval is rejected the same way an invalid scan
+	// interval is, and leaves the live value untouched.
+	if err := sm.UpdateShelf(ShelfConfWithID{
+		ID:        "primary",
+		Name:      "Main Shelf",
+		ShelfConf: ShelfConf{LibRoot: firstRoot, LockMode: "none", ScanInterval: "2m", BookCheckInterval: "not-a-duration"},
+	}); err == nil {
+		t.Fatal("UpdateShelf accepted an invalid book check interval")
+	}
+	primary.bookCache.RLock()
+	bookCheckInterval = primary.bookCache.bookCheckInterval
+	primary.bookCache.RUnlock()
+	if bookCheckInterval != 5*time.Minute {
+		t.Fatalf("book check interval after rejected update = %v, want %v", bookCheckInterval, 5*time.Minute)
 	}
 
 	if err := sm.RemoveShelf("missing"); err == nil {
@@ -259,7 +285,7 @@ func waitShelfReady(t *testing.T, sm *ShelfManager, id string) *ShelfData {
 	if !ok {
 		t.Fatalf("GetShelf(%q) did not find the shelf", id)
 	}
-	if err := s.WaitReady(context.Background()); err != nil {
+	if err := s.WaitReady(t.Context()); err != nil {
 		t.Fatalf("WaitReady(%q): %v", id, err)
 	}
 	return s

@@ -18,9 +18,9 @@ const txtExtPattern = /\.txt$/i;
 // abort must never read as an import error. It mirrors taskutil's
 // partially_completed, so a future server-side taskchain keeps the same mental
 // model.
-export type ImportStatus = 'pending' | 'importing' | 'success' | 'failed' | 'cancelled';
+type ImportStatus = 'pending' | 'importing' | 'success' | 'failed' | 'cancelled';
 
-export interface ImportFileState {
+interface ImportFileState {
   filename: string;
   title: string;
   status: ImportStatus;
@@ -48,7 +48,7 @@ interface LocalPathImportUnit extends ImportUnit {
 // Turns one unit into a created book id, or throws to fail that unit. Abort is
 // cooperative and only checked between units, so an executor may ignore the
 // signal; it is passed so an implementation that can bail out early may.
-export type ImportExecutor<T extends ImportUnit = ImportUnit> = (
+type ImportExecutor<T extends ImportUnit = ImportUnit> = (
   unit: T,
   signal: AbortSignal
 ) => Promise<string>;
@@ -62,7 +62,7 @@ export interface ImportSubmitResult {
   firstImportedId?: string;
 }
 
-export interface ImportProgress {
+interface ImportProgress {
   total: number;
   completed: number;
   // 1-based ordinal of the book currently importing; falls back to the completed
@@ -75,7 +75,7 @@ export interface ImportProgress {
 // A just-imported TXT whose text reads as chaptered, offered to the user as a
 // one-click conversion. `content` is kept so accepting the offer does not fetch
 // the source a second time.
-export interface ChapterConversionSuggestion {
+interface ChapterConversionSuggestion {
   bookId: string;
   chapters: number;
   content: string;

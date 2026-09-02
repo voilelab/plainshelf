@@ -174,10 +174,22 @@ docker run --rm \
   ghcr.io/voilelab/plainshelf:latest
 ```
 
-!!! tip "Keep it local"
-    The example publishes the port on the loopback address (`127.0.0.1`)
-    only. Do not expose `0.0.0.0:20000` to untrusted networks unless you add
-    an authentication boundary in front of the container.
+!!! warning "Keep it local"
+    The default container config sets `security.mode: local_token`: the token is
+    injected into the served index page, so opening <http://127.0.0.1:20000> in a
+    browser needs no manual setup, and cross-origin (CSRF) writes are rejected.
+    This is **not** an authentication boundary for an exposed port — any client
+    that can reach the port may fetch the token from the page and write. Publish
+    the port on the loopback address (`127.0.0.1`) only, and do not expose
+    `0.0.0.0:20000` to untrusted networks unless you add a real boundary (reverse
+    proxy auth or a VPN edge) in front of the container.
+
+!!! warning "Opening the UI from a different port, LAN IP, or custom domain"
+    `local_token` allows only loopback browser origins on port 20000 by default
+    (`http://127.0.0.1:20000`, `http://localhost:20000`). If you reach the UI from
+    a different host port, a NAS LAN IP, or a custom domain, add that exact origin
+    to `app_conf.security.allowed_origins` in a mounted config or writes are
+    rejected by the Origin check. See the [Docker](development/docker.md) page.
 
 For custom configuration and the bundled defaults, see the
 [Docker](development/docker.md) page.
@@ -192,6 +204,13 @@ For custom configuration and the bundled defaults, see the
     PlainShelf provides no export, import, or recovery path for them. See
     [v0.8 reading-data breaking change](concepts/data-format-versioning.md#v08-reading-data-breaking-change)
     for details.
+
+!!! warning "Reading progress does not carry into v0.10.0 or later"
+    v0.10.0 changed the per-device reading-progress file to a timestamped format
+    so that the desktop app and the standalone reader can reconcile concurrent
+    writes. The older format is not migrated: on first run of v0.10.0 or later,
+    web and desktop books start at the beginning again on that device. Android's
+    per-book progress files are unaffected.
 
 1. Stop the running server (or `docker stop plainshelf`).
 2. Download/pull the new version using the steps above.

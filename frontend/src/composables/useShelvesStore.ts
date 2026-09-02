@@ -10,6 +10,10 @@ const loaded = ref(false);
 const error = ref('');
 const selectedShelfID = ref('');
 
+// Deliberately not the shared `shelfInitRetry` budget the book listing, the
+// folder tree, the char-count index and the dashboard use. This is a fast poll
+// for the shelf list at startup, not a wait for the shelf's initial scan;
+// borrowing that 10 x 3000ms budget would stall the sidebar's first paint.
 const STARTUP_MAX_RETRIES = 20;
 const STARTUP_RETRY_DELAY_MS = 300;
 

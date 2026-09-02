@@ -1,5 +1,5 @@
 export type BookFormat = string;
-export type BookTimestamp = string;
+type BookTimestamp = string;
 export type DownloadState =
   | 'not_downloaded'
   | 'downloaded'
@@ -94,13 +94,6 @@ export interface BookUpdateRequest {
   format?: BookFormat;
 }
 
-/** The formats a book can be stored as. Both read the same bytes on disk: the
- *  value only decides whether the reader parses the text as Markdown. */
-export const BOOK_FORMAT_OPTIONS: { value: BookFormat; label: string }[] = [
-  { value: 'txt', label: 'Plain text' },
-  { value: 'md', label: 'Markdown' }
-];
-
 /** Built-in EPUB output layouts. The preset also decides the stored book format. */
 export type EpubImportPreset = 'markdown' | 'plain';
 
@@ -130,9 +123,6 @@ export interface BookCreateRequest {
   /** Only meaningful for .epub uploads; ignored by the server for other formats. */
   strategy?: EpubImportStrategy;
 }
-
-export type UpdateBookPayload = BookUpdateRequest;
-export type ImportBookPayload = BookCreateRequest;
 
 export interface PaginatedBooks {
   items: Book[];

@@ -52,8 +52,8 @@ func newBookBatchTask(shelfID string, s *shelf.Shelf, logger *logutil.Logger, op
 		shelf:        s,
 		logger:       logger,
 		operation:    operation,
-		bookIDs:      append([]string(nil), bookIDs...),
-		targetFolder: append(shelf.FolderPath(nil), targetFolder...),
+		bookIDs:      slices.Clone(bookIDs),
+		targetFolder: slices.Clone(targetFolder),
 		result: BookBatchResult{
 			Operation:    operation,
 			Total:        len(bookIDs),
@@ -195,7 +195,7 @@ func (t *bookBatchTask) Run(ctx context.Context) error {
 }
 
 func NewBookBatchChain(shelfID string, s *shelf.Shelf, logger *logutil.Logger, operation string, bookIDs []string, targetFolder shelf.FolderPath) *taskutil.TaskChain {
-	keyIDs := append([]string(nil), bookIDs...)
+	keyIDs := slices.Clone(bookIDs)
 	slices.Sort(keyIDs)
 	key := strings.Join([]string{BookBatchTaskName, shelfID, operation, targetFolder.String(), strings.Join(keyIDs, ",")}, ":")
 	task := newBookBatchTask(shelfID, s, logger, operation, bookIDs, targetFolder)

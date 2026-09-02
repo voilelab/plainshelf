@@ -1,30 +1,20 @@
 import { ref } from 'vue';
 import { getBookshelfProvider } from '@/providers';
-import { ApiError } from '@/api/client';
+import { createShelfInitRetry, isShelfInitializing } from './shelfInitRetry';
 import { t } from '@/i18n';
-
-const SHELF_INIT_RETRY_DELAY_MS = 3000;
-const SHELF_INIT_MAX_AUTO_RETRIES = 10; // ~30s of auto-retry before showing an error
 
 const folders = ref<string[]>([]);
 const loading = ref(false);
 const error = ref('');
 const loaded = ref(false);
 
-let retryTimer: ReturnType<typeof setTimeout> | null = null;
-let initRetryCount = 0;
-
-function clearRetry(): void {
-  if (retryTimer !== null) {
-    clearTimeout(retryTimer);
-    retryTimer = null;
-  }
-}
+const initRetry = createShelfInitRetry();
 
 async function run(isAutoRetry: boolean): Promise<void> {
-  clearRetry();
-  if (!isAutoRetry) {
-    initRetryCount = 0;
+  if (isAutoRetry) {
+    initRetry.cancel();
+  } else {
+    initRetry.reset();
   }
   loading.value = true;
   error.value = '';
@@ -32,16 +22,12 @@ async function run(isAutoRetry: boolean): Promise<void> {
   try {
     folders.value = await getBookshelfProvider().listFolders();
     loaded.value = true;
-    initRetryCount = 0;
+    initRetry.reset();
   } catch (err) {
-    // A shelf still running its initial scan answers 503 for every read. The
-    // book listing retries through that, so the folder tree has to as well:
-    // otherwise the sidebar strands on an error the shelf resolves on its own
-    // while the book list recovers on the next tick.
-    if (err instanceof ApiError && err.status === 503) {
-      initRetryCount++;
-      if (initRetryCount < SHELF_INIT_MAX_AUTO_RETRIES) {
-        retryTimer = setTimeout(() => void run(true), SHELF_INIT_RETRY_DELAY_MS);
+    // Wait out the initial scan rather than stranding the sidebar on an error
+    // the shelf resolves on its own. See `shelfInitRetry`.
+    if (isShelfInitializing(err)) {
+      if (initRetry.schedule(() => void run(true))) {
         return;
       }
       error.value = t('layout.folderErrors.shelfNotReady');
@@ -51,7 +37,7 @@ async function run(isAutoRetry: boolean): Promise<void> {
   } finally {
     // A pending retry keeps the sidebar in its loading state rather than
     // flashing an error between attempts.
-    if (retryTimer === null) {
+    if (!initRetry.pending) {
       loading.value = false;
     }
   }

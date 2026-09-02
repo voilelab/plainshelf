@@ -36,6 +36,11 @@ declare global {
     __PLAINSHELF_SECURITY__?: {
       token?: string;
       tokenHeader?: string;
+      // Set by the Go server only when security mode is none and the listen
+      // address is not loopback: the API answers every request, including
+      // writes and deletes, without authentication. Drives the persistent
+      // Web UI warning; see SecurityWarningBanner.vue.
+      insecurePublicAccess?: boolean;
     };
     __PLAINSHELF_READ_ONLY__?: boolean;
     plainshelf?: {
@@ -63,7 +68,6 @@ if (IS_DEV && API_MODE === 'mock') {
 // Build-time default. On native (Capacitor) builds there is no server to inject
 // a base URL, so the mobile bootstrap can override this at runtime via
 // setApiBase() once the user has entered their server address.
-export const API_BASE = API_BASE_NORMALIZED;
 let apiBase = API_BASE_NORMALIZED;
 
 export function getApiBase(): string {
@@ -99,6 +103,14 @@ if (typeof window !== 'undefined') {
 
 export function isMockApiMode(): boolean {
   return API_MODE === 'mock';
+}
+
+// isInsecurePublicAccess reports whether the server bootstrapped this page with
+// the "no API authentication, reachable off-machine" flag. The Go server sets it
+// only for security mode none bound to a non-loopback address; every other
+// posture (any local_token mode, or none on loopback) leaves it unset.
+export function isInsecurePublicAccess(): boolean {
+  return typeof window !== 'undefined' && window.__PLAINSHELF_SECURITY__?.insecurePublicAccess === true;
 }
 
 function assertApiMode(): void {
@@ -236,7 +248,7 @@ async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = FET
   }
 }
 
-export interface FetchJsonOptions {
+interface FetchJsonOptions {
   // acceptStatuses lists non-2xx statuses whose JSON body is a normal result
   // rather than an error, such as a 409 that reports the task already running.
   acceptStatuses?: number[];

@@ -68,7 +68,7 @@ const SCAN_TIMEOUT_MS = 300_000;
 /**
  * What one shelf rescan found.
  */
-export interface ShelfScanResult {
+interface ShelfScanResult {
   bookCount: number;
   folderCount: number;
 }

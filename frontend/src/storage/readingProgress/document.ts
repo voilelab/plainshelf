@@ -11,8 +11,10 @@
 // deal only in plain offsets; the timestamp is internal to this module.
 
 // Bumped from 1 to 2 for the timestamped shape. A document of any other version
-// is treated as absent (see parse): the app is pre-alpha, so untimestamped v1
-// progress is discarded rather than migrated.
+// is treated as absent (see parse). This file is device-local state, outside the
+// on-disk format commitments, and dropping the untimestamped v1 shipped in
+// v0.10.0 as a documented breaking change (CHANGELOG.md, docs/installation.md) —
+// not a pattern to follow for shelf data.
 export const READING_PROGRESS_DOCUMENT_VERSION = 2;
 
 /** A book's stored progress: a UTF-16 offset and the epoch ms it was written. */

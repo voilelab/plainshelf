@@ -10,6 +10,7 @@ and UI behavior may still change between releases.
 ### Added
 
 - Added a **?** button to the mobile reader's controls that replays the gesture hint, which previously showed only once per device.
+- Added a default shelf directory to the desktop **Add shelf** dialog, which now previews the path and the shelf ID for the typed name and creates the shelf under the app data directory's `shelves/<shelf id>` when no directory is picked.
 
 ### Changed
 
@@ -28,6 +29,7 @@ and UI behavior may still change between releases.
 ### Security
 
 - **Breaking (pre-1.0):** changed `GET /api/logs` and `/api/logs/{id}/content` to always require the access token, whatever `protect_read` says, since logs carry request paths, access times, and remote addresses; a client reading them without a token now gets `401`, and security mode `none` is unaffected.
+- **Breaking (pre-1.0):** changed the Docker image default (`docker/config.yaml`) from `security.mode: "none"` to `local_token`, so mutating `/api` requests require a token and cross-origin (CSRF) writes are rejected; browsers on `127.0.0.1:20000` are unaffected (the token is injected into the served page), but opening the UI from a different host port, LAN IP, or custom domain now needs that exact origin in `app_conf.security.allowed_origins`. This is not an authentication boundary for an exposed port (a client reaching the port can read the token from the page), so keep binding to loopback or front the container with a real boundary.
 
 ## [v0.10.0] - 2026-08-26
 
@@ -48,6 +50,7 @@ and UI behavior may still change between releases.
 - Changed each book folder's hint file to `CURRENT_SOURCE.txt` (English; was `CURRENT_VERSION_LOCATION.txt`); nothing reads it back, so existing shelves need no migration.
 - Changed the source editor to CodeMirror 6, holding the whole source so find, chapter jumps, and the caret land where asked; Markdown is syntax-highlighted and CRLF endings are preserved.
 - Changed new book IDs from an 8-hex title/path hash to a random v4 UUID; existing IDs are kept with no migration and both forms coexist in one shelf.
+- **Breaking (pre-1.0):** changed the per-device reading-progress file to a timestamped format (document v2) so the desktop app and the standalone reader reconcile concurrent writes newest-wins; the older v1 document is not migrated, so web and desktop progress starts at zero once after upgrading (Android's per-book `progress.json` is unaffected).
 - Changed the Android client to require a book be downloaded before reading; the reader route redirects a not-yet-downloaded book to its detail page to prompt a download.
 - Changed source deletion so a book always keeps a usable current source; deleting the current source of a book written by a newer PlainShelf is refused with `409 Conflict`.
 - Reworked the dashboard into a **Home** page at `/home` (`/` and `/dashboard` redirect) that routes into the library, leading with "recently reading" and "recently added" and turning counts and tag chips into links.

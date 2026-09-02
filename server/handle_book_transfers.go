@@ -80,7 +80,7 @@ func (h *bookTransferHandlers) transferBook(w http.ResponseWriter, r *http.Reque
 	if request.TargetFolder != nil {
 		targetFolder = append(shelf.FolderPath(nil), (*request.TargetFolder)...)
 	}
-	if err := shelf.ValidateFolderPath(targetFolder); err != nil {
+	if err := targetShelf.ValidateFolderPath(targetFolder); err != nil {
 		h.writeErrStatus(w, err, "invalid target_folder", http.StatusBadRequest)
 		return
 	}

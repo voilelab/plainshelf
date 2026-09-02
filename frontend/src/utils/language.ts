@@ -1,6 +1,6 @@
 import { t } from '@/i18n';
 
-export type LanguageOption = {
+type LanguageOption = {
   value: string;
   label: string;
 };

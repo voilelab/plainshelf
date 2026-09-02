@@ -2,15 +2,11 @@ import { computed, ref, watch } from 'vue';
 import { useShelvesStore } from '@/composables/useShelvesStore';
 import { getBookshelfProvider } from '@/providers';
 import { useI18n } from '@/i18n';
-import { isAbsoluteShelfPath } from '@/features/settings/utils/shelfPath';
 
 interface ShelfRef {
   id: string;
   name: string;
 }
-
-/** Where a new shelf's folder comes from: created by PlainShelf, or adopted. */
-export type ShelfLocationMode = 'new' | 'existing';
 
 /**
  * The settings page's shelf table: adding, modifying and removing a shelf, plus
@@ -34,90 +30,64 @@ export function useShelfManagement() {
 
   const showAddShelfModal = ref(false);
   const newShelfName = ref('');
-  // Which of the two ways to place a new shelf the user has chosen. The default
-  // branch creates a folder PlainShelf owns and needs nothing but a name; the
-  // other one adopts a folder the user already has. They share this one set of
-  // refs rather than two parallel forms, so there is a single place to reset.
-  const newShelfLocationMode = ref<ShelfLocationMode>('new');
   const newShelfDirectory = ref('');
+  const newShelfScanInterval = ref('');
+  const newShelfBookCheckInterval = ref('');
   const newShelfReadOnly = ref(false);
   const addingShelf = ref(false);
   const addShelfError = ref('');
-
-  // Read-only is a property of a folder that already exists — it turns off the
-  // directory creation the default branch is entirely built on — so leaving the
-  // existing-folder branch has to put it back, not just stop showing it.
-  watch(newShelfLocationMode, (mode) => {
-    if (mode === 'new') {
-      newShelfReadOnly.value = false;
-    }
-  });
-
-  // What creating a shelf under the typed name would produce, shown live: the
-  // id so a name that slugifies to nothing (e.g. a purely non-ASCII "小說")
-  // visibly becomes "shelf" before the id is created and frozen as the
-  // reading-progress key, and the folder the default branch would create. Both
-  // empty when there is no preview: off the desktop, or for an empty name.
+  // The shelf id the backend would assign to the typed name, shown live so a
+  // name that slugifies to nothing (e.g. a purely non-ASCII "小說") visibly
+  // becomes "shelf" before the id is created and frozen as the reading-progress
+  // key. Empty when there is no preview: off the desktop, or for an empty name.
   const newShelfIDPreview = ref('');
-  const newShelfDefaultPath = ref('');
+  // The directory the backend suggests for that id. It is only a default: the
+  // form submits it as lib_root when the user never picks a directory, which is
+  // what lets a shelf be created from a name alone.
+  const newShelfDefaultDirectory = ref('');
   // Latest-wins guard: the async preview lags keystrokes, so a slow earlier
   // response must not overwrite a newer one (or a reset).
   let shelfIDPreviewToken = 0;
 
-  function clearShelfNamePreview(): void {
-    newShelfIDPreview.value = '';
-    newShelfDefaultPath.value = '';
-  }
+  // What the form will actually create. A directory the user typed or browsed
+  // to wins over the suggestion, and it is this value the panel previews — so
+  // what the dialog shows is what lands in shelves.json.
+  const newShelfEffectiveDirectory = computed(() => {
+    const chosen = newShelfDirectory.value.trim();
+    if (chosen) {
+      return chosen;
+    }
+    // A read-only shelf is never created, so its lib_root must already exist
+    // (shelf.NewShelf). The default names a directory that by construction does
+    // not, so offering it here would advertise a name-only flow that always
+    // fails: read-only creation needs a directory the user points at.
+    return newShelfReadOnly.value ? '' : newShelfDefaultDirectory.value;
+  });
+  const canSubmitAddShelf = computed(
+    () => newShelfName.value.trim().length > 0 && newShelfEffectiveDirectory.value.length > 0
+  );
 
   async function refreshShelfIDPreview(name: string): Promise<void> {
     const token = ++shelfIDPreviewToken;
+    // Drop the previous name's answer before asking for this one. Both fields
+    // are derived from the name, so keeping them across the await would show —
+    // and, for the directory, submit — the old name's shelf under the new name.
+    newShelfIDPreview.value = '';
+    newShelfDefaultDirectory.value = '';
     const provider = getBookshelfProvider();
     if (!provider.previewDesktopShelfID || name.trim().length === 0) {
-      clearShelfNamePreview();
       return;
     }
     try {
       const preview = await provider.previewDesktopShelfID(name.trim());
       if (token === shelfIDPreviewToken) {
         newShelfIDPreview.value = preview.id;
-        newShelfDefaultPath.value = preview.default_path;
+        newShelfDefaultDirectory.value = preview.defaultPath;
       }
     } catch {
-      if (token === shelfIDPreviewToken) {
-        clearShelfNamePreview();
-      }
+      // The fields were already cleared above; a failed preview leaves them so.
     }
   }
-
-  // The directory the form would submit: the previewed default on the new-folder
-  // branch, and what the user typed or browsed to on the other one.
-  const newShelfResolvedDirectory = computed(() =>
-    newShelfLocationMode.value === 'new'
-      ? newShelfDefaultPath.value
-      : newShelfDirectory.value.trim()
-  );
-
-  // A relative path is refused here rather than by Go, which would answer the
-  // finished submit with `shelf directory must be an absolute path`. Only shown
-  // once something has been typed, so an untouched field is not an error.
-  const newShelfDirectoryError = computed(() => {
-    if (newShelfLocationMode.value !== 'existing') {
-      return '';
-    }
-    const dir = newShelfDirectory.value.trim();
-    if (dir === '' || isAbsoluteShelfPath(dir)) {
-      return '';
-    }
-    return t('settings.shelves.addShelfDirectoryNotAbsolute');
-  });
-
-  const canSubmitAddShelf = computed(() => {
-    if (newShelfName.value.trim().length === 0) {
-      return false;
-    }
-    const dir = newShelfResolvedDirectory.value;
-    return dir.length > 0 && isAbsoluteShelfPath(dir);
-  });
 
   watch(newShelfName, (name) => {
     void refreshShelfIDPreview(name);
@@ -127,6 +97,7 @@ export function useShelfManagement() {
   const showModifyShelfModal = ref(false);
   const modifyShelfName = ref('');
   const modifyShelfScanInterval = ref('');
+  const modifyShelfBookCheckInterval = ref('');
   const modifyShelfReadOnly = ref(false);
   const modifyShelfPath = ref('');
   const modifyingShelf = ref(false);
@@ -182,14 +153,16 @@ export function useShelfManagement() {
 
   function resetAddShelfForm(): void {
     newShelfName.value = '';
-    newShelfLocationMode.value = 'new';
     newShelfDirectory.value = '';
+    newShelfScanInterval.value = '';
+    newShelfBookCheckInterval.value = '';
     newShelfReadOnly.value = false;
     addShelfError.value = '';
     // Invalidate any in-flight preview so its late response cannot repopulate
-    // the fields after the form is cleared.
+    // the field after the form is cleared.
     shelfIDPreviewToken++;
-    clearShelfNamePreview();
+    newShelfIDPreview.value = '';
+    newShelfDefaultDirectory.value = '';
   }
 
   // Reveals a shelf's lib_root in the host file explorer (desktop only); a
@@ -235,8 +208,10 @@ export function useShelfManagement() {
 
   async function onSubmitAddShelf(): Promise<void> {
     const name = newShelfName.value.trim();
-    const dir = newShelfResolvedDirectory.value;
-    if (!canSubmitAddShelf.value) {
+    const dir = newShelfEffectiveDirectory.value;
+    const scanInterval = newShelfScanInterval.value.trim();
+    const bookCheckInterval = newShelfBookCheckInterval.value.trim();
+    if (!name || !dir) {
       return;
     }
 
@@ -245,11 +220,13 @@ export function useShelfManagement() {
 
     try {
       const provider = getBookshelfProvider();
-      // The scan interval is not part of creating a shelf; it keeps the backend
-      // default and stays adjustable in the modify dialog. Read-only likewise
-      // only ever comes from the existing-folder branch.
-      const readOnly = newShelfLocationMode.value === 'existing' && newShelfReadOnly.value;
-      await provider.addDesktopShelf!(name, dir, '', readOnly);
+      await provider.addDesktopShelf!({
+        name,
+        libRoot: dir,
+        scanInterval,
+        bookCheckInterval,
+        readOnly: newShelfReadOnly.value
+      });
       await fetchShelves();
       showAddShelfModal.value = false;
       resetAddShelfForm();
@@ -264,6 +241,7 @@ export function useShelfManagement() {
   function resetModifyShelfForm(): void {
     modifyShelfName.value = '';
     modifyShelfScanInterval.value = '';
+    modifyShelfBookCheckInterval.value = '';
     modifyShelfReadOnly.value = false;
     modifyShelfPath.value = '';
     modifyShelfError.value = '';
@@ -283,6 +261,7 @@ export function useShelfManagement() {
       pendingModifyShelf.value = shelf;
       modifyShelfName.value = details.name;
       modifyShelfScanInterval.value = details.scan_interval;
+      modifyShelfBookCheckInterval.value = details.book_check_interval;
       modifyShelfReadOnly.value = details.read_only;
       modifyShelfPath.value = details.path;
       showModifyShelfModal.value = true;
@@ -310,6 +289,7 @@ export function useShelfManagement() {
 
     const name = modifyShelfName.value.trim();
     const scanInterval = modifyShelfScanInterval.value.trim();
+    const bookCheckInterval = modifyShelfBookCheckInterval.value.trim();
     if (!name) {
       return;
     }
@@ -323,7 +303,13 @@ export function useShelfManagement() {
     modifyShelfError.value = '';
 
     try {
-      await provider.modifyDesktopShelf(shelf.id, name, scanInterval, modifyShelfReadOnly.value);
+      await provider.modifyDesktopShelf({
+        shelfID: shelf.id,
+        name,
+        scanInterval,
+        bookCheckInterval,
+        readOnly: modifyShelfReadOnly.value
+      });
       await fetchShelves();
       showModifyShelfModal.value = false;
       pendingModifyShelf.value = null;
@@ -351,12 +337,12 @@ export function useShelfManagement() {
     confirmRemoveShelf,
     showAddShelfModal,
     newShelfName,
-    newShelfLocationMode,
     newShelfDirectory,
-    newShelfDirectoryError,
+    newShelfScanInterval,
+    newShelfBookCheckInterval,
     newShelfReadOnly,
     newShelfIDPreview,
-    newShelfDefaultPath,
+    newShelfEffectiveDirectory,
     addingShelf,
     addShelfError,
     canSubmitAddShelf,
@@ -369,6 +355,7 @@ export function useShelfManagement() {
     showModifyShelfModal,
     modifyShelfName,
     modifyShelfScanInterval,
+    modifyShelfBookCheckInterval,
     modifyShelfReadOnly,
     modifyShelfPath,
     modifyingShelf,

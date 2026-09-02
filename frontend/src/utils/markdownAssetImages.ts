@@ -68,7 +68,7 @@ function markdownInlineLineIndexes(text: string): Set<number> {
   return indexes;
 }
 
-export interface RewrittenMarkdownAssets {
+interface RewrittenMarkdownAssets {
   text: string;
   images: MarkdownAssetImage[];
 }

@@ -83,7 +83,7 @@ function createMockReadHistoryStorage(): ReadHistoryStorage {
   };
 }
 
-export function createReadHistoryStorage(): ReadHistoryStorage {
+function createReadHistoryStorage(): ReadHistoryStorage {
   if (isMockApiMode()) {
     return createMockReadHistoryStorage();
   }
@@ -108,7 +108,7 @@ export function createReadHistoryStorage(): ReadHistoryStorage {
 
 let store: ReadHistoryStore | null = null;
 
-export function getReadHistoryStore(): ReadHistoryStore {
+function getReadHistoryStore(): ReadHistoryStore {
   if (!store) {
     store = new ReadHistoryStore(createReadHistoryStorage());
   }

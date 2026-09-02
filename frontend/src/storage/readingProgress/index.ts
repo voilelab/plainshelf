@@ -73,7 +73,7 @@ function createMockReadingProgressStorage(): ReadingProgressStorage {
   };
 }
 
-export function createReadingProgressStorage(): ReadingProgressStorage {
+function createReadingProgressStorage(): ReadingProgressStorage {
   if (isMockApiMode()) {
     return createMockReadingProgressStorage();
   }
@@ -88,7 +88,7 @@ export function createReadingProgressStorage(): ReadingProgressStorage {
 
 let store: ReadingProgressStore | null = null;
 
-export function getReadingProgressStore(): ReadingProgressStore {
+function getReadingProgressStore(): ReadingProgressStore {
   if (!store) {
     store = new ReadingProgressStore(createReadingProgressStorage());
   }

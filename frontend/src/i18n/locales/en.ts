@@ -12,6 +12,16 @@ const en = {
     label: 'Notifications',
     dismiss: 'Dismiss notification'
   },
+  security: {
+    insecureWarning: {
+      title: 'API authentication is off',
+      body: 'Anyone who can reach this address can read, change, and delete your entire library.',
+      docsLink: 'How to secure this',
+      collapse: 'Minimize',
+      expand: 'Show security warning',
+      badge: 'No API auth'
+    }
+  },
   language: {
     label: 'Language',
     en: 'English',
@@ -160,11 +170,13 @@ const en = {
       manage: 'Manage shelves'
     },
     dashboard: 'Home',
+    library: 'Library',
     recentlyRead: 'Recently Read',
     trash: 'Trash',
     downloads: 'Downloads',
     adminLogs: 'Logs',
     settings: 'Settings',
+    tabNavLabel: 'Primary',
     readOnly: {
       banner: 'Read-only mode is enabled. Browsing and reading are available, but write operations are disabled.',
       writeDisabled: 'Server is in read-only mode. Write operations are disabled.'
@@ -248,6 +260,12 @@ const en = {
         'What pressing Read does. "Open a new reader" launches a new tab on the web, or the standalone reader app on desktop. "Open in this window" navigates in place instead. This preference is stored only on this device.',
       newReader: 'Open a new reader',
       inWindow: 'Open in this window'
+    },
+    language: {
+      title: 'Language',
+      label: 'Display language',
+      description:
+        'The language of the interface. This preference is stored only on this device.'
     },
     import: {
       title: 'Import'
@@ -338,6 +356,7 @@ const en = {
       addShelfSubmit: 'Add shelf',
       addShelfAdding: 'Adding...',
       addShelfFailed: 'Failed to add shelf',
+      addShelfPathPreview: 'Location:',
       addShelfIDPreview: 'Shelf ID:',
       addShelfLocationLabel: 'Shelf location',
       addShelfLocationNew: 'Create a new folder',
@@ -382,7 +401,15 @@ const en = {
       scanIntervalHelpAlways:
         'Every refresh walks the whole shelf. Fine on a local disk, expensive on a network shelf.',
       scanIntervalAdjusted:
-        'The saved interval {value} cannot be shown exactly by these controls and has been replaced by the value above.'
+        'The saved interval {value} cannot be shown exactly by these controls and has been replaced by the value above.',
+      advancedSettings: 'Advanced settings',
+      bookCheckIntervalLabel: 'Per-book check interval',
+      bookCheckIntervalHelpDefault:
+        'Follows the scan interval. On a network shelf this is where most list-view I/O comes from, so set it higher than the scan interval if list views feel slow.',
+      bookCheckIntervalHelpEvery:
+        'Between checks, list views are served from memory with no filesystem access. A longer interval means fewer network round-trips and a longer wait before edits to a book made outside PlainShelf show up.',
+      bookCheckIntervalHelpAlways:
+        'Every list view re-checks each book on disk. Fine on a local disk, expensive on a network shelf.'
     }
   },
   adminLogs: {
@@ -393,7 +420,9 @@ const en = {
     source: 'Source',
     filename: 'Filename',
     size: 'Size',
-    empty: 'No log files are available.',
+    empty: 'No log files are available to browse.',
+    emptyHint:
+      'Only loggers with log_file.type set to filename_rotate or filename appear here; loggers writing to stderr or stdout (the default) do not. To browse logs, configure a file type — or, if one is already configured, wait for its first file to be written and reload.',
     emptyContent: 'The selected log file is empty.',
     missingForDate: 'No log file is available for {date}.',
     loadingList: 'Loading log files...',
@@ -610,6 +639,16 @@ const en = {
       characters: 'Characters',
       comment: 'Book note',
       importNotes: 'Import note'
+    },
+    importNote: {
+      remove: 'Remove',
+      removeLabel: 'Remove import note',
+      removeFailed: 'Could not remove the import note.',
+      confirm: {
+        title: 'Remove import note?',
+        message: 'The note records how this text was imported or converted. Removing it cannot be undone, and the text itself is untouched.',
+        confirm: 'Remove note'
+      }
     },
     progress: {
       sectionLabel: 'Reading progress and actions',

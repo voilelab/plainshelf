@@ -10,6 +10,7 @@ A typical shelf looks like this:
 
 ```text
 {shelf}/
+├─ shelf.json          (optional; this shelf's own settings)
 ├─ books/
 │  ├─ {book1-folder}.bookpkg/
 │  ├─ {folder1}/
@@ -36,6 +37,11 @@ The three top-level directories are not the same kind of thing:
 | `books/` | Your library. The source of truth. | No |
 | `trash/` | Books you deleted, kept until you empty the trash. Your data too. | No — deleting it discards those books for good |
 | `app/` | Runtime state the server rebuilds. | Yes |
+
+`shelf.json` beside them is optional and holds settings that belong to this
+shelf rather than to the program reading it — see [`shelf.json`](#shelfjson)
+below. Deleting it is safe in the sense that nothing breaks: the shelf goes back
+to the built-in defaults.
 
 Before changing this layout — renaming, adding, or removing a top-level
 directory, or how book folders are named or nested — read [Shelf layout changes
@@ -120,6 +126,52 @@ Runtime state used by the server: file lock, temporary files, and an exported bo
 `fingerprint-cache.json` stores the content fingerprints behind the [Similar Books](../finding-similar-books.md) page, so that page does not have to re-read every book each time you open it. Unlike the exported book cache there is one shared file, not one per installation — a fingerprint is a pure function of a source's content, so every machine computes the same value and they merge into the one file. It is the largest thing under `app/`, growing with your library at roughly 1.5 KB per source, so on a big shelf it reaches a few megabytes and you will notice it in a backup. Deleting it is safe: the next time you build fingerprints, the ones that are gone are simply read and computed again. It is also discarded and rebuilt whenever the similarity algorithm changes — see [Data Format Versioning](data-format-versioning.md#fingerprint-cache).
 
 Older shelves may still contain `app/stats/reading/{YYYY-MM}.json`. That is reading-time history from before it moved onto each device; nothing reads it any more and it can be deleted.
+
+### `shelf.json`
+
+This shelf's own settings. Optional: a shelf without one is read exactly as
+PlainShelf has always read it, and no build creates the file for you.
+
+It sits at the shelf root rather than under `app/` because `app/` is disposable
+and a setting that vanishes with the cache would be worse than no setting. It
+travels with the shelf rather than with the server's configuration file so that
+every reader of the same shelf — this server, the desktop app, the Android
+client reading it from pCloud — applies the same rules.
+
+```json
+{
+  "schema_version": 1,
+  "scan": {
+    "ignored_dirs": [
+      { "name": "Thumbs" },
+      { "name": "@Snapshot", "reason": "Synology snapshot directory" }
+    ]
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `schema_version` | Format version of this file. `1` is the only one this build writes about; a file declaring a higher one is still read, and the fields this build understands still apply |
+| `scan.ignored_dirs` | The directories under `books/` this shelf skips, **replacing** the [defaults](folders.md#ignored-directories). Each entry is an object: `{"name": …}`, or `{"name": …, "reason": …}` to record why. A `name` is one directory name — not a path and not a pattern — matched without regard to case, and the reason is shown when a folder of that name is refused |
+
+Leaving `ignored_dirs` out is not the same as giving an empty list: without the
+field the shelf skips the defaults, and with `"ignored_dirs": []` it skips
+nothing but hidden directories, which are a rule rather than a name and are
+never listed here.
+
+PlainShelf only ever reads this file. Nothing rewrites it, so your formatting and
+key order survive, and the settings are read when the shelf is opened: edit the
+file and restart the server (or reopen the shelf in the desktop app) for the
+change to take effect.
+
+An entry that cannot name a directory is skipped rather than fatal — one
+containing a `/`, or one that is not a name at all — and the rest of the file
+still applies. A file that cannot be read as a single JSON object at all, or one
+larger than 1 MiB, leaves the defaults in place; so does a key this build does
+not know. The server log says what was dropped and why, and warns when your list
+leaves out a default such as `@eaDir`, because that is how a library grows a
+duplicate folder tree.
 
 ### Per-device reading data
 
@@ -219,6 +271,21 @@ serves the newest source the book does have and logs a warning. It does **not**
 rewrite `book.json` — the filesystem stays the source of truth, and only an
 explicit write may change it. A book with no source at all is reported as a
 missing source, not a server error.
+
+### Source notes
+
+`sources/{source-id}/meta.json` carries a `comment`: a short note written
+automatically at the moments that produce a source — an [EPUB
+import](../epub-import.md#what-is-recorded) that could not carry every
+illustration over, or a conversion in the source editor, which records what it
+converted from and how. Nothing else writes it, and it is stored as written
+rather than translated, so it reads in English whatever the interface language
+is.
+
+The book detail page shows the current source's note as **Import note**. It is a
+record of how the source came to be rather than a field to fill in, so the only
+edit offered is **Remove**, which clears the note and touches nothing else;
+removal cannot be undone. A source with no note has no row.
 
 ### Source assets
 
@@ -326,8 +393,6 @@ random form makes that plain.
 
 ---
 
-## Design principles
+## Backing up a shelf
 
-- **Human-readable** — the shelf directory can be opened and inspected with any file manager or text editor.
-- **Backup-friendly** — because everything is plain files, the shelf is trivially backed up with `cp -a` or `rsync`. Committing it to Git is *not* an equivalent option: Git does not track empty directories, so a folder holding no book is not in the commit and is not there after a checkout. See [Git does not back up empty folders](data-format-versioning.md#git-does-not-back-up-empty-folders).
-- **Rebuildable runtime state** — everything under `app/` can be deleted and the server will recreate it on the next startup. `books/` and `trash/` are not: both hold your books. See [Back up before upgrading](data-format-versioning.md#back-up-before-upgrading) for what a complete backup covers.
+Because it is all plain files, the shelf can be inspected with any file manager or text editor and copied with `cp -a` or `rsync`. Committing it to Git is *not* an equivalent option: Git does not track empty directories, so a folder holding no book is not in the commit and is not there after a checkout. See [Git does not back up empty folders](data-format-versioning.md#git-does-not-back-up-empty-folders), and [Back up before upgrading](data-format-versioning.md#back-up-before-upgrading) for what a complete backup covers.

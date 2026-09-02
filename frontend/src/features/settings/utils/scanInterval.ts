@@ -11,14 +11,14 @@
 export type ScanIntervalMode = 'default' | 'interval' | 'always';
 export type ScanIntervalUnit = 's' | 'm' | 'h';
 
-export interface ScanIntervalSelection {
+interface ScanIntervalSelection {
   mode: ScanIntervalMode;
   /** Whole units; only meaningful for the `interval` mode. */
   amount: number;
   unit: ScanIntervalUnit;
 }
 
-export interface ScanIntervalLoad extends ScanIntervalSelection {
+interface ScanIntervalLoad extends ScanIntervalSelection {
   /**
    * The stored string when the controls cannot represent it exactly (sub-second
    * precision, a negative duration, or something `time.ParseDuration` would

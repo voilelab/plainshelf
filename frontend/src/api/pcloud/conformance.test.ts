@@ -14,11 +14,15 @@ import type { BookJson, PCloudFileRef } from './bookpkg';
 import {
   collectBookPackages,
   collectFolders,
+  createIgnoreRules,
+  DEFAULT_IGNORED_DIRS,
   findBooksFolder,
   findCoverFile,
   findCurrentSource,
+  findShelfConfigFile,
   isSchemaNewerThanSupported,
   parseBookJson,
+  parseShelfConfig,
   toSourceMeta
 } from './bookpkg';
 import type { PCloudItem } from './types';
@@ -145,8 +149,14 @@ function readCase(shelfDir: string): ExpectedReading {
     throw new Error(`${shelfDir} has no books folder`);
   }
 
+  // The shelf's own settings decide which directories are skipped, so they are
+  // read before the walk, exactly as the provider does.
+  const configRef = findShelfConfigFile(root);
+  const config = configRef ? parseShelfConfig(readListedJson(contents, configRef)) : {};
+  const ignore = createIgnoreRules(config.ignoredDirs ?? DEFAULT_IGNORED_DIRS);
+
   const books: ExpectedBook[] = [];
-  for (const pkg of collectBookPackages(booksFolder)) {
+  for (const pkg of collectBookPackages(booksFolder, ignore)) {
     if (!pkg.meta) {
       // A package with no book.json is skipped by the provider that consumes
       // this walk, and the dataset deliberately holds none — see the README.
@@ -191,7 +201,7 @@ function readCase(shelfDir: string): ExpectedReading {
   });
   bookCaches.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 
-  return { folders: collectFolders(booksFolder), books, book_caches: bookCaches };
+  return { folders: collectFolders(booksFolder, ignore), books, book_caches: bookCaches };
 }
 
 const manifest = readJsonFile<Manifest>(join(DATASET_ROOT, 'manifest.json'));

@@ -1,8 +1,8 @@
 # Configure a local shelf file source
 
-PlainShelf is designed to work best with a local filesystem shelf. A local shelf keeps the library on a disk that is directly attached to the machine running PlainShelf, such as an internal drive, external USB drive, or local data volume.
+A local shelf keeps the library on a disk directly attached to the machine running PlainShelf — an internal drive, an external USB drive, a local data volume. This is the setup PlainShelf works best on.
 
-Use this setup for important libraries unless you specifically need an experimental network-backed shelf.
+Use it for libraries you care about, unless you specifically need an experimental network-backed shelf.
 
 ## Before you start
 
@@ -28,6 +28,18 @@ You can place the directory anywhere that is stable across restarts. For example
 - A user data directory such as `$HOME/PlainShelf/shelf`.
 - A persistent server directory such as `/var/lib/plainshelf/shelf`.
 - A Docker volume mounted at `/data/shelf`.
+
+### On the desktop app
+
+The desktop app has no config file, so a shelf is created in **Settings → Shelves → Add shelf**. Leave **Directory path** empty and the app creates the shelf in its own data directory, under `shelves/<shelf id>` — beside the `shelves.json` that records it:
+
+| Platform | Default shelf directory |
+|---|---|
+| macOS | `~/Library/Application Support/PlainShelf/shelves/<shelf id>` |
+| Linux | `~/.config/PlainShelf/shelves/<shelf id>` |
+| Windows | `%AppData%\PlainShelf\shelves\<shelf id>` |
+
+The dialog shows the exact path before you create the shelf, and that path is what is recorded. To put the shelf somewhere else — an external drive, a directory you back up separately — type it in or pick it with **Browse**; a directory you chose is kept even if you then change the name.
 
 ## 2. Configure `lib_root`
 
@@ -87,7 +99,7 @@ If you mount a custom config file, make sure its `lib_root` and `store_path` mat
 
 ## Backup guidance
 
-Because PlainShelf is filesystem-first, backing up a local shelf is straightforward:
+The shelf is plain files, so backing it up is a directory copy:
 
 1. Stop PlainShelf or make sure no imports, edits, moves, or deletes are running.
 2. Back up the entire `lib_root` directory.

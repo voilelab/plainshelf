@@ -12,11 +12,13 @@ import (
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
+	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
 	"github.com/voilelab/plainshelf/shelf/scancache"
 )
 
 /*
 Layout:
+{library}/shelf.json    (optional; this shelf's own settings, see shelf_config.go)
 {library}/books/
   {book1-folder}.bookpkg/
   {folder1}/
@@ -73,6 +75,13 @@ type Shelf struct {
 	// scanCache is the directory scan snapshot that makes a full walk cheap; see
 	// scancache_facade.go and shelf/scancache.
 	scanCache *scancache.Cache
+
+	// ignore is which directory names under books/ this shelf skips: the
+	// built-in system names plus whatever shelf.json adds. It is read once in
+	// Open and never written again, so every goroutine reading it - the scanner,
+	// folder validation - sees the same rules for the life of the shelf. See
+	// shelf_config.go.
+	ignore shelfutil.IgnoreRules
 
 	// Exported book cache; see shelf_cache_export.go. An empty writer ID
 	// disables the export entirely, which is what a bare ShelfConf gets.
@@ -288,6 +297,8 @@ func NewShelf(conf *ShelfConf) (*Shelf, error) {
 		shelfLock: shelfLock,
 		readyCh:   make(chan struct{}),
 
+		ignore: loadIgnoreRules(dbRoot, *logger),
+
 		// cache
 		bookCache:         newBookCache(scanInterval, bookCheckInterval),
 		scanCache:         newScanCache(dbRoot, scanCacheEnabled, *logger),
@@ -454,6 +465,30 @@ func (s *Shelf) SetScanInterval(scanInterval string) error {
 	s.bookCache.Lock()
 	s.bookCache.scanInterval = interval
 	s.bookCache.Unlock()
+	return nil
+}
+
+// SetBookCheckInterval updates the per-book check interval on the live shelf
+// without restarting it. An empty string means "same as the scan interval" -
+// the default NewShelf applies - so it reads whichever scan interval is in
+// effect now; call it after SetScanInterval when both change together, so the
+// fallback follows the new scan interval rather than the old one.
+func (s *Shelf) SetBookCheckInterval(bookCheckInterval string) error {
+	var interval time.Duration
+	useScanInterval := bookCheckInterval == ""
+	if !useScanInterval {
+		var err error
+		interval, err = time.ParseDuration(bookCheckInterval)
+		if err != nil {
+			return util.Errorf("invalid book check interval: %w", err)
+		}
+	}
+	s.bookCache.Lock()
+	defer s.bookCache.Unlock()
+	if useScanInterval {
+		interval = s.bookCache.scanInterval
+	}
+	s.bookCache.bookCheckInterval = interval
 	return nil
 }
 

@@ -1,7 +1,7 @@
 <template>
   <div class="scan-interval">
     <label class="scan-interval-label" :for="modeId">
-      {{ t('settings.shelves.scanIntervalLabel') }}
+      {{ t(labelKey) }}
     </label>
     <div class="scan-interval-controls">
       <select
@@ -9,7 +9,7 @@
         v-model="mode"
         class="setting-select"
         :disabled="disabled"
-        data-testid="scan-interval-mode"
+        :data-testid="`${testidPrefix}-mode`"
       >
         <option value="default">{{ t('settings.shelves.scanIntervalModeDefault') }}</option>
         <option value="interval">{{ t('settings.shelves.scanIntervalModeEvery') }}</option>
@@ -26,7 +26,7 @@
           inputmode="numeric"
           :disabled="disabled"
           :aria-label="t('settings.shelves.scanIntervalAmountLabel')"
-          data-testid="scan-interval-amount"
+          :data-testid="`${testidPrefix}-amount`"
           @blur="amountText = String(amount)"
         />
         <select
@@ -34,7 +34,7 @@
           class="setting-select"
           :disabled="disabled"
           :aria-label="t('settings.shelves.scanIntervalUnitLabel')"
-          data-testid="scan-interval-unit"
+          :data-testid="`${testidPrefix}-unit`"
         >
           <option value="s">{{ t('settings.shelves.scanIntervalUnitSeconds') }}</option>
           <option value="m">{{ t('settings.shelves.scanIntervalUnitMinutes') }}</option>
@@ -60,9 +60,30 @@ import {
   type ScanIntervalUnit
 } from '@/features/settings/utils/scanInterval';
 
-const props = withDefaults(defineProps<{ modelValue: string; disabled?: boolean }>(), {
-  disabled: false
-});
+// The scan-interval and book-check-interval fields are the same control — a
+// mode/amount/unit selection over a Go duration string, defaulting off (empty)
+// and offering an "always" (0s) mode — differing only in their label, help text
+// and test ids. The scan-interval keys are the defaults so the original call
+// site keeps its exact markup and copy.
+const props = withDefaults(
+  defineProps<{
+    modelValue: string;
+    disabled?: boolean;
+    labelKey?: string;
+    helpDefaultKey?: string;
+    helpEveryKey?: string;
+    helpAlwaysKey?: string;
+    testidPrefix?: string;
+  }>(),
+  {
+    disabled: false,
+    labelKey: 'settings.shelves.scanIntervalLabel',
+    helpDefaultKey: 'settings.shelves.scanIntervalHelpDefault',
+    helpEveryKey: 'settings.shelves.scanIntervalHelpEvery',
+    helpAlwaysKey: 'settings.shelves.scanIntervalHelpAlways',
+    testidPrefix: 'scan-interval'
+  }
+);
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
 
 const { t } = useI18n();
@@ -89,12 +110,12 @@ const amount = computed(() => {
 
 const helpText = computed(() => {
   if (mode.value === 'always') {
-    return t('settings.shelves.scanIntervalHelpAlways');
+    return t(props.helpAlwaysKey);
   }
   if (mode.value === 'interval') {
-    return t('settings.shelves.scanIntervalHelpEvery');
+    return t(props.helpEveryKey);
   }
-  return t('settings.shelves.scanIntervalHelpDefault');
+  return t(props.helpDefaultKey);
 });
 
 const duration = computed(() =>

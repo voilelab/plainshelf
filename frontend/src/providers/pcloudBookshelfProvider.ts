@@ -1,14 +1,19 @@
 import {
   collectBookPackages,
   collectFolders,
+  createIgnoreRules,
+  DEFAULT_IGNORED_DIRS,
+  MAX_SHELF_CONFIG_BYTES,
   findBooksFolder,
   findCoverFile,
   findCurrentSource,
+  findShelfConfigFile,
   parseBookJson,
+  parseShelfConfig,
   toBook,
   toSourceMeta,
 } from '@/api/pcloud/bookpkg';
-import type { BookJson, BookPackageRef, BookSourceRef, PCloudFileRef } from '@/api/pcloud/bookpkg';
+import type { BookJson, BookPackageRef, BookSourceRef, PCloudFileRef, ShelfConfig } from '@/api/pcloud/bookpkg';
 import {
   bookPackagePath,
   findBookCacheFiles,
@@ -103,7 +108,7 @@ interface CachedJson {
   value: unknown;
 }
 
-export interface PCloudBookshelfProviderOptions {
+interface PCloudBookshelfProviderOptions {
   client: PCloudClient;
   /** Path of the shelf directory on pCloud, e.g. `/PlainShelf/default-shelf`. */
   shelfRoot: string;
@@ -354,6 +359,35 @@ export class PCloudBookshelfProvider implements BookshelfReader {
     }
   }
 
+  /**
+   * Reads the shelf's `shelf.json`, if it has one.
+   *
+   * Never throws: an unreadable or malformed settings file reads as a shelf that
+   * said nothing, so the caller applies the defaults — matching the Go shelf,
+   * because refusing to open a library over a typo in an optional file is the
+   * worse failure.
+   */
+  private async loadShelfConfig(ref: PCloudFileRef | undefined): Promise<ShelfConfig> {
+    if (!ref) {
+      return {};
+    }
+
+    // The listing already carries the size, so a file too large to be settings
+    // is skipped before it is downloaded — the Go side applies the same limit to
+    // the same file, and a phone must not spend the data to reach that answer.
+    if (ref.size > MAX_SHELF_CONFIG_BYTES) {
+      console.warn(`Ignoring ${ref.name}: ${ref.size} bytes is larger than a shelf configuration is read at.`);
+      return {};
+    }
+
+    try {
+      return parseShelfConfig(await this.readJson(ref));
+    } catch (err) {
+      console.warn(`Ignoring ${ref.name}: it could not be read.`, err);
+      return {};
+    }
+  }
+
   private async loadSnapshot(): Promise<ShelfSnapshot> {
     const root = await this.client.listFolderRecursive({ path: this.shelfRoot });
     const booksFolder = findBooksFolder(root);
@@ -361,12 +395,19 @@ export class PCloudBookshelfProvider implements BookshelfReader {
       throw new PCloudError(`No books/ folder under ${this.shelfRoot}; this does not look like a PlainShelf shelf.`);
     }
 
-    const packages = collectBookPackages(booksFolder);
+    // The shelf's own settings decide which directories are skipped, so they are
+    // read before the walk. Only a shelf that carries the file pays for it, and
+    // readJson answers from the cache while its size and mtime are unchanged, so
+    // a refresh does not download it again.
+    const configRef = findShelfConfigFile(root);
+    const ignore = createIgnoreRules((await this.loadShelfConfig(configRef)).ignoredDirs ?? DEFAULT_IGNORED_DIRS);
+
+    const packages = collectBookPackages(booksFolder, ignore);
     // Folders stay derived from the listing rather than read from the cache. The
     // directories are in the response already, so they cost nothing here and
     // cannot be out of date, which the cache's copy can be.
-    const folders = collectFolders(booksFolder);
-    this.pruneJsonCache(packages);
+    const folders = collectFolders(booksFolder, ignore);
+    this.pruneJsonCache(packages, configRef);
 
     // Only worth two requests when something actually has to be read. A refresh
     // where no book.json changed is already free from jsonCache, and fetching
@@ -478,8 +519,11 @@ export class PCloudBookshelfProvider implements BookshelfReader {
   }
 
   /** Drops cache entries for files that no longer exist in the shelf. */
-  private pruneJsonCache(packages: BookPackageRef[]): void {
+  private pruneJsonCache(packages: BookPackageRef[], configRef?: PCloudFileRef): void {
     const live = new Set<number>();
+    if (configRef) {
+      live.add(configRef.fileid);
+    }
     for (const pkg of packages) {
       if (pkg.meta) {
         live.add(pkg.meta.fileid);

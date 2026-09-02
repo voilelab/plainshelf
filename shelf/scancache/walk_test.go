@@ -1,9 +1,10 @@
 package scancache
 
 import (
+	"cmp"
 	"io/fs"
 	"path"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
@@ -71,7 +72,7 @@ func (f *fakeFS) ReadDir(name string) ([]fs.DirEntry, error) {
 			entries = append(entries, fakeDirEntry{name: path.Base(k)})
 		}
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	slices.SortFunc(entries, func(a, b fs.DirEntry) int { return cmp.Compare(a.Name(), b.Name()) })
 	return entries, nil
 }
 

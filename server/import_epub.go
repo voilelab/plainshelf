@@ -25,8 +25,8 @@ func (e *epubInputError) Error() string { return e.cause.Error() }
 func (e *epubInputError) Unwrap() error { return e.cause }
 
 func isEPUBInputError(err error) bool {
-	var inputErr *epubInputError
-	return errors.As(err, &inputErr)
+	_, ok := errors.AsType[*epubInputError](err)
+	return ok
 }
 
 // parseImportStrategy reads the optional per-import strategy field. An absent or

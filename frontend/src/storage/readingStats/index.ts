@@ -79,7 +79,7 @@ function createMockReadingStatsStorage(): ReadingStatsStorage {
   };
 }
 
-export function createReadingStatsStorage(): ReadingStatsStorage {
+function createReadingStatsStorage(): ReadingStatsStorage {
   if (isMockApiMode()) {
     return createMockReadingStatsStorage();
   }
@@ -104,7 +104,7 @@ export function createReadingStatsStorage(): ReadingStatsStorage {
 
 let store: ReadingStatsStore | null = null;
 
-export function getReadingStatsStore(): ReadingStatsStore {
+function getReadingStatsStore(): ReadingStatsStore {
   if (!store) {
     store = new ReadingStatsStore(createReadingStatsStorage());
   }

@@ -245,6 +245,7 @@
                 <span>{{ t('layout.dashboard') }}</span>
               </RouterLink>
               <RouterLink
+                v-if="!isMobileShell"
                 to="/read-history"
                 class="sidebar-nav-item"
                 exact-active-class="active"
@@ -354,7 +355,10 @@
           </section>
         </template>
 
-        <template v-if="hasDownloadsStore">
+        <!-- Downloads and the admin section (Logs + Settings) are reached from
+             the bottom tab bar on the mobile shell, so the drawer drops them
+             there and keeps only shelf switching and the folder tree. -->
+        <template v-if="hasDownloadsStore && !isMobileShell">
           <div class="sidebar-nav-divider" role="presentation"></div>
           <section class="sidebar-section" :aria-label="t('layout.downloads')">
             <nav class="sidebar-nav-list" :aria-label="t('layout.downloads')">
@@ -366,9 +370,13 @@
           </section>
         </template>
 
-        <div class="sidebar-nav-divider" role="presentation"></div>
+        <div v-if="!isMobileShell" class="sidebar-nav-divider" role="presentation"></div>
 
-        <section class="sidebar-section" :aria-label="t('layout.sections.admin')">
+        <section
+          v-if="!isMobileShell"
+          class="sidebar-section"
+          :aria-label="t('layout.sections.admin')"
+        >
           <button
             type="button"
             class="sidebar-section-toggle"
@@ -433,8 +441,16 @@
           </button>
           <h1 class="brand">
             <img class="brand-icon" :src="appIcon" alt="" aria-hidden="true">
-            <span>{{ t('app.name') }}</span>
+            <span class="brand-name">{{ t('app.name') }}</span>
           </h1>
+          <!-- On a narrow viewport the brand collapses to its icon and this
+               takes the freed space to answer "where am I" — the current folder
+               or page — which the full sidebar otherwise carries on wide. -->
+          <span
+            v-if="isNarrowViewport && currentLocationLabel"
+            class="topbar-location"
+            :title="currentLocationLabel"
+          >{{ currentLocationLabel }}</span>
           <nav
             v-if="showHistoryControls"
             class="history-controls"
@@ -469,7 +485,7 @@
         </div>
       </header>
 
-      <div class="page-area">
+      <div class="page-area" :class="{ 'page-area-tabbar': isMobileShell }">
         <RouterView v-if="canShowRouteContent" />
         <section v-else class="no-shelf-panel" role="status">
           <h2>{{ t('layout.shelf.unavailableTitle') }}</h2>
@@ -480,6 +496,8 @@
       </div>
     </SplitterPanel>
     </SplitterGroup>
+
+    <MobileTabBar v-if="isMobileShell" />
   </div>
 </template>
 
@@ -510,10 +528,11 @@ import BookBatchProgressModal from '@/components/BookBatchProgressModal.vue';
 import DeleteModal from '@/components/DeleteModal.vue';
 import Icon from '@/components/Icon.vue';
 import FolderTree from '@/components/FolderTree.vue';
+import MobileTabBar from '@/components/MobileTabBar.vue';
 import RenameFolderModal from '@/components/RenameFolderModal.vue';
 import TransferFolderModal from '@/components/TransferFolderModal.vue';
 import SidebarNavIcon from '@/components/SidebarNavIcon.vue';
-import { getBookshelfProvider, isWailsRuntime } from '@/providers';
+import { getBookshelfProvider, isMobileRuntime, isWailsRuntime } from '@/providers';
 import { useBookStore } from '@/composables/useBookStore';
 import { useFolderManagement } from '@/composables/useFolderManagement';
 import { useFolderStore } from '@/composables/useFolderStore';
@@ -557,6 +576,13 @@ const hasDownloadsStore = computed(() =>
 // them off the immersive ReaderLayout routes, where the keyboard ←/→ already
 // mean previous/next chapter.
 const showHistoryControls = computed(() => isWailsRuntime());
+
+// The mobile shell gets a bottom tab bar for its frequent destinations. Gated
+// on the mobile *runtime* (not merely a narrow viewport) because the Downloads
+// tab only exists on the mobile provider, and because a narrow desktop browser
+// should keep the existing drawer. Latched like the runtime itself, so read it
+// once rather than reactively.
+const isMobileShell = isMobileRuntime();
 
 function goToPreviousPage(): void {
   window.history.back();
@@ -654,6 +680,42 @@ const shelfManageTo = computed<RouteLocationRaw | null>(() => {
     return to;
   }
   return { ...to, query: { ...route.query, ...(to.query ?? {}) } };
+});
+
+// The narrow-viewport top bar shows where the user is instead of the language
+// picker. Most MainLayout routes map to their existing sidebar label; the
+// library route prefers the open folder's leaf name so "which folder" reads
+// literally. A book's detail page is deliberately left out: it already shows
+// its own live title on the page, and mirroring it here would have to read the
+// shared books list, which a rename in the metadata editor does not refresh.
+// Reader and source-edit live on ReaderLayout, so they never reach this bar.
+const ROUTE_LOCATION_LABEL_KEYS: Record<string, string> = {
+  home: 'layout.dashboard',
+  library: 'layout.library',
+  'read-history': 'layout.recentlyRead',
+  trash: 'layout.trash',
+  downloads: 'layout.downloads',
+  'admin-logs': 'layout.adminLogs',
+  settings: 'layout.settings',
+  'duplicate-content': 'maintenance.duplicateContent',
+  'similar-content': 'maintenance.similarContent',
+  'not-found': 'notFound.title'
+};
+
+const currentFolderLeaf = computed(() => {
+  const segments = (currentFolder.value ?? '').split('/').filter((segment) => segment.length > 0);
+  return segments[segments.length - 1] ?? '';
+});
+
+const currentLocationLabel = computed(() => {
+  const name = typeof route.name === 'string' ? route.name : '';
+
+  if (name === 'library' && currentFolderLeaf.value) {
+    return currentFolderLeaf.value;
+  }
+
+  const key = ROUTE_LOCATION_LABEL_KEYS[name];
+  return key ? t(key) : '';
 });
 
 function onLocaleSelect(value: AcceptableValue): void {
@@ -993,6 +1055,16 @@ onMounted(async () => {
   display: block;
 }
 
+.topbar-location {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* The scrolling content reaches the bottom and side edges of the window, so it
    needs those insets to keep the last row — pagination, the mobile action bar's
    neighbours — clear of the gesture bar and of a landscape cutout. No top
@@ -1001,6 +1073,13 @@ onMounted(async () => {
 .page-area {
   padding: 16px calc(24px + env(safe-area-inset-right, 0px))
     calc(16px + env(safe-area-inset-bottom, 0px)) calc(24px + env(safe-area-inset-left, 0px));
+}
+
+/* On the mobile shell a fixed bottom tab bar (MobileTabBar) overlays the
+   viewport, so the last row of scrolled content needs room to clear it: the
+   bar's own height plus the bottom inset it already carries. */
+.page-area-tabbar {
+  padding-bottom: calc(var(--mobile-tab-bar-height) + 16px + env(safe-area-inset-bottom, 0px));
 }
 
 .no-shelf-panel {
@@ -1102,7 +1181,25 @@ onMounted(async () => {
       10px calc(12px + env(safe-area-inset-left, 0px));
   }
 
-  .language-select > span {
+  /* Language is a set-once preference; on a narrow screen it moves into the
+     Settings page (its own tab) and the top bar spends that space on the
+     brand-icon-plus-location pairing instead. The brand text collapses to the
+     icon on a platform where the user already knows the app — but stays in the
+     accessibility tree (visually hidden, not display:none) so the <h1> keeps a
+     non-empty accessible name for screen readers. */
+  .brand-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .topbar-controls {
     display: none;
   }
 }

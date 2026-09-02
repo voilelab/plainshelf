@@ -7,6 +7,7 @@ import {
   importBookFromPath
 } from './support/books';
 import { addFolder, foldersQueryRegex, selectAllBooks } from './support/folders';
+import { useLocale } from './support/locale';
 import { openReaderTab } from './support/reader';
 
 const getServer = useServer();
@@ -62,9 +63,15 @@ test('keeps the summary and reading action above the fold on a narrow viewport',
   await expect(page.getByRole('button', { name: 'Start reading' })).toBeInViewport();
   await expect(page.getByRole('button', { name: 'Export file' })).toBeInViewport();
 
-  await page.getByRole('combobox').last().click();
-  await page.getByRole('option', { name: '繁體中文' }).click();
-  await expect(page.getByRole('button', { name: '開始閱讀' })).toBeVisible();
+  // The language switcher no longer lives in the narrow top bar — it moved to
+  // Settings — so drive the locale the way a returning zh-Hant user boots
+  // (seed storage, then reload the same detail URL) rather than a control this
+  // viewport no longer shows. The summary and reading action must clear the
+  // fold in that locale too.
+  await useLocale(page, 'zh-Hant');
+  await page.reload();
+
+  await expect(page.getByRole('button', { name: '開始閱讀' })).toBeInViewport();
   await expect(page.getByText('尚未開始', { exact: true })).toBeVisible();
 });
 

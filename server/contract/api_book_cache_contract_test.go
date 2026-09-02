@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -90,12 +91,7 @@ func TestAPIExportBookCacheContract(t *testing.T) {
 		t.Errorf("exported meta = %+v, want the book.json of the imported book", entry.Meta)
 	}
 
-	var hasFiction bool
-	for _, folder := range cache.Folders {
-		if folder == "Fiction" {
-			hasFiction = true
-		}
-	}
+	hasFiction := slices.Contains(cache.Folders, "Fiction")
 	if !hasFiction {
 		t.Errorf("folders = %v, want the Fiction folder", cache.Folders)
 	}

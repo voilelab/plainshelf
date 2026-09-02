@@ -5,15 +5,26 @@ PlainShelf reads and writes shelf data through the local filesystem. To store a 
 !!! warning "Use a trusted private network"
     SMB is a network filesystem, not a public application protocol. Only mount shares from networks and servers you trust, and do not expose PlainShelf itself to untrusted networks without an authentication boundary.
 
-!!! warning "Experimental SMB support"
-    SMB-backed shelves are currently **experimental**. PlainShelf can work with an SMB share that is already mounted as a local filesystem path, but SMB-specific reliability work is still in progress. In particular, transient network errors during move/delete operations and cached book-list behavior while the share is offline still need additional handling. For the most reliable setup today, use a local filesystem shelf as the primary source.
+!!! warning "SMB/NAS support is best-effort"
+    PlainShelf works with an SMB/CIFS or NAS share that is already mounted as a local filesystem path, but a network mount is a slower and less predictable filesystem than a local disk. The settings on this page reduce that cost; they do not turn a shared network location into a coordinated multi-writer store. Keep a library you cannot afford to lose an edit from on a local filesystem shelf, with a current backup, and read [Scope](#scope) before you commit a library to a share.
+
+## Scope
+
+An SMB or NAS shelf is a local filesystem shelf whose files happen to sit on a network mount. PlainShelf reads and writes it exactly as it does a local shelf, so everything the on-disk format guarantees still holds — see [Data Format Versioning](concepts/data-format-versioning.md) for what the format promises across upgrades. What a network mount does *not* add is any coordination or change notification on top of that filesystem, so four things are not guaranteed, whatever you set the intervals to:
+
+- **One PlainShelf writes a shelf at a time.** Nothing coordinates two PlainShelf server processes that open the same shelf; SMB file locking is unreliable enough that running two against one shelf can corrupt it (see [Before you start](#before-you-start)). And even within one server, two edits to the same book are last-writer-wins: the second write replaces the first, which is lost without warning. See [Concurrent change handling](known-issue.md#concurrent-change-handling).
+- **How soon an external change is seen.** A book added, moved, or removed on the share by anything other than this PlainShelf — another machine, a file manager, a sync client — appears on a timer, not at once, because a network mount sends no change notification PlainShelf could wait on. **Update book list** on the library toolbar is what forces a walk now; shortening the intervals below only narrows the window, it does not close it. See [Rescanning on demand](concepts/shelf-cache-and-io.md#rescanning-on-demand).
+- **Automatic detection of an edit that leaves size and modification time unchanged.** Between full scans, whether a cached book is stale is judged from its `book.json` size and modification time, so an external edit that leaves both unchanged is not picked up by that check — and a sync client that preserves or normalizes timestamps makes that realistic rather than rare. A full scan reopens every `book.json` outright, so **Update book list** (which forces one) does catch such an edit; what a network mount does not give you is automatic, timely detection without that forced rescan. See [Shelf cache limitations](known-issue.md#shelf-cache-limitations).
+- **Behavior while the share is flaky or offline.** A multi-step change is not atomic against a mid-operation outage: trashing a book renames its folder and then writes the trash record, and a connection dropped between the two can leave the book moved without that record. Each individual file write is still atomic (a temp file renamed into place, never a half-written file), and PlainShelf surfaces the error rather than continuing blindly, but it cannot roll every structural operation back cleanly over an unreliable mount. The book list can also still be served from the in-memory cache while the mount is unreachable.
+
+None of these is a defect being worked toward a fix: they follow from a shelf being plain files on a filesystem with nothing coordinating access to them. Decide whether they are acceptable for a given library before you move it to a share.
 
 ## Before you start
 
 You need:
 
 - An SMB share that the PlainShelf process can read and write.
-- Acceptance that this source type is experimental; prefer a local shelf for important libraries.
+- Acceptance that SMB/NAS support is best-effort in the sense set out under [Scope](#scope); keep an important library on a local shelf with a current backup.
 - A stable mount point on the machine that runs PlainShelf.
 - A directory on the share dedicated to one PlainShelf shelf.
 - Exclusive access from one PlainShelf server process at a time. Running multiple servers against the same shelf can corrupt data.
@@ -121,6 +132,27 @@ Increase `scan_interval` and `book_check_interval`. SMB round trips can make fre
 Press **Update book list** first; within `scan_interval` PlainShelf has not looked yet.
 
 If they still do not appear, and appear only after restarting the server, the share may not be updating directory modification times — some gateways do not. Set `scan_cache: off` on the shelf and delete `app/scan-cache.json`. See [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md#scan_cache).
+
+### The book list shows directories the NAS created
+
+Directories such as `@eaDir`, `#recycle`, `$RECYCLE.BIN` and `lost+found` are skipped by default, together with anything whose name starts with a dot. If your share carries another one — a snapshot directory, a thumbnail cache — list it in `shelf.json` at the shelf root and restart. The list replaces the defaults, so keep the ones you still need:
+
+```json
+{
+  "schema_version": 1,
+  "scan": {
+    "ignored_dirs": [
+      { "name": "@eaDir" },
+      { "name": "#recycle" },
+      { "name": "$RECYCLE.BIN" },
+      { "name": "lost+found" },
+      { "name": "@Snapshot" }
+    ]
+  }
+}
+```
+
+See [Choosing the list for one shelf](concepts/folders.md#choosing-the-list-for-one-shelf).
 
 ### Requests time out while opening large books
 

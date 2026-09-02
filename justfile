@@ -140,7 +140,7 @@ run-android-app conf="config.yaml": build-server-frontend
 	done
 	# The ephemeral access token (regenerated every start) is only injected into the
 	# server-served page; the APK shell never sees it, so surface it for the connect page.
-	token=$(curl -s http://127.0.0.1:20000/ | sed -n 's/.*__PLAINSHELF_SECURITY__={token:"\([^"]*\)".*/\1/p')
+	token=$(curl -s http://127.0.0.1:20000/ | sed -n 's/.*__PLAINSHELF_SECURITY__=[^<]*"token":"\([^"]*\)".*/\1/p')
 	# Boot an emulator if none is running (emulator binary is not on PATH).
 	if ! adb devices | grep -q '^emulator-.*device$'; then
 		avd="${PLAINSHELF_AVD:-$("$ANDROID_HOME/emulator/emulator" -list-avds | head -n1)}"

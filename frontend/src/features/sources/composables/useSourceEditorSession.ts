@@ -4,7 +4,7 @@ import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import type { Book } from '@/types/book';
 import type { CreateSourceOptions, SourceMeta } from '@/types/source';
 
-export interface DerivedSourceInput {
+interface DerivedSourceInput {
   content: string;
   format: 'txt' | 'md';
   comment: string;

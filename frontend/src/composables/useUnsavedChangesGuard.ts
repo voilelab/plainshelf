@@ -22,7 +22,7 @@ interface BrowserHistoryState {
   forward?: unknown;
 }
 
-export type HistoryTraversalDirection = 'back' | 'forward' | null;
+type HistoryTraversalDirection = 'back' | 'forward' | null;
 
 /**
  * Vue Router exposes the entry reached by a popstate event while leave guards

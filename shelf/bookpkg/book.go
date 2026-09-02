@@ -397,7 +397,12 @@ func (b *Book) writeCurrentSourceHint(sourceID string) error {
 // GetMeta returns a copy of the book meta, user can modify the returned meta and call SetMeta to update the book meta, but should not modify the CurrentSource field directly
 func (b *Book) GetMeta() *BookMeta {
 	metaCopy := *b.meta
-	metaCopy.Tags = append([]string(nil), b.meta.Tags...)
+	metaCopy.Tags = slices.Clone(b.meta.Tags)
+	// Authors is not tagged omitempty, so slices.Clone would turn an empty,
+	// non-nil slice into "authors": [] on disk where append writes "authors":
+	// null today. Keeping append preserves the current shelf-format output; see
+	// PSW-35 before changing it (the conformance fixtures and the Android pCloud
+	// reader must be reviewed alongside that format change).
 	metaCopy.Authors = append([]string(nil), b.meta.Authors...)
 	metaCopy.Identifiers = maps.Clone(b.meta.Identifiers)
 	return &metaCopy

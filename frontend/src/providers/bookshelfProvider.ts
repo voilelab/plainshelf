@@ -1,4 +1,9 @@
-import type { DesktopShelfDetails, DesktopShelfNamePreview } from '@/api/desktop';
+import type {
+  DesktopAddShelfParams,
+  DesktopModifyShelfParams,
+  DesktopShelfDetails,
+  DesktopShelfIDPreview
+} from '@/api/desktop';
 import type { BookTransferMode, FingerprintStatus, ListBooksOptions, SimilarBookPair } from '@/api/books';
 import type {
   BookmarkPayload,
@@ -15,7 +20,7 @@ import type { CreateSourceOptions, SourceMeta } from '@/types/source';
 import type { BookBatchRequest, TaskChain } from '@/types/task';
 
 export type { DownloadState } from '@/types/book';
-export type { DesktopShelfDetails, DesktopShelfNamePreview } from '@/api/desktop';
+export type { DesktopShelfDetails } from '@/api/desktop';
 export type { ListBooksOptions } from '@/api/books';
 
 export interface DesktopImportBookResult {
@@ -204,30 +209,22 @@ export interface BookshelfReader {
   /** Reveals a shelf's lib_root in the host file explorer (desktop only). */
   openDesktopShelfFolder?(shelfID: string): Promise<void>;
   /**
-   * Returns what AddShelf would make of a shelf named `name` right now (desktop
-   * only), so the add-shelf form can preview both the id and the directory it
-   * would create as the user types. Both fields are '' for an empty name or
-   * when preview is unavailable.
+   * Returns the shelf id AddShelf would assign to a shelf named `name` right
+   * now, plus the directory such a shelf would be created in when the user
+   * picks none (desktop only), so the add-shelf form can preview both as the
+   * user types. Both fields are '' for an empty name or when preview is
+   * unavailable.
    */
-  previewDesktopShelfID?(name: string): Promise<DesktopShelfNamePreview>;
+  previewDesktopShelfID?(name: string): Promise<DesktopShelfIDPreview>;
   /**
-   * Creates a desktop shelf. `readOnly` opens it without writing to it at all,
-   * so `libRoot` must already exist — a read-only shelf is never created.
+   * Creates a desktop shelf. `params.readOnly` opens it without writing to it at
+   * all, so `params.libRoot` must already exist — a read-only shelf is never
+   * created.
    */
-  addDesktopShelf?(
-    name: string,
-    libRoot: string,
-    scanInterval: string,
-    readOnly: boolean
-  ): Promise<void>;
+  addDesktopShelf?(params: DesktopAddShelfParams): Promise<void>;
   removeDesktopShelf?(shelfID: string): Promise<void>;
   getDesktopShelfDetails?(shelfID: string): Promise<DesktopShelfDetails>;
-  modifyDesktopShelf?(
-    shelfID: string,
-    name: string,
-    scanInterval: string,
-    readOnly: boolean
-  ): Promise<void>;
+  modifyDesktopShelf?(params: DesktopModifyShelfParams): Promise<void>;
   /**
    * Writes a book's content out as a file the user keeps, outside the app's
    * private storage. The desktop client opens a native save dialog and resolves
@@ -329,6 +326,8 @@ export interface BookshelfWriter {
 
   createSource(bookId: string, options?: CreateSourceOptions): Promise<SourceMeta>;
   deleteSource(bookId: string, sourceId: string): Promise<void>;
+  /** Removes a source's import note. There is no counterpart that rewrites it. */
+  deleteSourceComment(bookId: string, sourceId: string): Promise<void>;
   setCurrentSource(bookId: string, sourceId: string): Promise<void>;
   updateSourceContent(bookId: string, sourceId: string, content: string): Promise<void>;
   refreshSourceMeta(bookId: string, sourceId: string): Promise<SourceMeta>;

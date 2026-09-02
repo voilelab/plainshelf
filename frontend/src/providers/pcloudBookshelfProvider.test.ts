@@ -3,13 +3,14 @@ import { strToU8, unzipSync, zipSync } from 'fflate';
 
 import { ApiError } from '@/api/client';
 import { PCloudClient } from '@/api/pcloud/client';
+import { MAX_SHELF_CONFIG_BYTES } from '@/api/pcloud/bookpkg';
 import { PCloudError } from '@/api/pcloud/errors';
 import type { PCloudItem } from '@/api/pcloud/types';
 import type { BookshelfWriter } from './bookshelfProvider';
 import { isWritableProvider } from './index';
 import { PCloudBookshelfProvider, pcloudCoverUrl } from './pcloudBookshelfProvider';
-import { InMemoryShelfSnapshotStore, SHELF_SNAPSHOT_VERSION } from './shelfSnapshotStore';
-import type { ShelfSnapshotStore } from './shelfSnapshotStore';
+import { SHELF_SNAPSHOT_VERSION } from './shelfSnapshotStore';
+import type { PersistedShelfSnapshot, ShelfSnapshotStore } from './shelfSnapshotStore';
 
 vi.mock('@/storage/readHistory', () => ({
   addReadHistory: vi.fn().mockResolvedValue(undefined),
@@ -18,6 +19,24 @@ vi.mock('@/storage/readHistory', () => ({
 }));
 
 const SHELF_ROOT = '/PlainShelf/default-shelf';
+
+/** Stands in for FilesystemShelfSnapshotStore, which needs a device to write to.
+ *  Copies on the way in and out, so a test cannot mutate what it stored. */
+class InMemoryShelfSnapshotStore implements ShelfSnapshotStore {
+  private snapshot: PersistedShelfSnapshot | null = null;
+
+  async load(): Promise<PersistedShelfSnapshot | null> {
+    return this.snapshot ? structuredClone(this.snapshot) : null;
+  }
+
+  async save(snapshot: PersistedShelfSnapshot): Promise<void> {
+    this.snapshot = structuredClone(snapshot);
+  }
+
+  async clear(): Promise<void> {
+    this.snapshot = null;
+  }
+}
 
 let nextFolderID = 100;
 let nextFileID = 1000;
@@ -1041,5 +1060,66 @@ describe('PCloudBookshelfProvider listing cost', () => {
     });
 
     expect(provider.supportsCharCountListing()).toBe(false);
+  });
+});
+
+describe('shelf.json', () => {
+  const CONFIG = '{"schema_version":1,"scan":{"ignored_dirs":[{"name":"@Snapshot"}]}}';
+
+  function shelfWithSnapshotDir(config?: PCloudItem): PCloudItem {
+    return folder('default-shelf', [
+      folder('books', [
+        bookPackage({ id: 'kept', title: 'Kept' }),
+        folder('@Snapshot', [bookPackage({ id: 'hidden', title: 'Hidden' })])
+      ]),
+      ...(config ? [config] : [])
+    ]);
+  }
+
+  it('skips the directories the shelf configuration names', async () => {
+    const { provider } = makeProvider(shelfWithSnapshotDir(file({ name: 'shelf.json', body: CONFIG })));
+
+    expect(await provider.listFolders()).toEqual(['/']);
+    expect((await provider.listBooks(1, 10)).items.map((book) => book.id)).toEqual(['kept']);
+  });
+
+  it('reads the built-in rules when the shelf has no configuration', async () => {
+    const { provider } = makeProvider(shelfWithSnapshotDir());
+
+    // localeCompare puts "@Snapshot" before "/", which is the order the pCloud
+    // reader sorts folders in.
+    expect(await provider.listFolders()).toEqual(['@Snapshot', '/']);
+  });
+
+  // A settings file that cannot be read leaves the built-in rules in place
+  // rather than making the shelf unreadable, matching the Go shelf.
+  it('falls back to the built-in rules when the configuration is not JSON', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { provider } = makeProvider(shelfWithSnapshotDir(file({ name: 'shelf.json', body: 'half an edit' })));
+
+    // localeCompare puts "@Snapshot" before "/", which is the order the pCloud
+    // reader sorts folders in.
+    expect(await provider.listFolders()).toEqual(['@Snapshot', '/']);
+  });
+
+  // The listing carries the size, so a mis-named large file is skipped before it
+  // is downloaded: the Go side applies the same limit to the same file.
+  it('skips a configuration larger than the limit without downloading it', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const oversized = file({ name: 'shelf.json', body: CONFIG });
+    oversized.size = MAX_SHELF_CONFIG_BYTES + 1;
+
+    const downloaded: number[] = [];
+    const { provider } = makeProvider(shelfWithSnapshotDir(oversized), {
+      onDownload: (fileid) => {
+        downloaded.push(fileid);
+        return null;
+      }
+    });
+
+    // localeCompare puts "@Snapshot" before "/", which is the order the pCloud
+    // reader sorts folders in.
+    expect(await provider.listFolders()).toEqual(['@Snapshot', '/']);
+    expect(downloaded).not.toContain(oversized.fileid);
   });
 });

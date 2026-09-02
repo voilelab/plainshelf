@@ -14,7 +14,7 @@ const STORAGE_KEY = 'reader-launch-mode';
  * window" — a new in-app tab versus a separate native app — so it cannot be a
  * server value shared across clients.
  */
-export const READER_LAUNCH_MODES = ['new-reader', 'in-window'] as const;
+const READER_LAUNCH_MODES = ['new-reader', 'in-window'] as const;
 
 export type ReaderLaunchMode = (typeof READER_LAUNCH_MODES)[number];
 

@@ -1,8 +1,9 @@
 package server
 
 import (
+	"cmp"
 	"net/http"
-	"sort"
+	"slices"
 )
 
 // shelfHandlers serves what a client needs to know about a shelf itself.
@@ -25,8 +26,8 @@ func (h *shelfHandlers) getShelves(w http.ResponseWriter, _ *http.Request) {
 			Name: shelf.Name,
 		})
 	}
-	sort.Slice(shelfInfos, func(i, j int) bool {
-		return shelfInfos[i].ID < shelfInfos[j].ID
+	slices.SortFunc(shelfInfos, func(a, b ShelfInfo) int {
+		return cmp.Compare(a.ID, b.ID)
 	})
 
 	h.writeJSON(w, http.StatusOK, shelfInfos)

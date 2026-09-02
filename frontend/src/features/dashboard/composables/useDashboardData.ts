@@ -5,7 +5,7 @@ import { computed, getCurrentInstance, onUnmounted, ref } from 'vue';
 // Reading activity does not go through the provider by design: it is
 // device-local and never involves the server.
 import { getBookshelfProvider } from '@/providers';
-import { ApiError } from '@/api/client';
+import { createShelfInitRetry, isShelfInitializing } from '@/composables/shelfInitRetry';
 import { getReadingActivityRange } from '@/storage/readingStats';
 import { getReadHistoryIDs } from '@/storage/readHistory';
 import { getLocalReadingEntries, getLocalReadingEntry } from '@/storage/readingProgress';
@@ -14,8 +14,6 @@ import type { Book } from '@/types/book';
 import { t } from '@/i18n';
 
 const READING_ACTIVITY_RANGE_DAYS = 365;
-const SHELF_INIT_RETRY_DELAY_MS = 3000;
-const SHELF_INIT_MAX_AUTO_RETRIES = 10; // ~30s of auto-retry before showing an error
 const RECENT_READING_LIMIT = 6;
 const RECENTLY_ADDED_LIMIT = 6;
 
@@ -50,7 +48,7 @@ export interface RecentReadingItem {
  * each book's loaded content, which this list avoids by design; the reader itself
  * still shows the precise percentage.
  */
-export function computeReadingPercent(offset: number, charCount: number | undefined): number | null {
+function computeReadingPercent(offset: number, charCount: number | undefined): number | null {
   if (typeof charCount !== 'number' || !Number.isFinite(charCount) || charCount <= 0) {
     return null;
   }
@@ -86,16 +84,8 @@ export function useDashboardData() {
   const recentReading = ref<RecentReadingItem[]>([]);
   const shelfInitializing = ref(false);
 
-  let retryTimer: ReturnType<typeof setTimeout> | null = null;
-  let initRetryCount = 0;
+  const initRetry = createShelfInitRetry();
   let disposed = false;
-
-  function clearRetry(): void {
-    if (retryTimer !== null) {
-      clearTimeout(retryTimer);
-      retryTimer = null;
-    }
-  }
 
   const totalBooks = computed(() => books.value.length);
 
@@ -253,9 +243,10 @@ export function useDashboardData() {
   }
 
   async function run(isAutoRetry: boolean): Promise<void> {
-    clearRetry();
-    if (!isAutoRetry) {
-      initRetryCount = 0;
+    if (isAutoRetry) {
+      initRetry.cancel();
+    } else {
+      initRetry.reset();
       shelfInitializing.value = false;
     }
     loading.value = true;
@@ -285,7 +276,7 @@ export function useDashboardData() {
         readingProgress.value = {};
       }
       shelfInitializing.value = false;
-      initRetryCount = 0;
+      initRetry.reset();
     } catch (err) {
       // The page can go away while the request is in flight, and cancelling on
       // unmount only reaches a timer that already exists. Scheduling a retry
@@ -294,15 +285,11 @@ export function useDashboardData() {
       if (disposed) {
         return;
       }
-      // A shelf still running its initial scan answers 503 for every read. The
-      // book listing and the folder tree retry through that, so the dashboard
-      // has to as well: otherwise a cold start puts an error in the middle of
-      // the home page while the sidebar beside it is quietly recovering.
-      if (err instanceof ApiError && err.status === 503) {
-        initRetryCount++;
-        if (initRetryCount < SHELF_INIT_MAX_AUTO_RETRIES) {
+      // Wait out the initial scan rather than putting an error in the middle of
+      // the home page while the sidebar beside it recovers. See `shelfInitRetry`.
+      if (isShelfInitializing(err)) {
+        if (initRetry.schedule(() => void run(true))) {
           shelfInitializing.value = true;
-          retryTimer = setTimeout(() => void run(true), SHELF_INIT_RETRY_DELAY_MS);
           return;
         }
         shelfInitializing.value = false;
@@ -314,7 +301,7 @@ export function useDashboardData() {
     } finally {
       // A pending retry keeps the page in its loading state rather than
       // flashing an error between attempts.
-      if (retryTimer === null) {
+      if (!initRetry.pending) {
         loading.value = false;
       }
     }
@@ -331,7 +318,7 @@ export function useDashboardData() {
   if (getCurrentInstance()) {
     onUnmounted(() => {
       disposed = true;
-      clearRetry();
+      initRetry.cancel();
     });
   }
 

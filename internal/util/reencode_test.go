@@ -166,8 +166,8 @@ func TestReEncodeToUTF8UnsupportedEncoding(t *testing.T) {
 		t.Fatal("expected an error for an unsupported encoding")
 	}
 
-	var unsupported *UnsupportedEncodingError
-	if !errors.As(err, &unsupported) {
+	unsupported, ok := errors.AsType[*UnsupportedEncodingError](err)
+	if !ok {
 		t.Fatalf("expected *UnsupportedEncodingError, got %T: %v", err, err)
 	}
 	if unsupported.Encoding == "" {

@@ -33,9 +33,11 @@ import (
 )
 
 // DocumentVersion matches READING_PROGRESS_DOCUMENT_VERSION in the frontend. A
-// document of any other version is treated as absent rather than upgraded — the
-// timestamped v2 format deliberately does not read the untimestamped v1 one (the
-// app is pre-alpha; stale progress is discarded rather than migrated).
+// document of any other version is treated as absent rather than upgraded: the
+// timestamped v2 format deliberately does not read the untimestamped v1 one.
+// This file is device-local state, outside the on-disk format commitments, and
+// dropping v1 shipped in v0.10.0 as a documented breaking change (CHANGELOG.md,
+// docs/installation.md) — not a pattern to follow for shelf data.
 const DocumentVersion = 2
 
 // ReaderShelfID is the synthetic shelf key the standalone reader writes progress
@@ -231,6 +233,11 @@ func MergeNewest(disk, write Document) Document {
 	return out
 }
 
+// cloneBooks deliberately keeps the make+loop rather than maps.Clone. Document.Clone
+// promises callers may mutate the returned maps freely, and a shelf decoded from a
+// JSON "shelf": null yields a nil books map here — maps.Clone(nil) returns nil, so a
+// caller that writes into the cloned shelf without a nil guard would panic. The
+// make guarantees a non-nil map and preserves that contract unconditionally.
 func cloneBooks(books map[string]Entry) map[string]Entry {
 	out := make(map[string]Entry, len(books))
 	for bookID, entry := range books {

@@ -37,7 +37,7 @@ type DirChild struct {
 	// Symlink marks a child whose type has to be resolved with a Stat, because
 	// its directory entry describes the link rather than its target. See
 	// ChildIsDir.
-	Symlink bool `json:"symlink,omitempty"`
+	Symlink bool `json:"symlink,omitzero"`
 }
 
 // dirSnapshot is one directory as a walk found it. An identical ModTime on the

@@ -1,76 +1,77 @@
 # Known Issues
 
-## Shelf cache design limitations by use case
+## Shelf cache limitations
 
-This document summarizes known limitations of the current shelf cache behavior, based on the current implementation in `shelf/shelf_cache.go`, `shelf/book.go`, `shelf/filestate.go`, and `shelf/shelf.go`.
+**If a change you made outside PlainShelf has not appeared, press Update book
+list on the library toolbar.** It walks the shelf immediately instead of waiting
+for the next interval, and it is the same action in every setup below — local
+disk, SMB or NAS, a sync folder, a cloud mount, and the Android client's pCloud
+shelf. Every delay below that comes from an interval is bounded by it. See
+[Rescanning on demand](concepts/shelf-cache-and-io.md#rescanning-on-demand).
 
-For the operational model, initial metadata scan, and tuning guidance, see [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md).
+For the operational model, the initial metadata scan, and tuning guidance, see
+[Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md).
 
-**If a change you made outside PlainShelf has not appeared, press Update book list on the library toolbar.** It walks the shelf immediately instead of waiting for the next interval, and it is the same action in every setup below — local disk, SMB or NAS, a sync folder, a cloud mount, and the Android client's pCloud shelf. Every "may appear with delay" item on this page is bounded by it. See [Rescanning on demand](concepts/shelf-cache-and-io.md#rescanning-on-demand).
+Two limits run through every setup, so they are stated once here rather than
+repeated below.
 
----
+**A change made outside PlainShelf is discovered on a timer.** Within
+`scan_interval` a refresh may only reopen the books already in the cache rather
+than walking the library, so a book added, moved, or deleted by anything other
+than PlainShelf can take that long to appear. **Update book list** is what
+shortens the wait to now.
 
-### 1) Desktop (single-machine usage)
+**Between scans, staleness is judged from `book.json`'s size and modification
+time.** The per-book refresh that runs on `book_check_interval` stats
+`book.json` and reopens a book only when its size or modification time changed,
+so an edit that leaves both unchanged is not noticed by that check — and neither
+is a change to a cover or a source file, which does not move `book.json` at all.
+A full scan on a shelf a PlainShelf server reads is different: it reopens every
+`book.json` outright rather than trusting its stat, so **Update book list**,
+which forces one, does pick these up. A client that reads a shelf directly is
+the exception — it keeps its own metadata cache keyed on size and modification
+time, so even an update reuses the stale copy; the pCloud client below is the
+one such reader today. What the button cannot do is make a server-read change
+appear before it is pressed — that is the timer limit above, so between scans
+cached state derived from a book can stay stale even while the changed file
+itself is served correctly. The cover and source contents are not themselves
+cached.
 
-1. **New books may appear with delay (up to `scan_interval`)**
-   - Within `scan_interval`, refresh may only reopen books already in cache, instead of doing a full library scan.
-   - Newly added books from external file operations may not show up immediately.
-   - **Update book list** walks the shelf right away rather than waiting out the interval.
+On a single desktop machine those two limits are the whole story. The setups
+below each add something to them.
 
-2. **Staleness detection is based only on `book.json` file stat (`mtime` + `size`)**
-   - Content changes can be missed if they happen to preserve tracked stat values.
+### One server, several personal devices (Tailscale and similar)
 
-3. **Cache refresh decisions are driven by `book.json`**
-   - Staleness checks focus on `book.json`, so metadata-derived cached book state can remain stale when only cover/source files change; this should not be interpreted as cover/source file contents themselves being cached.
+This means one shelf server process on one machine, with your own devices
+reaching that same server over the network.
 
----
+There is only one server process, so there is one authoritative in-memory cache
+and no divergence between clients to reason about. External changes to the
+library folder are still discovered on the timer above, and **Update book list**
+pressed on any device refreshes what all of them see.
 
-### 2) Personal Tailscale (single server on one host, multiple personal clients)
+### A shelf inside a sync folder (Dropbox, Google Drive, Syncthing, iCloud)
 
-> Scope clarification: this scenario means one shelf server process running on one machine, with personal devices accessing that same server over Tailscale.
+A file caught mid-sync — being renamed, copied, or still written — can fail to
+reopen and is skipped for that pass, then picked up once the sync settles.
 
-1. **No multi-server cache divergence in this mode**
-   - Because there is only one server process, clients share one authoritative in-memory cache.
+Sync clients also tend to preserve or normalize timestamps, which turns the
+stat-based blind spot above from a corner case into something you can
+realistically hit. Press **Update book list** once the sync has settled.
 
-2. **Still has external file change visibility delay**
-   - If the library folder is modified outside shelf (sync tool/manual operation), discovery is still bounded by refresh/full-scan behavior.
-   - **Update book list** discovers it immediately, from any client connected to that server.
+### A pCloud shelf on the Android client
 
-3. **Staleness precision limitation still applies**
-   - `book.json` stat-based validation can still miss certain edits.
+- **The book list never updates on its own.** Walking the shelf costs one
+  recursive listing plus a request per book, so the client scans once and then
+  reads the stored copy on the device. A book added, removed, or renamed from
+  another device appears only after **Update book list** on the library toolbar.
+- **A stale list can make a book fail to open.** The stored copy holds the
+  pCloud file references used to open a book. If the book was replaced or moved
+  on pCloud since the last update, opening it fails until the list is updated.
+  Downloaded books are unaffected — they are read from the device.
 
----
-
-### 3) Sync file app workflow (Dropbox/Google Drive/Syncthing/iCloud-like)
-
-1. **Transient partial-sync states can cause temporary read/refresh failures**
-   - During in-progress sync (rename/copy/write not complete), reopening a stale entry may fail and be skipped temporarily.
-
-2. **Timestamp-preserving sync behavior can reduce change detectability**
-   - If sync preserves/normalizes metadata and tracked stat values do not differ, stale detection may miss content-level changes.
-
-3. **New/deleted books may not be reflected immediately**
-   - During scan throttling windows, refresh focuses on existing cache entries.
-   - **Update book list** forces the walk once the sync has settled.
-
-### 4) pCloud shelf on the Android client
-
-1. **The book list never updates on its own**
-   - Walking the shelf costs one recursive listing plus a request per book, so
-     the client scans once and then reads the stored copy on the device. A book
-     added, removed, or renamed from another device appears only after
-     **Update book list** on the library toolbar.
-
-2. **A stale list can make a book fail to open**
-   - The stored copy holds the pCloud file references used to open a book. If
-     the book was replaced or moved on pCloud since the last update, opening it
-     fails until the list is updated. Downloaded books are unaffected — they are
-     read from the device.
-
-3. **Change detection is stat-based**
-   - During an update, cached book metadata is reused while a file's size and
-     modification time are unchanged, so an edit that preserves both is not
-     noticed.
+The stat rule above governs the device copy too: an update reuses a book's
+stored metadata while its size and modification time are unchanged.
 
 ---
 
@@ -98,19 +99,6 @@ that it contains both edits.
 Affected operations: metadata updates, cover uploads/deletes, source content
 updates, and current-source selection.
 
-### Practical impact
-
-For normal single-user, single-tab usage this limitation does not surface.
-It can matter when multiple browser tabs or clients edit the same book at the
-same time.
-
-In that case the shelf directory remains structurally valid and every file is
-individually complete, but logical consistency across concurrent edits (no lost
-updates) is not guaranteed.
-
----
-
-## Notes
-
-- These are design trade-offs in the current cache strategy (scan throttling + per-book stale checks) and write-side concurrency model.
-- For personal Tailscale with one server, the main concerns are usually external folder mutations and scan interval tuning, not distributed cache coherence.
+For normal single-user, single-tab usage this does not surface. It matters when
+several browser tabs or clients edit the same book at the same time, and what it
+costs there is a lost edit, never a damaged shelf.

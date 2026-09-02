@@ -22,7 +22,8 @@ conformance/
 ├─ manifest.json          versioned index of the cases
 ├─ README.md
 └─ cases/<case>/
-   ├─ shelf/              a real shelf root: books/, and app/ where relevant
+   ├─ shelf/              a real shelf root: books/, plus app/ and shelf.json
+   │                      where relevant
    └─ expected.json       the reading both implementations must produce
 ```
 
@@ -55,6 +56,12 @@ observations both can make, in the shape both can produce:
 | `books[].sources[]` | `Book.ListSource`, `Source.GetMeta` | `BookSourceRef` |
 | `books[].sources[].assets` | `Source.AssetPath` / `OpenAsset` | `BookSourceRef.assets` |
 | `book_caches[]` | `Shelf.readBookCacheFile` | `parseBookCacheFile` |
+
+A case's `shelf.json`, when it has one, is part of the input rather than a field
+of the reading: both harnesses read it before walking (`loadIgnoreRules`,
+`parseShelfConfig`), so its effect shows up in `folders` and `books`. A case
+whose `shelf.json` names its own directories no longer skips the defaults, so
+such a case is where a name like `lost+found` legitimately appears as a folder.
 
 Conventions that keep the two comparable:
 

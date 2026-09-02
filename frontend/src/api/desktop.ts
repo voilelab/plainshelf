@@ -12,15 +12,36 @@ export interface DesktopShelfDetails {
   name: string;
   path: string;
   scan_interval: string;
+  book_check_interval: string;
   read_only: boolean;
 }
 
-/** What creating a shelf under a given name would produce, before anything is
- *  written: the id AddShelf would assign, and the directory it would create for
- *  a shelf that is not pointed at a folder the user already has. */
-export interface DesktopShelfNamePreview {
+// Keys match the json tags on desktop.AddShelfParams / desktop.ModifyShelfParams,
+// which is how Wails unmarshals the object into the Go struct. Adding a per-shelf
+// setting means adding a field here, never another positional binding argument.
+export interface DesktopAddShelfParams {
+  name: string;
+  libRoot: string;
+  scanInterval: string;
+  bookCheckInterval: string;
+  readOnly: boolean;
+}
+
+/**
+ * What the add-shelf form previews for a typed name: the id the shelf would get
+ * and the directory it would be created in if the user picks none.
+ */
+export interface DesktopShelfIDPreview {
   id: string;
-  default_path: string;
+  defaultPath: string;
+}
+
+export interface DesktopModifyShelfParams {
+  shelfID: string;
+  name: string;
+  scanInterval: string;
+  bookCheckInterval: string;
+  readOnly: boolean;
 }
 
 interface DesktopAppBinding {
@@ -32,24 +53,14 @@ interface DesktopAppBinding {
   ) => Promise<DesktopImportBookResult>;
   OpenShelfDirectory?: () => Promise<string>;
   OpenShelfInFinder?: (shelfID: string) => Promise<void>;
-  PreviewShelfID?: (name: string) => Promise<DesktopShelfNamePreview>;
+  PreviewShelfID?: (name: string) => Promise<DesktopShelfIDPreview>;
   OpenFolderDirectory?: (shelfID: string, folderParts: string[]) => Promise<void>;
   OpenBookDirectory?: (shelfID: string, bookID: string) => Promise<void>;
   OpenReader?: (shelfID: string, bookID: string, section: number) => Promise<void>;
-  AddShelf?: (
-    name: string,
-    libRoot: string,
-    scanInterval: string,
-    readOnly: boolean
-  ) => Promise<void>;
+  AddShelf?: (params: DesktopAddShelfParams) => Promise<void>;
   RemoveShelf?: (shelfID: string) => Promise<void>;
   GetShelfDetails?: (shelfID: string) => Promise<DesktopShelfDetails>;
-  ModifyShelf?: (
-    shelfID: string,
-    name: string,
-    scanInterval: string,
-    readOnly: boolean
-  ) => Promise<void>;
+  ModifyShelf?: (params: DesktopModifyShelfParams) => Promise<void>;
   SaveBookContent?: (shelfID: string, bookID: string, suggestedName: string) => Promise<void>;
   OpenExternalURL?: (url: string) => Promise<void>;
   ReadReadHistory?: () => Promise<string>;
@@ -83,7 +94,7 @@ interface DesktopWindow extends Window {
   };
 }
 
-export function isDesktopRuntime(): boolean {
+function isDesktopRuntime(): boolean {
   return isWailsRuntime();
 }
 
@@ -142,30 +153,23 @@ export async function openDesktopShelfFolder(shelfID: string): Promise<void> {
   await desktopApp.OpenShelfInFinder(shelfID);
 }
 
-// Returns what AddShelf would make of a shelf named `name` right now: the id it
-// would assign, including any uniqueness suffix, and the directory it would
-// create for a shelf the user is not pointing at an existing folder. Both are
-// '' off the desktop, when the binding is missing, or for an empty name — the
-// callers treat '' as "no preview".
-export async function previewDesktopShelfID(name: string): Promise<DesktopShelfNamePreview> {
+// Returns the shelf id AddShelf would assign to a shelf named `name` right now,
+// including any uniqueness suffix, plus the directory such a shelf would be
+// created in when the user picks none — so the add-shelf form can show both
+// live. Both fields are '' off the desktop, when the binding is missing, or for
+// an empty name; the callers treat '' as "no preview".
+export async function previewDesktopShelfID(name: string): Promise<DesktopShelfIDPreview> {
+  const empty: DesktopShelfIDPreview = { id: '', defaultPath: '' };
   if (!isDesktopRuntime()) {
-    return emptyShelfNamePreview();
+    return empty;
   }
 
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
   if (!desktopApp?.PreviewShelfID) {
-    return emptyShelfNamePreview();
+    return empty;
   }
 
-  const preview = await desktopApp.PreviewShelfID(name);
-  return {
-    id: preview?.id ?? '',
-    default_path: preview?.default_path ?? ''
-  };
-}
-
-function emptyShelfNamePreview(): DesktopShelfNamePreview {
-  return { id: '', default_path: '' };
+  return (await desktopApp.PreviewShelfID(name)) ?? empty;
 }
 
 export async function openDesktopBookFolder(bookID: string): Promise<void> {
@@ -186,7 +190,7 @@ export async function openDesktopBookFolder(bookID: string): Promise<void> {
 // readerUnsupportedPlatformCode in desktop/app.go so the caller can tell "this
 // platform has no standalone reader" apart from a macOS launch failure and word
 // its in-app fallback notice accordingly.
-export const READER_UNSUPPORTED_PLATFORM_CODE = 'reader_unsupported_platform';
+const READER_UNSUPPORTED_PLATFORM_CODE = 'reader_unsupported_platform';
 
 // True when a rejected openDesktopReader call is the non-macOS "unsupported
 // platform" case rather than a macOS launch failure (reader not installed, or
@@ -236,18 +240,13 @@ export async function openDesktopFolder(folderPath: string): Promise<void> {
   await desktopApp.OpenFolderDirectory(getActiveShelfID(), normalizeFolderParts(folderPath));
 }
 
-export async function addDesktopShelf(
-  name: string,
-  libRoot: string,
-  scanInterval: string,
-  readOnly: boolean
-): Promise<void> {
+export async function addDesktopShelf(params: DesktopAddShelfParams): Promise<void> {
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
   if (!desktopApp?.AddShelf) {
     throw new Error('AddShelf binding not available');
   }
 
-  await desktopApp.AddShelf(name, libRoot, scanInterval, readOnly);
+  await desktopApp.AddShelf(params);
 }
 
 export async function removeDesktopShelf(shelfID: string): Promise<void> {
@@ -268,18 +267,13 @@ export async function getDesktopShelfDetails(shelfID: string): Promise<DesktopSh
   return desktopApp.GetShelfDetails(shelfID);
 }
 
-export async function modifyDesktopShelf(
-  shelfID: string,
-  name: string,
-  scanInterval: string,
-  readOnly: boolean
-): Promise<void> {
+export async function modifyDesktopShelf(params: DesktopModifyShelfParams): Promise<void> {
   const desktopApp = (window as DesktopWindow).go?.main?.DesktopApp;
   if (!desktopApp?.ModifyShelf) {
     throw new Error('ModifyShelf binding not available');
   }
 
-  await desktopApp.ModifyShelf(shelfID, name, scanInterval, readOnly);
+  await desktopApp.ModifyShelf(params);
 }
 
 // Imports a single host-path book. The frontend calls it once per selected file

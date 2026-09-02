@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "id": "snapshot-decoy-0001",
+  "title": "Snapshot Decoy",
+  "cover": "",
+  "authors": [],
+  "language": "",
+  "comments": "A decoy: this shelf's shelf.json skips @Snapshot, so no reader may list this book.",
+  "star": 0,
+  "current_source": ""
+}

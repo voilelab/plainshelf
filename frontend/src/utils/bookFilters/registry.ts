@@ -41,7 +41,7 @@ import {
  * or are driven by navigation (the folder, from the breadcrumb); `panel`
  * conditions live in the filter panel and show as removable chips above the list.
  */
-export type FilterChrome = 'inline' | 'panel';
+type FilterChrome = 'inline' | 'panel';
 
 /**
  * Extra, lazily loaded data a filter needs before it can decide books — today
@@ -49,7 +49,7 @@ export type FilterChrome = 'inline' | 'panel';
  * never looks at it, and only a consumer that actually filters the list creates
  * and reads it.
  */
-export interface FilterDependency {
+interface FilterDependency {
   /** Ensures the extra data is loaded (idempotent). */
   load(): void | Promise<void>;
   /** Whether the extra data has arrived and the filter may be applied. */
@@ -78,9 +78,9 @@ export interface FilterDependency {
  *   "(unset)" sentinel (author, language).
  * - `facetMulti`  — any number of values chosen the same way (tags).
  */
-export type PanelControlKind = 'range' | 'triState' | 'facetSingle' | 'facetMulti';
+type PanelControlKind = 'range' | 'triState' | 'facetSingle' | 'facetMulti';
 
-export interface BookFilterDef<T> {
+interface BookFilterDef<T> {
   /** Stable identity of the condition, independent of its query keys. */
   readonly key: string;
   /** Every query key the condition owns; all are cleared before re-serializing. */
