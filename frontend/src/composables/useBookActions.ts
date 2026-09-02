@@ -12,7 +12,7 @@ import type { TaskStatus } from '@/types/task';
 import { getFolderPath, folderPathEquals } from '@/utils/folders';
 import { t } from '@/i18n';
 
-export interface UseBookActionsOptions {
+interface UseBookActionsOptions {
   onDeleted?: (book: Book) => void;
   onMoved?: (book: Book, targetFolder: string) => void;
   onCopied?: (copy: Book, targetFolder: string) => void;

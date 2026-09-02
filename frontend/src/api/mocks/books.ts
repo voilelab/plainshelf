@@ -215,7 +215,7 @@ const mockContent: Record<string, string> = {
 
 const mockTrashedBooks: TrashedBook[] = [];
 
-export function findBookOrThrow(id: string): Book {
+function findBookOrThrow(id: string): Book {
   const book = mockBooks.find((item) => item.id === id);
   if (!book) {
     throw new Error('Book not found');

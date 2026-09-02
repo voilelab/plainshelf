@@ -133,7 +133,7 @@ export async function getShelfEntryToken(entryID: string): Promise<string> {
   return (value ?? '').trim();
 }
 
-export async function setShelfEntryToken(entryID: string, token: string): Promise<void> {
+async function setShelfEntryToken(entryID: string, token: string): Promise<void> {
   const trimmed = (token ?? '').trim();
   if (trimmed) {
     await SecureStorage.set({ key: secretKey(entryID), value: trimmed });

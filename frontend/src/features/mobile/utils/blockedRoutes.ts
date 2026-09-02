@@ -31,7 +31,7 @@ export const MOBILE_BLOCKED_ROUTES = new Set([
  * sees `library`, which the mobile shell must keep reachable. The import modal
  * then opens purely off the query, from any link, deep link, or restored tab.
  */
-export const MOBILE_BLOCKED_QUERY_KEYS = ['import'];
+const MOBILE_BLOCKED_QUERY_KEYS = ['import'];
 
 /**
  * Strips the write-opening query parameters above, or returns null when there

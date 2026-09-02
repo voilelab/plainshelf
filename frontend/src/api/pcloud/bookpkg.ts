@@ -9,18 +9,18 @@ import type { PCloudItem } from './types';
 // format directly, without the server in between.
 export const BOOKS_FOLDER = 'books';
 export const BOOK_EXTENSION = '.bookpkg';
-export const BOOK_META_FILE = 'book.json';
-export const SOURCES_FOLDER = 'sources';
-export const SOURCE_META_FILE = 'meta.json';
-export const SOURCE_FILE = 'source.txt';
-export const SOURCE_ASSETS_FOLDER = 'assets';
+const BOOK_META_FILE = 'book.json';
+const SOURCES_FOLDER = 'sources';
+const SOURCE_META_FILE = 'meta.json';
+const SOURCE_FILE = 'source.txt';
+const SOURCE_ASSETS_FOLDER = 'assets';
 
 /**
  * The shelf's own settings file, at the shelf root beside `books/`. Optional:
  * a shelf without one is read by the built-in rules alone. This client only ever
  * reads it, like the Go shelf (`shelf/shelf_config.go`).
  */
-export const SHELF_CONFIG_FILE = 'shelf.json';
+const SHELF_CONFIG_FILE = 'shelf.json';
 
 /**
  * How large a `shelf.json` this client reads, matching `maxShelfConfigBytes` in
@@ -32,7 +32,7 @@ export const MAX_SHELF_CONFIG_BYTES = 1 << 20;
 
 /** One directory name the scanners skip, and why. Mirrors `IgnoredDir` in
  * shelf/internal/shelfutil. */
-export interface IgnoredDir {
+interface IgnoredDir {
   /** As written; matching folds case, because a share exported over SMB may
    * spell "$RECYCLE.BIN" either way. */
   name: string;
@@ -64,7 +64,7 @@ export const DEFAULT_IGNORED_DIRS: readonly IgnoredDir[] = [
  * (.git, .stfolder, .dropbox.cache, .Spotlight-V100) in one condition and is the
  * one part of the rules a shelf cannot configure away.
  */
-export type IgnoreRules = (name: string) => boolean;
+type IgnoreRules = (name: string) => boolean;
 
 /** The rules for a shelf that has said nothing about scanning. */
 export const DEFAULT_IGNORE_RULES: IgnoreRules = createIgnoreRules(DEFAULT_IGNORED_DIRS);

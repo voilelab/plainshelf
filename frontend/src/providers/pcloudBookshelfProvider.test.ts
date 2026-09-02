@@ -9,8 +9,8 @@ import type { PCloudItem } from '@/api/pcloud/types';
 import type { BookshelfWriter } from './bookshelfProvider';
 import { isWritableProvider } from './index';
 import { PCloudBookshelfProvider, pcloudCoverUrl } from './pcloudBookshelfProvider';
-import { InMemoryShelfSnapshotStore, SHELF_SNAPSHOT_VERSION } from './shelfSnapshotStore';
-import type { ShelfSnapshotStore } from './shelfSnapshotStore';
+import { SHELF_SNAPSHOT_VERSION } from './shelfSnapshotStore';
+import type { PersistedShelfSnapshot, ShelfSnapshotStore } from './shelfSnapshotStore';
 
 vi.mock('@/storage/readHistory', () => ({
   addReadHistory: vi.fn().mockResolvedValue(undefined),
@@ -19,6 +19,24 @@ vi.mock('@/storage/readHistory', () => ({
 }));
 
 const SHELF_ROOT = '/PlainShelf/default-shelf';
+
+/** Stands in for FilesystemShelfSnapshotStore, which needs a device to write to.
+ *  Copies on the way in and out, so a test cannot mutate what it stored. */
+class InMemoryShelfSnapshotStore implements ShelfSnapshotStore {
+  private snapshot: PersistedShelfSnapshot | null = null;
+
+  async load(): Promise<PersistedShelfSnapshot | null> {
+    return this.snapshot ? structuredClone(this.snapshot) : null;
+  }
+
+  async save(snapshot: PersistedShelfSnapshot): Promise<void> {
+    this.snapshot = structuredClone(snapshot);
+  }
+
+  async clear(): Promise<void> {
+    this.snapshot = null;
+  }
+}
 
 let nextFolderID = 100;
 let nextFileID = 1000;

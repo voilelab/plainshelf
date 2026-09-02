@@ -85,7 +85,7 @@ interface DesktopWindow extends Window {
   };
 }
 
-export function isDesktopRuntime(): boolean {
+function isDesktopRuntime(): boolean {
   return isWailsRuntime();
 }
 
@@ -179,7 +179,7 @@ export async function openDesktopBookFolder(bookID: string): Promise<void> {
 // readerUnsupportedPlatformCode in desktop/app.go so the caller can tell "this
 // platform has no standalone reader" apart from a macOS launch failure and word
 // its in-app fallback notice accordingly.
-export const READER_UNSUPPORTED_PLATFORM_CODE = 'reader_unsupported_platform';
+const READER_UNSUPPORTED_PLATFORM_CODE = 'reader_unsupported_platform';
 
 // True when a rejected openDesktopReader call is the non-macOS "unsupported
 // platform" case rather than a macOS launch failure (reader not installed, or

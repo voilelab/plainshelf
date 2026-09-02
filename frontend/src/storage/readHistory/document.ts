@@ -6,7 +6,7 @@
 // `shelves` is keyed by shelf id so a multi-shelf setup keeps independent
 // histories, each ordered most-recently-read first.
 
-export const READ_HISTORY_DOCUMENT_VERSION = 1;
+const READ_HISTORY_DOCUMENT_VERSION = 1;
 export const DEFAULT_READ_HISTORY_LIMIT = 100;
 
 export interface ReadHistoryDocument {
@@ -24,7 +24,7 @@ export function createReadHistoryDocument(): ReadHistoryDocument {
   };
 }
 
-export function normalizeReadHistoryLimit(value: unknown): number {
+function normalizeReadHistoryLimit(value: unknown): number {
   if (typeof value === 'number' && Number.isInteger(value) && value >= 0) {
     return value;
   }

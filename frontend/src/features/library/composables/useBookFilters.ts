@@ -13,7 +13,7 @@ import type { ActiveBookFilter } from '@/utils/bookFilters/apply';
 import { filterValueLabel } from '../utils/filterLabels';
 import { useBooksRouteQuery } from './useBooksRouteQuery';
 
-export interface ActiveFilterChip {
+interface ActiveFilterChip {
   /** The filter key, used as the chip's list key. */
   readonly key: string;
   /** The human-readable "Field: value" label. */

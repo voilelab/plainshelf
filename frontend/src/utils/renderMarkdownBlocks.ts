@@ -14,7 +14,7 @@ export type ReaderMarkdownAsset = MarkdownAssetImage & {
   token: string;
 };
 
-export type ReaderMarkdownHtmlBlock = {
+type ReaderMarkdownHtmlBlock = {
   type: 'html';
   /** Unsanitized renderer output. SafeHtml is the only permitted sink. */
   html: string;

@@ -52,7 +52,6 @@ import { setActiveShelfID, setApiBase } from '@/api/client';
 import { buildDeviceDocumentKey } from '@/storage/deviceDocument';
 import {
   FilesystemShelfSnapshotStore,
-  InMemoryShelfSnapshotStore,
   SHELF_SNAPSHOT_VERSION,
   parseShelfSnapshot
 } from './shelfSnapshotStore';
@@ -122,29 +121,6 @@ describe('parseShelfSnapshot', () => {
 
   it.each([[null], [[]], ['{}'], [42]])('rejects the non-object %p', (value) => {
     expect(parseShelfSnapshot(value)).toBeNull();
-  });
-});
-
-describe('InMemoryShelfSnapshotStore', () => {
-  it('round-trips a snapshot and clears it', async () => {
-    const store = new InMemoryShelfSnapshotStore();
-    expect(await store.load()).toBeNull();
-
-    await store.save(makeSnapshot());
-    expect(await store.load()).toEqual(makeSnapshot());
-
-    await store.clear();
-    expect(await store.load()).toBeNull();
-  });
-
-  it('hands out copies, so a caller cannot mutate the stored snapshot', async () => {
-    const store = new InMemoryShelfSnapshotStore();
-    await store.save(makeSnapshot());
-
-    const loaded = await store.load();
-    loaded!.books.length = 0;
-
-    expect((await store.load())!.books).toHaveLength(1);
   });
 });
 

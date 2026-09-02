@@ -4,9 +4,9 @@ import { bookshelfWriter } from '@/providers';
 import { isTerminalTaskStatus, type TaskChain, type TaskStatus } from '@/types/task';
 import { t } from '@/i18n';
 
-export const DEFAULT_TASK_CHAIN_POLL_INTERVAL_MS = 500;
+const DEFAULT_TASK_CHAIN_POLL_INTERVAL_MS = 500;
 
-export interface UseTaskChainProgressOptions {
+interface UseTaskChainProgressOptions {
   intervalMs?: number;
   // onSettled runs once the chain reaches a terminal status, for callers that
   // need to refresh whatever the task changed.

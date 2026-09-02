@@ -1,7 +1,7 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue';
 import type { Book } from '@/types/book';
 
-export interface UseMetadataEditorModalOptions {
+interface UseMetadataEditorModalOptions {
   books: Ref<Book[]>;
   readOnly: ComputedRef<boolean>;
   refresh: () => void | Promise<void>;

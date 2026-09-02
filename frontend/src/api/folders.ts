@@ -78,7 +78,7 @@ export async function getFolders(shelfID?: string): Promise<string[]> {
 }
 
 /** Which cross-shelf conflict a folder transfer was refused for. */
-export type FolderTransferConflictKind = 'target_folder_conflict' | 'book_id_conflict';
+type FolderTransferConflictKind = 'target_folder_conflict' | 'book_id_conflict';
 
 /**
  * Thrown by {@link transferFolder} when the server refuses the transfer up front
