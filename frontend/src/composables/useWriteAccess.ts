@@ -69,6 +69,12 @@ export function useWriteAccess() {
     return null;
   });
 
+  // Copying a book or folder *out of* a shelf only reads that shelf: the write
+  // lands on the target, and the server refuses a read-only source for a move
+  // alone (server/handle_book_transfers.go). So the transfer entry survives a
+  // read-only shelf, and the modals drop the move mode instead.
+  const outgoingCopyEnabled = computed(() => !readOnly.value && isLibraryEditingSupported());
+
   // Why a write just refused was refused, for the guards that report it inline
   // rather than by hiding the entry. A function rather than a computed so the
   // string is resolved at the moment it is shown, in the locale current then.
@@ -103,6 +109,7 @@ export function useWriteAccess() {
     writesEnabled,
     writeDisabledReason,
     writeDisabledMessage,
+    outgoingCopyEnabled,
     libraryEditingAvailable,
     serverSettingsEditable,
     serverAdminAvailable

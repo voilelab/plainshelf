@@ -100,6 +100,17 @@ const selectedShelfReadOnly = computed(
   () => shelves.value.find((shelf) => shelf.id === selectedShelfID.value)?.readOnly === true
 );
 
+/**
+ * The shelves a cross-shelf transfer may land in.
+ *
+ * The active shelf is out because naming one shelf as both ends is rejected by
+ * the server, and a read-only shelf is out because a transfer into it is a
+ * write the server refuses with 409 whichever mode was picked.
+ */
+const transferDestinationShelves = computed(() =>
+  shelves.value.filter((shelf) => shelf.id !== selectedShelfID.value && !shelf.readOnly)
+);
+
 function selectShelf(id: string): void {
   setActiveShelfID(id);
   selectedShelfID.value = id;
@@ -113,6 +124,7 @@ export function useShelvesStore() {
     error,
     selectedShelfID,
     selectedShelfReadOnly,
+    transferDestinationShelves,
     fetchShelves,
     ensureShelvesLoaded,
     selectShelf

@@ -78,7 +78,7 @@ export function useFolderManagement() {
   const { t } = useI18n();
   const { books, fetchBooks } = useBookStore();
   const { folders, fetchFolders } = useFolderStore();
-  const { writesEnabled, writeDisabledMessage } = useWriteAccess();
+  const { writesEnabled, writeDisabledMessage, outgoingCopyEnabled } = useWriteAccess();
   const readOnly = computed(() => !writesEnabled.value);
   const batchOperations = useBookBatchOperations();
 
@@ -342,9 +342,13 @@ export function useFolderManagement() {
   const transferFolderMode = ref<BookTransferMode>('copy');
 
   // The entry is offered only where a folder can actually be transferred: a
-  // writable multi-shelf backend (server/desktop) that is not read-only. A
-  // reader provider (mobile/pCloud) is not writable, so it never shows.
-  const canTransferFolder = computed(() => !readOnly.value && isWritableProvider(getBookshelfProvider()));
+  // writable multi-shelf backend (server/desktop) on a server that is not
+  // read-only. A reader provider (mobile/pCloud) is not writable, so it never
+  // shows. A read-only *shelf* still shows it: copying out of one is allowed,
+  // and the modal offers only that mode.
+  const canTransferFolder = computed(
+    () => outgoingCopyEnabled.value && isWritableProvider(getBookshelfProvider())
+  );
 
   const {
     chain: transferFolderChain,

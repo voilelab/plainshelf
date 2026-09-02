@@ -15,7 +15,8 @@ and UI behavior may still change between releases.
 
 ### Changed
 
-- Changed a shelf opened with `read_only` to say so in the UI and drop the actions it would refuse — import, metadata/source/cover editing, folder create and move, delete, trash restore — while browsing, reading, search, and **Rescan shelf** stay available; the server still answers `409` for a request sent anyway.
+- Changed a shelf opened with `read_only` to say so in the UI and drop the actions it would refuse — import, metadata/source/cover editing, folder create and move, delete, trash restore — while browsing, reading, search, **Rescan shelf**, and copying a book or folder out to another shelf stay available; the server still answers `409` for a request sent anyway.
+- Changed the cross-shelf transfer pickers to leave out read-only shelves, which could previously be picked as a destination only to be refused with `409`.
 - Changed the desktop **Create shelf** dialog to ask where the shelf goes as a two-way choice: **Create a new folder** (the default) needs only a name and shows the folder PlainShelf will create for it, while **Use a folder I already have** is the only branch offering the read-only toggle and a path to type or browse to.
 - Changed a relative path typed into the create-shelf dialog to be refused on the form instead of by the backend's `shelf directory must be an absolute path`.
 - Changed the create-shelf dialog to drop its scan-interval and book-check-interval controls; a new shelf takes the defaults and both stay adjustable in **Modify**.

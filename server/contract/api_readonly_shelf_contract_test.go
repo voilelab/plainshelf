@@ -67,7 +67,7 @@ func TestAPIReadOnlyShelfRefusesWritesContract(t *testing.T) {
 // The shelf listing reports each shelf's own read_only, so a client can hide
 // that shelf's write entries instead of discovering the refusal from a 409.
 func TestAPIShelfListingReportsPerShelfReadOnlyContract(t *testing.T) {
-	env := newAPITestEnv(t, withReadOnlyShelf(), withWritableSecondShelf(t))
+	env := newAPITestEnv(t, withReadOnlyShelf(), withSecondShelf(t.TempDir()))
 
 	type shelfInfo struct {
 		ID       string `json:"id"`
@@ -82,7 +82,7 @@ func TestAPIShelfListingReportsPerShelfReadOnlyContract(t *testing.T) {
 		readOnlyByID[info.ID] = info.ReadOnly
 	}
 
-	want := map[string]bool{defaultShelfID: true, writableShelfID: false}
+	want := map[string]bool{defaultShelfID: true, secondShelfID: false}
 	for id, wantReadOnly := range want {
 		gotReadOnly, ok := readOnlyByID[id]
 		if !ok {

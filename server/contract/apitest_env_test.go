@@ -15,9 +15,6 @@ import (
 // spelled once here and reused by the URL builders in apitest_book_test.go.
 const defaultShelfID = "default_shelf"
 
-// writableShelfID names the extra shelf withWritableSecondShelf adds.
-const writableShelfID = "writable_shelf"
-
 // maxBinaryUploadSize is the body limit the cover and asset routes enforce. It
 // is restated here rather than exported from the server: the limit is part of
 // what these tests pin, so a change to it has to be a change to both.
@@ -91,23 +88,6 @@ func withLogRetention(days int) appConfOption {
 func withReadOnlyShelf() appConfOption {
 	return func(conf *server.AppConf) {
 		conf.Shelves[0].ReadOnly = true
-	}
-}
-
-// withWritableSecondShelf adds a second, writable shelf next to the first, for
-// the assertions that a per-shelf answer is per shelf rather than app-wide.
-func withWritableSecondShelf(t *testing.T) appConfOption {
-	t.Helper()
-
-	return func(conf *server.AppConf) {
-		conf.Shelves = append(conf.Shelves, &shelf.ShelfConfWithID{
-			ID:   writableShelfID,
-			Name: "Writable Shelf",
-			ShelfConf: shelf.ShelfConf{
-				LibRoot:           t.TempDir(),
-				BookCacheInterval: "1s",
-			},
-		})
 	}
 }
 

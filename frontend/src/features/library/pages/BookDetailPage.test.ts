@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   confirmMetadataLeave: vi.fn(),
   deleteSourceComment: vi.fn(),
   writesEnabled: null as any,
+  outgoingCopyEnabled: null as any,
   detailBook: null as any,
   currentSource: null as any,
   guardDirty: null as any,
@@ -76,7 +77,15 @@ vi.mock('@/features/library/composables/useBookDetail', async () => {
 vi.mock('@/composables/useWriteAccess', async () => {
   const { ref } = await import('vue');
   mocks.writesEnabled = ref(true);
-  return { useWriteAccess: () => ({ writesEnabled: mocks.writesEnabled }) };
+  // A read-only *shelf* still allows copying a book out of it, so the two are
+  // separate refs here rather than one negated flag.
+  mocks.outgoingCopyEnabled = ref(true);
+  return {
+    useWriteAccess: () => ({
+      writesEnabled: mocks.writesEnabled,
+      outgoingCopyEnabled: mocks.outgoingCopyEnabled
+    })
+  };
 });
 
 vi.mock('@/composables/useSafeBackNavigation', () => ({
@@ -148,6 +157,7 @@ vi.mock('@/composables/useShelvesStore', async () => {
     useShelvesStore: () => ({
       shelves: ref([]),
       selectedShelfID: ref('shelf-1'),
+      transferDestinationShelves: ref([]),
       ensureShelvesLoaded: mocks.ensureShelvesLoaded
     })
   };
@@ -334,6 +344,7 @@ beforeEach(() => {
   mocks.confirmMetadataLeave.mockReset();
   mocks.guardConfirmation.value = false;
   mocks.writesEnabled.value = true;
+  mocks.outgoingCopyEnabled.value = true;
   mocks.detailBook.value = originalBook();
   mocks.currentSource.value = null;
   mocks.deleteSourceComment.mockReset().mockResolvedValue(undefined);
@@ -398,6 +409,7 @@ describe('BookDetailPage metadata editor', () => {
 
   it('does not render or open the editor on a read-only provider', async () => {
     mocks.writesEnabled.value = false;
+    mocks.outgoingCopyEnabled.value = false;
     const host = mountPage();
     await flush();
 

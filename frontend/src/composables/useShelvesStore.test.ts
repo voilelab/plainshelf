@@ -78,4 +78,35 @@ describe('useShelvesStore', () => {
     expect(listShelves).toHaveBeenCalledTimes(2);
     expect(store.loaded.value).toBe(true);
   });
+
+  // A transfer's target is written, so a read-only shelf can never receive one;
+  // offering it would only buy the user a 409. The active shelf is out for a
+  // different reason: naming one shelf as both ends is rejected outright.
+  it('offers only writable, non-active shelves as transfer destinations', async () => {
+    listShelves.mockResolvedValue([
+      { id: 'shelf-1', name: 'Shelf 1', readOnly: false },
+      { id: 'shelf-2', name: 'Shelf 2', readOnly: false },
+      { id: 'archive', name: 'Archive', readOnly: true }
+    ]);
+    const store = await freshStore();
+
+    await store.ensureShelvesLoaded();
+
+    expect(store.selectedShelfID.value).toBe('shelf-1');
+    expect(store.transferDestinationShelves.value.map((shelf) => shelf.id)).toEqual(['shelf-2']);
+  });
+
+  it('reports whether the selected shelf is read-only', async () => {
+    listShelves.mockResolvedValue([
+      { id: 'shelf-1', name: 'Shelf 1', readOnly: true },
+      { id: 'shelf-2', name: 'Shelf 2', readOnly: false }
+    ]);
+    const store = await freshStore();
+
+    await store.ensureShelvesLoaded();
+    expect(store.selectedShelfReadOnly.value).toBe(true);
+
+    store.selectedShelfID.value = 'shelf-2';
+    expect(store.selectedShelfReadOnly.value).toBe(false);
+  });
 });

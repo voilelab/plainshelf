@@ -144,6 +144,28 @@ describe('useWriteAccess', () => {
     expect(writeDisabledMessage()).not.toBe(shelfMessage);
   });
 
+  // Copying a book or folder out of a shelf only reads it — the server refuses
+  // a read-only source for a move alone — so the transfer entry has to survive
+  // the flag that hides every other write.
+  it('keeps outgoing copies available on a read-only shelf', () => {
+    connectWritableClient();
+    selectShelfAmongMixedShelves('read-only');
+    const { writesEnabled, outgoingCopyEnabled } = useWriteAccess();
+
+    expect(writesEnabled.value).toBe(false);
+    expect(outgoingCopyEnabled.value).toBe(true);
+  });
+
+  it('withdraws outgoing copies on a read-only server and a reading client', () => {
+    connectWritableClient();
+    readOnly.value = true;
+    expect(useWriteAccess().outgoingCopyEnabled.value).toBe(false);
+
+    readOnly.value = false;
+    connectReadingClient();
+    expect(useWriteAccess().outgoingCopyEnabled.value).toBe(false);
+  });
+
   it('tracks server mode changes without re-creating the composable', () => {
     connectWritableClient();
     const { writesEnabled } = useWriteAccess();
