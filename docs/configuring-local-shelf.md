@@ -29,6 +29,18 @@ You can place the directory anywhere that is stable across restarts. For example
 - A persistent server directory such as `/var/lib/plainshelf/shelf`.
 - A Docker volume mounted at `/data/shelf`.
 
+### On the desktop app
+
+The desktop app has no config file, so a shelf is created in **Settings → Shelves → Add shelf**. Leave **Directory path** empty and the app creates the shelf in its own data directory, under `shelves/<shelf id>` — beside the `shelves.json` that records it:
+
+| Platform | Default shelf directory |
+|---|---|
+| macOS | `~/Library/Application Support/PlainShelf/shelves/<shelf id>` |
+| Linux | `~/.config/PlainShelf/shelves/<shelf id>` |
+| Windows | `%AppData%\PlainShelf\shelves\<shelf id>` |
+
+The dialog shows the exact path before you create the shelf, and that path is what is recorded. To put the shelf somewhere else — an external drive, a directory you back up separately — type it in or pick it with **Browse**; a directory you chose is kept even if you then change the name.
+
 ## 2. Configure `lib_root`
 
 Edit your PlainShelf config file and set the shelf `lib_root` to the local directory:

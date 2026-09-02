@@ -82,16 +82,14 @@
         :disabled="addingShelf"
         autofocus
       />
-      <p v-if="newShelfIDPreview" class="shelf-add-help shelf-id-preview">
-        {{ t('settings.shelves.addShelfIDPreview') }}
-        <span class="shelf-id-cell">{{ newShelfIDPreview }}</span>
-      </p>
       <div class="shelf-add-dir-row">
         <input
           v-model="newShelfDirectory"
           class="shelf-add-input shelf-add-dir-input"
           type="text"
-          :placeholder="t('settings.shelves.addShelfDirectoryPlaceholder')"
+          :placeholder="
+            newShelfEffectiveDirectory || t('settings.shelves.addShelfDirectoryPlaceholder')
+          "
           :disabled="addingShelf"
         />
         <button
@@ -103,6 +101,18 @@
           {{ t('settings.shelves.addShelfBrowse') }}
         </button>
       </div>
+      <!-- Previews what submitting would create: the directory that is actually
+           sent as lib_root, and the id it would be frozen with. -->
+      <p v-if="newShelfIDPreview" class="shelf-add-help shelf-id-preview">
+        <span class="shelf-preview-line">
+          {{ t('settings.shelves.addShelfPathPreview') }}
+          <span class="shelf-preview-path">{{ newShelfEffectiveDirectory }}</span>
+        </span>
+        <span class="shelf-preview-line">
+          {{ t('settings.shelves.addShelfIDPreview') }}
+          <span class="shelf-id-cell">{{ newShelfIDPreview }}</span>
+        </span>
+      </p>
       <ScanIntervalField v-model="newShelfScanInterval" :disabled="addingShelf" />
       <ShelfReadOnlyField v-model="newShelfReadOnly" :disabled="addingShelf" />
       <details class="shelf-advanced">
@@ -280,6 +290,7 @@ const {
   newShelfBookCheckInterval,
   newShelfReadOnly,
   newShelfIDPreview,
+  newShelfEffectiveDirectory,
   addingShelf,
   addShelfError,
   canSubmitAddShelf,
@@ -497,6 +508,16 @@ onMounted(() => {
   color: #64748b;
   font-size: 12px;
   margin: -2px 0 0;
+}
+
+/* The preview stacks two labelled lines; the path can be long, so it wraps
+   rather than widening the dialog. */
+.shelf-preview-line {
+  display: block;
+}
+
+.shelf-preview-path {
+  overflow-wrap: anywhere;
 }
 
 .shelf-add-dir-row {

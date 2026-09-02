@@ -36,34 +36,47 @@ export function useShelfManagement() {
   const newShelfReadOnly = ref(false);
   const addingShelf = ref(false);
   const addShelfError = ref('');
-  const canSubmitAddShelf = computed(
-    () => newShelfName.value.trim().length > 0 && newShelfDirectory.value.trim().length > 0
-  );
-
   // The shelf id the backend would assign to the typed name, shown live so a
   // name that slugifies to nothing (e.g. a purely non-ASCII "小說") visibly
   // becomes "shelf" before the id is created and frozen as the reading-progress
   // key. Empty when there is no preview: off the desktop, or for an empty name.
   const newShelfIDPreview = ref('');
+  // The directory the backend suggests for that id. It is only a default: the
+  // form submits it as lib_root when the user never picks a directory, which is
+  // what lets a shelf be created from a name alone.
+  const newShelfDefaultDirectory = ref('');
   // Latest-wins guard: the async preview lags keystrokes, so a slow earlier
   // response must not overwrite a newer one (or a reset).
   let shelfIDPreviewToken = 0;
+
+  // What the form will actually create. A directory the user typed or browsed
+  // to wins over the suggestion, and it is this value the panel previews — so
+  // what the dialog shows is what lands in shelves.json.
+  const newShelfEffectiveDirectory = computed(
+    () => newShelfDirectory.value.trim() || newShelfDefaultDirectory.value
+  );
+  const canSubmitAddShelf = computed(
+    () => newShelfName.value.trim().length > 0 && newShelfEffectiveDirectory.value.length > 0
+  );
 
   async function refreshShelfIDPreview(name: string): Promise<void> {
     const token = ++shelfIDPreviewToken;
     const provider = getBookshelfProvider();
     if (!provider.previewDesktopShelfID || name.trim().length === 0) {
       newShelfIDPreview.value = '';
+      newShelfDefaultDirectory.value = '';
       return;
     }
     try {
       const preview = await provider.previewDesktopShelfID(name.trim());
       if (token === shelfIDPreviewToken) {
-        newShelfIDPreview.value = preview;
+        newShelfIDPreview.value = preview.id;
+        newShelfDefaultDirectory.value = preview.defaultPath;
       }
     } catch {
       if (token === shelfIDPreviewToken) {
         newShelfIDPreview.value = '';
+        newShelfDefaultDirectory.value = '';
       }
     }
   }
@@ -141,6 +154,7 @@ export function useShelfManagement() {
     // the field after the form is cleared.
     shelfIDPreviewToken++;
     newShelfIDPreview.value = '';
+    newShelfDefaultDirectory.value = '';
   }
 
   // Reveals a shelf's lib_root in the host file explorer (desktop only); a
@@ -186,7 +200,7 @@ export function useShelfManagement() {
 
   async function onSubmitAddShelf(): Promise<void> {
     const name = newShelfName.value.trim();
-    const dir = newShelfDirectory.value.trim();
+    const dir = newShelfEffectiveDirectory.value;
     const scanInterval = newShelfScanInterval.value.trim();
     const bookCheckInterval = newShelfBookCheckInterval.value.trim();
     if (!name || !dir) {
@@ -320,6 +334,7 @@ export function useShelfManagement() {
     newShelfBookCheckInterval,
     newShelfReadOnly,
     newShelfIDPreview,
+    newShelfEffectiveDirectory,
     addingShelf,
     addShelfError,
     canSubmitAddShelf,

@@ -67,6 +67,7 @@ function buildManagement(overrides: Record<string, unknown> = {}): Record<string
     newShelfBookCheckInterval: ref(''),
     newShelfReadOnly: ref(false),
     newShelfIDPreview: ref(''),
+    newShelfEffectiveDirectory: ref(''),
     addingShelf: ref(false),
     addShelfError: ref(''),
     canSubmitAddShelf: ref(false),
@@ -161,6 +162,29 @@ describe('ShelvesPanel', () => {
     const preview = host.querySelector('.shelf-id-preview');
     expect(preview).not.toBeNull();
     expect(preview?.textContent).toContain('shelf');
+
+    app.unmount();
+  });
+
+  // The directory the form will submit is shown, not just the id, so a user who
+  // creates a shelf from a name alone still knows where it lands.
+  it('previews the directory the add-shelf form would create the shelf in', () => {
+    state.desktop = true;
+    mgmt.value = buildManagement({
+      showAddShelfModal: ref(true),
+      newShelfName: ref('Novels'),
+      newShelfIDPreview: ref('novels'),
+      newShelfEffectiveDirectory: ref('/config/PlainShelf/shelves/novels')
+    });
+    const { host, app } = mount();
+
+    const preview = host.querySelector('.shelf-id-preview');
+    expect(preview?.textContent).toContain('/config/PlainShelf/shelves/novels');
+    // The directory input stays empty: the default is a suggestion the user can
+    // still overwrite, not a value typed on their behalf.
+    const dirInput = host.querySelector<HTMLInputElement>('.shelf-add-dir-input');
+    expect(dirInput?.value).toBe('');
+    expect(dirInput?.placeholder).toBe('/config/PlainShelf/shelves/novels');
 
     app.unmount();
   });
