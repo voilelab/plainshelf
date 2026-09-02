@@ -148,47 +148,6 @@ func (r *Source) UpdateContent(newContent io.Reader) error {
 	return nil
 }
 
-func (r *Source) VerifyContent() (bool, error) {
-	sourceFile, err := r.Open()
-	if err != nil {
-		return false, util.Errorf("%w", err)
-	}
-	defer sourceFile.Close()
-
-	md5Hash, err := hashutil.MD5Hash(sourceFile)
-	if err != nil {
-		return false, util.Errorf("%w", err)
-	}
-
-	return md5Hash == r.meta.MD5Hash, nil
-}
-
-func (r *Source) UpdateHash() error {
-	if err := r.EnsureWritable(); err != nil {
-		return util.Errorf("%w", err)
-	}
-	root, err := r.writeRoot()
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-	sourceFile, err := r.Open()
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-	defer sourceFile.Close()
-
-	r.meta.MD5Hash, err = hashutil.MD5Hash(sourceFile)
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-
-	err = r.writebackMeta(root)
-	if err != nil {
-		return util.Errorf("%w", err)
-	}
-	return nil
-}
-
 func (r *Source) RefreshContentMetadata() error {
 	return r.refreshContentMetadata()
 }

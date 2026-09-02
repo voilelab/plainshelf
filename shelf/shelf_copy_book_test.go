@@ -169,12 +169,9 @@ func TestShelfCopyBookIntoAnotherFolder(t *testing.T) {
 		t.Fatalf("copy layers = %v, want [elsewhere deep]", copiedListing.Folders)
 	}
 
-	books, err := s.GetBooksByFolder(FolderPath{"elsewhere", "deep"})
-	if err != nil {
-		t.Fatalf("GetBooksByFolder: %v", err)
-	}
+	books := booksInFolder(t, s, FolderPath{"elsewhere", "deep"})
 	if len(books) != 1 || books[0].ID() != copied.ID() {
-		t.Fatalf("GetBooksByFolder returned %d books, want just the copy %q", len(books), copied.ID())
+		t.Fatalf("folder holds %d books, want just the copy %q", len(books), copied.ID())
 	}
 }
 

@@ -176,9 +176,9 @@ func TestNormalizeComposesAcrossRemovedLayout(t *testing.T) {
 				t.Errorf("Normalize(%q) = %q, want %q from Normalize(%q)",
 					tc.split, gotSplit, gotWhole, tc.whole)
 			}
-			if Hash64String(gotSplit) != Hash64String(gotWhole) {
+			if hash64String(gotSplit) != hash64String(gotWhole) {
 				t.Errorf("layout changed the hash: %#016x vs %#016x",
-					Hash64String(gotSplit), Hash64String(gotWhole))
+					hash64String(gotSplit), hash64String(gotWhole))
 			}
 		})
 	}

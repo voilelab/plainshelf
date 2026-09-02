@@ -168,6 +168,12 @@ func (app *App) ShelfManager() *shelf.ShelfManager {
 	return app.shelfManager
 }
 
+// TaskChains exposes the task-chain pool so a test can submit a chain directly
+// and watch it run, rather than driving one through whichever HTTP route
+// happens to start one. No production caller needs it — the routes reach the
+// pool through app.taskChains — and it stays exported only because the contract
+// tests are an external package (contract_test), which an export_test.go in
+// this package cannot reach.
 func (app *App) TaskChains() *taskutil.Pool {
 	return app.taskChains
 }

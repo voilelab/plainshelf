@@ -56,7 +56,6 @@ func TestBookOnReadOnlyFSRefusesWrites(t *testing.T) {
 		"DeleteSource":     func() error { return book.DeleteSource("20260315-a1") },
 		"UpdateContent":    func() error { return source.UpdateContent(strings.NewReader("new text")) },
 		"UpdateComment":    func() error { return source.UpdateComment("comment") },
-		"UpdateHash":       func() error { return source.UpdateHash() },
 		"WriteAsset":       func() error { return source.WriteAsset("img-0001.png", []byte("png data")) },
 		"DeleteAsset":      func() error { return source.DeleteAsset("img-0001.png") },
 	}
@@ -89,7 +88,6 @@ func TestRefusedSourceWriteLeavesMetaUntouched(t *testing.T) {
 
 	writes := map[string]func() error{
 		"UpdateComment": func() error { return source.UpdateComment("comment that cannot be stored") },
-		"UpdateHash":    func() error { return source.UpdateHash() },
 	}
 
 	for name, write := range writes {

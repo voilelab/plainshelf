@@ -1,6 +1,20 @@
 package textnorm
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/cespare/xxhash/v2"
+)
+
+// hash64 and hash64String are the golden table's subject. Production hashes
+// shingles in internal/sketch, which calls xxhash.Sum64String directly; these
+// call the same dependency function so that the table below pins what a
+// fingerprint's Hash64Version actually stands for. They live here rather than
+// in the package because nothing outside a test ever needed a second spelling
+// of them.
+func hash64(b []byte) uint64 { return xxhash.Sum64(b) }
+
+func hash64String(s string) uint64 { return xxhash.Sum64String(s) }
 
 // goldenHashes pins known inputs to known outputs. This is the test that fails
 // when someone swaps the algorithm underneath — for a randomly seeded one such
@@ -28,8 +42,8 @@ var goldenHashes = []struct {
 func TestHash64Golden(t *testing.T) {
 	for _, tc := range goldenHashes {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := Hash64([]byte(tc.input)); got != tc.want {
-				t.Errorf("Hash64(%q) = %#016x, want %#016x", tc.input, got, tc.want)
+			if got := hash64([]byte(tc.input)); got != tc.want {
+				t.Errorf("hash64(%q) = %#016x, want %#016x", tc.input, got, tc.want)
 			}
 		})
 	}
@@ -38,8 +52,8 @@ func TestHash64Golden(t *testing.T) {
 func TestHash64StringMatchesHash64(t *testing.T) {
 	for _, tc := range goldenHashes {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := Hash64String(tc.input); got != tc.want {
-				t.Errorf("Hash64String(%q) = %#016x, want %#016x", tc.input, got, tc.want)
+			if got := hash64String(tc.input); got != tc.want {
+				t.Errorf("hash64String(%q) = %#016x, want %#016x", tc.input, got, tc.want)
 			}
 		})
 	}
@@ -51,9 +65,9 @@ func TestHash64StringMatchesHash64(t *testing.T) {
 func TestHash64IsStableAcrossCalls(t *testing.T) {
 	const input = "話說天下大勢，分久必合，合久必分。"
 
-	first := Hash64String(input)
+	first := hash64String(input)
 	for range 1000 {
-		if got := Hash64String(input); got != first {
+		if got := hash64String(input); got != first {
 			t.Fatalf("Hash64String is not a pure function: %#016x then %#016x", first, got)
 		}
 	}
@@ -62,8 +76,8 @@ func TestHash64IsStableAcrossCalls(t *testing.T) {
 // TestHash64TreatsNilAndEmptyAlike keeps the boundary case from depending on how
 // a caller happened to build its slice.
 func TestHash64TreatsNilAndEmptyAlike(t *testing.T) {
-	if Hash64(nil) != Hash64([]byte{}) {
-		t.Error("Hash64(nil) and Hash64([]byte{}) disagree")
+	if hash64(nil) != hash64([]byte{}) {
+		t.Error("hash64(nil) and hash64([]byte{}) disagree")
 	}
 }
 
@@ -79,9 +93,9 @@ func TestHash64SeparatesNearbyInputs(t *testing.T) {
 		"演義三國第一回",
 		"三國演義第一回 ",
 	} {
-		h := Hash64String(s)
+		h := hash64String(s)
 		if other, ok := seen[h]; ok {
-			t.Errorf("Hash64String(%q) collides with %q at %#016x", s, other, h)
+			t.Errorf("hash64String(%q) collides with %q at %#016x", s, other, h)
 		}
 		seen[h] = s
 	}

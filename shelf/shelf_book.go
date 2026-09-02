@@ -235,33 +235,6 @@ func (s *Shelf) DeleteBook(bookID string) error {
 	return s.MoveBookToTrash(bookID)
 }
 
-func (s *Shelf) GetBooksByFolder(folders FolderPath) ([]*Book, error) {
-	if err := s.ValidateFolderPath(folders); err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-
-	if !s.IsReady() {
-		return nil, util.Errorf("%w", ErrShelfInitializing)
-	}
-
-	if err := s.shelfLock.RLock(); err != nil {
-		return nil, util.Errorf("%w", err)
-	}
-	defer s.shelfLock.Unlock()
-
-	s.scheduleBookCacheRefreshIfNeeded()
-
-	var books []*Book
-
-	for _, listing := range s.listBookListingsFromCache() {
-		if listing.Folders.Equal(folders) {
-			books = append(books, listing.Book)
-		}
-	}
-
-	return books, nil
-}
-
 // MoveBook moves a book to new folders and returns the updated Book instance.
 func (s *Shelf) MoveBook(bookID string, newFolders FolderPath) (*Book, error) {
 	if err := s.ValidateFolderPath(newFolders); err != nil {

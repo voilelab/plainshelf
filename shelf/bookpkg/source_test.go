@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/hashutil"
 )
 
 func TestOpenSource(t *testing.T) {
@@ -130,12 +131,8 @@ func TestUpdateSource(t *testing.T) {
 		t.Error("Expected character count to change after source content update")
 	}
 
-	verified, err := source.VerifyContent()
-	if err != nil {
-		t.Fatalf("Failed to verify updated source content: %v", err)
-	}
-	if !verified {
-		t.Fatal("Expected updated source content to match stored MD5 hash")
+	if got := contentMD5(t, source); got != updatedMeta.MD5Hash {
+		t.Fatalf("meta md5_hash = %q, want the updated content's %q", updatedMeta.MD5Hash, got)
 	}
 }
 
@@ -289,7 +286,7 @@ func TestNewerSourceSchemaIsReadableButNotWritable(t *testing.T) {
 	}
 }
 
-func TestSourceHashPersists(t *testing.T) {
+func TestRepairContentHashRewritesAStaleHash(t *testing.T) {
 	book, rootFS, _ := newTestBook(t, "hash-book", "Source Metadata")
 	source, err := book.NewSource(bytes.NewBufferString("original\n"))
 	if err != nil {
@@ -298,26 +295,65 @@ func TestSourceHashPersists(t *testing.T) {
 	if source.FolderPath() == "" {
 		t.Fatal("FolderPath returned an empty path")
 	}
+	stored := source.GetMeta().MD5Hash
+	if stored == "" {
+		t.Fatal("a new source was written without an md5_hash")
+	}
 
+	// Edited outside PlainShelf: the content moves, meta.json does not.
 	if err := rootFS.WriteFile(path.Join(source.FolderPath(), SourceFile), []byte("changed\n")); err != nil {
 		t.Fatalf("replace source content: %v", err)
 	}
-	verified, err := source.VerifyContent()
+	edited := contentMD5(t, source)
+	if edited == stored {
+		t.Fatal("the fixture did not actually change the content")
+	}
+	if got := source.GetMeta().MD5Hash; got != stored {
+		t.Fatalf("md5_hash = %q before any repair, want the stale %q", got, stored)
+	}
+
+	repaired, err := source.RepairContentHash(edited)
 	if err != nil {
-		t.Fatalf("VerifyContent(changed): %v", err)
+		t.Fatalf("RepairContentHash: %v", err)
 	}
-	if verified {
-		t.Fatal("VerifyContent accepted content with a stale hash")
+	if !repaired {
+		t.Fatal("RepairContentHash reported no write for a hash that disagreed")
 	}
-	if err := source.UpdateHash(); err != nil {
-		t.Fatalf("UpdateHash: %v", err)
+	if got := source.GetMeta().MD5Hash; got != edited {
+		t.Fatalf("md5_hash = %q after repair, want %q", got, edited)
 	}
-	verified, err = source.VerifyContent()
+
+	// The write reached meta.json, not just the in-memory source.
+	reopened, err := book.GetSource(source.GetMeta().ID)
 	if err != nil {
-		t.Fatalf("VerifyContent(updated): %v", err)
+		t.Fatalf("GetSource: %v", err)
 	}
-	if !verified {
-		t.Fatal("VerifyContent rejected content after UpdateHash")
+	if got := reopened.GetMeta().MD5Hash; got != edited {
+		t.Fatalf("md5_hash = %q after reopening, want the persisted %q", got, edited)
+	}
+
+	// Agreeing hashes are a no-op rather than a second write.
+	again, err := reopened.RepairContentHash(edited)
+	if err != nil {
+		t.Fatalf("RepairContentHash (agreeing): %v", err)
+	}
+	if again {
+		t.Error("RepairContentHash rewrote meta.json for a hash that already agreed")
 	}
 }
 
+// contentMD5 is the hash meta.json should be carrying for a source: the tests
+// that used to call Source.VerifyContent compare against this instead.
+func contentMD5(t *testing.T, source *Source) string {
+	t.Helper()
+	f, err := source.Open()
+	if err != nil {
+		t.Fatalf("Open source content: %v", err)
+	}
+	defer f.Close()
+	sum, err := hashutil.MD5Hash(f)
+	if err != nil {
+		t.Fatalf("MD5Hash: %v", err)
+	}
+	return sum
+}

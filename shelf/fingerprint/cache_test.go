@@ -181,8 +181,8 @@ func TestFingerprintCacheRepairsAStaleSourceHash(t *testing.T) {
 	shiftModTime(t, sourcePath, -30*time.Minute)
 
 	_, staleSource := reopen(t, counting, bookPath)
-	if ok, err := staleSource.VerifyContent(); err != nil || ok {
-		t.Fatalf("the edited source should carry a stale hash: ok=%v err=%v", ok, err)
+	if metaMatchesContent(t, staleSource) {
+		t.Fatal("the edited source should carry a stale hash")
 	}
 
 	second := openCache(t, ts, counting, testAlgo)
@@ -199,8 +199,8 @@ func TestFingerprintCacheRepairsAStaleSourceHash(t *testing.T) {
 	}
 
 	_, repaired := reopen(t, counting, bookPath)
-	if ok, err := repaired.VerifyContent(); err != nil || !ok {
-		t.Errorf("meta.json still disagrees with the content: ok=%v err=%v", ok, err)
+	if !metaMatchesContent(t, repaired) {
+		t.Error("meta.json still disagrees with the content")
 	}
 }
 

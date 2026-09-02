@@ -293,3 +293,20 @@ func writeCacheAt(t *testing.T, libRoot string, stored cacheFile) {
 		t.Fatalf("writing a fingerprint cache: %v", err)
 	}
 }
+
+// metaMatchesContent reports whether a source's stored md5_hash agrees with the
+// bytes on disk. Source.VerifyContent used to answer this; production never
+// asked, because a caller that has just read the file already knows.
+func metaMatchesContent(t *testing.T, source *bookpkg.Source) bool {
+	t.Helper()
+	f, err := source.Open()
+	if err != nil {
+		t.Fatalf("Open source content: %v", err)
+	}
+	defer f.Close()
+	sum, err := hashutil.MD5Hash(f)
+	if err != nil {
+		t.Fatalf("MD5Hash: %v", err)
+	}
+	return sum == source.GetMeta().MD5Hash
+}

@@ -120,9 +120,6 @@ func TestShelfWaitReadyCancellationAndInitializingReads(t *testing.T) {
 	if _, err := shelf.GetBook("book"); !errors.Is(err, ErrShelfInitializing) {
 		t.Fatalf("GetBook error = %v, want ErrShelfInitializing", err)
 	}
-	if _, err := shelf.GetBooksByFolder(nil); !errors.Is(err, ErrShelfInitializing) {
-		t.Fatalf("GetBooksByFolder error = %v, want ErrShelfInitializing", err)
-	}
 	// The folder tree comes from the same cache, so an empty list before the
 	// first scan would read as "no folders" instead of "not scanned yet".
 	if _, err := shelf.GetAllFolders(); !errors.Is(err, ErrShelfInitializing) {
@@ -229,10 +226,7 @@ func TestShelfGetAllFolders(t *testing.T) {
 func TestShelfGetBookByFolder(t *testing.T) {
 	shelf := newTestShelf(t, &ShelfConf{LibRoot: path.Join("testdata", "lib")})
 
-	books, err := shelf.GetBooksByFolder([]string{"default", "test"})
-	if err != nil {
-		t.Fatalf("Failed to get book by layer: %v", err)
-	}
+	books := booksInFolder(t, shelf, FolderPath{"default", "test"})
 
 	if len(books) != 1 {
 		t.Fatalf("Expected 1 book in layer 'default/test', got %d", len(books))
@@ -389,18 +383,12 @@ func TestShelfMoveBook(t *testing.T) {
 		t.Errorf("Expected book title 'Book to Move', got '%s'", movedBook.Title())
 	}
 
-	booksInFolder1, err := shelf.GetBooksByFolder([]string{"layer1"})
-	if err != nil {
-		t.Fatalf("Failed to get books in layer1: %v", err)
-	}
+	booksInFolder1 := booksInFolder(t, shelf, FolderPath{"layer1"})
 	if len(booksInFolder1) != 0 {
 		t.Errorf("Expected 0 books in layer1 after move, got %d", len(booksInFolder1))
 	}
 
-	booksInFolder2, err := shelf.GetBooksByFolder([]string{"layer2"})
-	if err != nil {
-		t.Fatalf("Failed to get books in layer2: %v", err)
-	}
+	booksInFolder2 := booksInFolder(t, shelf, FolderPath{"layer2"})
 	if len(booksInFolder2) != 1 {
 		t.Errorf("Expected 1 book in layer2 after move, got %d", len(booksInFolder2))
 	}
@@ -422,18 +410,12 @@ func TestShelfRenameFolder(t *testing.T) {
 		t.Fatalf("RenameFolder failed: %v", err)
 	}
 
-	booksInOld, err := shelf.GetBooksByFolder([]string{"oldlayer"})
-	if err != nil {
-		t.Fatalf("GetBooksByFolder(oldlayer) failed: %v", err)
-	}
+	booksInOld := booksInFolder(t, shelf, FolderPath{"oldlayer"})
 	if len(booksInOld) != 0 {
 		t.Errorf("Expected 0 books in oldlayer after rename, got %d", len(booksInOld))
 	}
 
-	booksInNew, err := shelf.GetBooksByFolder([]string{"newlayer"})
-	if err != nil {
-		t.Fatalf("GetBooksByFolder(newlayer) failed: %v", err)
-	}
+	booksInNew := booksInFolder(t, shelf, FolderPath{"newlayer"})
 	if len(booksInNew) != 1 {
 		t.Fatalf("Expected 1 book in newlayer after rename, got %d", len(booksInNew))
 	}
@@ -455,10 +437,7 @@ func TestShelfRenameFolderNested(t *testing.T) {
 		t.Fatalf("RenameFolder failed: %v", err)
 	}
 
-	booksInNew, err := shelf.GetBooksByFolder([]string{"parent", "renamed"})
-	if err != nil {
-		t.Fatalf("GetBooksByFolder failed: %v", err)
-	}
+	booksInNew := booksInFolder(t, shelf, FolderPath{"parent", "renamed"})
 	if len(booksInNew) != 1 {
 		t.Fatalf("Expected 1 book in parent/renamed, got %d", len(booksInNew))
 	}
@@ -483,18 +462,12 @@ func TestShelfRenameFolderStaysUnderSameParent(t *testing.T) {
 		t.Fatalf("RenameFolder failed: %v", err)
 	}
 
-	booksInNew, err := shelf.GetBooksByFolder([]string{"alpha", "delta"})
-	if err != nil {
-		t.Fatalf("GetBooksByFolder failed: %v", err)
-	}
+	booksInNew := booksInFolder(t, shelf, FolderPath{"alpha", "delta"})
 	if len(booksInNew) != 1 || booksInNew[0].ID() != book.ID() {
 		t.Fatalf("Expected book in alpha/delta, got %#v", booksInNew)
 	}
 
-	booksElsewhere, err := shelf.GetBooksByFolder([]string{"gamma", "delta"})
-	if err != nil {
-		t.Fatalf("GetBooksByFolder failed: %v", err)
-	}
+	booksElsewhere := booksInFolder(t, shelf, FolderPath{"gamma", "delta"})
 	if len(booksElsewhere) != 0 {
 		t.Fatalf("book unexpectedly landed under a different parent: %#v", booksElsewhere)
 	}
@@ -516,10 +489,7 @@ func TestShelfMoveFolderUnderExistingFolder(t *testing.T) {
 		t.Fatalf("MoveFolder failed: %v", err)
 	}
 
-	booksInNew, err := shelf.GetBooksByFolder([]string{"gamma", "beta"})
-	if err != nil {
-		t.Fatalf("GetBooksByFolder failed: %v", err)
-	}
+	booksInNew := booksInFolder(t, shelf, FolderPath{"gamma", "beta"})
 	if len(booksInNew) != 1 || booksInNew[0].ID() != book.ID() {
 		t.Fatalf("Expected book in gamma/beta, got %#v", booksInNew)
 	}

@@ -29,9 +29,6 @@ func TestShelfRejectsUnsafeFolderSegments(t *testing.T) {
 		if _, err := shelf.NewBook(folders, "Unsafe Book"); err == nil {
 			t.Fatalf("Expected NewBook(%v) to reject unsafe layer", folders)
 		}
-		if _, err := shelf.GetBooksByFolder(folders); err == nil {
-			t.Fatalf("Expected GetBooksByFolder(%v) to reject unsafe layer", folders)
-		}
 	}
 
 	if _, err := os.Stat(filepath.Join(tmpLib, appFolder, "evil")); !os.IsNotExist(err) {
