@@ -22,7 +22,7 @@ type App struct {
 	handlers *apiHandlers
 
 	shelfManager *shelf.ShelfManager
-	taskChains   taskutil.Pool
+	taskChains   *taskutil.Pool
 	storeDB      *store.DB
 
 	// bookCacheWriterID names this installation in the book cache every shelf
@@ -174,7 +174,7 @@ func (app *App) ShelfManager() *shelf.ShelfManager {
 // pool through app.taskChains — and it stays exported only because the contract
 // tests are an external package (contract_test), which an export_test.go in
 // this package cannot reach.
-func (app *App) TaskChains() taskutil.Pool {
+func (app *App) TaskChains() *taskutil.Pool {
 	return app.taskChains
 }
 

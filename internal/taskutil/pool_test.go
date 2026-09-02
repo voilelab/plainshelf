@@ -20,7 +20,7 @@ func (t *statusTask) Description() string           { return "status" }
 func (t *statusTask) Percentage() float64           { return t.percentage }
 func (t *statusTask) Status() Status                { return t.status }
 
-func newTestPool(t *testing.T, maxLen, maxKeep int) Pool {
+func newTestPool(t *testing.T, maxLen, maxKeep int) *Pool {
 	t.Helper()
 
 	p := NewPool(newTestWorker(t, maxLen), maxKeep)

@@ -40,7 +40,7 @@ func newAPIHandlers(
 	shelfManager *shelf.ShelfManager,
 	security *Security,
 	storeDB *store.DB,
-	pool taskutil.Pool,
+	pool *taskutil.Pool,
 	spaFS fs.FS,
 	conf *AppConf,
 	// settingsSvc is built by NewApp, which needs it before the handlers exist
