@@ -410,6 +410,7 @@ const en = {
         'The saved interval {value} cannot be shown exactly by these controls and has been replaced by the value above.',
       advancedSettings: 'Advanced settings',
       bookCheckIntervalLabel: 'Per-book check interval',
+      bookCheckIntervalAmountLabel: 'Per-book check interval amount',
       bookCheckIntervalHelpDefault:
         'Follows the scan interval. On a network shelf this is where most list-view I/O comes from, so set it higher than the scan interval if list views feel slow.',
       bookCheckIntervalHelpEvery:

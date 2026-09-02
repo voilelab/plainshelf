@@ -29,7 +29,7 @@
           <NumberFieldDecrement class="number-field-step" :aria-label="decreaseLabel">−</NumberFieldDecrement>
           <NumberFieldInput
             class="number-field-input"
-            :aria-label="t('settings.shelves.scanIntervalAmountLabel')"
+            :aria-label="amountLabel"
             :data-testid="`${testidPrefix}-amount`"
           />
           <NumberFieldIncrement class="number-field-step" :aria-label="increaseLabel">+</NumberFieldIncrement>
@@ -86,6 +86,7 @@ const props = withDefaults(
     helpDefaultKey?: string;
     helpEveryKey?: string;
     helpAlwaysKey?: string;
+    amountLabelKey?: string;
     testidPrefix?: string;
   }>(),
   {
@@ -94,6 +95,7 @@ const props = withDefaults(
     helpDefaultKey: 'settings.shelves.scanIntervalHelpDefault',
     helpEveryKey: 'settings.shelves.scanIntervalHelpEvery',
     helpAlwaysKey: 'settings.shelves.scanIntervalHelpAlways',
+    amountLabelKey: 'settings.shelves.scanIntervalAmountLabel',
     testidPrefix: 'scan-interval'
   }
 );
@@ -102,12 +104,11 @@ const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
 const { t } = useI18n();
 const modeId = `scan-interval-mode-${useId()}`;
 
-const decreaseLabel = computed(() =>
-  t('common.decrease', { label: t('settings.shelves.scanIntervalAmountLabel') })
-);
-const increaseLabel = computed(() =>
-  t('common.increase', { label: t('settings.shelves.scanIntervalAmountLabel') })
-);
+// The box and its two steppers name whichever interval this instance edits, so
+// the per-book field does not announce itself as the shelf-wide scan setting.
+const amountLabel = computed(() => t(props.amountLabelKey));
+const decreaseLabel = computed(() => t('common.decrease', { label: amountLabel.value }));
+const increaseLabel = computed(() => t('common.increase', { label: amountLabel.value }));
 
 const mode = ref<ScanIntervalMode>('default');
 const unit = ref<ScanIntervalUnit>('m');
