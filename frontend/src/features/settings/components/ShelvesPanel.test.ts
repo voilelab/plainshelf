@@ -62,10 +62,12 @@ function buildManagement(overrides: Record<string, unknown> = {}): Record<string
     confirmRemoveShelf: vi.fn(),
     showAddShelfModal: ref(false),
     newShelfName: ref(''),
+    newShelfLocationMode: ref('new'),
     newShelfDirectory: ref(''),
-    newShelfScanInterval: ref(''),
+    newShelfDirectoryError: ref(''),
     newShelfReadOnly: ref(false),
     newShelfIDPreview: ref(''),
+    newShelfDefaultPath: ref(''),
     addingShelf: ref(false),
     addShelfError: ref(''),
     canSubmitAddShelf: ref(false),
@@ -163,23 +165,59 @@ describe('ShelvesPanel', () => {
     app.unmount();
   });
 
-  it('edits the add-shelf scan interval as a mode and unit, not a duration string', async () => {
+  // The default branch asks for a name and nothing else: no path box to fill in,
+  // no read-only toggle to misread, and no scan interval to decide on before
+  // there is a shelf to scan — that one moves to the modify dialog.
+  it('asks only for a name on the new-folder branch, and names the folder it will create', () => {
     state.desktop = true;
-    const newShelfScanInterval = ref('');
-    mgmt.value = buildManagement({ showAddShelfModal: ref(true), newShelfScanInterval });
+    mgmt.value = buildManagement({
+      showAddShelfModal: ref(true),
+      newShelfName: ref('Archive'),
+      newShelfIDPreview: ref('archive'),
+      newShelfDefaultPath: ref('/config/PlainShelf/shelves/archive')
+    });
     const { host, app } = mount();
 
-    const mode = host.querySelector<HTMLSelectElement>('[data-testid="scan-interval-mode"]');
-    expect(mode).not.toBeNull();
-    // There is no way to type a duration, so `invalid scan interval: time:
-    // missing unit in duration "10"` has no way to reach the user.
-    expect(host.querySelector('[type="text"][placeholder*="10m"]')).toBeNull();
+    expect(host.querySelector('[data-testid="shelf-default-path"]')?.textContent).toContain(
+      '/config/PlainShelf/shelves/archive'
+    );
+    expect(host.querySelector('[data-testid="shelf-directory-input"]')).toBeNull();
+    expect(host.querySelector('[data-testid="shelf-read-only"]')).toBeNull();
+    expect(host.querySelector('[data-testid="scan-interval-mode"]')).toBeNull();
 
-    // "Scan on every refresh" is 0s, which the free-text box never named.
-    mode!.value = 'always';
-    mode!.dispatchEvent(new Event('change'));
+    app.unmount();
+  });
+
+  it('reveals the path box and the read-only toggle on the existing-folder branch', () => {
+    state.desktop = true;
+    mgmt.value = buildManagement({
+      showAddShelfModal: ref(true),
+      newShelfLocationMode: ref('existing'),
+      newShelfDirectoryError: ref('Enter a full path, starting from the root of the drive.')
+    });
+    const { host, app } = mount();
+
+    expect(host.querySelector('[data-testid="shelf-directory-input"]')).not.toBeNull();
+    expect(host.querySelector('[data-testid="shelf-read-only"]')).not.toBeNull();
+    // The relative-path refusal is shown on the form, not waited for from Go.
+    expect(host.querySelector('[data-testid="shelf-directory-error"]')?.textContent).toContain(
+      'full path'
+    );
+    // No default folder is promised once the user brings their own.
+    expect(host.querySelector('[data-testid="shelf-default-path"]')).toBeNull();
+
+    app.unmount();
+  });
+
+  it('switches the location branch when the other option is picked', async () => {
+    state.desktop = true;
+    const newShelfLocationMode = ref('new');
+    mgmt.value = buildManagement({ showAddShelfModal: ref(true), newShelfLocationMode });
+    const { host, app } = mount();
+
+    host.querySelector<HTMLElement>('[data-testid="shelf-location-existing"]')!.click();
     await Promise.resolve();
-    expect(newShelfScanInterval.value).toBe('0s');
+    expect(newShelfLocationMode.value).toBe('existing');
 
     app.unmount();
   });
@@ -209,7 +247,11 @@ describe('ShelvesPanel', () => {
   it('offers the read-only toggle when creating a shelf, with its knock-on effects spelled out', async () => {
     state.desktop = true;
     const newShelfReadOnly = ref(false);
-    mgmt.value = buildManagement({ showAddShelfModal: ref(true), newShelfReadOnly });
+    mgmt.value = buildManagement({
+      showAddShelfModal: ref(true),
+      newShelfLocationMode: ref('existing'),
+      newShelfReadOnly
+    });
     const { host, app } = mount();
 
     const toggle = host.querySelector<HTMLInputElement>('[data-testid="shelf-read-only"]');

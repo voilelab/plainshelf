@@ -20,39 +20,134 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+// Stands in for the desktop binding: every name slugifies to `id`, and the
+// default folder is the one the backend would build under its shelves dir.
+function previewFor(id: string) {
+  return vi.fn(() => Promise.resolve({ id, default_path: `/config/PlainShelf/shelves/${id}` }));
+}
+
 describe('useShelfManagement shelf-ID preview', () => {
-  it('previews the id the backend would assign as the name changes', async () => {
-    provider.value = {
-      previewDesktopShelfID: vi.fn((name: string) => Promise.resolve(name === '小說' ? 'shelf' : `id-${name}`))
-    };
-    const { newShelfName, newShelfIDPreview } = useShelfManagement();
+  it('previews the id and the default folder as the name changes', async () => {
+    provider.value = { previewDesktopShelfID: previewFor('shelf') };
+    const { newShelfName, newShelfIDPreview, newShelfDefaultPath } = useShelfManagement();
 
     newShelfName.value = '小說';
     await nextTick();
     await vi.waitFor(() => expect(newShelfIDPreview.value).toBe('shelf'));
+    expect(newShelfDefaultPath.value).toBe('/config/PlainShelf/shelves/shelf');
     expect(provider.value.previewDesktopShelfID).toHaveBeenCalledWith('小說');
   });
 
   it('clears the preview for an empty name without asking the backend', async () => {
-    const previewDesktopShelfID = vi.fn(() => Promise.resolve('unexpected'));
+    const previewDesktopShelfID = previewFor('unexpected');
     provider.value = { previewDesktopShelfID };
-    const { newShelfName, newShelfIDPreview } = useShelfManagement();
+    const { newShelfName, newShelfIDPreview, newShelfDefaultPath } = useShelfManagement();
 
     newShelfName.value = '   ';
     await nextTick();
     await Promise.resolve();
     expect(newShelfIDPreview.value).toBe('');
+    expect(newShelfDefaultPath.value).toBe('');
     expect(previewDesktopShelfID).not.toHaveBeenCalled();
   });
 
   it('leaves the preview empty when the provider cannot preview', async () => {
     provider.value = {};
-    const { newShelfName, newShelfIDPreview } = useShelfManagement();
+    const { newShelfName, newShelfIDPreview, newShelfDefaultPath } = useShelfManagement();
 
     newShelfName.value = 'My Books';
     await nextTick();
     await Promise.resolve();
     expect(newShelfIDPreview.value).toBe('');
+    expect(newShelfDefaultPath.value).toBe('');
+  });
+});
+
+// The create form's two location branches. The default one asks the user for
+// nothing but a name; the other adopts a folder they already have and is the
+// only one that can be read-only.
+describe('useShelfManagement add-shelf location branches', () => {
+  it('creates the previewed folder, never read-only, on the default branch', async () => {
+    const addDesktopShelf = vi.fn(() => Promise.resolve());
+    provider.value = { previewDesktopShelfID: previewFor('archive'), addDesktopShelf };
+    const { newShelfName, newShelfLocationMode, newShelfReadOnly, canSubmitAddShelf, onSubmitAddShelf } =
+      useShelfManagement();
+
+    newShelfName.value = 'Archive';
+    await nextTick();
+    await vi.waitFor(() => expect(canSubmitAddShelf.value).toBe(true));
+
+    // Read-only cannot be reached from this branch in the UI; a value left over
+    // from the other one must not survive the switch back either.
+    expect(newShelfLocationMode.value).toBe('new');
+    expect(newShelfReadOnly.value).toBe(false);
+
+    await onSubmitAddShelf();
+    expect(addDesktopShelf).toHaveBeenCalledWith(
+      'Archive',
+      '/config/PlainShelf/shelves/archive',
+      '',
+      false
+    );
+  });
+
+  it('sends the read-only choice made on the existing-folder branch', async () => {
+    const addDesktopShelf = vi.fn(() => Promise.resolve());
+    provider.value = { previewDesktopShelfID: previewFor('archive'), addDesktopShelf };
+    const { newShelfName, newShelfLocationMode, newShelfDirectory, newShelfReadOnly, onSubmitAddShelf } =
+      useShelfManagement();
+
+    newShelfName.value = 'Archive';
+    newShelfLocationMode.value = 'existing';
+    newShelfDirectory.value = '/mnt/archive';
+    newShelfReadOnly.value = true;
+    await nextTick();
+
+    await onSubmitAddShelf();
+    expect(addDesktopShelf).toHaveBeenCalledWith('Archive', '/mnt/archive', '', true);
+  });
+
+  it('resets read-only when the user goes back to the new-folder branch', async () => {
+    provider.value = { previewDesktopShelfID: previewFor('archive') };
+    const { newShelfLocationMode, newShelfReadOnly } = useShelfManagement();
+
+    newShelfLocationMode.value = 'existing';
+    newShelfReadOnly.value = true;
+    await nextTick();
+
+    newShelfLocationMode.value = 'new';
+    await nextTick();
+    expect(newShelfReadOnly.value).toBe(false);
+  });
+
+  // Without this the submit reaches Go and comes back as
+  // `shelf directory must be an absolute path` (desktop/shelves.go).
+  it('refuses a relative folder before it reaches the backend', async () => {
+    const addDesktopShelf = vi.fn(() => Promise.resolve());
+    provider.value = { previewDesktopShelfID: previewFor('archive'), addDesktopShelf };
+    const {
+      newShelfName,
+      newShelfLocationMode,
+      newShelfDirectory,
+      newShelfDirectoryError,
+      canSubmitAddShelf,
+      onSubmitAddShelf
+    } = useShelfManagement();
+
+    newShelfName.value = 'Archive';
+    newShelfLocationMode.value = 'existing';
+    newShelfDirectory.value = 'books/archive';
+    await nextTick();
+
+    expect(newShelfDirectoryError.value).not.toBe('');
+    expect(canSubmitAddShelf.value).toBe(false);
+    await onSubmitAddShelf();
+    expect(addDesktopShelf).not.toHaveBeenCalled();
+
+    newShelfDirectory.value = '/mnt/archive';
+    await nextTick();
+    expect(newShelfDirectoryError.value).toBe('');
+    expect(canSubmitAddShelf.value).toBe(true);
   });
 });
 
@@ -87,27 +182,18 @@ describe('useShelfManagement openShelfFolder', () => {
 });
 
 describe('useShelfManagement read-only shelves', () => {
-  it('creates a shelf with the read-only toggle as it was left', async () => {
-    const addDesktopShelf = vi.fn(() => Promise.resolve());
-    provider.value = { addDesktopShelf };
-    const { newShelfName, newShelfDirectory, newShelfReadOnly, onSubmitAddShelf } =
+  it('clears the read-only toggle and the location branch when the form is reopened', async () => {
+    provider.value = { addDesktopShelf: vi.fn(() => Promise.resolve()) };
+    const { newShelfLocationMode, newShelfDirectory, newShelfReadOnly, openAddShelfModal } =
       useShelfManagement();
 
-    newShelfName.value = 'Archive';
+    newShelfLocationMode.value = 'existing';
     newShelfDirectory.value = '/mnt/archive';
-    newShelfReadOnly.value = true;
-    await onSubmitAddShelf();
-
-    expect(addDesktopShelf).toHaveBeenCalledWith('Archive', '/mnt/archive', '', true);
-  });
-
-  it('clears the read-only toggle when the add-shelf form is reopened', async () => {
-    provider.value = { addDesktopShelf: vi.fn(() => Promise.resolve()) };
-    const { newShelfReadOnly, openAddShelfModal } = useShelfManagement();
-
     newShelfReadOnly.value = true;
     openAddShelfModal();
 
+    expect(newShelfLocationMode.value).toBe('new');
+    expect(newShelfDirectory.value).toBe('');
     expect(newShelfReadOnly.value).toBe(false);
   });
 

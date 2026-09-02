@@ -560,18 +560,32 @@ func TestPreviewShelfID(t *testing.T) {
 		t.Fatalf("saveDesktopShelves: %v", err)
 	}
 
+	dataRoot := filepath.Dir(configPath)
 	app := &DesktopApp{shelvesConfigPath: configPath}
 	cases := []struct {
 		name string
-		want string
+		want ShelfNamePreview
 	}{
-		{name: "", want: ""},
-		{name: "   ", want: ""},
-		{name: "My Books", want: "my-books"},
+		{name: "", want: ShelfNamePreview{}},
+		{name: "   ", want: ShelfNamePreview{}},
+		{
+			name: "My Books",
+			want: ShelfNamePreview{
+				ID:          "my-books",
+				DefaultPath: filepath.Join(dataRoot, "shelves", "my-books"),
+			},
+		},
 		// A purely non-ASCII name slugifies to nothing and falls back to
 		// "shelf"; the seeded config already holds "shelf", so the next free id
-		// is "shelf-2" — exactly what the user would silently receive.
-		{name: "漫畫", want: "shelf-2"},
+		// is "shelf-2" — exactly what the user would silently receive. The
+		// default path follows the id, not the name, so it moves with it.
+		{
+			name: "漫畫",
+			want: ShelfNamePreview{
+				ID:          "shelf-2",
+				DefaultPath: filepath.Join(dataRoot, "shelves", "shelf-2"),
+			},
+		},
 	}
 	for _, tc := range cases {
 		got, err := app.PreviewShelfID(tc.name)
@@ -579,7 +593,26 @@ func TestPreviewShelfID(t *testing.T) {
 			t.Fatalf("PreviewShelfID(%q) returned error: %v", tc.name, err)
 		}
 		if got != tc.want {
-			t.Errorf("PreviewShelfID(%q) = %q, want %q", tc.name, got, tc.want)
+			t.Errorf("PreviewShelfID(%q) = %+v, want %+v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// The default path is what the create form offers when the user is not bringing
+// a folder, and AddShelf rejects anything relative — so a preview that could not
+// be resolved has to be empty rather than a path relative to the process's
+// working directory.
+func TestDefaultDesktopShelfPathNeedsBothParts(t *testing.T) {
+	cases := []struct {
+		configPath string
+		id         string
+	}{
+		{configPath: "", id: "my-books"},
+		{configPath: filepath.Join(t.TempDir(), "shelves.json"), id: ""},
+	}
+	for _, tc := range cases {
+		if got := defaultDesktopShelfPath(tc.configPath, tc.id); got != "" {
+			t.Errorf("defaultDesktopShelfPath(%q, %q) = %q, want \"\"", tc.configPath, tc.id, got)
 		}
 	}
 }

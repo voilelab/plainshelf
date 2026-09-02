@@ -30,6 +30,10 @@ const (
 	desktopLegacyDefaultShelfID   = "default_shelf"
 	desktopLegacyDefaultShelfName = "Default Shelf"
 	desktopLegacyShelfDirName     = "shelf"
+
+	// Folder under the desktop data root holding the shelves PlainShelf creates
+	// for itself, as opposed to a folder the user already had and points at.
+	desktopShelvesDirName = "shelves"
 )
 
 type desktopShelvesConfig struct {
@@ -104,6 +108,18 @@ func toShelfConfWithID(entry desktopShelfEntry) shelf.ShelfConfWithID {
 			ReadOnly:     entry.ReadOnly,
 		},
 	}
+}
+
+// defaultDesktopShelfPath is where a shelf with this id is created when the
+// user is not bringing an existing folder: beside shelves.json in the desktop
+// data root, under a per-shelf directory named after the id. Empty when there
+// is nothing to derive it from — no id, or a config path the app has not
+// resolved yet — so a caller never offers a relative path as a default.
+func defaultDesktopShelfPath(configPath, id string) string {
+	if configPath == "" || id == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(configPath), desktopShelvesDirName, id)
 }
 
 func normalizeDesktopShelfDirectory(dir string) (string, error) {

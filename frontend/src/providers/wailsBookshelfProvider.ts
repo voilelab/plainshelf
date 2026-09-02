@@ -13,7 +13,7 @@ import {
   removeDesktopShelf,
   saveDesktopBookContent
 } from '@/api/desktop';
-import type { DesktopShelfDetails } from '@/api/desktop';
+import type { DesktopShelfDetails, DesktopShelfNamePreview } from '@/api/desktop';
 import { getActiveShelfID } from '@/api/client';
 import { ServerBookshelfProvider } from './serverBookshelfProvider';
 import type { DesktopImportBookResult } from './bookshelfProvider';
@@ -66,7 +66,7 @@ export class WailsBookshelfProvider extends ServerBookshelfProvider {
     return openDesktopShelfFolder(shelfID);
   }
 
-  previewDesktopShelfID(name: string): Promise<string> {
+  previewDesktopShelfID(name: string): Promise<DesktopShelfNamePreview> {
     return previewDesktopShelfID(name);
   }
 

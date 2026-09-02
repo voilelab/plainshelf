@@ -1,4 +1,4 @@
-import type { DesktopShelfDetails } from '@/api/desktop';
+import type { DesktopShelfDetails, DesktopShelfNamePreview } from '@/api/desktop';
 import type { BookTransferMode, FingerprintStatus, ListBooksOptions, SimilarBookPair } from '@/api/books';
 import type {
   BookmarkPayload,
@@ -15,7 +15,7 @@ import type { CreateSourceOptions, SourceMeta } from '@/types/source';
 import type { BookBatchRequest, TaskChain } from '@/types/task';
 
 export type { DownloadState } from '@/types/book';
-export type { DesktopShelfDetails } from '@/api/desktop';
+export type { DesktopShelfDetails, DesktopShelfNamePreview } from '@/api/desktop';
 export type { ListBooksOptions } from '@/api/books';
 
 export interface DesktopImportBookResult {
@@ -204,11 +204,12 @@ export interface BookshelfReader {
   /** Reveals a shelf's lib_root in the host file explorer (desktop only). */
   openDesktopShelfFolder?(shelfID: string): Promise<void>;
   /**
-   * Returns the shelf id AddShelf would assign to a shelf named `name` right
-   * now (desktop only), so the add-shelf form can preview it as the user types.
-   * Resolves to '' for an empty name or when preview is unavailable.
+   * Returns what AddShelf would make of a shelf named `name` right now (desktop
+   * only), so the add-shelf form can preview both the id and the directory it
+   * would create as the user types. Both fields are '' for an empty name or
+   * when preview is unavailable.
    */
-  previewDesktopShelfID?(name: string): Promise<string>;
+  previewDesktopShelfID?(name: string): Promise<DesktopShelfNamePreview>;
   /**
    * Creates a desktop shelf. `readOnly` opens it without writing to it at all,
    * so `libRoot` must already exist — a read-only shelf is never created.

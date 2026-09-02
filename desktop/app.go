@@ -586,20 +586,31 @@ func (a *DesktopApp) OpenShelfInFinder(shelfID string) error {
 	return nil
 }
 
-// PreviewShelfID reports the shelf id AddShelf would assign to a shelf created
-// with the given name right now, including the uniqueness suffix. The frontend
-// shows it live as the user types so a name that slugifies to nothing — a
-// purely non-ASCII name such as "小說" — visibly becomes "shelf" before the
-// shelf is created and its id frozen as the reading-progress key. An empty or
-// whitespace-only name has no preview and returns "".
-func (a *DesktopApp) PreviewShelfID(name string) (string, error) {
+// ShelfNamePreview is what creating a shelf under a given name would produce,
+// before anything is written.
+type ShelfNamePreview struct {
+	// ID is the shelf id AddShelf would assign, including any uniqueness suffix.
+	ID string `json:"id"`
+	// DefaultPath is the directory the create form offers when the user is not
+	// bringing an existing folder; AddShelf creates it. Empty when there is no
+	// id to derive it from.
+	DefaultPath string `json:"default_path"`
+}
+
+// PreviewShelfID reports what AddShelf would do with the given name right now.
+// The frontend shows both fields live as the user types: the id so a name that
+// slugifies to nothing — a purely non-ASCII name such as "小說" — visibly
+// becomes "shelf" before the id is frozen as the reading-progress key, and the
+// default path so creating a shelf needs a name and nothing else. An empty or
+// whitespace-only name has no preview and returns the zero value.
+func (a *DesktopApp) PreviewShelfID(name string) (ShelfNamePreview, error) {
 	if strings.TrimSpace(name) == "" {
-		return "", nil
+		return ShelfNamePreview{}, nil
 	}
 
 	conf, err := loadDesktopShelves(a.shelvesConfigPath)
 	if err != nil {
-		return "", util.Errorf("loading shelf config: %w", err)
+		return ShelfNamePreview{}, util.Errorf("loading shelf config: %w", err)
 	}
 
 	existingIDs := map[string]bool{}
@@ -607,7 +618,11 @@ func (a *DesktopApp) PreviewShelfID(name string) (string, error) {
 		existingIDs[entry.ID] = true
 	}
 
-	return generateDesktopShelfID(name, existingIDs), nil
+	id := generateDesktopShelfID(name, existingIDs)
+	return ShelfNamePreview{
+		ID:          id,
+		DefaultPath: defaultDesktopShelfPath(a.shelvesConfigPath, id),
+	}, nil
 }
 
 func resolveDesktopFolderPath(libRoot string, folderParts []string) (string, error) {
