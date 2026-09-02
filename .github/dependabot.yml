@@ -68,8 +68,11 @@ updates:
           - minor
           - patch
 
-  # The `FROM` images only. The pinned NODE_VERSION and GO_VERSION build args in
-  # the Dockerfile are invisible to Dependabot and still move by hand.
+  # The `FROM` images only. The runtime stage ships inside the published image,
+  # but its tag is unpinned, so a release build already pulls the current
+  # `24.04` content and only the next LTS is left to open a pull request about —
+  # hence monthly. The pinned NODE_VERSION and GO_VERSION build args in the
+  # Dockerfile are invisible to Dependabot and still move by hand.
   - package-ecosystem: docker
     directory: "/"
     schedule:
