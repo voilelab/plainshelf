@@ -69,4 +69,11 @@ The essentials, at every tier:
 
 ## Dependency Updates
 
-Security updates for Go, npm, Docker base images, and other dependencies should be handled promptly when they affect PlainShelf. Reports that identify vulnerable dependencies are most helpful when they include the affected package, installed version, fixed version, and whether the vulnerable code path is reachable in PlainShelf.
+Security updates for Go, npm, Docker base images, and other dependencies should be handled promptly when they affect PlainShelf. Two mechanisms back that up rather than leaving it to a maintainer remembering to look:
+
+- **Detection.** Every pull request runs `govulncheck` over all three Go modules. It reports an advisory only when a vulnerable symbol is actually reachable from PlainShelf's code, so it is a merge gate. A second job audits the `frontend` and `e2e` npm lockfiles with `npm audit --audit-level=high`; that job is informational and does not block a merge, because `npm audit` flags advisories anywhere in the dependency tree without checking reachability, and most of that tree is build-time tooling that never ships.
+- **Updates.** [Dependabot](.github/dependabot.yml) opens weekly grouped pull requests for the three Go modules, both npm lockfiles, the Dockerfile base images, the documentation build requirements, and the GitHub Actions workflows.
+
+Neither mechanism covers everything: the Go and Node versions pinned as build arguments in the `Dockerfile` are not visible to Dependabot and are still updated by hand.
+
+Reports that identify vulnerable dependencies are most helpful when they include the affected package, installed version, fixed version, and whether the vulnerable code path is reachable in PlainShelf.

@@ -29,6 +29,16 @@ Read the relevant section before working in that area. Add entries according to
   `curl -sSL https://github.com/golangci/golangci-lint/releases/download/v2.13.1/golangci-lint-2.13.1-linux-amd64.tar.gz | tar xz`.
   CI enables `unused`, so a helper left without callers fails the build even
   when `go vet` and `go test` pass. (`.golangci.yml`, `.github/workflows/ci.yml`)
+- **govulncheck has the same toolchain trap:** `go install
+  golang.org/x/vuln/cmd/govulncheck@latest` builds with whatever the *base* `go`
+  binary resolves, which here is older than `go.mod`'s target, and the binary
+  then dies during package loading — `requires newer Go version go1.27
+  (application built with go1.26)` on this repo's own files, which reads like a
+  repo break rather than a tool one. Prefix the install with
+  `GOTOOLCHAIN=go<go.mod's version>`; CI gets it right via `setup-go`'s
+  `go-version-file: go.mod`. A full local scan is still impossible in the cloud
+  container: the network policy 403s `vuln.go.dev`.
+  (`.github/workflows/ci.yml`)
 - **Frontend suite needs a supported Node:** ten unrelated suites fail at import
   with `TypeError: Cannot read properties of undefined (reading 'getItem')`
   pointing at `src/api/client.ts` → from Node 26 the runtime defines its own

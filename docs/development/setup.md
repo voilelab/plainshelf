@@ -86,6 +86,14 @@ of it fails. The dataset's own README explains the contract.
 the shared Markdown modules as an on-demand check of how much the unit tests
 actually verify. It is not part of the checks above.
 
+Dependency vulnerability scanning is CI-only and not in the table either.
+`govulncheck ./...` runs in each of the three Go modules and gates the merge;
+`npm audit --audit-level=high` runs against the `frontend` and `e2e` lockfiles
+for information only. To reproduce a `govulncheck` failure locally, install it
+with a Go at least as new as the one `go.mod` targets — built by an older Go it
+fails while loading packages, with `requires newer Go version`, before it scans
+anything. `SECURITY.md` explains why one gates and the other does not.
+
 ## Versioning
 
 Git release tags are the source of truth for the PlainShelf product version.
