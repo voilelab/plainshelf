@@ -211,7 +211,7 @@
                         {{ t('bookDetail.actions.moveTo') }}
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        v-if="!readOnly && hasTransferDestinations"
+                        v-if="outgoingCopyEnabled && hasTransferDestinations"
                         class="reka-menu-item"
                         @select="onRequestTransfer"
                       >
@@ -282,7 +282,7 @@ const showImportedMessage = computed(() => route.query.imported === '1');
 const metadataSaved = ref(false);
 const showSavedMessage = computed(() => route.query.saved === '1' || metadataSaved.value);
 const showCopiedMessage = computed(() => route.query.copied === '1');
-const { writesEnabled } = useWriteAccess();
+const { writesEnabled, outgoingCopyEnabled } = useWriteAccess();
 const readOnly = computed(() => !writesEnabled.value);
 const { t } = useI18n();
 
@@ -390,12 +390,10 @@ const {
   }
 });
 
-// The transfer picker needs at least one shelf other than the active one, so the
-// menu entry stays hidden until the shelf list proves a destination exists.
-const { shelves, selectedShelfID, ensureShelvesLoaded } = useShelvesStore();
-const hasTransferDestinations = computed(() =>
-  shelves.value.some((shelf) => shelf.id !== selectedShelfID.value)
-);
+// The transfer picker needs a shelf that can actually receive the book, so the
+// menu entry stays hidden until the shelf list proves one exists.
+const { transferDestinationShelves, ensureShelvesLoaded } = useShelvesStore();
+const hasTransferDestinations = computed(() => transferDestinationShelves.value.length > 0);
 
 const readingPercent = computed(() => resolveReadingPercent(
   progress.value,
@@ -409,7 +407,14 @@ const readingActionLabel = computed(() => {
   return t(`bookDetail.actions.${readingAction.value === 'reread' ? 'reread' : 'startReading'}`);
 });
 const readingStatusLabel = computed(() => t(`bookDetail.progress.${readingAction.value}`));
-const showManagementMenu = computed(() => !readOnly.value || canOpenBookFolder.value);
+// The menu survives a read-only shelf when it still holds something the shelf
+// allows: opening its folder, or copying the book out to another shelf.
+const showManagementMenu = computed(
+  () =>
+    !readOnly.value ||
+    canOpenBookFolder.value ||
+    (outgoingCopyEnabled.value && hasTransferDestinations.value)
+);
 const restartingRead = ref(false);
 
 async function onReadClick(): Promise<void> {
@@ -561,7 +566,9 @@ function onRequestCopy(): void {
 }
 
 function onRequestTransfer(): void {
-  if (readOnly.value || !book.value) {
+  // outgoingCopyEnabled, not readOnly: a read-only shelf still allows the copy
+  // out, and the modal is what withdraws the move.
+  if (!outgoingCopyEnabled.value || !book.value) {
     return;
   }
   requestTransfer(book.value);

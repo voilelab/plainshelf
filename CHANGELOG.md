@@ -11,12 +11,16 @@ and UI behavior may still change between releases.
 
 - Added a **?** button to the mobile reader's controls that replays the gesture hint, which previously showed only once per device.
 - Added a default shelf directory to the desktop **Create shelf** dialog, which now previews the path and the shelf ID for the typed name and creates the shelf under the app data directory's `shelves/<shelf id>` when no directory is picked.
+- Added each shelf's read-only state to `GET /api/shelves` (`read_only`), which the UI now uses to hide the write controls on a read-only shelf — importing, metadata/source/cover editing, folder creation and moves, deleting, trash restore — and show a banner saying so, while browsing, reading, searching and rescanning stay available.
 
 ### Changed
 
 - Changed the similarity threshold slider to reka-ui `SliderRoot` and the character-range, reading-history-limit, log-retention, line-count and scan-interval/book-check-interval number boxes to reka-ui `NumberFieldRoot`, replacing every native `range`/`number` input whose track, thumb and spinner rendered differently in every browser and were absent on touch; the scan-interval amount now saves on blur, Enter or a stepper rather than on each keystroke.
 - Changed the desktop **Create shelf** dialog to ask where the shelf goes as a two-way choice: **Create a new folder** (the default) needs only a name and shows the folder PlainShelf will create for it, while **Use a folder I already have** is the only branch offering the read-only toggle and a path to type or browse to.
 - Changed a relative path typed into the create-shelf dialog to be refused on the form instead of by the backend's `shelf directory must be an absolute path`.
+- Fixed **Update now** under **Mobile book cache** stopping at the first read-only shelf and skipping every shelf after it; the server writes no exported cache for such a shelf, so it is now passed over.
+- Changed the cross-shelf transfer pickers to leave out read-only shelves, which could previously be picked as a destination only to be refused with `409`.
+- Changed a read-only shelf to still offer **Copy to another shelf**, with the transfer dialog dropping its **Move** option; only a move is refused on a read-only source, because it ends by deleting the original.
 - Changed the create-shelf dialog to drop its scan-interval and book-check-interval controls; a new shelf takes the defaults and both stay adjustable in **Modify**.
 - Changed delete, empty-trash, and other destructive confirmations to alert dialogs: they announce as `alertdialog`, open with **Cancel** focused, and no longer close on a backdrop click (Esc still cancels).
 - Changed the build to Go 1.27, whose reimplemented `encoding/json` decodes the shelf's JSON caches roughly 1.6-3x faster on the startup path.

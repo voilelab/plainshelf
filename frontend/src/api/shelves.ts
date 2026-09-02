@@ -6,12 +6,28 @@ import { getShell } from '@/providers/shell';
 export interface ShelfInfo {
   id: string;
   name: string;
+
+  /**
+   * Whether this shelf refuses writes.
+   *
+   * Reported by the server per shelf (a server-wide `read_only` reaches every
+   * shelf, so it shows up here too) and synthesized by the shells whose shelf
+   * list is device-local. It exists so the UI can drop the write affordances a
+   * read-only shelf has no use for; the server still refuses the request with
+   * 409 either way, so this is an experience improvement and never the gate.
+   *
+   * Absent means writable, matching the other capability flags — an older
+   * server that does not send the field is the one that had no read-only
+   * shelves to describe.
+   */
+  readOnly?: boolean;
 }
 
 const mockShelves: ShelfInfo[] = [
   {
     id: 'default_shelf',
-    name: 'Default Shelf'
+    name: 'Default Shelf',
+    readOnly: false
   }
 ];
 
@@ -44,7 +60,10 @@ export async function listServerShelves(): Promise<ShelfInfo[]> {
         return [];
       }
 
-      return [{ id, name }];
+      // Defaulted rather than required: a server predating the field describes
+      // shelves it never opened read-only, and treating those as read-only
+      // would hide every write button against a shelf that accepts writes.
+      return [{ id, name, readOnly: shelf.read_only === true }];
     });
 }
 

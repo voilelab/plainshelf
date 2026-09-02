@@ -42,13 +42,14 @@
                 <span class="transfer-mode-hint">{{ t('bookDetail.transfer.modeCopyHint') }}</span>
               </span>
             </label>
-            <label class="transfer-mode">
+            <label v-if="moveAvailable" class="transfer-mode">
               <input v-model="mode" type="radio" value="move" />
               <span class="transfer-mode-text">
                 <span class="transfer-mode-name">{{ t('bookDetail.transfer.modeMove') }}</span>
                 <span class="transfer-mode-hint">{{ t('bookDetail.transfer.modeMoveHint') }}</span>
               </span>
             </label>
+            <p v-else class="transfer-hint">{{ t('bookDetail.transfer.readOnlySource') }}</p>
           </fieldset>
         </template>
 
@@ -115,7 +116,12 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const { shelves, selectedShelfID, error: shelvesError, ensureShelvesLoaded } = useShelvesStore();
+const {
+  transferDestinationShelves: destinationShelves,
+  selectedShelfReadOnly,
+  error: shelvesError,
+  ensureShelvesLoaded
+} = useShelvesStore();
 
 const targetShelfId = ref('');
 // '/' is the labelled root option; it maps to '' (the shelf root) on submit.
@@ -128,18 +134,20 @@ const folderError = ref('');
 // since switched away from cannot overwrite the current one's folders.
 let folderRequest = 0;
 
-// The source shelf is the active one, and naming it twice is rejected by the
-// server, so it is dropped from the destinations.
-const destinationShelves = computed(() =>
-  shelves.value.filter((shelf) => shelf.id !== selectedShelfID.value)
-);
+// A move ends by deleting the source, which a read-only shelf refuses, so such
+// a shelf offers the copy alone — the server allows that, because only the
+// target is written (shelf/shelf_cross_book_test.go). `effectiveMode` is what
+// is reported and submitted, so a 'move' left in the ref by an earlier open
+// cannot escape once the radio is gone.
+const moveAvailable = computed(() => !selectedShelfReadOnly.value);
+const effectiveMode = computed<BookTransferMode>(() => (moveAvailable.value ? mode.value : 'copy'));
 
 const canSubmit = computed(() => targetShelfId.value !== '' && !loadingFolders.value);
 
 const statusText = computed(() => {
   switch (props.status) {
     case 'completed':
-      return mode.value === 'move'
+      return effectiveMode.value === 'move'
         ? t('bookDetail.transfer.completedMove')
         : t('bookDetail.transfer.completedCopy');
     case 'partially_completed':
@@ -215,7 +223,7 @@ function submit(): void {
   emit('submit', {
     targetShelfId: targetShelfId.value,
     targetFolder: targetFolder.value === '/' ? '' : targetFolder.value,
-    mode: mode.value
+    mode: effectiveMode.value
   });
 }
 </script>

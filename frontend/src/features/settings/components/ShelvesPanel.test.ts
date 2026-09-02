@@ -18,7 +18,8 @@ vi.mock('@/composables/useWriteAccess', async () => {
   return { useWriteAccess: () => ({ serverSettingsEditable: r(true) }) };
 });
 
-vi.mock('@/api/shelves', () => ({ exportShelfBookCache: vi.fn() }));
+const shelvesApi = vi.hoisted(() => ({ exportShelfBookCache: vi.fn() }));
+vi.mock('@/api/shelves', () => shelvesApi);
 
 // The two modals render their default slot while open, so the add- and
 // modify-shelf forms are inspectable without standing up the real dialogs, and
@@ -441,6 +442,35 @@ describe('ShelvesPanel', () => {
     );
     button?.click();
     expect(openShelfFolder).toHaveBeenCalledWith('my-books');
+
+    app.unmount();
+  });
+
+  // The server writes no exported cache for a read-only shelf, so asking for one
+  // answers 409 — which would abort the loop and skip every shelf after it.
+  it('rewrites the book cache only for the writable shelves', async () => {
+    shelvesApi.exportShelfBookCache.mockReset().mockResolvedValue(0);
+    mgmt.value = buildManagement({
+      shelves: ref([
+        { id: 'my-books', name: 'My Books', readOnly: false },
+        { id: 'archive', name: 'Archive', readOnly: true },
+        { id: 'drafts', name: 'Drafts', readOnly: false }
+      ])
+    });
+    const { host, app } = mount();
+
+    const exportButton = Array.from(host.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Update now'
+    );
+    exportButton?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(shelvesApi.exportShelfBookCache.mock.calls.map(([id]) => id)).toEqual([
+      'my-books',
+      'drafts'
+    ]);
 
     app.unmount();
   });

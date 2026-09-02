@@ -13,7 +13,10 @@ const mocks = vi.hoisted(() => ({
   cancelMetadataLeave: vi.fn(),
   confirmMetadataLeave: vi.fn(),
   deleteSourceComment: vi.fn(),
+  requestTransfer: vi.fn(),
   writesEnabled: null as any,
+  outgoingCopyEnabled: null as any,
+  transferDestinations: null as any,
   detailBook: null as any,
   currentSource: null as any,
   guardDirty: null as any,
@@ -76,7 +79,15 @@ vi.mock('@/features/library/composables/useBookDetail', async () => {
 vi.mock('@/composables/useWriteAccess', async () => {
   const { ref } = await import('vue');
   mocks.writesEnabled = ref(true);
-  return { useWriteAccess: () => ({ writesEnabled: mocks.writesEnabled }) };
+  // A read-only *shelf* still allows copying a book out of it, so the two are
+  // separate refs here rather than one negated flag.
+  mocks.outgoingCopyEnabled = ref(true);
+  return {
+    useWriteAccess: () => ({
+      writesEnabled: mocks.writesEnabled,
+      outgoingCopyEnabled: mocks.outgoingCopyEnabled
+    })
+  };
 });
 
 vi.mock('@/composables/useSafeBackNavigation', () => ({
@@ -121,7 +132,7 @@ vi.mock('@/composables/useBookActions', async () => {
       transferStarted: ref(false),
       transferring: ref(false),
       transferFinished: ref(false),
-      requestTransfer: empty,
+      requestTransfer: mocks.requestTransfer,
       cancelTransfer: empty,
       submitTransfer: empty,
       canOpenBookFolder: ref(false),
@@ -144,10 +155,14 @@ vi.mock('@/composables/useBookActions', async () => {
 
 vi.mock('@/composables/useShelvesStore', async () => {
   const { ref } = await import('vue');
+  // Created here rather than lazily in the accessor so beforeEach can seed it
+  // before the page ever calls useShelvesStore().
+  mocks.transferDestinations = ref([]);
   return {
     useShelvesStore: () => ({
       shelves: ref([]),
       selectedShelfID: ref('shelf-1'),
+      transferDestinationShelves: mocks.transferDestinations,
       ensureShelvesLoaded: mocks.ensureShelvesLoaded
     })
   };
@@ -334,6 +349,9 @@ beforeEach(() => {
   mocks.confirmMetadataLeave.mockReset();
   mocks.guardConfirmation.value = false;
   mocks.writesEnabled.value = true;
+  mocks.outgoingCopyEnabled.value = true;
+  mocks.transferDestinations.value = [];
+  mocks.requestTransfer.mockReset();
   mocks.detailBook.value = originalBook();
   mocks.currentSource.value = null;
   mocks.deleteSourceComment.mockReset().mockResolvedValue(undefined);
@@ -398,6 +416,7 @@ describe('BookDetailPage metadata editor', () => {
 
   it('does not render or open the editor on a read-only provider', async () => {
     mocks.writesEnabled.value = false;
+    mocks.outgoingCopyEnabled.value = false;
     const host = mountPage();
     await flush();
 
@@ -459,5 +478,37 @@ describe('BookDetailPage import note removal', () => {
 
     expect(noteDialog(host)).toBeNull();
     expect(mocks.deleteSourceComment).not.toHaveBeenCalled();
+  });
+});
+
+// A read-only shelf keeps the outgoing copy: the entry renders, and the handler
+// has to let it through. Guarding the handler on `readOnly` instead left a menu
+// item that did nothing when clicked.
+describe('BookDetailPage transfer on a read-only shelf', () => {
+  it('opens the transfer modal though every other write is withdrawn', async () => {
+    mocks.writesEnabled.value = false;
+    mocks.outgoingCopyEnabled.value = true;
+    mocks.transferDestinations.value = [{ id: 'other', name: 'Other', readOnly: false }];
+    const host = mountPage();
+    await flush();
+
+    const entry = [...host.querySelectorAll('*')].find(
+      (el) => el.textContent?.trim() === 'Transfer to another shelf…' && el.children.length === 0
+    );
+    expect(entry).toBeTruthy();
+    (entry as HTMLElement).click();
+    await flush();
+
+    expect(mocks.requestTransfer).toHaveBeenCalled();
+  });
+
+  it('does not offer it when the server itself is read-only', async () => {
+    mocks.writesEnabled.value = false;
+    mocks.outgoingCopyEnabled.value = false;
+    mocks.transferDestinations.value = [{ id: 'other', name: 'Other', readOnly: false }];
+    const host = mountPage();
+    await flush();
+
+    expect(host.textContent).not.toContain('Transfer to another shelf');
   });
 });
