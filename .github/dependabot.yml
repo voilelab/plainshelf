@@ -27,9 +27,7 @@ updates:
           - "*"
 
   - package-ecosystem: npm
-    directories:
-      - "/frontend"
-      - "/e2e"
+    directory: "/frontend"
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
@@ -62,12 +60,32 @@ updates:
         update-types:
           - version-update:semver-major
 
-  # The `FROM` images only. The pinned NODE_VERSION and GO_VERSION build args in
-  # the Dockerfile are invisible to Dependabot and still move by hand.
+  # Playwright only, and it never reaches the shipped bundle, so it moves on its
+  # own slower clock than the frontend lockfile above.
+  - package-ecosystem: npm
+    directory: "/e2e"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      e2e-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  # The `FROM` images only. The runtime stage ships inside the published image,
+  # but its tag is unpinned, so a release build already pulls the current
+  # `24.04` content and only the next LTS is left to open a pull request about —
+  # hence monthly. The pinned NODE_VERSION and GO_VERSION build args in the
+  # Dockerfile are invisible to Dependabot and still move by hand.
   - package-ecosystem: docker
     directory: "/"
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 2
     commit-message:
       prefix: "chore(deps)"
@@ -88,7 +106,7 @@ updates:
   - package-ecosystem: pip
     directory: "/"
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 2
     commit-message:
       prefix: "chore(deps)"
