@@ -100,8 +100,21 @@ async function ensureShelvesLoaded(): Promise<void> {
  * the server still answers 409, which is the safe way round: a shelf wrongly
  * treated as read-only would hide controls that work.
  */
-const activeShelfReadOnly = computed(
+const selectedShelfReadOnly = computed(
   () => shelves.value.find((shelf) => shelf.id === selectedShelfID.value)?.readOnly === true
+);
+
+/**
+ * The shelves a cross-shelf transfer may land in.
+ *
+ * The selected shelf is out because naming one shelf as both ends is rejected
+ * by the server. A read-only shelf is out because the transfer writes its
+ * target whichever mode was picked, so the server refuses it with 409 — the
+ * source being read-only is a different question, answered by
+ * `selectedShelfReadOnly` above.
+ */
+const transferDestinationShelves = computed(() =>
+  shelves.value.filter((shelf) => shelf.id !== selectedShelfID.value && !shelf.readOnly)
 );
 
 function selectShelf(id: string): void {
@@ -116,7 +129,8 @@ export function useShelvesStore() {
     loaded,
     error,
     selectedShelfID,
-    activeShelfReadOnly,
+    selectedShelfReadOnly,
+    transferDestinationShelves,
     fetchShelves,
     ensureShelvesLoaded,
     selectShelf

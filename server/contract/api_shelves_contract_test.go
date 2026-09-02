@@ -70,3 +70,15 @@ func TestAPIShelvesReportWritableShelfContract(t *testing.T) {
 		t.Errorf("shelf %q read_only = true, want false", shelves[0].ID)
 	}
 }
+
+// The two settings stay separate in the other direction too: a shelf opened
+// read-only does not make the server read-only, so /api/mode still answers for
+// the app as a whole.
+func TestAPIReadOnlyShelfLeavesServerModeContract(t *testing.T) {
+	env := newAPITestEnv(t, withReadOnlyShelf())
+
+	mode := getJSON[map[string]any](t, env, "/api/mode")
+	if got, want := mode["read_only"], any(false); got != want {
+		t.Errorf("/api/mode read_only = %v, want %v", got, want)
+	}
+}

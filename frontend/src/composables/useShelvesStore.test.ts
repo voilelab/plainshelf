@@ -83,7 +83,7 @@ describe('useShelvesStore', () => {
 // A read-only shelf and a writable one live in the same list, so the flag has
 // to follow the selection rather than the list as a whole. This is what every
 // write affordance in the app ends up asking, through useWriteAccess.
-describe('activeShelfReadOnly', () => {
+describe('selectedShelfReadOnly', () => {
   it('follows the selected shelf when both kinds are listed', async () => {
     listShelves.mockResolvedValue([
       { id: 'shelf-1', name: 'Writable', readOnly: false },
@@ -93,13 +93,13 @@ describe('activeShelfReadOnly', () => {
 
     await store.ensureShelvesLoaded();
     expect(store.selectedShelfID.value).toBe('shelf-1');
-    expect(store.activeShelfReadOnly.value).toBe(false);
+    expect(store.selectedShelfReadOnly.value).toBe(false);
 
     store.selectShelf('shelf-2');
-    expect(store.activeShelfReadOnly.value).toBe(true);
+    expect(store.selectedShelfReadOnly.value).toBe(true);
 
     store.selectShelf('shelf-1');
-    expect(store.activeShelfReadOnly.value).toBe(false);
+    expect(store.selectedShelfReadOnly.value).toBe(false);
   });
 
   // Before the list arrives there is nothing to read the flag off. Defaulting
@@ -108,7 +108,7 @@ describe('activeShelfReadOnly', () => {
   it('reports writable before the list loads', async () => {
     const store = await freshStore();
 
-    expect(store.activeShelfReadOnly.value).toBe(false);
+    expect(store.selectedShelfReadOnly.value).toBe(false);
   });
 
   // The offline fallback selects a persisted id the list does not contain.
@@ -119,6 +119,39 @@ describe('activeShelfReadOnly', () => {
     await store.ensureShelvesLoaded();
     store.selectShelf('unknown-shelf');
 
-    expect(store.activeShelfReadOnly.value).toBe(false);
+    expect(store.selectedShelfReadOnly.value).toBe(false);
+  });
+});
+
+// A transfer writes its target, so a read-only shelf can never receive one and
+// offering it would only buy the user a 409. The selected shelf is out for a
+// different reason: naming one shelf as both ends is rejected outright.
+describe('transferDestinationShelves', () => {
+  it('offers only the writable shelves that are not the selected one', async () => {
+    listShelves.mockResolvedValue([
+      { id: 'shelf-1', name: 'Shelf 1', readOnly: false },
+      { id: 'shelf-2', name: 'Shelf 2', readOnly: false },
+      { id: 'archive', name: 'Archive', readOnly: true }
+    ]);
+    const store = await freshStore();
+
+    await store.ensureShelvesLoaded();
+
+    expect(store.selectedShelfID.value).toBe('shelf-1');
+    expect(store.transferDestinationShelves.value.map((shelf) => shelf.id)).toEqual(['shelf-2']);
+  });
+
+  // The source being read-only does not stop a copy out of it, so the
+  // destinations are still whatever the rest of the list offers.
+  it('still offers destinations when the selected shelf is read-only', async () => {
+    listShelves.mockResolvedValue([
+      { id: 'shelf-1', name: 'Archive', readOnly: true },
+      { id: 'shelf-2', name: 'Shelf 2', readOnly: false }
+    ]);
+    const store = await freshStore();
+
+    await store.ensureShelvesLoaded();
+
+    expect(store.transferDestinationShelves.value.map((shelf) => shelf.id)).toEqual(['shelf-2']);
   });
 });

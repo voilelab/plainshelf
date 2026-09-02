@@ -48,13 +48,13 @@ export function useWriteAccess() {
   // affordance: every one of them already asks this composable, so a shelf
   // opened read-only withdraws the whole write surface in one place instead of
   // each component growing its own condition and one of them being forgotten.
-  const { activeShelfReadOnly } = useShelvesStore();
+  const { selectedShelfReadOnly } = useShelvesStore();
 
   // isLibraryEditingSupported() is called inside the computed rather than
   // hoisted: the provider is created lazily on first use, so reading it at
   // module scope could resolve before the shell has finished configuring it.
   const writesEnabled = computed(
-    () => !readOnly.value && !activeShelfReadOnly.value && isLibraryEditingSupported()
+    () => !readOnly.value && !selectedShelfReadOnly.value && isLibraryEditingSupported()
   );
 
   const writeDisabledReason = computed<WriteDisabledReason>(() => {
@@ -64,11 +64,18 @@ export function useWriteAccess() {
     if (readOnly.value) {
       return 'server-read-only';
     }
-    if (activeShelfReadOnly.value) {
+    if (selectedShelfReadOnly.value) {
       return 'shelf-read-only';
     }
     return null;
   });
+
+  // Copying a book or folder *out of* a shelf only reads that shelf: the write
+  // lands on the target, and the server refuses a read-only source for a move
+  // alone, because a move ends by deleting the original
+  // (shelf/shelf_cross_book_test.go). So the transfer entry survives a
+  // read-only shelf and the modals drop the move mode instead of hiding it.
+  const outgoingCopyEnabled = computed(() => !readOnly.value && isLibraryEditingSupported());
 
   // The message a refused write reports, so a shelf-level refusal does not
   // blame the server the user would then find writable. A key rather than a
@@ -106,6 +113,7 @@ export function useWriteAccess() {
     writesEnabled,
     writeDisabledReason,
     writeDisabledMessageKey,
+    outgoingCopyEnabled,
     libraryEditingAvailable,
     serverSettingsEditable,
     serverAdminAvailable

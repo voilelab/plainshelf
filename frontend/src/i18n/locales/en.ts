@@ -130,6 +130,7 @@ const en = {
       modeLabel: 'Action',
       modeCopy: 'Copy',
       modeCopyHint: 'Creates new books on the destination shelf. Reading progress is not carried over.',
+      readOnlySource: 'This shelf is read-only, so the folder can only be copied out of it.',
       modeMove: 'Move',
       modeMoveHint: 'Keeps the same books and their reading progress, and removes the folder from this shelf.',
       confirm: 'Transfer',
@@ -180,7 +181,7 @@ const en = {
     readOnly: {
       banner: 'Read-only mode is enabled. Browsing and reading are available, but write operations are disabled.',
       shelfBanner:
-        'This shelf is read-only. Browsing and reading are available, but write operations are disabled.',
+        'This shelf is read-only. Browsing, reading and rescanning are available, but write operations are disabled.',
       writeDisabled: 'Server is in read-only mode. Write operations are disabled.',
       shelfWriteDisabled: 'This shelf is read-only. Write operations are disabled.'
     }
@@ -726,6 +727,7 @@ const en = {
       modeLabel: 'Action',
       modeCopy: 'Copy',
       modeCopyHint: 'Creates a new book on the destination shelf. Reading progress is not carried over.',
+      readOnlySource: 'This shelf is read-only, so the book can only be copied out of it.',
       modeMove: 'Move',
       modeMoveHint: 'Keeps the same book and its reading progress, and removes it from this shelf.',
       confirm: 'Transfer',

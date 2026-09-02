@@ -23,7 +23,7 @@ const { isLibraryEditingSupported, useWriteAccess } = await import('./useWriteAc
 // readOnly is a module-level ref shared by every useServerMode() caller, so the
 // test drives it directly instead of stubbing GET /api/mode.
 const { readOnly } = useServerMode();
-// Same for the shelf list: activeShelfReadOnly is derived from these two refs,
+// Same for the shelf list: selectedShelfReadOnly is derived from these two refs,
 // so seeding them is how a read-only shelf is put in front of the composable.
 const { shelves, selectedShelfID } = useShelvesStore();
 
@@ -162,6 +162,42 @@ describe('useWriteAccess', () => {
 
     readOnly.value = true;
     expect(writesEnabled.value).toBe(false);
+  });
+
+});
+
+// Copying a book or folder out of a shelf reads that shelf and writes the
+// target, so a read-only *source* still allows it — the server refuses only a
+// move, which ends by deleting the original.
+describe('outgoingCopyEnabled', () => {
+  beforeEach(() => {
+    readOnly.value = false;
+    shelves.value = [];
+    selectedShelfID.value = '';
+  });
+
+  it('survives a read-only shelf that has withdrawn every other write', () => {
+    connectWritableClient();
+    browseShelf('archive');
+    const { writesEnabled, outgoingCopyEnabled } = useWriteAccess();
+
+    expect(writesEnabled.value).toBe(false);
+    expect(outgoingCopyEnabled.value).toBe(true);
+  });
+
+  it('goes with a read-only server, which refuses the target too', () => {
+    connectWritableClient();
+    readOnly.value = true;
+    const { outgoingCopyEnabled } = useWriteAccess();
+
+    expect(outgoingCopyEnabled.value).toBe(false);
+  });
+
+  it('goes on a client with no write surface at all', () => {
+    connectReadingClient();
+    const { outgoingCopyEnabled } = useWriteAccess();
+
+    expect(outgoingCopyEnabled.value).toBe(false);
   });
 });
 

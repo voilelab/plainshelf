@@ -17,7 +17,9 @@ and UI behavior may still change between releases.
 
 - Changed the desktop **Create shelf** dialog to ask where the shelf goes as a two-way choice: **Create a new folder** (the default) needs only a name and shows the folder PlainShelf will create for it, while **Use a folder I already have** is the only branch offering the read-only toggle and a path to type or browse to.
 - Changed a relative path typed into the create-shelf dialog to be refused on the form instead of by the backend's `shelf directory must be an absolute path`.
-- Changed the **Rewrite book cache** button in **Settings → Shelves** to skip read-only shelves, which the server never writes a cache for anyway and whose `409` previously abandoned every shelf after them.
+- Fixed **Update now** under **Mobile book cache** stopping at the first read-only shelf and skipping every shelf after it; the server writes no exported cache for such a shelf, so it is now passed over.
+- Changed the cross-shelf transfer pickers to leave out read-only shelves, which could previously be picked as a destination only to be refused with `409`.
+- Changed a read-only shelf to still offer **Copy to another shelf**, with the transfer dialog dropping its **Move** option; only a move is refused on a read-only source, because it ends by deleting the original.
 - Changed the create-shelf dialog to drop its scan-interval and book-check-interval controls; a new shelf takes the defaults and both stay adjustable in **Modify**.
 - Changed delete, empty-trash, and other destructive confirmations to alert dialogs: they announce as `alertdialog`, open with **Cancel** focused, and no longer close on a backdrop click (Esc still cancels).
 - Changed the build to Go 1.27, whose reimplemented `encoding/json` decodes the shelf's JSON caches roughly 1.6-3x faster on the startup path.

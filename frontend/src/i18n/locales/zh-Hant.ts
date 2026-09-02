@@ -129,6 +129,7 @@ const zhHant = {
       modeLabel: '動作',
       modeCopy: '複製',
       modeCopyHint: '在目標書庫產生新書，不會帶走閱讀進度。',
+      readOnlySource: '這個書架是唯讀的，只能把資料夾複製出去。',
       modeMove: '搬移',
       modeMoveHint: '保留同一批書與其閱讀進度，並從目前書庫移除整個資料夾。',
       confirm: '轉移',
@@ -176,7 +177,7 @@ const zhHant = {
     tabNavLabel: '主導覽',
     readOnly: {
       banner: '唯讀模式已啟用。仍可瀏覽與閱讀，但寫入操作已停用。',
-      shelfBanner: '這個書架是唯讀的。仍可瀏覽與閱讀，但寫入操作已停用。',
+      shelfBanner: '這個書架是唯讀的。仍可瀏覽、閱讀與重新掃描，但寫入操作已停用。',
       writeDisabled: '伺服器目前為唯讀模式，寫入操作已停用。',
       shelfWriteDisabled: '這個書架是唯讀的，寫入操作已停用。'
     }
@@ -714,6 +715,7 @@ const zhHant = {
       modeLabel: '動作',
       modeCopy: '複製',
       modeCopyHint: '在目標書庫產生一本新書，不會帶走閱讀進度。',
+      readOnlySource: '這個書架是唯讀的，只能把書複製出去。',
       modeMove: '搬移',
       modeMoveHint: '保留同一本書與其閱讀進度，並從目前書庫移除。',
       confirm: '轉移',

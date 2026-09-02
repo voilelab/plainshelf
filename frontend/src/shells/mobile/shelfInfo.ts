@@ -29,14 +29,9 @@ export function activeMobileShelfInfo(): ShelfInfo | null {
   if (!shelfID) {
     return null;
   }
-  // A pCloud entry is a storage backend this app only ever reads, so it reports
-  // the same read-only flag a server-side read-only shelf does. The mobile
-  // provider is a reading client whatever it is pointed at, so `platform`
-  // already covers the write gate — this just keeps the two ways of being
-  // read-only from disagreeing about the same shelf.
-  return {
-    id: shelfID,
-    name: shelfEntryDisplayName(entry),
-    readOnly: entry.type === 'pcloud'
-  };
+  // A pCloud entry is read-only, but that is the provider's own missing write
+  // surface — the `platform` reason in useWriteAccess — not a shelf setting
+  // this device could read. Converging the two is left to whoever unifies the
+  // provider abstraction.
+  return { id: shelfID, name: shelfEntryDisplayName(entry), readOnly: false };
 }
