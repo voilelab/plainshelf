@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createApp, defineComponent, h, ref } from 'vue';
+import { createApp, defineComponent, h, nextTick, ref, watch } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // The panel's shelf-management surface is desktop-only: the add-shelf button,
@@ -27,9 +27,28 @@ vi.mock('@/api/shelves', () => ({ exportShelfBookCache: vi.fn() }));
 // since vi.mock runs above any top-level binding it would otherwise close over.
 vi.mock('@/components/ConfirmModal.vue', () => ({
   default: defineComponent({
-    props: { open: { type: Boolean, default: false } },
-    setup: (props, { slots }) => () =>
-      h('div', { class: 'modal-stub' }, props.open ? slots.default?.() : undefined)
+    props: {
+      open: { type: Boolean, default: false },
+      initialFocus: { type: String, default: undefined }
+    },
+    setup: (props, { slots }) => {
+      // The stub reproduces ConfirmModal's opt-in focus contract — resolve
+      // `initialFocus` as a selector inside the dialog once it is open — so the
+      // panel's wiring of it is checkable here. The contract's implementation is
+      // what ConfirmModal.test.ts covers.
+      const root = ref<HTMLElement | null>(null);
+      watch(
+        () => props.open,
+        async (open) => {
+          if (!open || !props.initialFocus) return;
+          await nextTick();
+          root.value?.querySelector<HTMLElement>(props.initialFocus)?.focus();
+        },
+        { immediate: true }
+      );
+      return () =>
+        h('div', { class: 'modal-stub', ref: root }, props.open ? slots.default?.() : undefined);
+    }
   })
 }));
 vi.mock('@/components/DeleteModal.vue', () => ({
@@ -97,8 +116,14 @@ function hasButton(host: HTMLElement, label: string): boolean {
   return Array.from(host.querySelectorAll('button')).some((b) => b.textContent?.trim() === label);
 }
 
+const hosts: HTMLElement[] = [];
+
 function mount() {
   const host = document.createElement('div');
+  // Attached, not detached: focus only moves to an element that is in the
+  // document, so a detached host would make every activeElement check vacuous.
+  document.body.appendChild(host);
+  hosts.push(host);
   const app = createApp(ShelvesPanel);
   app.component(
     'RouterLink',
@@ -120,6 +145,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
+  hosts.splice(0).forEach((host) => host.remove());
 });
 
 describe('ShelvesPanel', () => {
@@ -132,7 +158,7 @@ describe('ShelvesPanel', () => {
     expect(actionCell?.textContent).toContain('Open folder');
     // The `.shelf-add-toggle` class is shared with the book-cache export button,
     // so match the add-shelf toggle by its label instead.
-    expect(hasButton(host, 'Add shelf')).toBe(true);
+    expect(hasButton(host, 'Create shelf')).toBe(true);
     // The server-managed notice is only for shells that cannot manage shelves.
     expect(host.textContent).not.toContain('managed by the server');
 
@@ -144,7 +170,7 @@ describe('ShelvesPanel', () => {
     const { host, app } = mount();
 
     expect(host.querySelector('.shelf-action-cell')).toBeNull();
-    expect(hasButton(host, 'Add shelf')).toBe(false);
+    expect(hasButton(host, 'Create shelf')).toBe(false);
     expect(host.textContent).toContain('managed by the server');
 
     app.unmount();
@@ -330,6 +356,76 @@ describe('ShelvesPanel', () => {
     toggle!.dispatchEvent(new Event('change'));
     await Promise.resolve();
     expect(modifyShelfReadOnly.value).toBe(false);
+
+    app.unmount();
+  });
+
+  // The autofocus attribute this replaces never took: ConfirmModal moved focus
+  // to its own confirm button, which is disabled until the name is filled in,
+  // so opening the dialog left focus on neither.
+  it('opens the create-shelf dialog with the caret in the name field', async () => {
+    state.desktop = true;
+    mgmt.value = buildManagement({ showAddShelfModal: ref(true) });
+    const { host, app } = mount();
+    await nextTick();
+    await nextTick();
+
+    const nameInput = host.querySelector<HTMLInputElement>('[data-testid="shelf-name-input"]');
+    expect(nameInput).not.toBeNull();
+    expect(document.activeElement).toBe(nameInput);
+
+    app.unmount();
+  });
+
+  it('labels every field of the create-shelf form', () => {
+    state.desktop = true;
+    mgmt.value = buildManagement({
+      showAddShelfModal: ref(true),
+      newShelfLocationMode: ref('existing')
+    });
+    const { host, app } = mount();
+
+    for (const testid of ['shelf-name-input', 'shelf-directory-input']) {
+      const input = host.querySelector<HTMLInputElement>(`[data-testid="${testid}"]`)!;
+      expect(input.id).not.toBe('');
+      const label = host.querySelector(`label[for="${input.id}"]`);
+      expect(label?.textContent?.trim()).toBeTruthy();
+    }
+
+    app.unmount();
+  });
+
+  // With nothing on the shelf list there is no table for a secondary toggle to
+  // sit under, so creating one is the section's primary action.
+  it('promotes creating a shelf to the primary action while no shelf exists', () => {
+    state.desktop = true;
+    mgmt.value = buildManagement({ shelves: ref([]) });
+    const { host, app } = mount();
+
+    const primary = host.querySelector<HTMLButtonElement>('.shelf-empty-add');
+    expect(primary).not.toBeNull();
+    expect(primary!.textContent?.trim()).toBe('Create shelf');
+    expect(primary!.classList.contains('primary')).toBe(true);
+    // The secondary toggle under the table is gone with the table.
+    expect(
+      Array.from(host.querySelectorAll('.shelf-add-toggle')).some(
+        (b) => b.textContent?.trim() === 'Create shelf'
+      )
+    ).toBe(false);
+
+    app.unmount();
+  });
+
+  it('keeps the secondary toggle under the table once a shelf exists', () => {
+    state.desktop = true;
+    const { host, app } = mount();
+
+    expect(host.querySelector('.shelf-empty-add')).toBeNull();
+    expect(
+      Array.from(host.querySelectorAll('.shelf-add-toggle')).some(
+        (b) => b.textContent?.trim() === 'Create shelf'
+      )
+    ).toBe(true);
 
     app.unmount();
   });
