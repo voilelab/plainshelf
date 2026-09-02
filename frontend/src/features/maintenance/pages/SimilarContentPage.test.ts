@@ -6,8 +6,9 @@ import type { SimilarBookPair, SimilarRelation } from '@/api/books';
 
 import { ref } from 'vue';
 
-// Hoisted so the module mocks below can close over the same spies. `readOnly`
-// is a real ref (assigned by the useServerMode mock) so the template unwraps it.
+// Hoisted so the module mocks below can close over the same spies.
+// `writesEnabled` is a real ref (assigned by the useWriteAccess mock) so the
+// template unwraps it.
 const mocks = vi.hoisted(() => ({
   getSimilarBookPairs: vi.fn(),
   getFingerprintStatus: vi.fn(),
@@ -16,7 +17,7 @@ const mocks = vi.hoisted(() => ({
   startFingerprintSources: vi.fn(),
   deleteBook: vi.fn(),
   getTaskChain: vi.fn(),
-  readOnly: { value: false }
+  writesEnabled: { value: true }
 }));
 
 vi.mock('@/providers', () => ({
@@ -33,10 +34,12 @@ vi.mock('@/providers', () => ({
   })
 }));
 
-vi.mock('@/composables/useServerMode', () => {
-  const readOnly = ref(false);
-  mocks.readOnly = readOnly;
-  return { useServerMode: () => ({ readOnly }) };
+// The sweep writes to the shelf, so the page asks the shared write gate — which
+// covers a read-only shelf as well as a read-only server.
+vi.mock('@/composables/useWriteAccess', () => {
+  const writesEnabled = ref(true);
+  mocks.writesEnabled = writesEnabled;
+  return { useWriteAccess: () => ({ writesEnabled }) };
 });
 
 import SimilarContentPage from './SimilarContentPage.vue';
@@ -113,7 +116,7 @@ beforeEach(() => {
   mocks.startFingerprintSources.mockReset().mockResolvedValue('chain-1');
   mocks.deleteBook.mockReset().mockResolvedValue(undefined);
   mocks.getTaskChain.mockReset();
-  mocks.readOnly.value = false;
+  mocks.writesEnabled.value = true;
 });
 
 afterEach(() => {
@@ -252,7 +255,7 @@ describe('SimilarContentPage', () => {
 
   it('a read-only shelf explains it cannot build and hides both buttons', async () => {
     mocks.getFingerprintStatus.mockResolvedValue({ ...NO_MISSING, missing: 3 });
-    mocks.readOnly.value = true;
+    mocks.writesEnabled.value = false;
     const host = mount();
     await flush();
 

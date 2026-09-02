@@ -363,7 +363,10 @@ async function onExportBookCache(): Promise<void> {
   bookCacheExporting.value = true;
 
   try {
-    for (const shelf of shelves.value) {
+    // A read-only shelf has no exported cache to rewrite — the server does not
+    // write one for it — and asking anyway answers 409, which would abort the
+    // loop and leave every shelf after it untouched.
+    for (const shelf of shelves.value.filter((entry) => !entry.readOnly)) {
       await exportShelfBookCache(shelf.id);
     }
     bookCacheExported.value = true;

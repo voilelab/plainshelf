@@ -128,7 +128,7 @@ import {
 } from '@/api/books';
 import type { Book } from '@/types/book';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
-import { useServerMode } from '@/composables/useServerMode';
+import { useWriteAccess } from '@/composables/useWriteAccess';
 import { useDocumentTitle } from '@/composables/useDocumentTitle';
 import { useI18n } from '@/i18n';
 import SimilarityFilterBar from '@/features/maintenance/components/SimilarityFilterBar.vue';
@@ -147,7 +147,11 @@ const { t } = useI18n();
 
 useDocumentTitle(() => [t('maintenance.similarContent')]);
 
-const { readOnly } = useServerMode();
+// The fingerprint sweep writes the sketches into the shelf, so it has to ask
+// the shared write gate rather than the server's mode alone — a read-only
+// *shelf* refuses it too, which is what this page's own notice already says.
+const { writesEnabled } = useWriteAccess();
+const readOnly = computed(() => !writesEnabled.value);
 
 const loading = ref(false);
 const error = ref('');
