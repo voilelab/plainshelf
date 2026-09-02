@@ -38,7 +38,10 @@
       <ContextMenuRoot v-for="item in flattenItems" :key="item._id">
         <!-- The synthetic / node cannot be renamed, moved, or deleted, but it
              still owns top-level folder creation. -->
-        <ContextMenuTrigger as-child :disabled="readOnly">
+        <!-- Open on a read-only shelf only when it still holds something that
+             shelf allows: copying the folder out. Every item below states its
+             own condition, so the trigger is not what keeps writes off it. -->
+        <ContextMenuTrigger as-child :disabled="readOnly && !canTransferFolder">
           <TreeItem
             v-slot="{ isExpanded, handleToggle }"
             v-bind="item.bind"
@@ -80,6 +83,7 @@
         <ContextMenuPortal>
           <ContextMenuContent class="reka-menu">
             <ContextMenuItem
+              v-if="!readOnly"
               class="reka-menu-item"
               @select="emit('create-folder', item.value.path)"
             >
@@ -96,7 +100,7 @@
               @select="emit('transfer-folder', item.value.path)"
             >{{ t('layout.transferFolder.shortAction') }}</ContextMenuItem>
             <ContextMenuItem
-              v-if="canManageFolder(item.value)"
+              v-if="canManageFolder(item.value) && !readOnly"
               class="reka-menu-item"
               @select="emit('rename-folder', item.value.path)"
             >{{ t('layout.renameFolder.shortAction') }}</ContextMenuItem>

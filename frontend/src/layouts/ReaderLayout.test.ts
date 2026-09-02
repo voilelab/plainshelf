@@ -13,6 +13,10 @@ vi.mock('@/api/shelves', async (importOriginal) => ({
 }));
 vi.mock('@/api/mode', () => ({ getReadOnlyMode: getReadOnlyModeMock }));
 // The RouterLink in the no-shelf state is the only router dependency here.
+// RouterView and RouterLink are resolved by name from the router plugin, which
+// is not installed here, so they render as unknown elements rather than
+// erroring — which is enough to tell "the page rendered" from "the no-shelf
+// placeholder rendered".
 vi.mock('vue-router', () => ({ RouterLink: { render: () => null }, RouterView: { render: () => null } }));
 
 const { default: ReaderLayout } = await import('./ReaderLayout.vue');
@@ -26,11 +30,12 @@ const { readOnly, loaded: modeLoaded } = useServerMode();
 
 let mounted: App | null = null;
 
-function mount(): void {
+function mount(): HTMLElement {
   const host = document.createElement('div');
   document.body.append(host);
   mounted = createApp({ setup: () => () => h(ReaderLayout) });
   mounted.mount(host);
+  return host;
 }
 
 async function flush(): Promise<void> {
@@ -93,5 +98,34 @@ describe('ReaderLayout shelf state', () => {
 
     expect(useWriteAccess().writesEnabled.value).toBe(false);
     expect(useWriteAccess().writeDisabledReason.value).toBe('server-read-only');
+  });
+});
+
+// The two boot requests run in parallel, so the shelf list can land first. If
+// the render gate looked only at the shelf list, the source editor would paint
+// its write controls before /api/mode said the server refuses them.
+describe('ReaderLayout boot gate', () => {
+  it('holds the page back until the server mode has answered too', async () => {
+    listShelvesMock.mockResolvedValue([{ id: 'main', name: 'Main', readOnly: false }]);
+    let releaseMode: (value: boolean) => void = () => {};
+    getReadOnlyModeMock.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        releaseMode = resolve;
+      })
+    );
+
+    const host = mount();
+    await flush();
+
+    // The shelf list has landed; the mode has not.
+    expect(selectedShelfID.value).toBe('main');
+    expect(host.querySelector('routerview')).toBeNull();
+    expect(host.querySelector('.reader-no-shelf')).not.toBeNull();
+
+    releaseMode(true);
+    await flush();
+
+    expect(host.querySelector('routerview')).not.toBeNull();
+    expect(useWriteAccess().writesEnabled.value).toBe(false);
   });
 });

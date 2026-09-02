@@ -5,7 +5,7 @@ import { useBookStore } from '@/composables/useBookStore';
 import { useFolderStore } from '@/composables/useFolderStore';
 import { useTaskChainProgress } from '@/composables/useTaskChainProgress';
 import { useWriteAccess } from '@/composables/useWriteAccess';
-import { bookshelfWriter, getBookshelfProvider, isWritableProvider } from '@/providers';
+import { bookshelfWriter, getBookshelfProvider } from '@/providers';
 import type { BookTransferMode } from '@/api/books';
 import {
   booksRouteForFolderPath,
@@ -78,7 +78,7 @@ export function useFolderManagement() {
   const { t } = useI18n();
   const { books, fetchBooks } = useBookStore();
   const { folders, fetchFolders } = useFolderStore();
-  const { writesEnabled, writeDisabledMessageKey } = useWriteAccess();
+  const { writesEnabled, writeDisabledMessageKey, outgoingCopyEnabled } = useWriteAccess();
   const readOnly = computed(() => !writesEnabled.value);
   const batchOperations = useBookBatchOperations();
 
@@ -342,9 +342,11 @@ export function useFolderManagement() {
   const transferFolderMode = ref<BookTransferMode>('copy');
 
   // The entry is offered only where a folder can actually be transferred: a
-  // writable multi-shelf backend (server/desktop) that is not read-only. A
-  // reader provider (mobile/pCloud) is not writable, so it never shows.
-  const canTransferFolder = computed(() => !readOnly.value && isWritableProvider(getBookshelfProvider()));
+  // writable multi-shelf backend (server/desktop) on a server that accepts
+  // writes. A reader provider (mobile/pCloud) is not writable, so it never
+  // shows. A read-only *shelf* keeps it: copying a folder out only reads this
+  // shelf, and the modal drops the move mode that would delete the original.
+  const canTransferFolder = outgoingCopyEnabled;
 
   const {
     chain: transferFolderChain,

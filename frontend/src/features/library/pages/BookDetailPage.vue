@@ -566,7 +566,9 @@ function onRequestCopy(): void {
 }
 
 function onRequestTransfer(): void {
-  if (readOnly.value || !book.value) {
+  // outgoingCopyEnabled, not readOnly: a read-only shelf still allows the copy
+  // out, and the modal is what withdraws the move.
+  if (!outgoingCopyEnabled.value || !book.value) {
     return;
   }
   requestTransfer(book.value);

@@ -34,7 +34,13 @@ const { fetchServerMode } = useServerMode();
 // "unavailable".
 const booting = ref(true);
 
-const hasActiveShelf = computed(() => shelvesLoaded.value && selectedShelfID.value.length > 0);
+// `booting` is part of the gate, not only of the message: the two boot requests
+// run in parallel, so the shelf list can land first and set `loaded` while
+// /api/mode is still in flight. Rendering then would paint the source editor's
+// write controls on a server that turns out to be read-only.
+const hasActiveShelf = computed(
+  () => !booting.value && shelvesLoaded.value && selectedShelfID.value.length > 0
+);
 const shelfUnavailableMessage = computed(() =>
   booting.value || shelvesLoading.value
     ? t('layout.shelf.loading')
