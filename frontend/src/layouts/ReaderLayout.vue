@@ -11,31 +11,43 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { ensureActiveShelf, listShelves } from '@/api/shelves';
-import { getBookshelfProvider } from '@/providers';
+import { useServerMode } from '@/composables/useServerMode';
+import { useShelvesStore } from '@/composables/useShelvesStore';
 import { useI18n } from '@/i18n';
 
 const { t } = useI18n();
-const shelvesLoading = ref(true);
-const shelvesLoaded = ref(false);
-const activeShelfID = ref('');
+// The shared store rather than local refs, and both of these rather than the
+// shelf list alone: everything under this layout - the source editor most of
+// all - asks useWriteAccess whether it may write, and that answer is read off
+// the server's mode and the selected shelf's own read_only. A layout that kept
+// the list to itself left both unset, so a read-only shelf opened straight at
+// /books/:id/sources offered every edit until the server refused it with 409.
+// The store also carries the offline persisted-shelf fallback and the
+// initial-scan retry this used to spell out by hand.
+const { loading: shelvesLoading, loaded: shelvesLoaded, selectedShelfID, ensureShelvesLoaded } =
+  useShelvesStore();
+const { fetchServerMode } = useServerMode();
 
-const hasActiveShelf = computed(() => shelvesLoaded.value && activeShelfID.value.length > 0);
+// The store's `loading` is false until the fetch actually starts, and it stays
+// false when an earlier layout already loaded the list. This covers the gap
+// before onMounted runs, so the first paint says "loading" rather than
+// "unavailable".
+const booting = ref(true);
+
+const hasActiveShelf = computed(() => shelvesLoaded.value && selectedShelfID.value.length > 0);
 const shelfUnavailableMessage = computed(() =>
-  shelvesLoading.value ? t('layout.shelf.loading') : t('layout.shelf.unavailableDescription')
+  booting.value || shelvesLoading.value
+    ? t('layout.shelf.loading')
+    : t('layout.shelf.unavailableDescription')
 );
 
+// Awaited before the RouterView above is allowed to render, so no page under
+// this layout paints its write controls on an answer that has not arrived.
 onMounted(async () => {
-  shelvesLoading.value = true;
   try {
-    activeShelfID.value = ensureActiveShelf(await listShelves());
-  } catch {
-    // A backend that persists its shelf on the device falls back to it, so
-    // downloaded books stay readable from the local cache while offline.
-    activeShelfID.value = getBookshelfProvider().getPersistedShelfID?.() ?? '';
+    await Promise.all([fetchServerMode(), ensureShelvesLoaded()]);
   } finally {
-    shelvesLoaded.value = true;
-    shelvesLoading.value = false;
+    booting.value = false;
   }
 });
 </script>
