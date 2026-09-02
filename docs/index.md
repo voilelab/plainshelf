@@ -53,8 +53,10 @@ other client is aware of it.
 
 EPUB is an import format, not a storage format. An imported EPUB is converted to
 plain text or Markdown and stored like any other book; the original `.epub` is
-not retained, and embedded illustrations are dropped. Everything on the shelf
-stays readable in a text editor.
+not retained. By default a Markdown import keeps embedded illustrations in
+`sources/{source-id}/assets/`, linked where they appeared; the ones the shelf
+cannot store are dropped and counted ([EPUB import](epub-import.md#illustrations)).
+Everything on the shelf stays readable in a text editor.
 
 ## Repository map
 
