@@ -8,8 +8,8 @@ import (
 )
 
 // The directory scan cache lives in shelf/scancache so its mtime trust chain
-// can be tested without a real shelf. These aliases keep this package's call
-// sites unchanged by the split.
+// can be tested without a real shelf. These two aliases keep this package's call
+// sites unchanged by the split; both are used, see bookpkg_reexports.go.
 
 // scanStats is what one walk cost; iterateShelfTree returns it.
 type scanStats = scancache.Stats

@@ -10,8 +10,9 @@ import (
 // on its own - a new algorithm, a forced rebuild, a future read from the pcloud
 // client - without being tied to the shelf's lifecycle or its scan-ready state.
 // It holds no *Shelf: everything it needs arrives through fingerprint.Config.
-// These aliases and facade methods keep every symbol reachable as shelf.X and
-// every call site - server, server/task, handlers - unchanged by the split.
+// These aliases and facade methods keep the symbols call sites name reachable as
+// shelf.X. FingerprintBuilder had no call site and is gone; bookpkg_reexports.go
+// carries the measurement behind keeping the rest.
 
 // Fingerprint cache types.
 type (
@@ -20,7 +21,6 @@ type (
 	FingerprintEntry      = fingerprint.Entry
 	FingerprintCacheStats = fingerprint.Stats
 	FingerprintCoverage   = fingerprint.Coverage
-	FingerprintBuilder    = fingerprint.Builder
 )
 
 // ErrIncompleteFingerprintAlgo is raised by OpenFingerprintCache for an
