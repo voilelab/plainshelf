@@ -8,13 +8,6 @@ import "github.com/voilelab/plainshelf/shelf/bookpkg"
 //
 // bookpkg does not import shelf: the dependency runs one way only, through the
 // shared shelf/internal/shelfutil leaf.
-//
-// Measured (PSW-59): dropping these aliases and writing bookpkg.X at every call
-// site rewrites 47 files for 39 new import lines and a net -49 lines, and splits
-// one vocabulary in two - shelf.ErrBookNotFound beside bookpkg.ErrSourceNotFound
-// in one errors.Is, *shelf.ShelfData beside *bookpkg.Book in one signature. The
-// aliases pay for themselves; mirroring symbols nobody names did not, so the ten
-// without a shelf.X call site are gone. Add one back when a call site needs it.
 
 // Book package and book/source types. Aliases, so methods and struct fields
 // travel with them and a *bookpkg.Book is a *shelf.Book.

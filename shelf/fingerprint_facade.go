@@ -11,8 +11,7 @@ import (
 // client - without being tied to the shelf's lifecycle or its scan-ready state.
 // It holds no *Shelf: everything it needs arrives through fingerprint.Config.
 // These aliases and facade methods keep the symbols call sites name reachable as
-// shelf.X. FingerprintBuilder had no call site and is gone; bookpkg_reexports.go
-// carries the measurement behind keeping the rest.
+// shelf.X.
 
 // Fingerprint cache types.
 type (
