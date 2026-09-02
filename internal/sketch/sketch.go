@@ -38,7 +38,7 @@ const (
 //
 // Values holds the smallest distinct shingle hashes in ascending order, at most
 // k of them. Distinct is the exact number of distinct shingles in the document,
-// which is what makes Containment algebra rather than estimation; deriving it
+// which is what makes ContainmentFrom algebra rather than estimation; deriving it
 // from Values instead (KMV cardinality estimation) costs up to 16% at k=128.
 //
 // Two sketches are only comparable when they were built with the same N.

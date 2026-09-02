@@ -57,7 +57,7 @@ func mustScan(t *testing.T, s *Shelf) scanStats {
 	if err := s.scanToBookCache(); err != nil {
 		t.Fatalf("scanToBookCache: %v", err)
 	}
-	return s.lastScanStats()
+	return s.scanCache.LastStats()
 }
 
 // cachedFolderNames reads the folder list the last scan left in the cache,
@@ -95,7 +95,7 @@ func TestScanCacheReusesUnchangedDirectories(t *testing.T) {
 		t.Errorf("warm scan reused %d of %d directories, want all", warm.ReusedDirs, warm.Dirs)
 	}
 
-	if got, want := len(s.listBooksFromCache()), 3; got != want {
+	if got, want := len(s.listBookListingsFromCache()), 3; got != want {
 		t.Errorf("warm scan found %d books, want %d", got, want)
 	}
 	for _, want := range []string{"", "Fiction", "Fiction/Classics", "Tech"} {
@@ -150,11 +150,11 @@ func TestScanCacheSurvivesReopen(t *testing.T) {
 	}
 
 	second := newTestShelf(t, conf)
-	stats := second.lastScanStats()
+	stats := second.scanCache.LastStats()
 	if stats.ReusedDirs == 0 {
 		t.Errorf("the first scan after reopening reused no directory (%+v)", stats)
 	}
-	if got, want := len(second.listBooksFromCache()), 1; got != want {
+	if got, want := len(second.listBookListingsFromCache()), 1; got != want {
 		t.Errorf("reopened shelf listed %d books, want %d", got, want)
 	}
 }
@@ -179,10 +179,10 @@ func TestScanCacheIgnoresUnreadableSnapshot(t *testing.T) {
 	}
 
 	second := newTestShelf(t, conf)
-	if got, want := len(second.listBooksFromCache()), 1; got != want {
+	if got, want := len(second.listBookListingsFromCache()), 1; got != want {
 		t.Errorf("shelf with a corrupt snapshot listed %d books, want %d", got, want)
 	}
-	if stats := second.lastScanStats(); stats.ReadDirs == 0 {
+	if stats := second.scanCache.LastStats(); stats.ReadDirs == 0 {
 		t.Errorf("shelf with a corrupt snapshot listed no directory (%+v)", stats)
 	}
 }

@@ -52,21 +52,16 @@ func Jaccard(a, b Sketch) float64 {
 	return float64(intersection) / float64(union)
 }
 
-// Containment reports how much of a lies inside b, and how much of b lies
-// inside a. A value of 1 means the document is entirely covered by the other.
+// ContainmentFrom reports how much of a lies inside b, and how much of b lies
+// inside a, from a Jaccard similarity the caller has already computed for the
+// same pair. A value of 1 means the document is entirely covered by the other.
 //
 // Given the Jaccard similarity J and the two exact distinct shingle counts, the
 // size of the intersection follows algebraically from
 // J = inter / (na + nb - inter), so this adds no estimation of its own beyond
-// the error already in J.
-func Containment(a, b Sketch) (float64, float64) {
-	return ContainmentFrom(a, b, Jaccard(a, b))
-}
-
-// ContainmentFrom is Containment for a caller that has already computed the
-// Jaccard similarity of the same pair, so the sorted-array merge is not
-// repeated. The algebra depends only on the similarity and the two Distinct
-// counts, so passing similarity in changes nothing but the cost.
+// the error already in J. Taking the similarity as an argument is what lets a
+// caller that has just merged the pair skip a second sorted-array merge; the
+// algebra depends only on it and the two Distinct counts.
 func ContainmentFrom(a, b Sketch, jaccard float64) (float64, float64) {
 	if a.Distinct <= 0 || b.Distinct <= 0 {
 		return 0, 0

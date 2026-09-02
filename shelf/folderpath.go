@@ -23,14 +23,3 @@ func (l FolderPath) Equal(other FolderPath) bool {
 	}
 	return true
 }
-
-func NewFolderPathFromString(s string) FolderPath {
-	if s == "" {
-		return nil
-	}
-	parts := strings.Split(s, "/")
-	for i := range parts {
-		parts[i] = strings.TrimSpace(parts[i])
-	}
-	return parts
-}

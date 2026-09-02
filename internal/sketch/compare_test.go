@@ -94,7 +94,7 @@ func TestContainmentIsAlgebraic(t *testing.T) {
 		t.Fatal("fixture sketches are not complete")
 	}
 
-	inWhole, inPart := Containment(a, b)
+	inWhole, inPart := ContainmentFrom(a, b, Jaccard(a, b))
 
 	if math.Abs(inPart-1) > 1e-9 {
 		t.Errorf("the truncation is not reported as fully contained: got %v", inPart)
@@ -105,7 +105,7 @@ func TestContainmentIsAlgebraic(t *testing.T) {
 }
 
 // TestContainmentAtDefaultK covers the same claim through sampled sketches.
-// Containment is algebra, but it is algebra over an estimated Jaccard, so a
+// ContainmentFrom is algebra, but it is algebra over an estimated Jaccard, so a
 // single pair inherits that estimate's spread; the average stays on the true
 // value because errors above 1 are clamped away.
 func TestContainmentAtDefaultK(t *testing.T) {
@@ -120,7 +120,8 @@ func TestContainmentAtDefaultK(t *testing.T) {
 		whole := strings.Join(words, " ")
 		part := strings.Join(words[:len(words)*3/4], " ")
 
-		_, inPart := Containment(BuildDefault(whole), BuildDefault(part))
+		wholeSketch, partSketch := BuildDefault(whole), BuildDefault(part)
+		_, inPart := ContainmentFrom(wholeSketch, partSketch, Jaccard(wholeSketch, partSketch))
 		total += inPart
 		worst = math.Min(worst, inPart)
 	}
@@ -139,56 +140,34 @@ func TestContainmentAtDefaultK(t *testing.T) {
 func TestContainmentEdgeCases(t *testing.T) {
 	text := strings.Join(randomWords(newRNG(5), 1000), " ")
 
-	if a, b := Containment(BuildDefault(text), BuildDefault("")); a != 0 || b != 0 {
+	empty, full := BuildDefault(""), BuildDefault(text)
+	if a, b := ContainmentFrom(full, empty, Jaccard(full, empty)); a != 0 || b != 0 {
 		t.Errorf("an empty sketch gave containment (%v, %v), want (0, 0)", a, b)
 	}
 
 	unrelatedA := strings.Join(randomWords(newRNG(6), 1000), " ")
 	unrelatedB := strings.Join(randomWords(newRNG(7), 1000), " ")
-	if a, b := Containment(exactSketch(unrelatedA), exactSketch(unrelatedB)); a > 0.2 || b > 0.2 {
+	sketchA, sketchB := exactSketch(unrelatedA), exactSketch(unrelatedB)
+	if a, b := ContainmentFrom(sketchA, sketchB, Jaccard(sketchA, sketchB)); a > 0.2 || b > 0.2 {
 		t.Errorf("unrelated documents gave containment (%v, %v)", a, b)
 	}
 }
 
-// TestContainmentFromMatchesContainment pins ContainmentFrom to Containment:
-// feeding it the Jaccard that Containment would have computed itself must return
-// exactly the same pair of values, including the Distinct <= 0 and jaccard <= 0
-// early-exit branches. This is what lets buildSimilarPairs pass its already
-// computed Jaccard in and skip the second merge without moving any number.
-func TestContainmentFromMatchesContainment(t *testing.T) {
+// TestContainmentFromEarlyExits covers the two branches that never reach the
+// algebra: a sketch with no distinct shingles, and a caller passing a
+// non-positive similarity for a pair that does have them.
+func TestContainmentFromEarlyExits(t *testing.T) {
 	whole := strings.Join(randomWords(newRNG(2027), 800), " ")
 	part := whole[:len(whole)*3/4]
-
-	testCases := []struct {
-		name string
-		a    Sketch
-		b    Sketch
-	}{
-		{name: "overlapping", a: exactSketch(whole), b: exactSketch(part)},
-		{name: "identical", a: exactSketch(whole), b: exactSketch(whole)},
-		{
-			name: "unrelated",
-			a:    exactSketch(strings.Join(randomWords(newRNG(6), 1000), " ")),
-			b:    exactSketch(strings.Join(randomWords(newRNG(7), 1000), " ")),
-		},
-		// Distinct <= 0: an empty sketch never reaches the algebra.
-		{name: "empty right", a: exactSketch(whole), b: BuildDefault("")},
-		{name: "empty left", a: BuildDefault(""), b: exactSketch(whole)},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			wantA, wantB := Containment(testCase.a, testCase.b)
-			gotA, gotB := ContainmentFrom(testCase.a, testCase.b, Jaccard(testCase.a, testCase.b))
-			if gotA != wantA || gotB != wantB {
-				t.Errorf("ContainmentFrom = (%v, %v), Containment = (%v, %v)", gotA, gotB, wantA, wantB)
-			}
-		})
-	}
-
-	// jaccard <= 0: the shared early-exit branch must hold for a caller that
-	// passes a non-positive similarity even when both sketches are non-empty.
 	a, b := exactSketch(whole), exactSketch(part)
+	empty := BuildDefault("")
+
+	if gotA, gotB := ContainmentFrom(a, empty, Jaccard(a, empty)); gotA != 0 || gotB != 0 {
+		t.Errorf("ContainmentFrom with an empty right = (%v, %v), want (0, 0)", gotA, gotB)
+	}
+	if gotA, gotB := ContainmentFrom(empty, a, Jaccard(empty, a)); gotA != 0 || gotB != 0 {
+		t.Errorf("ContainmentFrom with an empty left = (%v, %v), want (0, 0)", gotA, gotB)
+	}
 	if gotA, gotB := ContainmentFrom(a, b, 0); gotA != 0 || gotB != 0 {
 		t.Errorf("ContainmentFrom with jaccard 0 = (%v, %v), want (0, 0)", gotA, gotB)
 	}

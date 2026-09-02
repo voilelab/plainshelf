@@ -134,10 +134,6 @@ func (lf *LogFile) Close() error {
 	return nil
 }
 
-func ListLogFiles(conf LogFileConf) ([]Entry, error) {
-	return listLogFilesForSource("", conf)
-}
-
 func ListLogFilesForSources(confs []SourceConf) ([]Entry, error) {
 	logs := make([]Entry, 0)
 	seen := make(map[string]struct{}, len(confs))

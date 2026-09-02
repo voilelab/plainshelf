@@ -312,14 +312,6 @@ func (s *Shelf) scheduleBookCacheRefreshIfNeeded() {
 	}
 }
 
-func (s *Shelf) listBooksFromCache() []*Book {
-	var books []*Book
-	for _, listing := range s.listBookListingsFromCache() {
-		books = append(books, listing.Book)
-	}
-	return books
-}
-
 // listBookListingsFromCache returns every cached book together with the values
 // the cache keeps beside it. The values are copied out under the lock so that
 // no caller reads a cache entry after releasing it.

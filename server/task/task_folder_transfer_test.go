@@ -74,13 +74,15 @@ func folderTransferPlan(t *testing.T, source *shelf.Shelf, sourceFolder shelf.Fo
 
 func bookIDsUnderFolder(t *testing.T, s *shelf.Shelf, folder shelf.FolderPath) []string {
 	t.Helper()
-	books, err := s.GetBooksByFolder(folder)
+	listings, err := s.ListBooksWithCharCount()
 	if err != nil {
-		t.Fatalf("GetBooksByFolder %v: %v", folder, err)
+		t.Fatalf("ListBooksWithCharCount: %v", err)
 	}
-	ids := make([]string, 0, len(books))
-	for _, b := range books {
-		ids = append(ids, b.ID())
+	ids := make([]string, 0, len(listings))
+	for _, listing := range listings {
+		if listing.Folders.Equal(folder) {
+			ids = append(ids, listing.Book.ID())
+		}
 	}
 	return ids
 }
