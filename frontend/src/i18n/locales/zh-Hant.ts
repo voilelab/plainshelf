@@ -399,6 +399,7 @@ const zhHant = {
         '已存的間隔 {value} 無法用這組控制項精確表示，已改為上面的值。',
       advancedSettings: '進階設定',
       bookCheckIntervalLabel: '單本過期檢查間隔',
+      bookCheckIntervalAmountLabel: '單本過期檢查間隔數值',
       bookCheckIntervalHelpDefault:
         '跟隨掃描間隔。在網路書庫上，列表操作的 I/O 主要來自這裡；若列表變慢，可把它設得比掃描間隔更長。',
       bookCheckIntervalHelpEvery:

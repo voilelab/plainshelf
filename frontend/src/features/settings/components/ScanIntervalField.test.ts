@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createApp, defineComponent, h, ref } from 'vue';
+import { createApp, defineComponent, h, nextTick, ref } from 'vue';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import ScanIntervalField from './ScanIntervalField.vue';
@@ -27,9 +27,25 @@ function select(host: HTMLElement, testid: string): HTMLSelectElement {
   return el;
 }
 
-function setValue(el: HTMLSelectElement | HTMLInputElement, value: string): void {
+function amountBox(host: HTMLElement): HTMLInputElement {
+  const el = host.querySelector<HTMLInputElement>('[data-testid="scan-interval-amount"]');
+  if (!el) {
+    throw new Error('missing scan-interval-amount');
+  }
+  return el;
+}
+
+function setValue(el: HTMLSelectElement, value: string): void {
   el.value = value;
-  el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input'));
+  el.dispatchEvent(new Event('change'));
+}
+
+// Reka's NumberField commits on blur, Enter and the steppers rather than on
+// every keystroke, so typing alone reports nothing.
+function commit(el: HTMLInputElement, value: string): void {
+  el.value = value;
+  el.dispatchEvent(new Event('input'));
+  el.dispatchEvent(new Event('blur'));
 }
 
 beforeEach(() => {
@@ -51,7 +67,7 @@ describe('ScanIntervalField', () => {
     const { host, value, app } = mount('1h30m');
 
     expect(select(host, 'scan-interval-mode').value).toBe('interval');
-    expect(select(host, 'scan-interval-amount').value).toBe('90');
+    expect(amountBox(host).value).toBe('90');
     expect(select(host, 'scan-interval-unit').value).toBe('m');
     // What the controls show is what a save would write.
     expect(value.value).toBe('90m');
@@ -71,12 +87,12 @@ describe('ScanIntervalField', () => {
   it('emits a Go duration when the amount and unit change', async () => {
     const { host, value, app } = mount('10m');
 
-    setValue(select(host, 'scan-interval-amount'), '30');
-    await Promise.resolve();
+    commit(amountBox(host), '30');
+    await nextTick();
     expect(value.value).toBe('30m');
 
     setValue(select(host, 'scan-interval-unit'), 'h');
-    await Promise.resolve();
+    await nextTick();
     expect(value.value).toBe('30h');
 
     app.unmount();
@@ -85,14 +101,15 @@ describe('ScanIntervalField', () => {
   it('never emits an invalid duration while the amount box is empty', async () => {
     const { host, value, app } = mount('10m');
 
-    const amount = select(host, 'scan-interval-amount');
-    setValue(amount, '');
-    await Promise.resolve();
-    expect(value.value).toBe('1m');
+    const amount = amountBox(host);
+    commit(amount, '');
+    await nextTick();
+    await nextTick();
 
-    amount.dispatchEvent(new Event('blur'));
-    await Promise.resolve();
-    expect(amount.value).toBe('1');
+    // There is nothing to build a duration from, so the interval in force
+    // stands and the box is redrawn with it rather than left blank over it.
+    expect(value.value).toBe('10m');
+    expect(amount.value).toBe('10');
 
     app.unmount();
   });
@@ -100,17 +117,37 @@ describe('ScanIntervalField', () => {
   it('caps an amount past what Go can parse', async () => {
     const { host, value, app } = mount('10h');
 
-    const amount = select(host, 'scan-interval-amount');
-    expect(amount.getAttribute('max')).toBe('2562047');
+    const amount = amountBox(host);
+    expect(amount.getAttribute('aria-valuemax')).toBe('2562047');
 
-    setValue(amount, '2562048');
-    await Promise.resolve();
+    commit(amount, '2562048');
+    await nextTick();
     // The clamped value is one the backend accepts, so the raw
     // `invalid duration` error still cannot reach the user.
     expect(value.value).toBe('2562047h');
 
-    amount.dispatchEvent(new Event('blur'));
-    await Promise.resolve();
+    await nextTick();
+    expect(amount.value).toBe('2562047');
+
+    app.unmount();
+  });
+
+  it('re-caps the amount when a larger unit is chosen', async () => {
+    const { host, value, app } = mount('1s');
+
+    const amount = amountBox(host);
+    commit(amount, '9223372036');
+    await nextTick();
+    expect(value.value).toBe('9223372036s');
+
+    setValue(select(host, 'scan-interval-unit'), 'h');
+    await nextTick();
+    await nextTick();
+
+    // An hour holds 3600 times what a second does, so the ceiling drops with
+    // the unit; carried over unchanged this would be a duration
+    // `time.ParseDuration` rejects outright.
+    expect(value.value).toBe('2562047h');
     expect(amount.value).toBe('2562047');
 
     app.unmount();
@@ -138,12 +175,12 @@ describe('ScanIntervalField', () => {
     const { host, value, app } = mount('1500ms');
 
     expect(value.value).toBe('2s');
-    expect(select(host, 'scan-interval-amount').value).toBe('2');
+    expect(amountBox(host).value).toBe('2');
     expect(host.querySelector('.scan-interval-adjusted')?.textContent).toContain('1500ms');
 
     // The note goes away once the user picks a value of their own.
-    setValue(select(host, 'scan-interval-amount'), '5');
-    await Promise.resolve();
+    commit(amountBox(host), '5');
+    await nextTick();
     expect(value.value).toBe('5s');
     expect(host.querySelector('.scan-interval-adjusted')).toBeNull();
 
