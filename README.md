@@ -36,7 +36,9 @@ read-only storage backend, not sync: nothing is written back.
 
 EPUB is supported at import time only: the text is extracted and stored as a
 normal plain-text or Markdown book, and the original `.epub` is not kept.
-Embedded illustrations are not imported.
+A Markdown import keeps embedded illustrations in `sources/{source-id}/assets/`,
+linked where they appeared; only the ones the shelf cannot store are dropped and
+counted.
 
 ## Install
 

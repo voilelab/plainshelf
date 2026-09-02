@@ -405,10 +405,11 @@ below.
 
 Three things people miss:
 
-- **Also copy the application store** (`--store-path`, or the platform default)
-  if you want to preserve server settings. Reading progress, history, and time
-  are not in that store: each client keeps its own on the device that did the
-  reading, so none is covered by a server-side backup. Back up the browser
+- **Also copy the application store** (`app_conf.store_path` in the server
+  config file; the desktop app keeps it under `store/` in its app data
+  directory) if you want to preserve server settings. Reading progress, history,
+  and time are not in that store: each client keeps its own on the device that
+  did the reading, so none is covered by a server-side backup. Back up the browser
   profile or desktop app data directory separately if those records matter.
 - **Everything under `app/`** — the lock file, temporary files, and the exported
   book caches — can be discarded safely; the server recreates it.
