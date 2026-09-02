@@ -179,13 +179,19 @@ func (sec *Security) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		if sec.requiresToken(r) {
+		switch {
+		case sec.requiresToken(r):
 			tokenOK := sec.validToken(r)
 			if !tokenOK {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
 			if !sec.originAllowedForProtectedRequest(r, tokenOK) {
+				http.Error(w, "forbidden origin", http.StatusForbidden)
+				return
+			}
+		case sec.isTokenExemptScan(r):
+			if !sec.originAllowedForTokenExemptRequest(r) {
 				http.Error(w, "forbidden origin", http.StatusForbidden)
 				return
 			}
@@ -211,7 +217,26 @@ func (sec *Security) requiresToken(r *http.Request) bool {
 	if sec.conf.ProtectRead {
 		return true
 	}
+	if sec.isTokenExemptScan(r) {
+		return false
+	}
 	return IsMutatingMethod(r.Method)
+}
+
+// isTokenExemptScan reports the one write-shaped request the token gate lets
+// through: the shelf rescan, while protect_read is off. The gate's rule is
+// "a read needs no token unless protect_read says so", and a rescan is a read --
+// it walks the shelf and rebuilds the cache, which is why read-only mode already
+// exempts it (isReadOnlySafeRequest). Being a POST was the only thing holding it,
+// and that made the "refresh the book list" button fail with 401 under the
+// shipped defaults, which the docs promise need no token. With protect_read on,
+// reads need a token and so does this.
+//
+// Exempt from the token is not exempt from CSRF: see
+// originAllowedForTokenExemptRequest.
+func (sec *Security) isTokenExemptScan(r *http.Request) bool {
+	return sec != nil && sec.conf.Mode != SecurityModeNone && !sec.conf.ProtectRead &&
+		isReadOnlySafeRequest(r)
 }
 
 // IsLogAPIPath reports whether a path serves the log API, which always needs a
@@ -269,6 +294,22 @@ func (sec *Security) originAllowedForProtectedRequest(r *http.Request, tokenOK b
 	origin, hasOrigin := sec.requestOrigin(r)
 	if !hasOrigin {
 		return tokenOK && sec.allowMissingOriginWithToken()
+	}
+	return sec.isAllowedOrigin(origin)
+}
+
+// originAllowedForTokenExemptRequest is the CSRF half of the gate for a request
+// let through without a token. A browser attaches Origin to every cross-site
+// POST, so an origin we do not know is a page acting on its own and is refused.
+// No origin at all is not a browser -- the Android client's native HTTP bridge
+// sends none -- so there is no cross-site request to forge. That is where it
+// parts from originAllowedForProtectedRequest, which needs a valid token to
+// vouch for a missing origin; demanding one here would restore the 401 this
+// exemption removes.
+func (sec *Security) originAllowedForTokenExemptRequest(r *http.Request) bool {
+	origin, hasOrigin := sec.requestOrigin(r)
+	if !hasOrigin {
+		return true
 	}
 	return sec.isAllowedOrigin(origin)
 }

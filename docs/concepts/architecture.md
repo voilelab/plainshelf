@@ -41,6 +41,12 @@ startup and carried in the `X-PlainShelf-Token` header; origin checking is
 applied alongside it. `protect_read` extends the same requirement to reads. The
 `password` and `external` modes are reserved names and are not implemented.
 
+A shelf rescan (`POST /api/shelves/{id}/scans`) is the one `POST` the token
+treats as a read: it walks the shelf and rebuilds the cache without writing, so
+`protect_read` governs it, and read-only mode accepts it for the same reason.
+The origin check still applies, so it is exempt from the token but not from
+CSRF.
+
 The log API (`/api/logs`) is the one read that always needs the token, whatever
 `protect_read` says. Logs are server internals rather than shelf content: they
 record every request path, so reading them yields the shelf's structure along

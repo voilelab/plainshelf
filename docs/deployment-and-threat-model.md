@@ -124,6 +124,39 @@ Read `mode: local_token` as "CSRF protection for a machine you already control,"
 never as "a login." When you need a login, that is Tier C, and it is not built
 yet.
 
+### Exactly which requests need the token
+
+The rule is not "every POST." It is:
+
+| Request | Needs the token |
+|---|---|
+| `/health` and anything outside `/api/` | No |
+| Reads of the shelf (`GET`) | Only with `protect_read: true` |
+| Refreshing the book list (`POST .../scans`) | Only with `protect_read: true` |
+| Every other write | Always |
+| `/api/logs` | Always, whatever `protect_read` says |
+
+Two of those rows are deliberate exceptions rather than oversights.
+
+**Refreshing the book list is a read.** It walks the shelf and rebuilds the
+server's cache; it changes nothing on disk, and its reply is two counts. So
+`protect_read` governs it the way it governs any other read, and read-only mode
+accepts it. Requiring a token for it would have contradicted this page for the
+common case: the shipped defaults are `local_token` with `protect_read: false`,
+under which a user is told reading needs no token and then shown a refresh
+button that always failed. It is still not exempt from CSRF — a browser attaches
+`Origin` to every cross-site `POST`, so a refresh arriving from a page that is
+not in `allowed_origins` is refused, which is what stops a random website making
+your server walk an SMB shelf. A request carrying no `Origin` at all is not a
+browser and cannot be a forged cross-site request; the Android client is the
+case that matters, since its native HTTP bridge sends none.
+
+**`/api/logs` is not shelf content.** The logs record every request path, and so
+the shelf's structure, together with access times and remote addresses. Turning
+`protect_read` off to let the household read books says nothing about publishing
+that, so the logs stay behind the token either way. It is not a setting, for the
+same reason a safe default is not a choice worth offering.
+
 ## Where third-party credentials live
 
 PlainShelf runs no server of its own, so **no PlainShelf-operated service holds

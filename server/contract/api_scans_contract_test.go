@@ -84,13 +84,63 @@ func TestAPIRescanShelfIsAllowedInReadOnlyModeContract(t *testing.T) {
 	assertStatus(t, rec, http.StatusOK)
 }
 
-// The read-only exemption is not a token exemption: a rescan still costs the
-// server a full walk, so it stays behind the local_token boundary.
-func TestAPIRescanShelfStillRequiresTheTokenContract(t *testing.T) {
+// The token gate draws the same exemption: a rescan is a read, so protect_read
+// governs it rather than its method. Under the shipped defaults -- local_token
+// with protect_read off -- the docs promise reading needs no token, and the
+// "refresh the book list" button is a read the user can see.
+func TestAPIRescanShelfNeedsNoTokenWithoutProtectReadContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
 	rec := env.doRaw(httptest.NewRequest(http.MethodPost, scansURL(), nil))
+	assertStatus(t, rec, http.StatusOK)
+}
+
+// With protect_read on, reads need a token and the rescan is one of them.
+func TestAPIRescanShelfRequiresTheTokenUnderProtectReadContract(t *testing.T) {
+	security := localTokenSecurity()
+	security.ProtectRead = true
+	env := newAPITestEnv(t, withSecurity(security))
+
+	rec := env.doRaw(httptest.NewRequest(http.MethodPost, scansURL(), nil))
 	assertStatus(t, rec, http.StatusUnauthorized)
+
+	rec = env.post(scansURL(), nil)
+	assertStatus(t, rec, http.StatusOK)
+}
+
+// Dropping the token requirement does not drop the CSRF one: local_token is
+// documented as a CSRF boundary, so a rescan arriving from a page the operator
+// never listed is still refused. A request with no Origin at all is not a
+// browser -- the Android client's native HTTP bridge sends none.
+func TestAPIRescanShelfRefusesAnUnknownOriginWithoutATokenContract(t *testing.T) {
+	env := newAPITestEnv(t, withSecurity(localTokenSecurity()))
+
+	req := httptest.NewRequest(http.MethodPost, scansURL(), nil)
+	req.Header.Set("Origin", "http://evil.example")
+	assertStatus(t, env.doRaw(req), http.StatusForbidden)
+
+	req = httptest.NewRequest(http.MethodPost, scansURL(), nil)
+	req.Header.Set("Origin", "http://localhost:20000")
+	assertStatus(t, env.doRaw(req), http.StatusOK)
+}
+
+// The token exemption is matched on the same path helper as the read-only one,
+// so it must not open a neighbouring route or a shelf-less path ending in
+// /scans to an unauthenticated POST.
+func TestAPITokenExemptionIsLimitedToTheScanRouteContract(t *testing.T) {
+	env := newAPITestEnv(t)
+
+	for _, url := range []string{
+		shelfURL("scans", "extra"),
+		shelfURL("book-cache-exports"),
+		"/api/shelves//scans",
+		"/api/scans",
+	} {
+		t.Run(url, func(t *testing.T) {
+			rec := env.doRaw(httptest.NewRequest(http.MethodPost, url, nil))
+			assertStatus(t, rec, http.StatusUnauthorized)
+		})
+	}
 }
 
 // The exemption is matched on the path, so it must not open read-only mode for

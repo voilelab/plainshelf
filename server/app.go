@@ -303,9 +303,11 @@ func (app *App) rejectReadOnlyWrite(w http.ResponseWriter, r *http.Request) bool
 // method test that one route opts out of, so adding a second one has to be
 // written down here.
 //
-// The token gate is not affected. This runs after it, and a rescan still costs
-// the server real work, so it stays behind the same local_token boundary as
-// every other POST.
+// The token gate draws the same exception, for the same reason, in
+// Security.isTokenExemptScan: a rescan reads, so protect_read governs it rather
+// than its method. The two gates stay separate -- this one answers "may the
+// shelf change", that one "who is asking" -- but they agree on which requests
+// are reads.
 func isReadOnlySafeRequest(r *http.Request) bool {
 	return r.Method == http.MethodPost && isShelfScanPath(r.URL.Path)
 }
