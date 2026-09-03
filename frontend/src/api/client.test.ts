@@ -125,3 +125,74 @@ describe('assertWritableRequest', () => {
     });
   });
 });
+
+describe('error responses', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  function errorResponse(body: string, contentType: string, status = 404): Response {
+    return new Response(body, { status, headers: { 'Content-Type': contentType } });
+  }
+
+  async function failedRequest(res: Response): Promise<InstanceType<typeof ApiError>> {
+    fetchMock.mockResolvedValue(res);
+    try {
+      await fetchJson(`/api/shelves/${SHELF}/books/abc`);
+    } catch (err) {
+      return err as InstanceType<typeof ApiError>;
+    }
+    throw new Error('request unexpectedly succeeded');
+  }
+
+  beforeEach(() => {
+    isMobileRuntimeMock.mockReset();
+    isMobileRuntimeMock.mockReturnValue(false);
+    (window as unknown as { __PLAINSHELF_READ_ONLY__?: boolean }).__PLAINSHELF_READ_ONLY__ = false;
+    setActiveShelfID(SHELF);
+
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('shows the envelope message and keeps the code', async () => {
+    const err = await failedRequest(
+      errorResponse(
+        '{"error":{"code":"BOOK_NOT_FOUND","message":"book not found"}}\n',
+        'application/json; charset=utf-8'
+      )
+    );
+
+    // The user must never be shown the raw JSON.
+    expect(err.message).toBe('book not found');
+    expect(err.code).toBe('BOOK_NOT_FOUND');
+    expect(err.status).toBe(404);
+  });
+
+  // Most routes still answer http.Error plain text, and so does the standalone
+  // reader app, so the old path has to keep working unchanged.
+  it('falls back to the raw text for a plain-text refusal', async () => {
+    const err = await failedRequest(errorResponse('shelf not found', 'text/plain; charset=utf-8'));
+
+    expect(err.message).toBe('shelf not found');
+    expect(err.code).toBeUndefined();
+  });
+
+  it('falls back to the raw text for JSON that is not an envelope', async () => {
+    const err = await failedRequest(
+      errorResponse('{"taskchain_id":"abc"}', 'application/json; charset=utf-8', 409)
+    );
+
+    expect(err.message).toBe('{"taskchain_id":"abc"}');
+    expect(err.code).toBeUndefined();
+  });
+
+  it('falls back to the status line when the body is empty', async () => {
+    const err = await failedRequest(errorResponse('', 'text/plain; charset=utf-8', 502));
+
+    expect(err.message).toContain('502');
+    expect(err.code).toBeUndefined();
+  });
+});

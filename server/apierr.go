@@ -14,9 +14,21 @@ type apiError struct {
 	status  int
 	message string
 
+	// code is this error's stable public identifier, quoted verbatim in bug
+	// reports. It is part of the API: renaming one is a breaking change, and
+	// TestAPIErrorCodeListIsPinned holds the whole list so a rename cannot pass
+	// unseen.
+	code string
+
 	// retryAfter, when set, is sent as the Retry-After header in seconds.
 	retryAfter string
 }
+
+// codeIgnoredFolderName is spelled once because two paths answer with it: the
+// table entry, and the errors.As branch in apiErrorFor that replaces only the
+// message. They are the same refusal, so a client must not have to switch on
+// two codes for it.
+const codeIgnoredFolderName = "IGNORED_FOLDER_NAME"
 
 // apiErrorTable is consulted in order, so a more specific sentinel must come
 // before any general one it could also match.
@@ -25,84 +37,136 @@ var apiErrorTable = []struct {
 	response apiError
 }{
 	{shelf.ErrInvalidIdentifierKey, apiError{
+		code:    "INVALID_IDENTIFIER_KEY",
 		status:  http.StatusBadRequest,
 		message: "identifier key cannot be empty",
 	}},
 	{shelf.ErrInvalidStar, apiError{
+		code:    "INVALID_STAR",
 		status:  http.StatusBadRequest,
 		message: "star must be between 0 and 5",
 	}},
 	{shelf.ErrInvalidLanguageTag, apiError{
+		code:    "INVALID_LANGUAGE_TAG",
 		status:  http.StatusBadRequest,
 		message: "language must be a BCP 47 tag",
 	}},
 	{shelf.ErrInvalidBookFormat, apiError{
+		code:    "INVALID_BOOK_FORMAT",
 		status:  http.StatusBadRequest,
 		message: `format must be "txt" or "md"`,
 	}},
 	{shelf.ErrIgnoredFolderName, apiError{
+		code:    codeIgnoredFolderName,
 		status:  http.StatusBadRequest,
 		message: "invalid folder name: this name is skipped by the shelf scanner, so a folder named this way would not stay visible",
 	}},
 	{shelf.ErrInvalidFolder, apiError{
+		code:    "INVALID_FOLDER",
 		status:  http.StatusBadRequest,
 		message: "invalid folder name",
 	}},
 	{shelf.ErrShelfInitializing, apiError{
+		code:       "SHELF_INITIALIZING",
 		status:     http.StatusServiceUnavailable,
 		message:    "shelf is initializing, please retry shortly",
 		retryAfter: "3",
 	}},
 	{shelf.ErrShelfLockTimeout, apiError{
+		code:       "SHELF_LOCK_TIMEOUT",
 		status:     http.StatusServiceUnavailable,
 		message:    "shelf is busy, please retry shortly",
 		retryAfter: "5",
 	}},
 	{shelf.ErrBookNotFound, apiError{
+		code:    "BOOK_NOT_FOUND",
 		status:  http.StatusNotFound,
 		message: "book not found",
 	}},
 	{shelf.ErrBookIDConflict, apiError{
+		code:    "BOOK_ID_CONFLICT",
 		status:  http.StatusConflict,
 		message: "the target shelf already holds a book with this ID; the move would overwrite it",
 	}},
 	{shelf.ErrTrashedBookNotFound, apiError{
+		code:    "TRASHED_BOOK_NOT_FOUND",
 		status:  http.StatusNotFound,
 		message: "trashed book not found",
 	}},
 	{shelf.ErrSourceNotFound, apiError{
+		code:    "SOURCE_NOT_FOUND",
 		status:  http.StatusNotFound,
 		message: "source not found",
 	}},
 	{shelf.ErrInvalidAssetName, apiError{
+		code:    "INVALID_ASSET_NAME",
 		status:  http.StatusBadRequest,
 		message: "invalid asset name",
 	}},
 	{shelf.ErrAssetNotFound, apiError{
+		code:    "ASSET_NOT_FOUND",
 		status:  http.StatusNotFound,
 		message: "asset not found",
 	}},
 	{fsutil.ErrReadOnly, apiError{
+		code:    "SHELF_READ_ONLY",
 		status:  http.StatusConflict,
 		message: "shelf is opened read-only; this PlainShelf instance cannot modify it",
 	}},
 	{shelf.ErrUnsupportedBookSchemaVersion, apiError{
+		code:    "UNSUPPORTED_BOOK_SCHEMA_VERSION",
 		status:  http.StatusConflict,
 		message: "book uses a newer on-disk format than this PlainShelf build supports; upgrade PlainShelf to modify it",
 	}},
 	{shelf.ErrUnsupportedSourceSchemaVersion, apiError{
+		code:    "UNSUPPORTED_SOURCE_SCHEMA_VERSION",
 		status:  http.StatusConflict,
 		message: "source uses a newer on-disk format than this PlainShelf build supports; upgrade PlainShelf to modify it",
 	}},
 	{shelf.ErrUnsupportedTrashSchemaVersion, apiError{
+		code:    "UNSUPPORTED_TRASH_SCHEMA_VERSION",
 		status:  http.StatusConflict,
 		message: "trashed book uses a newer on-disk format than this PlainShelf build supports; upgrade PlainShelf to modify it",
 	}},
 	{taskutil.ErrWorkerBusy, apiError{
+		code:       "WORKER_BUSY",
 		status:     http.StatusServiceUnavailable,
 		message:    "background worker is busy",
 		retryAfter: "5",
 	}},
+}
+
+// The two codes no sentinel owns. Every other code names one table entry, so a
+// reporter can look it up; these two say only "the table does not name this
+// failure", and which one is sent depends on what the handler asked for:
+//
+//   - codeInternal accompanies a 5xx, where the cause was logged server-side and
+//     deliberately withheld from the body.
+//   - codeUnknown accompanies the caller-chosen non-5xx statuses of
+//     writeErrStatus, where the request is at fault but the table cannot yet say
+//     how. Calling those INTERNAL would send a reporter looking for a server
+//     bug that is not there.
+const (
+	codeInternal = "INTERNAL"
+	codeUnknown  = "UNKNOWN"
+)
+
+// apiErrorBody is the JSON envelope writeErr answers with. It is nested under a
+// single "error" key so a client can tell an error body from a successful one
+// by shape alone, and so later fields land inside the envelope rather than
+// colliding with a payload's own field names.
+type apiErrorBody struct {
+	Error apiErrorDetail `json:"error"`
+}
+
+type apiErrorDetail struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+
+	// Incident correlates this response with the server log entry that holds
+	// the withheld cause. Nothing sets it yet; it is omitted until PSW-104
+	// gives 5xx responses an incident ID.
+	Incident string `json:"incident,omitempty"`
 }
 
 // taskutil.ErrTaskChainRunning is deliberately absent from the table: it
@@ -115,7 +179,11 @@ func apiErrorFor(err error) (apiError, bool) {
 	// apply. The shelf carries the reason out with the rejection instead.
 	var ignored *shelf.IgnoredFolderNameError
 	if errors.As(err, &ignored) {
-		return apiError{status: http.StatusBadRequest, message: ignoredFolderMessage(ignored)}, true
+		return apiError{
+			code:    codeIgnoredFolderName,
+			status:  http.StatusBadRequest,
+			message: ignoredFolderMessage(ignored),
+		}, true
 	}
 
 	for _, entry := range apiErrorTable {
@@ -138,6 +206,9 @@ func ignoredFolderMessage(err *shelf.IgnoredFolderNameError) string {
 
 // writeErr answers a known error from the table, and anything else with 500
 // and fallback, so an unexpected failure never leaks its detail to the client.
+//
+// The body is the JSON envelope in every case; err.Error() reaches the log, not
+// the client.
 func (c *apiCore) writeErr(w http.ResponseWriter, err error, fallback string) {
 	c.writeErrStatus(w, err, fallback, http.StatusInternalServerError)
 }
@@ -150,10 +221,21 @@ func (c *apiCore) writeErrStatus(w http.ResponseWriter, err error, fallback stri
 		if resp.retryAfter != "" {
 			w.Header().Set("Retry-After", resp.retryAfter)
 		}
-		http.Error(w, resp.message, resp.status)
+		c.writeErrBody(w, resp.status, resp.code, resp.message)
 		return
 	}
 
 	c.Error(fallback, "error", err)
-	http.Error(w, fallback, fallbackStatus)
+
+	code := codeUnknown
+	if fallbackStatus >= http.StatusInternalServerError {
+		code = codeInternal
+	}
+	c.writeErrBody(w, fallbackStatus, code, fallback)
+}
+
+// writeErrBody sends the error envelope. It shares writeJSON so error and
+// success bodies cannot drift apart on content type or trailing newline.
+func (c *apiCore) writeErrBody(w http.ResponseWriter, status int, code, message string) {
+	c.writeJSON(w, status, apiErrorBody{Error: apiErrorDetail{Code: code, Message: message}})
 }

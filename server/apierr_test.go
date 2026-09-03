@@ -1,9 +1,13 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -152,8 +156,12 @@ func TestWriteErrSendsRetryAfterHeader(t *testing.T) {
 	if got := rec.Header().Get("Retry-After"); got != "5" {
 		t.Fatalf("Retry-After = %q, want %q", got, "5")
 	}
-	if got := strings.TrimSpace(rec.Body.String()); got != "shelf is busy, please retry shortly" {
-		t.Fatalf("body = %q, want the shelf-busy message", got)
+	got := decodeErrorEnvelope(t, rec)
+	if got.Code != "SHELF_LOCK_TIMEOUT" {
+		t.Fatalf("code = %q, want %q", got.Code, "SHELF_LOCK_TIMEOUT")
+	}
+	if got.Message != "shelf is busy, please retry shortly" {
+		t.Fatalf("message = %q, want the shelf-busy message", got.Message)
 	}
 }
 
@@ -168,13 +176,27 @@ func TestWriteErrHidesUnknownErrorBehindFallback(t *testing.T) {
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
 	}
-	body := rec.Body.String()
-	if strings.TrimSpace(body) != "failed to restore trashed book" {
-		t.Fatalf("body = %q, want the fallback message", body)
+	got := decodeErrorEnvelope(t, rec)
+	if got.Code != "INTERNAL" {
+		t.Fatalf("code = %q, want %q", got.Code, "INTERNAL")
 	}
-	if strings.Contains(body, "secret-mount") {
+	if got.Message != "failed to restore trashed book" {
+		t.Fatalf("message = %q, want the fallback message", got.Message)
+	}
+	if body := rec.Body.String(); strings.Contains(body, "secret-mount") {
 		t.Fatalf("body = %q, must not leak the underlying error", body)
 	}
+}
+
+// decodeErrorEnvelope reads the JSON envelope writeErr answers with.
+func decodeErrorEnvelope(t *testing.T, rec *httptest.ResponseRecorder) apiErrorDetail {
+	t.Helper()
+
+	var body apiErrorBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode error body %q: %v", rec.Body.String(), err)
+	}
+	return body.Error
 }
 
 // taskutil.ErrTaskChainRunning answers with a JSON body carrying the running
@@ -198,5 +220,152 @@ func TestAPIErrorForPrefersIgnoredFolderNameOverInvalidFolder(t *testing.T) {
 	}
 	if resp.message == "invalid folder name" {
 		t.Fatalf("message = %q, want the ignored-name explanation; the entry must precede ErrInvalidFolder", resp.message)
+	}
+}
+
+// Error codes are a public interface: a user quotes one in a bug report and a
+// client switches on it, so a rename is a breaking change for both. This pins
+// the whole list, which is why it is spelled out here rather than derived from
+// the table - a test that read the table would agree with any edit to it.
+//
+// Changing this list is allowed. Changing it *silently* is not: an edit here is
+// the moment to decide whether callers can follow.
+func TestAPIErrorCodeListIsPinned(t *testing.T) {
+	want := []string{
+		"INVALID_IDENTIFIER_KEY",
+		"INVALID_STAR",
+		"INVALID_LANGUAGE_TAG",
+		"INVALID_BOOK_FORMAT",
+		"IGNORED_FOLDER_NAME",
+		"INVALID_FOLDER",
+		"SHELF_INITIALIZING",
+		"SHELF_LOCK_TIMEOUT",
+		"BOOK_NOT_FOUND",
+		"BOOK_ID_CONFLICT",
+		"TRASHED_BOOK_NOT_FOUND",
+		"SOURCE_NOT_FOUND",
+		"INVALID_ASSET_NAME",
+		"ASSET_NOT_FOUND",
+		"SHELF_READ_ONLY",
+		"UNSUPPORTED_BOOK_SCHEMA_VERSION",
+		"UNSUPPORTED_SOURCE_SCHEMA_VERSION",
+		"UNSUPPORTED_TRASH_SCHEMA_VERSION",
+		"WORKER_BUSY",
+	}
+
+	got := make([]string, 0, len(apiErrorTable))
+	for _, entry := range apiErrorTable {
+		got = append(got, entry.response.code)
+	}
+
+	if !slices.Equal(got, want) {
+		t.Fatalf("codes =\n\t%q\nwant\n\t%q", got, want)
+	}
+
+	// The two codes no sentinel owns are part of the same published list.
+	for _, code := range []string{codeInternal, codeUnknown} {
+		if slices.Contains(want, code) {
+			t.Errorf("code %q is both a table entry and a fallback", code)
+		}
+	}
+}
+
+// A code identifies one error, so two entries sharing one would send a reporter
+// to the wrong row of the table, and an empty one identifies nothing.
+func TestAPIErrorCodesAreUniqueAndWellFormed(t *testing.T) {
+	wellFormed := regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`)
+
+	seen := map[string]error{}
+	for _, entry := range apiErrorTable {
+		code := entry.response.code
+		if !wellFormed.MatchString(code) {
+			t.Errorf("code %q for %v is not SCREAMING_SNAKE", code, entry.sentinel)
+		}
+		if other, dup := seen[code]; dup {
+			t.Errorf("code %q is shared by %v and %v", code, other, entry.sentinel)
+		}
+		seen[code] = entry.sentinel
+	}
+}
+
+// The ignored-folder rejection is matched by errors.As ahead of the table, so
+// it has its own code assignment that the table pin above cannot reach.
+func TestIgnoredFolderNameErrorKeepsTheTablesCode(t *testing.T) {
+	tableEntry, ok := apiErrorFor(util.Errorf("%w", shelf.ErrIgnoredFolderName))
+	if !ok {
+		t.Fatal("apiErrorFor(ErrIgnoredFolderName) not found in table")
+	}
+
+	specific, ok := apiErrorFor(&shelf.IgnoredFolderNameError{Folder: "@eaDir"})
+	if !ok {
+		t.Fatal("apiErrorFor(*IgnoredFolderNameError) not matched")
+	}
+
+	if specific.code != tableEntry.code {
+		t.Fatalf("code = %q, want the table's %q: the richer message is the same "+
+			"refusal, so a client cannot be made to switch on two codes for it",
+			specific.code, tableEntry.code)
+	}
+}
+
+// writeErrStatus lets a handler pick a non-5xx status for an error the table
+// cannot name. Those are the caller's fault, not the server's, so they must not
+// be reported as INTERNAL - a reporter would go looking for a server bug.
+func TestWriteErrStatusSeparatesUnknownFromInternal(t *testing.T) {
+	app := newTestApp(t)
+
+	tests := []struct {
+		name   string
+		status int
+		want   string
+	}{
+		{"caller error", http.StatusBadRequest, codeUnknown},
+		{"caller conflict", http.StatusConflict, codeUnknown},
+		{"server error", http.StatusInternalServerError, codeInternal},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			app.handlers.core.writeErrStatus(rec, errors.New("unnamed"), "fallback", tt.status)
+
+			if rec.Code != tt.status {
+				t.Fatalf("status = %d, want %d", rec.Code, tt.status)
+			}
+			if got := decodeErrorEnvelope(t, rec).Code; got != tt.want {
+				t.Fatalf("code = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// The envelope is what every client parses, so its content type and nesting are
+// pinned here rather than left to writeJSON's success-path tests.
+func TestWriteErrBodyShape(t *testing.T) {
+	app := newTestApp(t)
+
+	rec := httptest.NewRecorder()
+	app.handlers.core.writeErr(rec, util.Errorf("%w", shelf.ErrBookNotFound), "unused")
+
+	if got := rec.Header().Get("Content-Type"); got != "application/json; charset=utf-8" {
+		t.Fatalf("Content-Type = %q, want the JSON content type", got)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("decode %q: %v", rec.Body.String(), err)
+	}
+	if len(raw) != 1 {
+		t.Fatalf("top-level keys = %v, want only \"error\"", slices.Sorted(maps.Keys(raw)))
+	}
+
+	// incident is omitted until PSW-104 fills it, so a client must not be
+	// written against an empty string being present.
+	var detail map[string]any
+	if err := json.Unmarshal(raw["error"], &detail); err != nil {
+		t.Fatalf("decode error object: %v", err)
+	}
+	if _, present := detail["incident"]; present {
+		t.Errorf("incident is present but nothing sets it yet: %v", detail)
 	}
 }

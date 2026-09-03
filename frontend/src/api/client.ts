@@ -5,6 +5,12 @@ export class ApiError extends Error {
   statusText?: string;
   url?: string;
   isTimeout: boolean;
+  /**
+   * The server's stable error code (SCREAMING_SNAKE), when the response carried
+   * the JSON error envelope. Unset for the routes that still answer plain text
+   * and for transport failures, so callers must treat it as optional.
+   */
+  code?: string;
 
   constructor(
     message: string,
@@ -14,6 +20,7 @@ export class ApiError extends Error {
       url?: string;
       cause?: unknown;
       isTimeout?: boolean;
+      code?: string;
     }
   ) {
     super(message);
@@ -22,6 +29,7 @@ export class ApiError extends Error {
     this.statusText = options?.statusText;
     this.url = options?.url;
     this.isTimeout = options?.isTimeout ?? false;
+    this.code = options?.code;
 
     if (options?.cause !== undefined) {
       (this as Error & { cause?: unknown }).cause = options.cause;
@@ -220,13 +228,48 @@ const FETCH_TIMEOUT_MS = 30_000;
 // Large content (book text, cover images) on slow SMB mounts may take several minutes.
 const FETCH_STREAM_TIMEOUT_MS = 300_000;
 
+/**
+ * The JSON body the Go server's error table answers with.
+ *
+ * Not every refusal carries it: the routes that still call http.Error directly
+ * answer plain text, and so does the standalone reader app, so the envelope is
+ * parsed opportunistically and the raw text remains the fallback. Showing the
+ * user a JSON blob would be worse than the string they saw before.
+ */
+interface ApiErrorEnvelope {
+  error: { code?: unknown; message?: unknown; incident?: unknown };
+}
+
+function parseErrorEnvelope(raw: string): { code?: string; message?: string } | null {
+  if (!raw.startsWith('{')) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+
+  const envelope = (parsed as ApiErrorEnvelope | null)?.error;
+  if (typeof envelope !== 'object' || envelope === null) return null;
+
+  const code = typeof envelope.code === 'string' ? envelope.code : undefined;
+  const message = typeof envelope.message === 'string' ? envelope.message : undefined;
+  if (code === undefined && message === undefined) return null;
+
+  return { code, message };
+}
+
 async function toApiError(res: Response): Promise<ApiError> {
   const raw = (await res.text()).trim();
-  const message = raw || `HTTP ${res.status}: ${res.statusText}`;
+  const envelope = parseErrorEnvelope(raw);
+  const message =
+    envelope?.message || (envelope ? '' : raw) || `HTTP ${res.status}: ${res.statusText}`;
   return new ApiError(message, {
     status: res.status,
     statusText: res.statusText,
-    url: res.url
+    url: res.url,
+    code: envelope?.code
   });
 }
 

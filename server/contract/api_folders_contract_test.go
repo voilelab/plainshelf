@@ -77,10 +77,8 @@ func TestAPIInvalidFolderNameIsARequestErrorContract(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := env.request(tt.method, tt.path, strings.NewReader(tt.body))
 
-			assertStatus(t, rec, http.StatusBadRequest)
-			if got := strings.TrimSpace(rec.Body.String()); got != "invalid folder name" {
-				t.Fatalf("body = %q, want %q", got, "invalid folder name")
-			}
+			assertErrorEnvelope(t, rec, http.StatusBadRequest,
+				"INVALID_FOLDER", "invalid folder name")
 		})
 	}
 }
@@ -114,10 +112,8 @@ func TestAPIImportRejectsInvalidFolderNameContract(t *testing.T) {
 	rec := postBookImport(t, env,
 		bookUpload("import.txt", plainTextContentType, "body", [2]string{"folder", ".."}))
 
-	assertStatus(t, rec, http.StatusBadRequest)
-	if got := strings.TrimSpace(rec.Body.String()); got != "invalid folder name" {
-		t.Fatalf("body = %q, want %q", got, "invalid folder name")
-	}
+	assertErrorEnvelope(t, rec, http.StatusBadRequest,
+		"INVALID_FOLDER", "invalid folder name")
 }
 
 // A folder named after a directory the scanners skip is refused for a reason the
@@ -157,13 +153,16 @@ func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
 			rec := env.request(tt.method, tt.path, strings.NewReader(tt.body))
 
 			assertStatus(t, rec, http.StatusBadRequest)
-			got := strings.TrimSpace(rec.Body.String())
-			if got == "invalid folder name" {
-				t.Fatalf("body = %q, want a message naming the ignore rule", got)
+			got := decodeJSON[apiErrorEnvelope](t, rec).Error
+			if got.Code != "IGNORED_FOLDER_NAME" {
+				t.Fatalf("error code = %q, want %q", got.Code, "IGNORED_FOLDER_NAME")
+			}
+			if got.Message == "invalid folder name" {
+				t.Fatalf("message = %q, want one naming the ignore rule", got.Message)
 			}
 			for _, want := range []string{"while scanning", "would not stay visible"} {
-				if !strings.Contains(got, want) {
-					t.Fatalf("body = %q, want it to contain %q", got, want)
+				if !strings.Contains(got.Message, want) {
+					t.Fatalf("message = %q, want it to contain %q", got.Message, want)
 				}
 			}
 		})
@@ -174,10 +173,8 @@ func TestAPIIgnoredFolderNameExplainsTheRuleContract(t *testing.T) {
 	t.Run("other invalid folder keeps the general message", func(t *testing.T) {
 		rec := env.post(shelfURL("folders", "bad%2F..%2Fesc"), nil)
 
-		assertStatus(t, rec, http.StatusBadRequest)
-		if got := strings.TrimSpace(rec.Body.String()); got != "invalid folder name" {
-			t.Fatalf("body = %q, want %q", got, "invalid folder name")
-		}
+		assertErrorEnvelope(t, rec, http.StatusBadRequest,
+			"INVALID_FOLDER", "invalid folder name")
 	})
 }
 
@@ -197,10 +194,10 @@ func TestAPIConfiguredIgnoredFolderNameCarriesTheShelfsReasonContract(t *testing
 	rec := env.post(shelfURL("folders", "%40Snapshot"), nil)
 
 	assertStatus(t, rec, http.StatusBadRequest)
-	got := strings.TrimSpace(rec.Body.String())
+	got := decodeJSON[apiErrorEnvelope](t, rec).Error.Message
 	for _, want := range []string{"@Snapshot", "Synology snapshot directory"} {
 		if !strings.Contains(got, want) {
-			t.Fatalf("body = %q, want it to contain %q", got, want)
+			t.Fatalf("message = %q, want it to contain %q", got, want)
 		}
 	}
 
