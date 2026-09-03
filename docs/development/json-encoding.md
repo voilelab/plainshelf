@@ -127,17 +127,22 @@ Not done, deliberately:
 
 ## What the tests enforce
 
-**Determinism, per payload.** `testutil.AssertMarshalIsDeterministic` marshals a
-value 64 times and fails if the bytes ever move. Every type written to disk has
-a case: `fingerprint.cacheFile`, `scancache.scanCacheFile` and its digest
-payload, `shelf.BookCacheFile` and its digest payload, `bookpkg.BookMeta` with
-its `Identifiers` map, and `readingprogress.Document`. Adding a new on-disk
-payload means adding one.
+**Determinism, once.** `TestOptionSetsSortMapKeys` in `internal/jsonopt`
+marshals a payload shaped like the ones the shelf writes — maps reached through
+a struct field and through another map — 64 times with each exported set and
+fails if the bytes ever move. It is asserted here and not once per on-disk type
+on purpose: `Deterministic` sorts every map in a value at every depth, so
+repeating the assertion for `cacheFile`, `BookCacheFile` and the rest would
+re-test the standard library rather than anything this repository decides.
 
-**A control for those assertions.** `TestOptionsWithoutDeterministicVaryTheOrder`
-in `internal/jsonopt` marshals a 12-key map *without* the option and fails if
-the order never changes. Without it, the assertions above would keep passing on
-a toolchain that happened to sort maps, and would stop meaning anything.
+What is worth asserting per payload is a different claim — that the *writer*
+passes the option at all — and that belongs in the conversion tickets, against
+the real write path, once a call site uses `jsonopt`.
+
+**A control for that assertion.** `TestOptionsWithoutDeterministicVaryTheOrder`
+marshals the same payload *without* the option and fails if the order never
+changes. Without it the assertion above would keep passing on a toolchain that
+happened to sort maps, and would stop meaning anything.
 
 **The import ban.** `internal/repocheck` fails on any Go file importing
 `encoding/json` that `jsonV1Allowlist` does not excuse. Each entry names the
