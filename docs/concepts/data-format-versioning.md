@@ -295,8 +295,10 @@ breaking change, not data that 1.0 guarantees to migrate.
   upgrade both. A read-only reader — the Android client on a pCloud shelf — is
   exempt from the losing half of this, since it never rewrites a book, but it can
   still be built against an older schema than the shelf and show stale or missing
-  fields. [Hand-editing `book.json`](#hand-editing-bookjson) below says which
-  edits do survive.
+  fields — which it says on the book's page rather than leaving you to guess (see
+  [What a version mismatch costs the phone](#what-a-version-mismatch-costs-the-phone)).
+  [Hand-editing `book.json`](#hand-editing-bookjson) below says which edits do
+  survive.
 - Reading a book whose `schema_version` is higher than the build supports is
   best-effort. Fields may be missing or misinterpreted, and the displayed
   metadata may be wrong. It is shown so you can see the book exists, not so you
@@ -632,6 +634,15 @@ next export rebuilds it, and [Data Model](data-model.md#app) says as much. From
 the phone's side, deleting or invalidating it is the difference between one
 download and a full per-book walk — still safe, still never an error, but no
 longer free.
+
+`book.json`'s own version is the other mismatch the phone can meet, and it is
+answered differently: the book is read best-effort and listed as usual, because
+this reader never writes and so has no write to refuse. What the server says by
+refusing one, the phone therefore has to say out loud — a book whose
+`schema_version` is newer than `BOOK_META_SCHEMA_VERSION` carries a notice on its
+detail page saying the file was saved in a newer format and that some of its
+details may be missing here. It is the same fact as the server's `409 Conflict`,
+told to a reader who will never trip over the write that produces it.
 
 ---
 

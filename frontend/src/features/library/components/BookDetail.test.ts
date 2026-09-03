@@ -161,3 +161,29 @@ describe('BookDetail import note removal', () => {
     expect(textRows(host).map((dd) => dd.textContent)).toEqual(['轉換備註']);
   });
 });
+
+describe('BookDetail newer-schema notice', () => {
+  /** The notice, which sits above the heading rather than in a card. */
+  function notice(host: HTMLElement): HTMLElement | null {
+    return host.querySelector('.schema-notice');
+  }
+
+  it('tells the reader the book was saved in a newer format', () => {
+    const host = mount({ book: { ...book(''), schema_newer_than_supported: true } });
+
+    const shown = notice(host);
+    expect(shown).not.toBeNull();
+    expect(shown?.getAttribute('role')).toBe('status');
+    // Whichever locale the test runs in, the notice names the app rather than
+    // calling the book broken.
+    expect(shown?.textContent).toContain('PlainShelf');
+  });
+
+  it('shows nothing for a book whose book.json carried no such mark', () => {
+    expect(notice(mount({ book: book('') }))).toBeNull();
+  });
+
+  it('shows nothing when the mark is explicitly false', () => {
+    expect(notice(mount({ book: { ...book(''), schema_newer_than_supported: false } }))).toBeNull();
+  });
+});

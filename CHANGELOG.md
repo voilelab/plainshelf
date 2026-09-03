@@ -12,6 +12,7 @@ and UI behavior may still change between releases.
 - Added a **?** button to the mobile reader's controls that replays the gesture hint, which previously showed only once per device.
 - Added a default shelf directory to the desktop **Create shelf** dialog, which now previews the path and the shelf ID for the typed name and creates the shelf under the app data directory's `shelves/<shelf id>` when no directory is picked.
 - Added each shelf's read-only state to `GET /api/shelves` (`read_only`), which the UI now uses to hide the write controls on a read-only shelf — importing, metadata/source/cover editing, folder creation and moves, deleting, trash restore — and show a banner saying so, while browsing, reading, searching and rescanning stay available.
+- Added a notice on a book's detail page when its `book.json` was saved in a newer format than the reader supports, so a pCloud shelf on Android no longer shows an incomplete book as if it were complete.
 
 ### Changed
 
