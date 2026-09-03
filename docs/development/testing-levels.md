@@ -9,7 +9,7 @@ forever. Nobody makes that trade deliberately; it is what happens when there is
 no page like this one.
 
 This page is that page. It defines five levels, says what each one may touch,
-and gives seven rules and three budgets that decide between them. It should
+and gives seven rules and four budgets that decide between them. It should
 answer "which level?" in about thirty seconds. Where it does not, the honest
 answer is usually [R2](#rules).
 
@@ -40,7 +40,7 @@ drift.
 | **L1** | Go unit | Pure Go, `t.TempDir()`, in-process fakes | Beside the code: `shelf/`, `internal/`, `server/`, `desktop/`, `reader/` | `go test ./...` |
 | **L2** | Go API contract | The real router over `httptest`, a real shelf in a temp dir, the `local_token` gate | `server/contract/api_*_contract_test.go` | `go test ./...` |
 | **L3** | Frontend unit and component | jsdom, components mounted in process, a mocked API client | `frontend/src/**/*.test.ts` next to the module, plus `frontend/scripts/*.test.mjs` for the gate scripts | `npm --prefix frontend test` |
-| **L4** | End-to-end | Real Chromium, a real `plainshelf-srv`, a real shelf on disk, the embedded bundle | `e2e/tests/*.spec.ts`, helpers in `e2e/tests/support/` | `just test-e2e` |
+| **L4** | End-to-end | Real Chromium, a real `plainshelf-srv`, a real shelf on disk, the embedded bundle | `e2e/tests/*.spec.ts`, helpers in `e2e/tests/support/` | `just test-e2e`, or `just test-e2e-smoke` for the pull request's subset |
 | **L5** | Manual on device | Anything CI cannot reach: a phone, a desktop window, an SMB share | No code. Steps in `docs/development/`, evidence in the pull request | A person |
 
 ### L1 — Go unit
@@ -83,6 +83,46 @@ traps — preview routing, offline simulation, teardown `ENOTEMPTY`, the pinned
 browser revision — are listed under "Mobile and end-to-end tests" in
 `.claude/rules/50-lessons.md`. Read them before charging a red spec to your
 diff.
+
+#### L4 runs in two tiers
+
+A pull request does not run the whole suite. It runs the cases tagged
+`@smoke`, and the rest run once a night on `dev`:
+
+| Tier | What runs | Where | What it gates |
+|---|---|---|---|
+| Smoke | `@smoke`, 15 cases | `ci.yml`, every pull request | the merge |
+| Full | all 101 cases | `nightly.yml`, 03:00 UTC on `dev` | the release |
+
+The split exists because the wait before a merge should not grow with the
+suite. It costs one thing, and it is worth stating plainly: **a green pull
+request no longer means the E2E suite passed.** A change outside the smoke set
+is checked by `just test-e2e` before pushing, and by the night after merging;
+when the night is red, the workflow opens (or comments on) one issue on this
+repository.
+
+The smoke tier is a budget of its own — ≤ 20 cases, 15 today — and its job is
+to notice that the product is broken, not to cover behavior. It holds one case
+per critical journey:
+
+| Journey | Cases |
+|---|---|
+| Import and render | `import-book` (txt, markdown, HTML sanitisation), `import-epub` (TOC) |
+| Reading and progress | `read-history` (record and clear) |
+| Browsing | `library-search` (filter and restore) |
+| Editing a source | `source-editor` (edit and see it in the reader, create and switch) |
+| Security | `security-headers` (all three) |
+| Mobile read-only | `mobile-read-only` (routing, reachability, hidden writes, rejected write) |
+
+Tag with Playwright's own option — `test('…', { tag: '@smoke' }, async …)` —
+so `--grep @smoke` finds it. Adding a case to the smoke tier is not free: it is
+on the critical path of every merge, so it needs the same net-zero argument R4
+asks for, against the 20-case limit rather than the 40-case one.
+
+The suite runs `fullyParallel`, at two workers on CI and half the local cores
+otherwise. That is safe because a server is per spec file rather than per
+suite: `startServer()` in `e2e/tests/support/server.ts` mints its own temp
+shelf, its own store and a port from this worker's own band on every call.
 
 ### L5 — Manual on device
 
@@ -158,20 +198,25 @@ automation for it. A step done once is not a process.
 |---|---|---|
 | PR gate wall clock (`ci.yml`) | ≤ 10 minutes | 5:28 median, 7:52 worst (2026-09-03) |
 | E2E cases in total | ≤ 40 | **101** |
+| E2E cases in the PR gate (`@smoke`) | ≤ 20 | 15 |
 | E2E cases in one spec | ≤ 5 | **11** (`folder-tree.spec.ts`) |
 
 **When a budget is exceeded, the answer is to delete tests, not to raise the
 budget.** A budget that moves whenever it binds is a description, not a limit.
 
-Two of the three rows are red today, and the reduction that fixes them is its
+Two of the four rows are red today, and the reduction that fixes them is its
 own piece of work, not something to smuggle into an unrelated pull request.
 Until it lands, R4 is what holds the line: the E2E suite does not grow past 101
 while it is being brought down to 40.
 
-The wall-clock row still has headroom, and that is exactly why the other two
-matter: the gate is cheap today because the expensive level has not yet grown
-enough to show up in it. But "about two times' headroom", which this page used
-to claim, was optimistic — the table below is where that number comes from now.
+The two green rows are green for different reasons, and only one of them is a
+reason to relax. The smoke row is a limit that was chosen and is enforced on
+every pull request. The wall-clock row is cheap because the expensive level has
+been moved off the gate, not because it stopped growing — the whole suite is
+still 101 cases, they now cost a night instead of a merge, and moving them back
+is what R4 and the 40-case row are for. "About two times' headroom", which this
+page used to claim before either change, was optimistic; the table below is
+where the number comes from now.
 
 ## The time budget per job
 
@@ -188,11 +233,19 @@ parallel behind it.
 | Frontend build | 1:30 | 1:19 | 1:23 | **1:23** | 5 |
 | Go lint | 0:30 | 0:26 | 0:49 | **0:30** | 5 |
 | Go tests | 0:28 | 0:36 | 0:35 | **0:35** | 5 |
-| Frontend E2E | 3:34 | 6:27 | 3:22 | **3:34** | 13 |
+| Frontend E2E | 3:34 | 6:27 | 3:22 | **3:34** | 10 † |
 | Android build | 1:29 | 1:24 | 1:05 | **1:24** | 5 |
 | Go vulnerability scan | 0:43 | 0:42 | 0:45 | **0:43** | 5 |
 | npm audit | 0:07 | 0:07 | 0:10 | **0:07** | 5 |
 | **Whole run** | 5:09 | 7:52 | 5:28 | **5:28** | — |
+
+† The E2E row measures the job as it was: 101 cases, one worker. PSW-77 made
+it 15 cases at two workers, which ran in 20s on a 4-core container against
+2:47–2:55 for the whole suite on CI, so both the measurement and the cap above
+it are stale in the same direction. The cap is provisionally 10 — enough for a
+3:05 browser-cache miss plus setup — and has to be re-measured over three `dev`
+runs and tightened, along with this row. `nightly.yml`, which now carries the
+other 86 cases, has no measured baseline at all and starts at 25.
 
 One caveat before reading the two kinds of row together: `timeout-minutes`
 counts a job's *execution*, while the whole-run row also counts its wait for a
@@ -243,6 +296,11 @@ GitHub job summary — no artifact to download:
   `vitest.config.ts`).
 - `e2e/slowest-tests-reporter.ts`, wired up in `e2e/playwright.config.ts`
   alongside the `list` reporter that already times each case.
+
+The E2E job retries a failed case **once** on CI, not twice. A retry buys one
+thing — telling a genuinely flaky test from a broken one — and one is enough
+for that; the second attempt only lets a test that fails half the time pass
+anyway, which is the outcome R6 exists to prevent.
 
 `go test` has no equivalent here on purpose: getting per-test durations out of
 it means `-json`, and that trades readable failure output for a report on a job

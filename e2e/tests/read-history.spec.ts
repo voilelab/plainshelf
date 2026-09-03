@@ -5,7 +5,7 @@ import { openReaderTab } from './support/reader';
 
 const getServer = useServer();
 
-test('should record a book in read history after visiting the reader and clear it', async ({
+test('should record a book in read history after visiting the reader and clear it', { tag: '@smoke' }, async ({
   page
 }) => {
   const { baseUrl } = getServer();

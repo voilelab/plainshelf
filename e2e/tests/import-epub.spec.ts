@@ -62,7 +62,7 @@ async function openImportedBookInReader(page: Page): Promise<Page> {
   return openReaderTab(page, () => page.getByRole('button', { name: 'Start reading' }).click());
 }
 
-test('should import an EPUB and name its sections after the table of contents', async ({ page }) => {
+test('should import an EPUB and name its sections after the table of contents', { tag: '@smoke' }, async ({ page }) => {
   // per-test server: the imported book's title comes from the fixture's fixed
   // dc:title ("Hello EPUB"), which cannot be made unique per test without
   // editing the shared EPUB fixture. The "1 books" count and the by-title reader

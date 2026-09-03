@@ -133,9 +133,18 @@ jobs:
         run: cd reader && go test -timeout 2m ./...
 
   e2e:
+    # The name is the required-check name in the branch protection rule, so it
+    # stays "Frontend E2E" even though the job now runs only the smoke tier —
+    # internal/repocheck's TestCIJobNamesAreStable enforces that.
     name: Frontend E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 13
+    # PSW-77: provisional. The tier split changed the shape of this job — 15
+    # smoke cases instead of 101, at two workers — so the measured 6:27 that
+    # justified 13 no longer describes it. The subset ran in 20s on a 4-core
+    # container, leaving the browser install as the variable part (23s to 3:05
+    # across the three measured runs). Re-measure over three `dev` runs and
+    # tighten this per docs/development/testing-levels.md.
+    timeout-minutes: 10
     needs: frontend
     steps:
       - name: Checkout
@@ -168,9 +177,12 @@ jobs:
         working-directory: e2e
         run: npx playwright install --with-deps chromium
 
-      - name: Run frontend E2E tests
+      # The `@smoke` subset only: the whole suite runs nightly (nightly.yml),
+      # where it gates the release instead of the merge. The tagged cases are
+      # listed in docs/development/testing-levels.md.
+      - name: Run frontend E2E smoke tests
         working-directory: e2e
-        run: npm test
+        run: npm run test:smoke
 
   android:
     name: Android build

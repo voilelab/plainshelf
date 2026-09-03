@@ -10,6 +10,27 @@ import { serverBinaryEnvVar } from './globalSetup';
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const serverStartupTimeoutMs = 30_000;
 const serverShutdownTimeoutMs = 10_000;
+/**
+ * How many times a server start may pick a fresh port after losing a race for
+ * the previous one. See {@link portTakenMarker}.
+ */
+const serverStartAttempts = 3;
+/**
+ * The server logs this and then *keeps running* without a listener, so a lost
+ * port race looks like a healthy process that never answers /health. Matching
+ * the line turns a 30-second timeout into an immediate retry.
+ */
+const portTakenMarker = 'bind: address already in use';
+/**
+ * Per-probe cap on the /health request. Without it a probe can block forever:
+ * when the port belongs to a process that accepts connections and never
+ * answers, `fetch` has no timeout of its own, so the poll loop stops ticking
+ * and `serverStartupTimeoutMs` is never reached — the run fails much later with
+ * Playwright's bare "beforeAll hook timeout" and none of the server's output.
+ */
+const healthProbeTimeoutMs = 2_000;
+/** How many times a busy temp shelf may be re-tried before teardown fails. */
+const tempRootRemovalAttempts = 5;
 
 export type ServerEnv = {
   baseUrl: string;
@@ -18,21 +39,63 @@ export type ServerEnv = {
   dispose: () => Promise<void>;
 };
 
-async function getFreePort(): Promise<number> {
-  const server = net.createServer();
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => resolve());
-  });
+/**
+ * Base of the port bands handed out below. Above the privileged range and
+ * below Linux's ephemeral range (32768+), so a band never overlaps a port the
+ * kernel might hand to something else on the machine.
+ */
+const portBandBase = 21_000;
+/** Ports per worker. Bands are disjoint, so two workers cannot collide. */
+const portBandSize = 100;
 
-  const address = server.address();
-  if (!address || typeof address === 'string') {
-    await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-    throw new Error('Failed to determine a free TCP port for the E2E server.');
+/**
+ * Playwright numbers its workers 0..workers-1 and reuses the number when a
+ * worker is replaced, so it is a stable band index rather than a run counter.
+ * Absent (a plain `node` caller, or a spec run outside the runner) means one
+ * server at a time, which band 0 serves.
+ */
+const parallelIndex = Number(process.env.TEST_PARALLEL_INDEX ?? 0);
+/** Rotates within the band so a restart rarely lands on the port just freed. */
+let nextPortOffset = 0;
+
+/** Resolves true when nothing holds `port`, false when the bind is refused. */
+async function canBind(port: number): Promise<boolean> {
+  const probe = net.createServer();
+  const bound = await new Promise<boolean>((resolve) => {
+    probe.once('error', () => resolve(false));
+    probe.listen(port, '127.0.0.1', () => resolve(true));
+  });
+  if (!bound) {
+    return false;
+  }
+  await new Promise<void>((resolve) => probe.close(() => resolve()));
+  return true;
+}
+
+/**
+ * Picks a port from this worker's own band.
+ *
+ * Asking the kernel for port 0 would be shorter, but it makes the port a
+ * lottery across the whole machine: two workers can be handed the same number,
+ * and the loser then finds a *healthy* /health answer on it — the other
+ * worker's server, over the other worker's shelf. A per-worker band removes
+ * the collision instead of detecting it. Within one worker, starts are
+ * sequential and a live server still holds its port, so the bind probe is
+ * enough to keep two of them apart.
+ */
+async function getFreePort(): Promise<number> {
+  for (let tried = 0; tried < portBandSize; tried++) {
+    const port = portBandBase + parallelIndex * portBandSize + (nextPortOffset % portBandSize);
+    nextPortOffset = (nextPortOffset + 1) % portBandSize;
+    if (await canBind(port)) {
+      return port;
+    }
   }
 
-  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
-  return address.port;
+  throw new Error(
+    `No free port in the E2E band ${portBandBase + parallelIndex * portBandSize}` +
+      `-${portBandBase + (parallelIndex + 1) * portBandSize - 1} for worker ${parallelIndex}.`
+  );
 }
 
 function buildConfigYAML(port: number, shelfDir: string, storeDir: string): string {
@@ -75,6 +138,14 @@ function buildConfigYAML(port: number, shelfDir: string, storeDir: string): stri
   ].join('\n');
 }
 
+/** Distinguishes a lost port race, which is worth retrying, from a real failure. */
+class PortTakenError extends Error {
+  constructor(baseUrl: string) {
+    super(`Another process holds the port of ${baseUrl}; retrying with a new one.`);
+    this.name = 'PortTakenError';
+  }
+}
+
 async function waitForServer(baseUrl: string, server: ChildProcess, logs: string[]): Promise<void> {
   const deadline = Date.now() + serverStartupTimeoutMs;
 
@@ -85,14 +156,24 @@ async function waitForServer(baseUrl: string, server: ChildProcess, logs: string
     if (server.signalCode) {
       throw new Error(`Server exited early with signal ${server.signalCode}.\n${logs.join('')}`);
     }
-
+    let healthy = false;
     try {
-      const response = await fetch(`${baseUrl}/health`);
-      if (response.ok && (await response.text()).trim() === '1') {
-        return;
-      }
+      const response = await fetch(`${baseUrl}/health`, {
+        signal: AbortSignal.timeout(healthProbeTimeoutMs)
+      });
+      healthy = response.ok && (await response.text()).trim() === '1';
     } catch {
       // Server is still starting.
+    }
+
+    // After the probe, not only before it: a healthy answer on a port we lost
+    // comes from *another worker's* server, and taking it would quietly hand
+    // two workers the same shelf. Our own process reports the lost bind here.
+    if (logs.join('').includes(portTakenMarker)) {
+      throw new PortTakenError(baseUrl);
+    }
+    if (healthy) {
+      return;
     }
 
     await new Promise((resolve) => setTimeout(resolve, 250));
@@ -144,7 +225,54 @@ async function stopServer(server: ChildProcess): Promise<void> {
   }
 }
 
+/**
+ * Deletes a temp shelf, tolerating a directory that is still busy.
+ *
+ * The server is gone by the time this runs, but its last writes are not
+ * necessarily visible to `rm` yet, and the whole-suite failure recorded in
+ * `.claude/rules/50-lessons.md` was exactly that: `ENOTEMPTY … rmdir
+ * '<tmp>/shelf/app'`, landing on a different spec each run. Parallel workers
+ * multiply the chances, so retry briefly instead of failing a green spec in
+ * teardown.
+ */
+async function removeTempRoot(tempRoot: string): Promise<void> {
+  // `fs.rm`'s own maxRetries only covers EBUSY/EMFILE/ENFILE/ENOTEMPTY/EPERM
+  // on Windows, so the backoff has to be ours.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await fs.rm(tempRoot, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      const retryable = code === 'ENOTEMPTY' || code === 'EBUSY' || code === 'EPERM';
+      if (!retryable || attempt >= tempRootRemovalAttempts) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, attempt * 100));
+    }
+  }
+}
+
+/**
+ * Starts one server on its own port, over its own temp shelf and store.
+ *
+ * Every call is independent, which is what lets `playwright.config.ts` run
+ * fully parallel: no state is shared between two of these, not even the
+ * directory names.
+ */
 export async function startServer(): Promise<ServerEnv> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await startServerOnce();
+    } catch (error) {
+      if (!(error instanceof PortTakenError) || attempt >= serverStartAttempts) {
+        throw error;
+      }
+    }
+  }
+}
+
+async function startServerOnce(): Promise<ServerEnv> {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'plainshelf-e2e-'));
   const shelfDir = path.join(tempRoot, 'shelf');
   const storeDir = path.join(tempRoot, 'store');
@@ -185,7 +313,7 @@ export async function startServer(): Promise<ServerEnv> {
     await waitForServer(baseUrl, server, logs);
   } catch (error) {
     await stopServer(server).catch(() => undefined);
-    await fs.rm(tempRoot, { recursive: true, force: true });
+    await removeTempRoot(tempRoot).catch(() => undefined);
     throw error;
   }
 
@@ -195,7 +323,7 @@ export async function startServer(): Promise<ServerEnv> {
     logs,
     dispose: async () => {
       await stopServer(server);
-      await fs.rm(tempRoot, { recursive: true, force: true });
+      await removeTempRoot(tempRoot);
     }
   };
 }

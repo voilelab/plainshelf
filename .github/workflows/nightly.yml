@@ -1,0 +1,115 @@
+name: Nightly
+
+# PSW-77: the second tier of the E2E split. `ci.yml` runs the `@smoke` subset on
+# every pull request, so merging is not gated on the whole suite; the whole
+# suite runs here instead, once a day on `dev`. What it gates is the release,
+# not the merge — a red night is a bug to fix before the next tag, and it opens
+# an issue rather than blocking someone's pull request.
+on:
+  schedule:
+    # 03:00 UTC, i.e. 11:00 in the maintainer's timezone: a failure is waiting
+    # at the start of the day rather than discovered by the next pull request.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  e2e-full:
+    name: Full E2E suite
+    runs-on: ubuntu-latest
+    # A fork's schedule would run against its own dev and open issues there.
+    if: github.repository == 'voilelab/plainshelf'
+    # No measured baseline for this shape yet: the whole suite took 2:02 / 2:04
+    # / 2:03 on a 4-core container at 2 workers, and the rest is the frontend
+    # build plus a possible browser-cache miss. Re-measure over three nights and
+    # tighten this the way docs/development/testing-levels.md describes.
+    timeout-minutes: 25
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v7
+        with:
+          ref: dev
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Nothing to download from `ci.yml` here: this workflow does not run
+      # behind it, so it builds the bundle the Go server embeds itself.
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the full E2E suite
+        working-directory: e2e
+        run: npm test
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: nightly-e2e-results
+          path: e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # One issue, reopened by comment rather than duplicated: a suite that
+      # stays red for a week should be one thread, not seven.
+      - name: Report the failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          # Not `github.sha`: on a manual dispatch that is the ref it was
+          # dispatched from, and on a schedule it is the default branch as of
+          # the trigger rather than the checkout. The suite ran against what
+          # `Checkout dev` actually got, so report that.
+          commit_sha=$(git rev-parse HEAD)
+          title='Nightly E2E suite is failing on dev'
+          body=$(printf '%s\n' \
+            'The full E2E suite failed on `dev`.' \
+            '' \
+            "- Run: $RUN_URL" \
+            "- Commit: \`$commit_sha\`" \
+            '' \
+            'The pull request gate only runs the `@smoke` subset, so this is a failure no' \
+            'pull request would have caught. `docs/development/testing-levels.md` has the' \
+            'two tiers, and R6 says what to do with a test that fails intermittently.')
+          existing=$(gh issue list --state open --limit 100 --json number,title \
+            --jq "[.[] | select(.title == \"$title\")] | .[0].number // empty")
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi

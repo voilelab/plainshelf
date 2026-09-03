@@ -23,14 +23,24 @@ test-go: build-server-frontend
 	cd desktop && go test ./...
 	cd reader && go test ./...
 
-# Run e2e tests: build frontend and run e2e tests.
+# Run e2e tests: build frontend and run the whole e2e suite.
 # The server is compiled once here and reused by every spec (via
 # PLAINSHELF_E2E_SERVER_BIN) instead of a `go run` cold start per test.
+# This stays the whole suite on purpose: CI only gates on `test-e2e-smoke`, so
+# this recipe is where a change outside the smoke set gets checked before it is
+# pushed and waits for a nightly to say so.
 test-e2e: build-server-frontend
 	npm --prefix {{e2e_test_dir}} ci
 	npx --prefix {{e2e_test_dir}} playwright install --with-deps chromium
 	go build -o {{justfile_directory()}}/{{e2e_test_dir}}/.server-bin/plainshelf-srv ./cmd/plainshelf-srv/main.go
 	PLAINSHELF_E2E_SERVER_BIN={{justfile_directory()}}/{{e2e_test_dir}}/.server-bin/plainshelf-srv npm --prefix {{e2e_test_dir}} test
+
+# Run the `@smoke` subset only — what the pull request gate runs (PSW-77).
+test-e2e-smoke: build-server-frontend
+	npm --prefix {{e2e_test_dir}} ci
+	npx --prefix {{e2e_test_dir}} playwright install --with-deps chromium
+	go build -o {{justfile_directory()}}/{{e2e_test_dir}}/.server-bin/plainshelf-srv ./cmd/plainshelf-srv/main.go
+	PLAINSHELF_E2E_SERVER_BIN={{justfile_directory()}}/{{e2e_test_dir}}/.server-bin/plainshelf-srv npm --prefix {{e2e_test_dir}} run test:smoke
 
 # Build server: build Go server binary.
 build-server-backend: build-server-frontend

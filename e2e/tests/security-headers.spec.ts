@@ -15,7 +15,7 @@ const staticSecurityHeaders: Record<string, string> = {
 // The document (index.html) and an API response are the two response shapes the
 // ticket names; checking both proves the headers ride on the whole surface, not
 // just one handler.
-test('every response carries the static security headers', async () => {
+test('every response carries the static security headers', { tag: '@smoke' }, async () => {
   const { baseUrl } = getServer();
 
   for (const path of ['/', '/api/version']) {
@@ -26,7 +26,7 @@ test('every response carries the static security headers', async () => {
   }
 });
 
-test('the index document carries a nonce-based CSP the app can boot under', async () => {
+test('the index document carries a nonce-based CSP the app can boot under', { tag: '@smoke' }, async () => {
   const { baseUrl } = getServer();
 
   const response = await fetch(`${baseUrl}/`);
@@ -61,7 +61,7 @@ test('the index document carries a nonce-based CSP the app can boot under', asyn
 // A CSP is only as good as the app's ability to actually run under it: if a real
 // browser boot logged a CSP violation, some resource the UI needs would be
 // blocked. This drives a full page load and fails on any violation report.
-test('the app boots with no CSP violations', async ({ page }) => {
+test('the app boots with no CSP violations', { tag: '@smoke' }, async ({ page }) => {
   const { baseUrl } = getServer();
 
   const violations: string[] = [];

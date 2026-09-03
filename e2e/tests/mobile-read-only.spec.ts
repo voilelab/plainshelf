@@ -22,7 +22,7 @@ import {
 
 const getServer = useServer();
 
-test('redirects unavailable mobile routes to the library', async ({ page }) => {
+test('redirects unavailable mobile routes to the library', { tag: '@smoke' }, async ({ page }) => {
   const { baseUrl } = getServer();
 
   await page.goto(`${baseUrl}/books`);
@@ -41,7 +41,7 @@ test('redirects unavailable mobile routes to the library', async ({ page }) => {
   }
 });
 
-test('keeps reading routes reachable', async ({ page }) => {
+test('keeps reading routes reachable', { tag: '@smoke' }, async ({ page }) => {
   const { baseUrl } = getServer();
 
   await page.goto(`${baseUrl}/books`);
@@ -71,7 +71,7 @@ test('keeps reading routes reachable', async ({ page }) => {
   }
 });
 
-test('hides write affordances in the library and on book detail', async ({ page }) => {
+test('hides write affordances in the library and on book detail', { tag: '@smoke' }, async ({ page }) => {
   const { baseUrl } = getServer();
 
   await page.goto(`${baseUrl}/books`);
@@ -151,7 +151,7 @@ test('offers clear-history but ignores the import query on mobile', async ({ pag
   await expect(page.getByRole('dialog', { name: 'Import Book' })).toHaveCount(0);
 });
 
-test('rejects a write from the mobile client but still records reading on the device', async ({ page }) => {
+test('rejects a write from the mobile client but still records reading on the device', { tag: '@smoke' }, async ({ page }) => {
   const { baseUrl } = getServer();
 
   await page.goto(`${baseUrl}/books`);

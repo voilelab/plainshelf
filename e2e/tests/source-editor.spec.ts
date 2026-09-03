@@ -56,7 +56,7 @@ async function openSourceEditor(page: Page, baseUrl: string, title: string): Pro
   await expect(sourceEditor(page)).toBeVisible();
 }
 
-test('should edit source content and see the change reflected in the reader', async ({ page }) => {
+test('should edit source content and see the change reflected in the reader', { tag: '@smoke' }, async ({ page }) => {
   const { baseUrl } = getServer();
 
   await openSourceEditor(page, baseUrl, 'srceditor-edit');
@@ -184,7 +184,7 @@ test('should search with case, whole-word and regular-expression options', async
   await expect(findReplace.getByRole('status')).toHaveText('That regular expression is not valid.');
 });
 
-test('should create a new source, set it as current, and see its content in the reader', async ({
+test('should create a new source, set it as current, and see its content in the reader', { tag: '@smoke' }, async ({
   page
 }) => {
   const { baseUrl } = getServer();
