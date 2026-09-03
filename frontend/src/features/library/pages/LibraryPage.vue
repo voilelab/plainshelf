@@ -295,6 +295,7 @@ import {
   type ActiveBookFilter
 } from '@/utils/bookFilters/apply';
 import { filterValueLabel } from '@/features/library/utils/filterLabels';
+import { retrySelection, runDownloadBatch } from '@/features/library/utils/downloadBatch';
 import { isCharCountRangeActive } from '@/utils/charCountFilter';
 import { hasFileTransfer, readDroppedFiles } from '@/utils/file';
 import { normalizeFolderPath } from '@/utils/folders';
@@ -526,23 +527,23 @@ async function startBatchDownload(): Promise<void> {
   downloadBatchTotal.value = targets.length;
   downloadBatchFailures.value = [];
 
-  for (let index = 0; index < targets.length; index += 1) {
-    const book = targets[index];
-    try {
-      if (book.download_state !== 'downloaded') await provider.downloadBook(book.id);
-      downloadBatchSucceeded.value += 1;
-    } catch {
-      downloadBatchFailures.value.push({
-        id: book.id,
-        title: book.title,
-        message: t('bookCollection.selection.failureCodes.download_failed')
-      });
+  // Called through the provider, not as a detached function: the mobile
+  // provider's downloadBook is a method and needs its own `this`.
+  const outcome = await runDownloadBatch(targets, (id) => provider.downloadBook!(id), {
+    onProgress: (percentage) => {
+      downloadBatchPercentage.value = percentage;
+    },
+    onFailure: (failure) => {
+      downloadBatchFailures.value = [
+        ...downloadBatchFailures.value,
+        { ...failure, message: t('bookCollection.selection.failureCodes.download_failed') }
+      ];
     }
-    downloadBatchPercentage.value = ((index + 1) / targets.length) * 100;
-  }
+  });
+  downloadBatchSucceeded.value = outcome.succeeded;
 
   downloadBatchRunning.value = false;
-  const failedVisible = new Set(downloadBatchFailures.value.map((failure) => failure.id).filter((id) => visibleBookIds.value.includes(id)));
+  const failedVisible = retrySelection(outcome.failures, visibleBookIds.value);
   if (failedVisible.size > 0) selection.replace(failedVisible);
   else selection.clear();
   await reloadBooks();

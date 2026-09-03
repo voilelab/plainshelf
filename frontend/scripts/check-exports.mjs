@@ -49,6 +49,11 @@ const ALLOWED = new Set([
   // though only this file's own `extends` names it.
   'src/features/sources/types/editorAdapter.ts#SourceEditorAdapter',
 
+  // Read from outside the frontend: e2e/tests/support/locale.ts imports the
+  // pattern by relative path so the crawl and its unit test share one
+  // definition, and this script only walks src/.
+  'src/i18n/missingKeyPattern.ts#MISSING_KEY_PATTERN',
+
   // Internals reached directly by their own unit tests.
   'src/api/books.ts#SimilarRelation',
   'src/api/pcloud/auth.ts#hostForLocationId',
