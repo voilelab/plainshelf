@@ -79,11 +79,37 @@ type RescanResult struct {
 // afterwards, the wrong thing to reach for when all that is wanted is for a book
 // dropped into books/ to show up.
 func (s *Shelf) Rescan() (RescanResult, error) {
+	return s.rescan(true)
+}
+
+// RescanUnthrottled is Rescan without the rate limit: it neither spends a token
+// nor is refused for want of one.
+//
+// It is for a forced walk performed *inside* a larger operation, not for one a
+// request asked for by itself — today, the folder-transfer preflight, which
+// walks both shelves so the plan and the conflict checks read an authoritative
+// listing. Two things make the rate limit wrong there. The tokens belong to the
+// button: spending them on a transfer would let a user who moved five folders
+// find that "update book list" now answers 429 for something they never
+// pressed. And the caller has nowhere to put the refusal — it would silently
+// plan from a stale cache, which is the one thing that preflight exists to
+// prevent.
+//
+// This is not a judgement that the transfer route needs no bound on forced
+// walks. It has none today and had none before the rate limit existed; bounding
+// every path that forces a walk — this one and ExportBookCache — is its own
+// piece of work, and one that has to answer for the whole operation's cost
+// rather than for the walk alone.
+func (s *Shelf) RescanUnthrottled() (RescanResult, error) {
+	return s.rescan(false)
+}
+
+func (s *Shelf) rescan(rateLimited bool) (RescanResult, error) {
 	if !s.IsReady() {
 		return RescanResult{}, util.Errorf("%w", ErrShelfInitializing)
 	}
 
-	claim := s.beginRescan(time.Now())
+	claim := s.beginRescan(time.Now(), rateLimited)
 	switch {
 	case claim.runningID != "":
 		return RescanResult{ID: claim.runningID}, util.Errorf("%w", ErrRescanInProgress)
@@ -129,13 +155,14 @@ type rescanClaim struct {
 }
 
 // beginRescan claims the shelf for one rescan, taking now as the clock so a
-// test can move the rate limit without sleeping.
+// test can move the rate limit without sleeping. With rateLimited false it
+// claims the shelf without touching the bucket at all; see RescanUnthrottled.
 //
 // The running walk is checked before the token: a caller refused with 409 never
 // pays for a walk it did not get, so a loop hammering a busy shelf cannot drain
 // the bucket and leave the next real user with a 429 that misdescribes what
 // happened.
-func (s *Shelf) beginRescan(now time.Time) rescanClaim {
+func (s *Shelf) beginRescan(now time.Time, rateLimited bool) rescanClaim {
 	s.bookCache.Lock()
 	defer s.bookCache.Unlock()
 
@@ -143,8 +170,10 @@ func (s *Shelf) beginRescan(now time.Time) rescanClaim {
 		return rescanClaim{runningID: s.bookCache.rescanID}
 	}
 
-	if retryAfter := s.bookCache.takeRescanToken(now); retryAfter > 0 {
-		return rescanClaim{retryAfter: retryAfter}
+	if rateLimited {
+		if retryAfter := s.bookCache.takeRescanToken(now); retryAfter > 0 {
+			return rescanClaim{retryAfter: retryAfter}
+		}
 	}
 
 	// Not a cryptographic identifier: it is never persisted and never

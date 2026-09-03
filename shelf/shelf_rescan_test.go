@@ -150,7 +150,7 @@ func TestRescanRefusesASecondWalkAndNamesTheRunningOne(t *testing.T) {
 	// Claimed directly rather than by racing two Rescan calls: the refusal is
 	// what is under test, and a race that has to be won to observe it would be
 	// flaky in exactly the direction that hides a regression.
-	runningID := s.beginRescan(time.Now()).scanID
+	runningID := s.beginRescan(time.Now(), true).scanID
 	if runningID == "" {
 		t.Fatal("beginRescan did not claim a free shelf")
 	}
@@ -223,23 +223,23 @@ func TestRescanTokensRefillOverTime(t *testing.T) {
 	now := time.Now()
 
 	for i := range rescanBurst {
-		claim := s.beginRescan(now)
+		claim := s.beginRescan(now, true)
 		if claim.scanID == "" {
 			t.Fatalf("claim %d of the burst was refused: %+v", i+1, claim)
 		}
 		s.endRescan()
 	}
 
-	claim := s.beginRescan(now)
+	claim := s.beginRescan(now, true)
 	if claim.retryAfter <= 0 {
 		t.Fatalf("claim past the burst was allowed: %+v", claim)
 	}
 
 	// One refill short, then one refill on.
-	if claim := s.beginRescan(now.Add(rescanRefill / 2)); claim.retryAfter <= 0 {
+	if claim := s.beginRescan(now.Add(rescanRefill/2), true); claim.retryAfter <= 0 {
 		t.Errorf("half a refill later the claim was allowed: %+v", claim)
 	}
-	claim = s.beginRescan(now.Add(rescanRefill))
+	claim = s.beginRescan(now.Add(rescanRefill), true)
 	if claim.scanID == "" {
 		t.Errorf("a full refill later the claim was still refused: %+v", claim)
 	}
@@ -249,12 +249,12 @@ func TestRescanTokensRefillOverTime(t *testing.T) {
 	// left alone overnight does not hand out an unbounded run of walks.
 	later := now.Add(24 * time.Hour)
 	for i := range rescanBurst {
-		if claim := s.beginRescan(later); claim.scanID == "" {
+		if claim := s.beginRescan(later, true); claim.scanID == "" {
 			t.Fatalf("claim %d after a long idle period was refused: %+v", i+1, claim)
 		}
 		s.endRescan()
 	}
-	if claim := s.beginRescan(later); claim.retryAfter <= 0 {
+	if claim := s.beginRescan(later, true); claim.retryAfter <= 0 {
 		t.Errorf("the bucket refilled past its burst: %+v", claim)
 	}
 }
@@ -265,7 +265,7 @@ func TestRescanTokensRefillOverTime(t *testing.T) {
 func TestRescanConflictDoesNotSpendARateLimitToken(t *testing.T) {
 	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
 
-	runningID := s.beginRescan(time.Now()).scanID
+	runningID := s.beginRescan(time.Now(), true).scanID
 	if runningID == "" {
 		t.Fatal("beginRescan did not claim a free shelf")
 	}
@@ -281,5 +281,48 @@ func TestRescanConflictDoesNotSpendARateLimitToken(t *testing.T) {
 		if _, err := s.Rescan(); err != nil {
 			t.Fatalf("Rescan %d after the conflicts: %v", i+1, err)
 		}
+	}
+}
+
+// The folder-transfer preflight forces the same walk from inside a larger
+// operation. It must not spend the button's budget, and must not be refused
+// once that budget is gone: it has nowhere to report the refusal and would
+// plan from the stale cache it exists to avoid.
+func TestRescanUnthrottledNeitherSpendsNorIsRefusedByTheRateLimit(t *testing.T) {
+	s := newTestShelf(t, &ShelfConf{LibRoot: t.TempDir(), LockMode: "none"})
+
+	// Stands in for a run of transfers, each forcing its own walk.
+	for i := range rescanBurst * 4 {
+		if _, err := s.RescanUnthrottled(); err != nil {
+			t.Fatalf("RescanUnthrottled %d: %v", i+1, err)
+		}
+	}
+
+	// The button's budget is untouched, so a user who never pressed it does not
+	// find it already spent.
+	for i := range rescanBurst {
+		if _, err := s.Rescan(); err != nil {
+			t.Fatalf("Rescan %d after the transfers: %v", i+1, err)
+		}
+	}
+
+	// And with the budget now genuinely spent, the preflight still walks.
+	if _, err := s.Rescan(); !errors.Is(err, ErrRescanRateLimited) {
+		t.Fatalf("Rescan past the burst: error = %v, want ErrRescanRateLimited", err)
+	}
+	if _, err := s.RescanUnthrottled(); err != nil {
+		t.Fatalf("RescanUnthrottled with the bucket empty: %v", err)
+	}
+
+	// The singleflight still applies to it: it is the rate limit it skips, not
+	// the refusal to run two walks over the same shelf at once. Claimed without
+	// the limit because the bucket is empty by this point.
+	runningID := s.beginRescan(time.Now(), false).scanID
+	if runningID == "" {
+		t.Fatal("beginRescan did not claim a free shelf")
+	}
+	defer s.endRescan()
+	if _, err := s.RescanUnthrottled(); !errors.Is(err, ErrRescanInProgress) {
+		t.Fatalf("RescanUnthrottled against a busy shelf: error = %v, want ErrRescanInProgress", err)
 	}
 }

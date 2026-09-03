@@ -239,8 +239,13 @@ func folderHasPrefix(folder, prefix shelf.FolderPath) bool {
 // It is best-effort: a rescan already in progress is refreshing the cache anyway,
 // and any other failure is left for the reads that follow to surface, since they
 // answer with a real error a caller can act on.
+//
+// Unthrottled deliberately, and not best-effort about that one refusal: the
+// rescan rate limit belongs to the button a user presses, so a transfer must
+// neither spend its budget nor quietly plan from a stale cache when the budget
+// is gone. See Shelf.RescanUnthrottled.
 func rescanForTransfer(shelfData *shelf.ShelfData) {
-	_, _ = shelfData.Rescan()
+	_, _ = shelfData.RescanUnthrottled()
 }
 
 // targetBookIDs is the set of book IDs the target shelf already holds, whether
