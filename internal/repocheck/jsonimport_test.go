@@ -37,6 +37,7 @@ var jsonV1Allowlist = map[string]string{
 	"server/contract/api_book_cache_contract_test.go":     "PSW-98",
 	"server/contract/api_books_contract_test.go":          "PSW-98",
 	"server/contract/api_content_stats_contract_test.go":  "PSW-98",
+	"server/contract/api_request_id_contract_test.go":     "PSW-98",
 	"server/contract/api_scans_contract_test.go":          "PSW-98",
 	"server/contract/api_schema_version_contract_test.go": "PSW-98",
 	"server/contract/apitest_assert_test.go":              "PSW-98",
