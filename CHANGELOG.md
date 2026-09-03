@@ -15,6 +15,7 @@ and UI behavior may still change between releases.
 - Added a notice on a book's detail page when its `book.json` was saved in a newer format than the reader supports, so a pCloud shelf on Android no longer shows an incomplete book as if it were complete.
 - Added a request number to every API response (`X-Request-Id`, repeated as the error envelope's `incident`): eight Crockford base32 characters with no `0`, `O`, `1`, `I` or `L`, quoted in the request log line and, for an error the server did not expect, in a log line naming the code, method, path, shelf and full cause.
 - Added the request number of the request that queued a background task chain to that chain's own log lines, so a batch move, empty-trash or fingerprint failure is searchable by the number the `202` returned.
+- Added an **Error reference** notice that shows a failed request's number in the corner of the window with a copy button, prefixed `c-` when the interface minted the number itself (an uncaught interface error, or a pCloud shelf read with no server to ask) and absent entirely when there is no number to show.
 
 ### Changed
 
@@ -29,6 +30,7 @@ and UI behavior may still change between releases.
 - Changed the build to Go 1.27.1, whose reimplemented `encoding/json` decodes the shelf's JSON caches roughly 1.6-3x faster on the startup path.
 - Changed the Docker image to build on Go 1.27.1 as well, catching up from 1.26.6 so an image build no longer downloads a second toolchain to satisfy `go.mod`.
 - **Breaking (pre-1.0):** changed the API refusals that come from the error table from `text/plain` to a JSON body (`{"error":{"code":…,"message":…}}`) carrying a stable error code such as `BOOK_NOT_FOUND`; the routes that still call `http.Error` directly answer plain text unchanged, and a `500` body continues to withhold the cause.
+- Changed the web UI to read that error envelope, so a refusal still shows its sentence rather than the raw JSON, while a plain-text refusal keeps its old text and takes its number from `X-Request-Id`.
 - **Breaking (pre-1.0):** changed mutating API endpoints to read request bodies under `encoding/json/v2`'s rules, so a body that names the same member twice, carries invalid UTF-8, or spells a member name in the wrong case is now `400` instead of being silently resolved.
 - Changed the `400` answer for a malformed request body to name the field the decoder stopped on (`invalid JSON at "folder"`), which the UI shows verbatim; setting writes no longer leak Go type names into the message.
 - Changed the desktop create- and modify-shelf forms to give every input a visible label, leaving the placeholders as example values.
