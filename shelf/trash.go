@@ -2,7 +2,7 @@ package shelf
 
 import (
 	"cmp"
-	json "encoding/json/v2"
+	"encoding/json/v2"
 	"errors"
 	"os"
 	"path"

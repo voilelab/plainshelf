@@ -2,7 +2,7 @@ package bookpkg
 
 import (
 	"bytes"
-	json "encoding/json/v2"
+	"encoding/json/v2"
 	"io"
 	"io/fs"
 	"path"

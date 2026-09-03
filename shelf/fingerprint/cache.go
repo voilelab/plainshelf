@@ -2,7 +2,7 @@ package fingerprint
 
 import (
 	"bytes"
-	json "encoding/json/v2"
+	"encoding/json/v2"
 	"log/slog"
 	"maps"
 	"strings"

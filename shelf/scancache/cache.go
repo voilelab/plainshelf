@@ -3,7 +3,7 @@ package scancache
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	json "encoding/json/v2"
+	"encoding/json/v2"
 	"errors"
 	"log/slog"
 	"sync"

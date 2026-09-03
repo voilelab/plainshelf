@@ -92,13 +92,15 @@ after PSW-93 makes unknown members survive a write — see the table below.
 
 ## v1 → v2 API mapping
 
-Import v2 under the name the call site already uses. `internal/jsonopt` is the
-one file that also imports v1, for the option constructor described above:
+The v2 package is itself named `json`, so it needs no import alias — a call
+site keeps reading as `json.Marshal`. `internal/jsonopt` is the one file that
+also imports v1, for the option constructor described above, and aliases both
+to tell them apart:
 
 ```go
 import (
 	"encoding/json/jsontext"
-	json "encoding/json/v2"
+	"encoding/json/v2"
 )
 ```
 
