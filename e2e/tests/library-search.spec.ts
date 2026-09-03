@@ -4,7 +4,7 @@ import { importBookAs, helloFixturePath, anotherFixturePath } from './support/bo
 
 const getServer = useServer();
 
-test('should filter books by search query and restore the full list after clearing', async ({
+test('should filter books by search query and restore the full list after clearing', { tag: '@smoke' }, async ({
   page
 }) => {
   const { baseUrl } = getServer();

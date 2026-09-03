@@ -11,7 +11,7 @@ import { openReaderTab } from './support/reader';
 
 const getServer = useServer();
 
-test('should import a txt book from the UI and render it in the reader', async ({ page }) => {
+test('should import a txt book from the UI and render it in the reader', { tag: '@smoke' }, async ({ page }) => {
   const { baseUrl } = getServer();
 
   await page.goto(`${baseUrl}/books`);
@@ -30,7 +30,7 @@ test('should import a txt book from the UI and render it in the reader', async (
   await expect(reader.getByText('This text came from a real uploaded TXT file.')).toBeVisible();
 });
 
-test('should import a markdown book from the UI and render it as formatted markdown', async ({ page }) => {
+test('should import a markdown book from the UI and render it as formatted markdown', { tag: '@smoke' }, async ({ page }) => {
   const { baseUrl } = getServer();
 
   await page.goto(`${baseUrl}/books`);
@@ -54,7 +54,7 @@ test('should import a markdown book from the UI and render it as formatted markd
   await expect(reader.getByText('This text came from a real uploaded MD file.')).toBeVisible();
 });
 
-test('should render allow-listed HTML without executing or loading active content', async ({ page }) => {
+test('should render allow-listed HTML without executing or loading active content', { tag: '@smoke' }, async ({ page }) => {
   const { baseUrl } = getServer();
   const externalRequests: string[] = [];
   // The reader renders in a new tab on the web build, so watch the whole browser

@@ -168,7 +168,21 @@ Read the relevant section before working in that area. Add entries according to
   `ENOTEMPTY … rmdir '<tmp>/shelf/app'` → the temp shelf is deleted while the
   just-signalled server still writes into it, so the failure is teardown-only and
   lands on different specs each run; re-run the spec alone before charging it to
-  the diff. (`e2e/tests/support/server.ts`)
+  the diff. `dispose()` now retries the removal five times with a backoff, so a
+  surviving ENOTEMPTY is a directory still held after half a second — a leaked
+  server process, not this race. (`e2e/tests/support/server.ts`)
+- **A green pull request is not a green E2E suite:** `ci.yml` runs `--grep
+  @smoke` (15 of 101 cases) and `nightly.yml` runs the rest on `dev`. A change
+  outside the smoke set is unproven until `just test-e2e` runs locally or the
+  night after it merges reports; a nightly failure opens one issue rather than
+  landing on whoever pushes next. (`docs/development/testing-levels.md`)
+- **E2E server ports are per worker, not per kernel:** `getFreePort()` takes a
+  port from a band derived from `TEST_PARALLEL_INDEX` instead of asking for port
+  0. Asking for 0 lets two parallel workers be handed the same number, and the
+  loser then finds a *healthy* `/health` on it — the other worker's server, over
+  the other worker's shelf — so it attaches and both specs mutate one shelf.
+  Verified by pinning one start onto a port a second `plainshelf-srv` already
+  held. (`e2e/tests/support/server.ts`)
 
 ## Filesystem and API
 
