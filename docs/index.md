@@ -40,6 +40,7 @@ adds a web interface, desktop integration, and an experimental Android client.
 - [Local Development Setup](development/setup.md)
 - [Android Development](development/android.md)
 - [Docker](development/docker.md)
+- [JSON Encoding](development/json-encoding.md)
 - [Known Issues](known-issue.md)
 
 ## Project boundaries
