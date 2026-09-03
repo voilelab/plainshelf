@@ -2,7 +2,7 @@ package fingerprint
 
 import (
 	"bytes"
-	"encoding/json"
+	json "encoding/json/v2"
 	"log/slog"
 	"maps"
 	"strings"
@@ -12,6 +12,7 @@ import (
 	"github.com/voilelab/plainshelf/internal/appcache"
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/hashutil"
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/internal/version"
@@ -515,7 +516,7 @@ func (c *Cache) Save() error {
 		Algo:          c.algo,
 		Index:         index,
 		Entries:       entries,
-	})
+	}, jsonopt.DiskCompact())
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -541,7 +542,7 @@ func (c *Cache) readFile() (*cacheFile, []byte, error) {
 	}
 
 	var stored cacheFile
-	if err := json.Unmarshal(raw, &stored); err != nil {
+	if err := json.Unmarshal(raw, &stored, jsonopt.Read()); err != nil {
 		return nil, nil, util.Errorf("%w", err)
 	}
 	if stored.SchemaVersion != schemaVersion {

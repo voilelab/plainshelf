@@ -199,6 +199,12 @@ Read the relevant section before working in that area. Add entries according to
   test failure, costing a re-upload per scan on pCloud or SMB. Importing
   `encoding/json` at all fails `internal/repocheck` unless the file is on the
   shrinking allowlist. (`docs/development/json-encoding.md`)
+- **JSON decoding:** pass `jsonopt.Read()` to every `Unmarshal`/`UnmarshalRead`
+  → dropping it takes json/v2's strict defaults, and case-sensitive names are
+  not a formatting change: `setMeta` rewrites `book.json` whole, so a
+  hand-edited `"Title"` reads as absent and the next save deletes it. Nothing
+  fails — the file round-trips and the field simply is not there.
+  (`internal/jsonopt/jsonopt.go`)
 - **Network shelves:** SMB latency amplifies directory walks and stat calls;
   preserve scan/check intervals, finite lock timeouts, atomic writes, and clear
   error propagation. See `docs/concepts/shelf-cache-and-io.md`.

@@ -1,8 +1,9 @@
 package fingerprint
 
 import (
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
+	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -687,4 +688,75 @@ func TestFingerprintCacheKeepsTheRecordItJustObserved(t *testing.T) {
 	if got := builder.calls.Load(); got != 2 {
 		t.Errorf("the restored source was fingerprinted again: builds %d, want 2", got)
 	}
+}
+
+// TestFingerprintCacheWithManyEntriesIsByteStable is the reverse condition for
+// the json/v2 conversion. The cache skips its write by comparing the freshly
+// encoded file against the bytes on disk, and cacheFile holds two maps — so the
+// skip is only real while the encoder sorts them. json/v2 does not, unless the
+// option set says so, and nothing about dropping it fails loudly: the file
+// round-trips, and the single-book test above still passes because one entry
+// has no order to vary. Twelve entries do, so this is where a missing
+// Deterministic shows up as what it costs in the field, a re-upload of an
+// unchanged cache on every scan.
+func TestFingerprintCacheWithManyEntriesIsByteStable(t *testing.T) {
+	ts := newTestShelf(t)
+
+	counting := ts.countSourceReads()
+	builder := &fakeFingerprint{label: "v1"}
+
+	bookPaths := make([]string, 0, 12)
+	for i := range 12 {
+		id := fmt.Sprintf("book-%02d", i)
+		book := ts.addBook(id+".bookpkg", id, "Title "+id, "content "+id, -time.Hour)
+		bookPaths = append(bookPaths, book.PackagePath())
+	}
+
+	first := openCache(t, ts, counting, testAlgo)
+	for _, bookPath := range bookPaths {
+		resolveFingerprint(t, first, counting, bookPath, builder)
+	}
+	saveCache(t, first)
+
+	cachePath := path.Join(ts.libRoot, appDir, cacheFileName)
+	want, err := os.ReadFile(cachePath)
+	if err != nil {
+		t.Fatalf("reading the fingerprint cache: %v", err)
+	}
+
+	// Repeated because a random map order agrees with the first one now and
+	// then; eight rounds of twelve entries do not agree by luck.
+	for round := range 8 {
+		cache := openCache(t, ts, counting, testAlgo)
+		for _, bookPath := range bookPaths {
+			resolveFingerprint(t, cache, counting, bookPath, builder)
+		}
+		writtenAt := shiftedModTime(t, cachePath, -time.Hour)
+		saveCache(t, cache)
+
+		got, err := os.ReadFile(cachePath)
+		if err != nil {
+			t.Fatalf("re-reading the fingerprint cache: %v", err)
+		}
+		if string(got) != string(want) {
+			wantAt, gotAt := firstDifference(string(want), string(got))
+			t.Fatalf("round %d re-encoded the same cache differently, from %q to %q", round, wantAt, gotAt)
+		}
+		if info, err := os.Stat(cachePath); err != nil {
+			t.Fatalf("stat: %v", err)
+		} else if !info.ModTime().Equal(writtenAt) {
+			t.Fatalf("round %d rewrote an unchanged cache", round)
+		}
+	}
+}
+
+// firstDifference returns a short window of a and b around the first byte they
+// disagree on. The cache is one long line, so printing both in full turns a
+// one-key order change into a screenful of identical hashes.
+func firstDifference(a, b string) (string, string) {
+	i := 0
+	for i < min(len(a), len(b)) && a[i] == b[i] {
+		i++
+	}
+	return a[i:min(i+60, len(a))], b[i:min(i+60, len(b))]
 }

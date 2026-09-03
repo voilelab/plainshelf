@@ -1,12 +1,13 @@
 package main
 
 import (
-	"encoding/json"
+	json "encoding/json/v2"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/readingprogress"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf"
@@ -56,7 +57,7 @@ func loadDesktopShelves(configPath string) (*desktopShelvesConfig, error) {
 		return nil, util.Errorf("%w", err)
 	}
 	var conf desktopShelvesConfig
-	if err := json.Unmarshal(data, &conf); err != nil {
+	if err := json.Unmarshal(data, &conf, jsonopt.Read()); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 	return &conf, nil
@@ -95,7 +96,7 @@ func defaultDesktopShelvesConfig(dataRoot string) *desktopShelvesConfig {
 }
 
 func saveDesktopShelves(configPath string, conf *desktopShelvesConfig) error {
-	data, err := json.MarshalIndent(conf, "", "  ")
+	data, err := json.Marshal(conf, jsonopt.Disk())
 	if err != nil {
 		return util.Errorf("%w", err)
 	}

@@ -16,7 +16,7 @@ import (
 // to the ticket that converts it. Anything not listed must use
 // "encoding/json/v2" through internal/jsonopt.
 //
-// The list only shrinks. It exists because PSW-95 converts 96 call sites in
+// The list only shrinks. It exists because PSW-95 converts the repository in
 // four batches rather than one unreviewable PR, and the batches are worth
 // nothing if a new file quietly reintroduces v1 alongside them: v1 and v2 do
 // not write the same bytes, so a mixed repository has no single answer to
@@ -26,17 +26,6 @@ import (
 // Paths are slash-separated and relative to the repository root, and cover all
 // three modules.
 var jsonV1Allowlist = map[string]string{
-	// PSW-97 — The shelf and its on-disk formats. Compatibility-sensitive: each
-	// package re-blesses its own fixtures.
-	"shelf/fingerprint/cache.go":        "PSW-97",
-	"shelf/fingerprint/cache_test.go":   "PSW-97",
-	"shelf/fingerprint/helpers_test.go": "PSW-97",
-	"shelf/scancache/cache.go":          "PSW-97",
-	"shelf/shelf_cache_export.go":       "PSW-97",
-	"shelf/shelf_cache_export_test.go":  "PSW-97",
-	"shelf/shelf_rescan_test.go":        "PSW-97",
-	"shelf/shelf_test.go":               "PSW-97",
-
 	// PSW-98 — The HTTP surface of the server and the standalone reader.
 	"reader/app_test.go":                                  "PSW-98",
 	"reader/readerapi/api.go":                             "PSW-98",
@@ -65,11 +54,9 @@ var jsonV1Allowlist = map[string]string{
 	"shelf/shelf_config.go": "PSW-99",
 
 	// PSW-100 — Everything the batches above do not reach.
-	"desktop/app.go":                       "PSW-100",
-	"desktop/shelves.go":                   "PSW-100",
-	"internal/readingprogress/document.go": "PSW-100",
-	"internal/util/json_date_test.go":      "PSW-100",
-	"internal/util/json_time_test.go":      "PSW-100",
+	"desktop/app.go":                  "PSW-100",
+	"internal/util/json_date_test.go": "PSW-100",
+	"internal/util/json_time_test.go": "PSW-100",
 }
 
 // TestNoEncodingJSONV1Imports fails on any Go file importing "encoding/json"

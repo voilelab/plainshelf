@@ -1,7 +1,7 @@
 package fingerprint
 
 import (
-	"encoding/json"
+	json "encoding/json/v2"
 	"io/fs"
 	"os"
 	"path"

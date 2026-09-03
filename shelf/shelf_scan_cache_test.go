@@ -293,3 +293,61 @@ func TestScanCacheUnchangedShelfIsNotRewritten(t *testing.T) {
 		t.Errorf("an unchanged shelf rewrote its snapshot: mtime moved from %s to %s", before.ModTime(), after.ModTime())
 	}
 }
+
+// TestScanCacheWithManyDirectoriesIsNotRewritten is the test above scaled to
+// where its claim can actually break. The snapshot is skipped when
+// scanCacheDigest matches the last one, and that digest hashes
+// map[string]dirSnapshot — so the skip holds only while the encoder sorts map
+// keys, which json/v2 leaves unspecified unless jsonopt says otherwise. Two
+// directories can be ordered one way; sixteen cannot be, eight times running.
+func TestScanCacheWithManyDirectoriesIsNotRewritten(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	conf := &ShelfConf{LibRoot: tmpLib}
+
+	first := openShelf(t, conf)
+	for i := range 16 {
+		folder := FolderPath{"Shelf" + strconv.Itoa(i)}
+		if _, err := first.NewBook(folder, "Book "+strconv.Itoa(i)); err != nil {
+			t.Fatalf("NewBook: %v", err)
+		}
+	}
+	ageShelfDirs(t, tmpLib, time.Minute)
+	mustScan(t, first)
+	if err := first.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	snapshotPath := path.Join(tmpLib, appFolder, scanCacheFileName)
+	want, err := os.ReadFile(snapshotPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", snapshotPath, err)
+	}
+
+	for round := range 8 {
+		before, err := os.Stat(snapshotPath)
+		if err != nil {
+			t.Fatalf("stat %s: %v", snapshotPath, err)
+		}
+
+		next := openShelf(t, conf)
+		mustScan(t, next)
+		if err := next.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+
+		after, err := os.Stat(snapshotPath)
+		if err != nil {
+			t.Fatalf("stat %s: %v", snapshotPath, err)
+		}
+		if !after.ModTime().Equal(before.ModTime()) {
+			t.Fatalf("round %d rewrote the snapshot of an unchanged shelf", round)
+		}
+		got, err := os.ReadFile(snapshotPath)
+		if err != nil {
+			t.Fatalf("re-read %s: %v", snapshotPath, err)
+		}
+		if string(got) != string(want) {
+			t.Fatalf("round %d changed the snapshot on disk", round)
+		}
+	}
+}
