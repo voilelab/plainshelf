@@ -42,17 +42,24 @@ describe('transferFolder', () => {
     await expect(transferFolder('Fiction', 'shelf-b', 'Fiction', 'copy')).resolves.toBe('chain-running');
   });
 
+  // A folder conflict collides on no book, so the server sends an empty list
+  // rather than omitting the field.
   it('raises a typed conflict when the target already holds a folder with this name', async () => {
     fetchJsonMock.mockRejectedValueOnce(
       new ApiError(
-        JSON.stringify({ error: 'target_folder_conflict', message: 'already holds a folder' }),
+        JSON.stringify({
+          error: 'target_folder_conflict',
+          message: 'already holds a folder',
+          conflicting_book_ids: []
+        }),
         { status: 409 }
       )
     );
 
     await expect(transferFolder('Fiction', 'shelf-b', 'Fiction', 'copy')).rejects.toMatchObject({
       name: 'FolderTransferConflictError',
-      kind: 'target_folder_conflict'
+      kind: 'target_folder_conflict',
+      conflictingBookIDs: []
     });
   });
 

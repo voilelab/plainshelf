@@ -36,9 +36,12 @@ type folderTransferRequest struct {
 // conflict lists every colliding ID at once so the user sees the whole set rather
 // than one failed transfer at a time.
 type folderTransferConflict struct {
-	Error              string   `json:"error"`
-	Message            string   `json:"message"`
-	ConflictingBookIDs []string `json:"conflicting_book_ids,omitempty"`
+	Error   string `json:"error"`
+	Message string `json:"message"`
+
+	// Not omitempty: a folder conflict carries no IDs, and the client should
+	// read an empty list rather than an absent field.
+	ConflictingBookIDs []string `json:"conflicting_book_ids"`
 }
 
 const (

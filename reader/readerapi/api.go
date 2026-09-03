@@ -1,7 +1,7 @@
 package readerapi
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"io"
 	"io/fs"
@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path"
 
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
 
@@ -90,7 +91,7 @@ func (h *handlers) source(w http.ResponseWriter, r *http.Request, book *bookpkg.
 
 func writeJSON(w http.ResponseWriter, value any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	if err := json.NewEncoder(w).Encode(value); err != nil {
+	if err := json.MarshalWrite(w, value, jsonopt.API()); err != nil {
 		// The status is already written by now, so the response is lost either
 		// way; closing the connection is what tells the client not to parse it.
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)

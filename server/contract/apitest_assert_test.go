@@ -2,10 +2,12 @@ package contract_test
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -107,6 +109,48 @@ func getJSON[T any](t *testing.T, env *apiTestEnv, url string) T {
 	rec := env.get(url)
 	assertStatus(t, rec, http.StatusOK)
 	return decodeJSON[T](t, rec)
+}
+
+// assertJSONArray asserts that the value at path inside a response body arrived
+// as a JSON array, rather than as null or not at all.
+//
+// json/v2 encodes a nil slice as [], which is what lets a client index an
+// array-valued field without first defending against null. That is a contract
+// and not a property of how a given handler happens to build its slice, so it
+// is asserted on the bytes the client receives.
+//
+// A path element names an object member, or indexes an array in decimal.
+func assertJSONArray(t *testing.T, body []byte, path ...string) {
+	t.Helper()
+
+	var cursor any
+	if err := json.Unmarshal(body, &cursor); err != nil {
+		t.Fatalf("decode JSON %q: %v", body, err)
+	}
+
+	for i, step := range path {
+		where := strings.Join(path[:i+1], ".")
+		switch container := cursor.(type) {
+		case map[string]any:
+			value, ok := container[step]
+			if !ok {
+				t.Fatalf("%s is absent (body: %s)", where, body)
+			}
+			cursor = value
+		case []any:
+			index, err := strconv.Atoi(step)
+			if err != nil || index < 0 || index >= len(container) {
+				t.Fatalf("%s does not index the array (body: %s)", where, body)
+			}
+			cursor = container[index]
+		default:
+			t.Fatalf("%s is not inside a container (body: %s)", where, body)
+		}
+	}
+
+	if _, ok := cursor.([]any); !ok {
+		t.Fatalf("%s = %#v, want an array (body: %s)", strings.Join(path, "."), cursor, body)
+	}
 }
 
 // assertMutationGated asserts a mutating route stays behind both write gates:

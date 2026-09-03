@@ -42,10 +42,13 @@ interface BackendBookMeta {
   schema_version?: number;
   id: string;
   title: string;
+  // authors carries no omitempty, so it always arrives - as [] when there are
+  // none. tags and identifiers do carry it, so an empty one is absent instead,
+  // which is why those two still need a fallback below.
   authors: string[];
   language: string;
   format: string;
-  tags: string[];
+  tags?: string[];
   cover: string;
   comment?: string;
   comments?: string;
@@ -59,7 +62,9 @@ interface BackendBookMeta {
 
 interface BackendBook {
   meta: BackendBookMeta;
-  folder?: string[];
+  // Never absent and never null: the server's Book.Folder carries no omitempty,
+  // and json/v2 writes a book at the shelf root as [].
+  folder: string[];
   // Sibling of `meta`, not nested inside it — matches server/handle_books.go's
   // `Book` struct, which only populates this when the request was made with
   // `include=char_count` (see ListBooksOptions.includeCharCount below).
@@ -126,13 +131,13 @@ async function deleteBookCoverInternal(bookID: string): Promise<void> {
 }
 
 function transformBook(b: BackendBook): Book {
-  const folders = b.folder ?? [];
+  const folders = b.folder;
   const cover = b.meta.cover?.trim() ?? '';
 
   return {
     id: b.meta.id,
     title: b.meta.title,
-    authors: b.meta.authors ?? [],
+    authors: b.meta.authors,
     language: b.meta.language,
     format: (b.meta.format as BookFormat) || 'txt',
     tags: b.meta.tags ?? [],

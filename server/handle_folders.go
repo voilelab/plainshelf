@@ -1,7 +1,7 @@
 package server
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"strings"
 
@@ -70,7 +70,7 @@ func (h *folderHandlers) renameFolder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req renameFolderRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.UnmarshalRead(r.Body, &req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -102,7 +102,7 @@ func (h *folderHandlers) moveFolder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req moveFolderRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.UnmarshalRead(r.Body, &req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
