@@ -45,8 +45,8 @@ type ScanRateLimitResponse struct {
 	// cannot read the header from a cross-status fetch still has the number.
 	RetryAfterSeconds int `json:"retry_after_seconds"`
 
-	// Message is the human-readable reason, since this body never reaches
-	// writeErr's plain-text path.
+	// Message is the human-readable reason, since this body is the endpoint's
+	// own shape rather than writeErr's error envelope.
 	Message string `json:"message"`
 }
 

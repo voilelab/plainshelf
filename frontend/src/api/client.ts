@@ -260,8 +260,7 @@ function parseErrorEnvelope(raw: string): { code?: string; message?: string } | 
   return { code, message };
 }
 
-async function toApiError(res: Response): Promise<ApiError> {
-  const raw = (await res.text()).trim();
+function apiErrorFrom(res: Response, raw: string): ApiError {
   const envelope = parseErrorEnvelope(raw);
   const message =
     envelope?.message || (envelope ? '' : raw) || `HTTP ${res.status}: ${res.statusText}`;
@@ -271,6 +270,10 @@ async function toApiError(res: Response): Promise<ApiError> {
     url: res.url,
     code: envelope?.code
   });
+}
+
+async function toApiError(res: Response): Promise<ApiError> {
+  return apiErrorFrom(res, (await res.text()).trim());
 }
 
 async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = FETCH_TIMEOUT_MS): Promise<Response> {
@@ -334,6 +337,15 @@ export async function fetchJson<T>(
   const raw = await res.text();
   if (!raw.trim()) {
     return undefined as T;
+  }
+
+  // acceptStatuses says a body at that status *may* be a normal result, not
+  // that every body at it is one: a 409 carries either the running chain's ID
+  // or a refusal. The error envelope is self-identifying, so it is rejected
+  // here whatever the status - otherwise the caller reads taskchain_id off a
+  // refusal, gets undefined, and polls it.
+  if (!res.ok && parseErrorEnvelope(raw.trim())) {
+    throw apiErrorFrom(res, raw.trim());
   }
 
   try {
