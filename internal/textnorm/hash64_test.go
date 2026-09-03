@@ -59,20 +59,6 @@ func TestHash64StringMatchesHash64(t *testing.T) {
 	}
 }
 
-// TestHash64IsStableAcrossCalls is the weakest form of the property the
-// golden table really pins, kept because it names the failure directly: a
-// per-process seed would not even survive repeated calls after a rebuild.
-func TestHash64IsStableAcrossCalls(t *testing.T) {
-	const input = "話說天下大勢，分久必合，合久必分。"
-
-	first := hash64String(input)
-	for range 1000 {
-		if got := hash64String(input); got != first {
-			t.Fatalf("Hash64String is not a pure function: %#016x then %#016x", first, got)
-		}
-	}
-}
-
 // TestHash64TreatsNilAndEmptyAlike keeps the boundary case from depending on how
 // a caller happened to build its slice.
 func TestHash64TreatsNilAndEmptyAlike(t *testing.T) {

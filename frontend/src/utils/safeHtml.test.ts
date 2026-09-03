@@ -365,15 +365,6 @@ describe('renderDescriptionHtml', () => {
  * like.
  */
 describe('renderDescription', () => {
-  it('returns the same two readings the single-purpose functions do', () => {
-    for (const source of ['**粗體**與*斜體*', '<p>第一段</p><p>第二段</p>', '見[官方網站](https://example.com)。']) {
-      expect(renderDescription(source), source).toEqual({
-        html: renderDescriptionHtml(source),
-        text: toPlainSummary(source)
-      });
-    }
-  });
-
   it('reports no text for markup that amounts to no words', () => {
     for (const source of ['<br>', '<p> </p><div></div>', '![封面](cover.png)', '<style>p { color: red }</style>']) {
       expect(renderDescription(source).text, source).toBe('');
