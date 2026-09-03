@@ -395,4 +395,4 @@ random form makes that plain.
 
 ## Backing up a shelf
 
-Because it is all plain files, the shelf can be inspected with any file manager or text editor and copied with `cp -a` or `rsync`. Committing it to Git is *not* an equivalent option: Git does not track empty directories, so a folder holding no book is not in the commit and is not there after a checkout. See [Git does not back up empty folders](data-format-versioning.md#git-does-not-back-up-empty-folders), and [Back up before upgrading](data-format-versioning.md#back-up-before-upgrading) for what a complete backup covers.
+Because it is all plain files, the shelf can be inspected with any file manager or text editor and copied with `cp -a` or `rsync`. Committing it to Git is *not* an equivalent option: Git does not track empty directories, so a folder holding no book is not in the commit and is not there after a checkout. See [Git does not back up empty folders](../backup-and-restore.md#git-does-not-back-up-empty-folders), and [Backup and Restore](../backup-and-restore.md) for what a complete backup covers.

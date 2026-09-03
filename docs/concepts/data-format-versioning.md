@@ -1,10 +1,11 @@
 # Data Format Versioning
 
 This page explains how PlainShelf marks the on-disk format of your library, what
-happens to your files when you upgrade, how to back up and restore a shelf, and
-what PlainShelf does when it meets data it cannot safely write.
+happens to your files when you upgrade, and what PlainShelf does when it meets
+data it cannot safely write.
 
-For what is stored where, see [Data Model](data-model.md).
+For what is stored where, see [Data Model](data-model.md); for how to copy your
+library and put it back, see [Backup and Restore](../backup-and-restore.md).
 
 ---
 
@@ -304,7 +305,8 @@ breaking change, not data that 1.0 guarantees to migrate.
 - There is no downgrade path. PlainShelf will not rewrite a schema v2 book back
   to schema v1.
   To go back to an older release, restore from a backup taken before the
-  upgrade.
+  upgrade — see [Rolling back to an older
+  release](../backup-and-restore.md#rolling-back-to-an-older-release).
 - These promises cover `book.json`, source `meta.json`, and `trash.json` — the
   user-data files. The caches under `app/` carry a `schema_version` of their own,
   but the opposite kind: no migration, discarded and rebuilt on any mismatch, so
@@ -391,67 +393,20 @@ Until that changes, assume any key outside the table is temporary.
 
 ## Back up before upgrading
 
-The shelf is plain files, so a backup is a copy of a directory:
+Take a backup before every upgrade: until 1.0, an upgrade can write a format the
+release you are on will not touch, and the backup is the only way back.
 
-```sh
-cp -a /path/to/shelf /path/to/backup/shelf-2026-07-28
-# or
-rsync -a /path/to/shelf/ /path/to/backup/shelf-2026-07-28/
-```
+[Backup and Restore](../backup-and-restore.md) is the full procedure — what to
+copy for each installation, what a shelf-only copy silently leaves behind, and
+how to put it back. Two points matter specifically for an upgrade:
 
-Those two are equivalent for this purpose. Committing the shelf to Git is not —
-see [Git does not back up empty folders](#git-does-not-back-up-empty-folders)
-below.
-
-Three things people miss:
-
-- **Also copy the application store** (`app_conf.store_path` in the server
-  config file; the desktop app keeps it under `store/` in its app data
-  directory) if you want to preserve server settings. Reading progress, history,
-  and time are not in that store: each client keeps its own on the device that
-  did the reading, so none is covered by a server-side backup. Back up the browser
-  profile or desktop app data directory separately if those records matter.
-- **Everything under `app/`** — the lock file, temporary files, and the exported
-  book caches — can be discarded safely; the server recreates it.
-- **`trash/` is not in that category.** It holds books you deleted but have not
-  emptied yet, and nothing rebuilds them. Copying the shelf directory as shown
-  above already includes it; only leave it out if you are certain you want the
-  backup to drop those books. Older shelves keep the same directory hidden as
-  `.trash/`, so a backup command that skips dotfiles silently loses it — see
-  [`trash/` was `.trash/` before](data-model.md#trash-was-trash-before).
-
-Stop the server or desktop app before copying if you want a guaranteed-consistent
-snapshot. The shelf lock coordinates PlainShelf's own writes; it does not stop
-your backup tool from reading a file mid-write.
-
-### Git does not back up empty folders
-
-Git tracks files, not directories, so a [folder](folders.md) that holds no book —
-one you created ahead of time, or one whose books you have since moved out — is
-not in the commit and is not there after a checkout. Books themselves are
-directories full of files and come back intact; what a Git backup loses is the
-shape of the shelf around them.
-
-PlainShelf hits the same property internally, which is why it records the folder
-list in its own right instead of deriving it from the books: an empty folder
-holds no book, so nothing can rebuild it from the library.
-
-Two ways to live with that:
-
-- **Accept it,** and re-create the empty folders by hand after a restore. They
-  are only directories, so `mkdir` under `books/` or the app's own folder
-  creation is enough. [Restoring from a backup](#restoring-from-a-backup) below
-  says how to spot which ones are gone.
-- **Put a `.gitkeep` (or any placeholder file) in each folder you want
-  preserved.** Git then has a file to track and keeps the directory.
-  PlainShelf's scanners look only at directories under `books/`, so such a file
-  never shows up as a folder or a book — but it is still a file you did not put
-  in your library, and while it is there PlainShelf refuses to delete that
-  folder, reporting `cannot delete non-empty folder`; remove the file first.
-  PlainShelf neither creates nor removes these files, and does not plan to:
-  `books/` holds your files, not the app's.
-
-Use `cp -a` or `rsync` when you want a backup with none of these caveats.
+- **Take it immediately before the upgrade,** not on whatever schedule you
+  otherwise keep. What you need is the state the previous release last wrote.
+- **A copy of the shelf directory is not the whole picture.** Reading progress,
+  history, and time are per-device and have never been in a server-side backup;
+  the three stored server settings are in the application store, not the shelf.
+  See [What a shelf-only backup
+  loses](../backup-and-restore.md#what-a-shelf-only-backup-loses).
 
 ## v0.8 reading-data breaking change
 
@@ -469,22 +424,13 @@ Upgrade from v0.8 only if you accept that they will no longer be accessible.
 
 ## Restoring from a backup
 
-1. **Stop the server or desktop app.** The shelf lock is not a substitute for
-   stopping the process.
-2. Restore the shelf directory, and the application store if you backed it up.
-3. Start PlainShelf again.
-
-You can skip `app/library.lock`, `app/tmp/`, and `app/book-cache-*.json` when
-restoring; they are recreated on the next startup. Restore `books/` and `trash/`
-in full: both hold books, and a restored `.trash/` from an older backup is
-renamed to `trash/` on the next start.
-
-If you restored from a Git checkout rather than a file copy, check the folder
-tree before you start filing books again: every folder that was empty at commit
-time is missing, and no error says so — the library simply comes back one or
-more folders shallower. Compare the folder list in the app (or `find books/ -type d`)
-with what you expect, and re-create the ones that are gone. No book can go
-missing this way: a folder that still holds a book holds files, so Git kept it.
+[Backup and Restore](../backup-and-restore.md#restoring) has the steps for the
+server, Docker, and the macOS desktop app, along with what can be skipped and
+what a restore cannot bring back. For going back to an older release
+specifically, see [Rolling back to an older
+release](../backup-and-restore.md#rolling-back-to-an-older-release): restoring
+is required, because downgrading the binary alone leaves the newer on-disk data
+in place and the older build refuses to write it.
 
 ---
 
