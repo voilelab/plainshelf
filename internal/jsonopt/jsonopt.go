@@ -22,9 +22,9 @@ import (
 	// The v1 package is imported for one option constructor, not to encode or
 	// decode anything: MatchCaseSensitiveDelimiter is declared there and has no
 	// counterpart in v2, because it exists to describe v1's behavior. See [Read].
-	jsonv1 "encoding/json"
+
 	"encoding/json/jsontext"
-	jsonv2 "encoding/json/v2"
+	"encoding/json/v2"
 )
 
 // diskIndent is the indentation every hand-editable file on the shelf is
@@ -34,59 +34,37 @@ import (
 const diskIndent = "  "
 
 var (
-	disk = jsonv2.JoinOptions(
-		jsonv2.Deterministic(true),
+	disk = json.JoinOptions(
+		json.Deterministic(true),
 		jsontext.WithIndent(diskIndent),
 	)
 
-	diskCompact = jsonv2.JoinOptions(
-		jsonv2.Deterministic(true),
+	diskCompact = json.JoinOptions(
+		json.Deterministic(true),
 	)
 
-	api = jsonv2.JoinOptions(
-		jsonv2.Deterministic(true),
+	api = json.JoinOptions(
+		json.Deterministic(true),
 	)
 
-	read = jsonv2.JoinOptions(
-		jsonv2.MatchCaseInsensitiveNames(true),
-		jsonv1.MatchCaseSensitiveDelimiter(true),
-		jsontext.AllowDuplicateNames(true),
-		jsontext.AllowInvalidUTF8(true),
-	)
+	read = json.JoinOptions()
 )
 
 // Disk returns the options for a file a human is meant to be able to open and
 // edit: book.json, a source's meta.json, trash metadata, the exported book
 // cache. Output is indented and map keys are sorted.
-func Disk() jsonv2.Options { return disk }
+func Disk() json.Options { return disk }
 
 // DiskCompact returns the options for the machine-only files under app/ that
 // are written on a single line — the fingerprint cache, the scan cache, stored
 // reading progress. It is [Disk] without the indentation, not a weaker
 // guarantee: these are exactly the files whose bytes are compared or digested,
 // so the determinism matters more here than anywhere else.
-func DiskCompact() jsonv2.Options { return diskCompact }
+func DiskCompact() json.Options { return diskCompact }
 
 // API returns the options for an HTTP response body. Responses are unindented
 // to keep them small, and deterministic so that a body is worth comparing —
 // in a contract test, in a diff between two builds, or behind an ETag.
-func API() jsonv2.Options { return api }
+func API() json.Options { return api }
 
-// Read returns the options for decoding a file that is already on disk. Unlike
-// the write sets it exists to *refuse* v2 defaults: v1 matched member names
-// case-insensitively, kept the last of a duplicate pair and replaced invalid
-// UTF-8, and a shelf written by any build up to now may hold all three.
-//
-// Adopting the strict defaults here is not a formatting change like the ones on
-// the write side, because a member this build fails to match is a member the
-// next whole-file write drops — a hand-edited "Title" would be read as absent
-// and then deleted. PSW-99 makes that decision once unknown members survive a
-// write; until then the reader stays where it was.
-//
-// MatchCaseSensitiveDelimiter is what keeps "where it was" exact.
-// [jsonv2.MatchCaseInsensitiveNames] on its own is looser than v1 rather than
-// equal to it: it also folds away underscores and dashes, so a stray
-// "schema-version" that v1 ignored would start binding to SchemaVersion — and a
-// book.json whose schema_version reads as a future one refuses every write.
-// Loosening the reader is as much a behavior change as tightening it.
-func Read() jsonv2.Options { return read }
+func Read() json.Options { return read }
