@@ -70,7 +70,17 @@ That is why the option lives in one package and why the assertions below exist.
 names case-insensitively, kept the last of a duplicate pair and replaced invalid
 UTF-8; every shelf written so far may hold all three, so it carries
 `MatchCaseInsensitiveNames(true)`, `jsontext.AllowDuplicateNames(true)` and
-`jsontext.AllowInvalidUTF8(true)`.
+`jsontext.AllowInvalidUTF8(true)` — plus `MatchCaseSensitiveDelimiter(true)`,
+which is the one option in the set that comes from the *v1* package.
+
+That last one is why `internal/jsonopt/jsonopt.go` is on the import allowlist,
+and it is not a detail. `MatchCaseInsensitiveNames` alone is not v1's matching:
+v2 folds away underscores and dashes as well as case, so a `book.json` holding a
+stray `"schema-version"` — ignored by v1 — would start binding to
+`schema_version`, and a book whose schema version reads as a future one refuses
+every write. Loosening the reader is as much a behavior change as tightening it,
+so `TestReadMatchesV1` asserts the set against the v1 package itself rather than
+against a table of remembered behaviors.
 
 Adopting the strict defaults on the read side is not a formatting change like
 the ones on the write side. `setMeta` rewrites `book.json` whole, so a member
@@ -82,7 +92,8 @@ after PSW-93 makes unknown members survive a write — see the table below.
 
 ## v1 → v2 API mapping
 
-Import v2 under the name the call site already uses:
+Import v2 under the name the call site already uses. `internal/jsonopt` is the
+one file that also imports v1, for the option constructor described above:
 
 ```go
 import (

@@ -1,6 +1,7 @@
 package jsonopt
 
 import (
+	jsonv1 "encoding/json"
 	"encoding/json/jsontext"
 	jsonv2 "encoding/json/v2"
 	"strings"
@@ -156,14 +157,61 @@ func TestAcceptedV2DefaultsStayDefault(t *testing.T) {
 	}
 }
 
-// TestStrictUnmarshalDefaults records that reading is left strict. The option
-// sets are for marshaling; nothing here relaxes what a hand-edited file may
-// contain, and PSW-99 owns the reporting side of that strictness.
+// TestStrictUnmarshalDefaults records what a decoder does with no options: v2's
+// strict defaults, which [Read] exists to hold back until PSW-99 adopts them.
 func TestStrictUnmarshalDefaults(t *testing.T) {
 	if err := jsonv2.Unmarshal([]byte(`{"a":1,"a":2}`), new(map[string]int)); err == nil {
 		t.Error("Expected a duplicate object member to be rejected")
 	}
 	if err := jsonv2.Unmarshal([]byte("{\"a\":\"\xff\"}"), new(map[string]string)); err == nil {
 		t.Error("Expected invalid UTF-8 to be rejected")
+	}
+}
+
+// readCompat is shaped like the shelf's own on-disk types: a snake_case member
+// that a hand edit could plausibly write with a dash, and one whose only
+// difference from the tag is capitalization.
+type readCompat struct {
+	SchemaVersion int    `json:"schema_version"`
+	Title         string `json:"title"`
+}
+
+// TestReadMatchesV1 is the assertion [Read] exists for, and it is written
+// against the v1 package rather than against a table of remembered behaviors on
+// purpose: the first version of this option set reached for
+// MatchCaseInsensitiveNames alone and was *looser* than v1, because v2 folds
+// away underscores and dashes as well as case. A stray "schema-version" that v1
+// ignored would have bound to SchemaVersion, and a book.json whose
+// schema_version reads as a future one refuses every write. Only v1 itself can
+// say what v1 did.
+func TestReadMatchesV1(t *testing.T) {
+	for _, input := range []string{
+		// Case alone: v1 matched these, and so must Read — a hand-edited
+		// "Title" that stops being read is deleted by the next whole-file write.
+		`{"title":"kept"}`,
+		`{"Title":"kept"}`,
+		`{"TITLE":"kept"}`,
+		`{"SCHEMA_VERSION":3}`,
+		`{"Schema_Version":3}`,
+		// Delimiters: v1 ignored all of these, and so must Read.
+		`{"schema-version":999}`,
+		`{"schemaversion":999}`,
+		`{"schema__version":999}`,
+		// Tolerances v1 had that v2 dropped.
+		`{"title":"first","title":"second"}`,
+		"{\"title\":\"\xff\"}",
+	} {
+		t.Run(input, func(t *testing.T) {
+			var v1, v2 readCompat
+			v1Err := jsonv1.Unmarshal([]byte(input), &v1)
+			v2Err := jsonv2.Unmarshal([]byte(input), &v2, Read())
+
+			if (v1Err == nil) != (v2Err == nil) {
+				t.Fatalf("v1 error %v, Read() error %v; the two must agree on acceptance", v1Err, v2Err)
+			}
+			if v1 != v2 {
+				t.Errorf("v1 decoded %+v, Read() decoded %+v", v1, v2)
+			}
+		})
 	}
 }

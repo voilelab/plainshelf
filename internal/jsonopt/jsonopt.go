@@ -19,6 +19,10 @@
 package jsonopt
 
 import (
+	// The v1 package is imported for one option constructor, not to encode or
+	// decode anything: MatchCaseSensitiveDelimiter is declared there and has no
+	// counterpart in v2, because it exists to describe v1's behavior. See [Read].
+	jsonv1 "encoding/json"
 	"encoding/json/jsontext"
 	jsonv2 "encoding/json/v2"
 )
@@ -45,6 +49,7 @@ var (
 
 	read = jsonv2.JoinOptions(
 		jsonv2.MatchCaseInsensitiveNames(true),
+		jsonv1.MatchCaseSensitiveDelimiter(true),
 		jsontext.AllowDuplicateNames(true),
 		jsontext.AllowInvalidUTF8(true),
 	)
@@ -77,4 +82,11 @@ func API() jsonv2.Options { return api }
 // next whole-file write drops — a hand-edited "Title" would be read as absent
 // and then deleted. PSW-99 makes that decision once unknown members survive a
 // write; until then the reader stays where it was.
+//
+// MatchCaseSensitiveDelimiter is what keeps "where it was" exact.
+// [jsonv2.MatchCaseInsensitiveNames] on its own is looser than v1 rather than
+// equal to it: it also folds away underscores and dashes, so a stray
+// "schema-version" that v1 ignored would start binding to SchemaVersion — and a
+// book.json whose schema_version reads as a future one refuses every write.
+// Loosening the reader is as much a behavior change as tightening it.
 func Read() jsonv2.Options { return read }

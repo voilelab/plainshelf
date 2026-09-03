@@ -51,8 +51,18 @@ var jsonV1Allowlist = map[string]string{
 	"server/spa.go":                                       "PSW-98",
 
 	// PSW-99 — Read-side strictness, which shelf.json's trailing-data check is
-	// entangled with.
-	"shelf/shelf_config.go": "PSW-99",
+	// entangled with. jsonopt is here for one option constructor rather than a
+	// call site: MatchCaseSensitiveDelimiter is declared only in the v1 package,
+	// because it exists to describe v1, and jsonopt.Read needs it to be v1
+	// exactly. PSW-99 removes Read either way — by adopting the strict defaults,
+	// or by restating the tolerant ones as a decision rather than a holdover —
+	// and the import goes with it.
+	// jsonopt_test.go imports v1 to compare Read against it directly, which is
+	// the only way to assert "this is what v1 did" without writing down what
+	// someone believed v1 did.
+	"internal/jsonopt/jsonopt.go":      "PSW-99",
+	"internal/jsonopt/jsonopt_test.go": "PSW-99",
+	"shelf/shelf_config.go":            "PSW-99",
 
 	// PSW-100 — Everything the batches above do not reach.
 	"desktop/app.go":                  "PSW-100",
