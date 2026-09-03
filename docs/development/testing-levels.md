@@ -95,10 +95,10 @@ diff.
 A pull request does not run the whole suite. It runs the cases tagged
 `@smoke`, and the rest run once a night on `dev`:
 
-| Tier | What runs | Where | What it gates |
-|---|---|---|---|
-| Smoke | `@smoke`, 13 cases | `ci.yml`, every pull request | the merge |
-| Full | all 37 cases | `nightly.yml`, 03:00 UTC on `dev` | the release |
+| Tier | What runs | Browsers | Where | What it gates |
+|---|---|---|---|---|
+| Smoke | `@smoke`, 13 cases | chromium | `ci.yml`, every pull request | the merge |
+| Full | all 37 cases | chromium, webkit | `nightly.yml`, 03:00 UTC on `dev` | the release |
 
 The split exists because the wait before a merge should not grow with the
 suite. It costs one thing, and it is worth stating plainly: **a green pull
@@ -106,6 +106,29 @@ request no longer means the E2E suite passed.** A change outside the smoke set
 is checked by `just test-e2e` before pushing, and by the night after merging;
 when the night is red, the workflow opens (or comments on) one issue on this
 repository.
+
+#### The browser matrix is the nightly's, not the gate's
+
+Chromium is the engine Windows (WebView2) and Android (Chromium WebView) ship,
+so it is the one the merge gate runs. It is not the engine the macOS cask
+ships: Wails renders there in **WKWebView**, and until PSW-111 no E2E case had
+ever run against a WebKit build — `desktop-shell.spec.ts` included. The nightly
+therefore runs a second round on Playwright's `webkit`.
+
+`E2E_BROWSERS` picks the round, as a comma-separated list; it defaults to
+`chromium`, so a local `just test-e2e` and the gate are unaffected and need no
+extra browser download. `nightly.yml` sets `chromium,webkit` and installs both.
+
+Two limits worth keeping straight:
+
+- Playwright's `webkit` is neither Safari nor WKWebView — it is the same WebKit
+  core in a different embedder. A green webkit round means no chromium-only
+  assumption was found, **not** that the macOS desktop app is covered. Only a
+  real macOS runner would say that, and that is out of scope here.
+- `firefox` is available in `E2E_BROWSERS` but is not run anywhere. Gecko is not
+  an engine this project ships against, so a third round would spend nightly
+  time on a target with no users. Run it by hand if a rendering question makes
+  it worth an answer.
 
 The smoke tier is a budget of its own — ≤ 20 cases, 13 today — and its job is
 to notice that the product is broken, not to cover behavior. It holds one case
