@@ -44,27 +44,69 @@ async function openReader(page: Page): Promise<Page> {
   return openReaderTab(page, () => page.getByRole('button', { name: 'Start reading' }).click());
 }
 
+// WebKit is the second engine the nightly runs (PSW-111), and it does not
+// expose a constructible `Touch`: `new Touch(...)` throws "Illegal
+// constructor" there. Its equivalents are the legacy `document.createTouch`
+// and `document.createTouchList`, which take *page* coordinates and return a
+// real `TouchList` — the same split Playwright makes inside its own
+// `dispatchEvent`. Chromium dropped both, so their presence is the switch.
+//
+// The whole gesture stays inside one `evaluate` on purpose: a tap is only a
+// tap while touchstart and touchend are under 350ms apart
+// (`MOBILE_READER_TAP_DURATION_MS`), which one protocol round-trip per event
+// would put at the mercy of a loaded runner.
+interface LegacyTouchDocument extends Document {
+  createTouch(
+    view: Window,
+    target: EventTarget,
+    identifier: number,
+    pageX: number,
+    pageY: number,
+    screenX: number,
+    screenY: number
+  ): Touch;
+  createTouchList(...touches: Touch[]): TouchList;
+}
+
 async function dispatchTouch(
   target: Locator,
   points: Array<{ x: number; y: number }>,
   pointerId = 1
 ): Promise<void> {
   await target.evaluate((element, { gesturePoints, identifier }) => {
-    const createTouch = (point: { x: number; y: number }) => new Touch({
-      identifier,
-      target: element,
-      clientX: point.x,
-      clientY: point.y,
-      screenX: point.x,
-      screenY: point.y
-    });
+    const doc = element.ownerDocument as LegacyTouchDocument;
+    const legacy =
+      typeof doc.createTouch === 'function' && typeof doc.createTouchList === 'function';
+
+    const createTouch = (point: { x: number; y: number }) => {
+      if (!legacy) {
+        return new Touch({
+          identifier,
+          target: element,
+          clientX: point.x,
+          clientY: point.y,
+          screenX: point.x,
+          screenY: point.y
+        });
+      }
+      return doc.createTouch(
+        doc.defaultView as Window,
+        element,
+        identifier,
+        point.x + (doc.scrollingElement?.scrollLeft ?? 0),
+        point.y + (doc.scrollingElement?.scrollTop ?? 0),
+        point.x,
+        point.y
+      );
+    };
+    const asTouches = (touches: Touch[]) => (legacy ? doc.createTouchList(...touches) : touches);
     const dispatch = (type: string, touches: Touch[], changedTouches: Touch[]) => {
       element.dispatchEvent(new TouchEvent(type, {
         bubbles: true,
         cancelable: true,
-        touches,
-        targetTouches: touches,
-        changedTouches
+        touches: asTouches(touches),
+        targetTouches: asTouches(touches),
+        changedTouches: asTouches(changedTouches)
       }));
     };
 
