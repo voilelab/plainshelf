@@ -199,20 +199,13 @@ Read the relevant section before working in that area. Add entries according to
   test failure, costing a re-upload per scan on pCloud or SMB. Importing
   `encoding/json` at all fails `internal/repocheck` unless the file is on the
   shrinking allowlist. (`docs/development/json-encoding.md`)
-- **JSON decoding:** pass `jsonopt.Read()` to every `Unmarshal`/`UnmarshalRead`
-  → dropping it takes json/v2's strict defaults, and case-sensitive names are
-  not a formatting change: `setMeta` rewrites `book.json` whole, so a
-  hand-edited `"Title"` reads as absent and the next save deletes it. Nothing
-  fails — the file round-trips and the field simply is not there.
-  (`internal/jsonopt/jsonopt.go`)
-- **v2 case-insensitive matching is not v1's:** `MatchCaseInsensitiveNames`
-  folds away `_` and `-` as well as case, so it is *looser* than v1, not equal
-  to it → a stray `"schema-version"` v1 ignored starts binding to
-  `schema_version` and locks the book as a future schema. Pair it with
-  `MatchCaseSensitiveDelimiter(true)`, which lives only in the v1 package. When
-  a set claims to reproduce v1, assert it against v1 itself; a table of
-  remembered behaviors only records what the author believed.
-  (`internal/jsonopt/jsonopt_test.go`)
+- **No v1 read compatibility:** the shelf does not promise that a file an older
+  build wrote still reads the same, so do not reach for the v1-compat decode
+  options → json/v2's strict defaults are the decision. A hand-edited `"Title"`
+  now reads as absent, and `setMeta` rewrites `book.json` whole, so the next
+  save drops it; that is accepted, and PSW-93's unknown-member passthrough is
+  what changes it. Proposing a compatibility layer here has already been
+  rejected once. (`internal/jsonopt/jsonopt.go`)
 - **Network shelves:** SMB latency amplifies directory walks and stat calls;
   preserve scan/check intervals, finite lock timeouts, atomic writes, and clear
   error propagation. See `docs/concepts/shelf-cache-and-io.md`.

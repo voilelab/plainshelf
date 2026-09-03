@@ -542,7 +542,7 @@ func (c *Cache) readFile() (*cacheFile, []byte, error) {
 	}
 
 	var stored cacheFile
-	if err := json.Unmarshal(raw, &stored, jsonopt.Read()); err != nil {
+	if err := json.Unmarshal(raw, &stored); err != nil {
 		return nil, nil, util.Errorf("%w", err)
 	}
 	if stored.SchemaVersion != schemaVersion {

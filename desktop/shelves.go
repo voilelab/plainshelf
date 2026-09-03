@@ -57,7 +57,7 @@ func loadDesktopShelves(configPath string) (*desktopShelvesConfig, error) {
 		return nil, util.Errorf("%w", err)
 	}
 	var conf desktopShelvesConfig
-	if err := json.Unmarshal(data, &conf, jsonopt.Read()); err != nil {
+	if err := json.Unmarshal(data, &conf); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 	return &conf, nil

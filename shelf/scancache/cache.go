@@ -81,7 +81,7 @@ func (c *Cache) load() {
 	}
 
 	var snapshot scanCacheFile
-	if err := json.Unmarshal(data, &snapshot, jsonopt.Read()); err != nil {
+	if err := json.Unmarshal(data, &snapshot); err != nil {
 		c.logger.Debug("ignoring an unreadable directory scan cache", "file", FileName, "error", err)
 		return
 	}

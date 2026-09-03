@@ -91,7 +91,7 @@ func Parse(text string) Document {
 			At     float64 `json:"at"`
 		} `json:"shelves"`
 	}
-	if err := json.Unmarshal([]byte(text), &raw, jsonopt.Read()); err != nil {
+	if err := json.Unmarshal([]byte(text), &raw); err != nil {
 		return doc
 	}
 	if raw.Version != DocumentVersion {

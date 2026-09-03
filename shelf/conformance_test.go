@@ -222,7 +222,7 @@ func readOnDiskSchemaVersion(t *testing.T, s *Shelf, bookPath string) int {
 	var meta struct {
 		SchemaVersion int `json:"schema_version"`
 	}
-	if err := json.UnmarshalRead(file, &meta, jsonopt.Read()); err != nil {
+	if err := json.UnmarshalRead(file, &meta); err != nil {
 		t.Fatalf("decode book.json (%s): %v", bookPath, err)
 	}
 	return meta.SchemaVersion

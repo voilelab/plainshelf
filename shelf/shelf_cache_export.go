@@ -408,7 +408,7 @@ func (s *Shelf) readBookCacheFile(filePath string) (*BookCacheFile, error) {
 	defer file.Close()
 
 	var cache BookCacheFile
-	if err := json.UnmarshalRead(file, &cache, jsonopt.Read()); err != nil {
+	if err := json.UnmarshalRead(file, &cache); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 	if cache.SchemaVersion != BookCacheSchemaVersion || cache.WriterID == "" || cache.Timestamp == 0 {

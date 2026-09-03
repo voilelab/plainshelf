@@ -1,6 +1,6 @@
-// Package jsonopt holds the encoding/json/v2 option sets PlainShelf encodes and
-// decodes with, so one decision covers every call site instead of each one
-// remembering the same options.
+// Package jsonopt holds the encoding/json/v2 option sets PlainShelf marshals
+// with, so one decision covers every writer instead of each call site
+// remembering the same three options.
 //
 // The option that motivated the package is [json.Deterministic]. v2 marshals
 // map entries in unspecified order, while v1 always sorted them, and two
@@ -10,19 +10,14 @@
 // the option costs no compile error and no test failure — only a pointless
 // upload on every scan for a shelf held on pCloud or SMB.
 //
-// Everything else on the write side is a deliberate non-decision: those sets
-// add nothing but determinism and indentation, so the remaining v2 defaults
-// (empty slices and maps as [] and {}, no HTML escaping) apply as they are.
-// [Read] is the exception, and overrides in the opposite direction: it holds
-// the decoder at v1's tolerance until the shelf can afford to tighten it.
-// docs/development/json-encoding.md records why each default is accepted.
+// Everything else is a deliberate non-decision: the sets add nothing but
+// determinism and indentation, so the remaining v2 defaults (empty slices and
+// maps as [] and {}, no HTML escaping, duplicate object names and invalid UTF-8
+// rejected, member names matched case-sensitively) apply as they are.
+// docs/development/json-encoding.md records why each one is accepted.
 package jsonopt
 
 import (
-	// The v1 package is imported for one option constructor, not to encode or
-	// decode anything: MatchCaseSensitiveDelimiter is declared there and has no
-	// counterpart in v2, because it exists to describe v1's behavior. See [Read].
-
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 )
@@ -46,8 +41,6 @@ var (
 	api = json.JoinOptions(
 		json.Deterministic(true),
 	)
-
-	read = json.JoinOptions()
 )
 
 // Disk returns the options for a file a human is meant to be able to open and
@@ -66,5 +59,3 @@ func DiskCompact() json.Options { return diskCompact }
 // to keep them small, and deterministic so that a body is worth comparing —
 // in a contract test, in a diff between two builds, or behind an ETag.
 func API() json.Options { return api }
-
-func Read() json.Options { return read }
