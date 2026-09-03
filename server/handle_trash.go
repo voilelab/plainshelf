@@ -39,7 +39,7 @@ func (h *trashHandlers) trashBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := shelfData.MoveBookToTrash(bookID); err != nil {
-		h.writeErr(w, err, "failed to trash book")
+		h.writeErr(w, r, err, "failed to trash book")
 		return
 	}
 
@@ -55,7 +55,7 @@ func (h *trashHandlers) getTrashedBooks(w http.ResponseWriter, r *http.Request) 
 
 	books, err := shelfData.ListTrashedBooks()
 	if err != nil {
-		h.writeErr(w, err, "failed to list trashed books")
+		h.writeErr(w, r, err, "failed to list trashed books")
 		return
 	}
 
@@ -80,12 +80,12 @@ func (h *trashHandlers) emptyTrash(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if h.rejectReadOnlyShelf(w, shelfData) {
+	if h.rejectReadOnlyShelf(w, r, shelfData) {
 		return
 	}
 
-	h.submitTaskChain(w,
-		task.NewEmptyTrashChain(shelfData.ID, shelfData.Shelf, h.Logger),
+	h.submitTaskChain(w, r,
+		task.NewEmptyTrashChain(shelfData.ID, shelfData.Shelf, h.requestLogger(r)),
 		"failed to schedule empty trash task")
 }
 
@@ -102,7 +102,7 @@ func (h *trashHandlers) restoreTrashedBook(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := shelfData.RestoreTrashedBook(bookID); err != nil {
-		h.writeErr(w, err, "failed to restore trashed book")
+		h.writeErr(w, r, err, "failed to restore trashed book")
 		return
 	}
 
@@ -122,7 +122,7 @@ func (h *trashHandlers) deleteTrashedBook(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := shelfData.DeleteTrashedBook(bookID); err != nil {
-		h.writeErr(w, err, "failed to permanently delete trashed book")
+		h.writeErr(w, r, err, "failed to permanently delete trashed book")
 		return
 	}
 

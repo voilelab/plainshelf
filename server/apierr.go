@@ -6,9 +6,15 @@ import (
 	"net/http"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/taskutil"
 	"github.com/voilelab/plainshelf/shelf"
 )
+
+// RequestIDHeader carries each request's ID back to the client. It is the
+// header form of the error envelope's incident field, so a user can quote a
+// number for a request that did not fail at all.
+const RequestIDHeader = "X-Request-Id"
 
 type apiError struct {
 	status  int
@@ -163,9 +169,15 @@ type apiErrorDetail struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 
-	// Incident correlates this response with the server log entry that holds
-	// the withheld cause. Nothing sets it yet; it is omitted until PSW-104
-	// gives 5xx responses an incident ID.
+	// Incident correlates this response with the server log entries for the
+	// request that produced it. It is the request's ID, not a second number
+	// minted for the failure: a user reporting a refusal they understand - a
+	// 404, a read-only shelf - has something to quote too, and quotes the same
+	// string the X-Request-Id header carries.
+	//
+	// It stays omitempty for the responses no middleware saw: the desktop
+	// client reaches some handlers directly, and those have no request to take
+	// an ID from.
 	Incident string `json:"incident,omitempty"`
 }
 
@@ -209,33 +221,48 @@ func ignoredFolderMessage(err *shelf.IgnoredFolderNameError) string {
 //
 // The body is the JSON envelope in every case; err.Error() reaches the log, not
 // the client.
-func (c *apiCore) writeErr(w http.ResponseWriter, err error, fallback string) {
-	c.writeErrStatus(w, err, fallback, http.StatusInternalServerError)
+func (c *apiCore) writeErr(w http.ResponseWriter, r *http.Request, err error, fallback string) {
+	c.writeErrStatus(w, r, err, fallback, http.StatusInternalServerError)
 }
 
 // writeErrStatus is writeErr with a caller-chosen status for unknown errors.
 // The folder routes answer a family of outcomes the table cannot yet name with
 // a single status, and 500 would be wrong for those.
-func (c *apiCore) writeErrStatus(w http.ResponseWriter, err error, fallback string, fallbackStatus int) {
+func (c *apiCore) writeErrStatus(w http.ResponseWriter, r *http.Request, err error, fallback string, fallbackStatus int) {
+	incident := logutil.RequestIDFrom(r.Context())
+
 	if resp, ok := apiErrorFor(err); ok {
 		if resp.retryAfter != "" {
 			w.Header().Set("Retry-After", resp.retryAfter)
 		}
-		c.writeErrBody(w, resp.status, resp.code, resp.message)
+		c.writeErrBody(w, resp.status, resp.code, resp.message, incident)
 		return
 	}
-
-	c.Error(fallback, "error", err)
 
 	code := codeUnknown
 	if fallbackStatus >= http.StatusInternalServerError {
 		code = codeInternal
 	}
-	c.writeErrBody(w, fallbackStatus, code, fallback)
+
+	// The unknown failure is the one that reaches a bug report, and its body
+	// deliberately withholds the cause, so this line has to answer every
+	// question the body cannot: which request, what it asked for, which shelf
+	// it was against, and the whole error chain. Anything missing here is a
+	// question the developer has to put back to the user days later.
+	c.Error(fallback,
+		"request_id", incident,
+		"code", code,
+		"method", r.Method,
+		"path", r.URL.Path,
+		"shelf_id", r.PathValue("shelf_id"),
+		"error", err,
+	)
+
+	c.writeErrBody(w, fallbackStatus, code, fallback, incident)
 }
 
 // writeErrBody sends the error envelope. It shares writeJSON so error and
 // success bodies cannot drift apart on content type or trailing newline.
-func (c *apiCore) writeErrBody(w http.ResponseWriter, status int, code, message string) {
-	c.writeJSON(w, status, apiErrorBody{Error: apiErrorDetail{Code: code, Message: message}})
+func (c *apiCore) writeErrBody(w http.ResponseWriter, status int, code, message, incident string) {
+	c.writeJSON(w, status, apiErrorBody{Error: apiErrorDetail{Code: code, Message: message, Incident: incident}})
 }

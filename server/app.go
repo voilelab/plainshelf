@@ -253,7 +253,16 @@ func (app *App) Handler() http.Handler {
 	app.handlers.serve(mux)
 
 	loggerHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		app.Info("app handler", "method", r.Method, "path", r.URL.Path, "remote_addr", r.RemoteAddr)
+		// One ID per request, minted before anything can answer it, so the
+		// response header, this log line, every later log line about the
+		// request and the error envelope all quote the same string. A user who
+		// reports that string names one request, and the developer who searches
+		// the log for it lands on the line below.
+		requestID := logutil.NewRequestID()
+		w.Header().Set(RequestIDHeader, requestID)
+		r = r.WithContext(logutil.WithRequestID(r.Context(), requestID))
+
+		app.Info("app handler", "request_id", requestID, "method", r.Method, "path", r.URL.Path, "remote_addr", r.RemoteAddr)
 		if app.rejectReadOnlyWrite(w, r) {
 			return
 		}

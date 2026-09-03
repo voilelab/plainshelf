@@ -69,7 +69,7 @@ func (h *bookTransferHandlers) transferBook(w http.ResponseWriter, r *http.Reque
 
 	// The source book must exist before anything is scheduled: a transfer of a
 	// missing book is a 404 now, not a task that fails later.
-	listing, ok := h.lookupBookListing(w, sourceShelf, bookID)
+	listing, ok := h.lookupBookListing(w, r, sourceShelf, bookID)
 	if !ok {
 		return
 	}
@@ -81,13 +81,13 @@ func (h *bookTransferHandlers) transferBook(w http.ResponseWriter, r *http.Reque
 		targetFolder = append(shelf.FolderPath(nil), (*request.TargetFolder)...)
 	}
 	if err := targetShelf.ValidateFolderPath(targetFolder); err != nil {
-		h.writeErrStatus(w, err, "invalid target_folder", http.StatusBadRequest)
+		h.writeErrStatus(w, r, err, "invalid target_folder", http.StatusBadRequest)
 		return
 	}
 
 	// A write to a read-only target is refused here rather than in a task the
 	// caller would otherwise have to read to learn the work never happened.
-	if h.rejectReadOnlyShelf(w, targetShelf) {
+	if h.rejectReadOnlyShelf(w, r, targetShelf) {
 		return
 	}
 
@@ -95,7 +95,7 @@ func (h *bookTransferHandlers) transferBook(w http.ResponseWriter, r *http.Reque
 	// scheduling it would publish the copy on the target and then fail to remove
 	// the source, leaving the book on both shelves. A copy only reads the source,
 	// so a read-only source is fine for it.
-	if operation == task.BookTransferOperationMove && h.rejectReadOnlyShelf(w, sourceShelf) {
+	if operation == task.BookTransferOperationMove && h.rejectReadOnlyShelf(w, r, sourceShelf) {
 		return
 	}
 
@@ -104,15 +104,15 @@ func (h *bookTransferHandlers) transferBook(w http.ResponseWriter, r *http.Reque
 	// trash) before publishing.
 	if operation == task.BookTransferOperationMove {
 		if _, err := targetShelf.GetBook(bookID); err == nil {
-			h.writeErr(w, shelf.ErrBookIDConflict, "failed to check the target shelf")
+			h.writeErr(w, r, shelf.ErrBookIDConflict, "failed to check the target shelf")
 			return
 		} else if !errors.Is(err, shelf.ErrBookNotFound) {
-			h.writeErr(w, err, "failed to check the target shelf")
+			h.writeErr(w, r, err, "failed to check the target shelf")
 			return
 		}
 	}
 
-	h.submitTaskChain(w,
-		task.NewBookTransferChain(sourceShelf.ID, sourceShelf.Shelf, targetShelf.ID, targetShelf.Shelf, h.Logger, operation, bookID, targetFolder),
+	h.submitTaskChain(w, r,
+		task.NewBookTransferChain(sourceShelf.ID, sourceShelf.Shelf, targetShelf.ID, targetShelf.Shelf, h.requestLogger(r), operation, bookID, targetFolder),
 		"failed to schedule book transfer task")
 }

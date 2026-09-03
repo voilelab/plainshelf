@@ -20,7 +20,7 @@ func (h *batchHandlers) fingerprintSources(w http.ResponseWriter, r *http.Reques
 	}
 	// Before force is even read: force must not offer a way around the read-only
 	// boundary, so the shelf is gated whatever the flag says.
-	if h.rejectReadOnlyShelf(w, shelfData) {
+	if h.rejectReadOnlyShelf(w, r, shelfData) {
 		return
 	}
 
@@ -29,8 +29,8 @@ func (h *batchHandlers) fingerprintSources(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	h.submitTaskChain(w,
-		task.NewFingerprintSourcesChain(shelfData.ID, shelfData.Shelf, force, h.Logger),
+	h.submitTaskChain(w, r,
+		task.NewFingerprintSourcesChain(shelfData.ID, shelfData.Shelf, force, h.requestLogger(r)),
 		"failed to schedule source fingerprint task")
 }
 

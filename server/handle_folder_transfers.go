@@ -70,7 +70,7 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 		return
 	}
 	if err := sourceShelf.ValidateFolderPath(sourceFolder); err != nil {
-		h.writeErrStatus(w, err, "invalid source_folder", http.StatusBadRequest)
+		h.writeErrStatus(w, r, err, "invalid source_folder", http.StatusBadRequest)
 		return
 	}
 
@@ -105,19 +105,19 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 		return
 	}
 	if err := targetShelf.ValidateFolderPath(targetFolder); err != nil {
-		h.writeErrStatus(w, err, "invalid target_folder", http.StatusBadRequest)
+		h.writeErrStatus(w, r, err, "invalid target_folder", http.StatusBadRequest)
 		return
 	}
 
 	// A write to a read-only target is refused here rather than in a task the
 	// caller would otherwise have to read to learn the work never happened.
-	if h.rejectReadOnlyShelf(w, targetShelf) {
+	if h.rejectReadOnlyShelf(w, r, targetShelf) {
 		return
 	}
 
 	// A move ends by deleting from the source, so a read-only source is refused
 	// too. A copy only reads the source, so a read-only source is fine for it.
-	if operation == task.BookTransferOperationMove && h.rejectReadOnlyShelf(w, sourceShelf) {
+	if operation == task.BookTransferOperationMove && h.rejectReadOnlyShelf(w, r, sourceShelf) {
 		return
 	}
 
@@ -136,14 +136,14 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 	// below, so the 409 check and the scheduled work see the same set.
 	sourceFolders, err := sourceShelf.GetAllFolders()
 	if err != nil {
-		h.writeErr(w, err, "failed to read the source shelf")
+		h.writeErr(w, r, err, "failed to read the source shelf")
 		return
 	}
 	subFolders := foldersUnder(sourceFolders, sourceFolder)
 
 	listings, err := sourceShelf.ListBooksWithCharCount()
 	if err != nil {
-		h.writeErr(w, err, "failed to read the source shelf")
+		h.writeErr(w, r, err, "failed to read the source shelf")
 		return
 	}
 	var books []task.FolderTransferBook
@@ -167,7 +167,7 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 	// on a folder the target already holds rather than merging into it.
 	targetFolders, err := targetShelf.GetAllFolders()
 	if err != nil {
-		h.writeErr(w, err, "failed to read the target shelf")
+		h.writeErr(w, r, err, "failed to read the target shelf")
 		return
 	}
 	if len(foldersUnder(targetFolders, targetFolder)) > 0 {
@@ -184,7 +184,7 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 	if operation == task.BookTransferOperationMove {
 		existing, err := targetBookIDs(targetShelf)
 		if err != nil {
-			h.writeErr(w, err, "failed to read the target shelf")
+			h.writeErr(w, r, err, "failed to read the target shelf")
 			return
 		}
 		var conflicts []string
@@ -204,8 +204,8 @@ func (h *folderTransferHandlers) transferFolder(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	h.submitTaskChain(w,
-		task.NewFolderTransferChain(sourceShelf.ID, sourceShelf.Shelf, targetShelf.ID, targetShelf.Shelf, h.Logger, operation, sourceFolder, targetFolder, books, subFolders),
+	h.submitTaskChain(w, r,
+		task.NewFolderTransferChain(sourceShelf.ID, sourceShelf.Shelf, targetShelf.ID, targetShelf.Shelf, h.requestLogger(r), operation, sourceFolder, targetFolder, books, subFolders),
 		"failed to schedule folder transfer task")
 }
 

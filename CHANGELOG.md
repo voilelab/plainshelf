@@ -13,6 +13,8 @@ and UI behavior may still change between releases.
 - Added a default shelf directory to the desktop **Create shelf** dialog, which now previews the path and the shelf ID for the typed name and creates the shelf under the app data directory's `shelves/<shelf id>` when no directory is picked.
 - Added each shelf's read-only state to `GET /api/shelves` (`read_only`), which the UI now uses to hide the write controls on a read-only shelf — importing, metadata/source/cover editing, folder creation and moves, deleting, trash restore — and show a banner saying so, while browsing, reading, searching and rescanning stay available.
 - Added a notice on a book's detail page when its `book.json` was saved in a newer format than the reader supports, so a pCloud shelf on Android no longer shows an incomplete book as if it were complete.
+- Added a request number to every API response (`X-Request-Id`, repeated as the error envelope's `incident`): eight Crockford base32 characters with no `0`, `O`, `1`, `I` or `L`, quoted in the request log line and, for an error the server did not expect, in a log line naming the code, method, path, shelf and full cause.
+- Added the request number of the request that queued a background task chain to that chain's own log lines, so a batch move, empty-trash or fingerprint failure is searchable by the number the `202` returned.
 
 ### Changed
 

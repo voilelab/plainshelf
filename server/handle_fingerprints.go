@@ -223,13 +223,13 @@ func (h *fingerprintHandlers) findSimilarBooks(w http.ResponseWriter, r *http.Re
 
 	books, err := shelfData.ListBooks()
 	if err != nil {
-		h.writeErr(w, err, "failed to list books")
+		h.writeErr(w, r, err, "failed to list books")
 		return
 	}
 
 	cache, err := shelfData.OpenFingerprintCache(task.FingerprintAlgo())
 	if err != nil {
-		h.writeErr(w, err, "failed to open the fingerprint cache")
+		h.writeErr(w, r, err, "failed to open the fingerprint cache")
 		return
 	}
 
@@ -295,7 +295,7 @@ func (h *fingerprintHandlers) getFingerprintStatus(w http.ResponseWriter, r *htt
 
 	status, err := shelfData.FingerprintStatus(task.FingerprintAlgo())
 	if err != nil {
-		h.writeErr(w, err, "failed to read fingerprint status")
+		h.writeErr(w, r, err, "failed to read fingerprint status")
 		return
 	}
 

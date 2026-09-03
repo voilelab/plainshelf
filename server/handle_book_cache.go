@@ -28,7 +28,7 @@ func (h *shelfHandlers) exportBookCache(w http.ResponseWriter, r *http.Request) 
 		// Through the error table rather than a 500 for everything that is not
 		// ErrShelfInitializing: a read-only shelf refuses this write, and that
 		// is a 409 the caller can act on, not a server fault.
-		h.writeErr(w, err, "failed to export book cache")
+		h.writeErr(w, r, err, "failed to export book cache")
 		return
 	}
 
