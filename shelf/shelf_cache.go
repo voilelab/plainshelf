@@ -105,6 +105,13 @@ type bookCache struct {
 	// queued.
 	rescanID string
 
+	// rescanTokens and rescanTokensAt are the manual rescan's rate limit; see
+	// shelf_rescan.go. Kept here rather than beside the shelf because
+	// beginRescan already holds this lock to claim rescanID, so the claim and
+	// the token it costs are decided in one critical section.
+	rescanTokens   float64
+	rescanTokensAt time.Time
+
 	// lastScanStart is when the walk behind the current cache began. See
 	// scanToBookCache for why the start and not the end.
 	lastScanStart time.Time
@@ -123,6 +130,10 @@ type bookCache struct {
 func newBookCache(scanInterval, bookCheckInterval time.Duration) *bookCache {
 	return &bookCache{
 		cache: make(map[string]*bookIDCacheEntry),
+
+		// A fresh shelf starts with a full bucket: the first thing a user does
+		// after opening one is often to press the button.
+		rescanTokens: rescanBurst,
 
 		scanInterval:      scanInterval,
 		bookCheckInterval: bookCheckInterval,

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/voilelab/plainshelf/server"
@@ -167,4 +168,46 @@ func TestAPIRescanUnknownShelfContract(t *testing.T) {
 
 	rec := env.post(shelfIDURL("missing_shelf", "scans"), nil)
 	assertStatus(t, rec, http.StatusNotFound)
+}
+
+// A loop of rescans is answered 429 once the burst is spent, and 429 rather
+// than 409 so the client can tell "you are too fast" from "someone else is
+// walking this shelf right now".
+func TestAPIRescanShelfRateLimitContract(t *testing.T) {
+	env := newAPITestEnv(t)
+
+	// The burst is the shelf package's own, so this walks up to the refusal
+	// rather than encoding a count the server contract does not own. The bound
+	// only keeps a broken limiter from looping forever.
+	var rec *httptest.ResponseRecorder
+	for range 100 {
+		rec = env.post(scansURL(), nil)
+		if rec.Code != http.StatusOK {
+			break
+		}
+	}
+
+	assertStatus(t, rec, http.StatusTooManyRequests)
+
+	limited := decodeJSON[server.ScanRateLimitResponse](t, rec)
+	if limited.RetryAfterSeconds < 1 {
+		t.Errorf("retry_after_seconds = %d, want at least 1", limited.RetryAfterSeconds)
+	}
+	if limited.Message == "" {
+		t.Error("a rate-limited rescan carried no readable message")
+	}
+
+	if header := rec.Header().Get("Retry-After"); header != strconv.Itoa(limited.RetryAfterSeconds) {
+		t.Errorf("Retry-After header = %q, want %q to match the body", header, strconv.Itoa(limited.RetryAfterSeconds))
+	}
+
+	// The body must not read as a conflict: 409 carries the running walk's ID
+	// and no counts, and a client keying on either would misreport this.
+	var asConflict server.ScanConflictResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &asConflict); err != nil {
+		t.Fatalf("unmarshal the 429 body: %v", err)
+	}
+	if asConflict.ScanID != "" {
+		t.Errorf("the 429 body carried scan_id %q; a rate limit names no running walk", asConflict.ScanID)
+	}
 }

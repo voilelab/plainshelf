@@ -619,6 +619,7 @@ const en = {
     neverSynced: 'Never updated',
     scanFound: 'Found {books} books in {folders} folders',
     scanInProgress: 'This shelf is already being scanned. Try again once it finishes.',
+    scanRateLimited: 'Updating too often. Try again in {seconds} seconds.',
     loadFailed: 'Failed to load books',
     refreshFailed: 'Failed to update the book list',
     requestTimeout: 'Request timed out — the shelf may be slow or unavailable.',

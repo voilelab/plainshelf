@@ -16,7 +16,8 @@ vi.mock('./client', async () => {
   };
 });
 
-const { ShelfScanInProgressError, listServerShelves, listShelves, rescanShelf } = await import('./shelves');
+const { ShelfScanInProgressError, ShelfScanRateLimitedError, listServerShelves, listShelves, rescanShelf } =
+  await import('./shelves');
 const { registerShell } = await import('@/providers/shell');
 
 /** Stands in for a shell whose shelf list is device-local. */
@@ -140,7 +141,7 @@ describe('rescanShelf', () => {
     expect(fetchJsonMock).toHaveBeenCalledWith(
       '/scans',
       { method: 'POST' },
-      expect.objectContaining({ readOnlySafe: true, acceptStatuses: [409] })
+      expect.objectContaining({ readOnlySafe: true, acceptStatuses: [409, 429] })
     );
   });
 
@@ -150,6 +151,16 @@ describe('rescanShelf', () => {
     fetchJsonMock.mockResolvedValue({ scan_id: 'running-one' });
 
     await expect(rescanShelf()).rejects.toBeInstanceOf(ShelfScanInProgressError);
+  });
+
+  // The 429 body carries no counts either, so a client keying only on their
+  // absence would report a running walk that does not exist.
+  it('rejects with the wait when the server refuses the pace, not a running walk', async () => {
+    fetchJsonMock.mockResolvedValue({ retry_after_seconds: 7, message: 'too many rescans' });
+
+    await expect(rescanShelf()).rejects.toBeInstanceOf(ShelfScanRateLimitedError);
+    await expect(rescanShelf()).rejects.not.toBeInstanceOf(ShelfScanInProgressError);
+    await expect(rescanShelf()).rejects.toMatchObject({ retryAfterSeconds: 7 });
   });
 
   it('does not mistake an empty shelf for a refusal', async () => {

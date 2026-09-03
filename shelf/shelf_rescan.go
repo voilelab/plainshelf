@@ -19,6 +19,36 @@ import (
 // there" while a retry after it ends finds the book.
 var ErrRescanInProgress = util.NewError("a rescan is already in progress")
 
+// ErrRescanRateLimited reports that this caller has asked for full walks faster
+// than the shelf is willing to perform them, so this one was refused.
+//
+// Separate from ErrRescanInProgress because they ask the caller for different
+// things: a walk in progress ends on its own and the answer is to wait for it,
+// while a rate limit is a statement about the caller's own pace. A client that
+// could not tell them apart would retry the second as if it were the first.
+var ErrRescanRateLimited = util.NewError("rescans are being requested too quickly")
+
+// The manual rescan's rate limit, as a token bucket. It is not configurable:
+// both values are chosen to sit far above any human pace rather than to suit a
+// particular shelf, and shelf.json is a compatibility-sensitive format that a
+// knob nobody can usefully tune should not grow.
+//
+// A fixed minimum interval was rejected. Measured from either end of the
+// previous walk it refuses a user who presses the button, waits for the walk,
+// and presses again — the one sequence this button exists for. A bucket splits
+// the two demands that pull against each other into separate numbers: the burst
+// is what a hand can spend, the refill is what a loop is left with.
+const (
+	// rescanBurst is how many walks can be started back to back.
+	rescanBurst = 5
+
+	// rescanRefill is how long one token takes to come back, so the sustained
+	// ceiling is six walks a minute. On an SMB shelf the singleflight already
+	// holds the rate to one walk per walk; this is what bounds a fast local
+	// shelf, where an unthrottled loop can start walks as fast as they finish.
+	rescanRefill = 10 * time.Second
+)
+
 // RescanResult reports what a manual rescan found.
 type RescanResult struct {
 	// ID names this rescan while it runs. It is also filled in on the
@@ -32,6 +62,12 @@ type RescanResult struct {
 
 	BookCount  int
 	FolderCount int
+
+	// RetryAfter is filled in only on the ErrRescanRateLimited failure, where it
+	// is how long the caller must wait before a walk would be allowed. It is the
+	// rate limit's counterpart to ID on ErrRescanInProgress: the one thing the
+	// refused caller needs in order to tell its user what to do next.
+	RetryAfter time.Duration
 }
 
 // Rescan walks the shelf now and rebuilds the book cache from what it finds.
@@ -47,9 +83,12 @@ func (s *Shelf) Rescan() (RescanResult, error) {
 		return RescanResult{}, util.Errorf("%w", ErrShelfInitializing)
 	}
 
-	scanID, runningID := s.beginRescan()
-	if scanID == "" {
-		return RescanResult{ID: runningID}, util.Errorf("%w", ErrRescanInProgress)
+	claim := s.beginRescan(time.Now())
+	switch {
+	case claim.runningID != "":
+		return RescanResult{ID: claim.runningID}, util.Errorf("%w", ErrRescanInProgress)
+	case claim.retryAfter > 0:
+		return RescanResult{RetryAfter: claim.retryAfter}, util.Errorf("%w", ErrRescanRateLimited)
 	}
 	defer s.endRescan()
 
@@ -73,29 +112,68 @@ func (s *Shelf) Rescan() (RescanResult, error) {
 	defer s.bookCache.RUnlock()
 
 	return RescanResult{
-		ID:         scanID,
+		ID:         claim.scanID,
 		StartedAt:  s.bookCache.lastScanStart,
 		BookCount:  len(s.bookCache.cache),
 		FolderCount: len(s.bookCache.folders),
 	}, nil
 }
 
-// beginRescan claims the shelf for one rescan. It returns the new scan's ID and
-// an empty running ID on success, or an empty scan ID and the ID of the rescan
-// already holding the shelf.
-func (s *Shelf) beginRescan() (scanID, runningID string) {
+// rescanClaim is the outcome of trying to claim the shelf for one rescan.
+// Exactly one field is set: scanID on success, runningID when another walk
+// holds the shelf, retryAfter when the rate limit refused this one.
+type rescanClaim struct {
+	scanID     string
+	runningID  string
+	retryAfter time.Duration
+}
+
+// beginRescan claims the shelf for one rescan, taking now as the clock so a
+// test can move the rate limit without sleeping.
+//
+// The running walk is checked before the token: a caller refused with 409 never
+// pays for a walk it did not get, so a loop hammering a busy shelf cannot drain
+// the bucket and leave the next real user with a 429 that misdescribes what
+// happened.
+func (s *Shelf) beginRescan(now time.Time) rescanClaim {
 	s.bookCache.Lock()
 	defer s.bookCache.Unlock()
 
 	if s.bookCache.rescanID != "" {
-		return "", s.bookCache.rescanID
+		return rescanClaim{runningID: s.bookCache.rescanID}
+	}
+
+	if retryAfter := s.bookCache.takeRescanToken(now); retryAfter > 0 {
+		return rescanClaim{retryAfter: retryAfter}
 	}
 
 	// Not a cryptographic identifier: it is never persisted and never
 	// authenticates anything. It exists so a refused caller can say which
 	// rescan it lost to, and so two of them can be told apart in the log.
 	s.bookCache.rescanID = shelfutil.RandomString(12)
-	return s.bookCache.rescanID, ""
+	return rescanClaim{scanID: s.bookCache.rescanID}
+}
+
+// takeRescanToken spends one token and reports 0, or reports how long until the
+// next one is available and spends nothing. It must be called with the book
+// cache locked.
+func (c *bookCache) takeRescanToken(now time.Time) time.Duration {
+	// Clamped at zero: a clock that stepped backwards, which on a laptop
+	// resuming from sleep is ordinary, must not hand out tokens by refilling a
+	// negative interval, nor deny them by carrying a negative debt forward.
+	if elapsed := now.Sub(c.rescanTokensAt); elapsed > 0 {
+		c.rescanTokens = min(rescanBurst, c.rescanTokens+float64(elapsed)/float64(rescanRefill))
+	}
+	c.rescanTokensAt = now
+
+	if c.rescanTokens < 1 {
+		// Exact, not rounded: the caller decides how to present it, and the HTTP
+		// layer is the only one that has to flatten this to whole seconds.
+		return time.Duration((1 - c.rescanTokens) * float64(rescanRefill))
+	}
+
+	c.rescanTokens--
+	return 0
 }
 
 func (s *Shelf) endRescan() {

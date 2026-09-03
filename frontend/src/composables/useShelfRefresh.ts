@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { ShelfScanInProgressError } from '@/api/shelves';
+import { ShelfScanInProgressError, ShelfScanRateLimitedError } from '@/api/shelves';
 import { getBookshelfProvider } from '@/providers';
 import { useBookStore } from './useBookStore';
 import { useFolderStore } from './useFolderStore';
@@ -68,6 +68,12 @@ export function useShelfRefresh() {
       // Translated here because the api and provider folders hold no strings.
       if (err instanceof ShelfScanInProgressError) {
         showToast(t('library.scanInProgress'));
+      } else if (err instanceof ShelfScanRateLimitedError) {
+        // A toast for the same reason as the refusal above: the previous listing
+        // is still correct, nothing failed, and the press is the only thing to
+        // take back. The generic error would park "update failed" on the page
+        // for something that is neither an update nor a failure.
+        showToast(t('library.scanRateLimited', { seconds: err.retryAfterSeconds }));
       } else {
         error.value = err instanceof Error ? err.message : t('library.refreshFailed');
       }

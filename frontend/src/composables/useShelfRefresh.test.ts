@@ -27,7 +27,7 @@ vi.mock('@/providers', () => ({
 const { useShelfRefresh } = await import('./useShelfRefresh');
 const { useBookStore } = await import('./useBookStore');
 const { useToasts } = await import('./useToasts');
-const { ShelfScanInProgressError } = await import('@/api/shelves');
+const { ShelfScanInProgressError, ShelfScanRateLimitedError } = await import('@/api/shelves');
 const { t } = await import('@/i18n');
 
 /** The messages the shared toast queue is holding right now. */
@@ -174,6 +174,19 @@ describe('useShelfRefresh', () => {
     await shelf.refresh();
 
     expect(toastMessages()).toEqual([t('library.scanInProgress')]);
+    expect(shelf.error.value).toBe('');
+  });
+
+  // Same reasoning as the refusal above, and a separate message: telling the
+  // user to wait for a scan that is not running would send them watching for
+  // something that never ends.
+  it('tells the user how long to wait when the server refuses the pace', async () => {
+    refreshShelf.mockRejectedValue(new ShelfScanRateLimitedError(7));
+    const shelf = useShelfRefresh();
+
+    await shelf.refresh();
+
+    expect(toastMessages()).toEqual([t('library.scanRateLimited', { seconds: 7 })]);
     expect(shelf.error.value).toBe('');
   });
 
