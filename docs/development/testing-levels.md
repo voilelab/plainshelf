@@ -273,8 +273,7 @@ it 15 cases at two workers, which ran in 20s on a 4-core container against
 it are stale in the same direction. The cap is provisionally 10 — enough for a
 3:05 browser-cache miss plus setup — and has to be re-measured over three `dev`
 runs and tightened, along with this row. `nightly.yml` now carries the other 24
-cases rather than 86 (22 since the `security-headers` deletions); it has no
-measured baseline either and starts at 25.
+cases rather than 86; it has no measured baseline either and starts at 25.
 
 One caveat before reading the two kinds of row together: `timeout-minutes`
 counts a job's *execution*, while the whole-run row also counts its wait for a
