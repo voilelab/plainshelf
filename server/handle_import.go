@@ -265,7 +265,7 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 		// rather than buffered whole.
 		newBook, err := h.importEPUB(shelfData, f, header.Size, header.Filename, r.FormValue("title"), folderParts, strategy)
 		if err != nil {
-			h.writeEPUBImportError(w, err)
+			h.writeEPUBImportError(w, r, err)
 			return
 		}
 
@@ -291,7 +291,7 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 
 	newBook, err := newPlainTextBook(shelfData, utf8File, folderParts, title, header.Filename)
 	if err != nil {
-		h.writeErr(w, err, "failed to import book")
+		h.writeErr(w, r, err, "failed to import book")
 		return
 	}
 
@@ -300,14 +300,14 @@ func (h *importHandlers) importBook(w http.ResponseWriter, r *http.Request) {
 
 // writeEPUBImportError reports a bad archive with its detail, because the
 // client is the only one who can act on it, and maps everything else.
-func (h *importHandlers) writeEPUBImportError(w http.ResponseWriter, err error) {
+func (h *importHandlers) writeEPUBImportError(w http.ResponseWriter, r *http.Request, err error) {
 	if isEPUBInputError(err) {
 		h.Error("failed to import epub", "error", err)
 		http.Error(w, "failed to import epub: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	h.writeErr(w, err, "failed to import epub")
+	h.writeErr(w, r, err, "failed to import epub")
 }
 
 // writeImportedBook responds with the freshly imported book. The book was

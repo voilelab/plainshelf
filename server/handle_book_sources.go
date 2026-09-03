@@ -65,7 +65,7 @@ func (h *sourceHandlers) createSource(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := book.EnsureWritable(); err != nil {
-		h.writeErr(w, err, "failed to create book source")
+		h.writeErr(w, r, err, "failed to create book source")
 		return
 	}
 
@@ -135,7 +135,7 @@ func (h *sourceHandlers) createSource(w http.ResponseWriter, r *http.Request) {
 
 	sourceMeta, err := book.NewSourceWithOptions(content, options)
 	if err != nil {
-		h.writeErr(w, err, "failed to create book source")
+		h.writeErr(w, r, err, "failed to create book source")
 		return
 	}
 	if setCurrent {
@@ -143,7 +143,7 @@ func (h *sourceHandlers) createSource(w http.ResponseWriter, r *http.Request) {
 			if cleanupErr := book.DeleteSource(sourceMeta.ID()); cleanupErr != nil {
 				h.Error("failed to roll back derived source", "source_id", sourceMeta.ID(), "error", cleanupErr)
 			}
-			h.writeErr(w, err, "failed to activate new book source")
+			h.writeErr(w, r, err, "failed to activate new book source")
 			return
 		}
 		shelfData.RefreshBookCharCount(book.ID())
@@ -169,7 +169,7 @@ func (h *sourceHandlers) deleteSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	book, ok := h.lookupBook(w, shelfData, bookID)
+	book, ok := h.lookupBook(w, r, shelfData, bookID)
 	if !ok {
 		return
 	}
@@ -177,7 +177,7 @@ func (h *sourceHandlers) deleteSource(w http.ResponseWriter, r *http.Request) {
 	// DeleteSource reports a missing source itself, so the source is not
 	// loaded up front here.
 	if err := book.DeleteSource(sourceID); err != nil {
-		h.writeErr(w, err, "failed to delete book source")
+		h.writeErr(w, r, err, "failed to delete book source")
 		return
 	}
 
@@ -202,7 +202,7 @@ func (h *sourceHandlers) deleteSourceComment(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := source.UpdateComment(""); err != nil {
-		h.writeErr(w, err, "failed to delete book source comment")
+		h.writeErr(w, r, err, "failed to delete book source comment")
 		return
 	}
 
@@ -223,7 +223,7 @@ func (h *sourceHandlers) setCurrentSource(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := book.SetCurrentSource(sourceID); err != nil {
-		h.writeErr(w, err, "failed to set current book source")
+		h.writeErr(w, r, err, "failed to set current book source")
 		return
 	}
 
@@ -258,7 +258,7 @@ func (h *sourceHandlers) refreshSourceMeta(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := source.RefreshContentMetadata(); err != nil {
-		h.writeErr(w, err, "failed to refresh source metadata")
+		h.writeErr(w, r, err, "failed to refresh source metadata")
 		return
 	}
 
@@ -290,7 +290,7 @@ func (h *sourceHandlers) updateSourceContent(w http.ResponseWriter, r *http.Requ
 	}
 
 	if err := source.UpdateContent(utf8Reader); err != nil {
-		h.writeErr(w, err, "failed to update book source content")
+		h.writeErr(w, r, err, "failed to update book source content")
 		return
 	}
 

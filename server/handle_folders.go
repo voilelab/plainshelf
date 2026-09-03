@@ -22,7 +22,7 @@ func (h *folderHandlers) getFolders(w http.ResponseWriter, r *http.Request) {
 
 	folders, err := shelfData.GetAllFolders()
 	if err != nil {
-		h.writeErr(w, err, "failed to get folders")
+		h.writeErr(w, r, err, "failed to get folders")
 		return
 	}
 
@@ -45,7 +45,7 @@ func (h *folderHandlers) createFolder(w http.ResponseWriter, r *http.Request) {
 	parent := append(shelf.FolderPath(nil), folderParts[:len(folderParts)-1]...)
 	name := folderParts[len(folderParts)-1]
 	if err := shelfData.NewFolder(parent, name); err != nil {
-		h.writeErr(w, err, "failed to create folder")
+		h.writeErr(w, r, err, "failed to create folder")
 		return
 	}
 
@@ -82,7 +82,7 @@ func (h *folderHandlers) renameFolder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := shelfData.RenameFolder(folderParts, newName); err != nil {
-		h.writeErrStatus(w, err, "failed to rename folder", http.StatusConflict)
+		h.writeErrStatus(w, r, err, "failed to rename folder", http.StatusConflict)
 		return
 	}
 
@@ -112,7 +112,7 @@ func (h *folderHandlers) moveFolder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := shelfData.MoveFolder(req.Folder, req.TargetFolder); err != nil {
-		h.writeErrStatus(w, err, "failed to move folder", http.StatusConflict)
+		h.writeErrStatus(w, r, err, "failed to move folder", http.StatusConflict)
 		return
 	}
 
@@ -133,7 +133,7 @@ func (h *folderHandlers) deleteFolder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := shelfData.DeleteFolder(folderParts); err != nil {
-		h.writeErr(w, err, "failed to delete folder")
+		h.writeErr(w, r, err, "failed to delete folder")
 		return
 	}
 

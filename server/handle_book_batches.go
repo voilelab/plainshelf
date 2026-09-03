@@ -53,7 +53,7 @@ func (h *batchHandlers) bookBatch(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if h.rejectReadOnlyShelf(w, shelfData) {
+	if h.rejectReadOnlyShelf(w, r, shelfData) {
 		return
 	}
 
@@ -86,7 +86,7 @@ func (h *batchHandlers) bookBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.submitTaskChain(w,
-		task.NewBookBatchChain(shelfData.ID, shelfData.Shelf, h.Logger, request.Operation, ids, request.TargetFolder),
+	h.submitTaskChain(w, r,
+		task.NewBookBatchChain(shelfData.ID, shelfData.Shelf, h.requestLogger(r), request.Operation, ids, request.TargetFolder),
 		"failed to schedule book batch task")
 }
