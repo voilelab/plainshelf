@@ -9,6 +9,22 @@ type modeResponse struct {
 	ReadOnly bool `json:"read_only"`
 }
 
+type versionResponse struct {
+	Version string `json:"version"`
+}
+
+// The version string is what an "about" screen shows and what a client compares
+// to decide it is talking to a build it understands, so an empty one is a
+// regression the shared response-shape table cannot see: {} and {"version":""}
+// both carry the right status, content type and trailing newline.
+func TestAPIVersionContract(t *testing.T) {
+	env := newAPITestEnv(t)
+
+	if resp := getJSON[versionResponse](t, env, "/api/version"); resp.Version == "" {
+		t.Fatalf("version is empty, want a non-empty value")
+	}
+}
+
 func TestAPIReadOnlyModeContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	env.setReadOnly(t, true)
