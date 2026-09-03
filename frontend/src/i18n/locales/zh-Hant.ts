@@ -8,6 +8,12 @@ const zhHant = {
       reload: '重新載入'
     }
   },
+  errorIncident: {
+    label: '事件編號',
+    copy: '複製',
+    copied: '已複製',
+    dismiss: '關閉事件編號'
+  },
   toast: {
     label: '通知',
     dismiss: '關閉通知'

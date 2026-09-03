@@ -1,4 +1,5 @@
 import { ApiError } from '@/api/client';
+import { reportErrorIncident } from './useErrorIncident';
 
 /**
  * One auto-retry policy for reads that race the shelf's initial scan.
@@ -31,8 +32,13 @@ interface ShelfInitRetry {
   /**
    * Schedules `attempt` after the shared delay and reports whether it did.
    * False means the budget is spent and the caller owns the failure state.
+   *
+   * `giveUpOn` is the refusal that prompted this call. api/client.ts publishes
+   * no reference for a refusal carrying Retry-After, because a hidden retry
+   * usually succeeds - but the attempt that spends the budget is not hidden,
+   * and the reference has to come back with the error the caller then shows.
    */
-  schedule(attempt: () => void): boolean;
+  schedule(attempt: () => void, giveUpOn: unknown): boolean;
   /** Cancels a pending retry, keeping the remaining budget. */
   cancel(): void;
   /** Cancels a pending retry and restores the full budget. */
@@ -59,10 +65,11 @@ export function createShelfInitRetry(): ShelfInitRetry {
       cancel();
       attempts = 0;
     },
-    schedule(attempt: () => void): boolean {
+    schedule(attempt: () => void, giveUpOn: unknown): boolean {
       cancel();
       attempts++;
       if (attempts >= SHELF_INIT_MAX_AUTO_RETRIES) {
+        reportErrorIncident(giveUpOn);
         return false;
       }
       timer = setTimeout(() => {

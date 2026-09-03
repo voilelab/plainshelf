@@ -8,6 +8,12 @@ const en = {
       reload: 'Reload'
     }
   },
+  errorIncident: {
+    label: 'Error reference',
+    copy: 'Copy',
+    copied: 'Copied',
+    dismiss: 'Dismiss error reference'
+  },
   toast: {
     label: 'Notifications',
     dismiss: 'Dismiss notification'

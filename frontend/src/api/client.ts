@@ -1,3 +1,4 @@
+import { reportIncident } from '@/composables/useErrorIncident';
 import { isMobileRuntime } from '@/providers/runtime';
 
 export class ApiError extends Error {
@@ -11,6 +12,13 @@ export class ApiError extends Error {
    * and for transport failures, so callers must treat it as optional.
    */
   code?: string;
+  /**
+   * The reference a bug report quotes. For a server failure it is the request's
+   * ID, so it names the log line that carries the cause the body withheld; for
+   * a failure the frontend raised itself it is a `c-` ID (see api/incident.ts).
+   * Unset where neither is available, so callers must treat it as optional.
+   */
+  incident?: string;
 
   constructor(
     message: string,
@@ -21,6 +29,7 @@ export class ApiError extends Error {
       cause?: unknown;
       isTimeout?: boolean;
       code?: string;
+      incident?: string;
     }
   ) {
     super(message);
@@ -30,6 +39,7 @@ export class ApiError extends Error {
     this.url = options?.url;
     this.isTimeout = options?.isTimeout ?? false;
     this.code = options?.code;
+    this.incident = options?.incident;
 
     if (options?.cause !== undefined) {
       (this as Error & { cause?: unknown }).cause = options.cause;
@@ -240,7 +250,11 @@ interface ApiErrorEnvelope {
   error: { code?: unknown; message?: unknown; incident?: unknown };
 }
 
-function parseErrorEnvelope(raw: string): { code?: string; message?: string } | null {
+function parseErrorEnvelope(raw: string): {
+  code?: string;
+  message?: string;
+  incident?: string;
+} | null {
   if (!raw.startsWith('{')) return null;
 
   let parsed: unknown;
@@ -257,18 +271,45 @@ function parseErrorEnvelope(raw: string): { code?: string; message?: string } | 
   const message = typeof envelope.message === 'string' ? envelope.message : undefined;
   if (code === undefined && message === undefined) return null;
 
-  return { code, message };
+  const incident = typeof envelope.incident === 'string' ? envelope.incident : undefined;
+
+  return { code, message, incident };
+}
+
+// The header form of the envelope's incident field. Every response leaves the
+// server through the request-ID middleware (server/app.go), so the plain-text
+// refusals that still call http.Error carry a reference even without an
+// envelope to put it in.
+const REQUEST_ID_HEADER = 'X-Request-Id';
+
+function responseIncident(res: Response, fromEnvelope?: string): string | undefined {
+  return fromEnvelope || res.headers.get(REQUEST_ID_HEADER)?.trim() || undefined;
+}
+
+// A refusal the server itself calls transient - the shelf is still scanning, a
+// lock is held - is waited out and usually succeeds, so it must not leave a
+// reference on screen for a failure the user never saw. The error still carries
+// its incident, and shelfInitRetry publishes it on the attempt that spends the
+// retry budget, which is the one the caller goes on to show.
+function reportResponseIncident(res: Response, incident?: string): void {
+  if (incident && !res.headers.has('Retry-After')) {
+    reportIncident(incident);
+  }
 }
 
 function apiErrorFrom(res: Response, raw: string): ApiError {
   const envelope = parseErrorEnvelope(raw);
   const message =
     envelope?.message || (envelope ? '' : raw) || `HTTP ${res.status}: ${res.statusText}`;
+  const incident = responseIncident(res, envelope?.incident);
+  reportResponseIncident(res, incident);
+
   return new ApiError(message, {
     status: res.status,
     statusText: res.statusText,
     url: res.url,
-    code: envelope?.code
+    code: envelope?.code,
+    incident
   });
 }
 
@@ -351,11 +392,15 @@ export async function fetchJson<T>(
   try {
     return JSON.parse(raw) as T;
   } catch (cause) {
+    const incident = responseIncident(res);
+    reportResponseIncident(res, incident);
+
     throw new ApiError('Invalid JSON response from server.', {
       status: res.status,
       statusText: res.statusText,
       url: res.url,
-      cause
+      cause,
+      incident
     });
   }
 }

@@ -27,7 +27,7 @@ async function run(isAutoRetry: boolean): Promise<void> {
     // Wait out the initial scan rather than stranding the sidebar on an error
     // the shelf resolves on its own. See `shelfInitRetry`.
     if (isShelfInitializing(err)) {
-      if (initRetry.schedule(() => void run(true))) {
+      if (initRetry.schedule(() => void run(true), err)) {
         return;
       }
       error.value = t('layout.folderErrors.shelfNotReady');

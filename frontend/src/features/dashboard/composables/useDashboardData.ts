@@ -288,7 +288,7 @@ export function useDashboardData() {
       // Wait out the initial scan rather than putting an error in the middle of
       // the home page while the sidebar beside it recovers. See `shelfInitRetry`.
       if (isShelfInitializing(err)) {
-        if (initRetry.schedule(() => void run(true))) {
+        if (initRetry.schedule(() => void run(true), err)) {
           shelfInitializing.value = true;
           return;
         }

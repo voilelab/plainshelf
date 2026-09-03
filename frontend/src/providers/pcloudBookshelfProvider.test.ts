@@ -5,6 +5,7 @@ import { ApiError } from '@/api/client';
 import { PCloudClient } from '@/api/pcloud/client';
 import { BOOK_META_SCHEMA_VERSION, MAX_SHELF_CONFIG_BYTES } from '@/api/pcloud/bookpkg';
 import { PCloudError } from '@/api/pcloud/errors';
+import { useErrorIncident } from '@/composables/useErrorIncident';
 import type { PCloudItem } from '@/api/pcloud/types';
 import type { BookshelfWriter } from './bookshelfProvider';
 import { isWritableProvider } from './index';
@@ -1151,5 +1152,37 @@ describe('shelf.json', () => {
     // reader sorts folders in.
     expect(await provider.listFolders()).toEqual(['@Snapshot', '/']);
     expect(downloaded).not.toContain(oversized.fileid);
+  });
+});
+
+// pCloud is talked to directly, so a failure here has no server request ID to
+// quote; the provider boundary mints one and marks it `c-` so nobody searches
+// the server log for it.
+describe('error references', () => {
+  const { dismissIncident, incident } = useErrorIncident();
+
+  beforeEach(() => {
+    dismissIncident();
+  });
+
+  it('carries a c- reference across the boundary for a surfaced failure', async () => {
+    const { provider } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]));
+
+    await expect(provider.getBook('missing')).rejects.toMatchObject({
+      name: 'ApiError',
+      incident: expect.stringMatching(/^c-[23456789ABCDEFGHJKMNPQRSTVWXYZ]{8}$/)
+    });
+    expect(incident.value).toMatch(/^c-/);
+  });
+
+  it('raises no reference for an unreachable backend', async () => {
+    // The wrapper answers this one from downloaded books, so the user may never
+    // be told anything failed.
+    const { provider } = makeProvider(shelfTree([bookPackage({ id: 'a', title: 'A' })]), {
+      onDownload: () => Promise.reject(new TypeError('Failed to fetch'))
+    });
+
+    await expect(provider.listBooks(1, 10)).rejects.toMatchObject({ isTimeout: true });
+    expect(incident.value).toBe('');
   });
 });
