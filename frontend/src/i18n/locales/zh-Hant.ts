@@ -619,6 +619,7 @@ const zhHant = {
     folderPath: '書籍所在資料夾',
     ratingLabel: '評分 {rating} 顆星',
     emptyDetails: '這本書目前沒有其他詳細資料。',
+    newerSchemaNotice: '這本書是由較新版本的 PlainShelf 寫成的，這個版本讀不到的部分不會顯示在這裡。',
     sections: {
       publication: '出版資訊',
       content: '內容資訊',

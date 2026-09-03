@@ -3,7 +3,7 @@ import { strToU8, unzipSync, zipSync } from 'fflate';
 
 import { ApiError } from '@/api/client';
 import { PCloudClient } from '@/api/pcloud/client';
-import { MAX_SHELF_CONFIG_BYTES } from '@/api/pcloud/bookpkg';
+import { BOOK_META_SCHEMA_VERSION, MAX_SHELF_CONFIG_BYTES } from '@/api/pcloud/bookpkg';
 import { PCloudError } from '@/api/pcloud/errors';
 import type { PCloudItem } from '@/api/pcloud/types';
 import type { BookshelfWriter } from './bookshelfProvider';
@@ -76,6 +76,8 @@ interface BookSpec {
   currentSource?: string;
   content?: string;
   charCount?: number;
+  /** book.json's declared schema version; defaults to the one this build reads. */
+  schemaVersion?: number;
   /** Illustrations in the source's assets/ directory, name to body. */
   assets?: Record<string, string>;
 }
@@ -87,7 +89,7 @@ function bookPackage(spec: BookSpec): PCloudItem {
     file({
       name: 'book.json',
       body: JSON.stringify({
-        schema_version: 1,
+        schema_version: spec.schemaVersion ?? BOOK_META_SCHEMA_VERSION,
         id: spec.id,
         title: spec.title,
         authors: ['Author'],
@@ -523,6 +525,34 @@ describe('shelf loading', () => {
     failing = false;
 
     await expect(provider.listBooks(1, 10)).resolves.toMatchObject({ total: 1 });
+  });
+
+  it('marks a book whose book.json is newer than this reader, and leaves the rest unmarked', async () => {
+    const { provider } = makeProvider(
+      shelfTree([
+        bookPackage({ id: 'future', title: 'Future', schemaVersion: BOOK_META_SCHEMA_VERSION + 1 }),
+        bookPackage({ id: 'known', title: 'Known' })
+      ])
+    );
+
+    const page = await provider.listBooks(1, 10);
+
+    expect(page.items.find((book) => book.id === 'future')?.schema_newer_than_supported).toBe(true);
+    expect(page.items.find((book) => book.id === 'known')?.schema_newer_than_supported).toBeUndefined();
+    // The book is still listed and readable; the flag says the read was partial.
+    expect(await provider.getBook('future')).toMatchObject({ id: 'future', title: 'Future' });
+  });
+
+  it('keeps the mark after the listing is restored from the device', async () => {
+    const store = new InMemoryShelfSnapshotStore();
+    const tree = shelfTree([
+      bookPackage({ id: 'future', title: 'Future', schemaVersion: BOOK_META_SCHEMA_VERSION + 1 })
+    ]);
+    await makeProvider(tree, { snapshotStore: store }).provider.listBooks(1, 10);
+
+    const restored = await makeProvider(tree, { snapshotStore: store }).provider.getBook('future');
+
+    expect(restored.schema_newer_than_supported).toBe(true);
   });
 
   it('skips an unreadable book rather than failing the whole shelf', async () => {

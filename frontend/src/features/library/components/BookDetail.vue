@@ -1,5 +1,9 @@
 <template>
   <div class="detail-main">
+    <p v-if="book.schema_newer_than_supported" class="schema-notice" role="status">
+      {{ t('bookDetail.newerSchemaNotice') }}
+    </p>
+
     <header class="detail-heading">
       <FolderBreadcrumb :folders="book.folders" />
       <h2 class="detail-title">{{ book.title }}</h2>
@@ -259,6 +263,17 @@ const hasDetailSections = computed(() =>
   display: grid;
   gap: 22px;
   min-width: 0;
+}
+
+.schema-notice {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+  padding: 10px 14px;
 }
 
 .detail-heading {

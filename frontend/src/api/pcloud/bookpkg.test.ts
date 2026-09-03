@@ -232,6 +232,18 @@ describe('isSchemaNewerThanSupported', () => {
     expect(toBook(newer, []).id).toBe('x');
   });
 
+  it('carries the answer onto the book, so the UI can say the read was partial', () => {
+    const newer = parseBookJson({ id: 'x', title: 'T', schema_version: BOOK_META_SCHEMA_VERSION + 1 });
+    expect(toBook(newer, []).schema_newer_than_supported).toBe(true);
+  });
+
+  it('leaves the flag off a book this reader understands', () => {
+    for (const version of [undefined, BOOK_META_SCHEMA_VERSION - 1, BOOK_META_SCHEMA_VERSION]) {
+      const meta = parseBookJson({ id: 'x', title: 'T', schema_version: version });
+      expect(toBook(meta, []).schema_newer_than_supported).toBeUndefined();
+    }
+  });
+
   it('treats a missing schema_version as older, not newer', () => {
     expect(isSchemaNewerThanSupported(parseBookJson({ id: 'x', title: 'T' }))).toBe(false);
   });

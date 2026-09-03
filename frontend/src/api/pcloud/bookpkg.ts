@@ -161,7 +161,8 @@ export function findShelfConfigFile(shelfRoot: PCloudItem): PCloudFileRef | unde
  *
  * A newer file is still read: the Go side reads best-effort too and only
  * refuses to *write* it (see `Book.EnsureWritable`). Since this client never
- * writes, the version is surfaced for the UI to warn about rather than used to
+ * writes, the version is carried onto the book as
+ * `schema_newer_than_supported` for the UI to warn about, rather than used to
  * hide the book.
  */
 export const BOOK_META_SCHEMA_VERSION = 1;
@@ -467,9 +468,13 @@ export function isSchemaNewerThanSupported(meta: BookJson): boolean {
  * presence marker once it has resolved the file, and the bytes are fetched as a
  * blob — which is what the mobile runtime requires anyway
  * (frontend/src/composables/useCoverSrc.ts).
+ *
+ * `schema_newer_than_supported` is set only for a book this reader knows it read
+ * incompletely, so a book written by a version this one understands carries the
+ * same fields it always did.
  */
 export function toBook(meta: BookJson, folders: string[]): Book {
-  return {
+  const book: Book = {
     id: meta.id,
     title: meta.title,
     authors: meta.authors ?? [],
@@ -487,6 +492,8 @@ export function toBook(meta: BookJson, folders: string[]): Book {
     star: meta.star ?? 0,
     identifiers: meta.identifiers
   };
+
+  return isSchemaNewerThanSupported(meta) ? { ...book, schema_newer_than_supported: true } : book;
 }
 
 /** Maps a source's meta.json onto the UI's SourceMeta type. */

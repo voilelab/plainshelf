@@ -631,6 +631,8 @@ const en = {
     folderPath: 'Book folder path',
     ratingLabel: 'Rated {rating} stars',
     emptyDetails: 'No additional details are available for this book.',
+    newerSchemaNotice:
+      'This book was saved in a newer format than this version of PlainShelf reads, so some of its details may be missing here.',
     sections: {
       publication: 'Publication',
       content: 'Content',
