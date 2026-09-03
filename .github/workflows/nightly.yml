@@ -32,10 +32,14 @@ jobs:
     # tighten this the way docs/development/testing-levels.md describes.
     timeout-minutes: 25
     steps:
-      - name: Checkout dev
+      # A schedule always tests `dev`. A manual dispatch tests the ref it was
+      # dispatched from, so a change to the suite itself — a browser added, a
+      # spec moved between tiers — can be run once before it lands on `dev`
+      # instead of being discovered by the night after the merge.
+      - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: dev
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || 'dev' }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -64,12 +68,18 @@ jobs:
         working-directory: e2e
         run: npm ci
 
-      - name: Install Playwright browser
+      # PSW-111: chromium is what ships on Windows and Android; webkit is the
+      # closest runnable stand-in for the WKWebView inside the macOS cask. The
+      # pull request gate still installs chromium alone — see
+      # `e2e/playwright.config.ts` for why firefox is not here.
+      - name: Install Playwright browsers
         working-directory: e2e
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Run the full E2E suite
         working-directory: e2e
+        env:
+          E2E_BROWSERS: chromium,webkit
         run: npm test
 
       - name: Upload failure artifacts
@@ -83,8 +93,10 @@ jobs:
 
       # One issue, reopened by comment rather than duplicated: a suite that
       # stays red for a week should be one thread, not seven.
+      # Only the scheduled run files an issue: a manual dispatch has someone
+      # watching it, and on a branch the issue's own title would be wrong.
       - name: Report the failure
-        if: failure()
+        if: failure() && github.event_name == 'schedule'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}

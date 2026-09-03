@@ -1,5 +1,54 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// PSW-111: which rendering engines this run covers. Chromium alone was every
+// run there was, which left WKWebView — what Wails ships inside the macOS cask
+// — never exercised by a single E2E case, `desktop-shell.spec.ts` included.
+//
+// Playwright's `webkit` is not Safari and not WKWebView; it is the same
+// WebKit core with a different embedder, and it is the closest of the three
+// that runs on a Linux runner. It catches chromium-only assumptions. It does
+// not make "green" mean "macOS desktop works".
+//
+// Firefox is deliberately absent: Gecko is not an engine this project ships
+// against anywhere (Wails is WKWebView on macOS, WebView2 on Windows,
+// WebKitGTK on Linux; Android is a Chromium WebView), so a firefox round
+// would cost a third of the nightly to test a target with no users. It stays
+// one `E2E_BROWSERS=firefox` away for anyone who wants to look.
+const BROWSER_DEVICES = {
+  chromium: devices['Desktop Chrome'],
+  firefox: devices['Desktop Firefox'],
+  webkit: devices['Desktop Safari']
+};
+
+// Default to chromium so the pull request gate and a local `npm test` are
+// unchanged and need no extra browser download; `nightly.yml` opts into the
+// wider matrix. An unknown name throws rather than silently running nothing.
+type BrowserName = keyof typeof BROWSER_DEVICES;
+
+// `Object.keys`, not `name in BROWSER_DEVICES`: `in` walks the prototype, so
+// `E2E_BROWSERS=constructor` would pass the check and then spread a project
+// with no browser in it — which Playwright runs as chromium, silently.
+const BROWSER_NAMES = Object.keys(BROWSER_DEVICES) as BrowserName[];
+
+const requestedBrowsers = (process.env.E2E_BROWSERS ?? 'chromium')
+  .split(',')
+  .map((name) => name.trim())
+  .filter(Boolean)
+  .map((name) => {
+    if (!BROWSER_NAMES.includes(name as BrowserName)) {
+      throw new Error(
+        `E2E_BROWSERS: unknown browser "${name}"; expected one of ${BROWSER_NAMES.join(', ')}`
+      );
+    }
+    return name as BrowserName;
+  });
+
+// `?? 'chromium'` covers an unset variable, not an empty or comma-only one:
+// that would leave zero projects, and a run of zero tests exits 0.
+if (requestedBrowsers.length === 0) {
+  throw new Error(`E2E_BROWSERS: no browser selected; expected one of ${BROWSER_NAMES.join(', ')}`);
+}
+
 export default defineConfig({
   testDir: './tests',
   globalSetup: './tests/support/globalSetup.ts',
@@ -26,12 +75,8 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'retain-on-failure'
   },
-  projects: [
-    {
-      name: 'chromium',
-      use: {
-        ...devices['Desktop Chrome']
-      }
-    }
-  ]
+  projects: requestedBrowsers.map((name) => ({
+    name,
+    use: { ...BROWSER_DEVICES[name] }
+  }))
 });

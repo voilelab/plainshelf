@@ -154,6 +154,20 @@ Read the relevant section before working in that area. Add entries according to
   to the config file, so a copy in a scratch directory dies with a bare
   `MODULE_NOT_FOUND` naming Playwright's own internals rather than the path.
   (`e2e/playwright.config.ts`)
+- **Only chromium is installable in the cloud container:** the egress policy 403s
+  `cdn.playwright.dev` and `playwright.download.prss.microsoft.com`, so
+  `npx playwright install webkit` cannot be worked around locally — the nightly
+  matrix (`E2E_BROWSERS`) can only be exercised on a runner. Dispatch
+  `nightly.yml` on the branch: since PSW-111 a `workflow_dispatch` checks out the
+  ref it was dispatched from, and only the scheduled run files the failure issue.
+  (`.github/workflows/nightly.yml`)
+- **WebKit has no constructible `Touch`:** `new Touch({…})` throws "Illegal
+  constructor" there, so a spec that synthesises touch events passes on chromium
+  and dies on webkit. Use `document.createTouch`/`createTouchList` — page
+  coordinates, real `TouchList` — behind a presence check, the same branch
+  Playwright makes inside its own `dispatchEvent`. Keep the whole gesture in one
+  `evaluate`: a tap needs touchstart and touchend within
+  `MOBILE_READER_TAP_DURATION_MS`. (`e2e/tests/mobile-reader.spec.ts`)
 - **Editing the source editor:** it is not a form control, so `fill`,
   `inputValue` and `selectionStart` do not apply, and only the lines near the
   viewport exist in the DOM. Drive it through `e2e/tests/support/sourceEditor.ts`,
