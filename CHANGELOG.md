@@ -24,7 +24,8 @@ and UI behavior may still change between releases.
 - Changed a read-only shelf to still offer **Copy to another shelf**, with the transfer dialog dropping its **Move** option; only a move is refused on a read-only source, because it ends by deleting the original.
 - Changed the create-shelf dialog to drop its scan-interval and book-check-interval controls; a new shelf takes the defaults and both stay adjustable in **Modify**.
 - Changed delete, empty-trash, and other destructive confirmations to alert dialogs: they announce as `alertdialog`, open with **Cancel** focused, and no longer close on a backdrop click (Esc still cancels).
-- Changed the build to Go 1.27, whose reimplemented `encoding/json` decodes the shelf's JSON caches roughly 1.6-3x faster on the startup path.
+- Changed the build to Go 1.27.1, whose reimplemented `encoding/json` decodes the shelf's JSON caches roughly 1.6-3x faster on the startup path.
+- Changed the Docker image to build on Go 1.27.1 as well, catching up from 1.26.6 so an image build no longer downloads a second toolchain to satisfy `go.mod`.
 - **Breaking (pre-1.0):** changed the API refusals that come from the error table from `text/plain` to a JSON body (`{"error":{"code":…,"message":…}}`) carrying a stable error code such as `BOOK_NOT_FOUND`; the routes that still call `http.Error` directly answer plain text unchanged, and a `500` body continues to withhold the cause.
 - **Breaking (pre-1.0):** changed mutating API endpoints to read request bodies under `encoding/json/v2`'s rules, so a body that names the same member twice, carries invalid UTF-8, or spells a member name in the wrong case is now `400` instead of being silently resolved.
 - Changed the `400` answer for a malformed request body to name the field the decoder stopped on (`invalid JSON at "folder"`), which the UI shows verbatim; setting writes no longer leak Go type names into the message.
