@@ -154,9 +154,9 @@ automation for it. A step done once is not a process.
 
 ## Budgets
 
-| Budget | Limit | Measured |
+| Budget | Limit | Today |
 |---|---|---|
-| PR gate wall clock (`ci.yml`) | ≤ 10 minutes | ~5 minutes |
+| PR gate wall clock (`ci.yml`) | ≤ 10 minutes | 5:28 median, 7:52 worst (2026-09-03) |
 | E2E cases in total | ≤ 40 | **101** |
 | E2E cases in one spec | ≤ 5 | **11** (`folder-tree.spec.ts`) |
 
@@ -168,9 +168,87 @@ own piece of work, not something to smuggle into an unrelated pull request.
 Until it lands, R4 is what holds the line: the E2E suite does not grow past 101
 while it is being brought down to 40.
 
-The wall-clock row has about two times' headroom, and that is exactly why the
-other two matter: the gate is cheap today because the expensive level has not
-yet grown enough to show up in it.
+The wall-clock row still has headroom, and that is exactly why the other two
+matter: the gate is cheap today because the expensive level has not yet grown
+enough to show up in it. But "about two times' headroom", which this page used
+to claim, was optimistic — the table below is where that number comes from now.
+
+## The time budget per job
+
+Measured 2026-09-03 over the three most recent `dev` runs of `ci.yml`:
+[#1382](https://github.com/voilelab/plainshelf/actions/runs/33656639070),
+[#1383](https://github.com/voilelab/plainshelf/actions/runs/33656678606) and
+[#1385](https://github.com/voilelab/plainshelf/actions/runs/33699956726). All
+three were green. "Wall clock" is the job's own start to its own finish, so the
+three columns do not add up to the run: every job but `frontend` runs in
+parallel behind it.
+
+| Job | #1382 | #1383 | #1385 | Median | `timeout-minutes` |
+|---|---:|---:|---:|---:|---:|
+| Frontend build | 1:30 | 1:19 | 1:23 | **1:23** | 5 |
+| Go lint | 0:30 | 0:26 | 0:49 | **0:30** | 5 |
+| Go tests | 0:28 | 0:36 | 0:35 | **0:35** | 5 |
+| Frontend E2E | 3:34 | 6:27 | 3:22 | **3:34** | 13 |
+| Android build | 1:29 | 1:24 | 1:05 | **1:24** | 5 |
+| Go vulnerability scan | 0:43 | 0:42 | 0:45 | **0:43** | 5 |
+| npm audit | 0:07 | 0:07 | 0:10 | **0:07** | 5 |
+| **Whole run** | 5:09 | 7:52 | 5:28 | **5:28** | — |
+
+One caveat before reading the two kinds of row together: `timeout-minutes`
+counts a job's *execution*, while the whole-run row also counts its wait for a
+runner. The pull request that added these caps ran for 10:00 — the budget's
+whole limit — with its `frontend` job executing for 1:23, five minutes of the
+rest being queue. A run near the budget therefore says nothing about how close
+a job is to its cap.
+
+`frontend` is the `needs` of every other job, so its time is on the critical
+path twice over — once as itself, once as the delay before anything else starts.
+The cumulative time from the run starting to the E2E job starting was 1:35 /
+1:25 / 2:06; to the E2E *tests* starting, 2:20 / 4:54 / 2:43.
+
+The gap between those two rows is setup, not testing, and it is worth keeping
+separate: installing the Playwright browser took 23s, **3:05** and 21s across
+the same three runs. The 3:05 is a browser-cache miss, and it is the whole
+difference between #1383's 7:52 and the other two. The E2E test step itself was
+steady at 2:47 / 2:55 / 2:42 — so an improvement there (PSW-77) would be
+invisible in the job total if the install were folded into it.
+
+### How the caps were chosen
+
+`timeout-minutes` is **twice the slowest of the three runs, rounded up to a
+whole minute, and never under 5**.
+
+This is not the 1.5×-median rule PSW-76 proposed, and the measurement is why:
+1.5 × the E2E median is 5:21, which #1383 would have failed on a browser-cache
+miss alone. A cap that turns a cold cache into a red build teaches people to
+re-run CI, which is the opposite of what a cap is for. The floor of 5 minutes
+does the same job for the short jobs, where `npm ci` on a cold cache is a larger
+share of the total than anything the tests do.
+
+Every value is still 25× to 70× tighter than GitHub's 360-minute default, and
+tight enough to fail on a real regression: the frontend job has to grow 3.3×
+before it hits 5 minutes, E2E 2.0× before it hits 13.
+
+**A job that hits its cap is a regression to explain, not a number to raise.**
+Re-measure, update this table with the date, and change the cap only when the
+new time is one the project has decided to accept.
+
+### Where the time goes
+
+Both test jobs print their ten slowest cases at the end of the log and into the
+GitHub job summary — no artifact to download:
+
+- `frontend/scripts/slowest-tests-reporter.mjs`, wired up in
+  `frontend/vite.config.ts` (the Vitest config lives there; there is no
+  `vitest.config.ts`).
+- `e2e/slowest-tests-reporter.ts`, wired up in `e2e/playwright.config.ts`
+  alongside the `list` reporter that already times each case.
+
+`go test` has no equivalent here on purpose: getting per-test durations out of
+it means `-json`, and that trades readable failure output for a report on a job
+whose tests take 10 seconds. It gets `-timeout 2m` per package binary instead,
+which is what makes a hung test panic with its goroutine dump while the runner
+is still alive — a job killed by `timeout-minutes` leaves no stack at all.
 
 ## Where this fits
 

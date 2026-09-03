@@ -6,7 +6,9 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 2 : 0,
-  reporter: 'list',
+  // PSW-76: `list` already times each case; the second reporter sorts them so
+  // the expensive end is visible without reading the whole log.
+  reporter: [['list'], ['./slowest-tests-reporter.ts']],
   use: {
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',

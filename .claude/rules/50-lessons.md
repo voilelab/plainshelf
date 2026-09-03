@@ -148,7 +148,10 @@ Read the relevant section before working in that area. Add entries according to
 - **Cloud e2e browser revision:** the pinned Playwright may expect a newer
   browser revision than the preinstalled one → do not run `playwright install`;
   run with a throwaway local config that sets
-  `launchOptions.executablePath: '/opt/pw-browsers/chromium'`.
+  `launchOptions.executablePath: '/opt/pw-browsers/chromium'`. Put that config
+  *inside* `e2e/`: Playwright resolves `globalSetup` and reporter paths relative
+  to the config file, so a copy in a scratch directory dies with a bare
+  `MODULE_NOT_FOUND` naming Playwright's own internals rather than the path.
   (`e2e/playwright.config.ts`)
 - **Editing the source editor:** it is not a form control, so `fill`,
   `inputValue` and `selectionStart` do not apply, and only the lines near the
