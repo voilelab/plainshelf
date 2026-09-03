@@ -194,6 +194,13 @@ parallel behind it.
 | npm audit | 0:07 | 0:07 | 0:10 | **0:07** | 5 |
 | **Whole run** | 5:09 | 7:52 | 5:28 | **5:28** | — |
 
+One caveat before reading the two kinds of row together: `timeout-minutes`
+counts a job's *execution*, while the whole-run row also counts its wait for a
+runner. The pull request that added these caps ran for 10:00 — the budget's
+whole limit — with its `frontend` job executing for 1:23, five minutes of the
+rest being queue. A run near the budget therefore says nothing about how close
+a job is to its cap.
+
 `frontend` is the `needs` of every other job, so its time is on the critical
 path twice over — once as itself, once as the delay before anything else starts.
 The cumulative time from the run starting to the E2E job starting was 1:35 /
