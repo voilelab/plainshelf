@@ -19,19 +19,21 @@ The suite this page was written against:
 
 | Level | Files | Cases | Lines |
 |---|---:|---:|---:|
-| L1 + L2 (Go, all three modules) | 121 | 667 | 26,208 |
-| L3 (frontend unit and component) | 146 | 1,446 | 24,044 |
-| L4 (end-to-end) | 30 | 101 | 4,247 |
-| **Total** | **297** | **2,214** | **54,499** |
+| L1 + L2 (Go, all three modules) | 122 | 682 | 26,796 |
+| L3 (frontend unit and component) | 155 | 1,521 | 25,450 |
+| L4 (end-to-end) | 23 | 39 | 2,174 |
+| **Total** | **300** | **2,242** | **54,420** |
 
-Counted in September 2026. "Cases" is top-level `func Test…` for Go and the
-case count each runner reports for the other two, so the figures are
-reproducible rather than estimated.
+Counted 2026-09-03. "Cases" is top-level `func Test…` for Go and the case count
+each runner reports for the other two, so the figures are reproducible rather
+than estimated.
 
-Nothing here is alarming on its own. The point is the direction: none of those
-numbers has ever gone down, because no rule in the repository said one could.
-Every number above is a measurement, so a later reader can tell growth from
-drift.
+The L4 row is the first one in this repository's history to go down: it was 30
+files / 101 cases / 4,247 lines when this page was written, and PSW-78 moved the
+assertions that never needed a browser down to L3 — which is why the L3 row grew
+by 75 cases in the same change. The L1 + L2 row drifted upward on its own; that
+is ordinary growth, not this page's doing. Every number above is a measurement,
+so a later reader can tell growth from drift.
 
 ## The five levels
 
@@ -92,7 +94,7 @@ A pull request does not run the whole suite. It runs the cases tagged
 | Tier | What runs | Where | What it gates |
 |---|---|---|---|
 | Smoke | `@smoke`, 15 cases | `ci.yml`, every pull request | the merge |
-| Full | all 101 cases | `nightly.yml`, 03:00 UTC on `dev` | the release |
+| Full | all 39 cases | `nightly.yml`, 03:00 UTC on `dev` | the release |
 
 The split exists because the wait before a merge should not grow with the
 suite. It costs one thing, and it is worth stating plainly: **a green pull
@@ -140,6 +142,28 @@ admission that a test is missing:
 L5 work is verified in the pull request's **Manual verification** section:
 environment, steps, result, screenshot. A claim without those four is not an L5
 verification, it is a guess.
+
+#### Layout checks with no runner
+
+One more category landed here with PSW-78, and it is worth naming because it is
+the least comfortable part of that change. A handful of E2E cases asserted
+things only a layout engine can answer — that a control clears the fold, that a
+row does not overflow its container, that a form taller than the screen still
+scrolls to its Save button. jsdom resolves no layout and no `var()`, so those
+cannot go to L3; and with the total at 39 of a 40-case budget there was no E2E
+slot to keep them in either. They are checked by eye when the surface around
+them changes:
+
+| Surface | What to look at | Was |
+|---|---|---|
+| Book detail, 1280×720 and 390×844 | Title, reading progress and the primary action clear the fold, in both locales | `book-detail.spec.ts` |
+| Dashboard with one recent book | The "recent reading" cover stays capped rather than stretching the row | `read-history.spec.ts` |
+| Library toolbar at 1600/1280/1024/800 | The last control ("Update book list") stays inside the header | `library-rescan.spec.ts` |
+| Mobile shelf editor at 360×480 | The page itself scrolls, so "Save and continue" is reachable | `mobile-shelves.spec.ts` |
+
+Two of these were regressions once, so this is a real cost, not a tidy-up. If
+one recurs, the answer is an E2E case *and* a deletion to pay for it (R4) —
+not a quiet raise of the 40.
 
 ## Decision tree
 
@@ -197,26 +221,25 @@ automation for it. A step done once is not a process.
 | Budget | Limit | Today |
 |---|---|---|
 | PR gate wall clock (`ci.yml`) | ≤ 10 minutes | 5:28 median, 7:52 worst (2026-09-03) |
-| E2E cases in total | ≤ 40 | **101** |
+| E2E cases in total | ≤ 40 | 39 |
 | E2E cases in the PR gate (`@smoke`) | ≤ 20 | 15 |
-| E2E cases in one spec | ≤ 5 | **11** (`folder-tree.spec.ts`) |
+| E2E cases in one spec | ≤ 5 | 4 (`folder-tree`, `mobile-read-only`) |
 
 **When a budget is exceeded, the answer is to delete tests, not to raise the
 budget.** A budget that moves whenever it binds is a description, not a limit.
 
-Two of the four rows are red today, and the reduction that fixes them is its
-own piece of work, not something to smuggle into an unrelated pull request.
-Until it lands, R4 is what holds the line: the E2E suite does not grow past 101
-while it is being brought down to 40.
+All four rows are green as of PSW-78, which brought the suite from 101 cases in
+30 files to 39 in 23 by moving down everything a stubbed server could not have
+broken. Green is the normal state, not slack to spend: the total row has one
+case of headroom, so R4 is now the whole story — a new E2E case means deleting
+or merging another in the same pull request.
 
-The two green rows are green for different reasons, and only one of them is a
-reason to relax. The smoke row is a limit that was chosen and is enforced on
-every pull request. The wall-clock row is cheap because the expensive level has
-been moved off the gate, not because it stopped growing — the whole suite is
-still 101 cases, they now cost a night instead of a merge, and moving them back
-is what R4 and the 40-case row are for. "About two times' headroom", which this
-page used to claim before either change, was optimistic; the table below is
-where the number comes from now.
+The rows are green for different reasons, and only one of them is a reason to
+relax. The smoke row is a limit that was chosen and is enforced on every pull
+request. The wall-clock row is cheap because the expensive level was moved off
+the gate first (PSW-77) and then shrunk (PSW-78); "about two times' headroom",
+which this page claimed before either change, was optimistic, and the table
+below is where the number comes from now.
 
 ## The time budget per job
 
@@ -244,8 +267,8 @@ it 15 cases at two workers, which ran in 20s on a 4-core container against
 2:47–2:55 for the whole suite on CI, so both the measurement and the cap above
 it are stale in the same direction. The cap is provisionally 10 — enough for a
 3:05 browser-cache miss plus setup — and has to be re-measured over three `dev`
-runs and tightened, along with this row. `nightly.yml`, which now carries the
-other 86 cases, has no measured baseline at all and starts at 25.
+runs and tightened, along with this row. `nightly.yml` now carries the other 24
+cases rather than 86; it has no measured baseline either and starts at 25.
 
 One caveat before reading the two kinds of row together: `timeout-minutes`
 counts a job's *execution*, while the whole-run row also counts its wait for a

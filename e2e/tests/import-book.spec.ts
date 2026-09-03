@@ -1,12 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { useServer } from './support/server';
-import {
-  importBookAs,
-  createCoverDataTransfer,
-  helloFixturePath,
-  helloMarkdownFixturePath,
-  safeHtmlMarkdownFixturePath
-} from './support/books';
+import { importBookAs, helloFixturePath, helloMarkdownFixturePath, safeHtmlMarkdownFixturePath } from './support/books';
 import { openReaderTab } from './support/reader';
 
 const getServer = useServer();
@@ -96,40 +90,4 @@ test('should render allow-listed HTML without executing or loading active conten
   await expect(reader.locator('.reader-safe-html img')).toHaveCount(0);
   expect(await reader.evaluate(() => Reflect.get(window, 'readerHtmlExecuted'))).toBeUndefined();
   expect(externalRequests).toEqual([]);
-});
-
-test('should update a book cover from drag and drop on the detail page', async ({ page }) => {
-  const { baseUrl } = getServer();
-
-  await page.goto(`${baseUrl}/books`);
-  await importBookAs(page, helloFixturePath, 'import-cover-book');
-
-  await page.locator('.book-list-row').getByRole('heading', { name: 'import-cover-book', exact: true }).click();
-  await expect(page).toHaveURL(/\/books\/[^/]+$/);
-
-  const coverTarget = page.locator('.cover-drop-target');
-  await expect(coverTarget).toBeVisible();
-
-  const dataTransfer = await createCoverDataTransfer(page);
-  try {
-    await coverTarget.dispatchEvent('dragenter', { dataTransfer });
-    await expect(page.getByText('Drop the image to update the cover')).toBeVisible();
-    await coverTarget.dispatchEvent('dragover', { dataTransfer });
-    await coverTarget.dispatchEvent('drop', { dataTransfer });
-  } finally {
-    await dataTransfer.dispose();
-  }
-
-  const confirmDialog = page.getByRole('dialog', { name: 'Update book cover?' });
-  await expect(confirmDialog).toBeVisible();
-  await expect(confirmDialog.getByText('Use this image as the new book cover?')).toBeVisible();
-  await confirmDialog.getByRole('button', { name: 'Update cover' }).click();
-
-  await expect(confirmDialog).not.toBeVisible();
-  await page.getByRole('button', { name: 'Cover options' }).click();
-  await expect(page.getByRole('button', { name: 'Remove' })).toBeEnabled();
-  await expect(page.locator('img.detail-cover')).toHaveAttribute(
-    'src',
-    /\/api\/shelves\/default_shelf\/books\/[^/]+\/cover(?:\?t=\d+)?$/
-  );
 });

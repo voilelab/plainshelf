@@ -56,45 +56,6 @@ async function uploadCoverOnDetailPage(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: 'Remove' })).toBeEnabled();
 }
 
-test('downloads a book to the device from the detail page button', async ({ page }) => {
-  const { baseUrl } = getServer();
-
-  // Import and set a cover in the ordinary desktop flow first (the mobile
-  // client is read-only — see mobile-read-only.spec.ts).
-  await page.goto(`${baseUrl}/books`);
-  await importBookAs(page, helloFixturePath, 'downloads-detail-button');
-  await page
-    .locator('.book-list-row')
-    .getByRole('heading', { name: 'downloads-detail-button', exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/books\/[^/]+$/);
-  await uploadCoverOnDetailPage(page);
-
-  await connectMobile(page, baseUrl);
-  const helloId = await getBookIdByTitle(page, 'downloads-detail-button');
-
-  // Open the detail page via a top-level navigation: an in-app click would
-  // drop the ?mobile-shell-preview=1 param, and BookDetailPage gates the
-  // offline-download button on a live isMobileRuntime() check.
-  await reopenMobileAt(page, baseUrl, `/books/${helloId}`);
-
-  const downloadButton = page.getByRole('button', { name: 'Download to device' });
-  await expect(downloadButton).toBeVisible();
-  await downloadButton.click();
-
-  // The same button flips to the remove affordance once the download lands.
-  await expect(page.getByRole('button', { name: 'Remove download' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Download to device' })).not.toBeVisible();
-
-  // Authoritative check via the provider API, not just the button label:
-  // the book is downloaded and the manifest carries non-zero size accounting.
-  // (The cover blob's round-trip is proven by the offline-cover test below.)
-  expect(await getDownloadStateViaHook(page, helloId)).toBe('downloaded');
-  const entry = await getDownloadedEntryViaHook(page, helloId);
-  expect(entry).not.toBeNull();
-  expect(entry?.sizeBytes).toBeGreaterThan(0);
-});
-
 test('lists, sizes, and removes downloads on the /downloads page', async ({ page }) => {
   const { baseUrl } = getServer();
 

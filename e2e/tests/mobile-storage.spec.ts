@@ -3,7 +3,6 @@ import { useServer } from './support/server';
 import { importBookAs, helloFixturePath, anotherFixturePath } from './support/books';
 import {
   connectMobile,
-  openMobileShelfEditor,
   reopenMobileAt,
   getBookIdByTitle,
   downloadBookViaHook,
@@ -15,7 +14,6 @@ import {
   getSourceContentViaHook,
   goOffline,
   goOnline,
-  goServerUnreachable,
   showMobileReaderControls
 } from './support/mobile';
 
@@ -31,42 +29,6 @@ import {
 // own.
 
 const getServer = useServer();
-
-test('persists mobile connection settings across app restarts', async ({ page }) => {
-  const { baseUrl } = getServer();
-
-  await connectMobile(page, baseUrl);
-  await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
-
-  // Simulate an app restart: a fresh top-level navigation, same as a cold
-  // launch of the native shell. The router guard (router.ts beforeEach)
-  // would bounce back to /connect if the saved serverUrl/shelfId did not
-  // survive the "restart".
-  await reopenMobileAt(page, baseUrl, '/books');
-  await expect(page).toHaveURL(/\/books(\?|$)/);
-  await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
-});
-
-test('does not resurrect the saved shelf when validating an unreachable server on /connect', async ({ page }) => {
-  const { baseUrl } = getServer();
-
-  await connectMobile(page, baseUrl);
-
-  // Reopen the saved shelf for editing (Settings → "Manage shelves" in the
-  // real app) and point it at a server that cannot be reached. The failed
-  // shelf fetch must NOT fall back to the previously saved shelf id,
-  // otherwise "Save and continue" would persist a stale shelf for a server
-  // that was never validated.
-  await openMobileShelfEditor(page, baseUrl);
-  const urlInput = page.locator('input[type="url"]');
-  await expect(urlInput).toHaveValue(baseUrl);
-
-  await urlInput.fill('http://127.0.0.1:9');
-  await page.getByRole('button', { name: 'Load library' }).click();
-
-  await expect(page.locator('.mobile-connect-error')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Save and continue' })).toBeDisabled();
-});
 
 test('downloads books for offline reading and isolates removal between books', async ({ page }) => {
   const { baseUrl } = getServer();
@@ -176,57 +138,4 @@ test('automatically persists reading progress across app restarts', async ({ pag
   // than relying on visually inferring scroll position restoration.
   const reloadedProgress = await getReadProgressViaHook(page, helloId);
   expect(reloadedProgress.char_offset).toBe(savedProgress.char_offset);
-});
-
-test('accesses downloaded books when the device has network but cannot reach the server', async ({ page }) => {
-  const { baseUrl } = getServer();
-
-  await page.goto(`${baseUrl}/books`);
-  await importBookAs(page, helloFixturePath, 'storage-unreachable');
-
-  await connectMobile(page, baseUrl);
-  const helloId = await getBookIdByTitle(page, 'storage-unreachable');
-  await downloadBookViaHook(page, helloId);
-
-  // Simulate LTE-with-no-route-to-the-home-server: navigator.onLine stays
-  // true (unlike goOffline), so listBooks must fall back to the offline
-  // cache rather than surfacing the transport error to the UI.
-  await goServerUnreachable(page);
-  await reopenMobileAt(page, baseUrl, '/books');
-  await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
-  await expect(
-    page.locator('.book-list-row').getByRole('heading', { name: 'storage-unreachable', exact: true })
-  ).toBeVisible();
-
-  await reopenMobileAt(page, baseUrl, `/reader/${helloId}`);
-  await expect(page.getByText('Hello from PlainShelf E2E.')).toBeVisible();
-});
-
-test('redirects a non-downloaded book to its detail page instead of opening the reader', async ({ page }) => {
-  const { baseUrl } = getServer();
-
-  await page.goto(`${baseUrl}/books`);
-  await importBookAs(page, helloFixturePath, 'storage-redirect');
-
-  await connectMobile(page, baseUrl);
-  const helloId = await getBookIdByTitle(page, 'storage-redirect');
-  // Deliberately not downloaded.
-
-  await goOffline(page);
-
-  await reopenMobileAt(page, baseUrl, '/books');
-  await expect(page.getByRole('heading', { name: 'All books' })).toBeVisible();
-  // Offline listBooks only returns downloaded books, so the not-downloaded
-  // book must not appear.
-  await expect(
-    page.locator('.book-list-row').getByRole('heading', { name: 'storage-redirect', exact: true })
-  ).not.toBeVisible();
-
-  // The mobile client requires a download before reading. Opening the reader
-  // route for a not-downloaded book redirects to the book's detail page, which
-  // prompts the user to download it first — the reader content never loads.
-  await reopenMobileAt(page, baseUrl, `/reader/${helloId}`);
-  await expect(page).not.toHaveURL(/\/reader\//);
-  await expect(page.locator('.download-required-notice')).toBeVisible();
-  await expect(page.getByText('Hello from PlainShelf E2E.')).toHaveCount(0);
 });

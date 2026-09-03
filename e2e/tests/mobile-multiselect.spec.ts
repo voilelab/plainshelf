@@ -1,11 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { anotherFixturePath, helloFixturePath, importBookAs } from './support/books';
-import {
-  connectMobile,
-  getBookIdByTitle,
-  getDownloadStateViaHook,
-  reopenMobileAt
-} from './support/mobile';
+import { helloFixturePath, importBookAs } from './support/books';
+import { addFolder, selectFolder } from './support/folders';
+import { connectMobile, reopenMobileAt } from './support/mobile';
 import { useServer } from './support/server';
 
 const getServer = useServer();
@@ -30,93 +26,6 @@ async function longPress(page: Page, row: Locator): Promise<void> {
   // interaction composable consumes it so the long-pressed item is not toggled twice.
   await row.click();
 }
-
-test('mobile long press selects, retries failed downloads, and skips downloaded books', async ({ page }) => {
-  const { baseUrl } = getServer();
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`${baseUrl}/books`);
-  await importBookAs(page, helloFixturePath, 'multiselect-hello');
-  await importBookAs(page, anotherFixturePath, 'multiselect-another');
-  await connectMobile(page, baseUrl);
-  await reopenMobileAt(page, baseUrl, '/books');
-
-  const helloId = await getBookIdByTitle(page, 'multiselect-hello');
-  const anotherId = await getBookIdByTitle(page, 'multiselect-another');
-  const helloRow = page.locator('.book-list-row', { hasText: 'multiselect-hello' });
-  const anotherRow = page.locator('.book-list-row', { hasText: 'multiselect-another' });
-  const selectionToolbar = page.getByRole('toolbar', { name: 'Selected books actions' });
-
-  // Moving beyond the touch tolerance cancels the pending long press.
-  await helloRow.dispatchEvent('pointerdown', {
-    pointerType: 'touch', pointerId: 1, clientX: 20, clientY: 20, isPrimary: true
-  });
-  await helloRow.dispatchEvent('pointermove', {
-    pointerType: 'touch', pointerId: 1, clientX: 20, clientY: 45, isPrimary: true
-  });
-  await page.waitForTimeout(500);
-  await helloRow.dispatchEvent('pointerup', {
-    pointerType: 'touch', pointerId: 1, clientX: 20, clientY: 45, isPrimary: true
-  });
-  await expect(selectionToolbar).not.toBeVisible();
-
-  await longPress(page, helloRow);
-  await expect(selectionToolbar.getByText('1 selected')).toBeVisible();
-  await anotherRow.click();
-  await expect(selectionToolbar.getByText('2 selected')).toBeVisible();
-
-  const mobileActionBar = page.locator('.mobile-selection-actions');
-  await expect(mobileActionBar).toHaveCSS('position', 'fixed');
-
-  // Fail one item locally; successful items clear while the failed item remains selected.
-  await page.route(`**/books/${anotherId}/content`, (route) => route.abort('connectionrefused'));
-  await mobileActionBar.getByRole('button', { name: 'Download to device' }).click();
-  const downloadDialog = page.getByRole('dialog', { name: 'Download to device' });
-  await expect(downloadDialog.getByText('1 downloaded; 1 failed.')).toBeVisible();
-  await expect(downloadDialog.getByText('multiselect-another', { exact: true })).toBeVisible();
-  expect(await getDownloadStateViaHook(page, helloId)).toBe('downloaded');
-  expect(await getDownloadStateViaHook(page, anotherId)).not.toBe('downloaded');
-
-  await page.unroute(`**/books/${anotherId}/content`);
-  await downloadDialog.getByRole('button', { name: 'Close' }).click();
-  await expect(selectionToolbar.getByText('1 selected')).toBeVisible();
-  await mobileActionBar.getByRole('button', { name: 'Download to device' }).click();
-  await expect(downloadDialog.getByText('1 books downloaded.')).toBeVisible();
-  await downloadDialog.getByRole('button', { name: 'Close' }).click();
-  await expect(selectionToolbar).not.toBeVisible();
-  expect(await getDownloadStateViaHook(page, anotherId)).toBe('downloaded');
-
-  // Selecting already-current downloads counts as success without invoking downloadBook again.
-  await page.evaluate(() => {
-    const provider = window.__plainshelfTestHooks?.provider;
-    if (!provider?.downloadBook) throw new Error('mobile download provider is unavailable');
-    const original = provider.downloadBook.bind(provider);
-    (window as unknown as { __batchDownloadCalls: string[] }).__batchDownloadCalls = [];
-    provider.downloadBook = async (id: string) => {
-      (window as unknown as { __batchDownloadCalls: string[] }).__batchDownloadCalls.push(id);
-      await original(id);
-    };
-  });
-  await longPress(page, helloRow);
-  await anotherRow.click();
-  await mobileActionBar.getByRole('button', { name: 'Download to device' }).click();
-  await expect(downloadDialog.getByText('2 books downloaded.')).toBeVisible();
-  expect(await page.evaluate(() => (window as unknown as { __batchDownloadCalls: string[] }).__batchDownloadCalls)).toEqual([]);
-  await downloadDialog.getByRole('button', { name: 'Close' }).click();
-
-  // The Android back listener consumes selection before routing backward.
-  await longPress(page, helloRow);
-  const urlBeforeBack = page.url();
-  const notified = await page.evaluate(async () => {
-    const app = (window as unknown as { Capacitor?: { Plugins?: { App?: { notifyListeners?: (name: string, data: unknown) => Promise<void> } } } }).Capacitor?.Plugins?.App;
-    if (!app?.notifyListeners) return false;
-    await app.notifyListeners('backButton', { canGoBack: true });
-    return true;
-  });
-  expect(notified).toBe(true);
-  await expect(selectionToolbar).not.toBeVisible();
-  expect(page.url()).toBe(urlBeforeBack);
-});
 
 // Before the badge, the list gave no sign of which books were downloaded: the
 // only way to find out was to open one and be redirected back by the reader
@@ -152,37 +61,42 @@ test('mobile library marks download state on every row and refreshes it after a 
   await expect(badge).toHaveText('Downloaded');
 });
 
-// The download bar used to be styled only inside a max-width:760px media query,
-// so on a tablet-sized mobile shell multi-select opened a toolbar whose every
-// action had been removed — Move and Trash are write surfaces the mobile client
-// never offers, and Download was hidden by width. There was no way out but to
-// cancel.
-test('mobile download action stays reachable on a tablet-width screen', async ({ page }) => {
+// At the narrow breakpoint the download badge and the folder label share one
+// line. The badge is the fixed part — a state the user cannot read is no better
+// than no badge — so the folder path is what has to give way; when it could not,
+// a deeply nested book pushed its whole row past the card's right edge.
+//
+// jsdom has no layout, so only a real browser can see this.
+test('a deep folder path does not push the download badge past the row edge', async ({ page }) => {
   const { baseUrl } = getServer();
 
-  await page.setViewportSize({ width: 1024, height: 768 });
+  // The folder tree lives in the sidebar, which a narrow viewport folds into a
+  // drawer, so the book is filed at desktop width and only then read on a phone.
   await page.goto(`${baseUrl}/books`);
-  await importBookAs(page, helloFixturePath, 'multiselect-tablet-hello');
+  await addFolder(page, 'badgelayout/a-rather-long-nested-folder-name');
+  await selectFolder(page, 'a-rather-long-nested-folder-name');
+  await importBookAs(page, helloFixturePath, 'badge-layout-book');
+
+  await page.setViewportSize({ width: 390, height: 844 });
   await connectMobile(page, baseUrl);
   await reopenMobileAt(page, baseUrl, '/books');
 
-  const helloId = await getBookIdByTitle(page, 'multiselect-tablet-hello');
-  const helloRow = page.locator('.book-list-row', { hasText: 'multiselect-tablet-hello' });
+  const row = page.locator('.book-list-row', { hasText: 'badge-layout-book' });
+  const badge = row.locator('.book-download-badge');
+  await expect(badge).toHaveText('Not downloaded');
 
-  await longPress(page, helloRow);
-  await expect(
-    page.getByRole('toolbar', { name: 'Selected books actions' }).getByText('1 selected')
-  ).toBeVisible();
+  const layout = await row.evaluate((element) => {
+    const folder = element.querySelector('.book-list-folder') as HTMLElement;
+    const badgeElement = element.querySelector('.book-download-badge') as HTMLElement;
+    return {
+      overflow: element.scrollWidth - element.clientWidth,
+      folderOverhang: folder.getBoundingClientRect().right - element.getBoundingClientRect().right,
+      // The badge label is never the thing that gets clipped.
+      badgeClipped: badgeElement.scrollWidth - badgeElement.clientWidth
+    };
+  });
 
-  const downloadBar = page.getByRole('toolbar', { name: 'Selected books download bar' });
-  await expect(downloadBar).toBeVisible();
-
-  const downloadButton = downloadBar.getByRole('button', { name: 'Download to device' });
-  await expect(downloadButton).toBeVisible();
-  await downloadButton.click();
-
-  const downloadDialog = page.getByRole('dialog', { name: 'Download to device' });
-  await expect(downloadDialog.getByText('1 books downloaded.')).toBeVisible();
-  await downloadDialog.getByRole('button', { name: 'Close' }).click();
-  expect(await getDownloadStateViaHook(page, helloId)).toBe('downloaded');
+  expect(layout.overflow).toBeLessThanOrEqual(0);
+  expect(layout.folderOverhang).toBeLessThanOrEqual(0);
+  expect(layout.badgeClipped).toBeLessThanOrEqual(0);
 });
