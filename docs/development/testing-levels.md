@@ -21,8 +21,8 @@ The suite this page was written against:
 |---|---:|---:|---:|
 | L1 + L2 (Go, all three modules) | 122 | 682 | 26,796 |
 | L3 (frontend unit and component) | 155 | 1,521 | 25,450 |
-| L4 (end-to-end) | 23 | 39 | 2,174 |
-| **Total** | **300** | **2,242** | **54,420** |
+| L4 (end-to-end) | 23 | 37 | 2,122 |
+| **Total** | **300** | **2,240** | **54,368** |
 
 Counted 2026-09-03. "Cases" is top-level `func Test…` for Go and the case count
 each runner reports for the other two, so the figures are reproducible rather
@@ -31,9 +31,13 @@ than estimated.
 The L4 row is the first one in this repository's history to go down: it was 30
 files / 101 cases / 4,247 lines when this page was written, and PSW-78 moved the
 assertions that never needed a browser down to L3 — which is why the L3 row grew
-by 75 cases in the same change. The L1 + L2 row drifted upward on its own; that
-is ordinary growth, not this page's doing. Every number above is a measurement,
-so a later reader can tell growth from drift.
+by 75 cases in the same change. It went down twice more when the two
+`security-headers` cases that only issued `fetch` calls were deleted as
+duplicates of `api_security_headers_contract_test.go`, which pins the same
+headers, directives and nonce at L2 over more response shapes. The L1 + L2 row
+drifted upward on its own; that is ordinary growth, not this page's doing.
+Every number above is a measurement, so a later reader can tell growth from
+drift.
 
 ## The five levels
 
@@ -93,8 +97,8 @@ A pull request does not run the whole suite. It runs the cases tagged
 
 | Tier | What runs | Where | What it gates |
 |---|---|---|---|
-| Smoke | `@smoke`, 15 cases | `ci.yml`, every pull request | the merge |
-| Full | all 39 cases | `nightly.yml`, 03:00 UTC on `dev` | the release |
+| Smoke | `@smoke`, 13 cases | `ci.yml`, every pull request | the merge |
+| Full | all 37 cases | `nightly.yml`, 03:00 UTC on `dev` | the release |
 
 The split exists because the wait before a merge should not grow with the
 suite. It costs one thing, and it is worth stating plainly: **a green pull
@@ -103,7 +107,7 @@ is checked by `just test-e2e` before pushing, and by the night after merging;
 when the night is red, the workflow opens (or comments on) one issue on this
 repository.
 
-The smoke tier is a budget of its own — ≤ 20 cases, 15 today — and its job is
+The smoke tier is a budget of its own — ≤ 20 cases, 13 today — and its job is
 to notice that the product is broken, not to cover behavior. It holds one case
 per critical journey:
 
@@ -113,7 +117,7 @@ per critical journey:
 | Reading and progress | `read-history` (record and clear) |
 | Browsing | `library-search` (filter and restore) |
 | Editing a source | `source-editor` (edit and see it in the reader, create and switch) |
-| Security | `security-headers` (all three) |
+| Security | `security-headers` (the app boots with no CSP violation) |
 | Mobile read-only | `mobile-read-only` (routing, reachability, hidden writes, rejected write) |
 
 Tag with Playwright's own option — `test('…', { tag: '@smoke' }, async …)` —
@@ -151,8 +155,8 @@ things only a layout engine can answer — that a control clears the fold, that 
 row does not overflow its container, that a form taller than the screen still
 scrolls to its Save button. jsdom resolves no layout and no `var()`, so those
 cannot go to L3; and with the total at 39 of a 40-case budget there was no E2E
-slot to keep them in either. They are checked by eye when the surface around
-them changes:
+slot to keep them in either (the budget has since freed three). They are
+checked by eye when the surface around them changes:
 
 | Surface | What to look at | Was |
 |---|---|---|
@@ -221,8 +225,8 @@ automation for it. A step done once is not a process.
 | Budget | Limit | Today |
 |---|---|---|
 | PR gate wall clock (`ci.yml`) | ≤ 10 minutes | 5:28 median, 7:52 worst (2026-09-03) |
-| E2E cases in total | ≤ 40 | 39 |
-| E2E cases in the PR gate (`@smoke`) | ≤ 20 | 15 |
+| E2E cases in total | ≤ 40 | 37 |
+| E2E cases in the PR gate (`@smoke`) | ≤ 20 | 13 |
 | E2E cases in one spec | ≤ 5 | 4 (`folder-tree`, `mobile-read-only`) |
 
 **When a budget is exceeded, the answer is to delete tests, not to raise the
@@ -230,9 +234,10 @@ budget.** A budget that moves whenever it binds is a description, not a limit.
 
 All four rows are green as of PSW-78, which brought the suite from 101 cases in
 30 files to 39 in 23 by moving down everything a stubbed server could not have
-broken. Green is the normal state, not slack to spend: the total row has one
-case of headroom, so R4 is now the whole story — a new E2E case means deleting
-or merging another in the same pull request.
+broken; deleting the two L2-duplicate `security-headers` cases took it to 37.
+Green is the normal state, not slack to spend: three cases of headroom is one
+change's worth, so R4 still holds — a new E2E case means deleting or merging
+another in the same pull request.
 
 The rows are green for different reasons, and only one of them is a reason to
 relax. The smoke row is a limit that was chosen and is enforced on every pull
@@ -268,7 +273,8 @@ it 15 cases at two workers, which ran in 20s on a 4-core container against
 it are stale in the same direction. The cap is provisionally 10 — enough for a
 3:05 browser-cache miss plus setup — and has to be re-measured over three `dev`
 runs and tightened, along with this row. `nightly.yml` now carries the other 24
-cases rather than 86; it has no measured baseline either and starts at 25.
+cases rather than 86 (22 since the `security-headers` deletions); it has no
+measured baseline either and starts at 25.
 
 One caveat before reading the two kinds of row together: `timeout-minutes`
 counts a job's *execution*, while the whole-run row also counts its wait for a
