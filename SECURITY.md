@@ -63,7 +63,7 @@ How to bind and configure PlainShelf for each deployment — loopback single use
 The essentials, at every tier:
 
 - Follow [Deployment and threat model](docs/deployment-and-threat-model.md) for the bind address, `app_conf.security.mode`, and origin allowlist your deployment needs. Do not expose PlainShelf directly to the public internet: it has no login yet.
-- Keep shelf and store directories backed up before testing new builds.
+- Keep shelf and store directories backed up before testing new builds; [Backup and Restore](docs/backup-and-restore.md) covers what to copy and how to restore it.
 - Treat imported books, metadata, and covers as untrusted input.
 - Review Docker volume mounts and custom configuration files before sharing them.
 

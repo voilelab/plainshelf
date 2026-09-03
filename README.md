@@ -13,7 +13,8 @@ records, and no PlainShelf server holds your credentials. See
 deployment does and does not protect.
 
 > **Pre-alpha:** APIs, data layout, and UI behavior may change. Back up your
-> shelf before upgrading. See
+> shelf before upgrading — see [Backup and Restore](docs/backup-and-restore.md)
+> for what to copy and how to put it back, and
 > [Data Format Versioning](docs/concepts/data-format-versioning.md) for what the
 > on-disk format does and does not guarantee.
 

@@ -28,8 +28,9 @@ adds a web interface, desktop integration, and an experimental Android client.
   and the shelf fit together, and what reading state is kept off the shelf.
 - [Data Model](concepts/data-model.md) explains what is stored under a shelf.
 - [Data Format Versioning](concepts/data-format-versioning.md) explains the
-  on-disk schema version, the compatibility policy, and how to back up and
-  restore a shelf.
+  on-disk schema version and the compatibility policy.
+- [Backup and Restore](backup-and-restore.md) covers what to copy, what a
+  shelf-only copy leaves behind, and how to put a backup back.
 - [Folders](concepts/folders.md) explains the nested folder hierarchy.
 - [Shelf Cache and Disk I/O](concepts/shelf-cache-and-io.md) explains scanning,
   cache freshness, and network-filesystem tuning.
