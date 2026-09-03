@@ -89,15 +89,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          COMMIT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
+          # Not `github.sha`: on a manual dispatch that is the ref it was
+          # dispatched from, and on a schedule it is the default branch as of
+          # the trigger rather than the checkout. The suite ran against what
+          # `Checkout dev` actually got, so report that.
+          commit_sha=$(git rev-parse HEAD)
           title='Nightly E2E suite is failing on dev'
           body=$(printf '%s\n' \
             'The full E2E suite failed on `dev`.' \
             '' \
             "- Run: $RUN_URL" \
-            "- Commit: \`$COMMIT_SHA\`" \
+            "- Commit: \`$commit_sha\`" \
             '' \
             'The pull request gate only runs the `@smoke` subset, so this is a failure no' \
             'pull request would have caught. `docs/development/testing-levels.md` has the' \
