@@ -192,6 +192,13 @@ Read the relevant section before working in that area. Add entries according to
   handling change.
 - **Book identity:** moving or renaming a book must not regenerate its persisted
   ID. The directory name and display title are not identity.
+- **JSON encoding:** marshal through `internal/jsonopt`, not bare
+  `encoding/json/v2` options → v2 leaves map order unspecified, which defeats
+  the three "unchanged, do not rewrite" checks (`fingerprint/cache.go`'s byte
+  compare, `bookCacheDigest`, `scanCacheDigest`) with no compile error and no
+  test failure, costing a re-upload per scan on pCloud or SMB. Importing
+  `encoding/json` at all fails `internal/repocheck` unless the file is on the
+  shrinking allowlist. (`docs/development/json-encoding.md`)
 - **Network shelves:** SMB latency amplifies directory walks and stat calls;
   preserve scan/check intervals, finite lock timeouts, atomic writes, and clear
   error propagation. See `docs/concepts/shelf-cache-and-io.md`.
