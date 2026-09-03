@@ -67,6 +67,29 @@ func waitForTaskChain(t *testing.T, env *apiTestEnv, taskChainID string) server.
 	}
 }
 
+// assertDuplicateChainConflict pins the contract every endpoint that starts one
+// shelf-wide chain shares: while a chain is in flight a second request is
+// answered 409 naming that same chain instead of queueing a redundant one.
+// submit posts to the endpoint under test and asserts the status it is handed.
+// The chain is left finished, and its response returned, so a caller whose
+// endpoint can be asked again afterwards can assert it gets a fresh chain.
+func assertDuplicateChainConflict(t *testing.T, env *apiTestEnv, submit func(wantStatus int) taskChainSubmitResponse) taskChainSubmitResponse {
+	t.Helper()
+
+	// Block the worker so the first chain stays queued, and therefore
+	// non-terminal, for the duration of the test.
+	release := blockWorker(t, env)
+
+	first := submit(http.StatusAccepted)
+	if conflict := submit(http.StatusConflict); conflict.TaskChainID != first.TaskChainID {
+		t.Errorf("conflict taskchain_id = %q, want the running chain %q", conflict.TaskChainID, first.TaskChainID)
+	}
+
+	release()
+	waitForTaskChain(t, env, first.TaskChainID)
+	return first
+}
+
 func taskChainURL(taskChainID string) string {
 	return "/api/taskchains/" + taskChainID
 }

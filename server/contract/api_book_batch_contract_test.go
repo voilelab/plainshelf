@@ -26,8 +26,8 @@ func TestAPIBookBatchMoveContract(t *testing.T) {
 	second := importTextBook(t, env, "Second", "source", "second.txt", "two")
 
 	accepted := submitBookBatch(t, env, map[string]any{
-		"operation":    "move",
-		"book_ids":     []string{first.Meta.ID, second.Meta.ID, first.Meta.ID},
+		"operation":     "move",
+		"book_ids":      []string{first.Meta.ID, second.Meta.ID, first.Meta.ID},
 		"target_folder": []string{"target"},
 	}, http.StatusAccepted)
 	chain := waitForTaskChain(t, env, accepted.TaskChainID)
@@ -120,20 +120,9 @@ func TestAPIBookBatchValidationContract(t *testing.T) {
 func TestAPIBookBatchDuplicateRunningChainContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	book := importTextBook(t, env, "Queued", "", "queued.txt", "body")
-	release := blockWorker(t, env)
+
 	payload := map[string]any{"operation": "trash", "book_ids": []string{book.Meta.ID}}
-	first := submitBookBatch(t, env, payload, http.StatusAccepted)
-	duplicate := submitBookBatch(t, env, payload, http.StatusConflict)
-	if duplicate.TaskChainID != first.TaskChainID {
-		t.Errorf("duplicate id = %q, want %q", duplicate.TaskChainID, first.TaskChainID)
-	}
-	release()
-	waitForTaskChain(t, env, first.TaskChainID)
-}
-
-func TestAPIBookBatchIsGatedContract(t *testing.T) {
-	env := newAPITestEnv(t)
-
-	assertMutationGated(t, env, http.MethodPost, bookBatchURL(),
-		[]byte(`{"operation":"trash","book_ids":["book"]}`))
+	assertDuplicateChainConflict(t, env, func(wantStatus int) taskChainSubmitResponse {
+		return submitBookBatch(t, env, payload, wantStatus)
+	})
 }

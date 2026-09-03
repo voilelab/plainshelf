@@ -67,39 +67,36 @@ func TestAPIGetTaskChainContract(t *testing.T) {
 	if resp.Tasks[0].Name != "contract_task" || resp.Tasks[0].Status != "running" || resp.Tasks[0].Percentage != 50 {
 		t.Errorf("unexpected task payload: %+v", resp.Tasks[0])
 	}
-}
 
-// TestAPIGetTaskChainSchemaContract pins the wire field names. Decoding into the
-// Go response struct alone would pass no matter how the JSON tags change.
-func TestAPIGetTaskChainSchemaContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	chain := submitContractChain(t, env)
-
-	payload := getJSON[map[string]any](t, env, taskChainURL(chain.ID))
-	for _, key := range []string{"id", "name", "title", "description", "status", "percentage", "created_at", "tasks"} {
-		if _, ok := payload[key]; !ok {
-			t.Errorf("response is missing the %q field: %v", key, payload)
+	// The same response decoded as a map pins the wire field names. Decoding
+	// into the Go struct alone would pass no matter how the JSON tags change.
+	t.Run("schema", func(t *testing.T) {
+		payload := decodeJSON[map[string]any](t, rec)
+		for _, key := range []string{"id", "name", "title", "description", "status", "percentage", "created_at", "tasks"} {
+			if _, ok := payload[key]; !ok {
+				t.Errorf("response is missing the %q field: %v", key, payload)
+			}
 		}
-	}
 
-	// status must be the readable name, not the underlying enum integer.
-	if status, ok := payload["status"].(string); !ok || status != "running" {
-		t.Errorf("status = %v, want the string \"running\"", payload["status"])
-	}
-
-	tasks, ok := payload["tasks"].([]any)
-	if !ok || len(tasks) != 1 {
-		t.Fatalf("tasks = %v, want a single-element array", payload["tasks"])
-	}
-	task, ok := tasks[0].(map[string]any)
-	if !ok {
-		t.Fatalf("task = %v, want an object", tasks[0])
-	}
-	for _, key := range []string{"name", "title", "description", "status", "percentage"} {
-		if _, ok := task[key]; !ok {
-			t.Errorf("task is missing the %q field: %v", key, task)
+		// status must be the readable name, not the underlying enum integer.
+		if status, ok := payload["status"].(string); !ok || status != "running" {
+			t.Errorf("status = %v, want the string \"running\"", payload["status"])
 		}
-	}
+
+		tasks, ok := payload["tasks"].([]any)
+		if !ok || len(tasks) != 1 {
+			t.Fatalf("tasks = %v, want a single-element array", payload["tasks"])
+		}
+		task, ok := tasks[0].(map[string]any)
+		if !ok {
+			t.Fatalf("task = %v, want an object", tasks[0])
+		}
+		for _, key := range []string{"name", "title", "description", "status", "percentage"} {
+			if _, ok := task[key]; !ok {
+				t.Errorf("task is missing the %q field: %v", key, task)
+			}
+		}
+	})
 }
 
 func TestAPIGetTaskChainNotFoundContract(t *testing.T) {

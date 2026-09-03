@@ -156,17 +156,6 @@ func TestAPIFingerprintStatusContract(t *testing.T) {
 	}
 }
 
-func TestAPISimilarRejectsUnknownShelfContract(t *testing.T) {
-	env := newAPITestEnv(t)
-
-	if rec := env.get(shelfIDURL("missing_shelf", "books", "similar")); rec.Code != http.StatusNotFound {
-		t.Errorf("similar on an unknown shelf gave %d, want 404", rec.Code)
-	}
-	if rec := env.get(shelfIDURL("missing_shelf", "fingerprints", "status")); rec.Code != http.StatusNotFound {
-		t.Errorf("status on an unknown shelf gave %d, want 404", rec.Code)
-	}
-}
-
 // defaultSimilarFloorContract mirrors the server's default floor; the contract
 // package cannot see the unexported server constant.
 const defaultSimilarFloorContract = 0.15

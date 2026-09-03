@@ -2,6 +2,8 @@ package contract_test
 
 import (
 	"net/http"
+	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/voilelab/plainshelf/server"
@@ -101,38 +103,66 @@ func TestAPIEmptyTrashOnEmptyTrashContract(t *testing.T) {
 func TestAPIEmptyTrashConflictReportsRunningChainContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	// Block the worker so the empty-trash chain stays queued and therefore
-	// non-terminal for the duration of the test.
-	release := blockWorker(t, env)
-
-	first := emptyTrash(t, env, http.StatusAccepted)
-	conflict := emptyTrash(t, env, http.StatusConflict)
-
-	if conflict.TaskChainID != first.TaskChainID {
-		t.Errorf("conflict taskchain_id = %q, want the running chain %q", conflict.TaskChainID, first.TaskChainID)
-	}
-
-	release()
-	waitForTaskChain(t, env, first.TaskChainID)
+	first := assertDuplicateChainConflict(t, env, func(wantStatus int) taskChainSubmitResponse {
+		return emptyTrash(t, env, wantStatus)
+	})
 
 	// Once the sweep has finished, a fresh request is accepted again.
-	next := emptyTrash(t, env, http.StatusAccepted)
-	if next.TaskChainID == first.TaskChainID {
+	if next := emptyTrash(t, env, http.StatusAccepted); next.TaskChainID == first.TaskChainID {
 		t.Errorf("expected a new chain after the previous one finished")
 	}
 }
 
-func TestAPIEmptyTrashRejectsUnknownShelfContract(t *testing.T) {
+// DELETE /books/{id} and POST /books/{id}/trash share one handler, and the two
+// below pin that they stay interchangeable. The lifecycle itself is covered by
+// TestAPITrashLifecycleContract. One env serves both routes: each trashes its
+// own book, so they never observe each other's effect.
+func TestAPIDeleteAndTrashRoutesBothTrashTheBookContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	rec := env.post(shelfIDURL("missing_shelf", "trash", "empty"), nil)
-	assertStatus(t, rec, http.StatusNotFound)
+	routes := map[string]func(bookID string) *http.Request{
+		"DELETE /books/{book_id}": func(bookID string) *http.Request {
+			return httptest.NewRequest(http.MethodDelete, bookURL(bookID), nil)
+		},
+		"POST /books/{book_id}/trash": func(bookID string) *http.Request {
+			return httptest.NewRequest(http.MethodPost, bookURL(bookID, "trash"), nil)
+		},
+	}
+
+	for name, build := range routes {
+		t.Run(name, func(t *testing.T) {
+			book := importTextBook(t, env, "Trash Me", "", "trash-me.txt", "body")
+			bookID := book.Meta.ID
+
+			assertStatus(t, env.do(build(bookID)), http.StatusNoContent)
+
+			assertStatus(t, env.get(bookURL(bookID)), http.StatusNotFound)
+
+			// Recoverable, which is what makes both routes a trash operation.
+			trashed := getJSON[[]server.TrashedBook](t, env, shelfURL("trash", "books"))
+			if !slices.ContainsFunc(trashed, func(b server.TrashedBook) bool { return b.ID == bookID }) {
+				t.Fatalf("trash = %+v, want it to contain the trashed book %s", trashed, bookID)
+			}
+		})
+	}
 }
 
-// The endpoint mutates the shelf, so it must sit inside the local_token boundary
-// and be refused in read-only mode.
-func TestAPIEmptyTrashIsGatedContract(t *testing.T) {
+func TestAPIDeleteAndTrashRoutesAgreeOnUnknownBookContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	assertMutationGated(t, env, http.MethodPost, emptyTrashURL(), nil)
+	requests := map[string]*http.Request{
+		"DELETE /books/{book_id}": httptest.NewRequest(http.MethodDelete,
+			bookURL("no_such_book"), nil),
+		"POST /books/{book_id}/trash": httptest.NewRequest(http.MethodPost,
+			bookURL("no_such_book", "trash"), nil),
+	}
+
+	for name, req := range requests {
+		t.Run(name, func(t *testing.T) {
+			rec := env.do(req)
+
+			assertErrorEnvelope(t, rec, http.StatusNotFound,
+				"BOOK_NOT_FOUND", "book not found")
+		})
+	}
 }

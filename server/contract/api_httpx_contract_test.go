@@ -6,20 +6,35 @@ import (
 	"testing"
 )
 
+// Every shelf-scoped route resolves its shelf through the same helper, so an
+// unknown ID must be one answer rather than one per endpoint. Reads and the
+// routes that would otherwise queue background work are listed together: a
+// caller that got 202 for a shelf that does not exist would poll a chain that
+// never ran.
 func TestAPIUnknownShelfIsRejectedConsistentlyContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	paths := []string{
-		shelfIDURL("missing_shelf", "books"),
-		shelfIDURL("missing_shelf", "status"),
-		shelfIDURL("missing_shelf", "folders"),
-		shelfIDURL("missing_shelf", "trash", "books"),
-		shelfIDURL("missing_shelf", "books", "duplicate"),
+	requests := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, shelfIDURL("missing_shelf", "books")},
+		{http.MethodGet, shelfIDURL("missing_shelf", "status")},
+		{http.MethodGet, shelfIDURL("missing_shelf", "folders")},
+		{http.MethodGet, shelfIDURL("missing_shelf", "trash", "books")},
+		{http.MethodGet, shelfIDURL("missing_shelf", "books", "duplicate")},
+		{http.MethodGet, shelfIDURL("missing_shelf", "books", "similar")},
+		{http.MethodGet, shelfIDURL("missing_shelf", "fingerprints", "status")},
+		{http.MethodPost, shelfIDURL("missing_shelf", "scans")},
+		{http.MethodPost, shelfIDURL("missing_shelf", "book-cache-exports")},
+		{http.MethodPost, shelfIDURL("missing_shelf", "content-stat-refreshes")},
+		{http.MethodPost, shelfIDURL("missing_shelf", "source-fingerprints")},
+		{http.MethodPost, shelfIDURL("missing_shelf", "trash", "empty")},
 	}
 
-	for _, path := range paths {
-		t.Run(path, func(t *testing.T) {
-			rec := env.get(path)
+	for _, tc := range requests {
+		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
+			rec := env.request(tc.method, tc.path, nil)
 
 			assertStatus(t, rec, http.StatusNotFound)
 			if got := strings.TrimSpace(rec.Body.String()); got != "shelf not found" {
@@ -29,7 +44,7 @@ func TestAPIUnknownShelfIsRejectedConsistentlyContract(t *testing.T) {
 	}
 }
 
-func TestAPIJSONResponsesShareOneContentTypeContract(t *testing.T) {
+func TestAPIJSONResponsesShareOneShapeContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
 	paths := []string{
@@ -46,18 +61,11 @@ func TestAPIJSONResponsesShareOneContentTypeContract(t *testing.T) {
 
 			assertStatus(t, rec, http.StatusOK)
 			assertJSONContentType(t, rec)
+
+			// A client reading the body line-wise would block without the newline.
+			if body := rec.Body.String(); !strings.HasSuffix(body, "\n") {
+				t.Fatalf("body = %q, want a trailing newline", body)
+			}
 		})
-	}
-}
-
-func TestAPIJSONBodiesEndWithANewlineContract(t *testing.T) {
-	env := newAPITestEnv(t)
-
-	// A client reading the body line-wise would block without the newline.
-	rec := env.get("/api/version")
-
-	assertStatus(t, rec, http.StatusOK)
-	if body := rec.Body.String(); !strings.HasSuffix(body, "\n") {
-		t.Fatalf("body = %q, want a trailing newline", body)
 	}
 }

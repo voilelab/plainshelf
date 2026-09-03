@@ -125,49 +125,39 @@ func TestAPIRescanShelfRefusesAnUnknownOriginWithoutATokenContract(t *testing.T)
 	assertStatus(t, env.doRaw(req), http.StatusOK)
 }
 
-// The token exemption is matched on the same path helper as the read-only one,
-// so it must not open a neighbouring route or a shelf-less path ending in
-// /scans to an unauthenticated POST.
-func TestAPITokenExemptionIsLimitedToTheScanRouteContract(t *testing.T) {
-	env := newAPITestEnv(t)
-
-	for _, url := range []string{
+// Both exemptions - no token needed, allowed in read-only mode - are matched on
+// the same path helper, so neither may open a neighbouring route or a shelf-less
+// path that happens to end in /scans.
+func TestAPIScanExemptionsAreLimitedToTheScanRouteContract(t *testing.T) {
+	urls := []string{
 		shelfURL("scans", "extra"),
 		shelfURL("book-cache-exports"),
 		"/api/shelves//scans",
 		"/api/scans",
-	} {
-		t.Run(url, func(t *testing.T) {
-			rec := env.doRaw(httptest.NewRequest(http.MethodPost, url, nil))
-			assertStatus(t, rec, http.StatusUnauthorized)
-		})
 	}
-}
 
-// The exemption is matched on the path, so it must not open read-only mode for
-// a neighbouring route or for a shelf-less path that happens to end in /scans.
-func TestAPIReadOnlyExemptionIsLimitedToTheScanRouteContract(t *testing.T) {
-	env := newAPITestEnv(t)
-	env.setReadOnly(t, true)
+	t.Run("token gate", func(t *testing.T) {
+		env := newAPITestEnv(t)
 
-	for _, url := range []string{
-		shelfURL("scans", "extra"),
-		shelfURL("book-cache-exports"),
-		"/api/shelves//scans",
-		"/api/scans",
-	} {
-		t.Run(url, func(t *testing.T) {
-			rec := env.post(url, nil)
-			assertStatus(t, rec, http.StatusForbidden)
-		})
-	}
-}
+		for _, url := range urls {
+			t.Run(url, func(t *testing.T) {
+				// doRaw sends the request as-is, without the token do() attaches.
+				rec := env.doRaw(httptest.NewRequest(http.MethodPost, url, nil))
+				assertStatus(t, rec, http.StatusUnauthorized)
+			})
+		}
+	})
 
-func TestAPIRescanUnknownShelfContract(t *testing.T) {
-	env := newAPITestEnv(t)
+	t.Run("read-only gate", func(t *testing.T) {
+		env := newAPITestEnv(t)
+		env.setReadOnly(t, true)
 
-	rec := env.post(shelfIDURL("missing_shelf", "scans"), nil)
-	assertStatus(t, rec, http.StatusNotFound)
+		for _, url := range urls {
+			t.Run(url, func(t *testing.T) {
+				assertStatus(t, env.post(url, nil), http.StatusForbidden)
+			})
+		}
+	})
 }
 
 // A loop of rescans is answered 429 once the burst is spent, and 429 rather
