@@ -173,7 +173,7 @@ Read the relevant section before working in that area. Add entries according to
   surviving ENOTEMPTY is a directory still held after half a second — a leaked
   server process, not this race. (`e2e/tests/support/server.ts`)
 - **A green pull request is not a green E2E suite:** `ci.yml` runs `--grep
-  @smoke` (15 of 39 cases) and `nightly.yml` runs the rest on `dev`. A change
+  @smoke` (13 of 37 cases) and `nightly.yml` runs the rest on `dev`. A change
   outside the smoke set is unproven until `just test-e2e` runs locally or the
   night after it merges reports; a nightly failure opens one issue rather than
   landing on whoever pushes next. (`docs/development/testing-levels.md`)
