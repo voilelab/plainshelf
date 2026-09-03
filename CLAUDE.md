@@ -67,8 +67,9 @@ web builds; do not use it for Capacitor asset generation.
 1. Inspect the relevant code, tests, and nearby documentation before editing.
 2. Preserve unrelated working-tree changes and avoid broad refactors unless
    they are part of the request.
-3. Add or update tests for behavior changes. Run the narrowest relevant check
-   while iterating and the full affected-area check before completion.
+3. Add or update tests for behavior changes, at the level
+   `docs/development/testing-levels.md` selects. Run the narrowest relevant
+   check while iterating and the full affected-area check before completion.
 4. For server API changes, read the matching
    `server/contract/api_*_contract_test.go` and preserve the `local_token`
    security boundary.
