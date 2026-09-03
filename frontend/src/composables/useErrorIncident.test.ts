@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { reportIncident, reportUnhandledError, useErrorIncident } from './useErrorIncident';
+import {
+  reportIncident,
+  reportUnhandledError,
+  surfaceError,
+  useErrorIncident
+} from './useErrorIncident';
 
 const { incident, dismissIncident } = useErrorIncident();
 
@@ -47,5 +52,29 @@ describe('reportUnhandledError', () => {
       `Unhandled Vue error (render function) [${incident.value}]`,
       err
     );
+  });
+});
+
+describe('surfaceError', () => {
+  beforeEach(() => {
+    dismissIncident();
+  });
+
+  it('returns the message and publishes the reference the error carries', () => {
+    const err = Object.assign(new Error('book not found'), { incident: 'K7MQ4XZB' });
+
+    expect(surfaceError(err)).toBe('book not found');
+    expect(incident.value).toBe('K7MQ4XZB');
+  });
+
+  it('returns the message and publishes nothing without a reference', () => {
+    expect(surfaceError(new Error('boom'))).toBe('boom');
+    expect(incident.value).toBe('');
+  });
+
+  it('stringifies whatever is not an Error', () => {
+    expect(surfaceError('plain string')).toBe('plain string');
+    expect(surfaceError(undefined)).toBe('undefined');
+    expect(incident.value).toBe('');
   });
 });

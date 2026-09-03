@@ -287,8 +287,10 @@ function responseIncident(res: Response, fromEnvelope?: string): string | undefi
 }
 
 // A refusal the server itself calls transient - the shelf is still scanning, a
-// lock is held - is waited out and usually succeeds (composables/shelfInitRetry.ts),
-// so it must not leave a reference on screen for a failure the user never saw.
+// lock is held - is waited out and usually succeeds, so it must not leave a
+// reference on screen for a failure the user never saw. The error still carries
+// its incident, and shelfInitRetry publishes it on the attempt that spends the
+// retry budget, which is the one the caller goes on to show.
 function reportResponseIncident(res: Response, incident?: string): void {
   if (incident && !res.headers.has('Retry-After')) {
     reportIncident(incident);

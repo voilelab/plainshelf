@@ -70,7 +70,7 @@ export function useCharCountIndex() {
       // Wait out the initial scan rather than stranding the filter on an error
       // the shelf resolves on its own. See `shelfInitRetry`.
       if (isShelfInitializing(err)) {
-        if (initRetry.schedule(() => void run(token, true))) {
+        if (initRetry.schedule(() => void run(token, true), err)) {
           return;
         }
         error.value = t('library.shelfNotReady');

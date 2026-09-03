@@ -34,7 +34,7 @@ async function fetchBooks(_isAutoRetry = false): Promise<void> {
     shelfUnreachable.value = false;
   } catch (err) {
     if (isShelfInitializing(err)) {
-      if (initRetry.schedule(() => void fetchBooks(true))) {
+      if (initRetry.schedule(() => void fetchBooks(true), err)) {
         shelfInitializing.value = true;
         return;
       }

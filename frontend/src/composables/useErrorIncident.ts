@@ -37,6 +37,28 @@ export function reportUnhandledError(err: unknown, info: string): void {
   reportIncident(id);
 }
 
+/** Publishes the reference an error carries, when it carries one. */
+export function reportErrorIncident(err: unknown): void {
+  const incident = (err as { incident?: unknown } | null | undefined)?.incident;
+  if (typeof incident === 'string') {
+    reportIncident(incident);
+  }
+}
+
+/**
+ * The text an error region is about to show, publishing the error's reference
+ * on the way.
+ *
+ * For the display sites that still hold the error object rather than only its
+ * text. A pCloud setup failure - authorizing, checking a shelf, walking the
+ * folder tree - talks to pCloud directly, so nothing between it and the user
+ * would otherwise publish the number it minted.
+ */
+export function surfaceError(err: unknown): string {
+  reportErrorIncident(err);
+  return err instanceof Error ? err.message : String(err);
+}
+
 export function useErrorIncident() {
   function dismissIncident(): void {
     incident.value = '';

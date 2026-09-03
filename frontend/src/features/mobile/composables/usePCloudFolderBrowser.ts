@@ -3,6 +3,7 @@ import { computed, ref, shallowRef, type ComputedRef, type Ref } from 'vue';
 import { BOOK_EXTENSION, findBooksFolder } from '@/api/pcloud/bookpkg';
 import { ROOT_FOLDER_ID, type PCloudClient } from '@/api/pcloud/client';
 import type { PCloudItem } from '@/api/pcloud/types';
+import { surfaceError } from '@/composables/useErrorIncident';
 
 /** One level of the browsed path. The account root has no entry: it has no name. */
 export interface PCloudFolderRef {
@@ -40,10 +41,6 @@ interface PCloudFolderBrowser {
   goTo: (index: number) => Promise<void>;
   retry: () => Promise<void>;
   close: () => void;
-}
-
-function describe(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
 
 /**
@@ -142,7 +139,7 @@ export function usePCloudFolderBrowser(createClient: () => PCloudFolderClient): 
       if (isStale(controller)) {
         return;
       }
-      error.value = describe(err);
+      error.value = surfaceError(err);
     } finally {
       if (!isStale(controller)) {
         loading.value = false;
@@ -185,7 +182,7 @@ export function usePCloudFolderBrowser(createClient: () => PCloudFolderClient): 
       if (isStale(controller)) {
         return;
       }
-      const reason = describe(err);
+      const reason = surfaceError(err);
       await show([]);
       notice.value = reason;
     }
