@@ -4,8 +4,11 @@ PlainShelf is moving from `encoding/json` to `encoding/json/v2`. This page is
 what the conversion follows: which option set a call site marshals with, what
 each v1 API becomes, and which v2 defaults are adopted on purpose.
 
-Written for PSW-95. Until that epic finishes both packages are present in the
-repository, so check which one a file imports before copying a call site from it.
+Written for PSW-95. The conversion is enforced rather than agreed: importing
+`encoding/json` fails `TestNoEncodingJSONV1Imports` in `internal/repocheck`
+unless the file is named in that test's allowlist, which only shrinks. One file
+is still on it — `shelf/shelf_config.go`, whose read path is PSW-99's — so check
+which package a file imports before copying a call site from it.
 
 ---
 
@@ -35,7 +38,7 @@ carrying `json.Deterministic(true)`:
 | Set | Output | Use it for |
 |---|---|---|
 | `jsonopt.Disk()` | indented two spaces | files a reader can open and edit: `book.json`, a source's `meta.json`, trash metadata, the exported book cache |
-| `jsonopt.DiskCompact()` | one line | the machine-only files under `app/`: the fingerprint cache, the scan cache, stored reading progress |
+| `jsonopt.DiskCompact()` | one line | the machine-only files under `app/`: the fingerprint cache, the scan cache, stored reading progress, the values in the settings table |
 | `jsonopt.API()` | one line | HTTP response bodies |
 
 All three modules — the root module, `desktop`, and `reader` — import it
@@ -111,7 +114,7 @@ wrote and a v2 build reads.
 |---|---|---|
 | Map entries in unspecified order | Defeats the three "unchanged, do not rewrite" checks above | **Override.** `Deterministic(true)` in all three sets |
 | `nil` slice and map encode as `[]` and `{}` | Settles the `"authors": null` question PSW-35 left open; a dozen or so API fields stop returning `null`. The Android pCloud reader already accepts both | **Adopt** (PSW-97, PSW-98). See [the API's array contract](#the-apis-array-contract) |
-| `<`, `>`, `&` are not escaped | Only golden fixtures change. An escape sequence in a file whose selling point is that a text editor shows what you typed is a defect | **Adopt** (PSW-97) |
+| `<`, `>`, `&` are not escaped | An escape sequence in a file whose selling point is that a text editor shows what you typed is a defect. On disk only golden fixtures change; the two places that inject JSON into an inline `<script>` escape `<` themselves (see below) | **Adopt** (PSW-97, PSW-100) |
 | Object names match case-sensitively | A hand-edited `"Title"` stops being read, and `setMeta` rewrites the file whole, so the next save drops it. The unknown-member passthrough PSW-93 wants is what turns that into a preserved field | **Adopt** (PSW-97); reporting and passthrough are PSW-99's |
 | Duplicate object members rejected | Pure gain for a hand-editable format, provided the error names the file and the member | **Adopt** (PSW-97); naming the file and member is PSW-99's |
 | Invalid UTF-8 rejected | Same | **Adopt** (PSW-97) |
@@ -159,6 +162,23 @@ through PATCH is spelled `[]`, and `null` means "leave this alone".
 
 ---
 
+## JSON inside an inline `<script>`
+
+Two handlers write a marshalled payload straight into `index.html` inside a
+`<script>` element: `injectSecurityBootstrap` in `server/spa.go`, which carries
+the local token and the configured `token_header`, and `indexHTML` in
+`reader/readerapi/spa.go`, which carries the open book's ID. Both replace `<`
+with `\u003c` after marshalling, and that replacement is load-bearing: v1 escaped
+`<` in every string it wrote, v2 does not, and `<` is the only character that can
+close the element. `\u003c` survives `JSON.parse` unchanged, so nothing else has
+to know.
+
+`token_header` comes from the config file and a book ID is a directory name, so
+neither is a value this repository chose. `TestInjectSecurityBootstrapEscapesScriptClose`
+and `TestSPAEscapesScriptCloseInTheBootConfig` fail if the replacement is dropped.
+
+---
+
 ## What the tests enforce
 
 **Determinism, per write path.** Each of the three "unchanged content, do not
@@ -170,9 +190,21 @@ map entries, because a map with one entry has no order to vary and passes with
 or without the option; removing `jsonopt.DiskCompact()` from one write path
 fails that path's case and no other.
 
+**The v1 import, repository-wide.** `internal/repocheck`'s
+`TestNoEncodingJSONV1Imports` parses every `.go` file under the repository root —
+all three modules, tests included, since a root `go test ./...` compiles neither
+`desktop` nor `reader` — and fails on an `encoding/json` import that is not in
+`encodingJSONAllowlist`. `TestEncodingJSONAllowlistIsCurrent` fails on an entry
+whose file is gone or no longer imports v1, so converting a file also closes its
+exemption rather than leaving a hole at that path.
+
 ---
 
 ## Left for the conversion tickets
 
 - The `json:"…"` struct tags need no edits. v2 reads the same tag syntax,
   including `omitempty` and `omitzero`.
+- `shelf/shelf_config.go` is the last v1 importer. Switching it adopts v2's
+  strict member matching for `shelf.json`, which is a read-behavior decision
+  rather than an import swap, so it belongs to PSW-99 along with the rest of the
+  strict-read work. Emptying `encodingJSONAllowlist` is what finishes it.

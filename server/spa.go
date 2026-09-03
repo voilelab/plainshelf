@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
+	"encoding/json/v2"
 	"io/fs"
 	"net/http"
 	"strings"
+
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 )
 
 // spaHandlers serves the embedded frontend. It holds security because the
@@ -121,10 +123,15 @@ func (h *spaHandlers) injectSecurityBootstrap(data []byte, nonce string) []byte 
 	if payload == (securityBootstrapPayload{}) {
 		return data
 	}
-	encoded, err := json.Marshal(payload)
+	encoded, err := json.Marshal(payload, jsonopt.API())
 	if err != nil {
 		return data
 	}
+	// token_header comes from the config file and reaches this inline script
+	// verbatim. "<" is the only character that could close the element, and a
+	// \u003c escape survives JSON.parse unchanged; v2 does not escape it, so
+	// this replacement is the only thing standing there.
+	encoded = bytes.ReplaceAll(encoded, []byte("<"), []byte(`\u003c`))
 	bootstrap := []byte(`<script nonce="` + nonce + `">window.__PLAINSHELF_SECURITY__=` + string(encoded) + `;</script>`)
 	marker := []byte("</head>")
 	if idx := bytes.Index(data, marker); idx >= 0 {

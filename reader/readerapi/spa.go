@@ -2,11 +2,12 @@ package readerapi
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"io/fs"
 	"net/http"
 	"strings"
 
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
@@ -68,12 +69,13 @@ func indexHTML(assets fs.FS, boot BootConfig) ([]byte, error) {
 		return nil, util.Errorf("%w", err)
 	}
 
-	encoded, err := json.Marshal(boot)
+	encoded, err := json.Marshal(boot, jsonopt.API())
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 	// A book ID cannot close the script element: "<" is the only character that
-	// could, and a \u003c escape survives JSON.parse unchanged.
+	// could, and a \u003c escape survives JSON.parse unchanged. v2 does not
+	// escape "<" itself, so this replacement is the only thing standing there.
 	encoded = bytes.ReplaceAll(encoded, []byte("<"), []byte(`\u003c`))
 
 	script := []byte("<script>" + bootMarker + " = " + string(encoded) + ";</script>")

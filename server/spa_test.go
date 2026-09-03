@@ -87,3 +87,30 @@ func TestInjectSecurityBootstrap(t *testing.T) {
 		})
 	}
 }
+
+// TestInjectSecurityBootstrapEscapesScriptClose pins the escaping the payload
+// depends on now that it is marshalled with encoding/json/v2, which - unlike v1
+// - writes "<" as itself. token_header comes from the config file, so an
+// unescaped one would close the inline <script> and put the rest of its value
+// into the document as markup.
+func TestInjectSecurityBootstrapEscapesScriptClose(t *testing.T) {
+	const page = "<html><head></head><body></body></html>"
+
+	security, err := NewSecurity(&SecurityConf{
+		Mode:        SecurityModeLocalToken,
+		TokenHeader: `X-Evil</script><script>alert(1)</script>`,
+	})
+	if err != nil {
+		t.Fatalf("NewSecurity(local_token): %v", err)
+	}
+
+	h := &spaHandlers{security: security}
+	out := string(h.injectSecurityBootstrap([]byte(page), "test-nonce-value"))
+
+	if strings.Contains(out, "</script><script>") {
+		t.Fatalf("token header closed the bootstrap script: %q", out)
+	}
+	if !strings.Contains(out, `X-Evil\u003c/script`) {
+		t.Fatalf("token header not escaped: %q", out)
+	}
+}
