@@ -31,10 +31,16 @@ withholds. Background work — a batch move, emptying the trash, fingerprinting 
 is logged under the number of the request that started it, so one number covers
 the whole operation.
 
-The number is currently visible in the response rather than on screen; reading
-it takes the browser's developer tools, or `curl -i` against the API. Numbers
-are also only useful while the log that holds them still exists, so report a
-problem before the retention window below expires, or copy the log file aside.
+When something fails, the number is on screen: a small **Error reference**
+notice appears in the corner of the window with a **Copy** button, so a report
+can quote it without opening developer tools. A failure the interface raised on
+its own — a bug in a page, or a pCloud shelf read, where there is no server to
+ask — is given a number of the same shape with a `c-` prefix. Nothing in a
+server log matches one of those, and the prefix is there to say so.
+
+Numbers are also only useful while the log that holds them still exists, so
+report a problem before the retention window below expires, or copy the log
+file aside.
 
 ## Retention
 

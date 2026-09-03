@@ -25,6 +25,8 @@ Object.defineProperty(globalThis, 'window', {
 });
 
 const { ApiError, fetchJson, setActiveShelfID } = await import('./client');
+const { useErrorIncident } = await import('@/composables/useErrorIncident');
+const { incident: shownIncident, dismissIncident } = useErrorIncident();
 
 const SHELF = 'main';
 
@@ -129,8 +131,16 @@ describe('assertWritableRequest', () => {
 describe('error responses', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
-  function errorResponse(body: string, contentType: string, status = 404): Response {
-    return new Response(body, { status, headers: { 'Content-Type': contentType } });
+  function errorResponse(
+    body: string,
+    contentType: string,
+    status = 404,
+    extraHeaders: Record<string, string> = {}
+  ): Response {
+    return new Response(body, {
+      status,
+      headers: { 'Content-Type': contentType, ...extraHeaders }
+    });
   }
 
   async function failedRequest(res: Response): Promise<InstanceType<typeof ApiError>> {
@@ -148,6 +158,7 @@ describe('error responses', () => {
     isMobileRuntimeMock.mockReturnValue(false);
     (window as unknown as { __PLAINSHELF_READ_ONLY__?: boolean }).__PLAINSHELF_READ_ONLY__ = false;
     setActiveShelfID(SHELF);
+    dismissIncident();
 
     fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
@@ -194,6 +205,87 @@ describe('error responses', () => {
 
     expect(err.message).toContain('502');
     expect(err.code).toBeUndefined();
+  });
+
+  // The 46 display sites read err.message and nothing else. Whatever shape the
+  // body takes, that one field has to stay the human sentence they can print.
+  it('keeps message human for every body shape', async () => {
+    const bodies = [
+      ['{"error":{"code":"BOOK_NOT_FOUND","message":"book not found"}}', 'book not found'],
+      ['shelf not found', 'shelf not found'],
+      ['{"taskchain_id":"abc"}', '{"taskchain_id":"abc"}']
+    ] as const;
+
+    for (const [body, expected] of bodies) {
+      const err = await failedRequest(errorResponse(body, 'application/json; charset=utf-8'));
+      expect(err.message).toBe(expected);
+    }
+  });
+
+  it('reads the incident out of the envelope', async () => {
+    const err = await failedRequest(
+      errorResponse(
+        '{"error":{"code":"INTERNAL","message":"could not read book","incident":"K7MQ4XZB"}}\n',
+        'application/json; charset=utf-8',
+        500
+      )
+    );
+
+    expect(err.incident).toBe('K7MQ4XZB');
+    expect(shownIncident.value).toBe('K7MQ4XZB');
+  });
+
+  // The routes that still answer plain text carry no envelope, but they do pass
+  // the request-ID middleware, so the header is the reference for them.
+  it('falls back to the request-ID header for a plain-text refusal', async () => {
+    const err = await failedRequest(
+      errorResponse('shelf not found', 'text/plain; charset=utf-8', 404, {
+        'X-Request-Id': 'ABCD2345'
+      })
+    );
+
+    expect(err.message).toBe('shelf not found');
+    expect(err.incident).toBe('ABCD2345');
+    expect(shownIncident.value).toBe('ABCD2345');
+  });
+
+  it('leaves the incident unset when neither the body nor the header names one', async () => {
+    const err = await failedRequest(errorResponse('shelf not found', 'text/plain; charset=utf-8'));
+
+    expect(err.incident).toBeUndefined();
+    expect(shownIncident.value).toBe('');
+  });
+
+  // A shelf still scanning answers 503 with Retry-After, the caller waits it out
+  // (composables/shelfInitRetry.ts) and the read usually succeeds. Showing a
+  // reference for each attempt would put a number next to a page that loaded.
+  it('does not raise a reference for a refusal the server calls transient', async () => {
+    const err = await failedRequest(
+      errorResponse(
+        '{"error":{"code":"SHELF_INITIALIZING","message":"shelf is initializing","incident":"K7MQ4XZB"}}',
+        'application/json; charset=utf-8',
+        503,
+        { 'Retry-After': '3' }
+      )
+    );
+
+    expect(err.incident).toBe('K7MQ4XZB');
+    expect(shownIncident.value).toBe('');
+  });
+
+  it('raises a reference for a body that is not valid JSON at a 2xx', async () => {
+    fetchMock.mockResolvedValue(
+      new Response('not json', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'X-Request-Id': 'ABCD2345' }
+      })
+    );
+
+    await expect(fetchJson(`/api/shelves/${SHELF}/books`)).rejects.toMatchObject({
+      message: 'Invalid JSON response from server.',
+      incident: 'ABCD2345'
+    });
+    expect(shownIncident.value).toBe('ABCD2345');
   });
 });
 

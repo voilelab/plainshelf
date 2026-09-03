@@ -27,6 +27,7 @@ import { zipSync } from 'fflate';
 import { PCloudClient } from '@/api/pcloud/client';
 import type { PCloudItem } from '@/api/pcloud/types';
 import { PCloudDataError, PCloudError, isRetryablePCloudError } from '@/api/pcloud/errors';
+import { reportIncident } from '@/composables/useErrorIncident';
 import { ApiError } from '@/api/client';
 import {
   addReadHistory as addLocalReadHistory,
@@ -144,10 +145,14 @@ function toProviderError(err: unknown): unknown {
   }
 
   if (isRetryablePCloudError(err)) {
+    // "Unreachable" is where the wrapper falls back to downloaded books, so the
+    // user may never be told anything failed; raising a reference for it would
+    // put a number on screen next to content that loaded fine.
     return new ApiError(err.message, { isTimeout: true, cause: err });
   }
 
-  return new ApiError(err.message, { status: err.status, cause: err });
+  reportIncident(err.incident);
+  return new ApiError(err.message, { status: err.status, cause: err, incident: err.incident });
 }
 
 /**

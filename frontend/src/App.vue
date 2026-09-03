@@ -13,6 +13,12 @@
   </div>
   <SecurityWarningBanner />
   <!--
+    Outside RouterView for the same reason ToastHost is: any page's failure -
+    and the render error above, which reaches here through main.ts's
+    app.config.errorHandler - raises its reference into the same one notice.
+  -->
+  <ErrorIncidentNotice />
+  <!--
     Outside RouterView so a toast raised by one page survives the navigation it
     may itself have caused, and so every route - library, reader, mobile shell -
     gets the same one host without mounting its own.
@@ -24,12 +30,15 @@
 import { computed, onErrorCaptured, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { isMockApiMode } from '@/api/client';
+import ErrorIncidentNotice from '@/components/ErrorIncidentNotice.vue';
 import SecurityWarningBanner from '@/components/SecurityWarningBanner.vue';
 import ToastHost from '@/components/ToastHost.vue';
+import { useErrorIncident } from '@/composables/useErrorIncident';
 import { useI18n } from './i18n';
 
 const { t } = useI18n();
 const route = useRoute();
+const { dismissIncident } = useErrorIncident();
 const showMockModeBadge = computed(() => isMockApiMode());
 
 // An uncaught render error unmounts the subtree and leaves a blank page with no
@@ -43,11 +52,14 @@ onErrorCaptured((err) => {
 });
 
 // A failed route is not necessarily fatal for the next one, so navigating away
-// clears the panel and gives the app a chance to render again.
+// clears the panel and gives the app a chance to render again. The reference
+// goes with it: it names the failure the user was looking at, and the next page
+// has its own.
 watch(
   () => route.fullPath,
   () => {
     renderError.value = '';
+    dismissIncident();
   }
 );
 
