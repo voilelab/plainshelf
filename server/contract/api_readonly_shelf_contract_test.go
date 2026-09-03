@@ -47,10 +47,14 @@ func TestAPIReadOnlyShelfRefusesWritesContract(t *testing.T) {
 			}
 
 			rec := env.post(tc.url, body)
-			assertStatus(t, rec, http.StatusConflict)
 
 			// 409 is also how an endpoint reports a chain already in flight, and
-			// that answer carries the chain's ID. Nothing was queued here.
+			// that answer carries the chain's ID. Nothing was queued here, so the
+			// two must be told apart by body shape rather than by status: a
+			// client that reads taskchain_id off this refusal gets nothing and
+			// polls it.
+			assertErrorEnvelope(t, rec, http.StatusConflict, "SHELF_READ_ONLY",
+				"shelf is opened read-only; this PlainShelf instance cannot modify it")
 			if strings.Contains(rec.Body.String(), "taskchain_id") {
 				t.Errorf("body = %s, want a refusal rather than a queued chain", rec.Body.String())
 			}
@@ -61,5 +65,6 @@ func TestAPIReadOnlyShelfRefusesWritesContract(t *testing.T) {
 	// from fsutil.ErrReadOnly through the error table rather than from the
 	// handler's own gate.
 	rec := postBookImport(t, env, bookUpload("book.txt", plainTextContentType, "text"))
-	assertStatus(t, rec, http.StatusConflict)
+	assertErrorEnvelope(t, rec, http.StatusConflict, "SHELF_READ_ONLY",
+		"shelf is opened read-only; this PlainShelf instance cannot modify it")
 }

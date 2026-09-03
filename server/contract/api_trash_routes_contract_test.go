@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/voilelab/plainshelf/server"
@@ -60,10 +59,8 @@ func TestAPIDeleteAndTrashRoutesAgreeOnUnknownBookContract(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			rec := env.do(req)
 
-			assertStatus(t, rec, http.StatusNotFound)
-			if got := strings.TrimSpace(rec.Body.String()); got != "book not found" {
-				t.Fatalf("body = %q, want %q", got, "book not found")
-			}
+			assertErrorEnvelope(t, rec, http.StatusNotFound,
+				"BOOK_NOT_FOUND", "book not found")
 		})
 	}
 }

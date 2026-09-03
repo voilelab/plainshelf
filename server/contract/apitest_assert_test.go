@@ -135,3 +135,32 @@ func assertMutationGated(t *testing.T, env *apiTestEnv, method, url string, body
 	env.app.Conf().ReadOnly = previous
 	assertStatus(t, rec, http.StatusForbidden)
 }
+
+// apiErrorEnvelope is the body shape every writeErr refusal carries. Tests
+// assert against the decoded envelope rather than the raw text so a message
+// reworded inside it does not read as a change of error identity.
+type apiErrorEnvelope struct {
+	Error struct {
+		Code     string `json:"code"`
+		Message  string `json:"message"`
+		Incident string `json:"incident"`
+	} `json:"error"`
+}
+
+// assertErrorEnvelope pins a refusal's status, content type, code and message
+// together, because the three travel as one contract: a client that switches on
+// the code needs the JSON body to have arrived at all.
+func assertErrorEnvelope(t *testing.T, rec *httptest.ResponseRecorder, status int, code, message string) {
+	t.Helper()
+
+	assertStatus(t, rec, status)
+	assertJSONContentType(t, rec)
+
+	got := decodeJSON[apiErrorEnvelope](t, rec)
+	if got.Error.Code != code {
+		t.Fatalf("error code = %q, want %q (body: %s)", got.Error.Code, code, rec.Body.String())
+	}
+	if got.Error.Message != message {
+		t.Fatalf("error message = %q, want %q", got.Error.Message, message)
+	}
+}
