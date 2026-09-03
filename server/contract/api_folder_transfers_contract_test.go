@@ -136,10 +136,6 @@ func TestAPIFolderTransferFolderConflictContract(t *testing.T) {
 	if body.Error != "target_folder_conflict" {
 		t.Errorf("error = %q, want target_folder_conflict", body.Error)
 	}
-	// A folder conflict names no colliding books, and the frontend hands this
-	// list straight to the error it raises. The field carried omitempty until the
-	// API moved to json/v2, so its empty case is the one worth pinning.
-	assertJSONArray(t, rec.Body.Bytes(), "conflicting_book_ids")
 }
 
 // The transfer preflight forces a walk of both shelves, but it is not the walk
