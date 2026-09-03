@@ -1,7 +1,7 @@
 package bookpkg
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
@@ -398,12 +399,7 @@ func (b *Book) writeCurrentSourceHint(sourceID string) error {
 func (b *Book) GetMeta() *BookMeta {
 	metaCopy := *b.meta
 	metaCopy.Tags = slices.Clone(b.meta.Tags)
-	// Authors is not tagged omitempty, so slices.Clone would turn an empty,
-	// non-nil slice into "authors": [] on disk where append writes "authors":
-	// null today. Keeping append preserves the current shelf-format output; see
-	// PSW-35 before changing it (the conformance fixtures and the Android pCloud
-	// reader must be reviewed alongside that format change).
-	metaCopy.Authors = append([]string(nil), b.meta.Authors...)
+	metaCopy.Authors = slices.Clone(b.meta.Authors)
 	metaCopy.Identifiers = maps.Clone(b.meta.Identifiers)
 	return &metaCopy
 }
@@ -454,7 +450,7 @@ func (b *Book) setMeta(meta *BookMeta) error {
 	// lazy — the version reaches disk only when the book is next written.
 	meta.SchemaVersion = BookMetaSchemaVersion
 
-	bs, err := json.MarshalIndent(meta, "", "  ")
+	bs, err := json.Marshal(meta, jsonopt.Disk())
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -848,7 +844,7 @@ func readBookMeta(rt fsutil.ReadFS, bookPath string) (*BookMeta, error) {
 	defer metaFile.Close()
 
 	var meta BookMeta
-	if err := json.NewDecoder(metaFile).Decode(&meta); err != nil {
+	if err := json.UnmarshalRead(metaFile, &meta); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -868,7 +864,7 @@ func Create(rt fsutil.FS, logger logutil.Logger, bookPath, bookID, title string)
 		CreatedAt:     util.JSONTime(time.Now()),
 	}
 
-	bs, err := json.MarshalIndent(meta, "", "  ")
+	bs, err := json.Marshal(meta, jsonopt.Disk())
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

@@ -3,13 +3,14 @@ package shelf
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/v2"
 	"path"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/internal/version"
 )
@@ -276,7 +277,7 @@ func (s *Shelf) exportBookCache(force bool) error {
 		Books:         books,
 	}
 
-	data, err := json.MarshalIndent(payload, "", "  ")
+	data, err := json.Marshal(payload, jsonopt.Disk())
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -338,13 +339,15 @@ func (s *Shelf) collectExportBooks() map[string]BookCacheEntry {
 }
 
 // bookCacheDigest fingerprints the exportable content of the shelf. Marshalling
-// is enough to make it order-independent: encoding/json sorts map keys, and the
-// folder slice is already sorted.
+// is enough to make it order-independent, but only because jsonopt.DiskCompact
+// carries Deterministic: json/v2 leaves map order unspecified otherwise, and an
+// unchanged shelf would re-export on every scan. The folder slice is already
+// sorted.
 func bookCacheDigest(folders []string, books map[string]BookCacheEntry) (string, error) {
 	data, err := json.Marshal(struct {
 		Folders []string                  `json:"folders"`
 		Books   map[string]BookCacheEntry `json:"books"`
-	}{Folders: folders, Books: books})
+	}{Folders: folders, Books: books}, jsonopt.DiskCompact())
 	if err != nil {
 		return "", util.Errorf("%w", err)
 	}
@@ -405,7 +408,7 @@ func (s *Shelf) readBookCacheFile(filePath string) (*BookCacheFile, error) {
 	defer file.Close()
 
 	var cache BookCacheFile
-	if err := json.NewDecoder(file).Decode(&cache); err != nil {
+	if err := json.UnmarshalRead(file, &cache); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 	if cache.SchemaVersion != BookCacheSchemaVersion || cache.WriterID == "" || cache.Timestamp == 0 {

@@ -1,0 +1,58 @@
+{
+  "folders": [
+    "/",
+    "R&D"
+  ],
+  "books": [
+    {
+      "path": "books/R&D/ampersand.bookpkg",
+      "folders": [
+        "R&D"
+      ],
+      "id": "h7m2ce4kq9xa3vbn",
+      "title": "Tom & Jerry <unabridged>",
+      "format": "txt",
+      "authors": [
+        "Ampersand & Co.",
+        "\"Anonymous\" <unknown>"
+      ],
+      "tags": [
+        "a&b",
+        "<draft>"
+      ],
+      "star": 3,
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "current_source_field": "20260401-120000",
+      "current_source": "20260401-120000",
+      "sources": [
+        {
+          "id": "20260401-120000",
+          "has_content": true,
+          "char_count": 23,
+          "assets": []
+        }
+      ]
+    },
+    {
+      "path": "books/marks.bookpkg",
+      "folders": [],
+      "id": "p4t8zr6ug2wd5cyk",
+      "title": "< > & \" \\ and é",
+      "format": "",
+      "authors": [],
+      "tags": [],
+      "star": 0,
+      "cover": "",
+      "cover_present": false,
+      "schema_version_on_disk": 1,
+      "read_only": false,
+      "current_source_field": "",
+      "current_source": null,
+      "sources": []
+    }
+  ],
+  "book_caches": []
+}

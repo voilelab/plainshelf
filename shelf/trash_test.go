@@ -2,13 +2,16 @@ package shelf
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"os"
 	"path"
 	"slices"
+	"strings"
 	"testing"
+
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 )
 
 // trashBook creates a book and moves it to the trash, returning its ID.
@@ -276,7 +279,7 @@ func trashMetaPath(libRoot, bookID string) string {
 func rewriteTrashMeta(t *testing.T, metaPath string, meta map[string]any) []byte {
 	t.Helper()
 
-	payload, err := json.MarshalIndent(meta, "", "  ")
+	payload, err := json.Marshal(meta, jsonopt.Disk())
 	if err != nil {
 		t.Fatalf("marshal trash.json: %v", err)
 	}
@@ -315,6 +318,45 @@ func TestMoveBookToTrashStampsSchemaVersion(t *testing.T) {
 	}
 	if version != float64(TrashMetaSchemaVersion) {
 		t.Errorf("schema_version = %v, want %d", version, TrashMetaSchemaVersion)
+	}
+}
+
+// trash.json is hand-editable like book.json, so it gets the same encoder
+// decision: a folder name carrying & or < is recorded as itself, not as the
+// \u0026 and \u003c escapes v1 wrote. Its own fields have no nil slice to turn
+// into [] — original_folder is omitempty and the authors list belongs to the
+// TrashedBook listing, not to the file.
+func TestMoveBookToTrashWritesFolderNamesLiterally(t *testing.T) {
+	tmpLib := path.Join(t.TempDir(), "shelf_test")
+	s := newTestShelf(t, &ShelfConf{LibRoot: tmpLib})
+
+	const folder = "R&D <drafts>"
+	book, err := s.NewBook(FolderPath{folder}, "Report")
+	if err != nil {
+		t.Fatalf("NewBook: %v", err)
+	}
+	bookID := book.ID()
+	if err := s.MoveBookToTrash(bookID); err != nil {
+		t.Fatalf("MoveBookToTrash: %v", err)
+	}
+
+	raw, err := os.ReadFile(trashMetaPath(tmpLib, bookID))
+	if err != nil {
+		t.Fatalf("read trash.json: %v", err)
+	}
+	if !strings.Contains(string(raw), folder) {
+		t.Errorf("trash.json does not carry %q literally:\n%s", folder, raw)
+	}
+	for _, escape := range []string{`\u0026`, `\u003c`, `\u003e`} {
+		if strings.Contains(string(raw), escape) {
+			t.Errorf("trash.json still escapes %s:\n%s", escape, raw)
+		}
+	}
+
+	meta := readTrashMetaJSON(t, trashMetaPath(tmpLib, bookID))
+	original, ok := meta["original_folder"].([]any)
+	if !ok || len(original) != 1 || original[0] != folder {
+		t.Errorf("trash.json original_folder = %#v, want [%q]", meta["original_folder"], folder)
 	}
 }
 

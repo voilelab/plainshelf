@@ -2,7 +2,7 @@ package fingerprint
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"log/slog"
 	"maps"
 	"strings"
@@ -12,6 +12,7 @@ import (
 	"github.com/voilelab/plainshelf/internal/appcache"
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/hashutil"
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/internal/version"
@@ -515,7 +516,7 @@ func (c *Cache) Save() error {
 		Algo:          c.algo,
 		Index:         index,
 		Entries:       entries,
-	})
+	}, jsonopt.DiskCompact())
 	if err != nil {
 		return util.Errorf("%w", err)
 	}

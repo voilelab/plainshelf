@@ -2,7 +2,7 @@ package server
 
 import (
 	"encoding/json/jsontext"
-	jsonv2 "encoding/json/v2"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -47,8 +47,8 @@ func resolveAssetName(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return assetName, true
 }
 
-var jsonRequestOptions = jsonv2.JoinOptions(
-	jsonv2.RejectUnknownMembers(true),
+var jsonRequestOptions = json.JoinOptions(
+	json.RejectUnknownMembers(true),
 )
 
 func decodeRequestJSON(body io.Reader, v any, optional bool) error {
@@ -67,7 +67,7 @@ func decodeRequestJSON(body io.Reader, v any, optional bool) error {
 		return util.Errorf("%w", err)
 	}
 
-	if err := jsonv2.UnmarshalDecode(decoder, v, jsonRequestOptions); err != nil {
+	if err := json.UnmarshalDecode(decoder, v, jsonRequestOptions); err != nil {
 		return util.Errorf("%w", err)
 	}
 
@@ -116,7 +116,7 @@ func jsonDecodeMessage(err error) string {
 	const prefix = "invalid JSON"
 
 	var pointer jsontext.Pointer
-	if semantic, ok := errors.AsType[*jsonv2.SemanticError](err); ok {
+	if semantic, ok := errors.AsType[*json.SemanticError](err); ok {
 		pointer = semantic.JSONPointer
 	} else if syntactic, ok := errors.AsType[*jsontext.SyntacticError](err); ok {
 		pointer = syntactic.JSONPointer

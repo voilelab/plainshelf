@@ -26,6 +26,10 @@
       "covers": "System directories (@eaDir, .stfolder, #recycle, $RECYCLE.BIN, lost+found) are neither folders nor book containers."
     },
     {
+      "name": "html-characters",
+      "covers": "Titles, authors, tags, a source comment and a folder name carrying &, <, > and quotes, written as themselves rather than as \\u escapes."
+    },
+    {
       "name": "multi-writer-cache",
       "covers": "Several app/book-cache-*.json files, two of which this build cannot use."
     },

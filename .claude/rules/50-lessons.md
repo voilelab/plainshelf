@@ -199,6 +199,13 @@ Read the relevant section before working in that area. Add entries according to
   test failure, costing a re-upload per scan on pCloud or SMB. Importing
   `encoding/json` at all fails `internal/repocheck` unless the file is on the
   shrinking allowlist. (`docs/development/json-encoding.md`)
+- **No v1 read compatibility:** the shelf does not promise that a file an older
+  build wrote still reads the same, so do not reach for the v1-compat decode
+  options → json/v2's strict defaults are the decision. A hand-edited `"Title"`
+  now reads as absent, and `setMeta` rewrites `book.json` whole, so the next
+  save drops it; that is accepted, and PSW-93's unknown-member passthrough is
+  what changes it. Proposing a compatibility layer here has already been
+  rejected once. (`internal/jsonopt/jsonopt.go`)
 - **Network shelves:** SMB latency amplifies directory walks and stat calls;
   preserve scan/check intervals, finite lock timeouts, atomic writes, and clear
   error propagation. See `docs/concepts/shelf-cache-and-io.md`.

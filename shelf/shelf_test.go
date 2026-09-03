@@ -2,13 +2,15 @@ package shelf
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"log"
 	"os"
 	"path"
 	"testing"
 	"time"
+
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 )
 
 func TestShelfNewShelf(t *testing.T) {
@@ -583,7 +585,7 @@ func TestShelfGetBookRefreshesWhenBookMetaChangesOnDisk(t *testing.T) {
 	}
 	meta.Title = "Book Title Updated On Disk"
 
-	updatedMetaBytes, err := json.MarshalIndent(meta, "", "  ")
+	updatedMetaBytes, err := json.Marshal(meta, jsonopt.Disk())
 	if err != nil {
 		t.Fatalf("Failed to marshal updated book meta: %v", err)
 	}
@@ -630,7 +632,7 @@ func TestShelfListBooksRefreshesStaleMetaAndDiscoversNewBookOnCacheMiss(t *testi
 		t.Fatalf("Failed to unmarshal existing book meta: %v", err)
 	}
 	meta.Title = "List Refresh Title"
-	updatedMetaBytes, err := json.MarshalIndent(meta, "", "  ")
+	updatedMetaBytes, err := json.Marshal(meta, jsonopt.Disk())
 	if err != nil {
 		t.Fatalf("Failed to marshal existing book meta: %v", err)
 	}
@@ -645,7 +647,7 @@ func TestShelfListBooksRefreshesStaleMetaAndDiscoversNewBookOnCacheMiss(t *testi
 	}
 
 	newMeta := BookMeta{ID: "book-new", Title: "Brand New Book", Language: "en"}
-	newMetaBytes, err := json.MarshalIndent(newMeta, "", "  ")
+	newMetaBytes, err := json.Marshal(newMeta, jsonopt.Disk())
 	if err != nil {
 		t.Fatalf("Failed to marshal new book meta: %v", err)
 	}

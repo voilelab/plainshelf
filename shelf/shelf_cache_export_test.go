@@ -1,7 +1,8 @@
 package shelf
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
+	"fmt"
 	"os"
 	"path"
 	"testing"
@@ -201,6 +202,80 @@ func TestBookCacheExportSkipsUnchangedContent(t *testing.T) {
 	}
 	if len(cache.Books) != 2 {
 		t.Errorf("exported %d books after adding one, want 2", len(cache.Books))
+	}
+}
+
+// TestBookCacheExportOfManyBooksSkipsUnchangedContent is the same claim as the
+// test above with enough books for it to mean something. The export is skipped
+// when bookCacheDigest matches the last one, and that digest hashes a payload
+// holding map[string]BookCacheEntry — so the skip only holds while the encoder
+// sorts map keys, which json/v2 does not do unless jsonopt says so. One book
+// has no order to vary and passes either way; twelve do not. What a missing
+// Deterministic costs is not a wrong answer but a re-upload of an unchanged
+// listing on every scan, on a shelf its owner keeps on pCloud or SMB.
+func TestBookCacheExportOfManyBooksSkipsUnchangedContent(t *testing.T) {
+	libRoot := t.TempDir()
+	shelf := newTestShelf(t, &ShelfConf{
+		LibRoot:           libRoot,
+		LockMode:          "none",
+		BookCacheWriterID: testWriterID,
+	})
+
+	for i := range 12 {
+		if _, err := shelf.NewBook(nil, fmt.Sprintf("Stable %02d", i)); err != nil {
+			t.Fatalf("NewBook: %v", err)
+		}
+	}
+	if _, err := shelf.ExportBookCache(); err != nil {
+		t.Fatalf("ExportBookCache: %v", err)
+	}
+
+	filePath := path.Join(libRoot, appFolder, bookCacheFilePrefix+testWriterID+bookCacheFileSuffix)
+	want, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+
+	// Repeated because a random map order agrees with the previous one now and
+	// then; eight rounds of twelve books do not agree by luck.
+	for round := range 8 {
+		shiftModTime(t, filePath, -time.Hour)
+		before, err := os.Stat(filePath)
+		if err != nil {
+			t.Fatalf("Stat: %v", err)
+		}
+
+		if err := shelf.exportBookCache(false); err != nil {
+			t.Fatalf("exportBookCache: %v", err)
+		}
+
+		after, err := os.Stat(filePath)
+		if err != nil {
+			t.Fatalf("Stat: %v", err)
+		}
+		if !after.ModTime().Equal(before.ModTime()) {
+			t.Fatalf("round %d rewrote the exported cache for an unchanged shelf", round)
+		}
+		got, err := os.ReadFile(filePath)
+		if err != nil {
+			t.Fatalf("ReadFile: %v", err)
+		}
+		if string(got) != string(want) {
+			t.Fatalf("round %d changed the exported cache on disk", round)
+		}
+	}
+
+	// Forcing an export re-encodes the same content, which is where an
+	// unstable encoder would show up in the bytes rather than in a mtime.
+	if err := shelf.exportBookCache(true); err != nil {
+		t.Fatalf("exportBookCache(force): %v", err)
+	}
+	forced, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if string(forced) != string(want) {
+		t.Error("a forced re-export of unchanged content produced different bytes")
 	}
 }
 

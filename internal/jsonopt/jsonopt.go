@@ -10,16 +10,16 @@
 // the option costs no compile error and no test failure — only a pointless
 // upload on every scan for a shelf held on pCloud or SMB.
 //
-// Everything else here is a deliberate non-decision: the sets add nothing but
+// Everything else is a deliberate non-decision: the sets add nothing but
 // determinism and indentation, so the remaining v2 defaults (empty slices and
 // maps as [] and {}, no HTML escaping, duplicate object names and invalid UTF-8
-// rejected) apply as they are. docs/development/json-encoding.md records why
-// each one is accepted.
+// rejected, member names matched case-sensitively) apply as they are.
+// docs/development/json-encoding.md records why each one is accepted.
 package jsonopt
 
 import (
 	"encoding/json/jsontext"
-	jsonv2 "encoding/json/v2"
+	"encoding/json/v2"
 )
 
 // diskIndent is the indentation every hand-editable file on the shelf is
@@ -29,33 +29,33 @@ import (
 const diskIndent = "  "
 
 var (
-	disk = jsonv2.JoinOptions(
-		jsonv2.Deterministic(true),
+	disk = json.JoinOptions(
+		json.Deterministic(true),
 		jsontext.WithIndent(diskIndent),
 	)
 
-	diskCompact = jsonv2.JoinOptions(
-		jsonv2.Deterministic(true),
+	diskCompact = json.JoinOptions(
+		json.Deterministic(true),
 	)
 
-	api = jsonv2.JoinOptions(
-		jsonv2.Deterministic(true),
+	api = json.JoinOptions(
+		json.Deterministic(true),
 	)
 )
 
 // Disk returns the options for a file a human is meant to be able to open and
 // edit: book.json, a source's meta.json, trash metadata, the exported book
 // cache. Output is indented and map keys are sorted.
-func Disk() jsonv2.Options { return disk }
+func Disk() json.Options { return disk }
 
 // DiskCompact returns the options for the machine-only files under app/ that
 // are written on a single line — the fingerprint cache, the scan cache, stored
 // reading progress. It is [Disk] without the indentation, not a weaker
 // guarantee: these are exactly the files whose bytes are compared or digested,
 // so the determinism matters more here than anywhere else.
-func DiskCompact() jsonv2.Options { return diskCompact }
+func DiskCompact() json.Options { return diskCompact }
 
 // API returns the options for an HTTP response body. Responses are unindented
 // to keep them small, and deterministic so that a body is worth comparing —
 // in a contract test, in a diff between two builds, or behind an ETag.
-func API() jsonv2.Options { return api }
+func API() json.Options { return api }

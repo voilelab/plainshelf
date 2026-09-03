@@ -3,7 +3,7 @@ package scancache
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"log/slog"
 	"sync"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/appcache"
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/internal/version"
@@ -251,7 +252,7 @@ func (c *Cache) Save() error {
 		SchemaVersion: schemaVersion,
 		Generator:     "plainshelf/" + version.Version,
 		Dirs:          dirs,
-	})
+	}, jsonopt.DiskCompact())
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -288,9 +289,10 @@ func ChildIsDir(root fsutil.ReadFS, pth string, child *DirChild) (bool, error) {
 }
 
 // scanCacheDigest fingerprints the snapshot so an unchanged shelf does not
-// rewrite the file. encoding/json sorts map keys, so the result is stable.
+// rewrite the file. jsonopt.DiskCompact carries Deterministic, which is what
+// makes the result stable: json/v2 leaves map order unspecified on its own.
 func scanCacheDigest(dirs map[string]dirSnapshot) (string, error) {
-	data, err := json.Marshal(dirs)
+	data, err := json.Marshal(dirs, jsonopt.DiskCompact())
 	if err != nil {
 		return "", util.Errorf("%w", err)
 	}

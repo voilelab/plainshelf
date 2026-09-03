@@ -4,8 +4,8 @@ PlainShelf is moving from `encoding/json` to `encoding/json/v2`. This page is
 what the conversion follows: which option set a call site marshals with, what
 each v1 API becomes, and which v2 defaults are adopted on purpose.
 
-Written for PSW-95. Until that epic finishes, both packages are present in the
-repository and `internal/repocheck` tracks which files still hold the old one.
+Written for PSW-95. Until that epic finishes both packages are present in the
+repository, so check which one a file imports before copying a call site from it.
 
 ---
 
@@ -67,12 +67,13 @@ That is why the option lives in one package and why the assertions below exist.
 
 ## v1 → v2 API mapping
 
-Import v2 under the name the call site already uses:
+The v2 package is itself named `json`, so it needs no import alias — a call
+site keeps reading as `json.Marshal`:
 
 ```go
 import (
 	"encoding/json/jsontext"
-	json "encoding/json/v2"
+	"encoding/json/v2"
 )
 ```
 
@@ -102,16 +103,18 @@ Two shape differences to expect while converting:
 ## v2 defaults: adopted or overridden
 
 `internal/jsonopt` sets determinism and indentation and nothing else, so every
-row below marked "adopt" is live simply by not being overridden.
+row below marked "adopt" is live simply by not being overridden — on the read
+side too: the shelf makes no compatibility promise about a file a v1 build
+wrote and a v2 build reads.
 
 | v2 default | Effect here | Decision |
 |---|---|---|
 | Map entries in unspecified order | Defeats the three "unchanged, do not rewrite" checks above | **Override.** `Deterministic(true)` in all three sets |
 | `nil` slice and map encode as `[]` and `{}` | Settles the `"authors": null` question PSW-35 left open; a dozen or so API fields stop returning `null`. The Android pCloud reader already accepts both | **Adopt** (PSW-97, PSW-98) |
 | `<`, `>`, `&` are not escaped | Only golden fixtures change. An escape sequence in a file whose selling point is that a text editor shows what you typed is a defect | **Adopt** (PSW-97) |
-| Object names match case-sensitively | A hand-edited `"Title"` stops being read, and the next write drops it. Only safe once unknown members are preserved rather than discarded | **Adopt, but coupled** — PSW-99, together with the `json:",unknown"` passthrough PSW-93 wants |
-| Duplicate object members rejected | Pure gain for a hand-editable format, provided the error names the file and the member | **Adopt** (PSW-99) |
-| Invalid UTF-8 rejected | Same | **Adopt** (PSW-99) |
+| Object names match case-sensitively | A hand-edited `"Title"` stops being read, and `setMeta` rewrites the file whole, so the next save drops it. The unknown-member passthrough PSW-93 wants is what turns that into a preserved field | **Adopt** (PSW-97); reporting and passthrough are PSW-99's |
+| Duplicate object members rejected | Pure gain for a hand-editable format, provided the error names the file and the member | **Adopt** (PSW-97); naming the file and member is PSW-99's |
+| Invalid UTF-8 rejected | Same | **Adopt** (PSW-97) |
 | `omitempty` means "would encode as null, empty string, empty object or empty array" | Every use is on a string, slice, map or pointer field; PSW-40 already moved the bool and int fields to `omitzero` | **Adopt.** No visible change |
 
 Not done, deliberately:
@@ -127,29 +130,14 @@ Not done, deliberately:
 
 ## What the tests enforce
 
-**Determinism, once.** `TestOptionSetsSortMapKeys` in `internal/jsonopt`
-marshals a payload shaped like the ones the shelf writes — maps reached through
-a struct field and through another map — 64 times with each exported set and
-fails if the bytes ever move. It is asserted here and not once per on-disk type
-on purpose: `Deterministic` sorts every map in a value at every depth, so
-repeating the assertion for `cacheFile`, `BookCacheFile` and the rest would
-re-test the standard library rather than anything this repository decides.
-
-What is worth asserting per payload is a different claim — that the *writer*
-passes the option at all — and that belongs in the conversion tickets, against
-the real write path, once a call site uses `jsonopt`.
-
-**A control for that assertion.** `TestOptionsWithoutDeterministicVaryTheOrder`
-marshals the same payload *without* the option and fails if the order never
-changes. Without it the assertion above would keep passing on a toolchain that
-happened to sort maps, and would stop meaning anything.
-
-**The import ban.** `internal/repocheck` fails on any Go file importing
-`encoding/json` that `jsonV1Allowlist` does not excuse. Each entry names the
-ticket that removes it, a second test fails when an entry outlives the import it
-covers, and PSW-100 empties the map — after which the check is what keeps v1
-out. The list covers all three modules and runs under `go test ./...`, which CI
-already gates.
+**Determinism, per write path.** Each of the three "unchanged content, do not
+rewrite" checks has a case that writes the same data eight times over and fails
+if the bytes or the file's mtime move: `TestFingerprintCacheWithManyEntriesIsByteStable`,
+`TestBookCacheExportOfManyBooksSkipsUnchangedContent` and
+`TestScanCacheWithManyDirectoriesIsNotRewritten`. Each uses twelve to sixteen
+map entries, because a map with one entry has no order to vary and passes with
+or without the option; removing `jsonopt.DiskCompact()` from one write path
+fails that path's case and no other.
 
 ---
 

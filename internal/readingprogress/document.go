@@ -25,10 +25,12 @@
 package readingprogress
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"math"
 	"strings"
 
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/util"
 )
 
@@ -122,7 +124,7 @@ func Parse(text string) Document {
 // silently wipe the writer's stored namespace. An empty string is allowed and
 // yields an empty document.
 func ParseStrict(text string) (Document, error) {
-	if strings.TrimSpace(text) != "" && !json.Valid([]byte(text)) {
+	if strings.TrimSpace(text) != "" && !jsontext.Value(text).IsValid() {
 		return New(), util.NewError("reading progress document is not valid JSON")
 	}
 	return Parse(text), nil
@@ -136,7 +138,7 @@ func Serialize(doc Document) (string, error) {
 	if doc.Shelves == nil {
 		doc.Shelves = map[string]map[string]Entry{}
 	}
-	bs, err := json.Marshal(doc)
+	bs, err := json.Marshal(doc, jsonopt.DiskCompact())
 	if err != nil {
 		return "", util.Errorf("%w", err)
 	}
