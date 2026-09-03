@@ -1,6 +1,6 @@
 module github.com/voilelab/plainshelf
 
-go 1.27.0
+go 1.27.1
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0
