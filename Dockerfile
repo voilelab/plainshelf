@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM ubuntu:24.04 AS frontend-build
+FROM ubuntu:26.04 AS frontend-build
 
 ARG NODE_VERSION=24.15.0
 
@@ -24,7 +24,7 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-FROM ubuntu:24.04 AS server-build
+FROM ubuntu:26.04 AS server-build
 
 ARG GO_VERSION=1.27.1
 ARG VERSION=dev
@@ -53,7 +53,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
     -ldflags="-s -w -X github.com/voilelab/plainshelf/internal/version.Version=${VERSION}" \
     -o /out/plainshelf-srv ./cmd/plainshelf-srv
 
-FROM ubuntu:24.04 AS runtime
+FROM ubuntu:26.04 AS runtime
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
