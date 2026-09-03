@@ -13,6 +13,11 @@ jobs:
   frontend:
     name: Frontend build
     runs-on: ubuntu-latest
+    # PSW-76: derived from three measured `dev` runs, not guessed — twice the
+    # slowest, rounded up to a whole minute, never under 5. The table and the
+    # rule are in docs/development/testing-levels.md; a job that hits its cap
+    # is a regression to explain, not a number to raise.
+    timeout-minutes: 5
     defaults:
       run:
         working-directory: frontend
@@ -59,6 +64,7 @@ jobs:
   lint:
     name: Go lint
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: frontend
     steps:
       - name: Checkout
@@ -96,6 +102,7 @@ jobs:
   go:
     name: Go tests
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: frontend
     steps:
       - name: Checkout
@@ -113,18 +120,22 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # -timeout replaces `go test`'s 10-minute default, which outlives this
+      # job's own cap: a hung test has to panic with its goroutine dump while the
+      # runner is still alive, or the only evidence is a cancelled job.
       - name: Run tests
-        run: go test ./...
+        run: go test -timeout 2m ./...
 
       - name: Run desktop tests
-        run: cd desktop && go test ./...
+        run: cd desktop && go test -timeout 2m ./...
 
       - name: Run reader tests
-        run: cd reader && go test ./...
+        run: cd reader && go test -timeout 2m ./...
 
   e2e:
     name: Frontend E2E
     runs-on: ubuntu-latest
+    timeout-minutes: 13
     needs: frontend
     steps:
       - name: Checkout
@@ -164,6 +175,7 @@ jobs:
   android:
     name: Android build
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: frontend
     # Not a merge gate yet: this job is new, and its SDK/Gradle setup has not
     # run often enough here to tell a real break from its own flakiness. Drop
@@ -218,6 +230,7 @@ jobs:
   vulncheck:
     name: Go vulnerability scan
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: frontend
     # A gate, deliberately: govulncheck reports a module's advisory only when a
     # vulnerable symbol is reachable from this code, so red here is an exposure
@@ -299,6 +312,7 @@ jobs:
   audit:
     name: npm audit (informational)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     # Informational, deliberately: npm audit flags every advisory in the tree
     # whether or not the code path is reachable, and most of this tree is
     # build-time tooling that never ships. Both lockfiles are clean at
