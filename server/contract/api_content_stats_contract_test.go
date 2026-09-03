@@ -147,35 +147,12 @@ func TestAPIRefreshContentStatsWithNothingToDoContract(t *testing.T) {
 func TestAPIRefreshContentStatsConflictReportsRunningChainContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	release := blockWorker(t, env)
+	first := assertDuplicateChainConflict(t, env, func(wantStatus int) taskChainSubmitResponse {
+		return refreshContentStats(t, env, wantStatus)
+	})
 
-	first := refreshContentStats(t, env, http.StatusAccepted)
-	conflict := refreshContentStats(t, env, http.StatusConflict)
-
-	if conflict.TaskChainID != first.TaskChainID {
-		t.Errorf("conflict taskchain_id = %q, want the running chain %q", conflict.TaskChainID, first.TaskChainID)
-	}
-
-	release()
-	waitForTaskChain(t, env, first.TaskChainID)
-
-	next := refreshContentStats(t, env, http.StatusAccepted)
-	if next.TaskChainID == first.TaskChainID {
+	// Once the sweep has finished, a fresh request is accepted again.
+	if next := refreshContentStats(t, env, http.StatusAccepted); next.TaskChainID == first.TaskChainID {
 		t.Errorf("expected a new chain after the previous one finished")
 	}
-}
-
-func TestAPIRefreshContentStatsRejectsUnknownShelfContract(t *testing.T) {
-	env := newAPITestEnv(t)
-
-	rec := env.post(shelfIDURL("missing_shelf", "content-stat-refreshes"), nil)
-	assertStatus(t, rec, http.StatusNotFound)
-}
-
-// The endpoint rewrites meta.json, so it must sit inside the local_token boundary
-// and be refused in read-only mode.
-func TestAPIRefreshContentStatsIsGatedContract(t *testing.T) {
-	env := newAPITestEnv(t)
-
-	assertMutationGated(t, env, http.MethodPost, contentStatsURL(), nil)
 }

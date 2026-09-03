@@ -76,3 +76,41 @@ func TestAPITokenIsRequiredForExactlyTheMutatingMethodsContract(t *testing.T) {
 		})
 	}
 }
+
+// Every mutating route sits behind the same two gates, so they are enumerated
+// once here instead of once per endpoint file. A route missing from this table
+// is a route nobody proved is gated, which is easier to notice in one list than
+// in the absence of a test somewhere else.
+func TestAPIMutatingRoutesAreGatedContract(t *testing.T) {
+	env := newAPITestEnv(t, withSecondShelf(t.TempDir()))
+	book := importTextBook(t, env, "Gated", "fiction", "gated.txt", "body")
+	bookID := book.Meta.ID
+	assetPath := assetURL(bookID, env.currentSourceID(t, bookID), "img-0001.png")
+
+	cases := []struct {
+		name   string
+		method string
+		url    string
+		body   []byte
+	}{
+		{"book batch", http.MethodPost, bookBatchURL(),
+			[]byte(`{"operation":"trash","book_ids":["book"]}`)},
+		{"book cache export", http.MethodPost, bookCacheExportURL(), nil},
+		{"book copy", http.MethodPost, bookCopiesURL(bookID), []byte("{}")},
+		{"book transfer", http.MethodPost, bookTransfersURL(bookID),
+			[]byte(`{"mode":"copy","target_shelf":"` + secondShelfID + `"}`)},
+		{"content stat refresh", http.MethodPost, contentStatsURL(), nil},
+		{"folder transfer", http.MethodPost, folderTransfersURL(),
+			[]byte(`{"mode":"copy","source_folder":["fiction"],"target_shelf":"` + secondShelfID + `","target_folder":["imported"]}`)},
+		{"source fingerprints", http.MethodPost, sourceFingerprintsURL(), nil},
+		{"empty trash", http.MethodPost, emptyTrashURL(), nil},
+		{"asset write", http.MethodPut, assetPath, []byte("x")},
+		{"asset delete", http.MethodDelete, assetPath, nil},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assertMutationGated(t, env, tc.method, tc.url, tc.body)
+		})
+	}
+}

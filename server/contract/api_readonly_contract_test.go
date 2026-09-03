@@ -1,10 +1,12 @@
 package contract_test
 
 import (
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,12 +15,18 @@ import (
 )
 
 /*
-The app-wide `read_only` setting is not only an HTTP gate. Refusing the requests
-that ask for a write is not the same as not writing: a shelf writes on its own
-account too — it creates its folders, clears app/tmp/, takes the lock file and
-exports the book cache on a timer — and none of that has a request behind it for
-the gate to see. These tests pin that the setting reaches ShelfConf, which is
-what turns those writes off as well.
+Read-only comes in two scopes: the app-wide `read_only` an operator writes next
+to `shelves`, and the per-shelf `read_only` that covers one shelf. They differ
+in reach, not in what they forbid on the shelf they cover, so both are pinned
+here.
+
+The app-wide one is not only an HTTP gate. Refusing the requests that ask for a
+write is not the same as not writing: a shelf writes on its own account too — it
+creates its folders, clears app/tmp/, takes the lock file and exports the book
+cache on a timer — and none of that has a request behind it for the gate to see.
+The first half of this file pins that the setting reaches ShelfConf, which is
+what turns those writes off as well; the second half pins the HTTP side of the
+per-shelf setting.
 */
 
 // fileState is what a snapshot records about one path in the shelf. Modification
@@ -116,20 +124,6 @@ func TestReadOnlyServerOpensEveryShelfReadOnly(t *testing.T) {
 	}
 }
 
-// A shelf that pins its own read_only stays read-only on a writable server: the
-// app-wide setting only ever adds the restriction.
-func TestWritableServerKeepsAPerShelfReadOnly(t *testing.T) {
-	env := newAPITestEnv(t, withReadOnlyShelf())
-
-	shelfData, ok := env.app.ShelfManager().GetShelf(defaultShelfID)
-	if !ok {
-		t.Fatalf("%s missing", defaultShelfID)
-	}
-	if !shelfData.ReadOnly() {
-		t.Error("ReadOnly() = false, want the per-shelf read_only to survive a writable server")
-	}
-}
-
 // The acceptance case: a read-only server serves a whole round of reads — list
 // the books, read a book's content, rescan — and leaves the shelf byte for byte
 // and mtime for mtime as it found it.
@@ -187,4 +181,66 @@ func TestReadOnlyServerDoesNotCreateTheShelf(t *testing.T) {
 	if _, statErr := os.Stat(libRoot); !os.IsNotExist(statErr) {
 		t.Errorf("stat %s = %v, want the path still missing", libRoot, statErr)
 	}
+}
+
+// A shelf opened with read_only serves reads normally.
+func TestAPIReadOnlyShelfServesReadsContract(t *testing.T) {
+	env := newAPITestEnv(t, withReadOnlyShelf())
+
+	assertStatus(t, env.get(booksURL()), http.StatusOK)
+	assertStatus(t, env.get(shelfURL("folders")), http.StatusOK)
+	assertStatus(t, env.get(shelfURL("trash", "books")), http.StatusOK)
+
+	// A rescan walks the shelf and rebuilds the in-memory cache without writing
+	// anything, so it is a read even though it is a POST.
+	assertStatus(t, env.post(shelfURL("scans"), nil), http.StatusOK)
+}
+
+// Every write against a read-only shelf is refused with 409, including the ones
+// that would otherwise queue a background chain and answer 202 — a caller that
+// got 202 would have to read a task report to learn the work never happened.
+func TestAPIReadOnlyShelfRefusesWritesContract(t *testing.T) {
+	env := newAPITestEnv(t, withReadOnlyShelf())
+
+	tests := []struct {
+		name string
+		url  string
+		body string
+	}{
+		{name: "book batch", url: shelfURL("book-batches"),
+			body: `{"operation":"trash","book_ids":["book-0001"]}`},
+		{name: "content stat refresh", url: shelfURL("content-stat-refreshes")},
+		{name: "source fingerprints", url: shelfURL("source-fingerprints")},
+		{name: "empty trash", url: shelfURL("trash", "empty")},
+		{name: "book cache export", url: bookCacheExportURL()},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var body io.Reader
+			if tc.body != "" {
+				body = strings.NewReader(tc.body)
+			}
+
+			rec := env.post(tc.url, body)
+
+			// 409 is also how an endpoint reports a chain already in flight, and
+			// that answer carries the chain's ID. Nothing was queued here, so the
+			// two must be told apart by body shape rather than by status: a
+			// client that reads taskchain_id off this refusal gets nothing and
+			// polls it.
+			assertErrorEnvelope(t, rec, http.StatusConflict, "SHELF_READ_ONLY",
+				"shelf is opened read-only; this PlainShelf instance cannot modify it")
+			if strings.Contains(rec.Body.String(), "taskchain_id") {
+				t.Errorf("body = %s, want a refusal rather than a queued chain", rec.Body.String())
+			}
+		})
+	}
+
+	// The synchronous write path reaches the shelf itself, so this 409 arrives
+	// from fsutil.ErrReadOnly through the error table rather than from the
+	// handler's own gate.
+	rec := postBookImport(t, env, bookUpload("book.txt", plainTextContentType, "text"))
+	assertErrorEnvelope(t, rec, http.StatusConflict, "SHELF_READ_ONLY",
+		"shelf is opened read-only; this PlainShelf instance cannot modify it")
 }

@@ -209,23 +209,6 @@ func TestAssetRevalidationSurvivesAReplacement(t *testing.T) {
 	assertStatus(t, rec, http.StatusNotFound)
 }
 
-// Writing an asset is a mutating request like any other, so both gates that
-// decide what may write have to cover it.
-func TestAPISourceAssetWritesAreGated(t *testing.T) {
-	env := newAPITestEnv(t)
-	created := importTextBook(t, env, "Gated Art", "", "art.md", "body")
-	sourceID := env.currentSourceID(t, created.Meta.ID)
-	url := assetURL(created.Meta.ID, sourceID, "img-0001.png")
-
-	for _, method := range []string{http.MethodPut, http.MethodDelete} {
-		assertMutationGated(t, env, method, url, []byte("x"))
-	}
-
-	// A read is unaffected by either gate in this configuration.
-	rec := env.doRaw(httptest.NewRequest(http.MethodGet, url, nil))
-	assertStatus(t, rec, http.StatusNotFound)
-}
-
 // The asset route reaches the filesystem by name, so it gets its own traversal
 // cases rather than trusting the shelf-level test alone.
 func TestAPISourceAssetRejectsUnsafeNames(t *testing.T) {

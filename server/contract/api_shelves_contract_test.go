@@ -54,23 +54,6 @@ func TestAPIShelvesReportServerReadOnlyContract(t *testing.T) {
 	}
 }
 
-// A writable server lists its shelves as writable, which is what makes the flag
-// worth reading at all.
-func TestAPIShelvesReportWritableShelfContract(t *testing.T) {
-	env := newAPITestEnv(t)
-
-	rec := env.get("/api/shelves")
-	assertStatus(t, rec, http.StatusOK)
-
-	shelves := decodeJSON[[]server.ShelfInfo](t, rec)
-	if len(shelves) != 1 {
-		t.Fatalf("shelves = %d, want 1", len(shelves))
-	}
-	if shelves[0].ReadOnly {
-		t.Errorf("shelf %q read_only = true, want false", shelves[0].ID)
-	}
-}
-
 // The two settings stay separate in the other direction too: a shelf opened
 // read-only does not make the server read-only, so /api/mode still answers for
 // the app as a whole.

@@ -204,13 +204,3 @@ func TestAPIBookTransferReadOnlyTargetContract(t *testing.T) {
 		t.Errorf("body = %s, want a refusal rather than a queued chain", got)
 	}
 }
-
-// The transfer endpoint stays behind both write gates: the token requirement and
-// the read-only refusal.
-func TestAPIBookTransferIsGatedContract(t *testing.T) {
-	env := newAPITestEnv(t, withSecondShelf(t.TempDir()))
-	book := importTextBook(t, env, "Gated", "", "gated.txt", "body")
-
-	assertMutationGated(t, env, http.MethodPost, bookTransfersURL(book.Meta.ID),
-		[]byte(`{"mode":"copy","target_shelf":"`+secondShelfID+`"}`))
-}

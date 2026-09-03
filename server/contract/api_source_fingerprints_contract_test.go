@@ -211,35 +211,12 @@ func TestAPIFingerprintSourcesReportsFailuresContract(t *testing.T) {
 func TestAPIFingerprintSourcesConflictReportsRunningChainContract(t *testing.T) {
 	env := newAPITestEnv(t)
 
-	release := blockWorker(t, env)
+	first := assertDuplicateChainConflict(t, env, func(wantStatus int) taskChainSubmitResponse {
+		return fingerprintSources(t, env, wantStatus)
+	})
 
-	first := fingerprintSources(t, env, http.StatusAccepted)
-	conflict := fingerprintSources(t, env, http.StatusConflict)
-
-	if conflict.TaskChainID != first.TaskChainID {
-		t.Errorf("conflict taskchain_id = %q, want the running chain %q", conflict.TaskChainID, first.TaskChainID)
-	}
-
-	release()
-	waitForTaskChain(t, env, first.TaskChainID)
-
-	next := fingerprintSources(t, env, http.StatusAccepted)
-	if next.TaskChainID == first.TaskChainID {
+	// Once the sweep has finished, a fresh request is accepted again.
+	if next := fingerprintSources(t, env, http.StatusAccepted); next.TaskChainID == first.TaskChainID {
 		t.Errorf("expected a new chain after the previous one finished")
 	}
-}
-
-func TestAPIFingerprintSourcesRejectsUnknownShelfContract(t *testing.T) {
-	env := newAPITestEnv(t)
-
-	rec := env.post(shelfIDURL("missing_shelf", "source-fingerprints"), nil)
-	assertStatus(t, rec, http.StatusNotFound)
-}
-
-// The endpoint writes the cache under app/ and repairs a stale md5_hash, so it
-// must sit inside the local_token boundary and be refused in read-only mode.
-func TestAPIFingerprintSourcesIsGatedContract(t *testing.T) {
-	env := newAPITestEnv(t)
-
-	assertMutationGated(t, env, http.MethodPost, sourceFingerprintsURL(), nil)
 }

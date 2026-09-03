@@ -207,7 +207,6 @@ func TestAPIFolderTransferBookIDConflictContract(t *testing.T) {
 func TestAPIFolderTransferDuplicateRunningChainContract(t *testing.T) {
 	env := newAPITestEnv(t, withSecondShelf(t.TempDir()))
 	importTextBook(t, env, "Queued", "fiction", "queued.txt", "body")
-	release := blockWorker(t, env)
 
 	body := []byte(`{
 		"mode": "copy",
@@ -215,13 +214,9 @@ func TestAPIFolderTransferDuplicateRunningChainContract(t *testing.T) {
 		"target_shelf": "` + secondShelfID + `",
 		"target_folder": ["imported"]
 	}`)
-	first := submitTaskChain(t, env, folderTransfersURL(), body, http.StatusAccepted)
-	duplicate := submitTaskChain(t, env, folderTransfersURL(), body, http.StatusConflict)
-	if duplicate.TaskChainID != first.TaskChainID {
-		t.Errorf("duplicate id = %q, want %q", duplicate.TaskChainID, first.TaskChainID)
-	}
-	release()
-	waitForTaskChain(t, env, first.TaskChainID)
+	assertDuplicateChainConflict(t, env, func(wantStatus int) taskChainSubmitResponse {
+		return submitTaskChain(t, env, folderTransfersURL(), body, wantStatus)
+	})
 }
 
 // A transfer into a read-only target shelf is refused with 409, the status every
@@ -263,14 +258,4 @@ func TestAPIFolderTransferBadRequestContract(t *testing.T) {
 			assertStatus(t, env.post(folderTransfersURL(), strings.NewReader(tc.body)), tc.want)
 		})
 	}
-}
-
-// The transfer endpoint stays behind both write gates: the token requirement and
-// the read-only refusal.
-func TestAPIFolderTransferIsGatedContract(t *testing.T) {
-	env := newAPITestEnv(t, withSecondShelf(t.TempDir()))
-	importTextBook(t, env, "Gated", "fiction", "gated.txt", "body")
-
-	assertMutationGated(t, env, http.MethodPost, folderTransfersURL(),
-		[]byte(`{"mode":"copy","source_folder":["fiction"],"target_shelf":"`+secondShelfID+`","target_folder":["imported"]}`))
 }

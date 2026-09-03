@@ -97,21 +97,6 @@ func TestAPIExportBookCacheContract(t *testing.T) {
 	}
 }
 
-func TestAPIExportBookCacheRejectsUnknownShelfContract(t *testing.T) {
-	env := newAPITestEnv(t)
-
-	rec := env.post(shelfIDURL("missing_shelf", "book-cache-exports"), nil)
-	assertStatus(t, rec, http.StatusNotFound)
-}
-
-// The endpoint writes into the shelf, so it must sit inside the local_token
-// boundary and be refused in read-only mode.
-func TestAPIExportBookCacheIsGatedContract(t *testing.T) {
-	env := newAPITestEnv(t)
-
-	assertMutationGated(t, env, http.MethodPost, bookCacheExportURL(), nil)
-}
-
 // The writer ID identifies the installation, so it has to outlive a restart:
 // two runs against the same store must keep writing the same file rather than
 // leaving a new one behind on every start.

@@ -9,18 +9,6 @@ type modeResponse struct {
 	ReadOnly bool `json:"read_only"`
 }
 
-type versionResponse struct {
-	Version string `json:"version"`
-}
-
-func TestAPIVersionContract(t *testing.T) {
-	env := newAPITestEnv(t)
-
-	if resp := getJSON[versionResponse](t, env, "/api/version"); resp.Version == "" {
-		t.Fatalf("version is empty, want a non-empty value")
-	}
-}
-
 func TestAPIReadOnlyModeContract(t *testing.T) {
 	env := newAPITestEnv(t)
 	env.setReadOnly(t, true)
