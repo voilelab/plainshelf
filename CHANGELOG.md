@@ -41,6 +41,7 @@ and UI behavior may still change between releases.
 
 ### Security
 
+- Added a rate limit to the shelf rescan (`POST /api/shelves/{id}/scans`) of five walks back to back plus one every 10 seconds, refusing the rest with `429` and a `Retry-After` so a LAN device cannot hold the server's CPU and SMB bandwidth with a loop; `409` still means another walk is running, the cross-shelf transfer preflight is exempt, and it is not configurable.
 - Updated `golang.org/x/image` to v0.45.0, closing a memory-exhaustion vector (GO-2026-6222) that an untrusted WebP cover could reach through the cover upload and EPUB import paths.
 - Changed the shelf rescan (`POST /api/shelves/{id}/scans`) to require the access token only under `protect_read`, since it walks the shelf without writing, so **refresh the book list** no longer answers `401` under the shipped defaults; it stays behind the origin check, so a cross-origin refresh is still rejected.
 - **Breaking (pre-1.0):** changed `GET /api/logs` and `/api/logs/{id}/content` to always require the access token, whatever `protect_read` says, since logs carry request paths, access times, and remote addresses; a client reading them without a token now gets `401`, and security mode `none` is unaffected.

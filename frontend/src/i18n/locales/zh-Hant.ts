@@ -607,6 +607,7 @@ const zhHant = {
     neverSynced: '尚未更新',
     scanFound: '找到 {books} 本書、{folders} 個資料夾',
     scanInProgress: '這個書架正在掃描中，請等這次掃描結束後再試。',
+    scanRateLimited: '更新得太頻繁了，請在 {seconds} 秒後再試。',
     loadFailed: '載入書籍失敗',
     refreshFailed: '更新書單失敗',
     requestTimeout: '請求逾時——書架可能較慢或無法連線。',

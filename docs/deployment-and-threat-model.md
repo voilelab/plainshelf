@@ -151,6 +151,14 @@ your server walk an SMB shelf. A request carrying no `Origin` at all is not a
 browser and cannot be a forged cross-site request; the Android client is the
 case that matters, since its native HTTP bridge sends none.
 
+The token was never what stopped a device on your own network from looping that
+request: it is printed into every page the server sends, so anything that can
+reach the port can read it. The refresh is rate limited instead — five walks back
+to back, then one more every 10 seconds, and `429` beyond that. That is what
+bounds the CPU and SMB bandwidth a compromised or misconfigured LAN device can
+take, with or without a token, and it is set far above the pace of pressing the
+button by hand. See [Rescanning on demand](concepts/shelf-cache-and-io.md#rescanning-on-demand).
+
 **`/api/logs` is not shelf content.** The logs record every request path, and so
 the shelf's structure, together with access times and remote addresses. Turning
 `protect_read` off to let the household read books says nothing about publishing

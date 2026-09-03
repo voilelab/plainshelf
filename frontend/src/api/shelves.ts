@@ -107,6 +107,24 @@ export class ShelfScanInProgressError extends Error {
 }
 
 /**
+ * Thrown when this client has asked for walks faster than the server performs
+ * them, so this request was refused. `retryAfterSeconds` is how long to wait.
+ *
+ * Distinct from {@link ShelfScanInProgressError} because the two ask the user
+ * for different things: a walk in progress ends on its own, while this one is
+ * about the pace of the asking.
+ */
+export class ShelfScanRateLimitedError extends Error {
+  readonly retryAfterSeconds: number;
+
+  constructor(retryAfterSeconds: number) {
+    super('Rescans of this shelf are being requested too quickly.');
+    this.name = 'ShelfScanRateLimitedError';
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+/**
  * Walks the shelf now and rebuilds the server's book cache, reporting what it
  * found.
  *
@@ -125,11 +143,22 @@ export async function rescanShelf(shelfID?: string): Promise<ShelfScanResult> {
     return { bookCount: mockListBooks(1, Number.MAX_SAFE_INTEGER).total, folderCount: getMockFolders().length };
   }
 
-  const res = await fetchJson<{ scan_id?: string; book_count?: number; folder_count?: number }>(
+  const res = await fetchJson<{
+    scan_id?: string;
+    book_count?: number;
+    folder_count?: number;
+    retry_after_seconds?: number;
+  }>(
     buildShelfApiPath('/scans', shelfID),
     { method: 'POST' },
-    { readOnlySafe: true, acceptStatuses: [409], timeoutMs: SCAN_TIMEOUT_MS }
+    { readOnlySafe: true, acceptStatuses: [409, 429], timeoutMs: SCAN_TIMEOUT_MS }
   );
+
+  // Checked before the counts, because the 429 body has none either and would
+  // otherwise be reported as a walk that is running when none is.
+  if (res?.retry_after_seconds !== undefined) {
+    throw new ShelfScanRateLimitedError(res.retry_after_seconds);
+  }
 
   // The 409 body carries only the running walk's ID; the counts are absent
   // because they belong to a walk this request did not perform.

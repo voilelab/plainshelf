@@ -2,7 +2,9 @@ package server
 
 import (
 	"errors"
+	"math"
 	"net/http"
+	"strconv"
 
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -32,6 +34,22 @@ type ScanConflictResponse struct {
 	ScanID string `json:"scan_id"`
 }
 
+// ScanRateLimitResponse answers a rescan refused for asking too often.
+//
+// Its own type, and its own status, because 409 and 429 ask the client for
+// different things: 409 says another walk is running and will end on its own,
+// 429 says this client is the problem. A client that saw one status for both
+// would tell its user to wait for a walk that does not exist.
+type ScanRateLimitResponse struct {
+	// RetryAfterSeconds mirrors the Retry-After header, so a browser client that
+	// cannot read the header from a cross-status fetch still has the number.
+	RetryAfterSeconds int `json:"retry_after_seconds"`
+
+	// Message is the human-readable reason, since this body never reaches
+	// writeErr's plain-text path.
+	Message string `json:"message"`
+}
+
 // POST /api/shelves/{shelf_id}/scans
 //
 // Walks the shelf now and rebuilds its book cache, for a user who has just put
@@ -56,6 +74,16 @@ func (h *shelfHandlers) rescanShelf(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, shelf.ErrRescanInProgress):
 		h.writeJSON(w, http.StatusConflict, ScanConflictResponse{ScanID: result.ID})
+	case errors.Is(err, shelf.ErrRescanRateLimited):
+		// Rounded up to whole seconds and never below one: Retry-After carries no
+		// finer unit, and a "0" would invite the immediate retry this is refusing.
+		retryAfter := max(1, int(math.Ceil(result.RetryAfter.Seconds())))
+		h.Info("refused a rescan for exceeding the rate limit", "shelf_id", shelfData.ID, "retry_after", retryAfter)
+		w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+		h.writeJSON(w, http.StatusTooManyRequests, ScanRateLimitResponse{
+			RetryAfterSeconds: retryAfter,
+			Message:           "too many rescans; this shelf walks on request only so often, please retry shortly",
+		})
 	case err != nil:
 		h.writeErr(w, err, "failed to rescan shelf")
 	default:

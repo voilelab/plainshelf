@@ -138,6 +138,33 @@ func TestAPIFolderTransferFolderConflictContract(t *testing.T) {
 	}
 }
 
+// The transfer preflight forces a walk of both shelves, but it is not the walk
+// the rescan rate limit governs: that budget belongs to the button a user
+// presses, and a run of transfers must not leave it answering 429 for something
+// the user never pressed.
+func TestAPIFolderTransferPreflightDoesNotSpendTheRescanRateLimitContract(t *testing.T) {
+	env := newAPITestEnv(t, withSecondShelf(t.TempDir()))
+	importTextBook(t, env, "Source", "fiction", "src.txt", "a")
+	assertStatus(t, env.post(shelfIDURL(secondShelfID, "folders", "taken"), nil), http.StatusNoContent)
+
+	// Refused after the preflight, so each round costs both walks without
+	// scheduling any work — the cheapest way to run the preflight many times.
+	body := `{
+		"mode": "copy",
+		"source_folder": ["fiction"],
+		"target_shelf": "` + secondShelfID + `",
+		"target_folder": ["taken"]
+	}`
+	for i := range 12 {
+		rec := env.post(folderTransfersURL(), strings.NewReader(body))
+		if rec.Code != http.StatusConflict {
+			t.Fatalf("transfer %d: status = %d, want 409", i+1, rec.Code)
+		}
+	}
+
+	assertStatus(t, env.post(scansURL(), nil), http.StatusOK)
+}
+
 // A move whose books collide with IDs the target already holds is refused with a
 // 409 that lists every colliding ID, before any work is scheduled.
 func TestAPIFolderTransferBookIDConflictContract(t *testing.T) {
