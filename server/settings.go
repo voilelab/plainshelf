@@ -2,12 +2,13 @@ package server
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/voilelab/plainshelf/internal/epub"
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/server/store"
@@ -94,7 +95,7 @@ func setJSONSetting[T any](s *settings, w http.ResponseWriter, r *http.Request, 
 		return false
 	}
 
-	jsonBytes, err := json.Marshal(value)
+	jsonBytes, err := json.Marshal(value, jsonopt.DiskCompact())
 	if err != nil {
 		s.Error("failed to serialize setting", "key", key, "err", err)
 		http.Error(w, "failed to serialize setting", http.StatusInternalServerError)

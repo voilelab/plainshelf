@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -38,11 +37,8 @@ func parseImportStrategy(raw string, fallback epub.Strategy) (epub.Strategy, str
 		return fallback, "", nil
 	}
 
-	dec := json.NewDecoder(strings.NewReader(raw))
-	dec.DisallowUnknownFields()
-
 	var strategy epub.Strategy
-	if err := dec.Decode(&strategy); err != nil {
+	if err := decodeRequestJSON(strings.NewReader(raw), &strategy, false); err != nil {
 		return epub.Strategy{}, "invalid strategy field", util.Errorf("%w", err)
 	}
 	if err := strategy.Validate(); err != nil {
