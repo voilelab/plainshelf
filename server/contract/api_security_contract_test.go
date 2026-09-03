@@ -78,6 +78,11 @@ func TestAPISecurityOriginAndCORSContract(t *testing.T) {
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "http://localhost:20000" {
 		t.Fatalf("allowed CORS origin header = %q, want http://localhost:20000", got)
 	}
+	// The request ID is what a user quotes in a bug report, so a browser on an
+	// allowed origin has to be able to read it rather than only send it.
+	if got := rec.Header().Get("Access-Control-Expose-Headers"); got != "X-Request-Id" {
+		t.Fatalf("exposed headers = %q, want X-Request-Id", got)
+	}
 
 	req = httptest.NewRequest(http.MethodPost, settingPath, strings.NewReader(mutationBody))
 	req.Header.Set(env.app.SecurityTokenHeader(), env.app.SecurityToken())

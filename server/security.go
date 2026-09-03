@@ -383,6 +383,11 @@ func (sec *Security) applyCORS(w http.ResponseWriter, r *http.Request) {
 	h.Add("Vary", "Origin")
 	h.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 	h.Set("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type, "+sec.conf.TokenHeader)
+	// The request ID is the number a user quotes in a bug report, so a browser
+	// on an allowed origin has to be able to read it off the response. Only
+	// origins that already read the whole body reach this far, so exposing one
+	// response header grants nothing the gate had withheld.
+	h.Set("Access-Control-Expose-Headers", RequestIDHeader)
 }
 
 func (sec *Security) allowMissingOriginWithToken() bool {

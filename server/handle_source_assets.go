@@ -37,7 +37,7 @@ func (h *sourceHandlers) getAsset(w http.ResponseWriter, r *http.Request) {
 
 	asset, err := source.OpenAsset(assetName)
 	if err != nil {
-		h.writeErr(w, err, "failed to get source asset")
+		h.writeErr(w, r, err, "failed to get source asset")
 		return
 	}
 	defer asset.File.Close()
@@ -120,7 +120,7 @@ func (h *sourceHandlers) resolveBundleAssetNames(w http.ResponseWriter, source *
 	if len(requested) == 0 {
 		names, err := source.ListAssets()
 		if err != nil {
-			h.writeErr(w, err, "failed to list source assets")
+			h.writeErr(w, r, err, "failed to list source assets")
 			return nil, false
 		}
 		return names, true
@@ -128,7 +128,7 @@ func (h *sourceHandlers) resolveBundleAssetNames(w http.ResponseWriter, source *
 
 	for _, name := range requested {
 		if _, err := source.AssetPath(name); err != nil {
-			h.writeErr(w, err, "failed to bundle source assets")
+			h.writeErr(w, r, err, "failed to bundle source assets")
 			return nil, false
 		}
 	}
@@ -189,7 +189,7 @@ func (h *sourceHandlers) updateAsset(w http.ResponseWriter, r *http.Request) {
 	// Refuse before reading the body, not after: a book this build must not
 	// write should not have an upload spooled for it either.
 	if err := book.EnsureWritable(); err != nil {
-		h.writeErr(w, err, "failed to store source asset")
+		h.writeErr(w, r, err, "failed to store source asset")
 		return
 	}
 
@@ -206,7 +206,7 @@ func (h *sourceHandlers) updateAsset(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := source.WriteAsset(assetName, data); err != nil {
-		h.writeErr(w, err, "failed to store source asset")
+		h.writeErr(w, r, err, "failed to store source asset")
 		return
 	}
 
@@ -230,12 +230,12 @@ func (h *sourceHandlers) deleteAsset(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := book.EnsureWritable(); err != nil {
-		h.writeErr(w, err, "failed to delete source asset")
+		h.writeErr(w, r, err, "failed to delete source asset")
 		return
 	}
 
 	if err := source.DeleteAsset(assetName); err != nil {
-		h.writeErr(w, err, "failed to delete source asset")
+		h.writeErr(w, r, err, "failed to delete source asset")
 		return
 	}
 

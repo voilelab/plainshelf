@@ -80,7 +80,7 @@ func (h *bookHandlers) getBooks(w http.ResponseWriter, r *http.Request) {
 	// nothing beyond the listing itself.
 	books, err := shelfData.ListBooksWithCharCount()
 	if err != nil {
-		h.writeErr(w, err, "failed to list books")
+		h.writeErr(w, r, err, "failed to list books")
 		return
 	}
 
@@ -143,7 +143,7 @@ func (h *bookHandlers) createBook(w http.ResponseWriter, r *http.Request) {
 		return book.SetCurrentSource(source.ID())
 	})
 	if err != nil {
-		h.writeErr(w, err, "failed to create new book")
+		h.writeErr(w, r, err, "failed to create new book")
 		return
 	}
 
@@ -179,7 +179,7 @@ func (h *bookHandlers) copyBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	listing, ok := h.lookupBookListing(w, shelfData, bookID)
+	listing, ok := h.lookupBookListing(w, r, shelfData, bookID)
 	if !ok {
 		return
 	}
@@ -192,7 +192,7 @@ func (h *bookHandlers) copyBook(w http.ResponseWriter, r *http.Request) {
 
 	copied, err := shelfData.CopyBook(bookID, target)
 	if err != nil {
-		h.writeErr(w, err, "failed to copy book")
+		h.writeErr(w, r, err, "failed to copy book")
 		return
 	}
 
@@ -235,7 +235,7 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	listing, ok := h.lookupBookListing(w, shelfData, bookID)
+	listing, ok := h.lookupBookListing(w, r, shelfData, bookID)
 	if !ok {
 		return
 	}
@@ -245,7 +245,7 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 	// Refuse a book this build must not modify before doing anything, otherwise
 	// a folder move would be applied to disk and then reported as a failure.
 	if err := book.EnsureWritable(); err != nil {
-		h.writeErr(w, err, "failed to update book metadata")
+		h.writeErr(w, r, err, "failed to update book metadata")
 		return
 	}
 
@@ -253,7 +253,7 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 		moveTo := append(shelf.FolderPath(nil), (*req.Folder)...)
 		movedBook, err := shelfData.MoveBook(bookID, moveTo)
 		if err != nil {
-			h.writeErr(w, err, "failed to move book folder")
+			h.writeErr(w, r, err, "failed to move book folder")
 			return
 		}
 		// The book now sits where it was moved to.
@@ -265,7 +265,7 @@ func (h *bookHandlers) updateBook(w http.ResponseWriter, r *http.Request) {
 	applyBookPatch(&meta, &req)
 
 	if err := book.SetMeta(&meta); err != nil {
-		h.writeErr(w, err, "failed to update book metadata")
+		h.writeErr(w, r, err, "failed to update book metadata")
 		return
 	}
 
@@ -315,7 +315,7 @@ func (h *bookHandlers) getBookContent(w http.ResponseWriter, r *http.Request) {
 
 	source, err := book.ResolveCurrentSource()
 	if err != nil {
-		h.writeErr(w, err, "failed to get book source")
+		h.writeErr(w, r, err, "failed to get book source")
 		return
 	}
 
@@ -340,7 +340,7 @@ func (h *bookHandlers) findDuplicateBooks(w http.ResponseWriter, r *http.Request
 	md5Groups := map[string][]string{}
 	books, err := shelfData.ListBooks()
 	if err != nil {
-		h.writeErr(w, err, "failed to list books")
+		h.writeErr(w, r, err, "failed to list books")
 		return
 	}
 

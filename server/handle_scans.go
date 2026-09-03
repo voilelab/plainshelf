@@ -85,7 +85,7 @@ func (h *shelfHandlers) rescanShelf(w http.ResponseWriter, r *http.Request) {
 			Message:           "too many rescans; this shelf walks on request only so often, please retry shortly",
 		})
 	case err != nil:
-		h.writeErr(w, err, "failed to rescan shelf")
+		h.writeErr(w, r, err, "failed to rescan shelf")
 	default:
 		h.Info("rescanned shelf", "shelf_id", shelfData.ID, "scan_id", result.ID, "books", result.BookCount, "folders", result.FolderCount)
 		h.writeJSON(w, http.StatusOK, ScanResponse{

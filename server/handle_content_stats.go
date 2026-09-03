@@ -12,11 +12,11 @@ func (h *batchHandlers) refreshContentStats(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	if h.rejectReadOnlyShelf(w, shelfData) {
+	if h.rejectReadOnlyShelf(w, r, shelfData) {
 		return
 	}
 
-	h.submitTaskChain(w,
-		task.NewRefreshContentStatsChain(shelfData.ID, shelfData.Shelf, h.Logger),
+	h.submitTaskChain(w, r,
+		task.NewRefreshContentStatsChain(shelfData.ID, shelfData.Shelf, h.requestLogger(r)),
 		"failed to schedule content stats refresh task")
 }

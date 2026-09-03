@@ -148,7 +148,8 @@ func TestWriteErrSendsRetryAfterHeader(t *testing.T) {
 	app := newTestApp(t)
 
 	rec := httptest.NewRecorder()
-	app.handlers.core.writeErr(rec, util.Errorf("%w", shelf.ErrShelfLockTimeout), "failed to restore trashed book")
+	app.handlers.core.writeErr(rec, httptest.NewRequest(http.MethodPost, "/api/shelves/s/trash", nil),
+		util.Errorf("%w", shelf.ErrShelfLockTimeout), "failed to restore trashed book")
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusServiceUnavailable)
@@ -171,7 +172,8 @@ func TestWriteErrHidesUnknownErrorBehindFallback(t *testing.T) {
 	app := newTestApp(t)
 
 	rec := httptest.NewRecorder()
-	app.handlers.core.writeErr(rec, errors.New("disk offline at /srv/secret-mount"), "failed to restore trashed book")
+	app.handlers.core.writeErr(rec, httptest.NewRequest(http.MethodPost, "/api/shelves/s/trash", nil),
+		errors.New("disk offline at /srv/secret-mount"), "failed to restore trashed book")
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
@@ -327,7 +329,8 @@ func TestWriteErrStatusSeparatesUnknownFromInternal(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			app.handlers.core.writeErrStatus(rec, errors.New("unnamed"), "fallback", tt.status)
+			app.handlers.core.writeErrStatus(rec, httptest.NewRequest(http.MethodGet, "/api/meta", nil),
+				errors.New("unnamed"), "fallback", tt.status)
 
 			if rec.Code != tt.status {
 				t.Fatalf("status = %d, want %d", rec.Code, tt.status)
@@ -345,7 +348,8 @@ func TestWriteErrBodyShape(t *testing.T) {
 	app := newTestApp(t)
 
 	rec := httptest.NewRecorder()
-	app.handlers.core.writeErr(rec, util.Errorf("%w", shelf.ErrBookNotFound), "unused")
+	app.handlers.core.writeErr(rec, httptest.NewRequest(http.MethodGet, "/api/meta", nil),
+		util.Errorf("%w", shelf.ErrBookNotFound), "unused")
 
 	if got := rec.Header().Get("Content-Type"); got != "application/json; charset=utf-8" {
 		t.Fatalf("Content-Type = %q, want the JSON content type", got)
@@ -359,13 +363,15 @@ func TestWriteErrBodyShape(t *testing.T) {
 		t.Fatalf("top-level keys = %v, want only \"error\"", slices.Sorted(maps.Keys(raw)))
 	}
 
-	// incident is omitted until PSW-104 fills it, so a client must not be
-	// written against an empty string being present.
+	// A request that never passed through the middleware has no ID to quote,
+	// and the envelope omits the field rather than sending an empty string a
+	// client would have to special-case. The desktop client reaches handlers
+	// that way.
 	var detail map[string]any
 	if err := json.Unmarshal(raw["error"], &detail); err != nil {
 		t.Fatalf("decode error object: %v", err)
 	}
 	if _, present := detail["incident"]; present {
-		t.Errorf("incident is present but nothing sets it yet: %v", detail)
+		t.Errorf("incident is present for a request that carries no ID: %v", detail)
 	}
 }

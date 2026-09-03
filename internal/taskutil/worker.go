@@ -79,6 +79,11 @@ type TaskChain struct {
 	// check.
 	Key string
 
+	// RequestID is the ID of the request that queued this chain, so a failure
+	// the user only sees minutes later still leads back to the operation that
+	// started it. A chain started without a request leaves it empty.
+	RequestID string
+
 	Name        string
 	Title       string
 	Description string
@@ -256,7 +261,7 @@ func (w *Worker) work() {
 			err := task.Run(ctx)
 			w.logger.Info("Worker finished task", "task", task.Name())
 			if err != nil {
-				w.logger.Error("task failed", "task", task.Name(), "error", err)
+				w.logger.Error("task failed", "request_id", chain.RequestID, "task", task.Name(), "error", err)
 				break
 			}
 		}

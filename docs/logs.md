@@ -16,6 +16,26 @@ leave a file far larger than a browser can render at once. When the page is
 showing only part of a file it says so above the content, and **Load more**
 reaches further back.
 
+## Reporting a problem
+
+Every response the server sends carries a request number in the `X-Request-Id`
+header, and every error it answers with repeats that number in the response
+body as `incident`. It is eight characters long and deliberately avoids the
+characters people mix up when reading a number aloud — no `0`, `O`, `1`, `I` or
+`L` appears in one.
+
+Include that number in a bug report. Searching a log file for it finds the line
+for that request, and for a failure the server did not expect that line also
+carries the route, the shelf, and the underlying error the response itself
+withholds. Background work — a batch move, emptying the trash, fingerprinting —
+is logged under the number of the request that started it, so one number covers
+the whole operation.
+
+The number is currently visible in the response rather than on screen; reading
+it takes the browser's developer tools, or `curl -i` against the API. Numbers
+are also only useful while the log that holds them still exists, so report a
+problem before the retention window below expires, or copy the log file aside.
+
 ## Retention
 
 Rotated log files are deleted once they are older than the retention window.

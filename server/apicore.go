@@ -25,6 +25,14 @@ type apiCore struct {
 	security *Security
 }
 
+// requestLogger returns a logger that stamps the request's ID on every line it
+// writes. It is for work that outlives the response: a background chain keeps
+// logging long after the 202 that gave the user their number, and without this
+// those lines are the ones a report cannot reach.
+func (c *apiCore) requestLogger(r *http.Request) *logutil.Logger {
+	return c.With("request_id", logutil.RequestIDFrom(r.Context()))
+}
+
 func (c *apiCore) resolveShelf(w http.ResponseWriter, r *http.Request) (*shelf.ShelfData, bool) {
 	shelfID, err := readShelfID(r)
 	if err != nil {
@@ -49,19 +57,19 @@ func (c *apiCore) resolveShelf(w http.ResponseWriter, r *http.Request) (*shelf.S
 // This is for the endpoints that queue a background chain instead, which would
 // otherwise answer 202 and let the caller discover the refusal in a task
 // report - or not at all.
-func (c *apiCore) rejectReadOnlyShelf(w http.ResponseWriter, shelfData *shelf.ShelfData) bool {
+func (c *apiCore) rejectReadOnlyShelf(w http.ResponseWriter, r *http.Request, shelfData *shelf.ShelfData) bool {
 	if !shelfData.ReadOnly() {
 		return false
 	}
 
-	c.writeErr(w, fsutil.ErrReadOnly, "shelf is read-only")
+	c.writeErr(w, r, fsutil.ErrReadOnly, "shelf is read-only")
 	return true
 }
 
-func (c *apiCore) lookupBook(w http.ResponseWriter, shelfData *shelf.ShelfData, bookID string) (*shelf.Book, bool) {
+func (c *apiCore) lookupBook(w http.ResponseWriter, r *http.Request, shelfData *shelf.ShelfData, bookID string) (*shelf.Book, bool) {
 	book, err := shelfData.GetBook(bookID)
 	if err != nil {
-		c.writeErr(w, err, "failed to get book")
+		c.writeErr(w, r, err, "failed to get book")
 		return nil, false
 	}
 
@@ -71,20 +79,20 @@ func (c *apiCore) lookupBook(w http.ResponseWriter, shelfData *shelf.ShelfData, 
 // lookupBookListing is lookupBook for a handler that also needs the book's
 // folder, which the book itself no longer carries. It writes the same error
 // response on failure.
-func (c *apiCore) lookupBookListing(w http.ResponseWriter, shelfData *shelf.ShelfData, bookID string) (shelf.BookListing, bool) {
+func (c *apiCore) lookupBookListing(w http.ResponseWriter, r *http.Request, shelfData *shelf.ShelfData, bookID string) (shelf.BookListing, bool) {
 	listing, err := shelfData.GetBookListing(bookID)
 	if err != nil {
-		c.writeErr(w, err, "failed to get book")
+		c.writeErr(w, r, err, "failed to get book")
 		return shelf.BookListing{}, false
 	}
 
 	return listing, true
 }
 
-func (c *apiCore) lookupSource(w http.ResponseWriter, book *shelf.Book, sourceID string) (*shelf.Source, bool) {
+func (c *apiCore) lookupSource(w http.ResponseWriter, r *http.Request, book *shelf.Book, sourceID string) (*shelf.Source, bool) {
 	source, err := book.GetSource(sourceID)
 	if err != nil {
-		c.writeErr(w, err, "failed to get book source")
+		c.writeErr(w, r, err, "failed to get book source")
 		return nil, false
 	}
 
@@ -102,7 +110,7 @@ func (c *apiCore) loadBook(w http.ResponseWriter, r *http.Request) (*shelf.Shelf
 		return nil, nil, false
 	}
 
-	book, ok := c.lookupBook(w, shelfData, bookID)
+	book, ok := c.lookupBook(w, r, shelfData, bookID)
 	if !ok {
 		return nil, nil, false
 	}
@@ -122,7 +130,7 @@ func (c *apiCore) loadBookListing(w http.ResponseWriter, r *http.Request) (*shel
 		return nil, shelf.BookListing{}, false
 	}
 
-	listing, ok := c.lookupBookListing(w, shelfData, bookID)
+	listing, ok := c.lookupBookListing(w, r, shelfData, bookID)
 	if !ok {
 		return nil, shelf.BookListing{}, false
 	}
@@ -146,12 +154,12 @@ func (c *apiCore) loadBookSource(w http.ResponseWriter, r *http.Request) (*shelf
 		return nil, nil, nil, false
 	}
 
-	book, ok := c.lookupBook(w, shelfData, bookID)
+	book, ok := c.lookupBook(w, r, shelfData, bookID)
 	if !ok {
 		return nil, nil, nil, false
 	}
 
-	source, ok := c.lookupSource(w, book, sourceID)
+	source, ok := c.lookupSource(w, r, book, sourceID)
 	if !ok {
 		return nil, nil, nil, false
 	}
