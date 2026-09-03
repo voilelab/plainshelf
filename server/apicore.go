@@ -1,12 +1,13 @@
 package server
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"io"
 	"io/fs"
 	"net/http"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -189,16 +190,25 @@ func (c *apiCore) streamTextFile(w http.ResponseWriter, file fs.File, failureMsg
 //
 // The value is marshalled before any header is written so an encoding failure
 // can still be reported as 500; once the body is on the wire a write failure
-// can only be logged.
+// can only be logged. That is also why this is json.Marshal rather than
+// json.MarshalWrite: writing straight to w would commit a 200 before the
+// encoder had a chance to fail.
+//
+// Every array-valued response field reaches the client as [] rather than null,
+// because jsonopt.API() takes json/v2's default for a nil slice or map. That is
+// a contract, not an implementation detail - see the never-null assertions in
+// server/contract.
 func (c *apiCore) writeJSON(w http.ResponseWriter, status int, v any) {
-	bs, err := json.Marshal(v)
+	bs, err := json.Marshal(v, jsonopt.API())
 	if err != nil {
 		c.Error("failed to encode response", "error", err)
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
 
-	// json.Encoder.Encode terminates each value with a newline.
+	// Kept from the json.Encoder.Encode this replaced, which terminated each
+	// value with a newline. json.MarshalWrite does not, and changing the bytes
+	// of every response body is not what this conversion is for.
 	bs = append(bs, '\n')
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

@@ -1,7 +1,8 @@
 package server
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"maps"
 	"net/http"
@@ -355,7 +356,7 @@ func TestWriteErrBodyShape(t *testing.T) {
 		t.Fatalf("Content-Type = %q, want the JSON content type", got)
 	}
 
-	var raw map[string]json.RawMessage
+	var raw map[string]jsontext.Value
 	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
 		t.Fatalf("decode %q: %v", rec.Body.String(), err)
 	}

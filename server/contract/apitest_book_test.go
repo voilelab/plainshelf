@@ -2,7 +2,7 @@ package contract_test
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"maps"
@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -232,7 +233,7 @@ func bumpBookSchemaVersion(t *testing.T, env *apiTestEnv, bookID string, extra m
 	meta["schema_version"] = shelf.BookMetaSchemaVersion + 1
 	maps.Copy(meta, extra)
 
-	bumped, err := json.MarshalIndent(meta, "", "  ")
+	bumped, err := json.Marshal(meta, jsonopt.Disk())
 	if err != nil {
 		t.Fatalf("marshal book.json: %v", err)
 	}

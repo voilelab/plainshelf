@@ -110,7 +110,7 @@ wrote and a v2 build reads.
 | v2 default | Effect here | Decision |
 |---|---|---|
 | Map entries in unspecified order | Defeats the three "unchanged, do not rewrite" checks above | **Override.** `Deterministic(true)` in all three sets |
-| `nil` slice and map encode as `[]` and `{}` | Settles the `"authors": null` question PSW-35 left open; a dozen or so API fields stop returning `null`. The Android pCloud reader already accepts both | **Adopt** (PSW-97, PSW-98) |
+| `nil` slice and map encode as `[]` and `{}` | Settles the `"authors": null` question PSW-35 left open; a dozen or so API fields stop returning `null`. The Android pCloud reader already accepts both | **Adopt** (PSW-97, PSW-98). See [the API's array contract](#the-apis-array-contract) |
 | `<`, `>`, `&` are not escaped | Only golden fixtures change. An escape sequence in a file whose selling point is that a text editor shows what you typed is a defect | **Adopt** (PSW-97) |
 | Object names match case-sensitively | A hand-edited `"Title"` stops being read, and `setMeta` rewrites the file whole, so the next save drops it. The unknown-member passthrough PSW-93 wants is what turns that into a preserved field | **Adopt** (PSW-97); reporting and passthrough are PSW-99's |
 | Duplicate object members rejected | Pure gain for a hand-editable format, provided the error names the file and the member | **Adopt** (PSW-97); naming the file and member is PSW-99's |
@@ -125,6 +125,37 @@ Not done, deliberately:
 - `jsontext` streaming decode for large `book-cache-*.json` files, and
   rewriting `util.JSONTime`/`JSONDate` as `MarshalerTo`/`UnmarshalerFrom`.
   Both are real, neither is urgent; open a ticket when there is a measurement.
+
+---
+
+## The API's array contract
+
+Every HTTP response body is marshalled by one of two writers — `writeJSON` in
+`server/apicore.go` and `writeJSON` in `reader/readerapi/api.go` — and both go
+through `jsonopt.API()`. An array-valued field therefore reaches the client as
+`[]` when it is empty, and never as `null`. A client can index it without a
+`?? []` guard of its own.
+
+The desktop client is outside this: its Wails bindings return Go values that
+Wails serializes with its own encoder, which this repository does not configure.
+
+The exception is `omitempty`, which v2 defines as "would encode as null, empty
+string, empty object or empty array": a field carrying it is *absent* when
+empty rather than `[]`, so the guard is still needed there. Which fields carry
+it is the whole of the difference:
+
+| Field | Empty value on the wire |
+|---|---|
+| `authors`, `folder`, `succeeded_ids`, `failures`, `tasks`, `conflicting_book_ids` | `[]` |
+| `tags`, `identifiers`, and the trash listing's `authors` and `original_folder` | absent |
+
+`server/contract` pins both halves — `assertJSONArray` for the first row and
+`TestAPIOmitEmptyMetaFieldsStayOmittedContract` for the second — because the
+difference is invisible in Go, where a nil and an empty slice decode alike.
+
+Request decoding is unaffected: a `*[]string` field left nil by an absent member
+is also left nil by an explicit `null`, in v1 and v2 alike. Clearing a list
+through PATCH is spelled `[]`, and `null` means "leave this alone".
 
 ---
 
@@ -143,8 +174,5 @@ fails that path's case and no other.
 
 ## Left for the conversion tickets
 
-- `.golangci.yml` excludes `(*encoding/json.Encoder).Encode` from `errcheck`.
-  The v2 equivalent is `json.MarshalWrite`, whose error should be handled rather
-  than excluded; drop the exclusion when the last `Encoder` goes.
 - The `json:"…"` struct tags need no edits. v2 reads the same tag syntax,
   including `omitempty` and `omitzero`.

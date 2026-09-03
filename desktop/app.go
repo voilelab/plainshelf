@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"io/fs"
 	"log"
@@ -192,7 +192,7 @@ func writeDeviceDocument(path, label, doc string) error {
 	if len(doc) > maxDeviceDocumentBytes {
 		return util.Errorf("%s document is too large: %d bytes", label, len(doc))
 	}
-	if !json.Valid([]byte(doc)) {
+	if !jsontext.Value(doc).IsValid() {
 		return util.Errorf("%s document is not valid JSON", label)
 	}
 

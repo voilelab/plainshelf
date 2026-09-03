@@ -99,11 +99,33 @@ export class FolderTransferConflictError extends Error {
   }
 }
 
+// The 409 body a pre-flight refusal answers with. conflicting_book_ids carries
+// no omitempty, so a folder conflict - which collides on no book at all - still
+// sends it, as []. The list is never null and never absent.
 interface FolderTransferConflictBody {
-  error?: string;
+  error: FolderTransferConflictKind;
   message?: string;
-  conflicting_book_ids?: string[];
+  conflicting_book_ids: string[];
+}
+
+// The endpoint's other 409: a transfer is already running, and the client should
+// attach to that chain rather than report a conflict.
+interface FolderTransferBusyBody {
   taskchain_id?: string;
+}
+
+type FolderTransfer409Body = Partial<FolderTransferConflictBody> & FolderTransferBusyBody;
+
+// The body reaches us as an arbitrary string, so the shape is checked rather
+// than asserted. Once it passes, conflicting_book_ids is a list and the caller
+// needs no fallback of its own.
+function isFolderTransferConflict(
+  body: FolderTransfer409Body
+): body is FolderTransferConflictBody {
+  return (
+    (body.error === 'target_folder_conflict' || body.error === 'book_id_conflict') &&
+    Array.isArray(body.conflicting_book_ids)
+  );
 }
 
 /**
@@ -153,11 +175,11 @@ export async function transferFolder(
       if (conflict?.taskchain_id) {
         return conflict.taskchain_id;
       }
-      if (conflict?.error === 'target_folder_conflict' || conflict?.error === 'book_id_conflict') {
+      if (conflict && isFolderTransferConflict(conflict)) {
         throw new FolderTransferConflictError(
           conflict.error,
           conflict.message || err.message,
-          conflict.conflicting_book_ids ?? []
+          conflict.conflicting_book_ids
         );
       }
     }
@@ -165,9 +187,9 @@ export async function transferFolder(
   }
 }
 
-function parseFolderTransferConflict(body: string): FolderTransferConflictBody | null {
+function parseFolderTransferConflict(body: string): FolderTransfer409Body | null {
   try {
-    const parsed = JSON.parse(body) as FolderTransferConflictBody;
+    const parsed = JSON.parse(body) as FolderTransfer409Body;
     return parsed && typeof parsed === 'object' ? parsed : null;
   } catch {
     // A plain-text 409 (a read-only shelf) is not a conflict body; let the caller

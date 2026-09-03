@@ -2,13 +2,14 @@ package contract_test
 
 import (
 	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/server"
 	"github.com/voilelab/plainshelf/shelf"
 )
@@ -134,7 +135,7 @@ func bumpTrashSchemaVersion(t *testing.T, env *apiTestEnv, bookID string) (metaP
 	meta["schema_version"] = shelf.TrashMetaSchemaVersion + 1
 	meta["restore_note"] = "written by a newer build"
 
-	bumped, err := json.MarshalIndent(meta, "", "  ")
+	bumped, err := json.Marshal(meta, jsonopt.Disk())
 	if err != nil {
 		t.Fatalf("marshal trash.json: %v", err)
 	}
