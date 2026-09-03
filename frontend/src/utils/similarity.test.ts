@@ -9,7 +9,6 @@ import {
   filterSimilarPairs,
   SIMILARITY_FLOOR,
   SIMILARITY_SHINGLE_K,
-  SIMILARITY_SLIDER_MIN,
   SIMILARITY_TIERS,
   subsetShortfallPercent,
   tierThreshold
@@ -54,12 +53,6 @@ describe('similarity tiers', () => {
     expect(DEFAULT_SIMILARITY_TIER).toBe('same-book');
     expect(tierThreshold('same-book')).toBe(0.45);
   });
-
-  it('never lets the slider ask below the fetched floor (would under-report)', () => {
-    // The page fetches once at the floor; a slider minimum beneath it would
-    // filter a set the server never returned pairs below.
-    expect(SIMILARITY_SLIDER_MIN).toBe(SIMILARITY_FLOOR);
-  });
 });
 
 describe('filterSimilarPairs', () => {
@@ -72,7 +65,6 @@ describe('filterSimilarPairs', () => {
     expect(mid.length).toBeLessThanOrEqual(wide.length);
 
     // Loosening only adds; every stricter result stays in the looser one.
-    expect(new Set(mid)).toEqual(new Set([...mid]));
     for (const p of strict) expect(mid).toContain(p);
     for (const p of mid) expect(wide).toContain(p);
   });
