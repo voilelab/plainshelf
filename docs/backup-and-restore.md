@@ -230,10 +230,14 @@ Use `cp -a` or `rsync` when you want a backup with none of these caveats.
 
 ### Restoring a shelf
 
-1. **Stop the server or desktop app.** The shelf lock is not a substitute for
-   stopping the process, and the application store cannot be opened by two
-   processes at once — see [When a restore
-   fails](#when-a-restore-fails-to-start).
+1. **Stop the server or desktop app, and confirm it is stopped.** Neither lock
+   protects you here: both the shelf lock and the store's own lock are held on
+   an open file, so moving a directory aside in step 2 takes the lock away with
+   it. A process you left running keeps resolving `lib_root` by path, which is
+   now the directory you just restored — so it writes into your restored data
+   while a second process does too, with nothing excluding either. See [When a
+   restore fails to start](#when-a-restore-fails-to-start) for the case where
+   the lock does catch you.
 2. **Move the current directories aside rather than deleting them.** If the
    restore turns out to be the wrong backup, you still have what you had.
 3. **Restore the shelf directory, and the application store if you backed it
@@ -310,8 +314,8 @@ only on the device that recorded it:
 
 ### When a restore fails to start
 
-If the old process is still running, the new one refuses to start rather than
-opening the store twice:
+Restoring **in place**, over a store directory a running process still holds,
+fails like this:
 
 ```text
 Error starting plainshelf-srv: … store.New: Cannot acquire directory lock on
@@ -320,6 +324,14 @@ Error starting plainshelf-srv: … store.New: Cannot acquire directory lock on
 
 That is the correct behavior, not a corrupted backup. Stop the other process —
 including a container you thought you had stopped — and start again.
+
+!!! danger "The lock does not catch the move-aside case"
+    Both locks are held on an open file. If you followed the steps above and
+    moved the current directories aside, the running process's locks went with
+    the moved inodes, the restored directories get fresh unlocked ones, and the
+    second process starts normally. You then have two writers on your restored
+    data and no error anywhere. A successful start is not evidence that nothing
+    else is running: check for it before you restore, not after.
 
 ### Verifying a backup before you rely on it
 
@@ -388,9 +400,17 @@ To go back to an older release:
 4. Start the older release.
 
 Restoring is required, not optional: downgrading the binary alone leaves the
-newer on-disk data in place, and the older build will refuse to write it. If
-only one or two books were touched, restoring just those books' folders from the
-backup is enough.
+newer on-disk data in place, and the older build will refuse to write it.
+
+Restore the whole shelf, not the books you think were touched. An upgrade
+changes more than book files: simply opening a shelf with a build newer than the
+`trash/` rename migrates a legacy `.trash/` to `trash/`, and a build that
+predates the rename then shows an empty trash — every deleted book still on
+disk, invisible. Caches under `app/` and the settings in the store can move the
+same way. Restoring a single book's folder is only for the narrow case in
+[When PlainShelf refuses to
+write](concepts/data-format-versioning.md#when-plainshelf-refuses-to-write):
+staying on the newer release and recovering one book it will not touch.
 
 See [When PlainShelf refuses to
 write](concepts/data-format-versioning.md#when-plainshelf-refuses-to-write) for
