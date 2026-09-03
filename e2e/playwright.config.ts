@@ -23,17 +23,30 @@ const BROWSER_DEVICES = {
 // Default to chromium so the pull request gate and a local `npm test` are
 // unchanged and need no extra browser download; `nightly.yml` opts into the
 // wider matrix. An unknown name throws rather than silently running nothing.
+type BrowserName = keyof typeof BROWSER_DEVICES;
+
+// `Object.keys`, not `name in BROWSER_DEVICES`: `in` walks the prototype, so
+// `E2E_BROWSERS=constructor` would pass the check and then spread a project
+// with no browser in it — which Playwright runs as chromium, silently.
+const BROWSER_NAMES = Object.keys(BROWSER_DEVICES) as BrowserName[];
+
 const requestedBrowsers = (process.env.E2E_BROWSERS ?? 'chromium')
   .split(',')
   .map((name) => name.trim())
-  .filter(Boolean);
+  .filter(Boolean)
+  .map((name) => {
+    if (!BROWSER_NAMES.includes(name as BrowserName)) {
+      throw new Error(
+        `E2E_BROWSERS: unknown browser "${name}"; expected one of ${BROWSER_NAMES.join(', ')}`
+      );
+    }
+    return name as BrowserName;
+  });
 
-for (const name of requestedBrowsers) {
-  if (!(name in BROWSER_DEVICES)) {
-    throw new Error(
-      `E2E_BROWSERS: unknown browser "${name}"; expected one of ${Object.keys(BROWSER_DEVICES).join(', ')}`
-    );
-  }
+// `?? 'chromium'` covers an unset variable, not an empty or comma-only one:
+// that would leave zero projects, and a run of zero tests exits 0.
+if (requestedBrowsers.length === 0) {
+  throw new Error(`E2E_BROWSERS: no browser selected; expected one of ${BROWSER_NAMES.join(', ')}`);
 }
 
 export default defineConfig({
@@ -64,6 +77,6 @@ export default defineConfig({
   },
   projects: requestedBrowsers.map((name) => ({
     name,
-    use: { ...BROWSER_DEVICES[name as keyof typeof BROWSER_DEVICES] }
+    use: { ...BROWSER_DEVICES[name] }
   }))
 });
