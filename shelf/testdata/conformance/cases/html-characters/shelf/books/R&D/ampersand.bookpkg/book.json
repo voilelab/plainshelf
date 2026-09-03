@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "h7m2ce4kq9xa3vbn",
+  "title": "Tom & Jerry <unabridged>",
+  "format": "txt",
+  "tags": [
+    "a&b",
+    "<draft>"
+  ],
+  "cover": "",
+  "authors": [
+    "Ampersand & Co.",
+    "\"Anonymous\" <unknown>"
+  ],
+  "language": "en",
+  "comments": "a > b && b < c",
+  "star": 3,
+  "created_at": "2026-04-01T12:00:00Z",
+  "current_source": "20260401-120000"
+}

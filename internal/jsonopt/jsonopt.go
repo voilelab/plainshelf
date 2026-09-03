@@ -1,6 +1,6 @@
-// Package jsonopt holds the encoding/json/v2 option sets PlainShelf marshals
-// with, so one decision covers every writer instead of each call site
-// remembering the same three options.
+// Package jsonopt holds the encoding/json/v2 option sets PlainShelf encodes and
+// decodes with, so one decision covers every call site instead of each one
+// remembering the same options.
 //
 // The option that motivated the package is [json.Deterministic]. v2 marshals
 // map entries in unspecified order, while v1 always sorted them, and two
@@ -10,11 +10,12 @@
 // the option costs no compile error and no test failure — only a pointless
 // upload on every scan for a shelf held on pCloud or SMB.
 //
-// Everything else here is a deliberate non-decision: the sets add nothing but
-// determinism and indentation, so the remaining v2 defaults (empty slices and
-// maps as [] and {}, no HTML escaping, duplicate object names and invalid UTF-8
-// rejected) apply as they are. docs/development/json-encoding.md records why
-// each one is accepted.
+// Everything else on the write side is a deliberate non-decision: those sets
+// add nothing but determinism and indentation, so the remaining v2 defaults
+// (empty slices and maps as [] and {}, no HTML escaping) apply as they are.
+// [Read] is the exception, and overrides in the opposite direction: it holds
+// the decoder at v1's tolerance until the shelf can afford to tighten it.
+// docs/development/json-encoding.md records why each default is accepted.
 package jsonopt
 
 import (
@@ -41,6 +42,12 @@ var (
 	api = jsonv2.JoinOptions(
 		jsonv2.Deterministic(true),
 	)
+
+	read = jsonv2.JoinOptions(
+		jsonv2.MatchCaseInsensitiveNames(true),
+		jsontext.AllowDuplicateNames(true),
+		jsontext.AllowInvalidUTF8(true),
+	)
 )
 
 // Disk returns the options for a file a human is meant to be able to open and
@@ -59,3 +66,15 @@ func DiskCompact() jsonv2.Options { return diskCompact }
 // to keep them small, and deterministic so that a body is worth comparing —
 // in a contract test, in a diff between two builds, or behind an ETag.
 func API() jsonv2.Options { return api }
+
+// Read returns the options for decoding a file that is already on disk. Unlike
+// the write sets it exists to *refuse* v2 defaults: v1 matched member names
+// case-insensitively, kept the last of a duplicate pair and replaced invalid
+// UTF-8, and a shelf written by any build up to now may hold all three.
+//
+// Adopting the strict defaults here is not a formatting change like the ones on
+// the write side, because a member this build fails to match is a member the
+// next whole-file write drops — a hand-edited "Title" would be read as absent
+// and then deleted. PSW-99 makes that decision once unknown members survive a
+// write; until then the reader stays where it was.
+func Read() jsonv2.Options { return read }

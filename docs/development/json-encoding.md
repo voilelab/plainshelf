@@ -29,14 +29,15 @@ takes the new defaults as it goes.
 
 ## The option sets
 
-Every marshal goes through `internal/jsonopt`. It exports three sets, all
-carrying `json.Deterministic(true)`:
+Every marshal goes through `internal/jsonopt`. It exports three write sets, all
+carrying `json.Deterministic(true)`, and one read set:
 
 | Set | Output | Use it for |
 |---|---|---|
 | `jsonopt.Disk()` | indented two spaces | files a reader can open and edit: `book.json`, a source's `meta.json`, trash metadata, the exported book cache |
 | `jsonopt.DiskCompact()` | one line | the machine-only files under `app/`: the fingerprint cache, the scan cache, stored reading progress |
 | `jsonopt.API()` | one line | HTTP response bodies |
+| `jsonopt.Read()` | — | decoding a file that is already on disk |
 
 All three modules — the root module, `desktop`, and `reader` — import it
 directly; `internal/` under the root module path is visible to both nested
@@ -63,6 +64,20 @@ re-upload per scan, forever, on someone else's machine.
 
 That is why the option lives in one package and why the assertions below exist.
 
+### Why the read set goes the other way
+
+`jsonopt.Read()` is the one set that *refuses* v2 defaults. v1 matched member
+names case-insensitively, kept the last of a duplicate pair and replaced invalid
+UTF-8; every shelf written so far may hold all three, so it carries
+`MatchCaseInsensitiveNames(true)`, `jsontext.AllowDuplicateNames(true)` and
+`jsontext.AllowInvalidUTF8(true)`.
+
+Adopting the strict defaults on the read side is not a formatting change like
+the ones on the write side. `setMeta` rewrites `book.json` whole, so a member
+this build fails to match is a member the next save deletes: a hand-edited
+`"Title"` would read as absent and then be gone. That decision is PSW-99's,
+after PSW-93 makes unknown members survive a write — see the table below.
+
 ---
 
 ## v1 → v2 API mapping
@@ -79,10 +94,10 @@ import (
 | `encoding/json` | `encoding/json/v2` |
 |---|---|
 | `json.Marshal(v)` | `json.Marshal(v, jsonopt.Disk())` — same name, options added |
-| `json.Unmarshal(b, &v)` | unchanged |
+| `json.Unmarshal(b, &v)` | `json.Unmarshal(b, &v, jsonopt.Read())` — same name, options added |
 | `json.MarshalIndent(v, "", "  ")` | `json.Marshal(v, jsonopt.Disk())`, which carries `jsontext.WithIndent("  ")` |
 | `json.NewEncoder(w).Encode(v)` | `json.MarshalWrite(w, v, jsonopt.API())` |
-| `json.NewDecoder(r).Decode(&v)` | `json.UnmarshalRead(r, &v)` |
+| `json.NewDecoder(r).Decode(&v)` | `json.UnmarshalRead(r, &v, jsonopt.Read())` |
 | `json.RawMessage` | `jsontext.Value` |
 | `json.Valid(b)` | `jsontext.Value(b).IsValid()` |
 | `decoder.DisallowUnknownFields()` | `json.RejectUnknownMembers(true)` as an option |
@@ -101,17 +116,19 @@ Two shape differences to expect while converting:
 
 ## v2 defaults: adopted or overridden
 
-`internal/jsonopt` sets determinism and indentation and nothing else, so every
-row below marked "adopt" is live simply by not being overridden.
+`internal/jsonopt`'s write sets carry determinism and indentation and nothing
+else, so every row below marked "adopt" is live on the write side simply by not
+being overridden. The three read-side rows are the exception: `jsonopt.Read()`
+overrides them back to v1 until PSW-99 takes the decision.
 
 | v2 default | Effect here | Decision |
 |---|---|---|
 | Map entries in unspecified order | Defeats the three "unchanged, do not rewrite" checks above | **Override.** `Deterministic(true)` in all three sets |
 | `nil` slice and map encode as `[]` and `{}` | Settles the `"authors": null` question PSW-35 left open; a dozen or so API fields stop returning `null`. The Android pCloud reader already accepts both | **Adopt** (PSW-97, PSW-98) |
 | `<`, `>`, `&` are not escaped | Only golden fixtures change. An escape sequence in a file whose selling point is that a text editor shows what you typed is a defect | **Adopt** (PSW-97) |
-| Object names match case-sensitively | A hand-edited `"Title"` stops being read, and the next write drops it. Only safe once unknown members are preserved rather than discarded | **Adopt, but coupled** — PSW-99, together with the `json:",unknown"` passthrough PSW-93 wants |
-| Duplicate object members rejected | Pure gain for a hand-editable format, provided the error names the file and the member | **Adopt** (PSW-99) |
-| Invalid UTF-8 rejected | Same | **Adopt** (PSW-99) |
+| Object names match case-sensitively | A hand-edited `"Title"` stops being read, and the next write drops it. Only safe once unknown members are preserved rather than discarded | **Adopt, but coupled** — PSW-99, together with the `json:",unknown"` passthrough PSW-93 wants. Held at v1 by `jsonopt.Read()` until then |
+| Duplicate object members rejected | Pure gain for a hand-editable format, provided the error names the file and the member | **Adopt** (PSW-99); `jsonopt.Read()` holds it at v1 meanwhile |
+| Invalid UTF-8 rejected | Same | **Adopt** (PSW-99); `jsonopt.Read()` holds it at v1 meanwhile |
 | `omitempty` means "would encode as null, empty string, empty object or empty array" | Every use is on a string, slice, map or pointer field; PSW-40 already moved the bool and int fields to `omitzero` | **Adopt.** No visible change |
 
 Not done, deliberately:

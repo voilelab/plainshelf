@@ -2,7 +2,7 @@ package bookpkg
 
 import (
 	"bytes"
-	"encoding/json"
+	json "encoding/json/v2"
 	"io"
 	"io/fs"
 	"path"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
 	"github.com/voilelab/plainshelf/internal/hashutil"
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/logutil"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf/internal/shelfutil"
@@ -239,7 +240,7 @@ func (r *Source) UpdateComment(comment string) error {
 func (r *Source) writebackMeta(root fsutil.FS) error {
 	metaFilePath := path.Join(r.folderPath, SourceMetaFile)
 
-	bs, err := json.MarshalIndent(r.meta, "", "  ")
+	bs, err := json.Marshal(r.meta, jsonopt.Disk())
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -261,9 +262,7 @@ func openSource(rt fsutil.ReadFS, sourcePath string) (*Source, error) {
 	defer metaFile.Close()
 
 	var meta SourceMeta
-	decoder := json.NewDecoder(metaFile)
-	err = decoder.Decode(&meta)
-	if err != nil {
+	if err := json.UnmarshalRead(metaFile, &meta, jsonopt.Read()); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 
@@ -333,7 +332,7 @@ func createSource(rt fsutil.FS, logger logutil.Logger, sourcePath, id string, so
 
 	metaFilePath := path.Join(sourcePath, SourceMetaFile)
 
-	bs, err := json.MarshalIndent(meta, "", "  ")
+	bs, err := json.Marshal(meta, jsonopt.Disk())
 	if err != nil {
 		return nil, util.Errorf("%w", err)
 	}

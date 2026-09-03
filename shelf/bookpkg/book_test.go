@@ -2,7 +2,7 @@ package bookpkg
 
 import (
 	"bytes"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -1664,5 +1664,129 @@ func TestResolveCurrentSourceWithUnsetPointer(t *testing.T) {
 	}
 	if resolved.ID() != source.ID() {
 		t.Errorf("Resolved source = %q, want %q", resolved.ID(), source.ID())
+	}
+}
+
+// TestCreateWritesEmptyAuthorsArray pins the encoder decision PSW-35 deferred:
+// a book with no authors carries "authors": [] on disk, not "authors": null.
+// The field is not omitempty — the shelf format keeps it present — so before
+// json/v2 the nil slice reached the file as null and every reader had to accept
+// two spellings of "nobody".
+func TestCreateWritesEmptyAuthorsArray(t *testing.T) {
+	bookID := "empty-authors-a38j"
+	_, _, tmpLib := newTestBook(t, bookID, "No Authors")
+
+	written, err := os.ReadFile(path.Join(tmpLib, bookID, BookMetaFile))
+	if err != nil {
+		t.Fatalf("Failed to read book.json: %v", err)
+	}
+	if !strings.Contains(string(written), `"authors": []`) {
+		t.Errorf("Expected an empty authors array in book.json, got:\n%s", written)
+	}
+	if strings.Contains(string(written), `"authors": null`) {
+		t.Errorf("book.json still writes a null authors field:\n%s", written)
+	}
+}
+
+// TestSetMetaWritesEmptyAuthorsArray is the same claim for the update path,
+// which marshals a BookMeta that has been through GetMeta rather than a fresh
+// one. GetMeta used to clone Authors with append precisely to keep the nil.
+func TestSetMetaWritesEmptyAuthorsArray(t *testing.T) {
+	bookID := "empty-authors-b91k"
+	book, _, tmpLib := newTestBook(t, bookID, "No Authors")
+
+	meta := book.GetMeta()
+	meta.Authors = nil
+	if err := book.SetMeta(meta); err != nil {
+		t.Fatalf("Failed to set meta: %v", err)
+	}
+
+	written, err := os.ReadFile(path.Join(tmpLib, bookID, BookMetaFile))
+	if err != nil {
+		t.Fatalf("Failed to read book.json: %v", err)
+	}
+	if !strings.Contains(string(written), `"authors": []`) {
+		t.Errorf("Expected an empty authors array in book.json, got:\n%s", written)
+	}
+}
+
+// TestSetMetaWritesHTMLCharactersLiterally covers the other visible half of the
+// json/v2 defaults. book.json's whole selling point is that a text editor shows
+// what you typed, and v1 wrote &, < and > as \u0026, \u003c and \u003e — legal
+// JSON, unreadable to the person the format is for.
+func TestSetMetaWritesHTMLCharactersLiterally(t *testing.T) {
+	const title = `Sense & Sensibility <annotated> "quoted"`
+
+	bookID := "html-chars-c47m"
+	book, rootFS, tmpLib := newTestBook(t, bookID, "Placeholder")
+
+	meta := book.GetMeta()
+	meta.Title = title
+	meta.Comments = "a > b && b < c"
+	if err := book.SetMeta(meta); err != nil {
+		t.Fatalf("Failed to set meta: %v", err)
+	}
+
+	written, err := os.ReadFile(path.Join(tmpLib, bookID, BookMetaFile))
+	if err != nil {
+		t.Fatalf("Failed to read book.json: %v", err)
+	}
+	for _, want := range []string{`"title": "Sense & Sensibility <annotated> \"quoted\""`, `"comments": "a > b && b < c"`} {
+		if !strings.Contains(string(written), want) {
+			t.Errorf("Expected %s in book.json, got:\n%s", want, written)
+		}
+	}
+	for _, escape := range []string{`\u0026`, `\u003c`, `\u003e`} {
+		if strings.Contains(string(written), escape) {
+			t.Errorf("book.json still escapes %s:\n%s", escape, written)
+		}
+	}
+
+	// The characters are only written literally if they also read back, which is
+	// the half a byte assertion cannot see.
+	reopened, err := Open(rootFS, newLoggerForTest(), bookID)
+	if err != nil {
+		t.Fatalf("Failed to reopen book: %v", err)
+	}
+	if got := reopened.GetMeta().Title; got != title {
+		t.Errorf("Title did not round-trip: got %q, want %q", got, title)
+	}
+}
+
+// TestReadBookMetaMatchesFieldNamesCaseInsensitively holds the read path where
+// v1 left it. json/v2 matches member names exactly by default, which would make
+// a hand-edited "Title" read as absent — and setMeta rewrites the whole file, so
+// the next save through the UI would delete it. Tightening this is PSW-99's
+// call, once unknown members survive a write.
+func TestReadBookMetaMatchesFieldNamesCaseInsensitively(t *testing.T) {
+	tmpLib := t.TempDir()
+	bookID := "hand-edited-d52p"
+	bookDir := path.Join(tmpLib, bookID)
+	if err := os.MkdirAll(bookDir, 0o755); err != nil {
+		t.Fatalf("Failed to create book dir: %v", err)
+	}
+
+	handEdited := `{
+  "schema_version": 1,
+  "id": "hand-edited-d52p",
+  "Title": "Hand Edited",
+  "authors": []
+}`
+	if err := os.WriteFile(path.Join(bookDir, BookMetaFile), []byte(handEdited), 0o644); err != nil {
+		t.Fatalf("Failed to write book.json: %v", err)
+	}
+
+	tmpRoot, err := os.OpenRoot(tmpLib)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	book, err := Open(fsutil.NewRootFS(tmpRoot), newLoggerForTest(), bookID)
+	if err != nil {
+		t.Fatalf("Failed to open hand-edited book: %v", err)
+	}
+	if got := book.GetMeta().Title; got != "Hand Edited" {
+		t.Errorf("Title read from a capitalized member: got %q, want %q", got, "Hand Edited")
 	}
 }

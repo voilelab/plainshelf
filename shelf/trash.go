@@ -2,7 +2,7 @@ package shelf
 
 import (
 	"cmp"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"os"
 	"path"
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 	"github.com/voilelab/plainshelf/internal/util"
 	"github.com/voilelab/plainshelf/shelf/bookpkg"
 )
@@ -345,7 +346,7 @@ func (s *Shelf) writeTrashMeta(root fsutil.FS, bookPath string, meta *trashMeta)
 	// cannot write a version this build does not itself produce.
 	meta.SchemaVersion = TrashMetaSchemaVersion
 
-	payload, err := json.MarshalIndent(meta, "", "  ")
+	payload, err := json.Marshal(meta, jsonopt.Disk())
 	if err != nil {
 		return util.Errorf("%w", err)
 	}
@@ -415,7 +416,7 @@ func (s *Shelf) readTrashMeta(bookPath string) (*trashMeta, error) {
 	defer fp.Close()
 
 	var meta trashMeta
-	if err := json.NewDecoder(fp).Decode(&meta); err != nil {
+	if err := json.UnmarshalRead(fp, &meta, jsonopt.Read()); err != nil {
 		return nil, util.Errorf("%w", err)
 	}
 

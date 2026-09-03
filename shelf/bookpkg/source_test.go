@@ -2,11 +2,12 @@ package bookpkg
 
 import (
 	"bytes"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"io"
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/voilelab/plainshelf/internal/fsutil"
@@ -356,4 +357,37 @@ func contentMD5(t *testing.T, source *Source) string {
 		t.Fatalf("MD5Hash: %v", err)
 	}
 	return sum
+}
+
+// A source's meta.json is written by the same encoder as book.json, and its
+// comment is free-form text a reader typed. json/v2 leaves &, < and > alone
+// where v1 wrote \u0026, \u003c and \u003e into a file whose point is that a
+// text editor shows what you typed.
+func TestCreateSourceWritesCommentLiterally(t *testing.T) {
+	const comment = `imported from "A & B" <draft>`
+
+	tmpDir := t.TempDir()
+	tmpRoot, err := os.OpenRoot(tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to open temporary root: %v", err)
+	}
+	defer tmpRoot.Close()
+
+	rootFS := fsutil.NewRootFS(tmpRoot)
+	source, err := createSource(rootFS, newLoggerForTest(), "commented-source", "20260315-a5",
+		bytes.NewBufferString("body"), BookFormatText, comment)
+	if err != nil {
+		t.Fatalf("Failed to create source: %v", err)
+	}
+
+	raw, err := os.ReadFile(path.Join(tmpDir, "commented-source", SourceMetaFile))
+	if err != nil {
+		t.Fatalf("Failed to read meta.json: %v", err)
+	}
+	if !strings.Contains(string(raw), `"comment": "imported from \"A & B\" <draft>"`) {
+		t.Errorf("meta.json does not carry the comment literally:\n%s", raw)
+	}
+	if got := source.GetMeta().Comment; got != comment {
+		t.Errorf("Comment did not round-trip: got %q, want %q", got, comment)
+	}
 }

@@ -2,7 +2,7 @@ package shelf
 
 import (
 	"cmp"
-	"encoding/json"
+	json "encoding/json/v2"
 	"errors"
 	"os"
 	"path"
@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/voilelab/plainshelf/internal/jsonopt"
 )
 
 /*
@@ -175,9 +177,7 @@ func decodeConformanceJSON(t *testing.T, filePath string, target any) {
 	}
 	defer file.Close() //nolint:errcheck // read-only fixture
 
-	decoder := json.NewDecoder(file)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
+	if err := json.UnmarshalRead(file, target, json.RejectUnknownMembers(true)); err != nil {
 		t.Fatalf("failed to decode %s: %v", filePath, err)
 	}
 }
@@ -222,7 +222,7 @@ func readOnDiskSchemaVersion(t *testing.T, s *Shelf, bookPath string) int {
 	var meta struct {
 		SchemaVersion int `json:"schema_version"`
 	}
-	if err := json.NewDecoder(file).Decode(&meta); err != nil {
+	if err := json.UnmarshalRead(file, &meta, jsonopt.Read()); err != nil {
 		t.Fatalf("decode book.json (%s): %v", bookPath, err)
 	}
 	return meta.SchemaVersion
@@ -431,7 +431,7 @@ func assertConformanceEqual(t *testing.T, expected, observed conformanceReading)
 func marshalConformance(t *testing.T, reading conformanceReading) string {
 	t.Helper()
 
-	data, err := json.MarshalIndent(reading, "", "  ")
+	data, err := json.Marshal(reading, jsonopt.Disk())
 	if err != nil {
 		t.Fatalf("failed to marshal a conformance reading: %v", err)
 	}

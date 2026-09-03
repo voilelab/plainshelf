@@ -28,22 +28,14 @@ import (
 var jsonV1Allowlist = map[string]string{
 	// PSW-97 — The shelf and its on-disk formats. Compatibility-sensitive: each
 	// package re-blesses its own fixtures.
-	"shelf/bookpkg/book.go":             "PSW-97",
-	"shelf/bookpkg/book_test.go":        "PSW-97",
-	"shelf/bookpkg/source.go":           "PSW-97",
-	"shelf/bookpkg/source_test.go":      "PSW-97",
-	"shelf/conformance_test.go":         "PSW-97",
 	"shelf/fingerprint/cache.go":        "PSW-97",
 	"shelf/fingerprint/cache_test.go":   "PSW-97",
 	"shelf/fingerprint/helpers_test.go": "PSW-97",
 	"shelf/scancache/cache.go":          "PSW-97",
 	"shelf/shelf_cache_export.go":       "PSW-97",
 	"shelf/shelf_cache_export_test.go":  "PSW-97",
-	"shelf/shelf_config.go":             "PSW-97",
 	"shelf/shelf_rescan_test.go":        "PSW-97",
 	"shelf/shelf_test.go":               "PSW-97",
-	"shelf/trash.go":                    "PSW-97",
-	"shelf/trash_test.go":               "PSW-97",
 
 	// PSW-98 — The HTTP surface of the server and the standalone reader.
 	"reader/app_test.go":                                  "PSW-98",
@@ -67,6 +59,10 @@ var jsonV1Allowlist = map[string]string{
 	"server/import_epub.go":                               "PSW-98",
 	"server/settings.go":                                  "PSW-98",
 	"server/spa.go":                                       "PSW-98",
+
+	// PSW-99 — Read-side strictness, which shelf.json's trailing-data check is
+	// entangled with.
+	"shelf/shelf_config.go": "PSW-99",
 
 	// PSW-100 — Everything the batches above do not reach.
 	"desktop/app.go":                       "PSW-100",
