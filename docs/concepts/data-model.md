@@ -367,10 +367,14 @@ The ID is a version 4 UUID, such as
 machine cannot collide with one another machine added to the same shared shelf,
 or one you copied in with a file manager, even though neither side can see the
 other's book yet. PlainShelf still checks the shelf and its trash for the drawn
-ID before using it, but that check is insurance, not the guarantee. Shelves
-written by earlier versions carry other forms — an 8-character hex ID, or a
-16-character word of `a`–`z` and `2`–`7` — and those keep working unchanged,
-side by side with the UUIDs; nothing is migrated.
+ID before using it, but that check is insurance, not the guarantee.
+
+Shelves written by earlier versions carry other forms: an 8-character hex ID,
+some with a `-1`-style suffix, derived from the folder path and title at creation
+time, or a 16-character word of `a`–`z` and `2`–`7`. Those are kept exactly as
+they are — nothing is renumbered, and old and new IDs work side by side in the
+same shelf. An ID that looks derived never was reproducible in practice, because
+it was only ever computed once; the random form makes that plain.
 
 Copying or moving a book to a **different shelf** applies the same principle from
 two directions. A **move** keeps the ID: it is the same book, now living on
@@ -383,13 +387,6 @@ that ID is refused rather than silently overwriting it. A **copy** does the
 opposite: the copy is a new, independent book, so it is minted a fresh ID drawn
 from the destination shelf and the original and the copy coexist — the same
 reason a copy made within one shelf gets a new ID.
-
-Shelves created by earlier versions hold 8-character hexadecimal IDs, some with
-a `-1`-style suffix, which were derived from the folder path and title at
-creation time. Those are kept exactly as they are — nothing is renumbered, and
-old and new IDs work side by side in the same shelf. An ID that looks derived
-never was reproducible in practice, because it was only ever computed once; the
-random form makes that plain.
 
 ---
 

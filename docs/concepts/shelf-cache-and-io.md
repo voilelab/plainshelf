@@ -150,28 +150,38 @@ default and the rest of the config file around it, see the
 
 ### `scan_interval`
 
-`scan_interval` controls how often PlainShelf performs a full on-disk scan of the shelf book tree.
-
-A shorter interval discovers externally added, moved, or deleted books and folders sooner, but performs more directory traversal and metadata reads. A longer interval reduces filesystem and network I/O, but external changes may appear later — and when they do, the rescan above is what you press instead of shortening the interval for the one time a year you need it.
-
-Example:
-
-```yaml
-app_conf:
-  shelves:
-    - id: default_shelf
-      name: Default Shelf
-      lib_root: /path/to/shelf
-      scan_interval: 10m
-```
+How stale a full on-disk scan of the book tree may get. A shorter interval
+discovers externally added, moved, or deleted books and folders sooner, at the
+cost of more directory traversal and metadata reads. A longer one cuts
+filesystem and network I/O and lets an outside change wait — and when it does,
+the rescan above is what you press, rather than shortening the interval for the
+one time a year you need it.
 
 ### `book_check_interval`
 
-`book_check_interval` controls how often PlainShelf checks cached books for metadata changes.
+The same trade on the cheaper tier: how long a cached book's `book.json` may go
+unstatted. Shorter notices an external edit to a book already in the cache
+sooner; longer spares the repeated per-book stats, which is what costs on a
+high-latency filesystem. Left unset it follows `scan_interval`.
 
-A shorter interval notices external edits to existing `book.json` files sooner. A longer interval reduces repeated per-book stat operations, which can matter on high-latency filesystems.
+### `scan_cache`
 
-Example:
+The folder-skipping behavior described above. Turn it off only for a mount whose
+directory modification times cannot be trusted: some cloud storage gateways do
+not update a directory's time when a child is added, and on such a mount a book
+copied in from outside would never be discovered. If new books appear only after
+you restart the server or delete `app/scan-cache.json`, this is the setting to
+try.
+
+### `book_cache_interval`
+
+How quickly a change reaches the exported book cache described below. It applies
+only to shelves that export one, and it is not how often the file is rewritten:
+an export whose content matches what was written last does not touch the disk,
+so a shelf nobody changes is never rewritten no matter how short the interval
+is.
+
+All four belong to the shelf entry:
 
 ```yaml
 app_conf:
@@ -181,38 +191,8 @@ app_conf:
       lib_root: /path/to/shelf
       scan_interval: 10m
       book_check_interval: 5m
-```
-
-If `book_check_interval` is omitted, it defaults to the same duration as `scan_interval`.
-
-### `scan_cache`
-
-`scan_cache` controls the folder-skipping behavior described above. It is `on` by default; set it to `off` to make every scan list every directory again.
-
-Turn it off only for a mount whose directory modification times cannot be trusted. Some cloud storage gateways do not update a directory's time when a child is added, and on such a mount a book copied in from outside would never be discovered. If new books appear only after you restart the server or delete `app/scan-cache.json`, this is the setting to try.
-
-```yaml
-app_conf:
-  shelves:
-    - id: default_shelf
-      name: Default Shelf
-      lib_root: /path/to/shelf
-      scan_cache: off
-```
-
-### `book_cache_interval`
-
-`book_cache_interval` bounds how quickly a change reaches the exported book cache described below. It defaults to one hour, and only applies to shelves that export one.
-
-It is not how often the file is rewritten: an export whose content matches what was written last does not touch the disk, so a shelf nobody changes is never rewritten no matter how short the interval is.
-
-```yaml
-app_conf:
-  shelves:
-    - id: default_shelf
-      name: Default Shelf
-      lib_root: /path/to/shelf
       book_cache_interval: 30m
+      scan_cache: off      # only for a mount with untrustworthy directory times
 ```
 
 ---
@@ -231,20 +211,7 @@ The main cost is seek latency from many small directory and metadata operations.
 
 Network filesystems are the most sensitive case. The expensive part is often the number of round trips for stat, directory, and small-file reads rather than the number of bytes transferred.
 
-For SMB/NAS shelves, prefer longer intervals such as:
-
-```yaml
-app_conf:
-  shelves:
-    - id: default_shelf
-      name: Default Shelf
-      lib_root: /mnt/plainshelf/default-shelf
-      scan_interval: 10m
-      book_check_interval: 5m
-      lock_timeout: 30s
-```
-
-If browsing is still slow, increase `book_check_interval` first. If external additions or moves do not need to appear immediately, increase `scan_interval` too.
+Prefer longer intervals here, and a finite `lock_timeout`; [Configure an SMB shelf file source](../configuring-smb-shelf.md#3-configure-lib_root) has the shelf entry to start from. If browsing is still slow, increase `book_check_interval` first. If external additions or moves do not need to appear immediately, increase `scan_interval` too.
 
 ---
 
